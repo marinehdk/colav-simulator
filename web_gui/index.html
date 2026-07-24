@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Colav-Simulator | 船舶 MPC 避碰航线规划控制台</title>
+  <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- ═══════════════════════════════════════════
+         HEADER
+    ═══════════════════════════════════════════ -->
+    <header class="app-header" role="banner">
+      <div class="brand">
+        <div class="logo-badge" aria-label="MPC">MPC</div>
+        <div class="brand-text">
+          <h1>Colav-Simulator Control Center</h1>
+          <p>Autonomous Ship COLAV &amp; MPC Route Planning Verification Console · NTNU SFI Autoship</p>
+        </div>
+      </div>
+      <div class="header-center">
+        <!-- Quick Scenario Tabs -->
+        <div class="quick-tabs" role="tablist" aria-label="快速场景切换">
+          <button id="tab-crossing"  class="qtab active" data-scenario="Crossing"      role="tab">⊕ Crossing</button>
+          <button id="tab-headon"    class="qtab"         data-scenario="Head-on"       role="tab">↕ Head-on</button>
+          <button id="tab-overtaking"class="qtab"         data-scenario="Overtaking"    role="tab">→ Overtaking</button>
+          <button id="tab-multi"     class="qtab"         data-scenario="Multi-Obstacle"role="tab">⊞ Multi</button>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="status-indicator" role="status" aria-live="polite">
+          <span class="dot pulse" id="status-dot"></span>
+          <span id="conn-status">Connecting…</span>
+        </div>
+        <div class="ecosystem-tags" aria-label="已加载生态库">
+          <span class="tag" title="Polygon Safety Buffer MPC">psbmpc</span>
+          <span class="tag" title="Rust RRT* planner">rrt-rs</span>
+          <span class="tag" title="RL + NMPC">rlmpc</span>
+          <span class="tag" title="Multi-target tracker">vimmjipda</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ═══════════════════════════════════════════
+         MAIN WORKSPACE
+    ═══════════════════════════════════════════ -->
+    <main class="main-workspace">
+
+      <!-- ── LEFT: Canvas Column ─────────────── -->
+      <div class="canvas-column">
+
+        <section class="canvas-panel glass-card" aria-label="电子海图仿真视口">
+          <!-- Canvas header -->
+          <div class="panel-header">
+            <h2><span class="icon" aria-hidden="true">🧭</span> 电子海图 ENC Live View
+              <span class="enc-status-badge" id="encStatusBadge">⏳ ENC Loading…</span>
+            </h2>
+            <div class="canvas-controls">
+              <button id="toggleENC" class="icon-btn" title="切换 ENC 海图图层 Toggle ENC Layer" aria-label="Toggle ENC Chart" aria-pressed="true">🗺</button>
+              <button id="zoomIn"  class="icon-btn" title="放大 Zoom In"  aria-label="Zoom In">＋</button>
+              <button id="zoomOut" class="icon-btn" title="缩小 Zoom Out" aria-label="Zoom Out">－</button>
+              <button id="zoomReset" class="icon-btn" title="复位 Reset View" aria-label="Reset View">⊙</button>
+            </div>
+          </div>
+
+          <!-- Legend -->
+          <div class="canvas-legend" role="list" aria-label="图例">
+            <span class="legend-item" role="listitem"><span class="color-box ownship"></span>本船 OS</span>
+            <span class="legend-item" role="listitem"><span class="color-box obstacle"></span>目标船 TS</span>
+            <span class="legend-item" role="listitem"><span class="color-box horizon"></span>MPC 预测时域</span>
+            <span class="legend-item" role="listitem"><span class="color-box waypoint"></span>计划航线</span>
+            <span class="legend-item" role="listitem"><span class="color-box safety"></span>安全域</span>
+            <span class="legend-item" role="listitem"><span class="color-box dcpa-line"></span>DCPA 连线</span>
+          </div>
+
+          <!-- Canvas Wrapper -->
+          <div class="canvas-wrapper" id="canvasWrapper">
+            <canvas id="simCanvas" aria-label="Ship collision avoidance simulation map"></canvas>
+            <!-- Overlay Info -->
+            <div class="canvas-overlay-info" aria-live="off">
+              <div><span class="ovl-label">Step</span><span class="ovl-val" id="val-step">0</span></div>
+              <div><span class="ovl-label">Time</span><span class="ovl-val" id="val-sim-time">0.0 s</span></div>
+              <div><span class="ovl-label">Algo</span><span class="ovl-val" id="val-algo-active">CustomMPC</span></div>
+            </div>
+            <!-- Compass Rose -->
+            <div class="compass-wrapper" title="Ownship Heading" aria-label="Compass">
+              <svg id="compassSvg" class="compass-svg" viewBox="0 0 80 80" aria-hidden="true">
+                <circle cx="40" cy="40" r="38" class="compass-ring"/>
+                <text x="40" y="12" class="compass-label" text-anchor="middle">N</text>
+                <text x="40" y="74" class="compass-label" text-anchor="middle">S</text>
+                <text x="10" y="44" class="compass-label" text-anchor="middle">W</text>
+                <text x="70" y="44" class="compass-label" text-anchor="middle">E</text>
+                <!-- Needle group, rotated via JS -->
+                <g id="compassNeedle" transform="rotate(0 40 40)">
+                  <polygon points="40,8 36,40 40,44 44,40" class="needle-north"/>
+                  <polygon points="40,44 36,40 40,72 44,40" class="needle-south"/>
+                </g>
+              </svg>
+              <div class="compass-deg" id="val-compass-deg">000°</div>
+            </div>
+            <!-- Scale bar -->
+            <div class="scale-bar" id="scaleBar">
+              <div class="scale-line" id="scaleBarLine"></div>
+              <span class="scale-label" id="scaleBarLabel">--- m</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Event Log Terminal (collapsible) -->
+        <section class="log-section glass-card" aria-label="仿真事件日志">
+          <div class="log-header" id="logToggle" role="button" aria-expanded="true" tabindex="0">
+            <span><span class="icon" aria-hidden="true">📟</span> 仿真事件日志 (Event Log)</span>
+            <span class="log-toggle-icon" id="logToggleIcon">▾</span>
+          </div>
+          <div class="log-terminal" id="logTerminal" aria-live="polite">
+            <div class="log-entry log-info">[00:00] System ready. Waiting for simulation start…</div>
+          </div>
+        </section>
+
+      </div><!-- /canvas-column -->
+
+      <!-- ── RIGHT: Sidebar Column ──────────── -->
+      <aside class="sidebar-column" aria-label="控制与遥测面板">
+
+        <!-- ─── CARD A: Simulation Control ─── -->
+        <div class="card glass-card" id="cardControl">
+          <h3 class="card-title"><span class="icon" aria-hidden="true">⚙️</span> 仿真与算法控制</h3>
+
+          <div class="control-group">
+            <label for="algoSelect">避碰规划算法 (Algorithm)</label>
+            <select id="algoSelect" class="custom-select">
+              <option value="CustomMPC" selected>🔬 自定义 MPC (User Custom MPC)</option>
+              <option value="PSBMPC">🔷 多边形缓冲区 MPC (PSB-MPC)</option>
+              <option value="RLMPC">🧠 强化学习 NMPC (RL-MPC / SAC)</option>
+              <option value="RRT-Star">🌿 RRT* 路径规划 (rrt-rs)</option>
+            </select>
+            <div id="algoStatusRow" class="algo-status-row" aria-live="polite"></div>
+          </div>
+
+          <div class="control-group">
+            <label for="scenarioSelect">COLREGs 避碰场景 (Scenario)</label>
+            <select id="scenarioSelect" class="custom-select">
+              <option value="Crossing"       selected>⊕ 交叉相遇 (Crossing — Rule 15)</option>
+              <option value="Head-on"               >↕ 对航相遇 (Head-on — Rule 14)</option>
+              <option value="Overtaking"            >→ 追越场景 (Overtaking — Rule 13)</option>
+              <option value="Multi-Obstacle"        >⊞ 多船复杂防碰撞 (Multi-Obstacle)</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="speedSlider">仿真速度倍率 (Sim Speed): <span id="speedLabel" class="mono-tag">1.0×</span></label>
+            <input type="range" id="speedSlider" class="speed-slider" min="0.2" max="5.0" step="0.2" value="1.0" aria-label="Simulation speed multiplier">
+          </div>
+
+          <div class="btn-grid">
+            <button id="btnStart" class="btn btn-primary" aria-label="启动仿真">▶ 启动</button>
+            <button id="btnPause" class="btn btn-secondary" aria-label="暂停仿真">⏸ 暂停</button>
+            <button id="btnReset" class="btn btn-danger" aria-label="重置仿真">⟳ 重置</button>
+          </div>
+        </div>
+
+        <!-- ─── CARD C: Safety Metrics ─── -->
+        <div class="card glass-card" id="cardSafety">
+          <h3 class="card-title"><span class="icon" aria-hidden="true">🛡️</span> 避碰安全裕度 (COLREGs)</h3>
+
+          <div class="metric-pair">
+            <!-- DCPA -->
+            <div class="metric-box" id="dcpaBox">
+              <span class="metric-label">最近会合距离 DCPA</span>
+              <span class="metric-value" id="val-dcpa">--- m</span>
+              <div class="risk-bar-track" aria-label="DCPA risk level">
+                <div class="risk-bar-fill" id="dcpaBar"></div>
+              </div>
+            </div>
+            <!-- TCPA -->
+            <div class="metric-box" id="tcpaBox">
+              <span class="metric-label">会合时间 TCPA</span>
+              <span class="metric-value" id="val-tcpa">--- s</span>
+              <div class="risk-bar-track">
+                <div class="risk-bar-fill" id="tcpaBar"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- COLREGs Badge -->
+          <div class="colregs-row">
+            <span class="colregs-label">COLREGs 规则评估</span>
+            <span class="colregs-badge" id="val-colregs">等待仿真…</span>
+          </div>
+
+          <!-- Risk distance from obstacle -->
+          <div class="distance-row">
+            <span class="metric-label">与最近目标船距离</span>
+            <span class="metric-value-sm" id="val-dist">--- m</span>
+          </div>
+        </div>
+
+        <!-- ─── CARD D: Ownship Telemetry ─── -->
+        <div class="card glass-card" id="cardTelemetry">
+          <h3 class="card-title"><span class="icon" aria-hidden="true">🚢</span> 本船状态遥测 (OS Telemetry)</h3>
+
+          <div class="telem-grid">
+            <div class="telem-item">
+              <span class="telem-label">North (X)</span>
+              <span class="telem-val mono-tag" id="val-os-x">0.0 m</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">East (Y)</span>
+              <span class="telem-val mono-tag" id="val-os-y">0.0 m</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">航向 Heading (ψ)</span>
+              <span class="telem-val mono-tag" id="val-os-psi">0.0°</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">纵向速度 Surge (u)</span>
+              <span class="telem-val mono-tag" id="val-os-speed">0.00 m/s</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">横向速度 Sway (v)</span>
+              <span class="telem-val mono-tag" id="val-os-v">0.00 m/s</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">转艏角速度 Yaw (r)</span>
+              <span class="telem-val mono-tag" id="val-os-r">0.000 rad/s</span>
+            </div>
+          </div>
+
+          <!-- MPC Horizon Info -->
+          <div class="horizon-info">
+            <span class="telem-label">MPC 预测时域 (Horizon)</span>
+            <span class="telem-val mono-tag" id="val-horizon-len">-- steps</span>
+          </div>
+        </div>
+
+        <!-- ─── CARD E: Algorithm Performance ─── -->
+        <div class="card glass-card" id="cardPerf">
+          <h3 class="card-title"><span class="icon" aria-hidden="true">📈</span> 算法性能监控 (Performance)</h3>
+
+          <div class="perf-header">
+            <div class="perf-stat">
+              <span class="telem-label">当前步长耗时</span>
+              <span class="telem-val mono-tag" id="val-step-time">-- ms</span>
+            </div>
+            <div class="perf-stat">
+              <span class="telem-label">平均耗时 (60步)</span>
+              <span class="telem-val mono-tag" id="val-avg-time">-- ms</span>
+            </div>
+          </div>
+
+          <!-- Mini sparkline chart -->
+          <div class="mini-chart-container" aria-label="算法计算耗时历史折线图">
+            <canvas id="perfChart" height="70" aria-hidden="true"></canvas>
+          </div>
+        </div>
+
+      </aside><!-- /sidebar-column -->
+
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
