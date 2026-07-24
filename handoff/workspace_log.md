@@ -14,3 +14,23 @@
   - 虚拟环境位于 `.venv/`，运行 `source .venv/bin/activate` 即可直接加载所有生态库。
   - 启动 Web GUI 控制台：`python -m uvicorn gui_server.main:app --host 127.0.0.1 --port 8000`。
   - 用户可随时在 `colav_simulator/guidance/custom_mpc_adapter.py` 中继承 `CustomMPCBase` 注入自研 MPC 算法。
+
+## [2026-07-24 18:08] Agent: Antigravity (IDE)
+- **Git Commit**: `655fefe` (branch: main)
+- **任务目标 (Goal)**: Step1 接入真实算法 psbmpc/rrt-rs/rlmpc；Step2 实现 ENC 电子海图可视化
+- **核心改动 (Actions)**:
+  - `colav_simulator/guidance/custom_mpc_adapter.py`: 全部重写，新增 PSBMPCWrapper/RRTStarGuidance/AcadosMPCWrapper + ALGORITHM_REGISTRY
+  - `gui_server/main.py`: ENC subprocess 渲染 + `/api/enc_tile` `/api/enc_info` `/api/algo_status` + 算法注册表 + matplotlib Agg 顶层
+  - `web_gui/app.js`: 完整重写 — ENC 底图加载/UTM坐标系/Canvas叠加/algo status pills
+  - `web_gui/index.html`: ENC 状态徽章/图层开关/算法状态行
+  - `web_gui/style.css`: ENC badge/toggle/algo-pill 样式
+- **当前状态 (Status)**: ✅ GREEN — 服务器运行在 http://127.0.0.1:8000
+  - ENC PNG 生成成功（Rogaland_utm33.gdb，UTM33，origin 39000/6956450）
+  - PSBMPC 真实 C++ 库 ready（TrackedObstacle 9元素格式已修复）
+  - RRT-Star 真实 Rust 库 ready（LOS 跟踪模式，ENC 三角剖分待接入）
+  - RLMPC fallback 到 SimpleLinearMPC（需要安装 torch）
+- **接力指示 (Hand-off Context)**:
+  - 下一步优先：浏览器验证 ENC 底图 UTM→canvas 坐标映射是否对齐
+  - PSBMPC 需要传入真实 grounding_hazards（Shapely 多边形）才能有非零 chi_opt
+  - RRT* 完整规划需要 ENC 三角剖分（transfer_enc_hazards + transfer_safe_sea_triangulation）
+  - 激活 RLMPC：pip install torch 后重启服务器
