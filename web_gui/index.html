@@ -3,12 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Colav-Simulator | 船舶 MPC 避碰航线规划控制台</title>
+  <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=20260727-telemetry-layout" />
 </head>
 <body>
   <div class="app-container">
@@ -20,29 +17,32 @@
       <div class="brand">
         <div class="logo-badge" aria-label="MPC">MPC</div>
         <div class="brand-text">
-          <h1>Colav-Simulator Control Center</h1>
-          <p>Autonomous Ship COLAV &amp; MPC Route Planning Verification Console · NTNU SFI Autoship</p>
+          <h1>综合避碰仿真器</h1>
         </div>
       </div>
       <div class="header-center">
         <!-- Quick Scenario Tabs -->
         <div class="quick-tabs" role="tablist" aria-label="快速场景切换">
-          <button id="tab-crossing"  class="qtab active" data-scenario="Crossing"      role="tab">⊕ Crossing</button>
-          <button id="tab-headon"    class="qtab"         data-scenario="Head-on"       role="tab">↕ Head-on</button>
-          <button id="tab-overtaking"class="qtab"         data-scenario="Overtaking"    role="tab">→ Overtaking</button>
-          <button id="tab-multi"     class="qtab"         data-scenario="Multi-Obstacle"role="tab">⊞ Multi</button>
+          <button id="tab-overtaking" class="qtab" data-group="rule13" data-default-scenario="overtaking" role="tab">Rule 13-OT</button>
+          <button id="tab-headon" class="qtab active" data-group="rule14" data-default-scenario="head_on" role="tab">Rule 14-HO</button>
+          <button id="tab-crossing" class="qtab" data-group="rule15" data-default-scenario="crossing_give_way" role="tab">Rule 15-CS</button>
+          <button id="tab-multi" class="qtab" data-group="multiship" data-default-scenario="paper_ccta2023_multiship" role="tab">多船情形</button>
+        </div>
+        <div class="header-scenario">
+          <select id="scenarioSelect" class="custom-select header-scenario-select" aria-label="当前快捷分类的场景">
+            <option value="head_on" selected>标准对遇 · G3 · 300s</option>
+          </select>
         </div>
       </div>
       <div class="header-right">
-        <div class="status-indicator" role="status" aria-live="polite">
-          <span class="dot pulse" id="status-dot"></span>
-          <span id="conn-status">Connecting…</span>
+        <div class="header-run-info" aria-label="仿真运行状态" aria-live="off">
+          <div><span class="ovl-label">Step</span><span class="ovl-val" id="val-step">0</span></div>
+          <div><span class="ovl-label">Time</span><span class="ovl-val" id="val-sim-time">0.0 s</span></div>
+          <div><span class="ovl-label">Algo</span><span class="ovl-val" id="val-algo-active">CustomMPC</span></div>
         </div>
-        <div class="ecosystem-tags" aria-label="已加载生态库">
-          <span class="tag" title="Polygon Safety Buffer MPC">psbmpc</span>
-          <span class="tag" title="Rust RRT* planner">rrt-rs</span>
-          <span class="tag" title="RL + NMPC">rlmpc</span>
-          <span class="tag" title="Multi-target tracker">vimmjipda</span>
+        <div class="status-indicator disconnected" role="status" aria-live="polite">
+          <span class="dot pulse" id="status-dot"></span>
+          <span id="conn-status">会话: 断连</span>
         </div>
       </div>
     </header>
@@ -52,74 +52,95 @@
     ═══════════════════════════════════════════ -->
     <main class="main-workspace">
 
+      <aside class="insights-column" aria-label="运行监控面板"></aside>
+
       <!-- ── LEFT: Canvas Column ─────────────── -->
       <div class="canvas-column">
 
         <section class="canvas-panel glass-card" aria-label="电子海图仿真视口">
-          <!-- Canvas header -->
-          <div class="panel-header">
-            <h2><span class="icon" aria-hidden="true">🧭</span> 电子海图 ENC Live View
-              <span class="enc-status-badge" id="encStatusBadge">⏳ ENC Loading…</span>
-            </h2>
-            <div class="canvas-controls">
-              <button id="toggleENC" class="icon-btn" title="切换 ENC 海图图层 Toggle ENC Layer" aria-label="Toggle ENC Chart" aria-pressed="true">🗺</button>
-              <button id="zoomIn"  class="icon-btn" title="放大 Zoom In"  aria-label="Zoom In">＋</button>
+          <div class="canvas-wrapper" id="canvasWrapper">
+            <canvas id="simCanvas" aria-label="Ship collision avoidance simulation map"></canvas>
+            <div class="panel-header map-title-overlay">
+              <h2><span class="icon" aria-hidden="true">⌖</span> 电子海图
+                <select id="encChartSelect" class="map-chart-select" aria-label="选择电子海图">
+                  <option value="romsdal" selected>Romsdal</option>
+                  <option value="rogaland">Rogaland</option>
+                </select>
+                <span class="enc-status-badge" id="encStatusBadge">加载中</span>
+              </h2>
+            </div>
+            <div class="canvas-controls map-controls">
+              <div class="scale-bar" id="scaleBar" aria-label="海图比例尺">
+                <div class="scale-line" id="scaleBarLine"></div>
+                <span class="scale-label" id="scaleBarLabel">--- m</span>
+              </div>
+              <span class="map-control-divider" aria-hidden="true"></span>
+              <button id="toggleENC" class="icon-btn" title="切换 ENC 海图图层 Toggle ENC Layer" aria-label="Toggle ENC Chart" aria-pressed="true">▦</button>
+              <button id="zoomIn" class="icon-btn" title="放大 Zoom In" aria-label="Zoom In">＋</button>
               <button id="zoomOut" class="icon-btn" title="缩小 Zoom Out" aria-label="Zoom Out">－</button>
               <button id="zoomReset" class="icon-btn" title="复位 Reset View" aria-label="Reset View">⊙</button>
             </div>
-          </div>
-
-          <!-- Legend -->
-          <div class="canvas-legend" role="list" aria-label="图例">
-            <span class="legend-item" role="listitem"><span class="color-box ownship"></span>本船 OS</span>
-            <span class="legend-item" role="listitem"><span class="color-box obstacle"></span>目标船 TS</span>
-            <span class="legend-item" role="listitem"><span class="color-box horizon"></span>MPC 预测时域</span>
-            <span class="legend-item" role="listitem"><span class="color-box waypoint"></span>计划航线</span>
-            <span class="legend-item" role="listitem"><span class="color-box safety"></span>安全域</span>
-            <span class="legend-item" role="listitem"><span class="color-box dcpa-line"></span>DCPA 连线</span>
-          </div>
-
-          <!-- Canvas Wrapper -->
-          <div class="canvas-wrapper" id="canvasWrapper">
-            <canvas id="simCanvas" aria-label="Ship collision avoidance simulation map"></canvas>
-            <!-- Overlay Info -->
-            <div class="canvas-overlay-info" aria-live="off">
-              <div><span class="ovl-label">Step</span><span class="ovl-val" id="val-step">0</span></div>
-              <div><span class="ovl-label">Time</span><span class="ovl-val" id="val-sim-time">0.0 s</span></div>
-              <div><span class="ovl-label">Algo</span><span class="ovl-val" id="val-algo-active">CustomMPC</span></div>
+            <div class="map-layer-overlay">
+              <details class="map-disclosure">
+                <summary>图标说明</summary>
+                <div class="canvas-legend" aria-label="分类图标说明">
+                  <div class="legend-category">
+                    <span class="legend-category-title">船舶</span>
+                    <span class="legend-item"><span class="color-box ownship"></span>本船 OS</span>
+                    <span class="legend-item"><span class="color-box obstacle"></span>目标船 TS</span>
+                  </div>
+                  <div class="legend-category">
+                    <span class="legend-category-title">感知</span>
+                    <span class="legend-item"><span class="color-box track"></span>跟踪航迹</span>
+                    <span class="legend-item"><span class="color-box measurement"></span>传感器量测</span>
+                  </div>
+                  <div class="legend-category">
+                    <span class="legend-category-title">规划</span>
+                    <span class="legend-item"><span class="color-box horizon"></span>MPC 预测时域</span>
+                    <span class="legend-item"><span class="color-box waypoint"></span>计划航线</span>
+                  </div>
+                  <div class="legend-category">
+                    <span class="legend-category-title">安全</span>
+                    <span class="legend-item"><span class="color-box safety"></span>安全域</span>
+                    <span class="legend-item"><span class="color-box dcpa-line"></span>DCPA 连线</span>
+                  </div>
+                </div>
+              </details>
+              <details class="map-disclosure">
+                <summary>航行展示</summary>
+                <div class="layer-controls" aria-label="仿真图层">
+                  <label><input type="checkbox" data-layer="truth" checked> 真值</label>
+                  <label><input type="checkbox" data-layer="measurements" checked> 量测</label>
+                  <label><input type="checkbox" data-layer="tracks" checked> 航迹</label>
+                  <label><input type="checkbox" data-layer="covariance" checked> 协方差</label>
+                  <label><input type="checkbox" data-layer="plans" checked> 计划</label>
+                </div>
+              </details>
             </div>
-            <!-- Compass Rose -->
-            <div class="compass-wrapper" title="Ownship Heading" aria-label="Compass">
-              <svg id="compassSvg" class="compass-svg" viewBox="0 0 80 80" aria-hidden="true">
-                <circle cx="40" cy="40" r="38" class="compass-ring"/>
-                <text x="40" y="12" class="compass-label" text-anchor="middle">N</text>
-                <text x="40" y="74" class="compass-label" text-anchor="middle">S</text>
-                <text x="10" y="44" class="compass-label" text-anchor="middle">W</text>
-                <text x="70" y="44" class="compass-label" text-anchor="middle">E</text>
-                <!-- Needle group, rotated via JS -->
-                <g id="compassNeedle" transform="rotate(0 40 40)">
-                  <polygon points="40,8 36,40 40,44 44,40" class="needle-north"/>
-                  <polygon points="40,44 36,40 40,72 44,40" class="needle-south"/>
-                </g>
-              </svg>
-              <div class="compass-deg" id="val-compass-deg">000°</div>
+            <div class="log-section map-log-overlay card glass-card" id="cardEvents" aria-label="仿真器事件">
+              <h3 class="card-title"><span class="icon" aria-hidden="true">≡</span> 仿真器事件</h3>
+              <div class="log-terminal" id="logTerminal" aria-live="polite">
+                <div class="log-entry log-info" id="initialLogEntry">[--:--:--] System ready. Waiting for simulation start…</div>
+              </div>
             </div>
-            <!-- Scale bar -->
-            <div class="scale-bar" id="scaleBar">
-              <div class="scale-line" id="scaleBarLine"></div>
-              <span class="scale-label" id="scaleBarLabel">--- m</span>
+            <div class="playback-control-overlay" aria-label="仿真播放控制">
+              <div class="playback-actions">
+                <button id="btnStart" class="playback-btn playback-primary" title="下发启动命令" aria-label="启动仿真"><span aria-hidden="true">▶</span><span>启动</span></button>
+                <button id="btnPause" class="playback-btn" title="下发暂停命令" aria-label="暂停仿真"><span aria-hidden="true">Ⅱ</span><span>暂停</span></button>
+                <button id="btnStep" class="playback-btn" title="下发单步命令" aria-label="单步仿真"><span aria-hidden="true">|▶</span><span>单步</span></button>
+                <button id="btnReplay" class="playback-btn" title="下发回放命令" aria-label="回放已完成实验"><span aria-hidden="true">↺</span><span>回放</span></button>
+                <button id="btnReset" class="playback-btn playback-danger" title="下发重置命令" aria-label="重置仿真"><span aria-hidden="true">⟳</span><span>重置</span></button>
+              </div>
+              <span class="playback-divider" aria-hidden="true"></span>
+              <div class="speed-presets" role="group" aria-label="仿真倍速档位">
+                <span class="speed-title">倍速</span>
+                <button class="speed-preset" data-speed="0.5">0.5×</button>
+                <button class="speed-preset active" data-speed="1.0">1.0×</button>
+                <button class="speed-preset" data-speed="2.0">2.0×</button>
+                <button class="speed-preset" data-speed="5.0">5.0×</button>
+                <button class="speed-preset" data-speed="10.0">10.0×</button>
+              </div>
             </div>
-          </div>
-        </section>
-
-        <!-- Event Log Terminal (collapsible) -->
-        <section class="log-section glass-card" aria-label="仿真事件日志">
-          <div class="log-header" id="logToggle" role="button" aria-expanded="true" tabindex="0">
-            <span><span class="icon" aria-hidden="true">📟</span> 仿真事件日志 (Event Log)</span>
-            <span class="log-toggle-icon" id="logToggleIcon">▾</span>
-          </div>
-          <div class="log-terminal" id="logTerminal" aria-live="polite">
-            <div class="log-entry log-info">[00:00] System ready. Waiting for simulation start…</div>
           </div>
         </section>
 
@@ -128,51 +149,109 @@
       <!-- ── RIGHT: Sidebar Column ──────────── -->
       <aside class="sidebar-column" aria-label="控制与遥测面板">
 
-        <!-- ─── CARD A: Simulation Control ─── -->
-        <div class="card glass-card" id="cardControl">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">⚙️</span> 仿真与算法控制</h3>
-
-          <div class="control-group">
-            <label for="algoSelect">避碰规划算法 (Algorithm)</label>
-            <select id="algoSelect" class="custom-select">
-              <option value="CustomMPC" selected>🔬 自定义 MPC (User Custom MPC)</option>
-              <option value="PSBMPC">🔷 多边形缓冲区 MPC (PSB-MPC)</option>
-              <option value="RLMPC">🧠 强化学习 NMPC (RL-MPC / SAC)</option>
-              <option value="RRT-Star">🌿 RRT* 路径规划 (rrt-rs)</option>
-            </select>
-            <div id="algoStatusRow" class="algo-status-row" aria-live="polite"></div>
-          </div>
-
-          <div class="control-group">
-            <label for="scenarioSelect">COLREGs 避碰场景 (Scenario)</label>
-            <select id="scenarioSelect" class="custom-select">
-              <option value="Crossing"       selected>⊕ 交叉相遇 (Crossing — Rule 15)</option>
-              <option value="Head-on"               >↕ 对航相遇 (Head-on — Rule 14)</option>
-              <option value="Overtaking"            >→ 追越场景 (Overtaking — Rule 13)</option>
-              <option value="Multi-Obstacle"        >⊞ 多船复杂防碰撞 (Multi-Obstacle)</option>
-            </select>
-          </div>
-
-          <div class="control-group">
-            <label for="speedSlider">仿真速度倍率 (Sim Speed): <span id="speedLabel" class="mono-tag">1.0×</span></label>
-            <input type="range" id="speedSlider" class="speed-slider" min="0.2" max="5.0" step="0.2" value="1.0" aria-label="Simulation speed multiplier">
-          </div>
-
-          <div class="btn-grid">
-            <button id="btnStart" class="btn btn-primary" aria-label="启动仿真">▶ 启动</button>
-            <button id="btnPause" class="btn btn-secondary" aria-label="暂停仿真">⏸ 暂停</button>
-            <button id="btnReset" class="btn btn-danger" aria-label="重置仿真">⟳ 重置</button>
+        <!-- ─── CARD A: Installed Plugins ─── -->
+        <div class="card glass-card" id="cardIntegrations">
+          <h3 class="card-title"><span class="icon" aria-hidden="true">▦</span> 系统安装插件</h3>
+          <div class="integration-grid">
+            <div class="integration-chip" data-integration="psbmpc">
+              <span class="integration-name">PSB-MPC</span>
+              <span class="integration-role">概率安全域 MPC 避碰</span>
+              <span class="integration-state">检查中</span>
+            </div>
+            <div class="integration-chip" data-integration="rrt">
+              <span class="integration-name">RRT*</span>
+              <span class="integration-role">ENC 高层路径规划</span>
+              <span class="integration-state">检查中</span>
+            </div>
+            <div class="integration-chip" data-integration="rlmpc">
+              <span class="integration-name">RLMPC</span>
+              <span class="integration-role">强化学习/NMPC 控制</span>
+              <span class="integration-state">检查中</span>
+            </div>
+            <div class="integration-chip" data-integration="vimmjipda">
+              <span class="integration-name">VIMMJIPDA</span>
+              <span class="integration-role">雷达多目标跟踪</span>
+              <span class="integration-state">检查中</span>
+            </div>
           </div>
         </div>
 
-        <!-- ─── CARD C: Safety Metrics ─── -->
+        <!-- ─── CARD B: Collision-Avoidance Algorithms ─── -->
+        <div class="card glass-card" id="cardControl">
+          <h3 class="card-title"><span class="icon" aria-hidden="true">⌘</span> 避碰规划算法</h3>
+          <select id="algoSelect" class="control-native-select" aria-label="避碰规划算法">
+            <option value="nominal" selected>名义导航链</option>
+            <option value="vo">内置 VO</option>
+            <option value="sbmpc">内置 SB-MPC</option>
+            <option value="psbmpc">官方 PSB-MPC</option>
+            <option value="rrt">RRT* 路径规划</option>
+            <option value="rlmpc">RL-MPC</option>
+          </select>
+          <div class="algorithm-catalog" aria-label="避碰规划算法列表">
+            <div class="selection-section">
+              <div class="selection-heading">MPC</div>
+              <div class="selection-grid">
+                <button class="selection-card" type="button" data-algorithm="sbmpc" aria-pressed="false">
+                  <span class="selection-name">SB-MPC</span><span class="selection-description">场景式分支 MPC</span><span class="selection-state">检查中</span>
+                </button>
+                <button class="selection-card" type="button" data-algorithm="psbmpc" aria-pressed="false">
+                  <span class="selection-name">PSB-MPC</span><span class="selection-description">概率安全域 MPC</span><span class="selection-state">检查中</span>
+                </button>
+                <button class="selection-card" type="button" data-algorithm="rlmpc" aria-pressed="false">
+                  <span class="selection-name">RLMPC</span><span class="selection-description">强化学习辅助 NMPC</span><span class="selection-state">检查中</span>
+                </button>
+              </div>
+            </div>
+            <div class="selection-section">
+              <div class="selection-heading">非 MPC</div>
+              <div class="selection-grid">
+                <button class="selection-card selected" type="button" data-algorithm="nominal" aria-pressed="true">
+                  <span class="selection-name">Nominal</span><span class="selection-description">场景原生导航链</span><span class="selection-state">检查中</span>
+                </button>
+                <button class="selection-card" type="button" data-algorithm="vo" aria-pressed="false">
+                  <span class="selection-name">VO</span><span class="selection-description">速度障碍避碰</span><span class="selection-state">检查中</span>
+                </button>
+                <button class="selection-card" type="button" data-algorithm="rrt" aria-pressed="false">
+                  <span class="selection-name">RRT*</span><span class="selection-description">ENC 高层路径规划</span><span class="selection-state">检查中</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── CARD C: Target Trackers ─── -->
+        <div class="card glass-card" id="cardTracker">
+          <h3 class="card-title"><span class="icon" aria-hidden="true">◎</span> 目标跟踪器</h3>
+          <select id="trackerSelect" class="control-native-select" aria-label="目标跟踪器">
+            <option value="scenario_default">场景默认跟踪器</option>
+            <option value="god" selected>God Tracker</option>
+            <option value="kf">Kalman Filter</option>
+            <option value="vimmjipda">VIMMJIPDA</option>
+          </select>
+          <div class="selection-grid">
+            <button class="selection-card" type="button" data-tracker="scenario_default" aria-pressed="false">
+              <span class="selection-name">场景默认</span><span class="selection-description">采用场景配置</span><span class="selection-state">检查中</span>
+            </button>
+            <button class="selection-card selected" type="button" data-tracker="god" aria-pressed="true">
+              <span class="selection-name">God Tracker</span><span class="selection-description">真值基准跟踪</span><span class="selection-state">检查中</span>
+            </button>
+            <button class="selection-card" type="button" data-tracker="kf" aria-pressed="false">
+              <span class="selection-name">Kalman Filter</span><span class="selection-description">单模型状态估计</span><span class="selection-state">检查中</span>
+            </button>
+            <button class="selection-card" type="button" data-tracker="vimmjipda" aria-pressed="false">
+              <span class="selection-name">VIMMJIPDA</span><span class="selection-description">多模型联合数据关联</span><span class="selection-state">检查中</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ─── CARD D: Safety Metrics ─── -->
         <div class="card glass-card" id="cardSafety">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">🛡️</span> 避碰安全裕度 (COLREGs)</h3>
+          <h3 class="card-title"><span class="icon" aria-hidden="true">△</span> 避碰安全指标</h3>
 
           <div class="metric-pair">
             <!-- DCPA -->
             <div class="metric-box" id="dcpaBox">
-              <span class="metric-label">最近会合距离 DCPA</span>
+              <span class="metric-label">DCPA</span>
               <span class="metric-value" id="val-dcpa">--- m</span>
               <div class="risk-bar-track" aria-label="DCPA risk level">
                 <div class="risk-bar-fill" id="dcpaBar"></div>
@@ -180,7 +259,7 @@
             </div>
             <!-- TCPA -->
             <div class="metric-box" id="tcpaBox">
-              <span class="metric-label">会合时间 TCPA</span>
+              <span class="metric-label">TCPA</span>
               <span class="metric-value" id="val-tcpa">--- s</span>
               <div class="risk-bar-track">
                 <div class="risk-bar-fill" id="tcpaBar"></div>
@@ -190,7 +269,7 @@
 
           <!-- COLREGs Badge -->
           <div class="colregs-row">
-            <span class="colregs-label">COLREGs 规则评估</span>
+            <span class="colregs-label">COLREGs规则</span>
             <span class="colregs-badge" id="val-colregs">等待仿真…</span>
           </div>
 
@@ -201,47 +280,68 @@
           </div>
         </div>
 
-        <!-- ─── CARD D: Ownship Telemetry ─── -->
-        <div class="card glass-card" id="cardTelemetry">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">🚢</span> 本船状态遥测 (OS Telemetry)</h3>
-
-          <div class="telem-grid">
-            <div class="telem-item">
-              <span class="telem-label">North (X)</span>
-              <span class="telem-val mono-tag" id="val-os-x">0.0 m</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">East (Y)</span>
-              <span class="telem-val mono-tag" id="val-os-y">0.0 m</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">航向 Heading (ψ)</span>
-              <span class="telem-val mono-tag" id="val-os-psi">0.0°</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">纵向速度 Surge (u)</span>
-              <span class="telem-val mono-tag" id="val-os-speed">0.00 m/s</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">横向速度 Sway (v)</span>
-              <span class="telem-val mono-tag" id="val-os-v">0.00 m/s</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">转艏角速度 Yaw (r)</span>
-              <span class="telem-val mono-tag" id="val-os-r">0.000 rad/s</span>
-            </div>
+        <!-- ─── CARD E: Planner Trace ─── -->
+        <div class="card glass-card" id="cardPlanner">
+          <div class="planner-heading">
+            <h3 class="card-title"><span class="icon" aria-hidden="true">⌁</span> 规划执行诊断</h3>
+            <span class="planner-mode hold" id="val-solver-executed">HOLD</span>
           </div>
-
-          <!-- MPC Horizon Info -->
-          <div class="horizon-info">
-            <span class="telem-label">MPC 预测时域 (Horizon)</span>
-            <span class="telem-val mono-tag" id="val-horizon-len">-- steps</span>
+          <div class="planner-identity">
+            <span id="val-selected-rule">Rule 14</span>
+            <span id="val-planner-identity">nominal / god</span>
+          </div>
+          <div class="planner-grid">
+            <div><span class="telem-label">求解编号</span><span class="telem-val mono-tag" id="val-solve-id">#0</span></div>
+            <div><span class="telem-label">状态</span><span class="telem-val mono-tag" id="val-solver-state">成功</span></div>
+            <div><span class="telem-label">预测时域</span><span class="telem-val mono-tag" id="val-planner-horizon">--</span></div>
+            <div><span class="telem-label">执行航向</span><span class="telem-val mono-tag" id="val-command-course">--°</span></div>
+            <div><span class="telem-label">执行速度</span><span class="telem-val mono-tag" id="val-command-speed">-- m/s</span></div>
+            <div><span class="telem-label">预测执行误差</span><span class="telem-val mono-tag" id="val-prediction-error">-- m</span></div>
+          </div>
+          <div class="planner-surface-wrap">
+            <div class="surface-label" id="val-surface-label">候选空间</div>
+            <canvas id="plannerSurface" width="280" height="96" aria-label="算法候选代价或禁止区"></canvas>
+          </div>
+          <div class="solve-timeline" id="solveTimeline" aria-label="真实求解时间线">
+            <span class="timeline-empty">等待真实求解</span>
           </div>
         </div>
 
-        <!-- ─── CARD E: Algorithm Performance ─── -->
+        <!-- ─── CARD F: Ownship Telemetry ─── -->
+        <div class="card glass-card" id="cardTelemetry">
+          <h3 class="card-title"><span class="icon ship-icon" aria-hidden="true">▲</span> 本船遥测状态</h3>
+
+          <div class="telem-grid">
+            <div class="telem-item">
+              <span class="telem-label">北向坐标</span>
+              <span class="telem-val mono-tag" id="val-os-x">0.0 m</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">东向坐标</span>
+              <span class="telem-val mono-tag" id="val-os-y">0.0 m</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">北向速度</span>
+              <span class="telem-val mono-tag" id="val-os-speed">0.00 m/s</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">东向速度</span>
+              <span class="telem-val mono-tag" id="val-os-v">0.0 m/s</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">航向</span>
+              <span class="telem-val mono-tag" id="val-os-psi">0.0°</span>
+            </div>
+            <div class="telem-item">
+              <span class="telem-label">角速度</span>
+              <span class="telem-val mono-tag" id="val-os-r">0.0 rad/s</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── CARD G: Algorithm Performance ─── -->
         <div class="card glass-card" id="cardPerf">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">📈</span> 算法性能监控 (Performance)</h3>
+          <h3 class="card-title"><span class="icon" aria-hidden="true">↗</span> 算法性能监控</h3>
 
           <div class="perf-header">
             <div class="perf-stat">
@@ -265,6 +365,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20260727-monitor-simplify"></script>
 </body>
 </html>

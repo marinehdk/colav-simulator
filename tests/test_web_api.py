@@ -8,6 +8,96 @@ from colav_simulator.experiment import ExperimentRunner, RunSpec
 from gui_server.main import app
 
 
+def test_header_uses_requested_session_labels() -> None:
+    with TestClient(app) as client:
+        page = client.get("/")
+        assert page.status_code == 200
+        assert "<h1>综合避碰仿真器</h1>" in page.text
+        assert "Autonomous Ship COLAV" not in page.text
+        assert '<span id="conn-status">会话: 断连</span>' in page.text
+        assert page.text.index('class="header-run-info"') < page.text.index('id="conn-status"') < page.text.index("<main")
+        assert "canvas-overlay-info" not in page.text
+        assert "ecosystem-tags" not in page.text
+        tab_labels = ["Rule 13-OT", "Rule 14-HO", "Rule 15-CS", "多船情形"]
+        assert [page.text.index(label) for label in tab_labels] == sorted(page.text.index(label) for label in tab_labels)
+        assert page.text.index('id="scenarioSelect"') < page.text.index("<main")
+        assert 'class="insights-column"' in page.text
+        assert 'data-group="rule14"' in page.text
+        assert '<label for="scenarioSelect">场景库</label>' not in page.text
+        assert page.text.index('id="canvasWrapper"') < page.text.index('id="toggleENC"')
+        assert page.text.index('id="canvasWrapper"') < page.text.index('id="logTerminal"')
+        assert (
+            'aria-label="仿真器事件"' in page.text
+            and 'id="cardEvents"' in page.text
+            and 'id="logToggle"' not in page.text
+        )
+        assert "仿真事件日志" not in page.text
+        assert "[--:--:--] System ready." in page.text
+        assert page.text.index('id="scaleBar"') < page.text.index('id="zoomIn"')
+        assert page.text.index('id="canvasWrapper"') < page.text.index('data-speed="10.0"')
+        assert 'class="compass-wrapper"' not in page.text
+        assert "下发启动命令" in page.text
+        assert 'class="bottom-console' not in page.text
+        assert 'id="cardEvidence"' not in page.text
+        assert "<summary>图标说明</summary>" in page.text
+        assert "<summary>航行展示</summary>" in page.text
+        assert "电子海图 ENC Live View" not in page.text
+        assert 'id="encChartSelect"' in page.text
+        assert ">Romsdal</option>" in page.text
+        assert ">Rogaland</option>" in page.text
+        assert '<span class="enc-status-badge" id="encStatusBadge">加载中</span>' in page.text
+        assert "生态库标签" not in page.text
+        assert "仿真与算法控制" not in page.text
+        assert all(
+            label in page.text
+            for label in (
+                "系统安装插件",
+                "避碰规划算法",
+                "目标跟踪器",
+                "避碰安全指标",
+                ">DCPA<",
+                ">TCPA<",
+                "COLREGs规则",
+                "本船遥测状态",
+                ">北向坐标<",
+                ">东向坐标<",
+                ">航向<",
+                ">北向速度<",
+                ">东向速度<",
+                ">角速度<",
+                "算法性能监控",
+            )
+        ) and all(
+            label not in page.text
+            for label in (
+                "对应COLREGs规则",
+                "MPC 预测时域 (Horizon)",
+                "求解耗时",
+                "迭代次数",
+                "目标函数",
+                "候选数量",
+                "遭遇阶段",
+                "算法数据",
+                ">约束<",
+                "(Performance)",
+            )
+        )
+        module_ids = ['id="cardIntegrations"', 'id="cardControl"', 'id="cardTracker"']
+        module_positions = [page.text.index(module_id) for module_id in module_ids]
+        assert module_positions == sorted(module_positions)
+        assert 'data-algorithm="sbmpc"' in page.text
+        assert 'data-algorithm="vo"' in page.text
+        assert 'class="algorithm-catalog"' in page.text
+        assert 'data-tracker="vimmjipda"' in page.text
+        assert "标准对遇 · G3 · 300s" in page.text
+        assert "概率安全域 MPC 避碰" in page.text
+        assert "ENC 高层路径规划" in page.text
+        assert "雷达多目标跟踪" in page.text
+        assert 'id="cardPlanner"' in page.text
+        assert 'id="val-solver-executed"' in page.text
+        assert 'id="solveTimeline"' in page.text
+
+
 def test_real_session_api_and_websocket() -> None:
     with TestClient(app) as client:
         scenarios = client.get("/api/scenarios")

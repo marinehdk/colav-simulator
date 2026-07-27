@@ -15,6 +15,55 @@ const DCPA_WARN  = 100;   // m – amber/red
 const TCPA_SAFE  = 120;   // s
 const TCPA_WARN  = 40;    // s
 
+const SCENARIO_GROUPS = {
+  rule13: { types: ['OT_ing', 'OT_en'], defaultScenario: 'overtaking' },
+  rule14: { types: ['HO'], defaultScenario: 'head_on' },
+  rule15: { types: ['CR_GW', 'CR_SO'], defaultScenario: 'crossing_give_way' },
+  multiship: { types: ['MS'], defaultScenario: 'paper_ccta2023_multiship' },
+};
+
+const ENCOUNTER_LABELS = {
+  head_on: 'Rule 14-HO',
+  overtaking: 'Rule 13-OT',
+  crossing_give_way: 'Rule 15-CS',
+  crossing_stand_on: 'Rule 15-CS',
+  clear: 'Clear',
+};
+
+const SCENARIO_LABELS = {
+  aalesund_random1: 'Ålesund 随机对遇',
+  boknafjorden_generation_test: 'Boknafjorden 交叉',
+  crossing_give_way: '标准交叉 · 让路',
+  crossing_stand_on: '标准交叉 · 直航',
+  head_on: '标准对遇',
+  head_on_sbmpc: 'SB-MPC 对遇验证',
+  overtaken: '标准被追越',
+  overtaking: '标准追越',
+  paper_ccta2023_head_on: '论文复现 · 对遇',
+  paper_ccta2023_multiship: '论文复现 · 四船',
+  rl_scenario: 'RL',
+  rl_scenario_smaller: 'RL',
+  rlmpc_scenario: 'RLMPC',
+  rlmpc_scenario_ms_channel: 'RLMPC',
+  rlmpc_scenario_ms_channel_vimmjipda: 'RLMPC + VIMMJIPDA',
+  rogaland_random_rl: 'RL Rogaland',
+  rrt_test: 'RRT*',
+  'saved/rlmpc_scenario_ms_channel/rlmpc_scenario_ms_channel_ep001_27072026_040243': 'RLMPC 回放',
+};
+
+const ENC_CHARTS = {
+  romsdal: { label: 'Romsdal' },
+  rogaland: { label: 'Rogaland' },
+};
+
+let scenarioCatalog = [];
+let capabilityCatalog = null;
+let ruleCatalog = [];
+let solveTimeline = [];
+let lastDisplayedSolveId = null;
+let lastRuntimeState = 'CREATED';
+let lastSolveSimTime = null;
+
 /* ══════════════════════════════════════════════
    ENC STATE
 ══════════════════════════════════════════════ */
@@ -22,6 +71,13 @@ let encInfo   = null;   // {origin_e, origin_n, width, height, utm_zone}
 let encImage  = null;   // HTMLImageElement (PNG tile)
 let encReady  = false;
 let showENC   = true;   // user toggle
+const visibleLayers = {
+  truth: true,
+  measurements: true,
+  tracks: true,
+  covariance: true,
+  plans: true,
+};
 
 /* ══════════════════════════════════════════════
    MAP VIEW STATE
@@ -40,6 +96,9 @@ let ws          = null;
 let currentData = null;
 let logCount    = 0;
 let lastColregs = '', lastDcpaLevel = '';
+let activeSessionId = null;
+let resultLoaded = false;
+let sessionConnectionState = 'disconnected';
 
 /* ══════════════════════════════════════════════
    CANVAS SETUP
@@ -57,6 +116,7 @@ function resizeCanvas() {
   canvas.style.width  = `${w}px`;
   canvas.style.height = `${h}px`;
   ctx.scale(dpr, dpr);
+  if (encInfo && encReady) fitENCView();
   updateScaleBar();
   if (currentData) renderCanvas(currentData);
 }
@@ -75,6 +135,21 @@ function worldToCanvas(north, east) {
   return { x: cx + east * viewScale, y: cy - north * viewScale };
 }
 
+function fitENCView() {
+  if (!encInfo) {
+    viewScale = 0.45;
+    panX = 0;
+    panY = 0;
+    return;
+  }
+  viewScale = Math.max(
+    0.005,
+    Math.max(wrapper.clientWidth / encInfo.width, wrapper.clientHeight / encInfo.height),
+  );
+  panX = -encInfo.width * viewScale / 2;
+  panY = encInfo.height * viewScale / 2;
+}
+
 /**
  * ENC UTM (Easting, Northing) → canvas pixel.
  * seacharts renders with origin at lower-left; Y axis flipped.
@@ -89,16 +164,11 @@ function utmToCanvas(easting, northing) {
 }
 
 function updateScaleBar() {
-  const w          = wrapper.clientWidth;
-  const targetPx   = w * 0.15;
-  const targetM    = targetPx / viewScale;
-  const magnitude  = Math.pow(10, Math.floor(Math.log10(targetM)));
-  const nice       = [1, 2, 5, 10].map(f => f * magnitude)
-                                   .find(v => v * viewScale >= targetPx * 0.6) || magnitude;
-  const barPx      = nice * viewScale;
-  document.getElementById('scaleBarLine').style.width   = `${barPx}px`;
-  document.getElementById('scaleBarLabel').textContent  =
-    `${nice >= 1000 ? (nice / 1000) + ' km' : nice + ' m'}`;
+  const fixedBarPx = 72;
+  const representedM = fixedBarPx / viewScale;
+  document.getElementById('scaleBarLabel').textContent = representedM >= 1000
+    ? `${(representedM / 1000).toFixed(1)} km`
+    : `${Math.round(representedM)} m`;
 }
 
 /* ══════════════════════════════════════════════
@@ -107,7 +177,7 @@ function updateScaleBar() {
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const factor = e.deltaY < 0 ? 1.15 : 0.87;
-  viewScale = Math.max(0.05, Math.min(5.0, viewScale * factor));
+  viewScale = Math.max(0.005, Math.min(5.0, viewScale * factor));
   updateScaleBar();
   if (currentData) renderCanvas(currentData);
 }, { passive: false });
@@ -128,11 +198,11 @@ document.getElementById('zoomIn').addEventListener('click', () => {
   if (currentData) renderCanvas(currentData);
 });
 document.getElementById('zoomOut').addEventListener('click', () => {
-  viewScale = Math.max(0.05, viewScale / 1.25); updateScaleBar();
+  viewScale = Math.max(0.005, viewScale / 1.25); updateScaleBar();
   if (currentData) renderCanvas(currentData);
 });
 document.getElementById('zoomReset').addEventListener('click', () => {
-  viewScale = 0.45; panX = 0; panY = 0; updateScaleBar();
+  fitENCView(); updateScaleBar();
   if (currentData) renderCanvas(currentData);
 });
 document.getElementById('toggleENC').addEventListener('click', function () {
@@ -141,11 +211,18 @@ document.getElementById('toggleENC').addEventListener('click', function () {
   this.setAttribute('aria-pressed', showENC);
   if (currentData) renderCanvas(currentData);
 });
+document.querySelectorAll('[data-layer]').forEach(input => {
+  input.addEventListener('change', () => {
+    visibleLayers[input.dataset.layer] = input.checked;
+    if (currentData) renderCanvas(currentData);
+  });
+});
 
 /* ══════════════════════════════════════════════
    ENC INITIALISATION
 ══════════════════════════════════════════════ */
 async function initENC() {
+  setEncStatus('loading');
   try {
     const res  = await fetch('/api/enc_info');
     const info = await res.json();
@@ -163,15 +240,15 @@ async function initENC() {
     img.onload = () => {
       encImage = img;
       encReady = true;
-      document.getElementById('encStatusBadge').textContent = '🗺 ENC Ready';
-      document.getElementById('encStatusBadge').classList.add('ready');
+      fitENCView();
+      updateScaleBar();
+      setEncStatus('ready');
       document.getElementById('toggleENC').classList.add('enc-on');
       pushLog(`ENC chart loaded — UTM${info.utm_zone} origin (${info.origin_e.toFixed(0)}, ${info.origin_n.toFixed(0)})`, 'log-ok');
       if (currentData) renderCanvas(currentData);
     };
     img.onerror = () => {
-      document.getElementById('encStatusBadge').textContent = '❌ ENC Error';
-      document.getElementById('encStatusBadge').classList.add('error');
+      setEncStatus('error');
       pushLog('ENC PNG tile failed to load.', 'log-danger');
     };
     img.src = `/api/enc_tile?t=${Date.now()}`;  // cache-bust
@@ -179,6 +256,15 @@ async function initENC() {
   } catch (e) {
     setTimeout(initENC, 8000);
   }
+}
+
+function setEncStatus(state) {
+  const badge = document.getElementById('encStatusBadge');
+  if (!badge) return;
+  const labels = { loading: '加载中', ready: '已加载', error: '加载失败' };
+  badge.textContent = labels[state] || labels.loading;
+  badge.classList.toggle('ready', state === 'ready');
+  badge.classList.toggle('error', state === 'error');
 }
 
 /* ══════════════════════════════════════════════
@@ -190,10 +276,7 @@ function renderCanvas(data) {
   ctx.clearRect(0, 0, W, H);
 
   // ── 1. Background ───────────────────────────────────────────────────────
-  const bg = ctx.createRadialGradient(W/2, H/2, 10, W/2, H/2, Math.max(W,H) * 0.8);
-  bg.addColorStop(0, '#080e1a');
-  bg.addColorStop(1, '#050810');
-  ctx.fillStyle = bg;
+  ctx.fillStyle = '#101615';
   ctx.fillRect(0, 0, W, H);
 
   // ── 2. ENC Chart PNG (bottom layer) ─────────────────────────────────────
@@ -201,21 +284,35 @@ function renderCanvas(data) {
     drawENCTile(W, H);
   }
 
-  // ── 3. Grid & axes (semi-transparent overlay on chart) ──────────────────
+  // ── 3. Grid (shown only when ENC is hidden) ─────────────────────────────
   if (!encReady || !showENC) {
     drawGrid(W, H);
   }
-  drawAxes(W, H);
 
   // ── 4. Scenario elements ─────────────────────────────────────────────────
-  if (data.waypoints && data.waypoints.length >= 2) drawWaypoints(data.waypoints);
-  data.obstacles.forEach(obs =>
-    drawObstacle(obs, data.safety_margin || SAFETY_MARGIN_DEFAULT));
-  drawOwnshipTrail(data.os);
-  if (data.prediction_horizon && data.prediction_horizon.length > 0)
-    drawHorizon(data.prediction_horizon);
-  drawDCPALine(data);
-  drawOwnship(data.os);
+  if (visibleLayers.plans && data.waypoints && data.waypoints.length >= 2)
+    drawWaypoints(data.waypoints);
+  if (visibleLayers.truth) {
+    (data.obstacles || []).forEach(obs =>
+      drawObstacle(obs, data.safety_margin || SAFETY_MARGIN_DEFAULT));
+    drawOwnshipTrail(data.os);
+  }
+  if (visibleLayers.measurements) drawMeasurements(data.measurements?.[0]);
+  if (visibleLayers.tracks) drawTracks(data.tracks?.[0]);
+  if (visibleLayers.plans) {
+    const plans = data.plans || {};
+    if (plans.previous_prediction_horizon?.length > 0)
+      drawHorizon(plans.previous_prediction_horizon, true);
+    (plans.target_prediction_horizons || []).forEach(drawTargetHorizon);
+    if (plans.prediction_horizon?.length > 0) {
+      drawHorizon(plans.prediction_horizon, false);
+      drawExecutionPoint(plans.prediction_horizon);
+    }
+  }
+  if (visibleLayers.truth) {
+    drawDCPALine(data);
+    drawOwnship(data.os);
+  }
 }
 
 /* ENC tile — mapped from UTM to canvas space */
@@ -275,21 +372,6 @@ function chooseGridSpacing() {
   return opts.find(v => worldW / v <= 20) || opts[opts.length - 1];
 }
 
-/* Coordinate axes */
-function drawAxes(W, H) {
-  const cx = W / 2 + panX, cy = H / 2 + panY;
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-  ctx.lineWidth   = 1;
-  ctx.setLineDash([4, 6]);
-  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy);  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(138,153,173,0.65)';
-  ctx.font      = '11px Outfit, sans-serif';
-  ctx.fillText('N', cx + 5, 14);
-  ctx.fillText('E', W - 18, cy - 5);
-}
-
 /* Waypoints */
 function drawWaypoints(wps) {
   const pts = [];
@@ -342,10 +424,78 @@ function drawObstacle(obs, safetyM) {
   drawVessel(pt.x, pt.y, obs.psi, '#ff4b4b', `TS${obs.id}`, 14);
 }
 
+function drawMeasurements(sensorGroups) {
+  if (!Array.isArray(sensorGroups) || !encInfo) return;
+  sensorGroups.filter(Array.isArray).flat().forEach(measurement => {
+    if (!Array.isArray(measurement) || !Array.isArray(measurement[1])) return;
+    const value = measurement[1];
+    if (value.length < 2 || !Number.isFinite(value[0]) || !Number.isFinite(value[1])) return;
+    const point = worldToCanvas(value[0] - encInfo.origin_n, value[1] - encInfo.origin_e);
+    ctx.strokeStyle = measurement[0] === -1 ? '#ff6f61' : '#f3b33d';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(point.x - 4, point.y);
+    ctx.lineTo(point.x + 4, point.y);
+    ctx.moveTo(point.x, point.y - 4);
+    ctx.lineTo(point.x, point.y + 4);
+    ctx.stroke();
+  });
+}
+
+function drawTracks(trackSet) {
+  if (!trackSet || !Array.isArray(trackSet.states)) return;
+  trackSet.states.forEach((state, index) => {
+    if (!Array.isArray(state) || state.length < 2) return;
+    const point = worldToCanvas(state[0], state[1]);
+    if (visibleLayers.covariance) {
+      drawCovariance(point, trackSet.covariances?.[index]);
+    }
+    ctx.fillStyle = '#37c995';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c9f3e3';
+    ctx.font = '10px JetBrains Mono, monospace';
+    ctx.fillText(`T${trackSet.labels?.[index] ?? index}`, point.x + 6, point.y - 6);
+  });
+}
+
+function drawCovariance(point, covariance) {
+  if (!Array.isArray(covariance) || covariance.length < 2) return;
+  const varN = Number(covariance[0]?.[0]);
+  const varE = Number(covariance[1]?.[1]);
+  const covNE = Number(covariance[0]?.[1]);
+  if (![varN, varE, covNE].every(Number.isFinite)) return;
+  const a = Math.max(varE, 0);
+  const d = Math.max(varN, 0);
+  const b = -covNE;
+  const root = Math.sqrt(Math.max(0, ((a - d) / 2) ** 2 + b ** 2));
+  const major = Math.max((a + d) / 2 + root, 0);
+  const minor = Math.max((a + d) / 2 - root, 0);
+  const angle = 0.5 * Math.atan2(2 * b, a - d);
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = 'rgba(55,201,149,0.65)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(
+    0,
+    0,
+    Math.max(3, 2 * Math.sqrt(major) * viewScale),
+    Math.max(3, 2 * Math.sqrt(minor) * viewScale),
+    0,
+    0,
+    Math.PI * 2,
+  );
+  ctx.stroke();
+  ctx.restore();
+}
+
 /* Ownship trail */
 function drawOwnshipTrail(os) {
   if (!os.trajectory || os.trajectory.length < 2) return;
-  ctx.strokeStyle = 'rgba(0,242,254,0.38)';
+  ctx.strokeStyle = 'rgba(98,210,189,0.38)';
   ctx.lineWidth   = 2;
   ctx.beginPath();
   os.trajectory.forEach((pos, i) => {
@@ -355,24 +505,51 @@ function drawOwnshipTrail(os) {
   ctx.stroke();
 }
 
-/* MPC Prediction Horizon */
-function drawHorizon(horizon) {
+/* Planner prediction horizon */
+function drawHorizon(horizon, previous = false) {
   const pts = horizon.map(p => worldToCanvas(p[0], p[1]));
-  ctx.strokeStyle = 'rgba(255,215,0,0.75)';
-  ctx.lineWidth   = 2.5;
+  ctx.strokeStyle = previous ? 'rgba(255,215,0,0.24)' : 'rgba(255,215,0,0.82)';
+  ctx.lineWidth   = previous ? 1.5 : 2.5;
+  ctx.setLineDash(previous ? [5, 5] : []);
   ctx.beginPath();
   pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
   ctx.stroke();
+  ctx.setLineDash([]);
+  if (previous) return;
   pts.forEach((p, i) => {
     ctx.fillStyle = `rgba(255,215,0,${1 - i / pts.length * 0.6})`;
     ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, 2 * Math.PI); ctx.fill();
   });
 }
 
+function drawTargetHorizon(horizon) {
+  if (!Array.isArray(horizon) || horizon.length < 2) return;
+  const pts = horizon.map(p => worldToCanvas(p[0], p[1]));
+  ctx.strokeStyle = 'rgba(255,92,92,0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath();
+  pts.forEach((point, index) =>
+    index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawExecutionPoint(horizon) {
+  const index = horizon.length > 1 ? 1 : 0;
+  const point = worldToCanvas(horizon[index][0], horizon[index][1]);
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = '#ffb33d';
+  ctx.fillRect(-4, -4, 8, 8);
+  ctx.restore();
+}
+
 /* DCPA danger line */
 function drawDCPALine(data) {
   if (!data.obstacles || data.obstacles.length === 0) return;
-  if (!data.dcpa || data.dcpa > DCPA_SAFE * 2) return;
+  if (!Number.isFinite(data.dcpa) || data.dcpa > DCPA_SAFE * 2) return;
   const obs   = data.obstacles[0];
   const osPt  = worldToCanvas(data.os.x, data.os.y);
   const obsPt = worldToCanvas(obs.x, obs.y);
@@ -392,7 +569,7 @@ function drawDCPALine(data) {
 function drawOwnship(os) {
   const pt      = worldToCanvas(os.x, os.y);
   const headLen = Math.max(20, os.u * viewScale * 8);
-  ctx.strokeStyle = 'rgba(0,242,254,0.5)';
+  ctx.strokeStyle = 'rgba(98,210,189,0.5)';
   ctx.lineWidth   = 1.5;
   ctx.beginPath();
   ctx.moveTo(pt.x, pt.y);
@@ -426,24 +603,34 @@ function drawVessel(cx, cy, heading, color, label, size = 14) {
 function updateUI(data) {
   const os = data.os;
 
+  if (data.state === 'RUNNING' && lastRuntimeState !== 'RUNNING') {
+    setRuntimePanelsExpanded(true);
+  }
+  lastRuntimeState = data.state || lastRuntimeState;
+
   // Overlay
   setText('val-step',        data.step);
   setText('val-sim-time',    `${(data.scenario_time ?? data.step * 0.5).toFixed(1)} s`);
   setText('val-algo-active', data.selected_algorithm || '—');
+  setText('val-run-state', data.state || 'CREATED');
+  setText('val-reproduction', data.reproduction_status || 'not evaluated');
 
   // DCPA / TCPA
-  const dcpa = data.dcpa, tcpa = data.tcpa;
+  const dcpa = Number.isFinite(data.dcpa) ? data.dcpa : null;
+  const tcpa = Number.isFinite(data.tcpa) ? data.tcpa : null;
   const dcpaEl = document.getElementById('val-dcpa');
-  dcpaEl.textContent = `${dcpa.toFixed(1)} m`;
+  dcpaEl.textContent = dcpa === null ? '--- m' : `${dcpa.toFixed(1)} m`;
   setRiskClass(dcpaEl, dcpa, DCPA_SAFE, DCPA_WARN, true);
-  const dcpaPct = Math.max(0, Math.min(100, (1 - dcpa / (DCPA_SAFE * 2)) * 100));
-  setRiskBar('dcpaBar', dcpaPct, dcpa > DCPA_SAFE ? 'safe' : dcpa > DCPA_WARN ? 'warn' : 'danger');
+  const dcpaPct = dcpa === null ? 0 : Math.max(0, Math.min(100, (1 - dcpa / (DCPA_SAFE * 2)) * 100));
+  setRiskBar('dcpaBar', dcpaPct,
+    dcpa === null ? 'safe' : dcpa > DCPA_SAFE ? 'safe' : dcpa > DCPA_WARN ? 'warn' : 'danger');
 
   const tcpaEl = document.getElementById('val-tcpa');
-  tcpaEl.textContent = `${tcpa.toFixed(1)} s`;
+  tcpaEl.textContent = tcpa === null ? '--- s' : `${tcpa.toFixed(1)} s`;
   setRiskClass(tcpaEl, tcpa, TCPA_SAFE, TCPA_WARN, true);
-  const tcpaPct = Math.max(0, Math.min(100, (1 - tcpa / (TCPA_SAFE * 2)) * 100));
-  setRiskBar('tcpaBar', tcpaPct, tcpa > TCPA_SAFE ? 'safe' : tcpa > TCPA_WARN ? 'warn' : 'danger');
+  const tcpaPct = tcpa === null ? 0 : Math.max(0, Math.min(100, (1 - tcpa / (TCPA_SAFE * 2)) * 100));
+  setRiskBar('tcpaBar', tcpaPct,
+    tcpa === null ? 'safe' : tcpa > TCPA_SAFE ? 'safe' : tcpa > TCPA_WARN ? 'warn' : 'danger');
 
   updateColregsBadge(data.colregs);
 
@@ -457,19 +644,16 @@ function updateUI(data) {
   setText('val-os-x',     `${os.x.toFixed(1)} m`);
   setText('val-os-y',     `${os.y.toFixed(1)} m`);
   setText('val-os-psi',   `${(os.psi * 180 / Math.PI).toFixed(1)}°`);
-  setText('val-os-speed', `${os.u.toFixed(2)} m/s`);
-  setText('val-os-v',     `${(os.v || 0).toFixed(2)} m/s`);
-  setText('val-os-r',     `${(os.r || 0).toFixed(3)} rad/s`);
-  setText('val-horizon-len',
-    data.prediction_horizon ? `${data.prediction_horizon.length} steps` : '— steps');
-
-  // Compass
-  const headDeg = os.psi * 180 / Math.PI;
-  document.getElementById('compassNeedle').setAttribute('transform', `rotate(${headDeg} 40 40)`);
-  setText('val-compass-deg', `${((headDeg % 360 + 360) % 360).toFixed(0).padStart(3, '0')}°`);
+  const sway = os.v || 0;
+  const northVelocity = os.u * Math.cos(os.psi) - sway * Math.sin(os.psi);
+  const eastVelocity = os.u * Math.sin(os.psi) + sway * Math.cos(os.psi);
+  setText('val-os-speed', `${northVelocity.toFixed(2)} m/s`);
+  setText('val-os-v',     `${eastVelocity.toFixed(1)} m/s`);
+  setText('val-os-r',     `${(os.r || 0).toFixed(1)} rad/s`);
+  updatePlannerPanel(data);
 
   // Performance
-  const stepMs = data.step_time_ms;
+  const stepMs = Number.isFinite(data.step_time_ms) ? data.step_time_ms : 0;
   setText('val-step-time', `${stepMs.toFixed(2)} ms`);
   perfHistory.push(stepMs);
   if (perfHistory.length > PERF_HISTORY_LEN) perfHistory.shift();
@@ -477,8 +661,6 @@ function updateUI(data) {
   setText('val-avg-time', `${avg.toFixed(2)} ms`);
   drawPerfChart();
 
-  // Algorithm status pills (first telemetry frame)
-  if (data.algo_status) renderAlgoStatus(data.algo_status);
 }
 
 function setText(id, val) {
@@ -488,6 +670,7 @@ function setText(id, val) {
 
 function setRiskClass(el, value, safe, warn, invert) {
   el.classList.remove('safe', 'warn', 'danger');
+  if (!Number.isFinite(value)) return;
   if (invert) {
     if (value > safe) el.classList.add('safe');
     else if (value > warn) el.classList.add('warn');
@@ -506,27 +689,139 @@ function setRiskBar(id, pct, level) {
 
 function updateColregsBadge(rule) {
   const badge     = document.getElementById('val-colregs');
-  badge.textContent = rule;
+  const label = ENCOUNTER_LABELS[rule] || rule || 'Clear';
+  badge.textContent = label;
   badge.className   = 'colregs-badge';
-  if      (rule.includes('14'))        badge.classList.add('rule-14');
-  else if (rule.includes('Give-Way'))  badge.classList.add('rule-15-giveway');
-  else if (rule.includes('Stand-on'))  badge.classList.add('rule-15-standon');
-  else if (rule.includes('13'))        badge.classList.add('rule-13');
-  else if (rule.includes('Clear'))     badge.classList.add('clear');
+  if      (rule === 'head_on')          badge.classList.add('rule-14');
+  else if (rule === 'crossing_give_way') badge.classList.add('rule-15-giveway');
+  else if (rule === 'crossing_stand_on') badge.classList.add('rule-15-standon');
+  else if (rule === 'overtaking')        badge.classList.add('rule-13');
+  else                                   badge.classList.add('clear');
 }
 
-let _algoStatusRendered = false;
-function renderAlgoStatus(status) {
-  if (_algoStatusRendered) return;
-  _algoStatusRendered = true;
-  const row = document.getElementById('algoStatusRow');
-  if (!row) return;
-  const labels = { CustomMPC: 'CustomMPC', PSBMPC: 'PSB-MPC', RLMPC: 'RL-MPC', 'RRT-Star': 'RRT*' };
-  Object.entries(status).forEach(([key, available]) => {
-    const pill = document.createElement('span');
-    pill.className   = `algo-pill ${available ? 'available' : 'unavailable'}`;
-    pill.textContent = `${available ? '✓' : '✗'} ${labels[key] || key}`;
-    row.appendChild(pill);
+function updatePlannerPanel(data) {
+  const planner = data.planner || {};
+  const latestSolve = data.latest_planner_solve || {};
+  const diagnosticPlanner = planner.solver_executed || !latestSolve.solver_executed
+    ? planner
+    : latestSolve;
+  const execution = data.execution || {};
+  const details = diagnosticPlanner.algorithm_details || {};
+  const solveId = Number(planner.solve_id || 0);
+  const realSolve = Boolean(planner.solver_executed);
+  const mode = document.getElementById('val-solver-executed');
+  mode.textContent = realSolve ? 'SOLVE' : 'HOLD';
+  mode.classList.toggle('solve', realSolve);
+  mode.classList.toggle('hold', !realSolve);
+
+  setText('val-selected-rule', (data.selected_rule || 'unscoped').toUpperCase());
+  setText(
+    'val-planner-identity',
+    `${data.requested_algorithm || '—'}→${data.executed_algorithm || '—'} / `
+      + `${data.requested_tracker || '—'}→${data.executed_tracker || '—'}`,
+  );
+  setText('val-solve-id', `#${solveId}`);
+  const solverSuccessful = planner.feasible !== false
+    && ['SUCCESS', 'TIMEOUT_FEASIBLE'].includes(planner.status || 'SUCCESS');
+  setText('val-solver-state', solverSuccessful ? '成功' : '失败');
+
+  const horizonLength = data.plans?.prediction_horizon?.length || 0;
+  const horizonTime = horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
+    ? `${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
+    : `${horizonLength} points`;
+  setText('val-planner-horizon', horizonTime);
+
+  const course = execution.applied_course_ref_rad ?? planner.selected_command?.course_rad;
+  const speed = execution.applied_speed_ref_mps ?? planner.selected_command?.speed_mps;
+  setText('val-command-course', Number.isFinite(course) ? `${(course * 180 / Math.PI).toFixed(1)}°` : '--°');
+  setText('val-command-speed', Number.isFinite(speed) ? `${speed.toFixed(2)} m/s` : '-- m/s');
+
+  if (Number(latestSolve.solve_id || 0) !== lastDisplayedSolveId && latestSolve.solver_executed) {
+    lastSolveSimTime = Number(latestSolve.sim_time || data.sim_time || 0);
+  } else if (realSolve) {
+    lastSolveSimTime = Number(planner.sim_time || data.sim_time || 0);
+  }
+  const prediction = data.plans?.prediction_horizon || [];
+  const predictionIndex = Number.isFinite(diagnosticPlanner.horizon_dt_s) && lastSolveSimTime !== null
+    ? Math.min(prediction.length - 1, Math.max(0, Math.round(
+      (Number(data.sim_time || 0) - lastSolveSimTime) / diagnosticPlanner.horizon_dt_s,
+    )))
+    : 0;
+  const predictedExecution = prediction[predictionIndex];
+  const executionError = predictedExecution
+    ? Math.hypot(predictedExecution[0] - data.os.x, predictedExecution[1] - data.os.y)
+    : null;
+  setText('val-prediction-error', Number.isFinite(executionError) ? `${executionError.toFixed(2)} m` : '-- m');
+  drawPlannerSurface(diagnosticPlanner.algorithm_id, details);
+
+  const timelineTrace = latestSolve.solver_executed ? latestSolve : (realSolve ? planner : null);
+  if (timelineTrace && Number(timelineTrace.solve_id) !== lastDisplayedSolveId) {
+    lastDisplayedSolveId = Number(timelineTrace.solve_id);
+    solveTimeline.push({
+      solveId: lastDisplayedSolveId,
+      simTime: Number(timelineTrace.sim_time || data.sim_time || 0),
+      status: timelineTrace.status || 'SUCCESS',
+    });
+    solveTimeline = solveTimeline.slice(-12);
+    renderSolveTimeline();
+  }
+}
+
+function drawPlannerSurface(algorithmId, details) {
+  const canvas = document.getElementById('plannerSurface');
+  const surface = canvas.getContext('2d');
+  const matrix = algorithmId === 'vo' ? details.violation_costs : details.candidate_costs;
+  const label = algorithmId === 'vo'
+    ? 'VO / COLREGS 禁止代价'
+    : algorithmId === 'sbmpc' ? 'SB-MPC 候选代价矩阵' : '名义 LOS 引导';
+  setText('val-surface-label', label);
+  surface.clearRect(0, 0, canvas.width, canvas.height);
+  surface.fillStyle = '#0d1211';
+  surface.fillRect(0, 0, canvas.width, canvas.height);
+  if (!Array.isArray(matrix) || !matrix.length || !Array.isArray(matrix[0])) {
+    surface.fillStyle = '#65736f';
+    surface.font = '11px SFMono-Regular, monospace';
+    surface.fillText('No sampled candidate surface', 12, 52);
+    return;
+  }
+  const values = matrix.flat().filter(Number.isFinite);
+  const low = values.length ? Math.min(...values) : 0;
+  const high = values.length ? Math.max(...values) : 1;
+  const rows = matrix.length;
+  const columns = Math.max(...matrix.map(row => row.length));
+  const cellWidth = canvas.width / columns;
+  const cellHeight = canvas.height / rows;
+  matrix.forEach((row, rowIndex) => row.forEach((value, columnIndex) => {
+    const normalized = Number.isFinite(value) && high > low ? (value - low) / (high - low) : 0;
+    const red = Math.round(70 + normalized * 175);
+    const green = Math.round(195 - normalized * 135);
+    surface.fillStyle = Number.isFinite(value) ? `rgb(${red},${green},92)` : '#26302d';
+    surface.fillRect(
+      columnIndex * cellWidth,
+      rowIndex * cellHeight,
+      Math.max(1, cellWidth - 0.5),
+      Math.max(1, cellHeight - 0.5),
+    );
+  }));
+}
+
+function renderSolveTimeline() {
+  const timeline = document.getElementById('solveTimeline');
+  timeline.replaceChildren();
+  if (!solveTimeline.length) {
+    const empty = document.createElement('span');
+    empty.className = 'timeline-empty';
+    empty.textContent = '等待真实求解';
+    timeline.appendChild(empty);
+    return;
+  }
+  solveTimeline.forEach(item => {
+    const marker = document.createElement('button');
+    marker.type = 'button';
+    marker.className = 'solve-marker';
+    marker.title = `Solve #${item.solveId} · ${item.status}`;
+    marker.textContent = `${item.simTime.toFixed(1)}s`;
+    timeline.appendChild(marker);
   });
 }
 
@@ -557,12 +852,8 @@ function drawPerfChart() {
   pctx.beginPath(); pctx.moveTo(pad, gy); pctx.lineTo(cw - pad, gy); pctx.stroke();
   pctx.setLineDash([]);
 
-  const grad = pctx.createLinearGradient(0, pad, 0, ch - pad);
-  grad.addColorStop(0, 'rgba(0,242,254,0.4)');
-  grad.addColorStop(1, 'rgba(0,242,254,0.0)');
-
-  pctx.fillStyle   = grad;
-  pctx.strokeStyle = 'rgba(0,242,254,0.9)';
+  pctx.fillStyle   = 'rgba(98,210,189,0.18)';
+  pctx.strokeStyle = 'rgba(98,210,189,0.9)';
   pctx.lineWidth   = 1.5;
 
   pctx.beginPath();
@@ -591,14 +882,18 @@ function drawPerfChart() {
 /* ══════════════════════════════════════════════
    EVENT LOG
 ══════════════════════════════════════════════ */
+function formatSystemTime(date = new Date()) {
+  return [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map(value => String(value).padStart(2, '0'))
+    .join(':');
+}
+
 function pushLog(msg, cls = 'log-info') {
   const terminal = document.getElementById('logTerminal');
   if (!terminal) return;
   const entry = document.createElement('div');
   entry.className = `log-entry ${cls}`;
-  const t   = new Date();
-  const ts  = `${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}`;
-  entry.textContent = `[${ts}] ${msg}`;
+  entry.textContent = `[${formatSystemTime()}] ${msg}`;
   terminal.appendChild(entry);
   while (terminal.children.length > 120) terminal.removeChild(terminal.firstChild);
   terminal.scrollTop = terminal.scrollHeight;
@@ -607,119 +902,516 @@ function pushLog(msg, cls = 'log-info') {
 function checkLogEvents(data) {
   const col = data.colregs;
   if (col !== lastColregs) {
-    const cls = col.includes('14')       ? 'log-warn'   :
-                col.includes('Give-Way') ? 'log-danger' :
-                col.includes('Clear')    ? 'log-ok'     : 'log-info';
-    pushLog(`COLREGs → ${col}`, cls);
+    const cls = col === 'head_on'           ? 'log-warn'   :
+                col === 'crossing_give_way' ? 'log-danger' :
+                col === 'clear'             ? 'log-ok'     : 'log-info';
+    pushLog(`COLREGs → ${ENCOUNTER_LABELS[col] || col}`, cls);
     lastColregs = col;
   }
-  const lvl = data.dcpa > DCPA_SAFE ? 'safe' : data.dcpa > DCPA_WARN ? 'warn' : 'danger';
-  if (lvl !== lastDcpaLevel) {
-    pushLog(`DCPA ${lvl.toUpperCase()} — ${data.dcpa.toFixed(0)} m`,
+  const dcpa = Number.isFinite(data.dcpa) ? data.dcpa : null;
+  const lvl = dcpa === null ? null : dcpa > DCPA_SAFE ? 'safe' : dcpa > DCPA_WARN ? 'warn' : 'danger';
+  if (lvl && lvl !== lastDcpaLevel) {
+    pushLog(`DCPA ${lvl.toUpperCase()} — ${dcpa.toFixed(0)} m`,
             lvl === 'safe' ? 'log-ok' : lvl === 'warn' ? 'log-warn' : 'log-danger');
     lastDcpaLevel = lvl;
   }
+  (data.events || []).forEach(event => {
+    const detail = event.details && event.details.reason ? `: ${event.details.reason}` : '';
+    pushLog(`${event.type}${detail}`, event.type.includes('fail') ? 'log-danger' : 'log-info');
+  });
 }
 
 /* ══════════════════════════════════════════════
    WEBSOCKET
 ══════════════════════════════════════════════ */
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = data.detail;
+    const message = typeof detail === 'object'
+      ? `${detail.status || 'ERROR'}: ${detail.reason || JSON.stringify(detail)}`
+      : detail || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return data;
+}
+
+function setSessionConnectionState(state, logEvent = false) {
+  const states = {
+    connected: { text: '会话: 连通', logClass: 'log-ok' },
+    reset: { text: '会话: 重置', logClass: 'log-warn' },
+    disconnected: { text: '会话: 断连', logClass: 'log-danger' },
+  };
+  const next = states[state];
+  if (!next) return;
+
+  const indicator = document.getElementById('status-dot').closest('.status-indicator');
+  const dot = document.getElementById('status-dot');
+  indicator.classList.remove('connected', 'reset', 'disconnected');
+  indicator.classList.add(state);
+  dot.classList.toggle('active', state === 'connected');
+  dot.classList.toggle('reset', state === 'reset');
+  document.getElementById('conn-status').textContent = next.text;
+
+  if (logEvent && state !== sessionConnectionState) pushLog(next.text, next.logClass);
+  sessionConnectionState = state;
+}
+
 function connectWebSocket() {
+  if (!activeSessionId) return;
+  if (ws) {
+    ws.onclose = null;
+    ws.close();
+  }
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws = new WebSocket(`${proto}//${location.host}/ws/sessions/${activeSessionId}`);
 
   ws.onopen = () => {
-    document.getElementById('conn-status').textContent = 'Connected';
-    document.getElementById('status-dot').classList.add('active');
-    document.getElementById('status-dot').closest('.status-indicator').classList.add('connected');
-    pushLog('WebSocket connected to simulation engine.', 'log-ok');
+    setSessionConnectionState('connected', true);
   };
 
-  ws.onmessage = e => {
-    const data = JSON.parse(e.data);
-    if (!data.os) return;    // heartbeat without full state
+  ws.onmessage = event => {
+    const data = JSON.parse(event.data);
+    if (!data.os) return;
     currentData = data;
     updateUI(data);
     renderCanvas(data);
     checkLogEvents(data);
+    if (data.state === 'FINISHED' && !resultLoaded) loadResult();
+    if (data.state === 'FAILED') pushLog(data.failure_reason || 'Simulation failed.', 'log-danger');
   };
 
   ws.onclose = () => {
-    document.getElementById('conn-status').textContent = 'Reconnecting…';
-    document.getElementById('status-dot').classList.remove('active');
-    document.getElementById('status-dot').closest('.status-indicator').classList.remove('connected');
-    setTimeout(connectWebSocket, 2500);
+    setSessionConnectionState('disconnected', true);
+    if (activeSessionId) setTimeout(connectWebSocket, 2500);
   };
 
-  ws.onerror = () => pushLog('WebSocket error — retrying…', 'log-danger');
+  ws.onerror = () => pushLog('WebSocket error.', 'log-danger');
+}
+
+async function createSession() {
+  if (activeSessionId && currentData && currentData.state === 'RUNNING') {
+    await apiRequest(`/api/sessions/${activeSessionId}/pause`, { method: 'POST' });
+  }
+  const request = {
+    validation_rule_id: document.querySelector('.qtab.active')?.dataset.group || 'rule14',
+    scenario_id: document.getElementById('scenarioSelect').value,
+    algorithm_id: document.getElementById('algoSelect').value,
+    tracker_id: document.getElementById('trackerSelect').value,
+    seed: 0,
+    strict_no_fallback: true,
+  };
+  const data = await apiRequest('/api/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  activateSession(data);
+  pushLog(`Session created: ${request.scenario_id} / ${request.algorithm_id} / ${request.tracker_id}`, 'log-info');
+  return data;
+}
+
+function activateSession(data) {
+  activeSessionId = data.session_id;
+  resultLoaded = false;
+  currentData = null;
+  perfHistory.length = 0;
+  solveTimeline = [];
+  lastDisplayedSolveId = null;
+  lastSolveSimTime = null;
+  lastRuntimeState = 'CREATED';
+  setRuntimePanelsExpanded(false);
+  renderSolveTimeline();
+  lastColregs = '';
+  lastDcpaLevel = '';
+  encReady = false;
+  encInfo = null;
+  encImage = null;
+  setEncStatus('loading');
+  syncEncChartSelect(document.getElementById('scenarioSelect').value);
+  connectWebSocket();
+  initENC();
+}
+
+async function loadResult() {
+  if (!activeSessionId || resultLoaded) return;
+  resultLoaded = true;
+  try {
+    const result = await apiRequest(`/api/sessions/${activeSessionId}/result`);
+    const artifacts = await apiRequest(`/api/sessions/${activeSessionId}/artifacts`);
+    pushLog(
+      `Evaluation ready: ${result.manifest.reproduction_status} · ${artifacts.length} artifacts.`,
+      'log-ok',
+    );
+  } catch (error) {
+    resultLoaded = false;
+    pushLog(`Result load failed: ${error.message}`, 'log-danger');
+  }
+}
+
+async function populateCatalogs(ruleId = 'rule14') {
+  const [catalog, allCapabilities] = await Promise.all([
+    apiRequest(`/api/capabilities?validation_rule_id=${encodeURIComponent(ruleId)}`),
+    ruleCatalog.length ? Promise.resolve(null) : apiRequest('/api/capabilities'),
+  ]);
+  capabilityCatalog = catalog;
+  if (allCapabilities) ruleCatalog = allCapabilities.rules;
+
+  const scenarioSelect = document.getElementById('scenarioSelect');
+  const selectedScenario = scenarioSelect.value;
+  scenarioCatalog = catalog.scenarios;
+  populateScenarioOptions(ruleId, selectedScenario);
+
+  document.querySelectorAll('.qtab').forEach(tab => {
+    const rule = ruleCatalog.find(item => item.id === tab.dataset.group);
+    tab.disabled = !rule?.selectable;
+    tab.title = rule?.incompatibility_reason || `${rule?.readiness_grade || 'G0'} display ready`;
+  });
+
+  const integrations = [...catalog.algorithms, ...catalog.trackers];
+  const statusMap = Object.fromEntries(integrations.map(item => [item.id, item]));
+  document.querySelectorAll('[data-integration]').forEach(chip => {
+    const status = statusMap[chip.dataset.integration];
+    const selectable = Boolean(status?.selectable);
+    chip.classList.toggle('available', selectable);
+    chip.classList.toggle('unavailable', !selectable);
+    chip.querySelector('.integration-state').textContent = status?.dependency_available
+      ? `${status.readiness_grade} · ${selectable ? '可选' : '禁选'}`
+      : '缺依赖';
+    chip.title = status?.incompatibility_reason
+      || `${status?.source || '内置接口'}${status?.version ? ` · v${status.version}` : ''}`;
+  });
+
+  ensureSelectableValue(
+    document.getElementById('algoSelect'),
+    catalog.algorithms,
+    catalog.defaults.algorithm_id,
+  );
+  ensureSelectableValue(
+    document.getElementById('trackerSelect'),
+    catalog.trackers,
+    catalog.defaults.tracker_id,
+  );
+  document.querySelectorAll('#algoSelect option').forEach(option => {
+    const status = statusMap[option.value];
+    option.disabled = !status?.selectable;
+    option.title = status?.incompatibility_reason || `${status?.readiness_grade || 'G0'} ready`;
+  });
+  document.querySelectorAll('#trackerSelect option').forEach(option => {
+    const status = statusMap[option.value];
+    option.disabled = !status?.selectable;
+    option.title = status?.incompatibility_reason || `${status?.readiness_grade || 'G0'} ready`;
+  });
+  document.querySelectorAll('[data-algorithm]').forEach(card => {
+    setSelectionAvailability(card, statusMap[card.dataset.algorithm]);
+  });
+  document.querySelectorAll('[data-tracker]').forEach(card => {
+    setSelectionAvailability(card, statusMap[card.dataset.tracker]);
+  });
+  syncSelectionCards('algorithm', document.getElementById('algoSelect').value);
+  syncSelectionCards('tracker', document.getElementById('trackerSelect').value);
+}
+
+function ensureSelectableValue(select, entries, preferredId) {
+  const current = entries.find(item => item.id === select.value && item.selectable);
+  const fallback = entries.find(item => item.id === preferredId && item.selectable)
+    || entries.find(item => item.selectable);
+  select.value = (current || fallback)?.id || '';
+}
+
+function setSelectionAvailability(card, status) {
+  const selectable = Boolean(status?.selectable);
+  card.classList.toggle('available', selectable);
+  card.classList.toggle('unavailable', !selectable);
+  card.disabled = !selectable;
+  card.querySelector('.selection-state').textContent = status?.dependency_available
+    ? `${status.readiness_grade} · ${selectable ? '可选' : '禁选'}`
+    : '缺依赖';
+  card.title = status?.incompatibility_reason || `${status?.readiness_grade || 'G0'} ready`;
+}
+
+function syncSelectionCards(kind, value) {
+  document.querySelectorAll(`[data-${kind}]`).forEach(card => {
+    const selected = card.dataset[kind] === value;
+    card.classList.toggle('selected', selected);
+    card.setAttribute('aria-pressed', String(selected));
+  });
 }
 
 /* ══════════════════════════════════════════════
    CONTROLS
 ══════════════════════════════════════════════ */
+function scenarioDisplayName(item) {
+  const fallback = (item.name || item.id.split('/').pop())
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
+  return `${SCENARIO_LABELS[item.id] || fallback} · ${item.readiness_grade} · ${Math.round(item.t_end)}s`;
+}
+
+function scenarioChart(scenarioId) {
+  return /(^|\/)(rl|rrt|planning)|boknafjorden|rogaland/i.test(scenarioId)
+    ? 'rogaland'
+    : 'romsdal';
+}
+
+function syncEncChartSelect(scenarioId) {
+  const select = document.getElementById('encChartSelect');
+  if (!select) return;
+  const availableCharts = new Set(
+    scenarioCatalog.filter(item => item.selectable).map(item => scenarioChart(item.id)),
+  );
+  Object.keys(ENC_CHARTS).forEach(chartId => {
+    const option = select.querySelector(`option[value="${chartId}"]`);
+    if (option) option.disabled = !availableCharts.has(chartId);
+  });
+  const chartId = scenarioChart(scenarioId);
+  if (select.querySelector(`option[value="${chartId}"]`)) select.value = chartId;
+}
+
+function setActiveQuickGroup(groupId) {
+  document.querySelectorAll('.qtab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.group === groupId);
+  });
+}
+
+function populateScenarioOptions(groupId, preferredScenario) {
+  const group = SCENARIO_GROUPS[groupId] || SCENARIO_GROUPS.rule14;
+  const items = scenarioCatalog.filter(item => group.types.includes(item.type));
+  const scenarioSelect = document.getElementById('scenarioSelect');
+  scenarioSelect.replaceChildren();
+  items.forEach(item => {
+    const option = document.createElement('option');
+    option.value = item.id;
+    option.textContent = scenarioDisplayName(item);
+    option.disabled = !item.selectable;
+    option.title = item.incompatibility_reason || `${item.readiness_grade} ready`;
+    scenarioSelect.appendChild(option);
+  });
+  const selectableItems = items.filter(item => item.selectable);
+  const selectedScenario = selectableItems.some(item => item.id === preferredScenario)
+    ? preferredScenario
+    : selectableItems.some(item => item.id === group.defaultScenario)
+      ? group.defaultScenario
+      : selectableItems[0]?.id;
+  if (selectedScenario) scenarioSelect.value = selectedScenario;
+  setActiveQuickGroup(groupId);
+  syncEncChartSelect(selectedScenario);
+  return selectedScenario;
+}
+
+function syncQuickScenarioTab(scenarioId) {
+  const scenario = scenarioCatalog.find(item => item.id === scenarioId);
+  if (!scenario) return;
+  const groupId = Object.entries(SCENARIO_GROUPS)
+    .find(([, group]) => group.types.includes(scenario.type))?.[0];
+  if (groupId) setActiveQuickGroup(groupId);
+}
+
 document.getElementById('btnStart').addEventListener('click', async () => {
-  await fetch('/api/start', { method: 'POST' });
-  pushLog('▶ Simulation started.', 'log-ok');
+  try {
+    await apiRequest(`/api/sessions/${activeSessionId}/start`, { method: 'POST' });
+    setRuntimePanelsExpanded(true);
+    pushLog('Simulation started.', 'log-ok');
+  } catch (error) {
+    pushLog(error.message, 'log-danger');
+  }
 });
 
 document.getElementById('btnPause').addEventListener('click', async () => {
-  await fetch('/api/pause', { method: 'POST' });
-  pushLog('⏸ Simulation paused.', 'log-info');
+  try {
+    await apiRequest(`/api/sessions/${activeSessionId}/pause`, { method: 'POST' });
+    pushLog('Simulation paused.', 'log-info');
+  } catch (error) {
+    pushLog(error.message, 'log-danger');
+  }
+});
+
+document.getElementById('btnStep').addEventListener('click', async () => {
+  try {
+    await apiRequest(`/api/sessions/${activeSessionId}/step`, { method: 'POST' });
+    pushLog('Single simulation step executed.', 'log-info');
+  } catch (error) {
+    pushLog(error.message, 'log-danger');
+  }
 });
 
 document.getElementById('btnReset').addEventListener('click', async () => {
-  const scenario = document.getElementById('scenarioSelect').value;
-  await fetch(`/api/reset?scenario=${encodeURIComponent(scenario)}`, { method: 'POST' });
-  currentData = null;
-  perfHistory.length = 0;
-  lastColregs = ''; lastDcpaLevel = '';
-  _algoStatusRendered = false;
-  document.getElementById('algoStatusRow').innerHTML = '';
-  pushLog(`⟳ Reset → ${scenario}`, 'log-warn');
+  setSessionConnectionState('reset', true);
+  try {
+    await createSession();
+  } catch (error) {
+    setSessionConnectionState('disconnected', true);
+    pushLog(error.message, 'log-danger');
+  }
 });
 
-document.getElementById('algoSelect').addEventListener('change', async e => {
-  const algo = e.target.value;
-  const res  = await fetch(`/api/select_algorithm?algorithm=${encodeURIComponent(algo)}`, { method: 'POST' });
-  const data = await res.json();
-  pushLog(`Algorithm → ${data.algorithm}`, 'log-info');
+document.getElementById('btnReplay').addEventListener('click', async () => {
+  try {
+    const data = await apiRequest(`/api/sessions/${activeSessionId}/replay`, { method: 'POST' });
+    activateSession(data);
+    pushLog('Verified replay session created from source manifest.', 'log-info');
+  } catch (error) {
+    pushLog(error.message, 'log-danger');
+  }
 });
 
-document.getElementById('scenarioSelect').addEventListener('change', async e => {
-  const s = e.target.value;
-  await fetch(`/api/reset?scenario=${encodeURIComponent(s)}`, { method: 'POST' });
-  document.querySelectorAll('.qtab').forEach(t => t.classList.toggle('active', t.dataset.scenario === s));
-  pushLog(`Scenario → ${s}`, 'log-info');
+document.querySelectorAll('[data-algorithm]').forEach(card => {
+  card.addEventListener('click', () => {
+    if (card.disabled) return;
+    const select = document.getElementById('algoSelect');
+    if (select.value === card.dataset.algorithm) return;
+    select.value = card.dataset.algorithm;
+    select.dispatchEvent(new Event('change'));
+  });
+});
+
+document.querySelectorAll('[data-tracker]').forEach(card => {
+  card.addEventListener('click', () => {
+    if (card.disabled) return;
+    const select = document.getElementById('trackerSelect');
+    if (select.value === card.dataset.tracker) return;
+    select.value = card.dataset.tracker;
+    select.dispatchEvent(new Event('change'));
+  });
+});
+
+document.getElementById('encChartSelect').addEventListener('change', async event => {
+  const chartId = event.target.value;
+  const activeGroup = document.querySelector('.qtab.active')?.dataset.group || 'rule14';
+  const group = SCENARIO_GROUPS[activeGroup] || SCENARIO_GROUPS.rule14;
+  const target = scenarioCatalog.find(item => (
+    item.selectable
+    && group.types.includes(item.type)
+    && scenarioChart(item.id) === chartId
+  ));
+  if (!target) {
+    syncEncChartSelect(document.getElementById('scenarioSelect').value);
+    return;
+  }
+  populateScenarioOptions(activeGroup, target.id);
+  setEncStatus('loading');
+  try {
+    await createSession();
+  } catch (error) {
+    pushLog(error.message, 'log-danger');
+  }
+});
+
+['algoSelect', 'scenarioSelect', 'trackerSelect'].forEach(id => {
+  document.getElementById(id).addEventListener('change', async () => {
+    if (id === 'scenarioSelect') {
+      syncQuickScenarioTab(document.getElementById(id).value);
+      syncEncChartSelect(document.getElementById(id).value);
+      setEncStatus('loading');
+    } else if (id === 'algoSelect') {
+      syncSelectionCards('algorithm', document.getElementById(id).value);
+    } else {
+      syncSelectionCards('tracker', document.getElementById(id).value);
+    }
+    try {
+      await createSession();
+    } catch (error) {
+      pushLog(error.message, 'log-danger');
+    }
+  });
 });
 
 document.querySelectorAll('.qtab').forEach(tab => {
   tab.addEventListener('click', async () => {
-    const s = tab.dataset.scenario;
-    document.getElementById('scenarioSelect').value = s;
-    document.querySelectorAll('.qtab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    await fetch(`/api/reset?scenario=${encodeURIComponent(s)}`, { method: 'POST' });
-    pushLog(`Scenario (tab) → ${s}`, 'log-info');
+    if (tab.disabled) return;
+    try {
+      await populateCatalogs(tab.dataset.group);
+      await createSession();
+    } catch (error) {
+      pushLog(error.message, 'log-danger');
+    }
   });
 });
 
-document.getElementById('speedSlider').addEventListener('input', async e => {
-  const speed = parseFloat(e.target.value);
-  document.getElementById('speedLabel').textContent = `${speed.toFixed(1)}×`;
-  await fetch(`/api/set_speed?multiplier=${speed}`, { method: 'POST' }).catch(() => {});
+document.querySelectorAll('.speed-preset').forEach(button => {
+  button.addEventListener('click', async () => {
+    const speed = parseFloat(button.dataset.speed);
+    document.querySelectorAll('.speed-preset').forEach(item => {
+      item.classList.toggle('active', item === button);
+    });
+    await fetch(`/api/set_speed?multiplier=${speed}`, { method: 'POST' }).catch(() => {});
+  });
 });
 
-const logSection = document.querySelector('.log-section');
-const logToggle  = document.getElementById('logToggle');
-logToggle.addEventListener('click', () => {
-  logSection.classList.toggle('collapsed');
-  logToggle.setAttribute('aria-expanded', !logSection.classList.contains('collapsed'));
-});
-logToggle.addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); logToggle.click(); }
-});
+const RUNTIME_PANEL_IDS = ['cardSafety', 'cardTelemetry', 'cardPlanner', 'cardPerf'];
+
+function setCardCollapsed(card, collapsed) {
+  card.classList.toggle('collapsed', collapsed);
+  const button = card.querySelector('.card-toggle');
+  if (!button) return;
+  button.textContent = collapsed ? '展开' : '收起';
+  button.setAttribute('aria-expanded', String(!collapsed));
+}
+
+function initializeCollapsibleCard(card, collapsed) {
+  if (!card || card.classList.contains('collapsible-card')) return;
+  card.classList.add('collapsible-card');
+  const heading = card.querySelector(':scope > .planner-heading') || card.querySelector(':scope > .card-title');
+  if (!heading) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'card-toggle';
+  button.addEventListener('click', () => setCardCollapsed(card, !card.classList.contains('collapsed')));
+  heading.appendChild(button);
+  setCardCollapsed(card, collapsed);
+}
+
+function setRuntimePanelsExpanded(expanded) {
+  RUNTIME_PANEL_IDS.forEach(id => {
+    const card = document.getElementById(id);
+    if (card) setCardCollapsed(card, !expanded);
+  });
+}
+
+function prepareWorkspaceLayout() {
+  const insights = document.querySelector('.insights-column');
+  const sidebar = document.querySelector('.sidebar-column');
+  const controls = document.createElement('div');
+  controls.className = 'sidebar-controls-scroll';
+  ['cardIntegrations', 'cardControl', 'cardTracker'].forEach(id => {
+    const card = document.getElementById(id);
+    if (card) controls.appendChild(card);
+  });
+  sidebar.prepend(controls);
+  RUNTIME_PANEL_IDS.forEach(id => {
+    const card = document.getElementById(id);
+    if (card) {
+      insights.appendChild(card);
+      initializeCollapsibleCard(card, true);
+    }
+  });
+  initializeCollapsibleCard(document.getElementById('cardIntegrations'), true);
+  initializeCollapsibleCard(document.getElementById('cardControl'), false);
+  initializeCollapsibleCard(document.getElementById('cardTracker'), false);
+  const eventLog = document.querySelector('.log-section');
+  if (eventLog) {
+    eventLog.classList.remove('map-log-overlay');
+    eventLog.classList.add('sidebar-event-log');
+    sidebar.appendChild(eventLog);
+    initializeCollapsibleCard(eventLog, false);
+  }
+  const initialLogEntry = document.getElementById('initialLogEntry');
+  if (initialLogEntry) {
+    initialLogEntry.textContent = `[${formatSystemTime()}] System ready. Waiting for simulation start…`;
+  }
+}
 
 /* ── Boot ─────────────────────────────────────── */
-document.getElementById('toggleENC').classList.add('enc-on');
-connectWebSocket();
-initENC();       // start polling ENC status in background
+async function boot() {
+  prepareWorkspaceLayout();
+  document.getElementById('toggleENC').classList.add('enc-on');
+  try {
+    await populateCatalogs();
+    await createSession();
+  } catch (error) {
+    pushLog(`Initialization failed: ${error.message}`, 'log-danger');
+  }
+}
+
+boot();
