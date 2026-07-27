@@ -387,22 +387,63 @@ body {
   flex-shrink: 0;
 }
 
-.color-box.ownship  { background: var(--accent-cyan); }
-.color-box.obstacle { background: var(--accent-red); }
+.color-box.ownship  { background: #f7fafa; border: 1px solid #65706f; }
+.color-box.route {
+  width: 18px;
+  height: 0;
+  border-top: 2px dashed #f4d34e;
+  border-radius: 0;
+}
+.color-box.corridor { background: rgba(76,202,209,0.22); border: 1px solid rgba(76,202,209,0.55); }
+.color-box.motion {
+  width: 18px;
+  height: 0;
+  border-top: 2px solid #fff;
+  border-radius: 0;
+}
 .color-box.track { background: var(--accent-green); }
 .color-box.measurement { background: var(--accent-amber); }
-.color-box.horizon  { background: var(--accent-gold); }
-.color-box.waypoint { background: var(--accent-purple); }
-.color-box.safety   { background: rgba(255, 75, 75, 0.35); border: 1px solid var(--accent-red); }
+.color-box.covariance { background: transparent; border: 1px solid var(--accent-green); border-radius: 50%; }
+.color-box.horizon  { background: #55d6b7; }
+.color-box.previous {
+  width: 18px;
+  height: 0;
+  border-top: 2px dashed rgba(85,214,183,0.4);
+  border-radius: 0;
+}
 .color-box.dcpa-line{ background: var(--accent-amber); }
+.color-box.clear { background: #aab4ba; }
+.color-box.low { background: #f5a524; border-radius: 50%; }
+.color-box.high { background: #ff4d5a; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,77,90,0.2); }
+.color-box.unknown { background: transparent; border: 1px dashed #68747a; }
 
 .layer-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 9px;
   padding: 9px 10px 10px;
   color: var(--text-muted);
   font-size: 0.72rem;
+  min-width: 390px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.layer-controls fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 6px 8px 7px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  display: grid;
+  gap: 5px;
+}
+
+.layer-controls legend {
+  padding: 0 4px;
+  color: var(--accent-cyan);
+  font-size: 0.63rem;
+  font-weight: 700;
 }
 
 .layer-controls label {
@@ -415,6 +456,18 @@ body {
 .layer-controls input {
   accent-color: var(--accent-green);
 }
+
+.layer-controls input:disabled + * {
+  opacity: 0.5;
+}
+
+.layer-state {
+  margin-left: auto;
+  color: var(--accent-red);
+  font-size: 0.58rem;
+}
+
+.layer-state.available { color: var(--accent-green); }
 
 .map-layer-overlay {
   position: absolute;
@@ -454,6 +507,54 @@ body {
 .map-disclosure summary::after { content: "⌄"; color: var(--accent-cyan); }
 .map-disclosure[open] summary { border-bottom: 1px solid var(--panel-border); }
 .map-disclosure[open] summary::after { content: "⌃"; }
+
+.target-details {
+  position: absolute;
+  z-index: 7;
+  top: 96px;
+  right: 12px;
+  width: 230px;
+  padding: 10px;
+  background: rgba(11, 15, 14, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.target-details[hidden] { display: none; }
+
+.target-details h3 {
+  margin: 0 24px 8px 0;
+  font-size: 0.76rem;
+  color: var(--text-main);
+}
+
+.target-details > button {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.target-details dl { margin: 0; display: grid; gap: 4px; }
+.target-details dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.target-details dt { color: var(--text-dim); font-size: 0.62rem; }
+.target-details dd {
+  margin: 0;
+  color: var(--accent-cyan);
+  font: 0.64rem var(--font-mono);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
 
 /* Canvas Wrapper */
 .canvas-wrapper {
@@ -1636,13 +1737,21 @@ canvas#simCanvas {
   }
 
   .layer-controls {
-    gap: 5px 8px;
-    max-width: 230px;
+    grid-template-columns: 1fr;
+    min-width: 240px;
+    gap: 7px;
+    max-width: 280px;
   }
 
   .canvas-wrapper {
     height: 440px;
     min-height: 440px;
+  }
+
+  .target-details {
+    top: 96px;
+    right: 8px;
+    width: min(230px, calc(100% - 16px));
   }
 
   .map-log-overlay {

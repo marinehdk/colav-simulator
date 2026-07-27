@@ -98,6 +98,50 @@ def test_header_uses_requested_session_labels() -> None:
         assert 'id="solveTimeline"' in page.text
 
 
+def test_chart_layer_controls_follow_navigation_semantics() -> None:
+    with TestClient(app) as client:
+        page = client.get("/")
+        script = client.get("/static/app.js")
+        assert page.status_code == 200
+        assert script.status_code == 200
+        assert all(
+            f'data-layer="{layer}"' in page.text
+            for layer in (
+                "safeWater",
+                "ships",
+                "corridor",
+                "route",
+                "waypoints",
+                "history",
+                "motionVectors",
+                "prediction",
+                "previousPrediction",
+                "executionPoint",
+                "risk",
+                "truth",
+                "measurements",
+                "tracks",
+                "covariance",
+            )
+        )
+        assert 'data-layer="truth" checked' not in page.text
+        assert 'data-layer="measurements" checked' not in page.text
+        assert 'data-layer="previousPrediction" checked' not in page.text
+        assert 'id="targetDetails"' in page.text
+        assert all(label in page.text for label in ("安全海域", "初始航道", "60s 向量"))
+        assert all(
+            token in script.text
+            for token in (
+                "const FCB45_LENGTH_M = 45",
+                "const FCB45_WIDTH_M = 8",
+                "new Path2D()",
+                "threat_level || 'UNKNOWN'",
+                "own_cpa_position",
+                "target_cpa_position",
+            )
+        )
+
+
 def test_real_session_api_and_websocket() -> None:
     with TestClient(app) as client:
         scenarios = client.get("/api/scenarios")

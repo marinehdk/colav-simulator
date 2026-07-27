@@ -14,6 +14,16 @@ const DCPA_SAFE  = 300;   // m – green
 const DCPA_WARN  = 100;   // m – amber/red
 const TCPA_SAFE  = 120;   // s
 const TCPA_WARN  = 40;    // s
+const FCB45_LENGTH_M = 45;
+const FCB45_WIDTH_M = 8;
+const MOTION_VECTOR_SECONDS = 60;
+const MOTION_TICK_SECONDS = 10;
+const THREAT_STYLES = {
+  UNKNOWN: { color: '#68747A', fill: 'rgba(104,116,122,0.08)', rank: 0 },
+  CLEAR: { color: '#AAB4BA', fill: 'rgba(170,180,186,0.66)', rank: 1 },
+  LOW: { color: '#F5A524', fill: 'rgba(245,165,36,0.76)', rank: 2 },
+  HIGH: { color: '#FF4D5A', fill: 'rgba(255,77,90,0.82)', rank: 3 },
+};
 
 const SCENARIO_GROUPS = {
   rule13: { types: ['OT_ing', 'OT_en'], defaultScenario: 'overtaking' },
@@ -72,11 +82,21 @@ let encImage  = null;   // HTMLImageElement (PNG tile)
 let encReady  = false;
 let showENC   = true;   // user toggle
 const visibleLayers = {
-  truth: true,
-  measurements: true,
-  tracks: true,
-  covariance: true,
-  plans: true,
+  safeWater: true,
+  ships: true,
+  corridor: true,
+  route: true,
+  waypoints: true,
+  history: true,
+  motionVectors: true,
+  prediction: true,
+  previousPrediction: false,
+  executionPoint: true,
+  risk: true,
+  truth: false,
+  measurements: false,
+  tracks: false,
+  covariance: false,
 };
 
 /* ══════════════════════════════════════════════
@@ -99,6 +119,10 @@ let lastColregs = '', lastDcpaLevel = '';
 let activeSessionId = null;
 let resultLoaded = false;
 let sessionConnectionState = 'disconnected';
+const missionRoutes = new Map();
+let targetHitRegions = [];
+let selectedTargetId = null;
+let pointerDown = null;
 
 /* ══════════════════════════════════════════════
    CANVAS SETUP
@@ -184,6 +208,7 @@ canvas.addEventListener('wheel', e => {
 
 canvas.addEventListener('mousedown', e => {
   isPanning = true; lastPanX = e.clientX; lastPanY = e.clientY;
+  pointerDown = { x: e.clientX, y: e.clientY };
 });
 window.addEventListener('mousemove', e => {
   if (!isPanning) return;
@@ -192,6 +217,22 @@ window.addEventListener('mousemove', e => {
   if (currentData) renderCanvas(currentData);
 });
 window.addEventListener('mouseup', () => { isPanning = false; });
+canvas.addEventListener('click', event => {
+  if (pointerDown && Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) > 4) return;
+  const bounds = canvas.getBoundingClientRect();
+  const x = event.clientX - bounds.left;
+  const y = event.clientY - bounds.top;
+  const hit = [...targetHitRegions].reverse().find(item => Math.hypot(x - item.x, y - item.y) <= item.radius);
+  selectedTargetId = hit?.target.id ?? null;
+  updateTargetDetails(hit?.target ?? null, currentData);
+  if (currentData) renderCanvas(currentData);
+});
+
+document.getElementById('targetDetailsClose').addEventListener('click', () => {
+  selectedTargetId = null;
+  updateTargetDetails(null, currentData);
+  if (currentData) renderCanvas(currentData);
+});
 
 document.getElementById('zoomIn').addEventListener('click', () => {
   viewScale = Math.min(5.0, viewScale * 1.25); updateScaleBar();
@@ -214,6 +255,7 @@ document.getElementById('toggleENC').addEventListener('click', function () {
 document.querySelectorAll('[data-layer]').forEach(input => {
   input.addEventListener('change', () => {
     visibleLayers[input.dataset.layer] = input.checked;
+    updateLegendVisibility();
     if (currentData) renderCanvas(currentData);
   });
 });
@@ -274,45 +316,38 @@ function renderCanvas(data) {
   const W = wrapper.clientWidth;
   const H = wrapper.clientHeight;
   ctx.clearRect(0, 0, W, H);
+  targetHitRegions = [];
 
-  // ── 1. Background ───────────────────────────────────────────────────────
   ctx.fillStyle = '#101615';
   ctx.fillRect(0, 0, W, H);
+  if (showENC && encReady && encImage && encInfo) drawENCTile(W, H);
+  if (!encReady || !showENC) drawGrid(W, H);
 
-  // ── 2. ENC Chart PNG (bottom layer) ─────────────────────────────────────
-  if (showENC && encReady && encImage && encInfo) {
-    drawENCTile(W, H);
-  }
+  const route = frozenMissionRoute(data);
+  const navigationArea = data.enc_navigation_area || data.navigation_area;
+  updateLayerAvailability(data, navigationArea, route);
 
-  // ── 3. Grid (shown only when ENC is hidden) ─────────────────────────────
-  if (!encReady || !showENC) {
-    drawGrid(W, H);
-  }
-
-  // ── 4. Scenario elements ─────────────────────────────────────────────────
-  if (visibleLayers.plans && data.waypoints && data.waypoints.length >= 2)
-    drawWaypoints(data.waypoints);
-  if (visibleLayers.truth) {
-    (data.obstacles || []).forEach(obs =>
-      drawObstacle(obs, data.safety_margin || SAFETY_MARGIN_DEFAULT));
-    drawOwnshipTrail(data.os);
-  }
+  if (visibleLayers.safeWater) drawNavigationArea(navigationArea);
+  if (visibleLayers.corridor) drawRouteCorridor(route, Number(data.route_corridor_half_width_m));
+  if (visibleLayers.route) drawInitialRoute(route);
+  if (visibleLayers.waypoints) drawWaypoints(route, data.os);
+  if (visibleLayers.history) drawHistory(data);
   if (visibleLayers.measurements) drawMeasurements(data.measurements?.[0]);
   if (visibleLayers.tracks) drawTracks(data.tracks?.[0]);
-  if (visibleLayers.plans) {
-    const plans = data.plans || {};
-    if (plans.previous_prediction_horizon?.length > 0)
-      drawHorizon(plans.previous_prediction_horizon, true);
-    (plans.target_prediction_horizons || []).forEach(drawTargetHorizon);
-    if (plans.prediction_horizon?.length > 0) {
-      drawHorizon(plans.prediction_horizon, false);
-      drawExecutionPoint(plans.prediction_horizon);
-    }
-  }
-  if (visibleLayers.truth) {
-    drawDCPALine(data);
-    drawOwnship(data.os);
-  }
+  if (visibleLayers.motionVectors) drawMotionVectors(data);
+
+  const plans = data.plans || {};
+  if (visibleLayers.previousPrediction && plans.previous_prediction_horizon?.length > 0)
+    drawHorizon(plans.previous_prediction_horizon, true, data.planner);
+  (plans.target_prediction_horizons || []).forEach((horizon, index) =>
+    drawTargetHorizon(horizon, targetThreat(data, data.obstacles?.[index])));
+  if (visibleLayers.prediction && plans.prediction_horizon?.length > 0)
+    drawHorizon(plans.prediction_horizon, false, data.planner);
+  if (visibleLayers.executionPoint && plans.prediction_horizon?.length > 0)
+    drawExecutionPoint(plans.prediction_horizon);
+  if (visibleLayers.risk) drawCPARisk(data);
+  if (visibleLayers.ships) drawShips(data);
+  if (data.os) drawRelativeCompass(data.os, W, H);
 }
 
 /* ENC tile — mapped from UTM to canvas space */
@@ -337,7 +372,7 @@ function drawENCTile(W, H) {
   const drawY = llPt.y - tilePxH;   // upper-left = lower-left minus tile height
 
   ctx.save();
-  ctx.globalAlpha = 0.72;
+  ctx.globalAlpha = 0.92;
   ctx.drawImage(encImage, drawX, drawY, tilePxW, tilePxH);
   ctx.globalAlpha = 1.0;
   ctx.restore();
@@ -372,56 +407,168 @@ function chooseGridSpacing() {
   return opts.find(v => worldW / v <= 20) || opts[opts.length - 1];
 }
 
-/* Waypoints */
-function drawWaypoints(wps) {
-  const pts = [];
-  for (let i = 0; i < wps[0].length; i++)
-    pts.push(worldToCanvas(wps[0][i], wps[1][i]));
+function frozenMissionRoute(data) {
+  const key = data.run_id || data.selected_scenario || 'unbound';
+  if (!missionRoutes.has(key) && validRoute(data.waypoints)) {
+    missionRoutes.set(key, data.waypoints.map(axis => [...axis]));
+  }
+  return missionRoutes.get(key) || [[], []];
+}
 
-  ctx.strokeStyle = 'rgba(171,71,188,0.55)';
-  ctx.lineWidth   = 2;
-  ctx.setLineDash([6, 5]);
-  ctx.beginPath();
-  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.stroke();
-  ctx.setLineDash([]);
+function validRoute(route) {
+  return Array.isArray(route) && route.length >= 2
+    && Array.isArray(route[0]) && route[0].length >= 2
+    && route[0].length === route[1]?.length;
+}
 
-  pts.forEach((p, i) => {
-    ctx.strokeStyle = '#ab47bc'; ctx.fillStyle = 'rgba(171,71,188,0.25)';
-    ctx.lineWidth   = 2;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, 2 * Math.PI);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#ab47bc';
-    ctx.font      = '11px JetBrains Mono, monospace';
-    ctx.fillText(`WP${i + 1}`, p.x + 10, p.y + 4);
+function routePoints(route) {
+  if (!validRoute(route)) return [];
+  return route[0].map((north, index) => worldToCanvas(north, route[1][index]));
+}
+
+function drawNavigationArea(area) {
+  const safeWater = area?.safe_water?.polygons || area?.safe_water || area?.safe_water_polygons;
+  drawPolygonCollection(safeWater, 'rgba(76,202,209,0.12)', 'rgba(76,202,209,0.55)');
+}
+
+function drawPolygonCollection(collection, fill, stroke) {
+  const polygons = normalizePolygons(collection);
+  polygons.forEach(polygon => {
+    const rings = Array.isArray(polygon[0]?.[0]) ? polygon : [polygon];
+    ctx.beginPath();
+    rings.forEach(ring => {
+      ring.forEach((coordinate, index) => {
+        const point = worldToCanvas(Number(coordinate[0]), Number(coordinate[1]));
+        index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y);
+      });
+      ctx.closePath();
+    });
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.fill('evenodd');
+    ctx.stroke();
   });
 }
 
-/* Obstacle with safety zone */
-function drawObstacle(obs, safetyM) {
-  const pt    = worldToCanvas(obs.x, obs.y);
-  const safeR = safetyM * viewScale;
+function normalizePolygons(value) {
+  if (!value) return [];
+  if (value.type === 'FeatureCollection') return value.features.flatMap(feature => normalizePolygons(feature.geometry));
+  if (value.type === 'Feature') return normalizePolygons(value.geometry);
+  if (value.type === 'Polygon') return [value.coordinates];
+  if (value.type === 'MultiPolygon') return value.coordinates;
+  if (!Array.isArray(value) || value.length === 0) return [];
+  const depth = arrayDepth(value);
+  if (depth === 2) return [value];
+  if (depth === 3) return [value];
+  return value;
+}
 
-  ctx.beginPath(); ctx.arc(pt.x, pt.y, safeR, 0, 2 * Math.PI);
-  ctx.fillStyle   = 'rgba(255,75,75,0.05)';
-  ctx.strokeStyle = 'rgba(255,75,75,0.30)';
-  ctx.lineWidth   = 1.5;
-  ctx.setLineDash([4, 5]);
-  ctx.fill(); ctx.stroke();
-  ctx.setLineDash([]);
+function arrayDepth(value) {
+  let depth = 0;
+  let cursor = value;
+  while (Array.isArray(cursor)) {
+    depth += 1;
+    cursor = cursor[0];
+  }
+  return depth;
+}
 
-  if (obs.trajectory && obs.trajectory.length > 1) {
-    ctx.strokeStyle = 'rgba(255,75,75,0.35)';
-    ctx.lineWidth   = 1.5;
+function drawRouteCorridor(route, halfWidthM) {
+  if (!validRoute(route) || !Number.isFinite(halfWidthM) || halfWidthM <= 0) return;
+  const points = routePoints(route);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(76,202,209,0.14)';
+  ctx.lineWidth = Math.max(2, halfWidthM * 2 * viewScale);
+  strokePolyline(points);
+  const offsets = offsetPolyline(route, halfWidthM);
+  ctx.strokeStyle = 'rgba(76,202,209,0.52)';
+  ctx.lineWidth = 1;
+  offsets.forEach(line => strokePolyline(line.map(point => worldToCanvas(point[0], point[1]))));
+  ctx.restore();
+}
+
+function offsetPolyline(route, distance) {
+  const source = route[0].map((north, index) => [north, route[1][index]]);
+  const offset = sign => source.map((point, index) => {
+    const previous = source[Math.max(0, index - 1)];
+    const next = source[Math.min(source.length - 1, index + 1)];
+    const dn = next[0] - previous[0];
+    const de = next[1] - previous[1];
+    const length = Math.hypot(dn, de) || 1;
+    return [point[0] - sign * de / length * distance, point[1] + sign * dn / length * distance];
+  });
+  return [offset(-1), offset(1)];
+}
+
+function drawInitialRoute(route) {
+  const points = routePoints(route);
+  if (points.length < 2) return;
+  ctx.save();
+  ctx.strokeStyle = '#F4D34E';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 8]);
+  strokePolyline(points);
+  ctx.restore();
+}
+
+function drawWaypoints(route, os) {
+  const points = routePoints(route);
+  if (!points.length) return;
+  const current = currentWaypointIndex(route, os);
+  points.forEach((point, index) => {
+    const passed = index < current;
+    const active = index === current;
+    ctx.strokeStyle = passed ? '#7F898D' : '#F4D34E';
+    ctx.fillStyle = active ? 'rgba(244,211,78,0.28)' : 'rgba(10,16,15,0.70)';
+    ctx.lineWidth = active ? 2.5 : 1.5;
     ctx.beginPath();
-    obs.trajectory.forEach((pos, i) => {
-      const p = worldToCanvas(pos[0], pos[1]);
-      i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+    ctx.arc(point.x, point.y, active ? 7 : 5, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+    drawMapLabel(`WPT${index + 1}`, point.x + 9, point.y - 7, passed ? '#9AA3A7' : '#F4D34E');
+  });
+}
+
+function currentWaypointIndex(route, os) {
+  if (!os || !validRoute(route)) return 0;
+  const distances = route[0].map((north, index) => Math.hypot(north - os.x, route[1][index] - os.y));
+  const nearest = distances.indexOf(Math.min(...distances));
+  return distances[nearest] < 20 ? Math.min(nearest + 1, distances.length - 1) : nearest;
+}
+
+function strokePolyline(points) {
+  if (points.length < 2) return;
+  ctx.beginPath();
+  points.forEach((point, index) =>
+    index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
+  ctx.stroke();
+}
+
+function drawHistory(data) {
+  drawFadingTrail(data.os?.trajectory, '#FFFFFF');
+  if (data.executed_tracker === 'god') {
+    (data.obstacles || []).forEach(target => {
+      drawFadingTrail(target.trajectory, targetThreat(data, target).color);
     });
+  }
+}
+
+function drawFadingTrail(trajectory, color) {
+  if (!Array.isArray(trajectory) || trajectory.length < 2) return;
+  const recent = trajectory.slice(-500);
+  for (let index = 1; index < recent.length; index++) {
+    const start = worldToCanvas(recent[index - 1][0], recent[index - 1][1]);
+    const end = worldToCanvas(recent[index][0], recent[index][1]);
+    ctx.strokeStyle = hexToRgba(color, 0.08 + 0.52 * index / recent.length);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
     ctx.stroke();
   }
-
-  drawVessel(pt.x, pt.y, obs.psi, '#ff4b4b', `TS${obs.id}`, 14);
 }
 
 function drawMeasurements(sensorGroups) {
@@ -492,46 +639,33 @@ function drawCovariance(point, covariance) {
   ctx.restore();
 }
 
-/* Ownship trail */
-function drawOwnshipTrail(os) {
-  if (!os.trajectory || os.trajectory.length < 2) return;
-  ctx.strokeStyle = 'rgba(98,210,189,0.38)';
-  ctx.lineWidth   = 2;
-  ctx.beginPath();
-  os.trajectory.forEach((pos, i) => {
-    const p = worldToCanvas(pos[0], pos[1]);
-    i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
-  });
-  ctx.stroke();
-}
-
 /* Planner prediction horizon */
-function drawHorizon(horizon, previous = false) {
+function drawHorizon(horizon, previous = false, planner = {}) {
   const pts = horizon.map(p => worldToCanvas(p[0], p[1]));
-  ctx.strokeStyle = previous ? 'rgba(255,215,0,0.24)' : 'rgba(255,215,0,0.82)';
+  ctx.strokeStyle = previous ? 'rgba(85,214,183,0.20)' : '#55D6B7';
   ctx.lineWidth   = previous ? 1.5 : 2.5;
-  ctx.setLineDash(previous ? [5, 5] : []);
-  ctx.beginPath();
-  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.stroke();
+  ctx.setLineDash(previous ? [6, 6] : []);
+  strokePolyline(pts);
   ctx.setLineDash([]);
   if (previous) return;
-  pts.forEach((p, i) => {
-    ctx.fillStyle = `rgba(255,215,0,${1 - i / pts.length * 0.6})`;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, 2 * Math.PI); ctx.fill();
+  const dt = Number(planner?.horizon_dt_s);
+  if (!Number.isFinite(dt) || dt <= 0) return;
+  const interval = Math.max(1, Math.round(10 / dt));
+  pts.forEach((point, index) => {
+    if (index === 0 || index % interval !== 0) return;
+    ctx.fillStyle = '#55D6B7';
+    ctx.beginPath(); ctx.arc(point.x, point.y, 2.8, 0, 2 * Math.PI); ctx.fill();
+    drawMapLabel(`${Math.round(index * dt)}s`, point.x + 5, point.y - 5, '#9EF0DB');
   });
 }
 
-function drawTargetHorizon(horizon) {
+function drawTargetHorizon(horizon, threat = THREAT_STYLES.UNKNOWN) {
   if (!Array.isArray(horizon) || horizon.length < 2) return;
   const pts = horizon.map(p => worldToCanvas(p[0], p[1]));
-  ctx.strokeStyle = 'rgba(255,92,92,0.55)';
+  ctx.strokeStyle = hexToRgba(threat.color, 0.6);
   ctx.lineWidth = 1.5;
-  ctx.setLineDash([3, 4]);
-  ctx.beginPath();
-  pts.forEach((point, index) =>
-    index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
-  ctx.stroke();
+  ctx.setLineDash([5, 5]);
+  strokePolyline(pts);
   ctx.setLineDash([]);
 }
 
@@ -541,60 +675,394 @@ function drawExecutionPoint(horizon) {
   ctx.save();
   ctx.translate(point.x, point.y);
   ctx.rotate(Math.PI / 4);
-  ctx.fillStyle = '#ffb33d';
-  ctx.fillRect(-4, -4, 8, 8);
+  ctx.fillStyle = '#55D6B7';
+  ctx.strokeStyle = '#0B0F0E';
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(-5, -5, 10, 10);
+  ctx.strokeRect(-5, -5, 10, 10);
   ctx.restore();
 }
 
-/* DCPA danger line */
-function drawDCPALine(data) {
-  if (!data.obstacles || data.obstacles.length === 0) return;
-  if (!Number.isFinite(data.dcpa) || data.dcpa > DCPA_SAFE * 2) return;
-  const obs   = data.obstacles[0];
-  const osPt  = worldToCanvas(data.os.x, data.os.y);
-  const obsPt = worldToCanvas(obs.x, obs.y);
-  const danger = data.dcpa < DCPA_WARN;
-  ctx.strokeStyle = danger ? 'rgba(255,75,75,0.7)' : 'rgba(255,179,0,0.55)';
-  ctx.lineWidth   = 1.5;
-  ctx.setLineDash([5, 4]);
-  ctx.beginPath(); ctx.moveTo(osPt.x, osPt.y); ctx.lineTo(obsPt.x, obsPt.y); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = danger ? '#ff4b4b' : '#ffb300';
-  ctx.font      = '11px JetBrains Mono, monospace';
-  ctx.fillText(`${Math.round(data.dcpa)}m`,
-    (osPt.x + obsPt.x) / 2 + 6, (osPt.y + obsPt.y) / 2 - 4);
+function drawMotionVectors(data) {
+  if (data.os) drawMotionVector(data.os, '#FFFFFF', false);
+  targetsForDisplay(data).forEach(target => {
+    const threat = targetThreat(data, target);
+    drawMotionVector(target, threat.color, true);
+  });
 }
 
-/* Ownship */
-function drawOwnship(os) {
-  const pt      = worldToCanvas(os.x, os.y);
-  const headLen = Math.max(20, os.u * viewScale * 8);
-  ctx.strokeStyle = 'rgba(98,210,189,0.5)';
-  ctx.lineWidth   = 1.5;
+function drawMotionVector(ship, color, dashed) {
+  const speed = Number.isFinite(ship.sog) ? ship.sog : Math.hypot(ship.u || 0, ship.v || 0);
+  const course = Number.isFinite(ship.cog) ? ship.cog : ship.psi;
+  if (![ship.x, ship.y, speed, course].every(Number.isFinite) || speed < 0.01) return;
+  const start = worldToCanvas(ship.x, ship.y);
+  const end = worldToCanvas(
+    ship.x + Math.cos(course) * speed * MOTION_VECTOR_SECONDS,
+    ship.y + Math.sin(course) * speed * MOTION_VECTOR_SECONDS,
+  );
+  ctx.save();
+  ctx.strokeStyle = hexToRgba(color, 0.85);
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.8;
+  ctx.setLineDash(dashed ? [7, 5] : []);
   ctx.beginPath();
-  ctx.moveTo(pt.x, pt.y);
-  ctx.lineTo(pt.x + Math.sin(os.psi) * headLen, pt.y - Math.cos(os.psi) * headLen);
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
   ctx.stroke();
-  drawVessel(pt.x, pt.y, os.psi, '#00f2fe', 'OS', 18);
+  ctx.setLineDash([]);
+  for (let seconds = MOTION_TICK_SECONDS; seconds <= MOTION_VECTOR_SECONDS; seconds += MOTION_TICK_SECONDS) {
+    const ratio = seconds / MOTION_VECTOR_SECONDS;
+    const point = { x: start.x + (end.x - start.x) * ratio, y: start.y + (end.y - start.y) * ratio };
+    const length = Math.hypot(end.x - start.x, end.y - start.y) || 1;
+    const nx = -(end.y - start.y) / length;
+    const ny = (end.x - start.x) / length;
+    ctx.beginPath();
+    ctx.moveTo(point.x - nx * 3, point.y - ny * 3);
+    ctx.lineTo(point.x + nx * 3, point.y + ny * 3);
+    ctx.stroke();
+  }
+  drawArrowHead(end, course, color);
+  ctx.restore();
 }
 
-/* Generic triangle vessel */
+function drawArrowHead(point, heading, color) {
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.rotate(heading);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(0, -7);
+  ctx.lineTo(4, 2);
+  ctx.lineTo(-4, 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function targetsForDisplay(data) {
+  const obstacles = data.obstacles || [];
+  const trackSet = data.tracks?.[0];
+  if (trackSet?.states?.length) {
+    return trackSet.states.map((state, index) => {
+      const truth = obstacles[index] || {};
+      const velocityNorth = Number(state[2]);
+      const velocityEast = Number(state[3]);
+      const speed = Math.hypot(velocityNorth, velocityEast);
+      const course = Math.atan2(velocityEast, velocityNorth);
+      return {
+        ...truth,
+        id: trackSet.labels?.[index] ?? truth.id ?? index + 1,
+        x: Number(state[0]),
+        y: Number(state[1]),
+        psi: Number.isFinite(course) ? course : truth.psi,
+        cog: Number.isFinite(course) ? course : truth.cog,
+        sog: Number.isFinite(speed) ? speed : truth.sog,
+        source: 'tracker',
+      };
+    }).filter(target => Number.isFinite(target.x) && Number.isFinite(target.y));
+  }
+  return data.executed_tracker === 'god' ? obstacles : [];
+}
+
+function targetThreat(data, target) {
+  if (!target) return THREAT_STYLES.UNKNOWN;
+  const encounter = encounterForTarget(data, target.id);
+  const level = String(encounter?.threat_level || 'UNKNOWN').toUpperCase();
+  return THREAT_STYLES[level] || THREAT_STYLES.UNKNOWN;
+}
+
+function encounterForTarget(data, targetId) {
+  return (data.encounters || []).find(item => String(item.target_id) === String(targetId))
+    || ((data.encounters || []).length === 1 ? data.encounters[0] : null);
+}
+
+function drawShips(data) {
+  const targets = targetsForDisplay(data);
+  const labels = [];
+  targets.forEach(target => {
+    const threat = targetThreat(data, target);
+    const point = worldToCanvas(target.x, target.y);
+    if (threat.rank >= 2) drawThreatRings(point, threat, target.id === selectedTargetId);
+    drawHull(point, target.psi, target.length || 30, target.width || 7, threat, false);
+    targetHitRegions.push({ x: point.x, y: point.y, radius: 14, target });
+    if (threat.rank >= 2 || target.id === selectedTargetId) {
+      labels.push({ text: `TS${target.id}`, point, color: threat.color });
+    }
+  });
+  if (visibleLayers.truth && data.executed_tracker !== 'god') {
+    (data.obstacles || []).forEach(target => {
+      const point = worldToCanvas(target.x, target.y);
+      drawTruthOutline(point, target.psi, target.length || 30, target.width || 7);
+    });
+  }
+  if (data.os) {
+    const point = worldToCanvas(data.os.x, data.os.y);
+    drawHull(point, data.os.psi, FCB45_LENGTH_M, FCB45_WIDTH_M, null, true);
+    labels.push({ text: 'OS', point, color: '#FFFFFF' });
+  }
+  drawAvoidingLabels(labels);
+}
+
+function drawHull(point, heading, lengthM, widthM, threat, ownship) {
+  const lengthPx = Math.max(ownship ? 16 : 12, lengthM * viewScale);
+  const widthPx = Math.max(2.5, lengthPx * widthM / lengthM);
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.rotate(Number.isFinite(heading) ? heading : 0);
+  const path = new Path2D();
+  path.moveTo(0, -lengthPx / 2);
+  path.bezierCurveTo(widthPx * 0.34, -lengthPx * 0.40, widthPx / 2, -lengthPx * 0.18, widthPx / 2, lengthPx * 0.38);
+  path.lineTo(widthPx * 0.42, lengthPx / 2);
+  path.lineTo(-widthPx * 0.42, lengthPx / 2);
+  path.lineTo(-widthPx / 2, lengthPx * 0.38);
+  path.bezierCurveTo(-widthPx / 2, -lengthPx * 0.18, -widthPx * 0.34, -lengthPx * 0.40, 0, -lengthPx / 2);
+  path.closePath();
+  ctx.fillStyle = ownship ? '#F7FAFA' : threat.fill;
+  ctx.strokeStyle = ownship ? '#111817' : threat.color;
+  ctx.lineWidth = ownship ? 1.5 : 1.8;
+  if (!ownship && threat === THREAT_STYLES.UNKNOWN) ctx.setLineDash([3, 2]);
+  ctx.fill(path);
+  ctx.stroke(path);
+  ctx.setLineDash([]);
+  ctx.strokeStyle = ownship ? '#65706F' : hexToRgba(threat.color, 0.75);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, -lengthPx * 0.36);
+  ctx.lineTo(0, lengthPx * 0.35);
+  ctx.stroke();
+  if (ownship) {
+    ctx.fillStyle = '#75817F';
+    ctx.fillRect(-widthPx * 0.34, -lengthPx * 0.04, widthPx * 0.68, lengthPx * 0.10);
+  }
+  ctx.restore();
+}
+
+function drawTruthOutline(point, heading, lengthM, widthM) {
+  const lengthPx = Math.max(12, lengthM * viewScale);
+  const widthPx = Math.max(2.5, lengthPx * widthM / lengthM);
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.rotate(Number.isFinite(heading) ? heading : 0);
+  ctx.strokeStyle = 'rgba(207,112,255,0.65)';
+  ctx.setLineDash([3, 3]);
+  ctx.strokeRect(-widthPx / 2, -lengthPx / 2, widthPx, lengthPx);
+  ctx.restore();
+}
+
+function drawThreatRings(point, threat, selected) {
+  const radii = threat === THREAT_STYLES.HIGH ? [22, 31] : [23];
+  radii.forEach((radius, index) => {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = hexToRgba(threat.color, selected ? 0.9 : 0.45 - index * 0.12);
+    ctx.lineWidth = selected ? 2 : 1.2;
+    ctx.setLineDash(threat === THREAT_STYLES.LOW ? [5, 4] : []);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+}
+
+function drawCPARisk(data) {
+  const ranked = (data.encounters || [])
+    .map(encounter => ({ encounter, threat: THREAT_STYLES[String(encounter.threat_level || 'UNKNOWN').toUpperCase()] }))
+    .filter(item => item.threat?.rank >= 2)
+    .sort((a, b) => b.threat.rank - a.threat.rank);
+  const item = ranked.find(entry => String(entry.encounter.target_id) === String(selectedTargetId)) || ranked[0];
+  if (!item) return;
+  const own = cpaPoint(item.encounter.own_cpa_position);
+  const target = cpaPoint(item.encounter.target_cpa_position);
+  if (!own || !target) return;
+  const ownPoint = worldToCanvas(own[0], own[1]);
+  const targetPoint = worldToCanvas(target[0], target[1]);
+  ctx.strokeStyle = hexToRgba(item.threat.color, 0.9);
+  ctx.lineWidth = 1.7;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(ownPoint.x, ownPoint.y);
+  ctx.lineTo(targetPoint.x, targetPoint.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  [ownPoint, targetPoint].forEach(point => {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = item.threat.color;
+    ctx.fill();
+  });
+  drawMapLabel(`CPA ${formatDistance(item.encounter.dcpa_m)}`,
+    (ownPoint.x + targetPoint.x) / 2 + 6, (ownPoint.y + targetPoint.y) / 2 - 6, item.threat.color);
+}
+
+function cpaPoint(value) {
+  if (Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every(Number.isFinite)) return value;
+  if (value && Number.isFinite(value.north) && Number.isFinite(value.east)) return [value.north, value.east];
+  if (value && Number.isFinite(value.x) && Number.isFinite(value.y)) return [value.x, value.y];
+  return null;
+}
+
+function drawRelativeCompass(os, W, H) {
+  if (!Number.isFinite(os.psi)) return;
+  const mobile = W <= 520;
+  const center = mobile ? { x: W - 58, y: 150 } : worldToCanvas(os.x, os.y);
+  const radius = mobile ? 42 : 110;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(223,244,242,0.22)';
+  ctx.fillStyle = 'rgba(9,15,14,0.13)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  for (let bearing = 0; bearing < 360; bearing += 10) {
+    const relative = bearing * Math.PI / 180;
+    const angle = relative + os.psi - Math.PI / 2;
+    const major = bearing % 20 === 0;
+    const outer = radius;
+    const inner = radius - (major ? 8 : 4);
+    ctx.beginPath();
+    ctx.moveTo(center.x + Math.cos(angle) * inner, center.y + Math.sin(angle) * inner);
+    ctx.lineTo(center.x + Math.cos(angle) * outer, center.y + Math.sin(angle) * outer);
+    ctx.stroke();
+    if (major && (!mobile || bearing % 40 === 0)) {
+      ctx.fillStyle = 'rgba(235,250,248,0.62)';
+      ctx.font = `${mobile ? 8 : 9}px JetBrains Mono, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const labelRadius = radius - (mobile ? 12 : 15);
+      ctx.fillText(String(bearing), center.x + Math.cos(angle) * labelRadius, center.y + Math.sin(angle) * labelRadius);
+    }
+  }
+  const bowAngle = os.psi - Math.PI / 2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(center.x, center.y);
+  ctx.lineTo(center.x + Math.cos(bowAngle) * radius, center.y + Math.sin(bowAngle) * radius);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawAvoidingLabels(labels) {
+  const boxes = [];
+  labels.forEach(label => {
+    let x = label.point.x + 12;
+    let y = label.point.y - 10;
+    const width = ctx.measureText(label.text).width + 10;
+    const height = 18;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const box = { x, y: y - height + 4, width, height };
+      if (!boxes.some(other => rectanglesOverlap(box, other))) {
+        boxes.push(box);
+        drawMapLabel(label.text, x, y, label.color);
+        return;
+      }
+      y += height + 3;
+    }
+  });
+}
+
+function rectanglesOverlap(a, b) {
+  return a.x < b.x + b.width && a.x + a.width > b.x
+    && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+function drawMapLabel(text, x, y, color) {
+  ctx.font = '10px JetBrains Mono, monospace';
+  const width = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(8,13,12,0.78)';
+  ctx.fillRect(x - 3, y - 11, width + 6, 15);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
+function updateLayerAvailability(data, navigationArea, route) {
+  setLayerAvailability('safeWater', normalizePolygons(
+    navigationArea?.safe_water?.polygons || navigationArea?.safe_water || navigationArea?.safe_water_polygons,
+  ).length > 0);
+  setLayerAvailability('corridor', validRoute(route)
+    && Number.isFinite(Number(data.route_corridor_half_width_m))
+    && Number(data.route_corridor_half_width_m) > 0);
+}
+
+function setLayerAvailability(layer, available) {
+  const input = document.querySelector(`[data-layer="${layer}"]`);
+  const state = document.querySelector(`[data-layer-state="${layer}"]`);
+  if (input) {
+    const wasDisabled = input.disabled;
+    input.disabled = !available;
+    if (!available) input.checked = false;
+    if (available && wasDisabled) input.checked = true;
+    visibleLayers[layer] = input.checked;
+  }
+  if (state) {
+    state.textContent = available ? '可用' : '数据未提供';
+    state.classList.toggle('available', available);
+  }
+  updateLegendVisibility();
+}
+
+function updateLegendVisibility() {
+  document.querySelectorAll('[data-legend-layer]').forEach(item => {
+    item.hidden = visibleLayers[item.dataset.legendLayer] === false;
+  });
+  document.querySelectorAll('[data-legend-group]').forEach(group => {
+    group.hidden = !group.querySelector('[data-legend-layer]:not([hidden])');
+  });
+}
+
+function updateTargetDetails(target, data) {
+  const panel = document.getElementById('targetDetails');
+  if (!target) {
+    panel.hidden = true;
+    return;
+  }
+  const encounter = encounterForTarget(data || {}, target.id) || {};
+  const own = data?.os;
+  const dn = own ? target.x - own.x : NaN;
+  const de = own ? target.y - own.y : NaN;
+  const bearing = Number.isFinite(dn) && Number.isFinite(de)
+    ? (Math.atan2(de, dn) * 180 / Math.PI + 360) % 360
+    : NaN;
+  document.getElementById('targetDetailsTitle').textContent = `目标船 TS${target.id}`;
+  const rows = [
+    ['MMSI', target.mmsi ?? '--'],
+    ['距离', Number.isFinite(encounter.distance_m) ? formatDistance(encounter.distance_m) : formatDistance(Math.hypot(dn, de))],
+    ['相对方位', Number.isFinite(bearing) ? `${bearing.toFixed(1)}°` : '--'],
+    ['航向', Number.isFinite(target.psi) ? `${(target.psi * 180 / Math.PI).toFixed(1)}°` : '--'],
+    ['航速', Number.isFinite(target.sog) ? `${target.sog.toFixed(1)} m/s` : '--'],
+    ['DCPA', formatDistance(encounter.dcpa_m)],
+    ['TCPA', Number.isFinite(encounter.tcpa_s) ? `${encounter.tcpa_s.toFixed(1)} s` : '--'],
+    ['COLREGs', encounter.validation_rule_id || encounter.encounter || '--'],
+    ['阶段', encounter.stage || '--'],
+    ['威胁', encounter.threat_level || 'UNKNOWN'],
+  ];
+  document.getElementById('targetDetailsBody').innerHTML = rows
+    .map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('');
+  panel.hidden = false;
+}
+
+function formatDistance(value) {
+  return Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)} m` : '--';
+}
+
+function hexToRgba(hex, alpha) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const value = Number.parseInt(hex.slice(1), 16);
+  return `rgba(${value >> 16},${(value >> 8) & 255},${value & 255},${alpha})`;
+}
+
+/* Retained for compatibility with older test fixtures. */
 function drawVessel(cx, cy, heading, color, label, size = 14) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(heading);
-  ctx.shadowColor = color; ctx.shadowBlur = 10;
-  ctx.fillStyle   = color;
+  ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(0, -size);
   ctx.lineTo(size * 0.5, size * 0.6);
   ctx.lineTo(-size * 0.5, size * 0.6);
   ctx.closePath(); ctx.fill();
-  ctx.shadowBlur = 0;
   ctx.restore();
-  ctx.fillStyle = '#ffffff';
-  ctx.font      = '11px Outfit, sans-serif';
-  ctx.fillText(label, cx + size + 4, cy + 4);
+  drawMapLabel(label, cx + size + 4, cy + 4, '#FFFFFF');
 }
 
 /* ══════════════════════════════════════════════
@@ -602,6 +1070,10 @@ function drawVessel(cx, cy, heading, color, label, size = 14) {
 ══════════════════════════════════════════════ */
 function updateUI(data) {
   const os = data.os;
+  if (selectedTargetId !== null) {
+    const target = targetsForDisplay(data).find(item => String(item.id) === String(selectedTargetId));
+    updateTargetDetails(target || null, data);
+  }
 
   if (data.state === 'RUNNING' && lastRuntimeState !== 'RUNNING') {
     setRuntimePanelsExpanded(true);
@@ -1405,6 +1877,7 @@ function prepareWorkspaceLayout() {
 /* ── Boot ─────────────────────────────────────── */
 async function boot() {
   prepareWorkspaceLayout();
+  updateLegendVisibility();
   document.getElementById('toggleENC').classList.add('enc-on');
   try {
     await populateCatalogs();
