@@ -151,15 +151,31 @@ class VO:
         self._violation_costs: np.ndarray = np.ones((len(self._speed_set), len(self._heading_set)))
         self._total_costs: np.ndarray = np.zeros((len(self._speed_set), len(self._heading_set)))
         self._references = np.zeros((9, 1))
+        self._plan_executed = False
+        self._selected_heading = 0.0
+        self._selected_speed = 0.0
 
     def get_current_plan(self) -> np.ndarray:
         """Get the current plan."""
         return self._references
 
+    def reset(self) -> None:
+        self._initialized = False
+        self._t_prev = 0.0
+        self._relevant_do_list = []
+        self._colregs_situations = []
+        self._violation_costs.fill(0.0)
+        self._total_costs.fill(0.0)
+        self._references.fill(0.0)
+        self._plan_executed = False
+        self._selected_heading = 0.0
+        self._selected_speed = 0.0
+
     def plan(
         self, t: float, v_ref: np.ndarray, ownship_state: np.ndarray, do_list: list, enc: ENC | None = None
     ) -> np.ndarray:
         if self._initialized and t - self._t_prev < (1.0 / self._params.planning_frequency):
+            self._plan_executed = False
             return self.get_current_plan()
 
         if not self._initialized:
@@ -237,7 +253,27 @@ class VO:
         self._t_prev = t
         self._references[2, 0] = mf.wrap_angle_to_pmpi(heading_opt)
         self._references[3, 0] = speed_opt
+        self._selected_heading = float(self._references[2, 0])
+        self._selected_speed = float(speed_opt)
+        self._plan_executed = True
         return self._references
+
+    @property
+    def plan_executed(self) -> bool:
+        return self._plan_executed
+
+    def get_debug_data(self) -> dict:
+        """Return the latest velocity grid and selection without plotting side effects."""
+        return {
+            "planner_kind": "velocity_obstacle",
+            "speed_offsets_mps": self._speed_set,
+            "heading_offsets_rad": self._heading_set,
+            "violation_costs": self._violation_costs,
+            "total_costs": self._total_costs,
+            "relevant_target_ids": list(self._relevant_do_list),
+            "selected_heading_rad": self._selected_heading,
+            "selected_speed_mps": self._selected_speed,
+        }
 
     def _compute_optimal_controls(self, v_ref: np.ndarray, v_os: np.ndarray, psi_os: float) -> tuple[float, float]:
         """Computes the optimal controls based on the current admissible controls and the VO cost function.

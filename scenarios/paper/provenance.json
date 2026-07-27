@@ -1,0 +1,14 @@
+{
+  "paper_ccta2023_head_on": {
+    "source": "CCTA 2023 paper Figure 2 and repository aalesund_random1.yaml",
+    "reconstructed": true,
+    "confidence": "high for duration, time step, chart dataset and encounter type; exact map window and original random seed unavailable",
+    "numerical_reproduction_confirmed": false
+  },
+  "paper_ccta2023_multiship": {
+    "source": "CCTA 2023 paper Figure 4 and Table II",
+    "reconstructed": true,
+    "confidence": "medium for encounter topology; original vessel states and planner settings unavailable",
+    "numerical_reproduction_confirmed": false
+  }
+}

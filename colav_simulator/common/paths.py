@@ -18,6 +18,14 @@ def _get_package_root() -> pathlib.Path:
     Raises:
         RuntimeError: If package root cannot be determined
     """
+    working_tree_package = pathlib.Path.cwd().resolve() / "colav_simulator"
+    if (
+        working_tree_package.is_dir()
+        and (working_tree_package.parent / "config").is_dir()
+        and (working_tree_package.parent / "scenarios").is_dir()
+    ):
+        return working_tree_package
+
     package_file = pathlib.Path(__file__).absolute()
     package_root = package_file.parents[1]
 

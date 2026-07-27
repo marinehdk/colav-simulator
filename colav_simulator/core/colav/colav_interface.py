@@ -26,6 +26,7 @@ Alternatively (AND EASIER), to be able to use a third-party COLAV planning algor
 Author: Trym Tengesdal
 """
 
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
@@ -39,6 +40,7 @@ import colav_simulator.core.colav.kuwata_vo_alg.kuwata_vo as kvo
 import colav_simulator.core.colav.sbmpc.sbmpc as sb_mpc
 import colav_simulator.core.guidances as guidance
 from colav_simulator.core import stochasticity
+from colav_simulator.core.colav.diagnostics import PlanDiagnostics, PlannerTrace, PlanStatus
 
 
 class COLAVType(Enum):
@@ -138,6 +140,13 @@ class Config:
 
 
 class ICOLAV(ABC):
+    def get_diagnostics(self) -> PlanDiagnostics:
+        """Return normalized diagnostics for the latest planner invocation."""
+        return PlanDiagnostics(
+            requested_algorithm=self.__class__.__name__,
+            executed_algorithm=self.__class__.__name__,
+        )
+
     @abstractmethod
     def plan(
         self,
@@ -253,12 +262,25 @@ class VOWrapper(ICOLAV):
 
         self._t_prev = 0.0
         self._initialized = False
+        self._diagnostics = PlanDiagnostics(
+            requested_algorithm="vo",
+            executed_algorithm="vo",
+        )
+        self._solve_id = 0
+        self._planner_trace = PlannerTrace("vo", 0, 0.0, False)
 
     def reset(self):
         """Resets the VO-COLAV to its initial state."""
         self._t_prev = 0.0
         self._initialized = False
+        self._vo.reset()
         self._los.reset()
+        self._solve_id = 0
+        self._planner_trace = PlannerTrace("vo", 0, 0.0, False)
+        self._diagnostics = PlanDiagnostics(
+            requested_algorithm="vo",
+            executed_algorithm="vo",
+        )
 
     def plan(
         self,
@@ -272,6 +294,7 @@ class VOWrapper(ICOLAV):
         w: stochasticity.DisturbanceData | None = None,  # noqa: ARG002
         **kwargs,  # noqa: ARG002
     ) -> np.ndarray:
+        started = time.perf_counter()
         if not self._initialized:
             self._t_prev = t
             self._initialized = True
@@ -281,13 +304,52 @@ class VOWrapper(ICOLAV):
         course_ref = references[2, 0]
         speed_ref = references[3, 0]
         vel_ref = np.array([speed_ref * np.cos(course_ref), speed_ref * np.sin(course_ref)])
-        return self._vo.plan(t, vel_ref, ownship_state, do_list, enc)
+        plan = self._vo.plan(t, vel_ref, ownship_state, do_list, enc)
+        solver_executed = self._vo.plan_executed
+        if solver_executed:
+            self._solve_id += 1
+        debug = self._vo.get_debug_data()
+        trace_plan = plan.copy()
+        trace_plan[0:2, 0] = ownship_state[0:2]
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        self._diagnostics = PlanDiagnostics(
+            status=PlanStatus.SUCCESS,
+            elapsed_ms=elapsed_ms,
+            feasible=True,
+            requested_algorithm="vo",
+            executed_algorithm="vo",
+            details={
+                "track_count": len(do_list),
+                "solver_executed": solver_executed,
+                "solve_id": self._solve_id,
+            },
+        )
+        self._planner_trace = PlannerTrace(
+            algorithm_id="vo",
+            solve_id=self._solve_id,
+            sim_time=float(t),
+            solver_executed=solver_executed,
+            elapsed_ms=elapsed_ms,
+            predicted_trajectory=trace_plan,
+            selected_command={
+                "course_rad": float(plan[2, 0]),
+                "speed_mps": float(plan[3, 0]),
+            },
+            algorithm_details=debug,
+        )
+        return plan
+
+    def get_diagnostics(self) -> PlanDiagnostics:
+        return self._diagnostics
 
     def get_current_plan(self) -> np.ndarray:
         return self._vo.get_current_plan()
 
     def get_colav_data(self) -> dict:
-        return {}
+        return {
+            "planner": self._planner_trace.to_dict(),
+            "vo": self._vo.get_debug_data(),
+        }
 
     def plot_results(self, ax_map: plt.Axes, enc: senc.ENC, plt_handles: dict, **kwargs) -> dict:  # noqa: ARG002
         return plt_handles
@@ -323,6 +385,12 @@ class SBMPCWrapper(ICOLAV):
         self._t_run_sbmpc_last = 0.0
         self._speed_os_best = 1.0
         self._course_os_best = 0.0
+        self._diagnostics = PlanDiagnostics(
+            requested_algorithm="sbmpc",
+            executed_algorithm="sbmpc",
+        )
+        self._solve_id = 0
+        self._planner_trace = PlannerTrace("sbmpc", 0, 0.0, False)
 
     def reset(self):
         """Resets the SBMPC-COLAV to its initial state."""
@@ -331,7 +399,14 @@ class SBMPCWrapper(ICOLAV):
         self._t_run_sbmpc_last = 0.0
         self._speed_os_best = 1.0
         self._course_os_best = 0.0
+        self._sbmpc.reset()
         self._los.reset()
+        self._solve_id = 0
+        self._planner_trace = PlannerTrace("sbmpc", 0, 0.0, False)
+        self._diagnostics = PlanDiagnostics(
+            requested_algorithm="sbmpc",
+            executed_algorithm="sbmpc",
+        )
 
     def plan(
         self,
@@ -345,6 +420,7 @@ class SBMPCWrapper(ICOLAV):
         w: stochasticity.DisturbanceData | None = None,  # noqa: ARG002
         **kwargs,  # noqa: ARG002
     ) -> np.ndarray:
+        started = time.perf_counter()
         if not self._initialized or t < 0.0001:
             self._t_prev = t
             self._initialized = True
@@ -353,7 +429,8 @@ class SBMPCWrapper(ICOLAV):
         self._t_prev = t
         course_ref = references[2, 0]
         speed_ref = references[3, 0]
-        if t - self._t_run_sbmpc_last >= 5.0:
+        solver_executed = t - self._t_run_sbmpc_last >= 5.0
+        if solver_executed:
             self._speed_os_best, self._course_os_best = self._sbmpc.get_optimal_ctrl_offset(
                 speed_ref, course_ref, ownship_state, do_list, enc
             )
@@ -368,14 +445,63 @@ class SBMPCWrapper(ICOLAV):
             # )
         references[2, 0] = course_ref + self._course_os_best
         references[3, 0] = speed_ref * self._speed_os_best
+        if solver_executed:
+            self._solve_id += 1
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        debug = self._sbmpc.get_debug_data()
+        self._diagnostics = PlanDiagnostics(
+            status=PlanStatus.SUCCESS,
+            elapsed_ms=elapsed_ms,
+            feasible=True,
+            objective=debug["objective"],
+            requested_algorithm="sbmpc",
+            executed_algorithm="sbmpc",
+            details={
+                "solver_executed": solver_executed,
+                "solve_id": self._solve_id,
+                "track_count": len(do_list),
+                "speed_scale": float(self._speed_os_best),
+                "course_offset_rad": float(self._course_os_best),
+            },
+        )
+        algorithm_details = {
+            key: value
+            for key, value in debug.items()
+            if key not in {"prediction", "prediction_dt_s", "target_predictions", "objective", "constraints"}
+        }
+        self._planner_trace = PlannerTrace(
+            algorithm_id="sbmpc",
+            solve_id=self._solve_id,
+            sim_time=float(t),
+            solver_executed=solver_executed,
+            elapsed_ms=elapsed_ms,
+            objective=debug["objective"],
+            predicted_trajectory=debug["prediction"],
+            horizon_dt_s=float(debug["prediction_dt_s"]),
+            selected_command={
+                "course_rad": float(references[2, 0]),
+                "speed_mps": float(references[3, 0]),
+                "course_offset_rad": float(self._course_os_best),
+                "speed_scale": float(self._speed_os_best),
+            },
+            target_predictions=debug["target_predictions"],
+            constraints=debug["constraints"],
+            algorithm_details=algorithm_details,
+        )
         return references
 
+    def get_diagnostics(self) -> PlanDiagnostics:
+        return self._diagnostics
+
     def get_current_plan(self) -> np.ndarray:
-        refs = np.zeros((9, 1))
-        return refs
+        return self._planner_trace.predicted_trajectory
 
     def get_colav_data(self) -> dict:
-        return {}
+        trace = self._planner_trace.to_dict()
+        return {
+            "predicted_trajectory": trace["predicted_trajectory"],
+            "planner": trace,
+        }
 
     def plot_results(self, ax_map: plt.Axes, enc: senc.ENC, plt_handles: dict, **kwargs) -> dict:  # noqa: ARG002
         return plt_handles

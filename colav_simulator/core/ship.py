@@ -21,6 +21,7 @@ import colav_simulator.common.miscellaneous_helper_methods as mhm
 import colav_simulator.common.vessel_data as vd
 import colav_simulator.core.colav.colav_interface as ci
 from colav_simulator.core import controllers, guidances, models, sensing, stochasticity
+from colav_simulator.core.colav.diagnostics import PlannerTrace, validate_plan
 from colav_simulator.core.integrators import erk4_integration_step
 from colav_simulator.core.tracking import trackers
 
@@ -590,7 +591,9 @@ class Ship(IShip):
                 os_length=self._model.params.length,
                 os_width=self._model.params.width,
                 os_draft=self._model.params.draft,
+                dt=dt,
             )
+            self._references = validate_plan(self._references)
         elif self._guidance is not None:
             if self._waypoints.size <= 2:
                 msg = (
@@ -600,10 +603,10 @@ class Ship(IShip):
                 )
                 raise ValueError(msg)
             if self._waypoints.ndim != 2 or self._speed_plan.ndim != 1:
-                msg = f"Ship{self.id}: Waypoints must be a 2D array and speed plan a " f"1D array!"
+                msg = f"Ship{self.id}: Waypoints must be a 2D array and speed plan a 1D array!"
                 raise ValueError(msg)
             if self._waypoints.shape[1] != self._speed_plan.size:
-                msg = f"Ship{self.id}: Waypoints and speed plan must have the same " f"number of columns!"
+                msg = f"Ship{self.id}: Waypoints and speed plan must have the same number of columns!"
                 raise ValueError(msg)
             self._references = self._guidance.compute_references(self._waypoints, self._speed_plan, None, self._state, dt)
         # If both the COLAV-system and guidance-system is None,
@@ -688,7 +691,7 @@ class Ship(IShip):
 
     def set_nominal_plan(self, waypoints: np.ndarray, speed_plan: np.ndarray):
         if speed_plan.size != waypoints.shape[1]:
-            msg = f"Ship{self.id}: Waypoints and speed plan must have the same number " f"of columns!"
+            msg = f"Ship{self.id}: Waypoints and speed plan must have the same number of columns!"
             raise ValueError(msg)
         n_px, n_wps = waypoints.shape
         if n_px != 2:
@@ -721,15 +724,35 @@ class Ship(IShip):
 
     def set_colav_data(self, colav_data: dict) -> None:
         if self._colav is not None:
-            msg = f"Ship{self.id}: COLAV data can only be set if the ship does not " f"have an onboard COLAV system."
+            msg = f"Ship{self.id}: COLAV data can only be set if the ship does not have an onboard COLAV system."
             raise ValueError(msg)
         self._ext_colav_data = colav_data
 
     def get_colav_data(self) -> dict:
         if self._colav is None:
-            return self._ext_colav_data
+            if self._ext_colav_data:
+                return self._ext_colav_data
+            references = self._references if self._references.shape == (9, 1) else np.zeros((9, 1))
+            nominal_trace = references.copy()
+            nominal_trace[0:2, 0] = self._state[0:2]
+            return {
+                "planner": PlannerTrace(
+                    algorithm_id="nominal",
+                    solve_id=0,
+                    sim_time=0.0,
+                    solver_executed=False,
+                    predicted_trajectory=nominal_trace,
+                    selected_command={
+                        "course_rad": float(references[2, 0]),
+                        "speed_mps": float(references[3, 0]),
+                    },
+                    algorithm_details={"planner_kind": "nominal_guidance"},
+                ).to_dict()
+            }
 
-        return self._colav.get_colav_data()
+        data = dict(self._colav.get_colav_data())
+        data["diagnostics"] = self._colav.get_diagnostics().to_dict()
+        return data
 
     def get_sim_data(self, t: float, timestamp_0: int) -> dict:
         datetime_t = mhm.utc_timestamp_to_datetime(int(t) + timestamp_0)

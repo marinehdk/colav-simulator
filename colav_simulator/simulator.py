@@ -228,9 +228,7 @@ class Simulator:
                     print(f"\rSimulator: Running scenario episode nr {ep + 1}: {scenario_episode_file}...")
                 sim_data, ship_info, sim_times = self.run_scenario_episode(terminate_on_collision_or_grounding)
                 if self.config.verbose:
-                    print(
-                        f"\rSimulator: Finished running through scenario episode nr {ep + 1}: " f"{scenario_episode_file}."
-                    )
+                    print(f"\rSimulator: Finished running through scenario episode nr {ep + 1}: {scenario_episode_file}.")
 
                 self.visualizer.visualize_results(
                     scenario_enc,
@@ -399,7 +397,10 @@ class Simulator:
 
             sim_data_dict[f"Ship{i}"] = ship_obj.get_sim_data(self.t, self.timestamp_start)
             sim_data_dict[f"Ship{i}"]["sensor_measurements"] = self.recent_sensor_measurements[i]
-            sim_data_dict[f"Ship{i}"]["colav"] = ship_obj.get_colav_data()
+            colav_data = ship_obj.get_colav_data()
+            if colav_data.get("planner", {}).get("algorithm_id") == "nominal":
+                colav_data["planner"]["sim_time"] = float(self.t)
+            sim_data_dict[f"Ship{i}"]["colav"] = colav_data
 
             ship_obj.forward(self.dt, disturbance_data)
 

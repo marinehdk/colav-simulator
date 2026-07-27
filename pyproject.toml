@@ -22,6 +22,7 @@ dependencies = [
     "cerberus>=1.3.8",
     "dacite>=1.9.2",
     "decorator>=5.2.1",
+    "fastapi>=0.116.0",
     "geopandas>=1.1.1",
     "geopy>=2.4.1",
     "gymnasium>=0.28.1",
@@ -31,6 +32,7 @@ dependencies = [
     "numpy>=1.20",
     "opencv-python>=4.11.0.86",
     "pandas>=2.3.3",
+    "pyarrow>=21.0.0",
     "psutil>=7.1.3",
     "pyyaml>=6.0.3",
     "scikit-image>=0.25.2",
@@ -38,10 +40,16 @@ dependencies = [
     "seacharts",
     "shapely>=2.1.2",
     "tqdm>=4.67.1",
+    "uvicorn>=0.35.0",
+    "websockets>=15.0.1",
 ]
+
+[project.scripts]
+colav-sim = "colav_simulator.cli:main"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.0.1",
     "ruff>=0.14.10",
 ]
@@ -56,9 +64,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 only-include = ["colav_simulator"]
+dev-mode-dirs = ["."]
 
 [tool.hatch.build.targets.wheel.force-include]
-"colav_simulator" = "colav_simulator"
 "config" = "colav_simulator/config"
 "examples" = "colav_simulator/examples"
 "scenarios" = "colav_simulator/scenarios"
@@ -66,6 +74,7 @@ only-include = ["colav_simulator"]
 "tests" = "colav_simulator/tests"
 
 [tool.pytest.ini_options]
+pythonpath = ["."]
 filterwarnings = [
     "ignore::FutureWarning:osgeo.osr",
     "ignore:positional argument.*preserve_topology.*for.*simplify.*is deprecated:DeprecationWarning:seacharts",

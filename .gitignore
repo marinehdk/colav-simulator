@@ -136,6 +136,7 @@ output/animations/
 output/ais/
 output/figures/
 
-main.py
+/main.py
 /scenarios/saved/
 /data/ais/
+/runs/

@@ -112,6 +112,14 @@ class SBMPC:
             self._params = config
         else:
             self._params = SBMPCParams()
+        self._candidate_costs = np.full(
+            (len(self._params.Chi_ca_), len(self._params.P_ca_)),
+            np.nan,
+        )
+        self._prediction = np.zeros((9, self.n_samp))
+        self._target_predictions: list[dict] = []
+        self._active = False
+        self._objective: float | None = None
 
     def get_optimal_ctrl_offset(
         self,
@@ -139,15 +147,19 @@ class SBMPC:
         cost_i = 0
         colav_active = False
         d = np.zeros(2)
+        obstacles = []
+        self._candidate_costs.fill(np.nan)
 
         if do_list is None:
             u_os_best = 1
             chi_os_best = 0
             self._params.P_ca_last_ = 1
             self._params.Chi_ca_last_ = 0
+            self._record_prediction(os_state, u_d, chi_d, obstacles)
+            self._active = False
+            self._objective = None
             return u_os_best, chi_os_best
         else:
-            obstacles = []
             n_obst = len(do_list)
             for obs_state in do_list:
                 obstacle = Obstacle(obs_state, self.T_, self.DT_)
@@ -164,6 +176,9 @@ class SBMPC:
             chi_os_best = 0
             self._params.P_ca_last_ = 1
             self._params.Chi_ca_last_ = 0
+            self._record_prediction(os_state, u_d, chi_d, obstacles)
+            self._active = False
+            self._objective = None
             return u_os_best, chi_os_best
 
         for i in range(len(self._params.Chi_ca_)):
@@ -178,6 +193,7 @@ class SBMPC:
                 for k in range(n_obst):
                     cost_k = self.cost_func(self._params.P_ca_[j], self._params.Chi_ca_[i], obstacles[k])
                     cost_i = max(cost_i, cost_k)
+                self._candidate_costs[i, j] = cost_i
                 if cost_i < cost:
                     cost = cost_i
                     u_os_best = self._params.P_ca_[j]
@@ -188,8 +204,72 @@ class SBMPC:
 
         self._params.P_ca_last_ = u_os_best
         self._params.Chi_ca_last_ = chi_os_best
+        self._record_prediction(
+            os_state,
+            u_d * u_os_best,
+            chi_d + chi_os_best,
+            obstacles,
+        )
+        self._active = True
+        self._objective = float(cost)
 
         return u_os_best, chi_os_best
+
+    def _record_prediction(
+        self,
+        os_state: np.ndarray,
+        speed_mps: float,
+        course_rad: float,
+        obstacles: list,
+    ) -> None:
+        self.ownship.linear_pred(os_state, speed_mps, course_rad)
+        self._prediction = np.vstack(
+            (
+                self.ownship.x_,
+                self.ownship.y_,
+                self.ownship.psi_,
+                self.ownship.u_,
+                self.ownship.v_,
+                self.ownship.r_,
+                np.zeros((3, self.n_samp)),
+            )
+        )
+        self._target_predictions = [
+            {
+                "x": obstacle.x_,
+                "y": obstacle.y_,
+                "speed_body_x": obstacle.u_,
+                "speed_body_y": obstacle.v_,
+            }
+            for obstacle in obstacles
+        ]
+
+    def get_debug_data(self) -> dict:
+        """Return chosen prediction and sampled candidate costs."""
+        return {
+            "planner_kind": "sample_based_mpc",
+            "active": self._active,
+            "prediction": self._prediction,
+            "prediction_dt_s": self.DT_,
+            "course_offsets_rad": self._params.Chi_ca_,
+            "speed_scales": self._params.P_ca_,
+            "candidate_costs": self._candidate_costs,
+            "target_predictions": self._target_predictions,
+            "objective": self._objective,
+            "constraints": {
+                "activation_distance_m": self._params.D_INIT_,
+                "safe_distance_m": self._params.D_SAFE_,
+            },
+        }
+
+    def reset(self) -> None:
+        self._params.P_ca_last_ = 1.0
+        self._params.Chi_ca_last_ = 0.0
+        self._candidate_costs.fill(np.nan)
+        self._prediction.fill(0.0)
+        self._target_predictions = []
+        self._active = False
+        self._objective = None
 
     def cost_func(  # noqa: PLR0915
         self, P_ca: float, Chi_ca: float, obstacle: "Obstacle"
