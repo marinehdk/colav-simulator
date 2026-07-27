@@ -34,3 +34,15 @@
   - PSBMPC 需要传入真实 grounding_hazards（Shapely 多边形）才能有非零 chi_opt
   - RRT* 完整规划需要 ENC 三角剖分（transfer_enc_hazards + transfer_safe_sea_triangulation）
   - 激活 RLMPC：pip install torch 后重启服务器
+
+## [2026-07-24 18:17] Agent: Antigravity (IDE)
+- **Git Commit**: `7011210` (branch: main)
+- **任务目标 (Goal)**: 修复 Web GUI 界面未展示海图（ENC 呈现空白/无内容）的问题
+- **核心改动 (Actions)**:
+  - `config/seacharts.yaml`: 在 `files` 列表补充包含 `"More_og_Romsdal_utm33.gdb"`（解决坐标 origin [39000, 6956450] 超出 Rogaland 数据范围导致几何体为空的问题）
+  - `gui_server/main.py`: 在 subprocess 渲染脚本中加入到 `seacharts/data/external` 的自动符号链接
+  - `web_gui/_enc_tile.png`: 重新生成 42.7KB 完整海图 PNG（包含 180+ 陆地、海岸线、0~100m 水深多边形）
+- **当前状态 (Status)**: ✅ GREEN — http://127.0.0.1:8000
+  - `/api/enc_info` 返回 `ready: true`, origin_e: 39000, origin_n: 6956450
+  - `/api/enc_tile` 正常输出 42.7KB PNG 海图瓦片，前端 Canvas 自动对齐并叠加显示
+- **接力指示 (Hand-off Context)**: 海图未展示问题已彻底解决，界面图层开关 `🗺 Toggle` 可平滑控制 ENC 背景显示。
