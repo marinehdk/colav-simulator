@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="stylesheet" href="/static/style.css?v=20260727-fcb45-markers" />
+  <link rel="stylesheet" href="/static/style.css?v=20260727-rule-catalog" />
 </head>
 <body>
   <div class="app-container">
@@ -18,20 +18,6 @@
         <div class="logo-badge" aria-label="MPC">MPC</div>
         <div class="brand-text">
           <h1>综合避碰仿真器</h1>
-        </div>
-      </div>
-      <div class="header-center">
-        <!-- Quick Scenario Tabs -->
-        <div class="quick-tabs" role="tablist" aria-label="快速场景切换">
-          <button id="tab-overtaking" class="qtab" data-group="rule13" data-default-scenario="overtaking" role="tab">Rule 13-OT</button>
-          <button id="tab-headon" class="qtab active" data-group="rule14" data-default-scenario="head_on" role="tab">Rule 14-HO</button>
-          <button id="tab-crossing" class="qtab" data-group="rule15" data-default-scenario="crossing_give_way" role="tab">Rule 15-CS</button>
-          <button id="tab-multi" class="qtab" data-group="multiship" data-default-scenario="paper_ccta2023_multiship" role="tab">多船情形</button>
-        </div>
-        <div class="header-scenario">
-          <select id="scenarioSelect" class="custom-select header-scenario-select" aria-label="当前快捷分类的场景">
-            <option value="head_on" selected>标准对遇 · G3 · 300s</option>
-          </select>
         </div>
       </div>
       <div class="header-right">
@@ -209,7 +195,33 @@
           </div>
         </div>
 
-        <!-- ─── CARD B: Collision-Avoidance Algorithms ─── -->
+        <!-- ─── CARD B: Collision-Avoidance Test Rules ─── -->
+        <div class="card glass-card" id="cardRules">
+          <h3 class="card-title"><span class="icon" aria-hidden="true">§</span> 避碰测试规则</h3>
+          <select id="scenarioSelect" class="control-native-select" aria-label="当前测试场景">
+            <option value="head_on" selected>标准对遇 · G3 · 300s</option>
+          </select>
+          <div class="rule-catalog" aria-label="避碰测试规则列表">
+            <div class="selection-grid rule-selection-grid" role="tablist" aria-label="避碰测试规则">
+              <button id="tab-overtaking" class="selection-card qtab" type="button" data-group="rule13" data-default-scenario="overtaking" role="tab" aria-pressed="false">
+                <span class="selection-name">Rule 13-OT</span><span class="selection-description">追越与被追越</span><span class="selection-state">检查中</span>
+              </button>
+              <button id="tab-headon" class="selection-card qtab selected active" type="button" data-group="rule14" data-default-scenario="head_on" role="tab" aria-pressed="true">
+                <span class="selection-name">Rule 14-HO</span><span class="selection-description">对遇避碰</span><span class="selection-state">检查中</span>
+              </button>
+              <button id="tab-crossing" class="selection-card qtab" type="button" data-group="rule15" data-default-scenario="crossing_give_way" role="tab" aria-pressed="false">
+                <span class="selection-name">Rule 15-CS</span><span class="selection-description">交叉相遇</span><span class="selection-state">检查中</span>
+              </button>
+              <button id="tab-multi" class="selection-card qtab" type="button" data-group="multiship" data-default-scenario="paper_ccta2023_multiship" role="tab" aria-pressed="false">
+                <span class="selection-name">多船情形</span><span class="selection-description">多目标综合遭遇</span><span class="selection-state">检查中</span>
+              </button>
+            </div>
+            <div class="selection-heading scenario-selection-heading">测试场景</div>
+            <div class="selection-grid scenario-selection-grid" id="scenarioCatalog" aria-label="当前规则可用场景"></div>
+          </div>
+        </div>
+
+        <!-- ─── CARD C: Collision-Avoidance Algorithms ─── -->
         <div class="card glass-card" id="cardControl">
           <h3 class="card-title"><span class="icon" aria-hidden="true">⌘</span> 避碰规划算法</h3>
           <select id="algoSelect" class="control-native-select" aria-label="避碰规划算法">
@@ -252,7 +264,7 @@
           </div>
         </div>
 
-        <!-- ─── CARD C: Target Trackers ─── -->
+        <!-- ─── CARD D: Target Trackers ─── -->
         <div class="card glass-card" id="cardTracker">
           <h3 class="card-title"><span class="icon" aria-hidden="true">◎</span> 目标跟踪器</h3>
           <select id="trackerSelect" class="control-native-select" aria-label="目标跟踪器">
@@ -398,6 +410,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260727-fcb45-markers"></script>
+  <script src="/static/app.js?v=20260727-rule-catalog"></script>
 </body>
 </html>

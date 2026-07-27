@@ -97,67 +97,13 @@ body {
 }
 
 /* Quick Scenario Tabs */
-.header-center {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.quick-tabs {
-  display: flex;
-  gap: 6px;
-  background: rgba(0,0,0,0.2);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  padding: 4px;
-}
-
 .qtab {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: 0.78rem;
-  font-weight: 500;
-  padding: 5px 13px;
-  border-radius: 7px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
 }
-
-.qtab:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
 
 .qtab:disabled {
   cursor: not-allowed;
   opacity: 0.42;
-}
-
-.qtab:disabled:hover {
-  color: var(--text-muted);
-  background: transparent;
-}
-
-.qtab.active {
-  background: rgba(0, 242, 254, 0.16);
-  color: var(--accent-cyan);
-  border: 1px solid rgba(0, 242, 254, 0.3);
-}
-
-.header-scenario {
-  display: flex;
-  align-items: center;
-  flex: 0 1 280px;
-  min-width: 220px;
-}
-
-.header-scenario-select {
-  min-width: 0;
-  padding-block: 6px;
-  font-size: 0.76rem;
 }
 
 /* Header Right */
@@ -165,6 +111,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -989,6 +936,23 @@ canvas#simCanvas {
   margin-top: 10px;
 }
 
+.rule-catalog {
+  max-height: 268px;
+  padding-right: 4px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.rule-selection-grid,
+.scenario-selection-grid {
+  max-height: none;
+  overflow: visible;
+}
+
+.scenario-selection-heading {
+  margin-top: 10px;
+}
+
 .algorithm-catalog {
   max-height: 146px;
   padding-right: 4px;
@@ -1554,17 +1518,6 @@ canvas#simCanvas {
     grid-template-columns: 240px minmax(0, 1fr) 280px;
   }
 
-  .header-center {
-    min-width: 0;
-  }
-
-  .qtab {
-    padding-inline: 9px;
-  }
-
-  .header-scenario {
-    flex-basis: 240px;
-  }
 }
 
 @media (max-width: 900px) {
@@ -1597,22 +1550,6 @@ canvas#simCanvas {
   .brand-text h1 {
     white-space: normal;
     overflow-wrap: anywhere;
-  }
-
-  .header-center {
-    order: 3;
-    flex: 1 0 100%;
-    justify-content: flex-start;
-    min-width: 0;
-    overflow: visible;
-  }
-
-  .quick-tabs {
-    min-width: max-content;
-  }
-
-  .header-scenario {
-    flex: 1 1 240px;
   }
 
   .header-right {
@@ -1673,33 +1610,6 @@ canvas#simCanvas {
     flex: 1 0 100%;
     justify-content: space-between;
     gap: 8px;
-  }
-
-  .qtab {
-    padding: 5px 9px;
-  }
-
-  .header-center {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .quick-tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    min-width: 0;
-    width: 100%;
-  }
-
-  .header-scenario {
-    flex: none;
-    width: 100%;
-    min-width: 0;
-  }
-
-  .qtab {
-    min-width: 0;
-    white-space: normal;
   }
 
   .canvas-panel {

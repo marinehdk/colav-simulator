@@ -33,6 +33,16 @@ const SCENARIO_GROUPS = {
   multiship: { types: ['MS'], defaultScenario: 'paper_ccta2023_multiship' },
 };
 
+const SCENARIO_TYPE_DESCRIPTIONS = {
+  HO: '对遇场景',
+  OT_ing: '本船追越',
+  OT_en: '本船被追越',
+  CR_GW: '交叉让路',
+  CR_SO: '交叉直航',
+  MS: '多船综合遭遇',
+  SS: '单船航路规划',
+};
+
 const ENCOUNTER_LABELS = {
   head_on: 'Rule 14-HO',
   overtaking: 'Rule 13-OT',
@@ -1540,7 +1550,12 @@ async function populateCatalogs(ruleId = 'rule14') {
 
   document.querySelectorAll('.qtab').forEach(tab => {
     const rule = ruleCatalog.find(item => item.id === tab.dataset.group);
-    tab.disabled = !rule?.selectable;
+    const selectable = Boolean(rule?.selectable);
+    tab.disabled = !selectable;
+    tab.classList.toggle('available', selectable);
+    tab.classList.toggle('unavailable', !selectable);
+    tab.querySelector('.selection-state').textContent =
+      `${rule?.readiness_grade || 'G0'} · ${selectable ? '可选' : '禁选'}`;
     tab.title = rule?.incompatibility_reason || `${rule?.readiness_grade || 'G0'} display ready`;
   });
 
@@ -1646,7 +1661,48 @@ function syncEncChartSelect(scenarioId) {
 
 function setActiveQuickGroup(groupId) {
   document.querySelectorAll('.qtab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.group === groupId);
+    const selected = tab.dataset.group === groupId;
+    tab.classList.toggle('active', selected);
+    tab.classList.toggle('selected', selected);
+    tab.setAttribute('aria-pressed', String(selected));
+  });
+}
+
+function renderScenarioCards(items, selectedScenario) {
+  const catalog = document.getElementById('scenarioCatalog');
+  catalog.replaceChildren();
+  items.forEach(item => {
+    const card = document.createElement('button');
+    const selectable = Boolean(item.selectable);
+    card.type = 'button';
+    card.className = 'selection-card';
+    card.dataset.scenario = item.id;
+    card.disabled = !selectable;
+    card.classList.toggle('available', selectable);
+    card.classList.toggle('unavailable', !selectable);
+    card.classList.toggle('selected', item.id === selectedScenario);
+    card.setAttribute('aria-pressed', String(item.id === selectedScenario));
+    card.title = item.incompatibility_reason || `${item.readiness_grade} ready`;
+    const name = document.createElement('span');
+    name.className = 'selection-name';
+    name.textContent = SCENARIO_LABELS[item.id] || item.name || item.id.split('/').pop().replaceAll('_', ' ');
+    const description = document.createElement('span');
+    description.className = 'selection-description';
+    description.textContent =
+      `${SCENARIO_TYPE_DESCRIPTIONS[item.type] || item.type} · ${Math.round(item.t_end)}s`;
+    const state = document.createElement('span');
+    state.className = 'selection-state';
+    state.textContent = `${item.readiness_grade} · ${selectable ? '可选' : '禁选'}`;
+    card.append(name, description, state);
+    catalog.appendChild(card);
+  });
+}
+
+function syncScenarioCards(scenarioId) {
+  document.querySelectorAll('[data-scenario]').forEach(card => {
+    const selected = card.dataset.scenario === scenarioId;
+    card.classList.toggle('selected', selected);
+    card.setAttribute('aria-pressed', String(selected));
   });
 }
 
@@ -1671,6 +1727,7 @@ function populateScenarioOptions(groupId, preferredScenario) {
       : selectableItems[0]?.id;
   if (selectedScenario) scenarioSelect.value = selectedScenario;
   setActiveQuickGroup(groupId);
+  renderScenarioCards(items, selectedScenario);
   syncEncChartSelect(selectedScenario);
   return selectedScenario;
 }
@@ -1751,6 +1808,15 @@ document.querySelectorAll('[data-tracker]').forEach(card => {
   });
 });
 
+document.getElementById('scenarioCatalog').addEventListener('click', event => {
+  const card = event.target.closest('[data-scenario]');
+  if (!card || card.disabled) return;
+  const select = document.getElementById('scenarioSelect');
+  if (select.value === card.dataset.scenario) return;
+  select.value = card.dataset.scenario;
+  select.dispatchEvent(new Event('change'));
+});
+
 document.getElementById('encChartSelect').addEventListener('change', async event => {
   const chartId = event.target.value;
   const activeGroup = document.querySelector('.qtab.active')?.dataset.group || 'rule14';
@@ -1776,8 +1842,10 @@ document.getElementById('encChartSelect').addEventListener('change', async event
 ['algoSelect', 'scenarioSelect', 'trackerSelect'].forEach(id => {
   document.getElementById(id).addEventListener('change', async () => {
     if (id === 'scenarioSelect') {
-      syncQuickScenarioTab(document.getElementById(id).value);
-      syncEncChartSelect(document.getElementById(id).value);
+      const scenarioId = document.getElementById(id).value;
+      syncQuickScenarioTab(scenarioId);
+      syncScenarioCards(scenarioId);
+      syncEncChartSelect(scenarioId);
       setEncStatus('loading');
     } else if (id === 'algoSelect') {
       syncSelectionCards('algorithm', document.getElementById(id).value);
@@ -1849,7 +1917,7 @@ function prepareWorkspaceLayout() {
   const sidebar = document.querySelector('.sidebar-column');
   const controls = document.createElement('div');
   controls.className = 'sidebar-controls-scroll';
-  ['cardIntegrations', 'cardControl', 'cardTracker'].forEach(id => {
+  ['cardIntegrations', 'cardRules', 'cardControl', 'cardTracker'].forEach(id => {
     const card = document.getElementById(id);
     if (card) controls.appendChild(card);
   });
@@ -1862,6 +1930,7 @@ function prepareWorkspaceLayout() {
     }
   });
   initializeCollapsibleCard(document.getElementById('cardIntegrations'), true);
+  initializeCollapsibleCard(document.getElementById('cardRules'), false);
   initializeCollapsibleCard(document.getElementById('cardControl'), false);
   initializeCollapsibleCard(document.getElementById('cardTracker'), false);
   const eventLog = document.querySelector('.log-section');
