@@ -134,6 +134,7 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
             for token in (
                 "const FCB45_LENGTH_M = 45",
                 "const FCB45_WIDTH_M = 8",
+                "const PREDICTION_LABEL_SECONDS = 60",
                 "new Path2D()",
                 "threat_level || 'UNKNOWN'",
                 "own_cpa_position",

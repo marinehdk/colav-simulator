@@ -18,8 +18,9 @@ const FCB45_LENGTH_M = 45;
 const FCB45_WIDTH_M = 8;
 const MOTION_VECTOR_SECONDS = 60;
 const MOTION_TICK_SECONDS = 10;
+const PREDICTION_LABEL_SECONDS = 60;
 const THREAT_STYLES = {
-  UNKNOWN: { color: '#68747A', fill: 'rgba(104,116,122,0.08)', rank: 0 },
+  UNKNOWN: { color: '#4F5B60', fill: 'rgba(104,116,122,0.72)', rank: 0 },
   CLEAR: { color: '#AAB4BA', fill: 'rgba(170,180,186,0.66)', rank: 1 },
   LOW: { color: '#F5A524', fill: 'rgba(245,165,36,0.76)', rank: 2 },
   HIGH: { color: '#FF4D5A', fill: 'rgba(255,77,90,0.82)', rank: 3 },
@@ -650,11 +651,15 @@ function drawHorizon(horizon, previous = false, planner = {}) {
   if (previous) return;
   const dt = Number(planner?.horizon_dt_s);
   if (!Number.isFinite(dt) || dt <= 0) return;
-  const interval = Math.max(1, Math.round(10 / dt));
+  const labelInterval = Math.max(1, Math.round(PREDICTION_LABEL_SECONDS / dt));
   pts.forEach((point, index) => {
-    if (index === 0 || index % interval !== 0) return;
-    ctx.fillStyle = '#55D6B7';
-    ctx.beginPath(); ctx.arc(point.x, point.y, 2.8, 0, 2 * Math.PI); ctx.fill();
+    if (index === 0) return;
+    const keyPoint = index % labelInterval === 0;
+    ctx.fillStyle = keyPoint ? '#9EF0DB' : 'rgba(85,214,183,0.42)';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, keyPoint ? 3.6 : 1.25, 0, 2 * Math.PI);
+    ctx.fill();
+    if (!keyPoint) return;
     drawMapLabel(`${Math.round(index * dt)}s`, point.x + 5, point.y - 5, '#9EF0DB');
   });
 }
@@ -804,8 +809,8 @@ function drawShips(data) {
 }
 
 function drawHull(point, heading, lengthM, widthM, threat, ownship) {
-  const lengthPx = Math.max(ownship ? 16 : 12, lengthM * viewScale);
-  const widthPx = Math.max(2.5, lengthPx * widthM / lengthM);
+  const lengthPx = Math.max(ownship ? 18 : 22, lengthM * viewScale);
+  const widthPx = Math.max(ownship ? 4 : 5, lengthPx * widthM / lengthM);
   ctx.save();
   ctx.translate(point.x, point.y);
   ctx.rotate(Number.isFinite(heading) ? heading : 0);
@@ -819,11 +824,9 @@ function drawHull(point, heading, lengthM, widthM, threat, ownship) {
   path.closePath();
   ctx.fillStyle = ownship ? '#F7FAFA' : threat.fill;
   ctx.strokeStyle = ownship ? '#111817' : threat.color;
-  ctx.lineWidth = ownship ? 1.5 : 1.8;
-  if (!ownship && threat === THREAT_STYLES.UNKNOWN) ctx.setLineDash([3, 2]);
+  ctx.lineWidth = ownship ? 1.5 : 2;
   ctx.fill(path);
   ctx.stroke(path);
-  ctx.setLineDash([]);
   ctx.strokeStyle = ownship ? '#65706F' : hexToRgba(threat.color, 0.75);
   ctx.lineWidth = 1;
   ctx.beginPath();
