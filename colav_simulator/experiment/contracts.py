@@ -124,6 +124,7 @@ class RunManifest:
     simulation_config_hash: str = ""
     scenario_hash: str = ""
     episode_hash: str = ""
+    enc_hash: str = ""
     trajectory_hash: str = ""
     scenario_provenance: dict[str, Any] = field(default_factory=dict)
     requested_algorithm: str = "nominal"
@@ -135,6 +136,7 @@ class RunManifest:
     algorithm_readiness_grade: str = "G0"
     tracker_readiness_grade: str = "G0"
     capability_profile_id: str | None = None
+    encounter_profile_id: str = "legacy-g3-v1"
     fallback_used: bool = False
     state: SessionState = SessionState.CREATED
     failure_reason: str | None = None

@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 from dataclasses import dataclass, replace
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -166,6 +167,7 @@ class ExperimentRunner:
         manifest = RunManifest.create(spec, self.registry.dependency_manifest())
         manifest.scenario_hash = content_hash(scenario_document)
         manifest.episode_hash = content_hash(episode_document)
+        manifest.enc_hash = _enc_hash(tuple(episode["config"].map_data_files))
         manifest.scenario_provenance = self._scenario_provenance(spec.scenario_id)
         manifest.executed_tracker = self._executed_tracker_id(spec, config)
         manifest.scenario_readiness_grade = self.capabilities._scenario_capability(
@@ -187,6 +189,7 @@ class ExperimentRunner:
                 "source": self._scenario_source(scenario_path),
                 "source_hash": manifest.scenario_hash,
                 "episode_hash": manifest.episode_hash,
+                "enc_hash": manifest.enc_hash,
                 "seed": spec.seeds.scenario,
                 "provenance": manifest.scenario_provenance,
                 "config": episode_document,
@@ -378,4 +381,26 @@ def _file_hash(path: Path) -> str:
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+@lru_cache(maxsize=8)
+def _enc_hash(sources: tuple[str, ...]) -> str:
+    digest = hashlib.sha256()
+    for source_value in sorted(sources):
+        source = Path(source_value).resolve()
+        if not source.exists():
+            raise FileNotFoundError(f"ENC source not found: {source}")
+        try:
+            source_id = source.relative_to(paths.enc_data.resolve()).as_posix()
+        except ValueError:
+            source_id = source.as_posix()
+        digest.update(source_id.encode("utf-8"))
+        files = [source] if source.is_file() else sorted(path for path in source.rglob("*") if path.is_file())
+        for path in files:
+            relative = path.name if source.is_file() else path.relative_to(source).as_posix()
+            digest.update(relative.encode("utf-8"))
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
     return digest.hexdigest()
