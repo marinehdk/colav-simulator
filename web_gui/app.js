@@ -102,6 +102,7 @@ const visibleLayers = {
   waypoints: true,
   history: true,
   motionVectors: true,
+  avoidanceZone: true,
   prediction: true,
   previousPrediction: false,
   executionPoint: true,
@@ -129,6 +130,7 @@ let ws          = null;
 let currentData = null;
 let logCount    = 0;
 let lastColregs = '', lastDcpaLevel = '';
+const seenEventKeys = new Set();
 let activeSessionId = null;
 let resultLoaded = false;
 let sessionConnectionState = 'disconnected';
@@ -348,6 +350,7 @@ function renderCanvas(data) {
   if (visibleLayers.measurements) drawMeasurements(data.measurements?.[0]);
   if (visibleLayers.tracks) drawTracks(data.tracks?.[0]);
   if (visibleLayers.motionVectors) drawMotionVectors(data);
+  if (visibleLayers.avoidanceZone) drawAvoidanceZone(data);
 
   const plans = data.plans || {};
   if (visibleLayers.previousPrediction && plans.previous_prediction_horizon?.length > 0)
@@ -911,6 +914,52 @@ function drawCPARisk(data) {
     (ownPoint.x + targetPoint.x) / 2 + 6, (ownPoint.y + targetPoint.y) / 2 - 6, item.threat.color);
 }
 
+function drawAvoidanceZone(data) {
+  if (!data.os) return;
+  const planner = data.latest_planner_solve?.solver_executed
+    ? data.latest_planner_solve
+    : (data.planner || {});
+  if (planner.algorithm_id !== 'sbmpc') return;
+
+  const constraints = planner.constraints || {};
+  const activationDistance = Number(constraints.activation_distance_m);
+  const safeDistance = Number(constraints.safe_distance_m);
+  if (!Number.isFinite(activationDistance) || activationDistance <= 0) return;
+
+  const center = worldToCanvas(data.os.x, data.os.y);
+  const activationRadius = activationDistance * viewScale;
+  const active = Boolean(planner.algorithm_details?.active);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, activationRadius, 0, Math.PI * 2);
+  ctx.fillStyle = active ? 'rgba(76,202,209,0.07)' : 'rgba(76,202,209,0.035)';
+  ctx.fill();
+  ctx.strokeStyle = active ? 'rgba(76,202,209,0.9)' : 'rgba(76,202,209,0.58)';
+  ctx.lineWidth = active ? 2 : 1.4;
+  ctx.setLineDash([10, 7]);
+  ctx.stroke();
+
+  if (Number.isFinite(safeDistance) && safeDistance > 0) {
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, Math.max(3, safeDistance * viewScale), 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,77,90,0.07)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,77,90,0.82)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([]);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  drawMapLabel(
+    `SB-MPC 激活 ${activationDistance.toFixed(0)} m · ${active ? '已进入' : '未进入'}`,
+    center.x + 18,
+    center.y - 22,
+    active ? '#55D6B7' : '#9EDFE2',
+  );
+}
+
 function cpaPoint(value) {
   if (Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every(Number.isFinite)) return value;
   if (value && Number.isFinite(value.north) && Number.isFinite(value.east)) return [value.north, value.east];
@@ -1000,6 +1049,15 @@ function updateLayerAvailability(data, navigationArea, route) {
   setLayerAvailability('corridor', validRoute(route)
     && Number.isFinite(Number(data.route_corridor_half_width_m))
     && Number(data.route_corridor_half_width_m) > 0);
+  const planner = data.latest_planner_solve?.solver_executed
+    ? data.latest_planner_solve
+    : (data.planner || {});
+  setLayerAvailability(
+    'avoidanceZone',
+    planner.algorithm_id === 'sbmpc'
+      && Number.isFinite(Number(planner.constraints?.activation_distance_m))
+      && Number(planner.constraints.activation_distance_m) > 0,
+  );
 }
 
 function setLayerAvailability(layer, available) {
@@ -1554,6 +1612,29 @@ function checkLogEvents(data) {
     lastDcpaLevel = lvl;
   }
   (data.events || []).forEach(event => {
+    const planner = event.details?.planner || {};
+    const eventKey = [
+      data.run_id || activeSessionId || 'run',
+      event.sequence ?? data.seq ?? '',
+      event.type,
+      event.details?.ship_id ?? '',
+      planner.solve_id ?? '',
+    ].join(':');
+    if (seenEventKeys.has(eventKey)) return;
+    seenEventKeys.add(eventKey);
+    if (seenEventKeys.size > 1000) {
+      const oldestKey = seenEventKeys.values().next().value;
+      seenEventKeys.delete(oldestKey);
+    }
+    if (event.type === 'planner_solved') {
+      const algorithm = String(planner.algorithm_id || data.executed_algorithm || 'planner').toUpperCase();
+      const simTime = Number(event.sim_time ?? planner.sim_time);
+      const solveId = Number(planner.solve_id);
+      const solveLabel = Number.isFinite(solveId) && solveId > 0 ? ` #${solveId}` : '';
+      const timeLabel = Number.isFinite(simTime) ? ` · 仿真 ${simTime.toFixed(1)}s` : '';
+      pushLog(`${algorithm} 求解成功${solveLabel}${timeLabel}`, 'log-ok');
+      return;
+    }
     const detail = event.details && event.details.reason ? `: ${event.details.reason}` : '';
     pushLog(`${event.type}${detail}`, event.type.includes('fail') ? 'log-danger' : 'log-info');
   });
@@ -1663,6 +1744,7 @@ function activateSession(data) {
   renderSolveTimeline();
   lastColregs = '';
   lastDcpaLevel = '';
+  seenEventKeys.clear();
   encReady = false;
   encInfo = null;
   encImage = null;

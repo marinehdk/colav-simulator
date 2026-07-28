@@ -80,6 +80,7 @@
                     <span class="legend-category-title">算法</span>
                     <span class="legend-item" data-legend-layer="prediction"><span class="color-box horizon"></span>当前预测</span>
                     <span class="legend-item" data-legend-layer="previousPrediction"><span class="color-box previous"></span>上次预测</span>
+                    <span class="legend-item" data-legend-layer="avoidanceZone"><span class="color-box avoidance-zone"></span>SB-MPC 激活范围</span>
                     <span class="legend-item" data-legend-layer="risk"><span class="color-box dcpa-line"></span>CPA 风险</span>
                   </div>
                   <div class="legend-category" data-legend-group="risk">
@@ -118,6 +119,7 @@
                     <label><input type="checkbox" data-layer="prediction" checked> 当前预测</label>
                     <label><input type="checkbox" data-layer="previousPrediction"> 上次预测</label>
                     <label><input type="checkbox" data-layer="executionPoint" checked> 执行点</label>
+                    <label><input type="checkbox" data-layer="avoidanceZone" checked> SB-MPC 激活/安全范围 <span class="layer-state" data-layer-state="avoidanceZone">数据未提供</span></label>
                     <label><input type="checkbox" data-layer="risk" checked> CPA/风险</label>
                   </fieldset>
                   <fieldset>

@@ -146,6 +146,7 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
                 "waypoints",
                 "history",
                 "motionVectors",
+                "avoidanceZone",
                 "prediction",
                 "previousPrediction",
                 "executionPoint",
@@ -173,6 +174,10 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
                 "threat_level || 'UNKNOWN'",
                 "own_cpa_position",
                 "target_cpa_position",
+                "activation_distance_m",
+                "seenEventKeys",
+                "求解成功",
+                "仿真 ${simTime.toFixed(1)}s",
             )
         )
 
