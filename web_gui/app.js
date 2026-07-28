@@ -21,6 +21,8 @@ const MOTION_TICK_SECONDS = 10;
 const PREDICTION_MARKER_SECONDS = 10;
 const PREDICTION_LABEL_SECONDS = 60;
 const SBMPC_SOLVE_PERIOD_SECONDS = 5;
+const RADAR_DETECTION_RANGE_M = 2000;
+const SBMPC_RESPONSE_RANGE_M = 1000;
 const THREAT_STYLES = {
   UNKNOWN: { color: '#4F5B60', fill: 'rgba(104,116,122,0.72)', rank: 0 },
   CLEAR: { color: '#AAB4BA', fill: 'rgba(170,180,186,0.66)', rank: 1 },
@@ -102,7 +104,8 @@ const visibleLayers = {
   waypoints: true,
   history: true,
   motionVectors: true,
-  avoidanceZone: true,
+  radarRange: true,
+  responseRange: true,
   prediction: true,
   previousPrediction: false,
   executionPoint: true,
@@ -350,7 +353,7 @@ function renderCanvas(data) {
   if (visibleLayers.measurements) drawMeasurements(data.measurements?.[0]);
   if (visibleLayers.tracks) drawTracks(data.tracks?.[0]);
   if (visibleLayers.motionVectors) drawMotionVectors(data);
-  if (visibleLayers.avoidanceZone) drawAvoidanceZone(data);
+  drawDetectionZones(data);
 
   const plans = data.plans || {};
   if (visibleLayers.previousPrediction && plans.previous_prediction_horizon?.length > 0)
@@ -789,10 +792,11 @@ function targetsForDisplay(data) {
 }
 
 function targetThreat(data, target) {
-  if (!target) return THREAT_STYLES.UNKNOWN;
-  const encounter = encounterForTarget(data, target.id);
-  const level = String(encounter?.threat_level || 'UNKNOWN').toUpperCase();
-  return THREAT_STYLES[level] || THREAT_STYLES.UNKNOWN;
+  if (!target || !data.os) return THREAT_STYLES.UNKNOWN;
+  const distance = Math.hypot(target.x - data.os.x, target.y - data.os.y);
+  if (sbmpcResponseRange(data) && distance <= sbmpcResponseRange(data)) return THREAT_STYLES.HIGH;
+  if (distance <= RADAR_DETECTION_RANGE_M) return THREAT_STYLES.LOW;
+  return THREAT_STYLES.CLEAR;
 }
 
 function encounterForTarget(data, targetId) {
@@ -914,50 +918,41 @@ function drawCPARisk(data) {
     (ownPoint.x + targetPoint.x) / 2 + 6, (ownPoint.y + targetPoint.y) / 2 - 6, item.threat.color);
 }
 
-function drawAvoidanceZone(data) {
+function drawDetectionZones(data) {
   if (!data.os) return;
-  const planner = data.latest_planner_solve?.solver_executed
-    ? data.latest_planner_solve
-    : (data.planner || {});
-  if (planner.algorithm_id !== 'sbmpc') return;
-
-  const constraints = planner.constraints || {};
-  const activationDistance = Number(constraints.activation_distance_m);
-  const safeDistance = Number(constraints.safe_distance_m);
-  if (!Number.isFinite(activationDistance) || activationDistance <= 0) return;
-
   const center = worldToCanvas(data.os.x, data.os.y);
-  const activationRadius = activationDistance * viewScale;
-  const active = Boolean(planner.algorithm_details?.active);
-
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(center.x, center.y, activationRadius, 0, Math.PI * 2);
-  ctx.fillStyle = active ? 'rgba(76,202,209,0.07)' : 'rgba(76,202,209,0.035)';
-  ctx.fill();
-  ctx.strokeStyle = active ? 'rgba(76,202,209,0.9)' : 'rgba(76,202,209,0.58)';
-  ctx.lineWidth = active ? 2 : 1.4;
-  ctx.setLineDash([10, 7]);
-  ctx.stroke();
-
-  if (Number.isFinite(safeDistance) && safeDistance > 0) {
+  if (visibleLayers.radarRange) {
     ctx.beginPath();
-    ctx.arc(center.x, center.y, Math.max(3, safeDistance * viewScale), 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,77,90,0.07)';
-    ctx.fill();
+    ctx.arc(center.x, center.y, RADAR_DETECTION_RANGE_M * viewScale, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(245,165,36,0.72)';
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([12, 8]);
+    ctx.stroke();
+  }
+
+  const responseRange = sbmpcResponseRange(data);
+  if (visibleLayers.responseRange && responseRange) {
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, responseRange * viewScale, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,77,90,0.82)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([]);
+    ctx.lineWidth = 1.7;
+    ctx.setLineDash([8, 6]);
     ctx.stroke();
   }
   ctx.restore();
+}
 
-  drawMapLabel(
-    `SB-MPC 激活 ${activationDistance.toFixed(0)} m · ${active ? '已进入' : '未进入'}`,
-    center.x + 18,
-    center.y - 22,
-    active ? '#55D6B7' : '#9EDFE2',
-  );
+function sbmpcResponseRange(data) {
+  const planner = data.latest_planner_solve?.solver_executed
+    ? data.latest_planner_solve
+    : (data.planner || {});
+  const algorithmId = planner.algorithm_id || data.executed_algorithm || data.requested_algorithm;
+  if (algorithmId !== 'sbmpc') return null;
+  const configuredRange = Number(planner.constraints?.activation_distance_m);
+  return Number.isFinite(configuredRange) && configuredRange > 0
+    ? configuredRange
+    : SBMPC_RESPONSE_RANGE_M;
 }
 
 function cpaPoint(value) {
@@ -1049,15 +1044,8 @@ function updateLayerAvailability(data, navigationArea, route) {
   setLayerAvailability('corridor', validRoute(route)
     && Number.isFinite(Number(data.route_corridor_half_width_m))
     && Number(data.route_corridor_half_width_m) > 0);
-  const planner = data.latest_planner_solve?.solver_executed
-    ? data.latest_planner_solve
-    : (data.planner || {});
-  setLayerAvailability(
-    'avoidanceZone',
-    planner.algorithm_id === 'sbmpc'
-      && Number.isFinite(Number(planner.constraints?.activation_distance_m))
-      && Number(planner.constraints.activation_distance_m) > 0,
-  );
+  setLayerAvailability('radarRange', true);
+  setLayerAvailability('responseRange', Boolean(sbmpcResponseRange(data)));
 }
 
 function setLayerAvailability(layer, available) {

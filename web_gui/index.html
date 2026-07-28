@@ -80,14 +80,13 @@
                     <span class="legend-category-title">算法</span>
                     <span class="legend-item" data-legend-layer="prediction"><span class="color-box horizon"></span>当前预测</span>
                     <span class="legend-item" data-legend-layer="previousPrediction"><span class="color-box previous"></span>上次预测</span>
-                    <span class="legend-item" data-legend-layer="avoidanceZone"><span class="color-box avoidance-zone"></span>SB-MPC 激活范围</span>
                     <span class="legend-item" data-legend-layer="risk"><span class="color-box dcpa-line"></span>CPA 风险</span>
                   </div>
                   <div class="legend-category" data-legend-group="risk">
-                    <span class="legend-category-title">目标风险</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box clear"></span>无威胁</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box low"></span>低威胁</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box high"></span>高威胁</span>
+                    <span class="legend-category-title">目标状态</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box clear"></span>探测圈外</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box low"></span>雷达监控</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box high"></span>避碰响应</span>
                     <span class="legend-item" data-legend-layer="ships"><span class="color-box unknown"></span>未评估</span>
                   </div>
                   <div class="legend-category" data-legend-group="perception">
@@ -95,6 +94,8 @@
                     <span class="legend-item" data-legend-layer="tracks"><span class="color-box track"></span>Tracker</span>
                     <span class="legend-item" data-legend-layer="measurements"><span class="color-box measurement"></span>量测</span>
                     <span class="legend-item" data-legend-layer="covariance"><span class="color-box covariance"></span>协方差</span>
+                    <span class="legend-item" data-legend-layer="radarRange"><span class="color-box radar-range"></span>雷达探测圈 2 km</span>
+                    <span class="legend-item" data-legend-layer="responseRange"><span class="color-box response-range"></span>避碰响应圈 1 km</span>
                   </div>
                 </div>
               </details>
@@ -119,7 +120,6 @@
                     <label><input type="checkbox" data-layer="prediction" checked> 当前预测</label>
                     <label><input type="checkbox" data-layer="previousPrediction"> 上次预测</label>
                     <label><input type="checkbox" data-layer="executionPoint" checked> 执行点</label>
-                    <label><input type="checkbox" data-layer="avoidanceZone" checked> SB-MPC 激活/安全范围 <span class="layer-state" data-layer-state="avoidanceZone">数据未提供</span></label>
                     <label><input type="checkbox" data-layer="risk" checked> CPA/风险</label>
                   </fieldset>
                   <fieldset>
@@ -128,6 +128,8 @@
                     <label><input type="checkbox" data-layer="measurements"> 量测</label>
                     <label><input type="checkbox" data-layer="tracks"> Track ID</label>
                     <label><input type="checkbox" data-layer="covariance"> 协方差</label>
+                    <label><input type="checkbox" data-layer="radarRange" checked> 雷达探测圈（2 km）</label>
+                    <label><input type="checkbox" data-layer="responseRange" checked> 避碰响应圈（1 km） <span class="layer-state" data-layer-state="responseRange">数据未提供</span></label>
                   </fieldset>
                 </div>
               </details>

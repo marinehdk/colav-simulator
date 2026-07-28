@@ -146,7 +146,8 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
                 "waypoints",
                 "history",
                 "motionVectors",
-                "avoidanceZone",
+                "radarRange",
+                "responseRange",
                 "prediction",
                 "previousPrediction",
                 "executionPoint",
@@ -175,11 +176,16 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
                 "own_cpa_position",
                 "target_cpa_position",
                 "activation_distance_m",
+                "RADAR_DETECTION_RANGE_M = 2000",
+                "SBMPC_RESPONSE_RANGE_M = 1000",
+                "distance <= RADAR_DETECTION_RANGE_M",
                 "seenEventKeys",
                 "求解成功",
                 "仿真 ${simTime.toFixed(1)}s",
             )
         )
+        assert "SB-MPC 激活/安全范围" not in page.text
+        assert all(label in page.text for label in ("雷达探测圈（2 km）", "避碰响应圈（1 km）"))
 
 
 def test_real_session_api_and_websocket() -> None:

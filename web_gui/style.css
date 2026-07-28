@@ -352,9 +352,14 @@ body {
 .color-box.measurement { background: var(--accent-amber); }
 .color-box.covariance { background: transparent; border: 1px solid var(--accent-green); border-radius: 50%; }
 .color-box.horizon  { background: #55d6b7; }
-.color-box.avoidance-zone {
-  background: rgba(76,202,209,0.12);
-  border: 1px dashed rgba(76,202,209,0.9);
+.color-box.radar-range {
+  background: rgba(245,165,36,0.08);
+  border: 1px dashed rgba(245,165,36,0.9);
+  border-radius: 50%;
+}
+.color-box.response-range {
+  background: rgba(255,77,90,0.08);
+  border: 1px dashed rgba(255,77,90,0.9);
   border-radius: 50%;
 }
 .color-box.previous {
