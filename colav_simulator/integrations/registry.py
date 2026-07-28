@@ -133,6 +133,11 @@ class IntegrationRegistry:
             "nominal": IntegrationStatus("nominal", "algorithm", True, None, "colav-simulator", None),
             "vo": IntegrationStatus("vo", "algorithm", True, None, "colav-simulator", None),
             "sbmpc": IntegrationStatus("sbmpc", "algorithm", True, None, "colav-simulator", None),
+            "potocnik_simplified_mpc": _module_status(
+                "potocnik_simplified_mpc",
+                "algorithm",
+                "colav_simulator.integrations.potocnik_mpc",
+            ),
             "scenario_default": IntegrationStatus("scenario_default", "tracker", True, None, "colav-simulator", None),
             "god": IntegrationStatus("god", "tracker", True, None, "colav-simulator", None),
             "kf": IntegrationStatus("kf", "tracker", True, None, "colav-simulator", None),
@@ -175,6 +180,8 @@ class IntegrationRegistry:
                 layer2=LayerConfig(los=LOSGuidanceParams()),
             )
             return SBMPCWrapper(params)
+        if config.get("factory"):
+            return self._build_plugin(algorithm_id, config, factory_context)
 
         status = self.statuses().get(algorithm_id)
         if status is None:
