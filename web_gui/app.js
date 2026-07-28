@@ -1264,14 +1264,23 @@ function updatePlannerPanel(data) {
 function drawPlannerSurface(algorithmId, details) {
   const canvas = document.getElementById('plannerSurface');
   const surface = canvas.getContext('2d');
-  const matrix = algorithmId === 'vo' ? details.violation_costs : details.candidate_costs;
+  const isVO = algorithmId === 'vo';
+  const matrix = isVO ? details.violation_costs : details.candidate_costs;
+  const selectionMatrix = isVO && Array.isArray(details.total_costs)
+    ? details.total_costs
+    : matrix;
   const label = algorithmId === 'vo'
-    ? 'VO / COLREGS 禁止代价'
+    ? 'VO / COLREGS 候选速度可行性'
     : algorithmId === 'sbmpc' ? 'SB-MPC 候选控制代价' : '名义 LOS 引导';
   setText('val-surface-label', label);
+  setText('label-best-cost', isVO ? '最小总 Cost' : '最优 Cost');
+  setText('label-best-course-offset', '航向偏移');
+  setText('label-best-speed-scale', isVO ? '速度偏移' : '速度系数');
   setText('val-best-cost', '--');
   setText('val-best-course-offset', '--°');
-  setText('val-best-speed-scale', '--');
+  setText('val-best-speed-scale', isVO ? '-- m/s' : '--');
+  const objectiveHistoryWrap = document.getElementById('objectiveHistoryWrap');
+  if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc';
   surface.clearRect(0, 0, canvas.width, canvas.height);
   surface.fillStyle = '#0d1211';
   surface.fillRect(0, 0, canvas.width, canvas.height);
@@ -1286,8 +1295,12 @@ function drawPlannerSurface(algorithmId, details) {
   const high = values.length ? Math.max(...values) : 1;
   const rows = matrix.length;
   const columns = Math.max(...matrix.map(row => row.length));
-  const courseOffsets = Array.isArray(details.course_offsets_rad) ? details.course_offsets_rad : [];
-  const speedScales = Array.isArray(details.speed_scales) ? details.speed_scales : [];
+  const courseOffsets = Array.isArray(isVO ? details.heading_offsets_rad : details.course_offsets_rad)
+    ? (isVO ? details.heading_offsets_rad : details.course_offsets_rad)
+    : [];
+  const speedValues = Array.isArray(isVO ? details.speed_offsets_mps : details.speed_scales)
+    ? (isVO ? details.speed_offsets_mps : details.speed_scales)
+    : [];
   const plot = { left: 42, top: 10, right: canvas.width - 10, bottom: canvas.height - 34 };
   const cellWidth = (plot.right - plot.left) / columns;
   const cellHeight = (plot.bottom - plot.top) / rows;
@@ -1303,10 +1316,17 @@ function drawPlannerSurface(algorithmId, details) {
       Math.max(1, cellWidth - 0.5),
       Math.max(1, cellHeight - 0.5),
     );
-    if (Number.isFinite(value) && value < best.value) {
-      best = { value, row: rowIndex, column: columnIndex };
-    }
   }));
+  if (Array.isArray(selectionMatrix)) {
+    selectionMatrix.forEach((row, rowIndex) => {
+      if (!Array.isArray(row)) return;
+      row.forEach((value, columnIndex) => {
+        if (Number.isFinite(value) && value < best.value) {
+          best = { value, row: rowIndex, column: columnIndex };
+        }
+      });
+    });
+  }
   if (best.row >= 0) {
     surface.strokeStyle = '#FFFFFF';
     surface.lineWidth = 2;
@@ -1322,33 +1342,37 @@ function drawPlannerSurface(algorithmId, details) {
   surface.font = '9px SFMono-Regular, monospace';
   surface.textAlign = 'right';
   [0, Math.floor((rows - 1) / 2), rows - 1].forEach(rowIndex => {
-    const radians = Number(courseOffsets[rowIndex]);
-    const degrees = Number.isFinite(radians)
-      ? Math.round(radians * 180 / Math.PI)
-      : Math.round(-90 + rowIndex * 180 / Math.max(1, rows - 1));
-    surface.fillText(`${degrees}°`, plot.left - 5, plot.top + (rowIndex + 0.7) * cellHeight);
+    const value = Number(isVO ? speedValues[rowIndex] : courseOffsets[rowIndex]);
+    const text = Number.isFinite(value)
+      ? (isVO ? `${value.toFixed(1)}` : `${Math.round(value * 180 / Math.PI)}°`)
+      : String(rowIndex + 1);
+    surface.fillText(text, plot.left - 5, plot.top + (rowIndex + 0.7) * cellHeight);
   });
   surface.save();
   surface.translate(9, (plot.top + plot.bottom) / 2);
   surface.rotate(-Math.PI / 2);
   surface.textAlign = 'center';
-  surface.fillText('航向偏移', 0, 0);
+  surface.fillText(isVO ? '速度偏移 m/s' : '航向偏移', 0, 0);
   surface.restore();
 
   surface.textAlign = 'center';
   Array.from({ length: columns }, (_, columnIndex) => {
-    const scale = Number(speedScales[columnIndex]);
-    const text = Number.isFinite(scale) ? scale.toFixed(1) : String(columnIndex + 1);
+    const value = Number(isVO ? courseOffsets[columnIndex] : speedValues[columnIndex]);
+    const text = Number.isFinite(value)
+      ? (isVO ? `${Math.round(value * 180 / Math.PI)}°` : value.toFixed(1))
+      : String(columnIndex + 1);
     surface.fillText(text, plot.left + (columnIndex + 0.5) * cellWidth, plot.bottom + 12);
   });
-  surface.fillText('速度系数', (plot.left + plot.right) / 2, canvas.height - 4);
+  surface.fillText(isVO ? '航向偏移' : '速度系数', (plot.left + plot.right) / 2, canvas.height - 4);
 
   if (best.row >= 0) {
-    const courseRadians = Number(courseOffsets[best.row]);
+    const courseRadians = Number(courseOffsets[isVO ? best.column : best.row]);
     const courseDegrees = Number.isFinite(courseRadians) ? courseRadians * 180 / Math.PI : NaN;
-    const speedScale = Number(speedScales[best.column]);
+    const speedValue = Number(speedValues[isVO ? best.row : best.column]);
     const courseText = Number.isFinite(courseDegrees) ? `${courseDegrees.toFixed(0)}°` : `行 ${best.row + 1}`;
-    const speedText = Number.isFinite(speedScale) ? speedScale.toFixed(1) : `列 ${best.column + 1}`;
+    const speedText = Number.isFinite(speedValue)
+      ? (isVO ? `${speedValue.toFixed(1)} m/s` : speedValue.toFixed(1))
+      : `列 ${best.column + 1}`;
     setText('val-best-cost', formatCost(best.value));
     setText('val-best-course-offset', courseText);
     setText('val-best-speed-scale', speedText);

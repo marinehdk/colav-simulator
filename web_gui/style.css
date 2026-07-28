@@ -1364,6 +1364,10 @@ canvas#simCanvas {
   border-top: 1px solid var(--panel-border);
 }
 
+.objective-history-wrap[hidden] {
+  display: none;
+}
+
 .objective-history-heading {
   margin-bottom: 5px;
   color: var(--text-muted);

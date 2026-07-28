@@ -11,7 +11,9 @@ from gui_server.main import app
 def test_header_uses_requested_session_labels() -> None:
     with TestClient(app) as client:
         page = client.get("/")
+        script = client.get("/static/app.js")
         assert page.status_code == 200
+        assert script.status_code == 200
         assert "<h1>综合避碰仿真器</h1>" in page.text
         assert "Autonomous Ship COLAV" not in page.text
         assert (
@@ -109,6 +111,7 @@ def test_header_uses_requested_session_labels() -> None:
         assert 'id="val-solver-executed"' in page.text
         assert 'id="solveTimeline"' in page.text
         assert 'id="objectiveHistory"' in page.text
+        assert 'id="objectiveHistoryWrap"' in page.text
         assert "候选控制代价" in page.text
         assert "求解周期" in page.text
         assert all(
@@ -121,6 +124,10 @@ def test_header_uses_requested_session_labels() -> None:
             )
         )
         assert 'id="val-surface-summary"' not in page.text
+        assert "VO / COLREGS 候选速度可行性" in script.text
+        assert "details.heading_offsets_rad" in script.text
+        assert "details.speed_offsets_mps" in script.text
+        assert "objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc'" in script.text
 
 
 def test_chart_layer_controls_follow_navigation_semantics() -> None:
