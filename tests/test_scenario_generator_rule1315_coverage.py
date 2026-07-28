@@ -34,7 +34,7 @@ def test_configured_generator_produces_rule13_15_interior_witness(
     generator = ScenarioGenerator(config=runtime_config, seed=WITNESS_SEEDS[scenario_name])
     episodes, _ = generator.generate(
         config_file=Path("scenarios") / f"{scenario_name}.yaml",
-        new_load_of_map_data=False,
+        new_load_of_map_data=True,
         n_episodes=1,
         show_plots=False,
         save_scenario=False,
