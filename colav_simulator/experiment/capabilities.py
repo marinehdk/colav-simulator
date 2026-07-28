@@ -105,6 +105,7 @@ ALGORITHMS: dict[str, Capability] = {
     "nominal": Capability("G2", _P1_RULES, _P1_SCENARIOS, ("none",)),
     "vo": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic",)),
     "sbmpc": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic",)),
+    "potocnik_simplified_mpc": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic",)),
     "psbmpc": Capability(
         "G1",
         ("rule14", "multiship"),
@@ -198,6 +199,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         max_speed_delta_mps=0.03765092218329524,
         solve_count=59,
     ),
+    ("rule14", "head_on", "potocnik_simplified_mpc", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=148.5921309249076,
+        max_heading_delta_deg=30.840379660749296,
+        max_speed_delta_mps=0.12372341820073984,
+        solve_count=600,
+    ),
     ("rule14", "head_on", "nominal", "kf"): _evidence(
         role="nominal_threat",
         termination="time_limit",
@@ -240,6 +249,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         max_speed_delta_mps=4.284630739430558,
         solve_count=59,
     ),
+    ("rule13", "overtaking", "potocnik_simplified_mpc", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=261.6400366594791,
+        max_heading_delta_deg=25.299757278344842,
+        max_speed_delta_mps=0.14208167211323897,
+        solve_count=600,
+    ),
     ("rule13", "overtaken", "nominal", "god"): _evidence(
         role="nominal_threat",
         termination="time_limit",
@@ -260,6 +277,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         max_heading_delta_deg=75.36221900948048,
         max_speed_delta_mps=0.041714044297822994,
         solve_count=59,
+    ),
+    ("rule13", "overtaken", "potocnik_simplified_mpc", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=265.41245933816055,
+        max_heading_delta_deg=37.08671165650096,
+        max_speed_delta_mps=0.1384920255287021,
+        solve_count=600,
     ),
     ("rule15", "crossing_give_way", "nominal", "god"): _evidence(
         role="nominal_threat",
@@ -282,6 +307,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         max_speed_delta_mps=0.045194679263571125,
         solve_count=59,
     ),
+    ("rule15", "crossing_give_way", "potocnik_simplified_mpc", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=166.1391672579143,
+        max_heading_delta_deg=35.438129397932336,
+        max_speed_delta_mps=0.11935842976905509,
+        solve_count=600,
+    ),
     ("rule15", "crossing_stand_on", "nominal", "god"): _evidence(
         role="nominal_threat",
         termination="goal_reached",
@@ -302,6 +335,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         max_heading_delta_deg=43.272780673026624,
         max_speed_delta_mps=0.046880638656195295,
         solve_count=57,
+    ),
+    ("rule15", "crossing_stand_on", "potocnik_simplified_mpc", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=166.15704933718638,
+        max_heading_delta_deg=35.43812939793806,
+        max_speed_delta_mps=0.12101089486971439,
+        solve_count=600,
     ),
     ("multiship", "paper_ccta2023_multiship", "nominal", "god"): _evidence(
         role="nominal_threat",
@@ -337,6 +378,19 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
             "Ship1": 94.79658705437517,
             "Ship2": 200.97886849598802,
             "Ship3": 92.19818057550195,
+        },
+    ),
+    ("multiship", "paper_ccta2023_multiship", "potocnik_simplified_mpc", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=271.7444801425662,
+        max_heading_delta_deg=38.53377299528548,
+        max_speed_delta_mps=0.0,
+        solve_count=1000,
+        target_minimum_clearance_m={
+            "Ship1": 399.96270605940487,
+            "Ship2": 277.98315439158483,
+            "Ship3": 271.7444801425662,
         },
     ),
 }

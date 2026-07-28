@@ -1,7 +1,7 @@
 # Dynamic MPC Playground Phase 2 实施计划
 
 > 日期: 2026-07-28
-> 状态: P2-Platform PASS / P2-Algorithm pending
+> 状态: P2-Platform PASS / P2-Algorithm PASS
 > 实施分支: `codex/colav-backend-algorithms`
 > 审计基线 commit: `3ece120`
 > 当前 working tree 回归: `111 passed, 1 skipped`
@@ -20,9 +20,19 @@ P2-Platform 已完成:
 - 全量回归 `158 passed, 2 skipped`;
 - Phase 2 修改面 targeted ruff PASS。
 
-完整 P2 尚未通过。当前未收到 §3.3 定义的用户论文/自研 MPC factory、
-依赖 lock、最小 config、native state/control/horizon 语义。示例 fixture 未加入
-capability catalog，也未运行或冒充六场景 Custom G3 matrix。
+P2-Algorithm 已使用 Potočnik (2025) simplified MPC 完成:
+
+- Python functional port + 正式 `module:factory`;
+- 上游 commit、MIT license、依赖 lock、参数与契约文档;
+- 45 条 fan trajectory、16 future steps、动态 CV feasibility filter;
+- `plugin-check` PASS;
+- seed 0 / God / strict-no-fallback 六场景 raw G3 6/6 PASS;
+- exact verified tuples 与 capability catalog promotion;
+- 全量回归 `169 passed, 2 skipped`;
+- Phase 2 修改面 targeted ruff PASS;
+- paper `926 m` collision zone 保持 library default，标准场景 profile
+  显式校准为 `300 m`;理由与复现边界记录在
+  `docs/potocnik-simplified-mpc-integration.md`。
 
 ## 1. Phase 2 目标
 
