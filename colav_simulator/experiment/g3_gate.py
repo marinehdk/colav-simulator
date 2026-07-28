@@ -92,9 +92,12 @@ def evaluate_g3_display(  # noqa: PLR0913
         nominal_frames,
         candidate_frames,
     )
-    observable_action = aligned_samples > 0 and (
-        max_heading_delta_rad >= HEADING_ACTION_THRESHOLD_RAD
-        or max_speed_delta_mps >= SPEED_ACTION_THRESHOLD_MPS
+    observable_action = bool(
+        aligned_samples > 0
+        and (
+            max_heading_delta_rad >= HEADING_ACTION_THRESHOLD_RAD
+            or max_speed_delta_mps >= SPEED_ACTION_THRESHOLD_MPS
+        )
     )
 
     checks = {
@@ -174,12 +177,7 @@ def _minimum_clearance_by_target(
             target = frame.get(target_key)
             if not own or not target or not bool(target.get("active", True)):
                 continue
-            delta = np.array(
-                [
-                    float(target["north"]) - float(own["north"]),
-                    float(target["east"]) - float(own["east"]),
-                ]
-            )
+            delta = _position_ne(target) - _position_ne(own)
             distance = float(np.linalg.norm(delta))
             if np.isfinite(distance):
                 distances.append(distance)
@@ -193,6 +191,12 @@ def _minimum_clearance_by_target(
 
 def _circumscribed_radius(info: dict[str, Any]) -> float:
     return 0.5 * float(np.hypot(float(info["length"]), float(info["width"])))
+
+
+def _position_ne(ship: dict[str, Any]) -> np.ndarray:
+    if "csog_state" in ship:
+        return np.asarray(ship["csog_state"][:2], dtype=float)
+    return np.asarray([ship["north"], ship["east"]], dtype=float)
 
 
 def _has_event(events: list[dict[str, Any]], event_type: str) -> bool:
@@ -255,13 +259,14 @@ def _ownship_motion(frames: list[dict[str, Any]]) -> tuple[np.ndarray, np.ndarra
         own = frame.get("Ship0")
         if not own:
             continue
-        samples.append(
-            (
-                float(own["timestamp"]),
-                float(own["psi"]),
-                float(np.hypot(float(own["u"]), float(own.get("v", 0.0)))),
-            )
-        )
+        if "csog_state" in own:
+            csog = np.asarray(own["csog_state"], dtype=float)
+            heading = float(csog[3])
+            speed = float(csog[2])
+        else:
+            heading = float(own["psi"])
+            speed = float(np.hypot(float(own["u"]), float(own.get("v", 0.0))))
+        samples.append((float(own["timestamp"]), heading, speed))
     if not samples:
         empty = np.asarray([], dtype=float)
         return empty, empty, empty

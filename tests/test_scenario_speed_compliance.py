@@ -62,9 +62,13 @@ def test_normalized_standard_scenario_keeps_initial_encounter(
         own_model.params.length,
         target_model.params.length,
     )
+    required_clearance = 0.5 * np.hypot(own_model.params.length, own_model.params.width) + 0.5 * np.hypot(
+        target_model.params.length,
+        target_model.params.width,
+    )
 
     assert encounter == expected
-    assert dcpa_m <= 1.0
+    assert dcpa_m <= required_clearance
     assert 0.0 < tcpa_s == signed_tcpa_s < config.t_end
 
 

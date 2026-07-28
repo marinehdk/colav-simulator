@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from conftest import P1RunHarness
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlannerTrace
 from colav_simulator.experiment.contracts import RunSpec, SessionState
@@ -123,3 +124,13 @@ print(json.dumps({
     assert trajectory_summary["max_solve_id"] == 1
     assert trajectory_summary["solve_count"] == 1
     assert "predicted_trajectory" not in trajectory_summary["last_colav"]["planner"]
+
+
+@pytest.mark.parametrize("algorithm_id", ("vo", "sbmpc"))
+def test_rule14_god_cell_keeps_raw_g3(
+    p1_run_harness: P1RunHarness,
+    algorithm_id: str,
+) -> None:
+    result = p1_run_harness.compare("head_on", algorithm_id)
+
+    assert result.passed, json.dumps(result.to_dict(), indent=2, sort_keys=True)
