@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+
+os.environ["MPLBACKEND"] = "Agg"
 
 if TYPE_CHECKING:
     from colav_simulator.experiment.g3_gate import G3DisplayResult
@@ -17,13 +20,18 @@ sys.path[:] = [entry for entry in sys.path if entry != project_root]
 sys.path.insert(0, project_root)
 
 try:
+    import matplotlib as mpl
+
+    mpl.use("Agg", force=True)
     import matplotlib.pyplot as plt
 except ImportError:
     plt = None
 
 
 @pytest.fixture(autouse=True)
-def close_plots_before_each_test():
+def close_plots_before_each_test(monkeypatch: pytest.MonkeyPatch):
+    if plt is not None:
+        monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
     yield
     if plt is not None:
         plt.close("all")
