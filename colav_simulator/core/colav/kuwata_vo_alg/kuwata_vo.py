@@ -43,9 +43,11 @@ class VOParams:
     d_min: float = 20.0  # Precollision check minimum distance.
     t_grounding_max: float = 10.0  # Maximum time to consider for grounding.
     t_colregs_update_interval: float = 1.0  # The interval at which the COLREGS situation for an obstacle is updated.
-    head_on_width: float = 30.0  # The width of the head-on sector for determining COLREGS constraints/situations.
+    head_on_width: float = np.deg2rad(
+        30.0
+    )  # The width of the head-on sector for determining COLREGS constraints/situations.
     overtaking_angle: float = (
-        112.0  # The boundary angle for the overtaking sector for determining COLREGS constraints/situations.
+        np.deg2rad(112.0)  # The boundary angle for the overtaking sector for determining COLREGS constraints/situations.
     )
     heading_set_limits: list = field(
         default_factory=lambda: [-120.0, 120.0]
@@ -294,7 +296,7 @@ class VO:
                 v_os_new = np.array(
                     [
                         candidate_speed * np.cos(candidate_heading),
-                        speed * np.sin(candidate_heading),
+                        candidate_speed * np.sin(candidate_heading),
                     ]
                 )
                 self._total_costs[i, j] = self._violation_costs[i, j] + (v_ref - v_os_new).transpose() @ self._params.Q @ (
@@ -374,7 +376,7 @@ class VO:
 
                 color = "g"
                 # First check if VO is violated
-                ray = geometry.LineString([p_os, p_os + v_os_new * 3.0 * self._params.t_max])
+                ray = geometry.LineString([p_os, p_os + v_diff * 3.0 * self._params.t_max])
                 if ray.intersects(expanded_poly_do_buffered):
                     self._violation_costs[i, j] = self._params.vo_violation_cost
                     color = "r"
