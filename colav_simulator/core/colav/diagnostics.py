@@ -20,6 +20,14 @@ class PlanStatus(StrEnum):
     DEPENDENCY_UNAVAILABLE = "DEPENDENCY_UNAVAILABLE"
 
 
+class FailureSource(StrEnum):
+    """Owner of an invalid input or planner failure."""
+
+    SCENARIO = "SCENARIO"
+    ADAPTER = "ADAPTER"
+    ALGORITHM = "ALGORITHM"
+
+
 @dataclass
 class PlanDiagnostics:
     """Planner-neutral diagnostic payload stored with every run."""
@@ -33,6 +41,7 @@ class PlanDiagnostics:
     requested_algorithm: str | None = None
     executed_algorithm: str | None = None
     fallback_used: bool = False
+    algorithm_descriptor: dict[str, Any] | None = None
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,9 +98,18 @@ class PlannerTrace:
 class ColavExecutionError(RuntimeError):
     """Planner failure carrying a normalized diagnostic status."""
 
-    def __init__(self, status: PlanStatus, message: str) -> None:
+    def __init__(
+        self,
+        status: PlanStatus,
+        message: str,
+        *,
+        source: FailureSource | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(message)
         self.status = status
+        self.source = source
+        self.details = details or {}
 
 
 def validate_plan(plan: np.ndarray) -> np.ndarray:
