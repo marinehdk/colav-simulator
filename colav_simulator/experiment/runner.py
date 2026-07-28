@@ -13,10 +13,15 @@ from typing import Any
 import colav_simulator.common.config_parsing as cp
 from colav_simulator import scenario_config
 from colav_simulator.common import paths
+from colav_simulator.core.colav.custom_mpc_adapter import (
+    CustomMPCAdapter,
+    DeadlineMode,
+    FactoryContext,
+)
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.evaluation import Evaluator, EvaluatorResult
 from colav_simulator.experiment.capabilities import CapabilityCatalog
-from colav_simulator.experiment.contracts import RunManifest, RunSpec, SessionState, content_hash
+from colav_simulator.experiment.contracts import RunManifest, RunOutcome, RunSpec, SessionState, content_hash
 from colav_simulator.experiment.persistence import EvidenceWriter
 from colav_simulator.experiment.session import SimulationSession
 from colav_simulator.integrations import IntegrationRegistry
@@ -199,7 +204,22 @@ class ExperimentRunner:
             algorithm_config = copy.deepcopy(spec.algorithm_config)
             if spec.algorithm_id == "rrt":
                 algorithm_config.setdefault("seed", spec.seeds.algorithm)
-            algorithm = self.registry.build_algorithm(spec.algorithm_id, algorithm_config)
+            factory_context = FactoryContext(
+                requested_algorithm=spec.algorithm_id,
+                algorithm_seed=spec.seeds.algorithm,
+                strict_no_fallback=spec.strict_no_fallback,
+                solve_period_override_s=spec.solve_period_s,
+                deadline_mode=DeadlineMode(spec.deadline_mode),
+            )
+            algorithm = self.registry.build_algorithm(
+                spec.algorithm_id,
+                algorithm_config,
+                factory_context=factory_context,
+            )
+            if isinstance(algorithm, CustomMPCAdapter):
+                descriptor_document = algorithm.descriptor_document()
+                manifest.algorithm_descriptor = descriptor_document
+                manifest.algorithm_build_identity = descriptor_document["build_identity"]
             tracker = self.registry.build_tracker(spec.tracker_id, spec.tracker_config)
             colav_systems = [(0, algorithm)] if algorithm is not None else None
             trackers = [(0, tracker)] if tracker is not None else None
@@ -211,6 +231,7 @@ class ExperimentRunner:
             simulator_config.visualizer.save_result_figures = False
             simulator_config.visualizer.save_liveplot_animation = False
             simulator_config.visualizer.matplotlib_backend = "Agg"
+            manifest.ccd_step_tolerance_m = simulator_config.ccd_step_tolerance_m
             simulator = Simulator(config=simulator_config)
             session = SimulationSession(
                 simulator=simulator,
@@ -272,6 +293,7 @@ class ExperimentRunner:
             raise RuntimeError(f"Cannot finalize session in state {prepared.session.state.value}")
         evaluation = self.evaluator.evaluate(prepared.session.vessel_data(), prepared.session.enc)
         prepared.manifest.state = prepared.session.state
+        prepared.manifest.execution_outcome = RunOutcome.COMPLETED
         prepared.manifest.evaluator_id = evaluation.evaluator_id
         prepared.manifest.reproduction_status = evaluation.reproduction_status
         self._enforce_no_fallback(prepared)
@@ -343,6 +365,9 @@ class ExperimentRunner:
     ) -> None:
         status = exc.status if isinstance(exc, ColavExecutionError) else PlanStatus.NUMERICAL_FAILURE
         manifest.state = SessionState.FAILED
+        manifest.execution_outcome = (
+            RunOutcome.SKIPPED if status == PlanStatus.DEPENDENCY_UNAVAILABLE else RunOutcome.FAILED
+        )
         manifest.failure_status = status.value
         manifest.failure_reason = str(exc)
         manifest.reproduction_status = "not_evaluated"
@@ -351,8 +376,14 @@ class ExperimentRunner:
             {
                 "sequence": len(frames),
                 "sim_time": None,
-                "type": "run_failed",
-                "details": {"status": status.value, "reason": str(exc)},
+                "type": "run_skipped" if manifest.execution_outcome == RunOutcome.SKIPPED else "run_failed",
+                "details": {
+                    "status": status.value,
+                    "reason": str(exc),
+                    "source": exc.source.value
+                    if isinstance(exc, ColavExecutionError) and exc.source is not None
+                    else None,
+                },
             }
         )
         trajectory_path = writer.write_trajectory(frames)

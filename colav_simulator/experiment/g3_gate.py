@@ -65,7 +65,31 @@ def evaluate_g3_display(  # noqa: PLR0913
     )
     identity_ok = requested == executed == expected_algorithm.lower()
 
-    solve_count, valid_solve_plans = _solve_evidence(candidate_frames)
+    descriptor_document = _manifest_value(candidate_manifest, "algorithm_descriptor")
+    is_custom_plugin = isinstance(descriptor_document, dict)
+    solve_count, valid_solve_plans, all_success_statuses = _solve_evidence(
+        candidate_frames,
+        min_columns=2 if is_custom_plugin else 1,
+    )
+    custom_identity_complete = not is_custom_plugin or _custom_identity_complete(
+        descriptor_document,
+        expected_algorithm,
+    )
+    formal_execution = not is_custom_plugin or (
+        not bool(_manifest_value(candidate_manifest, "diagnostic_only", False))
+        and str(
+            getattr(
+                _manifest_value(candidate_manifest, "execution_outcome", ""),
+                "value",
+                _manifest_value(candidate_manifest, "execution_outcome", ""),
+            )
+        ).upper()
+        == "COMPLETED"
+    )
+    footprint_oracle = not is_custom_plugin or (
+        _manifest_value(candidate_manifest, "collision_oracle_id") == "footprint-adaptive-v1"
+        and _positive_float(_manifest_value(candidate_manifest, "ccd_step_tolerance_m", 0.0))
+    )
     terminal_types = {str(event.get("type")) for event in candidate_events}
     state = _manifest_value(candidate_manifest, "state", "")
     state_value = getattr(state, "value", state)
@@ -108,6 +132,10 @@ def evaluate_g3_display(  # noqa: PLR0913
         "no_fallback": not fallback_used,
         "real_solve": solve_count > 0,
         "finite_9xn_plans": valid_solve_plans,
+        "success_only": not is_custom_plugin or all_success_statuses,
+        "formal_execution": formal_execution,
+        "complete_plugin_identity": custom_identity_complete,
+        "footprint_collision_oracle": footprint_oracle,
         "normal_termination": normal_termination,
         "no_hard_failure": no_hard_failure,
         "all_targets_observed": all_targets_observed,
@@ -212,12 +240,19 @@ def _frame_fallback_used(frames: list[dict[str, Any]]) -> bool:
     return False
 
 
-def _solve_evidence(frames: list[dict[str, Any]]) -> tuple[int, bool]:
+def _solve_evidence(
+    frames: list[dict[str, Any]],
+    *,
+    min_columns: int,
+) -> tuple[int, bool, bool]:
     solve_count = 0
     all_valid = True
+    all_success = True
     for frame in frames:
         own = frame.get("Ship0") or {}
         planner = own.get("colav", {}).get("planner", {})
+        if planner:
+            all_success = all_success and str(planner.get("status", "SUCCESS")) == "SUCCESS"
         if not planner.get("solver_executed"):
             continue
         solve_count += 1
@@ -226,10 +261,31 @@ def _solve_evidence(frames: list[dict[str, Any]]) -> tuple[int, bool]:
             all_valid
             and prediction.ndim == 2
             and prediction.shape[0] == 9
-            and prediction.shape[1] >= 1
+            and prediction.shape[1] >= min_columns
             and bool(np.all(np.isfinite(prediction)))
         )
-    return solve_count, all_valid
+    return solve_count, all_valid, all_success
+
+
+def _custom_identity_complete(descriptor_document: dict[str, Any], expected_algorithm: str) -> bool:
+    descriptor = descriptor_document.get("descriptor")
+    build_identity = descriptor_document.get("build_identity")
+    if not isinstance(descriptor, dict) or not isinstance(build_identity, dict):
+        return False
+    values = tuple(build_identity.values())
+    return (
+        str(descriptor.get("algorithm_id", "")).lower() == expected_algorithm.lower()
+        and bool(values)
+        and all(bool(value) and value != "UNKNOWN" for value in values)
+    )
+
+
+def _positive_float(value: Any) -> bool:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return False
+    return bool(np.isfinite(numeric) and numeric > 0.0)
 
 
 def _action_delta(
