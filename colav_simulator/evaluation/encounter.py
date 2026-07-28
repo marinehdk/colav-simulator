@@ -49,14 +49,19 @@ def classify_geometry(
     target_course = float(np.arctan2(target_velocity_ne[1], target_velocity_ne[0]))
     absolute_bearing = float(np.arctan2(relative[1], relative[0]))
     relative_bearing_deg = float(np.rad2deg(wrap_angle(absolute_bearing - own_course)))
+    contact_bearing_deg = float(np.rad2deg(wrap_angle(absolute_bearing + np.pi - target_course)))
     course_difference_deg = abs(float(np.rad2deg(wrap_angle(target_course - own_course))))
+    own_speed = float(np.linalg.norm(own_velocity_ne))
+    target_speed = float(np.linalg.norm(target_velocity_ne))
     risk_distance = max(500.0, 10.0 * (own_length_m + target_length_m))
     if signed_tcpa_s <= 0.0 or dcpa_m > risk_distance:
         encounter = "clear"
     elif abs(relative_bearing_deg) <= 15.0 and course_difference_deg >= 150.0:
         encounter = "head_on"
-    elif abs(relative_bearing_deg) > 112.5 and np.linalg.norm(own_velocity_ne) > np.linalg.norm(target_velocity_ne):
+    elif abs(contact_bearing_deg) > 112.5 and own_speed > target_speed:
         encounter = "overtaking"
+    elif abs(relative_bearing_deg) > 112.5 and target_speed > own_speed:
+        encounter = "overtaken"
     elif 0.0 < relative_bearing_deg <= 112.5:
         encounter = "crossing_give_way"
     elif -112.5 <= relative_bearing_deg < 0.0:
@@ -105,6 +110,7 @@ class EncounterSnapshot:
 
 RULE_BY_ENCOUNTER = {
     "overtaking": "rule13",
+    "overtaken": "rule13",
     "head_on": "rule14",
     "crossing_give_way": "rule15",
     "crossing_stand_on": "rule15",
