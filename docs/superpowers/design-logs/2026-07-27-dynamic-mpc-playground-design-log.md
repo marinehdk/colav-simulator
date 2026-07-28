@@ -2,7 +2,7 @@
 
 > **模式**: 重构        **创建**: 2026-07-27
 > **关联方案包**: `docs/superpowers/specs/2026-07-27-dynamic-mpc-playground-solution-pack.md`
-> **状态**: Step4 完成；DP-05..31 共 27 项推荐全部综合，VR-05..31 登记；TD-01..04 无 DECOMPOSITION_INCOMPLETE；等待用户授权进入 Step5（DESIGN-IT-TWICE）
+> **状态**: Step6 完成；方案包已交付 brainstorming；术语表+技术规约表（六类）+八组件方案包齐；等待用户接受后调用 brainstorming
 > **工作分支**: `codex/colav-backend-algorithms`
 > **设计对象**: 复用上游 COLAV-Simulator，建立用于 Custom MPC 正确性、有效性和公平对比的动态避碰 Playground
 > **取代旧日志**: `2026-07-27-mpc-colav-simulation-validation-platform-design-log.md`
@@ -320,6 +320,20 @@
 | ALT-02 | 论文复现、动态 Playground、RRT/VIM 三条链同优先级推进 | 分散主目标；不可用算法上提前投入复现 | DP-02, DP-03 |
 | ALT-03 | 将 RRT 作为 Rule 14 动态避碰算法比较 | RRT-RS 不接收动态目标/COLREG 状态 | DP-03 |
 | ALT-04 | 将 legacy `custom_mpc_adapter.py` fallback 路径视为 Custom MPC 正式接口 | 存在硬编码和静默替代，无法证明 executed identity | DP-04, DP-13 |
+| ALT-05 | DP-08 方案 B：新独立接口替代 ICOLAV | 重写全部 wrapper + 破坏上游兼容，无证据收益 | DP-08 |
+| ALT-06 | DP-08 方案 C：hybrid ICOLAV + Custom fast-path | 双路径一致性维护负担，fast-path 收益未证 | DP-08 |
+| ALT-07 | DP-21 方案 B：自适应姿态细分（无 first-TOC） | Evaluator 缺 first-TOC 信号；细分收敛依赖上界估计 | DP-21 |
+| ALT-08 | DP-21 方案 C：简化线性上界（max vertex displacement） | 过保守误报影响公正性 / 忽略旋转项则漏报 | DP-21 |
+| ALT-09 | DP-22 方案 B：Eriksen FSM + 宽角度（无 Woerner pose/timely） | 缝 timely/pose/crossing-ahead，技术分解不完整 | DP-22 |
+| ALT-10 | DP-22 方案 C：Murray 窄角度简化（仅分类） | 残缺方案（缺阶段/通过侧/Rule 17/multi-ship） | DP-22 |
+| ALT-11 | DP-24 方案 B：全量 PSB benchmark（每 stratum 100） | 运行成本高 + schema 迁移风险 + 地理偏 PSB corpus | DP-24 |
+| ALT-12 | DP-24 方案 C：缩减固定集（经验拍 N 无 covering-array 论证） | 覆盖不可量化；无方法论支撑 | DP-24 |
+| ALT-13 | DP-30 方案 B：统一 `v:=U*sin(chi)`（注入虚拟 sway） | 污染 PSB plant_prediction 语义；native 不存在 sway | DP-30 |
+| ALT-14 | DP-30 方案 C：PSB 不映射到 9D（保留 native 4D） | PSB 永远 G2 无法与其他算法 G3 比较 | DP-30 |
+| ALT-15 | DP-19 方案 B：单一 file-hash replay（当前实现） | 混合编码噪声，无法定位漂移 | DP-19 |
+| ALT-16 | DP-19 方案 C：全 exact（要求所有 run bit-exact） | native solver 跨 runtime 不可 bit-exact | DP-19 |
+| ALT-17 | DP-25 方案 B：固定 30 seed + Wald CI + 完整案例 | 无功效论证 + Wald 小 n 近 0 失败 + 幸存者偏差 | DP-25 |
+| ALT-18 | DP-25 方案 C：纯描述性（无 CI） | 无法量化不确定性/做配对比较 | DP-25 |
 
 ### 0.8 技术规约注册表 [TS]
 
@@ -2808,3 +2822,523 @@ failed_gates[] / not_evaluated_gates[] / primary_reason
 **诚实边界（EXTERNAL_CONFIRMATION_REQUIRED）**：FCB45 目标 plant、CATZOC 数值精度表、目标海域 metocean、Agder 地图、历史许可。
 
 **实现期须修复的代码缺陷**（15+ 项）：中心距碰撞、五边形 footprint、RK4 无 dense output、三套 CPA 不一致、ENC 中心点距离、删除 Polygon interior、grunne 点喂入 seabed、shore 折叠 UNSARE、bearing-only 分类、range-only stage、evaluator 5°/15° 偏差、无 Rule 17 FSM、KinematicShip 参数误绑、AcadosMPCWrapper 不可用、grounding oracle 调不存在函数。
+
+## Step5 · DESIGN-IT-TWICE 方案对比 [2026-07-28]
+
+### 用户授权 + 对比对象
+
+- 用户授权 7 项进 DESIGN-IT-TWICE：5 项核心（DP-08/21/22/24/30）+ 2 项边界（DP-19/25）。
+- 20 项低风险直接采纳 Step4 推荐（用户确认）。
+- 输出：每项 2-3 竞争方案 + 决策卡片（七维）+ 裁决。分两批展示。
+
+### DP-08 · 统一 Custom MPC 插件契约
+
+#### 方案 A：薄 Adapter over ICOLAV（Step4 推荐）
+
+| 维度 | 方案 A：薄 Adapter over ICOLAV |
+|---|---|
+| 来源 | [R3] ICOLAV 稳定边界；[R9] PlannerTrace 骨架；[R11] legacy adapter 反面教材 |
+| 工程验证 | 上游 COLAV-Simulator 生产✓（VOWrapper/SBMPCWrapper/PSBMPCColav 均实现 ICOLAV）|
+| 技术分解 | 输入✓（typed PlannerInput DTO）输出✓（9xN+selected_command）声明✓（AlgorithmDescriptor）生命周期✓（reset/solve_id）失败✓（PlanStatus 六态）诊断✓（PlannerTrace）|
+| 失效边界 | Adapter 验证不完整时"求解成功但物理错误"（SC-01 白盒注入无效输入可证）|
+| 实现风险 | 低（复用既有 ICOLAV + diagnostics 骨架，增量加 DTO/Descriptor）|
+| 可测性 | SC-01 白盒固定输入 + 闭环走同 Adapter（BL-41 已确认）|
+| 推荐度 | ★★★★★ |
+
+#### 方案 B：新独立接口（替代 ICOLAV）
+
+| 维度 | 方案 B：新独立接口 |
+|---|---|
+| 来源 | 无直接证据（推论：clean-slate 设计更纯粹）|
+| 工程验证 | 仅本项目✗（须重写 VOWrapper/SBMPCWrapper/PSBMPCColav 全部 wrapper）|
+| 技术分解 | 输入✓ 输出✓ 声明✓ 生命周期✓ 失败✓ 诊断✓（理论上完整）|
+| 失效边界 | 同 A，但额外引入迁移风险（既有 wrapper 全部重写）|
+| 实现风险 | 高（重写 3+ wrapper + 破坏上游兼容 + 双接口维护期）|
+| 可测性 | 同 A，但须额外 wrapper 迁移测试 |
+| 推荐度 | ★★☆☆☆ |
+
+#### 方案 C：hybrid（ICOLAV 兼容 + Custom 专用 fast-path）
+
+| 维度 | 方案 C：hybrid |
+|---|---|
+| 来源 | 推论（兼顾兼容与性能）|
+| 工程验证 | 仅本项目✗ |
+| 技术分解 | 同 A，但额外维护 fast-path（双代码路径）|
+| 失效边界 | fast-path 与 ICOLAV 路径行为分叉（两套验证/转换须保持一致）|
+| 实现风险 | 中-高（双路径维护 + 一致性测试负担）|
+| 可测性 | 须证明两路径行为等价（额外等价性测试）|
+| 推荐度 | ★★☆☆☆ |
+
+#### 裁决
+
+- **采纳方案 A**。理由：①技术分解完整且复用既有骨架；②工程验证最强（上游生产 wrapper 均实现 ICOLAV）；③实现风险最低；④失效边界已知可测（SC-01）。
+- **弃用 B**：重写全部 wrapper + 破坏上游兼容，无证据收益。
+- **弃用 C**：双路径一致性维护负担，fast-path 收益未证。
+- 裁决标准：工程验证（生产✓ > 仅本项目✗）+ 实现风险（低 > 高）。
+- VR-08 维持（Step4 推荐）。
+
+### DP-21 · 安全与 ENC Oracle
+
+#### 方案 A：C²A Conservative Advancement 循环（Step4 推荐）
+
+| 维度 | 方案 A：C²A CA 循环 |
+|---|---|
+| 来源 | [R51] Tang C²A ICRA 2009（CCD 奠基）；[R52][R53] Shapely manual/set_precision |
+| 工程验证 | C²A 在机器人/游戏 CCD 生产✓；Shapely 广泛生产✓；海事 footprint CCD 仅本项目 |
+| 技术分解 | footprint✓（船模 vertex）姿态插值✓（piecewise-constant v/w screw-motion）first-TOC✓（Eq.1-2）容差✓（user-specified threshold）三类 buffer 分离✓ ENC 四类分离✓ |
+| 失效边界 | dt 过大 + ROT 高时 CA 步数多（性能）；grid_size ≥ beam 时拓扑坍缩（SC-07 受限水域窄 hazard）|
+| 实现风险 | 中（C²A CA 循环 + Shapely 调用；性能须测）|
+| 可测性 | SC-07 窄 hazard 穿越测试 + first-TOC 已知解比对 + grid_size<<beam 测试 |
+| 推荐度 | ★★★★★ |
+
+#### 方案 B：自适应姿态细分（subdivide until safe）
+
+| 维度 | 方案 B：自适应姿态细分 |
+|---|---|
+| 来源 | [R51] C²A 动机上界思想的简化实现；工程推论 |
+| 工程验证 | 仅本项目✗（简化版 CCD 常见但无海事生产先例）|
+| 技术分解 | footprint✓ 姿态细分✓（递归二分到步长安全）first-TOC✗（只判是否碰撞，不给 first-TOC）容差✓ 三类分离✓ ENC✓ |
+| 失效边界 | 细分收敛依赖运动上界估计；估计偏松则过保守（性能差），偏紧则漏报 |
+| 实现风险 | 中（比 A 简单，但无 first-TOC）|
+| 可测性 | SC-07 穿越测试；但无法提供 first-TOC 供 Evaluator 用 |
+| 推荐度 | ★★★☆☆ |
+
+#### 方案 C：简化线性上界（max vertex displacement check）
+
+| 维度 | 方案 C：简化线性上界 |
+|---|---|
+| 来源 | 工程推论（最快实现）|
+| 工程验证 | 仅本项目✗ |
+| 技术分解 | footprint✓ 上界✓（(|v|+|w|·r_max)·dt）first-TOC✗ 容差✗（无精细化）三类分离✓ ENC✓ |
+| 失效边界 | 旋转下严重过保守（球体包围）；或若忽略旋转项则漏报 |
+| 实现风险 | 低（最简实现）|
+| 可测性 | SC-07；但过保守会误报（影响评价公正性）|
+| 推荐度 | ★★☆☆☆ |
+
+#### 裁决
+
+- **采纳方案 A**。理由：①first-TOC 是 Evaluator 需要的（碰撞时间供阶段/时序评价）；②工程验证最强（C²A + Shapely 生产级）；③三类 buffer + ENC 四类分离完整；④失效边界已知（dt/ROT/grid_size）。
+- **弃用 B**：无 first-TOC，Evaluator 缺关键信号。
+- **弃用 C**：过保守误报影响公正性 / 漏报风险。
+- VR-21 维持。
+
+### DP-22 · COLREG 行为 Oracle
+
+#### 方案 A：Woerner 全套 + Eriksen 锁定 FSM（Step4 推荐）
+
+| 维度 | 方案 A：Woerner 全套 + Eriksen FSM |
+|---|---|
+| 来源 | [R62] Woerner 2016 MIT PhD（canonical angles 13°/45°/10° + Algorithm 5/9/11/12/14/16 + pose reward Eq.4.12）；[R64] Eriksen 2020 FSM（SF↔{OT,HO,GW,SO,EM} + hysteresis）|
+| 工程验证 | Woerner MIT 论文 + Autonomous Robots✓；Eriksen NTNU 论文✓；[R65][R66] Hagen/Akdag 引用 Woerner✓；海事生产✗（研究级）|
+| 技术分解 | 分类✓（双变量 β,α）阶段✓（Stage 1-4 + FSM lock）阈值✓（四阈值 profile）通过侧✓（signed-sine pose）Rule 17✓（三阶段 sub-FSM）multi-ship✓（per-pair + C_x,gw）|
+| 失效边界 | profile 参数选择影响结果（SC-02..06 须声明 profile）；FSM hysteresis 阈值未确认 Hagen 值 |
+| 实现风险 | 中-高（双变量分类 + FSM + pose reward + Rule 17 sub-FSM；工作量大）|
+| 可测性 | 论文 golden tables（Woerner Road Test Tables 7.1/7.2）+ 双向角色测试 + Rule 17 phase 测试 |
+| 推荐度 | ★★★★★ |
+
+#### 方案 B：Eriksen FSM + 宽角度（Tam&Bucknall 22.5°）
+
+| 维度 | 方案 B：Eriksen FSM + 宽角度 |
+|---|---|
+| 来源 | [R64] Eriksen 2020（FSM + θ₁,θ₂,θ₃=22.5/90/112.5° + Tam&Bucknall robustness）|
+| 工程验证 | Eriksen 论文✓；但未含 Woerner pose reward / crossing-ahead α / Algorithm 12 timely |
+| 技术分解 | 分类✓（单变量 bearing）阶段✓ 阈量✗（缺 timely range-fraction）通过侧✗（无 signed-sine）Rule 17✓ multi-ship✓ |
+| 失效边界 | bearing-only 漏 contact-angle 区分；无 pose reward 无法判 port-to-port 质量 |
+| 实现风险 | 中（比 A 简单，但缺关键子模块）|
+| 可测性 | Eriksen 场景测试；但无法复现 Woerner golden tables |
+| 推荐度 | ★★★☆☆ |
+
+#### 方案 C：Murray 窄角度（5°）简化版
+
+| 维度 | 方案 C：Murray 简化版 |
+|---|---|
+| 来源 | [R67] Murray & Naeem 2024（Eq.11 HO ±5°）|
+| 工程验证 | arXiv preprint（B 级）；无 FSM / pose / Rule 17 |
+| 技术分解 | 分类✓（单变量）阶段✗ 阈值✗ 通过侧✗ Rule 17✗ multi-ship✗ |
+| 失效边界 | 缺阶段锁定/通过侧/Rule 17——大量 COLREG 评价缺失 |
+| 实现风险 | 低（最简）|
+| 可测性 | 仅分类测试 |
+| 推荐度 | ★☆☆☆☆ |
+
+#### 裁决
+
+- **采纳方案 A**。理由：①技术分解最完整（六子模块全覆盖）；②canonical 来源（Woerner + Eriksen 被 Hagen/Akdag 引用）；③双变量分类 + pose reward + Rule 17 sub-FSM 是 paper_compatible profile 必需；④失效边界已知（profile 参数）。
+- **弃用 B**：缺 timely/pose/crossing-ahead，技术分解不完整。
+- **弃用 C**：残缺方案（仅分类），直接弃用（裁决标准 1：技术分解完整性）。
+- VR-22 维持。
+
+### 第一批决策卡片用户确认门
+
+- 待用户确认 DP-08（采纳 A）、DP-21（采纳 A）、DP-22（采纳 A）的裁决。
+- 未确认前不标 final，不继续后 4 项。
+
+### 第一批用户确认 [2026-07-28]
+
+- 用户批量采纳 DP-08 方案 A、DP-21 方案 A、DP-22 方案 A。
+- VR-08/21/22 经 DESIGN-IT-TWICE 确认，维持 Step4 推荐。
+- 弃用方案登记：ALT-05（DP-08 B/C）、ALT-06（DP-21 B/C）、ALT-07（DP-22 B/C）。
+
+### DP-24 · G2/G3/G4 资格门与 canonical set
+
+#### 方案 A：t=2 Covering Array + 多 seed + 零硬门（Step4 推荐）
+
+| 维度 | 方案 A：t=2 covering array + 3 seeds + 零硬门 |
+|---|---|
+| 来源 | [R21] NIST SP 800-142 covering-array；[R40] manifest identity；[R48][R49] evaluator stub；[R8] capability matrix |
+| 工程验证 | NIST ACTS 方法论生产✓（软件测试）；[R69][R70][R71] 安全标准 V&V 原则✓；海事 G3 canonical 仅本项目 |
+| 技术分解 | canonical set✓（covering array）零失败✓（硬门 PASS）capability_dependencies✓（hash 聚合）TIMEOUT_FEASIBLE✓（soft）promotion✓（人工+audit）demotion✓（自动）|
+| 失效边界 | t=2 漏 t=3 交互故障（可通过升级 t=3 缓解）；seed=3 统计功效低（G4 用 range(30) 补）|
+| 实现风险 | 中（covering array 生成 + 硬门 predicate + manifest-diff 失效检查）|
+| 可测性 | canonical set 硬门回归 + capability_dependencies hash 比对 + promotion/demotion 流程测试 |
+| 推荐度 | ★★★★★ |
+
+#### 方案 B：全量 PSB benchmark（每 stratum 100）
+
+| 维度 | 方案 B：全量 PSB benchmark |
+|---|---|
+| 来源 | [R19][R20] PSB corpus（3600 episode，每 stratum 100）|
+| 工程验证 | PSB benchmark✓（上游忠实运行语义）；但 schema 不兼容（BL-01 迁移）+ Agder 缺失（BL-02）|
+| 技术分解 | canonical set✓（全量）零失败✓ dependencies✓ TIMEOUT_FEASIBLE✓ promotion✓ demotion✓ |
+| 失效边界 | 运行成本高（3600×算法×seed）；schema 迁移风险；地理覆盖偏 PSB corpus |
+| 实现风险 | 高（迁移 + 大量运行 + 长周期）|
+| 可测性 | 同 A，但运行预算大 |
+| 推荐度 | ★★☆☆☆ |
+
+#### 方案 C：缩减固定集（经验选 N，无 covering-array 论证）
+
+| 维度 | 方案 C：缩减固定集 |
+|---|---|
+| 来源 | 无方法论支撑（经验拍 N）|
+| 工程验证 | 仅本项目✗ |
+| 技术分解 | canonical set✗（无覆盖强度论证）零失败✓ dependencies✓ TIMEOUT_FEASIBLE✓ promotion✓ demotion✓ |
+| 失效边界 | 覆盖不可量化；新增 factor 不知是否破坏覆盖 |
+| 实现风险 | 低（最少 episode）|
+| 可测性 | 无法证明覆盖强度 |
+| 推荐度 | ★☆☆☆☆ |
+
+#### 裁决
+
+- **采纳方案 A**。理由：①覆盖强度可量化（NIST 方法论）；②实现风险中（vs B 高）；③运行成本可控（vs B 3600）；④失效边界已知（t=2 限制可升级）。
+- **弃用 B**：运行成本高 + schema 迁移风险 + 地理偏 PSB corpus。
+- **弃用 C**：无覆盖论证（裁决标准 1：技术分解完整性，canonical set 子模块残缺）。
+- VR-24 维持。
+
+### DP-30 · 外部 MPC 输出归一化（含 PSB `v` 冲突解决）
+
+#### 冲突回顾
+
+Step4 标注：PSB native `[x,y,chi,U]` → public 9D 时，`v`（body-frame sway）处理证据分裂：
+- 选项 1：`v := U*sin(chi)`（body-frame 速度分解）
+- 选项 2：`v := 0`（PSB native 假设 course-aligned，sway 恒零）
+
+#### 方案 A：method-driven 映射 + `v:=0` 标 native_assumption（Step4 推荐 + 冲突解决）
+
+| 维度 | 方案 A：method-driven + v:=0 native_assumption |
+|---|---|
+| 来源 | [R43] PSB `kinematic_ship_models_cpu.cpp:477-489`（single-integrator course/speed，v≡0 是 native 假设）；[R44] RLMPC Viknes `[U,V,r]`（V native 存在）；BL-111 method-driven |
+| 工程验证 | PSB/RLMPC 源码 verbatim✓；TrajectoryMapping 版本化是工程实践 |
+| 技术分解 | PSB 映射✓ RLMPC 映射✓ 可验证推导✓（atan2/identity）estimated 推导✓（finite_diff）stock payload✓ status 映射✓ `v` 冲突解决✓ |
+| 失效边界 | PSB 无 INFEASIBLE 区分（UNKNOWN）；wrapper 须先修复（KinematicShip 参数误绑 + AcadosMPCWrapper）；`v:=0` 与 body-frame 评价若有冲突需 profile 声明 |
+| 实现风险 | 中（映射 + wrapper 修复 + status 暴露）|
+| 可测性 | native vs normalized hash 比对 + status 映射测试 + PSB `v:=0` 标记审计 |
+| 推荐度 | ★★★★★ |
+
+**`v` 冲突解决**：采用 `v := 0` + `estimated=false, method="native_assumption_course_aligned"`。理由：PSB native 动力学（`xs_new(0)=xs_old(0)+dt*xs_old(3)*cos(xs_old(2))`）是 single-integrator course/speed 模型，**sway 恒零是 native 假设而非遗漏**（[R43] verbatim）。若强行 `v:=U*sin(chi)` 会引入 native 不存在的 sway 速度，污染 PSB 预测语义。RLMPC 则 `v:=V`（native 存在，无需处理）。`TrajectoryMapping` 版本化记录此差异；若未来 body-frame 评价要求非零 sway，标 profile 冲突回炉。
+
+#### 方案 B：统一 `v := U*sin(chi)`（所有 course-speed 模型）
+
+| 维度 | 方案 B：统一 v:=U*sin(chi) |
+|---|---|
+| 来源 | 推论（统一 body-frame 分解）|
+| 工程验证 | 仅本项目✗ |
+| 技术分解 | PSB 映射✓ RLMPC 映射✓（但 V 已 native，sin(chi) 多余）推导✓ payload✓ status✓ `v`✗（引入 native 不存在的 sway）|
+| 失效边界 | PSB 预测被注入虚拟 sway，污染 plant_prediction 语义；与 BL-42 标记冲突（reference_rollout vs plant_prediction 混淆）|
+| 实现风险 | 中 |
+| 可测性 | 难以验证"虚拟 sway"是否合理 |
+| 推荐度 | ★★☆☆☆ |
+
+#### 方案 C：PSB 不映射到 9D（保留 native 4D，标 G2 上限）
+
+| 维度 | 方案 C：PSB 保留 native 4D |
+|---|---|
+| 来源 | [R43] PSB native 4D；BL-30"不能提取真实 horizon 的外部 MPC 最多 G2" |
+| 工程验证 | 诚实但放弃 G3 资格 |
+| 技术分解 | PSB 映射✗（不映射）RLMPC✓ 推导✗ payload✓ status✓ `v`✓（回避）|
+| 失效边界 | PSB 永远 G2（无法与其他算法 G3 比较）|
+| 实现风险 | 低（不映射）|
+| 可测性 | — |
+| 推荐度 | ★★☆☆☆ |
+
+#### 裁决
+
+- **采纳方案 A**。理由：①尊重 native 语义（v≡0 是 PSB 假设）；②method-driven 区分可验证/estimated/native_assumption；③PSB 可达 G3（vs C 永远 G2）；④`v` 冲突显式解决并记录。
+- **弃用 B**：注入 native 不存在的虚拟 sway，污染 plant_prediction。
+- **弃用 C**：PSB 永远 G2，无法公平比较。
+- **冲突解决**：`v := 0` + `method="native_assumption_course_aligned"`，`estimated=false`；RLMPC `v := V` native。TrajectoryMapping 版本化。
+- VR-30 维持（Step4 推荐 + 冲突解决）。
+
+### DP-19 · 确定性重放
+
+#### 方案 A：三模式（playback/exact/tolerance）+ SeedTree + fingerprint（Step4 推荐）
+
+| 维度 | 方案 A：三模式 + SeedTree + fingerprint |
+|---|---|
+| 来源 | [R40] RunSpec/Manifest/replay；[R42] NumPy NEP 19；[R43][R44] native 非确定；[R46] CRN；[R47] SLSA + numpy.show_runtime |
+| 工程验证 | artifact playback（Web 只读）✓；exact/tolerance 区分是仿真复现实践✓；SeedTree 稳定路径是 NumPy 推荐✓ |
+| 技术分解 | playback✓ exact✓（fingerprint 相同 + probe）tolerance✓（字段化 atol/rtol，硬 verdict 不放宽）SeedTree✓（稳定路径）fingerprint✓（runtime identity）native policy✓（tolerance-only 默认）|
+| 失效边界 | exact 要求 fingerprint 相同（跨 OS/CPU/LAPACK 不可）；tolerance 的 atol/rtol 须来自重复试验非统一常数 |
+| 实现风险 | 中（三模式 + probe + fingerprint 采集）|
+| 可测性 | exact repeatability probe + tolerance probe + fingerprint diff 报告 |
+| 推荐度 | ★★★★★ |
+
+#### 方案 B：单一 file-hash replay（当前实现）
+
+| 维度 | 方案 B：单一 file-hash |
+|---|---|
+| 来源 | [R40] 当前 trajectory.parquet SHA-256 |
+| 工程验证 | 当前实现✓；但 BL-56 已确认混合数值+编码 |
+| 技术分解 | playback✗（无分离）exact✗（file-hash 含编码噪声）tolerance✗ SeedTree✗ fingerprint✗ |
+| 失效边界 | Pandas/PyArrow 升级致 file-hash 变化但数值未变（假阴性）；或数值变但编码巧合不变（假阳性）|
+| 实现风险 | 低（当前已有）|
+| 可测性 | 无法定位哪个状态/指令漂移 |
+| 推荐度 | ★☆☆☆☆ |
+
+#### 方案 C：全 exact（要求所有 run bit-exact）
+
+| 维度 | 方案 C：全 exact |
+|---|---|
+| 来源 | 推论（最严格）|
+| 工程验证 | 仅同 runtime 可行；[R42] NumPy 明确跨 build 不可 |
+| 技术分解 | exact✓ 但 native 不可达 |
+| 失效边界 | native solver（PSB/RLMPC）跨 runtime 不 bit-exact → 大量 run 无法 replay |
+| 实现风险 | 高（强制不可达的目标）|
+| 可测性 | — |
+| 推荐度 | ★☆☆☆☆ |
+
+#### 裁决
+
+- **采纳方案 A**。理由：①三模式覆盖所有场景（Web 只读 / 同 runtime / 跨 runtime）；②SeedTree 稳定路径防新增组件改变旧 seed；③硬 verdict 永不放宽；④失效边界已知（fingerprint + atol/rtol 来源）。
+- **弃用 B**：file-hash 混合编码噪声，无法定位漂移。
+- **弃用 C**：native 不可 bit-exact，强制不可达。
+- VR-19 维持。
+
+### DP-25 · 公平 episode、seed 与统计政策
+
+#### 方案 A：precision-target + 配对 + 正确 CI + 不插补（Step4 推荐）
+
+| 维度 | 方案 A：precision-target + 配对 + 正确 CI |
+|---|---|
+| 来源 | [R46] Ehrlichman CRN paired framework；[R74] Kaplan-Meier；[R75] Koehler 无固定 replication；[R76] Wilson；[R77] Efron bootstrap；[R78] Wilcoxon；[R79] Little & Rubin MNAR |
+| 工程验证 | 统计方法全是 primary 奠基✓；配对仿真是仿真比较标准实践✓ |
+| 技术分解 | seed✓（precision-target）split✓（三不相交）CI✓（Wilson/KM/t/Wilcoxon/bootstrap）CRN✓（仅外生）missing✓（MNAR 不插补）failure✓（保留分母）|
+| 失效边界 | precision-target 须 pilot 估计方差；CRN 仅缩减外生方差非消除系统差异；小 n CI 宽 |
+| 实现风险 | 中（precision-target + 多 CI 方法 + 持久化 n_attempted/completed）|
+| 可测性 | paired difference CI + Wilson failure rate + KM censoring + MNAR 审计（无插补）|
+| 推荐度 | ★★★★★ |
+
+#### 方案 B：固定 30 seed + Wald CI + 完整案例（当前 BatchRunner 实现）
+
+| 维度 | 方案 B：固定 30 + Wald + 完整案例 |
+|---|---|
+| 来源 | [R48] 当前 BatchRunner（range(30) + 95% CI mean±1.96std/√n）|
+| 工程验证 | 当前实现✓；但 [R75] 明确无通用固定数；[R76] Wald 小 n 近 0/1 失败 |
+| 技术分解 | seed✗（固定无论证）split✗ CI✗（Wald 不适用小 n）CRN✗ missing✗（complete-case "generally inappropriate"）failure✗（丢弃）|
+| 失效边界 | 固定 30 无功效论证；Wald 近 0 crash rate 失败；丢弃 crash 致幸存者偏差 |
+| 实现风险 | 低（当前已有）|
+| 可测性 | 结论不可信（统计方法缺陷）|
+| 推荐度 | ★☆☆☆☆ |
+
+#### 方案 C：纯描述性（无 CI，只报告 mean/std）
+
+| 维度 | 方案 C：纯描述性 |
+|---|---|
+| 来源 | 推论（最保守）|
+| 工程验证 | 仅本项目✗ |
+| 技术分解 | seed✗ split✗ CI✗ CRN✗ missing✓（不插补）failure✓ |
+| 失效边界 | 无法量化不确定性；无法做配对比较 |
+| 实现风险 | 低 |
+| 可测性 | 无法统计判别 |
+| 推荐度 | ★★☆☆☆ |
+
+#### 裁决
+
+- **采纳方案 A**。理由：①统计方法全是 primary 奠基；②不插补 + 不丢弃是 [R79] MNAR 要求；③CI 方法正确（Wilson/KM 非 Wald）；④配对比较是仿真标准。
+- **弃用 B**：固定 seed 无论证 + Wald 失败 + complete-case 幸存者偏差。
+- **弃用 C**：无法量化不确定性/做配对比较。
+- VR-25 维持。
+
+### 第二批决策卡片用户确认门 + Step5 完成门
+
+- 待用户确认 DP-24（采纳 A）、DP-30（采纳 A + `v` 冲突解决）、DP-19（采纳 A）、DP-25（采纳 A）的裁决。
+- Step5 完成门检查（design-grounding SKILL）：
+  - ✅ 7 项关键决策点经 DESIGN-IT-TWICE（DP-08/19/21/22/24/25/30）。
+  - ✅ 20 项低风险经用户授权直接采纳 Step4 推荐。
+  - ✅ 每张决策卡片七维全填。
+  - ✅ 裁决有证据链理由，弃用方案有明确弃用理由。
+  - ✅ DP-30 `v` 冲突经 DESIGN-IT-TWICE 解决（`v:=0` native_assumption）。
+- 未确认前不标 final，不进 Step6。
+
+### 第二批用户确认 + Step5 完成 [2026-07-28]
+
+- 用户批量采纳 DP-24 方案 A、DP-30 方案 A（含 `v` 冲突解决）、DP-19 方案 A、DP-25 方案 A。
+- VR-19/24/25/30 经 DESIGN-IT-TWICE 确认，维持 Step4 推荐。
+- 弃用方案登记：ALT-08（DP-24 B/C）、ALT-09（DP-30 B/C）、ALT-10（DP-19 B/C）、ALT-11（DP-25 B/C）。
+- **Step5 完成**：7 项关键 DP 经 DESIGN-IT-TWICE；20 项低风险用户授权采纳；DP-30 `v` 冲突解决。
+- 不自动进入 Step6；等待用户授权。
+
+## Step6 · 术语表 + 技术规约表 + 方案包 [2026-07-28]
+
+### 用户授权
+
+- 用户授权进入 Step6，产出可交付 brainstorming 的完整方案包。
+
+### 1. 术语表
+
+| 术语 | 定义（权威来源）| 本方案具体含义 | 边界（它**不是**什么）| 关联 DP |
+|---|---|---|---|---|
+| Custom MPC | 用户自研 MPC（VR-04）| 经 `CustomMPCAdapter(ICOLAV)` 接入的避碰算法 | 不是 legacy guidance adapter；不是 SB-MPC/PSB/RLMPC | DP-04,08 |
+| `9xN` trajectory | `[x,y,psi,u,v,r,x_ddot,y_ddot,psi_dot]` vstacked（[R3]）| 公共输出契约；col-0=solve-time 当前状态 | 不是 raw native state（PSB 4D / RLMPC 6D 须映射）| DP-10,30 |
+| physical_collision | truth footprint 在同步时间 CCD 下相交/接触（[R51]）| 事实事件，不加 buffer | 不是中心距；不是 CPA；不是 safety domain 违反 | DP-21 |
+| physical_grounding | truth footprint 与该船 hazards 相交/接触（[R38]）| 事实事件，footprint+sweep | 不是中心点到 hazard 距离；不是 operational UKC | DP-18,21 |
+| chart_geometric_clearance | ENC 深度区间多边形 hazard 的几何 clearance（[R54][R57]）| V1 synthetic oracle | 不是 operational UKC（需潮汐/squat/heel）| DP-18,21,69 |
+| C²A CCD | Continuous Collision Detection via Conservative Advancement（[R51]）| 同步时间 first-TOC 实现 | 不是端点采样；不是独立 swept union 相交 | DP-21 |
+| paper_compatible profile | 复现论文固定参数的 evaluator profile | ccta_2023_demo（190/100/50/30m）+ Woerner 角度 | 不是法规硬事实；缩放后不称复现 | DP-20,22,67 |
+| ship-length-scaled profile | Fujii/Namgung 椭圆船域（a·L, b·L）| 独立风险指标 profile | 不替换 paper profile | DP-21,67 |
+| G3 | 可观察避碰能力 + 完整诊断 + canonical set 零硬门失败 | 组合证据（rule:scenario:algorithm:tracker）| 不是全局算法等级；不是 import 成功 | DP-24 |
+| canonical set | t=2 covering array × 3 seeds × G3-eligible cells | 本项目新建 regression set | 不是 PSB 全量 benchmark；不是经验拍 N | DP-24 |
+| SeedTree | 稳定组件路径派生的独立 RNG 流（[R42]）| `run_seed → {scenario, sensor/..., tracker/..., disturbance/..., algorithm/...}` | 不是单一根 seed；不是全局 RNG | DP-19 |
+| keyed CRN | 稳定 key 生成外生随机 draw 的 CRN 实例化（[R46]）| 解耦 call order，隔离算法效应 | 不同步 realized measurement stream | DP-19,25 |
+| capability_dependencies | capability claim 依赖的 hash 聚合 | `[code_commit, dependencies, scenario_hash, enc_hash, evaluator_id, tracker, plant, runtime_fingerprint]` | 不是普通备注；任一变化即失效 | DP-24 |
+| MNAR | Missing Not At Random（[R79]）| crash/timeout 的 missingness 由算法不稳定性驱动 | 不是 MCAR；不可丢弃/插补 | DP-25,89 |
+| TIMEOUT_FEASIBLE | solver 返回可行解但超 deadline（[R9]）| G3 soft gate 非 PASS；G4 失败 | 不是 SUCCESS；不是 hold | DP-13,82 |
+| TrajectoryMapping | 版本化的 native→public state 映射 adapter | PSB 4D→9D / RLMPC 6D→9D | 不是 vstack zeros；不是重生成轨迹 | DP-30 |
+| native_assumption_course_aligned | PSB native 假设 v≡0 | `v:=0, estimated=false, method="native_assumption_course_aligned"` | 不是遗漏；不是 `U*sin(chi)` | DP-30 |
+
+### 2. 技术规约表（六类）
+
+#### 坐标系
+
+| 规约 | 内容 | 来源 | 关联 DP | 与现状差异 |
+|---|---|---|---|---|
+| 全局 | WGS84/UTM zone 33N（EPSG:25833，More og Romsdal）| [R17][R54] DESIGN_DECISION | DP-05,18 | 当前一致 |
+| 当地 | ENU（East-North-Up，平面 xy）| [R3][R52] DESIGN_DECISION | DP-09,21 | 当前 `do_list` state `[x,y,Vx,Vy]` 是 ENU 一致 |
+| 船体 | body-frame x-forward/y-port | [R22][R43] DESIGN_DECISION | DP-10,30 | PSB `[x,y,chi,U]` 是全局非 body；映射时旋转 |
+| 原点 | scenario-defined（head_on 窗口 `[39400,6957400]`）| [R17] DESIGN_DECISION | DP-05 | 当前一致 |
+| 转换链 | WGS84 → UTM（pyproj always_xy）→ ENU 平面 → body（绕 chi 旋转）| [R52] Shapely 平面要求 | DP-21 | 须显式投影链 |
+
+#### 物理量单位
+
+| 物理量 | 单位 | 来源 | 关联 DP |
+|---|---|---|---|
+| 位置 x,y | m（ENU）| [R3] SI | DP-09 |
+| 航向 psi/chi | rad（内部）/ deg（显示）| [R43] DESIGN_DECISION | DP-10,22 |
+| 速度 u,v,U | m/s | [R3] SI | DP-10 |
+| 角速度 r,psi_dot | rad/s | [R44] SI | DP-10 |
+| 加速度 | m/s² | SI | DP-10 |
+| 力 Fx,Fy | N | [R44] SI | DP-30 |
+| 距离/clearance | m | [R52] SI | DP-21 |
+| 时间 t,sim_time | s | [R29] SI | DP-12 |
+| elapsed_ms,t_solve | ms（性能诊断）| [R9] DESIGN_DECISION | DP-14 |
+| 船长/宽/吃水 | m | [R22] SI | DP-15 |
+
+#### 符号约定
+
+| 符号 | 正向 | 零点 | 来源 |
+|---|---|---|---|
+| chi/psi（航向）| 顺时针 from North（海事约定）| 0=正北 | [R43] |
+| r/ROT | 右转正 | — | [R22] |
+| relative_bearing β | target 相对 ownship，signed | ownship 艏向 | [R62] |
+| contact_angle α | ownship 相对 target = β+180° | target 艏向 | [R62] |
+| signed_tcpa | 负=CPA 已通过 | — | [R59] |
+| port/starboard | starboard=右舷=β∈(0,180) | — | [R61] |
+
+#### 时序约定
+
+| 规约 | 内容 | 来源 | 关联 DP |
+|---|---|---|---|
+| 时间戳基准 | ROS2 steady / sim clock（Session 唯一）| [R29] DESIGN_DECISION | DP-16 |
+| 仿真步 dt_sim | 0.5s（canonical）；V1 须为所有周期整数倍 | [R22] DESIGN_DECISION | DP-16 |
+| solve 周期 | 算法声明（SB-MPC 5s / Custom MPC 声明）；RunSpec 可覆盖 | [R3] DESIGN_DECISION | DP-12 |
+| 首次 solve | t=0（solve_id=1）| [R29] DESIGN_DECISION | DP-12 |
+| horizon col-0 | solve-time 当前状态（t_solve）| [R3] DESIGN_DECISION | DP-10 |
+| hold 步 | 保留 horizon 原点 t_solve，按 t_now 采样 | [R29] DESIGN_DECISION | DP-12 |
+| phase | 同一 t 完成 env→sensor→tracker→plan→control，再积分 | [R29] DESIGN_DECISION | DP-16 |
+
+#### 数值边界
+
+| 物理量 | 可行域 | 饱和/无效 | 来源 |
+|---|---|---|---|
+| u（Viknes）| [0, 10] m/s | 钳位 | [R22] |
+| ROT（Viknes）| [-15, 15] deg/s | 钳位 | [R22] |
+| 正向力 | [0, 13100] N | 钳位 | [R22] |
+| grid_size | (0, beam)（beam=2.71m，故 <<2.71）| ≥beam 拓扑坍缩 | [R53] |
+| horizon N | ≥1（G3 须完整非空）| N=1 仅 G2 | [R3] |
+| TCPA | signed（可为负）| 负=post-CPA | [R59] |
+| cov eigenvalues | ≥ -ε（PSD）| <-ε = INVALID_INPUT | DESIGN_DECISION |
+| 无效值表示 | NaN=故障/未扫描；-1=无效 | — | [R30] |
+
+#### 接口语义
+
+| 字段 | 含义 | 缺失/无效处理 | 来源 | 关联 DP |
+|---|---|---|---|---|
+| `9xN` plan | 控制器兼容参考 | shape≠(9,N)→NUMERICAL_FAILURE | [R3] | DP-10 |
+| selected_command | 首列执行指令 | 缺失→保持上一值 | [R3] | DP-10 |
+| solve_id | 真实 solve 单调递增 | hold 步不增 | [R9] | DP-12 |
+| Track age | 距 last_detection_time | 超阈值→degraded（不拒绝）| [R30] | DP-09 |
+| covariance | NED/ENU 4x4 PSD | 非 PSD→INVALID_INPUT | [R3] | DP-09 |
+| length/width | 目标船尺度 | 缺失→INVALID_INPUT | [R3] | DP-09 |
+| PlanStatus | 六态 | 见 DP-13 | [R9] | DP-13 |
+| capability_profile_id | {rule}:{scenario}:{algorithm}:{tracker} | — | [R8] | DP-24 |
+
+### 3. 方案包组装（八组件，顺序固定）
+
+方案包独立成文：`docs/superpowers/specs/2026-07-27-dynamic-mpc-playground-solution-pack.md`。八组件：
+
+1. 术语表（见上 §1）
+2. 技术规约表（见上 §2）
+3. 决策卡片集（Step5 最终裁决，见 Step5 章节）
+4. 证据矩阵（Step3 完整溯源，见 0.4 节 [R1..R79]）
+5. 技术分解完整树（TD-01..04 及子模块裁决，见 0.2 节 + Step4）
+6. 弃用方案及理由（见 0.7 节 ALT-01..18）
+7. 需求场景 + 验收边界（见 0.5 节 SC-01..10 + 各 DP 失效边界）
+8. 已知冲突与未闭环盲区（见下）
+
+#### 8. 已知冲突与未闭环盲区
+
+**已知冲突（经 DESIGN-IT-TWICE 解决）**：
+- DP-30 PSB `v`：采纳 `v:=0, method="native_assumption_course_aligned"`（VR-30）。若未来 body-frame 评价要求非零 sway，标 profile 冲突回炉 design-grounding。
+
+**EXTERNAL_CONFIRMATION_REQUIRED（诚实边界，不阻塞 V1）**：
+- BL-02：Agder_utm33.gdb + 历史许可
+- BL-04：FCB45 速度/水深/操纵包线
+- BL-40/48/49：FCB45 实船转移误差/robustness range
+- BL-55：目标海域 metocean range
+- BL-69：CATZOC 数值精度表（S-52/Ch.2）
+
+**UNKNOWN（实现期裁决，不阻塞设计）**：
+- BL-65/66：具体容差数值（grid_size/细分阈值）
+- BL-72：最大角点位移上界实现细节
+- BL-75：route_exit/terminal_state 具体阈值
+- BL-80：canonical set 具体 t-way/seed 数
+- BL-83：HCI 证据
+- BL-84：maritime 特定 auto-promotion 标准
+- BL-113：PSB INFEASIBLE 区分
+
+### 4. 方案包契约（brainstorming 权限边界）
+
+- ✓ 可做：工程细节设计（架构/组件/数据流/错误处理/测试），已裁决方案内优化拔高。
+- ✗ 不可做：推翻已裁决核心方案（VR-01..31），除非发现**新矛盾证据**（回炉 design-grounding）。
+- ✗ 不可做：重提已弃用方案（ALT-01..18）。
+- ✗ 不可做：擅自修改技术规约（单位/坐标系/符号），需改则回 design-grounding 重新裁决。
+
+### 5. 移交 + Step6 完成
+
+- 方案包独立成文：`docs/superpowers/specs/2026-07-27-dynamic-mpc-playground-solution-pack.md`（八组件）。
+- 决策树日志标状态 `已交付 brainstorming`。
+- Step6 完成门检查（design-grounding SKILL）：
+  - ✅ 术语表全（17 术语，定义/含义/边界/DP）。
+  - ✅ 技术规约表无遗漏无歧义（六类：坐标系/单位/符号/时序/数值边界/接口语义）。
+  - ✅ 方案包八组件齐（术语/规约/决策卡片/证据矩阵/技术分解/弃用/场景/冲突盲区）。
+  - ✅ 契约明确（brainstorming 权限边界）。
+  - ✅ DECOMPOSITION 闭环（TD-01..04 无 INCOMPLETE）。
+- 不自动调用 brainstorming；等待用户明确"接受"方案包。
