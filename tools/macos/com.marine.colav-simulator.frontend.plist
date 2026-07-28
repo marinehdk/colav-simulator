@@ -8,7 +8,7 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/marine/Code/.worktrees/Colav-Simulator/colav-paper-closed-loop/.venv/bin/colav-sim</string>
+    <string>/Users/marine/Code/Colav-Simulator/.venv/bin/colav-sim</string>
     <string>serve</string>
     <string>--host</string>
     <string>127.0.0.1</string>
@@ -17,7 +17,7 @@
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/Users/marine/Code/.worktrees/Colav-Simulator/colav-paper-closed-loop</string>
+  <string>/Users/marine/Code/Colav-Simulator</string>
 
   <key>EnvironmentVariables</key>
   <dict>
@@ -30,6 +30,9 @@
 
   <key>KeepAlive</key>
   <true/>
+
+  <key>ProcessType</key>
+  <string>Interactive</string>
 
   <key>ThrottleInterval</key>
   <integer>5</integer>
