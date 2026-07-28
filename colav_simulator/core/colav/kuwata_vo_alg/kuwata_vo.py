@@ -55,7 +55,7 @@ class VOParams:
     heading_set_spacing: float = 2.5  # The spacing between the headings to consider in the planning [deg]
     speed_set_limits: list = field(
         default_factory=lambda: [0.0, 10.0]
-    )  # List of speed modifications to consider in the planning. [m/s] Should be set based on the ship min-max speed.
+    )  # Absolute speed candidates [m/s]. Should be set from the ship speed bounds.
     speed_set_spacing: float = 0.5  # The spacing between the speeds to consider in the planning [m/s]
     safety_buffer: float = (
         15.0  #  A buffer length [m] to add to the obstacle's bounding box to take speed uncertainty into account
@@ -250,7 +250,7 @@ class VO:
             )
 
         if self._relevant_do_list:
-            heading_opt, speed_opt = self._compute_optimal_controls(v_ref, v_os, psi_os)
+            heading_opt, speed_opt = self._compute_optimal_controls(v_ref, psi_os)
 
         self._t_prev = t
         self._references[2, 0] = mf.wrap_angle_to_pmpi(heading_opt)
@@ -268,6 +268,8 @@ class VO:
         """Return the latest velocity grid and selection without plotting side effects."""
         return {
             "planner_kind": "velocity_obstacle",
+            "speed_candidates_mps": self._speed_set,
+            # Compatibility alias used by the existing Web trace renderer.
             "speed_offsets_mps": self._speed_set,
             "heading_offsets_rad": self._heading_set,
             "violation_costs": self._violation_costs,
@@ -277,12 +279,11 @@ class VO:
             "selected_speed_mps": self._selected_speed,
         }
 
-    def _compute_optimal_controls(self, v_ref: np.ndarray, v_os: np.ndarray, psi_os: float) -> tuple[float, float]:
+    def _compute_optimal_controls(self, v_ref: np.ndarray, psi_os: float) -> tuple[float, float]:
         """Computes the optimal controls based on the current admissible controls and the VO cost function.
 
         Args:
             v_ref (np.ndarray): The reference velocity.
-            v_os (np.ndarray): The ownship velocity.
             psi_os (float): The ownship heading.
 
         Returns:
@@ -292,7 +293,7 @@ class VO:
         for i, speed in enumerate(self._speed_set):
             for j, heading in enumerate(self._heading_set):
                 candidate_heading = heading + psi_os
-                candidate_speed = speed + np.linalg.norm(v_os)
+                candidate_speed = speed
                 v_os_new = np.array(
                     [
                         candidate_speed * np.cos(candidate_heading),
@@ -309,7 +310,7 @@ class VO:
                     j_opt = j
 
         heading_opt = self._heading_set[j_opt] + psi_os
-        speed_opt = self._speed_set[i_opt] + np.linalg.norm(v_os)
+        speed_opt = self._speed_set[i_opt]
         return heading_opt, speed_opt
 
     def _update_violation_costs(
@@ -356,7 +357,7 @@ class VO:
                 poly_do,
                 v_do,
             )
-            velocity_handles = self.plot_current_velocity_grid(fig, ax, v_os, psi_os)
+            velocity_handles = self.plot_current_velocity_grid(fig, ax, psi_os)
             ax.plot([0.0, v_os[1] * 2.5 * self._params.t_max], [0.0, v_os[0] * 2.5 * self._params.t_max], "m")
             ray_plot = ax.plot([0.0, 0.0], [0.0, 0.0], "m")[0]
 
@@ -366,7 +367,7 @@ class VO:
                 #     break  # No need to check the remaining speeds
 
                 candidate_heading = heading + psi_os
-                candidate_speed = speed + np.linalg.norm(v_os)
+                candidate_speed = speed
                 v_os_new = np.array(
                     [candidate_speed * np.cos(candidate_heading), candidate_speed * np.sin(candidate_heading)]
                 )
@@ -378,7 +379,10 @@ class VO:
                 # First check if VO is violated
                 ray = geometry.LineString([p_os, p_os + v_diff * 3.0 * self._params.t_max])
                 if ray.intersects(expanded_poly_do_buffered):
-                    self._violation_costs[i, j] = self._params.vo_violation_cost
+                    self._violation_costs[i, j] = max(
+                        self._violation_costs[i, j],
+                        self._params.vo_violation_cost,
+                    )
                     color = "r"
                 else:
                     # Check if own-ship follows a velocity in V3, i.e. it moves away from the DO
@@ -388,7 +392,10 @@ class VO:
                     in_v1 = not in_v3 and (p_diff[0] * v_diff[1] - p_diff[1] * v_diff[0] > 0)
 
                     if in_v1 and (situation in (VOCOLREGSSituation.HO, VOCOLREGSSituation.OT_ing, VOCOLREGSSituation.CR_SS)):
-                        self._violation_costs[i, j] = self._params.colregs_violation_cost
+                        self._violation_costs[i, j] = max(
+                            self._violation_costs[i, j],
+                            self._params.colregs_violation_cost,
+                        )
                         color = "r"
 
                     # Check if velocity leads to collision with grounding hazard within t_max
@@ -472,7 +479,7 @@ class VO:
         if bearing_do_os > self._params.overtaking_angle or bearing_do_os < -self._params.overtaking_angle:
             return VOCOLREGSSituation.OT_ing
 
-        if bearing_do_os < 0:
+        if bearing_os_do < 0:
             return VOCOLREGSSituation.CR_PS
 
         return VOCOLREGSSituation.CR_SS
@@ -490,7 +497,7 @@ class VO:
             bool: True if the ownship and the dynamic obstacle are in a dangerous situation.
         """
         t_cpa, d_cpa, __ = mhm.compute_vessel_pair_cpa(p_os, v_os, p_do, v_do)
-        return t_cpa <= self._params.t_max and d_cpa <= self._params.d_min
+        return 0.0 <= t_cpa <= self._params.t_max and d_cpa <= self._params.d_min
 
     def _check_if_ray_intersects_vo(self, vo: geometry.Polygon, p_os: np.ndarray, v_os: np.ndarray) -> bool:
         """Checks if the ray from the ownship to the dynamic obstacle intersects the expanded DO shape.
@@ -533,7 +540,6 @@ class VO:
         self,
         fig: plt.Figure,  # noqa: ARG002
         ax: plt.Axes,
-        v_os: np.ndarray,
         psi_os: float,
     ) -> list:
         """Plots the current admissible and inadmissible velocities for the VO-COLAV.
@@ -541,7 +547,6 @@ class VO:
         Args:
             fig (plt.Figure): Figure to plot on.
             ax (plt.Axes): Axes to plot on.
-            v_os (np.ndarray): Ownship velocity.
             psi_os (float): Ownship heading.
 
         Returns:
@@ -551,7 +556,7 @@ class VO:
         for i, speed in enumerate(self._speed_set):
             speed_conditioned_velocity_handles = []
             for j, heading in enumerate(self._heading_set):
-                candidate_speed = speed + np.linalg.norm(v_os)
+                candidate_speed = speed
                 candidate_heading = heading + psi_os
                 color = "g"
                 if self._violation_costs[i, j] > 0.0:

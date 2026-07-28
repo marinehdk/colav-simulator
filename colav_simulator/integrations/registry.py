@@ -135,6 +135,12 @@ class IntegrationRegistry:
                 "vimmjipda", "tracker", "vimmjipda.vimmjipda_tracker_interface", self.repos["vimmjipda"]
             ),
             "psbmpc": _module_status("psbmpc", "algorithm", "PSBMPCInterface", self.repos["psbmpc"]),
+            "sbmpc_reference": _module_status(
+                "sbmpc_reference",
+                "algorithm",
+                "PSBMPCInterface",
+                self.repos["psbmpc"],
+            ),
             "rrt": _module_status("rrt", "algorithm", "rrt_star_lib", self.repos["rrt"]),
             "rlmpc": _module_status("rlmpc", "algorithm", "rlmpc.rlmpc_cas", self.repos["rlmpc"]),
         }
@@ -175,6 +181,10 @@ class IntegrationRegistry:
             from colav_simulator.integrations.psbmpc import PSBMPCColav  # noqa: PLC0415
 
             return PSBMPCColav(**config)
+        if algorithm_id == "sbmpc_reference":
+            from colav_simulator.integrations.sbmpc_reference import OfficialSBMPCReference  # noqa: PLC0415
+
+            return OfficialSBMPCReference(**config)
         if algorithm_id == "rrt":
             from colav_simulator.integrations.rrt import RRTStarColav  # noqa: PLC0415
 
