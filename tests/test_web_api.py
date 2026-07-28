@@ -8,7 +8,7 @@ from colav_simulator.experiment import ExperimentRunner, RunSpec
 from gui_server.main import app
 
 
-def test_header_uses_requested_session_labels() -> None:
+def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
     with TestClient(app) as client:
         page = client.get("/")
         script = client.get("/static/app.js")
