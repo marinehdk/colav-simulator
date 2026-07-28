@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="stylesheet" href="/static/style.css?v=20260728-map-events" />
+  <link rel="stylesheet" href="/static/style.css?v=20260728-event-header" />
 </head>
 <body>
   <div class="app-container">
@@ -135,8 +135,8 @@
               <h3 id="targetDetailsTitle">目标船</h3>
               <dl id="targetDetailsBody"></dl>
             </div>
-            <div class="log-section map-log-overlay card glass-card" id="cardEvents" aria-label="仿真器事件">
-              <h3 class="card-title"><span class="icon" aria-hidden="true">≡</span> 仿真器事件</h3>
+            <div class="log-section map-log-overlay card glass-card" id="cardEvents" aria-label="仿真事件">
+              <h3 class="card-title"><span class="icon" aria-hidden="true">≡</span> 仿真事件</h3>
               <div class="log-terminal" id="logTerminal" aria-live="polite">
                 <div class="log-entry log-info" id="initialLogEntry">[--:--:--] System ready. Waiting for simulation start…</div>
               </div>
@@ -409,6 +409,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260728-map-events"></script>
+  <script src="/static/app.js?v=20260728-event-header"></script>
 </body>
 </html>

@@ -579,7 +579,10 @@ canvas#simCanvas {
   box-shadow: 0 6px 24px rgba(0,0,0,0.28);
 }
 
-.log-section.collapsed { max-height: 34px; }
+.log-section.collapsed {
+  height: 46px;
+  max-height: 46px;
+}
 
 .log-header {
   display: flex;
@@ -772,6 +775,20 @@ canvas#simCanvas {
 .collapsible-card.collapsed > .planner-heading .card-title {
   margin-bottom: 0;
   padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.log-section > .card-title,
+.log-section.collapsed > .card-title {
+  box-sizing: border-box;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 10px;
+  line-height: 1;
+}
+
+.log-section.collapsed > .card-title {
+  height: 44px;
   border-bottom: 0;
 }
 
@@ -1494,6 +1511,10 @@ canvas#simCanvas {
 @media (max-width: 1500px) and (min-width: 901px) {
   .main-workspace {
     grid-template-columns: 240px minmax(0, 1fr) 280px;
+  }
+
+  .map-log-overlay {
+    bottom: 64px;
   }
 
 }

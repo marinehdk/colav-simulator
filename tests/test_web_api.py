@@ -34,11 +34,12 @@ def test_header_uses_requested_session_labels() -> None:
         assert page.text.index('id="canvasWrapper"') < page.text.index('id="toggleENC"')
         assert page.text.index('id="canvasWrapper"') < page.text.index('id="logTerminal"')
         assert (
-            'aria-label="仿真器事件"' in page.text
+            'aria-label="仿真事件"' in page.text
             and 'id="cardEvents"' in page.text
             and 'id="logToggle"' not in page.text
             and 'class="log-section map-log-overlay card glass-card"' in page.text
         )
+        assert "仿真器事件" not in page.text
         assert "仿真事件日志" not in page.text
         assert "[--:--:--] System ready." in page.text
         assert page.text.index('id="scaleBar"') < page.text.index('id="zoomIn"')
