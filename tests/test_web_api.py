@@ -108,6 +108,9 @@ def test_header_uses_requested_session_labels() -> None:
         assert 'id="cardPlanner"' in page.text
         assert 'id="val-solver-executed"' in page.text
         assert 'id="solveTimeline"' in page.text
+        assert 'id="objectiveHistory"' in page.text
+        assert "候选控制代价" in page.text
+        assert "求解周期" in page.text
 
 
 def test_chart_layer_controls_follow_navigation_semantics() -> None:
@@ -146,7 +149,9 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
             for token in (
                 "const FCB45_LENGTH_M = 45",
                 "const FCB45_WIDTH_M = 8",
+                "const PREDICTION_MARKER_SECONDS = 10",
                 "const PREDICTION_LABEL_SECONDS = 60",
+                "const SBMPC_SOLVE_PERIOD_SECONDS = 5",
                 "new Path2D()",
                 "threat_level || 'UNKNOWN'",
                 "own_cpa_position",

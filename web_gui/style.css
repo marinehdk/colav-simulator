@@ -1334,12 +1334,7 @@ canvas#simCanvas {
 }
 
 .solve-timeline {
-  display: flex;
-  gap: 5px;
-  margin-top: 9px;
-  padding-top: 8px;
-  border-top: 1px solid var(--panel-border);
-  overflow-x: auto;
+  display: none;
 }
 
 .planner-surface-wrap {
@@ -1354,29 +1349,52 @@ canvas#simCanvas {
   font-size: 0.64rem;
 }
 
+.surface-summary {
+  margin-top: 5px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.59rem;
+  line-height: 1.35;
+}
+
 #plannerSurface {
   display: block;
   width: 100%;
-  height: 96px;
+  height: 160px;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
   background: rgba(0,0,0,0.16);
 }
 
-.solve-marker {
-  flex: 0 0 auto;
-  padding: 3px 6px;
-  border: 1px solid rgba(98,210,189,0.28);
-  border-radius: 5px;
-  color: var(--accent-cyan);
-  background: rgba(98,210,189,0.07);
-  font-family: var(--font-mono);
+.objective-history-wrap {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.objective-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: var(--text-muted);
   font-size: 0.59rem;
 }
 
-.timeline-empty {
-  color: var(--text-dim);
-  font-size: 0.64rem;
+.objective-history-heading strong {
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+#objectiveHistory {
+  display: block;
+  width: 100%;
+  height: 86px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: rgba(0,0,0,0.16);
 }
 
 /* ── Performance Card ───────────────────────── */

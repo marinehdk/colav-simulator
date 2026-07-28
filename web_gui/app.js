@@ -18,7 +18,9 @@ const FCB45_LENGTH_M = 45;
 const FCB45_WIDTH_M = 8;
 const MOTION_VECTOR_SECONDS = 60;
 const MOTION_TICK_SECONDS = 10;
+const PREDICTION_MARKER_SECONDS = 10;
 const PREDICTION_LABEL_SECONDS = 60;
+const SBMPC_SOLVE_PERIOD_SECONDS = 5;
 const THREAT_STYLES = {
   UNKNOWN: { color: '#4F5B60', fill: 'rgba(104,116,122,0.72)', rank: 0 },
   CLEAR: { color: '#AAB4BA', fill: 'rgba(170,180,186,0.66)', rank: 1 },
@@ -661,14 +663,18 @@ function drawHorizon(horizon, previous = false, planner = {}) {
   if (previous) return;
   const dt = Number(planner?.horizon_dt_s);
   if (!Number.isFinite(dt) || dt <= 0) return;
+  const markerInterval = Math.max(1, Math.round(PREDICTION_MARKER_SECONDS / dt));
   const labelInterval = Math.max(1, Math.round(PREDICTION_LABEL_SECONDS / dt));
   pts.forEach((point, index) => {
-    if (index === 0) return;
+    if (index === 0 || index % markerInterval !== 0) return;
     const keyPoint = index % labelInterval === 0;
-    ctx.fillStyle = keyPoint ? '#9EF0DB' : 'rgba(85,214,183,0.42)';
+    ctx.fillStyle = keyPoint ? '#9EF0DB' : 'rgba(11,18,17,0.72)';
+    ctx.strokeStyle = keyPoint ? '#D2FFF3' : 'rgba(85,214,183,0.92)';
+    ctx.lineWidth = keyPoint ? 1.5 : 1.1;
     ctx.beginPath();
-    ctx.arc(point.x, point.y, keyPoint ? 3.6 : 1.25, 0, 2 * Math.PI);
+    ctx.arc(point.x, point.y, keyPoint ? 4 : 2.4, 0, 2 * Math.PI);
     ctx.fill();
+    ctx.stroke();
     if (!keyPoint) return;
     drawMapLabel(`${Math.round(index * dt)}s`, point.x + 5, point.y - 5, '#9EF0DB');
   });
@@ -1236,6 +1242,10 @@ function updatePlannerPanel(data) {
     : null;
   setText('val-prediction-error', Number.isFinite(executionError) ? `${executionError.toFixed(2)} m` : '-- m');
   drawPlannerSurface(diagnosticPlanner.algorithm_id, details);
+  setText(
+    'val-solve-period',
+    diagnosticPlanner.algorithm_id === 'sbmpc' ? `${SBMPC_SOLVE_PERIOD_SECONDS.toFixed(1)} s` : '按算法触发',
+  );
 
   const timelineTrace = latestSolve.solver_executed ? latestSolve : (realSolve ? planner : null);
   if (timelineTrace && Number(timelineTrace.solve_id) !== lastDisplayedSolveId) {
@@ -1244,8 +1254,9 @@ function updatePlannerPanel(data) {
       solveId: lastDisplayedSolveId,
       simTime: Number(timelineTrace.sim_time || data.sim_time || 0),
       status: timelineTrace.status || 'SUCCESS',
+      objective: Number(timelineTrace.objective ?? timelineTrace.algorithm_details?.objective),
     });
-    solveTimeline = solveTimeline.slice(-12);
+    solveTimeline = solveTimeline.slice(-60);
     renderSolveTimeline();
   }
 }
@@ -1256,15 +1267,16 @@ function drawPlannerSurface(algorithmId, details) {
   const matrix = algorithmId === 'vo' ? details.violation_costs : details.candidate_costs;
   const label = algorithmId === 'vo'
     ? 'VO / COLREGS 禁止代价'
-    : algorithmId === 'sbmpc' ? 'SB-MPC 候选代价矩阵' : '名义 LOS 引导';
+    : algorithmId === 'sbmpc' ? 'SB-MPC 候选控制代价' : '名义 LOS 引导';
   setText('val-surface-label', label);
+  setText('val-surface-summary', '等待候选代价');
   surface.clearRect(0, 0, canvas.width, canvas.height);
   surface.fillStyle = '#0d1211';
   surface.fillRect(0, 0, canvas.width, canvas.height);
   if (!Array.isArray(matrix) || !matrix.length || !Array.isArray(matrix[0])) {
     surface.fillStyle = '#65736f';
     surface.font = '11px SFMono-Regular, monospace';
-    surface.fillText('No sampled candidate surface', 12, 52);
+    surface.fillText('暂无候选控制代价', 12, 78);
     return;
   }
   const values = matrix.flat().filter(Number.isFinite);
@@ -1272,40 +1284,148 @@ function drawPlannerSurface(algorithmId, details) {
   const high = values.length ? Math.max(...values) : 1;
   const rows = matrix.length;
   const columns = Math.max(...matrix.map(row => row.length));
-  const cellWidth = canvas.width / columns;
-  const cellHeight = canvas.height / rows;
+  const courseOffsets = Array.isArray(details.course_offsets_rad) ? details.course_offsets_rad : [];
+  const speedScales = Array.isArray(details.speed_scales) ? details.speed_scales : [];
+  const plot = { left: 42, top: 10, right: canvas.width - 10, bottom: canvas.height - 34 };
+  const cellWidth = (plot.right - plot.left) / columns;
+  const cellHeight = (plot.bottom - plot.top) / rows;
+  let best = { value: Infinity, row: -1, column: -1 };
   matrix.forEach((row, rowIndex) => row.forEach((value, columnIndex) => {
     const normalized = Number.isFinite(value) && high > low ? (value - low) / (high - low) : 0;
     const red = Math.round(70 + normalized * 175);
     const green = Math.round(195 - normalized * 135);
     surface.fillStyle = Number.isFinite(value) ? `rgb(${red},${green},92)` : '#26302d';
     surface.fillRect(
-      columnIndex * cellWidth,
-      rowIndex * cellHeight,
+      plot.left + columnIndex * cellWidth,
+      plot.top + rowIndex * cellHeight,
       Math.max(1, cellWidth - 0.5),
       Math.max(1, cellHeight - 0.5),
     );
+    if (Number.isFinite(value) && value < best.value) {
+      best = { value, row: rowIndex, column: columnIndex };
+    }
   }));
+  if (best.row >= 0) {
+    surface.strokeStyle = '#FFFFFF';
+    surface.lineWidth = 2;
+    surface.strokeRect(
+      plot.left + best.column * cellWidth + 1,
+      plot.top + best.row * cellHeight + 1,
+      Math.max(1, cellWidth - 2),
+      Math.max(1, cellHeight - 2),
+    );
+  }
+
+  surface.fillStyle = '#82918c';
+  surface.font = '9px SFMono-Regular, monospace';
+  surface.textAlign = 'right';
+  [0, Math.floor((rows - 1) / 2), rows - 1].forEach(rowIndex => {
+    const radians = Number(courseOffsets[rowIndex]);
+    const degrees = Number.isFinite(radians)
+      ? Math.round(radians * 180 / Math.PI)
+      : Math.round(-90 + rowIndex * 180 / Math.max(1, rows - 1));
+    surface.fillText(`${degrees}°`, plot.left - 5, plot.top + (rowIndex + 0.7) * cellHeight);
+  });
+  surface.save();
+  surface.translate(9, (plot.top + plot.bottom) / 2);
+  surface.rotate(-Math.PI / 2);
+  surface.textAlign = 'center';
+  surface.fillText('航向偏移', 0, 0);
+  surface.restore();
+
+  surface.textAlign = 'center';
+  Array.from({ length: columns }, (_, columnIndex) => {
+    const scale = Number(speedScales[columnIndex]);
+    const text = Number.isFinite(scale) ? scale.toFixed(1) : String(columnIndex + 1);
+    surface.fillText(text, plot.left + (columnIndex + 0.5) * cellWidth, plot.bottom + 12);
+  });
+  surface.fillText('速度系数', (plot.left + plot.right) / 2, canvas.height - 4);
+
+  if (best.row >= 0) {
+    const courseRadians = Number(courseOffsets[best.row]);
+    const courseDegrees = Number.isFinite(courseRadians) ? courseRadians * 180 / Math.PI : NaN;
+    const speedScale = Number(speedScales[best.column]);
+    const courseText = Number.isFinite(courseDegrees) ? `${courseDegrees.toFixed(0)}°` : `行 ${best.row + 1}`;
+    const speedText = Number.isFinite(speedScale) ? speedScale.toFixed(1) : `列 ${best.column + 1}`;
+    setText(
+      'val-surface-summary',
+      `最优 Cost ${formatCost(best.value)} · 航向偏移 ${courseText} · 速度系数 ${speedText}`,
+    );
+  }
 }
 
 function renderSolveTimeline() {
   const timeline = document.getElementById('solveTimeline');
   timeline.replaceChildren();
-  if (!solveTimeline.length) {
-    const empty = document.createElement('span');
-    empty.className = 'timeline-empty';
-    empty.textContent = '等待真实求解';
-    timeline.appendChild(empty);
+  drawObjectiveHistory();
+}
+
+function formatCost(value) {
+  if (!Number.isFinite(value)) return '--';
+  if (Math.abs(value) >= 1000 || (Math.abs(value) > 0 && Math.abs(value) < 0.01)) {
+    return value.toExponential(2);
+  }
+  return value.toFixed(2);
+}
+
+function drawObjectiveHistory() {
+  const canvas = document.getElementById('objectiveHistory');
+  if (!canvas) return;
+  const chart = canvas.getContext('2d');
+  chart.clearRect(0, 0, canvas.width, canvas.height);
+  chart.fillStyle = '#0d1211';
+  chart.fillRect(0, 0, canvas.width, canvas.height);
+  const history = solveTimeline.filter(item => Number.isFinite(item.objective));
+  if (!history.length) {
+    chart.fillStyle = '#65736f';
+    chart.font = '11px SFMono-Regular, monospace';
+    chart.fillText('等待有效 Cost', 12, 46);
     return;
   }
-  solveTimeline.forEach(item => {
-    const marker = document.createElement('button');
-    marker.type = 'button';
-    marker.className = 'solve-marker';
-    marker.title = `Solve #${item.solveId} · ${item.status}`;
-    marker.textContent = `${item.simTime.toFixed(1)}s`;
-    timeline.appendChild(marker);
+  const plot = { left: 38, top: 8, right: canvas.width - 8, bottom: canvas.height - 19 };
+  const times = history.map(item => item.simTime);
+  const costs = history.map(item => item.objective);
+  const timeLow = Math.min(...times);
+  const timeHigh = Math.max(...times);
+  const costLow = Math.min(...costs);
+  const costHigh = Math.max(...costs);
+  const xAt = time => plot.left + (time - timeLow) / Math.max(1, timeHigh - timeLow) * (plot.right - plot.left);
+  const yAt = cost => plot.bottom - (cost - costLow) / Math.max(1e-9, costHigh - costLow) * (plot.bottom - plot.top);
+
+  chart.strokeStyle = 'rgba(130,145,140,0.35)';
+  chart.lineWidth = 1;
+  chart.beginPath();
+  chart.moveTo(plot.left, plot.top);
+  chart.lineTo(plot.left, plot.bottom);
+  chart.lineTo(plot.right, plot.bottom);
+  chart.stroke();
+
+  chart.strokeStyle = '#55D6B7';
+  chart.lineWidth = 1.8;
+  chart.beginPath();
+  history.forEach((item, index) => {
+    const x = xAt(item.simTime);
+    const y = yAt(item.objective);
+    if (index === 0) chart.moveTo(x, y);
+    else chart.lineTo(x, y);
   });
+  chart.stroke();
+  history.forEach(item => {
+    chart.fillStyle = '#9EF0DB';
+    chart.beginPath();
+    chart.arc(xAt(item.simTime), yAt(item.objective), 2, 0, Math.PI * 2);
+    chart.fill();
+  });
+
+  chart.fillStyle = '#82918c';
+  chart.font = '8px SFMono-Regular, monospace';
+  chart.textAlign = 'right';
+  chart.fillText(formatCost(costHigh), plot.left - 4, plot.top + 3);
+  chart.fillText(formatCost(costLow), plot.left - 4, plot.bottom);
+  chart.textAlign = 'left';
+  chart.fillText(`${timeLow.toFixed(0)}s`, plot.left, canvas.height - 5);
+  chart.textAlign = 'right';
+  chart.fillText(`${timeHigh.toFixed(0)}s`, plot.right, canvas.height - 5);
 }
 
 /* ══════════════════════════════════════════════
