@@ -9,6 +9,7 @@ Provides:
                            to SimpleLinearMPC when torch / acados not available)
   - CustomMPCAdapter     – IGuidance adapter, selects active algorithm
 """
+# ruff: noqa: ARG002, F841, I001, PLC0415, PLR0915
 
 from __future__ import annotations
 
