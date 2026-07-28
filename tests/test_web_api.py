@@ -111,6 +111,16 @@ def test_header_uses_requested_session_labels() -> None:
         assert 'id="objectiveHistory"' in page.text
         assert "候选控制代价" in page.text
         assert "求解周期" in page.text
+        assert all(
+            f'id="{metric_id}"' in page.text
+            for metric_id in (
+                "val-best-cost",
+                "val-best-course-offset",
+                "val-best-speed-scale",
+                "val-solve-period",
+            )
+        )
+        assert 'id="val-surface-summary"' not in page.text
 
 
 def test_chart_layer_controls_follow_navigation_semantics() -> None:

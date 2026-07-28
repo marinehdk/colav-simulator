@@ -1269,7 +1269,9 @@ function drawPlannerSurface(algorithmId, details) {
     ? 'VO / COLREGS 禁止代价'
     : algorithmId === 'sbmpc' ? 'SB-MPC 候选控制代价' : '名义 LOS 引导';
   setText('val-surface-label', label);
-  setText('val-surface-summary', '等待候选代价');
+  setText('val-best-cost', '--');
+  setText('val-best-course-offset', '--°');
+  setText('val-best-speed-scale', '--');
   surface.clearRect(0, 0, canvas.width, canvas.height);
   surface.fillStyle = '#0d1211';
   surface.fillRect(0, 0, canvas.width, canvas.height);
@@ -1347,10 +1349,9 @@ function drawPlannerSurface(algorithmId, details) {
     const speedScale = Number(speedScales[best.column]);
     const courseText = Number.isFinite(courseDegrees) ? `${courseDegrees.toFixed(0)}°` : `行 ${best.row + 1}`;
     const speedText = Number.isFinite(speedScale) ? speedScale.toFixed(1) : `列 ${best.column + 1}`;
-    setText(
-      'val-surface-summary',
-      `最优 Cost ${formatCost(best.value)} · 航向偏移 ${courseText} · 速度系数 ${speedText}`,
-    );
+    setText('val-best-cost', formatCost(best.value));
+    setText('val-best-course-offset', courseText);
+    setText('val-best-speed-scale', speedText);
   }
 }
 

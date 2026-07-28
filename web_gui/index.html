@@ -341,16 +341,18 @@
             <div><span class="telem-label">执行航向</span><span class="telem-val mono-tag" id="val-command-course">--°</span></div>
             <div><span class="telem-label">执行速度</span><span class="telem-val mono-tag" id="val-command-speed">-- m/s</span></div>
             <div><span class="telem-label">预测执行误差</span><span class="telem-val mono-tag" id="val-prediction-error">-- m</span></div>
+            <div><span class="telem-label">最优 Cost</span><span class="telem-val mono-tag" id="val-best-cost">--</span></div>
+            <div><span class="telem-label">航向偏移</span><span class="telem-val mono-tag" id="val-best-course-offset">--°</span></div>
+            <div><span class="telem-label">速度系数</span><span class="telem-val mono-tag" id="val-best-speed-scale">--</span></div>
+            <div><span class="telem-label">求解周期</span><span class="telem-val mono-tag" id="val-solve-period">--</span></div>
           </div>
           <div class="planner-surface-wrap">
             <div class="surface-label" id="val-surface-label">候选控制代价</div>
             <canvas id="plannerSurface" width="280" height="160" aria-label="候选控制代价热力图"></canvas>
-            <div class="surface-summary" id="val-surface-summary">等待候选代价</div>
           </div>
           <div class="objective-history-wrap">
             <div class="objective-history-heading">
               <span>最优 Cost 历史</span>
-              <span>求解周期 <strong id="val-solve-period">--</strong></span>
             </div>
             <canvas id="objectiveHistory" width="280" height="86" aria-label="最优 Cost 历史"></canvas>
           </div>

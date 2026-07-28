@@ -1349,14 +1349,6 @@ canvas#simCanvas {
   font-size: 0.64rem;
 }
 
-.surface-summary {
-  margin-top: 5px;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  font-size: 0.59rem;
-  line-height: 1.35;
-}
-
 #plannerSurface {
   display: block;
   width: 100%;
@@ -1373,19 +1365,9 @@ canvas#simCanvas {
 }
 
 .objective-history-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
   margin-bottom: 5px;
   color: var(--text-muted);
   font-size: 0.59rem;
-}
-
-.objective-history-heading strong {
-  color: var(--accent-cyan);
-  font-family: var(--font-mono);
-  font-weight: 600;
 }
 
 #objectiveHistory {
