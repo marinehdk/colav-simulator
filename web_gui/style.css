@@ -1256,6 +1256,34 @@ canvas#simCanvas {
   gap: 2px;
 }
 
+.telem-position {
+  grid-column: 1 / -1;
+}
+
+.telem-coordinate-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.telem-coordinate-row > span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.telem-coordinate-row small {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+
+.telem-coordinate-row strong {
+  color: var(--accent-cyan);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 .telem-label {
   font-size: 0.65rem;
   color: var(--text-muted);
