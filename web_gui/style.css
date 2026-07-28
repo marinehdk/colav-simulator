@@ -942,7 +942,7 @@ canvas#simCanvas {
 }
 
 .rule-catalog {
-  max-height: 268px;
+  max-height: 286px;
   padding-right: 4px;
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -959,7 +959,7 @@ canvas#simCanvas {
 }
 
 .algorithm-catalog {
-  max-height: 146px;
+  max-height: 300px;
   padding-right: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;

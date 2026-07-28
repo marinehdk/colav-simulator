@@ -2240,7 +2240,7 @@ function prepareWorkspaceLayout() {
   initializeCollapsibleCard(document.getElementById('cardIntegrations'), true);
   initializeCollapsibleCard(document.getElementById('cardRules'), false);
   initializeCollapsibleCard(document.getElementById('cardControl'), false);
-  initializeCollapsibleCard(document.getElementById('cardTracker'), false);
+  initializeCollapsibleCard(document.getElementById('cardTracker'), true);
   const eventLog = document.querySelector('.log-section');
   if (eventLog) {
     initializeCollapsibleCard(eventLog, false);

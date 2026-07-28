@@ -102,7 +102,10 @@ def test_header_uses_requested_session_labels() -> None:
         assert 'data-algorithm="sbmpc"' in page.text
         assert 'data-algorithm="vo"' in page.text
         assert 'class="algorithm-catalog"' in page.text
+        assert '<option value="sbmpc" selected>内置 SB-MPC</option>' in page.text
+        assert 'class="selection-card selected" type="button" data-algorithm="sbmpc"' in page.text
         assert 'data-tracker="vimmjipda"' in page.text
+        assert '<option value="god" selected>God Tracker</option>' in page.text
         assert "标准对遇 · G3 · 300s" in page.text
         assert "概率安全域 MPC 避碰" in page.text
         assert "ENC 高层路径规划" in page.text
