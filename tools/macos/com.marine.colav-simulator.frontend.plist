@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.marine.colav-simulator.frontend</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/marine/Code/.worktrees/Colav-Simulator/colav-paper-closed-loop/.venv/bin/colav-sim</string>
+    <string>serve</string>
+    <string>--host</string>
+    <string>127.0.0.1</string>
+    <string>--port</string>
+    <string>8010</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/marine/Code/.worktrees/Colav-Simulator/colav-paper-closed-loop</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/marine/Library/Logs/Colav-Simulator/frontend.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/marine/Library/Logs/Colav-Simulator/frontend.error.log</string>
+</dict>
+</plist>

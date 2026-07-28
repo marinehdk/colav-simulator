@@ -11,7 +11,9 @@ from gui_server.main import app
 def test_header_uses_requested_session_labels() -> None:
     with TestClient(app) as client:
         page = client.get("/")
+        script = client.get("/static/app.js")
         assert page.status_code == 200
+        assert script.status_code == 200
         assert "<h1>综合避碰仿真器</h1>" in page.text
         assert "Autonomous Ship COLAV" not in page.text
         assert (
@@ -108,6 +110,24 @@ def test_header_uses_requested_session_labels() -> None:
         assert 'id="cardPlanner"' in page.text
         assert 'id="val-solver-executed"' in page.text
         assert 'id="solveTimeline"' in page.text
+        assert 'id="objectiveHistory"' in page.text
+        assert 'id="objectiveHistoryWrap"' in page.text
+        assert "候选控制代价" in page.text
+        assert "求解周期" in page.text
+        assert all(
+            f'id="{metric_id}"' in page.text
+            for metric_id in (
+                "val-best-cost",
+                "val-best-course-offset",
+                "val-best-speed-scale",
+                "val-solve-period",
+            )
+        )
+        assert 'id="val-surface-summary"' not in page.text
+        assert "VO / COLREGS 候选速度可行性" in script.text
+        assert "details.heading_offsets_rad" in script.text
+        assert "details.speed_offsets_mps" in script.text
+        assert "objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc'" in script.text
 
 
 def test_chart_layer_controls_follow_navigation_semantics() -> None:
@@ -126,6 +146,8 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
                 "waypoints",
                 "history",
                 "motionVectors",
+                "radarRange",
+                "responseRange",
                 "prediction",
                 "previousPrediction",
                 "executionPoint",
@@ -146,13 +168,24 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
             for token in (
                 "const FCB45_LENGTH_M = 45",
                 "const FCB45_WIDTH_M = 8",
+                "const PREDICTION_MARKER_SECONDS = 10",
                 "const PREDICTION_LABEL_SECONDS = 60",
+                "const SBMPC_SOLVE_PERIOD_SECONDS = 5",
                 "new Path2D()",
                 "threat_level || 'UNKNOWN'",
                 "own_cpa_position",
                 "target_cpa_position",
+                "activation_distance_m",
+                "RADAR_DETECTION_RANGE_M = 2000",
+                "SBMPC_RESPONSE_RANGE_M = 1000",
+                "distance <= RADAR_DETECTION_RANGE_M",
+                "seenEventKeys",
+                "求解成功",
+                "仿真 ${simTime.toFixed(1)}s",
             )
         )
+        assert "SB-MPC 激活/安全范围" not in page.text
+        assert all(label in page.text for label in ("雷达探测圈（2 km）", "避碰响应圈（1 km）"))
 
 
 def test_real_session_api_and_websocket() -> None:

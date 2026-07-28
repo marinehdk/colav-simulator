@@ -83,10 +83,10 @@
                     <span class="legend-item" data-legend-layer="risk"><span class="color-box dcpa-line"></span>CPA 风险</span>
                   </div>
                   <div class="legend-category" data-legend-group="risk">
-                    <span class="legend-category-title">目标风险</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box clear"></span>无威胁</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box low"></span>低威胁</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box high"></span>高威胁</span>
+                    <span class="legend-category-title">目标状态</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box clear"></span>探测圈外</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box low"></span>雷达监控</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box high"></span>避碰响应</span>
                     <span class="legend-item" data-legend-layer="ships"><span class="color-box unknown"></span>未评估</span>
                   </div>
                   <div class="legend-category" data-legend-group="perception">
@@ -94,6 +94,8 @@
                     <span class="legend-item" data-legend-layer="tracks"><span class="color-box track"></span>Tracker</span>
                     <span class="legend-item" data-legend-layer="measurements"><span class="color-box measurement"></span>量测</span>
                     <span class="legend-item" data-legend-layer="covariance"><span class="color-box covariance"></span>协方差</span>
+                    <span class="legend-item" data-legend-layer="radarRange"><span class="color-box radar-range"></span>雷达探测圈 2 km</span>
+                    <span class="legend-item" data-legend-layer="responseRange"><span class="color-box response-range"></span>避碰响应圈 1 km</span>
                   </div>
                 </div>
               </details>
@@ -126,6 +128,8 @@
                     <label><input type="checkbox" data-layer="measurements"> 量测</label>
                     <label><input type="checkbox" data-layer="tracks"> Track ID</label>
                     <label><input type="checkbox" data-layer="covariance"> 协方差</label>
+                    <label><input type="checkbox" data-layer="radarRange" checked> 雷达探测圈（2 km）</label>
+                    <label><input type="checkbox" data-layer="responseRange" checked> 避碰响应圈（1 km） <span class="layer-state" data-layer-state="responseRange">数据未提供</span></label>
                   </fieldset>
                 </div>
               </details>
@@ -341,12 +345,22 @@
             <div><span class="telem-label">执行航向</span><span class="telem-val mono-tag" id="val-command-course">--°</span></div>
             <div><span class="telem-label">执行速度</span><span class="telem-val mono-tag" id="val-command-speed">-- m/s</span></div>
             <div><span class="telem-label">预测执行误差</span><span class="telem-val mono-tag" id="val-prediction-error">-- m</span></div>
+            <div><span class="telem-label" id="label-best-cost">最优 Cost</span><span class="telem-val mono-tag" id="val-best-cost">--</span></div>
+            <div><span class="telem-label" id="label-best-course-offset">航向偏移</span><span class="telem-val mono-tag" id="val-best-course-offset">--°</span></div>
+            <div><span class="telem-label" id="label-best-speed-scale">速度系数</span><span class="telem-val mono-tag" id="val-best-speed-scale">--</span></div>
+            <div><span class="telem-label">求解周期</span><span class="telem-val mono-tag" id="val-solve-period">--</span></div>
           </div>
           <div class="planner-surface-wrap">
-            <div class="surface-label" id="val-surface-label">候选空间</div>
-            <canvas id="plannerSurface" width="280" height="96" aria-label="算法候选代价或禁止区"></canvas>
+            <div class="surface-label" id="val-surface-label">候选控制代价</div>
+            <canvas id="plannerSurface" width="280" height="160" aria-label="候选控制代价热力图"></canvas>
           </div>
-          <div class="solve-timeline" id="solveTimeline" aria-label="真实求解时间线">
+          <div class="objective-history-wrap" id="objectiveHistoryWrap">
+            <div class="objective-history-heading">
+              <span>最优 Cost 历史</span>
+            </div>
+            <canvas id="objectiveHistory" width="280" height="86" aria-label="最优 Cost 历史"></canvas>
+          </div>
+          <div class="solve-timeline" id="solveTimeline" aria-label="求解周期说明">
             <span class="timeline-empty">等待真实求解</span>
           </div>
         </div>
