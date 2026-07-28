@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="stylesheet" href="/static/style.css?v=20260727-telemetry-layout" />
+  <link rel="stylesheet" href="/static/style.css?v=20260728-event-padding" />
 </head>
 <body>
   <div class="app-container">
@@ -20,25 +20,10 @@
           <h1>综合避碰仿真器</h1>
         </div>
       </div>
-      <div class="header-center">
-        <!-- Quick Scenario Tabs -->
-        <div class="quick-tabs" role="tablist" aria-label="快速场景切换">
-          <button id="tab-overtaking" class="qtab" data-group="rule13" data-default-scenario="overtaking" role="tab">Rule 13-OT</button>
-          <button id="tab-headon" class="qtab active" data-group="rule14" data-default-scenario="head_on" role="tab">Rule 14-HO</button>
-          <button id="tab-crossing" class="qtab" data-group="rule15" data-default-scenario="crossing_give_way" role="tab">Rule 15-CS</button>
-          <button id="tab-multi" class="qtab" data-group="multiship" data-default-scenario="paper_ccta2023_multiship" role="tab">多船情形</button>
-        </div>
-        <div class="header-scenario">
-          <select id="scenarioSelect" class="custom-select header-scenario-select" aria-label="当前快捷分类的场景">
-            <option value="head_on" selected>标准对遇 · G3 · 300s</option>
-          </select>
-        </div>
-      </div>
       <div class="header-right">
-        <div class="header-run-info" aria-label="仿真运行状态" aria-live="off">
-          <div><span class="ovl-label">Step</span><span class="ovl-val" id="val-step">0</span></div>
-          <div><span class="ovl-label">Time</span><span class="ovl-val" id="val-sim-time">0.0 s</span></div>
-          <div><span class="ovl-label">Algo</span><span class="ovl-val" id="val-algo-active">CustomMPC</span></div>
+        <div class="header-run-info" aria-label="时间信息" aria-live="off">
+          <div><span class="ovl-label">北京时间</span><span class="ovl-val" id="val-beijing-time">--:--:--</span></div>
+          <div><span class="ovl-label">仿真时间</span><span class="ovl-val" id="val-sim-time">0.0 s</span></div>
         </div>
         <div class="status-indicator disconnected" role="status" aria-live="polite">
           <span class="dot pulse" id="status-dot"></span>
@@ -84,41 +69,74 @@
               <details class="map-disclosure">
                 <summary>图标说明</summary>
                 <div class="canvas-legend" aria-label="分类图标说明">
-                  <div class="legend-category">
-                    <span class="legend-category-title">船舶</span>
-                    <span class="legend-item"><span class="color-box ownship"></span>本船 OS</span>
-                    <span class="legend-item"><span class="color-box obstacle"></span>目标船 TS</span>
+                  <div class="legend-category" data-legend-group="navigation">
+                    <span class="legend-category-title">导航</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box ownship"></span>本船</span>
+                    <span class="legend-item" data-legend-layer="route"><span class="color-box route"></span>初始航线</span>
+                    <span class="legend-item" data-legend-layer="corridor"><span class="color-box corridor"></span>初始航道</span>
+                    <span class="legend-item" data-legend-layer="motionVectors"><span class="color-box motion"></span>60s 向量</span>
                   </div>
-                  <div class="legend-category">
+                  <div class="legend-category" data-legend-group="algorithm">
+                    <span class="legend-category-title">算法</span>
+                    <span class="legend-item" data-legend-layer="prediction"><span class="color-box horizon"></span>当前预测</span>
+                    <span class="legend-item" data-legend-layer="previousPrediction"><span class="color-box previous"></span>上次预测</span>
+                    <span class="legend-item" data-legend-layer="risk"><span class="color-box dcpa-line"></span>CPA 风险</span>
+                  </div>
+                  <div class="legend-category" data-legend-group="risk">
+                    <span class="legend-category-title">目标风险</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box clear"></span>无威胁</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box low"></span>低威胁</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box high"></span>高威胁</span>
+                    <span class="legend-item" data-legend-layer="ships"><span class="color-box unknown"></span>未评估</span>
+                  </div>
+                  <div class="legend-category" data-legend-group="perception">
                     <span class="legend-category-title">感知</span>
-                    <span class="legend-item"><span class="color-box track"></span>跟踪航迹</span>
-                    <span class="legend-item"><span class="color-box measurement"></span>传感器量测</span>
-                  </div>
-                  <div class="legend-category">
-                    <span class="legend-category-title">规划</span>
-                    <span class="legend-item"><span class="color-box horizon"></span>MPC 预测时域</span>
-                    <span class="legend-item"><span class="color-box waypoint"></span>计划航线</span>
-                  </div>
-                  <div class="legend-category">
-                    <span class="legend-category-title">安全</span>
-                    <span class="legend-item"><span class="color-box safety"></span>安全域</span>
-                    <span class="legend-item"><span class="color-box dcpa-line"></span>DCPA 连线</span>
+                    <span class="legend-item" data-legend-layer="tracks"><span class="color-box track"></span>Tracker</span>
+                    <span class="legend-item" data-legend-layer="measurements"><span class="color-box measurement"></span>量测</span>
+                    <span class="legend-item" data-legend-layer="covariance"><span class="color-box covariance"></span>协方差</span>
                   </div>
                 </div>
               </details>
               <details class="map-disclosure">
                 <summary>航行展示</summary>
                 <div class="layer-controls" aria-label="仿真图层">
-                  <label><input type="checkbox" data-layer="truth" checked> 真值</label>
-                  <label><input type="checkbox" data-layer="measurements" checked> 量测</label>
-                  <label><input type="checkbox" data-layer="tracks" checked> 航迹</label>
-                  <label><input type="checkbox" data-layer="covariance" checked> 协方差</label>
-                  <label><input type="checkbox" data-layer="plans" checked> 计划</label>
+                  <fieldset>
+                    <legend>基础</legend>
+                    <label><input type="checkbox" data-layer="safeWater" checked> 安全海域 <span class="layer-state" data-layer-state="safeWater">数据未提供</span></label>
+                    <label><input type="checkbox" data-layer="ships" checked> 船舶</label>
+                  </fieldset>
+                  <fieldset>
+                    <legend>导航</legend>
+                    <label><input type="checkbox" data-layer="corridor" checked> 初始航道 <span class="layer-state" data-layer-state="corridor">数据未提供</span></label>
+                    <label><input type="checkbox" data-layer="route" checked> 初始航线</label>
+                    <label><input type="checkbox" data-layer="waypoints" checked> 航点</label>
+                    <label><input type="checkbox" data-layer="history" checked> 历史航迹</label>
+                    <label><input type="checkbox" data-layer="motionVectors" checked> 60s 向量</label>
+                  </fieldset>
+                  <fieldset>
+                    <legend>算法</legend>
+                    <label><input type="checkbox" data-layer="prediction" checked> 当前预测</label>
+                    <label><input type="checkbox" data-layer="previousPrediction"> 上次预测</label>
+                    <label><input type="checkbox" data-layer="executionPoint" checked> 执行点</label>
+                    <label><input type="checkbox" data-layer="risk" checked> CPA/风险</label>
+                  </fieldset>
+                  <fieldset>
+                    <legend>感知调试</legend>
+                    <label><input type="checkbox" data-layer="truth"> 真值</label>
+                    <label><input type="checkbox" data-layer="measurements"> 量测</label>
+                    <label><input type="checkbox" data-layer="tracks"> Track ID</label>
+                    <label><input type="checkbox" data-layer="covariance"> 协方差</label>
+                  </fieldset>
                 </div>
               </details>
             </div>
-            <div class="log-section map-log-overlay card glass-card" id="cardEvents" aria-label="仿真器事件">
-              <h3 class="card-title"><span class="icon" aria-hidden="true">≡</span> 仿真器事件</h3>
+            <div class="target-details glass-card" id="targetDetails" hidden>
+              <button type="button" id="targetDetailsClose" aria-label="关闭目标详情">×</button>
+              <h3 id="targetDetailsTitle">目标船</h3>
+              <dl id="targetDetailsBody"></dl>
+            </div>
+            <div class="log-section map-log-overlay card glass-card" id="cardEvents" aria-label="仿真事件">
+              <h3 class="card-title"><span class="icon" aria-hidden="true">≡</span> 仿真事件</h3>
               <div class="log-terminal" id="logTerminal" aria-live="polite">
                 <div class="log-entry log-info" id="initialLogEntry">[--:--:--] System ready. Waiting for simulation start…</div>
               </div>
@@ -176,7 +194,33 @@
           </div>
         </div>
 
-        <!-- ─── CARD B: Collision-Avoidance Algorithms ─── -->
+        <!-- ─── CARD B: Collision-Avoidance Test Rules ─── -->
+        <div class="card glass-card" id="cardRules">
+          <h3 class="card-title"><span class="icon" aria-hidden="true">§</span> 避碰测试规则</h3>
+          <select id="scenarioSelect" class="control-native-select" aria-label="当前测试场景">
+            <option value="head_on" selected>标准对遇 · G3 · 300s</option>
+          </select>
+          <div class="rule-catalog" aria-label="避碰测试规则列表">
+            <div class="selection-grid rule-selection-grid" role="tablist" aria-label="避碰测试规则">
+              <button id="tab-overtaking" class="selection-card qtab" type="button" data-group="rule13" data-default-scenario="overtaking" role="tab" aria-pressed="false">
+                <span class="selection-name">Rule 13-OT</span><span class="selection-description">追越与被追越</span><span class="selection-state">检查中</span>
+              </button>
+              <button id="tab-headon" class="selection-card qtab selected active" type="button" data-group="rule14" data-default-scenario="head_on" role="tab" aria-pressed="true">
+                <span class="selection-name">Rule 14-HO</span><span class="selection-description">对遇避碰</span><span class="selection-state">检查中</span>
+              </button>
+              <button id="tab-crossing" class="selection-card qtab" type="button" data-group="rule15" data-default-scenario="crossing_give_way" role="tab" aria-pressed="false">
+                <span class="selection-name">Rule 15-CS</span><span class="selection-description">交叉相遇</span><span class="selection-state">检查中</span>
+              </button>
+              <button id="tab-multi" class="selection-card qtab" type="button" data-group="multiship" data-default-scenario="paper_ccta2023_multiship" role="tab" aria-pressed="false">
+                <span class="selection-name">多船情形</span><span class="selection-description">多目标综合遭遇</span><span class="selection-state">检查中</span>
+              </button>
+            </div>
+            <div class="selection-heading scenario-selection-heading">测试场景</div>
+            <div class="selection-grid scenario-selection-grid" id="scenarioCatalog" aria-label="当前规则可用场景"></div>
+          </div>
+        </div>
+
+        <!-- ─── CARD C: Collision-Avoidance Algorithms ─── -->
         <div class="card glass-card" id="cardControl">
           <h3 class="card-title"><span class="icon" aria-hidden="true">⌘</span> 避碰规划算法</h3>
           <select id="algoSelect" class="control-native-select" aria-label="避碰规划算法">
@@ -219,7 +263,7 @@
           </div>
         </div>
 
-        <!-- ─── CARD C: Target Trackers ─── -->
+        <!-- ─── CARD D: Target Trackers ─── -->
         <div class="card glass-card" id="cardTracker">
           <h3 class="card-title"><span class="icon" aria-hidden="true">◎</span> 目标跟踪器</h3>
           <select id="trackerSelect" class="control-native-select" aria-label="目标跟踪器">
@@ -365,6 +409,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260727-monitor-simplify"></script>
+  <script src="/static/app.js?v=20260728-event-padding"></script>
 </body>
 </html>

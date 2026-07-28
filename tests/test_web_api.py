@@ -14,23 +14,32 @@ def test_header_uses_requested_session_labels() -> None:
         assert page.status_code == 200
         assert "<h1>综合避碰仿真器</h1>" in page.text
         assert "Autonomous Ship COLAV" not in page.text
-        assert '<span id="conn-status">会话: 断连</span>' in page.text
-        assert page.text.index('class="header-run-info"') < page.text.index('id="conn-status"') < page.text.index("<main")
+        assert (
+            '<span id="conn-status">会话: 断连</span>' in page.text
+            and page.text.index('class="header-run-info"')
+            < page.text.index('id="conn-status"')
+            < page.text.index("<main")
+            and all(label in page.text for label in ("北京时间", "仿真时间", 'id="val-beijing-time"'))
+            and 'id="val-step"' not in page.text
+            and 'id="val-algo-active"' not in page.text
+        )
         assert "canvas-overlay-info" not in page.text
         assert "ecosystem-tags" not in page.text
         tab_labels = ["Rule 13-OT", "Rule 14-HO", "Rule 15-CS", "多船情形"]
         assert [page.text.index(label) for label in tab_labels] == sorted(page.text.index(label) for label in tab_labels)
-        assert page.text.index('id="scenarioSelect"') < page.text.index("<main")
+        assert page.text.index('id="scenarioSelect"') > page.text.index("<main")
         assert 'class="insights-column"' in page.text
         assert 'data-group="rule14"' in page.text
-        assert '<label for="scenarioSelect">场景库</label>' not in page.text
+        assert "快速场景切换" not in page.text
         assert page.text.index('id="canvasWrapper"') < page.text.index('id="toggleENC"')
         assert page.text.index('id="canvasWrapper"') < page.text.index('id="logTerminal"')
         assert (
-            'aria-label="仿真器事件"' in page.text
+            'aria-label="仿真事件"' in page.text
             and 'id="cardEvents"' in page.text
             and 'id="logToggle"' not in page.text
+            and 'class="log-section map-log-overlay card glass-card"' in page.text
         )
+        assert "仿真器事件" not in page.text
         assert "仿真事件日志" not in page.text
         assert "[--:--:--] System ready." in page.text
         assert page.text.index('id="scaleBar"') < page.text.index('id="zoomIn"')
@@ -52,6 +61,7 @@ def test_header_uses_requested_session_labels() -> None:
             label in page.text
             for label in (
                 "系统安装插件",
+                "避碰测试规则",
                 "避碰规划算法",
                 "目标跟踪器",
                 "避碰安全指标",
@@ -82,9 +92,11 @@ def test_header_uses_requested_session_labels() -> None:
                 "(Performance)",
             )
         )
-        module_ids = ['id="cardIntegrations"', 'id="cardControl"', 'id="cardTracker"']
-        module_positions = [page.text.index(module_id) for module_id in module_ids]
-        assert module_positions == sorted(module_positions)
+        module_ids = ['id="cardIntegrations"', 'id="cardRules"', 'id="cardControl"', 'id="cardTracker"']
+        assert [page.text.index(module_id) for module_id in module_ids] == sorted(
+            page.text.index(module_id) for module_id in module_ids
+        )
+        assert all(token in page.text for token in ('id="scenarioCatalog"', "追越与被追越", "对遇避碰"))
         assert 'data-algorithm="sbmpc"' in page.text
         assert 'data-algorithm="vo"' in page.text
         assert 'class="algorithm-catalog"' in page.text
@@ -96,6 +108,51 @@ def test_header_uses_requested_session_labels() -> None:
         assert 'id="cardPlanner"' in page.text
         assert 'id="val-solver-executed"' in page.text
         assert 'id="solveTimeline"' in page.text
+
+
+def test_chart_layer_controls_follow_navigation_semantics() -> None:
+    with TestClient(app) as client:
+        page = client.get("/")
+        script = client.get("/static/app.js")
+        assert page.status_code == 200
+        assert script.status_code == 200
+        assert all(
+            f'data-layer="{layer}"' in page.text
+            for layer in (
+                "safeWater",
+                "ships",
+                "corridor",
+                "route",
+                "waypoints",
+                "history",
+                "motionVectors",
+                "prediction",
+                "previousPrediction",
+                "executionPoint",
+                "risk",
+                "truth",
+                "measurements",
+                "tracks",
+                "covariance",
+            )
+        )
+        assert 'data-layer="truth" checked' not in page.text
+        assert 'data-layer="measurements" checked' not in page.text
+        assert 'data-layer="previousPrediction" checked' not in page.text
+        assert 'id="targetDetails"' in page.text
+        assert all(label in page.text for label in ("安全海域", "初始航道", "60s 向量"))
+        assert all(
+            token in script.text
+            for token in (
+                "const FCB45_LENGTH_M = 45",
+                "const FCB45_WIDTH_M = 8",
+                "const PREDICTION_LABEL_SECONDS = 60",
+                "new Path2D()",
+                "threat_level || 'UNKNOWN'",
+                "own_cpa_position",
+                "target_cpa_position",
+            )
+        )
 
 
 def test_real_session_api_and_websocket() -> None:
