@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="stylesheet" href="/static/style.css?v=20260727-rule-catalog" />
+  <link rel="stylesheet" href="/static/style.css?v=20260728-map-events" />
 </head>
 <body>
   <div class="app-container">
@@ -21,10 +21,9 @@
         </div>
       </div>
       <div class="header-right">
-        <div class="header-run-info" aria-label="仿真运行状态" aria-live="off">
-          <div><span class="ovl-label">Step</span><span class="ovl-val" id="val-step">0</span></div>
-          <div><span class="ovl-label">Time</span><span class="ovl-val" id="val-sim-time">0.0 s</span></div>
-          <div><span class="ovl-label">Algo</span><span class="ovl-val" id="val-algo-active">CustomMPC</span></div>
+        <div class="header-run-info" aria-label="时间信息" aria-live="off">
+          <div><span class="ovl-label">北京时间</span><span class="ovl-val" id="val-beijing-time">--:--:--</span></div>
+          <div><span class="ovl-label">仿真时间</span><span class="ovl-val" id="val-sim-time">0.0 s</span></div>
         </div>
         <div class="status-indicator disconnected" role="status" aria-live="polite">
           <span class="dot pulse" id="status-dot"></span>
@@ -410,6 +409,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260727-rule-catalog"></script>
+  <script src="/static/app.js?v=20260728-map-events"></script>
 </body>
 </html>

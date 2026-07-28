@@ -1093,10 +1093,8 @@ function updateUI(data) {
   }
   lastRuntimeState = data.state || lastRuntimeState;
 
-  // Overlay
-  setText('val-step',        data.step);
-  setText('val-sim-time',    `${(data.scenario_time ?? data.step * 0.5).toFixed(1)} s`);
-  setText('val-algo-active', data.selected_algorithm || '—');
+  // Header time
+  setText('val-sim-time', `${(data.scenario_time ?? data.step * 0.5).toFixed(1)} s`);
   setText('val-run-state', data.state || 'CREATED');
   setText('val-reproduction', data.reproduction_status || 'not evaluated');
 
@@ -1367,10 +1365,20 @@ function drawPerfChart() {
 /* ══════════════════════════════════════════════
    EVENT LOG
 ══════════════════════════════════════════════ */
+const BEIJING_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+
 function formatSystemTime(date = new Date()) {
-  return [date.getHours(), date.getMinutes(), date.getSeconds()]
-    .map(value => String(value).padStart(2, '0'))
-    .join(':');
+  return BEIJING_TIME_FORMATTER.format(date);
+}
+
+function updateBeijingClock() {
+  setText('val-beijing-time', formatSystemTime());
 }
 
 function pushLog(msg, cls = 'log-info') {
@@ -1935,9 +1943,6 @@ function prepareWorkspaceLayout() {
   initializeCollapsibleCard(document.getElementById('cardTracker'), false);
   const eventLog = document.querySelector('.log-section');
   if (eventLog) {
-    eventLog.classList.remove('map-log-overlay');
-    eventLog.classList.add('sidebar-event-log');
-    sidebar.appendChild(eventLog);
     initializeCollapsibleCard(eventLog, false);
   }
   const initialLogEntry = document.getElementById('initialLogEntry');
@@ -1949,6 +1954,8 @@ function prepareWorkspaceLayout() {
 /* ── Boot ─────────────────────────────────────── */
 async function boot() {
   prepareWorkspaceLayout();
+  updateBeijingClock();
+  window.setInterval(updateBeijingClock, 1000);
   updateLegendVisibility();
   document.getElementById('toggleENC').classList.add('enc-on');
   try {

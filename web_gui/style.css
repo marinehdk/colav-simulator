@@ -567,10 +567,10 @@ canvas#simCanvas {
   right: 12px;
   bottom: 12px;
   z-index: 6;
-  width: clamp(300px, 35%, 560px);
+  width: clamp(360px, 46%, 680px);
   padding: 0;
   overflow: hidden;
-  max-height: 280px;
+  max-height: 170px;
   transition: max-height 0.3s ease;
   background: rgba(11, 15, 14, 0.88);
   border: 1px solid var(--panel-border);
@@ -580,32 +580,6 @@ canvas#simCanvas {
 }
 
 .log-section.collapsed { max-height: 34px; }
-
-.sidebar-event-log {
-  position: relative;
-  right: auto;
-  bottom: auto;
-  z-index: 1;
-  width: 100%;
-  height: 280px;
-  max-height: 280px;
-  padding: 14px 16px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar-event-log.collapsed {
-  height: auto;
-  max-height: none;
-}
-
-.sidebar-event-log .log-terminal {
-  flex: 1;
-  min-height: 0;
-  height: auto;
-  padding: 0;
-}
 
 .log-header {
   display: flex;
@@ -628,8 +602,9 @@ canvas#simCanvas {
   font-size: 0.72rem;
   color: var(--text-muted);
   padding: 7px 9px;
-  height: 235px;
+  height: 124px;
   overflow-y: auto;
+  overflow-x: auto;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -723,7 +698,10 @@ canvas#simCanvas {
   background: rgba(98,210,189,0.1);
 }
 
-.log-entry { line-height: 1.4; }
+.log-entry {
+  line-height: 1.4;
+  white-space: nowrap;
+}
 .log-info  { color: var(--accent-teal); }
 .log-warn  { color: var(--accent-amber); }
 .log-danger{ color: var(--accent-red); }
@@ -1668,17 +1646,17 @@ canvas#simCanvas {
     right: 8px;
     bottom: 8px;
     width: calc(100% - 16px);
-    max-height: 200px;
+    max-height: 150px;
   }
 
   .map-log-overlay .log-terminal {
-    height: 164px;
+    height: 104px;
   }
 
   .playback-control-overlay {
     left: 8px;
     right: 8px;
-    bottom: 214px;
+    bottom: 164px;
     flex-direction: column;
     align-items: stretch;
     padding: 4px 5px;

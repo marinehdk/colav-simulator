@@ -14,8 +14,15 @@ def test_header_uses_requested_session_labels() -> None:
         assert page.status_code == 200
         assert "<h1>综合避碰仿真器</h1>" in page.text
         assert "Autonomous Ship COLAV" not in page.text
-        assert '<span id="conn-status">会话: 断连</span>' in page.text
-        assert page.text.index('class="header-run-info"') < page.text.index('id="conn-status"') < page.text.index("<main")
+        assert (
+            '<span id="conn-status">会话: 断连</span>' in page.text
+            and page.text.index('class="header-run-info"')
+            < page.text.index('id="conn-status"')
+            < page.text.index("<main")
+            and all(label in page.text for label in ("北京时间", "仿真时间", 'id="val-beijing-time"'))
+            and 'id="val-step"' not in page.text
+            and 'id="val-algo-active"' not in page.text
+        )
         assert "canvas-overlay-info" not in page.text
         assert "ecosystem-tags" not in page.text
         tab_labels = ["Rule 13-OT", "Rule 14-HO", "Rule 15-CS", "多船情形"]
@@ -30,6 +37,7 @@ def test_header_uses_requested_session_labels() -> None:
             'aria-label="仿真器事件"' in page.text
             and 'id="cardEvents"' in page.text
             and 'id="logToggle"' not in page.text
+            and 'class="log-section map-log-overlay card glass-card"' in page.text
         )
         assert "仿真事件日志" not in page.text
         assert "[--:--:--] System ready." in page.text
