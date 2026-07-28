@@ -2,7 +2,7 @@
 
 > **模式**: 重构        **创建**: 2026-07-27
 > **关联方案包**: `docs/superpowers/specs/2026-07-27-dynamic-mpc-playground-solution-pack.md`
-> **状态**: Step3 完成；BL-01..118 全部盲区已闭环或标 UNKNOWN/EXTERNAL_CONFIRMATION_REQUIRED；证据矩阵 R1..R79；等待用户授权进入 Step4
+> **状态**: Step4 完成；DP-05..31 共 27 项推荐全部综合，VR-05..31 登记；TD-01..04 无 DECOMPOSITION_INCOMPLETE；等待用户授权进入 Step5（DESIGN-IT-TWICE）
 > **工作分支**: `codex/colav-backend-algorithms`
 > **设计对象**: 复用上游 COLAV-Simulator，建立用于 Custom MPC 正确性、有效性和公平对比的动态避碰 Playground
 > **取代旧日志**: `2026-07-27-mpc-colav-simulation-validation-platform-design-log.md`
@@ -284,6 +284,33 @@
 | VR-02 | DP-02 | 论文复现后置；算法未达到 G3 时不投入数值复现 | 采纳 | 只有可运行算法才有论文对比意义 | Step1 前置确认 |
 | VR-03 | DP-03 | RRT/VIM 为可选插件，不阻塞 Custom MPC | 采纳 | RRT 是静态规划；VIM 属感知鲁棒性阶段 | Step1 前置确认 |
 | VR-04 | DP-04 | `Custom MPC` 为用户自研 MPC；只经统一 Adapter 接入 | 采纳 | 避免 `Self-MPC` 命名歧义 | Step1 前置确认 |
+| VR-05 | DP-05 | V1 认证当前五类标准场景 + PSB 迁移小型固定样本（easy 窗口毫米级等价）；raw/normalized/migration 三件套 | 采纳 | 主链可继续；批量迁移须逐字段核验 | Step4 批1 确认 |
+| VR-06 | DP-06 | V1 四类双船 open-water + God + Viknes + 无风流；V2 ENC+KF；V3 multi-ship | 采纳 | 范围聚焦；crossing 速度超限须先修 | Step4 批1 确认 |
+| VR-07 | DP-07 | Nominal→VO/SB→Custom→PSB/RL 条件；每类至少一 G3 对照 | 采纳 | 避免运行时问题遮蔽主线 | Step4 批1 确认 |
+| VR-08 | DP-08 | `CustomMPCAdapter(ICOLAV)` 薄适配器；typed PlannerInput DTO；legacy 不作正式接口 | 采纳 | executed identity 可证 | Step4 批1 确认 |
+| VR-09 | DP-09 | Adapter 验证坐标/单位/age/PSD/shape；缺失→INVALID_INPUT；in-process 完整 ENC | 采纳 | 防"求解成功但物理错误" | Step4 批1 确认 |
+| VR-10 | DP-10 | `9xN` col-0=solve-time；selected_command 单独；StateMapping 版本化；连续性检查 | 采纳 | 时间对齐 + 连续性 | Step4 批1 确认 |
+| VR-11 | DP-11 | AlgorithmDescriptor 12 强制字段 + build_identity；静态冻结/动态绑 solve_id | 采纳 | config 漂移可追溯 | Step4 批1 确认 |
+| VR-12 | DP-12 | 多率调度；solve 在 t=0；hold 保留 horizon 原点；离线可关 deadline 标 diagnostic_only | 采纳 | 防伪 solve_id / 错误重放 | Step4 批2 确认 |
+| VR-13 | DP-13 | strict_no_fallback；六态分类；TIMEOUT_FEASIBLE 计 deadline；INVALID_INPUT 归因三源 | 采纳 | executed identity + 失败率可信 | Step4 批2 确认 |
+| VR-14 | DP-14 | 真实 solve 才写 events；公共 9+专项 4 字段；多模态 target schema；大 horizon 拆文件 | 采纳 | 可归因 + 可审计 | Step4 批2 确认 |
+| VR-15 | DP-15 | 白盒+闭环走同 Adapter；canonical Viknes tuple；reference plant 按用途验收 | 采纳 | 无循环验证 / 假通过 | Step4 批2 确认 |
+| VR-16 | DP-16 | 统一 sim clock；三态 MeasurementScan；V1 整数比周期 | 采纳 | 时间一致 + 公平比较 | Step4 批2 确认 |
+| VR-17 | DP-17 | V1 nominal_reference（不伪造扰动）；多标签归因；Viknes 不外推 FCB45 | 采纳 | 诚实模型失配边界 | Step4 批2 确认 |
+| VR-18 | DP-18 | 同 ENC source + enc_hash；footprint+sweep；route_exit/terminal_state；每船独立 hazards；只声明 chart_geometric_clearance | 采纳 | 防 Point-in-Polygon 漏报 | Step4 批2 确认 |
+| VR-19 | DP-19 | artifact playback/exact/tolerance 三模式；SeedTree 稳定路径；runtime fingerprint；native 默认 tolerance-only | 采纳 | 硬 verdict 永不放宽 | Step4 批3 确认 |
+| VR-20 | DP-20 | 硬门/评分/诊断三层分离；score 不抵消硬失败；reconstructed evaluator 定 evidence-flow stub；gate 三态+qual 四态 | 采纳 | 独立评价可信 | Step4 批3 确认 |
+| VR-21 | DP-21 | footprint+同步 CCD 定义 collision/grounding；三类 buffer 分离；统一 CPA；ENC 四类分离；每船独立 hazards | 采纳 | 物理事实基础正确 | Step4 批3 确认 |
+| VR-22 | DP-22 | profile-parameterized；锁定 FSM；双变量(β,α)；四阈值；signed-sine pose；Rule 17 三阶段；不发明 multi-ship 优先级 | 采纳 | COLREG 评价可追溯 | Step4 批3 确认 |
+| VR-23 | DP-23 | 任务/执行/求解三组；objective 不横向比较；tracking 对闭环轨迹；collision=FAILED；timeout=KM；RT-factor 双报告 | 采纳 | 指标分组不掩盖硬失败 | Step4 批3 确认 |
+| VR-24 | DP-24 | 组合证据；canonical=t=2 covering×3 seeds×零硬门；capability_dependencies hash；promotion 人工+demotion 自动 | 采纳 | 能力等级随漂移失效 | Step4 批3 确认 |
+| VR-25 | DP-25 | 不硬编码 seed；precision-target；三不相交；Wilson/KM/paired-t/Wilcoxon/bootstrap；CRN 仅外生；绝不插补 | 采纳 | 统计结论可信 | Step4 批3 确认 |
+| VR-26 | DP-26 | 六件包；增量写+原子封存；列级 schema；大 horizon 拆文件；tamper_evident | 采纳 | native crash 证据完整 | Step4 批3 确认 |
+| VR-27 | DP-27 | subprocess 优先；每 run 新建；reset 清空；裁剪 geometry IPC；无网络/无写/CPU-mem 上限 | 采纳 | native abort 不影响主进程 | Step4 批4 确认 |
+| VR-28 | DP-28 | 四 probe 准入；lockfile hash + build_identity；container digest；持久后置 | 采纳 | 执行模式属 runtime profile | Step4 批4 确认 |
+| VR-29 | DP-29 | JSON Lines framing；SIGTERM→SIGKILL；唯一 request_id 不重试；幂等缓存 | 采纳 | 可靠通信 + 不重复更新 | Step4 批4 确认 |
+| VR-30 | DP-30 | 版本化 TrajectoryMapping/StatusMapping；PSB(4,N) plant_prediction；RLMPC(6,N) r=psi_dot；method-driven；as-returned；PSB 无 INFEASIBLE | 采纳 | native 保留 + 归一化可追溯 | Step4 批4 确认 |
+| VR-31 | DP-31 | 版本化投影；additive-only；降采样推送；不发 raw；127.0.0.1；live seq+hash | 采纳 | Web 只读不重算 | Step4 批4 确认 |
 
 ### 0.7 备选/弃用方案 [ALT]
 
@@ -2452,3 +2479,332 @@ failed_gates[] / not_evaluated_gates[] / primary_reason
 - 源身份修正已记录：R51（C²A 非 Connectivity-Based Culling）、R56（MSC.232(82) ECDIS 非 MSC.192(79)）、R58（MSC.192(79) 雷达标准）、R59（Namgung 单作者 Route Planning）、R2（115991 经 Crossref 确认正确）。
 - 2 个 NLM 笔记本限制已记录：本会话 token 过期，A 档 BL-75..89 三批未用笔记本（全走 primary source）；后续可重认证后补充。
 - **Step3 完成**。不自动进入 Step4；等待用户授权。
+
+## Step4 · 汇总分析·推荐方案 [2026-07-28]
+
+### 用户授权 + 执行计划
+
+- 用户确认 Step3 完成，授权进入 Step4，并要求"给出完整的 MPC Playground 方案"。
+- Step3 checkpoint 已提交（`bb15a17`，+1856 行）。
+- 执行方式：逐 DP 综合（推荐+证据链+弃用理由+风险量化+失效边界），技术分解完整性校验，冲突显式标注不抹平。分 4 批展示：DP-05..11 / DP-12..18 / DP-19..26 / DP-27..31。
+
+### DP-05 · 标准场景包来源、迁移与溯源
+
+- **推荐**：V1 先认证当前五类标准场景（head_on/crossing_give_way/crossing_stand_on/overtaking/overtaken）；PSB corpus 仅迁移小型固定样本（easy 窗口 More og Romsdal，毫米级几何等价）。每迁移场景保留 raw YAML + normalized episode + migration report 三件套。
+- **证据链**：[R1][R3] 主链可继续作唯一仿真/算法边界；[R15][R16] `telemetron→viknes` 改名 + 3600 episode 迁移实测；[R17] easy 窗口几何等价（Hausdorff 0.0015m）；[R18] Kartverket CC BY 4.0 开放许可；[R19][R20] PSB 全量 benchmark 语义 + nominal/constant/variable 配对。
+- **弃用**：① 直接把 PSB 3600 episode 当当前可用场景（schema 不兼容 + Agder 缺失）；② 宣称全图版本相同（medium 缺 Agder，历史/当前 GDB 非同一快照）。
+- **风险**：中。来源——批量迁移可能静默改变船模/地图/几何，形成"数量多、语义错"的假覆盖。失效边界——迁移须逐字段核验 + 几何等价性测试。验证需求——每个迁移场景通过当前 Cerberus schema + head_on 窗口几何签名比对。
+- **DECOMPOSITION**：✓ 闭环（BL-01..03）。
+
+### DP-06 · Playground ODD 与最小覆盖矩阵
+
+- **推荐**：V1 = 四类双船 open-water（Rule 14/15-16/15-17/13）+ God tracker + Viknes synthetic reference plant + 无风流；V2 = ENC 受限 + KF；V3 = multi-ship。AIS/Imazu/VIM/极端海况/非合作目标后置。
+- **证据链**：[R22][R24] 当前唯一完整 plant 是 Viknes/FLSC（8.45m，10m/s 上限，dt=0.5s）；[R1][R2] MPC 避碰须覆盖四类双船规则；[R28] FCB45 目标 ODD 保留 EXTERNAL_CONFIRMATION。
+- **弃用**：① 一次加入 AIS/Imazu/复杂感知/全部海况（拖垮主线）；② 把 Viknes 结果外推 FCB45（尺度差 5.33×）。
+- **风险**：中。来源——范围过窄致几何过拟合；范围过宽拖垮 Playground。失效边界——crossing/overtaking 场景速度超 Viknes 10m/s 上限（当前 15m/s 被钳位），须先修复。验证需求——四类规则各有至少一个 G3 对照算法。
+- **DECOMPOSITION**：✓ 闭环（BL-04..07）。
+
+### DP-07 · 算法资格顺序和进入条件
+
+- **推荐**：Nominal 风险基线 → VO/SB-MPC 规则对照 → Custom MPC → PSB-MPC/RLMPC 条件对照。每类规则至少一个 G3 对照算法即可（不要求 VO 和 SB-MPC 各自覆盖全部规则）。Custom MPC 不等外部算法/RRT/VIM。
+- **证据链**：[R25] 当前 capability 静态登记，非资格任务自动产物；[R1][R2] 所有对照算法须相同 episode/Tracker/船模/Evaluator。
+- **弃用**：① 先集成全部外部算法（PSB/RLMPC 运行时问题遮蔽 Playground）；② 把 import/单步成功当性能基准。
+- **风险**：高。来源——错误身份/静默 fallback/自然无风险 nominal 产生不可用比较。失效边界——nominal 必须存在真实风险（BL-09 已确认 head_on DCPA≈0m）。验证需求——Nominal 最小船距低于安全域，证明"无算法介入即有风险"。
+- **DECOMPOSITION**：✓ 闭环（BL-08..10）。
+
+### DP-08 · 统一 Custom MPC 插件契约
+
+- **推荐**：正式 Custom MPC 只经 `CustomMPCAdapter(ICOLAV)` 接入；Adapter 负责验证/转换，不实现算法策略。legacy `custom_mpc_adapter.py`（guidance 层 `IGuidance`，含静默 fallback）**不作正式接口**。Adapter 内 typed `PlannerInput` DTO；保持 `ICOLAV.plan()` 签名兼容。`AlgorithmDescriptor` 版本化可哈希 config。
+- **证据链**：[R3][R9] `ICOLAV` 稳定边界 + PlannerTrace 已有骨架；[R11] legacy adapter 含硬编码 sys.path + 静默 fallback（ALT-04 弃用）；BL-11..13 闭环。
+- **弃用**：① 直接从 `Simulator.step()` 调 solver（耦合场景/单位/失败/诊断）；② legacy `custom_mpc_adapter.py` fallback 路径（无法证明 executed identity）。
+- **风险**：中。来源——Adapter 验证不完整致"求解成功但物理错误"。失效边界——坐标/单位/时间有效性/Track 质量/covariance PSD 须 Adapter 验证。验证需求——白盒固定输入测试 + 闭环测试走相同 Adapter。
+- **DECOMPOSITION**：✓ 闭环（BL-11..13）。
+
+### DP-09 · Custom MPC 输入语义
+
+- **推荐**：Adapter 内构造 typed `PlannerInput`（ownship/track/enc/reference/seed/identity/time_validity）。Adapter 验证结构/语义（坐标 ENU、单位 SI、Track age profile 化 + degraded 标志、covariance PSD、finite/shape、length/width 缺失→INVALID_INPUT）；solver 判断优化可行性。in-process 传完整 ENC，Worker 传裁剪 hazard geometry + SHA。无效输入显式 `INVALID_INPUT`，不替换 God truth。
+- **证据链**：[R3] `do_list` 裸元组无自描述；[R30][R31] Radar NaN 歧义 + VIM 空扫描语义；[R35] ENC 加载慢；BL-14..17 闭环。
+- **弃用**：① 用 God truth 替换无效输入；② 静默补默认 covariance/单位阵。
+- **风险**：中。来源——ENU/NED、度/弧度、过期 Track、非 PSD covariance 致"求解成功但物理错误"。失效边界——Adapter 须拒绝/降级无效输入。验证需求——白盒注入无效输入测试。
+- **DECOMPOSITION**：✓ 闭环（BL-14..17）。
+
+### DP-10 · Custom MPC 输出语义
+
+- **推荐**：`ICOLAV.plan()` 返回控制器兼容参考（`9xN`）；PlannerTrace 保存同一真实求解的完整 horizon。horizon 第 0 列 = solve-time 当前状态；后续 = `t_solve + k*horizon_dt`。`selected_command` 单独字段。`StateMapping` 版本化映射非 9 维 native state（缺失维度填 0 标 `estimated=false`，可验证推导标 `estimated=true+method`）。连续性检查（motion bound 上界）；首点误差 ≤ footprint tolerance。Custom MPC 只有 `9x1` 最多 G2，完整非空 horizon 才进 G3。
+- **证据链**：[R3] VOWrapper 首列覆写为当前状态；[R32] SB-MPC 简化 predictor；[R29] trajectory/events 时间相位；BL-18..21 闭环。
+- **弃用**：① 只验证 `9xN` shape/finite（漏时间对齐/连续性）；② hold 步重置 horizon 原点。
+- **风险**：中。来源——预测/返回计划/执行指令来自不同候选或求解周期，形成假证据。失效边界——horizon 须绑定 solve_id + 连续性 + 首点容差。验证需求——白盒比对 horizon col-0 与 ownship_state。
+- **DECOMPOSITION**：✓ 闭环（BL-18..21）。
+
+### DP-11 · MPC 算法声明元数据
+
+- **推荐**：`AlgorithmDescriptor` 强制 12 字段（`algorithm_id/version/control_form/state_layout/predictor_model/horizon_dt/horizon_steps/objective_terms/constraint_terms/solver/seed_policy/execution_profile`）+ 允许 not_applicable 字段。`build_identity` 携带 SHA/binary/solver/build flags（缺失标 UNKNOWN）。静态配置进 Descriptor（冻结），动态值（权重/horizon/mode）进 `algorithm_details` 绑 solve_id。公共 cost/constraint 分类词表；不同算法 objective 不横向比较。
+- **证据链**：[R9] `RunSpec.algorithm_config` 无 schema；[R40] manifest identity 字段；[R43][R44] native binary 身份；BL-22..25 闭环。
+- **弃用**：① 自由格式 dict（字段缺失/拼写漂移/单位不明/版本不可迁移）；② 把 PSB objective 与 RLMPC objective 直接比较。
+- **风险**：低。来源——同名算法跨 run 改变模型/权重/约束污染统计。失效边界——manifest 须冻结 config 副本。验证需求——config hash 比对。
+- **DECOMPOSITION**：✓ 闭环（BL-22..25）。
+
+### 第一批用户确认门
+
+- 待用户确认 DP-05..11 的推荐是否可标 final（VR）。
+- 建议：批量确认（证据链完整，DESIGN_CANDIDATE 在 Step3 已逐条确认）。
+- 未确认前不标 VR final，不进 Step5。
+
+### 第一批用户确认 [2026-07-28]
+
+- 用户批量确认 DP-05..11 推荐。
+- DP-05..11 标 VR final（见 0.6 裁决注册表）。
+- 技术分解 TD-01 子模块 DP-08..11 全部综合完成。
+
+### DP-12 · `plan/reset` 生命周期与时序
+
+- **推荐**：多率调度；真实求解才增加 `solve_id`。首次 solve 在 `t=0`（`solve_id=1` 首步）。`solve_period` 算法声明 + RunSpec 可覆盖（声明覆盖）。hold 步保留同一 horizon（原点 `t_solve` 不变），执行指令按 `t_now - t_solve` 采样（不重新 solve），`solver_executed=false`。reset 清空 warm start；replay 重新冷启动；无 seed API 的 native 不获 exact 资格。每 episode 独立 seed 完整 reset。离线快速仿真可选关 deadline（`deadline_mode=OFF`），但该 run 标 `diagnostic_only` 不进 G3。
+- **证据链**：[R29] 单步相位 + PlannerTrace 时序；[R3] SBMPCWrapper 硬编码 5s 周期；[R44] RLMPC warm start 跨 run 不可复用；[R43] PSB CPE seed；BL-26..30 闭环。
+- **弃用**：① 每步求解（改变算法负载）；② hold 步重置 horizon 原点 / 伪增 solve_id；③ 强制离线实时 deadline。
+- **风险**：中。来源——非求解步伪增 solve_id / hold 重置原点产生错误执行/重放。失效边界——hold 步须保留 horizon 原点。验证需求——solve_id 单调递增且仅真实 solve 增加。
+- **DECOMPOSITION**：✓ 闭环（BL-26..30）。
+
+### DP-13 · 失败状态与 fallback 政策
+
+- **推荐**：正式验证 `strict_no_fallback=true`。失败分类：`SUCCESS/TIMEOUT_FEASIBLE/INFEASIBLE/NUMERICAL_FAILURE/INVALID_INPUT/DEPENDENCY_UNAVAILABLE`（已存在）。`TIMEOUT_FEASIBLE` 可执行当前可行解（非 hold），但计 deadline 失败；连续 `TIMEOUT_FEASIBLE` 阈值 profile 化（超阈 run FAILED，`primary_reason=REALTIME`）；G3 要求零 deadline 失败。`INVALID_INPUT` 归因 `SCENARIO/ADAPTER/ALGORITHM`。native crash 映射 `NUMERICAL_FAILURE`。Web 调试模式可 `hold_on_failure`（标 `diagnostic_only`）。仅 `TIMEOUT_FEASIBLE` 可按后续政策执行，其他失败使正式 run fail-stop。
+- **证据链**：[R9] `PlanStatus` 六态 + `strict_no_fallback`；[R43] PSB native abort；BL-31..34 闭环。
+- **弃用**：① `except: return previous_plan`（破坏 executed identity/失败率/归因）；② 自动重试有状态 plan。
+- **风险**：高。来源——静默 fallback 把崩溃统计为成功 + 旧计划在新冲突中不安全。失效边界——`strict_no_fallback=true` + 失败样本保留分母。验证需求——注入 native crash 确认 fail-stop。
+- **DECOMPOSITION**：✓ 闭环（BL-31..34）。
+
+### DP-14 · PlannerTrace 与 solve/hold 语义
+
+- **推荐**：完整 PlannerTrace 只在真实 solve 写入 events；每步 trajectory 只引用 `solve_id` 和实际执行。公共必需 9 字段（`algorithm_id/solve_id/sim_time/solver_executed/status/elapsed_ms/predicted_trajectory/horizon_dt_s/selected_command`）+ MPC 专项必需 4 字段（`objective/iterations/feasible/constraints`）；算法特定诊断进 `algorithm_details`。公共 cost/constraint 分类词表（与 BL-25 共享）；最小裕度 SI 单位进 `constraints`。多模态 target schema `{target_id, mode_id, probability, predicted_trajectory[Nx9], covariance[Nx4x4], source}`。trace 分层：events.jsonl 增量写完整 solve（含 horizon）；trajectory.parquet 每步 state/reference/selected_command；大 horizon（>1000 步 或 >10 目标）拆 per-solve 文件 + 引用。
+- **证据链**：[R9] PlannerTrace 字段骨架；[R29] events/trajectory 时间相位；[R2] 论文 cost 命名；BL-35..38 闭环。
+- **弃用**：① 自由格式 payload（字段缺失/混单位）；② hold 伪装新 solve（污染耗时/成功率）。
+- **风险**：中。来源——trace 字段不全致无法归因。失效边界——公共必需字段不可缺。验证需求——trace schema 校验。
+- **DECOMPOSITION**：✓ 闭环（BL-35..38）。
+
+### DP-15 · 最小闭环仿真验证夹具
+
+- **推荐**：白盒直接调用正式 Adapter；闭环使用唯一 `SimulationSession` + controller + ship model。God 是确定性测试夹具，前端无第二引擎。canonical tuple = `head_on` Viknes/FLSC + `7m/s` + `dt=0.5s` + 无扰动。reference plant 按用途、确定性回归、步长收敛、物理限制验收（不宣称真实船校准）。solve-time 对齐执行前缀；预测误差与 Controller tracking error 分离。
+- **证据链**：[R22] Viknes/FLSC plant；[R27] NASA/ITTC/IMO 模型验证（按用途自定验收）；[R33] 多步预测误差监测；BL-39..42 闭环。
+- **弃用**：① 第二套简化动力学的假通过；② 点质量/Web 简化引擎与最终 Simulator 不一致；③ 宣称 Viknes digital twin。
+- **风险**：中。来源——复用同一模型代码产生循环验证；失配过大把不适用船型误判为算法缺陷。失效边界——MPC 预测模型不被强制等于 plant。验证需求——步长收敛测试 + 隔离阶跃响应。
+- **DECOMPOSITION**：✓ 闭环（BL-39..42）。
+
+### DP-16 · 闭环相位与多率关系
+
+- **推荐**：Session 持有唯一 sim clock；同一 `t` 完成环境→sensor→tracker→plan→control，再积分 `t→t+dt`。基础 profile 使用同周期最新 Track、计划当步生效。三态 `MeasurementScan`（`executed=false` / 空扫描 / 有效检测）；每次 scan 带 `sensor_id/scan_id/scheduled_time/capture_time/detections`；每个 Track 带 `state_time/last_detection_time/age`。V1 仅允许 `dt_sim` 整数倍周期（RunSpec 创建时拒绝不兼容）。真实延迟后置。
+- **证据链**：[R29] 单步相位；[R30] Radar/KF 扫描周期 + KF 真值初始化泄漏；[R31] VIM Adapter 空扫描语义；BL-43..46 闭环。
+- **弃用**：① 浮点取模块私有时钟（漏触发/漂移/重复）；② KF 正式链用 truth 初始化（缺陷）。
+- **风险**：中。来源——truth/Tracker/Planner 时间不一致或执行延迟不同致不公平比较。失效边界——统一 sim clock + 整数比周期。验证需求——dt=0.5/0.3/0.7 调度测试。
+- **DECOMPOSITION**：✓ 闭环（BL-43..46）。
+
+### DP-17 · MPC 模型与仿真船模失配边界
+
+- **推荐**：V1 冻结 Viknes 3DOF + FLSC 为 canonical synthetic plant；Custom MPC 声明自己的模型。V1 仅 `nominal_reference` profile（不伪造参数扰动）；FCB45 robustness range 保留 EXTERNAL_CONFIRMATION。证据驱动多标签归因：`PLANNER_FAILURE/EXECUTION_FAILURE/MODEL_MISMATCH_SENSITIVITY/SCENARIO_OR_ORACLE_INVALID/UNATTRIBUTED`（缺证据必须 UNATTRIBUTED）。Viknes 结果不得外推 FCB45。
+- **证据链**：[R22] Viknes/FLSC 结构（无执行机构动态，crude guessed 风载）；[R23] Telemetron 文献同类但非当前校准；[R32] SB-MPC 结构失配；[R34] 当前无 mismatch profile；BL-47..50 闭环。
+- **弃用**：① 复用同一模型代码（循环验证）；② 无惯性运动学 plant（高估转向/制动）；③ 自填 ±10%/±20% 扰动当资格认证。
+- **风险**：中。来源——完全一致循环验证；失配过大误判。失效边界——MPC 预测模型 ≠ plant。验证需求——nominal 闭环先量化已存在 prediction/execution gap。
+- **DECOMPOSITION**：✓ 闭环（BL-47..50）。
+
+### DP-18 · ENC、环境与终止语义
+
+- **推荐**：同一 ENC source 派生算法/evaluator geometry 并记录 SHA（manifest 增 `enc_hash`）。V1 无风流。物理 collision 只由 truth footprint/sweep 定义（BL-53）；grounding 用 vessel footprint + interval sweep（BL-52）。标准动态场景用 `route_exit`；显式终端状态任务用 `terminal_state`（BL-54）。PSB 风流只作 `source_reproduction`（不伪装 target robustness）。每船独立按静态吃水派生 hazards；只声明 `chart_geometric_clearance`，不宣称 operational UKC。
+- **证据链**：[R35][R36][R37] ENC layers + IHO S-57 + IMO A.893；[R38] collision/grounding/goal predicate；[R39] PSB 扰动 corpus；[R51][R52] C²A + Shapely；BL-51..55, BL-65..66 闭环。
+- **弃用**：① 单步 Point-in-Polygon（漏船体/扫掠/浅水）；② 中心距当物理碰撞；③ UKC 数值（需潮汐/squat/heel/CATZOC）；④ 复用 ownship hazards 给不同吃水目标船。
+- **风险**：高。来源——点船/粗时间步/未知水深漏穿透/船体相交/浅水。失效边界——footprint + sweep + 每船独立 hazards。验证需求——地图 golden geometry 测试 + 窄 hazard 穿越测试。
+- **DECOMPOSITION**：✓ 闭环（BL-51..55, BL-65..66）。
+
+### 第二批用户确认门
+
+- 待用户确认 DP-12..18 推荐。
+- 建议：批量确认。
+- 未确认前不标 VR final，不进 Step5。
+
+### 第二批用户确认 [2026-07-28]
+
+- 用户批量确认 DP-12..18 推荐。
+- DP-12..18 标 VR final。
+- 技术分解 TD-02 子模块 DP-16..18 全部综合完成。
+
+### DP-19 · 确定性重放
+
+- **推荐**：冻结 episode + SeedBundle + runtime identity。三种重放模式：`artifact playback`（Web 只读六件证据包，不重算算法）、`exact rerun`（runtime fingerprint 相同 + Adapter 声明 exact repeatability probe 通过；episode/调度/identity/状态/事件顺序/规范化数值 exact，不以 Parquet 字节为唯一 oracle）、`tolerance rerun`（native solver 或跨 runtime；离散语义 exact 含 solve/hold 序列/identity/失败状态/碰撞搁浅 COLREG 硬判定；连续数组按字段化 atol/rtol 比较；wall-clock 不参与数值相等）。稳定组件路径 SeedTree（`run_seed → {scenario, sensor/{ship_id}/{sensor_id}, tracker/{ship_id}, disturbance/{wind|current}, algorithm/{ship_id}/{algorithm_id}}`）；路径与 RNG scheme/version 写 manifest；禁止 global/unseeded/shared RNG。runtime fingerprint 进 replay identity（exact 要求相同，tolerance 记录 diff）。PSB/RLMPC native 默认 tolerance-only；同 runtime 重复性 probe 零漂移后才晋级 exact。
+- **证据链**：[R40] RunSpec/Manifest/replay/Parquet hash；[R41] RNG 接线；[R42] NumPy NEP 19；[R43][R44] PSB/RLMPC 非确定性；[R45] PyTorch 复现边界；[R46] CRN；[R47] SLSA + numpy.show_runtime；BL-56..60 闭环。
+- **弃用**：① 单一根 seed（任一模块新增采样改变其他）；② 全局 RNG/共享 seed（执行顺序影响输入）；③ 以 Parquet 文件字节作唯一数值 oracle；④ tolerance 放宽离散身份/硬 verdict。
+- **风险**：高。来源——native/GPU/并行求解器不 bit-exact + 完全不检查无法发现行为漂移。失效边界——硬 verdict 永不放宽。验证需求——exact repeatability probe + tolerance probe。
+- **DECOMPOSITION**：✓ 闭环（BL-56..60）。
+
+### DP-20 · MPC 独立评价与资格认证体系
+
+- **推荐**：评价独立于被测 MPC，使用仿真 truth。三层输出：**硬资格门**（证据/身份有效、无 fallback、执行链完成、零 truth collision/grounding/map exit、定向 COLREG 行为 predicate 通过、任务/控制/实时门通过；任一失败即不合格，不得被分数抵消）+ **研究评分**（论文 profile 的 S_safety/S_r/S_theta/S8/S13..17 及 P_*/compensation；用于解释质量和同 profile 比较）+ **诊断**（DCPA/TCPA/footprint clearance/CPA pose/阶段角色/机动起止/路径偏差/控制饱和/solve status/time/iterations/Tracker 误差）。当前 reconstructed evaluator 定级为 `evidence-flow stub`（`numerical_reproduction_confirmed=False`），完成论文公式/profile/golden tables 前不得授予 G3。Multi-ship 先 pairwise 后场景聚合。gate 三态（PASS/FAIL/NOT_EVALUATED）+ qualification 四态（PASS/FAIL/NOT_EVALUATED/INVALID）；全部并发失败保留，primary_reason 仅展示/路由。
+- **证据链**：[R1][R2] 独立评价框架；[R48] 当前 reconstructed evaluator 差异（11 项语义未实现）；[R49] 历史 evaluator.yaml；[R50] 2024 grounding extension；BL-61..64 闭环。
+- **弃用**：① 单一加权总分决定可用性（碰撞算法因延误小排名高）；② 用 Track 评价（把估计误差当真值）；③ 当前 reconstructed evaluator 授 G3。
+- **风险**：高。来源——MPC objective 只证明优化自己目标，不证明安全/守规/可执行。失效边界——硬门独立于评分。验证需求——硬门 predicate 测试 + 论文 golden tables。
+- **DECOMPOSITION**：✓ 闭环（BL-61..64）。
+
+### DP-21 · 安全与 ENC Oracle
+
+- **推荐**：`physical_collision`/`physical_grounding` 由 truth footprint + 同步时间连续碰撞检测（C²A conservative advancement）定义；**禁止中心距/CPA/船长半径冒充物理碰撞**，**禁止两船各自独立 swept union 后相交**（须同步时间 A(t)∩B(t)）。`clearance_m` = 两 footprint 最小几何距离（接触后 0）。三类 buffer 分离：numerical tolerance（`set_precision` grid_size << beam）/ chart uncertainty（CATZOC 质量标签非数值 buffer）/ safety buffer（COLREG 安全域）。footprint 用船模 vertex（无 vertex 显式 fallback 五边形）。姿态插值连续（piecewise-constant v/w，screw-motion bounded），不得 lerp 顶点。paper profile 保持固定绝对 CPA（如 ccta_2023_demo 190/100/50/30m）；ship-length-scaled Fujii/Namgung 椭圆船域作独立 profile，缩放后不称论文复现。统一单一 CPA 实现（signed_tcpa/future_cpa/observed_cpa/rel_speed_status），负 TCPA 不自动解除 encounter，低相对速度为工程决策。ENC clearance 四类分离（polygon hazard / point-line distance / unknown-unsurveyed / CATZOC flag），每船独立派生 hazards，不宣称 operational UKC。Simulator/Session/Gym/Evaluator 共用同一 oracle 实现和事件时间语义。
+- **证据链**：[R38] collision/grounding predicate；[R51] C²A CCD；[R52][R53] Shapely/set_precision；[R54][R55][R56][R57] ENC layers/CATZOC/ECDIS/S-57；[R58] MSC.192(79) CPA/TCPA 操作员设置；[R59] Namgung CPA/TCPA + Fujii 船域；[R60] COLREG Rule 8；BL-65..69 闭环。
+- **弃用**：① 中心距 `<= length/2`；② CPA/安全域改写物理碰撞；③ 两船独立 swept union 相交；④ 三类 buffer 合一；⑤ lerp 顶点；⑥ 论文固定 CPA 缩放后仍称复现；⑦ 负 TCPA 自动解除 encounter；⑧ 点/线 ENC feature buffer 后称真实边界；⑨ operational UKC。
+- **风险**：高。来源——点船/粗步/未知水深/独立 union 漏穿透/相交/浅水。失效边界——同步时间 CCD + 三类 buffer 分离 + 每船独立 hazards。验证需求——C²A first-TOC 测试 + 窄 hazard 穿越测试 + grid_size << beam 测试。
+- **DECOMPOSITION**：✓ 闭环（BL-65..69）。
+
+### DP-22 · COLREG 行为 Oracle
+
+- **推荐**：truth pairwise Encounter Oracle 锁定规则角色（Eriksen 式 SF↔{OT,HO,GW,SO,EM} FSM，强制 return-to-SF），按风险/阶段解除；算法内部规则状态仅作诊断。oracle 为 profile-parameterized：112.5° crossing/overtaking 边界作 regulatory constant（Rule 21 灯光弧）；head-on 半角与 contact-angle 容差作显式 profile 参数（Woerner 默认 13°/45°/10°）；采用双变量 (β,α) 分类（非 bearing-only）。entry/exit 含 (DCPA,TCPA,t_crit) hysteresis；control state machine 与 evaluation timeline 分离。四阈值 profile（θ_detectable 2°、θ_substantial 30°、Δv_substantial 0.5、t_early_factor range-fraction）。双变量 (α,β) pose；crossing-ahead 经 stand-on 的 α；port-to-port 经 Woerner signed-sine reward；passed-clear 为合取（t_CPA<0 ∧ range increasing ∧ CPA-pose satisfied）。Rule 17 三阶段 sub-FSM（KEEP→MAY_ACT→SHALL_ACT）。multi-ship 不发明优先级（per-pair + C_x,gw compensation）；非合作 = S_* 阈值触发 stand-on MAY_ACT。输出"符合 evaluator profile"，不直接宣称法律合规。
+- **证据链**：[R61] COLREGS 条约（仅 22.5° abaft beam 固定）；[R62] Woerner 2016（canonical angles/thresholds/pose reward）；[R63] Woerner 2019；[R64] Eriksen 2020 FSM；[R65][R66] AIS/Akdag 使用 Woerner；[R67] Murray Eq.11；[R68] Zhao DRL；BL-70..74 闭环。
+- **弃用**：① 每帧重分类（算法通过自身转向逃离原规则）；② bearing-only 分类；③ range-only stage gate；④ 最终几何证明 Rule 8/16/17 时序行为；⑤ 发明 multi-ship 优先级；⑥ 5°/15° 阈值当论文值（Woerner 2°/30°）。
+- **风险**：高。来源——模糊法规术语 + 不锁角色漏错误转向 + 三 A-grade source 给不同角度。失效边界——profile-parameterized + 锁定 FSM。验证需求——论文 golden tables + 双向角色测试 + Rule 17 phase 测试。
+- **DECOMPOSITION**：✓ 闭环（BL-70..74）。
+
+### DP-23 · 任务、控制与求解指标
+
+- **推荐**：分任务/执行/求解三组报告，保留原始单位；仅通过安全/COLREG 硬门的 run 参与效率排名。不同算法 objective 不横向比较。`route_exit`/`terminal_state` 双模式 profile 化。tracking error 统一针对闭环执行轨迹（regardless of control form）；控制努力（总舵/总推力）单独报告。`solver.iterations`/`objective` 不横向比较（SQP ≠ CE ≠ DRL）；可比较 wall-clock/feasibility/violation/outcome。collision=FAILED（吸收事件非删失）；timeout=右删失用 Kaplan-Meier + Greenwood；不插补假 arrival；连续指标两种报告（pre-failure prefix OR 完全排除）。deadline：wall-clock + RT-factor 双报告；硬件进 fingerprint。
+- **证据链**：[R62] Woerner efficiency/mission metrics + Appendix C RT-factor；[R72] Beiranvand wall-clock 依赖硬件；[R73] Eriksen NLP timing；[R74] Kaplan-Meier；BL-75..79 闭环。
+- **弃用**：① 综合分掩盖未到达/饱和/不连续/超时；② 不同 solver objective 横向比较；③ collision 当删失；④ 插补 episode_max；⑤ 单一 wall-clock 无 normalize。
+- **风险**：中。来源——平均耗时隐藏 deadline 尾部 + 碰撞后提前终止获虚假低延误。失效边界——分组 + 失败保留分母。验证需求——censoring 测试 + RT-factor 报告。
+- **DECOMPOSITION**：✓ 闭环（BL-75..79）。
+
+### DP-24 · G2/G3/G4 证据门
+
+- **推荐**：能力等级按组合证据生成（`capability_profile_id = {rule}:{scenario}:{algorithm}:{tracker}`），不全局硬编码算法等级。G3 canonical set = t=2 covering array（≥16/rule family）× 3 seeds × G3-eligible cells，零硬门失败；G4 保留 `range(30)` + 95% CI。manifest 增 `enc_hash` + 显式 `capability_dependencies` 聚合（失效规则 = 任一成员变化）；变更分类 BREAKING/COMPATIBLE/SUPERSEDED。G3 须零硬门失败；TIMEOUT_FEASIBLE 为 G3 soft gate 非 PASS、G4 失败；NOT_EVALUATED 不能 G3。Web：per-cell matrix + aggregate badge = 最小 grade + evidence drill-down。promotion 需人工审核 + audit trail（approver/tool version）；demotion 自动即时。Nominal 仅作 G2 风险基线。
+- **证据链**：[R21] NIST covering-array；[R40] manifest identity；[R48][R49] evaluator stub；[R69][R70][R71] DO-178C/ISO 26262/IEC 61508；[R8] capability matrix；BL-80..84 闭环。
+- **弃用**：① 全局硬编码算法等级（随代码/地图/依赖漂移失效）；② import/单次无碰撞当 G3；③ auto-promotion 无人工审核。
+- **风险**：高。来源——手工等级不随漂移失效 + auto-promotion 无审核。失效边界——组合证据 + capability_dependencies hash + 人工签 off。验证需求——canonical set 硬门回归 + manifest-diff 失效检查。
+- **DECOMPOSITION**：✓ 闭环（BL-80..84）。
+
+### DP-25 · 公平 episode、seed 与统计政策
+
+- **推荐**：G3 用 deterministic canonical set；G4 用预注册 seed + 配对统计。**不硬编码 seed 数**；precision-target on paired difference（~20-50 起始 + sequential addition to declared half-width）。tuning/qualification/holdout 三不相交 + no-look-ahead（G3 属 qualification；evaluator 在 tuning 冻结）。CI 方法：failure-rate→Wilson score（非 Wald）；censored arrival→Kaplan-Meier + Greenwood；paired continuous→paired-t if normal else Wilcoxon signed-rank，bootstrap CI 作 robust default；small canonical n→descriptive + nonparametric CI，formal tests 留 G4。CRN 仅外生输入（keyed-CRN 解耦 call order）；不同步 realized measurement stream（path-dependent visibility 是系统属性）。每 run 持久化 `(n_attempted, n_completed, n_crashed, n_timeout, n_no_output)`；连续 CI 仅 `n_completed`；failure rate Wilson on `n_attempted`；**绝不**插补假 arrival time。所有失败保留分母。
+- **证据链**：[R46] Ehrlichman CRN paired framework；[R74] Kaplan-Meier；[R75] Koehler 无固定 replication；[R76] Wilson；[R77] Efron bootstrap；[R78] Wilcoxon；[R79] Little & Rubin MNAR；BL-85..89 闭环。
+- **弃用**：① 删除碰撞/超时/crash（幸存者偏差）；② 重复用验证集调参（过拟合）；③ 均值隐藏长尾；④ Wald 区间；⑤ 插补 episode_max；⑥ 强制同步 visibility。
+- **风险**：高。来源——统计方法不当致结论不可信。失效边界——配对 + 失败保留 + 正确 CI。验证需求——paired difference CI + Wilson failure rate + KM censoring。
+- **DECOMPOSITION**：✓ 闭环（BL-85..89）。
+
+### DP-26 · 可复现实验证据包
+
+- **推荐**：保持 manifest/episode/events/trajectory/evaluation/report 六件包；events/trajectory 增量写，成功/失败均原子封存。trajectory/events 列级 schema + schema_version。events.jsonl 改 append + fsync；manifest/evaluation/report 用 `.tmp` + atomic rename；crash 保留 partial 标志。大 horizon（>1000 步 或 >10 目标）拆 per-solve `{run_id}/solves/{solve_id}.json` + events 引用。内容 hash（canonical JSON SHA-256）+ manifest 签发（`tamper_evident` 非 `tamper_proof`）。V1 不支持 pickle；legacy 仅一次性迁移。Web 只读同一证据。
+- **证据链**：[R29] events/trajectory 持久化；[R40] manifest/replay/hash；BL-90..94 闭环。
+- **弃用**：① pickle/单体 JSON（不利于审计/迁移/增量写/安全读取）；② 只在正常结束写文件（丢 native crash 证据）。
+- **风险**：中。来源——部分写入伪装完整 run。失效边界——增量写 + 原子封存。验证需求——native crash 后证据完整性测试。
+- **DECOMPOSITION**：✓ 闭环（BL-90..94）。
+
+### 第三批用户确认门
+
+- 待用户确认 DP-19..26 推荐（8 个 DP，Playground 正确性核心）。
+- 建议：逐条或批量确认。
+- 未确认前不标 VR final，不进 Step5。
+
+### 第三批用户确认 [2026-07-28]
+
+- 用户批量确认 DP-19..26 推荐。
+- DP-19..26 标 VR final。
+- 技术分解 TD-03 子模块 DP-21..26 全部综合完成。
+
+### DP-27 · 外部/原生算法隔离 Worker
+
+- **推荐**：按需隔离；兼容算法可 in-process，native/冲突算法使用本地 Worker。V1 subprocess 优先（`multiprocessing` 或 `subprocess.Popen`）；container 仅用于无法共存的依赖 profile（如 RLMPC acados vs PSB Eigen）。V1 每 run 新建 Worker（冷启动，匹配 reset 语义）；持久 Worker 后置（须泄漏 probe 通过）。Worker startup/reset 后清空所有内部状态（warm start/cache/RNG）；replay 用新 Worker + 同 seed + 同 runtime fingerprint。in-process 传完整 ENC；subprocess Worker 传裁剪 hazard geometry（BL-69 四类 + footprint-relevant union）+ bbox + SHA；大 horizon 用共享内存或 memoryview；序列化 MessagePack/Arrow（非 pickle）。本地单用户最小安全：Worker 无网络访问、无文件系统写（除指定 output_dir）、CPU/内存上限（`resource.setrlimit`）；不做鉴权；container profile 加 seccomp/AppArmor。
+- **证据链**：[R11] 当前 in-process；[R43] PSB native abort；[R44] RLMPC 依赖冲突；[R35] ENC 加载慢；BL-95..99 闭环。
+- **弃用**：① 全部容器化（无谓复杂）；② 完全不隔离（一次崩溃破坏整个服务）；③ 持久 Worker 跨 run（状态泄漏）；④ pickle 跨进程。
+- **风险**：中。来源——native abort 连同 Web/Session 退出 + 依赖冲突。失效边界——subprocess 隔离 + 每 run 新建。验证需求——native abort 不影响主进程测试。
+- **DECOMPOSITION**：✓ 闭环（BL-95..99）。
+
+### DP-28 · in-process/Worker 边界与运行时身份
+
+- **推荐**：执行模式属 runtime profile，不由算法名硬编码。in-process 准入需 crash/timeout/reset/replay 四 probe 全过（注入异常确认不崩主进程 + 可中断 + 零状态残留 + 同 seed 零漂移），否则 subprocess。lockfile（`uv.lock`/`requirements.txt`）hash 进 manifest；native 依赖（CMake/build flags/binary SHA）进 `AlgorithmDescriptor.build_identity`（缺失标 UNKNOWN）。container profile 记录 image digest + 本地源码 commit + mount 路径；无 digest 标 `unreproducible`。持久 Worker 后置；启用前须泄漏 probe（同 episode 两次 run 比对 horizon/state/RNG 零差异）；V1 不启用。
+- **证据链**：[R40] manifest dependencies；[R42] NumPy 跨 build 边界；[R43][R44] PSB/RLMPC native；BL-100..103 闭环。
+- **弃用**：① 按算法名硬编码执行模式；② import 成功当 reset/deadline/隔离证明；③ 持久 Worker 无泄漏检测。
+- **风险**：中。来源——依赖升级改变 native runtime 后旧 capability 误用。失效边界——四 probe 准入 + build_identity。验证需求——四 probe 测试套件。
+- **DECOMPOSITION**：✓ 闭环（BL-100..103）。
+
+### DP-29 · Worker 通信、超时与崩溃语义
+
+- **推荐**：协议版本化，区分 health/reset/plan/shutdown。V1 subprocess 用 stdin/stdout JSON Lines（每行一帧：`{request_id, type, payload}`）；大数组（horizon/ENC）用 base64 Arrow IPC 或共享内存；stderr 留日志（截断保留上限如 1MB，清理敏感占位符）。parent 持有 hard deadline；超时先 `SIGTERM`（grace period 内收集部分响应），再 `SIGKILL`；crash/timeout 使当前正式 run 失败，Worker 仅为下一 run 重建。每 plan 请求唯一 `request_id` + `solve_id`；plan 不自动重试；相同 `request_id` 重复 = 客户端错误；有状态 plan 幂等 = 同 request_id 返回缓存（仅未超时）。V1 每 run 新建；startup health probe。
+- **证据链**：[R9] solve_id；[R10] persistence；BL-104..108 闭环。
+- **弃用**：① 无 framing JSON（日志污染）；② 只等进程退出（无法中止卡死）；③ 自动重试有状态 plan（重复更新）；④ 自动重启继续 run（丢 warm start）。
+- **风险**：中。来源——协议无 framing + 无 hard deadline + 自动重试。失效边界——JSON Lines + SIGTERM→SIGKILL + 不重试。验证需求——超时/崩溃恢复测试。
+- **DECOMPOSITION**：✓ 闭环（BL-104..108）。
+
+### DP-30 · 外部 MPC 输出归一化
+
+- **推荐**：每个 Adapter 版本化 `TrajectoryMapping`/`StatusMapping`；先 raw、后归一化，保存两者 hash。PSB：native `(4,N)` `[x,y,chi,U]` col-0=current → public `(9,N)`（`psi:=chi`, `u/v` 待裁决 sin(chi) vs 0, accelerations finite-diff estimated=true）；control `(u_d*u_opt, chi_d+chi_opt)`；native predicted_trajectory 是真实 plant_prediction（正式 `PSBMPCColav` 正确读，legacy wrapper 丢弃自己 roll out）。RLMPC：native `(6,N)` `[x,y,chi,U,V,r]` → public `(9,N)`（`psi:=chi`, `u:=U`, `v:=V`, `r:=r` 故 psi_dot native 无需 finite-diff, accelerations finite-diff）；control `[Fx,Fy]`；reference `nominal_trajectory (6,N)`。method-driven 可验证（atan2/identity, estimated=false/true+method）vs estimated（finite_diff, estimated=true+method+dt）。stock payload 小（PSB~1-4KB 3 字段, RLMPC~5KB 10 keys）+ as-returned 持久化；PSB objective/constraints 须 C++ binding 改动（flag future）。PSB 无 INFEASIBLE 区分（C++ 零 throw/assert，UNKNOWN，统一 NUMERICAL_FAILURE）；RLMPC local enum 映射表（非 upstream acados）；status 须扩展 wrapper 暴露。不能提取真实 horizon/时间网格/所选控制的外部 MPC 最多 G2。
+- **证据链**：[R43] PSB 源码（`optimal_offsets_results_py`, `predicted_trajectory`, KinematicShip 构造）；[R44] RLMPC 源码（Viknes model, `plan()` return dict, AcadosErrorCode）；BL-109..113 闭环。
+- **弃用**：① `vstack zeros` 隐藏缺失语义；② 单一 exception 丢失 timeout/infeasible 差别；③ 重新生成展示轨迹（脱离真实解）；④ 把 legacy wrapper 的 reference_rollout 当 plant_prediction。
+- **风险**：高。来源——维度映射错误 + native status 丢失 + wrapper 不可用。失效边界——版本化 Mapping + as-returned 持久化 + 先修复 wrapper。验证需求——native vs normalized hash 比对 + status 映射测试。
+- **冲突标注**：`v` 的处理（PSB `U*sin(chi)` vs `0`）证据分裂——PSB native 假设 course-aligned（v≡0），但 public 契约若要求 body-frame sway 则需裁决。留 Step5 DESIGN-IT-TWICE 解决。
+- **DECOMPOSITION**：✓ 闭环（BL-109..113）。
+
+### DP-31 · 后端到 Web Viewer 的只读边界
+
+- **推荐**：后端唯一事实源；WebSocket 是可降采样实时投影，REST/artifacts 是完整证据。Web 消费 Session/PlannerTrace/Evaluator/Evidence 的版本化投影，不重新实现动力学/风险/规则。WebSocket 消息带 `schema_version`；字段演进 additive-only（新增不破坏旧客户端）；删除/重命名 bump major + 兼容窗口。推送频率 = 仿真步降采样（如每 N 步或每 100ms）；背压 = 慢客户端丢中间帧（保留最新）；断连不影响 run；客户端重连用 `seq` 追赶。Web 不发完整 raw horizon/ENC（降采样投影：horizon 前 20 点、ENC bbox outline）；大数据走 REST artifact 下载。本地单用户不做鉴权；绑 `127.0.0.1`；远程后置 token+TLS。live state 带单调 `seq`；Web 消息带 `seq` + 当前 manifest hash；客户端校验 live seq ≤ artifact seq；run 结束后 artifact 为权威，live 不再更新。
+- **证据链**：[R10] Session/Evaluator；[R31] Web 只读边界；BL-114..118 闭环。
+- **弃用**：① 前端自行计算 CPA/规则标签（与离线报告不同结论）；② 直接发送内部对象（schema 漂移）；③ 每步发全部 raw horizon/ENC（丢帧/UI 卡顿）；④ 慢客户端阻塞仿真。
+- **风险**：中。来源——schema 漂移 + 慢客户端阻塞 + 前端重算。失效边界——版本化投影 + 降采样 + 背压。验证需求——断连恢复测试 + schema 兼容测试。
+- **DECOMPOSITION**：✓ 闭环（BL-114..118）。
+
+### 第四批用户确认门 + Step4 完成门
+
+- 待用户确认 DP-27..31 推荐（最后 5 个 DP）。
+- Step4 完成门检查（design-grounding SKILL）：
+  - ✅ 每 DP 有推荐 + 证据 + 弃用（DP-05..31 共 27 项全部综合）。
+  - ✅ 技术分解无遗漏（TD-01..04 全部子模块综合完成；无 DECOMPOSITION_INCOMPLETE）。
+  - ✅ 推荐有风险量化 + 失效边界 + 验证需求。
+  - ✅ 冲突标注（DP-30 `v` 处理证据分裂，留 Step5）。
+- 未确认前不标 VR final，不进 Step5。
+
+### 第四批用户确认 + Step4 完成 [2026-07-28]
+
+- 用户批量确认 DP-27..31 推荐。
+- DP-27..31 标 VR final（VR-27..31）。
+- 技术分解 TD-04 子模块 DP-28..30 全部综合完成。
+- **Step4 完成**：DP-05..31 共 27 项全部综合，VR-05..31 登记；TD-01..04 无 DECOMPOSITION_INCOMPLETE；冲突标注 DP-30 `v` 留 Step5。
+- 不自动进入 Step5；等待用户授权。
+
+#### Step4 完整 MPC Playground 方案概览
+
+**一、平台定位（VR-01..04）**
+- 一条动态 MPC 避碰验证主链；论文复现/RRT/VIM 为条件插件；`Custom MPC` = 用户自研 MPC 经统一 Adapter 接入。
+
+**二、输入边界（VR-05..11）**
+- 场景：当前五类标准场景 + PSB 小型固定迁移样本（三件套）。
+- ODD：V1 四类双船 open-water + God + Viknes + 无风流。
+- 资格顺序：Nominal→VO/SB→Custom→PSB/RL 条件。
+- 接口：`CustomMPCAdapter(ICOLAV)` + typed `PlannerInput` DTO + `AlgorithmDescriptor`（12 强制字段）。
+- 输入语义：Adapter 验证坐标/单位/age/PSD/shape；缺失→INVALID_INPUT。
+- 输出语义：`9xN` col-0=solve-time；StateMapping 版本化；连续性检查。
+
+**三、执行与诊断（VR-12..14）**
+- 时序：多率调度；solve 在 t=0；hold 保留 horizon 原点；离线可关 deadline。
+- 失败：strict_no_fallback；六态分类；TIMEOUT_FEASIBLE 计 deadline；归因三源。
+- 诊断：真实 solve 才写 events；公共 9+专项 4 字段；多模态 target schema；大 horizon 拆文件。
+
+**四、仿真夹具（VR-15..18）**
+- 夹具：白盒+闭环走同 Adapter；canonical Viknes tuple；reference plant 按用途验收。
+- 相位：统一 sim clock；三态 MeasurementScan；V1 整数比周期。
+- 失配：nominal_reference 不伪造扰动；多标签归因；不外推 FCB45。
+- 环境：同 ENC + enc_hash；footprint+sweep；route_exit/terminal_state；每船独立 hazards；只 chart_geometric_clearance。
+
+**五、重放与身份（VR-19）**
+- 三模式（artifact playback/exact/tolerance）；SeedTree 稳定路径；runtime fingerprint；native 默认 tolerance-only。
+
+**六、独立评价（VR-20..26）**
+- 三层分离：硬资格门 / 论文评分 / 诊断；score 不抵消硬失败。
+- 安全 oracle：footprint+同步 CCD 定义 collision/grounding；三类 buffer 分离；统一 CPA；ENC 四类分离。
+- COLREG oracle：profile-parameterized；锁定 FSM；双变量(β,α)；四阈值；Rule 17 三阶段。
+- 指标：任务/执行/求解三组；objective 不横向比较；RT-factor 双报告。
+- 资格：组合证据；canonical=t=2 covering×3 seeds×零硬门；promotion 人工+demotion 自动。
+- 统计：不硬编码 seed；Wilson/KM/paired-t/Wilcoxon/bootstrap；绝不插补。
+- 证据包：六件包；增量写+原子封存；tamper_evident。
+
+**七、外部算法 Worker（VR-27..30）**
+- 隔离：subprocess 优先；每 run 新建；四 probe 准入。
+- 通信：JSON Lines；SIGTERM→SIGKILL；不重试。
+- 归一化：版本化 TrajectoryMapping/StatusMapping；PSB(4,N) plant_prediction；RLMPC(6,N) r=psi_dot。
+
+**八、Web 只读边界（VR-31）**
+- 版本化投影；降采样推送；不发 raw；127.0.0.1；live seq+hash。
+
+**已知冲突（留 Step5）**：DP-30 PSB `v` 处理（sin(chi) vs 0）。
+
+**诚实边界（EXTERNAL_CONFIRMATION_REQUIRED）**：FCB45 目标 plant、CATZOC 数值精度表、目标海域 metocean、Agder 地图、历史许可。
+
+**实现期须修复的代码缺陷**（15+ 项）：中心距碰撞、五边形 footprint、RK4 无 dense output、三套 CPA 不一致、ENC 中心点距离、删除 Polygon interior、grunne 点喂入 seabed、shore 折叠 UNSARE、bearing-only 分类、range-only stage、evaluator 5°/15° 偏差、无 Rule 17 FSM、KinematicShip 参数误绑、AcadosMPCWrapper 不可用、grounding oracle 调不存在函数。
