@@ -562,7 +562,7 @@ canvas#simCanvas {
 }
 
 /* ── Map log and playback controls ───────────── */
-.log-section {
+.log-section.card {
   position: absolute;
   right: 12px;
   bottom: 12px;
