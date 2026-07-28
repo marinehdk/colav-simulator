@@ -1,0 +1,7 @@
+factory: examples.custom_mpc_plugin:create
+dependency_lock: ../uv.lock
+kwargs:
+  horizon_steps: 5
+  horizon_dt_s: 0.5
+  solve_period_s: 1.0
+  deadline_s: 1.0

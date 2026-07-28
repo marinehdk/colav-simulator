@@ -1,11 +1,28 @@
 # Dynamic MPC Playground Phase 2 实施计划
 
 > 日期: 2026-07-28
-> 状态: 已确认、实施中
+> 状态: P2-Platform PASS / P2-Algorithm pending
 > 实施分支: `codex/colav-backend-algorithms`
 > 审计基线 commit: `3ece120`
 > 当前 working tree 回归: `111 passed, 1 skipped`
 > Source Spec: `docs/superpowers/specs/2026-07-28-dynamic-mpc-playground-design.md`
+
+## 0. 实施结果
+
+P2-Platform 已完成:
+
+- strict `module:factory -> CustomMPCAdapter(ICOLAV)` 入口;
+- typed PlannerInput/MPCSolution/AlgorithmDescriptor/build identity;
+- t=0 solve、solve/hold、deadline、reset、六态失败;
+- `DEPENDENCY_UNAVAILABLE -> SKIPPED/NOT_EVALUATED`;
+- 矩形 footprint 同步连续段 boolean oracle;
+- `plugin-check`、示例 fixture、Custom 专用 G3 附加 gate;
+- 全量回归 `158 passed, 2 skipped`;
+- Phase 2 修改面 targeted ruff PASS。
+
+完整 P2 尚未通过。当前未收到 §3.3 定义的用户论文/自研 MPC factory、
+依赖 lock、最小 config、native state/control/horizon 语义。示例 fixture 未加入
+capability catalog，也未运行或冒充六场景 Custom G3 matrix。
 
 ## 1. Phase 2 目标
 
