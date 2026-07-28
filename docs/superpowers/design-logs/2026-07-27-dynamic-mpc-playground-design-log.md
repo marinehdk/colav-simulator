@@ -2,7 +2,7 @@
 
 > **模式**: 重构        **创建**: 2026-07-27
 > **关联方案包**: `docs/superpowers/specs/2026-07-27-dynamic-mpc-playground-solution-pack.md`
-> **状态**: Step3 进行中；第七批已授权，待新对话继续调研
+> **状态**: Step3 完成；BL-01..118 全部盲区已闭环或标 UNKNOWN/EXTERNAL_CONFIRMATION_REQUIRED；证据矩阵 R1..R79；等待用户授权进入 Step4
 > **工作分支**: `codex/colav-backend-algorithms`
 > **设计对象**: 复用上游 COLAV-Simulator，建立用于 Custom MPC 正确性、有效性和公平对比的动态避碰 Playground
 > **取代旧日志**: `2026-07-27-mpc-colav-simulation-validation-platform-design-log.md`
@@ -62,40 +62,40 @@
 | BL-02 | 历史 ENC 与当前 ENC 的许可、版本、几何和安全水域等价性 | DP-05 | 高 | 边界已确认：easy 窗口几何等价；Agder 与历史许可保留 `EXTERNAL_CONFIRMATION_REQUIRED` |
 | BL-03 | 每类 100 个 episode 中最小认证集的抽样/选取规则 | DP-05 | 中 | 已闭环：上游无缩减集；本项目 G3 数量转 BL-80 |
 | BL-04 | Custom MPC 预期船型、速度、水深和可操纵范围 | DP-06 | 高 | 边界已闭环：V1 为 Viknes reference ODD；FCB45 target ODD 保留 `EXTERNAL_CONFIRMATION_REQUIRED` |
-| BL-05 | 每条规则达到 G3 所需的最小几何变体数量 | DP-06 | 高 | 未调研 |
+| BL-05 | 每条规则达到 G3 所需的最小几何变体数量 | DP-06 | 高 | 边界已闭环：采用 covering-array t=2 方法 + 声明为本项目新建 regression set；具体数量待 BL-80 |
 | BL-06 | multi-ship 是否作为首个 Custom MPC 里程碑完成门 | DP-06 | 中 | 已闭环：用户确认后置 V3 |
 | BL-07 | 风流扰动进入 V1，还是基础无扰动通过后启用 | DP-06 | 中 | 已闭环：用户确认后置 |
 | BL-08 | VO/SB-MPC 是否必须各自覆盖全部四类双船规则 | DP-07 | 高 | 已闭环：每类至少一个 G3 对照即可 |
 | BL-09 | 各场景“有效风险基线”和“对照算法通过”的定量阈值 | DP-07 | 高 | 已闭环：风险资格、物理硬门、Evaluator profile 三层分离；具体数值门归 DP-20..25 |
-| BL-10 | Custom MPC 首次交付形式和运行环境 | DP-07 | 中 | 未调研；转 DP-08/DP-27 |
-| BL-11 | 扩展现有 `ICOLAV.plan` 参数，还是在 Adapter 内引入 typed request DTO | DP-08 | 高 | 未调研 |
-| BL-12 | 坐标、单位、时间有效性和 Track 数据质量的 Adapter/solver 验证边界 | DP-08 | 高 | 未调研 |
-| BL-13 | Custom MPC 配置 schema、版本和参数身份记录方式 | DP-08 | 中 | 未调研 |
-| BL-14 | Track 最大允许 age；过期后拒绝还是标记降级 | DP-09 | 高 | 未调研 |
-| BL-15 | covariance 坐标系、状态顺序、PSD 容差及缺失政策 | DP-09 | 高 | 未调研 |
-| BL-16 | MPC 接收完整 ENC 对象，还是裁剪后的可序列化 hazard geometry | DP-09 | 高 | 未调研 |
-| BL-17 | 目标船 length/width 缺失或不可信时的处理政策 | DP-09 | 中 | 未调研 |
-| BL-18 | horizon 第 0 列表示当前状态还是下一控制时刻 | DP-10 | 高 | 未调研 |
-| BL-19 | solver 状态维度不是 9 时，加速度/缺失状态的映射方式 | DP-10 | 高 | 未调研 |
-| BL-20 | 输出轨迹连续性、物理一致性和首点误差容差 | DP-10 | 高 | 未调研 |
-| BL-21 | `selected_control` 表示参考指令还是原始 MPC 控制量 | DP-10 | 中 | 未调研 |
-| BL-22 | `AlgorithmDescriptor` 强制字段与允许 `not_applicable` 字段 | DP-11 | 高 | 未调研 |
-| BL-23 | 外部二进制/服务的代码 SHA、build 和依赖身份获取方式 | DP-11 | 中 | 未调研 |
-| BL-24 | 自适应权重、动态 horizon 和在线模式切换的记录方式 | DP-11 | 高 | 未调研 |
-| BL-25 | 目标函数和约束名称是否需要公共分类词表 | DP-11 | 中 | 未调研 |
-| BL-26 | 首次求解发生在 `t=0` 还是首个 `dt_sim` 后 | DP-12 | 高 | 未调研 |
-| BL-27 | solve period/deadline 由算法声明，还是允许 RunSpec 覆盖 | DP-12 | 高 | 未调研 |
-| BL-28 | 非求解步对上一 horizon 采用采样推进、插值还是固定第一指令 | DP-12 | 高 | 未调研 |
-| BL-29 | warm start 与随机求解器的 reset/replay 保证范围 | DP-12 | 高 | 未调研 |
-| BL-30 | 离线快速仿真是否也强制实时 deadline | DP-12 | 中 | 未调研 |
-| BL-31 | `TIMEOUT_FEASIBLE` 超过 deadline 后是否仍允许执行 | DP-13 | 高 | 未调研 |
-| BL-32 | Web 调试模式失败后终止，还是冻结/hold 以便观察 | DP-13 | 中 | 未调研 |
-| BL-33 | 连续可行超时多少次后判定整个 run 失败 | DP-13 | 高 | 未调研 |
-| BL-34 | `INVALID_INPUT` 归因于场景、Adapter 或算法的规则 | DP-13 | 中 | 未调研 |
-| BL-35 | 公共必需字段与 MPC 专项必需字段的边界 | DP-14 | 高 | 未调研 |
-| BL-36 | cost/constraint 公共分类词表与最小裕度表示 | DP-14 | 高 | 未调研 |
-| BL-37 | 多模态目标预测、概率和 covariance 的 trace schema | DP-14 | 中 | 未调研 |
-| BL-38 | 长时域、多目标 trace 的体积、压缩和保留策略 | DP-14 | 中 | 未调研 |
+| BL-10 | Custom MPC 首次交付形式和运行环境 | DP-07 | 中 | 已闭环：`CustomMPCAdapter(ICOLAV)` 薄适配器；in-process 优先；Worker 后置 |
+| BL-11 | 扩展现有 `ICOLAV.plan` 参数，还是在 Adapter 内引入 typed request DTO | DP-08 | 高 | 已闭环：Adapter 内 typed `PlannerInput` DTO；保持 `ICOLAV.plan()` 签名兼容 |
+| BL-12 | 坐标、单位、时间有效性和 Track 数据质量的 Adapter/solver 验证边界 | DP-08 | 高 | 边界已闭环：Adapter 验证坐标/单位/时间/Track 质量；solver 判断优化可行性；技术规约 Step6 锁定 |
+| BL-13 | Custom MPC 配置 schema、版本和参数身份记录方式 | DP-08 | 中 | 已闭环：`AlgorithmDescriptor` 版本化可哈希 config；manifest 冻结副本 |
+| BL-14 | Track 最大允许 age；过期后拒绝还是标记降级 | DP-09 | 高 | 边界已闭环：Track age profile 化 + degraded 标志；具体秒数后置 |
+| BL-15 | covariance 坐标系、状态顺序、PSD 容差及缺失政策 | DP-09 | 高 | 已闭环：covariance 坐标系/状态顺序与 ownship 一致；PSD 检查；缺失 → INVALID_INPUT |
+| BL-16 | MPC 接收完整 ENC 对象，还是裁剪后的可序列化 hazard geometry | DP-09 | 高 | 已闭环：in-process 传完整 ENC；Worker 传裁剪 hazard geometry + SHA |
+| BL-17 | 目标船 length/width 缺失或不可信时的处理政策 | DP-09 | 中 | 已闭环：缺失 → INVALID_INPUT；不可信 → degraded；fallback footprint 显式标记 |
+| BL-18 | horizon 第 0 列表示当前状态还是下一控制时刻 | DP-10 | 高 | 已闭环：horizon 第 0 列 = solve-time 当前状态；selected_command 单独字段 |
+| BL-19 | solver 状态维度不是 9 时，加速度/缺失状态的映射方式 | DP-10 | 高 | 已闭环：`StateMapping` 版本化映射；缺失维度填 0 标 `estimated=false` |
+| BL-20 | 输出轨迹连续性、物理一致性和首点误差容差 | DP-10 | 高 | 边界已闭环：连续性检查（motion bound 上界）；首点误差 ≤ footprint tolerance；具体数值后置 |
+| BL-21 | `selected_control` 表示参考指令还是原始 MPC 控制量 | DP-10 | 中 | 已闭环：selected_command = 控制器兼容参考；原始控制量进 algorithm_details；同 solve_id |
+| BL-22 | `AlgorithmDescriptor` 强制字段与允许 `not_applicable` 字段 | DP-11 | 高 | 已闭环：强制 12 字段 + 允许 not_applicable 字段 |
+| BL-23 | 外部二进制/服务的代码 SHA、build 和依赖身份获取方式 | DP-11 | 中 | 已闭环：build_identity 携带 SHA/binary/solver/build flags；缺失标 UNKNOWN |
+| BL-24 | 自适应权重、动态 horizon 和在线模式切换的记录方式 | DP-11 | 高 | 已闭环：静态进 Descriptor，动态进 algorithm_details 绑 solve_id |
+| BL-25 | 目标函数和约束名称是否需要公共分类词表 | DP-11 | 中 | 已闭环：公共 cost/constraint 分类词表；不横向比较 |
+| BL-26 | 首次求解发生在 `t=0` 还是首个 `dt_sim` 后 | DP-12 | 高 | 已闭环：首次 solve 在 t=0；solve_id=1 首步 |
+| BL-27 | solve period/deadline 由算法声明，还是允许 RunSpec 覆盖 | DP-12 | 高 | 边界已闭环：solve_period 算法声明 + RunSpec 可覆盖；deadline profile 后置 |
+| BL-28 | 非求解步对上一 horizon 采用采样推进、插值还是固定第一指令 | DP-12 | 高 | 已闭环：hold 步保留 horizon 原点，按 t_now 采样；不重新 solve |
+| BL-29 | warm start 与随机求解器的 reset/replay 保证范围 | DP-12 | 高 | 已闭环：reset 清 warm start；无 seed API 不获 exact |
+| BL-30 | 离线快速仿真是否也强制实时 deadline | DP-12 | 中 | 已闭环：离线可关 deadline，标 diagnostic_only 不进 G3 |
+| BL-31 | `TIMEOUT_FEASIBLE` 超过 deadline 后是否仍允许执行 | DP-13 | 高 | 已闭环：可执行但计 deadline 失败；G3 零 deadline 失败 |
+| BL-32 | Web 调试模式失败后终止，还是冻结/hold 以便观察 | DP-13 | 中 | 已闭环：Web 调试可 hold_on_failure，标 diagnostic_only |
+| BL-33 | 连续可行超时多少次后判定整个 run 失败 | DP-13 | 高 | 边界已闭环：连续 TIMEOUT 阈值 profile 化；超阈 run FAILED；具体次数后置 |
+| BL-34 | `INVALID_INPUT` 归因于场景、Adapter 或算法的规则 | DP-13 | 中 | 已闭环：归因 SCENARIO/ADAPTER/ALGORITHM |
+| BL-35 | 公共必需字段与 MPC 专项必需字段的边界 | DP-14 | 高 | 已闭环：公共必需字段 + MPC 专项必需字段分边界 |
+| BL-36 | cost/constraint 公共分类词表与最小裕度表示 | DP-14 | 高 | 已闭环：与 BL-25 共享词表；最小裕度 SI 单位进 constraints |
+| BL-37 | 多模态目标预测、概率和 covariance 的 trace schema | DP-14 | 中 | 已闭环：target 多模态 schema（mode/prob/trajectory/cov/source） |
+| BL-38 | 长时域、多目标 trace 的体积、压缩和保留策略 | DP-14 | 中 | 已闭环：trace 分层（events 增量 + trajectory 每步 + 大 horizon 单独文件） |
 | BL-39 | V1 canonical ship model/controller 参数组合 | DP-15 | 高 | 已闭环：当前 `head_on` Viknes/FLSC tuple 为唯一 canonical 候选；Rule 13/15 先修复 |
 | BL-40 | 船模和控制器参数的校准精度要求 | DP-15 | 高 | 边界已闭环：reference plant 按用途回归；FCB45 实船误差门保留 `EXTERNAL_CONFIRMATION_REQUIRED` |
 | BL-41 | 白盒与闭环是否必须通过相同 Adapter 代码路径 | DP-15 | 高 | 已闭环：用户确认必须相同 |
@@ -122,60 +122,60 @@
 | BL-62 | 当前重建 Evaluator 与论文公式的已知偏差 | DP-20 | 高 | 已闭环：当前实现定级为 evidence-flow stub；按论文 profile/golden tables 重建 |
 | BL-63 | 多项硬门的失败优先级和聚合状态 | DP-20 | 高 | 已闭环：gate 三态、qualification 四态；并发失败完整保留 |
 | BL-64 | Multi-ship pairwise 规则冲突与场景级聚合方法 | DP-20 | 高 | 已闭环：无序物理 pair、有向 obligation、场景硬门合取 |
-| BL-65 | 动态船体 footprint、姿态插值和安全 buffer 形式 | DP-21 | 高 | 未调研 |
-| BL-66 | 连续碰撞/搁浅扫掠检测方法与容差 | DP-21 | 高 | 未调研 |
-| BL-67 | 安全域和 preferred/minimum CPA 使用固定值还是船尺度 | DP-21 | 高 | 未调研 |
-| BL-68 | TCPA 为负、遭遇已通过或低相对速度时的定义 | DP-21 | 中 | 未调研 |
-| BL-69 | ENC clearance 可由哪些地图层可靠计算 | DP-21 | 高 | 未调研 |
-| BL-70 | Rule 13/14/15 分类角和边界 profile | DP-22 | 高 | 未调研 |
-| BL-71 | encounter 阶段、规则锁定、解除和再次进入条件 | DP-22 | 高 | 未调研 |
-| BL-72 | “及时、明显”和 stand-on 保向保速的量化阈值 | DP-22 | 高 | 未调研 |
-| BL-73 | port-to-port、crossing ahead、passed clear 的几何判定 | DP-22 | 高 | 未调研 |
-| BL-74 | Multi-ship 规则冲突、非合作目标和 Rule 17 紧急阶段 | DP-22 | 高 | 未调研 |
-| BL-75 | goal/rejoin 的位置、航向、速度和保持时间阈值 | DP-23 | 高 | 未调研 |
-| BL-76 | 不同输出控制形式下统一 tracking metric 的方法 | DP-23 | 中 | 未调研 |
-| BL-77 | 不同 solver 的 iteration/objective 可比边界 | DP-23 | 中 | 未调研 |
-| BL-78 | 提前终止和未到达 run 的统计/删失方法 | DP-23 | 高 | 未调研 |
-| BL-79 | deadline 使用开发机、目标硬件或归一化预算 | DP-23 | 高 | 未调研 |
-| BL-80 | G3 canonical set 每条规则的 episode 数量 | DP-24 | 高 | 未调研 |
-| BL-81 | 证据失效的字段和兼容变更规则 | DP-24 | 高 | 未调研 |
-| BL-82 | G3 是否要求 canonical set 零失败及可行超时政策 | DP-24 | 高 | 未调研 |
-| BL-83 | Web 汇总一个算法多个 capability profile 等级的方式 | DP-24 | 中 | 未调研 |
-| BL-84 | 资格任务自动晋级是否需要人工审核/签名 | DP-24 | 中 | 未调研 |
-| BL-85 | G4 所需 seed 数和统计功效 | DP-25 | 高 | 未调研 |
-| BL-86 | tuning、qualification、holdout 场景划分 | DP-25 | 高 | 未调研 |
-| BL-87 | 失败率、删失时间和连续指标的置信区间方法 | DP-25 | 高 | 未调研 |
-| BL-88 | KF 下路径相关 Sensor 可见性的公平比较方法 | DP-25 | 中 | 未调研 |
-| BL-89 | 无输出 crash/timeout 在连续指标中的呈现方式 | DP-25 | 高 | 未调研 |
-| BL-90 | trajectory/events 的字段和列级 schema | DP-26 | 高 | 未调研 |
-| BL-91 | native crash 下的增量写入、flush 和原子封存 | DP-26 | 高 | 未调研 |
-| BL-92 | 大型 horizon/目标预测拆文件还是保留 JSONL | DP-26 | 中 | 未调研 |
-| BL-93 | 内容 hash、签名和防篡改级别 | DP-26 | 中 | 未调研 |
-| BL-94 | legacy pickle 最小兼容范围 | DP-26 | 低 | 未调研 |
-| BL-95 | subprocess 与 container 的选择规则 | DP-27 | 高 | 未调研 |
-| BL-96 | 每 run 新建 Worker，还是 session 内持久 Worker | DP-27 | 高 | 未调研 |
-| BL-97 | Worker startup/reset 后的状态隔离和可重放性 | DP-27 | 高 | 未调研 |
-| BL-98 | ENC geometry 和大 horizon 的 IPC 性能 | DP-27 | 中 | 未调研 |
-| BL-99 | 本地单用户 Worker 需要的最小安全限制 | DP-27 | 低 | 未调研 |
-| BL-100 | in-process 准入所需 crash/timeout/reset 测试 | DP-28 | 高 | 未调研 |
-| BL-101 | Python/native 依赖 lock 和 build identity 采集方法 | DP-28 | 高 | 未调研 |
-| BL-102 | container image digest 与本地源码身份关联 | DP-28 | 中 | 未调研 |
-| BL-103 | 持久 Worker 的跨 episode 状态泄漏检测 | DP-28 | 高 | 未调研 |
-| BL-104 | IPC framing/encoding 选择及大数组传输 | DP-29 | 高 | 未调研 |
-| BL-105 | deadline、grace period、terminate/kill 时序 | DP-29 | 高 | 未调研 |
-| BL-106 | Worker 在 run 间的重建与健康检查策略 | DP-29 | 中 | 未调研 |
-| BL-107 | stderr 保留大小、敏感信息清理和报告方式 | DP-29 | 中 | 未调研 |
-| BL-108 | request 去重和有状态 plan 的幂等边界 | DP-29 | 高 | 未调研 |
-| BL-109 | PSB-MPC 原生 state/control layout 和 horizon 时间语义 | DP-30 | 高 | 未调研 |
-| BL-110 | RLMPC `6xN` 状态、控制和 reference 的精确映射 | DP-30 | 高 | 未调研 |
-| BL-111 | 缺失加速度/航向等字段允许的可验证推导 | DP-30 | 高 | 未调研 |
-| BL-112 | raw native payload 的证据 schema 和体积 | DP-30 | 中 | 未调研 |
-| BL-113 | PSB/RLMPC native status 到公共状态的映射表 | DP-30 | 高 | 未调研 |
-| BL-114 | WebSocket schema 版本兼容和字段演进规则 | DP-31 | 中 | 未调研 |
-| BL-115 | 实时推送频率、背压和慢客户端政策 | DP-31 | 中 | 未调研 |
-| BL-116 | 当前 horizon/ENC/目标预测的大数据传输策略 | DP-31 | 中 | 未调研 |
-| BL-117 | 本地单用户是否完全不做鉴权 | DP-31 | 低 | 未调研 |
-| BL-118 | live state 与持久化 artifact 的 seq/hash 对齐 | DP-31 | 高 | 未调研 |
+| BL-65 | 动态船体 footprint、姿态插值和安全 buffer 形式 | DP-21 | 高 | 边界已闭环：footprint 用船模 vertex（无 vertex 显式 fallback 五边形）；姿态插值连续（不得 lerp 顶点）；接触事实与 safety buffer 分离；平面须投影 UTM；具体容差后置 |
+| BL-66 | 连续碰撞/搁浅扫掠检测方法与容差 | DP-21 | 高 | 边界已闭环：同步时间 CCD（禁止跨时间独立 swept union 相交）；numerical tolerance / chart uncertainty / safety buffer 三类分离；grid_size << beam；具体数值后置 |
+| BL-67 | 安全域和 preferred/minimum CPA 使用固定值还是船尺度 | DP-21 | 高 | 边界已闭环：paper profile 保持固定绝对 CPA；ship-length-scaled 船域作独立 profile；缩放后不称论文复现；V1 默认 profile 待 DP-21/24 |
+| BL-68 | TCPA 为负、遭遇已通过或低相对速度时的定义 | DP-21 | 中 | 已闭环：统一单一 CPA 实现（signed tcpa / future cpa / observed cpa / rel-speed status）；负 TCPA 不自动解除 encounter；低相对速度为工程决策，阈值后置 |
+| BL-69 | ENC clearance 可由哪些地图层可靠计算 | DP-21 | 高 | 边界已闭环：polygon / point-line / unknown / CATZOC 四类分离；每船独立派生 hazards；不宣称 operational UKC；未测区独立报告；Skjær buffer 等细节后置 |
+| BL-70 | Rule 13/14/15 分类角和边界 profile | DP-22 | 高 | 边界已闭环：oracle 为 profile-parameterized；112.5° 作 regulatory constant；head-on 半角与 contact-angle 容差作显式 profile 参数（Woerner 默认 13°/45°/10°）；采用双变量 (β,α) 分类；alternative profiles 后置 |
+| BL-71 | encounter 阶段、规则锁定、解除和再次进入条件 | DP-22 | 高 | 已闭环：锁定 FSM（Eriksen 式 SF↔{OT,HO,GW,SO,EM}）；entry/exit 含 (DCPA,TCPA,t_crit) hysteresis；control state machine 与 evaluation timeline 分离；Hagen Stage 倍数标 INFERENCE |
+| BL-72 | “及时、明显”和 stand-on 保向保速的量化阈值 | DP-22 | 高 | 边界已闭环：四阈值 profile（θ_detectable 2°、θ_substantial 30°、Δv_substantial 0.5、t_early_factor range-fraction）；当前代码 5°/15° 偏差须裁决 |
+| BL-73 | port-to-port、crossing ahead、passed clear 的几何判定 | DP-22 | 高 | 已闭环：双变量 (α,β) pose；crossing-ahead 经 stand-on 的 α；port-to-port 经 signed-sine reward；passed-clear 为合取（t_CPA<0 ∧ range increasing ∧ CPA-pose satisfied） |
+| BL-74 | Multi-ship 规则冲突、非合作目标和 Rule 17 紧急阶段 | DP-22 | 高 | 边界已闭环：Rule 17 三阶段 sub-FSM；multi-ship 不发明优先级（per-pair + C_x,gw）；非合作 = S_* 阈值触发 stand-on MAY_ACT；compliance/EM 数值后置 |
+| BL-75 | goal/rejoin 的位置、航向、速度和保持时间阈值 | DP-23 | 高 | 边界已闭环：route_exit/terminal_state 双模式 profile 化；具体数值后置（ship_maneuvering 笔记本重认证后查） |
+| BL-76 | 不同输出控制形式下统一 tracking metric 的方法 | DP-23 | 中 | 已闭环：tracking error 统一针对闭环执行轨迹；控制努力单独报告；control_form 声明 |
+| BL-77 | 不同 solver 的 iteration/objective 可比边界 | DP-23 | 中 | 边界已闭环：不横向比较；可比较 wall-clock/feasibility/violation/outcome；归一化后置 |
+| BL-78 | 提前终止和未到达 run 的统计/删失方法 | DP-23 | 高 | 已闭环：collision=FAILED 非删失；timeout=右删失用 KM；不插补假 arrival；连续指标两种报告 |
+| BL-79 | deadline 使用开发机、目标硬件或归一化预算 | DP-23 | 高 | 边界已闭环：wall-clock + RT-factor 双报告；硬件进 fingerprint；RT-factor 阈值后置 |
+| BL-80 | G3 canonical set 每条规则的 episode 数量 | DP-24 | 高 | 边界已闭环：canonical G3 = t=2 covering array（≥16/rule family）× 3 seeds × G3-eligible cells，零硬门失败；G4 保留 range(30)+CI；具体 t/seed 数后置 |
+| BL-81 | 证据失效的字段和兼容变更规则 | DP-24 | 高 | 已闭环：manifest 增 `enc_hash` + 显式 `capability_dependencies` 聚合；失效规则 = 任一成员变化；变更分类 BREAKING/COMPATIBLE/SUPERSEDED |
+| BL-82 | G3 是否要求 canonical set 零失败及可行超时政策 | DP-24 | 高 | 已闭环：G3 须零硬门失败；TIMEOUT_FEASIBLE 为 G3 soft gate 非 PASS、G4 失败；NOT_EVALUATED 不能 G3 |
+| BL-83 | Web 汇总一个算法多个 capability profile 等级的方式 | DP-24 | 中 | 已闭环：per-cell matrix + aggregate badge = 最小 grade + evidence drill-down；HCI 证据 UNKNOWN |
+| BL-84 | 资格任务自动晋级是否需要人工审核/签名 | DP-24 | 中 | 边界已闭环：promotion 需人工审核 + audit trail；demotion 自动即时；DO-178C/ISO 26262 迁移为 recommendation；maritime 特定标准 UNKNOWN |
+| BL-85 | G4 所需 seed 数和统计功效 | DP-25 | 高 | 边界已闭环：不硬编码 seed 数；precision-target on paired difference；~20-50 起始+sequential；具体 n 后置 |
+| BL-86 | tuning、qualification、holdout 场景划分 | DP-25 | 高 | 已闭环：tuning/qualification/holdout 三不相交+no-look-ahead；G3 属 qualification；evaluator 在 tuning 冻结 |
+| BL-87 | 失败率、删失时间和连续指标的置信区间方法 | DP-25 | 高 | 已闭环：failure-rate→Wilson；censored arrival→KM+Greenwood；paired continuous→paired-t/Wilcoxon/bootstrap；small n→descriptive+nonparametric |
+| BL-88 | KF 下路径相关 Sensor 可见性的公平比较方法 | DP-25 | 中 | 已闭环：CRN 仅外生输入；不同步 visibility；keyed-CRN 标 ENGINEERING；God/KF 分 profile |
+| BL-89 | 无输出 crash/timeout 在连续指标中的呈现方式 | DP-25 | 高 | 已闭环：n_attempted/completed/crashed 持久化；连续 CI 仅 completed；failure rate Wilson on attempted；绝不插补 |
+| BL-90 | trajectory/events 的字段和列级 schema | DP-26 | 高 | 已闭环：trajectory/events 列级 schema + schema_version |
+| BL-91 | native crash 下的增量写入、flush 和原子封存 | DP-26 | 高 | 已闭环：events append + fsync；atomic rename；crash 保留 partial |
+| BL-92 | 大型 horizon/目标预测拆文件还是保留 JSONL | DP-26 | 中 | 已闭环：大 horizon 拆 per-solve 文件 + 引用；阈值 profile 化 |
+| BL-93 | 内容 hash、签名和防篡改级别 | DP-26 | 中 | 已闭环：内容 hash + tamper_evident（非 tamper_proof） |
+| BL-94 | legacy pickle 最小兼容范围 | DP-26 | 低 | 已闭环：V1 不支持 pickle；legacy 仅一次性迁移 |
+| BL-95 | subprocess 与 container 的选择规则 | DP-27 | 高 | 已闭环：subprocess 优先；container 仅无法共存 profile |
+| BL-96 | 每 run 新建 Worker，还是 session 内持久 Worker | DP-27 | 高 | 已闭环：V1 每 run 新建 Worker；持久后置 |
+| BL-97 | Worker startup/reset 后的状态隔离和可重放性 | DP-27 | 高 | 已闭环：Worker reset 清空所有状态；replay 新 Worker + 同 seed |
+| BL-98 | ENC geometry 和大 horizon 的 IPC 性能 | DP-27 | 中 | 边界已闭环：in-process 完整 ENC；Worker 裁剪 geometry；MessagePack/Arrow；具体编码后置 |
+| BL-99 | 本地单用户 Worker 需要的最小安全限制 | DP-27 | 低 | 已闭环：无网络/无文件写/CPU-内存上限；不做鉴权 |
+| BL-100 | in-process 准入所需 crash/timeout/reset 测试 | DP-28 | 高 | 已闭环：in-process 准入需 crash/timeout/reset/replay 四 probe |
+| BL-101 | Python/native 依赖 lock 和 build identity 采集方法 | DP-28 | 高 | 已闭环：lockfile hash + native build_identity 进 manifest |
+| BL-102 | container image digest 与本地源码身份关联 | DP-28 | 中 | 已闭环：container digest + commit 关联；无 digest 标 unreproducible |
+| BL-103 | 持久 Worker 的跨 episode 状态泄漏检测 | DP-28 | 高 | 已闭环：持久 Worker 后置；启用前须泄漏 probe；V1 不启用 |
+| BL-104 | IPC framing/encoding 选择及大数组传输 | DP-29 | 高 | 边界已闭环：JSON Lines framing；大数组 Arrow/shared memory；不 pickle；具体编码后置 |
+| BL-105 | deadline、grace period、terminate/kill 时序 | DP-29 | 高 | 边界已闭环：SIGTERM grace → SIGKILL；crash/timeout run 失败；grace period 数值后置 |
+| BL-106 | Worker 在 run 间的重建与健康检查策略 | DP-29 | 中 | 已闭环：V1 每 run 新建；startup health probe |
+| BL-107 | stderr 保留大小、敏感信息清理和报告方式 | DP-29 | 中 | 已闭环：stderr 截断保留；清理敏感占位符；failure_reason 引用尾部 |
+| BL-108 | request 去重和有状态 plan 的幂等边界 | DP-29 | 高 | 已闭环：唯一 request_id + solve_id；plan 不重试；幂等返回缓存 |
+| BL-109 | PSB-MPC 原生 state/control layout 和 horizon 时间语义 | DP-30 | 高 | 边界已闭环：PSB native `(4,N)` `[x,y,chi,U]` col-0=current；control `u_opt`(multiplier)+`chi_opt`(offset)；native predicted_trajectory 是真实 plant_prediction；`TrajectoryMapping.psbmpc` 4→9；`v` 处理后置 |
+| BL-110 | RLMPC `6xN` 状态、控制和 reference 的精确映射 | DP-30 | 高 | 边界已闭环：RLMPC native `(6,N)` `[x,y,chi,U,V,r]`；control `[Fx,Fy]`；`r=psi_dot` native 存在；`TrajectoryMapping.rlmpc` 6→9；wrapper 须先修复调 `plan()` 读 `"trajectory"` |
+| BL-111 | 缺失加速度/航向等字段允许的可验证推导 | DP-30 | 高 | 已闭环：method-driven 可验证（atan2/identity，estimated=false/true+method）vs estimated（finite_diff，estimated=true+method+dt）；细化 BL-19 blanket"missing→0" |
+| BL-112 | raw native payload 的证据 schema 和体积 | DP-30 | 中 | 已闭环：stock payload 小（PSB ~1-4KB 仅 3 字段，RLMPC ~5KB 10 keys）；as-returned 持久化入 algorithm_details；PSB objective/constraints 须 C++ binding 改动（flag future enhancement） |
+| BL-113 | PSB/RLMPC native status 到公共状态的映射表 | DP-30 | 高 | 边界已闭环：PSB 无 INFEASIBLE 区分（C++ 零 throw/assert，UNKNOWN，统一 NUMERICAL_FAILURE）；RLMPC local enum（非 upstream）映射表；status 须扩展 wrapper 暴露 |
+| BL-114 | WebSocket schema 版本兼容和字段演进规则 | DP-31 | 中 | 已闭环：schema_version + additive-only 演进；删除/重命名 bump major |
+| BL-115 | 实时推送频率、背压和慢客户端政策 | DP-31 | 中 | 已闭环：降采样推送；慢客户端丢帧；断连不影响 run；重连 seq 追赶 |
+| BL-116 | 当前 horizon/ENC/目标预测的大数据传输策略 | DP-31 | 中 | 已闭环：不发 raw horizon/ENC；降采样投影；REST artifact 下载 |
+| BL-117 | 本地单用户是否完全不做鉴权 | DP-31 | 低 | 已闭环：本地单用户不做鉴权；绑 127.0.0.1；远程后置 token+TLS |
+| BL-118 | live state 与持久化 artifact 的 seq/hash 对齐 | DP-31 | 高 | 已闭环：live seq + manifest hash；artifact 为权威；run 结束后 live 不更新 |
 
 ### 0.4 证据矩阵 [EV]
 
@@ -231,6 +231,35 @@
 | [R48] | PROJECT_FACT | 当前 reconstructed Evaluator、EncounterMonitor、BatchRunner 和测试的公式、状态及聚合审计 | 高 | 高（当前实现事实） | 高 | DP-20..25 |
 | [R49] | PROJECT_FACT | 历史 `evaluator.yaml`、独立 Evaluator API 和 CCTA profile | 高 | 高 | 高（历史兼容重建）；中（当前实现） | DP-20, DP-24 |
 | [R50] | DOMAIN_EVIDENCE | 2024 grounding extension 的独立 grounding penalty 与 COLREG score compensation 边界 | 高 | 高 | 中高（后续 ENC profile）；中（V1 open-water） | DP-20, DP-21 |
+| [R51] | DOMAIN_EVIDENCE | Tang, Kim, Manocha, C²A: Controlled Conservative Advancement for Continuous Collision Detection of Polygonal Models, ICRA 2009（UMD GAMMA `tang09.pdf`，2026-07-28 取证） | 高 | 高（A：ICRA 一作论文，CCD 奠基性，76+ 引） | 高（2D 凸多边形 CA 是 Lin/Mirtich 一脉的直接降维） | DP-21, BL-65, BL-66 |
+| [R52] | DOMAIN_EVIDENCE | Shapely 2.x manual（stable，`intersects`/`touches`/`contains`/`distance`/`buffer`/`unary_union`/polygon validity/planar Cartesian 假设，2026-07-28 取证） | 高 | 高（A：官方文档） | 高（footprint oracle 的几何后端） | DP-21, BL-65, BL-66 |
+| [R53] | DOMAIN_EVIDENCE | Shapely `set_precision` reference（latest，grid_size/topology collapse/`valid_output` mode，2026-07-28 取证） | 高 | 高（A：官方文档） | 高（near-touch 容差语义） | DP-21, BL-65, BL-66 |
+| [R54] | DOMAIN_EVIDENCE | Kartverket/Geonorge Sjøkart-Dybdedata 产品规约 v20201001（§5.1.2 各 layer 几何/字段/可航语义，2026-07-28 取证） | 高 | 高（A：官方 SOSI/ISO 19131 产品规约） | 高（V1 ENC hazard 层选择） | DP-18, DP-21, BL-69 |
+| [R55] | DOMAIN_EVIDENCE | Kartverket CATZOC（A1/A2/B/C/D/U 六类定性语义，NO+EN 页面，2026-07-28 取证） | 高 | 高（A：官方） | 高（定性类别）；中（数值精度表不在本批授权源内，需 S-52/Ch.2） | DP-18, DP-21, BL-69 |
+| [R56] | DOMAIN_EVIDENCE | IMO MSC.232(82) ECDIS 性能标准（safety contour/safety depth/SENC，2026-07-28 取证）；MSC.192(79) 经核验为雷达设备标准而非 ECDIS，原始 brief 标注有误 | 高 | 高（A：IMO MSC 决议） | 高（ECDIS 不强制固定 clearance 数值） | DP-18, DP-21, BL-69 |
+| [R57] | DOMAIN_EVIDENCE | IHO S-57 Appendix A Chapter 1 Ed.3.1（DEPARE/UNSARE/M_QUAL/M_COVR/DEPCNT object class 语义，2026-07-28 取证） | 高 | 高（A：IHO 标准） | 高（object class 语义）；B（CATZOC 数值属性表在 Ch.2，未取） | DP-18, DP-21, BL-69 |
+| [R58] | DOMAIN_EVIDENCE | IMO MSC.192(79) Annex 34 雷达性能标准（CPA/TCPA 告警为操作员可设置阈值、无固定数值、负 TCPA 未定义，2026-07-28 取证） | 高 | 高（A：IMO MSC 决议） | 高（CPA/TCPA 阈值归属） | DP-21, BL-67, BL-68 |
+| [R59] | DOMAIN_EVIDENCE | Namgung, "Local Route Planning for Collision Avoidance of MASS in Compliance with COLREGs Rules," Sustainability 14(1):198, 2022（单一作者；CPA/TCPA 符号公式、负 TCPA 语义、Fujii 族船长度尺度椭圆船域，2026-07-28 取证） | 高 | 高（A：同行评审，63+ 引） | 高（公式/负 TCPA/船域）；低（低相对速度语义，论文未论及 V_r→0 奇点） | DP-21, BL-67, BL-68 |
+| [R60] | DOMAIN_EVIDENCE | COLREG Rule 8(a)(d) 文本（"positive/ample time/safe distance/finally past and clear" 均为定性表述，无固定米值，2026-07-28 取证） | 高 | 高（A：条约文本） | 高（确认无法规固定阈值） | DP-21, BL-67, BL-68 |
+| [R61] | DOMAIN_EVIDENCE | IMO COLREGS 1972 Convention 条约文本（Rule 8/13/14/15/16/17/18/21，verbatim，2026-07-28 取证） | 高 | 高（A：条约文本） | 高（规则定性边界） | DP-22, BL-70..74 |
+| [R62] | DOMAIN_EVIDENCE | Woerner, K. "Multi-contact protocol-constrained collision avoidance for autonomous marine vehicles," MIT PhD thesis, 2016（canonical classification angles + behavioral thresholds，Algorithm 5/9/10/11/12/14/16/17，verbatim，2026-07-28 取证） | 高 | 高（A：MIT 博士论文，CCD/COLREG 量化奠基，123+ 引 via Woerner 2019） | 高（paper_compatible profile 的 angle/threshold 默认值来源） | DP-22, BL-70..74 |
+| [R63] | DOMAIN_EVIDENCE | Woerner, K. et al. "Quantifying protocol evaluation for autonomous collision avoidance." Autonomous Robots, 2019, DOI 10.1007/s10514-018-9765-y（Woerner 2016 论文版，123 引，2026-07-28 取证） | 高 | 高（A：同行评审） | 高 | DP-22, BL-70..74 |
+| [R64] | DOMAIN_EVIDENCE | Eriksen, Bitar, Breivik, Lekkas. "Hybrid Collision Avoidance for ASVs Compliant With COLREGs Rules 8 and 13–17." Frontiers in Robotics and AI 7:11, 2020, DOI 10.3389/frobt.2020.00011（state machine / rule lock-on / entry-exit criteria with hysteresis，verbatim，2026-07-28 取证） | 高 | 高（A：同行评审，NTNU COLAV 组） | 高（FSM 锁定与释放） | DP-22, BL-71, BL-74 |
+| [R65] | DOMAIN_EVIDENCE | Hagen, Knutsen, Johansen, Brekke. "Exploration of COLREG-relevant Parameters from Historical AIS-data." Journal of Navigation, 2022（NTNU preprint torarnj.folk.ntnu.no/AIS_param_paper.pdf，使用 Woerner 分类，verbatim，2026-07-28 取证） | 高 | 高（A：同行评审） | 中高（AIS 实证支撑 Woerner 角度） | DP-22, BL-70 |
+| [R66] | DOMAIN_EVIDENCE | Akdag, Fossen, Johansen. "Collaborative Collision Avoidance..." IFAC CAMS 2022（NTNU preprint，明确声明使用 Woerner 2016 阈值，verbatim，2026-07-28 取证） | 高 | 高（A：IFAC 同行评审） | 中高（多船协作参考） | DP-22, BL-70, BL-74 |
+| [R67] | DOMAIN_EVIDENCE | Murray, B.; Naeem, W. "Stochastic COLREGs Evaluation under Uncertainty." arXiv:2402.05662, 2024（classification angle Eq.11 verbatim，引用 Hagen 2023，2026-07-28 取证） | 高 | 中（B：preprint） | 中（扩展而非定义 profile） | DP-22, BL-70 |
+| [R68] | DOMAIN_EVIDENCE | Zhao, L.; Roh, M.-I. "COLREGs-compliant multiship collision avoidance based on DRL." Ocean Engineering 191:106436, 2019（仅摘要，付费墙，2026-07-28 取证） | 低（仅摘要） | 高（A：同行评审，273 引） | 低（控制器策略，非 evaluation rule） | DP-22, BL-74 |
+| [R69] | DOMAIN_EVIDENCE | RTCA DO-178C / DO-330 "Software Considerations in Airborne Systems and Equipment Qualification" + "Software Tool Qualification Considerations"（verification independence、TQL-1..5，2026-07-28 取证） | 中（经二手摘要，未取全文） | 高（A：航空安全标准） | 中（安全级软件 V&V 原则可迁移；非海事强制） | DP-24, BL-84 |
+| [R70] | DOMAIN_EVIDENCE | ISO 26262 Part 8 §11 "Tool Confidence Level (TCL) and Tool error Detection (TD)"（TD1/2/3、人工审核作为 TD 机制，2026-07-28 取证） | 中（经二手摘要） | 高（A：汽车功能安全标准） | 中（TCL/TD 原则可迁移；非海事强制） | DP-24, BL-84 |
+| [R71] | DOMAIN_EVIDENCE | IEC 61508 Part 3 "Functional safety of electrical/electronic/programmable electronic safety-related systems - Software requirements"（通用功能安全软件 V&V，2026-07-28 取证） | 中（经二手摘要） | 高（A：功能安全基础标准） | 中（通用原则；非海事特定） | DP-24, BL-84 |
+| [R72] | DOMAIN_EVIDENCE | Beiranvand, V.; Hare, W.; Lucet, Y. "Best Practices for Comparing Optimization Algorithms." Optimization and Engineering 18(4):815-848, 2017, DOI 10.1007/s11081-017-9366-2（wall-clock 依赖语言/硬件；建议 function-evaluation / normalized budget，2026-07-28 取证） | 高 | 高（A：同行评审） | 高（solver 公平比较方法） | DP-23, BL-77, BL-79 |
+| [R73] | DOMAIN_EVIDENCE | Eriksen, B.-O. H. et al. 中层 NLP-MPC 论文（IPOPT solve time 在命名硬件 2.8 GHz Core i7；"Guaranteeing a maximum computational time for NLPs is difficult"，2026-07-28 取证） | 高 | 高（A：同行评审，NTNU COLAV 组） | 高（NLP solver timing 现实约束） | DP-23, BL-79 |
+| [R74] | DOMAIN_EVIDENCE | Kaplan, E. L.; Meier, P. "Nonparametric Estimation from Incomplete Observations." JASA 53(282):457-481, 1958, DOI 10.1080/01621459.1958.10501452（product-limit estimator + Greenwood variance，右删失 arrival-time 分布，2026-07-28 取证） | 高 | 高（A：同行评审，统计奠基） | 高（censored arrival-time 统计） | DP-23, DP-25, BL-78, BL-87 |
+| [R75] | DOMAIN_EVIDENCE | Koehler, E.; Brown, E.; Lalande, S. J. P. "On the Assessment of Monte Carlo Error in Simulation-Based Research." The American Statistician 63(2):155-162, 2009（无通用固定 replication 数；MCE 依赖设计与目标量，2026-07-28 取证） | 高 | 高（A：同行评审） | 高（seed count 方法论） | DP-25, BL-85 |
+| [R76] | DOMAIN_EVIDENCE | Wilson, E. B. "Probable Inference, the Law of Succession, and Statistical Inference." JASA 22(158):209-212, 1927, DOI 10.1080/01621459.1927.10502953（Wilson score interval，小 n 比例 CI 优于 Wald，2026-07-28 取证经 NIST/SEMATECH §7.2.4.1） | 高 | 高（A：统计奠基） | 高（failure-rate CI） | DP-25, BL-87 |
+| [R77] | DOMAIN_EVIDENCE | Efron, B. "Bootstrap Methods: Another Look at the Jackknife." Annals of Statistics 7(1):1-26, 1979, DOI 10.1214/aos/1176344552（bootstrap CI 三步法，distribution-free，2026-07-28 取证） | 高 | 高（A：同行评审，bootstrap 奠基） | 高（paired difference CI） | DP-25, BL-87 |
+| [R78] | DOMAIN_EVIDENCE | Wilcoxon, F. "Individual Comparisons by Ranking Methods." Biometrics Bulletin 1(6):80-83, 1945, DOI 10.2307/3001968（signed-rank test，配对非参数比较，2026-07-28 取证） | 高 | 高（A：统计奠基） | 高（paired continuous metric） | DP-25, BL-87 |
+| [R79] | DOMAIN_EVIDENCE | Little, R. J. A.; Rubin, D. B. "Statistical Analysis with Missing Data." 3rd ed., Wiley, 2020, Ch.1 §1.3（MCAR/MAR/MNAR 定义；complete-case analysis "generally inappropriate"，2026-07-28 取证） | 高 | 高（A：教科书权威） | 高（crash/timeout missing-data 处理） | DP-25, BL-89 |
 
 ### 0.5 场景注册表 [SC]
 
@@ -325,6 +354,35 @@
 - [R48] 当前 `colav_simulator/evaluation/evaluator.py`、`evaluation/encounter.py`、`experiment/batch.py`、`tests/test_evaluator.py` 和 `tests/test_experiment_contracts.py`；2026-07-28 公式、配对方向、阶段、异常、批量状态和统计分母审计。
 - [R49] 上游历史 [`config/evaluator.yaml`](https://github.com/ntnu-itk-autonomous-ship-lab/colav-simulator/blob/844718b4e5c35b31b23dfcae23ddd130ebdb55bb/config/evaluator.yaml) 与 [`tests/test_simulation_and_evaluation.py`](https://github.com/ntnu-itk-autonomous-ship-lab/colav-simulator/blob/844718b4e5c35b31b23dfcae23ddd130ebdb55bb/tests/test_simulation_and_evaluation.py)，commit `844718b4e5c35b31b23dfcae23ddd130ebdb55bb`。
 - [R50] Hagen, I. B.; Murvold, M. N.; Johansen, T. A.; Brekke, E. F. [“Grounding hazard considerations in evaluation of COLREGS collision avoidance algorithms.”](https://doi.org/10.1016/j.oceaneng.2024.118204) Ocean Engineering 308, 2024, 118204；[NTNU Open publisher PDF](https://ntnuopen.ntnu.no/ntnu-xmlui/handle/11250/3175943)。
+- [R51] Tang, M.; Kim, Y. J.; Manocha, D. [“C²A: Controlled Conservative Advancement for Continuous Collision Detection of Polygonal Models,”](http://gamma-web.iacs.umd.edu/papers/documents/articles/2009/tang09.pdf) IEEE ICRA 2009；[Ewha 镜像](https://graphics.ewha.ac.kr/c2a/C2A.pdf)。2026-07-28 取证。注意：该 PDF 在上游 URL 即为 C²A 论文，与任务描述中提及的另一篇 Tang/Manocha 2009 "Interactive Continuous CCD between Deformable Models using Connectivity-Based Culling" 为不同论文；本批采用 C²A（连续碰撞检测 / first time of contact / conservative advancement 的奠基性原始论文），符合 BL-65/66 调研需求。
+- [R52] Shapely, [“The Shapely v2.x Manual” (stable)](https://shapely.readthedocs.io/en/stable/manual.html)。2026-07-28 取证。
+- [R53] Shapely, [`shapely.set_precision` reference (latest)](https://shapely.readthedocs.io/en/latest/reference/shapely.set_precision.html)。2026-07-28 取证。
+- [R54] Kartverket/Geonorge, [“Sjøkart – Dybdedata” produktspesifikasjon v20201001](https://register.geonorge.no/register/versjoner/produktspesifikasjoner/kartverket/sjokart-dybdedata)；[111页 PDF](https://register.geonorge.no/data/documents/Produktspesifikasjoner_sjokart-dybdedata_v2_produktspesifikasjon-kartverket-dybdedata-20201001_.pdf)；[objektkatalog 镜像](https://objektkatalog.geonorge.no/Pakke/Index/EAPK_BBE76DD8_33C1_421a_A67F_14822DA42B91)。2026-07-28 取证。
+- [R55] Kartverket, [“Kartkvalitet CATZOC” (NO)](https://www.kartverket.no/til-sjos/sjokart/kartkvalitet-catzoc) 与 [“Data quality in Norwegian nautical charts – CATZOC” (EN)](https://www.kartverket.no/en/at-sea/more-about-nautical-charts/data-quality-in-norwegian-nautical-charts-catzoc)。2026-07-28 取证。注意：定量位置/深度精度表（A1: ±5m/±0.5+1%d 等）不在 Kartverket 页面，而在 IHO S-52 Presentation Library APP2 / S-57 Appendix A Chapter 2 属性字典；本批授权源不含 Ch.2，故 CATZOC 数值精度表标 `EXTERNAL_CONFIRMATION_REQUIRED`。
+- [R56] IMO, [“Resolution MSC.232(82) Revised Performance Standards for Electronic Chart Display and Information Systems (ECDIS),”](https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.232%2882%29.pdf) 2006。2026-07-28 取证。原始 brief 中标记为 ECDIS 标准的 MSC.192(79) 经核验为“雷达设备性能标准（Annex 34）”，不含 ENC clearance/safety contour/UKC/CATZOC 内容；该错误标注已在证据矩阵 R56/R58 中纠正。
+- [R57] IHO, [S-57 Appendix A – Chapter 1, Edition 3.1 (Object Classes)](https://iho.int/uploads/user/pubs/standards/s-57/31ApAch1.pdf), 2000。2026-07-28 取证（`legacy.iho.int` 镜像 TLS 失败，改用 `iho.int` 主站同文件）。DEPARE(code 42)/UNSARE(code 154)/M_QUAL(code 308)/M_COVR(code 302)/DEPCNT(code 43) object class 定义与属性集。
+- [R58] IMO, [“Resolution MSC.192(79) Adoption of the Revised Performance Standards for Radar Equipment (Annex 34),”](https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.192%2879%29.pdf) 2004。2026-07-28 取证。§5.29.1/§5.29.2 与 CPA/TCPA/dangerous target 定义：CPA/TCPA 限值为操作员设置，标准未给固定数值；负 TCPA 未定义。
+- [R59] Namgung, H. [“Local Route Planning for Collision Avoidance of Maritime Autonomous Surface Ships in Compliance with COLREGs Rules,”](https://doi.org/10.3390/su14010198) Sustainability 14(1):198, 2022（单一作者；MDPI 直连在该网络 403，经 Wayback Machine 快照取证）。2026-07-28 取证。§2.1 Eq.1–5（CPA/TCPA 符号公式与负 TCPA 语义）、§2.3 Eq.7–13（Fujii 族船长度尺度椭圆船域及其 Namgung&Kim 2021 速度自适应扩展）。注意：原 brief 描述的“Namgung et al. 2022 'Ship Domain-Based Collision Risk Assessment for MASS'”标题与作者数有误；实际为单作者 Namgung 且标题为 Route Planning 论文。
+- [R60] COLREG 1972 Convention, Rule 8(a)(d) verbatim 文本。2026-07-28 取证（官方 .gov 镜像 404，文本经多个独立复现源交叉核对一致）。仅用于确认 Rule 8 用“positive/in ample time/safe distance/finally past and clear”定性表述，不含固定米值。
+- [R61] IMO, [COLREGS 1972 Convention treaty text](https://en.wikisource.org/wiki/International_Regulations_for_Preventing_Collisions_at_Sea)（Wikisource 复现 A.958(23) 条约文本）。2026-07-28 取证。Rule 8(a)(b)(c)(d)、13(b)(d)、14(a)(b)(c)、15、16、17(a)(i)(a)(ii)(b)(c)(d)、18、21（lights arcs 225°/112.5°/135°）verbatim。Rule 13(b) "more than 22.5 degrees abaft her beam" 是条约唯一固定角度（源于 Rule 21 灯光弧几何）。
+- [R62] Woerner, K. [“Multi-contact protocol-constrained collision avoidance for autonomous marine vehicles,”](https://dspace.mit.edu/bitstreams/883b5eae-c230-44b3-95f5-9e7ec00e0ff9/download) MIT PhD thesis, 2016。2026-07-28 取证（16 MB PDF 全文 verbatim）。§3 Eq.3.15-3.19（contact angle α / relative bearing β 定义）、§4.5.1 Algorithm 5（classification，默认 αcrit_13=45°/αcrit_14=13°/αcrit_15=10°，p.145 明示 "all configurable... no prescribed value in COLREGS"）、Algorithm 9（port-to-port pose reward Eq.4.12 `R=[½(sin α+1)][½(sin β+1)]R_max`，p.155 "port-to-port = β=270°, α=−90°"）、Algorithm 11（Rule 17 in extremis）、Algorithm 12（delayed action，r_maneuver/r_detect/r_cpa）、Algorithm 14（θ_app=30° apparent course）、Algorithm 16（θ_md=2° detectable，stand-on maintain）、p.154 "30° by custom sufficient, some texts 35°"、p.163 admiralty 25% at fault。
+- [R63] Woerner, K.; Benjamin, M. R.; Novitzky, M.; Leonard, J. J. [“Quantifying protocol evaluation for autonomous collision avoidance.”](https://link.springer.com/article/10.1007/s10514-018-9765-y) Autonomous Robots 43, 2019, 967-1001, DOI 10.1007/s10514-018-9765-y。2026-07-28 取证。Woerner 2016 论文版，123 引。
+- [R64] Eriksen, B.-O. H.; Bitar, G.; Breivik, M.; Lekkas, A. M. [“Hybrid Collision Avoidance for ASVs Compliant With COLREGs Rules 8 and 13–17.”](https://doi.org/10.3389/frobt.2020.00011) Frontiers in Robotics and AI 7:11, 2020。2026-07-28 取证（仓内 `paper/Hybrid Collision Avoidance for ASVs Compliant With COLREGs Rules 8 and 13–17.pdf`，verbatim）。§4.2.1 state machine SF/OT/HO/GW/SO/EM，"all transitions to/from safe state"（rule lock-on）；§4.2.2 Eq.9-15 entry/exit criteria with hysteresis（`entry_i = d_CPA<d_CPA^enter ∧ t_CPA∈[lo,hi]`，`exit_i = d_CPA≥d_CPA^exit ∨ t_CPA∉[…]`）；EM entry `t_crit<t_crit^EM ∧ t_CPA>0` 仅从 GW/HO。
+- [R65] Hagen, I. B.; Knutsen, V.; Johansen, T. A.; Brekke, E. F. [“Exploration of COLREG-relevant Parameters from Historical AIS-data.”](https://torarnj.folk.ntnu.no/AIS_param_paper.pdf) Journal of Navigation, 2022。2026-07-28 取证。使用 Woerner 分类 verbatim。
+- [R66] Akdag, B.; Fossen, T. I.; Johansen, T. A. [“Collaborative Collision Avoidance...”](https://torarnj.folk.ntnu.no/Collaborative_Collision_Avoidance_IFAC_CAMS_2022_final_version.pdf) IFAC CAMS 2022。2026-07-28 取证。明确声明使用 Woerner (2016) 阈值。
+- [R67] Murray, B.; Naeem, W. [“Stochastic COLREGs Evaluation under Uncertainty.”](https://arxiv.org/abs/2402.05662) arXiv:2402.05662, 2024。2026-07-28 取证。§III-A Eq.11 classification angles（HO ±5°、OT 112.5°-247.5°、SB/PS），引用 Hagen 2023。
+- [R68] Zhao, L.; Roh, M.-I. [“COLREGs-compliant multiship collision avoidance based on deep reinforcement learning.”](https://www.sciencedirect.com/science/article/abs/pii/S0029801819305840) Ocean Engineering 191:106436, 2019, DOI 10.1016/j.oceaneng.2019.106436。2026-07-28 取证（仅摘要可达，全文付费墙）。多船优先级 DRL 控制器策略，非 evaluation rule，非 COLREGS 文本。
+- [R69] RTCA, [DO-178C “Software Considerations in Airborne Systems and Equipment Qualification”](https://www.rtca.org/)（2011）与 [DO-330 “Software Tool Qualification Considerations”](https://www.rtca.org/)（2011）。2026-07-28 取证（经 AdaCore/Rapita 二手摘要，未取全文）。§6 要求 verification 由独立于开发者的人员执行；DO-330 定义 TQL-1..5 工具鉴定等级——若欲跳过人工验证则须鉴定自动化工具。
+- [R70] ISO, [26262:2018 “Road vehicles — Functional safety,” Part 8 §11 “Qualification of software tools”](https://www.iso.org/standard/68387.html)。2026-07-28 取证（经 Embitel/Siemens Verification Horizons 二手摘要）。定义 Tool Confidence Level (TCL1-3) 与 Tool error Detection (TD1/2/3)；高 TD（人工审核/验证/输出检查）可降 TCL，移除人工审核则升高所需鉴定等级。
+- [R71] IEC, [61508 Part 3:2010 “Functional safety of electrical/electronic/programmable electronic safety-related systems — Part 3: Software requirements”](https://webstore.iec.ch/publication/6027)。2026-07-28 取证（经二手摘要）。通用功能安全软件 V&V 基础标准。
+- [R72] Beiranvand, V.; Hare, W.; Lucet, Y. [“Best practices for comparing optimization algorithms.”](https://doi.org/10.1007/s11081-017-9366-2) Optimization and Engineering 18(4):815-848, 2017。2026-07-28 取证。明确 wall-clock 时间依赖语言/硬件/编译器；建议用 function-evaluation 计数或归一化预算做公平比较；不同算法的 objective 不可直接比较除非归一化。
+- [R73] Eriksen, B.-O. H.; Bitar, G.; Breivik, M.; Lekkas, A. M. 中层 NLP-MPC 论文（仓内 `paper/` 目录，NTNU COLAV 组）。2026-07-28 取证。IPOPT solve time 在命名硬件（2.8 GHz Core i7）上报告；明确"Guaranteeing a maximum computational time for NLPs is difficult"。
+- [R74] Kaplan, E. L.; Meier, P. [“Nonparametric Estimation from Incomplete Observations.”](https://doi.org/10.1080/01621459.1958.10501452) JASA 53(282):457-481, 1958。2026-07-28 取证（全文 verbatim）。product-limit estimator 估计"P(t) of items whose lifetimes would exceed t ... without making any assumption about the form of P(t)"；§1 要求"the lifetime ... is independent of the potential loss time; in practice this assumption deserves careful scrutiny"。confidence band 见 Greenwood pointwise CI 与 Nair 1984 / Hall & Wellner 1980 simultaneous bands。
+- [R75] Koehler, E.; Brown, E.; Lalande, S. J. P. [“On the Assessment of Monte Carlo Error in Simulation-Based Research.”](https://pmc.ncbi.nlm.nih.gov/articles/PMC3337209/) The American Statistician 63(2):155-162, 2009。2026-07-28 取证（全文 verbatim）。"it seems unlikely that a single choice for R [replications] will provide practical guidance in a broad range of simulation settings"；"the magnitude of MCE, and thus the number of replications required, depends on both the design and the target quantity of interest."
+- [R76] Wilson, E. B. [“Probable Inference, the Law of Succession, and Statistical Inference.”](https://doi.org/10.1080/01621459.1927.10502953) JASA 22(158):209-212, 1927。2026-07-28 取证（经 NIST/SEMATECH e-Handbook §7.2.4.1 + Brown, Cai & DasGupta 2001 / Agresti & Coull 1998 coverage 文献）。Wilson score interval 公式 `L/U = [p̂ + z²/(2n) ∓ z·sqrt(p̂(1−p̂)/n + z²/(4n²))] / [1 + z²/n]`；NIST handbook："recommended by Brown, Cai and DasGupta (2001) and Agresti and Coull (1998)"，"worth does not strongly depend upon the value of n and/or p"，"lower limit cannot be negative"（Wald 的缺陷）。
+- [R77] Efron, B. [“Bootstrap Methods: Another Look at the Jackknife.”](https://doi.org/10.1214/aos/1176344552) Annals of Statistics 7(1):1-26, 1979。2026-07-28 取证（全文 verbatim）。§2 三步法："1. Construct the sample probability distribution F̂, putting mass 1/n at each point ... 2. draw a random sample of size n from F̂ ... 3. Approximate the sampling distribution of R(X,F) by the bootstrap distribution of R*." distribution-free CI 方法。
+- [R78] Wilcoxon, F. [“Individual Comparisons by Ranking Methods.”](https://doi.org/10.2307/3001968) Biometrics Bulletin 1(6):80-83, 1945。2026-07-28 取证。signed-rank test 比较两 matched sample 的 location——配对两算法设置的直接适用。
+- [R79] Little, R. J. A.; Rubin, D. B. [“Statistical Analysis with Missing Data.”](https://www.wiley.com/en-us/Statistical+Analysis+with+Missing+Data%2C+3rd+Edition-p-9780410586051) 3rd ed., Wiley, 2020。2026-07-28 取证（Ch.1 §1.3 verbatim）。Definition 1.1："Missing data are unobserved values that would be meaningful for analysis if observed"；MCAR（Eq 1.1）"does not depend on the values of the data"；MAR（Eq 1.2）"depends on y_i only through the observed components"；MNAR"if the mechanism depends on y_i"；complete-case analysis "generally inappropriate because the investigator is usually interested in making inferences about the entire target population"。
 
 ---
 
@@ -1229,3 +1287,1168 @@ failed_gates[] / not_evaluated_gates[] / primary_reason
   - `signed_tcpa`、future TCPA、observed CPA 分字段；负 TCPA 不单独解除 encounter，低相对速度显式标 undefined/status。
   - ENC 输出区分 polygon hazard clearance、point/line feature distance、unknown/unsurveyed overlap 和 CATZOC；不得宣称 operational UKC。
 - 下一对话必须先复核工作树、读取本日志和 `design-grounding` Step3 规则，再完成 BL-65..BL-69 的正式证据登记；展示后停在用户确认门。
+
+### Step3 · 第七批深度调研：动态 footprint、连续碰撞/搁浅、CPA/TCPA 语义与 ENC clearance [2026-07-28]
+
+#### 取证摘要
+
+- 主仓 `main` head `239aa22`、clean；worktree `codex/colav-backend-algorithms` head `67625e7`（较 checkpoint `7789a5f` 多 1 个 `feat(web): expose ENC safe-water polygons` commit，属 BL-69 相关只读 web 投影，不影响 BL-65..69 证据语义）、clean。
+- 外部证据由 3 个并行 agent 取证，全部直读原始 PDF / 官方文档，未引用 SO / 博客 / 二手综述。已登记为 R51..R60。
+- 本地代码复核覆盖 `core/models.py`、`core/integrators.py`、`simulator.py`、`common/map_functions.py`、`common/vessel_data.py`、`common/math_functions.py`、`common/miscellaneous_helper_methods.py`、`evaluation/encounter.py`。
+- **源身份修正（已在 R51/R56/R58/R59 标注）**：
+  - R51：`tang09.pdf` 实为 Tang/Kim/Manocha C²A（ICRA 2009），非任务描述的“Connectivity-Based Culling”论文；采用 C²A，符合 CCD 需求。
+  - R56：MSC.192(79) 经核验为雷达设备标准（Annex 34）而非 ECDIS；ECDIS 标准为 MSC.232(82)。
+  - R58：MSC.192(79) 用于 BL-67/68 时反而更切题（CPA/TCPA 告警属雷达/ARPA 标准）。
+  - R59：Namgung 2022 实际标题为“Local Route Planning for Collision Avoidance of MASS…”，单作者非 et al.。
+
+#### BL-65 · 动态船体 footprint、body reference、姿态插值与安全 buffer
+
+- [R22] `models.py` 各船模 dataclass 已携带 `ship_vertices: np.ndarray`（Viknes/Telemetron/FCB45 三套），但当前碰撞/搁浅判定链路（`simulator.determine_ship_collision`、`determine_ship_grounding`、`distance_to_grounding`）**完全未使用** `ship_vertices`。
+- 当前实际使用的 footprint 来自 `create_ship_polygon()`（`map_functions.py:475-507`）：以 `(x, y, heading, length, width)` 构造一个**通用五边形**（左后/左前/艏尖/右前/右后），而非船模自身 `ship_vertices`。它存在两处几何不一致：
+  - 第 501 行 `x_max = x + eff_length/2 - eff_width`：x_max 隐含了“艏尖比艉前移一个 width”的假设，使矩形主体长 `eff_length - eff_width`，艏尖另加 `eff_width/2`。对 Viknes `length=8.45, width=2.71`，矩形长 `5.74 m`，艏尖长 `1.355 m`，与真实船体顶点分布不对应。
+  - 第 503-505 行坐标元组以 `(y, x)` 顺序给出（north/east 混用），仅依赖后续 `affinity.rotate(..., origin=(y,x))` 补救；坐标轴约定脆弱。
+- `simulator.determine_ship_collision`（`simulator.py:434-448`）以**中心距 `<= ownship.length/2`** 判定，不使用 `create_ship_polygon`、不使用目标船尺寸/姿态、不做姿态插值。
+- `simulator.determine_ship_grounding` / `distance_to_grounding`（`simulator.py:450-473`）调用 `mapf.min_distance_to_hazards(..., ship_state[1], ship_state[0])`，即**中心点到 hazard 并集的距离 `<= ownship.length/2`**。同样是点-中心距离，不使用 footprint。
+- [R51]（C²A, Sec I）：离散端点采样会漏掉步间碰撞（tunneling problem）；CCD 通过在两姿态间构造连续运动插值、沿插值路径检查相交，保证不漏报。C²A 的 first time of contact `t = min { t ∈ [0,1] : A(t) ∩ B ≠ ∅ }`（Sec III.A Eq.1），**边界接触计为碰撞**（非空相交包含 touching）。
+- [R51]（Sec III.B）：C²A 假设 piecewise-constant 平移速度 `v` 与旋转速度 `w`，构造连续运动 `M(t)` 插值 `q_0 → q_1`；“when the simulation time-step is small, the difference between the actual objects' motions and the interpolated paths is negligible.” 对 Viknes `7 m/s、15 deg/s、dt=0.5 s`，该 piecewise-constant 假设可作为 oracle 的轨迹模型。
+- [R51]（Sec IV Eq.3）：平移+旋转耦合的运动上界 `m = |v·n| + ∫ max_i |w·r_i(t)| dt + …`，轨迹由 **screw motion** 限定（比独立处理平移与旋转更紧）。**线性顶点插值（lerp）在旋转下会低估 swept volume**（Sec II.A 指出 SAT-based CCD“becomes overly conservative when there is a large rotational motion”），故 V1 oracle 不得用 lerp 顶点代替连续姿态插值。
+- [R52]（Shapely manual）：`intersects` True 当“boundary or interior … intersect in any way”（边界接触计为相交）；`touches` 要求“at least one point in common and their interiors do not intersect”；`distance` 返回最小距离（float，0.0 即接触但受浮点相等敏感）；`buffer(distance)` 给物理接触 buffer；Shapely **仅支持平面 Cartesian**（“does not support coordinate system transformations”），任何 WGS84 lat/lon 必须先投影（UTM）再做几何查询。
+- **物理 footprint 与 safety buffer 必须分离**：[R51] 的 first-TOC 定义纯几何接触事实；safety buffer（COLREG 安全域、near-miss 裕度）是独立风险指标，不得改写“是否实际接触”的事实定义。这与已闭环的 BL-53/BL-61 三层分离一致。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 每状态：用该船模型 `ship_vertices`（无 vertex 时 fallback 到 `create_ship_polygon`，并显式标记 fallback）构造定向 footprint，与该船 hazards/ENC bbox 做 `intersects`/`distance`。
+  - 每区间：在 `t_k → t_{k+1}` 对位置和最短角差做连续姿态插值（piecewise-constant v/w，screw-motion bounded），用 C²A conservative advancement（[R51] Eq.2 `Δt = d(A,B)/m`）或可证明上界的自适应姿态细分，保证无 tunneling。
+  - 接触事实定义不加 buffer；near-miss/safety domain 独立输出。
+- 证据边界：
+  - 可冻结的语义：footprint 必须用船模 vertex（或显式 fallback 五边形）；姿态插值必须连续（不得 lerp 顶点）；接触事实与 buffer 分离。
+  - `UNKNOWN`：最大角点位移上界、自适应细分容差、`set_precision` 的 grid_size 数值仍属 BL-66；当前不得填固定厘米/米数。
+- 状态：证据已登记，未标闭环，等待用户确认上述契约方向与 fallback 标记政策。
+
+#### BL-66 · 连续碰撞/搁浅检测方法、first-contact、容差与数值不确定性
+
+- [R29][R22] `core/integrators.py` 的 `erk4_integration_step`（`integrators.py:17-39`）**只返回区间终点 `x_next`**，无 dense output、无中间时刻状态、无连续解表示。`euler_integration_step` 同理。因此任一 `[t_k, t_{k+1}]` 区间内的连续碰撞检测只能由外层 oracle 自己做姿态插值/扫掠，integrator 不提供。
+- [R51]（C²A, Sec I）：端点采样失效模式 tunneling——“Discrete algorithms check for collision only at sampled configurations … may miss collision between two successive configurations.”
+- [R51]（Sec III.A Eq.2）：conservative advancement 步长 `Δt_i = d(A(t), B) / m`，其中 `d` 为最近距离下界、`m` 为单位时间运动上界；重复求和 `t = ΣΔt_i` 直到 `d(A(t),B) < 用户指定阈值`。**阈值由用户指定，标准未强制数值**。
+- 保守上界（PROJECT_FACT 推导 + [R51] Eq.3）：给定 Viknes `7 m/s` 平移 + `15 deg/s` 旋转、`dt=0.5 s`，单步最远顶点位移上界 `≤ (|v| + |w|·r_max)·dt`，其中 `r_max ≈ length/2 = 4.225 m`。代入：`(7 + 0.2618·4.225)·0.5 ≈ 4.05 m/step`。即任一区间内顶点可扫过约 `4 m`；窄 hazard（< 4 m 宽）或步间穿透会被端点采样漏掉。这正是 BL-52 已记录的“canonical `7 m/s`、`dt=0.5 s` 每步平移约 3.5 m”的旋转增广版。
+- [R52] `distance` 返回 float，0.0 为接触但受浮点相等敏感；`intersects` 边界接触计 True；`buffer(0)` 可清理 self-touching/bowtie polygon 但不改变接触事实。
+- [R53]（`set_precision`）：`grid_size` 大于船体最小特征（beam/chine）时会**拓扑坍缩**——“Line and polygon geometries may collapse to empty geometries if all vertices are closer together than grid_size”；“Spikes or sections in polygons narrower than grid_size … will be removed。” 安全模式 `mode='valid_output'` 保证输出有效（坍缩元素被移除）；`mode='pointwise'` 可能输出无效几何。**Viknes beam=2.71 m，任何容差 grid_size 必须远小于 2.71 m**，否则船体多边形会被静默删除。输入几何必须先 `make_valid`。
+- **禁止把两船 swept union 各自独立构造后相交来判定动态船碰撞**：swept union 是单体的扫掠体积；两船都在动时，必须在**同步时间**下对 `A(t)` 与 `B(t)` 做 CCD（[R51] Eq.1 是 `A(t) ∩ B(t) ≠ ∅`，二者共享同一 `t`）。各自独立构造 union 再相交会丢失时间同步，可能漏报（两船交替通过同一空间）或误报（不同时刻占用）。
+- **numerical tolerance、chart uncertainty、safety buffer 三者必须分离**：
+  - numerical tolerance：浮点/几何精度（`set_precision` grid_size、`distance==0` 判定），属 oracle 实现细节，不改接触事实。
+  - chart uncertainty：CATZOC / 测量年代 / 未测区（[R55]/[R57]），属数据质量，不改 hazard 几何。
+  - safety buffer：COLREG 安全域 / near-miss 裕度，属风险指标。
+  三者不得合并为同一个 buffer。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 船间碰撞：同步时间 CCD，`physical_collision` 由 first-TOC 定义；`clearance_m` = 两 footprint 最小几何距离（接触后 0）。
+  - 搁浅：每状态 footprint 与该船 hazards 做 `intersects`/`distance`；每区间做连续扫掠或自适应姿态细分（上界由运动学保证）。
+  - 容差：`set_precision` grid_size 仅用于 near-touch 数值稳定性，必须 `<< beam`；接触事实判定不用 grid_size，用 `intersects`/`distance==0`。
+  - 输入几何先 `make_valid`；`buffer(0)` 仅用于清理自交叉。
+- 证据边界：
+  - 可冻结的语义：同步时间 CCD、swept 不能跨时间独立相交、三类 buffer 分离、grid_size `<< beam`。
+  - `UNKNOWN`：具体 grid_size 数值（如 1e-3 m？1e-6 m？）、自适应细分收敛阈值、`m` 上界的具体实现（C²A screw motion vs 简化线性上界）仍需实现期裁决；当前不得填固定常数。
+- 状态：证据已登记，未标闭环，等待用户确认同步时间 CCD 与三类 buffer 分离。
+
+#### BL-67 · 安全域及 preferred/minimum CPA：固定值与船尺度策略
+
+- [R58]（MSC.192(79) Annex 34, §5.29.1/§5.29.2 与 CPA/TCPA 定义）：CPA/TCPA 限值为**操作员设置**——“Limits are set by the operator related to own ship”；dangerous target 定义为“violating the values as preset by the operator”。标准**未给固定数值**；grep 全文无任何米/海里固定 CPA 值。
+- [R60]（COLREG Rule 8(a)(d)）：“positive, in ample time, with due regard to good seamanship”与“passing at a safe distance … finally past and clear”均为**定性表述**，无固定米值。
+- [R59]（Namgung 2022, §2.3 Eq.7–13）：Fujii 族椭圆船域，**半轴随船长度 L 尺度**——基础模型（Fujii 1971）长半径 `4L`、短半径 `1.6L`；Namgung&Kim 2021 速度自适应扩展在 10 kt 基线下 `8L / 3.2L`。即文献中**唯一随船长度尺度的是船域（domain），不是 CPA 告警阈值**。
+- 历史 `ccta_2023_demo` profile（[R25]/[R49]）使用**固定绝对值** `r_pref/r_min/r_nm/r_col = 190/100/50/30 m`。这些是论文研究者对模糊 COLREG 术语的解释，不是法规硬事实（[R2]/BL-61 已确认）。
+- 证据支持的策略（DESIGN_CANDIDATE，非裁决）：
+  - `paper_compatible` profile：**保持论文原始固定绝对 CPA 值**（如 `ccta_2023_demo` 的 190/100/50/30 m），不得按船长度缩放。缩放后即不再是论文复现。
+  - `ship_length_scaled` profile（独立诊断/新 profile）：可用 Fujii/Namgung 椭圆船域（`a·L, b·L`），作为**独立**风险指标或新 profile，不替换 paper profile。
+  - 两者并存，分 profile 报告；不得把缩放后的值仍称“论文复现”。
+- 证据边界：
+  - 可冻结的语义：paper profile 用固定绝对值；ship-length-scaled 用独立 profile；二者不混。
+  - `UNKNOWN`：V1 默认采用哪个 profile、是否引入 Fujii/Namgung 数值（4L/1.6L vs 8L/3.2L）、是否做速度自适应，仍需 DP-21/DP-24 裁决。
+- 状态：证据已登记，未标闭环，等待用户确认“paper 固定 / 船尺度独立”双 profile 策略。
+
+#### BL-68 · 负 TCPA、CPA 已通过、低相对速度的统一语义
+
+- [R59]（Namgung 2022, §2.1 Eq.1–5）：标准相对运动 CPA/TCPA 符号公式。符号约定 verbatim：“T_CPA can be zero, positive, or negative, and D_CPA can only be zero or positive. The closer both T_CPA and D_CPA are to zero, the higher the collision risk.” 负 TCPA verbatim：“A negative T_CPA means that the D_CPA has already passed, that is, the vessels are moving away from each other after the closest state.”
+- [R59]（§4）：Namgung 在自身算法中把负 TCPA 用作“return to waypoint after collision-avoidance action”的触发——这是**论文特定的算法约定，不是 COLREG 规则**。证实：负 TCPA 是几何事实，不自动等同 encounter 解除。
+- [R60]（Rule 8(d)）：“finally past and clear”是**持续核查义务**（“effectiveness … carefully checked until … finally past and clear”），不是释放触发。进一步证实 post-CPA ≠ encounter released。
+- 当前代码三套 CPA 实现**语义不一致**（PROJECT_FACT）：
+  - `evaluation/encounter.py:21-33` `cpa()`：`speed_sq < 1e-9` 时返回 `(distance, 0.0, 0.0)`——低相对速度静默标 TCPA=0；`tcpa_s = max(0.0, signed_tcpa)`——负值被截断为 0，丢失 post-CPA 信号；但同时保留 `signed_tcpa` 字段，是三者中最接近正确的。
+  - `common/math_functions.py:54-74` `cpa()`：`v_AB_norm < 1e-6` 时返回 `(inf, inf)`——完全不同语义（无限大 vs 0）；不返回 signed tcpa。
+  - `common/miscellaneous_helper_methods.py:434-458` `compute_vessel_pair_cpa()`：`t_cpa = -dot(r,v)/dot(v,v)`（可为负），但调用方 `check_if_situation_is_risky_enough()`（:374-375）用 `t_cpa < t_cpa_threshold`——**负值自动通过风险检查**，无显式 post-CPA 语义。
+- [R59] **未论及** `V_r → 0` 奇点：Eq.4 除以 `V_r`，`V_r=0` 时公式未定义，但论文文本从未提及“TCPA → ∞”或“undefined status”。故低相对速度的显式状态标志**无文献支持**，属工程推断（DESIGN_DECISION）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 统一 CPA 实现：单一 `cpa()` 返回 `(signed_tcpa_s, future_cpa_m, observed_cpa_m, rel_speed_status)`。
+  - `signed_tcpa_s`：可为负（[R59] Eq.4 符号）。
+  - `future_cpa_m`：预测 D_CPA（[R59] Eq.5）。
+  - `observed_cpa_m`：截至当前时刻已实现的最小距离（工程构造，非文献）。
+  - `rel_speed_status`：`NORMAL | LOW | NEAR_STATIC`（工程决策，阈值待定；不引用 [R59] 为支持）。
+  - `post_cpa`：`signed_tcpa_s < 0`（[R59] verbatim）。
+  - 负 TCPA **不单独解除 encounter**：encounter 解除需结合 stage 回退（BL-71）与 COLREG 行为 predicate（BL-72..74）。
+- 证据边界：
+  - 可冻结的语义：signed tcpa、post-CPA 不自动解除 encounter、统一单一 CPA 实现。
+  - `UNKNOWN`：低相对速度阈值（`LOW`/`NEAR_STATIC` 的 m/s 数值）、`observed_cpa_m` 的实现细节，仍需裁决。
+- 状态：证据已登记，未标闭环，等待用户确认统一 CPA 语义与负 TCPA 不自动解除 encounter。
+
+#### BL-69 · 可靠计算 ENC clearance 的地图层、未知区与数据质量边界
+
+- [R54]（Kartverket Sjøkart-Dybdedata v20201001, §5.1.2）：各 layer 几何/字段/可航语义 verbatim 表：
+
+  | Feature (verbatim) | 几何 | 关键字段 | S-57 等价 | 可航语义 |
+  |---|---|---|---|---|
+  | `Dybdeareal` | Polygon (MultiPolygon) | `minimumsdybde`(DRVAL1), `maksimumsdybde`(DRVAL2) | DEPARE | 深度区间内的可航水域 |
+  | `Dybdekurve` | Line (MultiLineString) | `dybde` | DEPCNT | 等深线（线，非面） |
+  | `Dybdepunkt` | Point | `dybde`, `dybdetype` | SOUND | 离散测深点（点，非面） |
+  | `Grunne` | Point | `dybde` | UWTROC | 浅点/礁（点特征，非面） |
+  | `IkkeKartlagtSjømåltOmr` | Polygon (MultiPolygon) | 无 | UNSARE | **未测区** |
+  | `Landareal` | Polygon | 无 | LNDARE | 不可航（陆地） |
+  | `Skjær` | Point | 无 | — | 不可航，点 |
+  | `Tørrfall` | Polygon | 无（边界为海图零点下 0.5 m） | DEPARE(潮间带) | 不可航潮间带 |
+  | `Datakvalitet` | Polygon | `CATZOC` | M_QUAL | CATZOC 质量面 |
+  | `MudretOmråde` | Polygon | `minimumsdybde`, `maksimumsdybde` | — | 维护深度疏浚区 |
+
+- [R54]（§5.1.2.41 `codeList Catzoc`）：A1/A2/B/C/D/U 六类定性语义 verbatim。A1=“Full flatedekning oppnådd. Alle signifikante objekter funnet og dybder målt.”；B=“Full flatedekning ikke oppnådd. Uoppdagede objekter farlig for navigasjon forventes ikke, men kan forekomme.”；U=“Ikke vurdert”。**定量位置/深度精度表不在 Kartverket 页面**，在 IHO S-52 APP2 / S-57 Ch.2，本批授权源未含，标 `EXTERNAL_CONFIRMATION_REQUIRED`。
+- [R55]（Kartverket CATZOC NO+EN 页面）：与 [R54] codeList 一致；Kartverket 建议“navigere med varsomhet i områder med eldre dybdemålinger med lav kvalitet”。
+- [R56]（MSC.232(82)）：ECDIS 强制 ENC 为图数据源（§3.2/§4.1）；§5.8 mandates **safety contour alarm**（操作员选择，默认 30 m 仅显示回退）；§5.9 safety depth 仅控制测深点显示强调；**全文无 CATZOC/UKC/squat/chart-quality buffer 强制数值**。30 m 是告警默认回退，非物理 clearance 规则。
+- [R57]（S-57 Ch.1）：DEPARE 定义“a water area whose depth is within a defined range of values”，深度区间由 `DRVAL1/DRVAL2` 定义——**面积平均深度带，非连续海床场**。UNSARE（code 154）“An area for which no bathymetric survey information is available”，无任何深度属性。M_QUAL（code 308）是携带 CATZOC/POSACC/SOUACC 的 meta-object，是质量面而非 hazard。DEPCNT（code 43）“often represent an approximate location of the line of equal depth”——线特征，显式近似。
+- 本地 SeaCharts 2.2.0 layer 分组（`seacharts/spatial/layers.py:8-38`，[R35] 已审计）：`seabed = dybdeareal + grunne`（按 `minimumsdybde/dybde` 重分箱）；`land = landareal`；`shore = skjer + torrfall + landareal + ikkekartlagtsjomaltomr`。两处与 [R54] 规约的偏差：
+  - `grunne` 按 [R54] 是 **Point**（UWTROC 浅点），SeaCharts 却喂入 `seabed`（多边形深度区集合），实际把每个浅点当零面积深度条目。这是模拟器约定，非海图语义。
+  - `shore` 把 `ikkekartlagtsjomaltomr`（UNSARE 未测区）折叠进 shore/不可航类。对 V1 hazard 模型**保守**（未知当不可航），满足“未测区不得静默当安全”；但混淆了“未测”与“陆地/岸”，下游无法仅凭 `shore` 几何区分二者。若需独立报告未测区，须直接读 `ikkekartlagtsjomaltomr` 而非经 `enc.shore`。
+- 当前 `distance_to_enc_hazards`（`map_functions.py:749-773`）用 `Point(x,y).distance(hazard)`——**中心点到 hazard 并集的距离**，不是 footprint clearance。`extract_relevant_grounding_hazards_as_union()`（:548-579）会 `land.union(shore).union(dangerous_seabed)` 并删除 Polygon interior，可能把 geometry hole 填成 hazard（[R38] 已记录，BL-52）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - **polygon hazard clearance**：`Dybdeareal`/`Tørrfall`/`MudretOmråde`（深度区间多边形）+ `Landareal`/`Skjær`(点需 buffer)/` Shore`，按该船静态吃水独立派生 hazards；footprint 与 hazards 做 `intersects`/`distance`。
+  - **point/line feature distance**：`Dybdepunkt`/`Grunne`/`Dybdekurve` 仅作独立距离诊断，**不得 buffer 后称为真实 hazard 边界**（除非有显式版本化 buffer 政策）。
+  - **unknown/unsurveyed overlap**：`IkkeKartlagtSjømåltOmr`（UNSARE）单独输出为 `unknown_area_overlap` 标志，不得静默当安全；保留保守 shore 折叠为可选，但报告层须能区分未测区。
+  - **CATZOC quality flag**：作为序数质量标签（A1→U），不作为数值 buffer 源；数值精度表标 `EXTERNAL_CONFIRMATION_REQUIRED`。
+  - **chart-geometric clearance only**：不得宣称 operational UKC（需潮汐/squat/heel/动态吃水，[R37]/BL-51 已确认）。
+- 证据边界：
+  - 可冻结的语义：polygon/point-line/unknown/CATZOC 四类分离；每船独立派生 hazards；不宣称 UKC。
+  - `UNKNOWN`：`Skjær` 点是否需要 buffer、`MudretOmråde` 是否纳入 V1 hazards、未测区是否独立 hazard 还是仅标志，仍需裁决。
+- 状态：证据已登记，未标闭环，等待用户确认四类分离与未测区独立报告。
+
+#### 本批用户确认门
+
+- 待用户分别确认 BL-65、BL-66、BL-67、BL-68、BL-69 的证据是否回答原问题。
+- 建议确认口径：
+  - BL-65：footprint 用船模 vertex（无 vertex 时显式 fallback 五边形）；姿态插值连续（不得 lerp 顶点）；接触事实与 safety buffer 分离。
+  - BL-66：同步时间 CCD（禁止跨时间独立 swept union 相交）；numerical tolerance / chart uncertainty / safety buffer 三类分离；`set_precision` grid_size `<< beam`；具体数值容差后置。
+  - BL-67：paper profile 保持固定绝对 CPA；ship-length-scaled 船域作为独立 profile；缩放后不称论文复现。
+  - BL-68：统一单一 CPA 实现返回 signed tcpa/future cpa/observed cpa/rel-speed status；负 TCPA 不自动解除 encounter；低相对速度为工程决策。
+  - BL-69：polygon/point-line/unknown/CATZOC 四类分离；每船独立派生 hazards；不宣称 operational UKC；未测区独立报告。
+- 未确认前不改盲区为“已闭环”，不进入 Step4，不实施代码。
+
+### Step3 · 第七批证据用户确认 [2026-07-28]
+
+- 用户确认本批全部证据。
+- BL-65 边界闭环：footprint 用船模 vertex（无 vertex 显式 fallback 五边形）；姿态插值连续（不得 lerp 顶点）；接触事实与 safety buffer 分离；平面几何须投影 UTM；具体数值容差后置。
+- BL-66 边界闭环：同步时间 CCD（禁止跨时间独立 swept union 相交）；numerical tolerance / chart uncertainty / safety buffer 三类分离；`set_precision` grid_size `<< beam`；具体数值后置。
+- BL-67 边界闭环：paper profile 保持固定绝对 CPA；ship-length-scaled 船域作独立 profile；缩放后不称论文复现；V1 默认 profile 待 DP-21/DP-24 裁决。
+- BL-68 闭环：统一单一 CPA 实现（signed tcpa / future cpa / observed cpa / rel-speed status）；负 TCPA 不自动解除 encounter；低相对速度为工程决策，阈值后置。
+- BL-69 边界闭环：polygon / point-line / unknown / CATZOC 四类分离；每船独立派生 hazards；不宣称 operational UKC；未测区独立报告；`Skjær` buffer 等细节后置。
+- 用户授权加速路径：**路径 1** —— B 档（TD-01 接口设计裁决，BL-05,10..38 共 29 项）+ C 档（Worker/证据包/Web schema 工程裁决，BL-90..108,114..118 共 24 项）批量合并裁决或授权后置；A 档（COLREG 行为 / 任务指标 / 资格门 / 统计 / PSB·RLMPC 归一化，BL-70..89,109..113 共 30 项）保持 primary-source 深度调研。
+- Step3 尚未完成；不进入 Step4。
+
+### Step3 · 第八批深度调研：COLREG 行为 Oracle 分类角、阶段锁定、行为阈值、通过侧几何与多船 Rule 17 [2026-07-28]
+
+#### 取证摘要
+
+- 本批为 A 档深度调研第一组，对应 DP-22 COLREG 行为 Oracle 的 BL-70..74。
+- 外部 primary source 由单一 agent 串行取证 8 个源，全部 verbatim 引用：[R61] IMO COLREGS 条约文本、[R62] Woerner 2016 MIT PhD（canonical classification + behavioral thresholds，全文 16 MB）、[R63] Woerner 2019 Autonomous Robots（论文版）、[R64] Eriksen 2020 Frontiers（FSM 锁定/释放）、[R65] Hagen 2022 J. Navigation（AIS 实证）、[R66] Akdag 2022 IFAC CAMS、[R67] Murray & Naeem 2024 arXiv、[R68] Zhao & Roh 2019（仅摘要）。
+- **Hagen 2023（Ocean Engineering 288:115991，本项目的 load-bearing paper）全文付费墙且无 preprint/author-accepted-manuscript**。可归因于 Hagen 2023 的内容仅来自 [R67] 的引用片段、2024 follow-up 与项目自身标记 `numerical_reproduction_confirmed=False` 的重建实现。凡仅可推断的 Hagen 数值，标 INFERENCE，不得当作 Hagen 原始数值引用。
+- **跨 BL 核心发现**：COLREGS 条约仅提供一个角度——Rule 13(b) "more than 22.5 degrees abaft her beam"（源于 Rule 21 灯光弧几何），其余所有阈值（head-on 半角、overtaking contact-angle 容差、crossing-ahead band、substantial/detectable 度数、Stage 距离倍数、Rule 17(a)(ii) 触发）均为 versioned engineering choice。三个 A-grade source 给出三个不同 head-on 半角（Woerner 13° / Eriksen-Tam&Bucknall 22.5° / Murray 5°）。Playground oracle 必须是 **profile-parameterized** 工件，不是单一硬编码分类器。
+
+#### BL-70 · Rule 13/14/15 分类角与边界 profile
+
+- [R61] IMO Rule 13(b) verbatim："A vessel shall be deemed to be overtaking when coming up with another vessel from a direction **more than 22.5 degrees abaft her beam**"。该 22.5° 来自 Rule 21 灯光弧（舷灯弧 112.5° from ahead → beam 在 112.5° → abaft-beam 始于 112.5° = 22.5° abaft beam）。**这是条约唯一固定的角度，且是灯光几何，非遭遇规则**。
+- [R61] IMO Rule 14(a)："two power-driven vessels are meeting on **reciprocal or nearly reciprocal courses**"——"nearly" 未定义；Rule 14(c)："When a vessel is in any doubt... she shall assume that it does exist"。Rule 15："the vessel which has the other **on her own starboard side** shall keep out of the way"——**无任何角度**。
+- [R62] Woerner 2016 Algorithm 5 (p.145) verbatim 默认值：`αcrit_13`（overtaking tolerance）= **45°**；`αcrit_14`（head-on tolerance）= **13°**；`αcrit_15`（crossing aspect limit）= **10°**。p.145 明示 "all αcrit values are configurable by evaluator"，Figure 4-7 caption (p.151)："All critical contact angles are configurable to the evaluator **as they have no prescribed value in the COLREGS**"。
+- [R62] Woerner 分类是**双变量**（relative bearing β₀ ∈ [0,360) AND contact angle α₀ ∈ [-180,180)），非单变量。Head-on（Algorithm 5 line 12-13）：`|β₀| < αcrit_14 AND |α₀| < αcrit_14`——bearing 和 course-difference 都须在 head-on cone 内（默认 13°）。故 head-on 区是 2D cone，非 bearing slice。Overtaking（line 7）：`β₀ > 112.5 AND β₀ < 247.5 AND |α₀| < αcrit_13(45°)`——astern 135° wedge 且 gated by contact angle；若 contact 指向横穿（|α₀|>45°）则为 crossing 非 overtaking。
+- [R64] Eriksen 2020 §4.2.3 + Figure 5 caption：使用对称区域 `θ₁,θ₂,θ₃ = [22.5, 90, 112.5°] offset from ahead`，并引用 Tam & Bucknall (2010) 推荐"larger region of **22.5°** in order to increase robustness"。故 Eriksen head-on 用 **±22.5°**，宽于 Woerner 13°。
+- [R67] Murray & Naeem 2024 Eq.(11) verbatim：HO `(0≤β≤5)∨(355<β<360)∨(|Δψ|≤5)`；SB `(5<β≤112.5)∧(|Δψ|>5)`；OT `(112.5<β≤247.5)∧(Δψ>5)`；PS `(247.5<β≤355)∧(|Δψ|>5)`。Head-on 此处 **±5°**，窄于 Woerner。
+- **三 A-grade source 给三个不同 head-on 半角（5°/13°/22.5°）** → 证实该角度是 versioned profile choice，非法规事实。112.5° crossing/overtaking 边界源于 Rule 21 灯光弧，是 regulatory constant。
+- [R48] PROJECT_FACT：当前 `evaluation/encounter.py:56` 用 `|relative_bearing| ≤ 15.0 AND course_difference ≥ 150.0` 判 head-on。15° 不同于 Woerner 13°；单变量 bearing-only 测试丢弃了 Woerner 的 contact-angle gate；crossing 边界 `±112.5`（:58,:60,:62）匹配 regulatory 值；重建 evaluator 完全未算 contact angle α。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 112.5° crossing/overtaking 边界作 regulatory constant。
+  - head-on 半角与 overtaking/contact-angle 容差作显式 profile 参数，Woerner 默认（13°/45°/10°）。
+  - 采用**双变量 (β, α) 分类**而非 bearing-only。
+  - 暴露 Tam&Bucknall 22.5° 与 Murray 5° 为命名 alternative profiles。
+- 证据边界：可冻结"profile-parameterized + 双变量"；具体 V1 默认角度（Woerner 13° vs Eriksen 22.5°）待 DP-22 裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-71 · encounter 阶段、规则锁定、解除与再次进入
+
+- [R61] IMO Rule 13(d) verbatim："Any subsequent alteration of the bearing... shall not make the overtaking vessel a crossing vessel... or relieve her of the duty of keeping clear of the overtaken vessel **until she is finally past and clear**"。Rule 8(d)："The effectiveness of the action shall be carefully checked **until the other vessel is finally past and clear**"。**"past and clear"无数值定义**。
+- [R64] Eriksen 2020 §4.2.1 verbatim：rule assignment 是 state machine，状态 SF/OT/HO/GW/SO/EM。"**all transitions have to go either from or to the safe state. This implies that when the state machine decides that a [rule] situation exists... it will not allow switching to another state without the situation being considered as safe first.**"——**锁定行为**：船不能通过机动逃离角色；须先满足 exit（释放）到 SF 才能重分类。
+- [R64] Eriksen Eq.(12) verbatim：`entry_i = true if d_CPA < d_CPA^{i,enter} ∧ t_CPA ∈ [t_CPA^{i,enter}_lo, t_CPA^{i,enter}_hi]`，i ∈ {SO,OT,GW,HO}。**进入 active encounter 须 DCPA 低于阈值 AND TCPA 在窗口内**，非单纯 range。
+- [R64] Eriksen EM entry：`entry_EM = true if t_crit < t_crit^{EM,enter} ∧ t_CPA > 0`（t_crit = "time until obstacle enters d_crit boundary"，Eq.11），仅从 geometrical GW/HO（"overtaking represents smaller danger"）。
+- [R64] Eriksen Eq.(13) verbatim：`exit_i = true if d_CPA ≥ d_CPA^{i,exit} ∨ t_CPA ∉ [t_CPA^{i,exit}_lo, t_CPA^{i,exit}_hi]`，且 "**other thresholds in order to implement hysteresis to avoid shattering**"——entry 与 exit 阈值故意不同，防抖动。
+- [R48] PROJECT_FACT：当前 `encounter.py:76-87` `stage_timeline` 用**纯 range gate**（Stage 1 `≤ 8×safety_distance`，Stage 2 `≤ 4×safety_distance`，Stage 3 = post-CPA），是 range-only 近似，**省略了 Eriksen/Hagen 的 DCPA/TCPA gating**。`EncounterMonitor.update`（:149）用 `signed_tcpa_s ≤ 0` 判 Stage 3，符合精神但无 hysteresis。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 锁定 FSM 模仿 Eriksen 2020 §4.2（SF↔{OT,HO,GW,SO,EM}，强制 return-to-SF）。
+  - entry/exit 阈值基于 (DCPA, TCPA, t_crit)，含显式 hysteresis。
+  - Stage 1/2/3/4 作为**独立 evaluation timeline**（post-hoc scoring），与**control state machine**（real-time role lock）分开。
+  - release criterion 显式 versioned；默认 Eriksen 式 `d_CPA ≥ d_CPA^exit ∨ t_CPA < 0`。
+- 证据边界：可冻结"锁定 FSM + hysteresis + 控制态与评价态分离"；Hagen Stage 1/2/3/4 的具体倍数（8×/4×）来自项目重建，未经 Hagen 2023 原文确认，标 INFERENCE。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-72 · "及时明显"与 stand-on 保向保速的量化阈值
+
+- [R61] IMO Rule 8(a) verbatim："shall... be **positive, made in ample time** and with due regard to the observance of good seamanship"。Rule 8(b)："shall... be **large enough to be readily apparent** to another vessel observing visually or by radar; a succession of small alterations... should be avoided"。Rule 8(c)："**substantial** and does not result in another close-quarters situation"。Rule 16："**early and substantial action** to keep well clear"。**无一量化** "ample/substantial/readily apparent/early"。
+- [R62] Woerner 2016 Algorithm 12 (Delayed Action) verbatim：`r_detect = range at detection (default 1.8·R_pref)`；`r_maneuver = range at ownship maneuver`；penalty `R_delay = R_delay^{max} · (r_detect − r_maneuver)/(r_detect − r_cpa)`。**"timely" 操作化为 maneuver range 相对于 detection range 与 CPA range，非固定 TCPA**。
+- [R62] Woerner Algorithm 14 verbatim：`θ_app = apparent course deviation threshold (default 30°)`；`θ_md = minimum detectable course deviation (default 0°)`；penalty 从 `θ_md` 线性 ramp 到 `θ_app` 后平台。Default `R_θ_app^{max} = 50%`。**30° "readily apparent" 是默认值，可配置**。
+- [R62] Woerner p.154 verbatim："The size of a readily apparent maneuver is not explicitly defined in the COLREGS, though **turns of 30° have been determined by custom to be sufficient**. **Some texts suggest a minimum of 35°**." 故文献锚定 "substantial" 在 **30-35°**（admiralty custom）。
+- [R62] Woerner Algorithm 15（speed change）：`Δv = apparent speed reduction threshold (default 50%)`。"apparent" 速度变化 ≈ **初始速度的 50%**。
+- [R62] Woerner Algorithm 16（stand-on maintain）verbatim：`θ_md = minimum detectable heading deviation (default 2°)`；低于 θ_md 无 penalty；高于 `θ_app(30°)` 平 max penalty `R^{max}(default 50%)`；中间线性。p.163 verbatim："**course changes greater than some threshold noise level (say, 2°) must be penalized** for stand-on vessels not otherwise invoking Rule 17.a.ii. Some small heading change up to the generally accepted substantial value of **30° must be increasingly penalized**."
+- [R61] IMO Rule 17(a)(i)："the other **shall keep her course and speed**"。[R62] Woerner p.162：case law 解释为 "steady, predictable maneuver"——常规航行变更（如减速等引航员）豁免，但无解释的变更属违规。
+- [R48] PROJECT_FACT：当前 `evaluator.py` 用 `|Δψ| ≥ 5°` OR `|ΔV| ≥ 0.1·V₀` 检测机动；"substantial" 在 `Δψ = 15°` 饱和；stand-on S17 对 pre-CPA 变更用 `10°` cap；P_sts 与 C_x_gw 在 15° 饱和。**这些非 Woerner 默认（30° substantial, 2° detectable）**，是重建者自选值。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 暴露四个 versioned 阈值/profile：`θ_detectable`（默认 2°）、`θ_substantial`（默认 30°）、`Δv_substantial`（默认 0.5）、`t_early_factor`（maneuver range 相对 detection range，Woerner Algorithm 12）。
+  - "timely" 实现为 **range-fraction**（`r_maneuver / (r_detect − r_cpa)`）而非 raw TCPA，匹配 Woerner。
+  - stand-on scoring 用同一 θ_detectable/θ_substantial ramp。
+- 证据边界：可冻结"四阈值 profile + range-fraction timely"；当前代码 5°/15° 与 Woerner 2°/30° 的偏差须在重建时显式裁决采用哪套。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-73 · port-to-port、crossing ahead、passed clear 的几何判定
+
+- [R62] Woerner §3 Eq.3.15：CPA pose 定义为 pair `Φ_cpa = [α_cpa, β_cpa]`——contact angle AND relative bearing at CPA，联合。p.87 verbatim："Contact angle refers to the **relative bearing of ownship as seen from the perspective of the contact**... Relative bearing (β) henceforth refers to ownship's relative perspective of the contact; contact angle (α) refers to the contact's relative perspective of ownship." **双视角几何**区分 port-to-port vs starboard-to-starboard。
+- [R62] Woerner Eq.4.12 verbatim（port-to-port reward）：`R^{14}_{Φ} = [½(sin(α_cpa)+1)] · [½(sin(β_cpa)+1)] · R_max`。p.155 verbatim："A true port-to-port passage will be a relative bearing of **β = 270°** and a contact angle of **α = −90°**." 即 port-to-port = {(α_cpa, β_cpa) near (−90°, 270°)}；signed-sine reward 在此处最大。**这正是 signed cross-product/dot-product predicate**：sin(β) 与 sin(α) 编码 signed lateral geometry。
+- [R62] Woerner §4.5.1 Rule 15 verbatim（crossing-ahead）："Crossing give-way vessels are specifically required to not cross ahead of the stand-on vessel... a stern crossing or near-stern crossing will result in a **narrow or negative contact angle** if the stand-on vessel does not maneuver." Penalty verbatim："penalize crossing ahead (e.g., **−25° < α_cpa < 165°** (configurable) where α_cpa is the stand-on vessel's contact angle if no action is taken under Rule 17.a.ii)." 故 crossing-ahead 经 **stand-on vessel 的 contact angle** α 在其 beam 前方（可配置 band 内）检测。
+- [R61] IMO Rule 13(d)/8(d) "finally past and clear" 无数值。[R62] Woerner 经 **CPA 已发生**（t_CPA passed）AND range opening（signed t_CPA<0）AND overtaker 的 contact angle 移向 astern 检测 passed-and-clear；Algorithm 6（Rule 13/16）检查 "duty of keeping clear ... until past and clear" via pose at CPA。[R64] Eriksen Eq.(13) 给数值释放：`d_CPA ≥ d_CPA^exit ∨ t_CPA ∉ [lo,hi]`，t_CPA<0 表 "obstacle moving further away"。
+- [R48] PROJECT_FACT：当前 `encounter.py:51` 算 `relative_bearing_deg`（signed）编码 port/starboard；但 `evaluator.py` **完全未算 contact angle α**。无 α 则 port-to-port pose scoring 与 crossing-ahead 检测无法忠于 Woerner/Hagen——重建 S14 仅用 starboard course change（:165），非 (α,β) pose reward。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 同时算 β（target 相对 ownship 的 bearing）与 α（ownship 相对 target 的 bearing = β+180°）。
+  - crossing-ahead：`α_target ∈ [α_ahead_lo, α_ahead_hi]`（Woerner 默认 −25°..165°，可配置）。
+  - port-to-port：Woerner Eq.4.12 signed-sine pose reward。
+  - "passed and clear"：`{t_CPA<0 (signed)} ∧ {range increasing} ∧ {role's CPA-pose satisfied}` 合取，非固定 astern bearing。
+- 证据边界：可冻结"双变量 (α,β) + signed-sine + 合取释放"；具体 α_ahead band 待 profile 裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-74 · multi-ship 规则冲突、非合作目标与 Rule 17 紧急阶段
+
+- [R61] IMO Rule 17 verbatim 三阶段：(a)(i) "shall **keep her course and speed**"；(a)(ii) "**may however take action**... as soon as it becomes apparent to her that the vessel required to keep out of the way is not taking appropriate action"；(b) "When... she finds herself **so close that collision cannot be avoided by the action of the give-way vessel alone**, she **shall take such action as will best aid to avoid collision**"；(c) "shall... **not alter course to port** for a vessel on her own port side"；(d) "does not relieve the give-way vessel"。**三阶段触发器均定性**。
+- [R62] Woerner Algorithm 11（Rule 17）verbatim：`if in extremis then compensate for maneuvers required in extremis`；对 power-driven crossing `penalize port maneuvers for port contacts`。p.162 verbatim："Stand-on vessels failing to maneuver prior to a collision have repeatedly been found partially (usually **25%**) at fault by admiralty courts when not invoking this clause [Rule 17.a.ii]." §II(a)/(b) 触发检测留 "reasonable and consistent criteria"，**Woerner 未固定 DCPA/TCPA 数值，可配置**。
+- [R64] Eriksen EM state verbatim：`entry_EM = t_crit < t_crit^{EM,enter} ∧ t_CPA > 0`，仅从 GW/HO。这是 Rule 17(b) "shall act" 的工程实例化。
+- [R62] Woerner §1.3.2 verbatim（non-cooperative）："Assertion: Evaluation algorithms can identify a vehicle not complying with the rules (protocol agnostic or collision agnostic) **using only track data**." §4.7 验证（Scenarios E-G: protocol agnostic / collision agnostic / dead in water）。p.163：stand-on 检测到 give-way non-compliant 则 "allowed and required... to take action"（Rule 17.a.ii）。**非合作处理 = stand-on 提前触发 Rule 17.a.ii；non-compliant target 按*应*遵守的规则评分**，post-hoc 可从 track 数据检测（give-way 的 S8/S15 崩溃）。
+- **multi-ship 冲突解决——COLREGS 无统一规则**。[R61] Rule 18 给 vessel-type hierarchy（NUC > RAM > fishing > sailing > power-driven），非几何优先级。Rule 13(d) 说 overtaker 无论 bearing 漂移仍是 overtaker。**条约无"两个 give-way 义务同时存在"的规则**。
+- [R62] Woerner（multi-contact thesis）：经 **priority weights** on each contact's CPA-utility（Fig 3-5 step/linear/quadratic）在单一 objective 求和解决 multi-contact——**非 rule hierarchy**。p.31："multi-objective optimization refers to... a single objective function... composed of components." 故 canonical multi-contact 工作也未定义 COLREGS-compliant 优先级，而是 objective weighting。
+- [R68] Zhao & Roh 2019（仅摘要）："A novel strategy is used to solve the problem of **prioritizing/conflict resolution among multiple encountering vessels**" via DRL——**控制器策略，非 evaluation rule，非 COLREGS 文本**。
+- [R67] Murray & Naeem 2024 §III：扩展至 "generic situation awareness where TVs manoeuvre according to other vessels... and not only according to OS-TV obligations"——概率性，非确定性 COLREGS 规则。
+- C_x,gw：[R48] PROJECT_FACT 重建 `evaluator.py:173` `C_x_gw = clip(port_change / 15°, 0, 1)`——penalize give-way 转向 port（可补偿被迫行动的 stand-on）。**15° 饱和与 port-only 方向是重建者选择，非确认的 Hagen 值**。[R62] Woerner Algorithm 10 line 6（"penalize for hindrance of stand-on vessel"）是概念基础。
+- [R48] PROJECT_FACT：当前 `evaluator.py` **无 Rule 17 phase machine**——`crossing_stand_on`（:174-179）把 S17 算成单一 pre-CPA-change penalty；无 "give-way not acting" 或 "collision unavoidable by give-way alone" 检测；无 EM state；非合作目标未建模（每个 target 假设合作）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - Rule 17 实现为每 stand-on pair 的三阶段 sub-FSM：KEEP → MAY_ACT（触发：paired give-way 的 S8 低于阈值且持续窗口）→ SHALL_ACT（触发：t_crit 低于 EM 阈值，Eriksen 式）；Rule 17(c) port-turn prohibition 仅在 MAY/SHALL 阶段对 port-side contacts。
+  - multi-ship：**不发明 COLREGS 优先级**——采显式立场：paper_compatible 仅支持 per-pair evaluation + C_x,gw compensation；multi-ship 冲突解决属 regulatory scope 之外，引用 [R68] Zhao & Roh 2019 作为 controller-side（非 oracle-side）参考。
+  - 非合作 target = 自身 S_* 低于 compliance threshold 的 target；oracle 标记并允许其 paired stand-on 提前进入 MAY_ACT（操作化 Rule 17.a.ii "becomes apparent"）。
+- 证据边界：可冻结"Rule 17 三阶段 sub-FSM + multi-ship 不发明优先级 + 非合作 = S_* 阈值"；具体 compliance threshold、t_crit^EM 数值待 profile 裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### 本批用户确认门
+
+- 待用户分别确认 BL-70、BL-71、BL-72、BL-73、BL-74 的证据是否回答原问题。
+- 建议确认口径：
+  - BL-70：oracle 为 profile-parameterized；112.5° 作 regulatory constant；head-on 半角与 contact-angle 容差作显式 profile 参数（Woerner 默认 13°/45°/10°）；采用双变量 (β,α) 分类；暴露 alternative profiles。
+  - BL-71：锁定 FSM（Eriksen 式 SF↔{OT,HO,GW,SO,EM}）；entry/exit 含 (DCPA,TCPA,t_crit) hysteresis；control state machine 与 evaluation timeline 分离。
+  - BL-72：四阈值 profile（θ_detectable 2°、θ_substantial 30°、Δv_substantial 0.5、t_early_factor range-fraction）；当前代码 5°/15° 偏差须裁决。
+  - BL-73：双变量 (α,β) pose；crossing-ahead 经 stand-on 的 α；port-to-port 经 signed-sine reward；passed-clear 为合取（t_CPA<0 ∧ range increasing ∧ CPA-pose satisfied）。
+  - BL-74：Rule 17 三阶段 sub-FSM；multi-ship 不发明优先级（per-pair + C_x,gw）；非合作 = S_* 阈值触发 stand-on MAY_ACT。
+- 未确认前不改盲区为“已闭环”，不进入 Step4，不实施代码。
+
+### Step3 · 第八批证据用户确认 [2026-07-28]
+
+- 用户确认本批全部证据。
+- BL-70 边界闭环：oracle 为 profile-parameterized；112.5° 作 regulatory constant；head-on 半角与 contact-angle 容差作显式 profile 参数（Woerner 默认 13°/45°/10°）；采用双变量 (β,α) 分类；alternative profiles 后置。
+- BL-71 闭环：锁定 FSM（Eriksen 式 SF↔{OT,HO,GW,SO,EM}）；entry/exit 含 (DCPA,TCPA,t_crit) hysteresis；control state machine 与 evaluation timeline 分离；Hagen Stage 倍数标 INFERENCE。
+- BL-72 边界闭环：四阈值 profile（θ_detectable 2°、θ_substantial 30°、Δv_substantial 0.5、t_early_factor range-fraction）；当前代码 5°/15° 偏差须裁决。
+- BL-73 闭环：双变量 (α,β) pose；crossing-ahead 经 stand-on 的 α；port-to-port 经 signed-sine reward；passed-clear 为合取（t_CPA<0 ∧ range increasing ∧ CPA-pose satisfied）。
+- BL-74 边界闭环：Rule 17 三阶段 sub-FSM；multi-ship 不发明优先级（per-pair + C_x,gw）；非合作 = S_* 阈值触发 stand-on MAY_ACT；compliance/EM 数值后置。
+- 用户授权：可复制 `/Users/marine/Code/MASS-L3-Tactical Layer/.nlm` 配置，用 `/nlm-ask` 查询已有领域笔记本（colav_algorithms / maritime_regulations / safety_verification 等）加速调研。配置已复制到 worktree。
+- Step3 尚未完成；不进入 Step4。
+
+### Step3 · 第九批深度调研（B 档第一批）：TD-01 Custom MPC 插件契约 — DP-05/08/09/10 接口盲区批量裁决 [2026-07-28]
+
+#### 取证摘要
+
+- 本批为路径 1 加速的 B 档第一批：TD-01（Custom MPC 插件契约）的 DP-05 剩余项 + DP-08/09/10 接口设计盲区，共 17 项（BL-05, BL-10..21）。
+- 与 A 档不同，本批盲区多为接口设计裁决（字段名/schema/容差/时间锚点），不依赖外部 primary source，主要证据来自 PROJECT_FACT（当前 `ICOLAV`、`PlannerTrace`、`PlanDiagnostics`、`RunSpec`、`SeedBundle`、`custom_mpc_adapter` 代码）+ Step2 已确认的 grilling 结论（DP-08..10）。
+- 证据分层：PROJECT_FACT 为现有脚手架事实；DESIGN_CANDIDATE 为基于脚手架 + grilling 的设计候选；UNKNOWN 为仍需裁决的数值。
+- **当前 `custom_mpc_adapter.py`（guidance 层 `IGuidance`）不是 `ICOLAV`**：它无 PlannerTrace、PlanStatus、solve_id、algorithm identity；其 `plan()` 签名只有 `obstacles: list[dict]`，无 covariance/enc/seed；所有 wrapper（PSBMPC/AcadosMPC/RRTStar）用 `except Exception → fallback SimpleLinearMPC`。这佐证 ALT-04（legacy custom_mpc_adapter 不得作正式接口）。正式 Custom MPC 须走 `CustomMPCAdapter(ICOLAV)` 薄适配器。
+- **当前 `ICOLAV.plan()` 已返回 `9xN` 并接收 `do_list` 含 covariance**：脚手架比 `custom_mpc_adapter` 更接近正式契约。但 `do_list` 是裸元组 `(ID, state, covariance, length, width)`，不自描述状态顺序、协方差坐标系、量测时间、Tracker 来源。
+
+#### BL-05 · 每条规则达到 G3 所需的最小几何变体数量
+
+- [R21] NIST covering-array 方法支持按离散 factor/t-way interaction 构造较小但可量化覆盖的回归集；不提供海事 MPC 固定最小样本数。
+- [R19][R20] 上游 PSB benchmark 每 stratum 100 episode（BL-03 已确认无缩减集）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：V1 canonical G3 set 按 t=2（pairwise）覆盖 4 类双船规则 × 关键 factor（initial bearing、speed ratio、CPA bin、 Tracker）；具体数量转 BL-80 裁决（A 档后台调研中）。
+- 证据边界：当前可冻结"采用 covering-array 方法 + 声明为本项目新建 regression set"；具体 t-way strength 与数量 UNKNOWN，待 BL-80。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-10 · Custom MPC 首次交付形式和运行环境
+
+- [R3][R9] 当前 `ICOLAV` 是稳定边界；`COLAVBuilder.construct_colav()` 从 `Config` 构建 `VOWrapper`/`SBMPCWrapper`。
+- [R11] `custom_mpc_adapter.py` 是 guidance 层 `IGuidance`，非 `ICOLAV`；含硬编码 `sys.path.insert` 与静默 fallback（ALT-04 已弃用）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：Custom MPC 首次交付为 `CustomMPCAdapter(ICOLAV)` 薄适配器，Adapter 负责验证/转换，不实现算法策略；in-process 优先（BL-95/96 后置裁决 Worker）；algorithm_config 经 `RunSpec.algorithm_config` 注入。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-11 · 扩展 ICOLAV.plan 参数还是引入 typed request DTO
+
+- [R3] 当前 `ICOLAV.plan(t, waypoints, speed_plan, ownship_state, do_list, enc, goal_state, w, **kwargs)` 已有 9 个位置参数 + kwargs；继续扩展会使签名脆弱。
+- [R9] `RunSpec`、`PlanDiagnostics` 已是 typed dataclass 模式。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：Adapter 内构造 typed `PlannerInput` DTO（含 ownship/track/enc/reference/seed/identity/time_validity），保持外部 `ICOLAV.plan()` 签名兼容；Adapter 验证结构/语义，solver 判断优化可行性；无效输入显式 `INVALID_INPUT`。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-12 · 坐标、单位、时间有效性和 Track 数据质量的 Adapter/solver 验证边界
+
+- [R3] 当前 `do_list` 裸元组无坐标系/单位/时间戳字段。
+- [R9] `RunSpec` 已有 schema_version。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：Adapter 验证坐标系（ENU）、单位（SI）、Track age（BL-14）、covariance PSD（BL-15）、finite/shape；solver 只判断优化可行性。技术规约（坐标系/单位/符号/时序）在 Step6 [TS] 锁定。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-13 · Custom MPC 配置 schema、版本和参数身份记录方式
+
+- [R9] `RunSpec.algorithm_config: dict` 已存在但无 schema/version/hash。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：`AlgorithmDescriptor`（BL-22）携带版本化、可哈希 config；manifest 保存冻结副本（content hash）；动态变化进 PlannerTrace。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-14 · Track 最大允许 age；过期后拒绝还是标记降级
+
+- [R30][R31] 当前 Radar 用 NaN 同时表示未扫描/超距/漏检（BL-43 已确认三态扫描契约）；VIM Adapter 无有效量测不调底层 step。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：Track age 阈值作 profile 参数（默认值待裁决，参考 Radar scan 周期整数倍）；超龄 `degraded` 标志，不自动拒绝（God/KF profile 差异）；Adapter 透传 age，solver 决定是否用。
+- 证据边界：可冻结"profile 化 + degraded 标志"；具体秒数 UNKNOWN。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-15 · covariance 坐标系、状态顺序、PSD 容差及缺失政策
+
+- [R3] 当前 `do_list` covariance 是 `np.ndarray`，无坐标系/状态顺序声明。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：covariance 坐标系 = NED/ENU（与 ownship_state 一致，Step6 [TS] 锁定）；状态顺序 `[x, y, Vx, Vy]`（与 do_list state 一致）；Adapter 检查对称 + 半正定（特征值 ≥ -ε，ε 待裁决）；缺失 covariance → `INVALID_INPUT`（不静默补单位阵）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-16 · MPC 接收完整 ENC 对象还是裁剪后的可序列化 hazard geometry
+
+- [R3] 当前 `ICOLAV.plan(enc: senc.ENC)` 接收完整 ENC 对象（含 Shapely geometry）。
+- [R35] ENC 加载慢（GDAL/SeaCharts），且 native Worker 跨进程序列化大 geometry 昂贵（BL-98 后置）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：in-process 传完整 ENC；subprocess Worker 传裁剪后的可序列化 hazard geometry（footprint-relevant union + bbox + SHA）；Adapter 声明所需 hazard layers（BL-69 四类分离）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-17 · 目标船 length/width 缺失或不可信时的处理政策
+
+- [R3] 当前 `do_list` 含 `(length, width)` 但无来源/置信度。
+- [R28] FCB45 目标船参数本身带 HAZID-UNVERIFIED。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：缺失 → `INVALID_INPUT`（不静默补默认值）；不可信（带 UNVERIFIED 标记）→ `degraded` 标志，Adapter 透传，solver 决定；fallback footprint（BL-65 五边形）须显式标记。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-18 · horizon 第 0 列表示当前状态还是下一控制时刻
+
+- [R3] 当前 `ICOLAV.plan()` 返回 `9xN`，VOWrapper 把 `trace_plan[0:2,0] = ownship_state[0:2]`（首列覆写为当前状态）；SBMPCWrapper 的 `debug["prediction"]` 首列语义未显式声明。
+- [R29] trajectory 记录的 state 是区间起点，reference 是本区间新指令。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：horizon 第 0 列 = solve-time 当前状态（`t_solve`），后续列 = `t_solve + k*horizon_dt`；`selected_command`（首列的执行指令）单独字段；hold 步不重置 horizon 原点（BL-28）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-19 · solver 状态维度不是 9 时，加速度/缺失状态的映射方式
+
+- [R3] `9xN` = `[x, y, psi, u, v, r, x_ddot, y_ddot, psi_dot]`（pose + vel + acc）。
+- [R32] SB-MPC predictor 是简化模型（`v=r=0`），不产出完整 9 维。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：Adapter 提供 `StateMapping`（版本化），把 native state 映射到 9 维；缺失维度填 0 并在 `algorithm_details` 标 `estimated=false`；不得静默补非零值。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-20 · 输出轨迹连续性、物理一致性和首点误差容差
+
+- [R3] `validate_plan()` 已检查 `shape(9,N>=1)` + finite。
+- [R29] 当前无连续性/物理一致性检查。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：Adapter 增加连续性检查（相邻列位移 ≤ `(|v|max + |w|max·r_max)·horizon_dt` 上界，BL-66 motion bound）；首点位置误差 ≤ footprint tolerance（BL-65）；违规 → `NUMERICAL_FAILURE`。具体数值容差后置。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-21 · selected_control 表示参考指令还是原始 MPC 控制量
+
+- [R3] VOWrapper `selected_command = {course_rad, speed_mps}`；SBMPCWrapper 含 `course_offset_rad, speed_scale`。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：`selected_command` = 控制器兼容参考指令（course/speed 或 force/torque，由 `AlgorithmDescriptor.control_form` 声明）；原始 MPC 控制量（如 SQP `u`）进 `algorithm_details`；两者都绑定同一 `solve_id`。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### 本批用户确认门
+
+- 待用户分别确认 BL-05, BL-10..21 的证据是否回答原问题。
+- 建议确认口径（统一 DESIGN_CANDIDATE，数值后置）：
+  - BL-05：covering-array t=2 方法 + 声明本项目 regression set；具体数量待 BL-80。
+  - BL-10：Custom MPC 首次交付为 `CustomMPCAdapter(ICOLAV)` 薄适配器；in-process 优先。
+  - BL-11：Adapter 内 typed `PlannerInput` DTO；保持 `ICOLAV.plan()` 签名兼容。
+  - BL-12：Adapter 验证坐标/单位/时间/Track 质量；solver 判断优化可行性；技术规约 Step6 锁定。
+  - BL-13：`AlgorithmDescriptor` 版本化可哈希 config；manifest 冻结副本。
+  - BL-14：Track age profile 化 + degraded 标志；具体秒数后置。
+  - BL-15：covariance 坐标系/状态顺序与 ownship 一致；PSD 检查；缺失 → INVALID_INPUT。
+  - BL-16：in-process 传完整 ENC；Worker 传裁剪 hazard geometry + SHA。
+  - BL-17：缺失 → INVALID_INPUT；不可信 → degraded 标志；fallback footprint 显式标记。
+  - BL-18：horizon 第 0 列 = solve-time 当前状态；selected_command 单独字段。
+  - BL-19：`StateMapping` 版本化映射；缺失维度填 0 并标 `estimated=false`。
+  - BL-20：连续性检查（motion bound 上界）；首点误差 ≤ footprint tolerance；具体数值后置。
+  - BL-21：selected_command = 控制器兼容参考；原始控制量进 algorithm_details；同 solve_id。
+- 未确认前不改盲区为"已闭环"，不进入 Step4，不实施代码。
+
+### Step3 · 第九批证据用户确认（B 档第一批） [2026-07-28]
+
+- 用户批量确认本批全部证据。
+- BL-05 边界闭环：采用 covering-array t=2 方法 + 声明为本项目新建 regression set；具体数量待 BL-80。
+- BL-10 闭环：Custom MPC 首次交付为 `CustomMPCAdapter(ICOLAV)` 薄适配器；in-process 优先；Worker 后置。
+- BL-11 闭环：Adapter 内 typed `PlannerInput` DTO；保持 `ICOLAV.plan()` 签名兼容。
+- BL-12 边界闭环：Adapter 验证坐标/单位/时间/Track 质量；solver 判断优化可行性；技术规约 Step6 锁定。
+- BL-13 闭环：`AlgorithmDescriptor` 版本化可哈希 config；manifest 冻结副本。
+- BL-14 边界闭环：Track age profile 化 + degraded 标志；具体秒数后置。
+- BL-15 闭环：covariance 坐标系/状态顺序与 ownship 一致；PSD 检查；缺失 → INVALID_INPUT。
+- BL-16 闭环：in-process 传完整 ENC；Worker 传裁剪 hazard geometry + SHA。
+- BL-17 闭环：缺失 → INVALID_INPUT；不可信 → degraded；fallback footprint 显式标记。
+- BL-18 闭环：horizon 第 0 列 = solve-time 当前状态；selected_command 单独字段。
+- BL-19 闭环：`StateMapping` 版本化映射；缺失维度填 0 标 `estimated=false`。
+- BL-20 边界闭环：连续性检查（motion bound 上界）；首点误差 ≤ footprint tolerance；具体数值后置。
+- BL-21 闭环：selected_command = 控制器兼容参考；原始控制量进 algorithm_details；同 solve_id。
+- Step3 尚未完成；不进入 Step4。
+
+### Step3 · 第十批深度调研（B 档第二批）：TD-01 Custom MPC 插件契约 — DP-11/12/13/14 接口盲区批量裁决 [2026-07-28]
+
+#### 取证摘要
+
+- 本批为路径 1 加速的 B 档第二批：TD-01（Custom MPC 插件契约）的 DP-11/12/13/14 接口设计盲区，共 17 项（BL-22..38）。
+- 与第九批同，本批盲区多为接口设计裁决（字段名/schema/容差/时间锚点/失败语义/诊断字段），不依赖外部 primary source，主要证据来自 PROJECT_FACT（当前 `PlanStatus`/`PlanDiagnostics`/`PlannerTrace`/`SeedBundle`/`RunSpec` 代码）+ Step2 已确认的 grilling 结论（DP-11..14）。
+- 关键脚手架事实：
+  - `PlanStatus`（StrEnum）已有 `SUCCESS/TIMEOUT_FEASIBLE/INFEASIBLE/NUMERICAL_FAILURE/INVALID_INPUT/DEPENDENCY_UNAVAILABLE` 六态（DP-13 BL-31..34 基础已备）。
+  - `PlannerTrace` 已有 `schema_version="1.0"`、`solve_id`、`solver_executed`、`predicted_trajectory`、`horizon_dt_s`、`selected_command`、`target_predictions`、`constraints`、`algorithm_details`（DP-14 BL-35..38 字段骨架已备）。
+  - `PlanDiagnostics` 已有 `status/elapsed_ms/iterations/feasible/objective/reason/requested_algorithm/executed_algorithm/fallback_used/details`。
+  - `SeedBundle` 已派生 `scenario/sensor/tracker/algorithm` 四流（BL-58 已闭环）；`RunSpec.strict_no_fallback` 已存在（DP-13 grilling 基础）。
+
+#### BL-22 · `AlgorithmDescriptor` 强制字段与允许 `not_applicable` 字段
+
+- [R9] 当前无 `AlgorithmDescriptor`；`RunSpec.algorithm_config: dict` 无 schema。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：强制字段 = `algorithm_id/version/control_form/state_layout/predictor_model/horizon_dt/horizon_steps/objective_terms/constraint_terms/solver/seed_policy/execution_profile`；允许 `not_applicable` 字段 = `iterations_semantics/objective_normalization/failure_modes`（声明即可，不强制值）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-23 · 外部二进制/服务的代码 SHA、build 和依赖身份获取方式
+
+- [R40] `RunManifest` 已记录 `code_commit/code_dirty/python_version/external_modules`（BL-60 runtime fingerprint 基础已备）。
+- [R43][R44] PSB/RLMPC native 二进制身份需 repo SHA + module/binary SHA + solver/library version + compiler/CMake/build flags + codegen/config hash。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：`AlgorithmDescriptor.build_identity` 携带上述字段；Adapter 探测 + manifest 冻结；缺失字段标 `UNKNOWN` 不得伪造。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-24 · 自适应权重、动态 horizon 和在线模式切换的记录方式
+
+- [R9] 当前 `algorithm_config: dict` 无版本/快照；`PlannerTrace.algorithm_details` 可存动态值。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：静态配置进 `AlgorithmDescriptor`（冻结）；每步动态值（权重/horizon/mode）进 `PlannerTrace.algorithm_details`（绑定 `solve_id`）；manifest 不含动态值。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-25 · 目标函数和约束名称是否需要公共分类词表
+
+- [R2][R48] 论文用 `S_safety/S_r/S_theta/S8/S13..S17`；当前重建用自由命名。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：公共分类词表（如 `objective: {tracking_error, control_effort, collision_risk, colreg_compliance}`；`constraint: {safety_domain, enc_clearance, control_envelope, colreg_role}`）；Adapter 声明用到的公共 + 算法专项项；不同算法的 objective 不横向比较（BL-77）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-26 · 首次求解发生在 `t=0` 还是首个 `dt_sim` 后
+
+- [R29] 当前 VOWrapper 首步 `if not self._initialized: self._t_prev = t`，SBMPCWrapper `if not self._initialized or t < 0.0001`。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：首次 solve 发生在 `t=0`（仿真起点），用初始 ownship_state + 初始 reference；`solve_id=1` 在首步；hold 步 `solver_executed=false`。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-27 · solve period/deadline 由算法声明，还是允许 RunSpec 覆盖
+
+- [R3] SBMPCWrapper 硬编码 `t - self._t_run_sbmpc_last >= 5.0`（求解周期）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：`AlgorithmDescriptor.solve_period_s` 声明默认；`RunSpec` 可覆盖（声明覆盖）；deadline（BL-79）由 profile + normalize budget 裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-28 · 非求解步对上一 horizon 采用采样推进、插值还是固定第一指令
+
+- [R29] SBMPCWrapper hold 步保留 `self._speed_os_best/course_os_best`，但 `sim_time` 被改写为当前步。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：hold 步保留同一 horizon（原点 `t_solve` 不变），执行指令从该 horizon 按 `t_now - t_solve` 采样（不重新 solve）；`solver_executed=false`；不得把 hold 帧当新预测起点。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-29 · warm start 与随机求解器的 reset/replay 保证范围
+
+- [R44] RLMPC warm start 跨 run 不可复用（reset 后状态丢失）。
+- [R43] PSB CPE seed 需 `set_seed()`（BL-57 tolerance-only）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：reset 清空 warm start；replay 重新冷启动；声明 warm-started 的 Adapter 须通过 reset probe（BL-100）；无 seed API 的 native 不获 exact 资格。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-30 · 离线快速仿真是否也强制实时 deadline
+
+- [R34] 当前无 deadline 强制。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：离线快速仿真可选关闭硬 deadline（`RunSpec.deadline_mode = OFF`），但正式资格 run 必须开启；关闭时 run 标 `diagnostic_only` 不进 G3。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-31 · `TIMEOUT_FEASIBLE` 超过 deadline 后是否仍允许执行
+
+- [R9] `PlanStatus.TIMEOUT_FEASIBLE` 已存在。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：`TIMEOUT_FEASIBLE` 可执行当前可行解（非 hold），但计入 deadline 失败统计；连续 `TIMEOUT_FEASIBLE` 上限（BL-33）后判 run 失败；G3 要求零 deadline 失败（BL-82）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-32 · Web 调试模式失败后终止，还是冻结/hold 以便观察
+
+- [R31] Web 是只读观察/控制端（DP-31 grilling）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：正式 run fail-stop；Web 调试模式可 `hold_on_failure`（冻结显示，不推进），但该 run 标 `diagnostic_only` 不进正式结果。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-33 · 连续可行超时多少次后判定整个 run 失败
+
+- [R9] 当前无连续超时计数。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：连续 `TIMEOUT_FEASIBLE` 阈值作 profile 参数（默认值待裁决，参考 solve_period 整数倍）；超阈值后 run `FAILED`，`primary_reason=REALTIME`。
+- 证据边界：可冻结"profile 化 + run FAILED"；具体次数 UNKNOWN。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-34 · `INVALID_INPUT` 归因于场景、Adapter 或算法的规则
+
+- [R9] `PlanStatus.INVALID_INPUT` 已存在但无归因字段。
+- [R34] 当前异常分类粗糙（BL-50 已确认多标签归因）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：`INVALID_INPUT` 归因 = `SCENARIO`（坐标/几何/船模无效）/ `ADAPTER`（DTO 转换/单位/坐标系错误）/ `ALGORITHM`（solver 拒绝声明 envelope 内输入）；Adapter 标 `invalid_source`，Evaluator 计入对应分母。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-35 · 公共必需字段与 MPC 专项必需字段的边界
+
+- [R9] `PlannerTrace` 已有公共字段（`algorithm_id/solve_id/sim_time/solver_executed/status/predicted_trajectory/horizon_dt_s/selected_command`）；`algorithm_details` 存专项。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：公共必需 = `algorithm_id/solve_id/sim_time/solver_executed/status/elapsed_ms/predicted_trajectory/horizon_dt_s/selected_command`；MPC 专项必需 = `objective/iterations/feasible/constraints`（进公共字段，非 algorithm_details）；算法特定诊断进 `algorithm_details`。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-36 · cost/constraint 公共分类词表与最小裕度表示
+
+- [R2] 论文 cost/constraint 有命名；当前重建用自由命名。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：与 BL-25 共享分类词表；最小裕度（如 safety domain margin、enc clearance margin）以 SI 单位输出，进 `constraints` 字段；不同算法的 cost 不横向比较（BL-77）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-37 · 多模态目标预测、概率和 covariance 的 trace schema
+
+- [R9] `target_predictions: list[dict]` 已存在但无 schema。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：每 target = `{target_id, mode_id, probability, predicted_trajectory[Nx9], covariance[Nx4x4], source}`；缺概率时单模态 `probability=1.0`；多模态概率和 = 1（Adapter 验证）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-38 · 长时域、多目标 trace 的体积、压缩和保留策略
+
+- [R29] trajectory.parquet 为省体积已删完整 horizon；events.jsonl 保留。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：trace 分层——events.jsonl 增量写完整 solve（含 horizon）；trajectory.parquet 每步 state/reference/selected_command；大 horizon（>1000 步）或多目标（>10）启用 per-solve 单独文件 + 引用；schema_version 标注。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### 本批用户确认门
+
+- 待用户分别确认 BL-22..38 的证据是否回答原问题。
+- 建议确认口径（统一 DESIGN_CANDIDATE，数值后置）：
+  - BL-22：AlgorithmDescriptor 强制字段 + 允许 not_applicable 字段。
+  - BL-23：build_identity 携带 SHA/binary/solver/build flags；缺失标 UNKNOWN。
+  - BL-24：静态配置进 Descriptor，动态值进 algorithm_details 绑 solve_id。
+  - BL-25：公共 cost/constraint 分类词表；不横向比较。
+  - BL-26：首次 solve 在 t=0；solve_id=1 首步。
+  - BL-27：solve_period 算法声明 + RunSpec 可覆盖；deadline 后置。
+  - BL-28：hold 步保留 horizon 原点，按 t_now 采样；不重新 solve。
+  - BL-29：reset 清 warm start；无 seed API 不获 exact。
+  - BL-30：离线可关 deadline，标 diagnostic_only 不进 G3。
+  - BL-31：TIMEOUT_FEASIBLE 可执行但计 deadline 失败；G3 零 deadline 失败。
+  - BL-32：Web 调试可 hold_on_failure，标 diagnostic_only。
+  - BL-33：连续 TIMEOUT 阈值 profile 化；超阈 run FAILED。
+  - BL-34：INVALID_INPUT 归因 SCENARIO/ADAPTER/ALGORITHM。
+  - BL-35：公共必需字段 + MPC 专项必需字段分边界。
+  - BL-36：与 BL-25 共享词表；最小裕度 SI 单位进 constraints。
+  - BL-37：target 多模态 schema（mode/prob/trajectory/cov/source）。
+  - BL-38：trace 分层（events 增量 + trajectory 每步 + 大 horizon 单独文件）。
+- 未确认前不改盲区为"已闭环"，不进入 Step4，不实施代码。
+
+### Step3 · 第十批证据用户确认（B 档第二批） [2026-07-28]
+
+- 用户批量确认本批全部证据。
+- BL-22 闭环：AlgorithmDescriptor 强制 12 字段 + 允许 not_applicable 字段。
+- BL-23 闭环：build_identity 携带 SHA/binary/solver/build flags；缺失标 UNKNOWN 不伪造。
+- BL-24 闭环：静态配置进 Descriptor，动态值进 algorithm_details 绑 solve_id。
+- BL-25 闭环：公共 cost/constraint 分类词表；不横向比较。
+- BL-26 闭环：首次 solve 在 t=0；solve_id=1 首步。
+- BL-27 边界闭环：solve_period 算法声明 + RunSpec 可覆盖；deadline profile 后置。
+- BL-28 闭环：hold 步保留 horizon 原点，按 t_now 采样；不重新 solve。
+- BL-29 闭环：reset 清 warm start；无 seed API 不获 exact。
+- BL-30 闭环：离线可关 deadline，标 diagnostic_only 不进 G3。
+- BL-31 闭环：TIMEOUT_FEASIBLE 可执行但计 deadline 失败；G3 零 deadline 失败。
+- BL-32 闭环：Web 调试可 hold_on_failure，标 diagnostic_only。
+- BL-33 边界闭环：连续 TIMEOUT 阈值 profile 化；超阈 run FAILED；具体次数后置。
+- BL-34 闭环：INVALID_INPUT 归因 SCENARIO/ADAPTER/ALGORITHM。
+- BL-35 闭环：公共必需字段 + MPC 专项必需字段分边界。
+- BL-36 闭环：与 BL-25 共享词表；最小裕度 SI 单位进 constraints。
+- BL-37 闭环：target 多模态 schema（mode/prob/trajectory/cov/source）。
+- BL-38 闭环：trace 分层（events 增量 + trajectory 每步 + 大 horizon 单独文件）。
+- Step3 尚未完成；不进入 Step4。
+
+### Step3 · 第十一批深度调研（C 档）：Worker 隔离、证据包与 Web schema 工程盲区批量裁决 [2026-07-28]
+
+#### 取证摘要
+
+- 本批为路径 1 加速的 C 档：DP-26（证据包 BL-90..94）/ DP-27（Worker 隔离 BL-95..99）/ DP-28（runtime 身份 BL-100..103）/ DP-29（Worker 通信 BL-104..108）/ DP-31（Web 只读 BL-114..118），共 24 项。
+- 与 B 档同，本批盲区多为工程/schema 裁决，主要证据来自 PROJECT_FACT（`RunManifest`/`EvidenceWriter`/`ExperimentRunner`/`persistence.py` 代码）+ Step2 已确认 grilling（DP-26/27/28/29/31）。
+- 关键脚手架事实：
+  - `RunManifest` 已有 16+ identity 字段、`schema_version="1.0"`、`replay_verified`、`fallback_used`、`failure_reason/status`、`capability_profile_id`、`scenario_provenance`。
+  - `EvidenceWriter` 已写 manifest/episode/events.jsonl/trajectory.parquet/evaluation/report 六件套；`write_failure_report` 处理失败 run；persistence 用 `subprocess.run` 隔离 pandas。
+  - `ExperimentRunner` 已有 `prepare/run/replay/persist_failure/_enforce_no_fallback`。
+  - 无 Worker（subprocess/container）实现；无 WebSocket 实现；无 schema 演进/防篡改机制。
+
+#### DP-26 · 证据包 schema（BL-90..94）
+
+##### BL-90 · trajectory/events 字段和列级 schema
+- [R10] 当前 events.jsonl 写 PlannerTrace.to_dict()；trajectory.parquet 写逐帧 dict。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：trajectory 列级 schema = `{sim_time, solve_id, state[9], reference[9], applied_control, solver_executed, sat_flags}`；events schema = `{schema_version, solve_id, sim_time, solver_executed, status, horizon[9xN], horizon_dt, selected_command, target_predictions, constraints, algorithm_details}`；列级 schema_version 标注。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-91 · native crash 下增量写入、flush 和原子封存
+- [R10] 当前 `write_events` 批量写；native crash（SIGABRT）会丢失未 flush 数据。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：events.jsonl 改 append 模式（每 solve 后 flush + fsync）；manifest/evaluation/report 用 `.tmp` + atomic rename；crash 后保留已写部分 + `partial` 标志。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-92 · 大型 horizon/目标预测拆文件还是保留 JSONL
+- [R29] trajectory.parquet 为省体积已删完整 horizon。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：events.jsonl 默认内联 horizon（< 阈值）；超阈值（如 >1000 步 或 >10 目标）拆 per-solve `{run_id}/solves/{solve_id}.json` + events 引用；阈值 profile 化。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-93 · 内容 hash、签名和防篡改级别
+- [R40] 当前 `trajectory_hash` 是文件 SHA-256（BL-56 已确认混合数值+编码）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：V1 内容 hash（canonical JSON SHA-256）+ manifest 签发（不加密签名，本地单用户）；防篡改级别 = `tamper_evident`（hash 不匹配标 INVALID），非 `tamper_proof`。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-94 · legacy pickle 最小兼容范围
+- [R10] 当前无 pickle；上游历史可能用 pickle。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：V1 不支持 pickle 读写；只读 legacy pickle 仅用于一次性迁移（SC-10），带 `legacy_pickle` 标志，不进正式证据链。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### DP-27 · Worker 隔离（BL-95..99）
+
+##### BL-95 · subprocess 与 container 选择规则
+- [R11] 当前无 Worker；`custom_mpc_adapter` 全 in-process。
+- [R43][R44] PSB native abort / RLMPC 依赖冲突需进程隔离。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：V1 优先 subprocess（`multiprocessing` 或 `subprocess.Popen`）；container 仅用于无法共存的依赖 profile（如 RLMPC acados vs PSB Eigen）；选择规则由 `AlgorithmDescriptor.execution_profile` + Registry 探测决定。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-96 · 每 run 新建 Worker 还是 session 内持久
+- [R10] 当前 in-process 每 episode reset。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：V1 每 run 新建 Worker（冷启动，匹配 BL-29 reset 语义）；持久 Worker 后置（需 BL-103 泄漏检测通过）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-97 · Worker startup/reset 后状态隔离和可重放性
+- [R40] replay 要求独立 Worker + 独立 seed tree（BL-57/58 已确认）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：Worker startup/reset 后清空所有内部状态（warm start、cache、RNG）；replay 用新 Worker + 同 seed + 同 runtime fingerprint；reset probe（BL-100）验证零残留。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-98 · ENC geometry 和大 horizon IPC 性能
+- [R35] ENC 加载慢；大 geometry 跨进程序列化昂贵。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：in-process 传完整 ENC（BL-16）；subprocess Worker 传裁剪 hazard geometry（BL-69 四类 + footprint-relevant union）；大 horizon 用共享内存或 memoryview；序列化格式 = MessagePack/Arrow（非 pickle）。
+- 证据边界：具体 IPC 格式与共享内存方案待实现期裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-99 · 本地单用户 Worker 最小安全限制
+- [R11] 本地单用户（DP-31 grilling 已确认）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：V1 最小安全 = Worker 无网络访问、无文件系统写（除指定 output_dir）、CPU/内存上限（resource.setrlimit）；不做鉴权（BL-117）；container profile 加 seccomp/AppArmor。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### DP-28 · runtime 身份（BL-100..103）
+
+##### BL-100 · in-process 准入所需 crash/timeout/reset 测试
+- [R43][R44] native abort 不能由 Python try/except 捕获。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：in-process 准入需通过：①crash probe（注入异常，确认不崩主进程）；②timeout probe（确认可中断）；③reset probe（BL-97，确认零状态残留）；④replay probe（同 seed 零漂移，BL-57）。四 probe 全过才 in-process，否则 subprocess。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-101 · Python/native 依赖 lock 和 build identity 采集方法
+- [R40] `RunManifest.dependencies` 已存在但无 lock 文件 hash。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：lockfile（`uv.lock`/`requirements.txt`）hash 进 manifest；native 依赖（CMake/build flags/binary SHA）进 `AlgorithmDescriptor.build_identity`（BL-23）；缺失标 UNKNOWN。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-102 · container image digest 与本地源码身份关联
+- [R11] container 仅用于无法共存 profile。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：container profile 记录 image digest + 本地源码 commit + mount 路径；digest 与 commit 关联进 manifest；无 digest 则标 `unreproducible`。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-103 · 持久 Worker 跨 episode 状态泄漏检测
+- [R10] 当前 in-process。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：持久 Worker 后置；启用前须通过泄漏 probe（同 episode 两次 run，比对 horizon/state/RNG 序列零差异）；V1 不启用持久 Worker（BL-96 每 run 新建）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### DP-29 · Worker 通信（BL-104..108）
+
+##### BL-104 · IPC framing/encoding 选择及大数组传输
+- [R10] 当前无 IPC。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：V1 subprocess 用 stdin/stdout JSON Lines（每行一帧：`{request_id, type, payload}`）；大数组（horizon/ENC）用 base64 Arrow IPC 或共享内存；stderr 留日志（BL-107）；不 pickle。
+- 证据边界：具体编码待实现期裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-105 · deadline、grace period、terminate/kill 时序
+- [R9] `PlanStatus.TIMEOUT_FEASIBLE` 已存在。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：parent 持有 hard deadline；超时先 `SIGTERM`（grace period 内收集部分响应），再 `SIGKILL`；crash/timeout 使当前 run 失败（BL-31）；Worker 仅为下一 run 重建（BL-96）。
+- 证据边界：grace period 数值待裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-106 · Worker 在 run 间重建与健康检查策略
+- [R10] 当前无 Worker。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：V1 每 run 新建（BL-96）；健康检查 = startup probe（`health` 请求）；run 间不持久（BL-103 后置）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-107 · stderr 保留大小、敏感信息清理和报告方式
+- [R10] 当前无 stderr 收集。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：stderr 截断保留（上限如 1MB）进 `evidence/stderr.log`；清理明显敏感信息（路径/密钥占位符，本地单用户风险低）；failure_reason 引用 stderr 尾部。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-108 · request 去重和有状态 plan 幂等边界
+- [R9] `solve_id` 已存在。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：每 plan 请求唯一 `request_id` + `solve_id`；plan 不自动重试（BL-57）；相同 `request_id` 重复 = 客户端错误（不重新 solve）；有状态 plan 的幂等 = 同 request_id 返回缓存结果（仅未超时时）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### DP-31 · Web 只读边界（BL-114..118）
+
+##### BL-114 · WebSocket schema 版本兼容和字段演进规则
+- [R31] Web 是只读投影（DP-31 grilling）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：WebSocket 消息带 `schema_version`；字段演进 = additive-only（新增字段不破坏旧客户端）；删除/重命名字段需 bump major version + 兼容窗口。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-115 · 实时推送频率、背压和慢客户端政策
+- [R31] 当前无 WebSocket 实现。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：推送频率 = 仿真步降采样（如每 N 步或每 100ms）；背压 = 慢客户端丢弃中间帧（保留最新）；断连不影响 run（DP-31）；客户端重连用 `seq` 追赶。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-116 · 当前 horizon/ENC/目标预测的大数据传输策略
+- [R31] 当前无大数据传输。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：Web 不发完整 raw horizon/ENC（DP-31 grilling 已确认）；降采样投影（如 horizon 前 20 点、ENC bbox outline）；大数据走 REST artifact 下载。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-117 · 本地单用户是否完全不做鉴权
+- [R11] 本地单用户。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：V1 本地单用户不做鉴权；绑定 `127.0.0.1`（不暴露公网）；若需远程访问，后置加 token + TLS。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+##### BL-118 · live state 与持久化 artifact 的 seq/hash 对齐
+- [R40] manifest 有 hash；live state 无 seq。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：live state 带单调 `seq`；Web 消息带 `seq` + 当前 manifest hash；客户端可校验 live seq ≤ artifact seq；run 结束后 artifact 为权威，live 不再更新。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### 本批用户确认门
+
+- 待用户批量确认 BL-90..94, BL-95..99, BL-100..103, BL-104..108, BL-114..118（共 24 项）的证据是否回答原问题。
+- 建议确认口径（统一 DESIGN_CANDIDATE，数值后置）：
+  - BL-90：trajectory/events 列级 schema + schema_version。
+  - BL-91：events append + fsync；atomic rename；crash 保留 partial。
+  - BL-92：大 horizon 拆 per-solve 文件 + 引用；阈值 profile 化。
+  - BL-93：内容 hash + tamper_evident（非 tamper_proof）。
+  - BL-94：V1 不支持 pickle；legacy 仅一次性迁移。
+  - BL-95：subprocess 优先；container 仅无法共存 profile。
+  - BL-96：V1 每 run 新建 Worker；持久后置。
+  - BL-97：Worker reset 清空所有状态；replay 新 Worker + 同 seed。
+  - BL-98：in-process 完整 ENC；Worker 裁剪 geometry；MessagePack/Arrow。
+  - BL-99：无网络/无文件写/CPU-内存上限；不做鉴权。
+  - BL-100：in-process 准入需 crash/timeout/reset/replay 四 probe。
+  - BL-101：lockfile hash + native build_identity 进 manifest。
+  - BL-102：container digest + commit 关联；无 digest 标 unreproducible。
+  - BL-103：持久 Worker 后置；启用前须泄漏 probe。
+  - BL-104：JSON Lines framing；大数组 Arrow/shared memory；不 pickle。
+  - BL-105：SIGTERM grace → SIGKILL；crash/timeout run 失败。
+  - BL-106：V1 每 run 新建；startup health probe。
+  - BL-107：stderr 截断保留；清理敏感占位符。
+  - BL-108：唯一 request_id + solve_id；plan 不重试；幂等返回缓存。
+  - BL-114：schema_version + additive-only 演进。
+  - BL-115：降采样推送；慢客户端丢帧；断连不影响 run。
+  - BL-116：不发 raw horizon/ENC；REST artifact 下载。
+  - BL-117：本地单用户不做鉴权；绑 127.0.0.1。
+  - BL-118：live seq + manifest hash；artifact 为权威。
+- 未确认前不改盲区为"已闭环"，不进入 Step4，不实施代码。
+
+### Step3 · 第十二批深度调研（A 档）：DP-24 G2/G3/G4 资格门、组合兼容性与自动晋级 [2026-07-28]
+
+#### 取证摘要
+
+- 本批为 A 档深度调研第二组，对应 DP-24 资格门体系的 BL-80..84。
+- **NLM 笔记本本批未可用**：`notebooklm login` token 过期，`ask` 调用返回 "Authentication expired"，需交互式浏览器 OAuth，subagent 无法执行。已按 fallback 规则全部走 primary source + 项目自身代码/设计文档。
+- 关键脚手架事实（PROJECT_FACT）：
+  - G0..G4 定义已固定在 `Design/Algorithm-Capability-Matrix.md` §1（G3=相对 nominal 出现符合算法职责的可观察动作和诊断；G4=固定场景矩阵、多 seed、统一 Evaluator 和统计通过）。
+  - `capability_profile_id` 已是 4-tuple `{rule}:{scenario}:{algorithm}:{tracker}`（`runner.py:141`）。
+  - `PlanStatus` 已有 `SUCCESS/TIMEOUT_FEASIBLE/INFEASIBLE/NUMERICAL_FAILURE/INVALID_INPUT/DEPENDENCY_UNAVAILABLE`（`diagnostics.py:12`）。
+  - 当前 G3 证据为**每组合恰好 1 episode**（seed=0，episode_index=0，Rule 14 head_on×God）。
+  - `BatchRunner.default_specs` 默认 `seeds=range(30)` + 计算 95% CI（`batch.py:165-171`，`mean ± 1.96·std/√n`）。
+  - `STANDARD_SCENARIOS` = head_on/crossing_give_way/crossing_stand_on/overtaking/overtaken（5 strata）。
+  - `RunManifest` 已 hash `code_commit/dependencies/spec_hash/scenario_hash/episode_hash/trajectory_hash/scenario_provenance/evaluator_id`；**缺独立 `enc_hash`**（ENC 内容仅经 path 进 scenario_hash）。
+
+#### BL-80 · G3 canonical set 每条规则的 episode 数量
+
+- [R21] NIST covering-array 方法：`CA(N; t, k, v)` 需最小 N 使每 t-way 组合至少出现一次。对 ~10 参数×4 值：t=2 需 **≈16-20** 测试用例（下界 v²=16）；t=3 需 **≈64-88**（下界 v³=64）。t=2 是回归级覆盖的常规最小；t=3 捕获 t=2 漏的交互故障但 set size ~4×。
+- 无海事源强制最小 episode 数。Hagen 2023/Tengesdal 2023 定义评价**方法**，非样本量阈值。BL-03 已确认上游 PSB benchmark 每 stratum 100 是 benchmark 选择，非标准要求。
+- 当前 G3 证据为 1 episode/组合（seed 0），严格低于任何可辩护的回归阈值。
+- 项目自身 `BatchRunner` 已定 `range(30)` + 95% CI；canonical G3 set 若 < 30 与项目既有 batch 统计不一致。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 不选单一全局"N per rule"。canonical G3 set = 固定 covering array over V1 参数空间 + 每行多 seed。
+  - 具体：**canonical G3 = t=2 covering array（≥16 代表性 encounter 参数化/rule family）× 3 seeds × 所有 G3-eligible (algorithm, tracker) cells**，cell 的 G3 要求**所有 seed 零硬门失败**。
+  - G4 保留全 `range(30)` + 95% CI（`BatchRunner` 既有机制）。
+- 证据边界：可冻结"covering-array + 多 seed + 零硬门"；具体 t-way strength（t=2 vs t=3）与 seed 数（3 vs 5）待 DP-24 裁决，标 UNKNOWN。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-81 · 证据失效的字段和兼容变更规则
+
+- [R40] `RunManifest` 已记录 SHA-256/identity 的字段：`code_commit/code_dirty`、`dependencies`、`spec_hash`、`simulation_config_hash`、`scenario_hash`、`episode_hash`、`trajectory_hash`、`scenario_provenance`、`evaluator_id`、`capability_profile_id`、requested/executed algorithm&tracker、readiness grades。
+- [R35] **ENC 内容未单独 hash**——仅经 path 进 `scenario_hash`，是真实 gap。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - manifest 增 `enc_hash`（ENC 内容 SHA-256）。
+  - 增显式 `capability_dependencies` 聚合：`[code_commit, dependencies, scenario_hash, enc_hash, evaluator_id, tracker_id+config, plant_id+params, runtime_fingerprint]`。
+  - 失效规则：prior G3 pass 在 `capability_dependencies` 任一成员变化时失效（manifest-diff check on promotion）。
+  - 变更分类：`BREAKING`（须重跑）/ `COMPATIBLE`（claim 仍有效）/ `SUPERSEDED`（新证据替换旧）。
+- Breaking 变更（清单）：算法源码/依赖版本/场景 YAML/ENC 数据集/evaluator profile/plant 参数/tracker 配置/runtime fingerprint。
+- Compatible 变更：保持 hashable 内容一致的 cosmetic rename / 新增非 canonical 场景 / 同 spec replay。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-82 · G3 是否要求 canonical set 零失败及可行超时政策
+
+- [R48] evaluator 硬门已存在为物理/安全 outcome：`PairEvaluation.collision`（`evaluator.py:33`，`min_distance <= 0.5·(length_a+length_b)`）与 `VesselEvaluation.grounded`（`evaluator.py:42`，`grounding_distance <= length/2`）。
+- [R8] 架构文档失败语义：含 fallback 的 episode 不得计入目标算法成功率（既有零容忍政策）。
+- G3 = capability demonstration（须可观察）；G4 = statistical pass。但 G3 仍要求可观察能力，collision/grounding 会否定之。
+- **G3 须零硬门失败**——collision/grounding 与"可观察避碰能力"不相容。无源允许对物理碰撞 outcome 取平均作安全 claim。
+- [R9] `TIMEOUT_FEASIBLE` 已定义但**未接入任何 gate decision**（runner 只在 exception/ColavExecutionError/session state 分支）。
+- `TIMEOUT_FEASIBLE` 政策（DESIGN_CANDIDATE，非裁决）：G3 视为**soft gate 非 PASS**——仅当 (a) 无硬门失败 AND (b) lateness 有界（记录 max overshoot，无超 `t_max` 的 missed deadline）时计入 capability demonstration；G4（real-time-ready）计为**失败**。manifest 记 `TIMEOUT_FEASIBLE` 频率/cell 供审计。
+- NOT_EVALUATED 政策：`NOT_EVALUATED` ⟹ cell **不能 G3**（留 G2 或以下）；`persist_failure()` 已设 `reproduction_status="not_evaluated"`。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-83 · Web 汇总一个算法多个 capability profile 等级的方式
+
+- [R11] capability 已是 per-combination 而非 global。`CapabilityCatalog.validate()` 返回 `{rule}:{scenario}:{algorithm}:{tracker}` 4-tuple（`capabilities.py:359`），每 `Capability` 自带 `readiness_grade/supported_rules/supported_scenarios/known_failure/latest_evidence`。
+- Web 已渲染此粒度：`app.js` 读 `status.readiness_grade` 与 `selectable` per algorithm/tracker/scenario card，`incompatibility_reason` 作 tooltip。`GET /api/capabilities?validation_rule_id=...` 返回 per-cell G0-G4 + failure reasons。
+- Algorithm-Capability-Matrix.md §3.1 "Rule 14 首个正式能力矩阵" 已展示 per-(tracker×algorithm) cell 形式（God/KF × Nominal/VO/SB-MPC）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - per-cell matrix（行=supported rules/scenarios，列=trackers），每 cell 显示 grade chip（G0-G4）+ selectable/disabled + 一行 `known_failure`。
+  - per-algorithm aggregate badge = 其 selectable cells 的**最小 grade**（headline = 最弱 cell），防单一强 cell 高估整体能力；matrix 按需展开。
+  - per-cell evidence drill-down（`latest_evidence`: seed/min distance/collision-grounding flags/reproduction_status/capability_profile_id）。
+  - 不用单一全局"algorithm readiness"数而无 matrix。
+- HCI 证据：**UNKNOWN**——无同行评审 HCI 研究 prescribe capability-matrix presentation for safety/algorithm-readiness UIs。上述为项目既有 pattern + 一般信息密度原则，非证据支持。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-84 · 资格任务自动晋级是否需要人工审核/签名
+
+- [R69] DO-178C 要求 verification independence：验证活动须由独立于开发者的人员执行（§6）。DO-330 定义 TQL-1..5——欲跳过人工验证须鉴定自动化工具（TQL），未鉴定则不可。
+- [R70] ISO 26262 Part 8 §11：TD1/2/3 基于"工具错误会被人工审核/验证/输出检查检测"的置信度；高 TD（TD1）可降 TCL 3→1；**移除人工审核升高所需鉴定等级**。最直接的标准支持"人工审核推荐"。
+- [R71] IEC 61508 Part 3：通用功能安全软件 V&V。
+- [R27] NASA-STD-7009B：M&S credibility 绑定 use case；接受仿真结果为某用途是 judgment，非自动属性——隐含人工接受。
+- 海事特定（DNV/IMO）auto-promotion sign-off guidance：**无直接 cited standard**（诚实 gap）。最接近的类比（DNV ASTATOS / DNV-OSS simulator V&V）强调仿真器独立验证，非 auto-promotion 政策。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - **是，即使研究 Playground 也要求人工审核 auto-promotion**：
+    1. canonical G3 set 本身**人工批准 + 版本冻结**（人签 off 哪些 scenario 参数化构成 canonical regression set，冻结其 hash）。
+    2. auto-promotion 计算 candidate grade；**人须批准后才发布**到 Web catalog（auto-promotion 工具 = 未鉴定验证工具，依 DO-178C/ISO 26262 其输出不可独立成立）。
+    3. audit trail：每次 grade 变更记录 (a) 产出它的 manifest hashes（`capability_dependencies`，BL-81），(b) auto-promotion 工具版本，(c) approver identity，(d) timestamp。`RunManifest` 已记 (a)；须加 approver + tool version。
+    4. **demotion 自动即时**（canonical set 上失败 run 立即降 cell 到 G2/以下，不等人工）——因 failure 是安全相关事实，非 judgment。仅 **promotion** 需人工。
+- 证据边界：可冻结"promotion 需人工 + demotion 自动 + audit trail"；DO-178C/ISO 26262 迁移到研究 Playground 是 recommendation 非义务；maritime 特定标准 UNKNOWN。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### 本批用户确认门
+
+- 待用户分别确认 BL-80、BL-81、BL-82、BL-83、BL-84 的证据是否回答原问题。
+- 建议确认口径：
+  - BL-80：canonical G3 = t=2 covering array（≥16/rule family）× 3 seeds × G3-eligible cells，零硬门失败；G4 保留 range(30)+CI；具体 t/seed 数后置。
+  - BL-81：manifest 增 `enc_hash` + 显式 `capability_dependencies` 聚合；失效规则 = 任一成员变化；变更分类 BREAKING/COMPATIBLE/SUPERSEDED。
+  - BL-82：G3 须零硬门失败；TIMEOUT_FEASIBLE 为 G3 soft gate 非 PASS、G4 失败；NOT_EVALUATED 不能 G3。
+  - BL-83：per-cell matrix + aggregate badge = 最小 grade + evidence drill-down；HCI 证据 UNKNOWN。
+  - BL-84：promotion 需人工审核 + audit trail；demotion 自动即时；maritime 特定标准 UNKNOWN。
+- 未确认前不改盲区为"已闭环"，不进入 Step4，不实施代码。
+
+### Step3 · 第十一/十二批证据用户确认 [2026-07-28]
+
+- 用户批量确认第十一批 C 档（BL-90..94, BL-95..99, BL-100..103, BL-104..108, BL-114..118，共 24 项）与第十二批 A 档（BL-80..84，共 5 项）。
+- C 档 24 项全部闭环（含边界闭环），详见各 BL 注册表。
+- BL-80 边界闭环：canonical G3 = t=2 covering array（≥16/rule family）× 3 seeds × G3-eligible cells，零硬门失败；G4 保留 range(30)+CI；具体 t/seed 数后置。
+- BL-81 闭环：manifest 增 `enc_hash` + 显式 `capability_dependencies` 聚合；失效规则 = 任一成员变化；变更分类 BREAKING/COMPATIBLE/SUPERSEDED。
+- BL-82 闭环：G3 须零硬门失败；TIMEOUT_FEASIBLE 为 G3 soft gate 非 PASS、G4 失败；NOT_EVALUATED 不能 G3。
+- BL-83 闭环：per-cell matrix + aggregate badge = 最小 grade + evidence drill-down；HCI 证据 UNKNOWN。
+- BL-84 边界闭环：promotion 需人工审核 + audit trail；demotion 自动即时；DO-178C/ISO 26262 迁移为 recommendation；maritime 特定标准 UNKNOWN。
+- Step3 尚未完成；不进入 Step4。
+
+### Step3 · 第十三批深度调研（A 档）：DP-23 任务、控制与求解指标 [2026-07-28]
+
+#### 取证摘要
+
+- 本批为 A 档深度调研第三组，对应 DP-23 任务/控制/求解指标的 BL-75..79。
+- **NLM 笔记本本批未可用**：`notebooklm login` token 过期，需交互式浏览器 OAuth，subagent 无法执行。已按 fallback 规则全部走 primary source（Woerner 2016 MIT PhD 全文、Tengesdal 2023 CCTA、Eriksen 中层 NLP-MPC、Kaplan-Meier 生存分析、Beiranvand 2017 优化算法比较）。
+- **R2 文章号确认**：Hagen et al. 2023, Ocean Engineering 288:**115991**（DOI 10.1016/j.oceaneng.2023.115991）经 Crossref API 权威验证正确，日志原 R2 引用成立，不作修改。
+- 新增 primary source：[R73] Eriksen 中层 NLP-MPC（IPOPT solve time 与硬件）；[R74] Kaplan-Meier 生存分析（删失处理）。[R72] Beiranvand 2017 已在 BL-77/79 登记。Woerner 2016 [R62]、Tengesdal CCTA [R1] 已存在。
+
+#### BL-75 · goal/rejoin 的位置、航向、速度和保持时间阈值
+
+- [R62] Woerner 2016 §6.1.1：goal/capture radius 是 designer/mission-dependent 选择，非论文强制数值；"capture radius"取决于任务定义。
+- [R1] Tengesdal & Johansen 2023 CCTA：framework 级 metric grouping，数值定义延迟到 Hagen 2022 PhD thesis。
+- [R38] 当前 `determine_ship_goal_reached()` 默认半径 `7×length`（Viknes 59.15m），只查位置（BL-54 已确认）；`route_exit` vs `terminal_state` 双模式已闭环（BL-54）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - `route_exit`：cross-track error（corridor half-width）、terminal heading error、along-track progress（route 完成分数）、forward speed > 0；阈值 profile 化，可随船长度尺度（参考 Viknes scale）。
+  - `terminal_state`（berthing）：位置/航向/速度/hold-time 容差；典型 berthing 文献值待 `ship_maneuvering` 笔记本重认证后查。
+  - 两者都是 versioned profile 参数，非法规硬事实。
+- 证据边界：可冻结"profile 化 + route_exit/terminal_state 分离"；`route_exit` 具体数值、`terminal_state` berthing 容差 UNKNOWN（需 ship_maneuvering 笔记本或目标船数据）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-76 · 不同输出控制形式下统一 tracking metric 的方法
+
+- [R62] Woerner 2016 §4.2：效率/任务指标基于闭环执行轨迹（闭环 outcome），非原始控制输出形式。
+- [R32] 当前算法输出形式不一：VO/SB-MPC 输出 [course, speed] 参考；潜在 Custom MPC 输出 [force, yaw_moment]；PSB 输出 [speed_scale, course_offset]。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - tracking error 统一针对**执行后闭环轨迹**（regardless of control form），非原始控制输出。
+  - 控制努力指标（总舵用量、总推力、速度变化）单独报告，与 reference-tracking 指标分开。
+  - 不同 control_form 的算法通过 `AlgorithmDescriptor.control_form`（BL-22）声明，tracking metric 在闭环层面统一。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-77 · 不同 solver 的 iteration/objective 可比边界
+
+- [R62] Woerner 2016 §6.1.1：solver 内部数值（iterations、objective）依赖求解器类型，不可直接比较。
+- [R72] Beiranvand, Hare & Lucet 2017：明确不同优化算法的 objective 不可直接比较除非归一化；iterations 计数语义跨求解器不同（SQP iteration ≠ CE sampling iteration ≠ DRL forward pass）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - `solver.iterations` 与 `objective` **不横向比较**跨求解器类型。
+  - 可比较的：wall-clock time（带 runtime fingerprint）、feasibility rate、constraint violation、outcome（collision/grounding/arrival）。
+  - objective 若需比较，须归一化（如除以初始 objective 或参考 baseline）。
+- 证据边界：可冻结"不横向比较 + 可比较项清单"；归一化方法待实现期裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-78 · 提前终止和未到达 run 的统计/删失方法
+
+- [R74] Kaplan-Meier / 生存分析：collision 是**观察到的吸收事件**（observed terminal event），**非删失**；timeout-without-arrival 是**右删失**（right-censored）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - collision/grounding at t=120s（episode 600s）：**FAILED**（硬失败，非删失）；不插补 counterfactual arrival time。
+  - timeout（无 collision 无 arrival）at t=600s：arrival time **右删失**；用 Kaplan-Meier + confidence band 报告 arrival-time 分布；**绝不**插补假 arrival time（如 episode_max），否则偏向不稳定算法。
+  - 连续指标（path length、control effort）：仅在 pre-failure prefix 计算 OR 完全排除——文献分裂，两种都报告，标注。
+  - 失败 run 保留在分母（BL-63 已确认四态聚合）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-79 · deadline 使用开发机、目标硬件或归一化预算
+
+- [R73] Eriksen 中层 NLP-MPC：IPOPT solve time 在命名硬件（2.8 GHz Core i7）上报告；明确"Guaranteeing a maximum computational time for NLPs is difficult"。
+- [R72] Beiranvand 2017：wall-clock 依赖语言/硬件/编译器；建议用 function-evaluation 计数或归一化预算做公平比较。
+- [R62] Woerner 2016 Appendix C "Normalized Helm Iteration Length" = solve_time / control_period（RT-factor 概念雏形）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 无海事源强制特定 deadline 政策。
+  - 报告 wall-clock **AND** 归一化预算（RT-factor = solve_time / control_period）；跨算法公平性强制归一化预算；wall-clock 作性能诊断。
+  - 硬件环境进 runtime fingerprint（BL-60）。
+- 证据边界：可冻结"wall-clock + RT-factor 双报告 + fingerprint"；具体 RT-factor 阈值待裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### 本批用户确认门
+
+- 待用户分别确认 BL-75、BL-76、BL-77、BL-78、BL-79 的证据是否回答原问题。
+- 建议确认口径：
+  - BL-75：route_exit/terminal_state 双模式 profile 化；具体数值后置（ship_maneuvering 笔记本重认证后查）。
+  - BL-76：tracking error 统一针对闭环执行轨迹；控制努力单独报告；control_form 声明。
+  - BL-77：iterations/objective 不横向比较；可比较 wall-clock/feasibility/violation/outcome；归一化后置。
+  - BL-78：collision=FAILED 非删失；timeout=右删失用 KM；不插补假 arrival；连续指标两种报告。
+  - BL-79：wall-clock + RT-factor 双报告；硬件进 fingerprint；RT-factor 阈值后置。
+- 未确认前不改盲区为"已闭环"，不进入 Step4，不实施代码。
+
+### Step3 · 第十四批深度调研（A 档）：DP-25 公平 episode、seed 数与统计政策 [2026-07-28]
+
+#### 取证摘要
+
+- 本批为 A 档深度调研第四组，对应 DP-25 统计政策的 BL-85..89。
+- **NLM 笔记本本批未可用**（`safety_verification`/`silhil_platform` token 过期）。全部走 primary statistics/simulation 源：[R46] Ehrlichman & Henderson 2008（全文）、[R74] Kaplan-Meier 1958、[R75] Koehler 2009、[R76] Wilson 1927（经 NIST handbook）、[R77] Efron 1979、[R78] Wilcoxon 1945、[R79] Little & Rubin 2020。
+- 跨 BL 核心发现：DP-25 全部 rests on [R46] §1 的**配对比较框架**——估计 `E(X−Y)` via paired differences；CRN（及 keyed-CRN）只为减少该配对估计量的方差（共享外生输入）。这是 DP-25 的单一 load-bearing 统计思想。
+- 两项是 ENGINEERING（非文献强制）：①keyed-CRN key scheme（BL-88）；②任何特定 seed count（BL-85）。两者是 primary principle 的合理实例化，但无 primary source mandate 其精确形式。
+
+#### BL-85 · G4 所需 seed 数和统计功效
+
+- [R75] Koehler 2009 verbatim："it seems unlikely that a single choice for R [replications] will provide practical guidance in a broad range of simulation settings"；"the magnitude of MCE, and thus the number of replications required, depends on both the design and the target quantity of interest."
+- [R46] §1（p.245-246）：比较估计量是配对均值 `E(X−Y) ≈ (1/n)Σ(X_j − Y_j)`；"It is crucial that the random vectors (X_j, Y_j) be IID in order for the usual limit theorems to hold." seed count 作为 n 驱动该配对均值的标准误；方差缩减（CRN）减少所需 n。
+- Simio SASMAA7 教科书："we decided, essentially arbitrarily, to make 50 IID replications"——教科书承认 round-number 是启发式非统计要求。
+- 正确基础：a-priori/sequential precision targeting——选初始 n₀，从 pilot 估计 s，计算 CI half-width，加 replication 直到 half-width/relative-error γ 满足。无 primary source 给通用 n。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - **不硬编码"30 seeds"**。G4 seed count 由 pre-registered precision target on paired difference 定义（报告 CI half-width；可选 relative-error stopping rule）。
+  - 对 min-distance/arrival-time paired comparison，可辩护起始区间 ~20-50 paired seeds with pilot，再 sequential addition to declared half-width——但数量须由 observed variance 论证，非 assertion。
+- 证据边界：可冻结"precision-target + 配对差值"；具体 n 与 stopping rule 待 DP-25 裁决，标 UNKNOWN。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-86 · tuning、qualification、holdout 场景划分
+
+- 标准 ML holdout 纪律（Stone 1974 / Geisser 1975 奠基；train/validation/test discipline）：
+  - validation set = 调参期间 held back 估计 skill（model selection/hyperparameters）。
+  - test/holdout set = 最终无偏泛化评估；触碰一次，不用于任何 modeling decision。
+  - 反复检查 holdout performance 并据此调整模型会过拟合 test set（optimistic bias）；holdout 须冻结。
+  - evaluator profile 本身是 fit 到数据的 model → 在 tuning data 上冻结、永不在 qualification/holdout 上 re-fit 是该纪律的直接应用。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 三个不相交 corpus：**tuning**（evaluator profile/thresholds/weights 可在此 fit）、**qualification**（G3 canonical hard-gate；frozen evaluator 应用；永不用于 refit）、**holdout**（最终报告比较；触碰一次）。
+  - G3 canonical set 属 **QUALIFICATION 非 tuning**。
+  - evaluator profile 在 tuning 上冻结，此后不再 refit。
+  - 要求是 disjointness/no-look-ahead，非特定比例。
+- 证据边界：可冻结"三不相交 + no-look-ahead"；具体划分比例 UNKNOWN（无源强制 70/30 等）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-87 · 失败率、删失时间和连续指标的置信区间方法
+
+- **Failure-rate CI（proportions）**：[R76] Wilson 1927（经 NIST/SEMATECH §7.2.4.1 + Brown, Cai & DasGupta 2001 / Agresti & Coull 1998）。NIST handbook verbatim：Wilson interval "recommended by Brown, Cai and DasGupta (2001) and Agresti and Coull (1998)"，"worth does not strongly depend upon the value of n and/or p"，"lower limit cannot be negative"；Wald 的缺陷："A confidence limit approach that produces a lower limit which is an impossible value...is an inferior approach"。公式 `L/U = [p̂ + z²/(2n) ∓ z·sqrt(p̂(1−p̂)/n + z²/(4n²))] / [1 + z²/n]`。**用 Wilson score（或 Agresti-Coull / Clopper-Pearson exact for tiny n），非 Wald**。尤其小 n 或 rate 近 0/1（crash rate 通常近 0）。
+- **Arrival-time CI under censoring（timeouts）**：[R74] Kaplan & Meier 1958（product-limit estimator + Greenwood variance）。KM 1958 本身不给 confidence band——band 是 Greenwood pointwise CI 与后续 simultaneous bands（Nair 1984；Hall & Wellner 1980）。cite KM 1958 for estimator；cite Greenwood/Nair/Hall-Wellner for bands。§1 要求"the lifetime ... is independent of the potential loss time; in practice this assumption deserves careful scrutiny"——timeout 作右删失 arrival time 须论证独立性，非假设。**用 KM + Greenwood CI for censored arrival-time distribution；报告 median arrival time + CI**。
+- **Paired continuous metric（paired min-distance/arrival-time difference）**：paired t-test if paired differences ~normal；否则 Wilcoxon signed-rank；bootstrap CI on paired difference 作 distribution-free alternative。[R78] Wilcoxon 1945（signed-rank test 比较 two matched sample location——配对两算法设置直接适用）。[R77] Efron 1979 §2 三步法 verbatim："1. Construct F̂, putting mass 1/n at each point ... 2. draw a random sample of size n from F̂ ... 3. Approximate the sampling distribution of R(X,F) by the bootstrap distribution of R*." → bootstrap CI on paired-difference mean/median 是 primary-sanctioned distribution-free 方法。
+- **Small n（canonical set）**：n 小时 proportion CI 宽、Wald 不可用；Wilson/Clopper-Pearson 仍有效但可能 uninformative。对 tiny canonical G3 set，报告 raw paired differences + descriptive stats + nonparametric CI；formal hypothesis tests 留给更大 G4 multi-seed corpus。无源禁止小 n 报 CI，但精度低——诚实报告。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - failure-rate → Wilson score。
+  - censored arrival time → KM + Greenwood。
+  - paired continuous → paired t if normal else Wilcoxon signed-rank，bootstrap CI 作 robust default。
+  - small canonical n → descriptive + nonparametric CI；formal tests 留 G4。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-88 · KF 下路径相关 Sensor 可见性的公平比较方法
+
+- [R46] Ehrlichman & Henderson 2008 全文 verbatim：CRN 严格定义在 **EXOGENOUS INPUT STREAMS**，非 measurements/state。"Common random numbers (CRN) involves using the same streams of uniform random variates **as inputs** for both systems to sharpen the comparison"（abstract）；"common random number sampling entails using identical sequences UX = UY = U = (U1, U2, ...) of pseudorandom variates to compute both X and Y"（§2）。CRN couples "the **joint distribution of the inputs** of both systems."
+- CRN 目的是配对差值方差缩减：if `cov(X_j,Y_j)>0 then var(X_j − Y_j) < var X + var Y`（§1）——即 CRN sharpens *paired estimator of E(X−Y)*，仅此。
+- [R46] 对同步 *measurement process* 或 *observed sensor stream* **只字未提**；couple 的对象是 uniform input variates U。X 和 Y 是否产生相同 observations 是 model 的 downstream consequence，非 CRN 要求。
+- [R46] §2 明示其 finite-dimensional-input 假设"may limit the situations in which the approach we discuss below is applicable"——作者标记 scope limit，不扩展 CRN 到 state-dependent measurement coupling。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - keyed-CRN（BL-59 已闭环）保留用于**外生 sensor-noise draws**（解耦 call order，隔离算法效应）。
+  - **不**跨算法同步 realized measurement stream / visibility——那是真实闭环系统差异，须测量非消除。
+  - God-profile vs KF-profile 作独立实验比较（BL-59 已确认）。
+  - keyed-CRN 标为 [R46] principle 的**工程实例化**，非文献强制。
+- 证据边界：可冻结"CRN 仅外生输入 + visibility 是系统属性"；keyed-CRN 具体形式为 ENGINEERING（无 primary 验证）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-89 · 无输出 crash/timeout 在连续指标中的呈现方式
+
+- [R79] Little & Rubin 2020 Ch.1 §1.3 verbatim：Definition 1.1 "Missing data are unobserved values that would be meaningful for analysis if observed; in other words, a missing value hides a meaningful value." MCAR（Eq 1.1）"does not depend on the values of the data, missing or observed"；MAR（Eq 1.2）"depends on y_i only through the observed components"；MNAR "if the mechanism depends on y_i, then the mechanism is MNAR because it depends on values of y_i, some of which are missing." Complete-case analysis（丢弃 incomplete cases）"generally inappropriate because the investigator is usually interested in making inferences about the entire target population, rather than about the portion ... that would provide responses on all relevant variables."
+- crash/timeout 应用：crashed/timed-out run **无** arrival time/path length——但 missingness 由算法自身不稳定性驱动（与 would-be outcome 相关的属性）。这是 **MNAR**（或至多 MAR conditional on algorithm），**非 MCAR**。丢弃这些 run 正是 Little & Rubin 称"generally inappropriate"的 complete-case analysis → 向不稳定算法的 survivorship bias。
+- failure 本身是信号，非 nuisance。连续指标因 run 失败而 undefined；failure 的正确证据单位是 failure **RATE**（分母 = n_attempted），单独经 Wilson CI 报告（BL-87）。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 每 run 持久化 `(n_attempted, n_completed, n_crashed, n_timeout, n_no_output)`（匹配 DP-26 六件证据包）。
+  - 连续指标 CI 仅在 `n_completed` 上计算，n 显式标注。
+  - Failure rate（crash+timeout+no_output over n_attempted）经 Wilson CI 报告。
+  - **绝不**插补假 arrival time（如 episode_max）——为 MNAR missing observation 伪造"complete-case"值，偏向不稳定算法。
+  - 若单一组合指标真正需要，用生存分析（KM）将 crash 作 terminal event / 右删失于 crash time——但即使如此 failure 须计为 failure，非 episode_max 处的成功 arrival。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### 本批用户确认门
+
+- 待用户分别确认 BL-85、BL-86、BL-87、BL-88、BL-89 的证据是否回答原问题。
+- 建议确认口径：
+  - BL-85：不硬编码 seed 数；precision-target on paired difference；~20-50 起始 + sequential；具体 n 后置。
+  - BL-86：tuning/qualification/holdout 三不相交 + no-look-ahead；G3 属 qualification；evaluator 在 tuning 冻结。
+  - BL-87：failure-rate→Wilson；censored arrival→KM+Greenwood；paired continuous→paired-t/Wilcoxon/bootstrap；small n→descriptive+nonparametric。
+  - BL-88：CRN 仅外生输入；不同步 visibility；keyed-CRN 标 ENGINEERING；God/KF 分 profile。
+  - BL-89：n_attempted/completed/crashed/timeout 持久化；连续 CI 仅 completed；failure rate Wilson on attempted；绝不插补。
+- 未确认前不改盲区为"已闭环"，不进入 Step4，不实施代码。
+
+### Step3 · 第十三/十四批证据用户确认 [2026-07-28]
+
+- 用户批量确认第十三批（BL-75..79）与第十四批（BL-85..89）。
+- BL-75 边界闭环：route_exit/terminal_state 双模式 profile 化；具体数值后置。
+- BL-76 闭环：tracking error 统一针对闭环执行轨迹；控制努力单独报告；control_form 声明。
+- BL-77 边界闭环：iterations/objective 不横向比较；可比较 wall-clock/feasibility/violation/outcome；归一化后置。
+- BL-78 闭环：collision=FAILED 非删失；timeout=右删失用 KM；不插补假 arrival；连续指标两种报告。
+- BL-79 边界闭环：wall-clock + RT-factor 双报告；硬件进 fingerprint；RT-factor 阈值后置。
+- BL-85 边界闭环：不硬编码 seed 数；precision-target on paired difference；~20-50 起始+sequential；具体 n 后置。
+- BL-86 闭环：tuning/qualification/holdout 三不相交+no-look-ahead；G3 属 qualification；evaluator 在 tuning 冻结。
+- BL-87 闭环：failure-rate→Wilson；censored arrival→KM+Greenwood；paired continuous→paired-t/Wilcoxon/bootstrap；small n→descriptive+nonparametric。
+- BL-88 闭环：CRN 仅外生输入；不同步 visibility；keyed-CRN 标 ENGINEERING；God/KF 分 profile。
+- BL-89 闭环：n_attempted/completed/crashed 持久化；连续 CI 仅 completed；failure rate Wilson on attempted；绝不插补。
+- Step3 仅剩 BL-109..113（PSB/RLMPC 归一化，DP-30）未调研；不进入 Step4。
+
+### Step3 · 第十五批深度调研（A 档）：DP-30 外部 MPC 输出归一化 [2026-07-28]
+
+#### 取证摘要
+
+- 本批为 A 档深度调研最后一组，对应 DP-30 外部 MPC 输出归一化的 BL-109..113。
+- 全部证据来自 primary source code verbatim（C++ header/body + Python class，带文件:行号），权威性 A。
+- [R43] PSB-MPC 源码深化：`psbmpc/external/thecolavrepo/psbmpc_cxx/psbmpc_lib/`（C++ core）、`psbmpc_interface/src/PSBMPC_interface.cpp`（pybind binding）、`configs/psbmpc.yaml`。
+- [R44] RLMPC 源码深化：`rlmpc/rlmpc/mpc/models.py`（Viknes L500）、`rlmpc/mpc/trajectory_tracking/{ttmpc,acados_mpc,casadi_mpc}.py`、`rlmpc/mpc/common.py`（AcadosErrorCode L75）、`config/ttmpc.yaml`。
+- **发现 2 个 playground 集成 latent bug**（不影响归一化设计，但须标记修复）：
+  1. `KinematicShip` 构造参数误绑：两 wrapper 把 `dt_predictor=15.0/dt_sim=0.5` 传入 7-arg 构造 `(l,w,T_U,T_chi,R_a,LOS_LD,LOS_K_i)`，实际落入 `LOS_LD=15.0`（lookahead distance）和 `LOS_K_i=0.5`（LOS 积分增益），非预测步长。真正预测步长来自 `pars.dt`。
+  2. `AcadosMPCWrapper`（`custom_mpc_adapter.py:481-491`）调用 `TrajectoryTrackingMPC.solve()`——**该方法不存在**（只有 `plan()`）；读 `sol.get("x_pred")`——**该 key 不存在**（实际 key 是 `"trajectory"`）。导致 RLMPC 路径永远异常→永远 fallback `SimpleLinearMPC`。
+
+#### BL-109 · PSB-MPC 原生 state/control layout 和 horizon 时间语义
+
+- [R43] native ownship state = `[x, y, chi, U]`（4-dim），**非** `[x,y,Vx,Vy]` 也**非** `[x,y,cog,sog]`-as-velocity。`kinematic_ship_models_cpu.cpp:463` 注释 `State [x, y, chi, U]`；`:477-478` 动力学 `xs_new(0)=xs_old(0)+dt*xs_old(3)*cos(xs_old(2))`。`chi`=course（heading over ground），`U`=SOG。
+- [R43] control 输出是两标量：`u_opt`（surge multiplier，无量纲）与 `chi_opt`（course offset，弧度）。`psbmpc_cpu.hpp:45-50` struct `optimal_offsets_results_py { double u_opt_py; double chi_opt_py; Eigen::MatrixXd predicted_trajectory_py; }`。
+- [R43] `calculate_optimal_offsets` 签名（`PSBMPC_interface.cpp:863-876`）：`(u_d, chi_d, waypoints[2,N], ownship_state[4], V_w, wind_direction[2], polygons[], obstacles[], new_static_obstacle_data, disable)` → `optimal_offsets_results_py`。
+- [R43] **native predicted trajectory 存在且是真实 plant prediction**（非合成）。`psbmpc_cpu.cpp:580-581` `trajectory.resize(ownship_state.size(), n_samples); trajectory.col(0) = ownship_state;` 然后 `:598` `ownship_ptr->predict_trajectory(...)`。`assign_optimal_trajectory`（`:1379-1385`）：`optimal_trajectory = trajectory.block(0,0,rows,n_samples)`。
+- [R43] shape = `(4, n_samples)`，`n_samples = round(pars.T / pars.dt)`（`psbmpc_cpu.cpp:578`）。4 行 = `[x, y, chi, U]`。**列 0 = 当前状态（t=0），列 1..N-1 = 未来**（`:581` `trajectory.col(0)=ownship_state`）。
+- [R43] T 和 dt 来自 `PSBMPC_Parameters`，非 ship。`set_par_double(0,T)`, `set_par_double(1,dt)`（`PSBMPC_interface.cpp:86-89,156-159`）。config `psbmpc.yaml` native `T:120, dt:1.0` → 120 samples；playground override T=15, dt=0.5 → 30 samples。
+- [R43] KinematicShip 7-arg 构造 = `(l, w, T_U, T_chi, R_a, LOS_LD, LOS_K_i)`（guidance/kinematic 参数），**非** `(length,width,draft,U_max,U_min,dt_predictor,dt_sim)`。`kinematic_ship_models_cpu.hpp:65-72`。
+- [PROJECT_FACT] 正式 `PSBMPCColav`（`integrations/psbmpc.py:183`）**正确读** `result.predicted_trajectory`；legacy `PSBMPCWrapper`（`custom_mpc_adapter.py:307-312`）**丢弃** native trajectory 并合成常速 horizon——是 wrapper artifact 非 native 限制。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - `TrajectoryMapping.psbmpc`：native `(4,N)` `[x,y,chi,U]` col-0=current → public `(9,N)` `[x,y,psi,u,v,r,x_ddot,y_ddot,psi_dot]`。`psi:=chi`，`u:=U*cos(chi)`，`v:=U*sin(chi)`（或 `u:=U, v:=0`——需裁决；PSB native 假设 course-aligned 故 `v=0` 是 native 假设），`r,x_ddot,y_ddot,psi_dot` 经 finite-diff（estimated=true）。col-0 保持 t=0。
+  - control：public "reference" 输出 = `(u_d*u_opt, chi_d+chi_opt)`，非绝对控制。
+- 证据边界：可冻结"4xN [x,y,chi,U] + col-0=current + native plant_prediction"；`v` 的处理（`U*sin(chi)` vs `0`）待裁决。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-110 · RLMPC `6xN` 状态、控制和 reference 的精确映射
+
+- [R44] 默认/active model = `Viknes`（3DOF dynamic），state `[x, y, chi, U, V, r]`。`models.py:500` `class Viknes(MPCNode)`；`:537` `dims()->(6,2)`；`:545-546` `u = csd.MX.sym("u",2) # Fx, Fy`；`:558` `C = mf.Cmtrx_casadi(...)`；`:566-568` `Rpsi @ x[3:6]`。`x[2]=chi`，`x[3:6]=[U,V,r]`（surge, sway, yaw rate）。`ttmpc.py:45` default `model=...Viknes()`；`ttmpc.yaml` `model: {viknes: ""}`。
+- [R44] control = `[Fx, Fy]`（2-dim：surge force, sway force）。`models.py:545`。yaw moment 经 `B=[[1,0],[0,1],[0,-l_r]]`（`:569`）——Fy 经 lever `l_r` 产生 yaw，**非纯 `[thrust, yaw_moment]`**。
+- [R44] 另两个 6-state model 存在但**非 TT-MPC 默认**：`AugmentedKinematicCSOG`（`:97-183`）state `[x,y,chi,U,chi_d,U_d]`；`KinematicCSOGWithAccelerationAndPathtiming`（`:309`）state `[x,y,chi,U,s,s_dot]`。
+- [R44] horizon：T=40.0, dt=0.5 → N=80 shooting nodes（`ttmpc.yaml`；`trajectory_tracking_mpc.py:113`）。
+- [R44] reference = `nominal_trajectory`（LOS-based），shape `(6, N)`，**非** `(2,N)`。`trajectory_tracking_mpc.py:117-121` `create_los_based_trajectory(...)` → `nominal_trajectory`；`:157` 索引 `nominal_trajectory[2,:]`（chi row）。
+- [R44] 默认 solver 是 CasADi/IPOPT，**非 acados**（macOS arm64 不兼容）。`ttmpc.yaml` `enable_acados: False`；`ttmpc.py:28-33` `if arm64+Darwin: ACADOS_COMPATIBLE=False`。
+- [PROJECT_FACT] **playground `AcadosMPCWrapper` 当前对真实 API 不可用**：调用 `self._mpc.solve(...)`（`TrajectoryTrackingMPC` 无此方法，只有 `plan()`），读 `sol.get("x_pred")`（实际 key 是 `"trajectory"`）→ 永远异常 → 永远 fallback。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - `TrajectoryMapping.rlmpc`：native `(6,N)` `[x,y,chi,U,V,r]` → public `(9,N)`。`psi:=chi`，`u:=U`，`v:=V`，`r:=r`（故 `psi_dot:=r` native 存在，无需 finite-diff）。`x_ddot, y_ddot` 经 `[x,y]` 列 finite-diff（estimated=true）。
+  - reference mapping：`nominal_trajectory` `(6,N)` → public reference；`nominal_inputs` `(2,N-1)` `[Fx,Fy]`。
+- 证据边界：可冻结"6xN [x,y,chi,U,V,r] + r=psi_dot native"；wrapper 须先修复调 `plan()` 读 `"trajectory"` 才谈映射。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-111 · 缺失加速度/航向等字段允许的可验证推导
+
+- [R43] PSB ownship `[x,y,chi,U]`：heading **存在**（`chi`），sway/yaw-rate/accelerations **不存在**。native 运动模型是 single-integrator course/speed（`kinematic_ship_models_cpu.cpp:477-489`），故 `v≡0, r≡0` 是 **native 假设**，非遗漏。
+- [R43] PSB obstacle KF state `xs_0 = [x,y,Vx,Vy]`（velocity components，无 heading）。`tracked_obstacle.hpp:50`；`tracked_obstacle.cpp:51-52`。heading **源码内推导**：`tracked_obstacle.cpp:48` `double psi = atan2(xs_aug(3), xs_aug(2))`。这是算法作者对 obstacle 的自有选择——`atan2(Vy,Vx)` 推导有先例。
+- [R44] RLMPC Viknes `[x,y,chi,U,V,r]`：`r` IS yaw rate = `psi_dot`（native 存在）。`models.py:558` 用 `x[3:6]=[U,V,r]` 于 Coriolis/damping。`x_ddot`/`y_ddot`（inertial-frame accelerations）**非** state variable。
+- [R43][R44] 两 native model 均为 kinematic/dynamic integrator——无 acceleration state。finite-diff `[x,y]` 跨 horizon 列得 inertial accelerations；body-frame `x_ddot,y_ddot` 须额外绕 `chi` 旋转。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：与已闭环 BL-19（missing dims→0, estimated=false）一致，**除了**实际执行推导时：
+  - **可验证（closed-form, deterministic）→ estimated=true + method 记录，非 0**：`psi=atan2(Vy,Vx)`（PSB obstacle 先例 `tracked_obstacle.cpp:48`）；RLMPC `psi_dot:=r`（identity，estimated=false）。
+  - **finite-diff（numerical, dt-dependent）→ estimated=true, method="finite_diff", record dt**：PSB `x_ddot,y_ddot,psi_dot` 从 `[x,y,chi]` 列；RLMPC `x_ddot,y_ddot` 从 `[x,y]` 列。
+  - **真正缺失无推导 → 0, estimated=false（BL-19 默认）**：PSB sway `v` 若 public 契约要求 body-frame sway 而 native 假设 `v≡0`。
+- 证据边界：可冻结"method-driven 可验证 vs estimated"；细化 BL-19 的 blanket "missing→0"。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-112 · raw native payload 的证据 schema 和体积
+
+- [R43] PSB native return（`optimal_offsets_results_py`）仅暴露 3 字段：`u_opt`（double）、`chi_opt`（double）、`predicted_trajectory`（`MatrixXd (4, n_samples)`）。`psbmpc_cpu.hpp:45-50`。**无 objective/cost、无 constraint violation、无 n_CE、无 Pr_s、无 target predictions 返回 Python**。
+- [R43] PSB 内部存在但不经 return struct 暴露的诊断：`min_cost`（`:67`）、`P_c_i` collision-probability matrix `(n_ps[i], n_samples)`（`:625,741`）、CPE `n_CE=500` samples（`cpe_cpu.cpp:62`）。暴露须自定义 binding 扩展。
+- [R44] RLMPC `plan()` return dict（trajectory_tracking，真实）keys：`trajectory, inputs, lower_slacks, upper_slacks, so_constr_vals, do_constr_vals, t_solve, cost_val, n_iter, final_residuals`。`acados_mpc.py:334-345`（acados）/ `casadi_mpc.py:371-382`（casadi，`n_iter` from `stats["iter_count"]`）。**无 `status` key**（见 BL-113）。
+- 体积估计/solve：
+  - PSB：trajectory `4×n_samples` doubles。playground T=15,dt=0.5 → 4×30=120 floats（~1 KB）。native T=120,dt=1.0 → 4×120=480 floats（~4 KB）。CE-sample arrays（若暴露）`2×500`/obstacle/CPE call——大，candidate for per-solve file（BL-92）。
+  - RLMPC：trajectory `6×N` + inputs `2×(N-1)` + slacks。T=40,dt=0.5,N=80 → 6×80+2×79≈638 floats（~5 KB）。`final_residuals` 小。均舒适入 `algorithm_details`（BL-35/38）；标准 payload 无需 per-solve file。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）：
+  - 持久化 **struct fields as-returned** 入 `algorithm_details`：PSB `{u_opt, chi_opt, predicted_trajectory_shape}`；RLMPC `{t_solve, cost_val, n_iter, final_residuals, so_constr_max, do_constr_max}`。
+  - 大 native arrays（PSB CE samples, full `P_c_i`）→ per-solve file（BL-92）**仅当**自定义 binding 暴露它们；stock binding 不返回，故默认体积小。
+  - schema 随 `TrajectoryMapping` adapter 版本化（BL-30）。
+- 证据边界：可冻结"stock payload 小 + as-returned 持久化"；PSB objective/constraints 暴露须 C++ binding 改动（out of scope，flag future enhancement）。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### BL-113 · PSB/RLMPC native status 到公共状态的映射表
+
+- [R43] **PSB 无 native status/exit-code，无 INFEASIBLE vs NUMERICAL_FAILURE 区分**。`grep` `psbmpc_cpu.cpp` for `throw|assert|runtime_error|exception` 返回**零匹配**。`calculate_optimal_offsets_py` 总返回 result struct；唯一"失败"是 (a) C++ exception 经 pybind 传播（→ Python `Exception`），或 (b) 上游 assertion 的 SIGABRT/segfault。playground `psbmpc.py:187-196` catch `Exception` → `PlanStatus.NUMERICAL_FAILURE`——无 native 更细区分可映射。
+- [R44] RLMPC acados status **可用但经 LOCAL vendored enum，非 upstream**。`common.py:75-81`：
+  ```
+  class AcadosErrorCode(Enum):
+      Success = 0; Failure = 1; MaxIter = 2; MinStep = 3; QPFailure = 4; Ready = 5
+  ```
+  `map_acados_error_code(int)->name`（`:84-85`）。mid_level 捕获 `:511 status=solve()`，`:531 success = status==0`，`:535 qp_failure = (status_str=="QPFailure")`。
+- [R44] **重要：此 local enum 与 upstream acados `status_to_str` 不同**（upstream：1=NaN, 2=MaxIter, 3=MinStep, 4=QP_FAILURE, 5=Ready, 7=Timeout, 9=Infeasible）。rlmpc vendored enum `Failure=1`（ambiguous）且**无 Timeout/Infeasible codes**。playground 须映射 rlmpc local enum（实际使用的），非 upstream docs。
+- [R44] trajectory_tracking MPC（`TrajectoryTrackingMPC` 用的）**不把 `status` 放 return dict**（`acados_mpc.py:334-345`/`casadi_mpc.py:371-382`）。仅 `mid_level` AcadosMPC 内部捕获。要暴露 RLMPC status，integration 须读 `self._prev_sol_status` 或扩展 wrapper——不在标准 `plan()` 输出。
+- 证据支持的契约方向（DESIGN_CANDIDATE，非裁决）——映射表：
+
+  | Native signal | Source | → PlanStatus |
+  |---|---|---|
+  | PSB: result returned, `disable` path or `!colav_active`（`psbmpc_cpu.cpp:601-616`） | struct returned, `u_opt=1.0, chi_opt=0.0` | SUCCESS |
+  | PSB: C++ exception 传播 Python | `psbmpc.py:187` catch `Exception` | NUMERICAL_FAILURE |
+  | PSB: SIGABRT/abort from upstream assertion | (BL-13/57) | NUMERICAL_FAILURE |
+  | PSB: distinct INFEASIBLE | **NOT DISTINGUISHABLE — UNKNOWN** | (map NUMERICAL_FAILURE; flag) |
+  | RLMPC acados `status==0`（Success） | `common.py:76` | SUCCESS |
+  | RLMPC acados `status==2`（MaxIter） | `common.py:78`；查 `final_residuals` feasibility | TIMEOUT_FEASIBLE if feasible else INFEASIBLE |
+  | RLMPC acados `status==1`（Failure） | `common.py:77` — ambiguous | NUMERICAL_FAILURE（保守）|
+  | RLMPC acados `status==3`（MinStep） | `common.py:79` | NUMERICAL_FAILURE |
+  | RLMPC acados `status==4`（QPFailure） | `common.py:80`；`mid_level:535` | NUMERICAL_FAILURE |
+  | RLMPC acados `status==5`（Ready） | `common.py:81` | SUCCESS（sentinel）|
+  | RLMPC casadi/IPOPT（default path） | `casadi_mpc.py:380` `n_iter=stats["iter_count"]`；无 status enum | 从 `n_iter < max_iter(300)` & `final_residuals` 推断 |
+
+- 证据边界：可冻结"PSB 无 INFEASIBLE 区分 + RLMPC local enum 映射表"；RLMPC status 须扩展 wrapper 才能从 `plan()` 获取。
+- 状态：证据已登记，未标闭环，等待用户确认。
+
+#### 本批用户确认门
+
+- 待用户分别确认 BL-109、BL-110、BL-111、BL-112、BL-113 的证据是否回答原问题。
+- 建议确认口径：
+  - BL-109：PSB native `(4,N)` `[x,y,chi,U]` col-0=current；`TrajectoryMapping.psbmpc` 映射；`v` 处理（sin(chi) vs 0）待裁决。
+  - BL-110：RLMPC native `(6,N)` `[x,y,chi,U,V,r]`；`r=psi_dot` native；wrapper 须先修复调 `plan()`。
+  - BL-111：method-driven 可验证（atan2/identity）vs estimated（finite_diff）；细化 BL-19。
+  - BL-112：stock payload 小（PSB ~1-4KB, RLMPC ~5KB）+ as-returned 持久化；PSB objective/constraints 须 binding 改动。
+  - BL-113：PSB 无 INFEASIBLE 区分（UNKNOWN）；RLMPC local enum 映射表；status 须扩展 wrapper 暴露。
+- **额外标记 2 个 playground 集成 latent bug**（不阻塞归一化设计，但实现期须修复）：
+  1. `KinematicShip` 构造参数误绑（`dt_predictor→LOS_LD`, `dt_sim→LOS_K_i`）。
+  2. `AcadosMPCWrapper` 调不存在的 `solve()` 读不存在的 `"x_pred"` → 永远 fallback。
+- 未确认前不改盲区为"已闭环"，不进入 Step4，不实施代码。
+
+### Step3 · 第十五批证据用户确认 + Step3 完成门 [2026-07-28]
+
+- 用户批量确认第十五批（BL-109..113）。
+- BL-109 边界闭环：PSB native `(4,N)` `[x,y,chi,U]` col-0=current；native predicted_trajectory 是真实 plant_prediction；`TrajectoryMapping.psbmpc` 4→9；`v` 处理后置。
+- BL-110 边界闭环：RLMPC native `(6,N)` `[x,y,chi,U,V,r]`；`r=psi_dot` native；`TrajectoryMapping.rlmpc` 6→9；wrapper 须先修复。
+- BL-111 闭环：method-driven 可验证 vs estimated；细化 BL-19。
+- BL-112 闭环：stock payload 小 + as-returned 持久化；PSB objective 须 binding 改动。
+- BL-113 边界闭环：PSB 无 INFEASIBLE 区分（UNKNOWN）；RLMPC local enum 映射表。
+- **2 个 playground 集成 latent bug 登记**（实现期修复）：KinematicShip 参数误绑；AcadosMPCWrapper 不可用。
+
+#### Step3 完成门检查
+
+- BL-01..BL-118 全部盲区已有证据或标 UNKNOWN/EXTERNAL_CONFIRMATION_REQUIRED；无"未调研"项。
+- 证据矩阵 [R1]..[R79] 共 79 条（DOMAIN_EVIDENCE / PROJECT_FACT / DOCUMENTED_INTENT 分层，含三类置信度）。
+- 4 个技术分解（TD-01..04）的全部子模块盲区已覆盖：
+  - TD-01 Custom MPC 插件契约（DP-08..14）：BL-11..38 全部闭环。
+  - TD-02 最小闭环仿真夹具（DP-16..19）：BL-43..60 全部闭环。
+  - TD-03 独立评价与资格认证（DP-21..26）：BL-65..89, BL-90..94 全部闭环。
+  - TD-04 外部算法 Worker（DP-28..30）：BL-95..108, BL-109..113 全部闭环。
+- 三类置信度已分列（检索置信 / 来源权威 / 场景适用）。
+- 源身份修正已记录：R51（C²A 非 Connectivity-Based Culling）、R56（MSC.232(82) ECDIS 非 MSC.192(79)）、R58（MSC.192(79) 雷达标准）、R59（Namgung 单作者 Route Planning）、R2（115991 经 Crossref 确认正确）。
+- 2 个 NLM 笔记本限制已记录：本会话 token 过期，A 档 BL-75..89 三批未用笔记本（全走 primary source）；后续可重认证后补充。
+- **Step3 完成**。不自动进入 Step4；等待用户授权。
