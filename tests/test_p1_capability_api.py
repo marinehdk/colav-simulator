@@ -1,0 +1,115 @@
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+from gui_server.main import app
+
+EXPECTED_COUNTS = {
+    "rule13": 6,
+    "rule14": 6,
+    "rule15": 6,
+    "multiship": 3,
+}
+EXPECTED_SCENARIOS = {
+    "rule13": {"overtaking", "overtaken"},
+    "rule14": {"head_on"},
+    "rule15": {"crossing_give_way", "crossing_stand_on"},
+    "multiship": {"paper_ccta2023_multiship"},
+}
+EVIDENCE_FIELDS = {
+    "seed",
+    "termination",
+    "minimum_clearance_m",
+    "max_heading_delta_deg",
+    "max_speed_delta_mps",
+    "solve_count",
+    "encounter_profile_id",
+    "predicate_version",
+}
+
+
+@pytest.mark.parametrize("rule_id", EXPECTED_COUNTS)
+def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/capabilities", params={"validation_rule_id": rule_id})
+
+    assert response.status_code == 200
+    catalog = response.json()
+    combinations = catalog["verified_combinations"]
+    assert len(combinations) == EXPECTED_COUNTS[rule_id]
+    assert {item["scenario_id"] for item in combinations} == EXPECTED_SCENARIOS[rule_id]
+    for item in combinations:
+        assert {
+            "validation_rule_id",
+            "scenario_id",
+            "algorithm_id",
+            "tracker_id",
+            "predicate_version",
+            "latest_evidence",
+        } <= item.keys()
+        assert item["validation_rule_id"] == rule_id
+        assert item["predicate_version"] == "G3DisplayPredicate-v1"
+        assert EVIDENCE_FIELDS <= item["latest_evidence"].keys()
+        assert item["latest_evidence"]["encounter_profile_id"] == "legacy-g3-v1"
+
+    selectable_trackers = {item["id"] for item in catalog["trackers"] if item["selectable"]}
+    assert selectable_trackers == ({"god", "kf"} if rule_id == "rule14" else {"god"})
+    assert {item["id"] for item in catalog["algorithms"] if item["selectable"]} == {
+        "nominal",
+        "vo",
+        "sbmpc",
+    }
+
+
+@pytest.mark.parametrize(
+    ("rule_id", "scenario_id", "algorithm_id", "tracker_id"),
+    (
+        ("rule13", "crossing_give_way", "vo", "god"),
+        ("rule15", "overtaking", "vo", "god"),
+        ("rule13", "overtaking", "vo", "kf"),
+        ("rule15", "crossing_give_way", "sbmpc", "kf"),
+        ("multiship", "paper_ccta2023_multiship", "vo", "kf"),
+        ("rule14", "head_on", "psbmpc", "god"),
+        ("rule14", "paper_ccta2023_head_on", "vo", "god"),
+    ),
+)
+def test_session_api_rejects_every_unverified_tuple(
+    rule_id: str,
+    scenario_id: str,
+    algorithm_id: str,
+    tracker_id: str,
+) -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": rule_id,
+                "scenario_id": scenario_id,
+                "algorithm_id": algorithm_id,
+                "tracker_id": tracker_id,
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["status"] == "INVALID_INPUT"
+
+
+def test_global_g3_grade_cannot_create_a_missing_cross_product() -> None:
+    with TestClient(app) as client:
+        global_catalog = client.get("/api/capabilities").json()
+        vo = next(item for item in global_catalog["algorithms"] if item["id"] == "vo")
+        assert vo["readiness_grade"] == "G3"
+
+        response = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule13",
+                "scenario_id": "overtaking",
+                "algorithm_id": "vo",
+                "tracker_id": "kf",
+            },
+        )
+
+    assert response.status_code == 422
+    assert "No verified G3 capability tuple" in response.json()["detail"]["reason"]

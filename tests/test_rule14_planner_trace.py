@@ -127,10 +127,12 @@ print(json.dumps({
 
 
 @pytest.mark.parametrize("algorithm_id", ("vo", "sbmpc"))
-def test_rule14_god_cell_keeps_raw_g3(
+@pytest.mark.parametrize("tracker_id", ("god", "kf"))
+def test_rule14_verified_cell_keeps_raw_g3(
     p1_run_harness: P1RunHarness,
     algorithm_id: str,
+    tracker_id: str,
 ) -> None:
-    result = p1_run_harness.compare("head_on", algorithm_id)
+    result = p1_run_harness.compare("head_on", algorithm_id, tracker_id)
 
     assert result.passed, json.dumps(result.to_dict(), indent=2, sort_keys=True)

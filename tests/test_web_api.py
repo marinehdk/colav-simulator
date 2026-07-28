@@ -217,7 +217,18 @@ def test_real_session_api_and_websocket() -> None:
 def test_rule14_capability_api_and_combination_validation() -> None:
     with TestClient(app) as client:
         response = client.get("/api/capabilities", params={"validation_rule_id": "rule14"})
+        script = client.get("/static/app.js")
         assert response.status_code == 200
+        assert script.status_code == 200
+        assert all(
+            token in script.text
+            for token in (
+                "function syncExactCombinationAvailability()",
+                "capabilityCatalog.verified_combinations",
+                "function setExactSelectionAvailability(",
+                "syncExactCombinationAvailability();",
+            )
+        )
         catalog = response.json()
         assert catalog["schema_version"] == "1.0"
         assert catalog["defaults"] == {
