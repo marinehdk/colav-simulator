@@ -14,6 +14,11 @@ import colav_simulator.common.paths as dp
 import colav_simulator.scenario_config as sc
 import colav_simulator.viz.visualizer as viz
 from colav_simulator.core import stochasticity
+from colav_simulator.core.collision import (
+    COLLISION_ORACLE_ID,
+    VesselPose,
+    continuous_footprint_collision,
+)
 from colav_simulator.core.ship import Ship
 
 np.set_printoptions(suppress=True, formatter={"float_kind": "{:.4f}".format})
@@ -28,7 +33,13 @@ class Config:
     tracking_from_ownship_only: (
         bool  # Whether to track obstacles from ownship only (True) or all ships track each other (False)
     ) = True
-    visualizer: viz.Config = field(default_factory=viz.Config())
+    ccd_step_tolerance_m: float = 0.25
+    visualizer: viz.Config = field(default_factory=viz.Config)
+
+    def __post_init__(self) -> None:
+        """Validate collision-detection tolerance."""
+        if not np.isfinite(self.ccd_step_tolerance_m) or self.ccd_step_tolerance_m <= 0.0:
+            raise ValueError("ccd_step_tolerance_m must be finite and positive")
 
     @classmethod
     def from_dict(cls, config_dict: dict) -> "Config":  # noqa: D102
@@ -37,6 +48,7 @@ class Config:
             verbose=config_dict["verbose"],
             visualizer=viz.Config.from_dict(config_dict["visualizer"]),
             tracking_from_ownship_only=config_dict["tracking_from_ownship_only"],
+            ccd_step_tolerance_m=float(config_dict.get("ccd_step_tolerance_m", 0.25)),
         )
         return config
 
@@ -83,6 +95,8 @@ class Simulator:
         self.relevant_grounding_hazards: list = []
         self.relevant_grounding_hazards_as_union = None
         self.recent_sensor_measurements: list = []
+        self._motion_segments: list[tuple[VesselPose, VesselPose]] = []
+        self._motion_interval: tuple[float, float] = (0.0, 0.0)
 
         self.t = 0.0
         self.t_start = 0.0
@@ -162,6 +176,9 @@ class Simulator:
         self.t_end = sconfig.t_end
         self.dt = sconfig.dt_sim
         self.recent_sensor_measurements = [None] * len(self.ship_list)
+        initial_poses = [self._vessel_pose(ship) for ship in self.ship_list]
+        self._motion_segments = [(pose, pose) for pose in initial_poses]
+        self._motion_interval = (self.t, self.t)
 
     def run(
         self,
@@ -365,6 +382,7 @@ class Simulator:
             the disturbance data if applicable.
         """
         sim_data_dict = {}
+        pre_step_poses = [self._vessel_pose(ship) for ship in self.ship_list]
 
         disturbance_data: stochasticity.DisturbanceData | None = None
         if self.disturbance is not None:
@@ -404,6 +422,9 @@ class Simulator:
 
             ship_obj.forward(self.dt, disturbance_data)
 
+        post_step_poses = [self._vessel_pose(ship) for ship in self.ship_list]
+        self._motion_segments = list(zip(pre_step_poses, post_step_poses, strict=True))
+        self._motion_interval = (self.t, self.t + self.dt)
         self.t += self.dt
         return sim_data_dict
 
@@ -440,12 +461,55 @@ class Simulator:
         Returns:
             bool: True if the ship is in a collision state, False otherwise.
         """
-        distances = self.distance_to_nearby_vessels(ship_idx)
-        other_ship_list = [other_ship_obj for i, other_ship_obj in enumerate(self.ship_list) if i != ship_idx]
-        for i, _other_ship_obj in enumerate(other_ship_list):
-            if distances[i] <= self.ship_list[ship_idx].length / 2.0:
-                return True
-        return False
+        return bool(self.detect_ship_collisions(ship_idx))
+
+    def detect_ship_collisions(self, ship_idx: int = 0) -> list[dict[str, Any]]:
+        """Return synchronized footprint collision evidence for one ship."""
+        if not 0 <= ship_idx < len(self.ship_list):
+            raise IndexError(f"ship_idx {ship_idx} outside ship_list")
+        if len(self._motion_segments) != len(self.ship_list):
+            poses = [self._vessel_pose(ship) for ship in self.ship_list]
+            segments = [(pose, pose) for pose in poses]
+        else:
+            segments = self._motion_segments
+        own_start, own_end = segments[ship_idx]
+        collisions = []
+        for target_idx, target_ship in enumerate(self.ship_list):
+            if target_idx == ship_idx or target_ship.t_start > self._motion_interval[1]:
+                continue
+            target_start, target_end = segments[target_idx]
+            interval = continuous_footprint_collision(
+                own_start,
+                own_end,
+                target_start,
+                target_end,
+                step_tolerance_m=self.config.ccd_step_tolerance_m,
+            )
+            if interval is None:
+                continue
+            duration = self._motion_interval[1] - self._motion_interval[0]
+            collisions.append(
+                {
+                    "ownship_id": self.ship_list[ship_idx].id,
+                    "target_id": target_ship.id,
+                    "interval_start_s": self._motion_interval[0] + interval.tau_start * duration,
+                    "interval_end_s": self._motion_interval[0] + interval.tau_end * duration,
+                    "oracle_id": COLLISION_ORACLE_ID,
+                    "ccd_step_tolerance_m": self.config.ccd_step_tolerance_m,
+                }
+            )
+        return collisions
+
+    @staticmethod
+    def _vessel_pose(ship: Ship) -> VesselPose:
+        state = ship.state
+        return VesselPose(
+            north_m=float(state[0]),
+            east_m=float(state[1]),
+            heading_rad=float(state[2]),
+            length_m=float(ship.length),
+            width_m=float(ship.width),
+        )
 
     def distance_to_grounding(self, ship_idx: int = 0) -> float:
         """Calculates the distance to grounding for a ship.

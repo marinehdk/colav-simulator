@@ -107,12 +107,13 @@ class SimulationSession:
             self.frames.append(payload)
             self.sequence += 1
             step_events = self._planner_events(payload)
-            collision = self.simulator.determine_ship_collision(0)
+            collision_evidence = self.simulator.detect_ship_collisions(0)
+            collision = bool(collision_evidence)
             grounding = self.simulator.determine_ship_grounding(0)
             goal_reached = self.simulator.determine_ship_goal_reached(0)
             time_limit = self.simulator.t >= self.simulator.t_end
-            if collision:
-                step_events.append(self._event("collision", ship_id=self.ship_list[0].id))
+            for evidence in collision_evidence:
+                step_events.append(self._event("collision", **evidence))
             if grounding:
                 step_events.append(self._event("grounding", ship_id=self.ship_list[0].id))
             if goal_reached:

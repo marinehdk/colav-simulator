@@ -7,6 +7,10 @@ verbose:
 tracking_from_ownship_only:
   required: True
   type: boolean
+ccd_step_tolerance_m:
+  required: False
+  type: float
+  min: 0.000001
 visualizer:
   required: True
   type: dict
