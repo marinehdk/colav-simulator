@@ -7,6 +7,7 @@ Author: Trym Tengesdal
 """
 
 import gc
+import os
 import pickle
 import platform
 import time
@@ -163,8 +164,9 @@ class Visualizer:
         self.misc_plt_handles: dict = {}  # Extra handles used for live plotting
         self.background: Any = None  # background for live plotting
         self.background_handles: dict = {}  # handles for the background of the live plot
+        requested_backend = os.environ.get("MPLBACKEND") or self._config.matplotlib_backend
         try:
-            mpl.use(self._config.matplotlib_backend)
+            mpl.use(requested_backend)
         except Exception as e:
             print(f"Error setting matplotlib backend: {e}")
             if platform.system() == "Darwin":

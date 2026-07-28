@@ -31,14 +31,14 @@ def plot_image(image: np.ndarray, ax: plt.Axes | None = None, title: str | None 
     Returns:
         plt.Axes: Matplotlib axes handle.
     """
-    mpl.use("TkAgg")
     if ax is None:
         _, ax = plt.subplots()
     ax.imshow(image)
     ax.axis("off")
     if title is not None:
         ax.set_title(title)
-    plt.show(block=False)
+    if mpl.get_backend().casefold() != "agg":
+        plt.show(block=False)
     return ax
 
 
