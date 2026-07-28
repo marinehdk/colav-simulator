@@ -111,6 +111,14 @@ def test_real_session_api_and_websocket() -> None:
         assert created.status_code == 200
         session_id = created.json()["session_id"]
 
+        navigation = client.get(f"/api/sessions/{session_id}/navigation-area")
+        assert navigation.status_code == 200
+        navigation_area = navigation.json()
+        assert navigation_area["coordinate_frame"] == "local_north_east_m"
+        assert navigation_area["minimum_depth_m"] >= navigation_area["vessel_draft_m"]
+        assert navigation_area["safe_water"]["type"] == "MultiPolygon"
+        assert navigation_area["safe_water"]["polygons"]
+
         first = client.post(f"/api/sessions/{session_id}/step")
         assert first.status_code == 200
         assert first.json()["state"] == "PAUSED"
@@ -120,6 +128,7 @@ def test_real_session_api_and_websocket() -> None:
         assert first.json()["measurements"] is not None
         assert first.json()["tracks"] is not None
         assert first.json()["tracks"][0]["states"][0][0] < 5000.0
+        assert first.json()["enc_navigation_area"] == navigation_area
 
         second = client.post(f"/api/sessions/{session_id}/step")
         assert second.status_code == 200
