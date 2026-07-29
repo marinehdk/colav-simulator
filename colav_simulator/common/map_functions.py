@@ -18,10 +18,11 @@ import scipy.spatial as scipy_spatial
 import shapely
 from osgeo import osr
 from seacharts.enc import ENC
-from shapely import affinity, ops, strtree
+from shapely import ops, strtree
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPolygon, Point, Polygon
 
 import colav_simulator.common.miscellaneous_helper_methods as mhm
+from colav_simulator.core.collision import VesselPose, rectangular_footprint
 
 
 def check_if_pointing_too_close_towards_land(
@@ -495,16 +496,15 @@ def create_ship_polygon(
     Returns:
         np.ndarray: Ship polygon
     """
-    eff_length = length * length_scaling
-    eff_width = width * width_scaling
-
-    x_min, x_max = x - eff_length / 2.0, x + eff_length / 2.0 - eff_width
-    y_min, y_max = y - eff_width / 2.0, y + eff_width / 2.0
-    left_aft, right_aft = (y_min, x_min), (y_max, x_min)
-    left_bow, right_bow = (y_min, x_max), (y_max, x_max)
-    coords = [left_aft, left_bow, (y, x + eff_length / 2.0), right_bow, right_aft]
-    poly = Polygon(coords)
-    return affinity.rotate(poly, -heading, origin=(y, x), use_radians=True)
+    return rectangular_footprint(
+        VesselPose(
+            north_m=x,
+            east_m=y,
+            heading_rad=heading,
+            length_m=length * length_scaling,
+            width_m=width * width_scaling,
+        )
+    )
 
 
 def find_minimum_depth(vessel_draft: float, enc: ENC) -> int:

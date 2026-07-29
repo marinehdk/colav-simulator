@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import importlib.metadata
+import json
 import os
 import sys
 from collections.abc import Callable
@@ -18,6 +20,11 @@ from colav_simulator.core.colav.colav_interface import (
     LayerConfig,
     SBMPCWrapper,
     VOWrapper,
+)
+from colav_simulator.core.colav.custom_mpc_adapter import (
+    BuildIdentity,
+    CustomMPCAdapter,
+    FactoryContext,
 )
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.core.colav.kuwata_vo_alg.kuwata_vo import VOParams
@@ -126,6 +133,11 @@ class IntegrationRegistry:
             "nominal": IntegrationStatus("nominal", "algorithm", True, None, "colav-simulator", None),
             "vo": IntegrationStatus("vo", "algorithm", True, None, "colav-simulator", None),
             "sbmpc": IntegrationStatus("sbmpc", "algorithm", True, None, "colav-simulator", None),
+            "potocnik_simplified_mpc": _module_status(
+                "potocnik_simplified_mpc",
+                "algorithm",
+                "colav_simulator.integrations.potocnik_mpc",
+            ),
             "scenario_default": IntegrationStatus("scenario_default", "tracker", True, None, "colav-simulator", None),
             "god": IntegrationStatus("god", "tracker", True, None, "colav-simulator", None),
             "kf": IntegrationStatus("kf", "tracker", True, None, "colav-simulator", None),
@@ -149,7 +161,13 @@ class IntegrationRegistry:
     def dependency_manifest(self) -> dict[str, dict[str, Any]]:
         return {name: status.to_dict() for name, status in self.statuses().items()}
 
-    def build_algorithm(self, algorithm_id: str, config: dict[str, Any] | None = None) -> ICOLAV | None:
+    def build_algorithm(
+        self,
+        algorithm_id: str,
+        config: dict[str, Any] | None = None,
+        *,
+        factory_context: FactoryContext | None = None,
+    ) -> ICOLAV | None:
         config = config or {}
         algorithm_id = algorithm_id.lower()
         if algorithm_id == "nominal":
@@ -168,10 +186,12 @@ class IntegrationRegistry:
                 layer2=LayerConfig(los=LOSGuidanceParams()),
             )
             return SBMPCWrapper(params)
+        if config.get("factory"):
+            return self._build_plugin(algorithm_id, config, factory_context)
 
         status = self.statuses().get(algorithm_id)
         if status is None:
-            return self._build_plugin(config)
+            return self._build_plugin(algorithm_id, config, factory_context)
         if not status.available:
             raise ColavExecutionError(
                 PlanStatus.DEPENDENCY_UNAVAILABLE,
@@ -229,7 +249,11 @@ class IntegrationRegistry:
         return path
 
     @staticmethod
-    def _build_plugin(config: dict[str, Any]) -> ICOLAV:
+    def _build_plugin(
+        algorithm_id: str,
+        config: dict[str, Any],
+        context: FactoryContext | None,
+    ) -> ICOLAV:
         factory_ref = config.get("factory")
         if not factory_ref or ":" not in factory_ref:
             raise ColavExecutionError(
@@ -237,8 +261,86 @@ class IntegrationRegistry:
                 "custom algorithm requires algorithm_config.factory='module:callable'",
             )
         module_name, callable_name = factory_ref.split(":", 1)
-        factory: Callable[..., ICOLAV] = getattr(importlib.import_module(module_name), callable_name)
-        instance = factory(**config.get("kwargs", {}))
-        if not isinstance(instance, ICOLAV):
-            raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"{factory_ref} did not return ICOLAV")
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError as exc:
+            raise ColavExecutionError(
+                PlanStatus.DEPENDENCY_UNAVAILABLE,
+                f"{factory_ref} dependency unavailable: {exc}",
+            ) from exc
+        try:
+            factory: Callable[..., ICOLAV] = getattr(module, callable_name)
+        except AttributeError as exc:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"{factory_ref} callable does not exist",
+            ) from exc
+        if context is None:
+            context = FactoryContext(
+                requested_algorithm=algorithm_id,
+                algorithm_seed=0,
+            )
+        try:
+            instance = factory(context=context, **config.get("kwargs", {}))
+        except ColavExecutionError:
+            raise
+        except ImportError as exc:
+            raise ColavExecutionError(
+                PlanStatus.DEPENDENCY_UNAVAILABLE,
+                f"{factory_ref} dependency unavailable: {exc}",
+            ) from exc
+        except Exception as exc:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"{factory_ref} construction failed: {exc}",
+            ) from exc
+        if not isinstance(instance, CustomMPCAdapter):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"{factory_ref} did not return CustomMPCAdapter",
+            )
+        if instance.descriptor.algorithm_id != algorithm_id:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"{factory_ref} descriptor ID {instance.descriptor.algorithm_id!r} "
+                f"does not match requested {algorithm_id!r}",
+            )
+        dependency_lock = config.get("dependency_lock")
+        dependency_lock_path = Path(dependency_lock).expanduser() if dependency_lock else None
+        dependency_hash = _file_sha256(dependency_lock_path)
+        if dependency_lock_path is not None and dependency_hash == "UNKNOWN":
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"dependency lock not found: {dependency_lock_path}",
+            )
+        source_path = Path(module.__file__) if getattr(module, "__file__", None) else None
+        source_version = getattr(module, "__version__", None)
+        if source_version is None:
+            try:
+                source_version = importlib.metadata.version(module_name.split(".")[0])
+            except importlib.metadata.PackageNotFoundError:
+                source_version = "UNKNOWN"
+        identity = BuildIdentity(
+            factory_ref=factory_ref,
+            module_sha256=_file_sha256(source_path),
+            dependency_lock_sha256=dependency_hash,
+            config_sha256=_mapping_sha256(config),
+            source_version=str(source_version),
+        )
+        instance.attach_build_identity(identity)
         return instance
+
+
+def _file_sha256(path: Path | None) -> str:
+    if path is None or not path.is_file():
+        return "UNKNOWN"
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _mapping_sha256(value: dict[str, Any]) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()

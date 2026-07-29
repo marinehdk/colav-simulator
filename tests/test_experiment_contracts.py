@@ -12,11 +12,13 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 from colav_simulator.experiment import (
     ExperimentRunError,
     ExperimentRunner,
+    RunManifest,
+    RunOutcome,
     RunSpec,
     SeedBundle,
     SessionState,
 )
-from colav_simulator.experiment.persistence import jsonable
+from colav_simulator.experiment.persistence import EvidenceWriter, jsonable
 
 
 def test_seed_bundle_is_stable_and_separated() -> None:
@@ -143,3 +145,37 @@ def test_failed_algorithm_run_keeps_complete_evidence_bundle(tmp_path: Path) -> 
         "evaluation.json",
         "report.html",
     }.issubset(path.name for path in failure.value.run_dir.iterdir())
+
+
+def test_deadline_off_marks_manifest_diagnostic_only() -> None:
+    spec = RunSpec("head_on", deadline_mode="off")
+    manifest = RunManifest.create(spec)
+
+    assert spec.deadline_mode == "OFF"
+    assert manifest.diagnostic_only is True
+    assert manifest.diagnostic_only_reasons == ["deadline_mode=OFF"]
+
+
+def test_dependency_failure_persists_skipped_not_evaluated_evidence(tmp_path: Path) -> None:
+    manifest = RunManifest.create(RunSpec("head_on", algorithm_id="paper_mpc"))
+    writer = EvidenceWriter(tmp_path / manifest.run_id)
+
+    ExperimentRunner.persist_failure(
+        manifest,
+        writer,
+        ColavExecutionError(
+            PlanStatus.DEPENDENCY_UNAVAILABLE,
+            "solver package unavailable",
+        ),
+        [],
+    )
+
+    stored_manifest = json.loads((writer.run_dir / "manifest.json").read_text(encoding="utf-8"))
+    evaluation = json.loads((writer.run_dir / "evaluation.json").read_text(encoding="utf-8"))
+    event = json.loads((writer.run_dir / "events.jsonl").read_text(encoding="utf-8"))
+    assert manifest.execution_outcome == RunOutcome.SKIPPED
+    assert stored_manifest["execution_outcome"] == "SKIPPED"
+    assert stored_manifest["reproduction_status"] == "not_evaluated"
+    assert evaluation["status"] == "not_evaluated"
+    assert evaluation["failure_status"] == PlanStatus.DEPENDENCY_UNAVAILABLE
+    assert event["type"] == "run_skipped"

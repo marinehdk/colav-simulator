@@ -6,6 +6,7 @@ Contains a class for generating random ship behaviors/waypoints+speed plans/traj
 Author: Trym Tengesdal
 """
 
+import logging
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
@@ -23,7 +24,7 @@ RRT_LIB_FOUND = True
 try:
     import rrt_star_lib  # pyright: ignore[reportMissingImports]
 except ModuleNotFoundError as err:
-    print(f"Warning: rrt_star_lib not found! Error msg: {err}")
+    logging.getLogger(__name__).warning("rrt_star_lib not found: %s", err)
     RRT_LIB_FOUND = False
 
 

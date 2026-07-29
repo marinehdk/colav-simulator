@@ -3,6 +3,7 @@
 from colav_simulator.experiment.contracts import (
     ReproductionLevel,
     RunManifest,
+    RunOutcome,
     RunSpec,
     SeedBundle,
     SessionState,
@@ -15,6 +16,7 @@ __all__ = [
     "ExperimentRunError",
     "ReproductionLevel",
     "RunManifest",
+    "RunOutcome",
     "RunResult",
     "RunSpec",
     "SeedBundle",

@@ -391,7 +391,16 @@ pytest tests/test_p1_clock_enc_contract.py
 - 新建 `AlgorithmDescriptor` 12 强制字段(方案包 DP-11)+ `build_identity()` hash
 - 静态冻结(配置)+ 动态绑 solve_id(运行时)
 - `PlanDiagnostics` 扩展携带 `AlgorithmDescriptor`;config 漂移可追溯
-- 12 字段清单(来自 DP-11):algorithm_id / version / role / supported_obstacles / solver_type / horizon_N / dt_solve / constraints / cost_components / fallback_policy / dependency_hash / schema_version
+- canonical 12 字段(来自已确认 DP-11):algorithm_id / version / control_form /
+  state_layout / predictor_model / horizon_dt / horizon_steps /
+  objective_terms / constraint_terms / solver / seed_policy /
+  execution_profile
+- 原清单作为序列化 envelope/派生投影:solver_type→solver,
+  horizon_N→horizon_steps,dt_solve→execution_profile.solve_period_s,
+  constraints→constraint_terms,cost_components→objective_terms,
+  dependency_hash→build_identity;fallback_policy 固定 forbidden,
+  schema_version 位于 envelope,role/supported_obstacles 由 Adapter capability
+  声明派生
 
 #### 5.3.4 P2.D 多率调度 + solve/hold 语义(VR-12)
 

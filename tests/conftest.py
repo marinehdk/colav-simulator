@@ -42,7 +42,15 @@ class P1RunHarness:
     output_root: Path
     _nominal: dict[tuple[str, str], RunResult] = field(default_factory=dict)
 
-    def run(self, scenario_id: str, algorithm_id: str, tracker_id: str = "god") -> RunResult:
+    def run(
+        self,
+        scenario_id: str,
+        algorithm_id: str,
+        tracker_id: str = "god",
+        *,
+        algorithm_config: dict | None = None,
+        solve_period_s: float | None = None,
+    ) -> RunResult:
         from colav_simulator.experiment.contracts import RunSpec  # noqa: PLC0415
         from colav_simulator.experiment.runner import ExperimentRunner  # noqa: PLC0415
 
@@ -54,18 +62,34 @@ class P1RunHarness:
                 seed=0,
                 terminate_on_collision_or_grounding=False,
                 strict_no_fallback=True,
+                solve_period_s=solve_period_s,
+                algorithm_config=algorithm_config or {},
                 output_root=str(self.output_root / scenario_id / algorithm_id / tracker_id),
             )
         )
 
-    def compare(self, scenario_id: str, algorithm_id: str, tracker_id: str = "god") -> G3DisplayResult:
+    def compare(
+        self,
+        scenario_id: str,
+        algorithm_id: str,
+        tracker_id: str = "god",
+        *,
+        algorithm_config: dict | None = None,
+        solve_period_s: float | None = None,
+    ) -> G3DisplayResult:
         from colav_simulator.experiment.g3_gate import evaluate_g3_display  # noqa: PLC0415
 
         key = (scenario_id, tracker_id)
         if key not in self._nominal:
             self._nominal[key] = self.run(scenario_id, "nominal", tracker_id)
         nominal = self._nominal[key]
-        candidate = self.run(scenario_id, algorithm_id, tracker_id)
+        candidate = self.run(
+            scenario_id,
+            algorithm_id,
+            tracker_id,
+            algorithm_config=algorithm_config,
+            solve_period_s=solve_period_s,
+        )
         return evaluate_g3_display(
             nominal_frames=nominal.session.frames,
             candidate_frames=candidate.session.frames,

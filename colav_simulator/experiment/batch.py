@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from colav_simulator.experiment.contracts import RunSpec
+from colav_simulator.experiment.contracts import RunOutcome, RunSpec
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner
 
 STANDARD_SCENARIOS = [
@@ -94,7 +94,11 @@ class BatchRunner:
                         algorithm_id=spec.algorithm_id,
                         tracker_id=spec.tracker_id,
                         seed=spec.seed,
-                        status="FAILED",
+                        status=(
+                            "SKIPPED"
+                            if manifest and manifest.execution_outcome == RunOutcome.SKIPPED
+                            else "FAILED"
+                        ),
                         run_id=manifest.run_id if manifest else None,
                         run_dir=str(exc.run_dir) if isinstance(exc, ExperimentRunError) else None,
                         failure_reason=str(exc),
@@ -175,7 +179,8 @@ class BatchRunner:
                     "scenario_id": scenario,
                     "run_count": len(group),
                     "success_count": len(successful),
-                    "failure_count": len(group) - len(successful),
+                    "failure_count": sum(record.status == "FAILED" for record in group),
+                    "skip_count": sum(record.status == "SKIPPED" for record in group),
                     "fallback_count": sum(record.fallback_used for record in group),
                     "collision_count": sum(record.collision_count or 0 for record in successful),
                     "grounding_count": sum(record.grounding_count or 0 for record in successful),
@@ -183,13 +188,16 @@ class BatchRunner:
                 }
             )
         (batch_dir / "summary.json").write_text(json.dumps(summaries, indent=2), encoding="utf-8")
-        failures = [asdict(record) for record in records if record.status != "SUCCESS"]
+        failures = [asdict(record) for record in records if record.status == "FAILED"]
+        skipped = [asdict(record) for record in records if record.status == "SKIPPED"]
         (batch_dir / "failed_runs.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
+        (batch_dir / "skipped_runs.json").write_text(json.dumps(skipped, indent=2), encoding="utf-8")
 
     @staticmethod
     def _write_report(batch_dir: Path, records: list[BatchRecord]) -> None:
         total = len(records)
-        failed = sum(record.status != "SUCCESS" for record in records)
+        failed = sum(record.status == "FAILED" for record in records)
+        skipped = sum(record.status == "SKIPPED" for record in records)
         fallback = sum(record.fallback_used for record in records)
         rows = "".join(
             "<tr>"
@@ -207,7 +215,7 @@ class BatchRunner:
 <style>body{{font:14px system-ui;margin:32px;color:#17202a}}table{{border-collapse:collapse;width:100%}}
 th,td{{border:1px solid #ccd1d1;padding:7px;text-align:left}}th{{background:#eef2f3}}</style>
 </head><body><h1>COLAV Batch Report</h1>
-<p>Runs {total} · failures {failed} · fallbacks {fallback}</p>
+<p>Runs {total} · failures {failed} · skipped {skipped} · fallbacks {fallback}</p>
 <table><thead><tr><th>Algorithm</th><th>Scenario</th><th>Seed</th><th>Status</th>
 <th>Wall time (s)</th><th>Failure</th></tr></thead><tbody>{rows}</tbody></table></body></html>"""
         (batch_dir / "report.html").write_text(document, encoding="utf-8")

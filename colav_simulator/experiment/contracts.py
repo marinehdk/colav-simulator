@@ -33,6 +33,14 @@ class ReproductionLevel(StrEnum):
     ALGORITHM_VALIDATION = "algorithm_validation"
 
 
+class RunOutcome(StrEnum):
+    """Machine-readable execution result independent of evaluator status."""
+
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
+
+
 @dataclass(frozen=True)
 class SeedBundle:
     """Independent random streams derived from one user-facing seed."""
@@ -67,6 +75,8 @@ class RunSpec:
     reload_enc: bool = False
     terminate_on_collision_or_grounding: bool = True
     strict_no_fallback: bool = True
+    solve_period_s: float | None = None
+    deadline_mode: str = "ENFORCE"
     reproduction_level: ReproductionLevel = ReproductionLevel.FUNCTIONAL
     algorithm_config: dict[str, Any] = field(default_factory=dict)
     tracker_config: dict[str, Any] = field(default_factory=dict)
@@ -90,6 +100,11 @@ class RunSpec:
             raise ValueError("dt must be positive")
         if self.t_end is not None and self.t_end <= 0:
             raise ValueError("t_end must be positive")
+        if self.solve_period_s is not None and self.solve_period_s <= 0:
+            raise ValueError("solve_period_s must be positive")
+        self.deadline_mode = self.deadline_mode.strip().upper()
+        if self.deadline_mode not in {"ENFORCE", "OFF"}:
+            raise ValueError("deadline_mode must be ENFORCE or OFF")
         if isinstance(self.reproduction_level, str):
             self.reproduction_level = ReproductionLevel(self.reproduction_level)
 
@@ -138,6 +153,13 @@ class RunManifest:
     capability_profile_id: str | None = None
     encounter_profile_id: str = "legacy-g3-v1"
     fallback_used: bool = False
+    execution_outcome: RunOutcome | None = None
+    diagnostic_only: bool = False
+    diagnostic_only_reasons: list[str] = field(default_factory=list)
+    algorithm_descriptor: dict[str, Any] | None = None
+    algorithm_build_identity: dict[str, Any] | None = None
+    collision_oracle_id: str = "footprint-adaptive-v1"
+    ccd_step_tolerance_m: float = 0.25
     state: SessionState = SessionState.CREATED
     failure_reason: str | None = None
     failure_status: str | None = None
@@ -172,11 +194,14 @@ class RunManifest:
             executed_tracker=spec.tracker_id,
             validation_rule_id=spec.validation_rule_id,
             replay_of_run_id=spec.replay_of_run_id,
+            diagnostic_only=spec.deadline_mode == "OFF",
+            diagnostic_only_reasons=["deadline_mode=OFF"] if spec.deadline_mode == "OFF" else [],
         )
 
     def to_dict(self) -> dict[str, Any]:
         output = asdict(self)
         output["state"] = self.state.value
+        output["execution_outcome"] = self.execution_outcome.value if self.execution_outcome else None
         return output
 
 

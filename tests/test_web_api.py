@@ -8,7 +8,7 @@ from colav_simulator.experiment import ExperimentRunner, RunSpec
 from gui_server.main import app
 
 
-def test_header_uses_requested_session_labels() -> None:
+def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
     with TestClient(app) as client:
         page = client.get("/")
         script = client.get("/static/app.js")
@@ -287,7 +287,12 @@ def test_rule14_capability_api_and_combination_validation() -> None:
             assert all(capability_fields.issubset(item) for item in catalog[category])
         assert next(item for item in catalog["scenarios"] if item["id"] == "head_on")["selectable"] is True
         algorithms = {item["id"]: item for item in catalog["algorithms"]}
-        assert {name for name, item in algorithms.items() if item["selectable"]} == {"nominal", "vo", "sbmpc"}
+        assert {name for name, item in algorithms.items() if item["selectable"]} == {
+            "nominal",
+            "vo",
+            "sbmpc",
+            "potocnik_simplified_mpc",
+        }
         assert algorithms["psbmpc"]["incompatibility_reason"]
         assert algorithms["rrt"]["incompatibility_reason"]
         assert algorithms["rlmpc"]["incompatibility_reason"]

@@ -1,4 +1,8 @@
-"""Custom MPC Guidance Adapter for Colav-Simulator.
+"""Deprecated legacy Custom MPC guidance adapter for Colav-Simulator.
+
+Use ``core.colav.custom_mpc_adapter.CustomMPCAdapter`` for new integrations.
+This IGuidance compatibility module retains historical fallback behavior and is
+not imported by the formal plugin registry.
 
 Provides:
   - CustomMPCBase        – abstract base for user algorithms
