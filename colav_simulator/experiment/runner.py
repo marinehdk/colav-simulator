@@ -82,6 +82,7 @@ class ExperimentRunner:
         self.registry = registry or IntegrationRegistry()
         self.capabilities = CapabilityCatalog(self.registry)
         self.evaluator = evaluator or Evaluator()
+        self._enc_cache: dict[tuple[str, int, int, int], Any] = {}
 
     def list_scenarios(self) -> list[dict[str, Any]]:
         scenarios = []
@@ -158,12 +159,21 @@ class ExperimentRunner:
         scenario_document = config.to_dict()
         generator = ScenarioGenerator(seed=spec.seeds.scenario)
         episode_count = max(1, spec.episode_index + 1)
+        enc_cache_key = (
+            str(scenario_path.resolve()),
+            scenario_path.stat().st_mtime_ns,
+            spec.seeds.scenario,
+            episode_count,
+        )
+        cached_enc = None if spec.reload_enc else self._enc_cache.get(enc_cache_key)
         episodes, enc = generator.generate(
             config=config,
+            enc=cached_enc,
             n_episodes=episode_count,
             show_plots=False,
             save_scenario=False,
         )
+        self._enc_cache[enc_cache_key] = copy.deepcopy(enc)
         if spec.episode_index >= len(episodes):
             raise RuntimeError(f"Scenario produced {len(episodes)} episodes; requested index {spec.episode_index}")
         episode = episodes[spec.episode_index]

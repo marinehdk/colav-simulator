@@ -17,7 +17,7 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "<h1>综合避碰仿真器</h1>" in page.text
         assert "Autonomous Ship COLAV" not in page.text
         assert (
-            '<span id="conn-status">会话: 断连</span>' in page.text
+            '<span id="conn-status">会话: 初始化</span>' in page.text
             and page.text.index('class="header-run-info"')
             < page.text.index('id="conn-status"')
             < page.text.index("<main")
@@ -134,6 +134,8 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert 'id="plannerSurface" width="280" height="220"' in page.text
         assert "VO / COLREGS 候选速度可行性" in script.text
         assert "简化 MPC · 扇形轨迹筛选" in script.text
+        assert "data.error === 'session_not_found'" in script.text
+        assert "recoverMissingSession();" in script.text
         assert "candidate_heading_increments_rad" in script.text
         assert "`${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`" in script.text
         assert "目标在 ±90° 内，按首段航向差选择路径" in script.text

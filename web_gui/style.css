@@ -146,6 +146,7 @@ body {
 }
 
 .status-indicator.connected { color: var(--accent-green); }
+.status-indicator.connecting { color: var(--accent-amber); }
 .status-indicator.reset { color: var(--accent-amber); }
 .status-indicator.disconnected { color: var(--accent-red); }
 

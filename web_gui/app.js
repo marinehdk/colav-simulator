@@ -137,7 +137,8 @@ let lastColregs = '', lastDcpaLevel = '';
 const seenEventKeys = new Set();
 let activeSessionId = null;
 let resultLoaded = false;
-let sessionConnectionState = 'disconnected';
+let sessionConnectionState = 'connecting';
+let sessionRecoveryPending = false;
 const missionRoutes = new Map();
 let targetHitRegions = [];
 let selectedTargetId = null;
@@ -1825,6 +1826,7 @@ async function apiRequest(url, options = {}) {
 function setSessionConnectionState(state, logEvent = false) {
   const states = {
     connected: { text: '会话: 连通', logClass: 'log-ok' },
+    connecting: { text: '会话: 初始化', logClass: 'log-warn' },
     reset: { text: '会话: 重置', logClass: 'log-warn' },
     disconnected: { text: '会话: 断连', logClass: 'log-danger' },
   };
@@ -1833,10 +1835,10 @@ function setSessionConnectionState(state, logEvent = false) {
 
   const indicator = document.getElementById('status-dot').closest('.status-indicator');
   const dot = document.getElementById('status-dot');
-  indicator.classList.remove('connected', 'reset', 'disconnected');
+  indicator.classList.remove('connected', 'connecting', 'reset', 'disconnected');
   indicator.classList.add(state);
   dot.classList.toggle('active', state === 'connected');
-  dot.classList.toggle('reset', state === 'reset');
+  dot.classList.toggle('reset', state === 'reset' || state === 'connecting');
   document.getElementById('conn-status').textContent = next.text;
 
   if (logEvent && state !== sessionConnectionState) pushLog(next.text, next.logClass);
@@ -1858,6 +1860,12 @@ function connectWebSocket() {
 
   ws.onmessage = event => {
     const data = JSON.parse(event.data);
+    if (data.error === 'session_not_found') {
+      ws.onclose = null;
+      ws.close();
+      recoverMissingSession();
+      return;
+    }
     if (!data.os) return;
     currentData = data;
     updateUI(data);
@@ -1875,7 +1883,22 @@ function connectWebSocket() {
   ws.onerror = () => pushLog('WebSocket error.', 'log-danger');
 }
 
+async function recoverMissingSession() {
+  if (sessionRecoveryPending) return;
+  sessionRecoveryPending = true;
+  activeSessionId = null;
+  try {
+    await createSession();
+  } catch (error) {
+    setSessionConnectionState('disconnected', true);
+    pushLog(`Session recovery failed: ${error.message}`, 'log-danger');
+  } finally {
+    sessionRecoveryPending = false;
+  }
+}
+
 async function createSession() {
+  setSessionConnectionState('connecting');
   if (activeSessionId && currentData && currentData.state === 'RUNNING') {
     await apiRequest(`/api/sessions/${activeSessionId}/pause`, { method: 'POST' });
   }
