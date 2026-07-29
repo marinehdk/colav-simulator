@@ -1256,34 +1256,6 @@ canvas#simCanvas {
   gap: 2px;
 }
 
-.telem-position {
-  grid-column: 1 / -1;
-}
-
-.telem-coordinate-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.telem-coordinate-row > span {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-
-.telem-coordinate-row small {
-  color: var(--text-muted);
-  font-size: 0.62rem;
-}
-
-.telem-coordinate-row strong {
-  color: var(--accent-cyan);
-  font-size: 0.78rem;
-  white-space: nowrap;
-}
-
 .telem-label {
   font-size: 0.65rem;
   color: var(--text-muted);
@@ -1364,22 +1336,42 @@ canvas#simCanvas {
   display: none;
 }
 
-.planner-surface-wrap {
+.planner-surface-copy {
   margin-top: 9px;
   padding-top: 8px;
   border-top: 1px solid var(--panel-border);
 }
 
 .surface-label {
-  margin-bottom: 5px;
   color: var(--text-muted);
   font-size: 0.64rem;
+}
+
+.surface-explanation,
+.surface-meta {
+  min-height: 0.85rem;
+  color: var(--text-muted);
+  font-size: 0.59rem;
+  line-height: 1.35;
+}
+
+.surface-explanation {
+  margin-top: 2px;
+}
+
+.planner-surface-wrap {
+  margin-top: 5px;
+}
+
+.surface-meta {
+  margin-top: 4px;
+  text-align: right;
 }
 
 #plannerSurface {
   display: block;
   width: 100%;
-  height: 160px;
+  height: 220px;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
   background: rgba(0,0,0,0.16);

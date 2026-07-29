@@ -1225,7 +1225,7 @@ function setText(id, val) {
 function formatCoordinate(value, positiveHemisphere, negativeHemisphere) {
   if (!Number.isFinite(value)) return '--';
   const hemisphere = value >= 0 ? positiveHemisphere : negativeHemisphere;
-  return `${Math.abs(value).toFixed(6)}° ${hemisphere}`;
+  return `${Math.abs(value).toFixed(4)}° ${hemisphere}`;
 }
 
 function formatCourse(value) {
@@ -1286,14 +1286,8 @@ function updatePlannerPanel(data) {
   setText('val-solver-state', solverSuccessful ? '成功' : '失败');
 
   const horizonLength = data.plans?.prediction_horizon?.length || 0;
-  const horizonIntervals = Math.max(0, horizonLength - 1);
-  const horizonDuration = Number.isFinite(diagnosticPlanner.horizon_dt_s)
-    ? horizonIntervals * diagnosticPlanner.horizon_dt_s
-    : null;
-  const horizonDistance = Number(details.prediction_distance_m);
-  const horizonTime = horizonIntervals && Number.isFinite(horizonDuration)
-    ? `${horizonIntervals}步 · ${horizonDuration.toFixed(0)}s`
-      + (Number.isFinite(horizonDistance) ? ` · ${(horizonDistance / 1000).toFixed(1)}km` : '')
+  const horizonTime = horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
+    ? `${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
     : `${horizonLength} points`;
   setText('val-planner-horizon', horizonTime);
 
@@ -1362,6 +1356,8 @@ function drawPlannerSurface(planner) {
         ? '简化 MPC · 扇形轨迹筛选'
         : '名义 LOS 引导';
   setText('val-surface-label', label);
+  setText('val-surface-explanation', '');
+  setText('val-surface-meta', '');
   setText('label-best-cost', isVO ? '最小总 Cost' : '最优 Cost');
   setText('label-best-course-offset', '航向偏移');
   setText('label-best-speed-scale', isVO ? '速度偏移' : '速度系数');
@@ -1512,7 +1508,17 @@ function drawSimplifiedMpcFan(surface, canvas, planner, details) {
     'val-best-course-offset',
     Number.isFinite(selectedTurn) ? `${(selectedTurn * 180 / Math.PI).toFixed(1)}°` : '--°',
   );
-  setText('val-best-speed-scale', `恒速 ${(Number(details.speed_scale) || 1).toFixed(2)}×`);
+  setText('val-best-speed-scale', '恒速');
+  setText(
+    'val-surface-explanation',
+    details.selection_mode === 'terminal_distance'
+      ? '目标在 ±90° 外，按终点距离选择路径'
+      : '目标在 ±90° 内，按首段航向差选择路径',
+  );
+  setText(
+    'val-surface-meta',
+    `已选 #${Number.isInteger(selectedIndex) ? selectedIndex + 1 : '--'} · 可行 ${Number(details.feasible_candidate_count) || 0}/${increments.length}`,
+  );
 
   if (!trajectories.length) {
     surface.fillStyle = '#65736f';
@@ -1538,7 +1544,7 @@ function drawSimplifiedMpcFan(surface, canvas, planner, details) {
   const maxX = Math.max(...allPoints.map(point => point.x));
   const minY = Math.min(...allPoints.map(point => point.y));
   const maxY = Math.max(...allPoints.map(point => point.y));
-  const plot = { left: 12, top: 20, right: canvas.width - 12, bottom: canvas.height - 22 };
+  const plot = { left: 6, top: 6, right: canvas.width - 6, bottom: canvas.height - 6 };
   const scale = Math.min(
     (plot.right - plot.left) / Math.max(1, maxX - minX),
     (plot.bottom - plot.top) / Math.max(1, maxY - minY),
@@ -1595,19 +1601,6 @@ function drawSimplifiedMpcFan(surface, canvas, planner, details) {
   surface.beginPath();
   surface.arc(origin.x, origin.y, 3.5, 0, Math.PI * 2);
   surface.fill();
-  surface.fillStyle = '#82918c';
-  surface.font = '9px SFMono-Regular, monospace';
-  surface.textAlign = 'left';
-  const modeText = details.selection_mode === 'terminal_distance'
-    ? '目标在±90°外 · 按终点距离'
-    : '目标在±90°内 · 按首段航向差';
-  surface.fillText(modeText, 8, 11);
-  surface.textAlign = 'right';
-  surface.fillText(
-    `已选 #${Number.isInteger(selectedIndex) ? selectedIndex + 1 : '--'} · 可行 ${Number(details.feasible_candidate_count) || 0}/${increments.length}`,
-    canvas.width - 8,
-    canvas.height - 5,
-  );
 }
 
 function renderSolveTimeline() {
@@ -2400,7 +2393,7 @@ function initializeCollapsibleCard(card, collapsed) {
 function setRuntimePanelsExpanded(expanded) {
   RUNTIME_PANEL_IDS.forEach(id => {
     const card = document.getElementById(id);
-    if (card) setCardCollapsed(card, !expanded);
+    if (card) setCardCollapsed(card, id === 'cardPerf' || !expanded);
   });
 }
 

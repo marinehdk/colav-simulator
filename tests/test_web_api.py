@@ -71,7 +71,8 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
                 ">TCPA<",
                     "COLREGs规则",
                     "本船遥测状态",
-                    ">经纬度<",
+                    ">纬度<",
+                    ">经度<",
                     ">对地速度<",
                     ">对地航向<",
                     ">当前航向<",
@@ -128,10 +129,16 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
             )
         )
         assert 'id="val-surface-summary"' not in page.text
+        assert 'id="val-surface-explanation"' in page.text
+        assert 'id="val-surface-meta"' in page.text
+        assert 'id="plannerSurface" width="280" height="220"' in page.text
         assert "VO / COLREGS 候选速度可行性" in script.text
         assert "简化 MPC · 扇形轨迹筛选" in script.text
         assert "candidate_heading_increments_rad" in script.text
-        assert "目标在±90°内 · 按首段航向差" in script.text
+        assert "`${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`" in script.text
+        assert "目标在 ±90° 内，按首段航向差选择路径" in script.text
+        assert "setText('val-best-speed-scale', '恒速')" in script.text
+        assert "id === 'cardPerf' || !expanded" in script.text
         assert "sbmpcResponseRange(" not in script.text
         assert "responseRange?.threatActivation" in script.text
         assert "details.heading_offsets_rad" in script.text
@@ -195,7 +202,8 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
         )
         assert "SB-MPC 激活/安全范围" not in page.text
         assert all(label in page.text for label in ("雷达探测圈（2 km）", "规划/响应范围"))
-        assert all(label in page.text for label in ("经纬度", "对地速度", "对地航向", "当前航向", "角速度"))
+        assert all(label in page.text for label in ("纬度", "经度", "对地速度", "对地航向", "当前航向", "角速度"))
+        assert "toFixed(4)" in script.text
         assert all(
             legacy_label not in page.text
             for legacy_label in ("北向坐标", "东向坐标", "北向速度", "东向速度")
