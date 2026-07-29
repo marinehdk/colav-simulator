@@ -7,6 +7,7 @@ from colav_simulator.core.colav.custom_mpc_adapter import FactoryContext, Planne
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.integrations import IntegrationRegistry
 from colav_simulator.integrations.potocnik_mpc import (
+    PAPER_COLREG_ZONE_M,
     UPSTREAM_COMMIT,
     PotocnikMPCParams,
     PotocnikSimplifiedMPC,
@@ -69,7 +70,20 @@ def test_paper_solver_selects_route_aligned_candidate_without_conflict() -> None
     assert solution.control_reference[2, 0] == pytest.approx(0.0)
     assert solution.algorithm_details["selected_candidate_index"] == 22
     assert solution.algorithm_details["upstream_commit"] == UPSTREAM_COMMIT
+    assert solution.algorithm_details["selection_mode"] == "initial_heading"
+    assert solution.algorithm_details["selection_score_unit"] == "rad"
+    assert solution.algorithm_details["selected_heading_increment_rad"] == pytest.approx(0.0)
+    assert solution.algorithm_details["speed_scale"] == pytest.approx(1.0)
+    assert solution.algorithm_details["solve_period_s"] == pytest.approx(0.5)
+    assert solution.algorithm_details["prediction_steps"] == 16
+    assert solution.algorithm_details["prediction_distance_m"] == pytest.approx(5600.0)
+    assert len(solution.algorithm_details["candidate_heading_increments_rad"]) == 45
+    assert solution.algorithm_details["candidate_feasible"] == [True] * 45
     assert solution.constraints["dynamic_collision"]["minimum_predicted_clearance_m"] is None
+    assert solution.constraints["planning_zone"] == {
+        "distance_m": PAPER_COLREG_ZONE_M,
+        "semantics": "paper_colreg_zone_reference",
+    }
 
 
 def test_dynamic_conflict_filters_nominal_candidate_and_commands_avoidance() -> None:

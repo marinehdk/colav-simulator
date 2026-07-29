@@ -109,6 +109,8 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "雷达多目标跟踪" in page.text
         assert 'id="cardPlanner"' in page.text
         assert 'id="val-solver-executed"' in page.text
+        assert 'class="planner-identity"' not in page.text
+        assert 'id="val-planner-identity"' not in page.text
         assert 'id="solveTimeline"' in page.text
         assert 'id="objectiveHistory"' in page.text
         assert 'id="objectiveHistoryWrap"' in page.text
@@ -125,6 +127,9 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         )
         assert 'id="val-surface-summary"' not in page.text
         assert "VO / COLREGS 候选速度可行性" in script.text
+        assert "简化 MPC · 扇形轨迹筛选" in script.text
+        assert "candidate_heading_increments_rad" in script.text
+        assert "目标在±90°内 · 按首段航向差" in script.text
         assert "details.heading_offsets_rad" in script.text
         assert "details.speed_offsets_mps" in script.text
         assert "objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc'" in script.text
@@ -185,7 +190,7 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
             )
         )
         assert "SB-MPC 激活/安全范围" not in page.text
-        assert all(label in page.text for label in ("雷达探测圈（2 km）", "避碰响应圈（1 km）"))
+        assert all(label in page.text for label in ("雷达探测圈（2 km）", "规划/响应范围"))
 
 
 def test_real_session_api_and_websocket() -> None:
@@ -373,6 +378,9 @@ def test_potocnik_web_session_uses_published_profile() -> None:
         assert telemetry["executed_algorithm"] == "potocnik_simplified_mpc"
         assert telemetry["latest_planner_solve"]["algorithm_id"] == "potocnik_simplified_mpc"
         assert telemetry["latest_planner_solve"]["status"] == "SUCCESS"
+        assert telemetry["latest_planner_solve"]["algorithm_details"]["prediction_steps"] == 16
+        assert telemetry["latest_planner_solve"]["algorithm_details"]["solve_period_s"] == 0.5
+        assert telemetry["latest_planner_solve"]["constraints"]["planning_zone"]["distance_m"] == 5556.0
         assert len(telemetry["plans"]["prediction_horizon"]) == 17
 
 

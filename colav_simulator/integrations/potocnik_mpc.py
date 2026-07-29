@@ -23,6 +23,7 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureSource, PlanStatus
 
 UPSTREAM_COMMIT: Final = "3683e92f9949cf884540d40a7ce096c3785273b3"
+PAPER_COLREG_ZONE_M: Final = 3.0 * 1852.0
 __version__ = f"paper-2025-port.1+{UPSTREAM_COMMIT[:12]}"
 
 
@@ -38,6 +39,7 @@ class PotocnikMPCParams:
     max_heading_increment_deg: float = 20.0
     heading_increment_decay: float = 0.95
     collision_distance_m: float = 0.5 * 1852.0
+    colreg_zone_distance_m: float = PAPER_COLREG_ZONE_M
 
     def __post_init__(self) -> None:
         """Reject configurations that change the algorithm into an invalid fan."""
@@ -47,6 +49,7 @@ class PotocnikMPCParams:
             self.deadline_s,
             self.max_heading_increment_deg,
             self.collision_distance_m,
+            self.colreg_zone_distance_m,
         )
         if not np.isfinite(finite_positive).all() or min(finite_positive) <= 0.0:
             raise ValueError("time, heading and collision parameters must be finite and positive")
@@ -123,24 +126,44 @@ class PotocnikSimplifiedMPC:
                 "limit_rad": float(np.deg2rad(self.params.max_heading_increment_deg)),
                 "selected_rad": float(self._heading_increments[selected_index]),
             },
+            "planning_zone": {
+                "distance_m": self.params.colreg_zone_distance_m,
+                "semantics": "paper_colreg_zone_reference",
+            },
         }
+        selection_score = float(score[best_local_index])
+        target_bearing_offset = float(_wrap_angle(target_course - float(ownship[2])))
+        prediction_distance = float(np.sum(np.linalg.norm(np.diff(selected[:2], axis=1), axis=0)))
         details = {
             "paper": "Potočnik 2025 JMSE 13(7):1246",
             "upstream_commit": UPSTREAM_COMMIT,
             "formulation": "simplified_mpc_equations_13_17",
             "candidate_count": self.params.candidate_count,
+            "candidate_heading_increments_rad": self._heading_increments.tolist(),
+            "candidate_feasible": feasible.tolist(),
             "feasible_candidate_count": int(feasible_indices.size),
             "selected_candidate_index": selected_index,
+            "selected_heading_increment_rad": float(self._heading_increments[selected_index]),
             "selection_mode": selection_mode,
+            "selection_score": selection_score,
+            "selection_score_unit": "rad" if approaching else "m",
             "target_course_rad": target_course,
+            "target_bearing_offset_rad": target_bearing_offset,
             "goal_ne_m": goal_ne.tolist(),
+            "prediction_steps": self.params.prediction_steps,
+            "prediction_step_s": self.params.horizon_dt_s,
+            "prediction_distance_m": prediction_distance,
+            "decision_sector_limit_rad": float(np.pi / 2.0),
+            "heading_increment_decay": self.params.heading_increment_decay,
+            "speed_scale": 1.0,
+            "solve_period_s": self.params.solve_period_s,
             "solve_count": self.solve_count,
         }
         return MPCSolution(
             control_reference=command.reshape(9, 1),
             predicted_trajectory=selected,
             horizon_dt_s=self.params.horizon_dt_s,
-            objective=float(score[best_local_index]),
+            objective=selection_score,
             iterations=self.params.candidate_count,
             feasible=True,
             constraints=constraints,
@@ -207,6 +230,7 @@ def create(
     max_heading_increment_deg: float = 20.0,
     heading_increment_decay: float = 0.95,
     collision_distance_m: float = 0.5 * 1852.0,
+    colreg_zone_distance_m: float = PAPER_COLREG_ZONE_M,
 ) -> CustomMPCAdapter:
     """Build the paper algorithm through the formal Phase 2 adapter."""
     params = PotocnikMPCParams(
@@ -218,6 +242,7 @@ def create(
         max_heading_increment_deg=max_heading_increment_deg,
         heading_increment_decay=heading_increment_decay,
         collision_distance_m=collision_distance_m,
+        colreg_zone_distance_m=colreg_zone_distance_m,
     )
     solver = PotocnikSimplifiedMPC(params)
     descriptor = AlgorithmDescriptor(

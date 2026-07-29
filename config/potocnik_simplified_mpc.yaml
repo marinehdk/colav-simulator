@@ -11,3 +11,6 @@ kwargs:
   # The paper default is 926 m. The standard OT scenes start inside that
   # zone, so the Phase 2 functional profile uses a documented 300 m buffer.
   collision_distance_m: 300.0
+  # Paper COLREG application zone. Used as declared planning/visual range;
+  # this functional port does not implement the paper's route/MPC mode switch.
+  colreg_zone_distance_m: 5556.0

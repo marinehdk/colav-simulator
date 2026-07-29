@@ -15,6 +15,11 @@ Potočnik (2025), Equations (13)-(17), and the reference MATLAB implementation:
 The stable Playground ID is `potocnik_simplified_mpc`. It loads only through
 the Phase 2 `module:factory -> CustomMPCAdapter(ICOLAV)` path.
 
+The paper and upstream repository do not assign a dedicated short name such as
+`SMPC` to the algorithm. They call it the "simplified MPC formulation". The
+Playground therefore displays the paper-faithful short label `简化 MPC`; it
+retains the stable internal ID for manifests and API compatibility.
+
 This is a functional algorithm reproduction, not a numerical reproduction of
 the paper figures. It does not claim to implement the general nonlinear
 optimization stated in Equation (12).
@@ -50,9 +55,21 @@ per-iteration speed. The port receives the platform contract directly:
 | moving ships | `TrackedObstacle` constant-velocity prediction |
 | first selected heading | course/speed reference |
 
-`horizon_dt_s=50` is a Playground time-base calibration. The paper and MATLAB
-source do not publish an SI prediction timestep, so this value is not a paper
-reproduction claim.
+`H=16` and `M=45` match Table 3 and the MATLAB settings. The paper and MATLAB
+source do not publish an SI prediction timestep: the source advances
+`ship_speed=3e-3` in relative geographic units once per simulation iteration.
+`horizon_dt_s=50` is a Playground time-base calibration so a ship near `7 m/s`
+travels approximately the paper's `3 nm` COLREG-zone radius in 16 intervals.
+The resulting `800 s` is derived Playground time, not a value reported by the
+paper. The public `9x17` trajectory contains the solve-time state plus 16 future
+steps; the UI reports 16 intervals rather than multiplying all 17 points.
+
+The solver recomputes every `0.5 s` and selects one of 45 discrete fan
+trajectories. Neither the paper nor audited MATLAB source defines hysteresis,
+trajectory blending, or steering-rate smoothing for that selection. A change
+of selected candidate can therefore make the displayed long prediction jump.
+The UI exposes the selected candidate, feasible/infeasible fan, first heading
+increment, selection metric, and solve period instead of hiding that behavior.
 
 ## Deliberate Phase 2 boundary
 
@@ -75,6 +92,13 @@ The six standard Phase 2 scenes use `300 m` in
 `707 m` apart and are infeasible at solve `t=0` under a `926 m` hard
 constraint. This is an explicit functional-profile calibration, not a hidden
 change to the paper default.
+
+The paper's `3 nm = 5556 m` COLREG application zone is declared separately as
+`colreg_zone_distance_m` and shown on the map as a paper reference range. It is
+not presented as a runtime activation threshold: this functional port does not
+include the upstream route-following/MPC mode switch. Algorithms need only
+publish such a range when it has defined semantics; the field is not mandatory
+for every integration.
 
 ## Run and verify
 

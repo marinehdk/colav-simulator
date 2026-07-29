@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="stylesheet" href="/static/style.css?v=20260728-event-padding" />
+  <link rel="stylesheet" href="/static/style.css?v=20260729-simplified-mpc-diagnostics" />
 </head>
 <body>
   <div class="app-container">
@@ -95,7 +95,7 @@
                     <span class="legend-item" data-legend-layer="measurements"><span class="color-box measurement"></span>量测</span>
                     <span class="legend-item" data-legend-layer="covariance"><span class="color-box covariance"></span>协方差</span>
                     <span class="legend-item" data-legend-layer="radarRange"><span class="color-box radar-range"></span>雷达探测圈 2 km</span>
-                    <span class="legend-item" data-legend-layer="responseRange"><span class="color-box response-range"></span>避碰响应圈 1 km</span>
+                    <span class="legend-item" data-legend-layer="responseRange"><span class="color-box response-range"></span><span id="response-range-legend-label">规划/响应范围</span></span>
                   </div>
                 </div>
               </details>
@@ -129,7 +129,7 @@
                     <label><input type="checkbox" data-layer="tracks"> Track ID</label>
                     <label><input type="checkbox" data-layer="covariance"> 协方差</label>
                     <label><input type="checkbox" data-layer="radarRange" checked> 雷达探测圈（2 km）</label>
-                    <label><input type="checkbox" data-layer="responseRange" checked> 避碰响应圈（1 km） <span class="layer-state" data-layer-state="responseRange">数据未提供</span></label>
+                    <label><input type="checkbox" data-layer="responseRange" checked> <span id="response-range-control-label">规划/响应范围</span> <span class="layer-state" data-layer-state="responseRange">数据未提供</span></label>
                   </fieldset>
                 </div>
               </details>
@@ -231,7 +231,7 @@
             <option value="nominal" selected>名义导航链</option>
             <option value="vo">内置 VO</option>
             <option value="sbmpc">内置 SB-MPC</option>
-            <option value="potocnik_simplified_mpc">Potočnik Simplified MPC</option>
+            <option value="potocnik_simplified_mpc">简化 MPC（Potočnik 2025）</option>
             <option value="psbmpc">官方 PSB-MPC</option>
             <option value="rrt">RRT* 路径规划</option>
             <option value="rlmpc">RL-MPC</option>
@@ -244,7 +244,7 @@
                   <span class="selection-name">SB-MPC</span><span class="selection-description">场景式分支 MPC</span><span class="selection-state">检查中</span>
                 </button>
                 <button class="selection-card" type="button" data-algorithm="potocnik_simplified_mpc" aria-pressed="false">
-                  <span class="selection-name">Potočnik MPC</span><span class="selection-description">论文简化扇形 MPC</span><span class="selection-state">检查中</span>
+                  <span class="selection-name">简化 MPC</span><span class="selection-description">Potočnik 2025 扇形筛选</span><span class="selection-state">检查中</span>
                 </button>
                 <button class="selection-card" type="button" data-algorithm="psbmpc" aria-pressed="false">
                   <span class="selection-name">PSB-MPC</span><span class="selection-description">概率安全域 MPC</span><span class="selection-state">检查中</span>
@@ -338,10 +338,6 @@
             <h3 class="card-title"><span class="icon" aria-hidden="true">⌁</span> 规划执行诊断</h3>
             <span class="planner-mode hold" id="val-solver-executed">HOLD</span>
           </div>
-          <div class="planner-identity">
-            <span id="val-selected-rule">Rule 14</span>
-            <span id="val-planner-identity">nominal / god</span>
-          </div>
           <div class="planner-grid">
             <div><span class="telem-label">求解编号</span><span class="telem-val mono-tag" id="val-solve-id">#0</span></div>
             <div><span class="telem-label">状态</span><span class="telem-val mono-tag" id="val-solver-state">成功</span></div>
@@ -427,6 +423,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260728-event-padding"></script>
+  <script src="/static/app.js?v=20260729-simplified-mpc-diagnostics"></script>
 </body>
 </html>

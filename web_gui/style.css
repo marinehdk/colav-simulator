@@ -1311,17 +1311,6 @@ canvas#simCanvas {
   background: rgba(232,173,74,0.08);
 }
 
-.planner-identity {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 9px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-  overflow-wrap: anywhere;
-}
-
 .planner-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -932,10 +932,10 @@ function drawDetectionZones(data) {
     ctx.stroke();
   }
 
-  const responseRange = sbmpcResponseRange(data);
+  const responseRange = plannerResponseRange(data);
   if (visibleLayers.responseRange && responseRange) {
     ctx.beginPath();
-    ctx.arc(center.x, center.y, responseRange * viewScale, 0, Math.PI * 2);
+    ctx.arc(center.x, center.y, responseRange.distanceM * viewScale, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,77,90,0.82)';
     ctx.lineWidth = 1.7;
     ctx.setLineDash([8, 6]);
@@ -944,16 +944,31 @@ function drawDetectionZones(data) {
   ctx.restore();
 }
 
-function sbmpcResponseRange(data) {
+function plannerResponseRange(data) {
   const planner = data.latest_planner_solve?.solver_executed
     ? data.latest_planner_solve
     : (data.planner || {});
   const algorithmId = planner.algorithm_id || data.executed_algorithm || data.requested_algorithm;
-  if (algorithmId !== 'sbmpc') return null;
-  const configuredRange = Number(planner.constraints?.activation_distance_m);
-  return Number.isFinite(configuredRange) && configuredRange > 0
-    ? configuredRange
-    : SBMPC_RESPONSE_RANGE_M;
+  if (algorithmId === 'sbmpc') {
+    const configuredRange = Number(planner.constraints?.activation_distance_m);
+    const distanceM = Number.isFinite(configuredRange) && configuredRange > 0
+      ? configuredRange
+      : SBMPC_RESPONSE_RANGE_M;
+    return {
+      distanceM,
+      label: `避碰响应圈（${(distanceM / 1000).toFixed(1)} km）`,
+    };
+  }
+  if (algorithmId === 'potocnik_simplified_mpc') {
+    const distanceM = Number(planner.constraints?.planning_zone?.distance_m);
+    if (Number.isFinite(distanceM) && distanceM > 0) {
+      return {
+        distanceM,
+        label: `论文 COLREG 区（${(distanceM / 1852).toFixed(1)} nm）`,
+      };
+    }
+  }
+  return null;
 }
 
 function cpaPoint(value) {
@@ -1046,7 +1061,10 @@ function updateLayerAvailability(data, navigationArea, route) {
     && Number.isFinite(Number(data.route_corridor_half_width_m))
     && Number(data.route_corridor_half_width_m) > 0);
   setLayerAvailability('radarRange', true);
-  setLayerAvailability('responseRange', Boolean(sbmpcResponseRange(data)));
+  const responseRange = plannerResponseRange(data);
+  setText('response-range-control-label', responseRange?.label || '规划/响应范围');
+  setText('response-range-legend-label', responseRange?.label || '规划/响应范围');
+  setLayerAvailability('responseRange', Boolean(responseRange));
 }
 
 function setLayerAvailability(layer, available) {
@@ -1250,20 +1268,20 @@ function updatePlannerPanel(data) {
   mode.classList.toggle('solve', realSolve);
   mode.classList.toggle('hold', !realSolve);
 
-  setText('val-selected-rule', (data.selected_rule || 'unscoped').toUpperCase());
-  setText(
-    'val-planner-identity',
-    `${data.requested_algorithm || '—'}→${data.executed_algorithm || '—'} / `
-      + `${data.requested_tracker || '—'}→${data.executed_tracker || '—'}`,
-  );
   setText('val-solve-id', `#${solveId}`);
   const solverSuccessful = planner.feasible !== false
     && ['SUCCESS', 'TIMEOUT_FEASIBLE'].includes(planner.status || 'SUCCESS');
   setText('val-solver-state', solverSuccessful ? '成功' : '失败');
 
   const horizonLength = data.plans?.prediction_horizon?.length || 0;
-  const horizonTime = horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
-    ? `${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
+  const horizonIntervals = Math.max(0, horizonLength - 1);
+  const horizonDuration = Number.isFinite(diagnosticPlanner.horizon_dt_s)
+    ? horizonIntervals * diagnosticPlanner.horizon_dt_s
+    : null;
+  const horizonDistance = Number(details.prediction_distance_m);
+  const horizonTime = horizonIntervals && Number.isFinite(horizonDuration)
+    ? `${horizonIntervals}步 · ${horizonDuration.toFixed(0)}s`
+      + (Number.isFinite(horizonDistance) ? ` · ${(horizonDistance / 1000).toFixed(1)}km` : '')
     : `${horizonLength} points`;
   setText('val-planner-horizon', horizonTime);
 
@@ -1288,10 +1306,15 @@ function updatePlannerPanel(data) {
     ? Math.hypot(predictedExecution[0] - data.os.x, predictedExecution[1] - data.os.y)
     : null;
   setText('val-prediction-error', Number.isFinite(executionError) ? `${executionError.toFixed(2)} m` : '-- m');
-  drawPlannerSurface(diagnosticPlanner.algorithm_id, details);
+  drawPlannerSurface(diagnosticPlanner);
+  const configuredSolvePeriod = Number(details.solve_period_s);
   setText(
     'val-solve-period',
-    diagnosticPlanner.algorithm_id === 'sbmpc' ? `${SBMPC_SOLVE_PERIOD_SECONDS.toFixed(1)} s` : '按算法触发',
+    Number.isFinite(configuredSolvePeriod)
+      ? `${configuredSolvePeriod.toFixed(1)} s`
+      : diagnosticPlanner.algorithm_id === 'sbmpc'
+        ? `${SBMPC_SOLVE_PERIOD_SECONDS.toFixed(1)} s`
+        : '按算法触发',
   );
 
   const timelineTrace = latestSolve.solver_executed ? latestSolve : (realSolve ? planner : null);
@@ -1308,10 +1331,13 @@ function updatePlannerPanel(data) {
   }
 }
 
-function drawPlannerSurface(algorithmId, details) {
+function drawPlannerSurface(planner) {
   const canvas = document.getElementById('plannerSurface');
   const surface = canvas.getContext('2d');
+  const algorithmId = planner.algorithm_id;
+  const details = planner.algorithm_details || {};
   const isVO = algorithmId === 'vo';
+  const isSimplifiedMPC = algorithmId === 'potocnik_simplified_mpc';
   const matrix = isVO ? details.violation_costs : details.candidate_costs;
   const selectionMatrix = isVO && Array.isArray(details.total_costs)
     ? details.total_costs
@@ -1320,8 +1346,8 @@ function drawPlannerSurface(algorithmId, details) {
     ? 'VO / COLREGS 候选速度可行性'
     : algorithmId === 'sbmpc'
       ? 'SB-MPC 候选控制代价'
-      : algorithmId === 'potocnik_simplified_mpc'
-        ? 'Potočnik 扇形轨迹筛选'
+      : isSimplifiedMPC
+        ? '简化 MPC · 扇形轨迹筛选'
         : '名义 LOS 引导';
   setText('val-surface-label', label);
   setText('label-best-cost', isVO ? '最小总 Cost' : '最优 Cost');
@@ -1335,6 +1361,10 @@ function drawPlannerSurface(algorithmId, details) {
   surface.clearRect(0, 0, canvas.width, canvas.height);
   surface.fillStyle = '#0d1211';
   surface.fillRect(0, 0, canvas.width, canvas.height);
+  if (isSimplifiedMPC) {
+    drawSimplifiedMpcFan(surface, canvas, planner, details);
+    return;
+  }
   if (!Array.isArray(matrix) || !matrix.length || !Array.isArray(matrix[0])) {
     surface.fillStyle = '#65736f';
     surface.font = '11px SFMono-Regular, monospace';
@@ -1428,6 +1458,144 @@ function drawPlannerSurface(algorithmId, details) {
     setText('val-best-course-offset', courseText);
     setText('val-best-speed-scale', speedText);
   }
+}
+
+function drawSimplifiedMpcFan(surface, canvas, planner, details) {
+  const increments = Array.isArray(details.candidate_heading_increments_rad)
+    ? details.candidate_heading_increments_rad.map(Number)
+    : [];
+  const feasible = Array.isArray(details.candidate_feasible) ? details.candidate_feasible : [];
+  const selectedIndex = Number(details.selected_candidate_index);
+  const steps = Math.max(1, Number(details.prediction_steps) || 16);
+  const decay = Number(details.heading_increment_decay) || 0.95;
+  const targetOffset = Number(details.target_bearing_offset_rad);
+  const trajectories = increments.map(increment => {
+    const points = [{ x: 0, y: 0 }];
+    let heading = 0;
+    let turn = increment;
+    let x = 0;
+    let y = 0;
+    for (let step = 0; step < steps; step += 1) {
+      heading += turn;
+      x += Math.sin(heading);
+      y += Math.cos(heading);
+      points.push({ x, y });
+      turn *= decay;
+    }
+    return points;
+  });
+
+  setText('label-best-cost', details.selection_mode === 'terminal_distance'
+    ? '选择指标·终点距离'
+    : '选择指标·航向差');
+  setText('label-best-course-offset', '首步转角');
+  setText('label-best-speed-scale', '速度策略');
+  const score = Number(details.selection_score ?? planner.objective);
+  const scoreValue = details.selection_score_unit === 'm'
+    ? (Number.isFinite(score) ? `${score.toFixed(1)} m` : '--')
+    : (Number.isFinite(score) ? `${(score * 180 / Math.PI).toFixed(2)}°` : '--°');
+  const selectedTurn = Number(details.selected_heading_increment_rad);
+  setText('val-best-cost', scoreValue);
+  setText(
+    'val-best-course-offset',
+    Number.isFinite(selectedTurn) ? `${(selectedTurn * 180 / Math.PI).toFixed(1)}°` : '--°',
+  );
+  setText('val-best-speed-scale', `恒速 ${(Number(details.speed_scale) || 1).toFixed(2)}×`);
+
+  if (!trajectories.length) {
+    surface.fillStyle = '#65736f';
+    surface.font = '11px SFMono-Regular, monospace';
+    surface.fillText('等待扇形轨迹数据', 12, 78);
+    return;
+  }
+
+  const guideLength = steps;
+  const guidePoints = [
+    { x: -guideLength, y: 0 },
+    { x: guideLength, y: 0 },
+    { x: 0, y: guideLength },
+  ];
+  if (Number.isFinite(targetOffset)) {
+    guidePoints.push({
+      x: Math.sin(targetOffset) * guideLength,
+      y: Math.cos(targetOffset) * guideLength,
+    });
+  }
+  const allPoints = [...trajectories.flat(), ...guidePoints, { x: 0, y: 0 }];
+  const minX = Math.min(...allPoints.map(point => point.x));
+  const maxX = Math.max(...allPoints.map(point => point.x));
+  const minY = Math.min(...allPoints.map(point => point.y));
+  const maxY = Math.max(...allPoints.map(point => point.y));
+  const plot = { left: 12, top: 20, right: canvas.width - 12, bottom: canvas.height - 22 };
+  const scale = Math.min(
+    (plot.right - plot.left) / Math.max(1, maxX - minX),
+    (plot.bottom - plot.top) / Math.max(1, maxY - minY),
+  );
+  const mapPoint = point => ({
+    x: plot.left + (point.x - minX) * scale,
+    y: plot.bottom - (point.y - minY) * scale,
+  });
+  const origin = mapPoint({ x: 0, y: 0 });
+  const drawGuide = (angle, color, dashed = true) => {
+    const end = mapPoint({
+      x: Math.sin(angle) * guideLength,
+      y: Math.cos(angle) * guideLength,
+    });
+    surface.strokeStyle = color;
+    surface.lineWidth = 1;
+    surface.setLineDash(dashed ? [4, 4] : []);
+    surface.beginPath();
+    surface.moveTo(origin.x, origin.y);
+    surface.lineTo(end.x, end.y);
+    surface.stroke();
+    surface.setLineDash([]);
+  };
+  drawGuide(-Math.PI / 2, 'rgba(130,145,140,0.45)');
+  drawGuide(0, 'rgba(130,145,140,0.45)');
+  drawGuide(Math.PI / 2, 'rgba(130,145,140,0.45)');
+  if (Number.isFinite(targetOffset)) drawGuide(targetOffset, '#D96BFF', false);
+
+  trajectories.forEach((points, index) => {
+    if (index === selectedIndex) return;
+    surface.strokeStyle = feasible[index] ? 'rgba(74,191,132,0.52)' : 'rgba(225,86,91,0.48)';
+    surface.lineWidth = 1;
+    surface.beginPath();
+    points.forEach((point, pointIndex) => {
+      const mapped = mapPoint(point);
+      if (pointIndex === 0) surface.moveTo(mapped.x, mapped.y);
+      else surface.lineTo(mapped.x, mapped.y);
+    });
+    surface.stroke();
+  });
+  if (Number.isInteger(selectedIndex) && trajectories[selectedIndex]) {
+    surface.strokeStyle = '#58A6FF';
+    surface.lineWidth = 2.6;
+    surface.beginPath();
+    trajectories[selectedIndex].forEach((point, pointIndex) => {
+      const mapped = mapPoint(point);
+      if (pointIndex === 0) surface.moveTo(mapped.x, mapped.y);
+      else surface.lineTo(mapped.x, mapped.y);
+    });
+    surface.stroke();
+  }
+
+  surface.fillStyle = '#58A6FF';
+  surface.beginPath();
+  surface.arc(origin.x, origin.y, 3.5, 0, Math.PI * 2);
+  surface.fill();
+  surface.fillStyle = '#82918c';
+  surface.font = '9px SFMono-Regular, monospace';
+  surface.textAlign = 'left';
+  const modeText = details.selection_mode === 'terminal_distance'
+    ? '目标在±90°外 · 按终点距离'
+    : '目标在±90°内 · 按首段航向差';
+  surface.fillText(modeText, 8, 11);
+  surface.textAlign = 'right';
+  surface.fillText(
+    `已选 #${Number.isInteger(selectedIndex) ? selectedIndex + 1 : '--'} · 可行 ${Number(details.feasible_candidate_count) || 0}/${increments.length}`,
+    canvas.width - 8,
+    canvas.height - 5,
+  );
 }
 
 function renderSolveTimeline() {
