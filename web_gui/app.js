@@ -1318,7 +1318,11 @@ function drawPlannerSurface(algorithmId, details) {
     : matrix;
   const label = algorithmId === 'vo'
     ? 'VO / COLREGS 候选速度可行性'
-    : algorithmId === 'sbmpc' ? 'SB-MPC 候选控制代价' : '名义 LOS 引导';
+    : algorithmId === 'sbmpc'
+      ? 'SB-MPC 候选控制代价'
+      : algorithmId === 'potocnik_simplified_mpc'
+        ? 'Potočnik 扇形轨迹筛选'
+        : '名义 LOS 引导';
   setText('val-surface-label', label);
   setText('label-best-cost', isVO ? '最小总 Cost' : '最优 Cost');
   setText('label-best-course-offset', '航向偏移');
