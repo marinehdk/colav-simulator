@@ -81,6 +81,11 @@ def test_runner_writes_complete_evidence_bundle(tmp_path: Path) -> None:
     assert manifest["spec_hash"]
     assert manifest["simulation_config_hash"]
     assert manifest["trajectory_hash"]
+    assert manifest["evaluator_profile_id"] == "ccta_2023_demo-v1"
+    assert manifest["evaluator_profile_hash"]
+    assert manifest["formula_set_id"] == "ocean-engineering-2023-v1"
+    assert manifest["evaluation_collision_oracle_id"] == "c2a-rect2d-v1"
+    assert manifest["evaluation_schema_version"] == "2.0"
     assert manifest["scenario_provenance"]["reconstructed"] is True
     inspection = subprocess.run(
         [
@@ -176,6 +181,7 @@ def test_dependency_failure_persists_skipped_not_evaluated_evidence(tmp_path: Pa
     assert manifest.execution_outcome == RunOutcome.SKIPPED
     assert stored_manifest["execution_outcome"] == "SKIPPED"
     assert stored_manifest["reproduction_status"] == "not_evaluated"
-    assert evaluation["status"] == "not_evaluated"
+    assert evaluation["evaluation_status"] == "NOT_EVALUATED"
+    assert evaluation["hard_gate"]["outcome"] == "FAIL"
     assert evaluation["failure_status"] == PlanStatus.DEPENDENCY_UNAVAILABLE
     assert event["type"] == "run_skipped"

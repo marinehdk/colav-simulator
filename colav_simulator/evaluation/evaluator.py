@@ -1,13 +1,10 @@
-"""Transparent fallback evaluator for COLREG and safety experiments.
-
-This implementation provides the complete data flow and named metrics required
-by the simulator. It is intentionally identified as reconstructed and is not
-claimed to reproduce the unpublished official evaluator numerically.
-"""
+"""Traceable three-layer COLREG and safety evaluator."""
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict, dataclass, field
+from enum import StrEnum
 from itertools import combinations
 from typing import Any
 
@@ -16,9 +13,59 @@ import seacharts.enc as senc
 
 import colav_simulator.common.map_functions as mapf
 from colav_simulator.common.vessel_data import VesselData
-from colav_simulator.evaluation.encounter import classify_geometry, stage_timeline, velocity_ne
+from colav_simulator.core.collision import (
+    C2A_ORACLE_ID,
+    TOCResult,
+    VesselPose,
+    c2a_first_contact,
+    c2a_grounding_first_contact,
+    rectangular_footprint,
+)
+from colav_simulator.evaluation.colreg_fsm import EncounterObservation, PairwiseColregFSM
+from colav_simulator.evaluation.encounter import (
+    classify_geometry,
+    instantaneous_cpa,
+    paper_stage_timeline,
+    trajectory_cpa,
+    velocity_ne,
+    wrap_angle,
+)
+from colav_simulator.evaluation.profiles import (
+    DEFAULT_EVALUATOR_PROFILE_ID,
+    FORMULA_SET_ID,
+    EvaluatorProfile,
+    load_evaluator_profile,
+)
+from colav_simulator.evaluation.scoring import MetricEvidence, score_pair
 
-EVALUATOR_ID = "reconstructed-evaluator-v1"
+EVALUATOR_ID = "behavior-compatible-evaluator-v2"
+EVALUATION_SCHEMA_VERSION = "2.0"
+
+
+class GateOutcome(StrEnum):
+    PASS = "PASS"
+    SOFT = "SOFT"
+    FAIL = "FAIL"
+
+
+class CheckOutcome(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    NOT_EVALUATED = "NOT_EVALUATED"
+
+
+@dataclass(frozen=True)
+class HardGateCheck:
+    check_id: str
+    outcome: CheckOutcome
+    reason: str
+    evidence: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class HardGateLayer:
+    outcome: GateOutcome
+    checks: list[HardGateCheck]
 
 
 @dataclass
@@ -26,13 +73,24 @@ class PairEvaluation:
     ownship_id: int
     target_id: int
     encounter: str
+    target_encounter: str
     initial_dcpa_m: float
     initial_tcpa_s: float
+    initial_signed_tcpa_s: float
     minimum_distance_m: float
     cpa_time_s: float
     collision: bool
+    collision_toc_s: float | None
+    collision_bracket_s: tuple[float, float] | None
+    collision_oracle_id: str
     stages: list[dict[str, Any]]
+    fsm_transitions: list[dict[str, Any]]
     metrics: dict[str, float | None]
+    target_metrics: dict[str, float | None]
+    metric_evidence: dict[str, dict[str, Any]]
+    target_metric_evidence: dict[str, dict[str, Any]]
+    initial_cpa: dict[str, Any]
+    actual_cpa: dict[str, Any]
     warnings: list[str] = field(default_factory=list)
 
 
@@ -41,32 +99,366 @@ class VesselEvaluation:
     vessel_id: int
     grounding_distance_m: float | None
     grounded: bool | None
+    grounding_toc_s: float | None
+    grounding_status: str
     grounding_clearance_score: float | None
     travel_distance_m: float
     duration_s: float
+    grounding_evidence: dict[str, Any] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
 class EvaluatorResult:
     evaluator_id: str
+    evaluator_profile_id: str
+    evaluator_profile_hash: str
+    formula_set_id: str
+    formula_set_hash: str
+    collision_oracle_id: str
     numerical_reproduction_confirmed: bool
     reproduction_status: str
+    evaluation_status: str
+    hard_gate: HardGateLayer
+    scores: dict[str, Any]
+    diagnostics: dict[str, Any]
+    evidence: dict[str, Any]
     pair_results: list[PairEvaluation]
     vessel_results: list[VesselEvaluation]
     aggregate: dict[str, float | int | None]
     warnings: list[str]
-    schema_version: str = "1.0"
+    schema_version: str = EVALUATION_SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def _wrap(angle: np.ndarray | float) -> np.ndarray | float:
-    return np.arctan2(np.sin(angle), np.cos(angle))
+class Evaluator:
+    """Behavior-compatible façade with explicit profile and evidence identity."""
 
+    evaluator_id = EVALUATOR_ID
 
-def _velocity(vessel: VesselData) -> np.ndarray:
-    return np.vstack((vessel.sog * np.cos(vessel.cog), vessel.sog * np.sin(vessel.cog)))
+    def __init__(self, profile: str | EvaluatorProfile = DEFAULT_EVALUATOR_PROFILE_ID) -> None:
+        self.profile = load_evaluator_profile(profile) if isinstance(profile, str) else profile
+        self._enc: senc.ENC | None = None
+        self._vessels: list[VesselData] | None = None
+        self._last_result: EvaluatorResult | None = None
+
+    def set_enc(self, enc: senc.ENC | None) -> None:
+        self._enc = enc
+
+    def set_vessel_data(self, vessels: list[VesselData]) -> None:
+        self._vessels = vessels
+
+    def evaluate(
+        self,
+        vessels: list[VesselData] | None = None,
+        enc: senc.ENC | None = None,
+        *,
+        execution_context: dict[str, Any] | None = None,
+    ) -> EvaluatorResult:
+        vessels = vessels if vessels is not None else self._vessels
+        enc = enc if enc is not None else self._enc
+        if vessels is None:
+            raise ValueError("Evaluator requires vessel data")
+        self._vessels = vessels
+        self._enc = enc
+        context = execution_context or {}
+        warnings = [
+            "Original evaluator source unavailable; this is a behavior-compatible reconstruction.",
+            "Only cells with complete published inputs may be marked numerically verified.",
+        ]
+        warnings.extend(self.profile.reconstruction_assumptions)
+        pair_results: list[PairEvaluation] = []
+        for ownship, target in combinations(vessels, 2):
+            pair = self._evaluate_pair(ownship, target)
+            if pair is None:
+                warnings.append(f"No synchronized finite samples for vessels {ownship.id} and {target.id}")
+            else:
+                pair_results.append(pair)
+        vessel_results = [self._evaluate_vessel(vessel, enc) for vessel in vessels]
+        for vessel_result in vessel_results:
+            warnings.extend(vessel_result.warnings)
+        aggregate = _aggregate(pair_results, vessel_results)
+        hard_gate = _hard_gate(pair_results, vessel_results, context)
+        evaluated_pairs = len(pair_results)
+        expected_pairs = len(vessels) * (len(vessels) - 1) // 2
+        evaluation_status = "COMPLETE" if evaluated_pairs == expected_pairs else "PARTIAL"
+        score_layer = {
+            "status": evaluation_status,
+            "profile_id": self.profile.profile_id,
+            "profile_hash": self.profile.profile_hash,
+            "formula_set_id": FORMULA_SET_ID,
+            "pair_count": evaluated_pairs,
+            "aggregate": aggregate,
+        }
+        diagnostics = {
+            "task": {
+                "pair_count": evaluated_pairs,
+                "collision_count": aggregate["collision_count"],
+                "grounding_count": aggregate["grounding_count"],
+            },
+            "execution": {
+                "requested_algorithm": context.get("requested_algorithm"),
+                "executed_algorithm": context.get("executed_algorithm"),
+                "fallback_used": bool(context.get("fallback_used", False)),
+                "run_completed": bool(context.get("run_completed", True)),
+            },
+            "solver": context.get("solver", {"status": "NOT_AVAILABLE"}),
+        }
+        result = EvaluatorResult(
+            evaluator_id=self.evaluator_id,
+            evaluator_profile_id=self.profile.profile_id,
+            evaluator_profile_hash=self.profile.profile_hash,
+            formula_set_id=FORMULA_SET_ID,
+            formula_set_hash=hashlib.sha256(FORMULA_SET_ID.encode("utf-8")).hexdigest(),
+            collision_oracle_id=C2A_ORACLE_ID,
+            numerical_reproduction_confirmed=False,
+            reproduction_status="behavior_compatible_reconstruction",
+            evaluation_status=evaluation_status,
+            hard_gate=hard_gate,
+            scores=score_layer,
+            diagnostics=diagnostics,
+            evidence={
+                "source_refs": list(self.profile.source_refs),
+                "reconstruction_assumptions": list(self.profile.reconstruction_assumptions),
+                "grounding_policy_id": "chart-geometric-footprint-v1",
+                "grounding_compensation_status": "NOT_EVALUATED",
+                "operational_ukc_status": "NOT_EVALUATED",
+            },
+            pair_results=pair_results,
+            vessel_results=vessel_results,
+            aggregate=aggregate,
+            warnings=warnings,
+        )
+        self._last_result = result
+        return result
+
+    def print_vessel_scores(self, vessel_id: int = 0) -> None:
+        if self._last_result is None:
+            raise RuntimeError("evaluate() must be called before print_vessel_scores()")
+        for pair in self._last_result.pair_results:
+            if pair.ownship_id == vessel_id:
+                print(f"{pair.ownship_id}->{pair.target_id}: {pair.metrics}")
+            elif pair.target_id == vessel_id:
+                print(f"{pair.target_id}->{pair.ownship_id}: {pair.target_metrics}")
+
+    def _evaluate_pair(self, ownship: VesselData, target: VesselData) -> PairEvaluation | None:
+        times, own_indices, target_indices = _aligned(ownship, target)
+        if times.size == 0:
+            return None
+        own_positions_en = ownship.xy[:, own_indices]
+        target_positions_en = target.xy[:, target_indices]
+        finite = (
+            np.isfinite(times)
+            & np.all(np.isfinite(own_positions_en), axis=0)
+            & np.all(np.isfinite(target_positions_en), axis=0)
+            & np.isfinite(ownship.sog[own_indices])
+            & np.isfinite(target.sog[target_indices])
+            & np.isfinite(ownship.cog[own_indices])
+            & np.isfinite(target.cog[target_indices])
+        )
+        if not finite.any():
+            return None
+        times = times[finite]
+        own_indices = own_indices[finite]
+        target_indices = target_indices[finite]
+        own_positions_en = own_positions_en[:, finite]
+        target_positions_en = target_positions_en[:, finite]
+        own_positions_ne = own_positions_en[::-1]
+        target_positions_ne = target_positions_en[::-1]
+        relative_ne = target_positions_ne - own_positions_ne
+        distance = np.linalg.norm(relative_ne, axis=0)
+        actual_cpa = trajectory_cpa(own_positions_ne, target_positions_ne, times)
+        cpa_index = int(np.argmin(distance))
+        own_velocities = _velocities(ownship, own_indices)
+        target_velocities = _velocities(target, target_indices)
+        initial_cpa = instantaneous_cpa(relative_ne[:, 0], target_velocities[:, 0] - own_velocities[:, 0])
+        signed_tcpa = np.array(
+            [
+                instantaneous_cpa(
+                    relative_ne[:, index],
+                    target_velocities[:, index] - own_velocities[:, index],
+                ).tcpa_signed_s
+                for index in range(times.size)
+            ],
+            dtype=float,
+        )
+        stage_values = _paper_stage_values(distance, signed_tcpa, self.profile)
+        stages = paper_stage_timeline(times, distance, signed_tcpa, self.profile)
+        entry_candidates = np.flatnonzero(stage_values >= 2)
+        entry_index = int(entry_candidates[0]) if entry_candidates.size else 0
+        encounter = _classify_at(ownship, target, own_indices, target_indices, entry_index, self.profile)
+        target_encounter = _classify_at(target, ownship, target_indices, own_indices, entry_index, self.profile)
+        own_fsm = _run_fsm(
+            ownship,
+            target,
+            times,
+            own_indices,
+            target_indices,
+            distance,
+            signed_tcpa,
+            stage_values,
+            self.profile,
+        )
+        target_fsm = _run_fsm(
+            target,
+            ownship,
+            times,
+            target_indices,
+            own_indices,
+            distance,
+            signed_tcpa,
+            stage_values,
+            self.profile,
+        )
+        own_alpha, own_beta = _pose_angles(
+            own_positions_ne[:, cpa_index],
+            target_positions_ne[:, cpa_index],
+            float(ownship.cog[own_indices[cpa_index]]),
+            float(target.cog[target_indices[cpa_index]]),
+        )
+        target_alpha, target_beta = _pose_angles(
+            target_positions_ne[:, cpa_index],
+            own_positions_ne[:, cpa_index],
+            float(target.cog[target_indices[cpa_index]]),
+            float(ownship.cog[own_indices[cpa_index]]),
+        )
+        metrics, evidence = score_pair(
+            encounter=encounter,
+            courses_rad=ownship.cog[own_indices],
+            speeds_mps=ownship.sog[own_indices],
+            distances_m=distance,
+            stages=stage_values,
+            cpa_index=cpa_index,
+            contact_angle_rad=own_alpha,
+            relative_bearing_rad=own_beta,
+            profile=self.profile,
+            ownship_length_m=ownship.length,
+        )
+        target_metrics, target_evidence = score_pair(
+            encounter=target_encounter,
+            courses_rad=target.cog[target_indices],
+            speeds_mps=target.sog[target_indices],
+            distances_m=distance,
+            stages=stage_values,
+            cpa_index=cpa_index,
+            contact_angle_rad=target_alpha,
+            relative_bearing_rad=target_beta,
+            profile=self.profile,
+            ownship_length_m=target.length,
+        )
+        collision = _pair_first_contact(ownship, target, times, own_indices, target_indices)
+        transitions = [item.to_dict() for item in own_fsm.transitions]
+        transitions.extend(
+            {"perspective": "target", **item.to_dict()}
+            for item in target_fsm.transitions
+        )
+        return PairEvaluation(
+            ownship_id=ownship.id,
+            target_id=target.id,
+            encounter=encounter,
+            target_encounter=target_encounter,
+            initial_dcpa_m=initial_cpa.dcpa_m,
+            initial_tcpa_s=initial_cpa.tcpa_forward_s,
+            initial_signed_tcpa_s=initial_cpa.tcpa_signed_s,
+            minimum_distance_m=float(distance[cpa_index]),
+            cpa_time_s=float(times[cpa_index]),
+            collision=collision.collided,
+            collision_toc_s=collision.toc_s,
+            collision_bracket_s=collision.bracket_s,
+            collision_oracle_id=collision.oracle_id,
+            stages=stages,
+            fsm_transitions=transitions,
+            metrics=metrics,
+            target_metrics=target_metrics,
+            metric_evidence=_evidence_dict(evidence),
+            target_metric_evidence=_evidence_dict(target_evidence),
+            initial_cpa=initial_cpa.to_dict(),
+            actual_cpa=actual_cpa.to_dict(),
+        )
+
+    @staticmethod
+    def _evaluate_vessel(vessel: VesselData, enc: senc.ENC | None) -> VesselEvaluation:
+        duration = (
+            float(vessel.timestamps[vessel.last_valid_idx] - vessel.timestamps[vessel.first_valid_idx])
+            if len(vessel.timestamps) and vessel.first_valid_idx >= 0
+            else 0.0
+        )
+        if enc is None:
+            return VesselEvaluation(
+                vessel_id=vessel.id,
+                grounding_distance_m=None,
+                grounded=None,
+                grounding_toc_s=None,
+                grounding_status="NOT_EVALUATED_NO_ENC",
+                grounding_clearance_score=None,
+                travel_distance_m=float(vessel.travel_dist),
+                duration_s=duration,
+                grounding_evidence={"enc_status": "NOT_PROVIDED"},
+            )
+        try:
+            vessel.min_depth = mapf.find_minimum_depth(vessel.draft, enc)
+            hazard_set = mapf.extract_typed_grounding_hazards(vessel.min_depth, enc)
+            hazard = hazard_set.combined_geometry
+            if hazard.is_empty:
+                raise ValueError("ENC produced no physical grounding hazard geometry")
+            valid = np.flatnonzero(
+                np.all(np.isfinite(vessel.xy), axis=0)
+                & np.isfinite(vessel.cog)
+                & np.isfinite(vessel.timestamps)
+            )
+            if valid.size == 0:
+                raise ValueError("vessel has no finite grounding samples")
+            minimum_distance = float("inf")
+            first_contact: TOCResult | None = None
+            for index in valid:
+                pose = _vessel_pose(vessel, int(index))
+                minimum_distance = min(minimum_distance, rectangular_footprint(pose).distance(hazard))
+            for left, right in zip(valid[:-1], valid[1:], strict=True):
+                contact = c2a_grounding_first_contact(
+                    _vessel_pose(vessel, int(left)),
+                    _vessel_pose(vessel, int(right)),
+                    hazard,
+                    interval_start_s=float(vessel.timestamps[left]),
+                    interval_end_s=float(vessel.timestamps[right]),
+                )
+                if contact.collided:
+                    first_contact = contact
+                    break
+            if valid.size == 1 and rectangular_footprint(_vessel_pose(vessel, int(valid[0]))).intersects(hazard):
+                first_contact = c2a_grounding_first_contact(
+                    _vessel_pose(vessel, int(valid[0])),
+                    _vessel_pose(vessel, int(valid[0])),
+                    hazard,
+                    interval_start_s=float(vessel.timestamps[valid[0]]),
+                    interval_end_s=float(vessel.timestamps[valid[0]]) + 1e-6,
+                )
+            grounded = first_contact is not None and first_contact.collided
+            return VesselEvaluation(
+                vessel_id=vessel.id,
+                grounding_distance_m=minimum_distance,
+                grounded=grounded,
+                grounding_toc_s=first_contact.toc_s if first_contact else None,
+                grounding_status="EVALUATED",
+                grounding_clearance_score=float(np.clip(minimum_distance / max(vessel.length, 1.0), 0.0, 1.0)),
+                travel_distance_m=float(vessel.travel_dist),
+                duration_s=duration,
+                grounding_evidence=hazard_set.evidence(),
+            )
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            return VesselEvaluation(
+                vessel_id=vessel.id,
+                grounding_distance_m=None,
+                grounded=None,
+                grounding_toc_s=None,
+                grounding_status="NOT_EVALUATED_INVALID_ENC",
+                grounding_clearance_score=None,
+                travel_distance_m=float(vessel.travel_dist),
+                duration_s=duration,
+                grounding_evidence={"error": str(exc)},
+                warnings=[f"Grounding evaluation unavailable for vessel {vessel.id}: {exc}"],
+            )
 
 
 def _aligned(vessel_a: VesselData, vessel_b: VesselData) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -79,228 +471,256 @@ def _aligned(vessel_a: VesselData, vessel_b: VesselData) -> tuple[np.ndarray, np
     return common, idx_a, idx_b
 
 
-def _initial_cpa(relative_position: np.ndarray, relative_velocity: np.ndarray) -> tuple[float, float]:
-    speed_sq = float(np.dot(relative_velocity, relative_velocity))
-    if speed_sq < 1e-9:
-        return float(np.linalg.norm(relative_position)), 0.0
-    tcpa = max(0.0, -float(np.dot(relative_position, relative_velocity)) / speed_sq)
-    dcpa = float(np.linalg.norm(relative_position + relative_velocity * tcpa))
-    return dcpa, tcpa
+def _velocities(vessel: VesselData, indices: np.ndarray) -> np.ndarray:
+    return np.vstack(
+        (
+            vessel.sog[indices] * np.cos(vessel.cog[indices]),
+            vessel.sog[indices] * np.sin(vessel.cog[indices]),
+        )
+    )
 
 
-def classify_encounter(
+def _classify_at(
     ownship: VesselData,
     target: VesselData,
-    own_idx: int,
-    target_idx: int,
-    initial_dcpa: float,  # noqa: ARG001
-    initial_tcpa: float,  # noqa: ARG001
+    own_indices: np.ndarray,
+    target_indices: np.ndarray,
+    index: int,
+    profile: EvaluatorProfile,
 ) -> str:
-    """Classify one vessel pair using initial CPA and relative geometry."""
-    own_position_ne = ownship.xy[::-1, own_idx]
-    target_position_ne = target.xy[::-1, target_idx]
     encounter, _, _, _, _ = classify_geometry(
-        own_position_ne,
-        velocity_ne(float(ownship.sog[own_idx]), float(ownship.cog[own_idx])),
-        target_position_ne,
-        velocity_ne(float(target.sog[target_idx]), float(target.cog[target_idx])),
+        ownship.xy[::-1, own_indices[index]],
+        velocity_ne(float(ownship.sog[own_indices[index]]), float(ownship.cog[own_indices[index]])),
+        target.xy[::-1, target_indices[index]],
+        velocity_ne(float(target.sog[target_indices[index]]), float(target.cog[target_indices[index]])),
         ownship.length,
         target.length,
+        profile=profile,
     )
     return encounter
 
 
-def _metric_values(
-    encounter: str,
+def _paper_stage_values(distance: np.ndarray, signed_tcpa: np.ndarray, profile: EvaluatorProfile) -> np.ndarray:
+    stages = np.ones(distance.size, dtype=int)
+    approaching = signed_tcpa > 0.0
+    stages[approaching & (distance <= profile.stages.stage2_entry_m)] = 2
+    stages[approaching & (distance <= profile.stages.stage3_entry_m)] = 3
+    stages[approaching & (distance <= profile.stages.stage4_entry_m)] = 4
+    return stages
+
+
+def _run_fsm(
     ownship: VesselData,
-    indices: np.ndarray,
+    target: VesselData,
     times: np.ndarray,
-    minimum_distance: float,
-    safety_distance: float,
-    cpa_index: int,
-    initial_tcpa: float,
-) -> dict[str, float | None]:
-    metrics: dict[str, float | None] = {
-        "S8": None,
-        "S13": None,
-        "S14": None,
-        "S15": None,
-        "S16": None,
-        "S17": None,
-        "S_safety": float(np.clip(minimum_distance / safety_distance, 0.0, 1.0)),
-        "S_theta": None,
-        "S_r": float(np.clip(minimum_distance / (3.0 * safety_distance), 0.0, 1.0)),
-        "P_delay": None,
-        "P_sts": None,
-        "P_nsb": None,
-        "P_pt": None,
-        "C_x_gw": None,
-    }
-    course = ownship.cog[indices]
-    speed = ownship.sog[indices]
-    valid = np.isfinite(course) & np.isfinite(speed)
-    if not valid.any():
-        return metrics
-    course = course[valid]
-    speed = speed[valid]
-    valid_times = times[valid]
-    initial_course = float(course[0])
-    course_change = np.asarray(_wrap(course - initial_course))
-    starboard_change = max(0.0, float(np.nanmax(course_change)))
-    port_change = max(0.0, -float(np.nanmin(course_change)))
-    course_step = np.abs(np.asarray(_wrap(np.diff(course)))) if course.size > 1 else np.zeros(1)
-    metrics["S_theta"] = float(np.clip(1.0 - np.nanpercentile(course_step, 95) / np.deg2rad(10.0), 0.0, 1.0))
-    nominal_speed = max(float(speed[0]), 1e-6)
-    metrics["P_delay"] = float(np.clip(1.0 - np.nanmean(speed) / nominal_speed, 0.0, 1.0))
-    maneuver_mask = (np.abs(course_change) >= np.deg2rad(5.0)) | (np.abs(speed - speed[0]) >= 0.1 * nominal_speed)
-    maneuver_time = float(valid_times[np.argmax(maneuver_mask)]) if maneuver_mask.any() else None
-    early_score = (
-        float(np.clip(1.0 - maneuver_time / max(initial_tcpa, 1.0), 0.0, 1.0)) if maneuver_time is not None else 0.0
+    own_indices: np.ndarray,
+    target_indices: np.ndarray,
+    distance: np.ndarray,
+    signed_tcpa: np.ndarray,
+    stages: np.ndarray,
+    profile: EvaluatorProfile,
+) -> PairwiseColregFSM:
+    fsm = PairwiseColregFSM(profile)
+    for index, time_s in enumerate(times):
+        encounter, dcpa_m, _, _, bearing = classify_geometry(
+            ownship.xy[::-1, own_indices[index]],
+            velocity_ne(float(ownship.sog[own_indices[index]]), float(ownship.cog[own_indices[index]])),
+            target.xy[::-1, target_indices[index]],
+            velocity_ne(float(target.sog[target_indices[index]]), float(target.cog[target_indices[index]])),
+            ownship.length,
+            target.length,
+            profile=profile,
+        )
+        alpha, _ = _pose_angles(
+            ownship.xy[::-1, own_indices[index]],
+            target.xy[::-1, target_indices[index]],
+            float(ownship.cog[own_indices[index]]),
+            float(target.cog[target_indices[index]]),
+        )
+        fsm.update(
+            EncounterObservation(
+                time_s=float(time_s),
+                encounter=encounter,
+                stage=int(stages[index]),
+                range_m=float(distance[index]),
+                dcpa_m=dcpa_m,
+                signed_tcpa_s=float(signed_tcpa[index]),
+                relative_bearing_deg=bearing,
+                contact_angle_deg=float(np.rad2deg(alpha)),
+            )
+        )
+    return fsm
+
+
+def _pose_angles(
+    own_position_ne: np.ndarray,
+    target_position_ne: np.ndarray,
+    own_course_rad: float,
+    target_course_rad: float,
+) -> tuple[float, float]:
+    relative = np.asarray(target_position_ne) - np.asarray(own_position_ne)
+    los_own_to_target = float(np.arctan2(relative[1], relative[0]))
+    los_target_to_own = float(wrap_angle(los_own_to_target + np.pi))
+    contact_angle = float(wrap_angle(los_target_to_own - target_course_rad))
+    relative_bearing = float((los_own_to_target - own_course_rad) % (2.0 * np.pi))
+    return contact_angle, relative_bearing
+
+
+def _pair_first_contact(
+    ownship: VesselData,
+    target: VesselData,
+    times: np.ndarray,
+    own_indices: np.ndarray,
+    target_indices: np.ndarray,
+) -> TOCResult:
+    if times.size == 1:
+        own_pose = _vessel_pose(ownship, int(own_indices[0]))
+        target_pose = _vessel_pose(target, int(target_indices[0]))
+        return c2a_first_contact(
+            own_pose,
+            own_pose,
+            target_pose,
+            target_pose,
+            interval_start_s=float(times[0]),
+            interval_end_s=float(times[0]) + 1e-6,
+        )
+    last_result: TOCResult | None = None
+    for index in range(times.size - 1):
+        result = c2a_first_contact(
+            _vessel_pose(ownship, int(own_indices[index])),
+            _vessel_pose(ownship, int(own_indices[index + 1])),
+            _vessel_pose(target, int(target_indices[index])),
+            _vessel_pose(target, int(target_indices[index + 1])),
+            interval_start_s=float(times[index]),
+            interval_end_s=float(times[index + 1]),
+        )
+        last_result = result
+        if result.collided:
+            return result
+    if last_result is None:
+        raise RuntimeError("C2A pair evaluation produced no interval result")
+    return last_result
+
+
+def _vessel_pose(vessel: VesselData, index: int) -> VesselPose:
+    return VesselPose(
+        north_m=float(vessel.xy[1, index]),
+        east_m=float(vessel.xy[0, index]),
+        heading_rad=float(vessel.cog[index]),
+        length_m=float(vessel.length),
+        width_m=float(vessel.width),
     )
-    substantial = float(np.clip(starboard_change / np.deg2rad(15.0), 0.0, 1.0))
-    substantial_any = float(np.clip(max(starboard_change, port_change) / np.deg2rad(15.0), 0.0, 1.0))
-    if encounter in {"head_on", "crossing_give_way", "overtaking"}:
-        metrics["S8"] = float(np.sqrt(substantial_any * early_score))
-    if encounter == "head_on":
-        metrics["S14"] = substantial
-        metrics["S16"] = early_score
-        metrics["P_sts"] = float(np.clip(port_change / np.deg2rad(15.0), 0.0, 1.0))
-        metrics["P_nsb"] = 1.0 if max(starboard_change, port_change) < np.deg2rad(5.0) else 0.0
-    elif encounter == "crossing_give_way":
-        metrics["S15"] = substantial
-        metrics["S16"] = early_score
-        metrics["P_nsb"] = 1.0 if max(starboard_change, port_change) < np.deg2rad(5.0) else 0.0
-        metrics["C_x_gw"] = float(np.clip(port_change / np.deg2rad(15.0), 0.0, 1.0))
-    elif encounter == "crossing_stand_on":
-        pre_cpa = course_change[: max(cpa_index, 1)]
-        early_change = float(np.nanmax(np.abs(pre_cpa))) if pre_cpa.size else 0.0
-        metrics["S15"] = 1.0
-        metrics["S17"] = float(np.clip(1.0 - early_change / np.deg2rad(10.0), 0.0, 1.0))
-        metrics["P_pt"] = float(np.clip(early_change / np.deg2rad(15.0), 0.0, 1.0))
-    elif encounter == "overtaking":
-        metrics["S13"] = max(substantial_any, early_score)
-        metrics["S16"] = early_score
-    return metrics
 
 
-class Evaluator:
-    """Evaluate vessel trajectories through a stable public interface."""
+def _evidence_dict(evidence: dict[str, MetricEvidence]) -> dict[str, dict[str, Any]]:
+    return {name: value.to_dict() for name, value in evidence.items()}
 
-    evaluator_id = EVALUATOR_ID
 
-    def evaluate(self, vessels: list[VesselData], enc: senc.ENC | None = None) -> EvaluatorResult:
-        warnings = [
-            "Official evaluator source was unavailable; metrics are reconstructed.",
-            "Numerical reproduction of paper tables is not confirmed.",
-        ]
-        pair_results: list[PairEvaluation] = []
-        for ownship, target in combinations(vessels, 2):
-            times, own_indices, target_indices = _aligned(ownship, target)
-            if times.size == 0:
-                warnings.append(f"No overlapping samples for vessels {ownship.id} and {target.id}")
-                continue
-            own_positions = ownship.xy[:, own_indices]
-            target_positions = target.xy[:, target_indices]
-            finite = np.all(np.isfinite(own_positions), axis=0) & np.all(np.isfinite(target_positions), axis=0)
-            if not finite.any():
-                warnings.append(f"No finite positions for vessels {ownship.id} and {target.id}")
-                continue
-            times = times[finite]
-            own_indices = own_indices[finite]
-            target_indices = target_indices[finite]
-            relative = target_positions[:, finite] - own_positions[:, finite]
-            distance = np.linalg.norm(relative, axis=0)
-            cpa_index = int(np.nanargmin(distance))
-            own_velocity = _velocity(ownship)[:, own_indices[0]]
-            target_velocity = _velocity(target)[:, target_indices[0]]
-            initial_dcpa, initial_tcpa = _initial_cpa(relative[::-1, 0], target_velocity - own_velocity)
-            encounter = classify_encounter(
-                ownship,
-                target,
-                int(own_indices[0]),
-                int(target_indices[0]),
-                initial_dcpa,
-                initial_tcpa,
-            )
-            safety_distance = max(ownship.length + target.length, 1.0)
-            minimum_distance = float(distance[cpa_index])
-            metrics = _metric_values(
-                encounter,
-                ownship,
-                own_indices,
-                times,
-                minimum_distance,
-                safety_distance,
-                cpa_index,
-                initial_tcpa,
-            )
-            pair_results.append(
-                PairEvaluation(
-                    ownship_id=ownship.id,
-                    target_id=target.id,
-                    encounter=encounter,
-                    initial_dcpa_m=initial_dcpa,
-                    initial_tcpa_s=initial_tcpa,
-                    minimum_distance_m=minimum_distance,
-                    cpa_time_s=float(times[cpa_index]),
-                    collision=minimum_distance <= 0.5 * (ownship.length + target.length),
-                    stages=stage_timeline(times, distance, cpa_index, safety_distance),
-                    metrics=metrics,
-                )
-            )
-
-        vessel_results = [self._evaluate_vessel(vessel, enc) for vessel in vessels]
-        metric_values: dict[str, list[float]] = {}
-        for result in pair_results:
-            for name, value in result.metrics.items():
+def _aggregate(
+    pair_results: list[PairEvaluation],
+    vessel_results: list[VesselEvaluation],
+) -> dict[str, float | int | None]:
+    metric_values: dict[str, list[float]] = {}
+    for result in pair_results:
+        for values in (result.metrics, result.target_metrics):
+            for name, value in values.items():
                 if value is not None and np.isfinite(value):
                     metric_values.setdefault(name, []).append(float(value))
-        aggregate: dict[str, float | int | None] = {
-            "pair_count": len(pair_results),
-            "collision_count": sum(result.collision for result in pair_results),
-            "grounding_count": sum(result.grounded is True for result in vessel_results),
-            "grounding_clearance_score": _mean_optional(result.grounding_clearance_score for result in vessel_results),
-        }
-        aggregate.update({name: float(np.mean(values)) for name, values in metric_values.items()})
-        return EvaluatorResult(
-            evaluator_id=self.evaluator_id,
-            numerical_reproduction_confirmed=False,
-            reproduction_status="functional_reproduction",
-            pair_results=pair_results,
-            vessel_results=vessel_results,
-            aggregate=aggregate,
-            warnings=warnings,
-        )
+    ownship_collisions = sum(
+        result.collision and 0 in {result.ownship_id, result.target_id}
+        for result in pair_results
+    )
+    global_collisions = sum(result.collision for result in pair_results)
+    ownship_groundings = sum(result.grounded is True and result.vessel_id == 0 for result in vessel_results)
+    global_groundings = sum(result.grounded is True for result in vessel_results)
+    ownship_grounding_unknown = sum(
+        result.grounded is None and result.vessel_id == 0 for result in vessel_results
+    )
+    aggregate: dict[str, float | int | None] = {
+        "pair_count": len(pair_results),
+        "collision_count": ownship_collisions,
+        "ownship_collision_count": ownship_collisions,
+        "global_collision_count": global_collisions,
+        "grounding_count": ownship_groundings,
+        "ownship_grounding_count": ownship_groundings,
+        "global_grounding_count": global_groundings,
+        "grounding_not_evaluated_count": ownship_grounding_unknown,
+        "global_grounding_not_evaluated_count": sum(
+            result.grounded is None for result in vessel_results
+        ),
+        "minimum_distance_m": min((result.minimum_distance_m for result in pair_results), default=None),
+        "grounding_clearance_score": _mean_optional(
+            result.grounding_clearance_score for result in vessel_results
+        ),
+    }
+    aggregate.update({name: float(np.mean(values)) for name, values in metric_values.items()})
+    return aggregate
 
-    @staticmethod
-    def _evaluate_vessel(vessel: VesselData, enc: senc.ENC | None) -> VesselEvaluation:
-        duration = (
-            float(vessel.timestamps[vessel.last_valid_idx] - vessel.timestamps[vessel.first_valid_idx])
-            if len(vessel.timestamps) and vessel.first_valid_idx >= 0
-            else 0.0
-        )
-        grounding_distance: float | None = None
-        grounded: bool | None = None
-        grounding_clearance_score: float | None = None
-        if enc is not None and vessel.xy.size and vessel.first_valid_idx >= 0:
-            try:
-                vessel.min_depth = mapf.find_minimum_depth(vessel.draft, enc)
-                vessel.compute_closest_grounding_dist(enc)
-                grounding_distance = float(vessel.grounding_dist)
-                grounded = grounding_distance <= vessel.length / 2.0
-                grounding_clearance_score = float(np.clip(grounding_distance / max(vessel.length, 1.0), 0.0, 1.0))
-            except Exception:
-                grounding_distance = None
-                grounded = None
-                grounding_clearance_score = None
-        return VesselEvaluation(
-            vessel_id=vessel.id,
-            grounding_distance_m=grounding_distance,
-            grounded=grounded,
-            grounding_clearance_score=grounding_clearance_score,
-            travel_distance_m=float(vessel.travel_dist),
-            duration_s=duration,
-        )
+
+def _hard_gate(
+    pair_results: list[PairEvaluation],
+    vessel_results: list[VesselEvaluation],
+    context: dict[str, Any],
+) -> HardGateLayer:
+    collision_count = sum(
+        result.collision and 0 in {result.ownship_id, result.target_id}
+        for result in pair_results
+    )
+    global_collision_count = sum(result.collision for result in pair_results)
+    grounded_count = sum(
+        result.grounded is True and result.vessel_id == 0 for result in vessel_results
+    )
+    grounding_unknown = sum(
+        result.grounded is None and result.vessel_id == 0 for result in vessel_results
+    )
+    global_grounded_count = sum(result.grounded is True for result in vessel_results)
+    global_grounding_unknown = sum(result.grounded is None for result in vessel_results)
+    fallback = bool(context.get("fallback_used", False))
+    completed = bool(context.get("run_completed", True))
+    checks = [
+        HardGateCheck(
+            "physical_collision",
+            CheckOutcome.FAIL if collision_count else CheckOutcome.PASS,
+            f"{collision_count} Ship0-vs-target physical footprint contacts",
+            {
+                "oracle_id": C2A_ORACLE_ID,
+                "scope": "ship0_vs_target",
+                "global_all_vessel_collision_count": global_collision_count,
+            },
+        ),
+        HardGateCheck(
+            "physical_grounding",
+            CheckOutcome.FAIL
+            if grounded_count
+            else CheckOutcome.NOT_EVALUATED
+            if grounding_unknown
+            else CheckOutcome.PASS,
+            f"{grounded_count} Ship0 groundings; {grounding_unknown} Ship0 evaluations unavailable",
+            {
+                "policy_id": "chart-geometric-footprint-v1",
+                "scope": "ship0",
+                "global_all_vessel_grounding_count": global_grounded_count,
+                "global_all_vessel_grounding_not_evaluated_count": global_grounding_unknown,
+            },
+        ),
+        HardGateCheck(
+            "fallback_used",
+            CheckOutcome.FAIL if fallback else CheckOutcome.PASS,
+            "fallback detected" if fallback else "no fallback",
+        ),
+        HardGateCheck(
+            "run_completion",
+            CheckOutcome.PASS if completed else CheckOutcome.FAIL,
+            "run completed" if completed else "run incomplete",
+        ),
+    ]
+    if any(check.outcome == CheckOutcome.FAIL for check in checks):
+        outcome = GateOutcome.FAIL
+    elif any(check.outcome == CheckOutcome.NOT_EVALUATED for check in checks):
+        outcome = GateOutcome.SOFT
+    else:
+        outcome = GateOutcome.PASS
+    return HardGateLayer(outcome, checks)
 
 
 def _mean_optional(values: Any) -> float | None:

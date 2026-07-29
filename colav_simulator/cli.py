@@ -27,6 +27,7 @@ def _run(args: argparse.Namespace) -> int:
         seed=args.seed,
         dt=args.dt,
         t_end=args.t_end,
+        evaluator_profile_id=args.evaluator_profile,
         algorithm_config=_load_algorithm_config(args.algorithm_config),
         output_root=args.output,
     )
@@ -72,7 +73,14 @@ def _batch(args: argparse.Namespace) -> int:
     algorithm_config = _load_algorithm_config(args.algorithm_config)
     if args.default_matrix:
         specs = BatchRunner.default_specs(args.algorithm, seeds, args.tracker)
-        specs = [replace(spec, algorithm_config=algorithm_config) for spec in specs]
+        specs = [
+            replace(
+                spec,
+                algorithm_config=algorithm_config,
+                evaluator_profile_id=args.evaluator_profile,
+            )
+            for spec in specs
+        ]
     else:
         specs = [
             RunSpec(
@@ -80,6 +88,7 @@ def _batch(args: argparse.Namespace) -> int:
                 algorithm_id=algorithm,
                 tracker_id=args.tracker,
                 seed=seed,
+                evaluator_profile_id=args.evaluator_profile,
                 algorithm_config=algorithm_config,
             )
             for algorithm in args.algorithm
@@ -189,6 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--dt", type=float)
     run_parser.add_argument("--t-end", type=float)
     run_parser.add_argument("--algorithm-config")
+    run_parser.add_argument("--evaluator-profile", default="ccta_2023_demo-v1")
     run_parser.add_argument("--output", default="runs")
     run_parser.set_defaults(handler=_run)
 
@@ -208,6 +218,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch_parser.add_argument("--seed-count", type=int, default=30)
     batch_parser.add_argument("--default-matrix", action="store_true")
     batch_parser.add_argument("--algorithm-config")
+    batch_parser.add_argument("--evaluator-profile", default="ccta_2023_demo-v1")
     batch_parser.add_argument("--output", default="runs")
     batch_parser.set_defaults(handler=_batch)
 

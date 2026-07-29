@@ -46,6 +46,7 @@ class SessionCreateRequest(BaseModel):
     dt: float | None = Field(default=None, gt=0)
     t_end: float | None = Field(default=None, gt=0)
     strict_no_fallback: bool = True
+    evaluator_profile_id: str = "ccta_2023_demo-v1"
     algorithm_config: dict[str, Any] = Field(default_factory=dict)
     tracker_config: dict[str, Any] = Field(default_factory=dict)
 
@@ -169,7 +170,10 @@ class WebSessionManager:
             self.prepared = self.runner.prepare(spec)
             self.result = None
             self.replay_expected = None
-            self.encounter_monitor = EncounterMonitor(spec.validation_rule_id)
+            self.encounter_monitor = EncounterMonitor(
+                spec.validation_rule_id,
+                spec.evaluator_profile_id,
+            )
             self.previous_prediction_horizon = []
             self.current_prediction_horizon = []
             self.last_solve_id = None

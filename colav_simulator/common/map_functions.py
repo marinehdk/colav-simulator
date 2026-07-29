@@ -8,6 +8,8 @@ Author: Trym Tengesdal
 """
 
 import os
+from dataclasses import dataclass
+from typing import Any
 
 os.environ["USE_PYGEOS"] = "0"
 
@@ -20,9 +22,49 @@ from osgeo import osr
 from seacharts.enc import ENC
 from shapely import ops, strtree
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPolygon, Point, Polygon
+from shapely.geometry.base import BaseGeometry
 
 import colav_simulator.common.miscellaneous_helper_methods as mhm
 from colav_simulator.core.collision import VesselPose, rectangular_footprint
+
+
+@dataclass(frozen=True)
+class GroundingHazardLayer:
+    """One chart layer kept separate for audit before geometric union."""
+
+    layer_id: str
+    geometry: BaseGeometry
+    source_status: str
+
+
+@dataclass(frozen=True)
+class GroundingHazardSet:
+    """Per-vessel shallow-water truth geometry and chart evidence status."""
+
+    minimum_depth_m: int
+    layers: tuple[GroundingHazardLayer, ...]
+    coverage_status: str
+    quality_status: str
+
+    @property
+    def combined_geometry(self) -> BaseGeometry:
+        geometries = [layer.geometry for layer in self.layers if not layer.geometry.is_empty]
+        return ops.unary_union(geometries) if geometries else GeometryCollection()
+
+    def evidence(self) -> dict[str, Any]:
+        return {
+            "minimum_depth_m": self.minimum_depth_m,
+            "layers": [
+                {
+                    "layer_id": layer.layer_id,
+                    "source_status": layer.source_status,
+                    "geometry_type": layer.geometry.geom_type,
+                }
+                for layer in self.layers
+            ],
+            "coverage_status": self.coverage_status,
+            "quality_status": self.quality_status,
+        }
 
 
 def check_if_pointing_too_close_towards_land(
@@ -545,6 +587,48 @@ def extract_relevant_grounding_hazards(vessel_min_depth: int, enc: ENC) -> list:
     return [enc.land.geometry, enc.shore.geometry, dangerous_seabed]
 
 
+def extract_typed_grounding_hazards(vessel_min_depth: int, enc: ENC) -> GroundingHazardSet:
+    """Build per-vessel hazards without conflating shore, depth, coverage, or quality."""
+    dangerous_seabed = (
+        enc.seabed[0].geometry.difference(enc.seabed[vessel_min_depth].geometry)
+        if vessel_min_depth > 0
+        else MultiPolygon()
+    )
+    layers = [
+        GroundingHazardLayer("LAND", enc.land.geometry, "AVAILABLE"),
+        GroundingHazardLayer("SHORE", enc.shore.geometry, "AVAILABLE"),
+        GroundingHazardLayer("DEPARE_SHALLOW", dangerous_seabed, "DERIVED_FROM_SEABED"),
+    ]
+    unsare = getattr(enc, "unsare", None)
+    unsare_geometry = getattr(unsare, "geometry", None)
+    if isinstance(unsare_geometry, BaseGeometry):
+        layers.append(GroundingHazardLayer("UNSARE", unsare_geometry, "AVAILABLE"))
+    else:
+        layers.append(GroundingHazardLayer("UNSARE", GeometryCollection(), "UNAVAILABLE_SOURCE"))
+    for layer_id, attribute in (
+        ("SOUNDG", "soundg"),
+        ("OBSTRN", "obstrn"),
+        ("UWTROC", "uwtroc"),
+    ):
+        source = getattr(enc, attribute, None)
+        geometry = getattr(source, "geometry", None)
+        layers.append(
+            GroundingHazardLayer(
+                layer_id,
+                geometry if isinstance(geometry, BaseGeometry) else GeometryCollection(),
+                "AVAILABLE" if isinstance(geometry, BaseGeometry) else "UNAVAILABLE_SOURCE",
+            )
+        )
+    coverage_status = "AVAILABLE" if getattr(enc, "m_covr", None) is not None else "UNAVAILABLE_SOURCE"
+    quality_status = "AVAILABLE" if getattr(enc, "m_qual", None) is not None else "UNAVAILABLE_SOURCE"
+    return GroundingHazardSet(
+        minimum_depth_m=vessel_min_depth,
+        layers=tuple(layers),
+        coverage_status=coverage_status,
+        quality_status=quality_status,
+    )
+
+
 def extract_relevant_grounding_hazards_as_union(
     vessel_min_depth: int, enc: ENC, buffer: float | None = None, show_plots: bool = False
 ) -> list:
@@ -561,24 +645,12 @@ def extract_relevant_grounding_hazards_as_union(
     Returns:
         list: The relevant grounding hazards.
     """
-    dangerous_seabed = (
-        enc.seabed[0].geometry.difference(enc.seabed[vessel_min_depth].geometry) if vessel_min_depth > 0 else MultiPolygon()
-    )
-    # return [enc.land.geometry, enc.shore.geometry, dangerous_seabed]
-    relevant_hazards = [enc.land.geometry.union(enc.shore.geometry).union(dangerous_seabed)]
+    relevant_hazards = [extract_typed_grounding_hazards(vessel_min_depth, enc).combined_geometry]
     filtered_relevant_hazards = []
     for hazard in relevant_hazards:
         poly = hazard
         if buffer is not None:
             poly = poly.buffer(buffer)
-
-        if isinstance(hazard, Polygon):
-            poly = MultiPolygon([Polygon(hazard.exterior)])
-
-        # remove interior
-        if isinstance(poly, MultiPolygon):
-            poly = MultiPolygon(Polygon(p.exterior) for p in poly.geoms if isinstance(p, Polygon))
-
         filtered_relevant_hazards.append(poly)
 
     if show_plots:

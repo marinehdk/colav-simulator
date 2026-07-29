@@ -226,7 +226,9 @@ def test_real_session_api_and_websocket() -> None:
 
         result = client.get(f"/api/sessions/{session_id}/result")
         assert result.status_code == 200
-        assert result.json()["manifest"]["reproduction_status"] == "functional_reproduction"
+        assert result.json()["manifest"]["reproduction_status"] == "behavior_compatible_reconstruction"
+        assert result.json()["manifest"]["evaluator_profile_id"] == "ccta_2023_demo-v1"
+        assert result.json()["manifest"]["evaluation_schema_version"] == "2.0"
 
         artifacts = client.get(f"/api/sessions/{session_id}/artifacts")
         names = {artifact["name"] for artifact in artifacts.json()}

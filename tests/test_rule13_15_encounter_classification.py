@@ -82,5 +82,8 @@ def test_p1_stage_timeline_and_monitor_reach_post_cpa_stage() -> None:
         ]
     )
 
-    assert before[0].stage >= 1
-    assert after[0].stage == 3
+    assert before[0].stage == 4
+    assert before[0].fsm_state == "OT"
+    assert after[0].stage == 1
+    assert after[0].fsm_state == "OT"
+    assert after[0].signed_tcpa_s < 0.0

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,6 +34,7 @@ def close_plots_before_each_test():
 class P1RunHarness:
     output_root: Path
     _nominal: dict[tuple[str, str], RunResult] = field(default_factory=dict)
+    _candidate: dict[tuple[str, str, str, str, float | None], RunResult] = field(default_factory=dict)
 
     def run(
         self,
@@ -46,7 +48,17 @@ class P1RunHarness:
         from colav_simulator.experiment.contracts import RunSpec  # noqa: PLC0415
         from colav_simulator.experiment.runner import ExperimentRunner  # noqa: PLC0415
 
-        return ExperimentRunner(PROJECT_ROOT).run(
+        config = algorithm_config or {}
+        key = (
+            scenario_id,
+            algorithm_id,
+            tracker_id,
+            json.dumps(config, sort_keys=True, default=str),
+            solve_period_s,
+        )
+        if key in self._candidate:
+            return self._candidate[key]
+        result = ExperimentRunner(PROJECT_ROOT).run(
             RunSpec(
                 scenario_id=scenario_id,
                 algorithm_id=algorithm_id,
@@ -55,10 +67,12 @@ class P1RunHarness:
                 terminate_on_collision_or_grounding=False,
                 strict_no_fallback=True,
                 solve_period_s=solve_period_s,
-                algorithm_config=algorithm_config or {},
+                algorithm_config=config,
                 output_root=str(self.output_root / scenario_id / algorithm_id / tracker_id),
             )
         )
+        self._candidate[key] = result
+        return result
 
     def compare(
         self,
