@@ -81,6 +81,31 @@ def test_hold_samples_shortest_angle_without_new_solve() -> None:
     assert adapter.get_colav_data()["planner"]["solver_executed"] is False
 
 
+def test_hold_samples_control_trajectory_when_state_prediction_differs() -> None:
+    def solve(planner_input: PlannerInput) -> MPCSolution:
+        result = solution(planner_input)
+        controls = result.predicted_trajectory.copy()
+        controls[2] = np.deg2rad([10.0, 20.0, 30.0, 40.0])
+        return MPCSolution(
+            control_reference=controls[:, :1],
+            control_trajectory=controls,
+            predicted_trajectory=result.predicted_trajectory,
+            horizon_dt_s=result.horizon_dt_s,
+        )
+
+    adapter = CustomMPCAdapter(
+        descriptor=descriptor(),
+        solve=solve,
+        context=FactoryContext("schedule_mpc", 0),
+    )
+
+    first = plan(adapter, 0.0)
+    held = plan(adapter, 0.25)
+
+    assert np.rad2deg(first[2, 0]) == pytest.approx(10.0)
+    assert np.rad2deg(held[2, 0]) == pytest.approx(15.0)
+
+
 def test_deadline_timeout_feasible_is_executable_and_visible_on_hold() -> None:
     adapter = CustomMPCAdapter(
         descriptor=descriptor(deadline_s=0.0001),

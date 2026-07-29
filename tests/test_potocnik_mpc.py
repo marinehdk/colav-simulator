@@ -1,7 +1,9 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from shapely.geometry import GeometryCollection, Polygon
 
 from colav_simulator.core.colav.custom_mpc_adapter import FactoryContext, PlannerInput, TrackedObstacle
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
@@ -18,6 +20,7 @@ def planner_input(
     *,
     tracks: tuple[TrackedObstacle, ...] = (),
     ownship_state: np.ndarray | None = None,
+    enc=None,
 ) -> PlannerInput:
     return PlannerInput(
         sim_time_s=0.0,
@@ -30,7 +33,7 @@ def planner_input(
             else ownship_state
         ),
         tracks=tracks,
-        enc=None,
+        enc=enc,
         goal_state=None,
         disturbance=None,
         algorithm_seed=9,
@@ -62,8 +65,9 @@ def test_executable_fan_uses_20_by_5_second_profile() -> None:
     center = trajectories[params.candidate_count // 2]
 
     assert trajectories.shape == (45, 9, 21)
-    assert np.rad2deg(port_extreme[2, 1]) == pytest.approx(-10.0)
-    assert np.rad2deg(port_extreme[2, 2]) == pytest.approx(-19.5)
+    assert -10.0 < np.rad2deg(port_extreme[2, 1]) < 0.0
+    assert np.rad2deg(port_extreme[2, 2]) < np.rad2deg(port_extreme[2, 1])
+    assert abs(np.rad2deg(port_extreme[5, 1])) <= params.max_yaw_rate_deg_s
     assert center[0, 1] == pytest.approx(35.0)
     assert center[1, 1] == pytest.approx(0.0)
 
@@ -110,6 +114,47 @@ def test_dynamic_conflict_filters_nominal_candidate_and_commands_avoidance() -> 
     )
     assert solution.algorithm_details["nominal_candidate_feasible"] is False
     assert solution.algorithm_details["avoidance_turn_sign"] != 0
+    assert solution.algorithm_details["head_on_active"] is True
+    assert solution.algorithm_details["selected_heading_increment_rad"] > 0.0
+    assert solution.constraints["colreg_maneuver"]["side_constraint_relaxed"] is False
+    assert solution.control_trajectory is not None
+    assert solution.control_trajectory[2, 0] == pytest.approx(
+        solution.control_trajectory[2, 1]
+    )
+    assert solution.predicted_trajectory[2, 1] < solution.control_trajectory[2, 1]
+
+
+def test_static_enc_hazard_filters_grounding_candidates() -> None:
+    land = Polygon(
+        [
+            (-40.0, 300.0),
+            (40.0, 300.0),
+            (40.0, 500.0),
+            (-40.0, 500.0),
+        ]
+    )
+    empty = GeometryCollection()
+    enc = SimpleNamespace(
+        land=SimpleNamespace(geometry=land),
+        shore=SimpleNamespace(geometry=empty),
+        seabed={
+            0: SimpleNamespace(geometry=empty),
+            5: SimpleNamespace(geometry=empty),
+        },
+    )
+    solver = PotocnikSimplifiedMPC(PotocnikMPCParams())
+
+    solution = solver.solve(planner_input(enc=enc))
+
+    assert solution.algorithm_details["candidate_static_feasible"][22] is False
+    assert solution.algorithm_details["feasible_candidate_count"] < 45
+    assert solution.algorithm_details["selected_candidate_index"] != 22
+    assert solution.constraints["static_grounding"]["enc_applied"] is True
+    assert (
+        solution.constraints["static_grounding"]["minimum_predicted_clearance_m"]
+        > solution.constraints["static_grounding"]["required_clearance_m"]
+    )
+    assert solution.constraints["static_grounding"]["required_clearance_m"] == pytest.approx(20.0)
 
 
 def test_replanning_keeps_avoidance_side_and_limits_command_change() -> None:

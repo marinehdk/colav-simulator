@@ -31,16 +31,21 @@ Each solve:
 1. generates 45 deterministic fan trajectories;
 2. evaluates first-step heading increments in `[-10, +10] deg`;
 3. multiplies that increment by `0.95` at each of 20 prediction steps;
-4. predicts every target with constant velocity;
-5. rejects a candidate when any synchronous predicted separation is below the
-   configured collision distance;
-6. scores feasible candidates by waypoint alignment, command continuity, and
-   normalized dynamic clearance;
-7. penalizes avoidance-side reversal while the straight candidate remains
+4. propagates each candidate through a first-order course response plus yaw-rate
+   limit, rather than assuming an instantaneous heading jump;
+5. predicts every target with constant velocity;
+6. rejects a candidate when any synchronous predicted separation is below the
+   configured collision distance, or its footprint-buffered centerline enters
+   ENC land, shoreline, or unsafe shallow water;
+7. scores feasible candidates by waypoint alignment, command continuity,
+   dynamic clearance, and static clearance;
+8. enforces a starboard candidate set for detected head-on encounters;
+9. penalizes avoidance-side reversal while the straight candidate remains
    unsafe, then releases that penalty after two consecutive safe solves;
-8. limits consecutive course-reference changes to `5 deg` when a feasible
+10. limits consecutive course-reference changes to `5 deg` when a feasible
    candidate exists inside that bound;
-9. returns the first selected course and current speed.
+11. holds the selected command through the current `5 s` solve interval, then
+    samples later commands from a separate command trajectory.
 
 No feasible candidate produces `INFEASIBLE`. No nominal, VO, SB-MPC, or
 previous-plan fallback exists.
@@ -57,6 +62,7 @@ per-iteration speed. The port receives the platform contract directly:
 | relative speed | surge/sway speed magnitude, m/s |
 | 20 future samples | public `9x21`, column 0 is solve-time state |
 | moving ships | `TrackedObstacle` constant-velocity prediction |
+| static obstacles | ENC land + shore + unsafe seabed union |
 | first selected heading | course/speed reference |
 
 `M=45` follows Table 3 and the MATLAB settings. The paper and MATLAB source do
@@ -72,13 +78,24 @@ The audited MATLAB source does not define hysteresis, trajectory blending, or
 steering-rate smoothing. The Playground profile adds command continuity,
 a feasible `5 deg` consecutive course-reference bound, and a soft penalty
 against changing maneuver side while the straight fan candidate remains
-unsafe. The penalty is released when straight motion becomes safe or when the
-opposite side is the only feasible choice. It is not a COLREG encounter
-classifier or starboard-rule implementation. A clearance cost prevents the
-selector from repeatedly choosing candidates just above the hard threshold,
-which otherwise leads to late, progressively sharper turns. The downstream
-FLSC still converts the selected course/speed reference into forces for the
-Viknes 3-DOF vessel model.
+unsafe. A first-order course-response model (`tau=8 s`) and `3 deg/s` yaw-rate
+limit model steering lag inside the fan. The physical prediction and command
+trajectory are kept separate, so solve/hold scheduling no longer feeds a
+delayed physical heading back as the next command. A `600 m` dynamic influence
+gate starts meaningful clearance improvement before the hard `150 m` boundary.
+For detected reciprocal head-on geometry, the candidate set is constrained to
+starboard turns. These are executable-profile additions, not claims that the
+paper reported these values. The downstream FLSC still converts course/speed
+references into forces for the Viknes 3-DOF vessel model.
+
+Static feasibility now consumes the simulator ENC already passed to the
+adapter. The vessel draft selects unsafe seabed; land, shore, and unsafe seabed
+are unioned. Each candidate centerline is checked against that geometry buffered
+by the vessel footprint radius plus a `20 m` required clearance. A soft
+clearance cost acts inside `200 m`; the speed reference is reduced relative to
+planned speed when a selected candidate approaches that influence boundary.
+The execution deadline is `250 ms`; cached ENC union construction leaves enough
+budget for 45 continuous centerline checks every `5 s`.
 
 ## Deliberate Phase 2 boundary
 
@@ -88,12 +105,13 @@ port:
 - global A*/Theta* chart route construction;
 - GSHHG coastline rasterization;
 - MATLAB target-ship COLREG behavior rewriting;
-- static coast rejection inside each MPC fan.
-- COLREG role classification or rule-specific maneuver selection.
+- complete Rule 13/15 role-specific maneuver selection;
+- the paper's general nonlinear program, CasADi, or IPOPT.
 
 The Playground supplies the route and evaluates dynamic collision with its own
-continuous rectangular-footprint oracle. Static ENC-aware fan feasibility is
-therefore not a declared capability.
+continuous rectangular-footprint oracle. Static hazards use the Playground ENC,
+not the paper's GSHHG raster and Theta* global planner. The result is local
+ENC-aware fan feasibility, not global chart-based route planning.
 
 The paper uses a `0.5 NM = 926 m` collision zone; its MATLAB settings use
 `1000 m`. `PotocnikMPCParams` keeps the paper value as its library default.

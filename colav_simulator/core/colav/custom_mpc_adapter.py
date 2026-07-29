@@ -286,6 +286,7 @@ class MPCSolution:
     constraints: Mapping[str, Any] = field(default_factory=dict)
     target_predictions: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
     algorithm_details: Mapping[str, Any] = field(default_factory=dict)
+    control_trajectory: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         """Copy and validate the normalized solver result."""
@@ -299,6 +300,15 @@ class MPCSolution:
             "predicted_trajectory",
             _readonly_matrix(self.predicted_trajectory, 9, "predicted_trajectory"),
         )
+        if self.control_trajectory is not None:
+            control_trajectory = _readonly_matrix(
+                self.control_trajectory,
+                9,
+                "control_trajectory",
+            )
+            if control_trajectory.shape[1] != self.predicted_trajectory.shape[1]:
+                raise ValueError("control_trajectory must align with predicted_trajectory")
+            object.__setattr__(self, "control_trajectory", control_trajectory)
         if isinstance(self.status, str):
             object.__setattr__(self, "status", PlanStatus(self.status))
         if not np.isfinite(self.horizon_dt_s) or self.horizon_dt_s <= 0.0:
@@ -627,8 +637,13 @@ class CustomMPCAdapter(ICOLAV):
                 source=FailureSource.ADAPTER,
             )
         elapsed_s = planner_input.sim_time_s - self._last_solve_time_s
+        hold_trajectory = (
+            self._solution.control_trajectory
+            if self._solution.control_trajectory is not None
+            else self._solution.predicted_trajectory
+        )
         self._current_plan = _sample_trajectory(
-            self._solution.predicted_trajectory,
+            hold_trajectory,
             self._solution.horizon_dt_s,
             elapsed_s,
         )
