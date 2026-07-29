@@ -942,7 +942,7 @@ canvas#simCanvas {
 }
 
 .rule-catalog {
-  max-height: 268px;
+  max-height: 286px;
   padding-right: 4px;
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -959,7 +959,7 @@ canvas#simCanvas {
 }
 
 .algorithm-catalog {
-  max-height: 146px;
+  max-height: 300px;
   padding-right: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1254,6 +1254,34 @@ canvas#simCanvas {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.telem-position {
+  grid-column: 1 / -1;
+}
+
+.telem-coordinate-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.telem-coordinate-row > span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.telem-coordinate-row small {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+
+.telem-coordinate-row strong {
+  color: var(--accent-cyan);
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .telem-label {

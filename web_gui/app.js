@@ -1195,15 +1195,12 @@ function updateUI(data) {
   }
 
   // OS telemetry
-  setText('val-os-x',     `${os.x.toFixed(1)} m`);
-  setText('val-os-y',     `${os.y.toFixed(1)} m`);
-  setText('val-os-psi',   `${(os.psi * 180 / Math.PI).toFixed(1)}°`);
-  const sway = os.v || 0;
-  const northVelocity = os.u * Math.cos(os.psi) - sway * Math.sin(os.psi);
-  const eastVelocity = os.u * Math.sin(os.psi) + sway * Math.cos(os.psi);
-  setText('val-os-speed', `${northVelocity.toFixed(2)} m/s`);
-  setText('val-os-v',     `${eastVelocity.toFixed(1)} m/s`);
-  setText('val-os-r',     `${(os.r || 0).toFixed(1)} rad/s`);
+  setText('val-os-latitude', formatCoordinate(os.latitude, 'N', 'S'));
+  setText('val-os-longitude', formatCoordinate(os.longitude, 'E', 'W'));
+  setText('val-os-sog', Number.isFinite(os.sog) ? `${os.sog.toFixed(2)} m/s` : '-- m/s');
+  setText('val-os-cog', formatCourse(os.cog));
+  setText('val-os-heading', formatCourse(os.psi));
+  setText('val-os-yaw', `${(os.r || 0).toFixed(1)} rad/s`);
   updatePlannerPanel(data);
 
   // Performance
@@ -1220,6 +1217,18 @@ function updateUI(data) {
 function setText(id, val) {
   const el = document.getElementById(id);
   if (el) el.textContent = val;
+}
+
+function formatCoordinate(value, positiveHemisphere, negativeHemisphere) {
+  if (!Number.isFinite(value)) return '--';
+  const hemisphere = value >= 0 ? positiveHemisphere : negativeHemisphere;
+  return `${Math.abs(value).toFixed(6)}° ${hemisphere}`;
+}
+
+function formatCourse(value) {
+  if (!Number.isFinite(value)) return '--°';
+  const degrees = ((value * 180 / Math.PI) % 360 + 360) % 360;
+  return `${degrees.toFixed(1)}°`;
 }
 
 function setRiskClass(el, value, safe, warn, invert) {
@@ -2412,7 +2421,7 @@ function prepareWorkspaceLayout() {
   initializeCollapsibleCard(document.getElementById('cardIntegrations'), true);
   initializeCollapsibleCard(document.getElementById('cardRules'), false);
   initializeCollapsibleCard(document.getElementById('cardControl'), false);
-  initializeCollapsibleCard(document.getElementById('cardTracker'), false);
+  initializeCollapsibleCard(document.getElementById('cardTracker'), true);
   const eventLog = document.querySelector('.log-section');
   if (eventLog) {
     initializeCollapsibleCard(eventLog, false);

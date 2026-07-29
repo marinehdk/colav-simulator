@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="stylesheet" href="/static/style.css?v=20260729-simplified-mpc-diagnostics" />
+  <link rel="stylesheet" href="/static/style.css?v=20260729-simplified-mpc-geodetic" />
 </head>
 <body>
   <div class="app-container">
@@ -228,9 +228,9 @@
         <div class="card glass-card" id="cardControl">
           <h3 class="card-title"><span class="icon" aria-hidden="true">⌘</span> 避碰规划算法</h3>
           <select id="algoSelect" class="control-native-select" aria-label="避碰规划算法">
-            <option value="nominal" selected>名义导航链</option>
+            <option value="nominal">名义导航链</option>
             <option value="vo">内置 VO</option>
-            <option value="sbmpc">内置 SB-MPC</option>
+            <option value="sbmpc" selected>内置 SB-MPC</option>
             <option value="potocnik_simplified_mpc">简化 MPC（Potočnik 2025）</option>
             <option value="psbmpc">官方 PSB-MPC</option>
             <option value="rrt">RRT* 路径规划</option>
@@ -240,7 +240,7 @@
             <div class="selection-section">
               <div class="selection-heading">MPC</div>
               <div class="selection-grid">
-                <button class="selection-card" type="button" data-algorithm="sbmpc" aria-pressed="false">
+                <button class="selection-card selected" type="button" data-algorithm="sbmpc" aria-pressed="true">
                   <span class="selection-name">SB-MPC</span><span class="selection-description">场景式分支 MPC</span><span class="selection-state">检查中</span>
                 </button>
                 <button class="selection-card" type="button" data-algorithm="potocnik_simplified_mpc" aria-pressed="false">
@@ -257,7 +257,7 @@
             <div class="selection-section">
               <div class="selection-heading">非 MPC</div>
               <div class="selection-grid">
-                <button class="selection-card selected" type="button" data-algorithm="nominal" aria-pressed="true">
+                <button class="selection-card" type="button" data-algorithm="nominal" aria-pressed="false">
                   <span class="selection-name">Nominal</span><span class="selection-description">场景原生导航链</span><span class="selection-state">检查中</span>
                 </button>
                 <button class="selection-card" type="button" data-algorithm="vo" aria-pressed="false">
@@ -370,29 +370,28 @@
           <h3 class="card-title"><span class="icon ship-icon" aria-hidden="true">▲</span> 本船遥测状态</h3>
 
           <div class="telem-grid">
-            <div class="telem-item">
-              <span class="telem-label">北向坐标</span>
-              <span class="telem-val mono-tag" id="val-os-x">0.0 m</span>
+            <div class="telem-item telem-position">
+              <span class="telem-label">经纬度</span>
+              <span class="telem-coordinate-row">
+                <span><small>纬度</small><strong class="mono-tag" id="val-os-latitude">--</strong></span>
+                <span><small>经度</small><strong class="mono-tag" id="val-os-longitude">--</strong></span>
+              </span>
             </div>
             <div class="telem-item">
-              <span class="telem-label">东向坐标</span>
-              <span class="telem-val mono-tag" id="val-os-y">0.0 m</span>
+              <span class="telem-label">对地速度</span>
+              <span class="telem-val mono-tag" id="val-os-sog">0.0 m/s</span>
             </div>
             <div class="telem-item">
-              <span class="telem-label">北向速度</span>
-              <span class="telem-val mono-tag" id="val-os-speed">0.00 m/s</span>
+              <span class="telem-label">对地航向</span>
+              <span class="telem-val mono-tag" id="val-os-cog">0.0°</span>
             </div>
             <div class="telem-item">
-              <span class="telem-label">东向速度</span>
-              <span class="telem-val mono-tag" id="val-os-v">0.0 m/s</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">航向</span>
-              <span class="telem-val mono-tag" id="val-os-psi">0.0°</span>
+              <span class="telem-label">当前航向</span>
+              <span class="telem-val mono-tag" id="val-os-heading">0.0°</span>
             </div>
             <div class="telem-item">
               <span class="telem-label">角速度</span>
-              <span class="telem-val mono-tag" id="val-os-r">0.0 rad/s</span>
+              <span class="telem-val mono-tag" id="val-os-yaw">0.0 rad/s</span>
             </div>
           </div>
         </div>
@@ -423,6 +422,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260729-simplified-mpc-diagnostics"></script>
+  <script src="/static/app.js?v=20260729-simplified-mpc-geodetic"></script>
 </body>
 </html>

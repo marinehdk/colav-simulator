@@ -69,16 +69,15 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
                 "避碰安全指标",
                 ">DCPA<",
                 ">TCPA<",
-                "COLREGs规则",
-                "本船遥测状态",
-                ">北向坐标<",
-                ">东向坐标<",
-                ">航向<",
-                ">北向速度<",
-                ">东向速度<",
-                ">角速度<",
-                "算法性能监控",
-            )
+                    "COLREGs规则",
+                    "本船遥测状态",
+                    ">经纬度<",
+                    ">对地速度<",
+                    ">对地航向<",
+                    ">当前航向<",
+                    ">角速度<",
+                    "算法性能监控",
+                )
         ) and all(
             label not in page.text
             for label in (
@@ -102,7 +101,10 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert 'data-algorithm="sbmpc"' in page.text
         assert 'data-algorithm="vo"' in page.text
         assert 'class="algorithm-catalog"' in page.text
+        assert '<option value="sbmpc" selected>内置 SB-MPC</option>' in page.text
+        assert 'class="selection-card selected" type="button" data-algorithm="sbmpc"' in page.text
         assert 'data-tracker="vimmjipda"' in page.text
+        assert '<option value="god" selected>God Tracker</option>' in page.text
         assert "标准对遇 · G3 · 300s" in page.text
         assert "概率安全域 MPC 避碰" in page.text
         assert "ENC 高层路径规划" in page.text
@@ -191,6 +193,11 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
         )
         assert "SB-MPC 激活/安全范围" not in page.text
         assert all(label in page.text for label in ("雷达探测圈（2 km）", "规划/响应范围"))
+        assert all(label in page.text for label in ("经纬度", "对地速度", "对地航向", "当前航向", "角速度"))
+        assert all(
+            legacy_label not in page.text
+            for legacy_label in ("北向坐标", "东向坐标", "北向速度", "东向速度")
+        )
 
 
 def test_real_session_api_and_websocket() -> None:
@@ -224,6 +231,8 @@ def test_real_session_api_and_websocket() -> None:
         assert first.json()["tracks"] is not None
         assert first.json()["tracks"][0]["states"][0][0] < 5000.0
         assert first.json()["enc_navigation_area"] == navigation_area
+        assert -90.0 <= first.json()["os"]["latitude"] <= 90.0
+        assert -180.0 <= first.json()["os"]["longitude"] <= 180.0
 
         second = client.post(f"/api/sessions/{session_id}/step")
         assert second.status_code == 200

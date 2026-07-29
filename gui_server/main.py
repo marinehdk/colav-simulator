@@ -398,6 +398,10 @@ class WebSessionManager:
                 }
             )
         own = ships[0] if ships else {"x": 0.0, "y": 0.0, "psi": 0.0, "u": 0.0, "v": 0.0, "r": 0.0, "trajectory": []}
+        if ships:
+            latitude, longitude = mapf.local2latlon(own["east"], own["north"], session.enc.utm_zone)
+            own["latitude"] = float(latitude)
+            own["longitude"] = float(longitude)
         obstacles = ships[1:]
         encounters = [item.to_dict() for item in self.encounter_monitor.update(ships)]
         primary_encounter = next(
