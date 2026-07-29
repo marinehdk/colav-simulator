@@ -795,7 +795,8 @@ function targetsForDisplay(data) {
 function targetThreat(data, target) {
   if (!target || !data.os) return THREAT_STYLES.UNKNOWN;
   const distance = Math.hypot(target.x - data.os.x, target.y - data.os.y);
-  if (sbmpcResponseRange(data) && distance <= sbmpcResponseRange(data)) return THREAT_STYLES.HIGH;
+  const responseRange = plannerResponseRange(data);
+  if (responseRange?.threatActivation && distance <= responseRange.distanceM) return THREAT_STYLES.HIGH;
   if (distance <= RADAR_DETECTION_RANGE_M) return THREAT_STYLES.LOW;
   return THREAT_STYLES.CLEAR;
 }
@@ -957,6 +958,7 @@ function plannerResponseRange(data) {
     return {
       distanceM,
       label: `避碰响应圈（${(distanceM / 1000).toFixed(1)} km）`,
+      threatActivation: true,
     };
   }
   if (algorithmId === 'potocnik_simplified_mpc') {
@@ -965,6 +967,7 @@ function plannerResponseRange(data) {
       return {
         distanceM,
         label: `论文 COLREG 区（${(distanceM / 1852).toFixed(1)} nm）`,
+        threatActivation: false,
       };
     }
   }

@@ -132,6 +132,8 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "简化 MPC · 扇形轨迹筛选" in script.text
         assert "candidate_heading_increments_rad" in script.text
         assert "目标在±90°内 · 按首段航向差" in script.text
+        assert "sbmpcResponseRange(" not in script.text
+        assert "responseRange?.threatActivation" in script.text
         assert "details.heading_offsets_rad" in script.text
         assert "details.speed_offsets_mps" in script.text
         assert "objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc'" in script.text
