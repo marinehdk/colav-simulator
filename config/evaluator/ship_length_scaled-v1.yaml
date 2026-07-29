@@ -1,0 +1,54 @@
+schema_version: evaluator-profile-v1
+profile_id: ship_length_scaled-v1
+profile_kind: ship_length_scaled
+source_refs:
+  - dynamic-mpc-playground-design:VR-22
+  - dynamic-mpc-playground-design-log:R59
+sampling:
+  interval_s: 2.0
+  gaussian_sigma_samples: 2.0
+stages:
+  stage2_entry_m: 2500.0
+  stage3_entry_m: 1100.0
+  stage4_entry_m: 200.0
+safety:
+  preferred_m: 190.0
+  minimum_m: 100.0
+  near_miss_m: 50.0
+  collision_m: 30.0
+encounter:
+  alpha_crit_13_deg: 45.0
+  alpha_crit_14_deg: 13.0
+  alpha_crit_15_deg: 10.0
+  overtaking_min_deg: 112.5
+  overtaking_max_deg: 247.5
+  emergency_tcpa_s: 60.0
+  exit_range_factor: 1.05
+maneuver:
+  moving_speed_mps: 2.0
+  acceleration_mps2: 0.05
+  course_rate_deg_s: 0.6
+  detectable_turn_deg: 2.0
+  apparent_turn_deg: 30.0
+  detectable_relative_speed: 0.07
+  apparent_relative_speed: 0.25
+  starboard_turn_min_deg: 10.0
+weights:
+  range_minimum: 0.2
+  range_near_miss: 0.3
+  range_collision: 0.5
+  pose_contact: 0.25
+  pose_relative_bearing: 0.75
+  apparent_course: 0.5
+  apparent_speed: 0.5
+  head_on_non_starboard: 0.4
+  head_on_starboard_to_starboard: 0.6
+  ahead_overtaking: 0.3
+  ahead_crossing: 0.5
+safety_domain:
+  model: fujii_1971
+  longitudinal_length_factor: 4.0
+  transverse_length_factor: 1.6
+reconstruction_assumptions:
+  - S_domain is an ownship-centered target-center diagnostic and is not an Ocean Engineering 2023 score.
+  - Fixed S_r thresholds remain visible for cross-profile diagnostics and are not called ship-length-scaled.

@@ -10,6 +10,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 import colav_simulator.common.config_parsing as cp
 from colav_simulator import scenario_config
 from colav_simulator.common import paths
@@ -301,12 +303,36 @@ class ExperimentRunner:
     def finalize(self, prepared: PreparedRun) -> RunResult:
         if prepared.session.state != SessionState.FINISHED:
             raise RuntimeError(f"Cannot finalize session in state {prepared.session.state.value}")
-        evaluation = self.evaluator.evaluate(prepared.session.vessel_data(), prepared.session.enc)
         prepared.manifest.state = prepared.session.state
         prepared.manifest.execution_outcome = RunOutcome.COMPLETED
-        prepared.manifest.evaluator_id = evaluation.evaluator_id
-        prepared.manifest.reproduction_status = evaluation.reproduction_status
         self._enforce_no_fallback(prepared)
+        evaluator = (
+            self.evaluator
+            if self.evaluator.profile.profile_id == prepared.spec.evaluator_profile_id
+            else Evaluator(prepared.spec.evaluator_profile_id)
+        )
+        evaluation = evaluator.evaluate(
+            prepared.session.vessel_data(),
+            prepared.session.enc,
+            execution_context={
+                "requested_algorithm": prepared.manifest.requested_algorithm,
+                "executed_algorithm": prepared.manifest.executed_algorithm,
+                "fallback_used": prepared.manifest.fallback_used,
+                "run_completed": True,
+                "solver": _solver_diagnostics(prepared.session.frames),
+            },
+        )
+        prepared.manifest.evaluator_id = evaluation.evaluator_id
+        prepared.manifest.evaluator_version = evaluation.schema_version
+        prepared.manifest.evaluator_profile_id = evaluation.evaluator_profile_id
+        prepared.manifest.evaluator_profile_hash = evaluation.evaluator_profile_hash
+        prepared.manifest.formula_set_id = evaluation.formula_set_id
+        prepared.manifest.formula_set_hash = evaluation.formula_set_hash
+        prepared.manifest.evaluation_collision_oracle_id = evaluation.collision_oracle_id
+        prepared.manifest.grounding_policy_id = str(evaluation.evidence["grounding_policy_id"])
+        prepared.manifest.evaluation_schema_version = evaluation.schema_version
+        prepared.manifest.evaluation_gate = evaluation.hard_gate.outcome.value
+        prepared.manifest.reproduction_status = evaluation.reproduction_status
         trajectory_path = prepared.writer.write_trajectory(prepared.session.frames)
         prepared.manifest.trajectory_hash = _file_hash(trajectory_path)
         prepared.writer.write_events(prepared.session.events)
@@ -423,6 +449,38 @@ def _file_hash(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _solver_diagnostics(frames: list[dict[str, Any]]) -> dict[str, Any]:
+    records: list[dict[str, Any]] = []
+    for frame in frames:
+        for key, ship in frame.items():
+            if not key.startswith("Ship") or not isinstance(ship, dict):
+                continue
+            planner = ship.get("colav", {}).get("planner", {})
+            if isinstance(planner, dict) and planner.get("solver_executed"):
+                records.append(planner)
+    if not records:
+        return {"status": "NOT_AVAILABLE", "solve_count": 0}
+    elapsed = np.array(
+        [float(item["elapsed_ms"]) for item in records if item.get("elapsed_ms") is not None],
+        dtype=float,
+    )
+    iterations = [int(item["iterations"]) for item in records if item.get("iterations") is not None]
+    objectives = [float(item["objective"]) for item in records if item.get("objective") is not None]
+    statuses: dict[str, int] = {}
+    for item in records:
+        status = str(item.get("status", "UNKNOWN"))
+        statuses[status] = statuses.get(status, 0) + 1
+    return {
+        "status": "AVAILABLE",
+        "solve_count": len(records),
+        "status_counts": statuses,
+        "elapsed_ms_mean": float(np.mean(elapsed)) if elapsed.size else None,
+        "elapsed_ms_p95": float(np.percentile(elapsed, 95)) if elapsed.size else None,
+        "iterations_mean": float(np.mean(iterations)) if iterations else None,
+        "objective_last": objectives[-1] if objectives else None,
+    }
 
 
 @lru_cache(maxsize=8)

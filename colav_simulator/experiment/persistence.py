@@ -182,10 +182,23 @@ class EvidenceWriter:
         return self._write_json(
             "evaluation.json",
             {
-                "schema_version": "1.0",
-                "status": "not_evaluated",
+                "schema_version": "2.0",
+                "evaluation_status": "NOT_EVALUATED",
                 "failure_status": status,
                 "failure_reason": reason,
+                "hard_gate": {
+                    "outcome": "FAIL",
+                    "checks": [
+                        {
+                            "check_id": "run_completion",
+                            "outcome": "FAIL",
+                            "reason": reason,
+                            "evidence": {"failure_status": status},
+                        }
+                    ],
+                },
+                "scores": {"status": "NOT_EVALUATED"},
+                "diagnostics": {"execution": {"failure_status": status, "failure_reason": reason}},
             },
         )
 
@@ -204,6 +217,26 @@ class EvidenceWriter:
             for pair in evaluation.pair_results
         )
         warning_items = "".join(f"<li>{html.escape(warning)}</li>" for warning in evaluation.warnings)
+        gate_rows = "".join(
+            "<tr>"
+            f"<td>{html.escape(check.check_id)}</td>"
+            f"<td>{html.escape(check.outcome.value)}</td>"
+            f"<td>{html.escape(check.reason)}</td>"
+            "</tr>"
+            for check in evaluation.hard_gate.checks
+        )
+        score_rows = "".join(
+            "<tr>"
+            f"<td>{pair.ownship_id}->{pair.target_id}</td>"
+            f"<td>{html.escape(str(pair.metrics.get('S_safety')))}</td>"
+            f"<td>{html.escape(str(pair.metrics.get('S13')))}</td>"
+            f"<td>{html.escape(str(pair.metrics.get('S14')))}</td>"
+            f"<td>{html.escape(str(pair.metrics.get('S15')))}</td>"
+            f"<td>{html.escape(str(pair.metrics.get('S16')))}</td>"
+            f"<td>{html.escape(str(pair.metrics.get('S17')))}</td>"
+            "</tr>"
+            for pair in evaluation.pair_results
+        )
         document = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>COLAV Run {manifest.run_id}</title>
 <style>body{{font:14px system-ui;margin:32px;color:#17202a}}table{{border-collapse:collapse;width:100%;margin:16px 0}}
@@ -212,9 +245,16 @@ th,td{{border:1px solid #ccd1d1;padding:7px;text-align:left}}th{{background:#eef
 <p>Run <code>{manifest.run_id}</code> · scenario <code>{html.escape(manifest.spec["scenario_id"])}</code>
  · algorithm <code>{html.escape(manifest.executed_algorithm)}</code></p>
 <p>Reproduction status: <strong>{html.escape(evaluation.reproduction_status)}</strong></p>
+<p>Evaluator profile: <code>{html.escape(evaluation.evaluator_profile_id)}</code>
+ · formula set <code>{html.escape(evaluation.formula_set_id)}</code>
+ · collision oracle <code>{html.escape(evaluation.collision_oracle_id)}</code></p>
+<h2>Hard gate: {html.escape(evaluation.hard_gate.outcome.value)}</h2>
+<table><thead><tr><th>Check</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>{gate_rows}</tbody></table>
 <h2>Aggregate</h2><table>{aggregate_rows}</table>
 <h2>Vessel pairs</h2><table><thead><tr><th>OS</th><th>TS</th><th>Encounter</th>
 <th>Minimum distance (m)</th><th>Initial TCPA (s)</th><th>Collision</th></tr></thead><tbody>{pair_rows}</tbody></table>
+<h2>COLREG scores</h2><table><thead><tr><th>Pair</th><th>Safety</th><th>R13</th><th>R14</th>
+<th>R15</th><th>R16</th><th>R17</th></tr></thead><tbody>{score_rows}</tbody></table>
 <h2>Limitations</h2><ul>{warning_items}</ul></body></html>"""
         path = self.run_dir / "report.html"
         path.write_text(document, encoding="utf-8")

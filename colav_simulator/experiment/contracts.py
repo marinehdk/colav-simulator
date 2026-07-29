@@ -77,6 +77,7 @@ class RunSpec:
     strict_no_fallback: bool = True
     solve_period_s: float | None = None
     deadline_mode: str = "ENFORCE"
+    evaluator_profile_id: str = "ccta_2023_demo-v1"
     reproduction_level: ReproductionLevel = ReproductionLevel.FUNCTIONAL
     algorithm_config: dict[str, Any] = field(default_factory=dict)
     tracker_config: dict[str, Any] = field(default_factory=dict)
@@ -103,8 +104,11 @@ class RunSpec:
         if self.solve_period_s is not None and self.solve_period_s <= 0:
             raise ValueError("solve_period_s must be positive")
         self.deadline_mode = self.deadline_mode.strip().upper()
+        self.evaluator_profile_id = self.evaluator_profile_id.strip()
         if self.deadline_mode not in {"ENFORCE", "OFF"}:
             raise ValueError("deadline_mode must be ENFORCE or OFF")
+        if not self.evaluator_profile_id:
+            raise ValueError("evaluator_profile_id is required")
         if isinstance(self.reproduction_level, str):
             self.reproduction_level = ReproductionLevel(self.reproduction_level)
 
@@ -164,6 +168,15 @@ class RunManifest:
     failure_reason: str | None = None
     failure_status: str | None = None
     evaluator_id: str | None = None
+    evaluator_version: str | None = None
+    evaluator_profile_id: str | None = None
+    evaluator_profile_hash: str | None = None
+    formula_set_id: str | None = None
+    formula_set_hash: str | None = None
+    evaluation_collision_oracle_id: str | None = None
+    grounding_policy_id: str | None = None
+    evaluation_schema_version: str | None = None
+    evaluation_gate: str | None = None
     reproduction_status: str = "not_evaluated"
     replay_of_run_id: str | None = None
     replay_verified: bool | None = None

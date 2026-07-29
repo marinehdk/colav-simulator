@@ -44,7 +44,11 @@ def test_head_on_classification_and_metrics() -> None:
     assert pair.metrics["S8"] == 0.0
     assert pair.metrics["S14"] == 0.0
     assert result.numerical_reproduction_confirmed is False
-    assert result.reproduction_status == "functional_reproduction"
+    assert result.reproduction_status == "behavior_compatible_reconstruction"
+    assert result.schema_version == "2.0"
+    assert result.hard_gate.outcome == "FAIL"
+    assert pair.collision_oracle_id == "c2a-rect2d-v1"
+    assert pair.metric_evidence["S14"]["formula_id"] == "oe2023-eq27"
 
 
 def test_no_overlap_is_reported_not_scored() -> None:
@@ -53,4 +57,4 @@ def test_no_overlap_is_reported_not_scored() -> None:
     target.timestamps = np.array([10.0, 11.0])
     result = Evaluator().evaluate([ownship, target])
     assert result.pair_results == []
-    assert "No overlapping samples" in result.warnings[-1]
+    assert "No synchronized finite samples" in result.warnings[-1]
