@@ -5,7 +5,7 @@ kwargs:
   candidate_count: 45
   horizon_dt_s: 5.0
   solve_period_s: 5.0
-  deadline_s: 0.25
+  deadline_s: 0.1
   max_heading_increment_deg: 10.0
   heading_increment_decay: 0.95
   # The paper default is 926 m. The standard OT scenes start inside that
@@ -15,16 +15,6 @@ kwargs:
   # this functional port does not implement the paper's route/MPC mode switch.
   colreg_zone_distance_m: 5556.0
   continuity_weight: 4.0
-  clearance_weight: 4.0
+  clearance_weight: 2.0
   reversal_weight: 2.0
   max_command_change_deg: 5.0
-  dynamic_influence_distance_m: 600.0
-  course_response_time_constant_s: 8.0
-  max_yaw_rate_deg_s: 3.0
-  static_clearance_m: 20.0
-  static_influence_distance_m: 200.0
-  static_clearance_weight: 1.0
-  minimum_speed_scale: 0.2
-  ownship_length_m: 8.45
-  ownship_width_m: 3.0
-  ownship_draft_m: 0.5
