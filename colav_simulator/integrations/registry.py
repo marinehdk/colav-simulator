@@ -13,6 +13,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
+
+from colav_simulator.common import paths
 from colav_simulator.core.colav.colav_interface import (
     ICOLAV,
     COLAVType,
@@ -31,6 +34,10 @@ from colav_simulator.core.colav.kuwata_vo_alg.kuwata_vo import VOParams
 from colav_simulator.core.colav.sbmpc.sbmpc import SBMPCParams
 from colav_simulator.core.guidances import LOSGuidanceParams
 from colav_simulator.core.tracking.trackers import KF, GodTracker, ITracker, KFParams
+
+_PUBLISHED_ALGORITHM_PROFILES = {
+    "potocnik_simplified_mpc": "potocnik_simplified_mpc.yaml",
+}
 
 
 @dataclass(frozen=True)
@@ -168,8 +175,8 @@ class IntegrationRegistry:
         *,
         factory_context: FactoryContext | None = None,
     ) -> ICOLAV | None:
-        config = config or {}
         algorithm_id = algorithm_id.lower()
+        config = config or _load_published_algorithm_profile(algorithm_id)
         if algorithm_id == "nominal":
             return None
         if algorithm_id == "vo":
@@ -344,3 +351,30 @@ def _file_sha256(path: Path | None) -> str:
 def _mapping_sha256(value: dict[str, Any]) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _load_published_algorithm_profile(algorithm_id: str) -> dict[str, Any]:
+    filename = _PUBLISHED_ALGORITHM_PROFILES.get(algorithm_id)
+    if filename is None:
+        return {}
+    path = paths.config / filename
+    try:
+        with path.open(encoding="utf-8") as stream:
+            document = yaml.safe_load(stream)
+    except (OSError, yaml.YAMLError) as exc:
+        raise ColavExecutionError(
+            PlanStatus.INVALID_INPUT,
+            f"Published algorithm profile could not be loaded: {path}: {exc}",
+        ) from exc
+    if not isinstance(document, dict):
+        raise ColavExecutionError(
+            PlanStatus.INVALID_INPUT,
+            f"Published algorithm profile must contain a mapping: {path}",
+        )
+    dependency_lock = document.get("dependency_lock")
+    if dependency_lock:
+        lock_path = Path(dependency_lock).expanduser()
+        if not lock_path.is_absolute():
+            lock_path = (path.parent / lock_path).resolve()
+        document["dependency_lock"] = str(lock_path)
+    return document

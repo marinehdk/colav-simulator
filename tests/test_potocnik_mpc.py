@@ -110,3 +110,15 @@ def test_registry_loads_paper_plugin_with_complete_identity() -> None:
     assert adapter.descriptor.version.endswith(UPSTREAM_COMMIT[:12])
     assert adapter.build_identity.complete is True
     assert adapter.get_diagnostics().fallback_used is False
+
+
+def test_registry_loads_published_paper_profile_by_stable_id() -> None:
+    adapter = IntegrationRegistry().build_algorithm(
+        "potocnik_simplified_mpc",
+        factory_context=FactoryContext("potocnik_simplified_mpc", 7),
+    )
+
+    assert adapter is not None
+    assert adapter.descriptor.algorithm_id == "potocnik_simplified_mpc"
+    assert adapter.build_identity.complete is True
+    assert adapter.get_diagnostics().fallback_used is False

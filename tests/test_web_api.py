@@ -346,6 +346,36 @@ def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
         assert telemetry["encounters"][0]["validation_rule_id"] == "rule14"
 
 
+def test_potocnik_web_session_uses_published_profile() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule14",
+                "scenario_id": "head_on",
+                "algorithm_id": "potocnik_simplified_mpc",
+                "tracker_id": "god",
+                "t_end": 1.0,
+            },
+        )
+        assert created.status_code == 200, created.json()
+        session_id = created.json()["session_id"]
+        telemetry = None
+        for _ in range(4):
+            response = client.post(f"/api/sessions/{session_id}/step")
+            assert response.status_code == 200, response.json()
+            telemetry = response.json()
+            if telemetry["state"] == "FINISHED":
+                break
+
+        assert telemetry is not None
+        assert telemetry["requested_algorithm"] == "potocnik_simplified_mpc"
+        assert telemetry["executed_algorithm"] == "potocnik_simplified_mpc"
+        assert telemetry["latest_planner_solve"]["algorithm_id"] == "potocnik_simplified_mpc"
+        assert telemetry["latest_planner_solve"]["status"] == "SUCCESS"
+        assert len(telemetry["plans"]["prediction_horizon"]) == 17
+
+
 def test_rule14_web_and_offline_trajectory_hashes_match(tmp_path: Path) -> None:
     request = {
         "validation_rule_id": "rule14",
