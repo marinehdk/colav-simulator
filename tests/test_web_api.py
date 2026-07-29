@@ -397,10 +397,11 @@ def test_potocnik_web_session_uses_published_profile() -> None:
         assert telemetry["executed_algorithm"] == "potocnik_simplified_mpc"
         assert telemetry["latest_planner_solve"]["algorithm_id"] == "potocnik_simplified_mpc"
         assert telemetry["latest_planner_solve"]["status"] == "SUCCESS"
-        assert telemetry["latest_planner_solve"]["algorithm_details"]["prediction_steps"] == 16
-        assert telemetry["latest_planner_solve"]["algorithm_details"]["solve_period_s"] == 0.5
+        assert telemetry["latest_planner_solve"]["algorithm_details"]["prediction_steps"] == 20
+        assert telemetry["latest_planner_solve"]["algorithm_details"]["prediction_step_s"] == 5.0
+        assert telemetry["latest_planner_solve"]["algorithm_details"]["solve_period_s"] == 5.0
         assert telemetry["latest_planner_solve"]["constraints"]["planning_zone"]["distance_m"] == 5556.0
-        assert len(telemetry["plans"]["prediction_horizon"]) == 17
+        assert len(telemetry["plans"]["prediction_horizon"]) == 21
 
 
 def test_rule14_web_and_offline_trajectory_hashes_match(tmp_path: Path) -> None:

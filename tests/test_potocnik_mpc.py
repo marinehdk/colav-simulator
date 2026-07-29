@@ -14,13 +14,21 @@ from colav_simulator.integrations.potocnik_mpc import (
 )
 
 
-def planner_input(*, tracks: tuple[TrackedObstacle, ...] = ()) -> PlannerInput:
+def planner_input(
+    *,
+    tracks: tuple[TrackedObstacle, ...] = (),
+    ownship_state: np.ndarray | None = None,
+) -> PlannerInput:
     return PlannerInput(
         sim_time_s=0.0,
         dt_sim_s=0.5,
         waypoints_enu_m=np.array([[0.0, 10000.0], [0.0, 0.0]]),
         speed_plan_mps=np.array([7.0, 7.0]),
-        ownship_state=np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0]),
+        ownship_state=(
+            np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+            if ownship_state is None
+            else ownship_state
+        ),
         tracks=tracks,
         enc=None,
         goal_state=None,
@@ -45,7 +53,7 @@ def track(
     )
 
 
-def test_paper_fan_matches_matlab_heading_decay_and_kinematics() -> None:
+def test_executable_fan_uses_20_by_5_second_profile() -> None:
     params = PotocnikMPCParams()
     solver = PotocnikSimplifiedMPC(params)
 
@@ -53,10 +61,10 @@ def test_paper_fan_matches_matlab_heading_decay_and_kinematics() -> None:
     port_extreme = trajectories[0]
     center = trajectories[params.candidate_count // 2]
 
-    assert trajectories.shape == (45, 9, 17)
-    assert np.rad2deg(port_extreme[2, 1]) == pytest.approx(-20.0)
-    assert np.rad2deg(port_extreme[2, 2]) == pytest.approx(-39.0)
-    assert center[0, 1] == pytest.approx(350.0)
+    assert trajectories.shape == (45, 9, 21)
+    assert np.rad2deg(port_extreme[2, 1]) == pytest.approx(-10.0)
+    assert np.rad2deg(port_extreme[2, 2]) == pytest.approx(-19.5)
+    assert center[0, 1] == pytest.approx(35.0)
     assert center[1, 1] == pytest.approx(0.0)
 
 
@@ -66,19 +74,21 @@ def test_paper_solver_selects_route_aligned_candidate_without_conflict() -> None
     solution = solver.solve(planner_input())
 
     assert solution.status == PlanStatus.SUCCESS
-    assert solution.predicted_trajectory.shape == (9, 17)
+    assert solution.predicted_trajectory.shape == (9, 21)
     assert solution.control_reference[2, 0] == pytest.approx(0.0)
     assert solution.algorithm_details["selected_candidate_index"] == 22
     assert solution.algorithm_details["upstream_commit"] == UPSTREAM_COMMIT
     assert solution.algorithm_details["selection_mode"] == "initial_heading"
-    assert solution.algorithm_details["selection_score_unit"] == "rad"
+    assert solution.algorithm_details["selection_score_unit"] == "normalized"
     assert solution.algorithm_details["selected_heading_increment_rad"] == pytest.approx(0.0)
     assert solution.algorithm_details["speed_scale"] == pytest.approx(1.0)
-    assert solution.algorithm_details["solve_period_s"] == pytest.approx(0.5)
-    assert solution.algorithm_details["prediction_steps"] == 16
-    assert solution.algorithm_details["prediction_distance_m"] == pytest.approx(5600.0)
+    assert solution.algorithm_details["solve_period_s"] == pytest.approx(5.0)
+    assert solution.algorithm_details["prediction_steps"] == 20
+    assert solution.algorithm_details["prediction_step_s"] == pytest.approx(5.0)
+    assert solution.algorithm_details["prediction_distance_m"] == pytest.approx(700.0)
     assert len(solution.algorithm_details["candidate_heading_increments_rad"]) == 45
     assert solution.algorithm_details["candidate_feasible"] == [True] * 45
+    assert solution.algorithm_details["candidate_minimum_clearance_m"] == [None] * 45
     assert solution.constraints["dynamic_collision"]["minimum_predicted_clearance_m"] is None
     assert solution.constraints["planning_zone"] == {
         "distance_m": PAPER_COLREG_ZONE_M,
@@ -87,8 +97,8 @@ def test_paper_solver_selects_route_aligned_candidate_without_conflict() -> None
 
 
 def test_dynamic_conflict_filters_nominal_candidate_and_commands_avoidance() -> None:
-    solver = PotocnikSimplifiedMPC(PotocnikMPCParams())
-    head_on = track(position_ne=(3000.0, 0.0), velocity_ne=(-7.0, 0.0))
+    solver = PotocnikSimplifiedMPC(PotocnikMPCParams(collision_distance_m=300.0))
+    head_on = track(position_ne=(1300.0, 0.0), velocity_ne=(-7.0, 0.0))
 
     solution = solver.solve(planner_input(tracks=(head_on,)))
 
@@ -98,6 +108,35 @@ def test_dynamic_conflict_filters_nominal_candidate_and_commands_avoidance() -> 
         solution.constraints["dynamic_collision"]["minimum_predicted_clearance_m"]
         >= solution.constraints["dynamic_collision"]["required_clearance_m"]
     )
+    assert solution.algorithm_details["nominal_candidate_feasible"] is False
+    assert solution.algorithm_details["avoidance_turn_sign"] != 0
+
+
+def test_replanning_keeps_avoidance_side_and_limits_command_change() -> None:
+    solver = PotocnikSimplifiedMPC(PotocnikMPCParams(collision_distance_m=300.0))
+    first = solver.solve(
+        planner_input(tracks=(track(position_ne=(1300.0, 40.0), velocity_ne=(-7.0, 0.0)),))
+    )
+    first_course = float(first.control_reference[2, 0])
+    first_sign = int(first.algorithm_details["avoidance_turn_sign"])
+    second_state = np.array([35.0, 0.0, first_course * 0.5, 7.0, 0.0, 0.0])
+
+    second = solver.solve(
+        planner_input(
+            ownship_state=second_state,
+            tracks=(track(position_ne=(1230.0, -40.0), velocity_ne=(-7.0, 0.0)),),
+        )
+    )
+    second_course = float(second.control_reference[2, 0])
+
+    assert int(second.algorithm_details["avoidance_turn_sign"]) == first_sign
+    assert np.sign(second.algorithm_details["selected_heading_increment_rad"]) == first_sign
+    assert abs(float(np.arctan2(np.sin(second_course - first_course), np.cos(second_course - first_course)))) <= (
+        np.deg2rad(5.0) + 1e-12
+    )
+    assert second.constraints["heading_increment"]["rate_limit_relaxed"] is False
+    assert second.algorithm_details["reversal_penalty"] == pytest.approx(0.0)
+    assert second.algorithm_details["turn_reversal_count"] == 0
 
 
 def test_no_feasible_fan_is_infeasible_not_fallback() -> None:
@@ -134,5 +173,8 @@ def test_registry_loads_published_paper_profile_by_stable_id() -> None:
 
     assert adapter is not None
     assert adapter.descriptor.algorithm_id == "potocnik_simplified_mpc"
+    assert adapter.descriptor.horizon_dt == pytest.approx(5.0)
+    assert adapter.descriptor.horizon_steps == 21
+    assert adapter.descriptor.execution_profile.solve_period_s == pytest.approx(5.0)
     assert adapter.build_identity.complete is True
     assert adapter.get_diagnostics().fallback_used is False

@@ -30,7 +30,7 @@ def test_potocnik_mpc_passes_full_custom_raw_g3_matrix(
         scenario_id,
         ALGORITHM_ID,
         algorithm_config=ALGORITHM_CONFIG,
-        solve_period_s=0.5,
+        solve_period_s=5.0,
     )
 
     assert result.passed, json.dumps(result.to_dict(), indent=2, sort_keys=True)

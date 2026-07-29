@@ -202,10 +202,10 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ("rule14", "head_on", "potocnik_simplified_mpc", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
-        minimum_clearance_m=148.5921309249076,
-        max_heading_delta_deg=30.840379660749296,
-        max_speed_delta_mps=0.12372341820073984,
-        solve_count=600,
+        minimum_clearance_m=177.4664709046381,
+        max_heading_delta_deg=33.205243745967415,
+        max_speed_delta_mps=0.06276987381857602,
+        solve_count=60,
     ),
     ("rule14", "head_on", "nominal", "kf"): _evidence(
         role="nominal_threat",
@@ -252,10 +252,10 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ("rule13", "overtaking", "potocnik_simplified_mpc", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
-        minimum_clearance_m=261.6400366594791,
-        max_heading_delta_deg=25.299757278344842,
-        max_speed_delta_mps=0.14208167211323897,
-        solve_count=600,
+        minimum_clearance_m=198.61436610189946,
+        max_heading_delta_deg=24.490676105170024,
+        max_speed_delta_mps=0.05206359317906273,
+        solve_count=60,
     ),
     ("rule13", "overtaken", "nominal", "god"): _evidence(
         role="nominal_threat",
@@ -281,10 +281,10 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ("rule13", "overtaken", "potocnik_simplified_mpc", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
-        minimum_clearance_m=265.41245933816055,
-        max_heading_delta_deg=37.08671165650096,
-        max_speed_delta_mps=0.1384920255287021,
-        solve_count=600,
+        minimum_clearance_m=157.2183233072254,
+        max_heading_delta_deg=37.91609720972987,
+        max_speed_delta_mps=0.0647649330859057,
+        solve_count=60,
     ),
     ("rule15", "crossing_give_way", "nominal", "god"): _evidence(
         role="nominal_threat",
@@ -310,10 +310,10 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ("rule15", "crossing_give_way", "potocnik_simplified_mpc", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
-        minimum_clearance_m=166.1391672579143,
-        max_heading_delta_deg=35.438129397932336,
-        max_speed_delta_mps=0.11935842976905509,
-        solve_count=600,
+        minimum_clearance_m=240.95569916174946,
+        max_heading_delta_deg=46.424123232053276,
+        max_speed_delta_mps=0.09408005379017048,
+        solve_count=60,
     ),
     ("rule15", "crossing_stand_on", "nominal", "god"): _evidence(
         role="nominal_threat",
@@ -339,10 +339,10 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ("rule15", "crossing_stand_on", "potocnik_simplified_mpc", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
-        minimum_clearance_m=166.15704933718638,
-        max_heading_delta_deg=35.43812939793806,
-        max_speed_delta_mps=0.12101089486971439,
-        solve_count=600,
+        minimum_clearance_m=240.95569916174946,
+        max_heading_delta_deg=46.424123232053326,
+        max_speed_delta_mps=0.09408005379016071,
+        solve_count=60,
     ),
     ("multiship", "paper_ccta2023_multiship", "nominal", "god"): _evidence(
         role="nominal_threat",
@@ -383,14 +383,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ("multiship", "paper_ccta2023_multiship", "potocnik_simplified_mpc", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
-        minimum_clearance_m=271.7444801425662,
-        max_heading_delta_deg=38.53377299528548,
+        minimum_clearance_m=210.13242210802974,
+        max_heading_delta_deg=31.391857617432755,
         max_speed_delta_mps=0.0,
-        solve_count=1000,
+        solve_count=100,
         target_minimum_clearance_m={
-            "Ship1": 399.96270605940487,
-            "Ship2": 277.98315439158483,
-            "Ship3": 271.7444801425662,
+            "Ship1": 307.14509710024777,
+            "Ship2": 224.2361752925445,
+            "Ship3": 210.13242210802974,
         },
     ),
 }

@@ -29,14 +29,18 @@ optimization stated in Equation (12).
 Each solve:
 
 1. generates 45 deterministic fan trajectories;
-2. applies a first-step heading increment in `[-20, +20] deg`;
-3. multiplies that increment by `0.95` at each of 16 prediction steps;
+2. evaluates first-step heading increments in `[-10, +10] deg`;
+3. multiplies that increment by `0.95` at each of 20 prediction steps;
 4. predicts every target with constant velocity;
 5. rejects a candidate when any synchronous predicted separation is below the
    configured collision distance;
-6. selects the feasible candidate whose first heading is closest to the next
-   waypoint, or whose terminal point is closest when the waypoint is behind;
-7. returns the first selected course and current speed.
+6. scores feasible candidates by waypoint alignment, command continuity, and
+   normalized dynamic clearance;
+7. penalizes avoidance-side reversal while the straight candidate remains
+   unsafe, then releases that penalty after two consecutive safe solves;
+8. limits consecutive course-reference changes to `5 deg` when a feasible
+   candidate exists inside that bound;
+9. returns the first selected course and current speed.
 
 No feasible candidate produces `INFEASIBLE`. No nominal, VO, SB-MPC, or
 previous-plan fallback exists.
@@ -51,25 +55,30 @@ per-iteration speed. The port receives the platform contract directly:
 | latitude/longitude | north/east ENU metres |
 | `theta` | `psi`, radians |
 | relative speed | surge/sway speed magnitude, m/s |
-| 16 future samples | public `9x17`, column 0 is solve-time state |
+| 20 future samples | public `9x21`, column 0 is solve-time state |
 | moving ships | `TrackedObstacle` constant-velocity prediction |
 | first selected heading | course/speed reference |
 
-`H=16` and `M=45` match Table 3 and the MATLAB settings. The paper and MATLAB
-source do not publish an SI prediction timestep: the source advances
+`M=45` follows Table 3 and the MATLAB settings. The paper and MATLAB source do
+not publish an SI prediction timestep: the source advances
 `ship_speed=3e-3` in relative geographic units once per simulation iteration.
-`horizon_dt_s=50` is a Playground time-base calibration so a ship near `7 m/s`
-travels approximately the paper's `3 nm` COLREG-zone radius in 16 intervals.
-The resulting `800 s` is derived Playground time, not a value reported by the
-paper. The public `9x17` trajectory contains the solve-time state plus 16 future
-steps; the UI reports 16 intervals rather than multiplying all 17 points.
+The executable Playground profile therefore uses explicit engineering
+calibration: `H=20`, `horizon_dt_s=5`, a `100 s` horizon, a new solve every
+`5 s`, and a `10 deg` first-step fan bound. The public `9x21` trajectory contains
+the solve-time state plus 20 future steps. These values are not claimed as
+paper-reported timing.
 
-The solver recomputes every `0.5 s` and selects one of 45 discrete fan
-trajectories. Neither the paper nor audited MATLAB source defines hysteresis,
-trajectory blending, or steering-rate smoothing for that selection. A change
-of selected candidate can therefore make the displayed long prediction jump.
-The UI exposes the selected candidate, feasible/infeasible fan, first heading
-increment, selection metric, and solve period instead of hiding that behavior.
+The audited MATLAB source does not define hysteresis, trajectory blending, or
+steering-rate smoothing. The Playground profile adds command continuity,
+a feasible `5 deg` consecutive course-reference bound, and a soft penalty
+against changing maneuver side while the straight fan candidate remains
+unsafe. The penalty is released when straight motion becomes safe or when the
+opposite side is the only feasible choice. It is not a COLREG encounter
+classifier or starboard-rule implementation. A clearance cost prevents the
+selector from repeatedly choosing candidates just above the hard threshold,
+which otherwise leads to late, progressively sharper turns. The downstream
+FLSC still converts the selected course/speed reference into forces for the
+Viknes 3-DOF vessel model.
 
 ## Deliberate Phase 2 boundary
 
@@ -80,6 +89,7 @@ port:
 - GSHHG coastline rasterization;
 - MATLAB target-ship COLREG behavior rewriting;
 - static coast rejection inside each MPC fan.
+- COLREG role classification or rule-specific maneuver selection.
 
 The Playground supplies the route and evaluates dynamic collision with its own
 continuous rectangular-footprint oracle. Static ENC-aware fan feasibility is
@@ -87,11 +97,14 @@ therefore not a declared capability.
 
 The paper uses a `0.5 NM = 926 m` collision zone; its MATLAB settings use
 `1000 m`. `PotocnikMPCParams` keeps the paper value as its library default.
-The six standard Phase 2 scenes use `300 m` in
+The six standard Phase 2 scenes use `150 m` in
 `config/potocnik_simplified_mpc.yaml`, because both Rule 13 scenes start about
 `707 m` apart and are infeasible at solve `t=0` under a `926 m` hard
-constraint. This is an explicit functional-profile calibration, not a hidden
-change to the paper default.
+constraint. The shorter executable `100 s` horizon also needs maneuver space
+in the three-target scene; the prior `300 m` profile could exhaust all 45
+candidates before the hydrodynamic vessel completed its turn. This is an
+explicit functional-profile calibration, not a hidden change to the paper
+default.
 
 The paper's `3 nm = 5556 m` COLREG application zone is declared separately as
 `colreg_zone_distance_m` and shown on the map as a paper reference range. It is
