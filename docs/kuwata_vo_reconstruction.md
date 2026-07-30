@@ -65,13 +65,14 @@ does not claim numerical reproduction of the journal version.
 | Dual-VO head-on validation profile | `w_ttc=1000`, WVO scale `1`, `W_B=+/-2 m/s` per axis | `inferred_reconstruction` |
 | Reference-velocity weight | `1` | `inferred_reconstruction` |
 | WVO TTC scale | `0.25` | `inferred_reconstruction` |
-| CPA horizon | `60 s` | `inferred_reconstruction`, retained project default |
-| CPA distance | `20 m` | `inferred_reconstruction`, retained project default |
-| CPA ownship velocity | LOS reference velocity | `inferred_reconstruction`, prevents rule self-masking by an earlier base-VO maneuver |
+| CPA horizon | `120 s` | `project_profile`, earlier warning for standard simulator geometry |
+| CPA distance | `100 m` | `project_profile`, not a paper parameter |
+| CPA ownship velocity | current measured earth-fixed velocity | `physical_correction`, rule gate describes the current encounter |
 | Rule heading tolerance | `15 deg` | `inferred_reconstruction` |
 | Crossing heading sector | `15..165 deg` | `inferred_reconstruction` |
 | Relative bearing sector | `0..112.5 deg` | `inferred_reconstruction` |
 | Rule hysteresis | `3 solves` | `inferred_reconstruction` |
+| Starboard-crossing commitment | lateral velocity at least `-0.25 m/s` in the entry frame | `project_profile` |
 | Low-speed classification cutoff | `0.5 m/s` | `inferred_reconstruction` |
 | Static layers | `LAND, SHORE, OBSTRN, UWTROC` | `project_adapter` |
 | Static local query range | `1000 m` | `project_adapter` |
@@ -88,6 +89,34 @@ Removed configuration keys `safety_buffer`, `vo_violation_cost`,
 `grounding_cost`, and `colregs_violation_cost` raise migration errors. Their
 dimensions or finite-penalty semantics cannot be silently converted to
 velocity uncertainty or hard admissibility.
+
+## Crossing commitment and stand-on boundary
+
+The standard crossing give-way profile uses a stateful
+`CLEAR -> CR_SS_COMMITTED -> CLEAR` transition. While committed, candidates
+that move materially to port in the frozen encounter-entry frame are
+inadmissible. A later solve also cannot reverse past the previous selected
+course. CPA/rule hysteresis releases the commitment. If no candidate survives
+only because of this project rule, the solver exposes
+`emergency_rule_relaxation=true`; it does not silently call another planner.
+
+`CR_PS` remains a stand-on role. Before the current measured velocity enters
+the base VO, the closest grid point to the measured velocity is retained. A
+base-VO conflict can still trigger the existing safety action. This is a
+project behavior policy, not complete Rule 17 semantics.
+
+## Figures and decision-space data
+
+Paper Fig. 2 demonstrates that the same relative geometry can produce a
+different COLREG classification when vessel velocities change. Paper Fig. 6
+is the colored velocity decision space shown during a crossing encounter.
+The web interface reconstructs the Fig. 6 concept from the real `32 x 128`
+solve grid; it is not a pixel or numerical reproduction of the paper figure.
+
+Dense grid data uses the optional `vo_velocity_space.v1` snapshot and
+`GET /api/sessions/{session_id}/planner/decision-space?solve_id=N`. It is
+cached only after a real VO solve and is deliberately excluded from 10 Hz
+telemetry, planner evidence frames, and server-side Matplotlib.
 
 ## Validation interpretation
 

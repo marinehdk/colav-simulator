@@ -48,8 +48,8 @@ class VOParams:
     width_os: float = 5.0
     draft_os: float = 2.0
     planning_frequency: float = 1.0
-    t_max: float = 60.0
-    d_min: float = 20.0
+    t_max: float = 120.0
+    d_min: float = 100.0
 
     speed_set_limits: list[float] = field(default_factory=lambda: [0.0, 10.0])
     speed_samples: int = 32
@@ -66,6 +66,7 @@ class VOParams:
 
     colregs_hysteresis_steps: int = 3
     colregs_min_target_speed_mps: float = 0.5
+    crossing_commitment_deadband_mps: float = 0.25
     rule_heading_tolerance_rad: float = float(np.deg2rad(15.0))
     rule_crossing_heading_min_rad: float = float(np.deg2rad(15.0))
     rule_crossing_heading_max_rad: float = float(np.deg2rad(165.0))
@@ -95,6 +96,8 @@ class VOParams:
             raise ValueError("wvo_ttc_scale must be in [0, 1]")
         if self.colregs_hysteresis_steps < 1:
             raise ValueError("colregs_hysteresis_steps must be positive")
+        if self.crossing_commitment_deadband_mps < 0.0:
+            raise ValueError("crossing_commitment_deadband_mps must be non-negative")
         vertices = np.asarray(self.velocity_uncertainty_vertices_mps, dtype=float)
         if vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) == 0:
             raise ValueError("velocity_uncertainty_vertices_mps must contain 2-D vertices")
@@ -153,6 +156,7 @@ class VO:
         self._hard_constraint_mask = np.zeros(shape, dtype=bool)
         self._base_vo_mask = np.zeros(shape, dtype=bool)
         self._colregs_v1_mask_grid = np.zeros(shape, dtype=bool)
+        self._crossing_commitment_mask = np.zeros(shape, dtype=bool)
         self._wvo_mask = np.zeros(shape, dtype=bool)
         self._min_ttc = np.full(shape, np.inf)
         self._violation_costs = np.zeros(shape)
@@ -161,6 +165,8 @@ class VO:
         self._rule_memory: dict[tuple[int, VOCOLREGSSituation], int] = {}
         self._target_heading_memory: dict[int, float] = {}
         self._active_rules: dict[int, set[VOCOLREGSSituation]] = {}
+        self._matched_rules_current: set[VOCOLREGSSituation] = set()
+        self._completed_crossing_targets: set[int] = set()
         self._initialized = False
         self._t_prev = 0.0
         self._plan_executed = False
@@ -170,8 +176,15 @@ class VO:
         self._objective: float | None = None
         self._dynamic_hazard_count = 0
         self._static_hazard_count = 0
-        self._track_metrics: dict[int, dict[str, float | None]] = {}
+        self._track_metrics: dict[int, dict[str, Any]] = {}
         self._reference_velocity_error_mps = 0.0
+        self._reference_velocity = np.zeros(2)
+        self._current_velocity = np.zeros(2)
+        self._ownship_heading = 0.0
+        self._crossing_commitment_active = False
+        self._crossing_commitment_frame_heading: float | None = None
+        self._emergency_rule_relaxation = False
+        self._stand_on_hold_active = False
 
     @property
     def plan_executed(self) -> bool:
@@ -193,18 +206,25 @@ class VO:
         self._rule_memory.clear()
         self._target_heading_memory.clear()
         self._active_rules.clear()
+        self._matched_rules_current.clear()
+        self._completed_crossing_targets.clear()
+        self._crossing_commitment_active = False
+        self._crossing_commitment_frame_heading = None
+        self._emergency_rule_relaxation = False
+        self._stand_on_hold_active = False
         self._reset_grid()
 
     def _reset_grid(self) -> None:
         self._hard_constraint_mask.fill(False)
         self._base_vo_mask.fill(False)
         self._colregs_v1_mask_grid.fill(False)
+        self._crossing_commitment_mask.fill(False)
         self._wvo_mask.fill(False)
         self._min_ttc.fill(np.inf)
         self._violation_costs.fill(0.0)
         self._total_costs.fill(np.inf)
 
-    def plan(
+    def plan(  # noqa: PLR0915
         self,
         t: float,
         v_ref: np.ndarray,
@@ -224,12 +244,16 @@ class VO:
         p_os = np.asarray(ownship_state[0:2], dtype=float)
         psi_os = float(ownship_state[2])
         v_os = mf.Rmtrx2D(psi_os) @ np.asarray(ownship_state[3:5], dtype=float)
+        self._reference_velocity = np.asarray(v_ref, dtype=float).copy()
+        self._current_velocity = v_os.copy()
+        self._ownship_heading = psi_os
         poly_os_shape = affinity.rotate(self._poly_os, psi_os, origin=(0.0, 0.0), use_radians=True)
         candidate_velocities = self._candidate_velocities()
         uncertainty = self._uncertainty_samples()
 
         self._dynamic_hazard_count = 0
         self._track_metrics = {}
+        self._matched_rules_current.clear()
         seen_target_ids: set[int] = set()
         for target in sorted(do_list, key=lambda item: int(item[0])):
             id_do, state_do, _covariance, length_do, width_do = target
@@ -240,26 +264,72 @@ class VO:
             v_do = state_do[2:4]
             speed_do = float(np.linalg.norm(v_do))
             self._track_metrics[id_do] = self._cpa_metrics(p_os, v_os, p_do, v_do)
-            rule_cpa = self._cpa_metrics(p_os, np.asarray(v_ref, dtype=float), p_do, v_do)
+            rule_cpa = self._cpa_metrics(p_os, v_os, p_do, v_do)
             self._track_metrics[id_do]["rule_tcpa_s"] = rule_cpa["tcpa_s"]
             self._track_metrics[id_do]["rule_dcpa_m"] = rule_cpa["dcpa_m"]
             target_polygon, psi_do = self._target_polygon(
                 id_do, p_do, v_do, float(length_do), float(width_do)
             )
             expanded = compute_minkowski_sum(target_polygon, compute_reflection(poly_os_shape))
+            geometry_matched_rules = self._determine_colregs_rules(
+                p_os,
+                psi_os,
+                v_os,
+                p_do,
+                v_do,
+            )
+            self._matched_rules_current.update(geometry_matched_rules)
+            if (
+                id_do in self._completed_crossing_targets
+                and VOCOLREGSSituation.CR_SS not in geometry_matched_rules
+            ):
+                self._completed_crossing_targets.discard(id_do)
+            matched_rules = set(geometry_matched_rules)
+            if id_do in self._completed_crossing_targets:
+                matched_rules.discard(VOCOLREGSSituation.CR_SS)
+            previous_rules = self._active_rules.get(id_do, set()).copy()
+            cpa_gate_eligible = (
+                speed_do >= self._params.colregs_min_target_speed_mps
+                and self._precollision_check(
+                    p_os,
+                    v_os,
+                    p_do,
+                    v_do,
+                )
+            )
+            commitment_eligible = (
+                VOCOLREGSSituation.CR_SS in matched_rules
+                and VOCOLREGSSituation.CR_SS in self._active_rules.get(id_do, set())
+            )
+            eligible_rules = (
+                matched_rules
+                if cpa_gate_eligible
+                else (
+                    {VOCOLREGSSituation.CR_SS}
+                    if commitment_eligible
+                    else set()
+                )
+            )
             rules = self._update_colregs_rules(
                 id_do=id_do,
-                matched=self._determine_colregs_rules(p_os, psi_os, v_os, p_do, v_do),
-                eligible=(
-                    speed_do >= self._params.colregs_min_target_speed_mps
-                    and self._precollision_check(
-                        p_os,
-                        np.asarray(v_ref, dtype=float),
-                        p_do,
-                        v_do,
-                    )
-                ),
+                matched=eligible_rules,
+                eligible=True,
             )
+            if (
+                VOCOLREGSSituation.CR_SS in previous_rules
+                and VOCOLREGSSituation.CR_SS not in rules
+            ):
+                self._completed_crossing_targets.add(id_do)
+            self._track_metrics[id_do]["colregs_eligible"] = bool(eligible_rules)
+            self._track_metrics[id_do]["cpa_gate_eligible"] = cpa_gate_eligible
+            self._track_metrics[id_do]["commitment_eligible"] = commitment_eligible
+            self._track_metrics[id_do]["matched_rules"] = [
+                rule.name
+                for rule in sorted(geometry_matched_rules, key=lambda item: item.value)
+            ]
+            self._track_metrics[id_do]["active_rules"] = [
+                rule.name for rule in sorted(rules, key=lambda item: item.value)
+            ]
             if speed_do >= self._params.colregs_min_target_speed_mps:
                 self._target_heading_memory[id_do] = psi_do
             self._apply_dynamic_hazard(
@@ -285,6 +355,7 @@ class VO:
                 uncertainty=None,
             )
 
+        self._apply_crossing_commitment(candidate_velocities, psi_os)
         heading, speed = self._compute_optimal_controls(np.asarray(v_ref, dtype=float), psi_os)
         self._references.fill(0.0)
         self._references[2, 0] = heading
@@ -302,10 +373,45 @@ class VO:
         self._hard_constraint_mask = np.zeros(shape, dtype=bool)
         self._base_vo_mask = np.zeros(shape, dtype=bool)
         self._colregs_v1_mask_grid = np.zeros(shape, dtype=bool)
+        self._crossing_commitment_mask = np.zeros(shape, dtype=bool)
         self._wvo_mask = np.zeros(shape, dtype=bool)
         self._min_ttc = np.full(shape, np.inf)
         self._violation_costs = np.zeros(shape)
         self._total_costs = np.full(shape, np.inf)
+
+    def _apply_crossing_commitment(self, candidates: np.ndarray, psi_os: float) -> None:
+        was_active = self._crossing_commitment_active
+        self._crossing_commitment_active = any(
+            VOCOLREGSSituation.CR_SS in rules for rules in self._active_rules.values()
+        )
+        self._emergency_rule_relaxation = False
+        if not self._crossing_commitment_active:
+            self._crossing_commitment_frame_heading = None
+            return
+
+        if not was_active or self._crossing_commitment_frame_heading is None:
+            self._crossing_commitment_frame_heading = psi_os
+        commitment_frame = self._crossing_commitment_frame_heading
+        body_velocities = candidates @ mf.Rmtrx2D(commitment_frame)
+        commitment = body_velocities[..., 1] < -self._params.crossing_commitment_deadband_mps
+        if was_active:
+            candidate_progress = np.arctan2(
+                np.sin(self._heading_set - commitment_frame),
+                np.cos(self._heading_set - commitment_frame),
+            )
+            previous_progress = _wrap_angle(
+                self._selected_heading - commitment_frame
+            )
+            commitment |= candidate_progress[None, :] < previous_progress - 1e-12
+        admissible_before_commitment = ~self._hard_constraint_mask
+        self._crossing_commitment_mask = commitment
+        self._hard_constraint_mask |= commitment
+        if np.any(~self._hard_constraint_mask) or not np.any(admissible_before_commitment):
+            return
+
+        self._hard_constraint_mask = ~admissible_before_commitment
+        self._crossing_commitment_mask.fill(False)
+        self._emergency_rule_relaxation = True
 
     def _uncertainty_samples(self) -> np.ndarray:
         vertices = np.asarray(self._params.velocity_uncertainty_vertices_mps, dtype=float)
@@ -449,7 +555,27 @@ class VO:
         self._total_costs = self._params.w_velocity * velocity_cost + ttc_cost
         self._total_costs[self._hard_constraint_mask] = np.inf
 
-        flat_index = int(np.argmin(self._total_costs))
+        current_index = self._nearest_velocity_index(self._current_velocity)
+        active_rules = {
+            rule for rules in self._active_rules.values() for rule in rules
+        }
+        responsibility_rules = active_rules | self._matched_rules_current
+        give_way_rules = {
+            VOCOLREGSSituation.HO,
+            VOCOLREGSSituation.OT_ing,
+            VOCOLREGSSituation.CR_SS,
+        }
+        self._stand_on_hold_active = bool(
+            VOCOLREGSSituation.CR_PS in responsibility_rules
+            and not responsibility_rules.intersection(give_way_rules)
+            and not self._base_vo_mask[current_index]
+            and not self._hard_constraint_mask[current_index]
+        )
+        flat_index = (
+            int(np.ravel_multi_index(current_index, self._total_costs.shape))
+            if self._stand_on_hold_active
+            else int(np.argmin(self._total_costs))
+        )
         minimum = float(self._total_costs.flat[flat_index])
         self._feasible = bool(np.isfinite(minimum))
         if not self._feasible:
@@ -458,6 +584,17 @@ class VO:
             self._objective = None
             self._reference_velocity_error_mps = float(np.linalg.norm(v_ref))
             return self._selected_heading, self._selected_speed
+        if self._crossing_commitment_active:
+            tied = np.flatnonzero(np.isclose(self._total_costs, minimum, rtol=1e-9, atol=1e-9))
+            if tied.size > 1:
+                headings = self._heading_set[np.unravel_index(tied, self._total_costs.shape)[1]]
+                deltas = np.abs(
+                    np.arctan2(
+                        np.sin(headings - self._selected_heading),
+                        np.cos(headings - self._selected_heading),
+                    )
+                )
+                flat_index = int(tied[int(np.argmin(deltas))])
         i_speed, i_heading = np.unravel_index(flat_index, self._total_costs.shape)
         self._selected_heading = float(self._heading_set[i_heading])
         self._selected_speed = float(self._speed_set[i_speed])
@@ -467,6 +604,15 @@ class VO:
         )
         self._reference_velocity_error_mps = float(np.linalg.norm(selected_velocity - v_ref))
         return self._selected_heading, self._selected_speed
+
+    def _nearest_velocity_index(self, velocity: np.ndarray) -> tuple[int, int]:
+        speed = float(np.linalg.norm(velocity))
+        heading = float(np.arctan2(velocity[1], velocity[0]))
+        speed_index = int(np.argmin(abs(self._speed_set - speed)))
+        heading_index = int(
+            np.argmin(abs(_wrap_angle_array(self._heading_set - heading)))
+        )
+        return speed_index, heading_index
 
     def _precollision_check(
         self,
@@ -597,6 +743,7 @@ class VO:
             for key in [key for key in self._rule_memory if key[0] == target_id]:
                 del self._rule_memory[key]
             self._active_rules.pop(target_id, None)
+            self._completed_crossing_targets.discard(target_id)
 
     def _determine_colregs_situation(
         self,
@@ -706,6 +853,9 @@ class VO:
         finite_ttc = self._min_ttc[np.isfinite(self._min_ttc) & ~self._hard_constraint_mask]
         speed_index = int(np.argmin(abs(self._speed_set - self._selected_speed)))
         heading_index = int(np.argmin(abs(self._heading_set - self._selected_heading)))
+        current_speed_index, current_heading_index = self._nearest_velocity_index(
+            self._current_velocity
+        )
         selected_ttc = self._min_ttc[speed_index, heading_index]
         return {
             "reconstruction_label": self._params.reconstruction_label,
@@ -721,11 +871,16 @@ class VO:
             "track_metrics": self._track_metrics,
             "base_vo_count": int(np.count_nonzero(self._base_vo_mask)),
             "colregs_v1_count": int(np.count_nonzero(self._colregs_v1_mask_grid)),
+            "crossing_commitment_count": int(np.count_nonzero(self._crossing_commitment_mask)),
             "hard_constraint_count": int(np.count_nonzero(self._hard_constraint_mask)),
             "wvo_only_count": int(np.count_nonzero(self._wvo_mask & ~self._hard_constraint_mask)),
             "feasible_candidate_count": int(np.count_nonzero(~self._hard_constraint_mask)),
             "selected_in_base_vo": bool(self._base_vo_mask[speed_index, heading_index]),
             "selected_in_colregs_v1": bool(self._colregs_v1_mask_grid[speed_index, heading_index]),
+            "current_in_base_vo": bool(
+                self._base_vo_mask[current_speed_index, current_heading_index]
+            ),
+            "stand_on_hold_active": self._stand_on_hold_active,
             "selected_in_wvo_only": bool(
                 self._wvo_mask[speed_index, heading_index]
                 and not self._hard_constraint_mask[speed_index, heading_index]
@@ -734,6 +889,59 @@ class VO:
             "reference_velocity_error_mps": self._reference_velocity_error_mps,
             "minimum_feasible_ttc_s": float(np.min(finite_ttc)) if finite_ttc.size else None,
             "grid_shape": [len(self._speed_set), len(self._heading_set)],
+            "solve_period_s": 1.0 / self._params.planning_frequency,
+            "crossing_commitment_active": self._crossing_commitment_active,
+            "crossing_commitment_state": (
+                "CR_SS_COMMITTED" if self._crossing_commitment_active else "CLEAR"
+            ),
+            "emergency_rule_relaxation": self._emergency_rule_relaxation,
+        }
+
+    def get_decision_space_snapshot(self) -> dict[str, Any] | None:
+        if not self._initialized or not self._plan_executed:
+            return None
+
+        state_bits = (
+            self._base_vo_mask.astype(np.uint8)
+            | (self._wvo_mask.astype(np.uint8) << 1)
+            | (self._colregs_v1_mask_grid.astype(np.uint8) << 2)
+            | (self._crossing_commitment_mask.astype(np.uint8) << 3)
+        )
+        speed_index = int(np.argmin(abs(self._speed_set - self._selected_speed)))
+        heading_index = int(np.argmin(abs(self._heading_set - self._selected_heading)))
+        total_costs = [
+            float(value) if np.isfinite(value) else None for value in self._total_costs.ravel()
+        ]
+        minimum_ttc = [
+            float(value) if np.isfinite(value) else None for value in self._min_ttc.ravel()
+        ]
+        return {
+            "schema": "vo_velocity_space.v1",
+            "shape": [len(self._speed_set), len(self._heading_set)],
+            "coordinate_frame": "earth_fixed_ne",
+            "ownship_heading_rad": self._ownship_heading,
+            "speed_candidates_mps": self._speed_set.tolist(),
+            "heading_candidates_rad": self._heading_set.tolist(),
+            "reference_velocity_ne_mps": self._reference_velocity.tolist(),
+            "current_velocity_ne_mps": self._current_velocity.tolist(),
+            "selected": {
+                "speed_index": speed_index,
+                "heading_index": heading_index,
+                "speed_mps": self._selected_speed,
+                "heading_rad": self._selected_heading,
+                "total_cost": self._objective,
+                "ttc_s": minimum_ttc[speed_index * len(self._heading_set) + heading_index],
+            },
+            "candidate_state_bits": state_bits.ravel().tolist(),
+            "total_costs": total_costs,
+            "minimum_ttc_s": minimum_ttc,
+            "active_rules": self.get_debug_data()["active_rules"],
+            "track_metrics": self._track_metrics,
+            "crossing_commitment_active": self._crossing_commitment_active,
+            "crossing_commitment_state": (
+                "CR_SS_COMMITTED" if self._crossing_commitment_active else "CLEAR"
+            ),
+            "emergency_rule_relaxation": self._emergency_rule_relaxation,
         }
 
     def plot_current_velocity_grid(
@@ -866,6 +1074,10 @@ def compute_reflection(poly: geometry.Polygon) -> geometry.Polygon:
 
 def _wrap_angle(angle: float) -> float:
     return float((angle + np.pi) % (2.0 * np.pi) - np.pi)
+
+
+def _wrap_angle_array(angle: np.ndarray) -> np.ndarray:
+    return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
 
 def _polygon_parts(value: BaseGeometry) -> Iterable[geometry.Polygon]:

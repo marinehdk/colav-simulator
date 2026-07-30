@@ -147,6 +147,10 @@ class ICOLAV(ABC):
             executed_algorithm=self.__class__.__name__,
         )
 
+    def get_decision_space_snapshot(self) -> dict | None:
+        """Return an optional dense planner visualization snapshot."""
+        return None
+
     @abstractmethod
     def plan(
         self,
@@ -268,6 +272,7 @@ class VOWrapper(ICOLAV):
         )
         self._solve_id = 0
         self._planner_trace = PlannerTrace("vo", 0, 0.0, False)
+        self._decision_space_snapshot: dict | None = None
 
     def reset(self):
         """Resets the VO-COLAV to its initial state."""
@@ -277,6 +282,7 @@ class VOWrapper(ICOLAV):
         self._los.reset()
         self._solve_id = 0
         self._planner_trace = PlannerTrace("vo", 0, 0.0, False)
+        self._decision_space_snapshot = None
         self._diagnostics = PlanDiagnostics(
             requested_algorithm="vo",
             executed_algorithm="vo",
@@ -309,6 +315,14 @@ class VOWrapper(ICOLAV):
         if solver_executed:
             self._solve_id += 1
         debug = self._vo.get_debug_data()
+        if solver_executed:
+            snapshot = self._vo.get_decision_space_snapshot()
+            if snapshot is not None:
+                self._decision_space_snapshot = {
+                    **snapshot,
+                    "solve_id": self._solve_id,
+                    "sim_time_s": float(t),
+                }
         feasible = self._vo.feasible
         status = PlanStatus.SUCCESS if feasible else PlanStatus.INFEASIBLE
         reason = None if feasible else "fallback=stop_nonpaper_wrapper"
@@ -332,15 +346,22 @@ class VOWrapper(ICOLAV):
                 "track_metrics": debug["track_metrics"],
                 "base_vo_count": debug["base_vo_count"],
                 "colregs_v1_count": debug["colregs_v1_count"],
+                "crossing_commitment_count": debug["crossing_commitment_count"],
                 "hard_constraint_count": debug["hard_constraint_count"],
                 "wvo_only_count": debug["wvo_only_count"],
                 "feasible_candidate_count": debug["feasible_candidate_count"],
                 "selected_in_base_vo": debug["selected_in_base_vo"],
                 "selected_in_colregs_v1": debug["selected_in_colregs_v1"],
+                "current_in_base_vo": debug["current_in_base_vo"],
+                "stand_on_hold_active": debug["stand_on_hold_active"],
                 "selected_in_wvo_only": debug["selected_in_wvo_only"],
                 "selected_ttc_s": debug["selected_ttc_s"],
                 "reference_velocity_error_mps": debug["reference_velocity_error_mps"],
                 "minimum_feasible_ttc_s": debug["minimum_feasible_ttc_s"],
+                "crossing_commitment_active": debug["crossing_commitment_active"],
+                "crossing_commitment_state": debug["crossing_commitment_state"],
+                "emergency_rule_relaxation": debug["emergency_rule_relaxation"],
+                "solve_period_s": debug["solve_period_s"],
                 "fallback": debug["fallback"],
                 "fallback_reason": debug["fallback_reason"],
                 "solver_executed": solver_executed,
@@ -368,6 +389,9 @@ class VOWrapper(ICOLAV):
 
     def get_diagnostics(self) -> PlanDiagnostics:
         return self._diagnostics
+
+    def get_decision_space_snapshot(self) -> dict | None:
+        return self._decision_space_snapshot
 
     def get_current_plan(self) -> np.ndarray:
         return self._vo.get_current_plan()

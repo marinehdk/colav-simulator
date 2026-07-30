@@ -233,7 +233,11 @@ def _rows(result: RunResult) -> list[dict[str, Any]]:
                 "colregs_v1_count": vo.get("colregs_v1_count", 0),
                 "wvo_only_count": vo.get("wvo_only_count", 0),
                 "feasible_candidate_count": vo.get("feasible_candidate_count", 0),
+                "crossing_commitment_active": vo.get("crossing_commitment_active", False),
+                "emergency_rule_relaxation": vo.get("emergency_rule_relaxation", False),
                 "selected_in_base_vo": vo.get("selected_in_base_vo", False),
+                "current_in_base_vo": vo.get("current_in_base_vo", False),
+                "stand_on_hold_active": vo.get("stand_on_hold_active", False),
                 "selected_in_colregs_v1": vo.get("selected_in_colregs_v1", False),
                 "selected_ttc_s": vo.get("selected_ttc_s"),
                 "minimum_feasible_ttc_s": vo.get("minimum_feasible_ttc_s"),
@@ -270,6 +274,36 @@ def _turn_reversals(rows: list[dict[str, Any]], threshold_rad: float) -> int:
     ]
     signs = [int(np.sign(change)) for change in changes if abs(change) >= threshold_rad]
     return sum(current != following for current, following in zip(signs, signs[1:], strict=False))
+
+
+def _target_stern_plane_clearance(result: RunResult) -> float | None:
+    target_key = next(
+        (key for key in sorted(result.session.ship_info) if key != "Ship0"),
+        None,
+    )
+    if target_key is None:
+        return None
+    closest_distance = np.inf
+    closest_stern_clearance = None
+    target_length = float(result.session.ship_info[target_key]["length"])
+    for frame in result.session.frames:
+        ownship = frame.get("Ship0")
+        target = frame.get(target_key)
+        if not ownship or not target:
+            continue
+        ownship_state = np.asarray(ownship["state"], dtype=float)
+        target_state = np.asarray(target["state"], dtype=float)
+        relative = ownship_state[:2] - target_state[:2]
+        distance = float(np.linalg.norm(relative))
+        if distance >= closest_distance:
+            continue
+        target_forward = np.array(
+            [np.cos(target_state[2]), np.sin(target_state[2])]
+        )
+        along_target = float(relative @ target_forward)
+        closest_distance = distance
+        closest_stern_clearance = -0.5 * target_length - along_target
+    return closest_stern_clearance
 
 
 def summarize(result: RunResult, acceptance: Acceptance) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -344,6 +378,9 @@ def summarize(result: RunResult, acceptance: Acceptance) -> tuple[dict[str, Any]
                 "elapsed_ms_max": float(np.max(elapsed)) if elapsed.size else None,
                 "selected_hard_constraint_safe": selected_safe,
                 "fallback_count": sum(bool(row["fallback"]) for row in rows),
+                "emergency_rule_relaxation_count": sum(
+                    bool(row["emergency_rule_relaxation"]) for row in rows
+                ),
                 "maximum_consecutive_feasible_stop_solves": _maximum_run(stop_flags),
                 "active_turn_reversals": active_turn_reversals,
             },
@@ -360,6 +397,9 @@ def summarize(result: RunResult, acceptance: Acceptance) -> tuple[dict[str, Any]
                         row["time_s"] > last_active["time_s"] and row["active_rules"] == "{}"
                         for row in solved
                     )
+                ),
+                "closest_approach_target_stern_plane_clearance_m": (
+                    _target_stern_plane_clearance(result)
                 ),
             },
             "controller": {
@@ -549,6 +589,8 @@ def _project_fixture_session(kind: str, algorithm_id: str) -> SimulationSession:
     trackers = [(0, GodTracker())]
     if kind == "head_on_both_vo" and algorithm_id == "vo":
         dual_config = {
+            "t_max": 60.0,
+            "d_min": 20.0,
             "w_ttc": 1000.0,
             "wvo_ttc_scale": 1.0,
             "velocity_uncertainty_vertices_mps": [

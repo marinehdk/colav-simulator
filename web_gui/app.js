@@ -143,6 +143,12 @@ let sessionRecoveryPending = false;
 let sessionCreationPromise = null;
 let pendingSessionKey = null;
 let sessionCreateRevision = 0;
+let voDecisionSpace = null;
+let voDecisionSpaceKey = null;
+let voDecisionSpaceRequestKey = null;
+let voDecisionSpaceController = null;
+let lastVORenderKey = null;
+let voRenderGeometry = null;
 const missionRoutes = new Map();
 let targetHitRegions = [];
 let selectedTargetId = null;
@@ -1291,9 +1297,12 @@ function updatePlannerPanel(data) {
   setText('val-solver-state', solverSuccessful ? '成功' : '失败');
 
   const horizonLength = data.plans?.prediction_horizon?.length || 0;
-  const horizonTime = horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
-    ? `${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
-    : `${horizonLength} points`;
+  const gridShape = Array.isArray(details.grid_shape) ? details.grid_shape : [];
+  const horizonTime = diagnosticPlanner.algorithm_id === 'vo' && gridShape.length === 2
+    ? `决策网格 ${gridShape[0]}×${gridShape[1]}`
+    : horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
+      ? `${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
+      : `${horizonLength} points`;
   setText('val-planner-horizon', horizonTime);
 
   const course = execution.applied_course_ref_rad ?? planner.selected_command?.course_rad;
@@ -1318,6 +1327,7 @@ function updatePlannerPanel(data) {
     : null;
   setText('val-prediction-error', Number.isFinite(executionError) ? `${executionError.toFixed(2)} m` : '-- m');
   drawPlannerSurface(diagnosticPlanner);
+  ensureVODecisionSpace(diagnosticPlanner);
   const configuredSolvePeriod = Number(details.solve_period_s);
   setText(
     'val-solve-period',
@@ -1325,6 +1335,8 @@ function updatePlannerPanel(data) {
       ? `${configuredSolvePeriod.toFixed(1)} s`
       : diagnosticPlanner.algorithm_id === 'sbmpc'
         ? `${SBMPC_SOLVE_PERIOD_SECONDS.toFixed(1)} s`
+        : diagnosticPlanner.algorithm_id === 'vo'
+          ? '1.0 s'
         : '按算法触发',
   );
 
@@ -1349,12 +1361,10 @@ function drawPlannerSurface(planner) {
   const details = planner.algorithm_details || {};
   const isVO = algorithmId === 'vo';
   const isSimplifiedMPC = algorithmId === 'potocnik_simplified_mpc';
-  const matrix = isVO ? details.violation_costs : details.candidate_costs;
-  const selectionMatrix = isVO && Array.isArray(details.total_costs)
-    ? details.total_costs
-    : matrix;
+  const matrix = details.candidate_costs;
+  const selectionMatrix = matrix;
   const label = algorithmId === 'vo'
-    ? 'VO / COLREGS 候选速度可行性'
+    ? 'VO / COLREGS 决策速度空间'
     : algorithmId === 'sbmpc'
       ? 'SB-MPC 候选控制代价'
       : isSimplifiedMPC
@@ -1366,11 +1376,30 @@ function drawPlannerSurface(planner) {
   setText('label-best-cost', isVO ? '最小总 Cost' : '最优 Cost');
   setText('label-best-course-offset', '航向偏移');
   setText('label-best-speed-scale', isVO ? '候选航速' : '速度系数');
-  setText('val-best-cost', '--');
-  setText('val-best-course-offset', '--°');
-  setText('val-best-speed-scale', isVO ? '-- m/s' : '--');
+  const selectedHeading = Number(details.selected_heading_rad);
+  const ownshipHeading = Number(voDecisionSpace?.ownship_heading_rad ?? currentData?.os?.psi);
+  const selectedOffset = Number.isFinite(selectedHeading) && Number.isFinite(ownshipHeading)
+    ? Math.atan2(Math.sin(selectedHeading - ownshipHeading), Math.cos(selectedHeading - ownshipHeading))
+    : NaN;
+  setText('val-best-cost', isVO ? formatCost(Number(details.objective ?? planner.objective)) : '--');
+  setText(
+    'val-best-course-offset',
+    isVO && Number.isFinite(selectedOffset) ? `${(selectedOffset * 180 / Math.PI).toFixed(1)}°` : '--°',
+  );
+  setText(
+    'val-best-speed-scale',
+    isVO && Number.isFinite(details.selected_speed_mps)
+      ? `${Number(details.selected_speed_mps).toFixed(2)} m/s`
+      : isVO ? '-- m/s' : '--',
+  );
   const objectiveHistoryWrap = document.getElementById('objectiveHistoryWrap');
   if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc';
+  const voLegend = document.getElementById('voSurfaceLegend');
+  if (voLegend) voLegend.hidden = !isVO;
+  if (isVO) {
+    drawVODecisionSpace(surface, canvas, planner, details);
+    return;
+  }
   surface.clearRect(0, 0, canvas.width, canvas.height);
   surface.fillStyle = '#0d1211';
   surface.fillRect(0, 0, canvas.width, canvas.height);
@@ -1487,6 +1516,308 @@ function drawPlannerSurface(planner) {
     setText('val-best-speed-scale', speedText);
   }
 }
+
+function ensureVODecisionSpace(planner) {
+  if (planner.algorithm_id !== 'vo' || !activeSessionId) return;
+  const card = document.getElementById('cardPlanner');
+  const solveId = Number(planner.solve_id);
+  if (card?.classList.contains('collapsed') || !Number.isInteger(solveId) || solveId < 1) return;
+  const requestKey = `${activeSessionId}:${solveId}`;
+  if (voDecisionSpaceKey === requestKey || voDecisionSpaceRequestKey === requestKey) return;
+
+  if (voDecisionSpaceController) voDecisionSpaceController.abort();
+  const controller = new AbortController();
+  voDecisionSpaceController = controller;
+  voDecisionSpaceRequestKey = requestKey;
+  fetch(
+    `/api/sessions/${encodeURIComponent(activeSessionId)}/planner/decision-space?solve_id=${solveId}`,
+    { signal: controller.signal },
+  ).then(async response => {
+    if (response.status === 204 || response.status === 409) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }).then(snapshot => {
+    if (!snapshot || controller.signal.aborted || requestKey !== voDecisionSpaceRequestKey) return;
+    voDecisionSpace = snapshot;
+    voDecisionSpaceKey = requestKey;
+    lastVORenderKey = null;
+    drawPlannerSurface(planner);
+  }).catch(error => {
+    if (error.name !== 'AbortError') {
+      setText('val-surface-explanation', '决策空间暂不可用');
+    }
+  }).finally(() => {
+    if (voDecisionSpaceController === controller) voDecisionSpaceController = null;
+    if (voDecisionSpaceRequestKey === requestKey) voDecisionSpaceRequestKey = null;
+  });
+}
+
+function drawVODecisionSpace(surface, canvas, planner, details) {
+  const solveId = Number(planner.solve_id);
+  const expectedKey = `${activeSessionId}:${solveId}`;
+  const snapshot = voDecisionSpaceKey === expectedKey ? voDecisionSpace : null;
+  const renderKey = snapshot
+    ? `${voDecisionSpaceKey}:${canvas.clientWidth}:${canvas.clientHeight}`
+    : `waiting:${expectedKey}`;
+  if (lastVORenderKey === renderKey) return;
+  lastVORenderKey = renderKey;
+
+  surface.clearRect(0, 0, canvas.width, canvas.height);
+  surface.fillStyle = '#0d1211';
+  surface.fillRect(0, 0, canvas.width, canvas.height);
+  if (!snapshot) {
+    surface.fillStyle = '#65736f';
+    surface.font = '11px SFMono-Regular, monospace';
+    surface.fillText(solveId > 0 ? '加载 VO 决策速度空间…' : '等待 VO 求解', 12, 78);
+    setText('val-surface-explanation', '展开后按真实求解编号加载，不进入遥测帧');
+    setText('val-surface-meta', '');
+    voRenderGeometry = null;
+    return;
+  }
+
+  const speeds = snapshot.speed_candidates_mps || [];
+  const headings = snapshot.heading_candidates_rad || [];
+  const bits = snapshot.candidate_state_bits || [];
+  const costs = snapshot.total_costs || [];
+  const ttc = snapshot.minimum_ttc_s || [];
+  const [rows, columns] = snapshot.shape || [];
+  if (rows !== speeds.length || columns !== headings.length || bits.length !== rows * columns) {
+    surface.fillStyle = '#e35d68';
+    surface.font = '11px SFMono-Regular, monospace';
+    surface.fillText('VO 决策空间数据无效', 12, 78);
+    voRenderGeometry = null;
+    return;
+  }
+
+  const width = canvas.width;
+  const height = canvas.height;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = Math.min(width, height) / 2 - 27;
+  const maxSpeed = Math.max(...speeds, 1);
+  const headingStep = 2 * Math.PI / columns;
+  const ownshipHeading = Number(snapshot.ownship_heading_rad) || 0;
+  const finiteCosts = costs.filter(Number.isFinite);
+  const minimumCost = finiteCosts.length ? Math.min(...finiteCosts) : 0;
+  const maximumCost = finiteCosts.length ? Math.max(...finiteCosts) : 1;
+
+  for (let speedIndex = 0; speedIndex < rows; speedIndex += 1) {
+    const innerSpeed = speedIndex === 0 ? 0 : (speeds[speedIndex - 1] + speeds[speedIndex]) / 2;
+    const outerSpeed = speedIndex === rows - 1
+      ? maxSpeed
+      : (speeds[speedIndex] + speeds[speedIndex + 1]) / 2;
+    const innerRadius = innerSpeed / maxSpeed * radius;
+    const outerRadius = outerSpeed / maxSpeed * radius;
+    for (let headingIndex = 0; headingIndex < columns; headingIndex += 1) {
+      const index = speedIndex * columns + headingIndex;
+      const relativeHeading = wrapRadians(headings[headingIndex] - ownshipHeading);
+      const start = relativeHeading - headingStep / 2 - Math.PI / 2;
+      const end = relativeHeading + headingStep / 2 - Math.PI / 2;
+      const cost = costs[index] == null ? NaN : Number(costs[index]);
+      const normalizedCost = Number.isFinite(cost) && maximumCost > minimumCost
+        ? (cost - minimumCost) / (maximumCost - minimumCost)
+        : 0;
+      surface.fillStyle = voCandidateColor(bits[index], normalizedCost);
+      surface.beginPath();
+      surface.arc(centerX, centerY, outerRadius, start, end);
+      if (innerRadius > 0) {
+        surface.arc(centerX, centerY, innerRadius, end, start, true);
+      } else {
+        surface.lineTo(centerX, centerY);
+      }
+      surface.closePath();
+      surface.fill();
+    }
+  }
+
+  surface.strokeStyle = 'rgba(221,235,230,0.26)';
+  surface.fillStyle = '#8b9b95';
+  surface.lineWidth = 0.7;
+  surface.font = '8px SFMono-Regular, monospace';
+  surface.textAlign = 'center';
+  for (let speed = 2; speed <= maxSpeed; speed += 2) {
+    const ringRadius = speed / maxSpeed * radius;
+    surface.beginPath();
+    surface.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+    surface.stroke();
+    surface.fillText(`${speed}`, centerX + 3, centerY - ringRadius + 9);
+  }
+  for (let degrees = -180; degrees < 180; degrees += 30) {
+    const angle = degrees * Math.PI / 180;
+    const endX = centerX + radius * Math.sin(angle);
+    const endY = centerY - radius * Math.cos(angle);
+    surface.beginPath();
+    surface.moveTo(centerX, centerY);
+    surface.lineTo(endX, endY);
+    surface.stroke();
+    surface.fillText(
+      `${degrees}°`,
+      centerX + (radius + 13) * Math.sin(angle),
+      centerY - (radius + 13) * Math.cos(angle) + 3,
+    );
+  }
+
+  drawVelocityArrow(surface, centerX, centerY, radius, maxSpeed, snapshot.current_velocity_ne_mps, ownshipHeading, '#9aa7a2');
+  drawVelocityArrow(surface, centerX, centerY, radius, maxSpeed, snapshot.reference_velocity_ne_mps, ownshipHeading, '#f3f6f5');
+  const selected = snapshot.selected || {};
+  drawVelocityArrow(
+    surface,
+    centerX,
+    centerY,
+    radius,
+    maxSpeed,
+    [
+      Number(selected.speed_mps) * Math.cos(Number(selected.heading_rad)),
+      Number(selected.speed_mps) * Math.sin(Number(selected.heading_rad)),
+    ],
+    ownshipHeading,
+    '#58a6ff',
+    2.5,
+  );
+  surface.fillStyle = '#dce8e4';
+  surface.beginPath();
+  surface.arc(centerX, centerY, 2.5, 0, Math.PI * 2);
+  surface.fill();
+
+  const activeRuleCount = Object.values(snapshot.active_rules || {}).flat().length;
+  setText(
+    'val-surface-explanation',
+    activeRuleCount
+      ? `活动规则 ${Object.values(snapshot.active_rules).flat().join(', ')}`
+      : '当前无活动 COLREG 规则；显示本次真实求解决策空间',
+  );
+  setText(
+    'val-surface-meta',
+    `半径 0–${maxSpeed.toFixed(0)} m/s · 角度相对本船艏向 · 求解 #${snapshot.solve_id}`,
+  );
+  const selectedCost = selected.total_cost == null ? NaN : Number(selected.total_cost);
+  setText('val-best-cost', formatCost(selectedCost));
+  setText(
+    'val-best-course-offset',
+    `${(wrapRadians(Number(selected.heading_rad) - ownshipHeading) * 180 / Math.PI).toFixed(1)}°`,
+  );
+  setText('val-best-speed-scale', `${Number(selected.speed_mps).toFixed(2)} m/s`);
+  voRenderGeometry = {
+    snapshot,
+    centerX,
+    centerY,
+    radius,
+    maxSpeed,
+    rows,
+    columns,
+    bits,
+    costs,
+    ttc,
+  };
+}
+
+function voCandidateColor(stateBits, normalizedCost) {
+  const alpha = Math.max(0.58, Math.min(0.94, 0.58 + normalizedCost * 0.36));
+  if (stateBits & 1) return `rgba(227,78,89,${alpha})`;
+  if (stateBits & 4 || stateBits & 8) return `rgba(217,107,255,${alpha})`;
+  if (stateBits & 2) return `rgba(240,201,77,${alpha})`;
+  return `rgba(47,191,113,${alpha})`;
+}
+
+function voCandidateLabel(stateBits) {
+  if (stateBits & 1) return '有限 TTC / 基础 VO';
+  if (stateBits & 8) return 'CS 右转承诺禁区';
+  if (stateBits & 4) return 'COLREG V1 禁区';
+  if (stateBits & 2) return 'WVO 安全缓冲';
+  return '安全';
+}
+
+function drawVelocityArrow(surface, centerX, centerY, radius, maxSpeed, velocity, ownshipHeading, color, width = 1.7) {
+  const north = Number(velocity?.[0]);
+  const east = Number(velocity?.[1]);
+  if (!Number.isFinite(north) || !Number.isFinite(east)) return;
+  const speed = Math.hypot(north, east);
+  const relativeHeading = wrapRadians(Math.atan2(east, north) - ownshipHeading);
+  const length = Math.min(speed, maxSpeed) / maxSpeed * radius;
+  const endX = centerX + length * Math.sin(relativeHeading);
+  const endY = centerY - length * Math.cos(relativeHeading);
+  surface.strokeStyle = color;
+  surface.fillStyle = color;
+  surface.lineWidth = width;
+  surface.beginPath();
+  surface.moveTo(centerX, centerY);
+  surface.lineTo(endX, endY);
+  surface.stroke();
+  const head = 5;
+  surface.beginPath();
+  surface.moveTo(endX, endY);
+  surface.lineTo(endX - head * Math.sin(relativeHeading - 0.55), endY + head * Math.cos(relativeHeading - 0.55));
+  surface.lineTo(endX - head * Math.sin(relativeHeading + 0.55), endY + head * Math.cos(relativeHeading + 0.55));
+  surface.closePath();
+  surface.fill();
+}
+
+function wrapRadians(value) {
+  return Math.atan2(Math.sin(value), Math.cos(value));
+}
+
+function describeVOCandidate(event) {
+  if (!voRenderGeometry) return;
+  const canvas = document.getElementById('plannerSurface');
+  const bounds = canvas.getBoundingClientRect();
+  const x = (event.clientX - bounds.left) * canvas.width / bounds.width;
+  const y = (event.clientY - bounds.top) * canvas.height / bounds.height;
+  const dx = x - voRenderGeometry.centerX;
+  const dy = y - voRenderGeometry.centerY;
+  const distance = Math.hypot(dx, dy);
+  if (distance > voRenderGeometry.radius) return;
+
+  const snapshot = voRenderGeometry.snapshot;
+  const speeds = snapshot.speed_candidates_mps;
+  const headings = snapshot.heading_candidates_rad;
+  const speed = distance / voRenderGeometry.radius * voRenderGeometry.maxSpeed;
+  const relativeHeading = Math.atan2(dx, -dy);
+  const absoluteHeading = wrapRadians(relativeHeading + snapshot.ownship_heading_rad);
+  const speedIndex = speeds.reduce(
+    (best, value, index) => Math.abs(value - speed) < Math.abs(speeds[best] - speed) ? index : best,
+    0,
+  );
+  const headingIndex = headings.reduce(
+    (best, value, index) => (
+      Math.abs(wrapRadians(value - absoluteHeading))
+        < Math.abs(wrapRadians(headings[best] - absoluteHeading))
+        ? index : best
+    ),
+    0,
+  );
+  const index = speedIndex * voRenderGeometry.columns + headingIndex;
+  const costValue = voRenderGeometry.costs[index];
+  const ttcValue = voRenderGeometry.ttc[index];
+  const candidateCost = costValue == null ? NaN : Number(costValue);
+  const candidateTTC = ttcValue == null ? NaN : Number(ttcValue);
+  setText(
+    'val-surface-explanation',
+    `${voCandidateLabel(voRenderGeometry.bits[index])} · 候选 #${index} · 相对航向 `
+      + `${(wrapRadians(headings[headingIndex] - snapshot.ownship_heading_rad) * 180 / Math.PI).toFixed(1)}°`
+      + ` · 绝对航向 ${((headings[headingIndex] * 180 / Math.PI + 360) % 360).toFixed(1)}°`
+      + ` · ${speeds[speedIndex].toFixed(2)} m/s`
+      + ` · TTC ${Number.isFinite(candidateTTC) ? `${candidateTTC.toFixed(1)} s` : '∞'}`
+      + ` · Cost ${formatCost(candidateCost)}`,
+  );
+}
+
+document.getElementById('plannerSurface').addEventListener('pointermove', describeVOCandidate);
+document.getElementById('plannerSurface').addEventListener('pointerdown', describeVOCandidate);
+document.getElementById('plannerSurface').addEventListener('pointerleave', () => {
+  if (!voRenderGeometry) return;
+  const activeRules = Object.values(voRenderGeometry.snapshot.active_rules || {}).flat();
+  setText(
+    'val-surface-explanation',
+    activeRules.length
+      ? `活动规则 ${activeRules.join(', ')}`
+      : '当前无活动 COLREG 规则；显示本次真实求解决策空间',
+  );
+});
+
+new ResizeObserver(() => {
+  lastVORenderKey = null;
+  if (currentData) updatePlannerPanel(currentData);
+}).observe(document.querySelector('.planner-surface-wrap'));
 
 function axisTickIndices(valueCount, pixelSpan, minimumSpacing) {
   if (valueCount <= 0) return [];
@@ -2018,6 +2349,13 @@ async function createSession({ force = false } = {}) {
 }
 
 function activateSession(data, requestKey = null) {
+  if (voDecisionSpaceController) voDecisionSpaceController.abort();
+  voDecisionSpace = null;
+  voDecisionSpaceKey = null;
+  voDecisionSpaceRequestKey = null;
+  voDecisionSpaceController = null;
+  lastVORenderKey = null;
+  voRenderGeometry = null;
   activeSessionId = data.session_id;
   activeSessionKey = requestKey || sessionKey(data.spec || selectedSessionRequest());
   resultLoaded = false;
@@ -2496,6 +2834,9 @@ function setCardCollapsed(card, collapsed) {
   if (!button) return;
   button.textContent = collapsed ? '展开' : '收起';
   button.setAttribute('aria-expanded', String(!collapsed));
+  if (!collapsed && card.id === 'cardPlanner' && currentData) {
+    updatePlannerPanel(currentData);
+  }
 }
 
 function initializeCollapsibleCard(card, collapsed) {

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from conftest import P1RunHarness
 
 from examples.validate_kuwata_vo import (
@@ -32,8 +34,8 @@ def test_head_on_vo_executes_safe_starboard_closed_loop(
     active_rows = [row for row in rows if "HO" in row["active_rules"]]
     assert active_rows
     assert active_rows[0]["rule_tcpa_s"] is not None
-    assert 0.0 <= active_rows[0]["rule_tcpa_s"] <= 60.0
-    assert active_rows[0]["rule_dcpa_m"] <= 20.0
+    assert 0.0 <= active_rows[0]["rule_tcpa_s"] <= 120.0
+    assert active_rows[0]["rule_dcpa_m"] <= 100.0
     assert all(not row["selected_in_base_vo"] for row in active_rows)
     assert all(not row["selected_in_colregs_v1"] for row in active_rows)
     assert any(
@@ -61,7 +63,44 @@ def test_starboard_crossing_activates_rule_before_safe_closed_loop_maneuver(
     assert active_rows
     assert all(not row["selected_in_base_vo"] for row in active_rows)
     assert all(not row["selected_in_colregs_v1"] for row in active_rows)
+    assert all(row["crossing_commitment_active"] for row in active_rows)
+    assert not any(row["emergency_rule_relaxation"] for row in rows)
+    assert vo_summary["solver"]["active_turn_reversals"] == 0
+    assert (
+        vo_summary["encounter"]["closest_approach_target_stern_plane_clearance_m"]
+        > 0.0
+    )
     assert vo_summary["accepted"]
+
+
+def test_port_crossing_stands_on_until_current_velocity_enters_base_vo(
+    p1_run_harness: P1RunHarness,
+) -> None:
+    candidate = p1_run_harness.run("crossing_stand_on", "vo", "god")
+    summary, rows = summarize(candidate, Acceptance())
+    first_heading = rows[0]["actual_heading_rad"]
+    first_speed = rows[0]["actual_speed_mps"]
+    before_fallback = []
+    for row in rows:
+        if row["current_in_base_vo"]:
+            break
+        before_fallback.append(row)
+
+    assert before_fallback
+    assert max(
+        abs(
+            math.atan2(
+                math.sin(row["actual_heading_rad"] - first_heading),
+                math.cos(row["actual_heading_rad"] - first_heading),
+            )
+        )
+        for row in before_fallback
+    ) <= math.radians(3.0)
+    assert max(
+        abs(row["actual_speed_mps"] - first_speed) for row in before_fallback
+    ) <= 0.2
+    assert summary["truth"]["ship0_vs_target"]["continuous_collision"] is False
+    assert summary["solver"]["fallback_count"] == 0
 
 
 def test_both_head_on_vessels_execute_starboard_vo_maneuvers() -> None:
@@ -73,6 +112,6 @@ def test_both_head_on_vessels_execute_starboard_vo_maneuvers() -> None:
     )
     dual = _dual_head_on_metrics(session)
 
-    assert summary["accepted"]
+    assert summary["accepted"], summary
     assert not summary["truth"]["global_all_vessel"]["continuous_collision"]
     assert dual["accepted"]

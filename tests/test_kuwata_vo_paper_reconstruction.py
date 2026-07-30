@@ -44,6 +44,8 @@ def test_default_grid_matches_published_32_by_128_structure() -> None:
     assert planner._heading_set.shape == (128,)
     assert planner._heading_set[0] == pytest.approx(-np.pi)
     assert planner._heading_set[-1] < np.pi
+    assert planner._params.t_max == pytest.approx(120.0)
+    assert planner._params.d_min == pytest.approx(100.0)
 
 
 def test_minkowski_sum_expands_rectangular_footprints() -> None:
@@ -113,6 +115,102 @@ def test_cpa_gate_has_no_additional_range_cutoff_for_rule_activation() -> None:
     planner.plan(0.0, np.array([7.0, 0.0]), _own_state(speed=7.0), [target])
 
     assert planner.get_debug_data()["active_rules"] == {"1": ["CR_SS"]}
+
+
+def test_rule_cpa_gate_uses_current_velocity_instead_of_los_reference() -> None:
+    planner = VO(VOParams(t_max=120.0, d_min=20.0))
+    target = _track(1, (100.0, 0.0), (-1.0, 0.0))
+
+    planner.plan(0.0, np.array([0.0, 1.0]), _own_state(speed=1.0), [target])
+
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["rule_dcpa_m"] == pytest.approx(0.0)
+    assert debug["active_rules"] == {"1": ["HO"]}
+
+
+def test_same_geometry_changes_cpa_gate_when_target_speed_changes() -> None:
+    planner = VO(VOParams(t_max=120.0, d_min=50.0))
+    own_position = np.zeros(2)
+    own_velocity = np.array([5.0, 0.0])
+    target_position = np.array([100.0, 100.0])
+
+    assert not planner._precollision_check(
+        own_position,
+        own_velocity,
+        target_position,
+        np.array([0.0, -1.0]),
+    )
+    assert planner._precollision_check(
+        own_position,
+        own_velocity,
+        target_position,
+        np.array([0.0, -10.0]),
+    )
+
+
+def test_crossing_commitment_blocks_port_candidates_until_rule_releases() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    target = _track(1, (100.0, 100.0), (0.0, -5.0))
+
+    planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [target])
+
+    assert planner.get_debug_data()["crossing_commitment_active"]
+    assert planner.get_debug_data()["crossing_commitment_state"] == "CR_SS_COMMITTED"
+    assert not planner.get_debug_data()["emergency_rule_relaxation"]
+    candidates = planner._candidate_velocities()
+    port_candidates = candidates[..., 1] < -planner._params.crossing_commitment_deadband_mps
+    assert np.all(planner._hard_constraint_mask[port_candidates])
+
+    previous_plan = planner.get_current_plan().copy()
+    planner.plan(1.0, np.array([5.0, 0.0]), _own_state(heading=0.2), [target])
+    selected_velocity = planner.get_current_plan()[3, 0] * np.array(
+        [
+            np.cos(planner.get_current_plan()[2, 0]),
+            np.sin(planner.get_current_plan()[2, 0]),
+        ]
+    )
+    previous_velocity = previous_plan[3, 0] * np.array(
+        [np.cos(previous_plan[2, 0]), np.sin(previous_plan[2, 0])]
+    )
+    previous_starboard = np.array(
+        [-np.sin(previous_plan[2, 0]), np.cos(previous_plan[2, 0])]
+    )
+    assert (selected_velocity - previous_velocity) @ previous_starboard >= -0.25
+
+    clear_target = _track(1, (-100.0, 100.0), (0.0, -5.0))
+    for sim_time in (2.0, 3.0, 4.0):
+        planner.plan(sim_time, np.array([5.0, 0.0]), _own_state(), [clear_target])
+    assert not planner.get_debug_data()["crossing_commitment_active"]
+    assert planner.get_debug_data()["crossing_commitment_state"] == "CLEAR"
+
+    planner.plan(5.0, np.array([5.0, 0.0]), _own_state(), [target])
+    assert "CR_SS" not in planner.get_debug_data()["active_rules"].get("1", [])
+
+
+def test_decision_space_snapshot_is_dense_finite_json_contract() -> None:
+    planner = VO(VOParams(speed_samples=4, heading_samples=8))
+    target = _track(1, (100.0, 0.0), (-5.0, 0.0))
+
+    plan = planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [target])
+    snapshot = planner.get_decision_space_snapshot()
+
+    assert snapshot is not None
+    assert snapshot["schema"] == "vo_velocity_space.v1"
+    assert snapshot["shape"] == [4, 8]
+    assert len(snapshot["candidate_state_bits"]) == 32
+    assert len(snapshot["total_costs"]) == 32
+    assert len(snapshot["minimum_ttc_s"]) == 32
+    assert all(value is None or np.isfinite(value) for value in snapshot["total_costs"])
+    assert all(value is None or np.isfinite(value) for value in snapshot["minimum_ttc_s"])
+    selected = snapshot["selected"]
+    assert selected["heading_rad"] == pytest.approx(plan[2, 0])
+    assert selected["speed_mps"] == pytest.approx(plan[3, 0])
 
 
 def test_all_tracks_build_base_vo_even_when_cpa_gate_rejects_colregs() -> None:

@@ -1372,11 +1372,43 @@ canvas#simCanvas {
 #plannerSurface {
   display: block;
   width: 100%;
-  height: 220px;
+  aspect-ratio: 1;
+  height: auto;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
   background: rgba(0,0,0,0.16);
 }
+
+.vo-surface-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 8px;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 0.58rem;
+}
+
+.vo-surface-legend[hidden] {
+  display: none;
+}
+
+.vo-surface-legend span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.vo-surface-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.vo-safe { background: #2fbf71; }
+.vo-collision { background: #e34e59; }
+.vo-buffer { background: #f0c94d; }
+.vo-colregs { background: #d96bff; }
 
 .objective-history-wrap {
   margin-top: 9px;
