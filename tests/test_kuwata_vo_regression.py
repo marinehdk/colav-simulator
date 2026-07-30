@@ -73,7 +73,7 @@ def test_moving_target_vo_ray_uses_relative_velocity() -> None:
 
 
 def test_later_target_cannot_reduce_existing_collision_penalty() -> None:
-    planner = VO(VOParams(vo_violation_cost=1000.0, colregs_violation_cost=100.0))
+    planner = VO()
     planner._speed_set = np.array([5.0])
     planner._heading_set = np.array([0.0])
     planner._violation_costs = np.zeros((1, 1))
@@ -90,7 +90,7 @@ def test_later_target_cannot_reduce_existing_collision_penalty() -> None:
         v_os=np.array([5.0, 0.0]),
         psi_os=0.0,
     )
-    assert planner._violation_costs[0, 0] == 1000.0
+    assert np.isinf(planner._violation_costs[0, 0])
 
     no_collision = box(100.0, 100.0, 101.0, 101.0)
     planner._update_violation_costs(
@@ -104,7 +104,7 @@ def test_later_target_cannot_reduce_existing_collision_penalty() -> None:
         psi_os=0.0,
     )
 
-    assert planner._violation_costs[0, 0] == 1000.0
+    assert np.isinf(planner._violation_costs[0, 0])
 
 
 @pytest.mark.parametrize(

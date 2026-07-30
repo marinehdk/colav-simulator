@@ -180,10 +180,14 @@ class IntegrationRegistry:
         if algorithm_id == "nominal":
             return None
         if algorithm_id == "vo":
+            vo_config = config.get("vo", config)
+            los_config = config.get("los", {})
             params = Config(
                 name=COLAVType.VO,
-                layer1=LayerConfig(vo=VOParams()),
-                layer2=LayerConfig(los=LOSGuidanceParams()),
+                layer1=LayerConfig(vo=VOParams.from_dict(vo_config) if vo_config else VOParams()),
+                layer2=LayerConfig(
+                    los=LOSGuidanceParams.from_dict(los_config) if los_config else LOSGuidanceParams()
+                ),
             )
             return VOWrapper(params)
         if algorithm_id == "sbmpc":

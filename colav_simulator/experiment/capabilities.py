@@ -103,7 +103,7 @@ _P1_SCENARIOS = (
 
 ALGORITHMS: dict[str, Capability] = {
     "nominal": Capability("G2", _P1_RULES, _P1_SCENARIOS, ("none",)),
-    "vo": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic",)),
+    "vo": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic", "static", "enc")),
     "sbmpc": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic",)),
     "potocnik_simplified_mpc": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic",)),
     "psbmpc": Capability(

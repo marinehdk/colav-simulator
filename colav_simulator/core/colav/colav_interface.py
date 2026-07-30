@@ -81,7 +81,7 @@ class LayerConfig:
     def from_dict(cls, config_dict: dict) -> "LayerConfig":  # noqa: D102
         config = LayerConfig()
         if "vo" in config_dict:
-            config.vo = cp.convert_settings_dict_to_dataclass(kvo.VOParams, config_dict["vo"])
+            config.vo = kvo.VOParams.from_dict(config_dict["vo"])
 
         if "los" in config_dict:
             config.los = cp.convert_settings_dict_to_dataclass(guidance.LOSGuidanceParams, config_dict["los"])
@@ -309,17 +309,40 @@ class VOWrapper(ICOLAV):
         if solver_executed:
             self._solve_id += 1
         debug = self._vo.get_debug_data()
+        feasible = self._vo.feasible
+        status = PlanStatus.SUCCESS if feasible else PlanStatus.INFEASIBLE
+        reason = None if feasible else "fallback=stop_nonpaper_wrapper"
         trace_plan = plan.copy()
         trace_plan[0:2, 0] = ownship_state[0:2]
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         self._diagnostics = PlanDiagnostics(
-            status=PlanStatus.SUCCESS,
+            status=status,
             elapsed_ms=elapsed_ms,
-            feasible=True,
+            feasible=feasible,
+            objective=debug["objective"],
+            reason=reason,
             requested_algorithm="vo",
             executed_algorithm="vo",
+            fallback_used=not feasible,
             details={
                 "track_count": len(do_list),
+                "dynamic_hazard_count": debug["dynamic_hazard_count"],
+                "static_hazard_count": debug["static_hazard_count"],
+                "active_rules": debug["active_rules"],
+                "track_metrics": debug["track_metrics"],
+                "base_vo_count": debug["base_vo_count"],
+                "colregs_v1_count": debug["colregs_v1_count"],
+                "hard_constraint_count": debug["hard_constraint_count"],
+                "wvo_only_count": debug["wvo_only_count"],
+                "feasible_candidate_count": debug["feasible_candidate_count"],
+                "selected_in_base_vo": debug["selected_in_base_vo"],
+                "selected_in_colregs_v1": debug["selected_in_colregs_v1"],
+                "selected_in_wvo_only": debug["selected_in_wvo_only"],
+                "selected_ttc_s": debug["selected_ttc_s"],
+                "reference_velocity_error_mps": debug["reference_velocity_error_mps"],
+                "minimum_feasible_ttc_s": debug["minimum_feasible_ttc_s"],
+                "fallback": debug["fallback"],
+                "fallback_reason": debug["fallback_reason"],
                 "solver_executed": solver_executed,
                 "solve_id": self._solve_id,
             },
@@ -329,7 +352,11 @@ class VOWrapper(ICOLAV):
             solve_id=self._solve_id,
             sim_time=float(t),
             solver_executed=solver_executed,
+            status=status,
+            feasible=feasible,
+            reason=reason,
             elapsed_ms=elapsed_ms,
+            objective=debug["objective"],
             predicted_trajectory=trace_plan,
             selected_command={
                 "course_rad": float(plan[2, 0]),
