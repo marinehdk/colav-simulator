@@ -355,7 +355,13 @@
             <div class="surface-explanation" id="val-surface-explanation"></div>
           </div>
           <div class="planner-surface-wrap">
-            <canvas id="plannerSurface" width="280" height="220" aria-label="候选控制代价热力图"></canvas>
+            <canvas id="plannerSurface" width="280" height="280" aria-label="候选控制决策图"></canvas>
+          </div>
+          <div class="vo-surface-legend" id="voSurfaceLegend" hidden>
+            <span><i class="vo-safe"></i>安全</span>
+            <span><i class="vo-collision"></i>有限 TTC</span>
+            <span><i class="vo-buffer"></i>WVO 缓冲</span>
+            <span><i class="vo-colregs"></i>COLREG 禁区</span>
           </div>
           <div class="surface-meta mono-tag" id="val-surface-meta"></div>
           <div class="objective-history-wrap" id="objectiveHistoryWrap">

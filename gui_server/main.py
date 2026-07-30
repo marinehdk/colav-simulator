@@ -18,7 +18,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -320,6 +320,21 @@ class WebSessionManager:
     def navigation_area(self, session_id: str) -> dict[str, Any]:
         self._require(session_id)
         return self.enc_navigation_area
+
+    def planner_decision_space(self, session_id: str, solve_id: int) -> dict[str, Any] | None:
+        with self.lock:
+            prepared = self._require(session_id)
+            if not prepared.session.ship_list:
+                return None
+            snapshot = prepared.session.ship_list[0].get_colav_decision_space()
+            if snapshot is None:
+                return None
+            current_solve_id = int(snapshot.get("solve_id", 0))
+            if solve_id != current_solve_id:
+                raise RuntimeError(
+                    f"Decision-space solve {solve_id} is stale; latest solve is {current_solve_id}"
+                )
+            return jsonable(snapshot)
 
     def _enc_navigation_area(self) -> dict[str, Any]:
         if not self.prepared or not self.prepared.session.ship_list:
@@ -676,6 +691,22 @@ def api_navigation_area(session_id: str) -> dict[str, Any]:
         return manager.navigation_area(session_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Session not found") from exc
+
+
+@app.get("/api/sessions/{session_id}/planner/decision-space", response_model=None)
+def api_planner_decision_space(
+    session_id: str,
+    solve_id: int,
+) -> JSONResponse | Response:
+    try:
+        snapshot = manager.planner_decision_space(session_id, solve_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Session not found") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if snapshot is None:
+        return Response(status_code=204)
+    return JSONResponse(snapshot)
 
 
 @app.get("/api/enc_tile", response_model=None)

@@ -364,6 +364,10 @@ class IShip(ABC):
         """
 
     @abstractmethod
+    def get_colav_decision_space(self) -> dict | None:
+        """Return optional dense planner visualization data."""
+
+    @abstractmethod
     def set_colav_data(self, colav_data: dict) -> None:
         """Set COLAV related data for the ship in dictionary format, can be used for external control (DRL purposes).
 
@@ -753,6 +757,11 @@ class Ship(IShip):
         data = dict(self._colav.get_colav_data())
         data["diagnostics"] = self._colav.get_diagnostics().to_dict()
         return data
+
+    def get_colav_decision_space(self) -> dict | None:
+        if self._colav is None:
+            return None
+        return self._colav.get_decision_space_snapshot()
 
     def get_sim_data(self, t: float, timestamp_0: int) -> dict:
         datetime_t = mhm.utc_timestamp_to_datetime(int(t) + timestamp_0)

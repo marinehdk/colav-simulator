@@ -131,8 +131,9 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert 'id="val-surface-summary"' not in page.text
         assert 'id="val-surface-explanation"' in page.text
         assert 'id="val-surface-meta"' in page.text
-        assert 'id="plannerSurface" width="280" height="220"' in page.text
-        assert "VO / COLREGS 候选速度可行性" in script.text
+        assert 'id="plannerSurface" width="280" height="280"' in page.text
+        assert 'id="voSurfaceLegend"' in page.text
+        assert "VO / COLREGS 决策速度空间" in script.text
         assert "简化 MPC · 扇形轨迹筛选" in script.text
         assert "data.error === 'session_not_found'" in script.text
         assert "recoverMissingSession(sessionId);" in script.text
@@ -148,11 +149,12 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "id === 'cardPerf' || !expanded" in script.text
         assert "sbmpcResponseRange(" not in script.text
         assert "responseRange?.threatActivation" in script.text
-        assert "details.heading_offsets_rad" in script.text
-        assert "details.speed_offsets_mps" in script.text
-        assert "axisTickIndices(columns, plot.right - plot.left, 46)" in script.text
-        assert "横轴 航向偏移" in script.text
-        assert "纵轴 候选航速" in script.text
+        assert "vo_velocity_space.v1" not in script.text
+        assert "candidate_state_bits" in script.text
+        assert "planner/decision-space?solve_id=" in script.text
+        assert "function drawVODecisionSpace(" in script.text
+        assert "function voCandidateColor(" in script.text
+        assert "角度相对本船艏向" in script.text
         assert "objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc'" in script.text
 
 
@@ -380,6 +382,60 @@ def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
         assert telemetry["latest_planner_solve"]["solve_id"] == 1
         assert len(telemetry["plans"]["prediction_horizon"]) == 60
         assert telemetry["encounters"][0]["validation_rule_id"] == "rule14"
+
+
+def test_vo_decision_space_is_on_demand_and_not_in_telemetry() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule14",
+                "scenario_id": "head_on",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 1.0,
+            },
+        )
+        assert created.status_code == 200
+        session_id = created.json()["session_id"]
+
+        empty = client.get(
+            f"/api/sessions/{session_id}/planner/decision-space",
+            params={"solve_id": 1},
+        )
+        assert empty.status_code == 204
+
+        telemetry = client.post(f"/api/sessions/{session_id}/step")
+        assert telemetry.status_code == 200
+        document = telemetry.json()
+        planner = document["latest_planner_solve"]
+        solve_id = planner["solve_id"]
+        assert solve_id == 1
+        assert "candidate_state_bits" not in planner["algorithm_details"]
+        assert "total_costs" not in planner["algorithm_details"]
+
+        decision_space = client.get(
+            f"/api/sessions/{session_id}/planner/decision-space",
+            params={"solve_id": solve_id},
+        )
+        assert decision_space.status_code == 200
+        snapshot = decision_space.json()
+        assert snapshot["schema"] == "vo_velocity_space.v1"
+        assert snapshot["solve_id"] == solve_id
+        assert snapshot["shape"] == [32, 128]
+        assert len(snapshot["candidate_state_bits"]) == 32 * 128
+        assert all(value is None or isinstance(value, (int, float)) for value in snapshot["total_costs"])
+
+        stale = client.get(
+            f"/api/sessions/{session_id}/planner/decision-space",
+            params={"solve_id": solve_id + 1},
+        )
+        assert stale.status_code == 409
+        missing = client.get(
+            "/api/sessions/not-a-session/planner/decision-space",
+            params={"solve_id": 1},
+        )
+        assert missing.status_code == 404
 
 
 def test_potocnik_web_session_uses_published_profile() -> None:

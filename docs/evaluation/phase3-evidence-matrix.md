@@ -5,7 +5,7 @@
 > Tracker: `god`
 > Strict no fallback: `true`
 > Test: `tests/test_phase3_evaluation_matrix.py`
-> Full regression: `214 passed, 2 skipped`
+> Full regression: `273 passed, 2 skipped`
 
 ## Result
 

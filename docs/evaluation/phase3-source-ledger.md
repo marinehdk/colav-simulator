@@ -78,3 +78,17 @@ merged silently.
 - Simulator COG is used as footprint heading when evaluator input lacks independent
   heading samples.
 - A C2A distance tolerance is numerical convergence metadata, not a safety buffer.
+
+## VO Algorithm Source Note
+
+This evaluator ledger does not promote the Kuwata VO reconstruction to a
+numerical paper reproduction. The VO source boundary remains
+`docs/kuwata_vo_reconstruction.md`.
+
+Kuwata et al. IROS 2011 Eq. 7 prints CPA time without the leading negative
+sign. With its relative-position and relative-velocity definitions, forward
+closest approach requires
+`t_cpa = -(p_r dot v_r) / (v_r dot v_r)`. The implementation retains this
+signed physical projection: approaching encounters have positive TCPA and
+past encounters negative TCPA. Tests freeze the zero-relative-speed,
+approaching, horizon-boundary, and past-CPA cases.
