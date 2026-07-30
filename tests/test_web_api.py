@@ -135,7 +135,12 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "VO / COLREGS 候选速度可行性" in script.text
         assert "简化 MPC · 扇形轨迹筛选" in script.text
         assert "data.error === 'session_not_found'" in script.text
-        assert "recoverMissingSession();" in script.text
+        assert "recoverMissingSession(sessionId);" in script.text
+        assert "sessionCreationPromise && pendingSessionKey === requestKey" in script.text
+        assert "activeSessionKey === requestKey" in script.text
+        assert "|| sessionCreationPromise" in script.text
+        assert "socket !== ws || sessionId !== activeSessionId" in script.text
+        assert "document.visibilityState !== 'visible' || !document.hasFocus()" in script.text
         assert "candidate_heading_increments_rad" in script.text
         assert "`${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`" in script.text
         assert "目标在 ±90° 内，按首段航向差选择路径" in script.text
@@ -145,6 +150,9 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "responseRange?.threatActivation" in script.text
         assert "details.heading_offsets_rad" in script.text
         assert "details.speed_offsets_mps" in script.text
+        assert "axisTickIndices(columns, plot.right - plot.left, 46)" in script.text
+        assert "横轴 航向偏移" in script.text
+        assert "纵轴 候选航速" in script.text
         assert "objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc'" in script.text
 
 

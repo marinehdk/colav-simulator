@@ -136,9 +136,13 @@ let logCount    = 0;
 let lastColregs = '', lastDcpaLevel = '';
 const seenEventKeys = new Set();
 let activeSessionId = null;
+let activeSessionKey = null;
 let resultLoaded = false;
 let sessionConnectionState = 'connecting';
 let sessionRecoveryPending = false;
+let sessionCreationPromise = null;
+let pendingSessionKey = null;
+let sessionCreateRevision = 0;
 const missionRoutes = new Map();
 let targetHitRegions = [];
 let selectedTargetId = null;
@@ -1361,7 +1365,7 @@ function drawPlannerSurface(planner) {
   setText('val-surface-meta', '');
   setText('label-best-cost', isVO ? '最小总 Cost' : '最优 Cost');
   setText('label-best-course-offset', '航向偏移');
-  setText('label-best-speed-scale', isVO ? '速度偏移' : '速度系数');
+  setText('label-best-speed-scale', isVO ? '候选航速' : '速度系数');
   setText('val-best-cost', '--');
   setText('val-best-course-offset', '--°');
   setText('val-best-speed-scale', isVO ? '-- m/s' : '--');
@@ -1431,7 +1435,7 @@ function drawPlannerSurface(planner) {
   surface.fillStyle = '#82918c';
   surface.font = '9px SFMono-Regular, monospace';
   surface.textAlign = 'right';
-  [0, Math.floor((rows - 1) / 2), rows - 1].forEach(rowIndex => {
+  axisTickIndices(rows, plot.bottom - plot.top, 38).forEach(rowIndex => {
     const value = Number(isVO ? speedValues[rowIndex] : courseOffsets[rowIndex]);
     const text = Number.isFinite(value)
       ? (isVO ? `${value.toFixed(1)}` : `${Math.round(value * 180 / Math.PI)}°`)
@@ -1442,11 +1446,11 @@ function drawPlannerSurface(planner) {
   surface.translate(9, (plot.top + plot.bottom) / 2);
   surface.rotate(-Math.PI / 2);
   surface.textAlign = 'center';
-  surface.fillText(isVO ? '速度偏移 m/s' : '航向偏移', 0, 0);
+  surface.fillText(isVO ? '候选航速 m/s' : '航向偏移', 0, 0);
   surface.restore();
 
   surface.textAlign = 'center';
-  Array.from({ length: columns }, (_, columnIndex) => {
+  axisTickIndices(columns, plot.right - plot.left, 46).forEach(columnIndex => {
     const value = Number(isVO ? courseOffsets[columnIndex] : speedValues[columnIndex]);
     const text = Number.isFinite(value)
       ? (isVO ? `${Math.round(value * 180 / Math.PI)}°` : value.toFixed(1))
@@ -1454,6 +1458,21 @@ function drawPlannerSurface(planner) {
     surface.fillText(text, plot.left + (columnIndex + 0.5) * cellWidth, plot.bottom + 12);
   });
   surface.fillText(isVO ? '航向偏移' : '速度系数', (plot.left + plot.right) / 2, canvas.height - 4);
+  if (isVO) {
+    const courseDegrees = courseOffsets.map(value => Number(value) * 180 / Math.PI).filter(Number.isFinite);
+    const candidateSpeeds = speedValues.map(Number).filter(Number.isFinite);
+    if (courseDegrees.length && candidateSpeeds.length) {
+      const courseStep = courseDegrees.length > 1 ? Math.abs(courseDegrees[1] - courseDegrees[0]) : 0;
+      const speedStep = candidateSpeeds.length > 1 ? Math.abs(candidateSpeeds[1] - candidateSpeeds[0]) : 0;
+      setText(
+        'val-surface-meta',
+        `横轴 航向偏移 ${formatAxisNumber(courseDegrees[0])}°–${formatAxisNumber(courseDegrees.at(-1))}°`
+          + `（${formatAxisNumber(courseStep)}°/格） · 纵轴 候选航速 `
+          + `${formatAxisNumber(candidateSpeeds[0])}–${formatAxisNumber(candidateSpeeds.at(-1))} m/s`
+          + `（${formatAxisNumber(speedStep)} m/s/格）`,
+      );
+    }
+  }
 
   if (best.row >= 0) {
     const courseRadians = Number(courseOffsets[isVO ? best.column : best.row]);
@@ -1467,6 +1486,24 @@ function drawPlannerSurface(planner) {
     setText('val-best-course-offset', courseText);
     setText('val-best-speed-scale', speedText);
   }
+}
+
+function axisTickIndices(valueCount, pixelSpan, minimumSpacing) {
+  if (valueCount <= 0) return [];
+  const tickCount = Math.min(valueCount, Math.max(2, Math.floor(pixelSpan / minimumSpacing) + 1));
+  if (tickCount >= valueCount) return Array.from({ length: valueCount }, (_, index) => index);
+  return [...new Set(
+    Array.from(
+      { length: tickCount },
+      (_, index) => Math.round(index * (valueCount - 1) / (tickCount - 1)),
+    ),
+  )];
+}
+
+function formatAxisNumber(value) {
+  if (!Number.isFinite(value)) return '--';
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
 }
 
 function drawSimplifiedMpcFan(surface, canvas, planner, details) {
@@ -1851,19 +1888,23 @@ function connectWebSocket() {
     ws.onclose = null;
     ws.close();
   }
+  const sessionId = activeSessionId;
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${proto}//${location.host}/ws/sessions/${activeSessionId}`);
+  const socket = new WebSocket(`${proto}//${location.host}/ws/sessions/${sessionId}`);
+  ws = socket;
 
-  ws.onopen = () => {
+  socket.onopen = () => {
+    if (socket !== ws || sessionId !== activeSessionId) return;
     setSessionConnectionState('connected', true);
   };
 
-  ws.onmessage = event => {
+  socket.onmessage = event => {
+    if (socket !== ws || sessionId !== activeSessionId) return;
     const data = JSON.parse(event.data);
     if (data.error === 'session_not_found') {
-      ws.onclose = null;
-      ws.close();
-      recoverMissingSession();
+      socket.onclose = null;
+      socket.close();
+      recoverMissingSession(sessionId);
       return;
     }
     if (!data.os) return;
@@ -1875,20 +1916,37 @@ function connectWebSocket() {
     if (data.state === 'FAILED') pushLog(data.failure_reason || 'Simulation failed.', 'log-danger');
   };
 
-  ws.onclose = () => {
+  socket.onclose = () => {
+    if (socket !== ws || sessionId !== activeSessionId) return;
     setSessionConnectionState('disconnected', true);
-    if (activeSessionId) setTimeout(connectWebSocket, 2500);
+    setTimeout(() => {
+      if (sessionId === activeSessionId && socket === ws) connectWebSocket();
+    }, 2500);
   };
 
-  ws.onerror = () => pushLog('WebSocket error.', 'log-danger');
+  socket.onerror = () => {
+    if (socket === ws && sessionId === activeSessionId) pushLog('WebSocket error.', 'log-danger');
+  };
 }
 
-async function recoverMissingSession() {
-  if (sessionRecoveryPending) return;
+async function recoverMissingSession(missingSessionId) {
+  if (
+    missingSessionId !== activeSessionId
+    || sessionRecoveryPending
+    || sessionCreationPromise
+  ) return;
+  if (document.visibilityState !== 'visible' || !document.hasFocus()) {
+    activeSessionId = null;
+    activeSessionKey = null;
+    setSessionConnectionState('disconnected', true);
+    pushLog('Session replaced in another tab. Select a configuration or reset to reconnect.', 'log-danger');
+    return;
+  }
   sessionRecoveryPending = true;
   activeSessionId = null;
+  activeSessionKey = null;
   try {
-    await createSession();
+    await createSession({ force: true });
   } catch (error) {
     setSessionConnectionState('disconnected', true);
     pushLog(`Session recovery failed: ${error.message}`, 'log-danger');
@@ -1897,12 +1955,8 @@ async function recoverMissingSession() {
   }
 }
 
-async function createSession() {
-  setSessionConnectionState('connecting');
-  if (activeSessionId && currentData && currentData.state === 'RUNNING') {
-    await apiRequest(`/api/sessions/${activeSessionId}/pause`, { method: 'POST' });
-  }
-  const request = {
+function selectedSessionRequest() {
+  return {
     validation_rule_id: document.querySelector('.qtab.active')?.dataset.group || 'rule14',
     scenario_id: document.getElementById('scenarioSelect').value,
     algorithm_id: document.getElementById('algoSelect').value,
@@ -1910,18 +1964,62 @@ async function createSession() {
     seed: 0,
     strict_no_fallback: true,
   };
-  const data = await apiRequest('/api/sessions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  activateSession(data);
-  pushLog(`Session created: ${request.scenario_id} / ${request.algorithm_id} / ${request.tracker_id}`, 'log-info');
-  return data;
 }
 
-function activateSession(data) {
+function sessionKey(request) {
+  return JSON.stringify([
+    request.validation_rule_id,
+    request.scenario_id,
+    request.algorithm_id,
+    request.tracker_id,
+    request.seed,
+    request.strict_no_fallback,
+  ]);
+}
+
+async function createSession({ force = false } = {}) {
+  const request = selectedSessionRequest();
+  const requestKey = sessionKey(request);
+  if (!force && activeSessionId && activeSessionKey === requestKey) {
+    return { session_id: activeSessionId };
+  }
+  if (!force && sessionCreationPromise && pendingSessionKey === requestKey) {
+    return sessionCreationPromise;
+  }
+  const revision = ++sessionCreateRevision;
+  const previousCreation = sessionCreationPromise;
+  const creation = (async () => {
+    if (previousCreation) await previousCreation.catch(() => {});
+    if (!force && revision !== sessionCreateRevision) return null;
+    setSessionConnectionState('connecting');
+    if (activeSessionId && currentData && currentData.state === 'RUNNING') {
+      await apiRequest(`/api/sessions/${activeSessionId}/pause`, { method: 'POST' });
+    }
+    const data = await apiRequest('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (revision !== sessionCreateRevision) return data;
+    activateSession(data, requestKey);
+    pushLog(`Session created: ${request.scenario_id} / ${request.algorithm_id} / ${request.tracker_id}`, 'log-info');
+    return data;
+  })();
+  sessionCreationPromise = creation;
+  pendingSessionKey = requestKey;
+  try {
+    return await creation;
+  } finally {
+    if (sessionCreationPromise === creation) {
+      sessionCreationPromise = null;
+      pendingSessionKey = null;
+    }
+  }
+}
+
+function activateSession(data, requestKey = null) {
   activeSessionId = data.session_id;
+  activeSessionKey = requestKey || sessionKey(data.spec || selectedSessionRequest());
   resultLoaded = false;
   currentData = null;
   perfHistory.length = 0;
@@ -2278,7 +2376,7 @@ document.getElementById('btnStep').addEventListener('click', async () => {
 document.getElementById('btnReset').addEventListener('click', async () => {
   setSessionConnectionState('reset', true);
   try {
-    await createSession();
+    await createSession({ force: true });
   } catch (error) {
     setSessionConnectionState('disconnected', true);
     pushLog(error.message, 'log-danger');
