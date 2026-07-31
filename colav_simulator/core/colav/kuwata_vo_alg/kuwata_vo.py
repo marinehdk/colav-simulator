@@ -906,7 +906,7 @@ class VO:
         }
 
     def get_decision_space_snapshot(self) -> dict[str, Any] | None:
-        if not self._initialized or not self._plan_executed:
+        if not self._initialized:
             return None
 
         state_bits = (

@@ -432,6 +432,19 @@ def test_vo_decision_space_is_on_demand_and_not_in_telemetry() -> None:
         assert len(snapshot["candidate_state_bits"]) == 32 * 128
         assert all(value is None or isinstance(value, (int, float)) for value in snapshot["total_costs"])
 
+        held = client.post(f"/api/sessions/{session_id}/step")
+        assert held.status_code == 200
+        held_planner = held.json()["planner"]
+        assert held_planner["solver_executed"] is False
+        assert held_planner["solve_id"] == solve_id
+
+        held_decision_space = client.get(
+            f"/api/sessions/{session_id}/planner/decision-space",
+            params={"solve_id": solve_id},
+        )
+        assert held_decision_space.status_code == 200
+        assert held_decision_space.json()["solve_id"] == solve_id
+
         stale = client.get(
             f"/api/sessions/{session_id}/planner/decision-space",
             params={"solve_id": solve_id + 1},
