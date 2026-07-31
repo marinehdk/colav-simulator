@@ -151,6 +151,10 @@ class WebSessionManager:
         self.latest: dict[str, Any] = {}
         self.replay_expected: tuple[str, str] | None = None
         self.speed_multiplier = 1.0
+        self.speed_revision = 0
+        self.effective_speed_multiplier: float | None = None
+        self.scheduler_lag_ms = 0.0
+        self.realtime_limited = False
         self.encounter_monitor = EncounterMonitor()
         self.previous_prediction_horizon: list[list[float]] = []
         self.current_prediction_horizon: list[list[float]] = []
@@ -178,6 +182,11 @@ class WebSessionManager:
             self.current_prediction_horizon = []
             self.last_solve_id = None
             self.latest_planner_solve = {}
+            self.speed_multiplier = 1.0
+            self.speed_revision += 1
+            self.effective_speed_multiplier = None
+            self.scheduler_lag_ms = 0.0
+            self.realtime_limited = False
             self.enc_navigation_area = self._enc_navigation_area()
             render_enc(self.prepared)
             self.latest = self._telemetry(None)
@@ -195,7 +204,65 @@ class WebSessionManager:
             "sequence": self.prepared.session.sequence,
             "sim_time": float(self.prepared.session.simulator.t),
             "failure_reason": self.prepared.session.failure_reason,
+            "playback": self._playback_status(),
         }
+
+    def set_speed(self, session_id: str, multiplier: float) -> dict[str, Any]:
+        with self.lock:
+            self._require(session_id)
+            self.speed_multiplier = max(0.1, min(10.0, float(multiplier)))
+            self.speed_revision += 1
+            self.effective_speed_multiplier = None
+            self.scheduler_lag_ms = 0.0
+            self.realtime_limited = False
+            self._publish_playback_status()
+            return self._playback_status()
+
+    def playback_clock(self) -> dict[str, Any]:
+        with self.lock:
+            if not self.prepared:
+                return {
+                    "session_id": None,
+                    "running": False,
+                    "revision": self.speed_revision,
+                    "multiplier": self.speed_multiplier,
+                    "sim_time": 0.0,
+                    "dt": 0.1,
+                }
+            session = self.prepared.session
+            return {
+                "session_id": self.session_id,
+                "running": session.state == SessionState.RUNNING,
+                "revision": self.speed_revision,
+                "multiplier": self.speed_multiplier,
+                "sim_time": float(session.simulator.t),
+                "dt": float(session.config.dt_sim),
+            }
+
+    def update_playback_metrics(
+        self,
+        *,
+        effective_multiplier: float | None,
+        scheduler_lag_ms: float,
+        realtime_limited: bool,
+    ) -> None:
+        with self.lock:
+            self.effective_speed_multiplier = effective_multiplier
+            self.scheduler_lag_ms = max(0.0, float(scheduler_lag_ms))
+            self.realtime_limited = bool(realtime_limited)
+            self._publish_playback_status()
+
+    def _playback_status(self) -> dict[str, Any]:
+        return {
+            "requested_multiplier": self.speed_multiplier,
+            "effective_multiplier": self.effective_speed_multiplier,
+            "realtime_limited": self.realtime_limited,
+            "scheduler_lag_ms": self.scheduler_lag_ms,
+        }
+
+    def _publish_playback_status(self) -> None:
+        if self.latest:
+            self.latest["playback"] = self._playback_status()
 
     def start(self, session_id: str) -> dict[str, Any]:
         with self.lock:
@@ -230,20 +297,22 @@ class WebSessionManager:
             prepared = self._require(session_id)
             return self.create(replace(prepared.spec))
 
-    def tick(self) -> None:
+    def tick(self) -> float | None:
         with self.lock:
             if not self.prepared or self.prepared.session.state != SessionState.RUNNING:
-                return
+                return None
             try:
                 snapshot = self.prepared.session.advance()
                 self.latest = self._telemetry(snapshot)
                 if self.prepared.session.state == SessionState.FINISHED:
                     self._finalize(self.prepared)
                     self.latest = self._telemetry(snapshot)
+                return float(self.prepared.session.simulator.t)
             except Exception as exc:
                 self._persist_failure(self.prepared, exc)
                 self.latest = self._telemetry(None)
                 log.exception("Simulation session failed")
+                return None
 
     def replay(self, session_id: str) -> dict[str, Any]:
         with self.lock:
@@ -515,6 +584,7 @@ class WebSessionManager:
             "selected_rule": self.prepared.spec.validation_rule_id,
             "selected_scenario": self.prepared.spec.scenario_id,
             "step_time_ms": step_ms,
+            "playback": self._playback_status(),
             "failure_reason": session.failure_reason,
             "reproduction_status": self.result.manifest.reproduction_status if self.result else "running",
         }
@@ -538,14 +608,70 @@ class WebSessionManager:
         )
 
 
+def _bounded_playback_deadline(
+    previous_deadline: float,
+    now: float,
+    interval: float,
+    *,
+    max_catch_up_steps: int = 8,
+) -> tuple[float, float]:
+    deadline = previous_deadline + interval
+    deadline = max(deadline, now - interval * max_catch_up_steps)
+    return deadline, max(0.0, now - deadline)
+
+
 async def _simulation_loop() -> None:
+    active_key: tuple[str | None, int, bool] | None = None
+    next_deadline = 0.0
+    sample_wall = 0.0
+    sample_sim: float | None = None
+    effective_multiplier: float | None = None
     while True:
-        started = asyncio.get_running_loop().time()
-        await asyncio.to_thread(manager.tick)
-        dt = manager.prepared.session.config.dt_sim if manager.prepared else 0.1
-        interval = max(0.01, dt / max(manager.speed_multiplier, 0.1))
-        elapsed = asyncio.get_running_loop().time() - started
-        await asyncio.sleep(max(0.0, interval - elapsed))
+        loop = asyncio.get_running_loop()
+        clock = manager.playback_clock()
+        key = (clock["session_id"], clock["revision"], clock["running"])
+        now = loop.time()
+        if key != active_key:
+            active_key = key
+            next_deadline = now
+            sample_wall = now
+            sample_sim = None
+            effective_multiplier = None
+            if clock["running"]:
+                manager.update_playback_metrics(
+                    effective_multiplier=None,
+                    scheduler_lag_ms=0.0,
+                    realtime_limited=False,
+                )
+
+        if not clock["running"]:
+            await asyncio.sleep(0.05)
+            continue
+
+        sim_time = await asyncio.to_thread(manager.tick)
+        if sim_time is None:
+            await asyncio.sleep(0)
+            continue
+
+        now = loop.time()
+        interval = max(0.001, clock["dt"] / max(clock["multiplier"], 0.1))
+        next_deadline, lag = _bounded_playback_deadline(next_deadline, now, interval)
+        if sample_sim is None:
+            sample_wall = now
+            sample_sim = sim_time
+        sample_elapsed = now - sample_wall
+        if sample_elapsed >= 0.5 and sample_sim is not None:
+            effective_multiplier = max(0.0, (sim_time - sample_sim) / sample_elapsed)
+        realtime_limited = (
+            effective_multiplier is not None
+            and effective_multiplier < clock["multiplier"] * 0.9
+        )
+        manager.update_playback_metrics(
+            effective_multiplier=effective_multiplier,
+            scheduler_lag_ms=lag * 1000.0,
+            realtime_limited=realtime_limited,
+        )
+        await asyncio.sleep(max(0.0, next_deadline - loop.time()))
 
 
 @asynccontextmanager
@@ -620,6 +746,14 @@ def api_session_start(session_id: str) -> dict[str, Any]:
 def api_session_pause(session_id: str) -> dict[str, Any]:
     try:
         return manager.pause(session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Session not found") from exc
+
+
+@app.post("/api/sessions/{session_id}/speed")
+def api_session_speed(session_id: str, multiplier: float = 1.0) -> dict[str, Any]:
+    try:
+        return manager.set_speed(session_id, multiplier)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Session not found") from exc
 
@@ -772,8 +906,14 @@ def api_select_algorithm(algorithm: str = "CustomMPC") -> dict[str, Any]:
 
 @app.post("/api/set_speed")
 def api_set_speed(multiplier: float = 1.0) -> dict[str, Any]:
-    manager.speed_multiplier = max(0.1, min(10.0, float(multiplier)))
-    return {"status": "ok", "speed_multiplier": manager.speed_multiplier}
+    if manager.session_id is None:
+        raise HTTPException(status_code=409, detail="No active session")
+    playback = manager.set_speed(manager.session_id, multiplier)
+    return {
+        "status": "ok",
+        "speed_multiplier": playback["requested_multiplier"],
+        "playback": playback,
+    }
 
 
 async def _stream(websocket: WebSocket, session_id: str | None = None) -> None:

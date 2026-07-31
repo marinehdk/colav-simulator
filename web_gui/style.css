@@ -712,6 +712,24 @@ canvas#simCanvas {
   background: rgba(98,210,189,0.1);
 }
 
+.speed-preset:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.speed-status {
+  min-width: 62px;
+  color: var(--accent-teal);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.speed-status.limited {
+  color: var(--accent-amber);
+}
+
 .log-entry {
   line-height: 1.4;
   white-space: nowrap;
@@ -1759,6 +1777,10 @@ canvas#simCanvas {
 
   .speed-preset {
     flex: 1;
+  }
+
+  .speed-status {
+    min-width: 58px;
   }
 
   .scale-line {

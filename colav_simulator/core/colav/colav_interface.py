@@ -272,7 +272,8 @@ class VOWrapper(ICOLAV):
         )
         self._solve_id = 0
         self._planner_trace = PlannerTrace("vo", 0, 0.0, False)
-        self._decision_space_snapshot: dict | None = None
+        self._decision_space_solve_id = 0
+        self._decision_space_sim_time = 0.0
 
     def reset(self):
         """Resets the VO-COLAV to its initial state."""
@@ -282,7 +283,8 @@ class VOWrapper(ICOLAV):
         self._los.reset()
         self._solve_id = 0
         self._planner_trace = PlannerTrace("vo", 0, 0.0, False)
-        self._decision_space_snapshot = None
+        self._decision_space_solve_id = 0
+        self._decision_space_sim_time = 0.0
         self._diagnostics = PlanDiagnostics(
             requested_algorithm="vo",
             executed_algorithm="vo",
@@ -314,15 +316,9 @@ class VOWrapper(ICOLAV):
         solver_executed = self._vo.plan_executed
         if solver_executed:
             self._solve_id += 1
+            self._decision_space_solve_id = self._solve_id
+            self._decision_space_sim_time = float(t)
         debug = self._vo.get_debug_data()
-        if solver_executed:
-            snapshot = self._vo.get_decision_space_snapshot()
-            if snapshot is not None:
-                self._decision_space_snapshot = {
-                    **snapshot,
-                    "solve_id": self._solve_id,
-                    "sim_time_s": float(t),
-                }
         feasible = self._vo.feasible
         status = PlanStatus.SUCCESS if feasible else PlanStatus.INFEASIBLE
         reason = None if feasible else "fallback=stop_nonpaper_wrapper"
@@ -391,7 +387,14 @@ class VOWrapper(ICOLAV):
         return self._diagnostics
 
     def get_decision_space_snapshot(self) -> dict | None:
-        return self._decision_space_snapshot
+        snapshot = self._vo.get_decision_space_snapshot()
+        if snapshot is None or self._decision_space_solve_id < 1:
+            return None
+        return {
+            **snapshot,
+            "solve_id": self._decision_space_solve_id,
+            "sim_time_s": self._decision_space_sim_time,
+        }
 
     def get_current_plan(self) -> np.ndarray:
         return self._vo.get_current_plan()
