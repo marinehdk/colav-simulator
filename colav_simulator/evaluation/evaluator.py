@@ -169,8 +169,15 @@ class Evaluator:
             "Only cells with complete published inputs may be marked numerically verified.",
         ]
         warnings.extend(self.profile.reconstruction_assumptions)
+        vessel_pairs = list(combinations(vessels, 2))
+        if context.get("stress_only"):
+            vessel_pairs = _stress_pair_candidates(vessel_pairs)
+            warnings.append(
+                "Stress-only evaluation uses a conservative center-distance broad phase; "
+                "full pair scoring remains NOT_EVALUATED.",
+            )
         pair_results: list[PairEvaluation] = []
-        for ownship, target in combinations(vessels, 2):
+        for ownship, target in vessel_pairs:
             pair = self._evaluate_pair(ownship, target)
             if pair is None:
                 warnings.append(f"No synchronized finite samples for vessels {ownship.id} and {target.id}")
@@ -614,6 +621,51 @@ def _vessel_pose(vessel: VesselData, index: int) -> VesselPose:
 
 def _evidence_dict(evidence: dict[str, MetricEvidence]) -> dict[str, dict[str, Any]]:
     return {name: value.to_dict() for name, value in evidence.items()}
+
+
+def _stress_pair_candidates(
+    vessel_pairs: list[tuple[VesselData, VesselData]],
+) -> list[tuple[VesselData, VesselData]]:
+    candidates: list[tuple[VesselData, VesselData]] = []
+    nearest_pair: tuple[VesselData, VesselData] | None = None
+    nearest_distance = np.inf
+    for ownship, target in vessel_pairs:
+        _, own_indices, target_indices = _aligned(ownship, target)
+        if own_indices.size == 0:
+            continue
+        own_positions = ownship.xy[:, own_indices]
+        target_positions = target.xy[:, target_indices]
+        finite = np.all(np.isfinite(own_positions), axis=0) & np.all(np.isfinite(target_positions), axis=0)
+        if not finite.any():
+            continue
+        own_positions = own_positions[:, finite]
+        target_positions = target_positions[:, finite]
+        minimum_distance = float(np.min(np.linalg.norm(target_positions - own_positions, axis=0)))
+        if minimum_distance < nearest_distance:
+            nearest_distance = minimum_distance
+            nearest_pair = (ownship, target)
+
+        own_step = (
+            float(np.max(np.linalg.norm(np.diff(own_positions, axis=1), axis=0)))
+            if own_positions.shape[1] > 1
+            else 0.0
+        )
+        target_step = (
+            float(np.max(np.linalg.norm(np.diff(target_positions, axis=1), axis=0)))
+            if target_positions.shape[1] > 1
+            else 0.0
+        )
+        footprint_radius = 0.5 * (
+            float(np.hypot(ownship.length, ownship.width))
+            + float(np.hypot(target.length, target.width))
+        )
+        if minimum_distance <= footprint_radius + own_step + target_step:
+            candidates.append((ownship, target))
+    if nearest_pair is not None and not any(
+        ownship is nearest_pair[0] and target is nearest_pair[1] for ownship, target in candidates
+    ):
+        candidates.append(nearest_pair)
+    return candidates
 
 
 def _aggregate(

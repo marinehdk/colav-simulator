@@ -58,3 +58,19 @@ def test_no_overlap_is_reported_not_scored() -> None:
     result = Evaluator().evaluate([ownship, target])
     assert result.pair_results == []
     assert "No synchronized finite samples" in result.warnings[-1]
+
+
+def test_stress_only_evaluation_scores_nearest_and_potential_contact_pairs() -> None:
+    times = np.arange(0.0, 11.0)
+    ownship = vessel(0, np.zeros(times.size), times * 5.0, 5.0, 0.0)
+    near = vessel(1, np.full(times.size, 30.0), times * 5.0, 5.0, 0.0)
+    far = vessel(2, np.full(times.size, 1000.0), times * 5.0, 5.0, 0.0)
+
+    result = Evaluator().evaluate(
+        [ownship, near, far],
+        execution_context={"stress_only": True},
+    )
+
+    assert result.evaluation_status == "PARTIAL"
+    assert {(item.ownship_id, item.target_id) for item in result.pair_results} == {(0, 1)}
+    assert any("Stress-only evaluation" in warning for warning in result.warnings)

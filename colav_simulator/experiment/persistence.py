@@ -83,6 +83,10 @@ class EvidenceWriter:
     def write_episode(self, episode: dict[str, Any]) -> Path:
         return self._write_json("episode.json", episode)
 
+    def write_run_metrics(self, metrics: dict[str, Any]) -> Path:
+        """Write separated Ship0, global-world, and traffic-load evidence."""
+        return self._write_json("run_metrics.json", metrics)
+
     def write_events(self, events: list[dict[str, Any]]) -> Path:
         path = self.run_dir / "events.jsonl"
         with path.open("w", encoding="utf-8") as stream:

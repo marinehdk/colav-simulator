@@ -393,8 +393,11 @@ class Simulator:
             sim_data_dict["waves"] = disturbance_data.waves
 
         true_do_states = mhm.extract_do_states_from_ship_list(self.t, self.ship_list)
+        deterministic_busy_water = self.sconfig.name.startswith(
+            ("romsdal_busy_water_16", "romsdal_busy_water_80_stress"),
+        )
         for i, ship_obj in enumerate(self.ship_list):
-            if self.t < ship_obj.t_start:
+            if not mhm.ship_is_active(ship_obj, self.t):
                 sim_data_dict[f"Ship{i}"] = {}
                 continue
 
@@ -407,11 +410,16 @@ class Simulator:
                 self.recent_sensor_measurements[i], new_measurements
             )
 
-            if not (i == 0 and remote_actor):  # Skip own-ship planning step if controlled by remote actor
+            scripted_target = deterministic_busy_water and i > 0
+            if not scripted_target and not (i == 0 and remote_actor):
                 ship_obj.plan(t=self.t, dt=self.dt, do_list=tracks, enc=self.enc, w=disturbance_data)
 
-            if i > 0 and self.determine_ship_grounding(i):  # Make grounded obstacle ships stop
+            if i > 0 and not deterministic_busy_water and self.determine_ship_grounding(i):
                 ship_obj.set_references(np.zeros((9, 1)))
+            if scripted_target:
+                references = np.zeros(9)
+                references[:6] = ship_obj.state
+                ship_obj.set_references(references)
 
             sim_data_dict[f"Ship{i}"] = ship_obj.get_sim_data(self.t, self.timestamp_start)
             sim_data_dict[f"Ship{i}"]["sensor_measurements"] = self.recent_sensor_measurements[i]
@@ -420,7 +428,14 @@ class Simulator:
                 colav_data["planner"]["sim_time"] = float(self.t)
             sim_data_dict[f"Ship{i}"]["colav"] = colav_data
 
-            ship_obj.forward(self.dt, disturbance_data)
+            if scripted_target:
+                state = ship_obj.csog_state
+                state[:2] += self.dt * np.array(
+                    [state[2] * np.cos(state[3]), state[2] * np.sin(state[3])],
+                )
+                ship_obj.set_initial_state(state, t_start=ship_obj.t_start)
+            else:
+                ship_obj.forward(self.dt, disturbance_data)
 
         post_step_poses = [self._vessel_pose(ship) for ship in self.ship_list]
         self._motion_segments = list(zip(pre_step_poses, post_step_poses, strict=True))
@@ -442,7 +457,7 @@ class Simulator:
         for i, other_ship_obj in enumerate(self.ship_list):
             if i == ship_idx:
                 continue
-            if other_ship_obj.t_start <= self.t:
+            if mhm.ship_is_active(other_ship_obj, self.t):
                 other_ship_state = other_ship_obj.csog_state
                 distances.append(np.linalg.norm(ship_state[:2] - other_ship_state[:2]))
             else:
@@ -467,6 +482,8 @@ class Simulator:
         """Return synchronized footprint collision evidence for one ship."""
         if not 0 <= ship_idx < len(self.ship_list):
             raise IndexError(f"ship_idx {ship_idx} outside ship_list")
+        if not mhm.ship_is_active(self.ship_list[ship_idx], self._motion_interval[1]):
+            return []
         if len(self._motion_segments) != len(self.ship_list):
             poses = [self._vessel_pose(ship) for ship in self.ship_list]
             segments = [(pose, pose) for pose in poses]
@@ -475,7 +492,7 @@ class Simulator:
         own_start, own_end = segments[ship_idx]
         collisions = []
         for target_idx, target_ship in enumerate(self.ship_list):
-            if target_idx == ship_idx or target_ship.t_start > self._motion_interval[1]:
+            if target_idx == ship_idx or not mhm.ship_is_active(target_ship, self._motion_interval[1]):
                 continue
             target_start, target_end = segments[target_idx]
             interval = continuous_footprint_collision(

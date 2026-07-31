@@ -11,12 +11,22 @@ import numpy as np
 import uvicorn
 import yaml
 
+from colav_simulator import scenario_config
+from colav_simulator.common import config_parsing as cp
+from colav_simulator.common import paths
 from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter, FactoryContext
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.experiment.batch import BatchRunner
+from colav_simulator.experiment.busy_water import (
+    DEFAULT_SEED,
+    build_busy_water_document,
+    preflight_document,
+    write_busy_water_scenario,
+)
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.runner import ExperimentRunner
 from colav_simulator.integrations import IntegrationRegistry
+from colav_simulator.scenario_generator import ScenarioGenerator
 
 
 def _run(args: argparse.Namespace) -> int:
@@ -185,6 +195,52 @@ def _serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _busy_water_generate(args: argparse.Namespace) -> int:
+    output = write_busy_water_scenario(args.profile, Path(args.output), seed=args.seed)
+    result = preflight_document(build_busy_water_document(args.profile, seed=args.seed), seed=args.seed)
+    print(json.dumps({"output": str(output.resolve()), **result}, indent=2))
+    return 0
+
+
+def _busy_water_preflight(args: argparse.Namespace) -> int:
+    scenario_path = Path(args.scenario)
+    with scenario_path.open(encoding="utf-8") as stream:
+        document = yaml.safe_load(stream)
+    result = preflight_document(document, seed=args.seed)
+    if args.with_enc:
+        config = cp.extract(scenario_config.ScenarioConfig, scenario_path, paths.scenario_schema)
+        episodes, enc = ScenarioGenerator(seed=args.seed).generate(
+            config=config,
+            n_episodes=1,
+            show_plots=False,
+            save_scenario=False,
+        )
+        generated_count = len(episodes[0]["ship_list"])
+        if generated_count != result["ship_count"]:
+            raise ValueError(f"ENC preflight retained {generated_count}/{result['ship_count']} ships")
+        result["enc_preflight"] = {
+            "status": "PASS",
+            "bbox": list(enc.bbox),
+            "ship_count": generated_count,
+        }
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def _add_busy_water_parsers(subparsers: argparse._SubParsersAction) -> None:
+    generate_parser = subparsers.add_parser("busy-water-generate", help="generate a deterministic busy-water YAML")
+    generate_parser.add_argument("--profile", choices=("acceptance", "stress"), required=True)
+    generate_parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    generate_parser.add_argument("--output", required=True)
+    generate_parser.set_defaults(handler=_busy_water_generate)
+
+    preflight_parser = subparsers.add_parser("busy-water-preflight", help="preflight a busy-water YAML")
+    preflight_parser.add_argument("scenario")
+    preflight_parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    preflight_parser.add_argument("--with-enc", action="store_true")
+    preflight_parser.set_defaults(handler=_busy_water_preflight)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the experiment command-line parser."""
     parser = argparse.ArgumentParser(prog="colav-sim")
@@ -233,6 +289,8 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--port", type=int, default=8000)
     serve_parser.add_argument("--reload", action="store_true")
     serve_parser.set_defaults(handler=_serve)
+
+    _add_busy_water_parsers(subparsers)
     return parser
 
 
