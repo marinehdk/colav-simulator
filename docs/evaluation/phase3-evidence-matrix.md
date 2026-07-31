@@ -5,7 +5,7 @@
 > Tracker: `god`
 > Strict no fallback: `true`
 > Test: `tests/test_phase3_evaluation_matrix.py`
-> Full regression: `273 passed, 2 skipped`
+> Full regression: `289 passed, 2 skipped`
 
 ## Result
 
@@ -13,7 +13,7 @@
 |---|---:|---:|---:|---:|---:|---:|
 | VO | PASS | PASS | PASS | PASS | PASS | PASS |
 | SB-MPC | PASS | PASS | PASS | PASS | PASS | PASS |
-| Potočnik simplified MPC | PASS | PASS | PASS | PASS | PASS | PASS |
+| Potočnik simplified MPC | PASS | PASS | PASS | FAIL (grounding) | PASS | PASS |
 
 PASS means:
 
@@ -35,3 +35,8 @@ gate. Ship0-vs-target and all-vessel safety must not be conflated.
 
 Target-vessel grounding is likewise reported globally but does not fail the
 Ship0 algorithm gate.
+
+The standard encounter window was extended from 300 s to 600 s on 2026-07-31.
+The longer `crossing_give_way` run exposes Ship0 grounding in the Potočnik
+simplified MPC, which has no static ENC constraint. That exact capability tuple
+is no longer promoted. The other cells retain passing raw evidence.
