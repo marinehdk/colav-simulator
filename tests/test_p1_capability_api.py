@@ -6,10 +6,10 @@ from fastapi.testclient import TestClient
 from gui_server.main import app
 
 EXPECTED_COUNTS = {
-    "rule13": 8,
-    "rule14": 7,
-    "rule15": 7,
-    "multiship": 4,
+    "rule13": 10,
+    "rule14": 8,
+    "rule15": 9,
+    "multiship": 5,
 }
 EXPECTED_SCENARIOS = {
     "rule13": {"overtaking", "overtaken"},
@@ -59,6 +59,7 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
         "nominal",
         "vo",
         "sbmpc",
+        "potocnik_colreg_fan_mpc",
         "potocnik_simplified_mpc",
     }
 

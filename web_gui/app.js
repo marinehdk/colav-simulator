@@ -1045,7 +1045,7 @@ function plannerResponseRange(data) {
       threatActivation: true,
     };
   }
-  if (algorithmId === 'potocnik_simplified_mpc') {
+  if (['potocnik_simplified_mpc', 'potocnik_colreg_fan_mpc'].includes(algorithmId)) {
     const distanceM = Number(planner.constraints?.planning_zone?.distance_m);
     if (Number.isFinite(distanceM) && distanceM > 0) {
       return {
@@ -1457,7 +1457,7 @@ function drawPlannerSurface(planner) {
   const algorithmId = planner.algorithm_id;
   const details = planner.algorithm_details || {};
   const isVO = algorithmId === 'vo';
-  const isSimplifiedMPC = algorithmId === 'potocnik_simplified_mpc';
+  const isSimplifiedMPC = ['potocnik_simplified_mpc', 'potocnik_colreg_fan_mpc'].includes(algorithmId);
   const matrix = details.candidate_costs;
   const selectionMatrix = matrix;
   const label = algorithmId === 'vo'
@@ -1465,7 +1465,9 @@ function drawPlannerSurface(planner) {
     : algorithmId === 'sbmpc'
       ? 'SB-MPC 候选控制代价'
       : isSimplifiedMPC
-        ? '简化 MPC · 扇形轨迹筛选'
+        ? (algorithmId === 'potocnik_colreg_fan_mpc'
+          ? 'COLREG 扇形 MPC · 规则与安全筛选'
+          : '简化 MPC · 扇形轨迹筛选')
         : '名义 LOS 引导';
   const surfaceExplanation = document.getElementById('val-surface-explanation');
   const surfaceMeta = document.getElementById('val-surface-meta');

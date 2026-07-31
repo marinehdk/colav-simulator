@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from colav_simulator.experiment import ExperimentRunner, RunSpec
@@ -335,6 +336,7 @@ def test_rule14_capability_api_and_combination_validation() -> None:
             "nominal",
             "vo",
             "sbmpc",
+            "potocnik_colreg_fan_mpc",
             "potocnik_simplified_mpc",
         }
         assert algorithms["psbmpc"]["incompatibility_reason"]
@@ -455,16 +457,18 @@ def test_vo_decision_space_is_on_demand_and_not_in_telemetry() -> None:
             params={"solve_id": 1},
         )
         assert missing.status_code == 404
-
-
-def test_potocnik_web_session_uses_published_profile() -> None:
+@pytest.mark.parametrize(
+    "algorithm_id",
+    ("potocnik_simplified_mpc", "potocnik_colreg_fan_mpc"),
+)
+def test_potocnik_web_session_uses_published_profile(algorithm_id: str) -> None:
     with TestClient(app) as client:
         created = client.post(
             "/api/sessions",
             json={
                 "validation_rule_id": "rule14",
                 "scenario_id": "head_on",
-                "algorithm_id": "potocnik_simplified_mpc",
+                "algorithm_id": algorithm_id,
                 "tracker_id": "god",
                 "t_end": 1.0,
             },
@@ -480,9 +484,9 @@ def test_potocnik_web_session_uses_published_profile() -> None:
                 break
 
         assert telemetry is not None
-        assert telemetry["requested_algorithm"] == "potocnik_simplified_mpc"
-        assert telemetry["executed_algorithm"] == "potocnik_simplified_mpc"
-        assert telemetry["latest_planner_solve"]["algorithm_id"] == "potocnik_simplified_mpc"
+        assert telemetry["requested_algorithm"] == algorithm_id
+        assert telemetry["executed_algorithm"] == algorithm_id
+        assert telemetry["latest_planner_solve"]["algorithm_id"] == algorithm_id
         assert telemetry["latest_planner_solve"]["status"] == "SUCCESS"
         assert telemetry["latest_planner_solve"]["algorithm_details"]["prediction_steps"] == 20
         assert telemetry["latest_planner_solve"]["algorithm_details"]["prediction_step_s"] == 5.0

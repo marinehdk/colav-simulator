@@ -242,6 +242,9 @@ class PlannerInput:
     coordinate_frame: str = "ENU"
     linear_unit: str = "SI"
     angle_unit: str = "rad"
+    ownship_length_m: float = 15.0
+    ownship_width_m: float = 4.0
+    ownship_draft_m: float = 0.5
 
     def __post_init__(self) -> None:
         """Copy and validate all planner inputs."""
@@ -268,6 +271,9 @@ class PlannerInput:
             object.__setattr__(self, "goal_state", _readonly_array(self.goal_state, (6,), "goal_state"))
         if self.algorithm_seed < 0:
             raise ValueError("algorithm_seed must be non-negative")
+        geometry = (self.ownship_length_m, self.ownship_width_m, self.ownship_draft_m)
+        if not np.isfinite(geometry).all() or min(geometry) <= 0.0:
+            raise ValueError("ownship geometry must be finite and positive")
         if (self.coordinate_frame, self.linear_unit, self.angle_unit) != ("ENU", "SI", "rad"):
             raise ValueError("PlannerInput requires ENU/SI/rad")
 
@@ -286,6 +292,7 @@ class MPCSolution:
     constraints: Mapping[str, Any] = field(default_factory=dict)
     target_predictions: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
     algorithm_details: Mapping[str, Any] = field(default_factory=dict)
+    control_trajectory: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         """Copy and validate the normalized solver result."""
@@ -299,6 +306,12 @@ class MPCSolution:
             "predicted_trajectory",
             _readonly_matrix(self.predicted_trajectory, 9, "predicted_trajectory"),
         )
+        if self.control_trajectory is not None:
+            object.__setattr__(
+                self,
+                "control_trajectory",
+                _readonly_matrix(self.control_trajectory, 9, "control_trajectory"),
+            )
         if isinstance(self.status, str):
             object.__setattr__(self, "status", PlanStatus(self.status))
         if not np.isfinite(self.horizon_dt_s) or self.horizon_dt_s <= 0.0:
@@ -480,6 +493,9 @@ class CustomMPCAdapter(ICOLAV):
                 goal_state=goal_state if goal_state is not None and np.asarray(goal_state).size else None,
                 disturbance=disturbance,
                 algorithm_seed=self.context.algorithm_seed,
+                ownship_length_m=float(kwargs.get("os_length", 15.0)),
+                ownship_width_m=float(kwargs.get("os_width", 4.0)),
+                ownship_draft_m=float(kwargs.get("os_draft", 0.5)),
             )
             if self.descriptor.execution_profile.requires_enc and planner_input.enc is None:
                 raise ValueError("algorithm execution profile requires ENC")
@@ -627,8 +643,13 @@ class CustomMPCAdapter(ICOLAV):
                 source=FailureSource.ADAPTER,
             )
         elapsed_s = planner_input.sim_time_s - self._last_solve_time_s
+        executable_trajectory = (
+            self._solution.control_trajectory
+            if self._solution.control_trajectory is not None
+            else self._solution.predicted_trajectory
+        )
         self._current_plan = _sample_trajectory(
-            self._solution.predicted_trajectory,
+            executable_trajectory,
             self._solution.horizon_dt_s,
             elapsed_s,
         )
@@ -678,6 +699,11 @@ class CustomMPCAdapter(ICOLAV):
             )
         if not np.isclose(solution.horizon_dt_s, self.descriptor.horizon_dt, rtol=0.0, atol=1e-12):
             raise ValueError("MPCSolution horizon_dt_s differs from descriptor")
+        if solution.control_trajectory is not None and solution.control_trajectory.shape[1] != self.descriptor.horizon_steps:
+            raise ValueError(
+                f"control horizon has {solution.control_trajectory.shape[1]} steps; descriptor requires "
+                f"{self.descriptor.horizon_steps}"
+            )
         profile = self.descriptor.execution_profile
         position_error = float(np.linalg.norm(trajectory[:2, 0] - planner_input.ownship_state[:2]))
         heading_error = abs(_wrap_angle(float(trajectory[2, 0] - planner_input.ownship_state[2])))
