@@ -1364,12 +1364,16 @@ function drawPlannerSurface(planner) {
   const matrix = details.candidate_costs;
   const selectionMatrix = matrix;
   const label = algorithmId === 'vo'
-    ? 'VO / COLREGS 决策速度空间'
+    ? '速度决策空间'
     : algorithmId === 'sbmpc'
       ? 'SB-MPC 候选控制代价'
       : isSimplifiedMPC
         ? '简化 MPC · 扇形轨迹筛选'
         : '名义 LOS 引导';
+  const surfaceExplanation = document.getElementById('val-surface-explanation');
+  const surfaceMeta = document.getElementById('val-surface-meta');
+  if (surfaceExplanation) surfaceExplanation.hidden = isVO;
+  if (surfaceMeta) surfaceMeta.hidden = isVO;
   setText('val-surface-label', label);
   setText('val-surface-explanation', '');
   setText('val-surface-meta', '');
@@ -1679,17 +1683,27 @@ function drawVODecisionSpace(surface, canvas, planner, details) {
   surface.arc(centerX, centerY, 2.5, 0, Math.PI * 2);
   surface.fill();
 
-  const activeRuleCount = Object.values(snapshot.active_rules || {}).flat().length;
-  setText(
-    'val-surface-explanation',
-    activeRuleCount
-      ? `活动规则 ${Object.values(snapshot.active_rules).flat().join(', ')}`
-      : '当前无活动 COLREG 规则；显示本次真实求解决策空间',
-  );
-  setText(
-    'val-surface-meta',
-    `半径 0–${maxSpeed.toFixed(0)} m/s · 角度相对本船艏向 · 求解 #${snapshot.solve_id}`,
-  );
+  surface.save();
+  surface.font = '8px SFMono-Regular, monospace';
+  surface.textAlign = 'left';
+  surface.textBaseline = 'middle';
+  [
+    { color: '#58a6ff', label: '选中速度', width: 2.5 },
+    { color: '#f3f6f5', label: '参考速度', width: 1.7 },
+    { color: '#9aa7a2', label: '当前速度', width: 1.7 },
+  ].forEach((item, index) => {
+    const y = 10 + index * 10;
+    surface.strokeStyle = item.color;
+    surface.lineWidth = item.width;
+    surface.beginPath();
+    surface.moveTo(8, y);
+    surface.lineTo(20, y);
+    surface.stroke();
+    surface.fillStyle = item.color;
+    surface.fillText(item.label, 24, y);
+  });
+  surface.restore();
+
   const selectedCost = selected.total_cost == null ? NaN : Number(selected.total_cost);
   setText('val-best-cost', formatCost(selectedCost));
   setText(

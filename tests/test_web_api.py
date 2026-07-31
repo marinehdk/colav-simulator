@@ -133,7 +133,13 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert 'id="val-surface-meta"' in page.text
         assert 'id="plannerSurface" width="280" height="280"' in page.text
         assert 'id="voSurfaceLegend"' in page.text
-        assert "VO / COLREGS 决策速度空间" in script.text
+        assert "? '速度决策空间'" in script.text
+        assert "surfaceExplanation.hidden = isVO" in script.text
+        assert "surfaceMeta.hidden = isVO" in script.text
+        assert all(
+            f"label: '{label}'" in script.text
+            for label in ("选中速度", "参考速度", "当前速度")
+        )
         assert "简化 MPC · 扇形轨迹筛选" in script.text
         assert "data.error === 'session_not_found'" in script.text
         assert "recoverMissingSession(sessionId);" in script.text
@@ -154,7 +160,7 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "planner/decision-space?solve_id=" in script.text
         assert "function drawVODecisionSpace(" in script.text
         assert "function voCandidateColor(" in script.text
-        assert "角度相对本船艏向" in script.text
+        assert "角度相对本船艏向" not in script.text
         assert "objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc'" in script.text
 
 
