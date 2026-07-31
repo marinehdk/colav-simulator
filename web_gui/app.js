@@ -23,6 +23,8 @@ const PREDICTION_LABEL_SECONDS = 60;
 const SBMPC_SOLVE_PERIOD_SECONDS = 5;
 const RADAR_DETECTION_RANGE_M = 2000;
 const SBMPC_RESPONSE_RANGE_M = 1000;
+const VO_DECISION_FETCH_INTERVAL_MS = 200;
+const TELEMETRY_RENDER_INTERVAL_MS = 100;
 const THREAT_STYLES = {
   UNKNOWN: { color: '#4F5B60', fill: 'rgba(104,116,122,0.72)', rank: 0 },
   CLEAR: { color: '#AAB4BA', fill: 'rgba(170,180,186,0.66)', rank: 1 },
@@ -147,8 +149,13 @@ let voDecisionSpace = null;
 let voDecisionSpaceKey = null;
 let voDecisionSpaceRequestKey = null;
 let voDecisionSpaceController = null;
+let lastVODecisionRequestAt = 0;
 let lastVORenderKey = null;
 let voRenderGeometry = null;
+let renderFromData = null;
+let renderToData = null;
+let renderStartedAt = 0;
+let renderFrameId = null;
 const missionRoutes = new Map();
 let targetHitRegions = [];
 let selectedTargetId = null;
@@ -379,6 +386,69 @@ function renderCanvas(data) {
   if (visibleLayers.risk) drawCPARisk(data);
   if (visibleLayers.ships) drawShips(data);
   if (data.os) drawRelativeCompass(data.os, W, H);
+}
+
+function interpolateAngle(from, to, amount) {
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return to;
+  const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  return from + delta * amount;
+}
+
+function interpolateVessel(from, to, amount) {
+  if (!from || !to) return to;
+  return {
+    ...to,
+    x: Number.isFinite(from.x) && Number.isFinite(to.x) ? from.x + (to.x - from.x) * amount : to.x,
+    y: Number.isFinite(from.y) && Number.isFinite(to.y) ? from.y + (to.y - from.y) * amount : to.y,
+    psi: interpolateAngle(from.psi, to.psi, amount),
+    cog: interpolateAngle(from.cog, to.cog, amount),
+  };
+}
+
+function interpolateVesselList(fromList, toList, amount) {
+  const previous = new Map((fromList || []).map(item => [String(item.id), item]));
+  return (toList || []).map(item => interpolateVessel(previous.get(String(item.id)), item, amount));
+}
+
+function interpolateTelemetry(from, to, amount) {
+  if (!from || !to || from.run_id !== to.run_id) return to;
+  return {
+    ...to,
+    os: interpolateVessel(from.os, to.os, amount),
+    obstacles: interpolateVesselList(from.obstacles, to.obstacles, amount),
+    truth: interpolateVesselList(from.truth, to.truth, amount),
+  };
+}
+
+function renderTelemetryFrame(timestamp) {
+  if (!renderToData) {
+    renderFrameId = null;
+    return;
+  }
+  const amount = renderFromData === renderToData
+    ? 1
+    : Math.min(1, Math.max(0, (timestamp - renderStartedAt) / TELEMETRY_RENDER_INTERVAL_MS));
+  renderCanvas(interpolateTelemetry(renderFromData, renderToData, amount));
+  if (amount < 1 && renderToData.state === 'RUNNING') {
+    renderFrameId = requestAnimationFrame(renderTelemetryFrame);
+  } else {
+    renderFromData = renderToData;
+    renderFrameId = null;
+  }
+}
+
+function queueTelemetryRender(data) {
+  const now = performance.now();
+  if (!renderToData || renderToData.run_id !== data.run_id) {
+    renderFromData = data;
+    renderToData = data;
+  } else {
+    const amount = Math.min(1, Math.max(0, (now - renderStartedAt) / TELEMETRY_RENDER_INTERVAL_MS));
+    renderFromData = interpolateTelemetry(renderFromData, renderToData, amount);
+    renderToData = data;
+  }
+  renderStartedAt = now;
+  if (renderFrameId === null) renderFrameId = requestAnimationFrame(renderTelemetryFrame);
 }
 
 /* ENC tile — mapped from UTM to canvas space */
@@ -1182,6 +1252,7 @@ function updateUI(data) {
   setText('val-sim-time', `${(data.scenario_time ?? data.step * 0.5).toFixed(1)} s`);
   setText('val-run-state', data.state || 'CREATED');
   setText('val-reproduction', data.reproduction_status || 'not evaluated');
+  syncPlaybackStatus(data.playback, data.state === 'RUNNING');
 
   // DCPA / TCPA
   const dcpa = Number.isFinite(data.dcpa) ? data.dcpa : null;
@@ -1231,6 +1302,29 @@ function updateUI(data) {
 function setText(id, val) {
   const el = document.getElementById(id);
   if (el) el.textContent = val;
+}
+
+function syncPlaybackStatus(playback, running = false) {
+  if (!playback) return;
+  const requested = Number(playback.requested_multiplier);
+  const effective = typeof playback.effective_multiplier === 'number'
+    ? playback.effective_multiplier
+    : NaN;
+  document.querySelectorAll('.speed-preset').forEach(button => {
+    button.classList.toggle('active', Number(button.dataset.speed) === requested);
+  });
+  const status = document.getElementById('speedStatus');
+  if (!status) return;
+  status.classList.toggle('limited', Boolean(playback.realtime_limited));
+  if (!running) {
+    status.textContent = Number.isFinite(effective) ? `最近 ${effective.toFixed(1)}×` : '实际 --';
+  } else if (!Number.isFinite(effective)) {
+    status.textContent = '测量中';
+  } else {
+    status.textContent = playback.realtime_limited
+      ? `受限 ${effective.toFixed(1)}×`
+      : `实际 ${effective.toFixed(1)}×`;
+  }
 }
 
 function formatCoordinate(value, positiveHemisphere, negativeHemisphere) {
@@ -1528,6 +1622,9 @@ function ensureVODecisionSpace(planner) {
   if (card?.classList.contains('collapsed') || !Number.isInteger(solveId) || solveId < 1) return;
   const requestKey = `${activeSessionId}:${solveId}`;
   if (voDecisionSpaceKey === requestKey || voDecisionSpaceRequestKey === requestKey) return;
+  const requestTime = performance.now();
+  if (requestTime - lastVODecisionRequestAt < VO_DECISION_FETCH_INTERVAL_MS) return;
+  lastVODecisionRequestAt = requestTime;
 
   if (voDecisionSpaceController) voDecisionSpaceController.abort();
   const controller = new AbortController();
@@ -2255,7 +2352,7 @@ function connectWebSocket() {
     if (!data.os) return;
     currentData = data;
     updateUI(data);
-    renderCanvas(data);
+    queueTelemetryRender(data);
     checkLogEvents(data);
     if (data.state === 'FINISHED' && !resultLoaded) loadResult();
     if (data.state === 'FAILED') pushLog(data.failure_reason || 'Simulation failed.', 'log-danger');
@@ -2368,8 +2465,14 @@ function activateSession(data, requestKey = null) {
   voDecisionSpaceKey = null;
   voDecisionSpaceRequestKey = null;
   voDecisionSpaceController = null;
+  lastVODecisionRequestAt = 0;
   lastVORenderKey = null;
   voRenderGeometry = null;
+  if (renderFrameId !== null) cancelAnimationFrame(renderFrameId);
+  renderFromData = null;
+  renderToData = null;
+  renderStartedAt = 0;
+  renderFrameId = null;
   activeSessionId = data.session_id;
   activeSessionKey = requestKey || sessionKey(data.spec || selectedSessionRequest());
   resultLoaded = false;
@@ -2388,6 +2491,7 @@ function activateSession(data, requestKey = null) {
   encInfo = null;
   encImage = null;
   setEncStatus('loading');
+  syncPlaybackStatus(data.playback, false);
   syncEncChartSelect(document.getElementById('scenarioSelect').value);
   connectWebSocket();
   initENC();
@@ -2832,11 +2936,23 @@ document.querySelectorAll('.qtab').forEach(tab => {
 
 document.querySelectorAll('.speed-preset').forEach(button => {
   button.addEventListener('click', async () => {
+    if (!activeSessionId) return;
     const speed = parseFloat(button.dataset.speed);
-    document.querySelectorAll('.speed-preset').forEach(item => {
-      item.classList.toggle('active', item === button);
-    });
-    await fetch(`/api/set_speed?multiplier=${speed}`, { method: 'POST' }).catch(() => {});
+    const controls = [...document.querySelectorAll('.speed-preset')];
+    controls.forEach(item => { item.disabled = true; });
+    try {
+      const playback = await apiRequest(
+        `/api/sessions/${encodeURIComponent(activeSessionId)}/speed?multiplier=${speed}`,
+        { method: 'POST' },
+      );
+      syncPlaybackStatus(playback, currentData?.state === 'RUNNING');
+      if (currentData) currentData.playback = playback;
+    } catch (error) {
+      pushLog(`Speed change failed: ${error.message}`, 'log-danger');
+      syncPlaybackStatus(currentData?.playback, currentData?.state === 'RUNNING');
+    } finally {
+      controls.forEach(item => { item.disabled = false; });
+    }
   });
 });
 
