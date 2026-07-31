@@ -729,7 +729,7 @@ class CapabilityCatalog:
         if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
-                f"No selectable capability tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
+                f"No verified G3 capability tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
             )
         return ":".join(key)
 
