@@ -320,6 +320,7 @@ class ExperimentRunner:
                 "fallback_used": prepared.manifest.fallback_used,
                 "run_completed": True,
                 "solver": _solver_diagnostics(prepared.session.frames),
+                "stress_only": prepared.session.config.name.startswith("romsdal_busy_water_80_stress"),
             },
         )
         prepared.manifest.evaluator_id = evaluation.evaluator_id
@@ -337,6 +338,7 @@ class ExperimentRunner:
         prepared.manifest.trajectory_hash = _file_hash(trajectory_path)
         prepared.writer.write_events(prepared.session.events)
         prepared.writer.write_evaluation(evaluation)
+        prepared.writer.write_run_metrics(_run_metrics(evaluation, prepared.session, prepared.manifest.fallback_used))
         prepared.writer.write_report(prepared.manifest, evaluation)
         prepared.writer.write_manifest(prepared.manifest)
         return RunResult(
@@ -480,6 +482,141 @@ def _solver_diagnostics(frames: list[dict[str, Any]]) -> dict[str, Any]:
         "elapsed_ms_p95": float(np.percentile(elapsed, 95)) if elapsed.size else None,
         "iterations_mean": float(np.mean(iterations)) if iterations else None,
         "objective_last": objectives[-1] if objectives else None,
+    }
+
+
+def _run_metrics(evaluation: Any, session: SimulationSession, fallback_used: bool) -> dict[str, Any]:
+    ship_info = {
+        int(info["id"]): {
+            "length_m": float(info["length"]),
+            "width_m": float(info["width"]),
+        }
+        for info in session.ship_info.values()
+    }
+    ship0_pairs = []
+    global_pairs = []
+    for pair in evaluation.pair_results:
+        first = ship_info[pair.ownship_id]
+        second = ship_info[pair.target_id]
+        radius_sum = 0.5 * np.hypot(first["length_m"], first["width_m"]) + 0.5 * np.hypot(
+            second["length_m"],
+            second["width_m"],
+        )
+        document = {
+            "ship_ids": [pair.ownship_id, pair.target_id],
+            "minimum_center_distance_m": pair.minimum_distance_m,
+            "conservative_footprint_clearance_lower_bound_m": pair.minimum_distance_m - radius_sum,
+            "collision": pair.collision,
+            "collision_toc_s": pair.collision_toc_s,
+            "collision_oracle_id": pair.collision_oracle_id,
+        }
+        global_pairs.append(document)
+        if 0 in {pair.ownship_id, pair.target_id}:
+            ship0_pairs.append(document)
+    vessel_results = {item.vessel_id: item for item in evaluation.vessel_results}
+    ship0_grounding = vessel_results.get(0)
+    nearest = min(global_pairs, key=lambda item: item["minimum_center_distance_m"], default=None)
+    active_counts = [
+        sum(
+            1
+            for key, ship in frame.items()
+            if key.startswith("Ship") and isinstance(ship, dict) and ship and ship.get("active", True)
+        )
+        for frame in session.frames
+    ]
+    risk_counts = [
+        len(
+            [
+                item
+                for item in (
+                    frame.get("Ship0", {})
+                    .get("colav", {})
+                    .get("planner", {})
+                    .get("algorithm_details", {})
+                    .get("encounter_records", [])
+                )
+                if str(item.get("encounter", "clear")).lower() != "clear"
+            ]
+        )
+        for frame in session.frames
+        if frame.get("Ship0")
+    ]
+    step_times = np.asarray(session.step_times_ms, dtype=float)
+    maneuver_samples = []
+    phase_transitions = []
+    last_phase = None
+    for frame in session.frames:
+        ship0 = frame.get("Ship0", {})
+        planner = ship0.get("colav", {}).get("planner", {})
+        if not planner.get("solver_executed"):
+            continue
+        details = planner.get("algorithm_details", {})
+        phase = details.get("maneuver_phase")
+        if phase and phase != last_phase:
+            phase_transitions.append({"sim_time_s": float(planner.get("sim_time", 0.0)), "phase": phase})
+            last_phase = phase
+        maneuver_samples.append(
+            {
+                "heading_increment_rad": details.get("selected_heading_increment_rad"),
+                "cross_track_error_m": details.get("cross_track_error_m"),
+                "selected_speed_scale": details.get("selected_speed_scale"),
+            }
+        )
+    signed_actions = [
+        int(np.sign(float(item["heading_increment_rad"])))
+        for item in maneuver_samples
+        if item["heading_increment_rad"] is not None
+        and abs(float(item["heading_increment_rad"])) >= np.deg2rad(0.5)
+    ]
+    steering_reversals = sum(
+        current != previous for previous, current in zip(signed_actions, signed_actions[1:], strict=False)
+    )
+    cross_track_errors = [
+        abs(float(item["cross_track_error_m"]))
+        for item in maneuver_samples
+        if item["cross_track_error_m"] is not None
+    ]
+    speed_scales = [
+        float(item["selected_speed_scale"])
+        for item in maneuver_samples
+        if item["selected_speed_scale"] is not None
+    ]
+    return {
+        "schema_version": "busy_water_metrics.v1",
+        "ship0_safety": {
+            "fallback_used": bool(fallback_used),
+            "collision_count": sum(item["collision"] for item in ship0_pairs),
+            "grounded": ship0_grounding.grounded if ship0_grounding else None,
+            "grounding_clearance_m": ship0_grounding.grounding_distance_m if ship0_grounding else None,
+            "targets": ship0_pairs,
+        },
+        "global_world_events": {
+            "collision_count": sum(item["collision"] for item in global_pairs),
+            "grounding_count": sum(item.grounded is True for item in evaluation.vessel_results),
+            "nearest_pair": nearest,
+            "colliding_pairs": [item for item in global_pairs if item["collision"]],
+            "grounded_ship_ids": [item.vessel_id for item in evaluation.vessel_results if item.grounded is True],
+        },
+        "traffic_load": {
+            "configured_ship_count": len(session.ship_list),
+            "maximum_active_ship_count": max(active_counts, default=0),
+            "maximum_risk_target_count": max(risk_counts, default=0),
+            "step_count": len(session.frames),
+            "step_time_ms_p50": float(np.percentile(step_times, 50)) if step_times.size else None,
+            "step_time_ms_p95": float(np.percentile(step_times, 95)) if step_times.size else None,
+            "step_time_ms_max": float(np.max(step_times)) if step_times.size else None,
+            "solver": _solver_diagnostics(session.frames),
+        },
+        "maneuver_quality_observations": {
+            "phase_transitions": phase_transitions,
+            "steering_reversal_count": steering_reversals,
+            "maximum_absolute_cross_track_error_m": max(cross_track_errors, default=None),
+            "final_absolute_cross_track_error_m": cross_track_errors[-1] if cross_track_errors else None,
+            "minimum_selected_speed_scale": min(speed_scales, default=None),
+            "final_selected_speed_scale": speed_scales[-1] if speed_scales else None,
+            "astern_passing": "NOT_EVALUATED",
+            "legal_colreg_compliance": "NOT_EVALUATED",
+        },
     }
 
 

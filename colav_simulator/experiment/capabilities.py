@@ -82,6 +82,20 @@ SCENARIOS: dict[str, Capability] = {
         ("paper_ccta2023_multiship",),
         ("dynamic", "enc"),
     ),
+    "romsdal_busy_water_16": Capability(
+        "G2",
+        ("multiship",),
+        ("romsdal_busy_water_16",),
+        ("dynamic", "enc"),
+        "Experimental 16-ship acceptance scene; raw G3 promotion is pending.",
+    ),
+    "romsdal_busy_water_80_stress": Capability(
+        "G2",
+        ("multiship",),
+        ("romsdal_busy_water_80_stress",),
+        ("dynamic", "enc"),
+        "Stress-only 80-ship scene; excluded from algorithm G3 claims.",
+    ),
     "rrt_test": Capability(
         "G0",
         ("planning",),
@@ -446,6 +460,23 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ),
 }
 
+EXPERIMENTAL_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
+    ("multiship", "romsdal_busy_water_16", "potocnik_colreg_fan_mpc", "god"): {
+        "seed": 20250731,
+        "evidence_role": "experimental_acceptance_pending",
+        "readiness_grade": "G2",
+        "promotion_status": "RAW_G3_PENDING",
+        "scope": "ship0_algorithm_responsibility",
+    },
+    ("multiship", "romsdal_busy_water_80_stress", "potocnik_colreg_fan_mpc", "god"): {
+        "seed": 20250731,
+        "evidence_role": "stress_only_not_g3",
+        "readiness_grade": "G2",
+        "promotion_status": "NOT_ELIGIBLE_FOR_G3",
+        "scope": "runtime_and_interface_load",
+    },
+}
+
 
 def _combination_documents(
     *,
@@ -478,6 +509,37 @@ def _combination_documents(
     return output
 
 
+def _experimental_combination_documents(
+    rule_id: str | None = None,
+    scenario_id: str | None = None,
+    algorithm_id: str | None = None,
+    tracker_id: str | None = None,
+) -> list[dict[str, Any]]:
+    output = []
+    for key, evidence in EXPERIMENTAL_COMBINATIONS.items():
+        rule, scenario, algorithm, tracker = key
+        if rule_id is not None and rule != rule_id:
+            continue
+        if scenario_id is not None and scenario != scenario_id:
+            continue
+        if algorithm_id is not None and algorithm != algorithm_id:
+            continue
+        if tracker_id is not None and tracker != tracker_id:
+            continue
+        output.append(
+            {
+                "validation_rule_id": rule,
+                "scenario_id": scenario,
+                "algorithm_id": algorithm,
+                "tracker_id": tracker,
+                "predicate_version": PREDICATE_VERSION,
+                "latest_evidence": dict(evidence),
+                "experimental": True,
+            }
+        )
+    return output
+
+
 class CapabilityCatalog:
     """Resolve selectable combinations from exact raw-evidence tuples."""
 
@@ -499,9 +561,11 @@ class CapabilityCatalog:
     def annotate_scenario(self, document: dict[str, Any]) -> dict[str, Any]:
         capability = self._scenario_capability(document["id"], bool(document.get("valid")))
         combinations = _combination_documents(scenario_id=document["id"])
+        experimental = _experimental_combination_documents(scenario_id=document["id"])
+        selectable_combinations = combinations + experimental
         dependency_available = bool(document.get("valid"))
         runtime_ready = dependency_available and GRADE_VALUE[capability.readiness_grade] >= 2
-        selectable = runtime_ready and bool(combinations)
+        selectable = runtime_ready and bool(selectable_combinations)
         failure = capability.known_failure or document.get("reason")
         output = dict(document)
         output.update(
@@ -510,15 +574,16 @@ class CapabilityCatalog:
                 "dependency_available": dependency_available,
                 "runtime_ready": runtime_ready,
                 "selectable": selectable,
-                "supported_rules": sorted({item["validation_rule_id"] for item in combinations}),
-                "supported_scenarios": [document["id"]] if combinations else [],
+                "supported_rules": sorted({item["validation_rule_id"] for item in selectable_combinations}),
+                "supported_scenarios": [document["id"]] if selectable_combinations else [],
                 "supported_obstacles": list(capability.supported_obstacles),
                 "verified_combinations": combinations,
-                "latest_evidence": combinations[-1]["latest_evidence"] if combinations else None,
+                "experimental_combinations": experimental,
+                "latest_evidence": selectable_combinations[-1]["latest_evidence"] if selectable_combinations else None,
                 "known_failure": failure,
                 "incompatibility_reason": None
                 if selectable
-                else failure or "Scenario has no verified G3 capability tuple.",
+                else failure or "Scenario has no selectable capability tuple.",
             }
         )
         return output
@@ -565,6 +630,9 @@ class CapabilityCatalog:
                 for identifier, capability in TRACKERS.items()
             ],
             "verified_combinations": _combination_documents(rule_id=validation_rule_id),
+            "experimental_combinations": _experimental_combination_documents(rule_id=validation_rule_id),
+            "selectable_combinations": _combination_documents(rule_id=validation_rule_id)
+            + _experimental_combination_documents(rule_id=validation_rule_id),
             "defaults": {
                 "validation_rule_id": default_rule,
                 "scenario_id": RULES[default_rule]["default_scenario"],
@@ -646,7 +714,10 @@ class CapabilityCatalog:
     def validate(self, validation_rule_id: str, scenario_id: str, algorithm_id: str, tracker_id: str) -> str:
         if validation_rule_id not in RULES:
             raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unsupported validation rule: {validation_rule_id}")
-        scenario_combinations = _combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id)
+        scenario_combinations = [
+            *_combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id),
+            *_experimental_combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id),
+        ]
         if not scenario_combinations:
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
@@ -655,10 +726,10 @@ class CapabilityCatalog:
         self._require_available(ALGORITHMS, algorithm_id)
         self._require_available(TRACKERS, tracker_id)
         key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
-        if key not in VERIFIED_COMBINATIONS:
+        if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
-                f"No verified G3 capability tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
+                f"No selectable capability tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
             )
         return ":".join(key)
 

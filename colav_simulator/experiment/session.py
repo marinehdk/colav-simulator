@@ -54,6 +54,7 @@ class SimulationSession:
         self.sequence = 0
         self.frames: list[dict[str, Any]] = []
         self.events: list[dict[str, Any]] = []
+        self.step_times_ms: list[float] = []
         self._last_planner_solve_ids: dict[str, int] = {}
         self.failure_reason: str | None = None
         self.ship_info = {f"Ship{i}": ship.get_ship_info() for i, ship in enumerate(ship_list)}
@@ -107,7 +108,8 @@ class SimulationSession:
             self.frames.append(payload)
             self.sequence += 1
             step_events = self._planner_events(payload)
-            collision_evidence = self.simulator.detect_ship_collisions(0)
+            stress_only = self.config.name.startswith("romsdal_busy_water_80_stress")
+            collision_evidence = [] if stress_only else self.simulator.detect_ship_collisions(0)
             collision = bool(collision_evidence)
             grounding = self.simulator.determine_ship_grounding(0)
             goal_reached = self.simulator.determine_ship_goal_reached(0)
@@ -124,11 +126,13 @@ class SimulationSession:
             if terminated or time_limit:
                 self.state = SessionState.FINISHED
                 self._event("session_finished")
+            step_time_ms = (time.perf_counter() - start) * 1000.0
+            self.step_times_ms.append(step_time_ms)
             return SessionSnapshot(
                 sequence=self.sequence,
                 sim_time=sim_time,
                 state=self.state,
-                step_time_ms=(time.perf_counter() - start) * 1000.0,
+                step_time_ms=step_time_ms,
                 payload=payload,
                 events=step_events,
             )

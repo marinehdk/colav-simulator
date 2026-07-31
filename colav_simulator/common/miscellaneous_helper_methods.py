@@ -962,10 +962,15 @@ def extract_do_states_from_ship_list(t: float, ship_list: list) -> list:
     """
     true_do_states = []
     for i, ship_obj in enumerate(ship_list):
-        if ship_obj.t_start <= t:
+        if ship_is_active(ship_obj, t):
             vxvy_state = convert_state_to_vxvy_state(ship_obj.csog_state)
             true_do_states.append((i, vxvy_state, ship_obj.length, ship_obj.width))
     return true_do_states
+
+
+def ship_is_active(ship_obj: object, t: float) -> bool:
+    """Return whether one scripted ship participates at simulation time ``t``."""
+    return float(getattr(ship_obj, "t_start", 0.0)) <= t < float(getattr(ship_obj, "t_end", np.inf))
 
 
 def convert_state_to_vxvy_state(xs: np.ndarray) -> np.ndarray:

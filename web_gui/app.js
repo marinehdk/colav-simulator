@@ -69,6 +69,8 @@ const SCENARIO_LABELS = {
   overtaking: '标准追越',
   paper_ccta2023_head_on: '论文复现 · 对遇',
   paper_ccta2023_multiship: '论文复现 · 四船',
+  romsdal_busy_water_16: 'Romsdal 繁忙水域 · 16船',
+  romsdal_busy_water_80_stress: 'Romsdal 交通压力 · 80船',
   rl_scenario: 'RL',
   rl_scenario_smaller: 'RL',
   rlmpc_scenario: 'RLMPC',
@@ -373,7 +375,7 @@ function renderCanvas(data) {
   if (visibleLayers.waypoints) drawWaypoints(route, data.os);
   if (visibleLayers.history) drawHistory(data);
   if (visibleLayers.measurements) drawMeasurements(data.measurements?.[0]);
-  if (visibleLayers.tracks) drawTracks(data.tracks?.[0]);
+  if (visibleLayers.tracks && !denseTrafficMode(data)) drawTracks(data.tracks?.[0]);
   if (visibleLayers.motionVectors) drawMotionVectors(data);
   drawDetectionZones(data);
 
@@ -655,6 +657,7 @@ function drawHistory(data) {
   drawFadingTrail(data.os?.trajectory, '#FFFFFF');
   if (data.executed_tracker === 'god') {
     (data.obstacles || []).forEach(target => {
+      if (denseTrafficMode(data) && targetThreat(data, target).rank < 3 && target.id !== selectedTargetId) return;
       drawFadingTrail(target.trajectory, targetThreat(data, target).color);
     });
   }
@@ -799,8 +802,13 @@ function drawMotionVectors(data) {
   if (data.os) drawMotionVector(data.os, '#FFFFFF', false);
   targetsForDisplay(data).forEach(target => {
     const threat = targetThreat(data, target);
+    if (denseTrafficMode(data) && threat.rank < 3 && target.id !== selectedTargetId) return;
     drawMotionVector(target, threat.color, true);
   });
+}
+
+function denseTrafficMode(data) {
+  return Math.max(data.obstacles?.length || 0, data.tracks?.[0]?.states?.length || 0) >= 40;
 }
 
 function drawMotionVector(ship, color, dashed) {
@@ -892,14 +900,16 @@ function encounterForTarget(data, targetId) {
 
 function drawShips(data) {
   const targets = targetsForDisplay(data);
+  const dense = denseTrafficMode(data);
   const labels = [];
   targets.forEach(target => {
     const threat = targetThreat(data, target);
     const point = worldToCanvas(target.x, target.y);
     if (threat.rank >= 2) drawThreatRings(point, threat, target.id === selectedTargetId);
-    drawHull(point, target.psi, target.length || 30, target.width || 7, threat, false);
+    const compact = dense && threat.rank < 3 && target.id !== selectedTargetId;
+    drawHull(point, target.psi, target.length || 30, target.width || 7, threat, false, compact);
     targetHitRegions.push({ x: point.x, y: point.y, radius: 14, target });
-    if (threat.rank >= 2 || target.id === selectedTargetId) {
+    if ((!dense && threat.rank >= 2) || threat.rank >= 3 || target.id === selectedTargetId) {
       labels.push({ text: `TS${target.id}`, point, color: threat.color });
     }
   });
@@ -917,8 +927,8 @@ function drawShips(data) {
   drawAvoidingLabels(labels);
 }
 
-function drawHull(point, heading, lengthM, widthM, threat, ownship) {
-  const lengthPx = Math.max(ownship ? 18 : 22, lengthM * viewScale);
+function drawHull(point, heading, lengthM, widthM, threat, ownship, compact = false) {
+  const lengthPx = Math.max(ownship ? 18 : compact ? 7 : 22, lengthM * viewScale);
   const widthPx = Math.max(ownship ? 4 : 5, lengthPx * widthM / lengthM);
   ctx.save();
   ctx.translate(point.x, point.y);
@@ -2628,7 +2638,9 @@ async function populateCatalogs(ruleId = 'rule14') {
 function syncExactCombinationAvailability() {
   if (!capabilityCatalog) return;
   const ruleId = document.querySelector('.qtab.active')?.dataset.group || 'rule14';
-  const combinations = (capabilityCatalog.verified_combinations || [])
+  const combinations = (capabilityCatalog.selectable_combinations
+    || capabilityCatalog.verified_combinations
+    || [])
     .filter(item => item.validation_rule_id === ruleId);
   const scenarioSelect = document.getElementById('scenarioSelect');
   const algorithmSelect = document.getElementById('algoSelect');

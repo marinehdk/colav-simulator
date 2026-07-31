@@ -872,7 +872,7 @@ class ScenarioGenerator:
         # self.behavior_generator.visualize_ship_behaviors(ship_list)
         return ship_list, disturbance, config
 
-    def check_for_bad_episode(  # noqa: PLR0912, PLR0915
+    def check_for_bad_episode(  # noqa: C901, PLR0912, PLR0915
         self,
         ship_list: list,
         config: sc.ScenarioConfig,
@@ -901,6 +901,29 @@ class ScenarioGenerator:
                 If the episode is OK, we may still want to prune the DOs with bad paths
                 (i.e. too short paths).
         """
+        if config.name in {"romsdal_busy_water_16", "romsdal_busy_water_80_stress"}:
+            for ship_obj in ship_list:
+                in_safe_sea = mapf.point_in_polygon_list(
+                    geometry.Point(ship_obj.csog_state[1], ship_obj.csog_state[0]),
+                    self.safe_sea_cdt,
+                )
+                path_length = np.sum(np.linalg.norm(np.diff(ship_obj.waypoints, axis=1), axis=0))
+                crosses_hazards = mapf.check_if_segment_crosses_grounding_hazards(
+                    enc=self.enc,
+                    p1=ship_obj.waypoints[:, 0],
+                    p2=ship_obj.waypoints[:, -1],
+                    draft=ship_obj.draft,
+                    hazards=self._sg_hazards,
+                )
+                minimum_length = minimum_os_plan_length if ship_obj.id == 0 else minimum_do_plan_length
+                if not in_safe_sea or path_length < minimum_length or crosses_hazards:
+                    raise ValueError(
+                        f"{config.name} ship {ship_obj.id} failed deterministic ENC preflight "
+                        f"(safe_sea={in_safe_sea}, path_length={path_length:.1f}, "
+                        f"crosses_hazards={crosses_hazards})"
+                    )
+            return False, ship_list, config
+
         if show_plots:
             os_poly_handle = None
             os_traj_handle = None
