@@ -88,5 +88,5 @@ def test_experimental_busy_water_tuple_is_selectable_only_for_colreg_fan_mpc() -
         )
         == "multiship:romsdal_busy_water_16:potocnik_colreg_fan_mpc:god"
     )
-    with pytest.raises(ColavExecutionError, match="No selectable capability tuple"):
+    with pytest.raises(ColavExecutionError, match="No verified G3 capability tuple"):
         catalog.validate("multiship", "romsdal_busy_water_16", "vo", "god")
