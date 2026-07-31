@@ -2635,7 +2635,7 @@ async function populateCatalogs(ruleId = 'rule14') {
   syncSelectionCards('tracker', document.getElementById('trackerSelect').value);
 }
 
-function syncExactCombinationAvailability() {
+function syncExactCombinationAvailability(changedSelectId = null) {
   if (!capabilityCatalog) return;
   const ruleId = document.querySelector('.qtab.active')?.dataset.group || 'rule14';
   const combinations = (capabilityCatalog.selectable_combinations
@@ -2655,7 +2655,26 @@ function syncExactCombinationAvailability() {
     && item.algorithm_id === current.algorithm_id
     && item.tracker_id === current.tracker_id
   ));
+  let preferred = null;
+  if (changedSelectId === 'scenarioSelect') {
+    preferred = combinations.find(item => (
+      item.scenario_id === current.scenario_id
+      && item.tracker_id === current.tracker_id
+    )) || combinations.find(item => item.scenario_id === current.scenario_id);
+  } else if (changedSelectId === 'algoSelect') {
+    preferred = combinations.find(item => (
+      item.algorithm_id === current.algorithm_id
+      && item.scenario_id === current.scenario_id
+    )) || combinations.find(item => item.algorithm_id === current.algorithm_id);
+  } else if (changedSelectId === 'trackerSelect') {
+    preferred = combinations.find(item => (
+      item.tracker_id === current.tracker_id
+      && item.scenario_id === current.scenario_id
+      && item.algorithm_id === current.algorithm_id
+    )) || combinations.find(item => item.tracker_id === current.tracker_id);
+  }
   const selected = exact
+    || preferred
     || combinations.find(item => (
       item.scenario_id === current.scenario_id
       && item.algorithm_id === capabilityCatalog.defaults.algorithm_id
@@ -2672,15 +2691,18 @@ function syncExactCombinationAvailability() {
     algorithm_id: algorithmSelect.value,
     tracker_id: trackerSelect.value,
   };
-  const permits = (kind, value) => combinations.some(item => (
-    item[kind] === value
-    && (kind === 'scenario_id' || item.scenario_id === selectedIds.scenario_id)
-    && (kind === 'algorithm_id' || item.algorithm_id === selectedIds.algorithm_id)
-    && (kind === 'tracker_id' || item.tracker_id === selectedIds.tracker_id)
-  ));
+  const permits = (kind, value) => combinations.some(item => {
+    if (item[kind] !== value) return false;
+    if (kind === 'scenario_id') return true;
+    return (
+      (kind === 'algorithm_id' || item.algorithm_id === selectedIds.algorithm_id)
+      && (kind === 'tracker_id' || item.tracker_id === selectedIds.tracker_id)
+      && item.scenario_id === selectedIds.scenario_id
+    );
+  });
   document.querySelectorAll('#scenarioSelect option').forEach(option => {
     option.disabled = !permits('scenario_id', option.value);
-    if (option.disabled) option.title = '未通过当前算法与跟踪器的精确 G3 组合门';
+    if (option.disabled) option.title = '当前规则下无可用算法组合';
   });
   document.querySelectorAll('#algoSelect option').forEach(option => {
     option.disabled = !permits('algorithm_id', option.value);
@@ -2715,7 +2737,7 @@ function setExactSelectionAvailability(card, status, selectable) {
     selectable,
     incompatibility_reason: selectable
       ? null
-      : '该选项未通过当前 rule/scenario/algorithm/tracker 精确 G3 组合门',
+      : '该选项不属于当前 rule/scenario/algorithm/tracker 可用组合',
   });
 }
 
@@ -2957,7 +2979,7 @@ document.getElementById('encChartSelect').addEventListener('change', async event
 
 ['algoSelect', 'scenarioSelect', 'trackerSelect'].forEach(id => {
   document.getElementById(id).addEventListener('change', async () => {
-    syncExactCombinationAvailability();
+    syncExactCombinationAvailability(id);
     if (id === 'scenarioSelect') {
       const scenarioId = document.getElementById(id).value;
       syncQuickScenarioTab(scenarioId);

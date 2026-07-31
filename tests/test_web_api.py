@@ -102,6 +102,8 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert all(token in page.text for token in ('id="scenarioCatalog"', "追越与被追越", "对遇避碰"))
         assert 'data-algorithm="sbmpc"' in page.text
         assert 'data-algorithm="vo"' in page.text
+        assert 'data-algorithm="potocnik_colreg_fan_mpc"' in page.text
+        assert 'data-algorithm="potocnik_simplified_mpc"' not in page.text
         assert 'class="algorithm-catalog"' in page.text
         assert '<option value="sbmpc" selected>内置 SB-MPC</option>' in page.text
         assert 'class="selection-card selected" type="button" data-algorithm="sbmpc"' in page.text
@@ -158,6 +160,8 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "responseRange?.threatActivation" in script.text
         assert "vo_velocity_space.v1" not in script.text
         assert "candidate_state_bits" in script.text
+        assert "syncExactCombinationAvailability(id);" in script.text
+        assert "if (kind === 'scenario_id') return true;" in script.text
         assert "planner/decision-space?solve_id=" in script.text
         assert "function drawVODecisionSpace(" in script.text
         assert "function voCandidateColor(" in script.text
@@ -301,7 +305,7 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         assert all(
             token in script.text
             for token in (
-                "function syncExactCombinationAvailability()",
+                "function syncExactCombinationAvailability(changedSelectId = null)",
                 "capabilityCatalog.verified_combinations",
                 "function setExactSelectionAvailability(",
                 "syncExactCombinationAvailability();",
