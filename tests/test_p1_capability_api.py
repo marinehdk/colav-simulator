@@ -8,7 +8,7 @@ from gui_server.main import app
 EXPECTED_COUNTS = {
     "rule13": 8,
     "rule14": 7,
-    "rule15": 8,
+    "rule15": 7,
     "multiship": 4,
 }
 EXPECTED_SCENARIOS = {
@@ -70,6 +70,7 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
         ("rule15", "overtaking", "vo", "god"),
         ("rule13", "overtaking", "vo", "kf"),
         ("rule15", "crossing_give_way", "sbmpc", "kf"),
+        ("rule15", "crossing_give_way", "potocnik_simplified_mpc", "god"),
         ("multiship", "paper_ccta2023_multiship", "vo", "kf"),
         ("rule14", "head_on", "psbmpc", "god"),
         ("rule14", "paper_ccta2023_head_on", "vo", "god"),

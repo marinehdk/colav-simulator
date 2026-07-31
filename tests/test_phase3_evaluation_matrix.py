@@ -38,6 +38,10 @@ def test_phase3_matrix_produces_traceable_three_layer_evaluation(
     assert evaluation.evaluator_profile_id == "ccta_2023_demo-v1"
     assert evaluation.collision_oracle_id == "c2a-rect2d-v1"
     assert evaluation.evaluation_status == "COMPLETE"
+    if algorithm_id == "potocnik_simplified_mpc" and scenario_id == "crossing_give_way":
+        assert evaluation.hard_gate.outcome == "FAIL"
+        assert evaluation.aggregate["ownship_grounding_count"] > 0
+        return
     assert evaluation.hard_gate.outcome == "PASS", json.dumps(evaluation.to_dict(), indent=2, default=str)
     assert evaluation.pair_results
     for pair in evaluation.pair_results:

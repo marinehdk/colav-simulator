@@ -129,6 +129,9 @@ uv run python -m colav_simulator.cli run \
 uv run pytest tests/test_potocnik_mpc.py tests/test_custom_mpc_g3_matrix.py -q
 ```
 
-The formal G3 matrix is seed 0, God tracker, strict no fallback, and covers
-`head_on`, `overtaking`, `overtaken`, `crossing_give_way`,
-`crossing_stand_on`, and `paper_ccta2023_multiship`.
+The original 300 s formal G3 matrix covered all six scenes. After the standard
+encounter window changed to 600 s, `crossing_give_way` exposes Ship0 grounding
+because this port has no static ENC constraint. That exact capability tuple is
+not promoted. Seed 0, God tracker, strict no fallback evidence remains for
+`head_on`, `overtaking`, `overtaken`, `crossing_stand_on`, and
+`paper_ccta2023_multiship`.

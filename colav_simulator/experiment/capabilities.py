@@ -307,14 +307,6 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         max_speed_delta_mps=0.045194679263571125,
         solve_count=59,
     ),
-    ("rule15", "crossing_give_way", "potocnik_simplified_mpc", "god"): _evidence(
-        role="candidate_g3",
-        termination="time_limit",
-        minimum_clearance_m=240.95569916174946,
-        max_heading_delta_deg=46.424123232053276,
-        max_speed_delta_mps=0.09408005379017048,
-        solve_count=60,
-    ),
     ("rule15", "crossing_stand_on", "nominal", "god"): _evidence(
         role="nominal_threat",
         termination="goal_reached",

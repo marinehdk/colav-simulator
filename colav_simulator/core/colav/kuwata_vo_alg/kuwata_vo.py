@@ -278,16 +278,24 @@ class VO:
                 p_do,
                 v_do,
             )
-            self._matched_rules_current.update(geometry_matched_rules)
-            if (
-                id_do in self._completed_crossing_targets
-                and VOCOLREGSSituation.CR_SS not in geometry_matched_rules
-            ):
-                self._completed_crossing_targets.discard(id_do)
-            matched_rules = set(geometry_matched_rules)
-            if id_do in self._completed_crossing_targets:
-                matched_rules.discard(VOCOLREGSSituation.CR_SS)
+            crossing_rules = {
+                VOCOLREGSSituation.CR_SS,
+                VOCOLREGSSituation.CR_PS,
+            }
             previous_rules = self._active_rules.get(id_do, set()).copy()
+            matched_rules = set(geometry_matched_rules)
+            # A passed crossing can flip geometric roles; keep returning to route
+            # instead of treating the same tracked vessel as a new stand-on case.
+            crossing_return_phase = (
+                id_do in self._completed_crossing_targets
+                or (
+                    VOCOLREGSSituation.CR_SS in previous_rules
+                    and VOCOLREGSSituation.CR_SS not in matched_rules
+                )
+            )
+            if crossing_return_phase:
+                matched_rules.difference_update(crossing_rules)
+            self._matched_rules_current.update(matched_rules)
             cpa_gate_eligible = (
                 speed_do >= self._params.colregs_min_target_speed_mps
                 and self._precollision_check(

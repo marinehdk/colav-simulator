@@ -192,6 +192,13 @@ def test_crossing_commitment_blocks_port_candidates_until_rule_releases() -> Non
     planner.plan(5.0, np.array([5.0, 0.0]), _own_state(), [target])
     assert "CR_SS" not in planner.get_debug_data()["active_rules"].get("1", [])
 
+    role_flipped_target = _track(1, (100.0, -100.0), (0.0, 5.0))
+    planner.plan(6.0, np.array([5.0, 0.0]), _own_state(), [role_flipped_target])
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["matched_rules"] == ["CR_PS"]
+    assert debug["active_rules"].get("1", []) == []
+    assert not debug["stand_on_hold_active"]
+
 
 def test_decision_space_snapshot_is_dense_finite_json_contract() -> None:
     planner = VO(VOParams(speed_samples=4, heading_samples=8))

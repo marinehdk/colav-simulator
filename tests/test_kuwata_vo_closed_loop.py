@@ -66,6 +66,15 @@ def test_starboard_crossing_activates_rule_before_safe_closed_loop_maneuver(
     assert all(row["crossing_commitment_active"] for row in active_rows)
     assert not any(row["emergency_rule_relaxation"] for row in rows)
     assert vo_summary["solver"]["active_turn_reversals"] == 0
+    released_rows = [
+        row
+        for row in rows
+        if row["time_s"] > active_rows[-1]["time_s"]
+    ]
+    assert released_rows
+    assert not any(row["stand_on_hold_active"] for row in released_rows)
+    assert min(abs(row["east_m"] - 40500.0) for row in released_rows) < 5.0
+    assert abs(released_rows[-1]["east_m"] - 40500.0) < 5.0
     assert (
         vo_summary["encounter"]["closest_approach_target_stern_plane_clearance_m"]
         > 0.0
