@@ -219,6 +219,14 @@ def test_decision_space_snapshot_is_dense_finite_json_contract() -> None:
     assert selected["heading_rad"] == pytest.approx(plan[2, 0])
     assert selected["speed_mps"] == pytest.approx(plan[3, 0])
 
+    held_plan = planner.plan(0.5, np.array([5.0, 0.0]), _own_state(), [target])
+    held_snapshot = planner.get_decision_space_snapshot()
+    assert not planner.plan_executed
+    np.testing.assert_allclose(held_plan, plan)
+    assert held_snapshot is not None
+    assert held_snapshot["selected"] == snapshot["selected"]
+    assert held_snapshot["candidate_state_bits"] == snapshot["candidate_state_bits"]
+
 
 def test_all_tracks_build_base_vo_even_when_cpa_gate_rejects_colregs() -> None:
     planner = VO(VOParams(speed_samples=3, heading_samples=8))

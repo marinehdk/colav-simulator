@@ -148,7 +148,10 @@ let sessionCreateRevision = 0;
 let voDecisionSpace = null;
 let voDecisionSpaceKey = null;
 let voDecisionSpaceRequestKey = null;
+let voDecisionSpaceAttemptedKey = null;
 let voDecisionSpaceController = null;
+let voDecisionSpacePending = null;
+let voDecisionSpaceRetryTimer = null;
 let lastVODecisionRequestAt = 0;
 let lastVORenderKey = null;
 let voRenderGeometry = null;
@@ -1621,28 +1624,61 @@ function ensureVODecisionSpace(planner) {
   const solveId = Number(planner.solve_id);
   if (card?.classList.contains('collapsed') || !Number.isInteger(solveId) || solveId < 1) return;
   const requestKey = `${activeSessionId}:${solveId}`;
-  if (voDecisionSpaceKey === requestKey || voDecisionSpaceRequestKey === requestKey) return;
-  const requestTime = performance.now();
-  if (requestTime - lastVODecisionRequestAt < VO_DECISION_FETCH_INTERVAL_MS) return;
-  lastVODecisionRequestAt = requestTime;
+  if (voDecisionSpaceKey === requestKey || voDecisionSpaceAttemptedKey === requestKey) return;
+  voDecisionSpacePending = {
+    sessionId: activeSessionId,
+    solveId,
+    planner,
+  };
+  requestPendingVODecisionSpace();
+}
 
-  if (voDecisionSpaceController) voDecisionSpaceController.abort();
+function requestPendingVODecisionSpace() {
+  if (voDecisionSpaceController || !voDecisionSpacePending) return;
+  const pending = voDecisionSpacePending;
+  if (pending.sessionId !== activeSessionId) {
+    voDecisionSpacePending = null;
+    return;
+  }
+  const requestKey = `${pending.sessionId}:${pending.solveId}`;
+  if (voDecisionSpaceKey === requestKey) {
+    voDecisionSpacePending = null;
+    return;
+  }
+  const requestTime = performance.now();
+  const retryDelay = VO_DECISION_FETCH_INTERVAL_MS - (requestTime - lastVODecisionRequestAt);
+  if (retryDelay > 0) {
+    if (voDecisionSpaceRetryTimer === null) {
+      voDecisionSpaceRetryTimer = window.setTimeout(() => {
+        voDecisionSpaceRetryTimer = null;
+        requestPendingVODecisionSpace();
+      }, retryDelay);
+    }
+    return;
+  }
+
+  voDecisionSpacePending = null;
+  lastVODecisionRequestAt = requestTime;
   const controller = new AbortController();
   voDecisionSpaceController = controller;
   voDecisionSpaceRequestKey = requestKey;
   fetch(
-    `/api/sessions/${encodeURIComponent(activeSessionId)}/planner/decision-space?solve_id=${solveId}`,
+    `/api/sessions/${encodeURIComponent(pending.sessionId)}/planner/decision-space?solve_id=${pending.solveId}`,
     { signal: controller.signal },
   ).then(async response => {
-    if (response.status === 204 || response.status === 409) return null;
+    if (response.status === 204 || response.status === 409) {
+      voDecisionSpaceAttemptedKey = requestKey;
+      return null;
+    }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   }).then(snapshot => {
-    if (!snapshot || controller.signal.aborted || requestKey !== voDecisionSpaceRequestKey) return;
+    if (!snapshot || controller.signal.aborted || pending.sessionId !== activeSessionId) return;
     voDecisionSpace = snapshot;
     voDecisionSpaceKey = requestKey;
+    voDecisionSpaceAttemptedKey = requestKey;
     lastVORenderKey = null;
-    drawPlannerSurface(planner);
+    drawPlannerSurface(pending.planner);
   }).catch(error => {
     if (error.name !== 'AbortError') {
       setText('val-surface-explanation', '决策空间暂不可用');
@@ -1650,13 +1686,14 @@ function ensureVODecisionSpace(planner) {
   }).finally(() => {
     if (voDecisionSpaceController === controller) voDecisionSpaceController = null;
     if (voDecisionSpaceRequestKey === requestKey) voDecisionSpaceRequestKey = null;
+    requestPendingVODecisionSpace();
   });
 }
 
 function drawVODecisionSpace(surface, canvas, planner, details) {
   const solveId = Number(planner.solve_id);
   const expectedKey = `${activeSessionId}:${solveId}`;
-  const snapshot = voDecisionSpaceKey === expectedKey ? voDecisionSpace : null;
+  const snapshot = voDecisionSpaceKey?.startsWith(`${activeSessionId}:`) ? voDecisionSpace : null;
   const renderKey = snapshot
     ? `${voDecisionSpaceKey}:${canvas.clientWidth}:${canvas.clientHeight}`
     : `waiting:${expectedKey}`;
@@ -2461,10 +2498,14 @@ async function createSession({ force = false } = {}) {
 
 function activateSession(data, requestKey = null) {
   if (voDecisionSpaceController) voDecisionSpaceController.abort();
+  if (voDecisionSpaceRetryTimer !== null) window.clearTimeout(voDecisionSpaceRetryTimer);
   voDecisionSpace = null;
   voDecisionSpaceKey = null;
   voDecisionSpaceRequestKey = null;
+  voDecisionSpaceAttemptedKey = null;
   voDecisionSpaceController = null;
+  voDecisionSpacePending = null;
+  voDecisionSpaceRetryTimer = null;
   lastVODecisionRequestAt = 0;
   lastVORenderKey = null;
   voRenderGeometry = null;

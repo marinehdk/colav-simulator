@@ -84,4 +84,11 @@ def test_playback_ui_uses_server_state_and_frame_interpolation() -> None:
     assert "queueTelemetryRender(data)" in script.text
     assert "requestAnimationFrame(renderTelemetryFrame)" in script.text
     assert "VO_DECISION_FETCH_INTERVAL_MS = 200" in script.text
+    assert "voDecisionSpacePending" in script.text
+    assert "voDecisionSpaceAttemptedKey" in script.text
+    assert "requestPendingVODecisionSpace();" in script.text
+    assert "voDecisionSpaceKey?.startsWith(`${activeSessionId}:`)" in script.text
+    assert "if (voDecisionSpaceController) voDecisionSpaceController.abort();" not in script.text[
+        script.text.index("function ensureVODecisionSpace(") : script.text.index("function drawVODecisionSpace(")
+    ]
     assert "/api/set_speed?multiplier=" not in script.text
