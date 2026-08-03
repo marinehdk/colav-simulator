@@ -393,9 +393,7 @@ class Simulator:
             sim_data_dict["waves"] = disturbance_data.waves
 
         true_do_states = mhm.extract_do_states_from_ship_list(self.t, self.ship_list)
-        deterministic_busy_water = self.sconfig.name.startswith(
-            ("romsdal_busy_water_16", "romsdal_busy_water_80_stress"),
-        )
+        deterministic_busy_water = self.sconfig.name.startswith("romsdal_busy_water")
         for i, ship_obj in enumerate(self.ship_list):
             if not mhm.ship_is_active(ship_obj, self.t):
                 sim_data_dict[f"Ship{i}"] = {}
@@ -429,11 +427,7 @@ class Simulator:
             sim_data_dict[f"Ship{i}"]["colav"] = colav_data
 
             if scripted_target:
-                state = ship_obj.csog_state
-                state[:2] += self.dt * np.array(
-                    [state[2] * np.cos(state[3]), state[2] * np.sin(state[3])],
-                )
-                ship_obj.set_initial_state(state, t_start=ship_obj.t_start)
+                advance_scripted_shuttle(ship_obj, self.dt)
             else:
                 ship_obj.forward(self.dt, disturbance_data)
 
@@ -576,6 +570,41 @@ class Simulator:
 
         scale_factor = 7.0
         return d2goal <= self.ship_list[ship_idx].length * scale_factor
+
+
+def advance_scripted_shuttle(ship_obj: Ship, dt: float) -> None:
+    """Advance a constant-speed target between two endpoints with reflection."""
+    waypoints = np.asarray(ship_obj.waypoints, dtype=float)
+    if waypoints.ndim != 2 or waypoints.shape[0] != 2 or waypoints.shape[1] < 2:
+        raise ValueError(f"Ship{ship_obj.id}: scripted shuttle requires two waypoints")
+    first = waypoints[:, 0]
+    second = waypoints[:, -1]
+    delta = second - first
+    route_length = float(np.linalg.norm(delta))
+    if route_length <= 1e-9:
+        raise ValueError(f"Ship{ship_obj.id}: scripted shuttle endpoints must be distinct")
+
+    state = ship_obj.csog_state
+    speed = float(state[2])
+    unit = delta / route_length
+    along = float(np.clip(np.dot(state[:2] - first, unit), 0.0, route_length))
+    current_direction = np.array([np.cos(state[3]), np.sin(state[3])])
+    direction_sign = 1.0 if np.dot(current_direction, unit) >= 0.0 else -1.0
+    remaining = max(0.0, speed * float(dt))
+    while remaining > 1e-9:
+        boundary_distance = route_length - along if direction_sign > 0.0 else along
+        if remaining <= boundary_distance + 1e-9:
+            along += direction_sign * remaining
+            remaining = 0.0
+        else:
+            remaining -= boundary_distance
+            along = route_length if direction_sign > 0.0 else 0.0
+            direction_sign *= -1.0
+
+    direction = direction_sign * unit
+    state[:2] = first + unit * along
+    state[3] = np.arctan2(direction[1], direction[0])
+    ship_obj.set_initial_state(state, t_start=ship_obj.t_start)
 
 
 def extract_valid_sensor_measurements(

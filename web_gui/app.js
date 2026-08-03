@@ -165,6 +165,11 @@ const missionRoutes = new Map();
 let targetHitRegions = [];
 let selectedTargetId = null;
 let pointerDown = null;
+let busyWaterDocument = null;
+let busyWaterBaseScenario = null;
+let busyWaterSeed = 20250731;
+let busyWaterRevision = 0;
+let routePointEditMode = null;
 
 /* ══════════════════════════════════════════════
    CANVAS SETUP
@@ -229,6 +234,16 @@ function utmToCanvas(easting, northing) {
   return worldToCanvas(dn, de);
 }
 
+function canvasToUtm(x, y) {
+  if (!encInfo) return null;
+  const cx = wrapper.clientWidth / 2 + panX;
+  const cy = wrapper.clientHeight / 2 + panY;
+  return {
+    north: encInfo.origin_n + (cy - y) / viewScale,
+    east: encInfo.origin_e + (x - cx) / viewScale,
+  };
+}
+
 function updateScaleBar() {
   const fixedBarPx = 72;
   const representedM = fixedBarPx / viewScale;
@@ -264,6 +279,16 @@ canvas.addEventListener('click', event => {
   const bounds = canvas.getBoundingClientRect();
   const x = event.clientX - bounds.left;
   const y = event.clientY - bounds.top;
+  if (routePointEditMode) {
+    const point = canvasToUtm(x, y);
+    if (!point) return;
+    const suffix = routePointEditMode === 'start' ? '1' : '2';
+    document.getElementById(`targetRouteN${suffix}`).value = point.north.toFixed(1);
+    document.getElementById(`targetRouteE${suffix}`).value = point.east.toFixed(1);
+    routePointEditMode = null;
+    canvas.classList.remove('route-pick-mode');
+    return;
+  }
   const hit = [...targetHitRegions].reverse().find(item => Math.hypot(x - item.x, y - item.y) <= item.radius);
   selectedTargetId = hit?.target.id ?? null;
   updateTargetDetails(hit?.target ?? null, currentData);
@@ -389,8 +414,38 @@ function renderCanvas(data) {
   if (visibleLayers.executionPoint && plans.prediction_horizon?.length > 0)
     drawExecutionPoint(plans.prediction_horizon);
   if (visibleLayers.risk) drawCPARisk(data);
+  drawTargetRoutes(data);
   if (visibleLayers.ships) drawShips(data);
   if (data.os) drawRelativeCompass(data.os, W, H);
+}
+
+function drawTargetRoutes(data) {
+  const routes = data.target_routes || data.plans?.target_routes || [];
+  const scenarioId = data.scenario_id || document.getElementById('scenarioSelect').value;
+  if (!routes.length || !isBusyWaterScenario(scenarioId)) return;
+  routes.forEach(route => {
+    const north = route.waypoints?.[0] || [];
+    const east = route.waypoints?.[1] || [];
+    if (north.length < 2 || east.length < 2) return;
+    const selected = String(route.target_id) === String(selectedTargetId);
+    const first = worldToCanvas(north[0], east[0]);
+    const second = worldToCanvas(north[1], east[1]);
+    ctx.save();
+    ctx.strokeStyle = selected ? '#62D2BD' : 'rgba(255,255,255,0.24)';
+    ctx.lineWidth = selected ? 2 : 1;
+    ctx.setLineDash(selected ? [] : [5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(first.x, first.y);
+    ctx.lineTo(second.x, second.y);
+    ctx.stroke();
+    ctx.fillStyle = selected ? '#62D2BD' : 'rgba(255,255,255,0.55)';
+    [first, second].forEach(point => {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, selected ? 4 : 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  });
 }
 
 function interpolateAngle(from, to, amount) {
@@ -1192,8 +1247,10 @@ function updateLegendVisibility() {
 
 function updateTargetDetails(target, data) {
   const panel = document.getElementById('targetDetails');
+  const form = document.getElementById('targetEditForm');
   if (!target) {
     panel.hidden = true;
+    form.hidden = true;
     return;
   }
   const encounter = encounterForTarget(data || {}, target.id) || {};
@@ -1218,7 +1275,21 @@ function updateTargetDetails(target, data) {
   ];
   document.getElementById('targetDetailsBody').innerHTML = rows
     .map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('');
+  const ship = busyWaterDocument?.ship_list?.find(item => String(item.id) === String(target.id));
+  const editable = Boolean(ship && data?.state !== 'RUNNING');
+  form.hidden = !editable;
+  if (editable) {
+    document.getElementById('targetSpeed').value = Number(ship.csog_state[2]).toFixed(1);
+    document.getElementById('targetRouteN1').value = Number(ship.waypoints[0][0]).toFixed(1);
+    document.getElementById('targetRouteE1').value = Number(ship.waypoints[1][0]).toFixed(1);
+    document.getElementById('targetRouteN2').value = Number(ship.waypoints[0][1]).toFixed(1);
+    document.getElementById('targetRouteE2').value = Number(ship.waypoints[1][1]).toFixed(1);
+  }
   panel.hidden = false;
+}
+
+function selectedBusyWaterShip() {
+  return busyWaterDocument?.ship_list?.find(item => String(item.id) === String(selectedTargetId));
 }
 
 function formatDistance(value) {
@@ -2446,14 +2517,68 @@ async function recoverMissingSession(missingSessionId) {
   }
 }
 
+function isBusyWaterScenario(scenarioId) {
+  return scenarioId === 'romsdal_busy_water_16' || scenarioId === 'romsdal_busy_water_80_stress';
+}
+
+function syncBusyWaterSetupVisibility(scenarioId = document.getElementById('scenarioSelect').value) {
+  document.getElementById('busyWaterSetup').hidden = !isBusyWaterScenario(scenarioId);
+}
+
+function busyWaterProfile(scenarioId) {
+  return scenarioId === 'romsdal_busy_water_80_stress' ? 'stress' : 'acceptance';
+}
+
+async function generateBusyWaterDocument({ scenarioId, targetCount, seed, crossing, headOn, overtaking }) {
+  const params = new URLSearchParams({
+    profile: busyWaterProfile(scenarioId),
+    target_count: String(targetCount),
+    seed: String(seed),
+    crossing_ratio: String(crossing),
+    head_on_ratio: String(headOn),
+    overtaking_ratio: String(overtaking),
+  });
+  const payload = await apiRequest(`/api/busy-water/generate?${params}`);
+  busyWaterDocument = payload.document;
+  busyWaterBaseScenario = scenarioId;
+  busyWaterSeed = Number(seed);
+  busyWaterRevision += 1;
+  return payload;
+}
+
+async function ensureBusyWaterDocument(scenarioId) {
+  syncBusyWaterSetupVisibility(scenarioId);
+  if (!isBusyWaterScenario(scenarioId)) {
+    busyWaterDocument = null;
+    busyWaterBaseScenario = null;
+    return;
+  }
+  if (busyWaterDocument && busyWaterBaseScenario === scenarioId) return;
+  const targetCount = scenarioId === 'romsdal_busy_water_80_stress' ? 79 : 15;
+  await generateBusyWaterDocument({
+    scenarioId,
+    targetCount,
+    seed: 20250731,
+    crossing: 0.6,
+    headOn: 0.2,
+    overtaking: 0.2,
+  });
+  document.getElementById('busyTargetCount').value = String(targetCount);
+  document.getElementById('busySeed').value = String(busyWaterSeed);
+}
+
 function selectedSessionRequest() {
+  const scenarioId = document.getElementById('scenarioSelect').value;
   return {
     validation_rule_id: document.querySelector('.qtab.active')?.dataset.group || 'rule14',
-    scenario_id: document.getElementById('scenarioSelect').value,
+    scenario_id: scenarioId,
     algorithm_id: document.getElementById('algoSelect').value,
     tracker_id: document.getElementById('trackerSelect').value,
-    seed: 0,
+    seed: isBusyWaterScenario(scenarioId) ? busyWaterSeed : 0,
     strict_no_fallback: true,
+    ...(isBusyWaterScenario(scenarioId) && busyWaterDocument
+      ? { scenario_override: busyWaterDocument }
+      : {}),
   };
 }
 
@@ -2465,10 +2590,12 @@ function sessionKey(request) {
     request.tracker_id,
     request.seed,
     request.strict_no_fallback,
+    isBusyWaterScenario(request.scenario_id) ? busyWaterRevision : 0,
   ]);
 }
 
 async function createSession({ force = false } = {}) {
+  await ensureBusyWaterDocument(document.getElementById('scenarioSelect').value);
   const request = selectedSessionRequest();
   const requestKey = sessionKey(request);
   if (!force && activeSessionId && activeSessionKey === requestKey) {
@@ -2729,6 +2856,7 @@ function syncExactCombinationAvailability(changedSelectId = null) {
   syncScenarioCards(scenarioSelect.value);
   syncSelectionCards('algorithm', algorithmSelect.value);
   syncSelectionCards('tracker', trackerSelect.value);
+  syncBusyWaterSetupVisibility(scenarioSelect.value);
 }
 
 function setExactSelectionAvailability(card, status, selectable) {
@@ -2878,6 +3006,145 @@ function syncQuickScenarioTab(scenarioId) {
   if (groupId) setActiveQuickGroup(groupId);
 }
 
+async function refreshBusyWaterDrafts() {
+  const drafts = await apiRequest('/api/busy-water/drafts');
+  const select = document.getElementById('busyDraftSelect');
+  select.replaceChildren(new Option('选择草稿', ''));
+  drafts.forEach(item => select.add(new Option(`${item.name} · ${item.target_count}艘`, item.id)));
+}
+
+document.getElementById('busyWaterSetup').addEventListener('click', async () => {
+  const dialog = document.getElementById('busyWaterDialog');
+  document.getElementById('busyWaterStatus').textContent = '';
+  try {
+    await refreshBusyWaterDrafts();
+  } catch (error) {
+    document.getElementById('busyWaterStatus').textContent = error.message;
+  }
+  dialog.showModal();
+});
+
+document.getElementById('closeBusyWaterDialog').addEventListener('click', () => {
+  document.getElementById('busyWaterDialog').close();
+});
+
+document.getElementById('busyWaterForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const scenarioId = document.getElementById('scenarioSelect').value;
+  const status = document.getElementById('busyWaterStatus');
+  status.textContent = '生成中…';
+  try {
+    const payload = await generateBusyWaterDocument({
+      scenarioId,
+      targetCount: Number(document.getElementById('busyTargetCount').value),
+      seed: Number(document.getElementById('busySeed').value),
+      crossing: Number(document.getElementById('busyCrossingRatio').value),
+      headOn: Number(document.getElementById('busyHeadOnRatio').value),
+      overtaking: Number(document.getElementById('busyOvertakingRatio').value),
+    });
+    status.textContent = `已生成 ${payload.preflight.target_count} 艘目标船`;
+    await createSession({ force: true });
+    document.getElementById('busyWaterDialog').close();
+  } catch (error) {
+    status.textContent = error.message;
+  }
+});
+
+document.getElementById('saveBusyWaterDraft').addEventListener('click', async () => {
+  const status = document.getElementById('busyWaterStatus');
+  const name = document.getElementById('busyDraftName').value.trim();
+  if (!name || !busyWaterDocument) {
+    status.textContent = '请填写草稿名称并先生成场景';
+    return;
+  }
+  try {
+    const payload = await apiRequest('/api/busy-water/drafts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        base_scenario_id: busyWaterBaseScenario,
+        seed: busyWaterSeed,
+        document: busyWaterDocument,
+      }),
+    });
+    status.textContent = `已保存 ${payload.name}`;
+    await refreshBusyWaterDrafts();
+    document.getElementById('busyDraftSelect').value = payload.id;
+  } catch (error) {
+    status.textContent = error.message;
+  }
+});
+
+document.getElementById('loadBusyWaterDraft').addEventListener('click', async () => {
+  const status = document.getElementById('busyWaterStatus');
+  const identifier = document.getElementById('busyDraftSelect').value;
+  if (!identifier) {
+    status.textContent = '请选择草稿';
+    return;
+  }
+  try {
+    const payload = await apiRequest(`/api/busy-water/drafts/${encodeURIComponent(identifier)}`);
+    busyWaterDocument = payload.document;
+    busyWaterBaseScenario = payload.base_scenario_id;
+    busyWaterSeed = Number(payload.seed);
+    busyWaterRevision += 1;
+    document.getElementById('scenarioSelect').value = busyWaterBaseScenario;
+    syncExactCombinationAvailability('scenarioSelect');
+    document.getElementById('busyTargetCount').value = String(payload.document.ship_list.length - 1);
+    document.getElementById('busySeed').value = String(busyWaterSeed);
+    await createSession({ force: true });
+    document.getElementById('busyWaterDialog').close();
+  } catch (error) {
+    status.textContent = error.message;
+  }
+});
+
+function startRoutePointPick(mode) {
+  routePointEditMode = mode;
+  canvas.classList.add('route-pick-mode');
+}
+
+document.getElementById('pickTargetRouteStart').addEventListener('click', () => startRoutePointPick('start'));
+document.getElementById('pickTargetRouteEnd').addEventListener('click', () => startRoutePointPick('end'));
+document.getElementById('cancelTargetEdit').addEventListener('click', () => {
+  routePointEditMode = null;
+  canvas.classList.remove('route-pick-mode');
+  document.getElementById('targetEditForm').hidden = true;
+});
+
+document.getElementById('targetEditForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const ship = selectedBusyWaterShip();
+  if (!ship || currentData?.state === 'RUNNING') return;
+  const speed = Number(document.getElementById('targetSpeed').value);
+  const n1 = Number(document.getElementById('targetRouteN1').value);
+  const e1 = Number(document.getElementById('targetRouteE1').value);
+  const n2 = Number(document.getElementById('targetRouteN2').value);
+  const e2 = Number(document.getElementById('targetRouteE2').value);
+  if (![speed, n1, e1, n2, e2].every(Number.isFinite) || Math.hypot(n2 - n1, e2 - e1) < 100) {
+    pushLog('目标船航线至少需要 100 m，坐标与航速必须有效。', 'log-danger');
+    return;
+  }
+  const candidate = structuredClone(busyWaterDocument);
+  const edited = candidate.ship_list.find(item => String(item.id) === String(ship.id));
+  const course = (Math.atan2(e2 - e1, n2 - n1) * 180 / Math.PI + 360) % 360;
+  edited.csog_state = [n1, e1, speed, course];
+  edited.waypoints = [[n1, n2], [e1, e2]];
+  edited.speed_plan = [speed, speed];
+  const previous = busyWaterDocument;
+  busyWaterDocument = candidate;
+  busyWaterRevision += 1;
+  try {
+    await createSession({ force: true });
+    pushLog(`TS${ship.id} 航线与航速已更新。`, 'log-ok');
+  } catch (error) {
+    busyWaterDocument = previous;
+    busyWaterRevision += 1;
+    pushLog(`目标船更新失败: ${error.message}`, 'log-danger');
+  }
+});
+
 document.getElementById('btnStart').addEventListener('click', async () => {
   try {
     await apiRequest(`/api/sessions/${activeSessionId}/start`, { method: 'POST' });
@@ -2982,6 +3249,7 @@ document.getElementById('encChartSelect').addEventListener('change', async event
     syncExactCombinationAvailability(id);
     if (id === 'scenarioSelect') {
       const scenarioId = document.getElementById(id).value;
+      syncBusyWaterSetupVisibility(scenarioId);
       syncQuickScenarioTab(scenarioId);
       syncScenarioCards(scenarioId);
       syncEncChartSelect(scenarioId);

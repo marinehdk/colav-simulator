@@ -478,6 +478,7 @@ body {
 }
 
 .target-details[hidden] { display: none; }
+#busyWaterSetup[hidden] { display: none; }
 
 .target-details h3 {
   margin: 0 24px 8px 0;
@@ -514,6 +515,81 @@ body {
   overflow-wrap: anywhere;
 }
 
+.target-edit-form {
+  display: grid;
+  gap: 7px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+.target-edit-form[hidden] { display: none; }
+
+.target-edit-form fieldset {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0;
+  padding: 7px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+}
+
+.target-edit-form legend { padding: 0 4px; color: var(--accent-cyan); }
+.target-edit-form label { display: grid; gap: 3px; }
+.target-edit-form input,
+.busy-water-dialog input,
+.busy-water-dialog select {
+  min-width: 0;
+  height: 28px;
+  padding: 3px 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  color: var(--text-main);
+  background: #111816;
+  font: 0.68rem var(--font-mono);
+}
+
+.target-edit-form button,
+.busy-water-dialog button {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  color: var(--text-main);
+  background: rgba(98,210,189,0.08);
+  cursor: pointer;
+}
+
+.target-edit-actions,
+.busy-water-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+.busy-water-dialog {
+  width: min(480px, calc(100vw - 24px));
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  color: var(--text-main);
+  background: #121a18;
+  box-shadow: var(--shadow-panel);
+}
+
+.busy-water-dialog::backdrop { background: rgba(4, 8, 7, 0.68); }
+.busy-water-dialog form { display: grid; gap: 12px; padding: 14px; }
+.busy-water-dialog header { display: flex; align-items: center; justify-content: space-between; }
+.busy-water-dialog h3 { margin: 0; font-size: 0.9rem; }
+.busy-water-dialog header button { width: 28px; padding: 0; background: transparent; }
+
+.busy-water-fields,
+.busy-water-drafts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.busy-water-fields label,
+.busy-water-drafts label { display: grid; gap: 4px; color: var(--text-muted); font-size: 0.68rem; }
+.busy-water-drafts { padding-top: 10px; border-top: 1px solid var(--panel-border); }
+.busy-water-drafts .busy-water-actions { align-self: end; }
+.busy-water-status { min-height: 1em; margin: 0; color: var(--accent-cyan); font-size: 0.68rem; }
+
 /* Canvas Wrapper */
 .canvas-wrapper {
   position: relative;
@@ -535,6 +611,8 @@ canvas#simCanvas {
   display: block;
   image-rendering: pixelated;
 }
+
+canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 
 .ovl-label { color: var(--text-dim); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .ovl-val   { color: var(--accent-cyan); font-size: 0.85rem; font-weight: 600; }

@@ -196,8 +196,27 @@ def _serve(args: argparse.Namespace) -> int:
 
 
 def _busy_water_generate(args: argparse.Namespace) -> int:
-    output = write_busy_water_scenario(args.profile, Path(args.output), seed=args.seed)
-    result = preflight_document(build_busy_water_document(args.profile, seed=args.seed), seed=args.seed)
+    encounter_mix = {
+        "crossing": args.crossing_ratio,
+        "head_on": args.head_on_ratio,
+        "overtaking": args.overtaking_ratio,
+    }
+    output = write_busy_water_scenario(
+        args.profile,
+        Path(args.output),
+        seed=args.seed,
+        target_count=args.target_count,
+        encounter_mix=encounter_mix,
+    )
+    result = preflight_document(
+        build_busy_water_document(
+            args.profile,
+            seed=args.seed,
+            target_count=args.target_count,
+            encounter_mix=encounter_mix,
+        ),
+        seed=args.seed,
+    )
     print(json.dumps({"output": str(output.resolve()), **result}, indent=2))
     return 0
 
@@ -231,6 +250,10 @@ def _add_busy_water_parsers(subparsers: argparse._SubParsersAction) -> None:
     generate_parser = subparsers.add_parser("busy-water-generate", help="generate a deterministic busy-water YAML")
     generate_parser.add_argument("--profile", choices=("acceptance", "stress"), required=True)
     generate_parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    generate_parser.add_argument("--target-count", type=int)
+    generate_parser.add_argument("--crossing-ratio", type=float, default=0.6)
+    generate_parser.add_argument("--head-on-ratio", type=float, default=0.2)
+    generate_parser.add_argument("--overtaking-ratio", type=float, default=0.2)
     generate_parser.add_argument("--output", required=True)
     generate_parser.set_defaults(handler=_busy_water_generate)
 
