@@ -69,8 +69,10 @@ def test_configurable_target_count_and_seed_are_repeatable() -> None:
         "head_on": 2,
         "overtaking": 2,
     }
+    empty = build_busy_water_document("acceptance", target_count=0)
+    assert preflight_document(empty)["target_count"] == 0
     with pytest.raises(ValueError, match="target_count"):
-        build_busy_water_document("acceptance", target_count=2)
+        build_busy_water_document("acceptance", target_count=-1)
 
 
 def test_stress_preflight_reports_79_targets_and_valid_routes() -> None:
@@ -159,6 +161,44 @@ def test_busy_water_generate_rejects_invalid_count() -> None:
         response = client.get("/api/busy-water/generate", params={"target_count": 80})
 
     assert response.status_code == 422
+
+
+def test_busy_water_coordinate_conversion_round_trip() -> None:
+    with TestClient(gui_main.app) as client:
+        geographic = client.get(
+            "/api/coordinates/to-wgs84",
+            params={"north": 6_956_650.0, "east": 39_800.0, "utm_zone": 33},
+        )
+        assert geographic.status_code == 200
+        projected = client.get(
+            "/api/coordinates/to-utm",
+            params={**geographic.json(), "utm_zone": 33},
+        )
+
+    assert projected.status_code == 200
+    assert projected.json()["north"] == pytest.approx(6_956_650.0, abs=0.01)
+    assert projected.json()["east"] == pytest.approx(39_800.0, abs=0.01)
+
+
+def test_busy_water_draft_preserves_unknown_role(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(gui_main, "DRAFT_DIR", tmp_path)
+    document = build_busy_water_document("acceptance", target_count=1, seed=17)
+    document["ship_list"][1]["encounter_role"] = "unknown"
+    with TestClient(gui_main.app) as client:
+        saved = client.post(
+            "/api/busy-water/drafts",
+            json={
+                "name": "Current Multiship",
+                "base_scenario_id": "romsdal_busy_water_16",
+                "seed": 17,
+                "document": document,
+            },
+        )
+        assert saved.status_code == 200, saved.json()
+        loaded = client.get("/api/busy-water/drafts/current-multiship")
+
+    assert loaded.status_code == 200
+    assert loaded.json()["document"]["ship_list"][1]["encounter_role"] == "unknown"
 
 
 def test_override_session_exposes_all_ships_and_routes_while_created() -> None:

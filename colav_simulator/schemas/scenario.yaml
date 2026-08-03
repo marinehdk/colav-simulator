@@ -357,7 +357,7 @@ ship_list:
       encounter_role:
         required: False
         type: string
-        allowed: [head_on, crossing_give_way, crossing_stand_on, overtaking, overtaken]
+        allowed: [head_on, crossing_give_way, crossing_stand_on, overtaking, overtaken, unknown]
       csog_state:
         required: False
         type: list

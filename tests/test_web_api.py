@@ -209,7 +209,9 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
         assert 'data-layer="truth" checked' not in page.text
         assert 'data-layer="measurements" checked' not in page.text
         assert 'data-layer="previousPrediction" checked' not in page.text
-        assert 'id="targetDetails"' in page.text
+        assert 'id="cardBusyWater"' in page.text
+        assert 'id="busyTargetCount" type="number" min="0" max="40" step="1"' in page.text
+        assert 'id="targetColregs"' in page.text
         assert all(label in page.text for label in ("安全海域", "初始航道", "60s 向量"))
         assert all(
             token in script.text

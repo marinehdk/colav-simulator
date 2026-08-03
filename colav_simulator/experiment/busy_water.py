@@ -42,8 +42,8 @@ def build_busy_water_document(
         raise ValueError(f"unsupported busy-water profile: {profile}")
     default_count = DEFAULT_TARGET_COUNT if profile == "acceptance" else MAX_TARGET_COUNT
     count = default_count if target_count is None else int(target_count)
-    if not 3 <= count <= MAX_TARGET_COUNT:
-        raise ValueError(f"target_count must be in [3, {MAX_TARGET_COUNT}]")
+    if not 0 <= count <= MAX_TARGET_COUNT:
+        raise ValueError(f"target_count must be in [0, {MAX_TARGET_COUNT}]")
     mix = normalize_encounter_mix(encounter_mix)
     dt_sim = 0.1 if profile == "acceptance" else 0.5
     scenario_id = ACCEPTANCE_SCENARIO_ID if profile == "acceptance" else STRESS_SCENARIO_ID
