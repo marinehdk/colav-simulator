@@ -2609,6 +2609,17 @@ async function apiRequest(url, options = {}) {
   return data;
 }
 
+async function currentSession() {
+  const response = await fetch('/api/sessions/current');
+  if (response.status === 404) return null;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = data.detail;
+    throw new Error(typeof detail === 'string' ? detail : `HTTP ${response.status}`);
+  }
+  return data;
+}
+
 function setSessionConnectionState(state, logEvent = false) {
   const states = {
     connected: { text: '会话: 连通', logClass: 'log-ok' },
@@ -3086,6 +3097,21 @@ function syncSelectionCards(kind, value) {
     card.classList.toggle('selected', selected);
     card.setAttribute('aria-pressed', String(selected));
   });
+}
+
+function restoreSessionSelection(spec = {}) {
+  const ruleId = spec.validation_rule_id || 'rule14';
+  setActiveQuickGroup(ruleId);
+  const values = [
+    ['scenarioSelect', spec.scenario_id],
+    ['algoSelect', spec.algorithm_id],
+    ['trackerSelect', spec.tracker_id],
+  ];
+  values.forEach(([id, value]) => {
+    const select = document.getElementById(id);
+    if (value && select.querySelector(`option[value="${CSS.escape(value)}"]`)) select.value = value;
+  });
+  syncExactCombinationAvailability();
 }
 
 /* ══════════════════════════════════════════════
@@ -3571,8 +3597,16 @@ async function boot() {
   updateLegendVisibility();
   document.getElementById('toggleENC').classList.add('enc-on');
   try {
-    await populateCatalogs();
-    await createSession();
+    const existing = await currentSession();
+    const ruleId = existing?.spec?.validation_rule_id || 'rule14';
+    await populateCatalogs(ruleId);
+    if (existing) {
+      restoreSessionSelection(existing.spec);
+      activateSession(existing);
+      pushLog(`Session restored: ${existing.spec.scenario_id} / ${existing.spec.algorithm_id} / ${existing.spec.tracker_id}`, 'log-info');
+    } else {
+      await createSession();
+    }
   } catch (error) {
     pushLog(`Initialization failed: ${error.message}`, 'log-danger');
   }

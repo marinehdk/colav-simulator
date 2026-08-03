@@ -15,6 +15,8 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         script = client.get("/static/app.js")
         assert page.status_code == 200
         assert script.status_code == 200
+        assert "/api/sessions/current" in script.text
+        assert "Session restored:" in script.text
         assert "<h1>综合避碰仿真器</h1>" in page.text
         assert "Autonomous Ship COLAV" not in page.text
         assert (
@@ -301,6 +303,19 @@ def test_real_session_api_and_websocket() -> None:
         replay_result = client.get(f"/api/sessions/{replay_id}/result")
         assert replay_result.json()["manifest"]["replay_of_run_id"] == session_id
         assert replay_result.json()["manifest"]["replay_verified"] is True
+
+
+def test_current_session_endpoint_returns_active_session() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={"scenario_id": "paper_ccta2023_multiship", "t_end": 0.2},
+        )
+        assert created.status_code == 200
+
+        current = client.get("/api/sessions/current")
+        assert current.status_code == 200
+        assert current.json()["session_id"] == created.json()["session_id"]
 
 
 def test_rule14_capability_api_and_combination_validation() -> None:

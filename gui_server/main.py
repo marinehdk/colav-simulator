@@ -916,6 +916,15 @@ def api_create_session(request: SessionCreateRequest) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
 
 
+@app.get("/api/sessions/current")
+def api_current_session() -> dict[str, Any]:
+    with manager.lock:
+        description = manager.describe()
+    if not description["active"]:
+        raise HTTPException(status_code=404, detail="No active session")
+    return description
+
+
 @app.get("/api/sessions/{session_id}")
 def api_session(session_id: str) -> dict[str, Any]:
     try:
