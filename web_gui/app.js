@@ -157,6 +157,7 @@ let voDecisionSpaceRetryTimer = null;
 let lastVODecisionRequestAt = 0;
 let lastVORenderKey = null;
 let voRenderGeometry = null;
+let plannerSurfaceAttached = false;
 let renderFromData = null;
 let renderToData = null;
 let renderStartedAt = 0;
@@ -390,7 +391,8 @@ function renderCanvas(data) {
     drawExecutionPoint(plans.prediction_horizon);
   if (visibleLayers.risk) drawCPARisk(data);
   if (visibleLayers.ships) drawShips(data);
-  if (data.os) drawRelativeCompass(data.os, W, H);
+  if (data.os && plannerSurfaceAttached) updateAttachedPlannerSurfacePosition(data.os);
+  else if (data.os) drawRelativeCompass(data.os, W, H);
 }
 
 function interpolateAngle(from, to, amount) {
@@ -1391,6 +1393,7 @@ function updatePlannerPanel(data) {
     : latestSolve;
   const execution = data.execution || {};
   const details = diagnosticPlanner.algorithm_details || {};
+  syncPlannerSurfaceMode(diagnosticPlanner);
   const solveId = Number(planner.solve_id || 0);
   const realSolve = Boolean(planner.solver_executed);
   const mode = document.getElementById('val-solver-executed');
@@ -1481,7 +1484,7 @@ function drawPlannerSurface(planner) {
         : '名义 LOS 引导';
   const surfaceExplanation = document.getElementById('val-surface-explanation');
   const surfaceMeta = document.getElementById('val-surface-meta');
-  if (surfaceExplanation) surfaceExplanation.hidden = isVO;
+  if (surfaceExplanation) surfaceExplanation.hidden = !isVO;
   if (surfaceMeta) surfaceMeta.hidden = isVO;
   setText('val-surface-label', label);
   setText('val-surface-explanation', '');
@@ -1509,6 +1512,7 @@ function drawPlannerSurface(planner) {
   if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc';
   const voLegend = document.getElementById('voSurfaceLegend');
   if (voLegend) voLegend.hidden = !isVO;
+  updatePlannerSurfaceAttachControl(isVO, Number(planner.solve_id));
   if (isVO) {
     drawVODecisionSpace(surface, canvas, planner, details);
     return;
@@ -1634,7 +1638,8 @@ function ensureVODecisionSpace(planner) {
   if (planner.algorithm_id !== 'vo' || !activeSessionId) return;
   const card = document.getElementById('cardPlanner');
   const solveId = Number(planner.solve_id);
-  if (card?.classList.contains('collapsed') || !Number.isInteger(solveId) || solveId < 1) return;
+  if ((card?.classList.contains('collapsed') && !plannerSurfaceAttached)
+    || !Number.isInteger(solveId) || solveId < 1) return;
   const requestKey = `${activeSessionId}:${solveId}`;
   if (voDecisionSpaceKey === requestKey || voDecisionSpaceAttemptedKey === requestKey) return;
   voDecisionSpacePending = {
@@ -1691,6 +1696,7 @@ function requestPendingVODecisionSpace() {
     voDecisionSpaceAttemptedKey = requestKey;
     lastVORenderKey = null;
     drawPlannerSurface(pending.planner);
+    updatePlannerSurfaceAttachControl(true, pending.solveId);
   }).catch(error => {
     if (error.name !== 'AbortError') {
       setText('val-surface-explanation', '决策空间暂不可用');
@@ -1972,6 +1978,80 @@ document.getElementById('plannerSurface').addEventListener('pointerleave', () =>
       ? `活动规则 ${activeRules.join(', ')}`
       : '当前无活动 COLREG 规则；显示本次真实求解决策空间',
   );
+});
+
+function currentDiagnosticPlanner() {
+  const planner = currentData?.planner || {};
+  const latestSolve = currentData?.latest_planner_solve || {};
+  return planner.solver_executed || !latestSolve.solver_executed ? planner : latestSolve;
+}
+
+function updatePlannerSurfaceAttachControl(isVO, solveId) {
+  const button = document.getElementById('plannerSurfaceAttach');
+  if (!button) return;
+  button.hidden = !isVO;
+  const hasSnapshot = Boolean(
+    activeSessionId
+    && voDecisionSpace
+    && voDecisionSpaceKey?.startsWith(`${activeSessionId}:`)
+    && Number.isInteger(solveId)
+    && solveId > 0
+  );
+  button.disabled = !hasSnapshot || plannerSurfaceAttached;
+  button.textContent = plannerSurfaceAttached ? '已展示' : hasSnapshot ? '展示' : '加载中';
+  button.setAttribute('aria-pressed', String(plannerSurfaceAttached));
+}
+
+function syncPlannerSurfaceMode(planner) {
+  if (planner.algorithm_id !== 'vo' && plannerSurfaceAttached) {
+    setPlannerSurfaceAttached(false, { rerender: false });
+  }
+}
+
+function updateAttachedPlannerSurfacePosition(os) {
+  if (!plannerSurfaceAttached || !Number.isFinite(os?.x) || !Number.isFinite(os?.y)) return;
+  const panel = document.getElementById('plannerSurfacePanel');
+  const surfaceCanvas = document.getElementById('plannerSurface');
+  if (!panel || !surfaceCanvas || panel.parentElement !== wrapper) return;
+  const point = worldToCanvas(os.x, os.y);
+  const panelWidth = panel.offsetWidth;
+  const panelHeight = panel.offsetHeight;
+  const canvasCenterX = surfaceCanvas.offsetLeft + surfaceCanvas.offsetWidth / 2;
+  const canvasCenterY = surfaceCanvas.offsetTop + surfaceCanvas.offsetHeight / 2;
+  const margin = 12;
+  const maxLeft = Math.max(margin, wrapper.clientWidth - panelWidth - margin);
+  const maxTop = Math.max(margin, wrapper.clientHeight - panelHeight - margin);
+  panel.style.left = `${Math.min(maxLeft, Math.max(margin, point.x - canvasCenterX))}px`;
+  panel.style.top = `${Math.min(maxTop, Math.max(margin, point.y - canvasCenterY))}px`;
+}
+
+function setPlannerSurfaceAttached(attached, { rerender = true } = {}) {
+  const panel = document.getElementById('plannerSurfacePanel');
+  const home = document.getElementById('plannerSurfaceHome');
+  if (!panel || !home || attached === plannerSurfaceAttached) return;
+  if (attached && currentDiagnosticPlanner().algorithm_id !== 'vo') return;
+  plannerSurfaceAttached = attached;
+  panel.classList.toggle('map-attached', attached);
+  if (attached) wrapper.appendChild(panel);
+  else {
+    home.appendChild(panel);
+    panel.style.removeProperty('left');
+    panel.style.removeProperty('top');
+  }
+  lastVORenderKey = null;
+  updatePlannerSurfaceAttachControl(currentDiagnosticPlanner().algorithm_id === 'vo', Number(currentDiagnosticPlanner().solve_id));
+  window.requestAnimationFrame(() => {
+    if (plannerSurfaceAttached && currentData?.os) updateAttachedPlannerSurfacePosition(currentData.os);
+    if (currentData) drawPlannerSurface(currentDiagnosticPlanner());
+  });
+  if (rerender && currentData) renderCanvas(currentData);
+}
+
+document.getElementById('plannerSurfaceAttach').addEventListener('click', () => {
+  setPlannerSurfaceAttached(true);
+});
+document.getElementById('plannerSurfaceDetach').addEventListener('click', () => {
+  setPlannerSurfaceAttached(false);
 });
 
 new ResizeObserver(() => {
@@ -2509,6 +2589,7 @@ async function createSession({ force = false } = {}) {
 }
 
 function activateSession(data, requestKey = null) {
+  setPlannerSurfaceAttached(false, { rerender: false });
   if (voDecisionSpaceController) voDecisionSpaceController.abort();
   if (voDecisionSpaceRetryTimer !== null) window.clearTimeout(voDecisionSpaceRetryTimer);
   voDecisionSpace = null;

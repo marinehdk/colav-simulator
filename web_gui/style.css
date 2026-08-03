@@ -1361,6 +1361,33 @@ canvas#simCanvas {
   border-top: 1px solid var(--panel-border);
 }
 
+.surface-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.surface-attach-btn,
+.attached-surface-heading button {
+  flex: 0 0 auto;
+  min-width: 44px;
+  height: 24px;
+  padding: 0 8px;
+  color: var(--accent-cyan);
+  background: rgba(98,210,189,0.08);
+  border: 1px solid rgba(98,210,189,0.35);
+  border-radius: 5px;
+  font: 0.62rem var(--font-ui);
+  cursor: pointer;
+}
+
+.surface-attach-btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--panel-border);
+  cursor: default;
+}
+
 .surface-label {
   color: var(--text-muted);
   font-size: 0.64rem;
@@ -1380,6 +1407,50 @@ canvas#simCanvas {
 
 .planner-surface-wrap {
   margin-top: 5px;
+}
+
+.attached-surface-heading {
+  display: none;
+}
+
+.planner-surface-wrap.map-attached {
+  position: absolute;
+  z-index: 6;
+  box-sizing: border-box;
+  width: 240px;
+  margin: 0;
+  padding: 7px;
+  background: rgba(11, 15, 14, 0.9);
+  border: 1px solid rgba(98,210,189,0.42);
+  border-radius: 7px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.32);
+  backdrop-filter: blur(8px);
+  cursor: default;
+  pointer-events: auto;
+}
+
+.planner-surface-wrap.map-attached .attached-surface-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  color: var(--text-main);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.planner-surface-wrap.map-attached .attached-surface-heading button {
+  height: 21px;
+}
+
+.planner-surface-wrap.map-attached .vo-surface-legend {
+  padding-inline: 2px;
+}
+
+.planner-surface-wrap.map-attached .surface-explanation {
+  max-height: 2.8rem;
+  margin: 5px 2px 0;
+  overflow: hidden;
 }
 
 .surface-meta {
