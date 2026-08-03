@@ -1439,6 +1439,38 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   border-top: 1px solid var(--panel-border);
 }
 
+.surface-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.surface-attach-btn {
+  flex: 0 0 auto;
+  min-width: 44px;
+  height: 24px;
+  padding: 0 8px;
+  color: var(--accent-cyan);
+  background: rgba(98,210,189,0.08);
+  border: 1px solid rgba(98,210,189,0.35);
+  border-radius: 5px;
+  font: 0.62rem var(--font-ui);
+  cursor: pointer;
+}
+
+.surface-attach-btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--panel-border);
+  cursor: default;
+}
+
+.surface-attach-btn[aria-pressed="true"] {
+  color: #0b1715;
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+}
+
 .surface-label {
   color: var(--text-muted);
   font-size: 0.64rem;
@@ -1458,6 +1490,10 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 
 .planner-surface-wrap {
   margin-top: 5px;
+}
+
+.planner-surface-wrap[hidden] {
+  display: none;
 }
 
 .surface-meta {

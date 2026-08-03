@@ -396,17 +396,20 @@
             <div><span class="telem-label">求解周期</span><span class="telem-val mono-tag" id="val-solve-period">--</span></div>
           </div>
           <div class="planner-surface-copy">
-            <div class="surface-label" id="val-surface-label">候选控制代价</div>
-            <div class="surface-explanation" id="val-surface-explanation"></div>
+            <div class="surface-heading">
+              <div class="surface-label" id="val-surface-label">候选控制代价</div>
+              <button class="surface-attach-btn" id="plannerSurfaceAttach" type="button" hidden disabled>展示</button>
+            </div>
           </div>
-          <div class="planner-surface-wrap">
+          <div class="planner-surface-wrap" id="plannerSurfacePanel">
             <canvas id="plannerSurface" width="280" height="280" aria-label="候选控制决策图"></canvas>
-          </div>
-          <div class="vo-surface-legend" id="voSurfaceLegend" hidden>
-            <span><i class="vo-safe"></i>安全</span>
-            <span><i class="vo-collision"></i>有限 TTC</span>
-            <span><i class="vo-buffer"></i>WVO 缓冲</span>
-            <span><i class="vo-colregs"></i>COLREG 禁区</span>
+            <div class="vo-surface-legend" id="voSurfaceLegend" hidden>
+              <span><i class="vo-safe"></i>安全</span>
+              <span><i class="vo-collision"></i>有限 TTC</span>
+              <span><i class="vo-buffer"></i>WVO 缓冲</span>
+              <span><i class="vo-colregs"></i>COLREG 禁区</span>
+            </div>
+            <div class="surface-explanation" id="val-surface-explanation"></div>
           </div>
           <div class="surface-meta mono-tag" id="val-surface-meta"></div>
           <div class="objective-history-wrap" id="objectiveHistoryWrap">

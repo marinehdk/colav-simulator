@@ -135,10 +135,17 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert 'id="val-surface-explanation"' in page.text
         assert 'id="val-surface-meta"' in page.text
         assert 'id="plannerSurface" width="280" height="280"' in page.text
+        assert 'id="plannerSurfaceAttach"' in page.text
+        assert 'id="plannerSurfaceDetach"' not in page.text
+        assert 'id="plannerSurfacePanel"' in page.text
         assert 'id="voSurfaceLegend"' in page.text
         assert "? '速度决策空间'" in script.text
-        assert "surfaceExplanation.hidden = isVO" in script.text
+        assert "surfaceExplanation.hidden = !isVO" in script.text
         assert "surfaceMeta.hidden = isVO" in script.text
+        assert "setPlannerSurfaceAttached(!plannerSurfaceAttached)" in script.text
+        assert "drawVODecisionSpaceOnMap(data.os)" in script.text
+        assert "panel.hidden = attached" in script.text
+        assert "updateAttachedPlannerSurfacePosition" not in script.text
         assert all(
             f"label: '{label}'" in script.text
             for label in ("选中速度", "参考速度", "当前速度")

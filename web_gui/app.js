@@ -157,6 +157,7 @@ let voDecisionSpaceRetryTimer = null;
 let lastVODecisionRequestAt = 0;
 let lastVORenderKey = null;
 let voRenderGeometry = null;
+let plannerSurfaceAttached = false;
 let renderFromData = null;
 let renderToData = null;
 let renderStartedAt = 0;
@@ -416,8 +417,9 @@ function renderCanvas(data) {
     drawExecutionPoint(plans.prediction_horizon);
   if (visibleLayers.risk) drawCPARisk(data);
   drawTargetRoutes(data);
+  if (data.os && plannerSurfaceAttached) drawVODecisionSpaceOnMap(data.os);
   if (visibleLayers.ships) drawShips(data);
-  if (data.os) drawRelativeCompass(data.os, W, H);
+  if (data.os && !plannerSurfaceAttached) drawRelativeCompass(data.os, W, H);
 }
 
 function drawTargetRoutes(data) {
@@ -1463,6 +1465,7 @@ function updatePlannerPanel(data) {
     : latestSolve;
   const execution = data.execution || {};
   const details = diagnosticPlanner.algorithm_details || {};
+  syncPlannerSurfaceMode(diagnosticPlanner);
   const solveId = Number(planner.solve_id || 0);
   const realSolve = Boolean(planner.solver_executed);
   const mode = document.getElementById('val-solver-executed');
@@ -1553,7 +1556,7 @@ function drawPlannerSurface(planner) {
         : '名义 LOS 引导';
   const surfaceExplanation = document.getElementById('val-surface-explanation');
   const surfaceMeta = document.getElementById('val-surface-meta');
-  if (surfaceExplanation) surfaceExplanation.hidden = isVO;
+  if (surfaceExplanation) surfaceExplanation.hidden = !isVO;
   if (surfaceMeta) surfaceMeta.hidden = isVO;
   setText('val-surface-label', label);
   setText('val-surface-explanation', '');
@@ -1581,6 +1584,7 @@ function drawPlannerSurface(planner) {
   if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc';
   const voLegend = document.getElementById('voSurfaceLegend');
   if (voLegend) voLegend.hidden = !isVO;
+  updatePlannerSurfaceAttachControl(isVO, Number(planner.solve_id));
   if (isVO) {
     drawVODecisionSpace(surface, canvas, planner, details);
     return;
@@ -1706,7 +1710,8 @@ function ensureVODecisionSpace(planner) {
   if (planner.algorithm_id !== 'vo' || !activeSessionId) return;
   const card = document.getElementById('cardPlanner');
   const solveId = Number(planner.solve_id);
-  if (card?.classList.contains('collapsed') || !Number.isInteger(solveId) || solveId < 1) return;
+  if ((card?.classList.contains('collapsed') && !plannerSurfaceAttached)
+    || !Number.isInteger(solveId) || solveId < 1) return;
   const requestKey = `${activeSessionId}:${solveId}`;
   if (voDecisionSpaceKey === requestKey || voDecisionSpaceAttemptedKey === requestKey) return;
   voDecisionSpacePending = {
@@ -1763,6 +1768,8 @@ function requestPendingVODecisionSpace() {
     voDecisionSpaceAttemptedKey = requestKey;
     lastVORenderKey = null;
     drawPlannerSurface(pending.planner);
+    updatePlannerSurfaceAttachControl(true, pending.solveId);
+    if (plannerSurfaceAttached && currentData) renderCanvas(currentData);
   }).catch(error => {
     if (error.name !== 'AbortError') {
       setText('val-surface-explanation', '决策空间暂不可用');
@@ -1943,6 +1950,128 @@ function drawVODecisionSpace(surface, canvas, planner, details) {
   };
 }
 
+function drawVODecisionSpaceOnMap(os) {
+  const snapshot = voDecisionSpaceKey?.startsWith(`${activeSessionId}:`) ? voDecisionSpace : null;
+  if (!snapshot || !Number.isFinite(os?.x) || !Number.isFinite(os?.y)) return;
+
+  const speeds = snapshot.speed_candidates_mps || [];
+  const headings = snapshot.heading_candidates_rad || [];
+  const bits = snapshot.candidate_state_bits || [];
+  const costs = snapshot.total_costs || [];
+  const [rows, columns] = snapshot.shape || [];
+  if (!rows || !columns || rows !== speeds.length || columns !== headings.length
+    || bits.length !== rows * columns) return;
+
+  const point = worldToCanvas(os.x, os.y);
+  const centerX = point.x;
+  const centerY = point.y;
+  const radius = 110;
+  const maxSpeed = Math.max(...speeds, 1);
+  const headingStep = 2 * Math.PI / columns;
+  const ownshipHeading = Number(snapshot.ownship_heading_rad) || Number(os.psi) || 0;
+  const displayRotation = Number(os.psi) || ownshipHeading;
+  const finiteCosts = costs.filter(Number.isFinite);
+  const minimumCost = finiteCosts.length ? Math.min(...finiteCosts) : 0;
+  const maximumCost = finiteCosts.length ? Math.max(...finiteCosts) : 1;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(8,18,20,0.34)';
+  ctx.fillRect(centerX - radius, centerY - radius, radius * 2, radius * 2);
+
+  for (let speedIndex = 0; speedIndex < rows; speedIndex += 1) {
+    const innerSpeed = speedIndex === 0 ? 0 : (speeds[speedIndex - 1] + speeds[speedIndex]) / 2;
+    const outerSpeed = speedIndex === rows - 1
+      ? maxSpeed
+      : (speeds[speedIndex] + speeds[speedIndex + 1]) / 2;
+    const innerRadius = innerSpeed / maxSpeed * radius;
+    const outerRadius = outerSpeed / maxSpeed * radius;
+    for (let headingIndex = 0; headingIndex < columns; headingIndex += 1) {
+      const index = speedIndex * columns + headingIndex;
+      const relativeHeading = wrapRadians(headings[headingIndex] - ownshipHeading);
+      const displayedHeading = relativeHeading + displayRotation;
+      const start = displayedHeading - headingStep / 2 - Math.PI / 2;
+      const end = displayedHeading + headingStep / 2 - Math.PI / 2;
+      const cost = costs[index] == null ? NaN : Number(costs[index]);
+      const normalizedCost = Number.isFinite(cost) && maximumCost > minimumCost
+        ? (cost - minimumCost) / (maximumCost - minimumCost)
+        : 0;
+      ctx.fillStyle = voCandidateColor(bits[index], normalizedCost);
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, outerRadius, start, end);
+      if (innerRadius > 0) ctx.arc(centerX, centerY, innerRadius, end, start, true);
+      else ctx.lineTo(centerX, centerY);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(232,244,240,0.38)';
+  ctx.fillStyle = 'rgba(232,244,240,0.82)';
+  ctx.lineWidth = 0.8;
+  ctx.font = '8px SFMono-Regular, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let speed = 2; speed <= maxSpeed; speed += 2) {
+    const ringRadius = speed / maxSpeed * radius;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillText(`${speed}`, centerX + 3, centerY - ringRadius + 8);
+  }
+  for (let degrees = -180; degrees < 180; degrees += 30) {
+    const angle = degrees * Math.PI / 180 + displayRotation;
+    const endX = centerX + radius * Math.sin(angle);
+    const endY = centerY - radius * Math.cos(angle);
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    if (degrees % 60 === 0) {
+      ctx.fillText(
+        `${degrees}°`,
+        centerX + (radius - 10) * Math.sin(angle),
+        centerY - (radius - 10) * Math.cos(angle),
+      );
+    }
+  }
+
+  drawVelocityArrow(
+    ctx, centerX, centerY, radius, maxSpeed,
+    snapshot.current_velocity_ne_mps, ownshipHeading, '#9aa7a2', 1.7, displayRotation,
+  );
+  drawVelocityArrow(
+    ctx, centerX, centerY, radius, maxSpeed,
+    snapshot.reference_velocity_ne_mps, ownshipHeading, '#f3f6f5', 1.7, displayRotation,
+  );
+  const selected = snapshot.selected || {};
+  drawVelocityArrow(
+    ctx,
+    centerX,
+    centerY,
+    radius,
+    maxSpeed,
+    [
+      Number(selected.speed_mps) * Math.cos(Number(selected.heading_rad)),
+      Number(selected.speed_mps) * Math.sin(Number(selected.heading_rad)),
+    ],
+    ownshipHeading,
+    '#58a6ff',
+    2.5,
+    displayRotation,
+  );
+  ctx.strokeStyle = 'rgba(232,244,240,0.72)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function voCandidateColor(stateBits, normalizedCost) {
   const alpha = Math.max(0.58, Math.min(0.94, 0.58 + normalizedCost * 0.36));
   if (stateBits & 1) return `rgba(227,78,89,${alpha})`;
@@ -1959,12 +2088,23 @@ function voCandidateLabel(stateBits) {
   return '安全';
 }
 
-function drawVelocityArrow(surface, centerX, centerY, radius, maxSpeed, velocity, ownshipHeading, color, width = 1.7) {
+function drawVelocityArrow(
+  surface,
+  centerX,
+  centerY,
+  radius,
+  maxSpeed,
+  velocity,
+  ownshipHeading,
+  color,
+  width = 1.7,
+  displayRotation = 0,
+) {
   const north = Number(velocity?.[0]);
   const east = Number(velocity?.[1]);
   if (!Number.isFinite(north) || !Number.isFinite(east)) return;
   const speed = Math.hypot(north, east);
-  const relativeHeading = wrapRadians(Math.atan2(east, north) - ownshipHeading);
+  const relativeHeading = wrapRadians(Math.atan2(east, north) - ownshipHeading) + displayRotation;
   const length = Math.min(speed, maxSpeed) / maxSpeed * radius;
   const endX = centerX + length * Math.sin(relativeHeading);
   const endY = centerY - length * Math.cos(relativeHeading);
@@ -2044,6 +2184,52 @@ document.getElementById('plannerSurface').addEventListener('pointerleave', () =>
       ? `活动规则 ${activeRules.join(', ')}`
       : '当前无活动 COLREG 规则；显示本次真实求解决策空间',
   );
+});
+
+function currentDiagnosticPlanner() {
+  const planner = currentData?.planner || {};
+  const latestSolve = currentData?.latest_planner_solve || {};
+  return planner.solver_executed || !latestSolve.solver_executed ? planner : latestSolve;
+}
+
+function updatePlannerSurfaceAttachControl(isVO, solveId) {
+  const button = document.getElementById('plannerSurfaceAttach');
+  if (!button) return;
+  button.hidden = !isVO;
+  const hasSnapshot = Boolean(
+    activeSessionId
+    && voDecisionSpace
+    && voDecisionSpaceKey?.startsWith(`${activeSessionId}:`)
+    && Number.isInteger(solveId)
+    && solveId > 0
+  );
+  button.disabled = !hasSnapshot && !plannerSurfaceAttached;
+  button.textContent = plannerSurfaceAttached ? '收起' : hasSnapshot ? '展示' : '加载中';
+  button.setAttribute('aria-pressed', String(plannerSurfaceAttached));
+}
+
+function syncPlannerSurfaceMode(planner) {
+  if (planner.algorithm_id !== 'vo' && plannerSurfaceAttached) {
+    setPlannerSurfaceAttached(false, { rerender: false });
+  }
+}
+
+function setPlannerSurfaceAttached(attached, { rerender = true } = {}) {
+  const panel = document.getElementById('plannerSurfacePanel');
+  if (!panel || attached === plannerSurfaceAttached) return;
+  if (attached && currentDiagnosticPlanner().algorithm_id !== 'vo') return;
+  plannerSurfaceAttached = attached;
+  panel.hidden = attached;
+  lastVORenderKey = null;
+  updatePlannerSurfaceAttachControl(currentDiagnosticPlanner().algorithm_id === 'vo', Number(currentDiagnosticPlanner().solve_id));
+  window.requestAnimationFrame(() => {
+    if (currentData) drawPlannerSurface(currentDiagnosticPlanner());
+  });
+  if (rerender && currentData) renderCanvas(currentData);
+}
+
+document.getElementById('plannerSurfaceAttach').addEventListener('click', () => {
+  setPlannerSurfaceAttached(!plannerSurfaceAttached);
 });
 
 new ResizeObserver(() => {
@@ -2642,6 +2828,7 @@ async function createSession({ force = false } = {}) {
 }
 
 function activateSession(data, requestKey = null) {
+  setPlannerSurfaceAttached(false, { rerender: false });
   if (voDecisionSpaceController) voDecisionSpaceController.abort();
   if (voDecisionSpaceRetryTimer !== null) window.clearTimeout(voDecisionSpaceRetryTimer);
   voDecisionSpace = null;
