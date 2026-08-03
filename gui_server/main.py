@@ -8,7 +8,9 @@ import matplotlib as mpl
 mpl.use("Agg")
 
 import asyncio
+import copy
 import logging
+import re
 import threading
 from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
@@ -17,6 +19,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +28,13 @@ from pydantic import BaseModel, Field
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.evaluation import EncounterMonitor
+from colav_simulator.experiment.busy_water import (
+    ACCEPTANCE_SCENARIO_ID,
+    DEFAULT_SEED,
+    STRESS_SCENARIO_ID,
+    build_busy_water_document,
+    preflight_document,
+)
 from colav_simulator.experiment.contracts import RunSpec, SessionState
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner, PreparedRun, RunResult
@@ -34,6 +44,8 @@ logging.basicConfig(level=logging.INFO)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 GUI_DIR = BASE_DIR / "web_gui"
+DRAFT_DIR = BASE_DIR / "runs" / "scenario_drafts"
+BUSY_WATER_SCENARIOS = {ACCEPTANCE_SCENARIO_ID, STRESS_SCENARIO_ID}
 
 
 class SessionCreateRequest(BaseModel):
@@ -49,9 +61,26 @@ class SessionCreateRequest(BaseModel):
     evaluator_profile_id: str = "ccta_2023_demo-v1"
     algorithm_config: dict[str, Any] = Field(default_factory=dict)
     tracker_config: dict[str, Any] = Field(default_factory=dict)
+    scenario_override: dict[str, Any] | None = None
 
     def to_spec(self) -> RunSpec:
-        return RunSpec(**self.model_dump(), output_root="runs")
+        payload = self.model_dump()
+        override = payload.get("scenario_override")
+        if override is not None:
+            if self.scenario_id not in BUSY_WATER_SCENARIOS:
+                raise ValueError("scenario_override is supported only for busy-water scenarios")
+            override = copy.deepcopy(override)
+            override["name"] = self.scenario_id
+            preflight_document(override, seed=self.seed)
+            payload["scenario_override"] = override
+        return RunSpec(**payload, output_root="runs")
+
+
+class BusyWaterDraftRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    base_scenario_id: str
+    seed: int = Field(default=DEFAULT_SEED, ge=0)
+    document: dict[str, Any]
 
 
 LEGACY_SCENARIOS = {
@@ -77,6 +106,76 @@ def _execution_error_detail(exc: Exception) -> dict[str, str]:
     else:
         status = PlanStatus.INVALID_INPUT
     return {"status": status.value, "reason": str(exc)}
+
+
+def _draft_slug(value: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", value.strip()).strip("-_").lower()
+    if not slug:
+        raise ValueError("draft name must contain a letter or number")
+    return slug[:64]
+
+
+def _validate_busy_water_document(document: dict[str, Any], base_scenario_id: str, seed: int) -> dict[str, Any]:
+    if base_scenario_id not in BUSY_WATER_SCENARIOS:
+        raise ValueError(f"unsupported busy-water base scenario: {base_scenario_id}")
+    normalized = copy.deepcopy(document)
+    normalized["name"] = base_scenario_id
+    result = preflight_document(normalized, seed=seed)
+    return {"document": normalized, "preflight": result}
+
+
+def save_busy_water_draft(request: BusyWaterDraftRequest) -> dict[str, Any]:
+    validated = _validate_busy_water_document(request.document, request.base_scenario_id, request.seed)
+    slug = _draft_slug(request.name)
+    DRAFT_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "busy_water_draft.v1",
+        "id": slug,
+        "name": request.name.strip(),
+        "base_scenario_id": request.base_scenario_id,
+        "seed": request.seed,
+        **validated,
+    }
+    (DRAFT_DIR / f"{slug}.yaml").write_text(
+        yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, width=120),
+        encoding="utf-8",
+    )
+    return payload
+
+
+def load_busy_water_draft(identifier: str) -> dict[str, Any]:
+    slug = _draft_slug(identifier)
+    path = DRAFT_DIR / f"{slug}.yaml"
+    if not path.is_file():
+        raise FileNotFoundError(identifier)
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    validated = _validate_busy_water_document(
+        payload["document"],
+        payload["base_scenario_id"],
+        int(payload.get("seed", DEFAULT_SEED)),
+    )
+    return {**payload, **validated}
+
+
+def list_busy_water_drafts() -> list[dict[str, Any]]:
+    if not DRAFT_DIR.is_dir():
+        return []
+    output = []
+    for path in sorted(DRAFT_DIR.glob("*.yaml")):
+        try:
+            payload = load_busy_water_draft(path.stem)
+        except (KeyError, TypeError, ValueError, yaml.YAMLError):
+            continue
+        output.append(
+            {
+                "id": payload["id"],
+                "name": payload["name"],
+                "base_scenario_id": payload["base_scenario_id"],
+                "seed": payload["seed"],
+                "target_count": len(payload["document"]["ship_list"]) - 1,
+            }
+        )
+    return output
 
 
 def _draw_geometry(ax: plt.Axes, geometry: Any, color: str, alpha: float = 1.0) -> None:
@@ -436,7 +535,7 @@ class WebSessionManager:
             raise KeyError(session_id)
         return self.prepared
 
-    def _telemetry(self, snapshot: Any) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
+    def _telemetry(self, snapshot: Any) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         if not self.prepared:
             return {
                 "schema_version": "1.0",
@@ -448,6 +547,20 @@ class WebSessionManager:
             }
         session = self.prepared.session
         frame = snapshot.payload if snapshot is not None else (session.frames[-1] if session.frames else {})
+        if not frame:
+            frame = {
+                f"Ship{index}": {
+                    "id": ship.id,
+                    "mmsi": ship.mmsi,
+                    "csog_state": ship.csog_state,
+                    "state": ship.state,
+                    "waypoints": ship.waypoints,
+                    "speed_plan": ship.speed_plan,
+                    "references": np.zeros(9),
+                    "active": bool(ship.t_start <= session.simulator.t < ship.t_end),
+                }
+                for index, ship in enumerate(session.ship_list)
+            }
         origin_e, origin_n = session.enc.origin
         ships = []
         for index in range(len(session.ship_list)):
@@ -491,6 +604,18 @@ class WebSessionManager:
             own["latitude"] = float(latitude)
             own["longitude"] = float(longitude)
         obstacles = ships[1:]
+        target_routes = []
+        for target in session.ship_list[1:]:
+            route = np.asarray(target.waypoints, dtype=float)
+            if route.ndim != 2 or route.shape[0] != 2:
+                continue
+            target_routes.append(
+                {
+                    "target_id": int(target.id),
+                    "waypoints": np.vstack((route[0] - origin_n, route[1] - origin_e)).tolist(),
+                    "speed_mps": float(target.csog_state[2]),
+                }
+            )
         encounters = [item.to_dict() for item in self.encounter_monitor.update(ships)]
         primary_encounter = next(
             (item for item in encounters if item["validation_rule_id"] == self.prepared.spec.validation_rule_id),
@@ -546,6 +671,7 @@ class WebSessionManager:
         return {
             "schema_version": "1.0",
             "run_id": self.session_id,
+            "scenario_id": self.prepared.spec.scenario_id,
             "seq": session.sequence,
             "sim_time": sim_time,
             "state": session.state.value,
@@ -557,6 +683,7 @@ class WebSessionManager:
                 "prediction_horizon": self.current_prediction_horizon,
                 "previous_prediction_horizon": self.previous_prediction_horizon,
                 "target_prediction_horizons": target_prediction_horizons,
+                "target_routes": target_routes,
             },
             "enc_navigation_area": self.enc_navigation_area,
             "encounters": encounters,
@@ -572,6 +699,7 @@ class WebSessionManager:
             "waypoints": local_waypoints,
             "prediction_horizon": self.current_prediction_horizon,
             "previous_prediction_horizon": self.previous_prediction_horizon,
+            "target_routes": target_routes,
             "dcpa": dcpa,
             "tcpa": tcpa,
             "colregs": encounter,
@@ -713,6 +841,59 @@ def api_capabilities(validation_rule_id: str | None = None) -> dict[str, Any]:
 @app.get("/api/algorithms")
 def api_algorithms() -> list[dict[str, Any]]:
     return [status.to_dict() for status in manager.runner.registry.statuses().values()]
+
+
+@app.get("/api/busy-water/generate")
+def api_busy_water_generate(
+    profile: str = "acceptance",
+    target_count: int = 15,
+    seed: int = DEFAULT_SEED,
+    crossing_ratio: float = 0.6,
+    head_on_ratio: float = 0.2,
+    overtaking_ratio: float = 0.2,
+) -> dict[str, Any]:
+    try:
+        document = build_busy_water_document(
+            profile,
+            seed=seed,
+            target_count=target_count,
+            encounter_mix={
+                "crossing": crossing_ratio,
+                "head_on": head_on_ratio,
+                "overtaking": overtaking_ratio,
+            },
+        )
+        return {
+            "profile": profile,
+            "seed": seed,
+            "document": document,
+            "preflight": preflight_document(document, seed=seed),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
+
+
+@app.get("/api/busy-water/drafts")
+def api_busy_water_drafts() -> list[dict[str, Any]]:
+    return list_busy_water_drafts()
+
+
+@app.get("/api/busy-water/drafts/{identifier}")
+def api_busy_water_draft(identifier: str) -> dict[str, Any]:
+    try:
+        return load_busy_water_draft(identifier)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Busy-water draft not found") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
+
+
+@app.post("/api/busy-water/drafts")
+def api_save_busy_water_draft(request: BusyWaterDraftRequest) -> dict[str, Any]:
+    try:
+        return save_busy_water_draft(request)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
 
 
 @app.post("/api/sessions")

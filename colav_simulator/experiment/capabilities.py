@@ -460,21 +460,27 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ),
 }
 
-EXPERIMENTAL_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
-    ("multiship", "romsdal_busy_water_16", "potocnik_colreg_fan_mpc", "god"): {
+_BUSY_WATER_ALGORITHMS = ("nominal", "vo", "sbmpc", "potocnik_colreg_fan_mpc")
+_BUSY_WATER_EVIDENCE = {
+    "romsdal_busy_water_16": {
         "seed": 20250731,
         "evidence_role": "experimental_acceptance_pending",
         "readiness_grade": "G2",
         "promotion_status": "RAW_G3_PENDING",
         "scope": "ship0_algorithm_responsibility",
     },
-    ("multiship", "romsdal_busy_water_80_stress", "potocnik_colreg_fan_mpc", "god"): {
+    "romsdal_busy_water_80_stress": {
         "seed": 20250731,
         "evidence_role": "stress_only_not_g3",
         "readiness_grade": "G2",
         "promotion_status": "NOT_ELIGIBLE_FOR_G3",
         "scope": "runtime_and_interface_load",
     },
+}
+EXPERIMENTAL_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
+    ("multiship", scenario_id, algorithm_id, "god"): dict(evidence)
+    for scenario_id, evidence in _BUSY_WATER_EVIDENCE.items()
+    for algorithm_id in _BUSY_WATER_ALGORITHMS
 }
 
 
@@ -679,17 +685,19 @@ class CapabilityCatalog:
         filters = {"rule_id": validation_rule_id}
         filters[f"{kind}_id"] = identifier
         combinations = _combination_documents(**filters)
+        experimental = _experimental_combination_documents(**filters)
+        selectable_combinations = combinations + experimental
         dependency_available = bool(status and status.available)
         minimum_grade = 2 if identifier in {"nominal", "god", "kf"} else 3
         grade_ready = GRADE_VALUE[capability.readiness_grade] >= minimum_grade
         runtime_ready = dependency_available and GRADE_VALUE[capability.readiness_grade] >= 2
-        selectable = runtime_ready and grade_ready and bool(combinations)
+        selectable = runtime_ready and grade_ready and bool(selectable_combinations)
         if not dependency_available:
             incompatibility = status.reason if status else "Integration is not registered."
         elif not grade_ready:
             incompatibility = capability.known_failure or f"{identifier} has not passed its readiness gate."
-        elif not combinations:
-            incompatibility = f"{identifier} has no verified G3 tuple for the selected rule."
+        elif not selectable_combinations:
+            incompatibility = f"{identifier} has no selectable tuple for the selected rule."
         else:
             incompatibility = None
         return {
@@ -699,11 +707,12 @@ class CapabilityCatalog:
             "dependency_available": dependency_available,
             "runtime_ready": runtime_ready,
             "selectable": selectable,
-            "supported_rules": sorted({item["validation_rule_id"] for item in combinations}),
-            "supported_scenarios": sorted({item["scenario_id"] for item in combinations}),
+            "supported_rules": sorted({item["validation_rule_id"] for item in selectable_combinations}),
+            "supported_scenarios": sorted({item["scenario_id"] for item in selectable_combinations}),
             "supported_obstacles": list(capability.supported_obstacles),
             "verified_combinations": combinations,
-            "latest_evidence": combinations[-1]["latest_evidence"] if combinations else None,
+            "experimental_combinations": experimental,
+            "latest_evidence": selectable_combinations[-1]["latest_evidence"] if selectable_combinations else None,
             "known_failure": capability.known_failure,
             "incompatibility_reason": incompatibility,
             "source": status.source if status else None,
@@ -727,9 +736,13 @@ class CapabilityCatalog:
         self._require_available(TRACKERS, tracker_id)
         key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
         if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
+            has_experimental_scope = bool(
+                _experimental_combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id)
+            )
+            label = "selectable capability" if has_experimental_scope else "verified G3 capability"
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
-                f"No verified G3 capability tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
+                f"No {label} tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
             )
         return ":".join(key)
 

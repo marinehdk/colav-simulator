@@ -18,19 +18,18 @@ implied by these scenarios.
 ### `romsdal_busy_water_16`
 
 - Ship0 plus 15 scripted targets, 600 s, `dt_sim=0.1 s`.
-- Eight deterministic target tracks create six encounter windows: head-on,
-  crossing give-way, crossing stand-on, overtaking, overtaken, and a
-  three-target compound window.
-- Seven parallel-flow background ships are active during the opening 30 s.
-  They establish visual traffic without contaminating later encounter
-  attribution.
-- Exact scenario tuple is experimental G2 for
-  `potocnik_colreg_fan_mpc / god`. It is not part of verified G3 capability.
+- Default mix is crossing 60%, head-on 20%, and overtaking 20%. Fifteen targets
+  therefore produce 9 CS, 3 HO, and 3 OT routes. CS and OT responsibility roles
+  alternate with a difference of at most one.
+- Every target follows one constant-speed, two-point shuttle route near Ship0's
+  nominal lane. Endpoint overshoot is reflected and the vessel reverses course.
+- Nominal, VO, SB-MPC, and COLREG fan MPC are selectable with God tracker as
+  experimental G2 combinations. Selection is not verified G3 evidence.
 
 ### `romsdal_busy_water_80_stress`
 
 - Ship0 plus 79 scripted targets, 600 s, `dt_sim=0.5 s`.
-- Fixed seed, seven ENC-safe northbound traffic lanes.
+- Same route-adjacent seeded generator and crossing-dominant distribution.
 - Capacity and UI-load fixture only. Global collision freedom and algorithm G3
   are not claimed.
 - Live per-step Ship0 CCD is disabled only for this stress fixture. Final
@@ -49,6 +48,8 @@ the normalized documents to prevent drift.
 MPLBACKEND=Agg .venv/bin/python -m colav_simulator.cli busy-water-generate \
   --profile acceptance \
   --seed 20250731 \
+  --target-count 15 \
+  --crossing-ratio 0.6 --head-on-ratio 0.2 --overtaking-ratio 0.2 \
   --output scenarios/romsdal_busy_water_16.yaml
 
 MPLBACKEND=Agg .venv/bin/python -m colav_simulator.cli busy-water-generate \
@@ -67,6 +68,18 @@ Static preflight checks ship count and IDs, active windows, initial footprint
 separation, map bounds, nominal target-target collisions, planned encounter
 roles, navigable initial points, and scripted route intersections with ENC
 hazards.
+
+## Interactive Authoring
+
+Open the busy-water settings button on the chart to choose 3-79 targets, seed,
+and encounter ratios. The generated document enters the normal RunSpec,
+manifest, scenario hash, and evaluation path as a validated override.
+
+Before starting the simulation, select any target ship to edit speed and both
+UTM route endpoints. Endpoints may be typed or picked on the map. Applying an
+edit creates a new paused session; a running session is never mutated. Complete
+documents can be saved and reloaded from ignored `runs/scenario_drafts` YAML
+files, preserving every vessel state and route.
 
 ## Evidence Boundaries
 

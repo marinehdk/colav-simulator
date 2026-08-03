@@ -901,7 +901,7 @@ class ScenarioGenerator:
                 If the episode is OK, we may still want to prune the DOs with bad paths
                 (i.e. too short paths).
         """
-        if config.name in {"romsdal_busy_water_16", "romsdal_busy_water_80_stress"}:
+        if config.name.startswith("romsdal_busy_water"):
             for ship_obj in ship_list:
                 in_safe_sea = mapf.point_in_polygon_list(
                     geometry.Point(ship_obj.csog_state[1], ship_obj.csog_state[0]),

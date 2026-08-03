@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 
 import colav_simulator.common.config_parsing as cp
+import colav_simulator.common.file_utils as futils
 from colav_simulator import scenario_config
 from colav_simulator.common import paths
 from colav_simulator.core.colav.custom_mpc_adapter import (
@@ -84,7 +85,7 @@ class ExperimentRunner:
         self.registry = registry or IntegrationRegistry()
         self.capabilities = CapabilityCatalog(self.registry)
         self.evaluator = evaluator or Evaluator()
-        self._enc_cache: dict[tuple[str, int, int, int], Any] = {}
+        self._enc_cache: dict[tuple[str, int | str, int, int], Any] = {}
 
     def list_scenarios(self) -> list[dict[str, Any]]:
         scenarios = []
@@ -135,9 +136,16 @@ class ExperimentRunner:
             raise FileNotFoundError(f"Unknown scenario: {scenario_id}")
         raise ValueError(f"Ambiguous scenario ID {scenario_id}: {matches}")
 
-    def prepare(self, spec: RunSpec) -> PreparedRun:  # noqa: PLR0915
+    def prepare(self, spec: RunSpec) -> PreparedRun:  # noqa: PLR0912, PLR0915
         scenario_path = self.resolve_scenario(spec.scenario_id)
-        config = cp.extract(scenario_config.ScenarioConfig, scenario_path, paths.scenario_schema)
+        if spec.scenario_override is None:
+            config = cp.extract(scenario_config.ScenarioConfig, scenario_path, paths.scenario_schema)
+            source_version = scenario_path.stat().st_mtime_ns
+        else:
+            override_document = copy.deepcopy(spec.scenario_override)
+            cp.validate(override_document, futils.read_yaml_into_dict(paths.scenario_schema))
+            config = scenario_config.ScenarioConfig.from_dict(override_document)
+            source_version = content_hash(override_document)
         config.filename = scenario_path.name
         if spec.dt is not None:
             config.dt_sim = spec.dt
@@ -163,7 +171,7 @@ class ExperimentRunner:
         episode_count = max(1, spec.episode_index + 1)
         enc_cache_key = (
             str(scenario_path.resolve()),
-            scenario_path.stat().st_mtime_ns,
+            source_version,
             spec.seeds.scenario,
             episode_count,
         )

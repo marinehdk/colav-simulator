@@ -81,6 +81,7 @@ class RunSpec:
     reproduction_level: ReproductionLevel = ReproductionLevel.FUNCTIONAL
     algorithm_config: dict[str, Any] = field(default_factory=dict)
     tracker_config: dict[str, Any] = field(default_factory=dict)
+    scenario_override: dict[str, Any] | None = None
     output_root: str = "runs"
     replay_of_run_id: str | None = None
     schema_version: str = SCHEMA_VERSION

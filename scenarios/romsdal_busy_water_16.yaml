@@ -53,22 +53,22 @@ ship_list:
       U_min: 0.0
       U_max: 15.0
 - csog_state:
-  - 6957250.0
-  - 39800.0
-  - 6.0
-  - 180.0
+  - 6959631.002155135
+  - 39912.08726320173
+  - 6.173985957108381
+  - 270.0
   waypoints:
-  - - 6957250.0
-    - 6956950.0
-  - - 39800.0
-    - 39800.0
+  - - 6959631.002155135
+    - 6959631.002155135
+  - - 39680.0
+    - 39980.0
   speed_plan:
-  - 6.0
-  - 6.0
+  - 6.173985957108381
+  - 6.173985957108381
   id: 1
   mmsi: 101
-  t_start: 40.0
-  t_end: 90.0
+  t_start: 0.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -89,23 +89,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: crossing_give_way
 - csog_state:
-  - 6957490.0
-  - 39980.0
-  - 6.0
-  - 270.0
+  - 6956789.157882886
+  - 39825.08483043028
+  - 4.425526962490222
+  - 0.0
   waypoints:
-  - - 6957490.0
-    - 6957490.0
-  - - 39980.0
-    - 39680.0
+  - - 6956680.302696476
+    - 6957680.302696476
+  - - 39825.08483043028
+    - 39825.08483043028
   speed_plan:
-  - 6.0
-  - 6.0
+  - 4.425526962490222
+  - 4.425526962490222
   id: 2
   mmsi: 102
-  t_start: 110.0
-  t_end: 160.0
+  t_start: 0.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -126,23 +127,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: overtaking
 - csog_state:
-  - 6957810.0
-  - 39370.0
-  - 6.0
-  - 90.0
+  - 6957794.060685915
+  - 39790.45438888329
+  - 4.80804607061596
+  - 0.0
   waypoints:
-  - - 6957810.0
-    - 6957810.0
-  - - 39370.0
-    - 39670.0
+  - - 6956875.165708322
+    - 6957875.165708322
+  - - 39790.45438888329
+    - 39790.45438888329
   speed_plan:
-  - 6.0
-  - 6.0
+  - 4.80804607061596
+  - 4.80804607061596
   id: 3
   mmsi: 103
-  t_start: 180.0
-  t_end: 230.0
+  t_start: 0.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -163,97 +165,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: head_on
 - csog_state:
-  - 6958115.0
-  - 39800.0
-  - 3.5
-  - 0.0
-  waypoints:
-  - - 6958115.0
-    - 6958388.0
-  - - 39800.0
-    - 39800.0
-  speed_plan:
-  - 3.5
-  - 3.5
-  id: 4
-  mmsi: 104
-  t_start: 215.0
-  t_end: 293.0
-  guidance:
-    los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
-      K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
-  controller:
-    pass_through_cs: ''
-  model:
-    csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-- csog_state:
-  - 6958110.0
-  - 39800.0
-  - 8.0
-  - 0.0
-  waypoints:
-  - - 6958110.0
-    - 6958910.0
-  - - 39800.0
-    - 39800.0
-  speed_plan:
-  - 8.0
-  - 8.0
-  id: 5
-  mmsi: 105
-  t_start: 270.0
-  t_end: 370.0
-  guidance:
-    los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
-      K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
-  controller:
-    pass_through_cs: ''
-  model:
-    csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-- csog_state:
-  - 6959320.0
-  - 39800.0
-  - 5.0
+  - 6957226.347742745
+  - 39767.00248756167
+  - 4.3596282058860645
   - 180.0
   waypoints:
-  - - 6959320.0
-    - 6959070.0
-  - - 39800.0
-    - 39800.0
+  - - 6957062.975472527
+    - 6958062.975472527
+  - - 39767.00248756167
+    - 39767.00248756167
   speed_plan:
-  - 5.0
-  - 5.0
-  id: 6
-  mmsi: 106
-  t_start: 390.0
-  t_end: 440.0
+  - 4.3596282058860645
+  - 4.3596282058860645
+  id: 4
+  mmsi: 104
+  t_start: 0.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -274,60 +203,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: overtaking
 - csog_state:
-  - 6959230.0
-  - 39950.0
-  - 5.0
-  - 270.0
-  waypoints:
-  - - 6959230.0
-    - 6959230.0
-  - - 39950.0
-    - 39700.0
-  speed_plan:
-  - 5.0
-  - 5.0
-  id: 7
-  mmsi: 107
-  t_start: 400.0
-  t_end: 450.0
-  guidance:
-    los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
-      K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
-  controller:
-    pass_through_cs: ''
-  model:
-    csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-- csog_state:
-  - 6959590.0
-  - 39725.0
-  - 5.0
+  - 6957841.987231509
+  - 39829.37154500612
+  - 4.837359631743537
   - 90.0
   waypoints:
-  - - 6959590.0
-    - 6959590.0
-  - - 39725.0
-    - 39975.0
+  - - 6957841.987231509
+    - 6957841.987231509
+  - - 39680.0
+    - 39980.0
   speed_plan:
-  - 5.0
-  - 5.0
-  id: 8
-  mmsi: 108
-  t_start: 410.0
-  t_end: 460.0
+  - 4.837359631743537
+  - 4.837359631743537
+  id: 5
+  mmsi: 105
+  t_start: 0.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -348,23 +241,138 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: crossing_give_way
 - csog_state:
-  - 6955650.0
-  - 39600.0
-  - 6.0
-  - 0.0
+  - 6957960.194747986
+  - 39825.175382232745
+  - 4.30229869155238
+  - 90.0
   waypoints:
-  - - 6955650.0
-    - 6955830.0
-  - - 39600.0
-    - 39600.0
+  - - 6957960.194747986
+    - 6957960.194747986
+  - - 39680.0
+    - 39980.0
   speed_plan:
-  - 6.0
-  - 6.0
+  - 4.30229869155238
+  - 4.30229869155238
+  id: 6
+  mmsi: 106
+  t_start: 0.0
+  t_end: 600.0
+  guidance:
+    los:
+      pass_angle_threshold: 80.0
+      R_a: 40.0
+      K_p: 0.015
+      K_i: 0.0
+      max_cross_track_error_int: 200.0
+      cross_track_error_int_threshold: 30.0
+  controller:
+    pass_through_cs: ''
+  model:
+    csog:
+      draft: 3.0
+      length: 12.0
+      width: 4.0
+      T_chi: 3.0
+      T_U: 5.0
+      r_max: 4.0
+      U_min: 0.0
+      U_max: 15.0
+  encounter_role: crossing_give_way
+- csog_state:
+  - 6958158.877173201
+  - 39710.432864530325
+  - 5.177776897070122
+  - 90.0
+  waypoints:
+  - - 6958158.877173201
+    - 6958158.877173201
+  - - 39680.0
+    - 39980.0
+  speed_plan:
+  - 5.177776897070122
+  - 5.177776897070122
+  id: 7
+  mmsi: 107
+  t_start: 0.0
+  t_end: 600.0
+  guidance:
+    los:
+      pass_angle_threshold: 80.0
+      R_a: 40.0
+      K_p: 0.015
+      K_i: 0.0
+      max_cross_track_error_int: 200.0
+      cross_track_error_int_threshold: 30.0
+  controller:
+    pass_through_cs: ''
+  model:
+    csog:
+      draft: 3.0
+      length: 12.0
+      width: 4.0
+      T_chi: 3.0
+      T_U: 5.0
+      r_max: 4.0
+      U_min: 0.0
+      U_max: 15.0
+  encounter_role: crossing_stand_on
+- csog_state:
+  - 6958368.445133059
+  - 39828.78732078107
+  - 5.222374645652616
+  - 270.0
+  waypoints:
+  - - 6958368.445133059
+    - 6958368.445133059
+  - - 39680.0
+    - 39980.0
+  speed_plan:
+  - 5.222374645652616
+  - 5.222374645652616
+  id: 8
+  mmsi: 108
+  t_start: 0.0
+  t_end: 600.0
+  guidance:
+    los:
+      pass_angle_threshold: 80.0
+      R_a: 40.0
+      K_p: 0.015
+      K_i: 0.0
+      max_cross_track_error_int: 200.0
+      cross_track_error_int_threshold: 30.0
+  controller:
+    pass_through_cs: ''
+  model:
+    csog:
+      draft: 3.0
+      length: 12.0
+      width: 4.0
+      T_chi: 3.0
+      T_U: 5.0
+      r_max: 4.0
+      U_min: 0.0
+      U_max: 15.0
+  encounter_role: crossing_stand_on
+- csog_state:
+  - 6958514.027006144
+  - 39707.817383878006
+  - 3.5680788971373643
+  - 270.0
+  waypoints:
+  - - 6958514.027006144
+    - 6958514.027006144
+  - - 39680.0
+    - 39980.0
+  speed_plan:
+  - 3.5680788971373643
+  - 3.5680788971373643
   id: 9
   mmsi: 109
   t_start: 0.0
-  t_end: 30.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -385,23 +393,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: crossing_give_way
 - csog_state:
-  - 6955850.0
-  - 40000.0
-  - 6.0
-  - 0.0
+  - 6958475.3831188325
+  - 39776.64458140953
+  - 8.032146485018005
+  - 180.0
   waypoints:
-  - - 6955850.0
-    - 6956030.0
-  - - 40000.0
-    - 40000.0
+  - - 6958213.283671098
+    - 6959213.283671098
+  - - 39776.64458140953
+    - 39776.64458140953
   speed_plan:
-  - 6.0
-  - 6.0
+  - 8.032146485018005
+  - 8.032146485018005
   id: 10
   mmsi: 110
   t_start: 0.0
-  t_end: 30.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -422,23 +431,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: overtaken
 - csog_state:
-  - 6956050.0
-  - 40200.0
-  - 6.0
-  - 0.0
+  - 6958916.273486584
+  - 39889.42635716075
+  - 4.527599234496998
+  - 90.0
   waypoints:
-  - - 6956050.0
-    - 6956230.0
-  - - 40200.0
-    - 40200.0
+  - - 6958916.273486584
+    - 6958916.273486584
+  - - 39680.0
+    - 39980.0
   speed_plan:
-  - 6.0
-  - 6.0
+  - 4.527599234496998
+  - 4.527599234496998
   id: 11
   mmsi: 111
   t_start: 0.0
-  t_end: 30.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -459,23 +469,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: crossing_stand_on
 - csog_state:
-  - 6956250.0
-  - 40400.0
-  - 6.0
+  - 6959609.63456346
+  - 39778.38221473818
+  - 6.098363675979204
   - 0.0
   waypoints:
-  - - 6956250.0
-    - 6956430.0
-  - - 40400.0
-    - 40400.0
+  - - 6958612.216024657
+    - 6959612.216024657
+  - - 39778.38221473818
+    - 39778.38221473818
   speed_plan:
-  - 6.0
-  - 6.0
+  - 6.098363675979204
+  - 6.098363675979204
   id: 12
   mmsi: 112
   t_start: 0.0
-  t_end: 30.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -496,23 +507,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: head_on
 - csog_state:
-  - 6956450.0
-  - 40600.0
-  - 6.0
-  - 0.0
+  - 6959281.045224856
+  - 39753.02017386982
+  - 4.175671175180124
+  - 90.0
   waypoints:
-  - - 6956450.0
-    - 6956630.0
-  - - 40600.0
-    - 40600.0
+  - - 6959281.045224856
+    - 6959281.045224856
+  - - 39680.0
+    - 39980.0
   speed_plan:
-  - 6.0
-  - 6.0
+  - 4.175671175180124
+  - 4.175671175180124
   id: 13
   mmsi: 113
   t_start: 0.0
-  t_end: 30.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -533,23 +545,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: crossing_stand_on
 - csog_state:
-  - 6956650.0
-  - 40800.0
-  - 6.0
-  - 0.0
+  - 6959483.234642769
+  - 39773.304729334406
+  - 4.630357112555936
+  - 90.0
   waypoints:
-  - - 6956650.0
-    - 6956830.0
-  - - 40800.0
-    - 40800.0
+  - - 6959483.234642769
+    - 6959483.234642769
+  - - 39680.0
+    - 39980.0
   speed_plan:
-  - 6.0
-  - 6.0
+  - 4.630357112555936
+  - 4.630357112555936
   id: 14
   mmsi: 114
   t_start: 0.0
-  t_end: 30.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -570,23 +583,24 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: crossing_give_way
 - csog_state:
-  - 6956850.0
-  - 41000.0
-  - 6.0
-  - 0.0
+  - 6957256.291246636
+  - 39816.74756573621
+  - 4.780036882840511
+  - 180.0
   waypoints:
-  - - 6956850.0
-    - 6957030.0
-  - - 41000.0
-    - 41000.0
+  - - 6956487.4522294635
+    - 6957487.4522294635
+  - - 39816.74756573621
+    - 39816.74756573621
   speed_plan:
-  - 6.0
-  - 6.0
+  - 4.780036882840511
+  - 4.780036882840511
   id: 15
   mmsi: 115
   t_start: 0.0
-  t_end: 30.0
+  t_end: 600.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -607,3 +621,4 @@ ship_list:
       r_max: 4.0
       U_min: 0.0
       U_max: 15.0
+  encounter_role: head_on

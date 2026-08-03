@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="stylesheet" href="/static/style.css?v=20260729-planner-density" />
+  <link rel="stylesheet" href="/static/style.css?v=20260803-busy-editor" />
 </head>
 <body>
   <div class="app-container">
@@ -60,6 +60,7 @@
                 <span class="scale-label" id="scaleBarLabel">--- m</span>
               </div>
               <span class="map-control-divider" aria-hidden="true"></span>
+              <button id="busyWaterSetup" class="icon-btn" title="繁忙水域设置" aria-label="繁忙水域设置" hidden>⚙</button>
               <button id="toggleENC" class="icon-btn" title="切换 ENC 海图图层 Toggle ENC Layer" aria-label="Toggle ENC Chart" aria-pressed="true">▦</button>
               <button id="zoomIn" class="icon-btn" title="放大 Zoom In" aria-label="Zoom In">＋</button>
               <button id="zoomOut" class="icon-btn" title="缩小 Zoom Out" aria-label="Zoom Out">－</button>
@@ -138,7 +139,50 @@
               <button type="button" id="targetDetailsClose" aria-label="关闭目标详情">×</button>
               <h3 id="targetDetailsTitle">目标船</h3>
               <dl id="targetDetailsBody"></dl>
+              <form id="targetEditForm" class="target-edit-form" hidden>
+                <label>航速 <input id="targetSpeed" type="number" min="0.1" max="15" step="0.1" required> m/s</label>
+                <fieldset>
+                  <legend>往返航线 UTM</legend>
+                  <label>起点 N <input id="targetRouteN1" type="number" step="0.1" required></label>
+                  <label>起点 E <input id="targetRouteE1" type="number" step="0.1" required></label>
+                  <button type="button" id="pickTargetRouteStart">在海图选起点</button>
+                  <label>终点 N <input id="targetRouteN2" type="number" step="0.1" required></label>
+                  <label>终点 E <input id="targetRouteE2" type="number" step="0.1" required></label>
+                  <button type="button" id="pickTargetRouteEnd">在海图选终点</button>
+                </fieldset>
+                <div class="target-edit-actions">
+                  <button type="submit">应用</button>
+                  <button type="button" id="cancelTargetEdit">取消</button>
+                </div>
+              </form>
             </div>
+            <dialog id="busyWaterDialog" class="busy-water-dialog">
+              <form id="busyWaterForm" method="dialog">
+                <header>
+                  <h3>繁忙水域设置</h3>
+                  <button type="button" id="closeBusyWaterDialog" aria-label="关闭">×</button>
+                </header>
+                <div class="busy-water-fields">
+                  <label>目标船数量 <input id="busyTargetCount" type="number" min="3" max="79" value="15" required></label>
+                  <label>随机种子 <input id="busySeed" type="number" min="0" value="20250731" required></label>
+                  <label>CS 比例 <input id="busyCrossingRatio" type="number" min="0" step="0.05" value="0.6" required></label>
+                  <label>HO 比例 <input id="busyHeadOnRatio" type="number" min="0" step="0.05" value="0.2" required></label>
+                  <label>OT 比例 <input id="busyOvertakingRatio" type="number" min="0" step="0.05" value="0.2" required></label>
+                </div>
+                <div class="busy-water-actions">
+                  <button type="submit" id="generateBusyWater">生成场景</button>
+                </div>
+                <div class="busy-water-drafts">
+                  <label>草稿名称 <input id="busyDraftName" maxlength="80" placeholder="例如 harbor-trial"></label>
+                  <label>已保存草稿 <select id="busyDraftSelect"><option value="">暂无草稿</option></select></label>
+                  <div class="busy-water-actions">
+                    <button type="button" id="saveBusyWaterDraft">保存</button>
+                    <button type="button" id="loadBusyWaterDraft">载入</button>
+                  </div>
+                </div>
+                <p id="busyWaterStatus" class="busy-water-status" aria-live="polite"></p>
+              </form>
+            </dialog>
             <div class="log-section map-log-overlay card glass-card" id="cardEvents" aria-label="仿真事件">
               <h3 class="card-title"><span class="icon" aria-hidden="true">≡</span> 仿真事件</h3>
               <div class="log-terminal" id="logTerminal" aria-live="polite">
@@ -434,6 +478,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260731-busy-water"></script>
+  <script src="/static/app.js?v=20260803-busy-editor"></script>
 </body>
 </html>
