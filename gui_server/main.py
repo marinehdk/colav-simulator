@@ -33,6 +33,7 @@ from colav_simulator.experiment.busy_water import (
     DEFAULT_SEED,
     STRESS_SCENARIO_ID,
     build_busy_water_document,
+    normalize_encounter_mix,
     preflight_document,
 )
 from colav_simulator.experiment.contracts import RunSpec, SessionState
@@ -80,6 +81,9 @@ class BusyWaterDraftRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     base_scenario_id: str
     seed: int = Field(default=DEFAULT_SEED, ge=0)
+    encounter_mix: dict[str, float] = Field(
+        default_factory=lambda: {"crossing": 0.6, "head_on": 0.2, "overtaking": 0.2}
+    )
     document: dict[str, Any]
 
 
@@ -126,6 +130,7 @@ def _validate_busy_water_document(document: dict[str, Any], base_scenario_id: st
 
 def save_busy_water_draft(request: BusyWaterDraftRequest) -> dict[str, Any]:
     validated = _validate_busy_water_document(request.document, request.base_scenario_id, request.seed)
+    encounter_mix = normalize_encounter_mix(request.encounter_mix)
     slug = _draft_slug(request.name)
     DRAFT_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -134,6 +139,8 @@ def save_busy_water_draft(request: BusyWaterDraftRequest) -> dict[str, Any]:
         "name": request.name.strip(),
         "base_scenario_id": request.base_scenario_id,
         "seed": request.seed,
+        "target_count": len(validated["document"]["ship_list"]) - 1,
+        "encounter_mix": encounter_mix,
         **validated,
     }
     (DRAFT_DIR / f"{slug}.yaml").write_text(
@@ -172,7 +179,8 @@ def list_busy_water_drafts() -> list[dict[str, Any]]:
                 "name": payload["name"],
                 "base_scenario_id": payload["base_scenario_id"],
                 "seed": payload["seed"],
-                "target_count": len(payload["document"]["ship_list"]) - 1,
+                "target_count": payload["target_count"],
+                "encounter_mix": payload["encounter_mix"],
             }
         )
     return output
@@ -853,19 +861,23 @@ def api_busy_water_generate(
     overtaking_ratio: float = 0.2,
 ) -> dict[str, Any]:
     try:
+        encounter_mix = normalize_encounter_mix(
+            {
+                "crossing": crossing_ratio,
+                "head_on": head_on_ratio,
+                "overtaking": overtaking_ratio,
+            }
+        )
         document = build_busy_water_document(
             profile,
             seed=seed,
             target_count=target_count,
-            encounter_mix={
-                "crossing": crossing_ratio,
-                "head_on": head_on_ratio,
-                "overtaking": overtaking_ratio,
-            },
+            encounter_mix=encounter_mix,
         )
         return {
             "profile": profile,
             "seed": seed,
+            "encounter_mix": encounter_mix,
             "document": document,
             "preflight": preflight_document(document, seed=seed),
         }

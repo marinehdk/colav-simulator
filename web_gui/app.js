@@ -168,6 +168,7 @@ let pointerDown = null;
 let busyWaterDocument = null;
 let busyWaterBaseScenario = null;
 let busyWaterSeed = 20250731;
+let busyWaterMix = { crossing: 0.6, head_on: 0.2, overtaking: 0.2 };
 let busyWaterRevision = 0;
 let routePointEditMode = null;
 
@@ -2542,6 +2543,11 @@ async function generateBusyWaterDocument({ scenarioId, targetCount, seed, crossi
   busyWaterDocument = payload.document;
   busyWaterBaseScenario = scenarioId;
   busyWaterSeed = Number(seed);
+  busyWaterMix = {
+    crossing: Number(payload.encounter_mix.crossing),
+    head_on: Number(payload.encounter_mix.head_on),
+    overtaking: Number(payload.encounter_mix.overtaking),
+  };
   busyWaterRevision += 1;
   return payload;
 }
@@ -3065,6 +3071,7 @@ document.getElementById('saveBusyWaterDraft').addEventListener('click', async ()
         name,
         base_scenario_id: busyWaterBaseScenario,
         seed: busyWaterSeed,
+        encounter_mix: busyWaterMix,
         document: busyWaterDocument,
       }),
     });
@@ -3088,11 +3095,15 @@ document.getElementById('loadBusyWaterDraft').addEventListener('click', async ()
     busyWaterDocument = payload.document;
     busyWaterBaseScenario = payload.base_scenario_id;
     busyWaterSeed = Number(payload.seed);
+    busyWaterMix = payload.encounter_mix;
     busyWaterRevision += 1;
     document.getElementById('scenarioSelect').value = busyWaterBaseScenario;
     syncExactCombinationAvailability('scenarioSelect');
     document.getElementById('busyTargetCount').value = String(payload.document.ship_list.length - 1);
     document.getElementById('busySeed').value = String(busyWaterSeed);
+    document.getElementById('busyCrossingRatio').value = String(busyWaterMix.crossing);
+    document.getElementById('busyHeadOnRatio').value = String(busyWaterMix.head_on);
+    document.getElementById('busyOvertakingRatio').value = String(busyWaterMix.overtaking);
     await createSession({ force: true });
     document.getElementById('busyWaterDialog').close();
   } catch (error) {
