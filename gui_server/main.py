@@ -861,6 +861,8 @@ def api_busy_water_generate(
     overtaking_ratio: float = 0.2,
 ) -> dict[str, Any]:
     try:
+        if not 0 <= target_count <= 40:
+            raise ValueError("target_count must be an integer in [0, 40]")
         encounter_mix = normalize_encounter_mix(
             {
                 "crossing": crossing_ratio,
@@ -881,6 +883,24 @@ def api_busy_water_generate(
             "document": document,
             "preflight": preflight_document(document, seed=seed),
         }
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
+
+
+@app.get("/api/coordinates/to-wgs84")
+def api_coordinates_to_wgs84(north: float, east: float, utm_zone: int = 33) -> dict[str, float]:
+    try:
+        latitude, longitude = mapf.local2latlon(east, north, utm_zone)
+        return {"latitude": float(latitude), "longitude": float(longitude)}
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
+
+
+@app.get("/api/coordinates/to-utm")
+def api_coordinates_to_utm(latitude: float, longitude: float, utm_zone: int = 33) -> dict[str, float]:
+    try:
+        east, north = mapf.latlon2local(latitude, longitude, utm_zone)
+        return {"north": float(north), "east": float(east)}
     except Exception as exc:
         raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
 

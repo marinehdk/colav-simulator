@@ -25,6 +25,8 @@ const RADAR_DETECTION_RANGE_M = 2000;
 const SBMPC_RESPONSE_RANGE_M = 1000;
 const VO_DECISION_FETCH_INTERVAL_MS = 200;
 const TELEMETRY_RENDER_INTERVAL_MS = 100;
+const METERS_PER_KNOT = 0.514444;
+const BUSY_WATER_DRAFT_ID = 'current-multiship';
 const THREAT_STYLES = {
   UNKNOWN: { color: '#4F5B60', fill: 'rgba(104,116,122,0.72)', rank: 0 },
   CLEAR: { color: '#AAB4BA', fill: 'rgba(170,180,186,0.66)', rank: 1 },
@@ -69,8 +71,7 @@ const SCENARIO_LABELS = {
   overtaking: '标准追越',
   paper_ccta2023_head_on: '论文复现 · 对遇',
   paper_ccta2023_multiship: '论文复现 · 四船',
-  romsdal_busy_water_16: 'Romsdal 繁忙水域 · 16船',
-  romsdal_busy_water_80_stress: 'Romsdal 交通压力 · 80船',
+  romsdal_busy_water_16: 'Romsdal 多船可配置',
   rl_scenario: 'RL',
   rl_scenario_smaller: 'RL',
   rlmpc_scenario: 'RLMPC',
@@ -172,6 +173,8 @@ let busyWaterSeed = 20250731;
 let busyWaterMix = { crossing: 0.6, head_on: 0.2, overtaking: 0.2 };
 let busyWaterRevision = 0;
 let routePointEditMode = null;
+let busyWaterDraftChecked = false;
+let targetEditorKey = null;
 
 /* ══════════════════════════════════════════════
    CANVAS SETUP
@@ -276,7 +279,7 @@ window.addEventListener('mousemove', e => {
   if (currentData) renderCanvas(currentData);
 });
 window.addEventListener('mouseup', () => { isPanning = false; });
-canvas.addEventListener('click', event => {
+canvas.addEventListener('click', async event => {
   if (pointerDown && Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) > 4) return;
   const bounds = canvas.getBoundingClientRect();
   const x = event.clientX - bounds.left;
@@ -285,21 +288,16 @@ canvas.addEventListener('click', event => {
     const point = canvasToUtm(x, y);
     if (!point) return;
     const suffix = routePointEditMode === 'start' ? '1' : '2';
-    document.getElementById(`targetRouteN${suffix}`).value = point.north.toFixed(1);
-    document.getElementById(`targetRouteE${suffix}`).value = point.east.toFixed(1);
+    const coordinate = await utmToWgs84(point.north, point.east);
+    document.getElementById(`targetRouteLat${suffix}`).value = coordinate.latitude.toFixed(6);
+    document.getElementById(`targetRouteLon${suffix}`).value = coordinate.longitude.toFixed(6);
     routePointEditMode = null;
     canvas.classList.remove('route-pick-mode');
     return;
   }
   const hit = [...targetHitRegions].reverse().find(item => Math.hypot(x - item.x, y - item.y) <= item.radius);
   selectedTargetId = hit?.target.id ?? null;
-  updateTargetDetails(hit?.target ?? null, currentData);
-  if (currentData) renderCanvas(currentData);
-});
-
-document.getElementById('targetDetailsClose').addEventListener('click', () => {
-  selectedTargetId = null;
-  updateTargetDetails(null, currentData);
+  await updateTargetDetails(hit?.target ?? null, currentData);
   if (currentData) renderCanvas(currentData);
 });
 
@@ -1248,47 +1246,83 @@ function updateLegendVisibility() {
   });
 }
 
-function updateTargetDetails(target, data) {
-  const panel = document.getElementById('targetDetails');
+async function utmToWgs84(north, east) {
+  const params = new URLSearchParams({ north: String(north), east: String(east), utm_zone: '33' });
+  return apiRequest(`/api/coordinates/to-wgs84?${params}`);
+}
+
+async function wgs84ToUtm(latitude, longitude) {
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    utm_zone: '33',
+  });
+  return apiRequest(`/api/coordinates/to-utm?${params}`);
+}
+
+function renderBusyTargetList() {
+  const list = document.getElementById('busyTargetList');
+  list.replaceChildren();
+  for (const ship of busyWaterDocument?.ship_list?.slice(1) || []) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.targetId = String(ship.id);
+    button.textContent = `TS${ship.id}`;
+    button.setAttribute('role', 'option');
+    button.classList.toggle('selected', String(ship.id) === String(selectedTargetId));
+    button.setAttribute('aria-selected', String(ship.id) === String(selectedTargetId));
+    list.appendChild(button);
+  }
+}
+
+function colregsEditorValue(role) {
+  if (role === 'head_on') return 'HO';
+  if (String(role).startsWith('crossing_')) return 'CS';
+  if (role === 'overtaking' || role === 'overtaken') return 'OT';
+  return 'UNKNOWN';
+}
+
+function encounterRoleFromEditor(value) {
+  return { HO: 'head_on', CS: 'crossing_give_way', OT: 'overtaking', UNKNOWN: 'unknown' }[value];
+}
+
+async function updateTargetDetails(target, data) {
   const form = document.getElementById('targetEditForm');
   if (!target) {
-    panel.hidden = true;
     form.hidden = true;
+    targetEditorKey = null;
+    renderBusyTargetList();
     return;
   }
-  const encounter = encounterForTarget(data || {}, target.id) || {};
-  const own = data?.os;
-  const dn = own ? target.x - own.x : NaN;
-  const de = own ? target.y - own.y : NaN;
-  const bearing = Number.isFinite(dn) && Number.isFinite(de)
-    ? (Math.atan2(de, dn) * 180 / Math.PI + 360) % 360
-    : NaN;
-  document.getElementById('targetDetailsTitle').textContent = `目标船 TS${target.id}`;
-  const rows = [
-    ['MMSI', target.mmsi ?? '--'],
-    ['距离', Number.isFinite(encounter.distance_m) ? formatDistance(encounter.distance_m) : formatDistance(Math.hypot(dn, de))],
-    ['相对方位', Number.isFinite(bearing) ? `${bearing.toFixed(1)}°` : '--'],
-    ['航向', Number.isFinite(target.psi) ? `${(target.psi * 180 / Math.PI).toFixed(1)}°` : '--'],
-    ['航速', Number.isFinite(target.sog) ? `${target.sog.toFixed(1)} m/s` : '--'],
-    ['DCPA', formatDistance(encounter.dcpa_m)],
-    ['TCPA', Number.isFinite(encounter.tcpa_s) ? `${encounter.tcpa_s.toFixed(1)} s` : '--'],
-    ['COLREGs', encounter.validation_rule_id || encounter.encounter || '--'],
-    ['阶段', encounter.stage || '--'],
-    ['威胁', encounter.threat_level || 'UNKNOWN'],
-  ];
-  document.getElementById('targetDetailsBody').innerHTML = rows
-    .map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join('');
   const ship = busyWaterDocument?.ship_list?.find(item => String(item.id) === String(target.id));
   const editable = Boolean(ship && data?.state !== 'RUNNING');
   form.hidden = !editable;
   if (editable) {
-    document.getElementById('targetSpeed').value = Number(ship.csog_state[2]).toFixed(1);
-    document.getElementById('targetRouteN1').value = Number(ship.waypoints[0][0]).toFixed(1);
-    document.getElementById('targetRouteE1').value = Number(ship.waypoints[1][0]).toFixed(1);
-    document.getElementById('targetRouteN2').value = Number(ship.waypoints[0][1]).toFixed(1);
-    document.getElementById('targetRouteE2').value = Number(ship.waypoints[1][1]).toFixed(1);
+    const key = JSON.stringify([ship.id, ship.csog_state[2], ship.waypoints, ship.encounter_role]);
+    if (targetEditorKey !== key) {
+      targetEditorKey = key;
+      let start;
+      let end;
+      try {
+        [start, end] = await Promise.all([
+          utmToWgs84(ship.waypoints[0][0], ship.waypoints[1][0]),
+          utmToWgs84(ship.waypoints[0][1], ship.waypoints[1][1]),
+        ]);
+      } catch (error) {
+        targetEditorKey = null;
+        throw error;
+      }
+      if (String(selectedTargetId) !== String(ship.id)) return;
+      document.getElementById('targetIdentifier').value = `TS${ship.id}`;
+      document.getElementById('targetSpeed').value = (Number(ship.csog_state[2]) / METERS_PER_KNOT).toFixed(1);
+      document.getElementById('targetRouteLat1').value = start.latitude.toFixed(6);
+      document.getElementById('targetRouteLon1').value = start.longitude.toFixed(6);
+      document.getElementById('targetRouteLat2').value = end.latitude.toFixed(6);
+      document.getElementById('targetRouteLon2').value = end.longitude.toFixed(6);
+      document.getElementById('targetColregs').value = colregsEditorValue(ship.encounter_role);
+    }
   }
-  panel.hidden = false;
+  renderBusyTargetList();
 }
 
 function selectedBusyWaterShip() {
@@ -1327,7 +1361,9 @@ function updateUI(data) {
   const os = data.os;
   if (selectedTargetId !== null) {
     const target = targetsForDisplay(data).find(item => String(item.id) === String(selectedTargetId));
-    updateTargetDetails(target || null, data);
+    updateTargetDetails(target || null, data).catch(error => {
+      document.getElementById('busyWaterStatus').textContent = error.message;
+    });
   }
 
   if (data.state === 'RUNNING' && lastRuntimeState !== 'RUNNING') {
@@ -2716,20 +2752,18 @@ async function recoverMissingSession(missingSessionId) {
 }
 
 function isBusyWaterScenario(scenarioId) {
-  return scenarioId === 'romsdal_busy_water_16' || scenarioId === 'romsdal_busy_water_80_stress';
+  return scenarioId === 'romsdal_busy_water_16';
 }
 
 function syncBusyWaterSetupVisibility(scenarioId = document.getElementById('scenarioSelect').value) {
-  document.getElementById('busyWaterSetup').hidden = !isBusyWaterScenario(scenarioId);
-}
-
-function busyWaterProfile(scenarioId) {
-  return scenarioId === 'romsdal_busy_water_80_stress' ? 'stress' : 'acceptance';
+  const visible = isBusyWaterScenario(scenarioId);
+  document.getElementById('cardBusyWater').hidden = !visible;
+  if (visible) renderBusyTargetList();
 }
 
 async function generateBusyWaterDocument({ scenarioId, targetCount, seed, crossing, headOn, overtaking }) {
   const params = new URLSearchParams({
-    profile: busyWaterProfile(scenarioId),
+    profile: 'acceptance',
     target_count: String(targetCount),
     seed: String(seed),
     crossing_ratio: String(crossing),
@@ -2746,18 +2780,57 @@ async function generateBusyWaterDocument({ scenarioId, targetCount, seed, crossi
     overtaking: Number(payload.encounter_mix.overtaking),
   };
   busyWaterRevision += 1;
+  selectedTargetId = null;
+  targetEditorKey = null;
+  document.getElementById('targetEditForm').hidden = true;
+  renderBusyTargetList();
   return payload;
+}
+
+function applyBusyWaterDraft(payload) {
+  busyWaterDocument = payload.document;
+  busyWaterBaseScenario = 'romsdal_busy_water_16';
+  busyWaterSeed = Number(payload.seed);
+  busyWaterMix = payload.encounter_mix;
+  busyWaterRevision += 1;
+  document.getElementById('busyTargetCount').value = String(payload.document.ship_list.length - 1);
+  renderBusyTargetList();
+}
+
+async function loadPersistedBusyWaterDocument() {
+  const response = await fetch(`/api/busy-water/drafts/${BUSY_WATER_DRAFT_ID}`);
+  if (response.status === 404) return false;
+  if (!response.ok) throw new Error(await response.text());
+  applyBusyWaterDraft(await response.json());
+  return true;
+}
+
+async function persistBusyWaterDocument() {
+  if (!busyWaterDocument) return;
+  await apiRequest('/api/busy-water/drafts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Current Multiship',
+      base_scenario_id: 'romsdal_busy_water_16',
+      seed: busyWaterSeed,
+      encounter_mix: busyWaterMix,
+      document: busyWaterDocument,
+    }),
+  });
 }
 
 async function ensureBusyWaterDocument(scenarioId) {
   syncBusyWaterSetupVisibility(scenarioId);
   if (!isBusyWaterScenario(scenarioId)) {
-    busyWaterDocument = null;
-    busyWaterBaseScenario = null;
     return;
   }
   if (busyWaterDocument && busyWaterBaseScenario === scenarioId) return;
-  const targetCount = scenarioId === 'romsdal_busy_water_80_stress' ? 79 : 15;
+  if (!busyWaterDraftChecked) {
+    busyWaterDraftChecked = true;
+    if (await loadPersistedBusyWaterDocument()) return;
+  }
+  const targetCount = 15;
   await generateBusyWaterDocument({
     scenarioId,
     targetCount,
@@ -2767,7 +2840,6 @@ async function ensureBusyWaterDocument(scenarioId) {
     overtaking: 0.2,
   });
   document.getElementById('busyTargetCount').value = String(targetCount);
-  document.getElementById('busySeed').value = String(busyWaterSeed);
 }
 
 function selectedSessionRequest() {
@@ -2907,7 +2979,7 @@ async function populateCatalogs(ruleId = 'rule14') {
 
   const scenarioSelect = document.getElementById('scenarioSelect');
   const selectedScenario = scenarioSelect.value;
-  scenarioCatalog = catalog.scenarios;
+  scenarioCatalog = catalog.scenarios.filter(item => item.id !== 'romsdal_busy_water_80_stress');
   populateScenarioOptions(ruleId, selectedScenario);
 
   document.querySelectorAll('.qtab').forEach(tab => {
@@ -3225,103 +3297,41 @@ function syncQuickScenarioTab(scenarioId) {
   if (groupId) setActiveQuickGroup(groupId);
 }
 
-async function refreshBusyWaterDrafts() {
-  const drafts = await apiRequest('/api/busy-water/drafts');
-  const select = document.getElementById('busyDraftSelect');
-  select.replaceChildren(new Option('选择草稿', ''));
-  drafts.forEach(item => select.add(new Option(`${item.name} · ${item.target_count}艘`, item.id)));
-}
-
-document.getElementById('busyWaterSetup').addEventListener('click', async () => {
-  const dialog = document.getElementById('busyWaterDialog');
-  document.getElementById('busyWaterStatus').textContent = '';
-  try {
-    await refreshBusyWaterDrafts();
-  } catch (error) {
-    document.getElementById('busyWaterStatus').textContent = error.message;
-  }
-  dialog.showModal();
-});
-
-document.getElementById('closeBusyWaterDialog').addEventListener('click', () => {
-  document.getElementById('busyWaterDialog').close();
-});
-
 document.getElementById('busyWaterForm').addEventListener('submit', async event => {
   event.preventDefault();
   const scenarioId = document.getElementById('scenarioSelect').value;
   const status = document.getElementById('busyWaterStatus');
+  const targetCount = Number(document.getElementById('busyTargetCount').value);
+  if (!Number.isInteger(targetCount) || targetCount < 0 || targetCount > 40) {
+    status.textContent = '目标船数量必须为 0–40 的整数';
+    return;
+  }
   status.textContent = '生成中…';
   try {
     const payload = await generateBusyWaterDocument({
       scenarioId,
-      targetCount: Number(document.getElementById('busyTargetCount').value),
-      seed: Number(document.getElementById('busySeed').value),
-      crossing: Number(document.getElementById('busyCrossingRatio').value),
-      headOn: Number(document.getElementById('busyHeadOnRatio').value),
-      overtaking: Number(document.getElementById('busyOvertakingRatio').value),
+      targetCount,
+      seed: busyWaterSeed,
+      crossing: 0.6,
+      headOn: 0.2,
+      overtaking: 0.2,
     });
     status.textContent = `已生成 ${payload.preflight.target_count} 艘目标船`;
+    await persistBusyWaterDocument();
     await createSession({ force: true });
-    document.getElementById('busyWaterDialog').close();
   } catch (error) {
     status.textContent = error.message;
   }
 });
 
-document.getElementById('saveBusyWaterDraft').addEventListener('click', async () => {
-  const status = document.getElementById('busyWaterStatus');
-  const name = document.getElementById('busyDraftName').value.trim();
-  if (!name || !busyWaterDocument) {
-    status.textContent = '请填写草稿名称并先生成场景';
-    return;
-  }
-  try {
-    const payload = await apiRequest('/api/busy-water/drafts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        base_scenario_id: busyWaterBaseScenario,
-        seed: busyWaterSeed,
-        encounter_mix: busyWaterMix,
-        document: busyWaterDocument,
-      }),
-    });
-    status.textContent = `已保存 ${payload.name}`;
-    await refreshBusyWaterDrafts();
-    document.getElementById('busyDraftSelect').value = payload.id;
-  } catch (error) {
-    status.textContent = error.message;
-  }
-});
-
-document.getElementById('loadBusyWaterDraft').addEventListener('click', async () => {
-  const status = document.getElementById('busyWaterStatus');
-  const identifier = document.getElementById('busyDraftSelect').value;
-  if (!identifier) {
-    status.textContent = '请选择草稿';
-    return;
-  }
-  try {
-    const payload = await apiRequest(`/api/busy-water/drafts/${encodeURIComponent(identifier)}`);
-    busyWaterDocument = payload.document;
-    busyWaterBaseScenario = payload.base_scenario_id;
-    busyWaterSeed = Number(payload.seed);
-    busyWaterMix = payload.encounter_mix;
-    busyWaterRevision += 1;
-    document.getElementById('scenarioSelect').value = busyWaterBaseScenario;
-    syncExactCombinationAvailability('scenarioSelect');
-    document.getElementById('busyTargetCount').value = String(payload.document.ship_list.length - 1);
-    document.getElementById('busySeed').value = String(busyWaterSeed);
-    document.getElementById('busyCrossingRatio').value = String(busyWaterMix.crossing);
-    document.getElementById('busyHeadOnRatio').value = String(busyWaterMix.head_on);
-    document.getElementById('busyOvertakingRatio').value = String(busyWaterMix.overtaking);
-    await createSession({ force: true });
-    document.getElementById('busyWaterDialog').close();
-  } catch (error) {
-    status.textContent = error.message;
-  }
+document.getElementById('busyTargetList').addEventListener('click', async event => {
+  const button = event.target.closest('[data-target-id]');
+  if (!button) return;
+  selectedTargetId = Number(button.dataset.targetId);
+  targetEditorKey = null;
+  const target = targetsForDisplay(currentData || {}).find(item => String(item.id) === String(selectedTargetId));
+  await updateTargetDetails(target || { id: selectedTargetId }, currentData || { state: 'CREATED' });
+  if (currentData) renderCanvas(currentData);
 });
 
 function startRoutePointPick(mode) {
@@ -3334,38 +3344,61 @@ document.getElementById('pickTargetRouteEnd').addEventListener('click', () => st
 document.getElementById('cancelTargetEdit').addEventListener('click', () => {
   routePointEditMode = null;
   canvas.classList.remove('route-pick-mode');
+  selectedTargetId = null;
+  targetEditorKey = null;
   document.getElementById('targetEditForm').hidden = true;
+  renderBusyTargetList();
+  if (currentData) renderCanvas(currentData);
 });
 
 document.getElementById('targetEditForm').addEventListener('submit', async event => {
   event.preventDefault();
   const ship = selectedBusyWaterShip();
   if (!ship || currentData?.state === 'RUNNING') return;
-  const speed = Number(document.getElementById('targetSpeed').value);
-  const n1 = Number(document.getElementById('targetRouteN1').value);
-  const e1 = Number(document.getElementById('targetRouteE1').value);
-  const n2 = Number(document.getElementById('targetRouteN2').value);
-  const e2 = Number(document.getElementById('targetRouteE2').value);
-  if (![speed, n1, e1, n2, e2].every(Number.isFinite) || Math.hypot(n2 - n1, e2 - e1) < 100) {
-    pushLog('目标船航线至少需要 100 m，坐标与航速必须有效。', 'log-danger');
+  const speedKnots = Number(document.getElementById('targetSpeed').value);
+  const lat1 = Number(document.getElementById('targetRouteLat1').value);
+  const lon1 = Number(document.getElementById('targetRouteLon1').value);
+  const lat2 = Number(document.getElementById('targetRouteLat2').value);
+  const lon2 = Number(document.getElementById('targetRouteLon2').value);
+  if (![speedKnots, lat1, lon1, lat2, lon2].every(Number.isFinite) || speedKnots <= 0) {
+    pushLog('经纬度与航速必须有效。', 'log-danger');
     return;
   }
+  const [start, end] = await Promise.all([wgs84ToUtm(lat1, lon1), wgs84ToUtm(lat2, lon2)]);
+  const { north: n1, east: e1 } = start;
+  const { north: n2, east: e2 } = end;
+  if (Math.hypot(n2 - n1, e2 - e1) < 100) {
+    pushLog('目标船航线至少需要 100 m。', 'log-danger');
+    return;
+  }
+  const speed = speedKnots * METERS_PER_KNOT;
   const candidate = structuredClone(busyWaterDocument);
   const edited = candidate.ship_list.find(item => String(item.id) === String(ship.id));
   const course = (Math.atan2(e2 - e1, n2 - n1) * 180 / Math.PI + 360) % 360;
   edited.csog_state = [n1, e1, speed, course];
   edited.waypoints = [[n1, n2], [e1, e2]];
   edited.speed_plan = [speed, speed];
+  edited.encounter_role = encounterRoleFromEditor(document.getElementById('targetColregs').value);
   const previous = busyWaterDocument;
   busyWaterDocument = candidate;
   busyWaterRevision += 1;
   try {
     await createSession({ force: true });
-    pushLog(`TS${ship.id} 航线与航速已更新。`, 'log-ok');
   } catch (error) {
     busyWaterDocument = previous;
     busyWaterRevision += 1;
     pushLog(`目标船更新失败: ${error.message}`, 'log-danger');
+    return;
+  }
+  targetEditorKey = null;
+  await updateTargetDetails({ id: ship.id }, currentData || { state: 'CREATED' });
+  try {
+    await persistBusyWaterDocument();
+    document.getElementById('busyWaterStatus').textContent = `TS${ship.id} 已持久化保存`;
+    pushLog(`TS${ship.id} 航线、航速与规则已更新。`, 'log-ok');
+  } catch (error) {
+    document.getElementById('busyWaterStatus').textContent = '配置已应用，持久化保存失败';
+    pushLog(`目标船配置保存失败: ${error.message}`, 'log-danger');
   }
 });
 
@@ -3602,6 +3635,7 @@ async function boot() {
     await populateCatalogs(ruleId);
     if (existing) {
       restoreSessionSelection(existing.spec);
+      await ensureBusyWaterDocument(existing.spec.scenario_id);
       activateSession(existing);
       pushLog(`Session restored: ${existing.spec.scenario_id} / ${existing.spec.algorithm_id} / ${existing.spec.tracker_id}`, 'log-info');
     } else {

@@ -466,53 +466,32 @@ body {
 .map-disclosure[open] summary { border-bottom: 1px solid var(--panel-border); }
 .map-disclosure[open] summary::after { content: "⌃"; }
 
-.target-details {
-  position: absolute;
-  z-index: 7;
-  top: 96px;
-  right: 12px;
-  width: 230px;
-  padding: 10px;
-  background: rgba(11, 15, 14, 0.92);
-  backdrop-filter: blur(8px);
+.busy-water-card[hidden] { display: none; }
+.busy-water-card { display: grid; gap: 9px; }
+.busy-water-generator label,
+.busy-target-editor > label { display: grid; gap: 4px; color: var(--text-muted); font-size: 0.66rem; }
+.busy-water-generate-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.busy-target-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  max-height: 116px;
+  overflow-y: auto;
 }
-
-.target-details[hidden] { display: none; }
-#busyWaterSetup[hidden] { display: none; }
-
-.target-details h3 {
-  margin: 0 24px 8px 0;
-  font-size: 0.76rem;
-  color: var(--text-main);
-}
-
-.target-details > button {
-  position: absolute;
-  top: 6px;
-  right: 7px;
-  width: 22px;
-  height: 22px;
-  border: 0;
-  background: transparent;
+.busy-target-list button {
+  min-width: 0;
+  height: 27px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
   color: var(--text-muted);
+  background: rgba(255,255,255,0.025);
+  font: 0.64rem var(--font-mono);
   cursor: pointer;
 }
-
-.target-details dl { margin: 0; display: grid; gap: 4px; }
-.target-details dl > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding-bottom: 3px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-.target-details dt { color: var(--text-dim); font-size: 0.62rem; }
-.target-details dd {
-  margin: 0;
+.busy-target-list button.selected {
+  border-color: var(--accent-cyan);
   color: var(--accent-cyan);
-  font: 0.64rem var(--font-mono);
-  text-align: right;
-  overflow-wrap: anywhere;
+  background: rgba(98,210,189,0.1);
 }
 
 .target-edit-form {
@@ -540,8 +519,8 @@ body {
 .target-edit-form legend { padding: 0 4px; color: var(--accent-cyan); }
 .target-edit-form label { display: grid; gap: 3px; }
 .target-edit-form input,
-.busy-water-dialog input,
-.busy-water-dialog select {
+.target-edit-form select,
+.busy-water-generator input {
   min-width: 0;
   height: 28px;
   padding: 3px 6px;
@@ -553,7 +532,7 @@ body {
 }
 
 .target-edit-form button,
-.busy-water-dialog button {
+.busy-water-generator button {
   min-height: 28px;
   padding: 4px 8px;
   border: 1px solid var(--panel-border);
@@ -563,31 +542,8 @@ body {
   cursor: pointer;
 }
 
-.target-edit-actions,
-.busy-water-actions { display: flex; justify-content: flex-end; gap: 6px; }
-
-.busy-water-dialog {
-  width: min(480px, calc(100vw - 24px));
-  padding: 0;
-  border: 1px solid var(--panel-border);
-  border-radius: 7px;
-  color: var(--text-main);
-  background: #121a18;
-  box-shadow: var(--shadow-panel);
-}
-
-.busy-water-dialog::backdrop { background: rgba(4, 8, 7, 0.68); }
-.busy-water-dialog form { display: grid; gap: 12px; padding: 14px; }
-.busy-water-dialog header { display: flex; align-items: center; justify-content: space-between; }
-.busy-water-dialog h3 { margin: 0; font-size: 0.9rem; }
-.busy-water-dialog header button { width: 28px; padding: 0; background: transparent; }
-
-.busy-water-fields,
-.busy-water-drafts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.busy-water-fields label,
-.busy-water-drafts label { display: grid; gap: 4px; color: var(--text-muted); font-size: 0.68rem; }
-.busy-water-drafts { padding-top: 10px; border-top: 1px solid var(--panel-border); }
-.busy-water-drafts .busy-water-actions { align-self: end; }
+.target-edit-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.input-with-unit { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px; }
 .busy-water-status { min-height: 1em; margin: 0; color: var(--accent-cyan); font-size: 0.68rem; }
 
 /* Canvas Wrapper */
