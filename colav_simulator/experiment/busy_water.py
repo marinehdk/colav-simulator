@@ -44,7 +44,7 @@ def build_busy_water_document(
     count = default_count if target_count is None else int(target_count)
     if not 3 <= count <= MAX_TARGET_COUNT:
         raise ValueError(f"target_count must be in [3, {MAX_TARGET_COUNT}]")
-    mix = _normalized_encounter_mix(encounter_mix)
+    mix = normalize_encounter_mix(encounter_mix)
     dt_sim = 0.1 if profile == "acceptance" else 0.5
     scenario_id = ACCEPTANCE_SCENARIO_ID if profile == "acceptance" else STRESS_SCENARIO_ID
     return _build_route_traffic_document(scenario_id, seed, count, mix, dt_sim=dt_sim)
@@ -124,7 +124,8 @@ def preflight_document(document: dict[str, Any], *, seed: int = DEFAULT_SEED) ->
     }
 
 
-def _normalized_encounter_mix(value: dict[str, float] | None) -> dict[str, float]:
+def normalize_encounter_mix(value: dict[str, float] | None) -> dict[str, float]:
+    """Validate and normalize crossing, head-on and overtaking weights."""
     mix = dict(DEFAULT_ENCOUNTER_MIX if value is None else value)
     if set(mix) != set(DEFAULT_ENCOUNTER_MIX):
         raise ValueError("encounter_mix must contain crossing, head_on and overtaking")
@@ -133,12 +134,12 @@ def _normalized_encounter_mix(value: dict[str, float] | None) -> dict[str, float
     total = float(sum(mix.values()))
     if total <= 0.0:
         raise ValueError("encounter mix weights must have a positive sum")
-    return {name: float(weight) / total for name, weight in mix.items()}
+    return {name: round(float(weight) / total, 12) for name, weight in mix.items()}
 
 
 def allocate_encounter_counts(target_count: int, encounter_mix: dict[str, float]) -> dict[str, int]:
     """Allocate an exact integer target count using largest remainders."""
-    normalized = _normalized_encounter_mix(encounter_mix)
+    normalized = normalize_encounter_mix(encounter_mix)
     raw = {name: normalized[name] * target_count for name in DEFAULT_ENCOUNTER_MIX}
     output = {name: int(np.floor(value)) for name, value in raw.items()}
     remainder = target_count - sum(output.values())

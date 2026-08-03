@@ -121,6 +121,7 @@ def test_busy_water_generate_and_draft_round_trip(tmp_path: Path, monkeypatch: p
         assert generated.status_code == 200
         payload = generated.json()
         assert payload["preflight"]["target_count"] == 9
+        assert payload["encounter_mix"] == {"crossing": 0.6, "head_on": 0.2, "overtaking": 0.2}
 
         saved = client.post(
             "/api/busy-water/drafts",
@@ -128,6 +129,7 @@ def test_busy_water_generate_and_draft_round_trip(tmp_path: Path, monkeypatch: p
                 "name": "Harbor Trial",
                 "base_scenario_id": "romsdal_busy_water_16",
                 "seed": 23,
+                "encounter_mix": {"crossing": 0.7, "head_on": 0.2, "overtaking": 0.1},
                 "document": payload["document"],
             },
         )
@@ -138,6 +140,8 @@ def test_busy_water_generate_and_draft_round_trip(tmp_path: Path, monkeypatch: p
 
     assert loaded.status_code == 200
     assert loaded.json()["document"] == payload["document"]
+    assert loaded.json()["target_count"] == 9
+    assert loaded.json()["encounter_mix"] == {"crossing": 0.7, "head_on": 0.2, "overtaking": 0.1}
     assert listed.json() == [
         {
             "id": draft_id,
@@ -145,6 +149,7 @@ def test_busy_water_generate_and_draft_round_trip(tmp_path: Path, monkeypatch: p
             "base_scenario_id": "romsdal_busy_water_16",
             "seed": 23,
             "target_count": 9,
+            "encounter_mix": {"crossing": 0.7, "head_on": 0.2, "overtaking": 0.1},
         }
     ]
 
