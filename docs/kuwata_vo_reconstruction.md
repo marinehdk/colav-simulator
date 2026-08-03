@@ -72,7 +72,8 @@ does not claim numerical reproduction of the journal version.
 | Crossing heading sector | `15..165 deg` | `inferred_reconstruction` |
 | Relative bearing sector | `0..112.5 deg` | `inferred_reconstruction` |
 | Rule hysteresis | `3 solves` | `inferred_reconstruction` |
-| Starboard-crossing commitment | lateral velocity at least `-0.25 m/s` in the entry frame | `project_profile` |
+| Give-way commitment | HO, ownship-overtaking, and starboard crossing retain the entry-side maneuver | `project_profile` |
+| Give-way release | `150 m`, moving apart, CPA gate clear for `3 solves` | `project_profile` |
 | Low-speed classification cutoff | `0.5 m/s` | `inferred_reconstruction` |
 | Static layers | `LAND, SHORE, OBSTRN, UWTROC` | `project_adapter` |
 | Static local query range | `1000 m` | `project_adapter` |
@@ -90,14 +91,17 @@ Removed configuration keys `safety_buffer`, `vo_violation_cost`,
 dimensions or finite-penalty semantics cannot be silently converted to
 velocity uncertainty or hard admissibility.
 
-## Crossing commitment and stand-on boundary
+## Give-way commitment and stand-on boundary
 
-The standard crossing give-way profile uses a stateful
-`CLEAR -> CR_SS_COMMITTED -> CLEAR` transition. While committed, candidates
-that move materially to port in the frozen encounter-entry frame are
-inadmissible. A later solve also cannot reverse past the previous selected
-course. CPA/rule hysteresis releases the commitment. If no candidate survives
-only because of this project rule, the solver exposes
+Head-on, ownship-overtaking, and crossing give-way encounters use a stateful
+commitment after the first CPA-gated rule match. The rule remains locked when
+an initial starboard action moves the target outside the narrow body-frame
+classification corridor. While committed, candidates that move materially to
+port, reverse longitudinal direction, or reverse past the previous selected
+course are inadmissible. The lock releases only after the CPA gate clears and
+the target is at least `150 m` away and moving apart for three solves. The same
+contact cannot immediately retrigger a new rule; it first must clear the wider
+re-arm range. If no candidate survives only because of this project rule, the solver exposes
 `emergency_rule_relaxation=true`; it does not silently call another planner.
 
 `CR_PS` remains a stand-on role. Before the current measured velocity enters

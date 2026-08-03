@@ -49,6 +49,41 @@ DRAFT_DIR = BASE_DIR / "runs" / "scenario_drafts"
 BUSY_WATER_SCENARIOS = {ACCEPTANCE_SCENARIO_ID, STRESS_SCENARIO_ID}
 
 
+def _select_primary_encounter(encounters: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not encounters:
+        return None
+
+    def priority(item: dict[str, Any]) -> tuple[Any, ...]:
+        signed_tcpa = float(item.get("signed_tcpa_s", float("inf")))
+        approaching = np.isfinite(signed_tcpa) and signed_tcpa > 0.0
+        encounter_active = item.get("encounter") not in {None, "clear"}
+        stage = int(item.get("stage", 0))
+        if encounter_active and approaching:
+            return (
+                0,
+                -stage,
+                signed_tcpa,
+                float(item.get("dcpa_m", float("inf"))),
+                float(item.get("distance_m", float("inf"))),
+                int(item.get("target_id", 0)),
+            )
+        return (
+            1,
+            float(item.get("distance_m", float("inf"))),
+            float(item.get("dcpa_m", float("inf"))),
+            int(item.get("target_id", 0)),
+        )
+
+    selected = copy.deepcopy(min(encounters, key=priority))
+    selected["target_label"] = f"TS{selected['target_id']}"
+    selected["selection_reason"] = (
+        "approaching_colreg_encounter"
+        if selected.get("encounter") != "clear" and float(selected.get("signed_tcpa_s", 0.0)) > 0.0
+        else "nearest_available_contact"
+    )
+    return selected
+
+
 class SessionCreateRequest(BaseModel):
     scenario_id: str = "head_on"
     validation_rule_id: str | None = None
@@ -625,10 +660,7 @@ class WebSessionManager:
                 }
             )
         encounters = [item.to_dict() for item in self.encounter_monitor.update(ships)]
-        primary_encounter = next(
-            (item for item in encounters if item["validation_rule_id"] == self.prepared.spec.validation_rule_id),
-            encounters[0] if encounters else None,
-        )
+        primary_encounter = _select_primary_encounter(encounters)
         dcpa = float(primary_encounter["dcpa_m"]) if primary_encounter else float("inf")
         tcpa = float(primary_encounter["tcpa_s"]) if primary_encounter else float("inf")
         encounter = primary_encounter["encounter"] if primary_encounter else "clear"
@@ -695,6 +727,7 @@ class WebSessionManager:
             },
             "enc_navigation_area": self.enc_navigation_area,
             "encounters": encounters,
+            "primary_encounter": primary_encounter,
             "planner": jsonable(planner),
             "latest_planner_solve": self.latest_planner_solve,
             "execution": jsonable(execution),

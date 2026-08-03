@@ -166,6 +166,8 @@ def test_crossing_commitment_blocks_port_candidates_until_rule_releases() -> Non
     candidates = planner._candidate_velocities()
     port_candidates = candidates[..., 1] < -planner._params.crossing_commitment_deadband_mps
     assert np.all(planner._hard_constraint_mask[port_candidates])
+    reverse_candidates = candidates[..., 0] <= 0.0
+    assert np.all(planner._hard_constraint_mask[reverse_candidates])
 
     previous_plan = planner.get_current_plan().copy()
     planner.plan(1.0, np.array([5.0, 0.0]), _own_state(heading=0.2), [target])
@@ -198,6 +200,89 @@ def test_crossing_commitment_blocks_port_candidates_until_rule_releases() -> Non
     assert debug["track_metrics"][1]["matched_rules"] == ["CR_PS"]
     assert debug["active_rules"].get("1", []) == []
     assert not debug["stand_on_hold_active"]
+
+
+@pytest.mark.parametrize(
+    ("rule", "target_velocity"),
+    (
+        (VOCOLREGSSituation.HO, (-5.0, 0.0)),
+        (VOCOLREGSSituation.OT_ing, (2.0, 0.0)),
+    ),
+)
+def test_give_way_commitment_survives_ownship_body_frame_corridor_exit(
+    rule: VOCOLREGSSituation,
+    target_velocity: tuple[float, float],
+) -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=16,
+            heading_samples=128,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    target = _track(1, (600.0 if rule is VOCOLREGSSituation.HO else 300.0, 0.0), target_velocity)
+
+    planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [target])
+    first = planner.get_debug_data()
+    assert first["give_way_rule_locks"] == {"1": rule.name}
+    assert first["give_way_commitment_active"]
+    assert first["selected_heading_rad"] >= -1e-12
+
+    turned_state = _own_state(heading=np.deg2rad(7.0))
+    planner.plan(1.0, np.array([5.0, 0.0]), turned_state, [target])
+    debug = planner.get_debug_data()
+
+    assert debug["track_metrics"][1]["matched_rules"] == []
+    assert debug["track_metrics"][1]["active_rules"] == [rule.name]
+    assert debug["track_metrics"][1]["committed_rule"] == rule.name
+    assert debug["give_way_commitment_active"]
+    assert debug["selected_heading_rad"] >= -1e-12
+    assert not debug["emergency_rule_relaxation"]
+
+
+@pytest.mark.parametrize(
+    ("rule", "target_velocity"),
+    (
+        (VOCOLREGSSituation.HO, (-5.0, 0.0)),
+        (VOCOLREGSSituation.OT_ing, (2.0, 0.0)),
+    ),
+)
+def test_give_way_commitment_releases_only_after_target_passes_clear(
+    rule: VOCOLREGSSituation,
+    target_velocity: tuple[float, float],
+) -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+            give_way_release_steps=3,
+        )
+    )
+    target = _track(1, (600.0 if rule is VOCOLREGSSituation.HO else 300.0, 0.0), target_velocity)
+    planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [target])
+
+    for sim_time, north in ((1.0, -160.0), (2.0, -170.0), (3.0, -180.0)):
+        planner.plan(sim_time, np.array([5.0, 0.0]), _own_state(), [_track(1, (north, 0.0), target_velocity)])
+        assert planner.get_debug_data()["give_way_rule_locks"] == {"1": rule.name}
+
+    planner.plan(4.0, np.array([5.0, 0.0]), _own_state(), [_track(1, (-190.0, 0.0), target_velocity)])
+    debug = planner.get_debug_data()
+    assert debug["give_way_rule_locks"] == {}
+    assert not debug["give_way_commitment_active"]
+    assert debug["completed_give_way_targets"] == [1]
+
+    for sim_time in (5.0, 6.0, 7.0):
+        planner.plan(
+            sim_time,
+            np.array([5.0, 0.0]),
+            _own_state(),
+            [_track(1, (-400.0, 0.0), target_velocity)],
+        )
+    assert planner.get_debug_data()["completed_give_way_targets"] == []
+
+    planner.plan(8.0, np.array([5.0, 0.0]), _own_state(), [target])
+    assert planner.get_debug_data()["give_way_rule_locks"] == {"1": rule.name}
 
 
 def test_decision_space_snapshot_is_dense_finite_json_contract() -> None:

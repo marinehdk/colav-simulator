@@ -1275,11 +1275,19 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .colregs-badge.rule-13 { background: rgba(171,71,188,0.15); border-color: var(--accent-purple); color: var(--accent-purple); }
 .colregs-badge.clear   { background: rgba(0,230,118,0.15);  border-color: var(--accent-green);  color: var(--accent-green); }
 
-/* Distance row */
+/* Primary encounter and distance rows */
+.priority-target-row,
 .distance-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.priority-target-row {
+  margin-bottom: 8px;
+}
+
+.distance-row {
   border-top: 1px solid var(--panel-border);
   padding-top: 8px;
 }

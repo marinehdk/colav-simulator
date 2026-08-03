@@ -67,6 +67,8 @@ class VOParams:
     colregs_hysteresis_steps: int = 3
     colregs_min_target_speed_mps: float = 0.5
     crossing_commitment_deadband_mps: float = 0.25
+    give_way_release_distance_m: float = 150.0
+    give_way_release_steps: int = 3
     rule_heading_tolerance_rad: float = float(np.deg2rad(15.0))
     rule_crossing_heading_min_rad: float = float(np.deg2rad(15.0))
     rule_crossing_heading_max_rad: float = float(np.deg2rad(165.0))
@@ -98,6 +100,10 @@ class VOParams:
             raise ValueError("colregs_hysteresis_steps must be positive")
         if self.crossing_commitment_deadband_mps < 0.0:
             raise ValueError("crossing_commitment_deadband_mps must be non-negative")
+        if self.give_way_release_distance_m < 0.0:
+            raise ValueError("give_way_release_distance_m must be non-negative")
+        if self.give_way_release_steps < 1:
+            raise ValueError("give_way_release_steps must be positive")
         vertices = np.asarray(self.velocity_uncertainty_vertices_mps, dtype=float)
         if vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) == 0:
             raise ValueError("velocity_uncertainty_vertices_mps must contain 2-D vertices")
@@ -163,6 +169,11 @@ class VO:
         self._total_costs = np.full(shape, np.inf)
         self._references = np.zeros((9, 1))
         self._rule_memory: dict[tuple[int, VOCOLREGSSituation], int] = {}
+        self._give_way_rule_locks: dict[int, VOCOLREGSSituation] = {}
+        self._give_way_release_counts: dict[int, int] = {}
+        self._give_way_previous_distances: dict[int, float] = {}
+        self._completed_give_way_targets: set[int] = set()
+        self._give_way_rearm_counts: dict[int, int] = {}
         self._target_heading_memory: dict[int, float] = {}
         self._active_rules: dict[int, set[VOCOLREGSSituation]] = {}
         self._matched_rules_current: set[VOCOLREGSSituation] = set()
@@ -183,6 +194,8 @@ class VO:
         self._ownship_heading = 0.0
         self._crossing_commitment_active = False
         self._crossing_commitment_frame_heading: float | None = None
+        self._give_way_commitment_active = False
+        self._give_way_commitment_rules: set[VOCOLREGSSituation] = set()
         self._emergency_rule_relaxation = False
         self._stand_on_hold_active = False
 
@@ -204,12 +217,19 @@ class VO:
         self._feasible = True
         self._references.fill(0.0)
         self._rule_memory.clear()
+        self._give_way_rule_locks.clear()
+        self._give_way_release_counts.clear()
+        self._give_way_previous_distances.clear()
+        self._completed_give_way_targets.clear()
+        self._give_way_rearm_counts.clear()
         self._target_heading_memory.clear()
         self._active_rules.clear()
         self._matched_rules_current.clear()
         self._completed_crossing_targets.clear()
         self._crossing_commitment_active = False
         self._crossing_commitment_frame_heading = None
+        self._give_way_commitment_active = False
+        self._give_way_commitment_rules.clear()
         self._emergency_rule_relaxation = False
         self._stand_on_hold_active = False
         self._reset_grid()
@@ -305,13 +325,23 @@ class VO:
                     v_do,
                 )
             )
+            matched_rules = self._apply_give_way_rule_lock(
+                target_id=id_do,
+                matched_rules=matched_rules,
+                p_os=p_os,
+                p_do=p_do,
+                can_enter=cpa_gate_eligible,
+            )
             commitment_eligible = (
-                VOCOLREGSSituation.CR_SS in matched_rules
-                and VOCOLREGSSituation.CR_SS in self._active_rules.get(id_do, set())
+                id_do in self._give_way_rule_locks
+                or (
+                    VOCOLREGSSituation.CR_SS in matched_rules
+                    and VOCOLREGSSituation.CR_SS in self._active_rules.get(id_do, set())
+                )
             )
             eligible_rules = (
                 matched_rules
-                if cpa_gate_eligible
+                if cpa_gate_eligible or id_do in self._give_way_rule_locks
                 else (
                     {VOCOLREGSSituation.CR_SS}
                     if commitment_eligible
@@ -338,6 +368,10 @@ class VO:
             self._track_metrics[id_do]["active_rules"] = [
                 rule.name for rule in sorted(rules, key=lambda item: item.value)
             ]
+            locked_rule = self._give_way_rule_locks.get(id_do)
+            self._track_metrics[id_do]["committed_rule"] = (
+                locked_rule.name if locked_rule is not None else None
+            )
             if speed_do >= self._params.colregs_min_target_speed_mps:
                 self._target_heading_memory[id_do] = psi_do
             self._apply_dynamic_hazard(
@@ -363,7 +397,7 @@ class VO:
                 uncertainty=None,
             )
 
-        self._apply_crossing_commitment(candidate_velocities, psi_os)
+        self._apply_give_way_commitment(candidate_velocities, psi_os)
         heading, speed = self._compute_optimal_controls(np.asarray(v_ref, dtype=float), psi_os)
         self._references.fill(0.0)
         self._references[2, 0] = heading
@@ -387,13 +421,80 @@ class VO:
         self._violation_costs = np.zeros(shape)
         self._total_costs = np.full(shape, np.inf)
 
-    def _apply_crossing_commitment(self, candidates: np.ndarray, psi_os: float) -> None:
-        was_active = self._crossing_commitment_active
-        self._crossing_commitment_active = any(
-            VOCOLREGSSituation.CR_SS in rules for rules in self._active_rules.values()
-        )
+    def _apply_give_way_rule_lock(
+        self,
+        *,
+        target_id: int,
+        matched_rules: set[VOCOLREGSSituation],
+        p_os: np.ndarray,
+        p_do: np.ndarray,
+        can_enter: bool,
+    ) -> set[VOCOLREGSSituation]:
+        lockable = (VOCOLREGSSituation.HO, VOCOLREGSSituation.OT_ing)
+        give_way_rules = {*lockable, VOCOLREGSSituation.CR_SS}
+        locked_rule = self._give_way_rule_locks.get(target_id)
+        distance = float(np.linalg.norm(p_do - p_os))
+        if target_id in self._completed_give_way_targets:
+            rearm_distance = max(
+                2.0 * self._params.give_way_release_distance_m,
+                2.0 * self._params.d_min,
+            )
+            rearm_candidate = not can_enter and distance >= rearm_distance
+            rearm_count = self._give_way_rearm_counts.get(target_id, 0)
+            rearm_count = rearm_count + 1 if rearm_candidate else 0
+            self._give_way_rearm_counts[target_id] = rearm_count
+            if rearm_count < self._params.give_way_release_steps:
+                return matched_rules.difference(give_way_rules)
+            self._completed_give_way_targets.discard(target_id)
+            self._give_way_rearm_counts.pop(target_id, None)
+
+        if locked_rule is not None:
+            previous_distance = self._give_way_previous_distances.get(target_id, distance)
+            moving_away = distance >= previous_distance - 1e-9
+            release_candidate = (
+                not can_enter
+                and distance >= self._params.give_way_release_distance_m
+                and moving_away
+            )
+            release_count = self._give_way_release_counts.get(target_id, 0)
+            release_count = release_count + 1 if release_candidate else 0
+            self._give_way_release_counts[target_id] = release_count
+            self._give_way_previous_distances[target_id] = distance
+            if release_count >= self._params.give_way_release_steps:
+                self._rule_memory.pop((target_id, locked_rule), None)
+                self._give_way_rule_locks.pop(target_id, None)
+                self._give_way_release_counts.pop(target_id, None)
+                self._give_way_previous_distances.pop(target_id, None)
+                self._completed_give_way_targets.add(target_id)
+                self._give_way_rearm_counts[target_id] = 0
+                return matched_rules.difference(give_way_rules)
+            return matched_rules.difference(lockable) | {locked_rule}
+
+        if can_enter:
+            locked_rule = next((rule for rule in lockable if rule in matched_rules), None)
+            if locked_rule is not None:
+                self._give_way_rule_locks[target_id] = locked_rule
+                self._give_way_release_counts[target_id] = 0
+                self._give_way_previous_distances[target_id] = distance
+        return matched_rules
+
+    def _apply_give_way_commitment(self, candidates: np.ndarray, psi_os: float) -> None:
+        was_active = self._give_way_commitment_active
+        give_way_rules = {
+            VOCOLREGSSituation.HO,
+            VOCOLREGSSituation.OT_ing,
+            VOCOLREGSSituation.CR_SS,
+        }
+        self._give_way_commitment_rules = {
+            rule
+            for rules in self._active_rules.values()
+            for rule in rules
+            if rule in give_way_rules
+        }
+        self._give_way_commitment_active = bool(self._give_way_commitment_rules)
+        self._crossing_commitment_active = VOCOLREGSSituation.CR_SS in self._give_way_commitment_rules
         self._emergency_rule_relaxation = False
-        if not self._crossing_commitment_active:
+        if not self._give_way_commitment_active:
             self._crossing_commitment_frame_heading = None
             return
 
@@ -402,6 +503,7 @@ class VO:
         commitment_frame = self._crossing_commitment_frame_heading
         body_velocities = candidates @ mf.Rmtrx2D(commitment_frame)
         commitment = body_velocities[..., 1] < -self._params.crossing_commitment_deadband_mps
+        commitment |= body_velocities[..., 0] <= 0.0
         if was_active:
             candidate_progress = np.arctan2(
                 np.sin(self._heading_set - commitment_frame),
@@ -592,7 +694,7 @@ class VO:
             self._objective = None
             self._reference_velocity_error_mps = float(np.linalg.norm(v_ref))
             return self._selected_heading, self._selected_speed
-        if self._crossing_commitment_active:
+        if self._give_way_commitment_active:
             tied = np.flatnonzero(np.isclose(self._total_costs, minimum, rtol=1e-9, atol=1e-9))
             if tied.size > 1:
                 headings = self._heading_set[np.unravel_index(tied, self._total_costs.shape)[1]]
@@ -747,11 +849,17 @@ class VO:
 
     def _expire_missing_targets(self, seen: set[int]) -> None:
         missing = {target_id for target_id, _rule in self._rule_memory if target_id not in seen}
+        missing.update(target_id for target_id in self._give_way_rule_locks if target_id not in seen)
         for target_id in missing:
             for key in [key for key in self._rule_memory if key[0] == target_id]:
                 del self._rule_memory[key]
             self._active_rules.pop(target_id, None)
             self._completed_crossing_targets.discard(target_id)
+            self._give_way_rule_locks.pop(target_id, None)
+            self._give_way_release_counts.pop(target_id, None)
+            self._give_way_previous_distances.pop(target_id, None)
+            self._completed_give_way_targets.discard(target_id)
+            self._give_way_rearm_counts.pop(target_id, None)
 
     def _determine_colregs_situation(
         self,
@@ -879,7 +987,12 @@ class VO:
             "track_metrics": self._track_metrics,
             "base_vo_count": int(np.count_nonzero(self._base_vo_mask)),
             "colregs_v1_count": int(np.count_nonzero(self._colregs_v1_mask_grid)),
-            "crossing_commitment_count": int(np.count_nonzero(self._crossing_commitment_mask)),
+            "crossing_commitment_count": (
+                int(np.count_nonzero(self._crossing_commitment_mask))
+                if self._crossing_commitment_active
+                else 0
+            ),
+            "give_way_commitment_count": int(np.count_nonzero(self._crossing_commitment_mask)),
             "hard_constraint_count": int(np.count_nonzero(self._hard_constraint_mask)),
             "wvo_only_count": int(np.count_nonzero(self._wvo_mask & ~self._hard_constraint_mask)),
             "feasible_candidate_count": int(np.count_nonzero(~self._hard_constraint_mask)),
@@ -902,8 +1015,26 @@ class VO:
             "crossing_commitment_state": (
                 "CR_SS_COMMITTED" if self._crossing_commitment_active else "CLEAR"
             ),
+            "give_way_commitment_active": self._give_way_commitment_active,
+            "give_way_commitment_rules": [
+                rule.name for rule in sorted(self._give_way_commitment_rules, key=lambda item: item.value)
+            ],
+            "give_way_commitment_state": self._give_way_commitment_state(),
+            "give_way_rule_locks": {
+                str(target_id): rule.name
+                for target_id, rule in sorted(self._give_way_rule_locks.items())
+            },
+            "completed_give_way_targets": sorted(self._completed_give_way_targets),
             "emergency_rule_relaxation": self._emergency_rule_relaxation,
         }
+
+    def _give_way_commitment_state(self) -> str:
+        if not self._give_way_commitment_rules:
+            return "CLEAR"
+        names = [
+            rule.name for rule in sorted(self._give_way_commitment_rules, key=lambda item: item.value)
+        ]
+        return f"{'+'.join(names)}_COMMITTED"
 
     def get_decision_space_snapshot(self) -> dict[str, Any] | None:
         if not self._initialized:
@@ -949,6 +1080,11 @@ class VO:
             "crossing_commitment_state": (
                 "CR_SS_COMMITTED" if self._crossing_commitment_active else "CLEAR"
             ),
+            "give_way_commitment_active": self._give_way_commitment_active,
+            "give_way_commitment_rules": [
+                rule.name for rule in sorted(self._give_way_commitment_rules, key=lambda item: item.value)
+            ],
+            "give_way_commitment_state": self._give_way_commitment_state(),
             "emergency_rule_relaxation": self._emergency_rule_relaxation,
         }
 

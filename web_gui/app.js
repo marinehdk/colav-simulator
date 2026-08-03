@@ -1377,9 +1377,15 @@ function updateUI(data) {
   setText('val-reproduction', data.reproduction_status || 'not evaluated');
   syncPlaybackStatus(data.playback, data.state === 'RUNNING');
 
-  // DCPA / TCPA
-  const dcpa = Number.isFinite(data.dcpa) ? data.dcpa : null;
-  const tcpa = Number.isFinite(data.tcpa) ? data.tcpa : null;
+  // Primary encounter, DCPA / TCPA
+  const primaryEncounter = data.primary_encounter || null;
+  setText('val-primary-target', primaryEncounter?.target_label || '无目标');
+  const dcpa = Number.isFinite(primaryEncounter?.dcpa_m)
+    ? primaryEncounter.dcpa_m
+    : (Number.isFinite(data.dcpa) ? data.dcpa : null);
+  const tcpa = Number.isFinite(primaryEncounter?.tcpa_s)
+    ? primaryEncounter.tcpa_s
+    : (Number.isFinite(data.tcpa) ? data.tcpa : null);
   const dcpaEl = document.getElementById('val-dcpa');
   dcpaEl.textContent = dcpa === null ? '--- m' : `${dcpa.toFixed(1)} m`;
   setRiskClass(dcpaEl, dcpa, DCPA_SAFE, DCPA_WARN, true);
@@ -1394,13 +1400,12 @@ function updateUI(data) {
   setRiskBar('tcpaBar', tcpaPct,
     tcpa === null ? 'safe' : tcpa > TCPA_SAFE ? 'safe' : tcpa > TCPA_WARN ? 'warn' : 'danger');
 
-  updateColregsBadge(data.colregs);
+  updateColregsBadge(primaryEncounter?.encounter || data.colregs);
 
-  if (data.obstacles && data.obstacles.length > 0) {
-    const obs  = data.obstacles[0];
-    const dist = Math.hypot(os.x - obs.x, os.y - obs.y);
-    setText('val-dist', `${dist.toFixed(1)} m`);
-  }
+  const primaryDistance = Number.isFinite(primaryEncounter?.distance_m)
+    ? primaryEncounter.distance_m
+    : null;
+  setText('val-dist', primaryDistance === null ? '--- m' : `${primaryDistance.toFixed(1)} m`);
 
   // OS telemetry
   setText('val-os-latitude', formatCoordinate(os.latitude, 'N', 'S'));

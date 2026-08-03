@@ -6,7 +6,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 from colav_simulator.experiment import ExperimentRunner, RunSpec
-from gui_server.main import app
+from gui_server.main import _select_primary_encounter, app
+
+
+def _assert_primary_encounter_aliases(payload: dict) -> None:
+    primary = payload["primary_encounter"]
+    assert primary["target_label"] == f"TS{primary['target_id']}"
+    assert payload["dcpa"] == primary["dcpa_m"]
+    assert payload["tcpa"] == primary["tcpa_s"]
+    assert payload["colregs"] == primary["encounter"]
 
 
 def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
@@ -70,18 +78,20 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
                 "避碰规划算法",
                 "目标跟踪器",
                 "避碰安全指标",
+                "优先目标",
                 ">DCPA<",
                 ">TCPA<",
-                    "COLREGs规则",
-                    "本船遥测状态",
-                    ">纬度<",
-                    ">经度<",
-                    ">对地速度<",
-                    ">对地航向<",
-                    ">当前航向<",
-                    ">角速度<",
-                    "算法性能监控",
-                )
+                "COLREGs规则",
+                "与该目标船距离",
+                "本船遥测状态",
+                ">纬度<",
+                ">经度<",
+                ">对地速度<",
+                ">对地航向<",
+                ">当前航向<",
+                ">角速度<",
+                "算法性能监控",
+            )
         ) and all(
             label not in page.text
             for label in (
@@ -277,6 +287,7 @@ def test_real_session_api_and_websocket() -> None:
         assert first.json()["enc_navigation_area"] == navigation_area
         assert -90.0 <= first.json()["os"]["latitude"] <= 90.0
         assert -180.0 <= first.json()["os"]["longitude"] <= 180.0
+        _assert_primary_encounter_aliases(first.json())
 
         second = client.post(f"/api/sessions/{session_id}/step")
         assert second.status_code == 200
@@ -305,6 +316,58 @@ def test_real_session_api_and_websocket() -> None:
         replay_result = client.get(f"/api/sessions/{replay_id}/result")
         assert replay_result.json()["manifest"]["replay_of_run_id"] == session_id
         assert replay_result.json()["manifest"]["replay_verified"] is True
+
+
+def test_primary_encounter_prefers_imminent_approaching_colreg_target() -> None:
+    encounters = [
+        {
+            "target_id": 1,
+            "encounter": "overtaking",
+            "stage": 1,
+            "distance_m": 1700.0,
+            "dcpa_m": 25.0,
+            "tcpa_s": 350.0,
+            "signed_tcpa_s": 350.0,
+        },
+        {
+            "target_id": 3,
+            "encounter": "head_on",
+            "stage": 2,
+            "distance_m": 800.0,
+            "dcpa_m": 30.0,
+            "tcpa_s": 85.0,
+            "signed_tcpa_s": 85.0,
+        },
+        {
+            "target_id": 2,
+            "encounter": "clear",
+            "stage": 4,
+            "distance_m": 100.0,
+            "dcpa_m": 500.0,
+            "tcpa_s": 10.0,
+            "signed_tcpa_s": 10.0,
+        },
+    ]
+
+    selected = _select_primary_encounter(encounters)
+
+    assert selected is not None
+    assert selected["target_id"] == 3
+    assert selected["target_label"] == "TS3"
+    assert selected["selection_reason"] == "approaching_colreg_encounter"
+
+
+def test_primary_encounter_falls_back_to_nearest_contact() -> None:
+    selected = _select_primary_encounter(
+        [
+            {"target_id": 4, "encounter": "clear", "stage": 4, "distance_m": 900.0},
+            {"target_id": 2, "encounter": "clear", "stage": 1, "distance_m": 120.0},
+        ]
+    )
+
+    assert selected is not None
+    assert selected["target_id"] == 2
+    assert selected["selection_reason"] == "nearest_available_contact"
 
 
 def test_current_session_endpoint_returns_active_session() -> None:
