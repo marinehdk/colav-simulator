@@ -390,9 +390,9 @@ function renderCanvas(data) {
   if (visibleLayers.executionPoint && plans.prediction_horizon?.length > 0)
     drawExecutionPoint(plans.prediction_horizon);
   if (visibleLayers.risk) drawCPARisk(data);
+  if (data.os && plannerSurfaceAttached) drawVODecisionSpaceOnMap(data.os);
   if (visibleLayers.ships) drawShips(data);
-  if (data.os && plannerSurfaceAttached) updateAttachedPlannerSurfacePosition(data.os);
-  else if (data.os) drawRelativeCompass(data.os, W, H);
+  if (data.os && !plannerSurfaceAttached) drawRelativeCompass(data.os, W, H);
 }
 
 function interpolateAngle(from, to, amount) {
@@ -1697,6 +1697,7 @@ function requestPendingVODecisionSpace() {
     lastVORenderKey = null;
     drawPlannerSurface(pending.planner);
     updatePlannerSurfaceAttachControl(true, pending.solveId);
+    if (plannerSurfaceAttached && currentData) renderCanvas(currentData);
   }).catch(error => {
     if (error.name !== 'AbortError') {
       setText('val-surface-explanation', '决策空间暂不可用');
@@ -1877,6 +1878,128 @@ function drawVODecisionSpace(surface, canvas, planner, details) {
   };
 }
 
+function drawVODecisionSpaceOnMap(os) {
+  const snapshot = voDecisionSpaceKey?.startsWith(`${activeSessionId}:`) ? voDecisionSpace : null;
+  if (!snapshot || !Number.isFinite(os?.x) || !Number.isFinite(os?.y)) return;
+
+  const speeds = snapshot.speed_candidates_mps || [];
+  const headings = snapshot.heading_candidates_rad || [];
+  const bits = snapshot.candidate_state_bits || [];
+  const costs = snapshot.total_costs || [];
+  const [rows, columns] = snapshot.shape || [];
+  if (!rows || !columns || rows !== speeds.length || columns !== headings.length
+    || bits.length !== rows * columns) return;
+
+  const point = worldToCanvas(os.x, os.y);
+  const centerX = point.x;
+  const centerY = point.y;
+  const radius = 110;
+  const maxSpeed = Math.max(...speeds, 1);
+  const headingStep = 2 * Math.PI / columns;
+  const ownshipHeading = Number(snapshot.ownship_heading_rad) || Number(os.psi) || 0;
+  const displayRotation = Number(os.psi) || ownshipHeading;
+  const finiteCosts = costs.filter(Number.isFinite);
+  const minimumCost = finiteCosts.length ? Math.min(...finiteCosts) : 0;
+  const maximumCost = finiteCosts.length ? Math.max(...finiteCosts) : 1;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(8,18,20,0.34)';
+  ctx.fillRect(centerX - radius, centerY - radius, radius * 2, radius * 2);
+
+  for (let speedIndex = 0; speedIndex < rows; speedIndex += 1) {
+    const innerSpeed = speedIndex === 0 ? 0 : (speeds[speedIndex - 1] + speeds[speedIndex]) / 2;
+    const outerSpeed = speedIndex === rows - 1
+      ? maxSpeed
+      : (speeds[speedIndex] + speeds[speedIndex + 1]) / 2;
+    const innerRadius = innerSpeed / maxSpeed * radius;
+    const outerRadius = outerSpeed / maxSpeed * radius;
+    for (let headingIndex = 0; headingIndex < columns; headingIndex += 1) {
+      const index = speedIndex * columns + headingIndex;
+      const relativeHeading = wrapRadians(headings[headingIndex] - ownshipHeading);
+      const displayedHeading = relativeHeading + displayRotation;
+      const start = displayedHeading - headingStep / 2 - Math.PI / 2;
+      const end = displayedHeading + headingStep / 2 - Math.PI / 2;
+      const cost = costs[index] == null ? NaN : Number(costs[index]);
+      const normalizedCost = Number.isFinite(cost) && maximumCost > minimumCost
+        ? (cost - minimumCost) / (maximumCost - minimumCost)
+        : 0;
+      ctx.fillStyle = voCandidateColor(bits[index], normalizedCost);
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, outerRadius, start, end);
+      if (innerRadius > 0) ctx.arc(centerX, centerY, innerRadius, end, start, true);
+      else ctx.lineTo(centerX, centerY);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(232,244,240,0.38)';
+  ctx.fillStyle = 'rgba(232,244,240,0.82)';
+  ctx.lineWidth = 0.8;
+  ctx.font = '8px SFMono-Regular, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let speed = 2; speed <= maxSpeed; speed += 2) {
+    const ringRadius = speed / maxSpeed * radius;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillText(`${speed}`, centerX + 3, centerY - ringRadius + 8);
+  }
+  for (let degrees = -180; degrees < 180; degrees += 30) {
+    const angle = degrees * Math.PI / 180 + displayRotation;
+    const endX = centerX + radius * Math.sin(angle);
+    const endY = centerY - radius * Math.cos(angle);
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    if (degrees % 60 === 0) {
+      ctx.fillText(
+        `${degrees}°`,
+        centerX + (radius - 10) * Math.sin(angle),
+        centerY - (radius - 10) * Math.cos(angle),
+      );
+    }
+  }
+
+  drawVelocityArrow(
+    ctx, centerX, centerY, radius, maxSpeed,
+    snapshot.current_velocity_ne_mps, ownshipHeading, '#9aa7a2', 1.7, displayRotation,
+  );
+  drawVelocityArrow(
+    ctx, centerX, centerY, radius, maxSpeed,
+    snapshot.reference_velocity_ne_mps, ownshipHeading, '#f3f6f5', 1.7, displayRotation,
+  );
+  const selected = snapshot.selected || {};
+  drawVelocityArrow(
+    ctx,
+    centerX,
+    centerY,
+    radius,
+    maxSpeed,
+    [
+      Number(selected.speed_mps) * Math.cos(Number(selected.heading_rad)),
+      Number(selected.speed_mps) * Math.sin(Number(selected.heading_rad)),
+    ],
+    ownshipHeading,
+    '#58a6ff',
+    2.5,
+    displayRotation,
+  );
+  ctx.strokeStyle = 'rgba(232,244,240,0.72)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function voCandidateColor(stateBits, normalizedCost) {
   const alpha = Math.max(0.58, Math.min(0.94, 0.58 + normalizedCost * 0.36));
   if (stateBits & 1) return `rgba(227,78,89,${alpha})`;
@@ -1893,12 +2016,23 @@ function voCandidateLabel(stateBits) {
   return '安全';
 }
 
-function drawVelocityArrow(surface, centerX, centerY, radius, maxSpeed, velocity, ownshipHeading, color, width = 1.7) {
+function drawVelocityArrow(
+  surface,
+  centerX,
+  centerY,
+  radius,
+  maxSpeed,
+  velocity,
+  ownshipHeading,
+  color,
+  width = 1.7,
+  displayRotation = 0,
+) {
   const north = Number(velocity?.[0]);
   const east = Number(velocity?.[1]);
   if (!Number.isFinite(north) || !Number.isFinite(east)) return;
   const speed = Math.hypot(north, east);
-  const relativeHeading = wrapRadians(Math.atan2(east, north) - ownshipHeading);
+  const relativeHeading = wrapRadians(Math.atan2(east, north) - ownshipHeading) + displayRotation;
   const length = Math.min(speed, maxSpeed) / maxSpeed * radius;
   const endX = centerX + length * Math.sin(relativeHeading);
   const endY = centerY - length * Math.cos(relativeHeading);
@@ -1997,8 +2131,8 @@ function updatePlannerSurfaceAttachControl(isVO, solveId) {
     && Number.isInteger(solveId)
     && solveId > 0
   );
-  button.disabled = !hasSnapshot || plannerSurfaceAttached;
-  button.textContent = plannerSurfaceAttached ? '已展示' : hasSnapshot ? '展示' : '加载中';
+  button.disabled = !hasSnapshot && !plannerSurfaceAttached;
+  button.textContent = plannerSurfaceAttached ? '收起' : hasSnapshot ? '展示' : '加载中';
   button.setAttribute('aria-pressed', String(plannerSurfaceAttached));
 }
 
@@ -2008,50 +2142,22 @@ function syncPlannerSurfaceMode(planner) {
   }
 }
 
-function updateAttachedPlannerSurfacePosition(os) {
-  if (!plannerSurfaceAttached || !Number.isFinite(os?.x) || !Number.isFinite(os?.y)) return;
-  const panel = document.getElementById('plannerSurfacePanel');
-  const surfaceCanvas = document.getElementById('plannerSurface');
-  if (!panel || !surfaceCanvas || panel.parentElement !== wrapper) return;
-  const point = worldToCanvas(os.x, os.y);
-  const panelWidth = panel.offsetWidth;
-  const panelHeight = panel.offsetHeight;
-  const canvasCenterX = surfaceCanvas.offsetLeft + surfaceCanvas.offsetWidth / 2;
-  const canvasCenterY = surfaceCanvas.offsetTop + surfaceCanvas.offsetHeight / 2;
-  const margin = 12;
-  const maxLeft = Math.max(margin, wrapper.clientWidth - panelWidth - margin);
-  const maxTop = Math.max(margin, wrapper.clientHeight - panelHeight - margin);
-  panel.style.left = `${Math.min(maxLeft, Math.max(margin, point.x - canvasCenterX))}px`;
-  panel.style.top = `${Math.min(maxTop, Math.max(margin, point.y - canvasCenterY))}px`;
-}
-
 function setPlannerSurfaceAttached(attached, { rerender = true } = {}) {
   const panel = document.getElementById('plannerSurfacePanel');
-  const home = document.getElementById('plannerSurfaceHome');
-  if (!panel || !home || attached === plannerSurfaceAttached) return;
+  if (!panel || attached === plannerSurfaceAttached) return;
   if (attached && currentDiagnosticPlanner().algorithm_id !== 'vo') return;
   plannerSurfaceAttached = attached;
-  panel.classList.toggle('map-attached', attached);
-  if (attached) wrapper.appendChild(panel);
-  else {
-    home.appendChild(panel);
-    panel.style.removeProperty('left');
-    panel.style.removeProperty('top');
-  }
+  panel.hidden = attached;
   lastVORenderKey = null;
   updatePlannerSurfaceAttachControl(currentDiagnosticPlanner().algorithm_id === 'vo', Number(currentDiagnosticPlanner().solve_id));
   window.requestAnimationFrame(() => {
-    if (plannerSurfaceAttached && currentData?.os) updateAttachedPlannerSurfacePosition(currentData.os);
     if (currentData) drawPlannerSurface(currentDiagnosticPlanner());
   });
   if (rerender && currentData) renderCanvas(currentData);
 }
 
 document.getElementById('plannerSurfaceAttach').addEventListener('click', () => {
-  setPlannerSurfaceAttached(true);
-});
-document.getElementById('plannerSurfaceDetach').addEventListener('click', () => {
-  setPlannerSurfaceAttached(false);
+  setPlannerSurfaceAttached(!plannerSurfaceAttached);
 });
 
 new ResizeObserver(() => {

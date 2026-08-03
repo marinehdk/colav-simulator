@@ -357,21 +357,15 @@
               <button class="surface-attach-btn" id="plannerSurfaceAttach" type="button" hidden disabled>展示</button>
             </div>
           </div>
-          <div id="plannerSurfaceHome">
-            <div class="planner-surface-wrap" id="plannerSurfacePanel">
-              <div class="attached-surface-heading">
-                <span>速度决策空间</span>
-                <button id="plannerSurfaceDetach" type="button">收起</button>
-              </div>
-              <canvas id="plannerSurface" width="280" height="280" aria-label="候选控制决策图"></canvas>
-              <div class="vo-surface-legend" id="voSurfaceLegend" hidden>
-                <span><i class="vo-safe"></i>安全</span>
-                <span><i class="vo-collision"></i>有限 TTC</span>
-                <span><i class="vo-buffer"></i>WVO 缓冲</span>
-                <span><i class="vo-colregs"></i>COLREG 禁区</span>
-              </div>
-              <div class="surface-explanation" id="val-surface-explanation"></div>
+          <div class="planner-surface-wrap" id="plannerSurfacePanel">
+            <canvas id="plannerSurface" width="280" height="280" aria-label="候选控制决策图"></canvas>
+            <div class="vo-surface-legend" id="voSurfaceLegend" hidden>
+              <span><i class="vo-safe"></i>安全</span>
+              <span><i class="vo-collision"></i>有限 TTC</span>
+              <span><i class="vo-buffer"></i>WVO 缓冲</span>
+              <span><i class="vo-colregs"></i>COLREG 禁区</span>
             </div>
+            <div class="surface-explanation" id="val-surface-explanation"></div>
           </div>
           <div class="surface-meta mono-tag" id="val-surface-meta"></div>
           <div class="objective-history-wrap" id="objectiveHistoryWrap">
