@@ -1,7 +1,7 @@
 name: romsdal_busy_water_16
 save_scenario: false
 t_start: 0.0
-t_end: 600.0
+t_end: 1200.0
 dt_sim: 0.1
 utm_zone: 33
 map_size:
@@ -68,7 +68,7 @@ ship_list:
   id: 1
   mmsi: 101
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -106,7 +106,7 @@ ship_list:
   id: 2
   mmsi: 102
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -144,7 +144,7 @@ ship_list:
   id: 3
   mmsi: 103
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -182,7 +182,7 @@ ship_list:
   id: 4
   mmsi: 104
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -220,7 +220,7 @@ ship_list:
   id: 5
   mmsi: 105
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -258,7 +258,7 @@ ship_list:
   id: 6
   mmsi: 106
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -296,7 +296,7 @@ ship_list:
   id: 7
   mmsi: 107
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -334,7 +334,7 @@ ship_list:
   id: 8
   mmsi: 108
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -372,7 +372,7 @@ ship_list:
   id: 9
   mmsi: 109
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -410,7 +410,7 @@ ship_list:
   id: 10
   mmsi: 110
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -448,7 +448,7 @@ ship_list:
   id: 11
   mmsi: 111
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -486,7 +486,7 @@ ship_list:
   id: 12
   mmsi: 112
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -524,7 +524,7 @@ ship_list:
   id: 13
   mmsi: 113
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -562,7 +562,7 @@ ship_list:
   id: 14
   mmsi: 114
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -600,7 +600,7 @@ ship_list:
   id: 15
   mmsi: 115
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0

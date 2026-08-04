@@ -1,7 +1,7 @@
 name: romsdal_busy_water_80_stress
 save_scenario: false
 t_start: 0.0
-t_end: 600.0
+t_end: 1200.0
 dt_sim: 0.5
 utm_zone: 33
 map_size:
@@ -68,7 +68,7 @@ ship_list:
   id: 1
   mmsi: 101
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -106,7 +106,7 @@ ship_list:
   id: 2
   mmsi: 102
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -144,7 +144,7 @@ ship_list:
   id: 3
   mmsi: 103
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -182,7 +182,7 @@ ship_list:
   id: 4
   mmsi: 104
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -220,7 +220,7 @@ ship_list:
   id: 5
   mmsi: 105
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -258,7 +258,7 @@ ship_list:
   id: 6
   mmsi: 106
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -296,7 +296,7 @@ ship_list:
   id: 7
   mmsi: 107
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -334,7 +334,7 @@ ship_list:
   id: 8
   mmsi: 108
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -372,7 +372,7 @@ ship_list:
   id: 9
   mmsi: 109
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -410,7 +410,7 @@ ship_list:
   id: 10
   mmsi: 110
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -448,7 +448,7 @@ ship_list:
   id: 11
   mmsi: 111
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -486,7 +486,7 @@ ship_list:
   id: 12
   mmsi: 112
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -524,7 +524,7 @@ ship_list:
   id: 13
   mmsi: 113
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -562,7 +562,7 @@ ship_list:
   id: 14
   mmsi: 114
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -600,7 +600,7 @@ ship_list:
   id: 15
   mmsi: 115
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -638,7 +638,7 @@ ship_list:
   id: 16
   mmsi: 116
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -676,7 +676,7 @@ ship_list:
   id: 17
   mmsi: 117
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -714,7 +714,7 @@ ship_list:
   id: 18
   mmsi: 118
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -752,7 +752,7 @@ ship_list:
   id: 19
   mmsi: 119
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -790,7 +790,7 @@ ship_list:
   id: 20
   mmsi: 120
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -828,7 +828,7 @@ ship_list:
   id: 21
   mmsi: 121
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -866,7 +866,7 @@ ship_list:
   id: 22
   mmsi: 122
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -904,7 +904,7 @@ ship_list:
   id: 23
   mmsi: 123
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -942,7 +942,7 @@ ship_list:
   id: 24
   mmsi: 124
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -980,7 +980,7 @@ ship_list:
   id: 25
   mmsi: 125
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1018,7 +1018,7 @@ ship_list:
   id: 26
   mmsi: 126
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1056,7 +1056,7 @@ ship_list:
   id: 27
   mmsi: 127
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1094,7 +1094,7 @@ ship_list:
   id: 28
   mmsi: 128
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1132,7 +1132,7 @@ ship_list:
   id: 29
   mmsi: 129
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1170,7 +1170,7 @@ ship_list:
   id: 30
   mmsi: 130
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1208,7 +1208,7 @@ ship_list:
   id: 31
   mmsi: 131
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1246,7 +1246,7 @@ ship_list:
   id: 32
   mmsi: 132
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1284,7 +1284,7 @@ ship_list:
   id: 33
   mmsi: 133
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1322,7 +1322,7 @@ ship_list:
   id: 34
   mmsi: 134
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1360,7 +1360,7 @@ ship_list:
   id: 35
   mmsi: 135
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1398,7 +1398,7 @@ ship_list:
   id: 36
   mmsi: 136
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1436,7 +1436,7 @@ ship_list:
   id: 37
   mmsi: 137
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1474,7 +1474,7 @@ ship_list:
   id: 38
   mmsi: 138
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1512,7 +1512,7 @@ ship_list:
   id: 39
   mmsi: 139
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1550,7 +1550,7 @@ ship_list:
   id: 40
   mmsi: 140
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1588,7 +1588,7 @@ ship_list:
   id: 41
   mmsi: 141
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1626,7 +1626,7 @@ ship_list:
   id: 42
   mmsi: 142
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1664,7 +1664,7 @@ ship_list:
   id: 43
   mmsi: 143
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1702,7 +1702,7 @@ ship_list:
   id: 44
   mmsi: 144
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1740,7 +1740,7 @@ ship_list:
   id: 45
   mmsi: 145
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1778,7 +1778,7 @@ ship_list:
   id: 46
   mmsi: 146
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1816,7 +1816,7 @@ ship_list:
   id: 47
   mmsi: 147
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1854,7 +1854,7 @@ ship_list:
   id: 48
   mmsi: 148
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1892,7 +1892,7 @@ ship_list:
   id: 49
   mmsi: 149
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1930,7 +1930,7 @@ ship_list:
   id: 50
   mmsi: 150
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -1968,7 +1968,7 @@ ship_list:
   id: 51
   mmsi: 151
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2006,7 +2006,7 @@ ship_list:
   id: 52
   mmsi: 152
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2044,7 +2044,7 @@ ship_list:
   id: 53
   mmsi: 153
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2082,7 +2082,7 @@ ship_list:
   id: 54
   mmsi: 154
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2120,7 +2120,7 @@ ship_list:
   id: 55
   mmsi: 155
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2158,7 +2158,7 @@ ship_list:
   id: 56
   mmsi: 156
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2196,7 +2196,7 @@ ship_list:
   id: 57
   mmsi: 157
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2234,7 +2234,7 @@ ship_list:
   id: 58
   mmsi: 158
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2272,7 +2272,7 @@ ship_list:
   id: 59
   mmsi: 159
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2310,7 +2310,7 @@ ship_list:
   id: 60
   mmsi: 160
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2348,7 +2348,7 @@ ship_list:
   id: 61
   mmsi: 161
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2386,7 +2386,7 @@ ship_list:
   id: 62
   mmsi: 162
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2424,7 +2424,7 @@ ship_list:
   id: 63
   mmsi: 163
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2462,7 +2462,7 @@ ship_list:
   id: 64
   mmsi: 164
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2500,7 +2500,7 @@ ship_list:
   id: 65
   mmsi: 165
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2538,7 +2538,7 @@ ship_list:
   id: 66
   mmsi: 166
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2576,7 +2576,7 @@ ship_list:
   id: 67
   mmsi: 167
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2614,7 +2614,7 @@ ship_list:
   id: 68
   mmsi: 168
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2652,7 +2652,7 @@ ship_list:
   id: 69
   mmsi: 169
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2690,7 +2690,7 @@ ship_list:
   id: 70
   mmsi: 170
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2728,7 +2728,7 @@ ship_list:
   id: 71
   mmsi: 171
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2766,7 +2766,7 @@ ship_list:
   id: 72
   mmsi: 172
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2804,7 +2804,7 @@ ship_list:
   id: 73
   mmsi: 173
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2842,7 +2842,7 @@ ship_list:
   id: 74
   mmsi: 174
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2880,7 +2880,7 @@ ship_list:
   id: 75
   mmsi: 175
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2918,7 +2918,7 @@ ship_list:
   id: 76
   mmsi: 176
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2956,7 +2956,7 @@ ship_list:
   id: 77
   mmsi: 177
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -2994,7 +2994,7 @@ ship_list:
   id: 78
   mmsi: 178
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
@@ -3032,7 +3032,7 @@ ship_list:
   id: 79
   mmsi: 179
   t_start: 0.0
-  t_end: 600.0
+  t_end: 1200.0
   guidance:
     los:
       pass_angle_threshold: 80.0
