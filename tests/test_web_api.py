@@ -30,6 +30,18 @@ def test_colregs_log_identifies_target_and_cleared_context() -> None:
     assert "DCPA ${lvl.toUpperCase()}${targetSuffix}" in script.text
 
 
+def test_map_wheel_zoom_is_anchored_at_pointer() -> None:
+    with TestClient(app) as client:
+        script = client.get("/static/app.js")
+
+    assert script.status_code == 200
+    assert "function zoomAtCanvasPoint(x, y, factor)" in script.text
+    assert "const scaleRatio = nextScale / previousScale;" in script.text
+    assert "panX = x - wrapper.clientWidth / 2 - (x - centerX) * scaleRatio;" in script.text
+    assert "panY = y - wrapper.clientHeight / 2 - (y - centerY) * scaleRatio;" in script.text
+    assert "zoomAtCanvasPoint(e.clientX - bounds.left, e.clientY - bounds.top, factor);" in script.text
+
+
 def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
     with TestClient(app) as client:
         page = client.get("/")

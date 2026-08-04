@@ -260,10 +260,24 @@ function updateScaleBar() {
 /* ══════════════════════════════════════════════
    ZOOM & PAN
 ══════════════════════════════════════════════ */
+function zoomAtCanvasPoint(x, y, factor) {
+  const previousScale = viewScale;
+  const nextScale = Math.max(0.005, Math.min(5.0, previousScale * factor));
+  if (nextScale === previousScale) return;
+
+  const centerX = wrapper.clientWidth / 2 + panX;
+  const centerY = wrapper.clientHeight / 2 + panY;
+  const scaleRatio = nextScale / previousScale;
+  panX = x - wrapper.clientWidth / 2 - (x - centerX) * scaleRatio;
+  panY = y - wrapper.clientHeight / 2 - (y - centerY) * scaleRatio;
+  viewScale = nextScale;
+}
+
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
+  const bounds = canvas.getBoundingClientRect();
   const factor = e.deltaY < 0 ? 1.15 : 0.87;
-  viewScale = Math.max(0.005, Math.min(5.0, viewScale * factor));
+  zoomAtCanvasPoint(e.clientX - bounds.left, e.clientY - bounds.top, factor);
   updateScaleBar();
   if (currentData) renderCanvas(currentData);
 }, { passive: false });
@@ -302,11 +316,11 @@ canvas.addEventListener('click', async event => {
 });
 
 document.getElementById('zoomIn').addEventListener('click', () => {
-  viewScale = Math.min(5.0, viewScale * 1.25); updateScaleBar();
+  zoomAtCanvasPoint(wrapper.clientWidth / 2, wrapper.clientHeight / 2, 1.25); updateScaleBar();
   if (currentData) renderCanvas(currentData);
 });
 document.getElementById('zoomOut').addEventListener('click', () => {
-  viewScale = Math.max(0.005, viewScale / 1.25); updateScaleBar();
+  zoomAtCanvasPoint(wrapper.clientWidth / 2, wrapper.clientHeight / 2, 1 / 1.25); updateScaleBar();
   if (currentData) renderCanvas(currentData);
 });
 document.getElementById('zoomReset').addEventListener('click', () => {
