@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.evaluation import EncounterMonitor
+from colav_simulator.evaluation.profiles import load_evaluator_profile
 from colav_simulator.experiment.busy_water import (
     ACCEPTANCE_SCENARIO_ID,
     DEFAULT_SEED,
@@ -47,40 +48,72 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 GUI_DIR = BASE_DIR / "web_gui"
 DRAFT_DIR = BASE_DIR / "runs" / "scenario_drafts"
 BUSY_WATER_SCENARIOS = {ACCEPTANCE_SCENARIO_ID, STRESS_SCENARIO_ID}
+_PRIMARY_PROFILE = load_evaluator_profile()
+_PRIMARY_RISK_WEIGHTS = {"dcpa": 0.5, "tcpa": 0.3, "range": 0.2}
+_PRIMARY_TCPA_SCALE_S = 5.0 * _PRIMARY_PROFILE.encounter.emergency_tcpa_s
+
+
+def _bounded_risk_ratio(value: Any, scale: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 1.0
+    if not np.isfinite(number) or number < 0.0:
+        return 1.0
+    return float(np.clip(number / scale, 0.0, 1.0))
+
+
+def _primary_risk(item: dict[str, Any]) -> tuple[float, dict[str, float]]:
+    components = {
+        "dcpa": _bounded_risk_ratio(item.get("dcpa_m"), _PRIMARY_PROFILE.safety.preferred_m),
+        "tcpa": _bounded_risk_ratio(item.get("signed_tcpa_s"), _PRIMARY_TCPA_SCALE_S),
+        "range": _bounded_risk_ratio(item.get("distance_m"), _PRIMARY_PROFILE.stages.stage2_entry_m),
+    }
+    score = sum(_PRIMARY_RISK_WEIGHTS[name] * components[name] for name in components)
+    return float(score), components
 
 
 def _select_primary_encounter(encounters: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not encounters:
         return None
 
-    def priority(item: dict[str, Any]) -> tuple[Any, ...]:
-        signed_tcpa = float(item.get("signed_tcpa_s", float("inf")))
-        approaching = np.isfinite(signed_tcpa) and signed_tcpa > 0.0
-        encounter_active = item.get("encounter") not in {None, "clear"}
-        stage = int(item.get("stage", 0))
-        if encounter_active and approaching:
+    approaching = [
+        item
+        for item in encounters
+        if np.isfinite(float(item.get("signed_tcpa_s", float("inf"))))
+        and float(item.get("signed_tcpa_s", 0.0)) > 0.0
+    ]
+    if approaching:
+        def priority(item: dict[str, Any]) -> tuple[Any, ...]:
+            score, _ = _primary_risk(item)
             return (
-                0,
-                -stage,
-                signed_tcpa,
+                score,
+                float(item.get("signed_tcpa_s", float("inf"))),
                 float(item.get("dcpa_m", float("inf"))),
                 float(item.get("distance_m", float("inf"))),
+                -int(item.get("stage", 0)),
                 int(item.get("target_id", 0)),
             )
-        return (
-            1,
-            float(item.get("distance_m", float("inf"))),
-            float(item.get("dcpa_m", float("inf"))),
-            int(item.get("target_id", 0)),
-        )
 
-    selected = copy.deepcopy(min(encounters, key=priority))
+        selected = copy.deepcopy(min(approaching, key=priority))
+        score, components = _primary_risk(selected)
+        selected["priority_score"] = score
+        selected["priority_components"] = components
+        selected["priority_weights"] = dict(_PRIMARY_RISK_WEIGHTS)
+        selected["selection_reason"] = "composite_cpa_risk"
+    else:
+        selected = copy.deepcopy(
+            min(
+                encounters,
+                key=lambda item: (
+                    float(item.get("distance_m", float("inf"))),
+                    float(item.get("dcpa_m", float("inf"))),
+                    int(item.get("target_id", 0)),
+                ),
+            )
+        )
+        selected["selection_reason"] = "nearest_available_contact"
     selected["target_label"] = f"TS{selected['target_id']}"
-    selected["selection_reason"] = (
-        "approaching_colreg_encounter"
-        if selected.get("encounter") != "clear" and float(selected.get("signed_tcpa_s", 0.0)) > 0.0
-        else "nearest_available_contact"
-    )
     return selected
 
 

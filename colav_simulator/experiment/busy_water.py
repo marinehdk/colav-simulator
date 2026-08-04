@@ -15,6 +15,7 @@ ACCEPTANCE_SCENARIO_ID = "romsdal_busy_water_16"
 STRESS_SCENARIO_ID = "romsdal_busy_water_80_stress"
 DEFAULT_TARGET_COUNT = 15
 MAX_TARGET_COUNT = 79
+BUSY_WATER_DURATION_S = 1200.0
 DEFAULT_ENCOUNTER_MIX = {
     "crossing": 0.60,
     "head_on": 0.20,
@@ -242,7 +243,7 @@ def _route_target_document(
         speed,
         course_deg,
         t_start=0.0,
-        t_end=600.0,
+        t_end=BUSY_WATER_DURATION_S,
         waypoints=(first, second),
         encounter_role=role,
     )
@@ -275,7 +276,7 @@ def _base_document(name: str, *, dt_sim: float, target_count: int) -> dict[str, 
         "name": name,
         "save_scenario": False,
         "t_start": 0.0,
-        "t_end": 600.0,
+        "t_end": BUSY_WATER_DURATION_S,
         "dt_sim": dt_sim,
         "utm_zone": 33,
         "map_size": [_MAP_SIZE_NE[1], _MAP_SIZE_NE[0]],
@@ -394,8 +395,8 @@ def _require_initial_separation(ships: list[dict[str, Any]]) -> None:
 
 def _windows_overlap(first: dict[str, Any], second: dict[str, Any]) -> bool:
     return max(float(first.get("t_start", 0.0)), float(second.get("t_start", 0.0))) < min(
-        float(first.get("t_end", 600.0)),
-        float(second.get("t_end", 600.0)),
+        float(first.get("t_end", BUSY_WATER_DURATION_S)),
+        float(second.get("t_end", BUSY_WATER_DURATION_S)),
     )
 
 

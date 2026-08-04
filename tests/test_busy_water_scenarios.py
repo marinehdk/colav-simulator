@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError
 from colav_simulator.experiment.busy_water import (
+    BUSY_WATER_DURATION_S,
     DEFAULT_ENCOUNTER_MIX,
     allocate_encounter_counts,
     build_busy_water_document,
@@ -23,6 +24,8 @@ def test_acceptance_scenario_is_deterministic_and_matches_committed_yaml() -> No
     assert generated == committed
     assert len(generated["ship_list"]) == 16
     assert len({ship["id"] for ship in generated["ship_list"]}) == 16
+    assert generated["t_end"] == BUSY_WATER_DURATION_S == 1200.0
+    assert all(ship.get("t_end", BUSY_WATER_DURATION_S) == BUSY_WATER_DURATION_S for ship in generated["ship_list"])
 
 
 def test_stress_scenario_is_seeded_and_matches_committed_yaml() -> None:
@@ -32,6 +35,7 @@ def test_stress_scenario_is_seeded_and_matches_committed_yaml() -> None:
     assert generated == committed
     assert len(generated["ship_list"]) == 80
     assert generated != build_busy_water_document("stress", seed=20250732)
+    assert generated["t_end"] == BUSY_WATER_DURATION_S
 
 
 def test_crossing_dominant_mix_uses_exact_largest_remainder_counts() -> None:

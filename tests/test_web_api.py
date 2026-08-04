@@ -354,7 +354,39 @@ def test_primary_encounter_prefers_imminent_approaching_colreg_target() -> None:
     assert selected is not None
     assert selected["target_id"] == 3
     assert selected["target_label"] == "TS3"
-    assert selected["selection_reason"] == "approaching_colreg_encounter"
+    assert selected["selection_reason"] == "composite_cpa_risk"
+    assert selected["priority_score"] == pytest.approx(0.2279473684)
+    assert selected["priority_weights"] == {"dcpa": 0.5, "tcpa": 0.3, "range": 0.2}
+
+
+def test_primary_encounter_combines_dcpa_tcpa_and_range_before_rule_label() -> None:
+    selected = _select_primary_encounter(
+        [
+            {
+                "target_id": 2,
+                "encounter": "clear",
+                "stage": 4,
+                "distance_m": 260.7,
+                "dcpa_m": 170.5,
+                "signed_tcpa_s": 30.4,
+            },
+            {
+                "target_id": 4,
+                "encounter": "crossing_give_way",
+                "stage": 2,
+                "distance_m": 2059.9,
+                "dcpa_m": 1039.1,
+                "signed_tcpa_s": 1015.7,
+            },
+        ]
+    )
+
+    assert selected is not None
+    assert selected["target_id"] == 2
+    assert selected["selection_reason"] == "composite_cpa_risk"
+    assert selected["priority_components"] == pytest.approx(
+        {"dcpa": 170.5 / 190.0, "tcpa": 30.4 / 300.0, "range": 260.7 / 2500.0}
+    )
 
 
 def test_primary_encounter_falls_back_to_nearest_contact() -> None:
