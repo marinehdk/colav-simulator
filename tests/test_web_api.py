@@ -23,8 +23,11 @@ def test_colregs_log_identifies_target_and_cleared_context() -> None:
 
     assert script.status_code == 200
     assert "const encounter = data.primary_encounter || null;" in script.text
+    assert "function encounterTargetLabel(encounter)" in script.text
+    assert "`TS${targetId}`" in script.text
     assert "COLREGs → ${ruleLabel}${targetSuffix}" in script.text
     assert "COLREGs → ${ENCOUNTER_LABELS.clear}（结束 ${previousRule}${previousTarget}）" in script.text
+    assert "DCPA ${lvl.toUpperCase()}${targetSuffix}" in script.text
 
 
 def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915

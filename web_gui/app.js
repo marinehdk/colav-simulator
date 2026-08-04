@@ -138,7 +138,7 @@ const perfHistory = [];
 let ws          = null;
 let currentData = null;
 let logCount    = 0;
-let lastColregs = '', lastColregsTarget = '', lastDcpaLevel = '';
+let lastColregs = '', lastColregsTarget = '', lastDcpaLevel = '', lastDcpaTarget = '';
 const seenEventKeys = new Set();
 let activeSessionId = null;
 let activeSessionKey = null;
@@ -2589,10 +2589,17 @@ function pushLog(msg, cls = 'log-info') {
   terminal.scrollTop = terminal.scrollHeight;
 }
 
+function encounterTargetLabel(encounter) {
+  if (!encounter) return '';
+  if (encounter.target_label) return String(encounter.target_label);
+  const targetId = encounter.target_id;
+  return targetId === null || targetId === undefined || targetId === '' ? '' : `TS${targetId}`;
+}
+
 function checkLogEvents(data) {
   const encounter = data.primary_encounter || null;
   const col = encounter?.encounter || data.colregs || 'clear';
-  const target = encounter?.target_label || '';
+  const target = encounterTargetLabel(encounter);
   if (col === 'clear') {
     if (lastColregs && lastColregs !== 'clear') {
       const previousRule = ENCOUNTER_LABELS[lastColregs] || lastColregs;
@@ -2613,10 +2620,12 @@ function checkLogEvents(data) {
   }
   const dcpa = Number.isFinite(data.dcpa) ? data.dcpa : null;
   const lvl = dcpa === null ? null : dcpa > DCPA_SAFE ? 'safe' : dcpa > DCPA_WARN ? 'warn' : 'danger';
-  if (lvl && lvl !== lastDcpaLevel) {
-    pushLog(`DCPA ${lvl.toUpperCase()} — ${dcpa.toFixed(0)} m`,
+  if (lvl && (lvl !== lastDcpaLevel || target !== lastDcpaTarget)) {
+    const targetSuffix = target ? ` / ${target}` : '';
+    pushLog(`DCPA ${lvl.toUpperCase()}${targetSuffix} — ${dcpa.toFixed(0)} m`,
             lvl === 'safe' ? 'log-ok' : lvl === 'warn' ? 'log-warn' : 'log-danger');
     lastDcpaLevel = lvl;
+    lastDcpaTarget = target;
   }
   (data.events || []).forEach(event => {
     const planner = event.details?.planner || {};
@@ -2961,6 +2970,7 @@ function activateSession(data, requestKey = null) {
   lastColregs = '';
   lastColregsTarget = '';
   lastDcpaLevel = '';
+  lastDcpaTarget = '';
   seenEventKeys.clear();
   encReady = false;
   encInfo = null;
