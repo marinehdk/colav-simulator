@@ -203,7 +203,9 @@ class VO:
         self._give_way_rearm_counts: dict[int, int] = {}
         self._overtaking_states: dict[int, OvertakingState] = {}
         self._overtaking_completion_counts: dict[int, int] = {}
+        self._overtaking_disengage_counts: dict[int, int] = {}
         self._overtaking_rearm_counts: dict[int, int] = {}
+        self._overtaking_release_reasons: dict[int, str | None] = {}
         self._overtaking_entry_tcpa_s: dict[int, float] = {}
         self._overtaking_target_headings: dict[int, float] = {}
         self._overtaking_target_speeds: dict[int, float] = {}
@@ -227,6 +229,7 @@ class VO:
         self._dynamic_hazard_count = 0
         self._static_hazard_count = 0
         self._track_metrics: dict[int, dict[str, Any]] = {}
+        self._target_count_current = 0
         self._reference_velocity_error_mps = 0.0
         self._reference_velocity = np.zeros(2)
         self._current_velocity = np.zeros(2)
@@ -263,7 +266,9 @@ class VO:
         self._give_way_rearm_counts.clear()
         self._overtaking_states.clear()
         self._overtaking_completion_counts.clear()
+        self._overtaking_disengage_counts.clear()
         self._overtaking_rearm_counts.clear()
+        self._overtaking_release_reasons.clear()
         self._overtaking_entry_tcpa_s.clear()
         self._overtaking_target_headings.clear()
         self._overtaking_target_speeds.clear()
@@ -283,6 +288,7 @@ class VO:
         self._give_way_commitment_rules.clear()
         self._emergency_rule_relaxation = False
         self._stand_on_hold_active = False
+        self._target_count_current = 0
         self._reset_grid()
 
     def _reset_grid(self) -> None:
@@ -324,6 +330,7 @@ class VO:
 
         self._dynamic_hazard_count = 0
         self._track_metrics = {}
+        self._target_count_current = len(do_list)
         self._matched_rules_current.clear()
         seen_target_ids: set[int] = set()
         for target in sorted(do_list, key=lambda item: int(item[0])):
@@ -594,7 +601,9 @@ class VO:
                 state = OvertakingState.COMMITTED
                 self._overtaking_states[target_id] = state
                 self._overtaking_completion_counts[target_id] = 0
+                self._overtaking_disengage_counts[target_id] = 0
                 self._overtaking_entry_tcpa_s[target_id] = float(tcpa)
+                self._overtaking_release_reasons[target_id] = None
                 self._overtaking_last_target_id = target_id
         elif state is OvertakingState.COMMITTED:
             passed_candidate = bool(
@@ -607,10 +616,34 @@ class VO:
             count = self._overtaking_completion_counts.get(target_id, 0)
             count = count + 1 if passed_candidate else 0
             self._overtaking_completion_counts[target_id] = count
+            separated_candidate = bool(
+                self._target_count_current > 1
+                and not risk_eligible
+                and tcpa is not None
+                and tcpa <= 0.0
+                and distance >= self._params.overtaking_rearm_distance_m
+                and abs(cross_track) >= self._params.overtaking_rearm_distance_m
+                and along_track < self._params.overtaking_passed_lead_m
+            )
+            disengage_count = self._overtaking_disengage_counts.get(target_id, 0)
+            disengage_count = disengage_count + 1 if separated_candidate else 0
+            self._overtaking_disengage_counts[target_id] = disengage_count
             if count >= self._params.overtaking_confirmation_steps:
                 state = OvertakingState.PASSED
                 self._overtaking_states[target_id] = state
                 self._overtaking_rearm_counts[target_id] = 0
+                self._overtaking_release_reasons[target_id] = "passed"
+                self._rule_memory.pop((target_id, VOCOLREGSSituation.OT_ing), None)
+                self._overtaking_last_target_id = target_id
+                if self._overtaking_active_target_id == target_id:
+                    self._overtaking_active_target_id = None
+            elif disengage_count >= self._params.overtaking_confirmation_steps:
+                state = OvertakingState.CLEAR
+                self._overtaking_states[target_id] = state
+                self._overtaking_completion_counts.pop(target_id, None)
+                self._overtaking_disengage_counts.pop(target_id, None)
+                self._overtaking_entry_tcpa_s.pop(target_id, None)
+                self._overtaking_release_reasons[target_id] = "separated_without_pass"
                 self._rule_memory.pop((target_id, VOCOLREGSSituation.OT_ing), None)
                 self._overtaking_last_target_id = target_id
                 if self._overtaking_active_target_id == target_id:
@@ -624,8 +657,10 @@ class VO:
                 state = OvertakingState.CLEAR
                 self._overtaking_states[target_id] = state
                 self._overtaking_completion_counts.pop(target_id, None)
+                self._overtaking_disengage_counts.pop(target_id, None)
                 self._overtaking_rearm_counts.pop(target_id, None)
                 self._overtaking_entry_tcpa_s.pop(target_id, None)
+                self._overtaking_release_reasons[target_id] = "rearmed"
 
         self._overtaking_metrics[target_id] = {
             "overtaking_along_track_m": along_track,
@@ -907,8 +942,20 @@ class VO:
             VOCOLREGSSituation.OT_ing,
             VOCOLREGSSituation.CR_SS,
         }
+        reference_tracking_error = float(np.linalg.norm(self._current_velocity - v_ref))
+        stand_on_responsibility = (
+            VOCOLREGSSituation.CR_PS in active_rules
+            or (
+                VOCOLREGSSituation.CR_PS in self._matched_rules_current
+                and (
+                    self._target_count_current <= 1
+                    or reference_tracking_error
+                    <= self._params.crossing_commitment_deadband_mps
+                )
+            )
+        )
         self._stand_on_hold_active = bool(
-            VOCOLREGSSituation.CR_PS in responsibility_rules
+            stand_on_responsibility
             and not responsibility_rules.intersection(give_way_rules)
             and not self._base_vo_mask[current_index]
             and not self._hard_constraint_mask[current_index]
@@ -1095,7 +1142,9 @@ class VO:
             self._give_way_rearm_counts.pop(target_id, None)
             self._overtaking_states.pop(target_id, None)
             self._overtaking_completion_counts.pop(target_id, None)
+            self._overtaking_disengage_counts.pop(target_id, None)
             self._overtaking_rearm_counts.pop(target_id, None)
+            self._overtaking_release_reasons.pop(target_id, None)
             self._overtaking_entry_tcpa_s.pop(target_id, None)
             self._overtaking_target_headings.pop(target_id, None)
             self._overtaking_target_speeds.pop(target_id, None)
@@ -1226,7 +1275,10 @@ class VO:
         )
         overtaking_metrics = self._overtaking_metrics.get(overtaking_target_id, {})
         overtaking_release_count = (
-            self._overtaking_completion_counts.get(overtaking_target_id, 0)
+            max(
+                self._overtaking_completion_counts.get(overtaking_target_id, 0),
+                self._overtaking_disengage_counts.get(overtaking_target_id, 0),
+            )
             if overtaking_state is OvertakingState.COMMITTED
             else self._overtaking_rearm_counts.get(overtaking_target_id, 0)
         )
@@ -1292,6 +1344,9 @@ class VO:
             ),
             "overtaking_progress_relaxed": self._overtaking_progress_relaxed,
             "overtaking_release_count": overtaking_release_count,
+            "overtaking_release_reason": self._overtaking_release_reasons.get(
+                overtaking_target_id
+            ),
             "overtaking_entry_tcpa_s": self._overtaking_entry_tcpa_s.get(
                 overtaking_target_id
             ),

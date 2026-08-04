@@ -138,7 +138,7 @@ const perfHistory = [];
 let ws          = null;
 let currentData = null;
 let logCount    = 0;
-let lastColregs = '', lastDcpaLevel = '';
+let lastColregs = '', lastColregsTarget = '', lastDcpaLevel = '';
 const seenEventKeys = new Set();
 let activeSessionId = null;
 let activeSessionKey = null;
@@ -2590,13 +2590,26 @@ function pushLog(msg, cls = 'log-info') {
 }
 
 function checkLogEvents(data) {
-  const col = data.colregs;
-  if (col !== lastColregs) {
+  const encounter = data.primary_encounter || null;
+  const col = encounter?.encounter || data.colregs || 'clear';
+  const target = encounter?.target_label || '';
+  if (col === 'clear') {
+    if (lastColregs && lastColregs !== 'clear') {
+      const previousRule = ENCOUNTER_LABELS[lastColregs] || lastColregs;
+      const previousTarget = lastColregsTarget ? ` / ${lastColregsTarget}` : '';
+      pushLog(`COLREGs → ${ENCOUNTER_LABELS.clear}（结束 ${previousRule}${previousTarget}）`, 'log-ok');
+    }
+    lastColregs = col;
+    lastColregsTarget = '';
+  } else if (col !== lastColregs || target !== lastColregsTarget) {
     const cls = col === 'head_on'           ? 'log-warn'   :
                 col === 'crossing_give_way' ? 'log-danger' :
-                col === 'clear'             ? 'log-ok'     : 'log-info';
-    pushLog(`COLREGs → ${ENCOUNTER_LABELS[col] || col}`, cls);
+                                               'log-info';
+    const ruleLabel = ENCOUNTER_LABELS[col] || col;
+    const targetSuffix = target ? ` / ${target}` : '';
+    pushLog(`COLREGs → ${ruleLabel}${targetSuffix}`, cls);
     lastColregs = col;
+    lastColregsTarget = target;
   }
   const dcpa = Number.isFinite(data.dcpa) ? data.dcpa : null;
   const lvl = dcpa === null ? null : dcpa > DCPA_SAFE ? 'safe' : dcpa > DCPA_WARN ? 'warn' : 'danger';
@@ -2946,6 +2959,7 @@ function activateSession(data, requestKey = null) {
   setRuntimePanelsExpanded(false);
   renderSolveTimeline();
   lastColregs = '';
+  lastColregsTarget = '';
   lastDcpaLevel = '';
   seenEventKeys.clear();
   encReady = false;

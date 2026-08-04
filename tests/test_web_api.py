@@ -17,6 +17,16 @@ def _assert_primary_encounter_aliases(payload: dict) -> None:
     assert payload["colregs"] == primary["encounter"]
 
 
+def test_colregs_log_identifies_target_and_cleared_context() -> None:
+    with TestClient(app) as client:
+        script = client.get("/static/app.js")
+
+    assert script.status_code == 200
+    assert "const encounter = data.primary_encounter || null;" in script.text
+    assert "COLREGs → ${ruleLabel}${targetSuffix}" in script.text
+    assert "COLREGs → ${ENCOUNTER_LABELS.clear}（结束 ${previousRule}${previousTarget}）" in script.text
+
+
 def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
     with TestClient(app) as client:
         page = client.get("/")

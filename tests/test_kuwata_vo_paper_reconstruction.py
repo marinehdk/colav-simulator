@@ -153,6 +153,50 @@ def test_same_geometry_changes_cpa_gate_when_target_speed_changes() -> None:
     )
 
 
+def test_distant_stand_on_geometry_does_not_hold_a_previous_slow_speed() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    stand_on_target = _track(1, (1000.0, -1000.0), (0.0, 5.0))
+    background_target = _track(2, (-2000.0, 1000.0), (0.0, 0.0))
+
+    planner.plan(
+        0.0,
+        np.array([6.0, 0.0]),
+        _own_state(speed=0.65),
+        [stand_on_target, background_target],
+    )
+
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["matched_rules"] == ["CR_PS"]
+    assert not debug["track_metrics"][1]["cpa_gate_eligible"]
+    assert debug["active_rules"] == {}
+    assert not debug["stand_on_hold_active"]
+    assert debug["selected_speed_mps"] > 5.0
+
+
+def test_risky_stand_on_encounter_still_holds_current_motion() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    target = _track(1, (100.0, -100.0), (0.0, 5.0))
+
+    planner.plan(0.0, np.array([6.0, 0.0]), _own_state(speed=0.65), [target])
+
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["cpa_gate_eligible"]
+    assert debug["active_rules"] == {"1": ["CR_PS"]}
+    assert debug["stand_on_hold_active"]
+
+
 def test_crossing_commitment_blocks_port_candidates_until_rule_releases() -> None:
     planner = VO(
         VOParams(
@@ -339,6 +383,38 @@ def test_overtaking_lock_survives_range_growth_cpa_safety_and_role_flip() -> Non
     assert flipped["track_metrics"][1]["matched_rules"] == ["CR_SS"]
     assert flipped["track_metrics"][1]["active_rules"] == ["OT_ing"]
     assert flipped["overtaking_state"] == "COMMITTED"
+
+
+def test_overtaking_lock_releases_after_confirmed_safe_lateral_separation() -> None:
+    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    planner.plan(
+        0.0,
+        np.array([8.0, 0.0]),
+        _own_state(speed=8.0),
+        [_track(1, (707.0, 0.0), (5.0, 0.0))],
+    )
+    separated_target = _track(1, (400.0, 400.0), (5.0, 0.0))
+    background_target = _track(2, (-1000.0, 1000.0), (0.0, 0.0))
+
+    for sim_time in (1.0, 2.0):
+        planner.plan(
+            sim_time,
+            np.array([8.0, 0.0]),
+            _own_state(speed=2.0),
+            [separated_target, background_target],
+        )
+        assert planner.get_debug_data()["overtaking_state"] == "COMMITTED"
+
+    planner.plan(
+        3.0,
+        np.array([8.0, 0.0]),
+        _own_state(speed=2.0),
+        [separated_target, background_target],
+    )
+    debug = planner.get_debug_data()
+    assert debug["overtaking_state"] == "CLEAR"
+    assert debug["overtaking_release_reason"] == "separated_without_pass"
+    assert not debug["give_way_commitment_active"]
 
 
 def test_overtaking_requires_three_confirmed_passed_solves_then_rearms() -> None:
