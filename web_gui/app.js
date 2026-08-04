@@ -931,17 +931,21 @@ function drawArrowHead(point, heading, color) {
 
 function targetsForDisplay(data) {
   const obstacles = data.obstacles || [];
+  if (data.executed_tracker === 'god') return obstacles;
+
   const trackSet = data.tracks?.[0];
   if (trackSet?.states?.length) {
+    const truthById = new Map(obstacles.map(target => [String(target.id), target]));
     return trackSet.states.map((state, index) => {
-      const truth = obstacles[index] || {};
+      const id = trackSet.labels?.[index] ?? index + 1;
+      const truth = truthById.get(String(id)) || {};
       const velocityNorth = Number(state[2]);
       const velocityEast = Number(state[3]);
       const speed = Math.hypot(velocityNorth, velocityEast);
       const course = Math.atan2(velocityEast, velocityNorth);
       return {
         ...truth,
-        id: trackSet.labels?.[index] ?? truth.id ?? index + 1,
+        id,
         x: Number(state[0]),
         y: Number(state[1]),
         psi: Number.isFinite(course) ? course : truth.psi,
@@ -951,7 +955,7 @@ function targetsForDisplay(data) {
       };
     }).filter(target => Number.isFinite(target.x) && Number.isFinite(target.y));
   }
-  return data.executed_tracker === 'god' ? obstacles : [];
+  return [];
 }
 
 function targetThreat(data, target) {
