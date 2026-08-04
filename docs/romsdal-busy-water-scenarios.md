@@ -17,12 +17,13 @@ implied by these scenarios.
 
 ### `romsdal_busy_water_16`
 
-- Ship0 plus 15 scripted targets, 600 s, `dt_sim=0.1 s`.
+- Ship0 plus 15 scripted targets by default, 1200 s, `dt_sim=0.1 s`.
 - Default mix is crossing 60%, head-on 20%, and overtaking 20%. Fifteen targets
   therefore produce 9 CS, 3 HO, and 3 OT routes. CS and OT responsibility roles
   alternate with a difference of at most one.
-- Every target follows one constant-speed, two-point shuttle route near Ship0's
-  nominal lane. Endpoint overshoot is reflected and the vessel reverses course.
+- Every target makes one constant-speed transit from its entry endpoint to its
+  exit endpoint near Ship0's nominal lane. It never reverses. After reaching
+  the exit, its active window closes and it disappears from tracking.
 - Nominal, VO, SB-MPC, and COLREG fan MPC are selectable with God tracker as
   experimental G2 combinations. Selection is not verified G3 evidence.
 
@@ -36,8 +37,9 @@ implied by these scenarios.
   evaluation uses a conservative broad phase, then runs the full C2A footprint
   oracle for every potential contact and the nearest pair. Its evaluation
   status remains `PARTIAL`; the 16-ship acceptance scenario keeps full CCD.
-- The committed 600 s fixture replaces the paper's 3000 s duration as the
-  practical interactive target. A 3000 s run remains an optional soak test.
+- This fixture remains available for offline stress testing but is hidden from
+  the interactive scenario cards. The configurable scene is limited to 0-40
+  target ships. A 3000 s run remains an optional soak test.
 
 ## Generate And Preflight
 
@@ -71,15 +73,16 @@ hazards.
 
 ## Interactive Authoring
 
-Open the busy-water settings button on the chart to choose 3-79 targets, seed,
-and encounter ratios. The generated document enters the normal RunSpec,
-manifest, scenario hash, and evaluation path as a validated override.
+Open the busy-water settings button on the chart to choose 0-40 targets. The
+generated document enters the normal RunSpec, manifest, scenario hash, and
+evaluation path as a validated override.
 
 Before starting the simulation, select any target ship to edit speed and both
 UTM route endpoints. Endpoints may be typed or picked on the map. Applying an
 edit creates a new paused session; a running session is never mutated. Complete
 documents can be saved and reloaded from ignored `runs/scenario_drafts` YAML
-files, preserving every vessel state and route.
+files, preserving every vessel state, route, active window, and single-pass
+exit behavior.
 
 ## Evidence Boundaries
 

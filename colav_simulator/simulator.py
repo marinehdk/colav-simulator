@@ -427,7 +427,7 @@ class Simulator:
             sim_data_dict[f"Ship{i}"]["colav"] = colav_data
 
             if scripted_target:
-                advance_scripted_shuttle(ship_obj, self.dt)
+                advance_scripted_single_pass(ship_obj, self.dt)
             else:
                 ship_obj.forward(self.dt, disturbance_data)
 
@@ -572,17 +572,17 @@ class Simulator:
         return d2goal <= self.ship_list[ship_idx].length * scale_factor
 
 
-def advance_scripted_shuttle(ship_obj: Ship, dt: float) -> None:
-    """Advance a constant-speed target between two endpoints with reflection."""
+def advance_scripted_single_pass(ship_obj: Ship, dt: float) -> None:
+    """Advance a constant-speed target toward its exit without reflection."""
     waypoints = np.asarray(ship_obj.waypoints, dtype=float)
     if waypoints.ndim != 2 or waypoints.shape[0] != 2 or waypoints.shape[1] < 2:
-        raise ValueError(f"Ship{ship_obj.id}: scripted shuttle requires two waypoints")
+        raise ValueError(f"Ship{ship_obj.id}: scripted target requires two waypoints")
     first = waypoints[:, 0]
     second = waypoints[:, -1]
     delta = second - first
     route_length = float(np.linalg.norm(delta))
     if route_length <= 1e-9:
-        raise ValueError(f"Ship{ship_obj.id}: scripted shuttle endpoints must be distinct")
+        raise ValueError(f"Ship{ship_obj.id}: scripted target endpoints must be distinct")
 
     state = ship_obj.csog_state
     speed = float(state[2])
@@ -590,16 +590,7 @@ def advance_scripted_shuttle(ship_obj: Ship, dt: float) -> None:
     along = float(np.clip(np.dot(state[:2] - first, unit), 0.0, route_length))
     current_direction = np.array([np.cos(state[3]), np.sin(state[3])])
     direction_sign = 1.0 if np.dot(current_direction, unit) >= 0.0 else -1.0
-    remaining = max(0.0, speed * float(dt))
-    while remaining > 1e-9:
-        boundary_distance = route_length - along if direction_sign > 0.0 else along
-        if remaining <= boundary_distance + 1e-9:
-            along += direction_sign * remaining
-            remaining = 0.0
-        else:
-            remaining -= boundary_distance
-            along = route_length if direction_sign > 0.0 else 0.0
-            direction_sign *= -1.0
+    along = float(np.clip(along + direction_sign * max(0.0, speed * float(dt)), 0.0, route_length))
 
     direction = direction_sign * unit
     state[:2] = first + unit * along

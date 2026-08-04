@@ -35,6 +35,7 @@ from colav_simulator.experiment.busy_water import (
     STRESS_SCENARIO_ID,
     build_busy_water_document,
     normalize_encounter_mix,
+    normalize_single_pass_document,
     preflight_document,
 )
 from colav_simulator.experiment.contracts import RunSpec, SessionState
@@ -138,7 +139,7 @@ class SessionCreateRequest(BaseModel):
         if override is not None:
             if self.scenario_id not in BUSY_WATER_SCENARIOS:
                 raise ValueError("scenario_override is supported only for busy-water scenarios")
-            override = copy.deepcopy(override)
+            override = normalize_single_pass_document(override)
             override["name"] = self.scenario_id
             preflight_document(override, seed=self.seed)
             payload["scenario_override"] = override
@@ -190,7 +191,7 @@ def _draft_slug(value: str) -> str:
 def _validate_busy_water_document(document: dict[str, Any], base_scenario_id: str, seed: int) -> dict[str, Any]:
     if base_scenario_id not in BUSY_WATER_SCENARIOS:
         raise ValueError(f"unsupported busy-water base scenario: {base_scenario_id}")
-    normalized = copy.deepcopy(document)
+    normalized = normalize_single_pass_document(document)
     normalized["name"] = base_scenario_id
     result = preflight_document(normalized, seed=seed)
     return {"document": normalized, "preflight": result}

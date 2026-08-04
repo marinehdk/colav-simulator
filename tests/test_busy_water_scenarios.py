@@ -10,6 +10,7 @@ from colav_simulator.experiment.busy_water import (
     DEFAULT_ENCOUNTER_MIX,
     allocate_encounter_counts,
     build_busy_water_document,
+    normalize_single_pass_document,
     preflight_document,
 )
 from colav_simulator.experiment.capabilities import CapabilityCatalog
@@ -25,7 +26,9 @@ def test_acceptance_scenario_is_deterministic_and_matches_committed_yaml() -> No
     assert len(generated["ship_list"]) == 16
     assert len({ship["id"] for ship in generated["ship_list"]}) == 16
     assert generated["t_end"] == BUSY_WATER_DURATION_S == 1200.0
-    assert all(ship.get("t_end", BUSY_WATER_DURATION_S) == BUSY_WATER_DURATION_S for ship in generated["ship_list"])
+    targets = generated["ship_list"][1:]
+    assert all(0.0 <= ship["t_start"] < ship["t_end"] <= BUSY_WATER_DURATION_S for ship in targets)
+    assert all(ship["t_end"] < BUSY_WATER_DURATION_S for ship in targets)
 
 
 def test_stress_scenario_is_seeded_and_matches_committed_yaml() -> None:
@@ -158,6 +161,20 @@ def test_busy_water_generate_and_draft_round_trip(tmp_path: Path, monkeypatch: p
             "encounter_mix": {"crossing": 0.7, "head_on": 0.2, "overtaking": 0.1},
         }
     ]
+
+
+def test_single_pass_normalization_recomputes_manual_target_exit_time() -> None:
+    document = build_busy_water_document("acceptance", target_count=1, seed=17)
+    target = document["ship_list"][1]
+    target["csog_state"] = [6_956_500.0, 39_800.0, 5.0, 0.0]
+    target["waypoints"] = [[6_956_500.0, 6_957_000.0], [39_800.0, 39_800.0]]
+    target["t_start"] = 20.0
+    target["t_end"] = BUSY_WATER_DURATION_S
+
+    normalized = normalize_single_pass_document(document)
+
+    assert normalized["ship_list"][1]["t_end"] == pytest.approx(120.0)
+    assert document["ship_list"][1]["t_end"] == BUSY_WATER_DURATION_S
 
 
 def test_busy_water_generate_rejects_invalid_count() -> None:

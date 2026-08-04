@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,35 @@ def build_busy_water_document(
     dt_sim = 0.1 if profile == "acceptance" else 0.5
     scenario_id = ACCEPTANCE_SCENARIO_ID if profile == "acceptance" else STRESS_SCENARIO_ID
     return _build_route_traffic_document(scenario_id, seed, count, mix, dt_sim=dt_sim)
+
+
+def normalize_single_pass_document(document: dict[str, Any]) -> dict[str, Any]:
+    """Normalize busy-water targets to one entry-to-exit transit."""
+    normalized = copy.deepcopy(document)
+    scenario_end = float(normalized["t_end"])
+    for ship in normalized.get("ship_list", [])[1:]:
+        start = float(ship.get("t_start", 0.0))
+        speed = float(ship["csog_state"][2])
+        if speed <= 0.0:
+            raise ValueError(f"ship {ship['id']} single-pass speed must be positive")
+        waypoints = np.asarray(ship["waypoints"], dtype=float)
+        first = waypoints[:, 0]
+        second = waypoints[:, -1]
+        delta = second - first
+        length = float(np.linalg.norm(delta))
+        if length <= 1e-9:
+            raise ValueError(f"ship {ship['id']} single-pass endpoints must be distinct")
+        unit = delta / length
+        position = np.asarray(ship["csog_state"][:2], dtype=float)
+        velocity = velocity_ne(speed, np.deg2rad(float(ship["csog_state"][3])))
+        exit_point = second if float(velocity @ unit) >= 0.0 else first
+        remaining = float(np.linalg.norm(exit_point - position))
+        end = min(scenario_end, start + remaining / speed)
+        if end <= start + 1e-9:
+            raise ValueError(f"ship {ship['id']} starts at its single-pass exit")
+        ship["t_start"] = start
+        ship["t_end"] = end
+    return normalized
 
 
 def write_busy_water_scenario(
@@ -175,11 +205,7 @@ def _build_route_traffic_document(
         for attempt in range(100):
             shifted_time = 55.0 + ((float(event_time) - 55.0 + attempt * 7.3) % 450.0)
             candidate = _route_target_document(identifier, role, shifted_time, rng)
-            candidate_position = np.asarray(candidate["csog_state"][:2], dtype=float)
-            if all(
-                np.linalg.norm(candidate_position - np.asarray(existing["csog_state"][:2], dtype=float)) >= 30.0
-                for existing in ships
-            ):
+            if _candidate_is_clear(candidate, ships, require_full_transit=target_count <= DEFAULT_TARGET_COUNT):
                 ships.append(candidate)
                 break
         else:
@@ -187,6 +213,30 @@ def _build_route_traffic_document(
     document = _base_document(scenario_id, dt_sim=dt_sim, target_count=target_count)
     document["ship_list"] = ships
     return document
+
+
+def _candidate_is_clear(
+    candidate: dict[str, Any],
+    existing_ships: list[dict[str, Any]],
+    *,
+    require_full_transit: bool,
+) -> bool:
+    for existing in existing_ships:
+        if not _windows_overlap(candidate, existing):
+            continue
+        start = max(float(candidate["t_start"]), float(existing.get("t_start", 0.0)))
+        end = min(float(candidate["t_end"]), float(existing.get("t_end", BUSY_WATER_DURATION_S)))
+        times = [start]
+        if require_full_transit and int(existing["id"]) != 0:
+            times = np.linspace(start, end, max(2, int(np.ceil((end - start) / 2.0)) + 1))
+        minimum = min(
+            float(np.linalg.norm(_nominal_position(candidate, time_s) - _nominal_position(existing, time_s)))
+            for time_s in times
+        )
+        required = float(np.hypot(_SHIP_LENGTH_M, _SHIP_WIDTH_M) + 5.0)
+        if minimum < required:
+            return False
+    return True
 
 
 def _route_target_document(
@@ -228,7 +278,7 @@ def _route_target_document(
         conflict_on_segment[1] = first[1]
     else:
         conflict_on_segment[0] = first[0]
-    position, direction = shuttle_state_at_phase(
+    position, direction, t_start, t_end, entry, exit_point = single_pass_state_at_event(
         first,
         second,
         speed,
@@ -242,33 +292,44 @@ def _route_target_document(
         position,
         speed,
         course_deg,
-        t_start=0.0,
-        t_end=BUSY_WATER_DURATION_S,
-        waypoints=(first, second),
+        t_start=t_start,
+        t_end=t_end,
+        waypoints=(entry, exit_point),
         encounter_role=role,
     )
 
 
-def shuttle_state_at_phase(
+def single_pass_state_at_event(
     first: np.ndarray,
     second: np.ndarray,
     speed_mps: float,
     event_time_s: float,
     event_position: np.ndarray,
     event_direction_sign: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Find a t=0 shuttle state that reaches one event pose and direction."""
+) -> tuple[np.ndarray, np.ndarray, float, float, np.ndarray, np.ndarray]:
+    """Build one active window that reaches an event once, then exits."""
     delta = np.asarray(second, dtype=float) - np.asarray(first, dtype=float)
     length = float(np.linalg.norm(delta))
     if length <= 0.0:
-        raise ValueError("shuttle route endpoints must be distinct")
+        raise ValueError("single-pass route endpoints must be distinct")
     unit = delta / length
-    event_s = float(np.clip(np.dot(np.asarray(event_position) - first, unit), 0.0, length))
-    event_phase = event_s if event_direction_sign >= 0 else 2.0 * length - event_s
-    phase = (event_phase - speed_mps * event_time_s) % (2.0 * length)
-    along = phase if phase <= length else 2.0 * length - phase
-    direction = unit if phase < length else -unit
-    return np.asarray(first, dtype=float) + unit * along, direction
+    direction = unit if event_direction_sign >= 0 else -unit
+    entry = np.asarray(first if event_direction_sign >= 0 else second, dtype=float)
+    exit_point = np.asarray(second if event_direction_sign >= 0 else first, dtype=float)
+    event_position = np.asarray(event_position, dtype=float)
+    entry_to_event = float(np.clip((event_position - entry) @ direction, 0.0, length))
+    travel_time = entry_to_event / speed_mps
+    if event_time_s >= travel_time:
+        t_start = event_time_s - travel_time
+        position = entry.copy()
+    else:
+        t_start = 0.0
+        position = event_position - direction * speed_mps * event_time_s
+    t_end = min(
+        BUSY_WATER_DURATION_S,
+        t_start + float(np.linalg.norm(exit_point - position)) / speed_mps,
+    )
+    return position, direction, t_start, t_end, entry, exit_point
 
 
 def _base_document(name: str, *, dt_sim: float, target_count: int) -> dict[str, Any]:
@@ -401,10 +462,10 @@ def _windows_overlap(first: dict[str, Any], second: dict[str, Any]) -> bool:
 
 
 def _nominal_position(ship: dict[str, Any], sim_time_s: float) -> np.ndarray:
-    return _shuttle_position_velocity(ship, sim_time_s)[0]
+    return _single_pass_position_velocity(ship, sim_time_s)[0]
 
 
-def _shuttle_position_velocity(ship: dict[str, Any], sim_time_s: float) -> tuple[np.ndarray, np.ndarray]:
+def _single_pass_position_velocity(ship: dict[str, Any], sim_time_s: float) -> tuple[np.ndarray, np.ndarray]:
     active_time_s = max(0.0, sim_time_s - float(ship.get("t_start", 0.0)))
     speed = float(ship["csog_state"][2])
     waypoints = np.asarray(ship["waypoints"], dtype=float)
@@ -416,12 +477,11 @@ def _shuttle_position_velocity(ship: dict[str, Any], sim_time_s: float) -> tuple
         return np.asarray(ship["csog_state"][:2], dtype=float), np.zeros(2)
     unit = delta / length
     initial = np.asarray(ship["csog_state"][:2], dtype=float)
-    initial_s = float(np.clip(np.dot(initial - first, unit), 0.0, length))
     initial_velocity = velocity_ne(speed, np.deg2rad(float(ship["csog_state"][3])))
-    phase = initial_s if np.dot(initial_velocity, unit) >= 0.0 else 2.0 * length - initial_s
-    phase = (phase + speed * active_time_s) % (2.0 * length)
-    along = phase if phase <= length else 2.0 * length - phase
-    direction = unit if phase < length else -unit
+    direction_sign = 1.0 if np.dot(initial_velocity, unit) >= 0.0 else -1.0
+    initial_s = float(np.clip(np.dot(initial - first, unit), 0.0, length))
+    along = float(np.clip(initial_s + direction_sign * speed * active_time_s, 0.0, length))
+    direction = direction_sign * unit
     return first + unit * along, direction * speed
 
 
@@ -462,15 +522,17 @@ def _nominal_encounter_results(document: dict[str, Any]) -> list[dict[str, Any]]
     own = ships[0]
     output = []
     scenario_end = float(document["t_end"])
-    sample_times = np.linspace(0.0, scenario_end, int(scenario_end / 2.0) + 1)
     for target in ships[1:]:
+        start = float(target.get("t_start", 0.0))
+        end = float(target.get("t_end", scenario_end))
+        sample_times = np.linspace(start, end, max(2, int((end - start) / 2.0) + 1))
         distances = np.asarray(
             [np.linalg.norm(_nominal_position(target, time_s) - _nominal_position(own, time_s)) for time_s in sample_times]
         )
         closest_time = float(sample_times[int(np.argmin(distances))])
         probe_time = max(0.0, closest_time - 20.0)
-        own_position, own_velocity = _shuttle_position_velocity(own, probe_time)
-        target_position, target_velocity = _shuttle_position_velocity(target, probe_time)
+        own_position, own_velocity = _single_pass_position_velocity(own, probe_time)
+        target_position, target_velocity = _single_pass_position_velocity(target, probe_time)
         detected, dcpa_m, _, signed_tcpa_s, _ = classify_geometry(
             own_position,
             own_velocity,

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from colav_simulator.simulator import advance_scripted_shuttle
+from colav_simulator.simulator import advance_scripted_single_pass
 
 
 class ShuttleShip:
@@ -19,20 +19,20 @@ class ShuttleShip:
         self._state = np.asarray(state, dtype=float).copy()
 
 
-def test_shuttle_reflects_overshoot_and_reverses_course() -> None:
+def test_single_pass_clamps_overshoot_without_reversing_course() -> None:
     ship = ShuttleShip(95.0)
 
-    advance_scripted_shuttle(ship, 1.0)
+    advance_scripted_single_pass(ship, 1.0)
 
-    assert ship.csog_state[0] == pytest.approx(95.0)
-    assert abs(ship.csog_state[3]) == pytest.approx(np.pi)
+    assert ship.csog_state[0] == pytest.approx(100.0)
+    assert ship.csog_state[3] == pytest.approx(0.0)
     assert ship.csog_state[2] == pytest.approx(10.0)
 
 
-def test_shuttle_handles_multiple_reflections_without_speed_drift() -> None:
+def test_single_pass_remains_at_exit_without_speed_drift() -> None:
     ship = ShuttleShip(25.0)
 
-    advance_scripted_shuttle(ship, 47.5)
+    advance_scripted_single_pass(ship, 47.5)
 
     assert ship.csog_state[0] == pytest.approx(100.0)
     assert ship.csog_state[2] == pytest.approx(10.0)
