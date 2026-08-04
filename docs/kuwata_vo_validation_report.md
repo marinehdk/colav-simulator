@@ -11,8 +11,9 @@ Profile: seed `0`, God tracker, strict no fallback, `t_max=120 s`,
 
 - Standard six-scenario raw G3: `6/6 PASS`.
 - Phase 3 evaluator chain for VO: `6/6 PASS`.
-- VO behavior, decision-space API, and web targeted suite: `52 passed`.
-- Full regression: `273 passed, 2 skipped`.
+- VO unit and reconstruction regression: `57 passed`.
+- HO/CS/OT, multi-ship, raw G3, and Phase 3 regression: `33 passed`.
+- Full regression: `343 passed, 2 skipped`.
 - Targeted Ruff, JavaScript syntax, and `git diff --check`: passed.
 
 Commands:
