@@ -77,6 +77,9 @@ class VOParams:
     crossing_commitment_deadband_mps: float = 0.25
     give_way_release_distance_m: float = 150.0
     give_way_release_steps: int = 3
+    crossing_passed_distance_m: float = 100.0
+    crossing_confirmation_steps: int = 3
+    stand_on_emergency_toc_s: float = 60.0
     overtaking_t_max_s: float = 240.0
     overtaking_min_starboard_rad: float = float(np.deg2rad(5.0))
     overtaking_speed_advantage_mps: float = 0.5
@@ -119,6 +122,12 @@ class VOParams:
             raise ValueError("give_way_release_distance_m must be non-negative")
         if self.give_way_release_steps < 1:
             raise ValueError("give_way_release_steps must be positive")
+        if self.crossing_passed_distance_m < 0.0:
+            raise ValueError("crossing_passed_distance_m must be non-negative")
+        if self.crossing_confirmation_steps < 1:
+            raise ValueError("crossing_confirmation_steps must be positive")
+        if self.stand_on_emergency_toc_s <= 0.0:
+            raise ValueError("stand_on_emergency_toc_s must be positive")
         if self.overtaking_t_max_s <= 0.0:
             raise ValueError("overtaking_t_max_s must be positive")
         if self.overtaking_min_starboard_rad < 0.0:
@@ -219,6 +228,8 @@ class VO:
         self._active_rules: dict[int, set[VOCOLREGSSituation]] = {}
         self._matched_rules_current: set[VOCOLREGSSituation] = set()
         self._completed_crossing_targets: set[int] = set()
+        self._crossing_completion_counts: dict[int, int] = {}
+        self._crossing_previous_distances: dict[int, float] = {}
         self._initialized = False
         self._t_prev = 0.0
         self._plan_executed = False
@@ -240,6 +251,10 @@ class VO:
         self._give_way_commitment_rules: set[VOCOLREGSSituation] = set()
         self._emergency_rule_relaxation = False
         self._stand_on_hold_active = False
+        self._stand_on_emergency_active = False
+        self._driving_target_id: int | None = None
+        self._driving_rule: str | None = None
+        self._expired_target_ids_last_solve: list[int] = []
 
     @property
     def plan_executed(self) -> bool:
@@ -282,12 +297,18 @@ class VO:
         self._active_rules.clear()
         self._matched_rules_current.clear()
         self._completed_crossing_targets.clear()
+        self._crossing_completion_counts.clear()
+        self._crossing_previous_distances.clear()
         self._crossing_commitment_active = False
         self._crossing_commitment_frame_heading = None
         self._give_way_commitment_active = False
         self._give_way_commitment_rules.clear()
         self._emergency_rule_relaxation = False
         self._stand_on_hold_active = False
+        self._stand_on_emergency_active = False
+        self._driving_target_id = None
+        self._driving_rule = None
+        self._expired_target_ids_last_solve = []
         self._target_count_current = 0
         self._reset_grid()
 
@@ -349,6 +370,14 @@ class VO:
                 id_do, p_do, v_do, float(length_do), float(width_do)
             )
             expanded = compute_minkowski_sum(target_polygon, compute_reflection(poly_os_shape))
+            first_toc = float(
+                ray_polygon_ttc_grid(
+                    expanded,
+                    p_os,
+                    (v_os - v_do).reshape(1, 1, 2),
+                )[0, 0]
+            )
+            self._track_metrics[id_do]["first_toc_s"] = first_toc if np.isfinite(first_toc) else None
             geometry_matched_rules = self._determine_colregs_rules(
                 p_os,
                 psi_os,
@@ -362,17 +391,19 @@ class VO:
             }
             previous_rules = self._active_rules.get(id_do, set()).copy()
             matched_rules = set(geometry_matched_rules)
-            # A passed crossing can flip geometric roles; keep returning to route
-            # instead of treating the same tracked vessel as a new stand-on case.
-            crossing_return_phase = (
-                id_do in self._completed_crossing_targets
-                or (
-                    VOCOLREGSSituation.CR_SS in previous_rules
-                    and VOCOLREGSSituation.CR_SS not in matched_rules
-                )
+            crossing_completed = self._update_crossing_completion(
+                target_id=id_do,
+                previous_rules=previous_rules,
+                p_os=p_os,
+                p_do=p_do,
+                v_do=v_do,
+                cpa=rule_cpa,
             )
-            if crossing_return_phase:
+            if crossing_completed:
                 matched_rules.difference_update(crossing_rules)
+            elif VOCOLREGSSituation.CR_SS in previous_rules:
+                matched_rules.difference_update(crossing_rules)
+                matched_rules.add(VOCOLREGSSituation.CR_SS)
             cpa_gate_eligible = (
                 speed_do >= self._params.colregs_min_target_speed_mps
                 and self._precollision_check(
@@ -428,19 +459,24 @@ class VO:
                 matched=eligible_rules,
                 eligible=True,
             )
-            if (
-                VOCOLREGSSituation.CR_SS in previous_rules
-                and VOCOLREGSSituation.CR_SS not in rules
-            ):
-                self._completed_crossing_targets.add(id_do)
             self._track_metrics[id_do]["colregs_eligible"] = bool(eligible_rules)
             self._track_metrics[id_do]["cpa_gate_eligible"] = cpa_gate_eligible
             self._track_metrics[id_do]["commitment_eligible"] = commitment_eligible
+            self._track_metrics[id_do]["crossing_completed"] = crossing_completed
+            self._track_metrics[id_do]["crossing_release_count"] = self._crossing_completion_counts.get(id_do, 0)
+            self._track_metrics[id_do]["stand_on_emergency"] = bool(
+                VOCOLREGSSituation.CR_PS in (rules | geometry_matched_rules)
+                and np.isfinite(first_toc)
+                and first_toc <= self._params.stand_on_emergency_toc_s
+            )
             self._track_metrics[id_do]["overtaking_state"] = overtaking_state.value
             self._track_metrics[id_do].update(self._overtaking_metrics.get(id_do, {}))
             self._track_metrics[id_do]["matched_rules"] = [
                 rule.name
                 for rule in sorted(geometry_matched_rules, key=lambda item: item.value)
+            ]
+            self._track_metrics[id_do]["effective_matched_rules"] = [
+                rule.name for rule in sorted(matched_rules, key=lambda item: item.value)
             ]
             self._track_metrics[id_do]["active_rules"] = [
                 rule.name for rule in sorted(rules, key=lambda item: item.value)
@@ -453,6 +489,9 @@ class VO:
             )
             if speed_do >= self._params.colregs_min_target_speed_mps:
                 self._target_heading_memory[id_do] = psi_do
+            self._track_metrics[id_do]["dynamic_hazard_ignored"] = crossing_completed
+            if crossing_completed:
+                continue
             self._apply_dynamic_hazard(
                 expanded,
                 p_os,
@@ -465,6 +504,7 @@ class VO:
             self._dynamic_hazard_count += 1
 
         self._expire_missing_targets(seen_target_ids)
+        self._select_driving_target()
         self._select_overtaking_target()
         static_hazards = self._extract_static_hazards(enc, p_os, poly_os_shape)
         self._static_hazard_count = len(static_hazards)
@@ -557,6 +597,75 @@ class VO:
                 self._give_way_release_counts[target_id] = 0
                 self._give_way_previous_distances[target_id] = distance
         return matched_rules
+
+    def _update_crossing_completion(
+        self,
+        *,
+        target_id: int,
+        previous_rules: set[VOCOLREGSSituation],
+        p_os: np.ndarray,
+        p_do: np.ndarray,
+        v_do: np.ndarray,
+        cpa: dict[str, float | None],
+    ) -> bool:
+        if target_id in self._completed_crossing_targets:
+            return True
+        distance = float(cpa["center_distance_m"] or 0.0)
+        previous_distance = self._crossing_previous_distances.get(target_id, distance)
+        self._crossing_previous_distances[target_id] = distance
+        if VOCOLREGSSituation.CR_SS not in previous_rules:
+            self._crossing_completion_counts[target_id] = 0
+            return False
+        speed = float(np.linalg.norm(v_do))
+        if speed < self._params.colregs_min_target_speed_mps:
+            self._crossing_completion_counts[target_id] = 0
+            return False
+        target_along = v_do / speed
+        own_along_from_target = float((p_os - p_do) @ target_along)
+        tcpa = cpa["tcpa_s"]
+        passed_candidate = bool(
+            tcpa is not None
+            and tcpa <= 0.0
+            and own_along_from_target <= 0.0
+            and distance >= self._params.crossing_passed_distance_m
+            and distance >= previous_distance - 1e-9
+        )
+        count = self._crossing_completion_counts.get(target_id, 0)
+        count = count + 1 if passed_candidate else 0
+        self._crossing_completion_counts[target_id] = count
+        if count < self._params.crossing_confirmation_steps:
+            return False
+        self._completed_crossing_targets.add(target_id)
+        self._active_rules.get(target_id, set()).discard(VOCOLREGSSituation.CR_SS)
+        self._rule_memory.pop((target_id, VOCOLREGSSituation.CR_SS), None)
+        return True
+
+    def _target_priority(self, target_id: int) -> tuple[int, float, float, float, int]:
+        metrics = self._track_metrics.get(target_id, {})
+        tcpa = metrics.get("rule_tcpa_s")
+        dcpa = metrics.get("rule_dcpa_m")
+        distance = metrics.get("center_distance_m")
+        toc = metrics.get("first_toc_s")
+        positive_tcpa = float(tcpa) if tcpa is not None and tcpa >= 0.0 else float("inf")
+        finite_toc = float(toc) if toc is not None and toc >= 0.0 else float("inf")
+        finite_dcpa = float(dcpa) if dcpa is not None else float("inf")
+        finite_distance = float(distance) if distance is not None else float("inf")
+        committed = bool(metrics.get("committed_rule"))
+        active_risk = bool(metrics.get("cpa_gate_eligible") and metrics.get("active_rules"))
+        imminent = finite_toc <= self._params.stand_on_emergency_toc_s or finite_distance <= self._params.d_min
+        tier = 0 if imminent else (1 if active_risk else (2 if committed else 3))
+        return tier, min(finite_toc, positive_tcpa), finite_dcpa, finite_distance, target_id
+
+    def _select_driving_target(self) -> None:
+        if not self._track_metrics:
+            self._driving_target_id = None
+            self._driving_rule = None
+            return
+        self._driving_target_id = min(self._track_metrics, key=self._target_priority)
+        metrics = self._track_metrics[self._driving_target_id]
+        active = list(metrics.get("active_rules", ()))
+        matched = list(metrics.get("effective_matched_rules", ()))
+        self._driving_rule = active[0] if active else (matched[0] if matched else None)
 
     def _update_overtaking_state(  # noqa: PLR0915
         self,
@@ -673,6 +782,10 @@ class VO:
     def _select_overtaking_target(self) -> None:
         active = self._overtaking_active_target_id
         if active is not None and self._overtaking_states.get(active) is OvertakingState.COMMITTED:
+            driving = self._driving_target_id
+            if driving is None or driving == active or self._target_priority(active) <= self._target_priority(driving):
+                return
+            self._overtaking_active_target_id = None
             return
         committed = [
             target_id
@@ -682,6 +795,12 @@ class VO:
         if not committed:
             self._overtaking_active_target_id = None
             return
+
+        if self._driving_target_id is not None and self._driving_target_id not in committed:
+            best_committed = min(committed, key=self._target_priority)
+            if self._target_priority(self._driving_target_id) < self._target_priority(best_committed):
+                self._overtaking_active_target_id = None
+                return
 
         def priority(target_id: int) -> tuple[int, float, int]:
             tcpa = self._track_metrics.get(target_id, {}).get("rule_tcpa_s")
@@ -933,30 +1052,22 @@ class VO:
                 self._overtaking_progress_relaxed = True
 
         current_index = self._nearest_velocity_index(self._current_velocity)
-        active_rules = {
-            rule for rules in self._active_rules.values() for rule in rules
-        }
-        responsibility_rules = active_rules | self._matched_rules_current
-        give_way_rules = {
-            VOCOLREGSSituation.HO,
-            VOCOLREGSSituation.OT_ing,
-            VOCOLREGSSituation.CR_SS,
-        }
         reference_tracking_error = float(np.linalg.norm(self._current_velocity - v_ref))
+        driving_metrics = self._track_metrics.get(self._driving_target_id, {})
+        driving_rules = set(driving_metrics.get("active_rules", ())) | set(
+            driving_metrics.get("effective_matched_rules", ())
+        )
         stand_on_responsibility = (
-            VOCOLREGSSituation.CR_PS in active_rules
-            or (
-                VOCOLREGSSituation.CR_PS in self._matched_rules_current
-                and (
-                    self._target_count_current <= 1
-                    or reference_tracking_error
-                    <= self._params.crossing_commitment_deadband_mps
-                )
+            VOCOLREGSSituation.CR_PS.name in driving_rules
+            and (
+                self._target_count_current <= 1
+                or reference_tracking_error <= self._params.crossing_commitment_deadband_mps
             )
         )
+        self._stand_on_emergency_active = bool(driving_metrics.get("stand_on_emergency"))
         self._stand_on_hold_active = bool(
             stand_on_responsibility
-            and not responsibility_rules.intersection(give_way_rules)
+            and not self._stand_on_emergency_active
             and not self._base_vo_mask[current_index]
             and not self._hard_constraint_mask[current_index]
         )
@@ -1130,11 +1241,14 @@ class VO:
         missing = {target_id for target_id, _rule in self._rule_memory if target_id not in seen}
         missing.update(target_id for target_id in self._give_way_rule_locks if target_id not in seen)
         missing.update(target_id for target_id in self._overtaking_states if target_id not in seen)
+        self._expired_target_ids_last_solve = sorted(missing)
         for target_id in missing:
             for key in [key for key in self._rule_memory if key[0] == target_id]:
                 del self._rule_memory[key]
             self._active_rules.pop(target_id, None)
             self._completed_crossing_targets.discard(target_id)
+            self._crossing_completion_counts.pop(target_id, None)
+            self._crossing_previous_distances.pop(target_id, None)
             self._give_way_rule_locks.pop(target_id, None)
             self._give_way_release_counts.pop(target_id, None)
             self._give_way_previous_distances.pop(target_id, None)
@@ -1153,6 +1267,9 @@ class VO:
                 self._overtaking_active_target_id = None
             if self._overtaking_last_target_id == target_id:
                 self._overtaking_last_target_id = None
+            if self._driving_target_id == target_id:
+                self._driving_target_id = None
+                self._driving_rule = None
 
     def _determine_colregs_situation(
         self,
@@ -1311,6 +1428,10 @@ class VO:
                 self._base_vo_mask[current_speed_index, current_heading_index]
             ),
             "stand_on_hold_active": self._stand_on_hold_active,
+            "stand_on_emergency_active": self._stand_on_emergency_active,
+            "driving_target_id": self._driving_target_id,
+            "driving_rule": self._driving_rule,
+            "expired_target_ids": self._expired_target_ids_last_solve,
             "selected_in_wvo_only": bool(
                 self._wvo_mask[speed_index, heading_index]
                 and not self._hard_constraint_mask[speed_index, heading_index]

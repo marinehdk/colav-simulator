@@ -197,6 +197,50 @@ def test_risky_stand_on_encounter_still_holds_current_motion() -> None:
     assert debug["stand_on_hold_active"]
 
 
+def test_imminent_stand_on_collision_uses_rule17_emergency_action() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    target = _track(1, (50.0, -50.0), (0.0, 5.0))
+
+    planner.plan(0.0, np.array([6.0, 0.0]), _own_state(speed=6.0), [target])
+
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["first_toc_s"] < 60.0
+    assert debug["driving_target_id"] == 1
+    assert debug["driving_rule"] == "CR_PS"
+    assert debug["stand_on_emergency_active"]
+    assert not debug["stand_on_hold_active"]
+
+
+def test_imminent_target_preempts_remote_committed_target() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    remote_head_on = _track(1, (1000.0, 0.0), (-5.0, 0.0))
+    imminent_stand_on = _track(2, (50.0, -50.0), (0.0, 5.0))
+
+    planner.plan(
+        0.0,
+        np.array([6.0, 0.0]),
+        _own_state(speed=6.0),
+        [remote_head_on, imminent_stand_on],
+    )
+
+    debug = planner.get_debug_data()
+    assert debug["driving_target_id"] == 2
+    assert debug["driving_rule"] == "CR_PS"
+    assert debug["stand_on_emergency_active"]
+
+
 def test_crossing_commitment_blocks_port_candidates_until_rule_releases() -> None:
     planner = VO(
         VOParams(
@@ -234,11 +278,13 @@ def test_crossing_commitment_blocks_port_candidates_until_rule_releases() -> Non
     )
     assert (selected_velocity - previous_velocity) @ previous_starboard >= -0.25
 
-    clear_target = _track(1, (-100.0, 100.0), (0.0, -5.0))
+    clear_target = _track(1, (100.0, -100.0), (0.0, -5.0))
     for sim_time in (2.0, 3.0, 4.0):
         planner.plan(sim_time, np.array([5.0, 0.0]), _own_state(), [clear_target])
     assert not planner.get_debug_data()["crossing_commitment_active"]
     assert planner.get_debug_data()["crossing_commitment_state"] == "CLEAR"
+    assert planner.get_debug_data()["track_metrics"][1]["crossing_release_count"] == 3
+    assert planner.get_debug_data()["track_metrics"][1]["dynamic_hazard_ignored"]
 
     planner.plan(5.0, np.array([5.0, 0.0]), _own_state(), [target])
     assert "CR_SS" not in planner.get_debug_data()["active_rules"].get("1", [])
@@ -457,6 +503,26 @@ def test_overtaking_requires_three_confirmed_passed_solves_then_rearms() -> None
         assert planner.get_debug_data()["overtaking_state"] == "PASSED"
     planner.plan(7.0, np.array([8.0, 0.0]), _own_state(speed=8.0), [far_target])
     assert planner.get_debug_data()["overtaking_state"] == "CLEAR"
+
+
+def test_single_pass_target_exit_clears_overtaking_and_driving_state() -> None:
+    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    planner.plan(
+        0.0,
+        np.array([8.0, 0.0]),
+        _own_state(speed=8.0),
+        [_track(1, (707.0, 0.0), (5.0, 0.0))],
+    )
+    assert planner.get_debug_data()["overtaking_state"] == "COMMITTED"
+
+    planner.plan(1.0, np.array([8.0, 0.0]), _own_state(speed=8.0), [])
+
+    debug = planner.get_debug_data()
+    assert debug["expired_target_ids"] == [1]
+    assert debug["overtaking_state"] == "CLEAR"
+    assert debug["overtaking_target_id"] is None
+    assert debug["driving_target_id"] is None
+    assert not debug["give_way_commitment_active"]
 
 
 def test_overtaking_prefers_safe_speed_advantage_and_labels_relaxed_progress() -> None:
