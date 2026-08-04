@@ -21,8 +21,13 @@ from colav_simulator.core.guidances import LOSGuidanceParams
 from colav_simulator.integrations.registry import IntegrationRegistry
 
 
-def _own_state(*, speed: float = 5.0, heading: float = 0.0) -> np.ndarray:
-    return np.array([0.0, 0.0, heading, speed, 0.0, 0.0])
+def _own_state(
+    *,
+    speed: float = 5.0,
+    heading: float = 0.0,
+    position: tuple[float, float] = (0.0, 0.0),
+) -> np.ndarray:
+    return np.array([*position, heading, speed, 0.0, 0.0])
 
 
 def _track(
@@ -224,9 +229,15 @@ def test_give_way_commitment_survives_ownship_body_frame_corridor_exit(
 
     planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [target])
     first = planner.get_debug_data()
-    assert first["give_way_rule_locks"] == {"1": rule.name}
+    assert first["give_way_rule_locks"] == (
+        {} if rule is VOCOLREGSSituation.OT_ing else {"1": rule.name}
+    )
     assert first["give_way_commitment_active"]
-    assert first["selected_heading_rad"] >= -1e-12
+    assert first["selected_heading_rad"] >= (
+        planner._params.overtaking_min_starboard_rad
+        if rule is VOCOLREGSSituation.OT_ing
+        else -1e-12
+    )
 
     turned_state = _own_state(heading=np.deg2rad(7.0))
     planner.plan(1.0, np.array([5.0, 0.0]), turned_state, [target])
@@ -240,17 +251,10 @@ def test_give_way_commitment_survives_ownship_body_frame_corridor_exit(
     assert not debug["emergency_rule_relaxation"]
 
 
-@pytest.mark.parametrize(
-    ("rule", "target_velocity"),
-    (
-        (VOCOLREGSSituation.HO, (-5.0, 0.0)),
-        (VOCOLREGSSituation.OT_ing, (2.0, 0.0)),
-    ),
-)
 def test_give_way_commitment_releases_only_after_target_passes_clear(
-    rule: VOCOLREGSSituation,
-    target_velocity: tuple[float, float],
 ) -> None:
+    rule = VOCOLREGSSituation.HO
+    target_velocity = (-5.0, 0.0)
     planner = VO(
         VOParams(
             speed_samples=8,
@@ -259,7 +263,7 @@ def test_give_way_commitment_releases_only_after_target_passes_clear(
             give_way_release_steps=3,
         )
     )
-    target = _track(1, (600.0 if rule is VOCOLREGSSituation.HO else 300.0, 0.0), target_velocity)
+    target = _track(1, (600.0, 0.0), target_velocity)
     planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [target])
 
     for sim_time, north in ((1.0, -160.0), (2.0, -170.0), (3.0, -180.0)):
@@ -283,6 +287,133 @@ def test_give_way_commitment_releases_only_after_target_passes_clear(
 
     planner.plan(8.0, np.array([5.0, 0.0]), _own_state(), [target])
     assert planner.get_debug_data()["give_way_rule_locks"] == {"1": rule.name}
+
+
+def test_overtaking_uses_dedicated_240_second_entry_window_and_starboard_commitment() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=32,
+            heading_samples=128,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    target = _track(1, (707.0, 0.0), (5.0, 0.0))
+
+    planner.plan(0.0, np.array([8.0, 0.0]), _own_state(speed=8.0), [target])
+    debug = planner.get_debug_data()
+
+    assert debug["track_metrics"][1]["rule_tcpa_s"] == pytest.approx(707.0 / 3.0)
+    assert debug["track_metrics"][1]["cpa_gate_eligible"] is False
+    assert debug["overtaking_state"] == "COMMITTED"
+    assert debug["overtaking_target_id"] == 1
+    assert debug["overtaking_entry_tcpa_s"] == pytest.approx(707.0 / 3.0)
+    assert debug["selected_heading_rad"] >= np.deg2rad(5.0)
+
+
+def test_overtaking_lock_survives_range_growth_cpa_safety_and_role_flip() -> None:
+    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    planner.plan(
+        0.0,
+        np.array([8.0, 0.0]),
+        _own_state(speed=8.0),
+        [_track(1, (707.0, 0.0), (5.0, 0.0))],
+    )
+
+    planner.plan(
+        1.0,
+        np.array([8.0, 0.0]),
+        _own_state(speed=2.0),
+        [_track(1, (720.0, 0.0), (5.0, 0.0))],
+    )
+    growing = planner.get_debug_data()
+    assert growing["overtaking_state"] == "COMMITTED"
+    assert growing["track_metrics"][1]["overtaking_relative_speed_mps"] < 0.0
+
+    planner.plan(
+        2.0,
+        np.array([8.0, 0.0]),
+        _own_state(speed=2.0),
+        [_track(1, (100.0, 100.0), (0.0, -5.0))],
+    )
+    flipped = planner.get_debug_data()
+    assert flipped["track_metrics"][1]["matched_rules"] == ["CR_SS"]
+    assert flipped["track_metrics"][1]["active_rules"] == ["OT_ing"]
+    assert flipped["overtaking_state"] == "COMMITTED"
+
+
+def test_overtaking_requires_three_confirmed_passed_solves_then_rearms() -> None:
+    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    target = _track(1, (707.0, 0.0), (5.0, 0.0))
+    planner.plan(0.0, np.array([8.0, 0.0]), _own_state(speed=8.0), [target])
+
+    passed_target = _track(1, (100.0, 0.0), (5.0, 0.0))
+    for sim_time in (1.0, 2.0):
+        planner.plan(
+            sim_time,
+            np.array([8.0, 0.0]),
+            _own_state(speed=8.0, position=(200.0, 0.0)),
+            [passed_target],
+        )
+        assert planner.get_debug_data()["overtaking_state"] == "COMMITTED"
+
+    planner.plan(
+        3.0,
+        np.array([8.0, 0.0]),
+        _own_state(speed=8.0, position=(200.0, 0.0)),
+        [passed_target],
+    )
+    assert planner.get_debug_data()["overtaking_state"] == "PASSED"
+    assert not planner.get_debug_data()["give_way_commitment_active"]
+
+    role_flipped = _track(1, (300.0, 100.0), (0.0, -5.0))
+    planner.plan(
+        4.0,
+        np.array([8.0, 0.0]),
+        _own_state(speed=8.0, position=(200.0, 0.0)),
+        [role_flipped],
+    )
+    assert planner.get_debug_data()["track_metrics"][1]["matched_rules"] == ["CR_SS"]
+    assert planner.get_debug_data()["track_metrics"][1]["active_rules"] == []
+
+    far_target = _track(1, (-400.0, 0.0), (5.0, 0.0))
+    for sim_time in (5.0, 6.0):
+        planner.plan(sim_time, np.array([8.0, 0.0]), _own_state(speed=8.0), [far_target])
+        assert planner.get_debug_data()["overtaking_state"] == "PASSED"
+    planner.plan(7.0, np.array([8.0, 0.0]), _own_state(speed=8.0), [far_target])
+    assert planner.get_debug_data()["overtaking_state"] == "CLEAR"
+
+
+def test_overtaking_prefers_safe_speed_advantage_and_labels_relaxed_progress() -> None:
+    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    planner.plan(
+        0.0,
+        np.array([8.0, 0.0]),
+        _own_state(speed=8.0),
+        [_track(1, (707.0, 0.0), (5.0, 0.0))],
+    )
+    debug = planner.get_debug_data()
+    target_along_speed = debug["selected_speed_mps"] * np.cos(debug["selected_heading_rad"])
+    assert target_along_speed >= 5.5 - 1e-12
+    assert not debug["overtaking_progress_relaxed"]
+
+    slow_only = VO(
+        VOParams(
+            speed_set_limits=[0.0, 5.0],
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    slow_only.plan(
+        0.0,
+        np.array([5.0, 0.0]),
+        _own_state(speed=5.0),
+        [_track(1, (40.0, 0.0), (4.8, 0.0))],
+    )
+    slow_debug = slow_only.get_debug_data()
+    assert slow_debug["overtaking_state"] == "COMMITTED"
+    assert slow_debug["overtaking_progress_relaxed"]
+    assert slow_debug["selected_speed_mps"] <= 5.0
 
 
 def test_decision_space_snapshot_is_dense_finite_json_contract() -> None:

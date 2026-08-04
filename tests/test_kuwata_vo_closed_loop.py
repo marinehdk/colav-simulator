@@ -112,6 +112,58 @@ def test_port_crossing_stands_on_until_current_velocity_enters_base_vo(
     assert summary["solver"]["fallback_count"] == 0
 
 
+def test_overtaking_commits_once_passes_and_returns_to_route(
+    p1_run_harness: P1RunHarness,
+) -> None:
+    candidate = p1_run_harness.run("overtaking", "vo", "god")
+    summary, rows = summarize(candidate, Acceptance())
+    solve_rows = [row for row in rows if row["solver_executed"]]
+    committed = [row for row in solve_rows if row["overtaking_state"] == "COMMITTED"]
+    passed = [row for row in solve_rows if row["overtaking_state"] == "PASSED"]
+
+    assert committed
+    assert committed[0]["time_s"] <= 1.0
+    first_turn = math.atan2(
+        math.sin(committed[0]["selected_heading_rad"] - rows[0]["actual_heading_rad"]),
+        math.cos(committed[0]["selected_heading_rad"] - rows[0]["actual_heading_rad"]),
+    )
+    assert first_turn >= math.radians(5.0)
+    assert not any(row["overtaking_progress_relaxed"] for row in committed)
+    assert not any(row["emergency_rule_relaxation"] for row in committed)
+    assert summary["solver"]["active_turn_reversals"] == 0
+    assert passed
+    assert passed[0]["overtaking_along_track_m"] >= 50.0
+    assert passed[0]["center_distance_m"] >= 100.0
+    assert passed[0]["overtaking_relative_speed_mps"] > 0.0
+    assert passed[0]["rule_tcpa_s"] <= 0.0
+
+    transitions = []
+    previous = solve_rows[0]["overtaking_state"]
+    for row in solve_rows[1:]:
+        current = row["overtaking_state"]
+        if current != previous:
+            transitions.append((previous, current))
+            previous = current
+    assert transitions == [("COMMITTED", "PASSED"), ("PASSED", "CLEAR")]
+
+    released = [row for row in solve_rows if row["time_s"] > passed[-1]["time_s"]]
+    assert released
+    assert any(
+        abs(
+            math.atan2(
+                math.sin(row["actual_heading_rad"] - math.pi / 4.0),
+                math.cos(row["actual_heading_rad"] - math.pi / 4.0),
+            )
+        )
+        < math.radians(3.0)
+        and abs(row["actual_speed_mps"] - 8.0) < 0.2
+        for row in released
+    )
+    assert summary["truth"]["ship0_vs_target"]["continuous_collision"] is False
+    assert summary["truth"]["grounding"]["grounded"] is False
+    assert summary["solver"]["fallback_count"] == 0
+
+
 def test_both_head_on_vessels_execute_starboard_vo_maneuvers() -> None:
     session = _project_fixture_session("head_on_both_vo", "vo")
     session.run_to_completion()

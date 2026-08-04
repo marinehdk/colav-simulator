@@ -264,10 +264,10 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ("rule13", "overtaking", "vo", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
-        minimum_clearance_m=234.1281672069971,
-        max_heading_delta_deg=27.309219575897053,
-        max_speed_delta_mps=0.7097609247005714,
-        solve_count=300,
+        minimum_clearance_m=302.0648709157351,
+        max_heading_delta_deg=68.13960800400456,
+        max_speed_delta_mps=2.678069662510069,
+        solve_count=600,
     ),
     ("rule13", "overtaking", "sbmpc", "god"): _evidence(
         role="candidate_g3",

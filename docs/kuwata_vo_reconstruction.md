@@ -65,14 +65,14 @@ does not claim numerical reproduction of the journal version.
 | Dual-VO head-on validation profile | `w_ttc=1000`, WVO scale `1`, `W_B=+/-2 m/s` per axis | `inferred_reconstruction` |
 | Reference-velocity weight | `1` | `inferred_reconstruction` |
 | WVO TTC scale | `0.25` | `inferred_reconstruction` |
-| CPA horizon | `120 s` | `project_profile`, earlier warning for standard simulator geometry |
+| CPA horizon | `120 s`; ownship overtaking `240 s` | `project_profile`, earlier warning for standard simulator geometry |
 | CPA distance | `100 m` | `project_profile`, not a paper parameter |
 | CPA ownship velocity | current measured earth-fixed velocity | `physical_correction`, rule gate describes the current encounter |
 | Rule heading tolerance | `15 deg` | `inferred_reconstruction` |
 | Crossing heading sector | `15..165 deg` | `inferred_reconstruction` |
 | Relative bearing sector | `0..112.5 deg` | `inferred_reconstruction` |
 | Rule hysteresis | `3 solves` | `inferred_reconstruction` |
-| Give-way commitment | HO, ownship-overtaking, and starboard crossing retain the entry-side maneuver | `project_profile` |
+| Give-way commitment | HO and starboard crossing retain entry-side maneuver; ownship overtaking uses dedicated `CLEAR -> COMMITTED -> PASSED -> CLEAR` state | `project_profile` |
 | Give-way release | `150 m`, moving apart, CPA gate clear for `3 solves` | `project_profile` |
 | Low-speed classification cutoff | `0.5 m/s` | `inferred_reconstruction` |
 | Static layers | `LAND, SHORE, OBSTRN, UWTROC` | `project_adapter` |
@@ -93,15 +93,21 @@ velocity uncertainty or hard admissibility.
 
 ## Give-way commitment and stand-on boundary
 
-Head-on, ownship-overtaking, and crossing give-way encounters use a stateful
-commitment after the first CPA-gated rule match. The rule remains locked when
-an initial starboard action moves the target outside the narrow body-frame
-classification corridor. While committed, candidates that move materially to
-port, reverse longitudinal direction, or reverse past the previous selected
-course are inadmissible. The lock releases only after the CPA gate clears and
-the target is at least `150 m` away and moving apart for three solves. The same
-contact cannot immediately retrigger a new rule; it first must clear the wider
-re-arm range. If no candidate survives only because of this project rule, the solver exposes
+Head-on and crossing give-way encounters use the existing stateful commitment
+after the first CPA-gated rule match. The lock releases only after the CPA gate
+clears and the target is at least `150 m` away and moving apart for three
+solves.
+
+Ownship overtaking uses a separate per-target state machine. It enters within
+a `240 s` signed-TCPA window and holds a starboard maneuver until Ship0 leads
+the target by `50 m`, range is at least `100 m`, relative along-track speed is
+positive, and signed TCPA is non-positive for three real solves. Safe candidates
+with at least `0.5 m/s` target-track speed advantage are preferred. If none
+exist, safe slowing remains possible without releasing the lock and is exposed
+as `overtaking_progress_relaxed=true`. A passed contact is suppressed until it
+is at least `300 m` away with CPA risk clear for three solves.
+
+If no candidate survives only because of a project direction rule, the solver exposes
 `emergency_rule_relaxation=true`; it does not silently call another planner.
 
 `CR_PS` remains a stand-on role. Before the current measured velocity enters
