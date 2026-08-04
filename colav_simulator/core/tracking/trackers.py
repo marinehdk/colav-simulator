@@ -193,13 +193,14 @@ class GodTracker(ITracker):
 
         self._t_prev = t
 
-        for do_idx, do_state, do_length, do_width in true_do_states:
-            if do_idx not in self._labels:
-                self._labels.append(do_idx)
-                self._xs_upd.append(do_state)
-                self._P_upd.append(np.zeros((4, 4)))
-                self._length_upd.append(do_length)
-                self._width_upd.append(do_width)
+        # Perfect knowledge is a snapshot of the targets active at this time.
+        # Rebuilding all parallel arrays together preserves target identity when
+        # a lower-numbered vessel reaches the end of its active interval.
+        self._labels = [do_idx for do_idx, _, _, _ in true_do_states]
+        self._xs_upd = [np.asarray(do_state, dtype=float).copy() for _, do_state, _, _ in true_do_states]
+        self._P_upd = [np.zeros((4, 4)) for _ in true_do_states]
+        self._length_upd = [do_length for _, _, do_length, _ in true_do_states]
+        self._width_upd = [do_width for _, _, _, do_width in true_do_states]
 
         # Only generate measurements for initialized tracks
         sensor_measurements = []
@@ -208,19 +209,16 @@ class GodTracker(ITracker):
             sensor_measurements.append(z)
         self._recent_sensor_measurements = sensor_measurements
 
-        tracks = []
-        n_tracked_do = len(true_do_states)
-        for i in range(n_tracked_do):
-            self._xs_upd[i] = true_do_states[i][1]
-            tracks.append(
-                (
-                    self._labels[i],
-                    self._xs_upd[i],
-                    self._P_upd[i],
-                    self._length_upd[i],
-                    self._width_upd[i],
-                )
+        tracks = list(
+            zip(
+                self._labels,
+                self._xs_upd,
+                self._P_upd,
+                self._length_upd,
+                self._width_upd,
+                strict=True,
             )
+        )
         tracks_sorted_by_distance = sorted(tracks, key=lambda x: np.linalg.norm(x[1][:2] - ownship_state[:2]))
         return tracks_sorted_by_distance, sensor_measurements
 
