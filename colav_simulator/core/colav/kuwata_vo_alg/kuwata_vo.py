@@ -32,6 +32,14 @@ class VOCOLREGSSituation(Enum):
     CR_SS = 4
 
 
+class OvertakingState(Enum):
+    """Lifecycle for one Rule 13 overtaking target."""
+
+    CLEAR = "CLEAR"
+    COMMITTED = "COMMITTED"
+    PASSED = "PASSED"
+
+
 _REMOVED_CONFIG_KEYS = {
     "safety_buffer",
     "vo_violation_cost",
@@ -69,6 +77,13 @@ class VOParams:
     crossing_commitment_deadband_mps: float = 0.25
     give_way_release_distance_m: float = 150.0
     give_way_release_steps: int = 3
+    overtaking_t_max_s: float = 240.0
+    overtaking_min_starboard_rad: float = float(np.deg2rad(5.0))
+    overtaking_speed_advantage_mps: float = 0.5
+    overtaking_passed_lead_m: float = 50.0
+    overtaking_passed_distance_m: float = 100.0
+    overtaking_confirmation_steps: int = 3
+    overtaking_rearm_distance_m: float = 300.0
     rule_heading_tolerance_rad: float = float(np.deg2rad(15.0))
     rule_crossing_heading_min_rad: float = float(np.deg2rad(15.0))
     rule_crossing_heading_max_rad: float = float(np.deg2rad(165.0))
@@ -83,7 +98,7 @@ class VOParams:
 
     reconstruction_label: str = "kuwata_2011_behavior_compatible_reconstruction"
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901, PLR0912, PLR0915
         """Validate and normalize public configuration values."""
         self.Q = np.asarray(self.Q, dtype=float)
         if self.Q.shape == (2,):
@@ -104,6 +119,18 @@ class VOParams:
             raise ValueError("give_way_release_distance_m must be non-negative")
         if self.give_way_release_steps < 1:
             raise ValueError("give_way_release_steps must be positive")
+        if self.overtaking_t_max_s <= 0.0:
+            raise ValueError("overtaking_t_max_s must be positive")
+        if self.overtaking_min_starboard_rad < 0.0:
+            raise ValueError("overtaking_min_starboard_rad must be non-negative")
+        if self.overtaking_speed_advantage_mps < 0.0:
+            raise ValueError("overtaking_speed_advantage_mps must be non-negative")
+        if self.overtaking_passed_lead_m < 0.0 or self.overtaking_passed_distance_m < 0.0:
+            raise ValueError("overtaking pass thresholds must be non-negative")
+        if self.overtaking_confirmation_steps < 1:
+            raise ValueError("overtaking_confirmation_steps must be positive")
+        if self.overtaking_rearm_distance_m < 0.0:
+            raise ValueError("overtaking_rearm_distance_m must be non-negative")
         vertices = np.asarray(self.velocity_uncertainty_vertices_mps, dtype=float)
         if vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) == 0:
             raise ValueError("velocity_uncertainty_vertices_mps must contain 2-D vertices")
@@ -142,7 +169,7 @@ class VOParams:
 class VO:
     """Kuwata velocity-obstacle local planner."""
 
-    def __init__(self, config: VOParams | None = None) -> None:
+    def __init__(self, config: VOParams | None = None) -> None:  # noqa: PLR0915
         self._params = config or VOParams()
         self._poly_os = geometry.Polygon(
             [
@@ -174,6 +201,18 @@ class VO:
         self._give_way_previous_distances: dict[int, float] = {}
         self._completed_give_way_targets: set[int] = set()
         self._give_way_rearm_counts: dict[int, int] = {}
+        self._overtaking_states: dict[int, OvertakingState] = {}
+        self._overtaking_completion_counts: dict[int, int] = {}
+        self._overtaking_rearm_counts: dict[int, int] = {}
+        self._overtaking_entry_tcpa_s: dict[int, float] = {}
+        self._overtaking_target_headings: dict[int, float] = {}
+        self._overtaking_target_speeds: dict[int, float] = {}
+        self._overtaking_metrics: dict[int, dict[str, float | None]] = {}
+        self._overtaking_active_target_id: int | None = None
+        self._overtaking_last_target_id: int | None = None
+        self._overtaking_commitment_active = False
+        self._overtaking_commitment_frame_heading: float | None = None
+        self._overtaking_progress_relaxed = False
         self._target_heading_memory: dict[int, float] = {}
         self._active_rules: dict[int, set[VOCOLREGSSituation]] = {}
         self._matched_rules_current: set[VOCOLREGSSituation] = set()
@@ -222,6 +261,18 @@ class VO:
         self._give_way_previous_distances.clear()
         self._completed_give_way_targets.clear()
         self._give_way_rearm_counts.clear()
+        self._overtaking_states.clear()
+        self._overtaking_completion_counts.clear()
+        self._overtaking_rearm_counts.clear()
+        self._overtaking_entry_tcpa_s.clear()
+        self._overtaking_target_headings.clear()
+        self._overtaking_target_speeds.clear()
+        self._overtaking_metrics.clear()
+        self._overtaking_active_target_id = None
+        self._overtaking_last_target_id = None
+        self._overtaking_commitment_active = False
+        self._overtaking_commitment_frame_heading = None
+        self._overtaking_progress_relaxed = False
         self._target_heading_memory.clear()
         self._active_rules.clear()
         self._matched_rules_current.clear()
@@ -283,8 +334,8 @@ class VO:
             p_do = state_do[0:2]
             v_do = state_do[2:4]
             speed_do = float(np.linalg.norm(v_do))
-            self._track_metrics[id_do] = self._cpa_metrics(p_os, v_os, p_do, v_do)
             rule_cpa = self._cpa_metrics(p_os, v_os, p_do, v_do)
+            self._track_metrics[id_do] = dict(rule_cpa)
             self._track_metrics[id_do]["rule_tcpa_s"] = rule_cpa["tcpa_s"]
             self._track_metrics[id_do]["rule_dcpa_m"] = rule_cpa["dcpa_m"]
             target_polygon, psi_do = self._target_polygon(
@@ -315,7 +366,6 @@ class VO:
             )
             if crossing_return_phase:
                 matched_rules.difference_update(crossing_rules)
-            self._matched_rules_current.update(matched_rules)
             cpa_gate_eligible = (
                 speed_do >= self._params.colregs_min_target_speed_mps
                 and self._precollision_check(
@@ -325,6 +375,21 @@ class VO:
                     v_do,
                 )
             )
+            overtaking_state = self._update_overtaking_state(
+                target_id=id_do,
+                geometry_rules=geometry_matched_rules,
+                p_os=p_os,
+                v_os=v_os,
+                p_do=p_do,
+                v_do=v_do,
+                cpa=rule_cpa,
+            )
+            if overtaking_state is OvertakingState.COMMITTED:
+                matched_rules.difference_update(set(VOCOLREGSSituation))
+                matched_rules.add(VOCOLREGSSituation.OT_ing)
+            elif overtaking_state is OvertakingState.PASSED:
+                matched_rules.difference_update(set(VOCOLREGSSituation))
+            self._matched_rules_current.update(matched_rules)
             matched_rules = self._apply_give_way_rule_lock(
                 target_id=id_do,
                 matched_rules=matched_rules,
@@ -332,7 +397,10 @@ class VO:
                 p_do=p_do,
                 can_enter=cpa_gate_eligible,
             )
+            overtaking_committed = overtaking_state is OvertakingState.COMMITTED
             commitment_eligible = (
+                overtaking_committed
+                or
                 id_do in self._give_way_rule_locks
                 or (
                     VOCOLREGSSituation.CR_SS in matched_rules
@@ -341,7 +409,7 @@ class VO:
             )
             eligible_rules = (
                 matched_rules
-                if cpa_gate_eligible or id_do in self._give_way_rule_locks
+                if cpa_gate_eligible or overtaking_committed or id_do in self._give_way_rule_locks
                 else (
                     {VOCOLREGSSituation.CR_SS}
                     if commitment_eligible
@@ -361,6 +429,8 @@ class VO:
             self._track_metrics[id_do]["colregs_eligible"] = bool(eligible_rules)
             self._track_metrics[id_do]["cpa_gate_eligible"] = cpa_gate_eligible
             self._track_metrics[id_do]["commitment_eligible"] = commitment_eligible
+            self._track_metrics[id_do]["overtaking_state"] = overtaking_state.value
+            self._track_metrics[id_do].update(self._overtaking_metrics.get(id_do, {}))
             self._track_metrics[id_do]["matched_rules"] = [
                 rule.name
                 for rule in sorted(geometry_matched_rules, key=lambda item: item.value)
@@ -370,7 +440,9 @@ class VO:
             ]
             locked_rule = self._give_way_rule_locks.get(id_do)
             self._track_metrics[id_do]["committed_rule"] = (
-                locked_rule.name if locked_rule is not None else None
+                VOCOLREGSSituation.OT_ing.name
+                if overtaking_committed
+                else (locked_rule.name if locked_rule is not None else None)
             )
             if speed_do >= self._params.colregs_min_target_speed_mps:
                 self._target_heading_memory[id_do] = psi_do
@@ -386,6 +458,7 @@ class VO:
             self._dynamic_hazard_count += 1
 
         self._expire_missing_targets(seen_target_ids)
+        self._select_overtaking_target()
         static_hazards = self._extract_static_hazards(enc, p_os, poly_os_shape)
         self._static_hazard_count = len(static_hazards)
         for expanded in static_hazards:
@@ -430,7 +503,7 @@ class VO:
         p_do: np.ndarray,
         can_enter: bool,
     ) -> set[VOCOLREGSSituation]:
-        lockable = (VOCOLREGSSituation.HO, VOCOLREGSSituation.OT_ing)
+        lockable = (VOCOLREGSSituation.HO,)
         give_way_rules = {*lockable, VOCOLREGSSituation.CR_SS}
         locked_rule = self._give_way_rule_locks.get(target_id)
         distance = float(np.linalg.norm(p_do - p_os))
@@ -478,8 +551,115 @@ class VO:
                 self._give_way_previous_distances[target_id] = distance
         return matched_rules
 
+    def _update_overtaking_state(  # noqa: PLR0915
+        self,
+        *,
+        target_id: int,
+        geometry_rules: set[VOCOLREGSSituation],
+        p_os: np.ndarray,
+        v_os: np.ndarray,
+        p_do: np.ndarray,
+        v_do: np.ndarray,
+        cpa: dict[str, float | None],
+    ) -> OvertakingState:
+        target_speed = float(np.linalg.norm(v_do))
+        if target_speed >= self._params.colregs_min_target_speed_mps:
+            target_heading = float(np.arctan2(v_do[1], v_do[0]))
+            target_along = np.array([np.cos(target_heading), np.sin(target_heading)])
+            target_starboard = np.array([-target_along[1], target_along[0]])
+            own_from_target = p_os - p_do
+            along_track = float(own_from_target @ target_along)
+            cross_track = float(own_from_target @ target_starboard)
+            relative_speed = float((v_os - v_do) @ target_along)
+            self._overtaking_target_headings[target_id] = target_heading
+            self._overtaking_target_speeds[target_id] = target_speed
+        else:
+            along_track = 0.0
+            cross_track = 0.0
+            relative_speed = 0.0
+
+        tcpa = cpa["tcpa_s"]
+        dcpa = cpa["dcpa_m"]
+        distance = float(cpa["center_distance_m"] or 0.0)
+        risk_eligible = bool(
+            target_speed >= self._params.colregs_min_target_speed_mps
+            and tcpa is not None
+            and 0.0 <= tcpa <= self._params.overtaking_t_max_s
+            and dcpa is not None
+            and dcpa <= self._params.d_min
+        )
+        state = self._overtaking_states.get(target_id, OvertakingState.CLEAR)
+        if state is OvertakingState.CLEAR:
+            if VOCOLREGSSituation.OT_ing in geometry_rules and risk_eligible:
+                state = OvertakingState.COMMITTED
+                self._overtaking_states[target_id] = state
+                self._overtaking_completion_counts[target_id] = 0
+                self._overtaking_entry_tcpa_s[target_id] = float(tcpa)
+                self._overtaking_last_target_id = target_id
+        elif state is OvertakingState.COMMITTED:
+            passed_candidate = bool(
+                along_track >= self._params.overtaking_passed_lead_m
+                and distance >= self._params.overtaking_passed_distance_m
+                and relative_speed > 0.0
+                and tcpa is not None
+                and tcpa <= 0.0
+            )
+            count = self._overtaking_completion_counts.get(target_id, 0)
+            count = count + 1 if passed_candidate else 0
+            self._overtaking_completion_counts[target_id] = count
+            if count >= self._params.overtaking_confirmation_steps:
+                state = OvertakingState.PASSED
+                self._overtaking_states[target_id] = state
+                self._overtaking_rearm_counts[target_id] = 0
+                self._rule_memory.pop((target_id, VOCOLREGSSituation.OT_ing), None)
+                self._overtaking_last_target_id = target_id
+                if self._overtaking_active_target_id == target_id:
+                    self._overtaking_active_target_id = None
+        else:
+            rearm_candidate = distance >= self._params.overtaking_rearm_distance_m and not risk_eligible
+            count = self._overtaking_rearm_counts.get(target_id, 0)
+            count = count + 1 if rearm_candidate else 0
+            self._overtaking_rearm_counts[target_id] = count
+            if count >= self._params.overtaking_confirmation_steps:
+                state = OvertakingState.CLEAR
+                self._overtaking_states[target_id] = state
+                self._overtaking_completion_counts.pop(target_id, None)
+                self._overtaking_rearm_counts.pop(target_id, None)
+                self._overtaking_entry_tcpa_s.pop(target_id, None)
+
+        self._overtaking_metrics[target_id] = {
+            "overtaking_along_track_m": along_track,
+            "overtaking_cross_track_m": cross_track,
+            "overtaking_relative_speed_mps": relative_speed,
+            "overtaking_risk_eligible": risk_eligible,
+        }
+        return state
+
+    def _select_overtaking_target(self) -> None:
+        active = self._overtaking_active_target_id
+        if active is not None and self._overtaking_states.get(active) is OvertakingState.COMMITTED:
+            return
+        committed = [
+            target_id
+            for target_id, state in self._overtaking_states.items()
+            if state is OvertakingState.COMMITTED
+        ]
+        if not committed:
+            self._overtaking_active_target_id = None
+            return
+
+        def priority(target_id: int) -> tuple[int, float, int]:
+            tcpa = self._track_metrics.get(target_id, {}).get("rule_tcpa_s")
+            if tcpa is not None and tcpa >= 0.0:
+                return 0, float(tcpa), target_id
+            return 1, float("inf"), target_id
+
+        self._overtaking_active_target_id = min(committed, key=priority)
+        self._overtaking_last_target_id = self._overtaking_active_target_id
+
     def _apply_give_way_commitment(self, candidates: np.ndarray, psi_os: float) -> None:
         was_active = self._give_way_commitment_active
+        was_overtaking_active = self._overtaking_commitment_active
         give_way_rules = {
             VOCOLREGSSituation.HO,
             VOCOLREGSSituation.OT_ing,
@@ -493,26 +673,51 @@ class VO:
         }
         self._give_way_commitment_active = bool(self._give_way_commitment_rules)
         self._crossing_commitment_active = VOCOLREGSSituation.CR_SS in self._give_way_commitment_rules
+        self._overtaking_commitment_active = bool(
+            self._overtaking_active_target_id is not None
+            and self._overtaking_states.get(self._overtaking_active_target_id)
+            is OvertakingState.COMMITTED
+        )
         self._emergency_rule_relaxation = False
         if not self._give_way_commitment_active:
             self._crossing_commitment_frame_heading = None
+            self._overtaking_commitment_frame_heading = None
             return
 
-        if not was_active or self._crossing_commitment_frame_heading is None:
-            self._crossing_commitment_frame_heading = psi_os
-        commitment_frame = self._crossing_commitment_frame_heading
+        if self._overtaking_commitment_active:
+            if not was_overtaking_active or self._overtaking_commitment_frame_heading is None:
+                self._overtaking_commitment_frame_heading = psi_os
+            commitment_frame = self._overtaking_commitment_frame_heading
+        else:
+            self._overtaking_commitment_frame_heading = None
+            if not was_active or self._crossing_commitment_frame_heading is None:
+                self._crossing_commitment_frame_heading = psi_os
+            commitment_frame = self._crossing_commitment_frame_heading
         body_velocities = candidates @ mf.Rmtrx2D(commitment_frame)
-        commitment = body_velocities[..., 1] < -self._params.crossing_commitment_deadband_mps
-        commitment |= body_velocities[..., 0] <= 0.0
-        if was_active:
+        if self._overtaking_commitment_active:
             candidate_progress = np.arctan2(
                 np.sin(self._heading_set - commitment_frame),
                 np.cos(self._heading_set - commitment_frame),
             )
-            previous_progress = _wrap_angle(
-                self._selected_heading - commitment_frame
-            )
-            commitment |= candidate_progress[None, :] < previous_progress - 1e-12
+            minimum_progress = self._params.overtaking_min_starboard_rad
+            if was_overtaking_active:
+                minimum_progress = max(
+                    minimum_progress,
+                    float(_wrap_angle(self._selected_heading - commitment_frame)),
+                )
+            commitment = candidate_progress[None, :] < minimum_progress - 1e-12
+            commitment = np.broadcast_to(commitment, self._hard_constraint_mask.shape).copy()
+            commitment |= body_velocities[..., 0] <= 0.0
+        else:
+            commitment = body_velocities[..., 1] < -self._params.crossing_commitment_deadband_mps
+            commitment |= body_velocities[..., 0] <= 0.0
+            if was_active:
+                candidate_progress = np.arctan2(
+                    np.sin(self._heading_set - commitment_frame),
+                    np.cos(self._heading_set - commitment_frame),
+                )
+                previous_progress = _wrap_angle(self._selected_heading - commitment_frame)
+                commitment |= candidate_progress[None, :] < previous_progress - 1e-12
         admissible_before_commitment = ~self._hard_constraint_mask
         self._crossing_commitment_mask = commitment
         self._hard_constraint_mask |= commitment
@@ -652,10 +857,25 @@ class VO:
         v2 = ~v3_for_all & ~v1_for_any
         return v1, v2, v3_for_all
 
-    def _compute_optimal_controls(self, v_ref: np.ndarray, psi_os: float) -> tuple[float, float]:
+    def _compute_optimal_controls(  # noqa: PLR0915
+        self,
+        v_ref: np.ndarray,
+        psi_os: float,
+    ) -> tuple[float, float]:
         self._ensure_grid_shape()
         candidates = self._candidate_velocities()
-        delta = candidates - v_ref
+        cost_reference = v_ref
+        target_id = self._overtaking_active_target_id
+        if target_id is not None and self._overtaking_commitment_active:
+            target_heading = self._overtaking_target_headings[target_id]
+            target_speed = self._overtaking_target_speeds[target_id]
+            target_along = np.array([np.cos(target_heading), np.sin(target_heading)])
+            progress_speed = max(
+                float(np.linalg.norm(v_ref)),
+                target_speed + self._params.overtaking_speed_advantage_mps,
+            )
+            cost_reference = progress_speed * target_along
+        delta = candidates - cost_reference
         velocity_cost = np.einsum("...i,ij,...j->...", delta, self._params.Q, delta)
         ttc_cost = np.zeros_like(velocity_cost)
         finite_ttc = np.isfinite(self._min_ttc)
@@ -664,6 +884,18 @@ class VO:
         ttc_cost[wvo_only] *= self._params.wvo_ttc_scale
         self._total_costs = self._params.w_velocity * velocity_cost + ttc_cost
         self._total_costs[self._hard_constraint_mask] = np.inf
+        self._overtaking_progress_relaxed = False
+        if target_id is not None and self._overtaking_commitment_active:
+            projected_speeds = candidates @ target_along
+            feasible = np.isfinite(self._total_costs)
+            preferred = feasible & (
+                projected_speeds
+                >= target_speed + self._params.overtaking_speed_advantage_mps
+            )
+            if np.any(preferred):
+                self._total_costs[feasible & ~preferred] = np.inf
+            else:
+                self._overtaking_progress_relaxed = True
 
         current_index = self._nearest_velocity_index(self._current_velocity)
         active_rules = {
@@ -850,6 +1082,7 @@ class VO:
     def _expire_missing_targets(self, seen: set[int]) -> None:
         missing = {target_id for target_id, _rule in self._rule_memory if target_id not in seen}
         missing.update(target_id for target_id in self._give_way_rule_locks if target_id not in seen)
+        missing.update(target_id for target_id in self._overtaking_states if target_id not in seen)
         for target_id in missing:
             for key in [key for key in self._rule_memory if key[0] == target_id]:
                 del self._rule_memory[key]
@@ -860,6 +1093,17 @@ class VO:
             self._give_way_previous_distances.pop(target_id, None)
             self._completed_give_way_targets.discard(target_id)
             self._give_way_rearm_counts.pop(target_id, None)
+            self._overtaking_states.pop(target_id, None)
+            self._overtaking_completion_counts.pop(target_id, None)
+            self._overtaking_rearm_counts.pop(target_id, None)
+            self._overtaking_entry_tcpa_s.pop(target_id, None)
+            self._overtaking_target_headings.pop(target_id, None)
+            self._overtaking_target_speeds.pop(target_id, None)
+            self._overtaking_metrics.pop(target_id, None)
+            if self._overtaking_active_target_id == target_id:
+                self._overtaking_active_target_id = None
+            if self._overtaking_last_target_id == target_id:
+                self._overtaking_last_target_id = None
 
     def _determine_colregs_situation(
         self,
@@ -973,6 +1217,19 @@ class VO:
             self._current_velocity
         )
         selected_ttc = self._min_ttc[speed_index, heading_index]
+        overtaking_target_id = self._overtaking_active_target_id
+        if overtaking_target_id is None:
+            overtaking_target_id = self._overtaking_last_target_id
+        overtaking_state = self._overtaking_states.get(
+            overtaking_target_id,
+            OvertakingState.CLEAR,
+        )
+        overtaking_metrics = self._overtaking_metrics.get(overtaking_target_id, {})
+        overtaking_release_count = (
+            self._overtaking_completion_counts.get(overtaking_target_id, 0)
+            if overtaking_state is OvertakingState.COMMITTED
+            else self._overtaking_rearm_counts.get(overtaking_target_id, 0)
+        )
         return {
             "reconstruction_label": self._params.reconstruction_label,
             "feasible": self._feasible,
@@ -1026,6 +1283,18 @@ class VO:
             },
             "completed_give_way_targets": sorted(self._completed_give_way_targets),
             "emergency_rule_relaxation": self._emergency_rule_relaxation,
+            "overtaking_state": overtaking_state.value,
+            "overtaking_target_id": overtaking_target_id,
+            "overtaking_along_track_m": overtaking_metrics.get("overtaking_along_track_m"),
+            "overtaking_cross_track_m": overtaking_metrics.get("overtaking_cross_track_m"),
+            "overtaking_relative_speed_mps": overtaking_metrics.get(
+                "overtaking_relative_speed_mps"
+            ),
+            "overtaking_progress_relaxed": self._overtaking_progress_relaxed,
+            "overtaking_release_count": overtaking_release_count,
+            "overtaking_entry_tcpa_s": self._overtaking_entry_tcpa_s.get(
+                overtaking_target_id
+            ),
         }
 
     def _give_way_commitment_state(self) -> str:
