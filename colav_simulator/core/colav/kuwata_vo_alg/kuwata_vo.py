@@ -58,6 +58,8 @@ class VOParams:
     planning_frequency: float = 1.0
     t_max: float = 120.0
     d_min: float = 100.0
+    hard_hull_clearance_m: float = 50.0
+    preferred_hull_clearance_m: float = 100.0
 
     speed_set_limits: list[float] = field(default_factory=lambda: [0.0, 10.0])
     speed_samples: int = 32
@@ -118,6 +120,13 @@ class VOParams:
             raise ValueError("colregs_hysteresis_steps must be positive")
         if self.crossing_commitment_deadband_mps < 0.0:
             raise ValueError("crossing_commitment_deadband_mps must be non-negative")
+        if self.hard_hull_clearance_m < 0.0:
+            raise ValueError("hard_hull_clearance_m must be non-negative")
+        if self.preferred_hull_clearance_m < self.hard_hull_clearance_m:
+            raise ValueError(
+                "preferred_hull_clearance_m must be greater than or equal to "
+                "hard_hull_clearance_m"
+            )
         if self.give_way_release_distance_m < 0.0:
             raise ValueError("give_way_release_distance_m must be non-negative")
         if self.give_way_release_steps < 1:
@@ -200,7 +209,9 @@ class VO:
         self._colregs_v1_mask_grid = np.zeros(shape, dtype=bool)
         self._crossing_commitment_mask = np.zeros(shape, dtype=bool)
         self._wvo_mask = np.zeros(shape, dtype=bool)
+        self._preferred_clearance_mask = np.zeros(shape, dtype=bool)
         self._min_ttc = np.full(shape, np.inf)
+        self._preferred_clearance_ttc = np.full(shape, np.inf)
         self._violation_costs = np.zeros(shape)
         self._total_costs = np.full(shape, np.inf)
         self._references = np.zeros((9, 1))
@@ -255,6 +266,8 @@ class VO:
         self._driving_target_id: int | None = None
         self._driving_rule: str | None = None
         self._expired_target_ids_last_solve: list[int] = []
+        self._ownship_length_m = self._params.length_os
+        self._ownship_width_m = self._params.width_os
 
     @property
     def plan_executed(self) -> bool:
@@ -318,7 +331,9 @@ class VO:
         self._colregs_v1_mask_grid.fill(False)
         self._crossing_commitment_mask.fill(False)
         self._wvo_mask.fill(False)
+        self._preferred_clearance_mask.fill(False)
         self._min_ttc.fill(np.inf)
+        self._preferred_clearance_ttc.fill(np.inf)
         self._violation_costs.fill(0.0)
         self._total_costs.fill(np.inf)
 
@@ -329,6 +344,9 @@ class VO:
         ownship_state: np.ndarray,
         do_list: list,
         enc: ENC | None = None,
+        *,
+        os_length: float | None = None,
+        os_width: float | None = None,
     ) -> np.ndarray:
         if self._initialized and t - self._t_prev < 1.0 / self._params.planning_frequency:
             self._plan_executed = False
@@ -345,7 +363,34 @@ class VO:
         self._reference_velocity = np.asarray(v_ref, dtype=float).copy()
         self._current_velocity = v_os.copy()
         self._ownship_heading = psi_os
-        poly_os_shape = affinity.rotate(self._poly_os, psi_os, origin=(0.0, 0.0), use_radians=True)
+        self._ownship_length_m = float(
+            self._params.length_os if os_length is None else os_length
+        )
+        self._ownship_width_m = float(
+            self._params.width_os if os_width is None else os_width
+        )
+        if self._ownship_length_m <= 0.0 or self._ownship_width_m <= 0.0:
+            raise ValueError("Ownship length and width must be positive")
+        poly_os = geometry.box(
+            -self._ownship_length_m / 2.0,
+            -self._ownship_width_m / 2.0,
+            self._ownship_length_m / 2.0,
+            self._ownship_width_m / 2.0,
+        )
+        poly_os_shape = affinity.rotate(poly_os, psi_os, origin=(0.0, 0.0), use_radians=True)
+        poly_os_world = affinity.translate(poly_os_shape, p_os[0], p_os[1])
+        static_poly_os = geometry.box(
+            -max(self._ownship_length_m, self._params.length_os) / 2.0,
+            -max(self._ownship_width_m, self._params.width_os) / 2.0,
+            max(self._ownship_length_m, self._params.length_os) / 2.0,
+            max(self._ownship_width_m, self._params.width_os) / 2.0,
+        )
+        static_poly_os_shape = affinity.rotate(
+            static_poly_os,
+            psi_os,
+            origin=(0.0, 0.0),
+            use_radians=True,
+        )
         candidate_velocities = self._candidate_velocities()
         uncertainty = self._uncertainty_samples()
 
@@ -370,6 +415,15 @@ class VO:
                 id_do, p_do, v_do, float(length_do), float(width_do)
             )
             expanded = compute_minkowski_sum(target_polygon, compute_reflection(poly_os_shape))
+            hard_clearance_domain = expanded.buffer(
+                self._params.hard_hull_clearance_m,
+                join_style=2,
+            )
+            preferred_clearance_domain = expanded.buffer(
+                self._params.preferred_hull_clearance_m,
+                join_style=2,
+            )
+            current_hull_clearance = float(poly_os_world.distance(target_polygon))
             first_toc = float(
                 ray_polygon_ttc_grid(
                     expanded,
@@ -378,6 +432,26 @@ class VO:
                 )[0, 0]
             )
             self._track_metrics[id_do]["first_toc_s"] = first_toc if np.isfinite(first_toc) else None
+            preferred_domain_toc = float(
+                ray_polygon_ttc_grid(
+                    preferred_clearance_domain,
+                    p_os,
+                    (v_os - v_do).reshape(1, 1, 2),
+                )[0, 0]
+            )
+            self._track_metrics[id_do]["current_hull_clearance_m"] = current_hull_clearance
+            self._track_metrics[id_do]["hard_hull_clearance_m"] = (
+                self._params.hard_hull_clearance_m
+            )
+            self._track_metrics[id_do]["preferred_hull_clearance_m"] = (
+                self._params.preferred_hull_clearance_m
+            )
+            self._track_metrics[id_do]["hard_clearance_margin_m"] = (
+                current_hull_clearance - self._params.hard_hull_clearance_m
+            )
+            self._track_metrics[id_do]["preferred_domain_toc_s"] = (
+                preferred_domain_toc if np.isfinite(preferred_domain_toc) else None
+            )
             geometry_matched_rules = self._determine_colregs_rules(
                 p_os,
                 psi_os,
@@ -404,14 +478,17 @@ class VO:
             elif VOCOLREGSSituation.CR_SS in previous_rules:
                 matched_rules.difference_update(crossing_rules)
                 matched_rules.add(VOCOLREGSSituation.CR_SS)
+            shape_risk_eligible = bool(
+                np.isfinite(preferred_domain_toc)
+                and 0.0 <= preferred_domain_toc <= self._params.t_max
+            )
             cpa_gate_eligible = (
                 speed_do >= self._params.colregs_min_target_speed_mps
-                and self._precollision_check(
-                    p_os,
-                    v_os,
-                    p_do,
-                    v_do,
-                )
+                and shape_risk_eligible
+            )
+            give_way_lock_eligible = (
+                speed_do >= self._params.colregs_min_target_speed_mps
+                and self._precollision_check(p_os, v_os, p_do, v_do)
             )
             overtaking_state = self._update_overtaking_state(
                 target_id=id_do,
@@ -434,7 +511,7 @@ class VO:
                 p_os=p_os,
                 p_do=p_do,
                 cpa=rule_cpa,
-                can_enter=cpa_gate_eligible,
+                can_enter=give_way_lock_eligible,
             )
             overtaking_committed = overtaking_state is OvertakingState.COMMITTED
             commitment_eligible = (
@@ -490,9 +567,7 @@ class VO:
             )
             if speed_do >= self._params.colregs_min_target_speed_mps:
                 self._target_heading_memory[id_do] = psi_do
-            self._track_metrics[id_do]["dynamic_hazard_ignored"] = crossing_completed
-            if crossing_completed:
-                continue
+            self._track_metrics[id_do]["dynamic_hazard_ignored"] = False
             self._apply_dynamic_hazard(
                 expanded,
                 p_os,
@@ -501,13 +576,17 @@ class VO:
                 candidate_velocities,
                 uncertainty,
                 rules,
+                hard_clearance_domain=hard_clearance_domain,
+                preferred_clearance_domain=(
+                    preferred_clearance_domain if shape_risk_eligible else None
+                ),
             )
             self._dynamic_hazard_count += 1
 
         self._expire_missing_targets(seen_target_ids)
         self._select_driving_target()
         self._select_overtaking_target()
-        static_hazards = self._extract_static_hazards(enc, p_os, poly_os_shape)
+        static_hazards = self._extract_static_hazards(enc, p_os, static_poly_os_shape)
         self._static_hazard_count = len(static_hazards)
         for expanded in static_hazards:
             self._apply_base_vo(
@@ -538,7 +617,9 @@ class VO:
         self._colregs_v1_mask_grid = np.zeros(shape, dtype=bool)
         self._crossing_commitment_mask = np.zeros(shape, dtype=bool)
         self._wvo_mask = np.zeros(shape, dtype=bool)
+        self._preferred_clearance_mask = np.zeros(shape, dtype=bool)
         self._min_ttc = np.full(shape, np.inf)
+        self._preferred_clearance_ttc = np.full(shape, np.inf)
         self._violation_costs = np.zeros(shape)
         self._total_costs = np.full(shape, np.inf)
 
@@ -927,10 +1008,26 @@ class VO:
         candidates: np.ndarray,
         uncertainty: np.ndarray,
         rules: set[VOCOLREGSSituation],
+        *,
+        hard_clearance_domain: geometry.Polygon | None = None,
+        preferred_clearance_domain: geometry.Polygon | None = None,
     ) -> None:
         self._ensure_grid_shape()
-        self._apply_base_vo(expanded, p_os, v_do, candidates, uncertainty=None)
-        if not (len(uncertainty) == 1 and np.allclose(uncertainty[0], 0.0)):
+        if hard_clearance_domain is None:
+            self._apply_base_vo(expanded, p_os, v_do, candidates, uncertainty=None)
+        else:
+            self._apply_engineering_clearance_domains(
+                hard_clearance_domain,
+                preferred_clearance_domain,
+                p_os,
+                p_do,
+                v_do,
+                candidates,
+            )
+
+        if not (
+            len(uncertainty) == 1 and np.allclose(uncertainty[0], 0.0)
+        ):
             cone_radius = 4.0 * (
                 self._params.speed_set_limits[1]
                 + float(np.linalg.norm(v_do))
@@ -961,6 +1058,58 @@ class VO:
             self._hard_constraint_mask |= v1
         self._violation_costs[self._hard_constraint_mask] = np.inf
         self._violation_costs[self._wvo_mask & ~self._hard_constraint_mask] = 1.0
+
+    def _apply_engineering_clearance_domains(
+        self,
+        hard_domain: geometry.Polygon,
+        preferred_domain: geometry.Polygon | None,
+        p_os: np.ndarray,
+        p_do: np.ndarray,
+        v_do: np.ndarray,
+        candidates: np.ndarray,
+    ) -> None:
+        relative_position = p_do - p_os
+        nominal_ttc = ray_polygon_ttc_grid(hard_domain, p_os, candidates - v_do)
+        if hard_domain.covers(geometry.Point(*p_os)):
+            relative_velocity = candidates - v_do
+            nominal_hard = (
+                np.einsum("...i,i->...", relative_velocity, relative_position) >= 0.0
+            )
+            nominal_ttc = np.full(self._min_ttc.shape, np.inf)
+            nominal_ttc[nominal_hard] = 0.0
+        else:
+            nominal_hard = np.isfinite(nominal_ttc) & (
+                nominal_ttc <= self._params.t_max
+            )
+            nominal_ttc = np.where(nominal_hard, nominal_ttc, np.inf)
+        self._base_vo_mask |= nominal_hard
+        self._hard_constraint_mask |= nominal_hard
+        self._min_ttc = np.minimum(self._min_ttc, nominal_ttc)
+
+        if preferred_domain is None:
+            return
+        if preferred_domain.covers(geometry.Point(*p_os)):
+            relative_velocity = candidates - v_do
+            preferred = (
+                np.einsum("...i,i->...", relative_velocity, relative_position) >= 0.0
+            )
+            preferred_ttc = np.full(self._min_ttc.shape, np.inf)
+            preferred_ttc[preferred] = 0.0
+        else:
+            preferred_ttc = ray_polygon_ttc_grid(
+                preferred_domain,
+                p_os,
+                candidates - v_do,
+            )
+            preferred = np.isfinite(preferred_ttc) & (
+                preferred_ttc <= self._params.t_max
+            )
+            preferred_ttc = np.where(preferred, preferred_ttc, np.inf)
+        self._preferred_clearance_mask |= preferred
+        self._preferred_clearance_ttc = np.minimum(
+            self._preferred_clearance_ttc,
+            preferred_ttc,
+        )
 
     def _apply_base_vo(
         self,
@@ -1051,7 +1200,17 @@ class VO:
         ttc_cost[finite_ttc] = self._params.w_ttc / np.maximum(self._min_ttc[finite_ttc], 1e-9)
         wvo_only = self._wvo_mask & ~self._hard_constraint_mask
         ttc_cost[wvo_only] *= self._params.wvo_ttc_scale
-        self._total_costs = self._params.w_velocity * velocity_cost + ttc_cost
+        preferred_clearance_cost = np.zeros_like(velocity_cost)
+        preferred = np.isfinite(self._preferred_clearance_ttc)
+        preferred_clearance_cost[preferred] = self._params.w_ttc / np.maximum(
+            self._preferred_clearance_ttc[preferred],
+            1.0,
+        )
+        self._total_costs = (
+            self._params.w_velocity * velocity_cost
+            + ttc_cost
+            + preferred_clearance_cost
+        )
         self._total_costs[self._hard_constraint_mask] = np.inf
         self._overtaking_progress_relaxed = False
         if target_id is not None and self._overtaking_commitment_active:
@@ -1445,6 +1604,11 @@ class VO:
             "give_way_commitment_count": int(np.count_nonzero(self._crossing_commitment_mask)),
             "hard_constraint_count": int(np.count_nonzero(self._hard_constraint_mask)),
             "wvo_only_count": int(np.count_nonzero(self._wvo_mask & ~self._hard_constraint_mask)),
+            "preferred_clearance_count": int(
+                np.count_nonzero(
+                    self._preferred_clearance_mask & ~self._hard_constraint_mask
+                )
+            ),
             "feasible_candidate_count": int(np.count_nonzero(~self._hard_constraint_mask)),
             "selected_in_base_vo": bool(self._base_vo_mask[speed_index, heading_index]),
             "selected_in_colregs_v1": bool(self._colregs_v1_mask_grid[speed_index, heading_index]),
@@ -1460,6 +1624,14 @@ class VO:
                 self._wvo_mask[speed_index, heading_index]
                 and not self._hard_constraint_mask[speed_index, heading_index]
             ),
+            "selected_in_preferred_clearance": bool(
+                self._preferred_clearance_mask[speed_index, heading_index]
+                and not self._hard_constraint_mask[speed_index, heading_index]
+            ),
+            "hard_hull_clearance_m": self._params.hard_hull_clearance_m,
+            "preferred_hull_clearance_m": self._params.preferred_hull_clearance_m,
+            "ownship_length_m": self._ownship_length_m,
+            "ownship_width_m": self._ownship_width_m,
             "selected_ttc_s": float(selected_ttc) if np.isfinite(selected_ttc) else None,
             "reference_velocity_error_mps": self._reference_velocity_error_mps,
             "minimum_feasible_ttc_s": float(np.min(finite_ttc)) if finite_ttc.size else None,

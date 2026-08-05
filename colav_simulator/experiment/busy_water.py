@@ -28,8 +28,10 @@ _MAP_SIZE_NE = (5_000.0, 5_000.0)
 _OS_START_NE = np.array([6_956_650.0, 39_800.0])
 _OS_SPEED_MPS = 6.0
 _OS_COURSE_DEG = 0.0
-_SHIP_LENGTH_M = 12.0
-_SHIP_WIDTH_M = 4.0
+_OWNSHIP_LENGTH_M = 45.0
+_OWNSHIP_WIDTH_M = 8.0
+_TARGET_LENGTH_M = 12.0
+_TARGET_WIDTH_M = 4.0
 
 
 def build_busy_water_document(
@@ -233,7 +235,7 @@ def _candidate_is_clear(
             float(np.linalg.norm(_nominal_position(candidate, time_s) - _nominal_position(existing, time_s)))
             for time_s in times
         )
-        required = float(np.hypot(_SHIP_LENGTH_M, _SHIP_WIDTH_M) + 5.0)
+        required = _required_center_distance(candidate, existing, margin_m=5.0)
         if minimum < required:
             return False
     return True
@@ -362,7 +364,12 @@ def _ownship_document(*, speed_mps: float = _OS_SPEED_MPS) -> dict[str, Any]:
         "mmsi": 100,
         "guidance": _guidance_document(),
         "controller": {"pass_through_cs": ""},
-        "model": {"csog": _model_document()},
+        "model": {
+            "csog": _model_document(
+                length_m=_OWNSHIP_LENGTH_M,
+                width_m=_OWNSHIP_WIDTH_M,
+            )
+        },
     }
 
 
@@ -417,11 +424,15 @@ def _guidance_document() -> dict[str, Any]:
     }
 
 
-def _model_document() -> dict[str, Any]:
+def _model_document(
+    *,
+    length_m: float = _TARGET_LENGTH_M,
+    width_m: float = _TARGET_WIDTH_M,
+) -> dict[str, Any]:
     return {
         "draft": 3.0,
-        "length": _SHIP_LENGTH_M,
-        "width": _SHIP_WIDTH_M,
+        "length": length_m,
+        "width": width_m,
         "T_chi": 3.0,
         "T_U": 5.0,
         "r_max": 4.0,
@@ -442,7 +453,6 @@ def _require_route_inside_map(document: dict[str, Any], ship: dict[str, Any]) ->
 
 
 def _require_initial_separation(ships: list[dict[str, Any]]) -> None:
-    required = float(np.hypot(_SHIP_LENGTH_M, _SHIP_WIDTH_M) + 5.0)
     for index, ship in enumerate(ships):
         for target in ships[index + 1 :]:
             if not _windows_overlap(ship, target):
@@ -450,6 +460,7 @@ def _require_initial_separation(ships: list[dict[str, Any]]) -> None:
             overlap_start = max(float(ship.get("t_start", 0.0)), float(target.get("t_start", 0.0)))
             position = _nominal_position(ship, overlap_start)
             target_position = _nominal_position(target, overlap_start)
+            required = _required_center_distance(ship, target, margin_m=5.0)
             if np.linalg.norm(position - target_position) < required:
                 raise ValueError(f"ships {ship['id']} and {target['id']} initially overlap")
 
@@ -487,7 +498,6 @@ def _single_pass_position_velocity(ship: dict[str, Any], sim_time_s: float) -> t
 
 def _trajectory_pair_clearances(ships: list[dict[str, Any]], scenario_end_s: float) -> list[dict[str, Any]]:
     output = []
-    required = float(np.hypot(_SHIP_LENGTH_M, _SHIP_WIDTH_M))
     for index, first in enumerate(ships):
         for second in ships[index + 1 :]:
             start = max(float(first.get("t_start", 0.0)), float(second.get("t_start", 0.0)))
@@ -506,6 +516,7 @@ def _trajectory_pair_clearances(ships: list[dict[str, Any]], scenario_end_s: flo
             )
             minimum_index = int(np.argmin(distances))
             minimum_distance = float(distances[minimum_index])
+            required = _required_center_distance(first, second)
             output.append(
                 {
                     "ship_ids": [int(first["id"]), int(second["id"])],
@@ -538,8 +549,8 @@ def _nominal_encounter_results(document: dict[str, Any]) -> list[dict[str, Any]]
             own_velocity,
             target_position,
             target_velocity,
-            _SHIP_LENGTH_M,
-            _SHIP_LENGTH_M,
+            _ship_dimensions(own)[0],
+            _ship_dimensions(target)[0],
         )
         output.append(
             {
@@ -552,6 +563,26 @@ def _nominal_encounter_results(document: dict[str, Any]) -> list[dict[str, Any]]
             }
         )
     return output
+
+
+def _ship_dimensions(ship: dict[str, Any]) -> tuple[float, float]:
+    model = ship["model"]["csog"]
+    return float(model["length"]), float(model["width"])
+
+
+def _required_center_distance(
+    first: dict[str, Any],
+    second: dict[str, Any],
+    *,
+    margin_m: float = 0.0,
+) -> float:
+    first_length, first_width = _ship_dimensions(first)
+    second_length, second_width = _ship_dimensions(second)
+    return float(
+        0.5 * np.hypot(first_length, first_width)
+        + 0.5 * np.hypot(second_length, second_width)
+        + margin_m
+    )
 
 
 def _configured_encounter_role(ship: dict[str, Any]) -> str:
