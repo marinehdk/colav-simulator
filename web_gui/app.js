@@ -16,6 +16,7 @@ const TCPA_SAFE  = 120;   // s
 const TCPA_WARN  = 40;    // s
 const FCB45_LENGTH_M = 45;
 const FCB45_WIDTH_M = 8;
+const FCB45_SPRITE_CROP = { x: 388, y: 85, width: 240, height: 1313 };
 const MOTION_VECTOR_SECONDS = 60;
 const MOTION_TICK_SECONDS = 10;
 const PREDICTION_MARKER_SECONDS = 10;
@@ -24,7 +25,8 @@ const SBMPC_SOLVE_PERIOD_SECONDS = 5;
 const RADAR_DETECTION_RANGE_M = 2000;
 const SBMPC_RESPONSE_RANGE_M = 1000;
 const VO_DECISION_FETCH_INTERVAL_MS = 200;
-const TELEMETRY_RENDER_INTERVAL_MS = 100;
+const TELEMETRY_RENDER_MIN_MS = 100;
+const TELEMETRY_RENDER_MAX_MS = 1000;
 const METERS_PER_KNOT = 0.514444;
 const BUSY_WATER_DRAFT_ID = 'current-multiship';
 const THREAT_STYLES = {
@@ -162,6 +164,7 @@ let plannerSurfaceAttached = false;
 let renderFromData = null;
 let renderToData = null;
 let renderStartedAt = 0;
+let renderDurationMs = TELEMETRY_RENDER_MIN_MS;
 let renderFrameId = null;
 const missionRoutes = new Map();
 let targetHitRegions = [];
@@ -172,6 +175,12 @@ let busyWaterBaseScenario = null;
 let busyWaterSeed = 20250731;
 let busyWaterMix = { crossing: 0.6, head_on: 0.2, overtaking: 0.2 };
 let busyWaterRevision = 0;
+const ownshipSprite = new Image();
+ownshipSprite.decoding = 'async';
+ownshipSprite.addEventListener('load', () => {
+  if (currentData) renderCanvas(currentData);
+});
+ownshipSprite.src = '/static/assets/fcb45-top.png';
 let routePointEditMode = null;
 let busyWaterDraftChecked = false;
 let targetEditorKey = null;
@@ -513,6 +522,16 @@ function interpolateTelemetry(from, to, amount) {
   };
 }
 
+function telemetryRenderDurationMs(from, to) {
+  const simDelta = Number(to?.sim_time) - Number(from?.sim_time);
+  const multiplier = Number(to?.playback?.requested_multiplier) || 1;
+  if (!Number.isFinite(simDelta) || simDelta <= 0 || multiplier <= 0) return TELEMETRY_RENDER_MIN_MS;
+  return Math.min(
+    TELEMETRY_RENDER_MAX_MS,
+    Math.max(TELEMETRY_RENDER_MIN_MS, simDelta / multiplier * 1000),
+  );
+}
+
 function renderTelemetryFrame(timestamp) {
   if (!renderToData) {
     renderFrameId = null;
@@ -520,7 +539,7 @@ function renderTelemetryFrame(timestamp) {
   }
   const amount = renderFromData === renderToData
     ? 1
-    : Math.min(1, Math.max(0, (timestamp - renderStartedAt) / TELEMETRY_RENDER_INTERVAL_MS));
+    : Math.min(1, Math.max(0, (timestamp - renderStartedAt) / renderDurationMs));
   renderCanvas(interpolateTelemetry(renderFromData, renderToData, amount));
   if (amount < 1 && renderToData.state === 'RUNNING') {
     renderFrameId = requestAnimationFrame(renderTelemetryFrame);
@@ -535,9 +554,15 @@ function queueTelemetryRender(data) {
   if (!renderToData || renderToData.run_id !== data.run_id) {
     renderFromData = data;
     renderToData = data;
+    renderDurationMs = TELEMETRY_RENDER_MIN_MS;
+  } else if (Number.isFinite(data.seq) && data.seq === renderToData.seq) {
+    renderToData = data;
+    if (data.state === 'RUNNING') return;
+    renderFromData = data;
   } else {
-    const amount = Math.min(1, Math.max(0, (now - renderStartedAt) / TELEMETRY_RENDER_INTERVAL_MS));
+    const amount = Math.min(1, Math.max(0, (now - renderStartedAt) / renderDurationMs));
     renderFromData = interpolateTelemetry(renderFromData, renderToData, amount);
+    renderDurationMs = telemetryRenderDurationMs(renderToData, data);
     renderToData = data;
   }
   renderStartedAt = now;
@@ -1013,10 +1038,38 @@ function drawShips(data) {
   }
   if (data.os) {
     const point = worldToCanvas(data.os.x, data.os.y);
-    drawHull(point, data.os.psi, FCB45_LENGTH_M, FCB45_WIDTH_M, null, true);
+    drawOwnshipSprite(point, data.os.psi, FCB45_LENGTH_M, FCB45_WIDTH_M);
     labels.push({ text: 'OS', point, color: '#FFFFFF' });
   }
   drawAvoidingLabels(labels);
+}
+
+function drawOwnshipSprite(point, heading, lengthM, widthM) {
+  if (!ownshipSprite.complete || ownshipSprite.naturalWidth === 0) {
+    drawHull(point, heading, lengthM, widthM, null, true);
+    return;
+  }
+  const lengthPx = Math.max(18, lengthM * viewScale);
+  const widthPx = Math.max(4, lengthPx * widthM / lengthM);
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.rotate(Number.isFinite(heading) ? heading : 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = 2;
+  ctx.drawImage(
+    ownshipSprite,
+    FCB45_SPRITE_CROP.x,
+    FCB45_SPRITE_CROP.y,
+    FCB45_SPRITE_CROP.width,
+    FCB45_SPRITE_CROP.height,
+    -widthPx / 2,
+    -lengthPx / 2,
+    widthPx,
+    lengthPx,
+  );
+  ctx.restore();
 }
 
 function drawHull(point, heading, lengthM, widthM, threat, ownship, compact = false) {

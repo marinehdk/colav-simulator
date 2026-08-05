@@ -83,6 +83,10 @@ def test_playback_ui_uses_server_state_and_frame_interpolation() -> None:
     assert "syncPlaybackStatus(playback" in script.text
     assert "queueTelemetryRender(data)" in script.text
     assert "requestAnimationFrame(renderTelemetryFrame)" in script.text
+    assert "function telemetryRenderDurationMs(from, to)" in script.text
+    assert "renderDurationMs = telemetryRenderDurationMs(renderToData, data);" in script.text
+    assert "data.seq === renderToData.seq" in script.text
+    assert "TELEMETRY_RENDER_INTERVAL_MS = 100" not in script.text
     assert "VO_DECISION_FETCH_INTERVAL_MS = 200" in script.text
     assert "voDecisionSpacePending" in script.text
     assert "voDecisionSpaceAttemptedKey" in script.text
@@ -92,3 +96,15 @@ def test_playback_ui_uses_server_state_and_frame_interpolation() -> None:
         script.text.index("function ensureVODecisionSpace(") : script.text.index("function drawVODecisionSpace(")
     ]
     assert "/api/set_speed?multiplier=" not in script.text
+
+
+def test_ownship_uses_fcb45_top_view_sprite() -> None:
+    with TestClient(app) as client:
+        script = client.get("/static/app.js")
+        sprite = client.get("/static/assets/fcb45-top.png")
+
+    assert sprite.status_code == 200
+    assert sprite.headers["content-type"] == "image/png"
+    assert sprite.content.startswith(b"\x89PNG\r\n\x1a\n")
+    assert "ownshipSprite.src = '/static/assets/fcb45-top.png';" in script.text
+    assert "drawOwnshipSprite(point, data.os.psi, FCB45_LENGTH_M, FCB45_WIDTH_M);" in script.text
