@@ -433,6 +433,7 @@ class VO:
                 matched_rules=matched_rules,
                 p_os=p_os,
                 p_do=p_do,
+                cpa=rule_cpa,
                 can_enter=cpa_gate_eligible,
             )
             overtaking_committed = overtaking_state is OvertakingState.COMMITTED
@@ -548,6 +549,7 @@ class VO:
         matched_rules: set[VOCOLREGSSituation],
         p_os: np.ndarray,
         p_do: np.ndarray,
+        cpa: dict[str, float | None],
         can_enter: bool,
     ) -> set[VOCOLREGSSituation]:
         lockable = (VOCOLREGSSituation.HO,)
@@ -571,11 +573,9 @@ class VO:
         if locked_rule is not None:
             previous_distance = self._give_way_previous_distances.get(target_id, distance)
             moving_away = distance >= previous_distance - 1e-9
-            release_candidate = (
-                not can_enter
-                and distance >= self._params.give_way_release_distance_m
-                and moving_away
-            )
+            tcpa = cpa["tcpa_s"]
+            passed = bool(tcpa is not None and tcpa <= 0.0 and moving_away)
+            release_candidate = not can_enter and passed
             release_count = self._give_way_release_counts.get(target_id, 0)
             release_count = release_count + 1 if release_candidate else 0
             self._give_way_release_counts[target_id] = release_count
@@ -1029,6 +1029,21 @@ class VO:
                 target_speed + self._params.overtaking_speed_advantage_mps,
             )
             cost_reference = progress_speed * target_along
+        elif (
+            self._give_way_commitment_active
+            and self._crossing_commitment_frame_heading is not None
+        ):
+            reference_speed = float(np.linalg.norm(v_ref))
+            if reference_speed > 1e-12:
+                commitment_frame = self._crossing_commitment_frame_heading
+                reference_heading = float(np.arctan2(v_ref[1], v_ref[0]))
+                reference_progress = _wrap_angle(reference_heading - commitment_frame)
+                committed_progress = _wrap_angle(self._selected_heading - commitment_frame)
+                if reference_progress < committed_progress:
+                    committed_heading = commitment_frame + committed_progress
+                    cost_reference = reference_speed * np.array(
+                        [np.cos(committed_heading), np.sin(committed_heading)]
+                    )
         delta = candidates - cost_reference
         velocity_cost = np.einsum("...i,ij,...j->...", delta, self._params.Q, delta)
         ttc_cost = np.zeros_like(velocity_cost)
@@ -1164,7 +1179,6 @@ class VO:
         p_do: np.ndarray,
         v_do: np.ndarray,
     ) -> set[VOCOLREGSSituation]:
-        del v_os
         speed_do = float(np.linalg.norm(v_do))
         if speed_do < self._params.colregs_min_target_speed_mps:
             return set()
@@ -1179,7 +1193,17 @@ class VO:
         same_course = abs(heading_delta) <= p.rule_heading_tolerance_rad
         opposite_course = abs(abs(heading_delta) - np.pi) <= p.rule_heading_tolerance_rad
         in_track_corridor = abs(lateral) <= p.rule_cross_track_max_m
-        if opposite_course and in_track_corridor and longitudinal >= p.rule_along_track_min_m:
+        cpa = self._cpa_metrics(p_os, v_os, p_do, v_do)
+        collision_course = bool(
+            cpa["tcpa_s"] is not None
+            and cpa["tcpa_s"] >= 0.0
+            and cpa["dcpa_m"] <= p.d_min
+        )
+        if (
+            opposite_course
+            and (in_track_corridor or collision_course)
+            and longitudinal >= p.rule_along_track_min_m
+        ):
             rules.add(VOCOLREGSSituation.HO)
         if same_course and in_track_corridor:
             if longitudinal >= p.rule_along_track_min_m:

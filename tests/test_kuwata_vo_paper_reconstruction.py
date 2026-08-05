@@ -133,6 +133,20 @@ def test_rule_cpa_gate_uses_current_velocity_instead_of_los_reference() -> None:
     assert debug["active_rules"] == {"1": ["HO"]}
 
 
+def test_head_on_collision_course_is_not_limited_to_twenty_metre_track_corridor() -> None:
+    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    target = _track(7, (1000.0, 65.0), (-2.5, 0.0))
+
+    planner.plan(0.0, np.array([6.0, 0.0]), _own_state(speed=6.0), [target])
+
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][7]["rule_dcpa_m"] == pytest.approx(65.0)
+    assert debug["track_metrics"][7]["matched_rules"] == ["HO"]
+    assert debug["active_rules"] == {"7": ["HO"]}
+    assert debug["give_way_rule_locks"] == {"7": "HO"}
+    assert debug["selected_heading_rad"] >= 0.0
+
+
 def test_same_geometry_changes_cpa_gate_when_target_speed_changes() -> None:
     planner = VO(VOParams(t_max=120.0, d_min=50.0))
     own_position = np.zeros(2)
@@ -333,12 +347,40 @@ def test_give_way_commitment_survives_ownship_body_frame_corridor_exit(
     planner.plan(1.0, np.array([5.0, 0.0]), turned_state, [target])
     debug = planner.get_debug_data()
 
-    assert debug["track_metrics"][1]["matched_rules"] == []
+    assert debug["track_metrics"][1]["matched_rules"] == (
+        ["HO"] if rule is VOCOLREGSSituation.HO else []
+    )
     assert debug["track_metrics"][1]["active_rules"] == [rule.name]
     assert debug["track_metrics"][1]["committed_rule"] == rule.name
     assert debug["give_way_commitment_active"]
     assert debug["selected_heading_rad"] >= -1e-12
     assert not debug["emergency_rule_relaxation"]
+
+
+def test_give_way_commitment_preserves_speed_when_route_reference_points_port() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=32,
+            heading_samples=128,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    target = _track(1, (600.0, 0.0), (-5.0, 0.0))
+    planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [target])
+    committed_heading = planner.get_debug_data()["selected_heading_rad"]
+
+    route_return = 5.0 * np.array([np.cos(-0.8), np.sin(-0.8)])
+    planner.plan(
+        1.0,
+        route_return,
+        _own_state(heading=committed_heading),
+        [_track(1, (590.0, 0.0), (-5.0, 0.0))],
+    )
+
+    debug = planner.get_debug_data()
+    assert debug["give_way_rule_locks"] == {"1": "HO"}
+    assert debug["selected_heading_rad"] >= committed_heading - 1e-12
+    assert debug["selected_speed_mps"] >= 4.5
 
 
 def test_give_way_commitment_releases_only_after_target_passes_clear(
@@ -377,6 +419,70 @@ def test_give_way_commitment_releases_only_after_target_passes_clear(
 
     planner.plan(8.0, np.array([5.0, 0.0]), _own_state(), [target])
     assert planner.get_debug_data()["give_way_rule_locks"] == {"1": rule.name}
+
+
+def test_give_way_commitment_releases_after_pass_before_range_threshold() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+            give_way_release_steps=3,
+        )
+    )
+    target_velocity = (-5.0, 0.0)
+    planner.plan(
+        0.0,
+        np.array([5.0, 0.0]),
+        _own_state(),
+        [_track(1, (600.0, 0.0), target_velocity)],
+    )
+
+    for sim_time, north in ((1.0, -80.0), (2.0, -90.0), (3.0, -100.0)):
+        planner.plan(
+            sim_time,
+            np.array([5.0, 0.0]),
+            _own_state(),
+            [_track(1, (north, 0.0), target_velocity)],
+        )
+        assert planner.get_debug_data()["give_way_rule_locks"] == {"1": "HO"}
+
+    planner.plan(
+        4.0,
+        np.array([5.0, 0.0]),
+        _own_state(),
+        [_track(1, (-110.0, 0.0), target_velocity)],
+    )
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["center_distance_m"] < 150.0
+    assert debug["give_way_rule_locks"] == {}
+    assert debug["completed_give_way_targets"] == [1]
+
+
+def test_give_way_commitment_does_not_release_before_pass_on_projected_clearance() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+            give_way_release_steps=3,
+        )
+    )
+    target = _track(1, (600.0, 0.0), (-5.0, 0.0))
+    planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [target])
+
+    turned_state = _own_state(heading=np.deg2rad(40.0))
+    safe_target = _track(1, (500.0, 0.0), (-5.0, 0.0))
+    for sim_time in (1.0, 2.0):
+        planner.plan(sim_time, np.array([5.0, 0.0]), turned_state, [safe_target])
+        assert planner.get_debug_data()["give_way_rule_locks"] == {"1": "HO"}
+
+    planner.plan(3.0, np.array([5.0, 0.0]), turned_state, [safe_target])
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["rule_dcpa_m"] > 150.0
+    assert debug["track_metrics"][1]["rule_tcpa_s"] > 0.0
+    assert debug["give_way_rule_locks"] == {"1": "HO"}
+    assert debug["completed_give_way_targets"] == []
 
 
 def test_overtaking_uses_dedicated_240_second_entry_window_and_starboard_commitment() -> None:
