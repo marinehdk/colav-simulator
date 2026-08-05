@@ -60,6 +60,24 @@ def test_no_overlap_is_reported_not_scored() -> None:
     assert "No synchronized finite samples" in result.warnings[-1]
 
 
+def test_ship0_clearance_below_fifty_metres_fails_hard_gate() -> None:
+    times = np.arange(0.0, 11.0)
+    ownship = vessel(0, np.zeros(times.size), times, 1.0, 0.0)
+    target = vessel(1, np.full(times.size, 69.0), times, 1.0, 0.0)
+
+    result = Evaluator().evaluate([ownship, target])
+    clearance_check = next(
+        check
+        for check in result.hard_gate.checks
+        if check.check_id == "minimum_hull_clearance"
+    )
+
+    assert not result.pair_results[0].collision
+    assert result.pair_results[0].minimum_hull_clearance_m < 50.0
+    assert clearance_check.outcome == "FAIL"
+    assert result.hard_gate.outcome == "FAIL"
+
+
 def test_stress_only_evaluation_scores_nearest_and_potential_contact_pairs() -> None:
     times = np.arange(0.0, 11.0)
     ownship = vessel(0, np.zeros(times.size), times * 5.0, 5.0, 0.0)

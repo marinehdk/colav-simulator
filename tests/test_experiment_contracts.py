@@ -129,6 +129,22 @@ def test_pause_does_not_advance_time(tmp_path: Path) -> None:
     assert prepared.session.simulator.t > time_before
 
 
+def test_multiship_run_prepares_fcb_ownship_dimensions(tmp_path: Path) -> None:
+    prepared = ExperimentRunner().prepare(
+        RunSpec(
+            "paper_ccta2023_multiship",
+            algorithm_id="vo",
+            tracker_id="god",
+            t_end=0.2,
+            output_root=str(tmp_path),
+        )
+    )
+
+    ownship = prepared.session.ship_list[0]
+    assert ownship.length == pytest.approx(45.0)
+    assert ownship.width == pytest.approx(8.0)
+
+
 def test_failed_algorithm_run_keeps_complete_evidence_bundle(tmp_path: Path) -> None:
     with pytest.raises(ExperimentRunError) as failure:
         ExperimentRunner().run(

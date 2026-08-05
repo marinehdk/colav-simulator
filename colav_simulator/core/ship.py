@@ -583,6 +583,11 @@ class Ship(IShip):
             )
 
         if self._colav is not None:
+            dynamics_params = (
+                self._model.params
+                if isinstance(self._model, models.KinematicCSOG)
+                else None
+            )
             self._references = self._colav.plan(
                 t,
                 self._waypoints,
@@ -595,6 +600,9 @@ class Ship(IShip):
                 os_length=self._model.params.length,
                 os_width=self._model.params.width,
                 os_draft=self._model.params.draft,
+                os_course_time_constant_s=getattr(dynamics_params, "T_chi", None),
+                os_speed_time_constant_s=getattr(dynamics_params, "T_U", None),
+                os_max_turn_rate_radps=getattr(dynamics_params, "r_max", None),
                 dt=dt,
             )
             self._references = validate_plan(self._references)

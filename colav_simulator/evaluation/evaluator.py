@@ -78,6 +78,7 @@ class PairEvaluation:
     initial_tcpa_s: float
     initial_signed_tcpa_s: float
     minimum_distance_m: float
+    minimum_hull_clearance_m: float
     cpa_time_s: float
     collision: bool
     collision_toc_s: float | None
@@ -276,6 +277,11 @@ class Evaluator:
         target_positions_ne = target_positions_en[::-1]
         relative_ne = target_positions_ne - own_positions_ne
         distance = np.linalg.norm(relative_ne, axis=0)
+        minimum_hull_clearance = (
+            _minimum_continuous_distance(relative_ne)
+            - _circumscribed_radius(ownship)
+            - _circumscribed_radius(target)
+        )
         actual_cpa = trajectory_cpa(own_positions_ne, target_positions_ne, times)
         cpa_index = int(np.argmin(distance))
         own_velocities = _velocities(ownship, own_indices)
@@ -370,6 +376,7 @@ class Evaluator:
             initial_tcpa_s=initial_cpa.tcpa_forward_s,
             initial_signed_tcpa_s=initial_cpa.tcpa_signed_s,
             minimum_distance_m=float(distance[cpa_index]),
+            minimum_hull_clearance_m=minimum_hull_clearance,
             cpa_time_s=float(times[cpa_index]),
             collision=collision.collided,
             collision_toc_s=collision.toc_s,
@@ -727,6 +734,12 @@ def _hard_gate(
     )
     global_grounded_count = sum(result.grounded is True for result in vessel_results)
     global_grounding_unknown = sum(result.grounded is None for result in vessel_results)
+    ownship_pairs = [
+        result for result in pair_results if 0 in {result.ownship_id, result.target_id}
+    ]
+    clearance_violations = [
+        result for result in ownship_pairs if result.minimum_hull_clearance_m < 50.0
+    ]
     fallback = bool(context.get("fallback_used", False))
     completed = bool(context.get("run_completed", True))
     checks = [
@@ -738,6 +751,23 @@ def _hard_gate(
                 "oracle_id": C2A_ORACLE_ID,
                 "scope": "ship0_vs_target",
                 "global_all_vessel_collision_count": global_collision_count,
+            },
+        ),
+        HardGateCheck(
+            "minimum_hull_clearance",
+            CheckOutcome.FAIL
+            if clearance_violations
+            else CheckOutcome.PASS
+            if ownship_pairs
+            else CheckOutcome.NOT_EVALUATED,
+            f"{len(clearance_violations)} Ship0-vs-target clearances below 50.0 m",
+            {
+                "scope": "ship0_vs_target",
+                "required_clearance_m": 50.0,
+                "minimum_hull_clearance_m": min(
+                    (result.minimum_hull_clearance_m for result in ownship_pairs),
+                    default=None,
+                ),
             },
         ),
         HardGateCheck(
@@ -773,6 +803,26 @@ def _hard_gate(
     else:
         outcome = GateOutcome.PASS
     return HardGateLayer(outcome, checks)
+
+
+def _circumscribed_radius(vessel: VesselData) -> float:
+    return 0.5 * float(np.hypot(vessel.length, vessel.width))
+
+
+def _minimum_continuous_distance(relative_positions: np.ndarray) -> float:
+    if relative_positions.shape[1] == 1:
+        return float(np.linalg.norm(relative_positions[:, 0]))
+    starts = relative_positions[:, :-1].T
+    deltas = np.diff(relative_positions, axis=1).T
+    lengths_squared = np.einsum("ij,ij->i", deltas, deltas)
+    fractions = np.divide(
+        -np.einsum("ij,ij->i", starts, deltas),
+        lengths_squared,
+        out=np.zeros_like(lengths_squared),
+        where=lengths_squared > 0.0,
+    )
+    closest = starts + np.clip(fractions, 0.0, 1.0)[:, None] * deltas
+    return float(np.min(np.linalg.norm(closest, axis=1)))
 
 
 def _mean_optional(values: Any) -> float | None:
