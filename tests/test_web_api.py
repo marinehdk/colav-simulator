@@ -180,7 +180,10 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "surfaceExplanation.hidden = !isVO" in script.text
         assert "surfaceMeta.hidden = isVO" in script.text
         assert "setPlannerSurfaceAttached(!plannerSurfaceAttached)" in script.text
-        assert "drawVODecisionSpaceOnMap(data.os)" in script.text
+        assert "drawPlannerSurfaceOnMap(data.os, diagnosticPlannerForData(data))" in script.text
+        assert "if (surfaceType === 'fan') drawSimplifiedMpcFanOnMap(os, planner)" in script.text
+        assert "plannerSurfaceType(currentDiagnosticPlanner())" in script.text
+        assert "offsetY + scaledHeight - (point.y - minY) * scale" in script.text
         assert "panel.hidden = attached" in script.text
         assert "updateAttachedPlannerSurfacePosition" not in script.text
         assert all(
