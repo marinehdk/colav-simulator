@@ -429,9 +429,27 @@ function renderCanvas(data) {
     drawExecutionPoint(plans.prediction_horizon);
   if (visibleLayers.risk) drawCPARisk(data);
   drawTargetRoutes(data);
-  if (data.os && plannerSurfaceAttached) drawVODecisionSpaceOnMap(data.os);
+  if (data.os && plannerSurfaceAttached) drawPlannerSurfaceOnMap(data.os, diagnosticPlannerForData(data));
   if (visibleLayers.ships) drawShips(data);
   if (data.os && !plannerSurfaceAttached) drawRelativeCompass(data.os, W, H);
+}
+
+function diagnosticPlannerForData(data) {
+  const planner = data?.planner || {};
+  const latestSolve = data?.latest_planner_solve || {};
+  return planner.solver_executed || !latestSolve.solver_executed ? planner : latestSolve;
+}
+
+function plannerSurfaceType(planner) {
+  if (planner?.algorithm_id === 'vo') return 'vo';
+  if (['potocnik_simplified_mpc', 'potocnik_colreg_fan_mpc'].includes(planner?.algorithm_id)) return 'fan';
+  return null;
+}
+
+function drawPlannerSurfaceOnMap(os, planner) {
+  const surfaceType = plannerSurfaceType(planner);
+  if (surfaceType === 'vo') drawVODecisionSpaceOnMap(os);
+  if (surfaceType === 'fan') drawSimplifiedMpcFanOnMap(os, planner);
 }
 
 function drawTargetRoutes(data) {
@@ -1643,7 +1661,7 @@ function drawPlannerSurface(planner) {
   if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc';
   const voLegend = document.getElementById('voSurfaceLegend');
   if (voLegend) voLegend.hidden = !isVO;
-  updatePlannerSurfaceAttachControl(isVO, Number(planner.solve_id));
+  updatePlannerSurfaceAttachControl(plannerSurfaceType(planner), Number(planner.solve_id));
   if (isVO) {
     drawVODecisionSpace(surface, canvas, planner, details);
     return;
@@ -1827,7 +1845,7 @@ function requestPendingVODecisionSpace() {
     voDecisionSpaceAttemptedKey = requestKey;
     lastVORenderKey = null;
     drawPlannerSurface(pending.planner);
-    updatePlannerSurfaceAttachControl(true, pending.solveId);
+    updatePlannerSurfaceAttachControl('vo', pending.solveId);
     if (plannerSurfaceAttached && currentData) renderCanvas(currentData);
   }).catch(error => {
     if (error.name !== 'AbortError') {
@@ -2251,24 +2269,29 @@ function currentDiagnosticPlanner() {
   return planner.solver_executed || !latestSolve.solver_executed ? planner : latestSolve;
 }
 
-function updatePlannerSurfaceAttachControl(isVO, solveId) {
+function updatePlannerSurfaceAttachControl(surfaceType, solveId) {
   const button = document.getElementById('plannerSurfaceAttach');
   if (!button) return;
-  button.hidden = !isVO;
-  const hasSnapshot = Boolean(
-    activeSessionId
-    && voDecisionSpace
-    && voDecisionSpaceKey?.startsWith(`${activeSessionId}:`)
-    && Number.isInteger(solveId)
-    && solveId > 0
-  );
-  button.disabled = !hasSnapshot && !plannerSurfaceAttached;
-  button.textContent = plannerSurfaceAttached ? '收起' : hasSnapshot ? '展示' : '加载中';
+  button.hidden = !surfaceType;
+  const planner = currentDiagnosticPlanner();
+  const hasContent = surfaceType === 'vo'
+    ? Boolean(
+      activeSessionId
+      && voDecisionSpace
+      && voDecisionSpaceKey?.startsWith(`${activeSessionId}:`)
+      && Number.isInteger(solveId)
+      && solveId > 0
+    )
+    : surfaceType === 'fan'
+      && Array.isArray(planner.algorithm_details?.candidate_heading_increments_rad)
+      && planner.algorithm_details.candidate_heading_increments_rad.length > 0;
+  button.disabled = !hasContent && !plannerSurfaceAttached;
+  button.textContent = plannerSurfaceAttached ? '收起' : hasContent ? '展开' : '加载中';
   button.setAttribute('aria-pressed', String(plannerSurfaceAttached));
 }
 
 function syncPlannerSurfaceMode(planner) {
-  if (planner.algorithm_id !== 'vo' && plannerSurfaceAttached) {
+  if (!plannerSurfaceType(planner) && plannerSurfaceAttached) {
     setPlannerSurfaceAttached(false, { rerender: false });
   }
 }
@@ -2276,11 +2299,14 @@ function syncPlannerSurfaceMode(planner) {
 function setPlannerSurfaceAttached(attached, { rerender = true } = {}) {
   const panel = document.getElementById('plannerSurfacePanel');
   if (!panel || attached === plannerSurfaceAttached) return;
-  if (attached && currentDiagnosticPlanner().algorithm_id !== 'vo') return;
+  if (attached && !plannerSurfaceType(currentDiagnosticPlanner())) return;
   plannerSurfaceAttached = attached;
   panel.hidden = attached;
   lastVORenderKey = null;
-  updatePlannerSurfaceAttachControl(currentDiagnosticPlanner().algorithm_id === 'vo', Number(currentDiagnosticPlanner().solve_id));
+  updatePlannerSurfaceAttachControl(
+    plannerSurfaceType(currentDiagnosticPlanner()),
+    Number(currentDiagnosticPlanner().solve_id),
+  );
   window.requestAnimationFrame(() => {
     if (currentData) drawPlannerSurface(currentDiagnosticPlanner());
   });
@@ -2315,29 +2341,9 @@ function formatAxisNumber(value) {
 }
 
 function drawSimplifiedMpcFan(surface, canvas, planner, details) {
-  const increments = Array.isArray(details.candidate_heading_increments_rad)
-    ? details.candidate_heading_increments_rad.map(Number)
-    : [];
-  const feasible = Array.isArray(details.candidate_feasible) ? details.candidate_feasible : [];
-  const selectedIndex = Number(details.selected_candidate_index);
-  const steps = Math.max(1, Number(details.prediction_steps) || 16);
-  const decay = Number(details.heading_increment_decay) || 0.95;
+  const geometry = simplifiedMpcFanGeometry(details);
+  const { increments, feasible, selectedIndex, steps, trajectories } = geometry;
   const targetOffset = Number(details.target_bearing_offset_rad);
-  const trajectories = increments.map(increment => {
-    const points = [{ x: 0, y: 0 }];
-    let heading = 0;
-    let turn = increment;
-    let x = 0;
-    let y = 0;
-    for (let step = 0; step < steps; step += 1) {
-      heading += turn;
-      x += Math.sin(heading);
-      y += Math.cos(heading);
-      points.push({ x, y });
-      turn *= decay;
-    }
-    return points;
-  });
 
   setText('label-best-cost', details.selection_mode === 'terminal_distance'
     ? '选择指标·终点距离'
@@ -2395,9 +2401,13 @@ function drawSimplifiedMpcFan(surface, canvas, planner, details) {
     (plot.right - plot.left) / Math.max(1, maxX - minX),
     (plot.bottom - plot.top) / Math.max(1, maxY - minY),
   );
+  const scaledWidth = (maxX - minX) * scale;
+  const scaledHeight = (maxY - minY) * scale;
+  const offsetX = plot.left + ((plot.right - plot.left) - scaledWidth) / 2;
+  const offsetY = plot.top + ((plot.bottom - plot.top) - scaledHeight) / 2;
   const mapPoint = point => ({
-    x: plot.left + (point.x - minX) * scale,
-    y: plot.bottom - (point.y - minY) * scale,
+    x: offsetX + (point.x - minX) * scale,
+    y: offsetY + scaledHeight - (point.y - minY) * scale,
   });
   const origin = mapPoint({ x: 0, y: 0 });
   const drawGuide = (angle, color, dashed = true) => {
@@ -2447,6 +2457,111 @@ function drawSimplifiedMpcFan(surface, canvas, planner, details) {
   surface.beginPath();
   surface.arc(origin.x, origin.y, 3.5, 0, Math.PI * 2);
   surface.fill();
+}
+
+function simplifiedMpcFanGeometry(details) {
+  const increments = Array.isArray(details.candidate_heading_increments_rad)
+    ? details.candidate_heading_increments_rad.map(Number)
+    : [];
+  const feasible = Array.isArray(details.candidate_feasible) ? details.candidate_feasible : [];
+  const selectedIndex = Number(details.selected_candidate_index);
+  const steps = Math.max(1, Number(details.prediction_steps) || 16);
+  const decay = Number(details.heading_increment_decay) || 0.95;
+  const trajectories = increments.map(increment => {
+    const points = [{ x: 0, y: 0 }];
+    let heading = 0;
+    let turn = increment;
+    let x = 0;
+    let y = 0;
+    for (let step = 0; step < steps; step += 1) {
+      heading += turn;
+      x += Math.sin(heading);
+      y += Math.cos(heading);
+      points.push({ x, y });
+      turn *= decay;
+    }
+    return points;
+  });
+  return { increments, feasible, selectedIndex, steps, trajectories };
+}
+
+function drawSimplifiedMpcFanOnMap(os, planner) {
+  if (!Number.isFinite(os?.x) || !Number.isFinite(os?.y)) return;
+  const details = planner?.algorithm_details || {};
+  const { feasible, selectedIndex, steps, trajectories } = simplifiedMpcFanGeometry(details);
+  if (!trajectories.length) return;
+
+  const center = worldToCanvas(os.x, os.y);
+  const radius = wrapper.clientWidth <= 520 ? 64 : 110;
+  const scale = radius / steps;
+  const heading = Number(os.psi) || 0;
+  const mapPoint = point => ({
+    x: center.x + (point.y * Math.sin(heading) + point.x * Math.cos(heading)) * scale,
+    y: center.y - (point.y * Math.cos(heading) - point.x * Math.sin(heading)) * scale,
+  });
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(8,18,20,0.34)';
+  ctx.fillRect(center.x - radius, center.y - radius, radius * 2, radius * 2);
+  [-Math.PI / 2, 0, Math.PI / 2].forEach(relativeHeading => {
+    const end = mapPoint({
+      x: Math.sin(relativeHeading) * steps,
+      y: Math.cos(relativeHeading) * steps,
+    });
+    ctx.strokeStyle = 'rgba(232,244,240,0.32)';
+    ctx.lineWidth = 0.8;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+  const targetOffset = Number(details.target_bearing_offset_rad);
+  if (Number.isFinite(targetOffset)) {
+    const target = mapPoint({ x: Math.sin(targetOffset) * steps, y: Math.cos(targetOffset) * steps });
+    ctx.strokeStyle = '#D96BFF';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(target.x, target.y);
+    ctx.stroke();
+  }
+  trajectories.forEach((points, index) => {
+    if (index === selectedIndex) return;
+    ctx.strokeStyle = feasible[index] ? 'rgba(74,191,132,0.62)' : 'rgba(225,86,91,0.58)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    points.forEach((point, pointIndex) => {
+      const mapped = mapPoint(point);
+      if (pointIndex === 0) ctx.moveTo(mapped.x, mapped.y);
+      else ctx.lineTo(mapped.x, mapped.y);
+    });
+    ctx.stroke();
+  });
+  if (Number.isInteger(selectedIndex) && trajectories[selectedIndex]) {
+    ctx.strokeStyle = '#58A6FF';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    trajectories[selectedIndex].forEach((point, pointIndex) => {
+      const mapped = mapPoint(point);
+      if (pointIndex === 0) ctx.moveTo(mapped.x, mapped.y);
+      else ctx.lineTo(mapped.x, mapped.y);
+    });
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(232,244,240,0.72)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function renderSolveTimeline() {
