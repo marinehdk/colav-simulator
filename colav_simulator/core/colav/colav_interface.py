@@ -300,7 +300,7 @@ class VOWrapper(ICOLAV):
         enc: senc.ENC | None = None,
         goal_state: np.ndarray | None = None,  # noqa: ARG002
         w: stochasticity.DisturbanceData | None = None,  # noqa: ARG002
-        **kwargs,  # noqa: ARG002
+        **kwargs,
     ) -> np.ndarray:
         started = time.perf_counter()
         if not self._initialized:
@@ -312,7 +312,15 @@ class VOWrapper(ICOLAV):
         course_ref = references[2, 0]
         speed_ref = references[3, 0]
         vel_ref = np.array([speed_ref * np.cos(course_ref), speed_ref * np.sin(course_ref)])
-        plan = self._vo.plan(t, vel_ref, ownship_state, do_list, enc)
+        plan = self._vo.plan(
+            t,
+            vel_ref,
+            ownship_state,
+            do_list,
+            enc,
+            os_length=kwargs.get("os_length"),
+            os_width=kwargs.get("os_width"),
+        )
         solver_executed = self._vo.plan_executed
         if solver_executed:
             self._solve_id += 1
@@ -345,12 +353,22 @@ class VOWrapper(ICOLAV):
                 "crossing_commitment_count": debug["crossing_commitment_count"],
                 "hard_constraint_count": debug["hard_constraint_count"],
                 "wvo_only_count": debug["wvo_only_count"],
+                "preferred_clearance_count": debug["preferred_clearance_count"],
                 "feasible_candidate_count": debug["feasible_candidate_count"],
                 "selected_in_base_vo": debug["selected_in_base_vo"],
                 "selected_in_colregs_v1": debug["selected_in_colregs_v1"],
                 "current_in_base_vo": debug["current_in_base_vo"],
                 "stand_on_hold_active": debug["stand_on_hold_active"],
                 "selected_in_wvo_only": debug["selected_in_wvo_only"],
+                "selected_in_preferred_clearance": debug[
+                    "selected_in_preferred_clearance"
+                ],
+                "hard_hull_clearance_m": debug["hard_hull_clearance_m"],
+                "preferred_hull_clearance_m": debug[
+                    "preferred_hull_clearance_m"
+                ],
+                "ownship_length_m": debug["ownship_length_m"],
+                "ownship_width_m": debug["ownship_width_m"],
                 "selected_ttc_s": debug["selected_ttc_s"],
                 "reference_velocity_error_mps": debug["reference_velocity_error_mps"],
                 "minimum_feasible_ttc_s": debug["minimum_feasible_ttc_s"],

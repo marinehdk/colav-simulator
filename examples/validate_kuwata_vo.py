@@ -254,6 +254,9 @@ def _rows(result: RunResult) -> list[dict[str, Any]]:
                 "dcpa_m": first_track.get("dcpa_m"),
                 "rule_tcpa_s": first_track.get("rule_tcpa_s"),
                 "rule_dcpa_m": first_track.get("rule_dcpa_m"),
+                "preferred_domain_toc_s": first_track.get(
+                    "preferred_domain_toc_s"
+                ),
                 "center_distance_m": first_track.get("center_distance_m"),
                 "true_hull_clearance_m": min(hull_clearances, default=None),
                 "objective": planner.get("objective"),

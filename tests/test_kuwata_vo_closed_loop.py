@@ -23,7 +23,7 @@ def test_head_on_vo_executes_safe_starboard_closed_loop(
 
     assert nominal_summary["truth"]["ship0_vs_target"]["continuous_collision"]
     assert not vo_summary["truth"]["ship0_vs_target"]["continuous_collision"]
-    assert vo_summary["truth"]["ship0_vs_target"]["minimum_sampled_hull_clearance_m"] > 1.0
+    assert vo_summary["truth"]["ship0_vs_target"]["minimum_sampled_hull_clearance_m"] >= 50.0
     assert vo_summary["encounter"]["entry_time_s"] is not None
     assert vo_summary["encounter"]["first_action_body_starboard_mps"] > 0.25
     assert vo_summary["encounter"]["rule_released_after_last_active"]
@@ -34,7 +34,9 @@ def test_head_on_vo_executes_safe_starboard_closed_loop(
     active_rows = [row for row in rows if "HO" in row["active_rules"]]
     assert active_rows
     assert active_rows[0]["rule_tcpa_s"] is not None
-    assert 0.0 <= active_rows[0]["rule_tcpa_s"] <= 120.0
+    assert active_rows[0]["rule_tcpa_s"] >= 0.0
+    assert active_rows[0]["preferred_domain_toc_s"] is not None
+    assert 0.0 <= active_rows[0]["preferred_domain_toc_s"] <= 120.0
     assert active_rows[0]["rule_dcpa_m"] <= 100.0
     assert all(not row["selected_in_base_vo"] for row in active_rows)
     assert all(not row["selected_in_colregs_v1"] for row in active_rows)

@@ -51,6 +51,69 @@ def test_default_grid_matches_published_32_by_128_structure() -> None:
     assert planner._heading_set[-1] < np.pi
     assert planner._params.t_max == pytest.approx(120.0)
     assert planner._params.d_min == pytest.approx(100.0)
+    assert planner._params.hard_hull_clearance_m == pytest.approx(50.0)
+    assert planner._params.preferred_hull_clearance_m == pytest.approx(100.0)
+
+
+def test_clearance_thresholds_reject_invalid_ordering() -> None:
+    with pytest.raises(ValueError, match="preferred_hull_clearance_m"):
+        VOParams(hard_hull_clearance_m=100.0, preferred_hull_clearance_m=50.0)
+
+
+def test_hard_clearance_uses_hull_edge_distance() -> None:
+    params = VOParams(
+        speed_samples=3,
+        heading_samples=8,
+        velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+    )
+    unsafe = VO(params)
+    safe = VO(params)
+
+    unsafe.plan(
+        0.0,
+        np.array([5.0, 0.0]),
+        _own_state(),
+        [_track(1, (100.0, 59.0), (0.5, 0.0), width=10.0)],
+        os_length=45.0,
+        os_width=10.0,
+    )
+    safe.plan(
+        0.0,
+        np.array([5.0, 0.0]),
+        _own_state(),
+        [_track(1, (100.0, 61.0), (0.5, 0.0), width=10.0)],
+        os_length=45.0,
+        os_width=10.0,
+    )
+
+    speed_index = int(np.argmin(abs(unsafe._speed_set - 5.0)))
+    heading_index = int(np.argmin(abs(unsafe._heading_set)))
+    assert unsafe._hard_constraint_mask[speed_index, heading_index]
+    assert not safe._hard_constraint_mask[speed_index, heading_index]
+
+
+def test_preferred_clearance_penalizes_but_does_not_forbid_safe_candidate() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=3,
+            heading_samples=8,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+
+    planner.plan(
+        0.0,
+        np.array([5.0, 0.0]),
+        _own_state(),
+        [_track(1, (100.0, 80.0), (0.5, 0.0), width=10.0)],
+        os_length=45.0,
+        os_width=10.0,
+    )
+
+    speed_index = int(np.argmin(abs(planner._speed_set - 5.0)))
+    heading_index = int(np.argmin(abs(planner._heading_set)))
+    assert not planner._hard_constraint_mask[speed_index, heading_index]
+    assert planner._preferred_clearance_mask[speed_index, heading_index]
 
 
 def test_minkowski_sum_expands_rectangular_footprints() -> None:
@@ -298,7 +361,7 @@ def test_crossing_commitment_blocks_port_candidates_until_rule_releases() -> Non
     assert not planner.get_debug_data()["crossing_commitment_active"]
     assert planner.get_debug_data()["crossing_commitment_state"] == "CLEAR"
     assert planner.get_debug_data()["track_metrics"][1]["crossing_release_count"] == 3
-    assert planner.get_debug_data()["track_metrics"][1]["dynamic_hazard_ignored"]
+    assert not planner.get_debug_data()["track_metrics"][1]["dynamic_hazard_ignored"]
 
     planner.plan(5.0, np.array([5.0, 0.0]), _own_state(), [target])
     assert "CR_SS" not in planner.get_debug_data()["active_rules"].get("1", [])
@@ -927,6 +990,29 @@ def test_wrapper_reports_infeasible_status_and_fallback_reason() -> None:
     assert diagnostics.feasible is False
     assert diagnostics.fallback_used
     assert diagnostics.details["fallback"] == "stop_nonpaper_wrapper"
+
+
+def test_wrapper_forwards_actual_fcb_dimensions_to_vo() -> None:
+    wrapper = VOWrapper(
+        Config(
+            layer1=LayerConfig(vo=VOParams(speed_samples=4, heading_samples=8)),
+            layer2=LayerConfig(los=LOSGuidanceParams()),
+        )
+    )
+
+    wrapper.plan(
+        0.0,
+        np.array([[0.0, 100.0], [0.0, 0.0]]),
+        np.array([5.0, 5.0]),
+        _own_state(),
+        [],
+        os_length=45.0,
+        os_width=12.0,
+    )
+
+    debug = wrapper._vo.get_debug_data()
+    assert debug["ownship_length_m"] == pytest.approx(45.0)
+    assert debug["ownship_width_m"] == pytest.approx(12.0)
 
 
 def test_twenty_target_default_grid_plans_under_one_second() -> None:

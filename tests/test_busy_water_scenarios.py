@@ -26,7 +26,11 @@ def test_acceptance_scenario_is_deterministic_and_matches_committed_yaml() -> No
     assert len(generated["ship_list"]) == 16
     assert len({ship["id"] for ship in generated["ship_list"]}) == 16
     assert generated["t_end"] == BUSY_WATER_DURATION_S == 1200.0
+    assert generated["ship_list"][0]["model"]["csog"]["length"] == 45.0
+    assert generated["ship_list"][0]["model"]["csog"]["width"] == 8.0
     targets = generated["ship_list"][1:]
+    assert all(ship["model"]["csog"]["length"] == 12.0 for ship in targets)
+    assert all(ship["model"]["csog"]["width"] == 4.0 for ship in targets)
     assert all(0.0 <= ship["t_start"] < ship["t_end"] <= BUSY_WATER_DURATION_S for ship in targets)
     assert all(ship["t_end"] < BUSY_WATER_DURATION_S for ship in targets)
 
