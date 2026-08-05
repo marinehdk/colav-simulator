@@ -92,6 +92,49 @@ def test_hard_clearance_uses_hull_edge_distance() -> None:
     assert not safe._hard_constraint_mask[speed_index, heading_index]
 
 
+def test_plan_accounts_for_ownship_turn_and_speed_dynamics_in_hard_clearance() -> None:
+    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    target = _track(3, (300.0, 0.0), (-6.9, 0.0), length=12.0, width=4.0)
+
+    plan = planner.plan(
+        0.0,
+        np.array([6.9, 0.0]),
+        _own_state(speed=6.9),
+        [target],
+        os_length=45.0,
+        os_width=8.0,
+        os_course_time_constant_s=3.0,
+        os_speed_time_constant_s=5.0,
+        os_max_turn_rate_radps=np.deg2rad(4.0),
+    )
+
+    position = np.zeros(2)
+    heading = 0.0
+    speed = 6.9
+    minimum_clearance = np.inf
+    dt = 0.05
+    combined_hull_radius = (
+        0.5 * np.hypot(45.0, 8.0) + 0.5 * np.hypot(12.0, 4.0)
+    )
+    for step in range(round(planner._params.t_max / dt) + 1):
+        target_position = np.array([300.0 - 6.9 * step * dt, 0.0])
+        minimum_clearance = min(
+            minimum_clearance,
+            np.linalg.norm(position - target_position) - combined_hull_radius,
+        )
+        position += speed * np.array([np.cos(heading), np.sin(heading)]) * dt
+        course_error = (plan[2, 0] - heading + np.pi) % (2.0 * np.pi) - np.pi
+        heading += np.clip(
+            course_error / 3.0,
+            -np.deg2rad(4.0),
+            np.deg2rad(4.0),
+        ) * dt
+        speed += (plan[3, 0] - speed) / 5.0 * dt
+
+    assert planner.feasible
+    assert minimum_clearance >= 50.0
+
+
 def test_preferred_clearance_penalizes_but_does_not_forbid_safe_candidate() -> None:
     planner = VO(
         VOParams(

@@ -46,6 +46,8 @@ _REMOVED_CONFIG_KEYS = {
     "grounding_cost",
     "colregs_violation_cost",
 }
+_DYNAMICS_PREDICTION_STEP_S = 0.5
+_DYNAMICS_INTEGRATION_MARGIN_M = 0.25
 
 
 @dataclass
@@ -268,6 +270,7 @@ class VO:
         self._expired_target_ids_last_solve: list[int] = []
         self._ownship_length_m = self._params.length_os
         self._ownship_width_m = self._params.width_os
+        self._dynamics_prediction_active = False
 
     @property
     def plan_executed(self) -> bool:
@@ -323,6 +326,7 @@ class VO:
         self._driving_rule = None
         self._expired_target_ids_last_solve = []
         self._target_count_current = 0
+        self._dynamics_prediction_active = False
         self._reset_grid()
 
     def _reset_grid(self) -> None:
@@ -347,6 +351,9 @@ class VO:
         *,
         os_length: float | None = None,
         os_width: float | None = None,
+        os_course_time_constant_s: float | None = None,
+        os_speed_time_constant_s: float | None = None,
+        os_max_turn_rate_radps: float | None = None,
     ) -> np.ndarray:
         if self._initialized and t - self._t_prev < 1.0 / self._params.planning_frequency:
             self._plan_executed = False
@@ -392,6 +399,16 @@ class VO:
             use_radians=True,
         )
         candidate_velocities = self._candidate_velocities()
+        candidate_positions = self._predict_candidate_positions(
+            p_os,
+            psi_os,
+            float(np.linalg.norm(v_os)),
+            candidate_velocities,
+            course_time_constant_s=os_course_time_constant_s,
+            speed_time_constant_s=os_speed_time_constant_s,
+            max_turn_rate_radps=os_max_turn_rate_radps,
+        )
+        self._dynamics_prediction_active = candidate_positions is not None
         uncertainty = self._uncertainty_samples()
 
         self._dynamic_hazard_count = 0
@@ -581,6 +598,14 @@ class VO:
                     preferred_clearance_domain if shape_risk_eligible else None
                 ),
             )
+            if candidate_positions is not None:
+                self._apply_dynamics_clearance_domain(
+                    candidate_positions,
+                    p_do,
+                    v_do,
+                    target_length_m=float(length_do),
+                    target_width_m=float(width_do),
+                )
             self._dynamic_hazard_count += 1
 
         self._expire_missing_targets(seen_target_ids)
@@ -603,6 +628,107 @@ class VO:
         self._references[2, 0] = heading
         self._references[3, 0] = speed
         return self._references
+
+    def _predict_candidate_positions(
+        self,
+        p_os: np.ndarray,
+        psi_os: float,
+        speed_os: float,
+        candidates: np.ndarray,
+        *,
+        course_time_constant_s: float | None,
+        speed_time_constant_s: float | None,
+        max_turn_rate_radps: float | None,
+    ) -> np.ndarray | None:
+        dynamics = (
+            course_time_constant_s,
+            speed_time_constant_s,
+            max_turn_rate_radps,
+        )
+        if all(value is None for value in dynamics):
+            return None
+        if any(value is None or value <= 0.0 for value in dynamics):
+            raise ValueError("Ownship dynamics values must all be positive")
+
+        prediction_step_s = _DYNAMICS_PREDICTION_STEP_S
+        step_count = int(np.ceil(self._params.t_max / prediction_step_s))
+        positions = np.empty((step_count + 1, *candidates.shape[:2], 2))
+        positions[0] = p_os
+        headings = np.full(candidates.shape[:2], psi_os)
+        speeds = np.full(candidates.shape[:2], speed_os)
+        commanded_headings = np.arctan2(candidates[..., 1], candidates[..., 0])
+        commanded_speeds = np.linalg.norm(candidates, axis=-1)
+
+        for step in range(step_count):
+            directions = np.stack((np.cos(headings), np.sin(headings)), axis=-1)
+            positions[step + 1] = (
+                positions[step]
+                + prediction_step_s * speeds[..., None] * directions
+            )
+            course_error = (
+                commanded_headings - headings + np.pi
+            ) % (2.0 * np.pi) - np.pi
+            headings += prediction_step_s * np.clip(
+                course_error / course_time_constant_s,
+                -max_turn_rate_radps,
+                max_turn_rate_radps,
+            )
+            speeds += (
+                prediction_step_s
+                * (commanded_speeds - speeds)
+                / speed_time_constant_s
+            )
+
+        return positions
+
+    def _apply_dynamics_clearance_domain(
+        self,
+        candidate_positions: np.ndarray,
+        p_do: np.ndarray,
+        v_do: np.ndarray,
+        *,
+        target_length_m: float,
+        target_width_m: float,
+    ) -> None:
+        prediction_step_s = self._params.t_max / (candidate_positions.shape[0] - 1)
+        times = prediction_step_s * np.arange(candidate_positions.shape[0])
+        target_positions = p_do + times[:, None] * v_do
+        relative_positions = candidate_positions - target_positions[:, None, None, :]
+        segment_starts = relative_positions[:-1]
+        segment_deltas = relative_positions[1:] - segment_starts
+        segment_lengths_squared = np.einsum(
+            "...i,...i->...",
+            segment_deltas,
+            segment_deltas,
+        )
+        closest_fractions = np.divide(
+            -np.einsum("...i,...i->...", segment_starts, segment_deltas),
+            segment_lengths_squared,
+            out=np.zeros_like(segment_lengths_squared),
+            where=segment_lengths_squared > 0.0,
+        )
+        closest_fractions = np.clip(closest_fractions, 0.0, 1.0)
+        closest_positions = (
+            segment_starts + closest_fractions[..., None] * segment_deltas
+        )
+        center_distances = np.linalg.norm(closest_positions, axis=-1)
+        combined_hull_radius = 0.5 * np.hypot(
+            self._ownship_length_m,
+            self._ownship_width_m,
+        ) + 0.5 * np.hypot(target_length_m, target_width_m)
+        hard_center_distance = (
+            combined_hull_radius
+            + self._params.hard_hull_clearance_m
+            + _DYNAMICS_INTEGRATION_MARGIN_M
+        )
+        violations = center_distances < hard_center_distance
+        dynamics_hard = np.any(violations, axis=0)
+        first_violation = np.argmax(violations, axis=0) * prediction_step_s
+        dynamics_ttc = np.where(dynamics_hard, first_violation, np.inf)
+        self._base_vo_mask |= dynamics_hard
+        self._hard_constraint_mask |= dynamics_hard
+        self._min_ttc = np.minimum(self._min_ttc, dynamics_ttc)
+        self._violation_costs[self._hard_constraint_mask] = np.inf
 
     def _candidate_velocities(self) -> np.ndarray:
         speeds, headings = np.meshgrid(self._speed_set, self._heading_set, indexing="ij")
@@ -1632,6 +1758,7 @@ class VO:
             "preferred_hull_clearance_m": self._params.preferred_hull_clearance_m,
             "ownship_length_m": self._ownship_length_m,
             "ownship_width_m": self._ownship_width_m,
+            "dynamics_prediction_active": self._dynamics_prediction_active,
             "selected_ttc_s": float(selected_ttc) if np.isfinite(selected_ttc) else None,
             "reference_velocity_error_mps": self._reference_velocity_error_mps,
             "minimum_feasible_ttc_s": float(np.min(finite_ttc)) if finite_ttc.size else None,

@@ -320,6 +320,9 @@ class VOWrapper(ICOLAV):
             enc,
             os_length=kwargs.get("os_length"),
             os_width=kwargs.get("os_width"),
+            os_course_time_constant_s=kwargs.get("os_course_time_constant_s"),
+            os_speed_time_constant_s=kwargs.get("os_speed_time_constant_s"),
+            os_max_turn_rate_radps=kwargs.get("os_max_turn_rate_radps"),
         )
         solver_executed = self._vo.plan_executed
         if solver_executed:
