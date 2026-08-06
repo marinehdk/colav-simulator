@@ -17,6 +17,7 @@ const TCPA_WARN  = 40;    // s
 const FCB45_LENGTH_M = 45;
 const FCB45_WIDTH_M = 8;
 const FCB45_SPRITE_CROP = { x: 388, y: 85, width: 240, height: 1313 };
+const TARGET_SPRITE_CROP = { x: 640, y: 25, width: 275, height: 945 };
 const MOTION_VECTOR_SECONDS = 60;
 const MOTION_TICK_SECONDS = 10;
 const PREDICTION_MARKER_SECONDS = 10;
@@ -181,6 +182,12 @@ ownshipSprite.addEventListener('load', () => {
   if (currentData) renderCanvas(currentData);
 });
 ownshipSprite.src = '/static/assets/fcb45-top.png';
+const targetSprite = new Image();
+targetSprite.decoding = 'async';
+targetSprite.addEventListener('load', () => {
+  if (currentData) renderCanvas(currentData);
+});
+targetSprite.src = '/static/assets/target-vessel-top.png';
 let routePointEditMode = null;
 let busyWaterDraftChecked = false;
 let targetEditorKey = null;
@@ -1024,7 +1031,7 @@ function drawShips(data) {
     const point = worldToCanvas(target.x, target.y);
     if (threat.rank >= 2) drawThreatRings(point, threat, target.id === selectedTargetId);
     const compact = dense && threat.rank < 3 && target.id !== selectedTargetId;
-    drawHull(point, target.psi, target.length || 30, target.width || 7, threat, false, compact);
+    drawTargetSprite(point, target.psi, target.length || 30, target.width || 7, threat, compact);
     targetHitRegions.push({ x: point.x, y: point.y, radius: 14, target });
     if ((!dense && threat.rank >= 2) || threat.rank >= 3 || target.id === selectedTargetId) {
       labels.push({ text: `TS${target.id}`, point, color: threat.color });
@@ -1064,6 +1071,34 @@ function drawOwnshipSprite(point, heading, lengthM, widthM) {
     FCB45_SPRITE_CROP.y,
     FCB45_SPRITE_CROP.width,
     FCB45_SPRITE_CROP.height,
+    -widthPx / 2,
+    -lengthPx / 2,
+    widthPx,
+    lengthPx,
+  );
+  ctx.restore();
+}
+
+function drawTargetSprite(point, heading, lengthM, widthM, threat, compact = false) {
+  if (!targetSprite.complete || targetSprite.naturalWidth === 0) {
+    drawHull(point, heading, lengthM, widthM, threat, false, compact);
+    return;
+  }
+  const lengthPx = Math.max(compact ? 7 : 22, lengthM * viewScale);
+  const widthPx = Math.max(5, lengthPx * widthM / lengthM);
+  ctx.save();
+  ctx.translate(point.x, point.y);
+  ctx.rotate(Number.isFinite(heading) ? heading : 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.shadowColor = threat?.color || 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = compact ? 1 : 3;
+  ctx.drawImage(
+    targetSprite,
+    TARGET_SPRITE_CROP.x,
+    TARGET_SPRITE_CROP.y,
+    TARGET_SPRITE_CROP.width,
+    TARGET_SPRITE_CROP.height,
     -widthPx / 2,
     -lengthPx / 2,
     widthPx,
