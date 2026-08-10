@@ -61,8 +61,14 @@ def test_registry_exposes_published_mid_mpc_profile_and_truthful_descriptor() ->
     assert descriptor["descriptor"]["horizon_steps"] == 18
     assert descriptor["fallback_policy"] == "forbidden"
     assert descriptor["build_identity"]["config_sha256"] != "UNKNOWN"
-    assert ALGORITHMS[ALGORITHM_ID].readiness_grade == "G1"
-    assert not any(key[2] == ALGORITHM_ID for key in VERIFIED_COMBINATIONS)
+    assert ALGORITHMS[ALGORITHM_ID].readiness_grade == "G3"
+    assert {key[:2] for key in VERIFIED_COMBINATIONS if key[2:] == (ALGORITHM_ID, "god")} == {
+        ("rule13", "overtaken"),
+        ("rule13", "overtaking"),
+        ("rule14", "head_on"),
+        ("rule15", "crossing_give_way"),
+        ("rule15", "crossing_stand_on"),
+    }
 
 
 def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
@@ -126,7 +132,7 @@ def test_dynamic_tracks_use_shared_geometry_and_direct_optimizer_intents() -> No
     assert details["decision_intent"] == "GIVE_WAY"
     assert details["preferred_side"] == "starboard"
     assert details["starboard_asymmetry_active"] is True
-    assert details["selected_target_ids"] == [14, 12, 13, 11]
+    assert details["selected_target_ids"] == [14, 13, 11]
     assert trace["constraints"]["row_schedule"]["terminal_rows_enabled"] is False
     trajectory = np.asarray(trace["predicted_trajectory"])
     np.testing.assert_allclose(trajectory[8], trajectory[5], atol=1e-12)
@@ -156,6 +162,31 @@ def test_sway_velocity_and_overtaking_side_reach_the_optimizer() -> None:
     assert overtaking["algorithm_details"]["preferred_side"] == "port"
 
 
+def test_conflicting_overtaking_sides_yield_to_mandatory_starboard_policy() -> None:
+    adapter = _fast_adapter()
+    covariance = np.eye(4)
+
+    _plan(
+        adapter,
+        0.0,
+        [
+            (31, np.array([100.0, 20.0, 2.0, 0.0]), covariance, 15.0, 4.0),
+            (32, np.array([100.0, -20.0, 2.0, 0.0]), covariance, 15.0, 4.0),
+            (33, np.array([300.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0),
+        ],
+    )
+
+    trace = adapter.get_colav_data()["planner"]
+    targets = {item["target_id"]: item for item in trace["target_predictions"]}
+    assert targets[31]["encounter"] == "overtaking"
+    assert targets[31]["preferred_side"] == "port"
+    assert targets[32]["encounter"] == "overtaking"
+    assert targets[32]["preferred_side"] == "starboard"
+    assert targets[33]["encounter"] == "head_on"
+    assert trace["algorithm_details"]["preferred_side"] == "starboard"
+    assert trace["algorithm_details"]["starboard_asymmetry_active"] is True
+
+
 def test_adapter_owns_hold_schedule_and_reset_state() -> None:
     adapter = _fast_adapter()
 
@@ -178,6 +209,20 @@ def test_adapter_owns_hold_schedule_and_reset_state() -> None:
     repeated = _plan(adapter, 0.0)
     assert adapter.get_colav_data()["planner"]["solve_id"] == 1
     np.testing.assert_allclose(repeated, first, atol=1e-7)
+
+
+def test_reset_clears_encounter_commitment() -> None:
+    adapter = _fast_adapter()
+    target = [(41, np.array([300.0, 0.0, -4.0, 0.0]), np.eye(4), 15.0, 4.0)]
+
+    _plan(adapter, 0.0, target)
+    assert adapter.get_diagnostics().details["minimum_alteration_active"] is True
+    _plan(adapter, 5.0, target)
+    assert adapter.get_diagnostics().details["minimum_alteration_active"] is False
+
+    adapter.reset()
+    _plan(adapter, 0.0, target)
+    assert adapter.get_diagnostics().details["minimum_alteration_active"] is True
 
 
 def test_schedule_error_fails_stop_and_ipopt_evidence_is_json_safe() -> None:

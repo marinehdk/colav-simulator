@@ -64,6 +64,7 @@ class _TargetDecision:
     tcpa_s: float
     signed_tcpa_s: float
     relative_bearing_deg: float
+    newly_committed: bool
 
 
 class _MidMpcFacade:
@@ -72,10 +73,12 @@ class _MidMpcFacade:
         self._los = LOSGuidance()
         self._solver = MidMpcIpoptSolver(MidMpcConfig(horizon_steps=config.horizon_steps, dt_s=config.horizon_dt_s))
         self._last_guidance_time_s: float | None = None
+        self._committed_policies: dict[int, _OptimizerPolicy] = {}
 
     def reset(self) -> None:
         self._los.reset()
         self._last_guidance_time_s = None
+        self._committed_policies.clear()
 
     def solve(self, planner_input: PlannerInput) -> MPCSolution:
         ownship = planner_input.ownship_state
@@ -94,9 +97,12 @@ class _MidMpcFacade:
         self._last_guidance_time_s = planner_input.sim_time_s
         route_bearing = _unwrap_near(float(reference[2, 0]), float(ownship[2]))
         target_decisions = self._target_decisions(planner_input)
+        optimization_decisions = self._optimization_decisions(target_decisions)
         optimizer_policy = _aggregate_policy(target_decisions)
         lateral_active = optimizer_policy.intent == "GIVE_WAY"
-        row_schedule = self._row_schedule(target_decisions, lateral_active)
+        minimum_alteration_active = any(decision.newly_committed for decision in optimization_decisions)
+        row_schedule = self._row_schedule(optimization_decisions, lateral_active)
+        effective_cpa_hard_m = self._effective_cpa_hard_m(optimization_decisions, planner_input)
         problem = MidMpcProblem(
             own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
             route_bearing_rad=route_bearing,
@@ -106,14 +112,14 @@ class _MidMpcFacade:
                 float(ownship[2]) + self._config.heading_window_rad,
             ),
             speed_bounds_mps=self._config.speed_bounds_mps,
-            cpa_safe_m=self._config.cpa_safe_m,
-            cpa_hard_m=self._config.cpa_hard_m,
+            cpa_safe_m=max(self._config.cpa_safe_m, effective_cpa_hard_m),
+            cpa_hard_m=effective_cpa_hard_m,
             rot_max_rad_s=self._config.rot_max_rad_s,
             decel_max_mps2=self._config.decel_max_mps2,
             lateral_active=lateral_active,
             preferred_side=optimizer_policy.preferred_side,
             starboard_asymmetry_active=optimizer_policy.starboard_asymmetry_active,
-            min_alteration_rad=self._config.min_alteration_rad,
+            min_alteration_rad=self._config.min_alteration_rad if minimum_alteration_active else 0.0,
             route_frame=MidMpcRouteFrame(
                 origin_m=(0.0, 0.0),
                 normal=(-math.sin(route_bearing), math.cos(route_bearing)),
@@ -122,7 +128,7 @@ class _MidMpcFacade:
                 weight=self._config.route_weight,
             ),
             row_schedule=row_schedule,
-            audit_row_count=sum(decision.encounter != "clear" for decision in target_decisions),
+            audit_row_count=sum(decision.encounter != "clear" for decision in optimization_decisions),
             targets=tuple(
                 MidMpcTarget(
                     x_m=float(decision.track.state_enu[0] - ownship[0]),
@@ -130,7 +136,7 @@ class _MidMpcFacade:
                     cog_rad=float(math.atan2(decision.track.state_enu[3], decision.track.state_enu[2])),
                     sog_mps=float(np.linalg.norm(decision.track.state_enu[2:4])),
                 )
-                for decision in target_decisions
+                for decision in optimization_decisions
             ),
         )
         result = self._solver.solve(problem)
@@ -148,6 +154,8 @@ class _MidMpcFacade:
             "continuous_cpa_min_m": continuous_cpa,
             "continuous_cpa_violated": result.continuous_cpa_violated,
             "row_schedule": asdict(row_schedule),
+            "configured_hull_clearance_m": self._config.cpa_hard_m,
+            "effective_node_cpa_hard_m": effective_cpa_hard_m,
         }
         details = {
             "formulation": "mass-l3-mid-mpc-ipopt-frozen",
@@ -161,7 +169,8 @@ class _MidMpcFacade:
             "decision_intent": optimizer_policy.intent,
             "preferred_side": _side_name(optimizer_policy.preferred_side),
             "starboard_asymmetry_active": optimizer_policy.starboard_asymmetry_active,
-            "selected_target_ids": [decision.track.target_id for decision in target_decisions],
+            "minimum_alteration_active": minimum_alteration_active,
+            "selected_target_ids": [decision.track.target_id for decision in optimization_decisions],
             "los_guidance_dt_s": guidance_dt_s,
         }
         return MPCSolution(
@@ -184,7 +193,9 @@ class _MidMpcFacade:
         own_course = float(ownship[2] + math.atan2(ownship[4], ownship[3]))
         own_velocity = velocity_ne(own_speed, own_course)
         decisions = []
+        seen_target_ids = set()
         for track in planner_input.tracks:
+            seen_target_ids.add(track.target_id)
             encounter, dcpa_m, tcpa_s, signed_tcpa_s, relative_bearing_deg = classify_geometry(
                 ownship[:2],
                 own_velocity,
@@ -193,17 +204,30 @@ class _MidMpcFacade:
                 planner_input.ownship_length_m,
                 track.length_m,
             )
+            classified_policy = _policy_for_encounter(encounter, relative_bearing_deg)
+            committed_policy = self._committed_policies.get(track.target_id)
+            newly_committed = classified_policy.intent == "GIVE_WAY" and committed_policy is None
+            if classified_policy.intent == "GIVE_WAY":
+                committed_policy = committed_policy or classified_policy
+                self._committed_policies[track.target_id] = committed_policy
+            elif signed_tcpa_s <= 0.0:
+                self._committed_policies.pop(track.target_id, None)
+                committed_policy = None
             decisions.append(
                 _TargetDecision(
                     track=track,
                     encounter=encounter,
-                    optimizer_policy=_policy_for_encounter(encounter, relative_bearing_deg),
+                    optimizer_policy=committed_policy or classified_policy,
                     dcpa_m=dcpa_m,
                     tcpa_s=tcpa_s,
                     signed_tcpa_s=signed_tcpa_s,
                     relative_bearing_deg=relative_bearing_deg,
+                    newly_committed=newly_committed,
                 )
             )
+        self._committed_policies = {
+            target_id: policy for target_id, policy in self._committed_policies.items() if target_id in seen_target_ids
+        }
         decisions.sort(
             key=lambda decision: (
                 decision.signed_tcpa_s <= 0.0,
@@ -214,6 +238,29 @@ class _MidMpcFacade:
             )
         )
         return tuple(decisions[:16])
+
+    def _optimization_decisions(
+        self,
+        decisions: tuple[_TargetDecision, ...],
+    ) -> tuple[_TargetDecision, ...]:
+        horizon_s = self._config.horizon_steps * self._config.horizon_dt_s
+        return tuple(
+            decision
+            for decision in decisions
+            if decision.optimizer_policy.intent == "GIVE_WAY" or (0.0 < decision.signed_tcpa_s <= horizon_s)
+        )
+
+    def _effective_cpa_hard_m(
+        self,
+        decisions: tuple[_TargetDecision, ...],
+        planner_input: PlannerInput,
+    ) -> float:
+        if not decisions:
+            return self._config.cpa_hard_m
+        own_radius = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
+        target_allowances = [0.5 * math.hypot(decision.track.length_m, decision.track.width_m) for decision in decisions]
+        own_step_allowance = self._config.speed_bounds_mps[1] * self._config.horizon_dt_s
+        return self._config.cpa_hard_m + own_radius + max(target_allowances) + own_step_allowance
 
     def _row_schedule(
         self,
@@ -255,6 +302,7 @@ class _MidMpcFacade:
             "target_id": decision.track.target_id,
             "encounter": decision.encounter,
             "optimizer_intent": decision.optimizer_policy.intent,
+            "policy_committed": decision.track.target_id in self._committed_policies,
             "preferred_side": _side_name(decision.optimizer_policy.preferred_side),
             "dcpa_m": decision.dcpa_m,
             "tcpa_s": decision.tcpa_s,
@@ -393,19 +441,25 @@ def _native_trajectories(
     north = north0 + np.array([point.x_m for point in points], dtype=float)
     east = east0 + np.array([point.y_m for point in points], dtype=float)
     yaw_rate = np.zeros(count, dtype=float)
-    acceleration = np.zeros(count, dtype=float)
+    acceleration_ne = np.zeros((2, count), dtype=float)
     yaw_rate[0] = (headings[0] - float(ownship[2])) / dt_s
-    acceleration[0] = (speeds[0] - float(ownship[3])) / dt_s
+    velocity_ne_mps = np.vstack((speeds * np.cos(headings), speeds * np.sin(headings)))
+    own_velocity_ne_mps = np.array(
+        [
+            ownship[3] * math.cos(ownship[2]) - ownship[4] * math.sin(ownship[2]),
+            ownship[3] * math.sin(ownship[2]) + ownship[4] * math.cos(ownship[2]),
+        ]
+    )
+    acceleration_ne[:, 0] = 2.0 * (velocity_ne_mps[:, 0] - own_velocity_ne_mps) / dt_s
     if count > 1:
         yaw_rate[1:] = np.diff(headings) / dt_s
-        acceleration[1:] = np.diff(speeds) / dt_s
+        acceleration_ne[:, 1:] = np.diff(velocity_ne_mps, axis=1) / dt_s
     controls[0] = north
     controls[1] = east
     controls[2] = headings
     controls[3] = speeds
     controls[5] = yaw_rate
-    controls[6] = acceleration * np.cos(headings)
-    controls[7] = acceleration * np.sin(headings)
+    controls[6:8] = acceleration_ne
     controls[8] = yaw_rate
     predicted[:] = controls
     predicted[:6, 0] = ownship

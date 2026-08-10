@@ -117,11 +117,11 @@ _P1_SCENARIOS = (
 
 ALGORITHMS: dict[str, Capability] = {
     "mid_mpc_ipopt": Capability(
-        "G1",
+        "G3",
         ("rule13", "rule14", "rule15"),
         ("head_on", "overtaking", "overtaken", "crossing_give_way", "crossing_stand_on"),
         ("dynamic",),
-        "Numerical parity is established; closed-loop simulator evidence is pending.",
+        "Numerical parity and fixed-seed God-tracker single-encounter evidence are established.",
     ),
     "nominal": Capability("G2", _P1_RULES, _P1_SCENARIOS, ("none",)),
     "vo": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic", "static", "enc")),
@@ -210,6 +210,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         termination="time_limit",
         minimum_clearance_m=0.427124755721149,
     ),
+    ("rule14", "head_on", "mid_mpc_ipopt", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=516.4523357102253,
+        max_heading_delta_deg=178.72315287027416,
+        max_speed_delta_mps=0.12695987433892952,
+        solve_count=120,
+    ),
     ("rule14", "head_on", "vo", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
@@ -268,6 +276,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         termination="time_limit",
         minimum_clearance_m=0.6067811791803845,
     ),
+    ("rule13", "overtaking", "mid_mpc_ipopt", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=72.48434806293345,
+        max_heading_delta_deg=45.78137330358685,
+        max_speed_delta_mps=0.12706782139985418,
+        solve_count=120,
+    ),
     ("rule13", "overtaking", "vo", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
@@ -304,6 +320,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         role="nominal_threat",
         termination="time_limit",
         minimum_clearance_m=7.097054495203236,
+    ),
+    ("rule13", "overtaken", "mid_mpc_ipopt", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=87.35343855602845,
+        max_heading_delta_deg=59.26306670218723,
+        max_speed_delta_mps=1.5961141199621909,
+        solve_count=120,
     ),
     ("rule13", "overtaken", "vo", "god"): _evidence(
         role="candidate_g3",
@@ -342,6 +366,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         termination="goal_reached",
         minimum_clearance_m=1.4142135623730951,
     ),
+    ("rule15", "crossing_give_way", "mid_mpc_ipopt", "god"): _evidence(
+        role="candidate_g3",
+        termination="goal_reached",
+        minimum_clearance_m=416.3053456088816,
+        max_heading_delta_deg=92.55096367282218,
+        max_speed_delta_mps=0.11109680276369094,
+        solve_count=72,
+    ),
     ("rule15", "crossing_give_way", "vo", "god"): _evidence(
         role="candidate_g3",
         termination="time_limit",
@@ -370,6 +402,14 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
         role="nominal_threat",
         termination="goal_reached",
         minimum_clearance_m=1.4142135623730951,
+    ),
+    ("rule15", "crossing_stand_on", "mid_mpc_ipopt", "god"): _evidence(
+        role="candidate_g3",
+        termination="goal_reached",
+        minimum_clearance_m=62.313192874183876,
+        max_heading_delta_deg=85.94929931782258,
+        max_speed_delta_mps=2.503870044402179,
+        solve_count=78,
     ),
     ("rule15", "crossing_stand_on", "vo", "god"): _evidence(
         role="candidate_g3",

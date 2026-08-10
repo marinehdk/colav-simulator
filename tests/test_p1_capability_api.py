@@ -6,9 +6,9 @@ from fastapi.testclient import TestClient
 from gui_server.main import app
 
 EXPECTED_COUNTS = {
-    "rule13": 10,
-    "rule14": 8,
-    "rule15": 9,
+    "rule13": 12,
+    "rule14": 9,
+    "rule15": 11,
     "multiship": 5,
 }
 EXPECTED_SCENARIOS = {
@@ -55,13 +55,16 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
 
     selectable_trackers = {item["id"] for item in catalog["trackers"] if item["selectable"]}
     assert selectable_trackers == ({"god", "kf"} if rule_id == "rule14" else {"god"})
-    assert {item["id"] for item in catalog["algorithms"] if item["selectable"]} == {
+    expected_algorithms = {
         "nominal",
         "vo",
         "sbmpc",
         "potocnik_colreg_fan_mpc",
         "potocnik_simplified_mpc",
     }
+    if rule_id != "multiship":
+        expected_algorithms.add("mid_mpc_ipopt")
+    assert {item["id"] for item in catalog["algorithms"] if item["selectable"]} == expected_algorithms
 
 
 @pytest.mark.parametrize(
