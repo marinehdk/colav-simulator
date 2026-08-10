@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Callable
 from enum import IntEnum
 
 import casadi as ca
@@ -72,6 +73,7 @@ class MidMpcIpoptSolver:
         started_at = time.perf_counter()
         graph = _build_graph(self._config, problem)
         prepared = _prepare(self._config, problem, graph.row_layout)
+        graph.iteration_callback.arm()
         result = graph.solver(
             x0=prepared.x0,
             p=prepared.p,
@@ -139,10 +141,24 @@ class _Graph:
 
 
 class _IterationCallback(ca.Callback):
-    def __init__(self, nx: int, ng: int, np_: int) -> None:
+    def __init__(
+        self,
+        nx: int,
+        ng: int,
+        np_: int,
+        *,
+        clock: Callable[[], float] = time.perf_counter,
+        max_wall_time_s: float = 20.0,
+    ) -> None:
         self._dimensions = (nx, ng, np_)
+        self._clock = clock
+        self._max_wall_time_s = max_wall_time_s
+        self._started_at: float | None = None
         ca.Callback.__init__(self)
         self.construct("mid_mpc_iter_callback", {})
+
+    def arm(self) -> None:
+        self._started_at = self._clock()
 
     def get_n_in(self) -> int:
         return 6
@@ -164,7 +180,8 @@ class _IterationCallback(ca.Callback):
         return ca.Sparsity.scalar()
 
     def eval(self, _arguments: list[ca.DM]) -> list[ca.DM]:
-        return [ca.DM(0.0)]
+        elapsed_s = 0.0 if self._started_at is None else self._clock() - self._started_at
+        return [ca.DM(float(elapsed_s > self._max_wall_time_s))]
 
 
 def _build_graph(  # noqa: PLR0915

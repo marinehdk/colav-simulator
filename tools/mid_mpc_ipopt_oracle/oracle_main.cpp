@@ -1,6 +1,7 @@
 #include <casadi/casadi.hpp>
 #include <coin-or/IpoptConfig.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
@@ -40,6 +41,17 @@ struct Scenario {
   std::string id;
   MidMpcNlpFormulation::Config config;
   MidMpcInput input;
+};
+
+struct ObjectiveComponents {
+  double colreg = 0.0;
+  double heading = 0.0;
+  double speed = 0.0;
+  double route = 0.0;
+  double asymmetry = 0.0;
+  double terminal = 0.0;
+  double cpa_slack = 0.0;
+  double direction_slack = 0.0;
 };
 
 const char* status_name(MidMpcSolution::Status status) {
@@ -145,6 +157,147 @@ void write_span(const char* name, int32_t start, int32_t count, bool comma) {
   }
   std::cout << '\"' << name << "\":{\"start\":" << start
             << ",\"count\":" << count << '}';
+}
+
+double dm_at(const casadi::DM& value, casadi_int index) {
+  return static_cast<double>(value(index));
+}
+
+double softplus(double value) {
+  if (value > 0.0) {
+    return value + std::log1p(std::exp(-value));
+  }
+  return std::log1p(std::exp(value));
+}
+
+ObjectiveComponents calculate_objective_components(
+    const MidMpcNlpFormulation::Config& config, const casadi::DM& raw_x,
+    const casadi::DM& p) {
+  constexpr int32_t kX0 = 2;
+  constexpr int32_t kY0 = 3;
+  constexpr int32_t kRouteBearing = 4;
+  constexpr int32_t kPlannedSpeed = 5;
+  constexpr int32_t kCpaSafe = 10;
+  constexpr int32_t kAsymmetryActive = 13;
+  constexpr int32_t kRouteOriginX = 14;
+  constexpr int32_t kRouteOriginY = 15;
+  constexpr int32_t kRouteNormalX = 16;
+  constexpr int32_t kRouteNormalY = 17;
+  constexpr int32_t kLateralScale = 19;
+  constexpr int32_t kRouteWeight = 20;
+  constexpr int32_t kPreferredSide = 22;
+  constexpr int32_t kLateralActive = 24;
+  constexpr int32_t kTargetStart = 62;
+  constexpr int32_t kTargetStride = 5;
+
+  ObjectiveComponents values;
+  const int32_t N = config.n_horizon;
+  const double route_bearing = dm_at(p, kRouteBearing);
+  const double planned_speed = dm_at(p, kPlannedSpeed);
+  const double lateral_scale = dm_at(p, kLateralScale);
+  double own_x = dm_at(p, kX0);
+  double own_y = dm_at(p, kY0);
+  double route_cost = 0.0;
+  double terminal_cross_track = 0.0;
+
+  for (int32_t k = 0; k < N; ++k) {
+    const double psi = dm_at(raw_x, k);
+    const double speed = dm_at(raw_x, N + k);
+    const double heading_error = psi - route_bearing;
+    const double speed_error = speed - planned_speed;
+    values.heading += config.w_dist * heading_error * heading_error;
+    values.speed += config.w_vel * speed_error * speed_error;
+    values.asymmetry +=
+        dm_at(p, kAsymmetryActive) * config.k_asym * config.asym_tau *
+        softplus((route_bearing - psi) / config.asym_tau);
+
+    const double cross_track =
+        (own_x - dm_at(p, kRouteOriginX)) * dm_at(p, kRouteNormalX) +
+        (own_y - dm_at(p, kRouteOriginY)) * dm_at(p, kRouteNormalY);
+    const double scaled = cross_track / lateral_scale;
+    route_cost += scaled * scaled;
+    terminal_cross_track = cross_track;
+    own_x += speed * config.dt_s * std::cos(psi);
+    own_y += speed * config.dt_s * std::sin(psi);
+  }
+  const double terminal_scaled = terminal_cross_track / lateral_scale;
+  values.route = config.w_route * dm_at(p, kRouteWeight) *
+                 (route_cost + 2.0 * terminal_scaled * terminal_scaled);
+
+  const double preferred_side = dm_at(p, kPreferredSide);
+  const double wrong_side =
+      -preferred_side * terminal_cross_track / lateral_scale;
+  const double terminal_lower =
+      config.terminal_tau * softplus(wrong_side / config.terminal_tau);
+  const double z_pos =
+      (terminal_cross_track - config.terminal_l_max_feasible_m) / lateral_scale;
+  const double z_neg =
+      (-terminal_cross_track - config.terminal_l_max_feasible_m) /
+      lateral_scale;
+  const double terminal_upper = config.terminal_tau *
+      (softplus(z_pos / config.terminal_tau) +
+       softplus(z_neg / config.terminal_tau));
+  values.terminal = dm_at(p, kLateralActive) * terminal_lower +
+                    dm_at(p, kLateralActive) * preferred_side *
+                        preferred_side * terminal_upper;
+
+  own_x = dm_at(p, kX0);
+  own_y = dm_at(p, kY0);
+  double colreg_cost = 0.0;
+  for (int32_t k = 0; k < N; ++k) {
+    const double psi = dm_at(raw_x, k);
+    const double speed = dm_at(raw_x, N + k);
+    own_x += speed * config.dt_s * std::cos(psi);
+    own_y += speed * config.dt_s * std::sin(psi);
+    const double time_s = k * config.dt_s;
+    for (int32_t target_index = 0; target_index < config.max_targets;
+         ++target_index) {
+      const int32_t base = kTargetStart + target_index * kTargetStride;
+      const double target_cog = dm_at(p, base + 2);
+      const double target_sog = dm_at(p, base + 3);
+      const double target_x =
+          dm_at(p, base) + target_sog * std::cos(target_cog) * time_s;
+      const double target_y =
+          dm_at(p, base + 1) + target_sog * std::sin(target_cog) * time_s;
+      const double dx = own_x - target_x;
+      const double dy = own_y - target_y;
+      const double distance = std::sqrt(dx * dx + dy * dy + 1.0);
+      colreg_cost +=
+          dm_at(p, base + 4) * std::exp(-time_s / config.t_discount_s) *
+          std::exp(-config.zeta * (distance - dm_at(p, kCpaSafe)));
+    }
+  }
+  values.colreg = config.w_colreg * colreg_cost /
+                  std::max(1, config.max_targets * config.n_horizon);
+
+  const double cpa_slack = dm_at(raw_x, 2 * N);
+  const double direction_slack = dm_at(raw_x, 2 * N + 1);
+  values.cpa_slack = config.w_slack_l1 * cpa_slack +
+                     config.w_slack_l2 * cpa_slack * cpa_slack;
+  values.direction_slack =
+      config.w_dir_slack_l1 * direction_slack +
+      config.w_dir_slack_l2 * direction_slack * direction_slack;
+  return values;
+}
+
+void write_objective_components(const ObjectiveComponents& values) {
+  std::cout << "{\"colreg\":";
+  write_number(values.colreg);
+  std::cout << ",\"heading\":";
+  write_number(values.heading);
+  std::cout << ",\"speed\":";
+  write_number(values.speed);
+  std::cout << ",\"route\":";
+  write_number(values.route);
+  std::cout << ",\"asymmetry\":";
+  write_number(values.asymmetry);
+  std::cout << ",\"terminal\":";
+  write_number(values.terminal);
+  std::cout << ",\"cpa_slack\":";
+  write_number(values.cpa_slack);
+  std::cout << ",\"direction_slack\":";
+  write_number(values.direction_slack);
+  std::cout << '}';
 }
 
 MidMpcNlpFormulation::Config base_config() {
@@ -291,7 +444,59 @@ void write_config(const MidMpcNlpFormulation::Config& config) {
             << "\"continuous_cpa_enabled\":false}";
 }
 
-void write_problem(const MidMpcInput& input) {
+bool row_is_active(const casadi::DM& lbg, const casadi::DM& ubg,
+                   int32_t row) {
+  return std::isfinite(dm_at(lbg, row)) || std::isfinite(dm_at(ubg, row));
+}
+
+int32_t first_active_step(const casadi::DM& lbg, const casadi::DM& ubg,
+                          int32_t start, int32_t count) {
+  for (int32_t step = 0; step < count; ++step) {
+    if (row_is_active(lbg, ubg, start + step)) {
+      return step;
+    }
+  }
+  return 0;
+}
+
+void write_normalized_problem(const MidMpcInput& input, const casadi::DM& p,
+                              const casadi::DM& lbg,
+                              const casadi::DM& ubg,
+                              const RowRegistry& rows, int32_t N) {
+  const int32_t cpa_hard_from_k = input.targets.empty()
+                                      ? 0
+                                      : first_active_step(
+                                            lbg, ubg, rows.cpa_row(0, 0), N);
+  const int32_t direction_hard_from_k =
+      first_active_step(lbg, ubg, rows.direction_row(0), N);
+  const int32_t min_alt_hard_from_k =
+      first_active_step(lbg, ubg, rows.min_alt_row(0), N);
+  bool terminal_rows_enabled = false;
+  for (int32_t row = 0; row < 3; ++row) {
+    terminal_rows_enabled = terminal_rows_enabled ||
+                            row_is_active(lbg, ubg,
+                                          rows.terminal_row(row));
+  }
+
+  std::cout << "{\"lateral_active\":"
+            << (dm_at(p, 24) != 0.0 ? "true" : "false")
+            << ",\"preferred_side\":" << static_cast<int>(dm_at(p, 22))
+            << ",\"starboard_asymmetry_active\":"
+            << (dm_at(p, 13) != 0.0 ? "true" : "false")
+            << ",\"row_schedule\":{\"prefix_softening\":"
+            << (input.prefix_active_k > 0 ? "true" : "false")
+            << ",\"cpa_hard_from_k\":" << cpa_hard_from_k
+            << ",\"direction_hard_from_k\":" << direction_hard_from_k
+            << ",\"min_alt_hard_from_k\":" << min_alt_hard_from_k
+            << ",\"terminal_rows_enabled\":"
+            << (terminal_rows_enabled ? "true" : "false")
+            << "},\"audit_row_count\":"
+            << input.constraints.applicable_rules.size() << '}';
+}
+
+void write_problem(const MidMpcInput& input, const casadi::DM& p,
+                   const casadi::DM& lbg, const casadi::DM& ubg,
+                   const RowRegistry& rows, int32_t N) {
   std::cout << "{\"own_ship\":{\"psi_rad\":";
   write_number(input.own_ship.psi_rad);
   std::cout << ",\"u_mps\":";
@@ -346,7 +551,9 @@ void write_problem(const MidMpcInput& input) {
   write_number(input.lateral_scale_m);
   std::cout << ",\"weight\":";
   write_number(input.route_weight);
-  std::cout << "},\"targets\":";
+  std::cout << "},\"normalized\":";
+  write_normalized_problem(input, p, lbg, ubg, rows, N);
+  std::cout << ",\"targets\":";
   write_targets(input.targets);
   std::cout << '}';
 }
@@ -395,8 +602,13 @@ bool run_scenario(const Scenario& scenario) {
 
   const int32_t N = scenario.config.n_horizon;
   const casadi::DM& raw_x = g_result.at("x");
+  const casadi::DM& prepared_p = g_prepared.at("p");
+  const casadi::DM& prepared_lbg = g_prepared.at("lbg");
+  const casadi::DM& prepared_ubg = g_prepared.at("ubg");
   const double raw_cpa_slack = static_cast<double>(raw_x(2 * N));
   const double raw_dir_slack = static_cast<double>(raw_x(2 * N + 1));
+  const ObjectiveComponents objective_components =
+      calculate_objective_components(scenario.config, raw_x, prepared_p);
 
   std::cout << "{\"schema\":\"colav.mid_mpc_ipopt_parity.v1\","
             << "\"fixture_id\":\"" << scenario.id << "\","
@@ -413,7 +625,8 @@ bool run_scenario(const Scenario& scenario) {
             << "\"input\":{\"config\":";
   write_config(scenario.config);
   std::cout << ",\"problem\":";
-  write_problem(scenario.input);
+  write_problem(scenario.input, prepared_p, prepared_lbg, prepared_ubg,
+                formulation.row_registry(), N);
   std::cout << "},\"output\":{\"status\":\"" << status_name(solution.status)
             << "\",\"ipopt_return_status\":\"" << solution.ipopt_return_status
             << "\",\"ipopt_iterations\":" << solution.ipopt_iterations
@@ -427,6 +640,8 @@ bool run_scenario(const Scenario& scenario) {
             << (solution.continuous_cpa_violated ? "true" : "false")
             << ",\"trajectory\":";
   write_trajectory(solution);
+  std::cout << ",\"objective_components\":";
+  write_objective_components(objective_components);
   std::cout << ",\"prepared\":{\"p\":";
   write_dm(g_prepared.at("p"));
   std::cout << ",\"x0\":";

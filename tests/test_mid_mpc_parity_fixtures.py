@@ -13,7 +13,6 @@ from colav_simulator.mid_mpc_parity import (
     load_mid_mpc_parity_corpus,
 )
 
-
 CORPUS_PATH = Path(__file__).parent / "fixtures" / "mid_mpc_ipopt" / "v1.jsonl"
 
 
@@ -22,9 +21,7 @@ def _fixture_record() -> dict[str, object]:
         "schema": FIXTURE_SCHEMA,
         "fixture_id": "route_speed_cold",
         "provenance": {
-            "source_repository": (
-                "https://gitlab.sangoai.com/mass_devgroup/01-dynamics/01-simulation"
-            ),
+            "source_repository": ("https://gitlab.sangoai.com/mass_devgroup/01-dynamics/01-simulation"),
             "source_commit": FROZEN_MASS_COMMIT,
             "oracle": "mass_l3_mid_mpc_cpp",
             "optimizer": "CasADi/IPOPT",
@@ -37,7 +34,25 @@ def _fixture_record() -> dict[str, object]:
             "trajectory_abs": 1e-6,
             "diagnostic_abs": 1e-6,
         },
-        "input": {"config": {"N": 4, "dt": 5.0}, "problem": {"targets": []}},
+        "input": {
+            "config": {"N": 4, "dt": 5.0},
+            "problem": {
+                "targets": [],
+                "normalized": {
+                    "lateral_active": False,
+                    "preferred_side": 0,
+                    "starboard_asymmetry_active": False,
+                    "row_schedule": {
+                        "prefix_softening": False,
+                        "cpa_hard_from_k": 0,
+                        "direction_hard_from_k": 0,
+                        "min_alt_hard_from_k": 0,
+                        "terminal_rows_enabled": False,
+                    },
+                    "audit_row_count": 0,
+                },
+            },
+        },
         "output": {
             "status": "Converged",
             "ipopt_return_status": "Solve_Succeeded",
@@ -47,6 +62,16 @@ def _fixture_record() -> dict[str, object]:
             "continuous_cpa_min_m": "Infinity",
             "continuous_cpa_violated": False,
             "trajectory": [],
+            "objective_components": {
+                "colreg": 0.0,
+                "heading": 0.0,
+                "speed": 0.0,
+                "route": 0.0,
+                "asymmetry": 0.0,
+                "terminal": 0.0,
+                "cpa_slack": 0.0,
+                "direction_slack": 0.0,
+            },
             "prepared": {
                 "p": [],
                 "x0": [],
@@ -107,9 +132,7 @@ def test_rejects_unknown_fixture_schema(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("invalid", [0.0, -1e-6, math.nan, math.inf])
-def test_rejects_non_positive_or_non_finite_tolerance(
-    tmp_path: Path, invalid: float
-) -> None:
+def test_rejects_non_positive_or_non_finite_tolerance(tmp_path: Path, invalid: float) -> None:
     record = _fixture_record()
     record["tolerances"]["trajectory_abs"] = invalid  # type: ignore[index]
     corpus_path = tmp_path / "corpus.jsonl"
@@ -138,6 +161,26 @@ def test_rejects_fixture_missing_raw_direction_slack(tmp_path: Path) -> None:
         load_mid_mpc_parity_corpus(corpus_path)
 
 
+def test_rejects_fixture_missing_normalized_row_schedule(tmp_path: Path) -> None:
+    record = _fixture_record()
+    del record["input"]["problem"]["normalized"]["row_schedule"]  # type: ignore[index]
+    corpus_path = tmp_path / "corpus.jsonl"
+    _write_jsonl(corpus_path, record)
+
+    with pytest.raises(MidMpcParityFixtureError, match="normalized.row_schedule"):
+        load_mid_mpc_parity_corpus(corpus_path)
+
+
+def test_rejects_fixture_missing_objective_component(tmp_path: Path) -> None:
+    record = _fixture_record()
+    del record["output"]["objective_components"]["terminal"]  # type: ignore[index]
+    corpus_path = tmp_path / "corpus.jsonl"
+    _write_jsonl(corpus_path, record)
+
+    with pytest.raises(MidMpcParityFixtureError, match="objective_components.terminal"):
+        load_mid_mpc_parity_corpus(corpus_path)
+
+
 def test_frozen_cpp_corpus_is_valid_and_reviewable() -> None:
     fixtures = load_mid_mpc_parity_corpus(CORPUS_PATH)
 
@@ -155,16 +198,24 @@ def test_frozen_cpp_corpus_is_valid_and_reviewable() -> None:
 
 
 def test_dynamic_fixtures_export_prepared_arrays_and_raw_solver_diagnostics() -> None:
-    fixtures = {
-        fixture.fixture_id: fixture
-        for fixture in load_mid_mpc_parity_corpus(CORPUS_PATH)
-    }
+    fixtures = {fixture.fixture_id: fixture for fixture in load_mid_mpc_parity_corpus(CORPUS_PATH)}
 
     for fixture_id, fixture in fixtures.items():
         prepared = fixture.output["prepared"]
         raw = fixture.output["raw"]
         assert set(prepared) == {"p", "x0", "lbx", "ubx", "lbg", "ubg"}
         assert set(raw) >= {"x", "f", "g", "cpa_slack", "dir_slack"}
+        assert set(fixture.output["objective_components"]) == {
+            "colreg",
+            "heading",
+            "speed",
+            "route",
+            "asymmetry",
+            "terminal",
+            "cpa_slack",
+            "direction_slack",
+        }
+        assert "row_schedule" in fixture.input["problem"]["normalized"]
         assert len(prepared["lbg"]) == len(prepared["ubg"]) == len(raw["g"])
         assert raw["f"] == pytest.approx(
             fixture.output["objective_total"],
@@ -173,10 +224,7 @@ def test_dynamic_fixtures_export_prepared_arrays_and_raw_solver_diagnostics() ->
 
 
 def test_dynamic_fixture_rows_encode_requested_activation_families() -> None:
-    fixtures = {
-        fixture.fixture_id: fixture
-        for fixture in load_mid_mpc_parity_corpus(CORPUS_PATH)
-    }
+    fixtures = {fixture.fixture_id: fixture for fixture in load_mid_mpc_parity_corpus(CORPUS_PATH)}
 
     for fixture_id in ("head_on_starboard", "crossing_starboard"):
         fixture = fixtures[fixture_id]
@@ -205,6 +253,4 @@ def test_dynamic_fixture_rows_encode_requested_activation_families() -> None:
 
     multi = fixtures["multi_target_row_order"]
     assert len(multi.input["problem"]["targets"]) == 2
-    assert multi.output["row_layout"]["cpa"]["count"] == (
-        multi.input["config"]["N"] * 2
-    )
+    assert multi.output["row_layout"]["cpa"]["count"] == (multi.input["config"]["N"] * 2)

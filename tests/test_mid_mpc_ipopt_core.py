@@ -15,22 +15,13 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcRowSchedule,
     MidMpcTarget,
 )
+from colav_simulator.core.colav.mid_mpc.solver import _IterationCallback
 from colav_simulator.mid_mpc_parity import (
     MidMpcParityFixture,
     load_mid_mpc_parity_corpus,
 )
 
 CORPUS_PATH = Path(__file__).parent / "fixtures" / "mid_mpc_ipopt" / "v1.jsonl"
-NORMALIZED_INTENT_BY_FIXTURE = {
-    "route_speed_cold": (False, 0, False, 0, 0),
-    "head_on_starboard": (True, 1, True, 7, 1),
-    "crossing_starboard": (True, 1, True, 7, 1),
-    "stand_on_hold": (False, 0, True, 0, 1),
-    "overtaking_port": (True, -1, False, 7, 1),
-    "close_target_cpa_slack": (False, 0, False, 0, 0),
-    "active_prefix_k2": (False, 0, False, 0, 0),
-    "multi_target_row_order": (False, 0, False, 0, 0),
-}
 
 
 @pytest.fixture(scope="module")
@@ -72,9 +63,8 @@ def _problem(fixture: MidMpcParityFixture) -> MidMpcProblem:
     problem = fixture.input["problem"]
     own_ship = problem["own_ship"]
     route_frame = problem["route_frame"]
-    lateral_active, preferred_side, asymmetry_active, cpa_hard_from_k, audit_rows = NORMALIZED_INTENT_BY_FIXTURE[
-        fixture.fixture_id
-    ]
+    normalized = problem["normalized"]
+    schedule = normalized["row_schedule"]
     return MidMpcProblem(
         own_ship=MidMpcOwnShip(
             psi_rad=own_ship["psi_rad"],
@@ -88,9 +78,9 @@ def _problem(fixture: MidMpcParityFixture) -> MidMpcProblem:
         cpa_hard_m=problem["cpa_hard_m"],
         rot_max_rad_s=problem["rot_max_rad_s"],
         decel_max_mps2=problem["decel_max_mps2"],
-        lateral_active=lateral_active,
-        preferred_side=preferred_side,
-        starboard_asymmetry_active=asymmetry_active,
+        lateral_active=normalized["lateral_active"],
+        preferred_side=normalized["preferred_side"],
+        starboard_asymmetry_active=normalized["starboard_asymmetry_active"],
         min_alteration_rad=problem["min_alteration_rad"],
         prefix_active_k=problem["prefix_active_k"],
         prefix_psi_rad=tuple(problem["prefix_psi_rad"]),
@@ -103,10 +93,13 @@ def _problem(fixture: MidMpcParityFixture) -> MidMpcProblem:
             weight=route_frame["weight"],
         ),
         row_schedule=MidMpcRowSchedule(
-            prefix_softening=problem["prefix_active_k"] > 0,
-            cpa_hard_from_k=cpa_hard_from_k,
+            prefix_softening=schedule["prefix_softening"],
+            cpa_hard_from_k=schedule["cpa_hard_from_k"],
+            direction_hard_from_k=schedule["direction_hard_from_k"],
+            min_alt_hard_from_k=schedule["min_alt_hard_from_k"],
+            terminal_rows_enabled=schedule["terminal_rows_enabled"],
         ),
-        audit_row_count=audit_rows,
+        audit_row_count=normalized["audit_row_count"],
         targets=tuple(
             MidMpcTarget(
                 x_m=target["x_m"],
@@ -130,7 +123,8 @@ def _assert_parity(fixture: MidMpcParityFixture) -> None:
     assert result.ipopt_return_status == expected["ipopt_return_status"]
     assert result.ipopt_iterations == expected["ipopt_iterations"]
     assert result.objective_total == pytest.approx(expected["objective_total"], abs=objective_tolerance)
-    assert result.objective_components.total == pytest.approx(expected["objective_total"], abs=objective_tolerance)
+    for name, value in vars(result.objective_components).items():
+        assert value == pytest.approx(expected["objective_components"][name], abs=objective_tolerance)
     assert result.elapsed_ms >= 0.0
     assert result.cpa_slack == pytest.approx(expected["cpa_slack"], abs=diagnostic_tolerance)
     assert result.raw_f == pytest.approx(expected["raw"]["f"], abs=objective_tolerance)
@@ -258,3 +252,20 @@ def test_rejects_more_than_frozen_target_capacity(
 
     with pytest.raises(ValueError, match="at most 16 targets"):
         MidMpcIpoptSolver(_config(fixture)).solve(overflow)
+
+
+def test_iteration_callback_aborts_after_frozen_wall_clock_limit() -> None:
+    now = [100.0]
+    callback = _IterationCallback(
+        1,
+        1,
+        1,
+        clock=lambda: now[0],
+        max_wall_time_s=20.0,
+    )
+
+    callback.arm()
+    assert float(callback.eval([])[0]) == 0.0
+
+    now[0] = 120.001
+    assert float(callback.eval([])[0]) == 1.0

@@ -33,7 +33,8 @@ results without changing the frozen source or production API.
 
 `oracle_main.cpp` constructs every input, calls the public frozen solver, and
 exports `p/x0/lbx/ubx/lbg/ubg`, raw `x/f/g`, row layout, both slacks, public
-status/trajectory, and continuous-CPA diagnostics.
+status/trajectory, continuous-CPA diagnostics, normalized Python-core intent and
+row schedule, and eight independently evaluated objective components.
 
 ## Dependency and provenance boundary
 
@@ -52,3 +53,5 @@ separately checked-out tree instead of copying the algorithm source.
 The corpus covers cold target-free tracking, head-on and crossing starboard
 give-way, stand-on/HOLD row disabling, port-preference overtaking, forced
 non-zero CPA slack, committed prefix `K=2`, and two-target CPA row ordering.
+The Python parity tests construct `MidMpcProblem` only from record fields; no
+fixture-id lookup supplies optimizer semantics.
