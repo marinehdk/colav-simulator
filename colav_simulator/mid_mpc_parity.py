@@ -25,6 +25,8 @@ _PROVENANCE_KEYS = frozenset(
         "exporter",
     }
 )
+_PREPARED_KEYS = frozenset({"p", "x0", "lbx", "ubx", "lbg", "ubg"})
+_RAW_KEYS = frozenset({"x", "f", "g", "cpa_slack", "dir_slack"})
 
 
 class MidMpcParityFixtureError(ValueError):
@@ -50,6 +52,15 @@ def _require_mapping(value: object, field: str) -> Mapping[str, Any]:
     if not isinstance(value, dict):
         raise MidMpcParityFixtureError(f"{field} must be a JSON object")
     return value
+
+
+def _require_fields(
+    value: Mapping[str, Any], required: frozenset[str], field: str
+) -> None:
+    missing = required - value.keys()
+    if missing:
+        missing_path = ", ".join(f"{field}.{name}" for name in sorted(missing))
+        raise MidMpcParityFixtureError(f"missing fields: {missing_path}")
 
 
 def validate_mid_mpc_parity_record(record: object) -> MidMpcParityFixture:
@@ -105,6 +116,32 @@ def validate_mid_mpc_parity_record(record: object) -> MidMpcParityFixture:
         raise MidMpcParityFixtureError("input must not be empty")
     if not output:
         raise MidMpcParityFixtureError("output must not be empty")
+
+    prepared = _require_mapping(output.get("prepared"), "output.prepared")
+    _require_fields(prepared, _PREPARED_KEYS, "prepared")
+    for key in _PREPARED_KEYS:
+        if not isinstance(prepared[key], list):
+            raise MidMpcParityFixtureError(f"prepared.{key} must be an array")
+
+    raw = _require_mapping(output.get("raw"), "output.raw")
+    _require_fields(raw, _RAW_KEYS, "raw")
+    for key in ("x", "g"):
+        if not isinstance(raw[key], list):
+            raise MidMpcParityFixtureError(f"raw.{key} must be an array")
+    for key in ("f", "cpa_slack", "dir_slack"):
+        value = raw[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise MidMpcParityFixtureError(f"raw.{key} must be numeric")
+        if not math.isfinite(float(value)):
+            raise MidMpcParityFixtureError(f"raw.{key} must be finite")
+    if not (
+        len(prepared["lbg"]) == len(prepared["ubg"]) == len(raw["g"])
+    ):
+        raise MidMpcParityFixtureError(
+            "prepared lbg/ubg and raw.g must have equal lengths"
+        )
+
+    _require_mapping(output.get("row_layout"), "output.row_layout")
 
     return MidMpcParityFixture(
         fixture_id=fixture_id,

@@ -20,7 +20,18 @@ BOOST_INCLUDE=${BOOST_INCLUDE:-/opt/homebrew/include}
 EIGEN_INCLUDE=${EIGEN_INCLUDE:-/opt/homebrew/include/eigen3}
 mkdir -p "$BUILD_DIR"
 
+# Test-only instrumentation: preserve the frozen solver source, adding two
+# read-only snapshots around its existing nlpsol call in the temporary build.
+sed \
+  -e '/  casadi::DMDict res;/i\
+  oracle_capture_prepared(arg);' \
+  -e '/    res = formulation_.solver()(arg);/a\
+    oracle_capture_result(res);' \
+  "$PACKAGE_ROOT/src/mid_mpc/mid_mpc_solver.cpp" \
+  > "$BUILD_DIR/mid_mpc_solver_traced.cpp"
+
 "$CXX" -std=c++17 -O2 \
+  -include "$SCRIPT_DIR/oracle_trace.hpp" \
   -I"$SCRIPT_DIR/compat_include" \
   -I"$PACKAGE_ROOT/include" \
   -I"$CASADI_ROOT/include" \
@@ -28,7 +39,7 @@ mkdir -p "$BUILD_DIR"
   -I"$EIGEN_INCLUDE" \
   "$SCRIPT_DIR/oracle_main.cpp" \
   "$PACKAGE_ROOT/src/mid_mpc/mid_mpc_nlp_formulation.cpp" \
-  "$PACKAGE_ROOT/src/mid_mpc/mid_mpc_solver.cpp" \
+  "$BUILD_DIR/mid_mpc_solver_traced.cpp" \
   "$PACKAGE_ROOT/src/shared/constraint_compiler.cpp" \
   -L"$CASADI_ROOT" -lcasadi \
   -Wl,-rpath,"$CASADI_ROOT" \
