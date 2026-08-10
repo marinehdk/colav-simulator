@@ -63,6 +63,7 @@ def test_registry_exposes_published_mid_mpc_profile_and_truthful_descriptor() ->
     assert descriptor["build_identity"]["config_sha256"] != "UNKNOWN"
     assert ALGORITHMS[ALGORITHM_ID].readiness_grade == "G3"
     assert {key[:2] for key in VERIFIED_COMBINATIONS if key[2:] == (ALGORITHM_ID, "god")} == {
+        ("multiship", "paper_ccta2023_multiship"),
         ("rule13", "overtaken"),
         ("rule13", "overtaking"),
         ("rule14", "head_on"),

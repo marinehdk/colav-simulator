@@ -118,10 +118,18 @@ _P1_SCENARIOS = (
 ALGORITHMS: dict[str, Capability] = {
     "mid_mpc_ipopt": Capability(
         "G3",
-        ("rule13", "rule14", "rule15"),
-        ("head_on", "overtaking", "overtaken", "crossing_give_way", "crossing_stand_on"),
+        ("rule13", "rule14", "rule15", "multiship"),
+        (
+            "head_on",
+            "overtaking",
+            "overtaken",
+            "crossing_give_way",
+            "crossing_stand_on",
+            "paper_ccta2023_multiship",
+        ),
         ("dynamic",),
-        "Numerical parity and fixed-seed God-tracker single-encounter evidence are established.",
+        "Ship0 raw G3 is established; the fixed multiship scene retains three "
+        "scenario-intrinsic target-target collisions, so global all-vessel safety is not established.",
     ),
     "nominal": Capability("G2", _P1_RULES, _P1_SCENARIOS, ("none",)),
     "vo": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic", "static", "enc")),
@@ -451,6 +459,19 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
             "Ship1": 1.862645149230957e-06,
             "Ship2": 9.313296800157313e-07,
             "Ship3": 9.313296800157313e-07,
+        },
+    ),
+    ("multiship", "paper_ccta2023_multiship", "mid_mpc_ipopt", "god"): _evidence(
+        role="candidate_g3",
+        termination="time_limit",
+        minimum_clearance_m=80.0796172203075,
+        max_heading_delta_deg=71.69699043721292,
+        max_speed_delta_mps=0.588801738684352,
+        solve_count=100,
+        target_minimum_clearance_m={
+            "Ship1": 217.8415627536574,
+            "Ship2": 156.51722125513535,
+            "Ship3": 80.0796172203075,
         },
     ),
     ("multiship", "paper_ccta2023_multiship", "vo", "god"): _evidence(

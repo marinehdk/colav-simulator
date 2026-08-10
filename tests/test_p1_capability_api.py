@@ -9,7 +9,7 @@ EXPECTED_COUNTS = {
     "rule13": 12,
     "rule14": 9,
     "rule15": 11,
-    "multiship": 5,
+    "multiship": 6,
 }
 EXPECTED_SCENARIOS = {
     "rule13": {"overtaking", "overtaken"},
@@ -61,10 +61,12 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
         "sbmpc",
         "potocnik_colreg_fan_mpc",
         "potocnik_simplified_mpc",
+        "mid_mpc_ipopt",
     }
-    if rule_id != "multiship":
-        expected_algorithms.add("mid_mpc_ipopt")
     assert {item["id"] for item in catalog["algorithms"] if item["selectable"]} == expected_algorithms
+    if rule_id == "multiship":
+        mid_mpc = next(item for item in catalog["algorithms"] if item["id"] == "mid_mpc_ipopt")
+        assert "global all-vessel safety is not established" in mid_mpc["known_failure"]
 
 
 @pytest.mark.parametrize(

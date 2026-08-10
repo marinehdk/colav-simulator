@@ -484,6 +484,7 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         assert next(item for item in catalog["scenarios"] if item["id"] == "head_on")["selectable"] is True
         algorithms = {item["id"]: item for item in catalog["algorithms"]}
         assert {name for name, item in algorithms.items() if item["selectable"]} == {
+            "mid_mpc_ipopt",
             "nominal",
             "vo",
             "sbmpc",
