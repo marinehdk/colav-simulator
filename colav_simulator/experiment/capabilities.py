@@ -116,6 +116,13 @@ _P1_SCENARIOS = (
 )
 
 ALGORITHMS: dict[str, Capability] = {
+    "mid_mpc_ipopt": Capability(
+        "G1",
+        ("rule13", "rule14", "rule15"),
+        ("head_on", "overtaking", "overtaken", "crossing_give_way", "crossing_stand_on"),
+        ("dynamic",),
+        "Numerical parity is established; closed-loop simulator evidence is pending.",
+    ),
     "nominal": Capability("G2", _P1_RULES, _P1_SCENARIOS, ("none",)),
     "vo": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic", "static", "enc")),
     "sbmpc": Capability("G3", _P1_RULES, _P1_SCENARIOS, ("dynamic",)),

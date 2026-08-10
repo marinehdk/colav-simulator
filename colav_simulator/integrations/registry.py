@@ -36,6 +36,7 @@ from colav_simulator.core.guidances import LOSGuidanceParams
 from colav_simulator.core.tracking.trackers import KF, GodTracker, ITracker, KFParams
 
 _PUBLISHED_ALGORITHM_PROFILES = {
+    "mid_mpc_ipopt": "mid_mpc_ipopt.yaml",
     "potocnik_colreg_fan_mpc": "potocnik_colreg_fan_mpc.yaml",
     "potocnik_simplified_mpc": "potocnik_simplified_mpc.yaml",
 }
@@ -141,6 +142,11 @@ class IntegrationRegistry:
             "nominal": IntegrationStatus("nominal", "algorithm", True, None, "colav-simulator", None),
             "vo": IntegrationStatus("vo", "algorithm", True, None, "colav-simulator", None),
             "sbmpc": IntegrationStatus("sbmpc", "algorithm", True, None, "colav-simulator", None),
+            "mid_mpc_ipopt": _module_status(
+                "mid_mpc_ipopt",
+                "algorithm",
+                "colav_simulator.integrations.mid_mpc_ipopt",
+            ),
             "potocnik_simplified_mpc": _module_status(
                 "potocnik_simplified_mpc",
                 "algorithm",
