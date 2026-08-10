@@ -137,13 +137,15 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
             page.text.index(module_id) for module_id in module_ids
         )
         assert all(token in page.text for token in ('id="scenarioCatalog"', "追越与被追越", "对遇避碰"))
-        assert 'data-algorithm="sbmpc"' in page.text
+        assert 'data-algorithm="mid_mpc_ipopt"' in page.text
+        assert 'data-algorithm="sbmpc"' not in page.text
         assert 'data-algorithm="vo"' in page.text
         assert 'data-algorithm="potocnik_colreg_fan_mpc"' in page.text
         assert 'data-algorithm="potocnik_simplified_mpc"' not in page.text
         assert 'class="algorithm-catalog"' in page.text
-        assert '<option value="sbmpc" selected>内置 SB-MPC</option>' in page.text
-        assert 'class="selection-card selected" type="button" data-algorithm="sbmpc"' in page.text
+        assert '<option value="mid_mpc_ipopt" selected>Mid-MPC</option>' in page.text
+        assert 'class="selection-card selected" type="button" data-algorithm="mid_mpc_ipopt"' in page.text
+        assert '<span class="selection-name">Fan-MPC</span>' in page.text
         assert 'data-tracker="vimmjipda"' in page.text
         assert '<option value="god" selected>God Tracker</option>' in page.text
         assert "标准对遇 · G3 · 600s" in page.text
@@ -213,7 +215,9 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "function drawVODecisionSpace(" in script.text
         assert "function voCandidateColor(" in script.text
         assert "角度相对本船艏向" not in script.text
-        assert "objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc'" in script.text
+        assert "objectiveHistoryWrap.hidden = !['sbmpc', 'mid_mpc_ipopt'].includes(algorithmId)" in script.text
+        assert "Mid-MPC · IPOPT 优化轨迹" in script.text
+        assert "Fan-MPC · 规则与安全筛选" in script.text
 
 
 def test_chart_layer_controls_follow_navigation_semantics() -> None:

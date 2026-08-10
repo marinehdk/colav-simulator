@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="stylesheet" href="/static/style.css?v=20260803-multiship-sidebar" />
+  <link rel="stylesheet" href="/static/style.css?v=20260810-mid-mpc-main" />
 </head>
 <body>
   <div class="app-container">
@@ -226,8 +226,8 @@
           <select id="algoSelect" class="control-native-select" aria-label="避碰规划算法">
             <option value="nominal">名义导航链</option>
             <option value="vo">内置 VO</option>
-            <option value="sbmpc" selected>内置 SB-MPC</option>
-            <option value="potocnik_colreg_fan_mpc">COLREG 扇形 MPC</option>
+            <option value="mid_mpc_ipopt" selected>Mid-MPC</option>
+            <option value="potocnik_colreg_fan_mpc">Fan-MPC</option>
             <option value="psbmpc">官方 PSB-MPC</option>
             <option value="rrt">RRT* 路径规划</option>
             <option value="rlmpc">RL-MPC</option>
@@ -236,11 +236,11 @@
             <div class="selection-section">
               <div class="selection-heading">MPC</div>
               <div class="selection-grid">
-                <button class="selection-card selected" type="button" data-algorithm="sbmpc" aria-pressed="true">
-                  <span class="selection-name">SB-MPC</span><span class="selection-description">场景式分支 MPC</span><span class="selection-state">检查中</span>
+                <button class="selection-card selected" type="button" data-algorithm="mid_mpc_ipopt" aria-pressed="true">
+                  <span class="selection-name">Mid-MPC</span><span class="selection-description">IPOPT 非线性预测控制</span><span class="selection-state">检查中</span>
                 </button>
                 <button class="selection-card" type="button" data-algorithm="potocnik_colreg_fan_mpc" aria-pressed="false">
-                  <span class="selection-name">COLREG 扇形 MPC</span><span class="selection-description">可执行控制与规则策略</span><span class="selection-state">检查中</span>
+                  <span class="selection-name">Fan-MPC</span><span class="selection-description">可执行控制与规则策略</span><span class="selection-state">检查中</span>
                 </button>
                 <button class="selection-card" type="button" data-algorithm="psbmpc" aria-pressed="false">
                   <span class="selection-name">PSB-MPC</span><span class="selection-description">概率安全域 MPC</span><span class="selection-state">检查中</span>
@@ -479,6 +479,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260804-cursor-anchored-zoom"></script>
+  <script src="/static/app.js?v=20260810-mid-mpc-main"></script>
 </body>
 </html>

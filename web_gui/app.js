@@ -1707,16 +1707,19 @@ function drawPlannerSurface(planner) {
   const algorithmId = planner.algorithm_id;
   const details = planner.algorithm_details || {};
   const isVO = algorithmId === 'vo';
+  const isMidMPC = algorithmId === 'mid_mpc_ipopt';
   const isSimplifiedMPC = ['potocnik_simplified_mpc', 'potocnik_colreg_fan_mpc'].includes(algorithmId);
   const matrix = details.candidate_costs;
   const selectionMatrix = matrix;
   const label = algorithmId === 'vo'
     ? '速度决策空间'
-    : algorithmId === 'sbmpc'
+    : isMidMPC
+      ? 'Mid-MPC · IPOPT 优化轨迹'
+      : algorithmId === 'sbmpc'
       ? 'SB-MPC 候选控制代价'
       : isSimplifiedMPC
         ? (algorithmId === 'potocnik_colreg_fan_mpc'
-          ? 'COLREG 扇形 MPC · 规则与安全筛选'
+          ? 'Fan-MPC · 规则与安全筛选'
           : '简化 MPC · 扇形轨迹筛选')
         : '名义 LOS 引导';
   const surfaceExplanation = document.getElementById('val-surface-explanation');
@@ -1746,7 +1749,7 @@ function drawPlannerSurface(planner) {
       : isVO ? '-- m/s' : '--',
   );
   const objectiveHistoryWrap = document.getElementById('objectiveHistoryWrap');
-  if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = algorithmId !== 'sbmpc';
+  if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = !['sbmpc', 'mid_mpc_ipopt'].includes(algorithmId);
   const voLegend = document.getElementById('voSurfaceLegend');
   if (voLegend) voLegend.hidden = !isVO;
   updatePlannerSurfaceAttachControl(plannerSurfaceType(planner), Number(planner.solve_id));
