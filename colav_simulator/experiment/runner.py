@@ -230,6 +230,7 @@ class ExperimentRunner:
                 strict_no_fallback=spec.strict_no_fallback,
                 solve_period_override_s=spec.solve_period_s,
                 deadline_mode=DeadlineMode(spec.deadline_mode),
+                event_sink=writer.append_lifecycle_event,
             )
             algorithm = self.registry.build_algorithm(
                 spec.algorithm_id,

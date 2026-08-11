@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 ALGORITHM_ID = "mid_mpc_ipopt"
 ALGORITHM_CONFIG = _load_algorithm_config(PROJECT_ROOT / "config/mid_mpc_ipopt.yaml")
-HORIZON_S = 90.0
 
 
 def _run_and_assert_common(p1_run_harness: P1RunHarness, scenario_id: str) -> RunResult:
@@ -43,6 +42,11 @@ def _run_and_assert_common(p1_run_harness: P1RunHarness, scenario_id: str) -> Ru
     assert evaluation["aggregate"]["ownship_collision_count"] == 0
     assert evaluation["aggregate"]["global_collision_count"] == 0
     assert evaluation["aggregate"]["ownship_grounding_count"] == 0
+    expected_target_groundings = 1 if scenario_id == "crossing_give_way" else 0
+    assert (
+        evaluation["aggregate"]["global_grounding_count"] - evaluation["aggregate"]["ownship_grounding_count"]
+        == expected_target_groundings
+    )
     assert evaluation["aggregate"]["global_grounding_not_evaluated_count"] == 0
     assert not {"collision", "grounding"} & {event["type"] for event in run.session.events}
 
@@ -104,6 +108,21 @@ def _first_command_delta(run: RunResult) -> float:
     return _angle_delta(selected_course, initial_course)
 
 
+def _first_action_row(run: RunResult) -> dict:
+    return next(row for row in _solve_rows(run) if row["algorithm_details"]["decision_intent"] == "GIVE_WAY")
+
+
+def _command_delta(run: RunResult, row: dict) -> float:
+    initial_course = _course(np.asarray(run.session.frames[0]["Ship0"]["state"], dtype=float))
+    return _angle_delta(float(row["selected_command"]["course_rad"]), initial_course)
+
+
+def _route_lateral_error(run: RunResult, state: np.ndarray) -> float:
+    initial = np.asarray(run.session.frames[0]["Ship0"]["state"], dtype=float)
+    route_normal = np.array([-math.sin(_course(initial)), math.cos(_course(initial))])
+    return float((state[:2] - initial[:2]) @ route_normal)
+
+
 def _actual_cpa_relative_ne(run: RunResult) -> np.ndarray:
     return np.asarray(run.evaluation.to_dict()["pair_results"][0]["actual_cpa"]["relative_position_at_cpa_ne_m"])
 
@@ -114,7 +133,21 @@ def _initial_target_velocity_ne(run: RunResult) -> np.ndarray:
     return (second - first) / run.session.config.dt_sim
 
 
-def _assert_delayed_hold_then_horizon_selection(run: RunResult, expected_encounter: str) -> None:
+def _has_overtaking_past_clear_geometry(run: RunResult, side: str) -> bool:
+    side_sign = 1.0 if side == "starboard" else -1.0
+    for frame in run.session.frames:
+        own = np.asarray(frame["Ship0"]["state"], dtype=float)
+        target = np.asarray(frame["Ship1"]["state"], dtype=float)
+        target_course = _course(target)
+        along = np.array([math.cos(target_course), math.sin(target_course)])
+        starboard = np.array([-math.sin(target_course), math.cos(target_course)])
+        relative_own = own[:2] - target[:2]
+        if float(relative_own @ along) >= 72.5 and side_sign * float(relative_own @ starboard) >= 55.5:
+            return True
+    return False
+
+
+def _assert_rule17_hold_then_escalation(run: RunResult, expected_encounter: str) -> None:
     rows = _solve_rows(run)
     first = rows[0]
     assert first["algorithm_details"]["decision_intent"] == "HOLD"
@@ -122,10 +155,14 @@ def _assert_delayed_hold_then_horizon_selection(run: RunResult, expected_encount
     assert first["target_predictions"][0]["encounter"] == expected_encounter
     assert first["algorithm_details"]["selected_target_ids"] == []
     assert abs(_first_command_delta(run)) < math.radians(1.0)
-    assert all(row["algorithm_details"]["decision_intent"] == "HOLD" for row in rows)
-    first_selected = next(row for row in rows if row["algorithm_details"]["selected_target_ids"])
-    assert first_selected["sim_time"] > 0.0
-    assert 0.0 < first_selected["target_predictions"][0]["signed_tcpa_s"] <= HORIZON_S
+    assert first["algorithm_details"]["lifecycle"]["targets"][0]["rule17"] == "STAND_ON"
+    first_selected = _first_action_row(run)
+    assert first_selected["sim_time"] >= 10.0
+    assert first_selected["algorithm_details"]["lifecycle"]["targets"][0]["rule17"] in {
+        "MAY_ACT",
+        "MUST_ACT",
+    }
+    assert first_selected["algorithm_details"]["selected_target_ids"]
 
 
 def test_mid_mpc_head_on_closed_loop_turns_starboard_passes_port_and_recovers(
@@ -133,13 +170,15 @@ def test_mid_mpc_head_on_closed_loop_turns_starboard_passes_port_and_recovers(
 ) -> None:
     run = _run_and_assert_common(p1_run_harness, "head_on")
     first = _solve_rows(run)[0]
+    action = _first_action_row(run)
     initial_course = _course(np.asarray(run.session.frames[0]["Ship0"]["state"], dtype=float))
     starboard_normal = np.array([-math.sin(initial_course), math.cos(initial_course)])
 
     assert first["sim_time"] == 0.0
-    assert first["algorithm_details"]["decision_intent"] == "GIVE_WAY"
-    assert first["algorithm_details"]["preferred_side"] == "starboard"
-    assert _first_command_delta(run) >= math.radians(5.0)
+    assert first["algorithm_details"]["decision_intent"] == "HOLD"
+    assert action["sim_time"] == 5.0
+    assert action["algorithm_details"]["preferred_side"] == "starboard"
+    assert _command_delta(run, action) >= action["algorithm_details"]["lifecycle"]["aggregate"]["minimum_course_change_rad"]
     assert float(_actual_cpa_relative_ne(run) @ starboard_normal) < 0.0
     assert _solve_rows(run)[-1]["algorithm_details"]["decision_intent"] == "HOLD"
 
@@ -149,11 +188,13 @@ def test_mid_mpc_crossing_give_way_turns_starboard_passes_astern_and_recovers(
 ) -> None:
     run = _run_and_assert_common(p1_run_harness, "crossing_give_way")
     first = _solve_rows(run)[0]
+    action = _first_action_row(run)
 
     assert first["sim_time"] == 0.0
-    assert first["algorithm_details"]["decision_intent"] == "GIVE_WAY"
-    assert first["algorithm_details"]["preferred_side"] == "starboard"
-    assert _first_command_delta(run) >= math.radians(5.0)
+    assert first["algorithm_details"]["decision_intent"] == "HOLD"
+    assert action["sim_time"] == 5.0
+    assert action["algorithm_details"]["preferred_side"] == "starboard"
+    assert _command_delta(run, action) > math.radians(5.0)
     assert float(_actual_cpa_relative_ne(run) @ _initial_target_velocity_ne(run)) > 0.0
     assert _solve_rows(run)[-1]["algorithm_details"]["decision_intent"] == "HOLD"
 
@@ -163,32 +204,42 @@ def test_mid_mpc_crossing_stand_on_holds_then_acts_inside_horizon_and_recovers(
 ) -> None:
     run = _run_and_assert_common(p1_run_harness, "crossing_stand_on")
 
-    _assert_delayed_hold_then_horizon_selection(run, "crossing_stand_on")
+    _assert_rule17_hold_then_escalation(run, "crossing_stand_on")
     assert float(_actual_cpa_relative_ne(run) @ _initial_target_velocity_ne(run)) < 0.0
+    assert _solve_rows(run)[-1]["algorithm_details"]["decision_intent"] == "HOLD"
 
 
-def test_mid_mpc_overtaking_commits_port_passes_target_and_recovers(
+def test_mid_mpc_overtaking_selects_and_holds_a_safe_passing_corridor(
     p1_run_harness: P1RunHarness,
 ) -> None:
     run = _run_and_assert_common(p1_run_harness, "overtaking")
     first = _solve_rows(run)[0]
-    initial_course = _course(np.asarray(run.session.frames[0]["Ship0"]["state"], dtype=float))
-    along_route = np.array([math.cos(initial_course), math.sin(initial_course)])
-    starboard_normal = np.array([-math.sin(initial_course), math.cos(initial_course)])
-    relative_at_cpa = _actual_cpa_relative_ne(run)
-
+    action = _first_action_row(run)
     assert first["sim_time"] == 0.0
-    assert first["algorithm_details"]["decision_intent"] == "GIVE_WAY"
-    assert first["algorithm_details"]["preferred_side"] == "port"
-    assert _first_command_delta(run) <= -math.radians(4.0)
-    assert float(relative_at_cpa @ along_route) < 0.0
-    assert float(relative_at_cpa @ starboard_normal) > 0.0
+    assert first["algorithm_details"]["decision_intent"] == "HOLD"
+    assert action["sim_time"] == 5.0
+    selected_side = action["algorithm_details"]["preferred_side"]
+    assert selected_side in {"port", "starboard"}
+    expected_sign = -1.0 if selected_side == "port" else 1.0
+    assert expected_sign * _command_delta(run, action) >= math.radians(4.0)
+    assert _has_overtaking_past_clear_geometry(run, selected_side)
     assert _solve_rows(run)[-1]["algorithm_details"]["decision_intent"] == "HOLD"
+    final = np.asarray(run.session.frames[-1]["Ship0"]["state"], dtype=float)
+    assert abs(_route_lateral_error(run, final)) < 50.0
 
 
-def test_mid_mpc_overtaken_holds_then_acts_inside_horizon_and_recovers(
+def test_mid_mpc_overtaken_holds_then_uses_rule17_and_recovers(
     p1_run_harness: P1RunHarness,
 ) -> None:
     run = _run_and_assert_common(p1_run_harness, "overtaken")
 
-    _assert_delayed_hold_then_horizon_selection(run, "overtaken")
+    rows = _solve_rows(run)
+    assert rows[0]["target_predictions"][0]["encounter"] == "overtaken"
+    assert rows[0]["algorithm_details"]["decision_intent"] == "HOLD"
+    action = _first_action_row(run)
+    assert action["sim_time"] >= 10.0
+    assert action["algorithm_details"]["lifecycle"]["targets"][0]["rule17"] in {
+        "MAY_ACT",
+        "MUST_ACT",
+    }
+    assert rows[-1]["algorithm_details"]["decision_intent"] == "HOLD"

@@ -95,6 +95,15 @@ class EvidenceWriter:
                 stream.write("\n")
         return path
 
+    def append_lifecycle_event(self, event: Any) -> Path:
+        """Durably append one planner lifecycle transition."""
+        path = self.run_dir / "lifecycle_events.jsonl"
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(canonical_json(jsonable(event)))
+            stream.write("\n")
+            stream.flush()
+        return path
+
     def write_trajectory(self, frames: list[dict[str, Any]]) -> Path:
         rows: list[dict[str, Any]] = []
         for frame in frames:

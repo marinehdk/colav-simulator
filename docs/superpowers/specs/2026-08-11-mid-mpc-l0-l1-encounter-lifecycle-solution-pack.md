@@ -357,6 +357,8 @@ Tracker authority
 
 用户于2026-08-11明确接受本方案包。交付链改为本机现行技能：
 
+移交统计：3个执行阶段，4个现行技能（`to-spec`、`implement`、`tdd`、`code-review`）；0个已移除 superpowers 技能依赖。
+
 1. `to-spec`：把本方案包综合为设计/实施 Spec、确认最高公共测试 seams、发布 ready-for-agent issue。
 2. `implement` + `tdd`：按已确认 seams 做逐条 red→green vertical slices。
 3. `code-review`：实现完成后按 Standards/Spec 双轴复核。

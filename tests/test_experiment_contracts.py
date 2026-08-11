@@ -201,3 +201,12 @@ def test_dependency_failure_persists_skipped_not_evaluated_evidence(tmp_path: Pa
     assert evaluation["hard_gate"]["outcome"] == "FAIL"
     assert evaluation["failure_status"] == PlanStatus.DEPENDENCY_UNAVAILABLE
     assert event["type"] == "run_skipped"
+
+
+def test_lifecycle_event_is_appended_before_run_finalization(tmp_path: Path) -> None:
+    writer = EvidenceWriter(tmp_path / "incremental-lifecycle")
+
+    writer.append_lifecycle_event({"schema_version": "1.0", "event_id": 7})
+
+    stored = json.loads((writer.run_dir / "lifecycle_events.jsonl").read_text(encoding="utf-8"))
+    assert stored == {"schema_version": "1.0", "event_id": 7}

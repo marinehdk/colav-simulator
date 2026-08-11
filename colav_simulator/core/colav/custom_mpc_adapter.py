@@ -23,6 +23,7 @@ from colav_simulator.core.colav.diagnostics import (
     PlannerTrace,
     PlanStatus,
 )
+from colav_simulator.core.tracking.trackers import TrackSnapshot
 
 SCHEMA_VERSION = "1.0"
 UNKNOWN_IDENTITY = "UNKNOWN"
@@ -44,6 +45,7 @@ class FactoryContext:
     strict_no_fallback: bool = True
     solve_period_override_s: float | None = None
     deadline_mode: DeadlineMode = DeadlineMode.ENFORCE
+    event_sink: Callable[[Any], object] | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         """Normalize and validate injected runtime values."""
@@ -56,6 +58,8 @@ class FactoryContext:
             not np.isfinite(self.solve_period_override_s) or self.solve_period_override_s <= 0.0
         ):
             raise ValueError("solve_period_override_s must be finite and positive")
+        if self.event_sink is not None and not callable(self.event_sink):
+            raise TypeError("event_sink must be callable when specified")
         object.__setattr__(self, "requested_algorithm", algorithm_id)
         if isinstance(self.deadline_mode, str):
             object.__setattr__(self, "deadline_mode", DeadlineMode(self.deadline_mode.upper()))
@@ -112,6 +116,7 @@ class AlgorithmDescriptor:
     solver: str
     seed_policy: str
     execution_profile: ExecutionProfile
+    state_samples: int | None = None
 
     def __post_init__(self) -> None:
         """Normalize and validate the canonical static descriptor."""
@@ -127,6 +132,8 @@ class AlgorithmDescriptor:
             raise ValueError("horizon_dt must be finite and positive")
         if self.horizon_steps < 1:
             raise ValueError("horizon_steps must be positive")
+        if self.state_samples is not None and self.state_samples < 2:
+            raise ValueError("state_samples must be at least two when specified")
         if not isinstance(self.execution_profile, ExecutionProfile):
             raise TypeError("execution_profile must be ExecutionProfile")
 
@@ -139,6 +146,7 @@ class AlgorithmDescriptor:
             "predictor_model": self.predictor_model,
             "horizon_dt": self.horizon_dt,
             "horizon_steps": self.horizon_steps,
+            "state_samples": self.state_samples or self.horizon_steps,
             "objective_terms": list(self.objective_terms),
             "constraint_terms": list(self.constraint_terms),
             "solver": self.solver,
@@ -204,6 +212,10 @@ class TrackedObstacle:
     observed_at_s: float
     age_s: float
     degraded: bool = False
+    generation: int | None = None
+    status: str = "LEGACY_UNKNOWN"
+    source: str = "legacy"
+    generated_at_s: float | None = None
 
     def __post_init__(self) -> None:
         """Copy and validate one tracked obstacle."""
@@ -223,6 +235,18 @@ class TrackedObstacle:
             raise ValueError("track length_m and width_m must be positive")
         if self.observed_at_s < 0.0 or self.age_s < 0.0:
             raise ValueError("track timestamps and age must be non-negative")
+        if self.generation is not None and self.generation < 1:
+            raise ValueError("track generation must be positive when known")
+        if not self.status or not self.source:
+            raise ValueError("track status and source must be non-empty")
+        generated_at_s = self.observed_at_s + self.age_s if self.generated_at_s is None else self.generated_at_s
+        if not np.isfinite(generated_at_s) or generated_at_s < self.observed_at_s:
+            raise ValueError("track generated_at_s must not precede observation")
+        object.__setattr__(self, "generated_at_s", float(generated_at_s))
+
+    @property
+    def identity_known(self) -> bool:
+        return self.generation is not None
 
 
 @dataclass(frozen=True)
@@ -466,8 +490,22 @@ class CustomMPCAdapter(ICOLAV):
             dt_sim_s = float(kwargs.get("dt", 0.0))
             track_ages = kwargs.get("track_ages_s", {})
             tracks = []
-            for target_id, state, covariance, length, width in do_list:
-                age_s = float(track_ages.get(target_id, 0.0))
+            for raw_track in do_list:
+                target_id, state, covariance, length, width = raw_track
+                if isinstance(raw_track, TrackSnapshot):
+                    age_s = raw_track.age_s
+                    observed_at_s = raw_track.observed_at_s
+                    generation = raw_track.key.generation
+                    status = raw_track.status.value
+                    source = raw_track.source
+                    generated_at_s = raw_track.generated_at_s
+                else:
+                    age_s = float(track_ages.get(target_id, 0.0))
+                    observed_at_s = max(0.0, float(t) - age_s)
+                    generation = None
+                    status = "LEGACY_UNKNOWN"
+                    source = "legacy"
+                    generated_at_s = float(t)
                 if age_s > self.descriptor.execution_profile.max_track_age_s:
                     raise ValueError(f"track {target_id} age {age_s}s exceeds profile maximum")
                 tracks.append(
@@ -477,9 +515,13 @@ class CustomMPCAdapter(ICOLAV):
                         covariance=covariance,
                         length_m=float(length),
                         width_m=float(width),
-                        observed_at_s=max(0.0, float(t) - age_s),
+                        observed_at_s=observed_at_s,
                         age_s=age_s,
                         degraded=age_s > self.descriptor.execution_profile.degraded_track_age_s,
+                        generation=generation,
+                        status=status,
+                        source=source,
+                        generated_at_s=generated_at_s,
                     )
                 )
             planner_input = PlannerInput(
@@ -523,7 +565,7 @@ class CustomMPCAdapter(ICOLAV):
                 "solve_period_s must be an integer multiple of dt_sim_s",
                 source=FailureSource.ADAPTER,
             )
-        coverage = (self.descriptor.horizon_steps - 1) * self.descriptor.horizon_dt
+        coverage = ((self.descriptor.state_samples or self.descriptor.horizon_steps) - 1) * self.descriptor.horizon_dt
         if coverage + 1e-9 < self._solve_period_s:
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
@@ -536,7 +578,12 @@ class CustomMPCAdapter(ICOLAV):
         started = time.perf_counter()
         try:
             solution = self._solve(planner_input)
-        except ColavExecutionError:
+        except ColavExecutionError as exc:
+            self._record_execution_failure(
+                planner_input,
+                exc,
+                elapsed_ms=(time.perf_counter() - started) * 1000.0,
+            )
             raise
         except ImportError as exc:
             raise ColavExecutionError(
@@ -635,6 +682,45 @@ class CustomMPCAdapter(ICOLAV):
         )
         return self._current_plan.copy()
 
+    def _record_execution_failure(
+        self,
+        planner_input: PlannerInput,
+        error: ColavExecutionError,
+        *,
+        elapsed_ms: float,
+    ) -> None:
+        details = {
+            **error.details,
+            "solve_id": self._solve_id,
+            "solver_executed": False,
+            "cached_plan_used": False,
+            "failure_source": (error.source.value if error.source is not None else FailureSource.ALGORITHM.value),
+            "descriptor_hash": self.descriptor.hash,
+            "build_identity_hash": self._build_identity.hash,
+            "deadline_mode": self.context.deadline_mode.value,
+        }
+        self._diagnostics = PlanDiagnostics(
+            status=error.status,
+            elapsed_ms=elapsed_ms,
+            feasible=False,
+            requested_algorithm=self.context.requested_algorithm,
+            executed_algorithm=self.descriptor.algorithm_id,
+            fallback_used=False,
+            algorithm_descriptor=self.descriptor_document(),
+            details=details,
+        )
+        self._planner_trace = PlannerTrace(
+            algorithm_id=self.descriptor.algorithm_id,
+            solve_id=self._solve_id,
+            sim_time=planner_input.sim_time_s,
+            solver_executed=False,
+            status=error.status,
+            feasible=False,
+            elapsed_ms=elapsed_ms,
+            reason=str(error),
+            algorithm_details=details,
+        )
+
     def _execute_hold(self, planner_input: PlannerInput) -> np.ndarray:
         if self._solution is None or self._last_solve_time_s is None:
             raise ColavExecutionError(
@@ -656,6 +742,8 @@ class CustomMPCAdapter(ICOLAV):
         details = {
             **dict(self._solution.algorithm_details),
             "solve_time_s": self._last_solve_time_s,
+            "trajectory_source": "held_plan",
+            "held_elapsed_s": elapsed_s,
             "descriptor_hash": self.descriptor.hash,
             "build_identity_hash": self._build_identity.hash,
             "deadline_mode": self.context.deadline_mode.value,
@@ -692,10 +780,10 @@ class CustomMPCAdapter(ICOLAV):
         if not isinstance(solution, MPCSolution):
             raise TypeError("solve callable must return MPCSolution")
         trajectory = solution.predicted_trajectory
-        if trajectory.shape[1] != self.descriptor.horizon_steps:
+        expected_state_samples = self.descriptor.state_samples or self.descriptor.horizon_steps
+        if trajectory.shape[1] != expected_state_samples:
             raise ValueError(
-                f"predicted horizon has {trajectory.shape[1]} steps; descriptor requires "
-                f"{self.descriptor.horizon_steps}"
+                f"predicted horizon has {trajectory.shape[1]} samples; descriptor requires {expected_state_samples}"
             )
         if not np.isclose(solution.horizon_dt_s, self.descriptor.horizon_dt, rtol=0.0, atol=1e-12):
             raise ValueError("MPCSolution horizon_dt_s differs from descriptor")
