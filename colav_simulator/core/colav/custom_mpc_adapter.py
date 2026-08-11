@@ -46,6 +46,7 @@ class FactoryContext:
     solve_period_override_s: float | None = None
     deadline_mode: DeadlineMode = DeadlineMode.ENFORCE
     event_sink: Callable[[Any], object] | None = field(default=None, compare=False, repr=False)
+    artifact_sink: Callable[[Any], object] | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         """Normalize and validate injected runtime values."""
@@ -60,6 +61,8 @@ class FactoryContext:
             raise ValueError("solve_period_override_s must be finite and positive")
         if self.event_sink is not None and not callable(self.event_sink):
             raise TypeError("event_sink must be callable when specified")
+        if self.artifact_sink is not None and not callable(self.artifact_sink):
+            raise TypeError("artifact_sink must be callable when specified")
         object.__setattr__(self, "requested_algorithm", algorithm_id)
         if isinstance(self.deadline_mode, str):
             object.__setattr__(self, "deadline_mode", DeadlineMode(self.deadline_mode.upper()))

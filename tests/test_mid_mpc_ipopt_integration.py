@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
+from pathlib import Path
 
 import numpy as np
 
@@ -8,6 +11,7 @@ from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter, Dead
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureSource, PlanStatus
 from colav_simulator.core.tracking.trackers import TrackKey, TrackSnapshot, TrackStatus
 from colav_simulator.experiment.capabilities import ALGORITHMS, VERIFIED_COMBINATIONS
+from colav_simulator.experiment.persistence import EvidenceWriter
 from colav_simulator.integrations.registry import IntegrationRegistry
 
 ALGORITHM_ID = "mid_mpc_ipopt"
@@ -122,7 +126,48 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     assert trace["algorithm_details"]["control_intervals"] == 80
     assert trace["algorithm_details"]["state_samples"] == 81
     assert trace["algorithm_details"]["horizon_duration_s"] == 1200.0
+    assembly = trace["algorithm_details"]["assembly"]
+    assert assembly["schema_version"] == "1.0"
+    assert assembly["profile"] == "COLAV_STRICT"
+    assert len(assembly["request_hash"]) == 64
+    assert len(assembly["problem_hash"]) == 64
+    assert trace["constraints"]["slack_bounds_mode"] == "fixed_zero"
+    assert trace["constraints"]["slack_bounds"] == {
+        "cpa": [0.0, 0.0],
+        "direction": [0.0, 0.0],
+    }
     assert np.asarray(trace["predicted_trajectory"]).shape == (9, 81)
+
+
+def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(tmp_path: Path) -> None:
+    writer = EvidenceWriter(tmp_path / "run")
+    adapter = IntegrationRegistry().build_algorithm(
+        ALGORITHM_ID,
+        {
+            "factory": "colav_simulator.integrations.mid_mpc_ipopt:create",
+            "kwargs": {"horizon_steps": 4, "horizon_dt_s": 5.0},
+        },
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            deadline_mode=DeadlineMode.OFF,
+            artifact_sink=writer.write_mid_mpc_artifact,
+        ),
+    )
+
+    _plan(adapter, 0.0)
+
+    trace = adapter.get_colav_data()["planner"]
+    assembly = trace["algorithm_details"]["assembly"]
+    reference = assembly["artifact"]
+    artifact_path = writer.run_dir / reference["relative_path"]
+    payload = gzip.decompress(artifact_path.read_bytes())
+    assert hashlib.sha256(payload).hexdigest() == reference["sha256"]
+    document = json.loads(payload)
+    assert document["assembly"]["problem_hash"] == assembly["problem_hash"]
+    assert document["solver"]["prepared"]["x0"]
+    assert document["solver"]["raw"]["x"]
+    assert len(json.dumps(trace["algorithm_details"]["assembly"])) < 8_192
 
 
 def test_dynamic_tracks_use_shared_geometry_and_direct_optimizer_intents() -> None:

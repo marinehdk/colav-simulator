@@ -11,6 +11,7 @@ import numpy as np
 
 class MidMpcStatus(StrEnum):
     CONVERGED = "Converged"
+    FEASIBLE_NONOPTIMAL = "FeasibleNonOptimal"
     TIMEOUT = "Timeout"
     INFEASIBLE = "Infeasible"
     NUMERICAL_FAILURE = "NumericalFailure"
@@ -33,6 +34,8 @@ class MidMpcConfig:
     t_discount_s: float = 100.0
     cpa_slack_enabled: bool = True
     dir_slack_enabled: bool = True
+    strict_slack_bounds: bool = False
+    max_wall_time_s: float = 15.0
     continuous_cpa_enabled: bool = False
     max_targets: int = 16
     k_asym: float = 50.0
@@ -67,12 +70,15 @@ class MidMpcConfig:
                 "terminal_tau",
                 "terminal_l_min_m",
                 "terminal_l_max_m",
+                "max_wall_time_s",
             )
         )
-        if not np.isfinite(numeric).all() or self.dt_s <= 0.0:
-            raise ValueError("Mid-MPC config values must be finite and dt_s positive")
+        if not np.isfinite(numeric).all() or self.dt_s <= 0.0 or self.max_wall_time_s <= 0.0:
+            raise ValueError("Mid-MPC config values and time limits must be finite and positive")
         if self.continuous_cpa_enabled:
             raise ValueError("continuous CPA midpoint rows are disabled in the frozen core")
+        if self.strict_slack_bounds and not (self.cpa_slack_enabled and self.dir_slack_enabled):
+            raise ValueError("strict slack bounds require the frozen two-slack graph")
 
 
 @dataclass(frozen=True)
@@ -295,6 +301,7 @@ class MidMpcResult:
     active_row_indices: tuple[int, ...]
     tight_row_indices: tuple[int, ...]
     max_constraint_violation: float
+    max_decision_bound_violation: float
     row_layout: MidMpcRowLayout
 
     def __post_init__(self) -> None:

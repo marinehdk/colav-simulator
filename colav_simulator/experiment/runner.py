@@ -231,6 +231,7 @@ class ExperimentRunner:
                 solve_period_override_s=spec.solve_period_s,
                 deadline_mode=DeadlineMode(spec.deadline_mode),
                 event_sink=writer.append_lifecycle_event,
+                artifact_sink=writer.write_mid_mpc_artifact,
             )
             algorithm = self.registry.build_algorithm(
                 spec.algorithm_id,
@@ -412,9 +413,7 @@ class ExperimentRunner:
     ) -> None:
         status = exc.status if isinstance(exc, ColavExecutionError) else PlanStatus.NUMERICAL_FAILURE
         manifest.state = SessionState.FAILED
-        manifest.execution_outcome = (
-            RunOutcome.SKIPPED if status == PlanStatus.DEPENDENCY_UNAVAILABLE else RunOutcome.FAILED
-        )
+        manifest.execution_outcome = RunOutcome.SKIPPED if status == PlanStatus.DEPENDENCY_UNAVAILABLE else RunOutcome.FAILED
         manifest.failure_status = status.value
         manifest.failure_reason = str(exc)
         manifest.reproduction_status = "not_evaluated"
@@ -427,9 +426,7 @@ class ExperimentRunner:
                 "details": {
                     "status": status.value,
                     "reason": str(exc),
-                    "source": exc.source.value
-                    if isinstance(exc, ColavExecutionError) and exc.source is not None
-                    else None,
+                    "source": exc.source.value if isinstance(exc, ColavExecutionError) and exc.source is not None else None,
                 },
             }
         )
@@ -574,21 +571,16 @@ def _run_metrics(evaluation: Any, session: SimulationSession, fallback_used: boo
     signed_actions = [
         int(np.sign(float(item["heading_increment_rad"])))
         for item in maneuver_samples
-        if item["heading_increment_rad"] is not None
-        and abs(float(item["heading_increment_rad"])) >= np.deg2rad(0.5)
+        if item["heading_increment_rad"] is not None and abs(float(item["heading_increment_rad"])) >= np.deg2rad(0.5)
     ]
     steering_reversals = sum(
         current != previous for previous, current in zip(signed_actions, signed_actions[1:], strict=False)
     )
     cross_track_errors = [
-        abs(float(item["cross_track_error_m"]))
-        for item in maneuver_samples
-        if item["cross_track_error_m"] is not None
+        abs(float(item["cross_track_error_m"])) for item in maneuver_samples if item["cross_track_error_m"] is not None
     ]
     speed_scales = [
-        float(item["selected_speed_scale"])
-        for item in maneuver_samples
-        if item["selected_speed_scale"] is not None
+        float(item["selected_speed_scale"]) for item in maneuver_samples if item["selected_speed_scale"] is not None
     ]
     return {
         "schema_version": "busy_water_metrics.v1",

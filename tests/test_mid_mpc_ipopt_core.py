@@ -13,9 +13,13 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcProblem,
     MidMpcRouteFrame,
     MidMpcRowSchedule,
+    MidMpcStatus,
     MidMpcTarget,
 )
-from colav_simulator.core.colav.mid_mpc.solver import _IterationCallback
+from colav_simulator.core.colav.mid_mpc.solver import (
+    _accepted_status,
+    _IterationCallback,
+)
 from colav_simulator.mid_mpc_parity import (
     MidMpcParityFixture,
     load_mid_mpc_parity_corpus,
@@ -198,6 +202,54 @@ def test_route_speed_cold_matches_frozen_cpp_oracle(
     _assert_parity(parity_corpus["route_speed_cold"])
 
 
+def test_colav_strict_profile_keeps_frozen_slack_variables_but_fixes_them_to_zero(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+
+    result = MidMpcIpoptSolver(config).solve(_problem(fixture))
+
+    assert result.prepared.lbx[-2:].tolist() == [0.0, 0.0]
+    assert result.prepared.ubx[-2:].tolist() == [0.0, 0.0]
+    assert result.raw_x.shape == (2 * config.horizon_steps + 2,)
+    assert result.max_decision_bound_violation <= 1.0e-7
+    assert result.raw_cpa_slack == pytest.approx(0.0, abs=1.0e-7)
+    assert result.raw_dir_slack == pytest.approx(0.0, abs=1.0e-7)
+
+
+def test_colav_strict_profile_does_not_accept_a_primal_infeasible_restoration_point(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["close_target_cpa_slack"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+
+    result = MidMpcIpoptSolver(config).solve(_problem(fixture))
+
+    assert result.status.value == "Infeasible"
+    assert result.max_constraint_violation > 1.0
+
+
+def test_colav_strict_cold_seed_tracks_the_committed_reference_within_rate_bounds(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["head_on_starboard"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source_problem = _problem(fixture)
+    problem = replace(
+        source_problem,
+        route_bearing_rad=source_problem.own_ship.psi_rad + 0.2,
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    heading_seed = result.prepared.x0[: config.horizon_steps]
+    assert heading_seed[0] == pytest.approx(problem.route_bearing_rad)
+    assert np.max(np.abs(np.diff(np.r_[problem.own_ship.psi_rad, heading_seed]))) <= (
+        problem.rot_max_rad_s * config.dt_s + 1.0e-12
+    )
+
+
 @pytest.mark.parametrize(
     "fixture_id",
     (
@@ -269,3 +321,35 @@ def test_iteration_callback_aborts_after_frozen_wall_clock_limit() -> None:
 
     now[0] = 120.001
     assert float(callback.eval([])[0]) == 1.0
+
+
+def test_strict_profile_accepts_only_primal_feasible_timeout_iterate() -> None:
+    lower = np.array([0.0, -1.0])
+    upper = np.array([1.0, 1.0])
+
+    assert (
+        _accepted_status(
+            "User_Requested_Stop",
+            strict=True,
+            raw_x=np.array([0.5, 0.0]),
+            raw_g=np.array([0.0, 0.0]),
+            lbx=lower,
+            ubx=upper,
+            lbg=lower,
+            ubg=upper,
+        )
+        is MidMpcStatus.FEASIBLE_NONOPTIMAL
+    )
+    assert (
+        _accepted_status(
+            "User_Requested_Stop",
+            strict=True,
+            raw_x=np.array([2.0, 0.0]),
+            raw_g=np.array([0.0, 0.0]),
+            lbx=lower,
+            ubx=upper,
+            lbg=lower,
+            ubg=upper,
+        )
+        is MidMpcStatus.TIMEOUT
+    )

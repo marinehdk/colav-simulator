@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, is_dataclass
+from enum import Enum
 
 import numpy as np
 
@@ -35,10 +38,21 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     TargetDecision,
     TargetObservation,
 )
-from colav_simulator.core.colav.mid_mpc import MidMpcConfig, MidMpcIpoptSolver, MidMpcStatus
+from colav_simulator.core.colav.mid_mpc import (
+    MidMpcConfig,
+    MidMpcIpoptSolver,
+    MidMpcResult,
+    MidMpcStatus,
+)
 from colav_simulator.core.colav.mid_mpc_assembler import (
+    AssemblyFailure,
+    AssemblyProfile,
+    AssemblyRequest,
+    AssemblySuccess,
+    CapabilitySnapshot,
     MidMpcAssemblyConfig,
-    assemble_mid_mpc_problem,
+    MidMpcProblemAssembler,
+    RouteReference,
 )
 from colav_simulator.core.guidances import LOSGuidance
 from colav_simulator.core.tracking.trackers import TrackKey
@@ -58,26 +72,23 @@ class _MidMpcFacade:
         config: _FacadeConfig,
         *,
         event_sink: Callable[[LifecycleEvent], object] | None = None,
+        artifact_sink: Callable[[object], object] | None = None,
     ) -> None:
         self._config = config
         self._los = LOSGuidance()
         core_config = MidMpcConfig(
             horizon_steps=config.assembly.horizon_steps,
             dt_s=config.assembly.horizon_dt_s,
+            strict_slack_bounds=True,
         )
         self._solver = MidMpcIpoptSolver(core_config)
-        self._hard_direction_solver = MidMpcIpoptSolver(
-            MidMpcConfig(
-                horizon_steps=config.assembly.horizon_steps,
-                dt_s=config.assembly.horizon_dt_s,
-                dir_slack_enabled=False,
-            )
-        )
+        self._assembler = MidMpcProblemAssembler()
         self._lifecycle = EncounterLifecycle(event_sink=event_sink)
         self._last_guidance_time_s: float | None = None
         self._epoch_number = 1
         self._cycle_sequence = 0
         self._last_cycle_time_s: float | None = None
+        self._artifact_sink = artifact_sink
 
     def reset(self) -> None:
         self._los.reset()
@@ -110,6 +121,7 @@ class _MidMpcFacade:
         if self._last_cycle_time_s is not None and planner_input.sim_time_s != self._last_cycle_time_s:
             self._cycle_sequence += 1
         self._last_cycle_time_s = planner_input.sim_time_s
+        route_anchor = _nearest_route_anchor(planner_input.waypoints_enu_m, ownship[:2])
         try:
             cycle = self._encounter_cycle(
                 planner_input,
@@ -117,12 +129,24 @@ class _MidMpcFacade:
                 planned_speed_mps=float(reference[3, 0]),
             )
             snapshot = self._lifecycle.step(cycle)
-            assembly = assemble_mid_mpc_problem(
-                planner_input,
-                snapshot,
-                route_bearing_rad=route_bearing,
-                planned_speed_mps=float(reference[3, 0]),
-                config=self._config.assembly,
+            assembly = self._assembler.assemble(
+                AssemblyRequest(
+                    planner_input=planner_input,
+                    snapshot=snapshot,
+                    route=RouteReference(
+                        anchor_ne_m=route_anchor,
+                        bearing_rad=route_bearing,
+                        planned_speed_mps=float(reference[3, 0]),
+                    ),
+                    capability=CapabilitySnapshot(
+                        heading_window_rad=self._config.assembly.heading_window_rad,
+                        speed_bounds_mps=self._config.assembly.speed_bounds_mps,
+                        rot_max_rad_s=self._config.assembly.rot_max_rad_s,
+                        decel_max_mps2=self._config.assembly.decel_max_mps2,
+                    ),
+                    config=self._config.assembly,
+                    profile=AssemblyProfile.COLAV_STRICT,
+                )
             )
         except LifecycleError as exc:
             raise ColavExecutionError(
@@ -131,8 +155,19 @@ class _MidMpcFacade:
                 source=FailureSource.ALGORITHM,
                 details={"failure_code": exc.failure.value, "failure_owner": "lifecycle"},
             ) from exc
-        solver = self._hard_direction_solver if assembly.problem.lateral_active else self._solver
-        result = solver.solve(assembly.problem)
+        if isinstance(assembly, AssemblyFailure):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"Mid-MPC assembly {assembly.code.value}: {assembly.message}",
+                source=FailureSource.ALGORITHM,
+                details={
+                    "failure_code": assembly.code.value,
+                    "failure_owner": assembly.owner.lower(),
+                    "recoverability": assembly.recoverability,
+                    "identity": assembly.identity,
+                },
+            )
+        result = self._solver.solve(assembly.problem)
         predicted, controls = _native_trajectories(
             result.trajectory,
             ownship,
@@ -140,11 +175,23 @@ class _MidMpcFacade:
         )
         status, feasible = _plan_status(result.status, result.max_constraint_violation)
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
+        replay_artifact = _replay_artifact_document(assembly, result)
+        prepared_hash = _document_hash(replay_artifact["solver"]["prepared"])
+        artifact_reference: object = {"status": "NOT_CONFIGURED"}
+        if self._artifact_sink is not None:
+            try:
+                artifact_reference = self._artifact_sink(replay_artifact)
+            except Exception as exc:  # evidence failure must not alter control authority
+                artifact_reference = {
+                    "status": "INCOMPLETE",
+                    "error_type": type(exc).__name__,
+                }
         constraints = {
             "row_layout": result.row_layout.to_dict(),
             "active_row_indices": list(result.active_row_indices),
             "tight_row_indices": list(result.tight_row_indices),
             "max_constraint_violation": result.max_constraint_violation,
+            "max_decision_bound_violation": result.max_decision_bound_violation,
             "cpa_slack": result.cpa_slack,
             "direction_slack": max(0.0, result.raw_dir_slack),
             "continuous_cpa_min_m": continuous_cpa,
@@ -152,6 +199,11 @@ class _MidMpcFacade:
             "row_schedule": asdict(assembly.problem.row_schedule),
             "configured_hull_clearance_m": self._config.assembly.cpa_hard_m,
             "effective_node_cpa_hard_m": assembly.effective_cpa_hard_m,
+            "slack_bounds_mode": "fixed_zero",
+            "slack_bounds": {
+                "cpa": [float(result.prepared.lbx[-2]), float(result.prepared.ubx[-2])],
+                "direction": [float(result.prepared.lbx[-1]), float(result.prepared.ubx[-1])],
+            },
         }
         committed = any(
             decision.commitment is CommitmentPhase.COMMITTED and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
@@ -182,6 +234,24 @@ class _MidMpcFacade:
             "state_samples": self._config.assembly.horizon_steps + 1,
             "horizon_duration_s": self._config.assembly.horizon_steps * self._config.assembly.horizon_dt_s,
             "trajectory_source": "fresh_ipopt_solve",
+            "assembly": {
+                "schema_version": "1.0",
+                "profile": assembly.profile.value,
+                "request_hash": assembly.request_hash,
+                "problem_hash": assembly.problem_hash,
+                "prepared_hash": prepared_hash,
+                "structural_signature": assembly.preparation.structural_signature,
+                "selected_targets": [
+                    {"target_id": key.target_id, "generation": key.generation} for key in assembly.selected_target_keys
+                ],
+                "route_anchor_ne_m": list(route_anchor),
+                "activation": {
+                    "cpa_hard_from_k": assembly.activation_plan.global_cpa_hard_from_k,
+                    "direction_hard_from_k": assembly.activation_plan.global_direction_hard_from_k,
+                    "min_alt_hard_from_k": assembly.activation_plan.global_min_alt_hard_from_k,
+                },
+                "artifact": artifact_reference,
+            },
             "lifecycle": _snapshot_document(snapshot, self._lifecycle),
         }
         return MPCSolution(
@@ -330,7 +400,11 @@ def create(  # noqa: PLR0913
         decision_period_s=solve_period_s,
     )
     config = _FacadeConfig(assembly=assembly, profile=PlannerOddProfile())
-    facade = _MidMpcFacade(config, event_sink=context.event_sink)
+    facade = _MidMpcFacade(
+        config,
+        event_sink=context.event_sink,
+        artifact_sink=context.artifact_sink,
+    )
     descriptor = AlgorithmDescriptor(
         algorithm_id=context.requested_algorithm,
         version=__version__,
@@ -443,6 +517,80 @@ def _snapshot_document(
     }
 
 
+def _replay_artifact_document(
+    assembly: AssemblySuccess,
+    result: MidMpcResult,
+) -> dict[str, object]:
+    return _artifact_value(
+        {
+            "schema_version": "colav.mid_mpc.replay@1",
+            "assembly": {
+                "request_hash": assembly.request_hash,
+                "problem_hash": assembly.problem_hash,
+                "profile": assembly.profile,
+                "problem": assembly.problem,
+                "selected_target_keys": assembly.selected_target_keys,
+                "target_predictions": assembly.target_predictions,
+                "activation_plan": assembly.activation_plan,
+                "grid": assembly.grid,
+                "preparation": assembly.preparation,
+            },
+            "solver": {
+                "prepared": result.prepared,
+                "prepared_hash_basis": "canonical prepared vectors",
+                "raw": {
+                    "x": result.raw_x,
+                    "f": result.raw_f,
+                    "g": result.raw_g,
+                },
+                "status": result.status,
+                "ipopt_return_status": result.ipopt_return_status,
+                "iterations": result.ipopt_iterations,
+                "objective_components": result.objective_components,
+                "row_layout": result.row_layout.to_dict(),
+                "active_row_indices": result.active_row_indices,
+                "tight_row_indices": result.tight_row_indices,
+                "max_constraint_violation": result.max_constraint_violation,
+                "max_decision_bound_violation": result.max_decision_bound_violation,
+            },
+            "acceptance": {
+                "schema_version": "1.0",
+                "owner": "L4",
+                "status": "NOT_EVALUATED_BY_ASSEMBLER",
+            },
+        }
+    )
+
+
+def _artifact_value(value: object) -> object:
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    if isinstance(value, float):
+        if math.isinf(value):
+            return "Infinity" if value > 0.0 else "-Infinity"
+        if math.isnan(value):
+            raise ValueError("Mid-MPC replay evidence cannot contain NaN")
+        return value
+    if isinstance(value, np.ndarray):
+        return _artifact_value(value.tolist())
+    if isinstance(value, np.generic):
+        return _artifact_value(value.item())
+    if isinstance(value, Enum):
+        return value.value
+    if is_dataclass(value):
+        return _artifact_value(asdict(value))
+    if isinstance(value, dict):
+        return {str(key): _artifact_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_artifact_value(item) for item in value]
+    raise TypeError(f"unsupported Mid-MPC evidence value: {type(value).__name__}")
+
+
+def _document_hash(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def _encounter_name(decision: TargetDecision) -> str:
     if decision.encounter is EncounterKind.HEAD_ON:
         return "head_on"
@@ -455,6 +603,22 @@ def _encounter_name(decision: TargetDecision) -> str:
     return "clear"
 
 
+def _nearest_route_anchor(waypoints_enu_m: np.ndarray, position_ne_m: np.ndarray) -> tuple[float, float]:
+    """Project current position onto the stable waypoint polyline."""
+    points = np.asarray(waypoints_enu_m, dtype=float).T
+    position = np.asarray(position_ne_m, dtype=float)
+    if len(points) == 1:
+        return float(points[0, 0]), float(points[0, 1])
+    candidates: list[np.ndarray] = []
+    for start, end in zip(points[:-1], points[1:], strict=True):
+        delta = end - start
+        length_squared = float(delta @ delta)
+        fraction = 0.0 if length_squared == 0.0 else float(np.clip((position - start) @ delta / length_squared, 0.0, 1.0))
+        candidates.append(start + fraction * delta)
+    anchor = min(candidates, key=lambda candidate: float(np.linalg.norm(candidate - position)))
+    return float(anchor[0]), float(anchor[1])
+
+
 def _unwrap_near(angle: float, reference: float) -> float:
     return reference + math.atan2(math.sin(angle - reference), math.cos(angle - reference))
 
@@ -464,7 +628,7 @@ def _finite_or_none(value: float) -> float | None:
 
 
 def _plan_status(status: MidMpcStatus, max_violation: float) -> tuple[PlanStatus, bool]:
-    if status is MidMpcStatus.CONVERGED:
+    if status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL}:
         return PlanStatus.SUCCESS, True
     if status is MidMpcStatus.TIMEOUT and max_violation <= 1.0e-3:
         return PlanStatus.TIMEOUT_FEASIBLE, True

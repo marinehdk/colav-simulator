@@ -9,8 +9,6 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     DecisionSnapshot,
     EncounterCycle,
     EncounterLifecycle,
-    LifecycleError,
-    LifecycleFailure,
     Maneuverability,
     ObservationHealth,
     OwnshipObservation,
@@ -28,7 +26,6 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     MidMpcAssemblyConfig,
     MidMpcProblemAssembler,
     RouteReference,
-    assemble_mid_mpc_problem,
 )
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -82,6 +79,14 @@ def test_assembler_binds_targets_deterministically_and_emits_81_point_prediction
     assert len(outcome.target_predictions) == 2
     assert outcome.target_predictions[0].times_s.shape == (81,)
     assert outcome.target_predictions[0].times_s[[0, -1]].tolist() == [0.0, 1200.0]
+    assert outcome.grid.control_intervals == 80
+    assert outcome.grid.state_samples == 81
+    assert outcome.grid.duration_s == 1200.0
+    assert outcome.preparation.seed.source == "DETERMINISTIC_COLD_START"
+    assert outcome.preparation.prefix.active_intervals == 0
+    assert outcome.preparation.slack.cpa_bounds == (0.0, 0.0)
+    assert outcome.preparation.slack.direction_bounds == (0.0, 0.0)
+    assert outcome.preparation.formulation_id.endswith("ced58f8576f3772ef7c1bc72bb0f8b0368688b5a")
 
 
 def test_assembler_compensates_frozen_timing_with_target_step_displacement() -> None:
@@ -110,9 +115,40 @@ def test_assembler_compiles_required_cpa_activation_from_physical_time() -> None
 
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.activation_plan.targets[0].key == TrackKey(1, 1)
-    assert outcome.activation_plan.targets[0].cpa_hard_from_s == 0.0
-    assert outcome.activation_plan.targets[0].cpa_hard_from_k == 0
-    assert outcome.problem.row_schedule.cpa_hard_from_k == 0
+    assert outcome.activation_plan.targets[0].cpa_hard_from_s == pytest.approx(41.4285714286)
+    assert outcome.activation_plan.targets[0].cpa_hard_from_k == 2
+    assert outcome.problem.row_schedule.cpa_hard_from_k == 2
+
+
+def test_structural_signature_changes_when_compiled_row_topology_changes() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    near = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
+    far_input = replace(
+        planner_input,
+        tracks=(replace(planner_input.tracks[0], state_enu=np.array([1000.0, 5000.0, -7.0, 0.0])),),
+    )
+    far = MidMpcProblemAssembler().assemble(_request(far_input, snapshot))
+
+    assert isinstance(near, AssemblySuccess)
+    assert isinstance(far, AssemblySuccess)
+    assert near.problem.row_schedule != far.problem.row_schedule
+    assert near.preparation.structural_signature != far.preparation.structural_signature
+
+
+def test_missing_required_target_returns_typed_binding_failure() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+
+    outcome = MidMpcProblemAssembler().assemble(_request(replace(planner_input, tracks=()), snapshot))
+
+    assert isinstance(outcome, AssemblyFailure)
+    assert outcome.code is AssemblyFailureCode.TARGET_BINDING_MISSING
+    assert outcome.problem is None
 
 
 def test_assembler_fails_closed_before_silently_truncating_seventeen_required_targets() -> None:
@@ -135,19 +171,31 @@ def test_assembler_fails_closed_before_silently_truncating_seventeen_required_ta
     assert outcome.problem is None
 
 
+def test_assembler_fails_when_lifecycle_speed_directive_exceeds_capability() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    incompatible = replace(
+        snapshot,
+        directive=replace(snapshot.directive, speed_bounds_mps=(9.0, 10.0)),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, incompatible))
+
+    assert isinstance(outcome, AssemblyFailure)
+    assert outcome.code is AssemblyFailureCode.CORE_CAPABILITY_MISMATCH
+    assert outcome.problem is None
+
+
 def test_assembler_maps_persistent_lifecycle_commitment_without_business_state() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()
     lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
     snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
-    assembly = assemble_mid_mpc_problem(
-        planner_input,
-        snapshot,
-        route_bearing_rad=0.0,
-        planned_speed_mps=7.0,
-        config=MidMpcAssemblyConfig(),
-    )
+    assembly = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
 
+    assert isinstance(assembly, AssemblySuccess)
     assert len(assembly.problem.targets) == 1
     assert assembly.problem.lateral_active is True
     assert assembly.problem.preferred_side == 1
@@ -174,14 +222,9 @@ def test_assembler_retains_committed_corridor_after_first_alteration_is_achieved
     )
     snapshot = lifecycle.step(achieved_cycle)
 
-    assembly = assemble_mid_mpc_problem(
-        planner_input,
-        snapshot,
-        route_bearing_rad=0.0,
-        planned_speed_mps=7.0,
-        config=MidMpcAssemblyConfig(),
-    )
+    assembly = MidMpcProblemAssembler().assemble(_request(replace(planner_input, sim_time_s=10.0), snapshot))
 
+    assert isinstance(assembly, AssemblySuccess)
     assert snapshot.targets[0].action_achieved is True
     assert assembly.problem.lateral_active is False
     assert assembly.problem.route_bearing_rad == required_change
@@ -197,16 +240,10 @@ def test_assembler_rejects_direction_facts_the_frozen_core_cannot_represent() ->
         directive=replace(snapshot.directive, passing_side=PassingSide.NONE),
     )
 
-    with pytest.raises(LifecycleError) as error:
-        assemble_mid_mpc_problem(
-            planner_input,
-            inconsistent,
-            route_bearing_rad=0.0,
-            planned_speed_mps=7.0,
-            config=MidMpcAssemblyConfig(),
-        )
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, inconsistent))
 
-    assert error.value.failure is LifecycleFailure.CORE_CAPABILITY_MISMATCH
+    assert isinstance(outcome, AssemblyFailure)
+    assert outcome.code is AssemblyFailureCode.CORE_CAPABILITY_MISMATCH
 
 
 def test_assembler_maps_stop_directive_to_zero_speed_reference() -> None:
@@ -225,14 +262,9 @@ def test_assembler_maps_stop_directive_to_zero_speed_reference() -> None:
         ),
     )
 
-    assembly = assemble_mid_mpc_problem(
-        planner_input,
-        stopped,
-        route_bearing_rad=0.0,
-        planned_speed_mps=7.0,
-        config=MidMpcAssemblyConfig(),
-    )
+    assembly = MidMpcProblemAssembler().assemble(_request(planner_input, stopped))
 
+    assert isinstance(assembly, AssemblySuccess)
     assert assembly.problem.planned_speed_mps == 0.0
     assert assembly.problem.speed_bounds_mps == (0.0, 7.0)
     assert assembly.problem.lateral_active is False

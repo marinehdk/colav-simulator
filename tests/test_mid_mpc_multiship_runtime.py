@@ -29,7 +29,7 @@ def _solve_rows(run: RunResult) -> list[dict]:
     return [event["details"]["planner"] for event in run.session.events if event["type"] == "planner_solved"]
 
 
-def test_mid_mpc_multiship_closed_loop_is_safe_observable_and_recovers(
+def test_mid_mpc_multiship_closed_loop_is_safe_observable_and_recovers(  # noqa: PLR0915
     p1_run_harness: P1RunHarness,
 ) -> None:
     display = p1_run_harness.compare(
@@ -87,11 +87,25 @@ def test_mid_mpc_multiship_closed_loop_is_safe_observable_and_recovers(
     assert all(row["iterations"] > 0 for row in solve_rows)
     assert all(math.isfinite(row["objective"]) for row in solve_rows)
     assert all(row["algorithm_details"]["solver_backend"] == "ipopt" for row in solve_rows)
-    assert all(row["algorithm_details"]["ipopt_return_status"] == "Solve_Succeeded" for row in solve_rows)
+    assert all(
+        (
+            row["algorithm_details"]["ipopt_return_status"],
+            row["algorithm_details"]["normalized_solver_status"],
+        )
+        in {
+            ("Solve_Succeeded", "Converged"),
+            ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
+            ("User_Requested_Stop", "FeasibleNonOptimal"),
+        }
+        for row in solve_rows
+    )
     assert all(0.0 < row["algorithm_details"]["solver_elapsed_ms"] < 20_000.0 for row in solve_rows)
     assert all(row["constraints"]["max_constraint_violation"] <= 1.0e-3 for row in solve_rows)
     assert all(row["constraints"]["cpa_slack"] >= 0.0 for row in solve_rows)
     assert all(row["constraints"]["direction_slack"] >= 0.0 for row in solve_rows)
+    assert all(row["constraints"]["slack_bounds_mode"] == "fixed_zero" for row in solve_rows)
+    assert all(row["constraints"]["slack_bounds"]["cpa"] == [0.0, 0.0] for row in solve_rows)
+    assert all(row["constraints"]["slack_bounds"]["direction"] == [0.0, 0.0] for row in solve_rows)
     json.dumps(run.session.events, allow_nan=False)
 
     initial = np.asarray(run.session.frames[0]["Ship0"]["state"], dtype=float)

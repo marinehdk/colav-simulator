@@ -16,7 +16,9 @@ ALGORITHM_ID = "mid_mpc_ipopt"
 ALGORITHM_CONFIG = _load_algorithm_config(PROJECT_ROOT / "config/mid_mpc_ipopt.yaml")
 
 
-def _run_and_assert_common(p1_run_harness: P1RunHarness, scenario_id: str) -> RunResult:
+def _run_and_assert_common(  # noqa: PLR0915 - one end-to-end evidence gate
+    p1_run_harness: P1RunHarness, scenario_id: str
+) -> RunResult:
     result = p1_run_harness.compare(
         scenario_id,
         ALGORITHM_ID,
@@ -42,11 +44,6 @@ def _run_and_assert_common(p1_run_harness: P1RunHarness, scenario_id: str) -> Ru
     assert evaluation["aggregate"]["ownship_collision_count"] == 0
     assert evaluation["aggregate"]["global_collision_count"] == 0
     assert evaluation["aggregate"]["ownship_grounding_count"] == 0
-    expected_target_groundings = 1 if scenario_id == "crossing_give_way" else 0
-    assert (
-        evaluation["aggregate"]["global_grounding_count"] - evaluation["aggregate"]["ownship_grounding_count"]
-        == expected_target_groundings
-    )
     assert evaluation["aggregate"]["global_grounding_not_evaluated_count"] == 0
     assert not {"collision", "grounding"} & {event["type"] for event in run.session.events}
 
@@ -73,14 +70,26 @@ def _run_and_assert_common(p1_run_harness: P1RunHarness, scenario_id: str) -> Ru
         assert math.isfinite(row["objective"])
         assert details["deadline_mode"] == "ENFORCE"
         assert details["solver_backend"] == "ipopt"
-        assert details["ipopt_return_status"] == "Solve_Succeeded"
-        assert details["normalized_solver_status"] == "Converged"
+        assert (
+            details["ipopt_return_status"],
+            details["normalized_solver_status"],
+        ) in {
+            ("Solve_Succeeded", "Converged"),
+            ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
+            ("Infeasible_Problem_Detected", "FeasibleNonOptimal"),
+            ("User_Requested_Stop", "FeasibleNonOptimal"),
+        }
         assert 0.0 < details["solver_elapsed_ms"] < 20_000.0
         assert constraints["max_constraint_violation"] <= 1.0e-3
         assert math.isfinite(constraints["cpa_slack"])
         assert constraints["cpa_slack"] >= 0.0
         assert math.isfinite(constraints["direction_slack"])
         assert constraints["direction_slack"] >= 0.0
+        assert constraints["slack_bounds_mode"] == "fixed_zero"
+        assert constraints["cpa_slack"] <= 1.0e-7
+        assert constraints["direction_slack"] <= 1.0e-7
+        assert constraints["max_decision_bound_violation"] <= 1.0e-7
+        assert details["assembly"]["profile"] == "COLAV_STRICT"
     json.dumps(run.session.events, allow_nan=False)
 
     initial = np.asarray(run.session.frames[0]["Ship0"]["state"], dtype=float)

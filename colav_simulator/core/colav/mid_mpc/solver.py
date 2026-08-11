@@ -88,8 +88,20 @@ class MidMpcIpoptSolver:
         raw_f = float(result["f"])
         elapsed_ms = (time.perf_counter() - started_at) * 1_000.0
         return_status = str(stats.get("return_status", ""))
-        status = _strict_status(return_status)
-        if status is MidMpcStatus.CONVERGED and not _primal_feasible(raw_g, prepared.lbg, prepared.ubg):
+        status = _accepted_status(
+            return_status,
+            strict=self._config.strict_slack_bounds,
+            raw_x=raw_x,
+            raw_g=raw_g,
+            lbx=prepared.lbx,
+            ubx=prepared.ubx,
+            lbg=prepared.lbg,
+            ubg=prepared.ubg,
+        )
+        if status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL} and (
+            not _primal_feasible(raw_g, prepared.lbg, prepared.ubg)
+            or not _primal_feasible(raw_x, prepared.lbx, prepared.ubx)
+        ):
             status = MidMpcStatus.NUMERICAL_FAILURE
 
         n = self._config.horizon_steps
@@ -102,6 +114,7 @@ class MidMpcIpoptSolver:
         component_values = _flat(graph.objective_components(raw_x, prepared.p))
         objective_components = MidMpcObjectiveComponents(*map(float, component_values))
         active_rows, tight_rows, max_violation = _constraint_diagnostics(raw_g, prepared.lbg, prepared.ubg)
+        decision_bound_violation = _maximum_bound_violation(raw_x, prepared.lbx, prepared.ubx)
         return MidMpcResult(
             status=status,
             ipopt_return_status=return_status,
@@ -122,6 +135,7 @@ class MidMpcIpoptSolver:
             active_row_indices=active_rows,
             tight_row_indices=tight_rows,
             max_constraint_violation=max_violation,
+            max_decision_bound_violation=decision_bound_violation,
             row_layout=graph.row_layout,
         )
 
@@ -275,7 +289,7 @@ def _build_graph(  # noqa: PLR0915
         "ipopt.linear_solver": "mumps",
         "ipopt.hessian_approximation": "limited-memory",
         "ipopt.limited_memory_max_history": 50,
-        "ipopt.max_cpu_time": 20.0,
+        "ipopt.max_cpu_time": config.max_wall_time_s,
         "ipopt.bound_push": 1.0e-4,
         "ipopt.bound_frac": 1.0e-4,
         "ipopt.mu_strategy": "adaptive",
@@ -284,10 +298,25 @@ def _build_graph(  # noqa: PLR0915
         "print_time": False,
     }
     nlp = {"x": x, "p": p, "f": objective, "g": g}
-    iteration_callback = _IterationCallback(int(x.numel()), int(g.numel()), int(p.numel()))
+    iteration_callback = _IterationCallback(
+        int(x.numel()),
+        int(g.numel()),
+        int(p.numel()),
+        max_wall_time_s=config.max_wall_time_s,
+    )
     options["iteration_callback"] = iteration_callback
     options["iteration_callback_step"] = 1
     options["iteration_callback_ignore_errors"] = True
+    if config.strict_slack_bounds:
+        options.update(
+            {
+                "ipopt.acceptable_iter": 5,
+                "ipopt.acceptable_tol": 1.0e-3,
+                "ipopt.acceptable_constr_viol_tol": 1.0e-3,
+                "ipopt.bound_relax_factor": 0.0,
+                "ipopt.honor_original_bounds": "yes",
+            }
+        )
     solver = ca.nlpsol("mid_mpc_solver", "ipopt", nlp, options)
     component_function = ca.Function(
         "mid_mpc_objective_components",
@@ -422,6 +451,35 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     )
     x0[:n] = problem.own_ship.psi_rad
     x0[n : 2 * n] = speed_seed
+    if config.strict_slack_bounds:
+        route_delta = math.atan2(
+            math.sin(problem.route_bearing_rad - problem.own_ship.psi_rad),
+            math.cos(problem.route_bearing_rad - problem.own_ship.psi_rad),
+        )
+        heading_target = float(
+            np.clip(
+                problem.own_ship.psi_rad + route_delta,
+                *problem.heading_bounds_rad,
+            )
+        )
+        heading_step = problem.rot_max_rad_s * config.dt_s
+        for k in range(n):
+            x0[k] = problem.own_ship.psi_rad + float(
+                np.clip(
+                    heading_target - problem.own_ship.psi_rad,
+                    -heading_step * (k + 1),
+                    heading_step * (k + 1),
+                )
+            )
+        speed_target = float(np.clip(problem.planned_speed_mps, *problem.speed_bounds_mps))
+        if speed_target < problem.own_ship.u_mps:
+            for k in range(n):
+                x0[n + k] = max(
+                    speed_target,
+                    problem.own_ship.u_mps - problem.decel_max_mps2 * config.dt_s * (k + 1),
+                )
+        else:
+            x0[n : 2 * n] = speed_target
     prefix_k = min(problem.prefix_active_k, n)
     x0[:prefix_k] = problem.prefix_psi_rad[:prefix_k]
     x0[n : n + prefix_k] = problem.prefix_u_mps[:prefix_k]
@@ -433,8 +491,10 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     lbx[2 * n :] = 0.0
     ubx[2 * n :] = np.inf
     lbg, ubg, cpa_hard_from = _row_bounds(config, problem, layout)
-    if config.cpa_slack_enabled:
+    if config.cpa_slack_enabled and not config.strict_slack_bounds:
         x0[2 * n] = _cpa_slack_seed(config, problem, x0, cpa_hard_from)
+    if config.strict_slack_bounds:
+        ubx[2 * n :] = 0.0
     return MidMpcPreparedProblem(p=p, x0=x0, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
 
 
@@ -647,11 +707,35 @@ def _continuous_cpa(trajectory: tuple[MidMpcTrajectoryPoint, ...], problem: MidM
 def _strict_status(return_status: str) -> MidMpcStatus:
     if return_status == "Solve_Succeeded":
         return MidMpcStatus.CONVERGED
+    if return_status == "Solved_To_Acceptable_Level":
+        return MidMpcStatus.FEASIBLE_NONOPTIMAL
     if return_status in ("Maximum_CpuTime_Exceeded", "User_Requested_Stop"):
         return MidMpcStatus.TIMEOUT
     if return_status in ("Infeasible_Problem_Detected", "Restoration_Failed"):
         return MidMpcStatus.INFEASIBLE
     return MidMpcStatus.NUMERICAL_FAILURE
+
+
+def _accepted_status(
+    return_status: str,
+    *,
+    strict: bool,
+    raw_x: np.ndarray,
+    raw_g: np.ndarray,
+    lbx: np.ndarray,
+    ubx: np.ndarray,
+    lbg: np.ndarray,
+    ubg: np.ndarray,
+) -> MidMpcStatus:
+    status = _strict_status(return_status)
+    if (
+        strict
+        and status in {MidMpcStatus.INFEASIBLE, MidMpcStatus.TIMEOUT}
+        and _primal_feasible(raw_g, lbg, ubg)
+        and _primal_feasible(raw_x, lbx, ubx)
+    ):
+        return MidMpcStatus.FEASIBLE_NONOPTIMAL
+    return status
 
 
 def _constraint_diagnostics(
@@ -684,6 +768,16 @@ def _constraint_diagnostics(
 
 def _primal_feasible(values: np.ndarray, lower: np.ndarray, upper: np.ndarray, tolerance: float = 1.0e-3) -> bool:
     return bool(np.isfinite(values).all() and np.all(values >= lower - tolerance) and np.all(values <= upper + tolerance))
+
+
+def _maximum_bound_violation(values: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> float:
+    return float(
+        max(
+            np.max(np.where(np.isfinite(lower), lower - values, 0.0), initial=0.0),
+            np.max(np.where(np.isfinite(upper), values - upper, 0.0), initial=0.0),
+            0.0,
+        )
+    )
 
 
 def _flat(value: ca.DM) -> np.ndarray:
