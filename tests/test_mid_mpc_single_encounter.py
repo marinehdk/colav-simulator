@@ -76,8 +76,6 @@ def _run_and_assert_common(  # noqa: PLR0915 - one end-to-end evidence gate
         ) in {
             ("Solve_Succeeded", "Converged"),
             ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
-            ("Infeasible_Problem_Detected", "FeasibleNonOptimal"),
-            ("User_Requested_Stop", "FeasibleNonOptimal"),
         }
         assert 0.0 < details["solver_elapsed_ms"] < 20_000.0
         assert constraints["max_constraint_violation"] <= 1.0e-3

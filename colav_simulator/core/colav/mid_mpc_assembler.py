@@ -13,9 +13,13 @@ import numpy as np
 
 from colav_simulator.core.colav.custom_mpc_adapter import PlannerInput, TrackedObstacle
 from colav_simulator.core.colav.encounter_lifecycle import (
+    CommitmentPhase,
     DecisionSnapshot,
     EncounterKind,
     PassingSide,
+    RiskPhase,
+    Rule17Stage,
+    TargetDecision,
 )
 from colav_simulator.core.colav.mid_mpc import (
     MidMpcOwnShip,
@@ -62,7 +66,10 @@ class CapabilitySnapshot:
     speed_bounds_mps: tuple[float, float]
     rot_max_rad_s: float
     decel_max_mps2: float
-    source: str = "published_kinematic_csog"
+    odd_source: str = "published_kinematic_csog"
+    plant_source: str | None = None
+    gnc_source: str | None = None
+    limitations: tuple[str, ...] = ("NO_LIVE_PLANT_OR_GNC_ENVELOPE",)
 
     def __post_init__(self) -> None:
         """Validate immutable capability evidence."""
@@ -76,8 +83,10 @@ class CapabilitySnapshot:
             raise ValueError("capability values must be finite and non-negative")
         if self.speed_bounds_mps[0] >= self.speed_bounds_mps[1]:
             raise ValueError("capability speed bounds must be ordered")
-        if not self.source:
-            raise ValueError("capability source is required")
+        if not self.odd_source:
+            raise ValueError("capability ODD source is required")
+        if not self.limitations:
+            raise ValueError("capability limitations must be explicit")
 
 
 class AssemblyProfile(StrEnum):
@@ -97,6 +106,8 @@ class AssemblyFailureCode(StrEnum):
 class AssemblyRequest:
     planner_input: PlannerInput
     snapshot: DecisionSnapshot
+    cycle_input_hash: str
+    lifecycle_profile_hash: str
     route: RouteReference
     capability: CapabilitySnapshot
     config: MidMpcAssemblyConfig
@@ -116,6 +127,8 @@ class AssemblyFailure:
 @dataclass(frozen=True)
 class TargetPrediction:
     key: TrackKey
+    reference_time_s: float
+    velocity_ne_mps: tuple[float, float]
     times_s: np.ndarray
     north_m: np.ndarray
     east_m: np.ndarray
@@ -133,6 +146,12 @@ class TargetPrediction:
             lengths.add(values.size)
         if len(lengths) != 1:
             raise ValueError("target prediction vectors must have equal length")
+        velocity = tuple(float(value) for value in self.velocity_ne_mps)
+        if len(velocity) != 2 or not np.isfinite(velocity).all():
+            raise ValueError("target prediction velocity must be a finite pair")
+        object.__setattr__(self, "velocity_ne_mps", velocity)
+        if not math.isfinite(self.reference_time_s):
+            raise ValueError("target prediction reference time must be finite")
 
 
 @dataclass(frozen=True)
@@ -223,6 +242,18 @@ class MidMpcProblemAssembler:
                 message="planner input and lifecycle snapshot times differ",
                 identity=identity,
             )
+        if request.snapshot.input_hash != request.cycle_input_hash:
+            return AssemblyFailure(
+                code=AssemblyFailureCode.CYCLE_MISMATCH,
+                message="lifecycle snapshot input hash does not match the assembled cycle",
+                identity=identity,
+            )
+        if request.snapshot.profile_hash != request.lifecycle_profile_hash:
+            return AssemblyFailure(
+                code=AssemblyFailureCode.CYCLE_MISMATCH,
+                message="lifecycle snapshot profile hash does not match the assembled cycle",
+                identity=identity,
+            )
         if len(request.snapshot.directive.required_targets) > request.config.max_targets:
             return AssemblyFailure(
                 code=AssemblyFailureCode.CAPACITY_EXCEEDED,
@@ -259,23 +290,13 @@ def _assemble_problem(
 ) -> AssemblySuccess:
     """Map one immutable decision snapshot without retaining business state."""
     track_by_key = {TrackKey(track.target_id, track.generation or 1): track for track in planner_input.tracks}
-    missing = [key for key in snapshot.directive.required_targets if key not in track_by_key]
-    if missing:
-        raise _AssemblyInputError(
-            AssemblyFailureCode.TARGET_BINDING_MISSING,
-            f"lifecycle target keys missing from PlannerInput: {missing}",
-        )
-    selected_keys = tuple(
-        sorted(
-            snapshot.directive.required_targets,
-            key=lambda key: (key.target_id, key.generation),
-        )
-    )
-    selected_tracks = tuple(track_by_key[key] for key in selected_keys)
+    required_keys, selected_keys = _admit_target_keys(snapshot, track_by_key, config.max_targets)
     decision_by_key = {decision.key: decision for decision in snapshot.targets}
+    selected_tracks = tuple(track_by_key[key] for key in selected_keys)
     selected_decisions = tuple(decision_by_key[key] for key in selected_keys)
+    required_decisions = tuple(decision_by_key[key] for key in required_keys)
     required_sides = {
-        decision.passing_side for decision in selected_decisions if decision.passing_side is not PassingSide.NONE
+        decision.passing_side for decision in required_decisions if decision.passing_side is not PassingSide.NONE
     }
     if required_sides and required_sides != {snapshot.directive.passing_side} and not snapshot.directive.stop_required:
         raise _AssemblyInputError(
@@ -299,15 +320,15 @@ def _assemble_problem(
     }[snapshot.directive.passing_side]
     lateral_active = snapshot.directive.minimum_course_change_rad > 0.0
     committed_route_bearing = route.bearing_rad
-    corridor_decisions = tuple(decision for decision in selected_decisions if not decision.route_recovery_allowed)
+    corridor_decisions = tuple(decision for decision in required_decisions if not decision.route_recovery_allowed)
     if corridor_decisions:
         corridor = max(corridor_decisions, key=lambda decision: decision.required_course_change_rad)
         if corridor.baseline_course_rad is None:
             raise ValueError(f"committed target {corridor.key} has no baseline course")
         committed_route_bearing = corridor.baseline_course_rad + preferred_side * corridor.required_course_change_rad
-    elif selected_decisions:
+    elif required_decisions:
         recovery_delta = _wrap(route.bearing_rad - float(planner_input.ownship_state[2]))
-        recovery_step = config.rot_max_rad_s * config.decision_period_s
+        recovery_step = capability.rot_max_rad_s * config.decision_period_s
         committed_route_bearing = float(planner_input.ownship_state[2]) + float(
             np.clip(recovery_delta, -recovery_step, recovery_step)
         )
@@ -315,7 +336,7 @@ def _assemble_problem(
     ownship = planner_input.ownship_state
     effective_cpa_hard_m = _effective_node_clearance(planner_input, selected_tracks, config)
     minimum_change = snapshot.directive.minimum_course_change_rad if lateral_active else 0.0
-    reachable_per_step = config.rot_max_rad_s * config.horizon_dt_s
+    reachable_per_step = capability.rot_max_rad_s * config.horizon_dt_s
     min_alt_hard_from_k = max(0, math.ceil(minimum_change / reachable_per_step) - 1) if lateral_active else 0
     activation_plan = _activation_plan(
         selected_decisions,
@@ -325,6 +346,7 @@ def _assemble_problem(
         minimum_change,
         min_alt_hard_from_k,
         config,
+        capability,
     )
     row_schedule = MidMpcRowSchedule(
         cpa_hard_from_k=activation_plan.global_cpa_hard_from_k,
@@ -335,7 +357,7 @@ def _assemble_problem(
     starboard_asymmetry = any(
         decision.passing_side is PassingSide.STARBOARD
         and decision.encounter in {EncounterKind.HEAD_ON, EncounterKind.CROSSING}
-        for decision in selected_decisions
+        for decision in required_decisions
     )
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
@@ -376,7 +398,12 @@ def _assemble_problem(
             for track in selected_tracks
         ),
     )
-    target_predictions = _target_predictions(selected_keys, track_by_key, config)
+    target_predictions = _target_predictions(
+        tuple(sorted(track_by_key, key=lambda key: (key.target_id, key.generation))),
+        track_by_key,
+        planner_input.sim_time_s,
+        config,
+    )
     grid = GridSpec(
         control_intervals=config.horizon_steps,
         state_samples=config.horizon_steps + 1,
@@ -497,6 +524,7 @@ def _track_document(track: TrackedObstacle) -> dict[str, Any]:
 def _target_predictions(
     selected_keys: tuple[TrackKey, ...],
     track_by_key: dict[TrackKey, TrackedObstacle],
+    reference_time_s: float,
     config: MidMpcAssemblyConfig,
 ) -> tuple[TargetPrediction, ...]:
     times = np.arange(config.horizon_steps + 1, dtype=float) * config.horizon_dt_s
@@ -509,6 +537,8 @@ def _target_predictions(
         predictions.append(
             TargetPrediction(
                 key=key,
+                reference_time_s=reference_time_s,
+                velocity_ne_mps=(float(track.state_enu[2]), float(track.state_enu[3])),
                 times_s=times,
                 north_m=track.state_enu[0] + track.state_enu[2] * times,
                 east_m=track.state_enu[1] + track.state_enu[3] * times,
@@ -521,6 +551,8 @@ def _target_predictions(
 def _prediction_document(prediction: TargetPrediction) -> dict[str, Any]:
     return {
         "key": asdict(prediction.key),
+        "reference_time_s": prediction.reference_time_s,
+        "velocity_ne_mps": list(prediction.velocity_ne_mps),
         "times_s": prediction.times_s.tolist(),
         "north_m": prediction.north_m.tolist(),
         "east_m": prediction.east_m.tolist(),
@@ -529,13 +561,14 @@ def _prediction_document(prediction: TargetPrediction) -> dict[str, Any]:
 
 
 def _activation_plan(
-    decisions: tuple[Any, ...],
+    decisions: tuple[TargetDecision, ...],
     tracks: tuple[TrackedObstacle, ...],
     planner_input: PlannerInput,
     effective_cpa_hard_m: float,
     minimum_change_rad: float,
     min_alt_hard_from_k: int,
     config: MidMpcAssemblyConfig,
+    capability: CapabilitySnapshot,
 ) -> ConstraintActivationPlan:
     ownship = planner_input.ownship_state
     own_velocity = np.array(
@@ -546,7 +579,7 @@ def _activation_plan(
     )
     lead_time_s = max(
         2.0 * config.horizon_dt_s,
-        minimum_change_rad / config.rot_max_rad_s if config.rot_max_rad_s > 0.0 else 0.0,
+        minimum_change_rad / capability.rot_max_rad_s if capability.rot_max_rad_s > 0.0 else 0.0,
     )
     targets = tuple(
         TargetActivation(
@@ -629,6 +662,66 @@ def _activation_document(plan: ConstraintActivationPlan) -> dict[str, Any]:
         "global_direction_hard_from_k": plan.global_direction_hard_from_k,
         "global_min_alt_hard_from_k": plan.global_min_alt_hard_from_k,
     }
+
+
+def _admission_rank(decision: TargetDecision) -> int:
+    if decision.rule17 is Rule17Stage.MUST_ACT:
+        return 5
+    if decision.commitment is CommitmentPhase.COMMITTED and decision.risk is RiskPhase.ACTIVE:
+        return 4
+    if decision.rule17 is Rule17Stage.MAY_ACT:
+        return 3
+    if decision.rule17 is Rule17Stage.STAND_ON:
+        return 0
+    if decision.risk is RiskPhase.ACTIVE:
+        return 3
+    if decision.risk is RiskPhase.CANDIDATE:
+        return 0
+    if decision.risk is RiskPhase.PAST_CLEAR or decision.recovery_guard_active:
+        return 1
+    return 0
+
+
+def _admit_target_keys(
+    snapshot: DecisionSnapshot,
+    track_by_key: dict[TrackKey, TrackedObstacle],
+    max_targets: int,
+) -> tuple[tuple[TrackKey, ...], tuple[TrackKey, ...]]:
+    missing_tracks = [key for key in snapshot.directive.required_targets if key not in track_by_key]
+    if missing_tracks:
+        raise _AssemblyInputError(
+            AssemblyFailureCode.TARGET_BINDING_MISSING,
+            f"lifecycle target keys missing from PlannerInput: {missing_tracks}",
+        )
+    decision_by_key = {decision.key: decision for decision in snapshot.targets}
+    missing_decisions = [key for key in track_by_key if key not in decision_by_key]
+    if missing_decisions:
+        raise _AssemblyInputError(
+            AssemblyFailureCode.TARGET_BINDING_MISSING,
+            f"PlannerInput target keys missing lifecycle decisions: {missing_decisions}",
+        )
+    required_keys = tuple(sorted(snapshot.directive.required_targets, key=lambda key: (key.target_id, key.generation)))
+    eligible = sorted(
+        (
+            decision
+            for decision in snapshot.targets
+            if decision.key not in required_keys and decision.key in track_by_key and _admission_rank(decision) > 0
+        ),
+        key=_admission_sort_key,
+    )
+    selected_keys = required_keys + tuple(decision.key for decision in eligible[: max_targets - len(required_keys)])
+    return required_keys, selected_keys
+
+
+def _admission_sort_key(decision: TargetDecision) -> tuple[float, ...]:
+    tcpa_s = decision.geometry.signed_tcpa_s
+    return (
+        -float(_admission_rank(decision)),
+        tcpa_s if tcpa_s >= 0.0 else math.inf,
+        decision.geometry.range_m,
+        float(decision.key.target_id),
+        float(decision.key.generation),
+    )
 
 
 def _hash_document(value: object) -> str:

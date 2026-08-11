@@ -103,4 +103,3 @@ Success包含immutable semantic problem、target bindings、81点prediction bund
 - Fixed formulation provenance is `mass-l3-mid-mpc-ipopt@ced58f8576f3772ef7c1bc72bb0f8b0368688b5a`.
 - Current published parameters: N=80, dt=15s, solve period=5s, deadline=20s, heading window=45deg, speed=0..8m/s, hard/soft clearance=50/150m, ROT=3deg/s, decel=0.3m/s2, max targets=16.
 - Detailed evidence, discarded alternatives and cross-thread alignment live in the accepted solution pack and design log.
-

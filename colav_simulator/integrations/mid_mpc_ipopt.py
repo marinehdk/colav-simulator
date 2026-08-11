@@ -53,6 +53,7 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     MidMpcAssemblyConfig,
     MidMpcProblemAssembler,
     RouteReference,
+    TargetPrediction,
 )
 from colav_simulator.core.guidances import LOSGuidance
 from colav_simulator.core.tracking.trackers import TrackKey
@@ -133,6 +134,8 @@ class _MidMpcFacade:
                 AssemblyRequest(
                     planner_input=planner_input,
                     snapshot=snapshot,
+                    cycle_input_hash=cycle.input_hash,
+                    lifecycle_profile_hash=cycle.profile.hash,
                     route=RouteReference(
                         anchor_ne_m=route_anchor,
                         bearing_rad=route_bearing,
@@ -177,6 +180,15 @@ class _MidMpcFacade:
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
         replay_artifact = _replay_artifact_document(assembly, result)
         prepared_hash = _document_hash(replay_artifact["solver"]["prepared"])
+        solver_hash = _document_hash(replay_artifact["solver"])
+        acceptance_hash = _document_hash(replay_artifact["acceptance"])
+        replay_artifact["hashes"] = {
+            "request": assembly.request_hash,
+            "problem": assembly.problem_hash,
+            "prepared": prepared_hash,
+            "solver": solver_hash,
+            "acceptance": acceptance_hash,
+        }
         artifact_reference: object = {"status": "NOT_CONFIGURED"}
         if self._artifact_sink is not None:
             try:
@@ -240,6 +252,8 @@ class _MidMpcFacade:
                 "request_hash": assembly.request_hash,
                 "problem_hash": assembly.problem_hash,
                 "prepared_hash": prepared_hash,
+                "solver_hash": solver_hash,
+                "acceptance_hash": acceptance_hash,
                 "structural_signature": assembly.preparation.structural_signature,
                 "selected_targets": [
                     {"target_id": key.target_id, "generation": key.generation} for key in assembly.selected_target_keys
@@ -252,8 +266,21 @@ class _MidMpcFacade:
                 },
                 "artifact": artifact_reference,
             },
+            "render_projection": {
+                "schema_version": "colav.mid_mpc.render@1",
+                "frame": "ENU",
+                "time_axis": {
+                    "state_samples": assembly.grid.state_samples,
+                    "dt_s": assembly.grid.dt_s,
+                    "duration_s": assembly.grid.duration_s,
+                },
+                "ownship_fields": ["north_m", "east_m", "heading_rad", "speed_mps"],
+                "target_fields": ["north_m", "east_m", "generation", "reference_time_s"],
+                "trajectory_source": "fresh_ipopt_solve",
+            },
             "lifecycle": _snapshot_document(snapshot, self._lifecycle),
         }
+        decision_by_key = {decision.key: decision for decision in snapshot.targets}
         return MPCSolution(
             control_reference=controls[:, :1],
             predicted_trajectory=predicted,
@@ -264,7 +291,10 @@ class _MidMpcFacade:
             iterations=result.ipopt_iterations,
             feasible=feasible,
             constraints=constraints,
-            target_predictions=tuple(self._target_prediction(decision, planner_input) for decision in snapshot.targets),
+            target_predictions=tuple(
+                self._target_prediction(decision_by_key[prediction.key], prediction)
+                for prediction in assembly.target_predictions
+            ),
             algorithm_details=details,
         )
 
@@ -338,12 +368,10 @@ class _MidMpcFacade:
     def _target_prediction(
         self,
         decision: TargetDecision,
-        planner_input: PlannerInput,
+        prediction: TargetPrediction,
     ) -> dict[str, object]:
-        track = next(track for track in planner_input.tracks if track.target_id == decision.key.target_id)
-        times = np.arange(self._config.assembly.horizon_steps + 1, dtype=float) * self._config.assembly.horizon_dt_s
-        north = track.state_enu[0] + track.state_enu[2] * times
-        east = track.state_enu[1] + track.state_enu[3] * times
+        north = prediction.north_m.tolist()
+        east = prediction.east_m.tolist()
         return {
             "target_id": decision.key.target_id,
             "generation": decision.key.generation,
@@ -355,14 +383,14 @@ class _MidMpcFacade:
             "tcpa_s": max(0.0, decision.geometry.signed_tcpa_s),
             "signed_tcpa_s": _finite_or_none(decision.geometry.signed_tcpa_s),
             "relative_bearing_deg": math.degrees(decision.geometry.relative_bearing_rad),
-            "north_m": north.tolist(),
-            "east_m": east.tolist(),
-            "x": north.tolist(),
-            "y": east.tolist(),
-            "velocity_ne_mps": track.state_enu[2:4].tolist(),
+            "north_m": north,
+            "east_m": east,
+            "x": north,
+            "y": east,
+            "velocity_ne_mps": list(prediction.velocity_ne_mps),
             "prediction_model": "constant_velocity",
             "degraded": decision.health is not ObservationHealth.UPDATED,
-            "ownship_reference_time_s": planner_input.sim_time_s,
+            "ownship_reference_time_s": prediction.reference_time_s,
         }
 
 

@@ -47,6 +47,21 @@ def test_assembler_returns_atomic_typed_failure_for_cycle_mismatch() -> None:
     assert outcome.identity["sequence"] == 1
 
 
+@pytest.mark.parametrize("field", ["cycle_input_hash", "lifecycle_profile_hash"])
+def test_assembler_rejects_snapshot_identity_hash_mismatch(field: str) -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    request = replace(_request(planner_input, snapshot), **{field: "0" * 64})
+
+    outcome = MidMpcProblemAssembler().assemble(request)
+
+    assert isinstance(outcome, AssemblyFailure)
+    assert outcome.code is AssemblyFailureCode.CYCLE_MISMATCH
+    assert outcome.problem is None
+
+
 def test_assembler_binds_targets_deterministically_and_emits_81_point_predictions() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()
@@ -87,6 +102,24 @@ def test_assembler_binds_targets_deterministically_and_emits_81_point_prediction
     assert outcome.preparation.slack.cpa_bounds == (0.0, 0.0)
     assert outcome.preparation.slack.direction_bounds == (0.0, 0.0)
     assert outcome.preparation.formulation_id.endswith("ced58f8576f3772ef7c1bc72bb0f8b0368688b5a")
+    assert outcome.request_hash
+    assert _request(two_track_input, two_target_snapshot).capability.limitations == ("NO_LIVE_PLANT_OR_GNC_ENVELOPE",)
+
+
+def test_assembler_admits_active_committed_target_after_required_slots() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    eligible_only = replace(
+        snapshot,
+        directive=replace(snapshot.directive, required_targets=()),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, eligible_only))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.selected_target_keys == (TrackKey(1, 1),)
 
 
 def test_assembler_compensates_frozen_timing_with_target_step_displacement() -> None:
@@ -149,6 +182,38 @@ def test_missing_required_target_returns_typed_binding_failure() -> None:
     assert isinstance(outcome, AssemblyFailure)
     assert outcome.code is AssemblyFailureCode.TARGET_BINDING_MISSING
     assert outcome.problem is None
+
+
+def test_missing_required_decision_returns_typed_binding_failure() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, replace(snapshot, targets=())))
+
+    assert isinstance(outcome, AssemblyFailure)
+    assert outcome.code is AssemblyFailureCode.TARGET_BINDING_MISSING
+    assert outcome.problem is None
+
+
+def test_activation_uses_resolved_capability_not_config_default() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    request = _request(planner_input, snapshot)
+    request = replace(
+        request,
+        capability=replace(request.capability, rot_max_rad_s=math.radians(0.5)),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(request)
+
+    assert isinstance(outcome, AssemblySuccess)
+    expected_k = math.ceil(snapshot.directive.minimum_course_change_rad / (math.radians(0.5) * 15.0)) - 1
+    assert outcome.problem.row_schedule.min_alt_hard_from_k == expected_k
+    assert outcome.problem.rot_max_rad_s == math.radians(0.5)
 
 
 def test_assembler_fails_closed_before_silently_truncating_seventeen_required_targets() -> None:
@@ -339,6 +404,8 @@ def _request(planner_input: PlannerInput, snapshot: DecisionSnapshot) -> Assembl
     return AssemblyRequest(
         planner_input=planner_input,
         snapshot=snapshot,
+        cycle_input_hash=snapshot.input_hash,
+        lifecycle_profile_hash=snapshot.profile_hash,
         route=RouteReference(anchor_ne_m=(0.0, 0.0), bearing_rad=0.0, planned_speed_mps=7.0),
         capability=CapabilitySnapshot(
             heading_window_rad=config.heading_window_rad,

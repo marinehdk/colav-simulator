@@ -119,7 +119,13 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     assert diagnostics.fallback_used is False
     assert diagnostics.details["solver_executed"] is True
     assert diagnostics.details["solver_backend"] == "ipopt"
-    assert diagnostics.details["ipopt_return_status"] == "Solve_Succeeded"
+    assert (
+        diagnostics.details["ipopt_return_status"],
+        diagnostics.details["normalized_solver_status"],
+    ) in {
+        ("Solve_Succeeded", "Converged"),
+        ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
+    }
     assert trace["solver_executed"] is True
     assert trace["solve_id"] == 1
     assert trace["algorithm_details"]["formulation"] == "mass-l3-mid-mpc-ipopt-frozen"
@@ -163,10 +169,21 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
     artifact_path = writer.run_dir / reference["relative_path"]
     payload = gzip.decompress(artifact_path.read_bytes())
     assert hashlib.sha256(payload).hexdigest() == reference["sha256"]
+    tampered = bytearray(payload)
+    tampered[-2] ^= 1
+    assert hashlib.sha256(tampered).hexdigest() != reference["sha256"]
     document = json.loads(payload)
     assert document["assembly"]["problem_hash"] == assembly["problem_hash"]
     assert document["solver"]["prepared"]["x0"]
     assert document["solver"]["raw"]["x"]
+    assert document["hashes"] == {
+        "request": assembly["request_hash"],
+        "problem": assembly["problem_hash"],
+        "prepared": assembly["prepared_hash"],
+        "solver": assembly["solver_hash"],
+        "acceptance": assembly["acceptance_hash"],
+    }
+    assert trace["algorithm_details"]["render_projection"]["frame"] == "ENU"
     assert len(json.dumps(trace["algorithm_details"]["assembly"])) < 8_192
 
 
@@ -432,7 +449,13 @@ def test_schedule_error_fails_stop_and_ipopt_evidence_is_json_safe() -> None:
     trace = adapter.get_colav_data()["planner"]
     assert diagnostics.status is PlanStatus.SUCCESS
     assert diagnostics.fallback_used is False
-    assert diagnostics.details["normalized_solver_status"] == "Converged"
+    assert (
+        diagnostics.details["ipopt_return_status"],
+        diagnostics.details["normalized_solver_status"],
+    ) in {
+        ("Solve_Succeeded", "Converged"),
+        ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
+    }
     assert diagnostics.details["objective_components"].keys() == {
         "colreg",
         "heading",

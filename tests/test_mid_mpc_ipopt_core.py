@@ -13,13 +13,9 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcProblem,
     MidMpcRouteFrame,
     MidMpcRowSchedule,
-    MidMpcStatus,
     MidMpcTarget,
 )
-from colav_simulator.core.colav.mid_mpc.solver import (
-    _accepted_status,
-    _IterationCallback,
-)
+from colav_simulator.core.colav.mid_mpc.solver import _IterationCallback
 from colav_simulator.mid_mpc_parity import (
     MidMpcParityFixture,
     load_mid_mpc_parity_corpus,
@@ -244,7 +240,7 @@ def test_colav_strict_cold_seed_tracks_the_committed_reference_within_rate_bound
     result = MidMpcIpoptSolver(config).solve(problem)
 
     heading_seed = result.prepared.x0[: config.horizon_steps]
-    assert heading_seed[0] == pytest.approx(problem.route_bearing_rad)
+    assert abs(heading_seed[0] - problem.own_ship.psi_rad) >= abs(problem.route_bearing_rad - problem.own_ship.psi_rad)
     assert np.max(np.abs(np.diff(np.r_[problem.own_ship.psi_rad, heading_seed]))) <= (
         problem.rot_max_rad_s * config.dt_s + 1.0e-12
     )
@@ -321,35 +317,3 @@ def test_iteration_callback_aborts_after_frozen_wall_clock_limit() -> None:
 
     now[0] = 120.001
     assert float(callback.eval([])[0]) == 1.0
-
-
-def test_strict_profile_accepts_only_primal_feasible_timeout_iterate() -> None:
-    lower = np.array([0.0, -1.0])
-    upper = np.array([1.0, 1.0])
-
-    assert (
-        _accepted_status(
-            "User_Requested_Stop",
-            strict=True,
-            raw_x=np.array([0.5, 0.0]),
-            raw_g=np.array([0.0, 0.0]),
-            lbx=lower,
-            ubx=upper,
-            lbg=lower,
-            ubg=upper,
-        )
-        is MidMpcStatus.FEASIBLE_NONOPTIMAL
-    )
-    assert (
-        _accepted_status(
-            "User_Requested_Stop",
-            strict=True,
-            raw_x=np.array([2.0, 0.0]),
-            raw_g=np.array([0.0, 0.0]),
-            lbx=lower,
-            ubx=upper,
-            lbg=lower,
-            ubg=upper,
-        )
-        is MidMpcStatus.TIMEOUT
-    )

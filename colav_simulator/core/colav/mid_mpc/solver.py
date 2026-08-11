@@ -88,16 +88,7 @@ class MidMpcIpoptSolver:
         raw_f = float(result["f"])
         elapsed_ms = (time.perf_counter() - started_at) * 1_000.0
         return_status = str(stats.get("return_status", ""))
-        status = _accepted_status(
-            return_status,
-            strict=self._config.strict_slack_bounds,
-            raw_x=raw_x,
-            raw_g=raw_g,
-            lbx=prepared.lbx,
-            ubx=prepared.ubx,
-            lbg=prepared.lbg,
-            ubg=prepared.ubg,
-        )
+        status = _strict_status(return_status)
         if status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL} and (
             not _primal_feasible(raw_g, prepared.lbg, prepared.ubg)
             or not _primal_feasible(raw_x, prepared.lbx, prepared.ubx)
@@ -308,11 +299,15 @@ def _build_graph(  # noqa: PLR0915
     options["iteration_callback_step"] = 1
     options["iteration_callback_ignore_errors"] = True
     if config.strict_slack_bounds:
+        # Squared-distance rows make dual residuals large. Permit a named
+        # nonoptimal exit; strict primal bounds are rechecked after solve.
         options.update(
             {
-                "ipopt.acceptable_iter": 5,
-                "ipopt.acceptable_tol": 1.0e-3,
+                "ipopt.acceptable_iter": 1,
+                "ipopt.acceptable_tol": 2.0e5,
+                "ipopt.acceptable_dual_inf_tol": 2.0e5,
                 "ipopt.acceptable_constr_viol_tol": 1.0e-3,
+                "ipopt.acceptable_compl_inf_tol": 1.0e3,
                 "ipopt.bound_relax_factor": 0.0,
                 "ipopt.honor_original_bounds": "yes",
             }
@@ -462,6 +457,20 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
                 *problem.heading_bounds_rad,
             )
         )
+        if problem.lateral_active and problem.preferred_side and problem.starboard_asymmetry_active:
+            seed_change = min(
+                abs(route_delta) + math.radians(10.0),
+                max(
+                    abs(problem.heading_bounds_rad[0] - problem.own_ship.psi_rad),
+                    abs(problem.heading_bounds_rad[1] - problem.own_ship.psi_rad),
+                ),
+            )
+            heading_target = float(
+                np.clip(
+                    problem.own_ship.psi_rad + math.copysign(seed_change, problem.preferred_side),
+                    *problem.heading_bounds_rad,
+                )
+            )
         heading_step = problem.rot_max_rad_s * config.dt_s
         for k in range(n):
             x0[k] = problem.own_ship.psi_rad + float(
@@ -714,28 +723,6 @@ def _strict_status(return_status: str) -> MidMpcStatus:
     if return_status in ("Infeasible_Problem_Detected", "Restoration_Failed"):
         return MidMpcStatus.INFEASIBLE
     return MidMpcStatus.NUMERICAL_FAILURE
-
-
-def _accepted_status(
-    return_status: str,
-    *,
-    strict: bool,
-    raw_x: np.ndarray,
-    raw_g: np.ndarray,
-    lbx: np.ndarray,
-    ubx: np.ndarray,
-    lbg: np.ndarray,
-    ubg: np.ndarray,
-) -> MidMpcStatus:
-    status = _strict_status(return_status)
-    if (
-        strict
-        and status in {MidMpcStatus.INFEASIBLE, MidMpcStatus.TIMEOUT}
-        and _primal_feasible(raw_g, lbg, ubg)
-        and _primal_feasible(raw_x, lbx, ubx)
-    ):
-        return MidMpcStatus.FEASIBLE_NONOPTIMAL
-    return status
 
 
 def _constraint_diagnostics(

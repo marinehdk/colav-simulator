@@ -87,4 +87,3 @@ uv run pytest -q
 - Strict profile requires graph topology change rather than bounds-only semantics.
 - HO/CS/OT requires scenario-ID logic, fallback or reduced 50m gate.
 - Full target/GNC facts needed but absent; record capability limitation instead of fabricating data.
-

@@ -95,7 +95,6 @@ def test_mid_mpc_multiship_closed_loop_is_safe_observable_and_recovers(  # noqa:
         in {
             ("Solve_Succeeded", "Converged"),
             ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
-            ("User_Requested_Stop", "FeasibleNonOptimal"),
         }
         for row in solve_rows
     )
