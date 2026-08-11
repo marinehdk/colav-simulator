@@ -279,9 +279,10 @@ class LifecycleEvent:
     sim_time_s: float
     source: str
     event_type: str
-    target_key: TrackKey
+    target_key: TrackKey | None
     from_state: str | None
     to_state: str
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -373,11 +374,30 @@ class EncounterLifecycle:
     def event_overflow_count(self) -> int:
         return self._event_overflow_count
 
-    def reset(self) -> None:
+    def reset(self, *, epoch: str, reason: str, sim_time_s: float) -> LifecycleEvent:
+        if not epoch or not reason:
+            raise ValueError("reset epoch and reason are required")
+        if not math.isfinite(sim_time_s) or sim_time_s < 0.0:
+            raise ValueError("reset time must be finite and non-negative")
+        previous_epoch = self._state.epoch
         self._state = _LifecycleState()
         self._live_events.clear()
         self._event_overflow_count = 0
         self._next_event_id = 1
+        event = LifecycleEvent(
+            schema_version="1.0",
+            event_id=self._next_event_id,
+            sim_time_s=sim_time_s,
+            source="planner",
+            event_type="RESET",
+            target_key=None,
+            from_state=previous_epoch,
+            to_state=epoch,
+            reason=reason,
+        )
+        self._next_event_id += 1
+        self._record_event(event)
+        return event
 
     def step(self, cycle: EncounterCycle) -> DecisionSnapshot:
         current = self._state

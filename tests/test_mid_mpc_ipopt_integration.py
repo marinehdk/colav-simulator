@@ -244,6 +244,15 @@ def test_lifecycle_transition_sink_is_incremental_and_reflected_in_trace() -> No
     lifecycle = adapter.get_colav_data()["planner"]["algorithm_details"]["lifecycle"]
     assert lifecycle["evidence_persisted"] is True
 
+    adapter.reset()
+
+    reset_event = persisted[-1]
+    assert reset_event.event_type == "RESET"
+    assert reset_event.target_key is None
+    assert reset_event.from_state == "mid-mpc-1"
+    assert reset_event.to_state == "mid-mpc-2"
+    assert reset_event.reason == "adapter_reset"
+
 
 def test_sway_velocity_and_overtaking_side_reach_the_optimizer() -> None:
     covariance = np.eye(4)

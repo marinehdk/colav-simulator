@@ -228,6 +228,21 @@ def test_mid_mpc_overtaking_selects_and_holds_a_safe_passing_corridor(
     assert abs(_route_lateral_error(run, final)) < 50.0
 
 
+def test_mid_mpc_overtaking_mirror_selects_port_corridor_and_recovers(
+    p1_run_harness: P1RunHarness,
+) -> None:
+    run = _run_and_assert_common(p1_run_harness, "overtaking_port_corridor")
+    action = _first_action_row(run)
+
+    assert action["sim_time"] == 5.0
+    assert action["algorithm_details"]["preferred_side"] == "port"
+    assert _command_delta(run, action) <= -math.radians(4.0)
+    assert _has_overtaking_past_clear_geometry(run, "port")
+    assert _solve_rows(run)[-1]["algorithm_details"]["decision_intent"] == "HOLD"
+    final = np.asarray(run.session.frames[-1]["Ship0"]["state"], dtype=float)
+    assert abs(_route_lateral_error(run, final)) < 50.0
+
+
 def test_mid_mpc_overtaken_holds_then_uses_rule17_and_recovers(
     p1_run_harness: P1RunHarness,
 ) -> None:

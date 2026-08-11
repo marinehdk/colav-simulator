@@ -81,9 +81,13 @@ class _MidMpcFacade:
 
     def reset(self) -> None:
         self._los.reset()
-        self._lifecycle.reset()
-        self._last_guidance_time_s = None
         self._epoch_number += 1
+        self._lifecycle.reset(
+            epoch=f"mid-mpc-{self._epoch_number}",
+            reason="adapter_reset",
+            sim_time_s=0.0 if self._last_cycle_time_s is None else self._last_cycle_time_s,
+        )
+        self._last_guidance_time_s = None
         self._cycle_sequence = 0
         self._last_cycle_time_s = None
 
@@ -401,10 +405,11 @@ def _snapshot_document(
                 "sim_time_s": event.sim_time_s,
                 "source": event.source,
                 "event_type": event.event_type,
-                "target_id": event.target_key.target_id,
-                "generation": event.target_key.generation,
+                "target_id": None if event.target_key is None else event.target_key.target_id,
+                "generation": None if event.target_key is None else event.target_key.generation,
                 "from_state": event.from_state,
                 "to_state": event.to_state,
+                "reason": event.reason,
             }
             for event in snapshot.events
         ],

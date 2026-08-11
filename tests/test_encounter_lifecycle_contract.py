@@ -108,6 +108,23 @@ def test_lifecycle_retry_is_idempotent_and_conflicting_retry_fails() -> None:
     assert error.value.failure is LifecycleFailure.CYCLE_CONFLICT
 
 
+def test_reset_emits_and_persists_typed_epoch_event() -> None:
+    persisted: list[LifecycleEvent] = []
+    lifecycle = EncounterLifecycle(event_sink=persisted.append)
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+
+    event = lifecycle.reset(epoch="session-2", reason="adapter_reset", sim_time_s=5.0)
+
+    assert event.event_type == "RESET"
+    assert event.target_key is None
+    assert event.from_state == "session-1"
+    assert event.to_state == "session-2"
+    assert event.reason == "adapter_reset"
+    assert persisted[-1] is event
+    assert lifecycle.live_events == (event,)
+    assert lifecycle.event_overflow_count == 0
+
+
 def test_head_on_risk_requires_physical_time_confirmation_then_locks_commitment() -> None:
     lifecycle = EncounterLifecycle()
 
@@ -262,7 +279,7 @@ def test_all_targets_are_processed_before_capacity_and_conflict_failures() -> No
         lifecycle.step(replace(base, sequence=1, sim_time_s=5.0, targets=seventeen))
     assert capacity.value.failure is LifecycleFailure.CAPACITY_EXCEEDED
 
-    lifecycle.reset()
+    lifecycle.reset(epoch="session-2", reason="test_reset", sim_time_s=5.0)
     port = replace(base.targets[0], key=TrackKey(1, 1), state_enu=np.array([500.0, 50.0, 4.0, 0.0]))
     starboard = replace(base.targets[0], key=TrackKey(2, 1), state_enu=np.array([500.0, -50.0, 4.0, 0.0]))
     lifecycle.step(replace(base, targets=(port, starboard)))
@@ -270,7 +287,7 @@ def test_all_targets_are_processed_before_capacity_and_conflict_failures() -> No
     assert stopped.directive.stop_required is True
     assert stopped.directive.speed_bounds_mps == pytest.approx((0.0, 7.0))
 
-    lifecycle.reset()
+    lifecycle.reset(epoch="session-3", reason="test_reset", sim_time_s=5.0)
     head_on = replace(base.targets[0], key=TrackKey(3, 1), state_enu=np.array([300.0, 0.0, -4.0, 0.0]))
     lifecycle.step(replace(base, targets=(port, starboard, head_on)))
     with pytest.raises(LifecycleError) as conflict:
