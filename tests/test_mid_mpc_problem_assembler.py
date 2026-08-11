@@ -236,6 +236,40 @@ def test_assembler_fails_closed_before_silently_truncating_seventeen_required_ta
     assert outcome.problem is None
 
 
+def test_assembler_binds_exactly_sixteen_required_targets_without_truncation() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    source_track = planner_input.tracks[0]
+    source_decision = snapshot.targets[0]
+    keys = tuple(TrackKey(target_id, 1) for target_id in range(1, 17))
+    tracks = tuple(
+        replace(
+            source_track,
+            target_id=key.target_id,
+            state_enu=np.array([1000.0 + 10.0 * key.target_id, 0.0, -7.0, 0.0]),
+        )
+        for key in keys
+    )
+    decisions = tuple(replace(source_decision, key=key) for key in keys)
+    request = _request(
+        replace(planner_input, tracks=tracks),
+        replace(
+            snapshot,
+            targets=decisions,
+            directive=replace(snapshot.directive, required_targets=keys),
+        ),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(request)
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.selected_target_keys == keys
+    assert len(outcome.problem.targets) == 16
+    assert len(outcome.target_predictions) == 16
+
+
 def test_assembler_fails_when_lifecycle_speed_directive_exceeds_capability() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()

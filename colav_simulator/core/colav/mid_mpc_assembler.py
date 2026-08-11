@@ -453,11 +453,14 @@ def _assemble_problem(
             ],
         }
     )
-    problem_document = asdict(problem)
-    problem_document["target_predictions"] = [_prediction_document(item) for item in target_predictions]
-    problem_document["activation_plan"] = _activation_document(activation_plan)
-    problem_document["grid"] = asdict(grid)
-    problem_document["preparation"] = asdict(preparation)
+    problem_document = problem_hash_document(
+        problem,
+        target_predictions,
+        activation_plan,
+        grid,
+        preparation,
+        parent_request_hash=request_hash,
+    )
     return AssemblySuccess(
         problem=problem,
         selected_target_keys=selected_keys,
@@ -471,6 +474,27 @@ def _assemble_problem(
         grid=grid,
         preparation=preparation,
     )
+
+
+def problem_hash_document(
+    problem: MidMpcProblem,
+    target_predictions: tuple[TargetPrediction, ...],
+    activation_plan: ConstraintActivationPlan,
+    grid: GridSpec,
+    preparation: NumericalPreparationPlan,
+    *,
+    parent_request_hash: str,
+) -> dict[str, object]:
+    """Return canonical, parent-linked semantic problem evidence."""
+    return {
+        "schema_version": "colav.mid_mpc.problem@1",
+        "parent_request_hash": parent_request_hash,
+        "problem": asdict(problem),
+        "target_predictions": [_prediction_document(item) for item in target_predictions],
+        "activation_plan": _activation_document(activation_plan),
+        "grid": asdict(grid),
+        "preparation": asdict(preparation),
+    }
 
 
 def _effective_node_clearance(

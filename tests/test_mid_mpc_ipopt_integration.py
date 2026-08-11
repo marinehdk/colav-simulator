@@ -33,6 +33,11 @@ def _fast_adapter() -> CustomMPCAdapter:
     )
 
 
+def _canonical_hash(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def _plan(
     adapter: CustomMPCAdapter,
     t: float,
@@ -183,7 +188,36 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
         "solver": assembly["solver_hash"],
         "acceptance": assembly["acceptance_hash"],
     }
-    assert trace["algorithm_details"]["render_projection"]["frame"] == "ENU"
+    chain = document["hash_chain"]
+    assert chain["problem"]["parent_hash"] == chain["request"]["hash"]
+    assert chain["prepared"]["parent_hash"] == chain["problem"]["hash"]
+    assert chain["solver"]["parent_hash"] == chain["prepared"]["hash"]
+    assert chain["acceptance"]["parent_hash"] == chain["solver"]["hash"]
+    assert chain["problem"]["hash"] == _canonical_hash(document["problem_stage"])
+    assert chain["prepared"]["hash"] == _canonical_hash(document["prepared_stage"])
+    assert chain["solver"]["hash"] == _canonical_hash(document["solver_stage"])
+    assert chain["acceptance"]["hash"] == _canonical_hash(document["acceptance_stage"])
+    substituted_solver = dict(document["solver_stage"])
+    substituted_solver["parent_prepared_hash"] = "0" * 64
+    assert _canonical_hash(substituted_solver) != chain["solver"]["hash"]
+    projection = trace["algorithm_details"]["render_projection"]
+    assert projection["frame"] == "ENU"
+    assert projection["axis_order"] == ["sample"]
+    assert set(projection["ownship"]) == {
+        "north_m",
+        "east_m",
+        "heading_rad",
+        "speed_mps",
+    }
+    assert len(projection["ownship"]["north_m"]) == 5
+    np.testing.assert_allclose(
+        projection["ownship"]["north_m"],
+        np.asarray(trace["predicted_trajectory"])[0],
+    )
+    np.testing.assert_allclose(
+        projection["ownship"]["east_m"],
+        np.asarray(trace["predicted_trajectory"])[1],
+    )
     assert len(json.dumps(trace["algorithm_details"]["assembly"])) < 8_192
 
 

@@ -283,10 +283,19 @@ class MidMpcRowLayout:
 @dataclass(frozen=True)
 class MidMpcResult:
     status: MidMpcStatus
+    native_status: MidMpcStatus
     ipopt_return_status: str
     ipopt_iterations: int
     elapsed_ms: float
     objective_total: float
+    seed_objective_total: float
+    seed_max_constraint_violation: float
+    objective_improvement: float
+    decision_change_norm: float
+    optimization_quality_passed: bool
+    accepted_by_quality_gate: bool
+    accepted_candidate_source: str
+    accepted_iteration: int | None
     objective_components: MidMpcObjectiveComponents
     cpa_slack: float
     trajectory: tuple[MidMpcTrajectoryPoint, ...]
@@ -296,6 +305,9 @@ class MidMpcResult:
     raw_g: np.ndarray
     raw_cpa_slack: float
     raw_dir_slack: float
+    terminal_raw_x: np.ndarray
+    terminal_raw_f: float
+    terminal_raw_g: np.ndarray
     continuous_cpa_min_m: float
     continuous_cpa_violated: bool
     active_row_indices: tuple[int, ...]
@@ -307,9 +319,12 @@ class MidMpcResult:
     def __post_init__(self) -> None:
         """Normalize result enums, tuples, and diagnostic arrays."""
         object.__setattr__(self, "status", MidMpcStatus(self.status))
+        object.__setattr__(self, "native_status", MidMpcStatus(self.native_status))
         object.__setattr__(self, "trajectory", tuple(self.trajectory))
         object.__setattr__(self, "raw_x", _readonly_vector(self.raw_x))
         object.__setattr__(self, "raw_g", _readonly_vector(self.raw_g))
+        object.__setattr__(self, "terminal_raw_x", _readonly_vector(self.terminal_raw_x))
+        object.__setattr__(self, "terminal_raw_g", _readonly_vector(self.terminal_raw_g))
 
 
 def _readonly_vector(value: object) -> np.ndarray:

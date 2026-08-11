@@ -76,7 +76,13 @@ def _run_and_assert_common(  # noqa: PLR0915 - one end-to-end evidence gate
         ) in {
             ("Solve_Succeeded", "Converged"),
             ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
+            ("User_Requested_Stop", "FeasibleNonOptimal"),
         }
+        assert details["optimization_quality_passed"] is True
+        if details["accepted_by_quality_gate"]:
+            assert details["native_solver_status"] == "Timeout"
+            assert details["accepted_candidate_source"] == "IPOPT_BEST_FEASIBLE_ITERATE"
+            assert details["accepted_iteration"] >= 1
         assert 0.0 < details["solver_elapsed_ms"] < 20_000.0
         assert constraints["max_constraint_violation"] <= 1.0e-3
         assert math.isfinite(constraints["cpa_slack"])

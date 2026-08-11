@@ -95,9 +95,18 @@ def test_mid_mpc_multiship_closed_loop_is_safe_observable_and_recovers(  # noqa:
         in {
             ("Solve_Succeeded", "Converged"),
             ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
+            ("User_Requested_Stop", "FeasibleNonOptimal"),
         }
         for row in solve_rows
     )
+    assert all(row["algorithm_details"]["optimization_quality_passed"] is True for row in solve_rows)
+    quality_stops = [row for row in solve_rows if row["algorithm_details"]["accepted_by_quality_gate"]]
+    assert quality_stops
+    assert all(row["algorithm_details"]["native_solver_status"] == "Timeout" for row in quality_stops)
+    assert all(
+        row["algorithm_details"]["accepted_candidate_source"] == "IPOPT_BEST_FEASIBLE_ITERATE" for row in quality_stops
+    )
+    assert all(row["algorithm_details"]["accepted_iteration"] >= 1 for row in quality_stops)
     assert all(0.0 < row["algorithm_details"]["solver_elapsed_ms"] < 20_000.0 for row in solve_rows)
     assert all(row["constraints"]["max_constraint_violation"] <= 1.0e-3 for row in solve_rows)
     assert all(row["constraints"]["cpa_slack"] >= 0.0 for row in solve_rows)

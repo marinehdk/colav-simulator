@@ -212,6 +212,12 @@ def test_colav_strict_profile_keeps_frozen_slack_variables_but_fixes_them_to_zer
     assert result.max_decision_bound_violation <= 1.0e-7
     assert result.raw_cpa_slack == pytest.approx(0.0, abs=1.0e-7)
     assert result.raw_dir_slack == pytest.approx(0.0, abs=1.0e-7)
+    assert result.optimization_quality_passed is True
+    assert result.ipopt_iterations >= 2
+    assert result.objective_total < result.seed_objective_total
+    assert result.objective_improvement == pytest.approx(
+        result.seed_objective_total - result.objective_total,
+    )
 
 
 def test_colav_strict_profile_does_not_accept_a_primal_infeasible_restoration_point(

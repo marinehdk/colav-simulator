@@ -707,7 +707,21 @@ class WebSessionManager:
         colav_data = own_raw.get("colav", {}) if own_raw else {}
         planner = colav_data.get("planner", {})
         solve_id = int(planner.get("solve_id", 0))
-        predicted = np.asarray(planner.get("predicted_trajectory", np.zeros((0, 0))), dtype=float)
+        algorithm_details = planner.get("algorithm_details", {})
+        render_projection = algorithm_details.get("render_projection", {})
+        projected_ownship = render_projection.get("ownship", {})
+        projected_north = np.asarray(projected_ownship.get("north_m", []), dtype=float)
+        projected_east = np.asarray(projected_ownship.get("east_m", []), dtype=float)
+        if (
+            render_projection.get("frame") == "ENU"
+            and projected_north.ndim == 1
+            and projected_east.ndim == 1
+            and projected_north.size == projected_east.size
+            and projected_north.size > 0
+        ):
+            predicted = np.vstack((projected_north, projected_east))
+        else:
+            predicted = np.asarray(planner.get("predicted_trajectory", np.zeros((0, 0))), dtype=float)
         has_prediction = (
             predicted.ndim == 2
             and predicted.shape[0] >= 2

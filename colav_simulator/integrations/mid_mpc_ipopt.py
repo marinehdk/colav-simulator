@@ -54,6 +54,7 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     MidMpcProblemAssembler,
     RouteReference,
     TargetPrediction,
+    problem_hash_document,
 )
 from colav_simulator.core.guidances import LOSGuidance
 from colav_simulator.core.tracking.trackers import TrackKey
@@ -179,15 +180,42 @@ class _MidMpcFacade:
         status, feasible = _plan_status(result.status, result.max_constraint_violation)
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
         replay_artifact = _replay_artifact_document(assembly, result)
-        prepared_hash = _document_hash(replay_artifact["solver"]["prepared"])
-        solver_hash = _document_hash(replay_artifact["solver"])
-        acceptance_hash = _document_hash(replay_artifact["acceptance"])
+        if _document_hash(replay_artifact["problem_stage"]) != assembly.problem_hash:
+            raise RuntimeError("Mid-MPC problem evidence does not match assembled problem hash")
+        prepared_stage = {
+            "schema_version": "colav.mid_mpc.prepared@1",
+            "parent_problem_hash": assembly.problem_hash,
+            "prepared": replay_artifact["solver"]["prepared"],
+        }
+        prepared_hash = _document_hash(prepared_stage)
+        solver_stage = {
+            "schema_version": "colav.mid_mpc.solver@1",
+            "parent_prepared_hash": prepared_hash,
+            "solver": replay_artifact["solver"],
+        }
+        solver_hash = _document_hash(solver_stage)
+        acceptance_stage = {
+            "schema_version": "colav.mid_mpc.acceptance@1",
+            "parent_solver_hash": solver_hash,
+            "acceptance": replay_artifact["acceptance"],
+        }
+        acceptance_hash = _document_hash(acceptance_stage)
+        replay_artifact["prepared_stage"] = prepared_stage
+        replay_artifact["solver_stage"] = solver_stage
+        replay_artifact["acceptance_stage"] = acceptance_stage
         replay_artifact["hashes"] = {
             "request": assembly.request_hash,
             "problem": assembly.problem_hash,
             "prepared": prepared_hash,
             "solver": solver_hash,
             "acceptance": acceptance_hash,
+        }
+        replay_artifact["hash_chain"] = {
+            "request": {"hash": assembly.request_hash, "parent_hash": None},
+            "problem": {"hash": assembly.problem_hash, "parent_hash": assembly.request_hash},
+            "prepared": {"hash": prepared_hash, "parent_hash": assembly.problem_hash},
+            "solver": {"hash": solver_hash, "parent_hash": prepared_hash},
+            "acceptance": {"hash": acceptance_hash, "parent_hash": solver_hash},
         }
         artifact_reference: object = {"status": "NOT_CONFIGURED"}
         if self._artifact_sink is not None:
@@ -226,7 +254,16 @@ class _MidMpcFacade:
             "solver_backend": "ipopt",
             "ipopt_return_status": result.ipopt_return_status,
             "normalized_solver_status": result.status.value,
+            "native_solver_status": result.native_status.value,
             "solver_elapsed_ms": result.elapsed_ms,
+            "seed_objective_total": result.seed_objective_total,
+            "seed_max_constraint_violation": result.seed_max_constraint_violation,
+            "objective_improvement": result.objective_improvement,
+            "decision_change_norm": result.decision_change_norm,
+            "optimization_quality_passed": result.optimization_quality_passed,
+            "accepted_by_quality_gate": result.accepted_by_quality_gate,
+            "accepted_candidate_source": result.accepted_candidate_source,
+            "accepted_iteration": result.accepted_iteration,
             "objective_components": asdict(result.objective_components),
             "warm_start_used": False,
             "target_selection": "lifecycle_required_then_aggregate",
@@ -269,12 +306,19 @@ class _MidMpcFacade:
             "render_projection": {
                 "schema_version": "colav.mid_mpc.render@1",
                 "frame": "ENU",
+                "axis_order": ["sample"],
                 "time_axis": {
                     "state_samples": assembly.grid.state_samples,
                     "dt_s": assembly.grid.dt_s,
                     "duration_s": assembly.grid.duration_s,
                 },
                 "ownship_fields": ["north_m", "east_m", "heading_rad", "speed_mps"],
+                "ownship": {
+                    "north_m": predicted[0].tolist(),
+                    "east_m": predicted[1].tolist(),
+                    "heading_rad": predicted[2].tolist(),
+                    "speed_mps": np.hypot(predicted[3], predicted[4]).tolist(),
+                },
                 "target_fields": ["north_m", "east_m", "generation", "reference_time_s"],
                 "trajectory_source": "fresh_ipopt_solve",
             },
@@ -549,9 +593,18 @@ def _replay_artifact_document(
     assembly: AssemblySuccess,
     result: MidMpcResult,
 ) -> dict[str, object]:
+    problem_stage = problem_hash_document(
+        assembly.problem,
+        assembly.target_predictions,
+        assembly.activation_plan,
+        assembly.grid,
+        assembly.preparation,
+        parent_request_hash=assembly.request_hash,
+    )
     return _artifact_value(
         {
             "schema_version": "colav.mid_mpc.replay@1",
+            "problem_stage": problem_stage,
             "assembly": {
                 "request_hash": assembly.request_hash,
                 "problem_hash": assembly.problem_hash,
@@ -572,14 +625,28 @@ def _replay_artifact_document(
                     "g": result.raw_g,
                 },
                 "status": result.status,
+                "native_status": result.native_status,
                 "ipopt_return_status": result.ipopt_return_status,
                 "iterations": result.ipopt_iterations,
+                "seed_objective_total": result.seed_objective_total,
+                "seed_max_constraint_violation": result.seed_max_constraint_violation,
+                "objective_improvement": result.objective_improvement,
+                "decision_change_norm": result.decision_change_norm,
+                "optimization_quality_passed": result.optimization_quality_passed,
+                "accepted_by_quality_gate": result.accepted_by_quality_gate,
+                "accepted_candidate_source": result.accepted_candidate_source,
+                "accepted_iteration": result.accepted_iteration,
                 "objective_components": result.objective_components,
                 "row_layout": result.row_layout.to_dict(),
                 "active_row_indices": result.active_row_indices,
                 "tight_row_indices": result.tight_row_indices,
                 "max_constraint_violation": result.max_constraint_violation,
                 "max_decision_bound_violation": result.max_decision_bound_violation,
+            },
+            "terminal_solver_output": {
+                "x": result.terminal_raw_x,
+                "f": result.terminal_raw_f,
+                "g": result.terminal_raw_g,
             },
             "acceptance": {
                 "schema_version": "1.0",
