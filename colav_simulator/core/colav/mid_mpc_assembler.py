@@ -608,7 +608,11 @@ def request_hash_document(
         "capability": asdict(capability),
         "config": asdict(config),
         "profile": profile.value,
-        "ownship": planner_input.ownship_state.tolist(),
+        "ownship": {
+            "state": planner_input.ownship_state.tolist(),
+            "length_m": planner_input.ownship_length_m,
+            "width_m": planner_input.ownship_width_m,
+        },
         "tracks": [
             _track_document(track)
             for track in sorted(

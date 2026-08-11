@@ -121,6 +121,23 @@ def test_assembler_binds_targets_deterministically_and_emits_81_point_prediction
     assert _request(two_track_input, two_target_snapshot).capability.limitations == ("NO_LIVE_PLANT_OR_GNC_ENVELOPE",)
 
 
+def test_request_hash_covers_ownship_dimensions_used_by_clearance_compilation() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+
+    baseline = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
+    wider = MidMpcProblemAssembler().assemble(
+        _request(replace(planner_input, ownship_width_m=planner_input.ownship_width_m + 2.0), snapshot)
+    )
+
+    assert isinstance(baseline, AssemblySuccess)
+    assert isinstance(wider, AssemblySuccess)
+    assert baseline.request_hash != wider.request_hash
+    assert baseline.problem_hash != wider.problem_hash
+
+
 def test_assembler_admits_active_committed_target_after_required_slots() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()
