@@ -189,6 +189,7 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
         "acceptance": assembly["acceptance_hash"],
     }
     chain = document["hash_chain"]
+    assert chain["request"]["hash"] == _canonical_hash(document["request_stage"])
     assert chain["problem"]["parent_hash"] == chain["request"]["hash"]
     assert chain["prepared"]["parent_hash"] == chain["problem"]["hash"]
     assert chain["solver"]["parent_hash"] == chain["prepared"]["hash"]
@@ -197,6 +198,9 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
     assert chain["prepared"]["hash"] == _canonical_hash(document["prepared_stage"])
     assert chain["solver"]["hash"] == _canonical_hash(document["solver_stage"])
     assert chain["acceptance"]["hash"] == _canonical_hash(document["acceptance_stage"])
+    substituted_request = dict(document["request_stage"])
+    substituted_request["frame"] = "NED"
+    assert _canonical_hash(substituted_request) != chain["request"]["hash"]
     substituted_solver = dict(document["solver_stage"])
     substituted_solver["parent_prepared_hash"] = "0" * 64
     assert _canonical_hash(substituted_solver) != chain["solver"]["hash"]

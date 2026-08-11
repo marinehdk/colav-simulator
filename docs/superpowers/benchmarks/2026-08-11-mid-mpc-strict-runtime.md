@@ -14,18 +14,22 @@
 
 | Targets | Samples (ms) | p50 (ms) | p95 (ms) | max (ms) |
 |---:|---|---:|---:|---:|
-| 0 | 586.356, 531.813, 525.897, 526.114, 526.912 | 526.912 | 542.722 | 586.356 |
-| 1 | 579.549, 582.775, 577.373, 578.596, 591.257 | 579.549 | 584.472 | 591.257 |
-| 16 | 1276.601, 1253.206, 1255.861, 1257.952, 1257.584 | 1257.584 | 1261.682 | 1276.601 |
+| 0 | 575.406, 528.741, 536.249, 548.940, 537.106 | 537.106 | 568.790 | 575.406 |
+| 1 | 584.995, 585.938, 583.898, 588.158, 591.212 | 585.938 | 590.449 | 591.212 |
+| 16 | 2141.605, 2160.779, 2154.353, 2146.713, 2146.679 | 2146.713 | 2159.173 | 2160.779 |
 
-All zero-target solves reached native `Solve_Succeeded/Converged` in five
-iterations. All 1/16-target solves executed two IPOPT iterations, preserved the
-native `User_Requested_Stop/Timeout` termination, then passed an independent
-quality gate selecting the lowest-objective feasible non-seed IPOPT iterate.
-Their operational result is explicitly `FeasibleNonOptimal`; terminal output,
+All non-threatening samples reached native `Solve_Succeeded/Converged`: seven
+iterations without targets and four with 1/16 targets. A separately replayed
+threatening head-on commitment exercised the nonoptimal path: IPOPT produced a
+primal-feasible non-seed iterate whose objective improved from `249.348371` to
+`247.939670`; the callback stopped on that explicit quality witness after one
+optimizer iteration (`613.017 ms`). Native termination remains
+`User_Requested_Stop/Timeout`; operational result is `FeasibleNonOptimal` only
+after the independent primal and objective-improvement gate. Terminal output,
 accepted iteration, seed objective/violation, decision delta, and primal checks
-remain separate replay evidence. No timeout/infeasible native status is silently
-renamed as IPOPT success. Observed p95 is below the configured 20 s deadline.
+remain separate replay evidence. A wall-clock stop without that improvement
+stays `Timeout/TIMEOUT_FEASIBLE`. No timeout/infeasible native status is renamed
+as IPOPT success. Observed p95 remains below the configured 20 s deadline.
 
 Five samples and non-threatening contacts make this regression evidence, not a
 general real-time, KKT convergence, or adversarial 16-target capability claim.

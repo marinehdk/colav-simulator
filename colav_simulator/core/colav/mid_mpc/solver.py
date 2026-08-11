@@ -6,6 +6,7 @@ import math
 import time
 from collections.abc import Callable
 from enum import IntEnum
+from typing import cast
 
 import casadi as ca
 import numpy as np
@@ -81,7 +82,17 @@ class MidMpcIpoptSolver:
             prepared.ubg,
         )[2]
         seed_primal_feasible = _prepared_primal_feasible(prepared.x0, seed_g, prepared)
-        graph.iteration_callback.arm(quality_stop_enabled=seed_primal_feasible)
+        graph.iteration_callback.arm(
+            quality_seed_objective=(
+                seed_objective_total
+                if self._config.strict_slack_bounds and problem.targets and seed_primal_feasible
+                else None
+            ),
+            quality_lbx=prepared.lbx,
+            quality_ubx=prepared.ubx,
+            quality_lbg=prepared.lbg,
+            quality_ubg=prepared.ubg,
+        )
         result = graph.solver(
             x0=prepared.x0,
             p=prepared.p,
@@ -99,7 +110,11 @@ class MidMpcIpoptSolver:
         raw_f = terminal_raw_f
         accepted_candidate_source = "IPOPT_TERMINAL"
         accepted_iteration: int | None = None
-        if graph.iteration_callback.quality_stop_requested:
+        elapsed_ms = (time.perf_counter() - started_at) * 1_000.0
+        return_status = str(stats.get("return_status", ""))
+        ipopt_iterations = int(stats.get("iter_count", 0))
+        native_status = _strict_status(return_status)
+        if native_status is MidMpcStatus.TIMEOUT:
             incumbent = _best_feasible_iteration(
                 graph.iteration_callback.iterates,
                 graph,
@@ -108,10 +123,6 @@ class MidMpcIpoptSolver:
             if incumbent is not None:
                 accepted_iteration, raw_x, raw_f, raw_g = incumbent
                 accepted_candidate_source = "IPOPT_BEST_FEASIBLE_ITERATE"
-        elapsed_ms = (time.perf_counter() - started_at) * 1_000.0
-        return_status = str(stats.get("return_status", ""))
-        ipopt_iterations = int(stats.get("iter_count", 0))
-        native_status = _strict_status(return_status)
         status = native_status
         objective_improvement = seed_objective_total - raw_f
         decision_change_norm = float(np.linalg.norm(raw_x - prepared.x0))
@@ -220,24 +231,37 @@ class _IterationCallback(ca.Callback):
         *,
         clock: Callable[[], float] = time.perf_counter,
         max_wall_time_s: float = 20.0,
-        quality_iteration_limit: int | None = None,
     ) -> None:
         self._dimensions = (nx, ng, np_)
         self._clock = clock
         self._max_wall_time_s = max_wall_time_s
         self._started_at: float | None = None
-        self._quality_iteration_limit = quality_iteration_limit
         self._callback_count = 0
-        self._quality_stop_enabled = False
+        self._quality_seed_objective: float | None = None
+        self._quality_bounds: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None
         self.quality_stop_requested = False
         self.iterates: list[tuple[int, np.ndarray, float]] = []
         ca.Callback.__init__(self)
         self.construct("mid_mpc_iter_callback", {})
 
-    def arm(self, *, quality_stop_enabled: bool = False) -> None:
+    def arm(
+        self,
+        *,
+        quality_seed_objective: float | None = None,
+        quality_lbx: np.ndarray | None = None,
+        quality_ubx: np.ndarray | None = None,
+        quality_lbg: np.ndarray | None = None,
+        quality_ubg: np.ndarray | None = None,
+    ) -> None:
         self._started_at = self._clock()
         self._callback_count = 0
-        self._quality_stop_enabled = quality_stop_enabled
+        self._quality_seed_objective = quality_seed_objective
+        bounds = (quality_lbx, quality_ubx, quality_lbg, quality_ubg)
+        self._quality_bounds = (
+            None
+            if any(value is None for value in bounds)
+            else cast(tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], bounds)
+        )
         self.quality_stop_requested = False
         self.iterates = []
 
@@ -267,15 +291,22 @@ class _IterationCallback(ca.Callback):
                 (
                     self._callback_count - 1,
                     _flat(arguments[0]),
-                    float(arguments[1]),
+                    float(_flat(arguments[1])[0]),
                 )
             )
+        if len(arguments) >= 3 and self._quality_seed_objective is not None and self._quality_bounds is not None:
+            values = _flat(arguments[0])
+            objective = float(_flat(arguments[1])[0])
+            constraints = _flat(arguments[2])
+            lbx, ubx, lbg, ubg = self._quality_bounds
+            required_improvement = max(1.0e-6, abs(self._quality_seed_objective) * 1.0e-8)
+            self.quality_stop_requested = bool(
+                self._callback_count > 1
+                and self._quality_seed_objective - objective >= required_improvement
+                and _primal_feasible(values, lbx, ubx)
+                and _primal_feasible(constraints, lbg, ubg)
+            )
         elapsed_s = 0.0 if self._started_at is None else self._clock() - self._started_at
-        self.quality_stop_requested = bool(
-            self._quality_iteration_limit is not None
-            and self._quality_stop_enabled
-            and self._callback_count > self._quality_iteration_limit
-        )
         return [ca.DM(float(elapsed_s > self._max_wall_time_s or self.quality_stop_requested))]
 
 
@@ -385,7 +416,6 @@ def _build_graph(  # noqa: PLR0915
         int(g.numel()),
         int(p.numel()),
         max_wall_time_s=config.max_wall_time_s,
-        quality_iteration_limit=2 if config.strict_slack_bounds and problem.targets else None,
     )
     options["iteration_callback"] = iteration_callback
     options["iteration_callback_step"] = 1
@@ -395,6 +425,8 @@ def _build_graph(  # noqa: PLR0915
             {
                 "ipopt.bound_relax_factor": 0.0,
                 "ipopt.honor_original_bounds": "yes",
+                "ipopt.mu_strategy": "monotone",
+                "ipopt.mu_init": 1.0e-3,
             }
         )
     solver = ca.nlpsol("mid_mpc_solver", "ipopt", nlp, options)
@@ -544,9 +576,9 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
                 *problem.heading_bounds_rad,
             )
         )
-        if problem.lateral_active and problem.preferred_side and problem.starboard_asymmetry_active:
+        if problem.lateral_active and problem.preferred_side:
             seed_change = min(
-                abs(route_delta) + math.radians(10.0),
+                max(abs(route_delta), problem.min_alteration_rad) + math.radians(10.0),
                 max(
                     abs(problem.heading_bounds_rad[0] - problem.own_ship.psi_rad),
                     abs(problem.heading_bounds_rad[1] - problem.own_ship.psi_rad),
@@ -833,15 +865,21 @@ def _optimization_quality_passed(
         return True
     acceptable_exit = return_status == "Solved_To_Acceptable_Level"
     controlled_exit = return_status == "User_Requested_Stop" and controlled_quality_stop
-    if not (acceptable_exit or controlled_exit) or iterations < 2:
+    if not (acceptable_exit or controlled_exit):
         return False
     if controlled_exit:
+        if iterations < 1:
+            return False
+        required_improvement = max(1.0e-6, abs(seed_objective) * 1.0e-8)
         return (
             final_primal_feasible
             and accepted_iteration is not None
             and accepted_iteration >= 1
             and decision_change_norm > 1.0e-6
+            and seed_objective - final_objective >= required_improvement
         )
+    if iterations < 2:
+        return False
     if not seed_primal_feasible:
         return final_primal_feasible and decision_change_norm > 1.0e-6
     required_improvement = max(1.0e-6, abs(seed_objective) * 1.0e-8)

@@ -604,6 +604,7 @@ def _replay_artifact_document(
     return _artifact_value(
         {
             "schema_version": "colav.mid_mpc.replay@1",
+            "request_stage": json.loads(assembly.request_stage_json),
             "problem_stage": problem_stage,
             "assembly": {
                 "request_hash": assembly.request_hash,

@@ -94,6 +94,11 @@ class AssemblyProfile(StrEnum):
     COLAV_STRICT = "COLAV_STRICT"
 
 
+class AssemblyFrame(StrEnum):
+    ENU = "ENU"
+    NED = "NED"
+
+
 class AssemblyFailureCode(StrEnum):
     CYCLE_MISMATCH = "CYCLE_MISMATCH"
     CAPACITY_EXCEEDED = "CAPACITY_EXCEEDED"
@@ -111,6 +116,7 @@ class AssemblyRequest:
     route: RouteReference
     capability: CapabilitySnapshot
     config: MidMpcAssemblyConfig
+    frame: AssemblyFrame = AssemblyFrame.ENU
     profile: AssemblyProfile = AssemblyProfile.COLAV_STRICT
 
 
@@ -217,6 +223,7 @@ class AssemblySuccess:
     selected_tracks: tuple[TrackedObstacle, ...]
     effective_cpa_hard_m: float
     request_hash: str
+    request_stage_json: str
     problem_hash: str
     profile: AssemblyProfile
     target_predictions: tuple[TargetPrediction, ...]
@@ -231,11 +238,42 @@ class _AssemblyInputError(ValueError):
         self.code = code
 
 
+@dataclass(frozen=True)
+class _TargetBinding:
+    track_by_key: dict[TrackKey, TrackedObstacle]
+    required_keys: tuple[TrackKey, ...]
+    selected_keys: tuple[TrackKey, ...]
+    selected_tracks: tuple[TrackedObstacle, ...]
+    selected_decisions: tuple[TargetDecision, ...]
+    required_decisions: tuple[TargetDecision, ...]
+
+
+@dataclass(frozen=True)
+class _PolicyResolution:
+    speed_bounds_mps: tuple[float, float]
+    preferred_side: int
+    lateral_active: bool
+    committed_route_bearing_rad: float
+
+
+@dataclass(frozen=True)
+class _SemanticAssembly:
+    problem: MidMpcProblem
+    effective_cpa_hard_m: float
+    activation_plan: ConstraintActivationPlan
+
+
 class MidMpcProblemAssembler:
     """Atomic, stateless L1/L2 semantic problem assembler."""
 
     def assemble(self, request: AssemblyRequest) -> AssemblySuccess | AssemblyFailure:
         identity = _identity(request.snapshot)
+        if request.frame is not AssemblyFrame.ENU or request.planner_input.coordinate_frame != AssemblyFrame.ENU.value:
+            return AssemblyFailure(
+                code=AssemblyFailureCode.INVALID_INPUT,
+                message="Mid-MPC assembler requires an explicit ENU input frame",
+                identity=identity,
+            )
         if not math.isclose(request.planner_input.sim_time_s, request.snapshot.sim_time_s, abs_tol=1.0e-9):
             return AssemblyFailure(
                 code=AssemblyFailureCode.CYCLE_MISMATCH,
@@ -267,6 +305,7 @@ class MidMpcProblemAssembler:
                 route=request.route,
                 capability=request.capability,
                 config=request.config,
+                frame=request.frame,
                 profile=request.profile,
             )
         except _AssemblyInputError as exc:
@@ -286,17 +325,94 @@ def _assemble_problem(
     route: RouteReference,
     capability: CapabilitySnapshot,
     config: MidMpcAssemblyConfig,
+    frame: AssemblyFrame,
     profile: AssemblyProfile,
 ) -> AssemblySuccess:
     """Map one immutable decision snapshot without retaining business state."""
+    binding = _bind_targets(planner_input, snapshot, config)
+    policy = _resolve_policy(planner_input, snapshot, route, capability, config, binding)
+    semantic = _compile_semantic_problem(
+        planner_input,
+        snapshot,
+        route,
+        capability,
+        config,
+        binding,
+        policy,
+    )
+    target_predictions, grid, preparation = _compile_numerical_preparation(
+        planner_input,
+        config,
+        profile,
+        binding,
+        semantic.problem,
+    )
+    request_document = request_hash_document(
+        planner_input,
+        snapshot,
+        route,
+        capability,
+        config,
+        frame=frame,
+        profile=profile,
+    )
+    request_stage_json = _canonical_json(request_document)
+    request_hash = hashlib.sha256(request_stage_json.encode("utf-8")).hexdigest()
+    problem_document = problem_hash_document(
+        semantic.problem,
+        target_predictions,
+        semantic.activation_plan,
+        grid,
+        preparation,
+        parent_request_hash=request_hash,
+    )
+    return AssemblySuccess(
+        problem=semantic.problem,
+        selected_target_keys=binding.selected_keys,
+        selected_tracks=binding.selected_tracks,
+        effective_cpa_hard_m=semantic.effective_cpa_hard_m,
+        request_hash=request_hash,
+        request_stage_json=request_stage_json,
+        problem_hash=_hash_document(problem_document),
+        profile=profile,
+        target_predictions=target_predictions,
+        activation_plan=semantic.activation_plan,
+        grid=grid,
+        preparation=preparation,
+    )
+
+
+def _bind_targets(
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+    config: MidMpcAssemblyConfig,
+) -> _TargetBinding:
     track_by_key = {TrackKey(track.target_id, track.generation or 1): track for track in planner_input.tracks}
     required_keys, selected_keys = _admit_target_keys(snapshot, track_by_key, config.max_targets)
     decision_by_key = {decision.key: decision for decision in snapshot.targets}
     selected_tracks = tuple(track_by_key[key] for key in selected_keys)
     selected_decisions = tuple(decision_by_key[key] for key in selected_keys)
     required_decisions = tuple(decision_by_key[key] for key in required_keys)
+    return _TargetBinding(
+        track_by_key=track_by_key,
+        required_keys=required_keys,
+        selected_keys=selected_keys,
+        selected_tracks=selected_tracks,
+        selected_decisions=selected_decisions,
+        required_decisions=required_decisions,
+    )
+
+
+def _resolve_policy(
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+    route: RouteReference,
+    capability: CapabilitySnapshot,
+    config: MidMpcAssemblyConfig,
+    binding: _TargetBinding,
+) -> _PolicyResolution:
     required_sides = {
-        decision.passing_side for decision in required_decisions if decision.passing_side is not PassingSide.NONE
+        decision.passing_side for decision in binding.required_decisions if decision.passing_side is not PassingSide.NONE
     }
     if required_sides and required_sides != {snapshot.directive.passing_side} and not snapshot.directive.stop_required:
         raise _AssemblyInputError(
@@ -320,27 +436,44 @@ def _assemble_problem(
     }[snapshot.directive.passing_side]
     lateral_active = snapshot.directive.minimum_course_change_rad > 0.0
     committed_route_bearing = route.bearing_rad
-    corridor_decisions = tuple(decision for decision in required_decisions if not decision.route_recovery_allowed)
+    corridor_decisions = tuple(decision for decision in binding.required_decisions if not decision.route_recovery_allowed)
     if corridor_decisions:
         corridor = max(corridor_decisions, key=lambda decision: decision.required_course_change_rad)
         if corridor.baseline_course_rad is None:
             raise ValueError(f"committed target {corridor.key} has no baseline course")
         committed_route_bearing = corridor.baseline_course_rad + preferred_side * corridor.required_course_change_rad
-    elif required_decisions:
+    elif binding.required_decisions:
         recovery_delta = _wrap(route.bearing_rad - float(planner_input.ownship_state[2]))
         recovery_step = capability.rot_max_rad_s * config.decision_period_s
         committed_route_bearing = float(planner_input.ownship_state[2]) + float(
             np.clip(recovery_delta, -recovery_step, recovery_step)
         )
 
+    return _PolicyResolution(
+        speed_bounds_mps=speed_bounds,
+        preferred_side=preferred_side,
+        lateral_active=lateral_active,
+        committed_route_bearing_rad=committed_route_bearing,
+    )
+
+
+def _compile_semantic_problem(
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+    route: RouteReference,
+    capability: CapabilitySnapshot,
+    config: MidMpcAssemblyConfig,
+    binding: _TargetBinding,
+    policy: _PolicyResolution,
+) -> _SemanticAssembly:
     ownship = planner_input.ownship_state
-    effective_cpa_hard_m = _effective_node_clearance(planner_input, selected_tracks, config)
-    minimum_change = snapshot.directive.minimum_course_change_rad if lateral_active else 0.0
+    effective_cpa_hard_m = _effective_node_clearance(planner_input, binding.selected_tracks, config)
+    minimum_change = snapshot.directive.minimum_course_change_rad if policy.lateral_active else 0.0
     reachable_per_step = capability.rot_max_rad_s * config.horizon_dt_s
-    min_alt_hard_from_k = max(0, math.ceil(minimum_change / reachable_per_step) - 1) if lateral_active else 0
+    min_alt_hard_from_k = max(0, math.ceil(minimum_change / reachable_per_step) - 1) if policy.lateral_active else 0
     activation_plan = _activation_plan(
-        selected_decisions,
-        selected_tracks,
+        binding.selected_decisions,
+        binding.selected_tracks,
         planner_input,
         effective_cpa_hard_m,
         minimum_change,
@@ -357,23 +490,23 @@ def _assemble_problem(
     starboard_asymmetry = any(
         decision.passing_side is PassingSide.STARBOARD
         and decision.encounter in {EncounterKind.HEAD_ON, EncounterKind.CROSSING}
-        for decision in required_decisions
+        for decision in binding.required_decisions
     )
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
-        route_bearing_rad=committed_route_bearing,
+        route_bearing_rad=policy.committed_route_bearing_rad,
         planned_speed_mps=0.0 if snapshot.directive.stop_required else route.planned_speed_mps,
         heading_bounds_rad=(
             float(ownship[2]) - capability.heading_window_rad,
             float(ownship[2]) + capability.heading_window_rad,
         ),
-        speed_bounds_mps=speed_bounds,
+        speed_bounds_mps=policy.speed_bounds_mps,
         cpa_safe_m=max(config.cpa_safe_m, effective_cpa_hard_m),
         cpa_hard_m=effective_cpa_hard_m,
         rot_max_rad_s=capability.rot_max_rad_s,
         decel_max_mps2=capability.decel_max_mps2,
-        lateral_active=lateral_active,
-        preferred_side=preferred_side,
+        lateral_active=policy.lateral_active,
+        preferred_side=policy.preferred_side,
         starboard_asymmetry_active=starboard_asymmetry,
         min_alteration_rad=minimum_change,
         route_frame=MidMpcRouteFrame(
@@ -381,13 +514,16 @@ def _assemble_problem(
                 route.anchor_ne_m[0] - float(ownship[0]),
                 route.anchor_ne_m[1] - float(ownship[1]),
             ),
-            normal=(-math.sin(committed_route_bearing), math.cos(committed_route_bearing)),
-            bearing_rad=committed_route_bearing,
+            normal=(
+                -math.sin(policy.committed_route_bearing_rad),
+                math.cos(policy.committed_route_bearing_rad),
+            ),
+            bearing_rad=policy.committed_route_bearing_rad,
             lateral_scale_m=config.route_lateral_scale_m,
             weight=config.route_weight,
         ),
         row_schedule=row_schedule,
-        audit_row_count=len(selected_tracks),
+        audit_row_count=len(binding.selected_tracks),
         targets=tuple(
             MidMpcTarget(
                 x_m=float(track.state_enu[0] - ownship[0]),
@@ -395,12 +531,26 @@ def _assemble_problem(
                 cog_rad=float(math.atan2(track.state_enu[3], track.state_enu[2])),
                 sog_mps=float(np.linalg.norm(track.state_enu[2:4])),
             )
-            for track in selected_tracks
+            for track in binding.selected_tracks
         ),
     )
+    return _SemanticAssembly(
+        problem=problem,
+        effective_cpa_hard_m=effective_cpa_hard_m,
+        activation_plan=activation_plan,
+    )
+
+
+def _compile_numerical_preparation(
+    planner_input: PlannerInput,
+    config: MidMpcAssemblyConfig,
+    profile: AssemblyProfile,
+    binding: _TargetBinding,
+    problem: MidMpcProblem,
+) -> tuple[tuple[TargetPrediction, ...], GridSpec, NumericalPreparationPlan]:
     target_predictions = _target_predictions(
-        tuple(sorted(track_by_key, key=lambda key: (key.target_id, key.generation))),
-        track_by_key,
+        tuple(sorted(binding.track_by_key, key=lambda key: (key.target_id, key.generation))),
+        binding.track_by_key,
         planner_input.sim_time_s,
         config,
     )
@@ -417,7 +567,7 @@ def _assemble_problem(
             "layout_version": "frozen-row-layout@1",
             "horizon_steps": config.horizon_steps,
             "horizon_dt_s": config.horizon_dt_s,
-            "target_count": len(selected_tracks),
+            "target_count": len(binding.selected_tracks),
             "audit_row_count": problem.audit_row_count,
             "row_schedule": asdict(problem.row_schedule),
             "slack_topology": ["cpa", "direction"],
@@ -435,45 +585,38 @@ def _assemble_problem(
             direction_bounds=(0.0, slack_bound),
         ),
     )
-    request_hash = _hash_document(
-        {
-            "identity": _identity(snapshot),
-            "decision_snapshot": asdict(snapshot),
-            "route": asdict(route),
-            "capability": asdict(capability),
-            "config": asdict(config),
-            "profile": profile.value,
-            "ownship": planner_input.ownship_state.tolist(),
-            "tracks": [
-                _track_document(track)
-                for track in sorted(
-                    planner_input.tracks,
-                    key=lambda item: (item.target_id, item.generation or 1),
-                )
-            ],
-        }
-    )
-    problem_document = problem_hash_document(
-        problem,
-        target_predictions,
-        activation_plan,
-        grid,
-        preparation,
-        parent_request_hash=request_hash,
-    )
-    return AssemblySuccess(
-        problem=problem,
-        selected_target_keys=selected_keys,
-        selected_tracks=selected_tracks,
-        effective_cpa_hard_m=effective_cpa_hard_m,
-        request_hash=request_hash,
-        problem_hash=_hash_document(problem_document),
-        profile=profile,
-        target_predictions=target_predictions,
-        activation_plan=activation_plan,
-        grid=grid,
-        preparation=preparation,
-    )
+    return target_predictions, grid, preparation
+
+
+def request_hash_document(
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+    route: RouteReference,
+    capability: CapabilitySnapshot,
+    config: MidMpcAssemblyConfig,
+    *,
+    frame: AssemblyFrame,
+    profile: AssemblyProfile,
+) -> dict[str, object]:
+    """Return canonical cycle evidence used as the hash-chain root."""
+    return {
+        "schema_version": "colav.mid_mpc.request@1",
+        "frame": frame.value,
+        "identity": _identity(snapshot),
+        "decision_snapshot": asdict(snapshot),
+        "route": asdict(route),
+        "capability": asdict(capability),
+        "config": asdict(config),
+        "profile": profile.value,
+        "ownship": planner_input.ownship_state.tolist(),
+        "tracks": [
+            _track_document(track)
+            for track in sorted(
+                planner_input.tracks,
+                key=lambda item: (item.target_id, item.generation or 1),
+            )
+        ],
+    }
 
 
 def problem_hash_document(
@@ -749,6 +892,8 @@ def _admission_sort_key(decision: TargetDecision) -> tuple[float, ...]:
 
 
 def _hash_document(value: object) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)

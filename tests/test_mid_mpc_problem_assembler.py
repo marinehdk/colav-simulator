@@ -19,6 +19,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
 from colav_simulator.core.colav.mid_mpc_assembler import (
     AssemblyFailure,
     AssemblyFailureCode,
+    AssemblyFrame,
     AssemblyProfile,
     AssemblyRequest,
     AssemblySuccess,
@@ -60,6 +61,20 @@ def test_assembler_rejects_snapshot_identity_hash_mismatch(field: str) -> None:
     assert isinstance(outcome, AssemblyFailure)
     assert outcome.code is AssemblyFailureCode.CYCLE_MISMATCH
     assert outcome.problem is None
+
+
+def test_assembler_rejects_non_enu_frame_before_problem_construction() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+
+    outcome = MidMpcProblemAssembler().assemble(replace(_request(planner_input, snapshot), frame=AssemblyFrame.NED))
+
+    assert isinstance(outcome, AssemblyFailure)
+    assert outcome.code is AssemblyFailureCode.INVALID_INPUT
+    assert outcome.problem is None
+    assert "ENU" in outcome.message
 
 
 def test_assembler_binds_targets_deterministically_and_emits_81_point_predictions() -> None:

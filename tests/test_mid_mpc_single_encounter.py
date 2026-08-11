@@ -83,6 +83,10 @@ def _run_and_assert_common(  # noqa: PLR0915 - one end-to-end evidence gate
             assert details["native_solver_status"] == "Timeout"
             assert details["accepted_candidate_source"] == "IPOPT_BEST_FEASIBLE_ITERATE"
             assert details["accepted_iteration"] >= 1
+            assert details["objective_improvement"] > max(
+                1.0e-6,
+                abs(details["seed_objective_total"]) * 1.0e-8,
+            )
         assert 0.0 < details["solver_elapsed_ms"] < 20_000.0
         assert constraints["max_constraint_violation"] <= 1.0e-3
         assert math.isfinite(constraints["cpa_slack"])

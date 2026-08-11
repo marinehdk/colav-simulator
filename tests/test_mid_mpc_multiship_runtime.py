@@ -107,6 +107,11 @@ def test_mid_mpc_multiship_closed_loop_is_safe_observable_and_recovers(  # noqa:
         row["algorithm_details"]["accepted_candidate_source"] == "IPOPT_BEST_FEASIBLE_ITERATE" for row in quality_stops
     )
     assert all(row["algorithm_details"]["accepted_iteration"] >= 1 for row in quality_stops)
+    assert all(
+        row["algorithm_details"]["objective_improvement"]
+        > max(1.0e-6, abs(row["algorithm_details"]["seed_objective_total"]) * 1.0e-8)
+        for row in quality_stops
+    )
     assert all(0.0 < row["algorithm_details"]["solver_elapsed_ms"] < 20_000.0 for row in solve_rows)
     assert all(row["constraints"]["max_constraint_violation"] <= 1.0e-3 for row in solve_rows)
     assert all(row["constraints"]["cpa_slack"] >= 0.0 for row in solve_rows)
