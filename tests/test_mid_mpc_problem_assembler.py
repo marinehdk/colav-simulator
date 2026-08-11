@@ -6,6 +6,7 @@ import pytest
 
 from colav_simulator.core.colav.custom_mpc_adapter import PlannerInput, TrackedObstacle
 from colav_simulator.core.colav.encounter_lifecycle import (
+    DecisionSnapshot,
     EncounterCycle,
     EncounterLifecycle,
     LifecycleError,
@@ -18,10 +19,120 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     TargetObservation,
 )
 from colav_simulator.core.colav.mid_mpc_assembler import (
+    AssemblyFailure,
+    AssemblyFailureCode,
+    AssemblyProfile,
+    AssemblyRequest,
+    AssemblySuccess,
+    CapabilitySnapshot,
     MidMpcAssemblyConfig,
+    MidMpcProblemAssembler,
+    RouteReference,
     assemble_mid_mpc_problem,
 )
 from colav_simulator.core.tracking.trackers import TrackKey
+
+
+def test_assembler_returns_atomic_typed_failure_for_cycle_mismatch() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    mismatched = replace(snapshot, sim_time_s=10.0)
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, mismatched))
+
+    assert isinstance(outcome, AssemblyFailure)
+    assert outcome.code is AssemblyFailureCode.CYCLE_MISMATCH
+    assert outcome.owner == "ASSEMBLER"
+    assert outcome.problem is None
+    assert outcome.identity["epoch"] == "test"
+    assert outcome.identity["sequence"] == 1
+
+
+def test_assembler_binds_targets_deterministically_and_emits_81_point_predictions() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    first_track = planner_input.tracks[0]
+    second_track = replace(
+        first_track,
+        target_id=2,
+        state_enu=np.array([1200.0, 200.0, -5.0, 0.0]),
+    )
+    two_track_input = replace(planner_input, tracks=(second_track, first_track))
+    second_decision = replace(snapshot.targets[0], key=TrackKey(2, 1))
+    two_target_snapshot = replace(
+        snapshot,
+        targets=(second_decision, snapshot.targets[0]),
+        directive=replace(snapshot.directive, required_targets=(TrackKey(2, 1), TrackKey(1, 1))),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(two_track_input, two_target_snapshot))
+    reordered = MidMpcProblemAssembler().assemble(
+        _request(replace(two_track_input, tracks=tuple(reversed(two_track_input.tracks))), two_target_snapshot)
+    )
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert isinstance(reordered, AssemblySuccess)
+    assert outcome.selected_target_keys == (TrackKey(1, 1), TrackKey(2, 1))
+    assert outcome.request_hash == reordered.request_hash
+    assert outcome.problem_hash == reordered.problem_hash
+    assert len(outcome.target_predictions) == 2
+    assert outcome.target_predictions[0].times_s.shape == (81,)
+    assert outcome.target_predictions[0].times_s[[0, -1]].tolist() == [0.0, 1200.0]
+
+
+def test_assembler_compensates_frozen_timing_with_target_step_displacement() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    own_radius = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
+    target = planner_input.tracks[0]
+    target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
+    expected = 50.0 + own_radius + target_radius + np.linalg.norm(target.state_enu[2:4]) * 15.0
+    assert outcome.effective_cpa_hard_m == pytest.approx(expected)
+
+
+def test_assembler_compiles_required_cpa_activation_from_physical_time() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.activation_plan.targets[0].key == TrackKey(1, 1)
+    assert outcome.activation_plan.targets[0].cpa_hard_from_s == 0.0
+    assert outcome.activation_plan.targets[0].cpa_hard_from_k == 0
+    assert outcome.problem.row_schedule.cpa_hard_from_k == 0
+
+
+def test_assembler_fails_closed_before_silently_truncating_seventeen_required_targets() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    overloaded = replace(
+        snapshot,
+        directive=replace(
+            snapshot.directive,
+            required_targets=tuple(TrackKey(target_id, 1) for target_id in range(1, 18)),
+        ),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, overloaded))
+
+    assert isinstance(outcome, AssemblyFailure)
+    assert outcome.code is AssemblyFailureCode.CAPACITY_EXCEEDED
+    assert outcome.problem is None
 
 
 def test_assembler_maps_persistent_lifecycle_commitment_without_business_state() -> None:
@@ -188,4 +299,21 @@ def _cycle(planner_input: PlannerInput, *, sequence: int, sim_time_s: float) -> 
         route_bearing_rad=0.0,
         planned_speed_mps=7.0,
         profile=PlannerOddProfile(),
+    )
+
+
+def _request(planner_input: PlannerInput, snapshot: DecisionSnapshot) -> AssemblyRequest:
+    config = MidMpcAssemblyConfig()
+    return AssemblyRequest(
+        planner_input=planner_input,
+        snapshot=snapshot,
+        route=RouteReference(anchor_ne_m=(0.0, 0.0), bearing_rad=0.0, planned_speed_mps=7.0),
+        capability=CapabilitySnapshot(
+            heading_window_rad=config.heading_window_rad,
+            speed_bounds_mps=config.speed_bounds_mps,
+            rot_max_rad_s=config.rot_max_rad_s,
+            decel_max_mps2=config.decel_max_mps2,
+        ),
+        config=config,
+        profile=AssemblyProfile.COLAV_STRICT,
     )

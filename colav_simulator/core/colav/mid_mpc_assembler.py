@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from enum import StrEnum
+from typing import Any
 
 import numpy as np
 
@@ -38,24 +42,186 @@ class MidMpcAssemblyConfig:
     route_lateral_scale_m: float = 1000.0
     route_weight: float = 1.0
     decision_period_s: float = 5.0
+    max_targets: int = 16
 
 
 @dataclass(frozen=True)
-class AssembledMidMpcProblem:
+class RouteReference:
+    anchor_ne_m: tuple[float, float]
+    bearing_rad: float
+    planned_speed_mps: float
+
+    def __post_init__(self) -> None:
+        """Validate immutable route evidence."""
+        values = (*self.anchor_ne_m, self.bearing_rad, self.planned_speed_mps)
+        if not np.isfinite(values).all():
+            raise ValueError("route reference values must be finite")
+
+
+@dataclass(frozen=True)
+class CapabilitySnapshot:
+    heading_window_rad: float
+    speed_bounds_mps: tuple[float, float]
+    rot_max_rad_s: float
+    decel_max_mps2: float
+    source: str = "published_kinematic_csog"
+
+    def __post_init__(self) -> None:
+        """Validate immutable capability evidence."""
+        values = (
+            self.heading_window_rad,
+            *self.speed_bounds_mps,
+            self.rot_max_rad_s,
+            self.decel_max_mps2,
+        )
+        if not np.isfinite(values).all() or min(values) < 0.0:
+            raise ValueError("capability values must be finite and non-negative")
+        if self.speed_bounds_mps[0] >= self.speed_bounds_mps[1]:
+            raise ValueError("capability speed bounds must be ordered")
+        if not self.source:
+            raise ValueError("capability source is required")
+
+
+class AssemblyProfile(StrEnum):
+    MASS_PARITY = "MASS_PARITY"
+    COLAV_STRICT = "COLAV_STRICT"
+
+
+class AssemblyFailureCode(StrEnum):
+    CYCLE_MISMATCH = "CYCLE_MISMATCH"
+    CAPACITY_EXCEEDED = "CAPACITY_EXCEEDED"
+    TARGET_BINDING_MISSING = "TARGET_BINDING_MISSING"
+    CORE_CAPABILITY_MISMATCH = "CORE_CAPABILITY_MISMATCH"
+    INVALID_INPUT = "INVALID_INPUT"
+
+
+@dataclass(frozen=True)
+class AssemblyRequest:
+    planner_input: PlannerInput
+    snapshot: DecisionSnapshot
+    route: RouteReference
+    capability: CapabilitySnapshot
+    config: MidMpcAssemblyConfig
+    profile: AssemblyProfile = AssemblyProfile.COLAV_STRICT
+
+
+@dataclass(frozen=True)
+class AssemblyFailure:
+    code: AssemblyFailureCode
+    message: str
+    identity: dict[str, object]
+    owner: str = "ASSEMBLER"
+    recoverability: str = "FIX_INPUT_THEN_NEW_SESSION"
+    problem: None = None
+
+
+@dataclass(frozen=True)
+class TargetPrediction:
+    key: TrackKey
+    times_s: np.ndarray
+    north_m: np.ndarray
+    east_m: np.ndarray
+    position_uncertainty_m: np.ndarray
+
+    def __post_init__(self) -> None:
+        """Copy prediction vectors into immutable arrays."""
+        lengths: set[int] = set()
+        for name in ("times_s", "north_m", "east_m", "position_uncertainty_m"):
+            values = np.array(getattr(self, name), dtype=float, copy=True)
+            if values.ndim != 1 or not np.isfinite(values).all():
+                raise ValueError(f"{name} must be a finite vector")
+            values.setflags(write=False)
+            object.__setattr__(self, name, values)
+            lengths.add(values.size)
+        if len(lengths) != 1:
+            raise ValueError("target prediction vectors must have equal length")
+
+
+@dataclass(frozen=True)
+class TargetActivation:
+    key: TrackKey
+    cpa_hard_from_s: float
+    cpa_hard_from_k: int
+    direction_hard_from_s: float
+    direction_hard_from_k: int
+    min_alt_hard_from_s: float
+    min_alt_hard_from_k: int
+
+
+@dataclass(frozen=True)
+class ConstraintActivationPlan:
+    targets: tuple[TargetActivation, ...]
+    global_cpa_hard_from_k: int
+    global_direction_hard_from_k: int
+    global_min_alt_hard_from_k: int
+
+
+@dataclass(frozen=True)
+class AssemblySuccess:
     problem: MidMpcProblem
     selected_target_keys: tuple[TrackKey, ...]
     selected_tracks: tuple[TrackedObstacle, ...]
     effective_cpa_hard_m: float
+    request_hash: str
+    problem_hash: str
+    profile: AssemblyProfile
+    target_predictions: tuple[TargetPrediction, ...]
+    activation_plan: ConstraintActivationPlan
 
 
-def assemble_mid_mpc_problem(
+AssembledMidMpcProblem = AssemblySuccess
+
+
+class MidMpcProblemAssembler:
+    """Atomic, stateless L1/L2 semantic problem assembler."""
+
+    def assemble(self, request: AssemblyRequest) -> AssemblySuccess | AssemblyFailure:
+        identity = _identity(request.snapshot)
+        if not math.isclose(request.planner_input.sim_time_s, request.snapshot.sim_time_s, abs_tol=1.0e-9):
+            return AssemblyFailure(
+                code=AssemblyFailureCode.CYCLE_MISMATCH,
+                message="planner input and lifecycle snapshot times differ",
+                identity=identity,
+            )
+        if len(request.snapshot.directive.required_targets) > request.config.max_targets:
+            return AssemblyFailure(
+                code=AssemblyFailureCode.CAPACITY_EXCEEDED,
+                message="required target count exceeds frozen core capacity",
+                identity=identity,
+            )
+        try:
+            return _assemble_problem(
+                request.planner_input,
+                request.snapshot,
+                route=request.route,
+                capability=request.capability,
+                config=request.config,
+                profile=request.profile,
+            )
+        except LifecycleError as exc:
+            code = (
+                AssemblyFailureCode.TARGET_BINDING_MISSING
+                if "missing from PlannerInput" in str(exc)
+                else AssemblyFailureCode.CORE_CAPABILITY_MISMATCH
+            )
+            return AssemblyFailure(code=code, message=str(exc), identity=identity)
+        except (TypeError, ValueError) as exc:
+            return AssemblyFailure(
+                code=AssemblyFailureCode.INVALID_INPUT,
+                message=str(exc),
+                identity=identity,
+            )
+
+
+def _assemble_problem(
     planner_input: PlannerInput,
     snapshot: DecisionSnapshot,
     *,
-    route_bearing_rad: float,
-    planned_speed_mps: float,
+    route: RouteReference,
+    capability: CapabilitySnapshot,
     config: MidMpcAssemblyConfig,
-) -> AssembledMidMpcProblem:
+    profile: AssemblyProfile,
+) -> AssemblySuccess:
     """Map one immutable decision snapshot without retaining business state."""
     track_by_key = {TrackKey(track.target_id, track.generation or 1): track for track in planner_input.tracks}
     missing = [key for key in snapshot.directive.required_targets if key not in track_by_key]
@@ -64,7 +230,12 @@ def assemble_mid_mpc_problem(
             LifecycleFailure.CORE_CAPABILITY_MISMATCH,
             f"lifecycle target keys missing from PlannerInput: {missing}",
         )
-    selected_keys = snapshot.directive.required_targets
+    selected_keys = tuple(
+        sorted(
+            snapshot.directive.required_targets,
+            key=lambda key: (key.target_id, key.generation),
+        )
+    )
     selected_tracks = tuple(track_by_key[key] for key in selected_keys)
     decision_by_key = {decision.key: decision for decision in snapshot.targets}
     selected_decisions = tuple(decision_by_key[key] for key in selected_keys)
@@ -83,7 +254,7 @@ def assemble_mid_mpc_problem(
         PassingSide.STARBOARD: 1,
     }[snapshot.directive.passing_side]
     lateral_active = snapshot.directive.minimum_course_change_rad > 0.0
-    committed_route_bearing = route_bearing_rad
+    committed_route_bearing = route.bearing_rad
     corridor_decisions = tuple(decision for decision in selected_decisions if not decision.route_recovery_allowed)
     if corridor_decisions:
         corridor = max(corridor_decisions, key=lambda decision: decision.required_course_change_rad)
@@ -91,7 +262,7 @@ def assemble_mid_mpc_problem(
             raise ValueError(f"committed target {corridor.key} has no baseline course")
         committed_route_bearing = corridor.baseline_course_rad + preferred_side * corridor.required_course_change_rad
     elif selected_decisions:
-        recovery_delta = _wrap(route_bearing_rad - float(planner_input.ownship_state[2]))
+        recovery_delta = _wrap(route.bearing_rad - float(planner_input.ownship_state[2]))
         recovery_step = config.rot_max_rad_s * config.decision_period_s
         committed_route_bearing = float(planner_input.ownship_state[2]) + float(
             np.clip(recovery_delta, -recovery_step, recovery_step)
@@ -99,25 +270,14 @@ def assemble_mid_mpc_problem(
 
     ownship = planner_input.ownship_state
     effective_cpa_hard_m = _effective_node_clearance(planner_input, selected_tracks, config)
-    approaching_tcpa = [
-        decision.geometry.signed_tcpa_s for decision in selected_decisions if decision.geometry.signed_tcpa_s > 0.0
-    ]
-    cpa_hard_from_k = config.horizon_steps
-    if approaching_tcpa:
-        cpa_hard_from_k = max(
-            0,
-            min(
-                config.horizon_steps,
-                math.floor(min(approaching_tcpa) / config.horizon_dt_s) - 2,
-            ),
-        )
     minimum_change = snapshot.directive.minimum_course_change_rad if lateral_active else 0.0
     reachable_per_step = config.rot_max_rad_s * config.horizon_dt_s
     min_alt_hard_from_k = max(0, math.ceil(minimum_change / reachable_per_step) - 1) if lateral_active else 0
+    activation_plan = _activation_plan(selected_decisions, min_alt_hard_from_k, config)
     row_schedule = MidMpcRowSchedule(
-        cpa_hard_from_k=cpa_hard_from_k,
-        direction_hard_from_k=0,
-        min_alt_hard_from_k=min_alt_hard_from_k,
+        cpa_hard_from_k=activation_plan.global_cpa_hard_from_k,
+        direction_hard_from_k=activation_plan.global_direction_hard_from_k,
+        min_alt_hard_from_k=activation_plan.global_min_alt_hard_from_k,
         terminal_rows_enabled=False,
     )
     starboard_asymmetry = any(
@@ -128,22 +288,25 @@ def assemble_mid_mpc_problem(
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
         route_bearing_rad=committed_route_bearing,
-        planned_speed_mps=0.0 if snapshot.directive.stop_required else planned_speed_mps,
+        planned_speed_mps=0.0 if snapshot.directive.stop_required else route.planned_speed_mps,
         heading_bounds_rad=(
-            float(ownship[2]) - config.heading_window_rad,
-            float(ownship[2]) + config.heading_window_rad,
+            float(ownship[2]) - capability.heading_window_rad,
+            float(ownship[2]) + capability.heading_window_rad,
         ),
         speed_bounds_mps=snapshot.directive.speed_bounds_mps,
         cpa_safe_m=max(config.cpa_safe_m, effective_cpa_hard_m),
         cpa_hard_m=effective_cpa_hard_m,
-        rot_max_rad_s=config.rot_max_rad_s,
-        decel_max_mps2=config.decel_max_mps2,
+        rot_max_rad_s=capability.rot_max_rad_s,
+        decel_max_mps2=capability.decel_max_mps2,
         lateral_active=lateral_active,
         preferred_side=preferred_side,
         starboard_asymmetry_active=starboard_asymmetry,
         min_alteration_rad=minimum_change,
         route_frame=MidMpcRouteFrame(
-            origin_m=(0.0, 0.0),
+            origin_m=(
+                route.anchor_ne_m[0] - float(ownship[0]),
+                route.anchor_ne_m[1] - float(ownship[1]),
+            ),
             normal=(-math.sin(committed_route_bearing), math.cos(committed_route_bearing)),
             bearing_rad=committed_route_bearing,
             lateral_scale_m=config.route_lateral_scale_m,
@@ -161,11 +324,73 @@ def assemble_mid_mpc_problem(
             for track in selected_tracks
         ),
     )
-    return AssembledMidMpcProblem(
+    target_predictions = _target_predictions(selected_keys, track_by_key, config)
+    request_hash = _hash_document(
+        {
+            "identity": _identity(snapshot),
+            "route": asdict(route),
+            "capability": asdict(capability),
+            "config": asdict(config),
+            "profile": profile.value,
+            "ownship": planner_input.ownship_state.tolist(),
+            "tracks": [
+                _track_document(track)
+                for track in sorted(
+                    planner_input.tracks,
+                    key=lambda item: (item.target_id, item.generation or 1),
+                )
+            ],
+        }
+    )
+    problem_document = asdict(problem)
+    problem_document["target_predictions"] = [_prediction_document(item) for item in target_predictions]
+    problem_document["activation_plan"] = _activation_document(activation_plan)
+    return AssemblySuccess(
         problem=problem,
         selected_target_keys=selected_keys,
         selected_tracks=selected_tracks,
         effective_cpa_hard_m=effective_cpa_hard_m,
+        request_hash=request_hash,
+        problem_hash=_hash_document(problem_document),
+        profile=profile,
+        target_predictions=target_predictions,
+        activation_plan=activation_plan,
+    )
+
+
+def assemble_mid_mpc_problem(
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+    *,
+    route_bearing_rad: float,
+    planned_speed_mps: float,
+    config: MidMpcAssemblyConfig,
+) -> AssembledMidMpcProblem:
+    """Compatibility seam for callers migrating to MidMpcProblemAssembler."""
+    request = AssemblyRequest(
+        planner_input=planner_input,
+        snapshot=snapshot,
+        route=RouteReference(
+            anchor_ne_m=(float(planner_input.ownship_state[0]), float(planner_input.ownship_state[1])),
+            bearing_rad=route_bearing_rad,
+            planned_speed_mps=planned_speed_mps,
+        ),
+        capability=CapabilitySnapshot(
+            heading_window_rad=config.heading_window_rad,
+            speed_bounds_mps=config.speed_bounds_mps,
+            rot_max_rad_s=config.rot_max_rad_s,
+            decel_max_mps2=config.decel_max_mps2,
+        ),
+        config=config,
+        profile=AssemblyProfile.MASS_PARITY,
+    )
+    return _assemble_problem(
+        request.planner_input,
+        request.snapshot,
+        route=request.route,
+        capability=request.capability,
+        config=request.config,
+        profile=request.profile,
     )
 
 
@@ -177,16 +402,127 @@ def _effective_node_clearance(
     if not tracks:
         return config.cpa_hard_m
     own_radius = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
-    own_step_allowance = config.speed_bounds_mps[1] * config.horizon_dt_s
     target_allowances = []
     for track in tracks:
         footprint = 0.5 * math.hypot(track.length_m, track.width_m)
         covariance_allowance = math.sqrt(max(0.0, float(np.max(np.linalg.eigvalsh(track.covariance[:2, :2]))))) * math.sqrt(
             9.210340371976184
         )
-        target_allowances.append(footprint + covariance_allowance)
-    return config.cpa_hard_m + own_radius + max(target_allowances) + own_step_allowance
+        target_step_allowance = float(np.linalg.norm(track.state_enu[2:4])) * config.horizon_dt_s
+        target_allowances.append(footprint + covariance_allowance + target_step_allowance)
+    return config.cpa_hard_m + own_radius + max(target_allowances)
 
 
 def _wrap(angle: float) -> float:
     return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def _identity(snapshot: DecisionSnapshot) -> dict[str, object]:
+    return {
+        "epoch": snapshot.epoch,
+        "sequence": snapshot.sequence,
+        "sim_time_s": snapshot.sim_time_s,
+        "input_hash": snapshot.input_hash,
+        "profile_hash": snapshot.profile_hash,
+    }
+
+
+def _track_document(track: TrackedObstacle) -> dict[str, Any]:
+    return {
+        "target_id": track.target_id,
+        "generation": track.generation,
+        "state_enu": track.state_enu.tolist(),
+        "covariance": track.covariance.tolist(),
+        "length_m": track.length_m,
+        "width_m": track.width_m,
+        "observed_at_s": track.observed_at_s,
+        "generated_at_s": track.generated_at_s,
+        "status": track.status,
+        "source": track.source,
+    }
+
+
+def _target_predictions(
+    selected_keys: tuple[TrackKey, ...],
+    track_by_key: dict[TrackKey, TrackedObstacle],
+    config: MidMpcAssemblyConfig,
+) -> tuple[TargetPrediction, ...]:
+    times = np.arange(config.horizon_steps + 1, dtype=float) * config.horizon_dt_s
+    predictions = []
+    for key in selected_keys:
+        track = track_by_key[key]
+        covariance_margin = math.sqrt(max(0.0, float(np.max(np.linalg.eigvalsh(track.covariance[:2, :2]))))) * math.sqrt(
+            9.210340371976184
+        )
+        predictions.append(
+            TargetPrediction(
+                key=key,
+                times_s=times,
+                north_m=track.state_enu[0] + track.state_enu[2] * times,
+                east_m=track.state_enu[1] + track.state_enu[3] * times,
+                position_uncertainty_m=np.full(times.shape, covariance_margin),
+            )
+        )
+    return tuple(predictions)
+
+
+def _prediction_document(prediction: TargetPrediction) -> dict[str, Any]:
+    return {
+        "key": asdict(prediction.key),
+        "times_s": prediction.times_s.tolist(),
+        "north_m": prediction.north_m.tolist(),
+        "east_m": prediction.east_m.tolist(),
+        "position_uncertainty_m": prediction.position_uncertainty_m.tolist(),
+    }
+
+
+def _activation_plan(
+    decisions: tuple[Any, ...],
+    min_alt_hard_from_k: int,
+    config: MidMpcAssemblyConfig,
+) -> ConstraintActivationPlan:
+    targets = tuple(
+        TargetActivation(
+            key=decision.key,
+            cpa_hard_from_s=0.0,
+            cpa_hard_from_k=0,
+            direction_hard_from_s=0.0,
+            direction_hard_from_k=0,
+            min_alt_hard_from_s=min_alt_hard_from_k * config.horizon_dt_s,
+            min_alt_hard_from_k=min_alt_hard_from_k,
+        )
+        for decision in decisions
+    )
+    return ConstraintActivationPlan(
+        targets=targets,
+        global_cpa_hard_from_k=min((target.cpa_hard_from_k for target in targets), default=config.horizon_steps),
+        global_direction_hard_from_k=min(
+            (target.direction_hard_from_k for target in targets),
+            default=0,
+        ),
+        global_min_alt_hard_from_k=min(
+            (target.min_alt_hard_from_k for target in targets),
+            default=0,
+        ),
+    )
+
+
+def _activation_document(plan: ConstraintActivationPlan) -> dict[str, Any]:
+    return {
+        "targets": [
+            {
+                **asdict(target),
+                "key": asdict(target.key),
+            }
+            for target in plan.targets
+        ],
+        "global_cpa_hard_from_k": plan.global_cpa_hard_from_k,
+        "global_direction_hard_from_k": plan.global_direction_hard_from_k,
+        "global_min_alt_hard_from_k": plan.global_min_alt_hard_from_k,
+    }
+
+
+def _hash_document(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    ).hexdigest()
