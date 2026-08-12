@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 1 课：先看懂三层架构</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header>
+    <div class="eyebrow">Lesson 0001 · 约 12 分钟</div>
+    <h1>先看懂三层架构</h1>
+    <p class="lede">本课只建立一个能力：看到任何功能或 bug，先把它放进正确层，再沿一个时间步找到算法边界。</p>
+  </header>
+  <div class="goal"><strong>完成标准</strong>：不看图，能说出三层职责；能把“开始仿真”追踪到 <code>Ship.plan()</code> 和浏览器渲染。</div>
+  <h2>不是一座机器，是三层叠加</h2>
+  <p>当前项目保留原始科学仿真内核，又增加实验证据层和 Web 研究控制台。误把它们当成同一层，会在前端修算法、在仿真器塞评价逻辑，或让训练代码绕过证据契约。</p>
+  <div class="architecture">
+    <button class="layer" data-reveal aria-expanded="false">
+      <strong>1 · 交互与控制面</strong><code>web_gui/app.js · gui_server/main.py</code>
+      <span class="detail">浏览器发 REST 命令；FastAPI 管理唯一活动会话；WebSocket 每 0.1 秒推送最新遥测。它展示状态，不负责船舶物理。</span>
+    </button>
+    <button class="layer" data-reveal aria-expanded="false">
+      <strong>2 · 实验与证据层</strong><code>experiment/ · evaluation/ · integrations/</code>
+      <span class="detail"><code>RunSpec</code> 固定请求；<code>ExperimentRunner</code> 构建场景、算法和 tracker；<code>SimulationSession</code> 管理状态与帧；评估器生成结论。</span>
+    </button>
+    <button class="layer" data-reveal aria-expanded="false">
+      <strong>3 · 科学仿真内核</strong><code>scenario_generator.py · simulator.py · core/</code>
+      <span class="detail">生成 ENC 与船舶；每步完成目标跟踪、避碰规划、控制和动力学推进。算法真正影响轨迹的位置在这里。</span>
+    </button>
+  </div>
+  <h2>一次“开始”发生什么</h2>
+  <div class="flow">
+    <div><strong>准备</strong><code>POST /api/sessions</code><code>runner.prepare()</code></div>
+    <div><strong>调度</strong><code>_simulation_loop()</code><code>manager.tick()</code></div>
+    <div><strong>推进</strong><code>session.advance()</code><code>simulator.step()</code></div>
+    <div><strong>呈现</strong><code>_telemetry()</code><code>renderCanvas()</code></div>
+  </div>
+  <p>关键顺序在 <code>Simulator.step()</code>：先抽取所有目标真值；每艘活动船先跟踪目标，再调用 <code>Ship.plan()</code>，保存本步数据，最后 <code>Ship.forward()</code> 推进模型。随后会话检测 Ship0 碰撞、搁浅、到达目标和时间上限。</p>
+  <div class="callout"><strong>核心区分</strong>：WebSocket 的 10 Hz 是“最新遥测推送频率”；<code>dt_sim</code> 是“仿真时间步”；算法自己的 <code>solve_period_s</code> 又是“求解周期”。三者不可混为一个频率。</div>
+  <h2>新增算法，不止一条入口</h2>
+  <p><strong>传统 COLAV：</strong>实现 <code>ICOLAV</code>；由 <code>Ship.plan()</code> 输入自船、航路、tracks、ENC 和扰动，输出 9xN reference。</p>
+  <p><strong>新 MPC：</strong>优先走 <code>CustomMPCAdapter</code>。它把旧接口整理成 <code>PlannerInput</code>，校验调度、deadline、可行性和 <code>MPCSolution</code>，并产生可审计 trace。</p>
+  <p><strong>深度策略在线推理：</strong>策略可包装成 <code>ICOLAV</code> 或插件，但必须明确 observation 到 references 的转换、模型身份、推理失败和 deadline。</p>
+  <p><strong>强化学习训练：</strong>另一条路径是 <code>COLAVEnvironment</code>。此时 <code>Simulator.step(remote_actor=True)</code> 跳过 Ship0 内部 <code>plan()</code>，由 agent 外部设置 references。训练入口和部署入口相关，但不是同一契约。</p>
+  <section class="quiz" data-quiz data-correct="b" data-success="正确。SimulationSession 持有已初始化 episode，负责状态、帧、事件与单步推进。" data-retry="再沿调用链看一次：Web 管理器调用谁的 advance()？">
+    <h2>检索练习 1</h2>
+    <p>哪个对象拥有一次已初始化 episode，并提供 <code>advance()</code>？</p>
+    <div class="answers">
+      <button data-answer="a">网页会话管理对象</button><button data-answer="b">仿真会话管理对象</button>
+      <button data-answer="c">算法集成注册对象</button><button data-answer="d">前端画布渲染对象</button>
+    </div>
+    <p class="feedback" aria-live="polite"></p>
+  </section>
+  <section class="quiz" data-quiz data-correct="a" data-success="正确。tracking 决定规划器看见什么，plan 生成 reference，forward 才推进动力学。" data-retry="提示：规划必须先得到目标航迹，物理状态最后推进。">
+    <h2>检索练习 2</h2>
+    <p><code>Simulator.step()</code> 内单船主顺序是哪一个？</p>
+    <div class="answers">
+      <button data-answer="a">先跟踪再规划后推进</button><button data-answer="b">先推进再跟踪后规划</button>
+      <button data-answer="c">先规划再推进后跟踪</button><button data-answer="d">先渲染再规划后推进</button>
+    </div>
+    <p class="feedback" aria-live="polite"></p>
+  </section>
+  <h2>一分钟口述</h2>
+  <p>关闭本页上半部分，回答：“点击开始后，数据如何到算法，再如何回到画布？”卡住时只允许查看<a href="../reference/architecture-map.html">架构速查</a>。把你的答案发给我；我会根据遗漏点确定下一课难度。</p>
+  <h2>源码锚点</h2>
+  <ul class="source-list">
+    <li><a href="../gui_server/main.py">Web 会话与调度</a>：<code>WebSessionManager</code>、<code>_simulation_loop</code>、WebSocket。</li>
+    <li><a href="../colav_simulator/experiment/runner.py">实验准备</a>：<code>ExperimentRunner.prepare</code>。</li>
+    <li><a href="../colav_simulator/experiment/session.py">会话推进</a>：<code>SimulationSession._advance</code>。</li>
+    <li><a href="../colav_simulator/simulator.py">单步内核</a>：<code>Simulator.step</code>。</li>
+    <li><a href="../colav_simulator/integrations/registry.py">算法注册</a>：<code>IntegrationRegistry.build_algorithm</code>。</li>
+    <li><a href="../colav_simulator/core/colav/custom_mpc_adapter.py">MPC 契约</a>：<code>PlannerInput</code>、<code>MPCSolution</code>、<code>CustomMPCAdapter</code>。</li>
+  </ul>
+  <h2>主阅读</h2>
+  <p>先读作者维护的<a href="https://github.com/ntnu-itk-autonomous-ship-lab/colav-simulator#main-modules-in-the-repository">项目模块说明</a>，重点看 <code>Simulator</code>、<code>Ship</code> 和 <code>COLAVEnvironment</code>。准备进入 RL 课程前，再读 Gymnasium 官方的<a href="https://gymnasium.farama.org/main/introduction/create_custom_env/">环境设计五问</a>。</p>
+  <div class="callout">任何地方不清楚，直接向我追问类名、数据形状或调用顺序。下一课将拆解 <code>Ship</code> 的“感知 -> 规划 -> 控制 -> 模型”闭环。</div>
+  <nav class="next"><a href="../reference/architecture-map.html">打开架构速查</a><span>下一课：Ship 闭环</span></nav>
+  <script src="../assets/lesson.js"></script>
+</main></body>
+</html>

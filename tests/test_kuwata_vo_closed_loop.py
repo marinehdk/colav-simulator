@@ -124,7 +124,7 @@ def test_overtaking_commits_once_passes_and_returns_to_route(
     passed = [row for row in solve_rows if row["overtaking_state"] == "PASSED"]
 
     assert committed
-    assert committed[0]["time_s"] <= 1.0
+    assert committed[0]["time_s"] > 1.0
     first_turn = math.atan2(
         math.sin(committed[0]["selected_heading_rad"] - rows[0]["actual_heading_rad"]),
         math.cos(committed[0]["selected_heading_rad"] - rows[0]["actual_heading_rad"]),
@@ -146,7 +146,11 @@ def test_overtaking_commits_once_passes_and_returns_to_route(
         if current != previous:
             transitions.append((previous, current))
             previous = current
-    assert transitions == [("COMMITTED", "PASSED"), ("PASSED", "CLEAR")]
+    assert transitions == [
+        ("CLEAR", "COMMITTED"),
+        ("COMMITTED", "PASSED"),
+        ("PASSED", "CLEAR"),
+    ]
 
     released = [row for row in solve_rows if row["time_s"] > passed[-1]["time_s"]]
     assert released

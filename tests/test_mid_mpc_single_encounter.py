@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 ALGORITHM_ID = "mid_mpc_ipopt"
 ALGORITHM_CONFIG = _load_algorithm_config(PROJECT_ROOT / "config/mid_mpc_ipopt.yaml")
-HORIZON_S = 90.0
 
 
 def _run_and_assert_common(p1_run_harness: P1RunHarness, scenario_id: str) -> RunResult:
@@ -114,7 +113,7 @@ def _initial_target_velocity_ne(run: RunResult) -> np.ndarray:
     return (second - first) / run.session.config.dt_sim
 
 
-def _assert_delayed_hold_then_horizon_selection(run: RunResult, expected_encounter: str) -> None:
+def _assert_delayed_hold_then_selection(run: RunResult, expected_encounter: str) -> None:
     rows = _solve_rows(run)
     first = rows[0]
     assert first["algorithm_details"]["decision_intent"] == "HOLD"
@@ -125,7 +124,7 @@ def _assert_delayed_hold_then_horizon_selection(run: RunResult, expected_encount
     assert all(row["algorithm_details"]["decision_intent"] == "HOLD" for row in rows)
     first_selected = next(row for row in rows if row["algorithm_details"]["selected_target_ids"])
     assert first_selected["sim_time"] > 0.0
-    assert 0.0 < first_selected["target_predictions"][0]["signed_tcpa_s"] <= HORIZON_S
+    assert 0.0 < first_selected["target_predictions"][0]["signed_tcpa_s"] <= 90.0
 
 
 def test_mid_mpc_head_on_closed_loop_turns_starboard_passes_port_and_recovers(
@@ -163,11 +162,11 @@ def test_mid_mpc_crossing_stand_on_holds_then_acts_inside_horizon_and_recovers(
 ) -> None:
     run = _run_and_assert_common(p1_run_harness, "crossing_stand_on")
 
-    _assert_delayed_hold_then_horizon_selection(run, "crossing_stand_on")
+    _assert_delayed_hold_then_selection(run, "crossing_stand_on")
     assert float(_actual_cpa_relative_ne(run) @ _initial_target_velocity_ne(run)) < 0.0
 
 
-def test_mid_mpc_overtaking_commits_port_passes_target_and_recovers(
+def test_mid_mpc_overtaking_commits_starboard_passes_target_and_recovers(
     p1_run_harness: P1RunHarness,
 ) -> None:
     run = _run_and_assert_common(p1_run_harness, "overtaking")
@@ -176,13 +175,16 @@ def test_mid_mpc_overtaking_commits_port_passes_target_and_recovers(
     along_route = np.array([math.cos(initial_course), math.sin(initial_course)])
     starboard_normal = np.array([-math.sin(initial_course), math.cos(initial_course)])
     relative_at_cpa = _actual_cpa_relative_ne(run)
+    final_own = np.asarray(run.session.frames[-1]["Ship0"]["state"][:2], dtype=float)
+    final_target = np.asarray(run.session.frames[-1]["Ship1"]["state"][:2], dtype=float)
 
     assert first["sim_time"] == 0.0
     assert first["algorithm_details"]["decision_intent"] == "GIVE_WAY"
-    assert first["algorithm_details"]["preferred_side"] == "port"
-    assert _first_command_delta(run) <= -math.radians(4.0)
-    assert float(relative_at_cpa @ along_route) < 0.0
-    assert float(relative_at_cpa @ starboard_normal) > 0.0
+    assert first["algorithm_details"]["preferred_side"] == "starboard"
+    assert first["algorithm_details"]["route_reference_mode"] == "give_way_commitment"
+    assert _first_command_delta(run) >= math.radians(4.0)
+    assert float(relative_at_cpa @ starboard_normal) < 0.0
+    assert float((final_own - final_target) @ along_route) >= 190.0
     assert _solve_rows(run)[-1]["algorithm_details"]["decision_intent"] == "HOLD"
 
 
@@ -191,4 +193,4 @@ def test_mid_mpc_overtaken_holds_then_acts_inside_horizon_and_recovers(
 ) -> None:
     run = _run_and_assert_common(p1_run_harness, "overtaken")
 
-    _assert_delayed_hold_then_horizon_selection(run, "overtaken")
+    _assert_delayed_hold_then_selection(run, "overtaken")

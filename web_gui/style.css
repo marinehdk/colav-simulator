@@ -1060,6 +1060,10 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   cursor: pointer;
 }
 
+.selection-card[hidden] {
+  display: none;
+}
+
 .selection-card:hover:not(:disabled) {
   border-color: rgba(77,208,197,0.5);
   background: rgba(77,208,197,0.06);

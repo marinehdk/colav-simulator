@@ -37,10 +37,12 @@ __version__ = "1.0.0"
 class _FacadeConfig:
     horizon_steps: int
     horizon_dt_s: float
+    hold_selection_horizon_s: float
     heading_window_rad: float
     speed_bounds_mps: tuple[float, float]
     cpa_safe_m: float
     cpa_hard_m: float
+    overtaking_clear_distance_m: float
     rot_max_rad_s: float
     decel_max_mps2: float
     min_alteration_rad: float
@@ -72,13 +74,24 @@ class _MidMpcFacade:
         self._config = config
         self._los = LOSGuidance()
         self._solver = MidMpcIpoptSolver(MidMpcConfig(horizon_steps=config.horizon_steps, dt_s=config.horizon_dt_s))
+        self._hard_direction_solver = MidMpcIpoptSolver(
+            MidMpcConfig(
+                horizon_steps=config.horizon_steps,
+                dt_s=config.horizon_dt_s,
+                dir_slack_enabled=False,
+            )
+        )
         self._last_guidance_time_s: float | None = None
         self._committed_policies: dict[int, _OptimizerPolicy] = {}
+        self._commitment_courses_rad: dict[int, float] = {}
+        self._released_target_ids: set[int] = set()
 
     def reset(self) -> None:
         self._los.reset()
         self._last_guidance_time_s = None
         self._committed_policies.clear()
+        self._commitment_courses_rad.clear()
+        self._released_target_ids.clear()
 
     def solve(self, planner_input: PlannerInput) -> MPCSolution:
         ownship = planner_input.ownship_state
@@ -99,8 +112,20 @@ class _MidMpcFacade:
         target_decisions = self._target_decisions(planner_input)
         optimization_decisions = self._optimization_decisions(target_decisions)
         optimizer_policy = _aggregate_policy(target_decisions)
-        lateral_active = optimizer_policy.intent == "GIVE_WAY"
-        minimum_alteration_active = any(decision.newly_committed for decision in optimization_decisions)
+        course_commitment_active = optimizer_policy.intent == "GIVE_WAY"
+        if course_commitment_active:
+            committed_course = next(
+                self._commitment_courses_rad[decision.track.target_id]
+                for decision in target_decisions
+                if decision.optimizer_policy.intent == "GIVE_WAY"
+                and decision.track.target_id in self._commitment_courses_rad
+            )
+            route_bearing = _unwrap_near(
+                committed_course + optimizer_policy.preferred_side * self._config.min_alteration_rad,
+                float(ownship[2]),
+            )
+        lateral_active = any(decision.newly_committed for decision in optimization_decisions)
+        minimum_alteration_active = lateral_active
         row_schedule = self._row_schedule(optimization_decisions, lateral_active)
         effective_cpa_hard_m = self._effective_cpa_hard_m(optimization_decisions, planner_input)
         problem = MidMpcProblem(
@@ -139,7 +164,8 @@ class _MidMpcFacade:
                 for decision in optimization_decisions
             ),
         )
-        result = self._solver.solve(problem)
+        solver = self._hard_direction_solver if lateral_active else self._solver
+        result = solver.solve(problem)
         predicted, controls = _native_trajectories(result.trajectory, ownship, self._config.horizon_dt_s)
         status, feasible = _plan_status(result.status, result.max_constraint_violation)
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
@@ -170,6 +196,13 @@ class _MidMpcFacade:
             "preferred_side": _side_name(optimizer_policy.preferred_side),
             "starboard_asymmetry_active": optimizer_policy.starboard_asymmetry_active,
             "minimum_alteration_active": minimum_alteration_active,
+            "overtaking_course_commitment_active": (
+                course_commitment_active and not optimizer_policy.starboard_asymmetry_active
+            ),
+            "route_reference_mode": "give_way_commitment" if course_commitment_active else "los",
+            "direction_constraint_mode": (
+                "hard" if lateral_active else "route_reference" if course_commitment_active else "disabled"
+            ),
             "selected_target_ids": [decision.track.target_id for decision in optimization_decisions],
             "los_guidance_dt_s": guidance_dt_s,
         }
@@ -206,18 +239,30 @@ class _MidMpcFacade:
             )
             classified_policy = _policy_for_encounter(encounter, relative_bearing_deg)
             committed_policy = self._committed_policies.get(track.target_id)
-            newly_committed = classified_policy.intent == "GIVE_WAY" and committed_policy is None
-            if classified_policy.intent == "GIVE_WAY":
+            overtaking_past_and_clear = self._overtaking_past_and_clear(ownship, track)
+            release_commitment = committed_policy is not None and (
+                overtaking_past_and_clear if not committed_policy.starboard_asymmetry_active else signed_tcpa_s <= 0.0
+            )
+            if release_commitment:
+                self._committed_policies.pop(track.target_id, None)
+                self._commitment_courses_rad.pop(track.target_id, None)
+                self._released_target_ids.add(track.target_id)
+                committed_policy = None
+            released = track.target_id in self._released_target_ids
+            newly_committed = classified_policy.intent == "GIVE_WAY" and committed_policy is None and not released
+            if classified_policy.intent == "GIVE_WAY" and not released:
+                if committed_policy is None:
+                    self._commitment_courses_rad[track.target_id] = own_course
                 committed_policy = committed_policy or classified_policy
                 self._committed_policies[track.target_id] = committed_policy
-            elif signed_tcpa_s <= 0.0:
-                self._committed_policies.pop(track.target_id, None)
-                committed_policy = None
+            effective_policy = committed_policy or classified_policy
+            if released:
+                effective_policy = _OptimizerPolicy("HOLD", 0, False)
             decisions.append(
                 _TargetDecision(
                     track=track,
                     encounter=encounter,
-                    optimizer_policy=committed_policy or classified_policy,
+                    optimizer_policy=effective_policy,
                     dcpa_m=dcpa_m,
                     tcpa_s=tcpa_s,
                     signed_tcpa_s=signed_tcpa_s,
@@ -228,6 +273,12 @@ class _MidMpcFacade:
         self._committed_policies = {
             target_id: policy for target_id, policy in self._committed_policies.items() if target_id in seen_target_ids
         }
+        self._commitment_courses_rad = {
+            target_id: course
+            for target_id, course in self._commitment_courses_rad.items()
+            if target_id in self._committed_policies
+        }
+        self._released_target_ids.intersection_update(seen_target_ids)
         decisions.sort(
             key=lambda decision: (
                 decision.signed_tcpa_s <= 0.0,
@@ -239,15 +290,28 @@ class _MidMpcFacade:
         )
         return tuple(decisions[:16])
 
+    def _overtaking_past_and_clear(self, ownship: np.ndarray, track: TrackedObstacle) -> bool:
+        relative_position = ownship[:2] - track.state_enu[:2]
+        distance_m = float(np.linalg.norm(relative_position))
+        target_velocity = track.state_enu[2:4]
+        target_speed_mps = float(np.linalg.norm(target_velocity))
+        if target_speed_mps <= 0.25:
+            return False
+        along_track_m = float(relative_position @ target_velocity / target_speed_mps)
+        return (
+            along_track_m >= self._config.overtaking_clear_distance_m
+            and distance_m >= self._config.overtaking_clear_distance_m
+        )
+
     def _optimization_decisions(
         self,
         decisions: tuple[_TargetDecision, ...],
     ) -> tuple[_TargetDecision, ...]:
-        horizon_s = self._config.horizon_steps * self._config.horizon_dt_s
         return tuple(
             decision
             for decision in decisions
-            if decision.optimizer_policy.intent == "GIVE_WAY" or (0.0 < decision.signed_tcpa_s <= horizon_s)
+            if decision.optimizer_policy.intent == "GIVE_WAY"
+            or (0.0 < decision.signed_tcpa_s <= self._config.hold_selection_horizon_s)
         )
 
     def _effective_cpa_hard_m(
@@ -320,8 +384,9 @@ class _MidMpcFacade:
 def create(  # noqa: PLR0913
     *,
     context: FactoryContext,
-    horizon_steps: int = 18,
-    horizon_dt_s: float = 5.0,
+    horizon_steps: int = 80,
+    horizon_dt_s: float = 15.0,
+    hold_selection_horizon_s: float = 90.0,
     solve_period_s: float = 5.0,
     deadline_s: float = 20.0,
     heading_window_deg: float = 45.0,
@@ -329,6 +394,7 @@ def create(  # noqa: PLR0913
     speed_max_mps: float = 8.0,
     cpa_safe_m: float = 150.0,
     cpa_hard_m: float = 50.0,
+    overtaking_clear_distance_m: float = 190.0,
     rot_max_deg_s: float = 3.0,
     decel_max_mps2: float = 0.3,
     min_alteration_deg: float = 5.0,
@@ -339,10 +405,12 @@ def create(  # noqa: PLR0913
     config = _FacadeConfig(
         horizon_steps=horizon_steps,
         horizon_dt_s=horizon_dt_s,
+        hold_selection_horizon_s=hold_selection_horizon_s,
         heading_window_rad=float(np.deg2rad(heading_window_deg)),
         speed_bounds_mps=(speed_min_mps, speed_max_mps),
         cpa_safe_m=cpa_safe_m,
         cpa_hard_m=cpa_hard_m,
+        overtaking_clear_distance_m=overtaking_clear_distance_m,
         rot_max_rad_s=float(np.deg2rad(rot_max_deg_s)),
         decel_max_mps2=decel_max_mps2,
         min_alteration_rad=float(np.deg2rad(min_alteration_deg)),
@@ -395,12 +463,11 @@ def _unwrap_near(angle: float, reference: float) -> float:
     return reference + math.atan2(math.sin(angle - reference), math.cos(angle - reference))
 
 
-def _policy_for_encounter(encounter: str, relative_bearing_deg: float) -> _OptimizerPolicy:
+def _policy_for_encounter(encounter: str, _relative_bearing_deg: float) -> _OptimizerPolicy:
     if encounter in {"head_on", "crossing_give_way"}:
         return _OptimizerPolicy("GIVE_WAY", 1, True)
     if encounter == "overtaking":
-        preferred_side = -1 if relative_bearing_deg > 0.0 else 1
-        return _OptimizerPolicy("GIVE_WAY", preferred_side, False)
+        return _OptimizerPolicy("GIVE_WAY", 1, False)
     return _OptimizerPolicy("HOLD", 0, False)
 
 

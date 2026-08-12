@@ -43,8 +43,8 @@ class MidMpcConfig:
 
     def __post_init__(self) -> None:
         """Validate frozen NLP dimensions and finite tuning values."""
-        if not 2 <= self.horizon_steps <= 18:
-            raise ValueError("horizon_steps must be in [2, 18]")
+        if not 2 <= self.horizon_steps <= 120:
+            raise ValueError("horizon_steps must be in [2, 120]")
         if self.max_targets != 16:
             raise ValueError("max_targets must remain 16 for frozen parameter parity")
         numeric = tuple(

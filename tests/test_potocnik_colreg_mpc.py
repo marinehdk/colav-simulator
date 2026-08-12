@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -5,11 +6,12 @@ import pytest
 from shapely.geometry import box
 
 from colav_simulator.core.colav.custom_mpc_adapter import FactoryContext, PlannerInput, TrackedObstacle
-from colav_simulator.integrations import IntegrationRegistry
+from colav_simulator.integrations import IntegrationRegistry, potocnik_colreg_mpc
 from colav_simulator.integrations.potocnik_colreg_mpc import (
     PotocnikColregFanMPC,
     PotocnikColregParams,
     _continuous_minimum_distance,
+    _Policy,
 )
 
 
@@ -64,6 +66,17 @@ def test_head_on_commands_substantial_starboard_action() -> None:
     assert np.rad2deg(solution.control_reference[2, 0]) >= 5.0
     assert solution.control_trajectory is not None
     assert solution.control_trajectory[2, 0] == pytest.approx(solution.control_reference[2, 0])
+    assert solution.constraints["colreg_policy"]["starboard_required"] is True
+    assert solution.constraints["colreg_policy"]["relaxations"] == []
+
+
+def test_overtaking_commands_substantial_starboard_action() -> None:
+    solution = solver().solve(
+        planner_input(track(position_ne=(1000.0, 0.0), velocity_ne=(5.0, 0.0)))
+    )
+
+    assert solution.algorithm_details["active_encounters"] == ["overtaking"]
+    assert np.rad2deg(solution.control_reference[2, 0]) >= 5.0
     assert solution.constraints["colreg_policy"]["starboard_required"] is True
     assert solution.constraints["colreg_policy"]["relaxations"] == []
 
@@ -164,12 +177,228 @@ def test_stand_on_replan_corrects_back_to_locked_course() -> None:
     assert abs(np.rad2deg(second.control_reference[2, 0])) <= 0.25
 
 
+def test_stand_on_course_is_captured_before_simultaneous_give_way_maneuver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    classifications = iter(
+        (
+            ("crossing_stand_on", 100.0, 100.0, 100.0, -45.0),
+            ("crossing_give_way", 100.0, 100.0, 100.0, 45.0),
+            ("clear", 1000.0, 60.0, 60.0, -45.0),
+            ("crossing_stand_on", 100.0, 50.0, 50.0, -45.0),
+        )
+    )
+    monkeypatch.setattr(
+        potocnik_colreg_mpc,
+        "classify_geometry",
+        lambda *_args: next(classifications),
+    )
+    colreg_solver = solver()
+    initial = replace(
+        planner_input(),
+        tracks=(
+            track(target_id=1, position_ne=(500.0, -500.0), velocity_ne=(0.0, 7.0)),
+            track(target_id=2, position_ne=(500.0, 500.0), velocity_ne=(0.0, -7.0)),
+        ),
+    )
+
+    colreg_solver._encounter_policy(initial)
+    colreg_solver._maneuver_phase = "AVOID"
+    colreg_solver._encounter_policy(
+        planner_input(
+            track(position_ne=(700.0, -700.0), velocity_ne=(0.0, 7.0)),
+            ownship_state=np.array([50.0, 50.0, np.deg2rad(30.0), 7.0, 0.0, 0.0]),
+        )
+    )
+    after_avoidance = planner_input(
+        track(position_ne=(500.0, -500.0), velocity_ne=(0.0, 7.0)),
+        ownship_state=np.array([100.0, 100.0, np.deg2rad(45.0), 7.0, 0.0, 0.0]),
+    )
+    colreg_solver._encounter_policy(after_avoidance)
+
+    assert colreg_solver._stand_on_course == pytest.approx(0.0)
+
+
+def test_return_moves_toward_pre_maneuver_stand_on_course_with_rate_limit() -> None:
+    colreg_solver = solver()
+    colreg_solver._stand_on_course = 0.0
+    colreg_solver._previous_command_course = np.deg2rad(45.0)
+    colreg_solver._maneuver_phase = "RETURN"
+    candidates, controls = colreg_solver._generate_candidate_bundle(
+        np.array([0.0, 0.0, np.deg2rad(45.0), 7.0, 0.0, 0.0]),
+        7.0,
+        0.5,
+        command_course_center=colreg_solver._previous_command_course,
+    )
+    count = colreg_solver.params.candidate_count
+    policy = _Policy(
+        encounters=(),
+        give_way_targets=(),
+        crossing_give_way_targets=(),
+        stand_on_targets=(1,),
+        starboard_required=False,
+    )
+
+    selection = colreg_solver._select_candidate(
+        controls=controls,
+        speed_scales=np.ones(count),
+        feasible_indices=np.arange(count),
+        minimum_clearance=np.full(count, np.inf),
+        minimum_static_clearance=np.full(count, np.inf),
+        pass_astern=np.ones(count, dtype=bool),
+        policy=policy,
+        ownship_course=np.deg2rad(45.0),
+        target_course=np.deg2rad(-80.0),
+        nominal_feasible=True,
+        candidates=candidates,
+        sim_time_s=5.0,
+        route_speed_mps=7.0,
+    )
+
+    selected_course_deg = np.rad2deg(controls[selection.index, 2, 0])
+    assert selected_course_deg == pytest.approx(40.0)
+
+
+def test_return_prioritizes_route_recapture_within_hard_safe_candidates() -> None:
+    colreg_solver = solver()
+    colreg_solver._previous_command_course = np.deg2rad(45.0)
+    colreg_solver._maneuver_phase = "RETURN"
+    candidates, controls = colreg_solver._generate_candidate_bundle(
+        np.array([0.0, 0.0, np.deg2rad(45.0), 7.0, 0.0, 0.0]),
+        7.0,
+        0.5,
+        command_course_center=colreg_solver._previous_command_course,
+    )
+    route_candidate = 11
+    away_candidate = 33
+    minimum_clearance = np.full(colreg_solver.params.candidate_count, np.inf)
+    minimum_clearance[route_candidate] = 160.0
+    policy = _Policy(
+        encounters=(),
+        give_way_targets=(),
+        crossing_give_way_targets=(),
+        stand_on_targets=(),
+        starboard_required=False,
+    )
+
+    selection = colreg_solver._select_candidate(
+        controls=controls,
+        speed_scales=np.ones(colreg_solver.params.candidate_count),
+        feasible_indices=np.array([route_candidate, away_candidate]),
+        minimum_clearance=minimum_clearance,
+        minimum_static_clearance=np.full(colreg_solver.params.candidate_count, np.inf),
+        pass_astern=np.ones(colreg_solver.params.candidate_count, dtype=bool),
+        policy=policy,
+        ownship_course=np.deg2rad(45.0),
+        target_course=np.deg2rad(-80.0),
+        nominal_feasible=True,
+        candidates=candidates,
+        sim_time_s=5.0,
+        route_speed_mps=7.0,
+    )
+
+    assert selection.index == route_candidate
+    assert np.rad2deg(controls[selection.index, 2, 0]) == pytest.approx(40.0)
+
+
 def test_stand_on_uses_documented_emergency_override_when_nominal_is_unsafe() -> None:
     solution = solver().solve(planner_input(track(position_ne=(500.0, -500.0), velocity_ne=(0.0, 7.0))))
 
     assert solution.algorithm_details["active_encounters"] == ["crossing_stand_on"]
     assert solution.algorithm_details["nominal_candidate_feasible"] is False
     assert "stand_on_emergency_override" in solution.constraints["colreg_policy"]["relaxations"]
+
+
+def test_stand_on_emergency_minimizes_course_change_before_speed() -> None:
+    colreg_solver = solver()
+    colreg_solver._stand_on_course = 0.0
+    colreg_solver._previous_command_course = np.deg2rad(45.0)
+    colreg_solver._maneuver_phase = "RETURN"
+    candidates, controls = colreg_solver._generate_candidate_bundle(
+        np.array([0.0, 0.0, np.deg2rad(45.0), 7.0, 0.0, 0.0]),
+        7.0,
+        0.5,
+        command_course_center=colreg_solver._previous_command_course,
+    )
+    toward_locked_course = 11
+    full_speed_away = 22
+    speed_scales = np.ones(colreg_solver.params.candidate_count)
+    speed_scales[toward_locked_course] = 0.75
+    policy = _Policy(
+        encounters=(),
+        give_way_targets=(),
+        crossing_give_way_targets=(),
+        stand_on_targets=(1,),
+        starboard_required=False,
+    )
+
+    selection = colreg_solver._select_candidate(
+        controls=controls,
+        speed_scales=speed_scales,
+        feasible_indices=np.array([toward_locked_course, full_speed_away]),
+        minimum_clearance=np.full(colreg_solver.params.candidate_count, np.inf),
+        minimum_static_clearance=np.full(colreg_solver.params.candidate_count, np.inf),
+        pass_astern=np.ones(colreg_solver.params.candidate_count, dtype=bool),
+        policy=policy,
+        ownship_course=np.deg2rad(45.0),
+        target_course=np.deg2rad(-80.0),
+        nominal_feasible=False,
+        candidates=candidates,
+        sim_time_s=5.0,
+        route_speed_mps=7.0,
+    )
+
+    assert selection.index == toward_locked_course
+    assert np.rad2deg(controls[selection.index, 2, 0]) == pytest.approx(40.0)
+
+
+def test_policy_releases_stale_give_way_after_safe_dcpa(monkeypatch: pytest.MonkeyPatch) -> None:
+    classifications = iter(
+        (
+            ("crossing_give_way", 100.0, 100.0, 100.0, 45.0),
+            ("clear", 1000.0, 50.0, 50.0, 45.0),
+        )
+    )
+    monkeypatch.setattr(
+        potocnik_colreg_mpc,
+        "classify_geometry",
+        lambda *_args: next(classifications),
+    )
+    colreg_solver = solver()
+    target = track(position_ne=(1000.0, 0.0), velocity_ne=(5.0, 0.0))
+
+    active = colreg_solver._encounter_policy(planner_input(target))
+    released = colreg_solver._encounter_policy(planner_input(target))
+
+    assert active.give_way_targets == (1,)
+    assert released.encounters[0]["detected_geometry"] == "clear"
+    assert released.encounters[0]["encounter"] == "clear"
+    assert released.give_way_targets == ()
+
+
+def test_policy_retains_give_way_while_dcpa_is_inside_safety_buffer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    classifications = iter(
+        (
+            ("crossing_give_way", 100.0, 100.0, 100.0, 45.0),
+            ("clear", 100.0, 50.0, 50.0, 45.0),
+        )
+    )
+    monkeypatch.setattr(
+        potocnik_colreg_mpc,
+        "classify_geometry",
+        lambda *_args: next(classifications),
+    )
+    colreg_solver = solver()
+    target = track(position_ne=(1000.0, 0.0), velocity_ne=(5.0, 0.0))
+
+    colreg_solver._encounter_policy(planner_input(target))
+    retained = colreg_solver._encounter_policy(planner_input(target))
+
+    assert retained.encounters[0]["detected_geometry"] == "clear"
+    assert retained.encounters[0]["encounter"] == "crossing_give_way"
+    assert retained.give_way_targets == (1,)
 
 
 def test_continuous_clearance_detects_between_sample_tunneling() -> None:

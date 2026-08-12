@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planner 契约速查</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header><div class="eyebrow">Reference 03</div><h1>Planner 契约</h1><p class="lede">区分规划器看见什么、执行什么、展示什么。</p></header>
+  <h2>输入</h2>
+  <ul class="source-list">
+    <li><code>ownship_state</code>：6 维自船状态。</li>
+    <li><code>tracks</code>：目标状态、协方差、尺度、观测时间与退化标志。</li>
+    <li><code>waypoints_enu_m</code> / <code>speed_plan_mps</code>：名义任务。</li>
+    <li><code>enc</code> / <code>disturbance</code>：环境约束与扰动。</li>
+    <li>坐标和单位固定为 <code>ENU / SI / rad</code>。</li>
+  </ul>
+  <h2>输出</h2>
+  <ul class="source-list">
+    <li><code>control_reference</code>：9x1，本次求解后立即交给 Ship 的执行参考。</li>
+    <li><code>predicted_trajectory</code>：9xN，规划器预测未来；主要用于验证、保持采样和显示。</li>
+    <li><code>control_trajectory</code>：可选 9xN；存在时，非求解步优先从它采样。</li>
+    <li><code>status / feasible</code>：求解结果是否允许执行。</li>
+    <li><code>constraints / target_predictions</code>：解释预测为何安全或不安全的证据。</li>
+  </ul>
+  <h2>9x1 与 9xN</h2>
+  <p>9 表示每一列有 9 个参考量：</p>
+  <pre><code>[x_d, y_d, psi_d, u_d, v_d, r_d, ax_d, ay_d, rdot_d]^T</code></pre>
+  <p><code>9x1</code> 是一个时刻的一列参考。<code>9xN</code> 是 N 个未来采样时刻并排；行表示变量，列表示时间。N 不是船舶数量。</p>
+  <pre><code>             k=0        k=1             k=N-1
+x_d        [ x0         x1      ...      xN ]
+y_d        [ y0         y1      ...      yN ]
+psi_d      [ p0         p1      ...      pN ]
+...        [ ...        ...     ...      ...]
+rdot_d     [ r0         r1      ...      rN ]</code></pre>
+  <p><code>horizon_dt_s</code> 表示相邻列的时间间隔。普通 <code>Ship.forward()</code> 每步只把一列 9x1 reference 交给 controller。</p>
+  <div class="callout"><strong>不可互换</strong>：预测轨迹不是已执行轨迹；reference 不是控制输入；控制输入也不是下一真实状态。</div>
+  <nav class="next"><a href="../lessons/0003-planner-input-and-output.html">返回第 3 课</a><a href="ship-loop-contracts.html">Ship 契约</a></nav>
+</main></body>
+</html>
