@@ -727,6 +727,8 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
         state.passing_side = PassingSide.NONE
         state.rule17 = Rule17Stage.STAND_ON
         state.rule17_basis = "MONITORING_TARGET_ACTION"
+        if state.baseline_course_rad is None:
+            state.baseline_course_rad = cycle.ownship.heading_rad
         if state.standon_since_s is None:
             state.standon_since_s = cycle.sim_time_s
             state.initial_target_course_rad = math.atan2(

@@ -16,6 +16,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     CommitmentPhase,
     DecisionSnapshot,
     EncounterKind,
+    OwnshipRole,
     PassingSide,
     RiskPhase,
     Rule17Stage,
@@ -504,6 +505,10 @@ def _compile_semantic_problem(
         else policy.preferred_side
     )
     lateral_active = policy.lateral_active or candidate_side is not PassingSide.NONE
+    stand_on_hold = not lateral_active and any(
+        decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
+        for decision in binding.selected_decisions
+    )
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
         route_bearing_rad=policy.committed_route_bearing_rad,
@@ -521,6 +526,9 @@ def _compile_semantic_problem(
         preferred_side=preferred_side,
         starboard_asymmetry_active=starboard_asymmetry,
         min_alteration_rad=minimum_change,
+        prefix_active_k=1 if stand_on_hold else 0,
+        prefix_psi_rad=(float(ownship[2]),) if stand_on_hold else (),
+        prefix_u_mps=(float(ownship[3]),) if stand_on_hold else (),
         route_frame=MidMpcRouteFrame(
             origin_m=(
                 route.anchor_ne_m[0] - float(ownship[0]),

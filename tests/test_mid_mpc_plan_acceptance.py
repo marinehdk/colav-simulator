@@ -199,6 +199,29 @@ def test_safety_checks_every_execution_track_even_when_not_selected_by_solver() 
     assert "SAFETY_SWEPT_CLEARANCE" in {finding.code for finding in result.findings}
 
 
+def test_stand_on_candidate_rejects_course_drift_before_rule17() -> None:
+    authority = AuthorityTarget(
+        key=TrackKey(7, 1),
+        encounter="CROSSING",
+        role="STAND_ON",
+        risk="ACTIVE",
+        commitment="NONE",
+        passing_side="NONE",
+        baseline_course_rad=0.0,
+        required_course_change_rad=0.0,
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(
+        _request(course=np.deg2rad(np.array([0.0, 20.0, 0.0])), authority_targets=(authority,))
+    )
+
+    assert result.accepted is False
+    assert "COLREG_STAND_ON_DRIFT" in {finding.code for finding in result.findings}
+
+
 def test_original_bound_violation_rejects_even_with_success_status() -> None:
     numerical = _numerical(raw_x=np.array([1.01, 0.0, 4.0, 4.0, 0.0, 0.0]))
 

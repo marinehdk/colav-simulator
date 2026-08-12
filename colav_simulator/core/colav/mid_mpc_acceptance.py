@@ -642,6 +642,40 @@ class MidMpcPlanAcceptance:
                 "candidate contains incompatible provisional passing corridors",
             )
         for target in sorted(request.authority.targets, key=lambda item: (item.key.target_id, item.key.generation)):
+            stand_on_obligation = (
+                target.role in {"STAND_ON", "OVERTAKEN"} and target.commitment == "NONE" and target.risk == "ACTIVE"
+            )
+            if stand_on_obligation:
+                give_way_obligation = any(
+                    peer.role in {"GIVE_WAY", "OVERTAKING"} and peer.risk in {"CANDIDATE", "ACTIVE", "PAST_CLEAR"}
+                    for peer in request.authority.targets
+                )
+                if give_way_obligation:
+                    continue
+                if target.baseline_course_rad is None or not math.isfinite(target.baseline_course_rad):
+                    _fail(
+                        findings,
+                        AcceptanceLayer.COLREG,
+                        "COLREG_BASELINE_MISSING",
+                        "stand-on target lacks a frozen course baseline",
+                        target_key=target.key,
+                    )
+                else:
+                    active_prefix_samples = min(2, candidate.course_rad.size)
+                    drift = max(
+                        abs(_wrap(float(course - target.baseline_course_rad)))
+                        for course in candidate.course_rad[:active_prefix_samples]
+                    )
+                    if drift > math.radians(5.0) + 1.0e-6:
+                        _fail(
+                            findings,
+                            AcceptanceLayer.COLREG,
+                            "COLREG_STAND_ON_DRIFT",
+                            "stand-on candidate changes course before Rule 17 authority",
+                            target_key=target.key,
+                            witness={"maximum_course_drift_rad": drift},
+                        )
+                continue
             candidate_obligation = (
                 target.risk == "CANDIDATE" and target.commitment == "NONE" and target.role in {"GIVE_WAY", "OVERTAKING"}
             )
