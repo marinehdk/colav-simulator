@@ -121,7 +121,7 @@ Adapter仅在L4通过后生成Accepted Plan Receipt并一次原子发布solution
 - Use the standard Playground overtaking policy locked by Lifecycle; standard OT is starboard, while mirror/restricted port is accepted only when explicitly locked upstream.
 - Require the Lifecycle action contract to expose commitment baseline, action-start and achievement deadlines, actual cumulative achievement, reachability certificate and current release permission.
 - Check early action on the first executable interval. A predicted future past-and-clear state does not grant current release.
-- Bind production trackability to a typed snapshot of the actual active Viknes+FLSC capability. Current KinematicCSOG limitations cannot substitute for this proof.
+- Bind production trackability to a typed snapshot of the actual active plant/controller tuple. Single-encounter HO/CS/OT uses Viknes+FLSC; the existing multiship scenario may use only its actual KinematicCSOG+pass-through tuple. Neither tuple may substitute for or inherit the other's evidence.
 - Claim hard executability only for the active prefix when no full tracking tube exists. Keep full-horizon planned safety and active-prefix execution claims separate.
 - Keep smoothness, cross-solve churn, efficiency, full-polyline progress, recovery and straightness as V1 advisory evidence. Safe straight plans remain acceptable.
 - Evaluate fresh candidates through full L4. Evaluate held accepted plans on their original absolute timeline using current ownship, current targets, current context and active-prefix capability.
@@ -181,5 +181,6 @@ Adapter仅在L4通过后生成Accepted Plan Receipt并一次原子发布solution
 - Frozen upstream algorithm provenance remains `mass-l3-mid-mpc-ipopt@ced58f8576f3772ef7c1bc72bb0f8b0368688b5a`.
 - Candidate 2 Lifecycle and Candidate 3 Assembler remain independent upstream authorities. L4 may require additional immutable evidence projection fields but may not change their business decisions or numerical semantics.
 - Known frozen L3 own(k+1)/target(k) timing and disabled midpoint rows remain parity facts. L4 compensates through independent synchronized continuous safety; it does not alter the graph.
-- Current production blockers are explicit implementation gates: Lifecycle deadline/reachability projection, real Viknes+FLSC active capability contract, mixed-tolerance boundary corpus and calibrated full-L4 p99 reservation.
+- Current production blockers are explicit implementation gates: Lifecycle deadline/reachability projection, exact-tuple active capability contract, mixed-tolerance boundary corpus and calibrated full-L4 p99 reservation.
+- User ruling on 2026-08-12 resolves the multiship capability conflict: KinematicCSOG+pass-through is acceptable only for its exact multiship tuple and is never presented as Viknes+FLSC evidence.
 - A straight predicted line can be a real optimal solution. L4 rejects unsafe or contract-inconsistent plans, not visually simple ones.

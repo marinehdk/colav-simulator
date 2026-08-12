@@ -31,7 +31,7 @@ to-spec获得以下权限与限制：
 | Fresh Candidate | 本tick执行真实L3后产生、尚未commit的candidate | 已接受plan的继续执行 | R52..R62；DP-12 |
 | Held Accepted Plan | 既有accepted receipt在原absolute timeline上的当前切片 | 继承旧SUCCESS而不复核 | R52/R53；DP-12 |
 | Active Prefix | 从当前实测状态到下次正常solve/commit窗口的执行区间 | 对全部1200s闭环可跟踪性的替代证明 | R40..R46；DP-09 |
-| Trackability | candidate active prefix在真实Viknes+FLSC plant capability内可实现 | reference polyline数学连续性 | R40..R46；DP-09 |
+| Trackability | candidate active prefix在exact tuple的真实plant/controller capability内可实现 | reference polyline数学连续性或跨tuple能力继承 | R40..R46；DP-09 |
 | Synchronized Swept Clearance | 同一时间参数下两船在每个区间的解析相对线段最小hull clearance lower bound | 离散node DCPA、不同步最近点或point-center距离 | R8..R14；DP-05 |
 | Trusted Uncertainty | 逐时刻、经校准、由policy认可的预测误差包络 | 任意安全margin或事后调参 | R10/R14；DP-05/17 |
 | TrackKey | `(session_epoch,target_id,generation)`目标身份 | 可跨reset复用的裸target id | R25/R57；DP-02/11 |
@@ -69,7 +69,7 @@ to-spec获得以下权限与限制：
 | ODD安全 | 150m advisory；God uncertainty=0；非God无校准envelope拒绝；chart profile缺static context拒绝 | TS-20/21/22 |
 | COLREG | Lifecycle唯一authority；HO port-to-port、CS astern、OT locked corridor、stand-on/Rule17 contract | TS-23/24 |
 | 行动/释放 | baseline、deadline、actual achievement、reachability；first executable interval；current release permission | TS-25/26 |
-| Trackability | 真实Viknes+FLSC active capability hard；无full tube只claim active prefix executable/planned safety | TS-27/28 |
+| Trackability | exact tuple真实active plant/controller capability hard；Viknes+FLSC与KinematicCSOG证据严格分名；无full tube只claim active prefix executable/planned safety | TS-27/28 |
 | Quality | smoothness/churn/efficiency/progress/recovery/straightness advisory；安全直线不拒绝 | TS-29 |
 | Fresh/Hold | fresh全L4；hold按当前state/context重验active prefix；一次同算法replan；不续receipt | TS-31/32 |
 | Failure/Commit | rejection无command/fallback、清状态、Session FAILED；final deadline/freshness后atomic commit | TS-33/34 |
@@ -192,7 +192,7 @@ TD-01 Mid-MPC L4 Plan Acceptance
 | V5 Real 8010/UI | 正确服务进程、真实planner events、active/latest时间线、full/inline/GUI同源 | 浏览器可观察证据可信 |
 | V6 Performance/regression | full-L4 p99 reservation、queue/failure injection、full pytest、exact capability tuple | 允许production capability promotion |
 
-最终claim仅限：被冻结commit、policy、God prediction、Viknes+FLSC active capability、seed与场景tuple下的Ship0 plan acceptance/closed-loop证据。明确不包括global all-vessel安全、非God预测、任意plant、NLP global optimum、法律合规证明、实船验证、MASS-L3 SIL/GNC/M7系统接受。
+最终claim仅限：被冻结commit、policy、God prediction、exact active plant/controller capability、seed与场景tuple下的Ship0 plan acceptance/closed-loop证据。明确不包括global all-vessel安全、非God预测、任意plant、跨tuple能力继承、NLP global optimum、法律合规证明、实船验证、MASS-L3 SIL/GNC/M7系统接受。
 
 ## 8. 已知冲突与未闭环Gate
 
@@ -214,7 +214,7 @@ TD-01 Mid-MPC L4 Plan Acceptance
 |---|---|---|
 | Candidate 3集成到目标implementation base | `marine/main@1f459d8`已推送；本设计branch未集成 | 不开始L4生产实现 |
 | Lifecycle action deadline/reachability projection | 设计要求已冻结；字段实现待验证 | COLREG mandatory UNKNOWN→reject |
-| 真实Viknes+FLSC active capability contract | 未接入L4 | trackability UNKNOWN→NOT_PRODUCTION_READY |
+| exact tuple active plant/controller capability contract | 未接入L4 | trackability UNKNOWN→NOT_PRODUCTION_READY |
 | mixed-tolerance boundary corpus | 数值规约已冻结；corpus待建 | COLAV_STRICT不promotion |
 | full-L4 p99 reserved budget | 仅已有geometry/solver局部数据；完整值UNSET | runtime policy NOT_PRODUCTION_READY |
 | V1..V6 | 尚未实施 | 不提升capability、不声称全部Playground PASS |

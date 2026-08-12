@@ -501,7 +501,7 @@
 | TS-24 | 规则谓词 | HO验证port-to-port；CS give-way验证pass-astern；OT验证locked corridor；stand-on/Rule17验证冻结动作合同 | COLREG+DESIGN_DECISION；R22..R33 | DP-07/08 | 标准OT默认右舷；受限/镜像可由Lifecycle锁定左舷 |
 | TS-25 | 动作时序 | action contract必须含commit baseline、start/achievement deadlines、actual cumulative achievement、reachability certificate；first executable interval检查early action | DESIGN_DECISION；R28/R34/R38 | DP-07/08/09 | 仅“最终预测转够”不算及时行动 |
 | TS-26 | 释放 | predicted past-and-clear不能授权当前release；仅消费Lifecycle当前permission；恢复检查route/speed progress | COLREG+DESIGN_DECISION；R28/R39 | DP-07/08/10 | L4不自行提前结束encounter |
-| TS-27 | 可执行性 | production hard gate绑定真实active Viknes+FLSC capability contract；静态`KinematicCSOG`不能替代 | PROJECT_FACT+DESIGN_DECISION；R40..R46 | DP-09/18 | 未接入真实plant envelope前NOT_PRODUCTION_READY |
+| TS-27 | 可执行性 | production hard gate绑定exact tuple的真实active plant/controller capability；单船HO/CS/OT绑定Viknes+FLSC，现有multiship仅绑定KinematicCSOG+pass-through且不得冒充Viknes证据 | PROJECT_FACT+USER_RULING；R40..R46 | DP-09/18 | 未接入当前tuple真实plant envelope前NOT_PRODUCTION_READY |
 | TS-28 | claim窗口 | active-prefix reachability为hard；无full tracking tube时只声明active-prefix executable与planned safety，不声明1200s可跟踪 | DESIGN_DECISION；R40/R45 | DP-09/18 | 避免把reference polyline当闭环保证 |
 | TS-29 | 质量 | V1 advisory检查smoothness、cross-solve churn、efficiency、全polyline progress、recovery、straightness信息；安全直线允许 | DESIGN_DECISION；R47..R51 | DP-10 | raw objective不作为跨周期质量分数 |
 | TS-30 | 多目标 | execution tracks、Lifecycle decisions、predictions、Assembler admission/bindings、solver slots必须一一reconcile；per-TrackKey mandatory AND | DESIGN_DECISION；R25/R31 | DP-11 | primary target只用于显示；target-target碰撞仅global diagnostic |
@@ -3331,3 +3331,7 @@ Step5步骤间门满足。实施/promotion gates仍为：action deadlines/reacha
 - Plan comment：<https://github.com/marinehdk/colav-simulator/issues/26#issuecomment-5262965820>
 - Primary test seam：`MidMpcPlanAcceptance.evaluate(request)->result`
 - Integration seams：`CustomMPCAdapter.plan(...)`、`P1RunHarness`、real port-8010 Session/API event
+
+### 7.5 实施前矛盾裁决
+
+2026-08-12用户确认：active capability按exact tuple绑定，不把KinematicCSOG当作Viknes+FLSC替代物。单船HO/CS/OT以Viknes+FLSC接受；`paper_ccta2023_multiship`仅以其实际KinematicCSOG+pass-through tuple接受。最终仅合并Colav-Simulator本地`main`和GitHub`main`，不移植GitLab MASS `l3-tdl`。

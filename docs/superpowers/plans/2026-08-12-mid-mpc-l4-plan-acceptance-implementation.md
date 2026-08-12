@@ -17,7 +17,7 @@ Work is complete only when all conditions hold:
 5. All relevant targets are reconciled and independently accepted; target count above 16 fails closed.
 6. Independent 81/80 swept hull-clearance witness proves at least 50 m for every Ship0-target pair.
 7. Lifecycle remains sole COLREG authority; L4 only verifies immutable obligations and deadlines.
-8. Real active Viknes+FLSC capability governs active-prefix trackability; otherwise profile remains NOT_PRODUCTION_READY.
+8. Exact-tuple active plant/controller capability governs active-prefix trackability; otherwise profile remains NOT_PRODUCTION_READY.
 9. Request→Problem→Prepared→Candidate→Acceptance→Receipt chain is replayable and projects one consistent full/inline/GUI truth.
 10. Total Assembly→Preparation→IPOPT→L4→freshness→commit meets the measured 20 s policy.
 11. V1..V6 gates pass, full regression is green, and a real port-8010 event proves L3+L4 execution with no fallback.
@@ -45,7 +45,7 @@ The Assembler and Solver remain upstream producers. They are exercised through r
 |---|---|---|
 | Candidate 3 base | `1f459d8` ancestor; assembler/core/adapter suites green | Do not implement on older facade schema |
 | Lifecycle projection | immutable baseline, deadlines, achievement, reachability, release permission | Mandatory COLREG UNKNOWN; no production acceptance |
-| Active plant capability | typed Viknes+FLSC identity, limits, validity and hash | Trackability UNKNOWN; NOT_PRODUCTION_READY |
+| Active plant capability | typed exact-tuple plant/controller identity, limits, validity and hash | Trackability UNKNOWN; NOT_PRODUCTION_READY |
 | Numerical corpus | quantity-specific boundary cases around all TS-15 tolerances | No COLAV_STRICT promotion |
 | Runtime reservation | target-environment full-L4 p99 plus safety margin | Reservation UNSET; NOT_PRODUCTION_READY |
 
@@ -139,7 +139,7 @@ Commit intent: `feat: enforce Lifecycle obligations at Mid-MPC L4`
 
 ### Slice 5: Active-prefix Trackability and Advisory Quality
 
-- RED: missing, stale, mismatched or KinematicCSOG-only capability cannot pass production trackability.
+- RED: missing, stale or mismatched capability cannot pass production trackability; KinematicCSOG may pass only its exact multiship tuple and cannot satisfy a Viknes+FLSC tuple.
 - RED: active prefix outside heading/speed/ROT/accel/decel/reachability envelope rejects.
 - RED: correct COG/SOG and body psi/u/v/r conversion passes; swapped semantics reject.
 - RED: quality detects cross-solve churn, poor progress and delayed recovery but does not reject a safe straight route plan.
@@ -148,7 +148,7 @@ Commit intent: `feat: enforce Lifecycle obligations at Mid-MPC L4`
 Acceptance:
 
 - Capability identity and validity are included in request/policy hashes.
-- Real Viknes+FLSC contract is used for production tuple.
+- Real active tuple contract is used: Viknes+FLSC for single encounters; KinematicCSOG+pass-through only for existing multiship.
 - Without a validated full tracking tube, result wording claims only active-prefix executability plus planned full-horizon safety.
 - Raw objective is not used as cross-cycle quality score.
 
@@ -313,7 +313,7 @@ uv run pytest -q
 - Any change to frozen parity expected values, L3 equations, objective or row topology.
 - Any need for L4 to reclassify encounters, choose side, advance phase or grant release.
 - Any scenario-ID branch, fallback controller, forced PASS or reduction of the physical 50 m gate.
-- Any production acceptance based only on KinematicCSOG, absent prediction uncertainty, stale chart context or uncalibrated deadline reservation.
+- Any production acceptance with mismatched plant/controller identity, absent prediction uncertainty, stale required chart context or uncalibrated deadline reservation.
 - Any L4 rejection leaking candidate trajectory, command, receipt, warm seed or success event.
 - Any target truncation when relevant count exceeds 16.
 - Any synchronous artifact I/O placed before semantic/command commit.
@@ -326,4 +326,4 @@ uv run pytest -q
 3. Resolve severity high/medium findings with additional RED/GREEN slices.
 4. Rerun affected gates and full regression.
 5. Push the implementation branch and publish final evidence to the ready-for-agent issue.
-6. Merge only after exact capability metadata and live-runtime evidence match the accepted claim boundary.
+6. Merge only into Colav-Simulator local/GitHub `main` after exact capability metadata and live-runtime evidence match the accepted claim boundary; do not port to GitLab MASS `l3-tdl`.
