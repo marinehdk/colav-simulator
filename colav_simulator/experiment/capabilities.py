@@ -800,8 +800,6 @@ class CapabilityCatalog:
                 PlanStatus.INVALID_INPUT,
                 f"{scenario_id} is not a selectable {validation_rule_id} validation scene",
             )
-        self._require_available(ALGORITHMS, algorithm_id)
-        self._require_available(TRACKERS, tracker_id)
         key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
         if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
             has_experimental_scope = bool(
@@ -812,6 +810,8 @@ class CapabilityCatalog:
                 PlanStatus.INVALID_INPUT,
                 f"No {label} tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
             )
+        self._require_available(ALGORITHMS, algorithm_id)
+        self._require_available(TRACKERS, tracker_id)
         return ":".join(key)
 
     def _require_available(self, capabilities: dict[str, Capability], identifier: str) -> None:

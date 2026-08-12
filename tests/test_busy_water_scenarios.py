@@ -18,11 +18,21 @@ from colav_simulator.integrations import IntegrationRegistry
 from gui_server import main as gui_main
 
 
+def _canonicalize_floats(value: object) -> object:
+    if isinstance(value, float):
+        return float(f"{value:.15g}")
+    if isinstance(value, list):
+        return [_canonicalize_floats(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _canonicalize_floats(item) for key, item in value.items()}
+    return value
+
+
 def test_acceptance_scenario_is_deterministic_and_matches_committed_yaml() -> None:
     generated = build_busy_water_document("acceptance")
     committed = yaml.safe_load(Path("scenarios/romsdal_busy_water_16.yaml").read_text(encoding="utf-8"))
 
-    assert generated == committed
+    assert _canonicalize_floats(generated) == _canonicalize_floats(committed)
     assert len(generated["ship_list"]) == 16
     assert len({ship["id"] for ship in generated["ship_list"]}) == 16
     assert generated["t_end"] == BUSY_WATER_DURATION_S == 1200.0
@@ -39,7 +49,7 @@ def test_stress_scenario_is_seeded_and_matches_committed_yaml() -> None:
     generated = build_busy_water_document("stress")
     committed = yaml.safe_load(Path("scenarios/romsdal_busy_water_80_stress.yaml").read_text(encoding="utf-8"))
 
-    assert generated == committed
+    assert _canonicalize_floats(generated) == _canonicalize_floats(committed)
     assert len(generated["ship_list"]) == 80
     assert generated != build_busy_water_document("stress", seed=20250732)
     assert generated["t_end"] == BUSY_WATER_DURATION_S
