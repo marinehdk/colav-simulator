@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -17,7 +18,7 @@ from colav_simulator.integrations.registry import IntegrationRegistry
 ALGORITHM_ID = "mid_mpc_ipopt"
 
 
-def _fast_adapter() -> CustomMPCAdapter:
+def _fast_adapter(*, scenario_id: str = "head_on") -> CustomMPCAdapter:
     return IntegrationRegistry().build_algorithm(
         ALGORITHM_ID,
         {
@@ -29,7 +30,13 @@ def _fast_adapter() -> CustomMPCAdapter:
                 "deadline_s": 20.0,
             },
         },
-        factory_context=FactoryContext(ALGORITHM_ID, 0, deadline_mode=DeadlineMode.OFF),
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            scenario_id=scenario_id,
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+        ),
     )
 
 
@@ -43,6 +50,8 @@ def _plan(
     t: float,
     targets: list[tuple] | None = None,
     ownship: np.ndarray | None = None,
+    model_name: str = "Viknes",
+    controller_name: str = "FLSC",
 ) -> np.ndarray:
     snapshots = [
         TrackSnapshot(
@@ -66,6 +75,9 @@ def _plan(
         snapshots,
         dt=1.0,
         os_length=15.0,
+        os_model_name=model_name,
+        os_controller_name=controller_name,
+        os_max_turn_rate_radps=np.deg2rad(3.0),
     )
 
 
@@ -100,7 +112,13 @@ def test_registry_exposes_published_mid_mpc_profile_and_truthful_descriptor() ->
 def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     adapter = IntegrationRegistry().build_algorithm(
         ALGORITHM_ID,
-        factory_context=FactoryContext(ALGORITHM_ID, 0, deadline_mode=DeadlineMode.OFF),
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            scenario_id="route",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+        ),
     )
 
     command = adapter.plan(
@@ -111,6 +129,9 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
         [],
         dt=1.0,
         os_length=15.0,
+        os_model_name="Viknes",
+        os_controller_name="FLSC",
+        os_max_turn_rate_radps=np.deg2rad(3.0),
     )
 
     plan = adapter.get_current_plan()
@@ -137,6 +158,27 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     assert trace["algorithm_details"]["control_intervals"] == 80
     assert trace["algorithm_details"]["state_samples"] == 81
     assert trace["algorithm_details"]["horizon_duration_s"] == 1200.0
+    acceptance = trace["algorithm_details"]["plan_acceptance"]
+    assert acceptance["accepted"] is True
+    assert acceptance["aggregate"] == "PASS"
+    assert acceptance["profile"] == "COLAV_STRICT"
+    assert len(acceptance["request_hash"]) == 64
+    assert len(acceptance["acceptance_hash"]) == 64
+    receipt = trace["algorithm_details"]["accepted_plan_receipt"]
+    assert receipt["parent_acceptance_hash"] == trace["algorithm_details"]["assembly"]["acceptance_hash"]
+    assert receipt["semantic_acceptance_hash"] == acceptance["acceptance_hash"]
+    assert receipt["profile"] == "COLAV_STRICT"
+    assert receipt["warm_start_eligible"] is True
+    assert len(receipt["receipt_hash"]) == 64
+    assert [layer["layer"] for layer in acceptance["layers"]] == [
+        "integrity",
+        "numerical",
+        "safety",
+        "COLREG",
+        "trackability",
+        "quality",
+        "evidence",
+    ]
     assembly = trace["algorithm_details"]["assembly"]
     assert assembly["schema_version"] == "1.0"
     assert assembly["profile"] == "COLAV_STRICT"
@@ -161,6 +203,8 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
         factory_context=FactoryContext(
             ALGORITHM_ID,
             0,
+            scenario_id="route",
+            tracker_id="god",
             deadline_mode=DeadlineMode.OFF,
             artifact_sink=writer.write_mid_mpc_artifact,
         ),
@@ -187,6 +231,7 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
         "prepared": assembly["prepared_hash"],
         "solver": assembly["solver_hash"],
         "acceptance": assembly["acceptance_hash"],
+        "receipt": assembly["receipt_hash"],
     }
     chain = document["hash_chain"]
     assert chain["request"]["hash"] == _canonical_hash(document["request_stage"])
@@ -194,10 +239,12 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
     assert chain["prepared"]["parent_hash"] == chain["problem"]["hash"]
     assert chain["solver"]["parent_hash"] == chain["prepared"]["hash"]
     assert chain["acceptance"]["parent_hash"] == chain["solver"]["hash"]
+    assert chain["receipt"]["parent_hash"] == chain["acceptance"]["hash"]
     assert chain["problem"]["hash"] == _canonical_hash(document["problem_stage"])
     assert chain["prepared"]["hash"] == _canonical_hash(document["prepared_stage"])
     assert chain["solver"]["hash"] == _canonical_hash(document["solver_stage"])
     assert chain["acceptance"]["hash"] == _canonical_hash(document["acceptance_stage"])
+    assert chain["receipt"]["hash"] == _canonical_hash(document["receipt_stage"])
     substituted_request = dict(document["request_stage"])
     substituted_request["frame"] = "NED"
     assert _canonical_hash(substituted_request) != chain["request"]["hash"]
@@ -226,7 +273,7 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
 
 
 def test_dynamic_tracks_use_shared_geometry_and_direct_optimizer_intents() -> None:
-    adapter = _fast_adapter()
+    adapter = _fast_adapter(scenario_id="paper_ccta2023_multiship")
     covariance = np.eye(4)
 
     _plan(
@@ -238,6 +285,8 @@ def test_dynamic_tracks_use_shared_geometry_and_direct_optimizer_intents() -> No
             (13, np.array([1000.0, 1000.0, 0.0, -4.0]), covariance, 15.0, 4.0),
             (14, np.array([-100.0, -100.0, 2.0, 4.0]), covariance, 15.0, 4.0),
         ],
+        model_name="KinematicCSOG",
+        controller_name="PassThroughCS",
     )
 
     trace = adapter.get_colav_data()["planner"]
@@ -255,7 +304,7 @@ def test_dynamic_tracks_use_shared_geometry_and_direct_optimizer_intents() -> No
     assert details["decision_intent"] == "GIVE_WAY"
     assert details["preferred_side"] == "starboard"
     assert details["starboard_asymmetry_active"] is False
-    assert details["selected_target_ids"] == [14]
+    assert details["selected_target_ids"] == [14, 12, 13, 11]
     lifecycle_targets = {item["target_id"]: item for item in details["lifecycle"]["targets"]}
     assert lifecycle_targets[11]["role"] == "GIVE_WAY"
     assert lifecycle_targets[11]["risk"] == "CANDIDATE"
@@ -329,6 +378,8 @@ def test_lifecycle_transition_sink_is_incremental_and_reflected_in_trace() -> No
         factory_context=FactoryContext(
             ALGORITHM_ID,
             0,
+            scenario_id="head_on",
+            tracker_id="god",
             deadline_mode=DeadlineMode.OFF,
             event_sink=persisted.append,
         ),
@@ -371,51 +422,35 @@ def test_sway_velocity_and_overtaking_side_reach_the_optimizer() -> None:
     _plan(
         overtaking_adapter,
         0.0,
-        [(22, np.array([100.0, 20.0, 2.0, 0.0]), covariance, 15.0, 4.0)],
+        [(22, np.array([1000.0, 100.0, 2.0, 0.0]), covariance, 15.0, 4.0)],
     )
     overtaking = overtaking_adapter.get_colav_data()["planner"]
     assert overtaking["target_predictions"][0]["encounter"] == "overtaking"
     assert overtaking["target_predictions"][0]["preferred_side"] == "port"
 
 
-def test_conflicting_overtaking_sides_fail_stop_after_commitment_confirmation() -> None:
-    adapter = _fast_adapter()
+def test_conflicting_overtaking_sides_fail_l4_before_first_command() -> None:
+    adapter = _fast_adapter(scenario_id="paper_ccta2023_multiship")
     covariance = np.eye(4)
 
-    _plan(
-        adapter,
-        0.0,
-        [
-            (31, np.array([100.0, 20.0, 2.0, 0.0]), covariance, 15.0, 4.0),
-            (32, np.array([100.0, -20.0, 2.0, 0.0]), covariance, 15.0, 4.0),
-            (33, np.array([300.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0),
-        ],
-    )
-
-    trace = adapter.get_colav_data()["planner"]
-    targets = {item["target_id"]: item for item in trace["target_predictions"]}
-    assert targets[31]["encounter"] == "overtaking"
-    assert targets[31]["preferred_side"] == "port"
-    assert targets[32]["encounter"] == "overtaking"
-    assert targets[32]["preferred_side"] == "starboard"
-    assert targets[33]["encounter"] == "head_on"
-    assert trace["algorithm_details"]["preferred_side"] == "none"
     with np.testing.assert_raises(ColavExecutionError) as error:
         _plan(
             adapter,
-            5.0,
+            0.0,
             [
-                (31, np.array([100.0, 20.0, 2.0, 0.0]), covariance, 15.0, 4.0),
-                (32, np.array([100.0, -20.0, 2.0, 0.0]), covariance, 15.0, 4.0),
-                (33, np.array([300.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0),
+                (31, np.array([1000.0, 100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
+                (32, np.array([1000.0, -100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
             ],
+            model_name="KinematicCSOG",
+            controller_name="PassThroughCS",
         )
-    assert "MANEUVER_CONFLICT" in str(error.exception)
+    assert "COLREG_CONFLICTING_LOCKED_SIDES" in str(error.exception)
     assert error.exception.source is FailureSource.ALGORITHM
     failure = adapter.get_colav_data()["planner"]
     assert failure["solver_executed"] is False
-    assert failure["status"] == PlanStatus.INVALID_INPUT.value
-    assert failure["algorithm_details"]["failure_code"] == "MANEUVER_CONFLICT"
+    assert failure["solve_id"] == 0
+    assert failure["status"] == PlanStatus.INFEASIBLE.value
+    assert failure["algorithm_details"]["failure_code"] == "L4_PLAN_REJECTED"
     assert adapter.get_diagnostics().details["cached_plan_used"] is False
 
 
@@ -424,15 +459,13 @@ def test_seventeenth_required_target_fails_before_solver_without_truncation() ->
     targets = [
         (target_id, np.array([1000.0 + target_id, 0.0, -4.0, 0.0]), np.eye(4), 15.0, 4.0) for target_id in range(1, 18)
     ]
-    _plan(adapter, 0.0, targets)
-
     with np.testing.assert_raises(ColavExecutionError) as error:
-        _plan(adapter, 5.0, targets)
+        _plan(adapter, 0.0, targets)
 
     assert "CAPACITY_EXCEEDED" in str(error.exception)
     trace = adapter.get_colav_data()["planner"]
     assert trace["solver_executed"] is False
-    assert trace["solve_id"] == 1
+    assert trace["solve_id"] == 0
     assert trace["algorithm_details"]["failure_code"] == "CAPACITY_EXCEEDED"
     assert adapter.get_diagnostics().details["cached_plan_used"] is False
 
@@ -448,6 +481,7 @@ def test_adapter_owns_hold_schedule_and_reset_state() -> None:
     assert trace["solver_executed"] is False
     assert trace["algorithm_details"]["trajectory_source"] == "held_plan"
     assert trace["algorithm_details"]["held_elapsed_s"] == 2.0
+    assert trace["algorithm_details"]["hold_acceptance"]["accepted"] is True
     assert adapter.get_diagnostics().details["solver_executed"] is False
     assert np.isfinite(first).all() and np.isfinite(held).all()
 
@@ -463,6 +497,65 @@ def test_adapter_owns_hold_schedule_and_reset_state() -> None:
     np.testing.assert_allclose(repeated, first, atol=1e-7)
 
 
+def test_stale_held_plan_replans_once_before_command_visibility() -> None:
+    adapter = _fast_adapter()
+    _plan(adapter, 0.0)
+
+    shifted = np.array([100.0, 0.0, 0.0, 4.0, 0.0, 0.0])
+    command = _plan(adapter, 2.0, ownship=shifted)
+
+    trace = adapter.get_colav_data()["planner"]
+    assert trace["solver_executed"] is True
+    assert trace["solve_id"] == 2
+    assert trace["algorithm_details"]["hold_replan_reason"] == "OWN_STATE_DEVIATION"
+    assert trace["algorithm_details"]["trajectory_source"] == "fresh_ipopt_solve"
+    assert np.isfinite(command).all()
+    np.testing.assert_allclose(adapter.get_current_plan()[:2, 0], shifted[:2], atol=1e-9)
+
+
+def test_compatible_dynamic_target_reuses_held_plan_with_full_l4_revalidation() -> None:
+    adapter = _fast_adapter()
+    covariance = np.zeros((4, 4))
+    _plan(
+        adapter,
+        0.0,
+        [(51, np.array([1000.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0)],
+    )
+
+    _plan(
+        adapter,
+        2.0,
+        [(51, np.array([992.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0)],
+    )
+
+    trace = adapter.get_colav_data()["planner"]
+    assert trace["solver_executed"] is False
+    assert trace["solve_id"] == 1
+    assert trace["algorithm_details"]["hold_acceptance"]["accepted"] is True
+
+
+def test_capability_tuple_does_not_branch_on_scenario_id() -> None:
+    adapter = _fast_adapter(scenario_id="unlisted_but_same_runtime_tuple")
+
+    command = _plan(adapter, 0.0)
+
+    assert np.isfinite(command).all()
+    assert adapter.get_diagnostics().status is PlanStatus.SUCCESS
+
+
+def test_only_accepted_receipt_can_seed_next_ipopt_solve() -> None:
+    adapter = _fast_adapter()
+    _plan(adapter, 0.0)
+    assert adapter.get_diagnostics().details["warm_start_used"] is False
+
+    _plan(adapter, 5.0)
+
+    details = adapter.get_diagnostics().details
+    assert details["warm_start_used"] is True
+    assert details["accepted_plan_receipt"]["dual_warm_start"] is False
+    assert details["accepted_plan_receipt"]["warm_start_eligible"] is True
+
+
 def test_reset_clears_encounter_commitment() -> None:
     adapter = _fast_adapter()
     target = [(41, np.array([1000.0, 0.0, -4.0, 0.0]), np.eye(4), 15.0, 4.0)]
@@ -471,7 +564,7 @@ def test_reset_clears_encounter_commitment() -> None:
     assert adapter.get_diagnostics().details["minimum_alteration_active"] is False
     _plan(adapter, 5.0, target)
     assert adapter.get_diagnostics().details["minimum_alteration_active"] is True
-    _plan(adapter, 10.0, target)
+    _plan(adapter, 10.0, target, ownship=np.array([35.0, 0.0, math.radians(5.0), 4.0, 0.0, 0.0]))
     assert adapter.get_diagnostics().details["minimum_alteration_active"] is True
 
     adapter.reset()
@@ -528,7 +621,13 @@ def test_infeasible_ipopt_problem_has_no_fallback_plan() -> None:
                 "decel_max_mps2": 0.05,
             },
         },
-        factory_context=FactoryContext(ALGORITHM_ID, 0, deadline_mode=DeadlineMode.OFF),
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            scenario_id="route",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+        ),
     )
 
     with np.testing.assert_raises(ColavExecutionError) as error:
@@ -540,26 +639,34 @@ def test_infeasible_ipopt_problem_has_no_fallback_plan() -> None:
     assert adapter.get_colav_data()["planner"]["solve_id"] == 0
 
 
-def test_real_ipopt_deadline_maps_to_timeout_feasible_without_fallback() -> None:
-    adapter = IntegrationRegistry().build_algorithm(
-        ALGORITHM_ID,
-        {
-            "factory": "colav_simulator.integrations.mid_mpc_ipopt:create",
-            "kwargs": {
-                "horizon_steps": 4,
-                "horizon_dt_s": 5.0,
-                "solve_period_s": 5.0,
-                "deadline_s": 1e-9,
+def test_mid_mpc_rejects_deadline_without_frozen_acceptance_reservation() -> None:
+    with np.testing.assert_raises(ColavExecutionError) as error:
+        IntegrationRegistry().build_algorithm(
+            ALGORITHM_ID,
+            {
+                "factory": "colav_simulator.integrations.mid_mpc_ipopt:create",
+                "kwargs": {
+                    "horizon_steps": 4,
+                    "horizon_dt_s": 5.0,
+                    "solve_period_s": 5.0,
+                    "deadline_s": 5.0,
+                },
             },
-        },
-        factory_context=FactoryContext(ALGORITHM_ID, 0, deadline_mode=DeadlineMode.ENFORCE),
-    )
+            factory_context=FactoryContext(ALGORITHM_ID, 0, deadline_mode=DeadlineMode.ENFORCE),
+        )
+    assert error.exception.status is PlanStatus.INVALID_INPUT
 
-    _plan(adapter, 0.0)
 
-    diagnostics = adapter.get_diagnostics()
-    trace = adapter.get_colav_data()["planner"]
-    assert diagnostics.status is PlanStatus.TIMEOUT_FEASIBLE
-    assert diagnostics.fallback_used is False
-    assert trace["status"] == PlanStatus.TIMEOUT_FEASIBLE.value
-    assert trace["solver_executed"] is True
+def test_adapter_rejection_before_commit_cannot_publish_warm_start(monkeypatch) -> None:
+    adapter = _fast_adapter()
+    facade = adapter._solve.__self__  # type: ignore[attr-defined]
+
+    def reject_solution(_solution, _planner_input) -> None:
+        raise ColavExecutionError(PlanStatus.INVALID_INPUT, "injected validation rejection")
+
+    monkeypatch.setattr(adapter, "_validate_solution", reject_solution)
+
+    with np.testing.assert_raises(ColavExecutionError):
+        _plan(adapter, 0.0)
+
+    assert facade._accepted_primal is None

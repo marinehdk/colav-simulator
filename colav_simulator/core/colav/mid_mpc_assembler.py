@@ -16,6 +16,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     CommitmentPhase,
     DecisionSnapshot,
     EncounterKind,
+    OwnshipRole,
     PassingSide,
     RiskPhase,
     Rule17Stage,
@@ -490,7 +491,23 @@ def _compile_semantic_problem(
     starboard_asymmetry = any(
         decision.passing_side is PassingSide.STARBOARD
         and decision.encounter in {EncounterKind.HEAD_ON, EncounterKind.CROSSING}
-        for decision in binding.required_decisions
+        for decision in binding.required_decisions or binding.selected_decisions
+    )
+    candidate_sides = {
+        decision.passing_side
+        for decision in binding.selected_decisions
+        if decision.risk is RiskPhase.CANDIDATE and decision.passing_side is not PassingSide.NONE
+    }
+    candidate_side = next(iter(candidate_sides)) if len(candidate_sides) == 1 else PassingSide.NONE
+    preferred_side = (
+        {PassingSide.PORT: -1, PassingSide.STARBOARD: 1}[candidate_side]
+        if candidate_side is not PassingSide.NONE
+        else policy.preferred_side
+    )
+    lateral_active = policy.lateral_active or candidate_side is not PassingSide.NONE
+    stand_on_hold = not lateral_active and any(
+        decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
+        for decision in binding.selected_decisions
     )
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
@@ -505,10 +522,13 @@ def _compile_semantic_problem(
         cpa_hard_m=effective_cpa_hard_m,
         rot_max_rad_s=capability.rot_max_rad_s,
         decel_max_mps2=capability.decel_max_mps2,
-        lateral_active=policy.lateral_active,
-        preferred_side=policy.preferred_side,
+        lateral_active=lateral_active,
+        preferred_side=preferred_side,
         starboard_asymmetry_active=starboard_asymmetry,
         min_alteration_rad=minimum_change,
+        prefix_active_k=1 if stand_on_hold else 0,
+        prefix_psi_rad=(float(ownship[2]),) if stand_on_hold else (),
+        prefix_u_mps=(float(ownship[3]),) if stand_on_hold else (),
         route_frame=MidMpcRouteFrame(
             origin_m=(
                 route.anchor_ne_m[0] - float(ownship[0]),
@@ -658,9 +678,9 @@ def _effective_node_clearance(
         covariance_allowance = math.sqrt(max(0.0, float(np.max(np.linalg.eigvalsh(track.covariance[:2, :2]))))) * math.sqrt(
             9.210340371976184
         )
-        target_step_allowance = float(np.linalg.norm(track.state_enu[2:4])) * config.horizon_dt_s
-        target_allowances.append(footprint + covariance_allowance + target_step_allowance)
-    return config.cpa_hard_m + own_radius + max(target_allowances)
+        target_allowances.append(footprint + covariance_allowance)
+    own_step_allowance = config.speed_bounds_mps[1] * config.horizon_dt_s
+    return config.cpa_hard_m + own_radius + max(target_allowances) + own_step_allowance
 
 
 def _wrap(angle: float) -> float:
@@ -760,8 +780,8 @@ def _activation_plan(
                 config.horizon_steps,
                 math.floor(activation_s / config.horizon_dt_s),
             ),
-            direction_hard_from_s=0.0,
-            direction_hard_from_k=0,
+            direction_hard_from_s=(config.horizon_dt_s if decision.risk is RiskPhase.CANDIDATE else 0.0),
+            direction_hard_from_k=(1 if decision.risk is RiskPhase.CANDIDATE else 0),
             min_alt_hard_from_s=min_alt_hard_from_k * config.horizon_dt_s,
             min_alt_hard_from_k=min_alt_hard_from_k,
         )
@@ -783,7 +803,10 @@ def _activation_plan(
     )
     return ConstraintActivationPlan(
         targets=targets,
-        global_cpa_hard_from_k=min((target.cpa_hard_from_k for target in targets), default=config.horizon_steps),
+        global_cpa_hard_from_k=min(
+            (target.cpa_hard_from_k for target in targets),
+            default=config.horizon_steps,
+        ),
         global_direction_hard_from_k=min(
             (target.direction_hard_from_k for target in targets),
             default=0,
@@ -843,14 +866,14 @@ def _admission_rank(decision: TargetDecision) -> int:
     if decision.rule17 is Rule17Stage.MAY_ACT:
         return 3
     if decision.rule17 is Rule17Stage.STAND_ON:
-        return 0
+        return 2
     if decision.risk is RiskPhase.ACTIVE:
         return 3
     if decision.risk is RiskPhase.CANDIDATE:
-        return 0
+        return 2
     if decision.risk is RiskPhase.PAST_CLEAR or decision.recovery_guard_active:
         return 1
-    return 0
+    return 1
 
 
 def _admit_target_keys(

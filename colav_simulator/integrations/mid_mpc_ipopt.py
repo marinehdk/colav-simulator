@@ -5,8 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from enum import Enum
 
 import numpy as np
@@ -41,8 +42,25 @@ from colav_simulator.core.colav.encounter_lifecycle import (
 from colav_simulator.core.colav.mid_mpc import (
     MidMpcConfig,
     MidMpcIpoptSolver,
+    MidMpcPrimalWarmStart,
     MidMpcResult,
     MidMpcStatus,
+)
+from colav_simulator.core.colav.mid_mpc_acceptance import (
+    AcceptanceMode,
+    AcceptanceProfile,
+    AcceptanceRequest,
+    AcceptanceResult,
+    AuthorityEvidence,
+    AuthorityTarget,
+    CandidateEvidence,
+    ExecutionEvidence,
+    ExecutionTarget,
+    MidMpcPlanAcceptance,
+    NumericalEvidence,
+    PlanAcceptancePolicy,
+    PlantCapabilityEvidence,
+    PriorEvidence,
 )
 from colav_simulator.core.colav.mid_mpc_assembler import (
     AssemblyFailure,
@@ -60,12 +78,21 @@ from colav_simulator.core.guidances import LOSGuidance
 from colav_simulator.core.tracking.trackers import TrackKey
 
 __version__ = "2.0.0"
+_TOTAL_DEADLINE_S = 20.0
+_ACCEPTANCE_RESERVATION_S = 0.25
+_ACCEPTANCE_P99_MS = 35.046
+_ACCEPTANCE_CALIBRATION_ID = "m3-macos26-python3.11-20260812-1000x-0-1-16"
 
 
 @dataclass(frozen=True)
 class _FacadeConfig:
     assembly: MidMpcAssemblyConfig
     profile: PlannerOddProfile
+    total_deadline_s: float
+    acceptance_reservation_s: float
+    scenario_id: str
+    algorithm_seed: int
+    tracker_id: str
 
 
 class _MidMpcFacade:
@@ -82,15 +109,19 @@ class _MidMpcFacade:
             horizon_steps=config.assembly.horizon_steps,
             dt_s=config.assembly.horizon_dt_s,
             strict_slack_bounds=True,
+            max_wall_time_s=config.total_deadline_s - config.acceptance_reservation_s,
         )
         self._solver = MidMpcIpoptSolver(core_config)
         self._assembler = MidMpcProblemAssembler()
+        self._acceptance = MidMpcPlanAcceptance()
         self._lifecycle = EncounterLifecycle(event_sink=event_sink)
         self._last_guidance_time_s: float | None = None
         self._epoch_number = 1
         self._cycle_sequence = 0
         self._last_cycle_time_s: float | None = None
         self._artifact_sink = artifact_sink
+        self._accepted_primal: tuple[float, np.ndarray, np.ndarray, str, str] | None = None
+        self._accepted_request: AcceptanceRequest | None = None
 
     def reset(self) -> None:
         self._los.reset()
@@ -103,8 +134,130 @@ class _MidMpcFacade:
         self._last_guidance_time_s = None
         self._cycle_sequence = 0
         self._last_cycle_time_s = None
+        self._accepted_primal = None
+        self._accepted_request = None
 
-    def solve(self, planner_input: PlannerInput) -> MPCSolution:
+    def validate_hold(
+        self,
+        planner_input: PlannerInput,
+        solution: MPCSolution,
+        elapsed_s: float,
+    ) -> dict[str, object]:
+        context = solution.algorithm_details.get("acceptance_context")
+        acceptance = solution.algorithm_details.get("plan_acceptance")
+        receipt = solution.algorithm_details.get("accepted_plan_receipt")
+        if (
+            not isinstance(context, dict)
+            or not isinstance(acceptance, dict)
+            or not isinstance(receipt, dict)
+            or acceptance.get("accepted") is not True
+            or self._accepted_request is None
+        ):
+            raise _hold_rejection("HOLD_RECEIPT_MISSING", "held plan has no accepted L4 receipt")
+        if planner_input.sim_time_s > float(receipt.get("valid_until_s", -math.inf)) + 1.0e-9:
+            raise _hold_rejection("HOLD_RECEIPT_EXPIRED", "held plan receipt expired on its original timeline")
+        if _document_hash(asdict(self._accepted_request.policy)) != context.get("policy_hash"):
+            raise _hold_rejection("HOLD_POLICY_CHANGED", "held plan acceptance policy changed")
+        current_keys = sorted((track.target_id, track.generation) for track in planner_input.tracks)
+        expected_keys = sorted(tuple(item) for item in context.get("target_keys", []))
+        if current_keys != expected_keys:
+            raise _hold_rejection("HOLD_TARGET_SET_CHANGED", "held target identity set changed")
+        if _planner_route_hash(planner_input) != context.get("route_hash"):
+            raise _hold_rejection("HOLD_ROUTE_CHANGED", "held route or speed plan changed")
+        capability = _active_capability(planner_input, self._config)
+        if (
+            capability.exact_tuple != context.get("capability_tuple")
+            or _capability_contract_hash(capability) != context.get("capability_hash")
+            or capability.limitations
+            or self._config.scenario_id != context.get("scenario_id")
+            or self._config.algorithm_seed != context.get("algorithm_seed")
+            or self._config.tracker_id != context.get("tracker_id")
+        ):
+            raise _hold_rejection("HOLD_CAPABILITY_CHANGED", "active plant/controller capability changed")
+        prediction_error_m, velocity_error_mps = _held_target_prediction_error(
+            planner_input,
+            solution,
+            elapsed_s=elapsed_s,
+        )
+        if prediction_error_m > 1.0 or velocity_error_mps > 0.1:
+            raise _hold_rejection(
+                "HOLD_TARGET_PREDICTION_CHANGED",
+                "held target prediction no longer matches current tracker evidence",
+            )
+        expected = _trajectory_state_at(solution.predicted_trajectory, solution.horizon_dt_s, elapsed_s)
+        position_error_m = float(np.linalg.norm(planner_input.ownship_state[:2] - expected[:2]))
+        heading_delta = float(planner_input.ownship_state[2] - expected[2])
+        heading_error_rad = abs(math.atan2(math.sin(heading_delta), math.cos(heading_delta)))
+        speed_error_mps = abs(float(np.hypot(*planner_input.ownship_state[3:5]) - np.hypot(*expected[3:5])))
+        if position_error_m > 50.0:
+            raise _hold_rejection("OWN_STATE_DEVIATION", "held plan position deviation exceeds 50 m")
+        validation_window_s = max(elapsed_s, self._config.assembly.horizon_dt_s)
+        capability_heading_allowance = capability.rot_max_rad_s * validation_window_s
+        capability_speed_allowance = max(capability.accel_max_mps2, capability.decel_max_mps2) * validation_window_s
+        if (
+            heading_error_rad > capability_heading_allowance + 1.0e-6
+            or speed_error_mps > capability_speed_allowance + 1.0e-6
+        ):
+            raise _hold_rejection("OWN_STATE_DEVIATION", "held plan motion-state deviation exceeds active-prefix limit")
+        remaining_s = max(0.0, self._config.assembly.decision_period_s - elapsed_s)
+        clearance = _held_prefix_clearance(
+            planner_input,
+            solution,
+            elapsed_s=elapsed_s,
+            remaining_s=remaining_s,
+        )
+        if clearance < self._config.assembly.cpa_hard_m:
+            raise _hold_rejection("HOLD_SAFETY_REJECTED", "held plan active prefix violates swept hull clearance")
+        held_request = _held_acceptance_request(
+            self._accepted_request,
+            planner_input,
+            solution,
+            elapsed_s=elapsed_s,
+            capability=capability,
+            previous_acceptance_hash=str(acceptance["acceptance_hash"]),
+        )
+        held_result = self._acceptance.evaluate(held_request)
+        if not held_result.accepted:
+            failure_codes = [
+                finding.code
+                for finding in held_result.findings
+                if finding.mandatory and finding.outcome.value in {"FAIL", "UNKNOWN"}
+            ]
+            raise _hold_rejection(
+                "HOLD_L4_REJECTED",
+                f"held plan failed L4 revalidation: {', '.join(failure_codes)}",
+            )
+        return {
+            "accepted": True,
+            "mode": AcceptanceMode.HELD_ACCEPTED_PLAN.value,
+            "checked_at_s": planner_input.sim_time_s,
+            "elapsed_s": elapsed_s,
+            "previous_acceptance_hash": acceptance["acceptance_hash"],
+            "position_error_m": position_error_m,
+            "heading_error_rad": heading_error_rad,
+            "speed_error_mps": speed_error_mps,
+            "target_prediction_error_m": prediction_error_m,
+            "target_velocity_error_mps": velocity_error_mps,
+            "minimum_prefix_hull_clearance_m": clearance,
+            "acceptance_hash": held_result.acceptance_hash,
+            "layers": [asdict(layer) for layer in held_result.layers],
+        }
+
+    def solve(self, planner_input: PlannerInput) -> MPCSolution:  # noqa: PLR0915
+        if len(planner_input.tracks) > self._config.assembly.max_targets:
+            self._accepted_primal = None
+            self._accepted_request = None
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Mid-MPC L4 CAPACITY_EXCEEDED before solver execution",
+                source=FailureSource.ALGORITHM,
+                details={
+                    "failure_code": "CAPACITY_EXCEEDED",
+                    "failure_owner": "plan_acceptance",
+                    "target_count": len(planner_input.tracks),
+                    "capacity": self._config.assembly.max_targets,
+                },
+            )
         ownship = planner_input.ownship_state
         guidance_dt_s = (
             planner_input.dt_sim_s
@@ -153,6 +306,8 @@ class _MidMpcFacade:
                 )
             )
         except LifecycleError as exc:
+            self._accepted_primal = None
+            self._accepted_request = None
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
                 f"Mid-MPC lifecycle {exc.failure.value}: {exc}",
@@ -160,6 +315,8 @@ class _MidMpcFacade:
                 details={"failure_code": exc.failure.value, "failure_owner": "lifecycle"},
             ) from exc
         if isinstance(assembly, AssemblyFailure):
+            self._accepted_primal = None
+            self._accepted_request = None
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
                 f"Mid-MPC assembly {assembly.code.value}: {assembly.message}",
@@ -171,7 +328,15 @@ class _MidMpcFacade:
                     "identity": assembly.identity,
                 },
             )
-        result = self._solver.solve(assembly.problem)
+        capability = _active_capability(planner_input, self._config)
+        warm_semantic_token = _warm_semantic_token(snapshot, assembly)
+        warm_start = self._primal_warm_start(planner_input, snapshot, capability, warm_semantic_token)
+        try:
+            result = self._solver.solve(assembly.problem, primal_warm_start=warm_start)
+        except Exception:
+            self._accepted_primal = None
+            self._accepted_request = None
+            raise
         predicted, controls = _native_trajectories(
             result.trajectory,
             ownship,
@@ -194,21 +359,132 @@ class _MidMpcFacade:
             "solver": replay_artifact["solver"],
         }
         solver_hash = _document_hash(solver_stage)
+        acceptance_request = _acceptance_request(
+            planner_input=planner_input,
+            snapshot=snapshot,
+            assembly=assembly,
+            result=result,
+            predicted=predicted,
+            capability=capability,
+            hard_hull_clearance_m=self._config.assembly.cpa_hard_m,
+            prepared_hash=prepared_hash,
+            solver_hash=solver_hash,
+            total_deadline_s=self._config.total_deadline_s,
+            scenario_id=self._config.scenario_id,
+            algorithm_seed=self._config.algorithm_seed,
+            tracker_id=self._config.tracker_id,
+        )
+        acceptance_started = time.perf_counter()
+        acceptance_result = self._acceptance.evaluate(acceptance_request)
+        acceptance_elapsed_ms = (time.perf_counter() - acceptance_started) * 1_000.0
+        acceptance_inline = _acceptance_inline_projection(
+            acceptance_result,
+            limit_bytes=acceptance_request.policy.inline_limit_bytes,
+        )
         acceptance_stage = {
             "schema_version": "colav.mid_mpc.acceptance@1",
             "parent_solver_hash": solver_hash,
-            "acceptance": replay_artifact["acceptance"],
+            "acceptance": acceptance_result.to_dict(),
         }
         acceptance_hash = _document_hash(acceptance_stage)
         replay_artifact["prepared_stage"] = prepared_stage
         replay_artifact["solver_stage"] = solver_stage
         replay_artifact["acceptance_stage"] = acceptance_stage
+        replay_artifact["acceptance"] = acceptance_result.to_dict()
+        if not acceptance_result.accepted:
+            self._accepted_primal = None
+            self._accepted_request = None
+            failure_codes = [
+                finding.code
+                for finding in acceptance_result.findings
+                if finding.outcome.value in {"FAIL", "UNKNOWN"} and finding.mandatory
+            ]
+            replay_artifact["hashes"] = {
+                "request": assembly.request_hash,
+                "problem": assembly.problem_hash,
+                "prepared": prepared_hash,
+                "solver": solver_hash,
+                "acceptance": acceptance_hash,
+            }
+            replay_artifact["hash_chain"] = {
+                "request": {"hash": assembly.request_hash, "parent_hash": None},
+                "problem": {"hash": assembly.problem_hash, "parent_hash": assembly.request_hash},
+                "prepared": {"hash": prepared_hash, "parent_hash": assembly.problem_hash},
+                "solver": {"hash": solver_hash, "parent_hash": prepared_hash},
+                "acceptance": {"hash": acceptance_hash, "parent_hash": solver_hash},
+            }
+            artifact_reference: object = {"status": "NOT_CONFIGURED"}
+            if self._artifact_sink is not None:
+                try:
+                    artifact_reference = self._artifact_sink(replay_artifact)
+                except Exception as exc:  # evidence failure must not alter control authority
+                    artifact_reference = {
+                        "status": "INCOMPLETE",
+                        "error_type": type(exc).__name__,
+                    }
+            raise ColavExecutionError(
+                PlanStatus.INFEASIBLE,
+                f"Mid-MPC L4 plan acceptance rejected the candidate: {', '.join(failure_codes)}",
+                source=FailureSource.ALGORITHM,
+                details={
+                    "failure_code": "L4_PLAN_REJECTED",
+                    "failure_owner": "plan_acceptance",
+                    "plan_acceptance": acceptance_inline,
+                    "artifact": artifact_reference,
+                },
+            )
+        warm_start_eligible = capability.exact_tuple == "single-encounter:viknes:flsc" and not (
+            snapshot.targets and all(decision.route_recovery_allowed for decision in snapshot.targets)
+        )
+        receipt = {
+            "schema_version": "colav.mid_mpc.receipt@1",
+            "parent_acceptance_hash": acceptance_hash,
+            "semantic_acceptance_hash": acceptance_result.acceptance_hash,
+            "profile": acceptance_result.profile.value,
+            "epoch": snapshot.epoch,
+            "sequence": snapshot.sequence,
+            "accepted_at_s": planner_input.sim_time_s,
+            "valid_until_s": planner_input.sim_time_s + self._config.assembly.decision_period_s,
+            "capability_tuple": capability.exact_tuple,
+            "capability_hash": _capability_contract_hash(capability),
+            "policy_hash": _document_hash(asdict(acceptance_request.policy)),
+            "scenario_id": self._config.scenario_id,
+            "algorithm_seed": self._config.algorithm_seed,
+            "tracker_id": self._config.tracker_id,
+            "target_keys": [
+                {"target_id": track.target_id, "generation": track.generation} for track in planner_input.tracks
+            ],
+            "warm_start_eligible": warm_start_eligible,
+            "dual_warm_start": False,
+        }
+        receipt_stage = {
+            "schema_version": "colav.mid_mpc.receipt-stage@1",
+            "parent_acceptance_hash": acceptance_hash,
+            "receipt": receipt,
+        }
+        receipt_hash = _document_hash(receipt_stage)
+        accepted_plan_receipt = {**receipt, "receipt_hash": receipt_hash}
+        n = self._config.assembly.horizon_steps
+        next_accepted_primal = (
+            (
+                planner_input.sim_time_s,
+                result.raw_x[:n].copy(),
+                result.raw_x[n : 2 * n].copy(),
+                capability.exact_tuple,
+                warm_semantic_token,
+            )
+            if warm_start_eligible
+            else None
+        )
+        replay_artifact["receipt_stage"] = receipt_stage
+        replay_artifact["accepted_plan_receipt"] = accepted_plan_receipt
         replay_artifact["hashes"] = {
             "request": assembly.request_hash,
             "problem": assembly.problem_hash,
             "prepared": prepared_hash,
             "solver": solver_hash,
             "acceptance": acceptance_hash,
+            "receipt": receipt_hash,
         }
         replay_artifact["hash_chain"] = {
             "request": {"hash": assembly.request_hash, "parent_hash": None},
@@ -216,16 +492,30 @@ class _MidMpcFacade:
             "prepared": {"hash": prepared_hash, "parent_hash": assembly.problem_hash},
             "solver": {"hash": solver_hash, "parent_hash": prepared_hash},
             "acceptance": {"hash": acceptance_hash, "parent_hash": solver_hash},
+            "receipt": {"hash": receipt_hash, "parent_hash": acceptance_hash},
         }
-        artifact_reference: object = {"status": "NOT_CONFIGURED"}
-        if self._artifact_sink is not None:
+        artifact_reference: dict[str, object] = {"status": "NOT_CONFIGURED"}
+
+        def persist_after_commit() -> dict[str, object]:
+            self._accepted_primal = next_accepted_primal
+            self._accepted_request = acceptance_request
+            if self._artifact_sink is None:
+                return artifact_reference
             try:
-                artifact_reference = self._artifact_sink(replay_artifact)
+                artifact_reference.clear()
+                artifact_reference.update(self._artifact_sink(replay_artifact))
             except Exception as exc:  # evidence failure must not alter control authority
-                artifact_reference = {
-                    "status": "INCOMPLETE",
-                    "error_type": type(exc).__name__,
-                }
+                artifact_reference.clear()
+                artifact_reference.update(
+                    {
+                        "status": "INCOMPLETE",
+                        "error_type": type(exc).__name__,
+                    }
+                )
+            return artifact_reference
+
+        if self._artifact_sink is not None:
+            artifact_reference["status"] = "PENDING_COMMIT"
         constraints = {
             "row_layout": result.row_layout.to_dict(),
             "active_row_indices": list(result.active_row_indices),
@@ -256,6 +546,13 @@ class _MidMpcFacade:
             "normalized_solver_status": result.status.value,
             "native_solver_status": result.native_status.value,
             "solver_elapsed_ms": result.elapsed_ms,
+            "total_deadline_s": self._config.total_deadline_s,
+            "strict_total_deadline": True,
+            "solver_cutoff_s": self._config.total_deadline_s - self._config.acceptance_reservation_s,
+            "acceptance_reservation_s": self._config.acceptance_reservation_s,
+            "acceptance_elapsed_ms": acceptance_elapsed_ms,
+            "acceptance_calibration_id": _ACCEPTANCE_CALIBRATION_ID,
+            "acceptance_calibrated_p99_ms": _ACCEPTANCE_P99_MS,
             "seed_objective_total": result.seed_objective_total,
             "seed_max_constraint_violation": result.seed_max_constraint_violation,
             "objective_improvement": result.objective_improvement,
@@ -265,12 +562,12 @@ class _MidMpcFacade:
             "accepted_candidate_source": result.accepted_candidate_source,
             "accepted_iteration": result.accepted_iteration,
             "objective_components": asdict(result.objective_components),
-            "warm_start_used": False,
+            "warm_start_used": warm_start is not None,
             "target_selection": "lifecycle_required_then_aggregate",
             "decision_intent": "GIVE_WAY" if committed else "HOLD",
             "preferred_side": snapshot.directive.passing_side.value.lower(),
             "starboard_asymmetry_active": assembly.problem.starboard_asymmetry_active,
-            "minimum_alteration_active": assembly.problem.lateral_active,
+            "minimum_alteration_active": assembly.problem.min_alteration_rad > 0.0,
             "overtaking_course_commitment_active": any(
                 decision.encounter is EncounterKind.OVERTAKING and decision.commitment is CommitmentPhase.COMMITTED
                 for decision in snapshot.targets
@@ -291,6 +588,7 @@ class _MidMpcFacade:
                 "prepared_hash": prepared_hash,
                 "solver_hash": solver_hash,
                 "acceptance_hash": acceptance_hash,
+                "receipt_hash": receipt_hash,
                 "structural_signature": assembly.preparation.structural_signature,
                 "selected_targets": [
                     {"target_id": key.target_id, "generation": key.generation} for key in assembly.selected_target_keys
@@ -302,6 +600,21 @@ class _MidMpcFacade:
                     "min_alt_hard_from_k": assembly.activation_plan.global_min_alt_hard_from_k,
                 },
                 "artifact": artifact_reference,
+            },
+            "plan_acceptance": acceptance_inline,
+            "accepted_plan_receipt": accepted_plan_receipt,
+            "acceptance_context": {
+                "target_keys": [[track.target_id, track.generation] for track in planner_input.tracks],
+                "route_hash": _planner_route_hash(planner_input),
+                "capability_tuple": _active_capability(
+                    planner_input,
+                    self._config,
+                ).exact_tuple,
+                "capability_hash": _capability_contract_hash(capability),
+                "scenario_id": self._config.scenario_id,
+                "algorithm_seed": self._config.algorithm_seed,
+                "tracker_id": self._config.tracker_id,
+                "policy_hash": _document_hash(asdict(acceptance_request.policy)),
             },
             "render_projection": {
                 "schema_version": "colav.mid_mpc.render@1",
@@ -340,6 +653,38 @@ class _MidMpcFacade:
                 for prediction in assembly.target_predictions
             ),
             algorithm_details=details,
+            post_commit=persist_after_commit,
+        )
+
+    def _primal_warm_start(
+        self,
+        planner_input: PlannerInput,
+        snapshot: DecisionSnapshot,
+        capability: PlantCapabilityEvidence,
+        semantic_token: str,
+    ) -> MidMpcPrimalWarmStart | None:
+        if capability.exact_tuple != "single-encounter:viknes:flsc":
+            self._accepted_primal = None
+            return None
+        if snapshot.targets and all(decision.route_recovery_allowed for decision in snapshot.targets):
+            self._accepted_primal = None
+            return None
+        if self._accepted_primal is None:
+            return None
+        accepted_at_s, course, speed, capability_tuple, accepted_semantic_token = self._accepted_primal
+        if (
+            capability_tuple != capability.exact_tuple
+            or semantic_token != accepted_semantic_token
+            or planner_input.sim_time_s < accepted_at_s
+        ):
+            self._accepted_primal = None
+            return None
+        return MidMpcPrimalWarmStart(
+            accepted_at_s=accepted_at_s,
+            current_time_s=planner_input.sim_time_s,
+            dt_s=self._config.assembly.horizon_dt_s,
+            course_rad=course,
+            speed_mps=speed,
         )
 
     def _encounter_cycle(
@@ -458,6 +803,8 @@ def create(  # noqa: PLR0913
 ) -> CustomMPCAdapter:
     """Build Mid-MPC under the strict native adapter contract."""
     del min_alteration_deg
+    if not math.isclose(deadline_s, _TOTAL_DEADLINE_S, abs_tol=1.0e-9, rel_tol=0.0):
+        raise ValueError("Mid-MPC production deadline_s is frozen at 20 s")
     assembly = MidMpcAssemblyConfig(
         horizon_steps=horizon_steps,
         horizon_dt_s=horizon_dt_s,
@@ -471,7 +818,15 @@ def create(  # noqa: PLR0913
         route_weight=route_weight,
         decision_period_s=solve_period_s,
     )
-    config = _FacadeConfig(assembly=assembly, profile=PlannerOddProfile())
+    config = _FacadeConfig(
+        assembly=assembly,
+        profile=PlannerOddProfile(),
+        total_deadline_s=deadline_s,
+        acceptance_reservation_s=_ACCEPTANCE_RESERVATION_S,
+        scenario_id=context.scenario_id,
+        algorithm_seed=context.algorithm_seed,
+        tracker_id=context.tracker_id,
+    )
     facade = _MidMpcFacade(
         config,
         event_sink=context.event_sink,
@@ -515,6 +870,7 @@ def create(  # noqa: PLR0913
         descriptor=descriptor,
         solve=facade.solve,
         reset=facade.reset,
+        validate_hold=facade.validate_hold,
         context=context,
     )
 
@@ -576,6 +932,11 @@ def _snapshot_document(
                 "recovery_guard_active": decision.recovery_guard_active,
                 "action_achieved": decision.action_achieved,
                 "required_course_change_rad": decision.required_course_change_rad,
+                "candidate_since_s": decision.candidate_since_s,
+                "committed_at_s": decision.committed_at_s,
+                "action_start_deadline_s": decision.action_start_deadline_s,
+                "action_achievement_deadline_s": decision.action_achievement_deadline_s,
+                "actual_course_change_rad": decision.actual_course_change_rad,
             }
             for decision in snapshot.targets
         ],
@@ -655,6 +1016,398 @@ def _replay_artifact_document(
                 "status": "NOT_EVALUATED_BY_ASSEMBLER",
             },
         }
+    )
+
+
+def _active_capability(
+    planner_input: PlannerInput,
+    facade_config: _FacadeConfig,
+) -> PlantCapabilityEvidence:
+    config = facade_config.assembly
+    plant = planner_input.ownship_model.strip()
+    controller = planner_input.ownship_controller.strip()
+    identity = (_identity_token(plant), _identity_token(controller))
+    limitations: tuple[str, ...] = ()
+    if identity == ("viknes", "flsc"):
+        exact_tuple = "single-encounter:viknes:flsc"
+        if len(planner_input.tracks) > 1:
+            limitations = ("SINGLE_ENCOUNTER_TARGET_COUNT_EXCEEDED",)
+    elif identity == ("kinematiccsog", "passthroughcs"):
+        exact_tuple = "multiship:kinematic_csog:pass_through_cs"
+        if len(planner_input.tracks) < 2:
+            limitations = ("MULTISHIP_TARGET_COUNT_NOT_MET",)
+    else:
+        exact_tuple = f"unsupported:{identity[0]}:{identity[1]}"
+        limitations = ("UNSUPPORTED_ACTIVE_TUPLE",)
+    return PlantCapabilityEvidence(
+        plant=plant,
+        controller=controller,
+        valid_at_s=planner_input.sim_time_s,
+        heading_window_rad=config.heading_window_rad,
+        speed_bounds_mps=config.speed_bounds_mps,
+        rot_max_rad_s=planner_input.ownship_max_turn_rate_rad_s or config.rot_max_rad_s,
+        accel_max_mps2=config.decel_max_mps2,
+        decel_max_mps2=config.decel_max_mps2,
+        exact_tuple=exact_tuple,
+        limitations=limitations,
+    )
+
+
+def _capability_contract_hash(capability: PlantCapabilityEvidence) -> str:
+    return _document_hash({**asdict(capability), "valid_at_s": 0.0})
+
+
+def _acceptance_request(  # noqa: PLR0913
+    *,
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+    assembly: AssemblySuccess,
+    result: MidMpcResult,
+    predicted: np.ndarray,
+    capability: PlantCapabilityEvidence,
+    hard_hull_clearance_m: float,
+    prepared_hash: str,
+    solver_hash: str,
+    total_deadline_s: float,
+    scenario_id: str,
+    algorithm_seed: int,
+    tracker_id: str,
+) -> AcceptanceRequest:
+    grid = assembly.grid
+    cpa_span = result.row_layout.cpa
+    numerical = NumericalEvidence(
+        normalized_status=result.status.value,
+        return_status=result.ipopt_return_status,
+        objective_total=result.objective_total,
+        raw_f=result.raw_f,
+        raw_x=result.raw_x,
+        raw_g=result.raw_g,
+        lbx=result.prepared.lbx,
+        ubx=result.prepared.ubx,
+        lbg=result.prepared.lbg,
+        ubg=result.prepared.ubg,
+        heading_count=grid.control_intervals,
+        speed_count=grid.control_intervals,
+        cpa_row_indices=tuple(range(cpa_span.start, cpa_span.start + cpa_span.count)),
+        strict_slack_bounds=True,
+        cpa_slack=result.raw_cpa_slack,
+        direction_slack=result.raw_dir_slack,
+        preparation_profile=assembly.profile.value,
+        preparation_hash=prepared_hash,
+        solver_hash=solver_hash,
+        preparation_parent_problem_hash=assembly.problem_hash,
+        solver_parent_preparation_hash=prepared_hash,
+    )
+    authority_targets = tuple(
+        AuthorityTarget(
+            key=decision.key,
+            encounter=decision.encounter.value,
+            role=decision.role.value,
+            risk=decision.risk.value,
+            commitment=decision.commitment.value,
+            passing_side=decision.passing_side.value,
+            baseline_course_rad=decision.baseline_course_rad,
+            required_course_change_rad=decision.required_course_change_rad,
+            action_achieved=decision.action_achieved,
+            route_recovery_allowed=decision.route_recovery_allowed,
+            reachability_verified=_decision_reachable(decision, capability, grid.duration_s),
+            committed_at_s=decision.committed_at_s,
+            action_start_deadline_s=decision.action_start_deadline_s,
+            action_achievement_deadline_s=decision.action_achievement_deadline_s,
+            actual_course_change_rad=decision.actual_course_change_rad,
+        )
+        for decision in snapshot.targets
+    )
+    execution_targets = tuple(_execution_target(track, grid.state_samples, grid.dt_s) for track in planner_input.tracks)
+    return AcceptanceRequest(
+        schema_version="colav.mid_mpc.acceptance.request@1",
+        candidate=CandidateEvidence(
+            profile=AcceptanceProfile(assembly.profile.value),
+            times_s=np.arange(grid.state_samples, dtype=float) * grid.dt_s,
+            north_m=predicted[0],
+            east_m=predicted[1],
+            course_rad=predicted[2],
+            speed_mps=np.hypot(predicted[3], predicted[4]),
+            numerical=numerical,
+            parent_problem_hash=assembly.problem_hash,
+        ),
+        authority=AuthorityEvidence(
+            epoch=snapshot.epoch,
+            sequence=snapshot.sequence,
+            sim_time_s=snapshot.sim_time_s,
+            profile_hash=snapshot.profile_hash,
+            targets=authority_targets,
+        ),
+        execution=ExecutionEvidence(
+            sim_time_s=planner_input.sim_time_s,
+            ownship_length_m=planner_input.ownship_length_m,
+            ownship_width_m=planner_input.ownship_width_m,
+            targets=execution_targets,
+            capability=capability,
+            tracker_id=tracker_id,
+        ),
+        prior=PriorEvidence(mode=AcceptanceMode.FRESH_CANDIDATE),
+        policy=PlanAcceptancePolicy(
+            control_intervals=grid.control_intervals,
+            state_samples=grid.state_samples,
+            horizon_dt_s=grid.dt_s,
+            hard_hull_clearance_m=hard_hull_clearance_m,
+            advisory_hull_clearance_m=assembly.problem.cpa_safe_m,
+            total_deadline_s=total_deadline_s,
+            scenario_id=scenario_id,
+            algorithm_seed=algorithm_seed,
+            tracker_id=tracker_id,
+        ),
+    )
+
+
+def _held_acceptance_request(
+    accepted: AcceptanceRequest,
+    planner_input: PlannerInput,
+    solution: MPCSolution,
+    *,
+    elapsed_s: float,
+    capability: PlantCapabilityEvidence,
+    previous_acceptance_hash: str,
+) -> AcceptanceRequest:
+    sample_times = accepted.candidate.times_s
+    absolute_offsets = np.minimum(sample_times + elapsed_s, sample_times[-1])
+
+    def shifted(values: np.ndarray, *, angle: bool = False) -> np.ndarray:
+        source = np.unwrap(values) if angle else values
+        return np.interp(absolute_offsets, sample_times, source)
+
+    candidate = replace(
+        accepted.candidate,
+        north_m=shifted(solution.predicted_trajectory[0]),
+        east_m=shifted(solution.predicted_trajectory[1]),
+        course_rad=shifted(solution.predicted_trajectory[2], angle=True),
+        speed_mps=shifted(np.hypot(solution.predicted_trajectory[3], solution.predicted_trajectory[4])),
+    )
+    execution = replace(
+        accepted.execution,
+        sim_time_s=planner_input.sim_time_s,
+        targets=tuple(
+            _execution_target(track, accepted.policy.state_samples, accepted.policy.horizon_dt_s)
+            for track in planner_input.tracks
+        ),
+        capability=capability,
+        tracker_id=_tracker_identity(planner_input),
+    )
+    return replace(
+        accepted,
+        candidate=candidate,
+        authority=replace(accepted.authority, sim_time_s=planner_input.sim_time_s),
+        execution=execution,
+        prior=PriorEvidence(
+            mode=AcceptanceMode.HELD_ACCEPTED_PLAN,
+            previous_acceptance_hash=previous_acceptance_hash,
+            previous_course_rad=accepted.candidate.course_rad,
+        ),
+    )
+
+
+def _acceptance_inline_projection(result: AcceptanceResult, *, limit_bytes: int) -> dict[str, object]:
+    document = result.to_dict()
+    mandatory_failures = [
+        {
+            "layer": finding["layer"],
+            "code": finding["code"],
+            "target_key": finding.get("target_key"),
+            "witness": finding.get("witness"),
+        }
+        for finding in document["findings"]
+        if finding["mandatory"] and finding["outcome"] in {"FAIL", "UNKNOWN"}
+    ]
+    target_safety = document["target_safety"]
+    primary_witness = min(target_safety, key=lambda item: item["clearance_lower_bound_m"]) if target_safety else None
+    projection: dict[str, object] = {
+        "schema_version": "colav.mid_mpc.acceptance.inline@1",
+        "accepted": document["accepted"],
+        "aggregate": document["aggregate"],
+        "profile": document["profile"],
+        "request_hash": document["request_hash"],
+        "acceptance_hash": document["acceptance_hash"],
+        "layers": document["layers"],
+        "mandatory_failures": mandatory_failures,
+        "primary_safety_witness": primary_witness,
+    }
+    payload = json.dumps(projection, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    if len(payload) > limit_bytes:
+        for failure in mandatory_failures:
+            failure["witness"] = None
+        projection["primary_safety_witness"] = None
+        projection["projection_truncated"] = True
+        payload = json.dumps(projection, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    if len(payload) > limit_bytes:
+        raise RuntimeError("mandatory Mid-MPC acceptance summary exceeds inline evidence limit")
+    projection["inline_bytes"] = 0
+    projection["inline_bytes"] = len(
+        json.dumps(projection, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    )
+    if projection["inline_bytes"] > limit_bytes:
+        raise RuntimeError("Mid-MPC acceptance summary exceeds inline evidence limit")
+    return projection
+
+
+def _execution_target(
+    track: object,
+    state_samples: int,
+    dt_s: float,
+) -> ExecutionTarget:
+    times = np.arange(state_samples, dtype=float) * dt_s
+    north = float(track.state_enu[0]) + times * float(track.state_enu[2])
+    east = float(track.state_enu[1]) + times * float(track.state_enu[3])
+    position_covariance = np.asarray(track.covariance, dtype=float)[:2, :2]
+    largest_variance = max(0.0, float(np.max(np.linalg.eigvalsh(position_covariance))))
+    uncertainty = np.full(state_samples, math.sqrt(9.210340371976184 * largest_variance))
+    return ExecutionTarget(
+        key=TrackKey(track.target_id, track.generation),
+        length_m=track.length_m,
+        width_m=track.width_m,
+        north_m=north,
+        east_m=east,
+        uncertainty_m=uncertainty,
+    )
+
+
+def _decision_reachable(
+    decision: TargetDecision,
+    capability: PlantCapabilityEvidence,
+    horizon_duration_s: float,
+) -> bool:
+    if decision.commitment is not CommitmentPhase.COMMITTED:
+        return True
+    if decision.baseline_course_rad is None:
+        return False
+    available_change = capability.rot_max_rad_s * horizon_duration_s
+    return decision.required_course_change_rad <= available_change + 1.0e-9
+
+
+def _tracker_identity(planner_input: PlannerInput) -> str:
+    sources = sorted({track.source for track in planner_input.tracks})
+    return "none" if not sources else "+".join(sources)
+
+
+def _warm_semantic_token(snapshot: DecisionSnapshot, assembly: AssemblySuccess) -> str:
+    return _document_hash(
+        {
+            "profile": assembly.profile.value,
+            "route_bearing_rad": assembly.problem.route_bearing_rad,
+            "planned_speed_mps": assembly.problem.planned_speed_mps,
+            "selected_target_keys": [[key.target_id, key.generation] for key in assembly.selected_target_keys],
+            "directive": {
+                "passing_side": snapshot.directive.passing_side.value,
+                "minimum_course_change_rad": snapshot.directive.minimum_course_change_rad,
+                "speed_bounds_mps": snapshot.directive.speed_bounds_mps,
+                "stop_required": snapshot.directive.stop_required,
+            },
+            "targets": [
+                {
+                    "key": [decision.key.target_id, decision.key.generation],
+                    "risk": decision.risk.value,
+                    "commitment": decision.commitment.value,
+                    "rule17": decision.rule17.value,
+                    "route_recovery_allowed": decision.route_recovery_allowed,
+                }
+                for decision in snapshot.targets
+            ],
+        }
+    )
+
+
+def _identity_token(value: str) -> str:
+    return "".join(character for character in value.lower() if character.isalnum())
+
+
+def _planner_route_hash(planner_input: PlannerInput) -> str:
+    return _document_hash(
+        {
+            "waypoints_enu_m": planner_input.waypoints_enu_m.tolist(),
+            "speed_plan_mps": planner_input.speed_plan_mps.tolist(),
+        }
+    )
+
+
+def _trajectory_state_at(trajectory: np.ndarray, dt_s: float, elapsed_s: float) -> np.ndarray:
+    position = min(max(elapsed_s / dt_s, 0.0), trajectory.shape[1] - 1)
+    lower = int(math.floor(position))
+    upper = min(lower + 1, trajectory.shape[1] - 1)
+    fraction = position - lower
+    state = (1.0 - fraction) * trajectory[:, lower] + fraction * trajectory[:, upper]
+    heading_delta = float(trajectory[2, upper] - trajectory[2, lower])
+    state[2] = trajectory[2, lower] + fraction * math.atan2(math.sin(heading_delta), math.cos(heading_delta))
+    return state
+
+
+def _held_prefix_clearance(
+    planner_input: PlannerInput,
+    solution: MPCSolution,
+    *,
+    elapsed_s: float,
+    remaining_s: float,
+) -> float:
+    if not planner_input.tracks:
+        return math.inf
+    own_start = np.asarray(planner_input.ownship_state[:2], dtype=float)
+    own_end = _trajectory_state_at(
+        solution.predicted_trajectory,
+        solution.horizon_dt_s,
+        elapsed_s + remaining_s,
+    )[:2]
+    own_radius = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
+    minimum = math.inf
+    for track in planner_input.tracks:
+        target_start = np.asarray(track.state_enu[:2], dtype=float)
+        target_end = target_start + remaining_s * np.asarray(track.state_enu[2:4], dtype=float)
+        relative_start = target_start - own_start
+        relative_delta = (target_end - own_end) - relative_start
+        denominator = float(relative_delta @ relative_delta)
+        fraction = (
+            0.0
+            if denominator <= 1.0e-18
+            else float(np.clip(-float(relative_start @ relative_delta) / denominator, 0.0, 1.0))
+        )
+        center_distance = float(np.linalg.norm(relative_start + fraction * relative_delta))
+        target_radius = 0.5 * math.hypot(track.length_m, track.width_m)
+        position_covariance = np.asarray(track.covariance, dtype=float)[:2, :2]
+        variance = max(0.0, float(np.max(np.linalg.eigvalsh(position_covariance))))
+        uncertainty = math.sqrt(9.210340371976184 * variance)
+        minimum = min(minimum, center_distance - own_radius - target_radius - uncertainty)
+    return minimum
+
+
+def _held_target_prediction_error(
+    planner_input: PlannerInput,
+    solution: MPCSolution,
+    *,
+    elapsed_s: float,
+) -> tuple[float, float]:
+    predictions = {(int(item["target_id"]), int(item["generation"])): item for item in solution.target_predictions}
+    maximum_position_error = 0.0
+    maximum_velocity_error = 0.0
+    for track in planner_input.tracks:
+        prediction = predictions[(track.target_id, track.generation)]
+        start = np.array([prediction["north_m"][0], prediction["east_m"][0]], dtype=float)
+        velocity = np.asarray(prediction["velocity_ne_mps"], dtype=float)
+        expected = start + elapsed_s * velocity
+        maximum_position_error = max(
+            maximum_position_error,
+            float(np.linalg.norm(np.asarray(track.state_enu[:2], dtype=float) - expected)),
+        )
+        maximum_velocity_error = max(
+            maximum_velocity_error,
+            float(np.linalg.norm(np.asarray(track.state_enu[2:4], dtype=float) - velocity)),
+        )
+    return maximum_position_error, maximum_velocity_error
+
+
+def _hold_rejection(code: str, message: str) -> ColavExecutionError:
+    return ColavExecutionError(
+        PlanStatus.INFEASIBLE,
+        message,
+        source=FailureSource.ALGORITHM,
+        details={"failure_code": code, "failure_owner": "plan_acceptance"},
     )
 
 

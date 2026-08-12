@@ -48,7 +48,8 @@ def test_mid_mpc_multiship_closed_loop_is_safe_observable_and_recovers(  # noqa:
     manifest = run.manifest.to_dict()
     solve_rows = _solve_rows(run)
 
-    assert display.passed, json.dumps(display.to_dict(), indent=2, sort_keys=True)
+    display_document = display.to_dict()
+    assert display.passed, json.dumps(display_document, indent=2, sort_keys=True)
     assert evaluation["hard_gate"]["outcome"] == "PASS", json.dumps(evaluation, indent=2, sort_keys=True)
     ownship_pairs = {
         f"Ship{pair['target_id'] if pair['ownship_id'] == 0 else pair['ownship_id']}": pair

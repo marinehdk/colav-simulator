@@ -38,7 +38,13 @@ def descriptor(**profile_overrides) -> AlgorithmDescriptor:
     )
 
 
-def solution(planner_input, *, sleep_s: float = 0.0, wrap_heading: bool = False) -> MPCSolution:
+def solution(
+    planner_input,
+    *,
+    sleep_s: float = 0.0,
+    wrap_heading: bool = False,
+    strict_total_deadline: bool = False,
+) -> MPCSolution:
     time.sleep(sleep_s)
     trajectory = np.zeros((9, 4))
     trajectory[:6, 0] = planner_input.ownship_state
@@ -52,6 +58,7 @@ def solution(planner_input, *, sleep_s: float = 0.0, wrap_heading: bool = False)
         control_reference=trajectory[:, 1].reshape(9, 1),
         predicted_trajectory=trajectory,
         horizon_dt_s=0.5,
+        algorithm_details={"strict_total_deadline": strict_total_deadline},
     )
 
 
@@ -132,6 +139,52 @@ def test_deadline_off_keeps_success_but_declares_mode() -> None:
 
     assert adapter.get_diagnostics().status == PlanStatus.SUCCESS
     assert adapter.get_diagnostics().details["deadline_mode"] == DeadlineMode.OFF.value
+
+
+def test_strict_total_deadline_rejects_candidate_instead_of_downgrading_to_timeout() -> None:
+    adapter = CustomMPCAdapter(
+        descriptor=descriptor(deadline_s=0.0001),
+        solve=lambda value: solution(value, sleep_s=0.002, strict_total_deadline=True),
+        context=FactoryContext("schedule_mpc", 0),
+    )
+
+    with pytest.raises(ColavExecutionError, match="total commit deadline") as error:
+        plan(adapter, 0.0)
+
+    assert error.value.status is PlanStatus.NUMERICAL_FAILURE
+    assert adapter.get_diagnostics().details["failure_code"] == "TOTAL_DEADLINE_EXCEEDED"
+    assert adapter.get_current_plan().shape == (9, 1)
+    assert np.count_nonzero(adapter.get_current_plan()) == 0
+
+
+def test_post_commit_evidence_failure_cannot_revoke_committed_command() -> None:
+    def solve(value: PlannerInput) -> MPCSolution:
+        candidate = solution(value)
+
+        def fail_evidence() -> None:
+            raise OSError("disk unavailable")
+
+        return MPCSolution(
+            control_reference=candidate.control_reference,
+            predicted_trajectory=candidate.predicted_trajectory,
+            horizon_dt_s=candidate.horizon_dt_s,
+            algorithm_details={"assembly": {"artifact": {"status": "PENDING_COMMIT"}}},
+            post_commit=fail_evidence,
+        )
+
+    adapter = CustomMPCAdapter(
+        descriptor=descriptor(),
+        solve=solve,
+        context=FactoryContext("schedule_mpc", 0),
+    )
+
+    command = plan(adapter, 0.0)
+
+    assert np.count_nonzero(command) > 0
+    assert adapter.get_diagnostics().status is PlanStatus.SUCCESS
+    artifact = adapter.get_colav_data()["planner"]["algorithm_details"]["assembly"]["artifact"]
+    assert artifact["status"] == "INCOMPLETE"
+    assert artifact["reason"] == "POST_COMMIT_CALLBACK_FAILED"
 
 
 def test_schedule_rejects_backwards_time_and_insufficient_horizon() -> None:

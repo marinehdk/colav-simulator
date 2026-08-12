@@ -232,6 +232,32 @@ class MidMpcPreparedProblem:
 
 
 @dataclass(frozen=True)
+class MidMpcPrimalWarmStart:
+    """Accepted heading/speed primal on its original absolute time grid."""
+
+    accepted_at_s: float
+    current_time_s: float
+    dt_s: float
+    course_rad: np.ndarray
+    speed_mps: np.ndarray
+
+    def __post_init__(self) -> None:
+        """Validate timing and retain immutable primal vectors."""
+        if not np.isfinite((self.accepted_at_s, self.current_time_s, self.dt_s)).all() or self.dt_s <= 0.0:
+            raise ValueError("warm-start timing must be finite with positive dt")
+        if self.current_time_s < self.accepted_at_s:
+            raise ValueError("warm-start current time cannot precede acceptance")
+        course = _readonly_vector(self.course_rad)
+        speed = _readonly_vector(self.speed_mps)
+        if course.size != speed.size or course.size < 2:
+            raise ValueError("warm-start heading and speed grids must align")
+        if not np.isfinite(course).all() or not np.isfinite(speed).all():
+            raise ValueError("warm-start primal must be finite")
+        object.__setattr__(self, "course_rad", course)
+        object.__setattr__(self, "speed_mps", speed)
+
+
+@dataclass(frozen=True)
 class MidMpcTrajectoryPoint:
     x_m: float
     y_m: float

@@ -15,6 +15,7 @@ from colav_simulator.core.colav.mid_mpc.models import (
     MidMpcConfig,
     MidMpcObjectiveComponents,
     MidMpcPreparedProblem,
+    MidMpcPrimalWarmStart,
     MidMpcProblem,
     MidMpcResult,
     MidMpcRowLayout,
@@ -66,11 +67,18 @@ class MidMpcIpoptSolver:
     def __init__(self, config: MidMpcConfig = MidMpcConfig()) -> None:
         self._config = config
 
-    def solve(self, problem: MidMpcProblem) -> MidMpcResult:
+    def solve(  # noqa: PLR0915 - keeps one solver call and its evidence atomic
+        self,
+        problem: MidMpcProblem,
+        *,
+        primal_warm_start: MidMpcPrimalWarmStart | None = None,
+    ) -> MidMpcResult:
         _validate_target_capacity(problem, self._config.max_targets)
         started_at = time.perf_counter()
         graph = _build_graph(self._config, problem)
         prepared = _prepare(self._config, problem, graph.row_layout)
+        if primal_warm_start is not None:
+            prepared = _apply_primal_warm_start(prepared, primal_warm_start, self._config)
         seed_components = _flat(graph.objective_components(prepared.x0, prepared.p))
         seed_objective_total = float(np.sum(seed_components))
         seed_g = _flat(graph.constraints(prepared.x0, prepared.p))
@@ -628,6 +636,35 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     if config.strict_slack_bounds:
         ubx[2 * n :] = 0.0
     return MidMpcPreparedProblem(p=p, x0=x0, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+
+
+def _apply_primal_warm_start(
+    prepared: MidMpcPreparedProblem,
+    warm: MidMpcPrimalWarmStart,
+    config: MidMpcConfig,
+) -> MidMpcPreparedProblem:
+    n = config.horizon_steps
+    if warm.course_rad.size != n:
+        raise ValueError("warm-start grid must match the frozen solver horizon")
+    seed = prepared.x0.copy()
+    source_times = warm.accepted_at_s + (np.arange(n, dtype=float) + 1.0) * warm.dt_s
+    query_times = warm.current_time_s + (np.arange(n, dtype=float) + 1.0) * config.dt_s
+    reusable = query_times <= source_times[-1] + 1.0e-9
+    if np.any(reusable):
+        unwrapped = np.unwrap(warm.course_rad)
+        seed[:n][reusable] = np.interp(query_times[reusable], source_times, unwrapped)
+        seed[n : 2 * n][reusable] = np.interp(query_times[reusable], source_times, warm.speed_mps)
+    seed = np.clip(seed, prepared.lbx, prepared.ubx)
+    if config.strict_slack_bounds:
+        seed[2 * n :] = 0.0
+    return MidMpcPreparedProblem(
+        p=prepared.p,
+        x0=seed,
+        lbx=prepared.lbx,
+        ubx=prepared.ubx,
+        lbg=prepared.lbg,
+        ubg=prepared.ubg,
+    )
 
 
 def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray:
