@@ -154,7 +154,7 @@ def test_assembler_admits_active_committed_target_after_required_slots() -> None
     assert outcome.selected_target_keys == (TrackKey(1, 1),)
 
 
-def test_assembler_does_not_graph_bake_uncommitted_candidate_contact() -> None:
+def test_assembler_graph_bakes_uncommitted_candidate_for_l4_all_track_safety() -> None:
     planner_input = _planner_input()
     snapshot = EncounterLifecycle().step(_cycle(planner_input, sequence=0, sim_time_s=5.0))
 
@@ -163,11 +163,12 @@ def test_assembler_does_not_graph_bake_uncommitted_candidate_contact() -> None:
     assert isinstance(outcome, AssemblySuccess)
     assert snapshot.targets[0].risk.value == "CANDIDATE"
     assert snapshot.directive.required_targets == ()
-    assert outcome.selected_target_keys == ()
-    assert outcome.problem.lateral_active is False
+    assert outcome.selected_target_keys == (TrackKey(1, 1),)
+    assert outcome.problem.lateral_active is True
+    assert outcome.activation_plan.global_cpa_hard_from_k == 2
 
 
-def test_assembler_compensates_frozen_timing_with_target_step_displacement() -> None:
+def test_assembler_compensates_frozen_timing_with_ownship_step_displacement() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()
     lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
@@ -179,7 +180,7 @@ def test_assembler_compensates_frozen_timing_with_target_step_displacement() -> 
     own_radius = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
     target = planner_input.tracks[0]
     target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
-    expected = 50.0 + own_radius + target_radius + np.linalg.norm(target.state_enu[2:4]) * 15.0
+    expected = 50.0 + own_radius + target_radius + 8.0 * 15.0
     assert outcome.effective_cpa_hard_m == pytest.approx(expected)
 
 

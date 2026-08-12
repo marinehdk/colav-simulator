@@ -744,6 +744,11 @@ class WebSessionManager:
             self.last_solve_id = solve_id
             self.latest_planner_solve = jsonable(planner)
             self.active_planner_plan = jsonable(planner)
+        elif planner.get("algorithm_details", {}).get("failure_code") and not planner.get("algorithm_details", {}).get(
+            "cached_plan_used", False
+        ):
+            self.active_planner_plan = {}
+            self.current_prediction_horizon = []
         elif prediction_horizon and not self.current_prediction_horizon:
             self.current_prediction_horizon = prediction_horizon
         if planner and (

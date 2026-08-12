@@ -164,14 +164,10 @@ class _MidMpcFacade:
             raise _hold_rejection("HOLD_TARGET_SET_CHANGED", "held target identity set changed")
         if _planner_route_hash(planner_input) != context.get("route_hash"):
             raise _hold_rejection("HOLD_ROUTE_CHANGED", "held route or speed plan changed")
-        if planner_input.tracks:
-            raise _hold_rejection(
-                "HOLD_DYNAMIC_CONTEXT_REQUIRES_REPLAN",
-                "held Mid-MPC plan with tracked contacts requires a fresh L4 candidate",
-            )
         capability = _active_capability(planner_input, self._config)
         if (
             capability.exact_tuple != context.get("capability_tuple")
+            or _capability_contract_hash(capability) != context.get("capability_hash")
             or capability.limitations
             or self._config.scenario_id != context.get("scenario_id")
             or self._config.algorithm_seed != context.get("algorithm_seed")
@@ -374,6 +370,9 @@ class _MidMpcFacade:
             prepared_hash=prepared_hash,
             solver_hash=solver_hash,
             total_deadline_s=self._config.total_deadline_s,
+            scenario_id=self._config.scenario_id,
+            algorithm_seed=self._config.algorithm_seed,
+            tracker_id=self._config.tracker_id,
         )
         acceptance_started = time.perf_counter()
         acceptance_result = self._acceptance.evaluate(acceptance_request)
@@ -447,6 +446,11 @@ class _MidMpcFacade:
             "accepted_at_s": planner_input.sim_time_s,
             "valid_until_s": planner_input.sim_time_s + self._config.assembly.decision_period_s,
             "capability_tuple": capability.exact_tuple,
+            "capability_hash": _capability_contract_hash(capability),
+            "policy_hash": _document_hash(asdict(acceptance_request.policy)),
+            "scenario_id": self._config.scenario_id,
+            "algorithm_seed": self._config.algorithm_seed,
+            "tracker_id": self._config.tracker_id,
             "target_keys": [
                 {"target_id": track.target_id, "generation": track.generation} for track in planner_input.tracks
             ],
@@ -563,7 +567,7 @@ class _MidMpcFacade:
             "decision_intent": "GIVE_WAY" if committed else "HOLD",
             "preferred_side": snapshot.directive.passing_side.value.lower(),
             "starboard_asymmetry_active": assembly.problem.starboard_asymmetry_active,
-            "minimum_alteration_active": assembly.problem.lateral_active,
+            "minimum_alteration_active": assembly.problem.min_alteration_rad > 0.0,
             "overtaking_course_commitment_active": any(
                 decision.encounter is EncounterKind.OVERTAKING and decision.commitment is CommitmentPhase.COMMITTED
                 for decision in snapshot.targets
@@ -606,6 +610,7 @@ class _MidMpcFacade:
                     planner_input,
                     self._config,
                 ).exact_tuple,
+                "capability_hash": _capability_contract_hash(capability),
                 "scenario_id": self._config.scenario_id,
                 "algorithm_seed": self._config.algorithm_seed,
                 "tracker_id": self._config.tracker_id,
@@ -1023,23 +1028,14 @@ def _active_capability(
     controller = planner_input.ownship_controller.strip()
     identity = (_identity_token(plant), _identity_token(controller))
     limitations: tuple[str, ...] = ()
-    single_scenarios = {
-        "head_on",
-        "crossing_give_way",
-        "crossing_stand_on",
-        "overtaking",
-        "overtaking_port_corridor",
-        "overtaken",
-        "route",
-    }
     if identity == ("viknes", "flsc"):
         exact_tuple = "single-encounter:viknes:flsc"
-        if facade_config.scenario_id not in single_scenarios:
-            limitations = ("SINGLE_ENCOUNTER_SCENARIO_NOT_IN_EXACT_ODD",)
+        if len(planner_input.tracks) > 1:
+            limitations = ("SINGLE_ENCOUNTER_TARGET_COUNT_EXCEEDED",)
     elif identity == ("kinematiccsog", "passthroughcs"):
         exact_tuple = "multiship:kinematic_csog:pass_through_cs"
-        if facade_config.scenario_id != "paper_ccta2023_multiship":
-            limitations = ("MULTISHIP_SCENARIO_NOT_IN_EXACT_ODD",)
+        if len(planner_input.tracks) < 2:
+            limitations = ("MULTISHIP_TARGET_COUNT_NOT_MET",)
     else:
         exact_tuple = f"unsupported:{identity[0]}:{identity[1]}"
         limitations = ("UNSUPPORTED_ACTIVE_TUPLE",)
@@ -1057,6 +1053,10 @@ def _active_capability(
     )
 
 
+def _capability_contract_hash(capability: PlantCapabilityEvidence) -> str:
+    return _document_hash({**asdict(capability), "valid_at_s": 0.0})
+
+
 def _acceptance_request(  # noqa: PLR0913
     *,
     planner_input: PlannerInput,
@@ -1069,6 +1069,9 @@ def _acceptance_request(  # noqa: PLR0913
     prepared_hash: str,
     solver_hash: str,
     total_deadline_s: float,
+    scenario_id: str,
+    algorithm_seed: int,
+    tracker_id: str,
 ) -> AcceptanceRequest:
     grid = assembly.grid
     cpa_span = result.row_layout.cpa
@@ -1095,7 +1098,6 @@ def _acceptance_request(  # noqa: PLR0913
         preparation_parent_problem_hash=assembly.problem_hash,
         solver_parent_preparation_hash=prepared_hash,
     )
-    selected_target_keys = set(assembly.selected_target_keys)
     authority_targets = tuple(
         AuthorityTarget(
             key=decision.key,
@@ -1116,13 +1118,7 @@ def _acceptance_request(  # noqa: PLR0913
         )
         for decision in snapshot.targets
     )
-    execution_targets = tuple(
-        replace(
-            _execution_target(track, grid.state_samples, grid.dt_s),
-            relevant=TrackKey(track.target_id, track.generation or 1) in selected_target_keys,
-        )
-        for track in planner_input.tracks
-    )
+    execution_targets = tuple(_execution_target(track, grid.state_samples, grid.dt_s) for track in planner_input.tracks)
     return AcceptanceRequest(
         schema_version="colav.mid_mpc.acceptance.request@1",
         candidate=CandidateEvidence(
@@ -1148,7 +1144,7 @@ def _acceptance_request(  # noqa: PLR0913
             ownship_width_m=planner_input.ownship_width_m,
             targets=execution_targets,
             capability=capability,
-            tracker_id=_tracker_identity(planner_input),
+            tracker_id=tracker_id,
         ),
         prior=PriorEvidence(mode=AcceptanceMode.FRESH_CANDIDATE),
         policy=PlanAcceptancePolicy(
@@ -1158,6 +1154,9 @@ def _acceptance_request(  # noqa: PLR0913
             hard_hull_clearance_m=hard_hull_clearance_m,
             advisory_hull_clearance_m=assembly.problem.cpa_safe_m,
             total_deadline_s=total_deadline_s,
+            scenario_id=scenario_id,
+            algorithm_seed=algorithm_seed,
+            tracker_id=tracker_id,
         ),
     )
 

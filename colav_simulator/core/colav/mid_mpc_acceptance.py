@@ -152,7 +152,6 @@ class ExecutionTarget:
     north_m: np.ndarray
     east_m: np.ndarray
     uncertainty_m: np.ndarray
-    relevant: bool = True
 
     def __post_init__(self) -> None:
         """Freeze and validate one target prediction."""
@@ -244,6 +243,9 @@ class PlanAcceptancePolicy:
     max_relevant_targets: int = 16
     total_deadline_s: float = 20.0
     inline_limit_bytes: int = 8192
+    scenario_id: str = "unspecified"
+    algorithm_seed: int = 0
+    tracker_id: str = "unspecified"
     allowed_capability_tuples: tuple[str, ...] = (
         "single-encounter:viknes:flsc",
         "multiship:kinematic_csog:pass_through_cs",
@@ -265,6 +267,8 @@ class PlanAcceptancePolicy:
             raise ValueError("advisory clearance cannot be below hard clearance")
         if self.max_relevant_targets < 1 or self.inline_limit_bytes < 1:
             raise ValueError("acceptance limits must be positive")
+        if not self.scenario_id or self.algorithm_seed < 0 or not self.tracker_id:
+            raise ValueError("acceptance runtime identity must be complete")
         object.__setattr__(self, "allowed_capability_tuples", tuple(self.allowed_capability_tuples))
 
 
@@ -420,8 +424,8 @@ class MidMpcPlanAcceptance:
             failures.append(("INTEGRITY_TARGET_IDENTITY", "target keys must be unique within each namespace"))
         if set(execution_keys) != set(authority_keys):
             failures.append(("INTEGRITY_TARGET_RECONCILIATION", "authority and execution target sets differ"))
-        if sum(target.relevant for target in request.execution.targets) > request.policy.max_relevant_targets:
-            failures.append(("INTEGRITY_CAPACITY", "relevant target count exceeds frozen capacity"))
+        if len(request.execution.targets) > request.policy.max_relevant_targets:
+            failures.append(("INTEGRITY_CAPACITY", "execution target count exceeds frozen capacity"))
         for code, message in failures:
             findings.append(
                 AcceptanceFinding(
@@ -541,8 +545,6 @@ class MidMpcPlanAcceptance:
         )
         witnesses: list[TargetSafetyWitness] = []
         for target in sorted(request.execution.targets, key=lambda item: (item.key.target_id, item.key.generation)):
-            if not target.relevant:
-                continue
             if target.north_m.size != candidate.times_s.size:
                 _fail(
                     findings,

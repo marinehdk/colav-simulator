@@ -509,7 +509,7 @@ class EncounterLifecycle:
             return False
         return True
 
-    def _advance_target(
+    def _advance_target(  # noqa: PLR0912 - explicit lifecycle transition table
         self,
         cycle: EncounterCycle,
         target: TargetObservation,

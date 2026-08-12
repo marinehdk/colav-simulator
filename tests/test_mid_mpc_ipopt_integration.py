@@ -304,7 +304,7 @@ def test_dynamic_tracks_use_shared_geometry_and_direct_optimizer_intents() -> No
     assert details["decision_intent"] == "GIVE_WAY"
     assert details["preferred_side"] == "starboard"
     assert details["starboard_asymmetry_active"] is False
-    assert details["selected_target_ids"] == [14]
+    assert details["selected_target_ids"] == [14, 12, 13, 11]
     lifecycle_targets = {item["target_id"]: item for item in details["lifecycle"]["targets"]}
     assert lifecycle_targets[11]["role"] == "GIVE_WAY"
     assert lifecycle_targets[11]["risk"] == "CANDIDATE"
@@ -513,7 +513,7 @@ def test_stale_held_plan_replans_once_before_command_visibility() -> None:
     np.testing.assert_allclose(adapter.get_current_plan()[:2, 0], shifted[:2], atol=1e-9)
 
 
-def test_held_plan_replans_when_target_departs_from_absolute_prediction() -> None:
+def test_compatible_dynamic_target_reuses_held_plan_with_full_l4_revalidation() -> None:
     adapter = _fast_adapter()
     covariance = np.zeros((4, 4))
     _plan(
@@ -525,13 +525,22 @@ def test_held_plan_replans_when_target_departs_from_absolute_prediction() -> Non
     _plan(
         adapter,
         2.0,
-        [(51, np.array([1042.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0)],
+        [(51, np.array([992.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0)],
     )
 
     trace = adapter.get_colav_data()["planner"]
-    assert trace["solver_executed"] is True
-    assert trace["solve_id"] == 2
-    assert trace["algorithm_details"]["hold_replan_reason"] == "HOLD_DYNAMIC_CONTEXT_REQUIRES_REPLAN"
+    assert trace["solver_executed"] is False
+    assert trace["solve_id"] == 1
+    assert trace["algorithm_details"]["hold_acceptance"]["accepted"] is True
+
+
+def test_capability_tuple_does_not_branch_on_scenario_id() -> None:
+    adapter = _fast_adapter(scenario_id="unlisted_but_same_runtime_tuple")
+
+    command = _plan(adapter, 0.0)
+
+    assert np.isfinite(command).all()
+    assert adapter.get_diagnostics().status is PlanStatus.SUCCESS
 
 
 def test_only_accepted_receipt_can_seed_next_ipopt_solve() -> None:

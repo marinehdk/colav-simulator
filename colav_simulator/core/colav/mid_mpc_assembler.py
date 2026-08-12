@@ -16,7 +16,6 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     CommitmentPhase,
     DecisionSnapshot,
     EncounterKind,
-    OwnshipRole,
     PassingSide,
     RiskPhase,
     Rule17Stage,
@@ -253,7 +252,6 @@ class _TargetBinding:
 class _PolicyResolution:
     speed_bounds_mps: tuple[float, float]
     preferred_side: int
-    minimum_course_change_rad: float
     lateral_active: bool
     committed_route_bearing_rad: float
 
@@ -436,8 +434,7 @@ def _resolve_policy(
         PassingSide.PORT: -1,
         PassingSide.STARBOARD: 1,
     }[snapshot.directive.passing_side]
-    minimum_course_change_rad = snapshot.directive.minimum_course_change_rad
-    lateral_active = minimum_course_change_rad > 0.0
+    lateral_active = snapshot.directive.minimum_course_change_rad > 0.0
     committed_route_bearing = route.bearing_rad
     corridor_decisions = tuple(decision for decision in binding.required_decisions if not decision.route_recovery_allowed)
     if corridor_decisions:
@@ -455,7 +452,6 @@ def _resolve_policy(
     return _PolicyResolution(
         speed_bounds_mps=speed_bounds,
         preferred_side=preferred_side,
-        minimum_course_change_rad=minimum_course_change_rad,
         lateral_active=lateral_active,
         committed_route_bearing_rad=committed_route_bearing,
     )
@@ -472,7 +468,7 @@ def _compile_semantic_problem(
 ) -> _SemanticAssembly:
     ownship = planner_input.ownship_state
     effective_cpa_hard_m = _effective_node_clearance(planner_input, binding.selected_tracks, config)
-    minimum_change = policy.minimum_course_change_rad if policy.lateral_active else 0.0
+    minimum_change = snapshot.directive.minimum_course_change_rad if policy.lateral_active else 0.0
     reachable_per_step = capability.rot_max_rad_s * config.horizon_dt_s
     min_alt_hard_from_k = max(0, math.ceil(minimum_change / reachable_per_step) - 1) if policy.lateral_active else 0
     activation_plan = _activation_plan(
@@ -496,14 +492,18 @@ def _compile_semantic_problem(
         and decision.encounter in {EncounterKind.HEAD_ON, EncounterKind.CROSSING}
         for decision in binding.required_decisions or binding.selected_decisions
     )
-    stand_on_hold = any(
-        decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
+    candidate_sides = {
+        decision.passing_side
         for decision in binding.selected_decisions
-    ) and not any(
-        decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
-        and decision.risk in {RiskPhase.CANDIDATE, RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
-        for decision in binding.selected_decisions
+        if decision.risk is RiskPhase.CANDIDATE and decision.passing_side is not PassingSide.NONE
+    }
+    candidate_side = next(iter(candidate_sides)) if len(candidate_sides) == 1 else PassingSide.NONE
+    preferred_side = (
+        {PassingSide.PORT: -1, PassingSide.STARBOARD: 1}[candidate_side]
+        if candidate_side is not PassingSide.NONE
+        else policy.preferred_side
     )
+    lateral_active = policy.lateral_active or candidate_side is not PassingSide.NONE
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
         route_bearing_rad=policy.committed_route_bearing_rad,
@@ -517,13 +517,10 @@ def _compile_semantic_problem(
         cpa_hard_m=effective_cpa_hard_m,
         rot_max_rad_s=capability.rot_max_rad_s,
         decel_max_mps2=capability.decel_max_mps2,
-        lateral_active=policy.lateral_active,
-        preferred_side=policy.preferred_side,
+        lateral_active=lateral_active,
+        preferred_side=preferred_side,
         starboard_asymmetry_active=starboard_asymmetry,
         min_alteration_rad=minimum_change,
-        prefix_active_k=1 if stand_on_hold else 0,
-        prefix_psi_rad=(float(ownship[2]),) if stand_on_hold else (),
-        prefix_u_mps=(float(ownship[3]),) if stand_on_hold else (),
         route_frame=MidMpcRouteFrame(
             origin_m=(
                 route.anchor_ne_m[0] - float(ownship[0]),
@@ -673,9 +670,9 @@ def _effective_node_clearance(
         covariance_allowance = math.sqrt(max(0.0, float(np.max(np.linalg.eigvalsh(track.covariance[:2, :2]))))) * math.sqrt(
             9.210340371976184
         )
-        target_step_allowance = float(np.linalg.norm(track.state_enu[2:4])) * config.horizon_dt_s
-        target_allowances.append(footprint + covariance_allowance + target_step_allowance)
-    return config.cpa_hard_m + own_radius + max(target_allowances)
+        target_allowances.append(footprint + covariance_allowance)
+    own_step_allowance = config.speed_bounds_mps[1] * config.horizon_dt_s
+    return config.cpa_hard_m + own_radius + max(target_allowances) + own_step_allowance
 
 
 def _wrap(angle: float) -> float:
@@ -775,8 +772,8 @@ def _activation_plan(
                 config.horizon_steps,
                 math.floor(activation_s / config.horizon_dt_s),
             ),
-            direction_hard_from_s=0.0,
-            direction_hard_from_k=0,
+            direction_hard_from_s=(config.horizon_dt_s if decision.risk is RiskPhase.CANDIDATE else 0.0),
+            direction_hard_from_k=(1 if decision.risk is RiskPhase.CANDIDATE else 0),
             min_alt_hard_from_s=min_alt_hard_from_k * config.horizon_dt_s,
             min_alt_hard_from_k=min_alt_hard_from_k,
         )
@@ -798,7 +795,10 @@ def _activation_plan(
     )
     return ConstraintActivationPlan(
         targets=targets,
-        global_cpa_hard_from_k=min((target.cpa_hard_from_k for target in targets), default=config.horizon_steps),
+        global_cpa_hard_from_k=min(
+            (target.cpa_hard_from_k for target in targets),
+            default=config.horizon_steps,
+        ),
         global_direction_hard_from_k=min(
             (target.direction_hard_from_k for target in targets),
             default=0,
@@ -858,14 +858,14 @@ def _admission_rank(decision: TargetDecision) -> int:
     if decision.rule17 is Rule17Stage.MAY_ACT:
         return 3
     if decision.rule17 is Rule17Stage.STAND_ON:
-        return 0
+        return 2
     if decision.risk is RiskPhase.ACTIVE:
         return 3
     if decision.risk is RiskPhase.CANDIDATE:
-        return 0
+        return 2
     if decision.risk is RiskPhase.PAST_CLEAR or decision.recovery_guard_active:
         return 1
-    return 0
+    return 1
 
 
 def _admit_target_keys(

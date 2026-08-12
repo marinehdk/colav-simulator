@@ -183,6 +183,22 @@ def test_target_permutation_preserves_semantic_hash() -> None:
     assert first.acceptance_hash == second.acceptance_hash
 
 
+def test_safety_checks_every_execution_track_even_when_not_selected_by_solver() -> None:
+    target = ExecutionTarget(
+        key=TrackKey(9, 1),
+        length_m=10.0,
+        width_m=4.0,
+        north_m=np.array([0.0, 60.0, 120.0]),
+        east_m=np.zeros(3),
+        uncertainty_m=np.zeros(3),
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(_request(targets=(target,)))
+
+    assert result.accepted is False
+    assert "SAFETY_SWEPT_CLEARANCE" in {finding.code for finding in result.findings}
+
+
 def test_original_bound_violation_rejects_even_with_success_status() -> None:
     numerical = _numerical(raw_x=np.array([1.01, 0.0, 4.0, 4.0, 0.0, 0.0]))
 
