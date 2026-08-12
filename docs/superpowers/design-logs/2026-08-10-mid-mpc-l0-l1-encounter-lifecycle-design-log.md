@@ -1058,4 +1058,5 @@
 - 验证: `git diff --check`通过；方案包八组件齐全；TS-01..36在方案包与日志各36项；R1..46证据46项；K-01..12已知边界12项。
 - 用户接受: 2026-08-11，明确“接受方案包”；Step6 gate通过。
 - 交付更新: 本机已移除superpowers技能；权威链改为`design-grounding → to-spec → implement+tdd → code-review`。本方案包交付to-spec，禁止重新比较已弃用架构或修改TS，除非新证据触发回炉。
-- 状态: Step6完成，已交付to-spec；允许to-spec综合设计/实施Spec并发布issue。
+- to-spec交付: 设计Spec与实施文档已生成；ready-for-agent issue [#24](https://github.com/marinehdk/colav-simulator/issues/24) 已发布。
+- 状态: Step6完成，已交付to-spec；下一链路为implement+tdd，完成后code-review。

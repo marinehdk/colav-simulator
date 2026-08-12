@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import gzip
+import hashlib
 import html
 import json
 import math
@@ -94,6 +96,33 @@ class EvidenceWriter:
                 stream.write(canonical_json(jsonable(event)))
                 stream.write("\n")
         return path
+
+    def append_lifecycle_event(self, event: Any) -> Path:
+        """Durably append one planner lifecycle transition."""
+        path = self.run_dir / "lifecycle_events.jsonl"
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(canonical_json(jsonable(event)))
+            stream.write("\n")
+            stream.flush()
+        return path
+
+    def write_mid_mpc_artifact(self, document: Any) -> dict[str, Any]:
+        """Persist one canonical content-addressed Mid-MPC replay artifact."""
+        payload = canonical_json(jsonable(document)).encode("utf-8")
+        digest = hashlib.sha256(payload).hexdigest()
+        directory = self.run_dir / "artifacts" / "mid_mpc"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{digest}.json.gz"
+        if not path.exists():
+            staging = directory / f".{digest}.tmp"
+            staging.write_bytes(gzip.compress(payload, mtime=0))
+            staging.replace(path)
+        return {
+            "schema_version": "1.0",
+            "sha256": digest,
+            "relative_path": str(path.relative_to(self.run_dir)),
+            "compressed_bytes": path.stat().st_size,
+        }
 
     def write_trajectory(self, frames: list[dict[str, Any]]) -> Path:
         rows: list[dict[str, Any]] = []

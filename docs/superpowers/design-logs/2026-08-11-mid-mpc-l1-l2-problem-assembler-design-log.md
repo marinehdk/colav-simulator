@@ -1,8 +1,8 @@
 # 设计日志: Mid-MPC L1/L2 Problem Assembler
 
 > **模式**: 重构        **创建**: 2026-08-11
-> **关联 spec**: 待 Step6 方案包验收后创建
-> **状态**: Step5 已完成；等待授权进入 Step6 方案包
+> **关联 spec**: `docs/superpowers/specs/2026-08-11-mid-mpc-l1-l2-problem-assembler-solution-pack.md`
+> **状态**: Step6方案包已接受；已交付to-spec
 
 ## 0. 决策树状态(权威索引 · 可变快照)
 
@@ -257,6 +257,22 @@
 | TS-07 | 坐标/符号 | local OCP `x=North,y=East`；navigation angle clockwise from North；正 course alteration=starboard | m/rad | [R1][R4] | DP-06 | 现状隐含，需显式snapshot evidence |
 | TS-08 | grid | 80 control intervals；state times `0..1200s` 共81点；frozen own row `(k+1)dt`、target row `kdt` | N=80,dt=15s | [R1][R2] | DP-10 | UI/mapper当前覆盖首优化点，需修 |
 | TS-09 | safety | required hull clearance=50m project gate；preferred hull clearance=150m soft aspiration；CPA slack单位=m² | m/m² | [R1][R2] | DP-11/DP-16 | legacy字段与GUI语义需拆分 |
+| TS-10 | runtime | solve period=5s；deadline=20s | s | published config/b94148c | DP-05/20 | 一致 |
+| TS-11 | identity | cycle identity=`epoch/sequence/sim_time/input/profile hashes`；request/problem/prepared分别canonical hash | versioned SHA-256 | VR-05/23 | DP-05/19 | 新增 |
+| TS-12 | prediction | target CV mean 81点；position covariance 99% envelope；不宣称maneuver-target robustness | m/m² | VR-09/[R21] | DP-09/10 | bridge未输出完整bundle |
+| TS-13 | frozen timing | 同步node补偿使用target一步位移，不使用own一步位移 | `target_sog*15s` | [R22]/VR-11 | DP-10/11 | 修正bridge公式 |
+| TS-14 | activation | schedule先用物理秒和reachability表达，再映射frozen rows；禁止裸`TCPA/dt-2` | s→stage | VR-12 | DP-12 | 替换bridge heuristic |
+| TS-15 | capability | published KinematicCSOG envelope: heading±45°、speed0..8m/s、ROT3°/s、decel0.3m/s² | rad,m/s,rad/s,m/s² | b94148c config | DP-13 | 明确ODD限制，不冒充live GNC |
+| TS-16 | prefix | 无execution ack时K=0；partial stage unsupported | stage count | VR-14 | DP-14 | 一致 |
+| TS-17 | seed | v1 deterministic cold；仅L4 accepted-plan可primal resample；dual disabled | provenance | VR-15 | DP-15 | 当前无accepted-plan handoff |
+| TS-18 | profile | `MASS_PARITY`保8 oracle；`COLAV_STRICT`同graph/layout且CPA/direction slack lb=ub=0 | bounds-only | VR-16/22 | DP-16/17 | 替换双solver临时捷径 |
+| TS-19 | route | nominal anchor/tangent稳定；Lifecycle给commit/recovery authority；Assembler只编译 | ENU/rad | VR-07 | DP-07 | bridge当前混有recovery step |
+| TS-20 | target binding | required全入；eligible按risk；slot按TrackKey canonical；>16 typed failure | ≤16 | VR-08 | DP-08/18 | bridge只取required |
+| TS-21 | failure | closed typed failure含code/owner/status/recoverability/identity/evidence；无partial problem | JSON-safe | VR-18 | DP-18 | 替换ValueError文本 |
+| TS-22 | evidence | `lifecycle/assembly/solver/acceptance`独立namespace；inline≤8KiB | compact JSON | VR-19/23 | DP-19 | 替换free-form混写 |
+| TS-23 | artifact | full grids/rows/vectors存content-addressed gzip；sink失败不阻塞control | gzip JSON/SHA-256 | VR-19 | DP-19 | 新增 |
+| TS-24 | runtime mapping | Adapter只机械映射PlanStatus/details；no fallback；Session fail-stop | existing public API | VR-18 | DP-18/20 | 一致但detail需补全 |
+| TS-25 | acceptance | A Assembler、B parity、C strict、D closed-loop、E 8010、F full regression不可互替 | six gates | VR-20/23 | DP-20 | 新增统一门 |
 
 ### 0.9 跨线程对齐注册表 [SYNC]
 
@@ -830,3 +846,20 @@
 - SYNC对齐: candidate2只写`lifecycle` namespace与其event refs；候选3写`assembly`，solver/acceptance各自独立。最终按SYNC-21/22验证namespace不覆盖、hash链闭合、共同场景与全仓通过。
 - 用户确认CARD-03采纳方案A、弃用B/C；登记VR-23、ALT-65..ALT-66。
 - Step5完整性检查: CARD-01..CARD-03均含来源、工程验证、完整技术分解、失效边界、实现风险、可测性、推荐度七维；DP-01..DP-20全部覆盖，无低风险跳过项；每张卡已逐张获用户裁决。Step5 gate通过，暂停等待用户授权进入Step6术语表、技术规约与八组件方案包。
+
+### Step6 · 术语、技术规约与方案包 [2026-08-11]
+
+- 用户提供Candidate 2最终handoff并接受Candidate 3方案包。权威起点=`marine/main@b94148c1e91a90830bfac6cf1a6d61b9509e7e70`；Candidate 2 Issue #24关闭；baseline=`441 passed,2 skipped`、OT双镜像真实IPOPT PASS、8010 81点/15s/0..1200s。
+- 已读取上游线程`019fe958-c44a-7052-95dc-1b6f4e22e302`、handoff、Candidate 2 solution pack、final source、七层文档和`mid-mpc-architecture-review-20260810-180251.html`。
+- 最终SYNC复核:
+  - MATCHED: SYNC-02/05/06/08/12/16/22。复用TrackKey/health/decision facts、epoch/retry/RESET evidence、ENU facts、81点轨迹、K=0与Candidate 2验收。
+  - PARTIAL: SYNC-01/03/04/09/10/11/15/20/21。Candidate 3只补request schema/hash、per-target bindings、stable route/prediction/capability/failure/assembly namespace，不改变Lifecycle authority。
+  - MIGRATE/FIX: SYNC-07/13/14/17/18/19。替换transitional assembler；target-step allowance；physical activation；cold/accepted seed contract；parity/strict profiles；private numerical codec。
+- 方案包八组件齐全: 术语表、TS-01..25、CARD-01..03、证据矩阵、TD完整树、ALT-01..66、场景/六Gate、已知限制。
+- pre-agreed TDD seams: `MidMpcProblemAssembler.assemble`、`MidMpcIpoptSolver.solve`、`CustomMPCAdapter.plan`、`P1RunHarness/8010 event`。来自CARD-01..03用户确认，不新增访谈。
+- 交付文件:
+  - `docs/superpowers/specs/2026-08-11-mid-mpc-l1-l2-problem-assembler-solution-pack.md`
+  - `docs/superpowers/specs/2026-08-11-mid-mpc-l1-l2-problem-assembler-design.md`
+  - `docs/superpowers/plans/2026-08-11-mid-mpc-l1-l2-problem-assembler-implementation.md`
+- Step6 gate: 术语完整；技术规约无未定字段；八组件齐；契约明确；无`DECOMPOSITION_INCOMPLETE`。用户已明确接受并要求连续执行`to-spec→implement+tdd→code-review`，标记已交付to-spec。
+- to-spec已发布GitHub Issue #25: `https://github.com/marinehdk/colav-simulator/issues/25`，label=`ready-for-agent`。

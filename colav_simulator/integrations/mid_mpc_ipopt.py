@@ -1,9 +1,13 @@
-"""Colav-native facade for the parity-complete Mid-MPC IPOPT core."""
+"""Colav-native lifecycle facade for the parity-complete Mid-MPC IPOPT core."""
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, is_dataclass
+from enum import Enum
 
 import numpy as np
 
@@ -14,84 +18,91 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
     FactoryContext,
     MPCSolution,
     PlannerInput,
-    TrackedObstacle,
 )
-from colav_simulator.core.colav.diagnostics import PlanStatus
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureSource, PlanStatus
+from colav_simulator.core.colav.encounter_lifecycle import (
+    CommitmentPhase,
+    DecisionSnapshot,
+    EncounterCycle,
+    EncounterKind,
+    EncounterLifecycle,
+    LifecycleError,
+    LifecycleEvent,
+    LifecycleFailure,
+    Maneuverability,
+    ObservationHealth,
+    OwnshipObservation,
+    OwnshipRole,
+    PlannerOddProfile,
+    RiskPhase,
+    TargetDecision,
+    TargetObservation,
+)
 from colav_simulator.core.colav.mid_mpc import (
     MidMpcConfig,
     MidMpcIpoptSolver,
-    MidMpcOwnShip,
-    MidMpcProblem,
-    MidMpcRouteFrame,
-    MidMpcRowSchedule,
+    MidMpcResult,
     MidMpcStatus,
-    MidMpcTarget,
+)
+from colav_simulator.core.colav.mid_mpc_assembler import (
+    AssemblyFailure,
+    AssemblyProfile,
+    AssemblyRequest,
+    AssemblySuccess,
+    CapabilitySnapshot,
+    MidMpcAssemblyConfig,
+    MidMpcProblemAssembler,
+    RouteReference,
+    TargetPrediction,
+    problem_hash_document,
 )
 from colav_simulator.core.guidances import LOSGuidance
-from colav_simulator.evaluation.encounter import classify_geometry, velocity_ne
+from colav_simulator.core.tracking.trackers import TrackKey
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 
 @dataclass(frozen=True)
 class _FacadeConfig:
-    horizon_steps: int
-    horizon_dt_s: float
-    hold_selection_horizon_s: float
-    heading_window_rad: float
-    speed_bounds_mps: tuple[float, float]
-    cpa_safe_m: float
-    cpa_hard_m: float
-    overtaking_clear_distance_m: float
-    rot_max_rad_s: float
-    decel_max_mps2: float
-    min_alteration_rad: float
-    route_lateral_scale_m: float
-    route_weight: float
-
-
-@dataclass(frozen=True)
-class _OptimizerPolicy:
-    intent: str
-    preferred_side: int
-    starboard_asymmetry_active: bool
-
-
-@dataclass(frozen=True)
-class _TargetDecision:
-    track: TrackedObstacle
-    encounter: str
-    optimizer_policy: _OptimizerPolicy
-    dcpa_m: float
-    tcpa_s: float
-    signed_tcpa_s: float
-    relative_bearing_deg: float
-    newly_committed: bool
+    assembly: MidMpcAssemblyConfig
+    profile: PlannerOddProfile
 
 
 class _MidMpcFacade:
-    def __init__(self, config: _FacadeConfig) -> None:
+    def __init__(
+        self,
+        config: _FacadeConfig,
+        *,
+        event_sink: Callable[[LifecycleEvent], object] | None = None,
+        artifact_sink: Callable[[object], object] | None = None,
+    ) -> None:
         self._config = config
         self._los = LOSGuidance()
-        self._solver = MidMpcIpoptSolver(MidMpcConfig(horizon_steps=config.horizon_steps, dt_s=config.horizon_dt_s))
-        self._hard_direction_solver = MidMpcIpoptSolver(
-            MidMpcConfig(
-                horizon_steps=config.horizon_steps,
-                dt_s=config.horizon_dt_s,
-                dir_slack_enabled=False,
-            )
+        core_config = MidMpcConfig(
+            horizon_steps=config.assembly.horizon_steps,
+            dt_s=config.assembly.horizon_dt_s,
+            strict_slack_bounds=True,
         )
+        self._solver = MidMpcIpoptSolver(core_config)
+        self._assembler = MidMpcProblemAssembler()
+        self._lifecycle = EncounterLifecycle(event_sink=event_sink)
         self._last_guidance_time_s: float | None = None
-        self._committed_policies: dict[int, _OptimizerPolicy] = {}
-        self._commitment_courses_rad: dict[int, float] = {}
-        self._released_target_ids: set[int] = set()
+        self._epoch_number = 1
+        self._cycle_sequence = 0
+        self._last_cycle_time_s: float | None = None
+        self._artifact_sink = artifact_sink
 
     def reset(self) -> None:
         self._los.reset()
+        self._epoch_number += 1
+        self._lifecycle.reset(
+            epoch=f"mid-mpc-{self._epoch_number}",
+            reason="adapter_reset",
+            sim_time_s=0.0 if self._last_cycle_time_s is None else self._last_cycle_time_s,
+        )
         self._last_guidance_time_s = None
-        self._committed_policies.clear()
-        self._commitment_courses_rad.clear()
-        self._released_target_ids.clear()
+        self._cycle_sequence = 0
+        self._last_cycle_time_s = None
 
     def solve(self, planner_input: PlannerInput) -> MPCSolution:
         ownship = planner_input.ownship_state
@@ -109,275 +120,321 @@ class _MidMpcFacade:
         )
         self._last_guidance_time_s = planner_input.sim_time_s
         route_bearing = _unwrap_near(float(reference[2, 0]), float(ownship[2]))
-        target_decisions = self._target_decisions(planner_input)
-        optimization_decisions = self._optimization_decisions(target_decisions)
-        optimizer_policy = _aggregate_policy(target_decisions)
-        course_commitment_active = optimizer_policy.intent == "GIVE_WAY"
-        if course_commitment_active:
-            committed_course = next(
-                self._commitment_courses_rad[decision.track.target_id]
-                for decision in target_decisions
-                if decision.optimizer_policy.intent == "GIVE_WAY"
-                and decision.track.target_id in self._commitment_courses_rad
+        if self._last_cycle_time_s is not None and planner_input.sim_time_s != self._last_cycle_time_s:
+            self._cycle_sequence += 1
+        self._last_cycle_time_s = planner_input.sim_time_s
+        route_anchor = _nearest_route_anchor(planner_input.waypoints_enu_m, ownship[:2])
+        try:
+            cycle = self._encounter_cycle(
+                planner_input,
+                route_bearing_rad=route_bearing,
+                planned_speed_mps=float(reference[3, 0]),
             )
-            route_bearing = _unwrap_near(
-                committed_course + optimizer_policy.preferred_side * self._config.min_alteration_rad,
-                float(ownship[2]),
-            )
-        lateral_active = any(decision.newly_committed for decision in optimization_decisions)
-        minimum_alteration_active = lateral_active
-        row_schedule = self._row_schedule(optimization_decisions, lateral_active)
-        effective_cpa_hard_m = self._effective_cpa_hard_m(optimization_decisions, planner_input)
-        problem = MidMpcProblem(
-            own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
-            route_bearing_rad=route_bearing,
-            planned_speed_mps=float(reference[3, 0]),
-            heading_bounds_rad=(
-                float(ownship[2]) - self._config.heading_window_rad,
-                float(ownship[2]) + self._config.heading_window_rad,
-            ),
-            speed_bounds_mps=self._config.speed_bounds_mps,
-            cpa_safe_m=max(self._config.cpa_safe_m, effective_cpa_hard_m),
-            cpa_hard_m=effective_cpa_hard_m,
-            rot_max_rad_s=self._config.rot_max_rad_s,
-            decel_max_mps2=self._config.decel_max_mps2,
-            lateral_active=lateral_active,
-            preferred_side=optimizer_policy.preferred_side,
-            starboard_asymmetry_active=optimizer_policy.starboard_asymmetry_active,
-            min_alteration_rad=self._config.min_alteration_rad if minimum_alteration_active else 0.0,
-            route_frame=MidMpcRouteFrame(
-                origin_m=(0.0, 0.0),
-                normal=(-math.sin(route_bearing), math.cos(route_bearing)),
-                bearing_rad=route_bearing,
-                lateral_scale_m=self._config.route_lateral_scale_m,
-                weight=self._config.route_weight,
-            ),
-            row_schedule=row_schedule,
-            audit_row_count=sum(decision.encounter != "clear" for decision in optimization_decisions),
-            targets=tuple(
-                MidMpcTarget(
-                    x_m=float(decision.track.state_enu[0] - ownship[0]),
-                    y_m=float(decision.track.state_enu[1] - ownship[1]),
-                    cog_rad=float(math.atan2(decision.track.state_enu[3], decision.track.state_enu[2])),
-                    sog_mps=float(np.linalg.norm(decision.track.state_enu[2:4])),
+            snapshot = self._lifecycle.step(cycle)
+            assembly = self._assembler.assemble(
+                AssemblyRequest(
+                    planner_input=planner_input,
+                    snapshot=snapshot,
+                    cycle_input_hash=cycle.input_hash,
+                    lifecycle_profile_hash=cycle.profile.hash,
+                    route=RouteReference(
+                        anchor_ne_m=route_anchor,
+                        bearing_rad=route_bearing,
+                        planned_speed_mps=float(reference[3, 0]),
+                    ),
+                    capability=CapabilitySnapshot(
+                        heading_window_rad=self._config.assembly.heading_window_rad,
+                        speed_bounds_mps=self._config.assembly.speed_bounds_mps,
+                        rot_max_rad_s=self._config.assembly.rot_max_rad_s,
+                        decel_max_mps2=self._config.assembly.decel_max_mps2,
+                    ),
+                    config=self._config.assembly,
+                    profile=AssemblyProfile.COLAV_STRICT,
                 )
-                for decision in optimization_decisions
-            ),
+            )
+        except LifecycleError as exc:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"Mid-MPC lifecycle {exc.failure.value}: {exc}",
+                source=FailureSource.ALGORITHM,
+                details={"failure_code": exc.failure.value, "failure_owner": "lifecycle"},
+            ) from exc
+        if isinstance(assembly, AssemblyFailure):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"Mid-MPC assembly {assembly.code.value}: {assembly.message}",
+                source=FailureSource.ALGORITHM,
+                details={
+                    "failure_code": assembly.code.value,
+                    "failure_owner": assembly.owner.lower(),
+                    "recoverability": assembly.recoverability,
+                    "identity": assembly.identity,
+                },
+            )
+        result = self._solver.solve(assembly.problem)
+        predicted, controls = _native_trajectories(
+            result.trajectory,
+            ownship,
+            self._config.assembly.horizon_dt_s,
         )
-        solver = self._hard_direction_solver if lateral_active else self._solver
-        result = solver.solve(problem)
-        predicted, controls = _native_trajectories(result.trajectory, ownship, self._config.horizon_dt_s)
         status, feasible = _plan_status(result.status, result.max_constraint_violation)
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
-        objective_components = asdict(result.objective_components)
+        replay_artifact = _replay_artifact_document(assembly, result)
+        if _document_hash(replay_artifact["problem_stage"]) != assembly.problem_hash:
+            raise RuntimeError("Mid-MPC problem evidence does not match assembled problem hash")
+        prepared_stage = {
+            "schema_version": "colav.mid_mpc.prepared@1",
+            "parent_problem_hash": assembly.problem_hash,
+            "prepared": replay_artifact["solver"]["prepared"],
+        }
+        prepared_hash = _document_hash(prepared_stage)
+        solver_stage = {
+            "schema_version": "colav.mid_mpc.solver@1",
+            "parent_prepared_hash": prepared_hash,
+            "solver": replay_artifact["solver"],
+        }
+        solver_hash = _document_hash(solver_stage)
+        acceptance_stage = {
+            "schema_version": "colav.mid_mpc.acceptance@1",
+            "parent_solver_hash": solver_hash,
+            "acceptance": replay_artifact["acceptance"],
+        }
+        acceptance_hash = _document_hash(acceptance_stage)
+        replay_artifact["prepared_stage"] = prepared_stage
+        replay_artifact["solver_stage"] = solver_stage
+        replay_artifact["acceptance_stage"] = acceptance_stage
+        replay_artifact["hashes"] = {
+            "request": assembly.request_hash,
+            "problem": assembly.problem_hash,
+            "prepared": prepared_hash,
+            "solver": solver_hash,
+            "acceptance": acceptance_hash,
+        }
+        replay_artifact["hash_chain"] = {
+            "request": {"hash": assembly.request_hash, "parent_hash": None},
+            "problem": {"hash": assembly.problem_hash, "parent_hash": assembly.request_hash},
+            "prepared": {"hash": prepared_hash, "parent_hash": assembly.problem_hash},
+            "solver": {"hash": solver_hash, "parent_hash": prepared_hash},
+            "acceptance": {"hash": acceptance_hash, "parent_hash": solver_hash},
+        }
+        artifact_reference: object = {"status": "NOT_CONFIGURED"}
+        if self._artifact_sink is not None:
+            try:
+                artifact_reference = self._artifact_sink(replay_artifact)
+            except Exception as exc:  # evidence failure must not alter control authority
+                artifact_reference = {
+                    "status": "INCOMPLETE",
+                    "error_type": type(exc).__name__,
+                }
         constraints = {
             "row_layout": result.row_layout.to_dict(),
             "active_row_indices": list(result.active_row_indices),
             "tight_row_indices": list(result.tight_row_indices),
             "max_constraint_violation": result.max_constraint_violation,
+            "max_decision_bound_violation": result.max_decision_bound_violation,
             "cpa_slack": result.cpa_slack,
             "direction_slack": max(0.0, result.raw_dir_slack),
             "continuous_cpa_min_m": continuous_cpa,
             "continuous_cpa_violated": result.continuous_cpa_violated,
-            "row_schedule": asdict(row_schedule),
-            "configured_hull_clearance_m": self._config.cpa_hard_m,
-            "effective_node_cpa_hard_m": effective_cpa_hard_m,
+            "row_schedule": asdict(assembly.problem.row_schedule),
+            "configured_hull_clearance_m": self._config.assembly.cpa_hard_m,
+            "effective_node_cpa_hard_m": assembly.effective_cpa_hard_m,
+            "slack_bounds_mode": "fixed_zero",
+            "slack_bounds": {
+                "cpa": [float(result.prepared.lbx[-2]), float(result.prepared.ubx[-2])],
+                "direction": [float(result.prepared.lbx[-1]), float(result.prepared.ubx[-1])],
+            },
         }
+        committed = any(
+            decision.commitment is CommitmentPhase.COMMITTED and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
+            for decision in snapshot.targets
+        )
         details = {
             "formulation": "mass-l3-mid-mpc-ipopt-frozen",
             "solver_backend": "ipopt",
             "ipopt_return_status": result.ipopt_return_status,
             "normalized_solver_status": result.status.value,
+            "native_solver_status": result.native_status.value,
             "solver_elapsed_ms": result.elapsed_ms,
-            "objective_components": objective_components,
+            "seed_objective_total": result.seed_objective_total,
+            "seed_max_constraint_violation": result.seed_max_constraint_violation,
+            "objective_improvement": result.objective_improvement,
+            "decision_change_norm": result.decision_change_norm,
+            "optimization_quality_passed": result.optimization_quality_passed,
+            "accepted_by_quality_gate": result.accepted_by_quality_gate,
+            "accepted_candidate_source": result.accepted_candidate_source,
+            "accepted_iteration": result.accepted_iteration,
+            "objective_components": asdict(result.objective_components),
             "warm_start_used": False,
-            "target_selection": "future_cpa_then_range",
-            "decision_intent": optimizer_policy.intent,
-            "preferred_side": _side_name(optimizer_policy.preferred_side),
-            "starboard_asymmetry_active": optimizer_policy.starboard_asymmetry_active,
-            "minimum_alteration_active": minimum_alteration_active,
-            "overtaking_course_commitment_active": (
-                course_commitment_active and not optimizer_policy.starboard_asymmetry_active
+            "target_selection": "lifecycle_required_then_aggregate",
+            "decision_intent": "GIVE_WAY" if committed else "HOLD",
+            "preferred_side": snapshot.directive.passing_side.value.lower(),
+            "starboard_asymmetry_active": assembly.problem.starboard_asymmetry_active,
+            "minimum_alteration_active": assembly.problem.lateral_active,
+            "overtaking_course_commitment_active": any(
+                decision.encounter is EncounterKind.OVERTAKING and decision.commitment is CommitmentPhase.COMMITTED
+                for decision in snapshot.targets
             ),
-            "route_reference_mode": "give_way_commitment" if course_commitment_active else "los",
-            "direction_constraint_mode": (
-                "hard" if lateral_active else "route_reference" if course_commitment_active else "disabled"
-            ),
-            "selected_target_ids": [decision.track.target_id for decision in optimization_decisions],
+            "route_reference_mode": "lifecycle_commitment" if committed else "los",
+            "direction_constraint_mode": "hard" if assembly.problem.lateral_active else "disabled",
+            "selected_target_ids": [key.target_id for key in assembly.selected_target_keys],
             "los_guidance_dt_s": guidance_dt_s,
+            "control_intervals": self._config.assembly.horizon_steps,
+            "state_samples": self._config.assembly.horizon_steps + 1,
+            "horizon_duration_s": self._config.assembly.horizon_steps * self._config.assembly.horizon_dt_s,
+            "trajectory_source": "fresh_ipopt_solve",
+            "assembly": {
+                "schema_version": "1.0",
+                "profile": assembly.profile.value,
+                "request_hash": assembly.request_hash,
+                "problem_hash": assembly.problem_hash,
+                "prepared_hash": prepared_hash,
+                "solver_hash": solver_hash,
+                "acceptance_hash": acceptance_hash,
+                "structural_signature": assembly.preparation.structural_signature,
+                "selected_targets": [
+                    {"target_id": key.target_id, "generation": key.generation} for key in assembly.selected_target_keys
+                ],
+                "route_anchor_ne_m": list(route_anchor),
+                "activation": {
+                    "cpa_hard_from_k": assembly.activation_plan.global_cpa_hard_from_k,
+                    "direction_hard_from_k": assembly.activation_plan.global_direction_hard_from_k,
+                    "min_alt_hard_from_k": assembly.activation_plan.global_min_alt_hard_from_k,
+                },
+                "artifact": artifact_reference,
+            },
+            "render_projection": {
+                "schema_version": "colav.mid_mpc.render@1",
+                "frame": "ENU",
+                "axis_order": ["sample"],
+                "time_axis": {
+                    "state_samples": assembly.grid.state_samples,
+                    "dt_s": assembly.grid.dt_s,
+                    "duration_s": assembly.grid.duration_s,
+                },
+                "ownship_fields": ["north_m", "east_m", "heading_rad", "speed_mps"],
+                "ownship": {
+                    "north_m": predicted[0].tolist(),
+                    "east_m": predicted[1].tolist(),
+                    "heading_rad": predicted[2].tolist(),
+                    "speed_mps": np.hypot(predicted[3], predicted[4]).tolist(),
+                },
+                "target_fields": ["north_m", "east_m", "generation", "reference_time_s"],
+                "trajectory_source": "fresh_ipopt_solve",
+            },
+            "lifecycle": _snapshot_document(snapshot, self._lifecycle),
         }
+        decision_by_key = {decision.key: decision for decision in snapshot.targets}
         return MPCSolution(
             control_reference=controls[:, :1],
             predicted_trajectory=predicted,
             control_trajectory=controls,
             status=status,
-            horizon_dt_s=self._config.horizon_dt_s,
+            horizon_dt_s=self._config.assembly.horizon_dt_s,
             objective=result.objective_total,
             iterations=result.ipopt_iterations,
             feasible=feasible,
             constraints=constraints,
-            target_predictions=tuple(self._target_prediction(decision, planner_input) for decision in target_decisions),
+            target_predictions=tuple(
+                self._target_prediction(decision_by_key[prediction.key], prediction)
+                for prediction in assembly.target_predictions
+            ),
             algorithm_details=details,
         )
 
-    def _target_decisions(self, planner_input: PlannerInput) -> tuple[_TargetDecision, ...]:
-        ownship = planner_input.ownship_state
-        own_speed = float(np.hypot(ownship[3], ownship[4]))
-        own_course = float(ownship[2] + math.atan2(ownship[4], ownship[3]))
-        own_velocity = velocity_ne(own_speed, own_course)
-        decisions = []
-        seen_target_ids = set()
-        for track in planner_input.tracks:
-            seen_target_ids.add(track.target_id)
-            encounter, dcpa_m, tcpa_s, signed_tcpa_s, relative_bearing_deg = classify_geometry(
-                ownship[:2],
-                own_velocity,
-                track.state_enu[:2],
-                track.state_enu[2:4],
-                planner_input.ownship_length_m,
-                track.length_m,
-            )
-            classified_policy = _policy_for_encounter(encounter, relative_bearing_deg)
-            committed_policy = self._committed_policies.get(track.target_id)
-            overtaking_past_and_clear = self._overtaking_past_and_clear(ownship, track)
-            release_commitment = committed_policy is not None and (
-                overtaking_past_and_clear if not committed_policy.starboard_asymmetry_active else signed_tcpa_s <= 0.0
-            )
-            if release_commitment:
-                self._committed_policies.pop(track.target_id, None)
-                self._commitment_courses_rad.pop(track.target_id, None)
-                self._released_target_ids.add(track.target_id)
-                committed_policy = None
-            released = track.target_id in self._released_target_ids
-            newly_committed = classified_policy.intent == "GIVE_WAY" and committed_policy is None and not released
-            if classified_policy.intent == "GIVE_WAY" and not released:
-                if committed_policy is None:
-                    self._commitment_courses_rad[track.target_id] = own_course
-                committed_policy = committed_policy or classified_policy
-                self._committed_policies[track.target_id] = committed_policy
-            effective_policy = committed_policy or classified_policy
-            if released:
-                effective_policy = _OptimizerPolicy("HOLD", 0, False)
-            decisions.append(
-                _TargetDecision(
-                    track=track,
-                    encounter=encounter,
-                    optimizer_policy=effective_policy,
-                    dcpa_m=dcpa_m,
-                    tcpa_s=tcpa_s,
-                    signed_tcpa_s=signed_tcpa_s,
-                    relative_bearing_deg=relative_bearing_deg,
-                    newly_committed=newly_committed,
-                )
-            )
-        self._committed_policies = {
-            target_id: policy for target_id, policy in self._committed_policies.items() if target_id in seen_target_ids
-        }
-        self._commitment_courses_rad = {
-            target_id: course
-            for target_id, course in self._commitment_courses_rad.items()
-            if target_id in self._committed_policies
-        }
-        self._released_target_ids.intersection_update(seen_target_ids)
-        decisions.sort(
-            key=lambda decision: (
-                decision.signed_tcpa_s <= 0.0,
-                decision.tcpa_s if decision.signed_tcpa_s > 0.0 else math.inf,
-                decision.dcpa_m,
-                float(np.linalg.norm(decision.track.state_enu[:2] - ownship[:2])),
-                decision.track.target_id,
-            )
-        )
-        return tuple(decisions[:16])
-
-    def _overtaking_past_and_clear(self, ownship: np.ndarray, track: TrackedObstacle) -> bool:
-        relative_position = ownship[:2] - track.state_enu[:2]
-        distance_m = float(np.linalg.norm(relative_position))
-        target_velocity = track.state_enu[2:4]
-        target_speed_mps = float(np.linalg.norm(target_velocity))
-        if target_speed_mps <= 0.25:
-            return False
-        along_track_m = float(relative_position @ target_velocity / target_speed_mps)
-        return (
-            along_track_m >= self._config.overtaking_clear_distance_m
-            and distance_m >= self._config.overtaking_clear_distance_m
-        )
-
-    def _optimization_decisions(
+    def _encounter_cycle(
         self,
-        decisions: tuple[_TargetDecision, ...],
-    ) -> tuple[_TargetDecision, ...]:
-        return tuple(
-            decision
-            for decision in decisions
-            if decision.optimizer_policy.intent == "GIVE_WAY"
-            or (0.0 < decision.signed_tcpa_s <= self._config.hold_selection_horizon_s)
-        )
-
-    def _effective_cpa_hard_m(
-        self,
-        decisions: tuple[_TargetDecision, ...],
         planner_input: PlannerInput,
-    ) -> float:
-        if not decisions:
-            return self._config.cpa_hard_m
-        own_radius = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
-        target_allowances = [0.5 * math.hypot(decision.track.length_m, decision.track.width_m) for decision in decisions]
-        own_step_allowance = self._config.speed_bounds_mps[1] * self._config.horizon_dt_s
-        return self._config.cpa_hard_m + own_radius + max(target_allowances) + own_step_allowance
-
-    def _row_schedule(
-        self,
-        decisions: tuple[_TargetDecision, ...],
-        lateral_active: bool,
-    ) -> MidMpcRowSchedule:
-        approaching = [decision.tcpa_s for decision in decisions if decision.signed_tcpa_s > 0.0]
-        cpa_hard_from_k = self._config.horizon_steps
-        if approaching:
-            cpa_hard_from_k = max(
-                0,
-                min(
-                    self._config.horizon_steps,
-                    math.floor(min(approaching) / self._config.horizon_dt_s) - 2,
+        *,
+        route_bearing_rad: float,
+        planned_speed_mps: float,
+    ) -> EncounterCycle:
+        ownship = planner_input.ownship_state
+        own_velocity = np.array(
+            [
+                ownship[3] * math.cos(ownship[2]) - ownship[4] * math.sin(ownship[2]),
+                ownship[3] * math.sin(ownship[2]) + ownship[4] * math.cos(ownship[2]),
+            ]
+        )
+        targets = tuple(self._target_observation(track) for track in planner_input.tracks)
+        return EncounterCycle(
+            epoch=f"mid-mpc-{self._epoch_number}",
+            sequence=self._cycle_sequence,
+            sim_time_s=planner_input.sim_time_s,
+            ownship=OwnshipObservation(
+                position_ne_m=ownship[:2],
+                velocity_ne_mps=own_velocity,
+                heading_rad=float(ownship[2]),
+                length_m=planner_input.ownship_length_m,
+                width_m=planner_input.ownship_width_m,
+                maneuverability=Maneuverability(
+                    turn_rate_rad_s=self._config.assembly.rot_max_rad_s,
+                    deceleration_mps2=self._config.assembly.decel_max_mps2,
+                    speed_bounds_mps=self._config.assembly.speed_bounds_mps,
                 ),
+            ),
+            targets=targets,
+            route_bearing_rad=route_bearing_rad,
+            planned_speed_mps=planned_speed_mps,
+            profile=self._config.profile,
+        )
+
+    def _target_observation(self, track: object) -> TargetObservation:
+        if not track.identity_known:
+            raise LifecycleError(
+                LifecycleFailure.UNUSABLE_OBSERVATION,
+                f"target {track.target_id} has no tracker-owned generation",
             )
-        min_alt_hard_from_k = 0
-        if lateral_active:
-            reachable_per_step = self._config.rot_max_rad_s * self._config.horizon_dt_s
-            min_alt_hard_from_k = max(
-                0,
-                math.ceil(self._config.min_alteration_rad / reachable_per_step) - 1,
-            )
-        return MidMpcRowSchedule(
-            cpa_hard_from_k=cpa_hard_from_k,
-            direction_hard_from_k=0,
-            min_alt_hard_from_k=min_alt_hard_from_k,
-            terminal_rows_enabled=False,
+        generation = track.generation
+        status = track.status.upper()
+        if status == "TERMINATED":
+            health = ObservationHealth.UNUSABLE
+        elif status == "COASTING":
+            health = ObservationHealth.COASTING
+        elif track.age_s <= self._config.profile.fresh_age_s and track.identity_known:
+            health = ObservationHealth.UPDATED
+        elif track.age_s <= self._config.profile.usable_age_s:
+            health = ObservationHealth.DEGRADED
+        else:
+            health = ObservationHealth.UNUSABLE
+        return TargetObservation(
+            key=TrackKey(track.target_id, generation),
+            state_enu=track.state_enu,
+            covariance=track.covariance,
+            length_m=track.length_m,
+            width_m=track.width_m,
+            observed_at_s=track.observed_at_s,
+            generated_at_s=float(track.generated_at_s),
+            health=health,
+            source=track.source,
         )
 
     def _target_prediction(
         self,
-        decision: _TargetDecision,
-        planner_input: PlannerInput,
+        decision: TargetDecision,
+        prediction: TargetPrediction,
     ) -> dict[str, object]:
-        times = np.arange(self._config.horizon_steps, dtype=float) * self._config.horizon_dt_s
-        state = decision.track.state_enu
+        north = prediction.north_m.tolist()
+        east = prediction.east_m.tolist()
         return {
-            "target_id": decision.track.target_id,
-            "encounter": decision.encounter,
-            "optimizer_intent": decision.optimizer_policy.intent,
-            "policy_committed": decision.track.target_id in self._committed_policies,
-            "preferred_side": _side_name(decision.optimizer_policy.preferred_side),
-            "dcpa_m": decision.dcpa_m,
-            "tcpa_s": decision.tcpa_s,
-            "signed_tcpa_s": decision.signed_tcpa_s,
-            "relative_bearing_deg": decision.relative_bearing_deg,
-            "north_m": (state[0] + state[2] * times).tolist(),
-            "east_m": (state[1] + state[3] * times).tolist(),
-            "velocity_ne_mps": state[2:4].tolist(),
+            "target_id": decision.key.target_id,
+            "generation": decision.key.generation,
+            "encounter": _encounter_name(decision),
+            "optimizer_intent": ("GIVE_WAY" if decision.commitment is CommitmentPhase.COMMITTED else "HOLD"),
+            "policy_committed": decision.commitment is CommitmentPhase.COMMITTED,
+            "preferred_side": decision.passing_side.value.lower(),
+            "dcpa_m": decision.geometry.dcpa_m,
+            "tcpa_s": max(0.0, decision.geometry.signed_tcpa_s),
+            "signed_tcpa_s": _finite_or_none(decision.geometry.signed_tcpa_s),
+            "relative_bearing_deg": math.degrees(decision.geometry.relative_bearing_rad),
+            "north_m": north,
+            "east_m": east,
+            "x": north,
+            "y": east,
+            "velocity_ne_mps": list(prediction.velocity_ne_mps),
             "prediction_model": "constant_velocity",
-            "degraded": decision.track.degraded,
-            "ownship_reference_time_s": planner_input.sim_time_s,
+            "degraded": decision.health is not ObservationHealth.UPDATED,
+            "ownship_reference_time_s": prediction.reference_time_s,
         }
 
 
@@ -386,46 +443,49 @@ def create(  # noqa: PLR0913
     context: FactoryContext,
     horizon_steps: int = 80,
     horizon_dt_s: float = 15.0,
-    hold_selection_horizon_s: float = 90.0,
     solve_period_s: float = 5.0,
     deadline_s: float = 20.0,
     heading_window_deg: float = 45.0,
-    speed_min_mps: float = 0.25,
+    speed_min_mps: float = 0.0,
     speed_max_mps: float = 8.0,
     cpa_safe_m: float = 150.0,
     cpa_hard_m: float = 50.0,
-    overtaking_clear_distance_m: float = 190.0,
     rot_max_deg_s: float = 3.0,
     decel_max_mps2: float = 0.3,
-    min_alteration_deg: float = 5.0,
+    min_alteration_deg: float | None = None,
     route_lateral_scale_m: float = 1000.0,
     route_weight: float = 1.0,
 ) -> CustomMPCAdapter:
     """Build Mid-MPC under the strict native adapter contract."""
-    config = _FacadeConfig(
+    del min_alteration_deg
+    assembly = MidMpcAssemblyConfig(
         horizon_steps=horizon_steps,
         horizon_dt_s=horizon_dt_s,
-        hold_selection_horizon_s=hold_selection_horizon_s,
         heading_window_rad=float(np.deg2rad(heading_window_deg)),
         speed_bounds_mps=(speed_min_mps, speed_max_mps),
         cpa_safe_m=cpa_safe_m,
         cpa_hard_m=cpa_hard_m,
-        overtaking_clear_distance_m=overtaking_clear_distance_m,
         rot_max_rad_s=float(np.deg2rad(rot_max_deg_s)),
         decel_max_mps2=decel_max_mps2,
-        min_alteration_rad=float(np.deg2rad(min_alteration_deg)),
         route_lateral_scale_m=route_lateral_scale_m,
         route_weight=route_weight,
+        decision_period_s=solve_period_s,
     )
-    facade = _MidMpcFacade(config)
+    config = _FacadeConfig(assembly=assembly, profile=PlannerOddProfile())
+    facade = _MidMpcFacade(
+        config,
+        event_sink=context.event_sink,
+        artifact_sink=context.artifact_sink,
+    )
     descriptor = AlgorithmDescriptor(
         algorithm_id=context.requested_algorithm,
         version=__version__,
         control_form="course_speed_reference",
         state_layout=("x", "y", "psi", "u", "v", "r", "x_ddot", "y_ddot", "psi_dot"),
         predictor_model="heading_speed_point_mass_constant_velocity_targets",
-        horizon_dt=config.horizon_dt_s,
-        horizon_steps=config.horizon_steps,
+        horizon_dt=assembly.horizon_dt_s,
+        horizon_steps=assembly.horizon_steps,
+        state_samples=assembly.horizon_steps + 1,
         objective_terms=(
             "colreg_barrier",
             "heading_tracking",
@@ -459,33 +519,212 @@ def create(  # noqa: PLR0913
     )
 
 
+def _snapshot_document(
+    snapshot: DecisionSnapshot,
+    lifecycle: EncounterLifecycle,
+) -> dict[str, object]:
+    return {
+        "schema_version": "1.0",
+        "source": "planner",
+        "epoch": snapshot.epoch,
+        "sequence": snapshot.sequence,
+        "input_hash": snapshot.input_hash,
+        "profile_hash": snapshot.profile_hash,
+        "primary_target": (
+            None
+            if snapshot.primary_target is None
+            else {
+                "target_id": snapshot.primary_target.target_id,
+                "generation": snapshot.primary_target.generation,
+            }
+        ),
+        "evidence_persisted": snapshot.evidence_persisted,
+        "event_buffer": {
+            "capacity": 1024,
+            "size": len(lifecycle.live_events),
+            "overflow_count": lifecycle.event_overflow_count,
+        },
+        "events": [
+            {
+                "schema_version": event.schema_version,
+                "event_id": event.event_id,
+                "sim_time_s": event.sim_time_s,
+                "source": event.source,
+                "event_type": event.event_type,
+                "target_id": None if event.target_key is None else event.target_key.target_id,
+                "generation": None if event.target_key is None else event.target_key.generation,
+                "from_state": event.from_state,
+                "to_state": event.to_state,
+                "reason": event.reason,
+            }
+            for event in snapshot.events
+        ],
+        "targets": [
+            {
+                "target_id": decision.key.target_id,
+                "generation": decision.key.generation,
+                "episode": decision.episode,
+                "encounter": decision.encounter.value,
+                "role": decision.role.value,
+                "risk": decision.risk.value,
+                "commitment": decision.commitment.value,
+                "passing_side": decision.passing_side.value,
+                "rule17": decision.rule17.value,
+                "rule17_basis": decision.rule17_basis,
+                "health": decision.health.value,
+                "route_recovery_allowed": decision.route_recovery_allowed,
+                "recovery_guard_active": decision.recovery_guard_active,
+                "action_achieved": decision.action_achieved,
+                "required_course_change_rad": decision.required_course_change_rad,
+            }
+            for decision in snapshot.targets
+        ],
+        "aggregate": {
+            "required_target_ids": [key.target_id for key in snapshot.directive.required_targets],
+            "passing_side": snapshot.directive.passing_side.value,
+            "minimum_course_change_rad": snapshot.directive.minimum_course_change_rad,
+            "speed_bounds_mps": list(snapshot.directive.speed_bounds_mps),
+            "stop_required": snapshot.directive.stop_required,
+        },
+    }
+
+
+def _replay_artifact_document(
+    assembly: AssemblySuccess,
+    result: MidMpcResult,
+) -> dict[str, object]:
+    problem_stage = problem_hash_document(
+        assembly.problem,
+        assembly.target_predictions,
+        assembly.activation_plan,
+        assembly.grid,
+        assembly.preparation,
+        parent_request_hash=assembly.request_hash,
+    )
+    return _artifact_value(
+        {
+            "schema_version": "colav.mid_mpc.replay@1",
+            "request_stage": json.loads(assembly.request_stage_json),
+            "problem_stage": problem_stage,
+            "assembly": {
+                "request_hash": assembly.request_hash,
+                "problem_hash": assembly.problem_hash,
+                "profile": assembly.profile,
+                "problem": assembly.problem,
+                "selected_target_keys": assembly.selected_target_keys,
+                "target_predictions": assembly.target_predictions,
+                "activation_plan": assembly.activation_plan,
+                "grid": assembly.grid,
+                "preparation": assembly.preparation,
+            },
+            "solver": {
+                "prepared": result.prepared,
+                "prepared_hash_basis": "canonical prepared vectors",
+                "raw": {
+                    "x": result.raw_x,
+                    "f": result.raw_f,
+                    "g": result.raw_g,
+                },
+                "status": result.status,
+                "native_status": result.native_status,
+                "ipopt_return_status": result.ipopt_return_status,
+                "iterations": result.ipopt_iterations,
+                "seed_objective_total": result.seed_objective_total,
+                "seed_max_constraint_violation": result.seed_max_constraint_violation,
+                "objective_improvement": result.objective_improvement,
+                "decision_change_norm": result.decision_change_norm,
+                "optimization_quality_passed": result.optimization_quality_passed,
+                "accepted_by_quality_gate": result.accepted_by_quality_gate,
+                "accepted_candidate_source": result.accepted_candidate_source,
+                "accepted_iteration": result.accepted_iteration,
+                "objective_components": result.objective_components,
+                "row_layout": result.row_layout.to_dict(),
+                "active_row_indices": result.active_row_indices,
+                "tight_row_indices": result.tight_row_indices,
+                "max_constraint_violation": result.max_constraint_violation,
+                "max_decision_bound_violation": result.max_decision_bound_violation,
+            },
+            "terminal_solver_output": {
+                "x": result.terminal_raw_x,
+                "f": result.terminal_raw_f,
+                "g": result.terminal_raw_g,
+            },
+            "acceptance": {
+                "schema_version": "1.0",
+                "owner": "L4",
+                "status": "NOT_EVALUATED_BY_ASSEMBLER",
+            },
+        }
+    )
+
+
+def _artifact_value(value: object) -> object:
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    if isinstance(value, float):
+        if math.isinf(value):
+            return "Infinity" if value > 0.0 else "-Infinity"
+        if math.isnan(value):
+            raise ValueError("Mid-MPC replay evidence cannot contain NaN")
+        return value
+    if isinstance(value, np.ndarray):
+        return _artifact_value(value.tolist())
+    if isinstance(value, np.generic):
+        return _artifact_value(value.item())
+    if isinstance(value, Enum):
+        return value.value
+    if is_dataclass(value):
+        return _artifact_value(asdict(value))
+    if isinstance(value, dict):
+        return {str(key): _artifact_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_artifact_value(item) for item in value]
+    raise TypeError(f"unsupported Mid-MPC evidence value: {type(value).__name__}")
+
+
+def _document_hash(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _encounter_name(decision: TargetDecision) -> str:
+    if decision.encounter is EncounterKind.HEAD_ON:
+        return "head_on"
+    if decision.encounter is EncounterKind.CROSSING:
+        return "crossing_give_way" if decision.role is OwnshipRole.GIVE_WAY else "crossing_stand_on"
+    if decision.encounter is EncounterKind.OVERTAKING:
+        return "overtaking" if decision.role is OwnshipRole.OVERTAKING else "overtaken"
+    if decision.encounter is EncounterKind.UNKNOWN:
+        return "unknown"
+    return "clear"
+
+
+def _nearest_route_anchor(waypoints_enu_m: np.ndarray, position_ne_m: np.ndarray) -> tuple[float, float]:
+    """Project current position onto the stable waypoint polyline."""
+    points = np.asarray(waypoints_enu_m, dtype=float).T
+    position = np.asarray(position_ne_m, dtype=float)
+    if len(points) == 1:
+        return float(points[0, 0]), float(points[0, 1])
+    candidates: list[np.ndarray] = []
+    for start, end in zip(points[:-1], points[1:], strict=True):
+        delta = end - start
+        length_squared = float(delta @ delta)
+        fraction = 0.0 if length_squared == 0.0 else float(np.clip((position - start) @ delta / length_squared, 0.0, 1.0))
+        candidates.append(start + fraction * delta)
+    anchor = min(candidates, key=lambda candidate: float(np.linalg.norm(candidate - position)))
+    return float(anchor[0]), float(anchor[1])
+
+
 def _unwrap_near(angle: float, reference: float) -> float:
     return reference + math.atan2(math.sin(angle - reference), math.cos(angle - reference))
 
 
-def _policy_for_encounter(encounter: str, _relative_bearing_deg: float) -> _OptimizerPolicy:
-    if encounter in {"head_on", "crossing_give_way"}:
-        return _OptimizerPolicy("GIVE_WAY", 1, True)
-    if encounter == "overtaking":
-        return _OptimizerPolicy("GIVE_WAY", 1, False)
-    return _OptimizerPolicy("HOLD", 0, False)
-
-
-def _aggregate_policy(decisions: tuple[_TargetDecision, ...]) -> _OptimizerPolicy:
-    give_way = [decision.optimizer_policy for decision in decisions if decision.optimizer_policy.intent == "GIVE_WAY"]
-    if not give_way:
-        return _OptimizerPolicy("HOLD", 0, False)
-    mandatory_starboard = any(policy.starboard_asymmetry_active for policy in give_way)
-    preferred_side = 1 if mandatory_starboard else give_way[0].preferred_side
-    return _OptimizerPolicy("GIVE_WAY", preferred_side, mandatory_starboard)
-
-
-def _side_name(preferred_side: int) -> str:
-    return {1: "starboard", -1: "port", 0: "none"}[preferred_side]
+def _finite_or_none(value: float) -> float | None:
+    return value if math.isfinite(value) else None
 
 
 def _plan_status(status: MidMpcStatus, max_violation: float) -> tuple[PlanStatus, bool]:
-    if status is MidMpcStatus.CONVERGED:
+    if status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL}:
         return PlanStatus.SUCCESS, True
     if status is MidMpcStatus.TIMEOUT and max_violation <= 1.0e-3:
         return PlanStatus.TIMEOUT_FEASIBLE, True
@@ -499,16 +738,16 @@ def _native_trajectories(
     ownship: np.ndarray,
     dt_s: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-    count = len(points)
-    predicted = np.zeros((9, count), dtype=float)
-    controls = np.zeros((9, count), dtype=float)
+    interval_count = len(points)
+    predicted = np.zeros((9, interval_count + 1), dtype=float)
+    controls = np.zeros((9, interval_count), dtype=float)
     north0, east0 = map(float, ownship[:2])
     headings = np.array([point.psi_rad for point in points], dtype=float)
     speeds = np.array([point.u_mps for point in points], dtype=float)
-    north = north0 + np.array([point.x_m for point in points], dtype=float)
-    east = east0 + np.array([point.y_m for point in points], dtype=float)
-    yaw_rate = np.zeros(count, dtype=float)
-    acceleration_ne = np.zeros((2, count), dtype=float)
+    north = north0 + np.cumsum(speeds * np.cos(headings) * dt_s)
+    east = east0 + np.cumsum(speeds * np.sin(headings) * dt_s)
+    yaw_rate = np.zeros(interval_count, dtype=float)
+    acceleration_ne = np.zeros((2, interval_count), dtype=float)
     yaw_rate[0] = (headings[0] - float(ownship[2])) / dt_s
     velocity_ne_mps = np.vstack((speeds * np.cos(headings), speeds * np.sin(headings)))
     own_velocity_ne_mps = np.array(
@@ -518,7 +757,7 @@ def _native_trajectories(
         ]
     )
     acceleration_ne[:, 0] = 2.0 * (velocity_ne_mps[:, 0] - own_velocity_ne_mps) / dt_s
-    if count > 1:
+    if interval_count > 1:
         yaw_rate[1:] = np.diff(headings) / dt_s
         acceleration_ne[:, 1:] = np.diff(velocity_ne_mps, axis=1) / dt_s
     controls[0] = north
@@ -528,7 +767,7 @@ def _native_trajectories(
     controls[5] = yaw_rate
     controls[6:8] = acceleration_ne
     controls[8] = yaw_rate
-    predicted[:] = controls
+    predicted[:, 1:] = controls
     predicted[:6, 0] = ownship
     predicted[8, 0] = ownship[5]
     return predicted, controls

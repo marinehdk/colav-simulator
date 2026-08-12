@@ -9,13 +9,106 @@ Author: Trym Tengesdal
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any
 
 import numpy as np
 import scipy.linalg as la
 
 import colav_simulator.common.config_parsing as cp
 import colav_simulator.core.sensing as sens
+
+
+class TrackStatus(StrEnum):
+    """Association status owned by the tracker."""
+
+    UPDATED = "updated"
+    COASTING = "coasting"
+    TERMINATED = "terminated"
+
+
+@dataclass(frozen=True)
+class TrackKey:
+    """Stable target identity within one tracker generation."""
+
+    target_id: int
+    generation: int
+
+    def __post_init__(self) -> None:
+        """Validate the target identity generation."""
+        if self.target_id < 0:
+            raise ValueError("target_id must be non-negative")
+        if self.generation < 1:
+            raise ValueError("generation must be positive")
+
+
+@dataclass(frozen=True)
+class TrackSnapshot(Sequence[Any]):
+    """Immutable tracker-authoritative observation with legacy tuple access."""
+
+    key: TrackKey
+    state: np.ndarray
+    covariance: np.ndarray
+    length_m: float
+    width_m: float
+    observed_at_s: float
+    generated_at_s: float
+    status: TrackStatus
+    source: str
+
+    def __post_init__(self) -> None:
+        """Freeze and validate tracker output arrays and metadata."""
+        state = np.asarray(self.state, dtype=float).copy()
+        covariance = np.asarray(self.covariance, dtype=float).copy()
+        if state.shape != (4,):
+            raise ValueError("track state must have shape (4,)")
+        if covariance.shape != (4, 4):
+            raise ValueError("track covariance must have shape (4, 4)")
+        if not np.all(np.isfinite(state)) or not np.all(np.isfinite(covariance)):
+            raise ValueError("track state and covariance must be finite")
+        if self.length_m <= 0.0 or self.width_m <= 0.0:
+            raise ValueError("track dimensions must be positive")
+        if not np.allclose(covariance, covariance.T, rtol=0.0, atol=1.0e-10):
+            raise ValueError("track covariance must be symmetric")
+        if float(np.min(np.linalg.eigvalsh(covariance))) < -1.0e-9:
+            raise ValueError("track covariance must be positive semidefinite")
+        if not np.isfinite((self.observed_at_s, self.generated_at_s)).all():
+            raise ValueError("track times must be finite")
+        if self.observed_at_s < 0.0:
+            raise ValueError("observation time must be non-negative")
+        if self.observed_at_s > self.generated_at_s:
+            raise ValueError("observation time cannot be after generation time")
+        if not self.source:
+            raise ValueError("track source must be non-empty")
+        state.setflags(write=False)
+        covariance.setflags(write=False)
+        object.__setattr__(self, "state", state)
+        object.__setattr__(self, "covariance", covariance)
+
+    @property
+    def target_id(self) -> int:
+        return self.key.target_id
+
+    @property
+    def age_s(self) -> float:
+        return self.generated_at_s - self.observed_at_s
+
+    def as_legacy_tuple(self) -> tuple[int, np.ndarray, np.ndarray, float, float]:
+        return self.target_id, self.state, self.covariance, self.length_m, self.width_m
+
+    def __len__(self) -> int:
+        """Expose legacy tuple length."""
+        return 5
+
+    def __iter__(self) -> Iterator[Any]:
+        """Iterate through the legacy tuple view."""
+        return iter(self.as_legacy_tuple())
+
+    def __getitem__(self, index: int | slice) -> Any:
+        """Index the legacy tuple view."""
+        return self.as_legacy_tuple()[index]
 
 
 class ITracker(ABC):
@@ -162,6 +255,8 @@ class GodTracker(ITracker):
         self._t_prev: float = -1.0
         self._width_upd: list = []
         self._recent_sensor_measurements: list = []
+        self._generations: dict[int, int] = {}
+        self._snapshots: list[TrackSnapshot] = []
 
     def reset(self) -> None:
         self._initialized = False
@@ -172,6 +267,8 @@ class GodTracker(ITracker):
         self._t_prev = -1.0
         self._width_upd = []
         self._recent_sensor_measurements = []
+        self._generations = {}
+        self._snapshots = []
 
     def set_sensor_list(self, sensor_list: list[sens.ISensor]) -> None:
         self.sensors = sensor_list
@@ -182,7 +279,7 @@ class GodTracker(ITracker):
         dt: float,  # noqa: ARG002
         true_do_states: list[tuple[int, np.ndarray, float, float]],
         ownship_state: np.ndarray,
-    ) -> tuple[list[tuple[int, np.ndarray, np.ndarray, float, float]], list[tuple[int, np.ndarray]]]:
+    ) -> tuple[list[TrackSnapshot], list[tuple[int, np.ndarray]]]:
         # If the function is run at the same time as the previous, return the same tracks
         if self.sensors is None:
             msg = "Sensor list must be set."
@@ -196,11 +293,29 @@ class GodTracker(ITracker):
         # Perfect knowledge is a snapshot of the targets active at this time.
         # Rebuilding all parallel arrays together preserves target identity when
         # a lower-numbered vessel reaches the end of its active interval.
+        previous_labels = set(self._labels)
         self._labels = [do_idx for do_idx, _, _, _ in true_do_states]
+        for label in self._labels:
+            if label not in previous_labels:
+                self._generations[label] = self._generations.get(label, 0) + 1
         self._xs_upd = [np.asarray(do_state, dtype=float).copy() for _, do_state, _, _ in true_do_states]
         self._P_upd = [np.zeros((4, 4)) for _ in true_do_states]
         self._length_upd = [do_length for _, _, do_length, _ in true_do_states]
         self._width_upd = [do_width for _, _, _, do_width in true_do_states]
+        self._snapshots = [
+            TrackSnapshot(
+                key=TrackKey(target_id=label, generation=self._generations[label]),
+                state=self._xs_upd[i],
+                covariance=self._P_upd[i],
+                length_m=self._length_upd[i],
+                width_m=self._width_upd[i],
+                observed_at_s=t,
+                generated_at_s=t,
+                status=TrackStatus.UPDATED,
+                source="god",
+            )
+            for i, label in enumerate(self._labels)
+        ]
 
         # Only generate measurements for initialized tracks
         sensor_measurements = []
@@ -209,32 +324,17 @@ class GodTracker(ITracker):
             sensor_measurements.append(z)
         self._recent_sensor_measurements = sensor_measurements
 
-        tracks = list(
-            zip(
-                self._labels,
-                self._xs_upd,
-                self._P_upd,
-                self._length_upd,
-                self._width_upd,
-                strict=True,
-            )
+        tracks_sorted_by_distance = sorted(
+            self._snapshots,
+            key=lambda snapshot: np.linalg.norm(snapshot.state[:2] - ownship_state[:2]),
         )
-        tracks_sorted_by_distance = sorted(tracks, key=lambda x: np.linalg.norm(x[1][:2] - ownship_state[:2]))
         return tracks_sorted_by_distance, sensor_measurements
 
     def get_track_information(self, ownship_state: np.ndarray) -> tuple[list, list]:
-        tracks = []
-        for i, label in enumerate(self._labels):
-            tracks.append(
-                (
-                    label,
-                    self._xs_upd[i],
-                    self._P_upd[i],
-                    self._length_upd[i],
-                    self._width_upd[i],
-                )
-            )
-        tracks_sorted_by_distance = sorted(tracks, key=lambda x: np.linalg.norm(x[1][:2] - ownship_state[:2]))
+        tracks_sorted_by_distance = sorted(
+            self._snapshots,
+            key=lambda snapshot: np.linalg.norm(snapshot.state[:2] - ownship_state[:2]),
+        )
         return tracks_sorted_by_distance, [0.0 for _ in range(len(tracks_sorted_by_distance))]
 
 
@@ -263,6 +363,10 @@ class KF(ITracker):
         self._NIS: list = []
         self._t_prev: float = -1.0
         self._recent_sensor_measurements: list = []
+        self._generations: dict[int, int] = {}
+        self._observed_at_s: list[float] = []
+        self._statuses: list[TrackStatus] = []
+        self._snapshots: list[TrackSnapshot] = []
 
     def reset(self) -> None:
         self._track_initialized = []
@@ -277,11 +381,15 @@ class KF(ITracker):
         self._NIS = []
         self._t_prev = -1.0
         self._recent_sensor_measurements = []
+        self._generations = {}
+        self._observed_at_s = []
+        self._statuses = []
+        self._snapshots = []
 
     def set_sensor_list(self, sensor_list: list[sens.ISensor]) -> None:
         self.sensors = sensor_list
 
-    def track(
+    def track(  # noqa: PLR0912
         self,
         t: float,
         dt: float,
@@ -301,6 +409,7 @@ class KF(ITracker):
         for _i, (do_idx, do_state, do_length, do_width) in enumerate(true_do_states):
             dist_ownship_to_do = np.linalg.norm(do_state[:2] - ownship_state[:2])
             if do_idx not in self._labels and dist_ownship_to_do < max_sensor_range:
+                self._generations[do_idx] = self._generations.get(do_idx, 0) + 1
                 self._labels.append(do_idx)
                 self._track_initialized.append(False)
                 self._track_terminated.append(False)
@@ -311,6 +420,8 @@ class KF(ITracker):
                 self._length_upd.append(do_length)
                 self._width_upd.append(do_width)
                 self._NIS.append(np.nan)
+                self._observed_at_s.append(t)
+                self._statuses.append(TrackStatus.COASTING)
             elif do_idx in self._labels:
                 self._track_initialized[self._labels.index(do_idx)] = True
 
@@ -323,6 +434,7 @@ class KF(ITracker):
 
         tracks = []
         for i in range(n_tracked_do):
+            measurement_used = False
             if self._track_initialized[i] and not self._track_terminated[i]:
                 self._xs_p[i], self._P_p[i] = self.predict(self._xs_upd[i], self._P_upd[i], dt)
                 self._xs_upd[i] = self._xs_p[i]
@@ -341,21 +453,35 @@ class KF(ITracker):
 
                             if not np.isnan(NIS_i):
                                 self._NIS[i] = NIS_i
+                                measurement_used = True
 
-            tracks.append(
-                (
-                    self._labels[i],
-                    self._xs_upd[i],
-                    self._P_upd[i],
-                    self._length_upd[i],
-                    self._width_upd[i],
-                )
+            self._statuses[i] = TrackStatus.UPDATED if measurement_used else TrackStatus.COASTING
+            if measurement_used:
+                self._observed_at_s[i] = t
+
+        self._snapshots = [
+            TrackSnapshot(
+                key=TrackKey(self._labels[i], self._generations[self._labels[i]]),
+                state=self._xs_upd[i],
+                covariance=self._P_upd[i],
+                length_m=self._length_upd[i],
+                width_m=self._width_upd[i],
+                observed_at_s=self._observed_at_s[i],
+                generated_at_s=t,
+                status=self._statuses[i],
+                source="kf",
             )
+            for i in range(n_tracked_do)
+            if not self._track_terminated[i]
+        ]
 
         # print(f"xs_p: {self._xs_p}, xs_upd: {self._xs_upd}")
         # print(f"P_p: {self._P_p}")
         # print(f"P_upd: {self._P_upd}")
-        tracks_sorted_by_distance = sorted(tracks, key=lambda x: np.linalg.norm(x[1][:2] - ownship_state[:2]))
+        tracks_sorted_by_distance = sorted(
+            self._snapshots,
+            key=lambda snapshot: np.linalg.norm(snapshot.state[:2] - ownship_state[:2]),
+        )
         return tracks_sorted_by_distance, sensor_measurements
 
     def predict(self, xs_upd: np.ndarray, P_upd: np.ndarray, dt: float) -> tuple[np.ndarray, np.ndarray]:
@@ -393,18 +519,10 @@ class KF(ITracker):
         return x_upd, P_upd, NIS(v, S)
 
     def get_track_information(self, ownship_state: np.ndarray) -> tuple[list, list]:
-        tracks = []
-        for i, label in enumerate(self._labels):
-            tracks.append(
-                (
-                    label,
-                    self._xs_upd[i],
-                    self._P_upd[i],
-                    self._length_upd[i],
-                    self._width_upd[i],
-                )
-            )
-        tracks_sorted_by_distance = sorted(tracks, key=lambda x: np.linalg.norm(x[1][:2] - ownship_state[:2]))
+        tracks_sorted_by_distance = sorted(
+            self._snapshots,
+            key=lambda snapshot: np.linalg.norm(snapshot.state[:2] - ownship_state[:2]),
+        )
         return tracks_sorted_by_distance, [0.0 for _ in range(len(tracks_sorted_by_distance))]
 
 

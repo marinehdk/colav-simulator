@@ -11,6 +11,7 @@ import numpy as np
 
 class MidMpcStatus(StrEnum):
     CONVERGED = "Converged"
+    FEASIBLE_NONOPTIMAL = "FeasibleNonOptimal"
     TIMEOUT = "Timeout"
     INFEASIBLE = "Infeasible"
     NUMERICAL_FAILURE = "NumericalFailure"
@@ -33,6 +34,8 @@ class MidMpcConfig:
     t_discount_s: float = 100.0
     cpa_slack_enabled: bool = True
     dir_slack_enabled: bool = True
+    strict_slack_bounds: bool = False
+    max_wall_time_s: float = 15.0
     continuous_cpa_enabled: bool = False
     max_targets: int = 16
     k_asym: float = 50.0
@@ -67,12 +70,15 @@ class MidMpcConfig:
                 "terminal_tau",
                 "terminal_l_min_m",
                 "terminal_l_max_m",
+                "max_wall_time_s",
             )
         )
-        if not np.isfinite(numeric).all() or self.dt_s <= 0.0:
-            raise ValueError("Mid-MPC config values must be finite and dt_s positive")
+        if not np.isfinite(numeric).all() or self.dt_s <= 0.0 or self.max_wall_time_s <= 0.0:
+            raise ValueError("Mid-MPC config values and time limits must be finite and positive")
         if self.continuous_cpa_enabled:
             raise ValueError("continuous CPA midpoint rows are disabled in the frozen core")
+        if self.strict_slack_bounds and not (self.cpa_slack_enabled and self.dir_slack_enabled):
+            raise ValueError("strict slack bounds require the frozen two-slack graph")
 
 
 @dataclass(frozen=True)
@@ -277,10 +283,19 @@ class MidMpcRowLayout:
 @dataclass(frozen=True)
 class MidMpcResult:
     status: MidMpcStatus
+    native_status: MidMpcStatus
     ipopt_return_status: str
     ipopt_iterations: int
     elapsed_ms: float
     objective_total: float
+    seed_objective_total: float
+    seed_max_constraint_violation: float
+    objective_improvement: float
+    decision_change_norm: float
+    optimization_quality_passed: bool
+    accepted_by_quality_gate: bool
+    accepted_candidate_source: str
+    accepted_iteration: int | None
     objective_components: MidMpcObjectiveComponents
     cpa_slack: float
     trajectory: tuple[MidMpcTrajectoryPoint, ...]
@@ -290,19 +305,26 @@ class MidMpcResult:
     raw_g: np.ndarray
     raw_cpa_slack: float
     raw_dir_slack: float
+    terminal_raw_x: np.ndarray
+    terminal_raw_f: float
+    terminal_raw_g: np.ndarray
     continuous_cpa_min_m: float
     continuous_cpa_violated: bool
     active_row_indices: tuple[int, ...]
     tight_row_indices: tuple[int, ...]
     max_constraint_violation: float
+    max_decision_bound_violation: float
     row_layout: MidMpcRowLayout
 
     def __post_init__(self) -> None:
         """Normalize result enums, tuples, and diagnostic arrays."""
         object.__setattr__(self, "status", MidMpcStatus(self.status))
+        object.__setattr__(self, "native_status", MidMpcStatus(self.native_status))
         object.__setattr__(self, "trajectory", tuple(self.trajectory))
         object.__setattr__(self, "raw_x", _readonly_vector(self.raw_x))
         object.__setattr__(self, "raw_g", _readonly_vector(self.raw_g))
+        object.__setattr__(self, "terminal_raw_x", _readonly_vector(self.terminal_raw_x))
+        object.__setattr__(self, "terminal_raw_g", _readonly_vector(self.terminal_raw_g))
 
 
 def _readonly_vector(value: object) -> np.ndarray:

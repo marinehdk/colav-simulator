@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 from pathlib import Path
 
@@ -15,7 +16,10 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcRowSchedule,
     MidMpcTarget,
 )
-from colav_simulator.core.colav.mid_mpc.solver import _IterationCallback
+from colav_simulator.core.colav.mid_mpc.solver import (
+    _IterationCallback,
+    _optimization_quality_passed,
+)
 from colav_simulator.mid_mpc_parity import (
     MidMpcParityFixture,
     load_mid_mpc_parity_corpus,
@@ -198,6 +202,75 @@ def test_route_speed_cold_matches_frozen_cpp_oracle(
     _assert_parity(parity_corpus["route_speed_cold"])
 
 
+def test_colav_strict_profile_keeps_frozen_slack_variables_but_fixes_them_to_zero(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+
+    result = MidMpcIpoptSolver(config).solve(_problem(fixture))
+
+    assert result.prepared.lbx[-2:].tolist() == [0.0, 0.0]
+    assert result.prepared.ubx[-2:].tolist() == [0.0, 0.0]
+    assert result.raw_x.shape == (2 * config.horizon_steps + 2,)
+    assert result.max_decision_bound_violation <= 1.0e-7
+    assert result.raw_cpa_slack == pytest.approx(0.0, abs=1.0e-7)
+    assert result.raw_dir_slack == pytest.approx(0.0, abs=1.0e-7)
+    assert result.optimization_quality_passed is True
+    assert result.ipopt_iterations >= 2
+    assert result.objective_total < result.seed_objective_total
+    assert result.objective_improvement == pytest.approx(
+        result.seed_objective_total - result.objective_total,
+    )
+
+
+def test_colav_strict_profile_does_not_accept_a_primal_infeasible_restoration_point(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["close_target_cpa_slack"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+
+    result = MidMpcIpoptSolver(config).solve(_problem(fixture))
+
+    assert result.status.value == "Infeasible"
+    assert result.max_constraint_violation > 1.0
+
+
+def test_colav_strict_cold_seed_tracks_the_committed_reference_within_rate_bounds(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["head_on_starboard"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source_problem = _problem(fixture)
+    problem = replace(
+        source_problem,
+        route_bearing_rad=source_problem.own_ship.psi_rad + 0.2,
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    heading_seed = result.prepared.x0[: config.horizon_steps]
+    assert abs(heading_seed[0] - problem.own_ship.psi_rad) >= abs(problem.route_bearing_rad - problem.own_ship.psi_rad)
+    assert np.max(np.abs(np.diff(np.r_[problem.own_ship.psi_rad, heading_seed]))) <= (
+        problem.rot_max_rad_s * config.dt_s + 1.0e-12
+    )
+    if result.accepted_by_quality_gate:
+        assert result.objective_improvement > max(1.0e-6, abs(result.seed_objective_total) * 1.0e-8)
+
+
+def test_colav_strict_overtaking_seed_starts_inside_minimum_alteration_boundary(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["overtaking_port"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    problem = _problem(fixture)
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    first_change = abs(result.prepared.x0[0] - problem.own_ship.psi_rad)
+    assert first_change > problem.min_alteration_rad + math.radians(1.0)
+
+
 @pytest.mark.parametrize(
     "fixture_id",
     (
@@ -269,3 +342,34 @@ def test_iteration_callback_aborts_after_frozen_wall_clock_limit() -> None:
 
     now[0] = 120.001
     assert float(callback.eval([])[0]) == 1.0
+
+
+def test_iteration_callback_stops_only_after_feasible_objective_improvement() -> None:
+    callback = _IterationCallback(1, 1, 1, max_wall_time_s=20.0)
+    callback.arm(
+        quality_seed_objective=10.0,
+        quality_lbx=np.array([0.0]),
+        quality_ubx=np.array([2.0]),
+        quality_lbg=np.array([0.0]),
+        quality_ubg=np.array([2.0]),
+    )
+
+    assert float(callback.eval([np.array([1.0]), np.array([11.0]), np.array([1.0])])[0]) == 0.0
+    assert float(callback.eval([np.array([1.0]), np.array([9.0]), np.array([-1.0])])[0]) == 0.0
+    assert float(callback.eval([np.array([1.0]), np.array([9.0]), np.array([1.0])])[0]) == 1.0
+    assert callback.quality_stop_requested is True
+
+
+def test_nonoptimal_exit_requires_native_acceptable_status_and_objective_improvement() -> None:
+    assert not _optimization_quality_passed(
+        strict=True,
+        return_status="User_Requested_Stop",
+        iterations=2,
+        seed_objective=249.0,
+        final_objective=251.0,
+        seed_primal_feasible=True,
+        final_primal_feasible=True,
+        decision_change_norm=0.3,
+        controlled_quality_stop=True,
+        accepted_iteration=1,
+    )

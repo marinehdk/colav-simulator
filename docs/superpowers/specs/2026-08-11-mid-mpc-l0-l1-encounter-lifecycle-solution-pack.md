@@ -5,6 +5,7 @@
 > **状态**: 已交付 to-spec（用户于2026-08-11接受）
 > **设计范围**: Colav-Simulator 的态势事实标准化、逐目标 COLREG 生命周期、多目标聚合、L1 问题装配与证据链
 > **不在范围**: MASS ROS2/GNC/M7、目标船控制、实船最低风险控制、法律认证、非 IPOPT backend
+> **to-spec issue**: [#24 Deepen Mid-MPC L0/L1 encounter lifecycle](https://github.com/marinehdk/colav-simulator/issues/24)
 
 ---
 
@@ -355,6 +356,8 @@ Tracker authority
 ## Step6 移交记录
 
 用户于2026-08-11明确接受本方案包。交付链改为本机现行技能：
+
+移交统计：3个执行阶段，4个现行技能（`to-spec`、`implement`、`tdd`、`code-review`）；0个已移除 superpowers 技能依赖。
 
 1. `to-spec`：把本方案包综合为设计/实施 Spec、确认最高公共测试 seams、发布 ready-for-agent issue。
 2. `implement` + `tdd`：按已确认 seams 做逐条 red→green vertical slices。

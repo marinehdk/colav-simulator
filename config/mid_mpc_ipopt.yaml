@@ -3,17 +3,14 @@ dependency_lock: ../uv.lock
 kwargs:
   horizon_steps: 80
   horizon_dt_s: 15.0
-  hold_selection_horizon_s: 90.0
   solve_period_s: 5.0
   deadline_s: 20.0
   heading_window_deg: 45.0
-  speed_min_mps: 0.25
+  speed_min_mps: 0.0
   speed_max_mps: 8.0
   cpa_safe_m: 150.0
   cpa_hard_m: 50.0
-  overtaking_clear_distance_m: 190.0
   rot_max_deg_s: 3.0
   decel_max_mps2: 0.3
-  min_alteration_deg: 5.0
   route_lateral_scale_m: 1000.0
   route_weight: 1.0

@@ -201,7 +201,7 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "socket !== ws || sessionId !== activeSessionId" in script.text
         assert "document.visibilityState !== 'visible' || !document.hasFocus()" in script.text
         assert "candidate_heading_increments_rad" in script.text
-        assert "`${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`" in script.text
+        assert "`${horizonIntervals} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`" in script.text
         assert "目标在 ±90° 内，按首段航向差选择路径" in script.text
         assert "setText('val-best-speed-scale', '恒速')" in script.text
         assert "id === 'cardPerf' || !expanded" in script.text
@@ -217,6 +217,8 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "角度相对本船艏向" not in script.text
         assert "objectiveHistoryWrap.hidden = !['sbmpc', 'mid_mpc_ipopt'].includes(algorithmId)" in script.text
         assert "Mid-MPC · IPOPT 优化轨迹" in script.text
+        assert "Planner L0" in script.text
+        assert "IPOPT 轨迹见海图" in script.text
         assert "Fan-MPC · 规则与安全筛选" in script.text
 
 
@@ -613,6 +615,7 @@ def test_vo_decision_space_is_on_demand_and_not_in_telemetry() -> None:
             params={"solve_id": 1},
         )
         assert missing.status_code == 404
+
 @pytest.mark.parametrize(
     "algorithm_id",
     ("potocnik_simplified_mpc", "potocnik_colreg_fan_mpc"),

@@ -6,6 +6,7 @@ import math
 import time
 from collections.abc import Callable
 from enum import IntEnum
+from typing import cast
 
 import casadi as ca
 import numpy as np
@@ -66,12 +67,30 @@ class MidMpcIpoptSolver:
         self._config = config
 
     def solve(self, problem: MidMpcProblem) -> MidMpcResult:
-        if len(problem.targets) > self._config.max_targets:
-            raise ValueError(f"Mid-MPC supports at most {self._config.max_targets} targets")
+        _validate_target_capacity(problem, self._config.max_targets)
         started_at = time.perf_counter()
         graph = _build_graph(self._config, problem)
         prepared = _prepare(self._config, problem, graph.row_layout)
-        graph.iteration_callback.arm()
+        seed_components = _flat(graph.objective_components(prepared.x0, prepared.p))
+        seed_objective_total = float(np.sum(seed_components))
+        seed_g = _flat(graph.constraints(prepared.x0, prepared.p))
+        seed_max_constraint_violation = _constraint_diagnostics(
+            seed_g,
+            prepared.lbg,
+            prepared.ubg,
+        )[2]
+        seed_primal_feasible = _prepared_primal_feasible(prepared.x0, seed_g, prepared)
+        graph.iteration_callback.arm(
+            quality_seed_objective=(
+                seed_objective_total
+                if self._config.strict_slack_bounds and problem.targets and seed_primal_feasible
+                else None
+            ),
+            quality_lbx=prepared.lbx,
+            quality_ubx=prepared.ubx,
+            quality_lbg=prepared.lbg,
+            quality_ubg=prepared.ubg,
+        )
         result = graph.solver(
             x0=prepared.x0,
             p=prepared.p,
@@ -81,13 +100,55 @@ class MidMpcIpoptSolver:
             ubg=prepared.ubg,
         )
         stats = graph.solver.stats()
-        raw_x = _flat(result["x"])
-        raw_g = _flat(result["g"])
-        raw_f = float(result["f"])
+        terminal_raw_x = _flat(result["x"])
+        terminal_raw_g = _flat(graph.constraints(terminal_raw_x, prepared.p))
+        terminal_raw_f = float(result["f"])
+        raw_x = terminal_raw_x
+        raw_g = terminal_raw_g
+        raw_f = terminal_raw_f
+        accepted_candidate_source = "IPOPT_TERMINAL"
+        accepted_iteration: int | None = None
         elapsed_ms = (time.perf_counter() - started_at) * 1_000.0
         return_status = str(stats.get("return_status", ""))
-        status = _strict_status(return_status)
-        if status is MidMpcStatus.CONVERGED and not _primal_feasible(raw_g, prepared.lbg, prepared.ubg):
+        ipopt_iterations = int(stats.get("iter_count", 0))
+        native_status = _strict_status(return_status)
+        if native_status is MidMpcStatus.TIMEOUT:
+            incumbent = _best_feasible_iteration(
+                graph.iteration_callback.iterates,
+                graph,
+                prepared,
+            )
+            if incumbent is not None:
+                accepted_iteration, raw_x, raw_f, raw_g = incumbent
+                accepted_candidate_source = "IPOPT_BEST_FEASIBLE_ITERATE"
+        status = native_status
+        objective_improvement = seed_objective_total - raw_f
+        decision_change_norm = float(np.linalg.norm(raw_x - prepared.x0))
+        raw_primal_feasible = _prepared_primal_feasible(raw_x, raw_g, prepared)
+        optimization_quality_passed = _optimization_quality_passed(
+            strict=self._config.strict_slack_bounds,
+            return_status=return_status,
+            iterations=ipopt_iterations,
+            seed_objective=seed_objective_total,
+            final_objective=raw_f,
+            seed_primal_feasible=seed_primal_feasible,
+            final_primal_feasible=raw_primal_feasible,
+            decision_change_norm=decision_change_norm,
+            controlled_quality_stop=graph.iteration_callback.quality_stop_requested,
+            accepted_iteration=accepted_iteration,
+        )
+        accepted_by_quality_gate = (
+            native_status is MidMpcStatus.TIMEOUT
+            and graph.iteration_callback.quality_stop_requested
+            and raw_primal_feasible
+            and optimization_quality_passed
+            and accepted_candidate_source == "IPOPT_BEST_FEASIBLE_ITERATE"
+        )
+        if accepted_by_quality_gate:
+            status = MidMpcStatus.FEASIBLE_NONOPTIMAL
+        if status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL} and (
+            not raw_primal_feasible or not optimization_quality_passed
+        ):
             status = MidMpcStatus.NUMERICAL_FAILURE
 
         n = self._config.horizon_steps
@@ -100,12 +161,22 @@ class MidMpcIpoptSolver:
         component_values = _flat(graph.objective_components(raw_x, prepared.p))
         objective_components = MidMpcObjectiveComponents(*map(float, component_values))
         active_rows, tight_rows, max_violation = _constraint_diagnostics(raw_g, prepared.lbg, prepared.ubg)
+        decision_bound_violation = _maximum_bound_violation(raw_x, prepared.lbx, prepared.ubx)
         return MidMpcResult(
             status=status,
+            native_status=native_status,
             ipopt_return_status=return_status,
-            ipopt_iterations=int(stats.get("iter_count", 0)),
+            ipopt_iterations=ipopt_iterations,
             elapsed_ms=elapsed_ms,
             objective_total=raw_f,
+            seed_objective_total=seed_objective_total,
+            seed_max_constraint_violation=seed_max_constraint_violation,
+            objective_improvement=objective_improvement,
+            decision_change_norm=decision_change_norm,
+            optimization_quality_passed=optimization_quality_passed,
+            accepted_by_quality_gate=accepted_by_quality_gate,
+            accepted_candidate_source=accepted_candidate_source,
+            accepted_iteration=accepted_iteration,
             objective_components=objective_components,
             cpa_slack=max(0.0, raw_cpa_slack) if math.isfinite(raw_cpa_slack) else 0.0,
             trajectory=trajectory,
@@ -115,13 +186,22 @@ class MidMpcIpoptSolver:
             raw_g=raw_g,
             raw_cpa_slack=raw_cpa_slack,
             raw_dir_slack=raw_dir_slack,
+            terminal_raw_x=terminal_raw_x,
+            terminal_raw_f=terminal_raw_f,
+            terminal_raw_g=terminal_raw_g,
             continuous_cpa_min_m=continuous_cpa_min_m,
             continuous_cpa_violated=continuous_cpa_violated,
             active_row_indices=active_rows,
             tight_row_indices=tight_rows,
             max_constraint_violation=max_violation,
+            max_decision_bound_violation=decision_bound_violation,
             row_layout=graph.row_layout,
         )
+
+
+def _validate_target_capacity(problem: MidMpcProblem, max_targets: int) -> None:
+    if len(problem.targets) > max_targets:
+        raise ValueError(f"Mid-MPC supports at most {max_targets} targets")
 
 
 class _Graph:
@@ -129,11 +209,13 @@ class _Graph:
         self,
         solver: ca.Function,
         objective_components: ca.Function,
+        constraints: ca.Function,
         row_layout: MidMpcRowLayout,
         iteration_callback: _IterationCallback,
     ) -> None:
         self.solver = solver
         self.objective_components = objective_components
+        self.constraints = constraints
         self.row_layout = row_layout
         self.iteration_callback = iteration_callback
 
@@ -152,11 +234,34 @@ class _IterationCallback(ca.Callback):
         self._clock = clock
         self._max_wall_time_s = max_wall_time_s
         self._started_at: float | None = None
+        self._callback_count = 0
+        self._quality_seed_objective: float | None = None
+        self._quality_bounds: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None
+        self.quality_stop_requested = False
+        self.iterates: list[tuple[int, np.ndarray, float]] = []
         ca.Callback.__init__(self)
         self.construct("mid_mpc_iter_callback", {})
 
-    def arm(self) -> None:
+    def arm(
+        self,
+        *,
+        quality_seed_objective: float | None = None,
+        quality_lbx: np.ndarray | None = None,
+        quality_ubx: np.ndarray | None = None,
+        quality_lbg: np.ndarray | None = None,
+        quality_ubg: np.ndarray | None = None,
+    ) -> None:
         self._started_at = self._clock()
+        self._callback_count = 0
+        self._quality_seed_objective = quality_seed_objective
+        bounds = (quality_lbx, quality_ubx, quality_lbg, quality_ubg)
+        self._quality_bounds = (
+            None
+            if any(value is None for value in bounds)
+            else cast(tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], bounds)
+        )
+        self.quality_stop_requested = False
+        self.iterates = []
 
     def get_n_in(self) -> int:
         return 6
@@ -177,9 +282,30 @@ class _IterationCallback(ca.Callback):
     def get_sparsity_out(self, _index: int) -> ca.Sparsity:
         return ca.Sparsity.scalar()
 
-    def eval(self, _arguments: list[ca.DM]) -> list[ca.DM]:
+    def eval(self, arguments: list[ca.DM]) -> list[ca.DM]:
+        self._callback_count += 1
+        if len(arguments) >= 2:
+            self.iterates.append(
+                (
+                    self._callback_count - 1,
+                    _flat(arguments[0]),
+                    float(_flat(arguments[1])[0]),
+                )
+            )
+        if len(arguments) >= 3 and self._quality_seed_objective is not None and self._quality_bounds is not None:
+            values = _flat(arguments[0])
+            objective = float(_flat(arguments[1])[0])
+            constraints = _flat(arguments[2])
+            lbx, ubx, lbg, ubg = self._quality_bounds
+            required_improvement = max(1.0e-6, abs(self._quality_seed_objective) * 1.0e-8)
+            self.quality_stop_requested = bool(
+                self._callback_count > 1
+                and self._quality_seed_objective - objective >= required_improvement
+                and _primal_feasible(values, lbx, ubx)
+                and _primal_feasible(constraints, lbg, ubg)
+            )
         elapsed_s = 0.0 if self._started_at is None else self._clock() - self._started_at
-        return [ca.DM(float(elapsed_s > self._max_wall_time_s))]
+        return [ca.DM(float(elapsed_s > self._max_wall_time_s or self.quality_stop_requested))]
 
 
 def _build_graph(  # noqa: PLR0915
@@ -277,7 +403,7 @@ def _build_graph(  # noqa: PLR0915
         "ipopt.linear_solver": "mumps",
         "ipopt.hessian_approximation": "limited-memory",
         "ipopt.limited_memory_max_history": 50,
-        "ipopt.max_cpu_time": 20.0,
+        "ipopt.max_cpu_time": config.max_wall_time_s,
         "ipopt.bound_push": 1.0e-4,
         "ipopt.bound_frac": 1.0e-4,
         "ipopt.mu_strategy": "adaptive",
@@ -285,11 +411,26 @@ def _build_graph(  # noqa: PLR0915
         "ipopt.acceptable_constr_viol_tol": 1.0e-2,
         "print_time": False,
     }
+    row_layout = _row_layout(config, problem)
     nlp = {"x": x, "p": p, "f": objective, "g": g}
-    iteration_callback = _IterationCallback(int(x.numel()), int(g.numel()), int(p.numel()))
+    iteration_callback = _IterationCallback(
+        int(x.numel()),
+        int(g.numel()),
+        int(p.numel()),
+        max_wall_time_s=config.max_wall_time_s,
+    )
     options["iteration_callback"] = iteration_callback
     options["iteration_callback_step"] = 1
     options["iteration_callback_ignore_errors"] = True
+    if config.strict_slack_bounds:
+        options.update(
+            {
+                "ipopt.bound_relax_factor": 0.0,
+                "ipopt.honor_original_bounds": "yes",
+                "ipopt.mu_strategy": "monotone",
+                "ipopt.mu_init": 1.0e-3,
+            }
+        )
     solver = ca.nlpsol("mid_mpc_solver", "ipopt", nlp, options)
     component_function = ca.Function(
         "mid_mpc_objective_components",
@@ -307,10 +448,12 @@ def _build_graph(  # noqa: PLR0915
             )
         ],
     )
+    constraint_function = ca.Function("mid_mpc_constraints", [x, p], [g])
     return _Graph(
         solver,
         component_function,
-        _row_layout(config, problem),
+        constraint_function,
+        row_layout,
         iteration_callback,
     )
 
@@ -426,6 +569,49 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     )
     x0[:n] = problem.own_ship.psi_rad
     x0[n : 2 * n] = speed_seed
+    if config.strict_slack_bounds:
+        route_delta = math.atan2(
+            math.sin(problem.route_bearing_rad - problem.own_ship.psi_rad),
+            math.cos(problem.route_bearing_rad - problem.own_ship.psi_rad),
+        )
+        heading_target = float(
+            np.clip(
+                problem.own_ship.psi_rad + route_delta,
+                *problem.heading_bounds_rad,
+            )
+        )
+        if problem.lateral_active and problem.preferred_side:
+            seed_change = min(
+                max(abs(route_delta), problem.min_alteration_rad) + math.radians(10.0),
+                max(
+                    abs(problem.heading_bounds_rad[0] - problem.own_ship.psi_rad),
+                    abs(problem.heading_bounds_rad[1] - problem.own_ship.psi_rad),
+                ),
+            )
+            heading_target = float(
+                np.clip(
+                    problem.own_ship.psi_rad + math.copysign(seed_change, problem.preferred_side),
+                    *problem.heading_bounds_rad,
+                )
+            )
+        heading_step = problem.rot_max_rad_s * config.dt_s
+        for k in range(n):
+            x0[k] = problem.own_ship.psi_rad + float(
+                np.clip(
+                    heading_target - problem.own_ship.psi_rad,
+                    -heading_step * (k + 1),
+                    heading_step * (k + 1),
+                )
+            )
+        speed_target = float(np.clip(problem.planned_speed_mps, *problem.speed_bounds_mps))
+        if speed_target < problem.own_ship.u_mps:
+            for k in range(n):
+                x0[n + k] = max(
+                    speed_target,
+                    problem.own_ship.u_mps - problem.decel_max_mps2 * config.dt_s * (k + 1),
+                )
+        else:
+            x0[n : 2 * n] = speed_target
     prefix_k = min(problem.prefix_active_k, n)
     x0[:prefix_k] = problem.prefix_psi_rad[:prefix_k]
     x0[n : n + prefix_k] = problem.prefix_u_mps[:prefix_k]
@@ -437,8 +623,10 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     lbx[2 * n :] = 0.0
     ubx[2 * n :] = np.inf
     lbg, ubg, cpa_hard_from = _row_bounds(config, problem, layout)
-    if config.cpa_slack_enabled:
+    if config.cpa_slack_enabled and not config.strict_slack_bounds:
         x0[2 * n] = _cpa_slack_seed(config, problem, x0, cpa_hard_from)
+    if config.strict_slack_bounds:
+        ubx[2 * n :] = 0.0
     return MidMpcPreparedProblem(p=p, x0=x0, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
 
 
@@ -655,11 +843,84 @@ def _continuous_cpa(trajectory: tuple[MidMpcTrajectoryPoint, ...], problem: MidM
 def _strict_status(return_status: str) -> MidMpcStatus:
     if return_status == "Solve_Succeeded":
         return MidMpcStatus.CONVERGED
+    if return_status == "Solved_To_Acceptable_Level":
+        return MidMpcStatus.FEASIBLE_NONOPTIMAL
     if return_status in ("Maximum_CpuTime_Exceeded", "User_Requested_Stop"):
         return MidMpcStatus.TIMEOUT
     if return_status in ("Infeasible_Problem_Detected", "Restoration_Failed"):
         return MidMpcStatus.INFEASIBLE
     return MidMpcStatus.NUMERICAL_FAILURE
+
+
+def _optimization_quality_passed(
+    *,
+    strict: bool,
+    return_status: str,
+    iterations: int,
+    seed_objective: float,
+    final_objective: float,
+    seed_primal_feasible: bool,
+    final_primal_feasible: bool,
+    decision_change_norm: float,
+    controlled_quality_stop: bool,
+    accepted_iteration: int | None,
+) -> bool:
+    if not strict:
+        return True
+    if not math.isfinite(seed_objective) or not math.isfinite(final_objective):
+        return False
+    if return_status == "Solve_Succeeded":
+        return True
+    acceptable_exit = return_status == "Solved_To_Acceptable_Level"
+    controlled_exit = return_status == "User_Requested_Stop" and controlled_quality_stop
+    if not (acceptable_exit or controlled_exit):
+        return False
+    if controlled_exit:
+        if iterations < 1:
+            return False
+        required_improvement = max(1.0e-6, abs(seed_objective) * 1.0e-8)
+        return (
+            final_primal_feasible
+            and accepted_iteration is not None
+            and accepted_iteration >= 1
+            and decision_change_norm > 1.0e-6
+            and seed_objective - final_objective >= required_improvement
+        )
+    if iterations < 2:
+        return False
+    if not seed_primal_feasible:
+        return final_primal_feasible and decision_change_norm > 1.0e-6
+    required_improvement = max(1.0e-6, abs(seed_objective) * 1.0e-8)
+    return final_primal_feasible and (
+        seed_objective - final_objective >= required_improvement or decision_change_norm >= 1.0e-3
+    )
+
+
+def _best_feasible_iteration(
+    iterates: list[tuple[int, np.ndarray, float]],
+    graph: _Graph,
+    prepared: MidMpcPreparedProblem,
+) -> tuple[int, np.ndarray, float, np.ndarray] | None:
+    feasible: list[tuple[int, np.ndarray, float, np.ndarray]] = []
+    for iteration, values, objective in iterates:
+        if iteration < 1 or not _primal_feasible(values, prepared.lbx, prepared.ubx):
+            continue
+        constraints = _flat(graph.constraints(values, prepared.p))
+        if _primal_feasible(constraints, prepared.lbg, prepared.ubg):
+            feasible.append((iteration, values, objective, constraints))
+    return min(feasible, key=lambda item: item[2], default=None)
+
+
+def _prepared_primal_feasible(
+    values: np.ndarray,
+    constraints: np.ndarray,
+    prepared: MidMpcPreparedProblem,
+) -> bool:
+    return _primal_feasible(values, prepared.lbx, prepared.ubx) and _primal_feasible(
+        constraints,
+        prepared.lbg,
+        prepared.ubg,
+    )
 
 
 def _constraint_diagnostics(
@@ -692,6 +953,16 @@ def _constraint_diagnostics(
 
 def _primal_feasible(values: np.ndarray, lower: np.ndarray, upper: np.ndarray, tolerance: float = 1.0e-3) -> bool:
     return bool(np.isfinite(values).all() and np.all(values >= lower - tolerance) and np.all(values <= upper + tolerance))
+
+
+def _maximum_bound_violation(values: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> float:
+    return float(
+        max(
+            np.max(np.where(np.isfinite(lower), lower - values, 0.0), initial=0.0),
+            np.max(np.where(np.isfinite(upper), values - upper, 0.0), initial=0.0),
+            0.0,
+        )
+    )
 
 
 def _flat(value: ca.DM) -> np.ndarray:

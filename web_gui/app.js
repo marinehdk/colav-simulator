@@ -1644,11 +1644,12 @@ function updatePlannerPanel(data) {
   setText('val-solver-state', solverSuccessful ? '成功' : '失败');
 
   const horizonLength = data.plans?.prediction_horizon?.length || 0;
+  const horizonIntervals = diagnosticPlanner.algorithm_details?.control_intervals ?? horizonLength;
   const gridShape = Array.isArray(details.grid_shape) ? details.grid_shape : [];
   const horizonTime = diagnosticPlanner.algorithm_id === 'vo' && gridShape.length === 2
     ? `决策网格 ${gridShape[0]}×${gridShape[1]}`
     : horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
-      ? `${horizonLength} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
+      ? `${horizonIntervals} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
       : `${horizonLength} points`;
   setText('val-planner-horizon', horizonTime);
 
@@ -1728,7 +1729,18 @@ function drawPlannerSurface(planner) {
   if (surfaceMeta) surfaceMeta.hidden = isVO;
   setText('val-surface-label', label);
   setText('val-surface-explanation', '');
-  setText('val-surface-meta', '');
+  const lifecycle = details.lifecycle || {};
+  const lifecycleTargets = Array.isArray(lifecycle.targets) ? lifecycle.targets : [];
+  const lifecycleSummary = lifecycleTargets
+    .map(target => `TS${target.target_id} ${target.risk}/${target.commitment}`)
+    .join(' · ');
+  const profileShort = typeof lifecycle.profile_hash === 'string'
+    ? lifecycle.profile_hash.slice(0, 8)
+    : '--';
+  setText(
+    'val-surface-meta',
+    isMidMPC ? `Planner L0 · ${lifecycleSummary || 'CLEAR'} · profile ${profileShort}` : '',
+  );
   setText('label-best-cost', isVO ? '最小总 Cost' : '最优 Cost');
   setText('label-best-course-offset', '航向偏移');
   setText('label-best-speed-scale', isVO ? '候选航速' : '速度系数');
@@ -1737,7 +1749,10 @@ function drawPlannerSurface(planner) {
   const selectedOffset = Number.isFinite(selectedHeading) && Number.isFinite(ownshipHeading)
     ? Math.atan2(Math.sin(selectedHeading - ownshipHeading), Math.cos(selectedHeading - ownshipHeading))
     : NaN;
-  setText('val-best-cost', isVO ? formatCost(Number(details.objective ?? planner.objective)) : '--');
+  setText(
+    'val-best-cost',
+    isVO || isMidMPC ? formatCost(Number(details.objective ?? planner.objective)) : '--',
+  );
   setText(
     'val-best-course-offset',
     isVO && Number.isFinite(selectedOffset) ? `${(selectedOffset * 180 / Math.PI).toFixed(1)}°` : '--°',
@@ -1767,7 +1782,7 @@ function drawPlannerSurface(planner) {
   if (!Array.isArray(matrix) || !matrix.length || !Array.isArray(matrix[0])) {
     surface.fillStyle = '#65736f';
     surface.font = '11px SFMono-Regular, monospace';
-    surface.fillText('暂无候选控制代价', 12, 78);
+    surface.fillText(isMidMPC ? 'IPOPT 轨迹见海图' : '暂无候选控制代价', 12, 78);
     return;
   }
   const values = matrix.flat().filter(Number.isFinite);
