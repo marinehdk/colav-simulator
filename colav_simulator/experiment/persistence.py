@@ -7,8 +7,11 @@ import hashlib
 import html
 import json
 import math
+import queue
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import asdict, is_dataclass
 from enum import Enum
 from pathlib import Path
@@ -110,6 +113,12 @@ class EvidenceWriter:
         """Persist one canonical content-addressed Mid-MPC replay artifact."""
         payload = canonical_json(jsonable(document)).encode("utf-8")
         digest = hashlib.sha256(payload).hexdigest()
+        return self.write_mid_mpc_payload(payload, digest)
+
+    def write_mid_mpc_payload(self, payload: bytes, digest: str) -> dict[str, Any]:
+        """Persist pre-serialized Mid-MPC evidence with a verified digest."""
+        if hashlib.sha256(payload).hexdigest() != digest:
+            raise ValueError("Mid-MPC payload digest mismatch")
         directory = self.run_dir / "artifacts" / "mid_mpc"
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{digest}.json.gz"
@@ -310,6 +319,123 @@ th,td{{border:1px solid #ccd1d1;padding:7px;text-align:left}}th{{background:#eef
         path = self.run_dir / filename
         path.write_text(json.dumps(jsonable(value), indent=2, sort_keys=True), encoding="utf-8")
         return path
+
+
+class BoundedArtifactSink:
+    """Bounded asynchronous Mid-MPC artifact persistence."""
+
+    def __init__(
+        self,
+        writer: EvidenceWriter,
+        *,
+        max_artifact_bytes: int = 16 * 1024 * 1024,
+        max_items: int = 32,
+        max_bytes: int = 64 * 1024 * 1024,
+        retention: int = 256,
+        start_worker: bool = True,
+    ) -> None:
+        if min(max_artifact_bytes, max_items, max_bytes, retention) <= 0:
+            raise ValueError("artifact sink limits must be positive")
+        self._writer = writer
+        self._max_artifact_bytes = max_artifact_bytes
+        self._max_bytes = max_bytes
+        self._retention = retention
+        self._queue: queue.Queue[tuple[bytes, str, dict[str, Any]]] = queue.Queue(maxsize=max_items)
+        self._lock = threading.Lock()
+        self._queued_bytes = 0
+        self._closed = False
+        self._written = 0
+        self._failures = 0
+        self._worker = threading.Thread(target=self._run, name="mid-mpc-artifacts", daemon=True) if start_worker else None
+        if self._worker is not None:
+            self._worker.start()
+
+    def __call__(self, document: Any) -> dict[str, Any]:
+        payload = canonical_json(jsonable(document)).encode("utf-8")
+        digest = hashlib.sha256(payload).hexdigest()
+        reference: dict[str, Any] = {
+            "schema_version": "1.0",
+            "sha256": digest,
+            "relative_path": f"artifacts/mid_mpc/{digest}.json.gz",
+            "uncompressed_bytes": len(payload),
+            "status": "QUEUED",
+        }
+        if len(payload) > self._max_artifact_bytes:
+            reference.update(status="INCOMPLETE", reason="ARTIFACT_TOO_LARGE")
+            self._failures += 1
+            return reference
+        with self._lock:
+            if self._closed:
+                reference.update(status="INCOMPLETE", reason="SINK_CLOSED")
+                self._failures += 1
+                return reference
+            if self._queue.full():
+                reference.update(status="BACKPRESSURE", reason="ITEM_CAPACITY")
+                self._failures += 1
+                return reference
+            if self._queued_bytes + len(payload) > self._max_bytes:
+                reference.update(status="BACKPRESSURE", reason="BYTE_CAPACITY")
+                self._failures += 1
+                return reference
+            self._queued_bytes += len(payload)
+            self._queue.put_nowait((payload, digest, reference))
+        return reference
+
+    def close(self, *, timeout_s: float = 2.0) -> dict[str, Any]:
+        """Stop admission and drain queued work for at most timeout_s."""
+        with self._lock:
+            self._closed = True
+        deadline = time.monotonic() + max(0.0, timeout_s)
+        while self._queue.unfinished_tasks and time.monotonic() < deadline:
+            time.sleep(0.005)
+        if self._queue.unfinished_tasks:
+            self._failures += self._queue.unfinished_tasks
+            while True:
+                try:
+                    payload, _digest, reference = self._queue.get_nowait()
+                except queue.Empty:
+                    break
+                reference.update(status="INCOMPLETE", reason="DRAIN_TIMEOUT")
+                with self._lock:
+                    self._queued_bytes -= len(payload)
+                self._queue.task_done()
+        if self._worker is not None:
+            self._worker.join(timeout=max(0.0, deadline - time.monotonic()))
+        return {
+            "status": "COMPLETE" if self._failures == 0 else "INCOMPLETE",
+            "written": self._written,
+            "failures": self._failures,
+            "queued_items": self._queue.qsize(),
+            "queued_bytes": self._queued_bytes,
+        }
+
+    def _run(self) -> None:
+        while True:
+            if self._closed and self._queue.empty():
+                return
+            try:
+                payload, digest, reference = self._queue.get(timeout=0.05)
+            except queue.Empty:
+                continue
+            try:
+                persisted = self._writer.write_mid_mpc_payload(payload, digest)
+                reference.update(persisted)
+                reference["status"] = "COMPLETE"
+                self._written += 1
+                self._enforce_retention()
+            except Exception as exc:
+                reference.update(status="INCOMPLETE", reason=str(exc))
+                self._failures += 1
+            finally:
+                with self._lock:
+                    self._queued_bytes -= len(payload)
+                self._queue.task_done()
+
+    def _enforce_retention(self) -> None:
+        directory = self._writer.run_dir / "artifacts" / "mid_mpc"
+        artifacts = sorted(directory.glob("*.json.gz"), key=lambda path: (path.stat().st_mtime_ns, path.name))
+        for path in artifacts[: -self._retention]:
+            path.unlink(missing_ok=True)
 
 
 def _trajectory_colav_summary(value: Any) -> dict[str, Any]:

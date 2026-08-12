@@ -25,7 +25,7 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 from colav_simulator.evaluation import Evaluator, EvaluatorResult
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunManifest, RunOutcome, RunSpec, SessionState, content_hash
-from colav_simulator.experiment.persistence import EvidenceWriter
+from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
 from colav_simulator.experiment.session import SimulationSession
 from colav_simulator.integrations import IntegrationRegistry
 from colav_simulator.scenario_generator import ScenarioGenerator
@@ -40,6 +40,7 @@ class PreparedRun:
     session: SimulationSession
     writer: EvidenceWriter
     episode_document: dict[str, Any]
+    artifact_sink: BoundedArtifactSink
 
     @property
     def run_dir(self) -> Path:
@@ -206,6 +207,7 @@ class ExperimentRunner:
         if not output_root.is_absolute():
             output_root = self.project_root / output_root
         writer = EvidenceWriter(output_root / manifest.run_id)
+        artifact_sink = BoundedArtifactSink(writer)
         writer.write_manifest(manifest)
         writer.write_episode(
             {
@@ -231,7 +233,7 @@ class ExperimentRunner:
                 solve_period_override_s=spec.solve_period_s,
                 deadline_mode=DeadlineMode(spec.deadline_mode),
                 event_sink=writer.append_lifecycle_event,
-                artifact_sink=writer.write_mid_mpc_artifact,
+                artifact_sink=artifact_sink,
             )
             algorithm = self.registry.build_algorithm(
                 spec.algorithm_id,
@@ -277,7 +279,7 @@ class ExperimentRunner:
         except Exception as exc:
             self.persist_failure(manifest, writer, exc, [])
             raise ExperimentRunError(manifest, writer.run_dir) from exc
-        return PreparedRun(spec, manifest, session, writer, episode_document)
+        return PreparedRun(spec, manifest, session, writer, episode_document, artifact_sink)
 
     @staticmethod
     def _executed_tracker_id(spec: RunSpec, config: scenario_config.ScenarioConfig) -> str:
@@ -311,6 +313,7 @@ class ExperimentRunner:
         )
 
     def finalize(self, prepared: PreparedRun) -> RunResult:
+        prepared.artifact_sink.close(timeout_s=2.0)
         if prepared.session.state != SessionState.FINISHED:
             raise RuntimeError(f"Cannot finalize session in state {prepared.session.state.value}")
         prepared.manifest.state = prepared.session.state
@@ -365,6 +368,7 @@ class ExperimentRunner:
             prepared.session.run_to_completion()
             return self.finalize(prepared)
         except Exception as exc:
+            prepared.artifact_sink.close(timeout_s=2.0)
             self.persist_failure(
                 prepared.manifest,
                 prepared.writer,

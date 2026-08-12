@@ -81,10 +81,10 @@ def _select_primary_encounter(encounters: list[dict[str, Any]]) -> dict[str, Any
     approaching = [
         item
         for item in encounters
-        if np.isfinite(float(item.get("signed_tcpa_s", float("inf"))))
-        and float(item.get("signed_tcpa_s", 0.0)) > 0.0
+        if np.isfinite(float(item.get("signed_tcpa_s", float("inf")))) and float(item.get("signed_tcpa_s", 0.0)) > 0.0
     ]
     if approaching:
+
         def priority(item: dict[str, Any]) -> tuple[Any, ...]:
             score, _ = _primary_risk(item)
             return (
@@ -150,9 +150,7 @@ class BusyWaterDraftRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     base_scenario_id: str
     seed: int = Field(default=DEFAULT_SEED, ge=0)
-    encounter_mix: dict[str, float] = Field(
-        default_factory=lambda: {"crossing": 0.6, "head_on": 0.2, "overtaking": 0.2}
-    )
+    encounter_mix: dict[str, float] = Field(default_factory=lambda: {"crossing": 0.6, "head_on": 0.2, "overtaking": 0.2})
     document: dict[str, Any]
 
 
@@ -276,12 +274,7 @@ def _local_polygon_coordinates(geometry: Any, origin_e: float, origin_n: float) 
         if not hasattr(polygon, "exterior"):
             continue
         rings = [polygon.exterior, *polygon.interiors]
-        output.append(
-            [
-                [[float(north - origin_n), float(east - origin_e)] for east, north in ring.coords]
-                for ring in rings
-            ]
-        )
+        output.append([[[float(north - origin_n), float(east - origin_e)] for east, north in ring.coords] for ring in rings])
     return output
 
 
@@ -514,6 +507,7 @@ class WebSessionManager:
     def _persist_failure(self, prepared: PreparedRun, exc: Exception) -> None:
         prepared.session.state = SessionState.FAILED
         prepared.session.failure_reason = str(exc)
+        prepared.artifact_sink.close(timeout_s=2.0)
         self.runner.persist_failure(
             prepared.manifest,
             prepared.writer,
@@ -576,9 +570,7 @@ class WebSessionManager:
                 return None
             current_solve_id = int(snapshot.get("solve_id", 0))
             if solve_id != current_solve_id:
-                raise RuntimeError(
-                    f"Decision-space solve {solve_id} is stale; latest solve is {current_solve_id}"
-                )
+                raise RuntimeError(f"Decision-space solve {solve_id} is stale; latest solve is {current_solve_id}")
             return jsonable(snapshot)
 
     def _enc_navigation_area(self) -> dict[str, Any]:
@@ -879,10 +871,7 @@ async def _simulation_loop() -> None:
         sample_elapsed = now - sample_wall
         if sample_elapsed >= 0.5 and sample_sim is not None:
             effective_multiplier = max(0.0, (sim_time - sample_sim) / sample_elapsed)
-        realtime_limited = (
-            effective_multiplier is not None
-            and effective_multiplier < clock["multiplier"] * 0.9
-        )
+        realtime_limited = effective_multiplier is not None and effective_multiplier < clock["multiplier"] * 0.9
         manager.update_playback_metrics(
             effective_multiplier=effective_multiplier,
             scheduler_lag_ms=lag * 1000.0,

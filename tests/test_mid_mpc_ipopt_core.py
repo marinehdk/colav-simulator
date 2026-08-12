@@ -11,6 +11,7 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcConfig,
     MidMpcIpoptSolver,
     MidMpcOwnShip,
+    MidMpcPrimalWarmStart,
     MidMpcProblem,
     MidMpcRouteFrame,
     MidMpcRowSchedule,
@@ -314,6 +315,29 @@ def test_result_arrays_cannot_be_made_writeable(
         result.raw_x.setflags(write=True)
     with pytest.raises(ValueError):
         result.prepared.p.setflags(write=True)
+
+
+def test_accepted_primal_warm_start_resamples_and_keeps_strict_slacks_zero(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    problem = _problem(fixture)
+    cold = MidMpcIpoptSolver(config).solve(problem)
+    n = config.horizon_steps
+    warm = MidMpcPrimalWarmStart(
+        accepted_at_s=0.0,
+        current_time_s=config.dt_s / 2.0,
+        dt_s=config.dt_s,
+        course_rad=np.linspace(0.1, 0.2, n),
+        speed_mps=np.linspace(3.0, 4.0, n),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem, primal_warm_start=warm)
+
+    assert result.prepared.x0[-2:].tolist() == [0.0, 0.0]
+    assert result.prepared.x0[0] != pytest.approx(cold.prepared.x0[0], abs=1e-12)
+    assert np.isfinite(result.prepared.x0).all()
 
 
 def test_rejects_more_than_frozen_target_capacity(

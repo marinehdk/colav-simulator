@@ -49,6 +49,18 @@ def test_planner_input_copies_arrays_and_preserves_enu_si_rad_contract() -> None
     )
 
 
+def test_planner_input_preserves_active_plant_controller_identity() -> None:
+    planner_input = valid_input(
+        ownship_model="Viknes",
+        ownship_controller="FLSC",
+        ownship_max_turn_rate_rad_s=np.deg2rad(3.0),
+    )
+
+    assert planner_input.ownship_model == "Viknes"
+    assert planner_input.ownship_controller == "FLSC"
+    assert planner_input.ownship_max_turn_rate_rad_s == pytest.approx(np.deg2rad(3.0))
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [

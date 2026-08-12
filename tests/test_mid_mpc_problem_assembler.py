@@ -154,6 +154,19 @@ def test_assembler_admits_active_committed_target_after_required_slots() -> None
     assert outcome.selected_target_keys == (TrackKey(1, 1),)
 
 
+def test_assembler_admits_candidate_contact_for_safety_before_commitment() -> None:
+    planner_input = _planner_input()
+    snapshot = EncounterLifecycle().step(_cycle(planner_input, sequence=0, sim_time_s=5.0))
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert snapshot.targets[0].risk.value == "CANDIDATE"
+    assert snapshot.directive.required_targets == ()
+    assert outcome.selected_target_keys == (TrackKey(1, 1),)
+    assert outcome.problem.lateral_active is True
+
+
 def test_assembler_compensates_frozen_timing_with_target_step_displacement() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()

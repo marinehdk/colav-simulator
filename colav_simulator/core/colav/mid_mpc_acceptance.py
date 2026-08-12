@@ -324,7 +324,7 @@ class MidMpcPlanAcceptance:
     """Pure L4 gate over one immutable Mid-MPC candidate bundle."""
 
     def evaluate(self, request: AcceptanceRequest) -> AcceptanceResult:
-        request_hash = _hash_document(request)
+        request_hash = _request_hash(request)
         findings: list[AcceptanceFinding] = []
         target_witnesses: list[TargetSafetyWitness] = []
 
@@ -415,6 +415,8 @@ class MidMpcPlanAcceptance:
         authority_keys = [target.key for target in request.authority.targets]
         if len(set(execution_keys)) != len(execution_keys) or len(set(authority_keys)) != len(authority_keys):
             failures.append(("INTEGRITY_TARGET_IDENTITY", "target keys must be unique within each namespace"))
+        if set(execution_keys) != set(authority_keys):
+            failures.append(("INTEGRITY_TARGET_RECONCILIATION", "authority and execution target sets differ"))
         if len(execution_keys) > request.policy.max_relevant_targets:
             failures.append(("INTEGRITY_CAPACITY", "relevant target count exceeds frozen capacity"))
         for code, message in failures:
@@ -445,9 +447,14 @@ class MidMpcPlanAcceptance:
         eligible = evidence.normalized_status in {"Converged", "FeasibleNonOptimal", "Timeout"}
         if not eligible:
             _fail(findings, AcceptanceLayer.NUMERICAL, "NUMERICAL_TERMINATION", "solver termination is not eligible")
-        vectors = (evidence.raw_x, evidence.raw_g, evidence.lbx, evidence.ubx, evidence.lbg, evidence.ubg)
         scalar_values = (evidence.objective_total, evidence.raw_f, evidence.cpa_slack, evidence.direction_slack)
-        if not all(np.isfinite(vector).all() for vector in vectors) or not np.isfinite(scalar_values).all():
+        bounds = (evidence.lbx, evidence.ubx, evidence.lbg, evidence.ubg)
+        if (
+            not np.isfinite(evidence.raw_x).all()
+            or not np.isfinite(evidence.raw_g).all()
+            or any(np.isnan(vector).any() for vector in bounds)
+            or not np.isfinite(scalar_values).all()
+        ):
             _fail(findings, AcceptanceLayer.NUMERICAL, "NUMERICAL_NONFINITE", "candidate numerical evidence is non-finite")
         x_violation = _bound_violations(evidence.raw_x, evidence.lbx, evidence.ubx)
         x_tolerances = np.full(evidence.raw_x.size, 1.0e-4)
@@ -518,7 +525,7 @@ class MidMpcPlanAcceptance:
             request.execution.ownship_width_m,
         )
         witnesses: list[TargetSafetyWitness] = []
-        for target in request.execution.targets:
+        for target in sorted(request.execution.targets, key=lambda item: (item.key.target_id, item.key.generation)):
             if target.north_m.size != candidate.times_s.size:
                 _fail(
                     findings,
@@ -594,9 +601,13 @@ class MidMpcPlanAcceptance:
         return tuple(witnesses)
 
     @staticmethod
-    def _colreg(request: AcceptanceRequest, findings: list[AcceptanceFinding]) -> None:
+    def _colreg(  # noqa: C901, PLR0912 - explicit rule predicate conjunction
+        request: AcceptanceRequest,
+        findings: list[AcceptanceFinding],
+    ) -> None:
         candidate = request.candidate
-        for target in request.authority.targets:
+        execution_by_key = {target.key: target for target in request.execution.targets}
+        for target in sorted(request.authority.targets, key=lambda item: (item.key.target_id, item.key.generation)):
             if target.commitment != "COMMITTED" or target.risk not in {"ACTIVE", "PAST_CLEAR"}:
                 continue
             if target.baseline_course_rad is None or not math.isfinite(target.baseline_course_rad):
@@ -605,6 +616,21 @@ class MidMpcPlanAcceptance:
                     AcceptanceLayer.COLREG,
                     "COLREG_BASELINE_MISSING",
                     "committed target lacks frozen course baseline",
+                    target_key=target.key,
+                )
+                continue
+            contract_values = (
+                target.committed_at_s,
+                target.action_start_deadline_s,
+                target.action_achievement_deadline_s,
+                target.actual_course_change_rad,
+            )
+            if any(value is None or not math.isfinite(value) for value in contract_values):
+                _fail(
+                    findings,
+                    AcceptanceLayer.COLREG,
+                    "COLREG_ACTION_CONTRACT_INCOMPLETE",
+                    "committed target lacks action timing or actual-achievement evidence",
                     target_key=target.key,
                 )
                 continue
@@ -620,7 +646,7 @@ class MidMpcPlanAcceptance:
             deltas = np.array([_wrap(float(course - target.baseline_course_rad)) for course in candidate.course_rad])
             if side_sign != 0.0:
                 signed = side_sign * deltas
-                if float(np.min(signed)) < -1.0e-6:
+                if not target.action_achieved and float(np.min(signed)) < -1.0e-6:
                     _fail(
                         findings,
                         AcceptanceLayer.COLREG,
@@ -628,7 +654,34 @@ class MidMpcPlanAcceptance:
                         "candidate initially moves against the Lifecycle-locked passing side",
                         target_key=target.key,
                     )
-                if float(np.max(signed)) + 1.0e-6 < target.required_course_change_rad:
+                start_offset_s = max(0.0, float(target.action_start_deadline_s) - request.execution.sim_time_s)
+                start_delta = side_sign * _course_delta_at(candidate, target.baseline_course_rad, start_offset_s)
+                if not target.action_achieved and start_delta < math.radians(1.0):
+                    _fail(
+                        findings,
+                        AcceptanceLayer.COLREG,
+                        "COLREG_ACTION_START_DEADLINE",
+                        "candidate does not start the locked maneuver by its absolute deadline",
+                        target_key=target.key,
+                    )
+                achievement_offset_s = max(
+                    0.0,
+                    float(target.action_achievement_deadline_s) - request.execution.sim_time_s,
+                )
+                achieved_delta = side_sign * _course_delta_at(
+                    candidate,
+                    target.baseline_course_rad,
+                    achievement_offset_s,
+                )
+                if not target.action_achieved and achieved_delta + 1.0e-6 < target.required_course_change_rad:
+                    _fail(
+                        findings,
+                        AcceptanceLayer.COLREG,
+                        "COLREG_ACTION_DEADLINE",
+                        "candidate does not achieve the locked maneuver by its absolute deadline",
+                        target_key=target.key,
+                    )
+                if not target.action_achieved and float(np.max(signed)) + 1.0e-6 < target.required_course_change_rad:
                     _fail(
                         findings,
                         AcceptanceLayer.COLREG,
@@ -636,6 +689,45 @@ class MidMpcPlanAcceptance:
                         "candidate never reaches the committed minimum course change",
                         target_key=target.key,
                     )
+            execution_target = execution_by_key[target.key]
+            relative_at_cpa = _closest_relative_position(candidate, execution_target)
+            if not target.action_achieved and target.encounter == "HEAD_ON" and target.passing_side == "STARBOARD":
+                starboard_normal = np.array([-math.sin(target.baseline_course_rad), math.cos(target.baseline_course_rad)])
+                if float(relative_at_cpa @ starboard_normal) >= 0.0:
+                    _fail(
+                        findings,
+                        AcceptanceLayer.COLREG,
+                        "COLREG_HEAD_ON_PASSING_SIDE",
+                        "head-on candidate does not produce port-to-port passing geometry",
+                        target_key=target.key,
+                    )
+            if not target.action_achieved and target.encounter == "CROSSING" and target.role == "GIVE_WAY":
+                target_displacement = np.array(
+                    [
+                        execution_target.north_m[-1] - execution_target.north_m[0],
+                        execution_target.east_m[-1] - execution_target.east_m[0],
+                    ]
+                )
+                if float(relative_at_cpa @ target_displacement) <= 0.0:
+                    _fail(
+                        findings,
+                        AcceptanceLayer.COLREG,
+                        "COLREG_CROSSING_BOW",
+                        "crossing give-way candidate does not pass astern",
+                        target_key=target.key,
+                    )
+            if (
+                target.action_start_deadline_s is not None
+                and request.execution.sim_time_s > target.action_start_deadline_s
+                and float(target.actual_course_change_rad) < math.radians(1.0)
+            ):
+                _fail(
+                    findings,
+                    AcceptanceLayer.COLREG,
+                    "COLREG_ACTUAL_START_DEADLINE",
+                    "actual vessel maneuver missed the Lifecycle action-start deadline",
+                    target_key=target.key,
+                )
             if (
                 target.action_achievement_deadline_s is not None
                 and request.execution.sim_time_s > target.action_achievement_deadline_s
@@ -686,7 +778,9 @@ class MidMpcPlanAcceptance:
                 "active capability is not valid at the request time",
             )
         low, high = capability.speed_bounds_mps
-        if np.any(candidate.speed_mps < low - 1.0e-6) or np.any(candidate.speed_mps > high + 1.0e-6):
+        speed_tolerance = max(1.0e-6, 1.0e-5 * max(1.0, abs(low), abs(high)))
+        commanded_speed = candidate.speed_mps[1:]
+        if np.any(commanded_speed < low - speed_tolerance) or np.any(commanded_speed > high + speed_tolerance):
             _fail(findings, AcceptanceLayer.TRACKABILITY, "TRACKABILITY_SPEED", "candidate speed exceeds active bounds")
         course_steps = np.array(
             [
@@ -695,7 +789,7 @@ class MidMpcPlanAcceptance:
             ]
         )
         if course_steps.size and np.any(
-            np.abs(course_steps) > capability.rot_max_rad_s * request.policy.horizon_dt_s + 1.0e-6
+            np.abs(course_steps) > capability.rot_max_rad_s * request.policy.horizon_dt_s + 1.0e-4
         ):
             _fail(findings, AcceptanceLayer.TRACKABILITY, "TRACKABILITY_ROT", "candidate turn exceeds active rate")
         speed_steps = np.diff(candidate.speed_mps)
@@ -811,6 +905,40 @@ def _bound_violations(values: np.ndarray, lower: np.ndarray, upper: np.ndarray) 
     return np.maximum(np.maximum(lower - values, values - upper), 0.0)
 
 
+def _closest_relative_position(candidate: CandidateEvidence, target: ExecutionTarget) -> np.ndarray:
+    best_distance = math.inf
+    best_relative = np.zeros(2)
+    for index in range(candidate.times_s.size - 1):
+        own_start = np.array([candidate.north_m[index], candidate.east_m[index]])
+        own_end = np.array([candidate.north_m[index + 1], candidate.east_m[index + 1]])
+        target_start = np.array([target.north_m[index], target.east_m[index]])
+        target_end = np.array([target.north_m[index + 1], target.east_m[index + 1]])
+        relative_start = target_start - own_start
+        relative_delta = (target_end - own_end) - relative_start
+        denominator = float(relative_delta @ relative_delta)
+        fraction = (
+            0.0
+            if denominator <= 1.0e-18
+            else float(np.clip(-float(relative_start @ relative_delta) / denominator, 0.0, 1.0))
+        )
+        relative = relative_start + fraction * relative_delta
+        distance = float(relative @ relative)
+        if distance < best_distance:
+            best_distance = distance
+            best_relative = relative
+    return best_relative
+
+
+def _course_delta_at(candidate: CandidateEvidence, baseline_rad: float, offset_s: float) -> float:
+    position = float(np.clip(offset_s / (candidate.times_s[1] - candidate.times_s[0]), 0.0, candidate.times_s.size - 1))
+    lower = int(math.floor(position))
+    upper = min(lower + 1, candidate.course_rad.size - 1)
+    fraction = position - lower
+    lower_delta = _wrap(float(candidate.course_rad[lower] - baseline_rad))
+    step = _wrap(float(candidate.course_rad[upper] - candidate.course_rad[lower]))
+    return lower_delta + fraction * step
+
+
 def _readonly_vector(value: object, name: str) -> np.ndarray:
     array = np.asarray(value, dtype=float)
     if array.ndim != 1:
@@ -829,15 +957,30 @@ def _hash_document(value: object) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _request_hash(request: AcceptanceRequest) -> str:
+    document = _json_value(request)
+    document["authority"]["targets"] = sorted(
+        document["authority"]["targets"],
+        key=lambda item: (item["key"]["target_id"], item["key"]["generation"]),
+    )
+    document["execution"]["targets"] = sorted(
+        document["execution"]["targets"],
+        key=lambda item: (item["key"]["target_id"], item["key"]["generation"]),
+    )
+    return _hash_document(document)
+
+
 def _json_value(value: object) -> Any:
     if value is None or isinstance(value, (str, int, bool)):
         return value
     if isinstance(value, float):
-        if not math.isfinite(value):
-            raise ValueError("acceptance semantic evidence must be finite")
+        if math.isinf(value):
+            return "Infinity" if value > 0.0 else "-Infinity"
+        if math.isnan(value):
+            raise ValueError("acceptance semantic evidence cannot contain NaN")
         return value
     if isinstance(value, np.ndarray):
-        return value.tolist()
+        return _json_value(value.tolist())
     if isinstance(value, np.generic):
         return _json_value(value.item())
     if isinstance(value, StrEnum):

@@ -144,6 +144,57 @@ def test_head_on_risk_requires_physical_time_confirmation_then_locks_commitment(
     assert persisted.required_course_change_rad == committed.required_course_change_rad
 
 
+def test_candidate_obligation_survives_own_maneuver_label_flicker_until_confirmation() -> None:
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+    turned = _head_on_cycle(sequence=1, sim_time_s=2.5)
+    turned_ownship = replace(
+        turned.ownship,
+        velocity_ne_mps=7.0 * np.array([math.cos(0.7), math.sin(0.7)]),
+        heading_rad=0.7,
+    )
+
+    retained = lifecycle.step(replace(turned, ownship=turned_ownship)).targets[0]
+    confirmed_cycle = _head_on_cycle(sequence=2, sim_time_s=5.0)
+    confirmed_ownship = replace(
+        confirmed_cycle.ownship,
+        velocity_ne_mps=turned_ownship.velocity_ne_mps,
+        heading_rad=0.7,
+    )
+    committed = lifecycle.step(replace(confirmed_cycle, ownship=confirmed_ownship)).targets[0]
+
+    assert retained.encounter is EncounterKind.HEAD_ON
+    assert retained.risk is RiskPhase.CANDIDATE
+    assert committed.commitment is CommitmentPhase.COMMITTED
+    assert committed.passing_side is PassingSide.STARBOARD
+    assert committed.action_achieved is True
+    assert committed.actual_course_change_rad == pytest.approx(0.7)
+
+
+def test_committed_action_achievement_is_cumulative_after_course_recovers() -> None:
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+    committed = lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=5.0)).targets[0]
+    achieved_cycle = _head_on_cycle(sequence=2, sim_time_s=10.0)
+    achieved_heading = committed.required_course_change_rad
+    achieved = lifecycle.step(
+        replace(
+            achieved_cycle,
+            ownship=replace(
+                achieved_cycle.ownship,
+                heading_rad=achieved_heading,
+                velocity_ne_mps=7.0 * np.array([math.cos(achieved_heading), math.sin(achieved_heading)]),
+            ),
+        )
+    ).targets[0]
+    recovered_cycle = _head_on_cycle(sequence=3, sim_time_s=15.0)
+    recovered = lifecycle.step(recovered_cycle).targets[0]
+
+    assert achieved.action_achieved is True
+    assert recovered.action_achieved is True
+    assert recovered.actual_course_change_rad == pytest.approx(achieved.actual_course_change_rad)
+
+
 def test_urgent_head_on_bypasses_entry_confirmation() -> None:
     lifecycle = EncounterLifecycle()
     cycle = _head_on_cycle(sequence=0, sim_time_s=0.0)

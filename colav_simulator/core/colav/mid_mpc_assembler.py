@@ -16,6 +16,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     CommitmentPhase,
     DecisionSnapshot,
     EncounterKind,
+    OwnshipRole,
     PassingSide,
     RiskPhase,
     Rule17Stage,
@@ -252,6 +253,7 @@ class _TargetBinding:
 class _PolicyResolution:
     speed_bounds_mps: tuple[float, float]
     preferred_side: int
+    minimum_course_change_rad: float
     lateral_active: bool
     committed_route_bearing_rad: float
 
@@ -411,6 +413,13 @@ def _resolve_policy(
     config: MidMpcAssemblyConfig,
     binding: _TargetBinding,
 ) -> _PolicyResolution:
+    provisional_decisions = tuple(
+        decision
+        for decision in binding.selected_decisions
+        if decision.risk is RiskPhase.CANDIDATE
+        and decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
+        and decision.passing_side is not PassingSide.NONE
+    )
     required_sides = {
         decision.passing_side for decision in binding.required_decisions if decision.passing_side is not PassingSide.NONE
     }
@@ -429,12 +438,19 @@ def _resolve_policy(
             "lifecycle speed directive has no intersection with capability envelope",
         )
 
+    provisional_sides = {decision.passing_side for decision in provisional_decisions}
+    effective_side = (
+        next(iter(provisional_sides))
+        if not required_sides and len(provisional_sides) == 1
+        else snapshot.directive.passing_side
+    )
     preferred_side = {
         PassingSide.NONE: 0,
         PassingSide.PORT: -1,
         PassingSide.STARBOARD: 1,
-    }[snapshot.directive.passing_side]
-    lateral_active = snapshot.directive.minimum_course_change_rad > 0.0
+    }[effective_side]
+    minimum_course_change_rad = snapshot.directive.minimum_course_change_rad
+    lateral_active = minimum_course_change_rad > 0.0 or (not required_sides and len(provisional_sides) == 1)
     committed_route_bearing = route.bearing_rad
     corridor_decisions = tuple(decision for decision in binding.required_decisions if not decision.route_recovery_allowed)
     if corridor_decisions:
@@ -452,6 +468,7 @@ def _resolve_policy(
     return _PolicyResolution(
         speed_bounds_mps=speed_bounds,
         preferred_side=preferred_side,
+        minimum_course_change_rad=minimum_course_change_rad,
         lateral_active=lateral_active,
         committed_route_bearing_rad=committed_route_bearing,
     )
@@ -468,7 +485,7 @@ def _compile_semantic_problem(
 ) -> _SemanticAssembly:
     ownship = planner_input.ownship_state
     effective_cpa_hard_m = _effective_node_clearance(planner_input, binding.selected_tracks, config)
-    minimum_change = snapshot.directive.minimum_course_change_rad if policy.lateral_active else 0.0
+    minimum_change = policy.minimum_course_change_rad if policy.lateral_active else 0.0
     reachable_per_step = capability.rot_max_rad_s * config.horizon_dt_s
     min_alt_hard_from_k = max(0, math.ceil(minimum_change / reachable_per_step) - 1) if policy.lateral_active else 0
     activation_plan = _activation_plan(
@@ -490,7 +507,15 @@ def _compile_semantic_problem(
     starboard_asymmetry = any(
         decision.passing_side is PassingSide.STARBOARD
         and decision.encounter in {EncounterKind.HEAD_ON, EncounterKind.CROSSING}
-        for decision in binding.required_decisions
+        for decision in binding.required_decisions or binding.selected_decisions
+    )
+    stand_on_hold = any(
+        decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
+        for decision in binding.selected_decisions
+    ) and not any(
+        decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
+        and decision.risk in {RiskPhase.CANDIDATE, RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
+        for decision in binding.selected_decisions
     )
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
@@ -509,6 +534,9 @@ def _compile_semantic_problem(
         preferred_side=policy.preferred_side,
         starboard_asymmetry_active=starboard_asymmetry,
         min_alteration_rad=minimum_change,
+        prefix_active_k=1 if stand_on_hold else 0,
+        prefix_psi_rad=(float(ownship[2]),) if stand_on_hold else (),
+        prefix_u_mps=(float(ownship[3]),) if stand_on_hold else (),
         route_frame=MidMpcRouteFrame(
             origin_m=(
                 route.anchor_ne_m[0] - float(ownship[0]),
@@ -843,11 +871,11 @@ def _admission_rank(decision: TargetDecision) -> int:
     if decision.rule17 is Rule17Stage.MAY_ACT:
         return 3
     if decision.rule17 is Rule17Stage.STAND_ON:
-        return 0
+        return 2
     if decision.risk is RiskPhase.ACTIVE:
         return 3
     if decision.risk is RiskPhase.CANDIDATE:
-        return 0
+        return 2
     if decision.risk is RiskPhase.PAST_CLEAR or decision.recovery_guard_active:
         return 1
     return 0

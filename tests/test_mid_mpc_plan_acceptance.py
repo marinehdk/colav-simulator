@@ -60,6 +60,35 @@ def _request(
     capability: PlantCapabilityEvidence | None = None,
 ) -> AcceptanceRequest:
     times = np.array([0.0, 15.0, 30.0])
+    if authority_targets and not targets:
+        targets = tuple(
+            ExecutionTarget(
+                key=authority.key,
+                length_m=10.0,
+                width_m=4.0,
+                north_m=np.full(3, 1000.0),
+                east_m=np.full(3, 500.0),
+                uncertainty_m=np.zeros(3),
+            )
+            for authority in authority_targets
+        )
+    if targets and not authority_targets:
+        authority_targets = tuple(
+            AuthorityTarget(
+                key=target.key,
+                encounter="CLEAR",
+                role="NONE",
+                risk="CLEAR",
+                commitment="NONE",
+                passing_side="NONE",
+                baseline_course_rad=None,
+                required_course_change_rad=0.0,
+                action_achieved=False,
+                route_recovery_allowed=False,
+                reachability_verified=True,
+            )
+            for target in targets
+        )
     return AcceptanceRequest(
         schema_version="colav.mid_mpc.acceptance.request@1",
         candidate=CandidateEvidence(
@@ -132,6 +161,26 @@ def test_acceptance_is_deterministic_and_accepts_strict_route_candidate() -> Non
     ]
 
 
+def test_target_permutation_preserves_semantic_hash() -> None:
+    targets = tuple(
+        ExecutionTarget(
+            key=TrackKey(target_id, 1),
+            length_m=10.0,
+            width_m=4.0,
+            north_m=np.full(3, north_m),
+            east_m=np.full(3, 500.0),
+            uncertainty_m=np.zeros(3),
+        )
+        for target_id, north_m in ((1, 1000.0), (2, 1500.0))
+    )
+
+    first = MidMpcPlanAcceptance().evaluate(_request(targets=targets))
+    second = MidMpcPlanAcceptance().evaluate(_request(targets=tuple(reversed(targets))))
+
+    assert first.request_hash == second.request_hash
+    assert first.acceptance_hash == second.acceptance_hash
+
+
 def test_original_bound_violation_rejects_even_with_success_status() -> None:
     numerical = _numerical(raw_x=np.array([1.01, 0.0, 4.0, 4.0, 0.0, 0.0]))
 
@@ -177,6 +226,10 @@ def test_locked_starboard_commitment_rejects_port_candidate() -> None:
         action_achieved=False,
         route_recovery_allowed=False,
         reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=0.0,
     )
 
     rejected = MidMpcPlanAcceptance().evaluate(
@@ -189,6 +242,32 @@ def test_locked_starboard_commitment_rejects_port_candidate() -> None:
     assert rejected.accepted is False
     assert "COLREG_LOCKED_SIDE" in {finding.code for finding in rejected.findings}
     assert accepted.accepted is True
+
+
+def test_achieved_commitment_allows_route_recovery_against_locked_side() -> None:
+    authority = AuthorityTarget(
+        key=TrackKey(4, 1),
+        encounter="HEAD_ON",
+        role="GIVE_WAY",
+        risk="PAST_CLEAR",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=True,
+        route_recovery_allowed=True,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=np.deg2rad(5.0),
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(
+        _request(authority_targets=(authority,), course=-np.deg2rad(np.array([0.0, 2.0, 6.0])))
+    )
+
+    assert result.accepted is True
 
 
 def test_capability_is_bound_to_exact_runtime_tuple() -> None:
