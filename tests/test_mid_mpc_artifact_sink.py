@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -66,3 +67,36 @@ def test_bounded_artifact_sink_reports_write_failure_without_raising(tmp_path: P
     assert "disk unavailable" in str(reference["reason"])
     assert summary["status"] == "INCOMPLETE"
     json.dumps(reference, allow_nan=False)
+
+
+def test_bounded_artifact_sink_close_timeout_freezes_inflight_reference(tmp_path: Path) -> None:
+    writer = EvidenceWriter(tmp_path / "run")
+    entered = threading.Event()
+    release = threading.Event()
+    original_write = writer.write_mid_mpc_payload
+
+    def slow_write(payload: bytes, digest: str) -> dict[str, object]:
+        entered.set()
+        release.wait(timeout=2.0)
+        return original_write(payload, digest)
+
+    writer.write_mid_mpc_payload = slow_write  # type: ignore[method-assign]
+    sink = BoundedArtifactSink(writer)
+    reference = sink({"payload": "accepted"})
+    assert entered.wait(timeout=1.0)
+
+    summary = sink.close(timeout_s=0.0)
+    frozen = dict(reference)
+    release.set()
+    time.sleep(0.05)
+
+    assert summary == {
+        "status": "INCOMPLETE",
+        "written": 0,
+        "failures": 1,
+        "queued_items": 0,
+        "queued_bytes": 0,
+    }
+    assert frozen["status"] == "INCOMPLETE"
+    assert frozen["reason"] == "DRAIN_TIMEOUT"
+    assert reference == frozen

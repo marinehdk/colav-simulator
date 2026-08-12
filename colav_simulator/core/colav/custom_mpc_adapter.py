@@ -43,6 +43,8 @@ class FactoryContext:
     requested_algorithm: str
     algorithm_seed: int
     strict_no_fallback: bool = True
+    scenario_id: str = "UNSPECIFIED"
+    tracker_id: str = "UNSPECIFIED"
     solve_period_override_s: float | None = None
     deadline_mode: DeadlineMode = DeadlineMode.ENFORCE
     event_sink: Callable[[Any], object] | None = field(default=None, compare=False, repr=False)
@@ -55,6 +57,8 @@ class FactoryContext:
             raise ValueError("requested_algorithm is required")
         if self.algorithm_seed < 0:
             raise ValueError("algorithm_seed must be non-negative")
+        if not self.scenario_id.strip() or not self.tracker_id.strip():
+            raise ValueError("scenario_id and tracker_id must be non-empty")
         if self.solve_period_override_s is not None and (
             not np.isfinite(self.solve_period_override_s) or self.solve_period_override_s <= 0.0
         ):
@@ -614,7 +618,7 @@ class CustomMPCAdapter(ICOLAV):
             )
         self._last_plan_time_s = planner_input.sim_time_s
 
-    def _execute_solve(self, planner_input: PlannerInput) -> np.ndarray:  # noqa: PLR0912, PLR0915
+    def _execute_solve(self, planner_input: PlannerInput) -> np.ndarray:  # noqa: C901, PLR0912, PLR0915
         started = time.perf_counter()
         try:
             solution = self._solve(planner_input)
@@ -756,7 +760,14 @@ class CustomMPCAdapter(ICOLAV):
         self._pending_hold_replan_reason = None
         self._hold_acceptance = None
         if solution.post_commit is not None:
-            artifact = solution.post_commit()
+            try:
+                artifact = solution.post_commit()
+            except Exception as exc:  # commit is authoritative; evidence callback cannot revoke it
+                artifact = {
+                    "status": "INCOMPLETE",
+                    "reason": "POST_COMMIT_CALLBACK_FAILED",
+                    "error_type": type(exc).__name__,
+                }
             if artifact is not None:
                 details["assembly"]["artifact"] = dict(artifact)
                 self._diagnostics.details["assembly"]["artifact"] = dict(artifact)

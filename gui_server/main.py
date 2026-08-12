@@ -329,6 +329,8 @@ class WebSessionManager:
         self.current_prediction_horizon: list[list[float]] = []
         self.last_solve_id: int | None = None
         self.latest_planner_solve: dict[str, Any] = {}
+        self.active_planner_plan: dict[str, Any] = {}
+        self.latest_planner_attempt: dict[str, Any] = {}
         self.enc_navigation_area: dict[str, Any] = {}
         self.lock = threading.RLock()
 
@@ -340,7 +342,10 @@ class WebSessionManager:
         with self.lock:
             if self.prepared and self.prepared.session.state == SessionState.RUNNING:
                 raise RuntimeError("Pause the active session before replacing it")
-            self.prepared = self.runner.prepare(spec)
+            replacement = self.runner.prepare(spec)
+            if self.prepared is not None:
+                self.prepared.artifact_sink.close(timeout_s=2.0)
+            self.prepared = replacement
             self.result = None
             self.replay_expected = None
             self.encounter_monitor = EncounterMonitor(
@@ -351,6 +356,8 @@ class WebSessionManager:
             self.current_prediction_horizon = []
             self.last_solve_id = None
             self.latest_planner_solve = {}
+            self.active_planner_plan = {}
+            self.latest_planner_attempt = {}
             self.speed_multiplier = 1.0
             self.speed_revision += 1
             self.effective_speed_multiplier = None
@@ -726,8 +733,8 @@ class WebSessionManager:
             prediction_horizon = []
         target_prediction_horizons = []
         for target in planner.get("target_predictions", []):
-            target_north = np.asarray(target.get("x", []), dtype=float)
-            target_east = np.asarray(target.get("y", []), dtype=float)
+            target_north = np.asarray(target.get("north_m", target.get("x", [])), dtype=float)
+            target_east = np.asarray(target.get("east_m", target.get("y", [])), dtype=float)
             if target_north.ndim != 1 or target_east.ndim != 1 or target_north.size != target_east.size:
                 continue
             target_prediction_horizons.append(np.column_stack((target_north - origin_n, target_east - origin_e)).tolist())
@@ -736,8 +743,16 @@ class WebSessionManager:
             self.current_prediction_horizon = prediction_horizon
             self.last_solve_id = solve_id
             self.latest_planner_solve = jsonable(planner)
+            self.active_planner_plan = jsonable(planner)
         elif prediction_horizon and not self.current_prediction_horizon:
             self.current_prediction_horizon = prediction_horizon
+        if planner and (
+            planner.get("solver_executed")
+            or planner.get("algorithm_details", {}).get("failure_code")
+            or planner.get("algorithm_details", {}).get("hold_acceptance")
+            or not self.latest_planner_attempt
+        ):
+            self.latest_planner_attempt = jsonable(planner)
         references = np.asarray(own_raw.get("references", np.zeros(9)), dtype=float)
         execution = {
             "solve_id": solve_id,
@@ -770,6 +785,8 @@ class WebSessionManager:
             "primary_encounter": primary_encounter,
             "planner": jsonable(planner),
             "latest_planner_solve": self.latest_planner_solve,
+            "active_planner_plan": self.active_planner_plan,
+            "latest_planner_attempt": self.latest_planner_attempt,
             "execution": jsonable(execution),
             "events": jsonable(events),
             "step": session.sequence,

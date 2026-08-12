@@ -18,7 +18,7 @@ from colav_simulator.integrations.registry import IntegrationRegistry
 ALGORITHM_ID = "mid_mpc_ipopt"
 
 
-def _fast_adapter() -> CustomMPCAdapter:
+def _fast_adapter(*, scenario_id: str = "head_on") -> CustomMPCAdapter:
     return IntegrationRegistry().build_algorithm(
         ALGORITHM_ID,
         {
@@ -30,7 +30,13 @@ def _fast_adapter() -> CustomMPCAdapter:
                 "deadline_s": 20.0,
             },
         },
-        factory_context=FactoryContext(ALGORITHM_ID, 0, deadline_mode=DeadlineMode.OFF),
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            scenario_id=scenario_id,
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+        ),
     )
 
 
@@ -106,7 +112,13 @@ def test_registry_exposes_published_mid_mpc_profile_and_truthful_descriptor() ->
 def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     adapter = IntegrationRegistry().build_algorithm(
         ALGORITHM_ID,
-        factory_context=FactoryContext(ALGORITHM_ID, 0, deadline_mode=DeadlineMode.OFF),
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            scenario_id="route",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+        ),
     )
 
     command = adapter.plan(
@@ -191,6 +203,8 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
         factory_context=FactoryContext(
             ALGORITHM_ID,
             0,
+            scenario_id="route",
+            tracker_id="god",
             deadline_mode=DeadlineMode.OFF,
             artifact_sink=writer.write_mid_mpc_artifact,
         ),
@@ -259,7 +273,7 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
 
 
 def test_dynamic_tracks_use_shared_geometry_and_direct_optimizer_intents() -> None:
-    adapter = _fast_adapter()
+    adapter = _fast_adapter(scenario_id="paper_ccta2023_multiship")
     covariance = np.eye(4)
 
     _plan(
@@ -290,7 +304,7 @@ def test_dynamic_tracks_use_shared_geometry_and_direct_optimizer_intents() -> No
     assert details["decision_intent"] == "GIVE_WAY"
     assert details["preferred_side"] == "starboard"
     assert details["starboard_asymmetry_active"] is False
-    assert details["selected_target_ids"] == [14, 12, 13, 11]
+    assert details["selected_target_ids"] == [14]
     lifecycle_targets = {item["target_id"]: item for item in details["lifecycle"]["targets"]}
     assert lifecycle_targets[11]["role"] == "GIVE_WAY"
     assert lifecycle_targets[11]["risk"] == "CANDIDATE"
@@ -364,6 +378,8 @@ def test_lifecycle_transition_sink_is_incremental_and_reflected_in_trace() -> No
         factory_context=FactoryContext(
             ALGORITHM_ID,
             0,
+            scenario_id="head_on",
+            tracker_id="god",
             deadline_mode=DeadlineMode.OFF,
             event_sink=persisted.append,
         ),
@@ -413,25 +429,14 @@ def test_sway_velocity_and_overtaking_side_reach_the_optimizer() -> None:
     assert overtaking["target_predictions"][0]["preferred_side"] == "port"
 
 
-def test_conflicting_overtaking_sides_fail_l4_after_commitment_confirmation() -> None:
-    adapter = _fast_adapter()
+def test_conflicting_overtaking_sides_fail_l4_before_first_command() -> None:
+    adapter = _fast_adapter(scenario_id="paper_ccta2023_multiship")
     covariance = np.eye(4)
-
-    _plan(
-        adapter,
-        0.0,
-        [
-            (31, np.array([1000.0, 100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
-            (32, np.array([1000.0, -100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
-        ],
-        model_name="KinematicCSOG",
-        controller_name="PassThroughCS",
-    )
 
     with np.testing.assert_raises(ColavExecutionError) as error:
         _plan(
             adapter,
-            5.0,
+            0.0,
             [
                 (31, np.array([1000.0, 100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
                 (32, np.array([1000.0, -100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
@@ -439,10 +444,11 @@ def test_conflicting_overtaking_sides_fail_l4_after_commitment_confirmation() ->
             model_name="KinematicCSOG",
             controller_name="PassThroughCS",
         )
-    assert "COLREG_ACTION_DEADLINE" in str(error.exception)
+    assert "COLREG_CONFLICTING_LOCKED_SIDES" in str(error.exception)
     assert error.exception.source is FailureSource.ALGORITHM
     failure = adapter.get_colav_data()["planner"]
     assert failure["solver_executed"] is False
+    assert failure["solve_id"] == 0
     assert failure["status"] == PlanStatus.INFEASIBLE.value
     assert failure["algorithm_details"]["failure_code"] == "L4_PLAN_REJECTED"
     assert adapter.get_diagnostics().details["cached_plan_used"] is False
@@ -525,7 +531,7 @@ def test_held_plan_replans_when_target_departs_from_absolute_prediction() -> Non
     trace = adapter.get_colav_data()["planner"]
     assert trace["solver_executed"] is True
     assert trace["solve_id"] == 2
-    assert trace["algorithm_details"]["hold_replan_reason"] == "HOLD_TARGET_PREDICTION_CHANGED"
+    assert trace["algorithm_details"]["hold_replan_reason"] == "HOLD_DYNAMIC_CONTEXT_REQUIRES_REPLAN"
 
 
 def test_only_accepted_receipt_can_seed_next_ipopt_solve() -> None:
@@ -546,7 +552,7 @@ def test_reset_clears_encounter_commitment() -> None:
     target = [(41, np.array([1000.0, 0.0, -4.0, 0.0]), np.eye(4), 15.0, 4.0)]
 
     _plan(adapter, 0.0, target)
-    assert adapter.get_diagnostics().details["minimum_alteration_active"] is True
+    assert adapter.get_diagnostics().details["minimum_alteration_active"] is False
     _plan(adapter, 5.0, target)
     assert adapter.get_diagnostics().details["minimum_alteration_active"] is True
     _plan(adapter, 10.0, target, ownship=np.array([35.0, 0.0, math.radians(5.0), 4.0, 0.0, 0.0]))
@@ -554,7 +560,7 @@ def test_reset_clears_encounter_commitment() -> None:
 
     adapter.reset()
     _plan(adapter, 0.0, target)
-    assert adapter.get_diagnostics().details["minimum_alteration_active"] is True
+    assert adapter.get_diagnostics().details["minimum_alteration_active"] is False
 
 
 def test_schedule_error_fails_stop_and_ipopt_evidence_is_json_safe() -> None:
@@ -606,7 +612,13 @@ def test_infeasible_ipopt_problem_has_no_fallback_plan() -> None:
                 "decel_max_mps2": 0.05,
             },
         },
-        factory_context=FactoryContext(ALGORITHM_ID, 0, deadline_mode=DeadlineMode.OFF),
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            scenario_id="route",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+        ),
     )
 
     with np.testing.assert_raises(ColavExecutionError) as error:
@@ -634,3 +646,18 @@ def test_mid_mpc_rejects_deadline_without_frozen_acceptance_reservation() -> Non
             factory_context=FactoryContext(ALGORITHM_ID, 0, deadline_mode=DeadlineMode.ENFORCE),
         )
     assert error.exception.status is PlanStatus.INVALID_INPUT
+
+
+def test_adapter_rejection_before_commit_cannot_publish_warm_start(monkeypatch) -> None:
+    adapter = _fast_adapter()
+    facade = adapter._solve.__self__  # type: ignore[attr-defined]
+
+    def reject_solution(_solution, _planner_input) -> None:
+        raise ColavExecutionError(PlanStatus.INVALID_INPUT, "injected validation rejection")
+
+    monkeypatch.setattr(adapter, "_validate_solution", reject_solution)
+
+    with np.testing.assert_raises(ColavExecutionError):
+        _plan(adapter, 0.0)
+
+    assert facade._accepted_primal is None

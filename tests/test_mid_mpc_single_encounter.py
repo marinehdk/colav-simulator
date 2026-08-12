@@ -170,7 +170,7 @@ def _assert_rule17_hold_then_escalation(run: RunResult, expected_encounter: str)
     assert first["algorithm_details"]["decision_intent"] == "HOLD"
     assert first["algorithm_details"]["preferred_side"] == "none"
     assert first["target_predictions"][0]["encounter"] == expected_encounter
-    assert first["algorithm_details"]["selected_target_ids"] == [1]
+    assert first["algorithm_details"]["selected_target_ids"] == []
     assert abs(_first_command_delta(run)) < math.radians(1.0)
     assert first["algorithm_details"]["lifecycle"]["targets"][0]["rule17"] == "STAND_ON"
     first_selected = _first_action_row(run)

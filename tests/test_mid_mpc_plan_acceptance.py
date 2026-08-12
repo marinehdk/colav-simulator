@@ -45,6 +45,8 @@ def _numerical(*, raw_x: np.ndarray | None = None) -> NumericalEvidence:
         preparation_profile="COLAV_STRICT",
         preparation_hash="p" * 64,
         solver_hash="s" * 64,
+        preparation_parent_problem_hash="q" * 64,
+        solver_parent_preparation_hash="p" * 64,
     )
 
 
@@ -191,6 +193,24 @@ def test_original_bound_violation_rejects_even_with_success_status() -> None:
     assert "NUMERICAL_ORIGINAL_BOUNDS" in {finding.code for finding in result.findings}
 
 
+def test_parent_hash_substitution_rejects_replay_chain() -> None:
+    numerical = replace(_numerical(), solver_parent_preparation_hash="x" * 64)
+
+    result = MidMpcPlanAcceptance().evaluate(_request(numerical=numerical))
+
+    assert result.accepted is False
+    assert "EVIDENCE_HASH_CHAIN" in {finding.code for finding in result.findings}
+
+
+def test_native_ipopt_status_must_match_normalized_eligible_termination() -> None:
+    numerical = replace(_numerical(), return_status="Infeasible_Problem_Detected")
+
+    result = MidMpcPlanAcceptance().evaluate(_request(numerical=numerical))
+
+    assert result.accepted is False
+    assert "NUMERICAL_TERMINATION_MISMATCH" in {finding.code for finding in result.findings}
+
+
 def test_swept_hull_clearance_rejects_between_knot_collision() -> None:
     key = TrackKey(7, 1)
     target = ExecutionTarget(
@@ -242,6 +262,29 @@ def test_locked_starboard_commitment_rejects_port_candidate() -> None:
     assert rejected.accepted is False
     assert "COLREG_LOCKED_SIDE" in {finding.code for finding in rejected.findings}
     assert accepted.accepted is True
+
+
+def test_locked_starboard_candidate_is_checked_before_commitment() -> None:
+    authority = AuthorityTarget(
+        key=TrackKey(33, 1),
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="CANDIDATE",
+        commitment="NONE",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(
+        _request(authority_targets=(authority,), course=-np.deg2rad(np.array([0.0, 6.0, 6.0])))
+    )
+
+    assert result.accepted is False
+    assert "COLREG_LOCKED_SIDE" in {finding.code for finding in result.findings}
 
 
 def test_achieved_commitment_allows_route_recovery_against_locked_side() -> None:

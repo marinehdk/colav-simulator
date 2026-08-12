@@ -157,6 +157,36 @@ def test_strict_total_deadline_rejects_candidate_instead_of_downgrading_to_timeo
     assert np.count_nonzero(adapter.get_current_plan()) == 0
 
 
+def test_post_commit_evidence_failure_cannot_revoke_committed_command() -> None:
+    def solve(value: PlannerInput) -> MPCSolution:
+        candidate = solution(value)
+
+        def fail_evidence() -> None:
+            raise OSError("disk unavailable")
+
+        return MPCSolution(
+            control_reference=candidate.control_reference,
+            predicted_trajectory=candidate.predicted_trajectory,
+            horizon_dt_s=candidate.horizon_dt_s,
+            algorithm_details={"assembly": {"artifact": {"status": "PENDING_COMMIT"}}},
+            post_commit=fail_evidence,
+        )
+
+    adapter = CustomMPCAdapter(
+        descriptor=descriptor(),
+        solve=solve,
+        context=FactoryContext("schedule_mpc", 0),
+    )
+
+    command = plan(adapter, 0.0)
+
+    assert np.count_nonzero(command) > 0
+    assert adapter.get_diagnostics().status is PlanStatus.SUCCESS
+    artifact = adapter.get_colav_data()["planner"]["algorithm_details"]["assembly"]["artifact"]
+    assert artifact["status"] == "INCOMPLETE"
+    assert artifact["reason"] == "POST_COMMIT_CALLBACK_FAILED"
+
+
 def test_schedule_rejects_backwards_time_and_insufficient_horizon() -> None:
     adapter = CustomMPCAdapter(
         descriptor=descriptor(),

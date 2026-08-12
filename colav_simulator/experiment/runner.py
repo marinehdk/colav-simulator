@@ -207,7 +207,6 @@ class ExperimentRunner:
         if not output_root.is_absolute():
             output_root = self.project_root / output_root
         writer = EvidenceWriter(output_root / manifest.run_id)
-        artifact_sink = BoundedArtifactSink(writer)
         writer.write_manifest(manifest)
         writer.write_episode(
             {
@@ -222,6 +221,7 @@ class ExperimentRunner:
                 "config": episode_document,
             }
         )
+        artifact_sink = BoundedArtifactSink(writer)
         try:
             algorithm_config = copy.deepcopy(spec.algorithm_config)
             if spec.algorithm_id == "rrt":
@@ -230,6 +230,8 @@ class ExperimentRunner:
                 requested_algorithm=spec.algorithm_id,
                 algorithm_seed=spec.seeds.algorithm,
                 strict_no_fallback=spec.strict_no_fallback,
+                scenario_id=spec.scenario_id,
+                tracker_id=manifest.executed_tracker,
                 solve_period_override_s=spec.solve_period_s,
                 deadline_mode=DeadlineMode(spec.deadline_mode),
                 event_sink=writer.append_lifecycle_event,
@@ -277,6 +279,7 @@ class ExperimentRunner:
                 )
             writer.write_manifest(manifest)
         except Exception as exc:
+            artifact_sink.close(timeout_s=2.0)
             self.persist_failure(manifest, writer, exc, [])
             raise ExperimentRunError(manifest, writer.run_dir) from exc
         return PreparedRun(spec, manifest, session, writer, episode_document, artifact_sink)

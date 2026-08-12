@@ -413,13 +413,6 @@ def _resolve_policy(
     config: MidMpcAssemblyConfig,
     binding: _TargetBinding,
 ) -> _PolicyResolution:
-    provisional_decisions = tuple(
-        decision
-        for decision in binding.selected_decisions
-        if decision.risk is RiskPhase.CANDIDATE
-        and decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
-        and decision.passing_side is not PassingSide.NONE
-    )
     required_sides = {
         decision.passing_side for decision in binding.required_decisions if decision.passing_side is not PassingSide.NONE
     }
@@ -438,19 +431,13 @@ def _resolve_policy(
             "lifecycle speed directive has no intersection with capability envelope",
         )
 
-    provisional_sides = {decision.passing_side for decision in provisional_decisions}
-    effective_side = (
-        next(iter(provisional_sides))
-        if not required_sides and len(provisional_sides) == 1
-        else snapshot.directive.passing_side
-    )
     preferred_side = {
         PassingSide.NONE: 0,
         PassingSide.PORT: -1,
         PassingSide.STARBOARD: 1,
-    }[effective_side]
+    }[snapshot.directive.passing_side]
     minimum_course_change_rad = snapshot.directive.minimum_course_change_rad
-    lateral_active = minimum_course_change_rad > 0.0 or (not required_sides and len(provisional_sides) == 1)
+    lateral_active = minimum_course_change_rad > 0.0
     committed_route_bearing = route.bearing_rad
     corridor_decisions = tuple(decision for decision in binding.required_decisions if not decision.route_recovery_allowed)
     if corridor_decisions:
@@ -871,11 +858,11 @@ def _admission_rank(decision: TargetDecision) -> int:
     if decision.rule17 is Rule17Stage.MAY_ACT:
         return 3
     if decision.rule17 is Rule17Stage.STAND_ON:
-        return 2
+        return 0
     if decision.risk is RiskPhase.ACTIVE:
         return 3
     if decision.risk is RiskPhase.CANDIDATE:
-        return 2
+        return 0
     if decision.risk is RiskPhase.PAST_CLEAR or decision.recovery_guard_active:
         return 1
     return 0

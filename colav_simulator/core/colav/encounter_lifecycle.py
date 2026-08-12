@@ -698,17 +698,6 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
     encounter: EncounterKind,
     role: OwnshipRole,
 ) -> bool:
-    candidate_latched = (
-        state.risk is RiskPhase.CANDIDATE
-        and state.commitment is CommitmentPhase.NONE
-        and state.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
-        and state.candidate_since_s is not None
-        and geometry.signed_tcpa_s > 0.0
-    )
-    if candidate_latched:
-        encounter = state.encounter
-        role = state.role
-
     if (state.encounter, state.role) != (encounter, role):
         state.candidate_since_s = None
         state.baseline_course_rad = None
@@ -720,8 +709,7 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
         state.rule17 = Rule17Stage.NONE
         state.rule17_basis = "NOT_APPLICABLE"
         state.risk = RiskPhase.CANDIDATE
-        if not candidate_latched:
-            state.passing_side = _passing_side(cycle, target, geometry, role)
+        state.passing_side = _passing_side(cycle, target, geometry, role)
         if state.candidate_since_s is None:
             state.candidate_since_s = cycle.sim_time_s
             state.baseline_course_rad = cycle.ownship.heading_rad
@@ -828,12 +816,8 @@ def _commit(
 ) -> None:
     state.risk = RiskPhase.ACTIVE
     state.commitment = CommitmentPhase.COMMITTED
-    if state.baseline_course_rad is None:
-        state.baseline_course_rad = cycle.ownship.heading_rad
-    state.required_course_change_rad = max(
-        state.required_course_change_rad,
-        _substantial_course_change(cycle, target, geometry),
-    )
+    state.baseline_course_rad = cycle.ownship.heading_rad
+    state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
     state.route_recovery_allowed = False
     state.recovery_guard_active = False
     state.recovery_started = False

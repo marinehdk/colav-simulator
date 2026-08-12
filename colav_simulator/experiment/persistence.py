@@ -346,6 +346,8 @@ class BoundedArtifactSink:
         self._closed = False
         self._written = 0
         self._failures = 0
+        self._active: tuple[int, int, dict[str, Any]] | None = None
+        self._timed_out_references: set[int] = set()
         self._worker = threading.Thread(target=self._run, name="mid-mpc-artifacts", daemon=True) if start_worker else None
         if self._worker is not None:
             self._worker.start()
@@ -389,16 +391,23 @@ class BoundedArtifactSink:
         while self._queue.unfinished_tasks and time.monotonic() < deadline:
             time.sleep(0.005)
         if self._queue.unfinished_tasks:
-            self._failures += self._queue.unfinished_tasks
-            while True:
-                try:
-                    payload, _digest, reference = self._queue.get_nowait()
-                except queue.Empty:
-                    break
-                reference.update(status="INCOMPLETE", reason="DRAIN_TIMEOUT")
-                with self._lock:
+            with self._lock:
+                if self._active is not None:
+                    reference_id, payload_size, reference = self._active
+                    if reference_id not in self._timed_out_references:
+                        reference.update(status="INCOMPLETE", reason="DRAIN_TIMEOUT")
+                        self._timed_out_references.add(reference_id)
+                        self._queued_bytes -= payload_size
+                        self._failures += 1
+                while True:
+                    try:
+                        payload, _digest, reference = self._queue.get_nowait()
+                    except queue.Empty:
+                        break
+                    reference.update(status="INCOMPLETE", reason="DRAIN_TIMEOUT")
                     self._queued_bytes -= len(payload)
-                self._queue.task_done()
+                    self._failures += 1
+                    self._queue.task_done()
         if self._worker is not None:
             self._worker.join(timeout=max(0.0, deadline - time.monotonic()))
         return {
@@ -411,25 +420,43 @@ class BoundedArtifactSink:
 
     def _run(self) -> None:
         while True:
-            if self._closed and self._queue.empty():
-                return
-            try:
-                payload, digest, reference = self._queue.get(timeout=0.05)
-            except queue.Empty:
+            with self._lock:
+                if self._closed and self._queue.empty():
+                    return
+                try:
+                    payload, digest, reference = self._queue.get_nowait()
+                except queue.Empty:
+                    payload = b""
+                else:
+                    self._active = (id(reference), len(payload), reference)
+            if not payload:
+                time.sleep(0.05)
                 continue
+            persisted: dict[str, Any] | None = None
+            failure_reason: str | None = None
             try:
                 persisted = self._writer.write_mid_mpc_payload(payload, digest)
-                reference.update(persisted)
-                reference["status"] = "COMPLETE"
-                self._written += 1
-                self._enforce_retention()
             except Exception as exc:
-                reference.update(status="INCOMPLETE", reason=str(exc))
-                self._failures += 1
+                failure_reason = str(exc)
             finally:
                 with self._lock:
-                    self._queued_bytes -= len(payload)
+                    reference_id = id(reference)
+                    timed_out = reference_id in self._timed_out_references
+                    if timed_out:
+                        self._timed_out_references.remove(reference_id)
+                    else:
+                        self._queued_bytes -= len(payload)
+                        if failure_reason is None:
+                            reference.update(persisted or {})
+                            reference["status"] = "COMPLETE"
+                            self._written += 1
+                        else:
+                            reference.update(status="INCOMPLETE", reason=failure_reason)
+                            self._failures += 1
+                    self._active = None
                 self._queue.task_done()
+            if failure_reason is None and not timed_out:
+                self._enforce_retention()
 
     def _enforce_retention(self) -> None:
         directory = self._writer.run_dir / "artifacts" / "mid_mpc"
