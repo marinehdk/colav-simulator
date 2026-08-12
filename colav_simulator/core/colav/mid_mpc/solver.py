@@ -23,9 +23,8 @@ from colav_simulator.core.colav.mid_mpc.models import (
     MidMpcTrajectoryPoint,
 )
 
-_TARGET_START = 62
 _TARGET_STRIDE = 5
-_PARAMETER_DIM = 142
+_FROZEN_PREFIX_CAPACITY = 18
 
 
 class _P(IntEnum):
@@ -51,7 +50,6 @@ class _P(IntEnum):
     LATERAL_ACTIVE = 24
     DECEL_MAX = 25
     PREFIX_PSI = 26
-    PREFIX_U = 44
 
 
 class _T(IntEnum):
@@ -314,12 +312,16 @@ def _build_graph(  # noqa: PLR0915
     config: MidMpcConfig, problem: MidMpcProblem
 ) -> _Graph:
     n = config.horizon_steps
+    prefix_capacity = max(n, _FROZEN_PREFIX_CAPACITY)
+    prefix_u_start = int(_P.PREFIX_PSI) + prefix_capacity
+    target_start = prefix_u_start + prefix_capacity
+    parameter_dim = target_start + config.max_targets * _TARGET_STRIDE
     dt = ca.DM(config.dt_s)
     psi = ca.MX.sym("psi", n)
     speed = ca.MX.sym("u", n)
     sigma_cpa = ca.MX.sym("cpa_slack") if config.cpa_slack_enabled else None
     sigma_dir = ca.MX.sym("dir_slack") if config.dir_slack_enabled else None
-    p = ca.MX.sym("p", _PARAMETER_DIM)
+    p = ca.MX.sym("p", parameter_dim)
     decisions = [psi, speed]
     if sigma_cpa is not None:
         decisions.append(sigma_cpa)
@@ -376,7 +378,7 @@ def _build_graph(  # noqa: PLR0915
     decel_step = p[_P.DECEL_MAX] * dt
     rows.append(decel_step - (ca.vertcat(p[_P.U0], speed[:-1]) - speed))
     rows.extend(psi[k] - p[_P.PREFIX_PSI + k] for k in range(n))
-    rows.extend(speed[k] - p[_P.PREFIX_U + k] for k in range(n))
+    rows.extend(speed[k] - p[prefix_u_start + k] for k in range(n))
     rows.extend(_cpa_rows(psi, speed, sigma_cpa, config, problem))
     constraint_cross_track = _cross_track_all(psi, speed, p, config.dt_s)
     dir_slack = sigma_dir if sigma_dir is not None else 0.0
@@ -509,8 +511,10 @@ def _colreg_cost(psi: ca.MX, speed: ca.MX, p: ca.MX, config: MidMpcConfig) -> ca
         own_y += speed[k] * dt * ca.sin(psi[k])
         positions.append((own_x, own_y))
     cost = ca.MX(0.0)
+    prefix_capacity = max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
+    target_start = int(_P.PREFIX_PSI) + 2 * prefix_capacity
     for target_index in range(config.max_targets):
-        base = _TARGET_START + target_index * _TARGET_STRIDE
+        base = target_start + target_index * _TARGET_STRIDE
         target_dx = p[base + _T.SOG] * ca.cos(p[base + _T.COG])
         target_dy = p[base + _T.SOG] * ca.sin(p[base + _T.COG])
         for k, (current_x, current_y) in enumerate(positions):
@@ -627,7 +631,11 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
 
 
 def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray:
-    p = np.zeros(_PARAMETER_DIM)
+    prefix_capacity = max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
+    prefix_u_start = int(_P.PREFIX_PSI) + prefix_capacity
+    target_start = prefix_u_start + prefix_capacity
+    parameter_dim = target_start + config.max_targets * _TARGET_STRIDE
+    p = np.zeros(parameter_dim)
     p[_P.PSI0 : _P.Y0 + 1] = (
         problem.own_ship.psi_rad,
         problem.own_ship.u_mps,
@@ -658,9 +666,9 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
     p[_P.LATERAL_ACTIVE] = float(problem.lateral_active)
     p[_P.DECEL_MAX] = problem.decel_max_mps2 if problem.decel_max_mps2 > 1.0e-6 else 0.08
     p[_P.PREFIX_PSI : _P.PREFIX_PSI + prefix_k] = problem.prefix_psi_rad[:prefix_k]
-    p[_P.PREFIX_U : _P.PREFIX_U + prefix_k] = problem.prefix_u_mps[:prefix_k]
+    p[prefix_u_start : prefix_u_start + prefix_k] = problem.prefix_u_mps[:prefix_k]
     for index, target in enumerate(problem.targets[: config.max_targets]):
-        base = _TARGET_START + index * _TARGET_STRIDE
+        base = target_start + index * _TARGET_STRIDE
         distance = math.hypot(
             target.x_m - problem.own_ship.x_m,
             target.y_m - problem.own_ship.y_m,

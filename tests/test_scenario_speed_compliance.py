@@ -80,6 +80,19 @@ def test_overtaking_role_speed_order_is_preserved() -> None:
     assert overtaken.ship_list[0].csog_state[2] < overtaken.ship_list[1].csog_state[2]
 
 
+def test_overtaking_target_uses_five_knots_with_delayed_catch_up() -> None:
+    config = _load_scenario("overtaking")
+    ownship, target = config.ship_list[:2]
+    target_speed_mps = 5.0 * 1852.0 / 3600.0
+    initial_distance_m = float(np.linalg.norm(target.csog_state[:2] - ownship.csog_state[:2]))
+    relative_speed_mps = ownship.csog_state[2] - target.csog_state[2]
+
+    assert target.csog_state[2] == pytest.approx(target_speed_mps)
+    assert np.all(target.speed_plan == pytest.approx(target_speed_mps))
+    assert initial_distance_m >= 1400.0
+    assert initial_distance_m / relative_speed_mps >= 250.0
+
+
 def test_multiship_contains_at_least_one_nominal_threat() -> None:
     config = _load_scenario("paper_ccta2023_multiship")
     ownship = config.ship_list[0]

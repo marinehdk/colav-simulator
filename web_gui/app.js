@@ -3422,6 +3422,7 @@ function ensureSelectableValue(select, entries, preferredId) {
 
 function setSelectionAvailability(card, status) {
   const selectable = Boolean(status?.selectable);
+  card.hidden = !selectable;
   card.classList.toggle('available', selectable);
   card.classList.toggle('unavailable', !selectable);
   card.disabled = !selectable;
@@ -3533,7 +3534,7 @@ function syncScenarioCards(scenarioId) {
 
 function populateScenarioOptions(groupId, preferredScenario) {
   const group = SCENARIO_GROUPS[groupId] || SCENARIO_GROUPS.rule14;
-  const items = scenarioCatalog.filter(item => group.types.includes(item.type));
+  const items = scenarioCatalog.filter(item => group.types.includes(item.type) && item.selectable);
   const scenarioSelect = document.getElementById('scenarioSelect');
   scenarioSelect.replaceChildren();
   items.forEach(item => {

@@ -14,6 +14,12 @@ import seacharts.enc as senc
 import colav_simulator.common.math_functions as mf
 
 
+@dataclass(frozen=True)
+class OvertakingCommitment:
+    course_sign: int
+    base_course_rad: float
+
+
 @dataclass
 class SBMPCParams:
     """Parameters for the SB-MPC algorithm."""
@@ -23,6 +29,7 @@ class SBMPCParams:
     D_INIT_: float = 1000.0  # should be >= D_CLOSE   # distance to an obstacle to activate sbmpc [m]
     D_CLOSE_: float = 1000.0  # distance for an nearby obstacle [m]
     D_SAFE_: float = 40.0  # distance of safety zone [m]
+    D_CLEAR_: float = 190.0  # Rule 13 engineering threshold for finally past and clear [m]
     K_COLL_: float = 0.5  # cost scaling factor
     PHI_AH_: float = np.deg2rad(68.5)  # colregs angle - ahead [deg]
     PHI_OT_: float = np.deg2rad(68.5)  # colregs angle - overtaken [deg]
@@ -34,6 +41,7 @@ class SBMPCParams:
     K_DP_: float = 2.0  # cost function parameter
     K_DCHI_SB_: float = 1.0  # cost function parameter
     K_DCHI_P_: float = 1.4  # cost function parameter
+    KAPPA_TC_: float = 20.0  # COLREG transitional cost from the reference implementation
 
     P_ca_last_: float = 1.0  # last control change
     Chi_ca_last_: float = 0.0  # last course change
@@ -52,6 +60,7 @@ class SBMPCParams:
             "D_INIT_": self.D_INIT_,
             "D_CLOSE_": self.D_CLOSE_,
             "D_SAFE_": self.D_SAFE_,
+            "D_CLEAR_": self.D_CLEAR_,
             "K_COLL_": self.K_COLL_,
             "PHI_AH_": self.PHI_AH_,
             "PHI_OT_": self.PHI_OT_,
@@ -63,6 +72,7 @@ class SBMPCParams:
             "K_DP_": self.K_DP_,
             "K_DCHI_SB_": self.K_DCHI_SB_,
             "K_DCHI_P_": self.K_DCHI_P_,
+            "KAPPA_TC_": self.KAPPA_TC_,
             "P_ca_last": self.P_ca_last_,
             "Chi_ca_last": self.Chi_ca_last_,
             "Chi_ca_": self.Chi_ca_,
@@ -78,6 +88,7 @@ class SBMPCParams:
             D_INIT_=data["D_INIT_"],
             D_CLOSE_=data["D_CLOSE_"],
             D_SAFE_=data["D_SAFE_"],
+            D_CLEAR_=data.get("D_CLEAR_", 190.0),
             K_COLL_=data["K_COLL_"],
             PHI_AH_=data["PHI_AH_"],
             PHI_OT_=data["PHI_OT_"],
@@ -89,6 +100,7 @@ class SBMPCParams:
             K_DP_=data["K_DP_"],
             K_DCHI_SB_=data["K_DCHI_SB_"],
             K_DCHI_P_=data["K_DCHI_P_"],
+            KAPPA_TC_=data.get("KAPPA_TC_", 20.0),
             P_ca_last_=data["P_ca_last_"],
             Chi_ca_last_=data["Chi_ca_last_"],
             Chi_ca_=data["Chi_ca_"],
@@ -120,8 +132,11 @@ class SBMPC:
         self._target_predictions: list[dict] = []
         self._active = False
         self._objective: float | None = None
+        self._overtaking_commitments: dict[int, OvertakingCommitment] = {}
+        self._overtaking_released_ids: set[int] = set()
+        self._course_base_rad = 0.0
 
-    def get_optimal_ctrl_offset(
+    def get_optimal_ctrl_offset(  # noqa: PLR0915
         self,
         u_d: float,
         chi_d: float,
@@ -155,6 +170,7 @@ class SBMPC:
             chi_os_best = 0
             self._params.P_ca_last_ = 1
             self._params.Chi_ca_last_ = 0
+            self._course_base_rad = chi_d
             self._record_prediction(os_state, u_d, chi_d, obstacles)
             self._active = False
             self._objective = None
@@ -163,7 +179,9 @@ class SBMPC:
             n_obst = len(do_list)
             for obs_state in do_list:
                 obstacle = Obstacle(obs_state, self.T_, self.DT_)
+                self._set_transitional_variables(os_state, obstacle)
                 obstacles.append(obstacle)
+            self._update_overtaking_commitments(os_state, obstacles)
 
         # check if obstacles are within init range
         for obs in obstacles:
@@ -176,22 +194,32 @@ class SBMPC:
             chi_os_best = 0
             self._params.P_ca_last_ = 1
             self._params.Chi_ca_last_ = 0
+            self._course_base_rad = chi_d
             self._record_prediction(os_state, u_d, chi_d, obstacles)
             self._active = False
             self._objective = None
             return u_os_best, chi_os_best
 
+        self._course_base_rad = (
+            next(iter(self._overtaking_commitments.values())).base_course_rad
+            if self._overtaking_commitments
+            else chi_d
+        )
         for i in range(len(self._params.Chi_ca_)):
             for j in range(len(self._params.P_ca_)):
                 self.ownship.linear_pred(
                     os_state,
                     u_d * self._params.P_ca_[j],
-                    chi_d + self._params.Chi_ca_[i],
+                    self._course_base_rad + self._params.Chi_ca_[i],
                 )
 
                 cost_i = -1
                 for k in range(n_obst):
-                    cost_k = self.cost_func(self._params.P_ca_[j], self._params.Chi_ca_[i], obstacles[k])
+                    cost_k = self.cost_func(
+                        self._params.P_ca_[j],
+                        self._params.Chi_ca_[i],
+                        obstacles[k],
+                    )
                     cost_i = max(cost_i, cost_k)
                 self._candidate_costs[i, j] = cost_i
                 if cost_i < cost:
@@ -204,10 +232,13 @@ class SBMPC:
 
         self._params.P_ca_last_ = u_os_best
         self._params.Chi_ca_last_ = chi_os_best
+        self._start_overtaking_commitments(
+            obstacles, chi_os_best, self._course_base_rad
+        )
         self._record_prediction(
             os_state,
             u_d * u_os_best,
-            chi_d + chi_os_best,
+            self._course_base_rad + chi_os_best,
             obstacles,
         )
         self._active = True
@@ -256,11 +287,20 @@ class SBMPC:
             "candidate_costs": self._candidate_costs,
             "target_predictions": self._target_predictions,
             "objective": self._objective,
+            "course_base_rad": self._course_base_rad,
+            "overtaking_commitment_target_ids": sorted(
+                self._overtaking_commitments
+            ),
             "constraints": {
                 "activation_distance_m": self._params.D_INIT_,
                 "safe_distance_m": self._params.D_SAFE_,
+                "overtaking_clear_distance_m": self._params.D_CLEAR_,
             },
         }
+
+    def get_course_command(self, course_offset: float) -> float:
+        """Return candidate offset applied to stable Rule 13 course base."""
+        return mf.wrap_angle_to_pmpi(self._course_base_rad + course_offset)
 
     def reset(self) -> None:
         self._params.P_ca_last_ = 1.0
@@ -270,9 +310,15 @@ class SBMPC:
         self._target_predictions = []
         self._active = False
         self._objective = None
+        self._overtaking_commitments.clear()
+        self._overtaking_released_ids.clear()
+        self._course_base_rad = 0.0
 
     def cost_func(  # noqa: PLR0915
-        self, P_ca: float, Chi_ca: float, obstacle: "Obstacle"
+        self,
+        P_ca: float,
+        Chi_ca: float,
+        obstacle: "Obstacle",
     ) -> float:
         obs_l = obstacle.l
         obs_w = obstacle.w
@@ -298,6 +344,7 @@ class SBMPC:
             R = 0
             C = 0
             mu = 0
+            transitional_violation = 0
 
             if dist < d_close:
                 v_o[0] = obstacle.u_[i]
@@ -332,7 +379,10 @@ class SBMPC:
                     d_safe_i += d_safe + +obs_w / 2
 
                 if (
-                    np.dot(v_s, v_o) > np.cos(np.deg2rad(self._params.PHI_OT_)) * np.linalg.norm(v_s) * np.linalg.norm(v_o)
+                    np.dot(v_s, v_o)
+                    > np.cos(self._params.PHI_OT_)
+                    * np.linalg.norm(v_s)
+                    * np.linalg.norm(v_o)
                 ) and np.linalg.norm(v_s) > np.linalg.norm(v_o):
                     d_safe_i = d_safe + os_l / 2 + obs_l / 2
 
@@ -343,7 +393,10 @@ class SBMPC:
 
                 # Overtaken by obstacle
                 OT = (
-                    np.dot(v_s, v_o) > np.cos(np.deg2rad(self._params.PHI_OT_)) * np.linalg.norm(v_s) * np.linalg.norm(v_o)
+                    np.dot(v_s, v_o)
+                    > np.cos(self._params.PHI_OT_)
+                    * np.linalg.norm(v_s)
+                    * np.linalg.norm(v_o)
                 ) and np.linalg.norm(v_s) < np.linalg.norm(v_o)
 
                 # Obstacle on starboard side
@@ -364,14 +417,131 @@ class SBMPC:
 
                 mu = (SB and HO) or (CR and not OT)
 
-            H0 = C * R + self._params.KAPPA_ * mu
+                if (
+                    obstacle.os_overtaking
+                    and obstacle.overtaking_commitment is None
+                ):
+                    target_on_starboard = phi >= 0
+                    transitional_violation = (
+                        target_on_starboard != obstacle.target_on_starboard
+                    )
+
+            H0 = (
+                C * R
+                + self._params.KAPPA_ * mu
+                + self._params.KAPPA_TC_ * transitional_violation
+            )
 
             H1 = max(H1, H0)
 
-        H2 = self._params.K_P_ * (1 - P_ca) + self._params.K_CHI_ * Chi_ca**2 + self.delta_P(P_ca) + self.delta_Chi(Chi_ca)
+        commitment_violation = (
+            obstacle.overtaking_commitment is not None
+            and obstacle.overtaking_commitment.course_sign * Chi_ca
+            < self._minimum_course_action_rad()
+        )
+        H2 = (
+            self._params.K_P_ * (1 - P_ca)
+            + self._params.K_CHI_ * Chi_ca**2
+            + self.delta_P(P_ca)
+            + self.delta_Chi(Chi_ca)
+            + self._params.KAPPA_TC_ * commitment_violation
+        )
         cost = H1 + H2
 
         return cost
+
+    def _set_transitional_variables(
+        self, os_state: np.ndarray, obstacle: "Obstacle"
+    ) -> None:
+        """Capture current-time Rule 13 geometry for candidate transition costs."""
+        os_velocity = self.rot2d(os_state[2], os_state[3:5])
+        target_velocity = self.rot2d(
+            obstacle.psi_, np.array([obstacle.u_[0], obstacle.v_[0]])
+        )
+        line_of_sight = np.array(
+            [obstacle.x_[0] - os_state[0], obstacle.y_[0] - os_state[1]]
+        )
+        distance = np.linalg.norm(line_of_sight)
+        if distance > 0.0:
+            line_of_sight /= distance
+        target_bearing = mf.wrap_angle_to_pmpi(
+            math.atan2(line_of_sight[1], line_of_sight[0]) - os_state[2]
+        )
+        obstacle.target_on_starboard = target_bearing >= 0.0
+        obstacle.os_overtaking = (
+            distance <= self._params.D_CLOSE_
+            and np.linalg.norm(target_velocity) > 0.25
+            and np.dot(os_velocity, line_of_sight)
+            > np.cos(self._params.PHI_AH_) * np.linalg.norm(os_velocity)
+            and np.dot(os_velocity, target_velocity)
+            > np.cos(self._params.PHI_OT_)
+            * np.linalg.norm(os_velocity)
+            * np.linalg.norm(target_velocity)
+            and np.linalg.norm(os_velocity) > np.linalg.norm(target_velocity)
+        )
+
+    def _update_overtaking_commitments(
+        self, os_state: np.ndarray, obstacles: list["Obstacle"]
+    ) -> None:
+        tracked_ids = {obstacle.id for obstacle in obstacles}
+        for target_id in set(self._overtaking_commitments) - tracked_ids:
+            del self._overtaking_commitments[target_id]
+        self._overtaking_released_ids.intersection_update(tracked_ids)
+
+        for obstacle in obstacles:
+            relative_position = os_state[:2] - np.array(
+                [obstacle.x_[0], obstacle.y_[0]]
+            )
+            distance = np.linalg.norm(relative_position)
+            if distance > self._params.D_INIT_:
+                self._overtaking_released_ids.discard(obstacle.id)
+            commitment = self._overtaking_commitments.get(obstacle.id)
+            if commitment is None:
+                continue
+            target_velocity = self.rot2d(
+                obstacle.psi_, np.array([obstacle.u_[0], obstacle.v_[0]])
+            )
+            target_speed = np.linalg.norm(target_velocity)
+            along_track = (
+                np.dot(relative_position, target_velocity) / target_speed
+                if target_speed > 0.0
+                else -np.inf
+            )
+            if (
+                along_track >= self._params.D_CLEAR_
+                and distance >= self._params.D_CLEAR_
+            ):
+                del self._overtaking_commitments[obstacle.id]
+                self._overtaking_released_ids.add(obstacle.id)
+                continue
+            obstacle.overtaking_commitment = commitment
+            obstacle.os_overtaking = True
+            obstacle.target_on_starboard = commitment.course_sign < 0
+
+    def _start_overtaking_commitments(
+        self,
+        obstacles: list["Obstacle"],
+        course_offset: float,
+        base_course: float,
+    ) -> None:
+        if abs(course_offset) < self._minimum_course_action_rad():
+            return
+        course_sign = 1 if course_offset > 0.0 else -1
+        for obstacle in obstacles:
+            if (
+                obstacle.os_overtaking
+                and obstacle.id not in self._overtaking_released_ids
+            ):
+                self._overtaking_commitments.setdefault(
+                    obstacle.id,
+                    OvertakingCommitment(course_sign, base_course),
+                )
+
+    def _minimum_course_action_rad(self) -> float:
+        nonzero_offsets = np.abs(
+            self._params.Chi_ca_[~np.isclose(self._params.Chi_ca_, 0.0)]
+        )
+        return float(np.min(nonzero_offsets))
 
     def delta_P(self, P_ca: float) -> float:
         """Calculate the cost for speed change.
@@ -388,7 +558,7 @@ class SBMPC:
         """Calculate the cost for course change.
 
         Args:
-            Chi_ca (float): Course offset.
+            Chi_ca (float): Candidate course offset.
 
         Returns:
             float: Cost for course change.
@@ -450,6 +620,7 @@ class Obstacle:
         self.r22_ = np.cos(self.psi_)
         """
 
+        self.id = int(state[0])
         self.x_[0] = state[1][0]
         self.y_[0] = state[1][1]
         V_x = state[1][2]
@@ -458,6 +629,9 @@ class Obstacle:
 
         self.l = state[3]
         self.w = state[4]
+        self.os_overtaking = False
+        self.target_on_starboard = False
+        self.overtaking_commitment: OvertakingCommitment | None = None
 
         self.r11_ = np.cos(self.psi_)
         self.r12_ = -np.sin(self.psi_)

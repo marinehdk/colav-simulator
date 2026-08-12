@@ -36,6 +36,7 @@ import numpy as np
 import seacharts.enc as senc
 
 import colav_simulator.common.config_parsing as cp
+import colav_simulator.common.math_functions as mf
 import colav_simulator.core.colav.kuwata_vo_alg.kuwata_vo as kvo
 import colav_simulator.core.colav.sbmpc.sbmpc as sb_mpc
 import colav_simulator.core.guidances as guidance
@@ -468,6 +469,10 @@ class SBMPCWrapper(ICOLAV):
         self._t_run_sbmpc_last = 0.0
         self._speed_os_best = 1.0
         self._course_os_best = 0.0
+        self._course_command = 0.0
+        self._overtaking_commitment_active = False
+        self._overtaking_recovery_active = False
+        self._overtaking_recovery_base_course = 0.0
         self._diagnostics = PlanDiagnostics(
             requested_algorithm="sbmpc",
             executed_algorithm="sbmpc",
@@ -482,6 +487,10 @@ class SBMPCWrapper(ICOLAV):
         self._t_run_sbmpc_last = 0.0
         self._speed_os_best = 1.0
         self._course_os_best = 0.0
+        self._course_command = 0.0
+        self._overtaking_commitment_active = False
+        self._overtaking_recovery_active = False
+        self._overtaking_recovery_base_course = 0.0
         self._sbmpc.reset()
         self._los.reset()
         self._solve_id = 0
@@ -512,11 +521,51 @@ class SBMPCWrapper(ICOLAV):
         self._t_prev = t
         course_ref = references[2, 0]
         speed_ref = references[3, 0]
+        if self._solve_id == 0:
+            self._course_command = course_ref
         solver_executed = t - self._t_run_sbmpc_last >= 5.0
         if solver_executed:
             self._speed_os_best, self._course_os_best = self._sbmpc.get_optimal_ctrl_offset(
                 speed_ref, course_ref, ownship_state, do_list, enc
             )
+            candidate_course_command = self._sbmpc.get_course_command(
+                self._course_os_best
+            )
+            debug = self._sbmpc.get_debug_data()
+            commitment_active = bool(
+                debug["overtaking_commitment_target_ids"]
+            )
+            if self._overtaking_commitment_active and not commitment_active:
+                self._overtaking_recovery_active = True
+            if commitment_active:
+                self._overtaking_recovery_active = False
+                self._overtaking_recovery_base_course = float(
+                    debug["course_base_rad"]
+                )
+            if self._overtaking_recovery_active:
+                course_delta = mf.wrap_angle_to_pmpi(
+                    candidate_course_command - self._course_command
+                )
+                max_recovery_step = np.deg2rad(15.0)
+                applied_delta = np.clip(
+                    course_delta, -max_recovery_step, max_recovery_step
+                )
+                self._course_command = mf.wrap_angle_to_pmpi(
+                    self._course_command + applied_delta
+                )
+                nominal_base_error = abs(
+                    mf.wrap_angle_to_pmpi(
+                        course_ref - self._overtaking_recovery_base_course
+                    )
+                )
+                if (
+                    nominal_base_error <= np.deg2rad(5.0)
+                    and abs(course_delta) <= max_recovery_step
+                ):
+                    self._overtaking_recovery_active = False
+            else:
+                self._course_command = candidate_course_command
+            self._overtaking_commitment_active = commitment_active
             self._t_run_sbmpc_last = t
             # print(
             #     f"[SBMPC] Course output: {np.rad2deg(course_ref + self._course_os_best)} | "
@@ -526,7 +575,7 @@ class SBMPCWrapper(ICOLAV):
             #     f"Best speed offset: {self._speed_os_best} | "
             #     f"Nominal speed ref: {speed_ref}"
             # )
-        references[2, 0] = course_ref + self._course_os_best
+        references[2, 0] = self._course_command
         references[3, 0] = speed_ref * self._speed_os_best
         if solver_executed:
             self._solve_id += 1
@@ -545,6 +594,7 @@ class SBMPCWrapper(ICOLAV):
                 "track_count": len(do_list),
                 "speed_scale": float(self._speed_os_best),
                 "course_offset_rad": float(self._course_os_best),
+                "overtaking_recovery_active": self._overtaking_recovery_active,
             },
         )
         algorithm_details = {
@@ -566,6 +616,10 @@ class SBMPCWrapper(ICOLAV):
                 "speed_mps": float(references[3, 0]),
                 "course_offset_rad": float(self._course_os_best),
                 "speed_scale": float(self._speed_os_best),
+                "candidate_course_rad": float(
+                    self._sbmpc.get_course_command(self._course_os_best)
+                ),
+                "overtaking_recovery_active": self._overtaking_recovery_active,
             },
             target_predictions=debug["target_predictions"],
             constraints=debug["constraints"],

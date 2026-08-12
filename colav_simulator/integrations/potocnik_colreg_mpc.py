@@ -424,9 +424,19 @@ class PotocnikColregFanMPC:
                 track.length_m,
             )
             previous = self._encounter_state.get(track.target_id, "clear")
+            own_radius = 0.5 * float(
+                np.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
+            )
+            target_radius = 0.5 * float(np.hypot(track.length_m, track.width_m))
+            required_center_clearance = self.params.collision_distance_m + own_radius + target_radius
             if detected != "clear":
                 encounter = detected
-            elif previous != "clear" and signed_tcpa > 0.0 and distance <= self.params.colreg_zone_distance_m:
+            elif (
+                previous != "clear"
+                and signed_tcpa > 0.0
+                and dcpa <= required_center_clearance
+                and distance <= self.params.colreg_zone_distance_m
+            ):
                 encounter = previous
             else:
                 encounter = "clear"
@@ -455,17 +465,17 @@ class PotocnikColregFanMPC:
         for target_id in set(self._encounter_state) - seen_ids:
             self._encounter_state.pop(target_id, None)
         active = {item["encounter"] for item in records}
-        if stand_on and not give_way:
+        if stand_on:
             if self._stand_on_course is None:
                 self._stand_on_course = float(ownship[2])
-        else:
+        elif self._maneuver_phase == "TRACK":
             self._stand_on_course = None
         return _Policy(
             encounters=tuple(records),
             give_way_targets=tuple(give_way),
             crossing_give_way_targets=tuple(crossing_give_way),
             stand_on_targets=tuple(stand_on),
-            starboard_required=bool(active & {"head_on", "crossing_give_way"}),
+            starboard_required=bool(active & {"head_on", "crossing_give_way", "overtaking"}),
         )
 
     def _dynamic_feasibility(
@@ -560,7 +570,7 @@ class PotocnikColregFanMPC:
         self._hazard_geometry = hazards[0] if hazards else None
         return self._hazard_geometry
 
-    def _select_candidate(  # noqa: PLR0912, PLR0913, PLR0915
+    def _select_candidate(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
         *,
         controls: np.ndarray,
@@ -600,14 +610,21 @@ class PotocnikColregFanMPC:
                     selection = astern
                 else:
                     relaxations.append("pass_astern")
-        elif policy.stand_on_targets and nominal_feasible and self._stand_on_course is not None:
-            reference_error = np.abs(_wrap_angle(controls[selection, 2, 0] - self._stand_on_course))
-            stand_on = selection[
-                np.isclose(speed_scales[selection], 1.0) & (reference_error <= self._heading_grid_tolerance())
-            ]
-            stand_on_error = np.abs(_wrap_angle(controls[stand_on, 2, 0] - self._stand_on_course))
-            selection = np.array([stand_on[int(np.argmin(stand_on_error))]])
-        elif policy.stand_on_targets:
+        stand_on_reference_active = (
+            not policy.give_way_targets
+            and bool(policy.stand_on_targets)
+            and nominal_feasible
+            and self._stand_on_course is not None
+        )
+        stand_on_emergency_active = (
+            not policy.give_way_targets
+            and bool(policy.stand_on_targets)
+            and not nominal_feasible
+            and self._stand_on_course is not None
+        )
+        if stand_on_reference_active:
+            selection = selection[np.isclose(speed_scales[selection], 1.0)]
+        elif policy.stand_on_targets and not policy.give_way_targets:
             relaxations.append("stand_on_emergency_override")
 
         reference_course = ownship_course if self._previous_command_course is None else self._previous_command_course
@@ -618,9 +635,21 @@ class PotocnikColregFanMPC:
         else:
             relaxations.append("command_rate_limit_emergency")
 
+        if stand_on_emergency_active:
+            stand_on_error = np.abs(_wrap_angle(controls[selection, 2, 0] - self._stand_on_course))
+            selection = selection[np.isclose(stand_on_error, np.min(stand_on_error))]
         highest_executable_speed_scale = float(np.max(speed_scales[selection]))
         selection = selection[np.isclose(speed_scales[selection], highest_executable_speed_scale)]
-        route_score = np.abs(_wrap_angle(controls[selection, 2, 0] - target_course))
+        if stand_on_reference_active:
+            stand_on_error = np.abs(_wrap_angle(controls[selection, 2, 0] - self._stand_on_course))
+            selection = selection[np.isclose(stand_on_error, np.min(stand_on_error))]
+        elif self._maneuver_phase == "RETURN" and not policy.give_way_targets and not policy.stand_on_targets:
+            return_error = np.abs(_wrap_angle(controls[selection, 2, 0] - target_course))
+            selection = selection[np.isclose(return_error, np.min(return_error))]
+        scoring_course = (
+            self._stand_on_course if stand_on_reference_active or stand_on_emergency_active else target_course
+        )
+        route_score = np.abs(_wrap_angle(controls[selection, 2, 0] - scoring_course))
         route_score += 0.25 * (1.0 - speed_scales[selection])
         continuity_score = np.zeros(selection.size)
         if self._previous_command_course is not None:

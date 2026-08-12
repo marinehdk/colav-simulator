@@ -42,7 +42,7 @@ def test_phase3_matrix_produces_traceable_three_layer_evaluation(
         assert evaluation.hard_gate.outcome == "FAIL"
         assert evaluation.aggregate["ownship_grounding_count"] > 0
         return
-    if algorithm_id == "sbmpc" and scenario_id == "overtaking":
+    if algorithm_id == "sbmpc" and scenario_id == "overtaken":
         clearance = next(
             check
             for check in evaluation.hard_gate.checks
@@ -50,10 +50,10 @@ def test_phase3_matrix_produces_traceable_three_layer_evaluation(
         )
         assert evaluation.hard_gate.outcome == "FAIL"
         assert clearance.evidence["minimum_hull_clearance_m"] < 50.0
-    else:
-        assert evaluation.hard_gate.outcome == "PASS", json.dumps(
-            evaluation.to_dict(), indent=2, default=str
-        )
+        return
+    assert evaluation.hard_gate.outcome == "PASS", json.dumps(
+        evaluation.to_dict(), indent=2, default=str
+    )
     assert evaluation.pair_results
     for pair in evaluation.pair_results:
         if 0 in {pair.ownship_id, pair.target_id}:
