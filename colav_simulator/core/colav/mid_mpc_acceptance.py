@@ -661,10 +661,7 @@ class MidMpcPlanAcceptance:
                         target_key=target.key,
                     )
                 else:
-                    drift = max(
-                        abs(_wrap(float(course - target.baseline_course_rad)))
-                        for course in candidate.course_rad
-                    )
+                    drift = max(abs(_wrap(float(course - target.baseline_course_rad))) for course in candidate.course_rad)
                     if drift > math.radians(5.0) + 1.0e-6:
                         _fail(
                             findings,
