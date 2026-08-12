@@ -661,10 +661,9 @@ class MidMpcPlanAcceptance:
                         target_key=target.key,
                     )
                 else:
-                    active_prefix_samples = min(2, candidate.course_rad.size)
                     drift = max(
                         abs(_wrap(float(course - target.baseline_course_rad)))
-                        for course in candidate.course_rad[:active_prefix_samples]
+                        for course in candidate.course_rad
                     )
                     if drift > math.radians(5.0) + 1.0e-6:
                         _fail(

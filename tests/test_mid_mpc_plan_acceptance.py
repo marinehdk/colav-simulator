@@ -215,7 +215,7 @@ def test_stand_on_candidate_rejects_course_drift_before_rule17() -> None:
     )
 
     result = MidMpcPlanAcceptance().evaluate(
-        _request(course=np.deg2rad(np.array([0.0, 20.0, 0.0])), authority_targets=(authority,))
+        _request(course=np.deg2rad(np.array([0.0, 0.0, 20.0])), authority_targets=(authority,))
     )
 
     assert result.accepted is False
