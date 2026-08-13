@@ -117,6 +117,7 @@ const visibleLayers = {
   responseRange: true,
   prediction: true,
   previousPrediction: false,
+  rejectedPrediction: false,
   executionPoint: true,
   risk: true,
   truth: false,
@@ -437,12 +438,28 @@ function renderCanvas(data) {
   const plans = data.plans || {};
   if (visibleLayers.previousPrediction && plans.previous_prediction_horizon?.length > 0)
     drawHorizon(plans.previous_prediction_horizon, true, data.planner);
+  if (visibleLayers.rejectedPrediction && plans.rejected_prediction_horizon?.length > 0)
+    drawHorizon(
+      plans.rejected_prediction_horizon,
+      false,
+      data.planner,
+      plans.prediction_render?.ownship?.time_s,
+      'REJECTED',
+    );
+  if (visibleLayers.rejectedPrediction)
+    (plans.rejected_target_prediction_horizons || []).forEach(horizon =>
+      drawTargetHorizon(horizon, THREAT_STYLES.UNKNOWN));
   (plans.target_prediction_horizons || []).forEach((horizon, index) =>
     drawTargetHorizon(horizon, targetThreat(data, data.obstacles?.[index])));
   if (visibleLayers.prediction && plans.prediction_horizon?.length > 0)
-    drawHorizon(plans.prediction_horizon, false, data.planner);
+    drawHorizon(
+      plans.prediction_horizon,
+      false,
+      data.planner,
+      plans.prediction_render?.ownship?.time_s,
+    );
   if (visibleLayers.executionPoint && plans.prediction_horizon?.length > 0)
-    drawExecutionPoint(plans.prediction_horizon);
+    drawExecutionPoint(plans.prediction_horizon, Boolean(plans.prediction_render));
   if (visibleLayers.risk) drawCPARisk(data);
   drawTargetRoutes(data);
   if (data.os && plannerSurfaceAttached) drawPlannerSurfaceOnMap(data.os, diagnosticPlannerForData(data));
@@ -867,21 +884,25 @@ function drawCovariance(point, covariance) {
 }
 
 /* Planner prediction horizon */
-function drawHorizon(horizon, previous = false, planner = {}) {
+function drawHorizon(horizon, previous = false, planner = {}, timeAxis = null, style = null) {
   const pts = horizon.map(p => worldToCanvas(p[0], p[1]));
-  ctx.strokeStyle = previous ? 'rgba(85,214,183,0.20)' : '#55D6B7';
+  const rejected = style === 'REJECTED';
+  ctx.strokeStyle = rejected ? '#FF6B6B' : previous ? 'rgba(85,214,183,0.20)' : '#55D6B7';
   ctx.lineWidth   = previous ? 1.5 : 2.5;
-  ctx.setLineDash(previous ? [6, 6] : []);
+  ctx.setLineDash(rejected ? [8, 5] : previous ? [6, 6] : []);
   strokePolyline(pts);
   ctx.setLineDash([]);
-  if (previous) return;
+  if (previous || rejected) return;
   const dt = Number(planner?.horizon_dt_s);
   if (!Number.isFinite(dt) || dt <= 0) return;
   const markerInterval = Math.max(1, Math.round(PREDICTION_MARKER_SECONDS / dt));
   const labelInterval = Math.max(1, Math.round(PREDICTION_LABEL_SECONDS / dt));
   pts.forEach((point, index) => {
-    if (index === 0 || index % markerInterval !== 0) return;
-    const keyPoint = index % labelInterval === 0;
+    const typedTime = Array.isArray(timeAxis) ? Number(timeAxis[index]) : NaN;
+    const markerCoordinate = Number.isFinite(typedTime) ? typedTime / dt : index;
+    if (index === 0 || Math.abs(markerCoordinate / markerInterval - Math.round(markerCoordinate / markerInterval)) > 0.1)
+      return;
+    const keyPoint = Math.abs(markerCoordinate / labelInterval - Math.round(markerCoordinate / labelInterval)) <= 0.1;
     ctx.fillStyle = keyPoint ? '#9EF0DB' : 'rgba(11,18,17,0.72)';
     ctx.strokeStyle = keyPoint ? '#D2FFF3' : 'rgba(85,214,183,0.92)';
     ctx.lineWidth = keyPoint ? 1.5 : 1.1;
@@ -890,7 +911,7 @@ function drawHorizon(horizon, previous = false, planner = {}) {
     ctx.fill();
     ctx.stroke();
     if (!keyPoint) return;
-    drawMapLabel(`${Math.round(index * dt)}s`, point.x + 5, point.y - 5, '#9EF0DB');
+    drawMapLabel(`${Math.round(Number.isFinite(typedTime) ? typedTime : index * dt)}s`, point.x + 5, point.y - 5, '#9EF0DB');
   });
 }
 
@@ -904,8 +925,8 @@ function drawTargetHorizon(horizon, threat = THREAT_STYLES.UNKNOWN) {
   ctx.setLineDash([]);
 }
 
-function drawExecutionPoint(horizon) {
-  const index = horizon.length > 1 ? 1 : 0;
+function drawExecutionPoint(horizon, startsAtExecution = false) {
+  const index = startsAtExecution ? 0 : horizon.length > 1 ? 1 : 0;
   const point = worldToCanvas(horizon[index][0], horizon[index][1]);
   ctx.save();
   ctx.translate(point.x, point.y);
@@ -1630,6 +1651,7 @@ function updatePlannerPanel(data) {
     : latestSolve;
   const execution = data.execution || {};
   const details = diagnosticPlanner.algorithm_details || {};
+  const predictionEvidence = data.plans?.prediction_render || null;
   syncPlannerSurfaceMode(diagnosticPlanner);
   const solveId = Number(planner.solve_id || 0);
   const realSolve = Boolean(planner.solver_executed);
@@ -1644,12 +1666,16 @@ function updatePlannerPanel(data) {
   setText('val-solver-state', solverSuccessful ? '成功' : '失败');
 
   const horizonLength = data.plans?.prediction_horizon?.length || 0;
-  const horizonIntervals = diagnosticPlanner.algorithm_details?.control_intervals ?? horizonLength;
+  const horizonIntervals = predictionEvidence?.grid?.intervals
+    ?? diagnosticPlanner.algorithm_details?.control_intervals
+    ?? horizonLength;
   const gridShape = Array.isArray(details.grid_shape) ? details.grid_shape : [];
   const horizonTime = diagnosticPlanner.algorithm_id === 'vo' && gridShape.length === 2
     ? `决策网格 ${gridShape[0]}×${gridShape[1]}`
-    : horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
-      ? `${horizonIntervals} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
+    : Number.isFinite(predictionEvidence?.grid?.dt_s)
+      ? `${horizonIntervals} × ${predictionEvidence.grid.dt_s.toFixed(1)}s · ${predictionEvidence.grid.state_samples} knots`
+      : horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
+        ? `${horizonIntervals} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
       : `${horizonLength} points`;
   setText('val-planner-horizon', horizonTime);
 
@@ -1664,7 +1690,9 @@ function updatePlannerPanel(data) {
     lastSolveSimTime = Number(planner.sim_time || data.sim_time || 0);
   }
   const prediction = data.plans?.prediction_horizon || [];
-  const predictionIndex = Number.isFinite(diagnosticPlanner.horizon_dt_s) && lastSolveSimTime !== null
+  const predictionIndex = predictionEvidence
+    ? 0
+    : Number.isFinite(diagnosticPlanner.horizon_dt_s) && lastSolveSimTime !== null
     ? Math.min(prediction.length - 1, Math.max(0, Math.round(
       (Number(data.sim_time || 0) - lastSolveSimTime) / diagnosticPlanner.horizon_dt_s,
     )))
@@ -1686,6 +1714,44 @@ function updatePlannerPanel(data) {
         : diagnosticPlanner.algorithm_id === 'vo'
           ? '1.0 s'
         : '按算法触发',
+  );
+  setText(
+    'val-evidence-source',
+    predictionEvidence
+      ? `${predictionEvidence.trajectory_source || '--'} · ${predictionEvidence.style || '--'}`
+      : '--',
+  );
+  setText(
+    'val-planner-l4',
+    predictionEvidence?.planner_l4?.accepted === true
+      ? 'PASS'
+      : predictionEvidence?.planner_l4?.accepted === false
+        ? 'FAIL'
+        : '--',
+  );
+  const evaluator = predictionEvidence?.evaluator_g3;
+  setText(
+    'val-evaluator-g3',
+    evaluator
+      ? evaluator.hard_gate_passed === true || evaluator.status === 'PASS'
+        ? 'PASS'
+        : 'FAIL'
+      : '--',
+  );
+  const quality = predictionEvidence?.quality || {};
+  setText(
+    'val-course-span',
+    Number.isFinite(quality.course_span_rad)
+      ? `${(quality.course_span_rad * 180 / Math.PI).toFixed(2)}°`
+      : '--°',
+  );
+  setText(
+    'val-speed-span',
+    Number.isFinite(quality.speed_span_mps) ? `${quality.speed_span_mps.toFixed(3)} m/s` : '-- m/s',
+  );
+  setText(
+    'val-lateral-deviation',
+    Number.isFinite(quality.lateral_deviation_m) ? `${quality.lateral_deviation_m.toFixed(2)} m` : '-- m',
   );
 
   const timelineTrace = latestSolve.solver_executed ? latestSolve : (realSolve ? planner : null);

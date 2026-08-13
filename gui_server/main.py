@@ -707,7 +707,12 @@ class WebSessionManager:
         planner = colav_data.get("planner", {})
         solve_id = int(planner.get("solve_id", 0))
         algorithm_details = planner.get("algorithm_details", {})
-        render_projection = algorithm_details.get("render_projection", {})
+        prediction_render = planner.get("prediction_render", {})
+        typed_render = prediction_render.get("schema_version") == "colav.mid_mpc.prediction-render@1"
+        if typed_render:
+            prediction_render = dict(prediction_render)
+            prediction_render["evaluator_g3"] = self.result.evaluation.to_dict() if self.result is not None else None
+        render_projection = prediction_render if typed_render else algorithm_details.get("render_projection", {})
         projected_ownship = render_projection.get("ownship", {})
         projected_north = np.asarray(projected_ownship.get("north_m", []), dtype=float)
         projected_east = np.asarray(projected_ownship.get("east_m", []), dtype=float)
@@ -725,20 +730,53 @@ class WebSessionManager:
             predicted.ndim == 2
             and predicted.shape[0] >= 2
             and predicted.shape[1] > 0
-            and (solve_id > 0 or planner.get("algorithm_id") in {"nominal", "vo"})
+            and (typed_render or solve_id > 0 or planner.get("algorithm_id") in {"nominal", "vo"})
         )
         if has_prediction:
             prediction_horizon = np.column_stack((predicted[0] - origin_n, predicted[1] - origin_e)).tolist()
         else:
             prediction_horizon = []
         target_prediction_horizons = []
-        for target in planner.get("target_predictions", []):
+        rendered_targets = prediction_render.get("targets", []) if typed_render else planner.get("target_predictions", [])
+        for target in rendered_targets:
+            if typed_render and target.get("purpose") != "L4_SAFETY":
+                continue
             target_north = np.asarray(target.get("north_m", target.get("x", [])), dtype=float)
             target_east = np.asarray(target.get("east_m", target.get("y", [])), dtype=float)
             if target_north.ndim != 1 or target_east.ndim != 1 or target_north.size != target_east.size:
                 continue
             target_prediction_horizons.append(np.column_stack((target_north - origin_n, target_east - origin_e)).tolist())
-        if planner.get("solver_executed") and solve_id != self.last_solve_id:
+        rejected_target_prediction_horizons = []
+        if typed_render and prediction_render.get("style") != "ACTIVE":
+            if prediction_render.get("style") == "REJECTED":
+                rejected_target_prediction_horizons = target_prediction_horizons
+            target_prediction_horizons = []
+        if typed_render:
+            executable = prediction_render.get("executable") is True
+            self.current_prediction_horizon = prediction_horizon if executable else []
+            history_ownship = (prediction_render.get("history") or {}).get("ownship", {})
+            history_north = np.asarray(history_ownship.get("north_m", []), dtype=float)
+            history_east = np.asarray(history_ownship.get("east_m", []), dtype=float)
+            if (
+                history_north.ndim == 1
+                and history_east.ndim == 1
+                and history_north.size == history_east.size
+                and history_north.size > 0
+            ):
+                self.previous_prediction_horizon = np.column_stack(
+                    (history_north - origin_n, history_east - origin_e)
+                ).tolist()
+            elif prediction_render.get("style") == "INVALID_HISTORY":
+                self.previous_prediction_horizon = prediction_horizon
+            else:
+                self.previous_prediction_horizon = []
+            if planner.get("solver_executed"):
+                self.latest_planner_solve = jsonable(planner)
+                self.last_solve_id = solve_id
+            self.active_planner_plan = jsonable(planner) if executable else {}
+            self.latest_planner_attempt = jsonable(planner)
+            rejected_prediction_horizon = prediction_horizon if prediction_render.get("style") == "REJECTED" else []
+        elif planner.get("solver_executed") and solve_id != self.last_solve_id:
             self.previous_prediction_horizon = self.current_prediction_horizon
             self.current_prediction_horizon = prediction_horizon
             self.last_solve_id = solve_id
@@ -751,6 +789,8 @@ class WebSessionManager:
             self.current_prediction_horizon = []
         elif prediction_horizon and not self.current_prediction_horizon:
             self.current_prediction_horizon = prediction_horizon
+        if not typed_render:
+            rejected_prediction_horizon = []
         if planner and (
             planner.get("solver_executed")
             or planner.get("algorithm_details", {}).get("failure_code")
@@ -782,8 +822,11 @@ class WebSessionManager:
                 "waypoints": local_waypoints,
                 "prediction_horizon": self.current_prediction_horizon,
                 "previous_prediction_horizon": self.previous_prediction_horizon,
+                "rejected_prediction_horizon": rejected_prediction_horizon,
                 "target_prediction_horizons": target_prediction_horizons,
+                "rejected_target_prediction_horizons": rejected_target_prediction_horizons,
                 "target_routes": target_routes,
+                "prediction_render": jsonable(prediction_render) if typed_render else None,
             },
             "enc_navigation_area": self.enc_navigation_area,
             "encounters": encounters,
