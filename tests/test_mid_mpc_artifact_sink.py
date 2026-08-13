@@ -12,6 +12,7 @@ def test_bounded_artifact_sink_writes_atomically_and_enforces_retention(tmp_path
 
     references = [sink({"sequence": sequence}) for sequence in range(3)]
     summary = sink.close(timeout_s=2.0)
+    completions = sink.poll_completions()
 
     assert summary["status"] == "COMPLETE"
     assert summary["written"] == 3
@@ -19,7 +20,21 @@ def test_bounded_artifact_sink_writes_atomically_and_enforces_retention(tmp_path
     artifacts = sorted(artifact_dir.glob("*.json.gz"))
     assert len(artifacts) == 2
     assert not list(artifact_dir.glob(".*.tmp"))
-    assert all(reference["status"] == "COMPLETE" for reference in references)
+    assert all(reference["status"] == "QUEUED" for reference in references)
+    assert {item["status"] for item in completions} == {"COMPLETE"}
+    assert {item["submission_id"] for item in completions} == {reference["submission_id"] for reference in references}
+
+
+def test_artifact_worker_uses_an_immutable_descriptor_copy(tmp_path: Path) -> None:
+    writer = EvidenceWriter(tmp_path / "run")
+    sink = BoundedArtifactSink(writer, start_worker=False)
+    reference = sink({"payload": "accepted"})
+    original_submission_id = reference["submission_id"]
+    reference["submission_id"] = "caller-mutated"
+    sink.close(timeout_s=0.0)
+    completion = sink.poll_completions()[0]
+
+    assert completion["submission_id"] == original_submission_id
 
 
 def test_bounded_artifact_sink_reports_item_byte_and_artifact_limits(tmp_path: Path) -> None:
@@ -36,15 +51,21 @@ def test_bounded_artifact_sink_reports_item_byte_and_artifact_limits(tmp_path: P
     first = sink({"payload": "a" * 50})
     item_backpressure = sink({"payload": "b" * 50})
     artifact_too_large = sink({"payload": "c" * 200})
-    first_status = first["status"]
     summary = sink.close(timeout_s=0.0)
+    completions = sink.poll_completions()
 
-    assert first_status == "QUEUED"
-    assert first["status"] == "INCOMPLETE"
+    assert first["status"] == "QUEUED"
     assert item_backpressure["status"] == "BACKPRESSURE"
     assert item_backpressure["reason"] == "ITEM_CAPACITY"
     assert artifact_too_large["status"] == "INCOMPLETE"
     assert artifact_too_large["reason"] == "ARTIFACT_TOO_LARGE"
+    assert completions == [
+        {
+            **first,
+            "status": "INCOMPLETE",
+            "reason": "DRAIN_TIMEOUT",
+        }
+    ]
     assert summary["status"] == "INCOMPLETE"
 
 
@@ -59,12 +80,15 @@ def test_bounded_artifact_sink_reports_write_failure_without_raising(tmp_path: P
     reference = sink({"payload": "accepted"})
 
     deadline = time.monotonic() + 2.0
-    while reference["status"] == "QUEUED" and time.monotonic() < deadline:
+    completions = []
+    while not completions and time.monotonic() < deadline:
+        completions = sink.poll_completions()
         time.sleep(0.01)
     summary = sink.close(timeout_s=2.0)
 
-    assert reference["status"] == "INCOMPLETE"
-    assert "disk unavailable" in str(reference["reason"])
+    assert reference["status"] == "QUEUED"
+    assert completions[0]["status"] == "INCOMPLETE"
+    assert "disk unavailable" in str(completions[0]["reason"])
     assert summary["status"] == "INCOMPLETE"
     json.dumps(reference, allow_nan=False)
 
@@ -86,7 +110,7 @@ def test_bounded_artifact_sink_close_timeout_freezes_inflight_reference(tmp_path
     assert entered.wait(timeout=1.0)
 
     summary = sink.close(timeout_s=0.0)
-    frozen = dict(reference)
+    completion = sink.poll_completions()[0]
     release.set()
     time.sleep(0.05)
 
@@ -97,6 +121,7 @@ def test_bounded_artifact_sink_close_timeout_freezes_inflight_reference(tmp_path
         "queued_items": 0,
         "queued_bytes": 0,
     }
-    assert frozen["status"] == "INCOMPLETE"
-    assert frozen["reason"] == "DRAIN_TIMEOUT"
-    assert reference == frozen
+    assert reference["status"] == "QUEUED"
+    assert completion["status"] == "INCOMPLETE"
+    assert completion["reason"] == "DRAIN_TIMEOUT"
+    assert sink.poll_completions() == []

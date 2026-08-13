@@ -74,6 +74,16 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     TargetPrediction,
     problem_hash_document,
 )
+from colav_simulator.core.colav.prediction_evidence import (
+    EvidenceEnvelope,
+    EvidenceTrackKey,
+    OptimizationIntervalReference,
+    OwnshipPrediction,
+    PredictionEvidenceRecord,
+    PredictionGrid,
+    PredictionPurpose,
+    TargetPredictionEvidence,
+)
 from colav_simulator.core.guidances import LOSGuidance
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -82,6 +92,8 @@ _TOTAL_DEADLINE_S = 20.0
 _ACCEPTANCE_RESERVATION_S = 0.25
 _ACCEPTANCE_P99_MS = 35.046
 _ACCEPTANCE_CALIBRATION_ID = "m3-macos26-python3.11-20260812-1000x-0-1-16"
+_CRITICAL_TAIL_P99_MS = 42.597
+_CRITICAL_TAIL_CALIBRATION_ID = "m3-macos26-python3.11-20260813-l4-evidence-1000x-0-1-16-fresh-hold-rejected"
 
 
 @dataclass(frozen=True)
@@ -391,6 +403,20 @@ class _MidMpcFacade:
         replay_artifact["solver_stage"] = solver_stage
         replay_artifact["acceptance_stage"] = acceptance_stage
         replay_artifact["acceptance"] = acceptance_result.to_dict()
+        prediction_evidence = _prediction_evidence(
+            predicted=predicted,
+            controls=controls,
+            assembly=assembly,
+            acceptance_request=acceptance_request,
+            acceptance_result=acceptance_result,
+            result=result,
+            candidate_hash=solver_hash,
+            acceptance_hash=acceptance_hash,
+            planner_input=planner_input,
+            snapshot=snapshot,
+        )
+        replay_artifact["prediction_evidence"] = prediction_evidence.to_dict()
+        replay_artifact["prediction_evidence_hash"] = prediction_evidence.semantic_hash
         if not acceptance_result.accepted:
             self._accepted_primal = None
             self._accepted_request = None
@@ -432,6 +458,7 @@ class _MidMpcFacade:
                     "plan_acceptance": acceptance_inline,
                     "artifact": artifact_reference,
                 },
+                evidence=EvidenceEnvelope(prediction_evidence),
             )
         warm_start_eligible = capability.exact_tuple == "single-encounter:viknes:flsc" and not (
             snapshot.targets and all(decision.route_recovery_allowed for decision in snapshot.targets)
@@ -553,6 +580,8 @@ class _MidMpcFacade:
             "acceptance_elapsed_ms": acceptance_elapsed_ms,
             "acceptance_calibration_id": _ACCEPTANCE_CALIBRATION_ID,
             "acceptance_calibrated_p99_ms": _ACCEPTANCE_P99_MS,
+            "critical_tail_calibration_id": _CRITICAL_TAIL_CALIBRATION_ID,
+            "critical_tail_calibrated_p99_ms": _CRITICAL_TAIL_P99_MS,
             "seed_objective_total": result.seed_objective_total,
             "seed_max_constraint_violation": result.seed_max_constraint_violation,
             "objective_improvement": result.objective_improvement,
@@ -653,6 +682,7 @@ class _MidMpcFacade:
                 for prediction in assembly.target_predictions
             ),
             algorithm_details=details,
+            evidence=EvidenceEnvelope(prediction_evidence),
             post_commit=persist_after_commit,
         )
 
@@ -783,6 +813,134 @@ class _MidMpcFacade:
         }
 
 
+def _prediction_evidence(
+    *,
+    predicted: np.ndarray,
+    controls: np.ndarray,
+    assembly: AssemblySuccess,
+    acceptance_request: AcceptanceRequest,
+    acceptance_result: AcceptanceResult,
+    result: MidMpcResult,
+    candidate_hash: str,
+    acceptance_hash: str,
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+) -> PredictionEvidenceRecord:
+    grid = PredictionGrid(
+        intervals=assembly.grid.control_intervals,
+        dt_s=assembly.grid.dt_s,
+    )
+    control_speed = np.hypot(controls[3], controls[4])
+    references = tuple(
+        OptimizationIntervalReference(
+            interval_index=index,
+            start_s=index * grid.dt_s,
+            end_s=(index + 1) * grid.dt_s,
+            heading_rad=float(controls[2, index]),
+            speed_mps=float(control_speed[index]),
+            heading_raw_index=index,
+            speed_raw_index=grid.intervals + index,
+        )
+        for index in range(grid.intervals)
+    )
+    ownship = OwnshipPrediction(
+        grid=grid,
+        north_m=predicted[0],
+        east_m=predicted[1],
+        heading_rad=predicted[2],
+        speed_mps=np.hypot(predicted[3], predicted[4]),
+        state_sources=("MEASURED", *("IPOPT_INTEGRATED" for _ in range(grid.intervals))),
+        interval_references=references,
+    )
+    selected_keys = set(assembly.selected_target_keys)
+    target_predictions: list[TargetPredictionEvidence] = []
+    slot_by_key = {key: index for index, key in enumerate(assembly.selected_target_keys)}
+    track_by_key = {TrackKey(track.target_id, track.generation): track for track in planner_input.tracks}
+    decision_by_key = {decision.key: decision for decision in snapshot.targets}
+
+    def metadata(key: TrackKey) -> dict[str, object]:
+        track = track_by_key[key]
+        decision = decision_by_key[key]
+        return {
+            "observation_time_s": track.observed_at_s,
+            "generated_at_s": track.generated_at_s,
+            "health": decision.health.value,
+            "source": track.source,
+            "state_enu": track.state_enu,
+            "covariance": track.covariance,
+            "length_m": track.length_m,
+            "width_m": track.width_m,
+            "lifecycle": {
+                "encounter": decision.encounter.value,
+                "role": decision.role.value,
+                "risk": decision.risk.value,
+                "commitment": decision.commitment.value,
+                "passing_side": decision.passing_side.value,
+                "route_recovery_allowed": decision.route_recovery_allowed,
+            },
+        }
+
+    for prediction in assembly.target_predictions:
+        target_predictions.append(
+            TargetPredictionEvidence(
+                key=EvidenceTrackKey(prediction.key.target_id, prediction.key.generation),
+                purpose=PredictionPurpose.NLP,
+                reference_time_s=prediction.reference_time_s,
+                model="constant_velocity",
+                north_m=prediction.north_m,
+                east_m=prediction.east_m,
+                admitted_to_nlp=True,
+                solver_slot=slot_by_key[prediction.key],
+                admission_disposition="SELECTED",
+                **metadata(prediction.key),
+            )
+        )
+    for prediction in acceptance_request.execution.targets:
+        admitted = prediction.key in selected_keys
+        target_predictions.append(
+            TargetPredictionEvidence(
+                key=EvidenceTrackKey(prediction.key.target_id, prediction.key.generation),
+                purpose=PredictionPurpose.L4_SAFETY,
+                reference_time_s=acceptance_request.execution.sim_time_s,
+                model="constant_velocity",
+                north_m=prediction.north_m,
+                east_m=prediction.east_m,
+                admitted_to_nlp=admitted,
+                solver_slot=slot_by_key.get(prediction.key),
+                admission_disposition="SELECTED" if admitted else "EXCLUDED_FROM_FROZEN_GRAPH",
+                **metadata(prediction.key),
+            )
+        )
+    acceptance_document = acceptance_result.to_dict()
+    mandatory_failures = [
+        finding
+        for finding in acceptance_document["findings"]
+        if finding["mandatory"] and finding["outcome"] in {"FAIL", "UNKNOWN"}
+    ]
+    acceptance_document["mandatory_failures"] = mandatory_failures
+    if acceptance_result.target_safety:
+        acceptance_document["worst_safety"] = min(
+            (asdict(value) for value in acceptance_result.target_safety),
+            key=lambda value: value["clearance_lower_bound_m"],
+        )
+    return PredictionEvidenceRecord(
+        algorithm_id="mid_mpc_ipopt",
+        candidate_hash=candidate_hash,
+        acceptance_hash=acceptance_hash,
+        ownship=ownship,
+        target_predictions=tuple(target_predictions),
+        acceptance=acceptance_document,
+        solver={
+            "backend": "ipopt",
+            "return_status": result.ipopt_return_status,
+            "normalized_status": result.status.value,
+            "iterations": result.ipopt_iterations,
+            "objective": result.objective_total,
+            "trajectory_source": "IPOPT_PRIMAL",
+        },
+    )
+
+
 def create(  # noqa: PLR0913
     *,
     context: FactoryContext,
@@ -872,6 +1030,7 @@ def create(  # noqa: PLR0913
         reset=facade.reset,
         validate_hold=facade.validate_hold,
         context=context,
+        capture_evidence=True,
     )
 
 

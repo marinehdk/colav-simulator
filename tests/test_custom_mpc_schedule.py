@@ -141,6 +141,22 @@ def test_deadline_off_keeps_success_but_declares_mode() -> None:
     assert adapter.get_diagnostics().details["deadline_mode"] == DeadlineMode.OFF.value
 
 
+def test_algorithm_without_evidence_keeps_planner_trace_1_0_shape() -> None:
+    adapter = CustomMPCAdapter(
+        descriptor=descriptor(),
+        solve=solution,
+        context=FactoryContext("schedule_mpc", 0),
+    )
+
+    plan(adapter, 0.0)
+    trace = adapter.get_colav_data()["planner"]
+
+    assert trace["schema_version"] == "1.0"
+    assert "evidence" not in trace
+    assert "evidence_timeline" not in trace
+    assert "prediction_render" not in trace
+
+
 def test_strict_total_deadline_rejects_candidate_instead_of_downgrading_to_timeout() -> None:
     adapter = CustomMPCAdapter(
         descriptor=descriptor(deadline_s=0.0001),

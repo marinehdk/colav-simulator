@@ -4,6 +4,8 @@ import gzip
 import hashlib
 import json
 import math
+import time
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +14,7 @@ from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter, Dead
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureSource, PlanStatus
 from colav_simulator.core.tracking.trackers import TrackKey, TrackSnapshot, TrackStatus
 from colav_simulator.experiment.capabilities import ALGORITHMS, VERIFIED_COMBINATIONS
-from colav_simulator.experiment.persistence import EvidenceWriter
+from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
 from colav_simulator.integrations.registry import IntegrationRegistry
 
 ALGORITHM_ID = "mid_mpc_ipopt"
@@ -192,6 +194,121 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     assert np.asarray(trace["predicted_trajectory"]).shape == (9, 81)
 
 
+def test_mid_mpc_trace_exposes_typed_prediction_evidence_and_authority_timeline() -> None:
+    adapter = _fast_adapter(scenario_id="route")
+
+    _plan(adapter, 0.0)
+    fresh = adapter.get_colav_data()["planner"]
+    _plan(adapter, 1.0)
+    held = adapter.get_colav_data()["planner"]
+
+    assert fresh["schema_version"] == "1.1"
+    assert fresh["evidence"]["schema_version"] == "colav.prediction-evidence.envelope@1"
+    assert len(json.dumps(fresh["evidence"], separators=(",", ":")).encode()) <= 8_192
+    inline = fresh["evidence"]["inline"]
+    assert fresh["evidence"]["artifact_reference"]["status"] == "NOT_CONFIGURED"
+    assert (
+        fresh["evidence"]["authority"]["active_receipt_hash"]
+        == fresh["algorithm_details"]["accepted_plan_receipt"]["receipt_hash"]
+    )
+    assert fresh["evidence"]["authority"]["receipt"] == fresh["algorithm_details"]["accepted_plan_receipt"]
+    render = fresh["prediction_render"]
+    assert render["grid"] == {
+        "intervals": 4,
+        "state_samples": 5,
+        "dt_s": 5.0,
+        "duration_s": 20.0,
+    }
+    assert render["trajectory_source"] == "IPOPT_PRIMAL"
+    assert len(render["ownship"]["north_m"]) == 5
+    assert "x" not in render["ownship"]
+    assert fresh["evidence_timeline"]["latest_terminal_outcome"] == "COMMITTED"
+    assert fresh["evidence_timeline"]["active_semantic_hash"] == inline["semantic_hash"]
+    assert [event["event_type"] for event in fresh["evidence_timeline"]["events"]] == [
+        "CYCLE_STARTED",
+        "INPUT_VALIDATED",
+        "SOLVE_ATTEMPTED",
+        "CANDIDATE_PRODUCED",
+        "L4_EVALUATED",
+        "PLAN_COMMITTED",
+        "COMMAND_APPLIED",
+        "ARTIFACT_INCOMPLETE",
+    ]
+    assert held["evidence_timeline"]["latest_terminal_outcome"] == "HELD"
+    assert held["evidence_timeline"]["active_semantic_hash"] == inline["semantic_hash"]
+    assert held["prediction_render"]["runtime_applied_reference"]["policy"] == "LINEAR_INTERPOLATION"
+    assert held["prediction_render"]["runtime_applied_reference"]["elapsed_s"] == 1.0
+
+
+def test_adapter_reduces_immutable_artifact_completion_on_runner_thread(tmp_path: Path) -> None:
+    writer = EvidenceWriter(tmp_path / "run")
+    sink = BoundedArtifactSink(writer)
+    adapter = IntegrationRegistry().build_algorithm(
+        ALGORITHM_ID,
+        {
+            "factory": "colav_simulator.integrations.mid_mpc_ipopt:create",
+            "kwargs": {
+                "horizon_steps": 4,
+                "horizon_dt_s": 5.0,
+                "solve_period_s": 5.0,
+                "deadline_s": 20.0,
+            },
+        },
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            scenario_id="route",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+            artifact_sink=sink,
+        ),
+    )
+
+    _plan(adapter, 0.0)
+    submitted = adapter.get_colav_data()["planner"]["algorithm_details"]["assembly"]["artifact"]
+    deadline = time.monotonic() + 2.0
+    artifact_path = writer.run_dir / str(submitted["relative_path"])
+    while not artifact_path.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    _plan(adapter, 1.0)
+    trace = adapter.get_colav_data()["planner"]
+    sink.close(timeout_s=2.0)
+
+    assert submitted["status"] == "QUEUED"
+    assert trace["evidence_timeline"]["artifact_state"] == "COMPLETE"
+
+
+def test_artifact_backpressure_does_not_revoke_committed_mid_mpc_command(tmp_path: Path) -> None:
+    writer = EvidenceWriter(tmp_path / "run")
+    sink = BoundedArtifactSink(writer, max_items=1, start_worker=False)
+    queued = sink({"occupies": "queue"})
+    adapter = IntegrationRegistry().build_algorithm(
+        ALGORITHM_ID,
+        {
+            "factory": "colav_simulator.integrations.mid_mpc_ipopt:create",
+            "kwargs": {"horizon_steps": 4, "horizon_dt_s": 5.0},
+        },
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            scenario_id="route",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+            artifact_sink=sink,
+        ),
+    )
+
+    command = _plan(adapter, 0.0)
+    trace = adapter.get_colav_data()["planner"]
+    sink.close(timeout_s=0.0)
+
+    assert queued["status"] == "QUEUED"
+    assert np.count_nonzero(command) > 0
+    assert trace["evidence_timeline"]["latest_terminal_outcome"] == "COMMITTED"
+    assert trace["evidence_timeline"]["artifact_state"] == "BACKPRESSURE"
+    assert trace["algorithm_details"]["assembly"]["artifact"]["reason"] == "ITEM_CAPACITY"
+
+
 def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(tmp_path: Path) -> None:
     writer = EvidenceWriter(tmp_path / "run")
     adapter = IntegrationRegistry().build_algorithm(
@@ -222,6 +339,14 @@ def test_adapter_publishes_hash_linked_replay_artifact_without_inlining_vectors(
     tampered[-2] ^= 1
     assert hashlib.sha256(tampered).hexdigest() != reference["sha256"]
     document = json.loads(payload)
+    assert document["prediction_evidence_hash"] == trace["evidence"]["inline"]["semantic_hash"]
+    assert document["prediction_evidence"]["semantic_hash"] == document["prediction_evidence_hash"]
+    assert document["prediction_evidence"]["ownship"]["grid"] == {
+        "intervals": 4,
+        "state_samples": 5,
+        "dt_s": 5.0,
+        "duration_s": 20.0,
+    }
     assert document["assembly"]["problem_hash"] == assembly["problem_hash"]
     assert document["solver"]["prepared"]["x0"]
     assert document["solver"]["raw"]["x"]
@@ -332,6 +457,10 @@ def test_legacy_track_without_tracker_generation_fails_before_solver() -> None:
     trace = adapter.get_colav_data()["planner"]
     assert trace["solver_executed"] is False
     assert trace["algorithm_details"]["cached_plan_used"] is False
+    assert trace["schema_version"] == "1.1"
+    assert trace["evidence"] is None
+    assert trace["evidence_timeline"]["latest_terminal_outcome"] == "FAILED"
+    assert trace["evidence_timeline"]["active_semantic_hash"] is None
 
 
 def test_terminated_track_is_not_reinterpreted_as_fresh() -> None:
@@ -451,7 +580,43 @@ def test_conflicting_overtaking_sides_fail_l4_before_first_command() -> None:
     assert failure["solve_id"] == 0
     assert failure["status"] == PlanStatus.INFEASIBLE.value
     assert failure["algorithm_details"]["failure_code"] == "L4_PLAN_REJECTED"
+    assert failure["schema_version"] == "1.1"
+    assert failure["evidence_timeline"]["latest_terminal_outcome"] == "REJECTED"
+    assert failure["evidence_timeline"]["active_semantic_hash"] is None
+    assert failure["evidence_timeline"]["artifact_state"] == "INCOMPLETE"
+    assert failure["prediction_render"]["style"] == "REJECTED"
+    assert failure["prediction_render"]["executable"] is False
+    assert failure["evidence"]["inline"]["accepted"] is False
     assert adapter.get_diagnostics().details["cached_plan_used"] is False
+
+
+def test_rejected_candidate_keeps_last_committed_plan_as_invalid_history() -> None:
+    adapter = _fast_adapter(scenario_id="paper_ccta2023_multiship")
+    covariance = np.eye(4)
+
+    _plan(adapter, 0.0)
+    committed_hash = adapter.get_colav_data()["planner"]["prediction_render"]["semantic_hash"]
+    with np.testing.assert_raises(ColavExecutionError):
+        _plan(
+            adapter,
+            5.0,
+            [
+                (31, np.array([1000.0, 100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
+                (32, np.array([1000.0, -100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
+            ],
+            model_name="KinematicCSOG",
+            controller_name="PassThroughCS",
+        )
+
+    trace = adapter.get_colav_data()["planner"]
+    render = trace["prediction_render"]
+    assert render["style"] == "REJECTED"
+    assert render["executable"] is False
+    assert render["history"]["style"] == "INVALID_HISTORY"
+    assert render["history"]["executable"] is False
+    assert render["history"]["semantic_hash"] == committed_hash
+    assert trace["evidence_timeline"]["active_semantic_hash"] is None
+    assert np.count_nonzero(adapter.get_current_plan()) == 0
 
 
 def test_seventeenth_required_target_fails_before_solver_without_truncation() -> None:
@@ -570,6 +735,9 @@ def test_reset_clears_encounter_commitment() -> None:
     adapter.reset()
     _plan(adapter, 0.0, target)
     assert adapter.get_diagnostics().details["minimum_alteration_active"] is False
+    reset_events = adapter.get_colav_data()["planner"]["evidence_timeline"]["events"]
+    assert reset_events[0]["event_type"] == "RESET"
+    assert reset_events[0]["occurrence_id"]["epoch"] == 1
 
 
 def test_schedule_error_fails_stop_and_ipopt_evidence_is_json_safe() -> None:
@@ -604,6 +772,12 @@ def test_schedule_error_fails_stop_and_ipopt_evidence_is_json_safe() -> None:
         _plan(adapter, -1.0)
     assert error.exception.status is PlanStatus.INVALID_INPUT
     assert error.exception.source is FailureSource.SCENARIO
+    failed = adapter.get_colav_data()["planner"]
+    assert failed["evidence_timeline"]["latest_terminal_outcome"] == "FAILED"
+    assert failed["evidence_timeline"]["active_semantic_hash"] is None
+    assert failed["evidence_timeline"]["last_committed_executable"] is False
+    assert adapter.get_current_plan().shape == (9, 1)
+    assert np.count_nonzero(adapter.get_current_plan()) == 0
 
 
 def test_infeasible_ipopt_problem_has_no_fallback_plan() -> None:
@@ -670,3 +844,28 @@ def test_adapter_rejection_before_commit_cannot_publish_warm_start(monkeypatch) 
         _plan(adapter, 0.0)
 
     assert facade._accepted_primal is None
+
+
+def test_total_deadline_failure_keeps_candidate_evidence_without_command() -> None:
+    adapter = _fast_adapter(scenario_id="route")
+    adapter.context = replace(adapter.context, deadline_mode=DeadlineMode.ENFORCE)
+    adapter.descriptor = replace(
+        adapter.descriptor,
+        execution_profile=replace(adapter.descriptor.execution_profile, deadline_s=1.0e-9),
+    )
+
+    with np.testing.assert_raises(ColavExecutionError) as error:
+        _plan(adapter, 0.0)
+
+    assert error.exception.details["failure_code"] == "TOTAL_DEADLINE_EXCEEDED"
+    trace = adapter.get_colav_data()["planner"]
+    event_types = [event["event_type"] for event in trace["evidence_timeline"]["events"]]
+    assert "CANDIDATE_PRODUCED" in event_types
+    assert "L4_EVALUATED" in event_types
+    assert "PLAN_COMMITTED" not in event_types
+    assert "COMMAND_APPLIED" not in event_types
+    assert trace["evidence_timeline"]["latest_terminal_outcome"] == "FAILED"
+    assert trace["evidence_timeline"]["active_semantic_hash"] is None
+    assert trace["evidence"]["authority"]["receipt"] is None
+    assert trace["prediction_render"]["style"] == "INVALID_HISTORY"
+    assert np.count_nonzero(adapter.get_current_plan()) == 0

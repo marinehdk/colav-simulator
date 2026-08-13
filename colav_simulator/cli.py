@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -16,6 +17,7 @@ from colav_simulator.common import config_parsing as cp
 from colav_simulator.common import paths
 from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter, FactoryContext
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.core.colav.prediction_evidence import verify_evidence_document
 from colav_simulator.experiment.batch import BatchRunner
 from colav_simulator.experiment.busy_water import (
     DEFAULT_SEED,
@@ -76,6 +78,36 @@ def _replay(args: argparse.Namespace) -> int:
         )
     )
     return 0
+
+
+def _verify_mid_mpc_evidence(args: argparse.Namespace) -> int:
+    artifact_path = Path(args.artifact)
+    try:
+        payload = artifact_path.read_bytes()
+        if artifact_path.suffix == ".gz":
+            payload = gzip.decompress(payload)
+        document = json.loads(payload)
+        if not isinstance(document, dict):
+            raise ValueError("artifact root must be an object")
+        result = verify_evidence_document(document)
+        output = {
+            "valid": result.valid,
+            "highest_verified_level": result.highest_verified_level.value,
+            "failures": list(result.failures),
+            "semantic_hash": result.semantic_hash,
+            "source_authenticity_verified": False,
+            "ipopt_resolve": "NOT_RUN_DIAGNOSTIC_ONLY",
+        }
+    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        output = {
+            "valid": False,
+            "highest_verified_level": "NONE",
+            "failures": [f"ARTIFACT_INVALID: {exc}"],
+            "source_authenticity_verified": False,
+            "ipopt_resolve": "NOT_RUN_DIAGNOSTIC_ONLY",
+        }
+    print(json.dumps(output, indent=2, allow_nan=False))
+    return 0 if output["valid"] else 1
 
 
 def _batch(args: argparse.Namespace) -> int:
@@ -288,6 +320,13 @@ def build_parser() -> argparse.ArgumentParser:
     replay_parser.add_argument("--run-dir", required=True)
     replay_parser.add_argument("--output", default="runs")
     replay_parser.set_defaults(handler=_replay)
+
+    verify_parser = subparsers.add_parser(
+        "verify-mid-mpc-evidence",
+        help="verify a Mid-MPC Prediction Evidence artifact through deterministic V0-V6 checks",
+    )
+    verify_parser.add_argument("--artifact", required=True)
+    verify_parser.set_defaults(handler=_verify_mid_mpc_evidence)
 
     batch_parser = subparsers.add_parser("batch", help="run a failure-preserving experiment matrix")
     batch_parser.add_argument("--scenario", action="append", default=[])

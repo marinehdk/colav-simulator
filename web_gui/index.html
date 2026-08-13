@@ -119,6 +119,7 @@
                     <legend>算法</legend>
                     <label><input type="checkbox" data-layer="prediction" checked> 当前预测</label>
                     <label><input type="checkbox" data-layer="previousPrediction"> 上次预测</label>
+                    <label><input type="checkbox" data-layer="rejectedPrediction"> 拒绝候选</label>
                     <label><input type="checkbox" data-layer="executionPoint" checked> 执行点</label>
                     <label><input type="checkbox" data-layer="risk" checked> CPA/风险</label>
                   </fieldset>
@@ -392,6 +393,12 @@
             <div><span class="telem-label" id="label-best-course-offset">航向偏移</span><span class="telem-val mono-tag" id="val-best-course-offset">--°</span></div>
             <div><span class="telem-label" id="label-best-speed-scale">速度系数</span><span class="telem-val mono-tag" id="val-best-speed-scale">--</span></div>
             <div><span class="telem-label">求解周期</span><span class="telem-val mono-tag" id="val-solve-period">--</span></div>
+            <div><span class="telem-label">轨迹来源</span><span class="telem-val mono-tag" id="val-evidence-source">--</span></div>
+            <div><span class="telem-label">Planner L4</span><span class="telem-val mono-tag" id="val-planner-l4">--</span></div>
+            <div><span class="telem-label">Evaluator G3</span><span class="telem-val mono-tag" id="val-evaluator-g3">--</span></div>
+            <div><span class="telem-label">航向跨度</span><span class="telem-val mono-tag" id="val-course-span">--°</span></div>
+            <div><span class="telem-label">速度跨度</span><span class="telem-val mono-tag" id="val-speed-span">-- m/s</span></div>
+            <div><span class="telem-label">横向偏离</span><span class="telem-val mono-tag" id="val-lateral-deviation">-- m</span></div>
           </div>
           <div class="planner-surface-copy">
             <div class="surface-heading">

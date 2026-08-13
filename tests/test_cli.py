@@ -1,7 +1,36 @@
 import json
 from argparse import Namespace
 
-from colav_simulator.cli import _load_algorithm_config, _plugin_check, build_parser
+import numpy as np
+
+from colav_simulator.cli import _load_algorithm_config, _plugin_check, _verify_mid_mpc_evidence, build_parser
+from colav_simulator.core.colav.prediction_evidence import (
+    OptimizationIntervalReference,
+    OwnshipPrediction,
+    PredictionEvidenceRecord,
+    PredictionGrid,
+)
+
+
+def _prediction_record() -> PredictionEvidenceRecord:
+    grid = PredictionGrid(intervals=1, dt_s=5.0)
+    return PredictionEvidenceRecord(
+        algorithm_id="mid_mpc_ipopt",
+        candidate_hash="candidate",
+        acceptance_hash="acceptance",
+        ownship=OwnshipPrediction(
+            grid=grid,
+            north_m=np.array([0.0, 20.0]),
+            east_m=np.array([0.0, 0.0]),
+            heading_rad=np.array([0.0, 0.0]),
+            speed_mps=np.array([4.0, 4.0]),
+            state_sources=("MEASURED", "IPOPT_INTEGRATED"),
+            interval_references=(OptimizationIntervalReference(0, 0.0, 5.0, 0.0, 4.0, 0, 1),),
+        ),
+        target_predictions=(),
+        acceptance={"accepted": True, "mandatory_failures": []},
+        solver={"backend": "ipopt"},
+    )
 
 
 def test_algorithm_config_resolves_dependency_lock_relative_to_yaml() -> None:
@@ -75,3 +104,20 @@ def test_cli_parser_accepts_plugin_check_and_run_algorithm_config() -> None:
 
     assert plugin.command == "plugin-check"
     assert run.algorithm_config == "config/custom_mpc_example.yaml"
+
+
+def test_cli_verifies_mid_mpc_semantic_artifact_without_claiming_authenticity(capsys, tmp_path) -> None:
+    artifact = tmp_path / "evidence.json"
+    record = _prediction_record()
+    artifact.write_text(json.dumps({"prediction_evidence": record.to_dict()}), encoding="utf-8")
+
+    status = _verify_mid_mpc_evidence(Namespace(artifact=str(artifact)))
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert output["valid"] is True
+    assert output["highest_verified_level"] == "V5_PROJECTION"
+    assert output["source_authenticity_verified"] is False
+    parser = build_parser()
+    parsed = parser.parse_args(["verify-mid-mpc-evidence", "--artifact", str(artifact)])
+    assert parsed.artifact == str(artifact)
