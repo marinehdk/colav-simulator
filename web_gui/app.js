@@ -3018,7 +3018,7 @@ function connectWebSocket() {
   }
   const sessionId = activeSessionId;
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const socket = new WebSocket(`${proto}//${location.host}/ws/sessions/${sessionId}`);
+  const socket = new WebSocket(`${proto}//${location.host}/ws/sessions/${sessionId}?transport=compact-v1`);
   ws = socket;
 
   socket.onopen = () => {
@@ -3028,7 +3028,7 @@ function connectWebSocket() {
 
   socket.onmessage = event => {
     if (socket !== ws || sessionId !== activeSessionId) return;
-    const data = JSON.parse(event.data);
+    const data = inflateTelemetryPayload(JSON.parse(event.data));
     if (data.error === 'session_not_found') {
       socket.onclose = null;
       socket.close();
@@ -3054,6 +3054,18 @@ function connectWebSocket() {
 
   socket.onerror = () => {
     if (socket === ws && sessionId === activeSessionId) pushLog('WebSocket error.', 'log-danger');
+  };
+}
+
+function inflateTelemetryPayload(payload) {
+  if (payload?.transport?.schema_version !== 'colav.telemetry.compact@1') return payload;
+  const previous = currentData?.run_id === payload.run_id ? currentData : null;
+  const truth = Array.isArray(payload.truth) ? payload.truth : [];
+  return {
+    ...payload,
+    enc_navigation_area: payload.enc_navigation_area || previous?.enc_navigation_area || {},
+    os: truth[0] || {},
+    obstacles: truth.slice(1),
   };
 }
 

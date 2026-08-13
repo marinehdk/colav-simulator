@@ -9,9 +9,12 @@ mpl.use("Agg")
 
 import asyncio
 import copy
+import json
 import logging
 import re
 import threading
+import time
+from collections import deque
 from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
 from pathlib import Path
@@ -52,6 +55,45 @@ BUSY_WATER_SCENARIOS = {ACCEPTANCE_SCENARIO_ID, STRESS_SCENARIO_ID}
 _PRIMARY_PROFILE = load_evaluator_profile()
 _PRIMARY_RISK_WEIGHTS = {"dcpa": 0.5, "tcpa": 0.3, "range": 0.2}
 _PRIMARY_TCPA_SCALE_S = 5.0 * _PRIMARY_PROFILE.encounter.emergency_tcpa_s
+TELEMETRY_PUBLISH_INTERVAL_S = 0.1
+TELEMETRY_TRAIL_HISTORY_POINTS = 500
+TELEMETRY_MAX_TRAIL_POINTS = 120
+
+
+def _sample_display_trail(trail: list[list[float]]) -> list[list[float]]:
+    if len(trail) <= TELEMETRY_MAX_TRAIL_POINTS:
+        return list(trail)
+    indices = np.linspace(0, len(trail) - 1, TELEMETRY_MAX_TRAIL_POINTS, dtype=int)
+    return [trail[int(index)] for index in indices]
+
+
+def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) -> dict[str, Any]:
+    repeated_prediction_fields = {
+        "evidence_timeline",
+        "predicted_trajectory",
+        "prediction_render",
+        "target_predictions",
+    }
+    compact = dict(payload)
+    compact["transport"] = {
+        "schema_version": "colav.telemetry.compact@1",
+        "static_included": include_static,
+    }
+    compact["truth"] = [
+        {key: value for key, value in ship.items() if key not in {"measurements", "tracks", "colav"}}
+        for ship in payload.get("truth", [])
+    ]
+    compact.pop("os", None)
+    compact.pop("obstacles", None)
+    for field in ("planner", "latest_planner_solve"):
+        compact[field] = {
+            key: value for key, value in payload.get(field, {}).items() if key not in repeated_prediction_fields
+        }
+    compact.pop("active_planner_plan", None)
+    compact.pop("latest_planner_attempt", None)
+    if not include_static:
+        compact.pop("enc_navigation_area", None)
+    return compact
 
 
 def _bounded_risk_ratio(value: Any, scale: float) -> float:
@@ -332,6 +374,11 @@ class WebSessionManager:
         self.active_planner_plan: dict[str, Any] = {}
         self.latest_planner_attempt: dict[str, Any] = {}
         self.enc_navigation_area: dict[str, Any] = {}
+        self._telemetry_trails: dict[int, deque[list[float]]] = {}
+        self._telemetry_published_at = 0.0
+        self._latest_stream_document = ""
+        self._latest_compact_stream_document = ""
+        self._latest_compact_static_stream_document = ""
         self.lock = threading.RLock()
 
     @property
@@ -358,6 +405,11 @@ class WebSessionManager:
             self.latest_planner_solve = {}
             self.active_planner_plan = {}
             self.latest_planner_attempt = {}
+            self._telemetry_trails = {}
+            self._telemetry_published_at = 0.0
+            self._latest_stream_document = ""
+            self._latest_compact_stream_document = ""
+            self._latest_compact_static_stream_document = ""
             self.speed_multiplier = 1.0
             self.speed_revision += 1
             self.effective_speed_multiplier = None
@@ -365,7 +417,7 @@ class WebSessionManager:
             self.realtime_limited = False
             self.enc_navigation_area = self._enc_navigation_area()
             render_enc(self.prepared)
-            self.latest = self._telemetry(None)
+            self._publish_telemetry(None)
             return self.describe()
 
     def describe(self) -> dict[str, Any]:
@@ -426,7 +478,6 @@ class WebSessionManager:
             self.effective_speed_multiplier = effective_multiplier
             self.scheduler_lag_ms = max(0.0, float(scheduler_lag_ms))
             self.realtime_limited = bool(realtime_limited)
-            self._publish_playback_status()
 
     def _playback_status(self) -> dict[str, Any]:
         return {
@@ -439,19 +490,78 @@ class WebSessionManager:
     def _publish_playback_status(self) -> None:
         if self.latest:
             self.latest["playback"] = self._playback_status()
+            self._invalidate_stream_documents()
+
+    def _invalidate_stream_documents(self) -> None:
+        self._latest_stream_document = ""
+        self._latest_compact_stream_document = ""
+        self._latest_compact_static_stream_document = ""
+
+    def _cache_stream_document(self) -> None:
+        self._latest_stream_document = json.dumps(
+            jsonable(self.latest),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+    def stream_document(self, *, compact: bool = False, include_static: bool = True) -> str:
+        with self.lock:
+            if not self.latest:
+                self.latest = self._telemetry(None)
+            if not compact:
+                if not self._latest_stream_document:
+                    self._cache_stream_document()
+                return self._latest_stream_document
+            attribute = "_latest_compact_static_stream_document" if include_static else "_latest_compact_stream_document"
+            document = getattr(self, attribute)
+            if not document:
+                document = json.dumps(
+                    jsonable(_compact_stream_payload(self.latest, include_static=include_static)),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                setattr(self, attribute, document)
+            return document
+
+    def _publish_telemetry(self, snapshot: Any) -> None:
+        self.latest = self._telemetry(snapshot)
+        self._telemetry_published_at = time.monotonic()
+        self._invalidate_stream_documents()
+
+    def _telemetry_refresh_due(self, snapshot: Any, *, now: float) -> bool:
+        if snapshot.state != SessionState.RUNNING:
+            return True
+        if any(event.get("type") == "planner_solved" for event in snapshot.events):
+            return True
+        return now - self._telemetry_published_at >= TELEMETRY_PUBLISH_INTERVAL_S - 1e-9
+
+    def _record_telemetry_trails(self, frame: dict[str, Any]) -> None:
+        if not self.prepared:
+            return
+        origin_e, origin_n = self.prepared.session.enc.origin
+        for index in range(len(self.prepared.session.ship_list)):
+            raw = frame.get(f"Ship{index}", {})
+            if not raw:
+                continue
+            state = np.asarray(raw["state"], dtype=float)
+            trail = self._telemetry_trails.setdefault(
+                index,
+                deque(maxlen=TELEMETRY_TRAIL_HISTORY_POINTS),
+            )
+            trail.append([float(state[0] - origin_n), float(state[1] - origin_e)])
 
     def start(self, session_id: str) -> dict[str, Any]:
         with self.lock:
             prepared = self._require(session_id)
             prepared.session.start()
-            self.latest = self._telemetry(None)
+            self._publish_telemetry(None)
             return self.describe()
 
     def pause(self, session_id: str) -> dict[str, Any]:
         with self.lock:
             prepared = self._require(session_id)
             prepared.session.pause()
-            self.latest = self._telemetry(None)
+            self._publish_telemetry(None)
             return self.describe()
 
     def step(self, session_id: str) -> dict[str, Any]:
@@ -459,10 +569,10 @@ class WebSessionManager:
             prepared = self._require(session_id)
             try:
                 snapshot = prepared.session.step_once()
-                self.latest = self._telemetry(snapshot)
+                self._record_telemetry_trails(snapshot.payload)
                 if prepared.session.state == SessionState.FINISHED:
                     self._finalize(prepared)
-                    self.latest = self._telemetry(snapshot)
+                self._publish_telemetry(snapshot)
                 return self.latest
             except Exception as exc:
                 self._persist_failure(prepared, exc)
@@ -479,14 +589,15 @@ class WebSessionManager:
                 return None
             try:
                 snapshot = self.prepared.session.advance()
-                self.latest = self._telemetry(snapshot)
+                self._record_telemetry_trails(snapshot.payload)
                 if self.prepared.session.state == SessionState.FINISHED:
                     self._finalize(self.prepared)
-                    self.latest = self._telemetry(snapshot)
+                if self._telemetry_refresh_due(snapshot, now=time.monotonic()):
+                    self._publish_telemetry(snapshot)
                 return float(self.prepared.session.simulator.t)
             except Exception as exc:
                 self._persist_failure(self.prepared, exc)
-                self.latest = self._telemetry(None)
+                self._publish_telemetry(None)
                 log.exception("Simulation session failed")
                 return None
 
@@ -645,12 +756,9 @@ class WebSessionManager:
                 continue
             state = np.asarray(raw["state"], dtype=float)
             csog = np.asarray(raw["csog_state"], dtype=float)
-            trail = []
-            for historic in session.frames[-500:]:
-                historic_ship = historic.get(f"Ship{index}", {})
-                if historic_ship:
-                    historic_state = np.asarray(historic_ship["state"], dtype=float)
-                    trail.append([float(historic_state[0] - origin_n), float(historic_state[1] - origin_e)])
+            trail = _sample_display_trail(list(self._telemetry_trails.get(index, ())))
+            if not trail:
+                trail = [[float(state[0] - origin_n), float(state[1] - origin_e)]]
             ships.append(
                 {
                     "id": int(raw["id"]),
@@ -1273,14 +1381,16 @@ def api_set_speed(multiplier: float = 1.0) -> dict[str, Any]:
     }
 
 
-async def _stream(websocket: WebSocket, session_id: str | None = None) -> None:
+async def _stream(websocket: WebSocket, session_id: str | None = None, *, compact: bool = False) -> None:
     await websocket.accept()
+    include_static = True
     try:
         while True:
             if session_id and manager.session_id != session_id:
                 await websocket.send_json({"error": "session_not_found"})
                 return
-            await websocket.send_json(jsonable(manager.latest or manager._telemetry(None)))
+            await websocket.send_text(manager.stream_document(compact=compact, include_static=include_static))
+            include_static = False
             await asyncio.sleep(0.1)
     except WebSocketDisconnect:
         return
@@ -1288,7 +1398,7 @@ async def _stream(websocket: WebSocket, session_id: str | None = None) -> None:
 
 @app.websocket("/ws/sessions/{session_id}")
 async def websocket_session(websocket: WebSocket, session_id: str) -> None:
-    await _stream(websocket, session_id)
+    await _stream(websocket, session_id, compact=websocket.query_params.get("transport") == "compact-v1")
 
 
 @app.websocket("/ws")
