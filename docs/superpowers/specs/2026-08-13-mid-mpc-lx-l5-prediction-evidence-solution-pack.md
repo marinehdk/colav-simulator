@@ -1,8 +1,8 @@
 # Mid-MPC LX/L5 Prediction Evidence 方案包
 
-> 状态: 用户已接受，已交付to-spec  
-> 模式: Redesign  
-> 冻结基线: `b95851215fb9afab1e019e383687fe533ce6d6bb`  
+> 状态: 用户已接受，已交付to-spec
+> 模式: Redesign
+> 冻结基线: `b95851215fb9afab1e019e383687fe533ce6d6bb`
 > 权威决策日志: `docs/superpowers/design-logs/2026-08-13-mid-mpc-lx-l5-prediction-evidence-design-log.md`
 > 正式Spec: `docs/superpowers/specs/2026-08-13-mid-mpc-lx-l5-prediction-evidence-spec.md`; GitHub `marinehdk/colav-simulator#27`
 
