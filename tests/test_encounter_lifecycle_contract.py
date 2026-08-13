@@ -144,6 +144,73 @@ def test_head_on_risk_requires_physical_time_confirmation_then_locks_commitment(
     assert persisted.required_course_change_rad == committed.required_course_change_rad
 
 
+def test_head_on_candidate_action_cannot_cancel_its_pending_commitment() -> None:
+    lifecycle = EncounterLifecycle()
+    initial = replace(
+        _head_on_cycle(sequence=0, sim_time_s=0.0),
+        targets=(
+            replace(
+                _head_on_cycle(sequence=0, sim_time_s=0.0).targets[0],
+                state_enu=np.array([2828.0, 0.0, -7.0, 0.0]),
+            ),
+        ),
+    )
+    candidate = lifecycle.step(initial).targets[0]
+    course_change = math.radians(13.8)
+    progressed = replace(
+        _head_on_cycle(sequence=1, sim_time_s=5.0),
+        ownship=replace(
+            initial.ownship,
+            position_ne_m=np.array([0.0, 0.0]),
+            velocity_ne_mps=7.0 * np.array([math.cos(course_change), math.sin(course_change)]),
+            heading_rad=math.radians(16.5),
+        ),
+        targets=(
+            replace(
+                initial.targets[0],
+                state_enu=np.array([2758.0, -3.8, -7.0, 0.0]),
+                observed_at_s=5.0,
+                generated_at_s=5.0,
+            ),
+        ),
+    )
+
+    committed = lifecycle.step(progressed).targets[0]
+
+    assert candidate.risk is RiskPhase.CANDIDATE
+    assert committed.encounter is EncounterKind.HEAD_ON
+    assert committed.role is OwnshipRole.GIVE_WAY
+    assert committed.risk is RiskPhase.ACTIVE
+    assert committed.commitment is CommitmentPhase.COMMITTED
+    assert committed.passing_side is PassingSide.STARBOARD
+    assert committed.baseline_course_rad == pytest.approx(initial.ownship.heading_rad)
+    assert committed.required_course_change_rad == pytest.approx(candidate.required_course_change_rad)
+    assert committed.action_achieved is True
+
+
+def test_head_on_candidate_clears_when_target_resolves_risk_before_commitment() -> None:
+    lifecycle = EncounterLifecycle()
+    initial = _head_on_cycle(sequence=0, sim_time_s=0.0)
+    lifecycle.step(initial)
+    target_clear = replace(
+        _head_on_cycle(sequence=1, sim_time_s=5.0),
+        targets=(
+            replace(
+                initial.targets[0],
+                state_enu=np.array([930.0, 500.0, -7.0, 0.0]),
+                observed_at_s=5.0,
+                generated_at_s=5.0,
+            ),
+        ),
+    )
+
+    decision = lifecycle.step(target_clear).targets[0]
+
+    assert decision.encounter is EncounterKind.CLEAR
+    assert decision.risk is RiskPhase.CLEAR
+    assert decision.commitment is CommitmentPhase.NONE
+
+
 def test_committed_action_achievement_is_cumulative_after_course_recovers() -> None:
     lifecycle = EncounterLifecycle()
     lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
