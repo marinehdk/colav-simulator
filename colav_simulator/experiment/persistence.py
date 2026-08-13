@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from dataclasses import asdict, is_dataclass
 from enum import Enum
 from pathlib import Path
@@ -341,13 +342,14 @@ class BoundedArtifactSink:
         self._max_bytes = max_bytes
         self._retention = retention
         self._queue: queue.Queue[tuple[bytes, str, dict[str, Any]]] = queue.Queue(maxsize=max_items)
+        self._completions: queue.SimpleQueue[dict[str, Any]] = queue.SimpleQueue()
         self._lock = threading.Lock()
         self._queued_bytes = 0
         self._closed = False
         self._written = 0
         self._failures = 0
-        self._active: tuple[int, int, dict[str, Any]] | None = None
-        self._timed_out_references: set[int] = set()
+        self._active: tuple[str, int, dict[str, Any]] | None = None
+        self._timed_out_submissions: set[str] = set()
         self._worker = threading.Thread(target=self._run, name="mid-mpc-artifacts", daemon=True) if start_worker else None
         if self._worker is not None:
             self._worker.start()
@@ -357,6 +359,7 @@ class BoundedArtifactSink:
         digest = hashlib.sha256(payload).hexdigest()
         reference: dict[str, Any] = {
             "schema_version": "1.0",
+            "submission_id": str(uuid.uuid4()),
             "sha256": digest,
             "relative_path": f"artifacts/mid_mpc/{digest}.json.gz",
             "uncompressed_bytes": len(payload),
@@ -380,8 +383,17 @@ class BoundedArtifactSink:
                 self._failures += 1
                 return reference
             self._queued_bytes += len(payload)
-            self._queue.put_nowait((payload, digest, reference))
+            self._queue.put_nowait((payload, digest, dict(reference)))
         return reference
+
+    def poll_completions(self) -> list[dict[str, Any]]:
+        """Return immutable completion values produced since the previous poll."""
+        completions: list[dict[str, Any]] = []
+        while True:
+            try:
+                completions.append(self._completions.get_nowait())
+            except queue.Empty:
+                return completions
 
     def close(self, *, timeout_s: float = 2.0) -> dict[str, Any]:
         """Stop admission and drain queued work for at most timeout_s."""
@@ -393,10 +405,10 @@ class BoundedArtifactSink:
         if self._queue.unfinished_tasks:
             with self._lock:
                 if self._active is not None:
-                    reference_id, payload_size, reference = self._active
-                    if reference_id not in self._timed_out_references:
-                        reference.update(status="INCOMPLETE", reason="DRAIN_TIMEOUT")
-                        self._timed_out_references.add(reference_id)
+                    submission_id, payload_size, reference = self._active
+                    if submission_id not in self._timed_out_submissions:
+                        self._completions.put({**reference, "status": "INCOMPLETE", "reason": "DRAIN_TIMEOUT"})
+                        self._timed_out_submissions.add(submission_id)
                         self._queued_bytes -= payload_size
                         self._failures += 1
                 while True:
@@ -404,7 +416,7 @@ class BoundedArtifactSink:
                         payload, _digest, reference = self._queue.get_nowait()
                     except queue.Empty:
                         break
-                    reference.update(status="INCOMPLETE", reason="DRAIN_TIMEOUT")
+                    self._completions.put({**reference, "status": "INCOMPLETE", "reason": "DRAIN_TIMEOUT"})
                     self._queued_bytes -= len(payload)
                     self._failures += 1
                     self._queue.task_done()
@@ -428,7 +440,7 @@ class BoundedArtifactSink:
                 except queue.Empty:
                     payload = b""
                 else:
-                    self._active = (id(reference), len(payload), reference)
+                    self._active = (str(reference["submission_id"]), len(payload), reference)
             if not payload:
                 time.sleep(0.05)
                 continue
@@ -440,18 +452,17 @@ class BoundedArtifactSink:
                 failure_reason = str(exc)
             finally:
                 with self._lock:
-                    reference_id = id(reference)
-                    timed_out = reference_id in self._timed_out_references
+                    submission_id = str(reference["submission_id"])
+                    timed_out = submission_id in self._timed_out_submissions
                     if timed_out:
-                        self._timed_out_references.remove(reference_id)
+                        self._timed_out_submissions.remove(submission_id)
                     else:
                         self._queued_bytes -= len(payload)
                         if failure_reason is None:
-                            reference.update(persisted or {})
-                            reference["status"] = "COMPLETE"
+                            self._completions.put({**reference, **(persisted or {}), "status": "COMPLETE"})
                             self._written += 1
                         else:
-                            reference.update(status="INCOMPLETE", reason=failure_reason)
+                            self._completions.put({**reference, "status": "INCOMPLETE", "reason": failure_reason})
                             self._failures += 1
                     self._active = None
                 self._queue.task_done()
