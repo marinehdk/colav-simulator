@@ -698,6 +698,9 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
     encounter: EncounterKind,
     role: OwnshipRole,
 ) -> bool:
+    if _candidate_action_confirms_commitment(state, cycle, geometry, encounter, role):
+        _commit(state, cycle, target, geometry)
+        return True
     if (state.encounter, state.role) != (encounter, role):
         state.candidate_since_s = None
         state.baseline_course_rad = None
@@ -772,6 +775,28 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
     return False
 
 
+def _candidate_action_confirms_commitment(
+    state: _TargetState,
+    cycle: EncounterCycle,
+    geometry: PairwiseGeometry,
+    encounter: EncounterKind,
+    role: OwnshipRole,
+) -> bool:
+    if (
+        state.risk is not RiskPhase.CANDIDATE
+        or state.role not in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
+        or encounter is not EncounterKind.CLEAR
+        or role is not OwnshipRole.NONE
+        or geometry.signed_tcpa_s <= 0.0
+        or state.baseline_course_rad is None
+        or state.passing_side is PassingSide.NONE
+    ):
+        return False
+    side_sign = -1.0 if state.passing_side is PassingSide.PORT else 1.0
+    course_change = side_sign * _wrap(cycle.ownship.heading_rad - state.baseline_course_rad)
+    return course_change >= state.required_course_change_rad - 1.0e-9
+
+
 def _advance_unknown_role(
     state: _TargetState,
     cycle: EncounterCycle,
@@ -818,8 +843,10 @@ def _commit(
 ) -> None:
     state.risk = RiskPhase.ACTIVE
     state.commitment = CommitmentPhase.COMMITTED
-    state.baseline_course_rad = cycle.ownship.heading_rad
-    state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
+    if state.baseline_course_rad is None:
+        state.baseline_course_rad = cycle.ownship.heading_rad
+    if state.required_course_change_rad <= 0.0:
+        state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
     state.route_recovery_allowed = False
     state.recovery_guard_active = False
     state.recovery_started = False
