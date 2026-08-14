@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
 from typing import Any
 
@@ -22,10 +22,21 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     Rule17Stage,
     TargetDecision,
 )
+from colav_simulator.core.colav.horizon_encounter_plan import (
+    HorizonEncounterPhase,
+    HorizonEncounterPlan,
+    HorizonEncounterPlanRequest,
+    HorizonTargetIntent,
+    TargetPrediction,
+    compile_horizon_encounter_plan,
+    horizon_encounter_plan_document,
+)
 from colav_simulator.core.colav.mid_mpc import (
+    MidMpcHardWindow,
     MidMpcOwnShip,
     MidMpcProblem,
     MidMpcRouteFrame,
+    MidMpcRouteObjective,
     MidMpcRowSchedule,
     MidMpcTarget,
 )
@@ -133,36 +144,6 @@ class AssemblyFailure:
 
 
 @dataclass(frozen=True)
-class TargetPrediction:
-    key: TrackKey
-    reference_time_s: float
-    velocity_ne_mps: tuple[float, float]
-    times_s: np.ndarray
-    north_m: np.ndarray
-    east_m: np.ndarray
-    position_uncertainty_m: np.ndarray
-
-    def __post_init__(self) -> None:
-        """Copy prediction vectors into immutable arrays."""
-        lengths: set[int] = set()
-        for name in ("times_s", "north_m", "east_m", "position_uncertainty_m"):
-            values = np.array(getattr(self, name), dtype=float, copy=True)
-            if values.ndim != 1 or not np.isfinite(values).all():
-                raise ValueError(f"{name} must be a finite vector")
-            values.setflags(write=False)
-            object.__setattr__(self, name, values)
-            lengths.add(values.size)
-        if len(lengths) != 1:
-            raise ValueError("target prediction vectors must have equal length")
-        velocity = tuple(float(value) for value in self.velocity_ne_mps)
-        if len(velocity) != 2 or not np.isfinite(velocity).all():
-            raise ValueError("target prediction velocity must be a finite pair")
-        object.__setattr__(self, "velocity_ne_mps", velocity)
-        if not math.isfinite(self.reference_time_s):
-            raise ValueError("target prediction reference time must be finite")
-
-
-@dataclass(frozen=True)
 class TargetActivation:
     key: TrackKey
     cpa_hard_from_s: float
@@ -229,6 +210,7 @@ class AssemblySuccess:
     problem_hash: str
     profile: AssemblyProfile
     target_predictions: tuple[TargetPrediction, ...]
+    horizon_encounter_plan: HorizonEncounterPlan
     activation_plan: ConstraintActivationPlan
     grid: GridSpec
     preparation: NumericalPreparationPlan
@@ -333,6 +315,25 @@ def _assemble_problem(
     """Map one immutable decision snapshot without retaining business state."""
     binding = _bind_targets(planner_input, snapshot, config)
     policy = _resolve_policy(planner_input, snapshot, route, capability, config, binding)
+    target_predictions = _target_predictions(
+        tuple(sorted(binding.track_by_key, key=lambda key: (key.target_id, key.generation))),
+        binding.track_by_key,
+        planner_input.sim_time_s,
+        config,
+    )
+    effective_cpa_hard_m = _effective_node_clearance(planner_input, binding.selected_tracks, config)
+    horizon_encounter_plan = _compile_horizon_encounter_plan(
+        planner_input,
+        snapshot,
+        route,
+        capability,
+        config,
+        binding,
+        policy,
+        target_predictions,
+    )
+    if profile is AssemblyProfile.COLAV_STRICT:
+        horizon_encounter_plan = replace(horizon_encounter_plan, solver_consumed=True)
     semantic = _compile_semantic_problem(
         planner_input,
         snapshot,
@@ -341,9 +342,11 @@ def _assemble_problem(
         config,
         binding,
         policy,
+        effective_cpa_hard_m,
+        profile,
+        horizon_encounter_plan,
     )
-    target_predictions, grid, preparation = _compile_numerical_preparation(
-        planner_input,
+    grid, preparation = _compile_numerical_preparation(
         config,
         profile,
         binding,
@@ -363,6 +366,7 @@ def _assemble_problem(
     problem_document = problem_hash_document(
         semantic.problem,
         target_predictions,
+        horizon_encounter_plan,
         semantic.activation_plan,
         grid,
         preparation,
@@ -378,6 +382,7 @@ def _assemble_problem(
         problem_hash=_hash_document(problem_document),
         profile=profile,
         target_predictions=target_predictions,
+        horizon_encounter_plan=horizon_encounter_plan,
         activation_plan=semantic.activation_plan,
         grid=grid,
         preparation=preparation,
@@ -467,9 +472,11 @@ def _compile_semantic_problem(
     config: MidMpcAssemblyConfig,
     binding: _TargetBinding,
     policy: _PolicyResolution,
+    effective_cpa_hard_m: float,
+    profile: AssemblyProfile,
+    horizon_encounter_plan: HorizonEncounterPlan,
 ) -> _SemanticAssembly:
     ownship = planner_input.ownship_state
-    effective_cpa_hard_m = _effective_node_clearance(planner_input, binding.selected_tracks, config)
     minimum_change = snapshot.directive.minimum_course_change_rad if policy.lateral_active else 0.0
     reachable_per_step = capability.rot_max_rad_s * config.horizon_dt_s
     min_alt_hard_from_k = max(0, math.ceil(minimum_change / reachable_per_step) - 1) if policy.lateral_active else 0
@@ -482,12 +489,6 @@ def _compile_semantic_problem(
         min_alt_hard_from_k,
         config,
         capability,
-    )
-    row_schedule = MidMpcRowSchedule(
-        cpa_hard_from_k=activation_plan.global_cpa_hard_from_k,
-        direction_hard_from_k=activation_plan.global_direction_hard_from_k,
-        min_alt_hard_from_k=activation_plan.global_min_alt_hard_from_k,
-        terminal_rows_enabled=False,
     )
     starboard_asymmetry = any(
         decision.passing_side is PassingSide.STARBOARD
@@ -506,6 +507,14 @@ def _compile_semantic_problem(
         else policy.preferred_side
     )
     lateral_active = policy.lateral_active or candidate_side is not PassingSide.NONE
+    row_schedule = _compile_row_schedule(
+        profile,
+        activation_plan,
+        horizon_encounter_plan,
+        binding.selected_decisions,
+        lateral_active=lateral_active,
+        horizon_steps=config.horizon_steps,
+    )
     give_way_obligation = any(
         decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
         and decision.risk in {RiskPhase.CANDIDATE, RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
@@ -551,6 +560,18 @@ def _compile_semantic_problem(
                 AssemblyFailureCode.CORE_CAPABILITY_MISMATCH,
                 "stand-on course authorities have no common feasible heading corridor",
             )
+    route_objective = _route_objective(
+        profile,
+        horizon_encounter_plan,
+        route,
+        ownship_position_ne_m=(float(ownship[0]), float(ownship[1])),
+        ownship_heading_rad=float(ownship[2]),
+        planned_speed_mps=0.0 if snapshot.directive.stop_required else route.planned_speed_mps,
+        dt_s=config.horizon_dt_s,
+        rot_max_rad_s=capability.rot_max_rad_s,
+        heading_window_rad=capability.heading_window_rad,
+    )
+    route_frame_bearing = route.bearing_rad if route_objective is not None else policy.committed_route_bearing_rad
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
         route_bearing_rad=policy.committed_route_bearing_rad,
@@ -574,13 +595,14 @@ def _compile_semantic_problem(
                 route.anchor_ne_m[1] - float(ownship[1]),
             ),
             normal=(
-                -math.sin(policy.committed_route_bearing_rad),
-                math.cos(policy.committed_route_bearing_rad),
+                -math.sin(route_frame_bearing),
+                math.cos(route_frame_bearing),
             ),
-            bearing_rad=policy.committed_route_bearing_rad,
+            bearing_rad=route_frame_bearing,
             lateral_scale_m=config.route_lateral_scale_m,
             weight=config.route_weight,
         ),
+        route_objective=route_objective,
         row_schedule=row_schedule,
         audit_row_count=len(binding.selected_tracks),
         targets=tuple(
@@ -600,19 +622,180 @@ def _compile_semantic_problem(
     )
 
 
+def _compile_row_schedule(
+    profile: AssemblyProfile,
+    activation_plan: ConstraintActivationPlan,
+    horizon_plan: HorizonEncounterPlan,
+    selected_decisions: tuple[TargetDecision, ...],
+    *,
+    lateral_active: bool,
+    horizon_steps: int,
+) -> MidMpcRowSchedule:
+    """Compile phase semantics into bounds-only windows for the fixed NLP graph."""
+    legacy = MidMpcRowSchedule(
+        cpa_hard_from_k=activation_plan.global_cpa_hard_from_k,
+        direction_hard_from_k=activation_plan.global_direction_hard_from_k,
+        min_alt_hard_from_k=activation_plan.global_min_alt_hard_from_k,
+        terminal_rows_enabled=False,
+    )
+    if profile is AssemblyProfile.MASS_PARITY:
+        return legacy
+
+    target_windows = {window.key: window for window in horizon_plan.target_windows}
+    activation_by_key = {target.key: target for target in activation_plan.targets}
+    cpa_windows = tuple(
+        MidMpcHardWindow(
+            activation_by_key[decision.key].cpa_hard_from_k,
+            max(
+                activation_by_key[decision.key].cpa_hard_from_k,
+                (
+                    horizon_steps
+                    if target_windows.get(decision.key) is None or target_windows[decision.key].recovery_from_k is None
+                    else min(target_windows[decision.key].recovery_from_k, horizon_steps)
+                ),
+            ),
+        )
+        for decision in selected_decisions
+    )
+    if not horizon_plan.target_windows:
+        recovery_stop_k = 0
+    elif horizon_plan.recovery_from_k is None:
+        recovery_stop_k = horizon_steps
+    else:
+        recovery_stop_k = min(horizon_plan.recovery_from_k, horizon_steps)
+    direction_window = None
+    min_alt_window = None
+    if lateral_active:
+        direction_start = min(
+            (
+                activation_plan.global_direction_hard_from_k
+                if horizon_plan.target_windows
+                else activation_plan.global_cpa_hard_from_k
+            ),
+            horizon_steps,
+        )
+        min_alt_start = min(
+            (
+                activation_plan.global_min_alt_hard_from_k
+                if horizon_plan.target_windows
+                else max(
+                    activation_plan.global_min_alt_hard_from_k,
+                    activation_plan.global_cpa_hard_from_k,
+                )
+            ),
+            horizon_steps,
+        )
+        direction_stop_k = (
+            horizon_steps if horizon_plan.target_windows or direction_start < horizon_steps else recovery_stop_k
+        )
+        min_alt_stop_k = (
+            horizon_steps if not horizon_plan.target_windows and min_alt_start < horizon_steps else recovery_stop_k
+        )
+        direction_window = MidMpcHardWindow(direction_start, max(direction_start, direction_stop_k))
+        min_alt_window = MidMpcHardWindow(min_alt_start, max(min_alt_start, min_alt_stop_k))
+    return replace(
+        legacy,
+        cpa_hard_windows=cpa_windows,
+        direction_hard_window=direction_window,
+        min_alt_hard_window=min_alt_window,
+    )
+
+
+def _route_objective(
+    profile: AssemblyProfile,
+    horizon_encounter_plan: HorizonEncounterPlan,
+    route: RouteReference,
+    *,
+    ownship_position_ne_m: tuple[float, float],
+    ownship_heading_rad: float,
+    planned_speed_mps: float,
+    dt_s: float,
+    rot_max_rad_s: float,
+    heading_window_rad: float,
+) -> MidMpcRouteObjective | None:
+    if profile is AssemblyProfile.MASS_PARITY:
+        return None
+    heading_references, lateral_references = _staged_route_references(
+        horizon_encounter_plan,
+        route,
+        ownship_position_ne_m=ownship_position_ne_m,
+        ownship_heading_rad=ownship_heading_rad,
+        planned_speed_mps=planned_speed_mps,
+        dt_s=dt_s,
+        rot_max_rad_s=rot_max_rad_s,
+        heading_window_rad=heading_window_rad,
+    )
+    avoidance_active_until_k = next(
+        (
+            index
+            for index, phase in enumerate(horizon_encounter_plan.phases[1:])
+            if phase in {HorizonEncounterPhase.MISSION, HorizonEncounterPhase.RECOVER}
+        ),
+        len(heading_references),
+    )
+    return MidMpcRouteObjective(
+        mission_bearing_rad=horizon_encounter_plan.mission_route_bearing_rad,
+        avoidance_corridor_bearing_rad=horizon_encounter_plan.avoidance_corridor_bearing_rad,
+        heading_reference_rad=heading_references,
+        lateral_reference_m=lateral_references,
+        avoidance_active_until_k=avoidance_active_until_k,
+    )
+
+
+def _staged_route_references(
+    plan: HorizonEncounterPlan,
+    route: RouteReference,
+    *,
+    ownship_position_ne_m: tuple[float, float],
+    ownship_heading_rad: float,
+    planned_speed_mps: float,
+    dt_s: float,
+    rot_max_rad_s: float,
+    heading_window_rad: float,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Compile one reachable avoid-pass-rejoin reference on the mission frame."""
+    mission = plan.mission_route_bearing_rad
+    corridor = plan.avoidance_corridor_bearing_rad
+    corridor_delta = _wrap(corridor - mission)
+    route_normal = np.array((-math.sin(mission), math.cos(mission)), dtype=float)
+    route_origin = np.asarray(route.anchor_ne_m, dtype=float) - np.asarray(ownship_position_ne_m, dtype=float)
+    position = np.zeros(2, dtype=float)
+    speed = max(0.0, float(planned_speed_mps))
+    maximum_recovery_delta = min(abs(corridor_delta), heading_window_rad)
+    maximum_heading_step = rot_max_rad_s * dt_s
+    previous_heading = ownship_heading_rad
+    headings: list[float] = []
+    lateral_references: list[float] = []
+
+    for phase in plan.phases[1:]:
+        cross_track = float((position - route_origin) @ route_normal)
+        lateral_references.append(cross_track)
+        if phase in {HorizonEncounterPhase.ALTER, HorizonEncounterPhase.PASS}:
+            desired_heading = corridor
+        elif phase is HorizonEncounterPhase.RECOVER and speed > 1.0e-9 and maximum_recovery_delta > 1.0e-9:
+            requested_lateral_velocity = float(np.clip(-cross_track / dt_s, -speed, speed))
+            recovery_delta = math.asin(requested_lateral_velocity / speed)
+            recovery_delta = float(np.clip(recovery_delta, -maximum_recovery_delta, maximum_recovery_delta))
+            desired_heading = mission + recovery_delta
+        else:
+            desired_heading = mission
+        desired_heading = previous_heading + _wrap(desired_heading - previous_heading)
+        heading = previous_heading + float(
+            np.clip(desired_heading - previous_heading, -maximum_heading_step, maximum_heading_step)
+        )
+        headings.append(heading)
+        position += speed * dt_s * np.array((math.cos(heading), math.sin(heading)), dtype=float)
+        previous_heading = heading
+
+    return tuple(headings), tuple(lateral_references)
+
+
 def _compile_numerical_preparation(
-    planner_input: PlannerInput,
     config: MidMpcAssemblyConfig,
     profile: AssemblyProfile,
     binding: _TargetBinding,
     problem: MidMpcProblem,
-) -> tuple[tuple[TargetPrediction, ...], GridSpec, NumericalPreparationPlan]:
-    target_predictions = _target_predictions(
-        tuple(sorted(binding.track_by_key, key=lambda key: (key.target_id, key.generation))),
-        binding.track_by_key,
-        planner_input.sim_time_s,
-        config,
-    )
+) -> tuple[GridSpec, NumericalPreparationPlan]:
     grid = GridSpec(
         control_intervals=config.horizon_steps,
         state_samples=config.horizon_steps + 1,
@@ -628,9 +811,11 @@ def _compile_numerical_preparation(
             "horizon_dt_s": config.horizon_dt_s,
             "target_count": len(binding.selected_tracks),
             "audit_row_count": problem.audit_row_count,
-            "row_schedule": asdict(problem.row_schedule),
+            "cpa_hard_m": problem.cpa_hard_m,
+            "route_objective_layout": (
+                "staged-heading-reference@1" if problem.route_objective is not None else "frozen-scalar@1"
+            ),
             "slack_topology": ["cpa", "direction"],
-            "terminal_rows_enabled": problem.row_schedule.terminal_rows_enabled,
         }
     )
     preparation = NumericalPreparationPlan(
@@ -644,7 +829,59 @@ def _compile_numerical_preparation(
             direction_bounds=(0.0, slack_bound),
         ),
     )
-    return target_predictions, grid, preparation
+    return grid, preparation
+
+
+def _compile_horizon_encounter_plan(
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+    route: RouteReference,
+    capability: CapabilitySnapshot,
+    config: MidMpcAssemblyConfig,
+    binding: _TargetBinding,
+    policy: _PolicyResolution,
+    target_predictions: tuple[TargetPrediction, ...],
+) -> HorizonEncounterPlan:
+    prediction_by_key = {prediction.key: prediction for prediction in target_predictions}
+    own_radius_m = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
+    horizon_decisions = tuple(
+        decision
+        for decision in binding.selected_decisions
+        if decision.key in binding.required_keys
+        or (decision.commitment is CommitmentPhase.COMMITTED and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR})
+    )
+    return compile_horizon_encounter_plan(
+        HorizonEncounterPlanRequest(
+            reference_time_s=planner_input.sim_time_s,
+            times_s=np.arange(config.horizon_steps + 1, dtype=float) * config.horizon_dt_s,
+            own_position_ne_m=(float(planner_input.ownship_state[0]), float(planner_input.ownship_state[1])),
+            own_heading_rad=float(planner_input.ownship_state[2]),
+            own_speed_mps=0.0 if snapshot.directive.stop_required else route.planned_speed_mps,
+            mission_route_bearing_rad=route.bearing_rad,
+            avoidance_corridor_bearing_rad=policy.committed_route_bearing_rad,
+            rot_max_rad_s=capability.rot_max_rad_s,
+            heading_window_rad=capability.heading_window_rad,
+            targets=tuple(
+                HorizonTargetIntent(
+                    key=decision.key,
+                    required_course_change_rad=decision.required_course_change_rad,
+                    recovery_clearance_m=(
+                        config.cpa_safe_m
+                        + own_radius_m
+                        + 0.5
+                        * math.hypot(
+                            binding.track_by_key[decision.key].length_m,
+                            binding.track_by_key[decision.key].width_m,
+                        )
+                    ),
+                    action_achieved=decision.action_achieved,
+                    route_recovery_allowed=decision.route_recovery_allowed,
+                    prediction=prediction_by_key[decision.key],
+                )
+                for decision in horizon_decisions
+            ),
+        )
+    )
 
 
 def request_hash_document(
@@ -685,6 +922,7 @@ def request_hash_document(
 def problem_hash_document(
     problem: MidMpcProblem,
     target_predictions: tuple[TargetPrediction, ...],
+    horizon_encounter_plan: HorizonEncounterPlan,
     activation_plan: ConstraintActivationPlan,
     grid: GridSpec,
     preparation: NumericalPreparationPlan,
@@ -693,10 +931,11 @@ def problem_hash_document(
 ) -> dict[str, object]:
     """Return canonical, parent-linked semantic problem evidence."""
     return {
-        "schema_version": "colav.mid_mpc.problem@1",
+        "schema_version": "colav.mid_mpc.problem@2",
         "parent_request_hash": parent_request_hash,
         "problem": asdict(problem),
         "target_predictions": [_prediction_document(item) for item in target_predictions],
+        "horizon_encounter_plan": horizon_encounter_plan_document(horizon_encounter_plan),
         "activation_plan": _activation_document(activation_plan),
         "grid": asdict(grid),
         "preparation": asdict(preparation),

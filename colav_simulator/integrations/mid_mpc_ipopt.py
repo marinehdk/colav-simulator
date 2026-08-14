@@ -39,6 +39,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     TargetDecision,
     TargetObservation,
 )
+from colav_simulator.core.colav.horizon_encounter_plan import horizon_encounter_plan_document
 from colav_simulator.core.colav.mid_mpc import (
     MidMpcConfig,
     MidMpcIpoptSolver,
@@ -629,6 +630,17 @@ class _MidMpcFacade:
                     "direction_hard_from_k": assembly.activation_plan.global_direction_hard_from_k,
                     "min_alt_hard_from_k": assembly.activation_plan.global_min_alt_hard_from_k,
                 },
+                "route_objective": (
+                    {
+                        "mode": "staged",
+                        "mission_bearing_rad": assembly.problem.route_objective.mission_bearing_rad,
+                        "avoidance_corridor_bearing_rad": (assembly.problem.route_objective.avoidance_corridor_bearing_rad),
+                        "avoidance_active_until_k": assembly.problem.route_objective.avoidance_active_until_k,
+                    }
+                    if assembly.problem.route_objective is not None
+                    else {"mode": "frozen_scalar"}
+                ),
+                "horizon_encounter_plan": horizon_encounter_plan_document(assembly.horizon_encounter_plan),
                 "artifact": artifact_reference,
             },
             "plan_acceptance": acceptance_inline,
@@ -1119,6 +1131,7 @@ def _replay_artifact_document(
     problem_stage = problem_hash_document(
         assembly.problem,
         assembly.target_predictions,
+        assembly.horizon_encounter_plan,
         assembly.activation_plan,
         assembly.grid,
         assembly.preparation,
@@ -1136,6 +1149,7 @@ def _replay_artifact_document(
                 "problem": assembly.problem,
                 "selected_target_keys": assembly.selected_target_keys,
                 "target_predictions": assembly.target_predictions,
+                "horizon_encounter_plan": assembly.horizon_encounter_plan,
                 "activation_plan": assembly.activation_plan,
                 "grid": assembly.grid,
                 "preparation": assembly.preparation,

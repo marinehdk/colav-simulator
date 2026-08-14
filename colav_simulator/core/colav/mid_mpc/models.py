@@ -113,6 +113,36 @@ class MidMpcRouteFrame:
 
 
 @dataclass(frozen=True)
+class MidMpcRouteObjective:
+    """COLAV-strict mission and temporary avoidance route references."""
+
+    mission_bearing_rad: float
+    avoidance_corridor_bearing_rad: float
+    heading_reference_rad: tuple[float, ...]
+    lateral_reference_m: tuple[float, ...]
+    avoidance_active_until_k: int
+
+    def __post_init__(self) -> None:
+        """Normalize and validate the staged route objective."""
+        references = tuple(float(value) for value in self.heading_reference_rad)
+        lateral_references = tuple(float(value) for value in self.lateral_reference_m)
+        _require_finite(
+            self.mission_bearing_rad,
+            self.avoidance_corridor_bearing_rad,
+            *references,
+            *lateral_references,
+        )
+        if not references:
+            raise ValueError("route objective requires one or more heading references")
+        if len(lateral_references) != len(references):
+            raise ValueError("route objective heading and lateral references must have equal length")
+        if not 0 <= self.avoidance_active_until_k <= len(references):
+            raise ValueError("avoidance objective window must fall inside heading references")
+        object.__setattr__(self, "heading_reference_rad", references)
+        object.__setattr__(self, "lateral_reference_m", lateral_references)
+
+
+@dataclass(frozen=True)
 class MidMpcTarget:
     x_m: float
     y_m: float
@@ -130,6 +160,19 @@ class MidMpcTarget:
 
 
 @dataclass(frozen=True)
+class MidMpcHardWindow:
+    """Half-open control-interval window for one fixed NLP row class."""
+
+    start_k: int
+    stop_k: int
+
+    def __post_init__(self) -> None:
+        """Validate an ordered, non-negative interval."""
+        if self.start_k < 0 or self.stop_k < self.start_k:
+            raise ValueError("hard row window must satisfy 0 <= start_k <= stop_k")
+
+
+@dataclass(frozen=True)
 class MidMpcRowSchedule:
     """Adapter-decided activation schedule for fixed NLP row classes."""
 
@@ -138,6 +181,9 @@ class MidMpcRowSchedule:
     direction_hard_from_k: int = 0
     min_alt_hard_from_k: int = 0
     terminal_rows_enabled: bool = False
+    cpa_hard_windows: tuple[MidMpcHardWindow, ...] = ()
+    direction_hard_window: MidMpcHardWindow | None = None
+    min_alt_hard_window: MidMpcHardWindow | None = None
 
     def __post_init__(self) -> None:
         """Validate non-negative activation indices."""
@@ -148,6 +194,14 @@ class MidMpcRowSchedule:
         )
         if min(indices) < 0:
             raise ValueError("row schedule indices must be non-negative")
+        windows = tuple(self.cpa_hard_windows)
+        if not all(isinstance(window, MidMpcHardWindow) for window in windows):
+            raise TypeError("cpa_hard_windows must contain MidMpcHardWindow values")
+        for name in ("direction_hard_window", "min_alt_hard_window"):
+            window = getattr(self, name)
+            if window is not None and not isinstance(window, MidMpcHardWindow):
+                raise TypeError(f"{name} must be MidMpcHardWindow or None")
+        object.__setattr__(self, "cpa_hard_windows", windows)
 
 
 @dataclass(frozen=True)
@@ -166,6 +220,7 @@ class MidMpcProblem:
     starboard_asymmetry_active: bool
     min_alteration_rad: float
     route_frame: MidMpcRouteFrame
+    route_objective: MidMpcRouteObjective | None = None
     row_schedule: MidMpcRowSchedule = MidMpcRowSchedule()
     audit_row_count: int = 0
     prefix_active_k: int = 0
@@ -179,6 +234,8 @@ class MidMpcProblem:
             raise TypeError("own_ship must be MidMpcOwnShip")
         if not isinstance(self.route_frame, MidMpcRouteFrame):
             raise TypeError("route_frame must be MidMpcRouteFrame")
+        if self.route_objective is not None and not isinstance(self.route_objective, MidMpcRouteObjective):
+            raise TypeError("route_objective must be MidMpcRouteObjective or None")
         if not isinstance(self.row_schedule, MidMpcRowSchedule):
             raise TypeError("row_schedule must be MidMpcRowSchedule")
         heading = _ordered_pair(self.heading_bounds_rad, "heading_bounds_rad")

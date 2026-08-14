@@ -9,11 +9,13 @@ import pytest
 
 from colav_simulator.core.colav.mid_mpc import (
     MidMpcConfig,
+    MidMpcHardWindow,
     MidMpcIpoptSolver,
     MidMpcOwnShip,
     MidMpcPrimalWarmStart,
     MidMpcProblem,
     MidMpcRouteFrame,
+    MidMpcRouteObjective,
     MidMpcRowSchedule,
     MidMpcTarget,
 )
@@ -233,6 +235,118 @@ def test_repeated_same_structure_solves_reuse_graph_without_stale_target_data(
     assert build_calls == 2
     np.testing.assert_allclose(reused_result.raw_x, fresh_result.raw_x, atol=1.0e-8, rtol=0.0)
     np.testing.assert_allclose(reused_result.raw_g, fresh_result.raw_g, atol=1.0e-6, rtol=1.0e-12)
+
+
+def test_colav_strict_staged_route_objective_alters_then_returns_to_mission(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    mission = source.route_bearing_rad
+    corridor = mission + 0.2
+    avoidance_until_k = max(2, config.horizon_steps // 2)
+    references = (corridor,) * avoidance_until_k + (mission,) * (config.horizon_steps - avoidance_until_k)
+    problem = replace(
+        source,
+        route_bearing_rad=corridor,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=mission,
+            avoidance_corridor_bearing_rad=corridor,
+            heading_reference_rad=references,
+            lateral_reference_m=(0.0,) * config.horizon_steps,
+            avoidance_active_until_k=avoidance_until_k,
+        ),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    headings = result.raw_x[: config.horizon_steps]
+    assert result.prepared.p.size == len(fixture.output["prepared"]["p"]) + 2 * config.horizon_steps + 1
+    assert np.mean(headings[:avoidance_until_k]) > np.mean(headings[avoidance_until_k:]) + 0.05
+    assert headings[-1] == pytest.approx(mission, abs=0.02)
+
+
+def test_staged_route_profiles_reuse_one_fixed_graph(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    for avoidance_until_k in (2, 4):
+        corridor = source.route_bearing_rad + 0.2
+        solver.solve(
+            replace(
+                source,
+                route_bearing_rad=corridor,
+                route_objective=MidMpcRouteObjective(
+                    mission_bearing_rad=source.route_bearing_rad,
+                    avoidance_corridor_bearing_rad=corridor,
+                    heading_reference_rad=(corridor,) * avoidance_until_k
+                    + (source.route_bearing_rad,) * (config.horizon_steps - avoidance_until_k),
+                    lateral_reference_m=(25.0 * avoidance_until_k,) * config.horizon_steps,
+                    avoidance_active_until_k=avoidance_until_k,
+                ),
+            )
+        )
+
+    assert build_calls == 1
+
+
+def test_colav_strict_hard_windows_update_bounds_without_rebuilding_graph(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["multi_target_row_order"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = replace(_problem(fixture), lateral_active=False)
+    n = config.horizon_steps
+    first_schedule = MidMpcRowSchedule(
+        cpa_hard_windows=(MidMpcHardWindow(1, n - 1), MidMpcHardWindow(2, n)),
+        direction_hard_window=MidMpcHardWindow(1, n - 1),
+        min_alt_hard_window=MidMpcHardWindow(2, n - 1),
+    )
+    second_schedule = replace(
+        first_schedule,
+        cpa_hard_windows=(MidMpcHardWindow(0, n), MidMpcHardWindow(1, n - 1)),
+    )
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    first = solver.solve(replace(source, row_schedule=first_schedule))
+    solver.solve(replace(source, row_schedule=second_schedule))
+
+    assert build_calls == 1
+    target_count = len(source.targets)
+    for k in range(n):
+        for target_index, window in enumerate(first_schedule.cpa_hard_windows):
+            row = first.row_layout.cpa.start + k * target_count + target_index
+            assert bool(np.isfinite(first.prepared.lbg[row])) is (window.start_k <= k < window.stop_k)
+    for span, window in (
+        (first.row_layout.direction, first_schedule.direction_hard_window),
+        (first.row_layout.min_alt, first_schedule.min_alt_hard_window),
+    ):
+        assert window is not None
+        active = np.isfinite(first.prepared.lbg[span.start : span.start + span.count])
+        assert active.tolist() == [window.start_k <= k < window.stop_k for k in range(n)]
 
 
 def test_colav_strict_profile_keeps_frozen_slack_variables_but_fixes_them_to_zero(

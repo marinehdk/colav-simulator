@@ -2,6 +2,7 @@
 
 from colav_simulator.core.colav.mid_mpc.models import (
     MidMpcConfig,
+    MidMpcHardWindow,
     MidMpcObjectiveComponents,
     MidMpcOwnShip,
     MidMpcPreparedProblem,
@@ -9,6 +10,7 @@ from colav_simulator.core.colav.mid_mpc.models import (
     MidMpcProblem,
     MidMpcResult,
     MidMpcRouteFrame,
+    MidMpcRouteObjective,
     MidMpcRowLayout,
     MidMpcRowSchedule,
     MidMpcStatus,
@@ -19,6 +21,7 @@ from colav_simulator.core.colav.mid_mpc.solver import MidMpcIpoptSolver
 
 __all__ = [
     "MidMpcConfig",
+    "MidMpcHardWindow",
     "MidMpcIpoptSolver",
     "MidMpcOwnShip",
     "MidMpcObjectiveComponents",
@@ -27,6 +30,7 @@ __all__ = [
     "MidMpcPrimalWarmStart",
     "MidMpcResult",
     "MidMpcRouteFrame",
+    "MidMpcRouteObjective",
     "MidMpcRowLayout",
     "MidMpcRowSchedule",
     "MidMpcStatus",

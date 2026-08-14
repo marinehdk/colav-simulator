@@ -13,6 +13,7 @@ import numpy as np
 
 from colav_simulator.core.colav.mid_mpc.models import (
     MidMpcConfig,
+    MidMpcHardWindow,
     MidMpcObjectiveComponents,
     MidMpcPreparedProblem,
     MidMpcPrimalWarmStart,
@@ -66,7 +67,7 @@ class MidMpcIpoptSolver:
 
     def __init__(self, config: MidMpcConfig = MidMpcConfig()) -> None:
         self._config = config
-        self._graph_cache: dict[tuple[int, int, int, float], _Graph] = {}
+        self._graph_cache: dict[tuple[int, int, int, float, bool], _Graph] = {}
 
     def solve(  # noqa: PLR0915 - keeps one solver call and its evidence atomic
         self,
@@ -75,12 +76,14 @@ class MidMpcIpoptSolver:
         primal_warm_start: MidMpcPrimalWarmStart | None = None,
     ) -> MidMpcResult:
         _validate_target_capacity(problem, self._config.max_targets)
+        _validate_route_objective(problem, self._config.horizon_steps)
         started_at = time.perf_counter()
         graph_key = (
             len(problem.targets),
             min(problem.prefix_active_k, self._config.horizon_steps),
             problem.audit_row_count,
             problem.cpa_hard_m,
+            problem.route_objective is not None,
         )
         graph = self._graph_cache.get(graph_key)
         if graph is None:
@@ -222,6 +225,16 @@ def _validate_target_capacity(problem: MidMpcProblem, max_targets: int) -> None:
         raise ValueError(f"Mid-MPC supports at most {max_targets} targets")
 
 
+def _validate_route_objective(problem: MidMpcProblem, horizon_steps: int) -> None:
+    if problem.route_objective is None:
+        return
+    if (
+        len(problem.route_objective.heading_reference_rad) != horizon_steps
+        or len(problem.route_objective.lateral_reference_m) != horizon_steps
+    ):
+        raise ValueError("staged route objective must provide heading and lateral references per control interval")
+
+
 class _Graph:
     def __init__(
         self,
@@ -334,6 +347,10 @@ def _build_graph(  # noqa: PLR0915
     prefix_u_start = int(_P.PREFIX_PSI) + prefix_capacity
     target_start = prefix_u_start + prefix_capacity
     parameter_dim = target_start + config.max_targets * _TARGET_STRIDE
+    route_objective_start = parameter_dim
+    staged_route_objective = problem.route_objective is not None
+    if staged_route_objective:
+        parameter_dim += 2 * n + 1
     dt = ca.DM(config.dt_s)
     psi = ca.MX.sym("psi", n)
     speed = ca.MX.sym("u", n)
@@ -348,12 +365,16 @@ def _build_graph(  # noqa: PLR0915
     x = ca.vertcat(*decisions)
 
     route_bearing = p[_P.ROUTE_BEARING]
+    route_reference = (
+        p[route_objective_start : route_objective_start + n] if staged_route_objective else ca.repmat(route_bearing, n, 1)
+    )
+    lateral_reference = p[route_objective_start + n : route_objective_start + 2 * n] if staged_route_objective else None
     planned_speed = p[_P.PLANNED_SPEED]
-    distance_error = psi - ca.repmat(route_bearing, n, 1)
+    distance_error = psi - route_reference
     velocity_error = speed - ca.repmat(planned_speed, n, 1)
     distance_cost = ca.dot(distance_error, distance_error)
     velocity_cost = ca.dot(velocity_error, velocity_error)
-    route_cost = _route_cost(psi, speed, p, config.dt_s)
+    route_cost = _route_cost(psi, speed, p, config.dt_s, lateral_reference)
     pref_dir = p[_P.PREFERRED_SIDE]
     give_way_role = p[_P.LATERAL_ACTIVE]
     objective_terminal_cross_track = _terminal_cross_track(psi, speed, p, config.dt_s)
@@ -365,7 +386,6 @@ def _build_graph(  # noqa: PLR0915
     z_neg = (-objective_terminal_cross_track - terminal_max) / p[_P.LATERAL_SCALE]
     terminal_upper = tau * (ca.log(ca.DM(1.0) + ca.exp(z_pos / tau)) + ca.log(ca.DM(1.0) + ca.exp(z_neg / tau)))
     terminal_cost = give_way_role * terminal_lower + give_way_role * pref_dir * pref_dir * terminal_upper
-
     colreg_cost = _colreg_cost(psi, speed, p, config)
     asym_sum = ca.MX(0.0)
     for k in range(n):
@@ -490,7 +510,13 @@ def _cross_track_all(psi: ca.MX, speed: ca.MX, p: ca.MX, dt_s: float) -> list[ca
     return values
 
 
-def _route_cost(psi: ca.MX, speed: ca.MX, p: ca.MX, dt_s: float) -> ca.MX:
+def _route_cost(
+    psi: ca.MX,
+    speed: ca.MX,
+    p: ca.MX,
+    dt_s: float,
+    lateral_reference: ca.MX | None = None,
+) -> ca.MX:
     dt = ca.DM(dt_s)
     cx = p[_P.X0]
     cy = p[_P.Y0]
@@ -498,13 +524,15 @@ def _route_cost(psi: ca.MX, speed: ca.MX, p: ca.MX, dt_s: float) -> ca.MX:
     terminal = ca.MX(0.0)
     for k in range(psi.numel()):
         cross_track = (cx - p[_P.ROUTE_ORIGIN_X]) * p[_P.ROUTE_NORMAL_X] + (cy - p[_P.ROUTE_ORIGIN_Y]) * p[_P.ROUTE_NORMAL_Y]
-        scaled = cross_track / p[_P.LATERAL_SCALE]
+        reference = ca.DM(0.0) if lateral_reference is None else lateral_reference[k]
+        scaled = (cross_track - reference) / p[_P.LATERAL_SCALE]
         cost = cost + scaled * scaled
         if k == psi.numel() - 1:
             terminal = cross_track
         cx = cx + speed[k] * dt * ca.cos(psi[k])
         cy = cy + speed[k] * dt * ca.sin(psi[k])
-    terminal_scaled = terminal / p[_P.LATERAL_SCALE]
+    terminal_reference = ca.DM(0.0) if lateral_reference is None else lateral_reference[psi.numel() - 1]
+    terminal_scaled = (terminal - terminal_reference) / p[_P.LATERAL_SCALE]
     return p[_P.ROUTE_WEIGHT] * (cost + ca.DM(2.0) * terminal_scaled * terminal_scaled)
 
 
@@ -627,6 +655,25 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
                     heading_step * (k + 1),
                 )
             )
+        if problem.route_objective is not None:
+            previous_heading = problem.own_ship.psi_rad
+            for k, reference in enumerate(problem.route_objective.heading_reference_rad):
+                target_heading = (
+                    heading_target
+                    if problem.lateral_active and k < problem.route_objective.avoidance_active_until_k
+                    else reference
+                )
+                target_delta = math.atan2(
+                    math.sin(target_heading - previous_heading),
+                    math.cos(target_heading - previous_heading),
+                )
+                previous_heading = float(
+                    np.clip(
+                        previous_heading + np.clip(target_delta, -heading_step, heading_step),
+                        *problem.heading_bounds_rad,
+                    )
+                )
+                x0[k] = previous_heading
         speed_target = float(np.clip(problem.planned_speed_mps, *problem.speed_bounds_mps))
         if speed_target < problem.own_ship.u_mps:
             for k in range(n):
@@ -688,6 +735,9 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
     prefix_u_start = int(_P.PREFIX_PSI) + prefix_capacity
     target_start = prefix_u_start + prefix_capacity
     parameter_dim = target_start + config.max_targets * _TARGET_STRIDE
+    route_objective_start = parameter_dim
+    if problem.route_objective is not None:
+        parameter_dim += 2 * config.horizon_steps + 1
     p = np.zeros(parameter_dim)
     p[_P.PSI0 : _P.Y0 + 1] = (
         problem.own_ship.psi_rad,
@@ -735,6 +785,14 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
             target.sog_mps,
             weight,
         )
+    if problem.route_objective is not None:
+        p[route_objective_start : route_objective_start + config.horizon_steps] = (
+            problem.route_objective.heading_reference_rad
+        )
+        p[route_objective_start + config.horizon_steps : route_objective_start + 2 * config.horizon_steps] = (
+            problem.route_objective.lateral_reference_m
+        )
+        p[route_objective_start + 2 * config.horizon_steps] = problem.route_objective.avoidance_active_until_k
     return p
 
 
@@ -783,19 +841,25 @@ def _row_bounds(
         ubg[span.start : span.start + prefix_k] = 0.0
 
     schedule = problem.row_schedule
-    if not problem.lateral_active:
-        for span in (layout.direction, layout.min_alt):
-            lbg[span.start : span.start + span.count] = -np.inf
-            ubg[span.start : span.start + span.count] = np.inf
-    else:
-        _soften_prefix(lbg, ubg, layout.direction, min(schedule.direction_hard_from_k, n))
-        _soften_prefix(lbg, ubg, layout.min_alt, min(schedule.min_alt_hard_from_k, n))
-    cpa_hard_from = min(schedule.cpa_hard_from_k, n)
-    cpa_soft_steps = max(prefix_k, cpa_hard_from)
-    for k in range(cpa_soft_steps):
-        start = layout.cpa.start + k * len(problem.targets)
-        lbg[start : start + len(problem.targets)] = -np.inf
-        ubg[start : start + len(problem.targets)] = np.inf
+    _apply_rule_bounds(
+        lbg,
+        ubg,
+        layout.direction,
+        schedule.direction_hard_window,
+        legacy_from_k=schedule.direction_hard_from_k,
+        legacy_enabled=problem.lateral_active,
+        horizon_steps=n,
+    )
+    _apply_rule_bounds(
+        lbg,
+        ubg,
+        layout.min_alt,
+        schedule.min_alt_hard_window,
+        legacy_from_k=schedule.min_alt_hard_from_k,
+        legacy_enabled=problem.lateral_active,
+        horizon_steps=n,
+    )
+    cpa_hard_from = _apply_cpa_bounds(lbg, ubg, problem, layout, prefix_k, n)
     if prefix_k and schedule.prefix_softening:
         _soften_prefix(lbg, ubg, layout.direction, prefix_k)
         _soften_prefix(lbg, ubg, layout.min_alt, prefix_k)
@@ -808,6 +872,69 @@ def _row_bounds(
 def _soften_prefix(lbg: np.ndarray, ubg: np.ndarray, span: MidMpcRowSpan, count: int) -> None:
     lbg[span.start : span.start + count] = -np.inf
     ubg[span.start : span.start + count] = np.inf
+
+
+def _apply_hard_window(
+    lbg: np.ndarray,
+    ubg: np.ndarray,
+    span: MidMpcRowSpan,
+    window: MidMpcHardWindow,
+    horizon_steps: int,
+) -> None:
+    _soften_prefix(lbg, ubg, span, span.count)
+    start_k = min(window.start_k, horizon_steps)
+    stop_k = max(start_k, min(window.stop_k, horizon_steps))
+    lbg[span.start + start_k : span.start + stop_k] = 0.0
+    ubg[span.start + start_k : span.start + stop_k] = np.inf
+
+
+def _apply_rule_bounds(
+    lbg: np.ndarray,
+    ubg: np.ndarray,
+    span: MidMpcRowSpan,
+    window: MidMpcHardWindow | None,
+    *,
+    legacy_from_k: int,
+    legacy_enabled: bool,
+    horizon_steps: int,
+) -> None:
+    if window is not None:
+        _apply_hard_window(lbg, ubg, span, window, horizon_steps)
+        return
+    softened = min(legacy_from_k, horizon_steps) if legacy_enabled else horizon_steps
+    _soften_prefix(lbg, ubg, span, softened)
+
+
+def _apply_cpa_bounds(
+    lbg: np.ndarray,
+    ubg: np.ndarray,
+    problem: MidMpcProblem,
+    layout: MidMpcRowLayout,
+    prefix_k: int,
+    horizon_steps: int,
+) -> int:
+    windows = problem.row_schedule.cpa_hard_windows
+    if not windows:
+        hard_from = min(problem.row_schedule.cpa_hard_from_k, horizon_steps)
+        for k in range(max(prefix_k, hard_from)):
+            start = layout.cpa.start + k * len(problem.targets)
+            lbg[start : start + len(problem.targets)] = -np.inf
+            ubg[start : start + len(problem.targets)] = np.inf
+        return hard_from
+    if len(windows) != len(problem.targets):
+        raise ValueError("one CPA hard window is required per target")
+    _soften_prefix(lbg, ubg, layout.cpa, layout.cpa.count)
+    active_starts: list[int] = []
+    for target_index, window in enumerate(windows):
+        start_k = max(prefix_k, min(window.start_k, horizon_steps))
+        stop_k = max(start_k, min(window.stop_k, horizon_steps))
+        if start_k < stop_k:
+            active_starts.append(start_k)
+        for k in range(start_k, stop_k):
+            row = layout.cpa.start + k * len(problem.targets) + target_index
+            lbg[row] = 0.0
+            ubg[row] = np.inf
+    return min(active_starts, default=horizon_steps)
 
 
 def _cpa_slack_seed(

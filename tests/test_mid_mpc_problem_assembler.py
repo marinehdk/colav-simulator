@@ -20,6 +20,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     Rule17Stage,
     TargetObservation,
 )
+from colav_simulator.core.colav.horizon_encounter_plan import HorizonEncounterPhase
 from colav_simulator.core.colav.mid_mpc_assembler import (
     AssemblyFailure,
     AssemblyFailureCode,
@@ -116,6 +117,8 @@ def test_assembler_binds_targets_deterministically_and_emits_81_point_prediction
     assert outcome.grid.control_intervals == 80
     assert outcome.grid.state_samples == 81
     assert outcome.grid.duration_s == 400.0
+    assert outcome.horizon_encounter_plan.times_s.shape == (81,)
+    assert outcome.horizon_encounter_plan.solver_consumed is True
     assert outcome.preparation.seed.source == "DETERMINISTIC_COLD_START"
     assert outcome.preparation.prefix.active_intervals == 0
     assert outcome.preparation.slack.cpa_bounds == (0.0, 0.0)
@@ -156,6 +159,7 @@ def test_assembler_admits_active_committed_target_after_required_slots() -> None
 
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.selected_target_keys == (TrackKey(1, 1),)
+    assert tuple(window.key for window in outcome.horizon_encounter_plan.target_windows) == (TrackKey(1, 1),)
 
 
 def test_assembler_graph_bakes_uncommitted_candidate_for_l4_all_track_safety() -> None:
@@ -171,6 +175,10 @@ def test_assembler_graph_bakes_uncommitted_candidate_for_l4_all_track_safety() -
     assert outcome.problem.lateral_active is True
     activation = outcome.activation_plan.targets[0]
     assert outcome.activation_plan.global_cpa_hard_from_k == math.floor(activation.cpa_hard_from_s / outcome.grid.dt_s)
+    assert outcome.problem.row_schedule.cpa_hard_windows[0].start_k == activation.cpa_hard_from_k
+    assert outcome.problem.row_schedule.direction_hard_window is not None
+    assert outcome.problem.row_schedule.direction_hard_window.start_k == activation.cpa_hard_from_k
+    assert outcome.problem.row_schedule.direction_hard_window.stop_k == outcome.grid.control_intervals
 
 
 def test_assembler_compiles_full_horizon_stand_on_course_authority() -> None:
@@ -205,6 +213,8 @@ def test_assembler_compiles_full_horizon_stand_on_course_authority() -> None:
     assert outcome.problem.heading_bounds_rad == pytest.approx((-math.radians(5.0), math.radians(5.0)))
     assert outcome.problem.prefix_active_k == 1
     assert outcome.problem.row_schedule.cpa_hard_from_k == 80
+    assert outcome.problem.row_schedule.cpa_hard_windows[0].start_k == 80
+    assert outcome.problem.row_schedule.cpa_hard_windows[0].stop_k == 80
 
 
 def test_assembler_releases_safe_completed_target_from_optimizer_graph() -> None:
@@ -262,7 +272,31 @@ def test_assembler_compiles_required_cpa_activation_from_physical_time() -> None
     assert outcome.problem.row_schedule.cpa_hard_from_k == 12
 
 
-def test_structural_signature_changes_when_compiled_row_topology_changes() -> None:
+def test_strict_assembler_compiles_finite_hard_windows_from_horizon_phases() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    schedule = outcome.problem.row_schedule
+    target_window = outcome.horizon_encounter_plan.target_windows[0]
+    expected_stop = (
+        outcome.grid.control_intervals if target_window.recovery_from_k is None else target_window.recovery_from_k
+    )
+    expected_start = outcome.activation_plan.targets[0].cpa_hard_from_k
+    assert tuple((window.start_k, window.stop_k) for window in schedule.cpa_hard_windows) == (
+        (expected_start, max(expected_start, expected_stop)),
+    )
+    assert schedule.direction_hard_window is not None
+    assert schedule.direction_hard_window.stop_k == outcome.grid.control_intervals
+    assert schedule.min_alt_hard_window is not None
+    assert schedule.min_alt_hard_window.stop_k == expected_stop
+
+
+def test_structural_signature_stays_fixed_when_only_row_bounds_change() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()
     lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
@@ -277,7 +311,7 @@ def test_structural_signature_changes_when_compiled_row_topology_changes() -> No
     assert isinstance(near, AssemblySuccess)
     assert isinstance(far, AssemblySuccess)
     assert near.problem.row_schedule != far.problem.row_schedule
-    assert near.preparation.structural_signature != far.preparation.structural_signature
+    assert near.preparation.structural_signature == far.preparation.structural_signature
 
 
 def test_missing_required_target_returns_typed_binding_failure() -> None:
@@ -411,6 +445,11 @@ def test_assembler_maps_persistent_lifecycle_commitment_without_business_state()
     assert assembly.problem.row_schedule.direction_hard_from_k == 0
     assert assembly.problem.speed_bounds_mps == snapshot.directive.speed_bounds_mps
     assert assembly.selected_target_keys == (TrackKey(1, 1),)
+    target_radius = 0.5 * math.hypot(planner_input.tracks[0].length_m, planner_input.tracks[0].width_m)
+    own_radius = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
+    assert assembly.horizon_encounter_plan.target_windows[0].recovery_clearance_m == pytest.approx(
+        150.0 + own_radius + target_radius
+    )
 
 
 def test_assembler_retains_committed_corridor_after_first_alteration_is_achieved() -> None:
@@ -436,6 +475,40 @@ def test_assembler_retains_committed_corridor_after_first_alteration_is_achieved
     assert snapshot.targets[0].action_achieved is True
     assert assembly.problem.lateral_active is False
     assert assembly.problem.route_bearing_rad == required_change
+    assert assembly.horizon_encounter_plan.mission_route_bearing_rad == 0.0
+    assert assembly.horizon_encounter_plan.avoidance_corridor_bearing_rad == required_change
+    assert assembly.horizon_encounter_plan.solver_consumed is True
+    assert assembly.horizon_encounter_plan.phases[0] is HorizonEncounterPhase.PASS
+    assert HorizonEncounterPhase.RECOVER in assembly.horizon_encounter_plan.phases
+    assert assembly.problem.route_objective is not None
+    assert assembly.problem.route_objective.mission_bearing_rad == 0.0
+    assert assembly.problem.route_objective.avoidance_corridor_bearing_rad == required_change
+    assert assembly.problem.route_objective.heading_reference_rad[-1] == 0.0
+    lateral_reference = assembly.problem.route_objective.lateral_reference_m
+    assert max(abs(value) for value in lateral_reference) > 1.0
+    assert abs(lateral_reference[-1]) < max(abs(value) for value in lateral_reference)
+    assert assembly.problem.route_frame.bearing_rad == 0.0
+
+
+def test_mass_parity_keeps_frozen_problem_while_horizon_plan_remains_advisory() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    strict_request = _request(planner_input, snapshot)
+
+    strict = MidMpcProblemAssembler().assemble(strict_request)
+    parity = MidMpcProblemAssembler().assemble(replace(strict_request, profile=AssemblyProfile.MASS_PARITY))
+
+    assert isinstance(strict, AssemblySuccess)
+    assert isinstance(parity, AssemblySuccess)
+    assert strict.problem.route_objective is not None
+    assert parity.problem.route_objective is None
+    assert parity.problem.route_frame.bearing_rad == parity.problem.route_bearing_rad
+    assert strict.horizon_encounter_plan.solver_consumed is True
+    assert parity.horizon_encounter_plan.solver_consumed is False
+    assert parity.horizon_encounter_plan.phases == strict.horizon_encounter_plan.phases
+    assert parity.preparation.slack.cpa_bounds == (0.0, None)
 
 
 def test_assembler_rejects_direction_facts_the_frozen_core_cannot_represent() -> None:
