@@ -230,6 +230,7 @@ class _TargetBinding:
     selected_tracks: tuple[TrackedObstacle, ...]
     selected_decisions: tuple[TargetDecision, ...]
     required_decisions: tuple[TargetDecision, ...]
+    safety_conflict_keys: frozenset[TrackKey]
 
 
 @dataclass(frozen=True)
@@ -313,7 +314,7 @@ def _assemble_problem(
     profile: AssemblyProfile,
 ) -> AssemblySuccess:
     """Map one immutable decision snapshot without retaining business state."""
-    binding = _bind_targets(planner_input, snapshot, config)
+    binding = _bind_targets(planner_input, snapshot, route, config)
     policy = _resolve_policy(planner_input, snapshot, route, capability, config, binding)
     target_predictions = _target_predictions(
         tuple(sorted(binding.track_by_key, key=lambda key: (key.target_id, key.generation))),
@@ -392,10 +393,17 @@ def _assemble_problem(
 def _bind_targets(
     planner_input: PlannerInput,
     snapshot: DecisionSnapshot,
+    route: RouteReference,
     config: MidMpcAssemblyConfig,
 ) -> _TargetBinding:
     track_by_key = {TrackKey(track.target_id, track.generation or 1): track for track in planner_input.tracks}
-    required_keys, selected_keys = _admit_target_keys(snapshot, track_by_key, config.max_targets)
+    safety_conflict_keys = _mission_route_conflict_keys(planner_input, route, snapshot, track_by_key, config)
+    required_keys, selected_keys = _admit_target_keys(
+        snapshot,
+        track_by_key,
+        config.max_targets,
+        safety_conflict_keys=safety_conflict_keys,
+    )
     decision_by_key = {decision.key: decision for decision in snapshot.targets}
     selected_tracks = tuple(track_by_key[key] for key in selected_keys)
     selected_decisions = tuple(decision_by_key[key] for key in selected_keys)
@@ -407,6 +415,7 @@ def _bind_targets(
         selected_tracks=selected_tracks,
         selected_decisions=selected_decisions,
         required_decisions=required_decisions,
+        safety_conflict_keys=safety_conflict_keys,
     )
 
 
@@ -490,28 +499,19 @@ def _compile_semantic_problem(
         config,
         capability,
     )
-    starboard_asymmetry = any(
+    starboard_asymmetry = policy.lateral_active and any(
         decision.passing_side is PassingSide.STARBOARD
         and decision.encounter in {EncounterKind.HEAD_ON, EncounterKind.CROSSING}
         for decision in binding.required_decisions or binding.selected_decisions
     )
-    candidate_sides = {
-        decision.passing_side
-        for decision in binding.selected_decisions
-        if decision.risk is RiskPhase.CANDIDATE and decision.passing_side is not PassingSide.NONE
-    }
-    candidate_side = next(iter(candidate_sides)) if len(candidate_sides) == 1 else PassingSide.NONE
-    preferred_side = (
-        {PassingSide.PORT: -1, PassingSide.STARBOARD: 1}[candidate_side]
-        if candidate_side is not PassingSide.NONE
-        else policy.preferred_side
-    )
-    lateral_active = policy.lateral_active or candidate_side is not PassingSide.NONE
+    preferred_side = policy.preferred_side
+    lateral_active = policy.lateral_active
     row_schedule = _compile_row_schedule(
         profile,
         activation_plan,
         horizon_encounter_plan,
         binding.selected_decisions,
+        safety_conflict_keys=binding.safety_conflict_keys,
         lateral_active=lateral_active,
         horizon_steps=config.horizon_steps,
     )
@@ -528,6 +528,11 @@ def _compile_semantic_problem(
             for decision in binding.selected_decisions
         )
     )
+    candidate_hold = not lateral_active and any(
+        decision.risk is RiskPhase.CANDIDATE and decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
+        for decision in binding.selected_decisions
+    )
+    hold_first_interval = stand_on_hold or candidate_hold
     heading_bounds = (
         float(ownship[2]) - capability.heading_window_rad,
         float(ownship[2]) + capability.heading_window_rad,
@@ -586,9 +591,9 @@ def _compile_semantic_problem(
         preferred_side=preferred_side,
         starboard_asymmetry_active=starboard_asymmetry,
         min_alteration_rad=minimum_change,
-        prefix_active_k=1 if stand_on_hold else 0,
-        prefix_psi_rad=(float(ownship[2]),) if stand_on_hold else (),
-        prefix_u_mps=(float(ownship[3]),) if stand_on_hold else (),
+        prefix_active_k=1 if hold_first_interval else 0,
+        prefix_psi_rad=(float(ownship[2]),) if hold_first_interval else (),
+        prefix_u_mps=(float(ownship[3]),) if hold_first_interval else (),
         route_frame=MidMpcRouteFrame(
             origin_m=(
                 route.anchor_ne_m[0] - float(ownship[0]),
@@ -628,6 +633,7 @@ def _compile_row_schedule(
     horizon_plan: HorizonEncounterPlan,
     selected_decisions: tuple[TargetDecision, ...],
     *,
+    safety_conflict_keys: frozenset[TrackKey],
     lateral_active: bool,
     horizon_steps: int,
 ) -> MidMpcRowSchedule:
@@ -643,20 +649,22 @@ def _compile_row_schedule(
 
     target_windows = {window.key: window for window in horizon_plan.target_windows}
     activation_by_key = {target.key: target for target in activation_plan.targets}
-    cpa_windows = tuple(
-        MidMpcHardWindow(
-            activation_by_key[decision.key].cpa_hard_from_k,
-            max(
-                activation_by_key[decision.key].cpa_hard_from_k,
-                (
-                    horizon_steps
-                    if target_windows.get(decision.key) is None or target_windows[decision.key].recovery_from_k is None
-                    else min(target_windows[decision.key].recovery_from_k, horizon_steps)
-                ),
-            ),
+    cpa_windows = []
+    for decision in selected_decisions:
+        activation_start_k = activation_by_key[decision.key].cpa_hard_from_k
+        target_window = target_windows.get(decision.key)
+        route_recovery_conflict = (
+            target_window is not None
+            and target_window.route_recovery_allowed_at_start
+            and target_window.minimum_predicted_route_dcpa_m < target_window.recovery_clearance_m
         )
-        for decision in selected_decisions
-    )
+        start_k = 0 if route_recovery_conflict or decision.key in safety_conflict_keys else activation_start_k
+        stop_k = (
+            horizon_steps
+            if target_window is None or target_window.recovery_from_k is None
+            else min(target_window.recovery_from_k, horizon_steps)
+        )
+        cpa_windows.append(MidMpcHardWindow(start_k, max(start_k, stop_k)))
     if not horizon_plan.target_windows:
         recovery_stop_k = 0
     elif horizon_plan.recovery_from_k is None:
@@ -695,7 +703,7 @@ def _compile_row_schedule(
         min_alt_window = MidMpcHardWindow(min_alt_start, max(min_alt_start, min_alt_stop_k))
     return replace(
         legacy,
-        cpa_hard_windows=cpa_windows,
+        cpa_hard_windows=tuple(cpa_windows),
         direction_hard_window=direction_window,
         min_alt_hard_window=min_alt_window,
     )
@@ -728,8 +736,8 @@ def _route_objective(
     avoidance_active_until_k = next(
         (
             index
-            for index, phase in enumerate(horizon_encounter_plan.phases[1:])
-            if phase in {HorizonEncounterPhase.MISSION, HorizonEncounterPhase.RECOVER}
+            for index, phase in enumerate(horizon_encounter_plan.phases[1:], start=1)
+            if phase is HorizonEncounterPhase.RECOVER
         ),
         len(heading_references),
     )
@@ -756,18 +764,17 @@ def _staged_route_references(
     """Compile one reachable avoid-pass-rejoin reference on the mission frame."""
     mission = plan.mission_route_bearing_rad
     corridor = plan.avoidance_corridor_bearing_rad
-    corridor_delta = _wrap(corridor - mission)
     route_normal = np.array((-math.sin(mission), math.cos(mission)), dtype=float)
     route_origin = np.asarray(route.anchor_ne_m, dtype=float) - np.asarray(ownship_position_ne_m, dtype=float)
     position = np.zeros(2, dtype=float)
     speed = max(0.0, float(planned_speed_mps))
-    maximum_recovery_delta = min(abs(corridor_delta), heading_window_rad)
+    maximum_recovery_delta = heading_window_rad
     maximum_heading_step = rot_max_rad_s * dt_s
     previous_heading = ownship_heading_rad
     headings: list[float] = []
     lateral_references: list[float] = []
 
-    for phase in plan.phases[1:]:
+    for phase in plan.phases[:-1]:
         cross_track = float((position - route_origin) @ route_normal)
         lateral_references.append(cross_track)
         if phase in {HorizonEncounterPhase.ALTER, HorizonEncounterPhase.PASS}:
@@ -779,6 +786,13 @@ def _staged_route_references(
             desired_heading = mission + recovery_delta
         else:
             desired_heading = mission
+        desired_heading = ownship_heading_rad + float(
+            np.clip(
+                _wrap(desired_heading - ownship_heading_rad),
+                -heading_window_rad,
+                heading_window_rad,
+            )
+        )
         desired_heading = previous_heading + _wrap(desired_heading - previous_heading)
         heading = previous_heading + float(
             np.clip(desired_heading - previous_heading, -maximum_heading_step, maximum_heading_step)
@@ -855,6 +869,7 @@ def _compile_horizon_encounter_plan(
             reference_time_s=planner_input.sim_time_s,
             times_s=np.arange(config.horizon_steps + 1, dtype=float) * config.horizon_dt_s,
             own_position_ne_m=(float(planner_input.ownship_state[0]), float(planner_input.ownship_state[1])),
+            mission_route_anchor_ne_m=route.anchor_ne_m,
             own_heading_rad=float(planner_input.ownship_state[2]),
             own_speed_mps=0.0 if snapshot.directive.stop_required else route.planned_speed_mps,
             mission_route_bearing_rad=route.bearing_rad,
@@ -1165,6 +1180,8 @@ def _admit_target_keys(
     snapshot: DecisionSnapshot,
     track_by_key: dict[TrackKey, TrackedObstacle],
     max_targets: int,
+    *,
+    safety_conflict_keys: frozenset[TrackKey],
 ) -> tuple[tuple[TrackKey, ...], tuple[TrackKey, ...]]:
     missing_tracks = [key for key in snapshot.directive.required_targets if key not in track_by_key]
     if missing_tracks:
@@ -1184,12 +1201,51 @@ def _admit_target_keys(
         (
             decision
             for decision in snapshot.targets
-            if decision.key not in required_keys and decision.key in track_by_key and _admission_rank(decision) > 0
+            if decision.key not in required_keys
+            and decision.key in track_by_key
+            and (_admission_rank(decision) > 0 or decision.key in safety_conflict_keys)
         ),
         key=_admission_sort_key,
     )
     selected_keys = required_keys + tuple(decision.key for decision in eligible[: max_targets - len(required_keys)])
     return required_keys, selected_keys
+
+
+def _mission_route_conflict_keys(
+    planner_input: PlannerInput,
+    route: RouteReference,
+    snapshot: DecisionSnapshot,
+    track_by_key: dict[TrackKey, TrackedObstacle],
+    config: MidMpcAssemblyConfig,
+) -> frozenset[TrackKey]:
+    """Retain non-obligated tracks whose constant-velocity mission route enters the safety domain."""
+    own_position = np.asarray(planner_input.ownship_state[:2], dtype=float)
+    own_velocity = route.planned_speed_mps * np.array(
+        (math.cos(route.bearing_rad), math.sin(route.bearing_rad)),
+        dtype=float,
+    )
+    own_radius = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
+    horizon_s = config.horizon_steps * config.horizon_dt_s
+    conflicts: set[TrackKey] = set()
+    for decision in snapshot.targets:
+        if decision.risk not in {RiskPhase.CLEAR, RiskPhase.RELEASED} or decision.recovery_guard_active:
+            continue
+        track = track_by_key.get(decision.key)
+        if track is None:
+            continue
+        relative_position = np.asarray(track.state_enu[:2], dtype=float) - own_position
+        relative_velocity = np.asarray(track.state_enu[2:4], dtype=float) - own_velocity
+        relative_speed_sq = float(relative_velocity @ relative_velocity)
+        if relative_speed_sq <= 1.0e-12:
+            continue
+        tcpa_s = -float(relative_position @ relative_velocity) / relative_speed_sq
+        if not 0.0 <= tcpa_s <= horizon_s:
+            continue
+        dcpa_m = float(np.linalg.norm(relative_position + relative_velocity * tcpa_s))
+        target_radius = 0.5 * math.hypot(track.length_m, track.width_m)
+        if dcpa_m < config.cpa_safe_m + own_radius + target_radius:
+            conflicts.add(decision.key)
+    return frozenset(conflicts)
 
 
 def _admission_sort_key(decision: TargetDecision) -> tuple[float, ...]:

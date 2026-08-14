@@ -77,6 +77,7 @@ class HorizonEncounterPlanRequest:
     reference_time_s: float
     times_s: np.ndarray
     own_position_ne_m: tuple[float, float]
+    mission_route_anchor_ne_m: tuple[float, float]
     own_heading_rad: float
     own_speed_mps: float
     mission_route_bearing_rad: float
@@ -94,9 +95,11 @@ class HorizonEncounterPlanRequest:
         if np.any(increments <= 0.0) or not np.allclose(increments, increments[0], atol=1.0e-12, rtol=0.0):
             raise ValueError("horizon time grid must be strictly increasing and uniform")
         position = tuple(float(value) for value in self.own_position_ne_m)
+        route_anchor = tuple(float(value) for value in self.mission_route_anchor_ne_m)
         scalar_values = (
             self.reference_time_s,
             *position,
+            *route_anchor,
             self.own_heading_rad,
             self.own_speed_mps,
             self.mission_route_bearing_rad,
@@ -104,7 +107,7 @@ class HorizonEncounterPlanRequest:
             self.rot_max_rad_s,
             self.heading_window_rad,
         )
-        if len(position) != 2 or not np.isfinite(scalar_values).all():
+        if len(position) != 2 or len(route_anchor) != 2 or not np.isfinite(scalar_values).all():
             raise ValueError("horizon encounter request values must be finite")
         if self.own_speed_mps < 0.0 or self.rot_max_rad_s <= 0.0 or self.heading_window_rad <= 0.0:
             raise ValueError("speed and turn rate must be physically valid")
@@ -118,6 +121,7 @@ class HorizonEncounterPlanRequest:
                 raise ValueError("target prediction reference time must match the horizon request")
         object.__setattr__(self, "times_s", times)
         object.__setattr__(self, "own_position_ne_m", position)
+        object.__setattr__(self, "mission_route_anchor_ne_m", route_anchor)
         object.__setattr__(self, "targets", targets)
 
 
@@ -174,6 +178,10 @@ def compile_horizon_encounter_plan(request: HorizonEncounterPlanRequest) -> Hori
         own_speed_mps=request.own_speed_mps,
         mission_bearing_rad=request.mission_route_bearing_rad,
         corridor_bearing_rad=request.avoidance_corridor_bearing_rad,
+        route_origin_ne_m=(
+            request.mission_route_anchor_ne_m[0] - request.own_position_ne_m[0],
+            request.mission_route_anchor_ne_m[1] - request.own_position_ne_m[1],
+        ),
         rot_max_rad_s=request.rot_max_rad_s,
         heading_window_rad=request.heading_window_rad,
     )
@@ -250,7 +258,14 @@ def _target_window(
     interval_clearance_m = np.maximum(clearance_m[:-1], clearance_m[1:])
     swept_safe = swept_distance_m >= interval_clearance_m[None, :]
     recovery_safe = np.zeros(recovery_paths.shape[0], dtype=bool)
+    prediction_dt_s = float(target.prediction.times_s[1] - target.prediction.times_s[0])
+    recovery_guard_intervals = max(1, math.ceil(15.0 / prediction_dt_s)) + 1
     for recovery_k in range(action_complete_k, recovery_paths.shape[0]):
+        route_cpa_k = int(np.argmin(node_distance_m[recovery_k]))
+        # Preserve 15 seconds plus one synchronization interval after nominal
+        # CPA so reduced-order tracking cannot release before actual CPA.
+        if recovery_k < route_cpa_k + recovery_guard_intervals:
+            continue
         recovery_safe[recovery_k] = bool(
             np.all(node_safe[recovery_k, recovery_k:]) and np.all(swept_safe[recovery_k, recovery_k:])
         )
@@ -273,6 +288,7 @@ def _recovery_paths(
     own_speed_mps: float,
     mission_bearing_rad: float,
     corridor_bearing_rad: float,
+    route_origin_ne_m: tuple[float, float],
     rot_max_rad_s: float,
     heading_window_rad: float,
 ) -> np.ndarray:
@@ -281,12 +297,12 @@ def _recovery_paths(
     step_count = times_s.size - 1
     paths = np.zeros((times_s.size, times_s.size, 2), dtype=float)
     mission_normal = np.array((-math.sin(mission_bearing_rad), math.cos(mission_bearing_rad)), dtype=float)
-    maximum_recovery_delta = min(abs(_wrap(corridor_bearing_rad - mission_bearing_rad)), heading_window_rad)
+    maximum_recovery_delta = heading_window_rad
     maximum_heading_step = rot_max_rad_s * dt_s
     recovery_indices = np.arange(times_s.size)
     heading = np.full(times_s.size, own_heading_rad, dtype=float)
     for k in range(step_count):
-        cross_track = paths[:, k, :] @ mission_normal
+        cross_track = (paths[:, k, :] - np.asarray(route_origin_ne_m, dtype=float)) @ mission_normal
         desired_heading = np.full(times_s.size, corridor_bearing_rad, dtype=float)
         recovering = k >= recovery_indices
         if own_speed_mps > 1.0e-9 and maximum_recovery_delta > 1.0e-9:
@@ -299,6 +315,15 @@ def _recovery_paths(
             desired_heading[recovering] = mission_bearing_rad + recovery_delta[recovering]
         else:
             desired_heading[recovering] = mission_bearing_rad
+        desired_offset = np.arctan2(
+            np.sin(desired_heading - own_heading_rad),
+            np.cos(desired_heading - own_heading_rad),
+        )
+        desired_heading = own_heading_rad + np.clip(
+            desired_offset,
+            -heading_window_rad,
+            heading_window_rad,
+        )
         heading_delta = np.arctan2(np.sin(desired_heading - heading), np.cos(desired_heading - heading))
         heading += np.clip(heading_delta, -maximum_heading_step, maximum_heading_step)
         paths[:, k + 1, 0] = paths[:, k, 0] + own_speed_mps * dt_s * np.cos(heading)

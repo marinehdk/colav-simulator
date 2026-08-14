@@ -91,7 +91,17 @@ class MidMpcIpoptSolver:
             self._graph_cache[graph_key] = graph
         prepared = _prepare(self._config, problem, graph.row_layout)
         if primal_warm_start is not None:
-            prepared = _apply_primal_warm_start(prepared, primal_warm_start, self._config)
+            reuse_stop_k = (
+                self._config.horizon_steps
+                if problem.route_objective is None
+                else problem.route_objective.avoidance_active_until_k
+            )
+            prepared = _apply_primal_warm_start(
+                prepared,
+                primal_warm_start,
+                self._config,
+                reuse_stop_k=reuse_stop_k,
+            )
         seed_components = _flat(graph.objective_components(prepared.x0, prepared.p))
         seed_objective_total = float(np.sum(seed_components))
         seed_g = _flat(graph.constraints(prepared.x0, prepared.p))
@@ -369,6 +379,7 @@ def _build_graph(  # noqa: PLR0915
         p[route_objective_start : route_objective_start + n] if staged_route_objective else ca.repmat(route_bearing, n, 1)
     )
     lateral_reference = p[route_objective_start + n : route_objective_start + 2 * n] if staged_route_objective else None
+    avoidance_active_until = p[route_objective_start + 2 * n] if staged_route_objective else ca.DM(n)
     planned_speed = p[_P.PLANNED_SPEED]
     distance_error = psi - route_reference
     velocity_error = speed - ca.repmat(planned_speed, n, 1)
@@ -385,11 +396,25 @@ def _build_graph(  # noqa: PLR0915
     z_pos = (objective_terminal_cross_track - terminal_max) / p[_P.LATERAL_SCALE]
     z_neg = (-objective_terminal_cross_track - terminal_max) / p[_P.LATERAL_SCALE]
     terminal_upper = tau * (ca.log(ca.DM(1.0) + ca.exp(z_pos / tau)) + ca.log(ca.DM(1.0) + ca.exp(z_neg / tau)))
-    terminal_cost = give_way_role * terminal_lower + give_way_role * pref_dir * pref_dir * terminal_upper
-    colreg_cost = _colreg_cost(psi, speed, p, config)
+    terminal_legacy_gate = ca.if_else(avoidance_active_until >= ca.DM(n), ca.DM(1.0), ca.DM(0.0))
+    terminal_cost = terminal_legacy_gate * (
+        give_way_role * terminal_lower + give_way_role * pref_dir * pref_dir * terminal_upper
+    )
+    colreg_cost = _colreg_cost(
+        psi,
+        speed,
+        p,
+        config,
+        avoidance_active_until=avoidance_active_until if staged_route_objective else None,
+    )
     asym_sum = ca.MX(0.0)
     for k in range(n):
-        asym_sum += ca.DM(config.asym_tau) * ca.log(ca.DM(1.0) + ca.exp((route_bearing - psi[k]) / ca.DM(config.asym_tau)))
+        avoidance_gate = ca.if_else(ca.DM(k) < avoidance_active_until, ca.DM(1.0), ca.DM(0.0))
+        asym_sum += (
+            avoidance_gate
+            * ca.DM(config.asym_tau)
+            * ca.log(ca.DM(1.0) + ca.exp((route_bearing - psi[k]) / ca.DM(config.asym_tau)))
+        )
     asym_cost = p[_P.ASYMMETRY_ACTIVE] * ca.DM(config.k_asym) * asym_sum
     colreg_term = ca.DM(config.w_colreg) * colreg_cost
     heading_term = ca.DM(config.w_dist) * distance_cost
@@ -546,7 +571,14 @@ def _terminal_cross_track(psi: ca.MX, speed: ca.MX, p: ca.MX, dt_s: float) -> ca
     return (cx - p[_P.ROUTE_ORIGIN_X]) * p[_P.ROUTE_NORMAL_X] + (cy - p[_P.ROUTE_ORIGIN_Y]) * p[_P.ROUTE_NORMAL_Y]
 
 
-def _colreg_cost(psi: ca.MX, speed: ca.MX, p: ca.MX, config: MidMpcConfig) -> ca.MX:
+def _colreg_cost(
+    psi: ca.MX,
+    speed: ca.MX,
+    p: ca.MX,
+    config: MidMpcConfig,
+    *,
+    avoidance_active_until: ca.MX | None = None,
+) -> ca.MX:
     dt = ca.DM(config.dt_s)
     zeta = ca.DM(config.zeta)
     own_x = p[_P.X0]
@@ -564,12 +596,17 @@ def _colreg_cost(psi: ca.MX, speed: ca.MX, p: ca.MX, config: MidMpcConfig) -> ca
         target_dx = p[base + _T.SOG] * ca.cos(p[base + _T.COG])
         target_dy = p[base + _T.SOG] * ca.sin(p[base + _T.COG])
         for k, (current_x, current_y) in enumerate(positions):
+            phase_gate = (
+                ca.DM(1.0)
+                if avoidance_active_until is None
+                else ca.if_else(ca.DM(k) < avoidance_active_until, ca.DM(1.0), ca.DM(0.0))
+            )
             time_s = k * config.dt_s
             dx = current_x - (p[base + _T.X] + target_dx * time_s)
             dy = current_y - (p[base + _T.Y] + target_dy * time_s)
             distance = ca.sqrt(dx * dx + dy * dy + ca.DM(1.0))
             discount = math.exp(-time_s / config.t_discount_s)
-            cost += p[base + _T.WEIGHT] * ca.DM(discount) * ca.exp(-zeta * (distance - p[_P.CPA_SAFE]))
+            cost += phase_gate * p[base + _T.WEIGHT] * ca.DM(discount) * ca.exp(-zeta * (distance - p[_P.CPA_SAFE]))
     return cost / ca.DM(max(1, config.max_targets * config.horizon_steps))
 
 
@@ -705,6 +742,8 @@ def _apply_primal_warm_start(
     prepared: MidMpcPreparedProblem,
     warm: MidMpcPrimalWarmStart,
     config: MidMpcConfig,
+    *,
+    reuse_stop_k: int,
 ) -> MidMpcPreparedProblem:
     n = config.horizon_steps
     if warm.course_rad.size != n:
@@ -712,7 +751,7 @@ def _apply_primal_warm_start(
     seed = prepared.x0.copy()
     source_times = warm.accepted_at_s + (np.arange(n, dtype=float) + 1.0) * warm.dt_s
     query_times = warm.current_time_s + (np.arange(n, dtype=float) + 1.0) * config.dt_s
-    reusable = query_times <= source_times[-1] + 1.0e-9
+    reusable = (query_times <= source_times[-1] + 1.0e-9) & (np.arange(n) < reuse_stop_k)
     if np.any(reusable):
         unwrapped = np.unwrap(warm.course_rad)
         seed[:n][reusable] = np.interp(query_times[reusable], source_times, unwrapped)

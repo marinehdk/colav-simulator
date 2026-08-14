@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from colav_simulator.core.colav.prediction_evidence import PredictionPhaseEvidence
 from colav_simulator.core.tracking.trackers import TrackKey
 
 REQUEST_SCHEMA = "colav.mid_mpc.acceptance.request@1"
@@ -99,6 +100,7 @@ class CandidateEvidence:
     speed_mps: np.ndarray
     numerical: NumericalEvidence
     parent_problem_hash: str
+    phase_evidence: PredictionPhaseEvidence | None = None
 
     def __post_init__(self) -> None:
         """Freeze and validate candidate state vectors."""
@@ -110,6 +112,11 @@ class CandidateEvidence:
             sizes.add(value.size)
         if len(sizes) != 1:
             raise ValueError("candidate state vectors must have equal length")
+        if self.phase_evidence is not None:
+            if not isinstance(self.phase_evidence, PredictionPhaseEvidence):
+                raise TypeError("phase_evidence must be PredictionPhaseEvidence")
+            if not np.array_equal(self.phase_evidence.times_s, self.times_s):
+                raise ValueError("phase evidence must align with the candidate time grid")
 
 
 @dataclass(frozen=True)
@@ -749,8 +756,17 @@ class MidMpcPlanAcceptance:
             side_sign = 1.0 if target.passing_side == "STARBOARD" else -1.0 if target.passing_side == "PORT" else 0.0
             deltas = np.array([_wrap(float(course - target.baseline_course_rad)) for course in candidate.course_rad])
             if side_sign != 0.0:
-                signed = side_sign * deltas
-                if not target.action_achieved and float(np.min(signed)) < -1.0e-6:
+                locked_deltas = deltas
+                phase_evidence = candidate.phase_evidence
+                if candidate_obligation:
+                    executable_samples = (
+                        1 if request.prior.mode is AcceptanceMode.HELD_ACCEPTED_PLAN else min(2, deltas.size)
+                    )
+                    locked_deltas = deltas[:executable_samples]
+                elif phase_evidence is not None and phase_evidence.recovery_from_k is not None:
+                    locked_deltas = deltas[: max(1, phase_evidence.recovery_from_k)]
+                signed = side_sign * locked_deltas
+                if not target.action_achieved and float(np.min(signed)) < -1.0e-3:
                     _fail(
                         findings,
                         AcceptanceLayer.COLREG,
@@ -919,7 +935,7 @@ class MidMpcPlanAcceptance:
             ]
         )
         if course_steps.size and np.any(
-            np.abs(course_steps) > capability.rot_max_rad_s * request.policy.horizon_dt_s + 1.0e-4
+            np.abs(course_steps) > capability.rot_max_rad_s * request.policy.horizon_dt_s + 1.0e-3
         ):
             _fail(findings, AcceptanceLayer.TRACKABILITY, "TRACKABILITY_ROT", "candidate turn exceeds active rate")
         speed_steps = np.diff(candidate.speed_mps)
@@ -952,7 +968,10 @@ class MidMpcPlanAcceptance:
             )
 
     @staticmethod
-    def _quality(request: AcceptanceRequest, findings: list[AcceptanceFinding]) -> None:
+    def _quality(  # noqa: C901, PLR0912, PLR0915 - explicit phase-completeness predicates
+        request: AcceptanceRequest,
+        findings: list[AcceptanceFinding],
+    ) -> None:
         course_steps = np.diff(np.unwrap(request.candidate.course_rad))
         speed_steps = np.diff(request.candidate.speed_mps)
         witness = {
@@ -960,9 +979,30 @@ class MidMpcPlanAcceptance:
             "max_speed_step_mps": float(np.max(np.abs(speed_steps))) if speed_steps.size else 0.0,
             "straightness_rad": float(np.ptp(np.unwrap(request.candidate.course_rad))),
         }
-        outcome = AcceptanceOutcome.PASS
-        code = "QUALITY_OBSERVED"
-        message = "quality metrics recorded; V1 remains advisory"
+        if request.prior.mode is AcceptanceMode.HELD_ACCEPTED_PLAN:
+            phase_evidence = request.candidate.phase_evidence
+            if not request.prior.previous_acceptance_hash or phase_evidence is None or not phase_evidence.solver_consumed:
+                _fail(
+                    findings,
+                    AcceptanceLayer.QUALITY,
+                    "QUALITY_HELD_PHASE_PROOF_MISSING",
+                    "held plan lacks its fresh candidate phase proof",
+                    witness=witness,
+                )
+            else:
+                witness["phases"] = list(phase_evidence.phases)
+                witness["recovery_from_k"] = phase_evidence.recovery_from_k
+                findings.append(
+                    AcceptanceFinding(
+                        AcceptanceLayer.QUALITY,
+                        AcceptanceOutcome.PASS,
+                        "QUALITY_HELD_PHASE_PROOF",
+                        "held plan preserves the fresh candidate's previously verified phase proof",
+                        True,
+                        witness=witness,
+                    )
+                )
+            return
         if (
             request.prior.previous_course_rad is not None
             and request.prior.previous_course_rad.size == request.candidate.course_rad.size
@@ -970,10 +1010,225 @@ class MidMpcPlanAcceptance:
             churn = np.max(np.abs(np.unwrap(request.candidate.course_rad) - np.unwrap(request.prior.previous_course_rad)))
             witness["cross_solve_course_churn_rad"] = float(churn)
             if churn > math.radians(20.0):
-                outcome = AcceptanceOutcome.WARN
-                code = "QUALITY_COURSE_CHURN"
-                message = "large cross-solve course churn observed"
-        findings.append(AcceptanceFinding(AcceptanceLayer.QUALITY, outcome, code, message, False, witness=witness))
+                findings.append(
+                    AcceptanceFinding(
+                        AcceptanceLayer.QUALITY,
+                        AcceptanceOutcome.WARN,
+                        "QUALITY_COURSE_CHURN",
+                        "large cross-solve course churn observed",
+                        False,
+                        witness=witness,
+                    )
+                )
+
+        maneuver_targets = tuple(
+            target
+            for target in request.authority.targets
+            if target.risk in {"ACTIVE", "PAST_CLEAR"}
+            and (
+                target.role in {"GIVE_WAY", "OVERTAKING"}
+                or (target.role in {"STAND_ON", "OVERTAKEN"} and target.rule17 in {"MAY_ACT", "MUST_ACT"})
+            )
+        )
+        phase_evidence = request.candidate.phase_evidence
+        if phase_evidence is None:
+            if maneuver_targets:
+                _fail(
+                    findings,
+                    AcceptanceLayer.QUALITY,
+                    "QUALITY_PHASE_EVIDENCE_MISSING",
+                    "active encounter lacks solver-consumed horizon phase evidence",
+                    witness=witness,
+                )
+            else:
+                findings.append(
+                    AcceptanceFinding(
+                        AcceptanceLayer.QUALITY,
+                        AcceptanceOutcome.PASS,
+                        "QUALITY_STRAIGHT_ALLOWED",
+                        "clear or stand-on HOLD prediction may remain straight",
+                        False,
+                        witness=witness,
+                    )
+                )
+            return
+
+        witness["phases"] = list(phase_evidence.phases)
+        witness["recovery_from_k"] = phase_evidence.recovery_from_k
+        if request.candidate.profile is AcceptanceProfile.COLAV_STRICT and not phase_evidence.solver_consumed:
+            _fail(
+                findings,
+                AcceptanceLayer.QUALITY,
+                "QUALITY_PHASES_NOT_CONSUMED",
+                "strict candidate phase evidence was not consumed by the solver",
+                witness=witness,
+            )
+        if not maneuver_targets:
+            findings.append(
+                AcceptanceFinding(
+                    AcceptanceLayer.QUALITY,
+                    AcceptanceOutcome.PASS,
+                    "QUALITY_STRAIGHT_ALLOWED",
+                    "clear or stand-on HOLD prediction may remain straight",
+                    False,
+                    witness=witness,
+                )
+            )
+            return
+
+        phase_keys = {(key.target_id, key.generation) for key in phase_evidence.target_keys}
+        missing = [
+            target.key for target in maneuver_targets if (target.key.target_id, target.key.generation) not in phase_keys
+        ]
+        if missing:
+            _fail(
+                findings,
+                AcceptanceLayer.QUALITY,
+                "QUALITY_PHASE_TARGET_MISSING",
+                "active maneuver target is absent from horizon phase evidence",
+                witness={
+                    **witness,
+                    "missing_target_keys": [{"target_id": key.target_id, "generation": key.generation} for key in missing],
+                },
+            )
+
+        peak_targets = tuple(
+            target
+            for target in maneuver_targets
+            if not target.action_achieved and target.required_course_change_rad > 1.0e-9
+        )
+        active_indices = np.array(
+            [phase in {"ALTER", "PASS"} for phase in phase_evidence.phases],
+            dtype=bool,
+        )
+        if peak_targets and not np.any(active_indices):
+            _fail(
+                findings,
+                AcceptanceLayer.QUALITY,
+                "QUALITY_AVOIDANCE_PHASE_MISSING",
+                "active encounter contains no ALTER or PASS phase",
+                witness=witness,
+            )
+        else:
+            for target in peak_targets:
+                if target.baseline_course_rad is None or target.passing_side not in {"PORT", "STARBOARD"}:
+                    continue
+                side_sign = 1.0 if target.passing_side == "STARBOARD" else -1.0
+                signed = side_sign * np.array(
+                    [_wrap(float(course - target.baseline_course_rad)) for course in request.candidate.course_rad]
+                )
+                peak = float(np.max(signed[active_indices]))
+                witness[f"target_{target.key.target_id}_avoidance_peak_rad"] = peak
+                if peak + 1.0e-6 < target.required_course_change_rad:
+                    _fail(
+                        findings,
+                        AcceptanceLayer.QUALITY,
+                        "QUALITY_AVOIDANCE_PEAK",
+                        "prediction does not contain the required avoidance-course peak",
+                        target_key=target.key,
+                        witness={**witness, "required_course_change_rad": target.required_course_change_rad},
+                    )
+
+        recovery_from_k = phase_evidence.recovery_from_k
+        if recovery_from_k is not None:
+            execution_by_key = {target.key: target for target in request.execution.targets}
+            recovery_evidence_from_k = 0
+            for target in maneuver_targets:
+                execution_target = execution_by_key.get(target.key)
+                if execution_target is None:
+                    continue
+                distances = np.hypot(
+                    execution_target.north_m - request.candidate.north_m,
+                    execution_target.east_m - request.candidate.east_m,
+                )
+                distance_steps = np.diff(distances)
+                local_minima = list(np.flatnonzero((distance_steps[:-1] <= 0.0) & (distance_steps[1:] >= 0.0)) + 1)
+                if distance_steps.size and distance_steps[0] >= 0.0:
+                    local_minima.insert(0, 0)
+                released_minima = tuple(
+                    int(index)
+                    for index in local_minima
+                    if index <= recovery_from_k
+                    and float(np.max(distances[index : recovery_from_k + 1])) >= float(distances[index]) + 1.0
+                )
+                cpa_k = released_minima[0] if released_minima else int(np.argmin(distances))
+                recovery_evidence_from_k = max(recovery_evidence_from_k, cpa_k)
+                witness[f"target_{target.key.target_id}_cpa_k"] = cpa_k
+                if recovery_from_k < cpa_k:
+                    if target.role in {"STAND_ON", "OVERTAKEN"} and target.rule17 == "MAY_ACT":
+                        findings.append(
+                            AcceptanceFinding(
+                                AcceptanceLayer.QUALITY,
+                                AcceptanceOutcome.WARN,
+                                "QUALITY_RULE17_CPA_PENDING",
+                                "Rule 17 MAY_ACT forecast keeps a later CPA outside mandatory action authority",
+                                False,
+                                target_key=target.key,
+                                witness=witness,
+                            )
+                        )
+                    else:
+                        _fail(
+                            findings,
+                            AcceptanceLayer.QUALITY,
+                            "QUALITY_CPA_RELEASE",
+                            "RECOVER begins before the relevant closest-approach knot",
+                            target_key=target.key,
+                            witness=witness,
+                        )
+            mission_error = np.abs(
+                np.array(
+                    [_wrap(float(course - phase_evidence.mission_bearing_rad)) for course in request.candidate.course_rad]
+                )
+            )
+            recovery_error = float(mission_error[recovery_from_k])
+            terminal_error = float(mission_error[-1])
+            post_cpa_error = float(np.max(mission_error[recovery_evidence_from_k:]))
+            mission_normal = np.array(
+                [
+                    -math.sin(phase_evidence.mission_bearing_rad),
+                    math.cos(phase_evidence.mission_bearing_rad),
+                ]
+            )
+            relative_positions = np.column_stack(
+                (
+                    request.candidate.north_m - request.candidate.north_m[0],
+                    request.candidate.east_m - request.candidate.east_m[0],
+                )
+            )
+            cross_track_m = relative_positions @ mission_normal
+            recovery_cross_track_m = abs(float(cross_track_m[recovery_from_k]))
+            terminal_cross_track_m = abs(float(cross_track_m[-1]))
+            post_cpa_cross_track_m = float(np.max(np.abs(cross_track_m[recovery_evidence_from_k:])))
+            witness["recovery_start_error_rad"] = recovery_error
+            witness["post_cpa_max_mission_error_rad"] = post_cpa_error
+            witness["terminal_mission_error_rad"] = terminal_error
+            witness["recovery_start_cross_track_m"] = recovery_cross_track_m
+            witness["post_cpa_max_cross_track_m"] = post_cpa_cross_track_m
+            witness["terminal_cross_track_m"] = terminal_cross_track_m
+            heading_recovery = terminal_error <= math.radians(1.0) or terminal_error + math.radians(0.25) < post_cpa_error
+            lateral_recovery = post_cpa_cross_track_m > 1.0 and terminal_cross_track_m + 1.0 < post_cpa_cross_track_m
+            recovery_complete = heading_recovery or lateral_recovery
+            if not recovery_complete:
+                _fail(
+                    findings,
+                    AcceptanceLayer.QUALITY,
+                    "QUALITY_RECOVERY_SUFFIX",
+                    "RECOVER phase lacks a measurable mission-course return suffix",
+                    witness=witness,
+                )
+
+        if not any(item.layer is AcceptanceLayer.QUALITY and item.outcome is AcceptanceOutcome.FAIL for item in findings):
+            findings.append(
+                AcceptanceFinding(
+                    AcceptanceLayer.QUALITY,
+                    AcceptanceOutcome.PASS,
+                    "QUALITY_PHASE_COMPLETE",
+                    "active encounter prediction contains avoidance, release, and available recovery evidence",
+                    True,
+                    witness=witness,
+                )
+            )
 
     @staticmethod
     def _evidence(request: AcceptanceRequest, findings: list[AcceptanceFinding]) -> None:

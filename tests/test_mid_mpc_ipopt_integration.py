@@ -15,9 +15,24 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureS
 from colav_simulator.core.tracking.trackers import TrackKey, TrackSnapshot, TrackStatus
 from colav_simulator.experiment.capabilities import ALGORITHMS, VERIFIED_COMBINATIONS
 from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
+from colav_simulator.integrations.mid_mpc_ipopt import _execution_control_knots
 from colav_simulator.integrations.registry import IntegrationRegistry
 
 ALGORITHM_ID = "mid_mpc_ipopt"
+
+
+def test_execution_control_knots_hold_each_interval_command() -> None:
+    controls = np.array(
+        [
+            [1.0, 2.0, 3.0],
+            [10.0, 20.0, 30.0],
+        ]
+    )
+
+    knots = _execution_control_knots(controls)
+
+    assert np.array_equal(knots, np.array([[1.0, 1.0, 2.0], [10.0, 10.0, 20.0]]))
+    assert not np.shares_memory(knots, controls)
 
 
 def _fast_adapter(*, scenario_id: str = "head_on") -> CustomMPCAdapter:

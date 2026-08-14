@@ -267,6 +267,43 @@ def test_colav_strict_staged_route_objective_alters_then_returns_to_mission(
     assert headings[-1] == pytest.approx(mission, abs=0.02)
 
 
+def test_staged_route_recovery_masks_legacy_give_way_objective(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    mission = source.route_bearing_rad
+    corridor = mission + 0.2
+    avoidance_until_k = max(2, config.horizon_steps // 2)
+    references = (corridor,) * avoidance_until_k + (mission,) * (config.horizon_steps - avoidance_until_k)
+    problem = replace(
+        source,
+        route_bearing_rad=corridor,
+        lateral_active=True,
+        preferred_side=1,
+        starboard_asymmetry_active=True,
+        min_alteration_rad=0.1,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=mission,
+            avoidance_corridor_bearing_rad=corridor,
+            heading_reference_rad=references,
+            lateral_reference_m=(0.0,) * config.horizon_steps,
+            avoidance_active_until_k=avoidance_until_k,
+        ),
+        row_schedule=MidMpcRowSchedule(
+            direction_hard_window=MidMpcHardWindow(0, avoidance_until_k),
+            min_alt_hard_window=MidMpcHardWindow(0, avoidance_until_k),
+        ),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    headings = result.raw_x[: config.horizon_steps]
+    assert np.mean(headings[:avoidance_until_k]) > mission + 0.08
+    assert headings[-1] == pytest.approx(mission, abs=0.03)
+
+
 def test_staged_route_profiles_reuse_one_fixed_graph(
     parity_corpus: dict[str, MidMpcParityFixture],
     monkeypatch: pytest.MonkeyPatch,
@@ -484,6 +521,41 @@ def test_accepted_primal_warm_start_resamples_and_keeps_strict_slacks_zero(
     assert result.prepared.x0[-2:].tolist() == [0.0, 0.0]
     assert result.prepared.x0[0] != pytest.approx(cold.prepared.x0[0], abs=1e-12)
     assert np.isfinite(result.prepared.x0).all()
+
+
+def test_staged_recovery_seed_is_not_replaced_by_prior_avoidance_plan(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    recovery_from_k = n // 2
+    mission = source.route_bearing_rad
+    corridor = mission + 0.2
+    problem = replace(
+        source,
+        route_bearing_rad=corridor,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=mission,
+            avoidance_corridor_bearing_rad=corridor,
+            heading_reference_rad=(corridor,) * recovery_from_k + (mission,) * (n - recovery_from_k),
+            lateral_reference_m=(0.0,) * n,
+            avoidance_active_until_k=recovery_from_k,
+        ),
+    )
+    warm = MidMpcPrimalWarmStart(
+        accepted_at_s=0.0,
+        current_time_s=config.dt_s / 2.0,
+        dt_s=config.dt_s,
+        course_rad=np.full(n, corridor),
+        speed_mps=np.full(n, source.planned_speed_mps),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem, primal_warm_start=warm)
+
+    assert result.prepared.x0[recovery_from_k] == pytest.approx(mission)
+    assert result.raw_x[n - 1] == pytest.approx(mission, abs=0.03)
 
 
 def test_rejects_more_than_frozen_target_capacity(

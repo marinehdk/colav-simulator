@@ -172,13 +172,13 @@ def test_assembler_graph_bakes_uncommitted_candidate_for_l4_all_track_safety() -
     assert snapshot.targets[0].risk.value == "CANDIDATE"
     assert snapshot.directive.required_targets == ()
     assert outcome.selected_target_keys == (TrackKey(1, 1),)
-    assert outcome.problem.lateral_active is True
+    assert outcome.problem.lateral_active is False
+    assert outcome.problem.prefix_active_k == 1
+    assert outcome.problem.prefix_psi_rad == (planner_input.ownship_state[2],)
     activation = outcome.activation_plan.targets[0]
     assert outcome.activation_plan.global_cpa_hard_from_k == math.floor(activation.cpa_hard_from_s / outcome.grid.dt_s)
     assert outcome.problem.row_schedule.cpa_hard_windows[0].start_k == activation.cpa_hard_from_k
-    assert outcome.problem.row_schedule.direction_hard_window is not None
-    assert outcome.problem.row_schedule.direction_hard_window.start_k == activation.cpa_hard_from_k
-    assert outcome.problem.row_schedule.direction_hard_window.stop_k == outcome.grid.control_intervals
+    assert outcome.problem.row_schedule.direction_hard_window is None
 
 
 def test_assembler_compiles_full_horizon_stand_on_course_authority() -> None:
@@ -233,12 +233,41 @@ def test_assembler_releases_safe_completed_target_from_optimizer_graph() -> None
         targets=(released,),
         directive=replace(snapshot.directive, required_targets=()),
     )
+    safe_input = replace(
+        planner_input,
+        tracks=(replace(planner_input.tracks[0], state_enu=np.array([1000.0, 1000.0, -7.0, 0.0])),),
+    )
 
-    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, released_snapshot))
+    outcome = MidMpcProblemAssembler().assemble(_request(safe_input, released_snapshot))
 
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.selected_target_keys == ()
     assert outcome.problem.targets == ()
+
+
+@pytest.mark.parametrize("risk", [RiskPhase.CLEAR, RiskPhase.RELEASED])
+def test_assembler_retains_non_obligated_target_with_mission_route_reentry(risk: RiskPhase) -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    released = replace(
+        snapshot.targets[0],
+        risk=risk,
+        route_recovery_allowed=True,
+        recovery_guard_active=False,
+    )
+    released_snapshot = replace(
+        snapshot,
+        targets=(released,),
+        directive=replace(snapshot.directive, required_targets=()),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, released_snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.selected_target_keys == (TrackKey(1, 1),)
+    assert outcome.problem.row_schedule.cpa_hard_windows[0].start_k == 0
 
 
 def test_assembler_compensates_frozen_timing_with_ownship_step_displacement() -> None:
@@ -294,6 +323,29 @@ def test_strict_assembler_compiles_finite_hard_windows_from_horizon_phases() -> 
     assert schedule.direction_hard_window.stop_k == outcome.grid.control_intervals
     assert schedule.min_alt_hard_window is not None
     assert schedule.min_alt_hard_window.stop_k == expected_stop
+
+
+def test_route_recovery_conflict_activates_cpa_rows_before_turning_back() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    recovery_target = replace(
+        snapshot.targets[0],
+        risk=RiskPhase.PAST_CLEAR,
+        route_recovery_allowed=True,
+        recovery_guard_active=True,
+        action_achieved=True,
+    )
+    recovery_snapshot = replace(snapshot, targets=(recovery_target,))
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, recovery_snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    target_window = outcome.horizon_encounter_plan.target_windows[0]
+    assert target_window.route_recovery_allowed_at_start is True
+    assert target_window.minimum_predicted_route_dcpa_m < target_window.recovery_clearance_m
+    assert outcome.problem.row_schedule.cpa_hard_windows[0].start_k == 0
 
 
 def test_structural_signature_stays_fixed_when_only_row_bounds_change() -> None:
@@ -483,7 +535,15 @@ def test_assembler_retains_committed_corridor_after_first_alteration_is_achieved
     assert assembly.problem.route_objective is not None
     assert assembly.problem.route_objective.mission_bearing_rad == 0.0
     assert assembly.problem.route_objective.avoidance_corridor_bearing_rad == required_change
+    assert assembly.problem.route_objective.avoidance_active_until_k == assembly.horizon_encounter_plan.phases.index(
+        HorizonEncounterPhase.RECOVER
+    )
+    recovery_k = assembly.problem.route_objective.avoidance_active_until_k
+    assert assembly.problem.route_objective.heading_reference_rad[recovery_k - 1] == pytest.approx(required_change)
+    assert assembly.problem.route_objective.heading_reference_rad[recovery_k] != pytest.approx(required_change)
     assert assembly.problem.route_objective.heading_reference_rad[-1] == 0.0
+    assert min(assembly.problem.route_objective.heading_reference_rad) >= assembly.problem.heading_bounds_rad[0]
+    assert max(assembly.problem.route_objective.heading_reference_rad) <= assembly.problem.heading_bounds_rad[1]
     lateral_reference = assembly.problem.route_objective.lateral_reference_m
     assert max(abs(value) for value in lateral_reference) > 1.0
     assert abs(lateral_reference[-1]) < max(abs(value) for value in lateral_reference)

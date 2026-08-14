@@ -278,6 +278,42 @@ class EvidenceTrackKey:
 
 
 @dataclass(frozen=True)
+class PredictionPhaseEvidence:
+    """Solver-consumed encounter phases aligned with one ownship prediction."""
+
+    times_s: np.ndarray
+    phases: tuple[str, ...]
+    mission_bearing_rad: float
+    avoidance_corridor_bearing_rad: float
+    recovery_from_k: int | None
+    target_keys: tuple[EvidenceTrackKey, ...]
+    solver_consumed: bool
+
+    def __post_init__(self) -> None:
+        """Freeze phase evidence and reject ambiguous horizon semantics."""
+        times = _readonly_vector(self.times_s, "times_s")
+        phases = tuple(str(value) for value in self.phases)
+        allowed = {"MISSION", "ALTER", "PASS", "RECOVER"}
+        if len(phases) != times.size or any(value not in allowed for value in phases):
+            raise ValueError("phases must contain one recognized value per state sample")
+        if self.recovery_from_k is not None:
+            if not 0 <= self.recovery_from_k < times.size:
+                raise ValueError("recovery_from_k must fall inside the prediction grid")
+            if any(value != "RECOVER" for value in phases[self.recovery_from_k :]):
+                raise ValueError("recovery_from_k must begin a RECOVER suffix")
+        elif "RECOVER" in phases:
+            raise ValueError("RECOVER phases require recovery_from_k")
+        if not np.isfinite((self.mission_bearing_rad, self.avoidance_corridor_bearing_rad)).all():
+            raise ValueError("phase bearings must be finite")
+        keys = tuple(sorted(self.target_keys))
+        if len(set(keys)) != len(keys):
+            raise ValueError("phase target keys must be unique")
+        object.__setattr__(self, "times_s", times)
+        object.__setattr__(self, "phases", phases)
+        object.__setattr__(self, "target_keys", keys)
+
+
+@dataclass(frozen=True)
 class TargetPredictionEvidence:
     key: EvidenceTrackKey
     purpose: PredictionPurpose

@@ -20,6 +20,7 @@ from colav_simulator.core.colav.mid_mpc_acceptance import (
     PlantCapabilityEvidence,
     PriorEvidence,
 )
+from colav_simulator.core.colav.prediction_evidence import EvidenceTrackKey, PredictionPhaseEvidence
 from colav_simulator.core.tracking.trackers import TrackKey
 
 
@@ -60,6 +61,7 @@ def _request(
     numerical: NumericalEvidence | None = None,
     profile: AcceptanceProfile = AcceptanceProfile.COLAV_STRICT,
     capability: PlantCapabilityEvidence | None = None,
+    phase_evidence: PredictionPhaseEvidence | None = None,
 ) -> AcceptanceRequest:
     times = np.array([0.0, 15.0, 30.0])
     if authority_targets and not targets:
@@ -91,6 +93,21 @@ def _request(
             )
             for target in targets
         )
+    if phase_evidence is None:
+        maneuver_targets = tuple(
+            target
+            for target in authority_targets
+            if target.role in {"GIVE_WAY", "OVERTAKING"} and target.risk in {"CANDIDATE", "ACTIVE", "PAST_CLEAR"}
+        )
+        phase_evidence = PredictionPhaseEvidence(
+            times_s=times,
+            phases=("ALTER", "PASS", "PASS") if maneuver_targets else ("MISSION",) * 3,
+            mission_bearing_rad=0.0,
+            avoidance_corridor_bearing_rad=0.0,
+            recovery_from_k=None,
+            target_keys=tuple(EvidenceTrackKey(target.key.target_id, target.key.generation) for target in maneuver_targets),
+            solver_consumed=True,
+        )
     return AcceptanceRequest(
         schema_version="colav.mid_mpc.acceptance.request@1",
         candidate=CandidateEvidence(
@@ -102,6 +119,7 @@ def _request(
             speed_mps=np.full(3, 4.0),
             numerical=_numerical() if numerical is None else numerical,
             parent_problem_hash="q" * 64,
+            phase_evidence=phase_evidence,
         ),
         authority=AuthorityEvidence(
             epoch="test-1",
@@ -287,6 +305,14 @@ def test_native_ipopt_status_must_match_normalized_eligible_termination() -> Non
     assert "NUMERICAL_TERMINATION_MISMATCH" in {finding.code for finding in result.findings}
 
 
+def test_trackability_tolerance_matches_solver_primal_tolerance() -> None:
+    course = np.array([0.0, np.deg2rad(45.0) + 5.0e-4, np.deg2rad(45.0) + 5.0e-4])
+
+    result = MidMpcPlanAcceptance().evaluate(_request(course=course))
+
+    assert "TRACKABILITY_ROT" not in {finding.code for finding in result.findings}
+
+
 def test_swept_hull_clearance_rejects_between_knot_collision() -> None:
     key = TrackKey(7, 1)
     target = ExecutionTarget(
@@ -363,6 +389,68 @@ def test_locked_starboard_candidate_is_checked_before_commitment() -> None:
     assert "COLREG_LOCKED_SIDE" in {finding.code for finding in result.findings}
 
 
+def test_held_candidate_checks_only_currently_executable_course() -> None:
+    authority = AuthorityTarget(
+        key=TrackKey(33, 1),
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="CANDIDATE",
+        commitment="NONE",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+    )
+    request = _request(
+        authority_targets=(authority,),
+        course=-np.deg2rad(np.array([0.0, 0.1, 6.0])),
+    )
+    request = replace(
+        request,
+        prior=PriorEvidence(
+            mode=AcceptanceMode.HELD_ACCEPTED_PLAN,
+            previous_acceptance_hash="a" * 64,
+            previous_course_rad=np.zeros(3),
+        ),
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(request)
+
+    assert result.accepted is True
+    assert "COLREG_LOCKED_SIDE" not in {finding.code for finding in result.findings}
+
+
+def test_locked_side_ignores_solver_scale_course_noise() -> None:
+    authority = AuthorityTarget(
+        key=TrackKey(4, 1),
+        encounter="CROSSING",
+        role="GIVE_WAY",
+        risk="CANDIDATE",
+        commitment="NONE",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=None,
+        action_start_deadline_s=None,
+        action_achievement_deadline_s=None,
+        actual_course_change_rad=None,
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(
+        _request(
+            authority_targets=(authority,),
+            course=np.array([0.0, -1.0e-4, 1.0e-4]),
+        )
+    )
+
+    assert "COLREG_LOCKED_SIDE" not in {finding.code for finding in result.findings}
+
+
 def test_achieved_commitment_allows_route_recovery_against_locked_side() -> None:
     authority = AuthorityTarget(
         key=TrackKey(4, 1),
@@ -387,6 +475,337 @@ def test_achieved_commitment_allows_route_recovery_against_locked_side() -> None
     )
 
     assert result.accepted is True
+
+
+def test_active_prediction_requires_avoidance_peak_and_post_cpa_recovery() -> None:
+    key = TrackKey(41, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="OVERTAKING",
+        role="GIVE_WAY",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=15.0,
+        actual_course_change_rad=0.0,
+    )
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=np.array([1000.0, 60.0, 1000.0]),
+        east_m=np.full(3, 500.0),
+        uncertainty_m=np.zeros(3),
+    )
+    phase_evidence = PredictionPhaseEvidence(
+        times_s=np.array([0.0, 15.0, 30.0]),
+        phases=("ALTER", "PASS", "RECOVER"),
+        mission_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=np.deg2rad(6.0),
+        recovery_from_k=2,
+        target_keys=(EvidenceTrackKey(41, 1),),
+        solver_consumed=True,
+    )
+
+    complete = MidMpcPlanAcceptance().evaluate(
+        _request(
+            targets=(target,),
+            authority_targets=(authority,),
+            course=np.deg2rad(np.array([0.0, 6.0, 0.0])),
+            phase_evidence=phase_evidence,
+        )
+    )
+    straight_request = replace(
+        _request(
+            targets=(target,),
+            authority_targets=(authority,),
+            course=np.zeros(3),
+            phase_evidence=phase_evidence,
+        ),
+        prior=PriorEvidence(
+            mode=AcceptanceMode.FRESH_CANDIDATE,
+            previous_acceptance_hash="b" * 64,
+            previous_course_rad=np.zeros(3),
+        ),
+    )
+    straight = MidMpcPlanAcceptance().evaluate(straight_request)
+
+    assert complete.accepted is True
+    assert "QUALITY_PHASE_COMPLETE" in {finding.code for finding in complete.findings}
+    assert straight.accepted is False
+    assert "QUALITY_AVOIDANCE_PEAK" in {finding.code for finding in straight.findings}
+
+
+def test_rule17_may_act_future_cpa_remains_advisory() -> None:
+    key = TrackKey(46, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="CROSSING",
+        role="STAND_ON",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=0.0,
+        action_achieved=True,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=0.0,
+        rule17="MAY_ACT",
+    )
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=np.array([1000.0, 500.0, 200.0]),
+        east_m=np.full(3, 500.0),
+        uncertainty_m=np.zeros(3),
+    )
+    phase_evidence = PredictionPhaseEvidence(
+        times_s=np.array([0.0, 15.0, 30.0]),
+        phases=("PASS", "RECOVER", "RECOVER"),
+        mission_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=np.deg2rad(6.0),
+        recovery_from_k=1,
+        target_keys=(EvidenceTrackKey(46, 1),),
+        solver_consumed=True,
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(
+        _request(
+            targets=(target,),
+            authority_targets=(authority,),
+            course=np.deg2rad(np.array([6.0, 2.0, 0.0])),
+            phase_evidence=phase_evidence,
+        )
+    )
+
+    assert result.accepted is True
+    assert "QUALITY_RULE17_CPA_PENDING" in {finding.code for finding in result.findings}
+
+
+def test_recovery_suffix_may_cross_locked_side_only_after_cpa() -> None:
+    key = TrackKey(42, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=15.0,
+        actual_course_change_rad=0.0,
+    )
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=np.array([1000.0, 60.0, 1000.0]),
+        east_m=np.full(3, 500.0),
+        uncertainty_m=np.zeros(3),
+    )
+    phase_evidence = PredictionPhaseEvidence(
+        times_s=np.array([0.0, 15.0, 30.0]),
+        phases=("ALTER", "PASS", "RECOVER"),
+        mission_bearing_rad=np.deg2rad(-1.0),
+        avoidance_corridor_bearing_rad=np.deg2rad(6.0),
+        recovery_from_k=2,
+        target_keys=(EvidenceTrackKey(42, 1),),
+        solver_consumed=True,
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(
+        _request(
+            targets=(target,),
+            authority_targets=(authority,),
+            course=np.deg2rad(np.array([0.0, 6.0, -1.0])),
+            phase_evidence=phase_evidence,
+        )
+    )
+
+    assert result.accepted is True
+    assert "COLREG_LOCKED_SIDE" not in {finding.code for finding in result.findings}
+
+
+def test_recovery_quality_accepts_solver_anticipation_after_cpa() -> None:
+    key = TrackKey(44, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="PORT",
+        baseline_course_rad=np.deg2rad(10.0),
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=True,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=np.deg2rad(6.0),
+    )
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=np.array([500.0, 1000.0, 1500.0]),
+        east_m=np.full(3, 500.0),
+        uncertainty_m=np.zeros(3),
+    )
+    phase_evidence = PredictionPhaseEvidence(
+        times_s=np.array([0.0, 15.0, 30.0]),
+        phases=("PASS", "PASS", "RECOVER"),
+        mission_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=np.deg2rad(10.0),
+        recovery_from_k=2,
+        target_keys=(EvidenceTrackKey(44, 1),),
+        solver_consumed=True,
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(
+        _request(
+            targets=(target,),
+            authority_targets=(authority,),
+            course=np.deg2rad(np.array([10.0, 0.0, 0.0])),
+            phase_evidence=phase_evidence,
+        )
+    )
+
+    assert result.accepted is True
+    assert "QUALITY_PHASE_COMPLETE" in {finding.code for finding in result.findings}
+
+
+def test_recovery_uses_released_encounter_cpa_not_later_safe_reapproach() -> None:
+    key = TrackKey(45, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=True,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=np.deg2rad(6.0),
+    )
+    base = _request(authority_targets=(authority,))
+    times = np.arange(5, dtype=float) * 15.0
+    own_north = np.arange(5, dtype=float) * 60.0
+    separation = np.array([300.0, 200.0, 400.0, 500.0, 190.0])
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=own_north + separation,
+        east_m=np.zeros(5),
+        uncertainty_m=np.zeros(5),
+    )
+    phase_evidence = PredictionPhaseEvidence(
+        times_s=times,
+        phases=("PASS", "PASS", "PASS", "RECOVER", "RECOVER"),
+        mission_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=np.deg2rad(10.0),
+        recovery_from_k=3,
+        target_keys=(EvidenceTrackKey(45, 1),),
+        solver_consumed=True,
+    )
+    request = replace(
+        base,
+        candidate=replace(
+            base.candidate,
+            times_s=times,
+            north_m=own_north,
+            east_m=np.zeros(5),
+            course_rad=np.deg2rad(np.array([10.0, 10.0, 10.0, 5.0, 0.0])),
+            speed_mps=np.full(5, 4.0),
+            numerical=replace(
+                base.candidate.numerical,
+                raw_x=np.concatenate((np.deg2rad([10.0, 10.0, 5.0, 0.0]), np.full(4, 4.0), [0.0, 0.0])),
+                lbx=np.array([-1.0] * 4 + [0.0] * 4 + [0.0, 0.0]),
+                ubx=np.array([1.0] * 4 + [8.0] * 4 + [0.0, 0.0]),
+                heading_count=4,
+                speed_count=4,
+            ),
+            phase_evidence=phase_evidence,
+        ),
+        execution=replace(base.execution, targets=(target,)),
+        policy=replace(base.policy, control_intervals=4, state_samples=5),
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(request)
+
+    assert result.accepted is True
+    quality = next(finding for finding in result.findings if finding.code == "QUALITY_PHASE_COMPLETE")
+    assert quality.witness["target_45_cpa_k"] == 1
+
+
+def test_held_accepted_recovery_suffix_keeps_prior_phase_proof() -> None:
+    key = TrackKey(43, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="HEAD_ON",
+        role="GIVE_WAY",
+        risk="PAST_CLEAR",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=True,
+        route_recovery_allowed=True,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=np.deg2rad(6.0),
+    )
+    phase_evidence = PredictionPhaseEvidence(
+        times_s=np.array([0.0, 15.0, 30.0]),
+        phases=("RECOVER", "RECOVER", "RECOVER"),
+        mission_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=np.deg2rad(6.0),
+        recovery_from_k=0,
+        target_keys=(EvidenceTrackKey(43, 1),),
+        solver_consumed=True,
+    )
+    request = _request(authority_targets=(authority,), phase_evidence=phase_evidence)
+    request = replace(
+        request,
+        prior=PriorEvidence(
+            mode=AcceptanceMode.HELD_ACCEPTED_PLAN,
+            previous_acceptance_hash="a" * 64,
+            previous_course_rad=np.deg2rad(np.array([6.0, 4.0, 2.0])),
+        ),
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(request)
+
+    assert result.accepted is True
+    assert "QUALITY_HELD_PHASE_PROOF" in {finding.code for finding in result.findings}
 
 
 def test_capability_is_bound_to_exact_runtime_tuple() -> None:

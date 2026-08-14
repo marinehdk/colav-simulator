@@ -82,6 +82,7 @@ from colav_simulator.core.colav.prediction_evidence import (
     OwnshipPrediction,
     PredictionEvidenceRecord,
     PredictionGrid,
+    PredictionPhaseEvidence,
     PredictionPurpose,
     TargetPredictionEvidence,
 )
@@ -683,7 +684,7 @@ class _MidMpcFacade:
         return MPCSolution(
             control_reference=controls[:, :1],
             predicted_trajectory=predicted,
-            control_trajectory=controls,
+            control_trajectory=_execution_control_knots(controls),
             status=status,
             horizon_dt_s=self._config.assembly.horizon_dt_s,
             objective=result.objective_total,
@@ -1308,6 +1309,7 @@ def _acceptance_request(  # noqa: PLR0913
             speed_mps=np.hypot(predicted[3], predicted[4]),
             numerical=numerical,
             parent_problem_hash=assembly.problem_hash,
+            phase_evidence=_prediction_phase_evidence(assembly),
         ),
         authority=AuthorityEvidence(
             epoch=snapshot.epoch,
@@ -1340,6 +1342,28 @@ def _acceptance_request(  # noqa: PLR0913
     )
 
 
+def _prediction_phase_evidence(assembly: AssemblySuccess) -> PredictionPhaseEvidence:
+    plan = assembly.horizon_encounter_plan
+    phases = tuple(phase.value for phase in plan.phases)
+    return PredictionPhaseEvidence(
+        times_s=plan.times_s,
+        phases=phases,
+        mission_bearing_rad=plan.mission_route_bearing_rad,
+        avoidance_corridor_bearing_rad=plan.avoidance_corridor_bearing_rad,
+        recovery_from_k=plan.recovery_from_k if "RECOVER" in phases else None,
+        target_keys=tuple(EvidenceTrackKey(window.key.target_id, window.key.generation) for window in plan.target_windows),
+        solver_consumed=plan.solver_consumed,
+    )
+
+
+def _shift_phase_evidence(evidence: PredictionPhaseEvidence, elapsed_s: float) -> PredictionPhaseEvidence:
+    dt_s = float(evidence.times_s[1] - evidence.times_s[0])
+    offset = min(int(math.floor(max(0.0, elapsed_s) / dt_s)), len(evidence.phases) - 1)
+    phases = evidence.phases[offset:] + (evidence.phases[-1],) * offset
+    recovery_from_k = next((index for index, phase in enumerate(phases) if phase == "RECOVER"), None)
+    return replace(evidence, phases=phases, recovery_from_k=recovery_from_k)
+
+
 def _held_acceptance_request(
     accepted: AcceptanceRequest,
     planner_input: PlannerInput,
@@ -1362,6 +1386,11 @@ def _held_acceptance_request(
         east_m=shifted(solution.predicted_trajectory[1]),
         course_rad=shifted(solution.predicted_trajectory[2], angle=True),
         speed_mps=shifted(np.hypot(solution.predicted_trajectory[3], solution.predicted_trajectory[4])),
+        phase_evidence=(
+            _shift_phase_evidence(accepted.candidate.phase_evidence, elapsed_s)
+            if accepted.candidate.phase_evidence is not None
+            else None
+        ),
     )
     execution = replace(
         accepted.execution,
@@ -1703,3 +1732,11 @@ def _native_trajectories(
     predicted[:6, 0] = ownship
     predicted[8, 0] = ownship[5]
     return predicted, controls
+
+
+def _execution_control_knots(controls: np.ndarray) -> np.ndarray:
+    """Encode interval controls as knots without anticipating the next interval."""
+    knots = controls.copy()
+    if knots.shape[1] > 1:
+        knots[:, 1:] = controls[:, :-1]
+    return knots

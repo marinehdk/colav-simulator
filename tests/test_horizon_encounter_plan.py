@@ -87,6 +87,7 @@ def _request(intents: tuple[HorizonTargetIntent, ...]) -> HorizonEncounterPlanRe
         reference_time_s=5.0,
         times_s=np.arange(81, dtype=float) * 5.0,
         own_position_ne_m=(0.0, 0.0),
+        mission_route_anchor_ne_m=(0.0, 0.0),
         own_heading_rad=0.0,
         own_speed_mps=7.0,
         mission_route_bearing_rad=0.0,
