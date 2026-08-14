@@ -66,6 +66,7 @@ class MidMpcIpoptSolver:
 
     def __init__(self, config: MidMpcConfig = MidMpcConfig()) -> None:
         self._config = config
+        self._graph_cache: dict[tuple[int, int, int, float], _Graph] = {}
 
     def solve(  # noqa: PLR0915 - keeps one solver call and its evidence atomic
         self,
@@ -75,7 +76,16 @@ class MidMpcIpoptSolver:
     ) -> MidMpcResult:
         _validate_target_capacity(problem, self._config.max_targets)
         started_at = time.perf_counter()
-        graph = _build_graph(self._config, problem)
+        graph_key = (
+            len(problem.targets),
+            min(problem.prefix_active_k, self._config.horizon_steps),
+            problem.audit_row_count,
+            problem.cpa_hard_m,
+        )
+        graph = self._graph_cache.get(graph_key)
+        if graph is None:
+            graph = _build_graph(self._config, problem)
+            self._graph_cache[graph_key] = graph
         prepared = _prepare(self._config, problem, graph.row_layout)
         if primal_warm_start is not None:
             prepared = _apply_primal_warm_start(prepared, primal_warm_start, self._config)
@@ -109,7 +119,7 @@ class MidMpcIpoptSolver:
         )
         stats = graph.solver.stats()
         terminal_raw_x = _flat(result["x"])
-        terminal_raw_g = _flat(graph.constraints(terminal_raw_x, prepared.p))
+        terminal_raw_g = _flat(result["g"])
         terminal_raw_f = float(result["f"])
         raw_x = terminal_raw_x
         raw_g = terminal_raw_g
@@ -387,7 +397,7 @@ def _build_graph(  # noqa: PLR0915
     rows.append(decel_step - (ca.vertcat(p[_P.U0], speed[:-1]) - speed))
     rows.extend(psi[k] - p[_P.PREFIX_PSI + k] for k in range(n))
     rows.extend(speed[k] - p[prefix_u_start + k] for k in range(n))
-    rows.extend(_cpa_rows(psi, speed, sigma_cpa, config, problem))
+    rows.extend(_cpa_rows(psi, speed, sigma_cpa, p, config, problem))
     constraint_cross_track = _cross_track_all(psi, speed, p, config.dt_s)
     dir_slack = sigma_dir if sigma_dir is not None else 0.0
     rows.extend(pref_dir * constraint_cross_track[k] + dir_slack for k in range(n))
@@ -539,6 +549,7 @@ def _cpa_rows(
     psi: ca.MX,
     speed: ca.MX,
     sigma_cpa: ca.MX | None,
+    p: ca.MX,
     config: MidMpcConfig,
     problem: MidMpcProblem,
 ) -> list[ca.MX]:
@@ -547,15 +558,20 @@ def _cpa_rows(
     own_x: ca.MX = ca.MX(0.0)
     own_y: ca.MX = ca.MX(0.0)
     prefix_k = min(problem.prefix_active_k, config.horizon_steps)
+    prefix_capacity = max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
+    target_start = int(_P.PREFIX_PSI) + 2 * prefix_capacity
     for k in range(config.horizon_steps):
         own_x += speed[k] * dt * ca.cos(psi[k])
         own_y += speed[k] * dt * ca.sin(psi[k])
-        for target in problem.targets:
+        for target_index in range(len(problem.targets)):
+            base = target_start + target_index * _TARGET_STRIDE
             time_s = k * config.dt_s
-            target_x = target.x_m + target.sog_mps * math.cos(target.cog_rad) * time_s
-            target_y = target.y_m + target.sog_mps * math.sin(target.cog_rad) * time_s
-            dx = own_x - ca.DM(target_x)
-            dy = own_y - ca.DM(target_y)
+            target_north_speed = p[base + _T.SOG] * ca.cos(p[base + _T.COG])
+            target_east_speed = p[base + _T.SOG] * ca.sin(p[base + _T.COG])
+            target_x = p[base + _T.X] + target_north_speed * time_s
+            target_y = p[base + _T.Y] + target_east_speed * time_s
+            dx = own_x - target_x
+            dy = own_y - target_y
             row = dx * dx + dy * dy - ca.DM(problem.cpa_hard_m * problem.cpa_hard_m)
             if sigma_cpa is not None and k >= prefix_k:
                 row += sigma_cpa

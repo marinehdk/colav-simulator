@@ -721,6 +721,26 @@ def test_only_accepted_receipt_can_seed_next_ipopt_solve() -> None:
     assert details["accepted_plan_receipt"]["warm_start_eligible"] is True
 
 
+def test_runtime_evidence_timeline_is_bounded_to_latest_committed_cycle() -> None:
+    adapter = _fast_adapter(scenario_id="route")
+    _plan(adapter, 0.0)
+    for sim_time_s in (1.0, 2.0, 3.0, 4.0):
+        _plan(adapter, sim_time_s)
+    _plan(adapter, 5.0)
+    for sim_time_s in (6.0, 7.0, 8.0, 9.0):
+        _plan(adapter, sim_time_s)
+
+    timeline = adapter.get_colav_data()["planner"]["evidence_timeline"]
+    events = timeline["events"]
+
+    assert len(events) < 30
+    assert events[0]["event_type"] == "CYCLE_STARTED"
+    assert events[0]["caused_by"] is None
+    assert events[0]["occurrence_id"]["event_seq"] > 0
+    assert [event["event_type"] for event in events].count("PLAN_COMMITTED") == 1
+    assert timeline["latest_terminal_outcome"] == "HELD"
+
+
 def test_reset_clears_encounter_commitment() -> None:
     adapter = _fast_adapter()
     target = [(41, np.array([1000.0, 0.0, -4.0, 0.0]), np.eye(4), 15.0, 4.0)]

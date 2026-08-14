@@ -7,7 +7,7 @@ import json
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from typing import Any
 
@@ -444,6 +444,8 @@ class CustomMPCAdapter(ICOLAV):
         self._evidence_epoch = 0
         self._evidence_seq = 0
         self._evidence_events: list[EvidenceEvent] = []
+        self._evidence_cycle_start = 0
+        self._evidence_window_start = 0
         self._evidence_envelope: EvidenceEnvelope | None = None
         self._evidence_history_envelope: EvidenceEnvelope | None = None
         self._evidence_artifact_reference: dict[str, object] | None = None
@@ -486,6 +488,8 @@ class CustomMPCAdapter(ICOLAV):
         self._evidence_epoch += 1
         self._evidence_seq = 0
         self._evidence_events = []
+        self._evidence_cycle_start = 0
+        self._evidence_window_start = 0
         self._evidence_envelope = None
         self._evidence_history_envelope = None
         self._evidence_artifact_reference = None
@@ -1180,6 +1184,8 @@ class CustomMPCAdapter(ICOLAV):
         derived_from: Sequence[str] = (),
         payload: Mapping[str, object] | None = None,
     ) -> None:
+        if event_type is EvidenceEventType.CYCLE_STARTED:
+            self._evidence_cycle_start = len(self._evidence_events)
         caused_by = self._evidence_events[-1].occurrence_id if self._evidence_events else None
         event = EvidenceEvent(
             occurrence_id=OccurrenceId(
@@ -1196,7 +1202,23 @@ class CustomMPCAdapter(ICOLAV):
             payload={} if payload is None else payload,
         )
         self._evidence_events.append(event)
+        if event_type in {
+            EvidenceEventType.PLAN_COMMITTED,
+            EvidenceEventType.PLAN_REJECTED,
+            EvidenceEventType.PLAN_FAILED,
+        }:
+            self._evidence_window_start = self._evidence_cycle_start
         self._evidence_seq += 1
+
+    def _runtime_evidence_events(self) -> tuple[EvidenceEvent, ...]:
+        events = tuple(self._evidence_events[self._evidence_window_start :])
+        if self._evidence_window_start == 0 or not events:
+            return events
+        first = replace(events[0], caused_by=None)
+        epoch_event = self._evidence_events[0]
+        if epoch_event.event_type is EvidenceEventType.RESET:
+            return (epoch_event, first, *events[1:])
+        return (first, *events[1:])
 
     def _record_artifact_status(self, artifact: Mapping[str, object], sim_time_s: float) -> None:
         if not self._capture_evidence or self._evidence_envelope is None:
@@ -1261,10 +1283,10 @@ class CustomMPCAdapter(ICOLAV):
             return {
                 "schema_version": "1.1",
                 "evidence": None,
-                "evidence_timeline": reduce_evidence(self._evidence_events).to_dict(),
+                "evidence_timeline": reduce_evidence(self._runtime_evidence_events()).to_dict(),
                 "prediction_render": None,
             }
-        timeline = reduce_evidence(self._evidence_events)
+        timeline = reduce_evidence(self._runtime_evidence_events())
         runtime_reference: RuntimeAppliedReference | None = None
         if solution is not None and elapsed_s is not None:
             executable = (

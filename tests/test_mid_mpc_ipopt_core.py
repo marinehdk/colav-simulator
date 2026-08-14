@@ -17,6 +17,7 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcRowSchedule,
     MidMpcTarget,
 )
+from colav_simulator.core.colav.mid_mpc import solver as solver_module
 from colav_simulator.core.colav.mid_mpc.solver import (
     _IterationCallback,
     _optimization_quality_passed,
@@ -201,6 +202,37 @@ def test_route_speed_cold_matches_frozen_cpp_oracle(
     parity_corpus: dict[str, MidMpcParityFixture],
 ) -> None:
     _assert_parity(parity_corpus["route_speed_cold"])
+
+
+def test_repeated_same_structure_solves_reuse_graph_without_stale_target_data(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["head_on_starboard"]
+    config = _config(fixture)
+    first_problem = _problem(fixture)
+    moved_target = replace(first_problem.targets[0], x_m=first_problem.targets[0].x_m + 25.0)
+    second_problem = replace(first_problem, targets=(moved_target,))
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(
+        config: MidMpcConfig,
+        problem: MidMpcProblem,
+    ) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    reused_solver = MidMpcIpoptSolver(config)
+    reused_solver.solve(first_problem)
+    reused_result = reused_solver.solve(second_problem)
+    fresh_result = MidMpcIpoptSolver(config).solve(second_problem)
+
+    assert build_calls == 2
+    np.testing.assert_allclose(reused_result.raw_x, fresh_result.raw_x, atol=1.0e-8, rtol=0.0)
+    np.testing.assert_allclose(reused_result.raw_g, fresh_result.raw_g, atol=1.0e-6, rtol=1.0e-12)
 
 
 def test_colav_strict_profile_keeps_frozen_slack_variables_but_fixes_them_to_zero(
