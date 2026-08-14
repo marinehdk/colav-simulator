@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from typing import Final
 
 import numpy as np
-from shapely.geometry import LineString, box
+from shapely import distance as geometry_distance
+from shapely import intersects as geometry_intersects
+from shapely import linestrings
+from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 
 from colav_simulator.core.colav.custom_mpc_adapter import (
@@ -146,26 +149,18 @@ class PotocnikColregFanMPC:
         policy = self._encounter_policy(planner_input)
         self._update_maneuver_phase(policy, cross_track_error_m, ownship[2], target_course)
 
-        candidate_groups = []
-        control_groups = []
-        increment_groups = []
-        speed_scale_groups = []
         command_course_center = float(ownship[2]) if self._previous_command_course is None else self._previous_command_course
-        for speed_scale in self.params.speed_scales:
-            candidates, controls = self._generate_candidate_bundle(
-                ownship,
-                route_speed_mps * speed_scale,
-                planner_input.dt_sim_s,
-                command_course_center=command_course_center,
-            )
-            candidate_groups.append(candidates)
-            control_groups.append(controls)
-            increment_groups.append(self._heading_increments)
-            speed_scale_groups.append(np.full(self.params.candidate_count, speed_scale))
-        candidates = np.concatenate(candidate_groups)
-        controls = np.concatenate(control_groups)
-        increments = np.concatenate(increment_groups)
-        speed_scales = np.concatenate(speed_scale_groups)
+        speed_scales = np.repeat(
+            np.asarray(self.params.speed_scales),
+            self.params.candidate_count,
+        )
+        candidates, controls = self._generate_candidate_bundle(
+            ownship,
+            route_speed_mps * np.asarray(self.params.speed_scales),
+            planner_input.dt_sim_s,
+            command_course_center=command_course_center,
+        )
+        increments = np.tile(self._heading_increments, len(self.params.speed_scales))
 
         target_predictions = self._target_predictions(planner_input)
         minimum_clearance, dynamic_feasible, footprint_feasible = self._dynamic_feasibility(
@@ -332,16 +327,19 @@ class PotocnikColregFanMPC:
             algorithm_details=details,
         )
 
-    def _generate_candidate_bundle(
+    def _generate_candidate_bundle(  # noqa: PLR0915
         self,
         ownship: np.ndarray,
-        command_speed_mps: float,
+        command_speed_mps: float | np.ndarray,
         dt_sim_s: float,
         *,
         command_course_center: float | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         horizon = self.params.prediction_steps + 1
-        count = self.params.candidate_count
+        command_speeds = np.atleast_1d(np.asarray(command_speed_mps, dtype=float))
+        count = self.params.candidate_count * command_speeds.size
+        heading_increments = np.tile(self._heading_increments, command_speeds.size)
+        desired_speeds = np.repeat(command_speeds, self.params.candidate_count)
         candidates = np.zeros((count, 9, horizon), dtype=float)
         controls = np.zeros_like(candidates)
         candidates[:, :6, 0] = ownship
@@ -351,16 +349,16 @@ class PotocnikColregFanMPC:
         east = np.full(count, float(ownship[1]))
         if command_course_center is None:
             command_course_center = float(ownship[2])
-        command_headings = _wrap_angle(command_course_center + self._heading_increments)
-        increments = self._heading_increments.copy()
+        command_headings = _wrap_angle(command_course_center + heading_increments)
+        increments = heading_increments.copy()
         controls[:, 2, 0] = command_headings
-        controls[:, 3, 0] = command_speed_mps
+        controls[:, 3, 0] = desired_speeds
         for sample in range(1, horizon):
             if sample > 1:
                 increments *= self.params.heading_increment_decay
                 command_headings = _wrap_angle(command_headings + increments)
             controls[:, 2, sample] = command_headings
-            controls[:, 3, sample] = command_speed_mps
+            controls[:, 3, sample] = desired_speeds
 
         integration_steps = max(1, int(np.ceil(self.params.horizon_dt_s / dt_sim_s)))
         integration_dt_s = self.params.horizon_dt_s / integration_steps
@@ -485,18 +483,27 @@ class PotocnikColregFanMPC:
         planner_input: PlannerInput,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         count = candidates.shape[0]
-        minimum = np.full(count, np.inf)
-        feasible = np.ones(count, dtype=bool)
-        footprint_feasible = np.ones(count, dtype=bool)
+        if not targets:
+            return (
+                np.full(count, np.inf),
+                np.ones(count, dtype=bool),
+                np.ones(count, dtype=bool),
+            )
         own_radius = 0.5 * float(np.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m))
-        for target in targets:
-            target_ne = np.vstack((target["north_m"], target["east_m"]))
-            clearance = _continuous_minimum_distance(candidates[:, :2], target_ne)
-            target_radius = 0.5 * float(np.hypot(target["length_m"], target["width_m"]))
-            required = self.params.collision_distance_m + own_radius + target_radius
-            minimum = np.minimum(minimum, clearance)
-            feasible &= clearance >= required
-            footprint_feasible &= clearance >= own_radius + target_radius
+        target_ne = np.stack(
+            [np.vstack((target["north_m"], target["east_m"])) for target in targets]
+        )
+        clearance = _batched_continuous_minimum_distance(candidates[:, :2], target_ne)
+        target_radii = np.asarray(
+            [0.5 * np.hypot(target["length_m"], target["width_m"]) for target in targets]
+        )
+        required = self.params.collision_distance_m + own_radius + target_radii
+        minimum = np.min(clearance, axis=0)
+        feasible = np.all(clearance >= required[:, None], axis=0)
+        footprint_feasible = np.all(
+            clearance >= (own_radius + target_radii)[:, None],
+            axis=0,
+        )
         return minimum, feasible, footprint_feasible
 
     def _pass_astern_candidates(
@@ -546,10 +553,9 @@ class PotocnikColregFanMPC:
         if local_hazard.is_empty:
             return feasible, minimum, True
         exclusion = local_hazard.buffer(margin)
-        for index, candidate in enumerate(candidates):
-            centerline = LineString(np.column_stack((candidate[1], candidate[0])))
-            minimum[index] = max(0.0, float(centerline.distance(local_hazard)) - radius)
-            feasible[index] = not centerline.intersects(exclusion)
+        centerlines = linestrings(np.stack((east, north), axis=-1))
+        minimum = np.maximum(0.0, geometry_distance(centerlines, local_hazard) - radius)
+        feasible = ~geometry_intersects(centerlines, exclusion)
         return feasible, minimum, True
 
     def _grounding_hazard(self, planner_input: PlannerInput) -> BaseGeometry | None:
@@ -900,19 +906,26 @@ def create(
 
 
 def _continuous_minimum_distance(own_ne: np.ndarray, target_ne: np.ndarray) -> np.ndarray:
-    relative = target_ne[None, :, :] - own_ne
-    starts = relative[:, :, :-1]
-    changes = relative[:, :, 1:] - starts
-    denominator = np.sum(changes * changes, axis=1)
+    return _batched_continuous_minimum_distance(own_ne, target_ne[None, ...])[0]
+
+
+def _batched_continuous_minimum_distance(
+    own_ne: np.ndarray,
+    targets_ne: np.ndarray,
+) -> np.ndarray:
+    relative = targets_ne[:, None, :, :] - own_ne[None, ...]
+    starts = relative[..., :-1]
+    changes = relative[..., 1:] - starts
+    denominator = np.sum(changes * changes, axis=2)
     tau = np.divide(
-        -np.sum(starts * changes, axis=1),
+        -np.sum(starts * changes, axis=2),
         denominator,
         out=np.zeros_like(denominator),
         where=denominator > 1e-12,
     )
     tau = np.clip(tau, 0.0, 1.0)
-    closest = starts + changes * tau[:, None, :]
-    return np.min(np.linalg.norm(closest, axis=1), axis=1)
+    closest = starts + changes * tau[:, :, None, :]
+    return np.min(np.linalg.norm(closest, axis=2), axis=2)
 
 
 def _relative_position_at_continuous_cpa(

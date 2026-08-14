@@ -10,6 +10,7 @@ from colav_simulator.integrations import IntegrationRegistry, potocnik_colreg_mp
 from colav_simulator.integrations.potocnik_colreg_mpc import (
     PotocnikColregFanMPC,
     PotocnikColregParams,
+    _batched_continuous_minimum_distance,
     _continuous_minimum_distance,
     _Policy,
 )
@@ -141,6 +142,21 @@ def test_nominal_speed_recovers_after_slowdown() -> None:
 
     assert solution.control_reference[3, 0] == pytest.approx(7.0)
     assert solution.algorithm_details["selected_speed_scale"] == pytest.approx(1.0)
+
+
+def test_candidate_rollout_batches_speed_scales_without_changing_order() -> None:
+    colreg_solver = solver()
+    ownship = planner_input().ownship_state
+    speeds = 7.0 * np.asarray(colreg_solver.params.speed_scales)
+    expected = [
+        colreg_solver._generate_candidate_bundle(ownship, speed, 0.5)
+        for speed in speeds
+    ]
+
+    candidates, controls = colreg_solver._generate_candidate_bundle(ownship, speeds, 0.5)
+
+    np.testing.assert_allclose(candidates, np.concatenate([item[0] for item in expected]))
+    np.testing.assert_allclose(controls, np.concatenate([item[1] for item in expected]))
 
 
 def test_crossing_give_way_turns_starboard_and_passes_astern() -> None:
@@ -408,6 +424,26 @@ def test_continuous_clearance_detects_between_sample_tunneling() -> None:
     minimum = _continuous_minimum_distance(own, target)
 
     assert minimum[0] == pytest.approx(0.0)
+
+
+def test_multitarget_clearance_batch_matches_independent_targets() -> None:
+    own = np.array(
+        [
+            [[0.0, 10.0], [0.0, 0.0]],
+            [[0.0, 0.0], [0.0, 10.0]],
+        ]
+    )
+    targets = np.array(
+        [
+            [[5.0, 5.0], [-5.0, 5.0]],
+            [[20.0, 20.0], [20.0, 20.0]],
+        ]
+    )
+
+    batched = _batched_continuous_minimum_distance(own, targets)
+    expected = np.stack([_continuous_minimum_distance(own, target) for target in targets])
+
+    np.testing.assert_allclose(batched, expected)
 
 
 def test_enc_hazard_filters_continuous_centerline(monkeypatch: pytest.MonkeyPatch) -> None:
