@@ -35,8 +35,9 @@ from colav_simulator.core.tracking.trackers import TrackKey
 @dataclass(frozen=True)
 class MidMpcAssemblyConfig:
     horizon_steps: int = 80
-    horizon_dt_s: float = 15.0
+    horizon_dt_s: float = 5.0
     heading_window_rad: float = math.radians(45.0)
+    stand_on_course_tolerance_rad: float = math.radians(5.0)
     speed_bounds_mps: tuple[float, float] = (0.0, 8.0)
     cpa_safe_m: float = 150.0
     cpa_hard_m: float = 50.0
@@ -505,18 +506,56 @@ def _compile_semantic_problem(
         else policy.preferred_side
     )
     lateral_active = policy.lateral_active or candidate_side is not PassingSide.NONE
-    stand_on_hold = not lateral_active and any(
-        decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
+    give_way_obligation = any(
+        decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
+        and decision.risk in {RiskPhase.CANDIDATE, RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
         for decision in binding.selected_decisions
     )
+    stand_on_hold = (
+        not lateral_active
+        and not give_way_obligation
+        and any(
+            decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
+            for decision in binding.selected_decisions
+        )
+    )
+    heading_bounds = (
+        float(ownship[2]) - capability.heading_window_rad,
+        float(ownship[2]) + capability.heading_window_rad,
+    )
+    if stand_on_hold:
+        stand_on_baselines = tuple(
+            float(ownship[2]) + _wrap(float(decision.baseline_course_rad) - float(ownship[2]))
+            for decision in binding.selected_decisions
+            if decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN}
+            and decision.rule17 is Rule17Stage.STAND_ON
+            and decision.baseline_course_rad is not None
+        )
+        if not stand_on_baselines:
+            raise _AssemblyInputError(
+                AssemblyFailureCode.INVALID_INPUT,
+                "stand-on authority requires a frozen course baseline",
+            )
+        heading_bounds = (
+            max(
+                heading_bounds[0],
+                *(baseline - config.stand_on_course_tolerance_rad for baseline in stand_on_baselines),
+            ),
+            min(
+                heading_bounds[1],
+                *(baseline + config.stand_on_course_tolerance_rad for baseline in stand_on_baselines),
+            ),
+        )
+        if heading_bounds[0] > heading_bounds[1]:
+            raise _AssemblyInputError(
+                AssemblyFailureCode.CORE_CAPABILITY_MISMATCH,
+                "stand-on course authorities have no common feasible heading corridor",
+            )
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
         route_bearing_rad=policy.committed_route_bearing_rad,
         planned_speed_mps=0.0 if snapshot.directive.stop_required else route.planned_speed_mps,
-        heading_bounds_rad=(
-            float(ownship[2]) - capability.heading_window_rad,
-            float(ownship[2]) + capability.heading_window_rad,
-        ),
+        heading_bounds_rad=heading_bounds,
         speed_bounds_mps=policy.speed_bounds_mps,
         cpa_safe_m=max(config.cpa_safe_m, effective_cpa_hard_m),
         cpa_hard_m=effective_cpa_hard_m,
@@ -788,15 +827,20 @@ def _activation_plan(
         for decision, activation_s in zip(
             decisions,
             (
-                _cpa_activation_time_s(
-                    track,
-                    ownship[:2],
-                    own_velocity,
-                    effective_cpa_hard_m,
-                    lead_time_s,
-                    config,
+                (
+                    config.horizon_steps * config.horizon_dt_s
+                    if decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN}
+                    and decision.rule17 is Rule17Stage.STAND_ON
+                    else _cpa_activation_time_s(
+                        track,
+                        ownship[:2],
+                        own_velocity,
+                        effective_cpa_hard_m,
+                        lead_time_s,
+                        config,
+                    )
                 )
-                for track in tracks
+                for decision, track in zip(decisions, tracks, strict=True)
             ),
             strict=True,
         )
@@ -859,6 +903,8 @@ def _activation_document(plan: ConstraintActivationPlan) -> dict[str, Any]:
 
 
 def _admission_rank(decision: TargetDecision) -> int:
+    if decision.risk is RiskPhase.RELEASED and not decision.recovery_guard_active:
+        return 0
     if decision.rule17 is Rule17Stage.MUST_ACT:
         return 5
     if decision.commitment is CommitmentPhase.COMMITTED and decision.risk is RiskPhase.ACTIVE:

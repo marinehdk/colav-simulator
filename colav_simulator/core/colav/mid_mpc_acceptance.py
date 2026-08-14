@@ -129,6 +129,7 @@ class AuthorityTarget:
     action_start_deadline_s: float | None = None
     action_achievement_deadline_s: float | None = None
     actual_course_change_rad: float | None = None
+    rule17: str = "NONE"
 
 
 @dataclass(frozen=True)
@@ -237,7 +238,8 @@ class PriorEvidence:
 class PlanAcceptancePolicy:
     control_intervals: int = 80
     state_samples: int = 81
-    horizon_dt_s: float = 15.0
+    horizon_dt_s: float = 5.0
+    stand_on_course_tolerance_rad: float = math.radians(5.0)
     hard_hull_clearance_m: float = 50.0
     advisory_hull_clearance_m: float = 150.0
     max_relevant_targets: int = 16
@@ -257,6 +259,7 @@ class PlanAcceptancePolicy:
             raise ValueError("acceptance grid must contain one more state than control intervals")
         numeric = (
             self.horizon_dt_s,
+            self.stand_on_course_tolerance_rad,
             self.hard_hull_clearance_m,
             self.advisory_hull_clearance_m,
             self.total_deadline_s,
@@ -544,6 +547,7 @@ class MidMpcPlanAcceptance:
             request.execution.ownship_width_m,
         )
         witnesses: list[TargetSafetyWitness] = []
+        authority_by_key = {target.key: target for target in request.authority.targets}
         for target in sorted(request.execution.targets, key=lambda item: (item.key.target_id, item.key.generation)):
             if target.north_m.size != candidate.times_s.size:
                 _fail(
@@ -556,6 +560,19 @@ class MidMpcPlanAcceptance:
                 continue
             target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
             best: TargetSafetyWitness | None = None
+            forecast_best: TargetSafetyWitness | None = None
+            authority = authority_by_key.get(target.key)
+            mandatory_intervals = candidate.times_s.size - 1
+            if authority is not None and authority.rule17 == "STAND_ON" and authority.role in {"STAND_ON", "OVERTAKEN"}:
+                remaining_s = (
+                    request.policy.horizon_dt_s
+                    if authority.action_start_deadline_s is None
+                    else max(0.0, authority.action_start_deadline_s - request.execution.sim_time_s)
+                )
+                mandatory_intervals = min(
+                    mandatory_intervals,
+                    max(1, math.ceil(remaining_s / request.policy.horizon_dt_s)),
+                )
             for index in range(candidate.times_s.size - 1):
                 own_start = np.array([candidate.north_m[index], candidate.east_m[index]])
                 own_end = np.array([candidate.north_m[index + 1], candidate.east_m[index + 1]])
@@ -585,7 +602,11 @@ class MidMpcPlanAcceptance:
                     own_position_ne_m=(float(own_at_min[0]), float(own_at_min[1])),
                     target_position_ne_m=(float(target_at_min[0]), float(target_at_min[1])),
                 )
-                if best is None or witness.clearance_lower_bound_m < best.clearance_lower_bound_m:
+                if forecast_best is None or witness.clearance_lower_bound_m < forecast_best.clearance_lower_bound_m:
+                    forecast_best = witness
+                if index < mandatory_intervals and (
+                    best is None or witness.clearance_lower_bound_m < best.clearance_lower_bound_m
+                ):
                     best = witness
             if best is not None:
                 witnesses.append(best)
@@ -597,6 +618,21 @@ class MidMpcPlanAcceptance:
                         "synchronized swept hull clearance is below the physical hard gate",
                         target_key=target.key,
                         witness=_json_value(best),
+                    )
+                elif (
+                    forecast_best is not None
+                    and forecast_best.clearance_lower_bound_m < request.policy.hard_hull_clearance_m
+                ):
+                    findings.append(
+                        AcceptanceFinding(
+                            AcceptanceLayer.SAFETY,
+                            AcceptanceOutcome.WARN,
+                            "SAFETY_RULE17_FUTURE_CONFLICT",
+                            "stand-on trajectory stays safe through its action deadline but forecasts a later conflict",
+                            False,
+                            target_key=target.key,
+                            witness=_json_value(forecast_best),
+                        )
                     )
         if request.execution.static_context_required:
             static = request.execution.static_clearance_m
@@ -662,7 +698,7 @@ class MidMpcPlanAcceptance:
                     )
                 else:
                     drift = max(abs(_wrap(float(course - target.baseline_course_rad))) for course in candidate.course_rad)
-                    if drift > math.radians(5.0) + 1.0e-6:
+                    if drift > request.policy.stand_on_course_tolerance_rad + 1.0e-6:
                         _fail(
                             findings,
                             AcceptanceLayer.COLREG,

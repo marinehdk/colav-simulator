@@ -199,6 +199,43 @@ def test_safety_checks_every_execution_track_even_when_not_selected_by_solver() 
     assert "SAFETY_SWEPT_CLEARANCE" in {finding.code for finding in result.findings}
 
 
+def test_stand_on_safety_is_mandatory_through_action_deadline_then_forecast() -> None:
+    key = TrackKey(8, 1)
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=np.array([1000.0, 1000.0, 120.0]),
+        east_m=np.zeros(3),
+        uncertainty_m=np.zeros(3),
+    )
+    authority = AuthorityTarget(
+        key=key,
+        encounter="CROSSING",
+        role="STAND_ON",
+        risk="ACTIVE",
+        commitment="NONE",
+        passing_side="NONE",
+        baseline_course_rad=0.0,
+        required_course_change_rad=0.0,
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        action_start_deadline_s=15.0,
+        rule17="STAND_ON",
+    )
+
+    held = MidMpcPlanAcceptance().evaluate(_request(targets=(target,), authority_targets=(authority,)))
+    may_act = MidMpcPlanAcceptance().evaluate(
+        _request(targets=(target,), authority_targets=(replace(authority, rule17="MAY_ACT"),))
+    )
+
+    assert held.accepted is True
+    assert "SAFETY_RULE17_FUTURE_CONFLICT" in {finding.code for finding in held.findings}
+    assert may_act.accepted is False
+    assert "SAFETY_SWEPT_CLEARANCE" in {finding.code for finding in may_act.findings}
+
+
 def test_stand_on_candidate_rejects_course_drift_before_rule17() -> None:
     authority = AuthorityTarget(
         key=TrackKey(7, 1),

@@ -122,6 +122,19 @@ def test_mid_mpc_multiship_closed_loop_is_safe_observable_and_recovers(  # noqa:
     assert all(row["constraints"]["slack_bounds"]["direction"] == [0.0, 0.0] for row in solve_rows)
     json.dumps(run.session.events, allow_nan=False)
 
+    avoidance = next(row for row in solve_rows if math.isclose(row["sim_time"], 5.0, abs_tol=1.0e-9))
+    predicted = np.asarray(avoidance["predicted_trajectory"], dtype=float)
+    predicted_courses = np.unwrap(predicted[2])
+    course_deviation = np.abs(predicted_courses - predicted_courses[0])
+    assert predicted.shape == (9, 81)
+    assert np.max(course_deviation) >= math.radians(5.0)
+    assert course_deviation[-1] < 0.75 * np.max(course_deviation)
+    chord = predicted[:2, -1] - predicted[:2, 0]
+    cross_track = np.abs(
+        chord[0] * (predicted[1] - predicted[1, 0]) - chord[1] * (predicted[0] - predicted[0, 0])
+    ) / np.linalg.norm(chord)
+    assert np.max(cross_track) > 10.0
+
     initial = np.asarray(run.session.frames[0]["Ship0"]["state"], dtype=float)
     courses = np.asarray(
         [_course(np.asarray(frame["Ship0"]["state"], dtype=float)) for frame in run.session.frames],

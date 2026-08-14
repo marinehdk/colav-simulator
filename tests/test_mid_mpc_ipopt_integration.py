@@ -98,6 +98,7 @@ def test_registry_exposes_published_mid_mpc_profile_and_truthful_descriptor() ->
     assert descriptor["descriptor"]["solver"] == "casadi-3.7.2-ipopt"
     assert descriptor["descriptor"]["horizon_steps"] == 80
     assert descriptor["descriptor"]["state_samples"] == 81
+    assert descriptor["descriptor"]["horizon_dt"] == 5.0
     assert descriptor["fallback_policy"] == "forbidden"
     assert descriptor["build_identity"]["config_sha256"] != "UNKNOWN"
     assert ALGORITHMS[ALGORITHM_ID].readiness_grade == "G3"
@@ -142,8 +143,8 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     assert command.shape == (9, 1)
     assert plan.shape == (9, 81)
     np.testing.assert_allclose(plan[:6, 0], [0.0, 0.0, 0.0, 4.0, 0.0, 0.0], atol=1e-9)
-    assert np.linalg.norm(plan[:2, 1] - plan[:2, 0]) > 50.0
-    assert np.linalg.norm(plan[:2, -1] - plan[:2, 0]) > 4_000.0
+    assert np.linalg.norm(plan[:2, 1] - plan[:2, 0]) > 15.0
+    assert np.linalg.norm(plan[:2, -1] - plan[:2, 0]) > 1_000.0
     assert diagnostics.fallback_used is False
     assert diagnostics.details["solver_executed"] is True
     assert diagnostics.details["solver_backend"] == "ipopt"
@@ -159,7 +160,7 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     assert trace["algorithm_details"]["formulation"] == "mass-l3-mid-mpc-ipopt-frozen"
     assert trace["algorithm_details"]["control_intervals"] == 80
     assert trace["algorithm_details"]["state_samples"] == 81
-    assert trace["algorithm_details"]["horizon_duration_s"] == 1200.0
+    assert trace["algorithm_details"]["horizon_duration_s"] == 400.0
     acceptance = trace["algorithm_details"]["plan_acceptance"]
     assert acceptance["accepted"] is True
     assert acceptance["aggregate"] == "PASS"

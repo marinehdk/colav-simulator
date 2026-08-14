@@ -6,14 +6,18 @@ import pytest
 
 from colav_simulator.core.colav.custom_mpc_adapter import PlannerInput, TrackedObstacle
 from colav_simulator.core.colav.encounter_lifecycle import (
+    CommitmentPhase,
     DecisionSnapshot,
     EncounterCycle,
     EncounterLifecycle,
     Maneuverability,
     ObservationHealth,
     OwnshipObservation,
+    OwnshipRole,
     PassingSide,
     PlannerOddProfile,
+    RiskPhase,
+    Rule17Stage,
     TargetObservation,
 )
 from colav_simulator.core.colav.mid_mpc_assembler import (
@@ -108,10 +112,10 @@ def test_assembler_binds_targets_deterministically_and_emits_81_point_prediction
     assert outcome.problem_hash == reordered.problem_hash
     assert len(outcome.target_predictions) == 2
     assert outcome.target_predictions[0].times_s.shape == (81,)
-    assert outcome.target_predictions[0].times_s[[0, -1]].tolist() == [0.0, 1200.0]
+    assert outcome.target_predictions[0].times_s[[0, -1]].tolist() == [0.0, 400.0]
     assert outcome.grid.control_intervals == 80
     assert outcome.grid.state_samples == 81
-    assert outcome.grid.duration_s == 1200.0
+    assert outcome.grid.duration_s == 400.0
     assert outcome.preparation.seed.source == "DETERMINISTIC_COLD_START"
     assert outcome.preparation.prefix.active_intervals == 0
     assert outcome.preparation.slack.cpa_bounds == (0.0, 0.0)
@@ -165,7 +169,66 @@ def test_assembler_graph_bakes_uncommitted_candidate_for_l4_all_track_safety() -
     assert snapshot.directive.required_targets == ()
     assert outcome.selected_target_keys == (TrackKey(1, 1),)
     assert outcome.problem.lateral_active is True
-    assert outcome.activation_plan.global_cpa_hard_from_k == 2
+    activation = outcome.activation_plan.targets[0]
+    assert outcome.activation_plan.global_cpa_hard_from_k == math.floor(activation.cpa_hard_from_s / outcome.grid.dt_s)
+
+
+def test_assembler_compiles_full_horizon_stand_on_course_authority() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    stand_on_decision = replace(
+        snapshot.targets[0],
+        role=OwnshipRole.STAND_ON,
+        risk=RiskPhase.ACTIVE,
+        commitment=CommitmentPhase.NONE,
+        passing_side=PassingSide.NONE,
+        rule17=Rule17Stage.STAND_ON,
+        baseline_course_rad=0.0,
+        required_course_change_rad=0.0,
+    )
+    stand_on_snapshot = replace(
+        snapshot,
+        targets=(stand_on_decision,),
+        directive=replace(
+            snapshot.directive,
+            required_targets=(),
+            passing_side=PassingSide.NONE,
+            minimum_course_change_rad=0.0,
+        ),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, stand_on_snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.problem.heading_bounds_rad == pytest.approx((-math.radians(5.0), math.radians(5.0)))
+    assert outcome.problem.prefix_active_k == 1
+    assert outcome.problem.row_schedule.cpa_hard_from_k == 80
+
+
+def test_assembler_releases_safe_completed_target_from_optimizer_graph() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    released = replace(
+        snapshot.targets[0],
+        risk=RiskPhase.RELEASED,
+        route_recovery_allowed=True,
+        recovery_guard_active=False,
+    )
+    released_snapshot = replace(
+        snapshot,
+        targets=(released,),
+        directive=replace(snapshot.directive, required_targets=()),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, released_snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.selected_target_keys == ()
+    assert outcome.problem.targets == ()
 
 
 def test_assembler_compensates_frozen_timing_with_ownship_step_displacement() -> None:
@@ -180,7 +243,7 @@ def test_assembler_compensates_frozen_timing_with_ownship_step_displacement() ->
     own_radius = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
     target = planner_input.tracks[0]
     target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
-    expected = 50.0 + own_radius + target_radius + 8.0 * 15.0
+    expected = 50.0 + own_radius + target_radius + 8.0 * 5.0
     assert outcome.effective_cpa_hard_m == pytest.approx(expected)
 
 
@@ -194,9 +257,9 @@ def test_assembler_compiles_required_cpa_activation_from_physical_time() -> None
 
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.activation_plan.targets[0].key == TrackKey(1, 1)
-    assert outcome.activation_plan.targets[0].cpa_hard_from_s == pytest.approx(41.4285714286)
-    assert outcome.activation_plan.targets[0].cpa_hard_from_k == 2
-    assert outcome.problem.row_schedule.cpa_hard_from_k == 2
+    assert outcome.activation_plan.targets[0].cpa_hard_from_s == pytest.approx(61.4285714286)
+    assert outcome.activation_plan.targets[0].cpa_hard_from_k == 12
+    assert outcome.problem.row_schedule.cpa_hard_from_k == 12
 
 
 def test_structural_signature_changes_when_compiled_row_topology_changes() -> None:
@@ -257,7 +320,7 @@ def test_activation_uses_resolved_capability_not_config_default() -> None:
     outcome = MidMpcProblemAssembler().assemble(request)
 
     assert isinstance(outcome, AssemblySuccess)
-    expected_k = math.ceil(snapshot.directive.minimum_course_change_rad / (math.radians(0.5) * 15.0)) - 1
+    expected_k = math.ceil(snapshot.directive.minimum_course_change_rad / (math.radians(0.5) * 5.0)) - 1
     assert outcome.problem.row_schedule.min_alt_hard_from_k == expected_k
     assert outcome.problem.rot_max_rad_s == math.radians(0.5)
 

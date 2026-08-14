@@ -379,6 +379,7 @@ class _MidMpcFacade:
             predicted=predicted,
             capability=capability,
             hard_hull_clearance_m=self._config.assembly.cpa_hard_m,
+            stand_on_course_tolerance_rad=self._config.assembly.stand_on_course_tolerance_rad,
             prepared_hash=prepared_hash,
             solver_hash=solver_hash,
             total_deadline_s=self._config.total_deadline_s,
@@ -881,6 +882,8 @@ def _prediction_evidence(
         }
 
     for prediction in assembly.target_predictions:
+        if prediction.key not in selected_keys:
+            continue
         target_predictions.append(
             TargetPredictionEvidence(
                 key=EvidenceTrackKey(prediction.key.target_id, prediction.key.generation),
@@ -945,7 +948,7 @@ def create(  # noqa: PLR0913
     *,
     context: FactoryContext,
     horizon_steps: int = 80,
-    horizon_dt_s: float = 15.0,
+    horizon_dt_s: float = 5.0,
     solve_period_s: float = 5.0,
     deadline_s: float = 20.0,
     heading_window_deg: float = 45.0,
@@ -1225,6 +1228,7 @@ def _acceptance_request(  # noqa: PLR0913
     predicted: np.ndarray,
     capability: PlantCapabilityEvidence,
     hard_hull_clearance_m: float,
+    stand_on_course_tolerance_rad: float,
     prepared_hash: str,
     solver_hash: str,
     total_deadline_s: float,
@@ -1274,6 +1278,7 @@ def _acceptance_request(  # noqa: PLR0913
             action_start_deadline_s=decision.action_start_deadline_s,
             action_achievement_deadline_s=decision.action_achievement_deadline_s,
             actual_course_change_rad=decision.actual_course_change_rad,
+            rule17=decision.rule17.value,
         )
         for decision in snapshot.targets
     )
@@ -1311,6 +1316,7 @@ def _acceptance_request(  # noqa: PLR0913
             state_samples=grid.state_samples,
             horizon_dt_s=grid.dt_s,
             hard_hull_clearance_m=hard_hull_clearance_m,
+            stand_on_course_tolerance_rad=stand_on_course_tolerance_rad,
             advisory_hull_clearance_m=assembly.problem.cpa_safe_m,
             total_deadline_s=total_deadline_s,
             scenario_id=scenario_id,

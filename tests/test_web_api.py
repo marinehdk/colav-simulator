@@ -598,8 +598,8 @@ def test_mid_mpc_rest_and_websocket_publish_one_typed_authority_projection() -> 
         assert render["grid"] == {
             "intervals": 80,
             "state_samples": 81,
-            "dt_s": 15.0,
-            "duration_s": 1200.0,
+            "dt_s": 5.0,
+            "duration_s": 400.0,
         }
         assert render["style"] == "ACTIVE"
         assert len(telemetry["plans"]["prediction_horizon"]) == 81

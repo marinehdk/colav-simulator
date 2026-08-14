@@ -2,7 +2,7 @@ factory: colav_simulator.integrations.mid_mpc_ipopt:create
 dependency_lock: ../uv.lock
 kwargs:
   horizon_steps: 80
-  horizon_dt_s: 15.0
+  horizon_dt_s: 5.0
   solve_period_s: 5.0
   deadline_s: 20.0
   heading_window_deg: 45.0
