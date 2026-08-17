@@ -423,11 +423,14 @@ class EncounterLifecycle:
             return current.result
         if current.epoch == cycle.epoch and cycle.sim_time_s < current.sim_time_s:
             raise LifecycleError(LifecycleFailure.TIME_REWIND, "lifecycle time moved backwards")
-        if (
-            current.epoch == cycle.epoch
-            and current.sim_time_s >= 0.0
-            and cycle.sim_time_s - current.sim_time_s > cycle.profile.max_cycle_gap_s
-        ):
+        cycle_gap_s = cycle.sim_time_s - current.sim_time_s
+        gap_exceeds_profile = cycle_gap_s > cycle.profile.max_cycle_gap_s and not math.isclose(
+            cycle_gap_s,
+            cycle.profile.max_cycle_gap_s,
+            rel_tol=1.0e-12,
+            abs_tol=1.0e-9,
+        )
+        if current.epoch == cycle.epoch and current.sim_time_s >= 0.0 and gap_exceeds_profile:
             raise LifecycleError(LifecycleFailure.TIME_GAP, "lifecycle cycle gap exceeds profile")
 
         target_states = deepcopy(current.targets) if current.epoch == cycle.epoch and current.targets else {}

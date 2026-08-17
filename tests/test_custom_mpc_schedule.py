@@ -12,7 +12,7 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
     MPCSolution,
     PlannerInput,
 )
-from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureSource, PlanStatus
 
 
 def descriptor(**profile_overrides) -> AlgorithmDescriptor:
@@ -111,6 +111,47 @@ def test_hold_uses_explicit_executable_control_trajectory() -> None:
 
     assert np.rad2deg(first[2, 0]) == pytest.approx(10.0)
     assert np.rad2deg(held[2, 0]) == pytest.approx(10.0)
+
+
+def test_rejected_revision_preserves_accepted_plan_until_next_decision_time() -> None:
+    calls = 0
+
+    def solve(value: PlannerInput) -> MPCSolution:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise ColavExecutionError(
+                PlanStatus.INFEASIBLE,
+                "Rolling Plan rejected candidate",
+                source=FailureSource.ALGORITHM,
+                details={
+                    "preserve_accepted_plan": True,
+                    "revision_reason": "PREFIX_CONTINUITY_EXCEEDED",
+                    "rolling_plan": {"assessment": {"accepted": False}},
+                },
+            )
+        return solution(value)
+
+    adapter = CustomMPCAdapter(
+        descriptor=descriptor(),
+        solve=solve,
+        context=FactoryContext("schedule_mpc", 0),
+    )
+
+    plan(adapter, 0.0)
+    rejected = plan(adapter, 1.0)
+    held = plan(adapter, 1.5)
+
+    assert calls == 2
+    assert rejected[0, 0] == pytest.approx(4.0)
+    assert held[0, 0] == pytest.approx(6.0)
+    details = adapter.get_diagnostics().details
+    assert details["candidate_rejected"] is True
+    assert details["candidate_committed"] is False
+    assert details["revision_reason"] == "PREFIX_CONTINUITY_EXCEEDED"
+
+    plan(adapter, 2.0)
+    assert calls == 3
 
 
 def test_deadline_timeout_feasible_is_executable_and_visible_on_hold() -> None:

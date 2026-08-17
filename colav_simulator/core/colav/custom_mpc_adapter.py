@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
@@ -433,6 +434,8 @@ class CustomMPCAdapter(ICOLAV):
         self._solve_period_s = context.solve_period_override_s or descriptor.execution_profile.solve_period_s
         self._solve_id = 0
         self._last_solve_time_s: float | None = None
+        self._last_rejected_solve_time_s: float | None = None
+        self._preserved_plan_until_s: float | None = None
         self._last_plan_time_s: float | None = None
         self._solution: MPCSolution | None = None
         self._current_plan = np.zeros((9, 1), dtype=float)
@@ -478,6 +481,8 @@ class CustomMPCAdapter(ICOLAV):
             self._reset_solver()
         self._solve_id = 0
         self._last_solve_time_s = None
+        self._last_rejected_solve_time_s = None
+        self._preserved_plan_until_s = None
         self._last_plan_time_s = None
         self._solution = None
         self._current_plan = np.zeros((9, 1), dtype=float)
@@ -556,11 +561,16 @@ class CustomMPCAdapter(ICOLAV):
                 planner_input.sim_time_s,
                 payload={"track_count": len(planner_input.tracks)},
             )
-        should_solve = self._last_solve_time_s is None or (
-            planner_input.sim_time_s + 1e-9 >= self._last_solve_time_s + self._solve_period_s
+        decision_time_s = self._last_solve_time_s
+        if self._last_rejected_solve_time_s is not None:
+            decision_time_s = max(decision_time_s or -math.inf, self._last_rejected_solve_time_s)
+        should_solve = decision_time_s is None or (
+            planner_input.sim_time_s + 1e-9 >= decision_time_s + self._solve_period_s
         )
         if should_solve:
             return self._execute_solve(planner_input)
+        if self._preserved_plan_until_s is not None and planner_input.sim_time_s < self._preserved_plan_until_s - 1.0e-9:
+            return self._execute_hold(planner_input)
         if self._validate_held_solution is not None and self._solution is not None and self._last_solve_time_s is not None:
             elapsed_s = planner_input.sim_time_s - self._last_solve_time_s
             try:
@@ -716,6 +726,32 @@ class CustomMPCAdapter(ICOLAV):
         try:
             solution = self._solve(planner_input)
         except ColavExecutionError as exc:
+            if exc.details.get("preserve_accepted_plan") is True and self._solution is not None:
+                elapsed_ms = (time.perf_counter() - started) * 1000.0
+                self._last_rejected_solve_time_s = planner_input.sim_time_s
+                self._preserved_plan_until_s = planner_input.sim_time_s + self._solve_period_s
+                self._hold_acceptance = {
+                    "accepted": True,
+                    "mode": "ROLLING_PLAN_CONTINUATION",
+                    "candidate_rejected": True,
+                    "revision_reason": exc.details.get("revision_reason"),
+                    "rolling_plan": exc.details.get("rolling_plan"),
+                }
+                command = self._execute_hold(planner_input)
+                continuation = {
+                    "solver_executed": True,
+                    "candidate_committed": False,
+                    "candidate_rejected": True,
+                    "solver_attempt_elapsed_ms": elapsed_ms,
+                    "revision_reason": exc.details.get("revision_reason"),
+                    "rolling_plan": exc.details.get("rolling_plan"),
+                }
+                self._diagnostics.elapsed_ms = elapsed_ms
+                self._diagnostics.details.update(continuation)
+                self._planner_trace.solver_executed = True
+                self._planner_trace.elapsed_ms = elapsed_ms
+                self._planner_trace.algorithm_details.update(continuation)
+                return command
             self._record_execution_failure(
                 planner_input,
                 exc,
@@ -909,6 +945,8 @@ class CustomMPCAdapter(ICOLAV):
         self._solution = solution
         self._effective_status = status
         self._last_solve_time_s = planner_input.sim_time_s
+        self._last_rejected_solve_time_s = None
+        self._preserved_plan_until_s = None
         self._solve_id = next_solve_id
         self._current_plan = next_plan
         self._diagnostics = next_diagnostics
@@ -1086,6 +1124,15 @@ class CustomMPCAdapter(ICOLAV):
         }
         if self._hold_acceptance is not None:
             details["hold_acceptance"] = dict(self._hold_acceptance)
+            if self._hold_acceptance.get("mode") == "ROLLING_PLAN_CONTINUATION":
+                details.update(
+                    {
+                        "candidate_committed": False,
+                        "candidate_rejected": True,
+                        "revision_reason": self._hold_acceptance.get("revision_reason"),
+                        "rolling_plan": self._hold_acceptance.get("rolling_plan"),
+                    }
+                )
         self._diagnostics = PlanDiagnostics(
             status=self._effective_status,
             elapsed_ms=0.0,

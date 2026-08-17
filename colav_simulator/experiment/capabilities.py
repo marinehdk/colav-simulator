@@ -550,6 +550,9 @@ EXPERIMENTAL_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     for scenario_id, evidence in _BUSY_WATER_EVIDENCE.items()
     for algorithm_id in _BUSY_WATER_ALGORITHMS
 }
+EXPERIMENTAL_COMBINATIONS[("multiship", "romsdal_busy_water_16", "mid_mpc_ipopt", "god")] = dict(
+    _BUSY_WATER_EVIDENCE["romsdal_busy_water_16"]
+)
 
 
 def _combination_documents(

@@ -17,6 +17,7 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcRouteFrame,
     MidMpcRouteObjective,
     MidMpcRowSchedule,
+    MidMpcStatus,
     MidMpcTarget,
 )
 from colav_simulator.core.colav.mid_mpc import solver as solver_module
@@ -132,7 +133,7 @@ def _assert_parity(fixture: MidMpcParityFixture) -> None:
     assert result.ipopt_iterations == expected["ipopt_iterations"]
     assert result.objective_total == pytest.approx(expected["objective_total"], abs=objective_tolerance)
     for name, value in vars(result.objective_components).items():
-        assert value == pytest.approx(expected["objective_components"][name], abs=objective_tolerance)
+        assert value == pytest.approx(expected["objective_components"].get(name, 0.0), abs=objective_tolerance)
     assert result.elapsed_ms >= 0.0
     assert result.cpa_slack == pytest.approx(expected["cpa_slack"], abs=diagnostic_tolerance)
     assert result.raw_f == pytest.approx(expected["raw"]["f"], abs=objective_tolerance)
@@ -262,7 +263,7 @@ def test_colav_strict_staged_route_objective_alters_then_returns_to_mission(
     result = MidMpcIpoptSolver(config).solve(problem)
 
     headings = result.raw_x[: config.horizon_steps]
-    assert result.prepared.p.size == len(fixture.output["prepared"]["p"]) + 2 * config.horizon_steps + 1
+    assert result.prepared.p.size == len(fixture.output["prepared"]["p"]) + 5 * config.horizon_steps + 2
     assert np.mean(headings[:avoidance_until_k]) > np.mean(headings[avoidance_until_k:]) + 0.05
     assert headings[-1] == pytest.approx(mission, abs=0.02)
 
@@ -341,6 +342,46 @@ def test_staged_route_profiles_reuse_one_fixed_graph(
     assert build_calls == 1
 
 
+def test_colav_strict_continuity_reference_changes_parameters_without_rebuilding_graph(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    route = MidMpcRouteObjective(
+        mission_bearing_rad=source.route_bearing_rad,
+        avoidance_corridor_bearing_rad=source.route_bearing_rad,
+        heading_reference_rad=(source.route_bearing_rad,) * n,
+        lateral_reference_m=(0.0,) * n,
+        avoidance_active_until_k=0,
+    )
+    active = replace(
+        route,
+        continuity_heading_reference_rad=(source.route_bearing_rad + 0.1,) * n,
+        continuity_speed_reference_mps=(source.planned_speed_mps,) * n,
+        continuity_weight=(40.0,) * n,
+    )
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    inactive_result = solver.solve(replace(source, route_objective=route))
+    active_result = solver.solve(replace(source, route_objective=active))
+
+    assert build_calls == 1
+    assert inactive_result.objective_components.continuity == pytest.approx(0.0)
+    assert active_result.objective_components.continuity > 0.0
+    assert np.mean(active_result.raw_x[:n]) > np.mean(inactive_result.raw_x[:n])
+
+
 def test_colav_strict_hard_windows_update_bounds_without_rebuilding_graph(
     parity_corpus: dict[str, MidMpcParityFixture],
     monkeypatch: pytest.MonkeyPatch,
@@ -384,6 +425,82 @@ def test_colav_strict_hard_windows_update_bounds_without_rebuilding_graph(
         assert window is not None
         active = np.isfinite(first.prepared.lbg[span.start : span.start + span.count])
         assert active.tolist() == [window.start_k <= k < window.stop_k for k in range(n)]
+
+
+def test_colav_strict_release_reuses_single_encounter_graph(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["head_on_starboard"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    route = MidMpcRouteObjective(
+        mission_bearing_rad=source.route_bearing_rad,
+        avoidance_corridor_bearing_rad=source.route_bearing_rad + 0.2,
+        heading_reference_rad=(source.route_bearing_rad + 0.2,) * (n // 2)
+        + (source.route_bearing_rad,) * (n - n // 2),
+        lateral_reference_m=(0.0,) * n,
+        avoidance_active_until_k=n // 2,
+    )
+    active = replace(source, route_objective=route)
+    released = replace(
+        active,
+        cpa_hard_m=50.0,
+        audit_row_count=0,
+        prefix_active_k=1,
+        prefix_psi_rad=(source.own_ship.psi_rad,),
+        prefix_u_mps=(source.own_ship.u_mps,),
+        targets=(),
+        row_schedule=MidMpcRowSchedule(),
+    )
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    active_result = solver.solve(active)
+    released_result = solver.solve(released)
+
+    assert build_calls == 1
+    assert active_result.graph_cache_hit is False
+    assert active_result.graph_build_elapsed_ms > 0.0
+    assert released_result.graph_cache_hit is True
+    assert released_result.graph_build_elapsed_ms == 0.0
+    assert released_result.preparation_elapsed_ms >= 0.0
+    assert released_result.ipopt_elapsed_ms > 0.0
+    assert released_result.elapsed_ms >= released_result.ipopt_elapsed_ms
+
+
+def test_colav_strict_route_only_solve_uses_feasible_quality_stop(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    problem = replace(
+        source,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=source.route_bearing_rad,
+            avoidance_corridor_bearing_rad=source.route_bearing_rad,
+            heading_reference_rad=(source.route_bearing_rad,) * n,
+            lateral_reference_m=(0.0,) * n,
+            avoidance_active_until_k=0,
+        ),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    assert result.status is MidMpcStatus.FEASIBLE_NONOPTIMAL
+    assert result.accepted_by_quality_gate is True
+    assert result.optimization_quality_passed is True
+    assert result.objective_improvement >= abs(result.seed_objective_total) * 0.01
 
 
 def test_colav_strict_profile_keeps_frozen_slack_variables_but_fixes_them_to_zero(

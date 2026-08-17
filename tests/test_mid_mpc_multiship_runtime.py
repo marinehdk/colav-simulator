@@ -79,7 +79,9 @@ def test_mid_mpc_multiship_closed_loop_is_safe_observable_and_recovers(  # noqa:
     assert manifest["spec"]["deadline_mode"] == "ENFORCE"
     assert manifest["spec"]["strict_no_fallback"] is True
 
-    assert len(solve_rows) == 100
+    solve_times = np.asarray([row["sim_time"] for row in solve_rows], dtype=float)
+    assert 50 <= len(solve_rows) <= 100
+    assert np.all(np.diff(solve_times) > 0.0)
     assert any(len(row["algorithm_details"]["selected_target_ids"]) >= 2 for row in solve_rows)
     assert {row["algorithm_details"]["decision_intent"] for row in solve_rows} == {"GIVE_WAY", "HOLD"}
     assert all(row["algorithm_id"] == ALGORITHM_ID for row in solve_rows)

@@ -1753,6 +1753,40 @@ function updatePlannerPanel(data) {
     'val-lateral-deviation',
     Number.isFinite(quality.lateral_deviation_m) ? `${quality.lateral_deviation_m.toFixed(2)} m` : '-- m',
   );
+  const rollingPlan = details.rolling_plan || {};
+  const rollingReference = rollingPlan.reference || {};
+  const rollingAssessment = rollingPlan.assessment || {};
+  const prefixContinuity = rollingAssessment.prefix || {};
+  setText(
+    'val-rolling-plan',
+    rollingReference.active && rollingAssessment.accepted
+      ? '保持'
+      : rollingAssessment.revision_reason || '--',
+  );
+  setText(
+    'val-prefix-continuity',
+    Number.isFinite(prefixContinuity.heading_rms_deg) && Number.isFinite(prefixContinuity.position_max_m)
+      ? `${prefixContinuity.heading_rms_deg.toFixed(1)}° · ${prefixContinuity.position_max_m.toFixed(1)} m`
+      : '--',
+  );
+  setText(
+    'val-recovery-drift',
+    Number.isFinite(rollingAssessment.recovery_time_drift_s)
+      ? `${rollingAssessment.recovery_time_drift_s.toFixed(1)} s`
+      : '-- s',
+  );
+  setText(
+    'val-ipopt-time',
+    Number.isFinite(details.ipopt_elapsed_ms)
+      ? `${details.ipopt_elapsed_ms.toFixed(2)} ms${Number.isFinite(details.ipopt_iterations) ? ` · ${details.ipopt_iterations} it` : ''}`
+      : '-- ms',
+  );
+  setText(
+    'val-graph-build-time',
+    Number.isFinite(details.graph_build_elapsed_ms)
+      ? `${details.graph_build_elapsed_ms.toFixed(2)} ms`
+      : '-- ms',
+  );
 
   const timelineTrace = latestSolve.solver_executed ? latestSolve : (realSolve ? planner : null);
   if (timelineTrace && Number(timelineTrace.solve_id) !== lastDisplayedSolveId) {

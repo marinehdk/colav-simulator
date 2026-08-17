@@ -86,6 +86,12 @@ from colav_simulator.core.colav.prediction_evidence import (
     PredictionPurpose,
     TargetPredictionEvidence,
 )
+from colav_simulator.core.colav.rolling_plan import (
+    RollingPlan,
+    RollingPlanAssessment,
+    RollingPlanIdentity,
+    RollingPlanReference,
+)
 from colav_simulator.core.guidances import LOSGuidance
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -136,6 +142,9 @@ class _MidMpcFacade:
         self._artifact_sink = artifact_sink
         self._accepted_primal: tuple[float, np.ndarray, np.ndarray, str, str] | None = None
         self._accepted_request: AcceptanceRequest | None = None
+        self._accepted_trajectory: np.ndarray | None = None
+        self._accepted_acceptance_hash: str | None = None
+        self._rolling_plan = RollingPlan()
 
     def reset(self) -> None:
         self._los.reset()
@@ -150,6 +159,9 @@ class _MidMpcFacade:
         self._last_cycle_time_s = None
         self._accepted_primal = None
         self._accepted_request = None
+        self._accepted_trajectory = None
+        self._accepted_acceptance_hash = None
+        self._rolling_plan.reset()
 
     def validate_hold(
         self,
@@ -205,7 +217,7 @@ class _MidMpcFacade:
         speed_error_mps = abs(float(np.hypot(*planner_input.ownship_state[3:5]) - np.hypot(*expected[3:5])))
         if position_error_m > 50.0:
             raise _hold_rejection("OWN_STATE_DEVIATION", "held plan position deviation exceeds 50 m")
-        validation_window_s = max(elapsed_s, self._config.assembly.horizon_dt_s)
+        validation_window_s = max(0.0, elapsed_s) + self._config.assembly.horizon_dt_s
         capability_heading_allowance = capability.rot_max_rad_s * validation_window_s
         capability_speed_allowance = max(capability.accel_max_mps2, capability.decel_max_mps2) * validation_window_s
         if (
@@ -225,7 +237,7 @@ class _MidMpcFacade:
         held_request = _held_acceptance_request(
             self._accepted_request,
             planner_input,
-            solution,
+            solution.predicted_trajectory,
             elapsed_s=elapsed_s,
             capability=capability,
             previous_acceptance_hash=str(acceptance["acceptance_hash"]),
@@ -290,7 +302,11 @@ class _MidMpcFacade:
         if self._last_cycle_time_s is not None and planner_input.sim_time_s != self._last_cycle_time_s:
             self._cycle_sequence += 1
         self._last_cycle_time_s = planner_input.sim_time_s
-        route_anchor = _nearest_route_anchor(planner_input.waypoints_enu_m, ownship[:2])
+        route_anchor, mission_leg_bearing = _nearest_route_projection(
+            planner_input.waypoints_enu_m,
+            ownship[:2],
+        )
+        capability = _active_capability(planner_input, self._config)
         try:
             cycle = self._encounter_cycle(
                 planner_input,
@@ -298,6 +314,9 @@ class _MidMpcFacade:
                 planned_speed_mps=float(reference[3, 0]),
             )
             snapshot = self._lifecycle.step(cycle)
+            rolling_identity, rolling_reference, prior_plan_safe, prior_revalidation_codes = (
+                self._rolling_reference(planner_input, snapshot, capability)
+            )
             assembly = self._assembler.assemble(
                 AssemblyRequest(
                     planner_input=planner_input,
@@ -307,6 +326,7 @@ class _MidMpcFacade:
                     route=RouteReference(
                         anchor_ne_m=route_anchor,
                         bearing_rad=route_bearing,
+                        mission_leg_bearing_rad=mission_leg_bearing,
                         planned_speed_mps=float(reference[3, 0]),
                     ),
                     capability=CapabilitySnapshot(
@@ -316,6 +336,7 @@ class _MidMpcFacade:
                         decel_max_mps2=self._config.assembly.decel_max_mps2,
                     ),
                     config=self._config.assembly,
+                    rolling_plan=rolling_reference,
                     profile=AssemblyProfile.COLAV_STRICT,
                 )
             )
@@ -342,9 +363,8 @@ class _MidMpcFacade:
                     "identity": assembly.identity,
                 },
             )
-        capability = _active_capability(planner_input, self._config)
         warm_semantic_token = _warm_semantic_token(snapshot, assembly)
-        warm_start = self._primal_warm_start(planner_input, snapshot, capability, warm_semantic_token)
+        warm_start = self._primal_warm_start(planner_input, capability, warm_semantic_token)
         try:
             result = self._solver.solve(assembly.problem, primal_warm_start=warm_start)
         except Exception:
@@ -463,9 +483,35 @@ class _MidMpcFacade:
                 },
                 evidence=EvidenceEnvelope(prediction_evidence),
             )
-        warm_start_eligible = capability.exact_tuple == "single-encounter:viknes:flsc" and not (
-            snapshot.targets and all(decision.route_recovery_allowed for decision in snapshot.targets)
+        rolling_assessment = self._rolling_plan.assess(
+            rolling_reference,
+            north_m=predicted[0],
+            east_m=predicted[1],
+            course_rad=predicted[2],
+            passing_side=snapshot.directive.passing_side.value,
+            recovery_at_s=_recovery_at_s(acceptance_request),
+            prior_plan_safe=prior_plan_safe,
         )
+        replay_artifact["rolling_plan"] = _rolling_plan_document(
+            rolling_reference,
+            rolling_assessment,
+            prior_revalidation_codes=prior_revalidation_codes,
+        )
+        if not rolling_assessment.accepted:
+            raise ColavExecutionError(
+                PlanStatus.INFEASIBLE,
+                f"Mid-MPC Rolling Plan rejected candidate revision: {rolling_assessment.revision_reason.value}",
+                source=FailureSource.ALGORITHM,
+                details={
+                    "failure_code": "ROLLING_PLAN_REVISION_REJECTED",
+                    "failure_owner": "rolling_plan",
+                    "revision_reason": rolling_assessment.revision_reason.value,
+                    "preserve_accepted_plan": True,
+                    "rolling_plan": replay_artifact["rolling_plan"],
+                },
+                evidence=EvidenceEnvelope(prediction_evidence),
+            )
+        warm_start_eligible = capability.exact_tuple == "single-encounter:viknes:flsc"
         receipt = {
             "schema_version": "colav.mid_mpc.receipt@1",
             "parent_acceptance_hash": acceptance_hash,
@@ -529,6 +575,19 @@ class _MidMpcFacade:
         def persist_after_commit() -> dict[str, object]:
             self._accepted_primal = next_accepted_primal
             self._accepted_request = acceptance_request
+            self._accepted_trajectory = predicted.copy()
+            self._accepted_acceptance_hash = acceptance_result.acceptance_hash
+            self._rolling_plan.commit(
+                accepted_at_s=planner_input.sim_time_s,
+                dt_s=self._config.assembly.horizon_dt_s,
+                north_m=predicted[0],
+                east_m=predicted[1],
+                course_rad=predicted[2],
+                speed_mps=np.hypot(predicted[3], predicted[4]),
+                identity=rolling_identity,
+                passing_side=snapshot.directive.passing_side.value,
+                recovery_at_s=_recovery_at_s(acceptance_request),
+            )
             if self._artifact_sink is None:
                 return artifact_reference
             try:
@@ -576,6 +635,12 @@ class _MidMpcFacade:
             "normalized_solver_status": result.status.value,
             "native_solver_status": result.native_status.value,
             "solver_elapsed_ms": result.elapsed_ms,
+            "optimizer_total_elapsed_ms": result.elapsed_ms,
+            "graph_build_elapsed_ms": result.graph_build_elapsed_ms,
+            "solver_preparation_elapsed_ms": result.preparation_elapsed_ms,
+            "ipopt_elapsed_ms": result.ipopt_elapsed_ms,
+            "ipopt_iterations": result.ipopt_iterations,
+            "graph_cache_hit": result.graph_cache_hit,
             "total_deadline_s": self._config.total_deadline_s,
             "strict_total_deadline": True,
             "solver_cutoff_s": self._config.total_deadline_s - self._config.acceptance_reservation_s,
@@ -611,7 +676,13 @@ class _MidMpcFacade:
             "control_intervals": self._config.assembly.horizon_steps,
             "state_samples": self._config.assembly.horizon_steps + 1,
             "horizon_duration_s": self._config.assembly.horizon_steps * self._config.assembly.horizon_dt_s,
+            "solve_period_s": self._config.assembly.decision_period_s,
             "trajectory_source": "fresh_ipopt_solve",
+            "rolling_plan": _rolling_plan_document(
+                rolling_reference,
+                rolling_assessment,
+                prior_revalidation_codes=prior_revalidation_codes,
+            ),
             "assembly": {
                 "schema_version": "1.0",
                 "profile": assembly.profile.value,
@@ -703,14 +774,10 @@ class _MidMpcFacade:
     def _primal_warm_start(
         self,
         planner_input: PlannerInput,
-        snapshot: DecisionSnapshot,
         capability: PlantCapabilityEvidence,
         semantic_token: str,
     ) -> MidMpcPrimalWarmStart | None:
         if capability.exact_tuple != "single-encounter:viknes:flsc":
-            self._accepted_primal = None
-            return None
-        if snapshot.targets and all(decision.route_recovery_allowed for decision in snapshot.targets):
             self._accepted_primal = None
             return None
         if self._accepted_primal is None:
@@ -730,6 +797,56 @@ class _MidMpcFacade:
             course_rad=course,
             speed_mps=speed,
         )
+
+    def _rolling_reference(
+        self,
+        planner_input: PlannerInput,
+        snapshot: DecisionSnapshot,
+        capability: PlantCapabilityEvidence,
+    ) -> tuple[RollingPlanIdentity, RollingPlanReference, bool, tuple[str, ...]]:
+        identity = _rolling_plan_identity(planner_input, snapshot, capability)
+        prior_plan_safe = False
+        failure_codes: tuple[str, ...] = ()
+        if (
+            self._accepted_request is not None
+            and self._accepted_trajectory is not None
+            and self._accepted_acceptance_hash is not None
+        ):
+            elapsed_s = planner_input.sim_time_s - self._accepted_request.authority.sim_time_s
+            if elapsed_s >= -1.0e-9:
+                held_request = _held_acceptance_request(
+                    self._accepted_request,
+                    planner_input,
+                    self._accepted_trajectory,
+                    elapsed_s=max(0.0, elapsed_s),
+                    capability=capability,
+                    previous_acceptance_hash=self._accepted_acceptance_hash,
+                )
+                held_result = self._acceptance.evaluate(held_request)
+                trackable = _rolling_plan_trackable(
+                    planner_input,
+                    self._accepted_trajectory,
+                    elapsed_s=max(0.0, elapsed_s),
+                    dt_s=self._config.assembly.horizon_dt_s,
+                    heading_allowance_rad=(
+                        capability.rot_max_rad_s
+                        * (max(0.0, elapsed_s) + self._config.assembly.horizon_dt_s)
+                    ),
+                )
+                prior_plan_safe = held_result.accepted and trackable
+                failure_codes = tuple(
+                    finding.code
+                    for finding in held_result.findings
+                    if finding.mandatory and finding.outcome.value in {"FAIL", "UNKNOWN"}
+                ) + (() if trackable else ("ROLLING_PLAN_STATE_DEVIATION",))
+        reference = self._rolling_plan.reference(
+            current_time_s=planner_input.sim_time_s,
+            horizon_steps=self._config.assembly.horizon_steps,
+            dt_s=self._config.assembly.horizon_dt_s,
+            identity=identity,
+            prior_plan_safe=prior_plan_safe,
+        )
+        return identity, reference, prior_plan_safe, failure_codes
 
     def _encounter_cycle(
         self,
@@ -811,6 +928,7 @@ class _MidMpcFacade:
             "encounter": _encounter_name(decision),
             "optimizer_intent": ("GIVE_WAY" if decision.commitment is CommitmentPhase.COMMITTED else "HOLD"),
             "policy_committed": decision.commitment is CommitmentPhase.COMMITTED,
+            "route_recovery_allowed": decision.route_recovery_allowed,
             "preferred_side": decision.passing_side.value.lower(),
             "dcpa_m": decision.geometry.dcpa_m,
             "tcpa_s": max(0.0, decision.geometry.signed_tcpa_s),
@@ -962,7 +1080,7 @@ def create(  # noqa: PLR0913
     context: FactoryContext,
     horizon_steps: int = 80,
     horizon_dt_s: float = 5.0,
-    solve_period_s: float = 5.0,
+    solve_period_s: float = 10.0,
     deadline_s: float = 20.0,
     heading_window_deg: float = 45.0,
     speed_min_mps: float = 0.0,
@@ -1167,6 +1285,13 @@ def _replay_artifact_document(
                 "native_status": result.native_status,
                 "ipopt_return_status": result.ipopt_return_status,
                 "iterations": result.ipopt_iterations,
+                "timing": {
+                    "optimizer_total_elapsed_ms": result.elapsed_ms,
+                    "graph_build_elapsed_ms": result.graph_build_elapsed_ms,
+                    "preparation_elapsed_ms": result.preparation_elapsed_ms,
+                    "ipopt_elapsed_ms": result.ipopt_elapsed_ms,
+                    "graph_cache_hit": result.graph_cache_hit,
+                },
                 "seed_objective_total": result.seed_objective_total,
                 "seed_max_constraint_violation": result.seed_max_constraint_violation,
                 "objective_improvement": result.objective_improvement,
@@ -1367,7 +1492,7 @@ def _shift_phase_evidence(evidence: PredictionPhaseEvidence, elapsed_s: float) -
 def _held_acceptance_request(
     accepted: AcceptanceRequest,
     planner_input: PlannerInput,
-    solution: MPCSolution,
+    predicted_trajectory: np.ndarray,
     *,
     elapsed_s: float,
     capability: PlantCapabilityEvidence,
@@ -1382,10 +1507,10 @@ def _held_acceptance_request(
 
     candidate = replace(
         accepted.candidate,
-        north_m=shifted(solution.predicted_trajectory[0]),
-        east_m=shifted(solution.predicted_trajectory[1]),
-        course_rad=shifted(solution.predicted_trajectory[2], angle=True),
-        speed_mps=shifted(np.hypot(solution.predicted_trajectory[3], solution.predicted_trajectory[4])),
+        north_m=shifted(predicted_trajectory[0]),
+        east_m=shifted(predicted_trajectory[1]),
+        course_rad=shifted(predicted_trajectory[2], angle=True),
+        speed_mps=shifted(np.hypot(predicted_trajectory[3], predicted_trajectory[4])),
         phase_evidence=(
             _shift_phase_evidence(accepted.candidate.phase_evidence, elapsed_s)
             if accepted.candidate.phase_evidence is not None
@@ -1498,10 +1623,20 @@ def _tracker_identity(planner_input: PlannerInput) -> str:
 
 
 def _warm_semantic_token(snapshot: DecisionSnapshot, assembly: AssemblySuccess) -> str:
+    route_objective = assembly.problem.route_objective
     return _document_hash(
         {
             "profile": assembly.profile.value,
-            "route_bearing_rad": assembly.problem.route_bearing_rad,
+            "mission_bearing_rad": (
+                route_objective.mission_bearing_rad
+                if route_objective is not None
+                else assembly.problem.route_bearing_rad
+            ),
+            "avoidance_corridor_bearing_rad": (
+                route_objective.avoidance_corridor_bearing_rad
+                if route_objective is not None and assembly.problem.lateral_active
+                else None
+            ),
             "planned_speed_mps": assembly.problem.planned_speed_mps,
             "selected_target_keys": [[key.target_id, key.generation] for key in assembly.selected_target_keys],
             "directive": {
@@ -1528,6 +1663,72 @@ def _identity_token(value: str) -> str:
     return "".join(character for character in value.lower() if character.isalnum())
 
 
+def _rolling_plan_identity(
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+    capability: PlantCapabilityEvidence,
+) -> RollingPlanIdentity:
+    authority = {
+        "directive": {
+            "required_targets": [
+                [key.target_id, key.generation] for key in snapshot.directive.required_targets
+            ],
+            "passing_side": snapshot.directive.passing_side.value,
+            "minimum_course_change_rad": snapshot.directive.minimum_course_change_rad,
+            "speed_bounds_mps": snapshot.directive.speed_bounds_mps,
+            "stop_required": snapshot.directive.stop_required,
+        },
+        "targets": [
+            {
+                "key": [decision.key.target_id, decision.key.generation],
+                "encounter": decision.encounter.value,
+                "role": decision.role.value,
+                "risk": decision.risk.value,
+                "commitment": decision.commitment.value,
+                "passing_side": decision.passing_side.value,
+                "rule17": decision.rule17.value,
+                "route_recovery_allowed": decision.route_recovery_allowed,
+                "action_achieved": decision.action_achieved,
+                "required_course_change_rad": decision.required_course_change_rad,
+            }
+            for decision in snapshot.targets
+        ],
+    }
+    return RollingPlanIdentity(
+        route_hash=_planner_route_hash(planner_input),
+        target_keys=tuple(
+            sorted((track.target_id, int(track.generation)) for track in planner_input.tracks)
+        ),
+        capability_hash=_capability_contract_hash(capability),
+        authority_hash=_document_hash(authority),
+    )
+
+
+def _recovery_at_s(request: AcceptanceRequest) -> float | None:
+    phases = request.candidate.phase_evidence
+    if phases is None or phases.recovery_from_k is None:
+        return None
+    return request.authority.sim_time_s + float(phases.times_s[phases.recovery_from_k])
+
+
+def _rolling_plan_document(
+    reference: RollingPlanReference,
+    assessment: RollingPlanAssessment,
+    *,
+    prior_revalidation_codes: tuple[str, ...],
+) -> dict[str, object]:
+    reference_document = asdict(reference)
+    reference_document["revision_reason"] = reference.revision_reason.value
+    assessment_document = asdict(assessment)
+    assessment_document["revision_reason"] = assessment.revision_reason.value
+    return {
+        "schema_version": "colav.mid_mpc.rolling-plan@1",
+        "reference": reference_document,
+        "assessment": assessment_document,
+        "prior_revalidation_codes": list(prior_revalidation_codes),
+    }
+
+
 def _planner_route_hash(planner_input: PlannerInput) -> str:
     return _document_hash(
         {
@@ -1546,6 +1747,21 @@ def _trajectory_state_at(trajectory: np.ndarray, dt_s: float, elapsed_s: float) 
     heading_delta = float(trajectory[2, upper] - trajectory[2, lower])
     state[2] = trajectory[2, lower] + fraction * math.atan2(math.sin(heading_delta), math.cos(heading_delta))
     return state
+
+
+def _rolling_plan_trackable(
+    planner_input: PlannerInput,
+    trajectory: np.ndarray,
+    *,
+    elapsed_s: float,
+    dt_s: float,
+    heading_allowance_rad: float,
+) -> bool:
+    expected = _trajectory_state_at(trajectory, dt_s, elapsed_s)
+    position_error_m = float(np.linalg.norm(planner_input.ownship_state[:2] - expected[:2]))
+    heading_delta = float(planner_input.ownship_state[2] - expected[2])
+    heading_error_rad = abs(math.atan2(math.sin(heading_delta), math.cos(heading_delta)))
+    return position_error_m <= 50.0 and heading_error_rad <= heading_allowance_rad + 1.0e-6
 
 
 def _held_prefix_clearance(
@@ -1596,6 +1812,8 @@ def _held_target_prediction_error(
     maximum_velocity_error = 0.0
     for track in planner_input.tracks:
         prediction = predictions[(track.target_id, track.generation)]
+        if prediction.get("route_recovery_allowed") is True:
+            continue
         start = np.array([prediction["north_m"][0], prediction["east_m"][0]], dtype=float)
         velocity = np.asarray(prediction["velocity_ne_mps"], dtype=float)
         expected = start + elapsed_s * velocity
@@ -1660,20 +1878,27 @@ def _encounter_name(decision: TargetDecision) -> str:
     return "clear"
 
 
-def _nearest_route_anchor(waypoints_enu_m: np.ndarray, position_ne_m: np.ndarray) -> tuple[float, float]:
-    """Project current position onto the stable waypoint polyline."""
+def _nearest_route_projection(
+    waypoints_enu_m: np.ndarray,
+    position_ne_m: np.ndarray,
+) -> tuple[tuple[float, float], float]:
+    """Project onto the stable waypoint polyline and retain its tangent."""
     points = np.asarray(waypoints_enu_m, dtype=float).T
     position = np.asarray(position_ne_m, dtype=float)
     if len(points) == 1:
-        return float(points[0, 0]), float(points[0, 1])
-    candidates: list[np.ndarray] = []
+        return (float(points[0, 0]), float(points[0, 1])), 0.0
+    candidates: list[tuple[np.ndarray, float]] = []
     for start, end in zip(points[:-1], points[1:], strict=True):
         delta = end - start
         length_squared = float(delta @ delta)
         fraction = 0.0 if length_squared == 0.0 else float(np.clip((position - start) @ delta / length_squared, 0.0, 1.0))
-        candidates.append(start + fraction * delta)
-    anchor = min(candidates, key=lambda candidate: float(np.linalg.norm(candidate - position)))
-    return float(anchor[0]), float(anchor[1])
+        tangent = 0.0 if length_squared == 0.0 else math.atan2(float(delta[1]), float(delta[0]))
+        candidates.append((start + fraction * delta, tangent))
+    anchor, tangent = min(
+        candidates,
+        key=lambda candidate: float(np.linalg.norm(candidate[0] - position)),
+    )
+    return (float(anchor[0]), float(anchor[1])), tangent
 
 
 def _unwrap_near(angle: float, reference: float) -> float:

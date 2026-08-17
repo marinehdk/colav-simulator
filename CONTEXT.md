@@ -19,3 +19,11 @@ _Avoid_: Current encounter state, solver trajectory
 **Hard Row Window**:
 A half-open control-interval range compiled from encounter phases into `lbg`/`ubg`. Windows change constraint activation without changing CasADi graph shape or decision dimension.
 _Avoid_: Solver graph topology, lifecycle state
+
+**Rolling Plan**:
+The most recent accepted executable prediction, shifted onto the current absolute time axis and used as continuity authority for the next solve while its route, targets, capability, and safety assumptions remain valid.
+_Avoid_: Warm start, current solver candidate, frozen mission route
+
+**Plan Revision**:
+An accepted departure from the Rolling Plan justified by changed safety, COLREG authority, target identity, Mission Route, or capability evidence.
+_Avoid_: Solver churn, unexplained re-optimization

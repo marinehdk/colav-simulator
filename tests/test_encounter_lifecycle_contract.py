@@ -565,6 +565,15 @@ def test_time_gap_rolls_back_and_coast_reacquisition_requires_confirmation() -> 
     assert confirmed.health is ObservationHealth.UPDATED
 
 
+def test_cycle_gap_accepts_floating_point_boundary_at_profile_limit() -> None:
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=15.1))
+
+    snapshot = lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=25.1))
+
+    assert snapshot.sim_time_s == 25.1
+
+
 def _head_on_cycle(*, sequence: int, sim_time_s: float) -> EncounterCycle:
     return EncounterCycle(
         epoch="session-1",

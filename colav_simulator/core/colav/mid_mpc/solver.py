@@ -67,7 +67,7 @@ class MidMpcIpoptSolver:
 
     def __init__(self, config: MidMpcConfig = MidMpcConfig()) -> None:
         self._config = config
-        self._graph_cache: dict[tuple[int, int, int, float, bool], _Graph] = {}
+        self._graph_cache: dict[tuple[bool, int | None, float | None], _Graph] = {}
 
     def solve(  # noqa: PLR0915 - keeps one solver call and its evidence atomic
         self,
@@ -79,16 +79,26 @@ class MidMpcIpoptSolver:
         _validate_route_objective(problem, self._config.horizon_steps)
         started_at = time.perf_counter()
         graph_key = (
-            len(problem.targets),
-            min(problem.prefix_active_k, self._config.horizon_steps),
-            problem.audit_row_count,
-            problem.cpa_hard_m,
             problem.route_objective is not None,
+            None if self._config.strict_slack_bounds else min(problem.prefix_active_k, self._config.horizon_steps),
+            None if self._config.strict_slack_bounds else problem.cpa_hard_m,
         )
         graph = self._graph_cache.get(graph_key)
-        if graph is None:
+        graph_cache_hit = bool(
+            graph is not None
+            and graph.target_capacity >= len(problem.targets)
+            and graph.audit_capacity >= problem.audit_row_count
+        )
+        if not graph_cache_hit:
+            graph_build_started = time.perf_counter()
             graph = _build_graph(self._config, problem)
             self._graph_cache[graph_key] = graph
+            graph_build_elapsed_ms = (time.perf_counter() - graph_build_started) * 1_000.0
+        else:
+            graph_build_elapsed_ms = 0.0
+        if graph is None:
+            raise RuntimeError("Mid-MPC graph cache resolution failed")
+        preparation_started = time.perf_counter()
         prepared = _prepare(self._config, problem, graph.row_layout)
         if primal_warm_start is not None:
             reuse_stop_k = (
@@ -114,7 +124,14 @@ class MidMpcIpoptSolver:
         graph.iteration_callback.arm(
             quality_seed_objective=(
                 seed_objective_total
-                if self._config.strict_slack_bounds and problem.targets and seed_primal_feasible
+                if self._config.strict_slack_bounds
+                and seed_primal_feasible
+                and (problem.targets or problem.route_objective is not None)
+                else None
+            ),
+            quality_required_improvement=(
+                max(1.0e-4, abs(seed_objective_total) * 0.01)
+                if self._config.strict_slack_bounds and not problem.targets and problem.route_objective is not None
                 else None
             ),
             quality_lbx=prepared.lbx,
@@ -122,6 +139,8 @@ class MidMpcIpoptSolver:
             quality_lbg=prepared.lbg,
             quality_ubg=prepared.ubg,
         )
+        preparation_elapsed_ms = (time.perf_counter() - preparation_started) * 1_000.0
+        ipopt_started = time.perf_counter()
         result = graph.solver(
             x0=prepared.x0,
             p=prepared.p,
@@ -131,6 +150,7 @@ class MidMpcIpoptSolver:
             ubg=prepared.ubg,
         )
         stats = graph.solver.stats()
+        ipopt_elapsed_ms = (time.perf_counter() - ipopt_started) * 1_000.0
         terminal_raw_x = _flat(result["x"])
         terminal_raw_g = _flat(result["g"])
         terminal_raw_f = float(result["f"])
@@ -199,6 +219,10 @@ class MidMpcIpoptSolver:
             ipopt_return_status=return_status,
             ipopt_iterations=ipopt_iterations,
             elapsed_ms=elapsed_ms,
+            graph_build_elapsed_ms=graph_build_elapsed_ms,
+            preparation_elapsed_ms=preparation_elapsed_ms,
+            ipopt_elapsed_ms=ipopt_elapsed_ms,
+            graph_cache_hit=graph_cache_hit,
             objective_total=raw_f,
             seed_objective_total=seed_objective_total,
             seed_max_constraint_violation=seed_max_constraint_violation,
@@ -253,12 +277,16 @@ class _Graph:
         constraints: ca.Function,
         row_layout: MidMpcRowLayout,
         iteration_callback: _IterationCallback,
+        target_capacity: int,
+        audit_capacity: int,
     ) -> None:
         self.solver = solver
         self.objective_components = objective_components
         self.constraints = constraints
         self.row_layout = row_layout
         self.iteration_callback = iteration_callback
+        self.target_capacity = target_capacity
+        self.audit_capacity = audit_capacity
 
 
 class _IterationCallback(ca.Callback):
@@ -277,6 +305,7 @@ class _IterationCallback(ca.Callback):
         self._started_at: float | None = None
         self._callback_count = 0
         self._quality_seed_objective: float | None = None
+        self._quality_required_improvement: float | None = None
         self._quality_bounds: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None
         self.quality_stop_requested = False
         self.iterates: list[tuple[int, np.ndarray, float]] = []
@@ -287,6 +316,7 @@ class _IterationCallback(ca.Callback):
         self,
         *,
         quality_seed_objective: float | None = None,
+        quality_required_improvement: float | None = None,
         quality_lbx: np.ndarray | None = None,
         quality_ubx: np.ndarray | None = None,
         quality_lbg: np.ndarray | None = None,
@@ -295,6 +325,7 @@ class _IterationCallback(ca.Callback):
         self._started_at = self._clock()
         self._callback_count = 0
         self._quality_seed_objective = quality_seed_objective
+        self._quality_required_improvement = quality_required_improvement
         bounds = (quality_lbx, quality_ubx, quality_lbg, quality_ubg)
         self._quality_bounds = (
             None
@@ -338,7 +369,11 @@ class _IterationCallback(ca.Callback):
             objective = float(_flat(arguments[1])[0])
             constraints = _flat(arguments[2])
             lbx, ubx, lbg, ubg = self._quality_bounds
-            required_improvement = max(1.0e-6, abs(self._quality_seed_objective) * 1.0e-8)
+            required_improvement = (
+                self._quality_required_improvement
+                if self._quality_required_improvement is not None
+                else max(1.0e-6, abs(self._quality_seed_objective) * 1.0e-8)
+            )
             self.quality_stop_requested = bool(
                 self._callback_count > 1
                 and self._quality_seed_objective - objective >= required_improvement
@@ -353,14 +388,20 @@ def _build_graph(  # noqa: PLR0915
     config: MidMpcConfig, problem: MidMpcProblem
 ) -> _Graph:
     n = config.horizon_steps
+    target_capacity = max(len(problem.targets), int(config.strict_slack_bounds))
+    audit_capacity = max(problem.audit_row_count, int(config.strict_slack_bounds))
     prefix_capacity = max(n, _FROZEN_PREFIX_CAPACITY)
     prefix_u_start = int(_P.PREFIX_PSI) + prefix_capacity
     target_start = prefix_u_start + prefix_capacity
     parameter_dim = target_start + config.max_targets * _TARGET_STRIDE
+    cpa_hard_index: int | None = None
+    if config.strict_slack_bounds:
+        cpa_hard_index = parameter_dim
+        parameter_dim += 1
     route_objective_start = parameter_dim
     staged_route_objective = problem.route_objective is not None
     if staged_route_objective:
-        parameter_dim += 2 * n + 1
+        parameter_dim += 5 * n + 1
     dt = ca.DM(config.dt_s)
     psi = ca.MX.sym("psi", n)
     speed = ca.MX.sym("u", n)
@@ -380,6 +421,16 @@ def _build_graph(  # noqa: PLR0915
     )
     lateral_reference = p[route_objective_start + n : route_objective_start + 2 * n] if staged_route_objective else None
     avoidance_active_until = p[route_objective_start + 2 * n] if staged_route_objective else ca.DM(n)
+    continuity_start = route_objective_start + 2 * n + 1
+    continuity_heading = (
+        p[continuity_start : continuity_start + n] if staged_route_objective else ca.DM.zeros(n)
+    )
+    continuity_speed = (
+        p[continuity_start + n : continuity_start + 2 * n] if staged_route_objective else ca.DM.zeros(n)
+    )
+    continuity_weight = (
+        p[continuity_start + 2 * n : continuity_start + 3 * n] if staged_route_objective else ca.DM.zeros(n)
+    )
     planned_speed = p[_P.PLANNED_SPEED]
     distance_error = psi - route_reference
     velocity_error = speed - ca.repmat(planned_speed, n, 1)
@@ -420,7 +471,17 @@ def _build_graph(  # noqa: PLR0915
     heading_term = ca.DM(config.w_dist) * distance_cost
     speed_term = ca.DM(config.w_vel) * velocity_cost
     route_term = ca.DM(config.w_route) * route_cost
-    objective = colreg_term + heading_term + speed_term + route_term + asym_cost + terminal_cost
+    continuity_heading_error = ca.atan2(
+        ca.sin(psi - continuity_heading),
+        ca.cos(psi - continuity_heading),
+    )
+    continuity_speed_error = speed - continuity_speed
+    continuity_term = ca.dot(
+        continuity_weight,
+        ca.power(continuity_heading_error, 2)
+        + ca.DM(0.1) * ca.power(continuity_speed_error, 2),
+    )
+    objective = colreg_term + heading_term + speed_term + route_term + asym_cost + terminal_cost + continuity_term
     cpa_slack_term = ca.MX(0.0)
     direction_slack_term = ca.MX(0.0)
     if sigma_cpa is not None:
@@ -442,7 +503,18 @@ def _build_graph(  # noqa: PLR0915
     rows.append(decel_step - (ca.vertcat(p[_P.U0], speed[:-1]) - speed))
     rows.extend(psi[k] - p[_P.PREFIX_PSI + k] for k in range(n))
     rows.extend(speed[k] - p[prefix_u_start + k] for k in range(n))
-    rows.extend(_cpa_rows(psi, speed, sigma_cpa, p, config, problem))
+    rows.extend(
+        _cpa_rows(
+            psi,
+            speed,
+            sigma_cpa,
+            p,
+            config,
+            problem,
+            target_capacity=target_capacity,
+            cpa_hard_index=cpa_hard_index,
+        )
+    )
     constraint_cross_track = _cross_track_all(psi, speed, p, config.dt_s)
     dir_slack = sigma_dir if sigma_dir is not None else 0.0
     rows.extend(pref_dir * constraint_cross_track[k] + dir_slack for k in range(n))
@@ -455,7 +527,7 @@ def _build_graph(  # noqa: PLR0915
             config.terminal_l_max_m - constraint_terminal_cross_track,
         )
     )
-    rows.extend(ca.MX(0.0) for _index in range(problem.audit_row_count))
+    rows.extend(ca.MX(0.0) for _index in range(audit_capacity))
     g = ca.vertcat(*rows)
 
     options = {
@@ -474,7 +546,7 @@ def _build_graph(  # noqa: PLR0915
         "ipopt.acceptable_constr_viol_tol": 1.0e-2,
         "print_time": False,
     }
-    row_layout = _row_layout(config, problem)
+    row_layout = _row_layout(config, target_capacity, audit_capacity)
     nlp = {"x": x, "p": p, "f": objective, "g": g}
     iteration_callback = _IterationCallback(
         int(x.numel()),
@@ -508,6 +580,7 @@ def _build_graph(  # noqa: PLR0915
                 terminal_cost,
                 cpa_slack_term,
                 direction_slack_term,
+                continuity_term,
             )
         ],
     )
@@ -518,6 +591,8 @@ def _build_graph(  # noqa: PLR0915
         constraint_function,
         row_layout,
         iteration_callback,
+        target_capacity,
+        audit_capacity,
     )
 
 
@@ -617,18 +692,26 @@ def _cpa_rows(
     p: ca.MX,
     config: MidMpcConfig,
     problem: MidMpcProblem,
+    *,
+    target_capacity: int,
+    cpa_hard_index: int | None,
 ) -> list[ca.MX]:
     rows: list[ca.MX] = []
     dt = ca.DM(config.dt_s)
     own_x: ca.MX = ca.MX(0.0)
     own_y: ca.MX = ca.MX(0.0)
-    prefix_k = min(problem.prefix_active_k, config.horizon_steps)
+    prefix_k = (
+        p[_P.PREFIX_ACTIVE_K]
+        if config.strict_slack_bounds
+        else ca.DM(min(problem.prefix_active_k, config.horizon_steps))
+    )
+    cpa_hard = p[cpa_hard_index] if cpa_hard_index is not None else ca.DM(problem.cpa_hard_m)
     prefix_capacity = max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
     target_start = int(_P.PREFIX_PSI) + 2 * prefix_capacity
     for k in range(config.horizon_steps):
         own_x += speed[k] * dt * ca.cos(psi[k])
         own_y += speed[k] * dt * ca.sin(psi[k])
-        for target_index in range(len(problem.targets)):
+        for target_index in range(target_capacity):
             base = target_start + target_index * _TARGET_STRIDE
             time_s = k * config.dt_s
             target_north_speed = p[base + _T.SOG] * ca.cos(p[base + _T.COG])
@@ -637,9 +720,9 @@ def _cpa_rows(
             target_y = p[base + _T.Y] + target_east_speed * time_s
             dx = own_x - target_x
             dy = own_y - target_y
-            row = dx * dx + dy * dy - ca.DM(problem.cpa_hard_m * problem.cpa_hard_m)
-            if sigma_cpa is not None and k >= prefix_k:
-                row += sigma_cpa
+            row = dx * dx + dy * dy - cpa_hard * cpa_hard
+            if sigma_cpa is not None:
+                row += ca.if_else(ca.DM(k) >= prefix_k, sigma_cpa, ca.DM(0.0))
             rows.append(row)
     return rows
 
@@ -720,6 +803,7 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
                 )
         else:
             x0[n : 2 * n] = speed_target
+        _apply_continuity_seed(x0, problem, config, heading_step)
     prefix_k = min(problem.prefix_active_k, n)
     x0[:prefix_k] = problem.prefix_psi_rad[:prefix_k]
     x0[n : n + prefix_k] = problem.prefix_u_mps[:prefix_k]
@@ -736,6 +820,40 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     if config.strict_slack_bounds:
         ubx[2 * n :] = 0.0
     return MidMpcPreparedProblem(p=p, x0=x0, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+
+
+def _apply_continuity_seed(
+    seed: np.ndarray,
+    problem: MidMpcProblem,
+    config: MidMpcConfig,
+    heading_step: float,
+) -> None:
+    objective = problem.route_objective
+    if objective is None or not any(objective.continuity_weight):
+        return
+    previous_heading = problem.own_ship.psi_rad
+    for k, weight in enumerate(objective.continuity_weight):
+        if weight <= 0.0:
+            previous_heading = float(seed[k])
+            continue
+        target_heading = objective.continuity_heading_reference_rad[k]
+        target_delta = math.atan2(
+            math.sin(target_heading - previous_heading),
+            math.cos(target_heading - previous_heading),
+        )
+        previous_heading = float(
+            np.clip(
+                previous_heading + np.clip(target_delta, -heading_step, heading_step),
+                *problem.heading_bounds_rad,
+            )
+        )
+        seed[k] = previous_heading
+        seed[config.horizon_steps + k] = float(
+            np.clip(
+                objective.continuity_speed_reference_mps[k],
+                *problem.speed_bounds_mps,
+            )
+        )
 
 
 def _apply_primal_warm_start(
@@ -774,9 +892,13 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
     prefix_u_start = int(_P.PREFIX_PSI) + prefix_capacity
     target_start = prefix_u_start + prefix_capacity
     parameter_dim = target_start + config.max_targets * _TARGET_STRIDE
+    cpa_hard_index: int | None = None
+    if config.strict_slack_bounds:
+        cpa_hard_index = parameter_dim
+        parameter_dim += 1
     route_objective_start = parameter_dim
     if problem.route_objective is not None:
-        parameter_dim += 2 * config.horizon_steps + 1
+        parameter_dim += 5 * config.horizon_steps + 1
     p = np.zeros(parameter_dim)
     p[_P.PSI0 : _P.Y0 + 1] = (
         problem.own_ship.psi_rad,
@@ -807,6 +929,8 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
     p[_P.MIN_ALTERATION] = problem.min_alteration_rad
     p[_P.LATERAL_ACTIVE] = float(problem.lateral_active)
     p[_P.DECEL_MAX] = problem.decel_max_mps2 if problem.decel_max_mps2 > 1.0e-6 else 0.08
+    if cpa_hard_index is not None:
+        p[cpa_hard_index] = problem.cpa_hard_m
     p[_P.PREFIX_PSI : _P.PREFIX_PSI + prefix_k] = problem.prefix_psi_rad[:prefix_k]
     p[prefix_u_start : prefix_u_start + prefix_k] = problem.prefix_u_mps[:prefix_k]
     for index, target in enumerate(problem.targets[: config.max_targets]):
@@ -832,13 +956,23 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
             problem.route_objective.lateral_reference_m
         )
         p[route_objective_start + 2 * config.horizon_steps] = problem.route_objective.avoidance_active_until_k
+        continuity_start = route_objective_start + 2 * config.horizon_steps + 1
+        p[continuity_start : continuity_start + config.horizon_steps] = (
+            problem.route_objective.continuity_heading_reference_rad
+        )
+        p[continuity_start + config.horizon_steps : continuity_start + 2 * config.horizon_steps] = (
+            problem.route_objective.continuity_speed_reference_mps
+        )
+        p[continuity_start + 2 * config.horizon_steps : continuity_start + 3 * config.horizon_steps] = (
+            problem.route_objective.continuity_weight
+        )
     return p
 
 
-def _row_layout(config: MidMpcConfig, problem: MidMpcProblem) -> MidMpcRowLayout:
+def _row_layout(config: MidMpcConfig, target_capacity: int, audit_capacity: int) -> MidMpcRowLayout:
     n = config.horizon_steps
-    target_rows = n * len(problem.targets)
-    rule_rows = problem.audit_row_count
+    target_rows = n * target_capacity
+    rule_rows = audit_capacity
     rot = MidMpcRowSpan(0, 2 * n)
     speed_rate = MidMpcRowSpan(rot.start + rot.count, n)
     prefix_psi = MidMpcRowSpan(speed_rate.start + speed_rate.count, n)
@@ -905,6 +1039,9 @@ def _row_bounds(
     if not schedule.terminal_rows_enabled:
         lbg[layout.terminal.start : layout.terminal.start + 3] = -np.inf
         ubg[layout.terminal.start : layout.terminal.start + 3] = np.inf
+    _soften_prefix(lbg, ubg, layout.rule, layout.rule.count)
+    lbg[layout.rule.start : layout.rule.start + problem.audit_row_count] = 0.0
+    ubg[layout.rule.start : layout.rule.start + problem.audit_row_count] = np.inf
     return lbg, ubg, cpa_hard_from
 
 
@@ -952,17 +1089,18 @@ def _apply_cpa_bounds(
     prefix_k: int,
     horizon_steps: int,
 ) -> int:
+    target_capacity = layout.cpa.count // horizon_steps
+    _soften_prefix(lbg, ubg, layout.cpa, layout.cpa.count)
     windows = problem.row_schedule.cpa_hard_windows
     if not windows:
         hard_from = min(problem.row_schedule.cpa_hard_from_k, horizon_steps)
-        for k in range(max(prefix_k, hard_from)):
-            start = layout.cpa.start + k * len(problem.targets)
-            lbg[start : start + len(problem.targets)] = -np.inf
+        for k in range(max(prefix_k, hard_from), horizon_steps):
+            start = layout.cpa.start + k * target_capacity
+            lbg[start : start + len(problem.targets)] = 0.0
             ubg[start : start + len(problem.targets)] = np.inf
         return hard_from
     if len(windows) != len(problem.targets):
         raise ValueError("one CPA hard window is required per target")
-    _soften_prefix(lbg, ubg, layout.cpa, layout.cpa.count)
     active_starts: list[int] = []
     for target_index, window in enumerate(windows):
         start_k = max(prefix_k, min(window.start_k, horizon_steps))
@@ -970,7 +1108,7 @@ def _apply_cpa_bounds(
         if start_k < stop_k:
             active_starts.append(start_k)
         for k in range(start_k, stop_k):
-            row = layout.cpa.start + k * len(problem.targets) + target_index
+            row = layout.cpa.start + k * target_capacity + target_index
             lbg[row] = 0.0
             ubg[row] = np.inf
     return min(active_starts, default=horizon_steps)

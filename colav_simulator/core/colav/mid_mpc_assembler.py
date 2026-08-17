@@ -40,6 +40,7 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcRowSchedule,
     MidMpcTarget,
 )
+from colav_simulator.core.colav.rolling_plan import RollingPlanReference
 from colav_simulator.core.tracking.trackers import TrackKey
 
 
@@ -64,11 +65,17 @@ class MidMpcAssemblyConfig:
 class RouteReference:
     anchor_ne_m: tuple[float, float]
     bearing_rad: float
+    mission_leg_bearing_rad: float
     planned_speed_mps: float
 
     def __post_init__(self) -> None:
         """Validate immutable route evidence."""
-        values = (*self.anchor_ne_m, self.bearing_rad, self.planned_speed_mps)
+        values = (
+            *self.anchor_ne_m,
+            self.bearing_rad,
+            self.mission_leg_bearing_rad,
+            self.planned_speed_mps,
+        )
         if not np.isfinite(values).all():
             raise ValueError("route reference values must be finite")
 
@@ -129,6 +136,7 @@ class AssemblyRequest:
     route: RouteReference
     capability: CapabilitySnapshot
     config: MidMpcAssemblyConfig
+    rolling_plan: RollingPlanReference | None = None
     frame: AssemblyFrame = AssemblyFrame.ENU
     profile: AssemblyProfile = AssemblyProfile.COLAV_STRICT
 
@@ -290,6 +298,7 @@ class MidMpcProblemAssembler:
                 route=request.route,
                 capability=request.capability,
                 config=request.config,
+                rolling_plan=request.rolling_plan,
                 frame=request.frame,
                 profile=request.profile,
             )
@@ -310,12 +319,13 @@ def _assemble_problem(
     route: RouteReference,
     capability: CapabilitySnapshot,
     config: MidMpcAssemblyConfig,
+    rolling_plan: RollingPlanReference | None,
     frame: AssemblyFrame,
     profile: AssemblyProfile,
 ) -> AssemblySuccess:
     """Map one immutable decision snapshot without retaining business state."""
     binding = _bind_targets(planner_input, snapshot, route, config)
-    policy = _resolve_policy(planner_input, snapshot, route, capability, config, binding)
+    policy = _resolve_policy(planner_input, snapshot, route, capability, binding)
     target_predictions = _target_predictions(
         tuple(sorted(binding.track_by_key, key=lambda key: (key.target_id, key.generation))),
         binding.track_by_key,
@@ -332,6 +342,7 @@ def _assemble_problem(
         binding,
         policy,
         target_predictions,
+        rolling_plan,
     )
     if profile is AssemblyProfile.COLAV_STRICT:
         horizon_encounter_plan = replace(horizon_encounter_plan, solver_consumed=True)
@@ -346,6 +357,7 @@ def _assemble_problem(
         effective_cpa_hard_m,
         profile,
         horizon_encounter_plan,
+        rolling_plan,
     )
     grid, preparation = _compile_numerical_preparation(
         config,
@@ -359,6 +371,7 @@ def _assemble_problem(
         route,
         capability,
         config,
+        rolling_plan,
         frame=frame,
         profile=profile,
     )
@@ -424,7 +437,6 @@ def _resolve_policy(
     snapshot: DecisionSnapshot,
     route: RouteReference,
     capability: CapabilitySnapshot,
-    config: MidMpcAssemblyConfig,
     binding: _TargetBinding,
 ) -> _PolicyResolution:
     required_sides = {
@@ -459,11 +471,7 @@ def _resolve_policy(
             raise ValueError(f"committed target {corridor.key} has no baseline course")
         committed_route_bearing = corridor.baseline_course_rad + preferred_side * corridor.required_course_change_rad
     elif binding.required_decisions:
-        recovery_delta = _wrap(route.bearing_rad - float(planner_input.ownship_state[2]))
-        recovery_step = capability.rot_max_rad_s * config.decision_period_s
-        committed_route_bearing = float(planner_input.ownship_state[2]) + float(
-            np.clip(recovery_delta, -recovery_step, recovery_step)
-        )
+        committed_route_bearing = float(planner_input.ownship_state[2])
 
     return _PolicyResolution(
         speed_bounds_mps=speed_bounds,
@@ -484,6 +492,7 @@ def _compile_semantic_problem(
     effective_cpa_hard_m: float,
     profile: AssemblyProfile,
     horizon_encounter_plan: HorizonEncounterPlan,
+    rolling_plan: RollingPlanReference | None,
 ) -> _SemanticAssembly:
     ownship = planner_input.ownship_state
     minimum_change = snapshot.directive.minimum_course_change_rad if policy.lateral_active else 0.0
@@ -537,6 +546,17 @@ def _compile_semantic_problem(
         float(ownship[2]) - capability.heading_window_rad,
         float(ownship[2]) + capability.heading_window_rad,
     )
+    if profile is AssemblyProfile.COLAV_STRICT:
+        staged_headings = (
+            float(ownship[2])
+            + _wrap(horizon_encounter_plan.mission_route_bearing_rad - float(ownship[2])),
+            float(ownship[2])
+            + _wrap(horizon_encounter_plan.avoidance_corridor_bearing_rad - float(ownship[2])),
+        )
+        heading_bounds = (
+            min(heading_bounds[0], *staged_headings),
+            max(heading_bounds[1], *staged_headings),
+        )
     if stand_on_hold:
         stand_on_baselines = tuple(
             float(ownship[2]) + _wrap(float(decision.baseline_course_rad) - float(ownship[2]))
@@ -575,8 +595,11 @@ def _compile_semantic_problem(
         dt_s=config.horizon_dt_s,
         rot_max_rad_s=capability.rot_max_rad_s,
         heading_window_rad=capability.heading_window_rad,
+        rolling_plan=rolling_plan,
     )
-    route_frame_bearing = route.bearing_rad if route_objective is not None else policy.committed_route_bearing_rad
+    route_frame_bearing = (
+        route.mission_leg_bearing_rad if route_objective is not None else policy.committed_route_bearing_rad
+    )
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
         route_bearing_rad=policy.committed_route_bearing_rad,
@@ -720,6 +743,7 @@ def _route_objective(
     dt_s: float,
     rot_max_rad_s: float,
     heading_window_rad: float,
+    rolling_plan: RollingPlanReference | None,
 ) -> MidMpcRouteObjective | None:
     if profile is AssemblyProfile.MASS_PARITY:
         return None
@@ -747,6 +771,13 @@ def _route_objective(
         heading_reference_rad=heading_references,
         lateral_reference_m=lateral_references,
         avoidance_active_until_k=avoidance_active_until_k,
+        continuity_heading_reference_rad=(
+            rolling_plan.heading_reference_rad if rolling_plan is not None else ()
+        ),
+        continuity_speed_reference_mps=(
+            rolling_plan.speed_reference_mps if rolling_plan is not None else ()
+        ),
+        continuity_weight=(rolling_plan.objective_weight if rolling_plan is not None else ()),
     )
 
 
@@ -779,20 +810,14 @@ def _staged_route_references(
         lateral_references.append(cross_track)
         if phase in {HorizonEncounterPhase.ALTER, HorizonEncounterPhase.PASS}:
             desired_heading = corridor
-        elif phase is HorizonEncounterPhase.RECOVER and speed > 1.0e-9 and maximum_recovery_delta > 1.0e-9:
+        elif speed > 1.0e-9 and maximum_recovery_delta > 1.0e-9:
             requested_lateral_velocity = float(np.clip(-cross_track / dt_s, -speed, speed))
             recovery_delta = math.asin(requested_lateral_velocity / speed)
             recovery_delta = float(np.clip(recovery_delta, -maximum_recovery_delta, maximum_recovery_delta))
             desired_heading = mission + recovery_delta
         else:
             desired_heading = mission
-        desired_heading = ownship_heading_rad + float(
-            np.clip(
-                _wrap(desired_heading - ownship_heading_rad),
-                -heading_window_rad,
-                heading_window_rad,
-            )
-        )
+        desired_heading = ownship_heading_rad + _wrap(desired_heading - ownship_heading_rad)
         desired_heading = previous_heading + _wrap(desired_heading - previous_heading)
         heading = previous_heading + float(
             np.clip(desired_heading - previous_heading, -maximum_heading_step, maximum_heading_step)
@@ -855,6 +880,7 @@ def _compile_horizon_encounter_plan(
     binding: _TargetBinding,
     policy: _PolicyResolution,
     target_predictions: tuple[TargetPrediction, ...],
+    rolling_plan: RollingPlanReference | None,
 ) -> HorizonEncounterPlan:
     prediction_by_key = {prediction.key: prediction for prediction in target_predictions}
     own_radius_m = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
@@ -864,7 +890,7 @@ def _compile_horizon_encounter_plan(
         if decision.key in binding.required_keys
         or (decision.commitment is CommitmentPhase.COMMITTED and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR})
     )
-    return compile_horizon_encounter_plan(
+    plan = compile_horizon_encounter_plan(
         HorizonEncounterPlanRequest(
             reference_time_s=planner_input.sim_time_s,
             times_s=np.arange(config.horizon_steps + 1, dtype=float) * config.horizon_dt_s,
@@ -872,7 +898,7 @@ def _compile_horizon_encounter_plan(
             mission_route_anchor_ne_m=route.anchor_ne_m,
             own_heading_rad=float(planner_input.ownship_state[2]),
             own_speed_mps=0.0 if snapshot.directive.stop_required else route.planned_speed_mps,
-            mission_route_bearing_rad=route.bearing_rad,
+            mission_route_bearing_rad=route.mission_leg_bearing_rad,
             avoidance_corridor_bearing_rad=policy.committed_route_bearing_rad,
             rot_max_rad_s=capability.rot_max_rad_s,
             heading_window_rad=capability.heading_window_rad,
@@ -897,6 +923,38 @@ def _compile_horizon_encounter_plan(
             ),
         )
     )
+    return _anchor_recovery_to_rolling_plan(plan, rolling_plan)
+
+
+def _anchor_recovery_to_rolling_plan(
+    plan: HorizonEncounterPlan,
+    rolling_plan: RollingPlanReference | None,
+) -> HorizonEncounterPlan:
+    if (
+        rolling_plan is None
+        or not rolling_plan.active
+        or rolling_plan.recovery_at_s is None
+        or not plan.target_windows
+    ):
+        return plan
+    dt_s = float(plan.times_s[1] - plan.times_s[0])
+    remaining_s = max(0.0, rolling_plan.recovery_at_s - plan.reference_time_s)
+    anchored_k = min(plan.times_s.size - 1, math.ceil(remaining_s / dt_s - 1.0e-9))
+    windows = tuple(
+        replace(window, recovery_from_k=max(anchored_k, window.action_complete_k))
+        for window in plan.target_windows
+    )
+    recovery_from_k = max(window.recovery_from_k for window in windows if window.recovery_from_k is not None)
+    action_complete_k = max(window.action_complete_k for window in windows)
+    phases = [HorizonEncounterPhase.PASS] * plan.times_s.size
+    phases[:action_complete_k] = [HorizonEncounterPhase.ALTER] * action_complete_k
+    phases[recovery_from_k:] = [HorizonEncounterPhase.RECOVER] * (len(phases) - recovery_from_k)
+    return replace(
+        plan,
+        phases=tuple(phases),
+        target_windows=windows,
+        recovery_from_k=recovery_from_k,
+    )
 
 
 def request_hash_document(
@@ -905,19 +963,21 @@ def request_hash_document(
     route: RouteReference,
     capability: CapabilitySnapshot,
     config: MidMpcAssemblyConfig,
+    rolling_plan: RollingPlanReference | None = None,
     *,
     frame: AssemblyFrame,
     profile: AssemblyProfile,
 ) -> dict[str, object]:
     """Return canonical cycle evidence used as the hash-chain root."""
     return {
-        "schema_version": "colav.mid_mpc.request@1",
+        "schema_version": "colav.mid_mpc.request@2",
         "frame": frame.value,
         "identity": _identity(snapshot),
         "decision_snapshot": asdict(snapshot),
         "route": asdict(route),
         "capability": asdict(capability),
         "config": asdict(config),
+        "rolling_plan": None if rolling_plan is None else asdict(rolling_plan),
         "profile": profile.value,
         "ownship": {
             "state": planner_input.ownship_state.tolist(),
@@ -946,7 +1006,7 @@ def problem_hash_document(
 ) -> dict[str, object]:
     """Return canonical, parent-linked semantic problem evidence."""
     return {
-        "schema_version": "colav.mid_mpc.problem@2",
+        "schema_version": "colav.mid_mpc.problem@3",
         "parent_request_hash": parent_request_hash,
         "problem": asdict(problem),
         "target_predictions": [_prediction_document(item) for item in target_predictions],

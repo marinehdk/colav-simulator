@@ -399,6 +399,9 @@
             <div><span class="telem-label">航向跨度</span><span class="telem-val mono-tag" id="val-course-span">--°</span></div>
             <div><span class="telem-label">速度跨度</span><span class="telem-val mono-tag" id="val-speed-span">-- m/s</span></div>
             <div><span class="telem-label">横向偏离</span><span class="telem-val mono-tag" id="val-lateral-deviation">-- m</span></div>
+            <div><span class="telem-label">滚动计划</span><span class="telem-val mono-tag" id="val-rolling-plan">--</span></div>
+            <div><span class="telem-label">近端连续性</span><span class="telem-val mono-tag" id="val-prefix-continuity">--</span></div>
+            <div><span class="telem-label">回归漂移</span><span class="telem-val mono-tag" id="val-recovery-drift">-- s</span></div>
           </div>
           <div class="planner-surface-copy">
             <div class="surface-heading">
@@ -472,6 +475,14 @@
             <div class="perf-stat">
               <span class="telem-label">平均耗时 (60步)</span>
               <span class="telem-val mono-tag" id="val-avg-time">-- ms</span>
+            </div>
+            <div class="perf-stat">
+              <span class="telem-label">IPOPT 求解</span>
+              <span class="telem-val mono-tag" id="val-ipopt-time">-- ms</span>
+            </div>
+            <div class="perf-stat">
+              <span class="telem-label">计算图构建</span>
+              <span class="telem-val mono-tag" id="val-graph-build-time">-- ms</span>
             </div>
           </div>
 

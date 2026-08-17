@@ -7,6 +7,7 @@ import math
 import time
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -15,7 +16,7 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureS
 from colav_simulator.core.tracking.trackers import TrackKey, TrackSnapshot, TrackStatus
 from colav_simulator.experiment.capabilities import ALGORITHMS, VERIFIED_COMBINATIONS
 from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
-from colav_simulator.integrations.mid_mpc_ipopt import _execution_control_knots
+from colav_simulator.integrations.mid_mpc_ipopt import _execution_control_knots, _held_target_prediction_error
 from colav_simulator.integrations.registry import IntegrationRegistry
 
 ALGORITHM_ID = "mid_mpc_ipopt"
@@ -35,7 +36,37 @@ def test_execution_control_knots_hold_each_interval_command() -> None:
     assert not np.shares_memory(knots, controls)
 
 
-def _fast_adapter(*, scenario_id: str = "head_on") -> CustomMPCAdapter:
+def test_released_target_prediction_drift_does_not_force_early_replan() -> None:
+    planner_input = SimpleNamespace(
+        tracks=(
+            SimpleNamespace(
+                target_id=1,
+                generation=1,
+                state_enu=np.array([20.0, 0.0, 0.0, 4.0]),
+            ),
+        )
+    )
+    solution = SimpleNamespace(
+        target_predictions=(
+            {
+                "target_id": 1,
+                "generation": 1,
+                "north_m": [0.0],
+                "east_m": [0.0],
+                "velocity_ne_mps": [4.0, 0.0],
+                "route_recovery_allowed": True,
+            },
+        )
+    )
+
+    assert _held_target_prediction_error(planner_input, solution, elapsed_s=5.0) == (0.0, 0.0)
+    solution.target_predictions[0]["route_recovery_allowed"] = False
+    position_error, velocity_error = _held_target_prediction_error(planner_input, solution, elapsed_s=5.0)
+    assert position_error == 0.0
+    assert velocity_error > 0.1
+
+
+def _fast_adapter(*, scenario_id: str = "head_on", solve_period_s: float = 5.0) -> CustomMPCAdapter:
     return IntegrationRegistry().build_algorithm(
         ALGORITHM_ID,
         {
@@ -43,7 +74,7 @@ def _fast_adapter(*, scenario_id: str = "head_on") -> CustomMPCAdapter:
             "kwargs": {
                 "horizon_steps": 4,
                 "horizon_dt_s": 5.0,
-                "solve_period_s": 5.0,
+                "solve_period_s": solve_period_s,
                 "deadline_s": 20.0,
             },
         },
@@ -114,6 +145,7 @@ def test_registry_exposes_published_mid_mpc_profile_and_truthful_descriptor() ->
     assert descriptor["descriptor"]["horizon_steps"] == 80
     assert descriptor["descriptor"]["state_samples"] == 81
     assert descriptor["descriptor"]["horizon_dt"] == 5.0
+    assert descriptor["descriptor"]["execution_profile"]["solve_period_s"] == 10.0
     assert descriptor["fallback_policy"] == "forbidden"
     assert descriptor["build_identity"]["config_sha256"] != "UNKNOWN"
     assert ALGORITHMS[ALGORITHM_ID].readiness_grade == "G3"
@@ -207,7 +239,45 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
         "cpa": [0.0, 0.0],
         "direction": [0.0, 0.0],
     }
+    timing = trace["algorithm_details"]
+    assert timing["graph_cache_hit"] is False
+    assert timing["graph_build_elapsed_ms"] > 0.0
+    assert timing["solver_preparation_elapsed_ms"] >= 0.0
+    assert timing["ipopt_elapsed_ms"] > 0.0
+    assert timing["ipopt_iterations"] >= 1
+    assert timing["optimizer_total_elapsed_ms"] >= timing["ipopt_elapsed_ms"]
     assert np.asarray(trace["predicted_trajectory"]).shape == (9, 81)
+
+
+def test_no_target_off_route_prediction_rejoins_straight_mission_leg() -> None:
+    adapter = IntegrationRegistry().build_algorithm(
+        ALGORITHM_ID,
+        factory_context=FactoryContext(
+            ALGORITHM_ID,
+            0,
+            scenario_id="route_rejoin_regression",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+        ),
+    )
+    initial_cross_track_m = 137.0
+
+    adapter.plan(
+        0.0,
+        np.array([[0.0, 2_000.0], [0.0, 0.0]]),
+        np.array([7.0, 7.0]),
+        np.array([1_140.0, initial_cross_track_m, np.deg2rad(-63.386679), 7.0, 0.0, 0.0]),
+        [],
+        dt=0.5,
+        os_length=8.45,
+        os_model_name="Viknes",
+        os_controller_name="FLSC",
+        os_max_turn_rate_radps=np.deg2rad(3.0),
+    )
+
+    cross_track_m = np.abs(adapter.get_current_plan()[1])
+    assert cross_track_m[24] < initial_cross_track_m
+    assert cross_track_m[-1] < 20.0
 
 
 def test_mid_mpc_trace_exposes_typed_prediction_evidence_and_authority_timeline() -> None:
@@ -678,6 +748,32 @@ def test_adapter_owns_hold_schedule_and_reset_state() -> None:
     np.testing.assert_allclose(repeated, first, atol=1e-7)
 
 
+def test_sequential_head_on_solves_preserve_absolute_time_prefix_continuity() -> None:
+    adapter = _fast_adapter()
+    ownship = np.array([0.0, 0.0, 0.0, 4.0, 0.0, 0.0])
+
+    for sim_time_s in (0.0, 5.0, 10.0, 15.0):
+        target = [
+            (
+                41,
+                np.array([1000.0 - 4.0 * sim_time_s, 0.0, -4.0, 0.0]),
+                np.eye(4),
+                15.0,
+                4.0,
+            )
+        ]
+        _plan(adapter, sim_time_s, target, ownship=ownship)
+        ownship = np.asarray(adapter.get_colav_data()["planner"]["predicted_trajectory"])[:6, 1].copy()
+
+    rolling = adapter.get_diagnostics().details["rolling_plan"]
+    assert rolling["reference"]["active"] is True
+    assert rolling["assessment"]["revision_reason"] == "CONTINUITY_PRESERVED"
+    assert rolling["assessment"]["accepted"] is True
+    assert rolling["assessment"]["prefix"]["heading_rms_deg"] <= 3.0
+    assert rolling["assessment"]["prefix"]["heading_max_deg"] <= 10.0
+    assert rolling["assessment"]["prefix"]["position_max_m"] <= 10.0
+
+
 def test_stale_held_plan_replans_once_before_command_visibility() -> None:
     adapter = _fast_adapter()
     _plan(adapter, 0.0)
@@ -692,6 +788,19 @@ def test_stale_held_plan_replans_once_before_command_visibility() -> None:
     assert trace["algorithm_details"]["trajectory_source"] == "fresh_ipopt_solve"
     assert np.isfinite(command).all()
     np.testing.assert_allclose(adapter.get_current_plan()[:2, 0], shifted[:2], atol=1e-9)
+
+
+def test_one_prediction_interval_heading_lag_does_not_bypass_solve_period() -> None:
+    adapter = _fast_adapter(solve_period_s=10.0)
+    _plan(adapter, 0.0)
+
+    lagging = np.array([8.0, 0.0, np.deg2rad(16.0), 4.0, 0.0, 0.0])
+    _plan(adapter, 2.0, ownship=lagging)
+
+    trace = adapter.get_colav_data()["planner"]
+    assert trace["solver_executed"] is False
+    assert trace["solve_id"] == 1
+    assert trace["algorithm_details"]["trajectory_source"] == "held_plan"
 
 
 def test_compatible_dynamic_target_reuses_held_plan_with_full_l4_revalidation() -> None:
@@ -735,6 +844,46 @@ def test_only_accepted_receipt_can_seed_next_ipopt_solve() -> None:
     assert details["warm_start_used"] is True
     assert details["accepted_plan_receipt"]["dual_warm_start"] is False
     assert details["accepted_plan_receipt"]["warm_start_eligible"] is True
+
+
+def test_route_correction_does_not_discard_accepted_primal_warm_start() -> None:
+    adapter = _fast_adapter(scenario_id="route")
+    _plan(
+        adapter,
+        0.0,
+        ownship=np.array([0.0, 20.0, 0.0, 4.0, 0.0, 0.0]),
+    )
+    tracked_state = adapter.get_current_plan()[:6, 1]
+
+    _plan(
+        adapter,
+        5.0,
+        ownship=tracked_state,
+    )
+
+    details = adapter.get_diagnostics().details
+    assert details["warm_start_used"] is True
+    assert details["accepted_plan_receipt"]["warm_start_eligible"] is True
+
+
+def test_semantically_compatible_accepted_primal_is_not_discarded() -> None:
+    adapter = _fast_adapter()
+    facade = adapter._solve.__self__  # type: ignore[attr-defined]
+    facade._accepted_primal = (
+        0.0,
+        np.zeros(4),
+        np.full(4, 4.0),
+        "single-encounter:viknes:flsc",
+        "stable-token",
+    )
+
+    warm_start = facade._primal_warm_start(
+        SimpleNamespace(sim_time_s=5.0),
+        SimpleNamespace(exact_tuple="single-encounter:viknes:flsc"),
+        "stable-token",
+    )
+
+    assert warm_start is not None
 
 
 def test_runtime_evidence_timeline_is_bounded_to_latest_committed_cycle() -> None:
@@ -798,9 +947,10 @@ def test_schedule_error_fails_stop_and_ipopt_evidence_is_json_safe() -> None:
         "route",
         "asymmetry",
         "terminal",
-        "cpa_slack",
-        "direction_slack",
-    }
+            "cpa_slack",
+            "direction_slack",
+            "continuity",
+        }
     assert trace["constraints"]["max_constraint_violation"] <= 1e-3
     json.dumps(adapter.get_colav_data(), allow_nan=False)
 

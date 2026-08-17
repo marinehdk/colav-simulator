@@ -121,25 +121,50 @@ class MidMpcRouteObjective:
     heading_reference_rad: tuple[float, ...]
     lateral_reference_m: tuple[float, ...]
     avoidance_active_until_k: int
+    continuity_heading_reference_rad: tuple[float, ...] = ()
+    continuity_speed_reference_mps: tuple[float, ...] = ()
+    continuity_weight: tuple[float, ...] = ()
 
     def __post_init__(self) -> None:
         """Normalize and validate the staged route objective."""
         references = tuple(float(value) for value in self.heading_reference_rad)
         lateral_references = tuple(float(value) for value in self.lateral_reference_m)
+        continuity_headings = tuple(float(value) for value in self.continuity_heading_reference_rad)
+        continuity_speeds = tuple(float(value) for value in self.continuity_speed_reference_mps)
+        continuity_weights = tuple(float(value) for value in self.continuity_weight)
+        if not continuity_headings:
+            continuity_headings = (0.0,) * len(references)
+        if not continuity_speeds:
+            continuity_speeds = (0.0,) * len(references)
+        if not continuity_weights:
+            continuity_weights = (0.0,) * len(references)
         _require_finite(
             self.mission_bearing_rad,
             self.avoidance_corridor_bearing_rad,
             *references,
             *lateral_references,
+            *continuity_headings,
+            *continuity_speeds,
+            *continuity_weights,
         )
         if not references:
             raise ValueError("route objective requires one or more heading references")
         if len(lateral_references) != len(references):
             raise ValueError("route objective heading and lateral references must have equal length")
+        if any(
+            len(values) != len(references)
+            for values in (continuity_headings, continuity_speeds, continuity_weights)
+        ):
+            raise ValueError("route objective continuity references must match the route horizon")
+        if min(continuity_weights, default=0.0) < 0.0:
+            raise ValueError("route objective continuity weights must be non-negative")
         if not 0 <= self.avoidance_active_until_k <= len(references):
             raise ValueError("avoidance objective window must fall inside heading references")
         object.__setattr__(self, "heading_reference_rad", references)
         object.__setattr__(self, "lateral_reference_m", lateral_references)
+        object.__setattr__(self, "continuity_heading_reference_rad", continuity_headings)
+        object.__setattr__(self, "continuity_speed_reference_mps", continuity_speeds)
+        object.__setattr__(self, "continuity_weight", continuity_weights)
 
 
 @dataclass(frozen=True)
@@ -333,6 +358,7 @@ class MidMpcObjectiveComponents:
     terminal: float
     cpa_slack: float
     direction_slack: float
+    continuity: float = 0.0
 
     @property
     def total(self) -> float:
@@ -370,6 +396,10 @@ class MidMpcResult:
     ipopt_return_status: str
     ipopt_iterations: int
     elapsed_ms: float
+    graph_build_elapsed_ms: float
+    preparation_elapsed_ms: float
+    ipopt_elapsed_ms: float
+    graph_cache_hit: bool
     objective_total: float
     seed_objective_total: float
     seed_max_constraint_violation: float

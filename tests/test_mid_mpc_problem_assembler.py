@@ -33,6 +33,7 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     MidMpcProblemAssembler,
     RouteReference,
 )
+from colav_simulator.core.colav.rolling_plan import PlanRevisionReason, RollingPlanReference
 from colav_simulator.core.tracking.trackers import TrackKey
 
 
@@ -346,6 +347,66 @@ def test_route_recovery_conflict_activates_cpa_rows_before_turning_back() -> Non
     assert target_window.route_recovery_allowed_at_start is True
     assert target_window.minimum_predicted_route_dcpa_m < target_window.recovery_clearance_m
     assert outcome.problem.row_schedule.cpa_hard_windows[0].start_k == 0
+
+
+def test_route_recovery_wait_holds_current_course_until_rejoin_is_safe() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    recovery_target = replace(
+        snapshot.targets[0],
+        risk=RiskPhase.PAST_CLEAR,
+        route_recovery_allowed=True,
+        recovery_guard_active=True,
+        action_achieved=True,
+    )
+    recovery_snapshot = replace(snapshot, targets=(recovery_target,))
+    current_heading = math.radians(30.0)
+    off_route_input = replace(
+        planner_input,
+        ownship_state=np.array([0.0, 200.0, current_heading, 7.0, 0.0, 0.0]),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(off_route_input, recovery_snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.horizon_encounter_plan.recovery_from_k not in {None, 0}
+    assert outcome.horizon_encounter_plan.phases[0] is HorizonEncounterPhase.PASS
+    assert outcome.horizon_encounter_plan.avoidance_corridor_bearing_rad == pytest.approx(current_heading)
+
+
+def test_recovery_window_keeps_accepted_absolute_rolling_plan_time() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    recovery_target = replace(
+        snapshot.targets[0],
+        risk=RiskPhase.PAST_CLEAR,
+        route_recovery_allowed=True,
+        recovery_guard_active=True,
+        action_achieved=True,
+    )
+    recovery_snapshot = replace(snapshot, targets=(recovery_target,))
+    request = _request(planner_input, recovery_snapshot)
+    rolling_plan = RollingPlanReference(
+        active=True,
+        revision_reason=PlanRevisionReason.CONTINUITY_PRESERVED,
+        accepted_at_s=0.0,
+        current_time_s=planner_input.sim_time_s,
+        recovery_at_s=15.0,
+        heading_reference_rad=(0.0,) * request.config.horizon_steps,
+        speed_reference_mps=(7.0,) * request.config.horizon_steps,
+        objective_weight=(100.0,) * request.config.horizon_steps,
+        overlap_intervals=request.config.horizon_steps,
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(replace(request, rolling_plan=rolling_plan))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.horizon_encounter_plan.recovery_from_k == 2
+    assert all(window.recovery_from_k == 2 for window in outcome.horizon_encounter_plan.target_windows)
 
 
 def test_structural_signature_stays_fixed_when_only_row_bounds_change() -> None:
@@ -682,7 +743,12 @@ def _request(planner_input: PlannerInput, snapshot: DecisionSnapshot) -> Assembl
         snapshot=snapshot,
         cycle_input_hash=snapshot.input_hash,
         lifecycle_profile_hash=snapshot.profile_hash,
-        route=RouteReference(anchor_ne_m=(0.0, 0.0), bearing_rad=0.0, planned_speed_mps=7.0),
+        route=RouteReference(
+            anchor_ne_m=(0.0, 0.0),
+            bearing_rad=0.0,
+            mission_leg_bearing_rad=0.0,
+            planned_speed_mps=7.0,
+        ),
         capability=CapabilitySnapshot(
             heading_window_rad=config.heading_window_rad,
             speed_bounds_mps=config.speed_bounds_mps,
