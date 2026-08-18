@@ -719,3 +719,29 @@ def test_rule14_web_and_offline_trajectory_hashes_match(tmp_path: Path) -> None:
     )
     assert web_manifest["episode_hash"] == offline.manifest.episode_hash
     assert web_manifest["trajectory_hash"] == offline.manifest.trajectory_hash
+
+
+def test_step_response_nulls_non_finite_cpa_without_encounters(monkeypatch) -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "scenario_id": "head_on",
+                "algorithm_id": "nominal",
+                "tracker_id": "god",
+                "t_end": 2.0,
+            },
+        )
+        assert created.status_code == 200, created.json()
+        session_id = created.json()["session_id"]
+
+        monkeypatch.setattr(
+            "gui_server.main._select_primary_encounter", lambda encounters: None
+        )
+        stepped = client.post(f"/api/sessions/{session_id}/step")
+
+    assert stepped.status_code == 200
+    assert stepped.json()["primary_encounter"] is None
+    assert stepped.json()["dcpa"] is None
+    assert stepped.json()["tcpa"] is None
+    assert stepped.json()["colregs"] == "clear"

@@ -463,7 +463,7 @@ class WebSessionManager:
                 if prepared.session.state == SessionState.FINISHED:
                     self._finalize(prepared)
                     self.latest = self._telemetry(snapshot)
-                return self.latest
+                return jsonable(self.latest)
             except Exception as exc:
                 self._persist_failure(prepared, exc)
                 raise
