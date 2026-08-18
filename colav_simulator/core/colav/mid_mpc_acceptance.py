@@ -351,7 +351,7 @@ class MidMpcPlanAcceptance:
             target_witnesses.extend(self._safety(request, findings))
             self._colreg(request, findings)
             self._trackability(request, findings)
-            self._quality(request, findings)
+            self._quality(request, findings, tuple(target_witnesses))
             self._evidence(request, findings)
         else:
             for layer in tuple(AcceptanceLayer)[1:]:
@@ -971,6 +971,7 @@ class MidMpcPlanAcceptance:
     def _quality(  # noqa: C901, PLR0912, PLR0915 - explicit phase-completeness predicates
         request: AcceptanceRequest,
         findings: list[AcceptanceFinding],
+        target_safety: tuple[TargetSafetyWitness, ...],
     ) -> None:
         course_steps = np.diff(np.unwrap(request.candidate.course_rad))
         speed_steps = np.diff(request.candidate.speed_mps)
@@ -1132,6 +1133,7 @@ class MidMpcPlanAcceptance:
         recovery_from_k = phase_evidence.recovery_from_k
         if recovery_from_k is not None:
             execution_by_key = {target.key: target for target in request.execution.targets}
+            safety_by_key = {target.key: target for target in target_safety}
             recovery_evidence_from_k = 0
             for target in maneuver_targets:
                 execution_target = execution_by_key.get(target.key)
@@ -1154,6 +1156,15 @@ class MidMpcPlanAcceptance:
                 cpa_k = released_minima[0] if released_minima else int(np.argmin(distances))
                 recovery_evidence_from_k = max(recovery_evidence_from_k, cpa_k)
                 witness[f"target_{target.key.target_id}_cpa_k"] = cpa_k
+                safety_witness = safety_by_key.get(target.key)
+                advisory_clear = bool(
+                    safety_witness is not None
+                    and safety_witness.clearance_lower_bound_m >= request.policy.advisory_hull_clearance_m
+                )
+                if safety_witness is not None:
+                    witness[f"target_{target.key.target_id}_clearance_lower_bound_m"] = (
+                        safety_witness.clearance_lower_bound_m
+                    )
                 if recovery_from_k < cpa_k:
                     if target.role in {"STAND_ON", "OVERTAKEN"} and target.rule17 == "MAY_ACT":
                         findings.append(
@@ -1167,7 +1178,7 @@ class MidMpcPlanAcceptance:
                                 witness=witness,
                             )
                         )
-                    else:
+                    elif not advisory_clear:
                         _fail(
                             findings,
                             AcceptanceLayer.QUALITY,

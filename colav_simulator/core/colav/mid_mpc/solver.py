@@ -27,6 +27,9 @@ from colav_simulator.core.colav.mid_mpc.models import (
 
 _TARGET_STRIDE = 5
 _FROZEN_PREFIX_CAPACITY = 18
+# IPOPT's first target-free interior iterate may temporarily raise the tiny mission objective.
+_TARGET_FREE_OBJECTIVE_CEILING = 0.03
+_TARGET_FREE_RELATIVE_REGRESSION = 0.05
 
 
 class _P(IntEnum):
@@ -120,24 +123,33 @@ class MidMpcIpoptSolver:
             prepared.lbg,
             prepared.ubg,
         )[2]
-        seed_primal_feasible = _prepared_primal_feasible(prepared.x0, seed_g, prepared)
+        strict_tolerances = (
+            _strict_primal_tolerances(self._config, graph.row_layout, prepared) if self._config.strict_slack_bounds else None
+        )
+        seed_primal_feasible = _prepared_primal_feasible(
+            prepared.x0,
+            seed_g,
+            prepared,
+            tolerances=strict_tolerances,
+        )
+        quality_required_improvement = (
+            _target_free_required_improvement(seed_objective_total)
+            if self._config.strict_slack_bounds and not problem.targets and problem.route_objective is not None
+            else None
+        )
         graph.iteration_callback.arm(
             quality_seed_objective=(
                 seed_objective_total
-                if self._config.strict_slack_bounds
-                and seed_primal_feasible
-                and (problem.targets or problem.route_objective is not None)
+                if self._config.strict_slack_bounds and (problem.targets or problem.route_objective is not None)
                 else None
             ),
-            quality_required_improvement=(
-                max(1.0e-4, abs(seed_objective_total) * 0.01)
-                if self._config.strict_slack_bounds and not problem.targets and problem.route_objective is not None
-                else None
-            ),
+            quality_required_improvement=quality_required_improvement,
+            quality_stop_on_feasible=self._config.strict_slack_bounds and not seed_primal_feasible,
             quality_lbx=prepared.lbx,
             quality_ubx=prepared.ubx,
             quality_lbg=prepared.lbg,
             quality_ubg=prepared.ubg,
+            quality_tolerances=strict_tolerances,
         )
         preparation_elapsed_ms = (time.perf_counter() - preparation_started) * 1_000.0
         ipopt_started = time.perf_counter()
@@ -168,6 +180,7 @@ class MidMpcIpoptSolver:
                 graph.iteration_callback.iterates,
                 graph,
                 prepared,
+                tolerances=strict_tolerances,
             )
             if incumbent is not None:
                 accepted_iteration, raw_x, raw_f, raw_g = incumbent
@@ -175,7 +188,12 @@ class MidMpcIpoptSolver:
         status = native_status
         objective_improvement = seed_objective_total - raw_f
         decision_change_norm = float(np.linalg.norm(raw_x - prepared.x0))
-        raw_primal_feasible = _prepared_primal_feasible(raw_x, raw_g, prepared)
+        raw_primal_feasible = _prepared_primal_feasible(
+            raw_x,
+            raw_g,
+            prepared,
+            tolerances=strict_tolerances,
+        )
         optimization_quality_passed = _optimization_quality_passed(
             strict=self._config.strict_slack_bounds,
             return_status=return_status,
@@ -187,6 +205,7 @@ class MidMpcIpoptSolver:
             decision_change_norm=decision_change_norm,
             controlled_quality_stop=graph.iteration_callback.quality_stop_requested,
             accepted_iteration=accepted_iteration,
+            required_improvement=quality_required_improvement,
         )
         accepted_by_quality_gate = (
             native_status is MidMpcStatus.TIMEOUT
@@ -306,7 +325,9 @@ class _IterationCallback(ca.Callback):
         self._callback_count = 0
         self._quality_seed_objective: float | None = None
         self._quality_required_improvement: float | None = None
+        self._quality_stop_on_feasible = False
         self._quality_bounds: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None
+        self._quality_tolerances: tuple[np.ndarray, np.ndarray] | None = None
         self.quality_stop_requested = False
         self.iterates: list[tuple[int, np.ndarray, float]] = []
         ca.Callback.__init__(self)
@@ -317,21 +338,25 @@ class _IterationCallback(ca.Callback):
         *,
         quality_seed_objective: float | None = None,
         quality_required_improvement: float | None = None,
+        quality_stop_on_feasible: bool = False,
         quality_lbx: np.ndarray | None = None,
         quality_ubx: np.ndarray | None = None,
         quality_lbg: np.ndarray | None = None,
         quality_ubg: np.ndarray | None = None,
+        quality_tolerances: tuple[np.ndarray, np.ndarray] | None = None,
     ) -> None:
         self._started_at = self._clock()
         self._callback_count = 0
         self._quality_seed_objective = quality_seed_objective
         self._quality_required_improvement = quality_required_improvement
+        self._quality_stop_on_feasible = quality_stop_on_feasible
         bounds = (quality_lbx, quality_ubx, quality_lbg, quality_ubg)
         self._quality_bounds = (
             None
             if any(value is None for value in bounds)
             else cast(tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], bounds)
         )
+        self._quality_tolerances = quality_tolerances
         self.quality_stop_requested = False
         self.iterates = []
 
@@ -369,6 +394,7 @@ class _IterationCallback(ca.Callback):
             objective = float(_flat(arguments[1])[0])
             constraints = _flat(arguments[2])
             lbx, ubx, lbg, ubg = self._quality_bounds
+            x_tolerance, g_tolerance = self._quality_tolerances if self._quality_tolerances is not None else (1.0e-3, 1.0e-3)
             required_improvement = (
                 self._quality_required_improvement
                 if self._quality_required_improvement is not None
@@ -376,15 +402,15 @@ class _IterationCallback(ca.Callback):
             )
             self.quality_stop_requested = bool(
                 self._callback_count > 1
-                and self._quality_seed_objective - objective >= required_improvement
-                and _primal_feasible(values, lbx, ubx)
-                and _primal_feasible(constraints, lbg, ubg)
+                and (self._quality_stop_on_feasible or self._quality_seed_objective - objective >= required_improvement)
+                and _primal_feasible(values, lbx, ubx, tolerance=x_tolerance)
+                and _primal_feasible(constraints, lbg, ubg, tolerance=g_tolerance)
             )
         elapsed_s = 0.0 if self._started_at is None else self._clock() - self._started_at
         return [ca.DM(float(elapsed_s > self._max_wall_time_s or self.quality_stop_requested))]
 
 
-def _build_graph(  # noqa: PLR0915
+def _build_graph(  # noqa: PLR0912, PLR0915
     config: MidMpcConfig, problem: MidMpcProblem
 ) -> _Graph:
     n = config.horizon_steps
@@ -402,6 +428,10 @@ def _build_graph(  # noqa: PLR0915
     staged_route_objective = problem.route_objective is not None
     if staged_route_objective:
         parameter_dim += 5 * n + 1
+    rule_parameters_start: int | None = None
+    if config.strict_slack_bounds:
+        rule_parameters_start = parameter_dim
+        parameter_dim += 2 * config.max_targets
     dt = ca.DM(config.dt_s)
     psi = ca.MX.sym("psi", n)
     speed = ca.MX.sym("u", n)
@@ -422,15 +452,9 @@ def _build_graph(  # noqa: PLR0915
     lateral_reference = p[route_objective_start + n : route_objective_start + 2 * n] if staged_route_objective else None
     avoidance_active_until = p[route_objective_start + 2 * n] if staged_route_objective else ca.DM(n)
     continuity_start = route_objective_start + 2 * n + 1
-    continuity_heading = (
-        p[continuity_start : continuity_start + n] if staged_route_objective else ca.DM.zeros(n)
-    )
-    continuity_speed = (
-        p[continuity_start + n : continuity_start + 2 * n] if staged_route_objective else ca.DM.zeros(n)
-    )
-    continuity_weight = (
-        p[continuity_start + 2 * n : continuity_start + 3 * n] if staged_route_objective else ca.DM.zeros(n)
-    )
+    continuity_heading = p[continuity_start : continuity_start + n] if staged_route_objective else ca.DM.zeros(n)
+    continuity_speed = p[continuity_start + n : continuity_start + 2 * n] if staged_route_objective else ca.DM.zeros(n)
+    continuity_weight = p[continuity_start + 2 * n : continuity_start + 3 * n] if staged_route_objective else ca.DM.zeros(n)
     planned_speed = p[_P.PLANNED_SPEED]
     distance_error = psi - route_reference
     velocity_error = speed - ca.repmat(planned_speed, n, 1)
@@ -478,8 +502,7 @@ def _build_graph(  # noqa: PLR0915
     continuity_speed_error = speed - continuity_speed
     continuity_term = ca.dot(
         continuity_weight,
-        ca.power(continuity_heading_error, 2)
-        + ca.DM(0.1) * ca.power(continuity_speed_error, 2),
+        ca.power(continuity_heading_error, 2) + ca.DM(0.1) * ca.power(continuity_speed_error, 2),
     )
     objective = colreg_term + heading_term + speed_term + route_term + asym_cost + terminal_cost + continuity_term
     cpa_slack_term = ca.MX(0.0)
@@ -500,7 +523,11 @@ def _build_graph(  # noqa: PLR0915
     rows.extend([rot_step + (psi[0] - p[_P.OWN_PSI])])
     rows.append(rot_step + (psi[1:] - psi[:-1]))
     decel_step = p[_P.DECEL_MAX] * dt
-    rows.append(decel_step - (ca.vertcat(p[_P.U0], speed[:-1]) - speed))
+    speed_delta = speed - ca.vertcat(p[_P.U0], speed[:-1])
+    if config.strict_slack_bounds:
+        rows.append(decel_step - ca.fabs(speed_delta))
+    else:
+        rows.append(decel_step + speed_delta)
     rows.extend(psi[k] - p[_P.PREFIX_PSI + k] for k in range(n))
     rows.extend(speed[k] - p[prefix_u_start + k] for k in range(n))
     rows.extend(
@@ -527,7 +554,19 @@ def _build_graph(  # noqa: PLR0915
             config.terminal_l_max_m - constraint_terminal_cross_track,
         )
     )
-    rows.extend(ca.MX(0.0) for _index in range(audit_capacity))
+    if rule_parameters_start is None:
+        rows.extend(ca.MX(0.0) for _index in range(audit_capacity))
+    else:
+        rows.extend(
+            _crossing_astern_rows(
+                psi,
+                speed,
+                p,
+                config,
+                rule_parameters_start=rule_parameters_start,
+                audit_capacity=audit_capacity,
+            )
+        )
     g = ca.vertcat(*rows)
 
     options = {
@@ -608,6 +647,75 @@ def _cross_track_all(psi: ca.MX, speed: ca.MX, p: ca.MX, dt_s: float) -> list[ca
         cx += speed[k] * dt * ca.cos(psi[k])
         cy += speed[k] * dt * ca.sin(psi[k])
     return values
+
+
+def _crossing_astern_rows(
+    psi: ca.MX,
+    speed: ca.MX,
+    p: ca.MX,
+    config: MidMpcConfig,
+    *,
+    rule_parameters_start: int,
+    audit_capacity: int,
+) -> list[ca.MX]:
+    dt = ca.DM(config.dt_s)
+    positions: list[tuple[ca.MX, ca.MX]] = [(p[_P.X0], p[_P.Y0])]
+    own_x = p[_P.X0]
+    own_y = p[_P.Y0]
+    for k in range(config.horizon_steps):
+        own_x += speed[k] * dt * ca.cos(psi[k])
+        own_y += speed[k] * dt * ca.sin(psi[k])
+        positions.append((own_x, own_y))
+    target_start = int(_P.PREFIX_PSI) + 2 * max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
+    rows: list[ca.MX] = []
+    for target_index in range(audit_capacity):
+        if target_index >= config.max_targets:
+            rows.append(ca.MX(0.0))
+            continue
+        base = target_start + target_index * _TARGET_STRIDE
+        rule_base = rule_parameters_start + 2 * target_index
+        active = p[rule_base]
+        margin_m = p[rule_base + 1]
+        target_north_speed = p[base + _T.SOG] * ca.cos(p[base + _T.COG])
+        target_east_speed = p[base + _T.SOG] * ca.sin(p[base + _T.COG])
+        best_distance_squared: ca.MX | None = None
+        best_projection = ca.MX(0.0)
+        for k in range(config.horizon_steps):
+            start_time_s = ca.DM(k * config.dt_s)
+            end_time_s = ca.DM((k + 1) * config.dt_s)
+            target_start_x = p[base + _T.X] + target_north_speed * start_time_s
+            target_start_y = p[base + _T.Y] + target_east_speed * start_time_s
+            target_end_x = p[base + _T.X] + target_north_speed * end_time_s
+            target_end_y = p[base + _T.Y] + target_east_speed * end_time_s
+            relative_start_x = target_start_x - positions[k][0]
+            relative_start_y = target_start_y - positions[k][1]
+            relative_delta_x = (target_end_x - positions[k + 1][0]) - relative_start_x
+            relative_delta_y = (target_end_y - positions[k + 1][1]) - relative_start_y
+            denominator = relative_delta_x * relative_delta_x + relative_delta_y * relative_delta_y
+            fraction = ca.if_else(
+                denominator > ca.DM(1.0e-18),
+                ca.fmin(
+                    ca.fmax(
+                        -(relative_start_x * relative_delta_x + relative_start_y * relative_delta_y) / denominator,
+                        ca.DM(0.0),
+                    ),
+                    ca.DM(1.0),
+                ),
+                ca.DM(0.0),
+            )
+            relative_x = relative_start_x + fraction * relative_delta_x
+            relative_y = relative_start_y + fraction * relative_delta_y
+            distance_squared = relative_x * relative_x + relative_y * relative_y
+            projection = relative_x * ca.cos(p[base + _T.COG]) + relative_y * ca.sin(p[base + _T.COG])
+            if best_distance_squared is None:
+                best_distance_squared = distance_squared
+                best_projection = projection
+            else:
+                closer = distance_squared < best_distance_squared
+                best_distance_squared = ca.if_else(closer, distance_squared, best_distance_squared)
+                best_projection = ca.if_else(closer, projection, best_projection)
+        rows.append(active * (best_projection - margin_m))
+    return rows
 
 
 def _route_cost(
@@ -701,9 +809,7 @@ def _cpa_rows(
     own_x: ca.MX = ca.MX(0.0)
     own_y: ca.MX = ca.MX(0.0)
     prefix_k = (
-        p[_P.PREFIX_ACTIVE_K]
-        if config.strict_slack_bounds
-        else ca.DM(min(problem.prefix_active_k, config.horizon_steps))
+        p[_P.PREFIX_ACTIVE_K] if config.strict_slack_bounds else ca.DM(min(problem.prefix_active_k, config.horizon_steps))
     )
     cpa_hard = p[cpa_hard_index] if cpa_hard_index is not None else ca.DM(problem.cpa_hard_m)
     prefix_capacity = max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
@@ -814,6 +920,9 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     lbx[n : 2 * n], ubx[n : 2 * n] = problem.speed_bounds_mps
     lbx[2 * n :] = 0.0
     ubx[2 * n :] = np.inf
+    if config.strict_slack_bounds and not problem.targets and prefix_k:
+        lbx[:prefix_k] = ubx[:prefix_k] = problem.prefix_psi_rad[:prefix_k]
+        lbx[n : n + prefix_k] = ubx[n : n + prefix_k] = problem.prefix_u_mps[:prefix_k]
     lbg, ubg, cpa_hard_from = _row_bounds(config, problem, layout)
     if config.cpa_slack_enabled and not config.strict_slack_bounds:
         x0[2 * n] = _cpa_slack_seed(config, problem, x0, cpa_hard_from)
@@ -899,6 +1008,10 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
     route_objective_start = parameter_dim
     if problem.route_objective is not None:
         parameter_dim += 5 * config.horizon_steps + 1
+    rule_parameters_start: int | None = None
+    if config.strict_slack_bounds:
+        rule_parameters_start = parameter_dim
+        parameter_dim += 2 * config.max_targets
     p = np.zeros(parameter_dim)
     p[_P.PSI0 : _P.Y0 + 1] = (
         problem.own_ship.psi_rad,
@@ -948,6 +1061,12 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
             target.sog_mps,
             weight,
         )
+        if rule_parameters_start is not None and target.crossing_astern_required:
+            rule_base = rule_parameters_start + 2 * index
+            p[rule_base : rule_base + 2] = (
+                1.0,
+                target.crossing_astern_margin_m,
+            )
     if problem.route_objective is not None:
         p[route_objective_start : route_objective_start + config.horizon_steps] = (
             problem.route_objective.heading_reference_rad
@@ -1221,6 +1340,7 @@ def _optimization_quality_passed(
     decision_change_norm: float,
     controlled_quality_stop: bool,
     accepted_iteration: int | None,
+    required_improvement: float | None = None,
 ) -> bool:
     if not strict:
         return True
@@ -1235,35 +1355,62 @@ def _optimization_quality_passed(
     if controlled_exit:
         if iterations < 1:
             return False
-        required_improvement = max(1.0e-6, abs(seed_objective) * 1.0e-8)
+        if not seed_primal_feasible:
+            return final_primal_feasible and accepted_iteration is not None and decision_change_norm > 1.0e-6
+        required_improvement = (
+            required_improvement if required_improvement is not None else max(1.0e-6, abs(seed_objective) * 1.0e-8)
+        )
         return (
             final_primal_feasible
             and accepted_iteration is not None
             and accepted_iteration >= 1
-            and decision_change_norm > 1.0e-6
+            and (required_improvement < 0.0 or decision_change_norm > 1.0e-6)
             and seed_objective - final_objective >= required_improvement
         )
     if iterations < 2:
         return False
     if not seed_primal_feasible:
         return final_primal_feasible and decision_change_norm > 1.0e-6
-    required_improvement = max(1.0e-6, abs(seed_objective) * 1.0e-8)
+    required_improvement = (
+        required_improvement if required_improvement is not None else max(1.0e-6, abs(seed_objective) * 1.0e-8)
+    )
     return final_primal_feasible and (
         seed_objective - final_objective >= required_improvement or decision_change_norm >= 1.0e-3
     )
+
+
+def _target_free_required_improvement(seed_objective: float) -> float:
+    objective_ceiling = max(
+        _TARGET_FREE_OBJECTIVE_CEILING,
+        seed_objective * (1.0 + _TARGET_FREE_RELATIVE_REGRESSION),
+    )
+    return seed_objective - objective_ceiling
 
 
 def _best_feasible_iteration(
     iterates: list[tuple[int, np.ndarray, float]],
     graph: _Graph,
     prepared: MidMpcPreparedProblem,
+    *,
+    tolerances: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> tuple[int, np.ndarray, float, np.ndarray] | None:
+    x_tolerance, g_tolerance = tolerances if tolerances is not None else (1.0e-3, 1.0e-3)
     feasible: list[tuple[int, np.ndarray, float, np.ndarray]] = []
     for iteration, values, objective in iterates:
-        if iteration < 1 or not _primal_feasible(values, prepared.lbx, prepared.ubx):
+        if iteration < 1 or not _primal_feasible(
+            values,
+            prepared.lbx,
+            prepared.ubx,
+            tolerance=x_tolerance,
+        ):
             continue
         constraints = _flat(graph.constraints(values, prepared.p))
-        if _primal_feasible(constraints, prepared.lbg, prepared.ubg):
+        if _primal_feasible(
+            constraints,
+            prepared.lbg,
+            prepared.ubg,
+            tolerance=g_tolerance,
+        ):
             feasible.append((iteration, values, objective, constraints))
     return min(feasible, key=lambda item: item[2], default=None)
 
@@ -1272,12 +1419,40 @@ def _prepared_primal_feasible(
     values: np.ndarray,
     constraints: np.ndarray,
     prepared: MidMpcPreparedProblem,
+    *,
+    tolerances: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> bool:
-    return _primal_feasible(values, prepared.lbx, prepared.ubx) and _primal_feasible(
+    x_tolerance, g_tolerance = tolerances if tolerances is not None else (1.0e-3, 1.0e-3)
+    return _primal_feasible(
+        values,
+        prepared.lbx,
+        prepared.ubx,
+        tolerance=x_tolerance,
+    ) and _primal_feasible(
         constraints,
         prepared.lbg,
         prepared.ubg,
+        tolerance=g_tolerance,
     )
+
+
+def _strict_primal_tolerances(
+    config: MidMpcConfig,
+    row_layout: MidMpcRowLayout,
+    prepared: MidMpcPreparedProblem,
+) -> tuple[np.ndarray, np.ndarray]:
+    x_tolerance = np.full(prepared.x0.size, 1.0e-4)
+    x_tolerance[: 2 * config.horizon_steps] = 1.0e-6
+    if config.cpa_slack_enabled:
+        x_tolerance[2 * config.horizon_steps] = 1.0e-7
+    if config.dir_slack_enabled:
+        x_tolerance[2 * config.horizon_steps + int(config.cpa_slack_enabled)] = 1.0e-7
+    g_tolerance = np.full(prepared.lbg.size, 1.0e-6)
+    one_sided = np.isfinite(prepared.lbg) ^ np.isfinite(prepared.ubg)
+    g_tolerance[one_sided] = 1.0e-3
+    cpa = slice(row_layout.cpa.start, row_layout.cpa.start + row_layout.cpa.count)
+    g_tolerance[cpa] = np.maximum(g_tolerance[cpa], 1.0e-4)
+    return x_tolerance, g_tolerance
 
 
 def _constraint_diagnostics(
@@ -1308,8 +1483,18 @@ def _constraint_diagnostics(
     return active, tight, maximum
 
 
-def _primal_feasible(values: np.ndarray, lower: np.ndarray, upper: np.ndarray, tolerance: float = 1.0e-3) -> bool:
-    return bool(np.isfinite(values).all() and np.all(values >= lower - tolerance) and np.all(values <= upper + tolerance))
+def _primal_feasible(
+    values: np.ndarray,
+    lower: np.ndarray,
+    upper: np.ndarray,
+    tolerance: float | np.ndarray = 1.0e-3,
+) -> bool:
+    bound_scale = np.maximum(
+        np.where(np.isfinite(lower), np.abs(lower), 0.0),
+        np.where(np.isfinite(upper), np.abs(upper), 0.0),
+    )
+    allowed = tolerance + 1.0e-10 * bound_scale
+    return bool(np.isfinite(values).all() and np.all(values >= lower - allowed) and np.all(values <= upper + allowed))
 
 
 def _maximum_bound_violation(values: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> float:

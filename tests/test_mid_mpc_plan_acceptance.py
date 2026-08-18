@@ -764,6 +764,91 @@ def test_recovery_uses_released_encounter_cpa_not_later_safe_reapproach() -> Non
     assert quality.witness["target_45_cpa_k"] == 1
 
 
+def test_recovery_may_start_before_a_later_advisory_clear_reapproach() -> None:
+    key = TrackKey(47, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=True,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=np.deg2rad(6.0),
+    )
+    base = _request(authority_targets=(authority,))
+    times = np.arange(5, dtype=float) * 15.0
+    own_north = np.arange(5, dtype=float) * 60.0
+    separation = np.array([500.0, 300.0, 200.0, 300.0, 500.0])
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=own_north + separation,
+        east_m=np.zeros(5),
+        uncertainty_m=np.zeros(5),
+    )
+    phase_evidence = PredictionPhaseEvidence(
+        times_s=times,
+        phases=("RECOVER",) * 5,
+        mission_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=np.deg2rad(10.0),
+        recovery_from_k=0,
+        target_keys=(EvidenceTrackKey(47, 1),),
+        solver_consumed=True,
+    )
+    request = replace(
+        base,
+        candidate=replace(
+            base.candidate,
+            times_s=times,
+            north_m=own_north,
+            east_m=np.zeros(5),
+            course_rad=np.deg2rad(np.array([6.0, 4.0, 2.0, 1.0, 0.0])),
+            speed_mps=np.full(5, 4.0),
+            numerical=replace(
+                base.candidate.numerical,
+                raw_x=np.concatenate((np.deg2rad([6.0, 4.0, 2.0, 1.0]), np.full(4, 4.0), [0.0, 0.0])),
+                lbx=np.array([-1.0] * 4 + [0.0] * 4 + [0.0, 0.0]),
+                ubx=np.array([1.0] * 4 + [8.0] * 4 + [0.0, 0.0]),
+                heading_count=4,
+                speed_count=4,
+            ),
+            phase_evidence=phase_evidence,
+        ),
+        execution=replace(base.execution, targets=(target,)),
+        policy=replace(base.policy, control_intervals=4, state_samples=5),
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(request)
+    advisory_conflict = MidMpcPlanAcceptance().evaluate(
+        replace(
+            request,
+            execution=replace(
+                request.execution,
+                targets=(
+                    replace(
+                        target,
+                        north_m=own_north + np.array([500.0, 200.0, 70.0, 200.0, 500.0]),
+                    ),
+                ),
+            ),
+        )
+    )
+
+    assert result.accepted is True
+    assert "QUALITY_CPA_RELEASE" not in {finding.code for finding in result.findings}
+    assert advisory_conflict.accepted is False
+    assert "QUALITY_CPA_RELEASE" in {finding.code for finding in advisory_conflict.findings}
+
+
 def test_held_accepted_recovery_suffix_keeps_prior_phase_proof() -> None:
     key = TrackKey(43, 1)
     authority = AuthorityTarget(

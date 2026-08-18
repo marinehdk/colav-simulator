@@ -548,10 +548,8 @@ def _compile_semantic_problem(
     )
     if profile is AssemblyProfile.COLAV_STRICT:
         staged_headings = (
-            float(ownship[2])
-            + _wrap(horizon_encounter_plan.mission_route_bearing_rad - float(ownship[2])),
-            float(ownship[2])
-            + _wrap(horizon_encounter_plan.avoidance_corridor_bearing_rad - float(ownship[2])),
+            float(ownship[2]) + _wrap(horizon_encounter_plan.mission_route_bearing_rad - float(ownship[2])),
+            float(ownship[2]) + _wrap(horizon_encounter_plan.avoidance_corridor_bearing_rad - float(ownship[2])),
         )
         heading_bounds = (
             min(heading_bounds[0], *staged_headings),
@@ -639,8 +637,15 @@ def _compile_semantic_problem(
                 y_m=float(track.state_enu[1] - ownship[1]),
                 cog_rad=float(math.atan2(track.state_enu[3], track.state_enu[2])),
                 sog_mps=float(np.linalg.norm(track.state_enu[2:4])),
+                crossing_astern_required=(
+                    decision.encounter is EncounterKind.CROSSING
+                    and decision.role is OwnshipRole.GIVE_WAY
+                    and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
+                    and not decision.action_achieved
+                ),
+                crossing_astern_margin_m=0.0,
             )
-            for track in binding.selected_tracks
+            for track, decision in zip(binding.selected_tracks, binding.selected_decisions, strict=True)
         ),
     )
     return _SemanticAssembly(
@@ -771,12 +776,8 @@ def _route_objective(
         heading_reference_rad=heading_references,
         lateral_reference_m=lateral_references,
         avoidance_active_until_k=avoidance_active_until_k,
-        continuity_heading_reference_rad=(
-            rolling_plan.heading_reference_rad if rolling_plan is not None else ()
-        ),
-        continuity_speed_reference_mps=(
-            rolling_plan.speed_reference_mps if rolling_plan is not None else ()
-        ),
+        continuity_heading_reference_rad=(rolling_plan.heading_reference_rad if rolling_plan is not None else ()),
+        continuity_speed_reference_mps=(rolling_plan.speed_reference_mps if rolling_plan is not None else ()),
         continuity_weight=(rolling_plan.objective_weight if rolling_plan is not None else ()),
     )
 
@@ -930,19 +931,13 @@ def _anchor_recovery_to_rolling_plan(
     plan: HorizonEncounterPlan,
     rolling_plan: RollingPlanReference | None,
 ) -> HorizonEncounterPlan:
-    if (
-        rolling_plan is None
-        or not rolling_plan.active
-        or rolling_plan.recovery_at_s is None
-        or not plan.target_windows
-    ):
+    if rolling_plan is None or not rolling_plan.active or rolling_plan.recovery_at_s is None or not plan.target_windows:
         return plan
     dt_s = float(plan.times_s[1] - plan.times_s[0])
     remaining_s = max(0.0, rolling_plan.recovery_at_s - plan.reference_time_s)
     anchored_k = min(plan.times_s.size - 1, math.ceil(remaining_s / dt_s - 1.0e-9))
     windows = tuple(
-        replace(window, recovery_from_k=max(anchored_k, window.action_complete_k))
-        for window in plan.target_windows
+        replace(window, recovery_from_k=max(anchored_k, window.action_complete_k)) for window in plan.target_windows
     )
     recovery_from_k = max(window.recovery_from_k for window in windows if window.recovery_from_k is not None)
     action_complete_k = max(window.action_complete_k for window in windows)
@@ -1145,6 +1140,13 @@ def _activation_plan(
                     config.horizon_steps * config.horizon_dt_s
                     if decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN}
                     and decision.rule17 is Rule17Stage.STAND_ON
+                    else _reachable_cpa_activation_time_s(
+                        track,
+                        ownship[:2],
+                        effective_cpa_hard_m,
+                        config,
+                    )
+                    if decision.role is OwnshipRole.NONE and decision.risk is RiskPhase.CLEAR
                     else _cpa_activation_time_s(
                         track,
                         ownship[:2],
@@ -1199,6 +1201,26 @@ def _cpa_activation_time_s(
     if float(relative_at_cpa @ relative_at_cpa) > effective_cpa_hard_m**2:
         return duration_s
     return max(0.0, tcpa_s - lead_time_s)
+
+
+def _reachable_cpa_activation_time_s(
+    track: TrackedObstacle,
+    own_position_ne_m: np.ndarray,
+    effective_cpa_hard_m: float,
+    config: MidMpcAssemblyConfig,
+) -> float:
+    relative_position = track.state_enu[:2] - own_position_ne_m
+    duration_s = config.horizon_steps * config.horizon_dt_s
+    if float(relative_position @ relative_position) <= effective_cpa_hard_m**2:
+        return 0.0
+    max_own_speed_mps = config.speed_bounds_mps[1]
+    for k in range(1, config.horizon_steps + 1):
+        time_s = k * config.horizon_dt_s
+        target_offset = relative_position + track.state_enu[2:4] * time_s
+        reachable_clearance = float(np.linalg.norm(target_offset)) - max_own_speed_mps * time_s
+        if reachable_clearance <= effective_cpa_hard_m:
+            return max(0.0, time_s - config.horizon_dt_s)
+    return duration_s
 
 
 def _activation_document(plan: ConstraintActivationPlan) -> dict[str, Any]:

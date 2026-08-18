@@ -326,6 +326,45 @@ def test_strict_assembler_compiles_finite_hard_windows_from_horizon_phases() -> 
     assert schedule.min_alt_hard_window.stop_k == expected_stop
 
 
+def test_strict_assembler_keeps_clear_bystander_inside_physical_safety_domain() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    active = snapshot.targets[0]
+    bystander_key = TrackKey(3, 1)
+    bystander_track = replace(
+        planner_input.tracks[0],
+        target_id=bystander_key.target_id,
+        state_enu=np.array([1200.0, 500.0, -2.0, 0.0]),
+    )
+    bystander = replace(
+        active,
+        key=bystander_key,
+        role=OwnshipRole.NONE,
+        risk=RiskPhase.CLEAR,
+        commitment=CommitmentPhase.NONE,
+        passing_side=PassingSide.NONE,
+        baseline_course_rad=None,
+        required_course_change_rad=0.0,
+        action_start_deadline_s=None,
+        action_achievement_deadline_s=None,
+    )
+    multiship_input = replace(planner_input, tracks=(planner_input.tracks[0], bystander_track))
+    multiship_snapshot = replace(snapshot, targets=(active, bystander))
+
+    outcome = MidMpcProblemAssembler().assemble(_request(multiship_input, multiship_snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.selected_target_keys == (active.key, bystander_key)
+    bystander_index = outcome.selected_target_keys.index(bystander_key)
+    bystander_window = outcome.problem.row_schedule.cpa_hard_windows[bystander_index]
+    bystander_activation = outcome.activation_plan.targets[bystander_index]
+    assert bystander_window.start_k == bystander_activation.cpa_hard_from_k
+    assert bystander_window.start_k < outcome.grid.control_intervals
+    assert bystander_window.stop_k == outcome.grid.control_intervals
+
+
 def test_route_recovery_conflict_activates_cpa_rows_before_turning_back() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()

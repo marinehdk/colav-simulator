@@ -151,10 +151,7 @@ class MidMpcRouteObjective:
             raise ValueError("route objective requires one or more heading references")
         if len(lateral_references) != len(references):
             raise ValueError("route objective heading and lateral references must have equal length")
-        if any(
-            len(values) != len(references)
-            for values in (continuity_headings, continuity_speeds, continuity_weights)
-        ):
+        if any(len(values) != len(references) for values in (continuity_headings, continuity_speeds, continuity_weights)):
             raise ValueError("route objective continuity references must match the route horizon")
         if min(continuity_weights, default=0.0) < 0.0:
             raise ValueError("route objective continuity weights must be non-negative")
@@ -173,6 +170,8 @@ class MidMpcTarget:
     y_m: float
     cog_rad: float
     sog_mps: float
+    crossing_astern_required: bool = False
+    crossing_astern_margin_m: float = 0.0
 
     def __post_init__(self) -> None:
         """Validate one constant-velocity target state."""
@@ -181,7 +180,10 @@ class MidMpcTarget:
             self.y_m,
             self.cog_rad,
             self.sog_mps,
+            self.crossing_astern_margin_m,
         )
+        if self.crossing_astern_margin_m < 0.0:
+            raise ValueError("crossing_astern_margin_m must be non-negative")
 
 
 @dataclass(frozen=True)

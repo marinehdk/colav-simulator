@@ -24,6 +24,7 @@ from colav_simulator.core.colav.mid_mpc import solver as solver_module
 from colav_simulator.core.colav.mid_mpc.solver import (
     _IterationCallback,
     _optimization_quality_passed,
+    _target_free_required_improvement,
 )
 from colav_simulator.mid_mpc_parity import (
     MidMpcParityFixture,
@@ -263,7 +264,9 @@ def test_colav_strict_staged_route_objective_alters_then_returns_to_mission(
     result = MidMpcIpoptSolver(config).solve(problem)
 
     headings = result.raw_x[: config.horizon_steps]
-    assert result.prepared.p.size == len(fixture.output["prepared"]["p"]) + 5 * config.horizon_steps + 2
+    assert result.prepared.p.size == (
+        len(fixture.output["prepared"]["p"]) + 5 * config.horizon_steps + 2 + 2 * config.max_targets
+    )
     assert np.mean(headings[:avoidance_until_k]) > np.mean(headings[avoidance_until_k:]) + 0.05
     assert headings[-1] == pytest.approx(mission, abs=0.02)
 
@@ -438,8 +441,7 @@ def test_colav_strict_release_reuses_single_encounter_graph(
     route = MidMpcRouteObjective(
         mission_bearing_rad=source.route_bearing_rad,
         avoidance_corridor_bearing_rad=source.route_bearing_rad + 0.2,
-        heading_reference_rad=(source.route_bearing_rad + 0.2,) * (n // 2)
-        + (source.route_bearing_rad,) * (n - n // 2),
+        heading_reference_rad=(source.route_bearing_rad + 0.2,) * (n // 2) + (source.route_bearing_rad,) * (n - n // 2),
         lateral_reference_m=(0.0,) * n,
         avoidance_active_until_k=n // 2,
     )
@@ -719,6 +721,123 @@ def test_iteration_callback_stops_only_after_feasible_objective_improvement() ->
     assert callback.quality_stop_requested is True
 
 
+def test_iteration_callback_stops_at_first_feasible_iterate_from_infeasible_seed() -> None:
+    callback = _IterationCallback(1, 1, 1, max_wall_time_s=20.0)
+    callback.arm(
+        quality_seed_objective=10.0,
+        quality_stop_on_feasible=True,
+        quality_lbx=np.array([0.0]),
+        quality_ubx=np.array([2.0]),
+        quality_lbg=np.array([0.0]),
+        quality_ubg=np.array([2.0]),
+    )
+
+    assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([-1.0])])[0]) == 0.0
+    assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([1.0])])[0]) == 1.0
+    assert callback.quality_stop_requested is True
+
+
+def test_iteration_callback_uses_acceptance_tolerance_for_controlled_exit() -> None:
+    callback = _IterationCallback(1, 1, 1, max_wall_time_s=20.0)
+    callback.arm(
+        quality_seed_objective=10.0,
+        quality_stop_on_feasible=True,
+        quality_lbx=np.array([0.0]),
+        quality_ubx=np.array([2.0]),
+        quality_lbg=np.array([0.0]),
+        quality_ubg=np.array([2.0]),
+        quality_tolerances=(np.array([1.0e-6]), np.array([1.0e-6])),
+    )
+
+    assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([-1.0e-5])])[0]) == 0.0
+    assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([-1.0e-7])])[0]) == 1.0
+    assert callback.quality_stop_requested is True
+
+
+def test_iteration_callback_accepts_bounded_nonregression_without_targets() -> None:
+    callback = _IterationCallback(1, 1, 1, max_wall_time_s=20.0)
+    callback.arm(
+        quality_seed_objective=10.0,
+        quality_required_improvement=-0.1,
+        quality_lbx=np.array([0.0]),
+        quality_ubx=np.array([2.0]),
+        quality_lbg=np.array([0.0]),
+        quality_ubg=np.array([2.0]),
+    )
+
+    assert float(callback.eval([np.array([1.0]), np.array([10.05]), np.array([1.0])])[0]) == 0.0
+    assert float(callback.eval([np.array([1.0]), np.array([10.05]), np.array([1.0])])[0]) == 1.0
+    assert callback.quality_stop_requested is True
+
+
+def test_strict_rule_row_matches_crossing_bow_geometry(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    target = MidMpcTarget(
+        x_m=60.0,
+        y_m=100.0,
+        cog_rad=-math.pi / 2.0,
+        sog_mps=4.0,
+        crossing_astern_required=True,
+    )
+    problem = replace(
+        source,
+        audit_row_count=1,
+        targets=(target,),
+        row_schedule=MidMpcRowSchedule(
+            cpa_hard_windows=(MidMpcHardWindow(n, n),),
+        ),
+    )
+    graph = solver_module._build_graph(config, problem)
+    prepared = solver_module._prepare(config, problem, graph.row_layout)
+
+    constraints = np.asarray(graph.constraints(prepared.x0, prepared.p)).reshape(-1)
+
+    assert constraints[graph.row_layout.rule.start] < 0.0
+
+
+def test_strict_speed_rate_row_rejects_acceleration_above_active_limit(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    problem = _problem(fixture)
+    graph = solver_module._build_graph(config, problem)
+    prepared = solver_module._prepare(config, problem, graph.row_layout)
+    candidate = prepared.x0.copy()
+    candidate[config.horizon_steps] = problem.own_ship.u_mps + problem.decel_max_mps2 * config.dt_s + 0.1
+
+    constraints = np.asarray(graph.constraints(candidate, prepared.p)).reshape(-1)
+
+    assert constraints[graph.row_layout.speed_rate.start] < 0.0
+
+
+def test_strict_active_prefix_is_encoded_as_original_decision_bounds(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    problem = replace(
+        source,
+        targets=(),
+        audit_row_count=0,
+        row_schedule=replace(source.row_schedule, cpa_hard_windows=()),
+        prefix_active_k=1,
+        prefix_psi_rad=(source.own_ship.psi_rad,),
+        prefix_u_mps=(source.own_ship.u_mps,),
+    )
+    graph = solver_module._build_graph(config, problem)
+    prepared = solver_module._prepare(config, problem, graph.row_layout)
+
+    assert prepared.lbx[0] == prepared.ubx[0] == source.own_ship.psi_rad
+    assert prepared.lbx[config.horizon_steps] == prepared.ubx[config.horizon_steps] == source.own_ship.u_mps
+
+
 def test_nonoptimal_exit_requires_native_acceptable_status_and_objective_improvement() -> None:
     assert not _optimization_quality_passed(
         strict=True,
@@ -732,3 +851,55 @@ def test_nonoptimal_exit_requires_native_acceptable_status_and_objective_improve
         controlled_quality_stop=True,
         accepted_iteration=1,
     )
+
+
+def test_controlled_feasible_exit_does_not_compare_objective_to_infeasible_seed() -> None:
+    assert _optimization_quality_passed(
+        strict=True,
+        return_status="User_Requested_Stop",
+        iterations=2,
+        seed_objective=10.0,
+        final_objective=20.0,
+        seed_primal_feasible=False,
+        final_primal_feasible=True,
+        decision_change_norm=0.3,
+        controlled_quality_stop=True,
+        accepted_iteration=1,
+    )
+
+
+def test_controlled_target_free_exit_allows_bounded_objective_nonregression() -> None:
+    assert _optimization_quality_passed(
+        strict=True,
+        return_status="User_Requested_Stop",
+        iterations=2,
+        seed_objective=10.0,
+        final_objective=10.05,
+        seed_primal_feasible=True,
+        final_primal_feasible=True,
+        decision_change_norm=0.3,
+        controlled_quality_stop=True,
+        accepted_iteration=1,
+        required_improvement=-0.1,
+    )
+
+
+def test_controlled_target_free_exit_accepts_exact_nominal_seed() -> None:
+    assert _optimization_quality_passed(
+        strict=True,
+        return_status="User_Requested_Stop",
+        iterations=1,
+        seed_objective=0.0,
+        final_objective=0.0,
+        seed_primal_feasible=True,
+        final_primal_feasible=True,
+        decision_change_norm=0.0,
+        controlled_quality_stop=True,
+        accepted_iteration=1,
+        required_improvement=-0.03,
+    )
+
+
+def test_target_free_quality_ceiling_covers_ipopt_barrier_entry() -> None:
+    assert _target_free_required_improvement(0.0015) == pytest.approx(-0.0285)
+    assert _target_free_required_improvement(1.0) == pytest.approx(-0.05)

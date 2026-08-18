@@ -201,6 +201,7 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     ) in {
         ("Solve_Succeeded", "Converged"),
         ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
+        ("User_Requested_Stop", "FeasibleNonOptimal"),
     }
     assert trace["solver_executed"] is True
     assert trace["solve_id"] == 1
@@ -939,6 +940,7 @@ def test_schedule_error_fails_stop_and_ipopt_evidence_is_json_safe() -> None:
     ) in {
         ("Solve_Succeeded", "Converged"),
         ("Solved_To_Acceptable_Level", "FeasibleNonOptimal"),
+        ("User_Requested_Stop", "FeasibleNonOptimal"),
     }
     assert diagnostics.details["objective_components"].keys() == {
         "colreg",
@@ -947,10 +949,10 @@ def test_schedule_error_fails_stop_and_ipopt_evidence_is_json_safe() -> None:
         "route",
         "asymmetry",
         "terminal",
-            "cpa_slack",
-            "direction_slack",
-            "continuity",
-        }
+        "cpa_slack",
+        "direction_slack",
+        "continuity",
+    }
     assert trace["constraints"]["max_constraint_violation"] <= 1e-3
     json.dumps(adapter.get_colav_data(), allow_nan=False)
 
