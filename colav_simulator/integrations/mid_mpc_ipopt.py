@@ -98,6 +98,7 @@ from colav_simulator.core.tracking.trackers import TrackKey
 __version__ = "2.0.0"
 _TOTAL_DEADLINE_S = 20.0
 _ACCEPTANCE_RESERVATION_S = 0.25
+_WARM_START_ELIGIBLE_TUPLES = frozenset({"single-encounter:viknes:flsc"})
 _ACCEPTANCE_P99_MS = 35.046
 _ACCEPTANCE_CALIBRATION_ID = "m3-macos26-python3.11-20260812-1000x-0-1-16"
 _CRITICAL_TAIL_P99_MS = 42.597
@@ -132,6 +133,7 @@ class _MidMpcFacade:
             max_wall_time_s=config.total_deadline_s - config.acceptance_reservation_s,
         )
         self._solver = MidMpcIpoptSolver(core_config)
+        self._solver.prewarm()
         self._assembler = MidMpcProblemAssembler()
         self._acceptance = MidMpcPlanAcceptance()
         self._lifecycle = EncounterLifecycle(event_sink=event_sink)
@@ -145,6 +147,8 @@ class _MidMpcFacade:
         self._accepted_trajectory: np.ndarray | None = None
         self._accepted_acceptance_hash: str | None = None
         self._rolling_plan = RollingPlan()
+        self._unresolved_streak = 0
+        self._unresolved_streak_token: str | None = None
 
     def reset(self) -> None:
         self._los.reset()
@@ -269,7 +273,7 @@ class _MidMpcFacade:
             "layers": [asdict(layer) for layer in held_result.layers],
         }
 
-    def solve(self, planner_input: PlannerInput) -> MPCSolution:  # noqa: PLR0915
+    def solve(self, planner_input: PlannerInput) -> MPCSolution:  # noqa: C901, PLR0912, PLR0915
         if len(planner_input.tracks) > self._config.assembly.max_targets:
             self._accepted_primal = None
             self._accepted_request = None
@@ -314,8 +318,8 @@ class _MidMpcFacade:
                 planned_speed_mps=float(reference[3, 0]),
             )
             snapshot = self._lifecycle.step(cycle)
-            rolling_identity, rolling_reference, prior_plan_safe, prior_revalidation_codes = (
-                self._rolling_reference(planner_input, snapshot, capability)
+            rolling_identity, rolling_reference, prior_plan_safe, prior_revalidation_codes = self._rolling_reference(
+                planner_input, snapshot, capability
             )
             assembly = self._assembler.assemble(
                 AssemblyRequest(
@@ -366,7 +370,12 @@ class _MidMpcFacade:
         warm_semantic_token = _warm_semantic_token(snapshot, assembly)
         warm_start = self._primal_warm_start(planner_input, capability, warm_semantic_token)
         try:
-            result = self._solver.solve(assembly.problem, primal_warm_start=warm_start)
+            retry_budget_s = 2.0 if self._unresolved_streak >= 1 else None
+            result = self._solver.solve(
+                assembly.problem,
+                primal_warm_start=warm_start,
+                wall_time_s=retry_budget_s,
+            )
         except Exception:
             self._accepted_primal = None
             self._accepted_request = None
@@ -377,6 +386,25 @@ class _MidMpcFacade:
             self._config.assembly.horizon_dt_s,
         )
         status, feasible = _plan_status(result.status, result.max_constraint_violation)
+        if status not in {PlanStatus.SUCCESS, PlanStatus.TIMEOUT_FEASIBLE}:
+            if warm_semantic_token == self._unresolved_streak_token:
+                self._unresolved_streak += 1
+            else:
+                self._unresolved_streak = 1
+                self._unresolved_streak_token = warm_semantic_token
+            raise ColavExecutionError(
+                status,
+                f"Mid-MPC optimizer returned {status.value} without a feasible candidate",
+                source=FailureSource.ALGORITHM,
+                details={
+                    "failure_code": "OPTIMIZER_UNRESOLVED",
+                    "failure_owner": "solver",
+                    "ipopt_return_status": result.ipopt_return_status,
+                    "max_constraint_violation": result.max_constraint_violation,
+                    "preserve_accepted_plan": True,
+                    "revision_reason": "OPTIMIZER_UNRESOLVED",
+                },
+            )
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
         replay_artifact = _replay_artifact_document(assembly, result)
         if _document_hash(replay_artifact["problem_stage"]) != assembly.problem_hash:
@@ -480,6 +508,8 @@ class _MidMpcFacade:
                     "failure_owner": "plan_acceptance",
                     "plan_acceptance": acceptance_inline,
                     "artifact": artifact_reference,
+                    "preserve_accepted_plan": True,
+                    "revision_reason": "L4_PLAN_REJECTED",
                 },
                 evidence=EvidenceEnvelope(prediction_evidence),
             )
@@ -511,7 +541,9 @@ class _MidMpcFacade:
                 },
                 evidence=EvidenceEnvelope(prediction_evidence),
             )
-        warm_start_eligible = capability.exact_tuple == "single-encounter:viknes:flsc"
+        self._unresolved_streak = 0
+        self._unresolved_streak_token = None
+        warm_start_eligible = capability.exact_tuple in _WARM_START_ELIGIBLE_TUPLES
         receipt = {
             "schema_version": "colav.mid_mpc.receipt@1",
             "parent_acceptance_hash": acceptance_hash,
@@ -829,8 +861,7 @@ class _MidMpcFacade:
                     elapsed_s=max(0.0, elapsed_s),
                     dt_s=self._config.assembly.horizon_dt_s,
                     heading_allowance_rad=(
-                        capability.rot_max_rad_s
-                        * (max(0.0, elapsed_s) + self._config.assembly.horizon_dt_s)
+                        capability.rot_max_rad_s * (max(0.0, elapsed_s) + self._config.assembly.horizon_dt_s)
                     ),
                 )
                 prior_plan_safe = held_result.accepted and trackable
@@ -1336,8 +1367,6 @@ def _active_capability(
             limitations = ("SINGLE_ENCOUNTER_TARGET_COUNT_EXCEEDED",)
     elif identity == ("kinematiccsog", "passthroughcs"):
         exact_tuple = "multiship:kinematic_csog:pass_through_cs"
-        if len(planner_input.tracks) < 2:
-            limitations = ("MULTISHIP_TARGET_COUNT_NOT_MET",)
     else:
         exact_tuple = f"unsupported:{identity[0]}:{identity[1]}"
         limitations = ("UNSUPPORTED_ACTIVE_TUPLE",)
@@ -1628,9 +1657,7 @@ def _warm_semantic_token(snapshot: DecisionSnapshot, assembly: AssemblySuccess) 
         {
             "profile": assembly.profile.value,
             "mission_bearing_rad": (
-                route_objective.mission_bearing_rad
-                if route_objective is not None
-                else assembly.problem.route_bearing_rad
+                route_objective.mission_bearing_rad if route_objective is not None else assembly.problem.route_bearing_rad
             ),
             "avoidance_corridor_bearing_rad": (
                 route_objective.avoidance_corridor_bearing_rad
@@ -1670,9 +1697,7 @@ def _rolling_plan_identity(
 ) -> RollingPlanIdentity:
     authority = {
         "directive": {
-            "required_targets": [
-                [key.target_id, key.generation] for key in snapshot.directive.required_targets
-            ],
+            "required_targets": [[key.target_id, key.generation] for key in snapshot.directive.required_targets],
             "passing_side": snapshot.directive.passing_side.value,
             "minimum_course_change_rad": snapshot.directive.minimum_course_change_rad,
             "speed_bounds_mps": snapshot.directive.speed_bounds_mps,
@@ -1696,9 +1721,7 @@ def _rolling_plan_identity(
     }
     return RollingPlanIdentity(
         route_hash=_planner_route_hash(planner_input),
-        target_keys=tuple(
-            sorted((track.target_id, int(track.generation)) for track in planner_input.tracks)
-        ),
+        target_keys=tuple(sorted((track.target_id, int(track.generation)) for track in planner_input.tracks)),
         capability_hash=_capability_contract_hash(capability),
         authority_hash=_document_hash(authority),
     )

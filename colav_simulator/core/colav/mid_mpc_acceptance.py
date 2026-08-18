@@ -1220,7 +1220,19 @@ class MidMpcPlanAcceptance:
             heading_recovery = terminal_error <= math.radians(1.0) or terminal_error + math.radians(0.25) < post_cpa_error
             lateral_recovery = post_cpa_cross_track_m > 1.0 and terminal_cross_track_m + 1.0 < post_cpa_cross_track_m
             recovery_complete = heading_recovery or lateral_recovery
-            if not recovery_complete:
+            recovery_suffix_knots = len(mission_error) - 1 - recovery_evidence_from_k
+            if recovery_suffix_knots < 1:
+                findings.append(
+                    AcceptanceFinding(
+                        AcceptanceLayer.QUALITY,
+                        AcceptanceOutcome.WARN,
+                        "QUALITY_RECOVERY_PENDING",
+                        "closest-approach evidence reaches the prediction end; recovery return must be shown next cycle",
+                        False,
+                        witness=witness,
+                    )
+                )
+            elif not recovery_complete:
                 _fail(
                     findings,
                     AcceptanceLayer.QUALITY,

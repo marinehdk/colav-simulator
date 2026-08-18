@@ -443,6 +443,12 @@ class CustomMPCAdapter(ICOLAV):
         self._effective_status = PlanStatus.SUCCESS
         self._pending_hold_replan_reason: str | None = None
         self._hold_acceptance: Mapping[str, Any] | None = None
+        self._hold_evidence_cache_key: tuple[object, ...] | None = None
+        self._hold_evidence_cache: dict[str, object] | None = None
+        self._colav_data_cache: dict[str, Any] | None = None
+        self._last_hold_validation_s: float | None = None
+        self._colav_data_cache_solve_id: int | None = None
+        self._colav_data_cache_time: float = -math.inf
         self._evidence_run_id = str(uuid.uuid4())
         self._evidence_epoch = 0
         self._evidence_seq = 0
@@ -508,6 +514,8 @@ class CustomMPCAdapter(ICOLAV):
             )
         self._diagnostics = self._new_diagnostics()
         self._planner_trace = PlannerTrace(self.descriptor.algorithm_id, 0, 0.0, False)
+        self._colav_data_cache = None
+        self._last_hold_validation_s = None
 
     def plan(
         self,
@@ -564,17 +572,24 @@ class CustomMPCAdapter(ICOLAV):
         decision_time_s = self._last_solve_time_s
         if self._last_rejected_solve_time_s is not None:
             decision_time_s = max(decision_time_s or -math.inf, self._last_rejected_solve_time_s)
-        should_solve = decision_time_s is None or (
-            planner_input.sim_time_s + 1e-9 >= decision_time_s + self._solve_period_s
-        )
+        should_solve = decision_time_s is None or (planner_input.sim_time_s + 1e-9 >= decision_time_s + self._solve_period_s)
         if should_solve:
             return self._execute_solve(planner_input)
         if self._preserved_plan_until_s is not None and planner_input.sim_time_s < self._preserved_plan_until_s - 1.0e-9:
             return self._execute_hold(planner_input)
-        if self._validate_held_solution is not None and self._solution is not None and self._last_solve_time_s is not None:
+        if (
+            self._validate_held_solution is not None
+            and self._solution is not None
+            and self._last_solve_time_s is not None
+            and (
+                self._last_hold_validation_s is None
+                or planner_input.sim_time_s - self._last_hold_validation_s >= 1.0 - 1.0e-9
+            )
+        ):
             elapsed_s = planner_input.sim_time_s - self._last_solve_time_s
             try:
                 self._hold_acceptance = self._validate_held_solution(planner_input, self._solution, elapsed_s)
+                self._last_hold_validation_s = planner_input.sim_time_s
             except ColavExecutionError as exc:
                 self._pending_hold_replan_reason = str(exc.details.get("failure_code", "HOLD_REJECTED"))
                 if self._capture_evidence:
@@ -600,10 +615,19 @@ class CustomMPCAdapter(ICOLAV):
         return self._diagnostics
 
     def get_colav_data(self) -> dict[str, Any]:
-        return {
-            "planner": self._planner_trace.to_dict(),
-            "algorithm_descriptor": self.descriptor_document(),
-        }
+        trace_time = self._planner_trace.sim_time
+        if (
+            self._colav_data_cache is None
+            or self._colav_data_cache_solve_id != self._planner_trace.solve_id
+            or trace_time - self._colav_data_cache_time >= 0.5
+        ):
+            self._colav_data_cache = {
+                "planner": self._planner_trace.to_dict(),
+                "algorithm_descriptor": self.descriptor_document(),
+            }
+            self._colav_data_cache_solve_id = self._planner_trace.solve_id
+            self._colav_data_cache_time = trace_time
+        return self._colav_data_cache
 
     def plot_results(self, ax_map: plt.Axes, enc: senc.ENC, plt_handles: dict, **kwargs: Any) -> dict:  # noqa: ARG002
         return plt_handles
@@ -837,6 +861,8 @@ class CustomMPCAdapter(ICOLAV):
         }
         if self._pending_hold_replan_reason is not None:
             details["hold_replan_reason"] = self._pending_hold_replan_reason
+        self._hold_evidence_cache_key = None
+        self._last_hold_validation_s = None
         next_diagnostics = PlanDiagnostics(
             status=status,
             elapsed_ms=elapsed_ms,
@@ -1055,6 +1081,7 @@ class CustomMPCAdapter(ICOLAV):
             algorithm_details=details,
             **self._evidence_trace_fields(None, elapsed_s=None),
         )
+        self._colav_data_cache = None
         self._pending_hold_replan_reason = None
         self._hold_acceptance = None
 
@@ -1093,6 +1120,7 @@ class CustomMPCAdapter(ICOLAV):
             algorithm_details=details,
             **self._evidence_trace_fields(None, elapsed_s=None),
         )
+        self._colav_data_cache = None
         self._hold_acceptance = None
 
     def _execute_hold(self, planner_input: PlannerInput) -> np.ndarray:
@@ -1160,6 +1188,13 @@ class CustomMPCAdapter(ICOLAV):
                 semantic_hash=semantic_hash,
                 payload=_selected_command(self._current_plan),
             )
+        hold_mode = self._hold_acceptance.get("mode") if self._hold_acceptance is not None else None
+        hold_reason = self._hold_acceptance.get("revision_reason") if self._hold_acceptance is not None else None
+        evidence_interval_k = int(max(0.0, elapsed_s) // self._solution.horizon_dt_s)
+        evidence_cache_key = (self._solve_id, evidence_interval_k, hold_mode, hold_reason)
+        if self._hold_evidence_cache_key != evidence_cache_key or self._hold_evidence_cache is None:
+            self._hold_evidence_cache = self._evidence_trace_fields(self._solution, elapsed_s=elapsed_s)
+            self._hold_evidence_cache_key = evidence_cache_key
         self._planner_trace = PlannerTrace(
             algorithm_id=self.descriptor.algorithm_id,
             solve_id=self._solve_id,
@@ -1173,7 +1208,7 @@ class CustomMPCAdapter(ICOLAV):
             target_predictions=list(self._solution.target_predictions),
             constraints=dict(self._solution.constraints),
             algorithm_details=details,
-            **self._evidence_trace_fields(self._solution, elapsed_s=elapsed_s),
+            **self._hold_evidence_cache,
         )
         return self._current_plan.copy()
 

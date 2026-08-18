@@ -15,13 +15,17 @@ from colav_simulator.core.colav.mid_mpc.models import (
     MidMpcConfig,
     MidMpcHardWindow,
     MidMpcObjectiveComponents,
+    MidMpcOwnShip,
     MidMpcPreparedProblem,
     MidMpcPrimalWarmStart,
     MidMpcProblem,
     MidMpcResult,
+    MidMpcRouteFrame,
+    MidMpcRouteObjective,
     MidMpcRowLayout,
     MidMpcRowSpan,
     MidMpcStatus,
+    MidMpcTarget,
     MidMpcTrajectoryPoint,
 )
 
@@ -72,11 +76,53 @@ class MidMpcIpoptSolver:
         self._config = config
         self._graph_cache: dict[tuple[bool, int | None, float | None], _Graph] = {}
 
+    def prewarm(self) -> None:
+        """Build the capacity-one strict graph so the first tick pays no JIT stall."""
+        if not self._config.strict_slack_bounds:
+            return
+        graph_key = (True, None, None)
+        if graph_key in self._graph_cache:
+            return
+        n = self._config.horizon_steps
+        shell = MidMpcProblem(
+            own_ship=MidMpcOwnShip(psi_rad=0.0, u_mps=5.0, x_m=0.0, y_m=0.0),
+            route_bearing_rad=0.0,
+            planned_speed_mps=5.0,
+            heading_bounds_rad=(-1.0, 1.0),
+            speed_bounds_mps=(0.0, 8.0),
+            cpa_safe_m=150.0,
+            cpa_hard_m=50.0,
+            rot_max_rad_s=0.05,
+            decel_max_mps2=0.3,
+            lateral_active=False,
+            preferred_side=1,
+            starboard_asymmetry_active=False,
+            min_alteration_rad=0.0,
+            route_frame=MidMpcRouteFrame(
+                origin_m=(0.0, 0.0),
+                normal=(0.0, 1.0),
+                bearing_rad=0.0,
+                lateral_scale_m=1000.0,
+                weight=1.0,
+            ),
+            route_objective=MidMpcRouteObjective(
+                mission_bearing_rad=0.0,
+                avoidance_corridor_bearing_rad=0.0,
+                heading_reference_rad=(0.0,) * n,
+                lateral_reference_m=(0.0,) * n,
+                avoidance_active_until_k=0,
+            ),
+            targets=(MidMpcTarget(x_m=1.0e6, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0),),
+            audit_row_count=1,
+        )
+        self._graph_cache[graph_key] = _build_graph(self._config, shell)
+
     def solve(  # noqa: PLR0915 - keeps one solver call and its evidence atomic
         self,
         problem: MidMpcProblem,
         *,
         primal_warm_start: MidMpcPrimalWarmStart | None = None,
+        wall_time_s: float | None = None,
     ) -> MidMpcResult:
         _validate_target_capacity(problem, self._config.max_targets)
         _validate_route_objective(problem, self._config.horizon_steps)
@@ -152,15 +198,21 @@ class MidMpcIpoptSolver:
             quality_tolerances=strict_tolerances,
         )
         preparation_elapsed_ms = (time.perf_counter() - preparation_started) * 1_000.0
-        ipopt_started = time.perf_counter()
-        result = graph.solver(
-            x0=prepared.x0,
-            p=prepared.p,
-            lbx=prepared.lbx,
-            ubx=prepared.ubx,
-            lbg=prepared.lbg,
-            ubg=prepared.ubg,
-        )
+        callback_wall_limit = graph.iteration_callback._max_wall_time_s
+        if wall_time_s is not None:
+            graph.iteration_callback._max_wall_time_s = min(callback_wall_limit, float(wall_time_s))
+        try:
+            ipopt_started = time.perf_counter()
+            result = graph.solver(
+                x0=prepared.x0,
+                p=prepared.p,
+                lbx=prepared.lbx,
+                ubx=prepared.ubx,
+                lbg=prepared.lbg,
+                ubg=prepared.ubg,
+            )
+        finally:
+            graph.iteration_callback._max_wall_time_s = callback_wall_limit
         stats = graph.solver.stats()
         ipopt_elapsed_ms = (time.perf_counter() - ipopt_started) * 1_000.0
         terminal_raw_x = _flat(result["x"])
@@ -414,8 +466,12 @@ def _build_graph(  # noqa: PLR0912, PLR0915
     config: MidMpcConfig, problem: MidMpcProblem
 ) -> _Graph:
     n = config.horizon_steps
-    target_capacity = max(len(problem.targets), int(config.strict_slack_bounds))
-    audit_capacity = max(problem.audit_row_count, int(config.strict_slack_bounds))
+    if config.strict_slack_bounds:
+        target_capacity = max(len(problem.targets), 1)
+        audit_capacity = max(problem.audit_row_count, 1)
+    else:
+        target_capacity = len(problem.targets)
+        audit_capacity = problem.audit_row_count
     prefix_capacity = max(n, _FROZEN_PREFIX_CAPACITY)
     prefix_u_start = int(_P.PREFIX_PSI) + prefix_capacity
     target_start = prefix_u_start + prefix_capacity

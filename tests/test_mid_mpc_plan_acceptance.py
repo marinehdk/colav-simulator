@@ -926,3 +926,144 @@ def test_mass_parity_is_diagnostic_only() -> None:
     assert result.accepted is False
     assert result.aggregate is AcceptanceOutcome.NOT_EVALUATED
     assert "PROFILE_DIAGNOSTIC_ONLY" in {finding.code for finding in result.findings}
+
+
+def test_horizon_end_cpa_downgrades_recovery_suffix_to_pending() -> None:
+    key = TrackKey(51, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=True,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=np.deg2rad(10.0),
+    )
+    base = _request(authority_targets=(authority,))
+    times = np.arange(5, dtype=float) * 15.0
+    own_north = np.arange(5, dtype=float) * 60.0
+    separation = np.array([700.0, 600.0, 500.0, 400.0, 300.0])
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=own_north + separation,
+        east_m=np.zeros(5),
+        uncertainty_m=np.zeros(5),
+    )
+    phase_evidence = PredictionPhaseEvidence(
+        times_s=times,
+        phases=("ALTER", "PASS", "PASS", "RECOVER", "RECOVER"),
+        mission_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=np.deg2rad(10.0),
+        recovery_from_k=3,
+        target_keys=(EvidenceTrackKey(51, 1),),
+        solver_consumed=True,
+    )
+    request = replace(
+        base,
+        candidate=replace(
+            base.candidate,
+            times_s=times,
+            north_m=own_north,
+            east_m=np.zeros(5),
+            course_rad=np.deg2rad(np.array([10.0, 10.0, 10.0, 8.0, 8.0])),
+            speed_mps=np.full(5, 4.0),
+            numerical=replace(
+                base.candidate.numerical,
+                raw_x=np.concatenate((np.deg2rad([10.0, 10.0, 10.0, 8.0, 8.0]), np.full(5, 4.0), [0.0, 0.0])),
+                lbx=np.array([-1.0] * 5 + [0.0] * 5 + [0.0, 0.0]),
+                ubx=np.array([1.0] * 5 + [8.0] * 5 + [0.0, 0.0]),
+                heading_count=5,
+                speed_count=5,
+            ),
+            phase_evidence=phase_evidence,
+        ),
+        execution=replace(base.execution, targets=(target,)),
+        policy=replace(base.policy, control_intervals=4, state_samples=5),
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(request)
+
+    assert result.accepted is True
+    pending = next(finding for finding in result.findings if finding.code == "QUALITY_RECOVERY_PENDING")
+    assert pending.outcome is AcceptanceOutcome.WARN
+    assert pending.mandatory is False
+    assert pending.witness["target_51_cpa_k"] == 4
+
+
+def test_released_cpa_without_return_suffix_still_fails() -> None:
+    key = TrackKey(52, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=True,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=np.deg2rad(10.0),
+    )
+    base = _request(authority_targets=(authority,))
+    times = np.arange(5, dtype=float) * 15.0
+    own_north = np.arange(5, dtype=float) * 60.0
+    separation = np.array([500.0, 200.0, 400.0, 500.0, 600.0])
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=own_north + separation,
+        east_m=np.zeros(5),
+        uncertainty_m=np.zeros(5),
+    )
+    phase_evidence = PredictionPhaseEvidence(
+        times_s=times,
+        phases=("ALTER", "PASS", "PASS", "RECOVER", "RECOVER"),
+        mission_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=np.deg2rad(10.0),
+        recovery_from_k=3,
+        target_keys=(EvidenceTrackKey(52, 1),),
+        solver_consumed=True,
+    )
+    request = replace(
+        base,
+        candidate=replace(
+            base.candidate,
+            times_s=times,
+            north_m=own_north,
+            east_m=np.zeros(5),
+            course_rad=np.deg2rad(np.array([10.0, 5.0, 10.0, 8.0, 10.0])),
+            speed_mps=np.full(5, 4.0),
+            numerical=replace(
+                base.candidate.numerical,
+                raw_x=np.concatenate((np.deg2rad([10.0, 5.0, 10.0, 8.0, 10.0]), np.full(5, 4.0), [0.0, 0.0])),
+                lbx=np.array([-1.0] * 5 + [0.0] * 5 + [0.0, 0.0]),
+                ubx=np.array([1.0] * 5 + [8.0] * 5 + [0.0, 0.0]),
+                heading_count=5,
+                speed_count=5,
+            ),
+            phase_evidence=phase_evidence,
+        ),
+        execution=replace(base.execution, targets=(target,)),
+        policy=replace(base.policy, control_intervals=4, state_samples=5),
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(request)
+
+    assert result.accepted is False
+    assert "QUALITY_RECOVERY_SUFFIX" in {finding.code for finding in result.findings}

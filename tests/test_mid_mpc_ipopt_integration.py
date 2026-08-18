@@ -16,6 +16,7 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureS
 from colav_simulator.core.tracking.trackers import TrackKey, TrackSnapshot, TrackStatus
 from colav_simulator.experiment.capabilities import ALGORITHMS, VERIFIED_COMBINATIONS
 from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
+from colav_simulator.integrations import mid_mpc_ipopt as mid_mpc_module
 from colav_simulator.integrations.mid_mpc_ipopt import _execution_control_knots, _held_target_prediction_error
 from colav_simulator.integrations.registry import IntegrationRegistry
 
@@ -241,8 +242,8 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
         "direction": [0.0, 0.0],
     }
     timing = trace["algorithm_details"]
-    assert timing["graph_cache_hit"] is False
-    assert timing["graph_build_elapsed_ms"] > 0.0
+    assert timing["graph_cache_hit"] is True
+    assert timing["graph_build_elapsed_ms"] == 0.0
     assert timing["solver_preparation_elapsed_ms"] >= 0.0
     assert timing["ipopt_elapsed_ms"] > 0.0
     assert timing["ipopt_iterations"] >= 1
@@ -682,28 +683,24 @@ def test_rejected_candidate_keeps_last_committed_plan_as_invalid_history() -> No
     covariance = np.eye(4)
 
     _plan(adapter, 0.0)
-    committed_hash = adapter.get_colav_data()["planner"]["prediction_render"]["semantic_hash"]
-    with np.testing.assert_raises(ColavExecutionError):
-        _plan(
-            adapter,
-            5.0,
-            [
-                (31, np.array([1000.0, 100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
-                (32, np.array([1000.0, -100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
-            ],
-            model_name="KinematicCSOG",
-            controller_name="PassThroughCS",
-        )
+    preserved = _plan(
+        adapter,
+        5.0,
+        [
+            (31, np.array([1000.0, 100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
+            (32, np.array([1000.0, -100.0, 2.0, 0.0]), covariance, 15.0, 4.0),
+        ],
+        model_name="KinematicCSOG",
+        controller_name="PassThroughCS",
+    )
 
+    assert preserved.shape == (9, 1)
     trace = adapter.get_colav_data()["planner"]
-    render = trace["prediction_render"]
-    assert render["style"] == "REJECTED"
-    assert render["executable"] is False
-    assert render["history"]["style"] == "INVALID_HISTORY"
-    assert render["history"]["executable"] is False
-    assert render["history"]["semantic_hash"] == committed_hash
-    assert trace["evidence_timeline"]["active_semantic_hash"] is None
-    assert np.count_nonzero(adapter.get_current_plan()) == 0
+    details = trace["algorithm_details"]
+    assert details["candidate_rejected"] is True
+    assert details["revision_reason"] == "L4_PLAN_REJECTED"
+    assert details["trajectory_source"] == "held_plan"
+    assert np.count_nonzero(adapter.get_current_plan()) > 0
 
 
 def test_seventeenth_required_target_fails_before_solver_without_truncation() -> None:
@@ -1057,3 +1054,68 @@ def test_total_deadline_failure_keeps_candidate_evidence_without_command() -> No
     assert trace["evidence"]["authority"]["receipt"] is None
     assert trace["prediction_render"]["style"] == "INVALID_HISTORY"
     assert np.count_nonzero(adapter.get_current_plan()) == 0
+
+
+def test_multiship_capability_accepts_single_target_and_target_free_ticks() -> None:
+    adapter = _fast_adapter(scenario_id="paper_ccta2023_multiship")
+    covariance = np.eye(4)
+
+    mission_only = _plan(
+        adapter,
+        0.0,
+        model_name="KinematicCSOG",
+        controller_name="PassThroughCS",
+    )
+    single_target = _plan(
+        adapter,
+        1.0,
+        [
+            (21, np.array([500.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0),
+        ],
+        model_name="KinematicCSOG",
+        controller_name="PassThroughCS",
+    )
+
+    assert mission_only.shape == (9, 1)
+    assert single_target.shape == (9, 1)
+    assert adapter.get_current_plan().shape == (9, 5)
+    trace = adapter.get_colav_data()["planner"]
+    assert trace["algorithm_details"]["decision_intent"] in {"HOLD", "GIVE_WAY"}
+
+
+def test_optimizer_unresolved_preserves_held_plan_for_one_period(monkeypatch) -> None:
+    adapter = _fast_adapter(scenario_id="paper_ccta2023_multiship")
+    covariance = np.eye(4)
+    first = _plan(
+        adapter,
+        0.0,
+        [(21, np.array([800.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0)],
+        model_name="KinematicCSOG",
+        controller_name="PassThroughCS",
+    )
+    assert first.shape == (9, 1)
+
+    def unresolved(status: object, max_violation: object) -> tuple[object, bool]:
+        return PlanStatus.NUMERICAL_FAILURE, False
+
+    monkeypatch.setattr(mid_mpc_module, "_plan_status", unresolved)
+    preserved = _plan(
+        adapter,
+        5.0,
+        [(21, np.array([700.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0)],
+        model_name="KinematicCSOG",
+        controller_name="PassThroughCS",
+    )
+    assert preserved.shape == (9, 1)
+    held = _plan(
+        adapter,
+        6.0,
+        [(21, np.array([680.0, 0.0, -4.0, 0.0]), covariance, 15.0, 4.0)],
+        model_name="KinematicCSOG",
+        controller_name="PassThroughCS",
+    )
+    details = adapter.get_colav_data()["planner"]["algorithm_details"]
+    assert held.shape == (9, 1)
+    assert details["candidate_rejected"] is True
+    assert details["revision_reason"] == "OPTIMIZER_UNRESOLVED"
+    assert details["trajectory_source"] == "held_plan"
