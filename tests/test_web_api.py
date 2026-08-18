@@ -42,13 +42,35 @@ def test_map_wheel_zoom_is_anchored_at_pointer() -> None:
     assert "zoomAtCanvasPoint(e.clientX - bounds.left, e.clientY - bounds.top, factor);" in script.text
 
 
+def test_active_session_runtime_modules_are_served_as_single_lifecycle_owner() -> None:
+    with TestClient(app) as client:
+        page = client.get("/")
+        deployment = client.get("/static/app.js")
+        config = client.get("/static/modules/config-shell.js")
+        runtime = client.get("/static/modules/active-session-runtime.js")
+        instance = client.get("/static/modules/session-runtime-instance.js")
+
+    assert all(response.status_code == 200 for response in (page, deployment, config, runtime, instance))
+    assert '<script type="module" src="/static/app.js' in page.text
+    assert "activeSessionRuntime" in deployment.text and "activeSessionRuntime" in config.text
+    assert "/api/sessions/current" in runtime.text
+    assert "new WebSocket" in instance.text
+    assert all("activeSessionId" not in source.text for source in (deployment, config))
+    assert all("validation-session-" not in source.text for source in (deployment, config))
+
+
 def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
     with TestClient(app) as client:
         page = client.get("/")
         script = client.get("/static/app.js")
+        runtime = client.get("/static/modules/active-session-runtime.js")
+        instance = client.get("/static/modules/session-runtime-instance.js")
         assert page.status_code == 200
         assert script.status_code == 200
-        assert "/api/sessions/current" in script.text
+        assert runtime.status_code == 200
+        assert instance.status_code == 200
+        assert "/api/sessions/current" in runtime.text
+        assert "new WebSocket" in instance.text
         assert "Session restored:" in script.text
         assert "<h1>综合避碰仿真器</h1>" in page.text
         assert "Autonomous Ship COLAV" not in page.text
@@ -193,15 +215,15 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
             for label in ("选中速度", "参考速度", "当前速度")
         )
         assert "简化 MPC · 扇形轨迹筛选" in script.text
-        assert "data.error === 'session_not_found'" in script.text
-        assert "recoverMissingSession(sessionId);" in script.text
+        assert "envelope?.error === 'session_not_found'" in runtime.text
+        assert "handleSessionNotFound(sessionId, generation);" in runtime.text
         assert "sessionCreationPromise && pendingSessionKey === requestKey" not in script.text
         assert "activeSessionKey === requestKey" not in script.text
         assert "apiRequest('/api/sessions'," not in script.text
-        assert "`/api/sessions/${activeSessionId}/reset`" in script.text
-        assert "validation-session-sync" in script.text
-        assert "socket !== ws || sessionId !== activeSessionId" in script.text
-        assert "document.visibilityState !== 'visible' || !document.hasFocus()" in script.text
+        assert "`/api/sessions/${encodeURIComponent(sessionId)}/reset`" in runtime.text
+        assert "validation-session-sync" not in script.text
+        assert "nextSocket !== socket || generation !== socketGeneration" in runtime.text
+        assert "!visibility.isVisible() || !visibility.hasFocus()" in runtime.text
         assert "candidate_heading_increments_rad" in script.text
         assert "`${horizonIntervals} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`" in script.text
         assert "目标在 ±90° 内，按首段航向差选择路径" in script.text

@@ -1,4 +1,5 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260818-candidate1-review';
+import { createValidationAssembly } from './validation-assembly.js?v=20260818-candidate2-runtime-final';
+import { activeSessionRuntime } from './session-runtime-instance.js?v=20260818-candidate2-runtime-final';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const OPENBRIDGE_BASE = 'https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist';
@@ -11,6 +12,7 @@ const RULE_IMAGES = {
 
 let assembly = null;
 let multishipRuleImageIndex = 0;
+let lastRuntimeSyncKey = null;
 
 class ApiError extends Error {
   constructor(response, detail) {
@@ -26,14 +28,6 @@ class ApiError extends Error {
 
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError(response, body.detail ?? body);
-  return body;
-}
-
-async function fetchCurrentSession() {
-  const response = await fetch('/api/sessions/current');
-  if (response.status === 404) return null;
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(response, body.detail ?? body);
   return body;
@@ -318,6 +312,7 @@ function createStatusText(snapshot) {
     'invalid-draft': 'Invalid parameters',
     'experimental-confirmation': 'Experimental · confirmation required',
     creating: 'CREATING · immutable snapshot in flight',
+    'runtime-pending': 'Active Session command in progress · controls frozen',
     'current-session-loading': 'Loading current-session authority…',
     'current-session-unknown': 'Current-session authority unknown · read-only',
   };
@@ -431,20 +426,29 @@ function bindControls() {
   });
   document.getElementById('retryCapabilityCatalog').addEventListener('click', refreshValidationAuthority);
   document.getElementById('validationCreate').addEventListener('click', createSessionFromDraft);
-  window.addEventListener('validation-session-state', (event) => {
-    assembly.setActiveState(event.detail?.state);
-    render();
-  });
-  window.addEventListener('validation-session-sync', (event) => {
-    assembly.syncActiveSession(event.detail?.session || null, {
-      reason: event.detail?.reason || 'deployment-sync',
-    });
-    render();
-  });
-  window.addEventListener('validation-session-authority-unknown', (event) => {
-    assembly.markCurrentSessionUnknown(event.detail?.reason || 'background recovery cannot claim session authority');
-    render();
-  });
+}
+
+function syncRuntimeAuthority(runtimeSnapshot, reason = 'runtime-sync') {
+  const key = JSON.stringify([
+    runtimeSnapshot.authority.status,
+    runtimeSnapshot.session?.session_id || null,
+    runtimeSnapshot.sessionState,
+    runtimeSnapshot.session?.spec || null,
+    runtimeSnapshot.pending?.command || null,
+  ]);
+  if (key === lastRuntimeSyncKey) return;
+  lastRuntimeSyncKey = key;
+  assembly.setRuntimePending(runtimeSnapshot.pending?.command || null);
+  if (runtimeSnapshot.authority.status === 'known') {
+    assembly.syncActiveSession(runtimeSnapshot.session, { reason });
+  } else if (runtimeSnapshot.authority.status === 'loading') {
+    assembly.markCurrentSessionLoading();
+  } else if (runtimeSnapshot.authority.status === 'unknown') {
+    assembly.markCurrentSessionUnknown(
+      runtimeSnapshot.authority.error?.message || 'Active Session authority is unknown.',
+    );
+  }
+  render();
 }
 
 async function refreshValidationAuthority() {
@@ -452,7 +456,7 @@ async function refreshValidationAuthority() {
     retry.disabled = true;
     const [catalogResult, currentResult] = await Promise.allSettled([
       fetchJson('/api/capabilities'),
-      fetchCurrentSession(),
+      activeSessionRuntime.refreshAuthority(),
     ]);
     if (catalogResult.status === 'fulfilled') {
       assembly.replaceCatalog(catalogResult.value, { reason: 'authority-refresh' });
@@ -460,9 +464,9 @@ async function refreshValidationAuthority() {
       assembly.markCatalogFailure(catalogResult.reason);
     }
     if (currentResult.status === 'fulfilled') {
-      assembly.syncActiveSession(currentResult.value, { reason: 'authority-refresh' });
+      syncRuntimeAuthority(currentResult.value, 'authority-refresh');
     } else {
-      assembly.markCurrentSessionUnknown(currentResult.reason);
+      syncRuntimeAuthority(activeSessionRuntime.snapshot(), 'authority-refresh-failed');
     }
     retry.disabled = false;
     render();
@@ -482,13 +486,9 @@ async function createSessionFromDraft() {
   }
   render();
   try {
-    const session = await fetchJson('/api/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(pending.spec),
-    });
+    await activeSessionRuntime.create(pending.spec);
+    const session = activeSessionRuntime.snapshot().session;
     if (!assembly.resolveCreate(pending.token, session)) return;
-    window.dispatchEvent(new CustomEvent('validation-session-created', { detail: session }));
     render();
     switchWorkface('deployment');
   } catch (error) {
@@ -512,10 +512,11 @@ async function bootConfig() {
   });
   render();
   bindControls();
+  activeSessionRuntime.subscribe((runtimeSnapshot) => syncRuntimeAuthority(runtimeSnapshot));
   loadOpenBridge();
   const [catalogResult, currentResult] = await Promise.allSettled([
     fetchJson('/api/capabilities'),
-    fetchCurrentSession(),
+    activeSessionRuntime.bootstrap(),
   ]);
   if (catalogResult.status === 'fulfilled') {
     assembly.replaceCatalog(catalogResult.value, { reason: 'initial-load' });
@@ -523,9 +524,9 @@ async function bootConfig() {
     assembly.markCatalogFailure(catalogResult.reason);
   }
   if (currentResult.status === 'fulfilled') {
-    assembly.syncActiveSession(currentResult.value, { reason: 'initial-load' });
+    syncRuntimeAuthority(currentResult.value, 'initial-load');
   } else {
-    assembly.markCurrentSessionUnknown(currentResult.reason);
+    syncRuntimeAuthority(activeSessionRuntime.snapshot(), 'initial-load-failed');
   }
   render();
 }

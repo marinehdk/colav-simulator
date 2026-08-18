@@ -210,6 +210,7 @@ export function createValidationAssembly({
   let createSequence = 0;
   let pendingToken = null;
   let pendingSpec = null;
+  let runtimePending = null;
   const notices = [];
   if (catalogError) notices.push({ kind: 'catalog-error', message: String(catalogError.message || catalogError) });
   if (currentSessionError) {
@@ -217,6 +218,9 @@ export function createValidationAssembly({
   }
 
   function requireEditableAuthority(action) {
+    if (runtimePending) {
+      throw new Error(`${runtimePending} is in progress; ${action} is disabled.`);
+    }
     if (sessionStatus !== 'known') {
       throw new Error(`Current session authority is ${sessionStatus}; ${action} is disabled.`);
     }
@@ -292,9 +296,6 @@ export function createValidationAssembly({
       notices.length = 0;
       return true;
     },
-    setActiveState(state) {
-      activeState = state || null;
-    },
     syncActiveSession(session, { reason = 'session-sync' } = {}) {
       const wasDirty = draft ? !equalSpec(draft, baseline) : false;
       const nextActiveSpec = session?.spec ? normalizeSpec(session.spec, catalog) : null;
@@ -320,6 +321,12 @@ export function createValidationAssembly({
         kind: 'session-error',
         message: `Current session authority unavailable: ${String(error?.message || error)}`,
       });
+    },
+    markCurrentSessionLoading() {
+      sessionStatus = 'loading';
+    },
+    setRuntimePending(command) {
+      runtimePending = command || null;
     },
     rejectCreate(token, error) {
       if (!creating || token !== pendingToken) return false;
@@ -365,6 +372,7 @@ export function createValidationAssembly({
       const matchesActive = Boolean(activeSpec && equalSpec(draft, activeSpec));
       let createBlock = null;
       if (creating) createBlock = 'creating';
+      else if (runtimePending) createBlock = 'runtime-pending';
       else if (sessionStatus === 'loading') createBlock = 'current-session-loading';
       else if (sessionStatus !== 'known') createBlock = 'current-session-unknown';
       else if (activeState === 'RUNNING') createBlock = 'active-running';
@@ -379,9 +387,10 @@ export function createValidationAssembly({
         valid: classification !== 'unavailable' && Object.keys(errors).length === 0,
         validationErrors: errors,
         catalogStatus: catalog ? 'ready' : 'error',
-        readOnly: !catalog || sessionStatus !== 'known',
+        readOnly: !catalog || sessionStatus !== 'known' || Boolean(runtimePending),
         sessionStatus,
         creating,
+        runtimePending,
         activeState,
         activeSpec,
         matchesActive,

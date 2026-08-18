@@ -77,9 +77,10 @@ def test_playback_ui_uses_server_state_and_frame_interpolation() -> None:
     with TestClient(app) as client:
         page = client.get("/")
         script = client.get("/static/app.js")
+        runtime = client.get("/static/modules/active-session-runtime.js")
 
     assert 'id="speedStatus"' in page.text
-    assert "/speed?multiplier=${speed}" in script.text
+    assert "/speed?multiplier=${encodeURIComponent(speed)}" in runtime.text
     assert "syncPlaybackStatus(playback" in script.text
     assert "queueTelemetryRender(data)" in script.text
     assert "requestAnimationFrame(renderTelemetryFrame)" in script.text
@@ -91,7 +92,7 @@ def test_playback_ui_uses_server_state_and_frame_interpolation() -> None:
     assert "voDecisionSpacePending" in script.text
     assert "voDecisionSpaceAttemptedKey" in script.text
     assert "requestPendingVODecisionSpace();" in script.text
-    assert "voDecisionSpaceKey?.startsWith(`${activeSessionId}:`)" in script.text
+    assert "voDecisionSpaceKey?.startsWith(`${currentRunId()}:`)" in script.text
     assert "if (voDecisionSpaceController) voDecisionSpaceController.abort();" not in script.text[
         script.text.index("function ensureVODecisionSpace(") : script.text.index("function drawVODecisionSpace(")
     ]

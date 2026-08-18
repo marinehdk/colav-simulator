@@ -1,9 +1,9 @@
+import { activeSessionRuntime } from './modules/session-runtime-instance.js?v=20260818-candidate2-runtime-final';
+
 /**
  * Colav-Simulator Web GUI — app.js
  * Canvas rendering, ENC chart overlay, WebSocket telemetry, controls
  */
-
-'use strict';
 
 /* ══════════════════════════════════════════════
    CONSTANTS
@@ -104,6 +104,10 @@ let encInfo   = null;   // {origin_e, origin_n, width, height, utm_zone}
 let encImage  = null;   // HTMLImageElement (PNG tile)
 let encReady  = false;
 let showENC   = true;   // user toggle
+let encLoadGeneration = 0;
+let encInfoController = null;
+let encRetryTimer = null;
+let encPendingImage = null;
 const visibleLayers = {
   safeWater: true,
   ships: true,
@@ -137,15 +141,14 @@ let lastPanX  = 0, lastPanY = 0;
    PERF / DATA
 ══════════════════════════════════════════════ */
 const perfHistory = [];
-let ws          = null;
 let currentData = null;
 let logCount    = 0;
 let lastColregs = '', lastColregsTarget = '', lastDcpaLevel = '', lastDcpaTarget = '';
 const seenEventKeys = new Set();
-let activeSessionId = null;
-let resultLoaded = false;
-let sessionConnectionState = 'connecting';
-let sessionRecoveryPending = false;
+let deploymentRuntimeSnapshot = activeSessionRuntime.snapshot();
+let handledTelemetryRevision = 0;
+let handledOutcomeKey = '';
+let reportedFailureSessionId = null;
 let voDecisionSpace = null;
 let voDecisionSpaceKey = null;
 let voDecisionSpaceRequestKey = null;
@@ -183,6 +186,10 @@ targetSprite.addEventListener('load', () => {
 targetSprite.src = '/static/assets/target-vessel-top.png';
 let routePointEditMode = null;
 let targetEditorKey = null;
+
+function currentRunId() {
+  return deploymentRuntimeSnapshot.session?.session_id || null;
+}
 
 /* ══════════════════════════════════════════════
    CANVAS SETUP
@@ -352,23 +359,47 @@ document.querySelectorAll('[data-layer]').forEach(input => {
 /* ══════════════════════════════════════════════
    ENC INITIALISATION
 ══════════════════════════════════════════════ */
+function cancelENCLoad() {
+  encLoadGeneration += 1;
+  if (encInfoController) encInfoController.abort();
+  if (encRetryTimer !== null) window.clearTimeout(encRetryTimer);
+  if (encPendingImage) {
+    encPendingImage.onload = null;
+    encPendingImage.onerror = null;
+  }
+  encInfoController = null;
+  encRetryTimer = null;
+  encPendingImage = null;
+}
+
 async function initENC() {
+  cancelENCLoad();
+  const sessionId = currentRunId();
+  const generation = encLoadGeneration;
   setEncStatus('loading');
+  if (!sessionId) return;
+  const controller = new AbortController();
+  encInfoController = controller;
   try {
-    const res  = await fetch('/api/enc_info');
+    const res  = await fetch('/api/enc_info', { signal: controller.signal });
     const info = await res.json();
+    if (generation !== encLoadGeneration || sessionId !== currentRunId()) return;
+    if (info.ready && info.run_id !== sessionId) return;
 
     if (!info.ready) {
-      // Poll every 5 s until ENC is ready
-      setTimeout(initENC, 5000);
+      encRetryTimer = window.setTimeout(() => {
+        if (generation === encLoadGeneration && sessionId === currentRunId()) initENC();
+      }, 5000);
       return;
     }
 
     encInfo = info;
 
-    // Load PNG tile
     const img = new Image();
+    encPendingImage = img;
     img.onload = () => {
+      if (generation !== encLoadGeneration || sessionId !== currentRunId()) return;
+      encPendingImage = null;
       encImage = img;
       encReady = true;
       fitENCView();
@@ -379,13 +410,20 @@ async function initENC() {
       if (currentData) renderCanvas(currentData);
     };
     img.onerror = () => {
+      if (generation !== encLoadGeneration || sessionId !== currentRunId()) return;
+      encPendingImage = null;
       setEncStatus('error');
       pushLog('ENC PNG tile failed to load.', 'log-danger');
     };
     img.src = `/api/enc_tile?t=${Date.now()}`;  // cache-bust
 
-  } catch (e) {
-    setTimeout(initENC, 8000);
+  } catch (error) {
+    if (error.name === 'AbortError' || generation !== encLoadGeneration || sessionId !== currentRunId()) return;
+    encRetryTimer = window.setTimeout(() => {
+      if (generation === encLoadGeneration && sessionId === currentRunId()) initENC();
+    }, 8000);
+  } finally {
+    if (encInfoController === controller) encInfoController = null;
   }
 }
 
@@ -1487,9 +1525,6 @@ function updateUI(data) {
     setRuntimePanelsExpanded(true);
   }
   lastRuntimeState = data.state || lastRuntimeState;
-  if (data.state && data.state !== previousRuntimeState) {
-    window.dispatchEvent(new CustomEvent('validation-session-state', { detail: { state: data.state } }));
-  }
 
   // Header time
   setText('val-sim-time', `${(data.scenario_time ?? data.step * 0.5).toFixed(1)} s`);
@@ -1886,15 +1921,16 @@ function drawPlannerSurface(planner) {
 }
 
 function ensureVODecisionSpace(planner) {
-  if (planner.algorithm_id !== 'vo' || !activeSessionId) return;
+  const sessionId = currentRunId();
+  if (planner.algorithm_id !== 'vo' || !sessionId) return;
   const card = document.getElementById('cardPlanner');
   const solveId = Number(planner.solve_id);
   if ((card?.classList.contains('collapsed') && !plannerSurfaceAttached)
     || !Number.isInteger(solveId) || solveId < 1) return;
-  const requestKey = `${activeSessionId}:${solveId}`;
+  const requestKey = `${sessionId}:${solveId}`;
   if (voDecisionSpaceKey === requestKey || voDecisionSpaceAttemptedKey === requestKey) return;
   voDecisionSpacePending = {
-    sessionId: activeSessionId,
+    sessionId,
     solveId,
     planner,
   };
@@ -1904,7 +1940,7 @@ function ensureVODecisionSpace(planner) {
 function requestPendingVODecisionSpace() {
   if (voDecisionSpaceController || !voDecisionSpacePending) return;
   const pending = voDecisionSpacePending;
-  if (pending.sessionId !== activeSessionId) {
+  if (pending.sessionId !== currentRunId()) {
     voDecisionSpacePending = null;
     return;
   }
@@ -1941,7 +1977,7 @@ function requestPendingVODecisionSpace() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
   }).then(snapshot => {
-    if (!snapshot || controller.signal.aborted || pending.sessionId !== activeSessionId) return;
+    if (!snapshot || controller.signal.aborted || pending.sessionId !== currentRunId()) return;
     voDecisionSpace = snapshot;
     voDecisionSpaceKey = requestKey;
     voDecisionSpaceAttemptedKey = requestKey;
@@ -1962,8 +1998,9 @@ function requestPendingVODecisionSpace() {
 
 function drawVODecisionSpace(surface, canvas, planner, details) {
   const solveId = Number(planner.solve_id);
-  const expectedKey = `${activeSessionId}:${solveId}`;
-  const snapshot = voDecisionSpaceKey?.startsWith(`${activeSessionId}:`) ? voDecisionSpace : null;
+  const sessionId = currentRunId();
+  const expectedKey = `${sessionId}:${solveId}`;
+  const snapshot = voDecisionSpaceKey?.startsWith(`${sessionId}:`) ? voDecisionSpace : null;
   const renderKey = snapshot
     ? `${voDecisionSpaceKey}:${canvas.clientWidth}:${canvas.clientHeight}`
     : `waiting:${expectedKey}`;
@@ -2130,7 +2167,8 @@ function drawVODecisionSpace(surface, canvas, planner, details) {
 }
 
 function drawVODecisionSpaceOnMap(os) {
-  const snapshot = voDecisionSpaceKey?.startsWith(`${activeSessionId}:`) ? voDecisionSpace : null;
+  const sessionId = currentRunId();
+  const snapshot = voDecisionSpaceKey?.startsWith(`${sessionId}:`) ? voDecisionSpace : null;
   if (!snapshot || !Number.isFinite(os?.x) || !Number.isFinite(os?.y)) return;
 
   const speeds = snapshot.speed_candidates_mps || [];
@@ -2378,9 +2416,9 @@ function updatePlannerSurfaceAttachControl(surfaceType, solveId) {
   const planner = currentDiagnosticPlanner();
   const hasContent = surfaceType === 'vo'
     ? Boolean(
-      activeSessionId
+      currentRunId()
       && voDecisionSpace
-      && voDecisionSpaceKey?.startsWith(`${activeSessionId}:`)
+      && voDecisionSpaceKey?.startsWith(`${currentRunId()}:`)
       && Number.isInteger(solveId)
       && solveId > 0
     )
@@ -2811,6 +2849,12 @@ function formatSystemTime(date = new Date()) {
 
 function updateBeijingClock() {
   setText('val-beijing-time', formatSystemTime());
+  const snapshot = activeSessionRuntime.snapshot();
+  if (snapshot.connection.status !== 'connected' && snapshot.telemetry.receivedAt !== null) {
+    const labels = { connecting: '初始化', reconnecting: '重连', disconnected: '断连' };
+    const ageSeconds = Math.floor((snapshot.telemetry.staleAgeMs || 0) / 1000);
+    setText('conn-status', `会话: ${labels[snapshot.connection.status] || '断连'} · STALE ${ageSeconds}s`);
+  }
 }
 
 function pushLog(msg, cls = 'log-info') {
@@ -2865,7 +2909,7 @@ function checkLogEvents(data) {
   (data.events || []).forEach(event => {
     const planner = event.details?.planner || {};
     const eventKey = [
-      data.run_id || activeSessionId || 'run',
+      data.run_id || currentRunId() || 'run',
       event.sequence ?? data.seq ?? '',
       event.type,
       event.details?.ship_id ?? '',
@@ -2907,22 +2951,11 @@ async function apiRequest(url, options = {}) {
   return data;
 }
 
-async function currentSession() {
-  const response = await fetch('/api/sessions/current');
-  if (response.status === 404) return null;
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const detail = data.detail;
-    throw new Error(typeof detail === 'string' ? detail : `HTTP ${response.status}`);
-  }
-  return data;
-}
-
 function setSessionConnectionState(state, logEvent = false) {
   const states = {
     connected: { text: '会话: 连通', logClass: 'log-ok' },
     connecting: { text: '会话: 初始化', logClass: 'log-warn' },
-    reset: { text: '会话: 重置', logClass: 'log-warn' },
+    reconnecting: { text: '会话: 重连', logClass: 'log-warn' },
     disconnected: { text: '会话: 断连', logClass: 'log-danger' },
   };
   const next = states[state];
@@ -2930,100 +2963,12 @@ function setSessionConnectionState(state, logEvent = false) {
 
   const indicator = document.getElementById('status-dot').closest('.status-indicator');
   const dot = document.getElementById('status-dot');
-  indicator.classList.remove('connected', 'connecting', 'reset', 'disconnected');
+  indicator.classList.remove('connected', 'connecting', 'reset', 'reconnecting', 'disconnected');
   indicator.classList.add(state);
   dot.classList.toggle('active', state === 'connected');
-  dot.classList.toggle('reset', state === 'reset' || state === 'connecting');
+  dot.classList.toggle('reset', state === 'reconnecting' || state === 'connecting');
   document.getElementById('conn-status').textContent = next.text;
-
-  if (logEvent && state !== sessionConnectionState) pushLog(next.text, next.logClass);
-  sessionConnectionState = state;
-}
-
-function connectWebSocket() {
-  if (!activeSessionId) return;
-  if (ws) {
-    ws.onclose = null;
-    ws.close();
-  }
-  const sessionId = activeSessionId;
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const socket = new WebSocket(`${proto}//${location.host}/ws/sessions/${sessionId}`);
-  ws = socket;
-
-  socket.onopen = () => {
-    if (socket !== ws || sessionId !== activeSessionId) return;
-    setSessionConnectionState('connected', true);
-  };
-
-  socket.onmessage = event => {
-    if (socket !== ws || sessionId !== activeSessionId) return;
-    const data = JSON.parse(event.data);
-    if (data.error === 'session_not_found') {
-      socket.onclose = null;
-      socket.close();
-      recoverMissingSession(sessionId);
-      return;
-    }
-    if (!data.os) return;
-    currentData = data;
-    updateUI(data);
-    queueTelemetryRender(data);
-    checkLogEvents(data);
-    if (data.state === 'FINISHED' && !resultLoaded) loadResult();
-    if (data.state === 'FAILED') pushLog(data.failure_reason || 'Simulation failed.', 'log-danger');
-  };
-
-  socket.onclose = () => {
-    if (socket !== ws || sessionId !== activeSessionId) return;
-    setSessionConnectionState('disconnected', true);
-    setTimeout(() => {
-      if (sessionId === activeSessionId && socket === ws) connectWebSocket();
-    }, 2500);
-  };
-
-  socket.onerror = () => {
-    if (socket === ws && sessionId === activeSessionId) pushLog('WebSocket error.', 'log-danger');
-  };
-}
-
-async function recoverMissingSession(missingSessionId) {
-  if (
-    missingSessionId !== activeSessionId
-    || sessionRecoveryPending
-  ) return;
-  if (document.visibilityState !== 'visible' || !document.hasFocus()) {
-    activeSessionId = null;
-    setSessionConnectionState('disconnected', true);
-    window.dispatchEvent(new CustomEvent('validation-session-authority-unknown', {
-      detail: { reason: 'Background tab observed a missing/replaced Active Session.' },
-    }));
-    pushLog('Session replaced in another tab. Select a configuration or reset to reconnect.', 'log-danger');
-    return;
-  }
-  sessionRecoveryPending = true;
-  activeSessionId = null;
-  try {
-    const current = await currentSession();
-    if (current) {
-      activateSession(current, 'cross-tab-recovery');
-      pushLog(`Current session recovered: ${current.session_id}`, 'log-info');
-    } else {
-      setSessionConnectionState('disconnected', true);
-      window.dispatchEvent(new CustomEvent('validation-session-sync', {
-        detail: { session: null, reason: 'foreground-recovery-no-current-session' },
-      }));
-      pushLog('No current session. Create one from Config.', 'log-danger');
-    }
-  } catch (error) {
-    setSessionConnectionState('disconnected', true);
-    window.dispatchEvent(new CustomEvent('validation-session-authority-unknown', {
-      detail: { reason: `Session recovery failed: ${error.message}` },
-    }));
-    pushLog(`Session recovery failed: ${error.message}`, 'log-danger');
-  } finally {
-    sessionRecoveryPending = false;
-  }
+  if (logEvent) pushLog(next.text, next.logClass);
 }
 
 function isBusyWaterScenario(scenarioId) {
@@ -3075,7 +3020,7 @@ async function persistBusyWaterDocument() {
   });
 }
 
-function activateSession(data, reason = 'deployment-activation') {
+function resetDeploymentForSession(data) {
   setPlannerSurfaceAttached(false, { rerender: false });
   if (voDecisionSpaceController) voDecisionSpaceController.abort();
   if (voDecisionSpaceRetryTimer !== null) window.clearTimeout(voDecisionSpaceRetryTimer);
@@ -3094,8 +3039,6 @@ function activateSession(data, reason = 'deployment-activation') {
   renderToData = null;
   renderStartedAt = 0;
   renderFrameId = null;
-  activeSessionId = data.session_id;
-  resultLoaded = false;
   currentData = null;
   perfHistory.length = 0;
   solveTimeline = [];
@@ -3115,27 +3058,90 @@ function activateSession(data, reason = 'deployment-activation') {
   setEncStatus('loading');
   syncPlaybackStatus(data.playback, false);
   syncEncChartSelect(document.getElementById('scenarioSelect').value);
-  connectWebSocket();
   initENC();
-  window.dispatchEvent(new CustomEvent('validation-session-sync', {
-    detail: { session: data, reason },
-  }));
 }
 
-async function loadResult() {
-  if (!activeSessionId || resultLoaded) return;
-  resultLoaded = true;
-  try {
-    const result = await apiRequest(`/api/sessions/${activeSessionId}/result`);
-    const artifacts = await apiRequest(`/api/sessions/${activeSessionId}/artifacts`);
-    pushLog(
-      `Evaluation ready: ${result.manifest.reproduction_status} · ${artifacts.length} artifacts.`,
-      'log-ok',
-    );
-  } catch (error) {
-    resultLoaded = false;
-    pushLog(`Result load failed: ${error.message}`, 'log-danger');
+function syncRuntimeControls(snapshot) {
+  const state = snapshot.sessionState;
+  const locked = snapshot.authority.status !== 'known' || !snapshot.session || Boolean(snapshot.pending);
+  document.getElementById('btnStart').disabled = locked || state === 'RUNNING' || state === 'FINISHED' || state === 'FAILED';
+  document.getElementById('btnPause').disabled = locked || state !== 'RUNNING';
+  document.getElementById('btnStep').disabled = locked || (state !== 'CREATED' && state !== 'PAUSED');
+  document.getElementById('btnReset').disabled = locked;
+  document.getElementById('btnReplay').disabled = locked
+    || state !== 'FINISHED'
+    || snapshot.outcome.status !== 'ready'
+    || !snapshot.outcome.result;
+  document.querySelectorAll('.speed-preset').forEach((button) => { button.disabled = locked; });
+}
+
+function syncDeploymentRuntime(snapshot) {
+  const previous = deploymentRuntimeSnapshot;
+  const previousSessionId = previous.session?.session_id || null;
+  const sessionId = snapshot.session?.session_id || null;
+  deploymentRuntimeSnapshot = snapshot;
+
+  if (previous.connection.status !== snapshot.connection.status) {
+    setSessionConnectionState(snapshot.connection.status, previousSessionId !== null);
   }
+  if (previous.authority.status !== snapshot.authority.status && snapshot.authority.status === 'unknown') {
+    pushLog(snapshot.authority.error?.message || 'Active Session authority is unknown.', 'log-danger');
+  }
+  if (sessionId !== previousSessionId) {
+    handledTelemetryRevision = 0;
+    handledOutcomeKey = '';
+    reportedFailureSessionId = null;
+    if (snapshot.session) {
+      restoreSessionSelection(snapshot.session.spec || {});
+      resetDeploymentForSession(snapshot.session);
+      pushLog(
+        `Active Session: ${snapshot.session.spec?.scenario_id} / ${snapshot.session.spec?.algorithm_id} / ${snapshot.session.spec?.tracker_id}`,
+        'log-info',
+      );
+    } else {
+      cancelENCLoad();
+      currentData = null;
+      encInfo = null;
+      encImage = null;
+      encReady = false;
+      setText('val-run-state', 'NO SESSION');
+      setText('val-sim-time', '0.0 s');
+      setSessionConnectionState('disconnected');
+    }
+  }
+
+  if (snapshot.telemetry.revision !== handledTelemetryRevision && snapshot.telemetry.envelope) {
+    handledTelemetryRevision = snapshot.telemetry.revision;
+    const data = snapshot.telemetry.envelope;
+    currentData = data;
+    if (data.os) {
+      updateUI(data);
+      queueTelemetryRender(data);
+      checkLogEvents(data);
+    }
+    if (data.state === 'FAILED' && reportedFailureSessionId !== sessionId) {
+      reportedFailureSessionId = sessionId;
+      pushLog(data.failure_reason || 'Simulation failed.', 'log-danger');
+    }
+  }
+
+  const outcomeKey = `${sessionId || 'none'}:${snapshot.outcome.status}`;
+  if (outcomeKey !== handledOutcomeKey) {
+    handledOutcomeKey = outcomeKey;
+    if (snapshot.outcome.status === 'ready') {
+      const artifactCount = snapshot.outcome.artifacts?.length || 0;
+      if (snapshot.sessionState === 'FAILED') {
+        const reason = snapshot.telemetry.envelope?.failure_reason || snapshot.session?.failure_reason || 'unknown failure';
+        pushLog(`FAILED artifacts ready: ${artifactCount} · ${reason}`, 'log-danger');
+      } else {
+        const reproduction = snapshot.outcome.result?.manifest?.reproduction_status || 'not evaluated';
+        pushLog(`Evaluation ready: ${reproduction} · ${artifactCount} artifacts.`, 'log-ok');
+      }
+    } else if (snapshot.outcome.status === 'error') {
+      pushLog(`Outcome load failed: ${snapshot.outcome.error?.message || 'unknown error'}`, 'log-danger');
+    }
+  }
+  syncRuntimeControls(snapshot);
 }
 
 async function populateCatalogs(ruleId = 'rule14') {
@@ -3564,7 +3570,7 @@ document.getElementById('targetEditForm').addEventListener('submit', async event
 
 document.getElementById('btnStart').addEventListener('click', async () => {
   try {
-    await apiRequest(`/api/sessions/${activeSessionId}/start`, { method: 'POST' });
+    await activeSessionRuntime.start();
     setRuntimePanelsExpanded(true);
     pushLog('Simulation started.', 'log-ok');
   } catch (error) {
@@ -3574,7 +3580,7 @@ document.getElementById('btnStart').addEventListener('click', async () => {
 
 document.getElementById('btnPause').addEventListener('click', async () => {
   try {
-    await apiRequest(`/api/sessions/${activeSessionId}/pause`, { method: 'POST' });
+    await activeSessionRuntime.pause();
     pushLog('Simulation paused.', 'log-info');
   } catch (error) {
     pushLog(error.message, 'log-danger');
@@ -3583,7 +3589,7 @@ document.getElementById('btnPause').addEventListener('click', async () => {
 
 document.getElementById('btnStep').addEventListener('click', async () => {
   try {
-    await apiRequest(`/api/sessions/${activeSessionId}/step`, { method: 'POST' });
+    await activeSessionRuntime.step();
     pushLog('Single simulation step executed.', 'log-info');
   } catch (error) {
     pushLog(error.message, 'log-danger');
@@ -3591,22 +3597,17 @@ document.getElementById('btnStep').addEventListener('click', async () => {
 });
 
 document.getElementById('btnReset').addEventListener('click', async () => {
-  setSessionConnectionState('reset', true);
   try {
-    if (!activeSessionId) throw new Error('No Active Session to reset.');
-    const data = await apiRequest(`/api/sessions/${activeSessionId}/reset`, { method: 'POST' });
-    activateSession(data, 'deployment-reset');
+    await activeSessionRuntime.reset();
     pushLog('Session reset to CREATED from its immutable Run Specification.', 'log-info');
   } catch (error) {
-    setSessionConnectionState('disconnected', true);
     pushLog(error.message, 'log-danger');
   }
 });
 
 document.getElementById('btnReplay').addEventListener('click', async () => {
   try {
-    const data = await apiRequest(`/api/sessions/${activeSessionId}/replay`, { method: 'POST' });
-    activateSession(data, 'deployment-replay');
+    await activeSessionRuntime.replay();
     pushLog('Verified replay session created from source manifest.', 'log-info');
   } catch (error) {
     pushLog(error.message, 'log-danger');
@@ -3692,22 +3693,17 @@ document.querySelectorAll('.qtab').forEach(tab => {
 
 document.querySelectorAll('.speed-preset').forEach(button => {
   button.addEventListener('click', async () => {
-    if (!activeSessionId) return;
     const speed = parseFloat(button.dataset.speed);
-    const controls = [...document.querySelectorAll('.speed-preset')];
-    controls.forEach(item => { item.disabled = true; });
     try {
-      const playback = await apiRequest(
-        `/api/sessions/${encodeURIComponent(activeSessionId)}/speed?multiplier=${speed}`,
-        { method: 'POST' },
-      );
+      await activeSessionRuntime.setSpeed(speed);
+      const playback = activeSessionRuntime.snapshot().session?.playback;
       syncPlaybackStatus(playback, currentData?.state === 'RUNNING');
       if (currentData) currentData.playback = playback;
     } catch (error) {
       pushLog(`Speed change failed: ${error.message}`, 'log-danger');
       syncPlaybackStatus(currentData?.playback, currentData?.state === 'RUNNING');
     } finally {
-      controls.forEach(item => { item.disabled = false; });
+      syncRuntimeControls(activeSessionRuntime.snapshot());
     }
   });
 });
@@ -3788,12 +3784,11 @@ async function boot() {
   window.setInterval(updateBeijingClock, 1000);
   updateLegendVisibility();
   document.getElementById('toggleENC').classList.add('enc-on');
-  let existing = null;
+  activeSessionRuntime.subscribe(syncDeploymentRuntime);
   try {
-    existing = await currentSession();
+    const runtimeSnapshot = await activeSessionRuntime.bootstrap();
+    const existing = runtimeSnapshot.session;
     if (existing) {
-      restoreSessionSelection(existing.spec);
-      activateSession(existing, 'page-bootstrap');
       pushLog(`Session restored: ${existing.spec.scenario_id} / ${existing.spec.algorithm_id} / ${existing.spec.tracker_id}`, 'log-info');
     } else {
       setSessionConnectionState('disconnected');
@@ -3803,6 +3798,7 @@ async function boot() {
     pushLog(`Initialization failed: ${error.message}`, 'log-danger');
   }
   try {
+    const existing = activeSessionRuntime.snapshot().session;
     await populateCatalogs(existing?.spec?.validation_rule_id || 'rule14');
     if (existing) restoreSessionSelection(existing.spec);
   } catch (error) {
@@ -3810,12 +3806,5 @@ async function boot() {
   }
 }
 
-window.addEventListener('validation-session-created', event => {
-  const session = event.detail;
-  if (!session?.session_id) return;
-  restoreSessionSelection(session.spec || {});
-  activateSession(session, 'config-create');
-  pushLog(`Session created from Config: ${session.spec?.scenario_id} / ${session.spec?.algorithm_id} / ${session.spec?.tracker_id}`, 'log-ok');
-});
-
+window.addEventListener('pagehide', () => activeSessionRuntime.destroy(), { once: true });
 boot();

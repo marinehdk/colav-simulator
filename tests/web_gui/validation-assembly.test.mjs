@@ -347,6 +347,40 @@ test('loading authority exposes a safe empty read-only snapshot', () => {
   assert.equal(assembly.snapshot().createBlock, 'current-session-loading');
 });
 
+test('authority refresh loading locks a dirty draft until known authority returns', () => {
+  const assembly = createValidationAssembly({ catalog });
+  assembly.edit('seed', 8);
+
+  assembly.markCurrentSessionLoading();
+  assert.equal(assembly.snapshot().sessionStatus, 'loading');
+  assert.equal(assembly.snapshot().readOnly, true);
+  assert.equal(assembly.snapshot().createBlock, 'current-session-loading');
+  assert.equal(assembly.snapshot().draft.seed, 8);
+  assert.equal(assembly.snapshot().dirty, true);
+
+  assembly.syncActiveSession(null, { reason: 'refresh-complete' });
+  assert.equal(assembly.snapshot().sessionStatus, 'known');
+  assert.equal(assembly.snapshot().readOnly, false);
+  assert.equal(assembly.snapshot().draft.seed, 8);
+});
+
+test('a runtime command in flight locks all Validation Assembly mutations', () => {
+  const assembly = createValidationAssembly({ catalog });
+  assembly.edit('seed', 9);
+
+  assembly.setRuntimePending('reset');
+  assert.equal(assembly.snapshot().readOnly, true);
+  assert.equal(assembly.snapshot().createBlock, 'runtime-pending');
+  assert.throws(() => assembly.edit('seed', 10), /reset.*progress/i);
+  assert.throws(() => assembly.resetDefault(), /reset.*progress/i);
+  assert.throws(() => assembly.beginCreate(), /reset.*progress/i);
+
+  assembly.setRuntimePending(null);
+  assert.equal(assembly.snapshot().readOnly, false);
+  assert.equal(assembly.snapshot().draft.seed, 9);
+  assert.equal(assembly.snapshot().createBlock, null);
+});
+
 test('full Active Session sync replaces a clean draft but preserves and marks a dirty draft', () => {
   const first = {
     state: 'PAUSED',
