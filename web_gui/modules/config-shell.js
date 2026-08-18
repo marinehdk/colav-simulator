@@ -1,5 +1,5 @@
 import { createValidationAssembly } from './validation-assembly.js?v=20260818-candidate2-runtime-final';
-import { activeSessionRuntime } from './session-runtime-instance.js?v=20260818-candidate2-runtime-final';
+import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260819-candidate3-projection';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const OPENBRIDGE_BASE = 'https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist';

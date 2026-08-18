@@ -1,4 +1,4 @@
-import { activeSessionRuntime } from './modules/session-runtime-instance.js?v=20260818-candidate2-runtime-final';
+import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260819-candidate3-projection';
 
 /**
  * Colav-Simulator Web GUI — app.js
@@ -22,7 +22,6 @@ const MOTION_VECTOR_SECONDS = 60;
 const MOTION_TICK_SECONDS = 10;
 const PREDICTION_MARKER_SECONDS = 10;
 const PREDICTION_LABEL_SECONDS = 60;
-const SBMPC_SOLVE_PERIOD_SECONDS = 5;
 const RADAR_DETECTION_RANGE_M = 2000;
 const SBMPC_RESPONSE_RANGE_M = 1000;
 const VO_DECISION_FETCH_INTERVAL_MS = 200;
@@ -111,7 +110,6 @@ let encPendingImage = null;
 const visibleLayers = {
   safeWater: true,
   ships: true,
-  corridor: true,
   route: true,
   waypoints: true,
   history: true,
@@ -121,7 +119,6 @@ const visibleLayers = {
   prediction: true,
   previousPrediction: false,
   executionPoint: true,
-  risk: true,
   truth: false,
   measurements: false,
   tracks: false,
@@ -143,8 +140,7 @@ let lastPanX  = 0, lastPanY = 0;
 const perfHistory = [];
 let currentData = null;
 let logCount    = 0;
-let lastColregs = '', lastColregsTarget = '', lastDcpaLevel = '', lastDcpaTarget = '';
-const seenEventKeys = new Set();
+let renderedTimelineEvents = 0;
 let deploymentRuntimeSnapshot = activeSessionRuntime.snapshot();
 let handledTelemetryRevision = 0;
 let handledOutcomeKey = '';
@@ -451,11 +447,10 @@ function renderCanvas(data) {
   if (!encReady || !showENC) drawGrid(W, H);
 
   const route = frozenMissionRoute(data);
-  const navigationArea = data.enc_navigation_area || data.navigation_area;
-  updateLayerAvailability(data, navigationArea, route);
+  const navigationArea = data.enc_navigation_area;
+  updateLayerAvailability(data, navigationArea);
 
   if (visibleLayers.safeWater) drawNavigationArea(navigationArea);
-  if (visibleLayers.corridor) drawRouteCorridor(route, Number(data.route_corridor_half_width_m));
   if (visibleLayers.route) drawInitialRoute(route);
   if (visibleLayers.waypoints) drawWaypoints(route, data.os);
   if (visibleLayers.history) drawHistory(data);
@@ -473,17 +468,10 @@ function renderCanvas(data) {
     drawHorizon(plans.prediction_horizon, false, data.planner);
   if (visibleLayers.executionPoint && plans.prediction_horizon?.length > 0)
     drawExecutionPoint(plans.prediction_horizon);
-  if (visibleLayers.risk) drawCPARisk(data);
   drawTargetRoutes(data);
-  if (data.os && plannerSurfaceAttached) drawPlannerSurfaceOnMap(data.os, diagnosticPlannerForData(data));
+  if (data.os && plannerSurfaceAttached) drawPlannerSurfaceOnMap(data.os, currentDiagnosticPlanner());
   if (visibleLayers.ships) drawShips(data);
   if (data.os && !plannerSurfaceAttached) drawRelativeCompass(data.os, W, H);
-}
-
-function diagnosticPlannerForData(data) {
-  const planner = data?.planner || {};
-  const latestSolve = data?.latest_planner_solve || {};
-  return planner.solver_executed || !latestSolve.solver_executed ? planner : latestSolve;
 }
 
 function plannerSurfaceType(planner) {
@@ -499,7 +487,7 @@ function drawPlannerSurfaceOnMap(os, planner) {
 }
 
 function drawTargetRoutes(data) {
-  const routes = data.target_routes || data.plans?.target_routes || [];
+  const routes = data.plans?.target_routes || [];
   const scenarioId = data.scenario_id || document.getElementById('scenarioSelect').value;
   if (!routes.length || !isBusyWaterScenario(scenarioId)) return;
   routes.forEach(route => {
@@ -664,7 +652,7 @@ function chooseGridSpacing() {
 }
 
 function frozenMissionRoute(data) {
-  const key = data.run_id || data.selected_scenario || 'unbound';
+  const key = data.run_id || 'unbound';
   if (!missionRoutes.has(key) && validRoute(data.waypoints)) {
     missionRoutes.set(key, data.waypoints.map(axis => [...axis]));
   }
@@ -683,8 +671,7 @@ function routePoints(route) {
 }
 
 function drawNavigationArea(area) {
-  const safeWater = area?.safe_water?.polygons || area?.safe_water || area?.safe_water_polygons;
-  drawPolygonCollection(safeWater, 'rgba(76,202,209,0.12)', 'rgba(76,202,209,0.55)');
+  drawPolygonCollection(area?.safe_water?.polygons, 'rgba(76,202,209,0.12)', 'rgba(76,202,209,0.55)');
 }
 
 function drawPolygonCollection(collection, fill, stroke) {
@@ -728,35 +715,6 @@ function arrayDepth(value) {
     cursor = cursor[0];
   }
   return depth;
-}
-
-function drawRouteCorridor(route, halfWidthM) {
-  if (!validRoute(route) || !Number.isFinite(halfWidthM) || halfWidthM <= 0) return;
-  const points = routePoints(route);
-  ctx.save();
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(76,202,209,0.14)';
-  ctx.lineWidth = Math.max(2, halfWidthM * 2 * viewScale);
-  strokePolyline(points);
-  const offsets = offsetPolyline(route, halfWidthM);
-  ctx.strokeStyle = 'rgba(76,202,209,0.52)';
-  ctx.lineWidth = 1;
-  offsets.forEach(line => strokePolyline(line.map(point => worldToCanvas(point[0], point[1]))));
-  ctx.restore();
-}
-
-function offsetPolyline(route, distance) {
-  const source = route[0].map((north, index) => [north, route[1][index]]);
-  const offset = sign => source.map((point, index) => {
-    const previous = source[Math.max(0, index - 1)];
-    const next = source[Math.min(source.length - 1, index + 1)];
-    const dn = next[0] - previous[0];
-    const de = next[1] - previous[1];
-    const length = Math.hypot(dn, de) || 1;
-    return [point[0] - sign * de / length * distance, point[1] + sign * dn / length * distance];
-  });
-  return [offset(-1), offset(1)];
 }
 
 function drawInitialRoute(route) {
@@ -1041,7 +999,7 @@ function targetsForDisplay(data) {
 function targetThreat(data, target) {
   if (!target || !data.os) return THREAT_STYLES.UNKNOWN;
   const distance = Math.hypot(target.x - data.os.x, target.y - data.os.y);
-  const responseRange = plannerResponseRange(data);
+  const responseRange = plannerResponseRange();
   if (responseRange?.threatActivation && distance <= responseRange.distanceM) return THREAT_STYLES.HIGH;
   if (distance <= RADAR_DETECTION_RANGE_M) return THREAT_STYLES.LOW;
   return THREAT_STYLES.CLEAR;
@@ -1194,36 +1152,6 @@ function drawThreatRings(point, threat, selected) {
   ctx.setLineDash([]);
 }
 
-function drawCPARisk(data) {
-  const ranked = (data.encounters || [])
-    .map(encounter => ({ encounter, threat: THREAT_STYLES[String(encounter.threat_level || 'UNKNOWN').toUpperCase()] }))
-    .filter(item => item.threat?.rank >= 2)
-    .sort((a, b) => b.threat.rank - a.threat.rank);
-  const item = ranked.find(entry => String(entry.encounter.target_id) === String(selectedTargetId)) || ranked[0];
-  if (!item) return;
-  const own = cpaPoint(item.encounter.own_cpa_position);
-  const target = cpaPoint(item.encounter.target_cpa_position);
-  if (!own || !target) return;
-  const ownPoint = worldToCanvas(own[0], own[1]);
-  const targetPoint = worldToCanvas(target[0], target[1]);
-  ctx.strokeStyle = hexToRgba(item.threat.color, 0.9);
-  ctx.lineWidth = 1.7;
-  ctx.setLineDash([6, 4]);
-  ctx.beginPath();
-  ctx.moveTo(ownPoint.x, ownPoint.y);
-  ctx.lineTo(targetPoint.x, targetPoint.y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  [ownPoint, targetPoint].forEach(point => {
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = item.threat.color;
-    ctx.fill();
-  });
-  drawMapLabel(`CPA ${formatDistance(item.encounter.dcpa_m)}`,
-    (ownPoint.x + targetPoint.x) / 2 + 6, (ownPoint.y + targetPoint.y) / 2 - 6, item.threat.color);
-}
-
 function drawDetectionZones(data) {
   if (!data.os) return;
   const center = worldToCanvas(data.os.x, data.os.y);
@@ -1237,7 +1165,7 @@ function drawDetectionZones(data) {
     ctx.stroke();
   }
 
-  const responseRange = plannerResponseRange(data);
+  const responseRange = plannerResponseRange();
   if (visibleLayers.responseRange && responseRange) {
     ctx.beginPath();
     ctx.arc(center.x, center.y, responseRange.distanceM * viewScale, 0, Math.PI * 2);
@@ -1249,13 +1177,12 @@ function drawDetectionZones(data) {
   ctx.restore();
 }
 
-function plannerResponseRange(data) {
-  const planner = data.latest_planner_solve?.solver_executed
-    ? data.latest_planner_solve
-    : (data.planner || {});
-  const algorithmId = planner.algorithm_id || data.executed_algorithm || data.requested_algorithm;
+function plannerResponseRange() {
+  const planner = telemetryProjection.snapshot().planner;
+  const algorithmId = planner.algorithmId;
+  const constraints = planner.display?.constraints || {};
   if (algorithmId === 'sbmpc') {
-    const configuredRange = Number(planner.constraints?.activation_distance_m);
+    const configuredRange = Number(constraints.activation_distance_m);
     const distanceM = Number.isFinite(configuredRange) && configuredRange > 0
       ? configuredRange
       : SBMPC_RESPONSE_RANGE_M;
@@ -1266,7 +1193,7 @@ function plannerResponseRange(data) {
     };
   }
   if (['potocnik_simplified_mpc', 'potocnik_colreg_fan_mpc'].includes(algorithmId)) {
-    const distanceM = Number(planner.constraints?.planning_zone?.distance_m);
+    const distanceM = Number(constraints.planning_zone?.distance_m);
     if (Number.isFinite(distanceM) && distanceM > 0) {
       return {
         distanceM,
@@ -1275,13 +1202,6 @@ function plannerResponseRange(data) {
       };
     }
   }
-  return null;
-}
-
-function cpaPoint(value) {
-  if (Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every(Number.isFinite)) return value;
-  if (value && Number.isFinite(value.north) && Number.isFinite(value.east)) return [value.north, value.east];
-  if (value && Number.isFinite(value.x) && Number.isFinite(value.y)) return [value.x, value.y];
   return null;
 }
 
@@ -1360,15 +1280,12 @@ function drawMapLabel(text, x, y, color) {
   ctx.fillText(text, x, y);
 }
 
-function updateLayerAvailability(data, navigationArea, route) {
+function updateLayerAvailability(data, navigationArea) {
   setLayerAvailability('safeWater', normalizePolygons(
-    navigationArea?.safe_water?.polygons || navigationArea?.safe_water || navigationArea?.safe_water_polygons,
+    navigationArea?.safe_water?.polygons,
   ).length > 0);
-  setLayerAvailability('corridor', validRoute(route)
-    && Number.isFinite(Number(data.route_corridor_half_width_m))
-    && Number(data.route_corridor_half_width_m) > 0);
   setLayerAvailability('radarRange', true);
-  const responseRange = plannerResponseRange(data);
+  const responseRange = plannerResponseRange();
   setText('response-range-control-label', responseRange?.label || '规划/响应范围');
   setText('response-range-legend-label', responseRange?.label || '规划/响应范围');
   setLayerAvailability('responseRange', Boolean(responseRange));
@@ -1483,10 +1400,6 @@ function selectedBusyWaterShip() {
   return busyWaterDocument?.ship_list?.find(item => String(item.id) === String(selectedTargetId));
 }
 
-function formatDistance(value) {
-  return Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)} m` : '--';
-}
-
 function hexToRgba(hex, alpha) {
   if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
   const value = Number.parseInt(hex.slice(1), 16);
@@ -1511,8 +1424,10 @@ function drawVessel(cx, cy, heading, color, label, size = 14) {
 /* ══════════════════════════════════════════════
    UI TELEMETRY UPDATE
 ══════════════════════════════════════════════ */
-function updateUI(data) {
-  const os = data.os;
+function updateUI(proj) {
+  const data = proj.raw;
+  const navigation = proj.navigation;
+  const os = data?.os;
   if (selectedTargetId !== null) {
     const target = targetsForDisplay(data).find(item => String(item.id) === String(selectedTargetId));
     updateTargetDetails(target || null, data).catch(error => {
@@ -1521,26 +1436,22 @@ function updateUI(data) {
   }
 
   const previousRuntimeState = lastRuntimeState;
-  if (data.state === 'RUNNING' && previousRuntimeState !== 'RUNNING') {
+  if (proj.state === 'RUNNING' && previousRuntimeState !== 'RUNNING') {
     setRuntimePanelsExpanded(true);
   }
-  lastRuntimeState = data.state || lastRuntimeState;
+  lastRuntimeState = proj.state || lastRuntimeState;
 
   // Header time
-  setText('val-sim-time', `${(data.scenario_time ?? data.step * 0.5).toFixed(1)} s`);
-  setText('val-run-state', data.state || 'CREATED');
-  setText('val-reproduction', data.reproduction_status || 'not evaluated');
-  syncPlaybackStatus(data.playback, data.state === 'RUNNING');
+  setText('val-sim-time', `${(navigation?.simTime ?? 0).toFixed(1)} s`);
+  setText('val-run-state', proj.state || 'CREATED');
+  setText('val-reproduction', proj.outcome.reproductionStatus || 'not evaluated');
+  syncPlaybackStatus(proj.raw?.playback, proj.state === 'RUNNING');
 
   // Primary encounter, DCPA / TCPA
-  const primaryEncounter = data.primary_encounter || null;
-  setText('val-primary-target', primaryEncounter?.target_label || '无目标');
-  const dcpa = Number.isFinite(primaryEncounter?.dcpa_m)
-    ? primaryEncounter.dcpa_m
-    : (Number.isFinite(data.dcpa) ? data.dcpa : null);
-  const tcpa = Number.isFinite(primaryEncounter?.tcpa_s)
-    ? primaryEncounter.tcpa_s
-    : (Number.isFinite(data.tcpa) ? data.tcpa : null);
+  const primary = proj.risk.primary;
+  setText('val-primary-target', primary?.targetLabel || '无目标');
+  const dcpa = proj.risk.dcpaM;
+  const tcpa = proj.risk.tcpaS;
   const dcpaEl = document.getElementById('val-dcpa');
   dcpaEl.textContent = dcpa === null ? '--- m' : `${dcpa.toFixed(1)} m`;
   setRiskClass(dcpaEl, dcpa, DCPA_SAFE, DCPA_WARN, true);
@@ -1555,24 +1466,22 @@ function updateUI(data) {
   setRiskBar('tcpaBar', tcpaPct,
     tcpa === null ? 'safe' : tcpa > TCPA_SAFE ? 'safe' : tcpa > TCPA_WARN ? 'warn' : 'danger');
 
-  updateColregsBadge(primaryEncounter?.encounter || data.colregs);
+  updateColregsBadge(proj.risk.colregs);
 
-  const primaryDistance = Number.isFinite(primaryEncounter?.distance_m)
-    ? primaryEncounter.distance_m
-    : null;
+  const primaryDistance = primary?.distanceM ?? null;
   setText('val-dist', primaryDistance === null ? '--- m' : `${primaryDistance.toFixed(1)} m`);
 
   // OS telemetry
-  setText('val-os-latitude', formatCoordinate(os.latitude, 'N', 'S'));
-  setText('val-os-longitude', formatCoordinate(os.longitude, 'E', 'W'));
-  setText('val-os-sog', Number.isFinite(os.sog) ? `${os.sog.toFixed(2)} m/s` : '-- m/s');
-  setText('val-os-cog', formatCourse(os.cog));
-  setText('val-os-heading', formatCourse(os.psi));
-  setText('val-os-yaw', `${(os.r || 0).toFixed(1)} rad/s`);
-  updatePlannerPanel(data);
+  setText('val-os-latitude', formatCoordinate(navigation?.latitude, 'N', 'S'));
+  setText('val-os-longitude', formatCoordinate(navigation?.longitude, 'E', 'W'));
+  setText('val-os-sog', Number.isFinite(navigation?.sog) ? `${navigation.sog.toFixed(2)} m/s` : '-- m/s');
+  setText('val-os-cog', formatCourse(navigation?.cog));
+  setText('val-os-heading', formatCourse(navigation?.psi));
+  setText('val-os-yaw', `${(os?.r || 0).toFixed(1)} rad/s`);
+  updatePlannerPanel(proj);
 
   // Performance
-  const stepMs = Number.isFinite(data.step_time_ms) ? data.step_time_ms : 0;
+  const stepMs = Number.isFinite(navigation?.stepTimeMs) ? navigation.stepTimeMs : 0;
   setText('val-step-time', `${stepMs.toFixed(2)} ms`);
   perfHistory.push(stepMs);
   if (perfHistory.length > PERF_HISTORY_LEN) perfHistory.shift();
@@ -1653,29 +1562,25 @@ function updateColregsBadge(rule) {
   else                                   badge.classList.add('clear');
 }
 
-function updatePlannerPanel(data) {
-  const planner = data.planner || {};
-  const latestSolve = data.latest_planner_solve || {};
-  const diagnosticPlanner = planner.solver_executed || !latestSolve.solver_executed
-    ? planner
-    : latestSolve;
-  const execution = data.execution || {};
+function updatePlannerPanel(proj) {
+  const state = proj.planner;
+  const diagnosticPlanner = state.display || {};
   const details = diagnosticPlanner.algorithm_details || {};
   syncPlannerSurfaceMode(diagnosticPlanner);
-  const solveId = Number(planner.solve_id || 0);
-  const realSolve = Boolean(planner.solver_executed);
+  const solveId = Number(state.solveId || 0);
+  const realSolve = state.phase === 'SOLVE';
   const mode = document.getElementById('val-solver-executed');
   mode.textContent = realSolve ? 'SOLVE' : 'HOLD';
   mode.classList.toggle('solve', realSolve);
   mode.classList.toggle('hold', !realSolve);
 
   setText('val-solve-id', `#${solveId}`);
-  const solverSuccessful = planner.feasible !== false
-    && ['SUCCESS', 'TIMEOUT_FEASIBLE'].includes(planner.status || 'SUCCESS');
+  const solverSuccessful = state.feasible !== false
+    && ['SUCCESS', 'TIMEOUT_FEASIBLE'].includes(state.status || 'SUCCESS');
   setText('val-solver-state', solverSuccessful ? '成功' : '失败');
 
-  const horizonLength = data.plans?.prediction_horizon?.length || 0;
-  const horizonIntervals = diagnosticPlanner.algorithm_details?.control_intervals ?? horizonLength;
+  const horizonLength = state.horizonLength;
+  const horizonIntervals = details.control_intervals ?? horizonLength;
   const gridShape = Array.isArray(details.grid_shape) ? details.grid_shape : [];
   const horizonTime = diagnosticPlanner.algorithm_id === 'vo' && gridShape.length === 2
     ? `决策网格 ${gridShape[0]}×${gridShape[1]}`
@@ -1684,47 +1589,43 @@ function updatePlannerPanel(data) {
       : `${horizonLength} points`;
   setText('val-planner-horizon', horizonTime);
 
-  const course = execution.applied_course_ref_rad ?? planner.selected_command?.course_rad;
-  const speed = execution.applied_speed_ref_mps ?? planner.selected_command?.speed_mps;
+  const course = state.appliedCourseRefRad;
+  const speed = state.appliedSpeedRefMps;
   setText('val-command-course', Number.isFinite(course) ? `${(course * 180 / Math.PI).toFixed(1)}°` : '--°');
   setText('val-command-speed', Number.isFinite(speed) ? `${speed.toFixed(2)} m/s` : '-- m/s');
 
-  if (Number(latestSolve.solve_id || 0) !== lastDisplayedSolveId && latestSolve.solver_executed) {
-    lastSolveSimTime = Number(latestSolve.sim_time || data.sim_time || 0);
-  } else if (realSolve) {
-    lastSolveSimTime = Number(planner.sim_time || data.sim_time || 0);
+  const solvedNow = state.latestSolve?.solver_executed === true || state.current?.solver_executed === true;
+  if ((state.latestSolve?.solver_executed && Number(state.latestSolve.solve_id || 0) !== lastDisplayedSolveId)
+    || solvedNow) {
+    lastSolveSimTime = Number(diagnosticPlanner.sim_time || proj.simTime || 0);
   }
-  const prediction = data.plans?.prediction_horizon || [];
+  const prediction = proj.raw?.plans?.prediction_horizon || [];
   const predictionIndex = Number.isFinite(diagnosticPlanner.horizon_dt_s) && lastSolveSimTime !== null
     ? Math.min(prediction.length - 1, Math.max(0, Math.round(
-      (Number(data.sim_time || 0) - lastSolveSimTime) / diagnosticPlanner.horizon_dt_s,
+      (Number(proj.simTime || 0) - lastSolveSimTime) / diagnosticPlanner.horizon_dt_s,
     )))
     : 0;
   const predictedExecution = prediction[predictionIndex];
-  const executionError = predictedExecution
-    ? Math.hypot(predictedExecution[0] - data.os.x, predictedExecution[1] - data.os.y)
+  const executionError = predictedExecution && proj.raw?.os
+    ? Math.hypot(predictedExecution[0] - proj.raw.os.x, predictedExecution[1] - proj.raw.os.y)
     : null;
   setText('val-prediction-error', Number.isFinite(executionError) ? `${executionError.toFixed(2)} m` : '-- m');
   drawPlannerSurface(diagnosticPlanner);
   ensureVODecisionSpace(diagnosticPlanner);
-  const configuredSolvePeriod = Number(details.solve_period_s);
+  const configuredSolvePeriod = Number(state.solvePeriodS);
   setText(
     'val-solve-period',
     Number.isFinite(configuredSolvePeriod)
       ? `${configuredSolvePeriod.toFixed(1)} s`
-      : diagnosticPlanner.algorithm_id === 'sbmpc'
-        ? `${SBMPC_SOLVE_PERIOD_SECONDS.toFixed(1)} s`
-        : diagnosticPlanner.algorithm_id === 'vo'
-          ? '1.0 s'
-        : '按算法触发',
+      : '按算法触发',
   );
 
-  const timelineTrace = latestSolve.solver_executed ? latestSolve : (realSolve ? planner : null);
+  const timelineTrace = solvedNow ? state.display : null;
   if (timelineTrace && Number(timelineTrace.solve_id) !== lastDisplayedSolveId) {
     lastDisplayedSolveId = Number(timelineTrace.solve_id);
     solveTimeline.push({
       solveId: lastDisplayedSolveId,
-      simTime: Number(timelineTrace.sim_time || data.sim_time || 0),
+      simTime: Number(timelineTrace.sim_time || proj.simTime || 0),
       status: timelineTrace.status || 'SUCCESS',
       objective: Number(timelineTrace.objective ?? timelineTrace.algorithm_details?.objective),
     });
@@ -2404,9 +2305,7 @@ document.getElementById('plannerSurface').addEventListener('pointerleave', () =>
 });
 
 function currentDiagnosticPlanner() {
-  const planner = currentData?.planner || {};
-  const latestSolve = currentData?.latest_planner_solve || {};
-  return planner.solver_executed || !latestSolve.solver_executed ? planner : latestSolve;
+  return telemetryProjection.snapshot().planner.display || {};
 }
 
 function updatePlannerSurfaceAttachControl(surfaceType, solveId) {
@@ -2459,7 +2358,7 @@ document.getElementById('plannerSurfaceAttach').addEventListener('click', () => 
 
 new ResizeObserver(() => {
   lastVORenderKey = null;
-  if (currentData) updatePlannerPanel(currentData);
+  if (currentData) updatePlannerPanel(telemetryProjection.snapshot());
 }).observe(document.querySelector('.planner-surface-wrap'));
 
 function axisTickIndices(valueCount, pixelSpan, minimumSpacing) {
@@ -2868,71 +2767,57 @@ function pushLog(msg, cls = 'log-info') {
   terminal.scrollTop = terminal.scrollHeight;
 }
 
-function encounterTargetLabel(encounter) {
-  if (!encounter) return '';
-  if (encounter.target_label) return String(encounter.target_label);
-  const targetId = encounter.target_id;
-  return targetId === null || targetId === undefined || targetId === '' ? '' : `TS${targetId}`;
-}
-
-function checkLogEvents(data) {
-  const encounter = data.primary_encounter || null;
-  const col = encounter?.encounter || data.colregs || 'clear';
-  const target = encounterTargetLabel(encounter);
-  if (col === 'clear') {
-    if (lastColregs && lastColregs !== 'clear') {
-      const previousRule = ENCOUNTER_LABELS[lastColregs] || lastColregs;
-      const previousTarget = lastColregsTarget ? ` / ${lastColregsTarget}` : '';
-      pushLog(`COLREGs → ${ENCOUNTER_LABELS.clear}（结束 ${previousRule}${previousTarget}）`, 'log-ok');
+function renderTimelineLog(proj) {
+  const events = proj.timeline.events;
+  if (events.length < renderedTimelineEvents) renderedTimelineEvents = 0;
+  for (; renderedTimelineEvents < events.length; renderedTimelineEvents += 1) {
+    const event = events[renderedTimelineEvents];
+    if (event.type === 'colregs_change') {
+      const { from, to, targetLabel } = event.details;
+      if (to === 'clear') {
+        const previousRule = ENCOUNTER_LABELS[from] || from;
+        const previousTarget = targetLabel ? ` / ${targetLabel}` : '';
+        pushLog(`COLREGs → ${ENCOUNTER_LABELS.clear}（结束 ${previousRule}${previousTarget}）`, 'log-ok');
+        continue;
+      }
+      const cls = to === 'head_on'           ? 'log-warn'   :
+                  to === 'crossing_give_way' ? 'log-danger' :
+                                                'log-info';
+      const ruleLabel = ENCOUNTER_LABELS[to] || to;
+      const targetSuffix = targetLabel ? ` / ${targetLabel}` : '';
+      pushLog(`COLREGs → ${ruleLabel}${targetSuffix}`, cls);
+      continue;
     }
-    lastColregs = col;
-    lastColregsTarget = '';
-  } else if (col !== lastColregs || target !== lastColregsTarget) {
-    const cls = col === 'head_on'           ? 'log-warn'   :
-                col === 'crossing_give_way' ? 'log-danger' :
-                                               'log-info';
-    const ruleLabel = ENCOUNTER_LABELS[col] || col;
-    const targetSuffix = target ? ` / ${target}` : '';
-    pushLog(`COLREGs → ${ruleLabel}${targetSuffix}`, cls);
-    lastColregs = col;
-    lastColregsTarget = target;
-  }
-  const dcpa = Number.isFinite(data.dcpa) ? data.dcpa : null;
-  const lvl = dcpa === null ? null : dcpa > DCPA_SAFE ? 'safe' : dcpa > DCPA_WARN ? 'warn' : 'danger';
-  if (lvl && (lvl !== lastDcpaLevel || target !== lastDcpaTarget)) {
-    const targetSuffix = target ? ` / ${target}` : '';
-    pushLog(`DCPA ${lvl.toUpperCase()}${targetSuffix} — ${dcpa.toFixed(0)} m`,
-            lvl === 'safe' ? 'log-ok' : lvl === 'warn' ? 'log-warn' : 'log-danger');
-    lastDcpaLevel = lvl;
-    lastDcpaTarget = target;
-  }
-  (data.events || []).forEach(event => {
-    const planner = event.details?.planner || {};
-    const eventKey = [
-      data.run_id || currentRunId() || 'run',
-      event.sequence ?? data.seq ?? '',
-      event.type,
-      event.details?.ship_id ?? '',
-      planner.solve_id ?? '',
-    ].join(':');
-    if (seenEventKeys.has(eventKey)) return;
-    seenEventKeys.add(eventKey);
-    if (seenEventKeys.size > 1000) {
-      const oldestKey = seenEventKeys.values().next().value;
-      seenEventKeys.delete(oldestKey);
+    if (event.type === 'dcpa_level_change') {
+      const { level: lvl, dcpaM, targetLabel } = event.details;
+      const targetSuffix = targetLabel ? ` / ${targetLabel}` : '';
+      pushLog(`DCPA ${lvl.toUpperCase()}${targetSuffix} — ${dcpaM.toFixed(0)} m`,
+              lvl === 'safe' ? 'log-ok' : lvl === 'warn' ? 'log-warn' : 'log-danger');
+      continue;
     }
     if (event.type === 'planner_solved') {
-      const algorithm = String(planner.algorithm_id || data.executed_algorithm || 'planner').toUpperCase();
-      const simTime = Number(event.sim_time ?? planner.sim_time);
-      const solveId = Number(planner.solve_id);
+      const algorithm = String(proj.planner.algorithmId || 'planner').toUpperCase();
+      const simTime = Number(event.simTime);
+      const solveId = Number(event.details.solve_id);
       const solveLabel = Number.isFinite(solveId) && solveId > 0 ? ` #${solveId}` : '';
       const timeLabel = Number.isFinite(simTime) ? ` · 仿真 ${simTime.toFixed(1)}s` : '';
       pushLog(`${algorithm} 求解成功${solveLabel}${timeLabel}`, 'log-ok');
-      return;
+      continue;
     }
     const detail = event.details && event.details.reason ? `: ${event.details.reason}` : '';
     pushLog(`${event.type}${detail}`, event.type.includes('fail') ? 'log-danger' : 'log-info');
-  });
+  }
+}
+
+function renderProjection(proj) {
+  const data = proj.raw;
+  if (!data) return;
+  currentData = data;
+  if (data.os) {
+    updateUI(proj);
+    queueTelemetryRender(data);
+    renderTimelineLog(proj);
+  }
 }
 
 /* ══════════════════════════════════════════════
@@ -3047,11 +2932,7 @@ function resetDeploymentForSession(data) {
   lastRuntimeState = 'CREATED';
   setRuntimePanelsExpanded(false);
   renderSolveTimeline();
-  lastColregs = '';
-  lastColregsTarget = '';
-  lastDcpaLevel = '';
-  lastDcpaTarget = '';
-  seenEventKeys.clear();
+  renderedTimelineEvents = 0;
   encReady = false;
   encInfo = null;
   encImage = null;
@@ -3113,12 +2994,6 @@ function syncDeploymentRuntime(snapshot) {
   if (snapshot.telemetry.revision !== handledTelemetryRevision && snapshot.telemetry.envelope) {
     handledTelemetryRevision = snapshot.telemetry.revision;
     const data = snapshot.telemetry.envelope;
-    currentData = data;
-    if (data.os) {
-      updateUI(data);
-      queueTelemetryRender(data);
-      checkLogEvents(data);
-    }
     if (data.state === 'FAILED' && reportedFailureSessionId !== sessionId) {
       reportedFailureSessionId = sessionId;
       pushLog(data.failure_reason || 'Simulation failed.', 'log-danger');
@@ -3698,7 +3573,6 @@ document.querySelectorAll('.speed-preset').forEach(button => {
       await activeSessionRuntime.setSpeed(speed);
       const playback = activeSessionRuntime.snapshot().session?.playback;
       syncPlaybackStatus(playback, currentData?.state === 'RUNNING');
-      if (currentData) currentData.playback = playback;
     } catch (error) {
       pushLog(`Speed change failed: ${error.message}`, 'log-danger');
       syncPlaybackStatus(currentData?.playback, currentData?.state === 'RUNNING');
@@ -3718,7 +3592,7 @@ function setCardCollapsed(card, collapsed) {
   button.textContent = collapsed ? '展开' : '收起';
   button.setAttribute('aria-expanded', String(!collapsed));
   if (!collapsed && card.id === 'cardPlanner' && currentData) {
-    updatePlannerPanel(currentData);
+    updatePlannerPanel(telemetryProjection.snapshot());
   }
 }
 
@@ -3785,6 +3659,7 @@ async function boot() {
   updateLegendVisibility();
   document.getElementById('toggleENC').classList.add('enc-on');
   activeSessionRuntime.subscribe(syncDeploymentRuntime);
+  telemetryProjection.subscribe(renderProjection);
   try {
     const runtimeSnapshot = await activeSessionRuntime.bootstrap();
     const existing = runtimeSnapshot.session;

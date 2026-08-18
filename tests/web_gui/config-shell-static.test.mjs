@@ -7,6 +7,7 @@ const shell = await readFile(new URL('../../web_gui/modules/config-shell.js', im
 const legacy = await readFile(new URL('../../web_gui/app.js', import.meta.url), 'utf8');
 const runtime = await readFile(new URL('../../web_gui/modules/active-session-runtime.js', import.meta.url), 'utf8');
 const instance = await readFile(new URL('../../web_gui/modules/session-runtime-instance.js', import.meta.url), 'utf8');
+const projection = await readFile(new URL('../../web_gui/modules/telemetry-projection.js', import.meta.url), 'utf8');
 
 test('Config starts disabled and boot establishes assembly before binding controls', () => {
   for (const id of [
@@ -38,17 +39,45 @@ test('only Active Session Runtime owns lifecycle REST and WebSocket construction
 });
 
 test('Config and Deployment import the same inert singleton and app is delivered as ESM', () => {
-  const legacyImport = legacy.match(/import \{ activeSessionRuntime \} from ['"]\.\/modules\/session-runtime-instance\.js(\?v=[^'"]*)?['"]/);
-  const shellImport = shell.match(/import \{ activeSessionRuntime \} from ['"]\.\/session-runtime-instance\.js(\?v=[^'"]*)?['"]/);
+  const legacyImport = legacy.match(/import \{ activeSessionRuntime, telemetryProjection \} from ['"]\.\/modules\/session-runtime-instance\.js(\?v=[^'"]*)?['"]/);
+  const shellImport = shell.match(/import \{ activeSessionRuntime, telemetryProjection \} from ['"]\.\/session-runtime-instance\.js(\?v=[^'"]*)?['"]/);
   const runtimeImport = instance.match(/import \{ createActiveSessionRuntime \} from ['"]\.\/active-session-runtime\.js(\?v=[^'"]*)?['"]/);
-  assert.ok(legacyImport, 'Deployment imports the singleton');
-  assert.ok(shellImport, 'Config imports the singleton');
+  assert.ok(legacyImport, 'Deployment imports the runtime and projection singletons');
+  assert.ok(shellImport, 'Config imports the runtime and projection singletons');
   assert.ok(legacyImport[1], 'Deployment singleton import carries a cache-bust token');
   assert.equal(legacyImport[1], shellImport[1], 'singleton specifiers must be byte-identical or the module splits');
   assert.ok(runtimeImport?.[1], 'instance import of the runtime carries a cache-bust token');
   assert.match(instance, /export const activeSessionRuntime = createActiveSessionRuntime/);
   assert.doesNotMatch(instance, /\.bootstrap\(/);
   assert.match(html, /<script type="module" src="\/static\/app\.js/);
+});
+
+test('composition root wires the runtime into the projection singleton and exports both', () => {
+  assert.match(instance, /export const telemetryProjection = createTelemetryProjection\(\)/);
+  assert.match(instance, /activeSessionRuntime\.subscribe\(\(runtimeSnapshot\) => telemetryProjection\.project\(runtimeSnapshot\)\)/);
+  assert.match(instance, /import \{ createTelemetryProjection \} from ['"]\.\/telemetry-projection\.js\?v=/);
+});
+
+test('Deployment consumes the projection and no longer interprets raw envelopes inline', () => {
+  assert.match(legacy, /telemetryProjection\.subscribe\(renderProjection\)/);
+  assert.doesNotMatch(legacy, /latest_planner_solve/);
+  assert.doesNotMatch(legacy, /data\.navigation_area/);
+  assert.doesNotMatch(legacy, /safe_water_polygons/);
+  assert.doesNotMatch(legacy, /threat_level/);
+  assert.doesNotMatch(legacy, /drawCPARisk/);
+  assert.doesNotMatch(legacy, /checkLogEvents/);
+  assert.doesNotMatch(legacy, /route_corridor_half_width_m/);
+});
+
+test('telemetry projection stays DOM-free and transport-free', () => {
+  assert.doesNotMatch(projection, /fetch\(|new WebSocket|document\.|window\./);
+  assert.match(projection, /export function createTelemetryProjection/);
+  assert.match(projection, /export const DCPA_SAFE = 300/);
+  assert.match(projection, /export const DCPA_WARN = 100/);
+});
+
+test('Deployment treats the shared envelope as read-only and never mutates it in place', () => {
+  assert.doesNotMatch(legacy, /currentData\.\w+\s*=[^=]/);
 });
 
 test('Config delegates Create and authority refresh through runtime public seam', () => {

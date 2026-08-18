@@ -20,11 +20,14 @@ def _assert_primary_encounter_aliases(payload: dict) -> None:
 def test_colregs_log_identifies_target_and_cleared_context() -> None:
     with TestClient(app) as client:
         script = client.get("/static/app.js")
+        projection = client.get("/static/modules/telemetry-projection.js")
 
     assert script.status_code == 200
-    assert "const encounter = data.primary_encounter || null;" in script.text
-    assert "function encounterTargetLabel(encounter)" in script.text
-    assert "`TS${targetId}`" in script.text
+    assert projection.status_code == 200
+    assert "const primaryEncounter = envelope.primary_encounter ?? null;" in projection.text
+    assert "function encounterTargetLabel(encounter)" in projection.text
+    assert "`TS${targetId}`" in projection.text
+    assert "function renderTimelineLog(proj)" in script.text
     assert "COLREGs → ${ruleLabel}${targetSuffix}" in script.text
     assert "COLREGs → ${ENCOUNTER_LABELS.clear}（结束 ${previousRule}${previousTarget}）" in script.text
     assert "DCPA ${lvl.toUpperCase()}${targetSuffix}" in script.text
@@ -204,7 +207,7 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "surfaceExplanation.hidden = !isVO" in script.text
         assert "surfaceMeta.hidden = isVO" in script.text
         assert "setPlannerSurfaceAttached(!plannerSurfaceAttached)" in script.text
-        assert "drawPlannerSurfaceOnMap(data.os, diagnosticPlannerForData(data))" in script.text
+        assert "drawPlannerSurfaceOnMap(data.os, currentDiagnosticPlanner())" in script.text
         assert "if (surfaceType === 'fan') drawSimplifiedMpcFanOnMap(os, planner)" in script.text
         assert "plannerSurfaceType(currentDiagnosticPlanner())" in script.text
         assert "offsetY + scaledHeight - (point.y - minY) * scale" in script.text
@@ -257,7 +260,6 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
             for layer in (
                 "safeWater",
                 "ships",
-                "corridor",
                 "route",
                 "waypoints",
                 "history",
@@ -267,20 +269,24 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
                 "prediction",
                 "previousPrediction",
                 "executionPoint",
-                "risk",
                 "truth",
                 "measurements",
                 "tracks",
                 "covariance",
             )
         )
+        assert 'data-layer="risk"' not in page.text
+        assert 'data-legend-layer="risk"' not in page.text
         assert 'data-layer="truth" checked' not in page.text
         assert 'data-layer="measurements" checked' not in page.text
         assert 'data-layer="previousPrediction" checked' not in page.text
+        assert 'data-layer="corridor"' not in page.text
+        assert 'data-layer-state="corridor"' not in page.text
         assert 'id="cardBusyWater"' in page.text
         assert 'id="busyTargetCount" type="number" min="0" max="40" step="1"' in page.text
         assert 'id="targetColregs"' in page.text
-        assert all(label in page.text for label in ("安全海域", "初始航道", "60s 向量"))
+        assert all(label in page.text for label in ("安全海域", "60s 向量"))
+        assert "初始航道" not in page.text
         assert all(
             token in script.text
             for token in (
@@ -288,20 +294,31 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
                 "const FCB45_WIDTH_M = 8",
                 "const PREDICTION_MARKER_SECONDS = 10",
                 "const PREDICTION_LABEL_SECONDS = 60",
-                "const SBMPC_SOLVE_PERIOD_SECONDS = 5",
                 "new Path2D()",
-                "threat_level || 'UNKNOWN'",
-                "own_cpa_position",
-                "target_cpa_position",
                 "activation_distance_m",
                 "RADAR_DETECTION_RANGE_M = 2000",
                 "SBMPC_RESPONSE_RANGE_M = 1000",
                 "distance <= RADAR_DETECTION_RANGE_M",
-                "seenEventKeys",
                 "求解成功",
                 "仿真 ${simTime.toFixed(1)}s",
             )
         )
+        assert all(
+            dead_token not in script.text
+            for dead_token in (
+                "threat_level",
+                "own_cpa_position",
+                "target_cpa_position",
+                "drawCPARisk",
+                "checkLogEvents",
+                "route_corridor_half_width_m",
+            )
+        )
+        projection = client.get("/static/modules/telemetry-projection.js")
+        assert projection.status_code == 200
+        assert "const SBMPC_SOLVE_PERIOD_SECONDS" not in script.text
+        assert "SBMPC_SOLVE_PERIOD_FALLBACK_S = 5" in projection.text
+        assert "seenEventKeys" in projection.text
         assert "SB-MPC 激活/安全范围" not in page.text
         assert all(label in page.text for label in ("雷达探测圈（2 km）", "规划/响应范围"))
         assert all(label in page.text for label in ("纬度", "经度", "对地速度", "对地航向", "当前航向", "角速度"))

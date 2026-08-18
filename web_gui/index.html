@@ -196,14 +196,12 @@
                     <span class="legend-category-title">导航</span>
                     <span class="legend-item" data-legend-layer="ships"><span class="color-box ownship"></span>本船</span>
                     <span class="legend-item" data-legend-layer="route"><span class="color-box route"></span>初始航线</span>
-                    <span class="legend-item" data-legend-layer="corridor"><span class="color-box corridor"></span>初始航道</span>
                     <span class="legend-item" data-legend-layer="motionVectors"><span class="color-box motion"></span>60s 向量</span>
                   </div>
                   <div class="legend-category" data-legend-group="algorithm">
                     <span class="legend-category-title">算法</span>
                     <span class="legend-item" data-legend-layer="prediction"><span class="color-box horizon"></span>当前预测</span>
                     <span class="legend-item" data-legend-layer="previousPrediction"><span class="color-box previous"></span>上次预测</span>
-                    <span class="legend-item" data-legend-layer="risk"><span class="color-box dcpa-line"></span>CPA 风险</span>
                   </div>
                   <div class="legend-category" data-legend-group="risk">
                     <span class="legend-category-title">目标状态</span>
@@ -232,7 +230,6 @@
                   </fieldset>
                   <fieldset>
                     <legend>导航</legend>
-                    <label><input type="checkbox" data-layer="corridor" checked> 初始航道 <span class="layer-state" data-layer-state="corridor">数据未提供</span></label>
                     <label><input type="checkbox" data-layer="route" checked> 初始航线</label>
                     <label><input type="checkbox" data-layer="waypoints" checked> 航点</label>
                     <label><input type="checkbox" data-layer="history" checked> 历史航迹</label>
@@ -243,7 +240,6 @@
                     <label><input type="checkbox" data-layer="prediction" checked> 当前预测</label>
                     <label><input type="checkbox" data-layer="previousPrediction"> 上次预测</label>
                     <label><input type="checkbox" data-layer="executionPoint" checked> 执行点</label>
-                    <label><input type="checkbox" data-layer="risk" checked> CPA/风险</label>
                   </fieldset>
                   <fieldset>
                     <legend>感知调试</legend>
@@ -606,7 +602,7 @@
     <section class="workface roadmap-workface" data-workface-panel="algorithm" hidden><h2>Algorithm</h2><p>Algorithm and tracker catalog surface planned. Exact Tuple evidence remains authoritative in Config.</p></section>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260818-candidate2-runtime-final"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260818-candidate2-runtime-final"></script>
+  <script type="module" src="/static/app.js?v=20260819-candidate3-projection"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260819-candidate3-projection"></script>
 </body>
 </html>

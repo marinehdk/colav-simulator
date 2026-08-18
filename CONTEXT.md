@@ -43,3 +43,31 @@ _Avoid_: Reset state transition, in-place replay
 **Telemetry Envelope**:
 A raw, versioned snapshot received for one Active Session before navigation, risk, planner, or evidence interpretation.
 _Avoid_: View state, evaluation result
+
+**Telemetry Projection**:
+The derived read-only view of one Telemetry Envelope, owned by the projection module and rebuilt only when the envelope identity changes. It never talks to the network or the DOM.
+_Avoid_: View model, controller state
+
+**Projection Sections**:
+The six interpretation sections of a Telemetry Projection — navigation, sensor, risk, planner, outcome, timeline — plus the read-only raw envelope reference. Sections stay independent; absent facts stay null instead of being invented.
+_Avoid_: Merged safety flag, single risk score
+
+**Planner Phase**:
+Whether the current frame carried a real solver execution (`SOLVE`) or repeats the last frozen solve (`HOLD`). Nominal guidance counts as SOLVE without a solver run.
+_Avoid_: Solver success, feasibility
+
+**Display Selection Policy**:
+The rule that planner diagnostics display the latest real SOLVE while it exists and otherwise the current frame's planner dict.
+_Avoid_: Latest frame, newest planner
+
+**Position Source**:
+Which origin a displayed target position came from: `tracker` (tracker estimate) or `truth` (ground-truth state).
+_Avoid_: Estimated flag, sensor blend
+
+**Derived Event**:
+A timeline event produced by the projection's own state machines (COLREGs change, DCPA level crossing) rather than delivered in the envelope.
+_Avoid_: Backend event, lifecycle event
+
+**Timeline Limitations**:
+The standing constraints of the projection timeline: lifecycle events never appear in telemetry, history only covers observed snapshots, and Session Replacement clears it.
+_Avoid_: Full run log, event history

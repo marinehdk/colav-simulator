@@ -1,4 +1,5 @@
 import { createActiveSessionRuntime } from './active-session-runtime.js?v=20260818-candidate2-runtime-final';
+import { createTelemetryProjection } from './telemetry-projection.js?v=20260819-candidate3-projection';
 
 class SessionHttpError extends Error {
   constructor(response, detail) {
@@ -68,3 +69,6 @@ export const activeSessionRuntime = createActiveSessionRuntime({
   visibility,
   online,
 });
+
+export const telemetryProjection = createTelemetryProjection();
+activeSessionRuntime.subscribe((runtimeSnapshot) => telemetryProjection.project(runtimeSnapshot));
