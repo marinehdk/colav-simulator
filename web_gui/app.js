@@ -29,7 +29,6 @@ const VO_DECISION_FETCH_INTERVAL_MS = 200;
 const TELEMETRY_RENDER_MIN_MS = 100;
 const TELEMETRY_RENDER_MAX_MS = 1000;
 const METERS_PER_KNOT = 0.514444;
-const BUSY_WATER_DRAFT_ID = 'current-multiship';
 const THREAT_STYLES = {
   UNKNOWN: { color: '#4F5B60', fill: 'rgba(104,116,122,0.72)', rank: 0 },
   CLEAR: { color: '#AAB4BA', fill: 'rgba(170,180,186,0.66)', rank: 1 },
@@ -144,13 +143,9 @@ let logCount    = 0;
 let lastColregs = '', lastColregsTarget = '', lastDcpaLevel = '', lastDcpaTarget = '';
 const seenEventKeys = new Set();
 let activeSessionId = null;
-let activeSessionKey = null;
 let resultLoaded = false;
 let sessionConnectionState = 'connecting';
 let sessionRecoveryPending = false;
-let sessionCreationPromise = null;
-let pendingSessionKey = null;
-let sessionCreateRevision = 0;
 let voDecisionSpace = null;
 let voDecisionSpaceKey = null;
 let voDecisionSpaceRequestKey = null;
@@ -172,10 +167,8 @@ let targetHitRegions = [];
 let selectedTargetId = null;
 let pointerDown = null;
 let busyWaterDocument = null;
-let busyWaterBaseScenario = null;
 let busyWaterSeed = 20250731;
 let busyWaterMix = { crossing: 0.6, head_on: 0.2, overtaking: 0.2 };
-let busyWaterRevision = 0;
 const ownshipSprite = new Image();
 ownshipSprite.decoding = 'async';
 ownshipSprite.addEventListener('load', () => {
@@ -189,7 +182,6 @@ targetSprite.addEventListener('load', () => {
 });
 targetSprite.src = '/static/assets/target-vessel-top.png';
 let routePointEditMode = null;
-let busyWaterDraftChecked = false;
 let targetEditorKey = null;
 
 /* ══════════════════════════════════════════════
@@ -1490,10 +1482,14 @@ function updateUI(data) {
     });
   }
 
-  if (data.state === 'RUNNING' && lastRuntimeState !== 'RUNNING') {
+  const previousRuntimeState = lastRuntimeState;
+  if (data.state === 'RUNNING' && previousRuntimeState !== 'RUNNING') {
     setRuntimePanelsExpanded(true);
   }
   lastRuntimeState = data.state || lastRuntimeState;
+  if (data.state && data.state !== previousRuntimeState) {
+    window.dispatchEvent(new CustomEvent('validation-session-state', { detail: { state: data.state } }));
+  }
 
   // Header time
   setText('val-sim-time', `${(data.scenario_time ?? data.step * 0.5).toFixed(1)} s`);
@@ -2995,22 +2991,35 @@ async function recoverMissingSession(missingSessionId) {
   if (
     missingSessionId !== activeSessionId
     || sessionRecoveryPending
-    || sessionCreationPromise
   ) return;
   if (document.visibilityState !== 'visible' || !document.hasFocus()) {
     activeSessionId = null;
-    activeSessionKey = null;
     setSessionConnectionState('disconnected', true);
+    window.dispatchEvent(new CustomEvent('validation-session-authority-unknown', {
+      detail: { reason: 'Background tab observed a missing/replaced Active Session.' },
+    }));
     pushLog('Session replaced in another tab. Select a configuration or reset to reconnect.', 'log-danger');
     return;
   }
   sessionRecoveryPending = true;
   activeSessionId = null;
-  activeSessionKey = null;
   try {
-    await createSession({ force: true });
+    const current = await currentSession();
+    if (current) {
+      activateSession(current, 'cross-tab-recovery');
+      pushLog(`Current session recovered: ${current.session_id}`, 'log-info');
+    } else {
+      setSessionConnectionState('disconnected', true);
+      window.dispatchEvent(new CustomEvent('validation-session-sync', {
+        detail: { session: null, reason: 'foreground-recovery-no-current-session' },
+      }));
+      pushLog('No current session. Create one from Config.', 'log-danger');
+    }
   } catch (error) {
     setSessionConnectionState('disconnected', true);
+    window.dispatchEvent(new CustomEvent('validation-session-authority-unknown', {
+      detail: { reason: `Session recovery failed: ${error.message}` },
+    }));
     pushLog(`Session recovery failed: ${error.message}`, 'log-danger');
   } finally {
     sessionRecoveryPending = false;
@@ -3038,37 +3047,17 @@ async function generateBusyWaterDocument({ scenarioId, targetCount, seed, crossi
   });
   const payload = await apiRequest(`/api/busy-water/generate?${params}`);
   busyWaterDocument = payload.document;
-  busyWaterBaseScenario = scenarioId;
   busyWaterSeed = Number(seed);
   busyWaterMix = {
     crossing: Number(payload.encounter_mix.crossing),
     head_on: Number(payload.encounter_mix.head_on),
     overtaking: Number(payload.encounter_mix.overtaking),
   };
-  busyWaterRevision += 1;
   selectedTargetId = null;
   targetEditorKey = null;
   document.getElementById('targetEditForm').hidden = true;
   renderBusyTargetList();
   return payload;
-}
-
-function applyBusyWaterDraft(payload) {
-  busyWaterDocument = payload.document;
-  busyWaterBaseScenario = 'romsdal_busy_water_16';
-  busyWaterSeed = Number(payload.seed);
-  busyWaterMix = payload.encounter_mix;
-  busyWaterRevision += 1;
-  document.getElementById('busyTargetCount').value = String(payload.document.ship_list.length - 1);
-  renderBusyTargetList();
-}
-
-async function loadPersistedBusyWaterDocument() {
-  const response = await fetch(`/api/busy-water/drafts/${BUSY_WATER_DRAFT_ID}`);
-  if (response.status === 404) return false;
-  if (!response.ok) throw new Error(await response.text());
-  applyBusyWaterDraft(await response.json());
-  return true;
 }
 
 async function persistBusyWaterDocument() {
@@ -3086,97 +3075,7 @@ async function persistBusyWaterDocument() {
   });
 }
 
-async function ensureBusyWaterDocument(scenarioId) {
-  syncBusyWaterSetupVisibility(scenarioId);
-  if (!isBusyWaterScenario(scenarioId)) {
-    return;
-  }
-  if (busyWaterDocument && busyWaterBaseScenario === scenarioId) return;
-  if (!busyWaterDraftChecked) {
-    busyWaterDraftChecked = true;
-    if (await loadPersistedBusyWaterDocument()) return;
-  }
-  const targetCount = 15;
-  await generateBusyWaterDocument({
-    scenarioId,
-    targetCount,
-    seed: 20250731,
-    crossing: 0.6,
-    headOn: 0.2,
-    overtaking: 0.2,
-  });
-  document.getElementById('busyTargetCount').value = String(targetCount);
-}
-
-function selectedSessionRequest() {
-  const scenarioId = document.getElementById('scenarioSelect').value;
-  return {
-    validation_rule_id: document.querySelector('.qtab.active')?.dataset.group || 'rule14',
-    scenario_id: scenarioId,
-    algorithm_id: document.getElementById('algoSelect').value,
-    tracker_id: document.getElementById('trackerSelect').value,
-    seed: isBusyWaterScenario(scenarioId) ? busyWaterSeed : 0,
-    strict_no_fallback: true,
-    ...(isBusyWaterScenario(scenarioId) && busyWaterDocument
-      ? { scenario_override: busyWaterDocument }
-      : {}),
-  };
-}
-
-function sessionKey(request) {
-  return JSON.stringify([
-    request.validation_rule_id,
-    request.scenario_id,
-    request.algorithm_id,
-    request.tracker_id,
-    request.seed,
-    request.strict_no_fallback,
-    isBusyWaterScenario(request.scenario_id) ? busyWaterRevision : 0,
-  ]);
-}
-
-async function createSession({ force = false } = {}) {
-  await ensureBusyWaterDocument(document.getElementById('scenarioSelect').value);
-  const request = selectedSessionRequest();
-  const requestKey = sessionKey(request);
-  if (!force && activeSessionId && activeSessionKey === requestKey) {
-    return { session_id: activeSessionId };
-  }
-  if (!force && sessionCreationPromise && pendingSessionKey === requestKey) {
-    return sessionCreationPromise;
-  }
-  const revision = ++sessionCreateRevision;
-  const previousCreation = sessionCreationPromise;
-  const creation = (async () => {
-    if (previousCreation) await previousCreation.catch(() => {});
-    if (!force && revision !== sessionCreateRevision) return null;
-    setSessionConnectionState('connecting');
-    if (activeSessionId && currentData && currentData.state === 'RUNNING') {
-      await apiRequest(`/api/sessions/${activeSessionId}/pause`, { method: 'POST' });
-    }
-    const data = await apiRequest('/api/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    });
-    if (revision !== sessionCreateRevision) return data;
-    activateSession(data, requestKey);
-    pushLog(`Session created: ${request.scenario_id} / ${request.algorithm_id} / ${request.tracker_id}`, 'log-info');
-    return data;
-  })();
-  sessionCreationPromise = creation;
-  pendingSessionKey = requestKey;
-  try {
-    return await creation;
-  } finally {
-    if (sessionCreationPromise === creation) {
-      sessionCreationPromise = null;
-      pendingSessionKey = null;
-    }
-  }
-}
-
-function activateSession(data, requestKey = null) {
+function activateSession(data, reason = 'deployment-activation') {
   setPlannerSurfaceAttached(false, { rerender: false });
   if (voDecisionSpaceController) voDecisionSpaceController.abort();
   if (voDecisionSpaceRetryTimer !== null) window.clearTimeout(voDecisionSpaceRetryTimer);
@@ -3196,7 +3095,6 @@ function activateSession(data, requestKey = null) {
   renderStartedAt = 0;
   renderFrameId = null;
   activeSessionId = data.session_id;
-  activeSessionKey = requestKey || sessionKey(data.spec || selectedSessionRequest());
   resultLoaded = false;
   currentData = null;
   perfHistory.length = 0;
@@ -3219,6 +3117,9 @@ function activateSession(data, requestKey = null) {
   syncEncChartSelect(document.getElementById('scenarioSelect').value);
   connectWebSocket();
   initENC();
+  window.dispatchEvent(new CustomEvent('validation-session-sync', {
+    detail: { session: data, reason },
+  }));
 }
 
 async function loadResult() {
@@ -3587,7 +3488,7 @@ document.getElementById('busyWaterForm').addEventListener('submit', async event 
     });
     status.textContent = `已生成 ${payload.preflight.target_count} 艘目标船`;
     await persistBusyWaterDocument();
-    await createSession({ force: true });
+    pushLog('Legacy busy-water draft saved only. Validation Draft and Active Session are unchanged; explicit attachment belongs to the future Scenario surface.', 'log-info');
   } catch (error) {
     status.textContent = error.message;
   }
@@ -3648,25 +3549,15 @@ document.getElementById('targetEditForm').addEventListener('submit', async event
   edited.waypoints = [[n1, n2], [e1, e2]];
   edited.speed_plan = [speed, speed];
   edited.encounter_role = encounterRoleFromEditor(document.getElementById('targetColregs').value);
-  const previous = busyWaterDocument;
   busyWaterDocument = candidate;
-  busyWaterRevision += 1;
-  try {
-    await createSession({ force: true });
-  } catch (error) {
-    busyWaterDocument = previous;
-    busyWaterRevision += 1;
-    pushLog(`目标船更新失败: ${error.message}`, 'log-danger');
-    return;
-  }
   targetEditorKey = null;
   await updateTargetDetails({ id: ship.id }, currentData || { state: 'CREATED' });
   try {
     await persistBusyWaterDocument();
-    document.getElementById('busyWaterStatus').textContent = `TS${ship.id} 已持久化保存`;
-    pushLog(`TS${ship.id} 航线、航速与规则已更新。`, 'log-ok');
+    document.getElementById('busyWaterStatus').textContent = `TS${ship.id} 仅保存到 legacy draft`;
+    pushLog(`TS${ship.id} saved to legacy draft only. Validation Draft and Active Session are unchanged; explicit attachment belongs to the future Scenario surface.`, 'log-ok');
   } catch (error) {
-    document.getElementById('busyWaterStatus').textContent = '配置已应用，持久化保存失败';
+    document.getElementById('busyWaterStatus').textContent = '仅 legacy draft 本地变更；持久化失败；Validation Draft 与 Active Session 未改变';
     pushLog(`目标船配置保存失败: ${error.message}`, 'log-danger');
   }
 });
@@ -3702,7 +3593,10 @@ document.getElementById('btnStep').addEventListener('click', async () => {
 document.getElementById('btnReset').addEventListener('click', async () => {
   setSessionConnectionState('reset', true);
   try {
-    await createSession({ force: true });
+    if (!activeSessionId) throw new Error('No Active Session to reset.');
+    const data = await apiRequest(`/api/sessions/${activeSessionId}/reset`, { method: 'POST' });
+    activateSession(data, 'deployment-reset');
+    pushLog('Session reset to CREATED from its immutable Run Specification.', 'log-info');
   } catch (error) {
     setSessionConnectionState('disconnected', true);
     pushLog(error.message, 'log-danger');
@@ -3712,7 +3606,7 @@ document.getElementById('btnReset').addEventListener('click', async () => {
 document.getElementById('btnReplay').addEventListener('click', async () => {
   try {
     const data = await apiRequest(`/api/sessions/${activeSessionId}/replay`, { method: 'POST' });
-    activateSession(data);
+    activateSession(data, 'deployment-replay');
     pushLog('Verified replay session created from source manifest.', 'log-info');
   } catch (error) {
     pushLog(error.message, 'log-danger');
@@ -3763,11 +3657,7 @@ document.getElementById('encChartSelect').addEventListener('change', async event
   }
   populateScenarioOptions(activeGroup, target.id);
   setEncStatus('loading');
-  try {
-    await createSession();
-  } catch (error) {
-    pushLog(error.message, 'log-danger');
-  }
+  pushLog('Legacy chart selector changed locally; Validation Draft and Active Session are unchanged.', 'log-info');
 });
 
 ['algoSelect', 'scenarioSelect', 'trackerSelect'].forEach(id => {
@@ -3785,11 +3675,7 @@ document.getElementById('encChartSelect').addEventListener('change', async event
     } else {
       syncSelectionCards('tracker', document.getElementById(id).value);
     }
-    try {
-      await createSession();
-    } catch (error) {
-      pushLog(error.message, 'log-danger');
-    }
+    pushLog('Legacy selection changed locally; active session was not replaced.', 'log-info');
   });
 });
 
@@ -3798,7 +3684,6 @@ document.querySelectorAll('.qtab').forEach(tab => {
     if (tab.disabled) return;
     try {
       await populateCatalogs(tab.dataset.group);
-      await createSession();
     } catch (error) {
       pushLog(error.message, 'log-danger');
     }
@@ -3828,6 +3713,7 @@ document.querySelectorAll('.speed-preset').forEach(button => {
 });
 
 const RUNTIME_PANEL_IDS = ['cardSafety', 'cardTelemetry', 'cardPlanner', 'cardPerf'];
+const LEGACY_CONFIG_CARD_IDS = ['cardIntegrations', 'cardRules', 'cardControl', 'cardTracker', 'cardBusyWater'];
 
 function setCardCollapsed(card, collapsed) {
   card.classList.toggle('collapsed', collapsed);
@@ -3865,9 +3751,17 @@ function prepareWorkspaceLayout() {
   const sidebar = document.querySelector('.sidebar-column');
   const controls = document.createElement('div');
   controls.className = 'sidebar-controls-scroll';
-  ['cardIntegrations', 'cardRules', 'cardControl', 'cardTracker'].forEach(id => {
+  const movedNotice = document.createElement('div');
+  movedNotice.className = 'legacy-config-moved';
+  movedNotice.textContent = 'Configuration moved to Config. Deployment controls are read-only runtime controls.';
+  controls.appendChild(movedNotice);
+  LEGACY_CONFIG_CARD_IDS.forEach(id => {
     const card = document.getElementById(id);
-    if (card) controls.appendChild(card);
+    if (card) {
+      card.classList.add('legacy-config-retired');
+      card.hidden = true;
+      controls.appendChild(card);
+    }
   });
   sidebar.prepend(controls);
   RUNTIME_PANEL_IDS.forEach(id => {
@@ -3877,10 +3771,6 @@ function prepareWorkspaceLayout() {
       initializeCollapsibleCard(card, true);
     }
   });
-  initializeCollapsibleCard(document.getElementById('cardIntegrations'), true);
-  initializeCollapsibleCard(document.getElementById('cardRules'), false);
-  initializeCollapsibleCard(document.getElementById('cardControl'), false);
-  initializeCollapsibleCard(document.getElementById('cardTracker'), true);
   const eventLog = document.querySelector('.log-section');
   if (eventLog) {
     initializeCollapsibleCard(eventLog, false);
@@ -3898,21 +3788,34 @@ async function boot() {
   window.setInterval(updateBeijingClock, 1000);
   updateLegendVisibility();
   document.getElementById('toggleENC').classList.add('enc-on');
+  let existing = null;
   try {
-    const existing = await currentSession();
-    const ruleId = existing?.spec?.validation_rule_id || 'rule14';
-    await populateCatalogs(ruleId);
+    existing = await currentSession();
     if (existing) {
       restoreSessionSelection(existing.spec);
-      await ensureBusyWaterDocument(existing.spec.scenario_id);
-      activateSession(existing);
+      activateSession(existing, 'page-bootstrap');
       pushLog(`Session restored: ${existing.spec.scenario_id} / ${existing.spec.algorithm_id} / ${existing.spec.tracker_id}`, 'log-info');
     } else {
-      await createSession();
+      setSessionConnectionState('disconnected');
+      pushLog('No active session. Assemble and Create one from Config.', 'log-info');
     }
   } catch (error) {
     pushLog(`Initialization failed: ${error.message}`, 'log-danger');
   }
+  try {
+    await populateCatalogs(existing?.spec?.validation_rule_id || 'rule14');
+    if (existing) restoreSessionSelection(existing.spec);
+  } catch (error) {
+    pushLog(`Capability catalog unavailable; Deployment remains active: ${error.message}`, 'log-danger');
+  }
 }
+
+window.addEventListener('validation-session-created', event => {
+  const session = event.detail;
+  if (!session?.session_id) return;
+  restoreSessionSelection(session.spec || {});
+  activateSession(session, 'config-create');
+  pushLog(`Session created from Config: ${session.spec?.scenario_id} / ${session.spec?.algorithm_id} / ${session.spec?.tracker_id}`, 'log-ok');
+});
 
 boot();

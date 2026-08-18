@@ -5,15 +5,138 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link rel="stylesheet" href="/static/style.css?v=20260810-mid-mpc-main" />
+  <link id="openbridgeStyles" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist/openbridge.css" onerror="this.dataset.failed='true'" />
+  <link rel="stylesheet" href="/static/style.css?v=20260818-candidate1-review" />
 </head>
 <body>
   <div class="app-container">
 
+    <header class="product-shell-header" aria-label="Product navigation">
+      <obc-top-bar class="openbridge-topbar" apptitle="COLREGS Algorithm Playground" pagename=""></obc-top-bar>
+      <nav class="workface-tabs" aria-label="Workfaces">
+        <button type="button" class="workface-tab active" data-workface="config" aria-selected="true">Config</button>
+        <button type="button" class="workface-tab" data-workface="deployment" aria-selected="false">Deployment</button>
+        <button type="button" class="workface-tab" data-workface="evaluation" aria-selected="false">Evaluation</button>
+        <button type="button" class="workface-tab" data-workface="scenario" aria-selected="false">Scenario</button>
+        <button type="button" class="workface-tab" data-workface="algorithm" aria-selected="false">Algorithm</button>
+      </nav>
+      <div class="shell-session-state" id="shellSessionState">NO SESSION</div>
+    </header>
+    <div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden>
+      OpenBridge 1.0.1 failed to load. Product shell components unavailable; retry network/CDN access.
+    </div>
+
+    <section class="workface config-workface" id="configWorkface" data-workface-panel="config" aria-label="Validation Config">
+      <aside class="assembly-steps" aria-label="Assembly Steps">
+        <p class="shell-eyebrow">NEW SIMULATION</p>
+        <h2>Assembly Steps</h2>
+        <button type="button" class="assembly-step active" data-config-step="rules"><span>01</span><strong>COLREG Rules</strong><small id="configStepRulesState">Loading</small></button>
+        <button type="button" class="assembly-step" data-config-step="scenarios"><span>02</span><strong>Verification Scenarios</strong><small id="configStepScenariosState">Loading</small></button>
+        <button type="button" class="assembly-step" data-config-step="algorithms"><span>03</span><strong>Verification Algorithms</strong><small id="configStepAlgorithmsState">Loading</small></button>
+        <button type="button" class="assembly-step" data-config-step="params"><span>04</span><strong>Verification Params</strong><small id="configStepParamsState">Loading</small></button>
+        <div class="config-progress" aria-label="Assembly readiness"><span id="configProgressLabel">Loading authority</span><div><i id="configProgressBar"></i></div></div>
+        <div class="draft-state" id="validationDraftState">Loading capability catalog…</div>
+        <button type="button" class="retry-catalog" id="retryCapabilityCatalog" disabled hidden>Retry catalog &amp; current session</button>
+      </aside>
+
+      <div class="assembly-editor">
+        <section class="config-step-panel" data-config-step-panel="rules">
+          <div class="rule-step-layout">
+            <obc-card class="config-obc-card">
+              <div slot="title" class="config-card-title"><span>01</span><strong>COLREG Rules</strong><small>Catalog-scoped validation authority</small></div>
+              <div class="config-card-content"><div class="choice-grid" id="validationRuleChoices" role="radiogroup" aria-label="COLREG rule"></div></div>
+            </obc-card>
+            <obc-card class="config-obc-card visual-card">
+              <div slot="title" class="config-card-title"><strong id="validationRuleImageTitle">Rule guide</strong><small>Reference illustration</small></div>
+              <div class="rule-guide-media">
+                <img id="validationRuleImage" src="/static/assets/openbridge/Rule14.png" alt="COLREG Rule 14 reference illustration">
+                <div class="rule-image-switch" id="validationRuleImageSwitch" hidden>
+                  <button type="button" data-rule-image-index="0" aria-label="Show Rule 16 image">Rule 16</button>
+                  <button type="button" data-rule-image-index="1" aria-label="Show Rule 17 image">Rule 17</button>
+                </div>
+              </div>
+            </obc-card>
+          </div>
+        </section>
+        <section class="config-step-panel" data-config-step-panel="scenarios" hidden>
+          <div class="scenario-step-layout">
+            <obc-card class="config-obc-card">
+              <div slot="title" class="config-card-title"><span>02</span><strong>Verification Scenarios</strong><small>Scenario plus associated ENC reference</small></div>
+              <div class="config-card-content scenario-selectors">
+                <label>Scenario<select id="validationScenario" disabled></select></label>
+                <label>ENC reference<select id="validationEnc" disabled><option>Loading</option></select></label>
+                <dl class="scenario-facts" id="validationScenarioFacts"></dl>
+              </div>
+            </obc-card>
+            <obc-card class="config-obc-card visual-card scenario-visual-card">
+              <div slot="title" class="config-card-title"><strong>Initial ENC Situation</strong><small>Reference preview · not live telemetry</small></div>
+              <div class="scenario-preview">
+                <img id="validationScenarioImage" src="/static/assets/openbridge/romsdal-head-on-seacharts.png" alt="Romsdal reference ENC preview">
+                <div class="reference-preview-badge">REFERENCE PREVIEW · NOT LIVE</div>
+                <div class="scenario-preview-copy" id="validationScenarioPreview">Scenario metadata loads from capability catalog.</div>
+              </div>
+            </obc-card>
+          </div>
+        </section>
+        <section class="config-step-panel" data-config-step-panel="algorithms" hidden>
+          <div class="algorithm-step-layout">
+            <obc-card class="config-obc-card">
+              <div slot="title" class="config-card-title"><span>03</span><strong>Verification Algorithms</strong><small>Real integration catalog</small></div>
+              <div class="config-card-content form-grid">
+                <label>Avoidance Algorithm<select id="validationAlgorithm" disabled></select></label>
+                <label>Tracker<select id="validationTracker" disabled></select></label>
+              </div>
+            </obc-card>
+            <obc-card class="config-obc-card algorithm-detail-card">
+              <div slot="title" class="config-card-title"><strong>Selected Combination</strong><small id="validationTupleId">Exact Tuple pending</small></div>
+              <div class="config-card-content algorithm-detail-grid">
+                <section><h3 id="validationAlgorithmName">Algorithm</h3><div class="metadata-flow" id="validationAlgorithmFlow"></div><dl id="validationAlgorithmFacts"></dl></section>
+                <section><h3 id="validationTrackerName">Tracker</h3><div class="metadata-flow" id="validationTrackerFlow"></div><dl id="validationTrackerFacts"></dl></section>
+              </div>
+              <div class="classification-card" id="validationClassification">Exact Tuple pending</div>
+              <div class="evidence-detail" id="validationEvidenceDetail"></div>
+            </obc-card>
+          </div>
+        </section>
+        <section class="config-step-panel" data-config-step-panel="params" hidden>
+          <div class="param-step-layout">
+            <obc-card class="config-obc-card">
+              <div slot="title" class="config-card-title"><span>04</span><strong>Verification Params</strong><small>Editable Web create fields</small></div>
+              <div class="config-card-content form-grid params-grid">
+                <label>Seed<input id="validationSeed" type="number" min="0" step="1" disabled></label>
+                <label>Episode index<input id="validationEpisode" type="number" min="0" step="1" disabled></label>
+                <label>dt <small>blank = Scenario default</small><input id="validationDt" type="number" min="0" step="any" placeholder="Scenario default" disabled></label>
+                <label>t_end <small>blank = Scenario default</small><input id="validationTEnd" type="number" min="0" step="any" placeholder="Scenario default" disabled></label>
+              </div>
+            </obc-card>
+            <obc-card class="config-obc-card execution-plan-card">
+              <div slot="title" class="config-card-title"><strong>Session Execution Plan</strong><small>Run Specification semantics</small></div>
+              <div class="config-card-content">
+                <div class="plan-metrics" id="validationPlanMetrics"></div>
+                <dl class="execution-facts" id="validationExecutionPlan"></dl>
+                <div class="contract-boundary"><strong>Not exposed by Web create contract</strong><span>Deadline mode, incident-stop policy, and artifact inventory remain backend-owned; Config does not invent values.</span></div>
+              </div>
+            </obc-card>
+          </div>
+        </section>
+      </div>
+
+      <aside class="assembly-summary" aria-label="Session Assembly">
+        <p class="shell-eyebrow">SESSION ASSEMBLY</p>
+        <obc-card class="config-obc-card summary-card"><div slot="title" class="config-card-title"><strong>Config Summary</strong></div><dl id="validationSummary"></dl></obc-card>
+        <obc-card class="config-obc-card contract-card"><div slot="title" class="config-card-title"><strong>Config Contract</strong><small>Exact immutable create payload</small></div><pre id="validationContract"></pre></obc-card>
+        <div class="assembly-notices" id="validationNotices" aria-live="polite"></div>
+        <div class="assembly-actions">
+          <button type="button" id="validationDefault" disabled>Default</button>
+          <button type="button" class="create-action" id="validationCreate" disabled>Create</button>
+        </div>
+      </aside>
+    </section>
+
     <!-- ═══════════════════════════════════════════
          HEADER
     ═══════════════════════════════════════════ -->
-    <header class="app-header" role="banner">
+    <header class="app-header legacy-deployment-surface" role="banner" data-workface-panel="deployment" hidden>
       <div class="brand">
         <div class="logo-badge" aria-label="MPC">MPC</div>
         <div class="brand-text">
@@ -35,7 +158,7 @@
     <!-- ═══════════════════════════════════════════
          MAIN WORKSPACE
     ═══════════════════════════════════════════ -->
-    <main class="main-workspace">
+    <main class="main-workspace legacy-deployment-surface" data-workface-panel="deployment" hidden>
 
       <aside class="insights-column" aria-label="运行监控面板"></aside>
 
@@ -477,8 +600,13 @@
       </aside><!-- /sidebar-column -->
 
     </main>
+
+    <section class="workface roadmap-workface" data-workface-panel="evaluation" hidden><h2>Evaluation</h2><p>Current-session result and evidence remain available through Deployment. Run history and Compare require future backend contracts.</p></section>
+    <section class="workface roadmap-workface" data-workface-panel="scenario" hidden><h2>Scenario</h2><p>Scenario library surface planned. Config uses live capability metadata; no silent busy-water generation occurs.</p></section>
+    <section class="workface roadmap-workface" data-workface-panel="algorithm" hidden><h2>Algorithm</h2><p>Algorithm and tracker catalog surface planned. Exact Tuple evidence remains authoritative in Config.</p></section>
   </div>
 
-  <script src="/static/app.js?v=20260810-mid-mpc-main"></script>
+  <script src="/static/app.js?v=20260818-candidate1-review"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260818-candidate1-review"></script>
 </body>
 </html>

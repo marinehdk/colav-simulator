@@ -195,9 +195,11 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "简化 MPC · 扇形轨迹筛选" in script.text
         assert "data.error === 'session_not_found'" in script.text
         assert "recoverMissingSession(sessionId);" in script.text
-        assert "sessionCreationPromise && pendingSessionKey === requestKey" in script.text
-        assert "activeSessionKey === requestKey" in script.text
-        assert "|| sessionCreationPromise" in script.text
+        assert "sessionCreationPromise && pendingSessionKey === requestKey" not in script.text
+        assert "activeSessionKey === requestKey" not in script.text
+        assert "apiRequest('/api/sessions'," not in script.text
+        assert "`/api/sessions/${activeSessionId}/reset`" in script.text
+        assert "validation-session-sync" in script.text
         assert "socket !== ws || sessionId !== activeSessionId" in script.text
         assert "document.visibilityState !== 'visible' || !document.hasFocus()" in script.text
         assert "candidate_heading_increments_rad" in script.text
