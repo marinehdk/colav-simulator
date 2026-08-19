@@ -1,6 +1,6 @@
 # Colav-Simulator V1 UI & OpenBridge Specification
 
-> **Status:** Companion specification to `Colav-Simulator-V1-PRD.md`  
+> **Status:** Companion specification to `Colav-Simulator-V1-PRD.md`; review corrections applied  
 > **Scope:** V1 UI architecture, screen inventory, interaction rules and OpenBridge implementation contract  
 > **Design baseline:** Desktop/Large-Screen First, Dark default  
 > **Last updated:** 2026-08-19
@@ -9,7 +9,7 @@
 
 The V1 UI shall feel like one coherent OpenBridge-derived professional marine engineering application, not a generic admin dashboard with a chart inserted into it.
 
-At the same time, this is a **COLAV Engineering & V&V Workbench**, not an ECDIS/Radar type-approved bridge terminal. The UI must combine:
+This is a **COLAV Engineering & V&V Workbench**, not an ECDIS/Radar type-approved bridge terminal. It combines:
 
 ```text
 Maritime Situation Awareness
@@ -19,18 +19,16 @@ Software Engineering
 Verification & Validation Evidence
 ```
 
-The application therefore uses one OpenBridge visual foundation with two semantic surfaces:
+One OpenBridge visual foundation supports two semantic surfaces:
 
 - **Maritime Operational Surface** — chart, ownship/targets, vectors, risk, encounter, run/replay and timeline.
 - **Engineering Assurance Surface** — requirements, cases, algorithms/ADPs, evidence, regression gates, provenance and governance.
 
-The two surfaces share tokens, typography, spacing, icons, selection/focus language and component density, but operational alarms and engineering assurance states retain different semantics.
+They share tokens, typography, spacing, icons, selection/focus language and component density. Operational alarms and engineering assurance states retain different semantics.
 
 ## 2. OpenBridge implementation contract
 
 ### 2.1 Component reuse order
-
-Every implementation decision follows this order:
 
 ```text
 OB-NATIVE
@@ -40,33 +38,31 @@ OB-NATIVE
 → CUSTOM-EXCEPTION
 ```
 
-Definitions:
-
-- `OB-NATIVE`: use the documented OpenBridge Web Component directly.
-- `OB-COMPOSED`: compose multiple documented OpenBridge primitives.
-- `OB-WRAPPED`: thin COLAV adapter around an OpenBridge component for framework/event/business integration.
-- `COLAV-EXTENSION`: a domain-specific component OpenBridge does not supply, implemented using OpenBridge tokens/primitives.
-- `CUSTOM-EXCEPTION`: unavoidable bespoke visual primitive, documented with reason and upgrade risk.
+- `OB-NATIVE`: documented OpenBridge Web Component directly.
+- `OB-COMPOSED`: compose documented OpenBridge primitives.
+- `OB-WRAPPED`: thin COLAV adapter for framework/event/business integration.
+- `COLAV-EXTENSION`: missing COLAV/V&V domain visualization using OpenBridge tokens/primitives.
+- `CUSTOM-EXCEPTION`: unavoidable bespoke primitive with documented reason/upgrade risk.
 
 ### 2.2 Mandatory component review
 
-Before creating a new visual primitive, implementation shall:
+Before a new visual primitive:
 
-1. Search the current OpenBridge Web Component catalog/Storybook.
-2. Prefer an existing component when semantics are adequate.
-3. Prefer composition before visual reimplementation.
-4. Use a thin wrapper when only API/event/default behavior differs.
-5. Create a COLAV extension only for genuinely missing domain visualization.
-6. Record a justification for every Custom Exception.
+1. Search the pinned OpenBridge component catalog/Storybook.
+2. Prefer existing semantics when adequate.
+3. Prefer composition before reimplementation.
+4. Wrap when only API/event/default behavior differs.
+5. Create COLAV extension only for genuinely missing domain visualization.
+6. Document every Custom Exception.
 
 ### 2.3 Thin adapter responsibilities
 
-A COLAV adapter may provide:
+Allowed:
 
 - framework integration;
 - attribute/property normalization;
 - event normalization;
-- default props;
+- defaults;
 - domain semantic naming;
 - accessibility glue;
 - test selectors;
@@ -74,24 +70,37 @@ A COLAV adapter may provide:
 
 It shall not become a second design system.
 
-### 2.4 Prohibited OpenBridge customization
+### 2.4 Prohibited customization
 
-Default prohibited patterns:
+Default prohibited:
 
 - undocumented Shadow DOM access;
 - dependency on internal component class names;
 - deep private CSS selectors;
 - copying/forking OpenBridge component implementation locally;
-- arbitrary page-level resizing/restyling that changes native component identity;
-- page-specific variants of the same primitive created through internal overrides.
+- arbitrary page-level restyling that changes native component identity;
+- page-specific internal overrides of the same primitive.
 
-Approved custom styling should use documented properties, slots, variants and tokens.
+Use documented properties, slots, variants and tokens.
 
-## 3. Design tokens
+### 2.5 Dependency and license provenance
 
-OpenBridge design tokens are the visual source of truth.
+UI implementation shall not assume a generic “OpenBridge license.” Before the selected OpenBridge dependency/catalog is accepted, the implementation branch must record:
 
-COLAV may create semantic aliases such as:
+```text
+Exact package/repository/catalog version or commit
+Official source/provenance URL
+Applicable license(s)
+Attribution / NOTICE requirements
+Distribution/commercial compatibility decision
+THIRD_PARTY_NOTICES / dependency inventory update
+```
+
+The UI Conformance Review is incomplete until this provenance record exists for the exact selected artifacts.
+
+## 3. Design tokens and themes
+
+OpenBridge design tokens are visual source of truth. COLAV may add semantic aliases such as:
 
 ```text
 --colav-state-published
@@ -105,21 +114,17 @@ COLAV may create semantic aliases such as:
 --colav-attention-blocked
 ```
 
-The alias should map to an OpenBridge token family wherever possible.
-
-Business pages shall avoid arbitrary hex colors, font sizes, spacing values and duplicated state CSS.
-
-## 4. Theme and maritime palette
+Aliases map to OpenBridge token families wherever possible. Business pages avoid arbitrary hex colors, font sizes, spacing values and duplicated state CSS.
 
 Application Appearance:
 
 ```text
-DARK      ← V1 default and primary QA baseline
+DARK      ← V1 default / primary QA baseline
 LIGHT
 SYSTEM
 ```
 
-Maritime Chart Palette is an independent concern and may support, where the selected chart/OpenBridge implementation permits:
+Maritime Chart Palette, where supported, is independent:
 
 ```text
 DAY
@@ -127,26 +132,9 @@ DUSK
 NIGHT
 ```
 
-Application Light/Dark shall not be used as a substitute for maritime chart day/night palettes.
+## 4. Semantic color budget
 
-## 5. Semantic color budget
-
-### 5.1 Neutral-by-default lifecycle
-
-The following are normally neutral or low-salience:
-
-```text
-DRAFT
-PUBLISHED
-CANDIDATE
-SEALED
-HISTORICAL
-NOT_VERIFIED
-```
-
-They are differentiated with text, icons, border/surface and typography rather than unique strong colors.
-
-### 5.2 Assurance emphasis
+Lifecycle states such as `DRAFT`, `PUBLISHED`, `CANDIDATE`, `SEALED`, `HISTORICAL`, `NOT_VERIFIED` are neutral/low-salience by default.
 
 Strong semantic emphasis is reserved for states such as:
 
@@ -160,15 +148,9 @@ REVALIDATION_REQUIRED
 DEGRADED
 ```
 
-### 5.3 Operational safety vs engineering assurance
+Operational Safety and Engineering Assurance use different presentation semantics even when sharing broad semantic token families. No critical state is color-only.
 
-A live collision/risk alert may use high-salience maritime operational treatment. A Regression Gate FAIL may use the same broad failure token family but must appear as an engineering gate state, not as a bridge alarm that flashes or requires operational acknowledgment.
-
-No critical state may be represented by color alone.
-
-## 6. Global application shell
-
-### 6.1 Structure
+## 5. Global application shell
 
 ```text
 ┌──────┬──────────────────────────────────────────────────────────┐
@@ -188,7 +170,7 @@ No critical state may be represented by color alone.
 └──────┴──────────────────────────────────────────────────────────┘
 ```
 
-### 6.2 App Rail
+### 5.1 App Rail
 
 Primary workfaces:
 
@@ -205,42 +187,39 @@ Utilities:
 ```text
 Object Navigator
 Attention Center
-Settings / Appearance
+Engineering Workspace / Settings
+Appearance
 ```
 
-Default Rail is compact/icon-first with tooltip/focus label and strong current-selection indication. An expanded label mode may be provided, but expansion is Presentation State only.
+Rail is compact/icon-first with tooltip/accessible label and clear current selection. Expanded mode is Presentation State only.
 
-### 6.3 Engineering Context Ribbon
+### 5.2 Engineering Context Ribbon
 
-The Ribbon answers **what engineering scope am I currently in?** It is not a hidden configuration editor.
+Answers **what engineering scope am I in?** It is not a hidden configuration editor.
 
 Examples:
 
 ```text
 WORKFLOW · FIX VERIFICATION
 INV-024 · VERIFYING
-HO-001@2 · FCB45-Nominal@4-candidate · c82fd18
+HO-001@2 · FCB45-Nominal@4-candidate · source-snapshot ss-024-017
 ```
 
 ```text
 SEALED · HISTORICAL
-R-104 · HO-001@2 · FCB45-Nominal@3 · b91c42e
+R-104 · HO-001@2 · FCB45-Nominal@3 · implementation b91c42e
 ```
 
 ```text
 WORKFLOW · FAST MERGE GATE
-c82fd18 · merge-baseline@4 · core-regression@6
+candidate c82fd18 · merge-baseline@4 · core-regression@6
 ```
 
-The Ribbon shall maintain critical state even when Rails/panels collapse.
+Critical state remains visible when Rails/panels collapse.
 
-## 7. Navigation model
+## 6. Navigation and object ownership
 
-### 7.1 Primary navigation
-
-Only the five Workfaces belong in the App Rail.
-
-### 7.2 Secondary navigation
+### 6.1 Secondary navigation
 
 Use:
 
@@ -252,7 +231,7 @@ Primary Tabs
 Contextual Drawers
 ```
 
-Do not create a permanent second left navigation column.
+No permanent second left navigation column.
 
 Examples:
 
@@ -266,14 +245,9 @@ ADP Detail
 Overview | Configuration | Capabilities | Compatibility | Evidence | Lineage
 ```
 
-```text
-Algorithm
-Overview | Implementations | ADPs | Capabilities | Diagnostics | Runs
-```
+### 6.2 Object Navigator
 
-### 7.3 Object Navigator
-
-Global command palette / object search shall accept stable IDs and names such as:
+Accept stable IDs/names such as:
 
 ```text
 INV-024
@@ -286,30 +260,45 @@ DH-024@2
 RGA-2026-0041
 ```
 
-Search results are grouped by object type and offer context-valid actions such as Open, Replay, Investigate, Reproduce, Compare, Use in Investigation or Copy Object Reference.
+Results grouped by object type with context-valid actions. Open/Search changes Inspection Context only unless explicit action changes execution context.
 
-Open/Search affects Inspection Context only unless a separate explicit action changes task/execution context.
+### 6.3 Requirement & Evaluation Hub
 
-## 8. Attention model
+`Cases > Requirements` is the V1 local hub for first-class Requirement/Evaluation assets without adding a sixth Workface.
 
-### 8.1 Operational Events
+Local views/routes:
 
-Run-time facts belong to Run/Analyze/Replay timelines, e.g. CPA threshold crossing, Tracker lost, Planner fallback.
+```text
+Requirement Catalog
+Requirement Detail / Versions
+Evaluation Profiles
+Evaluation Profile Qualification
+Coverage Contracts / Coverage Matrix
+Golden Evidence Fixtures
+```
 
-### 8.2 Immediate UI Alerts
+Opening an Evaluation Profile or Coverage Contract is inspection/authoring of that asset; it does not silently change a Workbench RunSpec.
 
-Short-lived feedback such as Preflight failed, Run started or export completed may use banner/toast patterns.
+### 6.4 Engineering Workspace / Environment
 
-### 8.3 Persistent Engineering Attention
+Global Settings/Engineering Workspace owns inspection/registration of:
 
-Only lifecycle-bearing unresolved engineering issues enter Global Attention Center, e.g.:
+```text
+Registered SourceWorkspaces
+SourceSnapshot history / identity
+Execution Environment Profiles
+Environment qualification state
+```
 
-- Regression Gate BLOCKED;
-- Protected Baseline DEGRADED;
-- Capability REVALIDATION_REQUIRED;
-- Case/Profile INVALIDATED;
-- Merge Waiver / Remediation OPEN;
-- Baseline Transition BLOCKED.
+Selecting a workspace/environment for inspection does not silently change an Investigation or pending Run execution context. Changes enter Run context only through explicit `Use in Investigation` / Preflight-resolved actions.
+
+## 7. Attention model
+
+Separate:
+
+1. **Operational Events** — Run/Analyze/Replay timeline facts such as CPA threshold, Tracker lost, Planner fallback.
+2. **Immediate UI Alerts** — short-lived feedback such as Preflight failed/Run started/export complete.
+3. **Persistent Engineering Attention** — lifecycle-bearing unresolved issues such as Gate BLOCKED, Baseline DEGRADED, Capability REVALIDATION_REQUIRED, Case/Profile INVALIDATED, Waiver/Remediation OPEN.
 
 Attention state:
 
@@ -321,37 +310,25 @@ RESOLVED
 SUPERSEDED
 ```
 
-`ACKNOWLEDGED` never means the underlying engineering condition is resolved.
+`ACKNOWLEDGED ≠ RESOLVED`.
 
-## 9. Risk-tiered action model
+## 8. Risk-tiered action model
 
-### Tier 0 — Inspection
+Exactly five tiers:
 
-Open, search, select, pin, scrub, replay, filter, compare view. Immediate, no domain mutation.
+- **Tier 0 — Inspection:** open/search/select/pin/scrub/replay/filter.
+- **Tier 1 — Development Mutation:** Draft/Candidate/Override/Hypothesis edits.
+- **Tier 2 — Execution:** Run/Reproduce/Re-evaluate/CORE/Fast Merge using Preflight.
+- **Tier 3 — Governance / Immutable Asset:** Publish/Promote/Invalidate/Apply Transition using Impact Preview.
+- **Tier 4 — Exception / Protection Reduction:** Merge Waiver/Protection Reduction with risk/remediation evidence.
 
-### Tier 1 — Development Mutation
+Use semantic action labels such as `Publish ADP`, `Invalidate Case`, `Run Core Regression`, `Merge with Exception`.
 
-Draft/Candidate/Override/Hypothesis edits. Low-friction, revision-aware, undo where feasible.
+## 9. Reusable layout templates
 
-### Tier 2 — Execution
+### 9.1 SpatialWorkspaceLayout
 
-Run, Reproduce, Re-evaluate, CORE, Fast Merge. Use resolved scope + Preflight rather than generic confirmation.
-
-### Tier 3 — Governance / Immutable Asset
-
-Publish Case/Profile/Suite, Promote ADP, Invalidate, Apply Baseline Transition. Require Impact Preview + eligibility + explicit semantic action.
-
-### Tier 4 — Exception / Protection Reduction
-
-Merge Waiver, Protection Reduction, exceptional baseline changes. Require explicit risk statement, compensating action, resolution condition and evidence record.
-
-Button labels shall use semantic verbs such as `Publish ADP`, `Invalidate Case`, `Run Core Regression`, `Merge with Exception` rather than generic `Confirm`.
-
-## 10. Reusable layout templates
-
-### 10.1 SpatialWorkspaceLayout
-
-Used by Workbench Run/Analyze/Compare, Historical Replay and Case Designer.
+Workbench Run/Analyze/Compare, Historical Replay, Case Designer.
 
 ```text
 ┌───────────────────────────────────────────────────────────────┐
@@ -364,19 +341,17 @@ Used by Workbench Run/Analyze/Compare, Historical Replay and Case Designer.
 └───────────────────────────────────────────────────────────────┘
 ```
 
-### 10.2 ExplorerLayout
+### 9.2 ExplorerLayout
 
-Runs, Case Library, Algorithm Catalog.
+Runs, Case Library, Requirement Catalog, Algorithm Catalog.
 
-### 10.3 ObjectDetailLayout
+### 9.3 ObjectDetailLayout
 
-Run, Case, ADP, Requirement, Evaluation Profile, Gate Attestation and similar versioned objects.
+Run, Case, Requirement, Evaluation Profile, Coverage Contract, Algorithm, ADP, Implementation Artifact, SourceSnapshot, Environment Profile, Gate Attestation.
 
-### 10.4 AssuranceControlLayout
+### 9.4 AssuranceControlLayout
 
 Regression V1; future Validation/Release.
-
-Priority order:
 
 ```text
 Current Decision
@@ -386,48 +361,35 @@ Current Decision
 → Governance
 ```
 
-### 10.5 GuidedWorkflowLayout
+### 9.5 GuidedWorkflowLayout
 
-Algorithm Integration, Profile Qualification, Suite Change Proposal, Baseline Transition.
+Algorithm Integration, Profile Qualification, Case Qualification, Suite Change Proposal, Baseline Transition.
 
-## 11. Responsive behavior
+## 10. Responsive behavior and scroll
 
-Primary design target: ≥1440×900. Primary optimization target: 1920×1080.
+Primary design target ≥1440×900; optimized around 1920×1080.
 
-### ≥1920
+- ≥1920: primary + secondary Rails where useful.
+- 1440–1919: primary Rail visible; secondary to Drawer/Side Sheet.
+- 1280–1439: Canvas dominant; Rails become contextual drawers; critical state remains visible.
+- <1280: inspection-oriented compact mode; complex authoring/governance may recommend larger display.
 
-Primary + secondary Rails can be visible where useful.
+Ultrawide adds Evidence/diagnostics/Compare context rather than merely stretching chart.
 
-### 1440–1919
+One dominant scroll owner per screen:
 
-Primary task Rail remains; secondary Rail collapses to Drawer/Side Sheet.
-
-### 1280–1439
-
-Canvas dominates; Rails become contextual drawers. Critical state remains in Ribbon/status strip.
-
-### <1280
-
-Inspection-oriented compact mode. Complex authoring/governance may explicitly recommend a larger display.
-
-Ultrawide space should add Evidence, diagnostics and Compare context rather than merely stretching the chart.
-
-## 12. Scroll contracts
-
-Every screen has one dominant scroll owner.
-
-- SpatialWorkspace: viewport-locked; independent contextual rails/drawers may scroll.
-- Analyze: timeline remains visible while detail pane scrolls.
-- Explorer: explorer content is primary scroll owner; header/tabs may be sticky.
-- Object Detail: document-like content scroll.
-- Assurance Control: page scroll with compact sticky decision context.
-- Guided Workflow: workflow content scroll.
+- Spatial Workspace viewport-locked.
+- Analyze keeps timeline visible while detail pane scrolls.
+- Explorer content scroll.
+- Object Detail document-like scroll.
+- Assurance Control page scroll + compact sticky decision context.
+- Guided Workflow content scroll.
 
 Avoid nested `page → panel → card → list` vertical scroll chains.
 
-## 13. Workspace presentation presets
+## 11. Workspace presentation presets
 
-Supported V1 patterns may include:
+Examples:
 
 Workbench:
 
@@ -453,23 +415,15 @@ Geometry Focus
 Specification Focus
 ```
 
-Users may persist bounded presentation preferences:
+Persist bounded Presentation preferences only: Rail collapse/size, timeline height, optional panels, table columns/density, saved views. Case/ADP/Seed/Profile/Source are never layout preferences.
 
-- Rail collapse/size within limits;
-- timeline/diagnostic height;
-- optional panels;
-- table columns/density;
-- saved views.
+## 12. Workbench screen specification
 
-Engineering context values such as Case/ADP/Seed/Profile never belong in layout preferences.
+### 12.1 Workbench Home
 
-## 14. Workbench screen specification
+Order:
 
-### 14.1 Workbench Home
-
-Primary content order:
-
-1. Resume Investigation card.
+1. Resume Investigation.
 2. Recommended next action.
 3. Recent Failures.
 4. Recent Investigations.
@@ -477,51 +431,45 @@ Primary content order:
 6. Current Core Regression status.
 7. New Investigation.
 
-Resume card minimum content:
+Resume card: Investigation ID/title, lifecycle, Last Run, Case, ADP/config, last failure, recommended next action.
 
-```text
-Investigation ID / title
-Lifecycle state
-Last Run
-Case
-ADP
-Last failure
-Recommended next action
-```
-
-### 14.2 Investigation Header
-
-Modes:
+### 12.2 Investigation modes
 
 ```text
 Run | Analyze | Compare
 ```
 
-Recommended mode derives from lifecycle. A user may continue last inspection state without changing lifecycle.
+Recommended mode derives from lifecycle. Last Inspection State can be restored without changing lifecycle.
 
-### 14.3 Run View
+### 12.3 Run View
 
-#### Center
+Center Chart/ENC includes:
 
-Chart/ENC with:
-
-- ownship;
-- target vessels;
-- Mission Route;
+- ownship/targets;
+- **Mission Route**;
 - actual tracks;
-- selected/committed planner output;
+- **Selected/Accepted Planner Output**;
 - predictions;
 - optional CPA/risk layers;
 - selected POI/target;
 - event markers.
 
-#### Situation Rail
+`Selected/Accepted Planner Output` is algorithm-agnostic UI language. Where diagnostics expose repository concepts, render canonical terms exactly:
 
-Ownship/navigation/sensor-source/quality/age/route/capability summary.
+```text
+Mission Route
+Avoidance Corridor
+Horizon Encounter Plan
+Hard Row Window
+Rolling Plan
+Plan Revision
+```
 
-#### Context Rail
+Do not label Mission Route as “committed route”; do not label Rolling Plan as warm start/current candidate.
 
-Encounter-first hierarchy:
+Situation Rail: ownship/navigation/sensor-source/quality/age/route/capability summary.
+
+Context Rail:
 
 ```text
 Encounter Focus
@@ -532,11 +480,9 @@ Planner response
 Events
 ```
 
-#### Bottom
+Bottom: Simulation Timeline + execution controls + event markers.
 
-Simulation timeline + execution controls + event markers.
-
-### 14.4 Encounter Focus Stack
+### 12.4 Encounter Focus Stack
 
 When roles differ:
 
@@ -554,13 +500,9 @@ TS-05 · OVERTAKING
 PINNED
 ```
 
-When all roles coincide, merge into a compact `PRIMARY ENCOUNTER` panel with role markers.
+When all coincide, merge to `PRIMARY ENCOUNTER` with role markers. Divergence is diagnostic, not automatically labeled bug.
 
-Context divergence must be visible but not labeled as a bug without a confirmed finding.
-
-### 14.5 Live time model
-
-Normal:
+### 12.5 Live time model
 
 ```text
 Execution 214.8 s
@@ -578,9 +520,9 @@ Behind live 31.8 s
 [Return to Live]
 ```
 
-A new critical live event shall be surfaced without stealing the Inspection Cursor; provide `Jump to Live Event`.
+Critical new live event is surfaced without stealing Inspection Cursor; provide `Jump to Live Event`.
 
-### 14.6 Execution controls
+### 12.6 Execution controls
 
 Development:
 
@@ -605,13 +547,15 @@ SEALED · HISTORICAL
 [Play] [Prev Event] [Next Event] [Replay Speed]
 ```
 
-### 14.7 Trajectory semantic layers
+UI shall not conflate `STOPPED`, `ABORTED`, `CANCELLED`, `CRASHED` or Evaluation FAIL.
+
+### 12.7 Trajectory semantic layers
 
 Default visible:
 
 - Mission Route;
 - Actual Tracks;
-- Selected/Committed Plan;
+- Selected/Accepted Planner Output;
 - Predictions.
 
 Optional:
@@ -621,15 +565,13 @@ Optional:
 - CPA Geometry;
 - Risk Envelope.
 
-Use line form/shape semantics in addition to color. Candidate plans are subdued and progressively disclosed.
+Use line/shape semantics in addition to color. Prediction detail exposes source, generated time, horizon, model/channel, validity/age.
 
-Prediction detail exposes source, generated time, horizon, model/channel and validity/age. Stale prediction is visibly stale or removed according to contract.
+### 12.8 Analyze View
 
-### 14.8 Analyze View
+Visual center = Event-Synchronized Diagnostic Timeline.
 
-Visual center is the Event-Synchronized Diagnostic Timeline, not the chart.
-
-Suggested lanes:
+Lanes:
 
 ```text
 Encounter
@@ -643,47 +585,37 @@ Runtime
 Annotations
 ```
 
-Selecting a point/interval/transition updates Inspection Cursor, Chart preview, Context Rail, diagnostic detail and Evidence Explorer.
+Selecting Point/Interval/Transition updates Inspection Cursor, Chart preview, Context Rail, diagnostics and Evidence Explorer.
 
-System may mark `FIRST ABNORMAL TRANSITION` and a Failure Window, but shall label it as diagnostic evidence/lead, not root cause.
+`FIRST ABNORMAL TRANSITION`/Failure Window is diagnostic evidence/lead, not root cause.
 
-### 14.9 Findings / hypotheses
+### 12.9 Findings / hypotheses
 
-Confirmed Investigation Finding UI shall separate:
+Confirmed Finding UI separates statement, affected Requirement, supporting evidence, rejected alternatives, proposed fix. Diagnostic leads/user annotations remain distinct.
 
-- confirmed statement;
-- affected Requirement;
-- supporting evidence;
-- rejected alternatives;
-- proposed fix.
+### 12.10 Compare
 
-System diagnostic leads and user annotations remain visibly different from confirmed findings.
+Hierarchy:
 
-### 14.10 Compare View
-
-Primary hierarchy:
-
-1. Baseline/Candidate identity and verdict.
-2. Comparison Contract / fidelity.
-3. Controlled vs intended vs unexpected differences.
+1. Baseline/Candidate identity/verdict.
+2. Comparison Contract/Fidelity.
+3. Controlled/intended/known/unexpected differences.
 4. Outcome/Requirement/metric diff.
 5. synchronized chart/timeline/diagnostic comparison.
 6. Fix Verification result.
 
-At 1920 width prioritize two observation surfaces over permanent multi-rail layouts.
+At 1920 prioritize two observation surfaces over multi-rail five-column layout.
 
-Time alignment switch:
+Alignment:
 
 ```text
 Event: FIRST_AVOIDANCE_COMMAND
 Absolute Simulation Time
 ```
 
-Event alignment preserves visible absolute timing delta.
+Absolute timing delta remains visible.
 
-### 14.11 Fix Verification
-
-Status card:
+### 12.11 Fix Verification
 
 ```text
 NOT_STARTED
@@ -693,11 +625,11 @@ FIX_VERIFIED
 FIX_REJECTED
 ```
 
-`FIX_VERIFIED` shall show the exact baseline Run, candidate Run, target failure/Requirement, Comparison Fidelity and no-new-mandatory-failure evidence.
+`FIX_VERIFIED` shows exact Baseline Run, Candidate Run, target Requirement/failure, Comparison Fidelity and no-new-mandatory-failure evidence.
 
-### 14.12 Debug Handoff
+### 12.12 Debug Handoff / Agent Result
 
-A dedicated Handoff preview should show immutable version identity and clearly group:
+Handoff preview groups:
 
 ```text
 Reproduction
@@ -710,13 +642,15 @@ Agent Task
 Agent Change Contract
 ```
 
-Exports: `summary.md` + structured JSON + Evidence Bundle references.
+Exports `summary.md` + structured JSON + Evidence Bundle refs.
 
-## 15. Cases screen specification
+Agent Result review displays changed files/source identity, Agent-side tests, contract compliance, protected-asset change requests and `PLATFORM RE-VERIFICATION REQUIRED`.
 
-### 15.1 Case Library
+## 13. Cases and Requirement/Evaluation screen specification
 
-Primary navigation/views:
+### 13.1 Case Library
+
+Views:
 
 ```text
 Requirements
@@ -726,18 +660,33 @@ Drafts
 All Cases
 ```
 
-Strong facets:
+Strong facets: Encounter, Purpose, Environment, Lifecycle, Requirement, Qualification.
 
-- Encounter type;
-- Purpose;
-- Environment;
-- Lifecycle;
-- Requirement;
-- Qualification.
+### 13.2 Requirements Hub
 
-Default landing emphasizes requirement coverage rather than raw case count.
+`Requirements` landing emphasizes Coverage/Requirement navigation and provides local tabs/links:
 
-### 15.2 Case Designer
+```text
+Requirements | Evaluation Profiles | Coverage | Golden Evidence
+```
+
+Requirement Detail:
+
+```text
+Overview | Applicability | Expected Behavior | Evaluator Bindings | Evidence | Versions
+```
+
+Evaluation Profile Detail:
+
+```text
+Overview | Requirement Bindings | Evaluators | Thresholds | Evidence Requirements | Qualification | Versions
+```
+
+Profile Qualification clearly shows Static Validation, Evaluator Verification, Golden Evidence and Verdict Diff.
+
+Coverage Contract Detail displays required cells, current Evidence Coverage, Compliance and lineage; Coverage and Compliance use separate visual columns/states.
+
+### 13.3 Case Designer
 
 ```text
 ┌──────────────┬───────────────────────────────┬───────────────┐
@@ -751,62 +700,42 @@ Default landing emphasizes requirement coverage rather than raw case count.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-At compact widths, Test Specification is Primary Rail; Qualification becomes contextual drawer while its summary remains visible.
+Compact widths: Test Specification Primary Rail; Qualification becomes Drawer while summary remains visible.
 
-### 15.3 Encounter-centric parameters
+### 13.4 Encounter-centric parameters / Exact State
 
-Prefer authoring controls for:
+Prefer relative bearing, course relation, speed, initial range, desired TCPA/DCPA envelope, geometry tolerance. Distinguish `AUTHORING` vs `DERIVED/COMPILED`.
 
-- relative bearing;
-- reciprocal/course relation;
-- speed ratio/absolute speed;
-- initial range;
-- desired TCPA/DCPA envelope;
-- geometry tolerance.
+Switch Encounter Parameters ↔ Exact State is explicit conversion with impact preview; never keep two editable sources of truth.
 
-Clearly distinguish `AUTHORING` from `DERIVED/COMPILED` values.
+### 13.5 Traffic Actors / Encounter Intent / Phases
 
-### 15.4 Exact State mode
+Traffic Actor panels show nominal behavior + scripted/triggered maneuvers. Multi-ship shows Required/Allowed/Background/Prohibited intents and derived comparison using lightweight chart overlays. Test Phase Timeline shows Setup/Encounter/Response/Passing/Recovery with event anchors.
 
-Switching between Encounter Parameters and Exact State is an explicit conversion action with an explanatory impact preview. Do not keep both editable as competing sources of truth.
+### 13.6 Qualification Preview
 
-### 15.5 Traffic Actors
-
-Each target has a behavior panel and events timeline with nominal behavior plus scripted/triggered maneuvers. Selecting a maneuver synchronizes chart and parameters.
-
-### 15.6 Encounter Intent Graph
-
-For multi-ship, surface required/allowed/background/prohibited encounter intents and Qualification comparison to derived interactions. Avoid covering the chart with a complex full graph by default; use lightweight overlays and structured side detail.
-
-### 15.7 Test Phase Timeline
-
-Display semantic phases such as Setup, Encounter, Response, Passing, Recovery with event anchors. The design distinguishes Expected Phase Contract from resolved observed phases on a Run.
-
-### 15.8 Qualification Preview
-
-Special mode banner:
+Persistent banner:
 
 ```text
 CASE QUALIFICATION PREVIEW
 Scenario validity: ...
 Algorithm capability: NOT EVALUATED
+Qualification policy: SQP@...
 ```
 
-Preview supports playback/scrub to inspect encounter activation, scripted maneuvers, unexpected interactions, phase resolution and termination.
+Preview playback/scrub exposes encounter activation, maneuvers, unexpected interactions, phase resolution and termination.
 
-## 16. Runs screen specification
+## 14. Runs screen specification
 
-### 16.1 Run Explorer
+### 14.1 Run Explorer
 
-Default main content is dense evidence-aware table.
-
-System views:
+Dense evidence-aware table. Views:
 
 ```text
 Recent | Failures | Investigations | Reproductions | Core Regression | Crashed/Incomplete
 ```
 
-Suggested default columns:
+Suggested columns:
 
 ```text
 Run
@@ -818,24 +747,20 @@ Source
 Execution
 Original Verdict
 Evidence
-Trust
+Trust / Impact
 Failure Domain
 Created
 ```
 
-Expandable row provides rapid read-only summary and actions without leaving Explorer.
+Expandable row for rapid read-only summary/actions.
 
-### 16.2 Query presentation
+### 14.2 Query state
 
-Active filters are visible as chips/summary. Display total-vs-filtered count, e.g. `4 of 2,481 Runs · 5 active filters` with Clear Filters.
+Active filters visible; show filtered/total count and Clear Filters. Back restores query/scroll position.
 
-Back navigation must restore query and scroll position.
+### 14.3 Run Detail
 
-### 16.3 Run Detail header
-
-Stable identity plus semantic landing.
-
-PASS prioritizes key results; FAIL prioritizes failed requirement/time/failure summary; CRASH/INCOMPLETE prioritizes runtime/missing-evidence information.
+PASS prioritizes key results; behavioral FAIL prioritizes failed Requirement/time; CRASH/INCOMPLETE prioritizes runtime/missing Evidence.
 
 Tabs:
 
@@ -843,30 +768,37 @@ Tabs:
 Overview | Replay | Evaluations | Evidence | Lineage
 ```
 
-### 16.4 Core Run Summary
-
-Stable cross-algorithm summary groups:
+Run header/status must preserve independent axes:
 
 ```text
-Safety
-Encounter
-COLREG
-Navigation/Recovery
-Planner health
-Runtime health
+Record: SEALED
+Execution: CRASHED
+Evaluation: INCOMPLETE · NOT_ESTABLISHED
 ```
 
-Profile-specific and algorithm-specific diagnostics follow below/behind disclosure.
+or
 
-### 16.5 Historical Replay
+```text
+Record: SEALED
+Execution: FINISHED
+Evaluation: COMPLETE · FAIL
+```
 
-Shared Observation Surface with persistent `SEALED · HISTORICAL`. There is no `Restart Simulation` button. `Reproduce` creates a new Run through Preflight.
+### 14.4 Core Run Summary
 
-### 16.6 Evaluations
+Groups Safety, Encounter, COLREG, Navigation/Recovery, Planner health, Runtime health. Profile-/algorithm-specific diagnostics follow by disclosure.
 
-Always label Original Evaluation separately from Re-evaluations. Support Evaluation Diff. If a new profile cannot be applied because evidence is missing, show `NOT_EVALUABLE` with missing evidence.
+### 14.5 Historical Replay
 
-### 16.7 Evidence Explorer
+Shared Observation Surface with persistent `SEALED · HISTORICAL`; no Restart Simulation. `Reproduce` creates new Run via Preflight.
+
+### 14.6 Evaluations
+
+Original Evaluation distinct from Re-evaluations. Evaluation Diff supported. Insufficient evidence → `NOT_EVALUABLE` with missing evidence.
+
+The reconstructed evaluator's provenance must remain visible where it is the active basis, including `functional_reproduction` / numerical-not-confirmed boundary; UI must not imply official numerical reproduction.
+
+### 14.7 Evidence Explorer
 
 Header:
 
@@ -878,42 +810,36 @@ Captured Until
 Artifact Count
 ```
 
-Domain groups:
+Groups Experiment Identity, Navigation/Truth, Perception, Encounter/Risk, Planner, Control/Dynamics, Evaluation, Runtime, typed diagnostics.
 
-```text
-Experiment Identity
-Navigation / Truth
-Perception
-Encounter / Risk
-Planner
-Control / Dynamics
-Evaluation
-Runtime
-```
+Evidence state explicitly distinguishes `NOT_AVAILABLE`, `NOT_CAPTURED`, `MISSING`, `CORRUPT`, `SCHEMA_MISMATCH`.
 
-Typed algorithm diagnostic groups appear only when declared/available.
+### 14.8 Evidence Trust and Eligibility
 
-### 16.8 Evidence Trust
-
-Show Original Verdict next to Current Trust; do not replace one with the other.
+Do not collapse to one status.
 
 Example:
 
 ```text
-Original Verdict: PASS
-Current Trust: IMPACTED
-Reason: referenced Case was INVALIDATED
+Original Verdict    PASS
+Current Trust       IMPACTED
+Reason              referenced Case INVALIDATED
+
+Claim Eligibility
+Development/Diagnosis        ELIGIBLE
+Core Regression Claim        NOT ELIGIBLE
+Rule 14 Capability Claim     REVALIDATION REQUIRED
 ```
 
-### 16.9 Lineage
+### 14.9 Lineage
 
-Default: concise engineering path with current object highlighted. Full graph is local/expandable and object references remain clickable.
+Concise engineering path by default; full graph local/expandable; object refs clickable.
 
-## 17. Algorithms screen specification
+## 15. Algorithms screen specification
 
-### 17.1 Catalog
+### 15.1 Catalog
 
-Each algorithm card/row shows independent:
+Each row/card shows:
 
 ```text
 Role
@@ -925,24 +851,17 @@ Capability coverage summary
 Attention count
 ```
 
-Do not use one generic `READY` badge to imply validation.
+No generic READY implying validation.
 
-### 17.2 Algorithm Overview
+### 15.2 Role-aware scope
 
-Generic entry lands on `Algorithm Overview`, showing cross-ADP coverage without mixed grade.
+Role is a primary facet. Dynamic COLAV, static ENC/global planning, tracker and nominal guidance algorithms are not automatically compared against the same capability dimensions.
 
-Example:
+When a capability dimension does not apply to an algorithm role, show a role-aware state such as `NOT APPLICABLE TO ROLE`, not `NOT VERIFIED`.
 
-```text
-Rule 14
-G4 CURRENT          1 ADP
-G3 REVALIDATION     1 ADP
-NOT VERIFIED        1 ADP
-```
+### 15.3 Algorithm Overview / ADP Scope
 
-### 17.3 ADP Scope
-
-Explicit selector changes Inspection Scope. ADP detail is clearly labeled `PUBLISHED · IMMUTABLE`, `CANDIDATE`, etc.
+Generic entry = Algorithm Overview showing cross-ADP coverage without mixed grade. Explicit ADP selector changes Inspection Scope only.
 
 ADP tabs:
 
@@ -950,14 +869,19 @@ ADP tabs:
 Overview | Configuration | Capabilities | Compatibility | Evidence | Lineage
 ```
 
-### 17.4 Capability Matrix
+### 15.4 G0–G4 Capability Matrix
 
-Cell displays:
+Vocabulary:
 
 ```text
-Verified Grade
-Evidence State
+G0 Discoverable
+G1 Short smoke test
+G2 Full closed loop
+G3 Capability demonstration
+G4 Benchmark validation
 ```
+
+Cell displays derived Grade + Evidence State and never maps G0–G4 to red→green gradient.
 
 Examples:
 
@@ -976,13 +900,30 @@ REVALIDATION REQUIRED
 DECLARED · NOT VERIFIED
 ```
 
-Cell detail drawer exposes declared support, technical compatibility, exact scope, coverage, compliance and evidence basis.
+```text
+—
+NOT APPLICABLE TO ROLE
+```
 
-Do not map G0–G4 to a red-to-green gradient.
+Detail drawer exposes role, declared support, technical compatibility, exact ADP/conditions, Coverage, Compliance and Evidence basis.
 
-### 17.5 ADP Candidate
+CORE PASS is not visually equated to G4.
 
-Candidate view continuously displays structured Diff and Validation Impact. Candidate never visually inherits existing verified capability as current.
+### 15.5 Source identity
+
+Algorithm/ADP surfaces distinguish:
+
+```text
+SourceWorkspace             mutable working state
+Ephemeral SourceSnapshot    frozen development source
+Implementation Artifact     immutable formal implementation identity
+```
+
+Published ADP always points to Implementation Artifact. Candidate/Development UI may show SourceSnapshot until promotion.
+
+### 15.6 ADP Candidate
+
+Continuous structured Diff + Validation Impact. Candidate never visually inherits existing verified capability as current.
 
 Actions:
 
@@ -992,11 +933,9 @@ Run Preflight
 Promote ADP
 ```
 
-Promotion includes impact preview and creates a new immutable version.
+Promotion impact preview explicitly requires immutable Implementation Artifact.
 
-### 17.6 Integration workspace
-
-Guided steps:
+### 15.7 Integration workspace
 
 ```text
 1 Manifest
@@ -1007,95 +946,65 @@ Guided steps:
 6 Create Artifact
 ```
 
-Failures must be actionable and identify schema/channel/runtime mismatch, not merely `Integration failed`.
+Smoke may operate on candidate source before Published ADP. Failures identify exact schema/channel/runtime mismatch.
 
-## 18. Regression screen specification
+## 16. Regression screen specification
 
-### 18.1 Regression Control Center
+### 16.1 Control Center
 
-First screen answers current Gate status.
+First screen answers Gate status:
 
 ```text
 FAST MERGE GATE
 Candidate
 Protected Baseline Set
 Core Suite / Policy
-
-PASS / FAIL / INCOMPLETE summary
+PASS / FAIL / INCOMPLETE
 ```
 
-Then:
+Then Blockers, Suite Health, Core Coverage, Recent Gates, Baseline Transitions, Waivers/Remediation, Suite Management.
 
-1. Blockers.
-2. Suite Health.
-3. Core Coverage summary.
-4. Recent Gates.
-5. Baseline Transitions.
-6. Waivers/Remediation.
-7. Suite Management.
+### 16.2 Blockers
 
-### 18.2 Gate blockers
+Behavioral FAIL vs INCOMPLETE visually/textually distinct.
 
-Behavioral FAIL and INCOMPLETE must be visually and textually distinct.
+### 16.3 Protected baselines
 
-Example:
+Each baseline ADP + Core Suite status; Targeted CORE clearly distinct from full Fast Merge Gate.
 
-```text
-FAIL
-CR-CORE-003@1
-Rule 15 / COLREG-R15-004
-Run R-411
-```
+### 16.4 Gate Attestation
 
-```text
-INCOMPLETE
-REG-037@1
-SOLVER_RUNTIME / worker crashed
-Run R-414
-```
+Original verdict, current trust, exact source/baseline/suite/profile/environment, ExecutionGroups and Evidence links.
 
-### 18.3 Protected baselines
+### 16.5 Baseline Transition / Suite Change / Waiver
 
-Show each baseline ADP + Core Suite status and overall Gate aggregation. Targeted ADP CORE is labeled separately from full Fast Merge Gate.
+Guided workflows show current/proposed identity, required evidence/impact and lifecycle. `ACTIVE_FAILURE_PROTECTION_REMOVAL` has high-salience governance treatment.
 
-### 18.4 Gate Attestation
-
-Object Detail includes original verdict, current trust, exact source/baseline/suite/profile/environment, execution groups and Evidence links.
-
-### 18.5 Baseline Transition
-
-Guided workflow shows Current Baseline and Proposed Successor side by side, required evidence, impact capability checklist and lifecycle state.
-
-### 18.6 Merge Waiver
-
-Tier-4 interaction. Screen must explicitly state:
+Merge Waiver explicitly states:
 
 ```text
 Gate Verdict remains FAIL/INCOMPLETE.
 This action creates MERGED_WITH_EXCEPTION.
 ```
 
-Require reason, risk statement, compensating action and resolution condition.
+Require reason, risk statement, compensating action, resolution condition.
 
-### 18.7 Suite Change Proposal
+## 17. Preflight UI
 
-Show Add/Replace/Remove operations and computed Protection Diff. `ACTIVE_FAILURE_PROTECTION_REMOVAL` requires high-salience governance treatment and explicit justification.
+Reusable Preflight supports purpose-aware bindings.
 
-## 19. Preflight UI
-
-Preflight is a reusable COLAV extension/composition used by Run, Reproduce, CORE, Gate, Profile/Case workflows where execution scope matters.
-
-Recommended structure:
+Example:
 
 ```text
 RUN PREFLIGHT
 
-Case
-ADP
-Source
+Purpose
+Case / Qualification Policy where applicable
+Algorithm / ADP / candidate config where applicable
+Source: Snapshot or Implementation Artifact
 Environment
-Perception/Tracker
-Evaluation Profile
+Perception / Tracker
+Evaluation Profile if requested
 Seed / Random Streams
 Evidence Capture Profile
 
@@ -1110,38 +1019,43 @@ Result
 READY / READY_WITH_LIMITATIONS / BLOCKED
 ```
 
-Preflight should explain limitations and missing evidence capability before execution.
+A `CASE_QUALIFICATION` Preflight does not require a Published ADP. An `INTEGRATION_SMOKE` Preflight may occur before ADP publication. A formal CORE Preflight requires Published immutable ADP and Qualified Environment.
 
-## 20. OpenBridge conformance matrix template
+## 18. OpenBridge conformance matrix
 
-Detailed implementation/design review shall maintain a table similar to:
+Maintain a matrix:
 
 | COLAV UI | Reuse class | OpenBridge basis | Extension/custom style | Notes |
 |---|---|---|---|---|
 | Primary Button | OB-NATIVE | Button | None | native behavior |
-| Context Ribbon | OB-COMPOSED | text/tag/icon/button primitives | token-only | COLAV layout composition |
-| ADP Selector | OB-WRAPPED | select/menu primitive | token-only | domain object adapter |
-| Capability Matrix | COLAV-EXTENSION | OB typography/status/control primitives | domain matrix styles | evidence-first cells |
-| Diagnostic Timeline | COLAV-EXTENSION | OB primitives/tokens | domain visualization | typed event lanes |
+| Context Ribbon | OB-COMPOSED | text/tag/icon/button primitives | token-only | COLAV composition |
+| ADP Selector | OB-WRAPPED | select/menu primitive | token-only | domain adapter |
+| Capability Matrix | COLAV-EXTENSION | OB typography/status/control primitives | domain matrix styles | evidence-first |
+| Diagnostic Timeline | COLAV-EXTENSION | OB primitives/tokens | domain visualization | typed lanes |
 | Custom exception | CUSTOM-EXCEPTION | N/A | documented | approval required |
 
-The exact OpenBridge component names shall be resolved against the pinned OpenBridge dependency/catalog used by the implementation branch; no design document shall rely on private component internals.
+Conformance record shall also identify the pinned OpenBridge source/version/license-provenance record used for review. Exact component names are resolved against the pinned catalog; no reliance on private internals.
 
-## 21. Critical UI states to design and test
+## 19. Critical UI states
 
-Every P0 screen shall include explicit designs/tests for relevant states, not only the happy path:
+Relevant P0 screens design/test:
 
 ```text
 EMPTY
 LOADING
 READY
+QUEUED
 RUNNING
 PAUSED
+STOPPED
+ABORTED
+CANCELLED / SUPERSEDED
+CRASHED
 LIVE HISTORICAL INSPECTION
 PASS
 FAIL
 INCOMPLETE
-CRASHED
+NOT_ESTABLISHED
 BLOCKED
 SEALED HISTORICAL
 DRAFT
@@ -1151,17 +1065,24 @@ INVALIDATED
 REVALIDATION_REQUIRED
 STALE / IMPACTED
 NOT_AVAILABLE
+NOT_CAPTURED
+MISSING
 NOT_EVALUABLE
+ROLE_NOT_APPLICABLE
 ```
 
-## 22. P0 screen inventory
+## 20. P0 screen inventory
 
 ### Global
 
 - Application Shell.
 - Object Navigator.
 - Attention Center.
-- Settings/Appearance.
+- Engineering Workspace / Settings.
+- SourceWorkspace list/detail/register.
+- SourceSnapshot inspection/history.
+- Execution Environment Profile list/detail/qualification state.
+- Appearance.
 
 ### Workbench
 
@@ -1174,9 +1095,13 @@ NOT_EVALUABLE
 - Agent Result import/review.
 - Run Preflight.
 
-### Cases
+### Cases / Requirements
 
 - Requirement-centered Case Library.
+- Requirement Catalog / Detail / Versions.
+- Evaluation Profile Catalog / Detail / Qualification.
+- Coverage Contract / Coverage Matrix detail.
+- Golden Evidence Fixture inspection.
 - Scenario Family detail.
 - Case Designer.
 - Case Qualification Preview.
@@ -1207,7 +1132,7 @@ NOT_EVALUABLE
 ### Regression
 
 - Regression Control Center.
-- Execution Group / Gate run detail.
+- ExecutionGroup / Gate run detail.
 - Gate Attestation detail.
 - Protected Baseline Set detail.
 - Baseline Transition.
@@ -1215,27 +1140,30 @@ NOT_EVALUABLE
 - Suite Change Proposal.
 - Merge Waiver / Remediation.
 
-## 23. Accessibility and interaction quality
+## 21. Accessibility and interaction quality
 
-- Keyboard focus shall remain visible in dark and light themes.
-- App Rail icon-only mode shall provide accessible labels/tooltips.
-- State shall not be conveyed only by color.
-- Tables/matrices shall provide text equivalents for semantic status.
-- High-impact actions shall expose scope and consequences before mutation.
-- Timeline/event/chart selection shall preserve clear focus/selected state.
-- Historical/live/candidate modes shall use persistent labels, not transient notifications only.
+- Visible keyboard focus in Dark/Light.
+- Icon-only App Rail has accessible labels/tooltips.
+- State never color-only.
+- Tables/matrices provide text equivalents.
+- High-impact actions expose scope/consequence before mutation.
+- Timeline/chart selection preserves clear focus/selection.
+- Historical/live/candidate/source-snapshot/implementation-artifact modes use persistent labels.
 
-## 24. UI acceptance criteria
+## 22. UI acceptance criteria
 
-UI is accepted for V1 only when:
+UI accepted only when:
 
-1. Golden Workflow can be completed without leaving official product paths except the external code edit itself.
-2. Live, Replay, Analyze and Compare visibly preserve source/time/context semantics.
-3. PASS/FAIL/INCOMPLETE and Historical/Current Trust are not conflated.
-4. OpenBridge Conformance Matrix is complete for P0 components.
-5. No undocumented OpenBridge internal styling hacks exist.
-6. Dark 1440×900 and 1920×1080 P0 layouts pass design review.
-7. Compact desktop preserves critical state when Rails collapse.
-8. Custom Exceptions are documented and minimized.
-9. Maritime Operational Alerts and Engineering Attention/Gates use distinct semantics.
-10. Inspection interactions cannot silently mutate execution context.
+1. Golden Workflow completes via official product paths except external code edit.
+2. Live/Replay/Analyze/Compare preserve source/time/context semantics.
+3. Record Lifecycle, Execution Status, Evaluation Verdict and Evidence Trust are not conflated.
+4. Requirement/Evaluation/Coverage assets have inspectable P0 routes under Cases without adding a sixth Workface.
+5. SourceWorkspace/Environment objects have inspectable P0 routes without silent context switching.
+6. G0–G4 display is exact-scope/role-aware and CORE PASS is not represented as G4.
+7. Reconstructed evaluator provenance and numerical-not-confirmed boundary are visible where relevant.
+8. OpenBridge Conformance Matrix and exact dependency/license/NOTICE provenance review are complete.
+9. No undocumented OpenBridge internal styling hacks exist.
+10. Dark 1440×900 and 1920×1080 P0 layouts pass review; compact desktop preserves critical state.
+11. Custom Exceptions are documented/minimized.
+12. Maritime Operational Alerts and Engineering Attention/Gates use distinct semantics.
+13. Inspection cannot silently mutate execution context.
