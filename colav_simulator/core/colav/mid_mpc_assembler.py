@@ -802,6 +802,7 @@ def _staged_route_references(
     speed = max(0.0, float(planned_speed_mps))
     maximum_recovery_delta = heading_window_rad
     maximum_heading_step = rot_max_rad_s * dt_s
+    recovery_first_step = bool(plan.phases) and plan.phases[0] is HorizonEncounterPhase.RECOVER
     previous_heading = ownship_heading_rad
     headings: list[float] = []
     lateral_references: list[float] = []
@@ -823,6 +824,12 @@ def _staged_route_references(
         heading = previous_heading + float(
             np.clip(desired_heading - previous_heading, -maximum_heading_step, maximum_heading_step)
         )
+        if not headings and recovery_first_step:
+            # Corridor release: a first reference sitting exactly on the rot bound
+            # makes the interior-point seed start on the active constraint and
+            # IPOPT crawls the barrier for dozens of iterations; anchor the first
+            # step on the current heading and let the ramp pull from step one.
+            heading = ownship_heading_rad
         headings.append(heading)
         position += speed * dt_s * np.array((math.cos(heading), math.sin(heading)), dtype=float)
         previous_heading = heading

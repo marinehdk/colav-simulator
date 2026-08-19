@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pickle
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -52,7 +53,10 @@ class SimulationSession:
         self.terminate_on_collision_or_grounding = terminate_on_collision_or_grounding
         self.state = SessionState.CREATED
         self.sequence = 0
-        self.frames: list[dict[str, Any]] = []
+        self._frames_live: list[dict[str, Any]] = []
+        self._frame_blobs: list[bytes] | None = None
+        self._frames_decoded: list[dict[str, Any]] | None = None
+        self.last_frame: dict[str, Any] | None = None
         self.events: list[dict[str, Any]] = []
         self.step_times_ms: list[float] = []
         self._last_planner_solve_ids: dict[str, int] = {}
@@ -67,6 +71,29 @@ class SimulationSession:
             trackers=trackers,
             seed=seed,
         )
+
+    def enable_pickle_frames(self) -> None:
+        """Retain further frames as pickled bytes.
+
+        Long GUI sessions otherwise accumulate tens of thousands of container
+        payloads that the cyclic garbage collector must traverse, and the
+        resulting gen-2 pauses land inside solver timing as multi-second
+        stalls. Bytes are opaque to the collector, so retention becomes
+        GC-inert; ``frames`` still decodes the full evidence list on demand.
+        """
+        if self._frame_blobs is not None:
+            return
+        self._frame_blobs = [pickle.dumps(frame) for frame in self._frames_live]
+        self._frames_live = []
+        self._frames_decoded = None
+
+    @property
+    def frames(self) -> list[dict[str, Any]]:
+        if self._frame_blobs is None:
+            return self._frames_live
+        if self._frames_decoded is None:
+            self._frames_decoded = [pickle.loads(blob) for blob in self._frame_blobs]
+        return self._frames_decoded
 
     def start(self) -> None:
         if self.state in {SessionState.FINISHED, SessionState.FAILED}:
@@ -105,7 +132,12 @@ class SimulationSession:
         try:
             sim_time = float(self.simulator.t)
             payload = self.simulator.step()
-            self.frames.append(payload)
+            self.last_frame = payload
+            if self._frame_blobs is None:
+                self._frames_live.append(payload)
+            else:
+                self._frame_blobs.append(pickle.dumps(payload))
+                self._frames_decoded = None
             self.sequence += 1
             step_events = self._planner_events(payload)
             stress_only = self.config.name.startswith("romsdal_busy_water_80_stress")

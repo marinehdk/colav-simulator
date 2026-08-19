@@ -390,6 +390,7 @@ class WebSessionManager:
             if self.prepared and self.prepared.session.state == SessionState.RUNNING:
                 raise RuntimeError("Pause the active session before replacing it")
             replacement = self.runner.prepare(spec)
+            replacement.session.enable_pickle_frames()
             if self.prepared is not None:
                 self.prepared.artifact_sink.close(timeout_s=2.0)
             self.prepared = replacement
@@ -733,7 +734,7 @@ class WebSessionManager:
                 "events": [],
             }
         session = self.prepared.session
-        frame = snapshot.payload if snapshot is not None else (session.frames[-1] if session.frames else {})
+        frame = snapshot.payload if snapshot is not None else (session.last_frame or {})
         if not frame:
             frame = {
                 f"Ship{index}": {

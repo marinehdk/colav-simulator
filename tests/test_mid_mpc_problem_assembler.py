@@ -448,6 +448,52 @@ def test_recovery_window_keeps_accepted_absolute_rolling_plan_time() -> None:
     assert all(window.recovery_from_k == 2 for window in outcome.horizon_encounter_plan.target_windows)
 
 
+def test_recover_first_reference_anchors_first_step_on_own_heading() -> None:
+    from colav_simulator.core.colav.horizon_encounter_plan import HorizonEncounterPlan
+
+    config = MidMpcAssemblyConfig()
+    steps = config.horizon_steps
+    current_heading = math.radians(30.0)
+    mission = 0.0
+    plan = HorizonEncounterPlan(
+        reference_time_s=365.0,
+        times_s=np.arange(steps + 1, dtype=float) * config.horizon_dt_s,
+        mission_route_bearing_rad=mission,
+        avoidance_corridor_bearing_rad=current_heading,
+        phases=(HorizonEncounterPhase.RECOVER,) * (steps + 1),
+        target_windows=(),
+        recovery_from_k=0,
+    )
+    from colav_simulator.core.colav.mid_mpc_assembler import _staged_route_references
+
+    references, lateral = _staged_route_references(
+        plan,
+        RouteReference(
+            anchor_ne_m=(0.0, 0.0),
+            bearing_rad=mission,
+            mission_leg_bearing_rad=mission,
+            planned_speed_mps=7.0,
+        ),
+        ownship_position_ne_m=(0.0, 200.0),
+        ownship_heading_rad=current_heading,
+        planned_speed_mps=7.0,
+        dt_s=config.horizon_dt_s,
+        rot_max_rad_s=config.rot_max_rad_s,
+        heading_window_rad=config.heading_window_rad,
+    )
+
+    max_step = config.rot_max_rad_s * config.horizon_dt_s
+    # The first reference must sit strictly inside the rot envelope: anchoring
+    # it exactly on the boundary makes the interior-point seed start on the
+    # active constraint and IPOPT crawls the barrier for dozens of iterations.
+    assert references[0] == pytest.approx(current_heading)
+    assert references[1] != pytest.approx(current_heading)
+    assert references[-1] == pytest.approx(mission, abs=0.05)
+    ladder = np.abs(np.diff(np.r_[current_heading, np.array(references)]))
+    assert float(np.max(ladder)) <= max_step + 1.0e-9
+    assert len(lateral) == steps
+
+
 def test_structural_signature_stays_fixed_when_only_row_bounds_change() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()
