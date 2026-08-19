@@ -471,6 +471,8 @@ class WebSessionManager:
     def reset(self, session_id: str) -> dict[str, Any]:
         with self.lock:
             prepared = self._require(session_id)
+            if prepared.session.state == SessionState.RUNNING:
+                prepared.session.pause()
             return self.create(replace(prepared.spec))
 
     def tick(self) -> float | None:

@@ -179,6 +179,8 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "雷达多目标跟踪" in page.text
         assert 'id="cardPlanner"' in page.text
         assert 'id="val-solver-executed"' in page.text
+        assert 'id="val-run-state"' in page.text
+        assert 'id="val-reproduction"' in page.text
         assert 'class="planner-identity"' not in page.text
         assert 'id="val-planner-identity"' not in page.text
         assert 'id="solveTimeline"' in page.text
@@ -745,3 +747,28 @@ def test_step_response_nulls_non_finite_cpa_without_encounters(monkeypatch) -> N
     assert stepped.json()["dcpa"] is None
     assert stepped.json()["tcpa"] is None
     assert stepped.json()["colregs"] == "clear"
+
+
+def test_reset_while_running_replaces_session_without_pause() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "scenario_id": "head_on",
+                "algorithm_id": "nominal",
+                "tracker_id": "god",
+                "t_end": 30.0,
+            },
+        )
+        assert created.status_code == 200, created.json()
+        session_id = created.json()["session_id"]
+
+        started = client.post(f"/api/sessions/{session_id}/start")
+        assert started.status_code == 200, started.json()
+        assert started.json()["state"] == "RUNNING"
+
+        reset = client.post(f"/api/sessions/{session_id}/reset")
+
+    assert reset.status_code == 200, reset.text
+    assert reset.json()["session_id"] != session_id
+    assert reset.json()["state"] == "CREATED"
