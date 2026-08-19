@@ -2,24 +2,29 @@
 
 > **Source of truth:** `Design/Colav-Simulator-V1-PRD.md`  
 > **UI companion:** `Design/Colav-Simulator-V1-UI-Spec.md`  
+> **Review record:** `Design/Colav-Simulator-V1-PRD-Review.md`  
 > **Delivery model:** worktree-first, incremental full-stack cutover  
 > **V1 scope:** Development + Core Regression  
 > **Last updated:** 2026-08-19
 
 ## 1. Purpose
 
-This document defines a practical implementation sequence for the V1 redesign. It is intentionally ordered to prevent a visually complete Web UI from being built on top of an untrustworthy session/evidence model.
-
-The implementation strategy is:
+This document defines the practical V1 implementation sequence. It is intentionally ordered to prevent a visually complete Web UI from being built on an untrustworthy source/evidence/session model.
 
 ```text
-Characterize existing simulation core
+Freeze exact current source baseline
         ↓
-Build domain/evidence/runtime foundation
+Characterize simulation core
+        ↓
+Build domain / persistence / source identity
+        ↓
+Build isolated Run Worker + evidence pipeline
+        ↓
+Select frontend host stack + pin OpenBridge provenance
         ↓
 Build OpenBridge application shell
         ↓
-Connect Cases / Algorithms / Runs
+Build Cases / Algorithms / Evaluation / Runs
         ↓
 Build Workbench Golden Workflow
         ↓
@@ -32,37 +37,42 @@ Retire legacy Web truth
 
 ## 2. Non-negotiable implementation constraints
 
-1. Do not implement a second simulation truth in the frontend.
-2. Do not make historical evidence mutable.
-3. Do not allow page-local state to become hidden execution context.
-4. Do not build separate regression logic in Web, CLI and GitHub Actions.
-5. Do not rewrite functioning simulation/algorithm computation merely to enable UI refactoring unless characterization evidence demonstrates a required change.
-6. Do not use Agent self-reported test success as formal Fix Verification.
-7. Do not build Formal Validation/Release/MASS workflows into V1 navigation.
-8. Prefer OpenBridge Web Components/tokens before custom primitives.
-9. Do not merge implementation to `main` until the applicable milestone acceptance tests pass.
+1. No second simulation truth in frontend.
+2. No mutation of SEALED historical evidence or Published immutable assets.
+3. No page-local hidden execution context.
+4. No separate regression logic in Web, CLI and GitHub Actions.
+5. No simulation/core rewrite merely to enable UI refactoring unless exact-ref characterization justifies it.
+6. Dirty SourceWorkspace state is not an Implementation Artifact.
+7. Agent self-reported tests are not Fix Verification.
+8. No Formal Validation/Release/MASS workflow in V1 navigation.
+9. Prefer documented OpenBridge components/tokens before custom primitives.
+10. Do not adopt an OpenBridge dependency until its exact provenance/license/NOTICE obligations are reviewed.
+11. Local-first execution defaults to loopback/local access; browser input cannot become arbitrary filesystem/shell authority.
+12. A Run is not SEALED until manifest/artifact references/digests are crash-consistently finalized.
+13. Do not merge implementation to `main` until applicable milestone evidence/acceptance passes.
 
-## 3. Recommended worktree/branch strategy
+## 3. Worktree / branch strategy
 
-Use one integration worktree/branch for the redesign, with smaller topic branches/worktrees where useful.
-
-Conceptual structure:
+Use one integration worktree/branch for redesign, with smaller topic worktrees where useful.
 
 ```text
 main
   │
   └─ feature/colav-v1-workbench
-       ├─ domain/evidence-foundation
-       ├─ run-worker
-       ├─ openbridge-shell
-       ├─ cases
-       ├─ algorithms
+       ├─ baseline-characterization
+       ├─ domain-persistence
+       ├─ source-run-worker
+       ├─ evidence-pipeline
+       ├─ frontend-adr-openbridge
+       ├─ cases-evaluation
+       ├─ algorithms-adp
+       ├─ runs
        ├─ workbench
        ├─ regression
        └─ acceptance-cutover
 ```
 
-Do not make `main` the experimentation workspace. SourceWorkspace/dirty-snapshot behavior should itself be developed and validated in a dedicated worktree.
+`main` is not the experimentation workspace. SourceWorkspace/dirty-snapshot behavior is developed/tested in dedicated worktrees.
 
 ## 4. Target architecture
 
@@ -74,16 +84,11 @@ Do not make `main` the experimentation workspace. SourceWorkspace/dirty-snapshot
                                 │ Application API / stream
 ┌───────────────────────────────▼─────────────────────────────┐
 │ CONTROL PLANE                                               │
-│ FastAPI                                                     │
+│ FastAPI + Domain/Application Services                       │
 │                                                             │
-│ Domain/Application Services                                 │
-│ ├─ InvestigationService                                     │
-│ ├─ CaseService                                              │
-│ ├─ Algorithm/ADPService                                     │
-│ ├─ SourceWorkspaceService                                   │
-│ ├─ RunOrchestrator                                          │
-│ ├─ EvidenceService                                          │
-│ └─ Regression/AssuranceService                              │
+│ Investigation / Case / Requirement / Evaluation             │
+│ Algorithm / ADP / Source Workspace                          │
+│ Run Orchestration / Evidence / Regression                   │
 │                                                             │
 │ Shared Assurance Engine                                     │
 └──────────────┬─────────────────────────┬────────────────────┘
@@ -99,44 +104,89 @@ Do not make `main` the experimentation workspace. SourceWorkspace/dirty-snapshot
       Stream  Evidence  Evaluation
 ```
 
-## 5. Proposed module boundaries
+### 4.1 Source identity chain
 
-Exact Python/package names may be adapted to repository conventions, but the following boundaries should be explicit.
+```text
+SourceWorkspace                 mutable
+      ↓ freeze
+Ephemeral SourceSnapshot        immutable development identity
+      ↓ commit/seal/verify
+Implementation Artifact         immutable formal implementation identity
+      ↓
+Published ADP                   immutable deployment/validation object
+```
+
+Published ADP/CORE/Protected Baseline never binds a mutable dirty workspace.
+
+## 5. Module boundaries
 
 ### 5.1 Domain
 
-Pure domain objects, state machines, policies and invariants. Avoid FastAPI/filesystem/process details.
+Pure domain objects/state machines/policies; no FastAPI request objects, filesystem paths or subprocess handles.
 
-Suggested concepts:
+Authoritative P0 concept catalog:
 
 ```text
 Investigation
 Requirement
 ScenarioFamily
-TestCase / CaseVersion
+CaseVersion
+CaseQualificationRecord
+ScenarioQualificationPolicy
 TrafficActorBehavior
 ConditionProfile
 TestPhaseContract
-Run / RunSpec
-ExecutionGroup
-EvidenceManifest
-EvaluationRecord
+SourceWorkspace
+SourceSnapshot
 AlgorithmDefinition
 ImplementationArtifact
 ADP
+EvidenceCaptureProfile
+Run
+RunSpec
+ExecutionGroup
+EvidenceManifest
+EvidenceArtifact
+EvaluatorDefinition
+EvaluatorImplementationArtifact
 EvaluationProfile
-RegressionSuite
-ProtectedBaselineSet
-GateAttestation
+EvaluationRecord
+CoverageContract
+ComparisonContract
+FixVerificationRecord
 DebugHandoff
 AgentResult
+RegressionSuite
+ProtectedBaselineSet
+SuiteChangeProposal
+BaselineTransitionProposal
+MergeWaiver
+RemediationObligation
+GateAttestation
+ExecutionEnvironmentProfile
+ReproducibilityContract
 LineageEdge
 AttentionItem
 ```
 
+Exact relational normalization may differ, but these first-class identities shall not disappear into unversioned opaque JSON blobs.
+
 ### 5.2 Application services
 
-Use-case orchestration around domain objects.
+Suggested service boundaries:
+
+```text
+InvestigationService
+RequirementEvaluationService
+CaseService
+AlgorithmADPService
+SourceWorkspaceService
+RunOrchestrator
+EvidenceService
+AssuranceService
+EnvironmentQualificationService
+ImpactAnalysisService
+```
 
 ### 5.3 Infrastructure adapters
 
@@ -147,385 +197,531 @@ GitSourceWorkspaceAdapter
 LocalProcessWorkerRuntime
 FastAPI transport adapters
 Web event/stream adapter
+GitHub/CLI adapters
 ```
 
 ### 5.4 Simulation adapters
 
-Bridge the existing verified simulation/COLAV core into the new Run Worker without forcing the core to know about Web/domain storage details.
+Bridge the characterized simulation/COLAV core into Run Worker without forcing the core to know Web/domain storage details.
 
-### 5.5 Assurance engine
+### 5.5 Shared Assurance Engine
 
-Reusable from:
+Callable by Web, CLI and GitHub Actions. Owns formal Suite/Baseline resolution, Preflight policy, execution aggregation, Evaluation and Gate Attestation semantics.
 
-```text
-Web
-CLI
-GitHub Actions
-```
-
-It owns formal Suite/Baseline resolution, Preflight, aggregation and Gate Attestation semantics.
-
-## 6. Milestone 0 — Baseline characterization and safety net
+## 6. Milestone 0 — Exact-ref baseline characterization
 
 ### Goal
 
-Establish evidence of current computational behavior before full-stack cutover.
+Establish what current computational behavior is actually being preserved before full-stack cutover.
+
+### Mandatory first deliverable: Baseline Characterization Manifest
+
+Do not use an older Design document/worktree description as the preservation identity. Produce a machine-readable/inspectable manifest containing:
+
+```text
+repository
+exact branch / worktree
+exact commit SHA
+clean/dirty state
+execution environment / dependency identity
+selected algorithms and their roles
+selected scenarios
+known fallback / dependency / data limitations
+characterization evidence references
+metric / event tolerances
+```
 
 ### Tasks
 
-- Identify representative currently runnable algorithms.
-- Select representative scenarios for head-on, crossing, overtaking and basic multi-ship.
-- Capture current input/output behavior and key metrics.
-- Document current dependencies, runtime and known fallbacks.
-- Add/strengthen characterization tests around the simulation closed loop.
-- Identify which current Web/session behavior can be retired versus which simulation behavior must be preserved.
-- Record existing scenario/config import needs.
-
-### Deliverables
-
-```text
-Characterization case list
-Representative baseline outputs
-Core simulation adapter boundary proposal
-Legacy Web/API retirement inventory
-Known numerical/behavioral tolerances
-```
+- Verify the live source ref that will be the refactor baseline.
+- Identify representative currently runnable algorithms by role.
+- Select head-on, crossing, overtaking and basic multi-ship baselines, recording explicit limitation where current source cannot execute one.
+- Capture input/output behavior and key events/metrics.
+- Document dependencies/runtime/known fallbacks.
+- Add/strengthen characterization tests around closed loop.
+- Inventory current Web/session features to retire/migrate.
+- Record legacy scenario/config import needs.
 
 ### Exit criteria
 
-- At least one MPC and one non-MPC path can be characterized.
-- Four encounter types have a baseline execution path or an explicitly documented current limitation.
-- Refactoring safety tests exist for the core loop.
+- Baseline Characterization Manifest is immutable/reviewed.
+- At least one MPC/dynamic COLAV path and one other representative role/path are characterized where current repository permits.
+- Four encounter families have a baseline execution path or explicit current limitation.
+- Core refactor safety tests/tolerances exist.
 
 ## 7. Milestone 1 — Domain model and persistence foundation
 
 ### Goal
 
-Implement stable identities and immutable/versioned object semantics before new UI workflows.
+Implement stable identities and immutable/versioned semantics before new workflows.
 
 ### Tasks
 
-- Add domain IDs/version identity conventions.
-- Implement metadata schema and migrations.
-- Implement Local CAS with SHA-256 addressing.
-- Implement artifact inventory/provenance records.
-- Implement LineageEdge model.
-- Implement Published/Sealed immutability guards.
-- Implement current-trust/impact state separately from historical verdict.
-- Implement import/export-friendly JSON/YAML serializers where required.
+- Domain ID/version conventions.
+- SQLite schema + versioned migrations.
+- Local CAS with SHA-256 content addressing.
+- Artifact inventory/provenance.
+- LineageEdge.
+- Published/SEALED immutability guards.
+- Historical Original Verdict separate from Current Trust/Impact and claim-specific Eligibility.
+- JSON/YAML exchange serializers where needed.
+- Retention/reachability model.
 
-### Initial metadata tables/entities
+### Authoritative P0 persistence identity set
 
-At minimum:
+The schema/migration plan shall provide durable identities/relations for all P0 objects, including at least:
 
 ```text
 investigations
 requirements
 scenario_families
 case_versions
+case_qualification_records
+scenario_qualification_policies
 condition_profiles
+source_workspaces
+source_snapshots
 algorithm_definitions
 implementation_artifacts
 adps
+evidence_capture_profiles
 runs
 execution_groups
-evaluation_profiles
-evaluation_records
 evidence_manifests
 artifacts
+evaluator_definitions
+evaluator_implementation_artifacts
+evaluation_profiles
+evaluation_records
+coverage_contracts
+comparison_contracts
+fix_verification_records
+debug_handoffs
+agent_results
 regression_suites
 protected_baseline_sets
+suite_change_proposals
+baseline_transition_proposals
+merge_waivers
+remediation_obligations
 gate_attestations
+execution_environment_profiles
+reproducibility_contracts
 lineage_edges
 attention_items
 ```
+
+Not necessarily one table per concept; exact normalization is an implementation ADR. Each identity must remain queryable/versioned/auditable.
+
+### CAS/sealing tasks
+
+- SEALED/Published/Attestation-referenced artifacts are protected from automatic GC.
+- Cleanup is explicit + reachability-aware + impact-previewed.
+- Finalization uses transactional/journaled ordering so Run cannot be marked SEALED before required artifact refs/digests are durable.
+- Detect orphan/unfinalized artifacts after crash and allow cleanup/recovery without mutating sealed history.
 
 ### Exit criteria
 
 - Immutable objects cannot be silently edited.
 - CAS deduplicates identical artifacts and verifies digest.
-- Run/Case/ADP/Evaluation/Gate IDs survive restart.
-- Metadata can reference artifacts without embedding large telemetry blobs.
+- Critical IDs survive restart/migration.
+- Large telemetry is referenced, not embedded in metadata tables.
+- Fault test proves premature SEALED state cannot occur.
+- Cleanup cannot delete retained SEALED/Gate evidence.
 
-## 8. Milestone 2 — Source Workspace and Run Worker foundation
+## 8. Milestone 2 — Source Workspace and isolated Run Worker
 
 ### Goal
 
-Create the new execution boundary while preserving the existing computational core.
+Create correct source/execution boundary while preserving characterized core.
 
 ### Tasks
 
-- Implement Git/worktree SourceWorkspace discovery.
-- Resolve clean/dirty status, HEAD/base commit and changed/untracked relevant source files.
-- Freeze an Ephemeral Source Snapshot before Development Run.
-- Implement `AlgorithmRuntimeAdapter` abstraction.
-- Implement `InWorkerPythonRuntime` as V1 default.
-- Implement isolated local Run Worker process.
-- Adapt existing Simulator closed loop into the Worker.
+- SourceWorkspace registration/discovery for approved repositories/worktrees.
+- Resolve HEAD/base commit, clean/dirty state, changed and relevant untracked files.
+- Freeze EphemeralSourceSnapshot before Development/Reproduction execution.
+- Implement formal ImplementationArtifact registration separately from SourceSnapshot.
+- Implement `AlgorithmRuntimeAdapter`.
+- Implement `InWorkerPythonRuntime` V1 default.
+- Isolated local Run Worker process.
+- Adapt existing Simulator loop.
 - Capture worker exit/exception/crash state.
 - Preserve partial evidence after abnormal termination where possible.
+- Implement purpose-aware RunSpec bindings.
+
+### Required Run purposes
+
+```text
+DEVELOPMENT
+REPRODUCTION
+FIX_VERIFICATION
+CASE_QUALIFICATION
+INTEGRATION_SMOKE
+CORE_REGRESSION
+```
+
+Future `FORMAL_VALIDATION` reserved.
+
+### Run state model
+
+Implement orthogonal axes:
+
+```text
+Record lifecycle:
+CREATED → RUNNING → FINALIZING → SEALED
+
+Execution status:
+QUEUED | RUNNING | FINISHED | STOPPED | ABORTED | CRASHED | CANCELLED
+
+Evaluation:
+Completeness × Compliance
+```
+
+Do not use one generic `status` field for all semantics.
 
 ### Exit criteria
 
-- A dirty worktree can run without committing first.
-- Two Runs made from different dirty states have distinct source identities.
-- Subsequent file changes do not change historical Run identity.
-- A controlled worker crash does not terminate FastAPI/control-plane process.
+- Dirty worktree runs without commit via SourceSnapshot.
+- Two dirty states produce distinct immutable snapshots.
+- Subsequent edits do not alter historical source identity.
+- Published/formal ImplementationArtifact cannot represent dirty mutable source.
+- Controlled worker crash does not terminate Control Plane.
+- STOPPED/ABORTED/CANCELLED/CRASHED behavior covered by tests.
 
 ## 9. Milestone 3 — Canonical Observation/Event and Evidence pipeline
 
 ### Goal
 
-Unify Live, Replay and Analyze on one data/evidence model.
+Unify Live/Replay/Analyze/Compare on one schema/evidence model.
 
 ### Tasks
 
-- Define versioned core observation schemas.
-- Define typed event schema supporting Point/Interval/Transition.
-- Add core diagnostic schema.
-- Implement Evidence Capture Profiles.
-- Implement Evidence Writer in/adjacent to Run Worker independent of browser connection.
-- Implement live stream projection.
-- Implement sealed Evidence Manifest.
-- Implement historical readers/projections.
-- Implement `Read-Old / Write-Current` reader registry.
-- Implement detailed-artifact references for large diagnostics.
+- Versioned core Observation schemas.
+- Typed Event schema supporting Point/Interval/Transition.
+- Core algorithm diagnostic schema.
+- First-class EvidenceCaptureProfile model.
+- Seed V1 profiles:
+
+```text
+DEVELOPMENT@1
+DIAGNOSTIC@1
+REGRESSION@1
+```
+
+- Enforce mandatory Core Evidence Floor from PRD.
+- Evidence Writer independent of browser connection.
+- Live projection/stream adapter.
+- SEALED Evidence Manifest.
+- Historical readers/projections; `Read-Old / Write-Current` registry.
+- Detailed-artifact refs for high-volume diagnostics.
+- Explicit `NOT_AVAILABLE / NOT_CAPTURED / MISSING / CORRUPT / SCHEMA_MISMATCH` semantics.
 
 ### Exit criteria
 
-- Browser disconnect/reconnect does not cause formal evidence loss.
-- Live and Replay render the same recorded states/events for a completed Run.
-- A sealed Run cannot have its evidence artifacts overwritten.
-- Missing/unavailable/corrupt evidence states are distinguishable.
+- Browser disconnect/reconnect does not cause evidence loss.
+- Live and Replay render same recorded states/events for completed Run.
+- SEALED artifacts cannot be overwritten.
+- Core Evidence Floor verified for each V1 capture profile.
+- Missing causes are semantically distinguishable.
 
-## 10. Milestone 4 — OpenBridge application foundation
+## 10. Milestone 4A — Frontend host-stack ADR
 
 ### Goal
 
-Build reusable UI infrastructure before feature-specific bespoke screens.
+Prevent Codex/ZCode from guessing the application host architecture.
 
-### Tasks
+Current legacy `web_gui` is a static HTML/large JavaScript/CSS implementation. Before new UI coding, create an ADR/spike selecting the V1 host stack using:
 
-- Pin and document the OpenBridge dependency/catalog version used by implementation.
-- Build COLAV OpenBridge adapter layer.
-- Build semantic token aliases.
-- Build Dark primary theme and Light/System mapping.
-- Implement Compact App Rail.
-- Implement Engineering Context Ribbon.
-- Implement Local Header/Tabs/Drawer primitives.
-- Implement Object Navigator.
-- Implement Attention Center.
-- Implement five reusable Layout Primitives.
-- Establish OpenBridge Conformance Matrix process.
+- OpenBridge Web Component interoperability;
+- typed Domain/Projection models;
+- routing/Canonical Deep Links;
+- Task Context vs Presentation State separation;
+- testing/accessibility/tooling;
+- migration from current `web_gui`;
+- build/bundle/dependency management;
+- local-first deployment constraints.
+
+Candidate options may include native Web Components, TypeScript/Vite, React or other hosts, but no framework is normative before ADR acceptance.
 
 ### Exit criteria
 
-- No P0 foundation component relies on undocumented OpenBridge internals.
-- 1440×900 and 1920×1080 shell layouts pass design review.
-- Presentation state and execution context are technically separated.
+- ADR accepted.
+- Minimal spike proves selected host can consume pinned OpenBridge component(s), typed API projection and routing/deep link.
 
-## 11. Milestone 5 — Requirements, Cases and Qualification
+## 11. Milestone 4B — OpenBridge dependency/provenance gate and application foundation
 
 ### Goal
 
-Replace scenario-as-config thinking with executable Test Engineering.
+Pin the exact OpenBridge implementation basis and build reusable UI foundation.
 
-### Tasks
+### Dependency/provenance tasks
 
-- Implement Engineering Requirement catalog and versioning.
-- Implement Scenario Family/Template.
-- Implement Concrete Case Draft/Published lifecycle.
-- Implement Encounter-centric authoring model.
-- Implement deterministic Geometry Compiler with identity/version.
-- Implement Exact State mode conversion.
-- Implement Traffic Actor Behavior Contract.
-- Implement Condition Profiles/Condition Contract.
-- Implement multi-ship Encounter Intent Graph.
-- Implement Event-relative Test Phase Contract.
-- Implement Expected Behavior Contract + Evaluation binding.
-- Implement L1–L4 qualification.
-- Implement Algorithm-neutral Scenario Qualification Preview.
-- Implement Case lifecycle/supersession/invalidation impact hooks.
+For the exact selected OpenBridge package/repository/catalog version:
+
+- record source/provenance URL;
+- pin exact version/commit;
+- verify applicable license(s);
+- document attribution/NOTICE obligations;
+- record commercial/distribution compatibility decision;
+- update `THIRD_PARTY_NOTICES.md`/dependency inventory as required.
+
+Do not infer license from a different OpenBridge artifact or a generic project name.
+
+### UI foundation tasks
+
+- COLAV OpenBridge adapter layer.
+- semantic token aliases.
+- Dark primary theme + Light/System mapping.
+- Compact App Rail.
+- Engineering Context Ribbon.
+- Local Header/Tabs/Drawer primitives.
+- Object Navigator.
+- Attention Center.
+- Engineering Workspace/Settings surfaces for registered SourceWorkspaces and Execution Environment Profiles.
+- five reusable Layout Primitives.
+- OpenBridge Conformance Matrix process.
 
 ### Exit criteria
 
-- Head-on, crossing, overtaking and basic multi-ship cases can be authored and qualified.
-- Published Case is immutable and reproducible.
-- Qualification Preview clearly states algorithm capability is not evaluated.
-- Template revision does not mutate existing case versions.
+- Provenance/license/NOTICE record complete for exact pinned dependency.
+- No P0 foundation component relies on undocumented internals.
+- 1440×900 and 1920×1080 shell layouts pass review.
+- Presentation State and execution context technically separated.
 
-## 12. Milestone 6 — Algorithms, manifests, ADPs and integration
+## 12. Milestone 5 — Requirements, Evaluation assets, Cases and Qualification
 
 ### Goal
 
-Make algorithm integration explicit and algorithm-agnostic.
+Replace scenario-as-config thinking with executable Test Engineering and create visible owners for Requirement/Evaluation assets.
 
 ### Tasks
 
-- Implement Algorithm Definition/Manifest registry.
-- Implement contract/runtime/smoke verification.
-- Implement core diagnostics requirement.
-- Implement typed diagnostic extension registry.
-- Implement Implementation Artifact registration.
-- Implement ADP Published/Candidate model.
-- Implement Experiment Overrides in Investigation.
-- Implement Compatibility Contract/Preflight.
-- Implement staged Integration Workspace.
-- Implement initial Capability Matrix projection, with no manual grade mutation.
-- Implement Validation Impact hooks.
+- Engineering Requirement catalog/versioning.
+- Requirement & Evaluation Hub under `Cases > Requirements`.
+- Evaluator Definition/Implementation identity.
+- Evaluation Profile Draft/Published model.
+- Coverage Contract model.
+- Golden Evidence Fixture registry.
+- Scenario Family/Template.
+- Concrete Case Draft/Published lifecycle.
+- Encounter-centric authoring.
+- deterministic Geometry Compiler identity/version.
+- Exact State conversion.
+- Traffic Actor Behavior Contract.
+- Condition Profiles/Contract.
+- multi-ship Encounter Intent Graph.
+- Event-relative Test Phase Contract.
+- Expected Behavior Contract + Evaluation binding.
+- ScenarioQualificationPolicy model.
+- L1–L4 qualification + neutral Qualification Preview.
+- Case lifecycle/supersession/invalidation impact hooks.
 
 ### Exit criteria
 
-- One MPC and one non-MPC algorithm complete the integration workflow.
-- `RUNTIME_READY` is visibly distinct from `VERIFIED`.
-- A candidate ADP change produces structured Diff and Impact state.
-- A technically compatible but unverified condition can run in Development with correct warning/claim eligibility.
+- Head-on/crossing/overtaking/basic multi-ship can be authored and qualified or current source limitation is explicitly addressed during migration.
+- Published Case immutable/reproducible.
+- Qualification evidence binds exact ScenarioQualificationPolicy.
+- Preview says Algorithm Capability NOT EVALUATED.
+- Template revision does not mutate old Case.
+- Requirement/Evaluation/Coverage objects have usable UI routes and durable identities.
 
-## 13. Milestone 7 — Evaluation engine foundation
+## 13. Milestone 6 — Algorithms, roles, manifests, ADPs and integration
 
 ### Goal
 
-Provide one versioned, testable evaluation system for Development/Fix/CORE.
+Make integration explicit and role-aware.
 
 ### Tasks
 
-- Implement Requirement Applicability/Compliance two-stage result.
-- Implement intrinsic criticality vs profile enforcement.
-- Implement Evaluation Completeness + Compliance aggregation.
-- Implement Evaluator Definition/Implementation identity.
-- Implement Published Evaluation Profile immutability.
-- Implement Profile Qualification Suite.
-- Implement Golden Evidence Fixtures.
-- Implement Previous Profile Verdict Diff.
-- Implement Coverage Contract/Matrix projection.
-- Implement re-evaluation from sealed evidence with evidence sufficiency checks.
+- Algorithm Definition/Manifest registry with `role` as first-class attribute.
+- contract/runtime/smoke verification.
+- core diagnostics.
+- typed diagnostic registry.
+- ImplementationArtifact registration from immutable clean source/build identity.
+- ADP Published/Candidate model.
+- Experiment Overrides.
+- Compatibility/Preflight.
+- staged Integration Workspace.
+- Evidence-Derived Capability Matrix.
+- Validation Impact hooks.
+- G0–G4 policy/projection implementation:
+
+```text
+G0 Discoverable
+G1 Short smoke test
+G2 Full closed loop
+G3 Capability demonstration
+G4 Benchmark validation
+```
+
+- Role-aware capability applicability/comparison.
 
 ### Exit criteria
 
-- `NOT_APPLICABLE`, `INDETERMINATE`, missing evidence and FAIL produce distinct outcomes.
-- Published profile behavior cannot change because evaluator code changed underneath it.
+- One MPC/dynamic COLAV path and one role-compatible non-MPC dynamic COLAV path complete integration if repository readiness permits; where not, limitation is explicit and acceptance fixture selection is adjusted without misrepresenting RRT/tracker as equivalent dynamic COLAV.
+- `RUNTIME_READY` distinct from `VERIFIED`.
+- Candidate ADP diff/impact visible.
+- technically compatible unverified condition can Development Run with claim warning.
+- CORE PASS is not automatically assigned G4.
+
+## 14. Milestone 7 — Evaluation engine foundation
+
+### Goal
+
+Provide versioned, testable evaluation for Development/Fix/CORE without overstating current evaluator provenance.
+
+### Tasks
+
+- Requirement Applicability/Compliance result.
+- intrinsic criticality vs Profile enforcement.
+- Completeness + Compliance aggregation.
+- Evaluator Definition/Implementation identity.
+- Register current reconstructed evaluator explicitly with repository provenance limitations:
+
+```text
+functional_reproduction = true
+numerical_reproduction_confirmed = false
+```
+
+- Published Evaluation Profile immutability.
+- Profile Qualification Suite.
+- Golden Evidence Fixtures.
+- Previous Profile Verdict Diff.
+- Coverage Contract/Matrix.
+- re-evaluation from SEALED evidence with sufficiency checks.
+
+### Exit criteria
+
+- NOT_APPLICABLE, INDETERMINATE, missing evidence and FAIL distinct.
+- Published Profile cannot change because current evaluator code changes under it.
 - Re-evaluation never overwrites Original Evaluation.
+- UI/API outputs from reconstructed evaluator cannot imply official/numerical reproduction/certification.
 
-## 14. Milestone 8 — Runs and Evidence Workface
+## 15. Milestone 8 — Runs and Evidence Workface
 
 ### Goal
 
-Make immutable execution history fully inspectable before advanced debugging UI depends on it.
+Make immutable history inspectable before advanced debugging depends on it.
 
 ### Tasks
 
-- Implement Run Explorer dense table.
-- Implement explicit query/deep-link state and Saved Views.
-- Implement ExecutionGroup UI.
-- Implement Run Detail verdict-aware landing.
-- Implement Historical Replay.
-- Implement Evaluations history/diff.
-- Implement Manifest-centric Evidence Explorer.
-- Implement Current Evidence Trust / Claim Eligibility.
-- Implement Semantic Lineage Path and local Provenance Graph.
-- Implement Portable Evidence Bundle export/import.
+- Run Explorer dense table.
+- query/deep-link state + Saved Views.
+- ExecutionGroup UI.
+- Run Detail with orthogonal Record/Execution/Evaluation state display.
+- Historical Replay.
+- Evaluation history/diff.
+- Manifest-centric Evidence Explorer.
+- Current Evidence Trust/Impact separate from claim-specific Eligibility.
+- Semantic Lineage Path/local Provenance Graph.
+- Portable Evidence Bundle export/import.
 
 ### Exit criteria
 
-- A Run can be found by ID and opened through a canonical deep link.
-- `FINISHED+FAIL` and `CRASHED+NOT_ESTABLISHED` are not conflated.
-- Export/import preserves digests, source identity and original verdict.
-- Historical Replay does not execute the current Simulator.
+- Canonical Deep Link by Run ID.
+- `SEALED + FINISHED + FAIL` and `SEALED + CRASHED + NOT_ESTABLISHED` distinct.
+- Export/import preserves digests/source/original verdict.
+- Replay never executes current Simulator.
+- Evidence Trust and claim eligibility not collapsed.
 
-## 15. Milestone 9 — Workbench Run / Analyze
+## 16. Milestone 9 — Workbench Run / Analyze
 
 ### Goal
 
-Deliver the core developer investigation experience.
+Deliver core investigation experience.
 
 ### Tasks
 
-- Implement Workbench Home/resume.
-- Implement Investigation lifecycle.
-- Implement Baseline + Run Overrides.
-- Implement Preflight.
-- Implement Run spatial workspace.
-- Implement Execution Clock vs Inspection Cursor.
-- Implement interactive Development execution controls as typed events.
-- Implement Encounter Focus Stack.
-- Implement trajectory semantic layers.
-- Implement Analyze multi-lane timeline.
-- Implement Failure Window and first-abnormal-transition lead.
-- Implement Finding/Hypothesis separation.
+- Workbench Home/resume.
+- Investigation lifecycle.
+- Baseline + Run Overrides.
+- purpose-aware Preflight.
+- Run spatial workspace.
+- Execution Clock vs Inspection Cursor.
+- Development execution controls as typed events.
+- Encounter Focus Stack.
+- trajectory semantic layers using generic `Selected/Accepted Planner Output` plus canonical repository planning terms when available.
+- Analyze multi-lane timeline.
+- Failure Window/first-abnormal-transition lead.
+- Finding/Hypothesis separation.
 
 ### Exit criteria
 
-- User can start from a failed Run and enter Analyze at relevant timestamp.
-- Scrubbing does not silently pause or mutate the simulator.
-- Planner/System Risk/Inspection encounter contexts can diverge without ambiguity.
-- Timeline selection synchronizes chart/context/evidence.
+- Failed Run → Analyze relevant timestamp.
+- Scrub does not pause/mutate Simulator.
+- Algorithm/System Risk/Inspection encounter contexts diverge without ambiguity.
+- Timeline synchronizes chart/context/evidence.
+- Mission Route/Avoidance Corridor/Rolling Plan terminology is not conflated.
 
-## 16. Milestone 10 — Compare, Fix Verification and Agent handoff
+## 17. Milestone 10 — Compare, Fix Verification and Agent handoff
 
 ### Goal
 
-Close the engineering loop from diagnosis to verified candidate fix.
+Close loop diagnosis → verified candidate fix.
 
 ### Tasks
 
-- Implement immutable Debug Handoff versioning.
-- Implement Markdown + JSON export.
-- Implement Agent Change Contract templates.
-- Implement Agent Result import/validation.
-- Implement Compare Run Pair selection.
-- Implement Comparison Contract and Fidelity.
-- Implement absolute + semantic event alignment.
-- Implement outcome/requirement/metric/event/diagnostic diff.
-- Implement Fix Verification Record.
-- Implement Regression Case curation/promotion.
+- immutable Debug Handoff versioning.
+- Markdown + JSON export.
+- Agent Change Contract templates.
+- Agent Result import/validation as data, not command authority.
+- Compare Run Pair.
+- Comparison Contract/Fidelity.
+- absolute + semantic event alignment.
+- outcome/Requirement/metric/event/diagnostic diff.
+- Fix Verification Record.
+- Regression Case curation/promotion.
 
 ### Exit criteria
 
-- `FAIL → PASS` is insufficient by itself to produce FIX_VERIFIED.
-- Protected validation asset modifications are detected in Algorithm-fix task context.
-- Candidate source can be traced from Debug Handoff/Agent Result to verification Run.
+- FAIL→PASS insufficient by itself for FIX_VERIFIED.
+- Protected validation asset modifications detected.
+- Candidate source traced Handoff/Agent Result → SourceSnapshot/ImplementationArtifact → verification Run.
 
-## 17. Milestone 11 — CORE Regression and Shared Assurance Engine
+## 18. Milestone 11 — CORE Regression and Shared Assurance Engine
 
 ### Goal
 
-Make regression a formal, stable and reusable assurance capability.
+Make regression formal/stable/reusable.
 
 ### Tasks
 
-- Implement versioned Core Regression Suite Manifest.
-- Implement Stability Qualification and Quarantine.
-- Implement D0–D3 Reproducibility Contract support.
-- Implement isolated parallel suite execution.
-- Implement Suite Execution Completeness/Regression Verdict.
-- Implement Gate Early / Execute to Completion.
-- Implement Protected Regression Baseline Set.
-- Implement Regression Gate Attestation.
-- Implement Regression Control Center.
-- Implement Suite Change Proposal/Protection Diff.
-- Implement Baseline Transition.
-- Implement Merge Waiver/Remediation.
-- Expose Assurance Engine through Web and CLI adapters.
+- versioned Core Regression Suite.
+- every CORE member Stability Qualification.
+- D0–D3 Reproducibility Contract.
+- isolated parallel execution.
+- Suite Execution Completeness/Verdict.
+- Gate Early / Execute to Completion.
+- candidate supersession/cancellation distinct from Gate Early.
+- Protected Regression Baseline Set.
+- Gate Attestation.
+- Regression Control Center.
+- Suite Change Proposal/Protection Diff.
+- Baseline Transition.
+- Merge Waiver/Remediation.
+- Web + CLI Assurance Engine adapters.
 
 ### Exit criteria
 
-- Full CORE is mandatory; impact-selected tests can only add.
-- Flaky test cannot be retried into green.
-- One worker crash yields Suite INCOMPLETE without erasing other evidence.
-- Targeted CORE and Fast Merge Gate are visibly distinct.
+- Full CORE mandatory; impact only adds.
+- Flaky cannot retry-to-green.
+- every Published CORE member has current Stability Qualification.
+- one worker crash → Suite INCOMPLETE without erasing other evidence.
+- Targeted CORE vs Fast Merge distinct.
+- superseding new candidate may cancel obsolete orchestration without being confused with stopping remaining mandatory Cases after a failure.
 
-## 18. Milestone 12 — Qualified environment and GitHub Gate
+## 19. Milestone 12 — Qualified environment and GitHub Gate
 
 ### Goal
 
-Turn regression from local feature into enforceable merge protection.
+Turn local regression into enforceable merge protection.
 
 ### Tasks
 
-- Define initial `ExecutionEnvironmentProfile` for CI reference.
-- Pin dependency/solver/runtime identity.
-- Qualify environment with smoke/golden/core comparisons.
-- Add stable GitHub checks:
+- initial `ExecutionEnvironmentProfile` for CI reference.
+- pin dependency/solver/runtime identity.
+- qualify environment with smoke/Golden/Core comparisons.
+- stable checks:
 
 ```text
 quality/lint
@@ -533,77 +729,82 @@ quality/unit-tests
 colav/core-regression
 ```
 
-- Configure branch protection/ruleset so required checks actually block merge.
-- Run Shared Assurance Engine via CI frontend/CLI.
-- Upload/retain regression summary and evidence indices/artifacts as practical.
-- Link GitHub check to immutable Gate Attestation identity.
-- Add runtime sanity + significant performance regression guard.
+- migrate/map current CI jobs to stable required names without losing existing `ruff`/`pytest` coverage.
+- configure branch protection/ruleset.
+- run Shared Assurance Engine via CI frontend/CLI.
+- upload/retain regression summary/evidence indices/artifacts as practical.
+- link Check to immutable Gate Attestation.
+- runtime sanity + significant performance regression guard.
 
 ### Exit criteria
 
-- Intentional regression blocks a real PR.
-- Known-good change passes.
-- Gate result can be traced to exact source, environment, suite, Runs and Evidence.
-- CI failure/incomplete is distinguishable from behavioral algorithm failure.
+- intentional regression blocks real PR.
+- known-good passes.
+- Gate traces exact source/environment/suite/Runs/Evidence.
+- CI failure/incomplete distinct from behavioral failure.
 
-## 19. Milestone 13 — V1 acceptance and Web cutover
-
-### Goal
-
-Prove the product itself meets D-144 and retire the legacy Web truth.
+## 20. Milestone 13 — V1 acceptance and Web cutover
 
 ### Acceptance scenarios
 
 #### A. Golden Workflow
 
-Complete one real representative defect end-to-end through Investigation CLOSED.
+Complete representative real defect end-to-end through Investigation CLOSED.
 
 #### B. Four Encounter Baselines
 
-Head-on, crossing, overtaking and basic multi-ship each have qualified Case → Run → sealed Evidence → Evaluation → Replay.
+Head-on/crossing/overtaking/basic multi-ship each have qualified Case → Run → SEALED Evidence → Evaluation → Replay.
 
 #### C. Multi-algorithm integration
 
-At least one MPC and one non-MPC path complete integration and Development Run.
+At least one MPC and one role-compatible non-MPC dynamic COLAV path where repository readiness permits. Do not substitute static RRT/tracker role evidence as equivalent dynamic COLAV validation.
 
 #### D. Evidence portability
 
-Export/import a sealed Run bundle in an isolated registration context and verify digest/verdict/source identity.
+Export/import SEALED Bundle in isolated registration context; verify digest/verdict/source identity.
 
 #### E. GitHub Gate
 
-Demonstrate both pass and intentionally blocked PR.
+Demonstrate pass and intentionally blocked PR.
 
 #### F. Crash/Incomplete
 
-Inject worker/solver/evidence failure; preserve partial evidence and block gate correctly.
+Inject worker/solver/evidence failure; preserve partial evidence and block Gate correctly.
 
-#### G. Reproducibility
+#### G. Reproducibility / CORE stability
 
-Representative CORE Case reaches D3 GATE_STABLE.
+- Every Published V1 CORE member has current Stability Qualification under applicable Qualified Environment/Reproducibility Contract.
+- At least one representative member is repeated end-to-end to demonstrate D3 semantics/tolerances.
 
-#### H. OpenBridge conformance
+#### H. OpenBridge conformance/provenance
 
-Review P0 screens and component matrix; eliminate/document exceptions.
+Review P0 screens/component matrix; no undocumented internals; exact OpenBridge provenance/license/NOTICE record complete.
+
+#### I. Local security
+
+Loopback default verified; arbitrary browser filesystem/shell execution denied; only registered/policy-resolved workspaces executable.
+
+#### J. CAS/sealing integrity
+
+Fault injection proves no premature SEALED state and no automatic deletion of retained sealed/attestation evidence.
 
 ### Cutover criteria
 
 Only after acceptance:
 
-- make new Web the active engineering interface;
-- retire legacy session/Web execution truth;
-- retain adapters/imports only where they provide explicit migration value.
+- new Web becomes active engineering interface;
+- legacy session/Web execution truth retired;
+- adapters/imports retained only for explicit migration value.
 
-## 20. Suggested delivery epics
-
-For issue/project tracking, milestones can be grouped into epics:
+## 21. Suggested delivery epics
 
 ```text
-EPIC-01  V1 Domain & Evidence Foundation
-EPIC-02  Run Worker & Source Workspace
-EPIC-03  Canonical Telemetry / Replay
-EPIC-04  OpenBridge Application Foundation
-EPIC-05  Case/Test Engineering
+EPIC-00  Baseline Characterization
+EPIC-01  V1 Domain / Persistence / CAS
+EPIC-02  Source Workspace & Run Worker
+EPIC-03  Canonical Telemetry / Evidence / Replay
+EPIC-04  Frontend ADR & OpenBridge Foundation
+EPIC-05  Requirements / Evaluation Assets / Cases
 EPIC-06  Algorithm Integration & ADP
 EPIC-07  Evaluation & Coverage
 EPIC-08  Runs & Evidence UI
@@ -614,101 +815,73 @@ EPIC-12  GitHub Gate / Qualified Environment
 EPIC-13  V1 Acceptance & Cutover
 ```
 
-Each implementation issue should cite relevant PRD IDs.
+Each implementation issue cites PRD IDs and acceptance evidence.
 
-Example:
+## 22. Testing strategy
 
-```text
-Title: Implement Event-Synchronized Analyze Timeline
+### Unit
 
-PRD:
-- WB-011
-- WB-012
-- ARCH-004
+Domain invariants, state machines, aggregation, serializers, schema adapters, impact/eligibility, retention/reachability.
 
-UI:
-- UI Spec §14.8
+### Contract
 
-Acceptance:
-- Timeline event selection updates shared Inspection Cursor
-- Observed event and Evaluation Finding use distinct semantics
-- First abnormal transition is labeled lead, not root cause
-```
+Algorithm I/O, diagnostic channels, Evaluator schemas, Evidence schemas, Observation/Event schemas, OpenBridge adapter behavior.
 
-## 21. Testing strategy
+### Characterization
 
-### 21.1 Unit tests
+Protect exact-ref simulation behavior while adapters/application layers change.
 
-Domain invariants, state machines, aggregation policies, serializers, schema adapters, impact/eligibility policies.
+### Integration
 
-### 21.2 Contract tests
+SourceSnapshot, Run Worker closed loop, Evidence Writer, SQLite/CAS, Replay reader, Evaluation, lineage, sealing.
 
-- Algorithm input/output contracts.
-- Diagnostic channel schemas.
-- Evaluator schemas.
-- Evidence artifact schemas.
-- Canonical observation/event schemas.
-- OpenBridge adapter event/prop behavior where useful.
+### Golden Evidence
 
-### 21.3 Characterization tests
+Profile/Evaluator Qualification independent of current algorithms.
 
-Protect existing simulation behavior while adapters and application layers change.
+### End-to-end
 
-### 21.4 Integration tests
+Golden Workflow, Case Qualification, Evidence portability, Regression Suite/GitHub Gate.
 
-Run Worker closed loop, source snapshot, evidence writer, database/CAS, replay reader, evaluation and lineage.
+### Fault injection
 
-### 21.5 Golden Evidence tests
+Worker crash, solver timeout, missing/corrupt artifact, schema mismatch, browser disconnect, finalization crash, orphan artifact recovery.
 
-Profile/evaluator qualification independent of current algorithms.
+### Security
 
-### 21.6 End-to-end tests
+Loopback binding, registered-root enforcement, path traversal/arbitrary path rejection, no generic shell-command API, imported Agent Result treated as data.
 
-Golden Workflow, Case qualification, evidence portability, regression suite and GitHub gate.
+### Stability
 
-### 21.7 Fault-injection tests
+Every CORE member qualification against D3 policy; representative repeated end-to-end fixture.
 
-Worker crash, solver timeout, missing evidence, corrupted artifact, schema mismatch, browser disconnect.
-
-### 21.8 Stability tests
-
-Repeated identical CORE execution checked against Reproducibility Contract/D3 policy.
-
-## 22. Data migration strategy
+## 23. Data migration strategy
 
 ### Legacy scenario/config
 
-Use explicit import adapters to create Draft Cases/Condition Profiles. Imported assets must pass new qualification before publication.
+Explicit import adapters → Draft Cases/Condition Profiles; must qualify before Publish.
 
 ### Legacy algorithm integrations
 
-Prefer thin adapters around existing algorithms. Do not mark runtime-ready or verified until new integration checks pass.
+Thin adapters around existing algorithms. Runtime-ready/Verified only after new checks.
 
 ### Legacy Web sessions
 
-Do not migrate mutable session state as new Run evidence unless exact identity/evidence is available. Treat old session exports as imported/legacy artifacts where appropriate.
+Do not migrate mutable session state as new Run evidence unless exact identity/evidence exists. Treat old exports as legacy/imported artifacts where appropriate.
 
 ### Legacy evaluation
 
-The existing reconstructed evaluator may be represented with explicit implementation identity and reproduction limitations; do not silently relabel it as official/certification evaluator.
+Current reconstructed Evaluator gets explicit immutable implementation identity and remains `functional_reproduction` / numerical-not-confirmed. Never silently relabel official/certification evaluator.
 
-## 23. Environment strategy
+## 24. Environment and reproducibility strategy
 
-### Development
+Development: local compatible/unqualified allowed with explicit eligibility limits.
 
-Allow local compatible/unqualified environments for rapid edit/reproduce/debug with explicit eligibility limits.
+Fast Merge: versioned Qualified Reference Environment required.
 
-### Fast Merge
+Future strict performance: separate qualified benchmark environment.
 
-Require a versioned Qualified Reference Environment.
-
-### Future strict performance
-
-Use a separate qualified performance benchmark environment rather than overloading ordinary CI timing.
-
-## 24. Reproducibility implementation guidance
-
-Implement a Random Stream Registry derived from a Run root seed:
+Random Stream Registry derived from root seed:
 
 ```text
 scenario
@@ -718,114 +891,120 @@ traffic_actor
 algorithm
 ```
 
-Avoid one shared mutable RNG stream across subsystems.
-
-Store resolved stream identities in RunSpec/evidence.
-
-D3 Gate-Stable should compare semantic stability and configured metric/event tolerances, not require universal byte-identical floating-point artifacts.
+Avoid one shared mutable RNG stream. Store resolved stream identities in RunSpec/Evidence. D3 compares semantic stability + configured metric/event tolerances, not universal byte-identical float artifacts.
 
 ## 25. OpenBridge implementation sequence
 
-1. Pin OpenBridge package/component catalog version.
-2. Inventory required V1 primitives.
-3. Mark each UI need as OB-NATIVE/COMPOSED/WRAPPED/EXTENSION/EXCEPTION.
-4. Build thin framework adapters only where useful.
-5. Map COLAV semantic tokens to OpenBridge tokens.
-6. Implement global shell/layouts.
-7. Build domain extensions such as Capability Matrix, Timeline, Evidence Explorer.
-8. Maintain Conformance Matrix in code review.
-9. Treat Custom Exception count as a design debt metric.
+1. Complete frontend host-stack ADR/spike.
+2. Pin exact OpenBridge package/catalog version/commit.
+3. Verify provenance/license/NOTICE/distribution obligations.
+4. Inventory V1 primitives.
+5. Classify OB-NATIVE/COMPOSED/WRAPPED/EXTENSION/EXCEPTION.
+6. Build thin adapters only where useful.
+7. Map semantic tokens.
+8. Implement shell/layouts/Engineering Workspace.
+9. Build domain extensions such as Capability Matrix, Timeline, Evidence Explorer.
+10. Maintain Conformance Matrix + provenance record in review.
+11. Treat Custom Exception count as design-debt metric.
 
-## 26. Suggested frontend architecture rules
+## 26. Frontend architecture rules
 
-- Domain data arrives through typed application API/projection models.
-- Do not parse raw CAS artifacts directly in arbitrary React/Web components.
-- Shared Observation Surface must be reused across Live and Replay.
-- Investigation task context and UI presentation stores are separate.
-- URL query/deep links may store inspection/query state but not hidden RunSpec state.
-- OpenBridge wrappers should be thin and centralized.
-- Domain-specific status components shall require explicit semantic namespace (operational vs assurance) where ambiguity is possible.
+- Domain data arrives through typed Application API/Projection models.
+- Frontend components do not parse raw CAS artifacts ad hoc.
+- Shared Observation Surface reused Live/Replay.
+- Task Context store and Presentation State store are separate.
+- URL query/deep links may store inspection/query state, never hidden RunSpec.
+- OpenBridge wrappers thin/centralized.
+- Status components use explicit semantic namespace where operational/assurance ambiguity exists.
+- No framework-specific assumption beyond the accepted frontend ADR.
 
-## 27. Suggested backend architecture rules
+## 27. Backend architecture and local security rules
 
-- Domain layer has no FastAPI request objects or filesystem paths.
-- Run Worker owns execution, not browser sessions.
-- Browser disconnect does not stop/evaluate/delete a Run unless an explicit user action reaches the worker policy.
-- Evidence sealing happens server/worker-side.
-- Git worktree source is snapshotted before Run execution.
-- Formal evaluation references immutable evaluator/profile identities.
-- Assurance Engine is callable without Web.
-- Gate Attestation is created from formal execution evidence, not from UI state.
+- Domain layer has no FastAPI request objects/filesystem paths.
+- Run Worker owns execution, not browser session.
+- Browser disconnect does not stop/evaluate/delete Run unless explicit user action reaches worker policy.
+- Evidence sealing server/worker-side with crash-consistent finalization.
+- Git worktree snapshotted before Run.
+- ImplementationArtifact formal identity is immutable and distinct from dirty SourceSnapshot.
+- Formal Evaluation references immutable Evaluator/Profile identities.
+- Assurance Engine callable without Web.
+- Gate Attestation created from execution evidence, not UI state.
+- Default service bind loopback/local only.
+- Only registered repository/workspace/artifact roots accessible through application services.
+- No generic frontend API for arbitrary shell commands or filesystem paths.
+- Agent/Handoff imports are data; backend policy resolves allowed commands/workspaces.
 
 ## 28. CI migration plan
 
-Current lint/unit workflow should be preserved while new regression checks are introduced incrementally.
-
-Recommended progression:
+Preserve current lint/unit workflow while adding regression incrementally.
 
 ```text
 Stage A
-Existing lint + pytest continue
+Existing ruff + pytest continue
 
 Stage B
 Add non-required colav/core-regression preview
 
 Stage C
-Stabilize D3 CORE and evidence artifacts
+Stabilize every CORE member / evidence / qualified environment
 
 Stage D
-Enable branch protection required checks
+Expose stable check names and enable branch protection
 
 Stage E
-Add Protected Baseline Set and formal Attestation
+Add Protected Baseline Set + formal Attestation
 ```
 
-Do not enable a flaky gate as required and then normalize manual reruns/bypasses; stabilize it first.
+Current `cancel-in-progress`-style orchestration may cancel an obsolete candidate when superseded by a newer commit; model this separately from Gate Early/mandatory execute-to-completion within the active candidate.
+
+Never enable a flaky required gate and normalize reruns/bypasses; stabilize first.
 
 ## 29. Risk register
 
 ### R-01 — Scope inflation into Formal Validation
-
-Mitigation: keep five V1 workfaces and D-142 scope boundary.
+Mitigation: five V1 workfaces / D-142 boundary.
 
 ### R-02 — UI-first build creates second truth
+Mitigation: domain/evidence/runtime before complex Workbench UI.
 
-Mitigation: implement milestones 1–3 before complex Workbench UI.
+### R-03 — Core changes accidentally during refactor
+Mitigation: exact-ref Baseline Characterization Manifest + adapter-first migration.
 
-### R-03 — Simulation core accidentally changes during refactor
-
-Mitigation: M0 characterization and adapter-first migration.
-
-### R-04 — OpenBridge wrappers become a private design system
-
-Mitigation: conformance classification and documented extension policy.
+### R-04 — OpenBridge wrappers become private design system
+Mitigation: reuse classification, documented extension policy, provenance gate.
 
 ### R-05 — Solver/native crash destabilizes Web
+Mitigation: isolated Run Worker.
 
-Mitigation: isolated Run Worker boundary.
+### R-06 — Evidence storage growth/unsafe cleanup
+Mitigation: CAS, capture profiles, reachability-aware retention, no automatic GC of retained sealed evidence.
 
-### R-06 — Evidence storage grows rapidly
-
-Mitigation: CAS, content deduplication, capture profiles and detailed-artifact references.
-
-### R-07 — Regression becomes flaky
-
-Mitigation: D3 contract, stability qualification and quarantine; no retry-to-green.
+### R-07 — Regression flaky
+Mitigation: every CORE member Stability Qualification, D3, Quarantine, no retry-to-green.
 
 ### R-08 — Gate passes by weakening tests
+Mitigation: immutable suites, Suite Change Proposal, Protection Diff, Baseline governance.
 
-Mitigation: immutable published suites, Suite Change Proposal, Protection Diff, protected baseline governance.
+### R-09 — Agent changes validation assets
+Mitigation: Agent Change Contract/protected asset checks; imported result is data.
 
-### R-09 — Agent changes test/evaluator to get green
+### R-10 — Historical schema break
+Mitigation: Read-Old/Write-Current, non-destructive projections.
 
-Mitigation: Agent Change Contract and protected asset checks.
+### R-11 — Dirty source treated as formal implementation
+Mitigation: separate SourceWorkspace/SourceSnapshot/ImplementationArtifact model.
 
-### R-10 — Historical data breaks after schema change
+### R-12 — Local execution exposed remotely
+Mitigation: loopback default, registered roots, no arbitrary shell/path API.
 
-Mitigation: Read-Old/Write-Current readers and non-destructive derived projections.
+### R-13 — Reconstructed Evaluator overclaimed
+Mitigation: immutable evaluator provenance + explicit functional/numerical boundary.
+
+### R-14 — Codex guesses frontend framework
+Mitigation: mandatory frontend host-stack ADR before M4 implementation.
 
 ## 30. Implementation completion rule
 
-A milestone is not complete merely because its page exists. Each milestone must provide evidence that the corresponding domain invariants and PRD acceptance criteria are exercised.
+A milestone is not complete because its page exists. It must provide evidence that corresponding domain invariants and PRD acceptance criteria are exercised.
 
-The final V1 completion authority is the Evidence-Backed V1 Acceptance Gate in `Colav-Simulator-V1-PRD.md`, not visual feature count.
+Final V1 completion authority is the Evidence-Backed V1 Acceptance Gate in `Colav-Simulator-V1-PRD.md`, not visual feature count.
