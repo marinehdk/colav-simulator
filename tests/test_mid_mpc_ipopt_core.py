@@ -693,6 +693,36 @@ def test_seed_repair_keeps_original_seed_when_offsets_barely_help() -> None:
     assert repaired is None
 
 
+def test_colav_strict_warm_started_seed_is_not_displaced_by_repair() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    # The warm-started rolling projection may legitimately sit on hard rows
+    # mid-encounter; displacing it with a uniform offset ramp would discard
+    # the accepted plan geometry, so repair must only touch cold seeds.
+    problem = _rendezvous_problem((MidMpcTarget(x_m=300.0, y_m=60.0, cog_rad=0.0, sog_mps=0.0),))
+    n = config.horizon_steps
+    warm = MidMpcPrimalWarmStart(
+        accepted_at_s=0.0,
+        current_time_s=config.dt_s / 2.0,
+        dt_s=config.dt_s,
+        course_rad=np.linspace(0.0, 0.05, n),
+        speed_mps=np.full(n, 6.0),
+    )
+
+    warm_result = MidMpcIpoptSolver(config).solve(problem, primal_warm_start=warm)
+    cold_result = MidMpcIpoptSolver(config).solve(problem)
+
+    assert warm_result.seed_max_constraint_violation > 1.0e-6
+    assert cold_result.seed_max_constraint_violation <= 1.0e-6
+    warm_heading = warm_result.prepared.x0[:n]
+    # The projected warm course stays a gentle interpolation of the accepted
+    # ramp over the reusable window (nowhere near the repaired uniform-offset
+    # ladder, whose first steps jump by 2.5 deg chunks); the one step beyond
+    # the accepted window keeps the cold-seed value.
+    assert float(np.max(np.abs(warm_heading[:-1]))) <= 0.05 + 1.0e-12
+    assert float(np.max(np.abs(np.diff(warm_heading[:-1])))) < math.radians(2.5)
+    assert warm_heading[-1] == pytest.approx(0.0, abs=1.0e-12)
+
+
 def test_prewarm_capacity_serves_first_multiship_cycle_from_graph_cache() -> None:
     config = MidMpcConfig(strict_slack_bounds=True)
     solver = MidMpcIpoptSolver(config)

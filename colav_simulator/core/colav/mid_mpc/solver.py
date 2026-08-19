@@ -173,7 +173,10 @@ class MidMpcIpoptSolver:
                 self._config,
                 reuse_stop_k=reuse_stop_k,
             )
-        if self._config.strict_slack_bounds and problem.targets:
+        if self._config.strict_slack_bounds and problem.targets and primal_warm_start is None:
+            # Cold seeds only: a warm-started rolling projection that sits on
+            # hard rows mid-encounter carries accepted plan geometry that a
+            # uniform offset ramp would discard.
             repaired = _repair_infeasible_seed(graph, prepared, problem, self._config)
             if repaired is not None:
                 prepared = repaired
