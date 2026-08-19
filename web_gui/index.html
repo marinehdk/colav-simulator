@@ -6,19 +6,27 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist/openbridge.css" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260819-config-fidelity-3" />
+  <link rel="stylesheet" href="/static/style.css?v=20260819-c5-shell-topbar-3" />
 </head>
 <body>
   <div class="app-container">
 
-    <header class="product-shell-header" aria-label="Product navigation">
-      <obc-top-bar class="openbridge-topbar" apptitle="COLREGS Algorithm Playground" pagename=""></obc-top-bar>
+    <header class="product-shell-header responsive-topbar" aria-label="Product navigation">
+      <obc-top-bar class="openbridge-topbar" id="mainTopBar" apptitle="Colav-Simulator" pagename="" showappsbutton showdimmingbutton showappicon showuserbutton appbuttonbreakpointpx="0" dimmingbuttonbreakpointpx="0" appiconbreakpointpx="0" apptitlebreakpointpx="960" userbuttonbreakpointpx="1120">
+        <span class="collision-app-icon" slot="app-icon" aria-label="对遇避碰场景" title="对遇避碰场景"><obi-collision-avoidance-head-on></obi-collision-avoidance-head-on></span>
+        <span class="topbar-actions" slot="alerts" aria-label="通知、声音与系统设置">
+          <obc-clock class="topbar-time" id="topbarBeijingClock" showseconds timezoneoffsethours="8" aria-label="北京时间" title="北京时间"></obc-clock>
+          <obc-icon-button class="topbar-action" id="alertBtn" variant="flat" aria-label="提醒" title="提醒"><obi-alerts></obi-alerts></obc-icon-button>
+          <obc-icon-button class="topbar-action" id="soundBtn" variant="flat" aria-label="声音：已静音" title="声音：已静音"><obi-sound-muted></obi-sound-muted></obc-icon-button>
+          <obc-icon-button class="topbar-action" id="settingsBtn" variant="flat" aria-label="系统菜单" title="系统菜单" aria-expanded="false"><obi-settings-user-proposal></obi-settings-user-proposal></obc-icon-button>
+        </span>
+      </obc-top-bar>
       <nav class="workface-tabs" aria-label="Workfaces">
-        <button type="button" class="workface-tab active" data-workface="config" aria-selected="true">Config</button>
-        <button type="button" class="workface-tab" data-workface="deployment" aria-selected="false">Deployment</button>
-        <button type="button" class="workface-tab" data-workface="evaluation" aria-selected="false">Evaluation</button>
-        <button type="button" class="workface-tab" data-workface="scenario" aria-selected="false">Scenario</button>
-        <button type="button" class="workface-tab" data-workface="algorithm" aria-selected="false">Algorithm</button>
+        <button type="button" class="workface-tab active" data-workface="config" aria-selected="true"><obi-settings-user-proposal aria-hidden="true"></obi-settings-user-proposal><span>Config</span></button>
+        <button type="button" class="workface-tab" data-workface="deployment" aria-selected="false"><obi-media-play aria-hidden="true"></obi-media-play><span>Deployment</span></button>
+        <button type="button" class="workface-tab" data-workface="evaluation" aria-selected="false"><obi-list-alt-check-google aria-hidden="true"></obi-list-alt-check-google><span>Evaluation</span></button>
+        <button type="button" class="workface-tab" data-workface="scenario" aria-selected="false"><obi-collision-avoidance-head-on aria-hidden="true"></obi-collision-avoidance-head-on><span>Scenario</span></button>
+        <button type="button" class="workface-tab" data-workface="algorithm" aria-selected="false"><obi-router-component aria-hidden="true"></obi-router-component><span>Algorithm</span></button>
       </nav>
       <div class="shell-session-state" id="shellSessionState">NO SESSION</div>
     </header>
@@ -702,7 +710,7 @@
     <section class="workface roadmap-workface" data-workface-panel="algorithm" hidden><h2>Algorithm</h2><p>Algorithm and tracker catalog surface planned. Exact Tuple evidence remains authoritative in Config.</p></section>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260819-candidate3-projection"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260819-config-fidelity"></script>
+  <script type="module" src="/static/app.js?v=20260819-c5-shell-topbar"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260819-c5-shell-topbar"></script>
 </body>
 </html>

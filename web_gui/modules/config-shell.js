@@ -64,8 +64,16 @@ async function loadOpenBridge() {
     import(`${OPENBRIDGE_BASE}/components/number-input-field/number-input-field.js/+esm`),
     import(`${OPENBRIDGE_BASE}/components/scrollbar/scrollbar.js/+esm`),
     import(`${OPENBRIDGE_BASE}/components/button/button.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/components/clock/clock.js/+esm`),
     import(`${OPENBRIDGE_BASE}/icons/icon-chevron-left-google.js/+esm`),
     import(`${OPENBRIDGE_BASE}/icons/icon-chevron-right-google.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/icons/icon-alerts.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/icons/icon-sound-muted.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/icons/icon-settings-user-proposal.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/icons/icon-collision-avoidance-head-on.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/icons/icon-media-play.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/icons/icon-list-alt-check-google.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/icons/icon-router-component.js/+esm`),
   ]);
 }
 

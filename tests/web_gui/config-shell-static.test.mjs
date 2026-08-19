@@ -330,3 +330,42 @@ test('Review P3 fixes: single-card centering, inert ENC cards, dead rules remove
   assert.doesNotMatch(html, /<h3 id="validationAlgorithmName">/);
   assert.doesNotMatch(configCss, /\.roadmap-workface \{[^}]*var\(--ob/);
 });
+
+test('C5 pull-forward: shell background maps onto OpenBridge tokens (no dark base)', () => {
+  assert.match(styles, /body \{[^}]*background(?:-color)?: var\(--ob-app-bg\)/);
+  assert.match(styles, /body \{[^}]*color: var\(--ob-text\)/);
+  assert.match(styles, /\.product-shell-header \{[^}]*background: var\(--ob-topbar\)/);
+  assert.match(styles, /\.workface-tab\.active \{[^}]*background: var\(--ob-accent-pale\)/);
+  assert.doesNotMatch(styles, /\.product-shell-header \{[^}]*#f7f8f8/);
+  assert.doesNotMatch(styles, /body \{[^}]*var\(--bg-dark\)/);
+});
+
+test('C5 pull-forward: top bar populated with app icon, Beijing clock, and action buttons (gap #1)', () => {
+  assert.match(html, /slot="app-icon"/);
+  assert.match(html, /obi-collision-avoidance-head-on/);
+  assert.match(html, /<obc-clock[^>]*showseconds[^>]*timezoneoffsethours="8"/);
+  assert.match(html, /id="topbarBeijingClock"/);
+  for (const id of ['alertBtn', 'soundBtn', 'settingsBtn']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(html, /showappsbutton showdimmingbutton showappicon showuserbutton/);
+  assert.match(shell, /components\/clock\/clock\.js\/\+esm/);
+  assert.match(shell, /icons\/icon-alerts\.js\/\+esm/);
+  assert.match(shell, /icons\/icon-collision-avoidance-head-on\.js\/\+esm/);
+  assert.doesNotMatch(styles, /\.openbridge-topbar \{[^}]*pointer-events: none/);
+  assert.match(styles, /obc-clock:not\(:defined\)/);
+  assert.match(html, /id="shellSessionState"/);
+});
+
+test('C5 pull-forward: workface tabs carry icons and pressed-pill chrome (gap #2)', () => {
+  const tabIcons = {
+    config: 'obi-settings-user-proposal',
+    deployment: 'obi-media-play',
+    evaluation: 'obi-list-alt-check-google',
+    scenario: 'obi-collision-avoidance-head-on',
+    algorithm: 'obi-router-component',
+  };
+  for (const [workface, icon] of Object.entries(tabIcons)) {
+    assert.match(html, new RegExp(`data-workface="${workface}"[^>]*>\\s*<${icon}`));
+  }
+  assert.match(styles, /\.workface-tab \{[^}]*min-height: 40px/);
+  assert.match(styles, /\.workface-tab > obi-\[a-z-\] \{[^}]*width: 18px/);
+});

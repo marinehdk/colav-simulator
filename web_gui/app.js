@@ -2748,6 +2748,8 @@ function formatSystemTime(date = new Date()) {
 
 function updateBeijingClock() {
   setText('val-beijing-time', formatSystemTime());
+  const topbarClock = document.getElementById('topbarBeijingClock');
+  if (topbarClock) topbarClock.date = new Date();
   const snapshot = activeSessionRuntime.snapshot();
   if (snapshot.connection.status !== 'connected' && snapshot.telemetry.receivedAt !== null) {
     const labels = { connecting: '初始化', reconnecting: '重连', disconnected: '断连' };
