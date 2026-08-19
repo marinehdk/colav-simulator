@@ -279,9 +279,9 @@ body {
 .assembly-summary h2 { margin-bottom: 18px; font-size: 1.25rem; }
 .assembly-step { width: 100%; min-height: 62px; display: grid; grid-template-columns: 32px minmax(0, 1fr) 10px; gap: 2px var(--s-2); align-items: center; margin-bottom: 8px; padding: 10px 12px; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--ob-muted); text-align: left; cursor: pointer; }
 .assembly-step .step-circle { grid-row: 1 / span 2; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ob-track); color: var(--ob-muted); font: 700 11px/1 var(--font-mono); }
-.assembly-step strong { font-size: .82rem; }
+.assembly-step strong { min-width: 0; overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
 .assembly-step small { min-width: 0; overflow: hidden; color: var(--ob-subtle); font: 10px var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
-.assembly-step .step-state-dot { width: 8px; height: 8px; grid-row: 1 / span 2; border-radius: 50%; background: var(--ob-disabled); }
+.assembly-step .step-state-dot { grid-column: 3; grid-row: 1 / span 2; justify-self: end; width: 8px; height: 8px; border-radius: 50%; background: var(--ob-disabled); }
 .assembly-step[data-complete="true"] .step-state-dot { background: var(--ob-accent); }
 .assembly-step.active { border-color: var(--ob-border); background: var(--ob-accent-pale); color: var(--ob-text); box-shadow: inset 3px 0 0 var(--ob-accent); }
 .config-progress { margin-top: 18px; color: var(--ob-subtle); font: 700 10px var(--font-mono); }
