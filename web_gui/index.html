@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist/openbridge.css" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260818-candidate1-review" />
+  <link rel="stylesheet" href="/static/style.css?v=20260819-config-fidelity" />
 </head>
 <body>
   <div class="app-container">
@@ -30,10 +30,10 @@
       <aside class="assembly-steps" aria-label="Assembly Steps">
         <p class="shell-eyebrow">NEW SIMULATION</p>
         <h2>Assembly Steps</h2>
-        <button type="button" class="assembly-step active" data-config-step="rules"><span>01</span><strong>COLREG Rules</strong><small id="configStepRulesState">Loading</small></button>
-        <button type="button" class="assembly-step" data-config-step="scenarios"><span>02</span><strong>Verification Scenarios</strong><small id="configStepScenariosState">Loading</small></button>
-        <button type="button" class="assembly-step" data-config-step="algorithms"><span>03</span><strong>Verification Algorithms</strong><small id="configStepAlgorithmsState">Loading</small></button>
-        <button type="button" class="assembly-step" data-config-step="params"><span>04</span><strong>Verification Params</strong><small id="configStepParamsState">Loading</small></button>
+        <button type="button" class="assembly-step active" data-config-step="rules" aria-pressed="true" data-complete="false"><span class="step-circle">01</span><strong>COLREG Rules</strong><small id="configStepRulesState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
+        <button type="button" class="assembly-step" data-config-step="scenarios" aria-pressed="false" data-complete="false"><span class="step-circle">02</span><strong>Verification Scenarios</strong><small id="configStepScenariosState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
+        <button type="button" class="assembly-step" data-config-step="algorithms" aria-pressed="false" data-complete="false"><span class="step-circle">03</span><strong>Verification Algorithms</strong><small id="configStepAlgorithmsState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
+        <button type="button" class="assembly-step" data-config-step="params" aria-pressed="false" data-complete="false"><span class="step-circle">04</span><strong>Verification Params</strong><small id="configStepParamsState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
         <div class="config-progress" aria-label="Assembly readiness"><span id="configProgressLabel">Loading authority</span><div><i id="configProgressBar"></i></div></div>
         <div class="draft-state" id="validationDraftState">Loading capability catalog…</div>
         <button type="button" class="retry-catalog" id="retryCapabilityCatalog" disabled hidden>Retry catalog &amp; current session</button>
@@ -50,10 +50,7 @@
               <div slot="title" class="config-card-title"><strong id="validationRuleImageTitle">Rule guide</strong><small>Reference illustration</small></div>
               <div class="rule-guide-media">
                 <img id="validationRuleImage" src="/static/assets/openbridge/Rule14.png" alt="COLREG Rule 14 reference illustration">
-                <div class="rule-image-switch" id="validationRuleImageSwitch" hidden>
-                  <button type="button" data-rule-image-index="0" aria-label="Show Rule 16 image">Rule 16</button>
-                  <button type="button" data-rule-image-index="1" aria-label="Show Rule 17 image">Rule 17</button>
-                </div>
+                <div class="rule-guide-actions" id="validationRuleImageSwitch" hidden></div>
               </div>
             </obc-card>
           </div>
@@ -63,8 +60,30 @@
             <obc-card class="config-obc-card">
               <div slot="title" class="config-card-title"><span>02</span><strong>Verification Scenarios</strong><small>Scenario plus associated ENC reference</small></div>
               <div class="config-card-content scenario-selectors">
-                <label>Scenario<select id="validationScenario" disabled></select></label>
-                <label>ENC reference<select id="validationEnc" disabled><option>Loading</option></select></label>
+                <div class="scenario-section">
+                  <div class="scenario-section-heading">
+                    <p class="subsection-label">Scenario</p>
+                    <div class="scenario-carousel-controls" id="validationScenarioControls" hidden>
+                      <obc-icon-button id="previousScenarioBtn" variant="normal" aria-label="上一批场景">‹</obc-icon-button>
+                      <obc-icon-button id="nextScenarioBtn" variant="normal" aria-label="下一批场景">›</obc-icon-button>
+                    </div>
+                  </div>
+                  <obc-scrollbar class="scenario-scrollbar" id="validationScenarioScrollbar">
+                    <div class="scenario-choice-grid" id="validationScenarioChoices" role="radiogroup" aria-label="Verification scenario"></div>
+                  </obc-scrollbar>
+                </div>
+                <div class="scenario-section">
+                  <div class="scenario-section-heading">
+                    <p class="subsection-label">ENC reference</p>
+                    <div class="scenario-carousel-controls" id="validationEncControls" hidden>
+                      <obc-icon-button id="previousEncBtn" variant="normal" aria-label="上一批 ENC 海图">‹</obc-icon-button>
+                      <obc-icon-button id="nextEncBtn" variant="normal" aria-label="下一批 ENC 海图">›</obc-icon-button>
+                    </div>
+                  </div>
+                  <obc-scrollbar class="scenario-scrollbar" id="validationEncScrollbar">
+                    <div class="scenario-choice-grid" id="validationEncChoices" role="radiogroup" aria-label="ENC reference"></div>
+                  </obc-scrollbar>
+                </div>
                 <dl class="scenario-facts" id="validationScenarioFacts"></dl>
               </div>
             </obc-card>
@@ -72,6 +91,9 @@
               <div slot="title" class="config-card-title"><strong>Initial ENC Situation</strong><small>Reference preview · not live telemetry</small></div>
               <div class="scenario-preview">
                 <img id="validationScenarioImage" src="/static/assets/openbridge/romsdal-head-on-seacharts.png" alt="Romsdal reference ENC preview">
+                <div class="scenario-placeholder" id="validationScenarioPlaceholder" hidden></div>
+                <svg class="scenario-preview-overlay" id="validationScenarioOverlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+                <div class="scenario-preview-markers" id="validationScenarioMarkers" aria-hidden="true"></div>
                 <div class="reference-preview-badge">REFERENCE PREVIEW · NOT LIVE</div>
                 <div class="scenario-preview-copy" id="validationScenarioPreview">Scenario metadata loads from capability catalog.</div>
               </div>
@@ -82,16 +104,51 @@
           <div class="algorithm-step-layout">
             <obc-card class="config-obc-card">
               <div slot="title" class="config-card-title"><span>03</span><strong>Verification Algorithms</strong><small>Real integration catalog</small></div>
-              <div class="config-card-content form-grid">
-                <label>Avoidance Algorithm<select id="validationAlgorithm" disabled></select></label>
-                <label>Tracker<select id="validationTracker" disabled></select></label>
+              <div class="config-card-content algorithm-selection-row">
+                <div class="algorithm-section">
+                  <div class="scenario-section-heading">
+                    <p class="subsection-label">Avoidance Algorithm</p>
+                    <div class="scenario-carousel-controls" id="validationAlgorithmControls" hidden>
+                      <obc-icon-button id="previousAlgorithmBtn" variant="normal" aria-label="上一批算法">‹</obc-icon-button>
+                      <obc-icon-button id="nextAlgorithmBtn" variant="normal" aria-label="下一批算法">›</obc-icon-button>
+                    </div>
+                  </div>
+                  <obc-scrollbar class="scenario-scrollbar" id="validationAlgorithmScrollbar">
+                    <div class="scenario-choice-grid" id="validationAlgorithmChoices" role="radiogroup" aria-label="Avoidance algorithm"></div>
+                  </obc-scrollbar>
+                </div>
+                <div class="tracker-section">
+                  <p class="subsection-label">Tracker</p>
+                  <div class="tracker-choice-grid" id="validationTrackerChoices" role="radiogroup" aria-label="Tracker"></div>
+                </div>
               </div>
             </obc-card>
             <obc-card class="config-obc-card algorithm-detail-card">
-              <div slot="title" class="config-card-title"><strong>Selected Combination</strong><small id="validationTupleId">Exact Tuple pending</small></div>
+              <div slot="title" class="config-card-title"><strong>Selected Combination</strong><small>Exact Tuple binding</small></div>
               <div class="config-card-content algorithm-detail-grid">
-                <section><h3 id="validationAlgorithmName">Algorithm</h3><div class="metadata-flow" id="validationAlgorithmFlow"></div><dl id="validationAlgorithmFacts"></dl></section>
-                <section><h3 id="validationTrackerName">Tracker</h3><div class="metadata-flow" id="validationTrackerFlow"></div><dl id="validationTrackerFacts"></dl></section>
+                <section class="algorithm-detail-pane">
+                  <div class="algorithm-detail-header">
+                    <div class="algorithm-detail-eyebrow"><span>Avoidance Algorithm</span><span class="algorithm-detail-grade" id="validationAlgorithmGrade">G0</span></div>
+                    <h2 id="validationAlgorithmName">Algorithm</h2>
+                    <p class="algorithm-detail-summary" id="validationAlgorithmSummary"></p>
+                  </div>
+                  <div class="metadata-flow" id="validationAlgorithmFlow"></div>
+                  <dl id="validationAlgorithmFacts"></dl>
+                </section>
+                <section class="algorithm-detail-pane">
+                  <div class="algorithm-detail-header">
+                    <div class="algorithm-detail-eyebrow"><span>Tracker</span><span class="algorithm-detail-grade" id="validationTrackerGrade">G0</span></div>
+                    <h2 id="validationTrackerName">Tracker</h2>
+                    <p class="algorithm-detail-summary" id="validationTrackerSummary"></p>
+                  </div>
+                  <div class="metadata-flow" id="validationTrackerFlow"></div>
+                  <dl id="validationTrackerFacts"></dl>
+                </section>
+              </div>
+              <div class="algorithm-binding">
+                <div class="algorithm-binding-icon" aria-hidden="true">§</div>
+                <div class="algorithm-binding-copy"><strong>Exact tuple compatible</strong><span>Binding honors the capability catalog classification below.</span></div>
+                <span class="algorithm-binding-id" id="validationTupleId">Exact Tuple pending</span>
               </div>
               <div class="classification-card" id="validationClassification">Exact Tuple pending</div>
               <div class="evidence-detail" id="validationEvidenceDetail"></div>
@@ -102,18 +159,48 @@
           <div class="param-step-layout">
             <obc-card class="config-obc-card">
               <div slot="title" class="config-card-title"><span>04</span><strong>Verification Params</strong><small>Editable Web create fields</small></div>
-              <div class="config-card-content form-grid params-grid">
-                <label>Seed<input id="validationSeed" type="number" min="0" step="1" disabled></label>
-                <label>Episode index<input id="validationEpisode" type="number" min="0" step="1" disabled></label>
-                <label>dt <small>blank = Scenario default</small><input id="validationDt" type="number" min="0" step="any" placeholder="Scenario default" disabled></label>
-                <label>t_end <small>blank = Scenario default</small><input id="validationTEnd" type="number" min="0" step="any" placeholder="Scenario default" disabled></label>
+              <div class="config-card-content params" id="validationParamsFields">
+                <section class="parameter-group" aria-labelledby="validationReproLabel">
+                  <p class="parameter-group-title" id="validationReproLabel">Reproducibility</p>
+                  <div class="parameter-fields">
+                    <obc-number-input-field id="validationSeed" name="seed" label="Seed" helpertext="Integer, minimum 0" disabled></obc-number-input-field>
+                    <obc-number-input-field id="validationEpisode" name="episode" label="Episode index" helpertext="Integer, minimum 0" disabled></obc-number-input-field>
+                  </div>
+                </section>
+                <section class="parameter-group" aria-labelledby="validationClockLabel">
+                  <p class="parameter-group-title" id="validationClockLabel">Simulation Clock</p>
+                  <div class="parameter-fields">
+                    <obc-number-input-field id="validationDt" name="dt" label="dt" unit="s" helpertext="Blank = scenario default" disabled></obc-number-input-field>
+                    <obc-number-input-field id="validationTEnd" name="t_end" label="t_end" unit="s" helpertext="Blank = scenario default" disabled></obc-number-input-field>
+                  </div>
+                </section>
               </div>
             </obc-card>
             <obc-card class="config-obc-card execution-plan-card">
               <div slot="title" class="config-card-title"><strong>Session Execution Plan</strong><small>Run Specification semantics</small></div>
-              <div class="config-card-content">
+              <div class="config-card-content execution-plan-content">
                 <div class="plan-metrics" id="validationPlanMetrics"></div>
-                <dl class="execution-facts" id="validationExecutionPlan"></dl>
+                <div class="execution-plan-grid">
+                  <section class="execution-plan-section" aria-labelledby="validationSessionClockHeading">
+                    <h3 id="validationSessionClockHeading">Session Clock</h3>
+                    <div class="session-timeline" id="validationSessionClock">
+                      <div class="session-timeline-track"><span class="session-timeline-marker start"></span><span class="session-timeline-marker end"></span></div>
+                      <div class="session-timeline-labels"><span id="validationTimelineStart">--</span><span id="validationTimelineEnd">--</span></div>
+                    </div>
+                    <dl class="execution-facts" id="validationExecutionPlan"></dl>
+                  </section>
+                  <section class="execution-plan-section" aria-labelledby="validationSeedsHeading">
+                    <h3 id="validationSeedsHeading">Deterministic Seeds</h3>
+                    <div class="seed-root"><span>Base seed</span><strong id="validationSeedRoot">--</strong></div>
+                    <div class="seed-streams" id="validationSeedStreams" hidden></div>
+                    <p class="locked-setting">Derived seed streams are backend-owned; Config does not invent stream values.</p>
+                  </section>
+                </div>
+                <footer class="execution-plan-footer">
+                  <span class="execution-plan-footer-icon" aria-hidden="true">§</span>
+                  <span class="execution-plan-footer-copy"><strong>Fixed during execution</strong><span>RunSpec is immutable once the session is created.</span></span>
+                  <span class="execution-plan-state" id="validationPlanState" data-valid="false">INVALID</span>
+                </footer>
                 <div class="contract-boundary"><strong>Not exposed by Web create contract</strong><span>Deadline mode, incident-stop policy, and artifact inventory remain backend-owned; Config does not invent values.</span></div>
               </div>
             </obc-card>
@@ -123,12 +210,23 @@
 
       <aside class="assembly-summary" aria-label="Session Assembly">
         <p class="shell-eyebrow">SESSION ASSEMBLY</p>
-        <obc-card class="config-obc-card summary-card"><div slot="title" class="config-card-title"><strong>Config Summary</strong></div><dl id="validationSummary"></dl></obc-card>
-        <obc-card class="config-obc-card contract-card"><div slot="title" class="config-card-title"><strong>Config Contract</strong><small>Exact immutable create payload</small></div><pre id="validationContract"></pre></obc-card>
+        <obc-card class="config-obc-card assembly-card">
+          <div slot="title" class="config-card-title assembly-title"><strong>Session Assembly</strong><span class="assembly-status" id="validationAssemblyStatus" data-ready="false">DRAFT</span></div>
+          <div class="assembly-card-content">
+            <section class="assembly-section">
+              <h2>Config Summary</h2>
+              <div class="assembly-section-body"><dl id="validationSummary"></dl></div>
+            </section>
+            <section class="assembly-section">
+              <h2>Config Contract</h2>
+              <div class="assembly-section-body assembly-contract-body"><pre id="validationContract"></pre></div>
+            </section>
+          </div>
+        </obc-card>
         <div class="assembly-notices" id="validationNotices" aria-live="polite"></div>
         <div class="assembly-actions">
-          <button type="button" id="validationDefault" disabled>Default</button>
-          <button type="button" class="create-action" id="validationCreate" disabled>Create</button>
+          <obc-button id="validationDefault" disabled>Default</obc-button>
+          <obc-button class="create-action" id="validationCreate" disabled>Create</obc-button>
         </div>
       </aside>
     </section>
@@ -605,6 +703,6 @@
   </div>
 
   <script type="module" src="/static/app.js?v=20260819-candidate3-projection"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260819-candidate3-projection"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260819-config-fidelity"></script>
 </body>
 </html>

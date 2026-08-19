@@ -56,6 +56,17 @@ async function loadOpenBridge() {
   } catch (error) {
     showOpenBridgeError(error);
   }
+  // Config-interior components load best-effort from the same pin; native fallback
+  // content keeps the workface usable when any of these requests fails.
+  await Promise.allSettled([
+    import(`${OPENBRIDGE_BASE}/components/elevated-card/elevated-card.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/components/icon-button/icon-button.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/components/number-input-field/number-input-field.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/components/scrollbar/scrollbar.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/components/button/button.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/icons/icon-chevron-left-google.js/+esm`),
+    import(`${OPENBRIDGE_BASE}/icons/icon-chevron-right-google.js/+esm`),
+  ]);
 }
 
 function switchWorkface(name) {
@@ -74,17 +85,161 @@ function optionLabel(item) {
   return item.name || item.display_name || item.id;
 }
 
-function populateSelect(id, items, selected) {
-  const select = document.getElementById(id);
-  select.replaceChildren(...items.map((item) => {
-    const option = document.createElement('option');
-    option.value = item.id;
-    option.textContent = optionLabel(item);
-    option.disabled = !item.enabled;
-    option.title = item.incompatibility_reason || item.known_failure || '';
-    return option;
+const CAROUSEL_CONFIGS = {
+  scenario: { scrollbar: 'validationScenarioScrollbar', choices: 'validationScenarioChoices', controls: 'validationScenarioControls', previous: 'previousScenarioBtn', next: 'nextScenarioBtn' },
+  enc: { scrollbar: 'validationEncScrollbar', choices: 'validationEncChoices', controls: 'validationEncControls', previous: 'previousEncBtn', next: 'nextEncBtn' },
+  algorithm: { scrollbar: 'validationAlgorithmScrollbar', choices: 'validationAlgorithmChoices', controls: 'validationAlgorithmControls', previous: 'previousAlgorithmBtn', next: 'nextAlgorithmBtn' },
+};
+
+function carouselViewport(name) {
+  const config = CAROUSEL_CONFIGS[name];
+  const scrollbar = document.getElementById(config.scrollbar);
+  if (!scrollbar) return null;
+  return scrollbar.shadowRoot?.querySelector('.wrapper') || scrollbar;
+}
+
+function updateCarouselControls(name) {
+  const config = CAROUSEL_CONFIGS[name];
+  const viewport = carouselViewport(name);
+  if (!viewport) return;
+  const tolerance = 2;
+  document.getElementById(config.previous).disabled = viewport.scrollLeft <= tolerance;
+  document.getElementById(config.next).disabled = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - tolerance;
+}
+
+function moveCarousel(name, direction) {
+  const config = CAROUSEL_CONFIGS[name];
+  const viewport = carouselViewport(name);
+  const choices = document.getElementById(config.choices);
+  const card = choices?.querySelector('.choice, .choice-card');
+  if (!viewport || !card) return;
+  const gap = parseFloat(getComputedStyle(choices).columnGap) || 0;
+  viewport.scrollBy({ left: direction * (card.getBoundingClientRect().width + gap), behavior: 'smooth' });
+  requestAnimationFrame(() => updateCarouselControls(name));
+}
+
+// The obc-scrollbar's real scroller is its shadow-DOM `.wrapper`; scroll events there
+// do not bubble to the host, so listeners are bound on whichever viewport is live and
+// re-bound after the custom element upgrades.
+const boundViewports = new Map();
+const viewportObservers = new WeakMap();
+
+function bindCarouselScroll(name) {
+  const viewport = carouselViewport(name);
+  if (!viewport) return;
+  if (boundViewports.get(name) === viewport) return;
+  boundViewports.set(name, viewport);
+  viewport.style.scrollSnapType = 'x mandatory';
+  viewport.addEventListener('scroll', () => updateCarouselControls(name), { passive: true });
+  // Hidden panels report clientWidth/scrollWidth of 0, so bounds measured at
+  // bind time are meaningless; a ResizeObserver re-measures once layout exists
+  // (panel shown, window resized).
+  if (!viewportObservers.has(viewport)) {
+    const observer = new ResizeObserver(() => updateCarouselControls(name));
+    viewportObservers.set(viewport, observer);
+    observer.observe(viewport);
+  }
+}
+
+function rebindCarouselScrollers() {
+  for (const name of Object.keys(CAROUSEL_CONFIGS)) bindCarouselScroll(name);
+  for (const name of Object.keys(CAROUSEL_CONFIGS)) updateCarouselControls(name);
+}
+
+function renderChoiceCarousel(name, items, selectedId, locked) {
+  const config = CAROUSEL_CONFIGS[name];
+  const container = document.getElementById(config.choices);
+  if (!container) return;
+  container.replaceChildren(...items.map((item) => {
+    const card = makeChoiceCard({
+      id: item.id,
+      name: optionLabel(item),
+      desc: item.desc || `${item.readiness_grade || ''}`.trim(),
+      grade: item.grade || item.readiness_grade || '',
+      reason: item.incompatibility_reason || item.known_failure || '',
+    }, {
+      enabled: !locked && item.enabled !== false,
+      selected: item.id === selectedId,
+    });
+    card.dataset.choiceId = item.id;
+    return card;
   }));
-  select.value = selected || '';
+  container.dataset.count = String(items.length);
+  const controls = document.getElementById(config.controls);
+  controls.hidden = items.length <= 2;
+  requestAnimationFrame(() => updateCarouselControls(name));
+}
+
+function bindCarousel(name) {
+  const config = CAROUSEL_CONFIGS[name];
+  document.getElementById(config.previous).addEventListener('click', () => moveCarousel(name, -1));
+  document.getElementById(config.next).addEventListener('click', () => moveCarousel(name, 1));
+  bindCarouselScroll(name);
+}
+
+function elevatedCardAvailable() {
+  return Boolean(customElements.get('obc-elevated-card'));
+}
+
+function renderNativeChoiceCard(item, { enabled, selected }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'choice-card';
+  button.dataset.choiceId = item.id;
+  button.disabled = !enabled;
+  button.setAttribute('role', 'radio');
+  button.setAttribute('aria-checked', String(selected));
+  button.setAttribute('aria-pressed', String(selected));
+  if (item.reason && !enabled) button.title = item.reason;
+  const title = document.createElement('strong');
+  title.textContent = item.name;
+  const detail = document.createElement('span');
+  detail.textContent = item.desc;
+  const grade = document.createElement('em');
+  grade.textContent = item.grade || '';
+  button.append(title, detail, grade);
+  return button;
+}
+
+function makeChoiceCard(item, { enabled = true, selected = false } = {}) {
+  if (!elevatedCardAvailable()) return renderNativeChoiceCard(item, { enabled, selected });
+  const card = document.createElement('obc-elevated-card');
+  card.className = 'choice';
+  card.size = 'double-line';
+  card.hasStatus = true;
+  card.dataset.choiceId = item.id;
+  card.disabled = !enabled;
+  card.activated = selected;
+  card.style.pointerEvents = enabled ? '' : 'none';
+  card.style.opacity = enabled ? '' : '.56';
+  card.setAttribute('aria-pressed', String(selected));
+  card.setAttribute('role', 'button');
+  card.setAttribute('tabindex', enabled ? '0' : '-1');
+  card.setAttribute('aria-disabled', String(!enabled));
+  if (item.reason && !enabled) card.title = item.reason;
+  const label = document.createElement('span');
+  label.className = 'choice-name';
+  label.slot = 'label';
+  label.textContent = item.name;
+  const description = document.createElement('span');
+  description.className = 'choice-description';
+  description.slot = 'description';
+  description.textContent = item.desc;
+  const grade = document.createElement('span');
+  grade.className = 'choice-grade';
+  grade.slot = 'status';
+  grade.textContent = item.grade || '';
+  card.append(label, description, grade);
+  card.addEventListener('click', (event) => {
+    if (!enabled) event.stopImmediatePropagation();
+  });
+  card.addEventListener('keydown', (event) => {
+    if (enabled && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      card.click();
+    }
+  });
+  return card;
 }
 
 function renderRuleChoices(snapshot) {
@@ -92,19 +247,18 @@ function renderRuleChoices(snapshot) {
   const selected = snapshot.draft?.validation_rule_id;
   const visibleRules = new Set(['rule13', 'rule14', 'rule15', 'multiship']);
   container.replaceChildren(...(snapshot.options.validation_rule_id || []).filter((item) => visibleRules.has(item.id)).map((item) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'choice-card';
-    button.dataset.ruleId = item.id;
-    button.disabled = snapshot.readOnly || snapshot.creating || !item.enabled;
-    button.setAttribute('role', 'radio');
-    button.setAttribute('aria-checked', String(item.id === selected));
-    const title = document.createElement('strong');
-    title.textContent = item.id.toUpperCase();
-    const detail = document.createElement('span');
-    detail.textContent = `${item.readiness_grade || 'G0'} · ${item.enabled ? 'Selectable' : 'Unavailable'}`;
-    button.append(title, detail);
-    return button;
+    const card = makeChoiceCard({
+      id: item.id,
+      name: item.id.toUpperCase(),
+      desc: `${item.readiness_grade || 'G0'} · ${item.enabled ? 'Selectable' : 'Unavailable'}`,
+      grade: item.readiness_grade || 'G0',
+      reason: item.incompatibility_reason || item.known_failure || '',
+    }, {
+      enabled: !snapshot.readOnly && !snapshot.creating && item.enabled,
+      selected: item.id === selected,
+    });
+    card.dataset.ruleId = item.id;
+    return card;
   }));
 }
 
@@ -144,18 +298,37 @@ function renderRuleGuide(snapshot) {
     ? `Multi-ship guide · Rule ${16 + index}`
     : `${ruleId.toUpperCase()} guide`;
   const controls = document.getElementById('validationRuleImageSwitch');
-  controls.hidden = ruleId !== 'multiship';
-  controls.querySelectorAll('button').forEach((button) => {
-    button.classList.toggle('active', Number(button.dataset.ruleImageIndex) === index);
-  });
+  controls.hidden = ruleId !== 'multiship' || sources.length <= 1;
+  controls.replaceChildren(...[-1, 1].map((direction) => {
+    const nextIndex = index + direction;
+    const label = direction < 0 ? '查看上一条规则图片' : '查看下一条规则图片';
+    let button;
+    if (customElements.get('obc-icon-button')) {
+      button = document.createElement('obc-icon-button');
+      button.variant = 'normal';
+      button.innerHTML = direction < 0
+        ? '<obi-chevron-left-google></obi-chevron-left-google>'
+        : '<obi-chevron-right-google></obi-chevron-right-google>';
+    } else {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = direction < 0 ? '‹' : '›';
+    }
+    button.disabled = nextIndex < 0 || nextIndex >= sources.length;
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    button.dataset.ruleImageIndex = String(nextIndex);
+    button.dataset.odId = direction < 0 ? 'previous-rule-guide-image' : 'next-rule-guide-image';
+    return button;
+  }));
 }
 
 function renderScenarioDetail(snapshot) {
   if (!snapshot.draft) return;
   const scenario = selectedCatalogItem(snapshot, 'scenarios', snapshot.draft.scenario_id);
   const chart = scenarioChartId(snapshot.draft.scenario_id);
-  const enc = document.getElementById('validationEnc');
-  enc.replaceChildren(new Option(`${chart} · derived reference`, chart.toLowerCase(), true, true));
+  renderChoiceCarousel('scenario', snapshot.options.scenario_id || [], snapshot.draft.scenario_id, snapshot.readOnly || snapshot.creating);
+  renderChoiceCarousel('enc', [{ id: chart.toLowerCase(), name: chart, desc: 'Derived reference', grade: 'ENC' }], chart.toLowerCase(), false);
   replaceDefinitionRows(document.getElementById('validationScenarioFacts'), [
     ['Scenario ID', snapshot.draft.scenario_id],
     ['Type', scenario?.type],
@@ -164,10 +337,70 @@ function renderScenarioDetail(snapshot) {
     ['Catalog source', scenario?.provenance?.source || scenario?.source],
   ]);
   const image = document.getElementById('validationScenarioImage');
+  const placeholder = document.getElementById('validationScenarioPlaceholder');
   image.hidden = chart !== 'Romsdal';
+  placeholder.hidden = chart === 'Romsdal';
+  if (chart !== 'Romsdal') {
+    placeholder.replaceChildren();
+    const title = document.createElement('strong');
+    title.textContent = `${chart} ENC region`;
+    const note = document.createElement('span');
+    note.textContent = 'No bundled reference image for this region. Reference frame only — no geography is invented; live ENC remains in Deployment.';
+    placeholder.append(title, note);
+  }
   document.getElementById('validationScenarioPreview').textContent = chart === 'Romsdal'
     ? `${scenario?.name || snapshot.draft.scenario_id} · catalog metadata paired with static Romsdal reference image. Live ENC remains in Deployment.`
     : `${scenario?.name || snapshot.draft.scenario_id} · no production reference image is bundled for ${chart}. Live ENC remains in Deployment.`;
+  renderScenarioOverlay(scenario);
+}
+
+// Gap #12: static SVG overlay drawn ONLY from geometry the capability catalog already
+// exposes (scenario.overlay_geometry). Every layer is omitted when its geometry is
+// missing — no coordinates, headings, or scale values are ever invented.
+function renderScenarioOverlay(scenario) {
+  const overlay = document.getElementById('validationScenarioOverlay');
+  const markers = document.getElementById('validationScenarioMarkers');
+  overlay.replaceChildren();
+  markers.replaceChildren();
+  const geometry = scenario?.overlay_geometry;
+  if (!geometry) return;
+  const svg = 'http://www.w3.org/2000/svg';
+  if (Array.isArray(geometry.corridor)) {
+    const polygon = document.createElementNS(svg, 'polygon');
+    polygon.setAttribute('class', 'route-corridor');
+    polygon.setAttribute('points', geometry.corridor.map(([x, y]) => `${x},${y}`).join(' '));
+    overlay.append(polygon);
+  }
+  if (Array.isArray(geometry.boundary)) {
+    const polyline = document.createElementNS(svg, 'polyline');
+    polyline.setAttribute('class', 'route-boundary');
+    polyline.setAttribute('points', geometry.boundary.map(([x, y]) => `${x},${y}`).join(' '));
+    overlay.append(polyline);
+  }
+  if (Array.isArray(geometry.centerline)) {
+    const polyline = document.createElementNS(svg, 'polyline');
+    polyline.setAttribute('class', 'route-centerline');
+    polyline.setAttribute('points', geometry.centerline.map(([x, y]) => `${x},${y}`).join(' '));
+    overlay.append(polyline);
+  }
+  if (Array.isArray(geometry.vessels)) {
+    for (const vessel of geometry.vessels) {
+      if (!Number.isFinite(vessel.x) || !Number.isFinite(vessel.y)) continue;
+      const marker = document.createElement('div');
+      marker.className = `scenario-vessel-marker ${vessel.type === 'own' ? 'own' : 'target'}`;
+      marker.style.left = `${vessel.x}%`;
+      marker.style.top = `${vessel.y}%`;
+      marker.style.setProperty('--marker-heading', `${vessel.heading || 0}deg`);
+      const symbol = document.createElement('div');
+      symbol.className = 'scenario-vessel-symbol';
+      symbol.textContent = vessel.type === 'own' ? 'OS' : 'TS';
+      const label = document.createElement('span');
+      label.className = 'scenario-vessel-label';
+      label.textContent = vessel.label || '';
+      marker.append(symbol, label);
+      markers.append(marker);
+    }
+  }
 }
 
 function integrationFacts(item) {
@@ -204,8 +437,32 @@ function renderAlgorithmDetail(snapshot) {
   const draft = snapshot.draft;
   const algorithm = selectedCatalogItem(snapshot, 'algorithms', draft.algorithm_id);
   const tracker = selectedCatalogItem(snapshot, 'trackers', draft.tracker_id);
-  document.getElementById('validationAlgorithmName').textContent = draft.algorithm_id;
-  document.getElementById('validationTrackerName').textContent = draft.tracker_id;
+  renderChoiceCarousel('algorithm', snapshot.options.algorithm_id || [], draft.algorithm_id, snapshot.readOnly || snapshot.creating);
+  const trackerLocked = snapshot.readOnly || snapshot.creating;
+  document.getElementById('validationTrackerChoices').replaceChildren(...(snapshot.options.tracker_id || []).map((item) => {
+    const card = makeChoiceCard({
+      id: item.id,
+      name: optionLabel(item),
+      desc: item.readiness_grade || '',
+      grade: item.readiness_grade || '',
+      reason: item.incompatibility_reason || item.known_failure || '',
+    }, {
+      enabled: !trackerLocked && item.enabled,
+      selected: item.id === draft.tracker_id,
+    });
+    card.dataset.choiceId = item.id;
+    return card;
+  }));
+  document.getElementById('validationAlgorithmName').textContent = optionLabel(algorithm || { id: draft.algorithm_id });
+  document.getElementById('validationTrackerName').textContent = optionLabel(tracker || { id: draft.tracker_id });
+  document.getElementById('validationAlgorithmGrade').textContent = `${algorithm?.readiness_grade || 'G0'} · ${algorithm?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
+  document.getElementById('validationTrackerGrade').textContent = `${tracker?.readiness_grade || 'G0'} · ${tracker?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
+  document.getElementById('validationAlgorithmSummary').textContent = algorithm?.known_failure
+    ? `Known failure reported by catalog: ${algorithm.known_failure}`
+    : 'Registered integration; no failure reported by the catalog.';
+  document.getElementById('validationTrackerSummary').textContent = tracker?.known_failure
+    ? `Known failure reported by catalog: ${tracker.known_failure}`
+    : 'Registered integration; no failure reported by the catalog.';
   document.getElementById('validationTupleId').textContent = [
     draft.validation_rule_id,
     draft.scenario_id,
@@ -229,6 +486,102 @@ function renderAlgorithmDetail(snapshot) {
   document.getElementById('validationEvidenceDetail').textContent = evidence
     ? `Latest catalog evidence · seed ${evidence.seed ?? 'not exposed'} · termination ${evidence.termination ?? 'not exposed'} · predicate ${exact.predicate_version || 'not exposed'}`
     : `${snapshot.classification} tuple · no latest_evidence payload exposed for this selection.`;
+}
+
+const PARAM_FIELD_IDS = {
+  seed: 'validationSeed',
+  episode_index: 'validationEpisode',
+  dt: 'validationDt',
+  t_end: 'validationTEnd',
+};
+
+function setNumberFieldValue(id, value) {
+  const field = document.getElementById(id);
+  if (!field) return;
+  const text = value ?? '';
+  if (field.tagName === 'INPUT' || 'value' in field) field.value = String(text);
+  else field.setAttribute('value', String(text));
+}
+
+function renderParamErrors(snapshot) {
+  // Lazy-rebind hook: params render every pass, so any binding missed due to
+  // upgrade timing (shadow input created after the last bind pass) is repaired
+  // here; the WeakSet guard makes this a no-op once correctly bound.
+  rebindNumberFields();
+  for (const [name, id] of Object.entries(PARAM_FIELD_IDS)) {
+    const message = snapshot.validationErrors?.[name] || '';
+    const field = document.getElementById(id);
+    if (!field) continue;
+    const invalid = Boolean(message);
+    if (field.tagName === 'OBC-NUMBER-INPUT-FIELD' && 'error' in field) {
+      field.error = invalid;
+      field.errorText = invalid ? message : '';
+      field.classList.remove('field-error');
+      field.removeAttribute('aria-invalid');
+      field.title = '';
+    } else {
+      field.setAttribute('aria-invalid', String(invalid));
+      field.classList.toggle('field-error', invalid);
+      field.title = invalid ? message : '';
+    }
+  }
+}
+
+// Progressive fallback: if the CDN number-input component never defines, swap in
+// native inputs with the same ids so the params step stays usable.
+function ensureNumberFields() {
+  if (customElements.get('obc-number-input-field')) return;
+  for (const id of Object.values(PARAM_FIELD_IDS)) {
+    const field = document.getElementById(id);
+    if (!field || field.tagName !== 'OBC-NUMBER-INPUT-FIELD') continue;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '0';
+    input.step = (id === 'validationSeed' || id === 'validationEpisode') ? '1' : 'any';
+    input.id = id;
+    if (field.hasAttribute('disabled')) input.disabled = true;
+    field.replaceWith(input);
+  }
+  rebindNumberFields();
+}
+
+const NUMERIC_PARAMS = [
+  ['validationSeed', 'seed', false],
+  ['validationEpisode', 'episode_index', false],
+  ['validationDt', 'dt', true],
+  ['validationTEnd', 't_end', true],
+];
+const lastParamCommit = new Map();
+const boundNumberTargets = new WeakSet();
+
+function commitParamEdit(field, nullable, event) {
+  // Read from the event target itself: the host element's value property can be
+  // stale when the keystroke happened inside the component's shadow input.
+  const value = String(event.target.value ?? '');
+  const committed = nullable && value === '' ? null : Number(value);
+  if (lastParamCommit.get(field) === String(committed)) return;
+  lastParamCommit.set(field, String(committed));
+  edit(field, committed);
+}
+
+// obc-number-input-field@1.0.1 only updates this.value from an internal @input
+// handler and emits no `change`; worse, shadow-origin input events do not reliably
+// bubble/retarget to light-DOM listeners in every environment. So — same pattern
+// as the carousel scroller rebind — listeners are bound DIRECTLY on the inner
+// shadow input once the component upgrades. Without a shadowRoot (component
+// failed / native fallback input) the host element itself is the target.
+function bindNumberField(id, field, nullable) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  const target = element.shadowRoot?.querySelector('input') || element;
+  if (boundNumberTargets.has(target)) return;
+  boundNumberTargets.add(target);
+  target.addEventListener('input', (event) => commitParamEdit(field, nullable, event));
+  target.addEventListener('change', (event) => commitParamEdit(field, nullable, event));
+}
+
+function rebindNumberFields() {
+  for (const [id, field, nullable] of NUMERIC_PARAMS) bindNumberField(id, field, nullable);
 }
 
 function renderExecutionPlan(snapshot) {
@@ -256,6 +609,15 @@ function renderExecutionPlan(snapshot) {
     card.append(name, output);
     return card;
   }));
+  document.getElementById('validationTimelineStart').textContent = Number.isFinite(tStart) ? `${tStart} s` : '--';
+  document.getElementById('validationTimelineEnd').textContent = Number.isFinite(tEnd) ? `${tEnd} s` : '--';
+  document.getElementById('validationSeedRoot').textContent = Number.isInteger(draft.seed) && draft.seed >= 0 ? String(draft.seed) : '--';
+  // No derived seed-stream values are exposed client-side; the stream grid stays
+  // omitted rather than populated with invented values (same ruling as gap #17).
+  document.getElementById('validationSeedStreams').hidden = true;
+  const planState = document.getElementById('validationPlanState');
+  planState.textContent = snapshot.valid ? 'READY' : 'INVALID';
+  planState.dataset.valid = String(snapshot.valid);
   replaceDefinitionRows(document.getElementById('validationExecutionPlan'), [
     ['Clock source', `dt ${snapshot.executionPlan.dt.source}; t_end ${snapshot.executionPlan.t_end.source}`],
     ['Seed', draft.seed],
@@ -271,16 +633,23 @@ function renderExecutionPlan(snapshot) {
 
 function renderStepper(snapshot) {
   const ready = Boolean(snapshot.draft) && snapshot.catalogStatus === 'ready' && snapshot.sessionStatus === 'known';
-  document.getElementById('configStepRulesState').textContent = ready ? snapshot.draft.validation_rule_id : 'Loading';
-  document.getElementById('configStepScenariosState').textContent = ready ? snapshot.draft.scenario_id : 'Loading';
-  document.getElementById('configStepAlgorithmsState').textContent = ready
-    ? `${snapshot.draft.algorithm_id} + ${snapshot.draft.tracker_id}`
-    : 'Loading';
-  document.getElementById('configStepParamsState').textContent = ready
-    ? (snapshot.valid ? 'Valid' : 'Needs attention')
-    : 'Loading';
-  document.getElementById('configProgressLabel').textContent = ready ? '4 of 4 assembled' : 'Loading authority';
-  document.getElementById('configProgressBar').style.width = ready ? '100%' : '18%';
+  const stepStates = [
+    ['rules', ready && Boolean(snapshot.draft.validation_rule_id), ready ? snapshot.draft.validation_rule_id : 'Loading'],
+    ['scenarios', ready && Boolean(snapshot.draft.scenario_id), ready ? snapshot.draft.scenario_id : 'Loading'],
+    ['algorithms', ready && Boolean(snapshot.draft.algorithm_id) && Boolean(snapshot.draft.tracker_id), ready
+      ? `${snapshot.draft.algorithm_id} + ${snapshot.draft.tracker_id}`
+      : 'Loading'],
+    ['params', ready && snapshot.valid, ready ? (snapshot.valid ? 'Valid' : 'Needs attention') : 'Loading'],
+  ];
+  for (const [step, complete, label] of stepStates) {
+    const button = document.querySelector(`.assembly-step[data-config-step="${step}"]`);
+    if (!button) continue;
+    button.dataset.complete = String(complete);
+    document.getElementById(`configStep${step.charAt(0).toUpperCase()}${step.slice(1)}State`).textContent = label;
+  }
+  const readyCount = stepStates.filter(([, complete]) => complete).length;
+  document.getElementById('configProgressLabel').textContent = ready ? `${readyCount} of 4 ready` : 'Loading authority';
+  document.getElementById('configProgressBar').style.width = `${readyCount * 25}%`;
 }
 
 function renderSummary(snapshot) {
@@ -338,20 +707,19 @@ function render() {
   renderStepper(snapshot);
 
   if (draft) {
-    populateSelect('validationScenario', snapshot.options.scenario_id || [], draft.scenario_id);
-    populateSelect('validationAlgorithm', snapshot.options.algorithm_id || [], draft.algorithm_id);
-    populateSelect('validationTracker', snapshot.options.tracker_id || [], draft.tracker_id);
-    document.getElementById('validationSeed').value = String(draft.seed);
-    document.getElementById('validationEpisode').value = String(draft.episode_index);
-    document.getElementById('validationDt').value = draft.dt ?? '';
-    document.getElementById('validationTEnd').value = draft.t_end ?? '';
+    setNumberFieldValue('validationSeed', draft.seed);
+    setNumberFieldValue('validationEpisode', draft.episode_index);
+    setNumberFieldValue('validationDt', draft.dt ?? '');
+    setNumberFieldValue('validationTEnd', draft.t_end ?? '');
     renderScenarioDetail(snapshot);
     renderAlgorithmDetail(snapshot);
     renderExecutionPlan(snapshot);
   }
+  renderParamErrors(snapshot);
 
-  for (const id of ['validationScenario', 'validationAlgorithm', 'validationTracker', 'validationSeed', 'validationEpisode', 'validationDt', 'validationTEnd']) {
-    document.getElementById(id).disabled = snapshot.readOnly || snapshot.creating;
+  for (const id of Object.values(PARAM_FIELD_IDS)) {
+    const field = document.getElementById(id);
+    if (field) field.disabled = snapshot.readOnly || snapshot.creating;
   }
   const classification = document.getElementById('validationClassification');
   classification.className = `classification-card ${snapshot.classification}`;
@@ -361,11 +729,13 @@ function render() {
       ? 'Experimental Exact Tuple · amber confirmation required'
       : 'Unavailable · Create blocked';
   renderSummary(snapshot);
+  const assemblyStatus = document.getElementById('validationAssemblyStatus');
+  const cleanMatch = !snapshot.dirty && snapshot.matchesActive && !snapshot.creating;
+  assemblyStatus.textContent = snapshot.valid ? (cleanMatch ? 'CREATED' : 'READY') : 'DRAFT';
+  assemblyStatus.dataset.ready = String(snapshot.valid);
+  assemblyStatus.dataset.created = String(cleanMatch);
   document.getElementById('validationContract').textContent = draft ? JSON.stringify(draft, null, 2) : 'No catalog and no Active Run Specification.';
-  const messages = [
-    ...snapshot.notices.map((notice) => notice.message),
-    ...Object.entries(snapshot.validationErrors).map(([field, message]) => `${field}: ${message}`),
-  ];
+  const messages = snapshot.notices.map((notice) => notice.message);
   document.getElementById('validationNotices').replaceChildren(...messages.map((message) => {
     const item = document.createElement('div');
     item.textContent = message;
@@ -373,10 +743,13 @@ function render() {
   }));
   document.getElementById('validationDefault').disabled = snapshot.readOnly || snapshot.creating;
   const create = document.getElementById('validationCreate');
-  create.textContent = snapshot.creating ? 'CREATING' : 'Create';
-  create.classList.toggle('experimental', snapshot.classification === 'experimental');
-  create.disabled = ![null, 'experimental-confirmation'].includes(snapshot.createBlock);
-  create.title = createStatusText(snapshot);
+  create.dataset.mode = cleanMatch ? 'open-deployment' : 'create';
+  create.textContent = snapshot.creating ? 'CREATING' : (cleanMatch ? 'Open Deployment' : 'Create');
+  create.classList.toggle('experimental', snapshot.classification === 'experimental' && !cleanMatch);
+  create.disabled = cleanMatch
+    ? snapshot.readOnly
+    : ![null, 'experimental-confirmation'].includes(snapshot.createBlock);
+  create.title = cleanMatch ? 'Draft matches the active session · jump to Deployment' : createStatusText(snapshot);
 }
 
 function edit(field, value) {
@@ -390,10 +763,17 @@ function bindControls() {
   });
   document.querySelectorAll('[data-config-step]').forEach((button) => {
     button.addEventListener('click', () => {
-      document.querySelectorAll('[data-config-step]').forEach((item) => item.classList.toggle('active', item === button));
+      document.querySelectorAll('[data-config-step]').forEach((item) => {
+        const selected = item === button;
+        item.classList.toggle('active', selected);
+        item.setAttribute('aria-pressed', String(selected));
+      });
       document.querySelectorAll('[data-config-step-panel]').forEach((panel) => {
         panel.hidden = panel.dataset.configStepPanel !== button.dataset.configStep;
       });
+      // Carousel bounds measured while a panel was hidden are 0-width; re-measure
+      // after the newly visible panel has laid out.
+      requestAnimationFrame(() => rebindCarouselScrollers());
     });
   });
   document.getElementById('validationRuleChoices').addEventListener('click', (event) => {
@@ -402,30 +782,41 @@ function bindControls() {
   });
   document.getElementById('validationRuleImageSwitch').addEventListener('click', (event) => {
     const button = event.target.closest('[data-rule-image-index]');
-    if (!button) return;
+    if (!button || button.disabled) return;
     multishipRuleImageIndex = Number(button.dataset.ruleImageIndex);
     renderRuleGuide(assembly.snapshot());
   });
-  document.getElementById('validationScenario').addEventListener('change', (event) => edit('scenario_id', event.target.value));
-  document.getElementById('validationAlgorithm').addEventListener('change', (event) => edit('algorithm_id', event.target.value));
-  document.getElementById('validationTracker').addEventListener('change', (event) => edit('tracker_id', event.target.value));
-  const numeric = [
-    ['validationSeed', 'seed', false],
-    ['validationEpisode', 'episode_index', false],
-    ['validationDt', 'dt', true],
-    ['validationTEnd', 't_end', true],
-  ];
-  for (const [id, field, nullable] of numeric) {
-    document.getElementById(id).addEventListener('change', (event) => {
-      edit(field, nullable && event.target.value === '' ? null : Number(event.target.value));
-    });
-  }
+  bindCarousel('scenario');
+  bindCarousel('enc');
+  bindCarousel('algorithm');
+  document.getElementById('validationScenarioChoices').addEventListener('click', (event) => {
+    const card = event.target.closest('[data-choice-id]');
+    if (!card || card.disabled) return;
+    edit('scenario_id', card.dataset.choiceId);
+  });
+  document.getElementById('validationAlgorithmChoices').addEventListener('click', (event) => {
+    const card = event.target.closest('[data-choice-id]');
+    if (!card || card.disabled) return;
+    edit('algorithm_id', card.dataset.choiceId);
+  });
+  document.getElementById('validationTrackerChoices').addEventListener('click', (event) => {
+    const card = event.target.closest('[data-choice-id]');
+    if (!card || card.disabled) return;
+    edit('tracker_id', card.dataset.choiceId);
+  });
+  rebindNumberFields();
   document.getElementById('validationDefault').addEventListener('click', () => {
     assembly.resetDefault();
     render();
   });
   document.getElementById('retryCapabilityCatalog').addEventListener('click', refreshValidationAuthority);
-  document.getElementById('validationCreate').addEventListener('click', createSessionFromDraft);
+  document.getElementById('validationCreate').addEventListener('click', () => {
+    if (document.getElementById('validationCreate').dataset.mode === 'open-deployment') {
+      switchWorkface('deployment');
+      return;
+    }
+    createSessionFromDraft();
+  });
 }
 
 function syncRuntimeAuthority(runtimeSnapshot, reason = 'runtime-sync') {
@@ -513,7 +904,17 @@ async function bootConfig() {
   render();
   bindControls();
   activeSessionRuntime.subscribe((runtimeSnapshot) => syncRuntimeAuthority(runtimeSnapshot));
-  loadOpenBridge();
+  loadOpenBridge().then(() => {
+    ensureNumberFields();
+    render();
+  });
+  customElements.whenDefined('obc-scrollbar').then(rebindCarouselScrollers);
+  // whenDefined resolves at DEFINITION time, which can precede Lit's first render —
+  // the shadow <input> may not exist yet on either bind pass. Chain past the first
+  // render (rAF + task) so the direct binding lands on the real inner input.
+  customElements.whenDefined('obc-number-input-field').then(() => {
+    requestAnimationFrame(() => setTimeout(rebindNumberFields, 0));
+  });
   const [catalogResult, currentResult] = await Promise.allSettled([
     fetchJson('/api/capabilities'),
     activeSessionRuntime.bootstrap(),
