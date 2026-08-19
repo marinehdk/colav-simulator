@@ -74,7 +74,10 @@
   --text-muted:    #8a99ad;
   --text-dim:      #4a5568;
 
-  --font-ui:       -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* C5 #6 (P:86-88): system-installed Noto/PingFang chain, no webfont import. */
+  --font-display:  "Noto Sans", "PingFang SC", sans-serif;
+  --font-ui:       "Noto Sans", "PingFang SC", sans-serif;
+  --font-body:     "Noto Sans", "PingFang SC", sans-serif;
   --font-mono:     'SFMono-Regular', Consolas, monospace;
 
   --radius-card:   8px;
@@ -89,9 +92,21 @@
 body {
   background-color: var(--ob-app-bg);
   color: var(--ob-text);
-  font-family: var(--font-ui);
+  font: 400 14px/1.7 var(--font-body);
+  letter-spacing: 0;
   min-height: 100vh;
   overflow: hidden;
+}
+
+/* C5 #6 (P:112-118): typography scale — body 14px/1.7, display headings. */
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; }
+
+/* C5 #7 (P:120): global keyboard focus ring, promoted from config scope. */
+:focus-visible { outline: 3px solid var(--ob-accent-mid); outline-offset: 2px; }
+
+/* C5 #7 (P:1558-1560): reduced motion applies html-wide, not config-only. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
 
 /* ── App Shell ──────────────────────────────── */
@@ -229,6 +244,34 @@ body {
 .workface[hidden],
 .legacy-deployment-surface[hidden] { display: none !important; }
 
+/* C5 #4 (P:2, P:103-104): OpenBridge palette switching. The pinned openbridge.css
+   already flips its custom properties on :root[data-obc-theme] (day/dusk/night/
+   bright) and production --ob-* tokens derive from them — only the dark
+   color-scheme hint and the media filters below are shell-owned. */
+html[data-obc-theme="dusk"],
+html[data-obc-theme="night"] { color-scheme: dark; }
+
+/* P:280-285 mapped to production media: the ENC/reference preview image and the
+   Deployment situation canvas dim/desaturate with the palette. */
+html[data-obc-theme="dusk"] #validationScenarioImage,
+html[data-obc-theme="dusk"] #simCanvas { filter: brightness(.48) saturate(.72); }
+html[data-obc-theme="night"] #validationScenarioImage,
+html[data-obc-theme="night"] #simCanvas { filter: brightness(.24) sepia(.34) saturate(.82); }
+html[data-obc-theme="bright"] #validationScenarioImage,
+html[data-obc-theme="bright"] #simCanvas { filter: contrast(1.18) saturate(.86); }
+
+/* C5 #4 (P:278): brilliance popover — fixed below the top bar, 8px clearance,
+   right 112px, 304px wide. Production top bar bottom edge = 12px container
+   padding + 56px header height. */
+.brilliance-menu-popover {
+  position: fixed;
+  top: calc(12px + 56px + var(--s-2));
+  right: 112px;
+  z-index: 50;
+  display: block;
+  width: 304px;
+}
+
 .product-shell-header {
   position: relative;
   min-height: 56px;
@@ -306,13 +349,6 @@ obc-clock:not(:defined),
   border-radius: 8px;
   background: var(--ob-app-bg);
   color: var(--ob-text);
-}
-.config-workface :focus-visible { outline: 3px solid var(--ob-accent-mid); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) {
-  .config-workface, .config-workface *, .config-workface *::before, .config-workface *::after {
-    scroll-behavior: auto !important;
-    transition: none !important;
-  }
 }
 .assembly-steps,
 .assembly-summary { min-width: 0; padding: 22px 18px; background: var(--ob-work-bg); overflow: auto; }
@@ -526,6 +562,41 @@ obc-clock:not(:defined),
   .form-grid { grid-template-columns: 1fr; }
   .scenario-selectors,
   .algorithm-detail-grid { grid-template-columns: 1fr; }
+}
+
+/* C5 #8 (P:1530-1557): 520 tier — single-column Config, horizontal scrollable
+   Assembly Steps strip, degraded top bar, stacked Deployment sidebars. Layout
+   CSS only; the 1050/820 tiers above stay untouched. */
+@media (max-width: 520px) {
+  .topbar-actions .topbar-time,
+  .topbar-actions #alertBtn,
+  .topbar-actions #soundBtn { display: none !important; }
+  .config-workface { grid-template-columns: minmax(0, 1fr); }
+  .choice-grid,
+  .scenario-selectors,
+  .tracker-choice-grid,
+  .params,
+  .algorithm-selection-row,
+  .execution-plan-grid { grid-template-columns: minmax(0, 1fr); }
+  .parameter-group,
+  .execution-plan-section { padding-right: 0; }
+  .parameter-group + .parameter-group,
+  .execution-plan-section + .execution-plan-section { padding-left: 0; border-left: 0; border-top: 1px solid var(--ob-border); }
+  .assembly-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px var(--s-2);
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+  .assembly-steps > p,
+  .assembly-steps > h2,
+  .assembly-steps .config-progress,
+  .assembly-steps .draft-state,
+  .assembly-steps .retry-catalog { grid-column: 1 / -1; }
+  .assembly-step { min-height: 56px; margin-bottom: 0; scroll-snap-align: start; }
+  .assembly-step small,
+  .config-progress { display: none; }
 }
 
 /* ══════════════════════════════════════════════

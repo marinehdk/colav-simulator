@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-obc-theme="day">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist/openbridge.css" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260819-c4-situation-2" />
+  <link rel="stylesheet" href="/static/style.css?v=20260819-c5-shell-1" />
 </head>
 <body>
   <div class="app-container">
@@ -707,9 +707,12 @@
     <section class="workface roadmap-workface" data-workface-panel="evaluation" hidden><h2>Evaluation</h2><p>Current-session result and evidence remain available through Deployment. Run history and Compare require future backend contracts.</p></section>
     <section class="workface roadmap-workface" data-workface-panel="scenario" hidden><h2>Scenario</h2><p>Scenario library surface planned. Config uses live capability metadata; no silent busy-water generation occurs.</p></section>
     <section class="workface roadmap-workface" data-workface-panel="algorithm" hidden><h2>Algorithm</h2><p>Algorithm and tracker catalog surface planned. Exact Tuple evidence remains authoritative in Config.</p></section>
+
+    <!-- C5 #4 (P:2003): hidden OpenBridge brilliance popover, opened from the top-bar dimming button. -->
+    <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260819-c4-situation-2"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260819-c4-situation-2"></script>
+  <script type="module" src="/static/app.js?v=20260819-c5-shell-1"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260819-c5-shell-1"></script>
 </body>
 </html>

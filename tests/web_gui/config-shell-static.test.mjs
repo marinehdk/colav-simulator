@@ -128,7 +128,8 @@ test('Config token layer ports the OpenBridge palette sheet (gap #3 part)', () =
     assert.ok(styles.includes(token), `style.css must define OpenBridge token ${token.split(':')[0]}`);
   }
   assert.match(styles, /\.config-workface[^{]*\{[^}]*color: var\(--ob-text\)/);
-  assert.match(styles, /\.config-workface :focus-visible \{[^}]*outline: 3px solid var\(--ob-accent-mid\)/);
+  // C5 ruling 5: focus-visible promoted to a global rule (was .config-workface-scoped).
+  assert.match(styles, /:focus-visible \{ outline: 3px solid var\(--ob-accent-mid\); outline-offset: 2px; \}/);
   assert.match(styles, /prefers-reduced-motion: reduce/);
 });
 

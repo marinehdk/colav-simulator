@@ -190,6 +190,67 @@ const situationDisplay = createSituationDisplay({
   },
 });
 
+/* ══════════════════════════════════════════════
+   OPENBRIDGE THEME (C5 #4 — full prototype behavior, P:2849-2870 / P:3179-3204)
+   Palette chrome only: html dataset, top-bar dimming state, persistence, and
+   the situation-display palette re-read. No validation/runtime truth here.
+══════════════════════════════════════════════ */
+const OPENBRIDGE_COMPONENT_BASE = 'https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist';
+const PALETTE_NAMES = { day: true, dusk: true, night: true, bright: true };
+const mainTopBar = document.getElementById('mainTopBar');
+const brillianceMenu = document.getElementById('brillianceMenu');
+
+// Same pinned CDN base config-shell.js already uses for icons (P:11); failure
+// degrades like every other best-effort OpenBridge piece (menu stays inert).
+import(`${OPENBRIDGE_COMPONENT_BASE}/components/brilliance-menu/brilliance-menu.js/+esm`).catch(() => {});
+
+function applyPalette(palette, persist = true) {
+  const nextPalette = PALETTE_NAMES[palette] ? palette : 'day';
+  document.documentElement.dataset.obcTheme = nextPalette;
+  brillianceMenu.palette = nextPalette;
+  mainTopBar.dimmingButtonActivated = nextPalette === 'dusk' || nextPalette === 'night';
+  if (persist) {
+    try { localStorage.setItem('colav-openbridge-palette', nextPalette); } catch (error) { /* storage may be unavailable */ }
+  }
+  situationDisplay.refreshPalette();
+  return nextPalette;
+}
+
+// Compact palette-only menu (P:2864-2869).
+brillianceMenu.showBrightness = false;
+brillianceMenu.showPalette = true;
+
+mainTopBar.addEventListener('dimming-button-clicked', (event) => {
+  event.stopPropagation();
+  brillianceMenu.hidden = !brillianceMenu.hidden;
+});
+brillianceMenu.addEventListener('palette-changed', (event) => {
+  applyPalette(event.detail?.value || brillianceMenu.palette);
+});
+brillianceMenu.addEventListener('click', (event) => event.stopPropagation());
+
+// Outside-click and Escape close the menu (P:3293 pattern, adapted: production
+// settingsBtn has no popover, so there is no system menu to close).
+document.addEventListener('click', (event) => {
+  if (!brillianceMenu.hidden && !brillianceMenu.contains(event.target) && !event.composedPath().includes(mainTopBar)) {
+    brillianceMenu.hidden = true;
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  if (brillianceMenu.hidden) return;
+  brillianceMenu.hidden = true;
+  const dimmingButton = mainTopBar.shadowRoot?.querySelector('.dimming-button');
+  (dimmingButton?.shadowRoot?.querySelector('button') || dimmingButton)?.focus();
+});
+
+let initialPalette = 'day';
+try {
+  const savedPalette = localStorage.getItem('colav-openbridge-palette');
+  if (PALETTE_NAMES[savedPalette]) initialPalette = savedPalette;
+} catch (error) { /* storage may be unavailable */ }
+applyPalette(initialPalette, false);
+
 function syncLayerControls(state) {
   for (const [id, layer] of Object.entries(state)) {
     const input = document.querySelector(`[data-layer="${id}"]`);

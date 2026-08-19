@@ -78,16 +78,40 @@ async function loadOpenBridge() {
   ]);
 }
 
+// C5 #22 (P:2776, P:3398-3402): per-view document title and workface persistence.
+// switchWorkface stays the single authority for panel toggling.
+const WORKFACE_TITLES = {
+  config: 'Config',
+  deployment: 'Deployment',
+  evaluation: 'Evaluation',
+  scenario: 'Scenario',
+  algorithm: 'Algorithm',
+};
+
 function switchWorkface(name) {
+  const workface = WORKFACE_TITLES[name] ? name : 'config';
   document.querySelectorAll('[data-workface-panel]').forEach((panel) => {
-    panel.hidden = panel.dataset.workfacePanel !== name;
+    panel.hidden = panel.dataset.workfacePanel !== workface;
   });
   document.querySelectorAll('[data-workface]').forEach((button) => {
-    const selected = button.dataset.workface === name;
+    const selected = button.dataset.workface === workface;
     button.classList.toggle('active', selected);
     button.setAttribute('aria-selected', String(selected));
   });
-  if (name === 'deployment') window.dispatchEvent(new Event('resize'));
+  document.title = `综合避碰仿真器 · ${WORKFACE_TITLES[workface]}`;
+  try { localStorage.setItem('colav-workface', workface); } catch (error) { /* storage may be unavailable */ }
+  if (workface === 'deployment') window.dispatchEvent(new Event('resize'));
+}
+
+// Boot restore: no session-gating — restoring Deployment without a session just
+// shows its existing empty state.
+function restorePersistedWorkface() {
+  let workface = 'config';
+  try {
+    const saved = localStorage.getItem('colav-workface');
+    if (WORKFACE_TITLES[saved]) workface = saved;
+  } catch (error) { /* storage may be unavailable */ }
+  switchWorkface(workface);
 }
 
 function optionLabel(item) {
@@ -904,6 +928,7 @@ async function bootConfig() {
   });
   render();
   bindControls();
+  restorePersistedWorkface();
   activeSessionRuntime.subscribe((runtimeSnapshot) => syncRuntimeAuthority(runtimeSnapshot));
   loadOpenBridge().then(() => {
     ensureNumberFields();
