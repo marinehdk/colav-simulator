@@ -1,29 +1,34 @@
 # Colav-Simulator V1 Product Requirements Document
 
-> **Status:** V1 scope frozen for detailed design and implementation  
+> **Status:** V1 scope frozen; design-baseline review corrections applied  
 > **PRD baseline:** D-001 through D-144  
 > **Product boundary:** Engineering V&V-grade, safety-assurance-ready; **not** a certification/type-approval claim  
 > **Primary delivery:** Local-first COLAV Engineering & V&V Workbench  
 > **V1 focus:** Development + Core Regression  
+> **Companion review:** `Design/Colav-Simulator-V1-PRD-Review.md`  
 > **Last updated:** 2026-08-19
 
-## 1. Purpose
+## 1. Purpose and normative precedence
 
-This document is the product and engineering requirements baseline for the V1 full-stack redesign of `colav-simulator`.
+This document is the product and engineering requirements source of truth for the V1 full-stack redesign of `colav-simulator`.
 
-It converts the requirements workshop decisions D-001 through D-144 into an implementable specification. It is the primary requirements source of truth for V1. The companion documents are:
+It converts workshop decisions D-001 through D-144 into an implementable specification. Companion documents are:
 
 - `Design/Colav-Simulator-V1-UI-Spec.md` — OpenBridge UI, screen and interaction specification.
 - `Design/Colav-Simulator-V1-Implementation-Plan.md` — implementation milestones, migration order and acceptance sequence.
-- Existing architecture/evidence documents under `Design/` remain technical evidence and background. Where an older Web/session model conflicts with this PRD, this PRD governs the V1 Web/Application redesign while the verified simulation/COLAV computational core should be preserved and adapted.
+- `Design/Colav-Simulator-V1-PRD-Review.md` — repository-alignment and implementation-readiness review record.
 
-This PRD aligns with the repository mission: establish a verifiable understanding across scenario, perception, planning, control, dynamics, evaluation and Web; safely optimize or add COLAV algorithms; and distinguish safety, COLREG behavior quality, research reproduction and engineering performance.
+Existing architecture/evidence documents under `Design/` remain repository evidence and technical background. Where an older Web/session/application model conflicts with this PRD, this PRD governs the V1 Web/Application redesign. Existing simulation/COLAV computational behavior must first be characterized against an exact source ref before it is treated as a preservation baseline.
+
+This PRD aligns with `MISSION.md`: understand and verify the chain from scenario through perception, planning, control, dynamics, evaluation and Web; safely optimize/add COLAV algorithms; and distinguish safety, COLREG behavior quality, research reproduction and engineering performance.
+
+Repository planning terminology from `CONTEXT.md` is normative where applicable: **Mission Route, Avoidance Corridor, Horizon Encounter Plan, Hard Row Window, Rolling Plan, Plan Revision**. Generic UI language shall not redefine or conflate those terms.
 
 ## 2. Executive summary
 
 Colav-Simulator V1 shall become a unified, reproducible engineering workbench for developing, debugging and regression-validating collision-avoidance algorithms.
 
-The primary V1 workflow is:
+The V1 Golden Workflow is:
 
 ```text
 Algorithm/code change
@@ -57,7 +62,7 @@ Fast Merge Gate
 Investigation CLOSED
 ```
 
-V1 is not a MASS deployment product and does not claim algorithm certification. It shall, however, produce traceable engineering evidence and domain objects that can later support Formal Validation, release eligibility and MASS handoff.
+V1 is not a MASS deployment product and does not claim algorithm certification. It shall produce traceable engineering evidence and domain objects that can later support Formal Validation, release eligibility and MASS handoff.
 
 ## 3. Problem statement
 
@@ -66,46 +71,44 @@ The current project can execute representative COLAV scenarios, but it does not 
 1. How is a real algorithm failure reproduced exactly?
 2. Where in the scenario/perception/planner/control/evaluation chain did abnormal behavior first appear?
 3. Which scenario families and boundary conditions are sufficient to test a particular requirement?
-4. What does a single successful run actually prove, and what does it not prove?
+4. What does a single successful run prove, and what does it not prove?
 5. How are algorithms compared without changing several experimental conditions at once?
 6. How is a verified algorithm configuration identified so it cannot drift before downstream use?
 7. How are historical defects converted into permanent regression protection?
 8. How is a GitHub merge gate tied to exact source, ADP, cases, profiles, environment and evidence?
 
-The highest-priority risks are algorithm defect escape, false safety confidence, regression escape and poor algorithm selection/comparison caused by non-unified evidence.
+Highest-priority risks are algorithm defect escape, false safety confidence, regression escape and poor algorithm selection/comparison caused by fragmented/non-unified evidence.
 
 ## 4. Primary users and jobs to be done
 
 ### 4.1 Primary personas
 
-V1 treats the following as equally primary roles, even when one engineer performs both:
+V1 treats these as equally primary roles, even when one engineer performs both:
 
-- **Algorithm/COLAV/MPC Developer / Research Engineer** — needs fast reproduction, diagnosis, controlled experimentation and source-level handoff.
-- **Algorithm V&V / Test Engineer** — needs qualified cases, reproducibility, regression suites, evidence, pass/fail semantics and traceability.
+- **Algorithm/COLAV/MPC Developer / Research Engineer** — fast reproduction, diagnosis, controlled experimentation and source-level handoff.
+- **Algorithm V&V / Test Engineer** — qualified cases, reproducibility, regression suites, evidence, pass/fail semantics and traceability.
 
-The system shall not require separate people to author and approve assets in V1, but data models shall retain `created_by`, `executed_by`, `reviewed_by`, `approved_by` and related provenance fields for future team workflows.
+V1 does not require separate people to author/review/approve assets, but data models shall retain provenance fields such as `created_by`, `executed_by`, `reviewed_by`, `approved_by` for future team workflows.
 
 ### 4.2 Highest-frequency V1 jobs
 
 1. Reproduce and diagnose a known algorithm issue.
-2. Quickly validate behavior after an algorithm/source/configuration change.
+2. Quickly validate behavior after algorithm/source/configuration change.
 3. Convert a fixed defect into a stable regression asset.
-4. Run the protected CORE regression set locally and in GitHub CI.
-5. Understand why a gate is PASS, FAIL or INCOMPLETE and inspect the underlying evidence.
+4. Run protected CORE regression locally and in GitHub CI.
+5. Understand why a gate is PASS, FAIL or INCOMPLETE and inspect underlying evidence.
 
 ## 5. Product principles
 
 ### P-001 — Evidence before presentation
 
-The Web UI shall not maintain a second simulation truth. Live UI, replay, analysis and comparison are projections of the same versioned observation/event/evidence model.
+The Web UI shall not maintain a second simulation truth. Live UI, Replay, Analyze and Compare are projections of the same versioned Observation/Event/Evidence model.
 
 ### P-002 — Immutable historical facts
 
-Published test definitions, sealed run evidence, original evaluation verdicts and gate attestations shall not be overwritten. Later interpretation or trust state is stored as derived/versioned records.
+Published test definitions, SEALED Run evidence, Original Evaluation verdicts and Gate Attestations shall not be overwritten. Later interpretation/trust state is stored as derived/versioned records.
 
 ### P-003 — Published is not validated
-
-The following shall remain distinct:
 
 ```text
 Discoverable ≠ Runtime Ready ≠ Published ≠ Validated ≠ Release Eligible
@@ -113,19 +116,23 @@ Discoverable ≠ Runtime Ready ≠ Published ≠ Validated ≠ Release Eligible
 
 ### P-004 — Inspection is not intervention
 
-Select, pin, scrub, replay, filter and layer visibility shall never silently alter Simulator or Planner state. Any state-changing test intervention must be explicit, versioned into a Run Override/Revision and preserved as evidence.
+Select, pin, scrub, replay, filter and layer visibility shall never silently alter Simulator or Planner state. State-changing test intervention must be explicit, versioned into Run Override/Revision and preserved as evidence.
 
 ### P-005 — Reproducibility first
 
-Every real execution receives a Run ID and freezes the result-critical identity needed to understand and reproduce that execution.
+Every real execution receives a Run ID and freezes result-critical identity sufficient to interpret and reproduce that execution according to its Reproducibility Contract.
 
 ### P-006 — Hard gates are not averaged away
 
-Safety/COLREG mandatory failures cannot be offset by efficiency, smoothness or aggregate scores.
+Mandatory Safety/COLREG failures cannot be offset by efficiency, smoothness or aggregate scores.
 
 ### P-007 — OpenBridge-native first
 
-The V1 Web shall remain as visually and behaviorally consistent with OpenBridge as practical, and shall reuse OpenBridge Web Components and design tokens before creating custom primitives.
+The V1 Web shall remain as visually and behaviorally consistent with OpenBridge as practical and reuse documented OpenBridge Web Components/tokens before custom primitives.
+
+### P-008 — Historical result is not current eligibility
+
+Original Verdict, current Evidence Trust/Impact, and claim-specific Evidence Eligibility are distinct semantics.
 
 ## 6. V1 scope
 
@@ -135,14 +142,15 @@ V1 shall fully implement:
 
 - Global OpenBridge application shell.
 - Workbench: Run, Analyze, Compare.
-- Persistent Investigations and lifecycle.
+- Persistent Investigations/lifecycle.
 - Case/Test Engineering system.
-- Immutable Runs and sealed Evidence.
-- Algorithm Definition, Implementation Artifact and ADP model.
-- Algorithm integration workspace and runtime verification.
-- Evaluation/Requirement foundation.
+- Immutable Runs and SEALED Evidence.
+- SourceWorkspace/SourceSnapshot identity.
+- Algorithm Definition, immutable Implementation Artifact and ADP model.
+- Algorithm integration workspace/runtime verification.
+- Engineering Requirement/Evaluation foundation.
+- Versioned Evidence Capture Profiles.
 - Core Regression and Fast Merge Gate.
-- Git/worktree-aware source snapshots.
 - Portable Evidence Bundle export/import.
 - GitHub required regression gate integration.
 
@@ -162,7 +170,7 @@ Formal `Validation` and `Releases / MASS Handoff` are intentionally not top-leve
 
 ### 6.3 V2+ / out of V1 product scope
 
-The following are reserved by the domain model but not fully implemented in V1:
+Reserved by the domain model but not fully implemented in V1:
 
 - Formal Validation Campaign workface.
 - Full Release Gate and validated algorithm release workflow.
@@ -180,7 +188,7 @@ The following are reserved by the domain model but not fully implemented in V1:
 
 V1 targets **Engineering V&V-grade, safety-assurance-ready, not certification/type approval**.
 
-The lifecycle language shall remain:
+Lifecycle language:
 
 ```text
 Develop
@@ -201,9 +209,9 @@ Develop
 
 ### 8.1 Investigation
 
-A persistent first-class object representing the engineering problem being solved and why multiple runs belong together.
+Persistent first-class object representing the engineering problem being solved and why multiple Runs belong together.
 
-Required lifecycle:
+Lifecycle:
 
 ```text
 OPEN
@@ -215,24 +223,24 @@ OPEN
 → CLOSED
 ```
 
-`BLOCKED` shall be available where appropriate.
+`BLOCKED` is available where appropriate.
 
-`CLOSED` requires all of:
+`CLOSED` requires:
 
 - failure reproduced;
 - fix verified;
-- regression case created;
+- Regression Case created;
 - required CORE suite passed.
 
 Optional external GitHub issue references may be stored; hard issue binding is not required.
 
 ### 8.2 Engineering Requirement
 
-A versioned first-class object, not a string tag.
+Versioned first-class object, not a string tag.
 
 Minimum fields:
 
-- stable ID and version;
+- stable ID/version;
 - title/category;
 - normative/source reference;
 - engineering interpretation;
@@ -243,34 +251,34 @@ Minimum fields:
 - intrinsic criticality;
 - lifecycle/supersession.
 
-External COLREG/legal/normative source references shall be distinguished from the platform's engineering interpretation and evaluator thresholds.
+External COLREG/legal/normative source references shall be distinguished from platform engineering interpretation, evaluator implementation and threshold policy.
 
 ### 8.3 Scenario Family / Case Template
 
-A versioned authoring template defining parameter schemas/ranges, geometric constraints, default requirements/expected behavior and qualification expectations.
+Versioned authoring template defining parameter schemas/ranges, geometric constraints, default Requirements/Expected Behavior and qualification expectations.
 
-Template updates shall never silently modify already-instantiated Concrete Cases.
+Template updates shall never silently modify instantiated Concrete Cases.
 
 ### 8.4 Concrete Test Case
 
-An executable test specification containing:
+Executable test specification containing:
 
 - intent;
-- requirement references;
+- Requirement references;
 - preconditions;
 - scenario definition;
 - traffic-actor behaviors;
-- condition contract;
-- encounter intent graph where applicable;
-- test-phase contract;
-- declarative expected behavior;
-- evaluation-profile binding;
-- qualification evidence;
-- exact executable snapshot and digest.
+- Condition Contract;
+- Encounter Intent Graph where applicable;
+- Test Phase Contract;
+- declarative Expected Behavior;
+- Evaluation Profile binding/default;
+- Qualification evidence;
+- exact executable snapshot/digest.
 
 Published Case Versions are immutable.
 
-Lifecycle governance states:
+Lifecycle governance:
 
 ```text
 ACTIVE
@@ -279,14 +287,14 @@ RETIRED
 INVALIDATED
 ```
 
-Invalidation never deletes historical references; it triggers impact analysis on dependent evidence/claims.
+Invalidation does not delete historical references; it triggers impact analysis on dependent Evidence/Claims.
 
 ### 8.5 Regression Case
 
-A historical defect shall produce two related assets:
+A historical defect produces two related assets:
 
 1. **Exact Failure Reproduction** — preserves original Case/RunSpec/seed/ADP/evidence.
-2. **Curated Regression Case** — minimal stable trigger, affected requirement, root cause/finding lineage and expected behavior.
+2. **Curated Regression Case** — minimal stable trigger, affected Requirement, root-cause/finding lineage and Expected Behavior.
 
 Regression tiers:
 
@@ -296,73 +304,40 @@ EXTENDED
 ON_DEMAND
 ```
 
-V1 fully implements CORE; the other tiers are reserved.
+V1 fully implements CORE; other tiers are reserved.
 
-### 8.6 Run
+### 8.6 SourceWorkspace
 
-An immutable execution record. Every real execution creates a Run ID including terminal outcomes such as FINISHED, CRASHED, ABORTED and CANCELLED.
+Registered Git repository/worktree context used for development inspection and source freezing.
 
-Run identity shall freeze, at minimum:
+Minimum identity:
 
-- purpose;
-- Investigation/config revision if present;
-- exact Case snapshot/version/digest;
-- ADP/source identity;
-- tracker/perception/environment profiles;
-- seed/random-stream identity;
-- evaluation profile;
-- evidence-capture profile;
-- execution environment;
-- RunSpec;
-- execution policy.
+- repository identity;
+- worktree path registered through backend configuration/service, not arbitrary browser path input;
+- branch/HEAD/base commit;
+- clean/dirty state;
+- changed/relevant untracked files;
+- workspace digest/provenance.
 
-Execution status and evaluation verdict are independent.
+A SourceWorkspace is mutable working state and is **not** formal implementation evidence.
 
-Examples:
+### 8.7 SourceSnapshot / EphemeralSourceSnapshot
 
-```text
-FINISHED + FAIL
-CRASHED + NOT_ESTABLISHED
-FINISHED + PASS
-```
+Immutable frozen source identity created before a Development/Reproduction/diagnostic execution from a SourceWorkspace.
 
-### 8.7 ExecutionGroup
-
-Represents multiple Runs intentionally created by one batch operation such as CORE regression or case qualification.
-
-ExecutionGroup is distinct from Investigation and Run lineage.
-
-### 8.8 Evidence Manifest / Evidence Artifact
-
-Terminal Runs enter:
+A dirty snapshot shall record, at minimum:
 
 ```text
-CREATED → RUNNING → FINALIZING → SEALED
+base commit
+tracked patch/diff identity
+included relevant untracked source files
+source-tree digest
+dependency identity/reference
 ```
 
-A sealed Run receives an immutable Evidence Manifest with provenance, artifact inventory, schemas, digests and original evaluation references.
+Subsequent worktree edits shall not change historical Run source identity.
 
-Evidence status shall distinguish:
-
-```text
-AVAILABLE
-NOT_CAPTURED
-NOT_AVAILABLE
-MISSING
-CORRUPT
-SCHEMA_MISMATCH
-```
-
-### 8.9 Evaluation Record
-
-A versioned interpretation of sealed evidence.
-
-- Original Evaluation is immutable and remains the Run's `Original Verdict`.
-- Re-evaluations create new records and never overwrite the original.
-- Re-evaluation is only allowed when required evidence is available.
-- Missing evidence shall not default to PASS.
-
-### 8.10 Algorithm Definition
+### 8.8 Algorithm Definition
 
 Stable algorithm-family identity containing:
 
@@ -376,41 +351,190 @@ Stable algorithm-family identity containing:
 
 Declared Capability is not Verified Capability.
 
-### 8.11 Implementation Artifact
+### 8.9 Implementation Artifact
 
-Exact source/build/runtime implementation identity including:
+**Immutable formal implementation identity only.** It shall not represent mutable dirty worktree state.
 
-- Git revision/base commit;
-- clean/dirty/snapshot state;
+Minimum identity:
+
+- clean Git revision and/or sealed build identity;
 - source/build digest;
-- dependency identity;
-- runtime verification evidence.
+- dependency lock/runtime identity;
+- manifest identity;
+- runtime/contract verification evidence.
 
-Dirty source snapshots may be used for Development. ADP promotion, CORE candidate baseline and future formal/release work require immutable Implementation Artifacts.
+Published ADPs, CORE protected baselines and future Formal/Release flows shall bind immutable Implementation Artifacts. Development/Candidate execution may bind an EphemeralSourceSnapshot until promotion.
 
-### 8.12 Algorithm Deployment Profile (ADP)
+### 8.10 Algorithm Deployment Profile (ADP)
 
-The formal algorithm validation object. It includes:
+Formal algorithm validation object. It includes:
 
 - Algorithm Definition;
-- Implementation Artifact;
+- immutable Implementation Artifact for Published ADP;
 - exact parameters;
-- prediction model configuration;
+- prediction-model configuration;
 - solver/runtime configuration;
 - ship capability profile;
 - timing/update assumptions;
 - I/O contract/profile digest.
 
-Tracker, Scenario/Case, Seed and similar values are validation conditions, not part of the Algorithm Definition.
+Tracker, Scenario/Case, Seed and similar values are validation conditions, not part of Algorithm Definition.
 
-Published ADPs are immutable. Editing occurs through Candidate Revisions and Workbench Experiment Overrides.
+Published ADPs are immutable. Editing occurs through Candidate Revisions and Workbench Experiment Overrides. Candidate/Experiment execution may temporarily bind a SourceSnapshot, but promotion requires an immutable Implementation Artifact.
 
-### 8.13 Evaluation Profile
+### 8.11 Condition Profile
+
+Versioned execution-condition asset covering concrete environment/perception/tracker/noise/latency conditions. Case stores a Condition Contract; RunSpec binds exact profiles.
+
+### 8.12 Scenario Qualification Policy and Qualification Record
+
+`ScenarioQualificationPolicy` is a versioned algorithm-neutral execution policy defining the deterministic ownship/reference behavior, Traffic Actor execution, encounter/phase resolvers and termination rules used to qualify a Case.
+
+A Case Qualification Record binds:
+
+- exact Case draft/version/digest;
+- Scenario Qualification Policy;
+- qualification implementation/environment;
+- qualification evidence;
+- L1–L4 result.
+
+Scenario Qualification Evidence cannot contribute Algorithm Capability or Regression PASS evidence.
+
+### 8.13 Evidence Capture Profile
+
+Versioned contract defining required/optional evidence channels, sampling/resolution and capture policy.
+
+V1 system profiles include at least:
+
+```text
+DEVELOPMENT@1
+DIAGNOSTIC@1
+REGRESSION@1
+FORMAL_VALIDATION@future
+```
+
+Every executable Run shall satisfy a mandatory **Core Evidence Floor** regardless of profile. At minimum:
+
+- frozen RunSpec;
+- SourceSnapshot or Implementation Artifact identity, and ADP identity when applicable;
+- exact Case/qualification/condition identity when applicable;
+- ownship truth/trajectory;
+- target truth/tracks required by execution contract;
+- Encounter/Risk events and key derived context;
+- Planner core status, Selected/Accepted Planner Output, fallback/hold state/events;
+- Evaluation inputs/results when Evaluation is requested;
+- runtime/process errors and execution-control events;
+- Execution Environment/version manifest;
+- schema identities and artifact digests.
+
+Profile-specific diagnostics may add solver iterations, prediction sets, constraints, tracker covariance, control internals and similar channels.
+
+Missing diagnostic data shall use explicit cause semantics such as `NOT_AVAILABLE`, `NOT_CAPTURED` or `MISSING`; it shall never be fabricated.
+
+### 8.14 Run and RunSpec
+
+Run is an immutable execution record. Every real execution receives a Run ID.
+
+#### Purpose-aware RunSpec
+
+V1 Run purposes include at least:
+
+```text
+DEVELOPMENT
+REPRODUCTION
+FIX_VERIFICATION
+CASE_QUALIFICATION
+INTEGRATION_SMOKE
+CORE_REGRESSION
+```
+
+Future `FORMAL_VALIDATION` is reserved.
+
+Bindings are purpose-aware rather than universally requiring a Published ADP/Evaluation Profile:
+
+- `DEVELOPMENT/REPRODUCTION/FIX_VERIFICATION` bind a Case/Case Snapshot, source identity, runtime conditions and ADP or candidate algorithm configuration as applicable.
+- `CASE_QUALIFICATION` binds a Case and `ScenarioQualificationPolicy`; it does not establish algorithm capability.
+- `INTEGRATION_SMOKE` may bind Algorithm Definition + candidate/Implementation identity before Published ADP exists.
+- `CORE_REGRESSION` binds Published immutable ADP, Suite/Baseline/Profiles and Qualified Environment according to policy.
+
+Run identity freezes, when applicable:
+
+- purpose;
+- Investigation/config revision;
+- Case snapshot/version/digest;
+- source identity as `SourceSnapshot | ImplementationArtifact`;
+- ADP/config identity if applicable;
+- Condition Profiles;
+- random-stream identity;
+- Evaluation Profile if evaluation is requested;
+- Evidence Capture Profile;
+- Execution Environment;
+- Reproducibility Contract;
+- RunSpec digest;
+- Execution Policy.
+
+#### Orthogonal Run state axes
+
+Run state shall not collapse record lifecycle, execution status and evaluation result.
+
+```text
+Record lifecycle:
+CREATED → RUNNING → FINALIZING → SEALED
+
+Execution status:
+QUEUED | RUNNING | FINISHED | STOPPED | ABORTED | CRASHED | CANCELLED
+
+Evaluation result:
+Completeness = COMPLETE | INCOMPLETE
+Compliance = PASS | FAIL | NOT_ESTABLISHED
+```
+
+Semantics:
+
+- `STOPPED`: user intentionally ends a Development Run early.
+- `ABORTED`: an execution expected to complete (e.g. CORE/Gate) is interrupted.
+- `CANCELLED`: execution is cancelled before meaningful execution starts or is superseded by orchestration policy/new candidate.
+- `CRASHED`: abnormal worker/process termination.
+- `SEALED` describes evidence-record finalization and may coexist with `CRASHED` + `NOT_ESTABLISHED` when partial evidence is finalized.
+
+### 8.15 ExecutionGroup
+
+Represents multiple Runs intentionally created by one batch action such as CORE regression or Case Qualification. Distinct from Investigation and Run lineage.
+
+### 8.16 Evidence Manifest / Artifact
+
+A terminal Run may enter `FINALIZING` and then `SEALED` only after required manifest/artifact references/digests are committed consistently.
+
+Evidence state distinguishes:
+
+```text
+AVAILABLE
+NOT_CAPTURED
+NOT_AVAILABLE
+MISSING
+CORRUPT
+SCHEMA_MISMATCH
+```
+
+SEALED evidence is immutable.
+
+### 8.17 Evaluator Definition and Evaluator Implementation Artifact
+
+Evaluator identity is two-layered:
+
+```text
+Evaluator Definition
+→ immutable Evaluator Implementation Artifact
+```
+
+The artifact records exact source/build/digest/runtime/schema verification. Evaluation Profiles bind exact evaluator implementations.
+
+### 8.18 Evaluation Profile
 
 Versioned definition of how evidence is interpreted, binding exact:
 
 - Requirement versions;
-- Evaluator implementations;
+- Evaluator Implementation Artifacts;
 - applicability policies;
 - thresholds;
 - enforcement;
@@ -419,54 +543,153 @@ Versioned definition of how evidence is interpreted, binding exact:
 
 Published Evaluation Profiles are immutable and must pass a Qualification Suite before publication.
 
-### 8.14 Regression Suite
+### 8.19 Evaluation Record
 
-Published immutable suite manifest referencing exact Case Versions, Evaluation Profiles and Execution Policy.
+Versioned interpretation of SEALED evidence.
 
-Any modification creates a new Suite Version through a Suite Change Proposal.
+- Original Evaluation is immutable and remains the Run's Original Verdict.
+- Re-evaluations create new records and never overwrite the original.
+- Re-evaluation requires sufficient source evidence.
+- Missing evidence shall not default to PASS.
 
-### 8.15 Protected Regression Baseline Set
+### 8.20 Coverage Contract
+
+Versioned contract defining which validation dimensions/cells constitute coverage for a Requirement/capability scope. Coverage is derived from qualified Evidence and is independent from Compliance.
+
+### 8.21 Comparison Contract and Fix Verification Record
+
+`ComparisonContract` records Baseline/Candidate Runs, controlled conditions, intended changes, known variations, unexpected differences and Comparison Fidelity.
+
+`FixVerificationRecord` binds target failure/Requirement, Baseline/Candidate, Comparison Contract and evidence. It may become `FIX_VERIFIED` only under requirements in GW-008.
+
+### 8.22 Debug Handoff and Agent Result
+
+Debug Handoff is a versioned immutable Agent-ready context snapshot with Markdown + JSON representations separating facts, confirmed findings, hypotheses/diagnostic leads, Agent task and change contract.
+
+Agent Result records what coding Agent changed/reported. Agent-reported tests are development information, not formal Fix Verification evidence.
+
+### 8.23 Regression Suite
+
+Published immutable Suite Manifest referencing exact Case Versions, Evaluation Profiles, Execution Policy, Evidence Capture Profile and Reproducibility/Environment requirements.
+
+Any modification creates a new Suite Version through Suite Change Proposal.
+
+### 8.24 Protected Regression Baseline Set
 
 Versioned set defining which mature ADP baselines `main` promises not to break.
-
-It answers a different question from Core Suite:
 
 - Core Suite: which tests are required for one validation object?
 - Protected Baseline Set: which validation objects must every merge protect?
 
-### 8.16 Regression Gate Attestation
+### 8.25 Regression Gate Attestation
 
-Immutable proof object for one formal Fast Merge Gate execution, binding exact source, baseline set, suites, ADPs, profiles, execution environment, execution groups, evidence and original gate verdict.
+Immutable proof object for one formal Fast Merge Gate execution, binding exact source, baseline set, suites, ADPs, profiles, environment, ExecutionGroups, evidence and original gate verdict.
 
 Original gate verdict is immutable; current trust may later become `STALE`, `IMPACTED` or `REASSESSMENT_REQUIRED`.
 
-### 8.17 Debug Handoff and Agent Result
+### 8.26 Assurance-governance objects
 
-Debug Handoff is a versioned immutable Agent-ready context snapshot with Markdown + JSON representations.
+P0 first-class governance records include:
 
-It shall separate:
+- `SuiteChangeProposal`;
+- `BaselineTransitionProposal`;
+- `MergeWaiver`;
+- `RemediationObligation`;
+- persistent `AttentionItem` where applicable.
 
-- facts;
-- confirmed findings;
-- hypotheses/diagnostic leads;
-- Agent task;
-- change contract.
+### 8.27 Execution Environment Profile
 
-Agent Result records what the coding Agent changed and reported. Agent-reported tests are development information, not formal Fix Verification evidence.
+Versioned runtime identity/qualification contract including OS/architecture, Python/runtime, dependency lock, solver/native libraries, threading/resource/timing policy and optional container/build digest.
 
-## 9. Golden workflow requirements
+Environment qualification levels:
+
+```text
+UNQUALIFIED
+COMPATIBLE
+QUALIFIED
+```
+
+Fast Merge requires the applicable Qualified Reference Environment.
+
+### 8.28 Reproducibility Contract
+
+Versioned policy defining random streams, solver determinism, scheduling/threading policy, environment identity and event/metric tolerances.
+
+Determinism classes:
+
+```text
+D0 UNCONTROLLED
+D1 SEEDED
+D2 REPRODUCIBLE
+D3 GATE_STABLE
+```
+
+CORE/Fast Merge require D3 under the applicable Qualified Environment.
+
+## 9. Capability maturity and algorithm-role semantics
+
+### CAP-001 — Normative G0–G4 vocabulary
+
+The V1 Capability Matrix uses the repository maturity vocabulary:
+
+```text
+G0 — Discoverable
+     Algorithm/scenario/dependency can be resolved/discovered; no execution claim.
+
+G1 — Short smoke test
+     Adapter/runtime can construct and advance a short execution path.
+
+G2 — Full closed loop
+     Representative scenario completes through the real closed loop without unexpected fallback.
+
+G3 — Capability demonstration
+     Evidence demonstrates behavior consistent with the algorithm's declared role in representative conditions.
+
+G4 — Benchmark validation
+     Versioned benchmark/coverage/evaluation requirements are satisfied according to an explicit grade policy.
+```
+
+Grade is always scoped to:
+
+```text
+Exact ADP
+× Capability cell / Requirement scope
+× Validation conditions/envelope
+× Evidence basis
+```
+
+It is never a manually editable global Algorithm property.
+
+CORE PASS does **not** automatically imply G4. V1 platform acceptance does not require any algorithm to reach G4.
+
+### CAP-002 — Role-aware capability comparison
+
+Algorithm role constrains meaningful capability dimensions/comparison. Dynamic COLAV, static ENC/global planning, tracking, nominal guidance and other roles shall not be treated as interchangeable.
+
+UI/Evaluation shall distinguish:
+
+```text
+ROLE_NOT_APPLICABLE
+DECLARED_NOT_VERIFIED
+TECHNICALLY_INCOMPATIBLE
+VERIFIED / grade
+```
+
+Cross-algorithm comparison shall establish compatible role/scope before presenting comparative claims.
+
+## 10. Golden workflow requirements
 
 ### GW-001 — Failure creation
 
-The user shall be able to create a Development Run from a published case, draft case or ephemeral case variant with frozen source and execution identity.
+User shall create Development Run from Published Case, Draft Case or Ephemeral Case Variant with frozen source/execution identity.
 
 ### GW-002 — Failure-to-Investigation
 
-A failed/incomplete Run shall support `Investigate`, creating or linking an Investigation without requiring users to re-enter the Run configuration.
+Failed/Incomplete Run supports `Investigate`, linking/creating Investigation without re-entering configuration.
 
 ### GW-003 — Exact reproduction
 
-`Reproduce` shall clone the frozen experiment definition, run Preflight and create a new Run. Reproduction fidelity shall be classified as:
+`Reproduce` clones frozen experiment definition, runs Preflight and creates new Run. Reproduction Fidelity:
 
 ```text
 EXACT
@@ -477,21 +700,19 @@ NOT_REPRODUCIBLE
 
 ### GW-004 — Analyze
 
-Analyze shall synchronize Chart, Encounter, Planner/Diagnostics, Evidence and a typed multi-lane event timeline at the same Inspection Cursor.
+Analyze synchronizes Chart, Encounter, Planner/Diagnostics, Evidence and typed multi-lane event timeline at one Inspection Cursor.
 
 ### GW-005 — Debug handoff
 
-The user shall be able to generate a versioned Debug Handoff package containing exact reproduce instructions, RunSpec, ADP/source identity, failure window, evidence references, diagnostics, findings/hypotheses and Agent Change Contract.
+Generate versioned Debug Handoff package with exact reproduce instructions, RunSpec, source/ADP identity, failure window, evidence refs, diagnostics, findings/hypotheses and Agent Change Contract.
 
 ### GW-006 — Agent result reintegration
 
-The platform shall accept a candidate source identity and structured Agent Result, verify it against the Change Contract, freeze a source snapshot and allow platform re-verification.
+Accept structured Agent Result/candidate source identity, verify Change Contract, freeze source snapshot and allow platform re-verification.
 
 ### GW-007 — Compare
 
-Before/After verification shall compare two immutable Runs using a Comparison Contract that identifies controlled conditions, intended changes, known variations, unexpected differences and Comparison Fidelity.
-
-Comparison fidelity states:
+Before/After verification compares two immutable Runs using Comparison Contract. Fidelity:
 
 ```text
 CONTROLLED
@@ -502,14 +723,14 @@ NON_COMPARABLE
 
 ### GW-008 — Fix Verification
 
-A formal Fix Verification Record shall only reach `FIX_VERIFIED` when:
+`FIX_VERIFIED` requires:
 
-- baseline contains the target failure under applicable conditions;
-- candidate re-activates the same target requirement/intent;
-- target failure changes from FAIL to PASS;
-- candidate evaluation is complete;
-- no new mandatory failure is introduced;
-- comparison fidelity meets policy.
+- Baseline contains target failure under applicable conditions;
+- Candidate re-activates same target Requirement/intent;
+- target failure changes FAIL → PASS;
+- Candidate Evaluation is COMPLETE;
+- no new mandatory failure;
+- Comparison Fidelity meets policy.
 
 States:
 
@@ -523,50 +744,41 @@ FIX_REJECTED
 
 ### GW-009 — Regression promotion
 
-A confirmed/fixed defect shall support promotion/curation to a Regression Case with traceable lineage.
+Confirmed/fixed defect supports promotion/curation to Regression Case with lineage.
 
 ### GW-010 — Closure
 
-Investigation cannot close before a Regression Case exists and required CORE regression passes.
+Investigation cannot close before Regression Case exists and required CORE regression passes.
 
-## 10. Workbench requirements
+## 11. Workbench requirements
 
 ### WB-001 — Resume-first home
 
-Workbench Home shall prioritize resuming active Investigations, followed by recent failures, investigations, quick reproduction and current Core Regression status.
+Prioritize active Investigation resume, recommended next action, recent failures/investigations, quick reproduction and current Core Regression status.
 
 ### WB-002 — Investigation entry paths
 
-Create/enter an Investigation from:
-
-- Failed Run;
-- existing Case;
-- Algorithm/ADP;
-- scratch.
-
-A failed-run entry shall inherit the reproducible context and open analysis at the relevant failure timestamp when available.
+Enter/create from Failed Run, existing Case, Algorithm/ADP or Scratch. Failed-run entry inherits reproducible context and opens analysis at relevant failure timestamp when available.
 
 ### WB-003 — Workbench modes
 
-Workbench modes are exactly:
+Exactly:
 
 ```text
 Run | Analyze | Compare
 ```
 
-Lifecycle-aware resume recommends a mode while preserving last inspection/presentation state separately.
+Lifecycle-aware resume recommends a mode; last Inspection/Presentation state is separate.
 
 ### WB-004 — Baseline + Overrides
 
-Configuration is modeled as Investigation Baseline + versioned Run Overrides + Preflight. Overrides create revisions; they do not silently mutate baseline.
+Configuration = Investigation Baseline + versioned Run Overrides + Preflight. Overrides create revisions; no silent baseline mutation.
 
 ### WB-005 — Run layout
 
-Run View shall be chart-first with an optional Situation Rail, Context Rail and bottom Simulation Timeline/controls.
+Chart-first with optional Situation Rail, Context Rail and bottom Simulation Timeline/controls.
 
 ### WB-006 — Encounter-first context
-
-Context Rail shall be encounter-first:
 
 ```text
 Encounter
@@ -579,180 +791,133 @@ Encounter
 
 ### WB-007 — Three encounter contexts
 
-Always distinguish:
-
-- Algorithm Context — what Planner focuses on;
-- System Risk Context — platform monitor's highest risk;
-- Inspection Context — what the user is viewing/pinning.
-
-Divergence must be visible and diagnostic; user selection must not alter Planner focus.
+Always distinguish Algorithm Context, System Risk Context and Inspection Context. Divergence is visible/diagnostic; selection never alters Planner focus.
 
 ### WB-008 — Execution vs inspection clock
 
-Live Run maintains:
-
-- Execution Clock — actual simulator position;
-- Inspection Cursor — user-viewed evidence time.
-
-Scrubbing backward shall not pause the simulator. Historical inspection during a live run must visibly show distance behind the live edge and provide `Return to Live`.
+Maintain Execution Clock and Inspection Cursor. Scrubbing backward shall not pause Simulator. Historical inspection during Live Run shows distance behind Live Edge and `Return to Live`.
 
 ### WB-009 — Execution controls
 
-Development/diagnostic workflows may allow Pause, Resume, deterministic Step, Simulation Execution Rate and Stop; every execution control is a typed Run event.
+Development/diagnostic workflows may allow Pause, Resume, deterministic Step, Simulation Execution Rate and Stop; every control is a typed Run Event.
 
-CORE/Fast Merge execution is `AUTOMATED_LOCKED`; manual Pause/Step/Rate Change is prohibited. Abort yields INCOMPLETE.
+CORE/Fast Merge is `AUTOMATED_LOCKED`; manual Pause/Step/Rate Change prohibited. Abort yields INCOMPLETE. Replay Speed is Presentation State and is not Simulation Execution Rate.
 
-Simulation Execution Rate and Historical Replay Speed are separate concepts.
+### WB-010 — Trajectory semantic layers and repository planning language
 
-### WB-010 — Trajectory semantic layers
-
-The Chart shall distinguish:
+Chart distinguishes:
 
 1. Historical Fact;
 2. Mission/Reference;
-3. Committed Planner Output;
+3. Selected/Accepted Planner Output;
 4. Prediction;
 5. Candidate/Rejected Plans.
 
-Predictions require source, generation time, horizon and validity/age. Candidate/rejected plans are progressively disclosed and not shown by default.
+`Selected/Accepted Planner Output` is generic visualization language, **not** a replacement domain term for `Mission Route`, `Avoidance Corridor`, `Horizon Encounter Plan`, `Rolling Plan` or `Plan Revision`.
+
+When diagnostics expose those repository planning concepts, UI shall use their canonical names and keep:
+
+- Mission Route authoritative voyage intent before/after encounter;
+- Avoidance Corridor temporary passing-side commitment;
+- Horizon Encounter Plan distinct from current encounter state/current solver candidate;
+- Rolling Plan distinct from warm start/current solver candidate;
+- Plan Revision explicitly justified/traceable where provided.
+
+Predictions require source, generated time, horizon and validity/age. Candidate/rejected plans are progressively disclosed.
 
 ### WB-011 — Analyze timeline
 
-Analyze is centered on a synchronized typed multi-lane timeline with lanes for at least Encounter, Risk, Perception, Planner, Constraints, Control, Evaluator, Runtime and Annotation.
-
-Events support POINT, INTERVAL and TRANSITION time forms and distinguish observed events, derived events, evaluation findings, system diagnostic leads and user annotations.
+Typed multi-lane timeline with at least Encounter, Risk, Perception, Planner, Constraints, Control, Evaluator, Runtime and Annotation. Events support POINT, INTERVAL, TRANSITION and distinguish observed, derived, evaluation finding, diagnostic lead and user annotation.
 
 ### WB-012 — Failure localization
 
-The system shall build a factual failure window from evaluator/runtime/planner/constraint/fallback/risk events and mark first abnormal transition/key transitions. It shall not auto-declare root cause.
-
-Root cause/finding is an engineer-confirmed Investigation Finding with hypothesis/evidence/rejected alternatives/affected requirement/proposed fix.
+Build factual Failure Window from evaluator/runtime/planner/constraint/fallback/risk events and mark first abnormal transition/key transitions. System shall not auto-declare root cause. Root cause/finding is engineer-confirmed with evidence/alternatives/affected Requirement/proposed fix.
 
 ### WB-013 — Compare alignment
 
-Compare supports Absolute Simulation Time and evidence-based Semantic Event Alignment simultaneously. Semantic alignment never hides real timing differences.
+Compare supports Absolute Simulation Time and evidence-based Semantic Event Alignment simultaneously; semantic alignment never hides real timing differences.
 
 ### WB-014 — Agent Change Contract
 
-Every Debug Handoff shall define allowed change domains, protected validation assets, prohibited success strategies and required verification. Protected assets cannot be silently modified to make a test green.
+Every Debug Handoff defines allowed change domains, protected validation assets, prohibited success strategies and required verification.
 
-## 11. Cases requirements
+## 12. Cases requirements
 
-### CASE-001 — Requirement-centered library
+### CASE-001 — Requirement-centered library and hub
 
-Cases shall be organized primarily around validation Requirements, with Scenario Family/Encounter/Purpose/Environment/Lifecycle as strong facets.
+Cases are organized primarily around validation Requirements, with Scenario Family/Encounter/Purpose/Environment/Lifecycle as strong facets.
+
+`Cases > Requirements` is also the V1 **Requirement & Evaluation Hub** for local routes to Requirement Catalog/Detail/Version, Evaluation Profile Detail/Qualification, Coverage Contract/Matrix and Golden Evidence Fixtures. This does not add a sixth top-level workface.
 
 ### CASE-002 — Designer layout
 
-Case Designer is a chart-centered executable test designer with:
-
-- Test Specification rail;
-- Chart/ENC scenario geometry center;
-- Qualification rail;
-- detailed Parameters/Expected Behavior/Events/Advanced YAML/JSON/Diff areas.
-
-Chart and structured parameters are synchronized views of one Case model.
+Chart-centered executable test designer with Test Specification rail, Chart/ENC center, Qualification rail and Parameters/Expected Behavior/Events/Advanced/Diff areas. Chart and structured parameters are synchronized views of one Case model.
 
 ### CASE-003 — Declarative expected behavior
 
-Case stores behavior semantics and Requirement bindings. Common measurement logic and thresholds belong to versioned Evaluation Profiles.
-
-Case-specific numeric assertions are allowed only as explicit `LOCAL_ASSERTION` with rationale.
+Case stores behavior semantics/Requirement bindings. Common measurement logic/thresholds belong to versioned Evaluation Profiles. Case-specific numeric assertions are explicit `LOCAL_ASSERTION` with rationale.
 
 ### CASE-004 — Template instantiation
 
-Concrete Case stores exact template-version lineage and executable snapshot. New template versions are offered through Compare/Rebase into a new draft; no live inheritance.
+Concrete Case stores exact template-version lineage/snapshot. New Template versions offered through Compare/Rebase into a new Draft; no live inheritance.
 
 ### CASE-005 — Draft execution
 
-Draft Cases and Ephemeral Case Variants may run for Development. Their Runs shall freeze exact snapshots and clearly mark formal eligibility as Development-only.
-
-Only Published + Qualified Cases may enter formal Regression/Gate evidence; CORE additionally requires Stability Qualification.
+Draft Cases/Ephemeral Variants may run for Development with frozen exact snapshots and Development-only formal eligibility. Only Published + Qualified Cases may enter formal Regression/Gate evidence; CORE additionally requires Stability Qualification.
 
 ### CASE-006 — Encounter-centric authoring
 
-Primary authoring language shall be encounter geometry, not raw latitude/longitude alone. It shall support relative bearing, course relationship, speed, initial range, desired CPA/TCPA envelope, risk window and tolerances.
+Primary authoring language is encounter geometry, supporting relative bearing, course relationship, speed, initial range, desired CPA/TCPA envelope, risk window and tolerances.
 
-A versioned deterministic Geometry Compiler produces exact executable initial state. Published Case freezes Authoring Specification + Compiler Identity + Compiled Exact State + Digest.
-
-An explicit Exact State mode is supported for precise historical reproduction.
+Versioned deterministic Geometry Compiler produces exact executable initial state. Published Case freezes Authoring Specification + Compiler Identity + Compiled Exact State + Digest. Explicit Exact State mode supports historical reproduction.
 
 ### CASE-007 — Traffic Actor Behavior Contract
 
-Targets are versioned Traffic Actors with initial state, nominal behavior, scripted/condition-triggered maneuvers and a reserved reactive-policy extension.
-
-V1 CORE defaults to deterministic traffic behavior.
+Targets are versioned Traffic Actors with initial state, nominal behavior, scripted/condition-triggered maneuvers and reserved reactive-policy extension. V1 CORE defaults to deterministic traffic behavior.
 
 ### CASE-008 — Condition Contract
 
-Case declares required/allowed/prohibited execution conditions. Exact environment/perception/tracker/noise/latency settings are supplied through versioned Condition Profiles bound in RunSpec.
+Case declares required/allowed/prohibited conditions. Exact Environment/Perception/Tracker/Noise/Latency values supplied through versioned Condition Profiles bound in RunSpec.
 
-### CASE-009 — Multi-ship encounter intent
+### CASE-009 — Multi-ship Encounter Intent
 
-Multi-ship Cases use an Encounter Intent Graph with semantic roles:
-
-```text
-REQUIRED
-ALLOWED
-BACKGROUND
-PROHIBITED
-```
-
-Qualification compares Intent Graph to the Derived Encounter Graph. The Case shall not predefine Planner focus unless that focus itself is under test.
+Multi-ship uses Encounter Intent Graph roles `REQUIRED | ALLOWED | BACKGROUND | PROHIBITED`. Qualification compares Intent Graph to Derived Encounter Graph. Case shall not predefine Planner focus unless focus itself is under test.
 
 ### CASE-010 — Test phases
 
-Case uses Event-Relative Test Phase Contracts for Setup, Encounter Formation, Applicability, Response, Passing, Encounter Clear and Recovery. Each Run resolves actual Evaluation Windows from evidence.
-
-Absolute time windows are supported only as explicit special cases, especially historical regression, with rationale.
+Event-relative Test Phase Contracts cover Setup, Encounter Formation, Applicability, Response, Passing, Encounter Clear, Recovery. Each Run resolves actual windows from evidence. Absolute time windows are explicit special cases with rationale.
 
 ### CASE-011 — Qualification
 
-Before publication, Case must pass:
+Before publication, Case must pass L1 Definition, L2 physical/geometric, L3 test-intent, L4 executability and algorithm-neutral Scenario Qualification Preview under an exact `ScenarioQualificationPolicy` identity.
 
-- L1 Definition validity;
-- L2 physical/geometric validity;
-- L3 test-intent qualification;
-- L4 executability qualification;
-- algorithm-neutral Scenario Qualification Preview.
-
-Qualification Preview evaluates scenario validity, not algorithm capability, and cannot contribute algorithm validation/regression evidence.
+Qualification Preview cannot contribute algorithm validation/regression evidence.
 
 ### CASE-012 — Invalidation impact
 
-Published Case content is immutable. DEPRECATED/RETIRED/INVALIDATED status changes do not delete historical runs. INVALIDATED Cases trigger evidence/coverage/capability/regression impact analysis.
+Published Case content immutable. DEPRECATED/RETIRED/INVALIDATED do not delete historical Runs. INVALIDATED triggers evidence/coverage/capability/regression impact analysis.
 
-## 12. Runs and Evidence requirements
+## 13. Runs and Evidence requirements
 
 ### RUN-001 — Run Explorer
 
-Runs shall use one unified Run Explorer with system views:
-
-- Recent;
-- Failures;
-- Investigations;
-- Reproductions;
-- Core Regression;
-- Crashed / Incomplete;
-- User Saved Views.
+Unified views: Recent, Failures, Investigations, Reproductions, Core Regression, Crashed/Incomplete, User Saved Views.
 
 ### RUN-002 — Dense evidence-aware table
 
-Default view is a dense table, not a card grid. Default columns include Run ID, Purpose, Investigation, Case, Algorithm/ADP, Source Identity, Execution Status, Original Verdict, Evidence State, Failure Domain and Created At.
+Default dense table includes Run ID, Purpose, Investigation, Case, Algorithm/ADP, Source Identity, Execution Status, Original Verdict, Evidence State, Failure Domain, Created At.
 
 ### RUN-003 — Explicit query state
 
-Run filters/search/sort/grouping/columns are explicit Inspection/Presentation Query State, serialized to restorable Deep Links. Active filters shall always be visible. Saved Views are explicit and distinct from system preset views.
+Filters/search/sort/grouping/columns are Inspection/Presentation Query State serialized to restorable Deep Links. Active filters always visible. Saved Views explicit and separate from system presets.
 
 ### RUN-004 — Grouping
 
-Run Catalog remains flat and every Run remains independently addressable. Optional UI grouping may use Investigation, ExecutionGroup, Algorithm/ADP, Case or Source.
+Run Catalog remains flat; every Run independently addressable. Optional UI grouping by Investigation, ExecutionGroup, Algorithm/ADP, Case or Source.
 
 ### RUN-005 — Immutable Run Detail
 
-Run Detail is an immutable historical record plus read-only inspection. Full debug mutations occur in Workbench.
-
-Tabs include, at minimum:
+Run Detail is immutable historical record + read-only inspection. Full debug mutations occur in Workbench. Tabs at minimum:
 
 ```text
 Overview | Replay | Evaluations | Evidence | Lineage
@@ -760,135 +925,95 @@ Overview | Replay | Evaluations | Evidence | Lineage
 
 ### RUN-006 — Verdict-aware landing
 
-Run Detail first screen emphasizes different content for PASS, behavioral FAIL, INCOMPLETE/CRASHED and missing-evidence outcomes while retaining stable tabs.
+Landing differs for PASS, behavioral FAIL, INCOMPLETE/CRASHED and missing-evidence outcomes while tabs remain stable.
 
 ### RUN-007 — Historical replay
 
-Historical Replay shares the Observation Surface with live Run but is visibly `SEALED · HISTORICAL`; play/scrub controls read evidence and never invoke Simulator.
+Replay shares Observation Surface with Live but visibly `SEALED · HISTORICAL`; controls read evidence and never invoke Simulator.
 
 ### RUN-008 — Original verdict
 
-Original Verdict is immutable. Re-evaluations appear as separate Evaluation Records and never silently replace the Run verdict in Explorer/Overview.
+Original Verdict immutable. Re-evaluations are separate Evaluation Records and never replace Explorer/Overview Original Verdict.
 
 ### RUN-009 — Evidence Explorer
 
-Evidence UI is Manifest-centric and grouped by engineering semantics, not only file tree:
-
-- Experiment Identity;
-- Navigation/Truth;
-- Perception;
-- Encounter/Risk;
-- Planner;
-- Control/Dynamics;
-- Evaluation;
-- Runtime;
-- typed diagnostic extensions.
-
-Evidence inspection and Replay share the same Inspection Cursor.
+Manifest-centric grouping: Experiment Identity, Navigation/Truth, Perception, Encounter/Risk, Planner, Control/Dynamics, Evaluation, Runtime and typed diagnostics. Evidence and Replay share Inspection Cursor.
 
 ### RUN-010 — Portable Evidence Bundle
 
-V1 shall export/import a self-describing bundle containing manifest, frozen RunSpec/provenance, evidence artifacts, evaluations, derived artifacts/summaries and checksums.
+Export/import self-describing Bundle containing manifest, frozen RunSpec/provenance, artifacts, evaluations, derived artifacts/summaries and checksums. Import verifies integrity before registration; original digests/verdicts unchanged.
 
-Imported evidence is verified before registration. Original digests and verdicts must remain unchanged.
+### RUN-011 — Evidence trust and claim eligibility
 
-### RUN-011 — Evidence trust
-
-Historical Original Verdict and Current Evidence Trust/Claim Eligibility are independent.
-
-Top-level trust states:
+Three distinct semantics:
 
 ```text
-CURRENT
-IMPACTED
-STALE
-NOT_ELIGIBLE
+Historical Original Verdict
+Current Evidence Trust/Impact
+Claim-specific Evidence Eligibility
 ```
 
-Claim eligibility may differ by purpose (debug, regression, capability, formal validation).
+Top-level Trust may summarize `CURRENT | IMPACTED | STALE`; `NOT_ELIGIBLE` is preferably displayed as claim eligibility rather than rewriting Trust. Eligibility may differ for debug, regression, capability and future formal claims.
 
 ### RUN-012 — Run summary
 
-Run Overview contains:
-
-1. Identity & Outcome;
-2. Stable algorithm-agnostic Core Run Summary;
-3. Evaluation Profile results;
-4. typed algorithm diagnostic extensions.
-
-Every displayed metric must expose evidence/evaluator/window provenance.
+Identity/Outcome + stable algorithm-agnostic Core Summary + Evaluation Profile results + typed diagnostic extensions. Every displayed metric exposes evidence/evaluator/window provenance.
 
 ### RUN-013 — Lineage
 
-Run Detail shall display a concise Semantic Engineering Lineage Path and provide an expandable local Provenance Graph. Relationships use controlled semantics such as `DERIVED_FROM`, `REPRODUCES`, `VERIFIES`, `COMPARED_WITH`, `QUALIFIES`, `GENERATED_BY`, `MEMBER_OF`, `PROMOTED_TO_REGRESSION`, `SUPERSEDES`.
+Concise Semantic Engineering Lineage Path + expandable local Provenance Graph with controlled relation semantics.
 
-## 13. Algorithms and ADP requirements
+### RUN-014 — Cancellation/supersession
+
+CI/workflow supersession of an older candidate is distinct from Gate Early behavior. A superseded candidate may become `CANCELLED`/superseded according to orchestration policy; already SEALED evidence remains preserved. A deterministic failure within an active mandatory Suite does not permit stopping remaining CORE members.
+
+## 14. Algorithms and ADP requirements
 
 ### ALG-001 — Algorithm catalog
 
-Algorithm Catalog is organized by Algorithm Definition and directly exposes independent Runtime Readiness, Validation Readiness and Evidence-Derived Capability summary.
-
-`AVAILABLE` shall never imply `VERIFIED`.
+Organized by Algorithm Definition; independently exposes Runtime Readiness, Validation Readiness, Algorithm Role and Evidence-Derived Capability summary. `AVAILABLE` never implies `VERIFIED`.
 
 ### ALG-002 — Algorithm scope
 
-Generic navigation to an algorithm opens Algorithm Overview. Formal ADP scope is entered only through explicit selection or an exact ADP Deep Link.
-
-Algorithm-level summaries may show capability coverage across ADPs but shall not produce a mixed global grade.
+Generic navigation opens Algorithm Overview. Formal ADP scope only via explicit selection/exact Deep Link. Cross-ADP summary does not create mixed global grade.
 
 ### ALG-003 — Algorithm identity
 
-Identity layers are strictly:
+Formal identity:
 
 ```text
 Algorithm Definition
-→ Implementation Artifact
+→ immutable Implementation Artifact
 → ADP
 ```
 
+Mutable development source is modeled separately as SourceWorkspace/SourceSnapshot.
+
 ### ALG-004 — Dirty source
 
-Development Runs may execute a frozen dirty source snapshot. Promotion to formal ADP/CORE baseline requires immutable Implementation Artifact.
+Development Runs may execute frozen EphemeralSourceSnapshot. Published ADP/CORE baseline requires immutable Implementation Artifact.
 
 ### ALG-005 — ADP candidates
 
-Published ADP is read-only. Changes create an ADP Candidate Revision; temporary Workbench changes use Experiment Overrides. Promotion creates a new immutable ADP version.
-
-Promotion does not grant validation.
+Published ADP read-only. Changes create Candidate Revision; temporary Workbench changes use Experiment Overrides. Promotion requires immutable Implementation Artifact and creates new immutable ADP version. Promotion does not grant validation.
 
 ### ALG-006 — Capability matrix
 
-Validation maturity is an Evidence-Derived Capability Matrix scoped to exact ADP and validation conditions.
+Evidence-Derived Capability Matrix scoped to exact ADP + role-compatible capability + validation conditions. Cell shows derived grade/evidence state; detail exposes role, declared support, technical compatibility, scope, coverage, compliance and lineage.
 
-Capability cells display verified grade and evidence state; detail exposes declared support, technical compatibility, scope, coverage, compliance and evidence lineage.
+### ALG-007 — Capability invalidation
 
-Grade is derived; it is not manually editable.
-
-### ALG-007 — Capability evidence invalidation
-
-Changes are handled through Validation Impact Analysis. Evidence belongs to exact implementation/ADP/conditions and may become reusable, revalidation-required, stale or not verified. New versions never silently inherit G4/validated claims.
+Validation Impact Analysis handles changes. Evidence may be reusable, revalidation-required, stale or not verified; new versions never silently inherit verified claims.
 
 ### ALG-008 — Compatibility
 
-Run Preflight distinguishes:
+Preflight distinguishes Technical Compatibility, Evaluation/Evidence Compatibility and Validation Coverage. Technical incompatibility may block. Unverified coverage does not block Development but limits claims.
 
-- Technical Compatibility;
-- Evaluation/Evidence Compatibility;
-- Validation Coverage.
+### ALG-009 — Core diagnostics/extensions
 
-Technical incompatibility can block execution. Unverified coverage does not block Development; it blocks formal claims as policy requires.
-
-### ALG-009 — Core diagnostics and extensions
-
-All algorithms provide algorithm-independent core diagnostics such as identity, solve/execution status, plan status, selected output, fallback/hold, computation time and availability.
-
-Manifest-declared typed extension channels may include prediction, optimization, constraints, collision geometry, candidate selection, tree search, policy, observation/action and uncertainty.
-
-Unavailable diagnostics are explicitly `NOT_AVAILABLE`.
+All algorithms provide algorithm-independent core diagnostics: identity, solve/execution status, plan status, Selected/Accepted Planner Output, fallback/hold, computation time, availability. Typed extension channels may include prediction, optimization, constraints, collision geometry, candidate selection, tree search, policy, observation/action, uncertainty. Missing = `NOT_AVAILABLE`.
 
 ### ALG-010 — Integration workspace
-
-New algorithms shall be integrated through a staged Manifest-driven workflow:
 
 ```text
 Manifest
@@ -900,21 +1025,23 @@ Manifest
 → ADP
 ```
 
-Technical integration success grants `RUNTIME_READY`, not verified collision-avoidance capability.
+Technical integration success grants `RUNTIME_READY`, not verified COLAV capability. Integration Smoke may precede Published ADP.
 
 ### ALG-011 — Source workspace registry
 
-V1 shall maintain Git/worktree-aware SourceWorkspace objects. Each Run freezes a source snapshot before execution. Subsequent worktree edits do not alter historical Run source identity.
+V1 maintains registered Git/worktree SourceWorkspace objects and freezes SourceSnapshot before Development execution.
 
 ### ALG-012 — Runtime adapter
 
-Algorithm execution is abstracted by `AlgorithmRuntimeAdapter` with V1 primary `InWorkerPythonRuntime` and reserved ExternalProcess, Container, Remote and future MASS/HIL adapters.
+`AlgorithmRuntimeAdapter` with V1 primary `InWorkerPythonRuntime`; reserved ExternalProcess, Container, Remote and future MASS/HIL adapters.
 
-## 14. Evaluation and Requirement requirements
+### ALG-013 — Role-aware comparison
+
+Algorithm Catalog/Capability/Compare shall not compare incompatible roles as if they implement the same dynamic COLAV responsibility. Role applicability is explicit before comparative claims.
+
+## 15. Evaluation and Requirement requirements
 
 ### EVA-001 — Requirement applicability
-
-Applicability and Compliance are independent:
 
 ```text
 Applicability:
@@ -928,7 +1055,7 @@ PASS | FAIL | INCOMPLETE | NOT_EVALUATED
 
 ### EVA-002 — Intrinsic criticality vs enforcement
 
-Requirement stores intrinsic criticality:
+Requirement intrinsic criticality:
 
 ```text
 SAFETY_CRITICAL
@@ -937,7 +1064,7 @@ BEHAVIORAL
 QUALITY
 ```
 
-Evaluation Profile stores enforcement:
+Profile enforcement:
 
 ```text
 HARD_GATE
@@ -946,24 +1073,20 @@ ADVISORY
 OBSERVATIONAL
 ```
 
-Safety-critical requirements cannot be silently downgraded. Explicit Waivers may permit research execution but cannot grant capability evidence.
+Safety-critical Requirements cannot be silently downgraded. Explicit Waiver may permit research execution but cannot grant capability evidence.
 
 ### EVA-003 — Evaluation aggregation
 
-Evaluation uses two axes:
+Two axes:
 
 ```text
 Completeness: COMPLETE | INCOMPLETE
 Compliance: PASS | FAIL | NOT_ESTABLISHED
 ```
 
-Domain verdicts are retained for Safety, COLREG, Navigation, Recovery, Performance, Runtime and extensions.
-
-A known mandatory failure remains FAIL even if other evidence is incomplete.
+Domain verdicts retained for Safety, COLREG, Navigation, Recovery, Performance, Runtime/extensions. Known mandatory failure remains FAIL even if other evidence incomplete.
 
 ### EVA-004 — Evaluator identity
-
-Evaluator identity is:
 
 ```text
 Evaluator Definition
@@ -971,26 +1094,17 @@ Evaluator Definition
 → Evaluation Profile binding
 ```
 
-A Published Profile freezes exact implementation identities.
+Published Profile freezes exact implementation identity.
 
 ### EVA-005 — Profile qualification
 
-Evaluation Profile must pass a qualification suite containing:
-
-- static validation;
-- evaluator verification/unit/contract tests;
-- Golden Evidence Fixtures;
-- previous-profile Verdict Diff with explained intended changes.
-
-Unexplained verdict drift blocks publication.
+Qualification Suite contains static validation, evaluator verification/unit/contract tests, Golden Evidence Fixtures and previous-profile Verdict Diff with explained intended changes. Unexplained drift blocks publication.
 
 ### EVA-006 — Coverage
 
-Requirement Coverage uses a versioned Coverage Contract + Evidence-Derived Coverage Matrix.
+Versioned Coverage Contract + Evidence-Derived Coverage Matrix. Coverage and Compliance independent; qualified complete FAIL may prove condition is covered.
 
-Coverage and Compliance are independent. A qualified, complete FAIL can still prove that a condition was covered.
-
-Formal coverage states include:
+Coverage states include:
 
 ```text
 NOT_COVERED
@@ -1002,17 +1116,37 @@ INSUFFICIENT_EVIDENCE
 
 ### EVA-007 — No silent pass
 
-`NOT_APPLICABLE`, `INDETERMINATE`, Waiver, unqualified Draft, missing required evidence, invalidated Case/Profile shall not create formal PASS or coverage.
+`NOT_APPLICABLE`, `INDETERMINATE`, Waiver, unqualified Draft, missing required evidence, invalidated Case/Profile shall not create formal PASS/coverage.
 
-## 15. Regression requirements
+### EVA-008 — Reconstructed Evaluator provenance boundary
+
+The repository's current Evaluator is a reconstructed/public-interface implementation, not the official paper numerical Evaluator. V1 shall register it with explicit Evaluator Definition/Implementation provenance and preserve the repository boundary:
+
+```text
+functional_reproduction = true
+numerical_reproduction_confirmed = false
+```
+
+until a separately sourced, licensed/authorized, qualified and numerically calibrated implementation is available.
+
+No V1 UI, Capability Grade, Regression Gate or Acceptance language may imply that use of the reconstructed Evaluator establishes:
+
+- paper numerical reproduction;
+- official evaluator equivalence;
+- certification evidence;
+- type-approval evidence.
+
+If/when a different evaluator implementation is introduced, it must receive its own immutable implementation identity and Profile Qualification; historical evaluations remain unchanged.
+
+## 16. Regression requirements
 
 ### REG-001 — Versioned CORE Suite
 
-CORE suite is a Published Immutable Manifest referencing exact Case Versions, Evaluation Profiles and Execution Policy.
+Published Immutable Manifest references exact Case Versions, Evaluation Profiles, Evidence Capture Profile, Execution Policy, Environment/Reproducibility requirements.
 
 ### REG-002 — Completeness before verdict
 
-Suite evaluation first establishes Execution Completeness. Formal top-level states are:
+Top-level Suite result:
 
 ```text
 PASS
@@ -1020,31 +1154,31 @@ FAIL
 INCOMPLETE
 ```
 
-A worker/infrastructure failure is not mislabeled as algorithm behavioral FAIL.
+Infrastructure/worker failure is not mislabeled as algorithm behavioral FAIL.
 
 ### REG-003 — All CORE cases mandatory
 
-V1 CORE does not use percentage tolerance: once execution is complete, all required CORE Cases and hard gates must pass.
+V1 CORE uses no percentage tolerance: when execution complete, all required CORE Cases/hard gates must pass.
 
 ### REG-004 — Stability qualification
 
-CORE Cases must pass Stability Qualification. Non-deterministic `PASS → FAIL → PASS` becomes `TEST_STABILITY / INCOMPLETE`, enters Quarantine/Investigation and cannot be retried into green.
+Every CORE member must have current Stability Qualification under applicable Reproducibility/Environment policy. Non-deterministic `PASS → FAIL → PASS` becomes `TEST_STABILITY / INCOMPLETE`, enters Quarantine/Investigation and cannot be retried into green.
 
 ### REG-005 — Isolated parallel execution
 
-CORE executes as isolated process/worker units with versioned timeout, parallelism, resource policy and environment identity. One crash shall not destroy evidence from other Runs.
+CORE executes isolated worker units with versioned timeout/parallelism/resource/environment policy. One crash shall not destroy other Run evidence.
 
 ### REG-006 — Full CORE every merge
 
-Fast Merge Gate always runs the full current CORE Suite for every protected baseline. Impact Analysis may add tests; it cannot subtract the minimum set.
+Fast Merge runs full current CORE Suite for every Protected Baseline. Impact Analysis may add tests, never subtract.
 
 ### REG-007 — Gate early, execute to completion
 
-First deterministic failure may mark the Gate failed immediately, but mandatory CORE Runs continue so final evidence exposes the full regression picture.
+First deterministic failure may mark Gate failed immediately; mandatory CORE Runs continue to obtain complete regression picture. This is distinct from orchestration cancellation of an obsolete/superseded candidate.
 
 ### REG-008 — GitHub required checks
 
-Stable Required Check names include, at minimum:
+Stable required check contract includes, at minimum:
 
 ```text
 quality/lint
@@ -1052,112 +1186,104 @@ quality/unit-tests
 colav/core-regression
 ```
 
-Internal Case matrix can change with suite versions without changing branch-protection names.
+Implementation may map existing workflow jobs to these stable check names during migration.
 
 ### REG-009 — Protected baselines
 
-Fast Merge Gate binds a Published `ProtectedRegressionBaselineSet`. All baselines are mandatory. Adding/removing/replacing protected ADPs publishes a new version.
+Fast Merge binds Published `ProtectedRegressionBaselineSet`; all Baselines mandatory. Adding/removing/replacing ADPs publishes new version.
 
 ### REG-010 — Baseline transition
 
-Protected baseline replacement uses `BaselineTransitionProposal` with old baseline still protected while the successor completes CORE, impact and required revalidation.
-
-Lifecycle:
+Replacement uses `BaselineTransitionProposal` with old baseline still protected while successor completes CORE/impact/required revalidation.
 
 ```text
 DRAFT → QUALIFYING → READY_TO_SWITCH → APPLIED
 ```
 
-with BLOCKED/REJECTED as needed.
+with BLOCKED/REJECTED.
 
 ### REG-011 — Gate Attestation
 
-Every formal Fast Merge Gate creates immutable Regression Gate Attestation. New source identity invalidates applicability of previous gate results to the new candidate.
+Every formal Fast Merge creates immutable Regression Gate Attestation. New source identity means prior Attestation is not a valid Gate for the new candidate.
 
 ### REG-012 — Merge Waiver
 
-A Merge Waiver may exceptionally change merge eligibility but shall never change FAIL/INCOMPLETE to PASS.
-
-Waived merge is recorded as `MERGED_WITH_EXCEPTION`, creates a remediation obligation and cannot contribute verified capability/release evidence.
+Waiver may exceptionally change Merge Eligibility but never change FAIL/INCOMPLETE to PASS. Result `MERGED_WITH_EXCEPTION`, creates Remediation Obligation and cannot contribute verified capability/release evidence.
 
 ### REG-013 — Suite Change Proposal
 
-Any CORE Suite add/replace/remove operation uses a Suite Change Proposal and automatically computes Requirement, historical-defect and protection diffs.
-
-Removing a current failure blocker is explicitly marked `ACTIVE_FAILURE_PROTECTION_REMOVAL` and cannot silently restore green status.
+Any CORE add/replace/remove uses Suite Change Proposal and computes Requirement/historical-defect/protection diff. Removing current failure blocker is `ACTIVE_FAILURE_PROTECTION_REMOVAL` and cannot silently restore green.
 
 ### REG-014 — Gate control center
 
-Regression home is a Gate-centered Assurance Control Center showing current candidate/baseline/suite, Gate decision, blockers, Suite Health, lightweight coverage, recent gates, transitions, waivers/remediation and suite management.
+Regression home is Gate-centered Assurance Control Center with current candidate/baseline/suite, Gate decision, blockers, Suite Health, lightweight coverage, recent gates, transitions, waivers/remediation and suite management.
 
-## 16. Global UX requirements
+## 17. Global UX requirements
 
 ### UX-001 — Scoped context
 
-Global Shell maintains only Application Scope such as Repository, Worktree/Workspace, Source and Runtime Environment.
-
-Case/ADP/Profile/Tracker/Seed are explicit Task Context and cannot silently inherit across workfaces.
+Global Shell maintains Application Scope such as registered Repository/Worktree, Source and Runtime Environment. Case/ADP/Profile/Tracker/Seed are explicit Task Context and cannot silently inherit across workfaces.
 
 ### UX-002 — Context Ribbon
 
-Engineering Context Ribbon shall always expose the current workflow/scope, e.g. Investigation, sealed historical Run or Fast Merge Gate.
+Always expose current workflow/scope such as Investigation, SEALED historical Run or Fast Merge Gate.
 
 ### UX-003 — Object Navigator
 
-Provide global Object Navigator/Command Palette with stable Object IDs, Canonical Deep Links, recent history and object-specific actions.
-
-Opening an object changes Inspection Context only unless an explicit action such as `Use in Investigation` changes execution context.
+Global Object Navigator/Command Palette with stable Object IDs, Canonical Deep Links, recent history and object-specific actions. Opening object changes Inspection Context only unless explicit action changes execution context.
 
 ### UX-004 — Attention model
 
-Separate:
-
-1. Run Operational Events;
-2. Immediate UI Alerts;
-3. Persistent Engineering Attention Items.
-
-`ACKNOWLEDGED ≠ RESOLVED`.
+Separate Run Operational Events, Immediate UI Alerts and Persistent Engineering Attention. `ACKNOWLEDGED ≠ RESOLVED`.
 
 ### UX-005 — Risk-tiered actions
 
-Actions use four impact tiers:
+Exactly **five** impact tiers:
 
 - Tier 0 Inspection — immediate/read-only;
 - Tier 1 Development mutation — low-friction draft/candidate changes;
 - Tier 2 Execution — Preflight + resolved scope;
 - Tier 3 Governance/immutable assets — Impact Preview + explicit commit;
-- Tier 4 Exception/protection reduction — explicit risk acceptance + remediation/evidence.
+- Tier 4 Exception/protection reduction — risk acceptance + remediation/evidence.
 
-High-impact actions shall use specific verbs rather than generic `Confirm/Apply/Submit`.
+Use specific verbs rather than generic `Confirm/Apply/Submit`.
 
 ### UX-006 — Context-derived workflow
 
-No global Development/Regression/Validation mode switch. Workflow mode derives from formal context (Investigation, Gate, historical run, integration, etc.). Each Run retains explicit purpose.
+No global Development/Regression/Validation mode switch. Workflow mode derives from formal context. Each Run retains explicit Purpose.
 
 ### UX-007 — Desktop-first
 
-V1 primary design baseline is desktop/large-screen:
+Primary baseline ≈1440×900+, optimized ≈1920×1080; ultrawide adds engineering context; compact desktop collapses Rails without hiding critical state; tablet/mobile primarily inspection.
 
-- baseline approximately 1440×900 or above;
-- optimized around 1920×1080;
-- ultrawide adds useful engineering context;
-- compact desktop collapses Rails without hiding critical state;
-- tablet/mobile are primarily inspection experiences.
+### UX-008 — Requirement & Evaluation Hub ownership
 
-## 17. OpenBridge design-system requirements
+Within `Cases > Requirements`, V1 shall provide local routes/screens for:
+
+- Requirement Catalog/Detail/Version;
+- Evaluation Profile Detail/Qualification;
+- Coverage Contract Detail/Matrix;
+- Golden Evidence Fixture inspection/qualification context.
+
+No sixth top-level workface is introduced.
+
+### UX-009 — Engineering workspace/environment ownership
+
+Global Settings/Engineering Workspace (and/or Context Ribbon drill-down) shall provide inspect/register/manage surfaces for:
+
+- registered SourceWorkspaces;
+- SourceSnapshot history/identity;
+- Execution Environment Profiles/qualification state.
+
+Inspecting these objects shall not silently switch current Task/Run execution context.
+
+## 18. OpenBridge design-system requirements
 
 ### OB-001 — Foundation
 
-OpenBridge shall be the shared visual/interactivity foundation across both:
-
-- Maritime Operational Surface;
-- Engineering Assurance Surface.
-
-Engineering pages may use different information structures but shall not fall back to an unrelated generic SaaS visual language.
+OpenBridge is shared visual/interactivity foundation across Maritime Operational Surface and Engineering Assurance Surface. Engineering pages may use different information structures but shall not fall back to unrelated generic SaaS language.
 
 ### OB-002 — Reuse priority
-
-Every UI element follows:
 
 ```text
 OB-NATIVE
@@ -1169,51 +1295,48 @@ OB-NATIVE
 
 ### OB-003 — Thin adapter
 
-Business code should consume a thin COLAV adapter/wrapper where useful for framework integration, event normalization, defaults, business semantics, testing hooks and OpenBridge-version isolation. The adapter shall not recreate the design system.
+Business code may consume thin COLAV wrappers for framework/event/default/business/test/version integration. Adapter shall not recreate the design system.
 
 ### OB-004 — Token source of truth
 
-OpenBridge design tokens are visual source of truth. COLAV may add semantic aliases/extensions for V&V states but shall avoid page-level arbitrary colors, spacing and typography magic values.
+OpenBridge design tokens are visual source of truth. COLAV may add semantic aliases/extensions; avoid page-level arbitrary colors/spacing/typography.
 
 ### OB-005 — Themes
 
-Support OpenBridge-native `DARK`, `LIGHT`, `SYSTEM`; Dark is the V1 primary design baseline.
-
-Maritime Chart palette (e.g. DAY/DUSK/NIGHT where supported) is separate from Application Appearance.
+Support `DARK | LIGHT | SYSTEM`; Dark is V1 primary design baseline. Maritime Chart DAY/DUSK/NIGHT palette, where supported, is separate.
 
 ### OB-006 — Semantic color budget
 
-Lifecycle states such as Draft/Candidate/Published/Historical are neutral-by-default. Strong semantic color is reserved for assurance/blocking/operational states. Operational Safety and Engineering Assurance use distinct presentation semantics.
-
-Important state shall never be expressed by color alone.
+Draft/Candidate/Published/Historical neutral-by-default. Strong semantic color reserved for assurance/blocking/operational states. Operational Safety and Engineering Assurance have distinct presentation semantics. State never color-only.
 
 ### OB-007 — Documented extensions only
 
-Default prohibited patterns:
+Prohibit undocumented Shadow DOM manipulation, internal class dependencies, deep private selectors, local forks/copies and page-specific internal overrides. Custom Exceptions require justification/maintenance risk.
 
-- undocumented Shadow DOM manipulation;
-- dependency on internal OpenBridge class names;
-- deep private CSS selectors;
-- local forks/copies of OpenBridge components;
-- page-specific component variants built by overriding internals.
+### OB-008 — OpenBridge dependency and license provenance gate
 
-Custom exceptions require documented justification and maintenance risk.
+Before an OpenBridge dependency/component catalog is accepted for V1 implementation, record and review:
 
-## 18. Layout requirements
+- exact package/repository/catalog version or commit;
+- official source/provenance URL;
+- applicable license(s);
+- attribution/NOTICE obligations;
+- distribution/commercial compatibility decision for the exact selected artifacts;
+- required updates to `THIRD_PARTY_NOTICES.md` and dependency inventory.
+
+This PRD does **not** assert a license conclusion for an unpinned or unverified OpenBridge artifact. Implementation acceptance requires evidence for the actual selected version.
+
+## 19. Layout requirements
 
 ### LAYOUT-001 — Global shell
 
-Use Compact OpenBridge-style App Rail + Engineering Context Ribbon.
-
-App Rail owns only primary workfaces and global utility; Ribbon owns current engineering scope.
+Compact OpenBridge-style App Rail + Engineering Context Ribbon.
 
 ### LAYOUT-002 — Secondary navigation
 
-Use Compact Local Header + Primary Tabs + Contextual Drawers. Avoid a persistent second left navigation column.
+Compact Local Header + Primary Tabs + Contextual Drawers; avoid persistent second left nav.
 
-### LAYOUT-003 — Reusable layout primitives
-
-Primary screens shall preferentially use exactly five task-oriented layout families:
+### LAYOUT-003 — Reusable layouts
 
 ```text
 SpatialWorkspaceLayout
@@ -1225,29 +1348,23 @@ GuidedWorkflowLayout
 
 ### LAYOUT-004 — Adaptive rails
 
-Spatial Workspace uses mode-aware adaptive rails with Canvas priority. Critical state remains visible when rails collapse.
+Mode-aware adaptive Rails with Canvas priority; critical state remains visible when Rails collapse.
 
 ### LAYOUT-005 — Scroll contracts
 
-Each layout has one dominant scroll owner. Spatial Workspace is viewport-locked; Explorer/ObjectDetail/Assurance/Guided workflows use their defined content scroll models. Avoid nested-scroll chains.
+One dominant scroll owner per layout. Spatial Workspace viewport-locked; Explorer/ObjectDetail/Assurance/Guided use their defined content scroll model. Avoid nested-scroll chains.
 
 ### LAYOUT-006 — Personalization
 
-V1 supports curated layout presets and bounded presentation customization such as collapse/resize/panel visibility/table columns. It does not implement arbitrary IDE-style docking/floating windows.
+Curated presets and bounded Presentation customization; no arbitrary IDE docking/floating in V1. Presentation State never contains engineering execution context.
 
-Presentation State never contains engineering execution context.
-
-## 19. Technical architecture requirements
+## 20. Technical architecture and NFR requirements
 
 ### ARCH-001 — Clean Web/API cutover
 
-The V1 Web/API/Application layer may be replaced without long-term backward-compatibility requirements for the old Web/session API.
-
-The verified simulation/COLAV computational core shall be preserved, characterized and adapted unless a separate justified change is required.
+V1 Web/API/Application layer may be replaced without long-term backward compatibility for old Web/session API. Existing simulation/COLAV computation is preserved only after exact-ref characterization demonstrates the behavior to preserve.
 
 ### ARCH-002 — Control Plane / Execution Plane
-
-Architecture separates:
 
 ```text
 Control Plane
@@ -1257,21 +1374,17 @@ Execution Plane
 Isolated Run Workers
 ```
 
-A solver/native crash should primarily terminate the affected Worker/Run, not the Web control plane.
+Native/solver crash should primarily terminate affected Worker/Run, not Web control plane.
 
 ### ARCH-003 — Shared Assurance Engine
 
-Web, CLI and GitHub Actions call the same Assurance/Execution/Evaluation implementation. No duplicated regression semantics are allowed.
+Web, CLI and GitHub Actions call same Assurance/Execution/Evaluation implementation. No duplicated regression semantics.
 
 ### ARCH-004 — Canonical Observation/Event Model
 
-Run Worker emits one versioned Canonical Observation/Event Model consumed by Live UI, Evidence Writer, Analyze, Replay and Compare through projections/adapters.
-
-Browser is an observer, not evidence recorder. Browser disconnect shall not cause formal evidence loss.
+Run Worker emits one versioned model consumed by Live UI, Evidence Writer, Analyze, Replay and Compare through projections/adapters. Browser is Observer, not Evidence Recorder. Browser disconnect shall not cause formal evidence loss.
 
 ### ARCH-005 — Persistence
-
-Use:
 
 ```text
 Relational Metadata Store
@@ -1279,48 +1392,29 @@ Relational Metadata Store
 Content-Addressed Artifact Store
 ```
 
-V1 implementation target:
-
-```text
-SQLite + local filesystem CAS
-```
-
-through repository/store interfaces so future PostgreSQL/object storage can be introduced without changing domain semantics.
+V1 target: SQLite + local filesystem CAS behind repository/store interfaces.
 
 ### ARCH-006 — Source Workspace
 
-Git/worktree-aware Workspace Registry resolves and freezes source snapshot before each Run. Web may inspect/diff sources but is not a source editor.
+Git/worktree-aware Workspace Registry resolves and freezes SourceSnapshot before Development execution. Browser/API shall not accept arbitrary filesystem paths as execution authority.
 
 ### ARCH-007 — Local-first, server-ready
 
-V1 deployment target is a single-engineer Local Engineering Workstation. Service/adapter boundaries must not hardcode single-machine assumptions into domain logic.
+V1 target: single-engineer Local Engineering Workstation; service/adapter boundaries do not hardcode domain semantics to one machine.
 
 ### ARCH-008 — Qualified execution environment
 
-Environment identity is versioned and qualified. Development may use unqualified/compatible environments; Fast Merge Gate requires a Qualified Reference Environment.
+Development may use unqualified/compatible environments; Fast Merge requires Qualified Reference Environment.
 
 ### ARCH-009 — Reproducibility contract
 
-Use versioned Reproducibility Contract and independent Random Stream Registry.
-
-Determinism classes:
-
-```text
-D0 UNCONTROLLED
-D1 SEEDED
-D2 REPRODUCIBLE
-D3 GATE_STABLE
-```
-
-CORE/Fast Merge require D3 in the qualified execution environment.
+Independent Random Stream Registry plus versioned Reproducibility Contract. CORE/Fast Merge require D3 in Qualified Environment.
 
 ### ARCH-010 — Historical compatibility
 
-Use `Read-Old / Write-Current`.
+`Read-Old / Write-Current`. SEALED Evidence never migrated in place. Versioned readers may create non-destructive derived projections. Missing historical fields shown unavailable; current algorithms never fabricate historical facts.
 
-SEALED Evidence is never migrated in place. Historical schema adapters/readers create non-destructive derived projections if needed. Missing old fields are shown as unavailable; current algorithms shall never be used to fabricate historical facts.
-
-Compatibility states may include:
+Compatibility:
 
 ```text
 FULL
@@ -1329,89 +1423,121 @@ RAW_EVIDENCE_ONLY
 UNSUPPORTED_SCHEMA
 ```
 
-## 20. Performance assurance requirements
+### ARCH-011 — Local security boundary
+
+V1 is local-first and shall default to loopback/local-only binding. Remote/multi-user exposure is out of V1 unless separately secured.
+
+Application services may access only registered repositories/workspaces/artifact roots. Frontend/API shall not provide general arbitrary filesystem-path or shell-command execution endpoints.
+
+Imported manifests, Debug Handoffs and Agent Results are **data**, not executable command authority. Any actual source/run command is resolved by trusted backend policy from registered identities/contracts.
+
+Tier-2/3/4 endpoints shall apply the same domain action/eligibility policy even in single-user mode.
+
+### ARCH-012 — CAS retention and sealing crash consistency
+
+Artifacts referenced by any retained SEALED Run, Published asset, Gate Attestation or retained Evidence Bundle shall not be automatically garbage-collected.
+
+V1 cleanup shall be explicit, reachability-aware and provide impact preview. Deletion of a referenced artifact must be blocked unless the owning record is itself being removed under an explicit retention policy that does not violate immutable-history requirements.
+
+Run sealing is crash-safe: a Run cannot report `SEALED` until required manifest/artifact references and digests are durably/consistently committed. Orphan/unfinalized artifacts after worker/control-plane crash must be detectable and recoverable/cleanable without mutating SEALED history.
+
+### ARCH-013 — Frontend host stack ADR
+
+Before OpenBridge application implementation begins, an Architecture Decision Record/spike shall select the V1 frontend host stack. Decision criteria include:
+
+- OpenBridge Web Component interoperability;
+- typed Domain/Projection models;
+- routing/Canonical Deep Links;
+- Task Context vs Presentation State separation;
+- testing/accessibility/tooling;
+- migration from current `web_gui`;
+- build/bundle/dependency management.
+
+The PRD does not assume React, Vue or another framework before this ADR is accepted.
+
+### ARCH-014 — Exact baseline characterization manifest
+
+Before simulation-core preservation claims are used to constrain refactoring, Milestone 0 shall produce an immutable `Baseline Characterization Manifest` containing:
+
+- repository identity;
+- exact branch/worktree/commit;
+- execution environment;
+- selected algorithms/scenarios;
+- known fallbacks/limitations;
+- characterization outputs/tolerances/evidence.
+
+Design documents describing a different historical worktree/ref do not substitute for live source/ref verification.
+
+## 21. Performance assurance requirements
 
 ### PERF-001 — Fast Merge performance guard
 
-Fast Merge shall check runtime sanity and significant performance regression, including crash/timeout/unexpected fallback and broad absolute/relative regression policy.
-
-Fast Merge PASS does not claim MASS real-time qualification.
+Fast Merge checks runtime sanity/significant performance regression including crash/timeout/unexpected fallback and broad absolute/relative regression policy. PASS does not claim MASS real-time qualification.
 
 ### PERF-002 — Future strict performance qualification
 
-Strict deadline, p99/max latency, deadline-miss rate and resource-budget claims are reserved for a dedicated qualified performance environment and Performance Qualification Suite.
+Strict deadline, p99/max latency, deadline-miss rate/resource-budget claims reserved for dedicated qualified performance environment/Suite.
 
-## 21. Preflight requirements
+## 22. Preflight requirements
 
-Every Run/Gate execution shall resolve and visibly present the effective execution scope before starting.
+Every execution resolves and visibly presents effective scope before starting.
 
-Preflight checks may include:
+Checks may include:
 
+- purpose/applicable subject bindings;
 - Case validity/qualification;
-- ADP compatibility;
-- source/artifact identity;
+- Scenario Qualification Policy for qualification runs;
+- ADP/config compatibility where applicable;
+- source identity (SourceSnapshot vs ImplementationArtifact);
 - assets/ENC availability;
 - runtime/dependencies;
 - parameters/schema;
 - technical compatibility;
 - evidence/diagnostic capability;
+- Evidence Capture Profile/Core Evidence floor;
 - environment qualification;
 - reproducibility eligibility;
-- formal-claim eligibility for the requested workflow.
+- formal-claim eligibility.
 
-Failure categories shall distinguish invalid config, dependency, capability, scenario/data and runtime failures.
+Failure categories distinguish invalid config, dependency, capability, scenario/data, evidence and runtime failures.
 
-## 22. Agent workflow requirements
+## 23. Agent workflow requirements
 
 ### AGENT-001 — Structured Debug Handoff
 
-Debug Handoff export includes Markdown + JSON and references the full Evidence Bundle rather than duplicating large telemetry.
-
-Minimum sections:
-
-- reproduction;
-- failure facts;
-- execution context;
-- diagnostics;
-- confirmed findings;
-- open hypotheses;
-- Agent task;
-- change contract.
+Markdown + JSON, referencing Evidence Bundle rather than duplicating large telemetry. Minimum sections: reproduction, failure facts, execution context, diagnostics, confirmed findings, open hypotheses, Agent task, change contract.
 
 ### AGENT-002 — Protected validation assets
 
-Default Algorithm-fix tasks protect published Cases, Requirements, Evaluation Profiles, Evaluator implementations, Golden Evidence, Core Suite, Gate policies and baseline Run evidence.
-
-An Agent may request a protected-asset change but not silently make it as a success strategy.
+Default Algorithm-fix task protects Published Cases, Requirements, Evaluation Profiles, Evaluator implementations, Golden Evidence, Core Suite, Gate policies and baseline Run evidence. Agent may request protected-asset change but not silently perform it as success strategy.
 
 ### AGENT-003 — Platform authority
 
-Agent Result does not establish PASS/FIX_VERIFIED. The platform must execute a new candidate Run and evaluation under frozen test/evaluation conditions.
+Agent Result does not establish PASS/FIX_VERIFIED. Platform executes new Candidate Run/Evaluation under frozen test/evaluation conditions.
 
-## 23. Metrics and success measures
+## 24. Metrics and success measures
 
-V1 shall instrument quantitative baselines for future improvement. Initial measurements include:
+Instrument:
 
-- requirement coverage by coverage contract;
-- scenario-family/condition coverage;
-- mean time to reproduce a known defect;
-- mean time from failure to confirmed finding;
+- Requirement Coverage by Coverage Contract;
+- Scenario-family/condition coverage;
+- mean time to reproduce known defect;
+- mean time failure → confirmed finding;
 - regression escape count;
-- Fast Merge duration;
-- Fast Merge first-pass rate;
-- frequency of INCOMPLETE vs behavioral FAIL;
-- number of CORE flaky/quarantined cases;
+- Fast Merge duration/first-pass rate;
+- INCOMPLETE vs behavioral FAIL rate;
+- CORE flaky/quarantined case count;
 - OpenBridge component reuse/conformance ratio.
 
-These are engineering metrics, not certification claims.
+Engineering metrics only; not certification claims.
 
-## 24. V1 acceptance gate / Definition of Done
+## 25. V1 acceptance gate / Definition of Done
 
 V1 Release Candidate shall pass a versioned platform acceptance profile such as `v1-acceptance@1`.
 
 ### ACC-001 — Golden Workflow
 
-At least one real representative algorithm defect shall be taken through the complete official product path:
+At least one real representative defect completes official path:
 
 ```text
 FAIL Run
@@ -1432,307 +1558,205 @@ FAIL Run
 → Investigation CLOSED
 ```
 
-No manual database editing or hidden one-off scripts may substitute for required product steps.
+No manual DB editing/hidden one-off scripts substitute required product steps.
 
 ### ACC-002 — Four encounter baselines
 
-Head-on, Crossing, Overtaking and Basic Multi-ship shall each have at least:
-
-- Qualified Published Case;
-- real Run;
-- SEALED Evidence;
-- Evaluation;
-- Historical Replay.
-
-This proves platform breadth, not G4 validation for every encounter.
+Head-on, Crossing, Overtaking, Basic Multi-ship each have Qualified Published Case + real Run + SEALED Evidence + Evaluation + Historical Replay. This proves platform breadth, not G4.
 
 ### ACC-003 — Multi-algorithm integration
 
-At least one MPC-based algorithm and one non-MPC planner (for example VO if repository readiness permits) shall complete Manifest → Contract → Runtime → Smoke → Diagnostics → Implementation Artifact → ADP → Development Run.
+At least one MPC-based algorithm and one **role-compatible non-MPC dynamic COLAV planner where repository readiness permits** complete Manifest → Contract → Runtime → Smoke → Diagnostics → Implementation Artifact → ADP → Development Run. Static path planning/tracking roles may be integrated but shall not be presented as equivalent dynamic COLAV evidence.
 
 ### ACC-004 — Evidence integrity
 
-A sealed Run shall be exported as Portable Evidence Bundle, imported into an isolated/clean registration context, pass checksum/integrity verification, replay historical evidence and retain original source identity/digests/verdict.
+Export SEALED Run Bundle, import into isolated/clean registration context, verify checksums/integrity, replay history and retain original source identity/digests/verdict.
 
 ### ACC-005 — GitHub gate
 
-In a real Pull Request, required checks shall demonstrate:
-
-- known-good change → merge eligible;
-- intentional regression fixture → blocked;
-- GitHub check can be traced to Regression Gate Attestation → ExecutionGroup → Runs → Evaluation → Evidence.
+Real PR demonstrates known-good merge eligible and intentional regression blocked; check traces to Gate Attestation → ExecutionGroup → Runs → Evaluation → Evidence.
 
 ### ACC-006 — Crash/incomplete semantics
 
-Inject a controlled runtime/worker/evidence failure and prove:
+Inject controlled worker/solver/evidence failure; affected Run becomes CRASHED/INCOMPLETE as appropriate, other isolated Runs preserve evidence, partial evidence preserved, Gate blocked/incomplete, UI does not mislabel infrastructure failure as behavioral FAIL.
 
-- affected Run becomes CRASHED/INCOMPLETE as appropriate;
-- other isolated Runs retain their evidence;
-- partial evidence is preserved;
-- Gate is blocked/incomplete;
-- UI does not mislabel infrastructure failure as behavioral algorithm FAIL.
+### ACC-007 — Reproducibility and CORE stability
 
-### ACC-007 — Reproducibility
+Every member of the Published V1 CORE Suite shall have **current Stability Qualification** under the applicable Reproducibility Contract and Qualified Environment.
 
-A representative CORE Case shall meet D3 Gate-Stable requirements through repeated execution with fixed source, ADP, Case, environment and random streams.
+At least one representative CORE Case shall additionally be repeated end-to-end as a demonstration fixture showing D3 Gate-Stable Applicability, Verdict, critical event ordering and metric/event tolerances.
 
-### ACC-008 — OpenBridge conformance
+### ACC-008 — OpenBridge conformance and provenance
 
-Produce an OpenBridge Conformance Report showing component reuse class, token use and custom exceptions. No undocumented Shadow DOM/internal CSS hacks are allowed in accepted P0 screens.
+Produce OpenBridge Conformance Report for P0 components. No undocumented internal styling hacks. The exact OpenBridge dependency/catalog provenance/license/NOTICE review required by OB-008 is complete and repository notices/inventory are updated as required.
 
 ### ACC-009 — P0 defect state
 
-No unresolved P0 defect may remain at V1 acceptance.
+No unresolved P0 defect.
 
 ### ACC-010 — Semantic boundary
 
-Passing the V1 platform acceptance gate shall not be represented as algorithm formal validation, MASS deployment approval or certification.
+Passing platform acceptance shall not be represented as algorithm formal validation, MASS approval, paper numerical reproduction or certification.
 
-## 25. Migration strategy
+### ACC-011 — Security boundary
 
-The old Web/session/API model is not a long-term compatibility contract.
+Default local deployment binds to local/loopback access; tests confirm untrusted frontend input cannot request arbitrary filesystem access or shell execution outside registered/policy-resolved workspaces.
 
-Migration sequence shall:
+### ACC-012 — Sealing/retention integrity
 
-1. Characterize representative current simulation/algorithm behavior.
-2. Define adapters around the existing simulation computational core.
-3. Establish new domain/application boundaries and Run Worker.
-4. Introduce Canonical Observation/Event and Evidence model.
-5. Build new OpenBridge Web workfaces against the new model.
-6. Import useful legacy scenarios/configurations as Draft Cases through adapters where practical.
-7. Verify four encounter baselines and representative algorithms.
-8. Cut over the active Web interface only after Golden Workflow and acceptance gates pass.
-9. Retire legacy Web execution truth; do not maintain two active session truths.
+Fault-injection confirms sealing does not report SEALED before durable manifest/artifact consistency; reachability-aware cleanup does not delete retained SEALED/Attestation evidence.
 
-## 26. Requirement traceability conventions
+## 26. Migration strategy
 
-Implementation artifacts, tests and future detailed design should cite stable IDs from this PRD such as `WB-012`, `CASE-011`, `REG-008`, `ARCH-004`.
+Old Web/session/API model is not long-term compatibility contract.
 
-The repository's existing implementation traceability convention should be extended so each critical P0 requirement can be traced:
+1. Produce Baseline Characterization Manifest for exact source ref.
+2. Characterize representative simulation/algorithm behavior.
+3. Define adapters around verified computational core.
+4. Establish domain/application boundaries and Run Worker.
+5. Introduce Canonical Observation/Event/Evidence model.
+6. Complete frontend host-stack ADR and OpenBridge dependency/provenance gate.
+7. Build new OpenBridge Web workfaces.
+8. Import useful legacy scenarios/configurations as Draft Cases where practical.
+9. Verify four encounter baselines and representative algorithms.
+10. Cut over active Web only after Golden Workflow and acceptance gates pass.
+11. Retire legacy Web execution truth; do not maintain two active session truths.
+
+## 27. Requirement traceability conventions
+
+Implementation/tests/detailed design shall cite stable IDs from this PRD.
+
+Each critical P0 requirement traces:
 
 ```text
 PRD Requirement
 → Domain/API implementation
-→ UI/API surface
+→ UI/API owner/surface
+→ Persistence identity
 → Test/Fixture
 → Evidence/Acceptance proof
 → Status
 ```
 
-## 27. Decision register summary (D-001 — D-144)
+Every P0 first-class object shall have explicit domain identity, UI owner/global route where applicable, persistence identity, implementation milestone and acceptance/test path.
 
-The full workshop decisions are normalized into the requirements above. This section preserves the high-level decision lineage without reproducing the conversational questions.
+## 28. Decision register summary (D-001 — D-144)
+
+The full workshop decisions are normalized above. This summary preserves decision lineage.
 
 ### D-001 — D-010: Product/persona/gate foundation
 
 - D-001: Algorithm developer/research engineer and V&V/test engineer are equal primary personas.
 - D-002: Gate ownership is hybrid Web V&V + CI/CD Gate.
 - D-003: Two-stage quality gate: Fast Merge + future Full Release.
-- D-004: V1 does not deploy to MASS; produce validated handoff foundations only.
+- D-004: V1 does not deploy to MASS; handoff foundations only.
 - D-005: Validation object is exact ADP; scenario/tracker/seed are conditions.
 - D-006: Engineering V&V-grade, safety-assurance-ready, not certification.
 - D-007: Requirement-driven layered parametric validation.
 - D-008: Requirement-based layered evaluation + versioned Evaluation Profiles.
 - D-009: Evidence strategy prioritizes defect escape, false confidence, regression risk and comparison.
-- D-010: Structured Agent-Ready Debug Handoff is V1 core.
+- D-010: Structured Agent-ready Debug Handoff is V1 core.
 
 ### D-011 — D-021: Debug lifecycle, IA and Workbench foundations
 
 - D-011: Bug closure requires root cause, fix verification, Regression Case and CORE PASS.
-- D-012: OpenBridge UI/UX refactor is primary but constrained by real algorithm workflow.
-- D-013: V1 scope = Development + Core Regression; V2 = Formal Validation.
-- D-014: Golden Workflow fixed from real failure through CORE PASS.
+- D-012: OpenBridge UI/UX refactor primary but constrained by real algorithm workflow.
+- D-013: V1 = Development + Core Regression; V2 = Formal Validation.
+- D-014: Golden Workflow real failure → CORE PASS.
 - D-015: Full-stack refactor permitted with single-truth/evidence principles.
 - D-016: V1 IA = Workbench, Cases, Runs, Algorithms, Regression.
-- D-017: Investigation is a persistent first-class object.
-- D-018: Investigation lifecycle and closure conditions fixed.
-- D-019: Workbench initially Run/Analyze.
-- D-020: Compare added as third Workbench mode.
-- D-021: Config becomes Investigation Baseline + Overrides + Preflight.
+- D-017: Investigation persistent first-class object.
+- D-018: Investigation lifecycle/closure fixed.
+- D-019: Workbench Run/Analyze.
+- D-020: Compare added.
+- D-021: Config = Investigation Baseline + Overrides + Preflight.
 
-### D-022 — D-029: Workbench interaction/diagnosis
+### D-022 — D-029: Workbench diagnosis
 
 - D-022: Resume-first Workbench Home.
 - D-023: Multi-entry Investigation creation.
 - D-024: Chart-first Run layout.
 - D-025: Encounter-first Context Rail.
-- D-026: Algorithm/System Risk/Inspection Encounter contexts separated.
-- D-027: Inspection vs Intervention strictly separated.
+- D-026: Algorithm/System Risk/Inspection contexts separated.
+- D-027: Inspection vs Intervention separated.
 - D-028: Analyze centered on synchronized diagnostic timeline.
-- D-029: Evidence-first failure localization; no automatic root-cause claim.
+- D-029: Evidence-first localization; no automatic root-cause claim.
 
-### D-030 — D-036: Case/Test Engineering
+### D-030 — D-043: Case and Run/Evidence foundation
 
-- D-030: Hybrid Case Designer: Parameter + Chart + Advanced definition.
+- D-030: Hybrid Case Designer.
 - D-031: Test Case = executable test specification.
-- D-032: Scenario Family/Template distinct from Concrete Case.
+- D-032: Scenario Family distinct from Concrete Case.
 - D-033: Draft → immutable Published Case Version.
 - D-034: Multi-level Case Qualification distinct from algorithm verdict.
-- D-035: Real bug creates exact reproduction + curated Regression Case.
-- D-036: Regression tiers CORE/EXTENDED/ON-DEMAND; V1 fully implements CORE.
-
-### D-037 — D-043: Run/Evidence model
-
-- D-037: Run is immutable execution record; execution status distinct from verdict.
+- D-035: Bug creates exact reproduction + curated Regression Case.
+- D-036: Regression tiers CORE/EXTENDED/ON-DEMAND; V1 CORE.
+- D-037: Run immutable; execution status distinct from verdict.
 - D-038: Mandatory Core Evidence + versioned Evidence Capture Profiles.
-- D-039: Replay and Reproduce are distinct operations.
-- D-040: Reproduction Fidelity defined.
+- D-039: Replay vs Reproduce distinct.
+- D-040: Reproduction Fidelity.
 - D-041: Evidence Manifest + Run sealing.
-- D-042: Evaluation is versioned interpretation, not mutable Run fact.
-- D-043: Portable Evidence Bundle fully implemented in V1.
+- D-042: Evaluation versioned interpretation.
+- D-043: Portable Evidence Bundle V1.
 
-### D-044 — D-050: Algorithm/ADP foundation
+### D-044 — D-057: Algorithm/ADP and CORE foundation
 
-- D-044: Algorithm Manifest + Runtime Verification; declared vs verified separated.
+- D-044: Manifest + Runtime Verification; declared vs verified.
 - D-045: Algorithm identity = Definition → Implementation Artifact → ADP.
-- D-046: Workbench Experiment Override → Candidate → ADP promotion.
-- D-047: Dirty source allowed for Development but not formal baseline/promotion.
-- D-048: Core diagnostics + typed extension channels.
-- D-049: Validation maturity truth = Evidence-Derived Capability Matrix.
-- D-050: Capability evidence uses impact-driven invalidation/reuse.
-
-### D-051 — D-057: CORE semantics and CI
-
-- D-051: CORE Suite = immutable versioned manifest.
-- D-052: Suite Execution Completeness separated from Regression Verdict.
-- D-053: Flaky CORE tests require Stability Qualification/Quarantine.
-- D-054: Isolated parallel execution + versioned resource policy.
-- D-055: Every merge runs full CORE; impact can only add.
+- D-046: Experiment Override → Candidate → ADP promotion.
+- D-047: Dirty source Development-only for formal baseline purposes.
+- D-048: Core diagnostics + typed extensions.
+- D-049: Evidence-Derived Capability Matrix.
+- D-050: Impact-driven evidence invalidation/reuse.
+- D-051: CORE Suite immutable versioned manifest.
+- D-052: Suite Completeness separate from Verdict.
+- D-053: Flaky CORE → Stability Qualification/Quarantine.
+- D-054: Isolated parallel execution.
+- D-055: Every merge full CORE; impact only adds.
 - D-056: Gate early, execute to completion.
-- D-057: Stable GitHub Required Check + internal Case matrix.
+- D-057: Stable GitHub Required Check + case matrix.
 
-### D-058 — D-063: Runs workface
+### D-058 — D-076: Runs/Cases/Evaluation workfaces
 
-- D-058: Unified Run Explorer + Saved Views.
-- D-059: Run Detail = immutable record + read-only inspection.
-- D-060: Verdict-aware landing with stable structure.
-- D-061: Live/Replay share Observation Surface; Historical mode explicit.
-- D-062: Original Verdict fixed; re-evaluations derived.
-- D-063: Manifest-centric Evidence Explorer synchronized with Replay.
+- D-058–D-063: Run Explorer, immutable Run Detail, verdict-aware landing, shared Replay surface, Original Verdict, Manifest-centric Evidence Explorer.
+- D-064–D-069: Requirement-centered Cases, chart-centered Designer, declarative behavior, template snapshot/rebase, Draft execution, lifecycle/supersession.
+- D-070–D-076: Versioned Requirement Catalog, Applicability/Compliance, Criticality/Enforcement, dual-axis Evaluation, Evaluator identity, Profile Qualification, Coverage Contract.
 
-### D-064 — D-069: Cases workface
+### D-077 — D-094: Compare/Agent/Algorithm/Regression governance
 
-- D-064: Requirement-centered Case Library.
-- D-065: Chart-centered executable Case Designer + Qualification Rail.
-- D-066: Declarative Behavior Contract + Evaluation binding.
-- D-067: Immutable Template version + snapshot instantiation + explicit rebase.
-- D-068: Draft/Ephemeral execution allowed for Development only.
-- D-069: Published Case uses lifecycle/supersession instead of deletion.
+- D-077–D-082: Comparison Contract, dual-time alignment, Fix Verification, immutable Debug Handoff, Agent Change Contract, Agent Result + platform re-verification.
+- D-083–D-088: Algorithm Catalog, explicit ADP scope, Evidence-first Capability Cell, Compatibility separation, immutable ADP, Manifest-driven Integration.
+- D-089–D-094: Gate-centered Regression, Protected Baselines, Baseline Transition, Gate Attestation, Merge Waiver, Suite Change Proposal.
 
-### D-070 — D-076: Evaluation/Requirements
+### D-095 — D-112: Global UX, OpenBridge and layout
 
-- D-070: Versioned Engineering Requirement Catalog.
-- D-071: Applicability and Compliance separated.
-- D-072: Intrinsic Criticality + Profile Enforcement Policy.
-- D-073: Evaluation uses Completeness + Compliance dual axes.
-- D-074: Evaluator Definition + Implementation Artifact identity.
-- D-075: Evaluation Profile Qualification Suite.
-- D-076: Coverage Contract + Evidence-Derived Coverage Matrix.
+- D-095–D-100: Explicit scoped context, Object Navigator, Attention, risk-tiered actions, context-derived workflow, desktop-first.
+- D-101–D-106: OpenBridge-native first, component-first + thin adapter, token source, dual theme, semantic color budget, documented extensions.
+- D-107–D-112: App Rail + Ribbon, local tabs/drawers, five layouts, adaptive Rails, scroll contracts, curated presets.
 
-### D-077 — D-082: Compare and Agent workflow
+### D-113 — D-130: Detailed Workbench/Case/Run UX
 
-- D-077: Change-aware Run Pair + Comparison Contract.
-- D-078: Dual-time alignment: absolute + semantic event.
-- D-079: Structured Fix Verification Record.
-- D-080: Versioned immutable Debug Handoff.
-- D-081: Agent Change Contract with protected validation assets.
-- D-082: Structured Agent Result + platform re-verification.
+- D-113–D-118: lifecycle-aware resume, Execution Clock vs Inspection Cursor, workflow controls, Encounter Focus Stack, trajectory layers, typed event timeline.
+- D-119–D-124: encounter-centric authoring, Traffic Actors, Condition Profiles, multi-ship Intent Graph, event-relative phases, neutral Qualification Preview.
+- D-125–D-130: dense Run table, explicit query state, ExecutionGroup, semantic lineage, Original Verdict vs current trust, stable Core Run Summary.
 
-### D-083 — D-088: Algorithms UI/integration
+### D-131 — D-144: Architecture, scope and acceptance
 
-- D-083: Algorithm Catalog + evidence-derived readiness summary.
-- D-084: Algorithm layer cannot create cross-ADP mixed grade.
-- D-085: Evidence-first Capability Cell.
-- D-086: Compatibility contract separated from validation coverage.
-- D-087: Published ADP immutable; edit through Candidate Revision.
-- D-088: Manifest-driven Algorithm Integration Workspace.
-
-### D-089 — D-094: Regression control/governance
-
-- D-089: Regression homepage is Gate-centered control center.
-- D-090: Fast Merge binds versioned Protected Regression Baseline Set.
-- D-091: Baseline replacement requires Baseline Transition Proposal.
-- D-092: Formal Fast Merge generates immutable Gate Attestation.
-- D-093: Merge Waiver changes merge decision, never Gate verdict.
-- D-094: CORE Suite changes require Suite Change Proposal + Protection Diff.
-
-### D-095 — D-100: Global application UX
-
-- D-095: Explicit scoped context; no silent inheritance.
-- D-096: Global Object Navigator + Canonical Deep Links.
-- D-097: Layered Attention Model.
-- D-098: Risk-tiered Action Model.
-- D-099: Workflow mode context-derived, no global mode switch.
-- D-100: Desktop/large-screen-first responsive strategy.
-
-### D-101 — D-106: OpenBridge design system
-
-- D-101: OpenBridge-native first across the product.
-- D-102: Component reuse priority and thin adapter layer.
-- D-103: OpenBridge Tokens are visual source of truth.
-- D-104: OpenBridge dual theme, Dark as V1 primary baseline.
-- D-105: Semantic Color Budget + neutral-by-default.
-- D-106: Documented extensions only + OpenBridge Conformance Policy.
-
-### D-107 — D-112: Layout system
-
-- D-107: Compact App Rail + Engineering Context Ribbon.
-- D-108: Local Header + Tabs + Contextual Drawers.
-- D-109: Five reusable task-oriented layout templates.
-- D-110: Mode-aware adaptive Rails with Canvas priority.
-- D-111: Layout-specific scroll contracts + one dominant scroll owner.
-- D-112: Curated Layout Presets + limited personalization.
-
-### D-113 — D-118: Workbench detailed UX
-
-- D-113: Lifecycle-aware Investigation resume.
-- D-114: Execution Clock and Inspection Cursor separated.
-- D-115: Workflow-specific Execution Control Policy.
-- D-116: Encounter Focus Stack for Algorithm/System/Inspection contexts.
-- D-117: Trajectory Semantic Layers + progressive disclosure.
-- D-118: Typed multi-lane Event Timeline.
-
-### D-119 — D-124: Case Designer detailed UX
-
-- D-119: Encounter-centric authoring + deterministic Geometry Compiler.
-- D-120: Versioned Traffic Actor Behavior Contract.
-- D-121: Case Condition Contract + versioned Condition Profiles.
-- D-122: Encounter Intent Graph + Derived Encounter Graph for multi-ship.
-- D-123: Event-relative Test Phase Contract + resolved Run windows.
-- D-124: Algorithm-neutral Scenario Qualification Preview before Publish.
-
-### D-125 — D-130: Runs detailed UX
-
-- D-125: Evidence-aware dense Run table.
-- D-126: Explicit Query State + URL/deep-link serialization + Saved Views.
-- D-127: Flat Run Catalog + formal ExecutionGroup + optional grouping.
-- D-128: Semantic lineage path + expandable provenance graph.
-- D-129: Original Verdict separated from Current Evidence Trust/Claim Eligibility.
-- D-130: Stable Core Run Summary + Profile/Diagnostic extensions.
-
-### D-131 — D-136: Algorithm/runtime/assurance architecture
-
-- D-131: Algorithm generic entry lands on Algorithm Overview; ADP scope explicit.
-- D-132: Git/worktree Workspace Registry + frozen source snapshot.
-- D-133: Control Plane + isolated Run Worker + pluggable Algorithm Runtime.
+- D-131: Algorithm Overview default; ADP scope explicit.
+- D-132: Git/worktree Registry + frozen Source Snapshot.
+- D-133: Control Plane + isolated Run Worker + pluggable runtime.
 - D-134: Shared Assurance Engine + multiple frontends.
 - D-135: Qualified Execution Environment Profiles.
 - D-136: Two-level performance assurance.
-
-### D-137 — D-141: Persistence, telemetry, deployment and reproducibility
-
 - D-137: Relational Metadata + Content-Addressed Artifact Store.
 - D-138: Canonical Observation/Event model powers Live/Evidence/Replay.
-- D-139: Local-first Engineering Workstation; architecture server-ready.
-- D-140: Versioned Reproducibility Contract + Determinism Classes.
-- D-141: Read-old/write-current + non-destructive historical projection migration.
+- D-139: Local-first workstation; server-ready boundaries.
+- D-140: Reproducibility Contract + Determinism Classes.
+- D-141: Read-old/write-current historical compatibility.
+- D-142: V1 Production Core = Development + Core Regression.
+- D-143: Clean Web/API cutover; characterize/preserve/adapt simulation core.
+- D-144: Evidence-Backed V1 Acceptance Gate.
 
-### D-142 — D-144: Final V1 scope and acceptance
+## 29. Final V1 product statement
 
-- D-142: V1 Production Core = Development + Core Regression; V2+ boundaries frozen.
-- D-143: Clean Web/API cutover; preserve/characterize/adapt simulation core.
-- D-144: Evidence-Backed V1 Acceptance Gate is the formal Definition of Done.
-
-## 28. Final V1 product statement
-
-V1 is complete when a COLAV engineer can use an OpenBridge-native Web workbench to move from a real algorithm failure to exact reproduction, evidence-backed diagnosis, coding-agent handoff, controlled before/after verification, permanent regression protection and an enforced GitHub merge gate — with immutable, reproducible and inspectable evidence throughout the entire chain.
+V1 is complete when a COLAV engineer can use an OpenBridge-native Web workbench to move from a real algorithm failure to exact reproduction, evidence-backed diagnosis, coding-agent handoff, controlled before/after verification, permanent regression protection and an enforced GitHub merge gate — with immutable, reproducible and inspectable evidence throughout the chain — without confusing functional reproduction, numerical reproduction, runtime readiness, capability evidence or release eligibility.
