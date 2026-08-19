@@ -232,6 +232,7 @@ class ExperimentRunner:
                 strict_no_fallback=spec.strict_no_fallback,
                 scenario_id=spec.scenario_id,
                 tracker_id=manifest.executed_tracker,
+                scenario_target_count=_scenario_target_count(spec),
                 solve_period_override_s=spec.solve_period_s,
                 deadline_mode=DeadlineMode(spec.deadline_mode),
                 event_sink=writer.append_lifecycle_event,
@@ -456,6 +457,15 @@ class ExperimentRunner:
         prepared.manifest.fallback_used = fallback
         if fallback and prepared.spec.strict_no_fallback:
             raise RuntimeError("Fallback detected in strict run")
+
+
+def _scenario_target_count(spec: RunSpec) -> int | None:
+    """Derive the scenario's target-ship count from an explicit ship list."""
+    override = spec.scenario_override or {}
+    ship_list = override.get("ship_list")
+    if isinstance(ship_list, list) and len(ship_list) > 1:
+        return len(ship_list) - 1
+    return None
 
 
 def _file_hash(path: Path) -> str:

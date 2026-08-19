@@ -57,6 +57,7 @@ class FactoryContext:
     strict_no_fallback: bool = True
     scenario_id: str = "UNSPECIFIED"
     tracker_id: str = "UNSPECIFIED"
+    scenario_target_count: int | None = None
     solve_period_override_s: float | None = None
     deadline_mode: DeadlineMode = DeadlineMode.ENFORCE
     event_sink: Callable[[Any], object] | None = field(default=None, compare=False, repr=False)
@@ -71,6 +72,8 @@ class FactoryContext:
             raise ValueError("algorithm_seed must be non-negative")
         if not self.scenario_id.strip() or not self.tracker_id.strip():
             raise ValueError("scenario_id and tracker_id must be non-empty")
+        if self.scenario_target_count is not None and self.scenario_target_count < 0:
+            raise ValueError("scenario_target_count must be non-negative when specified")
         if self.solve_period_override_s is not None and (
             not np.isfinite(self.solve_period_override_s) or self.solve_period_override_s <= 0.0
         ):

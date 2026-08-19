@@ -561,6 +561,166 @@ def test_colav_strict_cold_seed_tracks_the_committed_reference_within_rate_bound
         assert result.objective_improvement > max(1.0e-6, abs(result.seed_objective_total) * 1.0e-8)
 
 
+def _rendezvous_problem(targets: tuple[MidMpcTarget, ...]) -> MidMpcProblem:
+    return MidMpcProblem(
+        own_ship=MidMpcOwnShip(psi_rad=0.0, u_mps=6.0),
+        route_bearing_rad=0.0,
+        planned_speed_mps=6.0,
+        heading_bounds_rad=(-math.pi / 4, math.pi / 4),
+        speed_bounds_mps=(0.0, 8.0),
+        cpa_safe_m=150.0,
+        cpa_hard_m=100.0,
+        rot_max_rad_s=math.radians(3.0),
+        decel_max_mps2=0.3,
+        lateral_active=False,
+        preferred_side=0,
+        starboard_asymmetry_active=False,
+        min_alteration_rad=0.0,
+        route_frame=MidMpcRouteFrame(
+            origin_m=(0.0, 0.0),
+            normal=(0.0, 1.0),
+            bearing_rad=0.0,
+            lateral_scale_m=1000.0,
+            weight=1.0,
+        ),
+        targets=targets,
+    )
+
+
+def test_colav_strict_cold_seed_rendezvous_is_repaired_to_row_feasible_offset() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    # A slow target parked 300 m ahead and 60 m to port of the straight seed:
+    # the cruise seed drives through it and the hard CPA rows (from k=0) are
+    # primal-infeasible, which is the tenship t=0 cold-start failure mode.
+    problem = _rendezvous_problem((MidMpcTarget(x_m=300.0, y_m=60.0, cog_rad=0.0, sog_mps=0.0),))
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    n = config.horizon_steps
+    heading_seed = result.prepared.x0[:n]
+    assert result.seed_max_constraint_violation <= 1.0e-6
+    assert float(np.max(np.abs(heading_seed))) > math.radians(5.0)
+    ladder = np.abs(np.diff(np.r_[problem.own_ship.psi_rad, heading_seed]))
+    assert float(np.max(ladder)) <= problem.rot_max_rad_s * config.dt_s + 1.0e-9
+    assert float(np.max(np.abs(heading_seed))) <= math.pi / 4 + 1.0e-9
+    np.testing.assert_array_equal(result.prepared.x0[n : 2 * n], np.full(n, 6.0))
+
+
+def test_colav_strict_row_feasible_cold_seed_is_left_untouched() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _rendezvous_problem((MidMpcTarget(x_m=1.0e6, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0),))
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    assert result.seed_max_constraint_violation <= 1.0e-9
+    np.testing.assert_array_equal(result.prepared.x0[: config.horizon_steps], np.zeros(config.horizon_steps))
+
+
+class _StubConstraintGraph:
+    """Duck-typed graph whose rows punish every offset below a threshold."""
+
+    def __init__(self, worst_by_offset: dict[float, float], horizon_steps: int) -> None:
+        self._worst = worst_by_offset
+        self._n = horizon_steps
+        self.baseline_worst: float | None = None
+
+    def constraints(self, x0: np.ndarray, p: np.ndarray) -> np.ndarray:  # noqa: ARG002
+        offset = float(np.max(np.abs(x0[: self._n])))
+        if self.baseline_worst is None:
+            self.baseline_worst = self._worst.get(0.0, 0.0)
+            worst = self.baseline_worst
+        else:
+            worst = min(
+                (violation for step, violation in self._worst.items() if abs(offset - step) <= 1.0e-6),
+                default=self._worst[max(self._worst)],
+            )
+        return np.array([-worst, 1.0])
+
+
+def _prepared_for(problem: MidMpcProblem, config: MidMpcConfig) -> tuple[solver_module.MidMpcPreparedProblem, object]:
+    from colav_simulator.core.colav.mid_mpc.solver import _prepare, _row_layout
+
+    layout = _row_layout(config, max(len(problem.targets), 1), max(problem.audit_row_count, 1))
+    return _prepare(config, problem, layout), layout
+
+
+def test_seed_repair_applies_best_effort_offset_when_no_candidate_is_feasible() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _rendezvous_problem((MidMpcTarget(x_m=300.0, y_m=60.0, cog_rad=0.0, sog_mps=0.0),))
+    prepared, _layout = _prepared_for(problem, config)
+    prepared = solver_module.MidMpcPreparedProblem(
+        p=prepared.p,
+        x0=prepared.x0,
+        lbx=prepared.lbx,
+        ubx=prepared.ubx,
+        lbg=np.array([0.0, -np.inf]),
+        ubg=np.array([np.inf, np.inf]),
+    )
+    # Baseline violates by 6000; every offset still violates, the smallest
+    # worst violation (200 at 7.5 deg) is below the half-baseline gate.
+    worst_by_offset = {0.0: 6000.0}
+    for step in range(1, 19):
+        worst_by_offset[math.radians(2.5 * step)] = 200.0 if step == 3 else 4500.0
+    graph = _StubConstraintGraph(worst_by_offset, config.horizon_steps)
+
+    repaired = solver_module._repair_infeasible_seed(graph, prepared, problem, config)
+
+    assert repaired is not None
+    n = config.horizon_steps
+    assert float(np.max(np.abs(repaired.x0[:n]))) == pytest.approx(math.radians(7.5), abs=1.0e-6)
+
+
+def test_seed_repair_keeps_original_seed_when_offsets_barely_help() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _rendezvous_problem((MidMpcTarget(x_m=300.0, y_m=60.0, cog_rad=0.0, sog_mps=0.0),))
+    prepared, _layout = _prepared_for(problem, config)
+    prepared = solver_module.MidMpcPreparedProblem(
+        p=prepared.p,
+        x0=prepared.x0,
+        lbx=prepared.lbx,
+        ubx=prepared.ubx,
+        lbg=np.array([0.0, -np.inf]),
+        ubg=np.array([np.inf, np.inf]),
+    )
+    # Best offset only improves 6000 -> 3500, above the half-baseline gate.
+    worst_by_offset = {0.0: 6000.0}
+    for step in range(1, 19):
+        worst_by_offset[math.radians(2.5 * step)] = 6000.0 - 50.0 * step
+    graph = _StubConstraintGraph(worst_by_offset, config.horizon_steps)
+
+    repaired = solver_module._repair_infeasible_seed(graph, prepared, problem, config)
+
+    assert repaired is None
+
+
+def test_prewarm_capacity_serves_first_multiship_cycle_from_graph_cache() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    solver = MidMpcIpoptSolver(config)
+    solver.prewarm_capacity(3)
+    n = config.horizon_steps
+    problem = replace(
+        _rendezvous_problem(
+            tuple(
+                MidMpcTarget(x_m=1.0e6 + 100.0 * index, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0)
+                for index in range(3)
+            )
+        ),
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=0.0,
+            avoidance_corridor_bearing_rad=0.0,
+            heading_reference_rad=(0.0,) * n,
+            lateral_reference_m=(0.0,) * n,
+            avoidance_active_until_k=0,
+        ),
+    )
+
+    result = solver.solve(problem)
+
+    assert result.graph_cache_hit is True
+    assert result.graph_build_elapsed_ms == 0.0
+    assert result.row_layout.cpa.count == 3 * config.horizon_steps
+
+
 def test_colav_strict_overtaking_seed_starts_inside_minimum_alteration_boundary(
     parity_corpus: dict[str, MidMpcParityFixture],
 ) -> None:

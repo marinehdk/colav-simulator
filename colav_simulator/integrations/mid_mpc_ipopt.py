@@ -114,6 +114,7 @@ class _FacadeConfig:
     scenario_id: str
     algorithm_seed: int
     tracker_id: str
+    prewarm_targets: int | None = None
 
 
 class _MidMpcFacade:
@@ -133,7 +134,13 @@ class _MidMpcFacade:
             max_wall_time_s=config.total_deadline_s - config.acceptance_reservation_s,
         )
         self._solver = MidMpcIpoptSolver(core_config)
-        self._solver.prewarm()
+        if config.prewarm_targets and config.prewarm_targets > 1:
+            # One graph at the scenario's full capacity serves the first
+            # multiship cycle and every smaller track count afterwards; the
+            # capacity-one prewarm is subsumed by it.
+            self._solver.prewarm_capacity(config.prewarm_targets)
+        else:
+            self._solver.prewarm()
         self._assembler = MidMpcProblemAssembler()
         self._acceptance = MidMpcPlanAcceptance()
         self._lifecycle = EncounterLifecycle(event_sink=event_sink)
@@ -1149,6 +1156,9 @@ def create(  # noqa: PLR0913
         scenario_id=context.scenario_id,
         algorithm_seed=context.algorithm_seed,
         tracker_id=context.tracker_id,
+        prewarm_targets=(
+            context.scenario_target_count if context.scenario_target_count and context.scenario_target_count > 1 else None
+        ),
     )
     facade = _MidMpcFacade(
         config,

@@ -78,10 +78,22 @@ class MidMpcIpoptSolver:
 
     def prewarm(self) -> None:
         """Build the capacity-one strict graph so the first tick pays no JIT stall."""
+        self.prewarm_capacity(1)
+
+    def prewarm_capacity(self, target_capacity: int) -> None:
+        """Build one strict graph at a scenario's full target capacity.
+
+        The nlpsol construction for a ten-target graph costs seconds inside
+        the first solve's deadline; a scenario-level capacity hint lets the
+        first multiship cycle hit the graph cache instead, and the single
+        graph also serves every smaller track count for the whole session.
+        """
         if not self._config.strict_slack_bounds:
             return
+        capacity = max(1, min(int(target_capacity), self._config.max_targets))
         graph_key = (True, None, None)
-        if graph_key in self._graph_cache:
+        cached = self._graph_cache.get(graph_key)
+        if cached is not None and cached.target_capacity >= capacity and cached.audit_capacity >= capacity:
             return
         n = self._config.horizon_steps
         shell = MidMpcProblem(
@@ -112,8 +124,8 @@ class MidMpcIpoptSolver:
                 lateral_reference_m=(0.0,) * n,
                 avoidance_active_until_k=0,
             ),
-            targets=(MidMpcTarget(x_m=1.0e6, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0),),
-            audit_row_count=1,
+            targets=(MidMpcTarget(x_m=1.0e6, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0),) * capacity,
+            audit_row_count=capacity,
         )
         self._graph_cache[graph_key] = _build_graph(self._config, shell)
 
@@ -161,6 +173,10 @@ class MidMpcIpoptSolver:
                 self._config,
                 reuse_stop_k=reuse_stop_k,
             )
+        if self._config.strict_slack_bounds and problem.targets:
+            repaired = _repair_infeasible_seed(graph, prepared, problem, self._config)
+            if repaired is not None:
+                prepared = repaired
         seed_components = _flat(graph.objective_components(prepared.x0, prepared.p))
         seed_objective_total = float(np.sum(seed_components))
         seed_g = _flat(graph.constraints(prepared.x0, prepared.p))
@@ -887,6 +903,83 @@ def _cpa_rows(
                 row += ca.if_else(ca.DM(k) >= prefix_k, sigma_cpa, ca.DM(0.0))
             rows.append(row)
     return rows
+
+
+_SEED_REPAIR_STEP_RAD = math.radians(2.5)
+_SEED_REPAIR_MAX_STEPS = 18
+
+
+def _repair_infeasible_seed(
+    graph: _Graph,
+    prepared: MidMpcPreparedProblem,
+    problem: MidMpcProblem,
+    config: MidMpcConfig,
+) -> MidMpcPreparedProblem | None:
+    """Bend a row-infeasible cold seed clear of every hard row.
+
+    A cold seed cruising straight down the route can sit on a far-horizon
+    rendezvous with a slow target; IPOPT then spends dozens of iterations
+    restoring primal feasibility inside the deadline (the tenship t=0
+    cold-start stall). Scan uniform heading offsets in rising magnitude
+    and keep the first candidate whose seed satisfies every finite row;
+    the candidates are re-ramped inside the rot envelope, heading bounds,
+    and active prefix, so only far-horizon row feasibility changes. When
+    no offset clears every row (for example CPA clearance conflicts with
+    a crossing-astern audit), apply the offset with the smallest worst
+    row violation instead, but only when it at least halves the baseline;
+    otherwise return None and leave the original seed untouched.
+    """
+    baseline = _max_row_violation(graph, prepared.x0, prepared)
+    if baseline <= 1.0e-9:
+        return None
+    best_x0: np.ndarray | None = None
+    best_violation = baseline
+    for step_index in range(1, _SEED_REPAIR_MAX_STEPS + 1):
+        magnitude = _SEED_REPAIR_STEP_RAD * step_index
+        for sign in (-1.0, 1.0):
+            candidate = _ramped_offset_seed(prepared.x0, problem, config, sign * magnitude)
+            violation = _max_row_violation(graph, candidate, prepared)
+            if violation <= 1.0e-9:
+                return _reseeded(prepared, candidate)
+            if violation < best_violation:
+                best_violation = violation
+                best_x0 = candidate
+    if best_x0 is not None and best_violation < 0.5 * baseline:
+        return _reseeded(prepared, best_x0)
+    return None
+
+
+def _reseeded(prepared: MidMpcPreparedProblem, x0: np.ndarray) -> MidMpcPreparedProblem:
+    return MidMpcPreparedProblem(
+        p=prepared.p,
+        x0=x0,
+        lbx=prepared.lbx,
+        ubx=prepared.ubx,
+        lbg=prepared.lbg,
+        ubg=prepared.ubg,
+    )
+
+
+def _ramped_offset_seed(seed: np.ndarray, problem: MidMpcProblem, config: MidMpcConfig, delta_rad: float) -> np.ndarray:
+    n = config.horizon_steps
+    x0 = seed.copy()
+    psi = x0[:n]
+    heading_step = problem.rot_max_rad_s * config.dt_s
+    start_k = min(problem.prefix_active_k, n)
+    previous = float(psi[start_k - 1]) if start_k else problem.own_ship.psi_rad
+    for k in range(start_k, n):
+        target = float(np.clip(psi[k] + delta_rad, *problem.heading_bounds_rad))
+        target_delta = math.atan2(math.sin(target - previous), math.cos(target - previous))
+        previous = float(
+            np.clip(previous + np.clip(target_delta, -heading_step, heading_step), *problem.heading_bounds_rad)
+        )
+        psi[k] = previous
+    return x0
+
+
+def _max_row_violation(graph: _Graph, x0: np.ndarray, prepared: MidMpcPreparedProblem) -> float:
+    values = _flat(graph.constraints(x0, prepared.p))
+    return float(np.max(np.maximum(prepared.lbg - values, values - prepared.ubg)))
 
 
 def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayout) -> MidMpcPreparedProblem:
