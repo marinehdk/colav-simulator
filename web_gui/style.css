@@ -34,6 +34,23 @@
   --radius: 6px;
   --shadow: 0 1px 2px var(--ob-overlay-strong);
 
+  /* Situation Display canvas palette (C4/M5) — consumed by
+     modules/situation-display.js via getComputedStyle; the fallback values in
+     the module mirror the pre-C4 hardcoded colors. */
+  --situation-bg: #101615;
+  --situation-grid: rgba(255,255,255,0.035);
+  --situation-safewater-fill: rgba(76,202,209,0.12);
+  --situation-safewater-stroke: rgba(76,202,209,0.55);
+  --situation-route: #F4D34E;
+  --situation-route-inactive: #7F898D;
+  --situation-prediction: #55D6B7;
+  --situation-prediction-previous: rgba(85,214,183,0.20);
+  --situation-prediction-label: #9EF0DB;
+  --situation-track: #37c995;
+  --situation-track-label: #c9f3e3;
+  --situation-radar-range: rgba(245,165,36,0.72);
+  --situation-response-range: rgba(255,77,90,0.82);
+
   --bg-dark:       #121716;
   --bg-deeper:     #0b0f0e;
   --panel-bg:      rgba(25, 31, 29, 0.92);
@@ -388,17 +405,12 @@ obc-clock:not(:defined),
 .execution-facts dd { min-width: 0; overflow-wrap: anywhere; color: var(--ob-text); font-family: var(--font-mono); }
 .scenario-preview { position: relative; height: 100%; min-height: 360px; margin: 0; padding: 0; overflow: hidden; border: 0; border-radius: 0; background: var(--ob-accent-pale); white-space: normal; }
 .scenario-preview img { width: 100%; height: 100%; object-fit: cover; }
-.scenario-preview-overlay { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; }
-.scenario-preview-overlay .route-corridor { fill: var(--ob-accent-soft); fill-opacity: .48; stroke: none; }
-.scenario-preview-overlay .route-boundary { fill: none; stroke: var(--ob-accent); stroke-width: 1.5; stroke-dasharray: 4 5; opacity: .78; }
-.scenario-preview-overlay .route-centerline { fill: none; stroke: var(--ob-accent); stroke-width: 2; stroke-dasharray: 10 6; opacity: .92; }
-.scenario-preview-markers { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
-.scenario-vessel-marker { position: absolute; transform: translate(-50%, -50%); }
-.scenario-vessel-symbol { width: 42px; height: 42px; display: grid; place-items: center; border: 3px solid var(--ob-accent); border-radius: 50%; background: var(--ob-surface); color: var(--ob-text); box-shadow: 0 3px 9px var(--ob-overlay-strong); font: 700 13px/1 var(--font-mono); transform: rotate(var(--marker-heading, 0deg)); }
-.scenario-vessel-marker.target .scenario-vessel-symbol { border-color: var(--ob-target); }
-.scenario-vessel-label { position: absolute; top: 44px; left: 50%; padding: 1px 5px; transform: translateX(-50%); border-radius: 2px; background: color-mix(in srgb, var(--ob-surface) 90%, transparent); font: 600 10px/1.5 var(--font-mono); white-space: nowrap; }
-.reference-preview-badge { position: absolute; top: 14px; left: 14px; padding: 5px 8px; border: 1px solid rgba(255,255,255,.6); border-radius: 3px; background: color-mix(in srgb, var(--ob-text) 78%, transparent); color: var(--ob-surface); font: 700 10px var(--font-mono); letter-spacing: .06em; }
-.scenario-preview-copy { position: absolute; right: 14px; bottom: 14px; left: 14px; padding: 10px 12px; border-radius: 4px; background: color-mix(in srgb, var(--ob-surface) 92%, transparent); color: var(--ob-text); font-size: .76rem; }
+/* C4: the phantom overlay_geometry SVG layer is gone; the preview draws through
+   the same situation-display canvas seam (ENC-less grid frame, no invented
+   geometry) beneath the reference badge. */
+.scenario-preview-canvas { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; background: transparent; }
+.reference-preview-badge { position: absolute; z-index: 4; top: 14px; left: 14px; padding: 5px 8px; border: 1px solid rgba(255,255,255,.6); border-radius: 3px; background: color-mix(in srgb, var(--ob-text) 78%, transparent); color: var(--ob-surface); font: 700 10px var(--font-mono); letter-spacing: .06em; }
+.scenario-preview-copy { position: absolute; z-index: 4; right: 14px; bottom: 14px; left: 14px; padding: 10px 12px; border-radius: 4px; background: color-mix(in srgb, var(--ob-surface) 92%, transparent); color: var(--ob-text); font-size: .76rem; }
 .algorithm-detail-card,
 .execution-plan-card { min-height: 0; }
 .algorithm-selection-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }

@@ -95,13 +95,18 @@ test('legacy Deployment configuration is hidden and cannot imply it applies to V
   assert.match(legacy, /future Scenario surface/);
 });
 
-test('ENC loading is replacement-bound and stale fetch/image callbacks are inert', () => {
-  assert.match(legacy, /encLoadGeneration/);
-  assert.match(legacy, /encInfoController\.abort\(\)/);
-  assert.match(legacy, /info\.run_id !== sessionId/);
-  assert.match(legacy, /generation !== encLoadGeneration \|\| sessionId !== currentRunId\(\)/);
-  assert.match(legacy, /encPendingImage\.onload = null/);
-  assert.match(legacy, /encRetryTimer/);
+test('ENC loading is replacement-bound and stale fetch/image callbacks are inert', async () => {
+  // C4: the situation canvas (incl. ENC loading) moved from app.js into the
+  // situation-display module; the guards live there now.
+  const situation = legacy.match(/from ['"]\.\/modules\/situation-display\.js\?v=/)
+    ? await readFile(new URL('../../web_gui/modules/situation-display.js', import.meta.url), 'utf8')
+    : legacy;
+  assert.match(situation, /encLoadGeneration/);
+  assert.match(situation, /encInfoController\.abort\(\)/);
+  assert.match(situation, /info\.run_id !== sessionId/);
+  assert.match(situation, /generation !== encLoadGeneration \|\| sessionId !== currentRunId\(\)/);
+  assert.match(situation, /encPendingImage\.onload = null/);
+  assert.match(situation, /encRetryTimer/);
 });
 
 test('Config token layer ports the OpenBridge palette sheet (gap #3 part)', () => {
@@ -213,15 +218,16 @@ test('Scenario and ENC selection render as horizontal snap carousels (gap #11)',
   assert.match(shell, /incompatibility_reason \|\| item\.known_failure/);
 });
 
-test('Scenario preview overlay draws only catalog-exposed geometry, never invented values (gap #12)', () => {
-  assert.match(html, /id="validationScenarioOverlay"/);
-  assert.match(html, /id="validationScenarioMarkers"/);
-  assert.match(shell, /function renderScenarioOverlay\(/);
-  assert.match(shell, /overlay_geometry/);
-  assert.match(shell, /route-corridor/);
-  assert.match(shell, /route-centerline/);
-  assert.match(shell, /route-boundary/);
-  assert.match(configCss, /\.scenario-preview-overlay \{/);
+test('Scenario preview draws through the situation-display canvas seam; the phantom overlay_geometry path is gone (C4 rulings 1/9)', () => {
+  assert.match(html, /id="validationScenarioOverlayCanvas"/);
+  assert.doesNotMatch(html, /validationScenarioOverlay"/);
+  assert.doesNotMatch(html, /validationScenarioMarkers/);
+  assert.match(shell, /createSituationDisplay/);
+  assert.match(shell, /renderScenarioPreviewCanvas\(/);
+  assert.doesNotMatch(shell, /overlay_geometry/);
+  assert.doesNotMatch(shell, /renderScenarioOverlay/);
+  assert.doesNotMatch(shell, /route-corridor|route-centerline|route-boundary/);
+  assert.match(configCss, /\.scenario-preview-canvas \{/);
 });
 
 test('Rogaland scenarios get a styled placeholder frame instead of a hidden image (gap #12a)', () => {

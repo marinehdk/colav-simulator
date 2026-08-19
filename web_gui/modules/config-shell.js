@@ -1,5 +1,6 @@
 import { createValidationAssembly } from './validation-assembly.js?v=20260818-candidate2-runtime-final';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260819-candidate3-projection';
+import { createSituationDisplay } from './situation-display.js?v=20260819-c4-situation-2';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const OPENBRIDGE_BASE = 'https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist';
@@ -359,56 +360,48 @@ function renderScenarioDetail(snapshot) {
   document.getElementById('validationScenarioPreview').textContent = chart === 'Romsdal'
     ? `${scenario?.name || snapshot.draft.scenario_id} · catalog metadata paired with static Romsdal reference image. Live ENC remains in Deployment.`
     : `${scenario?.name || snapshot.draft.scenario_id} · no production reference image is bundled for ${chart}. Live ENC remains in Deployment.`;
-  renderScenarioOverlay(scenario);
+  renderScenarioPreviewCanvas(scenario);
 }
 
-// Gap #12: static SVG overlay drawn ONLY from geometry the capability catalog already
-// exposes (scenario.overlay_geometry). Every layer is omitted when its geometry is
-// missing — no coordinates, headings, or scale values are ever invented.
-function renderScenarioOverlay(scenario) {
-  const overlay = document.getElementById('validationScenarioOverlay');
-  const markers = document.getElementById('validationScenarioMarkers');
-  overlay.replaceChildren();
-  markers.replaceChildren();
-  const geometry = scenario?.overlay_geometry;
-  if (!geometry) return;
-  const svg = 'http://www.w3.org/2000/svg';
-  if (Array.isArray(geometry.corridor)) {
-    const polygon = document.createElementNS(svg, 'polygon');
-    polygon.setAttribute('class', 'route-corridor');
-    polygon.setAttribute('points', geometry.corridor.map(([x, y]) => `${x},${y}`).join(' '));
-    overlay.append(polygon);
+// C4 ruling 1/9: the phantom catalog-geometry overlay path is deleted. The scenario
+// preview is a second adapter on the situation-display canvas seam: static,
+// ENC-less, no live telemetry, and no invented geometry — the frame renders
+// the reference grid only. Visual contract (frame colors/labels) unchanged.
+let scenarioPreviewDisplay = null;
+function renderScenarioPreviewCanvas(scenario) {
+  const canvas = document.getElementById('validationScenarioOverlayCanvas');
+  if (!canvas) return;
+  if (!scenarioPreviewDisplay) {
+    scenarioPreviewDisplay = createSituationDisplay({
+      canvas,
+      wrapper: canvas.parentElement || canvas,
+      // Static adapter: never fetches ENC assets or telemetry.
+      fetchInfo: async () => ({ ready: false }),
+      backgroundMode: 'transparent', // keep the reference image visible beneath
+      loadSprites: false,             // no sprite network requests
+      fetchTile: () => 'about:blank',
+      getResponseRange: () => null,
+      getScenarioId: () => null,
+      getPlannerSurface: () => null,
+      onEncStatus: () => {},
+      onLog: () => {},
+      onLayerStateChange: () => {},
+      onSelectionChange: () => {},
+    });
   }
-  if (Array.isArray(geometry.boundary)) {
-    const polyline = document.createElementNS(svg, 'polyline');
-    polyline.setAttribute('class', 'route-boundary');
-    polyline.setAttribute('points', geometry.boundary.map(([x, y]) => `${x},${y}`).join(' '));
-    overlay.append(polyline);
-  }
-  if (Array.isArray(geometry.centerline)) {
-    const polyline = document.createElementNS(svg, 'polyline');
-    polyline.setAttribute('class', 'route-centerline');
-    polyline.setAttribute('points', geometry.centerline.map(([x, y]) => `${x},${y}`).join(' '));
-    overlay.append(polyline);
-  }
-  if (Array.isArray(geometry.vessels)) {
-    for (const vessel of geometry.vessels) {
-      if (!Number.isFinite(vessel.x) || !Number.isFinite(vessel.y)) continue;
-      const marker = document.createElement('div');
-      marker.className = `scenario-vessel-marker ${vessel.type === 'own' ? 'own' : 'target'}`;
-      marker.style.left = `${vessel.x}%`;
-      marker.style.top = `${vessel.y}%`;
-      marker.style.setProperty('--marker-heading', `${vessel.heading || 0}deg`);
-      const symbol = document.createElement('div');
-      symbol.className = 'scenario-vessel-symbol';
-      symbol.textContent = vessel.type === 'own' ? 'OS' : 'TS';
-      const label = document.createElement('span');
-      label.className = 'scenario-vessel-label';
-      label.textContent = vessel.label || '';
-      marker.append(symbol, label);
-      markers.append(marker);
-    }
-  }
+  scenarioPreviewDisplay.render({
+    run_id: `config-preview:${scenario?.id || 'none'}`,
+    seq: 0,
+    state: 'CREATED',
+    os: null,
+    obstacles: [],
+    truth: [],
+    tracks: [],
+    measurements: [],
+    plans: {},
+    waypoints: null,
+    encounters: [],
+  });
 }
 
 function integrationFacts(item) {

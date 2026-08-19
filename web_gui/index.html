@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist/openbridge.css" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260819-c5-shell-topbar-3" />
+  <link rel="stylesheet" href="/static/style.css?v=20260819-c4-situation-2" />
 </head>
 <body>
   <div class="app-container">
@@ -100,8 +100,7 @@
               <div class="scenario-preview">
                 <img id="validationScenarioImage" src="/static/assets/openbridge/romsdal-head-on-seacharts.png" alt="Romsdal reference ENC preview">
                 <div class="scenario-placeholder" id="validationScenarioPlaceholder" hidden></div>
-                <svg class="scenario-preview-overlay" id="validationScenarioOverlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
-                <div class="scenario-preview-markers" id="validationScenarioMarkers" aria-hidden="true"></div>
+                <canvas class="scenario-preview-canvas" id="validationScenarioOverlayCanvas" aria-hidden="true"></canvas>
                 <div class="reference-preview-badge">REFERENCE PREVIEW · NOT LIVE</div>
                 <div class="scenario-preview-copy" id="validationScenarioPreview">Scenario metadata loads from capability catalog.</div>
               </div>
@@ -710,7 +709,7 @@
     <section class="workface roadmap-workface" data-workface-panel="algorithm" hidden><h2>Algorithm</h2><p>Algorithm and tracker catalog surface planned. Exact Tuple evidence remains authoritative in Config.</p></section>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260819-c5-shell-topbar"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260819-c5-shell-topbar"></script>
+  <script type="module" src="/static/app.js?v=20260819-c4-situation-2"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260819-c4-situation-2"></script>
 </body>
 </html>
