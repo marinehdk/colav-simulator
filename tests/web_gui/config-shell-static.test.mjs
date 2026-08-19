@@ -359,7 +359,10 @@ test('C5 pull-forward: top bar populated with app icon, Beijing clock, and actio
   assert.match(shell, /icons\/icon-collision-avoidance-head-on\.js\/\+esm/);
   assert.doesNotMatch(styles, /\.openbridge-topbar \{[^}]*pointer-events: none/);
   assert.match(styles, /obc-clock:not\(:defined\)/);
-  assert.match(html, /id="shellSessionState"/);
+  // Session-state chip removed 2026-08-19 (overlapped topbar alert/sound buttons).
+  assert.doesNotMatch(html, /id="shellSessionState"/);
+  assert.doesNotMatch(shell, /shellSessionState/);
+  assert.doesNotMatch(styles, /\.shell-session-state/);
 });
 
 test('C5 pull-forward: workface tabs carry icons and pressed-pill chrome (gap #2)', () => {

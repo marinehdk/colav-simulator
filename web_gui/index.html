@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist/openbridge.css" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260819-c5-shell-1" />
+  <link rel="stylesheet" href="/static/style.css?v=20260819-c5-shell-2" />
 </head>
 <body>
   <div class="app-container">
@@ -28,7 +28,6 @@
         <button type="button" class="workface-tab" data-workface="scenario" aria-selected="false"><obi-collision-avoidance-head-on aria-hidden="true"></obi-collision-avoidance-head-on><span>Scenario</span></button>
         <button type="button" class="workface-tab" data-workface="algorithm" aria-selected="false"><obi-router-component aria-hidden="true"></obi-router-component><span>Algorithm</span></button>
       </nav>
-      <div class="shell-session-state" id="shellSessionState">NO SESSION</div>
     </header>
     <div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden>
       OpenBridge 1.0.1 failed to load. Product shell components unavailable; retry network/CDN access.
@@ -51,7 +50,7 @@
         <section class="config-step-panel" data-config-step-panel="rules">
           <div class="rule-step-layout">
             <obc-card class="config-obc-card">
-              <div slot="title" class="config-card-title"><span>01</span><strong>COLREG Rules</strong><small>Catalog-scoped validation authority</small></div>
+              <div slot="title" class="config-card-title"><span>01</span><strong>COLREG Rules</strong></div>
               <div class="config-card-content"><div class="choice-grid" id="validationRuleChoices" role="radiogroup" aria-label="COLREG rule"></div></div>
             </obc-card>
             <obc-card class="config-obc-card visual-card">
@@ -712,7 +711,7 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260819-c5-shell-1"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260819-c5-shell-1"></script>
+  <script type="module" src="/static/app.js?v=20260819-c5-shell-2"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260819-c5-shell-2"></script>
 </body>
 </html>

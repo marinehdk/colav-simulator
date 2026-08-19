@@ -726,7 +726,6 @@ function render() {
   retryAuthority.hidden = snapshot.sessionStatus === 'loading'
     || (snapshot.catalogStatus !== 'error' && snapshot.sessionStatus === 'known');
   retryAuthority.disabled = snapshot.sessionStatus === 'loading' || snapshot.creating;
-  document.getElementById('shellSessionState').textContent = snapshot.activeState || 'NO SESSION';
   renderRuleChoices(snapshot);
   renderRuleGuide(snapshot);
   renderStepper(snapshot);
