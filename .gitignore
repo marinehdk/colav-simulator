@@ -141,3 +141,7 @@ output/figures/
 /data/ais/
 /runs/
 /web_gui/_enc_tile.png
+
+# codegraph tool index
+codegraph/
+.codegraph/
