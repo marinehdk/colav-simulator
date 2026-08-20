@@ -2460,7 +2460,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   width: 512px;
   height: 512px;
   margin: -256px 0 0 -256px;
-  transform: scale(0.62);
+  transform: scale(0.5);
 }
 
 .ownship-sensor-page .live-compass-readouts,
