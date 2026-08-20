@@ -476,7 +476,7 @@
                   <dl class="algorithm-data-list">
                     <div class="algorithm-data-row"><dt>Horizon steps</dt><dd id="liveHorizonSteps">0</dd><small>steps</small></div>
                     <div class="algorithm-data-row"><dt>Step interval</dt><dd id="liveStepInterval">5.0</dd><small>s</small></div>
-                    <div class="algorithm-data-row"><dt>Trajectory knots</dt><dd id="liveTrajectoryKnots">0</dd><small>pts</small></div>
+                    <div class="algorithm-data-row"><dt>Prediction speed</dt><dd id="liveTrajectoryKnots">--</dd><small>kn</small></div>
                     <div class="algorithm-data-row"><dt>Execution heading</dt><dd id="liveExecHeading">0.0</dd><small>°</small></div>
                     <div class="algorithm-data-row"><dt>Execution speed</dt><dd id="liveExecSpeed">0.00</dd><small>m/s</small></div>
                     <div class="algorithm-data-row"><dt>Tracking error</dt><dd id="liveTrackingError">0.00</dd><small>m</small></div>
@@ -490,21 +490,22 @@
                     <div class="algorithm-data-row"><dt>Lateral offset</dt><dd id="liveLateralOffset">--</dd><small>m</small></div>
                     <div class="algorithm-data-row"><dt>Rolling plan</dt><dd id="liveRollingPlan">KEEP</dd><small></small></div>
                     <div class="algorithm-data-row"><dt>Return drift</dt><dd id="liveReturnDrift">0.0</dd><small>s</small></div>
-                    <div class="algorithm-data-row"><dt>Control command</dt><dd id="liveControl">--</dd><small></small></div>
-                  </dl>
+                      </dl>
                 </section>
               </div>
-              <span class="algorithm-preview-label" id="liveAlgorithmPreviewLabel">Trajectory preview</span>
-              <div class="algorithm-preview-chart" id="liveAlgorithmPreviewChart" aria-label="轨迹预览">
-                <span id="liveAlgorithmPreviewDesc">Trajectory preview</span>
-                <svg id="liveAlgorithmPreviewSvg" viewBox="0 0 260 148" role="img" aria-label="规划轨迹曲线">
-                  <path d="M18 128 C64 126 85 110 105 83 C125 56 150 34 238 24"></path>
-                  <circle cx="18" cy="128" r="4"></circle>
-                  <circle cx="105" cy="83" r="4"></circle>
-                  <circle cx="238" cy="24" r="4"></circle>
-                </svg>
+              <div class="algorithm-preview-header">
+                <span class="algorithm-preview-label" id="liveAlgorithmPreviewLabel">Decision Screen</span>
+                <obc-icon-button id="plannerSurfaceAttach" variant="flat" aria-label="决策图吸附本船" title="展开：吸附到本船"><obi-own-ship-alternative-filled></obi-own-ship-alternative-filled></obc-icon-button>
+              </div>
+              <div class="algorithm-preview-chart" id="liveAlgorithmPreviewChart" aria-label="决策空间预览">
+                <canvas id="plannerSurface" aria-label="规划决策空间预览"></canvas>
               </div>
             </section>
+
+          </div>
+
+          <!-- Switcher -->
+          <div class="operations-info-page operations-perf-page" data-operations-card-page="2" aria-label="Algorithm Performance" hidden>
             <section class="operations-panel algorithm-performance-panel" aria-labelledby="algorithm-performance-heading">
               <header class="operations-panel-header"><span aria-hidden="true">↗</span><strong id="algorithm-performance-heading">ALGORITHM PERFORMANCE</strong><small>60 STEP WINDOW</small></header>
               <dl class="algorithm-data-list algorithm-performance-list">
@@ -519,15 +520,23 @@
                   <polyline id="livePerfPolyline" points="12,126 248,126"></polyline>
                 </svg>
               </div>
+                            <div class="algorithm-performance-chart" aria-label="最近求解 Cost 趋势">
+                  <span id="liveCostSparklineLabel">--</span>
+                  <svg id="liveCostSvg" viewBox="0 0 260 148" role="img" aria-label="Cost 趋势">
+                    <line x1="12" y1="126" x2="248" y2="126"></line>
+                    <line x1="12" y1="28" x2="12" y2="126"></line>
+                    <polyline id="liveCostPolyline" points="12,126 248,126"></polyline>
+                  </svg>
+                </div>
             </section>
           </div>
 
-          <!-- Switcher -->
           <nav class="operations-card-switcher" aria-label="切换运行监控页面" data-od-id="operations-card-switcher">
             <obc-icon-button id="previousOperationsCardBtn" variant="flat" aria-label="上一张运行监控页面" title="上一张运行监控页面"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
             <div class="operations-card-position" id="operationsCardPosition" aria-label="第 1 张，共 2 张">
               <button class="operations-card-dot" type="button" aria-label="MONITOR" data-tooltip="MONITOR" aria-current="true"></button>
               <button class="operations-card-dot" type="button" aria-label="ALGO" data-tooltip="ALGO"></button>
+              <button class="operations-card-dot" type="button" aria-label="PERFORMANCE" data-tooltip="PERFORMANCE"></button>
             </div>
             <obc-icon-button id="nextOperationsCardBtn" variant="flat" aria-label="下一张运行监控页面" title="下一张运行监控页面"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
           </nav>

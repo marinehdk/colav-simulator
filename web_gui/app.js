@@ -733,7 +733,8 @@ function updateAlgoTelemetry(proj) {
 
   setText('liveHorizonSteps', planner.horizonLength || 0);
   setText('liveStepInterval', `${(planner.horizonDtS || 5.0).toFixed(1)}`);
-  setText('liveTrajectoryKnots', planner.horizonLength ? planner.horizonLength + 1 : 0);
+  const previewSog = proj.navigation?.sog;
+  setText('liveTrajectoryKnots', Number.isFinite(previewSog) ? (previewSog * 1.94384).toFixed(1) : '--');
   setText('liveExecHeading', planner.appliedCourseRefRad ? `${(planner.appliedCourseRefRad * 180 / Math.PI).toFixed(1)}` : '0.0');
   setText('liveExecSpeed', planner.appliedSpeedRefMps ? `${planner.appliedSpeedRefMps.toFixed(2)}` : '0.00');
   setText('liveTrackingError', '0.11');
@@ -743,12 +744,27 @@ function updateAlgoTelemetry(proj) {
   setText('liveLateralOffset', planner.display?.lateral_offset ? `${planner.display.lateral_offset.toFixed(2)}` : '0.00');
   setText('liveRollingPlan', 'KEEP');
   setText('liveReturnDrift', '0.0');
-  setText('liveControl', planner.selectedCommand ? (typeof planner.selectedCommand === 'object' ? JSON.stringify(planner.selectedCommand) : String(planner.selectedCommand)) : '--');
 
   const previewLabel = document.getElementById('liveAlgorithmPreviewLabel');
-  if (previewLabel && planner.algorithmId) {
-    previewLabel.textContent = `${planner.algorithmId} · trajectory preview`;
+  if (previewLabel) previewLabel.textContent = 'Decision Screen';
+}
+
+function updateCostSparkline() {
+  const polyline = document.getElementById('liveCostPolyline');
+  const label = document.getElementById('liveCostSparklineLabel');
+  if (!polyline) return;
+  const values = solveTimeline.map(item => item.objective).filter(Number.isFinite);
+  if (!values.length) {
+    if (label) label.textContent = '--';
+    return;
   }
+  const maxVal = Math.max(...values, 1e-6);
+  if (label) label.textContent = `${values[values.length - 1].toFixed(2)} · max ${maxVal.toFixed(2)}`;
+  const width = 236;
+  const height = 98;
+  const step = width / Math.max(values.length - 1, 1);
+  polyline.setAttribute('points', values.map((value, index) =>
+    `${12 + index * step},${126 - (value / maxVal) * height}`).join(' '));
 }
 
 function updatePerfSparkline() {
@@ -994,12 +1010,19 @@ function updatePlannerPanel(proj) {
     });
     solveTimeline = solveTimeline.slice(-60);
     renderSolveTimeline();
+    updateCostSparkline();
   }
 }
 
 function drawPlannerSurface(planner) {
   const canvas = document.getElementById('plannerSurface');
   if (!canvas) return;
+  const backingW = Math.max(80, Math.round(canvas.clientWidth || 260));
+  const backingH = Math.max(60, Math.round(canvas.clientHeight || 148));
+  if (canvas.width !== backingW || canvas.height !== backingH) {
+    canvas.width = backingW;
+    canvas.height = backingH;
+  }
   const surface = canvas.getContext('2d');
   const algorithmId = planner.algorithm_id;
   const details = planner.algorithm_details || {};
@@ -1075,10 +1098,14 @@ function drawPlannerSurface(planner) {
     drawSimplifiedMpcFan(surface, canvas, planner, details);
     return;
   }
+  if (isMidMPC) {
+    drawMidMpcPrediction(surface, canvas);
+    return;
+  }
   if (!Array.isArray(matrix) || !matrix.length || !Array.isArray(matrix[0])) {
     surface.fillStyle = '#65736f';
     surface.font = '11px SFMono-Regular, monospace';
-    surface.fillText(isMidMPC ? 'IPOPT 轨迹见海图' : '暂无候选控制代价', 12, 78);
+    surface.fillText('暂无候选控制代价', 12, 78);
     return;
   }
   const values = matrix.flat().filter(Number.isFinite);
@@ -1519,7 +1546,8 @@ function updatePlannerSurfaceAttachControl(surfaceType, solveId) {
       && planner.algorithm_details.candidate_heading_increments_rad.length > 0;
   const attached = situationDisplay.isPlannerSurfaceAttached();
   button.disabled = !hasContent && !attached;
-  button.textContent = attached ? '收起' : hasContent ? '展开' : '加载中';
+  button.activated = attached;
+  button.title = attached ? '收起：回到侧栏' : hasContent ? '展开：吸附到本船' : '加载中';
   button.setAttribute('aria-pressed', String(attached));
 }
 
@@ -1530,7 +1558,7 @@ function syncPlannerSurfaceMode(planner) {
 }
 
 function setPlannerSurfaceAttached(attached, { rerender = true } = {}) {
-  const panel = document.getElementById('plannerSurfacePanel');
+  const panel = document.getElementById('liveAlgorithmPreviewChart');
   if (!panel || attached === situationDisplay.isPlannerSurfaceAttached()) return;
   if (attached && !plannerSurfaceType(currentDiagnosticPlanner())) return;
   situationDisplay.setPlannerSurfaceAttached(attached);
@@ -1574,6 +1602,71 @@ function formatAxisNumber(value) {
   if (!Number.isFinite(value)) return '--';
   const rounded = Math.round(value * 10) / 10;
   return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
+}
+
+function drawMidMpcPrediction(surface, canvas) {
+  const horizon = currentData?.plans?.prediction_horizon || [];
+  const own = currentData?.os || {};
+  const points = [{ n: own.x, e: own.y }, ...horizon]
+    .filter(p => p && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+    .map(p => ({ n: p[0], e: p[1] }));
+  surface.fillStyle = '#0d1211';
+  surface.fillRect(0, 0, canvas.width, canvas.height);
+  if (points.length < 2) {
+    surface.fillStyle = '#65736f';
+    surface.font = '11px SFMono-Regular, monospace';
+    surface.fillText('等待 Mid-MPC 预测…', 12, canvas.height / 2);
+    return;
+  }
+  const pad = 18;
+  const norths = points.map(p => p.n);
+  const easts = points.map(p => p.e);
+  const minN = Math.min(...norths), maxN = Math.max(...norths);
+  const minE = Math.min(...easts), maxE = Math.max(...easts);
+  const spanN = Math.max(maxN - minN, 1e-6);
+  const spanE = Math.max(maxE - minE, 1e-6);
+  const scale = Math.min((canvas.width - pad * 2) / spanE, (canvas.height - pad * 2) / spanN);
+  const offsetX = (canvas.width - spanE * scale) / 2;
+  const offsetY = (canvas.height - spanN * scale) / 2;
+  const toXY = p => ({
+    x: offsetX + (p.e - minE) * scale,
+    y: canvas.height - offsetY - (p.n - minN) * scale,
+  });
+  // grid
+  surface.strokeStyle = 'rgba(130,145,140,0.18)';
+  surface.lineWidth = 1;
+  for (let i = 1; i < 4; i++) {
+    const x = (canvas.width / 4) * i;
+    const y = (canvas.height / 4) * i;
+    surface.beginPath(); surface.moveTo(x, 0); surface.lineTo(x, canvas.height); surface.stroke();
+    surface.beginPath(); surface.moveTo(0, y); surface.lineTo(canvas.width, y); surface.stroke();
+  }
+  // trajectory
+  surface.strokeStyle = '#7fd0a8';
+  surface.lineWidth = 2;
+  surface.beginPath();
+  points.forEach((p, i) => {
+    const { x, y } = toXY(p);
+    if (i === 0) surface.moveTo(x, y); else surface.lineTo(x, y);
+  });
+  surface.stroke();
+  // ownship marker + horizon ticks every ~10 points
+  const start = toXY(points[0]);
+  surface.fillStyle = '#FFFFFF';
+  surface.beginPath(); surface.arc(start.x, start.y, 3.5, 0, Math.PI * 2); surface.fill();
+  surface.fillStyle = 'rgba(127,208,168,0.85)';
+  points.forEach((p, i) => {
+    if (i > 0 && i % 10 === 0) {
+      const { x, y } = toXY(p);
+      surface.beginPath(); surface.arc(x, y, 2, 0, Math.PI * 2); surface.fill();
+    }
+  });
+  const end = toXY(points[points.length - 1]);
+  surface.strokeStyle = '#7fd0a8';
+  surface.beginPath(); surface.arc(end.x, end.y, 4.5, 0, Math.PI * 2); surface.stroke();
+  surface.fillStyle = '#82918c';
+  surface.font = '9px SFMono-Regular, monospace';
+  surface.fillText(`${(spanN).toFixed(0)}m × ${(spanE).toFixed(0)}m · ${points.length - 1} steps`, 8, canvas.height - 6);
 }
 
 function drawSimplifiedMpcFan(surface, canvas, planner, details) {
