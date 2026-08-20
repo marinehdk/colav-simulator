@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260820-fix-17" />
+  <link rel="stylesheet" href="/static/style.css?v=20260820-fix-18" />
 </head>
 <body>
   <div class="app-container">
@@ -272,7 +272,7 @@
               <div class="route-steering-row"><span>Steering mode</span><strong id="liveSteeringMode">TRACK</strong></div>
               <div class="route-value-grid route-value-grid-primary">
                 <div><span>Course</span><strong id="liveRouteCourse">000°</strong></div>
-                <div><span>ROT</span><strong id="liveRouteRot">---<small>/s</small></strong></div>
+                <div><span>ROT</span><strong id="liveRouteRot">---<small>°/s</small></strong></div>
                 <div><span>Radius</span><strong id="liveRouteRadius">---</strong></div>
               </div>
               <div class="navigation-section-divider" aria-hidden="true"></div>
@@ -316,15 +316,15 @@
                 <div class="live-compass-readouts" data-od-id="live-compass-readouts">
                   <div class="live-compass-readout">
                     <obc-automation-button-readout-stack id="liveHeadingReadout" size="enhanced" aria-label="本船航向 0 度" data-od-id="live-heading-readout"></obc-automation-button-readout-stack>
-                    <div class="live-compass-readout-caption"><strong>HDG</strong><span>DEG</span></div>
+                    <div class="live-compass-readout-caption"><strong>HDG</strong></div>
                   </div>
                   <div class="live-compass-readout">
                     <obc-automation-button-readout-stack id="liveCogReadout" size="enhanced" aria-label="本船对地航向 0 度" data-od-id="live-cog-readout"></obc-automation-button-readout-stack>
-                    <div class="live-compass-readout-caption"><strong>COG</strong><span>DEG</span></div>
+                    <div class="live-compass-readout-caption"><strong>COG</strong></div>
                   </div>
                   <div class="live-compass-readout">
                     <obc-automation-button-readout-stack id="liveRotReadout" size="enhanced" aria-label="本船转向率 0 度" data-od-id="live-rot-readout"></obc-automation-button-readout-stack>
-                    <div class="live-compass-readout-caption"><strong>ROT</strong><span>DEG</span></div>
+                    <div class="live-compass-readout-caption"><strong>ROT</strong></div>
                   </div>
                 </div>
               </div>
@@ -543,7 +543,7 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260820-fix-17"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260820-fix-17"></script>
+  <script type="module" src="/static/app.js?v=20260820-fix-18"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260820-fix-18"></script>
 </body>
 </html>

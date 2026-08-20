@@ -610,7 +610,7 @@ function updateOwnshipTelemetry(proj) {
   // 2. Page 0: ROUTE Card
   setText('liveRouteCourse', `${Math.round(headingDeg).toString().padStart(3, '0')}°`);
   const rotDegSec = Math.abs(os?.r || 0) >= 1e-4 ? (os.r * 180 / Math.PI) : null;
-  setHtml('liveRouteRot', rotDegSec === null ? '---' : `${rotDegSec.toFixed(1)}<small>/s</small>`);
+  setHtml('liveRouteRot', rotDegSec === null ? '---' : `${rotDegSec.toFixed(1)}<small>°/s</small>`);
   // Turn radius from ROT: R = v/ω; straight track (|ROT| < 1°/min) has no meaningful radius.
   const yawRate = Math.abs(os?.r || 0);
   const turnRadiusM = Math.abs(rotDegMin) >= 1 && Number.isFinite(nav.sog) && nav.sog > 0.1 && yawRate > 1e-4
@@ -632,11 +632,11 @@ function updateOwnshipTelemetry(proj) {
     });
   }
   const liveHeading = document.getElementById('liveHeadingReadout');
-  if (liveHeading) liveHeading.readouts = [{ type: 'value', value: Math.round(headingDeg), nDigits: 3, unit: '' }];
+  if (liveHeading) liveHeading.readouts = [{ type: 'value', value: Math.round(headingDeg), nDigits: 3, unit: '°' }];
   const liveCog = document.getElementById('liveCogReadout');
-  if (liveCog) liveCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 3, unit: '' }];
+  if (liveCog) liveCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 3, unit: '°' }];
   const liveRot = document.getElementById('liveRotReadout');
-  if (liveRot) liveRot.readouts = [{ type: 'value', value: Math.abs(rotDegMin), nDigits: 1, unit: '' }];
+  if (liveRot) liveRot.readouts = [{ type: 'value', value: Math.abs(rotDegSec), nDigits: 1, unit: '°/s' }];
 
   const liveDepthActual = document.getElementById('liveDepthActual');
   if (liveDepthActual) {
