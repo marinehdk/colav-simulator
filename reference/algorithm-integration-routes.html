@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>算法接入路径速查</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header><div class="eyebrow">Reference 04</div><h1>算法接入路径</h1><p class="lede">先判断用途，再选择最小接入边界。</p></header>
+  <div class="architecture">
+    <div class="layer"><strong>内置算法</strong><code>IntegrationRegistry.build_algorithm()</code> 显式分支。适合仓库长期维护的核心算法。</div>
+    <div class="layer"><strong>动态插件</strong><code>algorithm_config.factory = "module:callable"</code>。当前 factory 必须返回 core COLAV 的 <code>CustomMPCAdapter</code>。</div>
+    <div class="layer"><strong>固定外部集成</strong><code>integrations/*.py</code> 包装外部仓库，如 PSB-MPC、RRT、RLMPC。</div>
+    <div class="layer"><strong>RL 训练</strong><code>COLAVEnvironment</code> + <code>remote_actor=True</code>。agent 外部写 references，不走普通 Ship0 内部 planning。</div>
+  </div>
+  <h2>动态插件最小契约</h2>
+  <ol>
+    <li>factory 接收 <code>FactoryContext</code>。</li>
+    <li>返回 <code>colav_simulator.core.colav.custom_mpc_adapter.CustomMPCAdapter</code>。</li>
+    <li><code>AlgorithmDescriptor.algorithm_id</code> 与请求 ID 完全一致。</li>
+    <li>solve 接收 <code>PlannerInput</code>，返回 <code>MPCSolution</code>。</li>
+    <li>依赖、配置和源码身份进入 build identity；失败不可静默 fallback。</li>
+  </ol>
+  <div class="callout"><strong>同名警告</strong>：<code>core/colav/custom_mpc_adapter.py</code> 与 <code>guidance/custom_mpc_adapter.py</code> 是两个不同边界。实验插件工厂要求前者。</div>
+  <nav class="next"><a href="../lessons/0004-choosing-an-algorithm-entry.html">返回第 4 课</a><a href="planner-contracts.html">Planner 契约</a></nav>
+</main></body>
+</html>
+

@@ -844,6 +844,7 @@ function updatePlannerPanel(proj) {
   const state = proj.planner;
   const diagnosticPlanner = state.display || {};
   const details = diagnosticPlanner.algorithm_details || {};
+  const predictionEvidence = proj.raw?.plans?.prediction_render || null;
   syncPlannerSurfaceMode(diagnosticPlanner);
   const solveId = Number(state.solveId || 0);
   const realSolve = state.phase === 'SOLVE';
@@ -864,8 +865,10 @@ function updatePlannerPanel(proj) {
   const gridShape = Array.isArray(details.grid_shape) ? details.grid_shape : [];
   const horizonTime = diagnosticPlanner.algorithm_id === 'vo' && gridShape.length === 2
     ? `决策网格 ${gridShape[0]}×${gridShape[1]}`
-    : horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
-      ? `${horizonIntervals} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
+    : Number.isFinite(predictionEvidence?.grid?.dt_s)
+      ? `${horizonIntervals} × ${predictionEvidence.grid.dt_s.toFixed(1)}s · ${predictionEvidence.grid.state_samples} knots`
+      : horizonLength && Number.isFinite(diagnosticPlanner.horizon_dt_s)
+        ? `${horizonIntervals} × ${diagnosticPlanner.horizon_dt_s.toFixed(1)}s`
       : `${horizonLength} points`;
   setText('val-planner-horizon', horizonTime);
 
@@ -898,6 +901,78 @@ function updatePlannerPanel(proj) {
     Number.isFinite(configuredSolvePeriod)
       ? `${configuredSolvePeriod.toFixed(1)} s`
       : '按算法触发',
+  );
+  setText(
+    'val-evidence-source',
+    predictionEvidence
+      ? `${predictionEvidence.trajectory_source || '--'} · ${predictionEvidence.style || '--'}`
+      : '--',
+  );
+  setText(
+    'val-planner-l4',
+    predictionEvidence?.planner_l4?.accepted === true
+      ? 'PASS'
+      : predictionEvidence?.planner_l4?.accepted === false
+        ? 'FAIL'
+        : '--',
+  );
+  const evaluator = predictionEvidence?.evaluator_g3;
+  setText(
+    'val-evaluator-g3',
+    evaluator
+      ? evaluator.hard_gate_passed === true || evaluator.status === 'PASS'
+        ? 'PASS'
+        : 'FAIL'
+      : '--',
+  );
+  const quality = predictionEvidence?.quality || {};
+  setText(
+    'val-course-span',
+    Number.isFinite(quality.course_span_rad)
+      ? `${(quality.course_span_rad * 180 / Math.PI).toFixed(2)}°`
+      : '--°',
+  );
+  setText(
+    'val-speed-span',
+    Number.isFinite(quality.speed_span_mps) ? `${quality.speed_span_mps.toFixed(3)} m/s` : '-- m/s',
+  );
+  setText(
+    'val-lateral-deviation',
+    Number.isFinite(quality.lateral_deviation_m) ? `${quality.lateral_deviation_m.toFixed(2)} m` : '-- m',
+  );
+  const rollingPlan = details.rolling_plan || {};
+  const rollingReference = rollingPlan.reference || {};
+  const rollingAssessment = rollingPlan.assessment || {};
+  const prefixContinuity = rollingAssessment.prefix || {};
+  setText(
+    'val-rolling-plan',
+    rollingReference.active && rollingAssessment.accepted
+      ? '保持'
+      : rollingAssessment.revision_reason || '--',
+  );
+  setText(
+    'val-prefix-continuity',
+    Number.isFinite(prefixContinuity.heading_rms_deg) && Number.isFinite(prefixContinuity.position_max_m)
+      ? `${prefixContinuity.heading_rms_deg.toFixed(1)}° · ${prefixContinuity.position_max_m.toFixed(1)} m`
+      : '--',
+  );
+  setText(
+    'val-recovery-drift',
+    Number.isFinite(rollingAssessment.recovery_time_drift_s)
+      ? `${rollingAssessment.recovery_time_drift_s.toFixed(1)} s`
+      : '-- s',
+  );
+  setText(
+    'val-ipopt-time',
+    Number.isFinite(details.ipopt_elapsed_ms)
+      ? `${details.ipopt_elapsed_ms.toFixed(2)} ms${Number.isFinite(details.ipopt_iterations) ? ` · ${details.ipopt_iterations} it` : ''}`
+      : '-- ms',
+  );
+  setText(
+    'val-graph-build-time',
+    Number.isFinite(details.graph_build_elapsed_ms)
+      ? `${details.graph_build_elapsed_ms.toFixed(2)} ms`
+      : '-- ms',
   );
 
   const timelineTrace = solvedNow ? state.display : null;

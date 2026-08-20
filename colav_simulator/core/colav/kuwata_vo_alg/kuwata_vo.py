@@ -46,7 +46,7 @@ _REMOVED_CONFIG_KEYS = {
     "grounding_cost",
     "colregs_violation_cost",
 }
-_DYNAMICS_PREDICTION_STEP_S = 0.5
+_DYNAMICS_PREDICTION_STEP_S = 1.0
 _DYNAMICS_INTEGRATION_MARGIN_M = 0.25
 
 
@@ -1169,10 +1169,14 @@ class VO:
             uncertainty_hull = geometry.MultiPoint(uncertainty).convex_hull
             wvo_polygon = _minkowski_from_geometries(velocity_obstacle, uncertainty_hull)
             wvo = _points_in_convex_geometry(candidates, wvo_polygon)
-            worst_ttc = np.full(self._min_ttc.shape, np.inf)
-            for error in uncertainty:
-                ttc = ray_polygon_ttc_grid(expanded, p_os, candidates - (v_do + error))
-                worst_ttc = np.minimum(worst_ttc, ttc)
+            relative_candidates = (
+                candidates[None, ...]
+                - (v_do[None, :] + uncertainty)[:, None, None, :]
+            )
+            worst_ttc = np.min(
+                ray_polygon_ttc_grid(expanded, p_os, relative_candidates),
+                axis=0,
+            )
             self._wvo_mask |= wvo & ~self._hard_constraint_mask
             self._min_ttc = np.minimum(self._min_ttc, worst_ttc)
         if rules.intersection(
@@ -1274,14 +1278,17 @@ class VO:
         v_do: np.ndarray,
         uncertainty: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        v3_for_all = np.ones(candidates.shape[:2], dtype=bool)
-        v1_for_any = np.zeros(candidates.shape[:2], dtype=bool)
-        for error in uncertainty:
-            rel_velocity = candidates - (v_do + error)
-            separating = np.einsum("...i,i->...", rel_velocity, rel_position) < 0.0
-            cross_z = rel_position[0] * rel_velocity[..., 1] - rel_position[1] * rel_velocity[..., 0]
-            v3_for_all &= separating
-            v1_for_any |= cross_z < 0.0
+        rel_velocity = (
+            candidates[None, ...]
+            - (v_do[None, :] + uncertainty)[:, None, None, :]
+        )
+        separating = np.einsum("...i,i->...", rel_velocity, rel_position) < 0.0
+        cross_z = (
+            rel_position[0] * rel_velocity[..., 1]
+            - rel_position[1] * rel_velocity[..., 0]
+        )
+        v3_for_all = np.all(separating, axis=0)
+        v1_for_any = np.any(cross_z < 0.0, axis=0)
         v1 = ~v3_for_all & v1_for_any
         v2 = ~v3_for_all & ~v1_for_any
         return v1, v2, v3_for_all
@@ -1671,8 +1678,9 @@ class VO:
                 continue
             clipped_ne = ops.transform(lambda x, y, *_z: (y, x), clipped_en)
             for polygon in _polygon_parts(clipped_ne):
-                for convex_part in _convex_parts(polygon):
-                    expanded.append(compute_minkowski_sum(convex_part, reflected))
+                # Downstream TTC convexifies every connected obstacle, so
+                # triangulating the same polygon first is redundant.
+                expanded.append(compute_minkowski_sum(polygon, reflected))
         merged = ops.unary_union(expanded) if expanded else geometry.GeometryCollection()
         return sorted(
             _polygon_parts(merged),
@@ -2000,15 +2008,6 @@ def _polygon_parts(value: BaseGeometry) -> Iterable[geometry.Polygon]:
     elif isinstance(value, geometry.GeometryCollection):
         for item in value.geoms:
             yield from _polygon_parts(item)
-
-
-def _convex_parts(polygon: geometry.Polygon) -> Iterable[geometry.Polygon]:
-    if polygon.equals(polygon.convex_hull):
-        yield polygon
-        return
-    for triangle in ops.triangulate(polygon):
-        if polygon.covers(triangle.representative_point()):
-            yield triangle
 
 
 def plot_vo_situation(

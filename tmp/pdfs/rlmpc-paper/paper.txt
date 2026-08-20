@@ -1,0 +1,740 @@
+2024 American Control Conference (ACC)
+July 8-12, 2024. Toronto, Canada
+
+
+
+
+   Real-time Feasible Usage of Radial Basis Functions for Representing
+          Unstructured Environments in Optimal Ship Control ∗
+                                    Trym Tengesdal1 , Sébastien Gros1 and Tor A. Johansen1 .
+
+
+   Abstract— Navigating the highly unstructured maritime envi-              Predictive Control (MPC) strategies for anti-grounding or
+ronment poses significant challenges for autonomous ships, par-             static obstacle avoidance, because of the inherent non-
+ticularly in the vicinity of static obstacles and inland waterways.         convexity, non-smoothness, large memory requirements for
+Real-time algorithms capable of comprehending the complexity
+of nearby grounding hazards are crucial for safe and efficient              considering the map data, not to mention the computational
+operations. Electronic Navigational Charts (ENCs) serve as the              demand of finding the optimal solution when having to
+standard for representing the static environment, providing                 consider these grounding hazards with reasonable accuracy.
+detailed polygon-based information about obstacles and ground-              Finding efficient ways of taking into account information on
+ing hazards. However, the non-convex nature of these polygons               the unstructured environment will allow for less conservative
+presents difficulties for optimal control and Model Predictive
+Control (MPC) schemes. This article introduces an accurate and              autonomous navigation and e.g. surveys close to grounding
+computationally feasible method for extracting and representing             hazards.
+non-convex static obstacle polygons, specifically tailored for                 Existing methods for taking into account information on
+use in numerical optimization-based planning, path-following,               the unstructured environment directly in the planning in-
+and trajectory tracking close to static hazards. By employing               volve sampling-based methods such as probabilistic roadmap
+geometric surface interpolation techniques, Thin Plate Spline
+(TPS) type of Radial Basis Function (RBF) interpolants are                  methods [2] and Rapidly-exploring Random Trees [3], [4].
+derived from each grounding hazard polygon’s point set. These               These allow for the generation of kinodynamically feasible
+surface approximation functions are then utilized as inequality             trajectories by sampling and connecting configurations in the
+constraints within a Nonlinear MPC (NMPC) planning scheme                   collision-free state space from start to goal. Although they
+to facilitate trajectory tracking with anti-grounding function-             can find an initial feasible trajectory very fast, the algorithms
+ality. The integration of surface functions enables the NMPC
+to consider higher-detail maps, enabling the proposed control               can spend excessive time refining the trajectory and thus
+system to closely follow trajectories within the unstructured               converge slowly towards the optimum, if at all. Furthermore,
+environment’s hazardous areas, demonstrated through proof-                  it is not yet clear how to robustly and efficiently sample
+of-concept simulations.                                                     new configurations that are collision-free and ensure quick
+                                                                            convergence of the algorithm [5]. Another caveat with such
+                          I. Introduction
+                                                                            sampling-based methods is that the produced trajectories or
+   Autonomous ships have a large potential for increasing                   paths often need to be smoothed to remove chattering and
+safety and efficiency in maritime transportation and opera-                 make the plan suitable for a lower-level motion controller to
+tions. However, numerous challenges still have to be solved                 track. Scenario-based MPC (SB-MPC) has also been applied
+for their potential to be fully realized. This includes the                 to the problem [1], where anti-grounding and collision avoid-
+development of efficient and robust planning and tracking                   ance objectives are posed in the cost function as opposed
+algorithms for navigating through the unstructured environ-                 to being constraints in the MPC. The SB-MPC directly
+ment the ships are to operate in. By unstructured we mean                   evaluates the finite set of candidate solutions and selects
+complex and uncertain environments that are not completely                  the one yielding minimum cost, not requiring convexity or
+pre-determined. The maritime environment is in general                      gradients in the solution procedure. The performance is,
+composed of grounding hazards both below and above the                      however, highly dependent on a rich enough set of candidate
+water surface. Digital maps, such as Electronic Navigational                solutions. In a similar fashion, evolutionary algorithms such
+Charts (ENCs), provide a priori information on the mapped                   as particle swarm optimization [6] and genetic algorithms
+part of this environment with an accuracy dependent on the                  [7] do not require convexity or gradients, also being flexible
+survey coverage and methodology. The map data is often                      in their formulations and usage. A downside with particle
+parameterized as non-convex polygons for the land, shore,                   swarm optimization and genetic algorithms is, however, the
+and seabed geometries at different depth levels [1]. This                   tendency to prematurely converge to suboptimal solutions
+makes it hard to employ such data directly into e.g. Model                  and the difficulty in selecting an initial population to improve
+   ∗ This work was supported by the Research Council of Norway through      upon.
+the Autoship Centre for Research-based Innovation, project number 309230,      The other alternative, as considered in this article, is to
+and by Kongsberg Maritime through the University Technology Center on       employ complete path methods [3] such as optimal control
+Ship Performance and Cyber Physical Systems.                                [8]. Complete path methods consider the full continuous state
+   1 The authors are with the Department of Engineering Cyber-
+
+netics, Norwegian University of Science and Technology (NTNU),              and generate a parameterized trajectory that can explicitly
+Trondheim, Norway (e-mail: {trym.tengesdal, sebastien.gros,                 take the vehicle dynamics and kinematics into account. As
+tor.arne.johansen}@ntnu.no)                                                 such, smoothing is most often not necessary. Mathematical
+
+979-8-3503-8265-5/$31.00 ©2024 AACC                                     4050
+     Authorized licensed use limited to: SHANGHAI UNIVERSITY. Downloaded on August 10,2026 at 05:20:43 UTC from IEEE Xplore. Restrictions apply.
+optimization is a central component here, for which analytical             planner/tracking application for anti-grounding functionality.
+solutions are hard to obtain unless simple problems are con-               We show that the approximation error with the proposed
+sidered, such as in [9]. As a result, the state and input space            static obstacle representation is not excessive in the studied
+are typically discretized in time using a suitable method                  examples. Lastly, we demonstrate the real-time feasibility
+such as direct single shooting, direct multiple shooting or                of our approach in a coastal trajectory tracking and anti-
+collocation [10], where numerical optimization is used to                  grounding example for a ship, where the nominal trajectory
+find a solution for the state and input trajectories. A popular            to follow is initially infeasible with respect to the adjacent
+approach under numerical optimal control therein is MPC,                   grounding hazards.
+due to its capabilities in handling state, input, and path
+constraints. Here, the non-convexity of map polygons poses                                           II. Preliminaries
+a challenge for which few effective approaches exist. Mixed
+integer optimization methods as in [2] can be used, at the cost               Vectors and matrices are written as boldface symbols. The
+of larger computational demand. For numerical optimal con-                 Euclidean norm is written as ||x|| for a vector x ∈ R𝑛 , with
+trol applied to maritime planning, path-following, or trajec-              𝑛 denoting the vector space dimension. Similarly, a matrix
+tory tracking, a typical approach is to simplify static obstacles          is written as A ∈ R𝑛×𝑚 and has 𝑛 rows and 𝑚 columns,
+as e.g. circular or ellipsoidal representations [11], and unions           with A⊤ denoting its transpose. For square matrices where
+thereof. An alternative is to approximate an inner convex                  𝑛 = 𝑚, its inverse is given by A−1 . The 𝑛 × 𝑛 identity matrix
+safe set with respect to obstacles, in which the vessel should             is written as I𝑛 or I𝑛×𝑛 , and the same for a matrix of zeros
+stay within [12]. The circular and ellipsoidal approximations              0𝑛 . A positive definite matrix A satisfies x𝑇 Ax > 0 for
+can, however, yield very conservative approximations of the                all non-zero x. Coordinate frames are specified by {·}. We
+environment, in the worst case not allowing for planning                   consider polynomial functions 𝑝 : R𝑛 → R that are elements
+or tracking trajectories near land. Furthermore, the inner                 in the set P𝑛𝑑 of polynomials with degree 𝑑 in 𝑛 variables.
+convex safe set approximation can break down in cases with
+many small grounding hazards or when planning trajectories                               III. Static Obstacle Approximation
+"around the corner", leading to an overly small safe set in
+which it can be difficult to plan or track trajectories over               A. Problem Formulation
+longer horizons [13].                                                         For the combined trajectory tracking and anti-grounding
+   The solution in [14] utilized constrained Delaunay tri-                 problem, we consider an unstructured environment repre-
+angulation for representing the collision-free part of the                 sented by a covering of 𝑛𝑠𝑜 static obstacle polygons 𝑗 =
+environment, with graph search to find the sequence of                     1, . . . , 𝑛𝑠𝑜 obtained from an Electronic Navigational Chart
+triangles leading from start to goal. Numerical optimization               (ENC). Each polygon is represented by a set or sequence of
+is used to iteratively plan a continuous trajectory through                               𝑗
+                                                                                         𝑛𝑣
+                                                                           P 𝑗 = {ζ𝑖 }𝑖=1   planar data points ζ𝑖 = [𝑥𝑖 , 𝑦 𝑖 ] 𝑇 ∈ R2 . The aim
+the sequence. It can consider the unstructured environment
+                                                                           is to construct a set H of smooth and twice differentiable
+natively but at the cost of a larger computational effort.
+                                                                           C 2 surface functions {ℎ 𝑗 (ζ)} 𝑛𝑗=1𝑠𝑜
+                                                                                                                   ∈ H , where each ℎ 𝑗 :
+   In this research, mapped grounding hazards in the un-
+structured maritime environment are approximated as smooth                 R → R approximates the non-convex polygon 𝑗 through
+                                                                             2
+
+surface functions, through interpolation of non-convex poly-               interpolation. Granted the surface set, we identify grounding
+gon point sets. This allows for a computationally efficient                with a static obstacle 𝑗 as ℎ 𝑗 (ζ) > 0 and ℎ 𝑗 (ζ) ≤ 0 as no
+way of considering information on the unstructured envi-                   grounding. To make the interpolation problem well-posed,
+                                                                           function values ℎζ𝑗 𝑖 = ℎ+ , ∀𝑖 = 1, .., 𝑛 𝑣 are assigned for
+                                                                                                                          𝑗
+ronment when computing gradients, as opposed to finding
+conservative circular or ellipsoidal approximations to the                 the polygon point set P 𝑗 , where ℎ+ > 0 is some positive
+polygons or approximating inner convex safe sets that do not               value, typically 1. Furthermore, each surface approximation
+always allow for planning on longer horizons. Furthermore,                 should only satisfy ℎ 𝑗 (ζ) > 0 on the actual polygon domain.
+the interpolants can easily be buffered to account for limited             Thus, the polygon point set P 𝑗 is expanded into P̄ 𝑗 by a
+                                                                                                         𝑗
+                                                                                                     𝑛
+accuracy in the a priori environment information. Radial                   buffer point set {ζ𝑙 }𝑙=1 𝑏
+                                                                                                       created by expanding polygon 𝑗 by
+Basis Functions (RBFs) [15] are used as the means for                      a buffer distance 𝑑buff , which is related to the ENC accuracy
+interpolating the ENC polygon data, where the choice fell on                                                                          𝑗
+                                                                           as well as control accuracy requirements. At these 𝑛𝑏 buffer
+                                                                                                                                 ζ𝑙
+using a Thin Plate Spline (TPS) representation due to its wide             points, we assign the negative function value ℎ 𝑗 = ℎ − <
+usage as a non-rigid transformation model in shape matching                                𝑗
+                                                                           0, ∀𝑙 = 1, .., 𝑛𝑏 . In general, 𝑑buff should be small in order to
+and image alignment. It has the advantage of being a smooth
+                                                                           prevent a conservative surface approximation. Extra buffer
+and differentiable obstacle representation, making it suitable
+                                                                           points far away from the polygon can also be added to P 𝑗
+for usage as a non-linear constraint in planners or controllers
+                                                                           to prevent unwanted function behavior outside the polygon
+utilizing gradient-based numerical optimization. It can also
+                                                                           domain. This procedure results in an interpolation data set
+be used as a repulsive force field in artificial potential                                                ζ 𝑛𝑗
+                                                                                                           i            𝑗     𝑗     𝑗
+field methods [16]. The set of smooth surface functions                    consisting of tuples {ζi , ℎ 𝑗 } 𝑝 with 𝑛 𝑝 = 𝑛 𝑣 + 𝑛𝑏 as the
+                                                                                                             i=1
+representing the unstructured maritime environment is used                 total number of data points, for which we must fit suitable
+as path constraints in a Nonlinear MPC (NMPC) trajectory                   functions ℎ 𝑗 (·).
+
+                                                                       4051
+    Authorized licensed use limited to: SHANGHAI UNIVERSITY. Downloaded on August 10,2026 at 05:20:43 UTC from IEEE Xplore. Restrictions apply.
+B. Method                                                                   of degree 𝑑 − 1 restricted to the point set P̄ 𝑗 [15]. This is
+   To solve the interpolation problem described above, one                  written as the requirement
+                                                                                                                  𝑗
+may use polynomial interpolants or piecewise polynomials.                                                        𝑛𝑝
+                                                                                                                 ∑︁
+                                                                                    𝑗
+A high-order polynomial function is, however, not suited for                   R   𝑛𝑝
+                                                                                        ∋ w ⊥ P𝑛𝑑−1 ( P̄ 𝑗 ) ↔         𝑤 i 𝑞(ζi ) = 0, ∀𝑞 ∈ P𝑛𝑑−1 , (3)
+interpolation. Piecewise polynomials require a division of R2                                                    i=1
+into a triangular or rectangular mesh, with different polyno-
+mials being applied on different patches, stitched together                 where 𝑞 is a polynomial function belonging to the space
+using boundary constraints to ensure continuity. However,                   P𝑛𝑑−1 . In our case when 𝑑 = 2, the requirements means that
+for scattered data interpolation problems such as the one                   the set of data points in P̄ 𝑗 must not be the subset of a
+posed in this work, piece-wise polynomials struggle with                    straight line [19]. The requirement is naturally satisfied by
+spurious bumps and overshoots when there are large data-                    most of the ENC polygon data, as the polygons normally
+free regions [17]. In contrast, Radial Basis Function (RBF)                 have areas strictly larger than zero. If this is not the case,
+interpolants can adjust automatically to varying data density               one should pre-process the data to make the problem well-
+and guarantee an invertible set of linear equations under very              posed. Considering an augmented polynomial of degree 𝑑 =
+mild conditions on the data.                                                1 and thus 𝑝(ζ) = 𝑐 1 + 𝑐 2 𝑥 + 𝑐 3 𝑦, the parameter vector w
+   An RBF is a function 𝜙(||ζ − ζ𝑖 ||) : R+ → R centered                    and polynomial coefficients are found by solving a system of
+at ζ𝑖 = [𝑥 𝑖 , 𝑦 𝑖 ] 𝑇 [15], and the RBF interpolant is typically           equations (1) and (3)
+                                                                                         "                    #  
+written as                                                                                 A 𝑗 + ΩI𝑛 𝑗   B𝑗      w𝑗       h𝑗
+                                                                                                                              
+                                                                                                     𝑝
+                                                                                                                      =                (4)
+                            𝑗
+                           𝑛𝑝
+                           ∑︁                                                                  B ⊤𝑗     0𝑛 𝑝𝑜𝑙 c 𝑗       03×1
+               ℎ 𝑗 (ζ) =         𝑤 i 𝜙(||ζ − ζi ||) + 𝑝(ζ)           (1)
+                                                                            where
+                           i=1
+                                                                                      1        𝑥1     𝑦1              ℎ ζ1 
+                                                                                                                        𝑗 
+where a low-order polynomial 𝑝(·) ∈ P𝑛𝑑−1 is often added
+                                                                                                                                          𝑐 1 
+                                                                                      1        𝑥2     𝑦2              .                  
+                                                                                B 𝑗 =  ..                       h 𝑗 =  ..  ,      c 𝑗 = 𝑐 2 
+                                                                                                                           
+to assure a well-posed problem. This will be explained later                                     ..     ..  ,                                        (5)
+                                                                                      .          .      .            ζ 𝑗               𝑐 3 
+in this section. Popular choices of 𝜙(𝑟), with 𝑟 as the input                                                          𝑛𝑝 
+                                                                                      1       𝑥𝑛 𝑗   𝑦 𝑛 𝑗          ℎ 𝑗                 
+radial distance, include the Gaussian RBF 𝜙(𝑟) = 𝑒 − ( 𝜖 𝑟 )
+                                                             2
+                                                                                                 𝑝       𝑝                  
+with 𝜖 ∈ R being a shape parameter, and the Thin Plate                      in which h 𝑗 is a stacked vector of the underlying polygon
+Spline (TPS) 𝜙(𝑟) = 𝑟 2 log(𝑟 + 𝛿), where the singularity of                interpolant function values, c 𝑗 the polynomial coefficient
+the logarithmic function at the origin is avoided with a small              vector with 𝑛 𝑝𝑜𝑙 = 3 as 𝑑 = 1. A smoothing or regularization
+regularization parameter 𝛿 > 0. The TPS achieves several                    term with tuneable parameter Ω > 0 has been included in
+times continuous differentiability, which makes it suitable                 the system of equations to adjust how well the interpolant fits
+for usage in MPC as constraints, where C 2 is required when                 the data. When applying the thin-plate spline to the problem,
+using e.g. Sequential Quadratic Programming (SQP) [18]. As                  one essentially minimizes the energy functional
+a result, we assume usage of RBF functions 𝜙(𝑟) : (0, ∞) →                                ∫  2 2          2 2  2 2
+R away from the polygon points. Further note that, although                                     𝜕 ℎ          𝜕 ℎ        𝜕 ℎ
+                                                                                  𝐸 [ℎ] =          2
+                                                                                                       + 2          +          𝑑𝑥𝑑𝑦 (6)
+the TPS does not require a scaling parameter, we shift the                                  R2 𝜕𝑥           𝜕𝑥𝜕𝑦        𝜕𝑦 2
+input polygon point sets by the bounds of the geographical                  for all interpolants giving a well-defined functional. In en-
+region the vessel operates in.                                              vironments with mapped polygons varying greatly in size,
+                                                       ζ
+                                                         i
+   The interpolation requirements are ℎ 𝑗 (ζi ) = ℎ 𝑗 ∀i.                   one should consider the usage of multiscale hierarchical RBF
+Then, if the interpolation data points are unique, the inter-               (MHRBF) networks for increased accuracy [20]. These can
+polation matrix                                                             self-organize, where RBF grids with units of decreasing scale
+         𝜙(||ζ1 − ζ1 ||)                                                   are inserted at regions with local errors above a certain
+                                 ...    𝜙(||ζ1 − ζ𝑛 𝑗 ||)                 threshold. This is, however, not an issue in this work, and
+                                                   𝑝
+                                                                  𝑗    𝑗
+                  ..                            ..          ∈ R𝑛 𝑝 ×𝑛 𝑝
+                                ..                        
+ A 𝑗 =           .                .            .                         MHRBF networks will thus not be utilized here. For more
+        𝜙(||ζ𝑛 𝑝𝑗 − ζ1 ||)
+        
+                                 ...   𝜙(||ζ𝑛 𝑗 − ζ𝑛 𝑗 ||) 
+                                                                           information on RBFs, the interested reader is referred to e.g.
+                                             𝑝      𝑝                     [21].
+                                                                      (2)
+will be positive definite, making it possible to find a unique              C. Approximation Results
+set of coefficients 𝑤 𝑖 in the interpolant. Then we say that the               We consider the map of grounding hazards shown in Fig.
+RBF 𝜙(·) is positive definite as well. However, in special                  1 fetched using [22], and a provided nominal trajectory that
+cases such as if using the TPS, the positive definiteness                   the NMPC described in the next section will track, which
+is only conditional up to some order 𝑑. The conditional                     is not feasible. This requires anti-grounding functionality
+positive definiteness requirement is then that A 𝑗 is non-                  in the tracking controller. For this purpose, only hazards
+negative definite on the subspace of weight vectors w 𝑗 =                   inside a corridor of radius 𝑟 rel = 200 m about the nominal
+                                 𝑗
+[𝑤 1 , 𝑤 2 , ..., 𝑤 𝑛 𝑗 ] 𝑇 ∈ R𝑛 𝑝 that are orthogonal to the poly-         trajectory is considered. We buffer the hazards by a safety
+                      𝑝
+nomial space P𝑛𝑑−1 ( P̄ 𝑗 ), which are the set of polynomials               margin 𝑑safe,so = 5 m, which in general depends on the
+
+                                                                        4052
+     Authorized licensed use limited to: SHANGHAI UNIVERSITY. Downloaded on August 10,2026 at 05:20:43 UTC from IEEE Xplore. Restrictions apply.
+ship’s size, draft, maneuverability, navigation accuracy, as                                                                                      0m
+
+well as ENC map accuracy, and environmental factors such
+as wave height, tides, and seabed properties. The relevant                                                                                        1m
+
+grounding hazards are found by computing the intersection                                                                                         2m
+
+between the corridor and polygons in the map, which are                                                                                           3m
+
+then approximated by TPSs using the proposed interpolation                                                                                        5m
+
+method. This results in 𝑛𝑠𝑜 = 11 considered grounding                                                                                             10 m
+
+hazards.                                                                                                                                          20 m
+
+
+    Results using the proposed polygon surface approximation                                                                                      50 m
+
+
+method with Ω = 1.0 for one of the grounding hazards are                                                                                          100 m
+
+
+given in Fig. 2. To find the corresponding approximation                                                                                          200 m
+
+
+error related to how well the surface fits the entire polygon                                                                                     350 m
+
+
+domain on R2 , we create a mask ground truth h 𝑗 (ζ) for each                                                                                     500 m
+
+surface. The mask satisfies h 𝑗 (ζ) > 0, ζ ∈ B 𝑗 on the polygon                          200 m
+
+
+
+
+domain B 𝑗 , and h 𝑗 (ζ) ≤ 0 otherwise. Then, data points are              Fig. 1: Corridor (transparent yellow) around the nominal
+sampled with 0.5 m resolution in north and east coordinates                path/trajectory (yellow) to follow, with relevant grounding
+on a rectangular grid, on which the ground truth mask and                  hazards for the MPC to consider (red). The grounding
+surface function values ℎ 𝑗 (ζ) are calculated and compared.               hazards include land, shore, and seabed less than or equal to
+Fig. 3 shows the results for the polygon in Fig. 2, where                  the ship draft.
+ℎ 𝑗 (ζ) > 0 outside the actual polygon domain. Condensed
+numerical results for all relevant polygons are shown in Table
+I. Naturally, the error is larger in areas where the polygon               TABLE I: Results for all relevant polygon approximations,
+point set is more scarce. Also, when expanding the polygon                 calculated for a grid of points with resolution 0.5 m in 𝑥 and
+with a larger safety margin, the original detail level can get             𝑦, measuring the distance from the actual polygon to where
+distorted depending on the buffering method used. This issue               ℎ 𝑗 (ζ) > 0 outside the actual polygon boundary (similarly to
+can be seen from increased approximation error between the                 Fig. 3). Here, 𝜖 avg is the mean error, 𝜖max the maximum error
+two promontories in the southern part of the obstacle plot.                and 𝜎 the standard deviation.
+Thus, one should use a smaller safety margin for e.g. docking                                         𝑗
+                                                                                                 𝑗   𝑛𝑝    𝜖avg [𝑚]   𝜖max [𝑚]   𝜎 [𝑚]
+applications. However, for larger ships in transit, this level of
+detail may be less important, thus allowing for larger safety                                1       287   0.002      4.167      0.056
+margins to be used. Note that the ENC data accuracy in                                       2       172   0.006      3.991      0.096
+                                                                                             3       92    0.009      4.314      0.120
+the given region should always be taken into account in the
+                                                                                             4       26    0.006      1.672      0.073
+buffering.
+                                                                                             5       26    0.006      1.459      0.070
+   From Table I, one can see that the proposed static ob-                                    6       24    0.006      1.650      0.072
+stacle representation is reasonably accurate and not overly                                  7       26    0.013      2.538      0.136
+conservative as one could get using circular or ellipsoidal ap-                              8       26    0.011      2.347      0.122
+proximations. The maximum error typically occurs between                                     9       811   0.003      8.172      0.087
+promontories or narrow bays, or between polygon vertices                                     10      26    0.012      2.385      0.126
+where there are no point data. Increased accuracy can here be                                11      26    0.013      2.555      0.131
+obtained by adding more points along the polygon boundary
+or by reducing Ω. This will naturally be a trade-off with the
+computational effort in evaluating the surface function. This
+computational expense can also be remedied by e.g. using a                    IV. Trajectory Tracking NMPC with Anti-Grounding
+set of nearest neighbors instead of the whole point set in (1)
+to evaluate the spline function.                                           A. Ship Dynamics
+   Guaranteeing ℎ 𝑗 (ζ) > 0 on the polygon boundary and                       A surface vessel model with 3 degrees of freedom (DOF)
+its interior for the TPS interpolant is hard, and will depend              is used to describe the ship dynamics in surge, sway, and
+heavily on the data scaling and shifting [23], the smoothing               yaw as in [24]. The model considers a rudder and propeller
+parameter Ω, the polygon coverage by the point set and                     as control inputs. Let x = [η𝑇 , ν 𝑇 ] 𝑇 ∈ X = R𝑛𝑥 be the own-
+the distribution between these points. However, given a                    ship state (𝑛 𝑥 = 6), consisting of its pose η = [𝑥, 𝑦, 𝜓] 𝑇 ∈ R3
+representative polygon point set, one can select suitably                  in the North-East-Down (NED) {𝑛} frame and body-frame
+large ℎ+ , ℎ − and Ω, such that ℎ 𝑗 (ζ) > 0 on the polygon                 {𝑏} velocity ν = [𝑢, 𝑣, 𝑟] 𝑇 ∈ R3 . The input vector is given
+support. Note that this comes at the cost of conservatism                  as u = [𝐹𝑥 , 𝐹𝑦 ] 𝑇 ∈ U = R𝑛𝑢 (𝑛𝑢 = 2), where 𝐹𝑥 and 𝐹𝑦
+and larger interpolant gradient magnitudes which can lead to               are forces applied to the vessel by the main propeller and
+ill-conditioned matrices and high sensitivity in the numerical             rudder, directed along the vessel 𝑥 and 𝑦 axes, respectively.
+optimization routines.                                                     See Fig. 4 for an illustration. The model can be written on
+
+                                                                       4053
+    Authorized licensed use limited to: SHANGHAI UNIVERSITY. Downloaded on August 10,2026 at 05:20:43 UTC from IEEE Xplore. Restrictions apply.
+                                                                                                                                         0m
+                                                                                                                                                                      +6.581 × 106
+
+
+                                                                                                                                         1m
+                                                                                                                                                                                                                                        4.0
+                                                                                                                                         2m
+                                                                                                                                                                900
+
+                                                                                                                                         3m                                                                                             3.5
+
+                                                                                                                                         5m
+                                                                                                                                                                850
+                                                                                                                                         10 m                                                                                           3.0
+
+                                                                                                                                         20 m
+
+
+
+
+                                                                                                                                                                                                                                              Distance [m]
+                                                                                                                                                                800                                                                     2.5
+
+                                                                                                                                                    North [m]
+                                                                                                                                         50 m
+
+
+                                                                                                                                         100 m
+                                                                                                                                                                                                                                        2.0
+                                                                                                                                         200 m                  750
+
+                                                                                                                                         350 m                                                                                          1.5
+
+                                                                                                                                         500 m
+                                                                                                                                                                700
+                              100 m
+                                                                                                                                                                                                                                        1.0
+
+
+     (a) The considered polygon, expanded by a safety                                                                                                           650                                                                     0.5
+     margin 𝑑safe,so shown in black. The red boundary
+     shows the actual grounding hazard boundary.                                                                                                                                                                                        0.0
+                                                                                                                                                                       −33775 −33750 −33725 −33700 −33675 −33650 −33625 −33600 −33575
+                                                                                                                                                                                                 East [m]
+
+                          +6.581 × 106
+
+                                                                                                                                                 Fig. 3: RBF surface approximation error plot for the polygon
+                                                                                                      0
+                    900                                                                                                                          in Fig. 2. The actual polygon boundary is shown in red,
+                                                                                                                                                 whereas the color bar denotes the distance outward from the
+                    850
+                                                                                                      −2
+                                                                                                                                                 polygon where the surface is still ℎ 𝑗 (ζ) > 0.
+
+                    800
+                                                                                                      −4
+
+        North [m]
+                                                                                                            hj (ζ)
+                                                                                                                                                 the form
+                    750
+                                                                                                                                                                                                                                                            
+                                                                                                      −6                                                                                    J (𝜓)ν
+                                                                                                                                                                  x¤ = f (x, u) =                                                                                (7)
+                                                                                                                                                                                  M −1 (−C (ν)ν − D(ν)ν + τ )
+                    700
+
+                                                                                                      −8                                         which defines the dynamics f : X × U → X with
+                    650
+                                                                                                                                                                                      0          1
+                                                                                                                                                                                                   
+                          −33775 −33750 −33725 −33700 −33675 −33650 −33625 −33600
+                                                                                                      −10
+                                                                                                                                                                                         τ = Ku = 0
+                                                                                                                                                                                      1  u              (8)
+                                                    East [m]
+                                                                                                                                                                                     −𝑙𝑟         0
+                                                                                                                                                                                                   
+     (b) Colormesh plot with the interpolation data set                                                                                          Here 𝑙𝑟 is the distance from the vessel center of gravity to
+     shown. The extra buffer points are shown in approx-                                                                                         the rudder, along the body 𝑥-axis. The transformation matrix
+     imate black color, whereas the actual polygon safety                                                                                        𝐽 (𝜓) is given by
+     margin 𝑑safe,so buffered boundary points are in green
+     and yellow-like colors.                                                                                                                                                                  cos(𝜓)
+                                                                                                                                                                                                              − sin(𝜓)          0
+                                                                                                                                                                                     J (𝜓) =  sin(𝜓)          cos(𝜓)           0                             (9)
+                                                                                                                                                                                               0                  0             1
+                                                                                                                                                                                              
+                                                                                                                                                 from the NED frame {𝑛} to the body frame {𝑏}.
+                                                                                                                                                    Further, the inertia matrix is given by M ∈ R3×3 , C (·) ∈
+                                                                                                                                                 R 3×3 is the coriolis and centripetal matrix and D(·) ∈ R3×3
+                                                                                                                          40
+                                                                                                                        20                       the nonlinear damping matrix. For a vessel with typical
+                                                                                                                        0      hj (ζ )
+                                                                                                                       −20                       port-starboard symmetry, expressions can be found in [24].
+                                                                                                                      −40
+                                                                                                                      −60                        Environmental disturbance forces are not considered, as we
+                                                                                                            950                                  assume small disturbances without loss of generality. Note
+                                                                                                                     10 6
+                                                                                                            1×
+                                                                                                      900
+                                                                                                      +6.
+                                                                                                           58                                    that slowly varying disturbances can be compensated for
+                                                                                                850
+                                  −33750
+                                                                                          800
+                                                                                                                                                 in the NMPC by e.g. using a disturbance observer and
+                                                                                                ]
+                                                                                            [m
+                                           −33700                                          h                                                     augmenting the model with an integrator state. Furthermore,
+                                            Ea                                      750   rt
+                                              st                                      No
+                                                 [m
+                                                   ] −33650                   700                                                                the pose and velocity of the ship are assumed to be accurately
+                                                              −33600    650                                                                      measured, and we thus neglect the corresponding navigation
+                                                                                                                                                 uncertainty.
+                            (c) The RBF surface approximation.                                                                                   B. Optimal Control Problem
+Fig. 2: RBF approximation of a non-convex island polygon.                                                                                           Nonlinear Model Predictive Control (NMPC) is applied for
+                                                                                                                                                 planning a modified grounding-free trajectory that follows
+
+                                                                                                                                         4054
+    Authorized licensed use limited to: SHANGHAI UNIVERSITY. Downloaded on August 10,2026 at 05:20:43 UTC from IEEE Xplore. Restrictions apply.
+                                                                            C. Nonlinear Program
+                                                                               To solve (10), we employ discretization using direct
+                                                                            multiple shooting [25] on a suitably defined time mesh
+                                                                            𝑡0 < 𝑡1 < ... < 𝑡 𝑘 < ... < 𝑇mpc with sample time
+                                                                            Δmpc and horizon 𝑇mpc . Explicit Runge Kutta is used as a
+                                                                            numerical integrator to define the discrete-time dynamics
+                                                                            x 𝑘+1 = F (x 𝑘 , u 𝑘 ) ∀ 𝑘 ∈ 0, 𝑁 − 1 with 𝑁 = 𝑇mpc /Δmpc ,
+                                                                            which gives
+                                                                                  l1 = f (x 𝑘 , u 𝑘 )                                     (13a)
+                                                                                                  Δmpc
+                                                                                  l2 = f (x 𝑘 +          l1 , u 𝑘 )                       (13b)
+                                                                                                     2
+                                                                                                  Δmpc
+                                                                                  l3 = f (x 𝑘 +          l2 , u 𝑘 )                       (13c)
+                                                                                                     2
+                                                                                  l4 = f (x 𝑘 + Δmpc l3 , u 𝑘 )                           (13d)
+                                                                                                          Δmpc
+                                                                                  F (x 𝑘 , u 𝑘 ) = x 𝑘 +           (l1 + 2l2 + 2l3 + l4 ) (13e)
+                                                                                                              2
+                                                                            For each time index 𝑘, the initial state constraint and discrete-
+Fig. 4: Own-ship geometry with the model variables shown,                   time dynamics can then be stacked into the vector of equality
+with 𝑈 as the ship speed. The own-ship position (𝑥, 𝑦) is                   constraints
+given in the NED frame and is located at the vessel center                                                          x0 − x(𝑡0 )       
+of gravity.                                                                                               
+                                                                                                           x1 − F (x0 , u0 ) 
+                                                                                                                                       
+                                                                                  g(x 𝑘+1 , x 𝑘 , u 𝑘 ) = 
+                                                                                                                                      
+                                                                                                                          ..           ,  (14)
+                                                                                                          
+                                                                                                                          .           
+                                                                                                                                       
+the nominal trajectory shown in the previous section as                                                   x 𝑁 − F (x 𝑁 −1 , u 𝑁 −1 ) 
+                                                                                                                                      
+closely as possible, given the set static hazard safety margin.             and (10) can then be transcribed to the following nonlinear
+As the mapped static obstacles can not be directly used                     program
+as constraints in the MPC framework, the surface function
+                                                                                        𝑁 −1
+approximations found in the previous section are used in                                ∑︁
+                                                                                min            (Φ(x 𝑘 , u 𝑘 ) + λ𝑇 s 𝑘 )Δmpc + λ𝑇 s 𝑁 + Γ(x 𝑁 )
+replacement directly as non-linear path constraints instead.                    x, u
+                                                                                         𝑘=0
+Then, we consider the following Optimal Control Problem                                                                                        (15a)
+(OCP) underlying the proposed NMPC
+      ∫ 𝑡0 +𝑇mpc                                                                s.t.           x0 = x(𝑡 0 )                                    (15b)
+  min            Φ(x(𝑡), u(𝑡))𝑑𝑡 + Γ(x(𝑡0 + 𝑇mpc ))      (10a)                                 g(𝑥 𝑘+1 , 𝑥 𝑘 , 𝑢 𝑘 ) = 0,   ∀𝑘 ∈ [0, 𝑁 − 1]    (15c)
+ x, u    𝑡0                                                                                    h(x 𝑘 ) ≤ 0 + s 𝑘 ,          ∀𝑘 ∈ [0, 𝑁]        (15d)
+ s. t.   x¤ = f (x(𝑡), u(𝑡)),        ∀𝑡 ∈ [𝑡0 , 𝑡0 + 𝑇mpc ]       (10b)
+                                                                                            u𝑚𝑖𝑛 ≤ u 𝑘 ≤ u𝑚𝑎𝑥 ,             ∀𝑘 ∈ [0, 𝑁 − 1]    (15e)
+         h(x(𝑡)) ≤ 0,                ∀𝑡 ∈ [𝑡0 , 𝑡0 + 𝑇mpc ]       (10c)
+                                                                                               0𝑛𝑠𝑜 ×1 ≤ s 𝑘 ,              ∀𝑘 ∈ [0, 𝑁]            (15f)
+         umin ≤ u(𝑡) ≤ umax , ∀𝑡 ∈ [𝑡0 , 𝑡0 + 𝑇mpc ]              (10d)
+                                                                            where slack variables s 𝑘 ∈ R𝑛𝑠𝑜 are used to soften the
+with 𝑡 0 as the current time and 𝑥(𝑡 0 ) the current time state             nonlinear anti-grounding path constraints to ensure feasibil-
+information. A quadratic stage cost                                         ity, using an 𝐿 1 -norm term with weight vector λ ∈ R𝑛𝑠𝑜
+                                                                            for penalizing non-zero slacks. The NMPC problem is well
+                   Φ(x, u) = x
+                             e𝑇 Qe
+                                 x+u
+                                   e𝑇 Re
+                                       u                           (11)     posed with a quadratic cost function, smooth C 2 surface
+and terminal cost                                                           splines ℎ 𝑗 (𝑥, 𝑦) and dynamics. Thus, by using SQP with
+                           Γ(x) = x
+                                  e𝑇 P x
+                                       e                           (12)     a primal-dual interior point method for the underlying QP-
+                                                                            solver (see our choice in Section V) from an initially feasible
+is used, where the continuous-time dependency is dropped                    guess with suitable cost weights, the convergence of the SQP-
+for the ease of notation, and is thus implicit in e.g. x = x(𝑡).            iterates can be locally quadratic [18][26].
+The terminal cost is used to approximate the remaining                         For simplicity, we assume perfect tracking of the NMPC
+infinite horizon cost. Here, the tracking error in states and               output optimal trajectory by the ship’s low-level motion con-
+inputs are given by xe = x𝑑 − x and u e = u𝑑 − u, respectively.             trol system. For deployment, however, the entire pipeline with
+Positive-definite matrices Q ∈ R𝑛𝑥 ×𝑛𝑥 , R ∈ R𝑛𝑢 ×𝑛𝑢 , and                  the anti-grounding planner and low-level motion controller
+P ∈ R𝑛𝑥 ×𝑛𝑥 are used as cost weights. The ship dynamics                     would naturally be tuned and validated as a whole. Utilizing
+equality constraint is given by (10b). For convenience, the                 a disturbance estimator and/or integral action in the NMPC
+static obstacle safety-related inequality constraints are gath-             will allow for slowly time-varying environmental force com-
+ered in the vector h(x(𝑡)) ∈ R𝑛𝑠𝑜 with elements ℎ 𝑗 (𝑥, 𝑦) in               pensation, at the cost of higher complexity. Modifying the
+(10c), whereas (10d) gives the input constraints.                           framework to achieve this is straightforward.
+
+                                                                        4055
+     Authorized licensed use limited to: SHANGHAI UNIVERSITY. Downloaded on August 10,2026 at 05:20:43 UTC from IEEE Xplore. Restrictions apply.
+                    V. Simulation Results                                                                                                                                   Distance to closest grounding hazard
+                                                                                                                                                                            Minimum safety margin
+
+    The NMPC planner with embedded anti-grounding is used                                                                  102
+
+to track the nominal trajectory in Fig. 1 from Linehamna
+to Åmøy harbor near Stavanger, Norway. The total distance
+traveled is approximately 3 km, and a reference speed of
+
+                                                                                                        Distance [m]
+4.0 m/s is used to generate the trajectory. Acados [27] is used
+to formulate the OCP in (10) when using the ship model in
+(7), where SQP is used together with the High-Performance
+Interior Point Method solver [28] for computing the NMPC
+                                                                                                                           101
+solutions of (15). Tuning parameters 𝑇mpc = 40.0 s,
+Δmpc = 0.5 s, Q = diag([0.3, 0.3, 15.0, 10.0, 7.5, 1.0]), R =
+diag([0.0001, 0.0001]), P = Q, λ = 12000.0 · 1𝑛𝑠𝑜 ×1 are
+used in the NMPC. The simulation framework in [29] is                                                                                 0         100   200     300        400         500         600     700    800
+                                                                                                                                                                      Time [s]
+used for testing the method.
+    Example tracking results are presented in Figs. 5 - 7. A                Fig. 6: Distance from the own-ship to the closest grounding
+nominal trajectory buffer and static obstacle safety margin of              hazard.
+𝑟 rel = 200 m and 𝑑safe,so = 5.0 m are used. Without excessive
+                                                                                                                               +6.582e6
+efforts being spent on tuning, one can see from the plots
+                                                                                                                                                                                                                      actual
+                                                                                                               500                                                                                                    nominal
+that the proposed anti-grounding control system onboard the
+own-ship is able to steer safely around static hazards with                                    North [m]                   0
+
+
+little conservatism, staying close to the non-convex 𝑑safe,so -                                                                   0             100   200       300           400          500         600     700         800
+buffered polygon boundary while tracking the trajectory.                                −32500                                        actual
+                                                                                                                                      nominal
+
+
+                                                                           East [m]
+Variations in the heading, sway, and yaw rate arise naturally                           −33000
+
+
+due to the system tracking the nominal trajectory while                                 −33500
+
+circumventing the contours of the RBF grounding hazard                                                                            0             100   200       300           400          500         600     700         800
+
+
+representation. Run-time results on a PC averaged over the
+                                                                                      Heading [deg]
+                                                                                                               100
+
+entire scenario gave NMPC computation time 0.24 ± 0.17 s                                                                   0
+                                                                                                                                      actual
+                                                                                                        −100
+with a maximum of 0.75 s, proving that the method is                                                                                  nominal
+
+                                                                                                                                  0             100   200       300           400          500         600     700         800
+viable for deployment at the used sampling rate. Note that                                                                                                                                                            actual
+                                                                                                                           6
+
+
+
+                                                                                                             Surge [m/s]
+                                                                                                                                                                                                                      nominal
+further reductions in run-time can be achieved by e.g. only                                                                4
+
+considering static hazards inside a specific radius, reducing                                                              2
+
+the number of interpolation data points, and using nearest                                                                 0
+                                                                                                                                  0             100   200       300           400          500         600     700         800
+
+neighbor-based evaluation in the TPS interpolant.                                                                          1
+
+
+
+                                                                                                      Sway [m/s]
+                                                                                                                           0
+
+                                                                                                                   −1                 actual
+                                                                                                                                      nominal
+
+                                                                                                                           0m     0             100   200       300           400          500         600     700         800
+
+                                                                                                                     10
+
+
+
+                                                                                             Yaw [deg/s]
+                                                                                                                           0
+                                                                                                                           1m
+                                                                                                                                                                                                                      actual
+                                                                                                             −10                                                                                                      nominal
+                                                                                                                           2m
+                                                                                                                                  0             100   200       300           400          500         600     700         800
+                                                                                                                                                                          Time [s]
+                                                                                                                           3m
+
+
+                                                                                                                           5m                    Fig. 7: NMPC tracking results.
+                                                                                                                           10 m
+
+
+                                                                                                                           20 m
+
+
+                                                                                                                           50 m
+                                                                                                                                                            VI. Conclusion
+                                                                                 100 m
+                                                                               Nonlinear Model Predictive Control (NMPC) applications
+                                                                            for 200 m
+                                                                                 anti-grounding and collision avoidance have predomi-
+                                                                            nantly
+                                                                                 350 m relied on simplistic and conservative static obstacle
+
+                                                                            representations.
+                                                                                 500 m
+                                                                                                However, these approaches prove impractical
+         200 m
+                                                                            for autonomous navigation in narrow channels, near-land
+                                                                            surveys, and docking scenarios where a more detailed consid-
+Fig. 5: North-east plot of the NMPC trajectory tracking. The
+                                                                            eration of non-convex polygons obtained from ENC informa-
+nominal trajectory is shown in , own-ship in at each
+                                                                            tion on the unstructured environment is crucial. To address
+NMPC iteration, predicted NMPC trajectories in , and
+                                                                            this limitation, the use of Radial Basis Function (RBF)
+safety buffered grounding hazard boundaries in .
+                                                                            interpolants has been proposed to approximate non-convex
+                                                                            polygons in the vicinity of autonomous ships operating in the
+
+                                                                       4056
+    Authorized licensed use limited to: SHANGHAI UNIVERSITY. Downloaded on August 10,2026 at 05:20:43 UTC from IEEE Xplore. Restrictions apply.
+unstructured environment. RBFs offer inherent smoothness,                       [13] A. Vaaler, H. Robinson, T. Tengesdal, and A. Rasheed, “Safety filter
+differentiability, and the ability to approximate polygons de-                       for small passenger ferry,” in 42nd International Conference on Ocean,
+                                                                                     Offshore & Arctic Engineering, 2023.
+scribed by scattered data sets, making them advantageous for                    [14] A. B. Martinsen, A. M. Lekkas, and S. Gros, “Optimal model-
+optimal control applications in anti-grounding and collision                         based trajectory planning with static polygonal constraints,” IEEE
+avoidance. To account for control accuracy requirements and                          Transactions on Control Systems Technology, vol. 30, no. 3, pp. 1159–
+                                                                                     1170, 2022.
+inaccuracies in the polygons obtained from ENC data, the                        [15] M. D. Buhmann, “Radial basis functions,” Acta Numerica, vol. 9, p.
+surface interpolants can be expanded by simply buffering                             1–38, 2000.
+the data point sets.                                                            [16] Y. Xue, B. Lee, and D. Han, “Automatic collision avoidance of
+                                                                                     ships,” Proceedings of the Institution of Mechanical Engineers, Part
+   Interpolation results employing a TPS-type RBF demon-                             M: Journal of Engineering for the Maritime Environment, vol. 223,
+strate that the approximation error remains within accept-                           no. 1, pp. 33–46, 2009.
+able limits while capturing the polygon details. These TPS                      [17] S. D. Billings, R. K. Beatson, and G. N. Newsam, “Interpolation of
+                                                                                     geophysical data using continuous global surfaces,” GEOPHYSICS,
+interpolants are directly utilized as path constraints within                        vol. 67, no. 6, pp. 1810–1822, 2002.
+an NMPC planner/trajectory tracker. Through simulations                         [18] J. Nocedal and S. Wright, Numerical optimization. Springer Science
+involving multiple non-convex grounding hazards of varying                           & Business Media, 2006.
+                                                                                [19] M. J. D. Powell, “The theory of radial basis function approximation
+size and complexity, we establish that the anti-grounding                            in 1990,” Advances in numerical analysis, vol. 2, pp. 105–210, 1992.
+control system successfully tracks initially non-feasible tra-                  [20] S. Ferrari, M. Maggioni, and N. A. Borghese, “Multiscale approx-
+jectories without grounding, closely adhering to the hazard                          imation with hierarchical radial basis functions networks,” IEEE
+                                                                                     Transactions on Neural Networks, vol. 15, no. 1, pp. 178–188, 2004.
+boundaries within the predefined safety margin.                                 [21] W. A. Light, Some Aspects of Radial Basis Function Approximation.
+   Future advancements will involve integrating learning-                            Dordrecht: Springer Netherlands, 1992, pp. 163–190.
+based techniques to adapt safety margins dynamically in                         [22] S. Blindheim and T. A. Johansen, “Electronic navigational charts for
+                                                                                     visualization, simulation, and autonomous ship control,” IEEE Access,
+response to external disturbances and nearby ships. Addi-                            vol. 10, pp. 3716–3737, 2022.
+tionally, testing of the proposed method within a complete                      [23] S. Rippa, “An algorithm for selecting a good value for the parameter
+pipeline incorporating a high-level trajectory planner and                           c in radial basis function interpolation,” Advances in Computational
+                                                                                     Mathematics, vol. 11, pp. 193–210, 1999.
+a low-level motion control system is necessary. Moreover,                       [24] T. I. Fossen, Handbook of marine craft hydrodynamics and motion
+extending the NMPC to consider dynamic obstacles and                                 control. John Wiley & Sons, 2011.
+adherence to the traffic rules is a natural progression for                     [25] P. Deuflhard, “A modified newton method for the solution of ill-
+                                                                                     conditioned systems of nonlinear equations with application to multi-
+further algorithmic improvements.                                                    ple shooting,” Numerische Mathematik, vol. 22, no. 4, pp. 289–315,
+                                                                                     1974.
+                              References                                        [26] P. E. Gill and E. Wong, “Sequential quadratic programming methods,”
+                                                                                     in Mixed integer nonlinear programming. Springer, 2011, pp. 147–
+ [1] T. Tengesdal, T. A. Johansen, T. D. Grande, and S. Blindheim,                   224.
+     “Ship collision avoidance and anti grounding using parallelized cost       [27] R. Verschueren, G. Frison, D. Kouzoupis, J. Frey, N. v. Duĳkeren,
+     evaluation in probabilistic scenario-based model predictive control,”           A. Zanelli, B. Novoselnik, T. Albin, R. Quirynen, and M. Diehl,
+     IEEE Access, vol. 10, pp. 111 650–111 664, 2022.                                “acados–a modular open-source framework for fast embedded optimal
+ [2] L. Blackmore, M. Ono, and B. C. Williams, “Chance-constrained                   control,” Mathematical Programming Computation, vol. 14, no. 1, pp.
+     optimal path planning with obstacles,” IEEE Transactions on Robotics,           147–183, 2022.
+     vol. 27, no. 6, pp. 1080–1094, 2011.                                       [28] G. Frison and M. Diehl, “Hpipm: a high-performance quadratic
+ [3] S. M. LaValle, Planning algorithms. Cambridge university press,                 programming framework for model predictive control,” IFAC-
+     2006.                                                                           PapersOnLine, vol. 53, no. 2, pp. 6563–6569, 2020.
+ [4] S. Karaman and E. Frazzoli, “Optimal kinodynamic motion planning           [29] T. Tengesdal and T. A. Johansen, “Simulation framework and software
+     using incremental sampling-based methods,” in 49th IEEE Conference              environment for evaluating automatic ship collision avoidance algo-
+     on Decision and Control (CDC), 2010, pp. 7681–7687.                             rithms,” 7th IEEE Conference on Control Technology and Applications
+ [5] I. Noreen, A. Khan, and Z. Habib, “Optimal path planning using                  (CCTA), 2023.
+     rrt* based approaches: a survey and future directions,” International
+     Journal of Advanced Computer Science and Applications, vol. 7,
+     no. 11, 2016.
+ [6] H. Xue, “A quasi-reflection based sc-pso for ship path planning with
+     grounding avoidance,” Ocean Engineering, vol. 247, p. 110772, 2022.
+ [7] L. Wang, Z. Zhang, Q. Zhu, and S. Ma, “Ship route planning based
+     on double-cycling genetic algorithm considering ship maneuverability
+     constraint,” IEEE Access, vol. 8, pp. 190 746–190 759, 2020.
+ [8] D. E. Kirk, Optimal control theory: an introduction.             Courier
+     Corporation, 2004.
+ [9] L. E. Dubins, “On curves of minimal length with a constraint on
+     average curvature, and with prescribed initial and terminal positions
+     and tangents,” American Journal of Mathematics, vol. 79, p. 497, 1957.
+[10] H. G. Bock and K.-J. Plitt, “A multiple shooting algorithm for direct
+     solution of optimal control problems,” IFAC Proceedings Volumes,
+     vol. 17, no. 2, pp. 1603–1608, 1984.
+[11] M. Abdelaal, M. Fränzle, and A. Hahn, “Nonlinear model predictive
+     control for trajectory tracking and collision avoidance of underactuated
+     vessels with disturbances,” Ocean Engineering, vol. 160, pp. 168 –
+     180, 2018.
+[12] T. Schoels, P. Rutquist, L. Palmieri, A. Zanelli, K. O. Arras, and
+     M. Diehl, “Ciao∗: Mpc-based safe motion planning in predictable
+     dynamic environments,” IFAC-PapersOnLine, vol. 53, no. 2, pp. 6555–
+     6562, 2020, 21st IFAC World Congress.
+
+
+                                                                            4057
+     Authorized licensed use limited to: SHANGHAI UNIVERSITY. Downloaded on August 10,2026 at 05:20:43 UTC from IEEE Xplore. Restrictions apply.
+

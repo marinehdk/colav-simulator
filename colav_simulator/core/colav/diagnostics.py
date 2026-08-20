@@ -70,11 +70,14 @@ class PlannerTrace:
     target_predictions: list[dict[str, Any]] = field(default_factory=list)
     constraints: dict[str, Any] = field(default_factory=dict)
     algorithm_details: dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] | None = None
+    evidence_timeline: dict[str, Any] | None = None
+    prediction_render: dict[str, Any] | None = None
     schema_version: str = "1.0"
 
     def to_dict(self) -> dict[str, Any]:
         trajectory = validate_plan(self.predicted_trajectory)
-        return {
+        output = {
             "schema_version": self.schema_version,
             "algorithm_id": self.algorithm_id,
             "solve_id": self.solve_id,
@@ -93,6 +96,11 @@ class PlannerTrace:
             "constraints": _json_value(self.constraints),
             "algorithm_details": _json_value(self.algorithm_details),
         }
+        if self.schema_version != "1.0" or self.evidence is not None:
+            output["evidence"] = _json_value(self.evidence)
+            output["evidence_timeline"] = _json_value(self.evidence_timeline)
+            output["prediction_render"] = _json_value(self.prediction_render)
+        return output
 
 
 class ColavExecutionError(RuntimeError):
@@ -105,11 +113,13 @@ class ColavExecutionError(RuntimeError):
         *,
         source: FailureSource | None = None,
         details: dict[str, Any] | None = None,
+        evidence: Any | None = None,
     ) -> None:
         super().__init__(message)
         self.status = status
         self.source = source
         self.details = details or {}
+        self.evidence = evidence
 
 
 def validate_plan(plan: np.ndarray) -> np.ndarray:

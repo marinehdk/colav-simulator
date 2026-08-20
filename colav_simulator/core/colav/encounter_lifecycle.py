@@ -107,6 +107,8 @@ class PlannerOddProfile:
     reacquire_s: float = 5.0
     tombstone_s: float = 10.0
     entry_confirmation_s: float = 5.0
+    action_start_window_s: float = 15.0
+    action_achievement_window_s: float = 30.0
     rule17_window_s: float = 10.0
     release_confirmation_s: float = 10.0
     hard_hull_clearance_m: float = 50.0
@@ -270,6 +272,11 @@ class TargetDecision:
     route_recovery_allowed: bool
     recovery_guard_active: bool
     action_achieved: bool
+    candidate_since_s: float | None
+    committed_at_s: float | None
+    action_start_deadline_s: float | None
+    action_achievement_deadline_s: float | None
+    actual_course_change_rad: float | None
 
 
 @dataclass(frozen=True)
@@ -331,6 +338,10 @@ class _TargetState:
     recovery_guard_active: bool = False
     recovery_started: bool = False
     action_achieved: bool = False
+    committed_at_s: float | None = None
+    action_start_deadline_s: float | None = None
+    action_achievement_deadline_s: float | None = None
+    actual_course_change_rad: float | None = None
     last_health: ObservationHealth | None = None
     reacquire_since_s: float | None = None
 
@@ -412,11 +423,14 @@ class EncounterLifecycle:
             return current.result
         if current.epoch == cycle.epoch and cycle.sim_time_s < current.sim_time_s:
             raise LifecycleError(LifecycleFailure.TIME_REWIND, "lifecycle time moved backwards")
-        if (
-            current.epoch == cycle.epoch
-            and current.sim_time_s >= 0.0
-            and cycle.sim_time_s - current.sim_time_s > cycle.profile.max_cycle_gap_s
-        ):
+        cycle_gap_s = cycle.sim_time_s - current.sim_time_s
+        gap_exceeds_profile = cycle_gap_s > cycle.profile.max_cycle_gap_s and not math.isclose(
+            cycle_gap_s,
+            cycle.profile.max_cycle_gap_s,
+            rel_tol=1.0e-12,
+            abs_tol=1.0e-9,
+        )
+        if current.epoch == cycle.epoch and current.sim_time_s >= 0.0 and gap_exceeds_profile:
             raise LifecycleError(LifecycleFailure.TIME_GAP, "lifecycle cycle gap exceeds profile")
 
         target_states = deepcopy(current.targets) if current.epoch == cycle.epoch and current.targets else {}
@@ -498,7 +512,7 @@ class EncounterLifecycle:
             return False
         return True
 
-    def _advance_target(
+    def _advance_target(  # noqa: PLR0912 - explicit lifecycle transition table
         self,
         cycle: EncounterCycle,
         target: TargetObservation,
@@ -552,6 +566,7 @@ class EncounterLifecycle:
         if state.commitment is CommitmentPhase.COMMITTED:
             side_sign = -1.0 if state.passing_side is PassingSide.PORT else 1.0
             course_delta = _wrap(cycle.ownship.heading_rad - float(state.baseline_course_rad))
+            state.actual_course_change_rad = max(float(state.actual_course_change_rad or 0.0), abs(course_delta))
             if side_sign * course_delta >= state.required_course_change_rad - 1.0e-9:
                 state.action_achieved = True
             if state.action_achieved:
@@ -678,7 +693,7 @@ def _advance_observation_health(
     return effective_health
 
 
-def _advance_uncommitted(
+def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transition table
     state: _TargetState,
     cycle: EncounterCycle,
     target: TargetObservation,
@@ -686,8 +701,13 @@ def _advance_uncommitted(
     encounter: EncounterKind,
     role: OwnshipRole,
 ) -> bool:
+    if _candidate_action_confirms_commitment(state, cycle, geometry, encounter, role):
+        _commit(state, cycle, target, geometry)
+        return True
     if (state.encounter, state.role) != (encounter, role):
         state.candidate_since_s = None
+        state.baseline_course_rad = None
+        state.required_course_change_rad = 0.0
     state.encounter = encounter
     state.role = role
 
@@ -698,6 +718,8 @@ def _advance_uncommitted(
         state.passing_side = _passing_side(cycle, target, geometry, role)
         if state.candidate_since_s is None:
             state.candidate_since_s = cycle.sim_time_s
+            state.baseline_course_rad = cycle.ownship.heading_rad
+            state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
         if (
             not _urgent_action_required(cycle, target, geometry)
             and cycle.sim_time_s - state.candidate_since_s < cycle.profile.entry_confirmation_s
@@ -711,6 +733,8 @@ def _advance_uncommitted(
         state.passing_side = PassingSide.NONE
         state.rule17 = Rule17Stage.STAND_ON
         state.rule17_basis = "MONITORING_TARGET_ACTION"
+        if state.baseline_course_rad is None:
+            state.baseline_course_rad = cycle.ownship.heading_rad
         if state.standon_since_s is None:
             state.standon_since_s = cycle.sim_time_s
             state.initial_target_course_rad = math.atan2(
@@ -749,7 +773,31 @@ def _advance_uncommitted(
     state.initial_target_course_rad = None
     state.initial_dcpa_m = None
     state.target_action_since_s = None
+    state.baseline_course_rad = None
+    state.required_course_change_rad = 0.0
     return False
+
+
+def _candidate_action_confirms_commitment(
+    state: _TargetState,
+    cycle: EncounterCycle,
+    geometry: PairwiseGeometry,
+    encounter: EncounterKind,
+    role: OwnshipRole,
+) -> bool:
+    if (
+        state.risk is not RiskPhase.CANDIDATE
+        or state.role not in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
+        or encounter is not EncounterKind.CLEAR
+        or role is not OwnshipRole.NONE
+        or geometry.signed_tcpa_s <= 0.0
+        or state.baseline_course_rad is None
+        or state.passing_side is PassingSide.NONE
+    ):
+        return False
+    side_sign = -1.0 if state.passing_side is PassingSide.PORT else 1.0
+    course_change = side_sign * _wrap(cycle.ownship.heading_rad - state.baseline_course_rad)
+    return course_change >= state.required_course_change_rad - 1.0e-9
 
 
 def _advance_unknown_role(
@@ -798,12 +846,21 @@ def _commit(
 ) -> None:
     state.risk = RiskPhase.ACTIVE
     state.commitment = CommitmentPhase.COMMITTED
-    state.baseline_course_rad = cycle.ownship.heading_rad
-    state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
+    if state.baseline_course_rad is None:
+        state.baseline_course_rad = cycle.ownship.heading_rad
+    if state.required_course_change_rad <= 0.0:
+        state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
     state.route_recovery_allowed = False
     state.recovery_guard_active = False
     state.recovery_started = False
     state.action_achieved = False
+    state.committed_at_s = cycle.sim_time_s
+    state.action_start_deadline_s = cycle.sim_time_s + cycle.profile.action_start_window_s
+    state.action_achievement_deadline_s = cycle.sim_time_s + cycle.profile.action_achievement_window_s
+    course_delta = _wrap(cycle.ownship.heading_rad - float(state.baseline_course_rad))
+    state.actual_course_change_rad = abs(course_delta)
+    side_sign = -1.0 if state.passing_side is PassingSide.PORT else 1.0
+    state.action_achieved = side_sign * course_delta >= state.required_course_change_rad - 1.0e-9
 
 
 def _substantial_course_change(
@@ -908,6 +965,11 @@ def _target_decision(
         route_recovery_allowed=state.route_recovery_allowed,
         recovery_guard_active=state.recovery_guard_active,
         action_achieved=state.action_achieved,
+        candidate_since_s=state.candidate_since_s,
+        committed_at_s=state.committed_at_s,
+        action_start_deadline_s=state.action_start_deadline_s,
+        action_achievement_deadline_s=state.action_achievement_deadline_s,
+        actual_course_change_rad=state.actual_course_change_rad,
     )
 
 

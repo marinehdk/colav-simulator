@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 2 课：Ship 内部闭环</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header><div class="eyebrow">Lesson 0002 · 约 10 分钟</div><h1>Ship 内部闭环</h1><p class="lede">本课只回答：避碰算法得到什么输入，输出如何真正改变船舶状态。</p></header>
+  <div class="goal"><strong>完成标准</strong>：能独立画出 <code>tracks -> references -> input -> state</code>，并说明每个箭头由哪个子系统负责。</div>
+
+  <h2>Ship 是子系统容器</h2>
+  <p><code>Ship</code> 同时持有 model、controller、guidance、sensors、tracker 和 COLAV。它不实现所有算法；它规定这些算法怎样交换数据。</p>
+  <div class="flow">
+    <div><strong>感知与跟踪</strong><code>true states</code><code>-> tracks</code></div>
+    <div><strong>规划</strong><code>tracks + ownship</code><code>-> references</code></div>
+    <div><strong>控制</strong><code>reference[:,0]</code><code>-> input</code></div>
+    <div><strong>动力学</strong><code>state + input</code><code>-> next state</code></div>
+  </div>
+
+  <h2>第一道分叉：COLAV、guidance 或外部 actor</h2>
+  <p><code>Ship.plan()</code> 不是永远调用避碰算法：</p>
+  <ol>
+    <li>存在 <code>_colav</code>：调用 <code>ICOLAV.plan()</code>，传入航路、自船状态、tracks、ENC、目标状态、扰动与船舶尺度。</li>
+    <li>不存在 COLAV、存在 <code>_guidance</code>：调用 LOS 等制导，仅根据名义航路生成 references。</li>
+    <li>两者都不存在：内部不生成 references；RL agent 等外部 actor 使用 <code>set_references()</code> 写入。</li>
+  </ol>
+  <div class="callout"><strong>设计含义</strong>：比较避碰算法时，先确认实际走了 COLAV 分支，而不是 nominal guidance；训练 RL 时，先确认 <code>remote_actor=True</code> 确实绕过 Ship0 的内部 plan。</div>
+
+  <h2>第二道边界：规划不是物理推进</h2>
+  <p><code>Ship.plan()</code> 只更新 <code>self._references</code>。随后 <code>Ship.forward()</code> 取第一列 reference，调用 controller 计算 input，再用四阶 Runge-Kutta 积分 <code>model.dynamics</code>，写回 <code>self._state</code>。</p>
+  <p>因此轨迹异常可能来自四处：tracker 给错目标状态、planner 给错 reference、controller 跟踪不住、model 参数或积分不对。只盯 planner 输出，无法完成闭环诊断。</p>
+
+  <section class="quiz" data-quiz data-correct="a" data-success="正确。COLAV 产生 references；控制器和动力学随后执行。" data-retry="再看 plan() 的三条分支：哪条读取 tracks 和 ENC？">
+    <h2>检索练习 1</h2><p><code>_colav</code> 非空时，谁生成 references？</p>
+    <div class="answers">
+      <button data-answer="a">避碰规划算法模块</button><button data-answer="b">目标跟踪估计模块</button>
+      <button data-answer="c">低层反馈控制模块</button><button data-answer="d">船舶动力模型模块</button>
+    </div><p class="feedback" aria-live="polite"></p>
+  </section>
+  <section class="quiz" data-quiz data-correct="a" data-success="正确。这是从环境信息到下一物理状态的闭环顺序。" data-retry="提示：先看见目标，再决定动作，最后推进模型。">
+    <h2>检索练习 2</h2><p>哪条数据顺序正确？</p>
+    <div class="answers">
+      <button data-answer="a">航迹→参考→控制→状态</button><button data-answer="b">参考→航迹→状态→控制</button>
+      <button data-answer="c">状态→控制→航迹→参考</button><button data-answer="d">控制→状态→参考→航迹</button>
+    </div><p class="feedback" aria-live="polite"></p>
+  </section>
+
+  <h2>口述挑战</h2>
+  <p>不用看上文，解释：“为什么一个 predicted trajectory 看起来正确，真实船舶仍可能碰撞？”至少指出两个不同子系统的原因。把答案发给我；下一课据此进入 <code>ICOLAV</code>、<code>PlannerInput</code> 与 <code>MPCSolution</code>。</p>
+
+  <h2>源码锚点</h2>
+  <ul class="source-list">
+    <li><a href="../colav_simulator/core/ship.py">Ship</a>：重点看 <code>plan()</code>、<code>forward()</code>、<code>track_obstacles()</code>。</li>
+    <li><a href="../colav_simulator/simulator.py">Simulator.step()</a>：确认所有 Ship 子系统的调用顺序。</li>
+    <li><a href="../tests/test_ship.py">Ship 测试</a>：查看各子系统契约如何被独立验证。</li>
+  </ul>
+  <div class="callout">遇到数据形状或控制理论术语不清楚，直接问我。不要靠变量名猜单位或坐标系。</div>
+  <nav class="next"><a href="../reference/ship-loop-contracts.html">Ship 契约速查</a><a href="0001-system-architecture-map.html">复习第 1 课</a></nav>
+  <script src="../assets/lesson.js"></script>
+</main></body>
+</html>

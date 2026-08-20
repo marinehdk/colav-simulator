@@ -3,6 +3,10 @@ name: CI
 env:
   UV_LINK_MODE: copy
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main, master]
@@ -28,7 +32,9 @@ jobs:
         run: uv run ruff check .
   
   test:
+    needs: analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     container:
       image: ghcr.io/osgeo/gdal:ubuntu-small-3.12.0-amd64
     

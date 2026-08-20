@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 3 课：规划器输入与输出</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header><div class="eyebrow">Lesson 0003 · 约 12 分钟</div><h1>规划器输入与输出</h1><p class="lede">本课消除一个危险混淆：预测轨迹、执行参考和真实轨迹不是同一个对象。</p></header>
+  <div class="goal"><strong>完成标准</strong>：看到 <code>MPCSolution</code>，能指出哪个字段立即执行、哪个字段描述未来、哪个字段证明求解质量。</div>
+
+  <h2>先修正一个术语</h2>
+  <p>你上一题的闭环判断正确，但“预测参考”应拆成两个对象：</p>
+  <div class="flow">
+    <div><strong>预测</strong><code>predicted_trajectory</code>规划器认为未来会怎样</div>
+    <div><strong>执行参考</strong><code>control_reference</code>当前交给 Ship 的 9x1 reference</div>
+    <div><strong>控制输入</strong><code>controller output</code>作用于模型的力或指令</div>
+    <div><strong>真实状态</strong><code>state</code>积分后实际得到的位置与速度</div>
+  </div>
+  <p>四者可能一致，也可能逐级偏离。画布上的预测线正确，只证明 planner trace 中的预测数据看起来合理，不证明控制器已执行，也不证明真实轨迹安全。</p>
+
+  <h2>9x1 与 9xN 到底是什么</h2>
+  <p>矩阵写法是“行数 x 列数”。这里每一列固定包含 9 个参考量：</p>
+  <pre><code>[x_d, y_d, psi_d, u_d, v_d, r_d, ax_d, ay_d, rdot_d]^T</code></pre>
+  <p><code>9x1</code>：一个时刻的一列执行参考。<code>9xN</code>：N 个未来时刻的一列列参考；N 是预测时域采样点数，不是船舶数量。相邻列间隔由 <code>horizon_dt_s</code> 描述。</p>
+  <p>LOS course-speed 控制常只使用其中两个有效量，例如 <code>[0, 0, chi_ref, U_ref, 0, 0, 0, 0, 0]^T</code>。9 维是统一接口容器，不代表每种控制器都会使用全部九项。</p>
+
+  <h2>PlannerInput：算法允许看见什么</h2>
+  <p><code>CustomMPCAdapter</code> 把旧式 <code>ICOLAV.plan()</code> 参数归一成强类型 <code>PlannerInput</code>：仿真时间、时间步、名义航路、自船 6 维状态、目标 tracks、ENC、目标状态、扰动、随机种子和船体尺度。</p>
+  <div class="callout"><strong>重要</strong>：算法通常读取 tracker 输出，不应偷偷读取目标船 truth。否则得到的是“完美感知条件下的规划能力”，不是完整系统能力。</div>
+
+  <h2>MPCSolution：算法承诺什么</h2>
+  <p>一次求解必须至少返回：</p>
+  <ul class="source-list">
+    <li><code>control_reference</code>：固定 9x1，求解步立即返回给 <code>Ship.plan()</code>。</li>
+    <li><code>predicted_trajectory</code>：9xN，携带预测未来并写入 <code>PlannerTrace</code>。</li>
+    <li><code>status</code> 与 <code>feasible</code>：决定结果能否执行；不能只靠“有一条线”判断成功。</li>
+    <li><code>objective</code>、<code>iterations</code>、<code>constraints</code>：解释求解质量。</li>
+  </ul>
+  <p>在非求解时间步，adapter 执行 hold：若存在 <code>control_trajectory</code>，优先从中采样；否则从 <code>predicted_trajectory</code> 采样新的 9x1 reference。于是 <code>solve_period_s</code> 与 <code>dt_sim_s</code> 的关系直接影响执行。</p>
+
+  <section class="quiz" data-quiz data-correct="b" data-success="正确。control_reference 是求解步立即交给 Ship 的 9x1 执行参考。" data-retry="提示：不要选择用于画未来预测线的字段。">
+    <h2>检索练习 1</h2><p>求解完成后，哪个字段立即成为 Ship reference？</p>
+    <div class="answers">
+      <button data-answer="a">预测轨迹数据字段</button><button data-answer="b">当前控制参考字段</button>
+      <button data-answer="c">目标预测数据字段</button><button data-answer="d">约束诊断数据字段</button>
+    </div><p class="feedback" aria-live="polite"></p>
+  </section>
+  <section class="quiz" data-quiz data-correct="c" data-success="正确。状态估计错误属于 tracker/感知边界，planner 可能基于错误世界生成自洽预测。" data-retry="提示：预测可能对输入自洽，但输入本身可能不真实。">
+    <h2>检索练习 2</h2><p>预测自洽但真实轨迹危险，哪个原因发生在 planner 输入侧？</p>
+    <div class="answers">
+      <button data-answer="a">控制执行出现饱和</button><button data-answer="b">动力模型参数错误</button>
+      <button data-answer="c">目标状态估计错误</button><button data-answer="d">积分计算步长错误</button>
+    </div><p class="feedback" aria-live="polite"></p>
+  </section>
+
+  <h2>口述挑战</h2>
+  <p>解释下面三个字段各回答什么问题：<code>control_reference</code>、<code>predicted_trajectory</code>、<code>state</code>。然后回答：为什么只截图预测线不能证明避碰算法安全？</p>
+
+  <h2>源码锚点</h2>
+  <ul class="source-list">
+    <li><a href="../colav_simulator/core/colav/custom_mpc_adapter.py">CustomMPCAdapter</a>：<code>PlannerInput</code>、<code>MPCSolution</code>、solve/hold。</li>
+    <li><a href="../colav_simulator/core/ship.py">Ship</a>：reference 如何进入 controller 与 model。</li>
+    <li><a href="../tests/test_custom_mpc_adapter.py">适配器测试</a>：输入、输出和失败契约。</li>
+  </ul>
+  <div class="callout">任何字段形状、坐标系或 hold 逻辑不清楚，直接问我。下一课将比较 <code>ICOLAV</code>、内置算法、外部集成与插件工厂四种接入方式。</div>
+  <nav class="next"><a href="../reference/planner-contracts.html">Planner 契约速查</a><a href="0002-ship-closed-loop.html">复习第 2 课</a></nav>
+  <script src="../assets/lesson.js"></script>
+</main></body>
+</html>

@@ -60,6 +60,24 @@ def test_active_session_runtime_modules_are_served_as_single_lifecycle_owner() -
     assert "new WebSocket" in instance.text
     assert all("activeSessionId" not in source.text for source in (deployment, config))
     assert all("validation-session-" not in source.text for source in (deployment, config))
+def test_map_uses_prediction_evidence_time_axis_and_execution_suffix_origin() -> None:
+    with TestClient(app) as client:
+        script = client.get("/static/app.js")
+        page = client.get("/")
+
+    assert script.status_code == 200
+    assert page.status_code == 200
+    assert "plans.prediction_render?.ownship?.time_s" in script.text
+    assert "Boolean(plans.prediction_render)" in script.text
+    assert "function drawExecutionPoint(horizon, startsAtExecution = false)" in script.text
+    assert "const index = startsAtExecution ? 0" in script.text
+    assert 'data-layer="rejectedPrediction"' in page.text
+    assert "plans.rejected_prediction_horizon" in script.text
+    assert "#FF6B6B" in script.text
+    assert "const predictionIndex = predictionEvidence" in script.text
+    assert "val-evidence-source" in page.text
+    assert "val-planner-l4" in page.text
+    assert "val-evaluator-g3" in page.text
 
 
 def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
@@ -79,9 +97,7 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "Autonomous Ship COLAV" not in page.text
         assert (
             '<span id="conn-status">会话: 初始化</span>' in page.text
-            and page.text.index('class="header-run-info"')
-            < page.text.index('id="conn-status"')
-            < page.text.index("<main")
+            and page.text.index('class="header-run-info"') < page.text.index('id="conn-status"') < page.text.index("<main")
             and all(label in page.text for label in ("北京时间", "仿真时间", 'id="val-beijing-time"'))
             and 'id="val-step"' not in page.text
             and 'id="val-algo-active"' not in page.text
@@ -215,10 +231,7 @@ def test_header_uses_requested_session_labels() -> None:  # noqa: PLR0915
         assert "offsetY + scaledHeight - (point.y - minY) * scale" in script.text
         assert "panel.hidden = attached" in script.text
         assert "updateAttachedPlannerSurfacePosition" not in script.text
-        assert all(
-            f"label: '{label}'" in script.text
-            for label in ("选中速度", "参考速度", "当前速度")
-        )
+        assert all(f"label: '{label}'" in script.text for label in ("选中速度", "参考速度", "当前速度"))
         assert "简化 MPC · 扇形轨迹筛选" in script.text
         assert "envelope?.error === 'session_not_found'" in runtime.text
         assert "handleSessionNotFound(sessionId, generation);" in runtime.text
@@ -325,10 +338,7 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
         assert all(label in page.text for label in ("雷达探测圈（2 km）", "规划/响应范围"))
         assert all(label in page.text for label in ("纬度", "经度", "对地速度", "对地航向", "当前航向", "角速度"))
         assert "toFixed(4)" in script.text
-        assert all(
-            legacy_label not in page.text
-            for legacy_label in ("北向坐标", "东向坐标", "北向速度", "东向速度")
-        )
+        assert all(legacy_label not in page.text for legacy_label in ("北向坐标", "东向坐标", "北向速度", "东向速度"))
 
 
 def test_real_session_api_and_websocket() -> None:
@@ -589,8 +599,51 @@ def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
         assert telemetry["planner"]["solve_id"] == 1
         assert telemetry["latest_planner_solve"]["solver_executed"] is True
         assert telemetry["latest_planner_solve"]["solve_id"] == 1
+        assert telemetry["active_planner_plan"]["solver_executed"] is True
+        assert telemetry["active_planner_plan"]["solve_id"] == 1
+        assert telemetry["latest_planner_attempt"]["solver_executed"] is True
+        assert telemetry["latest_planner_attempt"]["solve_id"] == 1
         assert len(telemetry["plans"]["prediction_horizon"]) == 60
         assert telemetry["encounters"][0]["validation_rule_id"] == "rule14"
+
+
+def test_mid_mpc_rest_and_websocket_publish_one_typed_authority_projection() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule13",
+                "scenario_id": "overtaking",
+                "algorithm_id": "mid_mpc_ipopt",
+                "tracker_id": "god",
+                "t_end": 1.0,
+            },
+        )
+        assert created.status_code == 200, created.json()
+        session_id = created.json()["session_id"]
+        stepped = client.post(f"/api/sessions/{session_id}/step")
+        assert stepped.status_code == 200, stepped.json()
+        rest = stepped.json()
+        with client.websocket_connect(f"/ws/sessions/{session_id}") as websocket:
+            streamed = websocket.receive_json()
+
+    for telemetry in (rest, streamed):
+        planner = telemetry["planner"]
+        render = telemetry["plans"]["prediction_render"]
+        assert planner["algorithm_id"] == "mid_mpc_ipopt"
+        assert planner["schema_version"] == "1.1"
+        assert planner["solver_executed"] is True
+        assert planner["algorithm_details"]["solver_backend"] == "ipopt"
+        assert planner["algorithm_details"]["accepted_plan_receipt"]["receipt_hash"]
+        assert planner["evidence"]["inline"]["semantic_hash"] == render["semantic_hash"]
+        assert render["grid"] == {
+            "intervals": 80,
+            "state_samples": 81,
+            "dt_s": 5.0,
+            "duration_s": 400.0,
+        }
+        assert render["style"] == "ACTIVE"
+        assert len(telemetry["plans"]["prediction_horizon"]) == 81
 
 
 def test_vo_decision_space_is_on_demand_and_not_in_telemetry() -> None:
@@ -659,6 +712,7 @@ def test_vo_decision_space_is_on_demand_and_not_in_telemetry() -> None:
         )
         assert missing.status_code == 404
 
+
 @pytest.mark.parametrize(
     "algorithm_id",
     ("potocnik_simplified_mpc", "potocnik_colreg_fan_mpc"),
@@ -716,9 +770,7 @@ def test_rule14_web_and_offline_trajectory_hashes_match(tmp_path: Path) -> None:
         assert telemetry.json()["state"] == "FINISHED"
         web_manifest = client.get(f"/api/sessions/{session_id}/result").json()["manifest"]
 
-    offline = ExperimentRunner().run(
-        RunSpec(**request, output_root=str(tmp_path / "offline"))
-    )
+    offline = ExperimentRunner().run(RunSpec(**request, output_root=str(tmp_path / "offline")))
     assert web_manifest["episode_hash"] == offline.manifest.episode_hash
     assert web_manifest["trajectory_hash"] == offline.manifest.trajectory_hash
 

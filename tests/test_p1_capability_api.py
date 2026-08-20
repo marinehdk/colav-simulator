@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from fastapi.testclient import TestClient
 
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.experiment.capabilities import CapabilityCatalog
+from colav_simulator.integrations import IntegrationRegistry
 from gui_server.main import app
 
 EXPECTED_COUNTS = {
@@ -121,3 +126,18 @@ def test_global_g3_grade_cannot_create_a_missing_cross_product() -> None:
 
     assert response.status_code == 422
     assert "No verified G3 capability tuple" in response.json()["detail"]["reason"]
+
+
+def test_invalid_tuple_precedes_dependency_availability(monkeypatch: pytest.MonkeyPatch) -> None:
+    catalog = CapabilityCatalog(IntegrationRegistry())
+    statuses = catalog.registry.statuses()
+    unavailable = replace(statuses["vo"], available=False, reason="missing in test environment")
+    monkeypatch.setattr(catalog.registry, "statuses", lambda: {**statuses, "vo": unavailable})
+
+    with pytest.raises(ColavExecutionError) as invalid:
+        catalog.validate("rule14", "head_on", "psbmpc", "god")
+    assert invalid.value.status is PlanStatus.INVALID_INPUT
+
+    with pytest.raises(ColavExecutionError) as unavailable_dependency:
+        catalog.validate("rule14", "head_on", "vo", "god")
+    assert unavailable_dependency.value.status is PlanStatus.DEPENDENCY_UNAVAILABLE

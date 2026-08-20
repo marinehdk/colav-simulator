@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from shapely.geometry import Polygon, box
 
+import colav_simulator.core.colav.kuwata_vo_alg.kuwata_vo as kuwata_vo_module
 from colav_simulator.core.colav.colav_interface import Config, LayerConfig, VOWrapper
 from colav_simulator.core.colav.diagnostics import PlanStatus
 from colav_simulator.core.colav.kuwata_vo_alg.kuwata_vo import (
@@ -135,6 +136,23 @@ def test_plan_accounts_for_ownship_turn_and_speed_dynamics_in_hard_clearance() -
     assert minimum_clearance >= 50.0
 
 
+def test_dynamics_prediction_uses_swept_segments_at_the_planning_period() -> None:
+    planner = VO(VOParams(t_max=4.0, speed_samples=3, heading_samples=8))
+
+    positions = planner._predict_candidate_positions(
+        np.zeros(2),
+        0.0,
+        5.0,
+        planner._candidate_velocities(),
+        course_time_constant_s=3.0,
+        speed_time_constant_s=5.0,
+        max_turn_rate_radps=np.deg2rad(4.0),
+    )
+
+    assert positions is not None
+    assert positions.shape[0] == 5
+
+
 def test_preferred_clearance_penalizes_but_does_not_forbid_safe_candidate() -> None:
     planner = VO(
         VOParams(
@@ -192,6 +210,27 @@ def test_colregs_v1_v2_v3_partition_candidate_velocity_space() -> None:
     np.testing.assert_array_equal(v2, [[False, True, False]])
     np.testing.assert_array_equal(v3, [[False, False, True]])
     np.testing.assert_array_equal(v1 | v2 | v3, np.ones((1, 3), dtype=bool))
+
+
+def test_velocity_uncertainty_uses_one_batched_ttc_grid(monkeypatch: pytest.MonkeyPatch) -> None:
+    planner = VO(VOParams(speed_samples=4, heading_samples=16))
+    original = kuwata_vo_module.ray_polygon_ttc_grid
+    calls = 0
+
+    def counted(*args: object, **kwargs: object) -> np.ndarray:
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(kuwata_vo_module, "ray_polygon_ttc_grid", counted)
+    planner.plan(
+        0.0,
+        np.array([5.0, 0.0]),
+        _own_state(),
+        [_track(1, (300.0, 0.0), (-5.0, 0.0))],
+    )
+
+    assert calls == 5
 
 
 @pytest.mark.parametrize(
@@ -953,6 +992,37 @@ def test_enc_adapter_includes_only_configured_physical_layers() -> None:
     assert debug["static_hazard_count"] == 1
     east_heading = int(np.argmin(abs(planner._heading_set - np.pi / 2.0)))
     assert planner._hard_constraint_mask[-1, east_heading]
+
+
+def test_static_vo_convexifies_each_clipped_polygon_without_triangulation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    concave_land = Polygon(
+        [
+            (90.0, -20.0),
+            (120.0, -20.0),
+            (120.0, -5.0),
+            (100.0, -5.0),
+            (100.0, 20.0),
+            (90.0, 20.0),
+        ]
+    )
+    empty = SimpleNamespace(geometry=Polygon())
+    enc = SimpleNamespace(
+        land=SimpleNamespace(geometry=concave_land),
+        shore=empty,
+        obstrn=empty,
+        uwtroc=empty,
+    )
+    planner = VO(VOParams(speed_samples=4, heading_samples=16, static_query_range_m=200.0))
+
+    def fail_if_triangulated(_polygon: Polygon) -> None:
+        raise AssertionError("static VO must not triangulate a polygon before convex TTC")
+
+    monkeypatch.setattr(kuwata_vo_module.ops, "triangulate", fail_if_triangulated)
+    planner.plan(0.0, np.array([0.0, 5.0]), _own_state(), [], enc)
+
+    assert planner.get_debug_data()["static_hazard_count"] == 1
 
 
 @pytest.mark.parametrize(

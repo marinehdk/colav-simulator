@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ship 闭环契约速查</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header><div class="eyebrow">Reference 02</div><h1>Ship 闭环契约</h1><p class="lede">一艘船如何把目标信息变成下一物理状态。</p></header>
+  <h2>主链</h2>
+  <p><code>true_do_states -> tracker -> tracks -> COLAV/guidance -> references -> controller -> input -> model -> state</code></p>
+  <h2>数据形状</h2>
+  <ul class="source-list">
+    <li><code>state</code>：6 维，通常为 <code>[north, east, psi, u, v, r]</code>。</li>
+    <li><code>track</code>：目标 ID、4 维 ENU 运动状态、4x4 协方差、船长、船宽。</li>
+    <li><code>references</code>：9xN；当前控制器只消费第一列。</li>
+    <li><code>input</code>：通常 3 维广义力和力矩 <code>[X, Y, N]</code>。</li>
+  </ul>
+  <h2>三种 planning 模式</h2>
+  <ol>
+    <li><code>_colav != None</code>：避碰算法生成 references。</li>
+    <li><code>_guidance != None</code>：LOS 等制导生成 references。</li>
+    <li>两者均为空：外部 actor 通过 <code>set_references()</code> 控制，供 RL 使用。</li>
+  </ol>
+  <div class="callout"><strong>注意</strong>：算法输出不是船位。它先成为 references，再经 controller 与 model 才改变 state。</div>
+  <nav class="next"><a href="../lessons/0002-ship-closed-loop.html">返回第 2 课</a><a href="../reference/architecture-map.html">总架构速查</a></nav>
+</main></body>
+</html>
+

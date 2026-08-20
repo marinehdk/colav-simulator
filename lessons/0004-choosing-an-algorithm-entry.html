@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 4 课：选择算法接入边界</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header><div class="eyebrow">Lesson 0004 · 约 12 分钟</div><h1>选择算法接入边界</h1><p class="lede">同一个算法可以“跑起来”于多个位置，但只有部分路径保留实验身份、诊断和可复现证据。</p></header>
+  <div class="goal"><strong>完成标准</strong>：面对传统算法、外部 MPC、神经网络推理或 RL 训练，能选出当前项目中正确入口。</div>
+
+  <h2>统一入口：IntegrationRegistry</h2>
+  <p><code>ExperimentRunner.prepare()</code> 不直接认识算法类。它把稳定 <code>algorithm_id</code> 和配置交给 <code>IntegrationRegistry.build_algorithm()</code>，再把构造出的 <code>ICOLAV</code> 安装到 Ship0。</p>
+  <div class="flow">
+    <div><strong>RunSpec</strong><code>algorithm_id</code><code>algorithm_config</code></div>
+    <div><strong>Registry</strong>选择构造路径</div>
+    <div><strong>ICOLAV</strong><code>plan/reset/trace</code></div>
+    <div><strong>Ship0</strong><code>set_colav_system()</code></div>
+  </div>
+
+  <h2>四条接入路径</h2>
+  <h3>1. 内置算法</h3>
+  <p><code>nominal</code>、<code>vo</code>、<code>sbmpc</code> 在 registry 内显式构造。适合成为仓库长期能力的核心算法，但需要改 registry、能力目录、配置与测试。</p>
+  <h3>2. 动态 CustomMPC 插件</h3>
+  <p>配置提供 <code>factory="module:callable"</code>。factory 接收 <code>FactoryContext</code>，当前实现强制返回 <code>core/colav/CustomMPCAdapter</code>。适合不修改 registry 便接入新 MPC 或可表达为 solve 函数的策略推理。</p>
+  <h3>3. 固定外部集成</h3>
+  <p><code>integrations/psbmpc.py</code>、<code>rrt.py</code>、<code>sbmpc_reference.py</code> 等负责把外部仓库 API 包装成 <code>ICOLAV</code>。适合依赖安装、数据转换或生命周期复杂的算法。</p>
+  <h3>4. RL 训练环境</h3>
+  <p><code>COLAVEnvironment</code> 使用 <code>remote_actor=True</code>，让 agent 外部提供 action/reference。它解决训练交互，不等同于把训练完成的策略部署为可审计 COLAV 插件。</p>
+
+  <div class="callout"><strong>当前限制</strong>：动态 factory 名义上返回 <code>ICOLAV</code>，运行时却检查必须是 <code>CustomMPCAdapter</code>。任意新 <code>ICOLAV</code> 不能仅靠 factory 动态加载；需新增 registry 分支或扩展工厂契约。</div>
+
+  <h2>深度学习算法如何选</h2>
+  <ul class="source-list">
+    <li><strong>训练：</strong><code>COLAVEnvironment</code>。设计 observation、action、reward、termination。</li>
+    <li><strong>离线策略评估：</strong>把模型推理包装成确定性 solve，输出 <code>MPCSolution</code>；通过 plugin 记录模型与依赖身份。</li>
+    <li><strong>在线部署研究：</strong>除推理输出，还需 deadline、模型版本、归一化参数、隐藏状态 reset、失败状态和禁止 fallback。</li>
+  </ul>
+
+  <h2>不要选错同名类</h2>
+  <p>仓库存在两个 <code>CustomMPCAdapter</code>：</p>
+  <ol>
+    <li><code>core/colav/custom_mpc_adapter.py</code>：实现 <code>ICOLAV</code>，带 typed input、solution、deadline、diagnostics、build identity。当前实验插件路径使用它。</li>
+    <li><code>guidance/custom_mpc_adapter.py</code>：实现 <code>IGuidance</code>，委托给可切换 solver。处于 guidance 分支，不满足当前 plugin factory 的类型检查。</li>
+  </ol>
+
+  <section class="quiz" data-quiz data-correct="b" data-success="正确。动态 factory 是不修改 registry 接入新 solve 的现有路径，但必须返回 core CustomMPCAdapter。" data-retry="提示：题目要求不修改 registry，并保留实验诊断。">
+    <h2>检索练习 1</h2><p>外部新 MPC，不修改 registry，优先选择什么？</p>
+    <div class="answers">
+      <button data-answer="a">新增内置算法分支</button><button data-answer="b">动态插件工厂路径</button>
+      <button data-answer="c">外部训练环境路径</button><button data-answer="d">前端绘制扩展路径</button>
+    </div><p class="feedback" aria-live="polite"></p>
+  </section>
+  <section class="quiz" data-quiz data-correct="c" data-success="正确。训练用环境交互；训练后的部署仍需单独定义推理适配器。" data-retry="提示：哪条路径定义 observation、action 与 reward？">
+    <h2>检索练习 2</h2><p>强化学习策略训练首先进入哪条路径？</p>
+    <div class="answers">
+      <button data-answer="a">固定外部集成路径</button><button data-answer="b">动态插件工厂路径</button>
+      <button data-answer="c">Gymnasium 环境路径</button><button data-answer="d">内置避碰算法路径</button>
+    </div><p class="feedback" aria-live="polite"></p>
+  </section>
+
+  <h2>口述挑战</h2>
+  <p>假设你有一个 PyTorch 策略：输入自船和目标航迹，输出期望航向与速度。分别说明“训练它”和“把训练完成的模型放进本项目评估”应走哪条路径，以及为什么不能把两件事当成同一步。</p>
+
+  <h2>源码锚点</h2>
+  <ul class="source-list">
+    <li><a href="../colav_simulator/integrations/registry.py">IntegrationRegistry</a>：算法选择和 plugin factory。</li>
+    <li><a href="../colav_simulator/core/colav/colav_interface.py">ICOLAV</a>：通用规划器接口。</li>
+    <li><a href="../colav_simulator/core/colav/custom_mpc_adapter.py">Core CustomMPCAdapter</a>：当前动态插件契约。</li>
+    <li><a href="../colav_simulator/gym/environment.py">COLAVEnvironment</a>：RL 训练入口。</li>
+  </ul>
+  <div class="callout">下一课将选择一个现有算法，从 registry 一直拆到其 plan 输入、核心计算、输出和测试证据。</div>
+  <nav class="next"><a href="../reference/algorithm-integration-routes.html">接入路径速查</a><a href="0003-planner-input-and-output.html">复习第 3 课</a></nav>
+  <script src="../assets/lesson.js"></script>
+</main></body>
+</html>

@@ -144,6 +144,97 @@ def test_head_on_risk_requires_physical_time_confirmation_then_locks_commitment(
     assert persisted.required_course_change_rad == committed.required_course_change_rad
 
 
+def test_head_on_candidate_action_cannot_cancel_its_pending_commitment() -> None:
+    lifecycle = EncounterLifecycle()
+    initial = replace(
+        _head_on_cycle(sequence=0, sim_time_s=0.0),
+        targets=(
+            replace(
+                _head_on_cycle(sequence=0, sim_time_s=0.0).targets[0],
+                state_enu=np.array([2828.0, 0.0, -7.0, 0.0]),
+            ),
+        ),
+    )
+    candidate = lifecycle.step(initial).targets[0]
+    course_change = math.radians(13.8)
+    progressed = replace(
+        _head_on_cycle(sequence=1, sim_time_s=5.0),
+        ownship=replace(
+            initial.ownship,
+            position_ne_m=np.array([0.0, 0.0]),
+            velocity_ne_mps=7.0 * np.array([math.cos(course_change), math.sin(course_change)]),
+            heading_rad=math.radians(16.5),
+        ),
+        targets=(
+            replace(
+                initial.targets[0],
+                state_enu=np.array([2758.0, -3.8, -7.0, 0.0]),
+                observed_at_s=5.0,
+                generated_at_s=5.0,
+            ),
+        ),
+    )
+
+    committed = lifecycle.step(progressed).targets[0]
+
+    assert candidate.risk is RiskPhase.CANDIDATE
+    assert committed.encounter is EncounterKind.HEAD_ON
+    assert committed.role is OwnshipRole.GIVE_WAY
+    assert committed.risk is RiskPhase.ACTIVE
+    assert committed.commitment is CommitmentPhase.COMMITTED
+    assert committed.passing_side is PassingSide.STARBOARD
+    assert committed.baseline_course_rad == pytest.approx(initial.ownship.heading_rad)
+    assert committed.required_course_change_rad == pytest.approx(candidate.required_course_change_rad)
+    assert committed.action_achieved is True
+
+
+def test_head_on_candidate_clears_when_target_resolves_risk_before_commitment() -> None:
+    lifecycle = EncounterLifecycle()
+    initial = _head_on_cycle(sequence=0, sim_time_s=0.0)
+    lifecycle.step(initial)
+    target_clear = replace(
+        _head_on_cycle(sequence=1, sim_time_s=5.0),
+        targets=(
+            replace(
+                initial.targets[0],
+                state_enu=np.array([930.0, 500.0, -7.0, 0.0]),
+                observed_at_s=5.0,
+                generated_at_s=5.0,
+            ),
+        ),
+    )
+
+    decision = lifecycle.step(target_clear).targets[0]
+
+    assert decision.encounter is EncounterKind.CLEAR
+    assert decision.risk is RiskPhase.CLEAR
+    assert decision.commitment is CommitmentPhase.NONE
+
+
+def test_committed_action_achievement_is_cumulative_after_course_recovers() -> None:
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+    committed = lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=5.0)).targets[0]
+    achieved_cycle = _head_on_cycle(sequence=2, sim_time_s=10.0)
+    achieved_heading = committed.required_course_change_rad
+    achieved = lifecycle.step(
+        replace(
+            achieved_cycle,
+            ownship=replace(
+                achieved_cycle.ownship,
+                heading_rad=achieved_heading,
+                velocity_ne_mps=7.0 * np.array([math.cos(achieved_heading), math.sin(achieved_heading)]),
+            ),
+        )
+    ).targets[0]
+    recovered_cycle = _head_on_cycle(sequence=3, sim_time_s=15.0)
+    recovered = lifecycle.step(recovered_cycle).targets[0]
+
+    assert achieved.action_achieved is True
+    assert recovered.action_achieved is True
+    assert recovered.actual_course_change_rad == pytest.approx(achieved.actual_course_change_rad)
+
+
 def test_urgent_head_on_bypasses_entry_confirmation() -> None:
     lifecycle = EncounterLifecycle()
     cycle = _head_on_cycle(sequence=0, sim_time_s=0.0)
@@ -472,6 +563,15 @@ def test_time_gap_rolls_back_and_coast_reacquisition_requires_confirmation() -> 
     assert coasting.health is ObservationHealth.COASTING
     assert reacquired.health is ObservationHealth.DEGRADED
     assert confirmed.health is ObservationHealth.UPDATED
+
+
+def test_cycle_gap_accepts_floating_point_boundary_at_profile_limit() -> None:
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=15.1))
+
+    snapshot = lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=25.1))
+
+    assert snapshot.sim_time_s == 25.1
 
 
 def _head_on_cycle(*, sequence: int, sim_time_s: float) -> EncounterCycle:

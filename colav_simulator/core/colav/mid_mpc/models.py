@@ -113,11 +113,65 @@ class MidMpcRouteFrame:
 
 
 @dataclass(frozen=True)
+class MidMpcRouteObjective:
+    """COLAV-strict mission and temporary avoidance route references."""
+
+    mission_bearing_rad: float
+    avoidance_corridor_bearing_rad: float
+    heading_reference_rad: tuple[float, ...]
+    lateral_reference_m: tuple[float, ...]
+    avoidance_active_until_k: int
+    continuity_heading_reference_rad: tuple[float, ...] = ()
+    continuity_speed_reference_mps: tuple[float, ...] = ()
+    continuity_weight: tuple[float, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Normalize and validate the staged route objective."""
+        references = tuple(float(value) for value in self.heading_reference_rad)
+        lateral_references = tuple(float(value) for value in self.lateral_reference_m)
+        continuity_headings = tuple(float(value) for value in self.continuity_heading_reference_rad)
+        continuity_speeds = tuple(float(value) for value in self.continuity_speed_reference_mps)
+        continuity_weights = tuple(float(value) for value in self.continuity_weight)
+        if not continuity_headings:
+            continuity_headings = (0.0,) * len(references)
+        if not continuity_speeds:
+            continuity_speeds = (0.0,) * len(references)
+        if not continuity_weights:
+            continuity_weights = (0.0,) * len(references)
+        _require_finite(
+            self.mission_bearing_rad,
+            self.avoidance_corridor_bearing_rad,
+            *references,
+            *lateral_references,
+            *continuity_headings,
+            *continuity_speeds,
+            *continuity_weights,
+        )
+        if not references:
+            raise ValueError("route objective requires one or more heading references")
+        if len(lateral_references) != len(references):
+            raise ValueError("route objective heading and lateral references must have equal length")
+        if any(len(values) != len(references) for values in (continuity_headings, continuity_speeds, continuity_weights)):
+            raise ValueError("route objective continuity references must match the route horizon")
+        if min(continuity_weights, default=0.0) < 0.0:
+            raise ValueError("route objective continuity weights must be non-negative")
+        if not 0 <= self.avoidance_active_until_k <= len(references):
+            raise ValueError("avoidance objective window must fall inside heading references")
+        object.__setattr__(self, "heading_reference_rad", references)
+        object.__setattr__(self, "lateral_reference_m", lateral_references)
+        object.__setattr__(self, "continuity_heading_reference_rad", continuity_headings)
+        object.__setattr__(self, "continuity_speed_reference_mps", continuity_speeds)
+        object.__setattr__(self, "continuity_weight", continuity_weights)
+
+
+@dataclass(frozen=True)
 class MidMpcTarget:
     x_m: float
     y_m: float
     cog_rad: float
     sog_mps: float
+    crossing_astern_required: bool = False
+    crossing_astern_margin_m: float = 0.0
 
     def __post_init__(self) -> None:
         """Validate one constant-velocity target state."""
@@ -126,7 +180,23 @@ class MidMpcTarget:
             self.y_m,
             self.cog_rad,
             self.sog_mps,
+            self.crossing_astern_margin_m,
         )
+        if self.crossing_astern_margin_m < 0.0:
+            raise ValueError("crossing_astern_margin_m must be non-negative")
+
+
+@dataclass(frozen=True)
+class MidMpcHardWindow:
+    """Half-open control-interval window for one fixed NLP row class."""
+
+    start_k: int
+    stop_k: int
+
+    def __post_init__(self) -> None:
+        """Validate an ordered, non-negative interval."""
+        if self.start_k < 0 or self.stop_k < self.start_k:
+            raise ValueError("hard row window must satisfy 0 <= start_k <= stop_k")
 
 
 @dataclass(frozen=True)
@@ -138,6 +208,9 @@ class MidMpcRowSchedule:
     direction_hard_from_k: int = 0
     min_alt_hard_from_k: int = 0
     terminal_rows_enabled: bool = False
+    cpa_hard_windows: tuple[MidMpcHardWindow, ...] = ()
+    direction_hard_window: MidMpcHardWindow | None = None
+    min_alt_hard_window: MidMpcHardWindow | None = None
 
     def __post_init__(self) -> None:
         """Validate non-negative activation indices."""
@@ -148,6 +221,14 @@ class MidMpcRowSchedule:
         )
         if min(indices) < 0:
             raise ValueError("row schedule indices must be non-negative")
+        windows = tuple(self.cpa_hard_windows)
+        if not all(isinstance(window, MidMpcHardWindow) for window in windows):
+            raise TypeError("cpa_hard_windows must contain MidMpcHardWindow values")
+        for name in ("direction_hard_window", "min_alt_hard_window"):
+            window = getattr(self, name)
+            if window is not None and not isinstance(window, MidMpcHardWindow):
+                raise TypeError(f"{name} must be MidMpcHardWindow or None")
+        object.__setattr__(self, "cpa_hard_windows", windows)
 
 
 @dataclass(frozen=True)
@@ -166,6 +247,7 @@ class MidMpcProblem:
     starboard_asymmetry_active: bool
     min_alteration_rad: float
     route_frame: MidMpcRouteFrame
+    route_objective: MidMpcRouteObjective | None = None
     row_schedule: MidMpcRowSchedule = MidMpcRowSchedule()
     audit_row_count: int = 0
     prefix_active_k: int = 0
@@ -179,6 +261,8 @@ class MidMpcProblem:
             raise TypeError("own_ship must be MidMpcOwnShip")
         if not isinstance(self.route_frame, MidMpcRouteFrame):
             raise TypeError("route_frame must be MidMpcRouteFrame")
+        if self.route_objective is not None and not isinstance(self.route_objective, MidMpcRouteObjective):
+            raise TypeError("route_objective must be MidMpcRouteObjective or None")
         if not isinstance(self.row_schedule, MidMpcRowSchedule):
             raise TypeError("row_schedule must be MidMpcRowSchedule")
         heading = _ordered_pair(self.heading_bounds_rad, "heading_bounds_rad")
@@ -232,6 +316,32 @@ class MidMpcPreparedProblem:
 
 
 @dataclass(frozen=True)
+class MidMpcPrimalWarmStart:
+    """Accepted heading/speed primal on its original absolute time grid."""
+
+    accepted_at_s: float
+    current_time_s: float
+    dt_s: float
+    course_rad: np.ndarray
+    speed_mps: np.ndarray
+
+    def __post_init__(self) -> None:
+        """Validate timing and retain immutable primal vectors."""
+        if not np.isfinite((self.accepted_at_s, self.current_time_s, self.dt_s)).all() or self.dt_s <= 0.0:
+            raise ValueError("warm-start timing must be finite with positive dt")
+        if self.current_time_s < self.accepted_at_s:
+            raise ValueError("warm-start current time cannot precede acceptance")
+        course = _readonly_vector(self.course_rad)
+        speed = _readonly_vector(self.speed_mps)
+        if course.size != speed.size or course.size < 2:
+            raise ValueError("warm-start heading and speed grids must align")
+        if not np.isfinite(course).all() or not np.isfinite(speed).all():
+            raise ValueError("warm-start primal must be finite")
+        object.__setattr__(self, "course_rad", course)
+        object.__setattr__(self, "speed_mps", speed)
+
+
+@dataclass(frozen=True)
 class MidMpcTrajectoryPoint:
     x_m: float
     y_m: float
@@ -250,6 +360,7 @@ class MidMpcObjectiveComponents:
     terminal: float
     cpa_slack: float
     direction_slack: float
+    continuity: float = 0.0
 
     @property
     def total(self) -> float:
@@ -287,6 +398,10 @@ class MidMpcResult:
     ipopt_return_status: str
     ipopt_iterations: int
     elapsed_ms: float
+    graph_build_elapsed_ms: float
+    preparation_elapsed_ms: float
+    ipopt_elapsed_ms: float
+    graph_cache_hit: bool
     objective_total: float
     seed_objective_total: float
     seed_max_constraint_violation: float

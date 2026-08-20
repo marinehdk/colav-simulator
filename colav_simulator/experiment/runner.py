@@ -25,7 +25,7 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 from colav_simulator.evaluation import Evaluator, EvaluatorResult
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunManifest, RunOutcome, RunSpec, SessionState, content_hash
-from colav_simulator.experiment.persistence import EvidenceWriter
+from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
 from colav_simulator.experiment.session import SimulationSession
 from colav_simulator.integrations import IntegrationRegistry
 from colav_simulator.scenario_generator import ScenarioGenerator
@@ -40,6 +40,7 @@ class PreparedRun:
     session: SimulationSession
     writer: EvidenceWriter
     episode_document: dict[str, Any]
+    artifact_sink: BoundedArtifactSink
 
     @property
     def run_dir(self) -> Path:
@@ -220,6 +221,7 @@ class ExperimentRunner:
                 "config": episode_document,
             }
         )
+        artifact_sink = BoundedArtifactSink(writer)
         try:
             algorithm_config = copy.deepcopy(spec.algorithm_config)
             if spec.algorithm_id == "rrt":
@@ -228,10 +230,13 @@ class ExperimentRunner:
                 requested_algorithm=spec.algorithm_id,
                 algorithm_seed=spec.seeds.algorithm,
                 strict_no_fallback=spec.strict_no_fallback,
+                scenario_id=spec.scenario_id,
+                tracker_id=manifest.executed_tracker,
+                scenario_target_count=_scenario_target_count(spec),
                 solve_period_override_s=spec.solve_period_s,
                 deadline_mode=DeadlineMode(spec.deadline_mode),
                 event_sink=writer.append_lifecycle_event,
-                artifact_sink=writer.write_mid_mpc_artifact,
+                artifact_sink=artifact_sink,
             )
             algorithm = self.registry.build_algorithm(
                 spec.algorithm_id,
@@ -275,9 +280,10 @@ class ExperimentRunner:
                 )
             writer.write_manifest(manifest)
         except Exception as exc:
+            artifact_sink.close(timeout_s=2.0)
             self.persist_failure(manifest, writer, exc, [])
             raise ExperimentRunError(manifest, writer.run_dir) from exc
-        return PreparedRun(spec, manifest, session, writer, episode_document)
+        return PreparedRun(spec, manifest, session, writer, episode_document, artifact_sink)
 
     @staticmethod
     def _executed_tracker_id(spec: RunSpec, config: scenario_config.ScenarioConfig) -> str:
@@ -311,6 +317,7 @@ class ExperimentRunner:
         )
 
     def finalize(self, prepared: PreparedRun) -> RunResult:
+        prepared.artifact_sink.close(timeout_s=2.0)
         if prepared.session.state != SessionState.FINISHED:
             raise RuntimeError(f"Cannot finalize session in state {prepared.session.state.value}")
         prepared.manifest.state = prepared.session.state
@@ -365,6 +372,7 @@ class ExperimentRunner:
             prepared.session.run_to_completion()
             return self.finalize(prepared)
         except Exception as exc:
+            prepared.artifact_sink.close(timeout_s=2.0)
             self.persist_failure(
                 prepared.manifest,
                 prepared.writer,
@@ -449,6 +457,15 @@ class ExperimentRunner:
         prepared.manifest.fallback_used = fallback
         if fallback and prepared.spec.strict_no_fallback:
             raise RuntimeError("Fallback detected in strict run")
+
+
+def _scenario_target_count(spec: RunSpec) -> int | None:
+    """Derive the scenario's target-ship count from an explicit ship list."""
+    override = spec.scenario_override or {}
+    ship_list = override.get("ship_list")
+    if isinstance(ship_list, list) and len(ship_list) > 1:
+        return len(ship_list) - 1
+    return None
 
 
 def _file_hash(path: Path) -> str:

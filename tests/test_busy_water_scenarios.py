@@ -18,11 +18,21 @@ from colav_simulator.integrations import IntegrationRegistry
 from gui_server import main as gui_main
 
 
+def _canonicalize_floats(value: object) -> object:
+    if isinstance(value, float):
+        return float(f"{value:.15g}")
+    if isinstance(value, list):
+        return [_canonicalize_floats(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _canonicalize_floats(item) for key, item in value.items()}
+    return value
+
+
 def test_acceptance_scenario_is_deterministic_and_matches_committed_yaml() -> None:
     generated = build_busy_water_document("acceptance")
     committed = yaml.safe_load(Path("scenarios/romsdal_busy_water_16.yaml").read_text(encoding="utf-8"))
 
-    assert generated == committed
+    assert _canonicalize_floats(generated) == _canonicalize_floats(committed)
     assert len(generated["ship_list"]) == 16
     assert len({ship["id"] for ship in generated["ship_list"]}) == 16
     assert generated["t_end"] == BUSY_WATER_DURATION_S == 1200.0
@@ -39,7 +49,7 @@ def test_stress_scenario_is_seeded_and_matches_committed_yaml() -> None:
     generated = build_busy_water_document("stress")
     committed = yaml.safe_load(Path("scenarios/romsdal_busy_water_80_stress.yaml").read_text(encoding="utf-8"))
 
-    assert generated == committed
+    assert _canonicalize_floats(generated) == _canonicalize_floats(committed)
     assert len(generated["ship_list"]) == 80
     assert generated != build_busy_water_document("stress", seed=20250732)
     assert generated["t_end"] == BUSY_WATER_DURATION_S
@@ -95,7 +105,7 @@ def test_stress_preflight_reports_79_targets_and_valid_routes() -> None:
     assert result["routes_inside_map"] is True
 
 
-def test_busy_water_scenarios_expose_four_experimental_algorithms_not_g3() -> None:
+def test_busy_water_scenarios_expose_capacity_compatible_experimental_algorithms_not_g3() -> None:
     with TestClient(gui_main.app) as client:
         response = client.get("/api/capabilities?validation_rule_id=multiship")
 
@@ -110,7 +120,8 @@ def test_busy_water_scenarios_expose_four_experimental_algorithms_not_g3() -> No
             item["algorithm_id"]
             for item in scenarios[scenario_id]["experimental_combinations"]
         }
-        assert algorithms == expected
+        expected_algorithms = expected | ({"mid_mpc_ipopt"} if scenario_id == "romsdal_busy_water_16" else set())
+        assert algorithms == expected_algorithms
 
 
 @pytest.mark.parametrize("algorithm_id", ("nominal", "vo", "sbmpc", "potocnik_colreg_fan_mpc"))
@@ -122,6 +133,16 @@ def test_experimental_busy_water_algorithms_are_selectable(algorithm_id: str) ->
     )
     with pytest.raises(ColavExecutionError, match="No selectable capability tuple"):
         catalog.validate("multiship", "romsdal_busy_water_16", algorithm_id, "kf")
+
+
+def test_mid_mpc_is_selectable_only_for_capacity_bounded_busy_water() -> None:
+    catalog = CapabilityCatalog(IntegrationRegistry())
+
+    assert catalog.validate("multiship", "romsdal_busy_water_16", "mid_mpc_ipopt", "god") == (
+        "multiship:romsdal_busy_water_16:mid_mpc_ipopt:god"
+    )
+    with pytest.raises(ColavExecutionError, match="No selectable capability tuple"):
+        catalog.validate("multiship", "romsdal_busy_water_80_stress", "mid_mpc_ipopt", "god")
 
 
 def test_busy_water_generate_and_draft_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

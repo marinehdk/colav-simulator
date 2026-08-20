@@ -9,16 +9,22 @@ import pytest
 
 from colav_simulator.core.colav.mid_mpc import (
     MidMpcConfig,
+    MidMpcHardWindow,
     MidMpcIpoptSolver,
     MidMpcOwnShip,
+    MidMpcPrimalWarmStart,
     MidMpcProblem,
     MidMpcRouteFrame,
+    MidMpcRouteObjective,
     MidMpcRowSchedule,
+    MidMpcStatus,
     MidMpcTarget,
 )
+from colav_simulator.core.colav.mid_mpc import solver as solver_module
 from colav_simulator.core.colav.mid_mpc.solver import (
     _IterationCallback,
     _optimization_quality_passed,
+    _target_free_required_improvement,
 )
 from colav_simulator.mid_mpc_parity import (
     MidMpcParityFixture,
@@ -128,7 +134,7 @@ def _assert_parity(fixture: MidMpcParityFixture) -> None:
     assert result.ipopt_iterations == expected["ipopt_iterations"]
     assert result.objective_total == pytest.approx(expected["objective_total"], abs=objective_tolerance)
     for name, value in vars(result.objective_components).items():
-        assert value == pytest.approx(expected["objective_components"][name], abs=objective_tolerance)
+        assert value == pytest.approx(expected["objective_components"].get(name, 0.0), abs=objective_tolerance)
     assert result.elapsed_ms >= 0.0
     assert result.cpa_slack == pytest.approx(expected["cpa_slack"], abs=diagnostic_tolerance)
     assert result.raw_f == pytest.approx(expected["raw"]["f"], abs=objective_tolerance)
@@ -202,6 +208,303 @@ def test_route_speed_cold_matches_frozen_cpp_oracle(
     _assert_parity(parity_corpus["route_speed_cold"])
 
 
+def test_repeated_same_structure_solves_reuse_graph_without_stale_target_data(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["head_on_starboard"]
+    config = _config(fixture)
+    first_problem = _problem(fixture)
+    moved_target = replace(first_problem.targets[0], x_m=first_problem.targets[0].x_m + 25.0)
+    second_problem = replace(first_problem, targets=(moved_target,))
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(
+        config: MidMpcConfig,
+        problem: MidMpcProblem,
+    ) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    reused_solver = MidMpcIpoptSolver(config)
+    reused_solver.solve(first_problem)
+    reused_result = reused_solver.solve(second_problem)
+    fresh_result = MidMpcIpoptSolver(config).solve(second_problem)
+
+    assert build_calls == 2
+    np.testing.assert_allclose(reused_result.raw_x, fresh_result.raw_x, atol=1.0e-8, rtol=0.0)
+    np.testing.assert_allclose(reused_result.raw_g, fresh_result.raw_g, atol=1.0e-6, rtol=1.0e-12)
+
+
+def test_colav_strict_staged_route_objective_alters_then_returns_to_mission(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    mission = source.route_bearing_rad
+    corridor = mission + 0.2
+    avoidance_until_k = max(2, config.horizon_steps // 2)
+    references = (corridor,) * avoidance_until_k + (mission,) * (config.horizon_steps - avoidance_until_k)
+    problem = replace(
+        source,
+        route_bearing_rad=corridor,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=mission,
+            avoidance_corridor_bearing_rad=corridor,
+            heading_reference_rad=references,
+            lateral_reference_m=(0.0,) * config.horizon_steps,
+            avoidance_active_until_k=avoidance_until_k,
+        ),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    headings = result.raw_x[: config.horizon_steps]
+    assert result.prepared.p.size == (
+        len(fixture.output["prepared"]["p"]) + 5 * config.horizon_steps + 2 + 2 * config.max_targets
+    )
+    assert np.mean(headings[:avoidance_until_k]) > np.mean(headings[avoidance_until_k:]) + 0.05
+    assert headings[-1] == pytest.approx(mission, abs=0.02)
+
+
+def test_staged_route_recovery_masks_legacy_give_way_objective(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    mission = source.route_bearing_rad
+    corridor = mission + 0.2
+    avoidance_until_k = max(2, config.horizon_steps // 2)
+    references = (corridor,) * avoidance_until_k + (mission,) * (config.horizon_steps - avoidance_until_k)
+    problem = replace(
+        source,
+        route_bearing_rad=corridor,
+        lateral_active=True,
+        preferred_side=1,
+        starboard_asymmetry_active=True,
+        min_alteration_rad=0.1,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=mission,
+            avoidance_corridor_bearing_rad=corridor,
+            heading_reference_rad=references,
+            lateral_reference_m=(0.0,) * config.horizon_steps,
+            avoidance_active_until_k=avoidance_until_k,
+        ),
+        row_schedule=MidMpcRowSchedule(
+            direction_hard_window=MidMpcHardWindow(0, avoidance_until_k),
+            min_alt_hard_window=MidMpcHardWindow(0, avoidance_until_k),
+        ),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    headings = result.raw_x[: config.horizon_steps]
+    assert np.mean(headings[:avoidance_until_k]) > mission + 0.08
+    assert headings[-1] == pytest.approx(mission, abs=0.03)
+
+
+def test_staged_route_profiles_reuse_one_fixed_graph(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    for avoidance_until_k in (2, 4):
+        corridor = source.route_bearing_rad + 0.2
+        solver.solve(
+            replace(
+                source,
+                route_bearing_rad=corridor,
+                route_objective=MidMpcRouteObjective(
+                    mission_bearing_rad=source.route_bearing_rad,
+                    avoidance_corridor_bearing_rad=corridor,
+                    heading_reference_rad=(corridor,) * avoidance_until_k
+                    + (source.route_bearing_rad,) * (config.horizon_steps - avoidance_until_k),
+                    lateral_reference_m=(25.0 * avoidance_until_k,) * config.horizon_steps,
+                    avoidance_active_until_k=avoidance_until_k,
+                ),
+            )
+        )
+
+    assert build_calls == 1
+
+
+def test_colav_strict_continuity_reference_changes_parameters_without_rebuilding_graph(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    route = MidMpcRouteObjective(
+        mission_bearing_rad=source.route_bearing_rad,
+        avoidance_corridor_bearing_rad=source.route_bearing_rad,
+        heading_reference_rad=(source.route_bearing_rad,) * n,
+        lateral_reference_m=(0.0,) * n,
+        avoidance_active_until_k=0,
+    )
+    active = replace(
+        route,
+        continuity_heading_reference_rad=(source.route_bearing_rad + 0.1,) * n,
+        continuity_speed_reference_mps=(source.planned_speed_mps,) * n,
+        continuity_weight=(40.0,) * n,
+    )
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    inactive_result = solver.solve(replace(source, route_objective=route))
+    active_result = solver.solve(replace(source, route_objective=active))
+
+    assert build_calls == 1
+    assert inactive_result.objective_components.continuity == pytest.approx(0.0)
+    assert active_result.objective_components.continuity > 0.0
+    assert np.mean(active_result.raw_x[:n]) > np.mean(inactive_result.raw_x[:n])
+
+
+def test_colav_strict_hard_windows_update_bounds_without_rebuilding_graph(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["multi_target_row_order"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = replace(_problem(fixture), lateral_active=False)
+    n = config.horizon_steps
+    first_schedule = MidMpcRowSchedule(
+        cpa_hard_windows=(MidMpcHardWindow(1, n - 1), MidMpcHardWindow(2, n)),
+        direction_hard_window=MidMpcHardWindow(1, n - 1),
+        min_alt_hard_window=MidMpcHardWindow(2, n - 1),
+    )
+    second_schedule = replace(
+        first_schedule,
+        cpa_hard_windows=(MidMpcHardWindow(0, n), MidMpcHardWindow(1, n - 1)),
+    )
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    first = solver.solve(replace(source, row_schedule=first_schedule))
+    solver.solve(replace(source, row_schedule=second_schedule))
+
+    assert build_calls == 1
+    cpa_stride = first.row_layout.cpa.count // n
+    for k in range(n):
+        for target_index, window in enumerate(first_schedule.cpa_hard_windows):
+            row = first.row_layout.cpa.start + k * cpa_stride + target_index
+            assert bool(np.isfinite(first.prepared.lbg[row])) is (window.start_k <= k < window.stop_k)
+    for span, window in (
+        (first.row_layout.direction, first_schedule.direction_hard_window),
+        (first.row_layout.min_alt, first_schedule.min_alt_hard_window),
+    ):
+        assert window is not None
+        active = np.isfinite(first.prepared.lbg[span.start : span.start + span.count])
+        assert active.tolist() == [window.start_k <= k < window.stop_k for k in range(n)]
+
+
+def test_colav_strict_release_reuses_single_encounter_graph(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["head_on_starboard"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    route = MidMpcRouteObjective(
+        mission_bearing_rad=source.route_bearing_rad,
+        avoidance_corridor_bearing_rad=source.route_bearing_rad + 0.2,
+        heading_reference_rad=(source.route_bearing_rad + 0.2,) * (n // 2) + (source.route_bearing_rad,) * (n - n // 2),
+        lateral_reference_m=(0.0,) * n,
+        avoidance_active_until_k=n // 2,
+    )
+    active = replace(source, route_objective=route)
+    released = replace(
+        active,
+        cpa_hard_m=50.0,
+        audit_row_count=0,
+        prefix_active_k=1,
+        prefix_psi_rad=(source.own_ship.psi_rad,),
+        prefix_u_mps=(source.own_ship.u_mps,),
+        targets=(),
+        row_schedule=MidMpcRowSchedule(),
+    )
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    active_result = solver.solve(active)
+    released_result = solver.solve(released)
+
+    assert build_calls == 1
+    assert active_result.graph_cache_hit is False
+    assert active_result.graph_build_elapsed_ms > 0.0
+    assert released_result.graph_cache_hit is True
+    assert released_result.graph_build_elapsed_ms == 0.0
+    assert released_result.preparation_elapsed_ms >= 0.0
+    assert released_result.ipopt_elapsed_ms > 0.0
+    assert released_result.elapsed_ms >= released_result.ipopt_elapsed_ms
+
+
+def test_colav_strict_route_only_solve_uses_feasible_quality_stop(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    problem = replace(
+        source,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=source.route_bearing_rad,
+            avoidance_corridor_bearing_rad=source.route_bearing_rad,
+            heading_reference_rad=(source.route_bearing_rad,) * n,
+            lateral_reference_m=(0.0,) * n,
+            avoidance_active_until_k=0,
+        ),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    assert result.status is MidMpcStatus.FEASIBLE_NONOPTIMAL
+    assert result.accepted_by_quality_gate is True
+    assert result.optimization_quality_passed is True
+    assert result.objective_improvement >= abs(result.seed_objective_total) * 0.01
+
+
 def test_colav_strict_profile_keeps_frozen_slack_variables_but_fixes_them_to_zero(
     parity_corpus: dict[str, MidMpcParityFixture],
 ) -> None:
@@ -256,6 +559,196 @@ def test_colav_strict_cold_seed_tracks_the_committed_reference_within_rate_bound
     )
     if result.accepted_by_quality_gate:
         assert result.objective_improvement > max(1.0e-6, abs(result.seed_objective_total) * 1.0e-8)
+
+
+def _rendezvous_problem(targets: tuple[MidMpcTarget, ...]) -> MidMpcProblem:
+    return MidMpcProblem(
+        own_ship=MidMpcOwnShip(psi_rad=0.0, u_mps=6.0),
+        route_bearing_rad=0.0,
+        planned_speed_mps=6.0,
+        heading_bounds_rad=(-math.pi / 4, math.pi / 4),
+        speed_bounds_mps=(0.0, 8.0),
+        cpa_safe_m=150.0,
+        cpa_hard_m=100.0,
+        rot_max_rad_s=math.radians(3.0),
+        decel_max_mps2=0.3,
+        lateral_active=False,
+        preferred_side=0,
+        starboard_asymmetry_active=False,
+        min_alteration_rad=0.0,
+        route_frame=MidMpcRouteFrame(
+            origin_m=(0.0, 0.0),
+            normal=(0.0, 1.0),
+            bearing_rad=0.0,
+            lateral_scale_m=1000.0,
+            weight=1.0,
+        ),
+        targets=targets,
+    )
+
+
+def test_colav_strict_cold_seed_rendezvous_is_repaired_to_row_feasible_offset() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    # A slow target parked 300 m ahead and 60 m to port of the straight seed:
+    # the cruise seed drives through it and the hard CPA rows (from k=0) are
+    # primal-infeasible, which is the tenship t=0 cold-start failure mode.
+    problem = _rendezvous_problem((MidMpcTarget(x_m=300.0, y_m=60.0, cog_rad=0.0, sog_mps=0.0),))
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    n = config.horizon_steps
+    heading_seed = result.prepared.x0[:n]
+    assert result.seed_max_constraint_violation <= 1.0e-6
+    assert float(np.max(np.abs(heading_seed))) > math.radians(5.0)
+    ladder = np.abs(np.diff(np.r_[problem.own_ship.psi_rad, heading_seed]))
+    assert float(np.max(ladder)) <= problem.rot_max_rad_s * config.dt_s + 1.0e-9
+    assert float(np.max(np.abs(heading_seed))) <= math.pi / 4 + 1.0e-9
+    np.testing.assert_array_equal(result.prepared.x0[n : 2 * n], np.full(n, 6.0))
+
+
+def test_colav_strict_row_feasible_cold_seed_is_left_untouched() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _rendezvous_problem((MidMpcTarget(x_m=1.0e6, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0),))
+
+    result = MidMpcIpoptSolver(config).solve(problem)
+
+    assert result.seed_max_constraint_violation <= 1.0e-9
+    np.testing.assert_array_equal(result.prepared.x0[: config.horizon_steps], np.zeros(config.horizon_steps))
+
+
+class _StubConstraintGraph:
+    """Duck-typed graph whose rows punish every offset below a threshold."""
+
+    def __init__(self, worst_by_offset: dict[float, float], horizon_steps: int) -> None:
+        self._worst = worst_by_offset
+        self._n = horizon_steps
+        self.baseline_worst: float | None = None
+
+    def constraints(self, x0: np.ndarray, p: np.ndarray) -> np.ndarray:  # noqa: ARG002
+        offset = float(np.max(np.abs(x0[: self._n])))
+        if self.baseline_worst is None:
+            self.baseline_worst = self._worst.get(0.0, 0.0)
+            worst = self.baseline_worst
+        else:
+            worst = min(
+                (violation for step, violation in self._worst.items() if abs(offset - step) <= 1.0e-6),
+                default=self._worst[max(self._worst)],
+            )
+        return np.array([-worst, 1.0])
+
+
+def _prepared_for(problem: MidMpcProblem, config: MidMpcConfig) -> tuple[solver_module.MidMpcPreparedProblem, object]:
+    from colav_simulator.core.colav.mid_mpc.solver import _prepare, _row_layout
+
+    layout = _row_layout(config, max(len(problem.targets), 1), max(problem.audit_row_count, 1))
+    return _prepare(config, problem, layout), layout
+
+
+def test_seed_repair_applies_best_effort_offset_when_no_candidate_is_feasible() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _rendezvous_problem((MidMpcTarget(x_m=300.0, y_m=60.0, cog_rad=0.0, sog_mps=0.0),))
+    prepared, _layout = _prepared_for(problem, config)
+    prepared = solver_module.MidMpcPreparedProblem(
+        p=prepared.p,
+        x0=prepared.x0,
+        lbx=prepared.lbx,
+        ubx=prepared.ubx,
+        lbg=np.array([0.0, -np.inf]),
+        ubg=np.array([np.inf, np.inf]),
+    )
+    # Baseline violates by 6000; every offset still violates, the smallest
+    # worst violation (200 at 7.5 deg) is below the half-baseline gate.
+    worst_by_offset = {0.0: 6000.0}
+    for step in range(1, 19):
+        worst_by_offset[math.radians(2.5 * step)] = 200.0 if step == 3 else 4500.0
+    graph = _StubConstraintGraph(worst_by_offset, config.horizon_steps)
+
+    repaired = solver_module._repair_infeasible_seed(graph, prepared, problem, config)
+
+    assert repaired is not None
+    n = config.horizon_steps
+    assert float(np.max(np.abs(repaired.x0[:n]))) == pytest.approx(math.radians(7.5), abs=1.0e-6)
+
+
+def test_seed_repair_keeps_original_seed_when_offsets_barely_help() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _rendezvous_problem((MidMpcTarget(x_m=300.0, y_m=60.0, cog_rad=0.0, sog_mps=0.0),))
+    prepared, _layout = _prepared_for(problem, config)
+    prepared = solver_module.MidMpcPreparedProblem(
+        p=prepared.p,
+        x0=prepared.x0,
+        lbx=prepared.lbx,
+        ubx=prepared.ubx,
+        lbg=np.array([0.0, -np.inf]),
+        ubg=np.array([np.inf, np.inf]),
+    )
+    # Best offset only improves 6000 -> 3500, above the half-baseline gate.
+    worst_by_offset = {0.0: 6000.0}
+    for step in range(1, 19):
+        worst_by_offset[math.radians(2.5 * step)] = 6000.0 - 50.0 * step
+    graph = _StubConstraintGraph(worst_by_offset, config.horizon_steps)
+
+    repaired = solver_module._repair_infeasible_seed(graph, prepared, problem, config)
+
+    assert repaired is None
+
+
+def test_colav_strict_warm_started_seed_is_not_displaced_by_repair() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    # The warm-started rolling projection may legitimately sit on hard rows
+    # mid-encounter; displacing it with a uniform offset ramp would discard
+    # the accepted plan geometry, so repair must only touch cold seeds.
+    problem = _rendezvous_problem((MidMpcTarget(x_m=300.0, y_m=60.0, cog_rad=0.0, sog_mps=0.0),))
+    n = config.horizon_steps
+    warm = MidMpcPrimalWarmStart(
+        accepted_at_s=0.0,
+        current_time_s=config.dt_s / 2.0,
+        dt_s=config.dt_s,
+        course_rad=np.linspace(0.0, 0.05, n),
+        speed_mps=np.full(n, 6.0),
+    )
+
+    warm_result = MidMpcIpoptSolver(config).solve(problem, primal_warm_start=warm)
+    cold_result = MidMpcIpoptSolver(config).solve(problem)
+
+    assert warm_result.seed_max_constraint_violation > 1.0e-6
+    assert cold_result.seed_max_constraint_violation <= 1.0e-6
+    warm_heading = warm_result.prepared.x0[:n]
+    # The projected warm course stays a gentle interpolation of the accepted
+    # ramp over the reusable window (nowhere near the repaired uniform-offset
+    # ladder, whose first steps jump by 2.5 deg chunks); the one step beyond
+    # the accepted window keeps the cold-seed value.
+    assert float(np.max(np.abs(warm_heading[:-1]))) <= 0.05 + 1.0e-12
+    assert float(np.max(np.abs(np.diff(warm_heading[:-1])))) < math.radians(2.5)
+    assert warm_heading[-1] == pytest.approx(0.0, abs=1.0e-12)
+
+
+def test_prewarm_capacity_serves_first_multiship_cycle_from_graph_cache() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    solver = MidMpcIpoptSolver(config)
+    solver.prewarm_capacity(3)
+    n = config.horizon_steps
+    problem = replace(
+        _rendezvous_problem(
+            tuple(
+                MidMpcTarget(x_m=1.0e6 + 100.0 * index, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0)
+                for index in range(3)
+            )
+        ),
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=0.0,
+            avoidance_corridor_bearing_rad=0.0,
+            heading_reference_rad=(0.0,) * n,
+            lateral_reference_m=(0.0,) * n,
+            avoidance_active_until_k=0,
+        ),
+    )
+
+    result = solver.solve(problem)
+
+    assert result.graph_cache_hit is True
+    assert result.graph_build_elapsed_ms == 0.0
+    assert result.row_layout.cpa.count == 3 * config.horizon_steps
 
 
 def test_colav_strict_overtaking_seed_starts_inside_minimum_alteration_boundary(
@@ -316,6 +809,64 @@ def test_result_arrays_cannot_be_made_writeable(
         result.prepared.p.setflags(write=True)
 
 
+def test_accepted_primal_warm_start_resamples_and_keeps_strict_slacks_zero(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    problem = _problem(fixture)
+    cold = MidMpcIpoptSolver(config).solve(problem)
+    n = config.horizon_steps
+    warm = MidMpcPrimalWarmStart(
+        accepted_at_s=0.0,
+        current_time_s=config.dt_s / 2.0,
+        dt_s=config.dt_s,
+        course_rad=np.linspace(0.1, 0.2, n),
+        speed_mps=np.linspace(3.0, 4.0, n),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem, primal_warm_start=warm)
+
+    assert result.prepared.x0[-2:].tolist() == [0.0, 0.0]
+    assert result.prepared.x0[0] != pytest.approx(cold.prepared.x0[0], abs=1e-12)
+    assert np.isfinite(result.prepared.x0).all()
+
+
+def test_staged_recovery_seed_is_not_replaced_by_prior_avoidance_plan(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    recovery_from_k = n // 2
+    mission = source.route_bearing_rad
+    corridor = mission + 0.2
+    problem = replace(
+        source,
+        route_bearing_rad=corridor,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=mission,
+            avoidance_corridor_bearing_rad=corridor,
+            heading_reference_rad=(corridor,) * recovery_from_k + (mission,) * (n - recovery_from_k),
+            lateral_reference_m=(0.0,) * n,
+            avoidance_active_until_k=recovery_from_k,
+        ),
+    )
+    warm = MidMpcPrimalWarmStart(
+        accepted_at_s=0.0,
+        current_time_s=config.dt_s / 2.0,
+        dt_s=config.dt_s,
+        course_rad=np.full(n, corridor),
+        speed_mps=np.full(n, source.planned_speed_mps),
+    )
+
+    result = MidMpcIpoptSolver(config).solve(problem, primal_warm_start=warm)
+
+    assert result.prepared.x0[recovery_from_k] == pytest.approx(mission)
+    assert result.raw_x[n - 1] == pytest.approx(mission, abs=0.03)
+
+
 def test_rejects_more_than_frozen_target_capacity(
     parity_corpus: dict[str, MidMpcParityFixture],
 ) -> None:
@@ -360,6 +911,123 @@ def test_iteration_callback_stops_only_after_feasible_objective_improvement() ->
     assert callback.quality_stop_requested is True
 
 
+def test_iteration_callback_stops_at_first_feasible_iterate_from_infeasible_seed() -> None:
+    callback = _IterationCallback(1, 1, 1, max_wall_time_s=20.0)
+    callback.arm(
+        quality_seed_objective=10.0,
+        quality_stop_on_feasible=True,
+        quality_lbx=np.array([0.0]),
+        quality_ubx=np.array([2.0]),
+        quality_lbg=np.array([0.0]),
+        quality_ubg=np.array([2.0]),
+    )
+
+    assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([-1.0])])[0]) == 0.0
+    assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([1.0])])[0]) == 1.0
+    assert callback.quality_stop_requested is True
+
+
+def test_iteration_callback_uses_acceptance_tolerance_for_controlled_exit() -> None:
+    callback = _IterationCallback(1, 1, 1, max_wall_time_s=20.0)
+    callback.arm(
+        quality_seed_objective=10.0,
+        quality_stop_on_feasible=True,
+        quality_lbx=np.array([0.0]),
+        quality_ubx=np.array([2.0]),
+        quality_lbg=np.array([0.0]),
+        quality_ubg=np.array([2.0]),
+        quality_tolerances=(np.array([1.0e-6]), np.array([1.0e-6])),
+    )
+
+    assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([-1.0e-5])])[0]) == 0.0
+    assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([-1.0e-7])])[0]) == 1.0
+    assert callback.quality_stop_requested is True
+
+
+def test_iteration_callback_accepts_bounded_nonregression_without_targets() -> None:
+    callback = _IterationCallback(1, 1, 1, max_wall_time_s=20.0)
+    callback.arm(
+        quality_seed_objective=10.0,
+        quality_required_improvement=-0.1,
+        quality_lbx=np.array([0.0]),
+        quality_ubx=np.array([2.0]),
+        quality_lbg=np.array([0.0]),
+        quality_ubg=np.array([2.0]),
+    )
+
+    assert float(callback.eval([np.array([1.0]), np.array([10.05]), np.array([1.0])])[0]) == 0.0
+    assert float(callback.eval([np.array([1.0]), np.array([10.05]), np.array([1.0])])[0]) == 1.0
+    assert callback.quality_stop_requested is True
+
+
+def test_strict_rule_row_matches_crossing_bow_geometry(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    target = MidMpcTarget(
+        x_m=60.0,
+        y_m=100.0,
+        cog_rad=-math.pi / 2.0,
+        sog_mps=4.0,
+        crossing_astern_required=True,
+    )
+    problem = replace(
+        source,
+        audit_row_count=1,
+        targets=(target,),
+        row_schedule=MidMpcRowSchedule(
+            cpa_hard_windows=(MidMpcHardWindow(n, n),),
+        ),
+    )
+    graph = solver_module._build_graph(config, problem)
+    prepared = solver_module._prepare(config, problem, graph.row_layout)
+
+    constraints = np.asarray(graph.constraints(prepared.x0, prepared.p)).reshape(-1)
+
+    assert constraints[graph.row_layout.rule.start] < 0.0
+
+
+def test_strict_speed_rate_row_rejects_acceleration_above_active_limit(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    problem = _problem(fixture)
+    graph = solver_module._build_graph(config, problem)
+    prepared = solver_module._prepare(config, problem, graph.row_layout)
+    candidate = prepared.x0.copy()
+    candidate[config.horizon_steps] = problem.own_ship.u_mps + problem.decel_max_mps2 * config.dt_s + 0.1
+
+    constraints = np.asarray(graph.constraints(candidate, prepared.p)).reshape(-1)
+
+    assert constraints[graph.row_layout.speed_rate.start] < 0.0
+
+
+def test_strict_active_prefix_is_encoded_as_original_decision_bounds(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    problem = replace(
+        source,
+        targets=(),
+        audit_row_count=0,
+        row_schedule=replace(source.row_schedule, cpa_hard_windows=()),
+        prefix_active_k=1,
+        prefix_psi_rad=(source.own_ship.psi_rad,),
+        prefix_u_mps=(source.own_ship.u_mps,),
+    )
+    graph = solver_module._build_graph(config, problem)
+    prepared = solver_module._prepare(config, problem, graph.row_layout)
+
+    assert prepared.lbx[0] == prepared.ubx[0] == source.own_ship.psi_rad
+    assert prepared.lbx[config.horizon_steps] == prepared.ubx[config.horizon_steps] == source.own_ship.u_mps
+
+
 def test_nonoptimal_exit_requires_native_acceptable_status_and_objective_improvement() -> None:
     assert not _optimization_quality_passed(
         strict=True,
@@ -373,3 +1041,127 @@ def test_nonoptimal_exit_requires_native_acceptable_status_and_objective_improve
         controlled_quality_stop=True,
         accepted_iteration=1,
     )
+
+
+def test_controlled_feasible_exit_does_not_compare_objective_to_infeasible_seed() -> None:
+    assert _optimization_quality_passed(
+        strict=True,
+        return_status="User_Requested_Stop",
+        iterations=2,
+        seed_objective=10.0,
+        final_objective=20.0,
+        seed_primal_feasible=False,
+        final_primal_feasible=True,
+        decision_change_norm=0.3,
+        controlled_quality_stop=True,
+        accepted_iteration=1,
+    )
+
+
+def test_controlled_target_free_exit_allows_bounded_objective_nonregression() -> None:
+    assert _optimization_quality_passed(
+        strict=True,
+        return_status="User_Requested_Stop",
+        iterations=2,
+        seed_objective=10.0,
+        final_objective=10.05,
+        seed_primal_feasible=True,
+        final_primal_feasible=True,
+        decision_change_norm=0.3,
+        controlled_quality_stop=True,
+        accepted_iteration=1,
+        required_improvement=-0.1,
+    )
+
+
+def test_controlled_target_free_exit_accepts_exact_nominal_seed() -> None:
+    assert _optimization_quality_passed(
+        strict=True,
+        return_status="User_Requested_Stop",
+        iterations=1,
+        seed_objective=0.0,
+        final_objective=0.0,
+        seed_primal_feasible=True,
+        final_primal_feasible=True,
+        decision_change_norm=0.0,
+        controlled_quality_stop=True,
+        accepted_iteration=1,
+        required_improvement=-0.03,
+    )
+
+
+def test_target_free_quality_ceiling_covers_ipopt_barrier_entry() -> None:
+    assert _target_free_required_improvement(0.0015) == pytest.approx(-0.0285)
+    assert _target_free_required_improvement(1.0) == pytest.approx(-0.05)
+
+
+def test_strict_graph_rebuilds_once_per_new_target_capacity(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["head_on_starboard"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    for target_count in (1, 2, 5):
+        targets = tuple(
+            MidMpcTarget(
+                x_m=source.targets[0].x_m + 40.0 * index,
+                y_m=source.targets[0].y_m,
+                cog_rad=source.targets[0].cog_rad,
+                sog_mps=source.targets[0].sog_mps,
+            )
+            for index in range(target_count)
+        )
+        result = solver.solve(
+            replace(
+                source,
+                targets=targets,
+                audit_row_count=target_count,
+                row_schedule=MidMpcRowSchedule(),
+            )
+        )
+        assert result.status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL, MidMpcStatus.TIMEOUT}
+
+    assert build_calls == 3
+
+
+def test_prewarm_builds_strict_graph_outside_first_solve(
+    parity_corpus: dict[str, MidMpcParityFixture],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    build_calls = 0
+    original_build_graph = solver_module._build_graph
+
+    def counted_build_graph(config: MidMpcConfig, problem: MidMpcProblem) -> solver_module._Graph:
+        nonlocal build_calls
+        build_calls += 1
+        return original_build_graph(config, problem)
+
+    monkeypatch.setattr(solver_module, "_build_graph", counted_build_graph)
+    solver = MidMpcIpoptSolver(config)
+    solver.prewarm()
+    assert build_calls == 1
+    problem = replace(
+        _problem(fixture),
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=0.0,
+            avoidance_corridor_bearing_rad=0.1,
+            heading_reference_rad=(0.0,) * config.horizon_steps,
+            lateral_reference_m=(0.0,) * config.horizon_steps,
+            avoidance_active_until_k=0,
+        ),
+    )
+    solver.solve(problem)
+    assert build_calls == 1

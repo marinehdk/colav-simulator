@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import time
+import uuid
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from typing import Any
 
@@ -22,6 +24,16 @@ from colav_simulator.core.colav.diagnostics import (
     PlanDiagnostics,
     PlannerTrace,
     PlanStatus,
+)
+from colav_simulator.core.colav.prediction_evidence import (
+    EvidenceEnvelope,
+    EvidenceEvent,
+    EvidenceEventType,
+    OccurrenceId,
+    RuntimeAppliedReference,
+    TerminalOutcome,
+    reduce_evidence,
+    render_snapshot,
 )
 from colav_simulator.core.tracking.trackers import TrackSnapshot
 
@@ -43,6 +55,9 @@ class FactoryContext:
     requested_algorithm: str
     algorithm_seed: int
     strict_no_fallback: bool = True
+    scenario_id: str = "UNSPECIFIED"
+    tracker_id: str = "UNSPECIFIED"
+    scenario_target_count: int | None = None
     solve_period_override_s: float | None = None
     deadline_mode: DeadlineMode = DeadlineMode.ENFORCE
     event_sink: Callable[[Any], object] | None = field(default=None, compare=False, repr=False)
@@ -55,6 +70,10 @@ class FactoryContext:
             raise ValueError("requested_algorithm is required")
         if self.algorithm_seed < 0:
             raise ValueError("algorithm_seed must be non-negative")
+        if not self.scenario_id.strip() or not self.tracker_id.strip():
+            raise ValueError("scenario_id and tracker_id must be non-empty")
+        if self.scenario_target_count is not None and self.scenario_target_count < 0:
+            raise ValueError("scenario_target_count must be non-negative when specified")
         if self.solve_period_override_s is not None and (
             not np.isfinite(self.solve_period_override_s) or self.solve_period_override_s <= 0.0
         ):
@@ -272,6 +291,11 @@ class PlannerInput:
     ownship_length_m: float = 15.0
     ownship_width_m: float = 4.0
     ownship_draft_m: float = 0.5
+    ownship_model: str = "UNKNOWN"
+    ownship_controller: str = "UNKNOWN"
+    ownship_course_time_constant_s: float | None = None
+    ownship_speed_time_constant_s: float | None = None
+    ownship_max_turn_rate_rad_s: float | None = None
 
     def __post_init__(self) -> None:
         """Copy and validate all planner inputs."""
@@ -301,6 +325,15 @@ class PlannerInput:
         geometry = (self.ownship_length_m, self.ownship_width_m, self.ownship_draft_m)
         if not np.isfinite(geometry).all() or min(geometry) <= 0.0:
             raise ValueError("ownship geometry must be finite and positive")
+        if not self.ownship_model.strip() or not self.ownship_controller.strip():
+            raise ValueError("ownship model and controller identity are required")
+        dynamics = (
+            self.ownship_course_time_constant_s,
+            self.ownship_speed_time_constant_s,
+            self.ownship_max_turn_rate_rad_s,
+        )
+        if any(value is not None and (not np.isfinite(value) or value <= 0.0) for value in dynamics):
+            raise ValueError("ownship dynamics metadata must be finite and positive when present")
         if (self.coordinate_frame, self.linear_unit, self.angle_unit) != ("ENU", "SI", "rad"):
             raise ValueError("PlannerInput requires ENU/SI/rad")
 
@@ -320,6 +353,8 @@ class MPCSolution:
     target_predictions: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
     algorithm_details: Mapping[str, Any] = field(default_factory=dict)
     control_trajectory: np.ndarray | None = None
+    evidence: EvidenceEnvelope | None = None
+    post_commit: Callable[[], Mapping[str, Any] | None] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Copy and validate the normalized solver result."""
@@ -355,6 +390,10 @@ class MPCSolution:
             raise TypeError("target_predictions must contain mappings")
         if not isinstance(self.algorithm_details, Mapping):
             raise TypeError("algorithm_details must be a mapping")
+        if self.evidence is not None and not isinstance(self.evidence, EvidenceEnvelope):
+            raise TypeError("evidence must be EvidenceEnvelope when present")
+        if self.post_commit is not None and not callable(self.post_commit):
+            raise TypeError("post_commit must be callable when present")
         object.__setattr__(self, "constraints", _json_copy(self.constraints))
         object.__setattr__(self, "target_predictions", tuple(_json_copy(item) for item in self.target_predictions))
         object.__setattr__(self, "algorithm_details", _json_copy(self.algorithm_details))
@@ -370,6 +409,8 @@ class CustomMPCAdapter(ICOLAV):
         solve: Callable[[PlannerInput], MPCSolution],
         context: FactoryContext,
         reset: Callable[[], None] | None = None,
+        validate_hold: Callable[[PlannerInput, MPCSolution, float], Mapping[str, Any]] | None = None,
+        capture_evidence: bool = False,
     ) -> None:
         if descriptor.algorithm_id != context.requested_algorithm:
             raise ColavExecutionError(
@@ -382,19 +423,46 @@ class CustomMPCAdapter(ICOLAV):
             raise TypeError("solve must be callable")
         if reset is not None and not callable(reset):
             raise TypeError("reset must be callable")
+        if validate_hold is not None and not callable(validate_hold):
+            raise TypeError("validate_hold must be callable")
+        if not isinstance(capture_evidence, bool):
+            raise TypeError("capture_evidence must be bool")
         self.descriptor = descriptor
         self.context = context
         self._solve = solve
         self._reset_solver = reset
+        self._validate_held_solution = validate_hold
+        self._capture_evidence = capture_evidence
         self._build_identity = BuildIdentity()
         self._solve_period_s = context.solve_period_override_s or descriptor.execution_profile.solve_period_s
         self._solve_id = 0
         self._last_solve_time_s: float | None = None
+        self._last_rejected_solve_time_s: float | None = None
+        self._preserved_plan_until_s: float | None = None
         self._last_plan_time_s: float | None = None
         self._solution: MPCSolution | None = None
         self._current_plan = np.zeros((9, 1), dtype=float)
         self._consecutive_timeouts = 0
         self._effective_status = PlanStatus.SUCCESS
+        self._pending_hold_replan_reason: str | None = None
+        self._hold_acceptance: Mapping[str, Any] | None = None
+        self._hold_evidence_cache_key: tuple[object, ...] | None = None
+        self._hold_evidence_cache: dict[str, object] | None = None
+        self._colav_data_cache: dict[str, Any] | None = None
+        self._last_hold_validation_s: float | None = None
+        self._colav_data_cache_solve_id: int | None = None
+        self._colav_data_cache_time: float = -math.inf
+        self._evidence_run_id = str(uuid.uuid4())
+        self._evidence_epoch = 0
+        self._evidence_seq = 0
+        self._evidence_events: list[EvidenceEvent] = []
+        self._evidence_cycle_start = 0
+        self._evidence_window_start = 0
+        self._evidence_envelope: EvidenceEnvelope | None = None
+        self._evidence_history_envelope: EvidenceEnvelope | None = None
+        self._evidence_artifact_reference: dict[str, object] | None = None
+        self._evidence_receipt: dict[str, object] | None = None
+        self._artifact_semantic_hashes: dict[str, str] = {}
         self._diagnostics = self._new_diagnostics()
         self._planner_trace = PlannerTrace(descriptor.algorithm_id, 0, 0.0, False)
 
@@ -417,17 +485,40 @@ class CustomMPCAdapter(ICOLAV):
         return self.descriptor.envelope(self._build_identity)
 
     def reset(self) -> None:
+        reset_time_s = 0.0 if self._last_plan_time_s is None else self._last_plan_time_s
         if self._reset_solver is not None:
             self._reset_solver()
         self._solve_id = 0
         self._last_solve_time_s = None
+        self._last_rejected_solve_time_s = None
+        self._preserved_plan_until_s = None
         self._last_plan_time_s = None
         self._solution = None
         self._current_plan = np.zeros((9, 1), dtype=float)
         self._consecutive_timeouts = 0
         self._effective_status = PlanStatus.SUCCESS
+        self._pending_hold_replan_reason = None
+        self._hold_acceptance = None
+        self._evidence_epoch += 1
+        self._evidence_seq = 0
+        self._evidence_events = []
+        self._evidence_cycle_start = 0
+        self._evidence_window_start = 0
+        self._evidence_envelope = None
+        self._evidence_history_envelope = None
+        self._evidence_artifact_reference = None
+        self._evidence_receipt = None
+        self._artifact_semantic_hashes = {}
+        if self._capture_evidence:
+            self._append_evidence_event(
+                EvidenceEventType.RESET,
+                reset_time_s,
+                payload={"reason": "adapter_reset"},
+            )
         self._diagnostics = self._new_diagnostics()
         self._planner_trace = PlannerTrace(self.descriptor.algorithm_id, 0, 0.0, False)
+        self._colav_data_cache = None
+        self._last_hold_validation_s = None
 
     def plan(
         self,
@@ -441,23 +532,81 @@ class CustomMPCAdapter(ICOLAV):
         w: stochasticity.DisturbanceData | None = None,
         **kwargs: Any,
     ) -> np.ndarray:
-        planner_input = self._planner_input(
-            t,
-            waypoints,
-            speed_plan,
-            ownship_state,
-            do_list,
-            enc,
-            goal_state,
-            w,
-            kwargs,
-        )
-        self._validate_schedule(planner_input)
-        should_solve = self._last_solve_time_s is None or (
-            planner_input.sim_time_s + 1e-9 >= self._last_solve_time_s + self._solve_period_s
-        )
+        if self._capture_evidence:
+            try:
+                raw_sim_time = float(t)
+            except (TypeError, ValueError):
+                raw_sim_time = 0.0
+            evidence_sim_time = raw_sim_time if np.isfinite(raw_sim_time) and raw_sim_time >= 0.0 else 0.0
+            self._poll_artifact_completions(evidence_sim_time)
+            self._append_evidence_event(
+                EvidenceEventType.CYCLE_STARTED,
+                evidence_sim_time,
+                payload={"raw_sim_time_valid": evidence_sim_time == raw_sim_time},
+            )
+        try:
+            planner_input = self._planner_input(
+                t,
+                waypoints,
+                speed_plan,
+                ownship_state,
+                do_list,
+                enc,
+                goal_state,
+                w,
+                kwargs,
+            )
+            self._validate_schedule(planner_input)
+        except ColavExecutionError as exc:
+            if self._capture_evidence:
+                self._append_evidence_event(
+                    EvidenceEventType.PLAN_FAILED,
+                    evidence_sim_time,
+                    terminal_outcome=TerminalOutcome.FAILED,
+                )
+                self._record_pre_input_failure(evidence_sim_time, exc)
+            raise
+        if self._capture_evidence:
+            self._append_evidence_event(
+                EvidenceEventType.INPUT_VALIDATED,
+                planner_input.sim_time_s,
+                payload={"track_count": len(planner_input.tracks)},
+            )
+        decision_time_s = self._last_solve_time_s
+        if self._last_rejected_solve_time_s is not None:
+            decision_time_s = max(decision_time_s or -math.inf, self._last_rejected_solve_time_s)
+        should_solve = decision_time_s is None or (planner_input.sim_time_s + 1e-9 >= decision_time_s + self._solve_period_s)
         if should_solve:
             return self._execute_solve(planner_input)
+        if self._preserved_plan_until_s is not None and planner_input.sim_time_s < self._preserved_plan_until_s - 1.0e-9:
+            return self._execute_hold(planner_input)
+        if (
+            self._validate_held_solution is not None
+            and self._solution is not None
+            and self._last_solve_time_s is not None
+            and (
+                self._last_hold_validation_s is None
+                or planner_input.sim_time_s - self._last_hold_validation_s >= 1.0 - 1.0e-9
+            )
+        ):
+            elapsed_s = planner_input.sim_time_s - self._last_solve_time_s
+            try:
+                self._hold_acceptance = self._validate_held_solution(planner_input, self._solution, elapsed_s)
+                self._last_hold_validation_s = planner_input.sim_time_s
+            except ColavExecutionError as exc:
+                self._pending_hold_replan_reason = str(exc.details.get("failure_code", "HOLD_REJECTED"))
+                if self._capture_evidence:
+                    self._append_evidence_event(
+                        EvidenceEventType.REPLAN_REQUESTED,
+                        planner_input.sim_time_s,
+                        semantic_hash=(
+                            self._solution.evidence.semantic_record.semantic_hash
+                            if self._solution.evidence is not None
+                            else None
+                        ),
+                        payload={"reason": self._pending_hold_replan_reason},
+                    )
+                return self._execute_solve(planner_input)
         return self._execute_hold(planner_input)
 
     def get_current_plan(self) -> np.ndarray:
@@ -469,10 +618,19 @@ class CustomMPCAdapter(ICOLAV):
         return self._diagnostics
 
     def get_colav_data(self) -> dict[str, Any]:
-        return {
-            "planner": self._planner_trace.to_dict(),
-            "algorithm_descriptor": self.descriptor_document(),
-        }
+        trace_time = self._planner_trace.sim_time
+        if (
+            self._colav_data_cache is None
+            or self._colav_data_cache_solve_id != self._planner_trace.solve_id
+            or trace_time - self._colav_data_cache_time >= 0.5
+        ):
+            self._colav_data_cache = {
+                "planner": self._planner_trace.to_dict(),
+                "algorithm_descriptor": self.descriptor_document(),
+            }
+            self._colav_data_cache_solve_id = self._planner_trace.solve_id
+            self._colav_data_cache_time = trace_time
+        return self._colav_data_cache
 
     def plot_results(self, ax_map: plt.Axes, enc: senc.ENC, plt_handles: dict, **kwargs: Any) -> dict:  # noqa: ARG002
         return plt_handles
@@ -541,6 +699,11 @@ class CustomMPCAdapter(ICOLAV):
                 ownship_length_m=float(kwargs.get("os_length", 15.0)),
                 ownship_width_m=float(kwargs.get("os_width", 4.0)),
                 ownship_draft_m=float(kwargs.get("os_draft", 0.5)),
+                ownship_model=str(kwargs.get("os_model_name", "UNKNOWN")),
+                ownship_controller=str(kwargs.get("os_controller_name", "UNKNOWN")),
+                ownship_course_time_constant_s=_optional_positive(kwargs.get("os_course_time_constant_s")),
+                ownship_speed_time_constant_s=_optional_positive(kwargs.get("os_speed_time_constant_s")),
+                ownship_max_turn_rate_rad_s=_optional_positive(kwargs.get("os_max_turn_rate_radps")),
             )
             if self.descriptor.execution_profile.requires_enc and planner_input.enc is None:
                 raise ValueError("algorithm execution profile requires ENC")
@@ -577,11 +740,45 @@ class CustomMPCAdapter(ICOLAV):
             )
         self._last_plan_time_s = planner_input.sim_time_s
 
-    def _execute_solve(self, planner_input: PlannerInput) -> np.ndarray:
+    def _execute_solve(self, planner_input: PlannerInput) -> np.ndarray:  # noqa: C901, PLR0912, PLR0915
         started = time.perf_counter()
+        if self._capture_evidence:
+            self._evidence_artifact_reference = None
+            self._evidence_receipt = None
+            self._append_evidence_event(
+                EvidenceEventType.SOLVE_ATTEMPTED,
+                planner_input.sim_time_s,
+                payload={"next_solve_id": self._solve_id + 1},
+            )
         try:
             solution = self._solve(planner_input)
         except ColavExecutionError as exc:
+            if exc.details.get("preserve_accepted_plan") is True and self._solution is not None:
+                elapsed_ms = (time.perf_counter() - started) * 1000.0
+                self._last_rejected_solve_time_s = planner_input.sim_time_s
+                self._preserved_plan_until_s = planner_input.sim_time_s + self._solve_period_s
+                self._hold_acceptance = {
+                    "accepted": True,
+                    "mode": "ROLLING_PLAN_CONTINUATION",
+                    "candidate_rejected": True,
+                    "revision_reason": exc.details.get("revision_reason"),
+                    "rolling_plan": exc.details.get("rolling_plan"),
+                }
+                command = self._execute_hold(planner_input)
+                continuation = {
+                    "solver_executed": True,
+                    "candidate_committed": False,
+                    "candidate_rejected": True,
+                    "solver_attempt_elapsed_ms": elapsed_ms,
+                    "revision_reason": exc.details.get("revision_reason"),
+                    "rolling_plan": exc.details.get("rolling_plan"),
+                }
+                self._diagnostics.elapsed_ms = elapsed_ms
+                self._diagnostics.details.update(continuation)
+                self._planner_trace.solver_executed = True
+                self._planner_trace.elapsed_ms = elapsed_ms
+                self._planner_trace.algorithm_details.update(continuation)
+                return command
             self._record_execution_failure(
                 planner_input,
                 exc,
@@ -589,30 +786,38 @@ class CustomMPCAdapter(ICOLAV):
             )
             raise
         except ImportError as exc:
-            raise ColavExecutionError(
+            error = ColavExecutionError(
                 PlanStatus.DEPENDENCY_UNAVAILABLE,
                 f"custom MPC dependency unavailable: {exc}",
                 source=FailureSource.ALGORITHM,
-            ) from exc
+            )
+            self._record_execution_failure(planner_input, error, elapsed_ms=(time.perf_counter() - started) * 1000.0)
+            raise error from exc
         except Exception as exc:
-            raise ColavExecutionError(
+            error = ColavExecutionError(
                 PlanStatus.NUMERICAL_FAILURE,
                 f"custom MPC solve failed: {exc}",
                 source=FailureSource.ALGORITHM,
-            ) from exc
+            )
+            self._record_execution_failure(planner_input, error, elapsed_ms=(time.perf_counter() - started) * 1000.0)
+            raise error from exc
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         try:
             self._validate_solution(solution, planner_input)
-        except ColavExecutionError:
+        except ColavExecutionError as exc:
+            self._record_execution_failure(planner_input, exc, elapsed_ms=elapsed_ms)
             raise
         except Exception as exc:
-            raise ColavExecutionError(
+            error = ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
                 f"invalid MPCSolution: {exc}",
                 source=FailureSource.ALGORITHM,
-            ) from exc
+            )
+            self._record_execution_failure(planner_input, error, elapsed_ms=elapsed_ms)
+            raise error from exc
 
         status = solution.status
+        strict_total_deadline = bool(solution.algorithm_details.get("strict_total_deadline", False))
         if (
             self.context.deadline_mode == DeadlineMode.ENFORCE
             and elapsed_ms > self.descriptor.execution_profile.deadline_s * 1000.0
@@ -624,29 +829,32 @@ class CustomMPCAdapter(ICOLAV):
         else:
             self._consecutive_timeouts = 0
         if self._consecutive_timeouts > self.descriptor.execution_profile.max_consecutive_timeout:
-            raise ColavExecutionError(
+            error = ColavExecutionError(
                 PlanStatus.NUMERICAL_FAILURE,
                 "REALTIME: consecutive TIMEOUT_FEASIBLE limit exceeded",
                 source=FailureSource.ALGORITHM,
             )
+            self._record_execution_failure(planner_input, error, elapsed_ms=elapsed_ms)
+            raise error
         if status not in {PlanStatus.SUCCESS, PlanStatus.TIMEOUT_FEASIBLE}:
-            raise ColavExecutionError(
+            error = ColavExecutionError(
                 status,
                 f"custom MPC returned {status.value}",
                 source=FailureSource.ALGORITHM,
             )
+            self._record_execution_failure(planner_input, error, elapsed_ms=elapsed_ms)
+            raise error
         if not solution.feasible:
-            raise ColavExecutionError(
+            error = ColavExecutionError(
                 PlanStatus.NUMERICAL_FAILURE,
                 f"{status.value} requires feasible=true",
                 source=FailureSource.ALGORITHM,
             )
+            self._record_execution_failure(planner_input, error, elapsed_ms=elapsed_ms)
+            raise error
 
-        self._solution = solution
-        self._effective_status = status
-        self._last_solve_time_s = planner_input.sim_time_s
-        self._solve_id += 1
-        self._current_plan = solution.control_reference.copy()
+        next_solve_id = self._solve_id + 1
+        next_plan = solution.control_reference.copy()
         details = {
             **dict(solution.algorithm_details),
             "solve_time_s": planner_input.sim_time_s,
@@ -654,7 +862,11 @@ class CustomMPCAdapter(ICOLAV):
             "build_identity_hash": self._build_identity.hash,
             "deadline_mode": self.context.deadline_mode.value,
         }
-        self._diagnostics = PlanDiagnostics(
+        if self._pending_hold_replan_reason is not None:
+            details["hold_replan_reason"] = self._pending_hold_replan_reason
+        self._hold_evidence_cache_key = None
+        self._last_hold_validation_s = None
+        next_diagnostics = PlanDiagnostics(
             status=status,
             elapsed_ms=elapsed_ms,
             iterations=solution.iterations,
@@ -664,11 +876,86 @@ class CustomMPCAdapter(ICOLAV):
             executed_algorithm=self.descriptor.algorithm_id,
             fallback_used=False,
             algorithm_descriptor=self.descriptor_document(),
-            details={"solve_id": self._solve_id, "solver_executed": True, **details},
+            details={"solve_id": next_solve_id, "solver_executed": True, **details},
         )
-        self._planner_trace = PlannerTrace(
+        terminal_event_index: int | None = None
+        if solution.evidence is not None:
+            self._evidence_envelope = solution.evidence
+            semantic_hash = solution.evidence.semantic_record.semantic_hash
+            self._append_evidence_event(
+                EvidenceEventType.CANDIDATE_PRODUCED,
+                planner_input.sim_time_s,
+                semantic_hash=semantic_hash,
+                derived_from=(
+                    solution.evidence.semantic_record.candidate_hash,
+                    solution.evidence.semantic_record.acceptance_hash,
+                ),
+            )
+            self._append_evidence_event(
+                EvidenceEventType.L4_EVALUATED,
+                planner_input.sim_time_s,
+                semantic_hash=semantic_hash,
+                derived_from=(solution.evidence.semantic_record.acceptance_hash,),
+                payload={
+                    "accepted": solution.evidence.semantic_record.acceptance.get("accepted"),
+                    "acceptance_hash": solution.evidence.semantic_record.acceptance_hash,
+                },
+            )
+            receipt = solution.algorithm_details.get("accepted_plan_receipt", {})
+            receipt_hash = receipt.get("receipt_hash") if isinstance(receipt, Mapping) else None
+            if not isinstance(receipt_hash, str) or not receipt_hash:
+                error = ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    "Prediction Evidence requires a committed receipt hash",
+                    source=FailureSource.ALGORITHM,
+                )
+                self._record_execution_failure(
+                    planner_input,
+                    error,
+                    elapsed_ms=(time.perf_counter() - started) * 1000.0,
+                )
+                raise error
+            self._evidence_receipt = dict(receipt)
+            terminal_event_index = len(self._evidence_events)
+            self._append_evidence_event(
+                EvidenceEventType.PLAN_COMMITTED,
+                planner_input.sim_time_s,
+                semantic_hash=semantic_hash,
+                terminal_outcome=TerminalOutcome.COMMITTED,
+                derived_from=(semantic_hash, receipt_hash),
+                payload={"receipt_hash": receipt_hash},
+            )
+            self._append_evidence_event(
+                EvidenceEventType.COMMAND_APPLIED,
+                planner_input.sim_time_s,
+                semantic_hash=semantic_hash,
+                derived_from=(receipt_hash,),
+                payload=_selected_command(next_plan),
+            )
+        evidence_fields = self._evidence_trace_fields(solution, elapsed_s=0.0)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        if (
+            strict_total_deadline
+            and self.context.deadline_mode == DeadlineMode.ENFORCE
+            and elapsed_ms > self.descriptor.execution_profile.deadline_s * 1000.0
+        ):
+            if terminal_event_index is not None:
+                del self._evidence_events[terminal_event_index:]
+                self._evidence_seq = terminal_event_index
+            error = ColavExecutionError(
+                PlanStatus.NUMERICAL_FAILURE,
+                "REALTIME: Prediction Evidence transaction missed total commit deadline",
+                source=FailureSource.ADAPTER,
+                details={"failure_code": "TOTAL_DEADLINE_EXCEEDED"},
+            )
+            self._record_execution_failure(planner_input, error, elapsed_ms=elapsed_ms)
+            raise error
+        details["commit_elapsed_ms"] = elapsed_ms
+        next_diagnostics.elapsed_ms = elapsed_ms
+        next_diagnostics.details["commit_elapsed_ms"] = elapsed_ms
+        next_trace = PlannerTrace(
             algorithm_id=self.descriptor.algorithm_id,
-            solve_id=self._solve_id,
+            solve_id=next_solve_id,
             sim_time=planner_input.sim_time_s,
             solver_executed=True,
             status=status,
@@ -678,11 +965,44 @@ class CustomMPCAdapter(ICOLAV):
             objective=solution.objective,
             predicted_trajectory=solution.predicted_trajectory,
             horizon_dt_s=solution.horizon_dt_s,
-            selected_command=_selected_command(self._current_plan),
+            selected_command=_selected_command(next_plan),
             target_predictions=list(solution.target_predictions),
             constraints=dict(solution.constraints),
             algorithm_details=details,
+            **evidence_fields,
         )
+        self._solution = solution
+        self._effective_status = status
+        self._last_solve_time_s = planner_input.sim_time_s
+        self._last_rejected_solve_time_s = None
+        self._preserved_plan_until_s = None
+        self._solve_id = next_solve_id
+        self._current_plan = next_plan
+        self._diagnostics = next_diagnostics
+        self._planner_trace = next_trace
+        if solution.evidence is not None:
+            self._evidence_history_envelope = solution.evidence
+        self._pending_hold_replan_reason = None
+        self._hold_acceptance = None
+        if solution.post_commit is not None:
+            try:
+                artifact = solution.post_commit()
+            except Exception as exc:  # commit is authoritative; evidence callback cannot revoke it
+                artifact = {
+                    "status": "INCOMPLETE",
+                    "reason": "POST_COMMIT_CALLBACK_FAILED",
+                    "error_type": type(exc).__name__,
+                }
+            if artifact is not None:
+                details["assembly"]["artifact"] = dict(artifact)
+                self._diagnostics.details["assembly"]["artifact"] = dict(artifact)
+                self._planner_trace.algorithm_details["assembly"]["artifact"] = dict(artifact)
+                self._record_artifact_status(artifact, planner_input.sim_time_s)
+                updated_evidence = self._evidence_trace_fields(solution, elapsed_s=0.0)
+                self._planner_trace.schema_version = str(updated_evidence.get("schema_version", "1.0"))
+                self._planner_trace.evidence = updated_evidence.get("evidence")  # type: ignore[assignment]
+                self._planner_trace.evidence_timeline = updated_evidence.get("evidence_timeline")  # type: ignore[assignment]
+                self._planner_trace.prediction_render = updated_evidence.get("prediction_render")  # type: ignore[assignment]
         return self._current_plan.copy()
 
     def _record_execution_failure(
@@ -692,6 +1012,44 @@ class CustomMPCAdapter(ICOLAV):
         *,
         elapsed_ms: float,
     ) -> None:
+        if self._capture_evidence:
+            if isinstance(error.evidence, EvidenceEnvelope):
+                self._evidence_envelope = error.evidence
+                self._append_evidence_event(
+                    EvidenceEventType.CANDIDATE_PRODUCED,
+                    planner_input.sim_time_s,
+                    semantic_hash=error.evidence.semantic_record.semantic_hash,
+                    derived_from=(
+                        error.evidence.semantic_record.candidate_hash,
+                        error.evidence.semantic_record.acceptance_hash,
+                    ),
+                )
+                self._append_evidence_event(
+                    EvidenceEventType.L4_EVALUATED,
+                    planner_input.sim_time_s,
+                    semantic_hash=error.evidence.semantic_record.semantic_hash,
+                    derived_from=(error.evidence.semantic_record.acceptance_hash,),
+                    payload={
+                        "accepted": error.evidence.semantic_record.acceptance.get("accepted"),
+                        "acceptance_hash": error.evidence.semantic_record.acceptance_hash,
+                    },
+                )
+            rejected = error.details.get("failure_code") == "L4_PLAN_REJECTED"
+            self._append_evidence_event(
+                EvidenceEventType.PLAN_REJECTED if rejected else EvidenceEventType.PLAN_FAILED,
+                planner_input.sim_time_s,
+                semantic_hash=(
+                    self._evidence_envelope.semantic_record.semantic_hash if self._evidence_envelope is not None else None
+                ),
+                terminal_outcome=TerminalOutcome.REJECTED if rejected else TerminalOutcome.FAILED,
+                payload={"failure_code": error.details.get("failure_code", error.status.value)},
+            )
+            artifact = error.details.get("artifact")
+            if isinstance(artifact, Mapping):
+                self._record_artifact_status(artifact, planner_input.sim_time_s)
+        self._solution = None
+        self._last_solve_time_s = None
+        self._current_plan = np.zeros((9, 1), dtype=float)
         details = {
             **error.details,
             "solve_id": self._solve_id,
@@ -702,6 +1060,8 @@ class CustomMPCAdapter(ICOLAV):
             "build_identity_hash": self._build_identity.hash,
             "deadline_mode": self.context.deadline_mode.value,
         }
+        if self._pending_hold_replan_reason is not None:
+            details["hold_replan_reason"] = self._pending_hold_replan_reason
         self._diagnostics = PlanDiagnostics(
             status=error.status,
             elapsed_ms=elapsed_ms,
@@ -722,7 +1082,49 @@ class CustomMPCAdapter(ICOLAV):
             elapsed_ms=elapsed_ms,
             reason=str(error),
             algorithm_details=details,
+            **self._evidence_trace_fields(None, elapsed_s=None),
         )
+        self._colav_data_cache = None
+        self._pending_hold_replan_reason = None
+        self._hold_acceptance = None
+
+    def _record_pre_input_failure(self, sim_time_s: float, error: ColavExecutionError) -> None:
+        self._solution = None
+        self._last_solve_time_s = None
+        self._current_plan = np.zeros((9, 1), dtype=float)
+        details = {
+            **error.details,
+            "solve_id": self._solve_id,
+            "solver_executed": False,
+            "cached_plan_used": False,
+            "failure_source": (error.source.value if error.source is not None else FailureSource.ADAPTER.value),
+            "descriptor_hash": self.descriptor.hash,
+            "build_identity_hash": self._build_identity.hash,
+            "deadline_mode": self.context.deadline_mode.value,
+        }
+        self._diagnostics = PlanDiagnostics(
+            status=error.status,
+            elapsed_ms=0.0,
+            feasible=False,
+            requested_algorithm=self.context.requested_algorithm,
+            executed_algorithm=self.descriptor.algorithm_id,
+            fallback_used=False,
+            algorithm_descriptor=self.descriptor_document(),
+            details=details,
+        )
+        self._planner_trace = PlannerTrace(
+            algorithm_id=self.descriptor.algorithm_id,
+            solve_id=self._solve_id,
+            sim_time=sim_time_s,
+            solver_executed=False,
+            status=error.status,
+            feasible=False,
+            reason=str(error),
+            algorithm_details=details,
+            **self._evidence_trace_fields(None, elapsed_s=None),
+        )
+        self._colav_data_cache = None
+        self._hold_acceptance = None
 
     def _execute_hold(self, planner_input: PlannerInput) -> np.ndarray:
         if self._solution is None or self._last_solve_time_s is None:
@@ -751,6 +1153,17 @@ class CustomMPCAdapter(ICOLAV):
             "build_identity_hash": self._build_identity.hash,
             "deadline_mode": self.context.deadline_mode.value,
         }
+        if self._hold_acceptance is not None:
+            details["hold_acceptance"] = dict(self._hold_acceptance)
+            if self._hold_acceptance.get("mode") == "ROLLING_PLAN_CONTINUATION":
+                details.update(
+                    {
+                        "candidate_committed": False,
+                        "candidate_rejected": True,
+                        "revision_reason": self._hold_acceptance.get("revision_reason"),
+                        "rolling_plan": self._hold_acceptance.get("rolling_plan"),
+                    }
+                )
         self._diagnostics = PlanDiagnostics(
             status=self._effective_status,
             elapsed_ms=0.0,
@@ -763,6 +1176,28 @@ class CustomMPCAdapter(ICOLAV):
             algorithm_descriptor=self.descriptor_document(),
             details={"solve_id": self._solve_id, "solver_executed": False, **details},
         )
+        if self._solution.evidence is not None:
+            semantic_hash = self._solution.evidence.semantic_record.semantic_hash
+            self._append_evidence_event(
+                EvidenceEventType.PLAN_HELD,
+                planner_input.sim_time_s,
+                semantic_hash=semantic_hash,
+                terminal_outcome=TerminalOutcome.HELD,
+                payload={"elapsed_s": elapsed_s},
+            )
+            self._append_evidence_event(
+                EvidenceEventType.COMMAND_APPLIED,
+                planner_input.sim_time_s,
+                semantic_hash=semantic_hash,
+                payload=_selected_command(self._current_plan),
+            )
+        hold_mode = self._hold_acceptance.get("mode") if self._hold_acceptance is not None else None
+        hold_reason = self._hold_acceptance.get("revision_reason") if self._hold_acceptance is not None else None
+        evidence_interval_k = int(max(0.0, elapsed_s) // self._solution.horizon_dt_s)
+        evidence_cache_key = (self._solve_id, evidence_interval_k, hold_mode, hold_reason)
+        if self._hold_evidence_cache_key != evidence_cache_key or self._hold_evidence_cache is None:
+            self._hold_evidence_cache = self._evidence_trace_fields(self._solution, elapsed_s=elapsed_s)
+            self._hold_evidence_cache_key = evidence_cache_key
         self._planner_trace = PlannerTrace(
             algorithm_id=self.descriptor.algorithm_id,
             solve_id=self._solve_id,
@@ -776,12 +1211,17 @@ class CustomMPCAdapter(ICOLAV):
             target_predictions=list(self._solution.target_predictions),
             constraints=dict(self._solution.constraints),
             algorithm_details=details,
+            **self._hold_evidence_cache,
         )
         return self._current_plan.copy()
 
     def _validate_solution(self, solution: MPCSolution, planner_input: PlannerInput) -> None:
         if not isinstance(solution, MPCSolution):
             raise TypeError("solve callable must return MPCSolution")
+        if self._capture_evidence:
+            if solution.evidence is None:
+                raise ValueError("Prediction Evidence is required before Mid-MPC command commit")
+            solution.evidence.to_inline_dict()
         trajectory = solution.predicted_trajectory
         expected_state_samples = self.descriptor.state_samples or self.descriptor.horizon_steps
         if trajectory.shape[1] != expected_state_samples:
@@ -818,6 +1258,168 @@ class CustomMPCAdapter(ICOLAV):
                 raise ValueError("predicted trajectory violates translational motion continuity")
         if solution.status in {PlanStatus.SUCCESS, PlanStatus.TIMEOUT_FEASIBLE} and not solution.feasible:
             raise ValueError(f"{solution.status.value} requires feasible=true")
+
+    def _append_evidence_event(
+        self,
+        event_type: EvidenceEventType,
+        sim_time_s: float,
+        *,
+        semantic_hash: str | None = None,
+        terminal_outcome: TerminalOutcome | None = None,
+        derived_from: Sequence[str] = (),
+        payload: Mapping[str, object] | None = None,
+    ) -> None:
+        if event_type is EvidenceEventType.CYCLE_STARTED:
+            self._evidence_cycle_start = len(self._evidence_events)
+        caused_by = self._evidence_events[-1].occurrence_id if self._evidence_events else None
+        event = EvidenceEvent(
+            occurrence_id=OccurrenceId(
+                run_id=self._evidence_run_id,
+                epoch=self._evidence_epoch,
+                event_seq=self._evidence_seq,
+            ),
+            event_type=event_type,
+            sim_time_s=sim_time_s,
+            semantic_hash=semantic_hash,
+            terminal_outcome=terminal_outcome,
+            caused_by=caused_by,
+            derived_from=tuple(derived_from),
+            payload={} if payload is None else payload,
+        )
+        self._evidence_events.append(event)
+        if event_type in {
+            EvidenceEventType.PLAN_COMMITTED,
+            EvidenceEventType.PLAN_REJECTED,
+            EvidenceEventType.PLAN_FAILED,
+        }:
+            self._evidence_window_start = self._evidence_cycle_start
+        self._evidence_seq += 1
+
+    def _runtime_evidence_events(self) -> tuple[EvidenceEvent, ...]:
+        events = tuple(self._evidence_events[self._evidence_window_start :])
+        if self._evidence_window_start == 0 or not events:
+            return events
+        first = replace(events[0], caused_by=None)
+        epoch_event = self._evidence_events[0]
+        if epoch_event.event_type is EvidenceEventType.RESET:
+            return (epoch_event, first, *events[1:])
+        return (first, *events[1:])
+
+    def _record_artifact_status(self, artifact: Mapping[str, object], sim_time_s: float) -> None:
+        if not self._capture_evidence or self._evidence_envelope is None:
+            return
+        status = str(artifact.get("status", "COMPLETE")).upper()
+        self._evidence_artifact_reference = dict(artifact)
+        event_by_status = {
+            "QUEUED": EvidenceEventType.ARTIFACT_QUEUED,
+            "COMPLETE": EvidenceEventType.ARTIFACT_COMPLETE,
+            "INCOMPLETE": EvidenceEventType.ARTIFACT_INCOMPLETE,
+            "BACKPRESSURE": EvidenceEventType.ARTIFACT_BACKPRESSURE,
+            "NOT_CONFIGURED": EvidenceEventType.ARTIFACT_INCOMPLETE,
+        }
+        event_type = event_by_status.get(status, EvidenceEventType.ARTIFACT_INCOMPLETE)
+        semantic_hash = self._evidence_envelope.semantic_record.semantic_hash
+        submission_id = artifact.get("submission_id")
+        if status == "QUEUED" and isinstance(submission_id, str) and submission_id:
+            self._artifact_semantic_hashes[submission_id] = semantic_hash
+        self._append_evidence_event(
+            event_type,
+            sim_time_s,
+            semantic_hash=semantic_hash,
+            payload=dict(artifact),
+        )
+
+    def _poll_artifact_completions(self, sim_time_s: float) -> None:
+        sink = self.context.artifact_sink
+        poll = getattr(sink, "poll_completions", None)
+        if not callable(poll):
+            return
+        for completion in poll():
+            if not isinstance(completion, Mapping):
+                continue
+            submission_id = completion.get("submission_id")
+            semantic_hash = (
+                self._artifact_semantic_hashes.pop(submission_id, None) if isinstance(submission_id, str) else None
+            )
+            if semantic_hash is None:
+                continue
+            status = str(completion.get("status", "INCOMPLETE")).upper()
+            event_type = {
+                "COMPLETE": EvidenceEventType.ARTIFACT_COMPLETE,
+                "BACKPRESSURE": EvidenceEventType.ARTIFACT_BACKPRESSURE,
+            }.get(status, EvidenceEventType.ARTIFACT_INCOMPLETE)
+            self._append_evidence_event(
+                event_type,
+                sim_time_s,
+                semantic_hash=semantic_hash,
+                payload=dict(completion),
+            )
+
+    def _evidence_trace_fields(
+        self,
+        solution: MPCSolution | None,
+        *,
+        elapsed_s: float | None,
+    ) -> dict[str, object]:
+        envelope = solution.evidence if solution is not None and solution.evidence is not None else self._evidence_envelope
+        if envelope is None:
+            if not self._capture_evidence:
+                return {}
+            return {
+                "schema_version": "1.1",
+                "evidence": None,
+                "evidence_timeline": reduce_evidence(self._runtime_evidence_events()).to_dict(),
+                "prediction_render": None,
+            }
+        timeline = reduce_evidence(self._runtime_evidence_events())
+        runtime_reference: RuntimeAppliedReference | None = None
+        if solution is not None and elapsed_s is not None:
+            executable = (
+                solution.control_trajectory if solution.control_trajectory is not None else solution.predicted_trajectory
+            )
+            runtime_reference = RuntimeAppliedReference.linear(
+                elapsed_s=elapsed_s,
+                dt_s=solution.horizon_dt_s,
+                heading_rad=executable[2],
+                speed_mps=np.hypot(executable[3], executable[4]),
+            )
+        prediction_render = render_snapshot(
+            envelope.semantic_record,
+            timeline,
+            runtime_reference=runtime_reference,
+        )
+        history = self._evidence_history_envelope
+        if history is not None and history.semantic_record.semantic_hash != envelope.semantic_record.semantic_hash:
+            history_render = render_snapshot(history.semantic_record, timeline)
+            history_render["style"] = "INVALID_HISTORY"
+            history_render["executable"] = False
+            prediction_render["history"] = history_render
+        else:
+            prediction_render["history"] = None
+        return {
+            "schema_version": "1.1",
+            "evidence": envelope.to_inline_dict(
+                artifact_reference=self._evidence_artifact_reference,
+                authority={
+                    "latest_terminal_outcome": (
+                        timeline.latest_terminal_outcome.value if timeline.latest_terminal_outcome is not None else None
+                    ),
+                    "active_semantic_hash": timeline.active_semantic_hash,
+                    "active_receipt_hash": timeline.active_receipt_hash,
+                    "last_committed_semantic_hash": timeline.last_committed_semantic_hash,
+                    "last_committed_executable": timeline.last_committed_executable,
+                    "artifact_state": timeline.artifact_state.value,
+                    "receipt": (
+                        self._evidence_receipt
+                        if self._evidence_receipt is not None
+                        and self._evidence_receipt.get("receipt_hash") == timeline.active_receipt_hash
+                        else None
+                    ),
+                },
+            ),
+            "evidence_timeline": timeline.to_dict(),
+            "prediction_render": prediction_render,
+        }
 
     def _new_diagnostics(self) -> PlanDiagnostics:
         return PlanDiagnostics(
@@ -865,6 +1467,15 @@ def _string_tuple(value: Sequence[str], name: str) -> tuple[str, ...]:
     if len(set(output)) != len(output):
         raise ValueError(f"{name} must not contain duplicates")
     return output
+
+
+def _optional_positive(value: Any) -> float | None:
+    if value is None:
+        return None
+    result = float(value)
+    if not np.isfinite(result) or result <= 0.0:
+        raise ValueError("optional dynamics value must be finite and positive")
+    return result
 
 
 def _content_hash(value: Mapping[str, Any]) -> str:

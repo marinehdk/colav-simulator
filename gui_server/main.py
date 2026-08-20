@@ -9,9 +9,12 @@ mpl.use("Agg")
 
 import asyncio
 import copy
+import json
 import logging
 import re
 import threading
+import time
+from collections import deque
 from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
 from pathlib import Path
@@ -52,6 +55,45 @@ BUSY_WATER_SCENARIOS = {ACCEPTANCE_SCENARIO_ID, STRESS_SCENARIO_ID}
 _PRIMARY_PROFILE = load_evaluator_profile()
 _PRIMARY_RISK_WEIGHTS = {"dcpa": 0.5, "tcpa": 0.3, "range": 0.2}
 _PRIMARY_TCPA_SCALE_S = 5.0 * _PRIMARY_PROFILE.encounter.emergency_tcpa_s
+TELEMETRY_PUBLISH_INTERVAL_S = 0.1
+TELEMETRY_TRAIL_HISTORY_POINTS = 500
+TELEMETRY_MAX_TRAIL_POINTS = 120
+
+
+def _sample_display_trail(trail: list[list[float]]) -> list[list[float]]:
+    if len(trail) <= TELEMETRY_MAX_TRAIL_POINTS:
+        return list(trail)
+    indices = np.linspace(0, len(trail) - 1, TELEMETRY_MAX_TRAIL_POINTS, dtype=int)
+    return [trail[int(index)] for index in indices]
+
+
+def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) -> dict[str, Any]:
+    repeated_prediction_fields = {
+        "evidence_timeline",
+        "predicted_trajectory",
+        "prediction_render",
+        "target_predictions",
+    }
+    compact = dict(payload)
+    compact["transport"] = {
+        "schema_version": "colav.telemetry.compact@1",
+        "static_included": include_static,
+    }
+    compact["truth"] = [
+        {key: value for key, value in ship.items() if key not in {"measurements", "tracks", "colav"}}
+        for ship in payload.get("truth", [])
+    ]
+    compact.pop("os", None)
+    compact.pop("obstacles", None)
+    for field in ("planner", "latest_planner_solve"):
+        compact[field] = {
+            key: value for key, value in payload.get(field, {}).items() if key not in repeated_prediction_fields
+        }
+    compact.pop("active_planner_plan", None)
+    compact.pop("latest_planner_attempt", None)
+    if not include_static:
+        compact.pop("enc_navigation_area", None)
+    return compact
 
 
 def _bounded_risk_ratio(value: Any, scale: float) -> float:
@@ -81,10 +123,10 @@ def _select_primary_encounter(encounters: list[dict[str, Any]]) -> dict[str, Any
     approaching = [
         item
         for item in encounters
-        if np.isfinite(float(item.get("signed_tcpa_s", float("inf"))))
-        and float(item.get("signed_tcpa_s", 0.0)) > 0.0
+        if np.isfinite(float(item.get("signed_tcpa_s", float("inf")))) and float(item.get("signed_tcpa_s", 0.0)) > 0.0
     ]
     if approaching:
+
         def priority(item: dict[str, Any]) -> tuple[Any, ...]:
             score, _ = _primary_risk(item)
             return (
@@ -150,9 +192,7 @@ class BusyWaterDraftRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     base_scenario_id: str
     seed: int = Field(default=DEFAULT_SEED, ge=0)
-    encounter_mix: dict[str, float] = Field(
-        default_factory=lambda: {"crossing": 0.6, "head_on": 0.2, "overtaking": 0.2}
-    )
+    encounter_mix: dict[str, float] = Field(default_factory=lambda: {"crossing": 0.6, "head_on": 0.2, "overtaking": 0.2})
     document: dict[str, Any]
 
 
@@ -276,12 +316,7 @@ def _local_polygon_coordinates(geometry: Any, origin_e: float, origin_n: float) 
         if not hasattr(polygon, "exterior"):
             continue
         rings = [polygon.exterior, *polygon.interiors]
-        output.append(
-            [
-                [[float(north - origin_n), float(east - origin_e)] for east, north in ring.coords]
-                for ring in rings
-            ]
-        )
+        output.append([[[float(north - origin_n), float(east - origin_e)] for east, north in ring.coords] for ring in rings])
     return output
 
 
@@ -336,7 +371,14 @@ class WebSessionManager:
         self.current_prediction_horizon: list[list[float]] = []
         self.last_solve_id: int | None = None
         self.latest_planner_solve: dict[str, Any] = {}
+        self.active_planner_plan: dict[str, Any] = {}
+        self.latest_planner_attempt: dict[str, Any] = {}
         self.enc_navigation_area: dict[str, Any] = {}
+        self._telemetry_trails: dict[int, deque[list[float]]] = {}
+        self._telemetry_published_at = 0.0
+        self._latest_stream_document = ""
+        self._latest_compact_stream_document = ""
+        self._latest_compact_static_stream_document = ""
         self.lock = threading.RLock()
 
     @property
@@ -347,7 +389,11 @@ class WebSessionManager:
         with self.lock:
             if self.prepared and self.prepared.session.state == SessionState.RUNNING:
                 raise RuntimeError("Pause the active session before replacing it")
-            self.prepared = self.runner.prepare(spec)
+            replacement = self.runner.prepare(spec)
+            replacement.session.enable_pickle_frames()
+            if self.prepared is not None:
+                self.prepared.artifact_sink.close(timeout_s=2.0)
+            self.prepared = replacement
             self.result = None
             self.replay_expected = None
             self.encounter_monitor = EncounterMonitor(
@@ -358,6 +404,13 @@ class WebSessionManager:
             self.current_prediction_horizon = []
             self.last_solve_id = None
             self.latest_planner_solve = {}
+            self.active_planner_plan = {}
+            self.latest_planner_attempt = {}
+            self._telemetry_trails = {}
+            self._telemetry_published_at = 0.0
+            self._latest_stream_document = ""
+            self._latest_compact_stream_document = ""
+            self._latest_compact_static_stream_document = ""
             self.speed_multiplier = 1.0
             self.speed_revision += 1
             self.effective_speed_multiplier = None
@@ -365,7 +418,7 @@ class WebSessionManager:
             self.realtime_limited = False
             self.enc_navigation_area = self._enc_navigation_area()
             render_enc(self.prepared)
-            self.latest = self._telemetry(None)
+            self._publish_telemetry(None)
             return self.describe()
 
     def describe(self) -> dict[str, Any]:
@@ -426,7 +479,6 @@ class WebSessionManager:
             self.effective_speed_multiplier = effective_multiplier
             self.scheduler_lag_ms = max(0.0, float(scheduler_lag_ms))
             self.realtime_limited = bool(realtime_limited)
-            self._publish_playback_status()
 
     def _playback_status(self) -> dict[str, Any]:
         return {
@@ -439,19 +491,78 @@ class WebSessionManager:
     def _publish_playback_status(self) -> None:
         if self.latest:
             self.latest["playback"] = self._playback_status()
+            self._invalidate_stream_documents()
+
+    def _invalidate_stream_documents(self) -> None:
+        self._latest_stream_document = ""
+        self._latest_compact_stream_document = ""
+        self._latest_compact_static_stream_document = ""
+
+    def _cache_stream_document(self) -> None:
+        self._latest_stream_document = json.dumps(
+            jsonable(self.latest),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+    def stream_document(self, *, compact: bool = False, include_static: bool = True) -> str:
+        with self.lock:
+            if not self.latest:
+                self.latest = self._telemetry(None)
+            if not compact:
+                if not self._latest_stream_document:
+                    self._cache_stream_document()
+                return self._latest_stream_document
+            attribute = "_latest_compact_static_stream_document" if include_static else "_latest_compact_stream_document"
+            document = getattr(self, attribute)
+            if not document:
+                document = json.dumps(
+                    jsonable(_compact_stream_payload(self.latest, include_static=include_static)),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                setattr(self, attribute, document)
+            return document
+
+    def _publish_telemetry(self, snapshot: Any) -> None:
+        self.latest = self._telemetry(snapshot)
+        self._telemetry_published_at = time.monotonic()
+        self._invalidate_stream_documents()
+
+    def _telemetry_refresh_due(self, snapshot: Any, *, now: float) -> bool:
+        if snapshot.state != SessionState.RUNNING:
+            return True
+        if any(event.get("type") == "planner_solved" for event in snapshot.events):
+            return True
+        return now - self._telemetry_published_at >= TELEMETRY_PUBLISH_INTERVAL_S - 1e-9
+
+    def _record_telemetry_trails(self, frame: dict[str, Any]) -> None:
+        if not self.prepared:
+            return
+        origin_e, origin_n = self.prepared.session.enc.origin
+        for index in range(len(self.prepared.session.ship_list)):
+            raw = frame.get(f"Ship{index}", {})
+            if not raw:
+                continue
+            state = np.asarray(raw["state"], dtype=float)
+            trail = self._telemetry_trails.setdefault(
+                index,
+                deque(maxlen=TELEMETRY_TRAIL_HISTORY_POINTS),
+            )
+            trail.append([float(state[0] - origin_n), float(state[1] - origin_e)])
 
     def start(self, session_id: str) -> dict[str, Any]:
         with self.lock:
             prepared = self._require(session_id)
             prepared.session.start()
-            self.latest = self._telemetry(None)
+            self._publish_telemetry(None)
             return self.describe()
 
     def pause(self, session_id: str) -> dict[str, Any]:
         with self.lock:
             prepared = self._require(session_id)
             prepared.session.pause()
-            self.latest = self._telemetry(None)
+            self._publish_telemetry(None)
             return self.describe()
 
     def step(self, session_id: str) -> dict[str, Any]:
@@ -459,11 +570,11 @@ class WebSessionManager:
             prepared = self._require(session_id)
             try:
                 snapshot = prepared.session.step_once()
-                self.latest = self._telemetry(snapshot)
+                self._record_telemetry_trails(snapshot.payload)
                 if prepared.session.state == SessionState.FINISHED:
                     self._finalize(prepared)
-                    self.latest = self._telemetry(snapshot)
-                return jsonable(self.latest)
+                self._publish_telemetry(snapshot)
+                return self.latest
             except Exception as exc:
                 self._persist_failure(prepared, exc)
                 raise
@@ -481,14 +592,15 @@ class WebSessionManager:
                 return None
             try:
                 snapshot = self.prepared.session.advance()
-                self.latest = self._telemetry(snapshot)
+                self._record_telemetry_trails(snapshot.payload)
                 if self.prepared.session.state == SessionState.FINISHED:
                     self._finalize(self.prepared)
-                    self.latest = self._telemetry(snapshot)
+                if self._telemetry_refresh_due(snapshot, now=time.monotonic()):
+                    self._publish_telemetry(snapshot)
                 return float(self.prepared.session.simulator.t)
             except Exception as exc:
                 self._persist_failure(self.prepared, exc)
-                self.latest = self._telemetry(None)
+                self._publish_telemetry(None)
                 log.exception("Simulation session failed")
                 return None
 
@@ -516,6 +628,7 @@ class WebSessionManager:
     def _persist_failure(self, prepared: PreparedRun, exc: Exception) -> None:
         prepared.session.state = SessionState.FAILED
         prepared.session.failure_reason = str(exc)
+        prepared.artifact_sink.close(timeout_s=2.0)
         self.runner.persist_failure(
             prepared.manifest,
             prepared.writer,
@@ -578,9 +691,7 @@ class WebSessionManager:
                 return None
             current_solve_id = int(snapshot.get("solve_id", 0))
             if solve_id != current_solve_id:
-                raise RuntimeError(
-                    f"Decision-space solve {solve_id} is stale; latest solve is {current_solve_id}"
-                )
+                raise RuntimeError(f"Decision-space solve {solve_id} is stale; latest solve is {current_solve_id}")
             return jsonable(snapshot)
 
     def _enc_navigation_area(self) -> dict[str, Any]:
@@ -625,7 +736,7 @@ class WebSessionManager:
                 "events": [],
             }
         session = self.prepared.session
-        frame = snapshot.payload if snapshot is not None else (session.frames[-1] if session.frames else {})
+        frame = snapshot.payload if snapshot is not None else (session.last_frame or {})
         if not frame:
             frame = {
                 f"Ship{index}": {
@@ -648,12 +759,9 @@ class WebSessionManager:
                 continue
             state = np.asarray(raw["state"], dtype=float)
             csog = np.asarray(raw["csog_state"], dtype=float)
-            trail = []
-            for historic in session.frames[-500:]:
-                historic_ship = historic.get(f"Ship{index}", {})
-                if historic_ship:
-                    historic_state = np.asarray(historic_ship["state"], dtype=float)
-                    trail.append([float(historic_state[0] - origin_n), float(historic_state[1] - origin_e)])
+            trail = _sample_display_trail(list(self._telemetry_trails.get(index, ())))
+            if not trail:
+                trail = [[float(state[0] - origin_n), float(state[1] - origin_e)]]
             ships.append(
                 {
                     "id": int(raw["id"]),
@@ -710,7 +818,12 @@ class WebSessionManager:
         planner = colav_data.get("planner", {})
         solve_id = int(planner.get("solve_id", 0))
         algorithm_details = planner.get("algorithm_details", {})
-        render_projection = algorithm_details.get("render_projection", {})
+        prediction_render = planner.get("prediction_render", {})
+        typed_render = prediction_render.get("schema_version") == "colav.mid_mpc.prediction-render@1"
+        if typed_render:
+            prediction_render = dict(prediction_render)
+            prediction_render["evaluator_g3"] = self.result.evaluation.to_dict() if self.result is not None else None
+        render_projection = prediction_render if typed_render else algorithm_details.get("render_projection", {})
         projected_ownship = render_projection.get("ownship", {})
         projected_north = np.asarray(projected_ownship.get("north_m", []), dtype=float)
         projected_east = np.asarray(projected_ownship.get("east_m", []), dtype=float)
@@ -728,26 +841,74 @@ class WebSessionManager:
             predicted.ndim == 2
             and predicted.shape[0] >= 2
             and predicted.shape[1] > 0
-            and (solve_id > 0 or planner.get("algorithm_id") in {"nominal", "vo"})
+            and (typed_render or solve_id > 0 or planner.get("algorithm_id") in {"nominal", "vo"})
         )
         if has_prediction:
             prediction_horizon = np.column_stack((predicted[0] - origin_n, predicted[1] - origin_e)).tolist()
         else:
             prediction_horizon = []
         target_prediction_horizons = []
-        for target in planner.get("target_predictions", []):
-            target_north = np.asarray(target.get("x", []), dtype=float)
-            target_east = np.asarray(target.get("y", []), dtype=float)
+        rendered_targets = prediction_render.get("targets", []) if typed_render else planner.get("target_predictions", [])
+        for target in rendered_targets:
+            if typed_render and target.get("purpose") != "L4_SAFETY":
+                continue
+            target_north = np.asarray(target.get("north_m", target.get("x", [])), dtype=float)
+            target_east = np.asarray(target.get("east_m", target.get("y", [])), dtype=float)
             if target_north.ndim != 1 or target_east.ndim != 1 or target_north.size != target_east.size:
                 continue
             target_prediction_horizons.append(np.column_stack((target_north - origin_n, target_east - origin_e)).tolist())
-        if planner.get("solver_executed") and solve_id != self.last_solve_id:
+        rejected_target_prediction_horizons = []
+        if typed_render and prediction_render.get("style") != "ACTIVE":
+            if prediction_render.get("style") == "REJECTED":
+                rejected_target_prediction_horizons = target_prediction_horizons
+            target_prediction_horizons = []
+        if typed_render:
+            executable = prediction_render.get("executable") is True
+            self.current_prediction_horizon = prediction_horizon if executable else []
+            history_ownship = (prediction_render.get("history") or {}).get("ownship", {})
+            history_north = np.asarray(history_ownship.get("north_m", []), dtype=float)
+            history_east = np.asarray(history_ownship.get("east_m", []), dtype=float)
+            if (
+                history_north.ndim == 1
+                and history_east.ndim == 1
+                and history_north.size == history_east.size
+                and history_north.size > 0
+            ):
+                self.previous_prediction_horizon = np.column_stack(
+                    (history_north - origin_n, history_east - origin_e)
+                ).tolist()
+            elif prediction_render.get("style") == "INVALID_HISTORY":
+                self.previous_prediction_horizon = prediction_horizon
+            else:
+                self.previous_prediction_horizon = []
+            if planner.get("solver_executed"):
+                self.latest_planner_solve = jsonable(planner)
+                self.last_solve_id = solve_id
+            self.active_planner_plan = jsonable(planner) if executable else {}
+            self.latest_planner_attempt = jsonable(planner)
+            rejected_prediction_horizon = prediction_horizon if prediction_render.get("style") == "REJECTED" else []
+        elif planner.get("solver_executed") and solve_id != self.last_solve_id:
             self.previous_prediction_horizon = self.current_prediction_horizon
             self.current_prediction_horizon = prediction_horizon
             self.last_solve_id = solve_id
             self.latest_planner_solve = jsonable(planner)
+            self.active_planner_plan = jsonable(planner)
+        elif planner.get("algorithm_details", {}).get("failure_code") and not planner.get("algorithm_details", {}).get(
+            "cached_plan_used", False
+        ):
+            self.active_planner_plan = {}
+            self.current_prediction_horizon = []
         elif prediction_horizon and not self.current_prediction_horizon:
             self.current_prediction_horizon = prediction_horizon
+        if not typed_render:
+            rejected_prediction_horizon = []
+        if planner and (
+            planner.get("solver_executed")
+            or planner.get("algorithm_details", {}).get("failure_code")
+            or planner.get("algorithm_details", {}).get("hold_acceptance")
+            or not self.latest_planner_attempt
+        ):
+            self.latest_planner_attempt = jsonable(planner)
         references = np.asarray(own_raw.get("references", np.zeros(9)), dtype=float)
         execution = {
             "solve_id": solve_id,
@@ -772,14 +933,19 @@ class WebSessionManager:
                 "waypoints": local_waypoints,
                 "prediction_horizon": self.current_prediction_horizon,
                 "previous_prediction_horizon": self.previous_prediction_horizon,
+                "rejected_prediction_horizon": rejected_prediction_horizon,
                 "target_prediction_horizons": target_prediction_horizons,
+                "rejected_target_prediction_horizons": rejected_target_prediction_horizons,
                 "target_routes": target_routes,
+                "prediction_render": jsonable(prediction_render) if typed_render else None,
             },
             "enc_navigation_area": self.enc_navigation_area,
             "encounters": encounters,
             "primary_encounter": primary_encounter,
             "planner": jsonable(planner),
             "latest_planner_solve": self.latest_planner_solve,
+            "active_planner_plan": self.active_planner_plan,
+            "latest_planner_attempt": self.latest_planner_attempt,
             "execution": jsonable(execution),
             "events": jsonable(events),
             "step": session.sequence,
@@ -881,10 +1047,7 @@ async def _simulation_loop() -> None:
         sample_elapsed = now - sample_wall
         if sample_elapsed >= 0.5 and sample_sim is not None:
             effective_multiplier = max(0.0, (sim_time - sample_sim) / sample_elapsed)
-        realtime_limited = (
-            effective_multiplier is not None
-            and effective_multiplier < clock["multiplier"] * 0.9
-        )
+        realtime_limited = effective_multiplier is not None and effective_multiplier < clock["multiplier"] * 0.9
         manager.update_playback_metrics(
             effective_multiplier=effective_multiplier,
             scheduler_lag_ms=lag * 1000.0,
@@ -1221,14 +1384,16 @@ def api_set_speed(multiplier: float = 1.0) -> dict[str, Any]:
     }
 
 
-async def _stream(websocket: WebSocket, session_id: str | None = None) -> None:
+async def _stream(websocket: WebSocket, session_id: str | None = None, *, compact: bool = False) -> None:
     await websocket.accept()
+    include_static = True
     try:
         while True:
             if session_id and manager.session_id != session_id:
                 await websocket.send_json({"error": "session_not_found"})
                 return
-            await websocket.send_json(jsonable(manager.latest or manager._telemetry(None)))
+            await websocket.send_text(manager.stream_document(compact=compact, include_static=include_static))
+            include_static = False
             await asyncio.sleep(0.1)
     except WebSocketDisconnect:
         return
@@ -1236,7 +1401,7 @@ async def _stream(websocket: WebSocket, session_id: str | None = None) -> None:
 
 @app.websocket("/ws/sessions/{session_id}")
 async def websocket_session(websocket: WebSocket, session_id: str) -> None:
-    await _stream(websocket, session_id)
+    await _stream(websocket, session_id, compact=websocket.query_params.get("transport") == "compact-v1")
 
 
 @app.websocket("/ws")

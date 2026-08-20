@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>COLAV Simulator 架构速查</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header>
+    <div class="eyebrow">Reference 01</div>
+    <h1>架构速查</h1>
+    <p class="lede">先判断正在处理哪一层，再决定读哪个模块、改哪个契约、跑哪组测试。</p>
+  </header>
+  <h2>三层系统</h2>
+  <div class="architecture">
+    <div class="layer"><strong>交互层</strong><code>web_gui/</code> + <code>gui_server/</code>：配置、控制、遥测整形、WebSocket、Canvas。</div>
+    <div class="layer"><strong>实验层</strong><code>experiment/</code> + <code>evaluation/</code>：RunSpec、能力门、会话状态、证据、指标。</div>
+    <div class="layer"><strong>科学内核</strong><code>scenario_generator.py</code> + <code>simulator.py</code> + <code>core/</code>：世界、感知、规划、控制、动力学。</div>
+  </div>
+  <h2>一次时间步</h2>
+  <p><code>WebSessionManager.tick</code> -> <code>SimulationSession.advance</code> -> <code>Simulator.step</code> -> 每艘船执行 <code>track_obstacles</code> -> <code>plan</code> -> 记录数据 -> <code>forward</code> -> 更新时间。</p>
+  <h2>算法接入选择</h2>
+  <div class="flow">
+    <div><strong>已有传统 COLAV</strong><br><code>ICOLAV</code><br>直接满足通用规划接口。</div>
+    <div><strong>新 MPC 插件</strong><br><code>CustomMPCAdapter</code><br>使用强类型输入、解与诊断。</div>
+    <div><strong>在线策略推理</strong><br><code>ICOLAV</code> 或插件<br>策略输出必须转成 9xN references。</div>
+    <div><strong>RL 训练</strong><br><code>COLAVEnvironment</code><br><code>remote_actor=True</code> 绕过 Ship0 内部规划。</div>
+  </div>
+  <h2>关键契约</h2>
+  <ul class="source-list">
+    <li><code>RunSpec</code>：请求运行什么，不等于实际执行了什么。</li>
+    <li><code>PlannerInput</code>：ENU、SI、rad；自船状态、航路、目标航迹、ENC、扰动。</li>
+    <li><code>MPCSolution</code>：9x1 控制参考、9xN 预测轨迹、状态、可行性和诊断。</li>
+    <li><code>PlannerTrace</code>：证明何时求解、执行哪个算法、选中什么命令。</li>
+    <li><code>SessionSnapshot</code>：一次版本化仿真帧，不等于评价结论。</li>
+  </ul>
+  <h2>修改前四问</h2>
+  <ol>
+    <li>输入来自 truth、measurement 还是 tracker？</li>
+    <li>输出是轨迹、course/speed reference，还是低层力/舵桨指令？</li>
+    <li>失败、超时、不可行如何显式呈现，是否禁止 fallback？</li>
+    <li>验证的是 Ship0 安全、全船安全、COLREG 行为，还是论文复现？</li>
+  </ol>
+  <nav class="next"><a href="../lessons/0001-system-architecture-map.html">返回第 1 课</a><a href="../README.md">项目 README</a></nav>
+</main></body>
+</html>
