@@ -1094,6 +1094,9 @@ function drawPlannerSurface(planner) {
   surface.clearRect(0, 0, canvas.width, canvas.height);
   surface.fillStyle = '#0d1211';
   surface.fillRect(0, 0, canvas.width, canvas.height);
+  // Before the first solve there is nothing meaningful to plot; keep the
+  // screen empty instead of a placeholder caption.
+  if (!planner.algorithm_id || !Number(planner.solve_id)) return;
   if (isSimplifiedMPC) {
     drawSimplifiedMpcFan(surface, canvas, planner, details);
     return;

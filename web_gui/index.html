@@ -442,7 +442,7 @@
           <!-- Page 0: MONITOR -->
           <div class="operations-info-page operations-monitor-page" data-operations-card-page="0" aria-label="Collision Safety Monitor">
             <section class="operations-panel monitor-safety-panel" aria-labelledby="collision-safety-heading">
-              <header class="operations-panel-header"><span aria-hidden="true">△</span><strong id="collision-safety-heading">COLLISION SAFETY</strong><small>PRIORITY ORDER</small></header>
+              <header class="operations-panel-header"><strong id="collision-safety-heading">COLLISION SAFETY</strong></header>
               <div class="risk-target-list" id="liveRiskTargetList" aria-label="目标风险列表">
                 <article class="risk-target-card" data-priority="highest">
                   <div class="risk-target-heading"><span>优先目标</span><strong id="riskTarget">--</strong></div>
@@ -460,7 +460,7 @@
           <!-- Page 1: ALGO -->
           <div class="operations-info-page operations-algo-page" data-operations-card-page="1" aria-label="Algorithm Diagnostics" hidden>
             <section class="operations-panel algorithm-diagnostic-panel" aria-labelledby="algorithm-diagnostic-heading">
-              <header class="operations-panel-header"><span aria-hidden="true">⌁</span><strong id="algorithm-diagnostic-heading">ALGORITHM DETAIL</strong><span class="algorithm-status-badge" id="plannerSolveState">待运行</span></header>
+              <header class="operations-panel-header"><strong id="algorithm-diagnostic-heading">ALGORITHM DETAIL</strong><span class="algorithm-status-badge" id="plannerSolveState">待运行</span></header>
               <div class="algorithm-data-groups">
                 <section class="algorithm-data-group" aria-labelledby="algorithm-execution-heading">
                   <h3 id="algorithm-execution-heading">EXECUTION</h3>
@@ -507,12 +507,13 @@
           <!-- Switcher -->
           <div class="operations-info-page operations-perf-page" data-operations-card-page="2" aria-label="Algorithm Performance" hidden>
             <section class="operations-panel algorithm-performance-panel" aria-labelledby="algorithm-performance-heading">
-              <header class="operations-panel-header"><span aria-hidden="true">↗</span><strong id="algorithm-performance-heading">ALGORITHM PERFORMANCE</strong><small>60 STEP WINDOW</small></header>
+              <header class="operations-panel-header"><strong id="algorithm-performance-heading">ALGORITHM PERFORMANCE</strong></header>
               <dl class="algorithm-data-list algorithm-performance-list">
                 <div class="algorithm-data-row"><dt>Current step</dt><dd id="liveStepTime">0.00</dd><small>ms</small></div>
                 <div class="algorithm-data-row"><dt>Average (60)</dt><dd id="liveAvgTime">0.00</dd><small>ms</small></div>
               </dl>
-              <div class="algorithm-performance-chart" aria-label="最近 60 步算法耗时">
+              <h3 class="algorithm-chart-title">计算耗时曲线</h3>
+                <div class="algorithm-performance-chart" aria-label="最近 60 步算法耗时">
                 <span id="livePerfSparklineLabel">1.0 ms</span>
                 <svg id="livePerfSvg" viewBox="0 0 260 148" role="img" aria-label="算法耗时趋势">
                   <line x1="12" y1="126" x2="248" y2="126"></line>
@@ -520,7 +521,8 @@
                   <polyline id="livePerfPolyline" points="12,126 248,126"></polyline>
                 </svg>
               </div>
-                            <div class="algorithm-performance-chart" aria-label="最近求解 Cost 趋势">
+                            <h3 class="algorithm-chart-title">Cost 曲线</h3>
+                <div class="algorithm-performance-chart" aria-label="最近求解 Cost 趋势">
                   <span id="liveCostSparklineLabel">--</span>
                   <svg id="liveCostSvg" viewBox="0 0 260 148" role="img" aria-label="Cost 趋势">
                     <line x1="12" y1="126" x2="248" y2="126"></line>

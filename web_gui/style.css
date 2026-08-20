@@ -2810,6 +2810,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .algorithm-data-row small { color: var(--ob-subtle); font-size: 9px; line-height: 14px; text-align: left; white-space: nowrap; }
 
 .algorithm-performance-list { padding: 0 var(--s-3); }
+.algorithm-chart-title { margin: var(--s-2) var(--s-3) 0; color: var(--ob-subtle); font-size: 10px; font-weight: 600; }
 .algorithm-preview-header { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); padding: var(--s-1) var(--s-2) 0; }
 .algorithm-preview-header obc-icon-button { width: 32px; height: 32px; }
 .algorithm-preview-label { display: block; color: var(--ob-subtle); font-size: 10px; }
