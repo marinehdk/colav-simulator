@@ -303,8 +303,8 @@
 
           <!-- Page 1: SENSOR -->
           <div class="ownship-info-page ownship-sensor-page" id="ownshipSensorPage" data-ownship-card-page="1" aria-label="Sensor instruments" hidden>
-            <obc-card data-od-id="live-compass-card">
-              <div slot="title" class="live-detail-title"><strong class="live-compass-title-label">COMPASS</strong></div>
+            <section class="config-obc-card sensor-card" data-od-id="live-compass-card">
+              <div class="live-detail-title"><strong class="live-compass-title-label">COMPASS</strong></div>
               <div class="live-compass-content">
                 <div class="live-compass-mode">
                   <obc-toggle-button-group id="compassMode" value="northUp" variant="regular" type="text" hugtext aria-label="罗经显示模式" data-od-id="compass-display-mode">
@@ -328,9 +328,9 @@
                   </div>
                 </div>
               </div>
-            </obc-card>
-            <obc-card data-od-id="live-depth-actual-card">
-              <div slot="title" class="live-detail-title"><strong class="live-depth-title-label">DEPTH</strong><div class="live-depth-title-spacer" aria-hidden="true"></div></div>
+            </section>
+            <section class="config-obc-card sensor-card" data-od-id="live-depth-actual-card">
+              <div class="live-detail-title"><strong class="live-depth-title-label">DEPTH</strong><div class="live-depth-title-spacer" aria-hidden="true"></div></div>
               <div class="live-depth-content">
                 <div class="live-depth-wrapper obc-component-size-regular">
                   <obc-depth-actual id="liveDepthActual" aria-label="当前水深，Enhanced 显示" data-od-id="live-depth-actual"></obc-depth-actual>
@@ -350,9 +350,9 @@
                   </div>
                 </div>
               </div>
-            </obc-card>
-            <obc-card data-od-id="live-pitch-roll-card">
-              <div slot="title" class="live-detail-title"><strong>PITCH&amp;ROLL</strong></div>
+            </section>
+            <section class="config-obc-card sensor-card" data-od-id="live-pitch-roll-card">
+              <div class="live-detail-title"><strong>PITCH&amp;ROLL</strong></div>
               <div class="live-pitch-roll-content">
                 <div class="live-pitch-roll-wrapper obc-component-size-regular">
                   <obc-pitch-roll id="livePitchRoll" aria-label="纵摇与横摇，Primary 显示" data-od-id="live-pitch-roll"></obc-pitch-roll>
@@ -368,7 +368,7 @@
                   </div>
                 </div>
               </div>
-            </obc-card>
+            </section>
           </div>
 
           <!-- Switcher -->
@@ -495,7 +495,7 @@
               </div>
               <div class="algorithm-preview-header">
                 <span class="algorithm-preview-label" id="liveAlgorithmPreviewLabel">Decision Screen</span>
-                <obc-icon-button id="plannerSurfaceAttach" variant="flat" aria-label="决策图吸附本船" title="展开：吸附到本船"><obi-own-ship-alternative-filled></obi-own-ship-alternative-filled></obc-icon-button>
+                <obc-icon-button id="plannerSurfaceAttach" variant="flat" aria-label="决策图吸附本船" title="展开：吸附到本船"><obi-center-iec></obi-center-iec></obc-icon-button>
               </div>
               <div class="algorithm-preview-chart" id="liveAlgorithmPreviewChart" aria-label="决策空间预览">
                 <canvas id="plannerSurface" aria-label="规划决策空间预览"></canvas>

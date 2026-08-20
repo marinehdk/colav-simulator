@@ -2398,7 +2398,8 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 
 .ownship-sensor-page::-webkit-scrollbar { display: none; }
 
-.ownship-sensor-page > obc-card {
+.ownship-sensor-page > obc-card,
+.ownship-sensor-page > .sensor-card {
   display: block;
   min-width: 0;
   width: auto;
@@ -2409,9 +2410,9 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   --border-outline-color: var(--ob-border);
 }
 
-.ownship-sensor-page > obc-card[data-od-id="live-compass-card"] { height: auto; flex: 0 0 auto; }
-.ownship-sensor-page > obc-card[data-od-id="live-depth-actual-card"] { height: 360px; }
-.ownship-sensor-page > obc-card[data-od-id="live-pitch-roll-card"] { height: 360px; }
+.ownship-sensor-page > [data-od-id="live-compass-card"] { height: auto; flex: 0 0 auto; }
+.ownship-sensor-page > [data-od-id="live-depth-actual-card"] { height: 360px; }
+.ownship-sensor-page > [data-od-id="live-pitch-roll-card"] { height: 360px; }
 
 .ownship-sensor-page .live-compass-mode {
   --ui-components-button-touch-target-size: 26px;
@@ -2532,6 +2533,13 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 }
 
 /* Card titles share the OWN SHIP heading style across both sidebars. */
+/* Sensor cards are plain sections (obc-card's shadow header centers its
+   title slot in a 1fr-auto-1fr grid and cannot be left-aligned). */
+.ownship-sensor-page .live-detail-title {
+  margin: 0;
+  padding: 6px var(--s-3);
+  border-bottom: 1px solid var(--ob-border);
+}
 .ownship-sensor-page .live-detail-title strong,
 .operations-panel-header strong {
   color: var(--ob-subtle);
