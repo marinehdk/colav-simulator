@@ -2410,16 +2410,22 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   --border-outline-color: var(--ob-border);
 }
 
-.ownship-sensor-page > obc-card[data-od-id="live-compass-card"] { height: 400px; }
+.ownship-sensor-page > obc-card[data-od-id="live-compass-card"] { height: auto; flex: 0 0 auto; }
 .ownship-sensor-page > obc-card[data-od-id="live-depth-actual-card"] { height: 360px; }
 .ownship-sensor-page > obc-card[data-od-id="live-pitch-roll-card"] { height: 360px; }
 
 .ownship-sensor-page .live-compass-mode {
-  width: 160px;
-  height: 36px;
-  flex: 0 0 36px;
+  --ui-components-button-touch-target-size: 32px;
+  --ui-components-toggle-button-toggle-button-item-touch-target-size: 32px;
+  width: 100%;
+  height: 32px;
+  flex: 0 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: 0;
 }
+.ownship-sensor-page .live-compass-mode obc-toggle-button-group { width: fit-content; height: 32px; }
 
 .ownship-sensor-page .live-compass-content,
 .ownship-sensor-page .live-depth-content {
@@ -2431,14 +2437,15 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   padding: 0 var(--s-2) var(--s-2);
 }
 
-.ownship-sensor-page .live-compass-content { height: 352px; padding-inline: 0; }
+.ownship-sensor-page .live-compass-content { width: 100%; height: auto; padding-inline: var(--s-2); }
 .ownship-sensor-page .live-depth-content { height: 312px; justify-content: space-between; padding-inline: var(--s-1); }
 
 .ownship-sensor-page .live-compass-content obc-compass {
-  width: 248px;
+  width: 100%;
   max-width: 100%;
-  height: 248px;
-  flex: 0 0 248px;
+  aspect-ratio: 1;
+  height: auto;
+  flex: 0 0 auto;
   margin: 0;
 }
 
@@ -2451,7 +2458,16 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 }
 
 .ownship-sensor-page .live-compass-readout,
-.ownship-sensor-page .live-depth-readout { min-width: 0; }
+.ownship-sensor-page .live-depth-readout { min-width: 0; text-align: center; }
+.ownship-sensor-page .live-compass-readout obc-automation-button-readout-stack { width: 100%; max-width: 100%; }
+.ownship-sensor-page .live-compass-readouts {
+  --global-typography-instrument-value-large-font-size: 16px;
+  --global-typography-instrument-value-large-line-height: 18px;
+  --global-typography-instrument-value-large-container-height: 18px;
+  --global-typography-instrument-value-regular-font-size: 14px;
+  --global-typography-instrument-value-regular-line-height: 18px;
+}
+.ownship-sensor-page .live-compass-readout-caption { font-size: 9px; }
 
 .ownship-sensor-page .live-depth-wrapper {
   width: 240px;
