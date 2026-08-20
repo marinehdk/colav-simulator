@@ -2634,16 +2634,18 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   z-index: 6;
   height: 56px;
   min-height: 56px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: var(--s-2);
   padding: 0 var(--s-3);
   border-top: 1px solid var(--ob-border);
   background: var(--ob-topbar);
 }
+.deployment-display-bar > .deployment-tool-zone--chart { justify-self: start; }
+.deployment-display-bar > .deployment-tool-zone--simulation { justify-self: center; }
+.deployment-display-bar > .deployment-tool-zone--tools { justify-self: end; }
 
 .deployment-tool-zone { display: flex; align-items: center; gap: var(--s-1); }
-.deployment-display-divider { width: 1px; height: 28px; background: var(--ob-border); margin: 0 var(--s-1); }
 
 .map-zoom-control { display: flex; align-items: center; border: 1px solid var(--ob-border); border-radius: var(--radius); overflow: hidden; background: var(--ob-surface); }
 .map-symbol-button { min-width: 32px; height: 36px; padding: 0 8px; border: 0; background: transparent; color: var(--ob-text); font-size: 16px; cursor: pointer; }

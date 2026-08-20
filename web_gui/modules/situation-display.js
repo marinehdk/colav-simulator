@@ -342,6 +342,23 @@ export function createSituationDisplay(options) {
   let userAdjusted = false;
   let pointerDown = null;
 
+  /* ── map orientation: 'north' (north up) or 'heading' (ownship heading up) ──
+     Heading-up rotates the whole drawn frame about the viewport center by
+     -psi; pointer input is mapped back through the same rotation. */
+  let mapOrientation = 'north';
+  let headingRotation = 0;
+
+  function screenToDrawn(x, y) {
+    if (!headingRotation) return { x, y };
+    const w = wrapper.clientWidth;
+    const h = wrapper.clientHeight;
+    const dx = x - w / 2;
+    const dy = y - h / 2;
+    const cos = Math.cos(headingRotation);
+    const sin = Math.sin(headingRotation);
+    return { x: w / 2 + dx * cos - dy * sin, y: h / 2 + dx * sin + dy * cos };
+  }
+
   /* ── layers (ruling 6) ── */
   const visibleLayers = { ...DEFAULT_LAYERS };
   const layerAvailability = {};
@@ -637,6 +654,13 @@ export function createSituationDisplay(options) {
     drawSequence = ['base'];
     const W = wrapper.clientWidth;
     const H = wrapper.clientHeight;
+    ctx.save();
+    headingRotation = mapOrientation === 'heading' && Number.isFinite(currentData?.os?.psi) ? currentData.os.psi : 0;
+    if (headingRotation) {
+      ctx.translate(W / 2, H / 2);
+      ctx.rotate(-headingRotation);
+      ctx.translate(-W / 2, -H / 2);
+    }
     ctx.clearRect(0, 0, W, H);
     targetHitRegions = [];
 
@@ -687,6 +711,7 @@ export function createSituationDisplay(options) {
     if (data.os && plannerSurfaceAttached && surface) drawPlannerSurfaceOnMap(data.os, surface);
     if (visibleLayers.ships) drawShips(data);
     if (data.os && !plannerSurfaceAttached) drawRelativeCompass(data.os, W, H);
+    ctx.restore();
   }
 
   function drawENCTile(W, H) {
@@ -1578,12 +1603,13 @@ export function createSituationDisplay(options) {
   /* ════════════ pointer / click routing ════════════ */
 
   function handleClickAt(x, y) {
+    const p = screenToDrawn(x, y);
     if (clickMode) {
-      const point = canvasToUtm(x, y);
+      const point = canvasToUtm(p.x, p.y);
       if (point) clickMode.onPick(point);
       return;
     }
-    const hit = [...targetHitRegions].reverse().find(item => Math.hypot(x - item.x, y - item.y) <= item.radius);
+    const hit = [...targetHitRegions].reverse().find(item => Math.hypot(p.x - item.x, p.y - item.y) <= item.radius);
     selectTarget(hit?.target?.id ?? null, hit?.target ?? null);
   }
 
@@ -1621,7 +1647,8 @@ export function createSituationDisplay(options) {
     userAdjusted = true;
     const bounds = canvas.getBoundingClientRect();
     const factor = e.deltaY < 0 ? 1.15 : 0.87;
-    zoomAtCanvasPoint(e.clientX - bounds.left, e.clientY - bounds.top, factor);
+    const p = screenToDrawn(e.clientX - bounds.left, e.clientY - bounds.top);
+    zoomAtCanvasPoint(p.x, p.y, factor);
     updateScaleBar();
     rerender();
   }, { passive: false });
@@ -1633,7 +1660,9 @@ export function createSituationDisplay(options) {
     listen(window, 'mousemove', e => {
       if (!isPanning) return;
       userAdjusted = true;
-      panX += e.clientX - lastPanX; panY += e.clientY - lastPanY;
+      const d = screenToDrawn(e.clientX, e.clientY);
+      const dPrev = screenToDrawn(lastPanX, lastPanY);
+      panX += d.x - dPrev.x; panY += d.y - dPrev.y;
       lastPanX = e.clientX; lastPanY = e.clientY;
       rerender();
     });
@@ -1713,6 +1742,11 @@ export function createSituationDisplay(options) {
       rerender();
     },
     isEncVisible: () => showENC,
+    setOrientation(orientation) {
+      mapOrientation = orientation === 'heading' ? 'heading' : 'north';
+      rerender();
+    },
+    getOrientation: () => mapOrientation,
     setPlannerSurfaceAttached(attached) {
       plannerSurfaceAttached = Boolean(attached);
       rerender();

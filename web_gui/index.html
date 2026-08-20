@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260820-fix-5" />
+  <link rel="stylesheet" href="/static/style.css?v=20260820-fix-6" />
 </head>
 <body>
   <div class="app-container">
@@ -411,14 +411,9 @@
                 <div class="map-mode-control" aria-label="海图方向">
                   <button class="map-mode-button" type="button" data-map-orientation="heading" aria-pressed="false" aria-label="Heading Up" title="Heading Up">H</button>
                   <button class="map-mode-button active" type="button" data-map-orientation="north" aria-pressed="true" aria-label="North Up" title="North Up">N</button>
-                  <button class="map-mode-button" type="button" data-map-orientation="course" aria-pressed="false" aria-label="Course Up" title="Course Up">C</button>
                 </div>
-                <obc-icon-button variant="normal" id="centerModeBtn" data-center-mode="off-center" aria-label="本船偏心" title="Off Center"><obi-center-off-iec></obi-center-off-iec></obc-icon-button>
-                <obc-icon-button variant="normal" id="motionModeBtn" data-motion-mode="relative" aria-label="相对运动" title="Relative Motion"><obi-motion-relative-proposal></obi-motion-relative-proposal></obc-icon-button>
-                <obc-icon-button variant="flat" id="trueMotionResetBtn" aria-label="重置真运动原点" title="True Motion Reset"><obi-motion-tm-reset-proposal-2></obi-motion-tm-reset-proposal-2></obc-icon-button>
                 <obc-icon-button variant="flat" id="chartLayersBtn" aria-label="海图图层" title="海图图层"><obi-chart-layers></obi-chart-layers></obc-icon-button>
               </div>
-              <span class="deployment-display-divider" aria-hidden="true"></span>
               <div class="deployment-tool-zone deployment-tool-zone--simulation" data-od-id="live-playback-controls" aria-label="仿真控制与时间">
                 <div class="deployment-time-readout" aria-label="仿真时间"><span>SIM TIME</span><strong id="liveSimulationTime">--:--:--</strong></div>
                 <obc-icon-button variant="normal" id="startValidationBtn" aria-label="开始验证" title="开始验证"><obi-media-play></obi-media-play></obc-icon-button>
@@ -432,7 +427,6 @@
                   <obc-toggle-button-option value="5">5×</obc-toggle-button-option>
                 </obc-toggle-button-group>
               </div>
-              <span class="deployment-display-divider" aria-hidden="true"></span>
               <div class="deployment-tool-zone deployment-tool-zone--tools" aria-label="海图操作工具">
                 <obc-icon-button variant="normal" id="chartSelectBtn" aria-label="选择海图对象" title="Select"><obi-target-select-iec></obi-target-select-iec></obc-icon-button>
                 <obc-icon-button variant="flat" id="chartErblBtn" aria-label="电子方位线与距离圈" title="ERBL"><obi-radar-electronic-range-and-bearing-proposal></obi-radar-electronic-range-and-bearing-proposal></obc-icon-button>
@@ -549,7 +543,7 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260820-fix-5"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260820-fix-5"></script>
+  <script type="module" src="/static/app.js?v=20260820-fix-6"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260820-fix-6"></script>
 </body>
 </html>
