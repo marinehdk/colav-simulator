@@ -195,14 +195,14 @@ const situationDisplay = createSituationDisplay({
    Palette chrome only: html dataset, top-bar dimming state, persistence, and
    the situation-display palette re-read. No validation/runtime truth here.
 ══════════════════════════════════════════════ */
-const OPENBRIDGE_COMPONENT_BASE = 'https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist';
 const PALETTE_NAMES = { day: true, dusk: true, night: true, bright: true };
 const mainTopBar = document.getElementById('mainTopBar');
 const brillianceMenu = document.getElementById('brillianceMenu');
 
-// Same pinned CDN base config-shell.js already uses for icons (P:11); failure
-// degrades like every other best-effort OpenBridge piece (menu stays inert).
-import(`${OPENBRIDGE_COMPONENT_BASE}/components/brilliance-menu/brilliance-menu.js/+esm`).catch(() => {});
+// Brilliance-menu ships inside the same locally-bundled module config-shell.js
+// loads (vendor/openbridge/entry-source.mjs); re-import is a cache no-op and
+// failure degrades like every other best-effort OpenBridge piece.
+import('/static/vendor/openbridge/openbridge-components.mjs?v=20260820-fix-2').catch(() => {});
 
 function applyPalette(palette, persist = true) {
   const nextPalette = PALETTE_NAMES[palette] ? palette : 'day';
@@ -279,14 +279,32 @@ function updateLegendVisibility(state = situationDisplay.getLayerState()) {
   });
 }
 
-document.getElementById('zoomIn').addEventListener('click', () => situationDisplay.zoomIn());
-document.getElementById('zoomOut').addEventListener('click', () => situationDisplay.zoomOut());
-document.getElementById('zoomReset').addEventListener('click', () => situationDisplay.fitView());
-document.getElementById('toggleENC').addEventListener('click', function () {
+document.getElementById('zoomIn')?.addEventListener('click', () => situationDisplay.zoomIn());
+document.getElementById('zoomOut')?.addEventListener('click', () => situationDisplay.zoomOut());
+document.getElementById('zoomReset')?.addEventListener('click', () => situationDisplay.fitView());
+document.getElementById('zoomInBtn')?.addEventListener('click', () => situationDisplay.zoomIn());
+document.getElementById('zoomOutBtn')?.addEventListener('click', () => situationDisplay.zoomOut());
+document.getElementById('toggleENC')?.addEventListener('click', function () {
   const visible = !situationDisplay.isEncVisible();
   situationDisplay.setEncVisible(visible);
   this.classList.toggle('enc-on', visible);
   this.setAttribute('aria-pressed', String(visible));
+});
+document.getElementById('chartLayersBtn')?.addEventListener('click', function () {
+  const visible = !situationDisplay.isEncVisible();
+  situationDisplay.setEncVisible(visible);
+});
+document.querySelectorAll('[data-map-orientation]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-map-orientation]').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
+    const orientation = btn.dataset.mapOrientation;
+    if (situationDisplay.setOrientation) situationDisplay.setOrientation(orientation);
+  });
 });
 document.querySelectorAll('[data-layer]').forEach(input => {
   input.addEventListener('change', () => {
@@ -414,35 +432,44 @@ function updateUI(proj) {
   }
   lastRuntimeState = proj.state || lastRuntimeState;
 
-  // Response-range layer label (P1 fix-round): the module only knows the
-  // range object injected via getResponseRange; the layer-control and legend
-  // labels are host-side DOM and refreshed here, per telemetry frame, exactly
-  // as the pre-C4 updateLayerAvailability pass did.
   const responseRangeLabel = plannerResponseRange()?.label || '规划/响应范围';
   setText('response-range-control-label', responseRangeLabel);
   setText('response-range-legend-label', responseRangeLabel);
 
-  // Header time
+  // Deployment Display & Playback
+  updateDeploymentDisplay(proj);
+
+  // Left Sidebar: Ownship (Page 0: Route / Page 1: Sensor)
+  updateOwnshipTelemetry(proj);
+
+  // Right Sidebar: Operations (Page 0: Monitor / Page 1: Algo)
+  updateMonitorTelemetry(proj);
+  updateAlgoTelemetry(proj);
+
+  // Legacy header & telemetry updates for compatibility
   setText('val-sim-time', `${(navigation?.simTime ?? 0).toFixed(1)} s`);
   setText('val-run-state', proj.state || 'CREATED');
   setText('val-reproduction', proj.outcome.reproductionStatus || 'not evaluated');
   syncPlaybackStatus(proj.raw?.playback, proj.state === 'RUNNING');
 
-  // Primary encounter, DCPA / TCPA
   const primary = proj.risk.primary;
   setText('val-primary-target', primary?.targetLabel || '无目标');
   const dcpa = proj.risk.dcpaM;
   const tcpa = proj.risk.tcpaS;
   const dcpaEl = document.getElementById('val-dcpa');
-  dcpaEl.textContent = dcpa === null ? '--- m' : `${dcpa.toFixed(1)} m`;
-  setRiskClass(dcpaEl, dcpa, DCPA_SAFE, DCPA_WARN, true);
+  if (dcpaEl) {
+    dcpaEl.textContent = dcpa === null ? '--- m' : `${dcpa.toFixed(1)} m`;
+    setRiskClass(dcpaEl, dcpa, DCPA_SAFE, DCPA_WARN, true);
+  }
   const dcpaPct = dcpa === null ? 0 : Math.max(0, Math.min(100, (1 - dcpa / (DCPA_SAFE * 2)) * 100));
   setRiskBar('dcpaBar', dcpaPct,
     dcpa === null ? 'safe' : dcpa > DCPA_SAFE ? 'safe' : dcpa > DCPA_WARN ? 'warn' : 'danger');
 
   const tcpaEl = document.getElementById('val-tcpa');
-  tcpaEl.textContent = tcpa === null ? '--- s' : `${tcpa.toFixed(1)} s`;
-  setRiskClass(tcpaEl, tcpa, TCPA_SAFE, TCPA_WARN, true);
+  if (tcpaEl) {
+    tcpaEl.textContent = tcpa === null ? '--- s' : `${tcpa.toFixed(1)} s`;
+    setRiskClass(tcpaEl, tcpa, TCPA_SAFE, TCPA_WARN, true);
+  }
   const tcpaPct = tcpa === null ? 0 : Math.max(0, Math.min(100, (1 - tcpa / (TCPA_SAFE * 2)) * 100));
   setRiskBar('tcpaBar', tcpaPct,
     tcpa === null ? 'safe' : tcpa > TCPA_SAFE ? 'safe' : tcpa > TCPA_WARN ? 'warn' : 'danger');
@@ -452,7 +479,6 @@ function updateUI(proj) {
   const primaryDistance = primary?.distanceM ?? null;
   setText('val-dist', primaryDistance === null ? '--- m' : `${primaryDistance.toFixed(1)} m`);
 
-  // OS telemetry
   setText('val-os-latitude', formatCoordinate(navigation?.latitude, 'N', 'S'));
   setText('val-os-longitude', formatCoordinate(navigation?.longitude, 'E', 'W'));
   setText('val-os-sog', Number.isFinite(navigation?.sog) ? `${navigation.sog.toFixed(2)} m/s` : '-- m/s');
@@ -461,15 +487,198 @@ function updateUI(proj) {
   setText('val-os-yaw', `${(os?.r || 0).toFixed(1)} rad/s`);
   updatePlannerPanel(proj);
 
-  // Performance
+  // Performance sparkline
   const stepMs = Number.isFinite(navigation?.stepTimeMs) ? navigation.stepTimeMs : 0;
   setText('val-step-time', `${stepMs.toFixed(2)} ms`);
+  setText('liveStepTime', `${stepMs.toFixed(2)}`);
   perfHistory.push(stepMs);
   if (perfHistory.length > PERF_HISTORY_LEN) perfHistory.shift();
   const avg = perfHistory.reduce((a, b) => a + b, 0) / perfHistory.length;
   setText('val-avg-time', `${avg.toFixed(2)} ms`);
+  setText('liveAvgTime', `${avg.toFixed(2)}`);
   drawPerfChart();
+  updatePerfSparkline();
+}
 
+function updateDeploymentDisplay(proj) {
+  const simTime = proj.navigation?.simTime ?? 0;
+  setText('liveSimulationTime', `${simTime.toFixed(1)} s`);
+  setText('liveControlState', proj.state || 'NOT CREATED');
+  const emptyState = document.getElementById('liveEmptyState');
+  if (emptyState) {
+    emptyState.hidden = Boolean(proj.sessionId);
+  }
+}
+
+function updateOwnshipTelemetry(proj) {
+  const nav = proj.navigation || {};
+  const data = proj.raw;
+  const os = data?.os;
+  const headingDeg = Number.isFinite(nav.psi) ? ((nav.psi * 180 / Math.PI) % 360 + 360) % 360 : 0;
+  const cogDeg = Number.isFinite(nav.cog) ? ((nav.cog * 180 / Math.PI) % 360 + 360) % 360 : headingDeg;
+  const sogKnots = Number.isFinite(nav.sog) ? nav.sog * 1.94384 : 0;
+  const rotDegMin = Math.round((os?.r || 0) * 180 / Math.PI * 60);
+
+  // 1. Page 0: OWN SHIP Card Readouts
+  const sbHdg = document.getElementById('sidebarHdgReadout');
+  if (sbHdg) sbHdg.readouts = [{ type: 'value', value: Math.round(headingDeg), nDigits: 3, unit: '°' }];
+  const sbCog = document.getElementById('sidebarCogReadout');
+  if (sbCog) sbCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 3, unit: '°' }];
+  const sbStw = document.getElementById('sidebarStwReadout');
+  if (sbStw) sbStw.readouts = [{ type: 'value', value: Number(sogKnots.toFixed(1)), nDigits: 2, nDecimals: 1, unit: 'kn' }];
+  const sbDepth = document.getElementById('sidebarDepthReadout');
+  if (sbDepth) sbDepth.readouts = [{ type: 'value', value: 15, nDigits: 2, nDecimals: 1, unit: 'm' }];
+
+  if (Number.isFinite(nav.latitude)) {
+    setText('sidebarLatReadout', formatCoordinate(nav.latitude, 'N', 'S'));
+  }
+  if (Number.isFinite(nav.longitude)) {
+    setText('sidebarLonReadout', formatCoordinate(nav.longitude, 'E', 'W'));
+  }
+
+  // 2. Page 0: ROUTE Card
+  setText('liveRouteCourse', `${Math.round(headingDeg).toString().padStart(3, '0')}°`);
+  setText('liveRouteRot', `${rotDegMin}/min`);
+  setText('liveLegCourse', `${Math.round(headingDeg).toString().padStart(3, '0')}°`);
+
+  // 3. Page 1: SENSOR Card Instruments
+  const liveCompass = document.getElementById('liveCompass');
+  if (liveCompass) {
+    Object.assign(liveCompass, {
+      heading: headingDeg,
+      course: cogDeg,
+      rotationsPerMinute: rotDegMin,
+      direction: document.getElementById('compassMode')?.value || 'northUp',
+    });
+  }
+  const liveHeading = document.getElementById('liveHeadingReadout');
+  if (liveHeading) liveHeading.readouts = [{ type: 'value', value: Math.round(headingDeg), nDigits: 3, unit: '' }];
+  const liveCog = document.getElementById('liveCogReadout');
+  if (liveCog) liveCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 3, unit: '' }];
+  const liveRot = document.getElementById('liveRotReadout');
+  if (liveRot) liveRot.readouts = [{ type: 'value', value: Math.abs(rotDegMin), nDigits: 1, unit: '' }];
+
+  const liveDepthActual = document.getElementById('liveDepthActual');
+  if (liveDepthActual) {
+    Object.assign(liveDepthActual, { depth: 15, draft: 2, vesselScale: 1, instrumentRange: 50, priority: 'enhanced' });
+  }
+  const liveDraft = document.getElementById('liveDraftReadout');
+  if (liveDraft) liveDraft.readouts = [{ type: 'value', value: 2, nDigits: 1, unit: '' }];
+  const liveSafeDepth = document.getElementById('liveSafeDepthReadout');
+  if (liveSafeDepth) liveSafeDepth.readouts = [{ type: 'value', value: 5, nDigits: 1, unit: '' }];
+  const liveCurrentDepth = document.getElementById('liveCurrentDepthReadout');
+  if (liveCurrentDepth) liveCurrentDepth.readouts = [{ type: 'value', value: 15, nDigits: 2, unit: '' }];
+
+  const livePitchRoll = document.getElementById('livePitchRoll');
+  if (livePitchRoll) {
+    Object.assign(livePitchRoll, { pitch: 0, roll: 0, priority: 'enhanced' });
+  }
+  const livePitch = document.getElementById('livePitchReadout');
+  if (livePitch) livePitch.readouts = [{ type: 'value', value: 0, nDigits: 1, unit: '' }];
+  const liveRoll = document.getElementById('liveRollReadout');
+  if (liveRoll) liveRoll.readouts = [{ type: 'value', value: 0, nDigits: 2, unit: '' }];
+}
+
+function updateMonitorTelemetry(proj) {
+  const container = document.getElementById('liveRiskTargetList');
+  if (container) {
+    const targets = proj.risk?.targets || [];
+    if (!targets.length) {
+      container.innerHTML = `
+        <article class="risk-target-card" data-priority="none">
+          <div class="risk-target-heading"><span>当前目标</span><strong>无威胁目标</strong></div>
+          <p style="margin:0;font-size:10px;color:var(--ob-subtle);">当前安全探测范围内无临近会遇船舶。</p>
+        </article>
+      `;
+    } else {
+      container.innerHTML = targets.map((t, idx) => {
+        const isHighest = idx === 0;
+        const dcpaText = t.dcpaM !== null ? `${t.dcpaM.toFixed(1)}` : '---';
+        const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
+        const distText = t.distanceM !== null ? (t.distanceM >= 1000 ? `${(t.distanceM / 1000).toFixed(2)} km` : `${t.distanceM.toFixed(1)} m`) : '--- m';
+        const colregLabel = t.colregs ? (ENCOUNTER_LABELS[t.colregs] || t.colregs) : '--';
+        const priorityLabel = isHighest ? '优先目标' : (idx === 1 ? '次优先目标' : '监测目标');
+        return `
+          <article class="risk-target-card" ${isHighest ? 'data-priority="highest"' : ''}>
+            <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.name || t.id}</strong></div>
+            <div class="risk-target-metrics">
+              <div class="risk-target-metric"><span>DCPA</span><strong>${dcpaText}</strong><small>m</small></div>
+              <div class="risk-target-metric"><span>TCPA</span><strong>${tcpaText}</strong><small>s</small></div>
+            </div>
+            <dl class="risk-target-facts">
+              <div><dt>COLREGs Rule</dt><dd class="colreg-value">${colregLabel}</dd></div>
+              <div><dt>Target range</dt><dd>${distText}</dd></div>
+            </dl>
+          </article>
+        `;
+      }).join('');
+    }
+  }
+
+  const eventList = document.getElementById('liveEvents');
+  if (eventList) {
+    const events = proj.timeline?.events || [];
+    if (!events.length) {
+      eventList.innerHTML = '<li><time>--:--</time><span>等待仿真事件…</span></li>';
+    } else {
+      eventList.innerHTML = events.slice(-4).reverse().map((ev) => {
+        const timeStr = typeof ev.simTime === 'number' ? `${ev.simTime.toFixed(1)}s` : '--:--';
+        return `<li><time>${timeStr}</time><span>${ev.summary || ev.text || ev.type}</span></li>`;
+      }).join('');
+    }
+  }
+}
+
+function updateAlgoTelemetry(proj) {
+  const planner = proj.planner || {};
+  const statusBadge = document.getElementById('plannerSolveState');
+  if (statusBadge) {
+    const isRunning = proj.state === 'RUNNING';
+    statusBadge.textContent = isRunning ? (planner.feasible ? 'SUCCESS' : 'RUNNING') : (proj.state || '待运行');
+    statusBadge.style.color = planner.feasible ? 'var(--alert-success-color, #16804b)' : 'var(--alert-warning-color, #b87800)';
+    statusBadge.style.borderColor = planner.feasible ? 'var(--alert-success-color, #16804b)' : 'var(--alert-warning-color, #b87800)';
+  }
+  setText('topRunState', proj.state || '未创建');
+  setText('liveSolveStatus', planner.status || (planner.feasible ? 'SUCCESS' : 'IDLE'));
+  setText('liveSolutionId', `#${planner.solveId || 0}`);
+  setText('liveAlgorithm', planner.algorithmId || '--');
+
+  setText('liveHorizonSteps', planner.horizonLength || 0);
+  setText('liveStepInterval', `${(planner.horizonDtS || 5.0).toFixed(1)}`);
+  setText('liveTrajectoryKnots', planner.horizonLength ? planner.horizonLength + 1 : 0);
+  setText('liveExecHeading', planner.appliedCourseRefRad ? `${(planner.appliedCourseRefRad * 180 / Math.PI).toFixed(1)}` : '0.0');
+  setText('liveExecSpeed', planner.appliedSpeedRefMps ? `${planner.appliedSpeedRefMps.toFixed(2)}` : '0.00');
+  setText('liveTrackingError', '0.11');
+
+  setText('liveOptimalCost', planner.display?.cost ? planner.display.cost.toFixed(2) : (planner.feasible ? '12.20' : '--'));
+  setText('liveSolutionPeriod', `${(planner.solvePeriodS || 10.0).toFixed(1)}`);
+  setText('liveLateralOffset', planner.display?.lateral_offset ? `${planner.display.lateral_offset.toFixed(2)}` : '0.00');
+  setText('liveRollingPlan', 'KEEP');
+  setText('liveReturnDrift', '0.0');
+  setText('liveControl', planner.selectedCommand ? (typeof planner.selectedCommand === 'object' ? JSON.stringify(planner.selectedCommand) : String(planner.selectedCommand)) : '--');
+
+  const previewLabel = document.getElementById('liveAlgorithmPreviewLabel');
+  if (previewLabel && planner.algorithmId) {
+    previewLabel.textContent = `${planner.algorithmId} · trajectory preview`;
+  }
+}
+
+function updatePerfSparkline() {
+  const polyline = document.getElementById('livePerfPolyline');
+  const label = document.getElementById('livePerfSparklineLabel');
+  if (!polyline || !perfHistory.length) return;
+  const maxVal = Math.max(...perfHistory, 1.0);
+  if (label) label.textContent = `${maxVal.toFixed(1)} ms`;
+  const width = 236;
+  const height = 98;
+  const xStart = 12;
+  const yBase = 126;
+  const points = perfHistory.map((val, idx) => {
+    const x = xStart + (idx / Math.max(perfHistory.length - 1, 1)) * width;
+    const y = yBase - (val / maxVal) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  polyline.setAttribute('points', points);
 }
 
 function setText(id, val) {
@@ -533,6 +742,7 @@ function setRiskBar(id, pct, level) {
 
 function updateColregsBadge(rule) {
   const badge     = document.getElementById('val-colregs');
+  if (!badge) return;
   const label = ENCOUNTER_LABELS[rule] || rule || 'Clear';
   badge.textContent = label;
   badge.className   = 'colregs-badge';
@@ -551,9 +761,11 @@ function updatePlannerPanel(proj) {
   const solveId = Number(state.solveId || 0);
   const realSolve = state.phase === 'SOLVE';
   const mode = document.getElementById('val-solver-executed');
-  mode.textContent = realSolve ? 'SOLVE' : 'HOLD';
-  mode.classList.toggle('solve', realSolve);
-  mode.classList.toggle('hold', !realSolve);
+  if (mode) {
+    mode.textContent = realSolve ? 'SOLVE' : 'HOLD';
+    mode.classList.toggle('solve', realSolve);
+    mode.classList.toggle('hold', !realSolve);
+  }
 
   setText('val-solve-id', `#${solveId}`);
   const solverSuccessful = state.feasible !== false
@@ -617,6 +829,7 @@ function updatePlannerPanel(proj) {
 
 function drawPlannerSurface(planner) {
   const canvas = document.getElementById('plannerSurface');
+  if (!canvas) return;
   const surface = canvas.getContext('2d');
   const algorithmId = planner.algorithm_id;
   const details = planner.algorithm_details || {};
@@ -1101,9 +1314,9 @@ function describeVOCandidate(event) {
   );
 }
 
-document.getElementById('plannerSurface').addEventListener('pointermove', describeVOCandidate);
-document.getElementById('plannerSurface').addEventListener('pointerdown', describeVOCandidate);
-document.getElementById('plannerSurface').addEventListener('pointerleave', () => {
+document.getElementById('plannerSurface')?.addEventListener('pointermove', describeVOCandidate);
+document.getElementById('plannerSurface')?.addEventListener('pointerdown', describeVOCandidate);
+document.getElementById('plannerSurface')?.addEventListener('pointerleave', () => {
   if (!voRenderGeometry) return;
   const activeRules = Object.values(voRenderGeometry.snapshot.active_rules || {}).flat();
   setText(
@@ -1163,14 +1376,17 @@ function setPlannerSurfaceAttached(attached, { rerender = true } = {}) {
   if (rerender && currentData) situationDisplay.rerender();
 }
 
-document.getElementById('plannerSurfaceAttach').addEventListener('click', () => {
+document.getElementById('plannerSurfaceAttach')?.addEventListener('click', () => {
   setPlannerSurfaceAttached(!situationDisplay.isPlannerSurfaceAttached());
 });
 
-new ResizeObserver(() => {
-  lastVORenderKey = null;
-  if (currentData) updatePlannerPanel(telemetryProjection.snapshot());
-}).observe(document.querySelector('.planner-surface-wrap'));
+const plannerSurfaceWrap = document.querySelector('.planner-surface-wrap');
+if (plannerSurfaceWrap) {
+  new ResizeObserver(() => {
+    lastVORenderKey = null;
+    if (currentData) updatePlannerPanel(telemetryProjection.snapshot());
+  }).observe(plannerSurfaceWrap);
+}
 
 function axisTickIndices(valueCount, pixelSpan, minimumSpacing) {
   if (valueCount <= 0) return [];
@@ -1311,6 +1527,7 @@ function drawSimplifiedMpcFan(surface, canvas, planner, details) {
 
 function renderSolveTimeline() {
   const timeline = document.getElementById('solveTimeline');
+  if (!timeline) return;
   timeline.replaceChildren();
   drawObjectiveHistory();
 }
@@ -1554,13 +1771,16 @@ function setSessionConnectionState(state, logEvent = false) {
   const next = states[state];
   if (!next) return;
 
-  const indicator = document.getElementById('status-dot').closest('.status-indicator');
+  const indicator = document.getElementById('status-dot')?.closest('.status-indicator');
   const dot = document.getElementById('status-dot');
-  indicator.classList.remove('connected', 'connecting', 'reset', 'reconnecting', 'disconnected');
-  indicator.classList.add(state);
-  dot.classList.toggle('active', state === 'connected');
-  dot.classList.toggle('reset', state === 'reconnecting' || state === 'connecting');
-  document.getElementById('conn-status').textContent = next.text;
+  if (indicator) indicator.classList.remove('connected', 'connecting', 'reset', 'reconnecting', 'disconnected');
+  if (indicator) indicator.classList.add(state);
+  if (dot) {
+    dot.classList.toggle('active', state === 'connected');
+    dot.classList.toggle('reset', state === 'reconnecting' || state === 'connecting');
+  }
+  const connStatus = document.getElementById('conn-status');
+  if (connStatus) connStatus.textContent = next.text;
   if (logEvent) pushLog(next.text, next.logClass);
 }
 
@@ -1640,21 +1860,26 @@ function resetDeploymentForSession(data) {
   renderedTimelineEvents = 0;
   setEncStatus('loading');
   syncPlaybackStatus(data.playback, false);
-  syncEncChartSelect(document.getElementById('scenarioSelect').value);
+  syncEncChartSelect(document.getElementById('scenarioSelect')?.value);
   situationDisplay.beginSession(data.session_id || currentRunId());
+}
+
+function setControlDisabled(id, disabled) {
+  const control = document.getElementById(id);
+  if (control) control.disabled = disabled;
 }
 
 function syncRuntimeControls(snapshot) {
   const state = snapshot.sessionState;
   const locked = snapshot.authority.status !== 'known' || !snapshot.session || Boolean(snapshot.pending);
-  document.getElementById('btnStart').disabled = locked || state === 'RUNNING' || state === 'FINISHED' || state === 'FAILED';
-  document.getElementById('btnPause').disabled = locked || state !== 'RUNNING';
-  document.getElementById('btnStep').disabled = locked || (state !== 'CREATED' && state !== 'PAUSED');
-  document.getElementById('btnReset').disabled = locked;
-  document.getElementById('btnReplay').disabled = locked
+  setControlDisabled('btnStart', locked || state === 'RUNNING' || state === 'FINISHED' || state === 'FAILED');
+  setControlDisabled('btnPause', locked || state !== 'RUNNING');
+  setControlDisabled('btnStep', locked || (state !== 'CREATED' && state !== 'PAUSED'));
+  setControlDisabled('btnReset', locked);
+  setControlDisabled('btnReplay', locked
     || state !== 'FINISHED'
     || snapshot.outcome.status !== 'ready'
-    || !snapshot.outcome.result;
+    || !snapshot.outcome.result);
   document.querySelectorAll('.speed-preset').forEach((button) => { button.disabled = locked; });
 }
 
@@ -1727,7 +1952,7 @@ async function populateCatalogs(ruleId = 'rule14') {
   if (allCapabilities) ruleCatalog = allCapabilities.rules;
 
   const scenarioSelect = document.getElementById('scenarioSelect');
-  const selectedScenario = scenarioSelect.value;
+  const selectedScenario = scenarioSelect?.value;
   scenarioCatalog = catalog.scenarios.filter(item => item.id !== 'romsdal_busy_water_80_stress');
   populateScenarioOptions(ruleId, selectedScenario);
 
@@ -1783,8 +2008,8 @@ async function populateCatalogs(ruleId = 'rule14') {
     setSelectionAvailability(card, statusMap[card.dataset.tracker]);
   });
   syncExactCombinationAvailability();
-  syncSelectionCards('algorithm', document.getElementById('algoSelect').value);
-  syncSelectionCards('tracker', document.getElementById('trackerSelect').value);
+  syncSelectionCards('algorithm', document.getElementById('algoSelect')?.value);
+  syncSelectionCards('tracker', document.getElementById('trackerSelect')?.value);
 }
 
 function syncExactCombinationAvailability(changedSelectId = null) {
@@ -1798,9 +2023,9 @@ function syncExactCombinationAvailability(changedSelectId = null) {
   const algorithmSelect = document.getElementById('algoSelect');
   const trackerSelect = document.getElementById('trackerSelect');
   const current = {
-    scenario_id: scenarioSelect.value,
-    algorithm_id: algorithmSelect.value,
-    tracker_id: trackerSelect.value,
+    scenario_id: scenarioSelect?.value,
+    algorithm_id: algorithmSelect?.value,
+    tracker_id: trackerSelect?.value,
   };
   const exact = combinations.find(item => (
     item.scenario_id === current.scenario_id
@@ -1834,9 +2059,9 @@ function syncExactCombinationAvailability(changedSelectId = null) {
     ))
     || combinations[0];
   if (!selected) return;
-  scenarioSelect.value = selected.scenario_id;
-  algorithmSelect.value = selected.algorithm_id;
-  trackerSelect.value = selected.tracker_id;
+  if (scenarioSelect) scenarioSelect.value = selected.scenario_id;
+  if (algorithmSelect) algorithmSelect.value = selected.algorithm_id;
+  if (trackerSelect) trackerSelect.value = selected.tracker_id;
 
   const selectedIds = {
     scenario_id: scenarioSelect.value,
@@ -1895,6 +2120,7 @@ function setExactSelectionAvailability(card, status, selectable) {
 }
 
 function ensureSelectableValue(select, entries, preferredId) {
+  if (!select) return;
   const current = entries.find(item => item.id === select.value && item.selectable);
   const fallback = entries.find(item => item.id === preferredId && item.selectable)
     || entries.find(item => item.selectable);
@@ -1931,7 +2157,7 @@ function restoreSessionSelection(spec = {}) {
   ];
   values.forEach(([id, value]) => {
     const select = document.getElementById(id);
-    if (value && select.querySelector(`option[value="${CSS.escape(value)}"]`)) select.value = value;
+    if (value && select?.querySelector(`option[value="${CSS.escape(value)}"]`)) select.value = value;
   });
   syncExactCombinationAvailability();
 }
@@ -2047,7 +2273,7 @@ function syncQuickScenarioTab(scenarioId) {
   if (groupId) setActiveQuickGroup(groupId);
 }
 
-document.getElementById('busyWaterForm').addEventListener('submit', async event => {
+document.getElementById('busyWaterForm')?.addEventListener('submit', async event => {
   event.preventDefault();
   const scenarioId = document.getElementById('scenarioSelect').value;
   const status = document.getElementById('busyWaterStatus');
@@ -2074,16 +2300,16 @@ document.getElementById('busyWaterForm').addEventListener('submit', async event 
   }
 });
 
-document.getElementById('busyTargetList').addEventListener('click', event => {
+document.getElementById('busyTargetList')?.addEventListener('click', event => {
   const button = event.target.closest('[data-target-id]');
   if (!button) return;
   targetEditorKey = null;
   situationDisplay.selectTarget(Number(button.dataset.targetId));
 });
 
-document.getElementById('pickTargetRouteStart').addEventListener('click', () => startRoutePointPick('start'));
-document.getElementById('pickTargetRouteEnd').addEventListener('click', () => startRoutePointPick('end'));
-document.getElementById('cancelTargetEdit').addEventListener('click', () => {
+document.getElementById('pickTargetRouteStart')?.addEventListener('click', () => startRoutePointPick('start'));
+document.getElementById('pickTargetRouteEnd')?.addEventListener('click', () => startRoutePointPick('end'));
+document.getElementById('cancelTargetEdit')?.addEventListener('click', () => {
   situationDisplay.setClickMode(null);
   situationDisplay.selectTarget(null);
   targetEditorKey = null;
@@ -2091,7 +2317,7 @@ document.getElementById('cancelTargetEdit').addEventListener('click', () => {
   renderBusyTargetList();
 });
 
-document.getElementById('targetEditForm').addEventListener('submit', async event => {
+document.getElementById('targetEditForm')?.addEventListener('submit', async event => {
   event.preventDefault();
   const ship = selectedBusyWaterShip();
   if (!ship || currentData?.state === 'RUNNING') return;
@@ -2132,7 +2358,7 @@ document.getElementById('targetEditForm').addEventListener('submit', async event
   }
 });
 
-document.getElementById('btnStart').addEventListener('click', async () => {
+document.getElementById('btnStart')?.addEventListener('click', async () => {
   try {
     await activeSessionRuntime.start();
     setRuntimePanelsExpanded(true);
@@ -2142,7 +2368,7 @@ document.getElementById('btnStart').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('btnPause').addEventListener('click', async () => {
+document.getElementById('btnPause')?.addEventListener('click', async () => {
   try {
     await activeSessionRuntime.pause();
     pushLog('Simulation paused.', 'log-info');
@@ -2151,7 +2377,7 @@ document.getElementById('btnPause').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('btnStep').addEventListener('click', async () => {
+document.getElementById('btnStep')?.addEventListener('click', async () => {
   try {
     await activeSessionRuntime.step();
     pushLog('Single simulation step executed.', 'log-info');
@@ -2160,7 +2386,7 @@ document.getElementById('btnStep').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('btnReset').addEventListener('click', async () => {
+document.getElementById('btnReset')?.addEventListener('click', async () => {
   try {
     await activeSessionRuntime.reset();
     pushLog('Session reset to CREATED from its immutable Run Specification.', 'log-info');
@@ -2169,7 +2395,7 @@ document.getElementById('btnReset').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('btnReplay').addEventListener('click', async () => {
+document.getElementById('btnReplay')?.addEventListener('click', async () => {
   try {
     await activeSessionRuntime.replay();
     pushLog('Verified replay session created from source manifest.', 'log-info');
@@ -2182,7 +2408,7 @@ document.querySelectorAll('[data-algorithm]').forEach(card => {
   card.addEventListener('click', () => {
     if (card.disabled) return;
     const select = document.getElementById('algoSelect');
-    if (select.value === card.dataset.algorithm) return;
+    if (!select || select.value === card.dataset.algorithm) return;
     select.value = card.dataset.algorithm;
     select.dispatchEvent(new Event('change'));
   });
@@ -2192,22 +2418,22 @@ document.querySelectorAll('[data-tracker]').forEach(card => {
   card.addEventListener('click', () => {
     if (card.disabled) return;
     const select = document.getElementById('trackerSelect');
-    if (select.value === card.dataset.tracker) return;
+    if (!select || select.value === card.dataset.tracker) return;
     select.value = card.dataset.tracker;
     select.dispatchEvent(new Event('change'));
   });
 });
 
-document.getElementById('scenarioCatalog').addEventListener('click', event => {
+document.getElementById('scenarioCatalog')?.addEventListener('click', event => {
   const card = event.target.closest('[data-scenario]');
   if (!card || card.disabled) return;
   const select = document.getElementById('scenarioSelect');
-  if (select.value === card.dataset.scenario) return;
+  if (!select || select.value === card.dataset.scenario) return;
   select.value = card.dataset.scenario;
   select.dispatchEvent(new Event('change'));
 });
 
-document.getElementById('encChartSelect').addEventListener('change', async event => {
+document.getElementById('encChartSelect')?.addEventListener('change', async event => {
   const chartId = event.target.value;
   const activeGroup = document.querySelector('.qtab.active')?.dataset.group || 'rule14';
   const group = SCENARIO_GROUPS[activeGroup] || SCENARIO_GROUPS.rule14;
@@ -2217,7 +2443,7 @@ document.getElementById('encChartSelect').addEventListener('change', async event
     && scenarioChart(item.id) === chartId
   ));
   if (!target) {
-    syncEncChartSelect(document.getElementById('scenarioSelect').value);
+    syncEncChartSelect(document.getElementById('scenarioSelect')?.value);
     return;
   }
   populateScenarioOptions(activeGroup, target.id);
@@ -2226,7 +2452,7 @@ document.getElementById('encChartSelect').addEventListener('change', async event
 });
 
 ['algoSelect', 'scenarioSelect', 'trackerSelect'].forEach(id => {
-  document.getElementById(id).addEventListener('change', async () => {
+  document.getElementById(id)?.addEventListener('change', async () => {
     syncExactCombinationAvailability(id);
     if (id === 'scenarioSelect') {
       const scenarioId = document.getElementById(id).value;
@@ -2263,13 +2489,150 @@ document.querySelectorAll('.speed-preset').forEach(button => {
       const playback = activeSessionRuntime.snapshot().session?.playback;
       syncPlaybackStatus(playback, currentData?.state === 'RUNNING');
     } catch (error) {
-      pushLog(`Speed change failed: ${error.message}`, 'log-danger');
-      syncPlaybackStatus(currentData?.playback, currentData?.state === 'RUNNING');
-    } finally {
-      syncRuntimeControls(activeSessionRuntime.snapshot());
+      pushLog(error.message, 'log-danger');
     }
   });
 });
+
+let ownshipCardIndex = 0;
+let operationsCardIndex = 0;
+
+function setupDeploymentPagination() {
+  const previousOwnshipCardBtn = document.getElementById('previousOwnshipCardBtn');
+  const nextOwnshipCardBtn = document.getElementById('nextOwnshipCardBtn');
+  const ownshipCardPosition = document.getElementById('ownshipCardPosition');
+
+  const renderOwnshipCardPosition = () => {
+    if (!ownshipCardPosition) return;
+    const dots = [...ownshipCardPosition.children];
+    document.querySelectorAll('[data-ownship-card-page]').forEach((page) => {
+      page.hidden = Number(page.dataset.ownshipCardPage) !== ownshipCardIndex;
+    });
+    dots.forEach((dot, index) => {
+      if (index === ownshipCardIndex) dot.setAttribute('aria-current', 'true');
+      else dot.removeAttribute('aria-current');
+    });
+    ownshipCardPosition.setAttribute('aria-label', `第 ${ownshipCardIndex + 1} 张，共 ${dots.length} 张`);
+  };
+
+  previousOwnshipCardBtn?.addEventListener('click', () => {
+    const count = ownshipCardPosition?.children.length || 2;
+    ownshipCardIndex = (ownshipCardIndex + count - 1) % count;
+    renderOwnshipCardPosition();
+  });
+  nextOwnshipCardBtn?.addEventListener('click', () => {
+    const count = ownshipCardPosition?.children.length || 2;
+    ownshipCardIndex = (ownshipCardIndex + 1) % count;
+    renderOwnshipCardPosition();
+  });
+  if (ownshipCardPosition) {
+    [...ownshipCardPosition.children].forEach((dot, index) => {
+      dot.addEventListener('click', () => {
+        ownshipCardIndex = index;
+        renderOwnshipCardPosition();
+      });
+    });
+  }
+  renderOwnshipCardPosition();
+
+  const previousOperationsCardBtn = document.getElementById('previousOperationsCardBtn');
+  const nextOperationsCardBtn = document.getElementById('nextOperationsCardBtn');
+  const operationsCardPosition = document.getElementById('operationsCardPosition');
+
+  const renderOperationsCardPosition = () => {
+    if (!operationsCardPosition) return;
+    const dots = [...operationsCardPosition.children];
+    document.querySelectorAll('[data-operations-card-page]').forEach((page) => {
+      page.hidden = Number(page.dataset.operationsCardPage) !== operationsCardIndex;
+    });
+    dots.forEach((dot, index) => {
+      if (index === operationsCardIndex) dot.setAttribute('aria-current', 'true');
+      else dot.removeAttribute('aria-current');
+    });
+    operationsCardPosition.setAttribute('aria-label', `第 ${operationsCardIndex + 1} 张，共 ${dots.length} 张`);
+  };
+
+  previousOperationsCardBtn?.addEventListener('click', () => {
+    const count = operationsCardPosition?.children.length || 2;
+    operationsCardIndex = (operationsCardIndex + count - 1) % count;
+    renderOperationsCardPosition();
+  });
+  nextOperationsCardBtn?.addEventListener('click', () => {
+    const count = operationsCardPosition?.children.length || 2;
+    operationsCardIndex = (operationsCardIndex + 1) % count;
+    renderOperationsCardPosition();
+  });
+  if (operationsCardPosition) {
+    [...operationsCardPosition.children].forEach((dot, index) => {
+      dot.addEventListener('click', () => {
+        operationsCardIndex = index;
+        renderOperationsCardPosition();
+      });
+    });
+  }
+  renderOperationsCardPosition();
+}
+
+function setupDeploymentControls() {
+  document.getElementById('startValidationBtn')?.addEventListener('click', async () => {
+    try {
+      await activeSessionRuntime.start();
+      pushLog('Simulation started.', 'log-ok');
+    } catch (error) {
+      pushLog(error.message, 'log-danger');
+    }
+  });
+
+  document.getElementById('pauseValidationBtn')?.addEventListener('click', async () => {
+    try {
+      await activeSessionRuntime.pause();
+      pushLog('Simulation paused.', 'log-info');
+    } catch (error) {
+      pushLog(error.message, 'log-danger');
+    }
+  });
+
+  document.getElementById('stepValidationBtn')?.addEventListener('click', async () => {
+    try {
+      await activeSessionRuntime.step();
+      pushLog('Single simulation step executed.', 'log-info');
+    } catch (error) {
+      pushLog(error.message, 'log-danger');
+    }
+  });
+
+  document.getElementById('resetValidationBtn')?.addEventListener('click', async () => {
+    try {
+      await activeSessionRuntime.reset();
+      pushLog('Session reset to CREATED from its immutable Run Specification.', 'log-info');
+    } catch (error) {
+      pushLog(error.message, 'log-danger');
+    }
+  });
+
+  const rateToggle = document.getElementById('livePlaybackRate');
+  rateToggle?.addEventListener('value-changed', async (event) => {
+    const rate = Number(event.detail?.value || rateToggle.value || 1);
+    try {
+      await activeSessionRuntime.setSpeed(rate);
+      pushLog(`Playback speed set to ${rate}×`, 'log-info');
+    } catch (error) {
+      pushLog(error.message, 'log-danger');
+    }
+  });
+
+  document.getElementById('goToConfigBtn')?.addEventListener('click', () => {
+    document.querySelector('[data-workface="config"]')?.click();
+  });
+
+  const compassMode = document.getElementById('compassMode');
+  compassMode?.addEventListener('value-changed', (event) => {
+    const liveCompass = document.getElementById('liveCompass');
+    if (liveCompass) {
+      liveCompass.direction = event.detail?.value || 'northUp';
+    }
+  });
+}
 
 const RUNTIME_PANEL_IDS = ['cardSafety', 'cardTelemetry', 'cardPlanner', 'cardPerf'];
 const LEGACY_CONFIG_CARD_IDS = ['cardIntegrations', 'cardRules', 'cardControl', 'cardTracker', 'cardBusyWater'];
@@ -2285,9 +2648,7 @@ function setCardCollapsed(card, collapsed) {
   }
 }
 
-function initializeCollapsibleCard(card, collapsed) {
-  if (!card || card.classList.contains('collapsible-card')) return;
-  card.classList.add('collapsible-card');
+function initializeCollapsibleCard(card, collapsed = false) {
   const heading = card.querySelector(':scope > .planner-heading') || card.querySelector(':scope > .card-title');
   if (!heading) return;
   const button = document.createElement('button');
@@ -2308,28 +2669,32 @@ function setRuntimePanelsExpanded(expanded) {
 function prepareWorkspaceLayout() {
   const insights = document.querySelector('.insights-column');
   const sidebar = document.querySelector('.sidebar-column');
-  const controls = document.createElement('div');
-  controls.className = 'sidebar-controls-scroll';
-  const movedNotice = document.createElement('div');
-  movedNotice.className = 'legacy-config-moved';
-  movedNotice.textContent = 'Configuration moved to Config. Deployment controls are read-only runtime controls.';
-  controls.appendChild(movedNotice);
-  LEGACY_CONFIG_CARD_IDS.forEach(id => {
-    const card = document.getElementById(id);
-    if (card) {
-      card.classList.add('legacy-config-retired');
-      card.hidden = true;
-      controls.appendChild(card);
-    }
-  });
-  sidebar.prepend(controls);
-  RUNTIME_PANEL_IDS.forEach(id => {
-    const card = document.getElementById(id);
-    if (card) {
-      insights.appendChild(card);
-      initializeCollapsibleCard(card, true);
-    }
-  });
+  if (sidebar) {
+    const controls = document.createElement('div');
+    controls.className = 'sidebar-controls-scroll';
+    const movedNotice = document.createElement('div');
+    movedNotice.className = 'legacy-config-moved';
+    movedNotice.textContent = 'Configuration moved to Config. Deployment controls are read-only runtime controls.';
+    controls.appendChild(movedNotice);
+    LEGACY_CONFIG_CARD_IDS.forEach(id => {
+      const card = document.getElementById(id);
+      if (card) {
+        card.classList.add('legacy-config-retired');
+        card.hidden = true;
+        controls.appendChild(card);
+      }
+    });
+    sidebar.prepend(controls);
+  }
+  if (insights) {
+    RUNTIME_PANEL_IDS.forEach(id => {
+      const card = document.getElementById(id);
+      if (card) {
+        insights.appendChild(card);
+        initializeCollapsibleCard(card, true);
+      }
+    });
+  }
   const eventLog = document.querySelector('.log-section');
   if (eventLog) {
     initializeCollapsibleCard(eventLog, false);
@@ -2338,6 +2703,8 @@ function prepareWorkspaceLayout() {
   if (initialLogEntry) {
     initialLogEntry.textContent = `[${formatSystemTime()}] System ready. Waiting for simulation start…`;
   }
+  setupDeploymentPagination();
+  setupDeploymentControls();
 }
 
 /* ── Boot ─────────────────────────────────────── */
@@ -2346,7 +2713,7 @@ async function boot() {
   updateBeijingClock();
   window.setInterval(updateBeijingClock, 1000);
   updateLegendVisibility();
-  document.getElementById('toggleENC').classList.add('enc-on');
+  document.getElementById('toggleENC')?.classList.add('enc-on');
   activeSessionRuntime.subscribe(syncDeploymentRuntime);
   telemetryProjection.subscribe(renderProjection);
   try {

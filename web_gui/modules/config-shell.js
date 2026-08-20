@@ -3,7 +3,6 @@ import { activeSessionRuntime, telemetryProjection } from './session-runtime-ins
 import { createSituationDisplay } from './situation-display.js?v=20260819-c4-situation-2';
 
 const OPENBRIDGE_VERSION = '1.0.1';
-const OPENBRIDGE_BASE = 'https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist';
 const RULE_IMAGES = {
   rule13: ['/static/assets/openbridge/Rule13.png'],
   rule14: ['/static/assets/openbridge/Rule14.png'],
@@ -37,7 +36,7 @@ async function fetchJson(url, options) {
 function showOpenBridgeError(error) {
   const banner = document.getElementById('openbridgeLoadError');
   banner.hidden = false;
-  banner.textContent = `OpenBridge ${OPENBRIDGE_VERSION} failed to load: ${error.message}. Check CDN/network access and retry the page.`;
+  banner.textContent = `OpenBridge ${OPENBRIDGE_VERSION} failed to load: ${error.message}. Check /static/vendor/openbridge/ and retry the page.`;
 }
 
 async function loadOpenBridge() {
@@ -45,10 +44,9 @@ async function loadOpenBridge() {
   stylesheet.addEventListener('error', () => showOpenBridgeError(new Error('stylesheet request failed')), { once: true });
   if (stylesheet.dataset.failed === 'true') showOpenBridgeError(new Error('stylesheet request failed'));
   try {
-    await Promise.all([
-      import(`${OPENBRIDGE_BASE}/components/top-bar/top-bar.js/+esm`),
-      import(`${OPENBRIDGE_BASE}/components/card/card.js/+esm`),
-    ]);
+    // Single locally-bundled module: components + icons + lit, pinned to
+    // @oicl/openbridge-webcomponents@1.0.1. See vendor/openbridge/entry-source.mjs.
+    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260820-fix-2');
     await Promise.all([
       customElements.whenDefined('obc-top-bar'),
       customElements.whenDefined('obc-card'),
@@ -57,25 +55,6 @@ async function loadOpenBridge() {
   } catch (error) {
     showOpenBridgeError(error);
   }
-  // Config-interior components load best-effort from the same pin; native fallback
-  // content keeps the workface usable when any of these requests fails.
-  await Promise.allSettled([
-    import(`${OPENBRIDGE_BASE}/components/elevated-card/elevated-card.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/components/icon-button/icon-button.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/components/number-input-field/number-input-field.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/components/scrollbar/scrollbar.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/components/button/button.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/components/clock/clock.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/icons/icon-chevron-left-google.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/icons/icon-chevron-right-google.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/icons/icon-alerts.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/icons/icon-sound-muted.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/icons/icon-settings-user-proposal.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/icons/icon-collision-avoidance-head-on.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/icons/icon-media-play.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/icons/icon-list-alt-check-google.js/+esm`),
-    import(`${OPENBRIDGE_BASE}/icons/icon-router-component.js/+esm`),
-  ]);
 }
 
 // C5 #22 (P:2776, P:3398-3402): per-view document title and workface persistence.
@@ -114,8 +93,20 @@ function restorePersistedWorkface() {
   switchWorkface(workface);
 }
 
+const SCENARIO_LABELS = {
+  head_on: '标准对遇',
+  overtaking: '标准追越',
+  overtaken: '标准被追越',
+  crossing_give_way: '标准交叉 · 让路',
+  crossing_stand_on: '标准交叉 · 直航',
+  paper_ccta2023_multiship: '论文复现 · 四船',
+  romsdal_busy_water_16: 'Romsdal 多船可配置',
+  paper_ccta2023_head_on: '论文复现 · 对遇',
+  head_on_sbmpc: 'SB-MPC 对遇验证',
+};
+
 function optionLabel(item) {
-  return item.name || item.display_name || item.id;
+  return SCENARIO_LABELS[item.id] || item.name || item.display_name || item.id;
 }
 
 const CAROUSEL_CONFIGS = {
@@ -327,9 +318,6 @@ function renderRuleGuide(snapshot) {
   const shownRule = ruleId === 'multiship' ? `rule${16 + index}` : ruleId;
   image.src = sources[index];
   image.alt = `${shownRule.toUpperCase()} reference illustration`;
-  document.getElementById('validationRuleImageTitle').textContent = ruleId === 'multiship'
-    ? `Multi-ship guide · Rule ${16 + index}`
-    : `${ruleId.toUpperCase()} guide`;
   const controls = document.getElementById('validationRuleImageSwitch');
   controls.hidden = ruleId !== 'multiship' || sources.length <= 1;
   controls.replaceChildren(...[-1, 1].map((direction) => {
@@ -358,9 +346,29 @@ function renderRuleGuide(snapshot) {
 
 function renderScenarioDetail(snapshot) {
   if (!snapshot.draft) return;
+  const currentRuleId = snapshot.draft.validation_rule_id || 'rule14';
+  const rule = snapshot.catalog?.rules?.find((r) => r.id === currentRuleId);
+  const supportedScenarioIds = new Set([
+    ...(rule?.supported_scenarios || []),
+    ...(snapshot.catalog?.selectable_combinations || [])
+      .filter((c) => c.validation_rule_id === currentRuleId)
+      .map((c) => c.scenario_id),
+    ...(snapshot.catalog?.scenarios || [])
+      .filter((s) => s.supported_rules?.includes(currentRuleId))
+      .map((s) => s.id),
+  ]);
+  // 排除 stress 专用 80 船场景
+  supportedScenarioIds.delete('romsdal_busy_water_80_stress');
+
+  const allScenarios = snapshot.options.scenario_id || [];
+  const ruleScenarios = allScenarios.filter(
+    (item) => (supportedScenarioIds.size === 0 || supportedScenarioIds.has(item.id)) && item.enabled !== false
+  );
+  const scenariosToDisplay = ruleScenarios.length > 0 ? ruleScenarios : allScenarios.filter((item) => item.enabled !== false);
+
   const scenario = selectedCatalogItem(snapshot, 'scenarios', snapshot.draft.scenario_id);
   const chart = scenarioChartId(snapshot.draft.scenario_id);
-  renderChoiceCarousel('scenario', snapshot.options.scenario_id || [], snapshot.draft.scenario_id, snapshot.readOnly || snapshot.creating);
+  renderChoiceCarousel('scenario', scenariosToDisplay, snapshot.draft.scenario_id, snapshot.readOnly || snapshot.creating);
   renderChoiceCarousel('enc', [{ id: chart.toLowerCase(), name: chart, desc: 'Derived reference', grade: 'ENC' }], chart.toLowerCase(), false);
   replaceDefinitionRows(document.getElementById('validationScenarioFacts'), [
     ['Scenario ID', snapshot.draft.scenario_id],
@@ -488,12 +496,14 @@ function renderAlgorithmDetail(snapshot) {
   document.getElementById('validationTrackerSummary').textContent = tracker?.known_failure
     ? `Known failure reported by catalog: ${tracker.known_failure}`
     : 'Registered integration; no failure reported by the catalog.';
-  document.getElementById('validationTupleId').textContent = [
+  const tupleId = [
     draft.validation_rule_id,
     draft.scenario_id,
     draft.algorithm_id,
     draft.tracker_id,
   ].join(' / ');
+  document.getElementById('validationTupleId').textContent = tupleId;
+  document.getElementById('validationAlgorithmTuple').textContent = tupleId;
   renderMetadataFlow('validationAlgorithmFlow', algorithm, 'Algorithm');
   renderMetadataFlow('validationTrackerFlow', tracker, 'Tracker');
   replaceDefinitionRows(document.getElementById('validationAlgorithmFacts'), integrationFacts(algorithm));
@@ -680,21 +690,34 @@ function renderStepper(snapshot) {
 function renderSummary(snapshot) {
   const summary = document.getElementById('validationSummary');
   summary.replaceChildren();
-  if (!snapshot.draft) return;
+  const tupleStateTitle = document.getElementById('validationTupleStateTitle');
+  if (!snapshot.draft) {
+    if (tupleStateTitle) tupleStateTitle.textContent = 'Exact tuple pending';
+    return;
+  }
   const rows = [
     ['Rule', snapshot.draft.validation_rule_id],
     ['Scenario', snapshot.draft.scenario_id],
     ['Algorithm', snapshot.draft.algorithm_id],
     ['Tracker', snapshot.draft.tracker_id],
-    ['Evidence', snapshot.classification],
-    ['Draft', snapshot.dirty ? 'Unsaved changes' : (snapshot.matchesActive ? 'Matches active session' : 'Default')],
+    ['Tuple state', snapshot.classification === 'verified' ? 'Exact tuple available' : 'Experimental'],
+    ['Draft state', snapshot.dirty ? 'Unsaved changes' : 'Not created'],
   ];
   for (const [label, value] of rows) {
+    const row = document.createElement('div');
+    row.className = 'summary-row';
     const term = document.createElement('dt');
     term.textContent = label;
     const description = document.createElement('dd');
     description.textContent = value ?? '—';
-    summary.append(term, description);
+    if (value) description.title = String(value);
+    row.append(term, description);
+    summary.append(row);
+  }
+  if (tupleStateTitle) {
+    tupleStateTitle.textContent = snapshot.classification === 'verified'
+      ? 'Exact tuple available'
+      : 'Experimental combination';
   }
 }
 
@@ -721,11 +744,6 @@ function createStatusText(snapshot) {
 function render() {
   const snapshot = assembly.snapshot();
   const draft = snapshot.draft;
-  document.getElementById('validationDraftState').textContent = createStatusText(snapshot);
-  const retryAuthority = document.getElementById('retryCapabilityCatalog');
-  retryAuthority.hidden = snapshot.sessionStatus === 'loading'
-    || (snapshot.catalogStatus !== 'error' && snapshot.sessionStatus === 'known');
-  retryAuthority.disabled = snapshot.sessionStatus === 'loading' || snapshot.creating;
   renderRuleChoices(snapshot);
   renderRuleGuide(snapshot);
   renderStepper(snapshot);
@@ -758,8 +776,15 @@ function render() {
   assemblyStatus.textContent = snapshot.valid ? (cleanMatch ? 'CREATED' : 'READY') : 'DRAFT';
   assemblyStatus.dataset.ready = String(snapshot.valid);
   assemblyStatus.dataset.created = String(cleanMatch);
-  document.getElementById('validationContract').textContent = draft ? JSON.stringify(draft, null, 2) : 'No catalog and no Active Run Specification.';
-  const messages = snapshot.notices.map((notice) => notice.message);
+  document.getElementById('validationContract').textContent = draft
+    ? [
+        'validation_rule_id', 'scenario_id', 'algorithm_id', 'tracker_id',
+        'seed', 'episode_index', 'dt', 't_end', 'strict_no_fallback', 'evaluator_profile_id',
+      ].map((key) => `${key}: ${draft[key] ?? 'null'}`).join('\n')
+    : 'No catalog and no Active Run Specification.';
+  const messages = snapshot.notices
+    .filter((notice) => typeof notice.kind === 'string' && notice.kind.endsWith('-error'))
+    .map((notice) => notice.message);
   document.getElementById('validationNotices').replaceChildren(...messages.map((message) => {
     const item = document.createElement('div');
     item.textContent = message;
@@ -768,7 +793,7 @@ function render() {
   document.getElementById('validationDefault').disabled = snapshot.readOnly || snapshot.creating;
   const create = document.getElementById('validationCreate');
   create.dataset.mode = cleanMatch ? 'open-deployment' : 'create';
-  create.textContent = snapshot.creating ? 'CREATING' : (cleanMatch ? 'Open Deployment' : 'Create');
+  create.textContent = snapshot.creating ? 'CREATING' : (cleanMatch ? 'Open' : 'Create');
   create.classList.toggle('experimental', snapshot.classification === 'experimental' && !cleanMatch);
   create.disabled = cleanMatch
     ? snapshot.readOnly
@@ -833,7 +858,6 @@ function bindControls() {
     assembly.resetDefault();
     render();
   });
-  document.getElementById('retryCapabilityCatalog').addEventListener('click', refreshValidationAuthority);
   document.getElementById('validationCreate').addEventListener('click', () => {
     if (document.getElementById('validationCreate').dataset.mode === 'open-deployment') {
       switchWorkface('deployment');
@@ -867,8 +891,6 @@ function syncRuntimeAuthority(runtimeSnapshot, reason = 'runtime-sync') {
 }
 
 async function refreshValidationAuthority() {
-    const retry = document.getElementById('retryCapabilityCatalog');
-    retry.disabled = true;
     const [catalogResult, currentResult] = await Promise.allSettled([
       fetchJson('/api/capabilities'),
       activeSessionRuntime.refreshAuthority(),

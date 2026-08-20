@@ -17,9 +17,8 @@ test('C5 #4: html carries the day palette by default and the hidden brilliance-m
   assert.match(html, /<obc-brilliance-menu[^>]*id="brillianceMenu"[^>]*variant="compact"[^>]*aria-label="显示模式"[^>]*hidden[^>]*>/);
 });
 
-test('C5 #4: app.js imports the brilliance-menu module from the pinned CDN base and wires palette state', () => {
-  assert.match(app, /components\/brilliance-menu\/brilliance-menu\.js\/\+esm/);
-  assert.match(app, /cdn\.jsdelivr\.net\/npm\/@oicl\/openbridge-webcomponents@1\.0\.1\/dist/);
+test('C5 #4: app.js imports the locally-vendored OpenBridge bundle and wires palette state', () => {
+  assert.match(app, /vendor\/openbridge\/openbridge-components\.mjs/);
   assert.match(app, /document\.documentElement\.dataset\.obcTheme = nextPalette/);
   assert.match(app, /dimmingButtonActivated = nextPalette === 'dusk' \|\| nextPalette === 'night'/);
   assert.match(app, /situationDisplay\.refreshPalette\(\)/);
@@ -85,8 +84,7 @@ test('C5 #8: 520 tier degrades top bar, turns Assembly Steps into a horizontal s
   assert.ok(tier.length > 0, '520px media tier exists');
   assert.match(tier, /\.topbar-actions \.topbar-time,[\s\S]{0,120}#alertBtn,[\s\S]{0,120}#soundBtn \{[^}]*display: none/);
   assert.match(tier, /\.config-workface \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(tier, /\.assembly-steps \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[^}]*overflow-x: auto;[^}]*scroll-snap-type: x/m);
-  assert.match(tier, /\.assembly-steps > h2,[^}]*\{[^}]*grid-column: 1 \/ -1/s);
+  assert.match(tier, /\.assembly-step-list \{[^}]*grid-auto-flow: column;[^}]*overflow-x: auto;[^}]*scroll-snap-type: x/);
   assert.match(tier, /\.assembly-step \{[^}]*scroll-snap-align: start/);
   // Deployment sidebar stacking at narrow widths is delivered by the pre-existing
   // ≤900px flex-column rule; the 520 tier needs no .main-workspace override.

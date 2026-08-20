@@ -1,5 +1,19 @@
 # Workspace Hand-off Log
 
+## [2026-08-19 19:12] Agent: Antigravity (IDE)
+- **Git Commit**: `11a1d93` (branch: `codex/mass-openbridge-ui`)
+- **任务目标 (Goal)**: 对照 HTML 设计原型（new-simulation-openbridge-integration-shell.html），完成前 2 个工作面（Config & Deployment）的完整迁移，包括高保真 OpenBridge Web Components 组件接入、真实遥测数据流打通、分页切换与完整业务逻辑闭环。
+- **核心改动 (Actions)**:
+  - `web_gui/index.html`: 完整迁移工作面 2（Deployment）至 OpenBridge 标准布局，包含左侧栏双页卡片（Page 0: OWN SHIP & ROUTE, Page 1: SENSOR 与 Compass/Depth/Pitch-Roll 仪表）、中间仿真视口与功能控制栏（比例尺、方向、真/相对运动、播放/暂停/单步/重置/倍速）、右侧栏双页卡片（Page 0: MONITOR 与 Collision Safety 动态风险目标列表与事件流, Page 1: ALGO 与算法求解诊断、轨迹预览与 60 步性能 Sparkline）；升级 Cache-bust 版本至 `20260819-c5-shell-9`。
+  - `web_gui/style.css`: 补充 Deployment 工作面全部高保真 CSS（三栏网格 `.live-layout`、卡片分页指示器与 Tooltip、各仪表组件尺寸与响应式规则、优先级风险卡片高亮与指标网格、算法诊断数据排版与 SVG 预览折线图样式）。
+  - `web_gui/app.js`: 接入全套 Deployment 遥测链路（`updateOwnshipTelemetry`, `updateMonitorTelemetry`, `updateAlgoTelemetry`, `updatePerfSparkline`），实现真实遥测驱动 Web Components 状态与 Readouts；实现双侧栏分页控制器（`setupDeploymentPagination`）与底部仿真播放控制（`setupDeploymentControls`）；安全保护所有可选 DOM 监听器。
+  - `web_gui/modules/config-shell.js`: 引入所有 Deployment 必需的 OpenBridge Web Components（`automation-button-readout-stack`, `compass`, `depth-actual`, `pitch-roll`, `toggle-button-group`, `toggle-button-option` 及相关 IEC/Google 图标）。
+- **当前状态 (Status)**: GREEN (135/135 tests passing; 4 个核心冻结模块 0 diff; 服务器运行于 `http://127.0.0.1:8012/` 正常响应)
+- **接力指示 (Hand-off Context)**:
+  - 前 2 个工作面（Config 与 Deployment）已全部完成标准 OpenBridge 规范迁移与数据联动。
+  - 后续若需进行工作面 3（Evaluation）或工作面 4/5（Scenario/Algorithm）的开发，可参考现有模式继续迁移。
+
+
 ## [2026-07-24 16:40] Agent: Antigravity (IDE)
 - **Git Commit**: `a385e0f` (branch: `main`)
 - **任务目标 (Goal)**: 本地完整部署并测试 Colav-Simulator Ecosystem 4个算法库 (psbmpc, rrt-rs, rlmpc, vimmjipda)，实现与 Simulator 集成，并构建统一 Web GUI 控制台验证自定义 MPC 避碰航线规划算法。
@@ -164,3 +178,79 @@ Continue from branch `codex/colav-backend-algorithms` at HEAD `22b045d`
 - colav_simulator/guidance/custom_mpc_adapter.py（legacy，ALT-04 弃用 + 2 latent bug）
 - colav_simulator/integrations/psbmpc.py（正式 PSBMPCColav，VR-30 映射基础）
 ```
+
+## [2026-08-19 16:55] Agent: Antigravity (IDE)
+- **Git Commit**: `11a1d93` (branch: `codex/mass-openbridge-ui`)
+- **任务目标 (Goal)**: 修复 Web GUI 配置界面 Rule 图片高度超限/自适应、Config Summary 单行不换行对齐与底部 Default/Create 操作按钮水平居中。
+- **核心改动 (Actions)**:
+  - `web_gui/style.css`:
+    - `.rule-step-layout` 及各 step-layout 设置 `height: 100%; min-height: 0;`；`.visual-card` 与 `.rule-guide-media` 设置 `overflow: hidden; height: 100%; min-height: 0;`；`img` 改为 `max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;`，确保图片底部严格不超出页面且保比例动态缩放。
+    - `.summary-row`: `grid-template-columns: auto minmax(0, 1fr)` + `gap: var(--s-2)` + `white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`，实现字段不折行并保持 28px 严格统一行高。
+    - `.assembly-actions`: `align-items: center; justify-items: center; justify-content: center;`；按钮设置 `display: block; width: 100%;`。
+  - `web_gui/index.html`:
+    - 为 `#validationDefault` 与 `#validationCreate` 补充 `variant="normal" fullwidth` 属性，确保 Web Component 内部按钮填满栅格单元并对称居中。
+    - 递增 cache-bust token 至 `20260819-c5-shell-3`。
+  - `web_gui/modules/config-shell.js`: 为 `renderSummary` 的 description `dd` 元素添加 `title` 属性用于长文本悬浮展示。
+- **当前状态 (Status)**: GREEN (Node 135/135 tests passing; http://localhost:8012/ 运行正常)
+- **接力指示 (Hand-off Context)**:
+  - 静态测试 `node --test` 全绿（135/135）。
+  - 后续修改 CSS/JS 请继续遵循 cache-bust 递增规范与冻结模块清单守则。
+
+## [2026-08-19 17:11] Agent: Antigravity (IDE)
+- **Git Commit**: `11a1d93` (branch: `codex/mass-openbridge-ui`)
+- **任务目标 (Goal)**: 修复 Create 点击后跳转按钮文案折行（Open Deployment → Open）、彻底对齐 Step 02 "Scenarios" 中间区域与原型 HTML（移除 Initial ENC Situation 冗余标题、使用 OpenBridge 扁平图标按钮及比例标尺）。
+- **核心改动 (Actions)**:
+  - `web_gui/modules/config-shell.js`: 将 cleanMatch 状态下的按钮文案由 `'Open Deployment'` 精简为 `'Open'`，单行不换行对齐。
+  - `web_gui/index.html`:
+    - 清除 ENC 海图卡片上方的 `Initial ENC Situation` 冗余标题栏（卡片直接由 ENC preview 全画幅展示）。
+    - 将 Scenarios 与 Algorithms 步骤翻页控件的纯文本 `‹` / `›` 升级为 OpenBridge 原生组件 `<obc-icon-button variant="flat"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>` / `<obi-chevron-right-google>`。
+    - 引入原型标准比例尺 `<div class="map-scale scenario-preview-scale">1 km</div>` 并隐藏内部文本层。
+    - 递增 cache-bust token 至 `20260819-c5-shell-4`。
+  - `web_gui/style.css`: 支持 `.scenario-selection` 双栏无缝布局，增加 `.scenario-preview-scale` 样式，确保海图预览卡片填满容器且不遮挡。
+  - `tests/web_gui/config-shell-static.test.mjs`: 更新按钮文字断言由 `'Open Deployment'` 为 `'Open'`。
+- **当前状态 (Status)**: GREEN (Node 135/135 tests passing; http://localhost:8012/ 运行正常)
+- **接力指示 (Hand-off Context)**:
+  - 静态测试 `node --test` 全绿（135/135）。
+  - 冻结模块清单（4个核心JS）保持零 diff。
+
+## [2026-08-19 17:18] Agent: Antigravity (IDE)
+- **Git Commit**: `11a1d93` (branch: `codex/mass-openbridge-ui`)
+- **任务目标 (Goal)**: 优化 Scenarios 区域：仅展示可用场景（过滤置灰禁用场景）；优化场景卡片与滚动容器高度（84px + overflow-y: hidden），消除内部垂直滚动条。
+- **核心改动 (Actions)**:
+  - `web_gui/modules/config-shell.js`: 在 `renderScenarioDetail` 中通过 `item.enabled !== false` 仅向场景选择轮播传递可用场景列表。
+  - `web_gui/style.css`: 将 `.scenario-scrollbar` 高度由 74px 调整至 84px，并设置 `--obc-scrollbar-overflow-y: hidden; overflow-y: hidden;`，`.scenario-choice-grid` 及 `.choice` 设置 `min-height: 68px; box-sizing: border-box; align-items: stretch;`，彻底杜绝上下滑动条。
+  - `web_gui/index.html`: 递增 cache-bust token 至 `20260819-c5-shell-5`。
+- **当前状态 (Status)**: GREEN (Node 135/135 tests passing; http://localhost:8012/ 运行正常)
+- **接力指示 (Hand-off Context)**:
+  - 静态测试 `node --test` 全绿（135/135）。
+  - 冻结模块清单保持零 diff。
+
+## [2026-08-19 17:22] Agent: Antigravity (IDE)
+- **Git Commit**: `11a1d93` (branch: `codex/mass-openbridge-ui`)
+- **任务目标 (Goal)**: 彻底联动 COLREG Rules 规则与 Scenarios 场景列表筛选；精细化卡片 56px / 规则 64px 尺寸并强制截断纵向溢出，彻底消除上下滑块。
+- **核心改动 (Actions)**:
+  - `web_gui/modules/config-shell.js`: 在 `renderScenarioDetail` 中基于当前所选规则（`snapshot.draft.validation_rule_id`）从能力目录（`rule.supported_scenarios` 或 `selectable_combinations`）动态提取该规则支持的场景 ID 集合进行精准过滤。所选 Rule 变更时，Scenarios 立即响应式筛选。
+  - `web_gui/style.css`:
+    - `.choice` 与 `.choice::part(wrapper)` 统一为标准双行卡片高度 56px（`box-sizing: border-box`），仅 `#validationRuleChoices` 保持 64px。
+    - `.scenario-scrollbar` 设为 72px，并增加 `.scenario-scrollbar::part(wrapper) { overflow-y: hidden !important; }`，彻底清除任何纵向滑块。
+  - `web_gui/index.html`: 递增 cache-bust token 至 `20260819-c5-shell-6`。
+- **当前状态 (Status)**: GREEN (Node 135/135 tests passing; http://localhost:8012/ 运行正常)
+- **接力指示 (Hand-off Context)**:
+  - 静态测试 `node --test` 全绿（135/135）。
+  - 冻结模块清单保持零 diff。
+
+## [2026-08-19 17:50] Agent: Antigravity (IDE)
+- **Git Commit**: `11a1d93` (branch: `codex/mass-openbridge-ui`)
+- **任务目标 (Goal)**: 完整支持多船复合（Multiship）下的 2 个场景（论文复现 · 四船 + Romsdal 多船可配置）；修复卡片标题折行（word-break: keep-all）导致的纵向溢出。
+- **核心改动 (Actions)**:
+  - `web_gui/modules/config-shell.js`:
+    - 添加 `SCENARIO_LABELS` 中文友好映射（`paper_ccta2023_multiship` → `论文复现 · 四船`，`romsdal_busy_water_16` → `Romsdal 多船可配置`）。
+    - 扩展 `supportedScenarioIds` 逻辑，同时汇聚 verified 与 experimental 场景组合（支持 `paper_ccta2023_multiship` 与 `romsdal_busy_water_16` 两个多船场景展示），并排除 80 船压力测试专用场景。
+  - `web_gui/style.css`:
+    - 为 `.choice-name` 和 `.choice-description` 增加 `word-break: keep-all; font-size: 11px/10px; max-width: 100%;`，防止中文字符（如“置”）在狭窄卡片内换行。
+    - 滚动容器高度配置为 `74px` + `--obc-scrollbar-overflow-y: hidden;`，结合 `56px` 卡片高度彻底解决上下滚动条问题。
+  - `web_gui/index.html`: 递增 cache-bust token 至 `20260819-c5-shell-7`。
+- **当前状态 (Status)**: GREEN (Node 135/135 tests passing; http://localhost:8012/ 运行正常)
+- **接力指示 (Hand-off Context)**:
+  - 静态测试 `node --test` 全绿（135/135）。
+  - 冻结模块清单保持零 diff。

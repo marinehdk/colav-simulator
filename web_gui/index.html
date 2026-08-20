@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link id="openbridgeStyles" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@oicl/openbridge-webcomponents@1.0.1/dist/openbridge.css" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260819-c5-shell-2" />
+  <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css" onerror="this.dataset.failed='true'" />
+  <link rel="stylesheet" href="/static/style.css?v=20260820-fix-2" />
 </head>
 <body>
   <div class="app-container">
@@ -34,89 +34,87 @@
     </div>
 
     <section class="workface config-workface" id="configWorkface" data-workface-panel="config" aria-label="Validation Config">
+      <h1 class="configure-title">Validation Config</h1>
       <aside class="assembly-steps" aria-label="Assembly Steps">
-        <p class="shell-eyebrow">NEW SIMULATION</p>
-        <h2>Assembly Steps</h2>
-        <button type="button" class="assembly-step active" data-config-step="rules" aria-pressed="true" data-complete="false"><span class="step-circle">01</span><strong>COLREG Rules</strong><small id="configStepRulesState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
-        <button type="button" class="assembly-step" data-config-step="scenarios" aria-pressed="false" data-complete="false"><span class="step-circle">02</span><strong>Verification Scenarios</strong><small id="configStepScenariosState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
-        <button type="button" class="assembly-step" data-config-step="algorithms" aria-pressed="false" data-complete="false"><span class="step-circle">03</span><strong>Verification Algorithms</strong><small id="configStepAlgorithmsState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
-        <button type="button" class="assembly-step" data-config-step="params" aria-pressed="false" data-complete="false"><span class="step-circle">04</span><strong>Verification Params</strong><small id="configStepParamsState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
-        <div class="config-progress" aria-label="Assembly readiness"><span id="configProgressLabel">Loading authority</span><div><i id="configProgressBar"></i></div></div>
-        <div class="draft-state" id="validationDraftState">Loading capability catalog…</div>
-        <button type="button" class="retry-catalog" id="retryCapabilityCatalog" disabled hidden>Retry catalog &amp; current session</button>
+        <div class="assembly-steps-header"><strong>Assembly Steps</strong></div>
+        <div class="assembly-step-list">
+          <button type="button" class="assembly-step active" data-config-step="rules" aria-pressed="true" data-complete="false"><span class="step-circle">01</span><strong>COLREG Rules</strong><small id="configStepRulesState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
+          <button type="button" class="assembly-step" data-config-step="scenarios" aria-pressed="false" data-complete="false"><span class="step-circle">02</span><strong>Scenarios</strong><small id="configStepScenariosState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
+          <button type="button" class="assembly-step" data-config-step="algorithms" aria-pressed="false" data-complete="false"><span class="step-circle">03</span><strong>Algorithms</strong><small id="configStepAlgorithmsState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
+          <button type="button" class="assembly-step" data-config-step="params" aria-pressed="false" data-complete="false"><span class="step-circle">04</span><strong>Parameters</strong><small id="configStepParamsState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
+        </div>
+        <div class="config-progress" aria-label="Assembly readiness"><strong id="configProgressLabel">Loading authority</strong><span>Validated against the backend exact tuple before create</span><div class="config-progress-track"><i id="configProgressBar"></i></div></div>
       </aside>
 
       <div class="assembly-editor">
         <section class="config-step-panel" data-config-step-panel="rules">
           <div class="rule-step-layout">
-            <obc-card class="config-obc-card">
-              <div slot="title" class="config-card-title"><span>01</span><strong>COLREG Rules</strong></div>
+            <section class="config-obc-card">
+              <div class="config-card-title"><span class="step">01</span><span class="card-title-copy"><strong>COLREG Rules</strong></span></div>
               <div class="config-card-content"><div class="choice-grid" id="validationRuleChoices" role="radiogroup" aria-label="COLREG rule"></div></div>
-            </obc-card>
-            <obc-card class="config-obc-card visual-card">
-              <div slot="title" class="config-card-title"><strong id="validationRuleImageTitle">Rule guide</strong><small>Reference illustration</small></div>
+            </section>
+            <section class="config-obc-card visual-card">
               <div class="rule-guide-media">
                 <img id="validationRuleImage" src="/static/assets/openbridge/Rule14.png" alt="COLREG Rule 14 reference illustration">
                 <div class="rule-guide-actions" id="validationRuleImageSwitch" hidden></div>
               </div>
-            </obc-card>
+            </section>
           </div>
         </section>
         <section class="config-step-panel" data-config-step-panel="scenarios" hidden>
           <div class="scenario-step-layout">
-            <obc-card class="config-obc-card">
-              <div slot="title" class="config-card-title"><span>02</span><strong>Verification Scenarios</strong><small>Scenario plus associated ENC reference</small></div>
-              <div class="config-card-content scenario-selectors">
+            <section class="config-obc-card">
+              <div class="config-card-title"><span class="step">02</span><span class="card-title-copy"><strong>Verification Scenarios</strong></span></div>
+              <div class="config-card-content scenario-selection">
                 <div class="scenario-section">
                   <div class="scenario-section-heading">
                     <p class="subsection-label">Scenario</p>
                     <div class="scenario-carousel-controls" id="validationScenarioControls" hidden>
-                      <obc-icon-button id="previousScenarioBtn" variant="normal" aria-label="上一批场景">‹</obc-icon-button>
-                      <obc-icon-button id="nextScenarioBtn" variant="normal" aria-label="下一批场景">›</obc-icon-button>
+                      <obc-icon-button id="previousScenarioBtn" variant="flat" aria-label="查看前一组场景" title="查看前一组场景"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+                      <obc-icon-button id="nextScenarioBtn" variant="flat" aria-label="查看后一组场景" title="查看后一组场景"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
                     </div>
                   </div>
-                  <obc-scrollbar class="scenario-scrollbar" id="validationScenarioScrollbar">
-                    <div class="scenario-choice-grid" id="validationScenarioChoices" role="radiogroup" aria-label="Verification scenario"></div>
+                  <obc-scrollbar class="scenario-scrollbar obc-thin-scrollbar" id="validationScenarioScrollbar">
+                    <div class="choice-grid scenario-choice-grid" id="validationScenarioChoices" role="radiogroup" aria-label="Verification scenario"></div>
                   </obc-scrollbar>
                 </div>
                 <div class="scenario-section">
                   <div class="scenario-section-heading">
                     <p class="subsection-label">ENC reference</p>
                     <div class="scenario-carousel-controls" id="validationEncControls" hidden>
-                      <obc-icon-button id="previousEncBtn" variant="normal" aria-label="上一批 ENC 海图">‹</obc-icon-button>
-                      <obc-icon-button id="nextEncBtn" variant="normal" aria-label="下一批 ENC 海图">›</obc-icon-button>
+                      <obc-icon-button id="previousEncBtn" variant="flat" aria-label="查看前一组海图" title="查看前一组海图"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+                      <obc-icon-button id="nextEncBtn" variant="flat" aria-label="查看后一组海图" title="查看后一组海图"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
                     </div>
                   </div>
-                  <obc-scrollbar class="scenario-scrollbar" id="validationEncScrollbar">
-                    <div class="scenario-choice-grid" id="validationEncChoices" role="radiogroup" aria-label="ENC reference"></div>
+                  <obc-scrollbar class="scenario-scrollbar obc-thin-scrollbar" id="validationEncScrollbar">
+                    <div class="choice-grid scenario-choice-grid" id="validationEncChoices" role="radiogroup" aria-label="ENC reference"></div>
                   </obc-scrollbar>
                 </div>
-                <dl class="scenario-facts" id="validationScenarioFacts"></dl>
+                <dl class="scenario-facts" id="validationScenarioFacts" hidden></dl>
               </div>
-            </obc-card>
-            <obc-card class="config-obc-card visual-card scenario-visual-card">
-              <div slot="title" class="config-card-title"><strong>Initial ENC Situation</strong><small>Reference preview · not live telemetry</small></div>
-              <div class="scenario-preview">
-                <img id="validationScenarioImage" src="/static/assets/openbridge/romsdal-head-on-seacharts.png" alt="Romsdal reference ENC preview">
+            </section>
+            <section class="config-obc-card visual-card scenario-preview-card">
+              <div class="scenario-preview" id="scenarioPreview">
+                <img class="scenario-preview-image" id="validationScenarioImage" src="/static/assets/openbridge/romsdal-head-on-seacharts.png" alt="当前验证场景的初始 ENC 态势预览">
                 <div class="scenario-placeholder" id="validationScenarioPlaceholder" hidden></div>
                 <canvas class="scenario-preview-canvas" id="validationScenarioOverlayCanvas" aria-hidden="true"></canvas>
-                <div class="reference-preview-badge">REFERENCE PREVIEW · NOT LIVE</div>
-                <div class="scenario-preview-copy" id="validationScenarioPreview">Scenario metadata loads from capability catalog.</div>
+                <div class="map-scale scenario-preview-scale">1 km</div>
+                <div class="scenario-preview-copy" id="validationScenarioPreview" hidden></div>
               </div>
-            </obc-card>
+            </section>
           </div>
         </section>
         <section class="config-step-panel" data-config-step-panel="algorithms" hidden>
           <div class="algorithm-step-layout">
-            <obc-card class="config-obc-card">
-              <div slot="title" class="config-card-title"><span>03</span><strong>Verification Algorithms</strong><small>Real integration catalog</small></div>
+            <section class="config-obc-card">
+              <div class="config-card-title"><span class="step">03</span><span class="card-title-copy"><strong>Verification Algorithms</strong><span>Assemble avoidance algorithm and tracker</span></span></div>
               <div class="config-card-content algorithm-selection-row">
                 <div class="algorithm-section">
                   <div class="scenario-section-heading">
                     <p class="subsection-label">Avoidance Algorithm</p>
                     <div class="scenario-carousel-controls" id="validationAlgorithmControls" hidden>
-                      <obc-icon-button id="previousAlgorithmBtn" variant="normal" aria-label="上一批算法">‹</obc-icon-button>
-                      <obc-icon-button id="nextAlgorithmBtn" variant="normal" aria-label="下一批算法">›</obc-icon-button>
+                      <obc-icon-button id="previousAlgorithmBtn" variant="flat" aria-label="查看前一组算法" title="查看前一组算法"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+                      <obc-icon-button id="nextAlgorithmBtn" variant="flat" aria-label="查看后一组算法" title="查看后一组算法"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
                     </div>
                   </div>
                   <obc-scrollbar class="scenario-scrollbar" id="validationAlgorithmScrollbar">
@@ -128,9 +126,9 @@
                   <div class="tracker-choice-grid" id="validationTrackerChoices" role="radiogroup" aria-label="Tracker"></div>
                 </div>
               </div>
-            </obc-card>
-            <obc-card class="config-obc-card algorithm-detail-card">
-              <div slot="title" class="config-card-title"><strong>Selected Combination</strong><small>Exact Tuple binding</small></div>
+            </section>
+            <section class="config-obc-card algorithm-detail-card">
+              <div class="config-card-title"><span class="card-title-copy"><strong>Selected Combination</strong></span><span class="card-meta" id="validationAlgorithmTuple">--</span></div>
               <div class="config-card-content algorithm-detail-grid">
                 <section class="algorithm-detail-pane">
                   <div class="algorithm-detail-header">
@@ -158,13 +156,13 @@
               </div>
               <div class="classification-card" id="validationClassification">Exact Tuple pending</div>
               <div class="evidence-detail" id="validationEvidenceDetail"></div>
-            </obc-card>
+            </section>
           </div>
         </section>
         <section class="config-step-panel" data-config-step-panel="params" hidden>
           <div class="param-step-layout">
-            <obc-card class="config-obc-card">
-              <div slot="title" class="config-card-title"><span>04</span><strong>Verification Params</strong><small>Editable Web create fields</small></div>
+            <section class="config-obc-card">
+              <div class="config-card-title"><span class="step">04</span><span class="card-title-copy"><strong>Verification Params</strong><span>Set reproducible run parameters</span></span></div>
               <div class="config-card-content params" id="validationParamsFields">
                 <section class="parameter-group" aria-labelledby="validationReproLabel">
                   <p class="parameter-group-title" id="validationReproLabel">Reproducibility</p>
@@ -181,9 +179,9 @@
                   </div>
                 </section>
               </div>
-            </obc-card>
-            <obc-card class="config-obc-card execution-plan-card">
-              <div slot="title" class="config-card-title"><strong>Session Execution Plan</strong><small>Run Specification semantics</small></div>
+            </section>
+            <section class="config-obc-card execution-plan-card">
+              <div class="config-card-title"><span class="card-title-copy"><strong>Session Execution Plan</strong></span><span class="card-meta">FUNCTIONAL</span></div>
               <div class="config-card-content execution-plan-content">
                 <div class="plan-metrics" id="validationPlanMetrics"></div>
                 <div class="execution-plan-grid">
@@ -209,499 +207,346 @@
                 </footer>
                 <div class="contract-boundary"><strong>Not exposed by Web create contract</strong><span>Deadline mode, incident-stop policy, and artifact inventory remain backend-owned; Config does not invent values.</span></div>
               </div>
-            </obc-card>
+            </section>
           </div>
         </section>
       </div>
 
       <aside class="assembly-summary" aria-label="Session Assembly">
-        <p class="shell-eyebrow">SESSION ASSEMBLY</p>
-        <obc-card class="config-obc-card assembly-card">
-          <div slot="title" class="config-card-title assembly-title"><strong>Session Assembly</strong><span class="assembly-status" id="validationAssemblyStatus" data-ready="false">DRAFT</span></div>
+        <section class="config-obc-card assembly-card">
+          <div class="config-card-title assembly-title"><span class="card-title-copy"><strong>Session Assembly</strong></span><span class="assembly-status" id="validationAssemblyStatus" data-ready="false">DRAFT</span></div>
           <div class="assembly-card-content">
             <section class="assembly-section">
               <h2>Config Summary</h2>
-              <div class="assembly-section-body"><dl id="validationSummary"></dl></div>
+              <div class="assembly-section-body"><dl class="summary" id="validationSummary"></dl><div class="tuple-state"><strong id="validationTupleStateTitle">Exact tuple pending</strong><ul><li>Rule and Scenario are matched</li><li>Algorithm and Tracker are matched</li><li>Backend capability catalog is the source of truth</li><li>The current exact tuple can be created</li></ul></div></div>
             </section>
             <section class="assembly-section">
               <h2>Config Contract</h2>
-              <div class="assembly-section-body assembly-contract-body"><pre id="validationContract"></pre></div>
+              <div class="assembly-section-body assembly-contract-body"><pre class="request-preview" id="validationContract"></pre><div class="contract"><strong>Create contract</strong><ul><li>Single active session</li><li>Backend exact tuple is authoritative</li><li>strict_no_fallback=true</li><li>Stays CREATED after create</li></ul></div></div>
             </section>
           </div>
-        </obc-card>
+        </section>
         <div class="assembly-notices" id="validationNotices" aria-live="polite"></div>
         <div class="assembly-actions">
-          <obc-button id="validationDefault" disabled>Default</obc-button>
-          <obc-button class="create-action" id="validationCreate" disabled>Create</obc-button>
+          <obc-button id="validationDefault" variant="normal" fullwidth disabled>Default</obc-button>
+          <obc-button class="create-action" id="validationCreate" variant="normal" fullwidth disabled>Create</obc-button>
         </div>
       </aside>
     </section>
 
     <!-- ═══════════════════════════════════════════
-         HEADER
+         DEPLOYMENT WORKFACE
     ═══════════════════════════════════════════ -->
-    <header class="app-header legacy-deployment-surface" role="banner" data-workface-panel="deployment" hidden>
-      <div class="brand">
-        <div class="logo-badge" aria-label="MPC">MPC</div>
-        <div class="brand-text">
-          <h1>综合避碰仿真器</h1>
-        </div>
-      </div>
-      <div class="header-right">
-        <div class="header-run-info" aria-label="时间信息" aria-live="off">
-          <div><span class="ovl-label">北京时间</span><span class="ovl-val" id="val-beijing-time">--:--:--</span></div>
-          <div><span class="ovl-label">仿真时间</span><span class="ovl-val" id="val-sim-time">0.0 s</span></div>
-          <div><span class="ovl-label">运行状态</span><span class="ovl-val" id="val-run-state">CREATED</span></div>
-          <div><span class="ovl-label">复现状态</span><span class="ovl-val" id="val-reproduction">not evaluated</span></div>
-        </div>
-        <div class="status-indicator connecting" role="status" aria-live="polite">
-          <span class="dot pulse reset" id="status-dot"></span>
-          <span id="conn-status">会话: 初始化</span>
-        </div>
-      </div>
-    </header>
+    <section class="screen live-view" id="liveView" data-workface-panel="deployment" hidden>
+      <h1 class="configure-title" hidden>验证实施</h1>
+      <div class="live-layout">
+        <!-- ── LEFT: Live Info Sidebar (OWN SHIP / ROUTE / SENSOR) ── -->
+        <aside class="live-info-sidebar" aria-label="运行信息" data-od-id="deployment-information-sidebar">
+          <!-- Page 0: ROUTE & OWN SHIP -->
+          <div class="ownship-info-page" data-ownship-card-page="0">
+            <section class="navigation-info-section ownship-navigation-section" aria-labelledby="ownship-summary-heading">
+              <h2 id="ownship-summary-heading">OWN SHIP</h2>
+              <div class="navigation-data-row">
+                <span class="navigation-data-label">HDG</span>
+                <obc-automation-button-readout-stack class="navigation-data-readout" id="sidebarHdgReadout" size="regular" aria-label="本船航向 0 度"></obc-automation-button-readout-stack>
+                <span class="navigation-data-source">GPS 1 <b aria-hidden="true">▾</b></span>
+              </div>
+              <div class="navigation-data-row">
+                <span class="navigation-data-label">COG</span>
+                <obc-automation-button-readout-stack class="navigation-data-readout" id="sidebarCogReadout" size="regular" aria-label="本船对地航向 0 度"></obc-automation-button-readout-stack>
+                <span class="navigation-data-source">LOG 2 <b aria-hidden="true">▾</b></span>
+              </div>
+              <div class="navigation-section-divider" aria-hidden="true"></div>
+              <div class="navigation-data-row">
+                <span class="navigation-data-label">STW</span>
+                <obc-automation-button-readout-stack class="navigation-data-readout" id="sidebarStwReadout" size="regular" aria-label="本船对水航速 0 节"></obc-automation-button-readout-stack>
+                <span class="navigation-data-source">LOG 1 <b aria-hidden="true">▾</b></span>
+              </div>
+              <div class="navigation-data-row">
+                <span class="navigation-data-label">DPTH</span>
+                <obc-automation-button-readout-stack class="navigation-data-readout" id="sidebarDepthReadout" size="regular" aria-label="当前水深 15 米"></obc-automation-button-readout-stack>
+                <span class="navigation-data-source">SND 1 <b aria-hidden="true">▾</b></span>
+              </div>
+              <div class="navigation-section-divider" aria-hidden="true"></div>
+              <div class="navigation-position">
+                <div aria-label="纬度"><strong id="sidebarLatReadout">--°--.---′ N</strong></div>
+                <div aria-label="经度"><strong id="sidebarLonReadout">---°--.---′ E</strong></div>
+                <span class="navigation-data-source">GPS 1 <b aria-hidden="true">▾</b></span>
+              </div>
+            </section>
+            <section class="navigation-info-section route-navigation-section" aria-labelledby="deployment-route-heading">
+              <h2 id="deployment-route-heading">ROUTE</h2>
+              <div class="route-steering-row"><span>Steering mode</span><strong id="liveSteeringMode">TRACK</strong></div>
+              <div class="route-value-grid route-value-grid-primary">
+                <div><span>Course</span><strong id="liveRouteCourse">000°</strong></div>
+                <div><span>ROT</span><strong id="liveRouteRot">---<small>/min</small></strong></div>
+                <div><span>Radius</span><strong id="liveRouteRadius">---</strong></div>
+              </div>
+              <div class="navigation-section-divider" aria-hidden="true"></div>
+              <section class="route-leg" aria-labelledby="current-leg-heading">
+                <h3 id="current-leg-heading">Current leg</h3>
+                <div class="route-value-grid">
+                  <div><span>Course</span><strong id="liveLegCourse">000°</strong></div>
+                  <div><span>Distance to WIP</span><strong id="liveLegDistance">0.0<small> NM</small></strong></div>
+                  <div><span>Time to WIP</span><strong id="liveLegTime">00:00:00</strong></div>
+                </div>
+              </section>
+              <section class="route-leg" aria-labelledby="next-leg-heading">
+                <h3 id="next-leg-heading">Next leg</h3>
+                <div class="route-value-grid">
+                  <div><span>Course</span><strong id="liveNextLegCourse">000°</strong></div>
+                  <div><span>Distance to WIP</span><strong id="liveNextLegDistance">0.0<small> NM</small></strong></div>
+                  <div><span>Time to WIP</span><strong id="liveNextLegTime">00:00:00</strong></div>
+                </div>
+              </section>
+              <div class="navigation-section-divider" aria-hidden="true"></div>
+              <section class="route-destination" aria-labelledby="destination-heading">
+                <h3 id="destination-heading">Destination</h3>
+                <div><span>ETA</span><strong id="liveRouteEta">--:--:--</strong></div>
+                <div><span>Remaining time</span><strong id="liveRouteRemaining">--:--:--</strong></div>
+              </section>
+            </section>
+          </div>
 
-    <!-- ═══════════════════════════════════════════
-         MAIN WORKSPACE
-    ═══════════════════════════════════════════ -->
-    <main class="main-workspace legacy-deployment-surface" data-workface-panel="deployment" hidden>
+          <!-- Page 1: SENSOR -->
+          <div class="ownship-info-page ownship-sensor-page" id="ownshipSensorPage" data-ownship-card-page="1" aria-label="Sensor instruments" hidden>
+            <obc-card data-od-id="live-compass-card">
+              <div slot="title" class="live-detail-title"><strong class="live-compass-title-label">Compass</strong></div>
+              <div class="live-compass-content">
+                <div class="live-compass-mode">
+                  <obc-toggle-button-group id="compassMode" value="northUp" variant="regular" type="text" hugtext aria-label="罗经显示模式" data-od-id="compass-display-mode">
+                    <obc-toggle-button-option value="northUp">North Up</obc-toggle-button-option>
+                    <obc-toggle-button-option value="headingUp">Heading Up</obc-toggle-button-option>
+                  </obc-toggle-button-group>
+                </div>
+                <obc-compass id="liveCompass" direction="northUp" aria-label="航向罗经，North Up 模式" data-od-id="live-compass"></obc-compass>
+                <div class="live-compass-readouts" data-od-id="live-compass-readouts">
+                  <div class="live-compass-readout">
+                    <obc-automation-button-readout-stack id="liveHeadingReadout" size="enhanced" aria-label="本船航向 0 度" data-od-id="live-heading-readout"></obc-automation-button-readout-stack>
+                    <div class="live-compass-readout-caption"><strong>HDG</strong><span>DEG</span></div>
+                  </div>
+                  <div class="live-compass-readout">
+                    <obc-automation-button-readout-stack id="liveCogReadout" size="enhanced" aria-label="本船对地航向 0 度" data-od-id="live-cog-readout"></obc-automation-button-readout-stack>
+                    <div class="live-compass-readout-caption"><strong>COG</strong><span>DEG</span></div>
+                  </div>
+                  <div class="live-compass-readout">
+                    <obc-automation-button-readout-stack id="liveRotReadout" size="enhanced" aria-label="本船转向率 0 度" data-od-id="live-rot-readout"></obc-automation-button-readout-stack>
+                    <div class="live-compass-readout-caption"><strong>ROT</strong><span>DEG</span></div>
+                  </div>
+                </div>
+              </div>
+            </obc-card>
+            <obc-card data-od-id="live-depth-actual-card">
+              <div slot="title" class="live-detail-title"><strong class="live-depth-title-label">Depth</strong><div class="live-depth-title-spacer" aria-hidden="true"></div></div>
+              <div class="live-depth-content">
+                <div class="live-depth-wrapper obc-component-size-regular">
+                  <obc-depth-actual id="liveDepthActual" aria-label="当前水深，Enhanced 显示" data-od-id="live-depth-actual"></obc-depth-actual>
+                </div>
+                <div class="live-depth-readouts" data-od-id="live-depth-readouts">
+                  <div class="live-depth-readout">
+                    <obc-automation-button-readout-stack id="liveDraftReadout" size="enhanced" aria-label="本船吃水 2 米" data-od-id="live-draft-readout"></obc-automation-button-readout-stack>
+                    <div class="live-depth-readout-caption"><strong>KELL</strong><span>M</span></div>
+                  </div>
+                  <div class="live-depth-readout">
+                    <obc-automation-button-readout-stack id="liveSafeDepthReadout" size="enhanced" aria-label="安全水深 5 米" data-od-id="live-safe-depth-readout"></obc-automation-button-readout-stack>
+                    <div class="live-depth-readout-caption"><strong>SAFETY</strong><span>M</span></div>
+                  </div>
+                  <div class="live-depth-readout">
+                    <obc-automation-button-readout-stack id="liveCurrentDepthReadout" size="enhanced" aria-label="当前水深 15 米" data-od-id="live-current-depth-readout"></obc-automation-button-readout-stack>
+                    <div class="live-depth-readout-caption"><strong>FLOOR</strong><span>M</span></div>
+                  </div>
+                </div>
+              </div>
+            </obc-card>
+            <obc-card data-od-id="live-pitch-roll-card">
+              <div slot="title" class="live-detail-title"><strong>Pitch&amp;Roll</strong></div>
+              <div class="live-pitch-roll-content">
+                <div class="live-pitch-roll-wrapper obc-component-size-regular">
+                  <obc-pitch-roll id="livePitchRoll" aria-label="纵摇与横摇，Primary 显示" data-od-id="live-pitch-roll"></obc-pitch-roll>
+                </div>
+                <div class="live-attitude-readouts" data-od-id="live-attitude-readouts">
+                  <div class="live-compass-readout">
+                    <obc-automation-button-readout-stack id="livePitchReadout" size="enhanced" aria-label="本船纵摇 0 度" data-od-id="live-pitch-readout"></obc-automation-button-readout-stack>
+                    <div class="live-compass-readout-caption"><strong>PITCH</strong><span>DEG</span></div>
+                  </div>
+                  <div class="live-compass-readout">
+                    <obc-automation-button-readout-stack id="liveRollReadout" size="enhanced" aria-label="本船横摇 0 度" data-od-id="live-roll-readout"></obc-automation-button-readout-stack>
+                    <div class="live-compass-readout-caption"><strong>ROLL</strong><span>DEG</span></div>
+                  </div>
+                </div>
+              </div>
+            </obc-card>
+          </div>
 
-      <aside class="insights-column" aria-label="运行监控面板"></aside>
-
-      <!-- ── LEFT: Canvas Column ─────────────── -->
-      <div class="canvas-column">
-
-        <section class="canvas-panel glass-card" aria-label="电子海图仿真视口">
-          <div class="canvas-wrapper" id="canvasWrapper">
-            <canvas id="simCanvas" aria-label="Ship collision avoidance simulation map"></canvas>
-            <div class="panel-header map-title-overlay">
-              <h2><span class="icon" aria-hidden="true">⌖</span> 电子海图
-                <select id="encChartSelect" class="map-chart-select" aria-label="选择电子海图">
-                  <option value="romsdal" selected>Romsdal</option>
-                  <option value="rogaland">Rogaland</option>
-                </select>
-                <span class="enc-status-badge" id="encStatusBadge">加载中</span>
-              </h2>
+          <!-- Switcher -->
+          <nav class="ownship-card-switcher" aria-label="切换本船信息卡片" data-od-id="ownship-card-switcher">
+            <obc-icon-button id="previousOwnshipCardBtn" variant="flat" aria-label="上一张本船信息卡片" title="上一张本船信息卡片"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+            <div class="ownship-card-position" id="ownshipCardPosition" aria-label="第 1 张，共 2 张">
+              <button class="ownship-card-dot" type="button" aria-label="ROUTE" data-tooltip="ROUTE" aria-current="true"></button>
+              <button class="ownship-card-dot" type="button" aria-label="SENSOR" data-tooltip="SENSOR"></button>
             </div>
-            <div class="canvas-controls map-controls">
-              <div class="scale-bar" id="scaleBar" aria-label="海图比例尺">
+            <obc-icon-button id="nextOwnshipCardBtn" variant="flat" aria-label="下一张本船信息卡片" title="下一张本船信息卡片"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
+          </nav>
+        </aside>
+
+        <!-- ── CENTER: Live Chart Card ── -->
+        <obc-card class="live-chart-card" id="liveChartCard" data-od-id="live-enc-chart-card">
+          <div class="live-chart-content">
+            <div class="enc-map" id="encMap" data-od-id="enc-chart-canvas">
+              <div class="canvas-wrapper" id="canvasWrapper" style="position: absolute; inset: 0; width: 100%; height: 100%;">
+                <canvas id="simCanvas" aria-label="Ship collision avoidance simulation map"></canvas>
+              </div>
+              <div class="scale-bar" id="scaleBar" aria-label="海图比例尺" style="display: none;">
                 <div class="scale-line" id="scaleBarLine"></div>
                 <span class="scale-label" id="scaleBarLabel">--- m</span>
               </div>
-              <span class="map-control-divider" aria-hidden="true"></span>
-              <button id="toggleENC" class="icon-btn" title="切换 ENC 海图图层 Toggle ENC Layer" aria-label="Toggle ENC Chart" aria-pressed="true">▦</button>
-              <button id="zoomIn" class="icon-btn" title="放大 Zoom In" aria-label="Zoom In">＋</button>
-              <button id="zoomOut" class="icon-btn" title="缩小 Zoom Out" aria-label="Zoom Out">－</button>
-              <button id="zoomReset" class="icon-btn" title="复位 Reset View" aria-label="Reset View">⊙</button>
+              <div class="map-empty-state" id="liveEmptyState">
+                <h2 id="liveEmptyTitle">尚未创建当前验证</h2>
+                <p id="liveEmptyCopy">完成验证配置并创建当前验证后，此处显示初始态势；启动后接入实时遥测。</p>
+                <obc-button variant="normal" data-go="config" id="goToConfigBtn" data-od-id="go-to-configuration-button">前往验证配置</obc-button>
+              </div>
             </div>
-            <div class="map-layer-overlay">
-              <details class="map-disclosure">
-                <summary>图标说明</summary>
-                <div class="canvas-legend" aria-label="分类图标说明">
-                  <div class="legend-category" data-legend-group="navigation">
-                    <span class="legend-category-title">导航</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box ownship"></span>本船</span>
-                    <span class="legend-item" data-legend-layer="route"><span class="color-box route"></span>初始航线</span>
-                    <span class="legend-item" data-legend-layer="motionVectors"><span class="color-box motion"></span>60s 向量</span>
-                  </div>
-                  <div class="legend-category" data-legend-group="algorithm">
-                    <span class="legend-category-title">算法</span>
-                    <span class="legend-item" data-legend-layer="prediction"><span class="color-box horizon"></span>当前预测</span>
-                    <span class="legend-item" data-legend-layer="previousPrediction"><span class="color-box previous"></span>上次预测</span>
-                  </div>
-                  <div class="legend-category" data-legend-group="risk">
-                    <span class="legend-category-title">目标状态</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box clear"></span>探测圈外</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box low"></span>雷达监控</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box high"></span>避碰响应</span>
-                    <span class="legend-item" data-legend-layer="ships"><span class="color-box unknown"></span>未评估</span>
-                  </div>
-                  <div class="legend-category" data-legend-group="perception">
-                    <span class="legend-category-title">感知</span>
-                    <span class="legend-item" data-legend-layer="tracks"><span class="color-box track"></span>Tracker</span>
-                    <span class="legend-item" data-legend-layer="measurements"><span class="color-box measurement"></span>量测</span>
-                    <span class="legend-item" data-legend-layer="covariance"><span class="color-box covariance"></span>协方差</span>
-                    <span class="legend-item" data-legend-layer="radarRange"><span class="color-box radar-range"></span>雷达探测圈 2 km</span>
-                    <span class="legend-item" data-legend-layer="responseRange"><span class="color-box response-range"></span><span id="response-range-legend-label">规划/响应范围</span></span>
-                  </div>
+            <div class="deployment-display-bar" data-od-id="deployment-display-functions" aria-label="海图与仿真控制">
+              <div class="deployment-tool-zone deployment-tool-zone--chart" aria-label="海图显示控制">
+                <div class="map-zoom-control" aria-label="海图比例尺">
+                  <button class="map-symbol-button" type="button" id="zoomOutBtn" aria-label="缩小海图" title="缩小海图">−</button>
+                  <label class="map-scale-input" aria-label="海图比例尺，单位海里">
+                    <input id="chartScaleInput" type="number" min="0.15" max="1.00" step="0.05" value="0.50" inputmode="decimal"><span>NM</span>
+                  </label>
+                  <button class="map-symbol-button" type="button" id="zoomInBtn" aria-label="放大海图" title="放大海图">+</button>
                 </div>
-              </details>
-              <details class="map-disclosure">
-                <summary>航行展示</summary>
-                <div class="layer-controls" aria-label="仿真图层">
-                  <fieldset>
-                    <legend>基础</legend>
-                    <label><input type="checkbox" data-layer="safeWater" checked> 安全海域 <span class="layer-state" data-layer-state="safeWater">数据未提供</span></label>
-                    <label><input type="checkbox" data-layer="ships" checked> 船舶</label>
-                  </fieldset>
-                  <fieldset>
-                    <legend>导航</legend>
-                    <label><input type="checkbox" data-layer="route" checked> 初始航线</label>
-                    <label><input type="checkbox" data-layer="waypoints" checked> 航点</label>
-                    <label><input type="checkbox" data-layer="history" checked> 历史航迹</label>
-                    <label><input type="checkbox" data-layer="motionVectors" checked> 60s 向量</label>
-                  </fieldset>
-                  <fieldset>
-                    <legend>算法</legend>
-                    <label><input type="checkbox" data-layer="prediction" checked> 当前预测</label>
-                    <label><input type="checkbox" data-layer="previousPrediction"> 上次预测</label>
-                    <label><input type="checkbox" data-layer="executionPoint" checked> 执行点</label>
-                  </fieldset>
-                  <fieldset>
-                    <legend>感知调试</legend>
-                    <label><input type="checkbox" data-layer="truth"> 真值</label>
-                    <label><input type="checkbox" data-layer="measurements"> 量测</label>
-                    <label><input type="checkbox" data-layer="tracks"> Track ID</label>
-                    <label><input type="checkbox" data-layer="covariance"> 协方差</label>
-                    <label><input type="checkbox" data-layer="radarRange" checked> 雷达探测圈（2 km）</label>
-                    <label><input type="checkbox" data-layer="responseRange" checked> <span id="response-range-control-label">规划/响应范围</span> <span class="layer-state" data-layer-state="responseRange">数据未提供</span></label>
-                  </fieldset>
+                <div class="map-mode-control" aria-label="海图方向">
+                  <button class="map-mode-button" type="button" data-map-orientation="heading" aria-pressed="false" aria-label="Heading Up" title="Heading Up">H</button>
+                  <button class="map-mode-button active" type="button" data-map-orientation="north" aria-pressed="true" aria-label="North Up" title="North Up">N</button>
+                  <button class="map-mode-button" type="button" data-map-orientation="course" aria-pressed="false" aria-label="Course Up" title="Course Up">C</button>
                 </div>
-              </details>
-            </div>
-            <div class="log-section map-log-overlay card glass-card" id="cardEvents" aria-label="仿真事件">
-              <h3 class="card-title"><span class="icon" aria-hidden="true">≡</span> 仿真事件</h3>
-              <div class="log-terminal" id="logTerminal" aria-live="polite">
-                <div class="log-entry log-info" id="initialLogEntry">[--:--:--] System ready. Waiting for simulation start…</div>
+                <obc-icon-button variant="normal" id="centerModeBtn" data-center-mode="off-center" aria-label="本船偏心" title="Off Center"><obi-center-off-iec></obi-center-off-iec></obc-icon-button>
+                <obc-icon-button variant="normal" id="motionModeBtn" data-motion-mode="relative" aria-label="相对运动" title="Relative Motion"><obi-motion-relative-proposal></obi-motion-relative-proposal></obc-icon-button>
+                <obc-icon-button variant="flat" id="trueMotionResetBtn" aria-label="重置真运动原点" title="True Motion Reset"><obi-motion-tm-reset-proposal-2></obi-motion-tm-reset-proposal-2></obc-icon-button>
+                <obc-icon-button variant="flat" id="chartLayersBtn" aria-label="海图图层" title="海图图层"><obi-chart-layers></obi-chart-layers></obc-icon-button>
               </div>
-            </div>
-            <div class="playback-control-overlay" aria-label="仿真播放控制">
-              <div class="playback-actions">
-                <button id="btnStart" class="playback-btn playback-primary" title="下发启动命令" aria-label="启动仿真"><span aria-hidden="true">▶</span><span>启动</span></button>
-                <button id="btnPause" class="playback-btn" title="下发暂停命令" aria-label="暂停仿真"><span aria-hidden="true">Ⅱ</span><span>暂停</span></button>
-                <button id="btnStep" class="playback-btn" title="下发单步命令" aria-label="单步仿真"><span aria-hidden="true">|▶</span><span>单步</span></button>
-                <button id="btnReplay" class="playback-btn" title="下发回放命令" aria-label="回放已完成实验"><span aria-hidden="true">↺</span><span>回放</span></button>
-                <button id="btnReset" class="playback-btn playback-danger" title="下发重置命令" aria-label="重置仿真"><span aria-hidden="true">⟳</span><span>重置</span></button>
+              <span class="deployment-display-divider" aria-hidden="true"></span>
+              <div class="deployment-tool-zone deployment-tool-zone--simulation" data-od-id="live-playback-controls" aria-label="仿真控制与时间">
+                <div class="deployment-time-readout" aria-label="仿真时间"><span>SIM TIME</span><strong id="liveSimulationTime">--:--:--</strong></div>
+                <obc-icon-button variant="normal" id="startValidationBtn" aria-label="开始验证" title="开始验证"><obi-media-play></obi-media-play></obc-icon-button>
+                <obc-icon-button variant="flat" id="pauseValidationBtn" aria-label="暂停验证" title="暂停验证"><obi-media-pause></obi-media-pause></obc-icon-button>
+                <obc-icon-button variant="flat" id="stepValidationBtn" aria-label="单步执行" title="单步执行"><obi-media-skip-next></obi-media-skip-next></obc-icon-button>
+                <obc-icon-button variant="flat" id="resetValidationBtn" aria-label="重置仿真" title="重置仿真"><obi-reset></obi-reset></obc-icon-button>
+                <span class="deployment-control-state" id="liveControlState">NOT CREATED</span>
+                <obc-toggle-button-group class="deployment-rate-compact" id="livePlaybackRate" value="1" variant="regular" type="text" aria-label="仿真倍速">
+                  <obc-toggle-button-option value="1">1×</obc-toggle-button-option>
+                  <obc-toggle-button-option value="2">2×</obc-toggle-button-option>
+                  <obc-toggle-button-option value="5">5×</obc-toggle-button-option>
+                </obc-toggle-button-group>
               </div>
-              <span class="playback-divider" aria-hidden="true"></span>
-              <div class="speed-presets" role="group" aria-label="仿真倍速档位">
-                <span class="speed-title">倍速</span>
-                <button class="speed-preset" data-speed="0.5">0.5×</button>
-                <button class="speed-preset active" data-speed="1.0">1.0×</button>
-                <button class="speed-preset" data-speed="2.0">2.0×</button>
-                <button class="speed-preset" data-speed="5.0">5.0×</button>
-                <button class="speed-preset" data-speed="10.0">10.0×</button>
-                <span class="speed-status" id="speedStatus" aria-live="polite">实际 --</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-      </div><!-- /canvas-column -->
-
-      <!-- ── RIGHT: Sidebar Column ──────────── -->
-      <aside class="sidebar-column" aria-label="控制与遥测面板">
-
-        <!-- ─── CARD A: Installed Plugins ─── -->
-        <div class="card glass-card" id="cardIntegrations">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">▦</span> 系统安装插件</h3>
-          <div class="integration-grid">
-            <div class="integration-chip" data-integration="psbmpc">
-              <span class="integration-name">PSB-MPC</span>
-              <span class="integration-role">概率安全域 MPC 避碰</span>
-              <span class="integration-state">检查中</span>
-            </div>
-            <div class="integration-chip" data-integration="rrt">
-              <span class="integration-name">RRT*</span>
-              <span class="integration-role">ENC 高层路径规划</span>
-              <span class="integration-state">检查中</span>
-            </div>
-            <div class="integration-chip" data-integration="rlmpc">
-              <span class="integration-name">RLMPC</span>
-              <span class="integration-role">强化学习/NMPC 控制</span>
-              <span class="integration-state">检查中</span>
-            </div>
-            <div class="integration-chip" data-integration="vimmjipda">
-              <span class="integration-name">VIMMJIPDA</span>
-              <span class="integration-role">雷达多目标跟踪</span>
-              <span class="integration-state">检查中</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- ─── CARD B: Collision-Avoidance Test Rules ─── -->
-        <div class="card glass-card" id="cardRules">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">§</span> 避碰测试规则</h3>
-          <select id="scenarioSelect" class="control-native-select" aria-label="当前测试场景">
-            <option value="head_on" selected>标准对遇 · G3 · 600s</option>
-          </select>
-          <div class="rule-catalog" aria-label="避碰测试规则列表">
-            <div class="selection-grid rule-selection-grid" role="tablist" aria-label="避碰测试规则">
-              <button id="tab-overtaking" class="selection-card qtab" type="button" data-group="rule13" data-default-scenario="overtaking" role="tab" aria-pressed="false">
-                <span class="selection-name">Rule 13-OT</span><span class="selection-description">追越与被追越</span><span class="selection-state">检查中</span>
-              </button>
-              <button id="tab-headon" class="selection-card qtab selected active" type="button" data-group="rule14" data-default-scenario="head_on" role="tab" aria-pressed="true">
-                <span class="selection-name">Rule 14-HO</span><span class="selection-description">对遇避碰</span><span class="selection-state">检查中</span>
-              </button>
-              <button id="tab-crossing" class="selection-card qtab" type="button" data-group="rule15" data-default-scenario="crossing_give_way" role="tab" aria-pressed="false">
-                <span class="selection-name">Rule 15-CS</span><span class="selection-description">交叉相遇</span><span class="selection-state">检查中</span>
-              </button>
-              <button id="tab-multi" class="selection-card qtab" type="button" data-group="multiship" data-default-scenario="paper_ccta2023_multiship" role="tab" aria-pressed="false">
-                <span class="selection-name">多船情形</span><span class="selection-description">多目标综合遭遇</span><span class="selection-state">检查中</span>
-              </button>
-            </div>
-            <div class="selection-heading scenario-selection-heading">测试场景</div>
-            <div class="selection-grid scenario-selection-grid" id="scenarioCatalog" aria-label="当前规则可用场景"></div>
-          </div>
-        </div>
-
-        <!-- ─── CARD C: Collision-Avoidance Algorithms ─── -->
-        <div class="card glass-card" id="cardControl">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">⌘</span> 避碰规划算法</h3>
-          <select id="algoSelect" class="control-native-select" aria-label="避碰规划算法">
-            <option value="nominal">名义导航链</option>
-            <option value="vo">内置 VO</option>
-            <option value="mid_mpc_ipopt" selected>Mid-MPC</option>
-            <option value="potocnik_colreg_fan_mpc">Fan-MPC</option>
-            <option value="psbmpc">官方 PSB-MPC</option>
-            <option value="rrt">RRT* 路径规划</option>
-            <option value="rlmpc">RL-MPC</option>
-          </select>
-          <div class="algorithm-catalog" aria-label="避碰规划算法列表">
-            <div class="selection-section">
-              <div class="selection-heading">MPC</div>
-              <div class="selection-grid">
-                <button class="selection-card selected" type="button" data-algorithm="mid_mpc_ipopt" aria-pressed="true">
-                  <span class="selection-name">Mid-MPC</span><span class="selection-description">IPOPT 非线性预测控制</span><span class="selection-state">检查中</span>
-                </button>
-                <button class="selection-card" type="button" data-algorithm="potocnik_colreg_fan_mpc" aria-pressed="false">
-                  <span class="selection-name">Fan-MPC</span><span class="selection-description">可执行控制与规则策略</span><span class="selection-state">检查中</span>
-                </button>
-                <button class="selection-card" type="button" data-algorithm="psbmpc" aria-pressed="false">
-                  <span class="selection-name">PSB-MPC</span><span class="selection-description">概率安全域 MPC</span><span class="selection-state">检查中</span>
-                </button>
-                <button class="selection-card" type="button" data-algorithm="rlmpc" aria-pressed="false">
-                  <span class="selection-name">RLMPC</span><span class="selection-description">强化学习辅助 NMPC</span><span class="selection-state">检查中</span>
-                </button>
-              </div>
-            </div>
-            <div class="selection-section">
-              <div class="selection-heading">非 MPC</div>
-              <div class="selection-grid">
-                <button class="selection-card" type="button" data-algorithm="nominal" aria-pressed="false">
-                  <span class="selection-name">Nominal</span><span class="selection-description">场景原生导航链</span><span class="selection-state">检查中</span>
-                </button>
-                <button class="selection-card" type="button" data-algorithm="vo" aria-pressed="false">
-                  <span class="selection-name">VO</span><span class="selection-description">速度障碍避碰</span><span class="selection-state">检查中</span>
-                </button>
-                <button class="selection-card" type="button" data-algorithm="rrt" aria-pressed="false">
-                  <span class="selection-name">RRT*</span><span class="selection-description">ENC 高层路径规划</span><span class="selection-state">检查中</span>
-                </button>
+              <span class="deployment-display-divider" aria-hidden="true"></span>
+              <div class="deployment-tool-zone deployment-tool-zone--tools" aria-label="海图操作工具">
+                <obc-icon-button variant="normal" id="chartSelectBtn" aria-label="选择海图对象" title="Select"><obi-target-select-iec></obi-target-select-iec></obc-icon-button>
+                <obc-icon-button variant="flat" id="chartErblBtn" aria-label="电子方位线与距离圈" title="ERBL"><obi-radar-electronic-range-and-bearing-proposal></obi-radar-electronic-range-and-bearing-proposal></obc-icon-button>
+                <obc-icon-button variant="flat" id="chartRouteBtn" aria-label="航线监控" title="Route Monitor"><obi-monitoring-route></obi-monitoring-route></obc-icon-button>
+                <obc-icon-button variant="flat" id="chartTargetsBtn" aria-label="目标与航标" title="Targets and AtoN"><obi-vessel-type-cargo-filled useCssColor></obi-vessel-type-cargo-filled></obc-icon-button>
               </div>
             </div>
           </div>
-        </div>
+        </obc-card>
 
-        <!-- ─── CARD D: Target Trackers ─── -->
-        <div class="card glass-card" id="cardTracker">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">◎</span> 目标跟踪器</h3>
-          <select id="trackerSelect" class="control-native-select" aria-label="目标跟踪器">
-            <option value="scenario_default">场景默认跟踪器</option>
-            <option value="god" selected>God Tracker</option>
-            <option value="kf">Kalman Filter</option>
-            <option value="vimmjipda">VIMMJIPDA</option>
-          </select>
-          <div class="selection-grid">
-            <button class="selection-card" type="button" data-tracker="scenario_default" aria-pressed="false">
-              <span class="selection-name">场景默认</span><span class="selection-description">采用场景配置</span><span class="selection-state">检查中</span>
-            </button>
-            <button class="selection-card selected" type="button" data-tracker="god" aria-pressed="true">
-              <span class="selection-name">God Tracker</span><span class="selection-description">真值基准跟踪</span><span class="selection-state">检查中</span>
-            </button>
-            <button class="selection-card" type="button" data-tracker="kf" aria-pressed="false">
-              <span class="selection-name">Kalman Filter</span><span class="selection-description">单模型状态估计</span><span class="selection-state">检查中</span>
-            </button>
-            <button class="selection-card" type="button" data-tracker="vimmjipda" aria-pressed="false">
-              <span class="selection-name">VIMMJIPDA</span><span class="selection-description">多模型联合数据关联</span><span class="selection-state">检查中</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="card glass-card busy-water-card" id="cardBusyWater" hidden>
-          <h3 class="card-title"><span class="icon" aria-hidden="true">⚙</span> 多船配置</h3>
-          <form id="busyWaterForm" class="busy-water-generator">
-            <label>目标船数量
-              <span class="busy-water-generate-row">
-                <input id="busyTargetCount" type="number" min="0" max="40" step="1" value="15" required>
-                <button type="submit" id="generateBusyWater">生成</button>
-              </span>
-            </label>
-          </form>
-          <div id="busyTargetList" class="busy-target-list" role="listbox" aria-label="目标船列表"></div>
-          <form id="targetEditForm" class="target-edit-form busy-target-editor" hidden>
-            <label>序号 <input id="targetIdentifier" type="text" readonly></label>
-            <fieldset>
-              <legend>起点</legend>
-              <label>纬度 <input id="targetRouteLat1" type="number" min="-90" max="90" step="0.000001" required></label>
-              <label>经度 <input id="targetRouteLon1" type="number" min="-180" max="180" step="0.000001" required></label>
-              <button type="button" id="pickTargetRouteStart">海图选点</button>
-            </fieldset>
-            <fieldset>
-              <legend>终点</legend>
-              <label>纬度 <input id="targetRouteLat2" type="number" min="-90" max="90" step="0.000001" required></label>
-              <label>经度 <input id="targetRouteLon2" type="number" min="-180" max="180" step="0.000001" required></label>
-              <button type="button" id="pickTargetRouteEnd">海图选点</button>
-            </fieldset>
-            <label>航速 <span class="input-with-unit"><input id="targetSpeed" type="number" min="0.1" max="30" step="0.1" required><span>kn</span></span></label>
-            <label>COLREGS 规则
-              <select id="targetColregs" required>
-                <option value="HO">HO</option>
-                <option value="CS">CS</option>
-                <option value="OT">OT</option>
-                <option value="UNKNOWN">UNKNOWN</option>
-              </select>
-            </label>
-            <div class="target-edit-actions">
-              <button type="submit">确认并保存</button>
-              <button type="button" id="cancelTargetEdit">取消</button>
-            </div>
-          </form>
-          <p id="busyWaterStatus" class="busy-water-status" aria-live="polite"></p>
-        </div>
-
-        <!-- ─── CARD D: Safety Metrics ─── -->
-        <div class="card glass-card" id="cardSafety">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">△</span> 避碰安全指标</h3>
-
-          <div class="priority-target-row">
-            <span class="metric-label">优先目标</span>
-            <span class="metric-value-sm" id="val-primary-target">等待目标…</span>
-          </div>
-
-          <div class="metric-pair">
-            <!-- DCPA -->
-            <div class="metric-box" id="dcpaBox">
-              <span class="metric-label">DCPA</span>
-              <span class="metric-value" id="val-dcpa">--- m</span>
-              <div class="risk-bar-track" aria-label="DCPA risk level">
-                <div class="risk-bar-fill" id="dcpaBar"></div>
+        <!-- ── RIGHT: Live Operations Sidebar (MONITOR / ALGO) ── -->
+        <aside class="live-operations-sidebar" aria-label="运行操作" data-od-id="deployment-operation-sidebar">
+          <!-- Page 0: MONITOR -->
+          <div class="operations-info-page operations-monitor-page" data-operations-card-page="0" aria-label="Collision Safety Monitor">
+            <section class="operations-panel monitor-safety-panel" aria-labelledby="collision-safety-heading">
+              <header class="operations-panel-header"><span aria-hidden="true">△</span><strong id="collision-safety-heading">COLLISION SAFETY</strong><small>PRIORITY ORDER</small></header>
+              <div class="risk-target-list" id="liveRiskTargetList" aria-label="目标风险列表">
+                <article class="risk-target-card" data-priority="highest">
+                  <div class="risk-target-heading"><span>优先目标</span><strong id="riskTarget">--</strong></div>
+                  <div class="risk-target-metrics"><div class="risk-target-metric"><span>DCPA</span><strong id="riskDcpa">---</strong><small>m</small></div><div class="risk-target-metric"><span>TCPA</span><strong id="riskTcpa">---</strong><small>s</small></div></div>
+                  <dl class="risk-target-facts"><div><dt>COLREGs Rule</dt><dd class="colreg-value" id="riskColreg">--</dd></div><div><dt>Target range</dt><dd><span id="riskDistance">---</span> m</dd></div></dl>
+                </article>
               </div>
-            </div>
-            <!-- TCPA -->
-            <div class="metric-box" id="tcpaBox">
-              <span class="metric-label">TCPA</span>
-              <span class="metric-value" id="val-tcpa">--- s</span>
-              <div class="risk-bar-track">
-                <div class="risk-bar-fill" id="tcpaBar"></div>
+            </section>
+            <section class="operations-panel monitor-event-strip" aria-labelledby="monitor-event-heading">
+              <h3 id="monitor-event-heading">CURRENT EVENT</h3>
+              <ol class="event-stream" id="liveEvents"><li><time>--:--</time><span>尚未创建当前验证</span></li></ol>
+            </section>
+          </div>
+
+          <!-- Page 1: ALGO -->
+          <div class="operations-info-page operations-algo-page" data-operations-card-page="1" aria-label="Algorithm Diagnostics" hidden>
+            <section class="operations-panel algorithm-diagnostic-panel" aria-labelledby="algorithm-diagnostic-heading">
+              <header class="operations-panel-header"><span aria-hidden="true">⌁</span><strong id="algorithm-diagnostic-heading">ALGORITHM DETAIL</strong><span class="algorithm-status-badge" id="plannerSolveState">待运行</span></header>
+              <div class="algorithm-data-groups">
+                <section class="algorithm-data-group" aria-labelledby="algorithm-execution-heading">
+                  <h3 id="algorithm-execution-heading">EXECUTION</h3>
+                  <dl class="algorithm-data-list">
+                    <div class="algorithm-data-row"><dt>Session state</dt><dd id="topRunState">未创建</dd><small></small></div>
+                    <div class="algorithm-data-row"><dt>Solve status</dt><dd id="liveSolveStatus" data-state="success">SUCCESS</dd><small></small></div>
+                    <div class="algorithm-data-row"><dt>Solution</dt><dd id="liveSolutionId">#0</dd><small></small></div>
+                    <div class="algorithm-data-row"><dt>Avoidance algorithm</dt><dd id="liveAlgorithm">--</dd><small></small></div>
+                  </dl>
+                </section>
+                <section class="algorithm-data-group" aria-labelledby="algorithm-prediction-heading">
+                  <h3 id="algorithm-prediction-heading">PREDICTION</h3>
+                  <dl class="algorithm-data-list">
+                    <div class="algorithm-data-row"><dt>Horizon steps</dt><dd id="liveHorizonSteps">0</dd><small>steps</small></div>
+                    <div class="algorithm-data-row"><dt>Step interval</dt><dd id="liveStepInterval">5.0</dd><small>s</small></div>
+                    <div class="algorithm-data-row"><dt>Trajectory knots</dt><dd id="liveTrajectoryKnots">0</dd><small>pts</small></div>
+                    <div class="algorithm-data-row"><dt>Execution heading</dt><dd id="liveExecHeading">0.0</dd><small>°</small></div>
+                    <div class="algorithm-data-row"><dt>Execution speed</dt><dd id="liveExecSpeed">0.00</dd><small>m/s</small></div>
+                    <div class="algorithm-data-row"><dt>Tracking error</dt><dd id="liveTrackingError">0.00</dd><small>m</small></div>
+                  </dl>
+                </section>
+                <section class="algorithm-data-group" aria-labelledby="algorithm-optimization-heading">
+                  <h3 id="algorithm-optimization-heading">OPTIMIZATION</h3>
+                  <dl class="algorithm-data-list">
+                    <div class="algorithm-data-row"><dt>Optimal cost</dt><dd id="liveOptimalCost">--</dd><small></small></div>
+                    <div class="algorithm-data-row"><dt>Solution period</dt><dd id="liveSolutionPeriod">--</dd><small>s</small></div>
+                    <div class="algorithm-data-row"><dt>Lateral offset</dt><dd id="liveLateralOffset">--</dd><small>m</small></div>
+                    <div class="algorithm-data-row"><dt>Rolling plan</dt><dd id="liveRollingPlan">KEEP</dd><small></small></div>
+                    <div class="algorithm-data-row"><dt>Return drift</dt><dd id="liveReturnDrift">0.0</dd><small>s</small></div>
+                    <div class="algorithm-data-row"><dt>Control command</dt><dd id="liveControl">--</dd><small></small></div>
+                  </dl>
+                </section>
               </div>
-            </div>
+              <span class="algorithm-preview-label" id="liveAlgorithmPreviewLabel">Trajectory preview</span>
+              <div class="algorithm-preview-chart" id="liveAlgorithmPreviewChart" aria-label="轨迹预览">
+                <span id="liveAlgorithmPreviewDesc">Trajectory preview</span>
+                <svg id="liveAlgorithmPreviewSvg" viewBox="0 0 260 148" role="img" aria-label="规划轨迹曲线">
+                  <path d="M18 128 C64 126 85 110 105 83 C125 56 150 34 238 24"></path>
+                  <circle cx="18" cy="128" r="4"></circle>
+                  <circle cx="105" cy="83" r="4"></circle>
+                  <circle cx="238" cy="24" r="4"></circle>
+                </svg>
+              </div>
+            </section>
+            <section class="operations-panel algorithm-performance-panel" aria-labelledby="algorithm-performance-heading">
+              <header class="operations-panel-header"><span aria-hidden="true">↗</span><strong id="algorithm-performance-heading">ALGORITHM PERFORMANCE</strong><small>60 STEP WINDOW</small></header>
+              <dl class="algorithm-data-list algorithm-performance-list">
+                <div class="algorithm-data-row"><dt>Current step</dt><dd id="liveStepTime">0.00</dd><small>ms</small></div>
+                <div class="algorithm-data-row"><dt>Average (60)</dt><dd id="liveAvgTime">0.00</dd><small>ms</small></div>
+              </dl>
+              <div class="algorithm-performance-chart" aria-label="最近 60 步算法耗时">
+                <span id="livePerfSparklineLabel">1.0 ms</span>
+                <svg id="livePerfSvg" viewBox="0 0 260 148" role="img" aria-label="算法耗时趋势">
+                  <line x1="12" y1="126" x2="248" y2="126"></line>
+                  <line x1="12" y1="28" x2="12" y2="126"></line>
+                  <polyline id="livePerfPolyline" points="12,126 248,126"></polyline>
+                </svg>
+              </div>
+            </section>
           </div>
 
-          <!-- COLREGs Badge -->
-          <div class="colregs-row">
-            <span class="colregs-label">COLREGs规则</span>
-            <span class="colregs-badge" id="val-colregs">等待仿真…</span>
-          </div>
-
-          <!-- Risk distance from obstacle -->
-          <div class="distance-row">
-            <span class="metric-label">与该目标船距离</span>
-            <span class="metric-value-sm" id="val-dist">--- m</span>
-          </div>
-        </div>
-
-        <!-- ─── CARD E: Planner Trace ─── -->
-        <div class="card glass-card" id="cardPlanner">
-          <div class="planner-heading">
-            <h3 class="card-title"><span class="icon" aria-hidden="true">⌁</span> 规划执行诊断</h3>
-            <span class="planner-mode hold" id="val-solver-executed">HOLD</span>
-          </div>
-          <div class="planner-grid">
-            <div><span class="telem-label">求解编号</span><span class="telem-val mono-tag" id="val-solve-id">#0</span></div>
-            <div><span class="telem-label">状态</span><span class="telem-val mono-tag" id="val-solver-state">成功</span></div>
-            <div><span class="telem-label">预测时域</span><span class="telem-val mono-tag" id="val-planner-horizon">--</span></div>
-            <div><span class="telem-label">执行航向</span><span class="telem-val mono-tag" id="val-command-course">--°</span></div>
-            <div><span class="telem-label">执行速度</span><span class="telem-val mono-tag" id="val-command-speed">-- m/s</span></div>
-            <div><span class="telem-label">预测执行误差</span><span class="telem-val mono-tag" id="val-prediction-error">-- m</span></div>
-            <div><span class="telem-label" id="label-best-cost">最优 Cost</span><span class="telem-val mono-tag" id="val-best-cost">--</span></div>
-            <div><span class="telem-label" id="label-best-course-offset">航向偏移</span><span class="telem-val mono-tag" id="val-best-course-offset">--°</span></div>
-            <div><span class="telem-label" id="label-best-speed-scale">速度系数</span><span class="telem-val mono-tag" id="val-best-speed-scale">--</span></div>
-            <div><span class="telem-label">求解周期</span><span class="telem-val mono-tag" id="val-solve-period">--</span></div>
-          </div>
-          <div class="planner-surface-copy">
-            <div class="surface-heading">
-              <div class="surface-label" id="val-surface-label">候选控制代价</div>
-              <button class="surface-attach-btn" id="plannerSurfaceAttach" type="button" hidden disabled>展开</button>
+          <!-- Switcher -->
+          <nav class="operations-card-switcher" aria-label="切换运行监控页面" data-od-id="operations-card-switcher">
+            <obc-icon-button id="previousOperationsCardBtn" variant="flat" aria-label="上一张运行监控页面" title="上一张运行监控页面"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+            <div class="operations-card-position" id="operationsCardPosition" aria-label="第 1 张，共 2 张">
+              <button class="operations-card-dot" type="button" aria-label="MONITOR" data-tooltip="MONITOR" aria-current="true"></button>
+              <button class="operations-card-dot" type="button" aria-label="ALGO" data-tooltip="ALGO"></button>
             </div>
-          </div>
-          <div class="planner-surface-wrap" id="plannerSurfacePanel">
-            <canvas id="plannerSurface" width="280" height="280" aria-label="候选控制决策图"></canvas>
-            <div class="vo-surface-legend" id="voSurfaceLegend" hidden>
-              <span><i class="vo-safe"></i>安全</span>
-              <span><i class="vo-collision"></i>有限 TTC</span>
-              <span><i class="vo-buffer"></i>WVO 缓冲</span>
-              <span><i class="vo-colregs"></i>COLREG 禁区</span>
-            </div>
-            <div class="surface-explanation" id="val-surface-explanation"></div>
-          </div>
-          <div class="surface-meta mono-tag" id="val-surface-meta"></div>
-          <div class="objective-history-wrap" id="objectiveHistoryWrap">
-            <div class="objective-history-heading">
-              <span>最优 Cost 历史</span>
-            </div>
-            <canvas id="objectiveHistory" width="280" height="86" aria-label="最优 Cost 历史"></canvas>
-          </div>
-          <div class="solve-timeline" id="solveTimeline" aria-label="求解周期说明">
-            <span class="timeline-empty">等待真实求解</span>
-          </div>
-        </div>
-
-        <!-- ─── CARD F: Ownship Telemetry ─── -->
-        <div class="card glass-card" id="cardTelemetry">
-          <h3 class="card-title"><span class="icon ship-icon" aria-hidden="true">▲</span> 本船遥测状态</h3>
-
-          <div class="telem-grid">
-            <div class="telem-item">
-              <span class="telem-label">纬度</span>
-              <span class="telem-val mono-tag" id="val-os-latitude">--</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">经度</span>
-              <span class="telem-val mono-tag" id="val-os-longitude">--</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">对地速度</span>
-              <span class="telem-val mono-tag" id="val-os-sog">0.0 m/s</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">对地航向</span>
-              <span class="telem-val mono-tag" id="val-os-cog">0.0°</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">当前航向</span>
-              <span class="telem-val mono-tag" id="val-os-heading">0.0°</span>
-            </div>
-            <div class="telem-item">
-              <span class="telem-label">角速度</span>
-              <span class="telem-val mono-tag" id="val-os-yaw">0.0 rad/s</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- ─── CARD G: Algorithm Performance ─── -->
-        <div class="card glass-card" id="cardPerf">
-          <h3 class="card-title"><span class="icon" aria-hidden="true">↗</span> 算法性能监控</h3>
-
-          <div class="perf-header">
-            <div class="perf-stat">
-              <span class="telem-label">当前步长耗时</span>
-              <span class="telem-val mono-tag" id="val-step-time">-- ms</span>
-            </div>
-            <div class="perf-stat">
-              <span class="telem-label">平均耗时 (60步)</span>
-              <span class="telem-val mono-tag" id="val-avg-time">-- ms</span>
-            </div>
-          </div>
-
-          <!-- Mini sparkline chart -->
-          <div class="mini-chart-container" aria-label="算法计算耗时历史折线图">
-            <canvas id="perfChart" height="70" aria-hidden="true"></canvas>
-          </div>
-        </div>
-
-      </aside><!-- /sidebar-column -->
-
-    </main>
+            <obc-icon-button id="nextOperationsCardBtn" variant="flat" aria-label="下一张运行监控页面" title="下一张运行监控页面"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
+          </nav>
+        </aside>
+      </div>
+    </section>
 
     <section class="workface roadmap-workface" data-workface-panel="evaluation" hidden><h2>Evaluation</h2><p>Current-session result and evidence remain available through Deployment. Run history and Compare require future backend contracts.</p></section>
     <section class="workface roadmap-workface" data-workface-panel="scenario" hidden><h2>Scenario</h2><p>Scenario library surface planned. Config uses live capability metadata; no silent busy-water generation occurs.</p></section>
@@ -711,7 +556,7 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260819-c5-shell-2"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260819-c5-shell-2"></script>
+  <script type="module" src="/static/app.js?v=20260820-fix-3"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260820-fix-2"></script>
 </body>
 </html>

@@ -127,7 +127,9 @@ test('Config token layer ports the OpenBridge palette sheet (gap #3 part)', () =
   ]) {
     assert.ok(styles.includes(token), `style.css must define OpenBridge token ${token.split(':')[0]}`);
   }
-  assert.match(styles, /\.config-workface[^{]*\{[^}]*color: var\(--ob-text\)/);
+  // P:305-311 base: borderless 3-column grid on the app background; user ruling
+  // 2026-08-19: side rails share one width (236px) instead of 236/clamp(344-392).
+  assert.match(styles, /\.config-workface[^{]*\{[^}]*grid-template-columns: 236px minmax\(0, 1fr\) 236px;[^}]*background: var\(--ob-app-bg\)/);
   // C5 ruling 5: focus-visible promoted to a global rule (was .config-workface-scoped).
   assert.match(styles, /:focus-visible \{ outline: 3px solid var\(--ob-accent-mid\); outline-offset: 2px; \}/);
   assert.match(styles, /prefers-reduced-motion: reduce/);
@@ -138,7 +140,9 @@ test('Config-scope selectors consume tokens instead of hardcoded hex (gap #3 par
   const hexColors = configCss.match(/#[0-9a-fA-F]{3,8}\b/g) || [];
   assert.deepEqual(hexColors, [], `Config CSS must not hardcode hex colors, found: ${hexColors.join(', ')}`);
   assert.match(configCss, /\.choice-card\[aria-checked="true"\] \{[^}]*border: 2px solid var\(--ob-accent-mid\);[^}]*background: var\(--ob-accent-pale\)/);
-  assert.match(configCss, /\.config-obc-card \{[^}]*background: var\(--ob-surface\)/);
+  // P:359-366 card chrome owned by the shell (plain sections): obc-card's shadow
+  // DOM centers its title slot and shrinks centered content, so cards style themselves.
+  assert.match(configCss, /\.config-obc-card \{[^}]*border: 1px solid color-mix\(in srgb, var\(--ob-text\) 26%, transparent\);[^}]*background: var\(--ob-work-bg\)/);
 });
 
 test('Stepper chrome shows circular numbers, completion dots, and 25%-per-ready-step progress (gap #19)', () => {
@@ -157,27 +161,26 @@ test('Stepper chrome shows circular numbers, completion dots, and 25%-per-ready-
   assert.match(configCss, /\.assembly-step\[data-complete="true"\] \.step-state-dot \{[^}]*background: var\(--ob-accent\)/);
 });
 
-test('Inspector has assembly-status pill, 44px-header sections, and sticky obc-button actions (gap #18)', () => {
+test('Inspector has assembly-status pill, compact-header sections, and obc-button actions (gap #18; 32px ruling 2026-08-19: 236px rail must fit without inner scroll)', () => {
   assert.match(html, /id="validationAssemblyStatus"/);
   assert.match(html, /class="assembly-card-content"/);
   assert.match(html, /<section class="assembly-section">/);
   assert.match(html, /<obc-button id="validationDefault"/);
   assert.match(html, /<obc-button[^>]*id="validationCreate"/);
-  assert.match(configCss, /\.assembly-section > h2 \{[^}]*min-height: 44px/);
+  assert.match(configCss, /\.assembly-section > h2 \{[^}]*min-height: 32px/);
   assert.match(configCss, /\.assembly-status \{[^}]*border-radius: 999px/);
   assert.match(shell, /validationAssemblyStatus/);
 });
 
-test('Create swaps to Open Deployment jump when draft is clean and matches the active session (gap #20)', () => {
+test('Create swaps to Open jump when draft is clean and matches the active session (gap #20)', () => {
   assert.match(shell, /dataset\.mode = cleanMatch/);
-  assert.match(shell, /'Open Deployment'/);
+  assert.match(shell, /cleanMatch \? 'Open' : 'Create'/);
   assert.match(shell, /mode === 'open-deployment'/);
   assert.match(shell, /switchWorkface\('deployment'\)/);
 });
 
 test('Rule choices render as OpenBridge elevated cards in a 4-column grid (gap #10)', () => {
-  assert.match(shell, /components\/elevated-card\/elevated-card\.js\/\+esm/);
-  assert.match(shell, /components\/icon-button\/icon-button\.js\/\+esm/);
+  assert.match(shell, /vendor\/openbridge\/openbridge-components\.mjs/);
   assert.match(shell, /function makeChoiceCard\(/);
   assert.match(shell, /obc-elevated-card/);
   assert.match(shell, /setAttribute\('aria-pressed', String\(selected\)\)/);
@@ -185,7 +188,7 @@ test('Rule choices render as OpenBridge elevated cards in a 4-column grid (gap #
   assert.match(shell, /event\.key === 'Enter' \|\| event\.key === ' '/);
   assert.match(shell, /renderNativeChoiceCard\(/);
   assert.match(configCss, /#validationRuleChoices \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(configCss, /\.choice\[aria-pressed="true"\]::part\(wrapper\) \{[^}]*outline: 2px solid var\(--ob-accent-mid\)/);
+  assert.match(configCss, /\.choice\[aria-pressed="true"\]::part\(wrapper\) \{[^}]*outline: 3px solid var\(--ob-accent\); outline-offset: -3px/);
 });
 
 test('Rule guide uses floating prev/next icon buttons over the media (gap #21)', () => {
@@ -273,7 +276,10 @@ test('Params use obc-number-input-field with inline field errors and retained no
   assert.match(shell, /field\.error = invalid/);
   assert.match(shell, /field\.errorText = invalid \? message : ''/);
   assert.match(shell, /ensureNumberFields/);
-  assert.match(shell, /notices\.map\(\(notice\) => notice\.message\)/);
+  // User ruling 2026-08-19: only *-error notices render in the inspector rail;
+  // informational notices (repair/config-cleared/catalog-refreshed) stay silent.
+  assert.match(shell, /notices[\s\S]{0,120}filter\(\(notice\) => typeof notice\.kind === 'string' && notice\.kind\.endsWith\('-error'\)\)/);
+  assert.match(shell, /\.map\(\(notice\) => notice\.message\)/);
   assert.doesNotMatch(shell, /Object\.entries\(snapshot\.validationErrors\)\.map/);
   assert.match(html, /id="validationNotices"/);
 });
@@ -354,9 +360,8 @@ test('C5 pull-forward: top bar populated with app icon, Beijing clock, and actio
   assert.match(html, /id="topbarBeijingClock"/);
   for (const id of ['alertBtn', 'soundBtn', 'settingsBtn']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(html, /showappsbutton showdimmingbutton showappicon showuserbutton/);
-  assert.match(shell, /components\/clock\/clock\.js\/\+esm/);
-  assert.match(shell, /icons\/icon-alerts\.js\/\+esm/);
-  assert.match(shell, /icons\/icon-collision-avoidance-head-on\.js\/\+esm/);
+  assert.match(shell, /vendor\/openbridge\/openbridge-components\.mjs/);
+  assert.match(shell, /vendor\/openbridge\/openbridge-components\.mjs/);
   assert.doesNotMatch(styles, /\.openbridge-topbar \{[^}]*pointer-events: none/);
   assert.match(styles, /obc-clock:not\(:defined\)/);
   // Session-state chip removed 2026-08-19 (overlapped topbar alert/sound buttons).
