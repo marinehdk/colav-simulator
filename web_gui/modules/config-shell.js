@@ -46,7 +46,7 @@ async function loadOpenBridge() {
   try {
     // Single locally-bundled module: components + icons + lit, pinned to
     // @oicl/openbridge-webcomponents@1.0.1. See vendor/openbridge/entry-source.mjs.
-    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260820-fix-4');
+    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260820-fix-5');
     await Promise.all([
       customElements.whenDefined('obc-top-bar'),
       customElements.whenDefined('obc-card'),
@@ -94,15 +94,15 @@ function restorePersistedWorkface() {
 }
 
 const SCENARIO_LABELS = {
-  head_on: '标准对遇',
-  overtaking: '标准追越',
-  overtaken: '标准被追越',
-  crossing_give_way: '标准交叉 · 让路',
-  crossing_stand_on: '标准交叉 · 直航',
-  paper_ccta2023_multiship: '论文复现 · 四船',
-  romsdal_busy_water_16: 'Romsdal 多船可配置',
-  paper_ccta2023_head_on: '论文复现 · 对遇',
-  head_on_sbmpc: 'SB-MPC 对遇验证',
+  head_on: 'Head-on',
+  overtaking: 'Overtaking',
+  overtaken: 'Overtaken',
+  crossing_give_way: 'Give-way',
+  crossing_stand_on: 'Stand-on',
+  paper_ccta2023_multiship: 'Three-Ship',
+  romsdal_busy_water_16: 'Multiship-Configurable',
+  paper_ccta2023_head_on: 'Head-on (Paper)',
+  head_on_sbmpc: 'Head-on (SB-MPC)',
 };
 
 const ALGORITHM_LABELS = {
@@ -286,10 +286,16 @@ function renderRuleChoices(snapshot) {
   const container = document.getElementById('validationRuleChoices');
   const selected = snapshot.draft?.validation_rule_id;
   const visibleRules = new Set(['rule13', 'rule14', 'rule15', 'multiship']);
+  const ruleLabels = {
+    rule13: 'Rule 13 Overtaking',
+    rule14: 'Rule 14 Head-on',
+    rule15: 'Rule 15 Crossing',
+    multiship: 'Multiship',
+  };
   container.replaceChildren(...(snapshot.options.validation_rule_id || []).filter((item) => visibleRules.has(item.id)).map((item) => {
     const card = makeChoiceCard({
       id: item.id,
-      name: item.id.toUpperCase(),
+      name: ruleLabels[item.id] || item.id,
       desc: `${item.readiness_grade || 'G0'} · ${item.enabled ? 'Selectable' : 'Unavailable'}`,
       grade: item.readiness_grade || 'G0',
       reason: item.incompatibility_reason || item.known_failure || '',
@@ -514,30 +520,10 @@ function renderAlgorithmDetail(snapshot) {
   document.getElementById('validationTrackerSummary').textContent = tracker?.known_failure
     ? `Known failure reported by catalog: ${tracker.known_failure}`
     : 'Registered integration; no failure reported by the catalog.';
-  const tupleId = [
-    draft.validation_rule_id,
-    draft.scenario_id,
-    draft.algorithm_id,
-    draft.tracker_id,
-  ].join(' / ');
-  document.getElementById('validationTupleId').textContent = tupleId;
   renderMetadataFlow('validationAlgorithmFlow', algorithm, 'Algorithm');
   renderMetadataFlow('validationTrackerFlow', tracker, 'Tracker');
   replaceDefinitionRows(document.getElementById('validationAlgorithmFacts'), integrationFacts(algorithm));
   replaceDefinitionRows(document.getElementById('validationTrackerFacts'), integrationFacts(tracker));
-  const combinations = snapshot.classification === 'verified'
-    ? snapshot.catalog?.verified_combinations
-    : snapshot.catalog?.experimental_combinations;
-  const exact = combinations?.find((item) => [
-    item.validation_rule_id,
-    item.scenario_id,
-    item.algorithm_id,
-    item.tracker_id,
-  ].every((value, index) => value === [draft.validation_rule_id, draft.scenario_id, draft.algorithm_id, draft.tracker_id][index]));
-  const evidence = exact?.latest_evidence;
-  document.getElementById('validationEvidenceDetail').textContent = evidence
-    ? `Latest catalog evidence · seed ${evidence.seed ?? 'not exposed'} · termination ${evidence.termination ?? 'not exposed'} · predicate ${exact.predicate_version || 'not exposed'}`
-    : `${snapshot.classification} tuple · no latest_evidence payload exposed for this selection.`;
 }
 
 const PARAM_FIELD_IDS = {
@@ -781,12 +767,14 @@ function render() {
     if (field) field.disabled = snapshot.readOnly || snapshot.creating;
   }
   const classification = document.getElementById('validationClassification');
-  classification.className = `classification-card ${snapshot.classification}`;
-  classification.textContent = snapshot.classification === 'verified'
-    ? 'Verified Exact Tuple · normal Create'
-    : snapshot.classification === 'experimental'
-      ? 'Experimental Exact Tuple · amber confirmation required'
-      : 'Unavailable · Create blocked';
+  if (classification) {
+    classification.className = `classification-card ${snapshot.classification}`;
+    classification.textContent = snapshot.classification === 'verified'
+      ? 'Verified Exact Tuple · normal Create'
+      : snapshot.classification === 'experimental'
+        ? 'Experimental Exact Tuple · amber confirmation required'
+        : 'Unavailable · Create blocked';
+  }
   renderSummary(snapshot);
   const assemblyStatus = document.getElementById('validationAssemblyStatus');
   const cleanMatch = !snapshot.dirty && snapshot.matchesActive && !snapshot.creating;

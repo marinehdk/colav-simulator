@@ -260,9 +260,9 @@ test('Algorithm detail chrome: role eyebrow, grade pill, 20px heading, binding f
   assert.match(html, /class="algorithm-detail-eyebrow"/);
   assert.match(html, /id="validationAlgorithmGrade"/);
   assert.match(html, /id="validationTrackerGrade"/);
-  assert.match(html, /class="algorithm-binding"/);
-  assert.match(html, /class="algorithm-binding-id" id="validationTupleId"/);
-  assert.match(html, /id="validationClassification"/);
+  assert.doesNotMatch(html, /algorithm-binding/);
+  assert.doesNotMatch(html, /id="validationClassification"/);
+  assert.doesNotMatch(html, /id="validationEvidenceDetail"/);
   assert.match(configCss, /\.algorithm-detail-grade \{[^}]*border-radius: 999px/);
   assert.match(configCss, /\.algorithm-detail-header h2 \{[^}]*font-size: 20px/);
   assert.match(shell, /readiness_grade/);
