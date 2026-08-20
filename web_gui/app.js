@@ -627,7 +627,7 @@ function updateOwnshipTelemetry(proj) {
     Object.assign(liveCompass, {
       heading: headingDeg,
       course: cogDeg,
-      rotationsPerMinute: rotDegMin,
+      rotationsPerMinute: rotDegMin / 360,
       direction: document.getElementById('compassMode')?.value || 'northUp',
     });
   }

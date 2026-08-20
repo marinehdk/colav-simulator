@@ -2443,13 +2443,21 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .ownship-sensor-page .live-compass-content { width: 100%; height: auto; padding-inline: var(--s-2); }
 .ownship-sensor-page .live-depth-content { height: 312px; justify-content: space-between; padding-inline: var(--s-1); }
 
-.ownship-sensor-page .live-compass-content obc-compass {
+/* The compass pads itself below 512px (dial shrinks to ~55-62% of the
+   element), so the dial renders at the component's native size and is
+   center-cropped to the card width; the crop only trims the outermost
+   E/S/W label ring. */
+.ownship-sensor-page .live-compass-dial {
   width: 100%;
-  max-width: 100%;
   aspect-ratio: 1;
-  height: auto;
-  flex: 0 0 auto;
-  margin: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.ownship-sensor-page .live-compass-dial obc-compass {
+  width: 512px;
+  height: 512px;
+  transform: scale(0.62);
 }
 
 .ownship-sensor-page .live-compass-readouts,
