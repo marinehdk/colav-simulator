@@ -510,6 +510,77 @@ function updateDeploymentDisplay(proj) {
   }
 }
 
+const METERS_PER_NAUTICAL_MILE = 1852;
+
+function routeLegs(waypoints) {
+  const [norths, easts] = Array.isArray(waypoints) ? waypoints : [[], []];
+  if (!Array.isArray(norths) || norths.length < 2) return [];
+  return norths.slice(0, -1).map((_, index) => ({
+    from: { n: norths[index], e: easts[index] },
+    to: { n: norths[index + 1], e: easts[index + 1] },
+  }));
+}
+
+function routeProgress(legs, pos) {
+  // Active leg: the first leg the ownship has not fully passed; if all are
+  // passed the ownship is on the final approach (remaining distance 0).
+  for (let index = 0; index < legs.length; index++) {
+    const leg = legs[index];
+    const dn = leg.to.n - leg.from.n;
+    const de = leg.to.e - leg.from.e;
+    const length = Math.hypot(dn, de);
+    if (length === 0) continue;
+    const t = ((pos.n - leg.from.n) * dn + (pos.e - leg.from.e) * de) / (length * length);
+    if (t < 1 || index === legs.length - 1) {
+      const remaining = Math.max(0, (1 - Math.max(t, 0))) * length;
+      const later = legs.slice(index + 1).reduce((sum, item) => sum + Math.hypot(item.to.n - item.from.n, item.to.e - item.from.e), 0);
+      return { index, leg, remaining, total: remaining + later, t };
+    }
+  }
+  return null;
+}
+
+function formatDuration(totalSeconds) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '--:--:--';
+  const seconds = Math.floor(totalSeconds);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function updateRouteCard(proj) {
+  const data = proj.raw || {};
+  const legs = routeLegs(data.waypoints);
+  const os = data.os || {};
+  const nextLegSection = document.querySelector('.route-leg[aria-labelledby="next-leg-heading"]');
+  // A start→end route has a single leg; "Next leg" only exists with a waypoint in between.
+  const hasNextLeg = legs.length >= 2;
+  if (nextLegSection) nextLegSection.hidden = !hasNextLeg;
+  if (!Number.isFinite(os.x) || !Number.isFinite(os.y) || !legs.length) return;
+  const progress = routeProgress(legs, { n: os.x, e: os.y });
+  if (!progress) return;
+  const legCourseDeg = ((Math.atan2(progress.leg.to.e - progress.leg.from.e, progress.leg.to.n - progress.leg.from.n)
+    * 180 / Math.PI) % 360 + 360) % 360;
+  setText('liveLegCourse', `${Math.round(legCourseDeg).toString().padStart(3, '0')}°`);
+  setHtml('liveLegDistance', `${(progress.remaining / METERS_PER_NAUTICAL_MILE).toFixed(1)}<small> NM</small>`);
+  const sog = proj.navigation?.sog;
+  const legTimeS = Number.isFinite(sog) && sog > 0.05 ? progress.remaining / sog : null;
+  setText('liveLegTime', formatDuration(legTimeS));
+  if (hasNextLeg) {
+    const next = legs[progress.index + 1];
+    const nextCourseDeg = ((Math.atan2(next.to.e - next.from.e, next.to.n - next.from.n)
+      * 180 / Math.PI) % 360 + 360) % 360;
+    const nextLength = Math.hypot(next.to.n - next.from.n, next.to.e - next.from.e);
+    setText('liveNextLegCourse', `${Math.round(nextCourseDeg).toString().padStart(3, '0')}°`);
+    setHtml('liveNextLegDistance', `${(nextLength / METERS_PER_NAUTICAL_MILE).toFixed(1)}<small> NM</small>`);
+    setText('liveNextLegTime', formatDuration(Number.isFinite(sog) && sog > 0.05 ? nextLength / sog : null));
+  }
+  const totalTimeS = Number.isFinite(sog) && sog > 0.05 ? progress.total / sog : null;
+  setText('liveRouteRemaining', formatDuration(totalTimeS));
+  setText('liveRouteEta', totalTimeS === null ? '--:--:--' : formatDuration((proj.navigation?.simTime ?? 0) + totalTimeS));
+}
+
 function updateOwnshipTelemetry(proj) {
   const nav = proj.navigation || {};
   const data = proj.raw;
@@ -539,7 +610,15 @@ function updateOwnshipTelemetry(proj) {
   // 2. Page 0: ROUTE Card
   setText('liveRouteCourse', `${Math.round(headingDeg).toString().padStart(3, '0')}°`);
   setText('liveRouteRot', `${rotDegMin}/min`);
-  setText('liveLegCourse', `${Math.round(headingDeg).toString().padStart(3, '0')}°`);
+  // Turn radius from ROT: R = v/ω; straight track (|ROT| < 1°/min) has no meaningful radius.
+  const yawRate = Math.abs(os?.r || 0);
+  const turnRadiusM = Math.abs(rotDegMin) >= 1 && Number.isFinite(nav.sog) && nav.sog > 0.1 && yawRate > 1e-4
+    ? nav.sog / yawRate
+    : null;
+  setText('liveRouteRadius', turnRadiusM === null
+    ? '---'
+    : turnRadiusM >= 1852 ? `${(turnRadiusM / 1852).toFixed(2)} NM` : `${Math.round(turnRadiusM)} m`);
+  updateRouteCard(proj);
 
   // 3. Page 1: SENSOR Card Instruments
   const liveCompass = document.getElementById('liveCompass');
@@ -684,6 +763,11 @@ function updatePerfSparkline() {
 function setText(id, val) {
   const el = document.getElementById(id);
   if (el) el.textContent = val;
+}
+
+function setHtml(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = val;
 }
 
 function syncPlaybackStatus(playback, running = false) {
