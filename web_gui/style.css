@@ -2661,7 +2661,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .deployment-time-readout strong { color: var(--ob-accent); font: 600 13px/16px var(--font-mono); white-space: nowrap; }
 
 .deployment-control-state { padding: 3px 8px; border: 1px solid var(--ob-border); border-radius: var(--radius); color: var(--ob-muted); font: 600 10px/14px var(--font-mono); text-transform: uppercase; white-space: nowrap; }
-.deployment-rate-compact { max-width: 140px; }
+.deployment-rate-compact { max-width: none; }
 
 /* Right Sidebar - Monitor / Algo pages */
 .operations-info-page {

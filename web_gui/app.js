@@ -609,7 +609,8 @@ function updateOwnshipTelemetry(proj) {
 
   // 2. Page 0: ROUTE Card
   setText('liveRouteCourse', `${Math.round(headingDeg).toString().padStart(3, '0')}°`);
-  setText('liveRouteRot', `${rotDegMin}/min`);
+  const rotDegSec = Math.abs(os?.r || 0) >= 1e-4 ? (os.r * 180 / Math.PI) : null;
+  setHtml('liveRouteRot', rotDegSec === null ? '---' : `${rotDegSec.toFixed(1)}<small>/s</small>`);
   // Turn radius from ROT: R = v/ω; straight track (|ROT| < 1°/min) has no meaningful radius.
   const yawRate = Math.abs(os?.r || 0);
   const turnRadiusM = Math.abs(rotDegMin) >= 1 && Number.isFinite(nav.sog) && nav.sog > 0.1 && yawRate > 1e-4
@@ -779,6 +780,8 @@ function syncPlaybackStatus(playback, running = false) {
   document.querySelectorAll('.speed-preset').forEach(button => {
     button.classList.toggle('active', Number(button.dataset.speed) === requested);
   });
+  const rateGroup = document.getElementById('livePlaybackRate');
+  if (rateGroup && Number.isFinite(requested)) rateGroup.value = String(requested);
   const status = document.getElementById('speedStatus');
   if (!status) return;
   status.classList.toggle('limited', Boolean(playback.realtime_limited));
@@ -2576,6 +2579,20 @@ document.querySelectorAll('.speed-preset').forEach(button => {
       pushLog(error.message, 'log-danger');
     }
   });
+});
+
+document.getElementById('livePlaybackRate')?.addEventListener('click', async (event) => {
+  const option = event.target.closest('obc-toggle-button-option');
+  if (!option) return;
+  const speed = parseFloat(option.getAttribute('value'));
+  if (!Number.isFinite(speed)) return;
+  try {
+    await activeSessionRuntime.setSpeed(speed);
+    const playback = activeSessionRuntime.snapshot().session?.playback;
+    syncPlaybackStatus(playback, currentData?.state === 'RUNNING');
+  } catch (error) {
+    pushLog(error.message, 'log-danger');
+  }
 });
 
 let ownshipCardIndex = 0;
