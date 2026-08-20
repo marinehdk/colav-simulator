@@ -2376,15 +2376,14 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   background: transparent;
 }
 
-.live-info-sidebar { border-right: 1px solid var(--ob-border); }
-.live-operations-sidebar { border-left: 1px solid var(--ob-border); }
-
 /* Left Sidebar - Ownship / Route / Sensor pages */
 .ownship-info-page {
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
   display: grid;
   gap: var(--s-2);
-  padding: var(--s-2) var(--s-2) var(--s-2) 0;
+  padding: 0 var(--s-2) var(--s-2) 0;
   align-content: start;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -2564,13 +2563,18 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   height: 56px;
   min-height: 56px;
   flex: 0 0 56px;
-  margin-top: auto;
+  margin: var(--s-1) var(--s-2) var(--s-2) 0;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
-  border-top: 1px solid var(--ob-border);
+  border: 1px solid var(--ob-border);
+  border-radius: var(--radius);
   background: var(--ob-topbar);
+  box-shadow: var(--shadow);
 }
+
+.ownship-card-switcher { margin-right: 0; }
+.operations-card-switcher { margin: var(--s-1) 0 var(--s-2) var(--s-2); }
 
 .ownship-card-switcher obc-icon-button,
 .operations-card-switcher obc-icon-button { width: 44px; height: 44px; justify-self: center; }
@@ -2638,24 +2642,27 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 56px;
+  grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
-  background: var(--ob-accent-pale);
+  background: transparent;
 }
 
-.enc-map { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+.enc-map { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; background: var(--ob-accent-pale); }
 
 .deployment-display-bar {
   position: relative;
   z-index: 6;
   height: 56px;
   min-height: 56px;
+  margin: var(--s-2) 0 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   padding: 0 var(--s-3);
-  border-top: 1px solid var(--ob-border);
+  border: 1px solid var(--ob-border);
+  border-radius: var(--radius);
   background: var(--ob-topbar);
+  box-shadow: var(--shadow);
 }
 .deployment-display-bar > .deployment-tool-zone--chart { justify-self: start; }
 .deployment-display-bar > .deployment-tool-zone--simulation { justify-self: center; }
@@ -2687,7 +2694,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding: var(--s-2) 0 var(--s-2) var(--s-2);
+  padding: 0 0 var(--s-2) var(--s-2);
   overflow-y: auto;
   scrollbar-width: thin;
 }
