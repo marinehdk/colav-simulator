@@ -2564,6 +2564,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .route-steering-row { min-height: 44px; display: flex; align-items: center; gap: var(--s-3); padding: 0 var(--s-3); }
 .route-steering-row span { color: var(--ob-subtle); font-size: 11px; }
 .route-steering-row strong { margin-left: auto; color: var(--ob-accent); font: 600 17px/22px var(--font-mono); }
+.route-steering-row strong[data-mode="collision"] { color: var(--ob-danger); }
 
 .route-value-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-1); padding: 0 var(--s-3) var(--s-3); }
 .route-value-grid > div { min-width: 0; }

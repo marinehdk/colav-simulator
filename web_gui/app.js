@@ -46,11 +46,11 @@ const SCENARIO_TYPE_DESCRIPTIONS = {
 };
 
 const ENCOUNTER_LABELS = {
-  head_on: 'Rule 14-HO',
-  overtaking: 'Rule 13-OT',
-  overtaken: 'Rule 13-OT',
-  crossing_give_way: 'Rule 15-CS',
-  crossing_stand_on: 'Rule 15-CS',
+  head_on: 'Rule 14 Head-on',
+  overtaking: 'Rule 13 Overtaking',
+  overtaken: 'Rule 13 Overtaken',
+  crossing_give_way: 'Rule 15 Give-way (16)',
+  crossing_stand_on: 'Rule 15 Stand-on (17)',
   clear: 'Clear',
 };
 
@@ -551,6 +551,14 @@ function formatDuration(totalSeconds) {
 
 function updateRouteCard(proj) {
   const data = proj.raw || {};
+  // Steering mode: TRACK while no encounter is classified; COLLISION once the
+  // encounter monitor reports any non-clear COLREGs situation.
+  const collisionActive = (proj.risk?.targets || []).some((t) => t.encounter && t.encounter !== 'clear');
+  const steeringMode = document.getElementById('liveSteeringMode');
+  if (steeringMode) {
+    steeringMode.textContent = collisionActive ? 'COLLISION' : 'TRACK';
+    steeringMode.dataset.mode = collisionActive ? 'collision' : 'track';
+  }
   const legs = routeLegs(data.waypoints);
   const os = data.os || {};
   const nextLegSection = document.querySelector('.route-leg[aria-labelledby="next-leg-heading"]');
@@ -676,11 +684,11 @@ function updateMonitorTelemetry(proj) {
         const dcpaText = t.dcpaM !== null ? `${t.dcpaM.toFixed(1)}` : '---';
         const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
         const distText = t.distanceM !== null ? (t.distanceM >= 1000 ? `${(t.distanceM / 1000).toFixed(2)} km` : `${t.distanceM.toFixed(1)} m`) : '--- m';
-        const colregLabel = t.colregs ? (ENCOUNTER_LABELS[t.colregs] || t.colregs) : '--';
+        const colregLabel = t.encounter ? (ENCOUNTER_LABELS[t.encounter] || t.encounter) : '--';
         const priorityLabel = isHighest ? '优先目标' : (idx === 1 ? '次优先目标' : '监测目标');
         return `
           <article class="risk-target-card" ${isHighest ? 'data-priority="highest"' : ''}>
-            <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.name || t.id}</strong></div>
+            <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.targetLabel || (t.targetId === null ? '--' : `TS${t.targetId}`)}</strong></div>
             <div class="risk-target-metrics">
               <div class="risk-target-metric"><span>DCPA</span><strong>${dcpaText}</strong><small>m</small></div>
               <div class="risk-target-metric"><span>TCPA</span><strong>${tcpaText}</strong><small>s</small></div>
