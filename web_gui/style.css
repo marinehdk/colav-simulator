@@ -2373,7 +2373,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--ob-work-bg);
+  background: transparent;
 }
 
 .live-info-sidebar { border-right: 1px solid var(--ob-border); }
@@ -2384,7 +2384,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   min-width: 0;
   display: grid;
   gap: var(--s-2);
-  padding: var(--s-2);
+  padding: var(--s-2) var(--s-2) var(--s-2) 0;
   align-content: start;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -2687,7 +2687,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding: var(--s-2);
+  padding: var(--s-2) 0 var(--s-2) var(--s-2);
   overflow-y: auto;
   scrollbar-width: thin;
 }
