@@ -2531,6 +2531,15 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   border-radius: var(--radius);
 }
 
+/* Card titles share the OWN SHIP heading style across both sidebars. */
+.ownship-sensor-page .live-detail-title strong,
+.operations-panel-header strong {
+  color: var(--ob-subtle);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 16px;
+  letter-spacing: .02em;
+}
 .navigation-info-section > h2 {
   margin: 0;
   padding: 6px var(--s-3);
@@ -2743,7 +2752,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 }
 
 .operations-panel-header > span:first-child { width: 20px; color: var(--ob-text); font-size: 15px; text-align: center; }
-.operations-panel-header strong { font-size: 12px; font-weight: 650; }
+.operations-panel-header strong { font-size: 10px; font-weight: 650; line-height: 16px; letter-spacing: .02em; }
 .operations-panel-header small { margin-left: auto; color: var(--ob-subtle); font: 600 9px/16px var(--font-mono); }
 
 .monitor-safety-panel { min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; }
