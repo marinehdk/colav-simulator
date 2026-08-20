@@ -398,6 +398,8 @@ obc-clock:not(:defined),
    so the shell owns the card chrome directly. */
 .config-obc-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid color-mix(in srgb, var(--ob-text) 26%, transparent); border-radius: var(--ui-components-card-border-radius-regular, 6px); background: var(--ob-work-bg); overflow: hidden; filter: drop-shadow(0 1px 1px var(--ob-overlay-strong)); }
 .config-card-title { width: 100%; min-height: 44px; min-width: 0; display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: var(--s-2); padding: 0 var(--s-3); border-bottom: 1px solid var(--ob-border); color: var(--ob-text); }
+/* Without a leading step badge the copy would land in the 24px icon column. */
+.config-card-title:not(:has(> .step)) { grid-template-columns: minmax(0, 1fr); }
 .config-card-title .step { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--ob-track); color: var(--ob-muted); font: 600 11px/1 var(--font-mono); }
 .card-title-copy { min-width: 0; }
 .card-title-copy strong { display: block; font-size: 13px; font-weight: 600; line-height: 1.4; }

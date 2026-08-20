@@ -46,7 +46,7 @@ async function loadOpenBridge() {
   try {
     // Single locally-bundled module: components + icons + lit, pinned to
     // @oicl/openbridge-webcomponents@1.0.1. See vendor/openbridge/entry-source.mjs.
-    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260820-fix-2');
+    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260820-fix-4');
     await Promise.all([
       customElements.whenDefined('obc-top-bar'),
       customElements.whenDefined('obc-card'),
@@ -105,8 +105,24 @@ const SCENARIO_LABELS = {
   head_on_sbmpc: 'SB-MPC 对遇验证',
 };
 
-function optionLabel(item) {
-  return SCENARIO_LABELS[item.id] || item.name || item.display_name || item.id;
+const ALGORITHM_LABELS = {
+  mid_mpc_ipopt: 'Mid-MPC',
+  vo: 'VO',
+  potocnik_simplified_mpc: 'Fan-MPC',
+};
+const ALGORITHM_ORDER = ['mid_mpc_ipopt', 'vo', 'potocnik_simplified_mpc'];
+const TRACKER_LABELS = {
+  god: 'Truth',
+  kf: 'Kalman',
+};
+const TRACKER_ORDER = ['god', 'kf'];
+
+function optionLabel(item, labels) {
+  return (labels || {})[item.id] || SCENARIO_LABELS[item.id] || item.name || item.display_name || item.id;
+}
+
+function orderOptions(options, order) {
+  return order.map((id) => (options || []).find((item) => item.id === id)).filter(Boolean);
 }
 
 const CAROUSEL_CONFIGS = {
@@ -170,14 +186,14 @@ function rebindCarouselScrollers() {
   for (const name of Object.keys(CAROUSEL_CONFIGS)) updateCarouselControls(name);
 }
 
-function renderChoiceCarousel(name, items, selectedId, locked) {
+function renderChoiceCarousel(name, items, selectedId, locked, labels) {
   const config = CAROUSEL_CONFIGS[name];
   const container = document.getElementById(config.choices);
   if (!container) return;
   container.replaceChildren(...items.map((item) => {
     const card = makeChoiceCard({
       id: item.id,
-      name: optionLabel(item),
+      name: optionLabel(item, labels),
       desc: item.desc || `${item.readiness_grade || ''}`.trim(),
       grade: item.grade || item.readiness_grade || '',
       reason: item.incompatibility_reason || item.known_failure || '',
@@ -470,12 +486,14 @@ function renderAlgorithmDetail(snapshot) {
   const draft = snapshot.draft;
   const algorithm = selectedCatalogItem(snapshot, 'algorithms', draft.algorithm_id);
   const tracker = selectedCatalogItem(snapshot, 'trackers', draft.tracker_id);
-  renderChoiceCarousel('algorithm', snapshot.options.algorithm_id || [], draft.algorithm_id, snapshot.readOnly || snapshot.creating);
+  const algorithmOptions = orderOptions(snapshot.options.algorithm_id, ALGORITHM_ORDER);
+  renderChoiceCarousel('algorithm', algorithmOptions, draft.algorithm_id, snapshot.readOnly || snapshot.creating, ALGORITHM_LABELS);
   const trackerLocked = snapshot.readOnly || snapshot.creating;
-  document.getElementById('validationTrackerChoices').replaceChildren(...(snapshot.options.tracker_id || []).map((item) => {
+  const trackerOptions = orderOptions(snapshot.options.tracker_id, TRACKER_ORDER);
+  document.getElementById('validationTrackerChoices').replaceChildren(...trackerOptions.map((item) => {
     const card = makeChoiceCard({
       id: item.id,
-      name: optionLabel(item),
+      name: optionLabel(item, TRACKER_LABELS),
       desc: item.readiness_grade || '',
       grade: item.readiness_grade || '',
       reason: item.incompatibility_reason || item.known_failure || '',
@@ -486,8 +504,8 @@ function renderAlgorithmDetail(snapshot) {
     card.dataset.choiceId = item.id;
     return card;
   }));
-  document.getElementById('validationAlgorithmName').textContent = optionLabel(algorithm || { id: draft.algorithm_id });
-  document.getElementById('validationTrackerName').textContent = optionLabel(tracker || { id: draft.tracker_id });
+  document.getElementById('validationAlgorithmName').textContent = optionLabel(algorithm || { id: draft.algorithm_id }, ALGORITHM_LABELS);
+  document.getElementById('validationTrackerName').textContent = optionLabel(tracker || { id: draft.tracker_id }, TRACKER_LABELS);
   document.getElementById('validationAlgorithmGrade').textContent = `${algorithm?.readiness_grade || 'G0'} · ${algorithm?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
   document.getElementById('validationTrackerGrade').textContent = `${tracker?.readiness_grade || 'G0'} · ${tracker?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
   document.getElementById('validationAlgorithmSummary').textContent = algorithm?.known_failure
@@ -503,7 +521,6 @@ function renderAlgorithmDetail(snapshot) {
     draft.tracker_id,
   ].join(' / ');
   document.getElementById('validationTupleId').textContent = tupleId;
-  document.getElementById('validationAlgorithmTuple').textContent = tupleId;
   renderMetadataFlow('validationAlgorithmFlow', algorithm, 'Algorithm');
   renderMetadataFlow('validationTrackerFlow', tracker, 'Tracker');
   replaceDefinitionRows(document.getElementById('validationAlgorithmFacts'), integrationFacts(algorithm));
