@@ -2474,7 +2474,10 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .ownship-sensor-page .live-compass-readout,
 .ownship-sensor-page .live-depth-readout { min-width: 0; text-align: center; }
 .ownship-sensor-page .live-compass-readout obc-automation-button-readout-stack { width: 100%; max-width: 100%; }
-.ownship-sensor-page .live-compass-readouts {
+/* Shared compact instrument typography for all sensor readout rows. */
+.ownship-sensor-page .live-compass-readouts,
+.ownship-sensor-page .live-depth-readouts,
+.ownship-sensor-page .live-attitude-readouts {
   --global-typography-instrument-value-large-font-size: 16px;
   --global-typography-instrument-value-large-line-height: 18px;
   --global-typography-instrument-value-large-container-height: 18px;
@@ -2493,6 +2496,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 }
 
 .ownship-sensor-page .live-pitch-roll-content {
+  width: 100%;
   height: 312px;
   display: flex;
   flex-direction: column;
@@ -2502,10 +2506,14 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   padding: 0 var(--s-2) var(--s-2);
 }
 
+/* obc-pitch-roll has no intrinsic height (its container is 100%/100%), so the
+   wrapper must provide one or the instrument collapses to 0px. */
 .ownship-sensor-page .live-pitch-roll-wrapper {
-  width: min(230px, 100%);
-  flex: 0 0 auto;
+  width: 100%;
+  height: 220px;
+  flex: 0 0 220px;
 }
+.ownship-sensor-page .live-pitch-roll-wrapper obc-pitch-roll { display: block; width: 100%; height: 100%; }
 
 .live-attitude-readouts {
   width: 100%;

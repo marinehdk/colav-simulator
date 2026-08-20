@@ -643,20 +643,20 @@ function updateOwnshipTelemetry(proj) {
     Object.assign(liveDepthActual, { depth: 15, draft: 2, vesselScale: 1, instrumentRange: 50, priority: 'enhanced' });
   }
   const liveDraft = document.getElementById('liveDraftReadout');
-  if (liveDraft) liveDraft.readouts = [{ type: 'value', value: 2, nDigits: 1, unit: '' }];
+  if (liveDraft) liveDraft.readouts = [{ type: 'value', value: 2, nDigits: 1, unit: 'm' }];
   const liveSafeDepth = document.getElementById('liveSafeDepthReadout');
-  if (liveSafeDepth) liveSafeDepth.readouts = [{ type: 'value', value: 5, nDigits: 1, unit: '' }];
+  if (liveSafeDepth) liveSafeDepth.readouts = [{ type: 'value', value: 5, nDigits: 1, unit: 'm' }];
   const liveCurrentDepth = document.getElementById('liveCurrentDepthReadout');
-  if (liveCurrentDepth) liveCurrentDepth.readouts = [{ type: 'value', value: 15, nDigits: 2, unit: '' }];
+  if (liveCurrentDepth) liveCurrentDepth.readouts = [{ type: 'value', value: 15, nDigits: 2, unit: 'm' }];
 
   const livePitchRoll = document.getElementById('livePitchRoll');
   if (livePitchRoll) {
     Object.assign(livePitchRoll, { pitch: 0, roll: 0, priority: 'enhanced' });
   }
   const livePitch = document.getElementById('livePitchReadout');
-  if (livePitch) livePitch.readouts = [{ type: 'value', value: 0, nDigits: 1, unit: '' }];
+  if (livePitch) livePitch.readouts = [{ type: 'value', value: 0, nDigits: 1, unit: '°' }];
   const liveRoll = document.getElementById('liveRollReadout');
-  if (liveRoll) liveRoll.readouts = [{ type: 'value', value: 0, nDigits: 2, unit: '' }];
+  if (liveRoll) liveRoll.readouts = [{ type: 'value', value: 0, nDigits: 2, unit: '°' }];
 }
 
 function updateMonitorTelemetry(proj) {
