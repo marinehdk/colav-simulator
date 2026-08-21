@@ -8,10 +8,12 @@ from pathlib import Path
 
 import pytest
 
+from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
     HistoricalAISAlgorithmBinding,
+    HistoricalAISCapabilityReceipt,
     HistoricalAISCase,
     HistoricalAISCaseBuilder,
     HistoricalAISCaseBuildRequest,
@@ -21,6 +23,7 @@ from colav_simulator.historical_case import (
     HistoricalAISHumanReferenceBinding,
 )
 from colav_simulator.historical_compare import (
+    HistoricalBenchmarkAlignmentProfile,
     HistoricalBenchmarkComparator,
     HistoricalBenchmarkCompareRequest,
     HistoricalBenchmarkTrajectory,
@@ -32,6 +35,7 @@ from colav_simulator.historical_counterfactual import (
 from colav_simulator.historical_enc import ENCRegionProfile
 from colav_simulator.historical_replay import HistoricalReplayRequest
 from colav_simulator.historical_serialization import semantic_hash
+from colav_simulator.integrations import IntegrationRegistry
 
 UTC = timezone.utc
 
@@ -62,6 +66,10 @@ def _case(
         end_utc=datetime(2026, 7, 1, 0, 1, tzinfo=UTC),
     )
     dataset = HistoricalAISDatasetReader(source).read(selection)
+    receipt = HistoricalAISCapabilityReceipt.from_catalog(
+        CapabilityCatalog(IntegrationRegistry()), "rule14", "head_on", "nominal", "god"
+    )
+    alignment = HistoricalBenchmarkAlignmentProfile()
     outcome = HistoricalAISCaseBuilder().build(
         HistoricalAISCaseBuildRequest(
             dataset=dataset,
@@ -77,13 +85,15 @@ def _case(
                 artifact_digest=human_reference_artifact_digest,
                 sample_count=1,
             ),
-            algorithm_binding=HistoricalAISAlgorithmBinding("nominal", semantic_hash({})),
+            algorithm_binding=HistoricalAISAlgorithmBinding("nominal", semantic_hash({}), receipt.evidence_hash, receipt),
             evaluation_binding=HistoricalAISEvaluationBinding(
                 "evaluator",
                 "ccta_2023_demo-v1",
                 semantic_hash({"profile_id": "ccta_2023_demo-v1"}),
             ),
-            compare_binding=HistoricalAISCompareBinding(alignment_profile_digest="alignment-digest"),
+            compare_binding=HistoricalAISCompareBinding(
+                alignment_profile=alignment.to_dict(), alignment_profile_digest=alignment.digest
+            ),
         )
     )
     assert outcome.success is True
@@ -102,7 +112,8 @@ def test_counterfactual_run_spec_contains_reference_history_only_through_t0(
     request = HistoricalAISCounterfactualRunRequest(
         case=case,
         run_spec=RunSpec(
-            scenario_id="simple_planning_example",
+            scenario_id="head_on",
+            validation_rule_id="rule14",
             algorithm_id="nominal",
             tracker_id="god",
             t_end=30.0,
@@ -155,7 +166,8 @@ def test_human_reference_digest_does_not_change_counterfactual_run_spec(
         human_reference_artifact_digest="human-b",
     )
     base = RunSpec(
-        scenario_id="simple_planning_example",
+        scenario_id="head_on",
+        validation_rule_id="rule14",
         algorithm_id="nominal",
         tracker_id="god",
         t_end=30.0,
@@ -179,7 +191,7 @@ def test_counterfactual_rejects_human_reference_not_frozen_in_case(
     with pytest.raises(ValueError, match="frozen Human Reference"):
         HistoricalAISCounterfactualRunRequest(
             case,
-            RunSpec(scenario_id="simple_planning_example"),
+            RunSpec(scenario_id="head_on", validation_rule_id="rule14", tracker_id="god"),
             "human-b",
         )
 
@@ -214,7 +226,8 @@ def test_post_t0_human_reference_changes_compare_only_not_runtime_or_commands(
         runtime_digest="",
     )
     base = RunSpec(
-        scenario_id="simple_planning_example",
+        scenario_id="head_on",
+        validation_rule_id="rule14",
         algorithm_id="nominal",
         tracker_id="god",
         t_end=30.0,
@@ -279,7 +292,8 @@ def test_counterfactual_session_handoffs_at_t0_and_keeps_targets_on_history(
     request = HistoricalAISCounterfactualRunRequest(
         case=case,
         run_spec=RunSpec(
-            scenario_id="simple_planning_example",
+            scenario_id="head_on",
+            validation_rule_id="rule14",
             algorithm_id="nominal",
             tracker_id="god",
             t_end=30.0,
@@ -314,7 +328,8 @@ def test_counterfactual_reference_remains_active_after_t0(
     request = HistoricalAISCounterfactualRunRequest(
         case=case,
         run_spec=RunSpec(
-            scenario_id="simple_planning_example",
+            scenario_id="head_on",
+            validation_rule_id="rule14",
             algorithm_id="nominal",
             tracker_id="god",
             t_end=30.0,
@@ -344,7 +359,8 @@ def test_counterfactual_run_seals_typed_mode_and_compare_only_human_reference(
     request = HistoricalAISCounterfactualRunRequest(
         case=case,
         run_spec=RunSpec(
-            scenario_id="simple_planning_example",
+            scenario_id="head_on",
+            validation_rule_id="rule14",
             algorithm_id="nominal",
             tracker_id="god",
             t_end=30.0,

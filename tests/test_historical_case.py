@@ -7,9 +7,11 @@ from pathlib import Path
 import pytest
 from shapely.geometry import box
 
+from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
     HistoricalAISAlgorithmBinding,
+    HistoricalAISCapabilityReceipt,
     HistoricalAISCaseBuilder,
     HistoricalAISCaseBuildOutcome,
     HistoricalAISCaseBuildRequest,
@@ -20,7 +22,9 @@ from colav_simulator.historical_case import (
     HistoricalAISHumanReferenceBinding,
     HistoricalAISNominalIntent,
 )
+from colav_simulator.historical_compare import HistoricalBenchmarkAlignmentProfile
 from colav_simulator.historical_enc import ENCRegionProfile
+from colav_simulator.integrations import IntegrationRegistry
 
 UTC = timezone.utc
 
@@ -64,11 +68,17 @@ def _buildable_dataset(tmp_path: Path) -> tuple[object, HistoricalAISSelection]:
 
 
 def _published_bindings(human_digest: str = "fixture-human-reference") -> dict[str, object]:
+    receipt = HistoricalAISCapabilityReceipt.from_catalog(
+        CapabilityCatalog(IntegrationRegistry()), "rule14", "head_on", "nominal", "god"
+    )
+    alignment = HistoricalBenchmarkAlignmentProfile()
     return {
         "human_reference_binding": HistoricalAISHumanReferenceBinding(human_digest, sample_count=1),
-        "algorithm_binding": HistoricalAISAlgorithmBinding("nominal", "nominal-config"),
+        "algorithm_binding": HistoricalAISAlgorithmBinding("nominal", "nominal-config", receipt.evidence_hash, receipt),
         "evaluation_binding": HistoricalAISEvaluationBinding("evaluator", "profile", "profile-digest"),
-        "compare_binding": HistoricalAISCompareBinding(alignment_profile_digest="alignment-digest"),
+        "compare_binding": HistoricalAISCompareBinding(
+            alignment_profile=alignment.to_dict(), alignment_profile_digest=alignment.digest
+        ),
     }
 
 
@@ -99,18 +109,29 @@ def test_case_builder_freezes_typed_benchmark_bindings(
         artifact_digest="human-reference-v1",
         sample_count=12,
     )
+    receipt = HistoricalAISCapabilityReceipt.from_catalog(
+        CapabilityCatalog(IntegrationRegistry()),
+        "multiship",
+        "paper_ccta2023_multiship",
+        "mid_mpc_ipopt",
+        "god",
+    )
     algorithm = HistoricalAISAlgorithmBinding(
         algorithm_id="mid_mpc_ipopt",
         configuration_digest="algorithm-config-v1",
+        capability_evidence_digest=receipt.evidence_hash,
+        capability_receipt=receipt,
     )
     evaluation = HistoricalAISEvaluationBinding(
         evaluator_id="colav_evaluation_tool",
         profile_id="historical-real-window-v1",
         profile_digest="evaluator-profile-v1",
     )
+    alignment = HistoricalBenchmarkAlignmentProfile()
     compare = HistoricalAISCompareBinding(
         contract_id="historical-benchmark-compare.v1",
-        alignment_profile_digest="alignment-profile-v1",
+        alignment_profile=alignment.to_dict(),
+        alignment_profile_digest=alignment.digest,
     )
 
     outcome = HistoricalAISCaseBuilder().build(

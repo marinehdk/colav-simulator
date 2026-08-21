@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
     HistoricalAISAlgorithmBinding,
+    HistoricalAISCapabilityReceipt,
     HistoricalAISCaseBuilder,
     HistoricalAISCaseBuildOutcome,
     HistoricalAISCaseBuildRequest,
@@ -65,6 +66,7 @@ class HistoricalAcceptanceBlockerCode(str, Enum):
     EVALUATION_FAILED = "EVALUATION_FAILED"
     COMPARE_INCOMPLETE = "COMPARE_INCOMPLETE"
     HUMAN_REFERENCE_UNAVAILABLE = "HUMAN_REFERENCE_UNAVAILABLE"
+    DETERMINISM_MISMATCH = "DETERMINISM_MISMATCH"
 
 
 @dataclass(frozen=True)
@@ -418,7 +420,16 @@ class HistoricalAISAcceptanceHarness:
             base_manifest["case"] = {"status": case_outcome.status.value, "details": dict(case_outcome.details)}
             return self._blocked(code, case_outcome.reason, base_manifest, descriptor, case_outcome)
         base_manifest["lineage"]["case_digest"] = case_outcome.case.case_digest  # type: ignore[union-attr]
-        base_manifest["case"] = {"status": "SUCCESS", "case_digest": case_outcome.case.case_digest}  # type: ignore[union-attr]
+        built_case = case_outcome.case
+        base_manifest["case"] = {
+            "status": "SUCCESS",
+            "case_digest": built_case.case_digest,  # type: ignore[union-attr]
+            "runtime_actor_set_digest": built_case.runtime_actor_set_digest,  # type: ignore[union-attr]
+            "human_reference_binding": built_case.human_reference_binding.to_dict(),  # type: ignore[union-attr]
+            "algorithm_binding": built_case.algorithm_binding.to_dict(),  # type: ignore[union-attr]
+            "evaluation_binding": built_case.evaluation_binding.to_dict(),  # type: ignore[union-attr]
+            "compare_binding": built_case.compare_binding.to_dict(),  # type: ignore[union-attr]
+        }
         if request.run_spec is not None:
             return self._execute_run_and_compare(request, case_outcome, base_manifest, descriptor)
         return HistoricalAISAcceptanceOutcome(
@@ -430,7 +441,7 @@ class HistoricalAISAcceptanceHarness:
             case_outcome=case_outcome,
         )
 
-    def _execute_run_and_compare(
+    def _execute_run_and_compare(  # noqa: PLR0911
         self,
         request: HistoricalAISAcceptanceRequest,
         case_outcome: HistoricalAISCaseBuildOutcome,
@@ -570,6 +581,69 @@ class HistoricalAISAcceptanceHarness:
             return self._fail(
                 HistoricalAcceptanceBlockerCode.COMPARE_INCOMPLETE,
                 "real-window Compare domains are incomplete",
+                manifest,
+                descriptor,
+                case_outcome,
+            )
+        first_determinism = _determinism_evidence(result, compare_outcome)
+        second_outcome = HistoricalAISCounterfactualRunner().run(run_request)
+        if not second_outcome.success or second_outcome.result is None:
+            return self._fail(
+                HistoricalAcceptanceBlockerCode.RUN_FAILED,
+                second_outcome.message or second_outcome.status.value,
+                manifest,
+                descriptor,
+                case_outcome,
+            )
+        second_result = second_outcome.result
+        second_manifest = second_result.manifest
+        second_snapshot = second_result.session.threat_management_coordinator.last_snapshot
+        if (
+            second_manifest.fallback_used
+            or second_manifest.requested_algorithm != second_manifest.executed_algorithm
+            or second_manifest.evaluation_gate != "PASS"
+            or second_snapshot is None
+        ):
+            return self._fail(
+                HistoricalAcceptanceBlockerCode.DETERMINISM_MISMATCH,
+                "second deterministic Counterfactual Run failed execution/evaluation authority",
+                manifest,
+                descriptor,
+                case_outcome,
+            )
+        second_compare = HistoricalBenchmarkComparator().compare(
+            HistoricalBenchmarkCompareRequest.from_counterfactual_run(
+                case,
+                second_result,
+                human_reference=request.human_reference,
+            )
+        )
+        if second_compare.status.value != "COMPLETE":
+            return self._fail(
+                HistoricalAcceptanceBlockerCode.COMPARE_INCOMPLETE,
+                "second deterministic Counterfactual Compare is incomplete",
+                manifest,
+                descriptor,
+                case_outcome,
+            )
+        second_determinism = _determinism_evidence(second_result, second_compare)
+        compared_fields = tuple(sorted(first_determinism))
+        mismatches = tuple(
+            field_name for field_name in compared_fields if first_determinism[field_name] != second_determinism[field_name]
+        )
+        manifest["runs"] = [
+            _determinism_run_lineage(result, compare_outcome, first_determinism),
+            _determinism_run_lineage(second_result, second_compare, second_determinism),
+        ]
+        manifest["determinism"] = {
+            "status": "PASS" if not mismatches else "FAIL",
+            "compared_fields": list(compared_fields),
+            "mismatches": list(mismatches),
+        }
+        if mismatches:
+            return self._fail(
+                HistoricalAcceptanceBlockerCode.DETERMINISM_MISMATCH,
+                f"Counterfactual deterministic semantic mismatch: {', '.join(mismatches)}",
                 manifest,
                 descriptor,
                 case_outcome,
@@ -714,6 +788,82 @@ def _schedule_context_count(schedule: Any | None) -> int:
     )
 
 
+def _determinism_evidence(result: Any, compare_outcome: Any) -> dict[str, str]:
+    from colav_simulator.historical_compare import HistoricalBenchmarkTrajectory  # noqa: PLC0415
+
+    trajectory = HistoricalBenchmarkTrajectory.from_session_frames(
+        result.session.frames,
+        source="COUNTERFACTUAL_REALIZED",
+    )
+    commands = [frame.get("Ship0", {}).get("planner", {}).get("selected_command") for frame in result.session.frames]
+    evaluation = result.evaluation.to_dict()
+    evaluation.pop("diagnostics", None)
+    snapshot = result.session.threat_management_coordinator.last_snapshot
+    schedule = _schedule_manifest(snapshot.schedule) if snapshot is not None else None
+    graph = _deterministic_graph_projection(snapshot.conflict_graph) if snapshot is not None else None
+    return {
+        "trajectory_semantic_hash": trajectory.trajectory_digest,
+        "commands_semantic_hash": _sha256_json(commands),
+        "threat_schedule_semantic_hash": _sha256_json(schedule),
+        "threat_graph_semantic_hash": _sha256_json(graph),
+        "evaluator_semantic_hash": _sha256_json(evaluation),
+        "compare_domains_semantic_hash": _sha256_json(compare_outcome.domains.to_dict()),
+    }
+
+
+def _determinism_run_lineage(result: Any, compare_outcome: Any, evidence: Mapping[str, str]) -> dict[str, Any]:
+    return {
+        "run_id": result.manifest.run_id,
+        "spec_hash": result.manifest.spec_hash,
+        "trajectory_artifact_hash": result.manifest.trajectory_hash,
+        "evaluation_gate": result.manifest.evaluation_gate,
+        "compare_status": compare_outcome.status.value,
+        "compare_digest": compare_outcome.compare_digest,
+        **dict(evidence),
+    }
+
+
+def _deterministic_graph_projection(graph: Any | None) -> dict[str, Any] | None:
+    if graph is None:
+        return None
+    return {
+        "nodes": [_track_key_document(item) for item in graph.nodes],
+        "edges": [
+            {
+                "edge_type": edge.edge_type.value,
+                "members": [_track_key_document(item) for item in edge.members],
+                "prediction_basis": edge.prediction_basis,
+                "witness": _deterministic_witness(edge.to_dict().get("witness")),
+            }
+            for edge in graph.edges
+        ],
+        "clusters": [
+            {
+                "members": [_track_key_document(item) for item in cluster.members],
+                "edge_count": len(cluster.edge_ids),
+            }
+            for cluster in graph.clusters
+        ],
+        "unavailable_reasons": list(graph.unavailable_reasons),
+    }
+
+
+def _deterministic_witness(witness: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if witness is None:
+        return None
+    return {
+        "driver_target": witness.get("driver_target"),
+        "affected_target": witness.get("affected_target"),
+        "materiality": witness.get("materiality"),
+        "baseline": witness.get("baseline"),
+        "accepted": witness.get("accepted"),
+    }
+
+
+def _track_key_document(key: Any) -> dict[str, int]:
+    return {"target_id": int(key.target_id), "generation": int(key.generation)}
+
+
 def _human_reference_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAISHumanReferenceBinding:
     sample_count = len(request.human_reference.timestamps_s) if request.human_reference is not None else 0
     return HistoricalAISHumanReferenceBinding(
@@ -725,9 +875,27 @@ def _human_reference_binding(request: HistoricalAISAcceptanceRequest) -> Histori
 def _algorithm_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAISAlgorithmBinding:
     if request.run_spec is None:
         return HistoricalAISAlgorithmBinding()
+    receipt = None
+    if request.run_spec.validation_rule_id is not None:
+        from colav_simulator.core.colav.diagnostics import ColavExecutionError  # noqa: PLC0415
+        from colav_simulator.experiment.capabilities import CapabilityCatalog  # noqa: PLC0415
+        from colav_simulator.integrations import IntegrationRegistry  # noqa: PLC0415
+
+        try:
+            receipt = HistoricalAISCapabilityReceipt.from_catalog(
+                CapabilityCatalog(IntegrationRegistry()),
+                request.run_spec.validation_rule_id,
+                request.run_spec.scenario_id,
+                request.run_spec.algorithm_id,
+                request.run_spec.tracker_id,
+            )
+        except (ColavExecutionError, KeyError, StopIteration, ValueError):
+            receipt = None
     return HistoricalAISAlgorithmBinding(
         algorithm_id=request.run_spec.algorithm_id,
         configuration_digest=_sha256_json(request.run_spec.algorithm_config),
+        capability_evidence_digest=receipt.evidence_hash if receipt else None,
+        capability_receipt=receipt,
     )
 
 
@@ -747,8 +915,10 @@ def _compare_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAISCo
         return HistoricalAISCompareBinding()
     from colav_simulator.historical_compare import HistoricalBenchmarkAlignmentProfile  # noqa: PLC0415
 
+    profile = HistoricalBenchmarkAlignmentProfile()
     return HistoricalAISCompareBinding(
-        alignment_profile_digest=HistoricalBenchmarkAlignmentProfile().digest,
+        alignment_profile=profile.to_dict(),
+        alignment_profile_digest=profile.digest,
     )
 
 

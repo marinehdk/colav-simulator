@@ -78,13 +78,21 @@ def test_real_window_manifest_is_compact_and_records_latest_real_pass() -> None:
     assert manifest["discovery"]["authority"] == "DISCOVERY_ONLY"
     assert manifest["enc_preflight"]["status"] == "PASS"
     assert manifest["case"]["status"] == "SUCCESS"
+    assert manifest["case"]["algorithm_binding"]["capability_receipt"]["exact_tuple"] == [
+        "multiship",
+        "paper_ccta2023_multiship",
+        "mid_mpc_ipopt",
+        "god",
+    ]
+    assert manifest["case"]["algorithm_binding"]["capability_receipt"]["evidence_hash"]
+    assert manifest["case"]["compare_binding"]["alignment_profile_digest"]
     assert manifest["run"]["fallback_used"] is False
     assert manifest["run"]["requested_algorithm"] == manifest["run"]["executed_algorithm"]
     assert manifest["leakage"]["human_reference_digest_in_run_spec"] is False
     assert manifest["leakage"]["nominal_intent_strict_pre_t0_only"] is True
     assert manifest["threat"]["vector_count"] == 2
     assert manifest["threat"]["schedule_context_count"] == 2
-    assert manifest["threat"]["cluster_count"] == 0
+    assert manifest["threat"]["cluster_count"] == 1
     assert manifest["threat"]["gate"] == "PASS"
     assert manifest["evaluation"]["evaluator_gate"] == "PASS"
     assert manifest["compare"]["status"] == "COMPLETE"
@@ -105,7 +113,14 @@ def test_real_window_manifest_is_compact_and_records_latest_real_pass() -> None:
     )
     assert manifest["sealed_evidence"]["run_manifest_sha256"]
     assert manifest["sealed_evidence"]["evaluation_artifact_sha256"]
-    assert manifest_path.stat().st_size < 10_000
+    assert manifest["determinism"]["status"] == "PASS"
+    assert manifest["determinism"]["mismatches"] == []
+    assert len(manifest["runs"]) == 2
+    assert manifest["runs"][0]["run_id"] != manifest["runs"][1]["run_id"]
+    assert all(
+        manifest["runs"][0][field] == manifest["runs"][1][field] for field in manifest["determinism"]["compared_fields"]
+    )
+    assert manifest_path.stat().st_size < 12_000
 
 
 def test_acceptance_harness_requires_bindings_with_scoped_dimension_registry(

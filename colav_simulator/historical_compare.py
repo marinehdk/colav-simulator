@@ -177,6 +177,7 @@ class HistoricalBenchmarkCompareRequest:
     run_dataset_descriptor_digest: str | None = None
     run_runtime_actor_set_digest: str | None = None
     run_case_runtime_digest: str | None = None
+    case_alignment_profile_digest: str | None = None
     nominal_intent: HistoricalBenchmarkTrajectory | None = None
     threat_evidence: Mapping[str, Any] | None = None
     run_id: str | None = None
@@ -208,6 +209,9 @@ class HistoricalBenchmarkCompareRequest:
         """Bind an existing Counterfactual Run and Independent Evaluator result."""
         manifest = result.manifest
         run_lineage = dict(getattr(manifest, "historical_replay_evidence", None) or {})
+        alignment_document = dict(case.compare_binding.alignment_profile)
+        alignment_document.pop("schema_version", None)
+        alignment_profile = HistoricalBenchmarkAlignmentProfile(**alignment_document)
         return cls(
             case_digest=str(case.case_digest),
             dataset_digest=str(case.dataset_digest),
@@ -225,9 +229,11 @@ class HistoricalBenchmarkCompareRequest:
             run_case_runtime_digest=(
                 run_lineage.get("case_runtime_digest") or getattr(manifest, "historical_case_digest", None)
             ),
+            case_alignment_profile_digest=case.compare_binding.alignment_profile_digest,
             evaluation=result.evaluation,
             threat_evidence=threat_evidence,
             run_id=str(getattr(manifest, "run_id", "")),
+            alignment_profile=alignment_profile,
         )
 
 
@@ -389,6 +395,8 @@ class HistoricalBenchmarkComparator:
             return "RUNTIME_ACTOR_SET_LINEAGE_MISMATCH"
         if request.run_case_runtime_digest not in {None, request.case_digest}:
             return "CASE_LINEAGE_MISMATCH"
+        if request.case_alignment_profile_digest not in {None, request.alignment_profile.digest}:
+            return "COMPARE_BINDING_MISMATCH"
         if request.human_reference is None:
             return None
         trajectory_digest = request.human_reference.trajectory_digest

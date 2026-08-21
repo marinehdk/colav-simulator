@@ -14,7 +14,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from colav_simulator.historical_ais import (
     HistoricalAISDatasetDescriptor,
@@ -37,6 +37,9 @@ from colav_simulator.historical_replay import (
 )
 from colav_simulator.historical_serialization import jsonable as _jsonable
 from colav_simulator.historical_serialization import semantic_hash as _sha256_json
+
+if TYPE_CHECKING:
+    from colav_simulator.experiment.capabilities import CapabilityCatalog
 
 CASE_SCHEMA_VERSION = "historical-ais-case.v1"
 DISCOVERY_SCHEMA_VERSION = "historical-ais-discovery.v1"
@@ -546,12 +549,91 @@ class HistoricalAISHumanReferenceBinding:
 
 
 @dataclass(frozen=True)
+class HistoricalAISCapabilityReceipt:
+    """CapabilityCatalog-issued evidence for one exact execution tuple."""
+
+    validation_rule_id: str
+    scenario_id: str
+    algorithm_id: str
+    tracker_id: str
+    catalog_schema_version: str
+    evidence_hash: str
+    evidence: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        """Freeze and verify exact-tuple capability evidence."""
+        object.__setattr__(self, "evidence", MappingProxyType(dict(self.evidence)))
+        if not all(
+            value.strip()
+            for value in (
+                self.validation_rule_id,
+                self.scenario_id,
+                self.algorithm_id,
+                self.tracker_id,
+                self.catalog_schema_version,
+                self.evidence_hash,
+            )
+        ):
+            raise ValueError("capability receipt identity is required")
+        if self.evidence_hash != _sha256_json(dict(self.evidence)):
+            raise ValueError("capability receipt evidence hash mismatch")
+
+    @classmethod
+    def from_catalog(
+        cls,
+        catalog: CapabilityCatalog,
+        validation_rule_id: str,
+        scenario_id: str,
+        algorithm_id: str,
+        tracker_id: str,
+    ) -> HistoricalAISCapabilityReceipt:
+        """Validate and seal one exact tuple from the live CapabilityCatalog."""
+        from colav_simulator.experiment.capabilities import CAPABILITY_SCHEMA_VERSION  # noqa: PLC0415
+
+        catalog.validate(validation_rule_id, scenario_id, algorithm_id, tracker_id)
+        document = catalog.document([], validation_rule_id)
+        exact = next(
+            item
+            for item in document["selectable_combinations"]
+            if (
+                item["validation_rule_id"],
+                item["scenario_id"],
+                item["algorithm_id"],
+                item["tracker_id"],
+            )
+            == (validation_rule_id, scenario_id, algorithm_id, tracker_id)
+        )
+        return cls(
+            validation_rule_id,
+            scenario_id,
+            algorithm_id,
+            tracker_id,
+            CAPABILITY_SCHEMA_VERSION,
+            _sha256_json(exact),
+            exact,
+        )
+
+    @property
+    def exact_tuple(self) -> tuple[str, str, str, str]:
+        return (self.validation_rule_id, self.scenario_id, self.algorithm_id, self.tracker_id)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "exact_tuple": list(self.exact_tuple),
+            "catalog_schema_version": self.catalog_schema_version,
+            "evidence_hash": self.evidence_hash,
+            "evidence": dict(self.evidence),
+        }
+
+
+@dataclass(frozen=True)
 class HistoricalAISAlgorithmBinding:
     """Frozen requested algorithm/configuration identity for the Case."""
 
     algorithm_id: str = "UNBOUND"
     configuration_digest: str | None = None
     capability_evidence_digest: str | None = None
+    capability_receipt: HistoricalAISCapabilityReceipt | None = None
 
     def __post_init__(self) -> None:
         """Validate frozen algorithm identity."""
@@ -563,11 +645,18 @@ class HistoricalAISAlgorithmBinding:
             "algorithm_id": self.algorithm_id,
             "configuration_digest": self.configuration_digest,
             "capability_evidence_digest": self.capability_evidence_digest,
+            "capability_receipt": self.capability_receipt.to_dict() if self.capability_receipt else None,
         }
 
     @property
     def bound(self) -> bool:
-        return self.algorithm_id != "UNBOUND" and self.configuration_digest is not None
+        return (
+            self.algorithm_id != "UNBOUND"
+            and self.configuration_digest is not None
+            and self.capability_receipt is not None
+            and self.capability_receipt.algorithm_id == self.algorithm_id
+            and self.capability_evidence_digest == self.capability_receipt.evidence_hash
+        )
 
 
 @dataclass(frozen=True)
@@ -600,22 +689,27 @@ class HistoricalAISCompareBinding:
     """Frozen comparison contract/alignment identity for the Case."""
 
     contract_id: str = "historical-benchmark-compare.v1"
+    alignment_profile: Mapping[str, object] = field(default_factory=dict)
     alignment_profile_digest: str | None = None
 
     def __post_init__(self) -> None:
         """Validate frozen comparison identity."""
         if not self.contract_id.strip():
             raise ValueError("comparison contract_id is required")
+        object.__setattr__(self, "alignment_profile", MappingProxyType(dict(self.alignment_profile)))
+        if self.alignment_profile and self.alignment_profile_digest != _sha256_json(dict(self.alignment_profile)):
+            raise ValueError("comparison alignment profile digest mismatch")
 
     def to_dict(self) -> dict[str, object]:
         return {
             "contract_id": self.contract_id,
+            "alignment_profile": dict(self.alignment_profile),
             "alignment_profile_digest": self.alignment_profile_digest,
         }
 
     @property
     def bound(self) -> bool:
-        return self.alignment_profile_digest is not None
+        return bool(self.alignment_profile) and self.alignment_profile_digest is not None
 
 
 @dataclass(frozen=True)
@@ -1584,6 +1678,7 @@ __all__ = [
     "HistoricalAISCaseBuildRequest",
     "HistoricalAISCaseBuildResult",
     "HistoricalAISCaseBuildStatus",
+    "HistoricalAISCapabilityReceipt",
     "HistoricalAISCaseStatus",
     "HistoricalAISCaseBuilder",
     "HistoricalAISDiscoveryCandidate",

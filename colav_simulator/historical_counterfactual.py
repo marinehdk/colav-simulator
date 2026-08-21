@@ -48,6 +48,16 @@ class HistoricalAISCounterfactualRunRequest:
             raise TypeError("run_spec must be RunSpec")
         if self.case.algorithm_binding.algorithm_id != self.run_spec.algorithm_id:
             raise ValueError("Counterfactual algorithm differs from frozen Case binding")
+        if not self.case.algorithm_binding.bound:
+            raise ValueError("Counterfactual Case lacks a verified CapabilityCatalog receipt")
+        receipt = self.case.algorithm_binding.capability_receipt
+        if receipt is None or receipt.exact_tuple != (
+            self.run_spec.validation_rule_id,
+            self.run_spec.scenario_id,
+            self.run_spec.algorithm_id,
+            self.run_spec.tracker_id,
+        ):
+            raise ValueError("Counterfactual exact tuple differs from frozen CapabilityCatalog receipt")
         if self.case.algorithm_binding.configuration_digest != semantic_hash(self.run_spec.algorithm_config):
             raise ValueError("Counterfactual algorithm configuration differs from frozen Case binding")
         if self.case.evaluation_binding.profile_id != self.run_spec.evaluator_profile_id:
