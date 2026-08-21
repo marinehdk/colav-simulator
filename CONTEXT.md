@@ -100,3 +100,93 @@ _Avoid_: Warm start, current solver candidate, frozen mission route
 **Plan Revision**:
 An accepted departure from the Rolling Plan justified by changed safety, COLREG authority, target identity, Mission Route, or capability evidence.
 _Avoid_: Solver churn, unexplained re-optimization
+
+## Threat Management
+
+**Canonical Authority**:
+The one authority for one kind of domain fact. A canonical authority may be consumed by other contexts, but its fact is not reinterpreted as a competing truth elsewhere.
+_Avoid_: One global risk score, shared mutable truth
+
+**Physical Encounter Facts**:
+The single online fact set produced at the start of each Threat Management Cycle from Ownship State and TrackSnapshot. It carries TrackKey/generation, observation health/age, relative position/velocity, range and bearings, signed TCPA, forward DCPA, validity or unavailable reason, and current hull geometry facts for shared consumption.
+_Avoid_: COLREG role, risk phase, L4 candidate trajectory, Evaluator realized trajectory, safety verdict
+
+**Encounter Lifecycle**:
+The stateful interpretation of one own ship's encounter duties over time, including encounter kind, role, risk phase, commitment, Rule 17 stage, release, and rearm.
+_Avoid_: Threat score, retrospective evaluation
+
+**Threat Assessment**:
+The interpretation of current and predicted encounter facts into domain exposure, threat windows, priority reasons, schedule membership, and conflict relationships.
+_Avoid_: Encounter Lifecycle, hard safety verdict, independent evaluation
+
+**Threat Management Cycle**:
+A single coherent assessment interval for one own ship and one Active Session, from frozen current facts through one canonical threat account. A plan accepted during the interval becomes available as evidence in the next cycle, not as feedback into the same cycle.
+_Avoid_: Solver iteration, GUI refresh, independent evaluation run
+
+**Threat Management Snapshot**:
+The immutable canonical account of one Threat Management Cycle, including current and predicted threat facts, lifecycle references, schedule, conflicts, and provenance for all consumers.
+_Avoid_: Control command, L4 verdict, historical comparison
+
+**Threat Vector**:
+The independent per-target description of threat evidence, including physical, domain, prediction, observation-health, and lifecycle references.
+_Avoid_: Scalar risk score, COLREG decision
+
+**Ship Domain**:
+An engineering safety envelope around a vessel whose shape and extent are defined by an explicit profile and assumptions.
+_Avoid_: COLREG statutory limit, hard collision gate
+
+**Threat Window**:
+The predicted time interval in which a target enters, reaches, and leaves a defined threat condition, together with its prediction basis and completeness.
+_Avoid_: Fixed maneuver schedule, instantaneous DCPA
+
+**Threat Schedule**:
+A rolling view that separates the current primary focus, concurrent required targets, future next threats, and monitor targets.
+_Avoid_: Exclusive target list, executable control plan
+
+**Primary Threat**:
+The current focus used to explain or prioritize an encounter while other required targets remain active obligations.
+_Avoid_: Only Target, sole safety constraint
+
+**Concurrent Required Target**:
+A target whose current lifecycle duty or safety obligation must remain represented while another target is primary.
+_Avoid_: Display-only contact, optional target
+
+**Next Threat**:
+A target whose predicted threat window warrants future attention but has not become a current required obligation.
+_Avoid_: Committed maneuver, guaranteed future collision
+
+**Monitor Target**:
+A tracked target retained for observation and evidence even though no current or near-term action obligation is established.
+_Avoid_: Proven safe target, discarded target
+
+**Direct Conflict**:
+A conflict relationship supported by the targets' own predicted threat windows or safety domains.
+_Avoid_: Plan-induced conflict
+
+**Plan-Induced Conflict**:
+A conflict that appears or materially worsens only when a trustworthy accepted own-ship plan is compared with an explicit baseline.
+_Avoid_: Raw solver candidate, GUI trajectory, direct encounter
+
+**Conflict Cluster**:
+A deterministic group of targets connected by typed conflict relationships.
+_Avoid_: Opaque risk-score bucket, arbitrary visual grouping
+
+**Hard Safety Gate**:
+An independent safety condition whose failure cannot be neutralized by averaging it with benign threat dimensions.
+_Avoid_: Advisory domain score, human-similarity measure
+
+**Accepted Plan**:
+An own-ship prediction that has passed the applicable execution and safety authority and may be used as plan evidence.
+_Avoid_: Solver candidate, stale cached trajectory
+
+**Independent Evaluator**:
+The authority that assesses realized trajectories and events for Safety and COLREG behavior independently of the Planner's threat interpretation.
+_Avoid_: Planner self-check, browser risk engine
+
+**Observation Health**:
+The quality and freshness of target evidence, separate from whether the target is currently threatening.
+_Avoid_: CLEAR risk state, permission to forget a duty
+
+**Historical Actor**:
+A vessel reconstructed from historical AIS for a replay or counterfactual environment, distinct from the runtime tracker estimate presented to the Planner.
+_Avoid_: Planner future knowledge, Human Reference trajectory
