@@ -18,10 +18,11 @@ from colav_simulator.historical_counterfactual import (
     HistoricalAISCounterfactualRunner,
     HistoricalAISCounterfactualRunRequest,
 )
+from colav_simulator.historical_enc import ENCRegionProfile
 from colav_simulator.historical_replay import HistoricalReplayRequest
 
 
-def _case(tmp_path: Path) -> HistoricalAISCase:
+def _case(tmp_path: Path, enc_profile: ENCRegionProfile) -> HistoricalAISCase:
     source = tmp_path / "counterfactual.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
@@ -40,13 +41,11 @@ def _case(tmp_path: Path) -> HistoricalAISCase:
         end_utc=datetime(2026, 7, 1, 0, 1, tzinfo=UTC),
     )
     dataset = HistoricalAISDatasetReader(source).read(selection)
-    from tests.test_historical_case import _enc_profile  # noqa: PLC0415
-
     outcome = HistoricalAISCaseBuilder().build(
         HistoricalAISCaseBuildRequest(
             dataset=dataset,
             selection=selection,
-            enc_profile=_enc_profile(),
+            enc_profile=enc_profile,
             reference_mmsi=123456789,
             discovery_profile=HistoricalAISDiscoveryProfile(
                 max_encounter_range_m=2_000.0,
@@ -60,8 +59,10 @@ def _case(tmp_path: Path) -> HistoricalAISCase:
     return outcome.case
 
 
-def test_counterfactual_run_spec_contains_reference_history_only_through_t0(tmp_path: Path) -> None:
-    case = _case(tmp_path)
+def test_counterfactual_run_spec_contains_reference_history_only_through_t0(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
+    case = _case(tmp_path, qualified_historical_enc_profile)
     request = HistoricalAISCounterfactualRunRequest(
         case=case,
         run_spec=RunSpec(
@@ -77,16 +78,11 @@ def test_counterfactual_run_spec_contains_reference_history_only_through_t0(tmp_
 
     spec = request.to_run_spec()
     reference_actor = next(
-        actor
-        for actor in spec.historical_replay["actor_set"]["actors"]
-        if actor["mmsi"] == case.reference_mmsi
+        actor for actor in spec.historical_replay["actor_set"]["actors"] if actor["mmsi"] == case.reference_mmsi
     )
 
     assert spec.historical_replay["mode"] == "COUNTERFACTUAL"
-    assert all(
-        datetime.fromisoformat(sample["timestamp_utc"]) <= case.t0_utc
-        for sample in reference_actor["samples"]
-    )
+    assert all(datetime.fromisoformat(sample["timestamp_utc"]) <= case.t0_utc for sample in reference_actor["samples"])
     assert "human-reference-a" not in spec.to_dict().__repr__()
     replay_request = HistoricalReplayRequest.from_dict(spec.historical_replay)
     assert replay_request.evidence.mode == "COUNTERFACTUAL"
@@ -94,8 +90,10 @@ def test_counterfactual_run_spec_contains_reference_history_only_through_t0(tmp_
     assert replay_request.evidence.case_digest == case.case_digest
 
 
-def test_human_reference_digest_does_not_change_counterfactual_run_spec(tmp_path: Path) -> None:
-    case = _case(tmp_path)
+def test_human_reference_digest_does_not_change_counterfactual_run_spec(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
+    case = _case(tmp_path, qualified_historical_enc_profile)
     base = RunSpec(
         scenario_id="simple_planning_example",
         algorithm_id="nominal",
@@ -109,8 +107,10 @@ def test_human_reference_digest_does_not_change_counterfactual_run_spec(tmp_path
     assert first.to_dict() == second.to_dict()
 
 
-def test_counterfactual_session_handoffs_at_t0_and_keeps_targets_on_history(tmp_path: Path) -> None:
-    case = _case(tmp_path)
+def test_counterfactual_session_handoffs_at_t0_and_keeps_targets_on_history(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
+    case = _case(tmp_path, qualified_historical_enc_profile)
     request = HistoricalAISCounterfactualRunRequest(
         case=case,
         run_spec=RunSpec(
@@ -142,8 +142,10 @@ def test_counterfactual_session_handoffs_at_t0_and_keeps_targets_on_history(tmp_
     assert state_t0[2] == pytest.approx(math.hypot(historical_t0.state_vxvy[2], historical_t0.state_vxvy[3]), abs=1e-6)
 
 
-def test_counterfactual_reference_remains_active_after_t0(tmp_path: Path) -> None:
-    case = _case(tmp_path)
+def test_counterfactual_reference_remains_active_after_t0(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
+    case = _case(tmp_path, qualified_historical_enc_profile)
     request = HistoricalAISCounterfactualRunRequest(
         case=case,
         run_spec=RunSpec(
@@ -166,8 +168,10 @@ def test_counterfactual_reference_remains_active_after_t0(tmp_path: Path) -> Non
     assert all(item["historical_counterfactual"]["mode"] == "COUNTERFACTUAL_REALIZED" for item in post_t0)
 
 
-def test_counterfactual_run_seals_typed_mode_and_compare_only_human_reference(tmp_path: Path) -> None:
-    case = _case(tmp_path)
+def test_counterfactual_run_seals_typed_mode_and_compare_only_human_reference(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
+    case = _case(tmp_path, qualified_historical_enc_profile)
     request = HistoricalAISCounterfactualRunRequest(
         case=case,
         run_spec=RunSpec(

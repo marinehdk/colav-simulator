@@ -16,47 +16,7 @@ from colav_simulator.historical_case import (
     HistoricalAISDiscoveryProfile,
     HistoricalAISNominalIntent,
 )
-from colav_simulator.historical_enc import (
-    ENCCacheIdentity,
-    ENCLayerIdentity,
-    ENCQualificationState,
-    ENCRegionProfile,
-    ENCSimulationProjection,
-    ENCSourceIdentity,
-)
-
-
-def _enc_profile() -> ENCRegionProfile:
-    return ENCRegionProfile(
-        profile_id="case-test",
-        profile_version="1.0.0",
-        source=ENCSourceIdentity(
-            provider="test",
-            source_name="test.gdb",
-            source_digest="source-digest",
-            source_crs="EPSG:25833",
-            format="FileGDB",
-        ),
-        projection=ENCSimulationProjection(
-            input_crs="EPSG:4326",
-            simulation_crs="EPSG:25833",
-            utm_zone=33,
-        ),
-        supported_extent_wgs84=(0.0, 50.0, 20.0, 70.0),
-        supported_extent_projected=(0.0, 5_000_000.0, 1_000_000.0, 8_000_000.0),
-        hazard_layers=(ENCLayerIdentity("LAND", "land", 0),),
-        navigability_layers=(ENCLayerIdentity("DEPARE", "depth", 0),),
-        cache=ENCCacheIdentity(
-            cache_id="cache",
-            preprocessing_version="test.v1",
-            source_digest="source-digest",
-            artifact_digest="artifact-digest",
-        ),
-        qualification_state=ENCQualificationState.QUALIFIED,
-        qualification_reasons=(),
-        provenance={"source": "test"},
-        coverage_geometry_wkb=box(0.0, 5_000_000.0, 1_000_000.0, 8_000_000.0).wkb,
-    )
+from colav_simulator.historical_enc import ENCRegionProfile
 
 
 def _dataset(tmp_path: Path) -> tuple[object, HistoricalAISSelection]:
@@ -95,13 +55,15 @@ def _buildable_dataset(tmp_path: Path) -> tuple[object, HistoricalAISSelection]:
     return HistoricalAISDatasetReader(source).read(selection), selection
 
 
-def test_case_builder_returns_typed_no_encounter_outcome(tmp_path: Path) -> None:
+def test_case_builder_returns_typed_no_encounter_outcome(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     dataset, selection = _dataset(tmp_path)
     outcome = HistoricalAISCaseBuilder().build(
         HistoricalAISCaseBuildRequest(
             dataset=dataset,
             selection=selection,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             discovery_profile=HistoricalAISDiscoveryProfile(max_encounter_range_m=1_000.0),
         )
     )
@@ -112,7 +74,9 @@ def test_case_builder_returns_typed_no_encounter_outcome(tmp_path: Path) -> None
     assert outcome.failure_code == HistoricalAISCaseBuildStatus.NO_ENCOUNTER.value
 
 
-def test_case_builder_discovers_head_on_crossing_overtaking_and_multi_ship(tmp_path: Path) -> None:
+def test_case_builder_discovers_head_on_crossing_overtaking_and_multi_ship(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     source = tmp_path / "encounters.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
@@ -139,7 +103,7 @@ def test_case_builder_discovers_head_on_crossing_overtaking_and_multi_ship(tmp_p
         HistoricalAISCaseBuildRequest(
             dataset=dataset,
             selection=selection,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             reference_mmsi=123456789,
             discovery_profile=HistoricalAISDiscoveryProfile(
                 max_encounter_range_m=2_000.0,
@@ -158,7 +122,9 @@ def test_case_builder_discovers_head_on_crossing_overtaking_and_multi_ship(tmp_p
     assert all(candidate.concurrent_target_count == 3 for candidate in outcome.case.discovery.candidates)
 
 
-def test_case_builder_fails_closed_when_selected_dimensions_are_unavailable(tmp_path: Path) -> None:
+def test_case_builder_fails_closed_when_selected_dimensions_are_unavailable(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     source = tmp_path / "missing-dimensions.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
@@ -178,7 +144,7 @@ def test_case_builder_fails_closed_when_selected_dimensions_are_unavailable(tmp_
         HistoricalAISCaseBuildRequest(
             dataset=HistoricalAISDatasetReader(source).read(selection),
             selection=selection,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             reference_mmsi=123456789,
             discovery_profile=HistoricalAISDiscoveryProfile(
                 max_encounter_range_m=2_000.0,
@@ -192,7 +158,9 @@ def test_case_builder_fails_closed_when_selected_dimensions_are_unavailable(tmp_
     assert outcome.details["missing_mmsi"] == (223456789,)
 
 
-def test_case_builder_fails_closed_for_out_of_enc_selection(tmp_path: Path) -> None:
+def test_case_builder_fails_closed_for_out_of_enc_selection(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     source = tmp_path / "out-of-enc.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
@@ -210,7 +178,7 @@ def test_case_builder_fails_closed_for_out_of_enc_selection(tmp_path: Path) -> N
     )
     dataset = HistoricalAISDatasetReader(source).read(selection)
     profile = replace(
-        _enc_profile(),
+        qualified_historical_enc_profile,
         supported_extent_projected=(0.0, 0.0, 1.0, 1.0),
         coverage_geometry_wkb=box(0.0, 0.0, 1.0, 1.0).wkb,
     )
@@ -229,7 +197,9 @@ def test_case_builder_fails_closed_for_out_of_enc_selection(tmp_path: Path) -> N
     assert outcome.details["enc_preflight"]["status"] == "OUTSIDE_COVERAGE"
 
 
-def test_case_builder_fits_nominal_intent_strictly_before_t0(tmp_path: Path) -> None:
+def test_case_builder_fits_nominal_intent_strictly_before_t0(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     source = tmp_path / "t0.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
@@ -252,7 +222,7 @@ def test_case_builder_fits_nominal_intent_strictly_before_t0(tmp_path: Path) -> 
         HistoricalAISCaseBuildRequest(
             dataset=HistoricalAISDatasetReader(source).read(selection),
             selection=selection,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             reference_mmsi=123456789,
             discovery_profile=HistoricalAISDiscoveryProfile(
                 max_encounter_range_m=2_000.0,
@@ -273,7 +243,9 @@ def test_case_builder_fits_nominal_intent_strictly_before_t0(tmp_path: Path) -> 
     assert outcome.case.nominal_intent.source_sample_count == 2
 
 
-def test_case_builder_returns_intent_not_established_without_pre_t0_history(tmp_path: Path) -> None:
+def test_case_builder_returns_intent_not_established_without_pre_t0_history(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     source = tmp_path / "t0-without-history.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
@@ -294,7 +266,7 @@ def test_case_builder_returns_intent_not_established_without_pre_t0_history(tmp_
         HistoricalAISCaseBuildRequest(
             dataset=dataset,
             selection=selection,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             reference_mmsi=123456789,
             discovery_profile=HistoricalAISDiscoveryProfile(
                 max_encounter_range_m=1_000.0,
@@ -307,12 +279,14 @@ def test_case_builder_returns_intent_not_established_without_pre_t0_history(tmp_
     assert outcome.status is HistoricalAISCaseBuildStatus.INTENT_NOT_ESTABLISHED
 
 
-def test_case_builder_repeats_identical_lineage_and_build_digest(tmp_path: Path) -> None:
+def test_case_builder_repeats_identical_lineage_and_build_digest(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     dataset, selection = _buildable_dataset(tmp_path)
     request = HistoricalAISCaseBuildRequest(
         dataset=dataset,
         selection=selection,
-        enc_profile=_enc_profile(),
+        enc_profile=qualified_historical_enc_profile,
         reference_mmsi=123456789,
         discovery_profile=HistoricalAISDiscoveryProfile(max_encounter_range_m=2_000.0, min_closing_speed_mps=0.0),
         require_intent=False,
@@ -328,13 +302,15 @@ def test_case_builder_repeats_identical_lineage_and_build_digest(tmp_path: Path)
     assert first.to_dict() == second.to_dict()
 
 
-def test_case_builder_requires_dataset_selection_lineage(tmp_path: Path) -> None:
+def test_case_builder_requires_dataset_selection_lineage(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     dataset, _selection = _buildable_dataset(tmp_path)
 
     outcome = HistoricalAISCaseBuilder().build(
         HistoricalAISCaseBuildRequest(
             dataset=dataset,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             reference_mmsi=123456789,
             discovery_profile=HistoricalAISDiscoveryProfile(
                 max_encounter_range_m=2_000.0,
@@ -376,13 +352,15 @@ def test_case_request_rejects_conflicting_reference_vessel_aliases(tmp_path: Pat
         )
 
 
-def test_case_builder_rejects_t0_without_post_t0_coverage(tmp_path: Path) -> None:
+def test_case_builder_rejects_t0_without_post_t0_coverage(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     dataset, selection = _buildable_dataset(tmp_path)
     outcome = HistoricalAISCaseBuilder().build(
         HistoricalAISCaseBuildRequest(
             dataset=dataset,
             selection=selection,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             reference_mmsi=123456789,
             discovery_profile=HistoricalAISDiscoveryProfile(
                 max_encounter_range_m=2_000.0,
@@ -395,7 +373,9 @@ def test_case_builder_rejects_t0_without_post_t0_coverage(tmp_path: Path) -> Non
     assert outcome.status is HistoricalAISCaseBuildStatus.INTENT_NOT_ESTABLISHED
 
 
-def test_case_builder_rejects_initially_overlapping_selected_vessels(tmp_path: Path) -> None:
+def test_case_builder_rejects_initially_overlapping_selected_vessels(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     source = tmp_path / "initial-overlap.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
@@ -415,7 +395,7 @@ def test_case_builder_rejects_initially_overlapping_selected_vessels(tmp_path: P
         HistoricalAISCaseBuildRequest(
             dataset=HistoricalAISDatasetReader(source).read(selection),
             selection=selection,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             reference_mmsi=123456789,
             discovery_profile=HistoricalAISDiscoveryProfile(
                 max_encounter_range_m=2_000.0,
@@ -429,7 +409,9 @@ def test_case_builder_rejects_initially_overlapping_selected_vessels(tmp_path: P
     assert outcome.status is HistoricalAISCaseBuildStatus.INITIAL_SEPARATION_INVALID
 
 
-def test_case_builder_reports_insufficient_common_time_coverage(tmp_path: Path) -> None:
+def test_case_builder_reports_insufficient_common_time_coverage(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     source = tmp_path / "short-coverage.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
@@ -447,7 +429,7 @@ def test_case_builder_reports_insufficient_common_time_coverage(tmp_path: Path) 
         HistoricalAISCaseBuildRequest(
             dataset=HistoricalAISDatasetReader(source).read(selection),
             selection=selection,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             reference_mmsi=123456789,
             discovery_profile=HistoricalAISDiscoveryProfile(
                 max_encounter_range_m=2_000.0,
@@ -461,7 +443,9 @@ def test_case_builder_reports_insufficient_common_time_coverage(tmp_path: Path) 
     assert outcome.status is HistoricalAISCaseBuildStatus.TIME_COVERAGE_INSUFFICIENT
 
 
-def test_case_builder_intent_digest_ignores_post_t0_human_reference_changes(tmp_path: Path) -> None:
+def test_case_builder_intent_digest_ignores_post_t0_human_reference_changes(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     header = "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
     prefix = (
         "2026-07-01T00:00:00Z,123456789,7.0000,62.0000,10,90,40,8\n"
@@ -475,10 +459,16 @@ def test_case_builder_intent_digest_ignores_post_t0_human_reference_changes(tmp_
     second_source = tmp_path / "b" / "human.csv"
     first_source.parent.mkdir()
     second_source.parent.mkdir()
-    first_source.write_text(header + prefix + "2026-07-01T00:00:30Z,123456789,7.0012,61.9994,10,180,40,8\n"
-                            "2026-07-01T00:00:30Z,223456789,7.0082,62.0000,10,270,40,8\n", encoding="utf-8")
-    second_source.write_text(header + prefix + "2026-07-01T00:00:30Z,123456789,7.0030,62.0020,10,0,40,8\n"
-                             "2026-07-01T00:00:30Z,223456789,7.0082,62.0000,10,270,40,8\n", encoding="utf-8")
+    first_source.write_text(
+        header + prefix + "2026-07-01T00:00:30Z,123456789,7.0012,61.9994,10,180,40,8\n"
+        "2026-07-01T00:00:30Z,223456789,7.0082,62.0000,10,270,40,8\n",
+        encoding="utf-8",
+    )
+    second_source.write_text(
+        header + prefix + "2026-07-01T00:00:30Z,123456789,7.0030,62.0020,10,0,40,8\n"
+        "2026-07-01T00:00:30Z,223456789,7.0082,62.0000,10,270,40,8\n",
+        encoding="utf-8",
+    )
     selection = HistoricalAISSelection(
         start_utc=datetime(2026, 7, 1, tzinfo=UTC),
         end_utc=datetime(2026, 7, 1, 0, 1, tzinfo=UTC),
@@ -489,7 +479,7 @@ def test_case_builder_intent_digest_ignores_post_t0_human_reference_changes(tmp_
             HistoricalAISCaseBuildRequest(
                 dataset=HistoricalAISDatasetReader(source).read(selection),
                 selection=selection,
-                enc_profile=_enc_profile(),
+                enc_profile=qualified_historical_enc_profile,
                 reference_mmsi=123456789,
                 discovery_profile=HistoricalAISDiscoveryProfile(
                     max_encounter_range_m=2_000.0,

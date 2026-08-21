@@ -14,6 +14,7 @@ os.environ["MPLBACKEND"] = "Agg"
 if TYPE_CHECKING:
     from colav_simulator.experiment.g3_gate import G3DisplayResult
     from colav_simulator.experiment.runner import RunResult
+    from colav_simulator.historical_enc import ENCRegionProfile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 project_root = str(PROJECT_ROOT)
@@ -36,6 +37,52 @@ def close_plots_before_each_test(monkeypatch: pytest.MonkeyPatch):
     yield
     if plt is not None:
         plt.close("all")
+
+
+@pytest.fixture
+def qualified_historical_enc_profile() -> ENCRegionProfile:
+    """Public-contract ENC profile shared by historical seam tests."""
+    from shapely.geometry import box  # noqa: PLC0415
+
+    from colav_simulator.historical_enc import (  # noqa: PLC0415
+        ENCCacheIdentity,
+        ENCLayerIdentity,
+        ENCQualificationState,
+        ENCRegionProfile,
+        ENCSimulationProjection,
+        ENCSourceIdentity,
+    )
+
+    return ENCRegionProfile(
+        profile_id="case-test",
+        profile_version="1.0.0",
+        source=ENCSourceIdentity(
+            provider="test",
+            source_name="test.gdb",
+            source_digest="source-digest",
+            source_crs="EPSG:25833",
+            format="FileGDB",
+        ),
+        projection=ENCSimulationProjection(
+            input_crs="EPSG:4326",
+            simulation_crs="EPSG:25833",
+            utm_zone=33,
+        ),
+        supported_extent_wgs84=(0.0, 50.0, 20.0, 70.0),
+        supported_extent_projected=(0.0, 5_000_000.0, 1_000_000.0, 8_000_000.0),
+        hazard_layers=(ENCLayerIdentity("LAND", "land", 0),),
+        navigability_layers=(ENCLayerIdentity("DEPARE", "depth", 0),),
+        cache=ENCCacheIdentity(
+            cache_id="cache",
+            preprocessing_version="test.v1",
+            source_digest="source-digest",
+            artifact_digest="artifact-digest",
+        ),
+        qualification_state=ENCQualificationState.QUALIFIED,
+        qualification_reasons=(),
+        provenance={"source": "test"},
+        coverage_geometry_wkb=box(0.0, 5_000_000.0, 1_000_000.0, 8_000_000.0).wkb,
+    )
 
 
 @dataclass

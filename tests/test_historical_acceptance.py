@@ -14,9 +14,12 @@ from colav_simulator.historical_acceptance import (
     HistoricalRealWindowSelection,
 )
 from colav_simulator.historical_ais import HistoricalAISSelection
+from colav_simulator.historical_enc import ENCRegionProfile
 
 
-def test_acceptance_harness_blocks_missing_source_dimensions_without_defaults(tmp_path: Path) -> None:
+def test_acceptance_harness_blocks_missing_source_dimensions_without_defaults(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     source = tmp_path / "kystverket-window.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground\n"
@@ -43,13 +46,11 @@ def test_acceptance_harness_blocks_missing_source_dimensions_without_defaults(tm
         selected_mmsi=(123456789, 223456789),
         enc_profile_id="case-test",
     )
-    from tests.test_historical_case import _enc_profile  # noqa: PLC0415
-
     outcome = HistoricalAISAcceptanceHarness().run(
         HistoricalAISAcceptanceRequest(
             source=source,
             window=window,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
         )
     )
 
@@ -86,7 +87,9 @@ def test_real_window_manifest_is_compact_and_records_typed_blocker() -> None:
     assert manifest_path.stat().st_size < 10_000
 
 
-def test_acceptance_harness_accepts_only_scoped_provenanced_dimension_registry(tmp_path: Path) -> None:
+def test_acceptance_harness_accepts_only_scoped_provenanced_dimension_registry(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
     source = tmp_path / "registry-window.csv"
     source.write_text(
         "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground\n"
@@ -149,13 +152,11 @@ def test_acceptance_harness_accepts_only_scoped_provenanced_dimension_registry(t
             ),
         ),
     )
-    from tests.test_historical_case import _enc_profile  # noqa: PLC0415
-
     outcome = HistoricalAISAcceptanceHarness().run(
         HistoricalAISAcceptanceRequest(
             source=source,
             window=window,
-            enc_profile=_enc_profile(),
+            enc_profile=qualified_historical_enc_profile,
             dimension_registry=registry,
         )
     )
