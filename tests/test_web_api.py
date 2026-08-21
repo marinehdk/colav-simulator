@@ -12,12 +12,18 @@ from colav_simulator.experiment import ExperimentRunner, RunSpec
 from gui_server.main import _select_primary_encounter, app
 
 
-def _assert_primary_encounter_aliases(payload: dict) -> None:
-    primary = payload["primary_encounter"]
-    assert primary["target_label"] == f"TS{primary['target_id']}"
-    assert payload["dcpa"] == primary["dcpa_m"]
-    assert payload["tcpa"] == primary["tcpa_s"]
-    assert payload["colregs"] == primary["encounter"]
+def _assert_typed_threat_unavailable(payload: dict) -> None:
+    threat = payload["threat_management"]
+    assert threat["status"] == "UNAVAILABLE"
+    assert threat["unavailable_reason"] == "THREAT_SNAPSHOT_UNAVAILABLE"
+    assert threat["snapshot"] is None
+    assert threat["vectors"] == []
+    assert threat["schedule"] is None
+    assert threat["conflicts"] is None
+    assert payload["primary_encounter"] is None
+    assert payload["dcpa"] is None
+    assert payload["tcpa"] is None
+    assert payload["colregs"] is None
 
 
 def test_enc_depth_bin_reports_deepest_chart_layer_covering_position() -> None:
@@ -42,9 +48,10 @@ def test_colregs_log_identifies_target_and_cleared_context() -> None:
 
     assert script.status_code == 200
     assert projection.status_code == 200
-    assert "const primaryEncounter = envelope.primary_encounter ?? null;" in projection.text
-    assert "function encounterTargetLabel(encounter)" in projection.text
-    assert "`TS${targetId}`" in projection.text
+    assert "const source = envelope.threat_management;" in projection.text
+    assert "function projectThreatVector(vector)" in projection.text
+    assert "function projectThreatSchedule(schedule)" in projection.text
+    assert "THREAT_SNAPSHOT_UNAVAILABLE" in projection.text
     assert "function renderTimelineLog(proj)" in script.text
     assert "COLREGs → ${ruleLabel}${targetSuffix}" in script.text
     assert "COLREGs → ${ENCOUNTER_LABELS.clear}（结束 ${previousRule}${previousTarget}）" in script.text
@@ -398,7 +405,7 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
         chart_depths = {float(depth) for depth in gui_main.manager.prepared.session.enc.seabed}
         assert first.json()["os"]["floor_depth_m"] in chart_depths
         assert first.json()["os"]["floor_depth_source"] == "ENC_DEPTH_BIN_LOWER_BOUND"
-        _assert_primary_encounter_aliases(first.json())
+        _assert_typed_threat_unavailable(first.json())
 
         second = client.post(f"/api/sessions/{session_id}/step")
         assert second.status_code == 200
@@ -460,14 +467,7 @@ def test_primary_encounter_prefers_imminent_approaching_colreg_target() -> None:
         },
     ]
 
-    selected = _select_primary_encounter(encounters)
-
-    assert selected is not None
-    assert selected["target_id"] == 3
-    assert selected["target_label"] == "TS3"
-    assert selected["selection_reason"] == "composite_cpa_risk"
-    assert selected["priority_score"] == pytest.approx(0.2279473684)
-    assert selected["priority_weights"] == {"dcpa": 0.5, "tcpa": 0.3, "range": 0.2}
+    assert _select_primary_encounter(encounters) is None
 
 
 def test_primary_encounter_combines_dcpa_tcpa_and_range_before_rule_label() -> None:
@@ -492,12 +492,7 @@ def test_primary_encounter_combines_dcpa_tcpa_and_range_before_rule_label() -> N
         ]
     )
 
-    assert selected is not None
-    assert selected["target_id"] == 2
-    assert selected["selection_reason"] == "composite_cpa_risk"
-    assert selected["priority_components"] == pytest.approx(
-        {"dcpa": 170.5 / 190.0, "tcpa": 30.4 / 300.0, "range": 260.7 / 2500.0}
-    )
+    assert selected is None
 
 
 def test_primary_encounter_falls_back_to_nearest_contact() -> None:
@@ -508,9 +503,7 @@ def test_primary_encounter_falls_back_to_nearest_contact() -> None:
         ]
     )
 
-    assert selected is not None
-    assert selected["target_id"] == 2
-    assert selected["selection_reason"] == "nearest_available_contact"
+    assert selected is None
 
 
 def test_current_session_endpoint_returns_active_session() -> None:
@@ -628,7 +621,7 @@ def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
         assert telemetry["latest_planner_attempt"]["solver_executed"] is True
         assert telemetry["latest_planner_attempt"]["solve_id"] == 1
         assert len(telemetry["plans"]["prediction_horizon"]) == 60
-        assert telemetry["encounters"][0]["validation_rule_id"] == "rule14"
+        _assert_typed_threat_unavailable(telemetry)
 
 
 def test_mid_mpc_rest_and_websocket_publish_one_typed_authority_projection() -> None:
@@ -822,7 +815,7 @@ def test_step_response_nulls_non_finite_cpa_without_encounters(monkeypatch) -> N
     assert stepped.json()["primary_encounter"] is None
     assert stepped.json()["dcpa"] is None
     assert stepped.json()["tcpa"] is None
-    assert stepped.json()["colregs"] == "clear"
+    assert stepped.json()["colregs"] is None
 
 
 def test_reset_while_running_replaces_session_without_pause() -> None:

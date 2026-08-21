@@ -198,6 +198,20 @@ export function targetsForDisplay(data) {
   return [];
 }
 
+export function targetThreatStyle(data, target) {
+  const source = data?.threat_management;
+  if (!target || source?.status !== 'AVAILABLE' || !Array.isArray(source.vectors)) return 'UNKNOWN';
+  const vector = source.vectors.find((item) => {
+    const key = item?.key ?? item;
+    const targetId = key?.target_id ?? key?.targetId ?? item?.target_id ?? item?.targetId;
+    return targetId !== null && targetId !== undefined && String(targetId) === String(target.id);
+  });
+  const explicit = vector?.display_class ?? vector?.displayClass ?? vector?.threat_class ?? vector?.threatClass;
+  return ['HIGH', 'LOW', 'CLEAR', 'UNKNOWN'].includes(String(explicit).toUpperCase())
+    ? String(explicit).toUpperCase()
+    : 'UNKNOWN';
+}
+
 export function plannerSurfaceType(planner) {
   if (planner?.algorithm_id === 'vo') return 'vo';
   if (['potocnik_simplified_mpc', 'potocnik_colreg_fan_mpc'].includes(planner?.algorithm_id)) return 'fan';
@@ -1072,12 +1086,7 @@ export function createSituationDisplay(options) {
   }
 
   function targetThreat(data, target) {
-    if (!target || !data.os) return THREAT_STYLES.UNKNOWN;
-    const distance = Math.hypot(target.x - data.os.x, target.y - data.os.y);
-    const responseRange = getResponseRange();
-    if (responseRange?.threatActivation && distance <= responseRange.distanceM) return THREAT_STYLES.HIGH;
-    if (distance <= RADAR_DETECTION_RANGE_M) return THREAT_STYLES.LOW;
-    return THREAT_STYLES.CLEAR;
+    return THREAT_STYLES[targetThreatStyle(data, target)] || THREAT_STYLES.UNKNOWN;
   }
 
   function drawShips(data) {

@@ -452,6 +452,7 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
         states_enu=np.array([[0.0, 0.0, 7.0, 0.0], [70.0, 0.0, 7.0, 0.0], [140.0, 0.0, 7.0, 0.0]]),
         source="declared-baseline",
         target_keys=(affected,),
+        reference_time_s=5.0,
     )
     accepted_prediction = OwnshipThreatPrediction(
         times_s=np.array([0.0, 10.0, 20.0]),
@@ -459,11 +460,12 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
         basis="ACCEPTED_PLAN",
         source="l4-receipt",
         target_keys=(affected,),
+        reference_time_s=5.0,
     )
     receipt = AcceptedPlanReceipt(
         receipt_hash="accepted-receipt",
         accepted_sequence=0,
-        accepted_at_s=0.0,
+        accepted_at_s=5.0,
         valid_until_s=30.0,
         accepted_prediction=accepted_prediction,
         plan_target=driver,
@@ -498,6 +500,7 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
         basis="ACCEPTED_PLAN",
         source="l4-receipt",
         target_keys=(affected,),
+        reference_time_s=5.0,
     )
     benign_receipt = replace(
         receipt,
@@ -525,23 +528,34 @@ def test_raw_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge
     driver = _target(TrackKey(1, 1), 1_200.0)
     target_prediction = ThreatPrediction(
         key=target.key,
-        times_s=np.array([0.0, 10.0, 20.0]),
+        times_s=np.array([0.0, 5.0, 10.0]),
         states_enu=np.array([[500.0, 0.0, 0.0, 0.0]] * 3),
         basis=PredictionBasis.EXPLICIT_TRAJECTORY,
         model="graph-fixture",
     )
     baseline = OwnshipThreatPrediction(
-        times_s=np.array([0.0, 10.0, 20.0]),
-        states_enu=np.array([[0.0, 0.0, 7.0, 0.0], [70.0, 0.0, 7.0, 0.0], [140.0, 0.0, 7.0, 0.0]]),
+        times_s=np.array([0.0, 5.0, 10.0, 15.0]),
+        states_enu=np.array(
+            [[0.0, 0.0, 7.0, 0.0], [70.0, 0.0, 7.0, 0.0], [140.0, 0.0, 7.0, 0.0], [210.0, 0.0, 7.0, 0.0]]
+        ),
         source="declared-baseline",
         target_keys=(target.key,),
+        reference_time_s=5.0,
     )
     accepted_prediction = OwnshipThreatPrediction(
-        times_s=np.array([0.0, 10.0, 20.0]),
-        states_enu=np.array([[0.0, 0.0, 7.0, 0.0], [175.0, 0.0, 17.5, 0.0], [350.0, 0.0, 17.5, 0.0]]),
+        times_s=np.array([0.0, 5.0, 10.0, 15.0]),
+        states_enu=np.array(
+            [
+                [0.0, 0.0, 7.0, 0.0],
+                [175.0, 0.0, 17.5, 0.0],
+                [350.0, 0.0, 17.5, 0.0],
+                [525.0, 0.0, 17.5, 0.0],
+            ]
+        ),
         basis="ACCEPTED_PLAN",
         source="l4-receipt",
         target_keys=(target.key,),
+        reference_time_s=5.0,
     )
     raw_candidate = {
         "receipt_hash": "raw-candidate",
@@ -568,7 +582,7 @@ def test_raw_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge
     accepted = AcceptedPlanReceipt(
         receipt_hash="accepted-receipt",
         accepted_sequence=1,
-        accepted_at_s=0.0,
+        accepted_at_s=5.0,
         valid_until_s=30.0,
         accepted_prediction=accepted_prediction,
         plan_target=driver.key,
@@ -595,3 +609,22 @@ def test_raw_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge
     assert next_cycle.provenance["accepted_plan_applied_sequence"] == 2
     assert next_cycle.conflict_graph is not None
     assert any(edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT for edge in next_cycle.conflict_graph.edges)
+
+
+def test_mismatched_accepted_prediction_digest_is_rejected_before_staging() -> None:
+    prediction = OwnshipThreatPrediction(
+        times_s=np.array([0.0, 1.0]),
+        states_enu=np.array([[0.0, 0.0, 1.0, 0.0], [1.0, 0.0, 1.0, 0.0]]),
+        basis="ACCEPTED_PLAN",
+        source="l4-receipt",
+    )
+
+    with pytest.raises(ValueError, match="prediction hash"):
+        AcceptedPlanReceipt(
+            receipt_hash="receipt",
+            accepted_sequence=0,
+            accepted_at_s=0.0,
+            valid_until_s=1.0,
+            accepted_prediction=prediction,
+            prediction_hash="tampered",
+        )

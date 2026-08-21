@@ -330,6 +330,11 @@ class OwnshipThreatPrediction:
     model: str = "ownship_prediction"
     source: str = "UNKNOWN"
     target_keys: tuple[TrackKey, ...] = ()
+    reference_time_s: float = 0.0
+    coordinate_frame: str = "ENU"
+    linear_unit: str = "m"
+    angle_unit: str = "rad"
+    evidence_semantic_hash: str | None = None
     prediction_hash: str = ""
 
     def __post_init__(self) -> None:
@@ -347,6 +352,12 @@ class OwnshipThreatPrediction:
             raise ValueError("ownship prediction target keys must be unique TrackKeys")
         if not self.basis.strip() or not self.model.strip() or not self.source.strip():
             raise ValueError("ownship prediction provenance is required")
+        if not math.isfinite(self.reference_time_s) or self.reference_time_s < 0.0:
+            raise ValueError("ownship prediction reference time must be finite and non-negative")
+        if (self.coordinate_frame, self.linear_unit, self.angle_unit) != ("ENU", "m", "rad"):
+            raise ValueError("ownship prediction requires ENU/m/rad units")
+        if self.evidence_semantic_hash is not None and not self.evidence_semantic_hash.strip():
+            raise ValueError("evidence semantic hash cannot be empty")
         times.setflags(write=False)
         states.setflags(write=False)
         object.__setattr__(self, "times_s", times)
@@ -356,6 +367,37 @@ class OwnshipThreatPrediction:
         if self.prediction_hash and self.prediction_hash != computed_hash:
             raise ValueError("ownship prediction hash does not match prediction content")
         object.__setattr__(self, "prediction_hash", computed_hash)
+
+    @classmethod
+    def from_prediction_evidence(
+        cls,
+        record: Any,
+        *,
+        reference_time_s: float,
+        target_keys: tuple[TrackKey, ...] = (),
+    ) -> OwnshipThreatPrediction:
+        """Derive the accepted ownship artifact from one immutable evidence record."""
+        ownship = record.ownship
+        heading = np.asarray(ownship.heading_rad, dtype=float)
+        speed = np.asarray(ownship.speed_mps, dtype=float)
+        states = np.column_stack(
+            (
+                ownship.north_m,
+                ownship.east_m,
+                speed * np.cos(heading),
+                speed * np.sin(heading),
+            )
+        )
+        return cls(
+            times_s=np.asarray(ownship.grid.times_s, dtype=float),
+            states_enu=states,
+            basis="ACCEPTED_PLAN",
+            model="mid_mpc_prediction_evidence",
+            source="L4_ACCEPTED_PLAN",
+            target_keys=target_keys,
+            reference_time_s=reference_time_s,
+            evidence_semantic_hash=str(record.semantic_hash),
+        )
 
     @property
     def semantic_hash(self) -> str:
@@ -369,6 +411,11 @@ class OwnshipThreatPrediction:
             "model": self.model,
             "source": self.source,
             "target_keys": [_json_value(key) for key in self.target_keys],
+            "reference_time_s": self.reference_time_s,
+            "coordinate_frame": self.coordinate_frame,
+            "linear_unit": self.linear_unit,
+            "angle_unit": self.angle_unit,
+            "evidence_semantic_hash": self.evidence_semantic_hash,
         }
         if include_hash:
             value["prediction_hash"] = self.prediction_hash

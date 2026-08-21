@@ -70,3 +70,10 @@ def test_mid_mpc_uses_injected_runtime_threat_coordinator_and_native_solver() ->
 
     assert coordinator.last_snapshot is not None
     assert coordinator.last_snapshot.provenance["accepted_plan_applied_sequence"] == 1
+    receipt = coordinator.last_snapshot.accepted_plan_receipt
+    assert receipt is not None
+    assert receipt.accepted_prediction is not None
+    assert receipt.accepted_prediction.coordinate_frame == "ENU"
+    assert receipt.accepted_prediction.prediction_hash == receipt.prediction_hash
+    assert receipt.accepted_prediction.evidence_semantic_hash
+    assert receipt.evidence_semantic_hash == receipt.accepted_prediction.evidence_semantic_hash

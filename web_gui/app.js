@@ -21,10 +21,6 @@ import {
 ══════════════════════════════════════════════ */
 const SAFETY_MARGIN_DEFAULT = 150;
 const PERF_HISTORY_LEN      = 60;
-const DCPA_SAFE  = 300;   // m – green
-const DCPA_WARN  = 100;   // m – amber/red
-const TCPA_SAFE  = 120;   // s
-const TCPA_WARN  = 40;    // s
 const VO_DECISION_FETCH_INTERVAL_MS = 200;
 const METERS_PER_KNOT = 0.514444;
 
@@ -459,20 +455,16 @@ function updateUI(proj) {
   const dcpaEl = document.getElementById('val-dcpa');
   if (dcpaEl) {
     dcpaEl.textContent = dcpa === null ? '--- m' : `${dcpa.toFixed(1)} m`;
-    setRiskClass(dcpaEl, dcpa, DCPA_SAFE, DCPA_WARN, true);
+    setThreatClass(dcpaEl, primary?.displayClass);
   }
-  const dcpaPct = dcpa === null ? 0 : Math.max(0, Math.min(100, (1 - dcpa / (DCPA_SAFE * 2)) * 100));
-  setRiskBar('dcpaBar', dcpaPct,
-    dcpa === null ? 'safe' : dcpa > DCPA_SAFE ? 'safe' : dcpa > DCPA_WARN ? 'warn' : 'danger');
+  setThreatBar('dcpaBar', primary?.displayPercent, primary?.displayClass);
 
   const tcpaEl = document.getElementById('val-tcpa');
   if (tcpaEl) {
     tcpaEl.textContent = tcpa === null ? '--- s' : `${tcpa.toFixed(1)} s`;
-    setRiskClass(tcpaEl, tcpa, TCPA_SAFE, TCPA_WARN, true);
+    setThreatClass(tcpaEl, primary?.displayClass);
   }
-  const tcpaPct = tcpa === null ? 0 : Math.max(0, Math.min(100, (1 - tcpa / (TCPA_SAFE * 2)) * 100));
-  setRiskBar('tcpaBar', tcpaPct,
-    tcpa === null ? 'safe' : tcpa > TCPA_SAFE ? 'safe' : tcpa > TCPA_WARN ? 'warn' : 'danger');
+  setThreatBar('tcpaBar', primary?.displayPercent, primary?.displayClass);
 
   updateColregsBadge(proj.risk.colregs);
 
@@ -551,9 +543,9 @@ function formatDuration(totalSeconds) {
 
 function updateRouteCard(proj) {
   const data = proj.raw || {};
-  // Steering mode: TRACK while no encounter is classified; COLLISION once the
-  // encounter monitor reports any non-clear COLREGs situation.
-  const collisionActive = (proj.risk?.targets || []).some((t) => t.encounter && t.encounter !== 'clear');
+  // Steering mode is advisory display only and follows an explicit backend
+  // threat class; no browser encounter or distance calculation is performed.
+  const collisionActive = proj.risk?.status === 'AVAILABLE' && proj.risk?.primary?.displayClass === 'HIGH';
   const steeringMode = document.getElementById('liveSteeringMode');
   if (steeringMode) {
     steeringMode.textContent = collisionActive ? 'COLLISION' : 'TRACK';
@@ -938,20 +930,27 @@ function updateMonitorTelemetry(proj) {
   const container = document.getElementById('liveRiskTargetList');
   if (container) {
     const targets = proj.risk?.targets || [];
-    if (!targets.length) {
+    if (proj.risk?.status !== 'AVAILABLE') {
       container.innerHTML = `
         <article class="risk-target-card" data-priority="none">
-          <div class="risk-target-heading"><span>当前目标</span><strong>无威胁目标</strong></div>
-          <p style="margin:0;font-size:10px;color:var(--ob-subtle);">当前安全探测范围内无临近会遇船舶。</p>
+          <div class="risk-target-heading"><span>Threat Management</span><strong>不可用</strong></div>
+          <p style="margin:0;font-size:10px;color:var(--ob-subtle);">${proj.risk?.unavailableReason || '等待后端威胁事实。'}</p>
+        </article>
+      `;
+    } else if (!targets.length) {
+      container.innerHTML = `
+        <article class="risk-target-card" data-priority="none">
+          <div class="risk-target-heading"><span>Threat Management</span><strong>无目标</strong></div>
+          <p style="margin:0;font-size:10px;color:var(--ob-subtle);">后端未发布当前威胁向量。</p>
         </article>
       `;
     } else {
-      container.innerHTML = targets.map((t, idx) => {
-        const isHighest = idx === 0;
+      container.innerHTML = targets.map((t) => {
+        const isHighest = t.isPrimary === true;
         const dcpaText = t.dcpaM !== null ? `${t.dcpaM.toFixed(1)}` : '---';
         const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
         const colregLabel = t.encounter ? (ENCOUNTER_LABELS[t.encounter] || t.encounter) : '--';
-        const priorityLabel = isHighest ? '优先目标' : (idx === 1 ? '次优先目标' : '监测目标');
+        const priorityLabel = t.scheduleClass || (isHighest ? '当前 Primary' : '未分类');
         return `
           <article class="risk-target-card" ${isHighest ? 'data-priority="highest"' : ''}>
             <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.targetLabel || (t.targetId === null ? '--' : `TS${t.targetId}`)}</strong></div>
@@ -1088,36 +1087,37 @@ function formatCourse(value) {
   return `${degrees.toFixed(1)}°`;
 }
 
-function setRiskClass(el, value, safe, warn, invert) {
+function setThreatClass(el, displayClass) {
   el.classList.remove('safe', 'warn', 'danger');
-  if (!Number.isFinite(value)) return;
-  if (invert) {
-    if (value > safe) el.classList.add('safe');
-    else if (value > warn) el.classList.add('warn');
-    else el.classList.add('danger');
-  }
+  const level = String(displayClass || '').toUpperCase();
+  if (level === 'HIGH') el.classList.add('danger');
+  else if (level === 'LOW') el.classList.add('warn');
+  else if (level === 'CLEAR') el.classList.add('safe');
 }
 
-function setRiskBar(id, pct, level) {
+function setThreatBar(id, displayPercent, displayClass) {
   const bar = document.getElementById(id);
   if (!bar) return;
-  bar.style.width      = `${pct}%`;
-  bar.style.background = level === 'safe' ? 'var(--risk-safe)'
-                       : level === 'warn' ? 'var(--risk-warn)'
-                                          : 'var(--risk-danger)';
+  const percent = Number.isFinite(displayPercent) ? Math.max(0, Math.min(100, displayPercent)) : 0;
+  const level = String(displayClass || '').toUpperCase();
+  bar.style.width = `${percent}%`;
+  bar.style.background = level === 'CLEAR' ? 'var(--risk-safe)'
+                       : level === 'LOW' ? 'var(--risk-warn)'
+                                         : level === 'HIGH' ? 'var(--risk-danger)' : 'var(--ob-subtle)';
 }
 
 function updateColregsBadge(rule) {
   const badge     = document.getElementById('val-colregs');
   if (!badge) return;
-  const label = ENCOUNTER_LABELS[rule] || rule || 'Clear';
+  const label = rule ? (ENCOUNTER_LABELS[rule] || rule) : '--';
   badge.textContent = label;
   badge.className   = 'colregs-badge';
   if      (rule === 'head_on')          badge.classList.add('rule-14');
   else if (rule === 'crossing_give_way') badge.classList.add('rule-15-giveway');
   else if (rule === 'crossing_stand_on') badge.classList.add('rule-15-standon');
   else if (rule === 'overtaking')        badge.classList.add('rule-13');
-  else                                   badge.classList.add('clear');
+  else if (rule)                         badge.classList.add('clear');
+  else                                   badge.classList.add('unknown');
 }
 
 function updatePlannerPanel(proj) {

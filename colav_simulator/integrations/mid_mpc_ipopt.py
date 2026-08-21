@@ -91,6 +91,7 @@ from colav_simulator.core.colav.rolling_plan import (
     RollingPlanIdentity,
     RollingPlanReference,
 )
+from colav_simulator.core.colav.threat_assessment import OwnshipThreatPrediction
 from colav_simulator.core.colav.threat_management import (
     AcceptedPlanReceipt,
     ThreatManagementCoordinator,
@@ -573,6 +574,14 @@ class _MidMpcFacade:
         self._unresolved_streak = 0
         self._unresolved_streak_token = None
         warm_start_eligible = capability.exact_tuple in _WARM_START_ELIGIBLE_TUPLES
+        accepted_prediction = OwnshipThreatPrediction.from_prediction_evidence(
+            prediction_evidence,
+            reference_time_s=planner_input.sim_time_s,
+            target_keys=tuple(
+                TrackKey(track.target_id, track.generation or 1)
+                for track in planner_input.tracks
+            ),
+        )
         receipt = {
             "schema_version": "colav.mid_mpc.receipt@1",
             "parent_acceptance_hash": acceptance_hash,
@@ -588,6 +597,9 @@ class _MidMpcFacade:
             "scenario_id": self._config.scenario_id,
             "algorithm_seed": self._config.algorithm_seed,
             "tracker_id": self._config.tracker_id,
+            "accepted_prediction": accepted_prediction.to_dict(),
+            "prediction_hash": accepted_prediction.semantic_hash,
+            "evidence_semantic_hash": prediction_evidence.semantic_hash,
             "target_keys": [
                 {"target_id": track.target_id, "generation": track.generation} for track in planner_input.tracks
             ],
@@ -692,6 +704,7 @@ class _MidMpcFacade:
             decision.commitment is CommitmentPhase.COMMITTED and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
             for decision in snapshot.targets
         )
+        threat_snapshot_document = threat_snapshot.to_dict()
         details = {
             "formulation": "mass-l3-mid-mpc-ipopt-frozen",
             "solver_backend": "ipopt",
@@ -816,14 +829,19 @@ class _MidMpcFacade:
             "lifecycle": _snapshot_document(snapshot, self._threat_management_coordinator.lifecycle),
             "threat_management": {
                 "schema_version": threat_snapshot.schema_version,
+                "status": "AVAILABLE",
                 "semantic_hash": threat_snapshot.semantic_hash,
                 "input_hash": threat_snapshot.input_hash,
                 "lifecycle_input_hash": snapshot.input_hash,
                 "profile_hash": threat_snapshot.profile_hash,
                 "vector_count": len(threat_snapshot.vectors),
+                "snapshot": threat_snapshot_document,
+                "vectors": threat_snapshot_document["vectors"],
+                "schedule": threat_snapshot_document["schedule"],
                 "conflict_graph": threat_snapshot.conflict_graph.to_dict()
                 if threat_snapshot.conflict_graph is not None
                 else None,
+                "unavailable_reason": None,
             },
         }
         decision_by_key = {decision.key: decision for decision in snapshot.targets}

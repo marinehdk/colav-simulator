@@ -7,6 +7,8 @@
  * never touches the DOM.
  */
 
+// Kept as import-compatible constants for old shell consumers. They are not
+// used to classify, rank, or derive any threat state in this projection.
 export const DCPA_SAFE = 300;
 export const DCPA_WARN = 100;
 
@@ -35,11 +37,19 @@ function emptyProjection() {
     navigation: null,
     sensor: freeze({ targets: freeze([]) }),
     risk: freeze({
+      status: 'UNAVAILABLE',
+      unavailableReason: 'THREAT_SNAPSHOT_UNAVAILABLE',
+      snapshot: null,
+      snapshotHash: null,
+      profileHash: null,
       primary: null,
       targets: freeze([]),
       dcpaM: null,
       tcpaS: null,
-      colregs: 'clear',
+      colregs: null,
+      schedule: null,
+      conflicts: null,
+      conflictGraph: null,
     }),
     planner: freeze({
       current: null,
@@ -70,13 +80,6 @@ function emptyProjection() {
     }),
     timeline: freeze({ events: freeze([]), limitations: TIMELINE_LIMITATIONS }),
   });
-}
-
-function encounterTargetLabel(encounter) {
-  if (!encounter) return '';
-  if (encounter.target_label) return String(encounter.target_label);
-  const targetId = encounter.target_id;
-  return targetId === null || targetId === undefined || targetId === '' ? '' : `TS${targetId}`;
 }
 
 function finiteOrNull(value) {
@@ -176,47 +179,149 @@ function sensorTarget(ship, displayNorth, displayEast, positionSource) {
   };
 }
 
-function riskTarget(encounter, { withPriority = false } = {}) {
-  const base = {
-    targetId: encounter.target_id ?? null,
-    targetLabel: encounterTargetLabel(encounter) || null,
-    encounter: encounter.encounter ?? null,
-    distanceM: finiteOrNull(encounter.distance_m),
-    dcpaM: finiteOrNull(encounter.dcpa_m),
-    tcpaS: finiteOrNull(encounter.tcpa_s),
-    signedTcpaS: finiteOrNull(encounter.signed_tcpa_s),
-    stage: encounter.stage ?? null,
-    fsmState: encounter.fsm_state ?? null,
-    relativeBearingDeg: finiteOrNull(encounter.relative_bearing_deg),
-    validationRuleId: encounter.validation_rule_id ?? null,
-  };
-  return freeze(withPriority
-    ? {
-      ...base,
-      priorityScore: encounter.priority_score ?? null,
-      selectionReason: encounter.selection_reason ?? null,
-    }
-    : base);
+function threatKey(value) {
+  const key = value?.key ?? value;
+  if (!key || typeof key !== 'object') return null;
+  const targetId = key.target_id ?? key.targetId ?? null;
+  const generation = key.generation ?? null;
+  return targetId === null ? null : { target_id: targetId, generation };
+}
+
+function sameThreatKey(left, right) {
+  const a = threatKey(left);
+  const b = threatKey(right);
+  return a !== null && b !== null
+    && String(a.target_id) === String(b.target_id)
+    && ((a.generation === null && b.generation === null)
+      || (a.generation !== null && b.generation !== null && String(a.generation) === String(b.generation)));
+}
+
+function projectThreatVector(vector) {
+  const key = threatKey(vector);
+  const currentDomain = vector?.current_domain ?? vector?.currentDomain ?? null;
+  const predictedDomain = vector?.predicted_domain ?? vector?.predictedDomain ?? null;
+  const lifecycle = vector?.lifecycle ?? null;
+  return freeze({
+    key,
+    targetId: key?.target_id ?? vector?.target_id ?? vector?.targetId ?? null,
+    generation: key?.generation ?? vector?.generation ?? null,
+    targetLabel: key === null ? null : `TS${key.target_id}`,
+    encounter: lifecycle?.encounter ?? vector?.encounter ?? null,
+    role: lifecycle?.role ?? vector?.role ?? null,
+    commitment: lifecycle?.commitment ?? vector?.commitment ?? null,
+    observationHealth: vector?.observation_health ?? vector?.observationHealth ?? null,
+    claimCompleteness: vector?.claim_completeness ?? vector?.claimCompleteness ?? null,
+    predictionBasis: vector?.prediction_basis ?? vector?.predictionBasis ?? null,
+    displayClass: vector?.display_class ?? vector?.displayClass ?? null,
+    displayPercent: finiteOrNull(vector?.display_percent ?? vector?.displayPercent),
+    scheduleClass: vector?.schedule_class ?? vector?.scheduleClass ?? null,
+    priorityClass: vector?.priority_class ?? vector?.priorityClass ?? null,
+    priorityReason: vector?.priority_reason ?? vector?.priorityReason ?? null,
+    lifecycleRole: vector?.lifecycle_role ?? vector?.lifecycleRole ?? lifecycle?.role ?? null,
+    lifecycleRisk: vector?.lifecycle_risk ?? vector?.lifecycleRisk ?? lifecycle?.risk ?? null,
+    lifecycleCommitment: vector?.lifecycle_commitment
+      ?? vector?.lifecycleCommitment
+      ?? lifecycle?.commitment
+      ?? null,
+    window: vector?.window ?? null,
+    unavailableReasons: freeze(Array.isArray(vector?.unavailable_reasons)
+      ? [...vector.unavailable_reasons]
+      : Array.isArray(vector?.unavailableReasons) ? [...vector.unavailableReasons] : []),
+    rangeM: finiteOrNull(vector?.range_m ?? vector?.rangeM),
+    closingSpeedMps: finiteOrNull(vector?.closing_speed_mps ?? vector?.closingSpeedMps),
+    dcpaM: finiteOrNull(vector?.dcpa_m ?? vector?.dcpaM),
+    tcpaS: finiteOrNull(vector?.tcpa_forward_s ?? vector?.tcpaS),
+    signedTcpaS: finiteOrNull(vector?.tcpa_signed_s ?? vector?.signedTcpaS),
+    hullClearanceM: finiteOrNull(vector?.hull_clearance_m ?? vector?.hullClearanceM),
+    uncertaintyRadiusM: finiteOrNull(vector?.uncertainty_radius_m ?? vector?.uncertaintyRadiusM),
+    currentDomain: currentDomain && typeof currentDomain === 'object' ? freeze({
+      state: currentDomain.state ?? null,
+      normalizedScale: finiteOrNull(currentDomain.normalized_scale ?? currentDomain.normalizedScale),
+      uncertaintyRadiusM: finiteOrNull(currentDomain.uncertainty_radius_m ?? currentDomain.uncertaintyRadiusM),
+      unavailableReason: currentDomain.unavailable_reason ?? currentDomain.unavailableReason ?? null,
+    }) : null,
+    predictedDomain: predictedDomain && typeof predictedDomain === 'object' ? freeze({
+      state: predictedDomain.state ?? null,
+      normalizedScale: finiteOrNull(predictedDomain.normalized_scale ?? predictedDomain.normalizedScale),
+      horizonMinScale: finiteOrNull(predictedDomain.horizon_min_scale ?? predictedDomain.horizonMinScale),
+      tdvS: finiteOrNull(predictedDomain.tdv_s ?? predictedDomain.tdvS),
+      tdeS: finiteOrNull(predictedDomain.tde_s ?? predictedDomain.tdeS),
+      unavailableReason: predictedDomain.unavailable_reason ?? predictedDomain.unavailableReason ?? null,
+    }) : null,
+  });
+}
+
+function projectThreatSchedule(schedule) {
+  if (!schedule || typeof schedule !== 'object') return null;
+  return freeze({
+    currentPrimary: schedule.current_primary ?? schedule.currentPrimary ?? schedule.primary ?? null,
+    concurrentRequired: freeze(Array.isArray(schedule.concurrent_required)
+      ? [...schedule.concurrent_required]
+      : Array.isArray(schedule.concurrentRequired) ? [...schedule.concurrentRequired] : []),
+    next: freeze(Array.isArray(schedule.next)
+      ? [...schedule.next]
+      : Array.isArray(schedule.next_threats) ? [...schedule.next_threats] : []),
+    monitor: freeze(Array.isArray(schedule.monitor) ? [...schedule.monitor] : []),
+    released: freeze(Array.isArray(schedule.released) ? [...schedule.released] : []),
+    entries: freeze(Array.isArray(schedule.entries) ? [...schedule.entries] : []),
+    events: freeze(Array.isArray(schedule.events) ? [...schedule.events] : []),
+  });
 }
 
 function projectRisk(envelope) {
-  const encounters = Array.isArray(envelope.encounters) ? envelope.encounters : [];
-  const primaryEncounter = envelope.primary_encounter ?? null;
-  const primary = primaryEncounter ? riskTarget(primaryEncounter, { withPriority: true }) : null;
-  const primaryId = primaryEncounter ? String(primaryEncounter.target_id) : null;
-  const others = encounters
-    .filter((encounter) => primaryId === null || String(encounter.target_id) !== primaryId)
-    .map((encounter) => riskTarget(encounter))
-    .sort((a, b) => (a.dcpaM ?? Infinity) - (b.dcpaM ?? Infinity));
-  const targets = primaryEncounter
-    ? [riskTarget(primaryEncounter), ...others]
-    : others;
+  const source = envelope.threat_management;
+  if (!source || typeof source !== 'object') {
+    return freeze({
+      status: 'UNAVAILABLE',
+      unavailableReason: 'THREAT_SNAPSHOT_UNAVAILABLE',
+      snapshot: null,
+      snapshotHash: null,
+      profileHash: null,
+      primary: null,
+      targets: freeze([]),
+      dcpaM: null,
+      tcpaS: null,
+      colregs: null,
+      schedule: null,
+      conflicts: null,
+      conflictGraph: null,
+    });
+  }
+  const snapshot = source.snapshot && typeof source.snapshot === 'object' ? source.snapshot : null;
+  const rawVectors = Array.isArray(source.vectors)
+    ? source.vectors
+    : Array.isArray(snapshot?.vectors) ? snapshot.vectors : [];
+  const targets = rawVectors.map(projectThreatVector);
+  const schedule = projectThreatSchedule(source.schedule ?? snapshot?.schedule);
+  const primaryRef = schedule?.currentPrimary ?? source.primary ?? snapshot?.primary ?? null;
+  const primaryIndex = targets.findIndex(target => sameThreatKey(target.key, primaryRef));
+  const scheduleEntry = (target) => schedule?.entries?.find(entry => sameThreatKey(target.key, entry?.key));
+  const markedTargets = targets.map((target, index) => {
+    const entry = scheduleEntry(target);
+    return freeze({
+      ...target,
+      isPrimary: index === primaryIndex,
+      scheduleClass: target.scheduleClass ?? entry?.context ?? null,
+      priorityClass: target.priorityClass ?? entry?.priority_class ?? null,
+      priorityReason: target.priorityReason ?? entry?.priority_reason ?? null,
+    });
+  });
+  const primary = primaryIndex >= 0 ? markedTargets[primaryIndex] : null;
+  const available = source.status === 'AVAILABLE' || snapshot !== null;
   return freeze({
+    status: available ? 'AVAILABLE' : 'UNAVAILABLE',
+    unavailableReason: available ? null : (source.unavailable_reason ?? 'THREAT_SNAPSHOT_UNAVAILABLE'),
+    snapshot,
+    snapshotHash: snapshot?.semantic_hash ?? snapshot?.semanticHash ?? null,
+    profileHash: snapshot?.profile_hash ?? snapshot?.profileHash ?? null,
     primary,
-    targets: freeze(targets),
-    dcpaM: finiteOrNull(primaryEncounter?.dcpa_m) ?? finiteOrNull(envelope.dcpa),
-    tcpaS: finiteOrNull(primaryEncounter?.tcpa_s) ?? finiteOrNull(envelope.tcpa),
-    colregs: primaryEncounter?.encounter || envelope.colregs || 'clear',
+    targets: freeze(markedTargets),
+    dcpaM: primary?.dcpaM ?? null,
+    tcpaS: primary?.tcpaS ?? null,
+    colregs: primary?.encounter ?? null,
+    schedule,
+    conflicts: source.conflicts ?? source.conflict_graph ?? snapshot?.conflicts ?? snapshot?.conflict_graph ?? null,
+    conflictGraph: source.conflict_graph ?? source.conflicts ?? snapshot?.conflict_graph ?? snapshot?.conflicts ?? null,
   });
 }
 
@@ -306,54 +411,6 @@ function recordEnvelopeEvents(envelope, sessionId, state) {
   return recorded;
 }
 
-function recordDerivedEvents(risk, state, sessionId, envelope) {
-  const events = [];
-  const colregs = risk.primary ? risk.colregs : (risk.colregs || 'clear');
-  const targetLabel = risk.primary?.targetLabel ?? '';
-  // A first observation of clear water is not a transition; the legacy
-  // adapter only reported changes away from a previously seen encounter.
-  const initialClear = state.lastColregs === '' && colregs === 'clear';
-  if (!initialClear
-    && (colregs !== state.lastColregs
-      || (colregs !== 'clear' && targetLabel !== state.lastColregsTarget))) {
-    const fromLabel = state.lastColregs === '' ? null : state.lastColregs;
-    events.push(freeze({
-      key: `derived:${sessionId}:colregs_change:${state.derivedCounter}`,
-      sequence: envelope.seq ?? null,
-      simTime: envelope.sim_time ?? null,
-      type: 'colregs_change',
-      source: 'derived',
-      details: freeze({
-        from: fromLabel,
-        to: colregs,
-        // On a transition back to clear the label names the encounter that
-        // ended, matching the legacy log line's context.
-        targetLabel: colregs === 'clear' ? state.lastColregsTarget : targetLabel,
-      }),
-    }));
-    state.derivedCounter += 1;
-    state.lastColregs = colregs;
-    state.lastColregsTarget = colregs === 'clear' ? '' : targetLabel;
-  }
-  const level = risk.dcpaM === null
-    ? null
-    : risk.dcpaM > DCPA_SAFE ? 'safe' : risk.dcpaM > DCPA_WARN ? 'warn' : 'danger';
-  if (level !== null && (level !== state.lastDcpaLevel || targetLabel !== state.lastDcpaTarget)) {
-    events.push(freeze({
-      key: `derived:${sessionId}:dcpa_level_change:${state.derivedCounter}`,
-      sequence: envelope.seq ?? null,
-      simTime: envelope.sim_time ?? null,
-      type: 'dcpa_level_change',
-      source: 'derived',
-      details: freeze({ level, dcpaM: risk.dcpaM, targetLabel }),
-    }));
-    state.derivedCounter += 1;
-    state.lastDcpaLevel = level;
-    state.lastDcpaTarget = targetLabel;
-  }
-  return events;
-}
-
 function projectOutcome(runtimeOutcome, envelope, state) {
   const result = runtimeOutcome?.result ?? null;
   const manifest = result?.manifest ?? null;
@@ -406,6 +463,10 @@ function envelopeKey(envelope) {
     playback.realtime_limited ?? '',
     playback.scheduler_lag_ms ?? '',
     envelope.reproduction_status ?? '',
+    envelope.threat_management?.snapshot?.semantic_hash
+      ?? envelope.threat_management?.snapshot?.semanticHash
+      ?? envelope.threat_management?.status
+      ?? '',
   ].join('|');
 }
 
@@ -426,11 +487,6 @@ function freshState() {
   return {
     seenEventKeys: new Set(),
     timelineEvents: [],
-    derivedCounter: 0,
-    lastColregs: '',
-    lastColregsTarget: '',
-    lastDcpaLevel: null,
-    lastDcpaTarget: '',
     ship0Grounded: false,
     anyCollision: false,
     anyGrounding: false,
@@ -466,9 +522,8 @@ export function createTelemetryProjection() {
     const sessionId = envelope.run_id ?? null;
     const derived = [];
     const navigation = projectNavigation(envelope);
-    const risk = projectRisk(envelope);
-    derived.push(...recordDerivedEvents(risk, state, sessionId ?? 'run', envelope));
     derived.push(...recordEnvelopeEvents(envelope, sessionId ?? 'run', state));
+    const risk = projectRisk(envelope);
     const combinedEvents = [...state.timelineEvents, ...derived];
     if (combinedEvents.length > SEEN_EVENT_KEY_CAP) {
       combinedEvents.splice(0, combinedEvents.length - SEEN_EVENT_KEY_CAP);

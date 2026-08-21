@@ -8,7 +8,6 @@ import matplotlib as mpl
 mpl.use("Agg")
 
 import asyncio
-import copy
 import json
 import logging
 import re
@@ -31,8 +30,6 @@ from shapely.geometry import Point
 
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
-from colav_simulator.evaluation import EncounterMonitor
-from colav_simulator.evaluation.profiles import load_evaluator_profile
 from colav_simulator.experiment.busy_water import (
     ACCEPTANCE_SCENARIO_ID,
     DEFAULT_SEED,
@@ -53,9 +50,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 GUI_DIR = BASE_DIR / "web_gui"
 DRAFT_DIR = BASE_DIR / "runs" / "scenario_drafts"
 BUSY_WATER_SCENARIOS = {ACCEPTANCE_SCENARIO_ID, STRESS_SCENARIO_ID}
-_PRIMARY_PROFILE = load_evaluator_profile()
-_PRIMARY_RISK_WEIGHTS = {"dcpa": 0.5, "tcpa": 0.3, "range": 0.2}
-_PRIMARY_TCPA_SCALE_S = 5.0 * _PRIMARY_PROFILE.encounter.emergency_tcpa_s
+THREAT_PROJECTION_SCHEMA = "colav.threat-management.projection@1"
 TELEMETRY_PUBLISH_INTERVAL_S = 0.1
 TELEMETRY_TRAIL_HISTORY_POINTS = 500
 TELEMETRY_MAX_TRAIL_POINTS = 120
@@ -97,68 +92,51 @@ def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) ->
     return compact
 
 
-def _bounded_risk_ratio(value: Any, scale: float) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return 1.0
-    if not np.isfinite(number) or number < 0.0:
-        return 1.0
-    return float(np.clip(number / scale, 0.0, 1.0))
+def _select_primary_encounter(_encounters: list[dict[str, Any]]) -> None:
+    """Deprecated compatibility symbol; Primary belongs to canonical backend facts."""
+    return None
 
 
-def _primary_risk(item: dict[str, Any]) -> tuple[float, dict[str, float]]:
-    components = {
-        "dcpa": _bounded_risk_ratio(item.get("dcpa_m"), _PRIMARY_PROFILE.safety.preferred_m),
-        "tcpa": _bounded_risk_ratio(item.get("signed_tcpa_s"), _PRIMARY_TCPA_SCALE_S),
-        "range": _bounded_risk_ratio(item.get("distance_m"), _PRIMARY_PROFILE.stages.stage2_entry_m),
+def _canonical_threat_projection(colav_data: dict[str, Any], planner: dict[str, Any]) -> dict[str, Any]:
+    """Project only a canonical backend threat document for REST/WS consumers."""
+    candidate = (
+        planner.get("threat_management")
+        or planner.get("algorithm_details", {}).get("threat_management")
+        or colav_data.get("threat_management")
+    )
+    if not isinstance(candidate, dict):
+        return {
+            "schema_version": THREAT_PROJECTION_SCHEMA,
+            "status": "UNAVAILABLE",
+            "snapshot": None,
+            "vectors": [],
+            "schedule": None,
+            "conflicts": None,
+            "conflict_graph": None,
+            "unavailable_reason": "THREAT_SNAPSHOT_UNAVAILABLE",
+        }
+    snapshot = candidate.get("snapshot")
+    if snapshot is None and "vectors" in candidate:
+        snapshot = candidate
+    vectors = snapshot.get("vectors", []) if isinstance(snapshot, dict) else []
+    schedule = candidate.get("schedule")
+    if schedule is None and isinstance(snapshot, dict):
+        schedule = snapshot.get("schedule")
+    conflicts = candidate.get("conflicts", candidate.get("conflict_graph"))
+    if conflicts is None and isinstance(snapshot, dict):
+        conflicts = snapshot.get("conflicts", snapshot.get("conflict_graph"))
+    available = candidate.get("status") == "AVAILABLE" or isinstance(snapshot, dict)
+    graph = jsonable(conflicts) if isinstance(conflicts, (dict, list)) else None
+    return {
+        "schema_version": THREAT_PROJECTION_SCHEMA,
+        "status": "AVAILABLE" if available else "UNAVAILABLE",
+        "snapshot": jsonable(snapshot) if isinstance(snapshot, dict) else None,
+        "vectors": jsonable(vectors) if isinstance(vectors, list) else [],
+        "schedule": jsonable(schedule) if isinstance(schedule, dict) else None,
+        "conflicts": graph,
+        "conflict_graph": graph,
+        "unavailable_reason": None if available else candidate.get("unavailable_reason", "THREAT_SNAPSHOT_UNAVAILABLE"),
     }
-    score = sum(_PRIMARY_RISK_WEIGHTS[name] * components[name] for name in components)
-    return float(score), components
-
-
-def _select_primary_encounter(encounters: list[dict[str, Any]]) -> dict[str, Any] | None:
-    if not encounters:
-        return None
-
-    approaching = [
-        item
-        for item in encounters
-        if np.isfinite(float(item.get("signed_tcpa_s", float("inf")))) and float(item.get("signed_tcpa_s", 0.0)) > 0.0
-    ]
-    if approaching:
-
-        def priority(item: dict[str, Any]) -> tuple[Any, ...]:
-            score, _ = _primary_risk(item)
-            return (
-                score,
-                float(item.get("signed_tcpa_s", float("inf"))),
-                float(item.get("dcpa_m", float("inf"))),
-                float(item.get("distance_m", float("inf"))),
-                -int(item.get("stage", 0)),
-                int(item.get("target_id", 0)),
-            )
-
-        selected = copy.deepcopy(min(approaching, key=priority))
-        score, components = _primary_risk(selected)
-        selected["priority_score"] = score
-        selected["priority_components"] = components
-        selected["priority_weights"] = dict(_PRIMARY_RISK_WEIGHTS)
-        selected["selection_reason"] = "composite_cpa_risk"
-    else:
-        selected = copy.deepcopy(
-            min(
-                encounters,
-                key=lambda item: (
-                    float(item.get("distance_m", float("inf"))),
-                    float(item.get("dcpa_m", float("inf"))),
-                    int(item.get("target_id", 0)),
-                ),
-            )
-        )
-        selected["selection_reason"] = "nearest_available_contact"
-    selected["target_label"] = f"TS{selected['target_id']}"
-    return selected
 
 
 class SessionCreateRequest(BaseModel):
@@ -377,7 +355,6 @@ class WebSessionManager:
         self.effective_speed_multiplier: float | None = None
         self.scheduler_lag_ms = 0.0
         self.realtime_limited = False
-        self.encounter_monitor = EncounterMonitor()
         self.previous_prediction_horizon: list[list[float]] = []
         self.current_prediction_horizon: list[list[float]] = []
         self.last_solve_id: int | None = None
@@ -407,10 +384,6 @@ class WebSessionManager:
             self.prepared = replacement
             self.result = None
             self.replay_expected = None
-            self.encounter_monitor = EncounterMonitor(
-                spec.validation_rule_id,
-                spec.evaluator_profile_id,
-            )
             self.previous_prediction_horizon = []
             self.current_prediction_horizon = []
             self.last_solve_id = None
@@ -818,11 +791,6 @@ class WebSessionManager:
                     "speed_mps": float(target.csog_state[2]),
                 }
             )
-        encounters = [item.to_dict() for item in self.encounter_monitor.update(ships)]
-        primary_encounter = _select_primary_encounter(encounters)
-        dcpa = float(primary_encounter["dcpa_m"]) if primary_encounter else float("inf")
-        tcpa = float(primary_encounter["tcpa_s"]) if primary_encounter else float("inf")
-        encounter = primary_encounter["encounter"] if primary_encounter else "clear"
         own_raw = frame.get("Ship0", {})
         waypoints = np.asarray(own_raw.get("waypoints", np.zeros((2, 0))), dtype=float)
         if waypoints.ndim == 2 and waypoints.size:
@@ -831,6 +799,14 @@ class WebSessionManager:
             local_waypoints = [[], []]
         colav_data = own_raw.get("colav", {}) if own_raw else {}
         planner = colav_data.get("planner", {})
+        threat_management = _canonical_threat_projection(colav_data, planner)
+        # Legacy aliases remain present for old clients, but never carry a
+        # browser/server-local risk interpretation.
+        encounters = []
+        primary_encounter = None
+        dcpa = None
+        tcpa = None
+        encounter = None
         solve_id = int(planner.get("solve_id", 0))
         algorithm_details = planner.get("algorithm_details", {})
         prediction_render = planner.get("prediction_render", {})
@@ -957,6 +933,7 @@ class WebSessionManager:
             "enc_navigation_area": self.enc_navigation_area,
             "encounters": encounters,
             "primary_encounter": primary_encounter,
+            "threat_management": threat_management,
             "planner": jsonable(planner),
             "latest_planner_solve": self.latest_planner_solve,
             "active_planner_plan": self.active_planner_plan,
@@ -975,7 +952,7 @@ class WebSessionManager:
             "dcpa": dcpa,
             "tcpa": tcpa,
             "colregs": encounter,
-            "safety_margin": 150.0,
+            "safety_margin": None,
             "selected_algorithm": self.prepared.manifest.executed_algorithm,
             "requested_algorithm": self.prepared.manifest.requested_algorithm,
             "executed_algorithm": self.prepared.manifest.executed_algorithm,

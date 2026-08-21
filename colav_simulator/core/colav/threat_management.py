@@ -90,6 +90,7 @@ class AcceptedPlanReceipt:
     prediction_hash: str | None = None
     acceptance_hash: str | None = None
     domain_profile_hash: str | None = None
+    evidence_semantic_hash: str | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> AcceptedPlanReceipt:
@@ -111,6 +112,15 @@ class AcceptedPlanReceipt:
                 model=str(accepted_prediction.get("model", "accepted_plan")),
                 source=str(accepted_prediction.get("source", "L4_ACCEPTED_RECEIPT")),
                 target_keys=tuple(_track_key_from_value(item) for item in accepted_prediction.get("target_keys", ())),
+                reference_time_s=float(accepted_prediction.get("reference_time_s", accepted_at_s)),
+                coordinate_frame=str(accepted_prediction.get("coordinate_frame", "ENU")),
+                linear_unit=str(accepted_prediction.get("linear_unit", "m")),
+                angle_unit=str(accepted_prediction.get("angle_unit", "rad")),
+                evidence_semantic_hash=(
+                    str(accepted_prediction["evidence_semantic_hash"])
+                    if accepted_prediction.get("evidence_semantic_hash") is not None
+                    else None
+                ),
                 prediction_hash=str(accepted_prediction.get("prediction_hash", "")),
             )
         plan_target_value = value.get("plan_target", value.get("target_key"))
@@ -142,6 +152,15 @@ class AcceptedPlanReceipt:
             domain_profile_hash=(
                 str(value["domain_profile_hash"]) if value.get("domain_profile_hash") is not None else None
             ),
+            evidence_semantic_hash=(
+                str(value["evidence_semantic_hash"])
+                if value.get("evidence_semantic_hash") is not None
+                else (
+                    accepted_prediction.evidence_semantic_hash
+                    if accepted_prediction is not None
+                    else None
+                )
+            ),
         )
 
     def __post_init__(self) -> None:
@@ -164,6 +183,30 @@ class AcceptedPlanReceipt:
             raise ValueError("prediction_hash cannot be empty")
         if self.acceptance_hash is not None and not self.acceptance_hash.strip():
             raise ValueError("acceptance_hash cannot be empty")
+        if self.evidence_semantic_hash is not None and not self.evidence_semantic_hash.strip():
+            raise ValueError("evidence semantic hash cannot be empty")
+        if (
+            self.accepted_prediction is not None
+            and self.prediction_hash is not None
+            and self.prediction_hash != self.accepted_prediction.semantic_hash
+        ):
+            raise ValueError("accepted plan prediction hash does not match artifact")
+        if (
+            self.accepted_prediction is not None
+            and self.evidence_semantic_hash is not None
+            and self.evidence_semantic_hash != self.accepted_prediction.evidence_semantic_hash
+        ):
+            raise ValueError("accepted plan evidence hash does not match artifact")
+        if (
+            self.accepted_prediction is not None
+            and not math.isclose(
+                self.accepted_at_s,
+                self.accepted_prediction.reference_time_s,
+                rel_tol=0.0,
+                abs_tol=1.0e-9,
+            )
+        ):
+            raise ValueError("accepted plan artifact reference time does not match receipt")
 
 
 class ThreatManagementCoordinator:
@@ -470,12 +513,14 @@ class ConflictGraphBuilder:
                         prediction,
                         vector.uncertainty_radius_m,
                         domain_profile,
+                        comparison_time_s=sim_time_s,
                     )
                     accepted_trace = _ownship_domain_trace(
                         accepted_prediction,
                         prediction,
                         vector.uncertainty_radius_m,
                         domain_profile,
+                        comparison_time_s=sim_time_s,
                     )
                     if baseline_trace is None or accepted_trace is None:
                         plan_reasons.append(ConflictUnavailableReason.TARGET_PREDICTION_UNAVAILABLE)
@@ -492,6 +537,7 @@ class ConflictGraphBuilder:
                             "materiality": material,
                             "baseline_prediction_hash": baseline_prediction.semantic_hash,
                             "accepted_prediction_hash": accepted_prediction.semantic_hash,
+                            "accepted_evidence_semantic_hash": accepted_plan.evidence_semantic_hash,
                             "plan_receipt_hash": accepted_plan.receipt_hash,
                         }
                     )
@@ -654,16 +700,23 @@ def _ownship_domain_trace(
     target: ThreatPrediction,
     uncertainty_radius_m: float,
     profile: ShipDomainProfile,
+    *,
+    comparison_time_s: float,
 ) -> dict[str, object] | None:
     if ownship is None or not profile.qualified:
         return None
-    if target.times_s[0] < ownship.times_s[0] - 1.0e-9 or target.times_s[-1] > ownship.times_s[-1] + 1.0e-9:
+    target_absolute_times = comparison_time_s + np.asarray(target.times_s, dtype=float)
+    ownship_absolute_times = ownship.reference_time_s + ownship.times_s
+    if (
+        target_absolute_times[0] < ownship_absolute_times[0] - 1.0e-9
+        or target_absolute_times[-1] > ownship_absolute_times[-1] + 1.0e-9
+    ):
         return None
     query = np.asarray(target.times_s, dtype=float)
-    own_north = np.interp(query, ownship.times_s, ownship.states_enu[:, 0])
-    own_east = np.interp(query, ownship.times_s, ownship.states_enu[:, 1])
-    own_velocity_north = np.interp(query, ownship.times_s, ownship.states_enu[:, 2])
-    own_velocity_east = np.interp(query, ownship.times_s, ownship.states_enu[:, 3])
+    own_north = np.interp(target_absolute_times, ownship_absolute_times, ownship.states_enu[:, 0])
+    own_east = np.interp(target_absolute_times, ownship_absolute_times, ownship.states_enu[:, 1])
+    own_velocity_north = np.interp(target_absolute_times, ownship_absolute_times, ownship.states_enu[:, 2])
+    own_velocity_east = np.interp(target_absolute_times, ownship_absolute_times, ownship.states_enu[:, 3])
     if np.any(np.hypot(own_velocity_north, own_velocity_east) <= 1.0e-12):
         return None
     scales: list[float] = []
