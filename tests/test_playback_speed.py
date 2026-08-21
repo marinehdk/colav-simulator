@@ -78,16 +78,18 @@ def test_playback_ui_uses_server_state_and_frame_interpolation() -> None:
         page = client.get("/")
         script = client.get("/static/app.js")
         runtime = client.get("/static/modules/active-session-runtime.js")
+        situation_display = client.get("/static/modules/situation-display.js")
 
     assert 'id="speedStatus"' in page.text
     assert "/speed?multiplier=${encodeURIComponent(speed)}" in runtime.text
     assert "syncPlaybackStatus(playback" in script.text
-    assert "queueTelemetryRender(data)" in script.text
-    assert "requestAnimationFrame(renderTelemetryFrame)" in script.text
-    assert "function telemetryRenderDurationMs(from, to)" in script.text
-    assert "renderDurationMs = telemetryRenderDurationMs(renderToData, data);" in script.text
-    assert "data.seq === renderToData.seq" in script.text
-    assert "TELEMETRY_RENDER_INTERVAL_MS = 100" not in script.text
+    assert situation_display.status_code == 200
+    assert "queueTelemetryRender(data)" in situation_display.text
+    assert "raf(renderTelemetryFrame)" in situation_display.text
+    assert "function telemetryRenderDurationMs(from, to)" in situation_display.text
+    assert "renderDurationMs = telemetryRenderDurationMs(renderToData, data);" in situation_display.text
+    assert "data.seq === renderToData.seq" in situation_display.text
+    assert "TELEMETRY_RENDER_INTERVAL_MS = 100" not in situation_display.text
     assert "VO_DECISION_FETCH_INTERVAL_MS = 200" in script.text
     assert "voDecisionSpacePending" in script.text
     assert "voDecisionSpaceAttemptedKey" in script.text
@@ -101,11 +103,12 @@ def test_playback_ui_uses_server_state_and_frame_interpolation() -> None:
 
 def test_ownship_uses_fcb45_top_view_sprite() -> None:
     with TestClient(app) as client:
-        script = client.get("/static/app.js")
+        situation_display = client.get("/static/modules/situation-display.js")
         sprite = client.get("/static/assets/fcb45-top.png")
 
+    assert situation_display.status_code == 200
     assert sprite.status_code == 200
     assert sprite.headers["content-type"] == "image/png"
     assert sprite.content.startswith(b"\x89PNG\r\n\x1a\n")
-    assert "ownshipSprite.src = '/static/assets/fcb45-top.png';" in script.text
-    assert "drawOwnshipSprite(point, data.os.psi, FCB45_LENGTH_M, FCB45_WIDTH_M);" in script.text
+    assert "setSpriteSrc(ownshipSprite, '/static/assets/fcb45-top.png');" in situation_display.text
+    assert "drawOwnshipSprite(point, data.os.psi, FCB45_LENGTH_M, FCB45_WIDTH_M);" in situation_display.text

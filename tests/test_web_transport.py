@@ -123,10 +123,14 @@ def test_compact_stream_payload_removes_wire_duplicates_and_repeated_static_data
     assert "latest_planner_attempt" not in update
 
 
-def test_browser_requests_and_inflates_compact_telemetry() -> None:
-    script = (Path(__file__).parents[1] / "web_gui" / "app.js").read_text()
+def test_browser_uses_shared_runtime_without_reinflating_telemetry() -> None:
+    web_gui = Path(__file__).parents[1] / "web_gui"
+    script = (web_gui / "app.js").read_text()
+    runtime = (web_gui / "modules" / "active-session-runtime.js").read_text()
+    instance = (web_gui / "modules" / "session-runtime-instance.js").read_text()
 
-    assert "?transport=compact-v1" in script
-    assert "inflateTelemetryPayload(JSON.parse(event.data))" in script
-    assert "os: truth[0] || {}" in script
-    assert "obstacles: truth.slice(1)" in script
+    assert "?transport=compact-v1" not in script
+    assert "inflateTelemetryPayload" not in script
+    assert "new WebSocket(`${protocol}//${location.host}${path}`)" in instance
+    assert "telemetryProjection.project(runtimeSnapshot)" in instance
+    assert "envelope = JSON.parse(event.data)" in runtime

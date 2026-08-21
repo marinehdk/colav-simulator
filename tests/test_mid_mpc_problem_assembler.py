@@ -20,7 +20,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     Rule17Stage,
     TargetObservation,
 )
-from colav_simulator.core.colav.horizon_encounter_plan import HorizonEncounterPhase
+from colav_simulator.core.colav.horizon_encounter_plan import HorizonEncounterPhase, HorizonEncounterPlan
 from colav_simulator.core.colav.mid_mpc_assembler import (
     AssemblyFailure,
     AssemblyFailureCode,
@@ -32,6 +32,7 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     MidMpcAssemblyConfig,
     MidMpcProblemAssembler,
     RouteReference,
+    _staged_route_references,
 )
 from colav_simulator.core.colav.rolling_plan import PlanRevisionReason, RollingPlanReference
 from colav_simulator.core.tracking.trackers import TrackKey
@@ -449,8 +450,6 @@ def test_recovery_window_keeps_accepted_absolute_rolling_plan_time() -> None:
 
 
 def test_recover_first_reference_anchors_first_step_on_own_heading() -> None:
-    from colav_simulator.core.colav.horizon_encounter_plan import HorizonEncounterPlan
-
     config = MidMpcAssemblyConfig()
     steps = config.horizon_steps
     current_heading = math.radians(30.0)
@@ -464,8 +463,6 @@ def test_recover_first_reference_anchors_first_step_on_own_heading() -> None:
         target_windows=(),
         recovery_from_k=0,
     )
-    from colav_simulator.core.colav.mid_mpc_assembler import _staged_route_references
-
     references, lateral = _staged_route_references(
         plan,
         RouteReference(

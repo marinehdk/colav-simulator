@@ -24,6 +24,8 @@ from colav_simulator.core.colav.mid_mpc import solver as solver_module
 from colav_simulator.core.colav.mid_mpc.solver import (
     _IterationCallback,
     _optimization_quality_passed,
+    _prepare,
+    _row_layout,
     _target_free_required_improvement,
 )
 from colav_simulator.mid_mpc_parity import (
@@ -638,8 +640,6 @@ class _StubConstraintGraph:
 
 
 def _prepared_for(problem: MidMpcProblem, config: MidMpcConfig) -> tuple[solver_module.MidMpcPreparedProblem, object]:
-    from colav_simulator.core.colav.mid_mpc.solver import _prepare, _row_layout
-
     layout = _row_layout(config, max(len(problem.targets), 1), max(problem.audit_row_count, 1))
     return _prepare(config, problem, layout), layout
 

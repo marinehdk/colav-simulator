@@ -337,6 +337,7 @@ class _TargetState:
     route_recovery_allowed: bool = False
     recovery_guard_active: bool = False
     recovery_started: bool = False
+    passing_clear_achieved: bool = False
     action_achieved: bool = False
     committed_at_s: float | None = None
     action_start_deadline_s: float | None = None
@@ -775,6 +776,7 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
     state.target_action_since_s = None
     state.baseline_course_rad = None
     state.required_course_change_rad = 0.0
+    state.passing_clear_achieved = False
     return False
 
 
@@ -853,6 +855,7 @@ def _commit(
     state.route_recovery_allowed = False
     state.recovery_guard_active = False
     state.recovery_started = False
+    state.passing_clear_achieved = False
     state.action_achieved = False
     state.committed_at_s = cycle.sim_time_s
     state.action_start_deadline_s = cycle.sim_time_s + cycle.profile.action_start_window_s
@@ -979,6 +982,9 @@ def _advance_release(
     target: TargetObservation,
     geometry: PairwiseGeometry,
 ) -> bool:
+    passing_clear = _passing_geometry_clear(state, cycle, target)
+    if state.role is OwnshipRole.OVERTAKING and passing_clear:
+        state.passing_clear_achieved = True
     recovery_guard_clearance = max(
         _dynamic_clearance_margin(cycle, target),
         0.5 * math.hypot(cycle.ownship.length_m, cycle.ownship.width_m)
@@ -987,7 +993,12 @@ def _advance_release(
         + _position_uncertainty_margin(cycle, target),
     )
     if state.risk is RiskPhase.PAST_CLEAR:
-        guard_clear = geometry.range_m >= recovery_guard_clearance and _recovery_route_clear(cycle, target)
+        clearance_confirmed = (
+            state.passing_clear_achieved
+            if state.role is OwnshipRole.OVERTAKING
+            else geometry.range_m >= recovery_guard_clearance
+        )
+        guard_clear = clearance_confirmed and _recovery_route_clear(cycle, target)
         if not guard_clear:
             state.risk = RiskPhase.ACTIVE
             state.release_since_s = None
@@ -1007,11 +1018,15 @@ def _advance_release(
     relative_position = target.state_enu[:2] - cycle.ownship.position_ne_m
     relative_velocity = target.state_enu[2:4] - cycle.ownship.velocity_ne_mps
     separating = float(relative_position @ relative_velocity) > 0.0
+    clearance_reached = (
+        state.passing_clear_achieved
+        if state.role is OwnshipRole.OVERTAKING
+        else geometry.range_m >= _dynamic_clearance_margin(cycle, target)
+    )
     past_clear = (
         geometry.signed_tcpa_s <= 0.0
         and separating
-        and geometry.range_m >= _dynamic_clearance_margin(cycle, target)
-        and _passing_geometry_clear(state, cycle, target)
+        and clearance_reached
         and _recovery_route_clear(cycle, target)
     )
     if not past_clear:

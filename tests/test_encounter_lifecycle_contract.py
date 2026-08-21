@@ -459,6 +459,70 @@ def test_overtaking_directive_preserves_positive_speed_advantage() -> None:
     assert snapshot.directive.speed_bounds_mps == pytest.approx((5.6, 8.0))
 
 
+def test_overtaking_release_uses_passed_clear_geometry_not_pre_maneuver_response_margin() -> None:
+    lifecycle = EncounterLifecycle()
+
+    def cycle(sequence: int, sim_time_s: float) -> EncounterCycle:
+        current = _overtaking_cycle(sequence, sim_time_s, -50.0)
+        return replace(
+            current,
+            ownship=replace(
+                current.ownship,
+                maneuverability=replace(current.ownship.maneuverability, turn_rate_rad_s=math.radians(0.5)),
+            ),
+        )
+
+    lifecycle.step(cycle(0, 0.0))
+    committed = lifecycle.step(cycle(1, 5.0)).targets[0]
+    altered = replace(
+        cycle(2, 10.0).ownship,
+        heading_rad=-committed.required_course_change_rad,
+        velocity_ne_mps=7.0
+        * np.array(
+            [
+                math.cos(committed.required_course_change_rad),
+                -math.sin(committed.required_course_change_rad),
+            ]
+        ),
+    )
+    lifecycle.step(replace(cycle(2, 10.0), ownship=altered))
+
+    def passed_clear_cycle(sequence: int, sim_time_s: float, north_m: float, east_m: float) -> EncounterCycle:
+        current = cycle(sequence, sim_time_s)
+        target = replace(
+            current.targets[0],
+            state_enu=np.array([0.0, 0.0, 4.0, 0.0]),
+            observed_at_s=sim_time_s,
+            generated_at_s=sim_time_s,
+        )
+        return replace(
+            current,
+            ownship=replace(altered, position_ne_m=np.array([north_m, east_m])),
+            targets=(target,),
+        )
+
+    first_clear = lifecycle.step(passed_clear_cycle(3, 20.0, 80.0, -490.0)).targets[0]
+    released_snapshot = lifecycle.step(passed_clear_cycle(4, 30.0, 110.0, -500.0))
+    released = released_snapshot.targets[0]
+    recovered_snapshot = lifecycle.step(
+        replace(
+            passed_clear_cycle(5, 35.0, 150.0, -450.0),
+            ownship=replace(
+                altered,
+                position_ne_m=np.array([150.0, -450.0]),
+                heading_rad=0.0,
+                velocity_ne_mps=np.array([7.0, 0.0]),
+            ),
+        )
+    )
+
+    assert first_clear.risk is RiskPhase.PAST_CLEAR
+    assert first_clear.route_recovery_allowed is True
+    assert released.risk is RiskPhase.RELEASED
+    assert released.recovery_guard_active is True
+    assert recovered_snapshot.directive.required_targets == ()
+
+
 def test_release_requires_dynamic_clearance_and_sustained_separation_then_rearms() -> None:
     lifecycle = EncounterLifecycle()
     lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
