@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
 
-from colav_simulator.historical_serialization import canonical_json, semantic_hash
+import pytest
+
+from colav_simulator.historical_serialization import angle_delta, canonical_json, semantic_hash
 
 
 class _GoldenKind(str, Enum):
@@ -29,3 +32,10 @@ def test_historical_canonical_json_preserves_golden_special_values() -> None:
 
     assert canonical_json(value) == expected
     assert semantic_hash(value) == hashlib.sha256(expected.encode("utf-8")).hexdigest()
+
+
+def test_angle_delta_has_stable_wrapped_boundary() -> None:
+    assert angle_delta(math.pi, -math.pi) == 0.0
+    assert angle_delta(-math.pi, math.pi) == 0.0
+    assert angle_delta(math.radians(179.0), math.radians(-179.0)) == pytest.approx(math.radians(-2.0))
+    assert angle_delta(math.radians(-179.0), math.radians(179.0)) == pytest.approx(math.radians(2.0))

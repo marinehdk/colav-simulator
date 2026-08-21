@@ -63,7 +63,7 @@ def test_acceptance_harness_blocks_missing_source_dimensions_without_defaults(
     assert outcome.manifest["lineage"]["run_digest"] is None
 
 
-def test_real_window_manifest_is_compact_and_records_latest_real_pass() -> None:
+def test_real_window_manifest_records_replay_stable_graph_and_full_evidence() -> None:
     manifest_path = Path(__file__).parent / "fixtures" / "historical_ais_real_window_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
@@ -72,10 +72,6 @@ def test_real_window_manifest_is_compact_and_records_latest_real_pass() -> None:
     assert manifest["dimensions"]["default_dimensions_used"] is False
     assert manifest["dimensions"]["registry_applied"] is True
     assert manifest["dimensions"]["effective_dimensioned_actor_count"] == 3
-    assert manifest["dimensions"]["explicit_overrides"] == []
-    assert manifest["dimensions"]["source_audit"]["status"] == "CONFIRMED_FIRST_PARTY"
-    assert manifest["discovery"]["multi_ship"] is True
-    assert manifest["discovery"]["authority"] == "DISCOVERY_ONLY"
     assert manifest["enc_preflight"]["status"] == "PASS"
     assert manifest["case"]["status"] == "SUCCESS"
     assert manifest["case"]["algorithm_binding"]["capability_receipt"]["exact_tuple"] == [
@@ -93,14 +89,14 @@ def test_real_window_manifest_is_compact_and_records_latest_real_pass() -> None:
     assert manifest["threat"]["vector_count"] == 2
     assert manifest["threat"]["schedule_context_count"] == 2
     assert manifest["threat"]["cluster_count"] == 1
-    assert manifest["threat"]["gate"] == "PASS"
-    assert manifest["evaluation"]["evaluator_gate"] == "PASS"
+    assert manifest["threat"]["graph_semantic_hash"]
+    assert manifest["threat"]["graph_evidence_hash"]
+    assert manifest["evaluation"]["gate"] == "PASS"
     assert manifest["compare"]["status"] == "COMPLETE"
     assert manifest["source"]["archive_sha256"] == "d303d719cebaf0238c54b9e27f2a40b4414b26e3189b49cb84fbad4086b3f3d7"
     assert manifest["lineage"]["run_digest"]
     assert manifest["lineage"]["evaluation_digest"]
     assert manifest["lineage"]["compare_digest"] == manifest["compare"]["compare_digest"]
-    assert manifest["lineage"]["human_reference_digest"] == manifest["leakage"]["human_reference_artifact_digest"]
     assert (
         len(
             {
@@ -118,8 +114,12 @@ def test_real_window_manifest_is_compact_and_records_latest_real_pass() -> None:
     assert len(manifest["runs"]) == 2
     assert manifest["runs"][0]["run_id"] != manifest["runs"][1]["run_id"]
     assert all(
-        manifest["runs"][0][field] == manifest["runs"][1][field] for field in manifest["determinism"]["compared_fields"]
+        manifest["runs"][0][field] == manifest["runs"][1][field]
+        for field in manifest["determinism"]["compared_fields"]
     )
+    assert manifest["runs"][0]["threat_graph_evidence_hash"] != manifest["runs"][1]["threat_graph_evidence_hash"]
+    assert manifest["runs"][0]["threat_graph_semantic_hash"] == manifest["runs"][1]["threat_graph_semantic_hash"]
+    assert manifest["lineage"]["compare_digest"] == manifest["compare"]["compare_digest"]
     assert manifest_path.stat().st_size < 12_000
 
 

@@ -14,6 +14,7 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any
 
+from colav_simulator.historical_serialization import angle_delta as _angle_delta
 from colav_simulator.historical_serialization import jsonable as _jsonable
 from colav_simulator.historical_serialization import semantic_hash as _sha256_json
 
@@ -178,6 +179,7 @@ class HistoricalBenchmarkCompareRequest:
     run_runtime_actor_set_digest: str | None = None
     run_case_runtime_digest: str | None = None
     case_alignment_profile_digest: str | None = None
+    case_alignment_profile: Mapping[str, Any] | None = None
     nominal_intent: HistoricalBenchmarkTrajectory | None = None
     threat_evidence: Mapping[str, Any] | None = None
     run_id: str | None = None
@@ -196,6 +198,8 @@ class HistoricalBenchmarkCompareRequest:
             raise TypeError("human_reference must be HistoricalBenchmarkTrajectory")
         if self.threat_evidence is not None:
             object.__setattr__(self, "threat_evidence", MappingProxyType(dict(self.threat_evidence)))
+        if self.case_alignment_profile is not None:
+            object.__setattr__(self, "case_alignment_profile", MappingProxyType(dict(self.case_alignment_profile)))
 
     @classmethod
     def from_counterfactual_run(
@@ -209,6 +213,8 @@ class HistoricalBenchmarkCompareRequest:
         """Bind an existing Counterfactual Run and Independent Evaluator result."""
         manifest = result.manifest
         run_lineage = dict(getattr(manifest, "historical_replay_evidence", None) or {})
+        if not case.compare_binding.bound:
+            raise ValueError("Published Case has no frozen Compare alignment profile")
         alignment_document = dict(case.compare_binding.alignment_profile)
         alignment_document.pop("schema_version", None)
         alignment_profile = HistoricalBenchmarkAlignmentProfile(**alignment_document)
@@ -230,6 +236,7 @@ class HistoricalBenchmarkCompareRequest:
                 run_lineage.get("case_runtime_digest") or getattr(manifest, "historical_case_digest", None)
             ),
             case_alignment_profile_digest=case.compare_binding.alignment_profile_digest,
+            case_alignment_profile=case.compare_binding.alignment_profile,
             evaluation=result.evaluation,
             threat_evidence=threat_evidence,
             run_id=str(getattr(manifest, "run_id", "")),
@@ -395,7 +402,11 @@ class HistoricalBenchmarkComparator:
             return "RUNTIME_ACTOR_SET_LINEAGE_MISMATCH"
         if request.run_case_runtime_digest not in {None, request.case_digest}:
             return "CASE_LINEAGE_MISMATCH"
-        if request.case_alignment_profile_digest not in {None, request.alignment_profile.digest}:
+        if request.case_alignment_profile is not None:
+            frozen_digest = _sha256_json(dict(request.case_alignment_profile))
+            if request.case_alignment_profile_digest != frozen_digest or request.alignment_profile.digest != frozen_digest:
+                return "COMPARE_BINDING_MISMATCH"
+        elif request.case_alignment_profile_digest is not None:
             return "COMPARE_BINDING_MISMATCH"
         if request.human_reference is None:
             return None
@@ -742,10 +753,6 @@ def _evaluation_digest(evaluation: Any | None) -> str | None:
 
 def _distance(first: tuple[float, float], second: tuple[float, float]) -> float:
     return math.hypot(first[0] - second[0], first[1] - second[1])
-
-
-def _angle_delta(first: float, second: float) -> float:
-    return (first - second + math.pi) % (2.0 * math.pi) - math.pi
 
 
 def _enum_value(value: Any) -> Any:

@@ -35,6 +35,7 @@ from colav_simulator.historical_replay import (
     HistoricalAISReconstructor,
     HistoricalAISSourceObservationRef,
 )
+from colav_simulator.historical_serialization import angle_delta as _angle_delta
 from colav_simulator.historical_serialization import jsonable as _jsonable
 from colav_simulator.historical_serialization import semantic_hash as _sha256_json
 
@@ -1548,10 +1549,6 @@ def _classify_discovery(
     if profile.crossing_min_angle_deg <= angle <= profile.crossing_max_angle_deg:
         return HistoricalAISDiscoveryType.CROSSING
     return None
-
-
-def _angle_delta(first: float, second: float) -> float:
-    return (first - second + math.pi) % (2.0 * math.pi) - math.pi
 
 
 def _constant_velocity_fit_error(samples: Sequence[Any], speed: float, course: float) -> float:

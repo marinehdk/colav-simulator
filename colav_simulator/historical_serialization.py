@@ -53,4 +53,9 @@ def semantic_hash(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
-__all__ = ["canonical_json", "jsonable", "semantic_hash"]
+def angle_delta(first: float, second: float) -> float:
+    """Return signed shortest angular displacement in ``[-pi, pi)``."""
+    return (float(first) - float(second) + math.pi) % (2.0 * math.pi) - math.pi
+
+
+__all__ = ["angle_delta", "canonical_json", "jsonable", "semantic_hash"]

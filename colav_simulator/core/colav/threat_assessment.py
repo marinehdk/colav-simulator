@@ -22,7 +22,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     RiskPhase,
 )
 from colav_simulator.core.colav.threat_windows import domain_window_crossings
-from colav_simulator.core.tracking.trackers import TrackKey
+from colav_simulator.core.tracking.trackers import TrackKey, track_key_sort
 
 THREAT_SCHEMA_VERSION = "colav.threat-management.snapshot@1"
 THREAT_CANONICALIZER_ID = "colav.python-json@1"
@@ -365,7 +365,7 @@ class OwnshipThreatPrediction:
             raise ValueError("ownship prediction times must be strictly increasing and non-negative")
         if states.shape != (times.size, 4) or not np.isfinite(states).all():
             raise ValueError("ownship prediction states must have shape (N, 4) and be finite")
-        keys = tuple(sorted(self.target_keys, key=_track_key_sort))
+        keys = tuple(sorted(self.target_keys, key=track_key_sort))
         if len(keys) != len(set(keys)) or any(not isinstance(key, TrackKey) for key in keys):
             raise ValueError("ownship prediction target keys must be unique TrackKeys")
         if not self.basis.strip() or not self.model.strip() or not self.source.strip():
@@ -421,6 +421,13 @@ class OwnshipThreatPrediction:
     def semantic_hash(self) -> str:
         return self.prediction_hash
 
+    @property
+    def trajectory_semantic_hash(self) -> str:
+        """Replay-stable prediction identity, excluding its acceptance envelope hash."""
+        value = self.to_dict(include_hash=False)
+        value.pop("evidence_semantic_hash", None)
+        return _sha256(value)
+
     def to_dict(self, *, include_hash: bool = True) -> dict[str, object]:
         value: dict[str, object] = {
             "times_s": self.times_s.tolist(),
@@ -453,6 +460,17 @@ class ConflictWitness:
     def to_dict(self) -> dict[str, object]:
         return _json_value(self.values)
 
+    def semantic_dict(self) -> dict[str, object]:
+        """Exclude only the run-scoped receipt envelope from semantic facts."""
+        value = self.to_dict()
+        for envelope_field in (
+            "plan_receipt_hash",
+            "accepted_prediction_hash",
+            "accepted_evidence_semantic_hash",
+        ):
+            value.pop(envelope_field, None)
+        return value
+
 
 @dataclass(frozen=True)
 class ConflictEdge:
@@ -465,12 +483,13 @@ class ConflictEdge:
     witness: ConflictWitness
     input_hash: str
     plan_receipt_hash: str | None = None
+    accepted_plan_semantic_hash: str | None = None
 
     def __post_init__(self) -> None:
         """Validate typed members and normalize deterministic ordering."""
         if not self.edge_id.strip() or not self.input_hash.strip():
             raise ValueError("conflict edge identity and input hash are required")
-        members = tuple(sorted(self.members, key=_track_key_sort))
+        members = tuple(sorted(self.members, key=track_key_sort))
         if len(members) < 2 or len(members) != len(set(members)) or any(
             not isinstance(key, TrackKey) for key in members
         ):
@@ -480,6 +499,20 @@ class ConflictEdge:
         object.__setattr__(self, "prediction_basis", ConflictPredictionBasis(self.prediction_basis))
         if self.plan_receipt_hash is not None and not self.plan_receipt_hash.strip():
             raise ValueError("plan receipt hash cannot be empty")
+        if self.accepted_plan_semantic_hash is not None and not self.accepted_plan_semantic_hash.strip():
+            raise ValueError("accepted plan semantic hash cannot be empty")
+
+    def semantic_dict(self) -> dict[str, object]:
+        """Return replay-stable edge facts without discarding envelope evidence."""
+        return {
+            "edge_id": self.edge_id,
+            "edge_type": self.edge_type.value,
+            "members": [_json_value(key) for key in self.members],
+            "prediction_basis": self.prediction_basis.value,
+            "witness": self.witness.semantic_dict(),
+            "input_hash": self.input_hash,
+            "accepted_plan_semantic_hash": self.accepted_plan_semantic_hash,
+        }
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -490,6 +523,7 @@ class ConflictEdge:
             "witness": self.witness.to_dict(),
             "input_hash": self.input_hash,
             "plan_receipt_hash": self.plan_receipt_hash,
+            "accepted_plan_semantic_hash": self.accepted_plan_semantic_hash,
         }
 
 
@@ -506,7 +540,7 @@ class ConflictCluster:
         """Validate component membership and freeze lineage identifiers."""
         if not self.cluster_id.strip():
             raise ValueError("conflict cluster identity is required")
-        members = tuple(sorted(self.members, key=_track_key_sort))
+        members = tuple(sorted(self.members, key=track_key_sort))
         if len(members) < 2 or len(members) != len(set(members)):
             raise ValueError("conflict cluster must contain at least two unique members")
         object.__setattr__(self, "members", members)
@@ -534,10 +568,11 @@ class ConflictGraph:
     input_hash: str = ""
     schema_version: str = "colav.conflict-graph@1"
     _semantic_hash: str = field(default="", init=False, repr=False, compare=False)
+    _evidence_hash: str = field(default="", init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Freeze graph collections and calculate the semantic identity."""
-        nodes = tuple(sorted(self.nodes, key=_track_key_sort))
+        nodes = tuple(sorted(self.nodes, key=track_key_sort))
         if len(nodes) != len(set(nodes)) or any(not isinstance(key, TrackKey) for key in nodes):
             raise ValueError("conflict graph nodes must be unique TrackKeys")
         edges = tuple(sorted(self.edges, key=lambda edge: edge.edge_id))
@@ -561,14 +596,31 @@ class ConflictGraph:
         )
         if not self.profile_hash.strip() or not self.input_hash.strip():
             raise ValueError("conflict graph profile and input hashes are required")
-        object.__setattr__(self, "_semantic_hash", _sha256(self.to_dict(include_hash=False)))
+        object.__setattr__(self, "_semantic_hash", _sha256(self.semantic_dict()))
+        object.__setattr__(self, "_evidence_hash", _sha256(self._evidence_dict()))
 
     @property
     def semantic_hash(self) -> str:
         return self._semantic_hash
 
-    def to_dict(self, *, include_hash: bool = True) -> dict[str, object]:
-        value: dict[str, object] = {
+    @property
+    def evidence_hash(self) -> str:
+        return self._evidence_hash
+
+    def semantic_dict(self) -> dict[str, object]:
+        """Return only replay-stable graph facts used by determinism gates."""
+        return {
+            "schema_version": self.schema_version,
+            "nodes": [_json_value(key) for key in self.nodes],
+            "edges": [edge.semantic_dict() for edge in self.edges],
+            "clusters": [cluster.to_dict() for cluster in self.clusters],
+            "unavailable_reasons": [reason.value for reason in self.unavailable_reasons],
+            "profile_hash": self.profile_hash,
+            "input_hash": self.input_hash,
+        }
+
+    def _evidence_dict(self) -> dict[str, object]:
+        return {
             "schema_version": self.schema_version,
             "nodes": [_json_value(key) for key in self.nodes],
             "edges": [edge.to_dict() for edge in self.edges],
@@ -577,8 +629,12 @@ class ConflictGraph:
             "profile_hash": self.profile_hash,
             "input_hash": self.input_hash,
         }
+
+    def to_dict(self, *, include_hash: bool = True) -> dict[str, object]:
+        value = self._evidence_dict()
         if include_hash:
             value["semantic_hash"] = self.semantic_hash
+            value["evidence_hash"] = self.evidence_hash
         return value
 
 
@@ -999,16 +1055,16 @@ class ThreatAssessmentRequest:
             "ownship": _json_value(self.ownship),
             "targets": [
                 _json_value(target)
-                for target in sorted(self.targets, key=lambda value: _track_key_sort(value.key))
+                for target in sorted(self.targets, key=lambda value: track_key_sort(value.key))
             ],
             "profile": self.profile.to_dict(),
             "predictions": [
                 _json_value(value)
-                for value in sorted(self.predictions, key=lambda value: _track_key_sort(value.key))
+                for value in sorted(self.predictions, key=lambda value: track_key_sort(value.key))
             ],
             "physical_facts": [
                 _json_value(value)
-                for value in sorted(self.physical_facts, key=lambda value: _track_key_sort(value.key))
+                for value in sorted(self.physical_facts, key=lambda value: track_key_sort(value.key))
             ],
         }
 
@@ -1048,7 +1104,7 @@ class ThreatManagementSnapshot:
         keys = tuple(getattr(value, "key", None) for value in vectors)
         if any(key is None for key in keys):
             raise TypeError("snapshot vectors must expose a TrackKey key")
-        if keys != tuple(sorted(keys, key=_track_key_sort)):
+        if keys != tuple(sorted(keys, key=track_key_sort)):
             raise ValueError("snapshot vectors must be sorted by TrackKey")
         if len(keys) != len(set(keys)):
             raise ValueError("snapshot vector keys must be unique")
@@ -1118,7 +1174,7 @@ class ThreatAssessment:
                 {prediction.key: prediction for prediction in request.predictions}.get(target.key),
                 physical_facts.get(target.key),
             )
-            for target in sorted(request.targets, key=lambda value: _track_key_sort(value.key))
+            for target in sorted(request.targets, key=lambda value: track_key_sort(value.key))
         )
         return ThreatManagementSnapshot(
             epoch=request.epoch,
@@ -1464,10 +1520,6 @@ def _domain_state(scale: float) -> DomainState:
 
 def _freeze_mapping(value: Mapping[str, object]) -> MappingProxyType:
     return MappingProxyType({str(key): _freeze_value(item) for key, item in sorted(value.items())})
-
-
-def _track_key_sort(key: TrackKey) -> tuple[int, int]:
-    return key.target_id, key.generation
 
 
 def _freeze_value(value: Any) -> Any:

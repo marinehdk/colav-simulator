@@ -27,6 +27,7 @@ from colav_simulator.historical_ais import (
     HistoricalAISObservation,
     HistoricalAISReadResult,
 )
+from colav_simulator.historical_serialization import angle_delta as _angle_delta
 from colav_simulator.historical_serialization import semantic_hash as _sha256_json
 
 if TYPE_CHECKING:
@@ -869,10 +870,6 @@ def _velocity_from_normalized(normalized: HistoricalAISNormalizedFact) -> tuple[
         normalized.sog_mps * math.cos(normalized.cog_rad),
         normalized.sog_mps * math.sin(normalized.cog_rad),
     )
-
-
-def _angle_delta(first: float, second: float) -> float:
-    return (first - second + math.pi) % (2.0 * math.pi) - math.pi
 
 
 # Compatibility aliases use the same vocabulary as the parent issue and keep

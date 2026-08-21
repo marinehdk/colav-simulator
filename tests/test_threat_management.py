@@ -20,6 +20,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
 )
 from colav_simulator.core.colav.threat_assessment import (
     ConflictEdgeType,
+    ConflictGraph,
     ConflictGraphProfile,
     ConflictUnavailableReason,
     DomainFacts,
@@ -671,6 +672,84 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
     )
     assert not any(edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT for edge in benign_graph.edges)
     assert benign_graph.unavailable_reasons == ()
+
+
+def test_conflict_graph_semantics_are_stable_across_accepted_receipt_envelopes() -> None:
+    driver = TrackKey(1, 1)
+    affected = TrackKey(2, 1)
+    target_prediction = ThreatPrediction(
+        key=affected,
+        times_s=np.array([0.0, 10.0, 20.0]),
+        states_enu=np.array([[500.0, 0.0, 0.0, 0.0]] * 3),
+        basis=PredictionBasis.EXPLICIT_TRAJECTORY,
+        model="semantic-envelope-fixture",
+    )
+    baseline = OwnshipThreatPrediction(
+        times_s=np.array([0.0, 10.0, 20.0]),
+        states_enu=np.array([[0.0, 0.0, 7.0, 0.0], [70.0, 0.0, 7.0, 0.0], [140.0, 0.0, 7.0, 0.0]]),
+        source="declared-baseline",
+        target_keys=(affected,),
+        reference_time_s=5.0,
+    )
+    def receipt(acceptance_hash: str, evidence_hash: str) -> AcceptedPlanReceipt:
+        accepted_prediction = OwnshipThreatPrediction(
+            times_s=np.array([0.0, 10.0, 20.0]),
+            states_enu=np.array(
+                [[0.0, 0.0, 7.0, 0.0], [175.0, 0.0, 17.5, 0.0], [350.0, 0.0, 17.5, 0.0]]
+            ),
+            basis="ACCEPTED_PLAN",
+            source="l4-receipt",
+            target_keys=(affected,),
+            reference_time_s=5.0,
+            evidence_semantic_hash=evidence_hash,
+        )
+        return AcceptedPlanReceipt.issue(
+            accepted_sequence=0,
+            accepted_at_s=5.0,
+            valid_until_s=30.0,
+            accepted_prediction=accepted_prediction,
+            plan_target=driver,
+            target_keys=(affected,),
+            prediction_hash=accepted_prediction.semantic_hash,
+            acceptance_hash=acceptance_hash,
+            domain_profile_hash=_domain_profile().profile_hash,
+            evidence_semantic_hash=evidence_hash,
+        )
+
+    def graph(
+        receipt_value: AcceptedPlanReceipt,
+        previous: ConflictGraph | None = None,
+    ) -> ConflictGraph:
+        return ConflictGraphBuilder.build(
+            (_vector_for_graph(driver), _vector_for_graph(affected)),
+            predictions=(target_prediction,),
+            profile=ConflictGraphProfile(material_tdv_advance_s=1.0, material_scale_worsening=0.05),
+            domain_profile=_domain_profile(),
+            input_hash="stable-cycle-input",
+            baseline_prediction=baseline,
+            accepted_plan=receipt_value,
+            lifecycle_snapshot=SimpleNamespace(primary_target=driver),
+            previous=previous,
+            sim_time_s=5.0,
+        )
+
+    first_receipt = receipt("run-envelope-a", "evidence-envelope-a")
+    second_receipt = receipt("run-envelope-b", "evidence-envelope-b")
+    previous_a = graph(first_receipt)
+    previous_b = graph(second_receipt)
+    current_a = graph(first_receipt, previous_a)
+    current_b = graph(second_receipt, previous_b)
+
+    assert first_receipt.receipt_hash != second_receipt.receipt_hash
+    assert first_receipt.semantic_lineage_hash == second_receipt.semantic_lineage_hash
+    assert current_a.semantic_hash == current_b.semantic_hash
+    assert current_a.evidence_hash != current_b.evidence_hash
+    assert current_a.edges[0].edge_id == current_b.edges[0].edge_id
+    assert current_a.edges[0].plan_receipt_hash != current_b.edges[0].plan_receipt_hash
+    assert current_a.edges[0].accepted_plan_semantic_hash == current_b.edges[0].accepted_plan_semantic_hash
+    assert current_a.clusters[0].cluster_id == current_b.clusters[0].cluster_id
+    assert current_a.clusters[0].parent_cluster_ids == current_b.clusters[0].parent_cluster_ids
+    assert current_a.to_dict()["edges"] != current_b.to_dict()["edges"]
 
 
 def test_unaccepted_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge() -> None:

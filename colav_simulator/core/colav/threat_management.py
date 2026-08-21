@@ -51,7 +51,7 @@ from colav_simulator.core.colav.threat_assessment import (
     normalized_domain_scale,
 )
 from colav_simulator.core.colav.threat_windows import domain_window_crossings
-from colav_simulator.core.tracking.trackers import TrackKey
+from colav_simulator.core.tracking.trackers import TrackKey, track_key_sort
 
 
 class AcceptedPlanState(StringEnum):
@@ -111,7 +111,7 @@ class AcceptedPlanReceipt:
         evidence_semantic_hash: str | None = None,
     ) -> AcceptedPlanReceipt:
         """Issue a receipt whose identity is derived from its canonical authority payload."""
-        normalized_keys = tuple(sorted(target_keys, key=_track_key_sort))
+        normalized_keys = tuple(sorted(target_keys, key=track_key_sort))
         receipt_hash = _sha256_json(
             _accepted_plan_receipt_payload(
                 accepted_sequence=accepted_sequence,
@@ -230,7 +230,7 @@ class AcceptedPlanReceipt:
             raise ValueError("accepted plan receipt times must be finite")
         if self.accepted_at_s < 0.0 or self.valid_until_s < self.accepted_at_s:
             raise ValueError("accepted plan receipt interval is invalid")
-        keys = tuple(sorted(self.target_keys, key=_track_key_sort))
+        keys = tuple(sorted(self.target_keys, key=track_key_sort))
         if len(keys) != len(set(keys)) or any(not isinstance(key, TrackKey) for key in keys):
             raise ValueError("accepted plan target keys must be unique TrackKeys")
         object.__setattr__(self, "target_keys", keys)
@@ -291,6 +291,25 @@ class AcceptedPlanReceipt:
     @property
     def canonical_hash(self) -> str:
         return _sha256_json(self.canonical_payload)
+
+    @property
+    def semantic_lineage_hash(self) -> str:
+        """Stable accepted-plan lineage, excluding run-scoped receipt envelopes."""
+        return _sha256_json(
+            {
+                "schema_version": "colav.accepted-plan-semantic-lineage@1",
+                "accepted_prediction_trajectory_hash": (
+                    None
+                    if self.accepted_prediction is None
+                    else self.accepted_prediction.trajectory_semantic_hash
+                ),
+                "domain_profile_hash": self.domain_profile_hash,
+                "plan_target": None if self.plan_target is None else _key_document(self.plan_target),
+                "target_keys": [
+                    _key_document(key) for key in sorted(self.target_keys, key=track_key_sort)
+                ],
+            }
+        )
 
     def to_dict(self) -> dict[str, object]:
         return {**self.canonical_payload, "receipt_hash": self.receipt_hash}
@@ -460,7 +479,7 @@ class ThreatManagementCoordinator:
                 (key.target_id, key.generation)
                 for key in sorted(
                     ({vector.key for vector in assessed.vectors} - lifecycle_keys),
-                    key=lambda value: (value.target_id, value.generation),
+                    key=track_key_sort,
                 )
             ),
             "accepted_plan_applied_sequence": cycle.sequence if applied is not None else None,
@@ -509,7 +528,7 @@ class ConflictGraphBuilder:
             raise TypeError("profile must be ConflictGraphProfile")
         if not isinstance(domain_profile, ShipDomainProfile):
             raise TypeError("domain_profile must be ShipDomainProfile")
-        ordered_vectors = tuple(sorted(vectors, key=lambda vector: _track_key_sort(vector.key)))
+        ordered_vectors = tuple(sorted(vectors, key=lambda vector: track_key_sort(vector.key)))
         nodes = tuple(vector.key for vector in ordered_vectors)
         edges: list[ConflictEdge] = []
         vector_by_key = {vector.key: vector for vector in ordered_vectors}
@@ -597,7 +616,7 @@ class ConflictGraphBuilder:
             elif not plan_reasons:
                 for target_key, prediction in sorted(
                     prediction_by_key.items(),
-                    key=lambda item: _track_key_sort(item[0]),
+                    key=lambda item: track_key_sort(item[0]),
                 ):
                     if target_key == driver_key:
                         continue
@@ -641,7 +660,11 @@ class ConflictGraphBuilder:
                             "materiality": material,
                             "baseline_prediction_hash": baseline_prediction.semantic_hash,
                             "accepted_prediction_hash": accepted_prediction.semantic_hash,
+                            "accepted_prediction_trajectory_hash": (
+                                accepted_prediction.trajectory_semantic_hash
+                            ),
                             "accepted_evidence_semantic_hash": accepted_plan.evidence_semantic_hash,
+                            "accepted_plan_semantic_hash": accepted_plan.semantic_lineage_hash,
                             "plan_receipt_hash": accepted_plan.receipt_hash,
                         }
                     )
@@ -653,6 +676,7 @@ class ConflictGraphBuilder:
                             witness,
                             input_hash,
                             plan_receipt_hash=accepted_plan.receipt_hash,
+                            accepted_plan_semantic_hash=accepted_plan.semantic_lineage_hash,
                         )
                     )
         clusters = _connected_clusters(edges, profile.profile_hash, previous)
@@ -674,14 +698,15 @@ def _make_edge(
     input_hash: str,
     *,
     plan_receipt_hash: str | None = None,
+    accepted_plan_semantic_hash: str | None = None,
 ) -> ConflictEdge:
     identity = {
         "edge_type": edge_type.value,
-        "members": [_key_document(key) for key in sorted(members, key=_track_key_sort)],
+        "members": [_key_document(key) for key in sorted(members, key=track_key_sort)],
         "prediction_basis": prediction_basis.value,
-        "witness": witness.to_dict(),
+        "witness": witness.semantic_dict(),
         "input_hash": input_hash,
-        "plan_receipt_hash": plan_receipt_hash,
+        "accepted_plan_semantic_hash": accepted_plan_semantic_hash,
     }
     edge_id = f"conflict-edge-v1:{_sha256_json(identity)}"
     return ConflictEdge(
@@ -692,6 +717,7 @@ def _make_edge(
         witness=witness,
         input_hash=input_hash,
         plan_receipt_hash=plan_receipt_hash,
+        accepted_plan_semantic_hash=accepted_plan_semantic_hash,
     )
 
 
@@ -713,10 +739,10 @@ def _connected_clusters(
         left_root = find(left)
         right_root = find(right)
         if left_root != right_root:
-            parent[max(left_root, right_root, key=_track_key_sort)] = min(
+            parent[max(left_root, right_root, key=track_key_sort)] = min(
                 left_root,
                 right_root,
-                key=_track_key_sort,
+                key=track_key_sort,
             )
 
     for edge in edges:
@@ -736,7 +762,7 @@ def _connected_clusters(
         edge_ids = tuple(sorted(edge.edge_id for edge in edges if member_set.intersection(edge.members)))
         identity = {
             "schema_version": "colav.conflict-cluster@1",
-            "members": [_key_document(key) for key in sorted(member_set, key=_track_key_sort)],
+            "members": [_key_document(key) for key in sorted(member_set, key=track_key_sort)],
             "edge_ids": list(edge_ids),
             "profile_hash": profile_hash,
         }
@@ -1062,11 +1088,11 @@ def _build_schedule(
                 else None
             ),
         )
-        for key in sorted(contexts, key=lambda value: (value.target_id, value.generation))
+        for key in sorted(contexts, key=track_key_sort)
     )
     ordered = sorted(
         (vector for vector in vectors if contexts[vector.key] is ThreatScheduleContext.NEXT),
-        key=lambda vector: (vector.priority_key, vector.key.target_id, vector.key.generation),
+        key=lambda vector: (vector.priority_key, *track_key_sort(vector.key)),
     )
     return ThreatSchedule(
         current_primary=(
@@ -1081,20 +1107,20 @@ def _build_schedule(
                     for key, context in contexts.items()
                     if context is ThreatScheduleContext.CONCURRENT_REQUIRED
                 ),
-                key=lambda key: (key.target_id, key.generation),
+                key=track_key_sort,
             )
         ),
         next_threats=tuple(vector.key for vector in ordered),
         monitor=tuple(
             sorted(
                 (key for key, context in contexts.items() if context is ThreatScheduleContext.MONITOR),
-                key=lambda key: (key.target_id, key.generation),
+                key=track_key_sort,
             )
         ),
         released=tuple(
             sorted(
                 (key for key, context in contexts.items() if context is ThreatScheduleContext.RELEASED),
-                key=lambda key: (key.target_id, key.generation),
+                key=track_key_sort,
             )
         ),
         entries=entries,
@@ -1260,7 +1286,7 @@ def _accepted_plan_receipt_payload(
             None if accepted_prediction is None else accepted_prediction.to_dict()
         ),
         "plan_target": None if plan_target is None else _key_document(plan_target),
-        "target_keys": [_key_document(key) for key in sorted(target_keys, key=_track_key_sort)],
+        "target_keys": [_key_document(key) for key in sorted(target_keys, key=track_key_sort)],
         "prediction_hash": prediction_hash,
         "acceptance_hash": acceptance_hash,
         "domain_profile_hash": domain_profile_hash,
@@ -1276,10 +1302,6 @@ def _track_key_from_value(value: Any) -> TrackKey:
     if isinstance(value, (tuple, list)) and len(value) == 2:
         return TrackKey(int(value[0]), int(value[1]))
     raise TypeError("track key must be TrackKey or [target_id, generation]")
-
-
-def _track_key_sort(key: TrackKey) -> tuple[int, int]:
-    return key.target_id, key.generation
 
 
 def _key_document(key: TrackKey) -> list[int]:

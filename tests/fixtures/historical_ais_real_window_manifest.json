@@ -4,65 +4,88 @@
   "blocker_code": null,
   "blocker_message": null,
   "sealed_evidence": {
-    "run_manifest_sha256": "e1a28967a187c7460959572862164e9f6f368724bae28210fca9539a43620403",
-    "evaluation_artifact_sha256": "04266608fb0419700654c8ac61a341387a91f4115906cac26f0f1f47fc8939ae",
-    "second_run_manifest_sha256": "05e38d4867d3ae86fc2cb19774e0abf71d09ff51cb768ee2369b2dd533fef974",
-    "second_evaluation_artifact_sha256": "291aa93abfa8b9ad64964e3ba5e0c118e5970ac47ff76340be0f505b7f756bd8"
+    "run_manifest_sha256": "6e65f7fd5973bd085220563f584e21574572b94081cd02db8ba727ff0458c252",
+    "evaluation_artifact_sha256": "532c852863e25fc1662f04eb565abc70e8a38319d2f0bdabbba39fc1d7fc284b",
+    "second_run_manifest_sha256": "ec542fd317e91362089b5e4ab8a4e463496b6edbfb22dac713556bd618a8db8b",
+    "second_evaluation_artifact_sha256": "f63fa0fc983fac081bc1eb6b2dfb6ccd1ccbe4e40ed2dffeefc58e24ab68151b"
   },
   "source": {
-    "provider": "Kystverket",
+    "schema_version": "historical-ais-real-acceptance.v1",
     "source_name": "Hais_e716cfac-348c-417b-acbd-04a228732de7.zip",
     "archive_sha256": "d303d719cebaf0238c54b9e27f2a40b4414b26e3189b49cb84fbad4086b3f3d7",
     "entry_name": "hais_2026-07-01.snappy.parquet",
     "selection": {
+      "schema_version": "historical-ais.v1",
       "start_utc": "2026-07-01T12:00:00+00:00",
       "end_utc": "2026-07-01T12:01:00+00:00",
-      "t0_utc": "2026-07-01T12:00:30+00:00",
-      "bbox_wgs84_lon_lat": [6.05, 62.44, 6.17, 62.5],
-      "mmsi": [257252000, 258764000, 259189000, 259197000]
+      "mmsi": [
+        257252000,
+        258764000,
+        259189000,
+        259197000
+      ],
+      "bbox": [
+        6.05,
+        62.44,
+        6.17,
+        62.5
+      ],
+      "wkt": null,
+      "entries": [
+        "hais_2026-07-01.snappy.parquet"
+      ],
+      "gap_threshold_s": 300.0
     },
     "reference_mmsi": 259189000,
-    "selected_actor_mmsi": [257252000, 258764000, 259189000],
+    "selected_mmsi": [
+      257252000,
+      258764000,
+      259189000
+    ],
+    "enc_profile_id": "romsdal-expanded",
     "dimension_registry_id": "hais-2026-07-01-sdir-dimensions",
-    "attribution": "Kystverket HAIS; NLOD 2.0",
-    "coverage_limitation": "Coverage is limited to reported AIS transmissions; small vessels may be absent due to privacy or equipment restrictions."
+    "notes": "",
+    "t0_utc": "2026-07-01T12:00:30+00:00"
   },
   "dataset": {
     "descriptor_sha256": "0c53011ab625048ea61e2e8265542edbc56dabffc358f132825302041e090a68",
+    "archive_sha256": "d303d719cebaf0238c54b9e27f2a40b4414b26e3189b49cb84fbad4086b3f3d7",
     "selection_sha256": "a591ed0435c98098b76132ee4b678ce41105b6c3b612e701136adbf4fadc1836",
     "schema_sha256": "392e666a2128d89288eb5d073c1bdd8c65f0da583cba3c5b0e8e12ca3b0c8632",
     "normalized_sha256": "794c92696aa061ab0b0c2128edbc51bd13eb20c65b54974bd3c654902a4e5adf",
+    "entries": [
+      "hais_2026-07-01.snappy.parquet"
+    ],
     "format": "geoparquet",
     "source_row_count": 24,
     "normalized_row_count": 24,
     "quality_finding_count": 98,
-    "dimensioned_observation_count": 0
+    "attribution": {
+      "provider": "Kystverket",
+      "attribution": "Kystverket HAIS",
+      "nlod_license": "NLOD 2.0",
+      "coverage_limitations": [
+        "Coverage is limited to reported AIS transmissions; small vessels may be absent due to privacy or equipment restrictions."
+      ]
+    }
   },
-  "enc": {
+  "enc_profile": {
     "profile_id": "romsdal-expanded",
-    "qualification_state": "QUALIFIED",
-    "profile_digest": "4dcb6b101a5b53600566648865c999f33f461b2e4d95d9b1ec0fd903270aa707"
+    "profile_digest": "4dcb6b101a5b53600566648865c999f33f461b2e4d95d9b1ec0fd903270aa707",
+    "qualification_state": "QUALIFIED"
   },
   "enc_preflight": {
     "status": "PASS",
-    "all_positions_contained": true
+    "profile_id": "romsdal-expanded",
+    "profile_digest": "4dcb6b101a5b53600566648865c999f33f461b2e4d95d9b1ec0fd903270aa707",
+    "all_positions_contained": true,
+    "failure_codes": []
   },
   "dimensions": {
     "default_dimensions_used": false,
     "registry_applied": true,
     "effective_dimensioned_actor_count": 3,
-    "explicit_overrides": [],
-    "missing_mmsi": [257252000, 258764000, 259189000],
-    "source_audit": {
-      "status": "CONFIRMED_FIRST_PARTY",
-      "registry_id": "hais-2026-07-01-sdir-dimensions",
-      "registry_version": "1.0.0",
-      "registry_scope": "HAIS 2026-07-01 benchmark selected MMSIs only",
-      "retrieved_at_utc": "2026-08-21T00:00:00Z",
-      "source_note_sha256": "d958016184c6cb1cbdd0a9959523ff1d49705886886681ea500891d02e3cd677",
-      "searched": ["selected HAIS GeoParquet schema", "repository data/ais_datasets", "repository vessel metadata"],
-      "result": "SDIR measurement certificates with Kystdatahuset NSR identity cross-check; latest conferred measurement available before T0."
-    }
+    "registry_digest": "f5983e007da86924113505b4971cfa41135efac0b4db6aa21a4900bc292f42b1"
   },
   "dimension_registry": {
     "registry_id": "hais-2026-07-01-sdir-dimensions",
@@ -70,121 +93,183 @@
     "scope": "HAIS 2026-07-01 benchmark selected MMSIs only",
     "retrieved_at_utc": "2026-08-21T00:00:00Z",
     "source_note_sha256": "d958016184c6cb1cbdd0a9959523ff1d49705886886681ea500891d02e3cd677",
-    "registry_digest": "f5983e007da86924113505b4971cfa41135efac0b4db6aa21a4900bc292f42b1",
     "records": [
-      {"mmsi": 257252000, "imo": 9793662, "call_sign": "LDZS", "vessel_name": "FREYJA", "length_m": 84.6, "beam_m": 16.0, "measurement_date": "2017-06-26", "effective_date": "2017-06-26", "journal_date": "2017-09-15", "effective_as_of_t0": true},
-      {"mmsi": 258764000, "imo": 9331098, "call_sign": "JXPT", "vessel_name": "PELAGIA HORDAFOR", "length_m": 59.2, "beam_m": 10.8, "measurement_date": "2022-09-21", "effective_date": "2022-09-21", "journal_date": "2022-09-27", "effective_as_of_t0": true},
-      {"mmsi": 259189000, "imo": 9802619, "call_sign": "LEDI", "vessel_name": "VALDERØY", "length_m": 32.0, "beam_m": 8.8, "measurement_date": "2016-12-20", "effective_date": "2016-12-20", "journal_date": "2017-01-11", "effective_as_of_t0": true}
+      {
+        "mmsi": 257252000,
+        "imo": 9793662,
+        "call_sign": "LDZS",
+        "vessel_name": "FREYJA",
+        "length_m": 84.6,
+        "width_m": 16.0,
+        "measurement_date": "2017-06-26",
+        "effective_date": "2017-06-26",
+        "journal_date": "2017-09-15",
+        "effective_as_of_t0": true
+      },
+      {
+        "mmsi": 258764000,
+        "imo": 9331098,
+        "call_sign": "JXPT",
+        "vessel_name": "PELAGIA HORDAFOR",
+        "length_m": 59.2,
+        "width_m": 10.8,
+        "measurement_date": "2022-09-21",
+        "effective_date": "2022-09-21",
+        "journal_date": "2022-09-27",
+        "effective_as_of_t0": true
+      },
+      {
+        "mmsi": 259189000,
+        "imo": 9802619,
+        "call_sign": "LEDI",
+        "vessel_name": "VALDERØY",
+        "length_m": 32.0,
+        "width_m": 8.8,
+        "measurement_date": "2016-12-20",
+        "effective_date": "2016-12-20",
+        "journal_date": "2017-01-11",
+        "effective_as_of_t0": true
+      }
     ]
-  },
-  "discovery": {
-    "candidate_count": 2,
-    "target_mmsi": [257252000, 258764000],
-    "labels": ["CROSSING"],
-    "multi_ship": true,
-    "authority": "DISCOVERY_ONLY"
   },
   "case": {
     "status": "SUCCESS",
     "case_digest": "d818780856b20fc90fa83463b16e63b6edd2da76442a8c8416a6ad920ae91a93",
     "runtime_actor_set_digest": "f74be7cd0ae9f53cceb91e654656532e4fd06011d2996a8bc567a353e6e1de9d",
-    "human_reference_binding": {"artifact_digest": "64dca1f681d1f8a11b25093257f4aa70751c96b6ae6e361b3ddc0198a328a645", "sample_count": 51, "comparison_only": true},
+    "human_reference_binding": {
+      "artifact_digest": "ba25741d1991a9818760dd7ff0e1ac79ea2aa1aa5a5b9d666bfc07370c1761f4",
+      "sample_count": 49,
+      "comparison_only": true
+    },
     "algorithm_binding": {
       "algorithm_id": "mid_mpc_ipopt",
       "configuration_digest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "capability_evidence_digest": "a498d91cca98dd1df916c1afaf1b7968816e568b09e66122607f0fae399c862e",
-      "capability_receipt": {"exact_tuple": ["multiship", "paper_ccta2023_multiship", "mid_mpc_ipopt", "god"], "catalog_schema_version": "1.0", "evidence_hash": "a498d91cca98dd1df916c1afaf1b7968816e568b09e66122607f0fae399c862e"}
+      "capability_receipt": {
+        "exact_tuple": [
+          "multiship",
+          "paper_ccta2023_multiship",
+          "mid_mpc_ipopt",
+          "god"
+        ],
+        "catalog_schema_version": "1.0",
+        "evidence_hash": "a498d91cca98dd1df916c1afaf1b7968816e568b09e66122607f0fae399c862e"
+      }
+    },
+    "evaluation_binding": {
+      "evaluator_id": "behavior-compatible-evaluator-v2",
+      "profile_id": "ccta_2023_demo-v1",
+      "profile_digest": "1d65fd5c932efbac2d69832177a0263d60716ee2ac514c907a32f9eb2d6294dc"
     },
     "compare_binding": {
       "contract_id": "historical-benchmark-compare.v1",
-      "alignment_profile": {"schema_version": "historical-compare-alignment.v1", "profile_id": "historical-compare-alignment.v1", "metric_version": "historical-similarity.v1", "sample_step_s": 1.0, "minimum_overlap_s": 0.0, "action_course_delta_rad": 0.08726646259971647, "action_speed_delta_mps": 0.5},
+      "alignment_profile": {
+        "schema_version": "historical-compare-alignment.v1",
+        "profile_id": "historical-compare-alignment.v1",
+        "metric_version": "historical-similarity.v1",
+        "sample_step_s": 1.0,
+        "minimum_overlap_s": 0.0,
+        "action_course_delta_rad": 0.08726646259971647,
+        "action_speed_delta_mps": 0.5
+      },
       "alignment_profile_digest": "6d770beeb0c97db72b26c3d5129fb3a2377fb089c67ccb6713e26441eaa70703"
     }
   },
   "run": {
-    "run_id": "3f73251a-0ed9-4761-9ff2-47ca415cf258",
+    "run_id": "42fcca01-2020-4822-95d7-10a26913d170",
     "mode": "COUNTERFACTUAL",
     "requested_algorithm": "mid_mpc_ipopt",
     "executed_algorithm": "mid_mpc_ipopt",
     "fallback_used": false,
-    "spec_hash": "fe861514f36db20b5c8ab43640b96357220e6f96de34c6eadff6ab9329f08bce",
-    "trajectory_hash": "bd033c59fca0845b3e04951675e52d4fcd07164dd5b80a3c15ec5cf407b8807a",
-    "evaluator_gate": "PASS",
-    "compare_status": "COMPLETE"
+    "spec_hash": "440810937c3a0dd8032ca3b4a51b49f694d24e3c2fdf8854e57d1b630d622670",
+    "trajectory_hash": "f8c753838641ec20dacbb52479f86a3bb88293e094a2b6ab54ae426b4f5d164a"
   },
   "leakage": {
     "human_reference_digest_in_run_spec": false,
     "reference_runtime_last_time_s": 30.0,
     "nominal_intent_strict_pre_t0_only": true,
-    "status": "PASS_CONTRACT",
-    "human_reference_artifact_digest": "64dca1f681d1f8a11b25093257f4aa70751c96b6ae6e361b3ddc0198a328a645"
+    "status": "PASS_CONTRACT"
   },
   "evaluation": {
-    "evaluator_gate": "PASS",
+    "evaluator_id": "behavior-compatible-evaluator-v2",
+    "evaluator_profile_id": "ccta_2023_demo-v1",
     "evaluation_status": "COMPLETE",
+    "gate": "PASS",
     "collision_count": 0,
     "grounding_count": 0,
-    "minimum_distance_m": 2289.195589549353,
+    "minimum_distance_m": 2284.7617958675464,
     "S_safety": 1.0
   },
   "compare": {
     "status": "COMPLETE",
     "overall_assurance_verdict": "PASS",
-    "human_similarity_advisory": true,
-    "compare_digest": "712c79a6d4991e7b68df64b189f8fb5a722579379bdd812d8b265fda49711459"
+    "compare_digest": "ba7330d93f25f2395d128170d93eca30f28a5e5d8779d30ac6f803e134ffc196",
+    "domain_statuses": {
+      "safety": "COMPLETE",
+      "colreg": "COMPLETE",
+      "maneuver": "COMPLETE",
+      "efficiency": "COMPLETE",
+      "human_similarity": "COMPLETE"
+    }
   },
   "threat": {
-    "semantic_hash": "48f269560f320c3b1be73142b44d427b6fb9355a03aeaf212e721423d4ca7228",
+    "semantic_hash": "6e57e8996fe751add942694a42551d93295067fc370399c2d120a90288d7ba63",
     "vector_count": 2,
     "schedule_context_count": 2,
     "cluster_count": 1,
-    "required_selected_target_count": 2,
-    "gate": "PASS"
+    "graph_semantic_hash": "54b43ffe8cacc4faa98f8460562c4cb3f8ccac1d58945ff288ad1bae3eda814d",
+    "graph_evidence_hash": "1564b26e3e8d6a4181921ca237961f9b4f4e064668df75feb3bf8005958b1814"
   },
   "determinism": {
     "status": "PASS",
-    "compared_fields": ["commands_semantic_hash", "compare_domains_semantic_hash", "evaluator_semantic_hash", "threat_graph_semantic_hash", "threat_schedule_semantic_hash", "trajectory_semantic_hash"],
+    "compared_fields": [
+      "commands_semantic_hash",
+      "compare_domains_semantic_hash",
+      "evaluator_semantic_hash",
+      "threat_graph_semantic_hash",
+      "threat_schedule_semantic_hash",
+      "trajectory_semantic_hash"
+    ],
     "mismatches": []
   },
   "runs": [
     {
-      "run_id": "3f73251a-0ed9-4761-9ff2-47ca415cf258",
-      "spec_hash": "fe861514f36db20b5c8ab43640b96357220e6f96de34c6eadff6ab9329f08bce",
-      "trajectory_artifact_hash": "bd033c59fca0845b3e04951675e52d4fcd07164dd5b80a3c15ec5cf407b8807a",
-      "trajectory_semantic_hash": "98e1ec1a70bf1d3ae08dfe86856b1b70b72c6ae6673c9ed61173f9d7355fad7d",
-      "commands_semantic_hash": "33c629622f61da85534492d72e4ec8c493c681bd92e01bd4ef387dc298e68284",
-      "threat_schedule_semantic_hash": "78615a6a44a6601c7234b6638df5752b30c564994628f01537a3b4e3c88a3031",
-      "threat_graph_semantic_hash": "f3841f0bd9b403472d279eabfc717a28c12257aea6c06b3d320e3310c1da55b9",
-      "evaluator_semantic_hash": "edad44879683b727988d1755052abe4ca10187f190ea72e44849f104538faab9",
-      "compare_domains_semantic_hash": "95bbf22c5f678d69b003c6d6e17c435dbffed203c4d41b88fd492f22ea49ceea",
+      "run_id": "42fcca01-2020-4822-95d7-10a26913d170",
+      "spec_hash": "440810937c3a0dd8032ca3b4a51b49f694d24e3c2fdf8854e57d1b630d622670",
+      "trajectory_artifact_hash": "f8c753838641ec20dacbb52479f86a3bb88293e094a2b6ab54ae426b4f5d164a",
+      "evaluation_gate": "PASS",
       "compare_status": "COMPLETE",
-      "compare_digest": "712c79a6d4991e7b68df64b189f8fb5a722579379bdd812d8b265fda49711459",
-      "evaluation_gate": "PASS"
+      "compare_digest": "ba7330d93f25f2395d128170d93eca30f28a5e5d8779d30ac6f803e134ffc196",
+      "threat_graph_evidence_hash": "1564b26e3e8d6a4181921ca237961f9b4f4e064668df75feb3bf8005958b1814",
+      "trajectory_semantic_hash": "9798bbd4e2c7740b2469c6692ee6bdc1874cecea859ddf0836ca87df3fd5cc46",
+      "commands_semantic_hash": "510dd965b5daf3df70decdf57e47cb3ec415feecd39b3aa671500af3c24bbbc4",
+      "threat_schedule_semantic_hash": "0a52cb06e94a9de19381a8ae77800559e726feaac729c440e97486ba3b60c58b",
+      "threat_graph_semantic_hash": "54b43ffe8cacc4faa98f8460562c4cb3f8ccac1d58945ff288ad1bae3eda814d",
+      "evaluator_semantic_hash": "2f292db2100172c63dd7dc07501ab731746cc1040a4fa804746c8c798f77eeaf",
+      "compare_domains_semantic_hash": "7e1c785dada888725aecdb41c31faa3eb120e294d1f7e668919b988bd98d446a"
     },
     {
-      "run_id": "7f59cb82-0436-42be-bc8a-b55c112fae56",
-      "spec_hash": "fe861514f36db20b5c8ab43640b96357220e6f96de34c6eadff6ab9329f08bce",
-      "trajectory_artifact_hash": "c03b3f2a01dd0a022576759e0d0cbb0ff4f5664849ef00b3d216b2d0582d5ce5",
-      "trajectory_semantic_hash": "98e1ec1a70bf1d3ae08dfe86856b1b70b72c6ae6673c9ed61173f9d7355fad7d",
-      "commands_semantic_hash": "33c629622f61da85534492d72e4ec8c493c681bd92e01bd4ef387dc298e68284",
-      "threat_schedule_semantic_hash": "78615a6a44a6601c7234b6638df5752b30c564994628f01537a3b4e3c88a3031",
-      "threat_graph_semantic_hash": "f3841f0bd9b403472d279eabfc717a28c12257aea6c06b3d320e3310c1da55b9",
-      "evaluator_semantic_hash": "edad44879683b727988d1755052abe4ca10187f190ea72e44849f104538faab9",
-      "compare_domains_semantic_hash": "95bbf22c5f678d69b003c6d6e17c435dbffed203c4d41b88fd492f22ea49ceea",
+      "run_id": "4bb77361-7bb3-4d6b-a63e-58d9b50821ba",
+      "spec_hash": "440810937c3a0dd8032ca3b4a51b49f694d24e3c2fdf8854e57d1b630d622670",
+      "trajectory_artifact_hash": "4b9cf80f5fb4f11b858f75b92535872a9326425a5e072f69d74313a9479d58e0",
+      "evaluation_gate": "PASS",
       "compare_status": "COMPLETE",
-      "compare_digest": "53ca73659465ac01210b052e7fc68c844dac4a0ea6548b38b34209efb75c183b",
-      "evaluation_gate": "PASS"
+      "compare_digest": "1c443a5814bfd725f31eae563018d3b0e8298f075d06656d3194682f062f797e",
+      "threat_graph_evidence_hash": "8ca3acc53d32c2aa7281908a6c5c70e9849707851c78d7d0ecf70b5bb69d1d2c",
+      "trajectory_semantic_hash": "9798bbd4e2c7740b2469c6692ee6bdc1874cecea859ddf0836ca87df3fd5cc46",
+      "commands_semantic_hash": "510dd965b5daf3df70decdf57e47cb3ec415feecd39b3aa671500af3c24bbbc4",
+      "threat_schedule_semantic_hash": "0a52cb06e94a9de19381a8ae77800559e726feaac729c440e97486ba3b60c58b",
+      "threat_graph_semantic_hash": "54b43ffe8cacc4faa98f8460562c4cb3f8ccac1d58945ff288ad1bae3eda814d",
+      "evaluator_semantic_hash": "2f292db2100172c63dd7dc07501ab731746cc1040a4fa804746c8c798f77eeaf",
+      "compare_domains_semantic_hash": "7e1c785dada888725aecdb41c31faa3eb120e294d1f7e668919b988bd98d446a"
     }
   ],
   "lineage": {
     "dataset_digest": "0c53011ab625048ea61e2e8265542edbc56dabffc358f132825302041e090a68",
     "case_digest": "d818780856b20fc90fa83463b16e63b6edd2da76442a8c8416a6ad920ae91a93",
-    "runtime_actor_set_digest": "f74be7cd0ae9f53cceb91e654656532e4fd06011d2996a8bc567a353e6e1de9d",
-    "run_digest": "bd033c59fca0845b3e04951675e52d4fcd07164dd5b80a3c15ec5cf407b8807a",
-    "counterfactual_trajectory_digest": "98e1ec1a70bf1d3ae08dfe86856b1b70b72c6ae6673c9ed61173f9d7355fad7d",
-    "human_reference_digest": "64dca1f681d1f8a11b25093257f4aa70751c96b6ae6e361b3ddc0198a328a645",
-    "evaluation_digest": "18e2be3d58b7159d8e800e120fcee70242f5183a13ae6bfe48128fffc9f78950",
-    "compare_evaluation_digest": "3417f80c9a83a1686e5df93290d7f076275c20deef170c2f87bd65920ff00e18",
-    "compare_digest": "712c79a6d4991e7b68df64b189f8fb5a722579379bdd812d8b265fda49711459"
-  }
+    "run_digest": "f8c753838641ec20dacbb52479f86a3bb88293e094a2b6ab54ae426b4f5d164a",
+    "evaluation_digest": "e56e63fdefaac7d59c6631466189828c2cc376cd8e7c1d653f3faaae89fc291f",
+    "compare_digest": "ba7330d93f25f2395d128170d93eca30f28a5e5d8779d30ac6f803e134ffc196"
+  },
+  "artifact_root": "/var/folders/v8/fdl1682s09xgrbmlk51sjtxc0000gp/T/hais-determinism-manifest-wi5b1glj"
 }

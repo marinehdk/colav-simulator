@@ -799,7 +799,7 @@ def _determinism_evidence(result: Any, compare_outcome: Any) -> dict[str, str]:
     evaluation = result.evaluation.to_dict()
     evaluation.pop("diagnostics", None)
     snapshot = result.session.threat_management_coordinator.last_snapshot
-    schedule = _schedule_manifest(snapshot.schedule) if snapshot is not None else None
+    schedule = _deterministic_schedule_projection(snapshot.schedule) if snapshot is not None else None
     graph = _deterministic_graph_projection(snapshot.conflict_graph) if snapshot is not None else None
     return {
         "trajectory_semantic_hash": trajectory.trajectory_digest,
@@ -812,6 +812,8 @@ def _determinism_evidence(result: Any, compare_outcome: Any) -> dict[str, str]:
 
 
 def _determinism_run_lineage(result: Any, compare_outcome: Any, evidence: Mapping[str, str]) -> dict[str, Any]:
+    snapshot = result.session.threat_management_coordinator.last_snapshot
+    graph = None if snapshot is None else snapshot.conflict_graph
     return {
         "run_id": result.manifest.run_id,
         "spec_hash": result.manifest.spec_hash,
@@ -819,6 +821,7 @@ def _determinism_run_lineage(result: Any, compare_outcome: Any, evidence: Mappin
         "evaluation_gate": result.manifest.evaluation_gate,
         "compare_status": compare_outcome.status.value,
         "compare_digest": compare_outcome.compare_digest,
+        "threat_graph_evidence_hash": None if graph is None else graph.evidence_hash,
         **dict(evidence),
     }
 
@@ -826,42 +829,55 @@ def _determinism_run_lineage(result: Any, compare_outcome: Any, evidence: Mappin
 def _deterministic_graph_projection(graph: Any | None) -> dict[str, Any] | None:
     if graph is None:
         return None
-    return {
-        "nodes": [_track_key_document(item) for item in graph.nodes],
-        "edges": [
-            {
-                "edge_type": edge.edge_type.value,
-                "members": [_track_key_document(item) for item in edge.members],
-                "prediction_basis": edge.prediction_basis,
-                "witness": _deterministic_witness(edge.to_dict().get("witness")),
-            }
-            for edge in graph.edges
-        ],
-        "clusters": [
-            {
-                "members": [_track_key_document(item) for item in cluster.members],
-                "edge_count": len(cluster.edge_ids),
-            }
-            for cluster in graph.clusters
-        ],
-        "unavailable_reasons": list(graph.unavailable_reasons),
-    }
+    return graph.semantic_dict()
 
 
-def _deterministic_witness(witness: Mapping[str, Any] | None) -> dict[str, Any] | None:
-    if witness is None:
+def _deterministic_schedule_projection(schedule: Any | None) -> dict[str, Any] | None:
+    if schedule is None:
         return None
     return {
-        "driver_target": witness.get("driver_target"),
-        "affected_target": witness.get("affected_target"),
-        "materiality": witness.get("materiality"),
-        "baseline": witness.get("baseline"),
-        "accepted": witness.get("accepted"),
+        "schema_version": schedule.schema_version,
+        "current_primary": _track_key_document(schedule.current_primary),
+        "concurrent_required": [_track_key_document(item) for item in schedule.concurrent_required],
+        "next_threats": [_track_key_document(item) for item in schedule.next_threats],
+        "monitor": [_track_key_document(item) for item in schedule.monitor],
+        "released": [_track_key_document(item) for item in schedule.released],
+        "entries": [
+            {
+                "key": _track_key_document(entry.key),
+                "context": entry.context.value,
+                "window": _jsonable(entry.window),
+                "priority_class": entry.priority_class.value,
+                "priority_reason": entry.priority_reason,
+                "unavailable_reason": entry.unavailable_reason.value if entry.unavailable_reason is not None else None,
+                "handoff_expectation": entry.handoff_expectation,
+            }
+            for entry in schedule.entries
+        ],
+        "events": [
+            {
+                "event_id": event.event_id,
+                "sim_time_s": event.sim_time_s,
+                "event_type": event.event_type,
+                "key": _track_key_document(event.key),
+                "reason": event.reason,
+                "from_context": event.from_context.value if event.from_context is not None else None,
+                "to_context": event.to_context.value if event.to_context is not None else None,
+                "predicted": event.predicted,
+                "schema_version": event.schema_version,
+            }
+            for event in schedule.events
+        ],
+        "horizon_start_s": schedule.horizon_start_s,
+        "horizon_end_s": schedule.horizon_end_s,
+        "generated_at_s": schedule.generated_at_s,
+        "input_hash": schedule.input_hash,
+        "profile_hash": schedule.profile_hash,
     }
 
 
-def _track_key_document(key: Any) -> dict[str, int]:
-    return {"target_id": int(key.target_id), "generation": int(key.generation)}
+def _track_key_document(key: Any | None) -> dict[str, int] | None:
+    return None if key is None else {"target_id": int(key.target_id), "generation": int(key.generation)}
 
 
 def _human_reference_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAISHumanReferenceBinding:
