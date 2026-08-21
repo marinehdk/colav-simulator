@@ -8,7 +8,6 @@ or reports a blocked run as PASS.
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -30,6 +29,8 @@ from colav_simulator.historical_case import (
     HistoricalAISHumanReferenceBinding,
 )
 from colav_simulator.historical_enc import ENCRegionProfile
+from colav_simulator.historical_serialization import jsonable as _jsonable
+from colav_simulator.historical_serialization import semantic_hash as _sha256_json
 
 if TYPE_CHECKING:
     from colav_simulator.experiment.contracts import RunSpec
@@ -51,6 +52,7 @@ class HistoricalAcceptanceBlockerCode(str, Enum):
     NO_ENCOUNTER = "NO_ENCOUNTER"
     DIMENSIONS_UNAVAILABLE = "DIMENSIONS_UNAVAILABLE"
     DIMENSION_PROVENANCE_INVALID = "DIMENSION_PROVENANCE_INVALID"
+    BINDINGS_UNAVAILABLE = "BINDINGS_UNAVAILABLE"
     ENC_UNQUALIFIED = "ENC_UNQUALIFIED"
     INTENT_NOT_ESTABLISHED = "INTENT_NOT_ESTABLISHED"
     TIME_COVERAGE_INSUFFICIENT = "TIME_COVERAGE_INSUFFICIENT"
@@ -699,6 +701,7 @@ def _map_case_blocker(failure_code: str | None) -> HistoricalAcceptanceBlockerCo
         "TIME_COVERAGE_INSUFFICIENT": HistoricalAcceptanceBlockerCode.TIME_COVERAGE_INSUFFICIENT,
         "INITIAL_SEPARATION_INVALID": HistoricalAcceptanceBlockerCode.INITIAL_SEPARATION_INVALID,
         "SOURCE_QUALITY_UNAVAILABLE": HistoricalAcceptanceBlockerCode.SOURCE_QUALITY_UNAVAILABLE,
+        "BINDINGS_UNAVAILABLE": HistoricalAcceptanceBlockerCode.BINDINGS_UNAVAILABLE,
     }
     return mapping.get(str(failure_code), HistoricalAcceptanceBlockerCode.WINDOW_SELECTION_INVALID)
 
@@ -771,22 +774,6 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(json.dumps(_jsonable(value), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-
-
-def _jsonable(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, bool, float)):
-        return value
-    if isinstance(value, Mapping):
-        return {str(key): _jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_jsonable(item) for item in value]
-    if hasattr(value, "to_dict"):
-        return _jsonable(value.to_dict())
-    return str(value)
 
 
 __all__ = [

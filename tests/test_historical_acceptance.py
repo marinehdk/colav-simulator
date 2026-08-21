@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from colav_simulator.historical_acceptance import (
@@ -16,6 +16,8 @@ from colav_simulator.historical_acceptance import (
 )
 from colav_simulator.historical_ais import HistoricalAISSelection
 from colav_simulator.historical_enc import ENCRegionProfile
+
+UTC = timezone.utc
 
 
 def test_acceptance_harness_blocks_missing_source_dimensions_without_defaults(
@@ -89,12 +91,24 @@ def test_real_window_manifest_is_compact_and_records_latest_real_pass() -> None:
     assert manifest["source"]["archive_sha256"] == "d303d719cebaf0238c54b9e27f2a40b4414b26e3189b49cb84fbad4086b3f3d7"
     assert manifest["lineage"]["run_digest"]
     assert manifest["lineage"]["evaluation_digest"]
-    assert manifest["lineage"]["compare_digest"] is None
-    assert manifest["lineage"]["compare_digest_unavailable_reason"]
+    assert manifest["lineage"]["compare_digest"] == manifest["compare"]["compare_digest"]
+    assert manifest["lineage"]["human_reference_digest"] == manifest["leakage"]["human_reference_artifact_digest"]
+    assert (
+        len(
+            {
+                manifest["dataset"]["descriptor_sha256"],
+                manifest["case"]["runtime_actor_set_digest"],
+                manifest["case"]["case_digest"],
+            }
+        )
+        == 3
+    )
+    assert manifest["sealed_evidence"]["run_manifest_sha256"]
+    assert manifest["sealed_evidence"]["evaluation_artifact_sha256"]
     assert manifest_path.stat().st_size < 10_000
 
 
-def test_acceptance_harness_accepts_only_scoped_provenanced_dimension_registry(
+def test_acceptance_harness_requires_bindings_with_scoped_dimension_registry(
     tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
 ) -> None:
     source = tmp_path / "registry-window.csv"
@@ -170,9 +184,9 @@ def test_acceptance_harness_accepts_only_scoped_provenanced_dimension_registry(
         )
     )
 
-    assert outcome.status is HistoricalAcceptanceStatus.PASS
-    assert outcome.case_outcome is not None and outcome.case_outcome.case is not None
-    assert outcome.case_outcome.case.reference_actor.dimensions_provenance.startswith("explicit:")
+    assert outcome.status is HistoricalAcceptanceStatus.BLOCKED
+    assert outcome.blocker_codes == ("BINDINGS_UNAVAILABLE",)
+    assert outcome.case_outcome is not None and outcome.case_outcome.case is None
     assert outcome.manifest["dimensions"]["registry_digest"] == registry.digest
 
     for invalid_record in (

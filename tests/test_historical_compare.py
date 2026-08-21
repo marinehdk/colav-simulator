@@ -62,6 +62,8 @@ def test_compare_keeps_independent_fail_verdict_when_human_trajectory_is_similar
             t0_s=1.0,
             counterfactual=counterfactual,
             human_reference=human,
+            human_reference_artifact_digest=human.trajectory_digest,
+            case_human_reference_artifact_digest=human.trajectory_digest,
             evaluation=evaluation,
         )
     )
@@ -86,13 +88,16 @@ def test_compare_keeps_independent_pass_verdict_when_human_trajectory_is_dissimi
         evaluator_id="evaluator",
         schema_version="2.0",
     )
+    human = _trajectory(((0.0, 0.0), (1.0, 10.0), (2.0, 20.0), (3.0, 30.0)))
     outcome = HistoricalBenchmarkComparator().compare(
         HistoricalBenchmarkCompareRequest(
             case_digest="case-c",
             dataset_digest="dataset-c",
             t0_s=1.0,
             counterfactual=_trajectory(((0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0))),
-            human_reference=_trajectory(((0.0, 0.0), (1.0, 10.0), (2.0, 20.0), (3.0, 30.0))),
+            human_reference=human,
+            human_reference_artifact_digest=human.trajectory_digest,
+            case_human_reference_artifact_digest=human.trajectory_digest,
             evaluation=evaluation,
         )
     )
@@ -118,6 +123,8 @@ def test_compare_marks_absolute_time_coverage_gap_incomplete_without_backfill() 
             t0_s=0.0,
             counterfactual=counterfactual,
             human_reference=human,
+            human_reference_artifact_digest=human.trajectory_digest,
+            case_human_reference_artifact_digest=human.trajectory_digest,
             evaluation=None,
         )
     )
@@ -128,12 +135,15 @@ def test_compare_marks_absolute_time_coverage_gap_incomplete_without_backfill() 
 
 
 def test_compare_digest_is_deterministic_for_same_lineage_and_metrics() -> None:
+    human = _trajectory(((0.0, 0.0), (1.0, 0.5), (2.0, 0.0)))
     request = HistoricalBenchmarkCompareRequest(
         case_digest="case-deterministic",
         dataset_digest="dataset-deterministic",
         t0_s=1.0,
         counterfactual=_trajectory(((0.0, 0.0), (1.0, 0.0), (2.0, 0.0))),
-        human_reference=_trajectory(((0.0, 0.0), (1.0, 0.5), (2.0, 0.0))),
+        human_reference=human,
+        human_reference_artifact_digest=human.trajectory_digest,
+        case_human_reference_artifact_digest=human.trajectory_digest,
         evaluation=None,
     )
 
@@ -142,6 +152,46 @@ def test_compare_digest_is_deterministic_for_same_lineage_and_metrics() -> None:
 
     assert first.compare_digest == second.compare_digest
     assert first.to_dict() == second.to_dict()
+
+
+def test_compare_fails_closed_when_human_artifact_differs_from_case_binding() -> None:
+    human = _trajectory(((0.0, 0.0), (1.0, 0.5), (2.0, 0.0)))
+    outcome = HistoricalBenchmarkComparator().compare(
+        HistoricalBenchmarkCompareRequest(
+            case_digest="case-mismatch",
+            dataset_digest="dataset-mismatch",
+            runtime_actor_set_digest="runtime-actors-mismatch",
+            t0_s=1.0,
+            counterfactual=_trajectory(((0.0, 0.0), (1.0, 0.0), (2.0, 0.0))),
+            human_reference=human,
+            human_reference_artifact_digest=human.trajectory_digest,
+            case_human_reference_artifact_digest="different-human-artifact",
+            evaluation=None,
+        )
+    )
+
+    assert outcome.status is HistoricalCompareStatus.INVALID_REQUEST
+    assert outcome.message == "HUMAN_REFERENCE_BINDING_MISMATCH"
+
+
+def test_compare_fails_closed_when_run_and_case_lineage_disagree() -> None:
+    outcome = HistoricalBenchmarkComparator().compare(
+        HistoricalBenchmarkCompareRequest(
+            case_digest="case-a",
+            dataset_digest="dataset-a",
+            runtime_actor_set_digest="runtime-actors-a",
+            run_dataset_descriptor_digest="dataset-a",
+            run_runtime_actor_set_digest="runtime-actors-a",
+            run_case_runtime_digest="case-b",
+            t0_s=1.0,
+            counterfactual=_trajectory(((0.0, 0.0), (1.0, 0.0), (2.0, 0.0))),
+            human_reference=None,
+            evaluation=None,
+        )
+    )
+
+    assert outcome.status is HistoricalCompareStatus.INVALID_REQUEST
+    assert outcome.message == "CASE_LINEAGE_MISMATCH"
 
 
 def test_trajectory_session_projection_keeps_absolute_timestamps_and_kinematics() -> None:

@@ -8,8 +8,6 @@ asks the actor for the state at the current simulation time only.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -29,6 +27,7 @@ from colav_simulator.historical_ais import (
     HistoricalAISObservation,
     HistoricalAISReadResult,
 )
+from colav_simulator.historical_serialization import semantic_hash as _sha256_json
 
 if TYPE_CHECKING:
     from colav_simulator.experiment.session import SimulationSession
@@ -872,24 +871,6 @@ def _velocity_from_normalized(normalized: HistoricalAISNormalizedFact) -> tuple[
     )
 
 
-def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), default=_json_default).encode()
-    ).hexdigest()
-
-
-def _json_default(value: Any) -> Any:
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, Mapping):
-        return dict(value)
-    raise TypeError(type(value).__name__)
-
-
 def _angle_delta(first: float, second: float) -> float:
     return (first - second + math.pi) % (2.0 * math.pi) - math.pi
 
@@ -938,15 +919,30 @@ class HistoricalReplayEvidence:
     def digest(self) -> str:
         return _sha256_json(self.to_dict())
 
+    @property
+    def dataset_descriptor_digest(self) -> str:
+        return self.dataset_digest
+
+    @property
+    def runtime_actor_set_digest(self) -> str:
+        return self.source_snapshot_digest
+
+    @property
+    def case_runtime_digest(self) -> str | None:
+        return self.case_digest
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "mode": self.mode,
             "counterfactual": self.counterfactual,
             "case_digest": self.case_digest,
+            "case_runtime_digest": self.case_runtime_digest,
             "t0_s": self.t0_s,
             "nominal_intent_digest": self.nominal_intent_digest,
             "enc_profile_digest": self.enc_profile_digest,
             "dataset_digest": self.dataset_digest,
+            "dataset_descriptor_digest": self.dataset_descriptor_digest,
+            "runtime_actor_set_digest": self.runtime_actor_set_digest,
             "selection_digest": self.selection_digest,
             "reconstruction_profile_digest": self.reconstruction_profile_digest,
             "time_origin_utc": self.time_origin_utc.isoformat(),
@@ -975,6 +971,9 @@ class HistoricalReplayRequest:
     nominal_intent: Mapping[str, Any] | None = None
     case_digest: str | None = None
     dataset_digest: str | None = None
+    dataset_descriptor_digest: str | None = None
+    runtime_actor_set_digest: str | None = None
+    case_runtime_digest: str | None = None
     selection_digest: str | None = None
     reconstruction_profile_digest: str | None = None
     enc_profile_digest: str | None = None
@@ -982,7 +981,7 @@ class HistoricalReplayRequest:
     handoff_tolerance_mps: float = 1e-6
     handoff_tolerance_rad: float = 1e-6
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: PLR0912
         """Validate actor ownership and simulation bounds."""
         if not self.scenario_name.strip():
             raise ValueError("scenario_name is required")
@@ -1001,6 +1000,12 @@ class HistoricalReplayRequest:
                 if not math.isfinite(tolerance) or tolerance < 0.0:
                     raise ValueError(f"{name} must be finite and non-negative")
                 object.__setattr__(self, name, tolerance)
+            if self.case_runtime_digest not in {None, self.case_digest}:
+                raise ValueError("case runtime digest lineage mismatch")
+            if self.dataset_descriptor_digest not in {None, self.dataset_digest, self.actor_set.dataset_digest}:
+                raise ValueError("dataset descriptor digest lineage mismatch")
+            if self.runtime_actor_set_digest not in {None, self.actor_set.semantic_digest}:
+                raise ValueError("runtime actor-set digest lineage mismatch")
         self.actor_set.actor(self.ownship_actor_id)
         if self.dt_sim is not None and (not math.isfinite(self.dt_sim) or self.dt_sim <= 0):
             raise ValueError("dt_sim must be finite and positive")
@@ -1012,18 +1017,18 @@ class HistoricalReplayRequest:
     @property
     def evidence(self) -> HistoricalReplayEvidence:
         return HistoricalReplayEvidence(
-            dataset_digest=self.actor_set.dataset_digest,
+            dataset_digest=self.dataset_descriptor_digest or self.dataset_digest or self.actor_set.dataset_digest,
             selection_digest=self.actor_set.selection_digest,
             reconstruction_profile_digest=self.actor_set.profile.digest,
             time_origin_utc=self.actor_set.time_origin_utc,
             actor_digests=tuple((actor.actor_id, actor.actor_digest) for actor in self.actor_set.actors),
-            source_snapshot_digest=self.actor_set.semantic_digest,
+            source_snapshot_digest=self.runtime_actor_set_digest or self.actor_set.semantic_digest,
             provider=self.actor_set.provider,
             attribution=self.actor_set.attribution,
             coverage_limitations=self.actor_set.coverage_limitations,
             mode=self.mode,
             counterfactual=self.mode == "COUNTERFACTUAL",
-            case_digest=self.case_digest,
+            case_digest=self.case_runtime_digest or self.case_digest,
             t0_s=self.counterfactual_t0_s,
             nominal_intent_digest=(
                 str(self.nominal_intent.get("intent_digest"))
@@ -1048,6 +1053,9 @@ class HistoricalReplayRequest:
             "nominal_intent": dict(self.nominal_intent) if self.nominal_intent is not None else None,
             "case_digest": self.case_digest,
             "dataset_digest": self.dataset_digest,
+            "dataset_descriptor_digest": self.dataset_descriptor_digest,
+            "runtime_actor_set_digest": self.runtime_actor_set_digest,
+            "case_runtime_digest": self.case_runtime_digest,
             "selection_digest": self.selection_digest,
             "reconstruction_profile_digest": self.reconstruction_profile_digest,
             "enc_profile_digest": self.enc_profile_digest,
@@ -1073,6 +1081,9 @@ class HistoricalReplayRequest:
             nominal_intent=value.get("nominal_intent"),
             case_digest=value.get("case_digest"),
             dataset_digest=value.get("dataset_digest"),
+            dataset_descriptor_digest=value.get("dataset_descriptor_digest"),
+            runtime_actor_set_digest=value.get("runtime_actor_set_digest"),
+            case_runtime_digest=value.get("case_runtime_digest"),
             selection_digest=value.get("selection_digest"),
             reconstruction_profile_digest=value.get("reconstruction_profile_digest"),
             enc_profile_digest=value.get("enc_profile_digest"),

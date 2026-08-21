@@ -28,6 +28,9 @@ from typing import Any
 
 from shapely.geometry import Point
 
+from colav_simulator.historical_serialization import jsonable as _jsonable
+from colav_simulator.historical_serialization import semantic_hash as _sha256_json
+
 try:
     from shapely import wkb, wkt
     from shapely.errors import GEOSException
@@ -1118,9 +1121,7 @@ def _read_parquet_rows(path: Path, selection: HistoricalAISSelection) -> tuple[l
             raise TimeoutError("Historical AIS Parquet worker exceeded its 300 second limit") from exc
         if completed.returncode != 0:
             detail = completed.stderr.strip() or completed.stdout.strip() or "no worker diagnostics"
-            raise RuntimeError(
-                f"Historical AIS Parquet worker failed with exit code {completed.returncode}: {detail}"
-            )
+            raise RuntimeError(f"Historical AIS Parquet worker failed with exit code {completed.returncode}: {detail}")
         if not response_path.is_file():
             raise RuntimeError("Historical AIS Parquet worker exited without a response")
         try:
@@ -1443,39 +1444,6 @@ def _sha256_file(path: Path) -> str:
         while chunk := stream.read(8 * 1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _sha256_json(value: Any) -> str:
-    encoded = json.dumps(_jsonable(value), sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def _jsonable(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, bool)):
-        result = value
-    elif isinstance(value, float):
-        result = value if math.isfinite(value) else None
-    elif isinstance(value, (datetime, date)):
-        result = value.isoformat()
-    elif isinstance(value, Decimal):
-        result = str(value)
-    elif isinstance(value, bytes):
-        result = {"__bytes_hex__": value.hex()}
-    elif isinstance(value, memoryview):
-        result = {"__bytes_hex__": value.tobytes().hex()}
-    elif isinstance(value, Enum):
-        result = value.value
-    elif isinstance(value, Path):
-        result = str(value)
-    elif isinstance(value, Mapping):
-        result = {str(key): _jsonable(item) for key, item in value.items()}
-    elif isinstance(value, (list, tuple)):
-        result = [_jsonable(item) for item in value]
-    elif hasattr(value, "item"):
-        result = _jsonable(value.item())
-    else:
-        result = str(value)
-    return result
 
 
 # Public vocabulary aliases retained so callers can use either the concise

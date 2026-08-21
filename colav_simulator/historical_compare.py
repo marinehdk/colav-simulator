@@ -7,15 +7,15 @@ safety or COLREG gate.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 from types import MappingProxyType
 from typing import Any
+
+from colav_simulator.historical_serialization import jsonable as _jsonable
+from colav_simulator.historical_serialization import semantic_hash as _sha256_json
 
 COMPARE_SCHEMA_VERSION = "historical-benchmark-compare.v1"
 ALIGNMENT_SCHEMA_VERSION = "historical-compare-alignment.v1"
@@ -171,6 +171,12 @@ class HistoricalBenchmarkCompareRequest:
     counterfactual: HistoricalBenchmarkTrajectory
     human_reference: HistoricalBenchmarkTrajectory | None
     evaluation: Any | None
+    runtime_actor_set_digest: str | None = None
+    human_reference_artifact_digest: str | None = None
+    case_human_reference_artifact_digest: str | None = None
+    run_dataset_descriptor_digest: str | None = None
+    run_runtime_actor_set_digest: str | None = None
+    run_case_runtime_digest: str | None = None
     nominal_intent: HistoricalBenchmarkTrajectory | None = None
     threat_evidence: Mapping[str, Any] | None = None
     run_id: str | None = None
@@ -201,15 +207,24 @@ class HistoricalBenchmarkCompareRequest:
     ) -> HistoricalBenchmarkCompareRequest:
         """Bind an existing Counterfactual Run and Independent Evaluator result."""
         manifest = result.manifest
+        run_lineage = dict(getattr(manifest, "historical_replay_evidence", None) or {})
         return cls(
-            case_digest=str(getattr(manifest, "historical_case_digest", None) or case.case_digest),
+            case_digest=str(case.case_digest),
             dataset_digest=str(case.dataset_digest),
+            runtime_actor_set_digest=case.runtime_actor_set().semantic_digest,
             t0_s=float(case.t0_candidate.time_s),
             counterfactual=HistoricalBenchmarkTrajectory.from_session_frames(
                 result.session.frames,
                 source="COUNTERFACTUAL_REALIZED",
             ),
             human_reference=human_reference,
+            human_reference_artifact_digest=(human_reference.trajectory_digest if human_reference else None),
+            case_human_reference_artifact_digest=case.human_reference_binding.artifact_digest,
+            run_dataset_descriptor_digest=run_lineage.get("dataset_descriptor_digest"),
+            run_runtime_actor_set_digest=run_lineage.get("runtime_actor_set_digest"),
+            run_case_runtime_digest=(
+                run_lineage.get("case_runtime_digest") or getattr(manifest, "historical_case_digest", None)
+            ),
             evaluation=result.evaluation,
             threat_evidence=threat_evidence,
             run_id=str(getattr(manifest, "run_id", "")),
@@ -342,6 +357,16 @@ class HistoricalBenchmarkComparator:
         if not isinstance(request, HistoricalBenchmarkCompareRequest):
             domains = _unavailable_domains("INVALID_REQUEST")
             return self._outcome(HistoricalCompareStatus.INVALID_REQUEST, domains, None, {}, "invalid request")
+        validation_error = self._validation_error(request)
+        if validation_error is not None:
+            domains = _unavailable_domains(validation_error)
+            return self._outcome(
+                HistoricalCompareStatus.INVALID_REQUEST,
+                domains,
+                None,
+                self._lineage(request),
+                validation_error,
+            )
         safety = self._safety(request)
         colreg = self._colreg(request)
         maneuver = self._maneuver(request)
@@ -355,6 +380,23 @@ class HistoricalBenchmarkComparator:
         status = HistoricalCompareStatus.COMPLETE if complete else HistoricalCompareStatus.INCOMPLETE
         verdict = safety.independent_verdict or colreg.independent_verdict
         return self._outcome(status, domains, verdict, self._lineage(request), "")
+
+    @staticmethod
+    def _validation_error(request: HistoricalBenchmarkCompareRequest) -> str | None:
+        if request.run_dataset_descriptor_digest not in {None, request.dataset_digest}:
+            return "DATASET_LINEAGE_MISMATCH"
+        if request.run_runtime_actor_set_digest not in {None, request.runtime_actor_set_digest}:
+            return "RUNTIME_ACTOR_SET_LINEAGE_MISMATCH"
+        if request.run_case_runtime_digest not in {None, request.case_digest}:
+            return "CASE_LINEAGE_MISMATCH"
+        if request.human_reference is None:
+            return None
+        trajectory_digest = request.human_reference.trajectory_digest
+        if request.human_reference_artifact_digest != trajectory_digest:
+            return "HUMAN_REFERENCE_ARTIFACT_MISMATCH"
+        if request.case_human_reference_artifact_digest != trajectory_digest:
+            return "HUMAN_REFERENCE_BINDING_MISMATCH"
+        return None
 
     @staticmethod
     def _safety(request: HistoricalBenchmarkCompareRequest) -> HistoricalSafetyComparison:
@@ -537,8 +579,9 @@ class HistoricalBenchmarkComparator:
         return {
             "dataset_digest": request.dataset_digest,
             "case_digest": request.case_digest,
+            "runtime_actor_set_digest": request.runtime_actor_set_digest,
             "counterfactual_trajectory_digest": request.counterfactual.trajectory_digest,
-            "human_reference_digest": request.human_reference.trajectory_digest if request.human_reference else None,
+            "human_reference_digest": request.human_reference_artifact_digest,
             "run_id": request.run_id,
             "t0_s": request.t0_s,
             "alignment_profile_digest": request.alignment_profile.digest,
@@ -713,28 +756,6 @@ def _dataclass_dict(value: Any) -> dict[str, Any]:
     for name in value.__dataclass_fields__:
         output[name] = _jsonable(getattr(value, name))
     return output
-
-
-def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(json.dumps(_jsonable(value), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-
-
-def _jsonable(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, bool)):
-        return value
-    if isinstance(value, float):
-        return value if math.isfinite(value) else None
-    if isinstance(value, (datetime,)):
-        return value.isoformat()
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, Mapping):
-        return {str(key): _jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_jsonable(item) for item in value]
-    if hasattr(value, "to_dict"):
-        return _jsonable(value.to_dict())
-    return str(value)
 
 
 __all__ = [

@@ -3,8 +3,10 @@ from __future__ import annotations
 import subprocess
 import sys
 import zipfile
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+UTC = timezone.utc
 
 
 def test_runner_import_after_map_stack_does_not_load_pyarrow() -> None:

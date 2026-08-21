@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -21,6 +21,8 @@ from colav_simulator.historical_case import (
     HistoricalAISNominalIntent,
 )
 from colav_simulator.historical_enc import ENCRegionProfile
+
+UTC = timezone.utc
 
 
 def _dataset(tmp_path: Path) -> tuple[object, HistoricalAISSelection]:
@@ -47,9 +49,11 @@ def _buildable_dataset(tmp_path: Path) -> tuple[object, HistoricalAISSelection]:
         "2026-07-01T00:00:00Z,123456789,7.0000,62.0000,10,90,40,8\n"
         "2026-07-01T00:00:10Z,123456789,7.0006,62.0000,10,90,40,8\n"
         "2026-07-01T00:00:20Z,123456789,7.0012,62.0000,10,90,40,8\n"
+        "2026-07-01T00:00:30Z,123456789,7.0012,61.9994,10,180,40,8\n"
         "2026-07-01T00:00:00Z,223456789,7.0100,62.0000,10,270,40,8\n"
         "2026-07-01T00:00:10Z,223456789,7.0094,62.0000,10,270,40,8\n"
-        "2026-07-01T00:00:20Z,223456789,7.0088,62.0000,10,270,40,8\n",
+        "2026-07-01T00:00:20Z,223456789,7.0088,62.0000,10,270,40,8\n"
+        "2026-07-01T00:00:30Z,223456789,7.0082,62.0000,10,270,40,8\n",
         encoding="utf-8",
     )
     selection = HistoricalAISSelection(
@@ -57,6 +61,15 @@ def _buildable_dataset(tmp_path: Path) -> tuple[object, HistoricalAISSelection]:
         end_utc=datetime(2026, 7, 1, 0, 1, tzinfo=UTC),
     )
     return HistoricalAISDatasetReader(source).read(selection), selection
+
+
+def _published_bindings(human_digest: str = "fixture-human-reference") -> dict[str, object]:
+    return {
+        "human_reference_binding": HistoricalAISHumanReferenceBinding(human_digest, sample_count=1),
+        "algorithm_binding": HistoricalAISAlgorithmBinding("nominal", "nominal-config"),
+        "evaluation_binding": HistoricalAISEvaluationBinding("evaluator", "profile", "profile-digest"),
+        "compare_binding": HistoricalAISCompareBinding(alignment_profile_digest="alignment-digest"),
+    }
 
 
 def test_case_builder_returns_typed_no_encounter_outcome(
@@ -125,6 +138,35 @@ def test_case_builder_freezes_typed_benchmark_bindings(
     assert outcome.case.evaluation_binding is evaluation
     assert outcome.case.compare_binding is compare
     assert outcome.case.to_dict()["human_reference_binding"]["comparison_only"] is True
+
+
+def test_published_case_fails_closed_when_benchmark_bindings_are_unbound(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
+    dataset, selection = _buildable_dataset(tmp_path)
+
+    outcome = HistoricalAISCaseBuilder().build(
+        HistoricalAISCaseBuildRequest(
+            dataset=dataset,
+            selection=selection,
+            enc_profile=qualified_historical_enc_profile,
+            reference_mmsi=123456789,
+            discovery_profile=HistoricalAISDiscoveryProfile(
+                max_encounter_range_m=2_000.0,
+                min_closing_speed_mps=0.0,
+            ),
+            published=True,
+            t0_utc=datetime(2026, 7, 1, 0, 0, 20, tzinfo=UTC),
+        )
+    )
+
+    assert outcome.status is HistoricalAISCaseBuildStatus.BINDINGS_UNAVAILABLE
+    assert outcome.details["unbound_bindings"] == (
+        "algorithm",
+        "compare",
+        "evaluation",
+        "human_reference",
+    )
 
 
 def test_case_builder_discovers_head_on_crossing_overtaking_and_multi_ship(
@@ -282,6 +324,7 @@ def test_case_builder_fits_nominal_intent_strictly_before_t0(
                 min_closing_speed_mps=0.0,
             ),
             t0_utc=t0,
+            **_published_bindings(),
         )
     )
 
@@ -527,7 +570,7 @@ def test_case_builder_intent_digest_ignores_post_t0_human_reference_changes(
         end_utc=datetime(2026, 7, 1, 0, 1, tzinfo=UTC),
     )
 
-    def build(source: Path) -> HistoricalAISCaseBuildOutcome:
+    def build(source: Path, human_digest: str) -> HistoricalAISCaseBuildOutcome:
         return HistoricalAISCaseBuilder().build(
             HistoricalAISCaseBuildRequest(
                 dataset=HistoricalAISDatasetReader(source).read(selection),
@@ -539,11 +582,13 @@ def test_case_builder_intent_digest_ignores_post_t0_human_reference_changes(
                     min_closing_speed_mps=0.0,
                 ),
                 t0_utc=datetime(2026, 7, 1, 0, 0, 20, tzinfo=UTC),
+                **_published_bindings(human_digest),
             )
         )
 
-    first = build(first_source)
-    second = build(second_source)
+    first = build(first_source, "human-a")
+    second = build(first_source, "human-b")
+    changed_dataset = build(second_source, "human-a")
     assert first.success is True and second.success is True
     assert first.case is not None and second.case is not None
     assert first.case.nominal_intent is not None and second.case.nominal_intent is not None
@@ -551,3 +596,6 @@ def test_case_builder_intent_digest_ignores_post_t0_human_reference_changes(
     assert first.case.runtime_digest == second.case.runtime_digest
     assert first.case.case_digest == second.case.case_digest
     assert first.case.build_digest != second.case.build_digest
+    assert changed_dataset.case is not None
+    assert changed_dataset.case.dataset_digest != first.case.dataset_digest
+    assert changed_dataset.case.runtime_actor_set().semantic_digest != first.case.runtime_actor_set().semantic_digest

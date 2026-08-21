@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import math
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -10,10 +11,13 @@ import pytest
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
+    HistoricalAISAlgorithmBinding,
     HistoricalAISCase,
     HistoricalAISCaseBuilder,
     HistoricalAISCaseBuildRequest,
+    HistoricalAISCompareBinding,
     HistoricalAISDiscoveryProfile,
+    HistoricalAISEvaluationBinding,
     HistoricalAISHumanReferenceBinding,
 )
 from colav_simulator.historical_compare import (
@@ -27,6 +31,9 @@ from colav_simulator.historical_counterfactual import (
 )
 from colav_simulator.historical_enc import ENCRegionProfile
 from colav_simulator.historical_replay import HistoricalReplayRequest
+from colav_simulator.historical_serialization import semantic_hash
+
+UTC = timezone.utc
 
 
 def _case(
@@ -34,7 +41,7 @@ def _case(
     enc_profile: ENCRegionProfile,
     *,
     post_t0_reference: str = "7.0012,61.9994,10,180",
-    human_reference_artifact_digest: str | None = None,
+    human_reference_artifact_digest: str = "fixture-human-reference",
 ) -> HistoricalAISCase:
     source = tmp_path / "counterfactual.csv"
     source.parent.mkdir(parents=True, exist_ok=True)
@@ -68,8 +75,15 @@ def _case(
             t0_utc=datetime(2026, 7, 1, 0, 0, 20, tzinfo=UTC),
             human_reference_binding=HistoricalAISHumanReferenceBinding(
                 artifact_digest=human_reference_artifact_digest,
-                sample_count=1 if human_reference_artifact_digest else 0,
+                sample_count=1,
             ),
+            algorithm_binding=HistoricalAISAlgorithmBinding("nominal", semantic_hash({})),
+            evaluation_binding=HistoricalAISEvaluationBinding(
+                "evaluator",
+                "ccta_2023_demo-v1",
+                semantic_hash({"profile_id": "ccta_2023_demo-v1"}),
+            ),
+            compare_binding=HistoricalAISCompareBinding(alignment_profile_digest="alignment-digest"),
         )
     )
     assert outcome.success is True
@@ -104,12 +118,27 @@ def test_counterfactual_run_spec_contains_reference_history_only_through_t0(
     )
 
     assert spec.historical_replay["mode"] == "COUNTERFACTUAL"
+    assert spec.historical_replay["dataset_descriptor_digest"] == case.dataset_digest
+    assert spec.historical_replay["runtime_actor_set_digest"] == spec.historical_replay["actor_set"]["semantic_digest"]
+    assert spec.historical_replay["case_runtime_digest"] == case.runtime_digest
+    assert (
+        len(
+            {
+                spec.historical_replay["dataset_descriptor_digest"],
+                spec.historical_replay["runtime_actor_set_digest"],
+                spec.historical_replay["case_runtime_digest"],
+            }
+        )
+        == 3
+    )
     assert all(datetime.fromisoformat(sample["timestamp_utc"]) <= case.t0_utc for sample in reference_actor["samples"])
     assert "human-reference-a" not in spec.to_dict().__repr__()
     replay_request = HistoricalReplayRequest.from_dict(spec.historical_replay)
     assert replay_request.evidence.mode == "COUNTERFACTUAL"
     assert replay_request.evidence.counterfactual is True
     assert replay_request.evidence.case_digest == case.case_digest
+    assert replay_request.evidence.dataset_descriptor_digest == case.dataset_digest
+    assert replay_request.evidence.runtime_actor_set_digest == spec.historical_replay["runtime_actor_set_digest"]
 
 
 def test_human_reference_digest_does_not_change_counterfactual_run_spec(
@@ -158,11 +187,31 @@ def test_counterfactual_rejects_human_reference_not_frozen_in_case(
 def test_post_t0_human_reference_changes_compare_only_not_runtime_or_commands(
     tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
 ) -> None:
-    first_case = _case(tmp_path / "first", qualified_historical_enc_profile)
-    second_case = _case(
-        tmp_path / "second",
-        qualified_historical_enc_profile,
-        post_t0_reference="7.0030,62.0020,10,0",
+    base_case = _case(tmp_path, qualified_historical_enc_profile)
+    samples = base_case.reference_actor.samples
+    first_human = HistoricalBenchmarkTrajectory(
+        timestamps_s=tuple(sample.time_s for sample in samples),
+        positions_xy=tuple(sample.state_vxvy[:2] for sample in samples),
+        courses_rad=tuple(math.atan2(sample.state_vxvy[3], sample.state_vxvy[2]) for sample in samples),
+        speeds_mps=tuple(math.hypot(sample.state_vxvy[2], sample.state_vxvy[3]) for sample in samples),
+        source="HUMAN_REFERENCE",
+    )
+    changed_positions = (
+        *first_human.positions_xy[:-1],
+        (first_human.positions_xy[-1][0] + 500.0, first_human.positions_xy[-1][1]),
+    )
+    second_human = replace(first_human, positions_xy=changed_positions, trajectory_digest="")
+    first_case = replace(
+        base_case,
+        human_reference_binding=HistoricalAISHumanReferenceBinding(first_human.trajectory_digest, len(samples)),
+        build_digest="",
+        runtime_digest="",
+    )
+    second_case = replace(
+        base_case,
+        human_reference_binding=HistoricalAISHumanReferenceBinding(second_human.trajectory_digest, len(samples)),
+        build_digest="",
+        runtime_digest="",
     )
     base = RunSpec(
         scenario_id="simple_planning_example",
@@ -206,28 +255,18 @@ def test_post_t0_human_reference_changes_compare_only_not_runtime_or_commands(
     if first_threat is not None and second_threat is not None:
         assert first_threat.semantic_hash == second_threat.semantic_hash
 
-    def human_trajectory(case: HistoricalAISCase) -> HistoricalBenchmarkTrajectory:
-        samples = case.reference_actor.samples
-        return HistoricalBenchmarkTrajectory(
-            timestamps_s=tuple(sample.time_s for sample in samples),
-            positions_xy=tuple(sample.state_vxvy[:2] for sample in samples),
-            courses_rad=tuple(math.atan2(sample.state_vxvy[3], sample.state_vxvy[2]) for sample in samples),
-            speeds_mps=tuple(math.hypot(sample.state_vxvy[2], sample.state_vxvy[3]) for sample in samples),
-            source="HUMAN_REFERENCE",
-        )
-
     first_compare = HistoricalBenchmarkComparator().compare(
         HistoricalBenchmarkCompareRequest.from_counterfactual_run(
             first_case,
             first.result,
-            human_reference=human_trajectory(first_case),
+            human_reference=first_human,
         )
     )
     second_compare = HistoricalBenchmarkComparator().compare(
         HistoricalBenchmarkCompareRequest.from_counterfactual_run(
             second_case,
             second.result,
-            human_reference=human_trajectory(second_case),
+            human_reference=second_human,
         )
     )
     assert first_compare.compare_digest != second_compare.compare_digest

@@ -8,12 +8,10 @@ the normal simulator/session path.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from types import MappingProxyType
 from typing import Any
@@ -37,6 +35,8 @@ from colav_simulator.historical_replay import (
     HistoricalAISReconstructor,
     HistoricalAISSourceObservationRef,
 )
+from colav_simulator.historical_serialization import jsonable as _jsonable
+from colav_simulator.historical_serialization import semantic_hash as _sha256_json
 
 CASE_SCHEMA_VERSION = "historical-ais-case.v1"
 DISCOVERY_SCHEMA_VERSION = "historical-ais-discovery.v1"
@@ -60,6 +60,7 @@ class HistoricalAISCaseBuildStatus(str, Enum):
     TIME_COVERAGE_INSUFFICIENT = "TIME_COVERAGE_INSUFFICIENT"
     INTENT_NOT_ESTABLISHED = "INTENT_NOT_ESTABLISHED"
     SOURCE_QUALITY_UNAVAILABLE = "SOURCE_QUALITY_UNAVAILABLE"
+    BINDINGS_UNAVAILABLE = "BINDINGS_UNAVAILABLE"
 
 
 class HistoricalAISDiscoveryType(str, Enum):
@@ -539,6 +540,10 @@ class HistoricalAISHumanReferenceBinding:
             "comparison_only": self.comparison_only,
         }
 
+    @property
+    def bound(self) -> bool:
+        return self.artifact_digest is not None
+
 
 @dataclass(frozen=True)
 class HistoricalAISAlgorithmBinding:
@@ -559,6 +564,10 @@ class HistoricalAISAlgorithmBinding:
             "configuration_digest": self.configuration_digest,
             "capability_evidence_digest": self.capability_evidence_digest,
         }
+
+    @property
+    def bound(self) -> bool:
+        return self.algorithm_id != "UNBOUND" and self.configuration_digest is not None
 
 
 @dataclass(frozen=True)
@@ -581,6 +590,10 @@ class HistoricalAISEvaluationBinding:
             "profile_digest": self.profile_digest,
         }
 
+    @property
+    def bound(self) -> bool:
+        return self.evaluator_id != "UNBOUND" and self.profile_id != "UNBOUND" and self.profile_digest is not None
+
 
 @dataclass(frozen=True)
 class HistoricalAISCompareBinding:
@@ -599,6 +612,10 @@ class HistoricalAISCompareBinding:
             "contract_id": self.contract_id,
             "alignment_profile_digest": self.alignment_profile_digest,
         }
+
+    @property
+    def bound(self) -> bool:
+        return self.alignment_profile_digest is not None
 
 
 @dataclass(frozen=True)
@@ -742,8 +759,20 @@ class HistoricalAISCase:
         return self.dataset_descriptor.descriptor_sha256
 
     @property
+    def dataset_descriptor_digest(self) -> str:
+        return self.dataset_digest
+
+    @property
     def case_digest(self) -> str:
         return self.runtime_digest
+
+    @property
+    def case_runtime_digest(self) -> str:
+        return self.runtime_digest
+
+    @property
+    def runtime_actor_set_digest(self) -> str:
+        return self.runtime_actor_set().semantic_digest
 
     @property
     def reference_vessel_mmsi(self) -> int:
@@ -782,14 +811,8 @@ class HistoricalAISCase:
             _runtime_actor(actor, actor_id, self.t0_candidate.time_s, actor.mmsi == self.reference_mmsi)
             for actor_id, actor in enumerate(ordered)
         )
-        runtime_dataset_digest = _sha256_json(
-            {
-                "selection": self.selection.to_dict(),
-                "actors": [actor.to_dict() for actor in actors],
-            }
-        )
         return HistoricalActorSet(
-            dataset_digest=runtime_dataset_digest,
+            dataset_digest=self.dataset_digest,
             selection_digest=self.selection.digest,
             profile=self.reconstruction_profile,
             time_origin_utc=self.actor_set.time_origin_utc,
@@ -1052,6 +1075,22 @@ class HistoricalAISCaseBuilder:
                 quality_error_count=len(error_findings),
             )
 
+        published = request.published if request.published is not None else request.require_intent
+        if published:
+            bindings = {
+                "human_reference": request.human_reference_binding.bound,
+                "algorithm": request.algorithm_binding.bound,
+                "evaluation": request.evaluation_binding.bound,
+                "compare": request.compare_binding.bound,
+            }
+            unbound = tuple(sorted(name for name, bound in bindings.items() if not bound))
+            if unbound:
+                return self._failure(
+                    HistoricalAISCaseBuildStatus.BINDINGS_UNAVAILABLE,
+                    "Published HistoricalAISCase requires frozen benchmark bindings",
+                    unbound_bindings=unbound,
+                )
+
         traffic_actor_ids = tuple(sorted(actor.actor_id for actor in actor_set.actors if actor.mmsi in target_mmsis))
         case = HistoricalAISCase(
             dataset_descriptor=request.dataset.descriptor,
@@ -1075,7 +1114,7 @@ class HistoricalAISCaseBuilder:
             evaluation_binding=request.evaluation_binding,
             compare_binding=request.compare_binding,
             dimension_overrides=tuple(dict(value) for value in request.dimension_overrides.values()),
-            published=request.published if request.published is not None else request.require_intent,
+            published=published,
         )
         return HistoricalAISCaseBuildOutcome(HistoricalAISCaseBuildStatus.SUCCESS, case=case)
 
@@ -1523,30 +1562,6 @@ def _coerce_utc(value: datetime | str) -> datetime:
     if parsed.tzinfo is None:
         raise ValueError("UTC datetime must be timezone-aware")
     return parsed.astimezone(UTC)
-
-
-def _sha256_json(value: Any) -> str:
-    return hashlib.sha256(json.dumps(_jsonable(value), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-
-
-def _jsonable(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, bool)):
-        return value
-    if isinstance(value, float):
-        return value if math.isfinite(value) else None
-    if isinstance(value, (datetime, date)):
-        return value.isoformat()
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, bytes):
-        return {"__bytes_hex__": value.hex()}
-    if isinstance(value, Mapping):
-        return {str(key): _jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_jsonable(item) for item in value]
-    if hasattr(value, "to_dict"):
-        return _jsonable(value.to_dict())
-    return str(value)
 
 
 # Vocabulary aliases keep the seam discoverable for callers using concise names.

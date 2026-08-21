@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_case import HistoricalAISCase
+from colav_simulator.historical_serialization import semantic_hash
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -45,6 +46,12 @@ class HistoricalAISCounterfactualRunRequest:
             raise ValueError("Counterfactual Run requires strict pre-T0 Nominal Intent")
         if not isinstance(self.run_spec, RunSpec):
             raise TypeError("run_spec must be RunSpec")
+        if self.case.algorithm_binding.algorithm_id != self.run_spec.algorithm_id:
+            raise ValueError("Counterfactual algorithm differs from frozen Case binding")
+        if self.case.algorithm_binding.configuration_digest != semantic_hash(self.run_spec.algorithm_config):
+            raise ValueError("Counterfactual algorithm configuration differs from frozen Case binding")
+        if self.case.evaluation_binding.profile_id != self.run_spec.evaluator_profile_id:
+            raise ValueError("Counterfactual Evaluator profile differs from frozen Case binding")
         frozen_digest = self.case.human_reference_binding.artifact_digest
         requested_digest = self.human_reference_artifact_digest
         if requested_digest is not None:
@@ -87,7 +94,10 @@ class HistoricalAISCounterfactualRunRequest:
             "counterfactual_t0_s": self.t0_s,
             "nominal_intent": self.case.nominal_intent.to_dict(),
             "case_digest": self.case.runtime_digest,
-            "dataset_digest": actor_set.dataset_digest,
+            "dataset_digest": self.case.dataset_digest,
+            "dataset_descriptor_digest": self.case.dataset_descriptor_digest,
+            "runtime_actor_set_digest": self.case.runtime_actor_set_digest,
+            "case_runtime_digest": self.case.case_runtime_digest,
             "selection_digest": self.case.selection.digest,
             "reconstruction_profile_digest": self.case.reconstruction_digest,
             "enc_profile_digest": self.case.enc_profile_digest,

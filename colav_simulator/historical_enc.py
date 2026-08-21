@@ -9,7 +9,6 @@ cache, and qualification state agree.
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -25,6 +24,8 @@ from shapely import wkb
 from shapely.geometry import LineString, Point, box, shape
 from shapely.ops import unary_union
 from shapely.prepared import prep
+
+from colav_simulator.historical_serialization import semantic_hash as _sha256_json
 
 ENC_REGION_SCHEMA_VERSION = "enc-region.v1"
 ENC_CACHE_SCHEMA_VERSION = "enc-cache.v1"
@@ -795,18 +796,3 @@ def _sha256_directory(path: Path) -> str:
             while chunk := source.read(1024 * 1024):
                 digest.update(chunk)
     return digest.hexdigest()
-
-
-def _sha256_json(value: Any) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=_jsonable).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-def _jsonable(value: Any) -> Any:
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, Mapping):
-        return {str(key): _jsonable(item) for key, item in value.items()}
-    if isinstance(value, (tuple, list)):
-        return [_jsonable(item) for item in value]
-    return value

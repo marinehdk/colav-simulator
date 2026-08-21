@@ -5,7 +5,7 @@ import subprocess
 import sys
 import zipfile
 from dataclasses import FrozenInstanceError
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -15,6 +15,8 @@ from colav_simulator.historical_ais import (
     HistoricalAISSelection,
     QualityFindingCode,
 )
+
+UTC = timezone.utc
 
 
 def _write_csv(path: Path, rows: str) -> Path:
@@ -203,8 +205,7 @@ def test_legacy_semicolon_csv_uses_the_same_normalized_contract(tmp_path: Path) 
 def test_negative_speed_is_retained_as_typed_quality_failure(tmp_path: Path) -> None:
     source = _write_csv(
         tmp_path / "negative-speed.csv",
-        "date_time_utc,mmsi,longitude,latitude,speed_over_ground\n"
-        "2026-07-01T00:00:00Z,123456789,7,62,-1\n",
+        "date_time_utc,mmsi,longitude,latitude,speed_over_ground\n2026-07-01T00:00:00Z,123456789,7,62,-1\n",
     )
 
     result = HistoricalAISDatasetReader(source).read()
