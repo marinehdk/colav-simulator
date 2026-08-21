@@ -1,6 +1,7 @@
 import copy
 import math
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -182,6 +183,14 @@ def test_coordinator_publishes_one_cycle_account_from_shared_physical_facts() ->
     with pytest.raises(ValueError):
         replace(snapshot.vectors[0], lifecycle_role="CAPTAIN")
     assert snapshot.provenance["accepted_plan_applied_sequence"] is None
+    assert snapshot.provenance["physical_facts_hash"] == (
+        "e14d4c4ae2b40459cad8db524f3d850ce736f50cf75e86b184648b6b0cf9420d"
+    )
+
+
+def test_threat_hashing_uses_one_canonical_helper() -> None:
+    source = Path(__file__).resolve().parents[1] / "colav_simulator/core/colav/threat_management.py"
+    assert "hashlib.sha256(json.dumps" not in source.read_text(encoding="utf-8")
 
 
 def test_coordinator_consumes_supplied_canonical_physical_facts_once() -> None:

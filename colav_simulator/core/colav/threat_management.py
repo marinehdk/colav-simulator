@@ -1233,7 +1233,7 @@ def _facts_hash(facts: tuple[PhysicalEncounterFacts, ...]) -> str:
         }
         for fact in facts
     ]
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, allow_nan=False, separators=(",", ":")).encode()).hexdigest()
+    return _sha256_json(payload)
 
 
 def _accepted_plan_receipt_payload(

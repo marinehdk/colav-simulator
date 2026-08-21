@@ -42,6 +42,7 @@ from colav_simulator.experiment.busy_water import (
 from colav_simulator.experiment.contracts import RunSpec, SessionState
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner, PreparedRun, RunResult
+from gui_server.historical_api import router as historical_api_router
 
 log = logging.getLogger("gui_server")
 logging.basicConfig(level=logging.INFO)
@@ -1062,6 +1063,7 @@ async def lifespan(_: FastAPI):
 
 manager = WebSessionManager()
 app = FastAPI(title="COLAV Simulator Research Control", version="1.0", lifespan=lifespan)
+app.include_router(historical_api_router)
 if GUI_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(GUI_DIR)), name="static")
 
