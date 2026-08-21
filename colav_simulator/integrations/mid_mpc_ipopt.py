@@ -821,6 +821,9 @@ class _MidMpcFacade:
                 "lifecycle_input_hash": snapshot.input_hash,
                 "profile_hash": threat_snapshot.profile_hash,
                 "vector_count": len(threat_snapshot.vectors),
+                "conflict_graph": threat_snapshot.conflict_graph.to_dict()
+                if threat_snapshot.conflict_graph is not None
+                else None,
             },
         }
         decision_by_key = {decision.key: decision for decision in snapshot.targets}

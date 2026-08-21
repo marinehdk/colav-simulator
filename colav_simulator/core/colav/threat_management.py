@@ -8,7 +8,10 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from itertools import combinations
 from typing import Any
+
+import numpy as np
 
 from colav_simulator.core.colav.encounter_lifecycle import (
     CommitmentPhase,
@@ -22,7 +25,16 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     canonical_physical_facts,
 )
 from colav_simulator.core.colav.threat_assessment import (
+    ConflictCluster,
+    ConflictEdge,
+    ConflictEdgeType,
+    ConflictGraph,
+    ConflictGraphProfile,
+    ConflictPredictionBasis,
+    ConflictUnavailableReason,
+    ConflictWitness,
     DomainState,
+    OwnshipThreatPrediction,
     PredictionBasis,
     ShipDomainProfile,
     ThreatAssessment,
@@ -35,6 +47,7 @@ from colav_simulator.core.colav.threat_assessment import (
     ThreatScheduleEntry,
     ThreatScheduleEvent,
     ThreatWindow,
+    normalized_domain_scale,
 )
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -71,6 +84,12 @@ class AcceptedPlanReceipt:
     accepted_at_s: float
     valid_until_s: float
     plan_id: str = ""
+    accepted_prediction: OwnshipThreatPrediction | None = None
+    plan_target: TrackKey | None = None
+    target_keys: tuple[TrackKey, ...] = ()
+    prediction_hash: str | None = None
+    acceptance_hash: str | None = None
+    domain_profile_hash: str | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> AcceptedPlanReceipt:
@@ -83,12 +102,46 @@ class AcceptedPlanReceipt:
         receipt_hash = value.get("receipt_hash")
         if not isinstance(receipt_hash, str) or accepted_sequence is None or accepted_at_s is None or valid_until_s is None:
             raise ValueError("accepted plan mapping lacks typed receipt identity/time")
+        accepted_prediction = value.get("accepted_prediction", value.get("ownship_prediction"))
+        if accepted_prediction is not None and not isinstance(accepted_prediction, OwnshipThreatPrediction):
+            accepted_prediction = OwnshipThreatPrediction(
+                times_s=accepted_prediction["times_s"],
+                states_enu=accepted_prediction["states_enu"],
+                basis=str(accepted_prediction.get("basis", "ACCEPTED_PLAN")),
+                model=str(accepted_prediction.get("model", "accepted_plan")),
+                source=str(accepted_prediction.get("source", "L4_ACCEPTED_RECEIPT")),
+                target_keys=tuple(_track_key_from_value(item) for item in accepted_prediction.get("target_keys", ())),
+                prediction_hash=str(accepted_prediction.get("prediction_hash", "")),
+            )
+        plan_target_value = value.get("plan_target", value.get("target_key"))
+        plan_target = _track_key_from_value(plan_target_value) if plan_target_value is not None else None
+        target_keys = tuple(_track_key_from_value(item) for item in value.get("target_keys", ()))
+        if "candidate_hash" in value and not (
+            value.get("parent_acceptance_hash") or value.get("semantic_acceptance_hash")
+        ):
+            raise ValueError("raw solver candidate cannot be accepted as a plan receipt")
         return cls(
             receipt_hash=receipt_hash,
             accepted_sequence=int(accepted_sequence),
             accepted_at_s=float(accepted_at_s),
             valid_until_s=float(valid_until_s),
             plan_id=str(value.get("plan_id", "")),
+            accepted_prediction=accepted_prediction,
+            plan_target=plan_target,
+            target_keys=target_keys,
+            prediction_hash=(
+                str(value["prediction_hash"])
+                if value.get("prediction_hash") is not None
+                else (accepted_prediction.prediction_hash if accepted_prediction is not None else None)
+            ),
+            acceptance_hash=(
+                str(value.get("semantic_acceptance_hash", value.get("parent_acceptance_hash")))
+                if value.get("semantic_acceptance_hash", value.get("parent_acceptance_hash")) is not None
+                else None
+            ),
+            domain_profile_hash=(
+                str(value["domain_profile_hash"]) if value.get("domain_profile_hash") is not None else None
+            ),
         )
 
     def __post_init__(self) -> None:
@@ -99,6 +152,18 @@ class AcceptedPlanReceipt:
             raise ValueError("accepted plan receipt times must be finite")
         if self.accepted_at_s < 0.0 or self.valid_until_s < self.accepted_at_s:
             raise ValueError("accepted plan receipt interval is invalid")
+        keys = tuple(sorted(self.target_keys, key=_track_key_sort))
+        if len(keys) != len(set(keys)) or any(not isinstance(key, TrackKey) for key in keys):
+            raise ValueError("accepted plan target keys must be unique TrackKeys")
+        object.__setattr__(self, "target_keys", keys)
+        if self.plan_target is not None and not isinstance(self.plan_target, TrackKey):
+            raise TypeError("accepted plan target must be TrackKey")
+        if self.accepted_prediction is not None and not isinstance(self.accepted_prediction, OwnshipThreatPrediction):
+            raise TypeError("accepted prediction must be OwnshipThreatPrediction")
+        if self.prediction_hash is not None and not self.prediction_hash.strip():
+            raise ValueError("prediction_hash cannot be empty")
+        if self.acceptance_hash is not None and not self.acceptance_hash.strip():
+            raise ValueError("acceptance_hash cannot be empty")
 
 
 class ThreatManagementCoordinator:
@@ -115,6 +180,7 @@ class ThreatManagementCoordinator:
         if not isinstance(self._domain_profile, ShipDomainProfile):
             raise TypeError("domain_profile must be ShipDomainProfile")
         self._staged_plan: AcceptedPlanReceipt | None = None
+        self._staged_plan_unavailable_reason: ConflictUnavailableReason | None = None
         self._last_snapshot: ThreatManagementSnapshot | None = None
 
     @property
@@ -135,6 +201,7 @@ class ThreatManagementCoordinator:
         """Reset lifecycle and staged evidence at Session Replacement."""
         self._lifecycle.reset(epoch=epoch, reason=reason, sim_time_s=sim_time_s)
         self._staged_plan = None
+        self._staged_plan_unavailable_reason = None
         self._last_snapshot = None
 
     def publish_accepted_plan(self, receipt: AcceptedPlanReceipt) -> None:
@@ -144,6 +211,7 @@ class ThreatManagementCoordinator:
         if not isinstance(receipt, AcceptedPlanReceipt):
             raise TypeError("accepted plan must be AcceptedPlanReceipt")
         self._staged_plan = receipt
+        self._staged_plan_unavailable_reason = None
 
     def cycle(
         self,
@@ -153,6 +221,8 @@ class ThreatManagementCoordinator:
         domain_profile: ShipDomainProfile | None = None,
         predictions: tuple[ThreatPrediction, ...] = (),
         accepted_plan: AcceptedPlanReceipt | None = None,
+        baseline_prediction: OwnshipThreatPrediction | None = None,
+        conflict_profile: ConflictGraphProfile | None = None,
     ) -> ThreatManagementSnapshot:
         """Freeze facts, advance Lifecycle, then publish one immutable account."""
         if not isinstance(cycle, EncounterCycle):
@@ -162,17 +232,25 @@ class ThreatManagementCoordinator:
             domain = self._domain_profile
         if not isinstance(domain, ShipDomainProfile):
             raise TypeError("profile must be ShipDomainProfile")
+        receipt_unavailable_reason = self._staged_plan_unavailable_reason
         if accepted_plan is not None:
-            self.publish_accepted_plan(accepted_plan)
+            try:
+                self.publish_accepted_plan(accepted_plan)
+            except (TypeError, ValueError):
+                self._staged_plan = None
+                self._staged_plan_unavailable_reason = ConflictUnavailableReason.ACCEPTED_PLAN_RECEIPT_INVALID
+                receipt_unavailable_reason = self._staged_plan_unavailable_reason
 
         staged = self._staged_plan
         applied = None
+        expired = False
         if staged is not None and staged.accepted_sequence < cycle.sequence:
             if cycle.sim_time_s <= staged.valid_until_s + 1.0e-9:
                 applied = staged
             else:
-                staged = replace(staged)
+                expired = True
             self._staged_plan = None
+            self._staged_plan_unavailable_reason = None
 
         facts = tuple(cycle.physical_facts) if cycle.physical_facts else tuple(canonical_physical_facts(cycle))
         assessment_request = ThreatAssessmentRequest(
@@ -225,6 +303,24 @@ class ThreatManagementCoordinator:
                 sim_time_s=cycle.sim_time_s,
             ),
         )
+        graph_unavailable_reasons = []
+        if receipt_unavailable_reason is not None:
+            graph_unavailable_reasons.append(receipt_unavailable_reason)
+        if expired:
+            graph_unavailable_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_EXPIRED)
+        graph = ConflictGraphBuilder.build(
+            vectors,
+            predictions=tuple(predictions),
+            profile=conflict_profile or ConflictGraphProfile(),
+            domain_profile=domain,
+            input_hash=assessment_request.input_hash,
+            baseline_prediction=baseline_prediction,
+            accepted_plan=applied,
+            lifecycle_snapshot=lifecycle_snapshot,
+            previous=None if self._last_snapshot is None else self._last_snapshot.conflict_graph,
+            unavailable_reasons=tuple(graph_unavailable_reasons),
+            sim_time_s=cycle.sim_time_s,
+        )
         provenance = {
             "authority": "ThreatManagementCoordinator",
             "physical_facts_count": len(facts),
@@ -242,6 +338,9 @@ class ThreatManagementCoordinator:
                 staged.accepted_sequence if staged is not None and staged.accepted_sequence >= cycle.sequence else None
             ),
             "accepted_plan_receipt_hash": applied.receipt_hash if applied is not None else None,
+            "conflict_graph_hash": graph.semantic_hash,
+            "conflict_edge_count": len(graph.edges),
+            "conflict_cluster_count": len(graph.clusters),
         }
         snapshot = replace(
             assessed,
@@ -250,10 +349,415 @@ class ThreatManagementCoordinator:
             schedule=schedule,
             events=schedule.events,
             accepted_plan_receipt=applied,
+            conflict_graph=graph,
             provenance=provenance,
         )
+        self._staged_plan_unavailable_reason = None
         self._last_snapshot = snapshot
         return snapshot
+
+
+class ConflictGraphBuilder:
+    """Build typed conflict edges and deterministic connected components."""
+
+    @staticmethod
+    def build(  # noqa: C901, PLR0912, PLR0915
+        vectors: tuple[Any, ...],
+        *,
+        predictions: tuple[ThreatPrediction, ...],
+        profile: ConflictGraphProfile,
+        domain_profile: ShipDomainProfile,
+        input_hash: str,
+        baseline_prediction: OwnshipThreatPrediction | None,
+        accepted_plan: AcceptedPlanReceipt | None,
+        lifecycle_snapshot: Any | None,
+        previous: ConflictGraph | None,
+        unavailable_reasons: tuple[ConflictUnavailableReason | str, ...] = (),
+        sim_time_s: float = 0.0,
+    ) -> ConflictGraph:
+        if not isinstance(profile, ConflictGraphProfile):
+            raise TypeError("profile must be ConflictGraphProfile")
+        if not isinstance(domain_profile, ShipDomainProfile):
+            raise TypeError("domain_profile must be ShipDomainProfile")
+        ordered_vectors = tuple(sorted(vectors, key=lambda vector: _track_key_sort(vector.key)))
+        nodes = tuple(vector.key for vector in ordered_vectors)
+        edges: list[ConflictEdge] = []
+        vector_by_key = {vector.key: vector for vector in ordered_vectors}
+        for left, right in combinations(ordered_vectors, 2):
+            overlap = _window_overlap(left.window, right.window, profile.window_overlap_gap_s)
+            if overlap is None:
+                continue
+            witness = ConflictWitness(
+                {
+                    "left_window": _window_document(left.window),
+                    "right_window": _window_document(right.window),
+                    "overlap_start_s": overlap[0],
+                    "overlap_end_s": overlap[1],
+                    "overlap_duration_s": overlap[1] - overlap[0],
+                    "gap_tolerance_s": profile.window_overlap_gap_s,
+                }
+            )
+            edges.append(
+                _make_edge(
+                    ConflictEdgeType.DIRECT_WINDOW_OVERLAP,
+                    (left.key, right.key),
+                    ConflictPredictionBasis.THREAT_WINDOW,
+                    witness,
+                    input_hash,
+                )
+            )
+
+        plan_reasons = [ConflictUnavailableReason(reason) for reason in unavailable_reasons]
+        prediction_by_key = {prediction.key: prediction for prediction in predictions}
+        if baseline_prediction is None:
+            plan_reasons.append(ConflictUnavailableReason.BASELINE_UNAVAILABLE)
+        if accepted_plan is None:
+            plan_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_UNAVAILABLE)
+        elif accepted_plan.accepted_prediction is None:
+            plan_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_PREDICTION_UNAVAILABLE)
+        elif accepted_plan.valid_until_s + 1.0e-9 < sim_time_s:
+            plan_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_EXPIRED)
+        else:
+            target_keys = set(prediction_by_key)
+            if (
+                baseline_prediction is not None
+                and (
+                    not baseline_prediction.target_keys
+                    or set(baseline_prediction.target_keys) != target_keys
+                )
+            ):
+                plan_reasons.append(ConflictUnavailableReason.TARGET_PREDICTION_IDENTITY_MISMATCH)
+            accepted_prediction = accepted_plan.accepted_prediction
+            if not accepted_plan.target_keys or set(accepted_plan.target_keys) != target_keys:
+                plan_reasons.append(ConflictUnavailableReason.PLAN_PREDICTION_IDENTITY_MISMATCH)
+            if (
+                accepted_prediction is not None
+                and (
+                    not accepted_prediction.target_keys
+                    or set(accepted_prediction.target_keys) != target_keys
+                )
+            ):
+                plan_reasons.append(ConflictUnavailableReason.PLAN_PREDICTION_IDENTITY_MISMATCH)
+            if (
+                accepted_plan.prediction_hash is not None
+                and accepted_prediction is not None
+                and accepted_plan.prediction_hash != accepted_prediction.semantic_hash
+            ):
+                plan_reasons.append(ConflictUnavailableReason.PLAN_PREDICTION_IDENTITY_MISMATCH)
+            if (
+                accepted_plan.domain_profile_hash is not None
+                and accepted_plan.domain_profile_hash != domain_profile.profile_hash
+            ):
+                plan_reasons.append(ConflictUnavailableReason.PLAN_PROFILE_MISMATCH)
+            driver_key = accepted_plan.plan_target
+            if driver_key is None and lifecycle_snapshot is not None:
+                driver_key = getattr(lifecycle_snapshot, "primary_target", None)
+            if driver_key is None or driver_key not in vector_by_key:
+                plan_reasons.append(ConflictUnavailableReason.PLAN_TARGET_UNAVAILABLE)
+            elif not plan_reasons:
+                for target_key, prediction in sorted(
+                    prediction_by_key.items(),
+                    key=lambda item: _track_key_sort(item[0]),
+                ):
+                    if target_key == driver_key:
+                        continue
+                    vector = vector_by_key.get(target_key)
+                    if vector is None or vector.uncertainty_radius_m is None:
+                        plan_reasons.append(ConflictUnavailableReason.TARGET_PREDICTION_UNAVAILABLE)
+                        continue
+                    baseline_trace = _ownship_domain_trace(
+                        baseline_prediction,
+                        prediction,
+                        vector.uncertainty_radius_m,
+                        domain_profile,
+                    )
+                    accepted_trace = _ownship_domain_trace(
+                        accepted_prediction,
+                        prediction,
+                        vector.uncertainty_radius_m,
+                        domain_profile,
+                    )
+                    if baseline_trace is None or accepted_trace is None:
+                        plan_reasons.append(ConflictUnavailableReason.TARGET_PREDICTION_UNAVAILABLE)
+                        continue
+                    material = _material_plan_worsening(baseline_trace, accepted_trace, profile)
+                    if material is None:
+                        continue
+                    witness = ConflictWitness(
+                        {
+                            "driver_target": _key_document(driver_key),
+                            "affected_target": _key_document(target_key),
+                            "baseline": baseline_trace,
+                            "accepted": accepted_trace,
+                            "materiality": material,
+                            "baseline_prediction_hash": baseline_prediction.semantic_hash,
+                            "accepted_prediction_hash": accepted_prediction.semantic_hash,
+                            "plan_receipt_hash": accepted_plan.receipt_hash,
+                        }
+                    )
+                    edges.append(
+                        _make_edge(
+                            ConflictEdgeType.PLAN_INDUCED_CONFLICT,
+                            (driver_key, target_key),
+                            ConflictPredictionBasis.BASELINE_VS_ACCEPTED_PLAN,
+                            witness,
+                            input_hash,
+                            plan_receipt_hash=accepted_plan.receipt_hash,
+                        )
+                    )
+        clusters = _connected_clusters(edges, profile.profile_hash, previous)
+        return ConflictGraph(
+            nodes=nodes,
+            edges=tuple(edges),
+            clusters=clusters,
+            unavailable_reasons=tuple(plan_reasons),
+            profile_hash=profile.profile_hash,
+            input_hash=input_hash,
+        )
+
+
+def _make_edge(
+    edge_type: ConflictEdgeType,
+    members: tuple[TrackKey, ...],
+    prediction_basis: ConflictPredictionBasis,
+    witness: ConflictWitness,
+    input_hash: str,
+    *,
+    plan_receipt_hash: str | None = None,
+) -> ConflictEdge:
+    identity = {
+        "edge_type": edge_type.value,
+        "members": [_key_document(key) for key in sorted(members, key=_track_key_sort)],
+        "prediction_basis": prediction_basis.value,
+        "witness": witness.to_dict(),
+        "input_hash": input_hash,
+        "plan_receipt_hash": plan_receipt_hash,
+    }
+    edge_id = f"conflict-edge-v1:{_sha256_json(identity)}"
+    return ConflictEdge(
+        edge_id=edge_id,
+        edge_type=edge_type,
+        members=members,
+        prediction_basis=prediction_basis,
+        witness=witness,
+        input_hash=input_hash,
+        plan_receipt_hash=plan_receipt_hash,
+    )
+
+
+def _connected_clusters(
+    edges: list[ConflictEdge],
+    profile_hash: str,
+    previous: ConflictGraph | None,
+) -> tuple[ConflictCluster, ...]:
+    parent: dict[TrackKey, TrackKey] = {}
+
+    def find(key: TrackKey) -> TrackKey:
+        parent.setdefault(key, key)
+        while parent[key] != key:
+            parent[key] = parent[parent[key]]
+            key = parent[key]
+        return key
+
+    def union(left: TrackKey, right: TrackKey) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[max(left_root, right_root, key=_track_key_sort)] = min(
+                left_root,
+                right_root,
+                key=_track_key_sort,
+            )
+
+    for edge in edges:
+        for member in edge.members:
+            find(member)
+        for member in edge.members[1:]:
+            union(edge.members[0], member)
+    members_by_root: dict[TrackKey, set[TrackKey]] = {}
+    for member in parent:
+        members_by_root.setdefault(find(member), set()).add(member)
+    previous_clusters = () if previous is None else previous.clusters
+    clusters: list[ConflictCluster] = []
+    for members in members_by_root.values():
+        if len(members) < 2:
+            continue
+        member_set = set(members)
+        edge_ids = tuple(sorted(edge.edge_id for edge in edges if member_set.intersection(edge.members)))
+        identity = {
+            "schema_version": "colav.conflict-cluster@1",
+            "members": [_key_document(key) for key in sorted(member_set, key=_track_key_sort)],
+            "edge_ids": list(edge_ids),
+            "profile_hash": profile_hash,
+        }
+        cluster_id = f"conflict-cluster-v1:{_sha256_json(identity)}"
+        parents = tuple(
+            cluster.cluster_id
+            for cluster in previous_clusters
+            if member_set.intersection(cluster.members)
+        )
+        clusters.append(
+            ConflictCluster(
+                cluster_id=cluster_id,
+                members=tuple(member_set),
+                edge_ids=edge_ids,
+                parent_cluster_ids=parents,
+            )
+        )
+    return tuple(sorted(clusters, key=lambda cluster: cluster.cluster_id))
+
+
+def _window_overlap(
+    left: ThreatWindow | None,
+    right: ThreatWindow | None,
+    gap_s: float,
+) -> tuple[float, float] | None:
+    left_interval = _window_interval(left)
+    right_interval = _window_interval(right)
+    if left_interval is None or right_interval is None:
+        return None
+    start = max(left_interval[0], right_interval[0])
+    end = min(left_interval[1], right_interval[1])
+    if end + gap_s < start:
+        return None
+    return start, end
+
+
+def _window_interval(window: ThreatWindow | None) -> tuple[float, float] | None:
+    if window is None or window.prediction_basis is PredictionBasis.UNAVAILABLE:
+        return None
+    if window.completeness != "FULL":
+        return None
+    if window.entry_time_s is None:
+        return None
+    end = window.exit_time_s if window.exit_time_s is not None else window.horizon_end_s
+    if end is None or end < window.entry_time_s:
+        return None
+    return float(window.entry_time_s), float(end)
+
+
+def _window_document(window: ThreatWindow | None) -> object:
+    if window is None:
+        return None
+    return {
+        "entry_time_s": window.entry_time_s,
+        "peak_time_s": window.peak_time_s,
+        "exit_time_s": window.exit_time_s,
+        "horizon_end_s": window.horizon_end_s,
+        "prediction_basis": window.prediction_basis.value,
+        "completeness": window.completeness,
+    }
+
+
+def _ownship_domain_trace(
+    ownship: OwnshipThreatPrediction | None,
+    target: ThreatPrediction,
+    uncertainty_radius_m: float,
+    profile: ShipDomainProfile,
+) -> dict[str, object] | None:
+    if ownship is None or not profile.qualified:
+        return None
+    if target.times_s[0] < ownship.times_s[0] - 1.0e-9 or target.times_s[-1] > ownship.times_s[-1] + 1.0e-9:
+        return None
+    query = np.asarray(target.times_s, dtype=float)
+    own_north = np.interp(query, ownship.times_s, ownship.states_enu[:, 0])
+    own_east = np.interp(query, ownship.times_s, ownship.states_enu[:, 1])
+    own_velocity_north = np.interp(query, ownship.times_s, ownship.states_enu[:, 2])
+    own_velocity_east = np.interp(query, ownship.times_s, ownship.states_enu[:, 3])
+    if np.any(np.hypot(own_velocity_north, own_velocity_east) <= 1.0e-12):
+        return None
+    scales: list[float] = []
+    for index, state in enumerate(target.states_enu):
+        heading = math.atan2(float(own_velocity_east[index]), float(own_velocity_north[index]))
+        forward = np.array([math.cos(heading), math.sin(heading)])
+        starboard = np.array([math.sin(heading), -math.cos(heading)])
+        relative = np.array([state[0] - own_north[index], state[1] - own_east[index]])
+        scales.append(
+            normalized_domain_scale(
+                float(relative @ forward),
+                float(relative @ starboard),
+                profile,
+                uncertainty_radius_m,
+            )
+        )
+    scale_array = np.asarray(scales, dtype=float)
+    entry = _first_scale_entry(query, scale_array)
+    exit_time = _first_scale_exit(query, scale_array, entry)
+    return {
+        "times_s": query.tolist(),
+        "scales": scale_array.tolist(),
+        "min_scale": float(np.min(scale_array)),
+        "tdv_s": entry,
+        "tde_s": exit_time,
+        "domain_violation": bool(np.any(scale_array < 1.0 - 1.0e-9)),
+    }
+
+
+def _first_scale_entry(times: np.ndarray, scales: np.ndarray) -> float | None:
+    if scales[0] < 1.0 - 1.0e-9:
+        return float(times[0])
+    for index in range(1, scales.size):
+        if scales[index] < 1.0 - 1.0e-9:
+            return _linear_crossing(
+                float(times[index - 1]),
+                float(times[index]),
+                float(scales[index - 1]),
+                float(scales[index]),
+            )
+    return None
+
+
+def _first_scale_exit(times: np.ndarray, scales: np.ndarray, entry: float | None) -> float | None:
+    if entry is None:
+        return None
+    start = max(1, int(np.searchsorted(times, entry, side="left")))
+    for index in range(start, scales.size):
+        if scales[index] > 1.0 + 1.0e-9:
+            return _linear_crossing(
+                float(times[index - 1]),
+                float(times[index]),
+                float(scales[index - 1]),
+                float(scales[index]),
+            )
+    return None
+
+
+def _linear_crossing(t0: float, t1: float, scale0: float, scale1: float) -> float:
+    if math.isclose(scale0, scale1, abs_tol=1.0e-12):
+        return t1
+    fraction = (1.0 - scale0) / (scale1 - scale0)
+    return t0 + min(max(fraction, 0.0), 1.0) * (t1 - t0)
+
+
+def _material_plan_worsening(
+    baseline: dict[str, object],
+    accepted: dict[str, object],
+    profile: ConflictGraphProfile,
+) -> dict[str, object] | None:
+    baseline_violation = bool(baseline["domain_violation"])
+    accepted_violation = bool(accepted["domain_violation"])
+    baseline_tdv = baseline["tdv_s"]
+    accepted_tdv = accepted["tdv_s"]
+    new_violation = accepted_violation and not baseline_violation
+    earlier_entry = (
+        isinstance(baseline_tdv, (int, float))
+        and isinstance(accepted_tdv, (int, float))
+        and float(baseline_tdv) - float(accepted_tdv) >= profile.material_tdv_advance_s
+    )
+    scale_delta = float(baseline["min_scale"]) - float(accepted["min_scale"])
+    scale_worsening = scale_delta >= profile.material_scale_worsening
+    if not (new_violation or earlier_entry or scale_worsening):
+        return None
+    return {
+        "new_domain_violation": new_violation,
+        "materially_earlier_tdv": earlier_entry,
+        "material_scale_worsening": scale_worsening,
+        "baseline_tdv_s": baseline_tdv,
+        "accepted_tdv_s": accepted_tdv,
+        "baseline_min_scale": baseline["min_scale"],
+        "accepted_min_scale": accepted["min_scale"],
+        "scale_delta": scale_delta,
+    }
 
 
 def _priority_fact(vector: Any, cycle: EncounterCycle) -> PrimaryPriorityFact:
@@ -582,3 +1086,27 @@ def _facts_hash(facts: tuple[PhysicalEncounterFacts, ...]) -> str:
         for fact in facts
     ]
     return hashlib.sha256(json.dumps(payload, sort_keys=True, allow_nan=False, separators=(",", ":")).encode()).hexdigest()
+
+
+def _track_key_from_value(value: Any) -> TrackKey:
+    if isinstance(value, TrackKey):
+        return value
+    if isinstance(value, Mapping):
+        return TrackKey(int(value["target_id"]), int(value["generation"]))
+    if isinstance(value, (tuple, list)) and len(value) == 2:
+        return TrackKey(int(value[0]), int(value[1]))
+    raise TypeError("track key must be TrackKey or [target_id, generation]")
+
+
+def _track_key_sort(key: TrackKey) -> tuple[int, int]:
+    return key.target_id, key.generation
+
+
+def _key_document(key: TrackKey) -> list[int]:
+    return [key.target_id, key.generation]
+
+
+def _sha256_json(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    ).hexdigest()

@@ -253,6 +253,270 @@ class ThreatSchedule:
         return self.next_threats
 
 
+class ConflictEdgeType(StrEnum):
+    """Typed relationship represented in the online conflict graph."""
+
+    DIRECT_WINDOW_OVERLAP = "DIRECT_WINDOW_OVERLAP"
+    PLAN_INDUCED_CONFLICT = "PLAN_INDUCED_CONFLICT"
+
+
+class ConflictPredictionBasis(StrEnum):
+    """Prediction provenance attached to one immutable graph edge."""
+
+    THREAT_WINDOW = "THREAT_WINDOW"
+    BASELINE_VS_ACCEPTED_PLAN = "BASELINE_VS_ACCEPTED_PLAN"
+    MIXED = "MIXED"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class ConflictUnavailableReason(StrEnum):
+    """Typed reasons why optional plan-induced evidence is unavailable."""
+
+    BASELINE_UNAVAILABLE = "BASELINE_UNAVAILABLE"
+    ACCEPTED_PLAN_UNAVAILABLE = "ACCEPTED_PLAN_UNAVAILABLE"
+    ACCEPTED_PLAN_PREDICTION_UNAVAILABLE = "ACCEPTED_PLAN_PREDICTION_UNAVAILABLE"
+    ACCEPTED_PLAN_RECEIPT_INVALID = "ACCEPTED_PLAN_RECEIPT_INVALID"
+    ACCEPTED_PLAN_EXPIRED = "ACCEPTED_PLAN_EXPIRED"
+    TARGET_PREDICTION_UNAVAILABLE = "TARGET_PREDICTION_UNAVAILABLE"
+    TARGET_PREDICTION_IDENTITY_MISMATCH = "TARGET_PREDICTION_IDENTITY_MISMATCH"
+    PLAN_PREDICTION_IDENTITY_MISMATCH = "PLAN_PREDICTION_IDENTITY_MISMATCH"
+    PLAN_PROFILE_MISMATCH = "PLAN_PROFILE_MISMATCH"
+    PLAN_TARGET_UNAVAILABLE = "PLAN_TARGET_UNAVAILABLE"
+
+
+@dataclass(frozen=True)
+class ConflictGraphProfile:
+    """Versioned deterministic overlap and materiality policy."""
+
+    profile_id: str = "colav.conflict-graph.v1"
+    version: str = "1"
+    window_overlap_gap_s: float = 0.0
+    material_tdv_advance_s: float = 5.0
+    material_scale_worsening: float = 0.1
+
+    def __post_init__(self) -> None:
+        """Validate graph thresholds without coupling them to L4 safety."""
+        if not self.profile_id.strip() or not self.version.strip():
+            raise ValueError("conflict graph profile identity is required")
+        values = (
+            self.window_overlap_gap_s,
+            self.material_tdv_advance_s,
+            self.material_scale_worsening,
+        )
+        if not np.isfinite(values).all() or min(values) < 0.0:
+            raise ValueError("conflict graph thresholds must be finite and non-negative")
+
+    @property
+    def profile_hash(self) -> str:
+        return _sha256(self.to_dict())
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "profile_id": self.profile_id,
+            "version": self.version,
+            "window_overlap_gap_s": self.window_overlap_gap_s,
+            "material_tdv_advance_s": self.material_tdv_advance_s,
+            "material_scale_worsening": self.material_scale_worsening,
+        }
+
+
+@dataclass(frozen=True)
+class OwnshipThreatPrediction:
+    """Explicit ownship path used only for plan-conflict comparison."""
+
+    times_s: np.ndarray
+    states_enu: np.ndarray
+    basis: str = "EXPLICIT_TRAJECTORY"
+    model: str = "ownship_prediction"
+    source: str = "UNKNOWN"
+    target_keys: tuple[TrackKey, ...] = ()
+    prediction_hash: str = ""
+
+    def __post_init__(self) -> None:
+        """Freeze one finite ownship prediction and its target identity set."""
+        times = np.array(self.times_s, dtype=float, copy=True)
+        states = np.array(self.states_enu, dtype=float, copy=True)
+        if times.ndim != 1 or times.size < 2 or not np.isfinite(times).all():
+            raise ValueError("ownship prediction times must be finite and contain at least two samples")
+        if times[0] < 0.0 or np.any(np.diff(times) <= 0.0):
+            raise ValueError("ownship prediction times must be strictly increasing and non-negative")
+        if states.shape != (times.size, 4) or not np.isfinite(states).all():
+            raise ValueError("ownship prediction states must have shape (N, 4) and be finite")
+        keys = tuple(sorted(self.target_keys, key=_track_key_sort))
+        if len(keys) != len(set(keys)) or any(not isinstance(key, TrackKey) for key in keys):
+            raise ValueError("ownship prediction target keys must be unique TrackKeys")
+        if not self.basis.strip() or not self.model.strip() or not self.source.strip():
+            raise ValueError("ownship prediction provenance is required")
+        times.setflags(write=False)
+        states.setflags(write=False)
+        object.__setattr__(self, "times_s", times)
+        object.__setattr__(self, "states_enu", states)
+        object.__setattr__(self, "target_keys", keys)
+        computed_hash = _sha256(self.to_dict(include_hash=False))
+        if self.prediction_hash and self.prediction_hash != computed_hash:
+            raise ValueError("ownship prediction hash does not match prediction content")
+        object.__setattr__(self, "prediction_hash", computed_hash)
+
+    @property
+    def semantic_hash(self) -> str:
+        return self.prediction_hash
+
+    def to_dict(self, *, include_hash: bool = True) -> dict[str, object]:
+        value: dict[str, object] = {
+            "times_s": self.times_s.tolist(),
+            "states_enu": self.states_enu.tolist(),
+            "basis": self.basis,
+            "model": self.model,
+            "source": self.source,
+            "target_keys": [_json_value(key) for key in self.target_keys],
+        }
+        if include_hash:
+            value["prediction_hash"] = self.prediction_hash
+        return value
+
+
+@dataclass(frozen=True)
+class ConflictWitness:
+    """Immutable before/after or overlap evidence attached to an edge."""
+
+    values: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        """Freeze nested witness values for deterministic serialization."""
+        object.__setattr__(self, "values", _freeze_mapping(self.values))
+
+    def to_dict(self) -> dict[str, object]:
+        return _json_value(self.values)
+
+
+@dataclass(frozen=True)
+class ConflictEdge:
+    """One typed undirected relationship between target identities."""
+
+    edge_id: str
+    edge_type: ConflictEdgeType | str
+    members: tuple[TrackKey, ...]
+    prediction_basis: ConflictPredictionBasis | str
+    witness: ConflictWitness
+    input_hash: str
+    plan_receipt_hash: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate typed members and normalize deterministic ordering."""
+        if not self.edge_id.strip() or not self.input_hash.strip():
+            raise ValueError("conflict edge identity and input hash are required")
+        members = tuple(sorted(self.members, key=_track_key_sort))
+        if len(members) < 2 or len(members) != len(set(members)) or any(
+            not isinstance(key, TrackKey) for key in members
+        ):
+            raise ValueError("conflict edge must contain at least two unique TrackKeys")
+        object.__setattr__(self, "members", members)
+        object.__setattr__(self, "edge_type", ConflictEdgeType(self.edge_type))
+        object.__setattr__(self, "prediction_basis", ConflictPredictionBasis(self.prediction_basis))
+        if self.plan_receipt_hash is not None and not self.plan_receipt_hash.strip():
+            raise ValueError("plan receipt hash cannot be empty")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "edge_id": self.edge_id,
+            "edge_type": self.edge_type.value,
+            "members": [_json_value(key) for key in self.members],
+            "prediction_basis": self.prediction_basis.value,
+            "witness": self.witness.to_dict(),
+            "input_hash": self.input_hash,
+            "plan_receipt_hash": self.plan_receipt_hash,
+        }
+
+
+@dataclass(frozen=True)
+class ConflictCluster:
+    """Deterministic connected component and immutable lineage."""
+
+    cluster_id: str
+    members: tuple[TrackKey, ...]
+    edge_ids: tuple[str, ...]
+    parent_cluster_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Validate component membership and freeze lineage identifiers."""
+        if not self.cluster_id.strip():
+            raise ValueError("conflict cluster identity is required")
+        members = tuple(sorted(self.members, key=_track_key_sort))
+        if len(members) < 2 or len(members) != len(set(members)):
+            raise ValueError("conflict cluster must contain at least two unique members")
+        object.__setattr__(self, "members", members)
+        object.__setattr__(self, "edge_ids", tuple(sorted(set(self.edge_ids))))
+        object.__setattr__(self, "parent_cluster_ids", tuple(sorted(set(self.parent_cluster_ids))))
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "cluster_id": self.cluster_id,
+            "members": [_json_value(key) for key in self.members],
+            "edge_ids": list(self.edge_ids),
+            "parent_cluster_ids": list(self.parent_cluster_ids),
+        }
+
+
+@dataclass(frozen=True)
+class ConflictGraph:
+    """Canonical graph and connected components for one Threat cycle."""
+
+    nodes: tuple[TrackKey, ...] = ()
+    edges: tuple[ConflictEdge, ...] = ()
+    clusters: tuple[ConflictCluster, ...] = ()
+    unavailable_reasons: tuple[ConflictUnavailableReason | str, ...] = ()
+    profile_hash: str = ""
+    input_hash: str = ""
+    schema_version: str = "colav.conflict-graph@1"
+    _semantic_hash: str = field(default="", init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        """Freeze graph collections and calculate the semantic identity."""
+        nodes = tuple(sorted(self.nodes, key=_track_key_sort))
+        if len(nodes) != len(set(nodes)) or any(not isinstance(key, TrackKey) for key in nodes):
+            raise ValueError("conflict graph nodes must be unique TrackKeys")
+        edges = tuple(sorted(self.edges, key=lambda edge: edge.edge_id))
+        clusters = tuple(sorted(self.clusters, key=lambda cluster: cluster.cluster_id))
+        if len({edge.edge_id for edge in edges}) != len(edges):
+            raise ValueError("conflict edge IDs must be unique")
+        if any(not set(edge.members).issubset(nodes) for edge in edges):
+            raise ValueError("conflict edges must reference graph nodes")
+        object.__setattr__(self, "nodes", nodes)
+        object.__setattr__(self, "edges", edges)
+        object.__setattr__(self, "clusters", clusters)
+        object.__setattr__(
+            self,
+            "unavailable_reasons",
+            tuple(
+                sorted(
+                    {ConflictUnavailableReason(reason) for reason in self.unavailable_reasons},
+                    key=lambda value: value.value,
+                )
+            ),
+        )
+        if not self.profile_hash.strip() or not self.input_hash.strip():
+            raise ValueError("conflict graph profile and input hashes are required")
+        object.__setattr__(self, "_semantic_hash", _sha256(self.to_dict(include_hash=False)))
+
+    @property
+    def semantic_hash(self) -> str:
+        return self._semantic_hash
+
+    def to_dict(self, *, include_hash: bool = True) -> dict[str, object]:
+        value: dict[str, object] = {
+            "schema_version": self.schema_version,
+            "nodes": [_json_value(key) for key in self.nodes],
+            "edges": [edge.to_dict() for edge in self.edges],
+            "clusters": [cluster.to_dict() for cluster in self.clusters],
+            "unavailable_reasons": [reason.value for reason in self.unavailable_reasons],
+            "profile_hash": self.profile_hash,
+            "input_hash": self.input_hash,
+        }
+        if include_hash:
+            value["semantic_hash"] = self.semantic_hash
+        return value
+
+
 @dataclass(frozen=True)
 class ThreatPrediction:
     """Immutable target trajectory on an explicit relative-time horizon."""
@@ -648,6 +912,7 @@ class ThreatManagementSnapshot:
     schedule: ThreatSchedule | None = None
     events: tuple[ThreatScheduleEvent, ...] = ()
     accepted_plan_receipt: Any | None = None
+    conflict_graph: ConflictGraph | None = None
 
     def __post_init__(self) -> None:
         """Freeze result collections and compute its semantic identity."""
@@ -685,6 +950,10 @@ class ThreatManagementSnapshot:
     def threat_schedule(self) -> ThreatSchedule | None:
         return self.schedule
 
+    @property
+    def graph(self) -> ConflictGraph | None:
+        return self.conflict_graph
+
     def to_dict(self, *, include_hash: bool = True) -> dict[str, object]:
         value: dict[str, object] = {
             "schema_version": self.schema_version,
@@ -701,6 +970,11 @@ class ThreatManagementSnapshot:
             "schedule": _json_value(self.schedule),
             "events": [_json_value(event) for event in self.events],
             "accepted_plan_receipt": _json_value(self.accepted_plan_receipt),
+            "conflict_graph": (
+                self.conflict_graph.to_dict()
+                if self.conflict_graph is not None
+                else None
+            ),
         }
         if include_hash:
             value["semantic_hash"] = self.semantic_hash
@@ -1041,6 +1315,16 @@ def _normalized_domain_scale(
     semi_minor = 0.5 * (profile.port_m + profile.starboard_m) + float(uncertainty_radius_m or 0.0)
     center_offset = 0.5 * (profile.fore_m - profile.aft_m)
     return math.sqrt(((forward_m - center_offset) / semi_major) ** 2 + (starboard_m / semi_minor) ** 2)
+
+
+def normalized_domain_scale(
+    forward_m: float,
+    starboard_m: float,
+    profile: ShipDomainProfile,
+    uncertainty_radius_m: float | None,
+) -> float:
+    """Expose the canonical profile-bound scale for plan-conflict witnesses."""
+    return _normalized_domain_scale(forward_m, starboard_m, profile, uncertainty_radius_m)
 
 
 def _domain_state(scale: float) -> DomainState:

@@ -1,5 +1,6 @@
 import math
 from dataclasses import replace
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -15,13 +16,21 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     canonical_physical_facts,
 )
 from colav_simulator.core.colav.threat_assessment import (
+    ConflictEdgeType,
+    ConflictGraphProfile,
+    DomainFacts,
+    DomainState,
+    OwnshipThreatPrediction,
     PredictionBasis,
     ShipDomainProfile,
     ThreatPrediction,
     ThreatScheduleContext,
+    ThreatVector,
+    ThreatWindow,
 )
 from colav_simulator.core.colav.threat_management import (
     AcceptedPlanReceipt,
+    ConflictGraphBuilder,
     ThreatManagementCoordinator,
 )
 from colav_simulator.core.tracking.trackers import TrackKey
@@ -84,6 +93,25 @@ def _target(key: TrackKey, north_m: float, *, health: ObservationHealth = Observ
 
 def _same_course_target(key: TrackKey, north_m: float) -> TargetObservation:
     return replace(_target(key, north_m), state_enu=np.array([north_m, 0.0, 7.0, 0.0]))
+
+
+def _vector_for_graph(key: TrackKey) -> ThreatVector:
+    outside = DomainFacts(state=DomainState.OUTSIDE, normalized_scale=2.0, uncertainty_radius_m=0.0)
+    return ThreatVector(
+        key=key,
+        observation_health=ObservationHealth.UPDATED,
+        range_m=1_000.0,
+        closing_speed_mps=0.0,
+        dcpa_m=1_000.0,
+        tcpa_signed_s=None,
+        tcpa_forward_s=None,
+        hull_clearance_m=900.0,
+        current_domain=outside,
+        predicted_domain=outside,
+        uncertainty_radius_m=0.0,
+        claim_completeness="FULL",
+        prediction_basis=PredictionBasis.EXPLICIT_TRAJECTORY,
+    )
 
 
 def _entering_prediction(key: TrackKey) -> ThreatPrediction:
@@ -280,3 +308,290 @@ def test_lifecycle_cycle_rejects_partial_canonical_physical_facts() -> None:
 
     with pytest.raises(ValueError, match="physical facts must cover every target"):
         replace(cycle, physical_facts=partial)
+
+
+def test_conflict_graph_empty_cycle_is_typed_and_deterministic() -> None:
+    snapshot = ThreatManagementCoordinator().cycle(_cycle(0, 0.0, ()), profile=_domain_profile())
+
+    assert snapshot.conflict_graph is not None
+    assert snapshot.conflict_graph.nodes == ()
+    assert snapshot.conflict_graph.edges == ()
+    assert snapshot.conflict_graph.clusters == ()
+    assert snapshot.conflict_graph.to_dict() == snapshot.conflict_graph.to_dict()
+    assert snapshot.to_dict()["conflict_graph"]["semantic_hash"] == snapshot.conflict_graph.semantic_hash
+    assert "BASELINE_UNAVAILABLE" in {reason.value for reason in snapshot.conflict_graph.unavailable_reasons}
+
+
+@pytest.mark.parametrize("target_count", (0, 1, 16, 17))
+def test_conflict_graph_preserves_all_target_cardinalities(target_count: int) -> None:
+    vectors = tuple(_vector_for_graph(TrackKey(index, 1)) for index in range(target_count))
+
+    graph = ConflictGraphBuilder.build(
+        vectors,
+        predictions=(),
+        profile=ConflictGraphProfile(),
+        domain_profile=_domain_profile(),
+        input_hash="cycle-hash",
+        baseline_prediction=None,
+        accepted_plan=None,
+        lifecycle_snapshot=None,
+        previous=None,
+    )
+
+    assert len(graph.nodes) == target_count
+    assert graph.edges == ()
+    assert graph.clusters == ()
+
+
+def test_direct_window_overlap_forms_input_order_independent_transitive_cluster() -> None:
+    profile = _domain_profile()
+    graph_profile = ConflictGraphProfile(window_overlap_gap_s=0.0)
+    windows = {
+        TrackKey(1, 1): ThreatWindow(
+            key=TrackKey(1, 1),
+            entry_time_s=0.0,
+            exit_time_s=10.0,
+            horizon_end_s=10.0,
+            prediction_basis=PredictionBasis.EXPLICIT_TRAJECTORY,
+            completeness="FULL",
+        ),
+        TrackKey(2, 1): ThreatWindow(
+            key=TrackKey(2, 1),
+            entry_time_s=5.0,
+            exit_time_s=15.0,
+            horizon_end_s=15.0,
+            prediction_basis=PredictionBasis.EXPLICIT_TRAJECTORY,
+            completeness="FULL",
+        ),
+        TrackKey(3, 1): ThreatWindow(
+            key=TrackKey(3, 1),
+            entry_time_s=10.0,
+            exit_time_s=20.0,
+            horizon_end_s=20.0,
+            prediction_basis=PredictionBasis.EXPLICIT_TRAJECTORY,
+            completeness="FULL",
+        ),
+        TrackKey(4, 1): ThreatWindow(
+            key=TrackKey(4, 1),
+            entry_time_s=40.0,
+            exit_time_s=50.0,
+            horizon_end_s=50.0,
+            prediction_basis=PredictionBasis.EXPLICIT_TRAJECTORY,
+            completeness="FULL",
+        ),
+    }
+    vectors = tuple(
+        replace(
+            _vector_for_graph(key),
+            window=window,
+        )
+        for key, window in windows.items()
+    )
+
+    first = ConflictGraphBuilder.build(
+        vectors,
+        predictions=(),
+        profile=graph_profile,
+        domain_profile=profile,
+        input_hash="cycle-hash",
+        baseline_prediction=None,
+        accepted_plan=None,
+        lifecycle_snapshot=None,
+        previous=None,
+    )
+    second = ConflictGraphBuilder.build(
+        tuple(reversed(vectors)),
+        predictions=(),
+        profile=graph_profile,
+        domain_profile=profile,
+        input_hash="cycle-hash",
+        baseline_prediction=None,
+        accepted_plan=None,
+        lifecycle_snapshot=None,
+        previous=None,
+    )
+
+    assert [edge.edge_type for edge in first.edges] == [ConflictEdgeType.DIRECT_WINDOW_OVERLAP] * 3
+    assert len(first.clusters) == 1
+    assert first.clusters[0].members == tuple(windows)[:3]
+    assert first.semantic_hash == second.semantic_hash
+
+    split = ConflictGraphBuilder.build(
+        vectors[:2],
+        predictions=(),
+        profile=graph_profile,
+        domain_profile=profile,
+        input_hash="cycle-hash-2",
+        baseline_prediction=None,
+        accepted_plan=None,
+        lifecycle_snapshot=None,
+        previous=first,
+    )
+    assert split.clusters[0].cluster_id != first.clusters[0].cluster_id
+    assert first.clusters[0].cluster_id in split.clusters[0].parent_cluster_ids
+
+
+def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after_witness() -> None:
+    driver = TrackKey(1, 1)
+    affected = TrackKey(2, 1)
+    target_prediction = ThreatPrediction(
+        key=affected,
+        times_s=np.array([0.0, 10.0, 20.0]),
+        states_enu=np.array(
+            [
+                [500.0, 0.0, 0.0, 0.0],
+                [500.0, 0.0, 0.0, 0.0],
+                [500.0, 0.0, 0.0, 0.0],
+            ]
+        ),
+        basis=PredictionBasis.EXPLICIT_TRAJECTORY,
+        model="graph-fixture",
+    )
+    baseline = OwnshipThreatPrediction(
+        times_s=np.array([0.0, 10.0, 20.0]),
+        states_enu=np.array([[0.0, 0.0, 7.0, 0.0], [70.0, 0.0, 7.0, 0.0], [140.0, 0.0, 7.0, 0.0]]),
+        source="declared-baseline",
+        target_keys=(affected,),
+    )
+    accepted_prediction = OwnshipThreatPrediction(
+        times_s=np.array([0.0, 10.0, 20.0]),
+        states_enu=np.array([[0.0, 0.0, 7.0, 0.0], [175.0, 0.0, 17.5, 0.0], [350.0, 0.0, 17.5, 0.0]]),
+        basis="ACCEPTED_PLAN",
+        source="l4-receipt",
+        target_keys=(affected,),
+    )
+    receipt = AcceptedPlanReceipt(
+        receipt_hash="accepted-receipt",
+        accepted_sequence=0,
+        accepted_at_s=0.0,
+        valid_until_s=30.0,
+        accepted_prediction=accepted_prediction,
+        plan_target=driver,
+        target_keys=(affected,),
+        prediction_hash=accepted_prediction.semantic_hash,
+        acceptance_hash="l4-acceptance",
+    )
+    vectors = (_vector_for_graph(driver), _vector_for_graph(affected))
+
+    graph = ConflictGraphBuilder.build(
+        vectors,
+        predictions=(target_prediction,),
+        profile=ConflictGraphProfile(material_tdv_advance_s=1.0, material_scale_worsening=0.05),
+        domain_profile=_domain_profile(),
+        input_hash="cycle-hash",
+        baseline_prediction=baseline,
+        accepted_plan=receipt,
+        lifecycle_snapshot=SimpleNamespace(primary_target=driver),
+        previous=None,
+        sim_time_s=5.0,
+    )
+
+    plan_edges = [edge for edge in graph.edges if edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT]
+    assert len(plan_edges) == 1
+    assert plan_edges[0].members == (driver, affected)
+    assert plan_edges[0].plan_receipt_hash == "accepted-receipt"
+    assert plan_edges[0].witness.to_dict()["materiality"]["new_domain_violation"] is True
+
+    benign_prediction = OwnshipThreatPrediction(
+        times_s=baseline.times_s,
+        states_enu=baseline.states_enu,
+        basis="ACCEPTED_PLAN",
+        source="l4-receipt",
+        target_keys=(affected,),
+    )
+    benign_receipt = replace(
+        receipt,
+        accepted_prediction=benign_prediction,
+        prediction_hash=benign_prediction.semantic_hash,
+    )
+    benign_graph = ConflictGraphBuilder.build(
+        vectors,
+        predictions=(target_prediction,),
+        profile=ConflictGraphProfile(material_tdv_advance_s=1.0, material_scale_worsening=0.05),
+        domain_profile=_domain_profile(),
+        input_hash="cycle-hash",
+        baseline_prediction=baseline,
+        accepted_plan=benign_receipt,
+        lifecycle_snapshot=SimpleNamespace(primary_target=driver),
+        previous=None,
+        sim_time_s=5.0,
+    )
+    assert not any(edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT for edge in benign_graph.edges)
+    assert benign_graph.unavailable_reasons == ()
+
+
+def test_raw_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge() -> None:
+    target = _target(TrackKey(2, 1), 1_000.0)
+    driver = _target(TrackKey(1, 1), 1_200.0)
+    target_prediction = ThreatPrediction(
+        key=target.key,
+        times_s=np.array([0.0, 10.0, 20.0]),
+        states_enu=np.array([[500.0, 0.0, 0.0, 0.0]] * 3),
+        basis=PredictionBasis.EXPLICIT_TRAJECTORY,
+        model="graph-fixture",
+    )
+    baseline = OwnshipThreatPrediction(
+        times_s=np.array([0.0, 10.0, 20.0]),
+        states_enu=np.array([[0.0, 0.0, 7.0, 0.0], [70.0, 0.0, 7.0, 0.0], [140.0, 0.0, 7.0, 0.0]]),
+        source="declared-baseline",
+        target_keys=(target.key,),
+    )
+    accepted_prediction = OwnshipThreatPrediction(
+        times_s=np.array([0.0, 10.0, 20.0]),
+        states_enu=np.array([[0.0, 0.0, 7.0, 0.0], [175.0, 0.0, 17.5, 0.0], [350.0, 0.0, 17.5, 0.0]]),
+        basis="ACCEPTED_PLAN",
+        source="l4-receipt",
+        target_keys=(target.key,),
+    )
+    raw_candidate = {
+        "receipt_hash": "raw-candidate",
+        "sequence": 0,
+        "accepted_at_s": 0.0,
+        "valid_until_s": 30.0,
+        "candidate_hash": "solver-candidate-only",
+        "accepted_prediction": accepted_prediction.to_dict(),
+        "target_key": [driver.key.target_id, driver.key.generation],
+    }
+    coordinator = ThreatManagementCoordinator()
+    first = coordinator.cycle(
+        _cycle(0, 0.0, (driver, target)),
+        profile=_domain_profile(),
+        predictions=(target_prediction,),
+        baseline_prediction=baseline,
+        accepted_plan=raw_candidate,
+    )
+
+    assert first.conflict_graph is not None
+    assert not any(edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT for edge in first.conflict_graph.edges)
+    assert "ACCEPTED_PLAN_RECEIPT_INVALID" in {reason.value for reason in first.conflict_graph.unavailable_reasons}
+
+    accepted = AcceptedPlanReceipt(
+        receipt_hash="accepted-receipt",
+        accepted_sequence=1,
+        accepted_at_s=0.0,
+        valid_until_s=30.0,
+        accepted_prediction=accepted_prediction,
+        plan_target=driver.key,
+        target_keys=(target.key,),
+        prediction_hash=accepted_prediction.semantic_hash,
+        acceptance_hash="l4-acceptance",
+    )
+    same_cycle = coordinator.cycle(
+        _cycle(1, 5.0, (driver, target)),
+        profile=_domain_profile(),
+        predictions=(target_prediction,),
+        baseline_prediction=baseline,
+        accepted_plan=accepted,
+    )
+    assert same_cycle.provenance["accepted_plan_applied_sequence"] is None
+    assert same_cycle.conflict_graph is not None
+    assert not any(edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT for edge in same_cycle.conflict_graph.edges)
+    next_cycle = coordinator.cycle(
+        _cycle(2, 10.0, (driver, target)),
+        profile=_domain_profile(),
+        predictions=(target_prediction,),
+        baseline_prediction=baseline,
+    )
+    assert next_cycle.provenance["accepted_plan_applied_sequence"] == 2
+    assert next_cycle.conflict_graph is not None
+    assert any(edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT for edge in next_cycle.conflict_graph.edges)
