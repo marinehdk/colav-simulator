@@ -5,6 +5,7 @@ import test from 'node:test';
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const app = await readFile(new URL('../../web_gui/app.js', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
+const lineGraph = await readFile(new URL('../../web_gui/modules/line-graph.js', import.meta.url), 'utf8');
 const vendorEntry = await readFile(new URL('../../web_gui/vendor/openbridge/entry-source.mjs', import.meta.url), 'utf8');
 
 test('OWN SHIP exposes five OpenBridge sensor-source dropdowns with mock option wiring', () => {
@@ -69,4 +70,49 @@ test('EVENT LIST uses OpenBridge event-list with projected timeline data', () =>
   assert.match(app, /eventItemType: 'doubleLine'/);
   assert.match(app, /colorCoded/);
   assert.doesNotMatch(app, /eventList\.innerHTML/);
+});
+
+test('planner diagnostics render directly on the chart for each supported algorithm', () => {
+  assert.doesNotMatch(html, /Decision Screen/);
+  assert.doesNotMatch(html, /id="plannerSurfaceAttach"/);
+  assert.doesNotMatch(html, /id="liveAlgorithmPreviewChart"/);
+  assert.match(app, /const attached = Boolean\(plannerSurfaceType\(planner\)\)/);
+  assert.match(app, /situationDisplay\.setPlannerSurfaceAttached\(attached\)/);
+  assert.match(app, /if \(type === 'vo'\)/);
+  assert.match(app, /if \(type === 'fan'\)/);
+  assert.match(app, /return null;/);
+});
+
+test('restored sessions reset planner overlay state without aborting ENC startup', () => {
+  const resetStart = app.indexOf('function resetDeploymentForSession(data)');
+  const resetEnd = app.indexOf('function setControlDisabled', resetStart);
+  const resetSession = app.slice(resetStart, resetEnd);
+  assert.doesNotMatch(resetSession, /^\s{2}setPlannerSurfaceAttached\(/m);
+  assert.match(resetSession, /situationDisplay\.setPlannerSurfaceAttached\(false\)/);
+  assert.ok(
+    resetSession.indexOf('situationDisplay.setPlannerSurfaceAttached(false)')
+      < resetSession.indexOf('situationDisplay.beginSession('),
+  );
+});
+
+test('performance charts use reusable Web Component graphs with English axes and legends', () => {
+  assert.match(html, /<colav-line-graph[\s\S]*id="livePerfGraph"[\s\S]*caption="Computation Time"[\s\S]*x-label="Recent Step"[\s\S]*y-label="Time \(ms\)"[\s\S]*legend="Computation time"/);
+  assert.match(html, /<colav-line-graph[\s\S]*id="liveCostGraph"[\s\S]*caption="Objective Cost"[\s\S]*x-label="Solve"[\s\S]*y-label="Cost"[\s\S]*legend="Objective cost"/);
+  assert.doesNotMatch(html, /计算耗时曲线|Cost 曲线/);
+  assert.match(app, /import '\.\/modules\/line-graph\.js/);
+  assert.match(app, /graph\.setSeries\(perfHistory\)/);
+  assert.match(lineGraph, /customElements\.define\('colav-line-graph'/);
+  assert.match(lineGraph, /class="grid-lines"/);
+  assert.match(lineGraph, /class="tick-labels"/);
+  assert.match(lineGraph, /class="axis-label x-label"/);
+  assert.match(lineGraph, /class="axis-label y-label"/);
+  assert.match(lineGraph, /class="legend"/);
+});
+
+test('ownship click error reporting tolerates the removed legacy busy-water status node', () => {
+  const start = app.indexOf('onSelectionChange: target =>');
+  const selectionHandler = app.slice(start, app.indexOf('\n  },\n});', start));
+  assert.doesNotMatch(selectionHandler, /document\.getElementById\('busyWaterStatus'\)\.textContent/);
+  assert.match(selectionHandler, /const status = document\.getElementById\('busyWaterStatus'\)/);
+  assert.match(selectionHandler, /if \(status\) status\.textContent = error\.message/);
 });

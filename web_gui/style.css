@@ -41,8 +41,8 @@
   --situation-grid: rgba(255,255,255,0.035);
   --situation-safewater-fill: rgba(76,202,209,0.12);
   --situation-safewater-stroke: rgba(76,202,209,0.55);
-  --situation-route: #F4D34E;
-  --situation-route-inactive: #7F898D;
+  --situation-route: #006BD6;
+  --situation-route-inactive: #5B7FA5;
   --situation-prediction: #55D6B7;
   --situation-prediction-previous: rgba(85,214,183,0.20);
   --situation-prediction-label: #9EF0DB;
@@ -2882,29 +2882,4 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .algorithm-data-row small { color: var(--ob-subtle); font-size: 9px; line-height: 14px; text-align: left; white-space: nowrap; }
 
 .algorithm-performance-list { padding: 0 var(--s-3); }
-.algorithm-chart-title { margin: var(--s-2) var(--s-3) 0; color: var(--ob-subtle); font-size: 10px; font-weight: 600; }
-.algorithm-preview-header { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); padding: var(--s-1) var(--s-2) 0; }
-.algorithm-preview-header obc-icon-button { width: 32px; height: 32px; }
-.algorithm-preview-label { display: block; color: var(--ob-subtle); font-size: 10px; }
-.algorithm-preview-chart, .algorithm-performance-chart {
-  position: relative;
-  height: 220px;
-  margin: var(--s-2);
-  overflow: hidden;
-  border: 1px solid var(--ob-border);
-  border-radius: var(--radius);
-  background: var(--ob-surface);
-}
-.algorithm-preview-chart span, .algorithm-performance-chart span {
-  position: absolute;
-  top: var(--s-2);
-  left: var(--s-2);
-  z-index: 1;
-  color: var(--ob-subtle);
-  font: 500 9px/14px var(--font-mono);
-}
-.algorithm-preview-chart svg, .algorithm-performance-chart svg { width: 100%; height: 100%; }
-.algorithm-preview-chart canvas#plannerSurface { display: block; width: 100%; height: 100%; border-radius: var(--radius); }
-.algorithm-preview-chart path, .algorithm-performance-chart polyline { fill: none; stroke: var(--ob-accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
-.algorithm-preview-chart circle { fill: var(--ob-accent); }
-.algorithm-performance-chart line { stroke: var(--ob-border); stroke-width: 1; }
+.algorithm-performance-panel colav-line-graph { display: block; height: 220px; margin: var(--s-2); }

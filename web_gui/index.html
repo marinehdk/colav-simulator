@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260821-fix-45" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260821-fix-47" />
+  <link rel="stylesheet" href="/static/style.css?v=20260821-fix-61" />
 </head>
 <body>
   <div class="app-container">
@@ -496,13 +496,6 @@
                       </dl>
                 </section>
               </div>
-              <div class="algorithm-preview-header">
-                <span class="algorithm-preview-label" id="liveAlgorithmPreviewLabel">Decision Screen</span>
-                <obc-icon-button id="plannerSurfaceAttach" variant="flat" aria-label="决策图吸附本船" title="展开：吸附到本船"><obi-center-iec></obi-center-iec></obc-icon-button>
-              </div>
-              <div class="algorithm-preview-chart" id="liveAlgorithmPreviewChart" aria-label="决策空间预览">
-                <canvas id="plannerSurface" aria-label="规划决策空间预览"></canvas>
-              </div>
             </section>
 
           </div>
@@ -515,24 +508,23 @@
                 <div class="algorithm-data-row"><dt>Current step</dt><dd id="liveStepTime">0.00</dd><small>ms</small></div>
                 <div class="algorithm-data-row"><dt>Average (60)</dt><dd id="liveAvgTime">0.00</dd><small>ms</small></div>
               </dl>
-              <h3 class="algorithm-chart-title">计算耗时曲线</h3>
-                <div class="algorithm-performance-chart" aria-label="最近 60 步算法耗时">
-                <span id="livePerfSparklineLabel">1.0 ms</span>
-                <svg id="livePerfSvg" viewBox="0 0 260 148" role="img" aria-label="算法耗时趋势">
-                  <line x1="12" y1="126" x2="248" y2="126"></line>
-                  <line x1="12" y1="28" x2="12" y2="126"></line>
-                  <polyline id="livePerfPolyline" points="12,126 248,126"></polyline>
-                </svg>
-              </div>
-                            <h3 class="algorithm-chart-title">Cost 曲线</h3>
-                <div class="algorithm-performance-chart" aria-label="最近求解 Cost 趋势">
-                  <span id="liveCostSparklineLabel">--</span>
-                  <svg id="liveCostSvg" viewBox="0 0 260 148" role="img" aria-label="Cost 趋势">
-                    <line x1="12" y1="126" x2="248" y2="126"></line>
-                    <line x1="12" y1="28" x2="12" y2="126"></line>
-                    <polyline id="liveCostPolyline" points="12,126 248,126"></polyline>
-                  </svg>
-                </div>
+              <colav-line-graph
+                id="livePerfGraph"
+                caption="Computation Time"
+                x-label="Recent Step"
+                y-label="Time (ms)"
+                legend="Computation time"
+                unit="ms"
+                aria-label="Solve time for the most recent 60 simulation steps"
+              ></colav-line-graph>
+              <colav-line-graph
+                id="liveCostGraph"
+                caption="Objective Cost"
+                x-label="Solve"
+                y-label="Cost"
+                legend="Objective cost"
+                aria-label="Objective cost for the most recent 60 solves"
+              ></colav-line-graph>
             </section>
           </div>
 
@@ -563,7 +555,7 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260821-fix-47"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260821-fix-47"></script>
+  <script type="module" src="/static/app.js?v=20260821-fix-61"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260821-fix-61"></script>
 </body>
 </html>

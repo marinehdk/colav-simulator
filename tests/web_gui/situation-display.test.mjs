@@ -151,6 +151,119 @@ test('clampZoomScale bounds viewScale into [0.005, 5.0]', async () => {
   assert.ok(Math.abs(clampZoomScale(0.45, 1.25) - 0.5625) < 1e-12);
 });
 
+test('planner surface routing distinguishes VO, Fan-MPC, and Mid-MPC', async () => {
+  const { plannerSurfaceType } = await import(new URL('../../web_gui/modules/situation-display.js', import.meta.url).href);
+  assert.equal(plannerSurfaceType({ algorithm_id: 'vo' }), 'vo');
+  assert.equal(plannerSurfaceType({ algorithm_id: 'potocnik_colreg_fan_mpc' }), 'fan');
+  assert.equal(plannerSurfaceType({ algorithm_id: 'mid_mpc_ipopt' }), null);
+});
+
+test('Deployment renders FCB and default SOV OpenBridge ship-type icons without sprite cropping', async () => {
+  const sources = [];
+  function loadedShipTypeImage() {
+    return {
+      complete: true,
+      naturalWidth: 343,
+      naturalHeight: 346,
+      addEventListener() {},
+      set src(value) { sources.push(value); },
+    };
+  }
+  ctxStub.calls.length = 0;
+  const { display } = await createDisplay({ createImage: loadedShipTypeImage });
+  assert.deepEqual(sources.slice(0, 2), [
+    '/static/assets/openbridge/ship-types/fcb45.svg',
+    '/static/assets/openbridge/ship-types/sov.svg',
+  ]);
+
+  display.render(sampleSnapshot());
+  const shipDraws = ctxStub.calls.filter(([name]) => name === 'drawImage');
+  assert.equal(shipDraws.length, 3);
+  shipDraws.forEach(([, args]) => {
+    assert.equal(args.length, 5);
+    assert.equal(args[3], args[4]);
+  });
+});
+
+test('COLAV threat plot derives directional pressure only from approaching stage 2-4 encounters', async () => {
+  const { LAYER_ORDER, threatEnvelopeBins } = await import(new URL('../../web_gui/modules/situation-display.js', import.meta.url).href);
+  const bins = threatEnvelopeBins([
+    { relative_bearing_deg: 0, stage: 4, signed_tcpa_s: 30 },
+    { relative_bearing_deg: 90, stage: 2, signed_tcpa_s: 120 },
+    { relative_bearing_deg: 180, stage: 4, signed_tcpa_s: -10 },
+    { relative_bearing_deg: -90, stage: 1, signed_tcpa_s: 300 },
+  ]);
+  assert.equal(bins.length, 16);
+  assert.equal(bins[0], 1);
+  assert.equal(bins[4], 0.5);
+  assert.equal(bins[8], 0);
+  assert.equal(bins[12], 0);
+  assert.ok(!LAYER_ORDER.includes('relativeCompass'));
+  assert.ok(LAYER_ORDER.indexOf('threatPlot') < LAYER_ORDER.indexOf('ships'));
+});
+
+test('ownship threat plot uses a transparent 4L outer radius with labels outside and no SOG', async () => {
+  const {
+    THREAT_PLOT_BACKGROUND,
+    THREAT_PLOT_RANGE_M,
+    threatPlotLayout,
+  } = await import(new URL('../../web_gui/modules/situation-display.js', import.meta.url).href);
+  const fitted = threatPlotLayout(0.06);
+  const zoomedIn = threatPlotLayout(0.12);
+  assert.equal(THREAT_PLOT_RANGE_M, 180);
+  assert.equal(THREAT_PLOT_BACKGROUND, 'rgba(0,0,0,0)');
+  assert.ok(Math.abs(fitted.radius - 10.8) < 1e-9);
+  assert.ok(Math.abs(zoomedIn.radius - fitted.radius * 2) < 1e-9);
+  assert.ok(fitted.labelRadius > fitted.radius);
+
+  ctxStub.calls.length = 0;
+  const { display } = await createDisplay();
+  const snapshot = sampleSnapshot({ encounters: [
+    { relative_bearing_deg: 0, stage: 3, signed_tcpa_s: 90 },
+  ] });
+  const ownshipPoint = display.worldToCanvas(snapshot.os.x, snapshot.os.y);
+  display.render(snapshot);
+  const textCalls = ctxStub.calls.filter(([name]) => name === 'fillText').map(([, args]) => args);
+  assert.equal(textCalls.some(([text]) => text === 'OS'), false);
+  assert.equal(textCalls.some(([text]) => String(text).startsWith('SOG ')), false);
+  assert.ok(ownshipPoint);
+});
+
+test('mission route corridor offsets port and starboard boundaries by 4L', async () => {
+  const {
+    ROUTE_CORRIDOR_HALF_WIDTH_M,
+    routeCorridorBoundaries,
+  } = await import(new URL('../../web_gui/modules/situation-display.js', import.meta.url).href);
+  const corridor = routeCorridorBoundaries([[0, 1000], [0, 0]]);
+  assert.equal(ROUTE_CORRIDOR_HALF_WIDTH_M, 180);
+  assert.deepEqual(corridor.port, [{ north: 0, east: 180 }, { north: 1000, east: 180 }]);
+  assert.deepEqual(corridor.starboard, [{ north: 0, east: -180 }, { north: 1000, east: -180 }]);
+});
+
+test('ownship future motion uses a black double-chevron arrow', async () => {
+  const { drawDoubleChevron } = await import(new URL('../../web_gui/modules/situation-display.js', import.meta.url).href);
+  const surface = recordingCtx();
+  drawDoubleChevron(surface, { x: 10, y: 20 }, 0);
+  assert.equal(surface.calls.filter(([name]) => name === 'stroke').length, 4);
+  assert.equal(surface.calls.some(([name]) => name === 'fill'), false);
+});
+
+test('COLAV threat plot is hidden by default and toggles only from the ownship hit region', async () => {
+  const { display } = await createDisplay();
+  const snapshot = sampleSnapshot({ encounters: [
+    { relative_bearing_deg: 0, stage: 3, signed_tcpa_s: 90 },
+  ] });
+  display.render(snapshot);
+  assert.equal(display.isOwnshipThreatPlotVisible(), false);
+  assert.equal(display.getDrawSequence().includes('threatPlot'), false);
+  const ownship = display.worldToCanvas(snapshot.os.x, snapshot.os.y);
+  display.handleClickAt(ownship.x, ownship.y);
+  assert.equal(display.isOwnshipThreatPlotVisible(), true);
+  assert.equal(display.getDrawSequence().includes('threatPlot'), true);
+  display.handleClickAt(ownship.x, ownship.y);
+  assert.equal(display.isOwnshipThreatPlotVisible(), false);
+});
+
 test('interpolateTelemetry interpolates positions and wraps angles per vessel id', async () => {
   const { interpolateTelemetry } = await import(new URL('../../web_gui/modules/situation-display.js', import.meta.url).href);
   const from = {
@@ -245,7 +358,7 @@ test('render draws the documented LAYER_ORDER sequence and layer toggles filter 
   const order = full.filter(id => mod.LAYER_ORDER.includes(id));
   // sample has no tracker track states, no busy-water target routes, no planner
   // surface attach, and previousPrediction defaults off
-  const skip = new Set(['tracks', 'targetRoutes', 'plannerSurface', 'previousPrediction', 'targetPredictions', 'measurements']);
+  const skip = new Set(['tracks', 'targetRoutes', 'plannerSurface', 'threatPlot', 'previousPrediction', 'targetPredictions', 'measurements']);
   const expected = mod.LAYER_ORDER.filter(id => !skip.has(id));
   assert.deepEqual(order, expected);
   assert.ok(full.includes('base'));

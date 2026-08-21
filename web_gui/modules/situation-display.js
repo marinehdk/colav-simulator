@@ -24,8 +24,11 @@ export const TELEMETRY_RENDER_MAX_MS = 1000;
 
 const FCB45_LENGTH_M = 45;
 const FCB45_WIDTH_M = 8;
-const FCB45_SPRITE_CROP = { x: 388, y: 85, width: 240, height: 1313 };
-const TARGET_SPRITE_CROP = { x: 640, y: 25, width: 275, height: 945 };
+const FCB45_SHIP_TYPE_ASSET = '/static/assets/openbridge/ship-types/fcb45.svg';
+const DEFAULT_TARGET_SHIP_TYPE_ASSET = '/static/assets/openbridge/ship-types/sov.svg';
+export const ROUTE_CORRIDOR_HALF_WIDTH_M = FCB45_LENGTH_M * 4;
+export const THREAT_PLOT_RANGE_M = FCB45_LENGTH_M * 4;
+export const THREAT_PLOT_BACKGROUND = 'rgba(0,0,0,0)';
 const MOTION_VECTOR_SECONDS = 60;
 const MOTION_TICK_SECONDS = 10;
 const PREDICTION_MARKER_SECONDS = 10;
@@ -56,8 +59,8 @@ export const LAYER_ORDER = [
   'executionPoint',
   'targetRoutes',
   'plannerSurface',
+  'threatPlot',
   'ships',
-  'relativeCompass',
 ];
 
 const DEFAULT_LAYERS = {
@@ -83,8 +86,8 @@ const PALETTE_DEFAULTS = {
   '--situation-grid': 'rgba(255,255,255,0.035)',
   '--situation-safewater-fill': 'rgba(76,202,209,0.12)',
   '--situation-safewater-stroke': 'rgba(76,202,209,0.55)',
-  '--situation-route': '#F4D34E',
-  '--situation-route-inactive': '#7F898D',
+  '--situation-route': '#006BD6',
+  '--situation-route-inactive': '#5B7FA5',
   '--situation-prediction': '#55D6B7',
   '--situation-prediction-previous': 'rgba(85,214,183,0.20)',
   '--situation-prediction-label': '#9EF0DB',
@@ -202,6 +205,86 @@ export function plannerSurfaceType(planner) {
   if (planner?.algorithm_id === 'vo') return 'vo';
   if (['potocnik_simplified_mpc', 'potocnik_colreg_fan_mpc'].includes(planner?.algorithm_id)) return 'fan';
   return null;
+}
+
+export function threatEnvelopeBins(encounters, binCount = 16) {
+  // Display-only aggregation of authoritative encounter stages by relative
+  // bearing. This is not a solver constraint, certified ship domain, or gate.
+  const bins = Array.from({ length: binCount }, () => 0);
+  (Array.isArray(encounters) ? encounters : []).forEach(encounter => {
+    const bearingDeg = Number(encounter?.relative_bearing_deg);
+    const stage = Number(encounter?.stage);
+    const signedTcpaS = Number(encounter?.signed_tcpa_s);
+    if (!Number.isFinite(bearingDeg) || !Number.isFinite(stage) || !Number.isFinite(signedTcpaS)) return;
+    if (signedTcpaS <= 0 || stage < 2) return;
+    const pressure = Math.min(1, Math.max(0, stage / 4));
+    bins.forEach((_, index) => {
+      const centerDeg = index * 360 / binCount;
+      const deltaDeg = Math.abs(((bearingDeg - centerDeg + 540) % 360) - 180);
+      const influence = Math.max(0, 1 - deltaDeg / 45);
+      bins[index] = Math.max(bins[index], pressure * influence);
+    });
+  });
+  return bins;
+}
+
+export function threatPlotLayout(viewScaleValue) {
+  const scale = Number(viewScaleValue);
+  const radius = THREAT_PLOT_RANGE_M * (Number.isFinite(scale) && scale > 0 ? scale : 0.06);
+  return {
+    radius,
+    plotRadius: radius * 0.78,
+    labelRadius: radius + (radius >= 80 ? 14 : 10),
+  };
+}
+
+export function routeCorridorBoundaries(route, halfWidthM = ROUTE_CORRIDOR_HALF_WIDTH_M) {
+  if (!validRoute(route)) return { port: [], starboard: [] };
+  const points = route[0].map((north, index) => ({ north: Number(north), east: Number(route[1][index]) }));
+  const normals = points.slice(1).map((point, index) => {
+    const previous = points[index];
+    const dn = point.north - previous.north;
+    const de = point.east - previous.east;
+    const length = Math.hypot(dn, de) || 1;
+    return { north: -de / length, east: dn / length };
+  });
+  const offsets = points.map((_, index) => {
+    if (index === 0) return { ...normals[0], scale: halfWidthM };
+    if (index === points.length - 1) return { ...normals.at(-1), scale: halfWidthM };
+    const previous = normals[index - 1];
+    const next = normals[index];
+    const sumLength = Math.hypot(previous.north + next.north, previous.east + next.east);
+    const miter = sumLength > 1e-9
+      ? { north: (previous.north + next.north) / sumLength, east: (previous.east + next.east) / sumLength }
+      : next;
+    const denominator = Math.max(0.25, Math.abs(miter.north * next.north + miter.east * next.east));
+    return { ...miter, scale: Math.min(halfWidthM * 4, halfWidthM / denominator) };
+  });
+  const offsetSide = direction => points.map((point, index) => ({
+    north: point.north + offsets[index].north * offsets[index].scale * direction,
+    east: point.east + offsets[index].east * offsets[index].scale * direction,
+  }));
+  return { port: offsetSide(1), starboard: offsetSide(-1) };
+}
+
+export function drawDoubleChevron(surface, point, heading, color = '#111817') {
+  surface.save();
+  surface.translate(point.x, point.y);
+  surface.rotate(heading);
+  surface.lineCap = 'round';
+  surface.lineJoin = 'round';
+  for (const [strokeStyle, lineWidth] of [['rgba(255,255,255,0.92)', 4.5], [color, 2]]) {
+    surface.strokeStyle = strokeStyle;
+    surface.lineWidth = lineWidth;
+    for (const offset of [-4, 4]) {
+      surface.beginPath();
+      surface.moveTo(-5, offset + 4);
+      surface.lineTo(0, offset - 4);
+      surface.lineTo(5, offset + 4);
+      surface.stroke();
+    }
+  }
+  surface.restore();
 }
 
 export function hexToRgba(hex, alpha) {
@@ -367,7 +450,9 @@ export function createSituationDisplay(options) {
 
   /* ── selection & click routing (ruling 7) ── */
   let targetHitRegions = [];
+  let ownshipHitRegion = null;
   let selectedTargetId = null;
+  let ownshipThreatPlotVisible = false;
   let clickMode = null;
   let selectionCallback = onSelectionChange;
 
@@ -389,17 +474,17 @@ export function createSituationDisplay(options) {
   /* ── draw sequence (render-order contract, ruling 8) ── */
   let drawSequence = [];
 
-  /* ── sprites ── */
-  // Sprites load only when the adapter asks for them (Deployment); the Config
+  /* ── ship-type icons ── */
+  // Icons load only when the adapter asks for them (Deployment); the Config
   // preview adapter passes loadSprites: false and gets the vector hull
   // fallback — no network requests, no image elements.
   const ownshipSprite = loadSprites ? createImage() : { complete: false, naturalWidth: 0 };
   const targetSprite = loadSprites ? createImage() : { complete: false, naturalWidth: 0 };
   if (loadSprites) {
     if (ownshipSprite.addEventListener) ownshipSprite.addEventListener('load', () => { rerender(); });
-    setSpriteSrc(ownshipSprite, '/static/assets/fcb45-top.png');
+    setSpriteSrc(ownshipSprite, FCB45_SHIP_TYPE_ASSET);
     if (targetSprite.addEventListener) targetSprite.addEventListener('load', () => { rerender(); });
-    setSpriteSrc(targetSprite, '/static/assets/target-vessel-top.png');
+    setSpriteSrc(targetSprite, DEFAULT_TARGET_SHIP_TYPE_ASSET);
   }
 
   /* ════════════ sizing / transforms ════════════ */
@@ -663,6 +748,7 @@ export function createSituationDisplay(options) {
     }
     ctx.clearRect(0, 0, W, H);
     targetHitRegions = [];
+    ownshipHitRegion = null;
 
     // backgroundMode 'transparent' (Config preview adapter): the opaque map
     // fill is skipped so the reference image beneath stays visible.
@@ -709,8 +795,8 @@ export function createSituationDisplay(options) {
     drawTargetRoutes(data);
     const surface = getPlannerSurface();
     if (data.os && plannerSurfaceAttached && surface) drawPlannerSurfaceOnMap(data.os, surface);
+    if (data.os && !plannerSurfaceAttached && ownshipThreatPlotVisible) drawCollisionThreatPlot(data, W, H);
     if (visibleLayers.ships) drawShips(data);
-    if (data.os && !plannerSurfaceAttached) drawRelativeCompass(data.os, W, H);
     ctx.restore();
   }
 
@@ -803,10 +889,27 @@ export function createSituationDisplay(options) {
   function drawInitialRoute(route) {
     const points = routePoints(route);
     if (points.length < 2) return;
+    const corridor = routeCorridorBoundaries(route);
+    const port = corridor.port.map(point => worldToCanvas(point.north, point.east));
+    const starboard = corridor.starboard.map(point => worldToCanvas(point.north, point.east));
     ctx.save();
+    ctx.fillStyle = 'rgba(10,100,237,0.06)';
+    ctx.beginPath();
+    [...port, ...starboard.slice().reverse()].forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#2D548B';
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = 'round';
+    ctx.setLineDash([1, 6]);
+    strokePolyline(port);
+    strokePolyline(starboard);
     ctx.strokeStyle = palette['--situation-route'];
     ctx.lineWidth = 2;
-    ctx.setLineDash([10, 8]);
+    ctx.setLineDash([16, 10]);
     strokePolyline(points);
     ctx.restore();
     drawSequence.push('route');
@@ -1033,10 +1136,11 @@ export function createSituationDisplay(options) {
       ship.y + Math.sin(course) * speed * MOTION_VECTOR_SECONDS,
     );
     ctx.save();
-    ctx.strokeStyle = hexToRgba(color, 0.85);
-    ctx.fillStyle = color;
+    const ownship = !dashed;
+    ctx.strokeStyle = ownship ? '#111817' : hexToRgba(color, 0.85);
+    ctx.fillStyle = ownship ? '#111817' : color;
     ctx.lineWidth = 1.8;
-    ctx.setLineDash(dashed ? [7, 5] : []);
+    ctx.setLineDash(dashed ? [7, 5] : [9, 5]);
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
@@ -1053,7 +1157,8 @@ export function createSituationDisplay(options) {
       ctx.lineTo(point.x + nx * 3, point.y + ny * 3);
       ctx.stroke();
     }
-    drawArrowHead(end, course, color);
+    if (ownship) drawDoubleChevron(ctx, end, course);
+    else drawArrowHead(end, course, color);
     ctx.restore();
   }
 
@@ -1104,7 +1209,7 @@ export function createSituationDisplay(options) {
     if (data.os) {
       const point = worldToCanvas(data.os.x, data.os.y);
       drawOwnshipSprite(point, data.os.psi, FCB45_LENGTH_M, FCB45_WIDTH_M);
-      labels.push({ text: 'OS', point, color: '#FFFFFF' });
+      ownshipHitRegion = { x: point.x, y: point.y, radius: 24 };
     }
     drawAvoidingLabels(labels);
     drawSequence.push('ships');
@@ -1115,8 +1220,7 @@ export function createSituationDisplay(options) {
       drawHull(point, heading, lengthM, widthM, null, true);
       return;
     }
-    const lengthPx = Math.max(18, lengthM * viewScale);
-    const widthPx = Math.max(4, lengthPx * widthM / lengthM);
+    const iconPx = Math.max(44, Math.min(64, lengthM * viewScale * 1.4));
     ctx.save();
     ctx.translate(point.x, point.y);
     ctx.rotate(Number.isFinite(heading) ? heading : 0);
@@ -1124,17 +1228,7 @@ export function createSituationDisplay(options) {
     ctx.imageSmoothingQuality = 'high';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
     ctx.shadowBlur = 2;
-    ctx.drawImage(
-      ownshipSprite,
-      FCB45_SPRITE_CROP.x,
-      FCB45_SPRITE_CROP.y,
-      FCB45_SPRITE_CROP.width,
-      FCB45_SPRITE_CROP.height,
-      -widthPx / 2,
-      -lengthPx / 2,
-      widthPx,
-      lengthPx,
-    );
+    ctx.drawImage(ownshipSprite, -iconPx / 2, -iconPx / 2, iconPx, iconPx);
     ctx.restore();
   }
 
@@ -1143,8 +1237,10 @@ export function createSituationDisplay(options) {
       drawHull(point, heading, lengthM, widthM, threat, false, compact);
       return;
     }
-    const lengthPx = Math.max(compact ? 7 : 22, lengthM * viewScale);
-    const widthPx = Math.max(5, lengthPx * widthM / lengthM);
+    const iconPx = Math.max(
+      compact ? 18 : 34,
+      Math.min(compact ? 26 : 52, lengthM * viewScale * 1.4),
+    );
     ctx.save();
     ctx.translate(point.x, point.y);
     ctx.rotate(Number.isFinite(heading) ? heading : 0);
@@ -1152,17 +1248,7 @@ export function createSituationDisplay(options) {
     ctx.imageSmoothingQuality = 'high';
     ctx.shadowColor = threat?.color || 'rgba(0, 0, 0, 0.45)';
     ctx.shadowBlur = compact ? 1 : 3;
-    ctx.drawImage(
-      targetSprite,
-      TARGET_SPRITE_CROP.x,
-      TARGET_SPRITE_CROP.y,
-      TARGET_SPRITE_CROP.width,
-      TARGET_SPRITE_CROP.height,
-      -widthPx / 2,
-      -lengthPx / 2,
-      widthPx,
-      lengthPx,
-    );
+    ctx.drawImage(targetSprite, -iconPx / 2, -iconPx / 2, iconPx, iconPx);
     ctx.restore();
   }
 
@@ -1283,47 +1369,70 @@ export function createSituationDisplay(options) {
     if (drewRoute) drawSequence.push('targetRoutes');
   }
 
-  function drawRelativeCompass(os, W, H) {
+  function drawCollisionThreatPlot(data, W, H) {
+    const os = data.os;
     if (!Number.isFinite(os.psi)) return;
     const mobile = W <= 520;
-    const center = mobile ? { x: W - 58, y: 150 } : worldToCanvas(os.x, os.y);
-    const radius = mobile ? 42 : 110;
+    const center = worldToCanvas(os.x, os.y);
+    const { radius, plotRadius, labelRadius } = threatPlotLayout(viewScale);
     ctx.save();
-    ctx.strokeStyle = 'rgba(223,244,242,0.22)';
-    ctx.fillStyle = 'rgba(9,15,14,0.13)';
+    ctx.strokeStyle = 'rgba(112,112,112,0.68)';
+    ctx.fillStyle = THREAT_PLOT_BACKGROUND;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    for (let bearing = 0; bearing < 360; bearing += 10) {
-      const relative = bearing * Math.PI / 180;
-      const angle = relative + os.psi - Math.PI / 2;
-      const major = bearing % 20 === 0;
-      const outer = radius;
-      const inner = radius - (major ? 8 : 4);
+
+    ctx.strokeStyle = 'rgba(112,112,112,0.34)';
+    for (let ring = 1; ring <= 4; ring += 1) {
       ctx.beginPath();
-      ctx.moveTo(center.x + Math.cos(angle) * inner, center.y + Math.sin(angle) * inner);
-      ctx.lineTo(center.x + Math.cos(angle) * outer, center.y + Math.sin(angle) * outer);
+      ctx.arc(center.x, center.y, plotRadius * ring / 4, 0, Math.PI * 2);
       ctx.stroke();
-      if (major && (!mobile || bearing % 40 === 0)) {
-        ctx.fillStyle = 'rgba(235,250,248,0.62)';
-        ctx.font = `${mobile ? 8 : 9}px JetBrains Mono, monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const labelRadius = radius - (mobile ? 12 : 15);
-        ctx.fillText(String(bearing), center.x + Math.cos(angle) * labelRadius, center.y + Math.sin(angle) * labelRadius);
-      }
     }
-    const bowAngle = os.psi - Math.PI / 2;
-    ctx.strokeStyle = 'rgba(255,255,255,0.72)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(center.x, center.y);
-    ctx.lineTo(center.x + Math.cos(bowAngle) * radius, center.y + Math.sin(bowAngle) * radius);
-    ctx.stroke();
+
+    const labels = ['000', '045', '090', '135', '180', '225', '-90', '315'];
+    labels.forEach((label, index) => {
+      const relative = index * Math.PI / 4;
+      const angle = os.psi + relative - Math.PI / 2;
+      ctx.strokeStyle = 'rgba(112,112,112,0.34)';
+      ctx.beginPath();
+      ctx.moveTo(center.x, center.y);
+      ctx.lineTo(center.x + Math.cos(angle) * plotRadius, center.y + Math.sin(angle) * plotRadius);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(77,86,84,0.86)';
+      ctx.font = `${mobile ? 7 : 9}px JetBrains Mono, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const labelX = center.x + Math.cos(angle) * labelRadius;
+      const labelY = center.y + Math.sin(angle) * labelRadius;
+      ctx.fillText(label, labelX, labelY);
+    });
+
+    const pressureBins = threatEnvelopeBins(data.encounters);
+    if (pressureBins.some(value => value > 0)) {
+      ctx.beginPath();
+      pressureBins.forEach((pressure, index) => {
+        const relative = index * 2 * Math.PI / pressureBins.length;
+        const angle = os.psi + relative - Math.PI / 2;
+        const distance = plotRadius * (0.18 + pressure * 0.72);
+        const x = center.x + Math.cos(angle) * distance;
+        const y = center.y + Math.sin(angle) * distance;
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(10,100,237,0.11)';
+      ctx.strokeStyle = '#2D548B';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([1, 4]);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     ctx.restore();
-    drawSequence.push('relativeCompass');
+    drawSequence.push('threatPlot');
   }
 
   function drawAvoidingLabels(labels) {
@@ -1610,7 +1719,16 @@ export function createSituationDisplay(options) {
       return;
     }
     const hit = [...targetHitRegions].reverse().find(item => Math.hypot(p.x - item.x, p.y - item.y) <= item.radius);
-    selectTarget(hit?.target?.id ?? null, hit?.target ?? null);
+    if (hit) {
+      selectTarget(hit.target.id, hit.target);
+      return;
+    }
+    if (ownshipHitRegion && Math.hypot(p.x - ownshipHitRegion.x, p.y - ownshipHitRegion.y) <= ownshipHitRegion.radius) {
+      ownshipThreatPlotVisible = !ownshipThreatPlotVisible;
+      selectTarget(null, null);
+      return;
+    }
+    selectTarget(null, null);
   }
 
   function selectTarget(id, target = null) {
@@ -1681,6 +1799,7 @@ export function createSituationDisplay(options) {
 
   function beginSession(runId) {
     activeRunId = runId || null;
+    ownshipThreatPlotVisible = false;
     resetAnimation();
     // Ruling 3: a new session generation resets the view (fit ENC).
     userAdjusted = false;
@@ -1692,6 +1811,7 @@ export function createSituationDisplay(options) {
 
   function clearSession() {
     activeRunId = null;
+    ownshipThreatPlotVisible = false;
     cancelENCLoad();
     resetAnimation();
     encInfo = null;
@@ -1718,6 +1838,7 @@ export function createSituationDisplay(options) {
     onSelectionChange(cb) { selectionCallback = cb; },
     selectTarget(id) { selectTarget(id); },
     getSelectedTargetId: () => (selectedTargetId === undefined ? null : selectedTargetId),
+    isOwnshipThreatPlotVisible: () => ownshipThreatPlotVisible,
     fitView,
     zoomIn() {
       zoomAtCanvasPoint(wrapper.clientWidth / 2, wrapper.clientHeight / 2, 1.25);

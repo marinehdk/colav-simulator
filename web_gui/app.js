@@ -1,4 +1,5 @@
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260819-candidate3-projection';
+import './modules/line-graph.js?v=20260821-graph-3';
 import {
   createSituationDisplay,
   targetsForDisplay,
@@ -7,7 +8,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260819-c4-situation-2';
+} from './modules/situation-display.js?v=20260821-situation-1';
 
 /**
  * Colav-Simulator Web GUI — app.js
@@ -185,7 +186,9 @@ const situationDisplay = createSituationDisplay({
   onSelectionChange: target => {
     selectedTargetId = target?.id ?? null;
     updateTargetDetails(target || null, currentData).catch(error => {
-      document.getElementById('busyWaterStatus').textContent = error.message;
+      const status = document.getElementById('busyWaterStatus');
+      if (status) status.textContent = error.message;
+      else pushLog(error.message, 'log-danger');
     });
   },
 });
@@ -1001,44 +1004,22 @@ function updateAlgoTelemetry(proj) {
   setText('liveRollingPlan', 'KEEP');
   setText('liveReturnDrift', '0.0');
 
-  const previewLabel = document.getElementById('liveAlgorithmPreviewLabel');
-  if (previewLabel) previewLabel.textContent = 'Decision Screen';
 }
 
 function updateCostSparkline() {
-  const polyline = document.getElementById('liveCostPolyline');
-  const label = document.getElementById('liveCostSparklineLabel');
-  if (!polyline) return;
-  const values = solveTimeline.map(item => item.objective).filter(Number.isFinite);
-  if (!values.length) {
-    if (label) label.textContent = '--';
-    return;
-  }
-  const maxVal = Math.max(...values, 1e-6);
-  if (label) label.textContent = `${values[values.length - 1].toFixed(2)} · max ${maxVal.toFixed(2)}`;
-  const width = 236;
-  const height = 98;
-  const step = width / Math.max(values.length - 1, 1);
-  polyline.setAttribute('points', values.map((value, index) =>
-    `${12 + index * step},${126 - (value / maxVal) * height}`).join(' '));
+  const graph = document.getElementById('liveCostGraph');
+  if (!graph) return;
+  const history = solveTimeline.filter(item => Number.isFinite(item.objective));
+  graph.setSeries(
+    history.map(item => item.objective),
+    history.map(item => item.solveId),
+  );
 }
 
 function updatePerfSparkline() {
-  const polyline = document.getElementById('livePerfPolyline');
-  const label = document.getElementById('livePerfSparklineLabel');
-  if (!polyline || !perfHistory.length) return;
-  const maxVal = Math.max(...perfHistory, 1.0);
-  if (label) label.textContent = `${maxVal.toFixed(1)} ms`;
-  const width = 236;
-  const height = 98;
-  const xStart = 12;
-  const yBase = 126;
-  const points = perfHistory.map((val, idx) => {
-    const x = xStart + (idx / Math.max(perfHistory.length - 1, 1)) * width;
-    const y = yBase - (val / maxVal) * height;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  polyline.setAttribute('points', points);
+  const graph = document.getElementById('livePerfGraph');
+  if (!graph) return;
+  graph.setSeries(perfHistory);
 }
 
 function setText(id, val) {
@@ -1342,7 +1323,6 @@ function drawPlannerSurface(planner) {
   if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = !['sbmpc', 'mid_mpc_ipopt'].includes(algorithmId);
   const voLegend = document.getElementById('voSurfaceLegend');
   if (voLegend) voLegend.hidden = !isVO;
-  updatePlannerSurfaceAttachControl(plannerSurfaceType(planner), Number(planner.solve_id));
   if (isVO) {
     drawVODecisionSpace(surface, canvas, planner, details);
     return;
@@ -1534,7 +1514,6 @@ function requestPendingVODecisionSpace() {
     voDecisionSpaceAttemptedKey = requestKey;
     lastVORenderKey = null;
     drawPlannerSurface(pending.planner);
-    updatePlannerSurfaceAttachControl('vo', pending.solveId);
     if (situationDisplay.isPlannerSurfaceAttached()) situationDisplay.rerender();
   }).catch(error => {
     if (error.name !== 'AbortError') {
@@ -1787,62 +1766,11 @@ function currentDiagnosticPlanner() {
   return telemetryProjection.snapshot().planner.display || {};
 }
 
-function updatePlannerSurfaceAttachControl(surfaceType, solveId) {
-  const button = document.getElementById('plannerSurfaceAttach');
-  if (!button) return;
-  button.hidden = !surfaceType;
-  const planner = currentDiagnosticPlanner();
-  const hasContent = surfaceType === 'vo'
-    ? Boolean(
-      currentRunId()
-      && voDecisionSpace
-      && voDecisionSpaceKey?.startsWith(`${currentRunId()}:`)
-      && Number.isInteger(solveId)
-      && solveId > 0
-    )
-    : surfaceType === 'fan'
-      && Array.isArray(planner.algorithm_details?.candidate_heading_increments_rad)
-      && planner.algorithm_details.candidate_heading_increments_rad.length > 0;
-  const attached = situationDisplay.isPlannerSurfaceAttached();
-  button.disabled = !hasContent && !attached;
-  button.activated = attached;
-  button.title = attached ? '收起：回到侧栏' : hasContent ? '展开：吸附到本船' : '加载中';
-  button.setAttribute('aria-pressed', String(attached));
-}
-
 function syncPlannerSurfaceMode(planner) {
-  if (!plannerSurfaceType(planner) && situationDisplay.isPlannerSurfaceAttached()) {
-    setPlannerSurfaceAttached(false, { rerender: false });
-  }
-}
-
-function setPlannerSurfaceAttached(attached, { rerender = true } = {}) {
-  const panel = document.getElementById('liveAlgorithmPreviewChart');
-  if (!panel || attached === situationDisplay.isPlannerSurfaceAttached()) return;
-  if (attached && !plannerSurfaceType(currentDiagnosticPlanner())) return;
+  const attached = Boolean(plannerSurfaceType(planner));
+  if (attached === situationDisplay.isPlannerSurfaceAttached()) return;
   situationDisplay.setPlannerSurfaceAttached(attached);
-  panel.hidden = attached;
-  lastVORenderKey = null;
-  updatePlannerSurfaceAttachControl(
-    plannerSurfaceType(currentDiagnosticPlanner()),
-    Number(currentDiagnosticPlanner().solve_id),
-  );
-  window.requestAnimationFrame(() => {
-    if (currentData) drawPlannerSurface(currentDiagnosticPlanner());
-  });
-  if (rerender && currentData) situationDisplay.rerender();
-}
-
-document.getElementById('plannerSurfaceAttach')?.addEventListener('click', () => {
-  setPlannerSurfaceAttached(!situationDisplay.isPlannerSurfaceAttached());
-});
-
-const plannerSurfaceWrap = document.querySelector('.planner-surface-wrap');
-if (plannerSurfaceWrap) {
-  new ResizeObserver(() => {
-    lastVORenderKey = null;
-    if (currentData) updatePlannerPanel(telemetryProjection.snapshot());
-  }).observe(plannerSurfaceWrap);
+  if (currentData) situationDisplay.rerender();
 }
 
 function axisTickIndices(valueCount, pixelSpan, minimumSpacing) {
@@ -2356,7 +2284,7 @@ async function persistBusyWaterDocument() {
 }
 
 function resetDeploymentForSession(data) {
-  setPlannerSurfaceAttached(false, { rerender: false });
+  situationDisplay.setPlannerSurfaceAttached(false);
   if (voDecisionSpaceController) voDecisionSpaceController.abort();
   if (voDecisionSpaceRetryTimer !== null) window.clearTimeout(voDecisionSpaceRetryTimer);
   voDecisionSpace = null;
