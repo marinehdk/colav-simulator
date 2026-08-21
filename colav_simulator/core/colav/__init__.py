@@ -11,6 +11,20 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
     PlannerInput,
     TrackedObstacle,
 )
+from colav_simulator.core.colav.threat_assessment import (
+    DomainFacts,
+    DomainQualification,
+    DomainState,
+    PredictionBasis,
+    ShipDomainProfile,
+    ThreatAssessment,
+    ThreatAssessmentRequest,
+    ThreatManagementSnapshot,
+    ThreatPrediction,
+    ThreatTargetObservation,
+    ThreatUnavailableReason,
+    ThreatVector,
+)
 
 __all__ = [
     "AlgorithmDescriptor",
@@ -22,4 +36,16 @@ __all__ = [
     "MPCSolution",
     "PlannerInput",
     "TrackedObstacle",
+    "DomainFacts",
+    "DomainQualification",
+    "DomainState",
+    "PredictionBasis",
+    "ShipDomainProfile",
+    "ThreatAssessment",
+    "ThreatAssessmentRequest",
+    "ThreatManagementSnapshot",
+    "ThreatPrediction",
+    "ThreatTargetObservation",
+    "ThreatUnavailableReason",
+    "ThreatVector",
 ]
