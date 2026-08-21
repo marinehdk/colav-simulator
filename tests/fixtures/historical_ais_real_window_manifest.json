@@ -1,0 +1,131 @@
+{
+  "schema_version": "historical-ais-real-acceptance.v1",
+  "acceptance_status": "FAIL",
+  "blocker_code": "THREAT_EVIDENCE_INCOMPLETE",
+  "blocker_message": "Solver/evaluator/compare completed, but real Threat snapshot published zero selected-target vectors and zero schedule memberships.",
+  "source": {
+    "provider": "Kystverket",
+    "source_name": "Hais_e716cfac-348c-417b-acbd-04a228732de7.zip",
+    "archive_sha256": "d303d719cebaf0238c54b9e27f2a40b4414b26e3189b49cb84fbad4086b3f3d7",
+    "entry_name": "hais_2026-07-01.snappy.parquet",
+    "selection": {
+      "start_utc": "2026-07-01T12:00:00+00:00",
+      "end_utc": "2026-07-01T12:01:00+00:00",
+      "t0_utc": "2026-07-01T12:00:30+00:00",
+      "bbox_wgs84_lon_lat": [6.05, 62.44, 6.17, 62.5],
+      "mmsi": [257252000, 258764000, 259189000, 259197000]
+    },
+    "reference_mmsi": 259189000,
+    "selected_actor_mmsi": [257252000, 258764000, 259189000],
+    "dimension_registry_id": "hais-2026-07-01-sdir-dimensions",
+    "attribution": "Kystverket HAIS; NLOD 2.0",
+    "coverage_limitation": "Coverage is limited to reported AIS transmissions; small vessels may be absent due to privacy or equipment restrictions."
+  },
+  "dataset": {
+    "descriptor_sha256": "0c53011ab625048ea61e2e8265542edbc56dabffc358f132825302041e090a68",
+    "selection_sha256": "a591ed0435c98098b76132ee4b678ce41105b6c3b612e701136adbf4fadc1836",
+    "schema_sha256": "392e666a2128d89288eb5d073c1bdd8c65f0da583cba3c5b0e8e12ca3b0c8632",
+    "normalized_sha256": "794c92696aa061ab0b0c2128edbc51bd13eb20c65b54974bd3c654902a4e5adf",
+    "format": "geoparquet",
+    "source_row_count": 24,
+    "normalized_row_count": 24,
+    "quality_finding_count": 98,
+    "dimensioned_observation_count": 0
+  },
+  "enc": {
+    "profile_id": "romsdal-expanded",
+    "qualification_state": "QUALIFIED",
+    "profile_digest": "4dcb6b101a5b53600566648865c999f33f461b2e4d95d9b1ec0fd903270aa707"
+  },
+  "enc_preflight": {
+    "status": "PASS",
+    "all_positions_contained": true
+  },
+  "dimensions": {
+    "default_dimensions_used": false,
+    "registry_applied": true,
+    "effective_dimensioned_actor_count": 3,
+    "explicit_overrides": [],
+    "missing_mmsi": [257252000, 258764000, 259189000],
+    "source_audit": {
+      "status": "CONFIRMED_FIRST_PARTY",
+      "registry_id": "hais-2026-07-01-sdir-dimensions",
+      "registry_version": "1.0.0",
+      "registry_scope": "HAIS 2026-07-01 benchmark selected MMSIs only",
+      "retrieved_at_utc": "2026-08-21T00:00:00Z",
+      "source_note_sha256": "d958016184c6cb1cbdd0a9959523ff1d49705886886681ea500891d02e3cd677",
+      "searched": ["selected HAIS GeoParquet schema", "repository data/ais_datasets", "repository vessel metadata"],
+      "result": "SDIR measurement certificates with Kystdatahuset NSR identity cross-check; latest conferred measurement available before T0."
+    }
+  },
+  "dimension_registry": {
+    "registry_id": "hais-2026-07-01-sdir-dimensions",
+    "registry_version": "1.0.0",
+    "scope": "HAIS 2026-07-01 benchmark selected MMSIs only",
+    "retrieved_at_utc": "2026-08-21T00:00:00Z",
+    "source_note_sha256": "d958016184c6cb1cbdd0a9959523ff1d49705886886681ea500891d02e3cd677",
+    "registry_digest": "d9bf5a84ef725d670557cd358c2fdafd64c49d5cd93414900dbd27287aa5f1aa",
+    "records": [
+      {"mmsi": 257252000, "imo": 9793662, "call_sign": "LDZS", "vessel_name": "FREYJA", "length_m": 84.6, "beam_m": 16.0, "measurement_date": "2017-06-26", "journal_date": "2017-09-15", "effective_as_of_t0": true},
+      {"mmsi": 258764000, "imo": 9331098, "call_sign": "JXPT", "vessel_name": "PELAGIA HORDAFOR", "length_m": 59.2, "beam_m": 10.8, "measurement_date": "2022-09-21", "journal_date": "2022-09-27", "effective_as_of_t0": true},
+      {"mmsi": 259189000, "imo": 9802619, "call_sign": "LEDI", "vessel_name": "VALDERØY", "length_m": 32.0, "beam_m": 8.8, "measurement_date": "2016-12-20", "journal_date": "2017-01-11", "effective_as_of_t0": true}
+    ]
+  },
+  "discovery": {
+    "candidate_count": 2,
+    "target_mmsi": [257252000, 258764000],
+    "labels": ["CROSSING"],
+    "multi_ship": true,
+    "authority": "DISCOVERY_ONLY"
+  },
+  "case": {
+    "status": "SUCCESS",
+    "case_digest": "f9ba2ee76bae9d85b24d99ef3815fd4c12368ae6f56d8798d60cbeffd461363e"
+  },
+  "run": {
+    "run_id": "998eeeab-141b-4bd7-83e4-41ae03d5eb9c",
+    "mode": "COUNTERFACTUAL",
+    "requested_algorithm": "mid_mpc_ipopt",
+    "executed_algorithm": "mid_mpc_ipopt",
+    "fallback_used": false,
+    "spec_hash": "35645ed88175bfa3ffbc954329191f91e677747502eb4f56b5b434da01aa627b",
+    "trajectory_hash": "83c21ceb0e851f20245f8a0473a9b1c08da889b5f539ffd13bb62ac95b8b9dd6",
+    "evaluator_gate": "PASS",
+    "compare_status": "COMPLETE"
+  },
+  "leakage": {
+    "human_reference_digest_in_run_spec": false,
+    "reference_runtime_last_time_s": 30.0,
+    "nominal_intent_strict_pre_t0_only": true,
+    "status": "PASS_CONTRACT"
+  },
+  "evaluation": {
+    "evaluator_gate": "PASS",
+    "evaluation_status": "COMPLETE",
+    "collision_count": 0,
+    "grounding_count": 0,
+    "minimum_distance_m": 2283.319618670313,
+    "S_safety": 1.0
+  },
+  "compare": {
+    "status": "COMPLETE",
+    "overall_assurance_verdict": "PASS",
+    "human_similarity_advisory": true,
+    "compare_digest": "6473f96e54309e1ca863c7b4d3b632c306e7beb405e1132157e154eb40045169"
+  },
+  "threat": {
+    "semantic_hash": "28ea93f15499b23bbd026bd4e469623c60dd7f8cdc88737fc0391b31ab635fe2",
+    "vector_count": 0,
+    "schedule_context_count": 0,
+    "cluster_count": 0,
+    "required_selected_target_count": 2,
+    "gate": "FAIL_THREAT_EVIDENCE_INCOMPLETE"
+  },
+  "lineage": {
+    "dataset_digest": "0c53011ab625048ea61e2e8265542edbc56dabffc358f132825302041e090a68",
+    "case_digest": "f9ba2ee76bae9d85b24d99ef3815fd4c12368ae6f56d8798d60cbeffd461363e",
+    "run_digest": "83c21ceb0e851f20245f8a0473a9b1c08da889b5f539ffd13bb62ac95b8b9dd6",
+    "evaluation_digest": "dbe78a738e9528ff268c127faa800ad3bbead4ba35d0f4b7555c83a1ddde073a",
+    "compare_digest": "6473f96e54309e1ca863c7b4d3b632c306e7beb405e1132157e154eb40045169"
+  }
+}

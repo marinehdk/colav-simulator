@@ -563,6 +563,7 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
         handoff_tolerance_m: float = 1e-6,
         handoff_tolerance_mps: float = 1e-6,
         handoff_tolerance_rad: float = 1e-6,
+        simulation_end_s: float | None = None,
         simulation_length_m: float = 20.0,
         simulation_width_m: float = 5.0,
     ) -> None:
@@ -592,6 +593,10 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
             np.asarray(route_points, dtype=float).T,
             np.full(len(route_points), float(nominal_intent.get("speed_mps", 0.0)), dtype=float),
         )
+        if simulation_end_s is not None:
+            if not math.isfinite(float(simulation_end_s)) or float(simulation_end_s) <= self._counterfactual_t0_s:
+                raise ValueError("simulation_end_s must be later than counterfactual T0")
+            self.t_end = float(simulation_end_s)
         self._counterfactual_phase = "HISTORICAL_REFERENCE"
         self._counterfactual_handoff_state: np.ndarray | None = None
 
@@ -791,7 +796,16 @@ class HistoricalAISReconstructor:
 
 def _canonical_points(points: Sequence[HistoricalActorWorldSample]) -> list[HistoricalActorWorldSample]:
     output: list[HistoricalActorWorldSample] = []
-    for point in sorted(points, key=lambda item: (item.time_s, item.source_observation_refs)):
+    for point in sorted(
+        points,
+        key=lambda item: (
+            item.time_s,
+            tuple(
+                (ref.entry_name, ref.source_row_index, ref.row_sha256, ref.duplicate_version)
+                for ref in item.source_observation_refs
+            ),
+        ),
+    ):
         if output and math.isclose(output[-1].time_s, point.time_s, rel_tol=0.0, abs_tol=1e-9):
             refs = (*output[-1].source_observation_refs, *point.source_observation_refs)
             output[-1] = HistoricalActorWorldSample(

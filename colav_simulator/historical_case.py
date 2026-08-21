@@ -514,9 +514,7 @@ class HistoricalAISCaseBuildRequest:
     dataset: HistoricalAISReadResult
     enc_profile: ENCRegionProfile | None = None
     selection: HistoricalAISSelection | None = None
-    reconstruction_profile: HistoricalAISReconstructionProfile = field(
-        default_factory=HistoricalAISReconstructionProfile
-    )
+    reconstruction_profile: HistoricalAISReconstructionProfile = field(default_factory=HistoricalAISReconstructionProfile)
     discovery_profile: HistoricalAISDiscoveryProfile = field(default_factory=HistoricalAISDiscoveryProfile)
     discovery_request: HistoricalAISDiscoveryRequest = field(default_factory=HistoricalAISDiscoveryRequest)
     maneuver_detection_profile: HistoricalAISManeuverDetectionProfile = field(
@@ -527,6 +525,7 @@ class HistoricalAISCaseBuildRequest:
     t0_utc: datetime | str | None = None
     require_intent: bool = True
     published: bool | None = None
+    dimension_overrides: Mapping[int, Mapping[str, Any]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Normalize request aliases and reject ambiguous Reference Vessel IDs."""
@@ -536,6 +535,11 @@ class HistoricalAISCaseBuildRequest:
             object.__setattr__(self, "t0_utc", _coerce_utc(self.t0_utc))
         if self.published is not None:
             object.__setattr__(self, "require_intent", bool(self.published))
+        object.__setattr__(
+            self,
+            "dimension_overrides",
+            MappingProxyType({int(key): MappingProxyType(dict(value)) for key, value in self.dimension_overrides.items()}),
+        )
         if (
             self.reference_mmsi is not None
             and self.reference_vessel_mmsi is not None
@@ -583,6 +587,7 @@ class HistoricalAISCase:
     t0_candidate: HistoricalAIST0Candidate | None
     nominal_intent: HistoricalAISNominalIntent | None
     source_quality_findings: tuple[Mapping[str, Any], ...]
+    dimension_overrides: tuple[Mapping[str, Any], ...] = ()
     published: bool = True
     build_digest: str = ""
     schema_version: str = CASE_SCHEMA_VERSION
@@ -594,6 +599,11 @@ class HistoricalAISCase:
             self,
             "source_quality_findings",
             tuple(MappingProxyType(dict(item)) for item in self.source_quality_findings),
+        )
+        object.__setattr__(
+            self,
+            "dimension_overrides",
+            tuple(MappingProxyType(dict(item)) for item in self.dimension_overrides),
         )
         if not self.build_digest:
             object.__setattr__(self, "build_digest", _sha256_json(self._identity_dict()))
@@ -677,6 +687,7 @@ class HistoricalAISCase:
             "t0_candidate": self.t0_candidate.to_dict() if self.t0_candidate is not None else None,
             "nominal_intent": self.nominal_intent.to_dict() if self.nominal_intent is not None else None,
             "source_quality_findings": [dict(item) for item in self.source_quality_findings],
+            "dimension_overrides": [dict(item) for item in self.dimension_overrides],
             "published": self.published,
         }
 
@@ -748,6 +759,7 @@ class HistoricalAISCaseBuilder:
                     dataset_selection_digest=request.dataset.descriptor.selection_sha256,
                 )
             actor_set = HistoricalAISReconstructor().reconstruct(request.dataset, request.reconstruction_profile)
+            actor_set = _apply_dimension_overrides(actor_set, request.dimension_overrides)
         except (TypeError, ValueError, KeyError) as exc:
             return self._failure(HistoricalAISCaseBuildStatus.INVALID_REQUEST, str(exc))
 
@@ -814,15 +826,17 @@ class HistoricalAISCaseBuilder:
         selected_mmsis = (reference_mmsi, *target_mmsis)
 
         missing_dimensions = tuple(
-            actor.mmsi
-            for actor in actor_set.actors
-            if actor.mmsi in selected_mmsis and not actor.dimensions_known
+            actor.mmsi for actor in actor_set.actors if actor.mmsi in selected_mmsis and not actor.dimensions_known
         )
         if missing_dimensions:
             return self._failure(
                 HistoricalAISCaseBuildStatus.DIMENSIONS_UNAVAILABLE,
                 "Selected actors lack proven source dimensions",
                 missing_mmsi=missing_dimensions,
+                discovery_candidate_count=len(candidates),
+                discovery_target_mmsi=target_mmsis,
+                discovery_labels=tuple(sorted({candidate.label for candidate in candidates})),
+                discovery_multi_ship=len(candidates) > 1,
             )
 
         if request.enc_profile is None:
@@ -879,9 +893,7 @@ class HistoricalAISCaseBuilder:
                 quality_error_count=len(error_findings),
             )
 
-        traffic_actor_ids = tuple(
-            sorted(actor.actor_id for actor in actor_set.actors if actor.mmsi in target_mmsis)
-        )
+        traffic_actor_ids = tuple(sorted(actor.actor_id for actor in actor_set.actors if actor.mmsi in target_mmsis))
         case = HistoricalAISCase(
             dataset_descriptor=request.dataset.descriptor,
             selection=selection,
@@ -899,6 +911,7 @@ class HistoricalAISCaseBuilder:
             t0_candidate=t0_candidate,
             nominal_intent=nominal_intent,
             source_quality_findings=source_quality,
+            dimension_overrides=tuple(dict(value) for value in request.dimension_overrides.values()),
             published=request.published if request.published is not None else request.require_intent,
         )
         return HistoricalAISCaseBuildOutcome(HistoricalAISCaseBuildStatus.SUCCESS, case=case)
@@ -908,9 +921,7 @@ class HistoricalAISCaseBuilder:
         return HistoricalAISCaseBuildOutcome(status=status, message=message, details=details)
 
     @staticmethod
-    def _select_reference_mmsi(
-        request: HistoricalAISCaseBuildRequest, actor_set: HistoricalActorSet
-    ) -> int | None:
+    def _select_reference_mmsi(request: HistoricalAISCaseBuildRequest, actor_set: HistoricalActorSet) -> int | None:
         requested = request.reference_mmsi or request.discovery_request.reference_mmsi
         if requested is not None:
             return requested if any(actor.mmsi == requested for actor in actor_set.actors) else None
@@ -984,8 +995,7 @@ class HistoricalAISCaseBuilder:
             ):
                 continue
             if request.max_signed_tcpa_s is not None and (
-                statistics["signed_tcpa_s"] is None
-                or statistics["signed_tcpa_s"] > request.max_signed_tcpa_s
+                statistics["signed_tcpa_s"] is None or statistics["signed_tcpa_s"] > request.max_signed_tcpa_s
             ):
                 continue
             encounter_type = _classify_discovery(statistics, profile)
@@ -1010,15 +1020,10 @@ class HistoricalAISCaseBuilder:
         if request.max_candidates is not None:
             candidates = candidates[: request.max_candidates]
         count = len(candidates)
-        return tuple(
-            replace(candidate, multi_ship=count > 1, concurrent_target_count=count)
-            for candidate in candidates
-        )
+        return tuple(replace(candidate, multi_ship=count > 1, concurrent_target_count=count) for candidate in candidates)
 
     @staticmethod
-    def _eligible_mmsis(
-        dataset: HistoricalAISReadResult, request: HistoricalAISDiscoveryRequest
-    ) -> set[int] | None:
+    def _eligible_mmsis(dataset: HistoricalAISReadResult, request: HistoricalAISDiscoveryRequest) -> set[int] | None:
         filters = request.vessel_types or request.ais_classes or request.status_values
         if not filters:
             return None
@@ -1157,9 +1162,7 @@ class HistoricalAISCaseBuilder:
             fit_error_m=fit_error,
             source_sample_count=len(samples),
             source_timestamps_utc=tuple(sample.timestamp_utc for sample in samples),
-            source_observation_refs=tuple(
-                ref for sample in samples for ref in sample.source_observation_refs
-            ),
+            source_observation_refs=tuple(ref for sample in samples for ref in sample.source_observation_refs),
             route_points_vxvy=((first.state_vxvy[0], first.state_vxvy[1]), (last.state_vxvy[0], last.state_vxvy[1])),
         )
 
@@ -1199,11 +1202,7 @@ def _pair_statistics(reference: HistoricalActor, target: HistoricalActor) -> dic
             closing = -(rel_north * rel_v_north + rel_east * rel_v_east) / range_m
             max_closing = max(max_closing, closing)
         rel_speed_sq = rel_v_north * rel_v_north + rel_v_east * rel_v_east
-        signed_tcpa = (
-            -(rel_north * rel_v_north + rel_east * rel_v_east) / rel_speed_sq
-            if rel_speed_sq > 1e-12
-            else None
-        )
+        signed_tcpa = -(rel_north * rel_v_north + rel_east * rel_v_east) / rel_speed_sq if rel_speed_sq > 1e-12 else None
         predicted = (
             math.hypot(
                 rel_north + rel_v_north * max(0.0, signed_tcpa or 0.0),
@@ -1222,9 +1221,8 @@ def _pair_statistics(reference: HistoricalActor, target: HistoricalActor) -> dic
     target_speed = math.hypot(target_state[2], target_state[3])
     ref_course = math.atan2(ref_state[3], ref_state[2])
     target_course = math.atan2(target_state[3], target_state[2])
-    target_ahead = (
-        (target_state[0] - ref_state[0]) * math.cos(ref_course)
-        + (target_state[1] - ref_state[1]) * math.sin(ref_course)
+    target_ahead = (target_state[0] - ref_state[0]) * math.cos(ref_course) + (target_state[1] - ref_state[1]) * math.sin(
+        ref_course
     )
     return {
         "duration_s": duration,
@@ -1271,6 +1269,62 @@ def _constant_velocity_fit_error(samples: Sequence[Any], speed: float, course: f
         expected_east = first.state_vxvy[1] + vy * delta
         errors.append(math.hypot(sample.state_vxvy[0] - expected_north, sample.state_vxvy[1] - expected_east))
     return math.sqrt(sum(error * error for error in errors) / len(errors)) if errors else 0.0
+
+
+def _apply_dimension_overrides(
+    actor_set: HistoricalActorSet, overrides: Mapping[int, Mapping[str, Any]]
+) -> HistoricalActorSet:
+    if not overrides:
+        return actor_set
+    actors: list[HistoricalActor] = []
+    for actor in actor_set.actors:
+        document = overrides.get(actor.mmsi)
+        if document is None:
+            actors.append(actor)
+            continue
+        length = float(document.get("length_m"))
+        width = float(document.get("width_m", document.get("beam_m")))
+        provenance = str(document.get("provenance") or document.get("measurement_source") or "").strip()
+        source_digest = str(document.get("source_digest") or "").strip()
+        if (
+            not math.isfinite(length)
+            or length <= 0.0
+            or not math.isfinite(width)
+            or width <= 0.0
+            or not provenance
+            or not source_digest
+        ):
+            raise ValueError(f"dimension override for MMSI {actor.mmsi} lacks typed source provenance")
+        if actor.dimensions_known:
+            if not math.isclose(actor.length_m or 0.0, length, rel_tol=0.0, abs_tol=1e-9) or not math.isclose(
+                actor.width_m or 0.0, width, rel_tol=0.0, abs_tol=1e-9
+            ):
+                raise ValueError(f"dimension override conflicts with source dimensions for MMSI {actor.mmsi}")
+            actors.append(actor)
+            continue
+        actors.append(
+            HistoricalActor(
+                actor_id=actor.actor_id,
+                mmsi=actor.mmsi,
+                samples=actor.samples,
+                observed_source_points=actor.observed_source_points,
+                derived_world_samples=actor.derived_world_samples,
+                length_m=length,
+                width_m=width,
+                dimensions_provenance=f"explicit:{provenance}",
+                source_observation_digest=actor.source_observation_digest,
+            )
+        )
+    return HistoricalActorSet(
+        dataset_digest=actor_set.dataset_digest,
+        selection_digest=actor_set.selection_digest,
+        profile=actor_set.profile,
+        time_origin_utc=actor_set.time_origin_utc,
+        actors=tuple(actors),
+        provider=actor_set.provider,
+        attribution=actor_set.attribution,
+        coverage_limitations=actor_set.coverage_limitations,
+    )
 
 
 def _coerce_utc(value: datetime | str) -> datetime:

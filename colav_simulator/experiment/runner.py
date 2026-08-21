@@ -228,6 +228,7 @@ class ExperimentRunner:
                             handoff_tolerance_m=historical_request.handoff_tolerance_m,
                             handoff_tolerance_mps=historical_request.handoff_tolerance_mps,
                             handoff_tolerance_rad=historical_request.handoff_tolerance_rad,
+                            simulation_end_s=float(episode["config"].t_end),
                             simulation_length_m=historical_request.simulation_length_m,
                             simulation_width_m=historical_request.simulation_width_m,
                         )
