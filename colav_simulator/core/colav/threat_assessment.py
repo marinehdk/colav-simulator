@@ -7,27 +7,31 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field, is_dataclass
-from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
 import numpy as np
 
-from colav_simulator.core.colav.encounter_lifecycle import ObservationHealth, OwnshipObservation
+from colav_simulator.common.string_enum import StringEnum
+from colav_simulator.core.colav.encounter_lifecycle import (
+    ObservationHealth,
+    OwnshipObservation,
+    PhysicalFactValidity,
+)
 from colav_simulator.core.tracking.trackers import TrackKey
 
 THREAT_SCHEMA_VERSION = "colav.threat-management.snapshot@1"
 THREAT_CANONICALIZER_ID = "colav.python-json@1"
 
 
-class DomainQualification(StrEnum):
+class DomainQualification(StringEnum):
     """Qualification state for engineering Ship Domain parameters."""
 
     QUALIFIED = "QUALIFIED"
     UNQUALIFIED = "UNQUALIFIED"
 
 
-class DomainState(StrEnum):
+class DomainState(StringEnum):
     """Typed current or predicted relationship to the Ship Domain."""
 
     OUTSIDE = "OUTSIDE"
@@ -38,7 +42,7 @@ class DomainState(StrEnum):
     UNQUALIFIED = "UNQUALIFIED"
 
 
-class PredictionBasis(StrEnum):
+class PredictionBasis(StringEnum):
     """Provenance of the target trajectory used for domain projection."""
 
     EXPLICIT_TRAJECTORY = "EXPLICIT_TRAJECTORY"
@@ -46,7 +50,7 @@ class PredictionBasis(StrEnum):
     UNAVAILABLE = "UNAVAILABLE"
 
 
-class ThreatUnavailableReason(StrEnum):
+class ThreatUnavailableReason(StringEnum):
     """Typed reasons for facts that cannot be claimed by this snapshot."""
 
     PREDICTION_UNAVAILABLE = "PREDICTION_UNAVAILABLE"
@@ -59,7 +63,7 @@ class ThreatUnavailableReason(StrEnum):
     OBSERVATION_STALE = "OBSERVATION_STALE"
 
 
-class ThreatPriorityClass(StrEnum):
+class ThreatPriorityClass(StringEnum):
     """Versioned lexicographic priority classes, not a scalar safety score."""
 
     RESPONSE_TIME_EMERGENCY = "RESPONSE_TIME_EMERGENCY"
@@ -70,6 +74,15 @@ class ThreatPriorityClass(StrEnum):
     FUTURE_SEVERITY = "FUTURE_SEVERITY"
     UNKNOWN = "UNKNOWN"
     MONITOR = "MONITOR"
+
+
+class ThreatCompleteness(StringEnum):
+    """Typed completeness of a published threat claim."""
+
+    FULL = "FULL"
+    PARTIAL = "PARTIAL"
+    DEGRADED = "DEGRADED"
+    UNKNOWN = "UNKNOWN"
 
 
 @dataclass(frozen=True)
@@ -84,7 +97,7 @@ class ThreatWindow:
     horizon_end_s: float | None = None
     prediction_basis: PredictionBasis | str = PredictionBasis.UNAVAILABLE
     source: str = "ThreatAssessment"
-    completeness: str = "UNKNOWN"
+    completeness: ThreatCompleteness | str = ThreatCompleteness.UNKNOWN
     unavailable_reason: ThreatUnavailableReason | str | None = None
     entry_time_absolute_s: float | None = None
     peak_time_absolute_s: float | None = None
@@ -113,6 +126,7 @@ class ThreatWindow:
         if self.reference_time_s is not None and self.horizon_end_s is not None and self.horizon_end_s < 0.0:
             raise ValueError("horizon end must be non-negative")
         object.__setattr__(self, "prediction_basis", PredictionBasis(self.prediction_basis))
+        object.__setattr__(self, "completeness", ThreatCompleteness(self.completeness))
         if self.unavailable_reason is not None:
             object.__setattr__(self, "unavailable_reason", ThreatUnavailableReason(self.unavailable_reason))
 
@@ -137,7 +151,7 @@ class ThreatWindow:
         return self.exit_time_s
 
 
-class ThreatScheduleContext(StrEnum):
+class ThreatScheduleContext(StringEnum):
     """Mutually exclusive semantic membership of one target in a snapshot."""
 
     CURRENT_PRIMARY = "CURRENT_PRIMARY"
@@ -253,14 +267,14 @@ class ThreatSchedule:
         return self.next_threats
 
 
-class ConflictEdgeType(StrEnum):
+class ConflictEdgeType(StringEnum):
     """Typed relationship represented in the online conflict graph."""
 
     DIRECT_WINDOW_OVERLAP = "DIRECT_WINDOW_OVERLAP"
     PLAN_INDUCED_CONFLICT = "PLAN_INDUCED_CONFLICT"
 
 
-class ConflictPredictionBasis(StrEnum):
+class ConflictPredictionBasis(StringEnum):
     """Prediction provenance attached to one immutable graph edge."""
 
     THREAT_WINDOW = "THREAT_WINDOW"
@@ -269,7 +283,7 @@ class ConflictPredictionBasis(StrEnum):
     UNAVAILABLE = "UNAVAILABLE"
 
 
-class ConflictUnavailableReason(StrEnum):
+class ConflictUnavailableReason(StringEnum):
     """Typed reasons why optional plan-induced evidence is unavailable."""
 
     BASELINE_UNAVAILABLE = "BASELINE_UNAVAILABLE"
@@ -661,6 +675,7 @@ class DomainFacts:
     uncertainty_radius_m: float | None = None
     tdv_s: float | None = None
     tde_s: float | None = None
+    peak_time_s: float | None = None
     horizon_min_scale: float | None = None
 
     def __post_init__(self) -> None:
@@ -673,6 +688,7 @@ class DomainFacts:
             (self.uncertainty_radius_m, "uncertainty_radius_m"),
             (self.tdv_s, "tdv_s"),
             (self.tde_s, "tde_s"),
+            (self.peak_time_s, "peak_time_s"),
             (self.horizon_min_scale, "horizon_min_scale"),
         ):
             if value is not None and (not math.isfinite(value) or (name.endswith("_s") and value < 0.0)):
@@ -709,7 +725,7 @@ class ThreatVector:
     current_domain: DomainFacts
     predicted_domain: DomainFacts
     uncertainty_radius_m: float | None
-    claim_completeness: str
+    claim_completeness: ThreatCompleteness | str
     prediction_basis: PredictionBasis
     unavailable_reasons: tuple[ThreatUnavailableReason | str, ...] = ()
     priority_class: ThreatPriorityClass | str = ThreatPriorityClass.MONITOR
@@ -736,8 +752,7 @@ class ThreatVector:
         ):
             if value is not None and not math.isfinite(value):
                 raise ValueError(f"{name} must be finite when present")
-        if not self.claim_completeness.strip():
-            raise ValueError("claim_completeness is required")
+        object.__setattr__(self, "claim_completeness", ThreatCompleteness(self.claim_completeness))
         object.__setattr__(self, "observation_health", ObservationHealth(self.observation_health))
         object.__setattr__(self, "prediction_basis", PredictionBasis(self.prediction_basis))
         object.__setattr__(self, "priority_class", ThreatPriorityClass(self.priority_class))
@@ -1139,14 +1154,16 @@ def _assess_target(  # noqa: PLR0912, PLR0915 - explicit typed evidence branches
         target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
         hull_clearance_m = dcpa_m - own_radius - target_radius
 
-    if getattr(physical_fact, "validity", "VALID") != "VALID":
+    if getattr(physical_fact, "validity", PhysicalFactValidity.VALID) is not PhysicalFactValidity.VALID:
         unavailable.append(getattr(physical_fact, "unavailable_reason", None) or "PHYSICAL_FACT_UNAVAILABLE")
 
     uncertainty_radius_m = _uncertainty_radius(target, profile)
     if uncertainty_radius_m is None:
         unavailable.append(ThreatUnavailableReason.UNCERTAINTY_UNAVAILABLE)
     physical_unavailable_reason = getattr(physical_fact, "unavailable_reason", None)
-    physical_unavailable = getattr(physical_fact, "validity", "VALID") != "VALID"
+    physical_unavailable = (
+        getattr(physical_fact, "validity", PhysicalFactValidity.VALID) is not PhysicalFactValidity.VALID
+    )
     if physical_unavailable and physical_unavailable_reason:
         current_domain = DomainFacts(
             state=DomainState.UNKNOWN,
@@ -1171,11 +1188,15 @@ def _assess_target(  # noqa: PLR0912, PLR0915 - explicit typed evidence branches
         predicted_domain = _predicted_domain_facts(ownship, target, profile, uncertainty_radius_m, prediction)
     if predicted_domain.unavailable_reason is not None:
         unavailable.append(predicted_domain.unavailable_reason)
-    completeness = "UNKNOWN" if target.health is ObservationHealth.UNUSABLE or physical_unavailable else "FULL"
+    completeness = (
+        ThreatCompleteness.UNKNOWN
+        if target.health is ObservationHealth.UNUSABLE or physical_unavailable
+        else ThreatCompleteness.FULL
+    )
     if target.health in {ObservationHealth.COASTING, ObservationHealth.DEGRADED}:
-        completeness = "DEGRADED"
-    if unavailable and completeness == "FULL":
-        completeness = "PARTIAL"
+        completeness = ThreatCompleteness.DEGRADED
+    if unavailable and completeness is ThreatCompleteness.FULL:
+        completeness = ThreatCompleteness.PARTIAL
     return ThreatVector(
         key=target.key,
         observation_health=target.health,
@@ -1297,6 +1318,7 @@ def _predicted_domain_facts(
         dtype=float,
     )
     minimum = float(np.min(scales))
+    peak_time_s = float(prediction.times_s[int(np.argmin(scales))])
     inside = np.flatnonzero(scales < 1.0 - 1.0e-9)
     tangent = np.flatnonzero(np.isclose(scales, 1.0, rtol=0.0, atol=1.0e-9))
     if inside.size:
@@ -1313,6 +1335,7 @@ def _predicted_domain_facts(
         uncertainty_radius_m=uncertainty_radius_m,
         tdv_s=tdv_s,
         tde_s=tde_s,
+        peak_time_s=peak_time_s,
         horizon_min_scale=minimum,
     )
 
@@ -1397,7 +1420,7 @@ def _freeze_value(value: Any) -> Any:
 
 
 def _json_value(value: Any) -> Any:
-    if isinstance(value, StrEnum):
+    if isinstance(value, StringEnum):
         return value.value
     if isinstance(value, Mapping):
         return {str(key): _json_value(item) for key, item in sorted(value.items())}

@@ -91,7 +91,13 @@ from colav_simulator.core.colav.rolling_plan import (
     RollingPlanIdentity,
     RollingPlanReference,
 )
-from colav_simulator.core.colav.threat_assessment import OwnshipThreatPrediction
+from colav_simulator.core.colav.threat_assessment import (
+    OwnshipThreatPrediction,
+    PredictionBasis,
+)
+from colav_simulator.core.colav.threat_assessment import (
+    ThreatPrediction as ThreatTargetPrediction,
+)
 from colav_simulator.core.colav.threat_management import (
     AcceptedPlanReceipt,
     ThreatManagementCoordinator,
@@ -344,6 +350,8 @@ class _MidMpcFacade:
             threat_snapshot = self._threat_management_coordinator.cycle(
                 cycle,
                 profile=self._threat_management_coordinator.domain_profile,
+                predictions=self._threat_target_predictions(planner_input),
+                baseline_prediction=self._threat_baseline_prediction(planner_input),
             )
             snapshot = threat_snapshot.lifecycle_snapshot
             if not isinstance(snapshot, DecisionSnapshot):
@@ -577,10 +585,7 @@ class _MidMpcFacade:
         accepted_prediction = OwnshipThreatPrediction.from_prediction_evidence(
             prediction_evidence,
             reference_time_s=planner_input.sim_time_s,
-            target_keys=tuple(
-                TrackKey(track.target_id, track.generation or 1)
-                for track in planner_input.tracks
-            ),
+            target_keys=tuple(TrackKey(track.target_id, track.generation or 1) for track in planner_input.tracks),
         )
         receipt = {
             "schema_version": "colav.mid_mpc.receipt@1",
@@ -600,6 +605,7 @@ class _MidMpcFacade:
             "accepted_prediction": accepted_prediction.to_dict(),
             "prediction_hash": accepted_prediction.semantic_hash,
             "evidence_semantic_hash": prediction_evidence.semantic_hash,
+            "domain_profile_hash": self._threat_management_coordinator.domain_profile.profile_hash,
             "target_keys": [
                 {"target_id": track.target_id, "generation": track.generation} for track in planner_input.tracks
             ],
@@ -975,6 +981,50 @@ class _MidMpcFacade:
             route_bearing_rad=route_bearing_rad,
             planned_speed_mps=planned_speed_mps,
             profile=self._config.profile,
+        )
+
+    def _threat_target_predictions(
+        self,
+        planner_input: PlannerInput,
+    ) -> tuple[ThreatTargetPrediction, ...]:
+        """Project tracker states on the declared Mid-MPC constant-velocity basis."""
+        times = np.arange(self._config.assembly.horizon_steps + 1, dtype=float) * self._config.assembly.horizon_dt_s
+        predictions = []
+        for track in planner_input.tracks:
+            generation = track.generation or 1
+            positions = track.state_enu[:2] + times[:, None] * track.state_enu[2:4]
+            velocities = np.repeat(track.state_enu[None, 2:4], times.size, axis=0)
+            predictions.append(
+                ThreatTargetPrediction(
+                    key=TrackKey(track.target_id, generation),
+                    times_s=times,
+                    states_enu=np.column_stack((positions, velocities)),
+                    basis=PredictionBasis.CONSTANT_VELOCITY,
+                    model="mid_mpc_constant_velocity_targets",
+                )
+            )
+        return tuple(predictions)
+
+    def _threat_baseline_prediction(self, planner_input: PlannerInput) -> OwnshipThreatPrediction:
+        """Declare the current-motion ownship baseline without invoking solver authority."""
+        times = np.arange(self._config.assembly.horizon_steps + 1, dtype=float) * self._config.assembly.horizon_dt_s
+        ownship = planner_input.ownship_state
+        velocity = np.array(
+            [
+                ownship[3] * math.cos(ownship[2]) - ownship[4] * math.sin(ownship[2]),
+                ownship[3] * math.sin(ownship[2]) + ownship[4] * math.cos(ownship[2]),
+            ]
+        )
+        positions = ownship[:2] + times[:, None] * velocity
+        velocities = np.repeat(velocity[None, :], times.size, axis=0)
+        return OwnshipThreatPrediction(
+            times_s=times,
+            states_enu=np.column_stack((positions, velocities)),
+            basis="CURRENT_MOTION_BASELINE",
+            model="mid_mpc_current_motion_baseline",
+            source="PLANNER_INPUT",
+            target_keys=tuple(TrackKey(track.target_id, track.generation or 1) for track in planner_input.tracks),
+            reference_time_s=planner_input.sim_time_s,
         )
 
     def _target_observation(self, track: object) -> TargetObservation:

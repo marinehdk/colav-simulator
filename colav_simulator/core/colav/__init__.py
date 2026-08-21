@@ -13,6 +13,7 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
 )
 from colav_simulator.core.colav.encounter_lifecycle import (
     PhysicalEncounterFacts,
+    PhysicalFactValidity,
     PrimaryPriorityFact,
     canonical_physical_facts,
 )
@@ -33,6 +34,7 @@ from colav_simulator.core.colav.threat_assessment import (
     ShipDomainProfile,
     ThreatAssessment,
     ThreatAssessmentRequest,
+    ThreatCompleteness,
     ThreatManagementSnapshot,
     ThreatPrediction,
     ThreatPriorityClass,
@@ -64,6 +66,7 @@ __all__ = [
     "PlannerInput",
     "TrackedObstacle",
     "PhysicalEncounterFacts",
+    "PhysicalFactValidity",
     "PrimaryPriorityFact",
     "canonical_physical_facts",
     "DomainFacts",
@@ -73,6 +76,7 @@ __all__ = [
     "ShipDomainProfile",
     "ThreatAssessment",
     "ThreatAssessmentRequest",
+    "ThreatCompleteness",
     "ThreatManagementSnapshot",
     "ThreatPrediction",
     "ThreatTargetObservation",

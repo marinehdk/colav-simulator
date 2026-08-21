@@ -7,12 +7,12 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from enum import StrEnum
 from itertools import combinations
 from typing import Any
 
 import numpy as np
 
+from colav_simulator.common.string_enum import StringEnum
 from colav_simulator.core.colav.encounter_lifecycle import (
     CommitmentPhase,
     EncounterCycle,
@@ -39,6 +39,7 @@ from colav_simulator.core.colav.threat_assessment import (
     ShipDomainProfile,
     ThreatAssessment,
     ThreatAssessmentRequest,
+    ThreatCompleteness,
     ThreatManagementSnapshot,
     ThreatPrediction,
     ThreatPriorityClass,
@@ -52,7 +53,7 @@ from colav_simulator.core.colav.threat_assessment import (
 from colav_simulator.core.tracking.trackers import TrackKey
 
 
-class AcceptedPlanState(StrEnum):
+class AcceptedPlanState(StringEnum):
     STAGED = "STAGED"
     APPLIED = "APPLIED"
     EXPIRED = "EXPIRED"
@@ -129,7 +130,7 @@ class AcceptedPlanReceipt:
         if "candidate_hash" in value and not (
             value.get("parent_acceptance_hash") or value.get("semantic_acceptance_hash")
         ):
-            raise ValueError("raw solver candidate cannot be accepted as a plan receipt")
+            raise ValueError("unaccepted solver candidate cannot be used as an Accepted Plan Receipt")
         return cls(
             receipt_hash=receipt_hash,
             accepted_sequence=int(accepted_sequence),
@@ -179,12 +180,14 @@ class AcceptedPlanReceipt:
             raise TypeError("accepted plan target must be TrackKey")
         if self.accepted_prediction is not None and not isinstance(self.accepted_prediction, OwnshipThreatPrediction):
             raise TypeError("accepted prediction must be OwnshipThreatPrediction")
-        if self.prediction_hash is not None and not self.prediction_hash.strip():
-            raise ValueError("prediction_hash cannot be empty")
-        if self.acceptance_hash is not None and not self.acceptance_hash.strip():
-            raise ValueError("acceptance_hash cannot be empty")
-        if self.evidence_semantic_hash is not None and not self.evidence_semantic_hash.strip():
-            raise ValueError("evidence semantic hash cannot be empty")
+        for value, name in (
+            (self.prediction_hash, "prediction_hash"),
+            (self.acceptance_hash, "acceptance_hash"),
+            (self.domain_profile_hash, "domain_profile_hash"),
+            (self.evidence_semantic_hash, "evidence_semantic_hash"),
+        ):
+            if value is not None and not value.strip():
+                raise ValueError(f"{name} cannot be empty")
         if (
             self.accepted_prediction is not None
             and self.prediction_hash is not None
@@ -460,8 +463,19 @@ class ConflictGraphBuilder:
             plan_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_PREDICTION_UNAVAILABLE)
         elif accepted_plan.valid_until_s + 1.0e-9 < sim_time_s:
             plan_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_EXPIRED)
+        elif accepted_plan.accepted_at_s > sim_time_s + 1.0e-9:
+            plan_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_RECEIPT_INVALID)
         else:
             target_keys = set(prediction_by_key)
+            accepted_prediction = accepted_plan.accepted_prediction
+            if (
+                accepted_plan.acceptance_hash is None
+                or accepted_plan.prediction_hash is None
+                or accepted_plan.domain_profile_hash is None
+                or accepted_plan.evidence_semantic_hash is None
+                or accepted_prediction.evidence_semantic_hash is None
+            ):
+                plan_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_RECEIPT_INVALID)
             if (
                 baseline_prediction is not None
                 and (
@@ -470,7 +484,6 @@ class ConflictGraphBuilder:
                 )
             ):
                 plan_reasons.append(ConflictUnavailableReason.TARGET_PREDICTION_IDENTITY_MISMATCH)
-            accepted_prediction = accepted_plan.accepted_prediction
             if not accepted_plan.target_keys or set(accepted_plan.target_keys) != target_keys:
                 plan_reasons.append(ConflictUnavailableReason.PLAN_PREDICTION_IDENTITY_MISMATCH)
             if (
@@ -508,19 +521,26 @@ class ConflictGraphBuilder:
                     if vector is None or vector.uncertainty_radius_m is None:
                         plan_reasons.append(ConflictUnavailableReason.TARGET_PREDICTION_UNAVAILABLE)
                         continue
-                    baseline_trace = _ownship_domain_trace(
-                        baseline_prediction,
-                        prediction,
-                        vector.uncertainty_radius_m,
-                        domain_profile,
-                        comparison_time_s=sim_time_s,
-                    )
                     accepted_trace = _ownship_domain_trace(
                         accepted_prediction,
                         prediction,
                         vector.uncertainty_radius_m,
                         domain_profile,
                         comparison_time_s=sim_time_s,
+                    )
+                    comparison_prediction = (
+                        None if accepted_trace is None else _prediction_at_times(prediction, accepted_trace["times_s"])
+                    )
+                    baseline_trace = (
+                        None
+                        if comparison_prediction is None
+                        else _ownship_domain_trace(
+                            baseline_prediction,
+                            comparison_prediction,
+                            vector.uncertainty_radius_m,
+                            domain_profile,
+                            comparison_time_s=sim_time_s,
+                        )
                     )
                     if baseline_trace is None or accepted_trace is None:
                         plan_reasons.append(ConflictUnavailableReason.TARGET_PREDICTION_UNAVAILABLE)
@@ -707,12 +727,14 @@ def _ownship_domain_trace(
         return None
     target_absolute_times = comparison_time_s + np.asarray(target.times_s, dtype=float)
     ownship_absolute_times = ownship.reference_time_s + ownship.times_s
-    if (
-        target_absolute_times[0] < ownship_absolute_times[0] - 1.0e-9
-        or target_absolute_times[-1] > ownship_absolute_times[-1] + 1.0e-9
-    ):
+    available = (target_absolute_times >= ownship_absolute_times[0] - 1.0e-9) & (
+        target_absolute_times <= ownship_absolute_times[-1] + 1.0e-9
+    )
+    if int(np.count_nonzero(available)) < 2:
         return None
-    query = np.asarray(target.times_s, dtype=float)
+    target_absolute_times = target_absolute_times[available]
+    query = np.asarray(target.times_s, dtype=float)[available]
+    target_states = target.states_enu[available]
     own_north = np.interp(target_absolute_times, ownship_absolute_times, ownship.states_enu[:, 0])
     own_east = np.interp(target_absolute_times, ownship_absolute_times, ownship.states_enu[:, 1])
     own_velocity_north = np.interp(target_absolute_times, ownship_absolute_times, ownship.states_enu[:, 2])
@@ -720,7 +742,7 @@ def _ownship_domain_trace(
     if np.any(np.hypot(own_velocity_north, own_velocity_east) <= 1.0e-12):
         return None
     scales: list[float] = []
-    for index, state in enumerate(target.states_enu):
+    for index, state in enumerate(target_states):
         heading = math.atan2(float(own_velocity_east[index]), float(own_velocity_north[index]))
         forward = np.array([math.cos(heading), math.sin(heading)])
         starboard = np.array([math.sin(heading), -math.cos(heading)])
@@ -744,6 +766,24 @@ def _ownship_domain_trace(
         "tde_s": exit_time,
         "domain_violation": bool(np.any(scale_array < 1.0 - 1.0e-9)),
     }
+
+
+def _prediction_at_times(prediction: ThreatPrediction, times: object) -> ThreatPrediction | None:
+    requested = np.asarray(times, dtype=float)
+    indices = [
+        index
+        for index, value in enumerate(prediction.times_s)
+        if np.any(np.isclose(requested, value, rtol=0.0, atol=1.0e-9))
+    ]
+    if len(indices) < 2:
+        return None
+    return ThreatPrediction(
+        key=prediction.key,
+        times_s=prediction.times_s[indices],
+        states_enu=prediction.states_enu[indices],
+        basis=prediction.basis,
+        model=prediction.model,
+    )
 
 
 def _first_scale_entry(times: np.ndarray, scales: np.ndarray) -> float | None:
@@ -814,7 +854,7 @@ def _material_plan_worsening(
 
 
 def _priority_fact(vector: Any, cycle: EncounterCycle) -> PrimaryPriorityFact:
-    if vector.claim_completeness == "UNKNOWN":
+    if vector.claim_completeness is ThreatCompleteness.UNKNOWN:
         return PrimaryPriorityFact(key=vector.key, reason="threat_evidence_unknown")
     current_violation = vector.current_domain.state is DomainState.INSIDE
     predicted_violation = vector.predicted_domain.state is DomainState.INSIDE
@@ -832,7 +872,7 @@ def _priority_fact(vector: Any, cycle: EncounterCycle) -> PrimaryPriorityFact:
         reason = "current_domain_violation"
     elif predicted_violation:
         reason = "predicted_domain_violation"
-    elif vector.claim_completeness == "FULL":
+    elif vector.claim_completeness is ThreatCompleteness.FULL:
         reason = "future_severity"
     return PrimaryPriorityFact(
         key=vector.key,
@@ -840,7 +880,7 @@ def _priority_fact(vector: Any, cycle: EncounterCycle) -> PrimaryPriorityFact:
         current_domain_violation=current_violation,
         predicted_domain_violation=predicted_violation,
         future_severity=1 if current_violation or predicted_violation else 0,
-        completeness=1 if vector.claim_completeness == "FULL" else 0,
+        completeness=1 if vector.claim_completeness is ThreatCompleteness.FULL else 0,
         reason=reason,
     )
 
@@ -875,7 +915,7 @@ def _attach_lifecycle_and_priority(
 
 
 def _resolved_priority(vector: Any, decision: Any) -> tuple[ThreatPriorityClass, str, tuple[float, ...]]:
-    if vector.observation_health is ObservationHealth.UNUSABLE or vector.claim_completeness == "UNKNOWN":
+    if vector.observation_health is ObservationHealth.UNUSABLE or vector.claim_completeness is ThreatCompleteness.UNKNOWN:
         return ThreatPriorityClass.UNKNOWN, "observation_unusable", (7.0,)
     if vector.hull_clearance_m is not None and vector.hull_clearance_m <= 0.0:
         return ThreatPriorityClass.RESPONSE_TIME_EMERGENCY, "response_time_emergency", (0.0,)
@@ -891,7 +931,7 @@ def _resolved_priority(vector: Any, decision: Any) -> tuple[ThreatPriorityClass,
         return ThreatPriorityClass.CURRENT_DOMAIN_VIOLATION, "current_domain_violation", (3.0,)
     if vector.predicted_domain.state is DomainState.INSIDE:
         return ThreatPriorityClass.PREDICTED_DOMAIN_VIOLATION, "predicted_domain_violation", (4.0,)
-    if vector.claim_completeness == "FULL":
+    if vector.claim_completeness is ThreatCompleteness.FULL:
         return ThreatPriorityClass.FUTURE_SEVERITY, "future_severity", (5.0,)
     return ThreatPriorityClass.UNKNOWN, "threat_evidence_unknown", (6.0,)
 
@@ -902,13 +942,13 @@ def _window(vector: Any, prediction: ThreatPrediction | None, sim_time_s: float)
             key=vector.key,
             reference_time_s=sim_time_s,
             prediction_basis=PredictionBasis.UNAVAILABLE,
-            completeness="UNKNOWN",
+            completeness=ThreatCompleteness.UNKNOWN,
             unavailable_reason="PREDICTION_UNAVAILABLE",
         )
     domain = vector.predicted_domain
     entry = domain.tdv_s
     exit_time = domain.tde_s
-    peak = domain.tdv_s if domain.horizon_min_scale is not None else None
+    peak = domain.peak_time_s
     horizon_end = float(prediction.times_s[-1])
     return ThreatWindow(
         key=vector.key,

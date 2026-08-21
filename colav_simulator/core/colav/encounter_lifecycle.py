@@ -9,21 +9,28 @@ from collections import deque
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict, dataclass
-from enum import StrEnum
 
 import numpy as np
 
+from colav_simulator.common.string_enum import StringEnum
 from colav_simulator.core.tracking.trackers import TrackKey
 
 
-class ObservationHealth(StrEnum):
+class ObservationHealth(StringEnum):
     UPDATED = "UPDATED"
     DEGRADED = "DEGRADED"
     COASTING = "COASTING"
     UNUSABLE = "UNUSABLE"
 
 
-class LifecycleFailure(StrEnum):
+class PhysicalFactValidity(StringEnum):
+    """Availability state of canonical physical encounter facts."""
+
+    VALID = "VALID"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class LifecycleFailure(StringEnum):
     CYCLE_CONFLICT = "CYCLE_CONFLICT"
     TIME_REWIND = "TIME_REWIND"
     TIME_GAP = "TIME_GAP"
@@ -39,7 +46,7 @@ class LifecycleError(RuntimeError):
         self.failure = failure
 
 
-class EncounterKind(StrEnum):
+class EncounterKind(StringEnum):
     CLEAR = "CLEAR"
     HEAD_ON = "HEAD_ON"
     CROSSING = "CROSSING"
@@ -47,7 +54,7 @@ class EncounterKind(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
-class OwnshipRole(StrEnum):
+class OwnshipRole(StringEnum):
     NONE = "NONE"
     GIVE_WAY = "GIVE_WAY"
     STAND_ON = "STAND_ON"
@@ -56,7 +63,7 @@ class OwnshipRole(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
-class RiskPhase(StrEnum):
+class RiskPhase(StringEnum):
     CLEAR = "CLEAR"
     CANDIDATE = "CANDIDATE"
     ACTIVE = "ACTIVE"
@@ -64,19 +71,19 @@ class RiskPhase(StrEnum):
     RELEASED = "RELEASED"
 
 
-class CommitmentPhase(StrEnum):
+class CommitmentPhase(StringEnum):
     NONE = "NONE"
     COMMITTED = "COMMITTED"
     ACHIEVED = "ACHIEVED"
 
 
-class PassingSide(StrEnum):
+class PassingSide(StringEnum):
     NONE = "NONE"
     PORT = "PORT"
     STARBOARD = "STARBOARD"
 
 
-class Rule17Stage(StrEnum):
+class Rule17Stage(StringEnum):
     NONE = "NONE"
     STAND_ON = "STAND_ON"
     MAY_ACT = "MAY_ACT"
@@ -745,7 +752,7 @@ class PhysicalEncounterFacts:
     observation_health: ObservationHealth
     age_s: float
     hull_clearance_m: float | None
-    validity: str = "VALID"
+    validity: PhysicalFactValidity | str = PhysicalFactValidity.VALID
     unavailable_reason: str | None = None
 
     def __post_init__(self) -> None:
@@ -768,8 +775,7 @@ class PhysicalEncounterFacts:
             raise ValueError("physical fact age must be finite and non-negative")
         if self.hull_clearance_m is not None and not math.isfinite(self.hull_clearance_m):
             raise ValueError("physical fact hull clearance must be finite")
-        if not self.validity.strip():
-            raise ValueError("physical fact validity is required")
+        object.__setattr__(self, "validity", PhysicalFactValidity(self.validity))
         object.__setattr__(self, "observation_health", ObservationHealth(self.observation_health))
 
 
@@ -788,13 +794,13 @@ def canonical_physical_facts(cycle: EncounterCycle) -> tuple[PhysicalEncounterFa
         )
         target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
         hull_clearance = geometry.dcpa_m - own_radius - target_radius
-        validity = "VALID"
+        validity = PhysicalFactValidity.VALID
         unavailable_reason = None
         if target.health is ObservationHealth.UNUSABLE:
-            validity = "UNAVAILABLE"
+            validity = PhysicalFactValidity.UNAVAILABLE
             unavailable_reason = "OBSERVATION_UNUSABLE"
         elif target.age_s > cycle.profile.usable_age_s:
-            validity = "UNAVAILABLE"
+            validity = PhysicalFactValidity.UNAVAILABLE
             unavailable_reason = "OBSERVATION_STALE"
         facts.append(
             PhysicalEncounterFacts(

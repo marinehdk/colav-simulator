@@ -1,5 +1,7 @@
+import json
 import math
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -10,6 +12,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     OwnshipObservation,
     PairwiseGeometry,
     PhysicalEncounterFacts,
+    PhysicalFactValidity,
 )
 from colav_simulator.core.colav.threat_assessment import (
     DomainQualification,
@@ -18,9 +21,11 @@ from colav_simulator.core.colav.threat_assessment import (
     ShipDomainProfile,
     ThreatAssessment,
     ThreatAssessmentRequest,
+    ThreatCompleteness,
     ThreatPrediction,
     ThreatTargetObservation,
     ThreatUnavailableReason,
+    ThreatWindow,
 )
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -76,6 +81,45 @@ def test_empty_assessment_is_versioned_immutable_and_deterministic() -> None:
     assert class_call.to_dict() == first.to_dict()
     assert isinstance(first.vectors, tuple)
     assert ExportedThreatAssessment is ThreatAssessment
+
+
+def test_threat_and_encounter_modules_do_not_require_python311_strenum() -> None:
+    root = Path(__file__).resolve().parents[1]
+    for relative in (
+        "colav_simulator/core/colav/encounter_lifecycle.py",
+        "colav_simulator/core/colav/threat_assessment.py",
+        "colav_simulator/core/colav/threat_management.py",
+    ):
+        assert "from enum import StrEnum" not in (root / relative).read_text(encoding="utf-8")
+    assert "Raw solver candidate" not in (root / "CONTEXT.md").read_text(encoding="utf-8")
+
+
+def test_validity_and_completeness_are_typed_with_string_compatible_serialization() -> None:
+    key = TrackKey(3, 1)
+    fact = PhysicalEncounterFacts(
+        key=key,
+        relative_position_ne_m=np.array([100.0, 0.0]),
+        relative_velocity_ne_mps=np.array([-1.0, 0.0]),
+        geometry=PairwiseGeometry(100.0, 0.0, 100.0, 0.0, math.pi, math.pi),
+        observation_health="UPDATED",
+        age_s=0.0,
+        hull_clearance_m=80.0,
+        validity="VALID",
+    )
+    window = ThreatWindow(key=key, completeness="FULL")
+
+    assert fact.validity is PhysicalFactValidity.VALID
+    assert window.completeness is ThreatCompleteness.FULL
+    assert str(fact.validity) == "VALID"
+    assert str(window.completeness) == "FULL"
+    assert json.loads(json.dumps({"validity": fact.validity, "completeness": window.completeness})) == {
+        "validity": "VALID",
+        "completeness": "FULL",
+    }
+    with pytest.raises(ValueError):
+        replace(fact, validity="SOMETIMES")
+    with pytest.raises(ValueError):
+        replace(window, completeness="MOSTLY")
 
 
 def test_current_domain_fact_is_independent_from_hull_clearance_and_missing_prediction_is_typed() -> None:
@@ -153,6 +197,8 @@ def test_prediction_facts_report_domain_entry_minimum_and_exit_without_using_cpa
     assert vector.predicted_domain.state is DomainState.INSIDE
     assert vector.predicted_domain.horizon_min_scale == 0.0
     assert vector.predicted_domain.tdv_s == 10.0
+    assert vector.predicted_domain.peak_time_s == 20.0
+    assert vector.predicted_domain.peak_time_s != vector.predicted_domain.tdv_s
     assert vector.predicted_domain.tde_s == (20.0 + (1.0 / 1.5) * 20.0)
 
 
@@ -178,9 +224,11 @@ def test_uncertainty_inflates_domain_and_unqualified_or_missing_facts_stay_typed
     )
 
     vector = ThreatAssessment().evaluate(request).vectors[0]
-    unqualified = ThreatAssessment().evaluate(
-        replace(request, profile=replace(_profile(), qualification=DomainQualification.UNQUALIFIED))
-    ).vectors[0]
+    unqualified = (
+        ThreatAssessment()
+        .evaluate(replace(request, profile=replace(_profile(), qualification=DomainQualification.UNQUALIFIED)))
+        .vectors[0]
+    )
 
     assert vector.uncertainty_radius_m == 200.0
     assert vector.current_domain.normalized_scale == 1.0
@@ -263,17 +311,21 @@ def test_assessment_uses_canonical_relative_vectors_for_closing_speed() -> None:
         hull_clearance_m=0.0,
     )
 
-    vector = ThreatAssessment().evaluate(
-        ThreatAssessmentRequest(
-            epoch="run-1",
-            sequence=6,
-            sim_time_s=10.0,
-            ownship=_ownship(),
-            targets=(target,),
-            profile=_profile(),
-            physical_facts=(fact,),
+    vector = (
+        ThreatAssessment()
+        .evaluate(
+            ThreatAssessmentRequest(
+                epoch="run-1",
+                sequence=6,
+                sim_time_s=10.0,
+                ownship=_ownship(),
+                targets=(target,),
+                profile=_profile(),
+                physical_facts=(fact,),
+            )
         )
-    ).vectors[0]
+        .vectors[0]
+    )
 
     assert vector.range_m == 100.0
     assert vector.closing_speed_mps == 2.0
@@ -403,8 +455,7 @@ def test_missing_uncertainty_is_unknown_and_tangent_horizon_has_no_domain_entry(
 
     assert vectors[missing_covariance.key].current_domain.state is DomainState.UNKNOWN
     assert (
-        vectors[missing_covariance.key].current_domain.unavailable_reason
-        is ThreatUnavailableReason.UNCERTAINTY_UNAVAILABLE
+        vectors[missing_covariance.key].current_domain.unavailable_reason is ThreatUnavailableReason.UNCERTAINTY_UNAVAILABLE
     )
     assert vectors[tangent.key].predicted_domain.state is DomainState.TANGENT
     assert vectors[tangent.key].predicted_domain.tdv_s is None

@@ -19,6 +19,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
 from colav_simulator.core.colav.threat_assessment import (
     ConflictEdgeType,
     ConflictGraphProfile,
+    ConflictUnavailableReason,
     DomainFacts,
     DomainState,
     OwnshipThreatPrediction,
@@ -226,10 +227,16 @@ def test_schedule_separates_current_concurrent_next_and_monitor_with_typed_unkno
         predictions=(_entering_prediction(next_target.key),),
     )
     snapshot = coordinator.cycle(
-        _cycle(1, 5.0, (replace(current, observed_at_s=5.0, generated_at_s=5.0),
-                          replace(concurrent, observed_at_s=5.0, generated_at_s=5.0),
-                          replace(next_target, observed_at_s=5.0, generated_at_s=5.0),
-                          replace(monitor, observed_at_s=5.0, generated_at_s=5.0))),
+        _cycle(
+            1,
+            5.0,
+            (
+                replace(current, observed_at_s=5.0, generated_at_s=5.0),
+                replace(concurrent, observed_at_s=5.0, generated_at_s=5.0),
+                replace(next_target, observed_at_s=5.0, generated_at_s=5.0),
+                replace(monitor, observed_at_s=5.0, generated_at_s=5.0),
+            ),
+        ),
         profile=profile,
         predictions=(_entering_prediction(next_target.key),),
     )
@@ -247,6 +254,8 @@ def test_schedule_separates_current_concurrent_next_and_monitor_with_typed_unkno
     assert next_entry.context is ThreatScheduleContext.NEXT
     assert next_entry.window is not None
     assert next_entry.window.entry_time_s is not None
+    assert next_entry.window.peak_time_s == 20.0
+    assert next_entry.window.peak_time_s != next_entry.window.entry_time_s
     assert next_entry.window.entry_time_absolute_s == pytest.approx(5.0 + next_entry.window.entry_time_s)
     assert monitor_vector.window is not None
     assert monitor_vector.window.prediction_basis is PredictionBasis.UNAVAILABLE
@@ -520,6 +529,7 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
         source="l4-receipt",
         target_keys=(affected,),
         reference_time_s=5.0,
+        evidence_semantic_hash="accepted-evidence",
     )
     receipt = AcceptedPlanReceipt(
         receipt_hash="accepted-receipt",
@@ -531,6 +541,8 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
         target_keys=(affected,),
         prediction_hash=accepted_prediction.semantic_hash,
         acceptance_hash="l4-acceptance",
+        domain_profile_hash=_domain_profile().profile_hash,
+        evidence_semantic_hash="accepted-evidence",
     )
     vectors = (_vector_for_graph(driver), _vector_for_graph(affected))
 
@@ -553,6 +565,22 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
     assert plan_edges[0].plan_receipt_hash == "accepted-receipt"
     assert plan_edges[0].witness.to_dict()["materiality"]["new_domain_violation"] is True
 
+    incomplete_receipt = replace(receipt, domain_profile_hash=None)
+    incomplete_graph = ConflictGraphBuilder.build(
+        vectors,
+        predictions=(target_prediction,),
+        profile=ConflictGraphProfile(material_tdv_advance_s=1.0, material_scale_worsening=0.05),
+        domain_profile=_domain_profile(),
+        input_hash="cycle-hash",
+        baseline_prediction=baseline,
+        accepted_plan=incomplete_receipt,
+        lifecycle_snapshot=SimpleNamespace(primary_target=driver),
+        previous=None,
+        sim_time_s=5.0,
+    )
+    assert not any(edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT for edge in incomplete_graph.edges)
+    assert ConflictUnavailableReason.ACCEPTED_PLAN_RECEIPT_INVALID in incomplete_graph.unavailable_reasons
+
     benign_prediction = OwnshipThreatPrediction(
         times_s=baseline.times_s,
         states_enu=baseline.states_enu,
@@ -560,6 +588,7 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
         source="l4-receipt",
         target_keys=(affected,),
         reference_time_s=5.0,
+        evidence_semantic_hash="accepted-evidence",
     )
     benign_receipt = replace(
         receipt,
@@ -582,7 +611,7 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
     assert benign_graph.unavailable_reasons == ()
 
 
-def test_raw_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge() -> None:
+def test_unaccepted_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge() -> None:
     target = _target(TrackKey(2, 1), 1_000.0)
     driver = _target(TrackKey(1, 1), 1_200.0)
     target_prediction = ThreatPrediction(
@@ -594,9 +623,7 @@ def test_raw_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge
     )
     baseline = OwnshipThreatPrediction(
         times_s=np.array([0.0, 5.0, 10.0, 15.0]),
-        states_enu=np.array(
-            [[0.0, 0.0, 7.0, 0.0], [70.0, 0.0, 7.0, 0.0], [140.0, 0.0, 7.0, 0.0], [210.0, 0.0, 7.0, 0.0]]
-        ),
+        states_enu=np.array([[0.0, 0.0, 7.0, 0.0], [70.0, 0.0, 7.0, 0.0], [140.0, 0.0, 7.0, 0.0], [210.0, 0.0, 7.0, 0.0]]),
         source="declared-baseline",
         target_keys=(target.key,),
         reference_time_s=5.0,
@@ -615,9 +642,10 @@ def test_raw_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge
         source="l4-receipt",
         target_keys=(target.key,),
         reference_time_s=5.0,
+        evidence_semantic_hash="accepted-evidence",
     )
-    raw_candidate = {
-        "receipt_hash": "raw-candidate",
+    unaccepted_candidate = {
+        "receipt_hash": "unaccepted-candidate",
         "sequence": 0,
         "accepted_at_s": 0.0,
         "valid_until_s": 30.0,
@@ -625,13 +653,15 @@ def test_raw_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge
         "accepted_prediction": accepted_prediction.to_dict(),
         "target_key": [driver.key.target_id, driver.key.generation],
     }
+    with pytest.raises(ValueError, match="unaccepted solver candidate"):
+        AcceptedPlanReceipt.from_mapping(unaccepted_candidate)
     coordinator = ThreatManagementCoordinator()
     first = coordinator.cycle(
         _cycle(0, 0.0, (driver, target)),
         profile=_domain_profile(),
         predictions=(target_prediction,),
         baseline_prediction=baseline,
-        accepted_plan=raw_candidate,
+        accepted_plan=unaccepted_candidate,
     )
 
     assert first.conflict_graph is not None
@@ -648,6 +678,8 @@ def test_raw_candidate_and_same_cycle_receipt_cannot_authorize_plan_induced_edge
         target_keys=(target.key,),
         prediction_hash=accepted_prediction.semantic_hash,
         acceptance_hash="l4-acceptance",
+        domain_profile_hash=_domain_profile().profile_hash,
+        evidence_semantic_hash="accepted-evidence",
     )
     same_cycle = coordinator.cycle(
         _cycle(1, 5.0, (driver, target)),
