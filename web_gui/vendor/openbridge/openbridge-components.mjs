@@ -1,6 +1,5 @@
-var St=globalThis,At=St.ShadowRoot&&(St.ShadyCSS===void 0||St.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,ro=Symbol(),So=new WeakMap,pt=class{constructor(e,i,o){if(this._$cssResult$=!0,o!==ro)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=e,this.t=i}get styleSheet(){let e=this.o,i=this.t;if(At&&e===void 0){let o=i!==void 0&&i.length===1;o&&(e=So.get(i)),e===void 0&&((this.o=e=new CSSStyleSheet).replaceSync(this.cssText),o&&So.set(i,e))}return e}toString(){return this.cssText}},x=t=>new pt(typeof t=="string"?t:t+"",void 0,ro),p=(t,...e)=>{let i=t.length===1?t[0]:e.reduce((o,r,a)=>o+(n=>{if(n._$cssResult$===!0)return n.cssText;if(typeof n=="number")return n;throw Error("Value passed to 'css' function must be a 'css' function result: "+n+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(r)+t[a+1],t[0]);return new pt(i,t,ro)},Ao=(t,e)=>{if(At)t.adoptedStyleSheets=e.map(i=>i instanceof CSSStyleSheet?i:i.styleSheet);else for(let i of e){let o=document.createElement("style"),r=St.litNonce;r!==void 0&&o.setAttribute("nonce",r),o.textContent=i.cssText,t.appendChild(o)}},oo=At?t=>t:t=>t instanceof CSSStyleSheet?(e=>{let i="";for(let o of e.cssRules)i+=o.cssText;return x(i)})(t):t;var{is:Ba,defineProperty:Ta,getOwnPropertyDescriptor:Ea,getOwnPropertyNames:za,getOwnPropertySymbols:Da,getPrototypeOf:Ia}=Object,Pt=globalThis,Po=Pt.trustedTypes,Ra=Po?Po.emptyScript:"",ja=Pt.reactiveElementPolyfillSupport,ht=(t,e)=>t,ut={toAttribute(t,e){switch(e){case Boolean:t=t?Ra:null;break;case Object:case Array:t=t==null?t:JSON.stringify(t)}return t},fromAttribute(t,e){let i=t;switch(e){case Boolean:i=t!==null;break;case Number:i=t===null?null:Number(t);break;case Object:case Array:try{i=JSON.parse(t)}catch{i=null}}return i}},Ot=(t,e)=>!Ba(t,e),Oo={attribute:!0,type:String,converter:ut,reflect:!1,useDefault:!1,hasChanged:Ot};Symbol.metadata??=Symbol("metadata"),Pt.litPropertyMetadata??=new WeakMap;var Ze=class extends HTMLElement{static addInitializer(e){this._$Ei(),(this.l??=[]).push(e)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(e,i=Oo){if(i.state&&(i.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(e)&&((i=Object.create(i)).wrapped=!0),this.elementProperties.set(e,i),!i.noAccessor){let o=Symbol(),r=this.getPropertyDescriptor(e,o,i);r!==void 0&&Ta(this.prototype,e,r)}}static getPropertyDescriptor(e,i,o){let{get:r,set:a}=Ea(this.prototype,e)??{get(){return this[i]},set(n){this[i]=n}};return{get:r,set(n){let v=r?.call(this);a?.call(this,n),this.requestUpdate(e,v,o)},configurable:!0,enumerable:!0}}static getPropertyOptions(e){return this.elementProperties.get(e)??Oo}static _$Ei(){if(this.hasOwnProperty(ht("elementProperties")))return;let e=Ia(this);e.finalize(),e.l!==void 0&&(this.l=[...e.l]),this.elementProperties=new Map(e.elementProperties)}static finalize(){if(this.hasOwnProperty(ht("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(ht("properties"))){let i=this.properties,o=[...za(i),...Da(i)];for(let r of o)this.createProperty(r,i[r])}let e=this[Symbol.metadata];if(e!==null){let i=litPropertyMetadata.get(e);if(i!==void 0)for(let[o,r]of i)this.elementProperties.set(o,r)}this._$Eh=new Map;for(let[i,o]of this.elementProperties){let r=this._$Eu(i,o);r!==void 0&&this._$Eh.set(r,i)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(e){let i=[];if(Array.isArray(e)){let o=new Set(e.flat(1/0).reverse());for(let r of o)i.unshift(oo(r))}else e!==void 0&&i.push(oo(e));return i}static _$Eu(e,i){let o=i.attribute;return o===!1?void 0:typeof o=="string"?o:typeof e=="string"?e.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(e=>this.enableUpdating=e),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(e=>e(this))}addController(e){(this._$EO??=new Set).add(e),this.renderRoot!==void 0&&this.isConnected&&e.hostConnected?.()}removeController(e){this._$EO?.delete(e)}_$E_(){let e=new Map,i=this.constructor.elementProperties;for(let o of i.keys())this.hasOwnProperty(o)&&(e.set(o,this[o]),delete this[o]);e.size>0&&(this._$Ep=e)}createRenderRoot(){let e=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return Ao(e,this.constructor.elementStyles),e}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(e=>e.hostConnected?.())}enableUpdating(e){}disconnectedCallback(){this._$EO?.forEach(e=>e.hostDisconnected?.())}attributeChangedCallback(e,i,o){this._$AK(e,o)}_$ET(e,i){let o=this.constructor.elementProperties.get(e),r=this.constructor._$Eu(e,o);if(r!==void 0&&o.reflect===!0){let a=(o.converter?.toAttribute!==void 0?o.converter:ut).toAttribute(i,o.type);this._$Em=e,a==null?this.removeAttribute(r):this.setAttribute(r,a),this._$Em=null}}_$AK(e,i){let o=this.constructor,r=o._$Eh.get(e);if(r!==void 0&&this._$Em!==r){let a=o.getPropertyOptions(r),n=typeof a.converter=="function"?{fromAttribute:a.converter}:a.converter?.fromAttribute!==void 0?a.converter:ut;this._$Em=r;let v=n.fromAttribute(i,a.type);this[r]=v??this._$Ej?.get(r)??v,this._$Em=null}}requestUpdate(e,i,o,r=!1,a){if(e!==void 0){let n=this.constructor;if(r===!1&&(a=this[e]),o??=n.getPropertyOptions(e),!((o.hasChanged??Ot)(a,i)||o.useDefault&&o.reflect&&a===this._$Ej?.get(e)&&!this.hasAttribute(n._$Eu(e,o))))return;this.C(e,i,o)}this.isUpdatePending===!1&&(this._$ES=this._$EP())}C(e,i,{useDefault:o,reflect:r,wrapped:a},n){o&&!(this._$Ej??=new Map).has(e)&&(this._$Ej.set(e,n??i??this[e]),a!==!0||n!==void 0)||(this._$AL.has(e)||(this.hasUpdated||o||(i=void 0),this._$AL.set(e,i)),r===!0&&this._$Em!==e&&(this._$Eq??=new Set).add(e))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(i){Promise.reject(i)}let e=this.scheduleUpdate();return e!=null&&await e,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(let[r,a]of this._$Ep)this[r]=a;this._$Ep=void 0}let o=this.constructor.elementProperties;if(o.size>0)for(let[r,a]of o){let{wrapped:n}=a,v=this[r];n!==!0||this._$AL.has(r)||v===void 0||this.C(r,void 0,a,v)}}let e=!1,i=this._$AL;try{e=this.shouldUpdate(i),e?(this.willUpdate(i),this._$EO?.forEach(o=>o.hostUpdate?.()),this.update(i)):this._$EM()}catch(o){throw e=!1,this._$EM(),o}e&&this._$AE(i)}willUpdate(e){}_$AE(e){this._$EO?.forEach(i=>i.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(e)),this.updated(e)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(e){return!0}update(e){this._$Eq&&=this._$Eq.forEach(i=>this._$ET(i,this[i])),this._$EM()}updated(e){}firstUpdated(e){}};Ze.elementStyles=[],Ze.shadowRootOptions={mode:"open"},Ze[ht("elementProperties")]=new Map,Ze[ht("finalized")]=new Map,ja?.({ReactiveElement:Ze}),(Pt.reactiveElementVersions??=[]).push("2.1.2");var ao=globalThis,Bo=t=>t,Bt=ao.trustedTypes,To=Bt?Bt.createPolicy("lit-html",{createHTML:t=>t}):void 0,no="$lit$",Se=`lit$${Math.random().toFixed(9).slice(2)}$`,so="?"+Se,Na=`<${so}>`,Ue=document,mt=()=>Ue.createComment(""),ft=t=>t===null||typeof t!="object"&&typeof t!="function",lo=Array.isArray,jo=t=>lo(t)||typeof t?.[Symbol.iterator]=="function",io=`[ 	
-\f\r]`,vt=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,Eo=/-->/g,zo=/>/g,Ne=RegExp(`>|${io}(?:([^\\s"'>=/]+)(${io}*=${io}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`,"g"),Do=/'/g,Io=/"/g,No=/^(?:script|style|textarea|title)$/i,co=t=>(e,...i)=>({_$litType$:t,strings:e,values:i}),c=co(1),l=co(2),Fo=co(3),fe=Symbol.for("lit-noChange"),f=Symbol.for("lit-nothing"),Ro=new WeakMap,Fe=Ue.createTreeWalker(Ue,129);function Uo(t,e){if(!lo(t)||!t.hasOwnProperty("raw"))throw Error("invalid template strings array");return To!==void 0?To.createHTML(e):e}var Wo=(t,e)=>{let i=t.length-1,o=[],r,a=e===2?"<svg>":e===3?"<math>":"",n=vt;for(let v=0;v<i;v++){let u=t[v],m,b,g=-1,C=0;for(;C<u.length&&(n.lastIndex=C,b=n.exec(u),b!==null);)C=n.lastIndex,n===vt?b[1]==="!--"?n=Eo:b[1]!==void 0?n=zo:b[2]!==void 0?(No.test(b[2])&&(r=RegExp("</"+b[2],"g")),n=Ne):b[3]!==void 0&&(n=Ne):n===Ne?b[0]===">"?(n=r??vt,g=-1):b[1]===void 0?g=-2:(g=n.lastIndex-b[2].length,m=b[1],n=b[3]===void 0?Ne:b[3]==='"'?Io:Do):n===Io||n===Do?n=Ne:n===Eo||n===zo?n=vt:(n=Ne,r=void 0);let y=n===Ne&&t[v+1].startsWith("/>")?" ":"";a+=n===vt?u+Na:g>=0?(o.push(m),u.slice(0,g)+no+u.slice(g)+Se+y):u+Se+(g===-2?v:y)}return[Uo(t,a+(t[i]||"<?>")+(e===2?"</svg>":e===3?"</math>":"")),o]},gt=class t{constructor({strings:e,_$litType$:i},o){let r;this.parts=[];let a=0,n=0,v=e.length-1,u=this.parts,[m,b]=Wo(e,i);if(this.el=t.createElement(m,o),Fe.currentNode=this.el.content,i===2||i===3){let g=this.el.content.firstChild;g.replaceWith(...g.childNodes)}for(;(r=Fe.nextNode())!==null&&u.length<v;){if(r.nodeType===1){if(r.hasAttributes())for(let g of r.getAttributeNames())if(g.endsWith(no)){let C=b[n++],y=r.getAttribute(g).split(Se),H=/([.?@])?(.*)/.exec(C);u.push({type:1,index:a,name:H[2],strings:y,ctor:H[1]==="."?Et:H[1]==="?"?zt:H[1]==="@"?Dt:Ge}),r.removeAttribute(g)}else g.startsWith(Se)&&(u.push({type:6,index:a}),r.removeAttribute(g));if(No.test(r.tagName)){let g=r.textContent.split(Se),C=g.length-1;if(C>0){r.textContent=Bt?Bt.emptyScript:"";for(let y=0;y<C;y++)r.append(g[y],mt()),Fe.nextNode(),u.push({type:2,index:++a});r.append(g[C],mt())}}}else if(r.nodeType===8)if(r.data===so)u.push({type:2,index:a});else{let g=-1;for(;(g=r.data.indexOf(Se,g+1))!==-1;)u.push({type:7,index:a}),g+=Se.length-1}a++}}static createElement(e,i){let o=Ue.createElement("template");return o.innerHTML=e,o}};function We(t,e,i=t,o){if(e===fe)return e;let r=o!==void 0?i._$Co?.[o]:i._$Cl,a=ft(e)?void 0:e._$litDirective$;return r?.constructor!==a&&(r?._$AO?.(!1),a===void 0?r=void 0:(r=new a(t),r._$AT(t,i,o)),o!==void 0?(i._$Co??=[])[o]=r:i._$Cl=r),r!==void 0&&(e=We(t,r._$AS(t,e.values),r,o)),e}var Tt=class{constructor(e,i){this._$AV=[],this._$AN=void 0,this._$AD=e,this._$AM=i}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(e){let{el:{content:i},parts:o}=this._$AD,r=(e?.creationScope??Ue).importNode(i,!0);Fe.currentNode=r;let a=Fe.nextNode(),n=0,v=0,u=o[0];for(;u!==void 0;){if(n===u.index){let m;u.type===2?m=new ot(a,a.nextSibling,this,e):u.type===1?m=new u.ctor(a,u.name,u.strings,this,e):u.type===6&&(m=new It(a,this,e)),this._$AV.push(m),u=o[++v]}n!==u?.index&&(a=Fe.nextNode(),n++)}return Fe.currentNode=Ue,r}p(e){let i=0;for(let o of this._$AV)o!==void 0&&(o.strings!==void 0?(o._$AI(e,o,i),i+=o.strings.length-2):o._$AI(e[i])),i++}},ot=class t{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(e,i,o,r){this.type=2,this._$AH=f,this._$AN=void 0,this._$AA=e,this._$AB=i,this._$AM=o,this.options=r,this._$Cv=r?.isConnected??!0}get parentNode(){let e=this._$AA.parentNode,i=this._$AM;return i!==void 0&&e?.nodeType===11&&(e=i.parentNode),e}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(e,i=this){e=We(this,e,i),ft(e)?e===f||e==null||e===""?(this._$AH!==f&&this._$AR(),this._$AH=f):e!==this._$AH&&e!==fe&&this._(e):e._$litType$!==void 0?this.$(e):e.nodeType!==void 0?this.T(e):jo(e)?this.k(e):this._(e)}O(e){return this._$AA.parentNode.insertBefore(e,this._$AB)}T(e){this._$AH!==e&&(this._$AR(),this._$AH=this.O(e))}_(e){this._$AH!==f&&ft(this._$AH)?this._$AA.nextSibling.data=e:this.T(Ue.createTextNode(e)),this._$AH=e}$(e){let{values:i,_$litType$:o}=e,r=typeof o=="number"?this._$AC(e):(o.el===void 0&&(o.el=gt.createElement(Uo(o.h,o.h[0]),this.options)),o);if(this._$AH?._$AD===r)this._$AH.p(i);else{let a=new Tt(r,this),n=a.u(this.options);a.p(i),this.T(n),this._$AH=a}}_$AC(e){let i=Ro.get(e.strings);return i===void 0&&Ro.set(e.strings,i=new gt(e)),i}k(e){lo(this._$AH)||(this._$AH=[],this._$AR());let i=this._$AH,o,r=0;for(let a of e)r===i.length?i.push(o=new t(this.O(mt()),this.O(mt()),this,this.options)):o=i[r],o._$AI(a),r++;r<i.length&&(this._$AR(o&&o._$AB.nextSibling,r),i.length=r)}_$AR(e=this._$AA.nextSibling,i){for(this._$AP?.(!1,!0,i);e!==this._$AB;){let o=Bo(e).nextSibling;Bo(e).remove(),e=o}}setConnected(e){this._$AM===void 0&&(this._$Cv=e,this._$AP?.(e))}},Ge=class{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(e,i,o,r,a){this.type=1,this._$AH=f,this._$AN=void 0,this.element=e,this.name=i,this._$AM=r,this.options=a,o.length>2||o[0]!==""||o[1]!==""?(this._$AH=Array(o.length-1).fill(new String),this.strings=o):this._$AH=f}_$AI(e,i=this,o,r){let a=this.strings,n=!1;if(a===void 0)e=We(this,e,i,0),n=!ft(e)||e!==this._$AH&&e!==fe,n&&(this._$AH=e);else{let v=e,u,m;for(e=a[0],u=0;u<a.length-1;u++)m=We(this,v[o+u],i,u),m===fe&&(m=this._$AH[u]),n||=!ft(m)||m!==this._$AH[u],m===f?e=f:e!==f&&(e+=(m??"")+a[u+1]),this._$AH[u]=m}n&&!r&&this.j(e)}j(e){e===f?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,e??"")}},Et=class extends Ge{constructor(){super(...arguments),this.type=3}j(e){this.element[this.name]=e===f?void 0:e}},zt=class extends Ge{constructor(){super(...arguments),this.type=4}j(e){this.element.toggleAttribute(this.name,!!e&&e!==f)}},Dt=class extends Ge{constructor(e,i,o,r,a){super(e,i,o,r,a),this.type=5}_$AI(e,i=this){if((e=We(this,e,i,0)??f)===fe)return;let o=this._$AH,r=e===f&&o!==f||e.capture!==o.capture||e.once!==o.once||e.passive!==o.passive,a=e!==f&&(o===f||r);r&&this.element.removeEventListener(this.name,this,o),a&&this.element.addEventListener(this.name,this,e),this._$AH=e}handleEvent(e){typeof this._$AH=="function"?this._$AH.call(this.options?.host??this.element,e):this._$AH.handleEvent(e)}},It=class{constructor(e,i,o){this.element=e,this.type=6,this._$AN=void 0,this._$AM=i,this.options=o}get _$AU(){return this._$AM._$AU}_$AI(e){We(this,e)}},Go={M:no,P:Se,A:so,C:1,L:Wo,R:Tt,D:jo,V:We,I:ot,H:Ge,N:zt,U:Dt,B:Et,F:It},Fa=ao.litHtmlPolyfillSupport;Fa?.(gt,ot),(ao.litHtmlVersions??=[]).push("3.3.3");var qo=(t,e,i)=>{let o=i?.renderBefore??e,r=o._$litPart$;if(r===void 0){let a=i?.renderBefore??null;o._$litPart$=r=new ot(e.insertBefore(mt(),a),a,void 0,i??{})}return r._$AI(t),r};var po=globalThis,d=class extends Ze{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){let e=super.createRenderRoot();return this.renderOptions.renderBefore??=e.firstChild,e}update(e){let i=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(e),this._$Do=qo(i,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return fe}};d._$litElement$=!0,d.finalized=!0,po.litElementHydrateSupport?.({LitElement:d});var Ua=po.litElementPolyfillSupport;Ua?.({LitElement:d});(po.litElementVersions??=[]).push("4.2.2");var Wa={attribute:!0,type:String,converter:ut,reflect:!1,hasChanged:Ot},Ga=(t=Wa,e,i)=>{let{kind:o,metadata:r}=i,a=globalThis.litPropertyMetadata.get(r);if(a===void 0&&globalThis.litPropertyMetadata.set(r,a=new Map),o==="setter"&&((t=Object.create(t)).wrapped=!0),a.set(i.name,t),o==="accessor"){let{name:n}=i;return{set(v){let u=e.get.call(this);e.set.call(this,v),this.requestUpdate(n,u,t,!0,v)},init(v){return v!==void 0&&this.C(n,void 0,t,v),v}}}if(o==="setter"){let{name:n}=i;return function(v){let u=this[n];e.call(this,v),this.requestUpdate(n,u,t,!0,v)}}throw Error("Unsupported decorator location: "+o)};function s(t){return(e,i)=>typeof i=="object"?Ga(t,e,i):((o,r,a)=>{let n=r.hasOwnProperty(a);return r.constructor.createProperty(a,o),n?Object.getOwnPropertyDescriptor(r,a):void 0})(t,e,i)}function re(t){return s({...t,state:!0,attribute:!1})}var ze=(t,e,i)=>(i.configurable=!0,i.enumerable=!0,Reflect.decorate&&typeof e!="object"&&Object.defineProperty(t,e,i),i);function Rt(t,e){return(i,o,r)=>{let a=n=>n.renderRoot?.querySelector(t)??null;if(e){let{get:n,set:v}=typeof o=="object"?i:r??(()=>{let u=Symbol();return{get(){return this[u]},set(m){this[u]=m}}})();return ze(i,o,{get(){let u=n.call(this);return u===void 0&&(u=a(this),(u!==null||this.hasUpdated)&&v.call(this,u)),u}})}return ze(i,o,{get(){return a(this)}})}}function Xo(t){return(e,i)=>{let{slot:o,selector:r}=t??{},a="slot"+(o?`[name=${o}]`:":not([name])");return ze(e,i,{get(){let n=this.renderRoot?.querySelector(a),v=n?.assignedElements(t)??[];return r===void 0?v:v.filter(u=>u.matches(r))}})}}var it={ATTRIBUTE:1,CHILD:2,PROPERTY:3,BOOLEAN_ATTRIBUTE:4,EVENT:5,ELEMENT:6},qe=t=>(...e)=>({_$litDirective$:t,values:e}),De=class{constructor(e){}get _$AU(){return this._$AM._$AU}_$AT(e,i,o){this._$Ct=e,this._$AM=i,this._$Ci=o}_$AS(e,i){return this.update(e,i)}update(e,i){return this.render(...i)}};var V=qe(class extends De{constructor(t){if(super(t),t.type!==it.ATTRIBUTE||t.name!=="class"||t.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(t){return" "+Object.keys(t).filter(e=>t[e]).join(" ")+" "}update(t,[e]){if(this.st===void 0){this.st=new Set,t.strings!==void 0&&(this.nt=new Set(t.strings.join(" ").split(/\s/).filter(o=>o!=="")));for(let o in e)e[o]&&!this.nt?.has(o)&&this.st.add(o);return this.render(e)}let i=t.element.classList;for(let o of this.st)o in e||(i.remove(o),this.st.delete(o));for(let o in e){let r=!!e[o];r===this.st.has(o)||this.nt?.has(o)||(r?(i.add(o),this.st.add(o)):(i.remove(o),this.st.delete(o)))}return fe}});var Yo=p`
+var Gr=globalThis;var qr=Gr.ShadowRoot&&(void 0===Gr.ShadyCSS||Gr.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype;var ko=Symbol();var Jo=new WeakMap;var Mr=class{constructor(e,i,o){if(this._$cssResult$=true,o!==ko)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=e,this.t=i}get styleSheet(){let e=this.o;const i=this.t;if(qr&&void 0===e){const o=void 0!==i&&1===i.length;o&&(e=Jo.get(i)),void 0===e&&((this.o=e=new CSSStyleSheet).replaceSync(this.cssText),o&&Jo.set(i,e))}return e}toString(){return this.cssText}};var C=r=>new Mr("string"==typeof r?r:r+"",void 0,ko);var p=(r,...e)=>{const i=1===r.length?r[0]:e.reduce((o,t,a)=>o+(n=>{if(true===n._$cssResult$)return n.cssText;if("number"==typeof n)return n;throw Error("Value passed to 'css' function must be a 'css' function result: "+n+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(t)+r[a+1],r[0]);return new Mr(i,r,ko)};var Qo=(r,e)=>{if(qr)r.adoptedStyleSheets=e.map(i=>i instanceof CSSStyleSheet?i:i.styleSheet);else for(const i of e){const o=document.createElement("style"),t=Gr.litNonce;void 0!==t&&o.setAttribute("nonce",t),o.textContent=i.cssText,r.appendChild(o)}};var xo=qr?r=>r:r=>r instanceof CSSStyleSheet?(e=>{let i="";for(const o of e.cssRules)i+=o.cssText;return C(i)})(r):r;var{is:wn,defineProperty:yn,getOwnPropertyDescriptor:Cn,getOwnPropertyNames:Ln,getOwnPropertySymbols:kn,getPrototypeOf:xn}=Object;var Xr=globalThis;var ei=Xr.trustedTypes;var Mn=ei?ei.emptyScript:"";var Hn=Xr.reactiveElementPolyfillSupport;var Hr=(r,e)=>r;var $r={toAttribute(r,e){switch(e){case Boolean:r=r?Mn:null;break;case Object:case Array:r=null==r?r:JSON.stringify(r)}return r},fromAttribute(r,e){let i=r;switch(e){case Boolean:i=null!==r;break;case Number:i=null===r?null:Number(r);break;case Object:case Array:try{i=JSON.parse(r)}catch(o){i=null}}return i}};var Yr=(r,e)=>!wn(r,e);var ri={attribute:true,type:String,converter:$r,reflect:false,useDefault:false,hasChanged:Yr};Symbol.metadata??=Symbol("metadata"),Xr.litPropertyMetadata??=new WeakMap;var Ee=class extends HTMLElement{static addInitializer(e){this._$Ei(),(this.l??=[]).push(e)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(e,i=ri){if(i.state&&(i.attribute=false),this._$Ei(),this.prototype.hasOwnProperty(e)&&((i=Object.create(i)).wrapped=true),this.elementProperties.set(e,i),!i.noAccessor){const o=Symbol(),t=this.getPropertyDescriptor(e,o,i);void 0!==t&&yn(this.prototype,e,t)}}static getPropertyDescriptor(e,i,o){const{get:t,set:a}=Cn(this.prototype,e)??{get(){return this[i]},set(n){this[i]=n}};return{get:t,set(n){const v=t?.call(this);a?.call(this,n),this.requestUpdate(e,v,o)},configurable:true,enumerable:true}}static getPropertyOptions(e){return this.elementProperties.get(e)??ri}static _$Ei(){if(this.hasOwnProperty(Hr("elementProperties")))return;const e=xn(this);e.finalize(),void 0!==e.l&&(this.l=[...e.l]),this.elementProperties=new Map(e.elementProperties)}static finalize(){if(this.hasOwnProperty(Hr("finalized")))return;if(this.finalized=true,this._$Ei(),this.hasOwnProperty(Hr("properties"))){const i=this.properties,o=[...Ln(i),...kn(i)];for(const t of o)this.createProperty(t,i[t])}const e=this[Symbol.metadata];if(null!==e){const i=litPropertyMetadata.get(e);if(void 0!==i)for(const[o,t]of i)this.elementProperties.set(o,t)}this._$Eh=new Map;for(const[i,o]of this.elementProperties){const t=this._$Eu(i,o);void 0!==t&&this._$Eh.set(t,i)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(e){const i=[];if(Array.isArray(e)){const o=new Set(e.flat(1/0).reverse());for(const t of o)i.unshift(xo(t))}else void 0!==e&&i.push(xo(e));return i}static _$Eu(e,i){const o=i.attribute;return false===o?void 0:"string"==typeof o?o:"string"==typeof e?e.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=false,this.hasUpdated=false,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(e=>this.enableUpdating=e),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(e=>e(this))}addController(e){(this._$EO??=new Set).add(e),void 0!==this.renderRoot&&this.isConnected&&e.hostConnected?.()}removeController(e){this._$EO?.delete(e)}_$E_(){const e=new Map,i=this.constructor.elementProperties;for(const o of i.keys())this.hasOwnProperty(o)&&(e.set(o,this[o]),delete this[o]);e.size>0&&(this._$Ep=e)}createRenderRoot(){const e=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return Qo(e,this.constructor.elementStyles),e}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(true),this._$EO?.forEach(e=>e.hostConnected?.())}enableUpdating(e){}disconnectedCallback(){this._$EO?.forEach(e=>e.hostDisconnected?.())}attributeChangedCallback(e,i,o){this._$AK(e,o)}_$ET(e,i){const o=this.constructor.elementProperties.get(e),t=this.constructor._$Eu(e,o);if(void 0!==t&&true===o.reflect){const a=(void 0!==o.converter?.toAttribute?o.converter:$r).toAttribute(i,o.type);this._$Em=e,null==a?this.removeAttribute(t):this.setAttribute(t,a),this._$Em=null}}_$AK(e,i){const o=this.constructor,t=o._$Eh.get(e);if(void 0!==t&&this._$Em!==t){const a=o.getPropertyOptions(t),n="function"==typeof a.converter?{fromAttribute:a.converter}:void 0!==a.converter?.fromAttribute?a.converter:$r;this._$Em=t;const v=n.fromAttribute(i,a.type);this[t]=v??this._$Ej?.get(t)??v,this._$Em=null}}requestUpdate(e,i,o,t=false,a){if(void 0!==e){const n=this.constructor;if(false===t&&(a=this[e]),o??=n.getPropertyOptions(e),!((o.hasChanged??Yr)(a,i)||o.useDefault&&o.reflect&&a===this._$Ej?.get(e)&&!this.hasAttribute(n._$Eu(e,o))))return;this.C(e,i,o)}false===this.isUpdatePending&&(this._$ES=this._$EP())}C(e,i,{useDefault:o,reflect:t,wrapped:a},n){o&&!(this._$Ej??=new Map).has(e)&&(this._$Ej.set(e,n??i??this[e]),true!==a||void 0!==n)||(this._$AL.has(e)||(this.hasUpdated||o||(i=void 0),this._$AL.set(e,i)),true===t&&this._$Em!==e&&(this._$Eq??=new Set).add(e))}async _$EP(){this.isUpdatePending=true;try{await this._$ES}catch(i){Promise.reject(i)}const e=this.scheduleUpdate();return null!=e&&await e,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[t,a]of this._$Ep)this[t]=a;this._$Ep=void 0}const o=this.constructor.elementProperties;if(o.size>0)for(const[t,a]of o){const{wrapped:n}=a,v=this[t];true!==n||this._$AL.has(t)||void 0===v||this.C(t,void 0,a,v)}}let e=false;const i=this._$AL;try{e=this.shouldUpdate(i),e?(this.willUpdate(i),this._$EO?.forEach(o=>o.hostUpdate?.()),this.update(i)):this._$EM()}catch(o){throw e=false,this._$EM(),o}e&&this._$AE(i)}willUpdate(e){}_$AE(e){this._$EO?.forEach(i=>i.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=true,this.firstUpdated(e)),this.updated(e)}_$EM(){this._$AL=new Map,this.isUpdatePending=false}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(e){return true}update(e){this._$Eq&&=this._$Eq.forEach(i=>this._$ET(i,this[i])),this._$EM()}updated(e){}firstUpdated(e){}};Ee.elementStyles=[],Ee.shadowRootOptions={mode:"open"},Ee[Hr("elementProperties")]=new Map,Ee[Hr("finalized")]=new Map,Hn?.({ReactiveElement:Ee}),(Xr.reactiveElementVersions??=[]).push("2.1.2");var Ho=globalThis;var ti=r=>r;var Kr=Ho.trustedTypes;var oi=Kr?Kr.createPolicy("lit-html",{createHTML:r=>r}):void 0;var $o="$lit$";var De=`lit$${Math.random().toFixed(9).slice(2)}$`;var _o="?"+De;var $n=`<${_o}>`;var or=document;var Vr=()=>or.createComment("");var Zr=r=>null===r||"object"!=typeof r&&"function"!=typeof r;var Vo=Array.isArray;var ci=r=>Vo(r)||"function"==typeof r?.[Symbol.iterator];var Mo="[ 	\n\f\r]";var _r=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;var ii=/-->/g;var ai=/>/g;var rr=RegExp(`>|${Mo}(?:([^\\s"'>=/]+)(${Mo}*=${Mo}*(?:[^
+\f\r"'\`<>=]|("|')|))|$)`,"g");var ni=/'/g;var li=/"/g;var di=/^(?:script|style|textarea|title)$/i;var Zo=r=>(e,...i)=>({_$litType$:r,strings:e,values:i});var c=Zo(1);var s=Zo(2);var pi=Zo(3);var pe=Symbol.for("lit-noChange");var m=Symbol.for("lit-nothing");var si=new WeakMap;var tr=or.createTreeWalker(or,129);function hi(r,e){if(!Vo(r)||!r.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==oi?oi.createHTML(e):e}var ui=(r,e)=>{const i=r.length-1,o=[];let t,a=2===e?"<svg>":3===e?"<math>":"",n=_r;for(let v=0;v<i;v++){const u=r[v];let f,w,g=-1,b=0;for(;b<u.length&&(n.lastIndex=b,w=n.exec(u),null!==w);)b=n.lastIndex,n===_r?"!--"===w[1]?n=ii:void 0!==w[1]?n=ai:void 0!==w[2]?(di.test(w[2])&&(t=RegExp("</"+w[2],"g")),n=rr):void 0!==w[3]&&(n=rr):n===rr?">"===w[0]?(n=t??_r,g=-1):void 0===w[1]?g=-2:(g=n.lastIndex-w[2].length,f=w[1],n=void 0===w[3]?rr:'"'===w[3]?li:ni):n===li||n===ni?n=rr:n===ii||n===ai?n=_r:(n=rr,t=void 0);const y=n===rr&&r[v+1].startsWith("/>")?" ":"";a+=n===_r?u+$n:g>=0?(o.push(f),u.slice(0,g)+$o+u.slice(g)+De+y):u+De+(-2===g?v:y)}return[hi(r,a+(r[i]||"<?>")+(2===e?"</svg>":3===e?"</math>":"")),o]};var Sr=class r{constructor({strings:e,_$litType$:i},o){let t;this.parts=[];let a=0,n=0;const v=e.length-1,u=this.parts,[f,w]=ui(e,i);if(this.el=r.createElement(f,o),tr.currentNode=this.el.content,2===i||3===i){const g=this.el.content.firstChild;g.replaceWith(...g.childNodes)}for(;null!==(t=tr.nextNode())&&u.length<v;){if(1===t.nodeType){if(t.hasAttributes())for(const g of t.getAttributeNames())if(g.endsWith($o)){const b=w[n++],y=t.getAttribute(g).split(De),L=/([.?@])?(.*)/.exec(b);u.push({type:1,index:a,name:L[2],strings:y,ctor:"."===L[1]?Qr:"?"===L[1]?et:"@"===L[1]?rt:ar}),t.removeAttribute(g)}else g.startsWith(De)&&(u.push({type:6,index:a}),t.removeAttribute(g));if(di.test(t.tagName)){const g=t.textContent.split(De),b=g.length-1;if(b>0){t.textContent=Kr?Kr.emptyScript:"";for(let y=0;y<b;y++)t.append(g[y],Vr()),tr.nextNode(),u.push({type:2,index:++a});t.append(g[b],Vr())}}}else if(8===t.nodeType)if(t.data===_o)u.push({type:2,index:a});else{let g=-1;for(;-1!==(g=t.data.indexOf(De,g+1));)u.push({type:7,index:a}),g+=De.length-1}a++}}static createElement(e,i){const o=or.createElement("template");return o.innerHTML=e,o}};function ir(r,e,i=r,o){if(e===pe)return e;let t=void 0!==o?i._$Co?.[o]:i._$Cl;const a=Zr(e)?void 0:e._$litDirective$;return t?.constructor!==a&&(t?._$AO?.(false),void 0===a?t=void 0:(t=new a(r),t._$AT(r,i,o)),void 0!==o?(i._$Co??=[])[o]=t:i._$Cl=t),void 0!==t&&(e=ir(r,t._$AS(r,e.values),t,o)),e}var Jr=class{constructor(e,i){this._$AV=[],this._$AN=void 0,this._$AD=e,this._$AM=i}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(e){const{el:{content:i},parts:o}=this._$AD,t=(e?.creationScope??or).importNode(i,true);tr.currentNode=t;let a=tr.nextNode(),n=0,v=0,u=o[0];for(;void 0!==u;){if(n===u.index){let f;2===u.type?f=new gr(a,a.nextSibling,this,e):1===u.type?f=new u.ctor(a,u.name,u.strings,this,e):6===u.type&&(f=new tt(a,this,e)),this._$AV.push(f),u=o[++v]}n!==u?.index&&(a=tr.nextNode(),n++)}return tr.currentNode=or,t}p(e){let i=0;for(const o of this._$AV)void 0!==o&&(void 0!==o.strings?(o._$AI(e,o,i),i+=o.strings.length-2):o._$AI(e[i])),i++}};var gr=class r{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(e,i,o,t){this.type=2,this._$AH=m,this._$AN=void 0,this._$AA=e,this._$AB=i,this._$AM=o,this.options=t,this._$Cv=t?.isConnected??true}get parentNode(){let e=this._$AA.parentNode;const i=this._$AM;return void 0!==i&&11===e?.nodeType&&(e=i.parentNode),e}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(e,i=this){e=ir(this,e,i),Zr(e)?e===m||null==e||""===e?(this._$AH!==m&&this._$AR(),this._$AH=m):e!==this._$AH&&e!==pe&&this._(e):void 0!==e._$litType$?this.$(e):void 0!==e.nodeType?this.T(e):ci(e)?this.k(e):this._(e)}O(e){return this._$AA.parentNode.insertBefore(e,this._$AB)}T(e){this._$AH!==e&&(this._$AR(),this._$AH=this.O(e))}_(e){this._$AH!==m&&Zr(this._$AH)?this._$AA.nextSibling.data=e:this.T(or.createTextNode(e)),this._$AH=e}$(e){const{values:i,_$litType$:o}=e,t="number"==typeof o?this._$AC(e):(void 0===o.el&&(o.el=Sr.createElement(hi(o.h,o.h[0]),this.options)),o);if(this._$AH?._$AD===t)this._$AH.p(i);else{const a=new Jr(t,this),n=a.u(this.options);a.p(i),this.T(n),this._$AH=a}}_$AC(e){let i=si.get(e.strings);return void 0===i&&si.set(e.strings,i=new Sr(e)),i}k(e){Vo(this._$AH)||(this._$AH=[],this._$AR());const i=this._$AH;let o,t=0;for(const a of e)t===i.length?i.push(o=new r(this.O(Vr()),this.O(Vr()),this,this.options)):o=i[t],o._$AI(a),t++;t<i.length&&(this._$AR(o&&o._$AB.nextSibling,t),i.length=t)}_$AR(e=this._$AA.nextSibling,i){for(this._$AP?.(false,true,i);e!==this._$AB;){const o=ti(e).nextSibling;ti(e).remove(),e=o}}setConnected(e){void 0===this._$AM&&(this._$Cv=e,this._$AP?.(e))}};var ar=class{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(e,i,o,t,a){this.type=1,this._$AH=m,this._$AN=void 0,this.element=e,this.name=i,this._$AM=t,this.options=a,o.length>2||""!==o[0]||""!==o[1]?(this._$AH=Array(o.length-1).fill(new String),this.strings=o):this._$AH=m}_$AI(e,i=this,o,t){const a=this.strings;let n=false;if(void 0===a)e=ir(this,e,i,0),n=!Zr(e)||e!==this._$AH&&e!==pe,n&&(this._$AH=e);else{const v=e;let u,f;for(e=a[0],u=0;u<a.length-1;u++)f=ir(this,v[o+u],i,u),f===pe&&(f=this._$AH[u]),n||=!Zr(f)||f!==this._$AH[u],f===m?e=m:e!==m&&(e+=(f??"")+a[u+1]),this._$AH[u]=f}n&&!t&&this.j(e)}j(e){e===m?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,e??"")}};var Qr=class extends ar{constructor(){super(...arguments),this.type=3}j(e){this.element[this.name]=e===m?void 0:e}};var et=class extends ar{constructor(){super(...arguments),this.type=4}j(e){this.element.toggleAttribute(this.name,!!e&&e!==m)}};var rt=class extends ar{constructor(e,i,o,t,a){super(e,i,o,t,a),this.type=5}_$AI(e,i=this){if((e=ir(this,e,i,0)??m)===pe)return;const o=this._$AH,t=e===m&&o!==m||e.capture!==o.capture||e.once!==o.once||e.passive!==o.passive,a=e!==m&&(o===m||t);t&&this.element.removeEventListener(this.name,this,o),a&&this.element.addEventListener(this.name,this,e),this._$AH=e}handleEvent(e){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,e):this._$AH.handleEvent(e)}};var tt=class{constructor(e,i,o){this.element=e,this.type=6,this._$AN=void 0,this._$AM=i,this.options=o}get _$AU(){return this._$AM._$AU}_$AI(e){ir(this,e)}};var vi={M:$o,P:De,A:_o,C:1,L:ui,R:Jr,D:ci,V:ir,I:gr,H:ar,N:et,U:rt,B:Qr,F:tt};var _n=Ho.litHtmlPolyfillSupport;_n?.(Sr,gr),(Ho.litHtmlVersions??=[]).push("3.3.3");var mi=(r,e,i)=>{const o=i?.renderBefore??e;let t=o._$litPart$;if(void 0===t){const a=i?.renderBefore??null;o._$litPart$=t=new gr(e.insertBefore(Vr(),a),a,void 0,i??{})}return t._$AI(r),t};var So=globalThis;var d=class extends Ee{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const e=super.createRenderRoot();return this.renderOptions.renderBefore??=e.firstChild,e}update(e){const i=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(e),this._$Do=mi(i,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(true)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(false)}render(){return pe}};d._$litElement$=true,d["finalized"]=true,So.litElementHydrateSupport?.({LitElement:d});var Vn=So.litElementPolyfillSupport;Vn?.({LitElement:d});(So.litElementVersions??=[]).push("4.2.2");var gi=false;var Zn={attribute:true,type:String,converter:$r,reflect:false,hasChanged:Yr};var Sn=(r=Zn,e,i)=>{const{kind:o,metadata:t}=i;let a=globalThis.litPropertyMetadata.get(t);if(void 0===a&&globalThis.litPropertyMetadata.set(t,a=new Map),"setter"===o&&((r=Object.create(r)).wrapped=true),a.set(i.name,r),"accessor"===o){const{name:n}=i;return{set(v){const u=e.get.call(this);e.set.call(this,v),this.requestUpdate(n,u,r,true,v)},init(v){return void 0!==v&&this.C(n,void 0,r,v),v}}}if("setter"===o){const{name:n}=i;return function(v){const u=this[n];e.call(this,v),this.requestUpdate(n,u,r,true,v)}}throw Error("Unsupported decorator location: "+o)};function l(r){return(e,i)=>"object"==typeof i?Sn(r,e,i):((o,t,a)=>{const n=t.hasOwnProperty(a);return t.constructor.createProperty(a,o),n?Object.getOwnPropertyDescriptor(t,a):void 0})(r,e,i)}function N(r){return l({...r,state:true,attribute:false})}var Ge=(r,e,i)=>(i.configurable=true,i.enumerable=true,Reflect.decorate&&"object"!=typeof e&&Object.defineProperty(r,e,i),i);function ot(r,e){return(i,o,t)=>{const a=n=>n.renderRoot?.querySelector(r)??null;if(e){const{get:n,set:v}="object"==typeof o?i:t??(()=>{const u=Symbol();return{get(){return this[u]},set(f){this[u]=f}}})();return Ge(i,o,{get(){let u=n.call(this);return void 0===u&&(u=a(this),(null!==u||this.hasUpdated)&&v.call(this,u)),u}})}return Ge(i,o,{get(){return a(this)}})}}function fi(r){return(e,i)=>{const{slot:o,selector:t}=r??{},a="slot"+(o?`[name=${o}]`:":not([name])");return Ge(e,i,{get(){const n=this.renderRoot?.querySelector(a),v=n?.assignedElements(r)??[];return void 0===t?v:v.filter(u=>u.matches(t))}})}}var qe={ATTRIBUTE:1,CHILD:2,PROPERTY:3,BOOLEAN_ATTRIBUTE:4,EVENT:5,ELEMENT:6};var Ie=r=>(...e)=>({_$litDirective$:r,values:e});var $e=class{constructor(e){}get _$AU(){return this._$AM._$AU}_$AT(e,i,o){this._$Ct=e,this._$AM=i,this._$Ci=o}_$AS(e,i){return this.update(e,i)}update(e,i){return this.render(...i)}};var $=Ie(class extends $e{constructor(r){if(super(r),r.type!==qe.ATTRIBUTE||"class"!==r.name||r.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(r){return" "+Object.keys(r).filter(e=>r[e]).join(" ")+" "}update(r,[e]){if(void 0===this.st){this.st=new Set,void 0!==r.strings&&(this.nt=new Set(r.strings.join(" ").split(/\s/).filter(o=>""!==o)));for(const o in e)e[o]&&!this.nt?.has(o)&&this.st.add(o);return this.render(e)}const i=r.element.classList;for(const o of this.st)o in e||(i.remove(o),this.st.delete(o));for(const o in e){const t=!!e[o];t===this.st.has(o)||this.nt?.has(o)||(t?(i.add(o),this.st.add(o)):(i.remove(o),this.st.delete(o)))}return pe}});var bi=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -111,7 +110,7 @@ var St=globalThis,At=St.ShadowRoot&&(St.ShadyCSS===void 0||St.ShadyCSS.nativeSha
   height: var(--ui-components-divider-height-small);
   background: var(--border-divider-color);
 }
-`;var Jo=p`
+`;var wi=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -523,7 +522,7 @@ var St=globalThis,At=St.ShadowRoot&&(St.ShadyCSS===void 0||St.ShadyCSS.nativeSha
 .wrapper.variant-integration .visible-wrapper {
       border: 0;
     }
-`;var h=t=>(e,i)=>{if(i!==void 0)i.addInitializer(()=>{customElements.get(t)||customElements.define(t,e)});else{if(customElements.get(t))return;customElements.define(t,e)}};var qa=Object.defineProperty,Xa=Object.getOwnPropertyDescriptor,we=(t,e,i,o)=>{for(var r=o>1?void 0:o?Xa(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&qa(e,i,r),r};var le=class extends d{constructor(){super(...arguments),this.variant="normal",this.activated=!1,this.cornerLeft=!1,this.cornerRight=!1,this.activeColor=!1,this.wide=!1,this.disabled=!1,this.progress=void 0,this.hasLabel=!1}get progressSpinner(){if(this.progress===void 0)return f;if(this.progress===100)return c`<div class="progress-spinner">
+`;var h=r=>(e,i)=>{if(i!==void 0){i.addInitializer(()=>{if(customElements.get(r)){if(true){console.error(`Element ${r} is already registered`)}return}customElements.define(r,e)})}else{if(customElements.get(r)){if(true){console.error(`Element ${r} is already registered`)}return}customElements.define(r,e)}};var An=Object.defineProperty;var Pn=Object.getOwnPropertyDescriptor;var _e=(r,e,i,o)=>{var t=o>1?void 0:o?Pn(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)An(e,i,t);return t};var ve=class extends d{constructor(){super(...arguments);this.variant="normal";this.activated=false;this.cornerLeft=false;this.cornerRight=false;this.activeColor=false;this.wide=false;this.disabled=false;this.progress=void 0;this.hasLabel=false}get progressSpinner(){if(this.progress===void 0){return m}if(this.progress===100){return c`<div class="progress-spinner">
         <svg
           width="40"
           height="40"
@@ -540,7 +539,7 @@ var St=globalThis,At=St.ShadowRoot&&(St.ShadyCSS===void 0||St.ShadyCSS.nativeSha
             fill="none"
           />
         </svg>
-      </div>`;let t=this.progress*.95*3.6*Math.PI/180,e=20+18*Math.sin(t),i=20-18*Math.cos(t),o=t>Math.PI?1:0;return c`<div class="progress-spinner">
+      </div>`}const r=this.progress*.95*3.6*Math.PI/180;const e=20+18*Math.sin(r);const i=20-18*Math.cos(r);const o=r>Math.PI?1:0;return c`<div class="progress-spinner">
       <svg
         width="40"
         height="40"
@@ -565,11 +564,11 @@ var St=globalThis,At=St.ShadowRoot&&(St.ShadyCSS===void 0||St.ShadyCSS.nativeSha
       </svg>
     </div>`}render(){return c`
       <button
-        class=${V({wrapper:!0,["variant-"+this.variant]:!0,activated:this.activated,"corner-left":this.cornerLeft,"corner-right":this.cornerRight,"active-color":this.activeColor,"has-label":this.hasLabel,wide:this.wide,progress:this.progress!==void 0})}
+        class=${$({wrapper:true,["variant-"+this.variant]:true,activated:this.activated,"corner-left":this.cornerLeft,"corner-right":this.cornerRight,"active-color":this.activeColor,"has-label":this.hasLabel,wide:this.wide,progress:this.progress!==void 0})}
         ?disabled=${this.disabled}
         part="wrapper"
       >
-        ${this.progress!==void 0?this.progressSpinner:f}
+        ${this.progress!==void 0?this.progressSpinner:m}
         <div class="visible-wrapper" part="visible-wrapper">
           <div class="icon" part="icon">
             <slot></slot>
@@ -577,9 +576,9 @@ var St=globalThis,At=St.ShadowRoot&&(St.ShadyCSS===void 0||St.ShadyCSS.nativeSha
         </div>
         ${this.hasLabel?c`<div class="label" part="label">
               <slot name="label"></slot>
-            </div>`:f}
+            </div>`:m}
       </button>
-    `}};le.styles=x(Jo);we([s({type:String})],le.prototype,"variant",2);we([s({type:Boolean})],le.prototype,"activated",2);we([s({type:Boolean})],le.prototype,"cornerLeft",2);we([s({type:Boolean})],le.prototype,"cornerRight",2);we([s({type:Boolean})],le.prototype,"activeColor",2);we([s({type:Boolean})],le.prototype,"wide",2);we([s({type:Boolean})],le.prototype,"disabled",2);we([s({type:Number})],le.prototype,"progress",2);we([s({type:Boolean})],le.prototype,"hasLabel",2);le=we([h("obc-icon-button")],le);var Qo=p`
+    `}};ve.styles=C(wi);_e([l({type:String})],ve.prototype,"variant",2);_e([l({type:Boolean})],ve.prototype,"activated",2);_e([l({type:Boolean})],ve.prototype,"cornerLeft",2);_e([l({type:Boolean})],ve.prototype,"cornerRight",2);_e([l({type:Boolean})],ve.prototype,"activeColor",2);_e([l({type:Boolean})],ve.prototype,"wide",2);_e([l({type:Boolean})],ve.prototype,"disabled",2);_e([l({type:Number})],ve.prototype,"progress",2);_e([l({type:Boolean})],ve.prototype,"hasLabel",2);ve=_e([h("obc-icon-button")],ve);var yi=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -896,16 +895,16 @@ var St=globalThis,At=St.ShadowRoot&&(St.ShadyCSS===void 0||St.ShadyCSS.nativeSha
   justify-content: center;
   gap: var(--app-components-clock-label-spacing);
 }
-`;var e1=Symbol.for(""),Ya=t=>{if(t?.r===e1)return t?._$litStatic$};var R=(t,...e)=>({_$litStatic$:e.reduce((i,o,r)=>i+(a=>{if(a._$litStatic$!==void 0)return a._$litStatic$;throw Error(`Value passed to 'literal' function must be a 'literal' result: ${a}. Use 'unsafeStatic' to pass non-literal values, but
-            take care to ensure page security.`)})(o)+t[r+1],t[0]),r:e1}),Ko=new Map,ho=t=>(e,...i)=>{let o=i.length,r,a,n=[],v=[],u,m=0,b=!1;for(;m<o;){for(u=e[m];m<o&&(a=i[m],(r=Ya(a))!==void 0);)u+=r+e[++m],b=!0;m!==o&&v.push(a),n.push(u),m++}if(m===o&&n.push(e[o]),b){let g=n.join("$$lit$$");(e=Ko.get(g))===void 0&&(n.raw=n,Ko.set(g,e=n)),i=v}return t(e,...i)},_=ho(c),x5=ho(l),H5=ho(Fo);var Ja=Object.defineProperty,Qa=Object.getOwnPropertyDescriptor,K=(t,e,i,o)=>{for(var r=o>1?void 0:o?Qa(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Ja(e,i,r),r},G=class extends d{constructor(){super(...arguments),this.showSeconds=!1,this.showDate=!1,this.showTimezone=!1,this.timeZoneOffsetHours=0,this.isClickable=!0,this.showYear=!1,this.showWeekday=!1,this.locale="en-GB",this.hour12=!1,this.selected=!1,this.double=!1,this.activated=!1,this.integrationBarMode=!1,this.blinkOnlyBreakpointPx=0}get timezoneString(){return this.timeZoneOffsetHours===0?"UTC":this.timeZoneOffsetHours>0?`UTC+${this.timeZoneOffsetHours}`:`UTC-${-this.timeZoneOffsetHours}`}_dateString(t){let e={month:"short",day:"numeric",weekday:this.showWeekday?"short":void 0,year:this.showYear?"numeric":void 0,timeZone:"UTC"};return t.toLocaleDateString(this.locale,e).replace(/,/g,"").replace(/\./g,"")}_ampm(t){return this.hour12?t<12?" AM":" PM":""}render(){let t=new Date(this.date);t.setUTCHours(t.getUTCHours()+this.timeZoneOffsetHours);let e=t.getUTCHours(),i=t.getUTCMinutes(),o=this.hour12?e%12:e,r=o<10?`0${o}`:`${o}`,a=i<10?`0${i}`:`${i}`,n=t.getUTCSeconds(),v=n<10?`0${n}`:`${n}`,u=this._ampm(e),m=this._dateString(t),b=this.isClickable?R`button`:R`div`,g=_`<div class="ticks ${this.showSeconds?"":"animate"}">
+`;var Li=Symbol.for("");var On=r=>{if(r?.r===Li)return r?._$litStatic$};var j=(r,...e)=>({_$litStatic$:e.reduce((i,o,t)=>i+(a=>{if(void 0!==a._$litStatic$)return a._$litStatic$;throw Error(`Value passed to 'literal' function must be a 'literal' result: ${a}. Use 'unsafeStatic' to pass non-literal values, but
+            take care to ensure page security.`)})(o)+r[t+1],r[0]),r:Li});var Ci=new Map;var Ao=r=>(e,...i)=>{const o=i.length;let t,a;const n=[],v=[];let u,f=0,w=false;for(;f<o;){for(u=e[f];f<o&&void 0!==(a=i[f],t=On(a));)u+=t+e[++f],w=true;f!==o&&v.push(a),n.push(u),f++}if(f===o&&n.push(e[o]),w){const g=n.join("$$lit$$");void 0===(e=Ci.get(g))&&(n.raw=n,Ci.set(g,e=n)),i=v}return r(e,...i)};var Z=Ao(c);var $5=Ao(s);var _5=Ao(pi);var Tn=Object.defineProperty;var zn=Object.getOwnPropertyDescriptor;var re=(r,e,i,o)=>{var t=o>1?void 0:o?zn(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Tn(e,i,t);return t};var q=class extends d{constructor(){super(...arguments);this.showSeconds=false;this.showDate=false;this.showTimezone=false;this.timeZoneOffsetHours=0;this.isClickable=true;this.showYear=false;this.showWeekday=false;this.locale="en-GB";this.hour12=false;this.selected=false;this.double=false;this.activated=false;this.integrationBarMode=false;this.blinkOnlyBreakpointPx=0}get timezoneString(){if(this.timeZoneOffsetHours===0){return"UTC"}return this.timeZoneOffsetHours>0?`UTC+${this.timeZoneOffsetHours}`:`UTC-${-this.timeZoneOffsetHours}`}_dateString(r){const e={month:"short",day:"numeric",weekday:this.showWeekday?"short":void 0,year:this.showYear?"numeric":void 0,timeZone:"UTC"};return r.toLocaleDateString(this.locale,e).replace(/,/g,"").replace(/\./g,"")}_ampm(r){if(this.hour12){return r<12?" AM":" PM"}return""}render(){const r=new Date(this.date);r.setUTCHours(r.getUTCHours()+this.timeZoneOffsetHours);const e=r.getUTCHours();const i=r.getUTCMinutes();const o=this.hour12?e%12:e;const t=o<10?`0${o}`:`${o}`;const a=i<10?`0${i}`:`${i}`;const n=r.getUTCSeconds();const v=n<10?`0${n}`:`${n}`;const u=this._ampm(e);const f=this._dateString(r);const w=!this.isClickable?j`div`:j`button`;const g=Z`<div class="ticks ${this.showSeconds?"":"animate"}">
       <span class="tick"></span><span class="tick"></span>
-    </div>`,C=`@media (max-width: ${this.blinkOnlyBreakpointPx}px )`,y=_`<div class="clock">
-        ${r}${g}${a}${this.showSeconds?_`${g}${v}`:""}${u}
+    </div>`;const b=`@media (max-width: ${this.blinkOnlyBreakpointPx}px )`;const y=Z`<div class="clock">
+        ${t}${g}${a}${this.showSeconds?Z`${g}${v}`:""}${u}
       </div>
 
-      ${this.showTimezone?_`<div class="timezone">${this.timezoneString}</div>`:null}`;return _`
+      ${this.showTimezone?Z`<div class="timezone">${this.timezoneString}</div>`:null}`;return Z`
       <style>
-        ${C} {
+        ${b} {
           .wrapper {
             display: none !important;
           }
@@ -914,19 +913,19 @@ var St=globalThis,At=St.ShadowRoot&&(St.ShadyCSS===void 0||St.ShadyCSS.nativeSha
           }
         }
       </style>
-      <${b} 
-        class=${V({wrapper:!0,"no-click":!this.isClickable,selected:this.selected,double:this.double,"integration-bar-mode":this.integrationBarMode,activated:this.activated})}>
+      <${w}
+        class=${$({wrapper:true,"no-click":!this.isClickable,selected:this.selected,double:this.double,"integration-bar-mode":this.integrationBarMode,activated:this.activated})}>
         <div class="visible-wrapper">
-          ${this.double?_`<div class="row">${y}</div>`:y}
-        ${this.showDate?_` <div class="divider"></div>
-                <div class="date">${m}</div>`:f}
-        ${this.double?_`</div>`:f}
+          ${this.double?Z`<div class="row">${y}</div>`:y}
+        ${this.showDate?Z` <div class="divider"></div>
+                <div class="date">${f}</div>`:m}
+        ${this.double?Z`</div>`:m}
         </div>
-      </${b}>
-      <div class=${V({"blink-wrapper":!0,clock:!0,blink:!0,"integration-bar-mode":this.integrationBarMode})}>
+      </${w}>
+      <div class=${$({"blink-wrapper":true,clock:true,blink:true,"integration-bar-mode":this.integrationBarMode})}>
         <div class="ticks animate"><div class="tick"></div><div class="tick"></div></div>
       </div>
-    `}};G.styles=x(Qo);K([s({type:String})],G.prototype,"date",2);K([s({type:Boolean})],G.prototype,"showSeconds",2);K([s({type:Boolean})],G.prototype,"showDate",2);K([s({type:Boolean})],G.prototype,"showTimezone",2);K([s({type:Number})],G.prototype,"timeZoneOffsetHours",2);K([s({type:Boolean,attribute:!1})],G.prototype,"isClickable",2);K([s({type:Boolean})],G.prototype,"showYear",2);K([s({type:Boolean})],G.prototype,"showWeekday",2);K([s({type:String})],G.prototype,"locale",2);K([s({type:Boolean})],G.prototype,"hour12",2);K([s({type:Boolean})],G.prototype,"selected",2);K([s({type:Boolean})],G.prototype,"double",2);K([s({type:Boolean})],G.prototype,"activated",2);K([s({type:Boolean})],G.prototype,"integrationBarMode",2);K([s({type:Number})],G.prototype,"blinkOnlyBreakpointPx",2);G=K([h("obc-clock")],G);var t1=p`
+    `}};q.styles=C(yi);re([l({type:String})],q.prototype,"date",2);re([l({type:Boolean})],q.prototype,"showSeconds",2);re([l({type:Boolean})],q.prototype,"showDate",2);re([l({type:Boolean})],q.prototype,"showTimezone",2);re([l({type:Number})],q.prototype,"timeZoneOffsetHours",2);re([l({type:Boolean,attribute:false})],q.prototype,"isClickable",2);re([l({type:Boolean})],q.prototype,"showYear",2);re([l({type:Boolean})],q.prototype,"showWeekday",2);re([l({type:String})],q.prototype,"locale",2);re([l({type:Boolean})],q.prototype,"hour12",2);re([l({type:Boolean})],q.prototype,"selected",2);re([l({type:Boolean})],q.prototype,"double",2);re([l({type:Boolean})],q.prototype,"activated",2);re([l({type:Boolean})],q.prototype,"integrationBarMode",2);re([l({type:Number})],q.prototype,"blinkOnlyBreakpointPx",2);q=re([h("obc-clock")],q);var ki=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -937,7 +936,7 @@ var St=globalThis,At=St.ShadowRoot&&(St.ShadyCSS===void 0||St.ShadyCSS.nativeSha
   border-radius: 1px;
   background: var(--border-divider-color, rgba(0, 0, 0, 0.08));
 }
-`;var Ka=Object.getOwnPropertyDescriptor,en=(t,e,i,o)=>{for(var r=o>1?void 0:o?Ka(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=n(r)||r);return r},uo=class extends d{render(){return c``}};uo.styles=x(t1);uo=en([h("obc-divider")],uo);var r1=p`
+`;var Bn=Object.getOwnPropertyDescriptor;var En=(r,e,i,o)=>{var t=o>1?void 0:o?Bn(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=n(t)||t;return t};var Po=class extends d{render(){return c``}};Po.styles=C(ki);Po=En([h("obc-divider")],Po);var xi=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -1078,15 +1077,15 @@ li .active {
     height: var(--app-components-breadcrumb-item-icon-size);
     flex-shrink: 0;
   }
-`;var tn=Object.defineProperty,rn=Object.getOwnPropertyDescriptor,o1=(t,e,i,o)=>{for(var r=o>1?void 0:o?rn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&tn(e,i,r),r},jt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+`;var Dn=Object.defineProperty;var In=Object.getOwnPropertyDescriptor;var Mi=(r,e,i,o)=>{var t=o>1?void 0:o?In(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Dn(e,i,t);return t};var it=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M8.59009 7.41L10.0001 6L16.0001 12L10.0001 18L8.59009 16.59L13.1701 12L8.59009 7.41Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M8.59009 7.41L10.0001 6L16.0001 12L10.0001 18L8.59009 16.59L13.1701 12L8.59009 7.41Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};jt.styles=p`
+    `}};it.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1096,47 +1095,47 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;o1([s({type:Boolean})],jt.prototype,"useCssColor",2);jt=o1([h("obi-chevron-right-google")],jt);var on=Object.defineProperty,an=Object.getOwnPropertyDescriptor,vo=(t,e,i,o)=>{for(var r=o>1?void 0:o?an(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&on(e,i,r),r},bt=class extends d{constructor(){super(...arguments),this.items=[],this.iconOnly=!1}render(){return c`
+  `;Mi([l({type:Boolean})],it.prototype,"useCssColor",2);it=Mi([h("obi-chevron-right-google")],it);var jn=Object.defineProperty;var Rn=Object.getOwnPropertyDescriptor;var Oo=(r,e,i,o)=>{var t=o>1?void 0:o?Rn(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)jn(e,i,t);return t};var Ar=class extends d{constructor(){super(...arguments);this.items=[];this.iconOnly=false}render(){return c`
       <nav aria-label="Breadcrumb" class="breadcrumb">
         <ol>
-          ${this.items.map((t,e)=>{let i=e===this.items.length-1;return c`
+          ${this.items.map((r,e)=>{const i=e===this.items.length-1;return c`
               <li>
                 ${e>0?c`<span class="divider">
                       <obi-chevron-right-google class="icon">
                       </obi-chevron-right-google>
-                    </span>`:f}
+                    </span>`:m}
                 ${i?c` <div class="label-wrapper active">
                       <div class="visible-wrapper">
-                        ${t.icon?t.icon():f}
-                        ${this.iconOnly&&!i?f:c`<span class="label">${t.label}</span>`}
+                        ${r.icon?r.icon():m}
+                        ${this.iconOnly&&!i?m:c`<span class="label">${r.label}</span>`}
                       </div>
                     </div>`:c` <button
                       role="link"
-                      @click=${()=>this.handleClick(t)}
+                      @click=${()=>this.handleClick(r)}
                       class="label-wrapper"
                     >
                       <div class="visible-wrapper">
-                        ${t.icon?t.icon():f}
-                        ${this.iconOnly&&!i?f:c`<span class="label">${t.label}</span>`}
+                        ${r.icon?r.icon():m}
+                        ${this.iconOnly&&!i?m:c`<span class="label">${r.label}</span>`}
                       </div>
                     </button>`}
               </li>
             `})}
         </ol>
       </nav>
-    `}handleClick(t){this.dispatchEvent(new CustomEvent("breadcrumb-click",{detail:t}))}};bt.styles=x(r1);vo([s({attribute:!1})],bt.prototype,"items",2);vo([s({attribute:!1})],bt.prototype,"iconOnly",2);bt=vo([h("obc-breadcrumb")],bt);var nn=Object.defineProperty,sn=Object.getOwnPropertyDescriptor,i1=(t,e,i,o)=>{for(var r=o>1?void 0:o?sn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&nn(e,i,r),r},Nt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    `}handleClick(r){this.dispatchEvent(new CustomEvent("breadcrumb-click",{detail:r}))}};Ar.styles=C(xi);Oo([l({attribute:false})],Ar.prototype,"items",2);Oo([l({attribute:false})],Ar.prototype,"iconOnly",2);Ar=Oo([h("obc-breadcrumb")],Ar);var Nn=Object.defineProperty;var Fn=Object.getOwnPropertyDescriptor;var Hi=(r,e,i,o)=>{var t=o>1?void 0:o?Fn(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Nn(e,i,t);return t};var at=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M3 13H21V11H3V13Z" fill="currentColor"/>
 <path d="M3 18H21V16H3V18Z" fill="currentColor"/>
 <path d="M3 6V8H21V6H3Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M3 13H21V11H3V13Z" style="fill: var(--element-active-color)"/>
 <path d="M3 18H21V16H3V18Z" style="fill: var(--element-active-color)"/>
 <path d="M3 6V8H21V6H3Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Nt.styles=p`
+    `}};at.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1146,15 +1145,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;i1([s({type:Boolean})],Nt.prototype,"useCssColor",2);Nt=i1([h("obi-menu-iec")],Nt);var ln=Object.defineProperty,cn=Object.getOwnPropertyDescriptor,a1=(t,e,i,o)=>{for(var r=o>1?void 0:o?cn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&ln(e,i,r),r},Ft=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Hi([l({type:Boolean})],at.prototype,"useCssColor",2);at=Hi([h("obi-menu-iec")],at);var Un=Object.defineProperty;var Wn=Object.getOwnPropertyDescriptor;var $i=(r,e,i,o)=>{var t=o>1?void 0:o?Wn(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Un(e,i,t);return t};var nt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M6 19H9V13H15V19H18V10L12 5.5L6 10V19ZM4 21V9L12 3L20 9V21H13V15H11V21H4Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M6 19H9V13H15V19H18V10L12 5.5L6 10V19ZM4 21V9L12 3L20 9V21H13V15H11V21H4Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Ft.styles=p`
+    `}};nt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1164,15 +1163,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;a1([s({type:Boolean})],Ft.prototype,"useCssColor",2);Ft=a1([h("obi-home")],Ft);var dn=Object.defineProperty,pn=Object.getOwnPropertyDescriptor,n1=(t,e,i,o)=>{for(var r=o>1?void 0:o?pn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&dn(e,i,r),r},Ut=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;$i([l({type:Boolean})],nt.prototype,"useCssColor",2);nt=$i([h("obi-home")],nt);var Gn=Object.defineProperty;var qn=Object.getOwnPropertyDescriptor;var _i=(r,e,i,o)=>{var t=o>1?void 0:o?qn(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Gn(e,i,t);return t};var lt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Ut.styles=p`
+    `}};lt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1182,15 +1181,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;n1([s({type:Boolean})],Ut.prototype,"useCssColor",2);Ut=n1([h("obi-close-google")],Ut);var hn=Object.defineProperty,un=Object.getOwnPropertyDescriptor,s1=(t,e,i,o)=>{for(var r=o>1?void 0:o?un(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&hn(e,i,r),r},Wt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;_i([l({type:Boolean})],lt.prototype,"useCssColor",2);lt=_i([h("obi-close-google")],lt);var Xn=Object.defineProperty;var Yn=Object.getOwnPropertyDescriptor;var Vi=(r,e,i,o)=>{var t=o>1?void 0:o?Yn(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Xn(e,i,t);return t};var st=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M7.83 11H20V13H7.83L13.41 18.59L12 20L4 12L12 4L13.42 5.41L7.83 11Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M7.83 11H20V13H7.83L13.41 18.59L12 20L4 12L12 4L13.42 5.41L7.83 11Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Wt.styles=p`
+    `}};st.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1200,15 +1199,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;s1([s({type:Boolean})],Wt.prototype,"useCssColor",2);Wt=s1([h("obi-arrow-left-google")],Wt);var vn=Object.defineProperty,mn=Object.getOwnPropertyDescriptor,l1=(t,e,i,o)=>{for(var r=o>1?void 0:o?mn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&vn(e,i,r),r},Gt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Vi([l({type:Boolean})],st.prototype,"useCssColor",2);st=Vi([h("obi-arrow-left-google")],st);var Kn=Object.defineProperty;var Jn=Object.getOwnPropertyDescriptor;var Zi=(r,e,i,o)=>{var t=o>1?void 0:o?Jn(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Kn(e,i,t);return t};var ct=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 4L10.59 5.41L16.17 11H4V13H16.17L10.59 18.59L12 20L20 12L12 4Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 4L10.59 5.41L16.17 11H4V13H16.17L10.59 18.59L12 20L20 12L12 4Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Gt.styles=p`
+    `}};ct.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1218,7 +1217,7 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;l1([s({type:Boolean})],Gt.prototype,"useCssColor",2);Gt=l1([h("obi-arrow-right-google")],Gt);var fn=Object.defineProperty,gn=Object.getOwnPropertyDescriptor,c1=(t,e,i,o)=>{for(var r=o>1?void 0:o?gn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&fn(e,i,r),r},qt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Zi([l({type:Boolean})],ct.prototype,"useCssColor",2);ct=Zi([h("obi-arrow-right-google")],ct);var Qn=Object.defineProperty;var el=Object.getOwnPropertyDescriptor;var Si=(r,e,i,o)=>{var t=o>1?void 0:o?el(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Qn(e,i,t);return t};var dt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.99976 11.9999C6.99976 10.6738 7.52654 9.40202 8.46422 8.46434C9.4019 7.52666 10.6737 6.99988 11.9998 6.99988C13.3258 6.99988 14.5976 7.52666 15.5353 8.46434L16.2424 9.17145L9.17133 16.2425L8.46422 15.5354C7.52654 14.5977 6.99976 13.326 6.99976 11.9999ZM9.87843 9.87856C9.31583 10.4412 8.99976 11.2042 8.99976 11.9999C8.99976 12.4516 9.10163 12.8928 9.29265 13.2928L13.2926 9.29277C12.8927 9.10175 12.4515 8.99988 11.9998 8.99988C11.2041 8.99988 10.441 9.31595 9.87843 9.87856Z" fill="currentColor"/>
 <path d="M3.51447 19.0709L6.3429 16.2425L7.75711 17.6567L4.92869 20.4852L3.51447 19.0709Z" fill="currentColor"/>
 <path d="M0.999756 10.9999H4.99976V12.9999H0.999756V10.9999Z" fill="currentColor"/>
@@ -1227,7 +1226,7 @@ li .active {
 <path d="M20.4851 4.92878L17.6567 7.75721L16.2425 6.343L19.0709 3.51457L20.4851 4.92878Z" fill="currentColor"/>
 <path d="M20.1539 11C20.8 11 21.4154 11.088 22 11.253C19.5016 11.9515 17.6924 14.036 17.6924 16.5C17.6924 18.964 19.5016 21.0485 22 21.747C21.4154 21.912 20.8 22 20.1539 22C16.757 22 14 19.536 14 16.5C14 13.464 16.757 11 20.1539 11Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.99976 11.9999C6.99976 10.6738 7.52654 9.40202 8.46422 8.46434C9.4019 7.52666 10.6737 6.99988 11.9998 6.99988C13.3258 6.99988 14.5976 7.52666 15.5353 8.46434L16.2424 9.17145L9.17133 16.2425L8.46422 15.5354C7.52654 14.5977 6.99976 13.326 6.99976 11.9999ZM9.87843 9.87856C9.31583 10.4412 8.99976 11.2042 8.99976 11.9999C8.99976 12.4516 9.10163 12.8928 9.29265 13.2928L13.2926 9.29277C12.8927 9.10175 12.4515 8.99988 11.9998 8.99988C11.2041 8.99988 10.441 9.31595 9.87843 9.87856Z" style="fill: var(--element-active-color)"/>
 <path d="M3.51447 19.0709L6.3429 16.2425L7.75711 17.6567L4.92869 20.4852L3.51447 19.0709Z" style="fill: var(--element-active-color)"/>
 <path d="M0.999756 10.9999H4.99976V12.9999H0.999756V10.9999Z" style="fill: var(--element-active-color)"/>
@@ -1238,7 +1237,7 @@ li .active {
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};qt.styles=p`
+    `}};dt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1248,15 +1247,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;c1([s({type:Boolean})],qt.prototype,"useCssColor",2);qt=c1([h("obi-palette-day-night-iec")],qt);var bn=Object.defineProperty,Cn=Object.getOwnPropertyDescriptor,d1=(t,e,i,o)=>{for(var r=o>1?void 0:o?Cn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&bn(e,i,r),r},Xt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Si([l({type:Boolean})],dt.prototype,"useCssColor",2);dt=Si([h("obi-palette-day-night-iec")],dt);var rl=Object.defineProperty;var tl=Object.getOwnPropertyDescriptor;var Ai=(r,e,i,o)=>{var t=o>1?void 0:o?tl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)rl(e,i,t);return t};var pt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M4 8H8V4H4V8ZM10 20H14V16H10V20ZM4 20H8V16H4V20ZM4 14H8V10H4V14ZM10 14H14V10H10V14ZM16 4V8H20V4H16ZM10 8H14V4H10V8ZM16 14H20V10H16V14ZM16 20H20V16H16V20Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M4 8H8V4H4V8ZM10 20H14V16H10V20ZM4 20H8V16H4V20ZM4 14H8V10H4V14ZM10 14H14V10H10V14ZM16 4V8H20V4H16ZM10 8H14V4H10V8ZM16 14H20V10H16V14ZM16 20H20V16H16V20Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Xt.styles=p`
+    `}};pt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1266,19 +1265,19 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;d1([s({type:Boolean})],Xt.prototype,"useCssColor",2);Xt=d1([h("obi-applications")],Xt);var yn=Object.defineProperty,wn=Object.getOwnPropertyDescriptor,p1=(t,e,i,o)=>{for(var r=o>1?void 0:o?wn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&yn(e,i,r),r},Yt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Ai([l({type:Boolean})],pt.prototype,"useCssColor",2);pt=Ai([h("obi-applications")],pt);var ol=Object.defineProperty;var il=Object.getOwnPropertyDescriptor;var Pi=(r,e,i,o)=>{var t=o>1?void 0:o?il(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)ol(e,i,t);return t};var ht=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8C13.1 8 14 7.1 14 6Z" fill="currentColor"/>
 <path d="M14 12C14 10.9 13.1 10 12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12Z" fill="currentColor"/>
 <path d="M14 18C14 16.9 13.1 16 12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8C13.1 8 14 7.1 14 6Z" style="fill: var(--element-active-color)"/>
 <path d="M14 12C14 10.9 13.1 10 12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12Z" style="fill: var(--element-active-color)"/>
 <path d="M14 18C14 16.9 13.1 16 12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Yt.styles=p`
+    `}};ht.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1288,15 +1287,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;p1([s({type:Boolean})],Yt.prototype,"useCssColor",2);Yt=p1([h("obi-more-vertical-google")],Yt);var Ln=Object.defineProperty,kn=Object.getOwnPropertyDescriptor,h1=(t,e,i,o)=>{for(var r=o>1?void 0:o?kn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Ln(e,i,r),r},Jt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Pi([l({type:Boolean})],ht.prototype,"useCssColor",2);ht=Pi([h("obi-more-vertical-google")],ht);var al=Object.defineProperty;var nl=Object.getOwnPropertyDescriptor;var Oi=(r,e,i,o)=>{var t=o>1?void 0:o?nl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)al(e,i,t);return t};var ut=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M5.85 17.1C6.7 16.45 7.65 15.9375 8.7 15.5625C9.75 15.1875 10.85 15 12 15C13.15 15 14.25 15.1875 15.3 15.5625C16.35 15.9375 17.3 16.45 18.15 17.1C18.7333 16.4167 19.1875 15.6417 19.5125 14.775C19.8375 13.9083 20 12.9833 20 12C20 9.78333 19.2208 7.89583 17.6625 6.3375C16.1042 4.77917 14.2167 4 12 4C9.78333 4 7.89583 4.77917 6.3375 6.3375C4.77917 7.89583 4 9.78333 4 12C4 12.9833 4.1625 13.9083 4.4875 14.775C4.8125 15.6417 5.26667 16.4167 5.85 17.1ZM12 13C11.0167 13 10.1875 12.6625 9.5125 11.9875C8.8375 11.3125 8.5 10.4833 8.5 9.5C8.5 8.51667 8.8375 7.6875 9.5125 7.0125C10.1875 6.3375 11.0167 6 12 6C12.9833 6 13.8125 6.3375 14.4875 7.0125C15.1625 7.6875 15.5 8.51667 15.5 9.5C15.5 10.4833 15.1625 11.3125 14.4875 11.9875C13.8125 12.6625 12.9833 13 12 13ZM12 22C10.6167 22 9.31667 21.7375 8.1 21.2125C6.88333 20.6875 5.825 19.975 4.925 19.075C4.025 18.175 3.3125 17.1167 2.7875 15.9C2.2625 14.6833 2 13.3833 2 12C2 10.6167 2.2625 9.31667 2.7875 8.1C3.3125 6.88333 4.025 5.825 4.925 4.925C5.825 4.025 6.88333 3.3125 8.1 2.7875C9.31667 2.2625 10.6167 2 12 2C13.3833 2 14.6833 2.2625 15.9 2.7875C17.1167 3.3125 18.175 4.025 19.075 4.925C19.975 5.825 20.6875 6.88333 21.2125 8.1C21.7375 9.31667 22 10.6167 22 12C22 13.3833 21.7375 14.6833 21.2125 15.9C20.6875 17.1167 19.975 18.175 19.075 19.075C18.175 19.975 17.1167 20.6875 15.9 21.2125C14.6833 21.7375 13.3833 22 12 22Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M5.85 17.1C6.7 16.45 7.65 15.9375 8.7 15.5625C9.75 15.1875 10.85 15 12 15C13.15 15 14.25 15.1875 15.3 15.5625C16.35 15.9375 17.3 16.45 18.15 17.1C18.7333 16.4167 19.1875 15.6417 19.5125 14.775C19.8375 13.9083 20 12.9833 20 12C20 9.78333 19.2208 7.89583 17.6625 6.3375C16.1042 4.77917 14.2167 4 12 4C9.78333 4 7.89583 4.77917 6.3375 6.3375C4.77917 7.89583 4 9.78333 4 12C4 12.9833 4.1625 13.9083 4.4875 14.775C4.8125 15.6417 5.26667 16.4167 5.85 17.1ZM12 13C11.0167 13 10.1875 12.6625 9.5125 11.9875C8.8375 11.3125 8.5 10.4833 8.5 9.5C8.5 8.51667 8.8375 7.6875 9.5125 7.0125C10.1875 6.3375 11.0167 6 12 6C12.9833 6 13.8125 6.3375 14.4875 7.0125C15.1625 7.6875 15.5 8.51667 15.5 9.5C15.5 10.4833 15.1625 11.3125 14.4875 11.9875C13.8125 12.6625 12.9833 13 12 13ZM12 22C10.6167 22 9.31667 21.7375 8.1 21.2125C6.88333 20.6875 5.825 19.975 4.925 19.075C4.025 18.175 3.3125 17.1167 2.7875 15.9C2.2625 14.6833 2 13.3833 2 12C2 10.6167 2.2625 9.31667 2.7875 8.1C3.3125 6.88333 4.025 5.825 4.925 4.925C5.825 4.025 6.88333 3.3125 8.1 2.7875C9.31667 2.2625 10.6167 2 12 2C13.3833 2 14.6833 2.2625 15.9 2.7875C17.1167 3.3125 18.175 4.025 19.075 4.925C19.975 5.825 20.6875 6.88333 21.2125 8.1C21.7375 9.31667 22 10.6167 22 12C22 13.3833 21.7375 14.6833 21.2125 15.9C20.6875 17.1167 19.975 18.175 19.075 19.075C18.175 19.975 17.1167 20.6875 15.9 21.2125C14.6833 21.7375 13.3833 22 12 22Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Jt.styles=p`
+    `}};ut.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1306,7 +1305,7 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;h1([s({type:Boolean})],Jt.prototype,"useCssColor",2);Jt=h1([h("obi-user")],Jt);var Mn=Object.defineProperty,xn=Object.getOwnPropertyDescriptor,z=(t,e,i,o)=>{for(var r=o>1?void 0:o?xn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Mn(e,i,r),r};var T=class extends d{constructor(){super(...arguments),this.appTitle="App",this.pageName="Page",this.menuButtonIcon="menu",this.menuButtonActivated=!1,this.dimmingButtonActivated=!1,this.appsButtonActivated=!1,this.leftMoreButtonActivated=!1,this.userButtonActivated=!1,this.userButtonDisabled=!1,this.tall=!1,this.wideMenuButton=!1,this.showAppsButton=!1,this.showDimmingButton=!1,this.showUserButton=!1,this.showClock=!1,this.showDate=!1,this.showAppIcon=!1,this.inactive=!1,this.appButtonBreakpointPx=500,this.dimmingButtonBreakpointPx=500,this.appTitleBreakpointPx=500,this.userButtonBreakpointPx=500,this.appIconBreakpointPx=500,this.settings=!1,this.breadcrumbItems=[],this.leftButtonEvent=null,this.leftButtonTimeout=null,this.isLeftButtonDown=!1,this.isEmergencyBrightness=!1}dimmingButtonClicked(){this.dispatchEvent(new CustomEvent("dimming-button-clicked"))}appsButtonClicked(){this.dispatchEvent(new CustomEvent("apps-button-clicked"))}leftMoreButtonClicked(){this.dispatchEvent(new CustomEvent("left-more-button-clicked"))}userButtonClicked(){this.dispatchEvent(new CustomEvent("user-button-clicked"))}leftButtonDown(t){this.leftButtonEvent=t,this.isLeftButtonDown=!0,this.leftButtonTimeout=setTimeout(()=>{this.leftButtonEvent=null,this.dispatchEvent(new CustomEvent("emergency-brightness-start")),this.isEmergencyBrightness=!0},500)}leftButtonUp(){this.leftButtonEvent&&(this.dispatchEvent(this.leftButtonEvent),this.leftButtonEvent=null),this.leftButtonTimeout&&(clearTimeout(this.leftButtonTimeout),this.leftButtonTimeout=null),this.isEmergencyBrightness&&(this.dispatchEvent(new CustomEvent("emergency-brightness-stop")),this.isEmergencyBrightness=!1),this.isLeftButtonDown=!1}leftButtonLeave(){this.isLeftButtonDown&&(this.leftButtonTimeout&&(clearInterval(this.leftButtonTimeout),this.leftButtonTimeout=null),this.isEmergencyBrightness&&(this.dispatchEvent(new CustomEvent("emergency-brightness-stop")),this.isEmergencyBrightness=!1),this.isLeftButtonDown=!1)}render(){let t=[];this.settings?(t.push(c`<div class="menu-button">
+  `;Oi([l({type:Boolean})],ut.prototype,"useCssColor",2);ut=Oi([h("obi-user")],ut);var ll=Object.defineProperty;var sl=Object.getOwnPropertyDescriptor;var E=(r,e,i,o)=>{var t=o>1?void 0:o?sl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)ll(e,i,t);return t};var B=class extends d{constructor(){super(...arguments);this.appTitle="App";this.pageName="Page";this.menuButtonIcon="menu";this.menuButtonActivated=false;this.dimmingButtonActivated=false;this.appsButtonActivated=false;this.leftMoreButtonActivated=false;this.userButtonActivated=false;this.userButtonDisabled=false;this.tall=false;this.wideMenuButton=false;this.showAppsButton=false;this.showDimmingButton=false;this.showUserButton=false;this.showClock=false;this.showDate=false;this.showAppIcon=false;this.inactive=false;this.appButtonBreakpointPx=500;this.dimmingButtonBreakpointPx=500;this.appTitleBreakpointPx=500;this.userButtonBreakpointPx=500;this.appIconBreakpointPx=500;this.settings=false;this.breadcrumbItems=[];this.leftButtonEvent=null;this.leftButtonTimeout=null;this.isLeftButtonDown=false;this.isEmergencyBrightness=false}dimmingButtonClicked(){this.dispatchEvent(new CustomEvent("dimming-button-clicked"))}appsButtonClicked(){this.dispatchEvent(new CustomEvent("apps-button-clicked"))}leftMoreButtonClicked(){this.dispatchEvent(new CustomEvent("left-more-button-clicked"))}userButtonClicked(){this.dispatchEvent(new CustomEvent("user-button-clicked"))}leftButtonDown(r){this.leftButtonEvent=r;this.isLeftButtonDown=true;this.leftButtonTimeout=setTimeout(()=>{this.leftButtonEvent=null;this.dispatchEvent(new CustomEvent("emergency-brightness-start"));this.isEmergencyBrightness=true},500)}leftButtonUp(){if(this.leftButtonEvent){this.dispatchEvent(this.leftButtonEvent);this.leftButtonEvent=null}if(this.leftButtonTimeout){clearTimeout(this.leftButtonTimeout);this.leftButtonTimeout=null}if(this.isEmergencyBrightness){this.dispatchEvent(new CustomEvent("emergency-brightness-stop"));this.isEmergencyBrightness=false}this.isLeftButtonDown=false}leftButtonLeave(){if(!this.isLeftButtonDown)return;if(this.leftButtonTimeout){clearInterval(this.leftButtonTimeout);this.leftButtonTimeout=null}if(this.isEmergencyBrightness){this.dispatchEvent(new CustomEvent("emergency-brightness-stop"));this.isEmergencyBrightness=false}this.isLeftButtonDown=false}render(){const r=[];if(this.settings){r.push(c`<div class="menu-button">
           <obc-icon-button
             variant="flat"
             @pointerdown=${()=>this.leftButtonDown(new CustomEvent("close"))}
@@ -1315,15 +1314,15 @@ li .active {
           >
             <obi-close-google></obi-close-google>
           </obc-icon-button>
-        </div>`),t.push(c`<div class="divider"></div>`),t.push(c`<obc-icon-button
+        </div>`);r.push(c`<div class="divider"></div>`);r.push(c`<obc-icon-button
           variant="flat"
           @click=${()=>this.dispatchEvent(new CustomEvent("back"))}
         >
           <obi-arrow-left-google></obi-arrow-left-google>
-        </obc-icon-button>`),t.push(c`<div class="title">${this.appTitle}</div>`),t.push(c`<obc-breadcrumb
+        </obc-icon-button>`);r.push(c`<div class="title">${this.appTitle}</div>`);r.push(c`<obc-breadcrumb
           .items=${this.breadcrumbItems}
           @breadcrumb-click=${i=>this.dispatchEvent(new CustomEvent("breadcrumb-click",{detail:i.detail}))}
-        ></obc-breadcrumb>`)):(this.inactive||t.push(c`<div class="menu-button ${this.wideMenuButton?"wide":null}">
+        ></obc-breadcrumb>`)}else{if(!this.inactive){r.push(c`<div class="menu-button ${this.wideMenuButton?"wide":null}">
             <obc-icon-button
               variant="flat"
               @pointerdown=${()=>this.leftButtonDown(new CustomEvent("menu-button-clicked"))}
@@ -1333,7 +1332,7 @@ li .active {
             >
               ${this.menuButtonIcon==="menu"?c`<obi-menu-iec></obi-menu-iec>`:c`<obi-home></obi-home>`}
             </obc-icon-button>
-          </div>`),this.showAppIcon&&t.push(c`<div class="app-icon"><slot name="app-icon"></slot></div>`),t.push(c`<div class="title">${this.appTitle}</div>`),t.push(c`<div class="page-name">${this.pageName}</div>`),t.push(c`<slot name="command-button"></slot>`));let e=Math.max(this.appButtonBreakpointPx,this.dimmingButtonBreakpointPx);return c`
+          </div>`)}if(this.showAppIcon){r.push(c`<div class="app-icon"><slot name="app-icon"></slot></div>`)}r.push(c`<div class="title">${this.appTitle}</div>`);r.push(c`<div class="page-name">${this.pageName}</div>`);r.push(c`<slot name="command-button"></slot>`)}const e=Math.max(this.appButtonBreakpointPx,this.dimmingButtonBreakpointPx);return c`
       <style>
                 @media (max-width: ${e}px) {
                   .left-more-button {
@@ -1378,10 +1377,10 @@ li .active {
                 }
       </style>
       <nav
-        class=${V({wrapper:!0,inactive:this.inactive,settings:this.settings,tall:this.tall})}
+        class=${$({wrapper:true,inactive:this.inactive,settings:this.settings,tall:this.tall})}
         role="menubar"
       >
-        <div class="left group">${t}</div>
+        <div class="left group">${r}</div>
         <div class="right group">
           <div class="alert-container">
             <slot name="alerts"></slot>
@@ -1415,7 +1414,7 @@ li .active {
                 <obi-applications></obi-applications>
               </obc-icon-button>`:null}
           ${this.showClock?c`<slot name="clock"></slot>`:null}
-          ${this.inactive?null:c`<obc-icon-button
+          ${!this.inactive?c`<obc-icon-button
                 class="left-more-button"
                 part="left-more-button"
                 variant="flat"
@@ -1423,10 +1422,10 @@ li .active {
                 ?activated=${this.leftMoreButtonActivated}
               >
                 <obi-more-vertical-google></obi-more-vertical-google>
-              </obc-icon-button>`}
+              </obc-icon-button>`:null}
         </div>
       </nav>
-    `}};T.styles=x(Yo);z([s({type:String})],T.prototype,"appTitle",2);z([s({type:String})],T.prototype,"pageName",2);z([s({type:String})],T.prototype,"menuButtonIcon",2);z([s({type:Boolean})],T.prototype,"menuButtonActivated",2);z([s({type:Boolean})],T.prototype,"dimmingButtonActivated",2);z([s({type:Boolean})],T.prototype,"appsButtonActivated",2);z([s({type:Boolean})],T.prototype,"leftMoreButtonActivated",2);z([s({type:Boolean})],T.prototype,"userButtonActivated",2);z([s({type:Boolean})],T.prototype,"userButtonDisabled",2);z([s({type:Boolean})],T.prototype,"tall",2);z([s({type:Boolean})],T.prototype,"wideMenuButton",2);z([s({type:Boolean})],T.prototype,"showAppsButton",2);z([s({type:Boolean})],T.prototype,"showDimmingButton",2);z([s({type:Boolean})],T.prototype,"showUserButton",2);z([s({type:Boolean})],T.prototype,"showClock",2);z([s({type:Boolean})],T.prototype,"showDate",2);z([s({type:Boolean})],T.prototype,"showAppIcon",2);z([s({type:Boolean})],T.prototype,"inactive",2);z([s({type:Number})],T.prototype,"appButtonBreakpointPx",2);z([s({type:Number})],T.prototype,"dimmingButtonBreakpointPx",2);z([s({type:Number})],T.prototype,"appTitleBreakpointPx",2);z([s({type:Number})],T.prototype,"userButtonBreakpointPx",2);z([s({type:Number})],T.prototype,"appIconBreakpointPx",2);z([s({type:Boolean})],T.prototype,"settings",2);z([s({type:Array})],T.prototype,"breadcrumbItems",2);T=z([h("obc-top-bar")],T);var u1=p`
+    `}};B.styles=C(bi);E([l({type:String})],B.prototype,"appTitle",2);E([l({type:String})],B.prototype,"pageName",2);E([l({type:String})],B.prototype,"menuButtonIcon",2);E([l({type:Boolean})],B.prototype,"menuButtonActivated",2);E([l({type:Boolean})],B.prototype,"dimmingButtonActivated",2);E([l({type:Boolean})],B.prototype,"appsButtonActivated",2);E([l({type:Boolean})],B.prototype,"leftMoreButtonActivated",2);E([l({type:Boolean})],B.prototype,"userButtonActivated",2);E([l({type:Boolean})],B.prototype,"userButtonDisabled",2);E([l({type:Boolean})],B.prototype,"tall",2);E([l({type:Boolean})],B.prototype,"wideMenuButton",2);E([l({type:Boolean})],B.prototype,"showAppsButton",2);E([l({type:Boolean})],B.prototype,"showDimmingButton",2);E([l({type:Boolean})],B.prototype,"showUserButton",2);E([l({type:Boolean})],B.prototype,"showClock",2);E([l({type:Boolean})],B.prototype,"showDate",2);E([l({type:Boolean})],B.prototype,"showAppIcon",2);E([l({type:Boolean})],B.prototype,"inactive",2);E([l({type:Number})],B.prototype,"appButtonBreakpointPx",2);E([l({type:Number})],B.prototype,"dimmingButtonBreakpointPx",2);E([l({type:Number})],B.prototype,"appTitleBreakpointPx",2);E([l({type:Number})],B.prototype,"userButtonBreakpointPx",2);E([l({type:Number})],B.prototype,"appIconBreakpointPx",2);E([l({type:Boolean})],B.prototype,"settings",2);E([l({type:Array})],B.prototype,"breadcrumbItems",2);B=E([h("obc-top-bar")],B);var Ti=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -1649,24 +1648,24 @@ li .active {
 .dialog-wrapper::backdrop {
   background-color: transparent;
 }
-`;var Hn=Object.defineProperty,$n=Object.getOwnPropertyDescriptor,Ie=(t,e,i,o)=>{for(var r=o>1?void 0:o?$n(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Hn(e,i,r),r},Le=class extends d{constructor(){super(...arguments),this.showTitle=!0,this.hasDialog=!1,this.dialogTimeOutSeconds=2e4,this.dialogVisibleTimerSeconds=1e4,this.countdownSeconds=0,this.showCountdown=!1}render(){let t=this.hasDialog?R`button`:R`section`;return _`
-      <${t} class=${V({wrapper:!0,"has-dialog":this.hasDialog})} @click=${this.openDialog}>
-        ${this.showTitle?_`<div class="header">
+`;var cl=Object.defineProperty;var dl=Object.getOwnPropertyDescriptor;var Xe=(r,e,i,o)=>{var t=o>1?void 0:o?dl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)cl(e,i,t);return t};var Ve=class extends d{constructor(){super(...arguments);this.showTitle=true;this.hasDialog=false;this.dialogTimeOutSeconds=2e4;this.dialogVisibleTimerSeconds=1e4;this.countdownSeconds=0;this.showCountdown=false}render(){const r=this.hasDialog?j`button`:j`section`;return Z`
+      <${r} class=${$({wrapper:true,"has-dialog":this.hasDialog})} @click=${this.openDialog}>
+        ${!this.showTitle?m:Z`<div class="header">
                 <div></div>
                 <div class="title">
                   <slot name="title"></slot>
                 </div>
-                ${this.hasDialog?_`
+                ${this.hasDialog?Z`
                       <obi-chevron-right-google
                         class="icon"
                       ></obi-chevron-right-google>
-                    `:_`<div></div>`}
-              </div>`:f}
+                    `:Z`<div></div>`}
+              </div>`}
         <div class="content">
           <slot></slot>
         </div>
-      </${t}>
-      ${this.hasDialog?_`
+      </${r}>
+      ${this.hasDialog?Z`
               <dialog class="dialog-wrapper" closedby="any" popover>
                 <div class="header">
                   <div></div>
@@ -1689,7 +1688,7 @@ li .active {
                 </div>
               </dialog>
             `:""}
-    `}closeDialog(t){t.stopPropagation(),this.clearAllTimers(),this.removeUserActivityListeners(),this.dialog.close()}openDialog(){this.dialog&&(this.dialog.showModal(),this.startDialogTimer(),this.addUserActivityListeners())}startDialogTimer(){this.clearAllTimers();let t=this.dialogTimeOutSeconds-this.dialogVisibleTimerSeconds;this.countdownStartTimer=window.setTimeout(()=>{this.startCountdown()},t),this.dialogTimer=window.setTimeout(()=>{this.dialog.close(),this.clearAllTimers()},this.dialogTimeOutSeconds)}startCountdown(){this.showCountdown=!0;let t=performance.now(),e=this.dialogVisibleTimerSeconds,i=o=>{let r=o-t,a=Math.max(0,e-r);if(this.countdownSeconds=a/1e3,a<=0){this.clearAllTimers();return}this.countdownTimer=requestAnimationFrame(i)};this.countdownTimer=requestAnimationFrame(i)}clearAllTimers(){this.dialogTimer&&(clearTimeout(this.dialogTimer),this.dialogTimer=void 0),this.countdownTimer&&(cancelAnimationFrame(this.countdownTimer),this.countdownTimer=void 0),this.countdownStartTimer&&(clearTimeout(this.countdownStartTimer),this.countdownStartTimer=void 0),this.showCountdown=!1,this.countdownSeconds=0}getProgressPercentage(){let t=this.dialogVisibleTimerSeconds/1e3,e=this.countdownSeconds/t*100;return Math.max(0,e)}addUserActivityListeners(){this.userActivityHandler=()=>{this.resetDialogTimer()},window.addEventListener("mousemove",this.userActivityHandler),window.addEventListener("touchstart",this.userActivityHandler),window.addEventListener("touchmove",this.userActivityHandler),window.addEventListener("keydown",this.userActivityHandler)}removeUserActivityListeners(){this.userActivityHandler&&(window.removeEventListener("mousemove",this.userActivityHandler),window.removeEventListener("touchstart",this.userActivityHandler),window.removeEventListener("touchmove",this.userActivityHandler),window.removeEventListener("keydown",this.userActivityHandler),this.userActivityHandler=void 0)}resetDialogTimer(){this.clearAllTimers(),this.startDialogTimer()}disconnectedCallback(){super.disconnectedCallback(),this.clearAllTimers(),this.removeUserActivityListeners()}};Le.styles=x(u1);Ie([s({type:Boolean,attribute:!1})],Le.prototype,"showTitle",2);Ie([s({type:Boolean})],Le.prototype,"hasDialog",2);Ie([s({type:Number})],Le.prototype,"dialogTimeOutSeconds",2);Ie([s({type:Number})],Le.prototype,"dialogVisibleTimerSeconds",2);Ie([Rt("dialog")],Le.prototype,"dialog",2);Ie([re()],Le.prototype,"countdownSeconds",2);Ie([re()],Le.prototype,"showCountdown",2);Le=Ie([h("obc-card")],Le);var v1=p`
+    `}closeDialog(r){r.stopPropagation();this.clearAllTimers();this.removeUserActivityListeners();this.dialog.close()}openDialog(){if(!this.dialog)return;this.dialog.showModal();this.startDialogTimer();this.addUserActivityListeners()}startDialogTimer(){this.clearAllTimers();const r=this.dialogTimeOutSeconds-this.dialogVisibleTimerSeconds;this.countdownStartTimer=window.setTimeout(()=>{this.startCountdown()},r);this.dialogTimer=window.setTimeout(()=>{this.dialog.close();this.clearAllTimers()},this.dialogTimeOutSeconds)}startCountdown(){this.showCountdown=true;const r=performance.now();const e=this.dialogVisibleTimerSeconds;const i=o=>{const t=o-r;const a=Math.max(0,e-t);this.countdownSeconds=a/1e3;if(a<=0){this.clearAllTimers();return}this.countdownTimer=requestAnimationFrame(i)};this.countdownTimer=requestAnimationFrame(i)}clearAllTimers(){if(this.dialogTimer){clearTimeout(this.dialogTimer);this.dialogTimer=void 0}if(this.countdownTimer){cancelAnimationFrame(this.countdownTimer);this.countdownTimer=void 0}if(this.countdownStartTimer){clearTimeout(this.countdownStartTimer);this.countdownStartTimer=void 0}this.showCountdown=false;this.countdownSeconds=0}getProgressPercentage(){const r=this.dialogVisibleTimerSeconds/1e3;const e=this.countdownSeconds/r*100;return Math.max(0,e)}addUserActivityListeners(){this.userActivityHandler=()=>{this.resetDialogTimer()};window.addEventListener("mousemove",this.userActivityHandler);window.addEventListener("touchstart",this.userActivityHandler);window.addEventListener("touchmove",this.userActivityHandler);window.addEventListener("keydown",this.userActivityHandler)}removeUserActivityListeners(){if(this.userActivityHandler){window.removeEventListener("mousemove",this.userActivityHandler);window.removeEventListener("touchstart",this.userActivityHandler);window.removeEventListener("touchmove",this.userActivityHandler);window.removeEventListener("keydown",this.userActivityHandler);this.userActivityHandler=void 0}}resetDialogTimer(){this.clearAllTimers();this.startDialogTimer()}disconnectedCallback(){super.disconnectedCallback();this.clearAllTimers();this.removeUserActivityListeners()}};Ve.styles=C(Ti);Xe([l({type:Boolean,attribute:false})],Ve.prototype,"showTitle",2);Xe([l({type:Boolean})],Ve.prototype,"hasDialog",2);Xe([l({type:Number})],Ve.prototype,"dialogTimeOutSeconds",2);Xe([l({type:Number})],Ve.prototype,"dialogVisibleTimerSeconds",2);Xe([ot("dialog")],Ve.prototype,"dialog",2);Xe([N()],Ve.prototype,"countdownSeconds",2);Xe([N()],Ve.prototype,"showCountdown",2);Ve=Xe([h("obc-card")],Ve);var zi=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -1948,7 +1947,7 @@ li .active {
   box-shadow: var(--shadow-flat);
   overflow: hidden;
 }
-`;var oe=t=>t??f;var m1=p`
+`;var ne=r=>r??m;var Bi=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -2283,20 +2282,20 @@ li .active {
 :host:has(.segment-position-end) {
   margin-left: -0.5px;
 }
-`;var Vn=Object.defineProperty,_n=Object.getOwnPropertyDescriptor,Ae=(t,e,i,o)=>{for(var r=o>1?void 0:o?_n(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Vn(e,i,r),r};var ge=class extends d{constructor(){super(...arguments),this.variant="normal",this.fullWidth=!1,this.disabled=!1,this.showLeadingIcon=!1,this.showTrailingIcon=!1,this.href=void 0,this.target=void 0,this.segmentPosition="single"}renderLeadingIcon(){return this.showLeadingIcon?_`
+`;var pl=Object.defineProperty;var hl=Object.getOwnPropertyDescriptor;var je=(r,e,i,o)=>{var t=o>1?void 0:o?hl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)pl(e,i,t);return t};var Le=class extends d{constructor(){super(...arguments);this.variant="normal";this.fullWidth=false;this.disabled=false;this.showLeadingIcon=false;this.showTrailingIcon=false;this.href=void 0;this.target=void 0;this.segmentPosition="single"}renderLeadingIcon(){if(this.showLeadingIcon){return Z`
         <span class="icon leading" part="icon leading">
           <slot name="leading-icon"></slot>
         </span>
-      `:_``}renderTrailingIcon(){return this.showTrailingIcon?_`
+      `}return Z``}renderTrailingIcon(){if(this.showTrailingIcon){return Z`
         <span class="icon trailing" part="icon trailing">
           <slot name="trailing-icon"></slot>
         </span>
-      `:_``}render(){let t=this.href?R`a`:R`button`;return _`
-      <${t}
-        class=${V({wrapper:!0,["variant-"+this.variant]:!0,hasIconLeading:this.showLeadingIcon,hasIconTrailing:this.showTrailingIcon,"full-width":this.fullWidth,["segment-position-"+this.segmentPosition]:!0})}
+      `}return Z``}render(){const r=this.href?j`a`:j`button`;return Z`
+      <${r}
+        class=${$({wrapper:true,["variant-"+this.variant]:true,hasIconLeading:this.showLeadingIcon,hasIconTrailing:this.showTrailingIcon,"full-width":this.fullWidth,["segment-position-"+this.segmentPosition]:true})}
         ?disabled=${this.disabled}
-        href=${oe(this.href)}
-        target=${oe(this.target)}
+        href=${ne(this.href)}
+        target=${ne(this.target)}
         part="wrapper"
       >
         <div class="visible-wrapper" part="visible-wrapper">
@@ -2306,40 +2305,40 @@ li .active {
           </span>
           ${this.renderTrailingIcon()}
         </div>
-      </${t}>
-    `}};ge.styles=x(m1);Ae([s({type:String})],ge.prototype,"variant",2);Ae([s({type:Boolean,reflect:!0})],ge.prototype,"fullWidth",2);Ae([s({type:Boolean})],ge.prototype,"disabled",2);Ae([s({type:Boolean})],ge.prototype,"showLeadingIcon",2);Ae([s({type:Boolean})],ge.prototype,"showTrailingIcon",2);Ae([s({type:String})],ge.prototype,"href",2);Ae([s({type:String})],ge.prototype,"target",2);Ae([s({type:String})],ge.prototype,"segmentPosition",2);ge=Ae([h("obc-button")],ge);var Zn=Object.defineProperty,Sn=Object.getOwnPropertyDescriptor,X=(t,e,i,o)=>{for(var r=o>1?void 0:o?Sn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Zn(e,i,r),r};var W=class extends d{constructor(){super(...arguments),this.position="regular",this.size="single-line",this.isClickable=!0,this.info=!1,this.graphicBorder=!1,this.border=!1,this.hasAction=!1,this.hasLeadingIcon=!1,this.hasTrailingIcon=!1,this.hasGraphic=!1,this.hasStatus=!1,this.compact=!1,this.directAction=!1}render(){let t=this.href?R`a`:R`button`;if(t=this.isClickable?t:R`article`,this.overrideTag!==void 0)switch(this.overrideTag){case"a":t=R`a`;break;case"button":t=R`button`;break;case"article":t=R`article`;break;case"div":t=R`div`;break;default:throw new Error("Invalid tag")}return this.hasAction&&(t=R`article`,this.isClickable=!1),_`
+      </${r}>
+    `}};Le.styles=C(Bi);je([l({type:String})],Le.prototype,"variant",2);je([l({type:Boolean,reflect:true})],Le.prototype,"fullWidth",2);je([l({type:Boolean})],Le.prototype,"disabled",2);je([l({type:Boolean})],Le.prototype,"showLeadingIcon",2);je([l({type:Boolean})],Le.prototype,"showTrailingIcon",2);je([l({type:String})],Le.prototype,"href",2);je([l({type:String})],Le.prototype,"target",2);je([l({type:String})],Le.prototype,"segmentPosition",2);Le=je([h("obc-button")],Le);var ul=Object.defineProperty;var vl=Object.getOwnPropertyDescriptor;var J=(r,e,i,o)=>{var t=o>1?void 0:o?vl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)ul(e,i,t);return t};var G=class extends d{constructor(){super(...arguments);this.position="regular";this.size="single-line";this.isClickable=true;this.info=false;this.graphicBorder=false;this.border=false;this.hasAction=false;this.hasLeadingIcon=false;this.hasTrailingIcon=false;this.hasGraphic=false;this.hasStatus=false;this.compact=false;this.directAction=false}render(){let r=this.href?j`a`:j`button`;r=!this.isClickable?j`article`:r;if(this.overrideTag!==void 0){switch(this.overrideTag){case"a":r=j`a`;break;case"button":r=j`button`;break;case"article":r=j`article`;break;case"div":r=j`div`;break;default:throw new Error("Invalid tag")}}if(this.hasAction){r=j`article`;this.isClickable=false}return Z`
     <div class="wrapper ${this.position}">
-        <${t} class=${V({button:!0,[this.position]:!0,[this.size]:!0,"graphic-border":this.graphicBorder,info:this.info,border:this.border,"has-leading-icon":this.hasLeadingIcon,"has-trailing-icon":this.hasTrailingIcon,"has-graphic":this.hasGraphic,"has-status":this.hasStatus,"not-clickable":!this.isClickable,"has-action":this.hasAction,compact:this.compact,"direct-action":this.directAction})}
-        part="wrapper" href=${oe(this.href)} target=${oe(this.target)}>
-          ${this.hasGraphic?_`<div class="graphic"><slot name="graphic"></slot></div>`:f}
+        <${r} class=${$({button:true,[this.position]:true,[this.size]:true,"graphic-border":this.graphicBorder,info:this.info,border:this.border,"has-leading-icon":this.hasLeadingIcon,"has-trailing-icon":this.hasTrailingIcon,"has-graphic":this.hasGraphic,"has-status":this.hasStatus,"not-clickable":!this.isClickable,"has-action":this.hasAction,compact:this.compact,"direct-action":this.directAction})}
+        part="wrapper" href=${ne(this.href)} target=${ne(this.target)}>
+          ${this.hasGraphic?Z`<div class="graphic"><slot name="graphic"></slot></div>`:m}
           <div class="content-container" part="content-container">
             <div class="container-content">
-              ${this.hasLeadingIcon?_`<div class="leading-icon" part="leading-icon">
+              ${this.hasLeadingIcon?Z`<div class="leading-icon" part="leading-icon">
                       <slot name="leading-icon"></slot>
-                    </div>`:f}
+                    </div>`:m}
               <div class="content" part="label">
                 <slot name="label"></slot>
-                ${this.size==="single-line"?f:_`<slot name="description"></slot>`}
+                ${this.size==="single-line"?m:Z`<slot name="description"></slot>`}
               </div>
             </div>
-            ${this.hasStatus?_`<div class="status" part="status">
+            ${this.hasStatus?Z`<div class="status" part="status">
                     <slot name="status"></slot>
-                  </div>`:f}
-            ${this.hasAction?_`<obc-button
+                  </div>`:m}
+            ${this.hasAction?Z`<obc-button
                     variant="normal"
                     class="action"
                     part="action"
                     @click=${()=>{this.dispatchEvent(new CustomEvent("action-click"))}}
                   >
                     <slot name="action"></slot>
-                  </obc-button>`:f}
-            ${this.hasTrailingIcon?_`<div class="trailing-icon" part="trailing-icon">
+                  </obc-button>`:m}
+            ${this.hasTrailingIcon?Z`<div class="trailing-icon" part="trailing-icon">
                     <slot name="trailing-icon"></slot>
-                  </div>`:f}
+                  </div>`:m}
           </div>
-        </${t}>
+        </${r}>
         </div>
-    `}};W.styles=x(v1);X([s({type:String})],W.prototype,"position",2);X([s({type:String})],W.prototype,"size",2);X([s({type:String})],W.prototype,"overrideTag",2);X([s({type:Boolean,attribute:!1})],W.prototype,"isClickable",2);X([s({type:Boolean})],W.prototype,"info",2);X([s({type:Boolean})],W.prototype,"graphicBorder",2);X([s({type:Boolean})],W.prototype,"border",2);X([s({type:Boolean})],W.prototype,"hasAction",2);X([s({type:Boolean})],W.prototype,"hasLeadingIcon",2);X([s({type:Boolean})],W.prototype,"hasTrailingIcon",2);X([s({type:Boolean})],W.prototype,"hasGraphic",2);X([s({type:Boolean})],W.prototype,"hasStatus",2);X([s({type:Boolean})],W.prototype,"compact",2);X([s({type:Boolean})],W.prototype,"directAction",2);X([s({type:String})],W.prototype,"href",2);X([s({type:String})],W.prototype,"target",2);W=X([h("obc-elevated-card")],W);var f1=p`
+    `}};G.styles=C(zi);J([l({type:String})],G.prototype,"position",2);J([l({type:String})],G.prototype,"size",2);J([l({type:String})],G.prototype,"overrideTag",2);J([l({type:Boolean,attribute:false})],G.prototype,"isClickable",2);J([l({type:Boolean})],G.prototype,"info",2);J([l({type:Boolean})],G.prototype,"graphicBorder",2);J([l({type:Boolean})],G.prototype,"border",2);J([l({type:Boolean})],G.prototype,"hasAction",2);J([l({type:Boolean})],G.prototype,"hasLeadingIcon",2);J([l({type:Boolean})],G.prototype,"hasTrailingIcon",2);J([l({type:Boolean})],G.prototype,"hasGraphic",2);J([l({type:Boolean})],G.prototype,"hasStatus",2);J([l({type:Boolean})],G.prototype,"compact",2);J([l({type:Boolean})],G.prototype,"directAction",2);J([l({type:String})],G.prototype,"href",2);J([l({type:String})],G.prototype,"target",2);G=J([h("obc-elevated-card")],G);var Ei=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -2761,31 +2760,31 @@ li .active {
 .wrapper.align-right-unit-outside .label-container {
   justify-content: flex-end;
 }
-`;var An=Object.defineProperty,Pn=Object.getOwnPropertyDescriptor,O=(t,e,i,o)=>{for(var r=o>1?void 0:o?Pn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&An(e,i,r),r};var S=class extends d{constructor(){super(...arguments),this.value="",this.unit="",this.placeholder="",this.textAlign="right",this.disabled=!1,this.readonly=!1,this.error=!1,this.errorText="",this.rejectUpdatesOnFocus=!1,this.rejectUpdates=!1,this.rejectDuplicateUpdates=!1,this.name="",this.size="regular",this.hasLeadingIcon=!1,this.helperText="",this.label="",this.required=!1,this.hasLabelIcon=!1,this.labelPlacement="left",this.hasHelperIcon=!1,this.helperPlacement="left",this.squared=!1,this.hasFocus=!1,this.previousValue="",this.previousInputElementValue=""}onInput(t){this.value=t.target.value,this.previousInputElementValue=this.value}onFocus(){this.hasFocus=!0}onBlur(){this.hasFocus=!1}get shouldUpdateValue(){return!(this.rejectUpdates||this.rejectUpdatesOnFocus&&this.hasFocus||this.rejectDuplicateUpdates&&this.value===this.previousValue)}willUpdate(t){t.has("value")&&!this.shouldUpdateValue&&this.inputElement&&(this.value=this.inputElement.value)}updated(){this.rejectDuplicateUpdates&&this.value!==this.previousValue&&(this.previousInputElementValue!==this.value||!this.hasFocus)&&(this.previousValue=this.value)}renderFooterText(t,e){return t?c`<div
+`;var ml=Object.defineProperty;var gl=Object.getOwnPropertyDescriptor;var T=(r,e,i,o)=>{var t=o>1?void 0:o?gl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)ml(e,i,t);return t};var A=class extends d{constructor(){super(...arguments);this.value="";this.unit="";this.placeholder="";this.textAlign="right";this.disabled=false;this.readonly=false;this.error=false;this.errorText="";this.rejectUpdatesOnFocus=false;this.rejectUpdates=false;this.rejectDuplicateUpdates=false;this.name="";this.size="regular";this.hasLeadingIcon=false;this.helperText="";this.label="";this.required=false;this.hasLabelIcon=false;this.labelPlacement="left";this.hasHelperIcon=false;this.helperPlacement="left";this.squared=false;this.hasFocus=false;this.previousValue="";this.previousInputElementValue=""}onInput(r){this.value=r.target.value;this.previousInputElementValue=this.value}onFocus(){this.hasFocus=true}onBlur(){this.hasFocus=false}get shouldUpdateValue(){if(this.rejectUpdates)return false;if(this.rejectUpdatesOnFocus&&this.hasFocus)return false;if(this.rejectDuplicateUpdates&&this.value===this.previousValue){return false}return true}willUpdate(r){if(r.has("value")&&!this.shouldUpdateValue&&this.inputElement){this.value=this.inputElement.value}}updated(){if(this.rejectDuplicateUpdates&&this.value!==this.previousValue&&(this.previousInputElementValue!==this.value||!this.hasFocus)){this.previousValue=this.value}}renderFooterText(r,e){if(!r)return m;return c`<div
       id="helper-text"
-      class=${V({[e?"error-text":"helper-text"]:!0,[`helper-placement-${this.helperPlacement}`]:!0})}
+      class=${$({[e?"error-text":"helper-text"]:true,[`helper-placement-${this.helperPlacement}`]:true})}
     >
-      ${this.hasHelperIcon?c`<div class="helper-icon"><slot name="helper-icon"></slot></div>`:f}
-      ${t}
-    </div>`:f}render(){let t=!!this.helperText||!!(this.error&&this.errorText),e=this.unit&&this.textAlign!=="right-unit-outside",i=this.unit&&this.textAlign==="right-unit-outside",o=this.value;return!this.shouldUpdateValue&&this.inputElement&&(o=this.inputElement.value),c`
+      ${this.hasHelperIcon?c`<div class="helper-icon"><slot name="helper-icon"></slot></div>`:m}
+      ${r}
+    </div>`}render(){const r=Boolean(this.helperText)||Boolean(this.error&&this.errorText);const e=this.unit&&this.textAlign!=="right-unit-outside";const i=this.unit&&this.textAlign==="right-unit-outside";let o=this.value;if(!this.shouldUpdateValue&&this.inputElement){o=this.inputElement.value}return c`
       <label
-        class=${V({wrapper:!0,[`align-${this.textAlign}`]:!0,[`size-${this.size}`]:!0,error:this.error,disabled:this.disabled,helpertext:t,haslabel:!!this.label,squared:this.squared})}
+        class=${$({wrapper:true,[`align-${this.textAlign}`]:true,[`size-${this.size}`]:true,error:this.error,disabled:this.disabled,helpertext:r,haslabel:Boolean(this.label),squared:this.squared})}
       >
         ${this.label?c`<div
-              class=${V({"label-text-container":!0,[`label-placement-${this.labelPlacement}`]:!0})}
+              class=${$({"label-text-container":true,[`label-placement-${this.labelPlacement}`]:true})}
             >
               ${this.hasLabelIcon?c`<div class="label-icon">
                     <slot name="label-icon"></slot>
-                  </div>`:f}
+                  </div>`:m}
               <span class="label-text">${this.label}</span>
-              ${this.required?c`<div class="required-indicator"></div>`:f}
-            </div>`:f}
+              ${this.required?c`<div class="required-indicator"></div>`:m}
+            </div>`:m}
 
         <div class="horizontal-container">
           <div class="input-field-container">
             ${this.hasLeadingIcon?c`<div class="leading-icon">
                   <slot name="leading-icon"></slot>
-                </div>`:f}
+                </div>`:m}
             <div class="label-container">
               <input
                 type="text"
@@ -2795,26 +2794,26 @@ li .active {
                 @focus=${this.onFocus}
                 @blur=${this.onBlur}
                 .placeholder=${this.placeholder}
-                name=${oe(this.name||void 0)}
+                name=${ne(this.name||void 0)}
                 ?disabled=${this.disabled}
                 ?readonly=${this.readonly}
                 ?required=${this.required}
-                maxlength=${oe(this.maxlength)}
-                minlength=${oe(this.minlength)}
+                maxlength=${ne(this.maxlength)}
+                minlength=${ne(this.minlength)}
                 aria-invalid=${this.error?"true":"false"}
-                aria-describedby=${oe(t?"helper-text":void 0)}
+                aria-describedby=${ne(r?"helper-text":void 0)}
                 autocomplete="off"
                 @input=${this.onInput}
               />
-              ${e?c`<span class="unit-text">${this.unit}</span>`:f}
+              ${e?c`<span class="unit-text">${this.unit}</span>`:m}
             </div>
           </div>
-          ${i?c`<span class="unit-text external">${this.unit}</span>`:f}
+          ${i?c`<span class="unit-text external">${this.unit}</span>`:m}
         </div>
 
-        ${this.error&&this.errorText?this.renderFooterText(this.errorText,!0):this.renderFooterText(this.helperText,!1)}
+        ${this.error&&this.errorText?this.renderFooterText(this.errorText,true):this.renderFooterText(this.helperText,false)}
       </label>
-    `}};S.styles=x(f1);O([s({type:String})],S.prototype,"value",2);O([s({type:String})],S.prototype,"unit",2);O([s({type:String})],S.prototype,"placeholder",2);O([s({type:String})],S.prototype,"textAlign",2);O([s({type:Boolean,reflect:!0})],S.prototype,"disabled",2);O([s({type:Boolean,reflect:!0})],S.prototype,"readonly",2);O([s({type:Boolean,reflect:!0})],S.prototype,"error",2);O([s({type:String})],S.prototype,"errorText",2);O([s({type:Boolean})],S.prototype,"rejectUpdatesOnFocus",2);O([s({type:Boolean})],S.prototype,"rejectUpdates",2);O([s({type:Boolean})],S.prototype,"rejectDuplicateUpdates",2);O([s({type:String})],S.prototype,"name",2);O([s({type:Number})],S.prototype,"maxlength",2);O([s({type:Number})],S.prototype,"minlength",2);O([s({type:String})],S.prototype,"size",2);O([s({type:Boolean})],S.prototype,"hasLeadingIcon",2);O([s({type:String})],S.prototype,"helperText",2);O([s({type:String})],S.prototype,"label",2);O([s({type:Boolean})],S.prototype,"required",2);O([s({type:Boolean})],S.prototype,"hasLabelIcon",2);O([s({type:String})],S.prototype,"labelPlacement",2);O([s({type:Boolean})],S.prototype,"hasHelperIcon",2);O([s({type:String})],S.prototype,"helperPlacement",2);O([s({type:Boolean})],S.prototype,"squared",2);O([re()],S.prototype,"hasFocus",2);O([re()],S.prototype,"previousValue",2);O([re()],S.prototype,"previousInputElementValue",2);O([Rt(".value-input")],S.prototype,"inputElement",2);S=O([h("obc-number-input-field")],S);var g1=p`
+    `}};A.styles=C(Ei);T([l({type:String})],A.prototype,"value",2);T([l({type:String})],A.prototype,"unit",2);T([l({type:String})],A.prototype,"placeholder",2);T([l({type:String})],A.prototype,"textAlign",2);T([l({type:Boolean,reflect:true})],A.prototype,"disabled",2);T([l({type:Boolean,reflect:true})],A.prototype,"readonly",2);T([l({type:Boolean,reflect:true})],A.prototype,"error",2);T([l({type:String})],A.prototype,"errorText",2);T([l({type:Boolean})],A.prototype,"rejectUpdatesOnFocus",2);T([l({type:Boolean})],A.prototype,"rejectUpdates",2);T([l({type:Boolean})],A.prototype,"rejectDuplicateUpdates",2);T([l({type:String})],A.prototype,"name",2);T([l({type:Number})],A.prototype,"maxlength",2);T([l({type:Number})],A.prototype,"minlength",2);T([l({type:String})],A.prototype,"size",2);T([l({type:Boolean})],A.prototype,"hasLeadingIcon",2);T([l({type:String})],A.prototype,"helperText",2);T([l({type:String})],A.prototype,"label",2);T([l({type:Boolean})],A.prototype,"required",2);T([l({type:Boolean})],A.prototype,"hasLabelIcon",2);T([l({type:String})],A.prototype,"labelPlacement",2);T([l({type:Boolean})],A.prototype,"hasHelperIcon",2);T([l({type:String})],A.prototype,"helperPlacement",2);T([l({type:Boolean})],A.prototype,"squared",2);T([N()],A.prototype,"hasFocus",2);T([N()],A.prototype,"previousValue",2);T([N()],A.prototype,"previousInputElementValue",2);T([ot(".value-input")],A.prototype,"inputElement",2);A=T([h("obc-number-input-field")],A);var Di=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -2970,9 +2969,9 @@ li .active {
 ::-webkit-scrollbar-button:vertical:end:increment {
   background-image: var(--icon-02-chevron-down);
 }
-`;var On=Object.defineProperty,Bn=Object.getOwnPropertyDescriptor,Ct=(t,e,i,o)=>{for(var r=o>1?void 0:o?Bn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&On(e,i,r),r},Xe=class extends d{constructor(){super(...arguments),this.transparentTrack=!1,this._thumbTop=0,this._thumbHeight=0,this._showOverlayThumb=!1,this._resizeObserver=null,this._scrollHandler=null,this._wrapper=null}render(){return c`
+`;var fl=Object.defineProperty;var bl=Object.getOwnPropertyDescriptor;var Pr=(r,e,i,o)=>{var t=o>1?void 0:o?bl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)fl(e,i,t);return t};var nr=class extends d{constructor(){super(...arguments);this.transparentTrack=false;this._thumbTop=0;this._thumbHeight=0;this._showOverlayThumb=false;this._resizeObserver=null;this._scrollHandler=null;this._wrapper=null}render(){return c`
       <div
-        class=${V({wrapper:!0,"transparent-track":this.transparentTrack})}
+        class=${$({wrapper:true,"transparent-track":this.transparentTrack})}
       >
         <slot></slot>
       </div>
@@ -2981,8 +2980,8 @@ li .active {
               class="overlay-thumb"
               style="top:${this._thumbTop}%;height:${this._thumbHeight}%"
             ></div>
-          </div>`:f}
-    `}firstUpdated(){this._wrapper=this.shadowRoot?.querySelector(".wrapper")??null,this._wrapper&&(this._resizeObserver=new ResizeObserver(()=>{this._checkOverflow(),this._updateOverlayThumb()}),this._resizeObserver.observe(this._wrapper),this._wrapper.querySelector("slot")?.addEventListener("slotchange",()=>{this._checkOverflow(),this._updateOverlayThumb()}),this.transparentTrack&&(this._scrollHandler=()=>this._updateOverlayThumb(),this._wrapper.addEventListener("scroll",this._scrollHandler,{passive:!0})))}disconnectedCallback(){super.disconnectedCallback(),this._resizeObserver?.disconnect(),this._resizeObserver=null,this._scrollHandler&&this._wrapper&&(this._wrapper.removeEventListener("scroll",this._scrollHandler),this._scrollHandler=null),this._wrapper=null}_updateOverlayThumb(){if(!this.transparentTrack||!this._wrapper)return;let{scrollHeight:t,clientHeight:e,scrollTop:i}=this._wrapper;if(t<=e){this._showOverlayThumb=!1;return}this._showOverlayThumb=!0;let o=e,r=parseFloat(getComputedStyle(this._wrapper).getPropertyValue("--menu-navigation-components-scroll-bar-padding"))||4,a=o-r*2,n=e/t*a,v=r+i/t*a;this._thumbTop=v/o*100,this._thumbHeight=n/o*100}_checkOverflow(){if(!this._wrapper)return;let t=this._wrapper.scrollHeight>this._wrapper.clientHeight;this.toggleAttribute("overflowing",t)}scrollToBottom(){if(!this._wrapper)throw new Error("Wrapper not found");this._wrapper.scrollTop=this._wrapper.scrollHeight}};Xe.styles=x(g1);Ct([s({type:Boolean,attribute:"transparent-track"})],Xe.prototype,"transparentTrack",2);Ct([re()],Xe.prototype,"_thumbTop",2);Ct([re()],Xe.prototype,"_thumbHeight",2);Ct([re()],Xe.prototype,"_showOverlayThumb",2);Xe=Ct([h("obc-scrollbar")],Xe);var b1=p`
+          </div>`:m}
+    `}firstUpdated(){this._wrapper=this.shadowRoot?.querySelector(".wrapper")??null;if(this._wrapper){this._resizeObserver=new ResizeObserver(()=>{this._checkOverflow();this._updateOverlayThumb()});this._resizeObserver.observe(this._wrapper);const r=this._wrapper.querySelector("slot");r?.addEventListener("slotchange",()=>{this._checkOverflow();this._updateOverlayThumb()});if(this.transparentTrack){this._scrollHandler=()=>this._updateOverlayThumb();this._wrapper.addEventListener("scroll",this._scrollHandler,{passive:true})}}}disconnectedCallback(){super.disconnectedCallback();this._resizeObserver?.disconnect();this._resizeObserver=null;if(this._scrollHandler&&this._wrapper){this._wrapper.removeEventListener("scroll",this._scrollHandler);this._scrollHandler=null}this._wrapper=null}_updateOverlayThumb(){if(!this.transparentTrack)return;if(!this._wrapper)return;const{scrollHeight:r,clientHeight:e,scrollTop:i}=this._wrapper;if(r<=e){this._showOverlayThumb=false;return}this._showOverlayThumb=true;const o=e;const t=parseFloat(getComputedStyle(this._wrapper).getPropertyValue("--menu-navigation-components-scroll-bar-padding"))||4;const a=o-t*2;const n=e/r*a;const v=t+i/r*a;this._thumbTop=v/o*100;this._thumbHeight=n/o*100}_checkOverflow(){if(!this._wrapper)return;const r=this._wrapper.scrollHeight>this._wrapper.clientHeight;this.toggleAttribute("overflowing",r)}scrollToBottom(){if(!this._wrapper){throw new Error("Wrapper not found")}this._wrapper.scrollTop=this._wrapper.scrollHeight}};nr.styles=C(Di);Pr([l({type:Boolean,attribute:"transparent-track"})],nr.prototype,"transparentTrack",2);Pr([N()],nr.prototype,"_thumbTop",2);Pr([N()],nr.prototype,"_thumbHeight",2);Pr([N()],nr.prototype,"_showOverlayThumb",2);nr=Pr([h("obc-scrollbar")],nr);var Ii=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -3191,15 +3190,15 @@ li .active {
 .label-top .readout-stack,.label-bottom .readout-stack {
     padding-right: 0;
   }
-`;var Tn=Object.defineProperty,En=Object.getOwnPropertyDescriptor,C1=(t,e,i,o)=>{for(var r=o>1?void 0:o?En(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Tn(e,i,r),r},Qt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+`;var wl=Object.defineProperty;var yl=Object.getOwnPropertyDescriptor;var ji=(r,e,i,o)=>{var t=o>1?void 0:o?yl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)wl(e,i,t);return t};var vt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M13 20L13 7.83L18.59 13.42L20 12L12 4L4 12L5.41 13.41L11 7.83L11 20L13 20Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M13 20L13 7.83L18.59 13.42L20 12L12 4L4 12L5.41 13.41L11 7.83L11 20L13 20Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Qt.styles=p`
+    `}};vt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3209,15 +3208,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;C1([s({type:Boolean})],Qt.prototype,"useCssColor",2);Qt=C1([h("obi-arrow-up-google")],Qt);var zn=Object.defineProperty,Dn=Object.getOwnPropertyDescriptor,y1=(t,e,i,o)=>{for(var r=o>1?void 0:o?Dn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&zn(e,i,r),r},Kt=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;ji([l({type:Boolean})],vt.prototype,"useCssColor",2);vt=ji([h("obi-arrow-up-google")],vt);var Cl=Object.defineProperty;var Ll=Object.getOwnPropertyDescriptor;var Ri=(r,e,i,o)=>{var t=o>1?void 0:o?Ll(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Cl(e,i,t);return t};var mt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11 4L11 16.17L5.41 10.58L4 12L12 20L20 12L18.59 10.59L13 16.17L13 4L11 4Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11 4L11 16.17L5.41 10.58L4 12L12 20L20 12L18.59 10.59L13 16.17L13 4L11 4Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Kt.styles=p`
+    `}};mt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3227,17 +3226,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;y1([s({type:Boolean})],Kt.prototype,"useCssColor",2);Kt=y1([h("obi-arrow-down-google")],Kt);var In=Object.defineProperty,Rn=Object.getOwnPropertyDescriptor,w1=(t,e,i,o)=>{for(var r=o>1?void 0:o?Rn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&In(e,i,r),r},er=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Ri([l({type:Boolean})],mt.prototype,"useCssColor",2);mt=Ri([h("obi-arrow-down-google")],mt);var kl=Object.defineProperty;var xl=Object.getOwnPropertyDescriptor;var Ni=(r,e,i,o)=>{var t=o>1?void 0:o?xl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)kl(e,i,t);return t};var gt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M7.11508 18.7051L5.70508 17.2951L11.7051 11.2951L17.7051 17.2951L16.2951 18.7051L11.7051 14.1251L7.11508 18.7051Z" fill="currentColor"/>
 <path d="M7.11508 12.7052L5.70508 11.2952L11.7051 5.29517L17.7051 11.2952L16.2951 12.7052L11.7051 8.12517L7.11508 12.7052Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M7.11508 18.7051L5.70508 17.2951L11.7051 11.2951L17.7051 17.2951L16.2951 18.7051L11.7051 14.1251L7.11508 18.7051Z" style="fill: var(--element-active-color)"/>
 <path d="M7.11508 12.7052L5.70508 11.2952L11.7051 5.29517L17.7051 11.2952L16.2951 12.7052L11.7051 8.12517L7.11508 12.7052Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};er.styles=p`
+    `}};gt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3247,17 +3246,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;w1([s({type:Boolean})],er.prototype,"useCssColor",2);er=w1([h("obi-chevron-double-up-google")],er);var jn=Object.defineProperty,Nn=Object.getOwnPropertyDescriptor,L1=(t,e,i,o)=>{for(var r=o>1?void 0:o?Nn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&jn(e,i,r),r},tr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Ni([l({type:Boolean})],gt.prototype,"useCssColor",2);gt=Ni([h("obi-chevron-double-up-google")],gt);var Ml=Object.defineProperty;var Hl=Object.getOwnPropertyDescriptor;var Fi=(r,e,i,o)=>{var t=o>1?void 0:o?Hl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Ml(e,i,t);return t};var ft=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M16.2948 5.29487L17.7048 6.70487L11.7048 12.7049L5.70483 6.70487L7.11483 5.29487L11.7048 9.87487L16.2948 5.29487Z" fill="currentColor"/>
 <path d="M16.2948 11.2948L17.7048 12.7048L11.7048 18.7048L5.70483 12.7048L7.11483 11.2948L11.7048 15.8748L16.2948 11.2948Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M16.2948 5.29487L17.7048 6.70487L11.7048 12.7049L5.70483 6.70487L7.11483 5.29487L11.7048 9.87487L16.2948 5.29487Z" style="fill: var(--element-active-color)"/>
 <path d="M16.2948 11.2948L17.7048 12.7048L11.7048 18.7048L5.70483 12.7048L7.11483 11.2948L11.7048 15.8748L16.2948 11.2948Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};tr.styles=p`
+    `}};ft.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3267,17 +3266,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;L1([s({type:Boolean})],tr.prototype,"useCssColor",2);tr=L1([h("obi-chevron-double-down-google")],tr);var Fn=Object.defineProperty,Un=Object.getOwnPropertyDescriptor,k1=(t,e,i,o)=>{for(var r=o>1?void 0:o?Un(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Fn(e,i,r),r},rr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Fi([l({type:Boolean})],ft.prototype,"useCssColor",2);ft=Fi([h("obi-chevron-double-down-google")],ft);var $l=Object.defineProperty;var _l=Object.getOwnPropertyDescriptor;var Ui=(r,e,i,o)=>{var t=o>1?void 0:o?_l(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)$l(e,i,t);return t};var bt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M18.41 16.59L17 18L11 12L17 6L18.41 7.41L13.83 12L18.41 16.59Z" fill="currentColor"/>
 <path d="M12.41 16.59L11 18L5 12L11 6L12.41 7.41L7.83 12L12.41 16.59Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M18.41 16.59L17 18L11 12L17 6L18.41 7.41L13.83 12L18.41 16.59Z" style="fill: var(--element-active-color)"/>
 <path d="M12.41 16.59L11 18L5 12L11 6L12.41 7.41L7.83 12L12.41 16.59Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};rr.styles=p`
+    `}};bt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3287,17 +3286,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;k1([s({type:Boolean})],rr.prototype,"useCssColor",2);rr=k1([h("obi-chevron-double-left-google")],rr);var Wn=Object.defineProperty,Gn=Object.getOwnPropertyDescriptor,M1=(t,e,i,o)=>{for(var r=o>1?void 0:o?Gn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Wn(e,i,r),r},or=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Ui([l({type:Boolean})],bt.prototype,"useCssColor",2);bt=Ui([h("obi-chevron-double-left-google")],bt);var Vl=Object.defineProperty;var Zl=Object.getOwnPropertyDescriptor;var Wi=(r,e,i,o)=>{var t=o>1?void 0:o?Zl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Vl(e,i,t);return t};var wt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M5 7.41L6.41 6L12.41 12L6.41 18L5 16.59L9.58 12L5 7.41Z" fill="currentColor"/>
 <path d="M11 7.41L12.41 6L18.41 12L12.41 18L11 16.59L15.58 12L11 7.41Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M5 7.41L6.41 6L12.41 12L6.41 18L5 16.59L9.58 12L5 7.41Z" style="fill: var(--element-active-color)"/>
 <path d="M11 7.41L12.41 6L18.41 12L12.41 18L11 16.59L15.58 12L11 7.41Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};or.styles=p`
+    `}};wt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3307,17 +3306,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;M1([s({type:Boolean})],or.prototype,"useCssColor",2);or=M1([h("obi-chevron-double-right-google")],or);var qn=Object.defineProperty,Xn=Object.getOwnPropertyDescriptor,x1=(t,e,i,o)=>{for(var r=o>1?void 0:o?Xn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&qn(e,i,r),r},ir=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Wi([l({type:Boolean})],wt.prototype,"useCssColor",2);wt=Wi([h("obi-chevron-double-right-google")],wt);var Sl=Object.defineProperty;var Al=Object.getOwnPropertyDescriptor;var Gi=(r,e,i,o)=>{var t=o>1?void 0:o?Al(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Sl(e,i,t);return t};var yt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z" fill="currentColor"/>
 <path d="M8 11C7.44772 11 7 11.4477 7 12C7 12.5523 7.44772 13 8 13H16C16.5523 13 17 12.5523 17 12C17 11.4477 16.5523 11 16 11H8Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z" style="fill: var(--element-active-color)"/>
 <path d="M8 11C7.44772 11 7 11.4477 7 12C7 12.5523 7.44772 13 8 13H16C16.5523 13 17 12.5523 17 12C17 11.4477 16.5523 11 16 11H8Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};ir.styles=p`
+    `}};yt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3327,17 +3326,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;x1([s({type:Boolean})],ir.prototype,"useCssColor",2);ir=x1([h("obi-off")],ir);var Yn=Object.defineProperty,Jn=Object.getOwnPropertyDescriptor,H1=(t,e,i,o)=>{for(var r=o>1?void 0:o?Jn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Yn(e,i,r),r},ar=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Gi([l({type:Boolean})],yt.prototype,"useCssColor",2);yt=Gi([h("obi-off")],yt);var Pl=Object.defineProperty;var Ol=Object.getOwnPropertyDescriptor;var qi=(r,e,i,o)=>{var t=o>1?void 0:o?Ol(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Pl(e,i,t);return t};var Ct=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2ZM12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4Z" fill="currentColor"/>
 <path d="M12 6C13.1046 6 14 6.89543 14 8L14 16C14 17.1046 13.1046 18 12 18C10.8954 18 10 17.1046 10 16L10 8C10 6.89543 10.8954 6 12 6Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2ZM12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4Z" style="fill: var(--element-active-color)"/>
 <path d="M12 6C13.1046 6 14 6.89543 14 8L14 16C14 17.1046 13.1046 18 12 18C10.8954 18 10 17.1046 10 16L10 8C10 6.89543 10.8954 6 12 6Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};ar.styles=p`
+    `}};Ct.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3347,15 +3346,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;H1([s({type:Boolean})],ar.prototype,"useCssColor",2);ar=H1([h("obi-on")],ar);var Qn=Object.defineProperty,Kn=Object.getOwnPropertyDescriptor,$1=(t,e,i,o)=>{for(var r=o>1?void 0:o?Kn(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Qn(e,i,r),r},nr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;qi([l({type:Boolean})],Ct.prototype,"useCssColor",2);Ct=qi([h("obi-on")],Ct);var Tl=Object.defineProperty;var zl=Object.getOwnPropertyDescriptor;var Xi=(r,e,i,o)=>{var t=o>1?void 0:o?zl(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Tl(e,i,t);return t};var Lt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 2C13.733 2 15.1492 3.35645 15.2449 5.06546L15.25 5.24987L15.251 13.202L15.331 13.2709C16.2565 14.0975 16.8482 15.2418 16.9746 16.4939L16.9936 16.7457L17 17C17 19.7614 14.7614 22 12 22C9.23858 22 7 19.7614 7 17C7 15.6373 7.5496 14.3655 8.48922 13.4396L8.66993 13.2701L8.749 13.202L8.75 5.25C8.75 3.57886 10.0113 2.20232 11.6339 2.0204L11.8156 2.00514L12 2ZM12 3.5C11.0818 3.5 10.3288 4.20711 10.2558 5.10651L10.25 5.25004L10.2495 13.9445L9.94128 14.1691C9.04185 14.8246 8.5 15.8664 8.5 17C8.5 18.933 10.067 20.5 12 20.5C13.933 20.5 15.5 18.933 15.5 17C15.5 15.9376 15.0241 14.9558 14.2239 14.2971L14.0595 14.1697L13.7515 13.9451L13.75 5.25C13.75 4.2835 12.9665 3.5 12 3.5ZM12 7C12.4142 7 12.75 7.33579 12.75 7.75L12.7506 14.6146C13.7646 14.9334 14.5 15.8808 14.5 17C14.5 18.3807 13.3807 19.5 12 19.5C10.6193 19.5 9.5 18.3807 9.5 17C9.5 15.8804 10.2359 14.9328 11.2504 14.6143L11.25 7.75C11.25 7.33579 11.5858 7 12 7Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 2C13.733 2 15.1492 3.35645 15.2449 5.06546L15.25 5.24987L15.251 13.202L15.331 13.2709C16.2565 14.0975 16.8482 15.2418 16.9746 16.4939L16.9936 16.7457L17 17C17 19.7614 14.7614 22 12 22C9.23858 22 7 19.7614 7 17C7 15.6373 7.5496 14.3655 8.48922 13.4396L8.66993 13.2701L8.749 13.202L8.75 5.25C8.75 3.57886 10.0113 2.20232 11.6339 2.0204L11.8156 2.00514L12 2ZM12 3.5C11.0818 3.5 10.3288 4.20711 10.2558 5.10651L10.25 5.25004L10.2495 13.9445L9.94128 14.1691C9.04185 14.8246 8.5 15.8664 8.5 17C8.5 18.933 10.067 20.5 12 20.5C13.933 20.5 15.5 18.933 15.5 17C15.5 15.9376 15.0241 14.9558 14.2239 14.2971L14.0595 14.1697L13.7515 13.9451L13.75 5.25C13.75 4.2835 12.9665 3.5 12 3.5ZM12 7C12.4142 7 12.75 7.33579 12.75 7.75L12.7506 14.6146C13.7646 14.9334 14.5 15.8808 14.5 17C14.5 18.3807 13.3807 19.5 12 19.5C10.6193 19.5 9.5 18.3807 9.5 17C9.5 15.8804 10.2359 14.9328 11.2504 14.6143L11.25 7.75C11.25 7.33579 11.5858 7 12 7Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};nr.styles=p`
+    `}};Lt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3365,84 +3364,84 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;$1([s({type:Boolean})],nr.prototype,"useCssColor",2);nr=$1([h("obi-temperature-air")],nr);var es=Object.defineProperty,ts=Object.getOwnPropertyDescriptor,at=(t,e,i,o)=>{for(var r=o>1?void 0:o?ts(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&es(e,i,r),r};var Re=class extends d{constructor(){super(...arguments),this.readouts=[],this.tag=null,this.size="regular",this.idTagOrientation="top",this.hasIdTag=!1}renderTag(){if(!this.hasIdTag||!this.tag)return c``;let t=this.tag.value.toString().padStart(4,"0");return c`<div class="tag">#${t}</div>`}renderValueContainer(t,e,i){return c`<div class="readout-item ${t}">
+  `;Xi([l({type:Boolean})],Lt.prototype,"useCssColor",2);Lt=Xi([h("obi-temperature-air")],Lt);var Bl=Object.defineProperty;var El=Object.getOwnPropertyDescriptor;var fr=(r,e,i,o)=>{var t=o>1?void 0:o?El(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Bl(e,i,t);return t};var Ye=class extends d{constructor(){super(...arguments);this.readouts=[];this.tag=null;this.size="regular";this.idTagOrientation="top";this.hasIdTag=false}renderTag(){if(!this.hasIdTag||!this.tag)return c``;const r=this.tag.value.toString().padStart(4,"0");return c`<div class="tag">#${r}</div>`}renderValueContainer(r,e,i){return c`<div class="readout-item ${r}">
       ${e}
       <div class="value-container">
         <div class="label-container">${i}</div>
       </div>
-    </div>`}renderValueText(t){return c`<span class="value-text">${t}</span>`}renderValue(t){let e=t.value.toFixed(0),o=(e.length<t.nDigits?"0".repeat(t.nDigits-e.length):"")+e,r=f;t.icon=="arrow"?t.direction=="up"?r=c`<obi-arrow-up-google
+    </div>`}renderValueText(r){return c`<span class="value-text">${r}</span>`}renderValue(r){const e=r.value.toFixed(0);const i=e.length<r.nDigits?"0".repeat(r.nDigits-e.length):"";const o=i+e;let t=m;if(r.icon=="arrow"){if(r.direction=="up"){t=c`<obi-arrow-up-google
           class="icon"
           useCssColor
-        ></obi-arrow-up-google>`:t.direction=="down"?r=c`<obi-arrow-down-google
+        ></obi-arrow-up-google>`}else if(r.direction=="down"){t=c`<obi-arrow-down-google
           class="icon"
           useCssColor
-        ></obi-arrow-down-google>`:t.direction=="left"?r=c`<obi-arrow-left-google
+        ></obi-arrow-down-google>`}else if(r.direction=="left"){t=c`<obi-arrow-left-google
           class="icon"
           useCssColor
-        ></obi-arrow-left-google>`:t.direction=="right"&&(r=c`<obi-arrow-right-google
+        ></obi-arrow-left-google>`}else if(r.direction=="right"){t=c`<obi-arrow-right-google
           class="icon"
           useCssColor
-        ></obi-arrow-right-google>`):t.icon=="chevron"&&(t.direction=="up"?r=c`<obi-chevron-double-up-google
+        ></obi-arrow-right-google>`}}else if(r.icon=="chevron"){if(r.direction=="up"){t=c`<obi-chevron-double-up-google
           class="icon"
           useCssColor
-        ></obi-chevron-double-up-google>`:t.direction=="down"?r=c`<obi-chevron-double-down-google
+        ></obi-chevron-double-up-google>`}else if(r.direction=="down"){t=c`<obi-chevron-double-down-google
           class="icon"
           useCssColor
-        ></obi-chevron-double-down-google>`:t.direction=="left"?r=c`<obi-chevron-double-left-google
+        ></obi-chevron-double-down-google>`}else if(r.direction=="left"){t=c`<obi-chevron-double-left-google
           class="icon"
           useCssColor
-        ></obi-chevron-double-left-google>`:t.direction=="right"&&(r=c`<obi-chevron-double-right-google
+        ></obi-chevron-double-left-google>`}else if(r.direction=="right"){t=c`<obi-chevron-double-right-google
           class="icon"
           useCssColor
-        ></obi-chevron-double-right-google>`));let a=c`
+        ></obi-chevron-double-right-google>`}}const a=c`
       ${this.renderValueText(o)}
-      <span class="unit">${t.unit}</span>
-    `;return this.renderValueContainer("value",r,a)}renderStateOff(t){let e=c``;t.hasIcon&&(e=c`<obi-off class="icon" useCssColor></obi-off>`);let i=this.renderValueText(t.value);return this.renderValueContainer("state-off",e,i)}renderStateOn(t){let e=c``;t.hasIcon&&(e=c`<obi-on class="icon" useCssColor></obi-on>`);let i=this.renderValueText(t.value);return this.renderValueContainer("state-on",e,i)}renderButton(t){let e=t.value.toFixed(1),i=c``;t.hasIcon&&(i=c`<obi-temperature-air
+      <span class="unit">${r.unit}</span>
+    `;return this.renderValueContainer("value",t,a)}renderStateOff(r){let e=c``;if(r.hasIcon){e=c`<obi-off class="icon" useCssColor></obi-off>`}const i=this.renderValueText(r.value);return this.renderValueContainer("state-off",e,i)}renderStateOn(r){let e=c``;if(r.hasIcon){e=c`<obi-on class="icon" useCssColor></obi-on>`}const i=this.renderValueText(r.value);return this.renderValueContainer("state-on",e,i)}renderButton(r){const e=r.value.toFixed(1);let i=c``;if(r.hasIcon){i=c`<obi-temperature-air
         class="icon"
         useCssColor
-      ></obi-temperature-air>`);let o=c`
+      ></obi-temperature-air>`}const o=c`
       ${this.renderValueText(e)}
-      <span class="unit">${t.unit}</span>
+      <span class="unit">${r.unit}</span>
     `;return c`<obc-button class="readout-button" part="readout-button">
       ${this.renderValueContainer("button",i,o)}
-    </obc-button>`}renderReadout(t){if(t.type==="value")return this.renderValue(t);if(t.type==="state-on")return this.renderStateOn(t);if(t.type==="state-off")return this.renderStateOff(t);if(t.type==="button")return this.renderButton(t);throw new Error("Invalid readout type")}render(){let e=this.readouts.filter(r=>r.type==="value"||r.type==="state-off"||r.type==="state-on"||r.type==="button").map(r=>this.renderReadout(r)),i=this.renderTag(),o=[];return this.idTagOrientation==="top"?(this.hasIdTag&&o.push(i),o.push(...e)):(o.push(...e),this.hasIdTag&&o.push(i)),c`<div class="readout-stack ${this.size}">${o}</div>`}};Re.styles=x(b1);at([s({attribute:!1})],Re.prototype,"readouts",2);at([s({attribute:!1})],Re.prototype,"tag",2);at([s()],Re.prototype,"size",2);at([s()],Re.prototype,"idTagOrientation",2);at([s({type:Boolean})],Re.prototype,"hasIdTag",2);Re=at([h("obc-automation-button-readout-stack")],Re);function sr(t,e){return e.strokePosition==="center"?l`<circle id=${t} cx="0" cy="0" 
-      r=${e.radius} vector-effect="non-scaling-stroke" 
-      stroke=${e.strokeColor}  stroke-width=${e.strokeWidth} 
-      fill=${e.fillColor}>`:e.strokePosition==="inside"?l`
+    </obc-button>`}renderReadout(r){if(r.type==="value"){return this.renderValue(r)}else if(r.type==="state-on"){return this.renderStateOn(r)}else if(r.type==="state-off"){return this.renderStateOff(r)}else if(r.type==="button"){return this.renderButton(r)}else{throw new Error("Invalid readout type")}}render(){const r=this.readouts.filter(t=>t.type==="value"||t.type==="state-off"||t.type==="state-on"||t.type==="button");const e=r.map(t=>this.renderReadout(t));const i=this.renderTag();const o=[];if(this.idTagOrientation==="top"){if(this.hasIdTag)o.push(i);o.push(...e)}else{o.push(...e);if(this.hasIdTag)o.push(i)}return c`<div class="readout-stack ${this.size}">${o}</div>`}};Ye.styles=C(Ii);fr([l({attribute:false})],Ye.prototype,"readouts",2);fr([l({attribute:false})],Ye.prototype,"tag",2);fr([l()],Ye.prototype,"size",2);fr([l()],Ye.prototype,"idTagOrientation",2);fr([l({type:Boolean})],Ye.prototype,"hasIdTag",2);Ye=fr([h("obc-automation-button-readout-stack")],Ye);function kt(r,e){if(e.strokePosition==="center"){return s`<circle id=${r} cx="0" cy="0"
+      r=${e.radius} vector-effect="non-scaling-stroke"
+      stroke=${e.strokeColor}  stroke-width=${e.strokeWidth}
+      fill=${e.fillColor}>`}else if(e.strokePosition==="inside"){return s`
 		<defs>
-			<clipPath id="clip${t}">
-				<circle id=${t} cx="0" cy="0" r=${e.radius} vector-effect="non-scaling-stroke" />
+			<clipPath id="clip${r}">
+				<circle id=${r} cx="0" cy="0" r=${e.radius} vector-effect="non-scaling-stroke" />
 			</clipPath>
 		</defs>
 		<g>
-			<circle id=${t} cx="0" cy="0" r=${e.radius} vector-effect="non-scaling-stroke" stroke=${e.strokeColor}  stroke-width=${e.strokeWidth*2} fill=${e.fillColor} clip-path="url(#clip${t})"/>
+			<circle id=${r} cx="0" cy="0" r=${e.radius} vector-effect="non-scaling-stroke" stroke=${e.strokeColor}  stroke-width=${e.strokeWidth*2} fill=${e.fillColor} clip-path="url(#clip${r})"/>
 		</g>
-  `:l`
-		<circle id=${t} cx="0" cy="0" r=${e.radius} vector-effect="non-scaling-stroke" stroke=${e.strokeColor} stroke-width=${e.strokeWidth*2} fill=${e.fillColor}/>
-		  `}var be=(t=>(t.active="active",t.loading="loading",t.off="off",t))(be||{}),D=(t=>(t.regular="regular",t.enhanced="enhanced",t))(D||{});var cr=(t=>(t.notEqual="notEqual",t.equal="equal",t.equalZero="equalZero",t.focus="focus",t))(cr||{});var rs="M22.5918 0.5C25.014 0.50013 26.3186 3.34437 24.917 5.29199L15.0244 19.0371C14.0268 20.423 11.9635 20.423 10.9658 19.0371L1.07326 5.29199C-0.328328 3.34437 0.97623 0.500124 3.39845 0.5L22.5918 0.5Z";var os=13,is=21,as=.8,ns=4,ss=8,lr=300,yt="--setpoint-animation-duration",dr="300ms";function V1(t){let e=getComputedStyle(t).getPropertyValue(yt).trim();if(!e)return lr;let i=parseFloat(e);return Number.isNaN(i)?lr:e.endsWith("s")&&!e.endsWith("ms")?i*1e3:i}function _1(t,e){let i=(e%360+360)%360,o=(t%360+360)%360,r=i-o;return r>180&&(r-=360),r<-180&&(r+=360),t+r}function ls(t,e,i=!1){return i?"var(--instrument-frame-tertiary-color)":t==="focus"?e==="enhanced"?"var(--base-blue-100)":"var(--instrument-regular-tertiary-color)":e==="enhanced"?"var(--instrument-enhanced-primary-color)":"var(--instrument-regular-primary-color)"}function cs(t,e){return t==="focus"?e==="enhanced"?"var(--element-neutral-enhanced-color)":"var(--instrument-regular-secondary-color)":"var(--border-silhouette-color)"}function ds(t){return rs}function ps(t){switch(t){case"equal":case"equalZero":return as;default:return 1}}function mo(t){switch(t){case"equalZero":return ss;case"notEqual":case"focus":return ns;default:return 0}}function fo(t){let{visualState:e,colorMode:i,disabled:o=!1,id:r}=t,a=ls(e,i,o),n=cs(e,i),v=ds(),u=ps(e),m=`${r}-marker`,b=`${r}-mask`,g=-os,C=-is,y=`scale(${u})`;return l`
+  `}else{return s`
+		<circle id=${r} cx="0" cy="0" r=${e.radius} vector-effect="non-scaling-stroke" stroke=${e.strokeColor} stroke-width=${e.strokeWidth*2} fill=${e.fillColor}/>
+		  `}}var ke=(r=>{r["active"]="active";r["loading"]="loading";r["off"]="off";return r})(ke||{});var D=(r=>{r["regular"]="regular";r["enhanced"]="enhanced";return r})(D||{});var Mt=(r=>{r["notEqual"]="notEqual";r["equal"]="equal";r["equalZero"]="equalZero";r["focus"]="focus";return r})(Mt||{});var Dl="M22.5918 0.5C25.014 0.50013 26.3186 3.34437 24.917 5.29199L15.0244 19.0371C14.0268 20.423 11.9635 20.423 10.9658 19.0371L1.07326 5.29199C-0.328328 3.34437 0.97623 0.500124 3.39845 0.5L22.5918 0.5Z";var Il=13;var jl=21;var Rl=.8;var Nl=4;var Fl=8;var xt=300;var Or="--setpoint-animation-duration";var Ht="300ms";function Yi(r){const e=getComputedStyle(r).getPropertyValue(Or).trim();if(!e)return xt;const i=parseFloat(e);if(Number.isNaN(i))return xt;if(e.endsWith("s")&&!e.endsWith("ms"))return i*1e3;return i}function Ki(r,e){const i=(e%360+360)%360;const o=(r%360+360)%360;let t=i-o;if(t>180)t-=360;if(t<-180)t+=360;return r+t}function Ul(r,e,i=false){if(i){return"var(--instrument-frame-tertiary-color)"}if(r==="focus"){if(e==="enhanced"){return"var(--base-blue-100)"}else{return"var(--instrument-regular-tertiary-color)"}}if(e==="enhanced"){return"var(--instrument-enhanced-primary-color)"}else{return"var(--instrument-regular-primary-color)"}}function Wl(r,e){if(r==="focus"){if(e==="enhanced"){return"var(--element-neutral-enhanced-color)"}else{return"var(--instrument-regular-secondary-color)"}}return"var(--border-silhouette-color)"}function Gl(r){return Dl}function ql(r){switch(r){case"equal":case"equalZero":return Rl;default:return 1}}function To(r){switch(r){case"equalZero":return Fl;case"notEqual":case"focus":return Nl;default:return 0}}function zo(r){const{visualState:e,colorMode:i,disabled:o=false,id:t}=r;const a=Ul(e,i,o);const n=Wl(e,i);const v=Gl();const u=ql(e);const f=`${t}-marker`;const w=`${t}-mask`;const g=-Il;const b=-jl;const y=`scale(${u})`;const L=e==="focus";return s`
     <defs>
-      <g id="${m}">
+      <g id="${f}">
         <path
           fill-rule="evenodd"
           clip-rule="evenodd"
-          transform="translate(${g}, ${C})"
+          transform="translate(${g}, ${b})"
           d="${v}"
           vector-effect="non-scaling-stroke"
         />
       </g>
-      <mask id="${b}">
+      <mask id="${w}">
         <rect x="-20" y="-30" width="50" height="50" fill="white" />
-        <use href="#${m}" fill="black" />
+        <use href="#${f}" fill="black" />
       </mask>
     </defs>
     <g transform="${y}" style="transition: transform 200ms ease-in-out;">
-      <use href="#${m}" fill="${a}" stroke="none" />
-      ${e==="focus"?l`
+      <use href="#${f}" fill="${a}" stroke="none" />
+      ${L?s`
           <!-- Focus state: 1px silhouette (outer) + 2px colored border (inner) -->
           <!-- First: masked silhouette stroke for outer 1px edge -->
           <use
-            href="#${m}"
-            mask="url(#${b})"
+            href="#${f}"
+            mask="url(#${w})"
             fill="none"
             stroke="var(--border-silhouette-color)"
             stroke-width="4"
@@ -3451,17 +3450,17 @@ li .active {
           />
           <!-- Second: 2px colored border on top -->
           <use
-            href="#${m}"
+            href="#${f}"
             fill="none"
             stroke="${n}"
             stroke-width="2"
             stroke-linejoin="round"
             vector-effect="non-scaling-stroke"
           />
-        `:l`
+        `:s`
           <use
-            href="#${m}"
-            mask="url(#${b})"
+            href="#${f}"
+            mask="url(#${w})"
             fill="none"
             stroke="${n}"
             stroke-width="2"
@@ -3470,7 +3469,7 @@ li .active {
           />
         `}
     </g>
-  `}function Z1(t){let{state:e,priority:i,atSetpoint:o,angleSetpoint:r,setpointAtZeroDeadband:a=.5,newAngleSetpoint:n,touching:v=!1,setpointOverride:u=!1}=t,m=n!==void 0,b=i===D.enhanced?"enhanced":"regular";if(e===be.loading||e===be.off)return{visualState:"notEqual",colorMode:b,disabled:!u,hasNewSetpoint:m};if(v&&!m)return{visualState:"focus",colorMode:b,disabled:!1,hasNewSetpoint:m};let g=r!==void 0&&Math.abs(r)<a;return o&&g?{visualState:"equalZero",colorMode:b,disabled:!1,hasNewSetpoint:m}:o?{visualState:"equal",colorMode:b,disabled:!1,hasNewSetpoint:m}:{visualState:"notEqual",colorMode:b,disabled:!1,hasNewSetpoint:m}}var go=168;function S1(t){let{value:e,setpoint:i,touching:o,auto:r,deadband:a,atSetpointManual:n,angularWraparound:v=!1}=t;if(e===void 0||i===void 0||o)return!1;if(r){let u=Math.abs(e-i);v&&u>180&&(u=360-u);let m=Number.isFinite(a)?a:0;return u<=m}return n}function wt({startAngle:t,endAngle:e,r:i,R:o,roundOutsideCut:r,roundInsideCut:a}){let n=t*Math.PI/180,v=e*Math.PI/180,u=Math.sin(n)*o,m=-Math.cos(n)*o,b=Math.sin(n)*i,g=-Math.cos(n)*i,C=Math.sin(v)*o,y=-Math.cos(v)*o,H=Math.sin(v)*i,E=-Math.cos(v)*i,k=8,w="";if(r){let $=Math.asin(k/o),B=v-$-(n+$)<=Math.PI?0:1,Q=Math.sin(n)*(o-k),F=-Math.cos(n)*(o-k),U=Math.sin(n+$)*o,P=-Math.cos(n+$)*o,I=Math.sin(v)*(o-k),ne=-Math.cos(v)*(o-k),Ve=Math.sin(v-$)*o,rt=-Math.cos(v-$)*o;w+=`M ${Q} ${F} A ${k} ${k} 1 0 1 ${U} ${P}`,w+=`A ${o} ${o} 1 ${B} 1 ${Ve} ${rt}`,w+=`A ${k} ${k} 1 0 1 ${I} ${ne}`}else{let $=Math.abs(v-n)<=Math.PI?0:1;w+=`M ${u} ${m} A ${o} ${o} 1 ${$} 1 ${C} ${y}`}if(a){let $=Math.asin(k/i),B=v-$-(n+$)<=Math.PI?0:1,Q=Math.sin(n)*(i+k),F=-Math.cos(n)*(i+k),U=Math.sin(n+$)*i,P=-Math.cos(n+$)*i,I=Math.sin(v)*(i+k),ne=-Math.cos(v)*(i+k),Ve=Math.sin(v-$)*i,rt=-Math.cos(v-$)*i;w+=`L ${I} ${ne} A ${k} ${k} 1 0 1 ${Ve} ${rt}`,w+=`A ${i} ${i} 1 ${B} 0 ${U} ${P}`,w+=`A ${k} ${k} 1 0 1 ${Q} ${F}`}else{let $=v-n<=Math.PI?0:1;w+=`L ${H} ${E} A ${i} ${i} 1 ${$} 0 ${b} ${g}`}return w+="Z",w}var A1=p`
+  `}function Ji(r){const{state:e,priority:i,atSetpoint:o,angleSetpoint:t,setpointAtZeroDeadband:a=.5,newAngleSetpoint:n,touching:v=false,setpointOverride:u=false}=r;const f=n!==void 0;const w=i===D.enhanced?"enhanced":"regular";if(e===ke.loading||e===ke.off){return{visualState:"notEqual",colorMode:w,disabled:!u,hasNewSetpoint:f}}if(v&&!f){return{visualState:"focus",colorMode:w,disabled:false,hasNewSetpoint:f}}const g=t!==void 0&&Math.abs(t)<a;if(o&&g){return{visualState:"equalZero",colorMode:w,disabled:false,hasNewSetpoint:f}}if(o){return{visualState:"equal",colorMode:w,disabled:false,hasNewSetpoint:f}}return{visualState:"notEqual",colorMode:w,disabled:false,hasNewSetpoint:f}}var Bo=168;function Qi(r){const{value:e,setpoint:i,touching:o,auto:t,deadband:a,atSetpointManual:n,angularWraparound:v=false}=r;if(e===void 0||i===void 0)return false;if(o)return false;if(t){let u=Math.abs(e-i);if(v&&u>180){u=360-u}const f=Number.isFinite(a)?a:0;return u<=f}return n}function Tr({startAngle:r,endAngle:e,r:i,R:o,roundOutsideCut:t,roundInsideCut:a}){const n=r*Math.PI/180;const v=e*Math.PI/180;const u=Math.sin(n)*o;const f=-Math.cos(n)*o;const w=Math.sin(n)*i;const g=-Math.cos(n)*i;const b=Math.sin(v)*o;const y=-Math.cos(v)*o;const L=Math.sin(v)*i;const V=-Math.cos(v)*i;const x=8;let k="";if(t){const _=Math.asin(x/o);const z=v-_-(n+_)<=Math.PI?0:1;const K=Math.sin(n)*(o-x);const U=-Math.cos(n)*(o-x);const W=Math.sin(n+_)*o;const O=-Math.cos(n+_)*o;const I=Math.sin(v)*(o-x);const ie=-Math.cos(v)*(o-x);const ze=Math.sin(v-_)*o;const mr=-Math.cos(v-_)*o;k+=`M ${K} ${U} A ${x} ${x} 1 0 1 ${W} ${O}`;k+=`A ${o} ${o} 1 ${z} 1 ${ze} ${mr}`;k+=`A ${x} ${x} 1 0 1 ${I} ${ie}`}else{const _=Math.abs(v-n)<=Math.PI?0:1;k+=`M ${u} ${f} A ${o} ${o} 1 ${_} 1 ${b} ${y}`}if(a){const _=Math.asin(x/i);const z=v-_-(n+_)<=Math.PI?0:1;const K=Math.sin(n)*(i+x);const U=-Math.cos(n)*(i+x);const W=Math.sin(n+_)*i;const O=-Math.cos(n+_)*i;const I=Math.sin(v)*(i+x);const ie=-Math.cos(v)*(i+x);const ze=Math.sin(v-_)*i;const mr=-Math.cos(v-_)*i;k+=`L ${I} ${ie} A ${x} ${x} 1 0 1 ${ze} ${mr}`;k+=`A ${i} ${i} 1 ${z} 0 ${W} ${O}`;k+=`A ${x} ${x} 1 0 1 ${K} ${U}`}else{const _=v-n<=Math.PI?0:1;k+=`L ${L} ${V} A ${i} ${i} 1 ${_} 0 ${w} ${g}`}k+=`Z`;return k}var ea=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -3509,49 +3508,49 @@ li .active {
 .label.inside.right {
     text-anchor: end;
   }
-`;var{I:N7}=Go;var P1=t=>t.strings===void 0;var Lt=(t,e)=>{let i=t._$AN;if(i===void 0)return!1;for(let o of i)o._$AO?.(e,!1),Lt(o,e);return!0},pr=t=>{let e,i;do{if((e=t._$AM)===void 0)break;i=e._$AN,i.delete(t),t=e}while(i?.size===0)},O1=t=>{for(let e;e=t._$AM;t=e){let i=e._$AN;if(i===void 0)e._$AN=i=new Set;else if(i.has(t))break;i.add(t),vs(e)}};function hs(t){this._$AN!==void 0?(pr(this),this._$AM=t,O1(this)):this._$AM=t}function us(t,e=!1,i=0){let o=this._$AH,r=this._$AN;if(r!==void 0&&r.size!==0)if(e)if(Array.isArray(o))for(let a=i;a<o.length;a++)Lt(o[a],!1),pr(o[a]);else o!=null&&(Lt(o,!1),pr(o));else Lt(this,t)}var vs=t=>{t.type==it.CHILD&&(t._$AP??=us,t._$AQ??=hs)},hr=class extends De{constructor(){super(...arguments),this._$AN=void 0}_$AT(e,i,o){super._$AT(e,i,o),O1(this),this.isConnected=e._$AU}_$AO(e,i=!0){e!==this.isConnected&&(this.isConnected=e,e?this.reconnected?.():this.disconnected?.()),i&&(Lt(this,e),pr(this))}setValue(e){if(P1(this._$Ct))this._$Ct._$AI(e,this);else{let i=[...this._$Ct._$AH];i[this._$Ci]=e,this._$Ct._$AI(i,this,0)}}disconnected(){}reconnected(){}};var nt=class{constructor(e,{target:i,config:o,callback:r,skipInitial:a}){this.t=new Set,this.o=!1,this.i=!1,this.h=e,i!==null&&this.t.add(i??e),this.l=o,this.o=a??this.o,this.callback=r,window.ResizeObserver?(this.u=new ResizeObserver(n=>{this.handleChanges(n),this.h.requestUpdate()}),e.addController(this)):console.warn("ResizeController error: browser does not support ResizeObserver.")}handleChanges(e){this.value=this.callback?.(e,this.u)}hostConnected(){for(let e of this.t)this.observe(e)}hostDisconnected(){this.disconnect()}async hostUpdated(){!this.o&&this.i&&this.handleChanges([]),this.i=!1}observe(e){this.t.add(e),this.u.observe(e,this.l),this.i=!0,this.h.requestUpdate()}unobserve(e){this.t.delete(e),this.u.unobserve(e)}disconnect(){this.u.disconnect()}target(e){return fs(this,e)}},fs=qe(class extends hr{constructor(){super(...arguments),this.observing=!1}render(t,e){}update(t,[e,i]){this.controller=e,this.part=t,this.observe=i,i===!1?(e.unobserve(t.element),this.observing=!1):this.observing===!1&&(e.observe(t.element),this.observing=!0)}disconnected(){this.controller?.unobserve(this.part.element),this.observing=!1}reconnected(){this.observe!==!1&&this.observing===!1&&(this.controller?.observe(this.part.element),this.observing=!0)}});var ee=(t=>(t.zeroLineThick="zeroLineThick",t.zeroLine="zeroLine",t.main="main",t.primary="primary",t.secondary="secondary",t.tertiary="tertiary",t.textOnly="textOnly",t))(ee||{}),Y=(t=>(t.regular="regular",t.enhanced="enhanced",t))(Y||{});function bo(t,e){return t==="regular"?"var(--instrument-tick-mark-tertiary-color)":e==="tertiary"?"var(--instrument-tick-mark-secondary-color)":"var(--instrument-tick-mark-primary-color)"}function Ye(t,{size:e,style:i,scale:o,text:r,inside:a,textRadius:n,rotation:v,maxDigits:u,color:m,radiusOffset:b=0}){if(o===1/0||o<0)throw new Error("Tick scale is not valid");let g=b,C,y;n=n+(3/o+3)*(a?-1:1);let H=t*Math.PI/180;if(e==="primary")C=328/2+g,y=368/2+g;else if(e==="secondary")C=328/2+g,y=344/2+g;else if(e==="main"||e==="zeroLine")C=320/2+g,y=368/2+g;else if(e==="zeroLineThick")C=224/2+g,y=368/2+g;else if(e==="tertiary")C=328/2+g,y=336/2+g;else return[B1(r??"",t,a,o,n)];if(a){let U=184+g,P=320/2+g,I=y-C,ne=Math.max(0,C-P);y=U-ne,C=y-I}let E=m??bo(i,e),k=Math.sin(H)*C,w=-Math.cos(H)*C,$=Math.sin(H)*y,B=-Math.cos(H)*y,F=l`<line x1=${k} y1=${w} x2=${$} y2=${B} stroke=${E} stroke-width=${e==="zeroLine"||e==="zeroLineThick"?4:1} vector-effect="non-scaling-stroke"/>`;if(r){if(v===void 0)return[F,B1(r,t,a,o,n)];{let U=n+(4/o+5)*(a?-1:1)*u/2,P=Math.sin(H)*U,I=-Math.cos(H)*U;return[F,l`<text x=${P} y=${I} class="label rotate ${a?"inside":""}" transform="rotate(${-v})" transform-origin="${P} ${I}">${r}</text>`]}}return F}function B1(t,e,i,o,r){let a;e===0?a="top":e<180&&e>0?a="right":e===180?a="bottom":a="left";let n=e*Math.PI/180,v=i?-1:1,u=7/o*v,m=6/o*v,b=Math.sin(n)*(r+m);e>180?b+=4/o*v:e<180&&e>0&&(b-=4/o*v);let g=-Math.cos(n)*(r+u);return l`<text x=${b} y=${g} class="label ${a} ${i?"inside":""}">${t}</text>`}var ce=(t=>(t.advice="advice",t.caution="caution",t))(ce||{}),j=(t=>(t.regular="regular",t.hinted="hinted",t.triggered="triggered",t))(j||{}),gs=16/2+8,Co=Math.atan2(gs,672/2);function st(t,e,i,o,r=0){if(((e-t)%360+360)%360*Math.PI/180<=Co*2)return f;let v=t*Math.PI/180+Co,u=e*Math.PI/180-Co,m=328/2+r,b=344/2+r,g=(b-m)/2,C=Math.sin(v)*m,y=-Math.cos(v)*m,H=Math.sin(v)*b,E=-Math.cos(v)*b,k=Math.sin(u)*m,w=-Math.cos(u)*m,$=Math.sin(u)*b,B=-Math.cos(u)*b,Q=`M ${C} ${y} 
-                    A ${m} ${m} 0 0 1 ${k} ${w}
-                    A ${g} ${g} 0 0 0 ${$} ${B}
-                    A ${b} ${b} 0 0 0 ${H} ${E}
-                    A ${g} ${g} 0 0 0 ${C} ${y}
-                    Z`;return l`<path d=${Q} fill=${i} stroke=${o} stroke-width="1" vector-effect="non-scaling-stroke" />`}function T1(t,e=0){if(t.type==="caution"){let i,o=null;t.state==="hinted"?i="var(--instrument-frame-tertiary-color)":t.state==="regular"?i="var(--instrument-tick-mark-tertiary-color)":(i="var(--on-caution-active-color)",o="var(--alert-caution-color)");let r=[];if(e>0){let C=164+e,y=344/2+e,H=(C+y)/2,E=2*Math.PI*168/90,k=Math.round(2*Math.PI*H/E),w=.705,$=C-12,B=y+12,Q=Math.tan(w)*(B-$)/(2*H);for(let F=0;F<k;F++){let U=F*2*Math.PI/k,P=$*Math.sin(U-Q),I=-$*Math.cos(U-Q),ne=B*Math.sin(U+Q),Ve=-B*Math.cos(U+Q);r.push(l`<line x1=${P} y1=${I} x2=${ne} y2=${Ve} stroke=${i} stroke-width="4"/>`)}}else for(let C=0;C<180;C+=4)r.push(l`<g transform="rotate(${C}) translate(-256 -256) ">
+`;var{I:Xl}=vi;var ra=r=>r;var oa=r=>void 0===r.strings;var ta=()=>document.createComment("");var br=(r,e,i)=>{const o=r._$AA.parentNode,t=void 0===e?r._$AB:e._$AA;if(void 0===i){const a=o.insertBefore(ta(),t),n=o.insertBefore(ta(),t);i=new Xl(a,n,r,r.options)}else{const a=i._$AB.nextSibling,n=i._$AM,v=n!==r;if(v){let u;i._$AQ?.(r),i._$AM=r,void 0!==i._$AP&&(u=r._$AU)!==n._$AU&&i._$AP(u)}if(a!==t||v){let u=i._$AA;for(;u!==a;){const f=ra(u).nextSibling;ra(o).insertBefore(u,t),u=f}}}return i};var Ke=(r,e,i=r)=>(r._$AI(e,i),r);var Yl={};var ia=(r,e=Yl)=>r._$AH=e;var aa=r=>r._$AH;var $t=r=>{r._$AR(),r._$AA.remove()};var zr=(r,e)=>{const i=r._$AN;if(void 0===i)return false;for(const o of i)o._$AO?.(e,false),zr(o,e);return true};var _t=r=>{let e,i;do{if(void 0===(e=r._$AM))break;i=e._$AN,i.delete(r),r=e}while(0===i?.size)};var na=r=>{for(let e;e=r._$AM;r=e){let i=e._$AN;if(void 0===i)e._$AN=i=new Set;else if(i.has(r))break;i.add(r),Ql(e)}};function Kl(r){void 0!==this._$AN?(_t(this),this._$AM=r,na(this)):this._$AM=r}function Jl(r,e=false,i=0){const o=this._$AH,t=this._$AN;if(void 0!==t&&0!==t.size)if(e)if(Array.isArray(o))for(let a=i;a<o.length;a++)zr(o[a],false),_t(o[a]);else null!=o&&(zr(o,false),_t(o));else zr(this,r)}var Ql=r=>{r.type==qe.CHILD&&(r._$AP??=Jl,r._$AQ??=Kl)};var Vt=class extends $e{constructor(){super(...arguments),this._$AN=void 0}_$AT(e,i,o){super._$AT(e,i,o),na(this),this.isConnected=e._$AU}_$AO(e,i=true){e!==this.isConnected&&(this.isConnected=e,e?this.reconnected?.():this.disconnected?.()),i&&(zr(this,e),_t(this))}setValue(e){if(oa(this._$Ct))this._$Ct._$AI(e,this);else{const i=[...this._$Ct._$AH];i[this._$Ci]=e,this._$Ct._$AI(i,this,0)}}disconnected(){}reconnected(){}};var wr=class{constructor(e,{target:i,config:o,callback:t,skipInitial:a}){this.t=new Set,this.o=false,this.i=false,this.h=e,null!==i&&this.t.add(i??e),this.l=o,this.o=a??this.o,this.callback=t,gi||(window.ResizeObserver?(this.u=new ResizeObserver(n=>{this.handleChanges(n),this.h.requestUpdate()}),e.addController(this)):console.warn("ResizeController error: browser does not support ResizeObserver."))}handleChanges(e){this.value=this.callback?.(e,this.u)}hostConnected(){for(const e of this.t)this.observe(e)}hostDisconnected(){this.disconnect()}async hostUpdated(){!this.o&&this.i&&this.handleChanges([]),this.i=false}observe(e){this.t.add(e),this.u.observe(e,this.l),this.i=true,this.h.requestUpdate()}unobserve(e){this.t.delete(e),this.u.unobserve(e)}disconnect(){this.u.disconnect()}target(e){return es(this,e)}};var es=Ie(class extends Vt{constructor(){super(...arguments),this.observing=false}render(r,e){}update(r,[e,i]){this.controller=e,this.part=r,this.observe=i,false===i?(e.unobserve(r.element),this.observing=false):false===this.observing&&(e.observe(r.element),this.observing=true)}disconnected(){this.controller?.unobserve(this.part.element),this.observing=false}reconnected(){false!==this.observe&&false===this.observing&&(this.controller?.observe(this.part.element),this.observing=true)}});var te=(r=>{r["zeroLineThick"]="zeroLineThick";r["zeroLine"]="zeroLine";r["main"]="main";r["primary"]="primary";r["secondary"]="secondary";r["tertiary"]="tertiary";r["textOnly"]="textOnly";return r})(te||{});var Q=(r=>{r["regular"]="regular";r["enhanced"]="enhanced";return r})(Q||{});function Eo(r,e){if(r==="regular"){return"var(--instrument-tick-mark-tertiary-color)"}else{if(e==="tertiary"){return"var(--instrument-tick-mark-secondary-color)"}return"var(--instrument-tick-mark-primary-color)"}}function lr(r,{size:e,style:i,scale:o,text:t,inside:a,textRadius:n,rotation:v,maxDigits:u,color:f,radiusOffset:w=0}){if(o===Infinity||o<0){throw new Error("Tick scale is not valid")}const g=w;let b;let y;n=n+(3/o+3)*(a?-1:1);const L=r*Math.PI/180;if(e==="primary"){b=328/2+g;y=368/2+g}else if(e==="secondary"){b=328/2+g;y=344/2+g}else if(e==="main"||e==="zeroLine"){b=320/2+g;y=368/2+g}else if(e==="zeroLineThick"){b=224/2+g;y=368/2+g}else if(e==="tertiary"){b=328/2+g;y=336/2+g}else{return[la(t??"",r,a,o,n)]}if(a){const W=368/2+g;const O=320/2+g;const I=y-b;const ie=Math.max(0,b-O);y=W-ie;b=y-I}const V=f??Eo(i,e);const x=Math.sin(L)*b;const k=-Math.cos(L)*b;const _=Math.sin(L)*y;const z=-Math.cos(L)*y;const K=e==="zeroLine"||e==="zeroLineThick"?4:1;const U=s`<line x1=${x} y1=${k} x2=${_} y2=${z} stroke=${V} stroke-width=${K} vector-effect="non-scaling-stroke"/>`;if(t){if(v===void 0){return[U,la(t,r,a,o,n)]}else{const W=n+(4/o+5)*(a?-1:1)*u/2;const O=Math.sin(L)*W;const I=-Math.cos(L)*W;return[U,s`<text x=${O} y=${I} class="label rotate ${a?"inside":""}" transform="rotate(${-v})" transform-origin="${O} ${I}">${t}</text>`]}}return U}function la(r,e,i,o,t){let a;if(e===0){a="top"}else if(e<180&&e>0){a="right"}else if(e===180){a="bottom"}else{a="left"}const n=e*Math.PI/180;const v=i?-1:1;const u=7/o*v;const f=6/o*v;let w=Math.sin(n)*(t+f);if(e>180){w+=4/o*v}else if(e<180&&e>0){w-=4/o*v}const g=-Math.cos(n)*(t+u);return s`<text x=${w} y=${g} class="label ${a} ${i?"inside":""}">${r}</text>`}var me=(r=>{r["advice"]="advice";r["caution"]="caution";return r})(me||{});var R=(r=>{r["regular"]="regular";r["hinted"]="hinted";r["triggered"]="triggered";return r})(R||{});var rs=(344-328)/2+8;var Do=Math.atan2(rs,(344+328)/2);function yr(r,e,i,o,t=0){const a=((e-r)%360+360)%360;const n=a*Math.PI/180;if(n<=Do*2)return m;const v=r*Math.PI/180+Do;const u=e*Math.PI/180-Do;const f=328/2+t;const w=344/2+t;const g=(w-f)/2;const b=Math.sin(v)*f;const y=-Math.cos(v)*f;const L=Math.sin(v)*w;const V=-Math.cos(v)*w;const x=Math.sin(u)*f;const k=-Math.cos(u)*f;const _=Math.sin(u)*w;const z=-Math.cos(u)*w;const K=`M ${b} ${y}
+                    A ${f} ${f} 0 0 1 ${x} ${k}
+                    A ${g} ${g} 0 0 0 ${_} ${z}
+                    A ${w} ${w} 0 0 0 ${L} ${V}
+                    A ${g} ${g} 0 0 0 ${b} ${y}
+                    Z`;return s`<path d=${K} fill=${i} stroke=${o} stroke-width="1" vector-effect="non-scaling-stroke" />`}function sa(r,e=0){if(r.type==="caution"){let i;let o=null;if(r.state==="hinted"){i="var(--instrument-frame-tertiary-color)"}else if(r.state==="regular"){i="var(--instrument-tick-mark-tertiary-color)"}else{i="var(--on-caution-active-color)";o="var(--alert-caution-color)"}const t=[];if(e>0){const b=328/2+e;const y=344/2+e;const L=(b+y)/2;const V=2*Math.PI*168/90;const x=Math.round(2*Math.PI*L/V);const k=.705;const _=b-12;const z=y+12;const K=Math.tan(k)*(z-_)/(2*L);for(let U=0;U<x;U++){const W=U*2*Math.PI/x;const O=_*Math.sin(W-K);const I=-_*Math.cos(W-K);const ie=z*Math.sin(W+K);const ze=-z*Math.cos(W+K);t.push(s`<line x1=${O} y1=${I} x2=${ie} y2=${ze} stroke=${i} stroke-width="4"/>`)}}else{for(let b=0;b<180;b+=4){t.push(s`<g transform="rotate(${b}) translate(-256 -256) ">
             <path d="M369.167 64.7317L144 194.732L142 191.268L367.167 61.2676L369.167 64.7317ZM369.167 320.732L144 450.732L142 447.267L367.167 317.267L369.167 320.732Z" fill=${i}/>
             </g>
-            `);let a=`adviceMask-${t.minAngle}-${t.maxAngle}`,n=Y.regular;t.state==="regular"?n=Y.regular:t.state==="triggered"&&(n=Y.enhanced);let v=e>0?"none":"black",u=st(t.minAngle,t.maxAngle,"white",v,e),m=st(t.minAngle,t.maxAngle,"none",i,e),b,g;if(e>0){let C=172+e+32;b=l`<mask id=${a} maskUnits="userSpaceOnUse" x="${-C}" y="${-C}" width="${C*2}" height="${C*2}">${u}</mask>`,g=o?l`<rect x="${-C}" y="${-C}" width="${C*2}" height="${C*2}" fill="${o}"/>`:f}else b=l`<mask id=${a}>${u}</mask>`,g=o?l`<rect x="-256" y="-256" width="512" height="512" fill="${o}"/>`:f;return l`
-            ${b}
+            `)}}const a=`adviceMask-${r.minAngle}-${r.maxAngle}`;let n=Q.regular;if(r.state==="regular"){n=Q.regular}else if(r.state==="triggered"){n=Q.enhanced}const v=e>0?"none":"black";const u=yr(r.minAngle,r.maxAngle,"white",v,e);const f=yr(r.minAngle,r.maxAngle,"none",i,e);let w;let g;if(e>0){const b=344/2+e+32;w=s`<mask id=${a} maskUnits="userSpaceOnUse" x="${-b}" y="${-b}" width="${b*2}" height="${b*2}">${u}</mask>`;g=o?s`<rect x="${-b}" y="${-b}" width="${b*2}" height="${b*2}" fill="${o}"/>`:m}else{w=s`<mask id=${a}>${u}</mask>`;g=o?s`<rect x="-256" y="-256" width="512" height="512" fill="${o}"/>`:m}return s`
+            ${w}
             <g mask="url(#${a})">
                 ${g}
-                ${r}
+                ${t}
             </g>
-            ${m}
-            ${t.hideMinTickmark?f:Ye(t.minAngle,{size:ee.primary,style:n,scale:1,inside:!1,textRadius:0,maxDigits:0,radiusOffset:e})}
-            ${t.hideMaxTickmark?f:Ye(t.maxAngle,{size:ee.primary,style:n,scale:1,inside:!1,textRadius:0,maxDigits:0,radiusOffset:e})}
-        `}else{let i,o;return t.state==="hinted"?(i="var(--instrument-frame-tertiary-color)",o=Y.regular):t.state==="regular"?(i="var(--instrument-regular-secondary-color)",o=Y.regular):(i="var(--instrument-enhanced-secondary-color)",o=Y.regular),l`
-            ${st(t.minAngle,t.maxAngle,t.state==="triggered"?i:"none",i,e)}
-            ${Ye(t.minAngle,{size:ee.primary,style:o,scale:1,inside:!1,textRadius:0,maxDigits:0,radiusOffset:e})}
-            ${Ye(t.maxAngle,{size:ee.primary,style:o,scale:1,inside:!1,textRadius:0,maxDigits:0,radiusOffset:e})}
-        `}}var lt=(t=>(t.dots="dots",t.bar="bar",t))(lt||{}),kt=(t=>(t.scale="scale",t.innerCircle="innerCircle",t))(kt||{}),yo=5,E1=Array.from({length:yo},(t,e)=>360/yo*e),bs=172,Cs=100,de=8,ys=de,ws=de*.75-de*.25,Mt=.05;function xt(t,e=0){return(t==="scale"?bs:Cs)+e}function z1(t,e){let i=t*Math.PI/180;return{cx:Math.sin(i)*e,cy:-Math.cos(i)*e}}function D1(t,e,i=0){let o=xt(e,i);return l`${E1.map(r=>{let{cx:a,cy:n}=z1(r,o);return l`<circle cx="${a}" cy="${n}" r="${ys}" fill="${t}" />`})}`}function Ls(t,e,i){let o=i+de,r=i-de,a=t*Math.PI/180,n=e*Math.PI/180,v=Math.sin(a)*o,u=-Math.cos(a)*o,m=Math.sin(a)*r,b=-Math.cos(a)*r,g=Math.sin(n)*o,C=-Math.cos(n)*o,y=Math.sin(n)*r,H=-Math.cos(n)*r,E=((n-a)%(2*Math.PI)+2*Math.PI)%(2*Math.PI),k,w;return E<=Math.PI?(k=1,w=0):(k=0,w=1),[`M ${v} ${u}`,`A ${o} ${o} 0 0 ${k} ${g} ${C}`,`A ${de} ${de} 0 0 ${k} ${y} ${H}`,`A ${r} ${r} 0 0 ${w} ${m} ${b}`,"Z"].join(" ")}function wo(t,e){let i=((e-t)%360+360)%360;return i<=180?i:360-i}function Lo(t,e=0){let i=xt(t,e);return de/i*(180/Math.PI)}function I1(t,e,i,o=0){let r=xt(i,o),a=de,n=de*2,v=de/2;return l`
+            ${f}
+            ${r.hideMinTickmark?m:lr(r.minAngle,{size:te.primary,style:n,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:e})}
+            ${r.hideMaxTickmark?m:lr(r.maxAngle,{size:te.primary,style:n,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:e})}
+        `}else{let i;let o;if(r.state==="hinted"){i="var(--instrument-frame-tertiary-color)";o=Q.regular}else if(r.state==="regular"){i="var(--instrument-regular-secondary-color)";o=Q.regular}else{i="var(--instrument-enhanced-secondary-color)";o=Q.regular}return s`
+            ${yr(r.minAngle,r.maxAngle,r.state==="triggered"?i:"none",i,e)}
+            ${lr(r.minAngle,{size:te.primary,style:o,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:e})}
+            ${lr(r.maxAngle,{size:te.primary,style:o,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:e})}
+        `}}var Cr=(r=>{r["dots"]="dots";r["bar"]="bar";return r})(Cr||{});var Br=(r=>{r["scale"]="scale";r["innerCircle"]="innerCircle";return r})(Br||{});var Io=5;var ca=Array.from({length:Io},(r,e)=>360/Io*e);var ts=172;var os=100;var ge=8;var is=ge;var as=ge*.75-ge*.25;var Er=.05;function Dr(r,e=0){const i=r==="scale"?ts:os;return i+e}function da(r,e){const i=r*Math.PI/180;return{cx:Math.sin(i)*e,cy:-Math.cos(i)*e}}function pa(r,e,i=0){const o=Dr(e,i);return s`${ca.map(t=>{const{cx:a,cy:n}=da(t,o);return s`<circle cx="${a}" cy="${n}" r="${is}" fill="${r}" />`})}`}function ns(r,e,i){const o=i+ge;const t=i-ge;const a=r*Math.PI/180;const n=e*Math.PI/180;const v=Math.sin(a)*o;const u=-Math.cos(a)*o;const f=Math.sin(a)*t;const w=-Math.cos(a)*t;const g=Math.sin(n)*o;const b=-Math.cos(n)*o;const y=Math.sin(n)*t;const L=-Math.cos(n)*t;const V=((n-a)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);let x;let k;if(V<=Math.PI){x=1;k=0}else{x=0;k=1}return[`M ${v} ${u}`,`A ${o} ${o} 0 0 ${x} ${g} ${b}`,`A ${ge} ${ge} 0 0 ${x} ${y} ${L}`,`A ${t} ${t} 0 0 ${k} ${f} ${w}`,`Z`].join(" ")}function jo(r,e){const i=((e-r)%360+360)%360;return i<=180?i:360-i}function Ro(r,e=0){const i=Dr(r,e);return ge/i*(180/Math.PI)}function ha(r,e,i,o=0){const t=Dr(i,o);const a=ge;const n=ge*2;const v=ge/2;return s`
     <g transform="rotate(${e})">
       <rect
         x="${-a/2}"
-        y="${-r-n/2}"
+        y="${-t-n/2}"
         width="${a}"
         height="${n}"
         rx="${v}"
-        fill="${t}"
+        fill="${r}"
       />
     </g>
-  `}function R1(t){let{startAngle:e,endAngle:i,barColor:o,position:r,maskId:a="rot-bar-mask",radiusOffset:n=0}=t;if(wo(e,i)<Lo(r,n))return l``;let v=xt(r,n),u=Ls(e,i,v);return l`
+  `}function ua(r){const{startAngle:e,endAngle:i,barColor:o,position:t,maskId:a="rot-bar-mask",radiusOffset:n=0}=r;if(jo(e,i)<Ro(t,n)){return s``}const v=Dr(t,n);const u=ns(e,i,v);return s`
     <defs>
       <clipPath id="${a}">
         <path d="${u}" />
       </clipPath>
     </defs>
     <path d="${u}" fill="${o}" />
-  `}function j1(t,e,i=0){let o=xt(e,i);return l`
-    ${E1.map(r=>{let{cx:a,cy:n}=z1(r,o);return l`<circle cx="${a}" cy="${n}" r="${ws}" fill="${t}" />`})}
-  `}var n9=360/yo,s9=de/2;var ur=class{constructor(e,i,o=1,r=0){this._rotationsPerMinute=1,this._cyclePx=0,this.host=e,this.el=i,this._rotationsPerMinute=o,this._cyclePx=r,this.host.addController(this)}set rotationsPerMinute(e){this._rotationsPerMinute!==e&&(this._rotationsPerMinute=e,this.updateAnimation())}get rotationsPerMinute(){return this._rotationsPerMinute}set cyclePx(e){this._cyclePx!==e&&(this._cyclePx=e,this.updateAnimation())}get cyclePx(){return this._cyclePx}get isTranslateMode(){return this._cyclePx>0}getKeyframes(){return this.isTranslateMode?[{transform:"translateX(0px)"},{transform:`translateX(${this._cyclePx}px)`}]:[{transform:"rotate(0deg)"},{transform:"rotate(360deg)"}]}hostConnected(){this.startAnimation()}startAnimation(){let e=Math.abs(this._rotationsPerMinute),i=e===0?1:1e3*60/e;this.animation=this.el.animate(this.getKeyframes(),{duration:i,iterations:1/0,direction:this._rotationsPerMinute>=0?"normal":"reverse"}),this._rotationsPerMinute===0&&this.animation.pause()}updateAnimation(){if(!this.animation)return;let e=this.animation.effect.getComputedTiming(),i=e.duration,o=this.animation.currentTime??0,r=e.direction,a=o%i/i;this.animation.cancel();let n=Math.abs(this._rotationsPerMinute),v=n===0?1:1e3*60/n,u=this._rotationsPerMinute>=0?"normal":"reverse",m=r!==u?1-a:a;this.animation=this.el.animate(this.getKeyframes(),{duration:v,iterations:1/0,direction:u}),this.animation.currentTime=m*v,this._rotationsPerMinute===0&&this.animation.pause()}destroy(){this.animation?.cancel(),this.animation=void 0}hostDisconnected(){this.destroy()}};function vr(t,e){e&&(e.destroy(),t.removeController(e))}function ko(t){let{scale:e,inside:i,innerRadius:o,includeNorth:r}=t,a=16,n=8,v=368/2,u=g=>g*(i?o-n/e-a/2:v+n/e+a/2),m=[{label:"E",x:u(1),y:0},{label:"S",x:0,y:u(1)},{label:"W",x:u(-1),y:0}],b=e<.58;return(r||b||i)&&m.push({label:"N",x:0,y:u(-1)}),m}function N1(t,e){let i,o,r,a,n;typeof t=="number"?(i=t,o=e,r=!1,a=368/2):(i=t.scale,o=t.rotation,r=t.inside??!1,a=t.innerRadius??368/2,n=t.includeNorth);let v=ko({scale:i,inside:r,innerRadius:a,includeNorth:n});return l`
-    ${v.map(u=>l`
+  `}function va(r,e,i=0){const o=Dr(e,i);return s`
+    ${ca.map(t=>{const{cx:a,cy:n}=da(t,o);return s`<circle cx="${a}" cy="${n}" r="${as}" fill="${r}" />`})}
+  `}var l9=360/Io;var s9=ge/2;var Zt=class{constructor(e,i,o=1,t=0){this._rotationsPerMinute=1;this._cyclePx=0;this.host=e;this.el=i;this._rotationsPerMinute=o;this._cyclePx=t;this.host.addController(this)}set rotationsPerMinute(e){if(this._rotationsPerMinute!==e){this._rotationsPerMinute=e;this.updateAnimation()}}get rotationsPerMinute(){return this._rotationsPerMinute}set cyclePx(e){if(this._cyclePx!==e){this._cyclePx=e;this.updateAnimation()}}get cyclePx(){return this._cyclePx}get isTranslateMode(){return this._cyclePx>0}getKeyframes(){if(this.isTranslateMode){return[{transform:"translateX(0px)"},{transform:`translateX(${this._cyclePx}px)`}]}return[{transform:"rotate(0deg)"},{transform:"rotate(360deg)"}]}hostConnected(){this.startAnimation()}startAnimation(){const e=Math.abs(this._rotationsPerMinute);const i=e===0?1:1e3*60/e;this.animation=this.el.animate(this.getKeyframes(),{duration:i,iterations:Infinity,direction:this._rotationsPerMinute>=0?"normal":"reverse"});if(this._rotationsPerMinute===0){this.animation.pause()}}updateAnimation(){if(!this.animation)return;const e=this.animation.effect.getComputedTiming();const i=e.duration;const o=this.animation.currentTime??0;const t=e.direction;const a=o%i/i;this.animation.cancel();const n=Math.abs(this._rotationsPerMinute);const v=n===0?1:1e3*60/n;const u=this._rotationsPerMinute>=0?"normal":"reverse";const f=t!==u?1-a:a;this.animation=this.el.animate(this.getKeyframes(),{duration:v,iterations:Infinity,direction:u});this.animation.currentTime=f*v;if(this._rotationsPerMinute===0){this.animation.pause()}}destroy(){this.animation?.cancel();this.animation=void 0}hostDisconnected(){this.destroy()}};function St(r,e){if(e){e.destroy();r.removeController(e)}return void 0}function No(r){const{scale:e,inside:i,innerRadius:o,includeNorth:t}=r;const a=16;const n=8;const v=368/2;const u=g=>g*(i?o-n/e-a/2:v+n/e+a/2);const f=[{label:"E",x:u(1),y:0},{label:"S",x:0,y:u(1)},{label:"W",x:u(-1),y:0}];const w=e<.58;if(t||w||i){f.push({label:"N",x:0,y:u(-1)})}return f}function ma(r,e){let i;let o;let t;let a;let n;if(typeof r==="number"){i=r;o=e;t=false;a=368/2}else{i=r.scale;o=r.rotation;t=r.inside??false;a=r.innerRadius??368/2;n=r.includeNorth}const v=No({scale:i,inside:t,innerRadius:a,includeNorth:n});return s`
+    ${v.map(u=>s`
         <text
           x="${u.x}"
           y="${u.y}"
@@ -3562,27 +3561,27 @@ li .active {
           ${u.label}
         </text>
       `)}
-  `}function F1(t){let{scale:e,rotation:i,inside:o=!1}=t,r=368/2;return e<.58?o?l`
-        <g transform="translate(0, ${-r})">
+  `}function ga(r){const{scale:e,rotation:i,inside:o=false}=r;const t=368/2;const a=e<.58;if(a){if(o){return s`
+        <g transform="translate(0, ${-t})">
           <path fill-rule="evenodd" clip-rule="evenodd"
             d="M-17.8457 24.984 0 0 17.8458 24.984C11.9868 24.3338 6.0324 24 0 24-6.0323 24-11.9867 24.3338-17.8457 24.984Z"
             fill="var(--instrument-frame-tertiary-color)"/>
-        </g>`:l`
+        </g>`}else{return s`
         <defs>
           <mask id="circleMask">
-            <rect x="-${r}" y="-${r}" width="${r*2}" height="${r*2}" fill="black"/>
-            <circle cx="0" cy="0" r="${r}" fill="white"/>
+            <rect x="-${t}" y="-${t}" width="${t*2}" height="${t*2}" fill="black"/>
+            <circle cx="0" cy="0" r="${t}" fill="white"/>
           </mask>
         </defs>
-        <g mask="url(#circleMask)" transform="translate(0, ${-r})">
+        <g mask="url(#circleMask)" transform="translate(0, ${-t})">
           <path fill-rule="evenodd" clip-rule="evenodd"
             d="M-17.8457 24.984 0 0 17.8458 24.984C11.9868 24.3338 6.0324 24 0 24-6.0323 24-11.9867 24.3338-17.8457 24.984Z"
             fill="var(--instrument-frame-tertiary-color)"/>
-        </g>`:o?l`
+        </g>`}}if(o){return s`
       <path transform="translate(-256, -256)" fill-rule="evenodd" clip-rule="evenodd"
         d="M238.152 96.9842L255.998 72L273.844 96.9839C267.985 96.3338 262.031 96 256 96C249.967 96 244.012 96.3339 238.152 96.9842Z"
         fill="var(--instrument-frame-tertiary-color)"/>
-    `:l`
+    `}return s`
     <g transform="translate(0, ${(1/e-1)*188}) scale(${1/e})">
       <path transform="translate(-192, -224)"
         d="M 221.521 35.425 C 222.388 36.4644 222.821 36.9841 222.809 37.3627 C 222.8 37.6941 222.632 37.9916 222.354 38.1721 C 222.037 38.3783 221.361 38.2774 220.011 38.0756 A ${188*e} ${188*e} 0 0 0 163.989 38.0756 C 162.639 38.2774 161.964 38.3783 161.646 38.1721 C 161.368 37.9916 161.201 37.6941 161.191 37.3627 C 161.18 36.9841 161.613 36.4644 162.479 35.425 L 190.771 1.475 C 191.193 0.9685 191.404 0.7153 191.657 0.6229 C 191.879 0.5419 192.122 0.5419 192.343 0.6229 C 192.596 0.7153 192.807 0.9685 193.229 1.475 L 221.521 35.425 Z"
@@ -3591,27 +3590,27 @@ li .active {
 
     <defs>
       <mask id="circleMask">
-        <rect x="-${r}" y="-${r}" width="${r*2}" height="${r*2}" fill="black"/>
-        <circle cx="0" cy="0" r="${r}" fill="white"/>
+        <rect x="-${t}" y="-${t}" width="${t*2}" height="${t*2}" fill="black"/>
+        <circle cx="0" cy="0" r="${t}" fill="white"/>
       </mask>
     </defs>
-    <g mask="url(#circleMask)" transform="translate(0, ${-(r+10/e+30)}) scale(${.75/e}, ${.75/e}) rotate(${-(i??0)})" transform-origin="0 25">
+    <g mask="url(#circleMask)" transform="translate(0, ${-(t+10/e+30)}) scale(${.75/e}, ${.75/e}) rotate(${-(i??0)})" transform-origin="0 25">
       <path d="M5.003 29H2.091L-3.013 20.264H-3.077C-3.066 20.52-3.056 20.7813-3.045 21.048-3.034 21.3147-3.024 21.5867-3.013 21.864-2.992 22.1307-2.976 22.4027-2.965 22.68-2.954 22.9573-2.944 23.2347-2.933 23.512V29H-4.997V17.576H-2.101L2.987 26.232H3.035C3.024 25.9867 3.014 25.736 3.003 25.48 2.992 25.2133 2.982 24.952 2.971 24.696 2.971 24.4293 2.966 24.1627 2.955 23.896 2.944 23.6293 2.934 23.3627 2.923 23.096V17.576H5.003V29Z" fill="var(--element-active-inverted-color)"/>
     </g>
-  `}var U1=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  `}var fa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M92 66.6364H83.7941L83.1324 65.4385L84.2794 62.1943H85.2941L82.4265 60.9964H82.0735L81.8057 59.7842C81.7044 59.3261 81.2984 59 80.8292 59H79.1708C78.7016 59 78.2956 59.3261 78.1943 59.7842L77.9265 60.9964H77.5735L74.7059 62.1943H75.7206L76.8676 65.4385L76.2059 66.6364H68V67.0856H69.3235V70.2299H68V79.3137V80.0624L68.5089 82.024C68.9278 83.639 70.1096 84.8535 71.5707 85.1706L80 87L88.4293 85.1706C89.8904 84.8535 91.0722 83.639 91.4911 82.024L92 80.0624V79.3137V70.2299V66.6364ZM86.3529 71.9657V79.3137H70.081V71.9657H86.3529Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M92 80.0624L91.4911 82.024C91.0722 83.639 89.8904 84.8535 88.4293 85.1706L80 87L71.5707 85.1706C70.1096 84.8535 68.9278 83.639 68.5089 82.024L68 80.0624M92 80.0624H68M92 80.0624V79.3137M83.7941 66.6364H92V70.2299M83.7941 66.6364L83.1324 65.4385M83.7941 66.6364H76.2059M83.1324 65.4385L84.2794 62.1943M83.1324 65.4385H76.8676M84.2794 62.1943H85.2941L82.4265 60.9964H82.0735M84.2794 62.1943H75.7206M68 80.0624V79.3137M76.2059 66.6364H68V67.0856H69.3235V70.2299M76.2059 66.6364L76.8676 65.4385M76.8676 65.4385L75.7206 62.1943M75.7206 62.1943H74.7059L77.5735 60.9964H77.9265M68 79.3137H70.081M68 79.3137V70.2299H69.3235M92 79.3137H86.3529M92 79.3137V70.2299M86.3529 79.3137V71.9657H70.081V79.3137M86.3529 79.3137H70.081M69.3235 70.2299H92M82.0735 60.9964H81.7206H78.2794H77.9265M82.0735 60.9964L81.8057 59.7842C81.7044 59.3261 81.2984 59 80.8292 59H79.1708C78.7016 59 78.2956 59.3261 78.1943 59.7842L77.9265 60.9964" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var W1=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var ba=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 74.9115L13.0001 73.5L48.0001 73L52.8784 68.1352H75.4774L76.1648 65.6631L75.0908 62.3099H74.3605L76.6374 60H83.3628L85.6396 62.3099H84.9093L83.8353 65.6631L84.5227 68.1352H107.122L112 73L147 73.5L150 74.9115L150 80.16L147 81.8885L146.846 83.4086C146.791 83.95 146.452 84.3687 146.031 84.4377C145.96 84.4493 145.89 84.4476 145.818 84.4479C144.806 84.451 136.713 84.4895 128.544 84.9172C124.018 85.1541 118.577 85.6275 113.488 86.1336C102.356 87.2408 91.1872 88 80.0001 88C68.813 88 57.6441 87.2408 46.5119 86.1336C41.4228 85.6275 35.9817 85.1541 31.456 84.9172C23.2869 84.4895 15.194 84.451 14.182 84.4479C14.1104 84.4476 14.0397 84.4493 13.969 84.4377C13.5479 84.3687 13.2092 83.95 13.1543 83.4086L13.0001 81.8885L10.0001 80.16L10 74.9115Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M48.0001 73L13.0001 73.5L10 74.9115L10.0001 80.16M48.0001 73L52.8784 68.1352H75.4774M48.0001 73H112M75.4774 68.1352L76.1648 65.6631M75.4774 68.1352H84.5227M76.1648 65.6631L75.0908 62.3099M76.1648 65.6631H83.8353M75.0908 62.3099H74.3605L76.6374 60H83.3628L85.6396 62.3099H84.9093M75.0908 62.3099H84.9093M10.0001 80.16L13.0001 81.8885L13.1543 83.4086C13.2092 83.95 13.5479 84.3687 13.969 84.4377C14.0397 84.4493 14.1104 84.4476 14.182 84.4479C15.194 84.451 23.2869 84.4895 31.456 84.9172C35.9817 85.1541 41.4228 85.6275 46.5119 86.1336C57.6441 87.2408 68.813 88 80.0001 88C91.1872 88 102.356 87.2408 113.488 86.1336C118.577 85.6275 124.018 85.1541 128.544 84.9172C136.713 84.4895 144.806 84.451 145.818 84.4479C145.89 84.4476 145.96 84.4493 146.031 84.4377C146.452 84.3687 146.791 83.95 146.846 83.4086L147 81.8885L150 80.16M10.0001 80.16H150M112 73L147 73.5L150 74.9115L150 80.16M112 73L107.122 68.1352H84.5227M84.5227 68.1352L83.8353 65.6631M83.8353 65.6631L84.9093 62.3099" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var G1=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var wa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M80.0007 151.999C73.373 152 68 146.627 68 139.999L68 128.776L68 104.642L68 56.7557L68 19.9992C68 13.3717 73.3726 7.99916 80 7.99916C86.6274 7.99916 92 13.3717 92 19.9992L92 23.108L92 56.7557L92 108.092L92 137.357L92 139.999C92 146.626 86.6278 151.999 80.0007 151.999Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M85.8387 85.9422L73.9677 85.9422L73.9677 74.336L85.8387 74.336L85.8387 85.9422Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M92 108.092L86.2419 108.092M92 108.092L92 56.7557M92 108.092L92 137.357M86.2419 108.092L84.4516 104.642L72.9355 104.642L68 104.642M86.2419 108.092L86.2419 137.357L92 137.357M68 104.642L68 128.776L68 139.999C68 146.627 73.373 152 80.0007 151.999V151.999C86.6278 151.999 92 146.626 92 139.999L92 137.357M68 104.642L68 56.7557M68 56.7557L68 19.9992C68 13.3717 73.3726 7.99916 80 7.99916V7.99916V7.99916C86.6274 7.99916 92 13.3717 92 19.9992L92 23.108M68 56.7557L86.2419 56.7557M92 56.7557L86.2419 56.7557M92 56.7557L92 23.108M86.2419 56.7557L86.2419 23.108L92 23.108M73.9677 85.9422L85.8387 85.9422M73.9677 85.9422L73.9677 74.336M73.9677 85.9422L76.5806 83.424M85.8387 85.9422L85.8387 74.336M85.8387 85.9422L83.2258 83.424M85.8387 74.336L73.9677 74.336M85.8387 74.336L83.2258 76.8541M73.9677 74.336L76.5806 76.8541M76.5806 83.424L83.2258 83.424M76.5806 83.424L76.5806 76.8541M83.2258 83.424L83.2258 76.8541M83.2258 76.8541L76.5806 76.8541" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var q1=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var ya=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <rect x="60" y="52" width="40" height="3" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M80.0036 77.9545V87C80.0036 87 83.7476 81.9921 82.7622 80C82.1928 78.8489 80.0036 77.9545 80.0036 77.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80.0036 87V77.9545C80.0036 77.9545 77.8718 78.8255 77.2684 79.9545C77.2603 79.9697 77.2525 79.9848 77.245 80C76.2596 81.9921 80.0036 87 80.0036 87Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3635,16 +3634,16 @@ li .active {
 <path d="M96 55L91 60" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M64 55L69 60" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var X1=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ca=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M140.366 87.1181H21.3855V83.0385L12.4844 80V71H18.4844V63L22 44H26V63H32.4844V53.5604V50.1099L31 48.9973L32 48.1429H37.4294L37.2747 38.5H39.5L41.88 48.1429H45.8152C48.7962 48.1429 51.7388 48.8152 54.4239 50.1099H52.5695L50.3443 53.5604V71H117.416L124.833 64.1236H148C148 64.1236 146.5 67 144.5 71C143.302 73.3966 143.5 75.6209 143.5 75.6209C145.701 75.6209 147.484 77.4047 147.484 79.6053V80C147.484 83.9312 144.297 87.1181 140.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80H147.484M12.4844 80L21.3855 83.0385V87.1181H140.366C144.297 87.1181 147.484 83.9312 147.484 80V80M12.4844 80V71H18.4844M147.484 80V79.6053C147.484 77.4047 145.701 75.6209 143.5 75.6209V75.6209C143.5 75.6209 143.302 73.3966 144.5 71C146.5 67 148 64.1236 148 64.1236H124.833L117.416 71H50.3443M18.4844 71H50.3443M18.4844 71V63L22 44H26V63H32.4844V53.5604M32.4844 53.5604H50.3443M32.4844 53.5604V50.1099M50.3443 53.5604L52.5695 50.1099H32.4844M50.3443 53.5604V71M32.4844 50.1099H54.4239V50.1099C51.7388 48.8152 48.7962 48.1429 45.8152 48.1429H41.88M32.4844 50.1099L31 48.9973L32 48.1429H37.4294M41.88 48.1429L39.5 38.5H37.2747L37.4294 48.1429M41.88 48.1429H37.4294" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="136" cy="70" r="2" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Y1=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var La=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 146.75L66.5 32.1402C66.5 11.5 80 9.25 80 9.25C80 9.25 93.5 11.5 93.5 32.1402L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M74 122L64 122L64 118L72 118L75 114L85 114L88 118L96 118L96 122L86 122L86 138.75L74 138.75L74 122Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var J1=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var ka=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M80 77.9545V87C80 87 83.744 81.9921 82.7586 80C82.1892 78.8489 80 77.9545 80 77.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 87V77.9545C80 77.9545 77.8682 78.8255 77.2648 79.9545C77.2567 79.9697 77.2489 79.9848 77.2414 80C76.256 81.9921 80 87 80 87Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 87H90.7692C92.9784 87 94.7692 85.2091 94.7692 83V80H82.7586C83.744 81.9921 80 87 80 87Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3666,7 +3665,7 @@ li .active {
 <path d="M94.7728 64H92.3113H80.0036L80.0036 77.9545C80.0036 77.9545 82.1928 78.8489 82.7622 80H94.7728V79.9545V74V64Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M65.2344 79.9545V83C65.2344 85.2091 67.0252 87 69.2344 87H80.0036M65.2344 79.9545V74V64H67.6959H80.0036M65.2344 79.9545H77.2684M80.0036 64H92.3113H94.7728V74V79.9545V80M80.0036 64L80.0036 77.9545M80.0036 87H90.7728C92.982 87 94.7728 85.2091 94.7728 83V80M80.0036 87V77.9545M80.0036 87C80.0036 87 83.7476 81.9921 82.7622 80M80.0036 87C80.0036 87 76.2596 81.9921 77.245 80C77.2525 79.9848 77.2603 79.9697 77.2684 79.9545M80.0036 77.9545C80.0036 77.9545 82.1928 78.8489 82.7622 80M80.0036 77.9545C80.0036 77.9545 77.8718 78.8255 77.2684 79.9545M82.7622 80H94.7728M75.5898 72L75.0381 71H71.7277L72.2795 72H75.5898ZM83.8657 72L84.4174 71H87.7277L87.176 72H83.8657Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Q1=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var xa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M119.273 71V66.7333H112V65.1818H112.727V56.6485V39.1939V20.1879V8.16364H112V7H128V8.16364V65.1818V66.7333H125.455V71H119.273Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M112.727 65.1818H112V66.7333H119.273V71H125.455V66.7333H128V65.1818M112.727 65.1818H128M112.727 65.1818V56.6485M112.727 8.16364H112V7H128V8.16364M112.727 8.16364H128M112.727 8.16364V20.1879M128 65.1818V8.16364M112.727 20.1879H122.545M112.727 20.1879V39.1939M112.727 39.1939H122.545M112.727 39.1939V56.6485M112.727 56.6485H122.545" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M140.366 87.1181H21.3855V83.0385L12.4844 80V71V58.5604V54.1099L11 52.9973L12 51.1429H17.4294L17.2747 41.5H19.5L21.88 51.1429H25.2998C28.5783 51.1429 31.7725 52.1816 34.4239 54.1099H32.5695L30.3443 58.5604V71H117.416L124.833 64.1236H146.743C146.743 64.1236 143.808 67.7438 142.292 70.614C141.041 72.9834 139.325 77.1044 139.325 77.1044L143.176 76.4042C145.419 75.9963 147.484 77.7198 147.484 80C147.484 83.9312 144.297 87.1181 140.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3678,7 +3677,7 @@ li .active {
 <path d="M47.2727 71V66.7333H40V65.1818H40.7273V56.6485V39.1939V20.1879V8.16364H40V7H56V8.16364V65.1818V66.7333H53.4545V71H47.2727Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M40.7273 65.1818H40V66.7333H47.2727V71H53.4545V66.7333H56V65.1818M40.7273 65.1818H56M40.7273 65.1818V56.6485M40.7273 8.16364H40V7H56V8.16364M40.7273 8.16364H56M40.7273 8.16364V20.1879M56 65.1818V8.16364M40.7273 20.1879H50.5455M40.7273 20.1879V39.1939M40.7273 39.1939H50.5455M40.7273 39.1939V56.6485M40.7273 56.6485H50.5455" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var K1=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ma=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 146.75L66.5 32.1402C66.5 11.5 80 9.25 80 9.25C80 9.25 93.5 11.5 93.5 32.1402L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M74 140L64 140L64 128L72 128L75 124L85 124L88 128L96 128L96 140L86 140L86 148.75L74 148.75L74 140Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M76.3472 21.6677C78.2643 22.1593 79.8323 23.5259 80.5811 25.3486L80.7239 25.7307L83.565 34.1692L77.6776 27.4895C76.2735 25.8965 75.7779 23.7047 76.3472 21.6677Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -3686,11 +3685,11 @@ li .active {
 <path d="M76.3472 69.6667C78.2643 70.1584 79.8323 71.5249 80.5811 73.3476L80.7239 73.7297L83.565 82.1682L77.6776 75.4885C76.2735 73.8955 75.7779 71.7037 76.3472 69.6667Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M76.3472 93.6667C78.2643 94.1584 79.8323 95.5249 80.5811 97.3476L80.7239 97.7297L83.565 106.168L77.6776 99.4885C76.2735 97.8955 75.7779 95.7037 76.3472 93.6667Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var ei=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ha=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M132.366 87.1181H29.3855V83.0385L20.4844 80V71.5412H24V68.7912H20.4844V66.0412H24V51.1429H31.5L36 66.0412H48L51.5 71.5412H54.4157L55.575 61.5604L54.0915 57.1099H52.608L54.4157 54.1429H57.4294L54.4624 44.5H56.6877L61.88 54.1429C65.3312 54.1429 68.772 54.5206 72.1409 55.2692L80.4239 57.1099H78.5695L76.3443 61.5604L88.5 71.0827C102.374 69.3897 109.424 63.1236 109.424 63.1236H118L115.5 51.1429H118L122 63.1236H140.743C132 69.5 130.325 77.1044 130.325 77.1044L135.162 76.321C137.428 75.9539 139.484 77.7039 139.484 80C139.484 83.9312 136.297 87.1181 132.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M20.4844 80H139.484M20.4844 80L29.3855 83.0385V87.1181H132.366C136.297 87.1181 139.484 83.9312 139.484 80V80M20.4844 80V71.5412H24V68.7912H20.4844V66.0412H24M139.484 80V80C139.484 77.7039 137.428 75.9539 135.162 76.321L130.325 77.1044C130.325 77.1044 132 69.5 140.743 63.1236H122M54.4157 71.5412C54.4157 71.5412 75.9997 71.5 81.5 71.5C100 71.5 109.424 63.1236 109.424 63.1236H118M54.4157 71.5412L55.575 61.5604M54.4157 71.5412H51.5L48 66.0412H36M55.575 61.5604H76.3443M55.575 61.5604L54.0915 57.1099H78.5695L76.3443 61.5604M76.3443 61.5604L88.5 71.0827M61.88 54.1429V54.1429C65.3312 54.1429 68.772 54.5206 72.1409 55.2692L80.4239 57.1099H52.608L54.4157 54.1429H57.4294M61.88 54.1429L56.6877 44.5H54.4624L57.4294 54.1429M61.88 54.1429H57.4294M24 66.0412V51.1429H31.5L36 66.0412M24 66.0412H36M122 63.1236L118 51.1429H115.5L118 63.1236M122 63.1236H118" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var ti=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var $a=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M80 18.25C80 18.25 93.5 18.25 93.5 51.1402L93.5 94.2378L93.5 122L93.5 128L93.5 135L93.5 139.75C93.5 140.855 92.6046 141.75 91.5 141.75L90.125 141.75L69.875 141.75L68.5 141.75C67.3954 141.75 66.5 140.855 66.5 139.75L66.5 135L66.5 128L66.5 122L66.5 51.1402C66.5 18.25 80 18.25 80 18.25Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M66.5 135L66.5 139.75C66.5 140.855 67.3954 141.75 68.5 141.75L69.875 141.75L90.125 141.75L91.5 141.75C92.6046 141.75 93.5 140.855 93.5 139.75L93.5 135M66.5 135L93.5 135M66.5 135L66.5 128M93.5 135L93.5 128M93.5 122L93.5 94.2378L93.5 51.1402C93.5 18.25 80 18.25 80 18.25C80 18.25 66.5 18.25 66.5 51.1402L66.5 122M93.5 122L93.5 128M93.5 122L88 122L88 128M93.5 128L88 128M66.5 128L66.5 122M66.5 128L72 128M88 128L72 128M66.5 122L72 122L72 128M82 34L81.5 42.5L78.5 42.5L78 34L82 34Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M71 103.375L64.25 103.375L64.25 94.375C64.25 94.375 67.4029 89.009 69.5 86C71.7705 82.7422 75.5 78.625 75.5 78.625L84.5 78.625C84.5 78.625 87.8347 82.9839 90 86C92.2512 89.1357 95.75 94.375 95.75 94.375L95.75 103.375L89 103.375L85.625 103.5L74.375 103.5L71 103.375Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3698,25 +3697,25 @@ li .active {
 <path d="M85.625 97.625L85.625 103.25L83.375 104.375L76.625 104.375L74.375 103.25L74.375 97.625L76.625 101L83.375 101L85.625 97.625Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M83.375 101L85.625 97.625L85.625 103.25L83.375 104.375M83.375 101L76.625 101M83.375 101L83.375 104.375M76.625 101L74.375 97.625L74.375 103.25L76.625 104.375M76.625 101L76.625 104.375M76.625 104.375L83.375 104.375" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var ri=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var _a=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M68 66.6364H76.2059L76.8676 65.4385L75.7206 62.1943H74.7059L77.5735 60.9964H77.9265L78.1943 59.7842C78.2956 59.3261 78.7016 59 79.1708 59H80.8292C81.2984 59 81.7044 59.3261 81.8057 59.7842L82.0735 60.9964H82.4265L85.2941 62.1943H84.2794L83.1324 65.4385L83.7941 66.6364H92V67.0856H90.6765V70.2299H92V79.3137V80.0624L91.4911 82.024C91.0722 83.639 89.8904 84.8535 88.4293 85.1706L80 87L71.5707 85.1706C70.1096 84.8535 68.9278 83.639 68.5089 82.024L68 80.0624V79.3137V70.2299V66.6364ZM73.6471 71.9657V79.3137H89.919V71.9657H73.6471Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M68 80.0624L68.5089 82.024C68.9278 83.639 70.1096 84.8535 71.5707 85.1706L80 87L88.4293 85.1706C89.8904 84.8535 91.0722 83.639 91.4911 82.024L92 80.0624M68 80.0624H92M68 80.0624V79.3137M76.2059 66.6364H68V70.2299M76.2059 66.6364L76.8676 65.4385M76.2059 66.6364H83.7941M76.8676 65.4385L75.7206 62.1943M76.8676 65.4385H83.1324M75.7206 62.1943H74.7059L77.5735 60.9964H77.9265M75.7206 62.1943H84.2794M92 80.0624V79.3137M83.7941 66.6364H92V67.0856H90.6765V70.2299M83.7941 66.6364L83.1324 65.4385M83.1324 65.4385L84.2794 62.1943M84.2794 62.1943H85.2941L82.4265 60.9964H82.0735M92 79.3137H89.919M92 79.3137V70.2299H90.6765M68 79.3137H73.6471M68 79.3137V70.2299M73.6471 79.3137V71.9657H89.919V79.3137M73.6471 79.3137H89.919M90.6765 70.2299H68M77.9265 60.9964H78.2794H81.7206H82.0735M77.9265 60.9964L78.1943 59.7842C78.2956 59.3261 78.7016 59 79.1708 59H80.8292C81.2984 59 81.7044 59.3261 81.8057 59.7842L82.0735 60.9964" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var oi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Va=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <mask id="path-1-inside-1_208_29995" fill="white">
 <path d="M125.032 93.6077C139.926 93.6077 152 81.5337 152 66.6396L11.7453 66.6396L11.7453 93.6076L125.032 93.6077Z"/>
 </mask>
 <path d="M125.032 93.6077C139.926 93.6077 152 81.5337 152 66.6396L11.7453 66.6396L11.7453 93.6076L125.032 93.6077Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M152 66.6396L154 66.6396L154 64.6396L152 64.6396L152 66.6396ZM11.7453 66.6396L11.7453 64.6396L9.74529 64.6396L9.74529 66.6396L11.7453 66.6396ZM11.7453 93.6076L9.74528 93.6076L9.74528 95.6076L11.7453 95.6076L11.7453 93.6076ZM125.032 95.6077C141.031 95.6077 154 82.6382 154 66.6396L150 66.6396C150 80.4291 138.821 91.6077 125.032 91.6077L125.032 95.6077ZM152 64.6396L11.7453 64.6396L11.7453 68.6396L152 68.6396L152 64.6396ZM9.74529 66.6396L9.74528 93.6076L13.7453 93.6076L13.7453 66.6396L9.74529 66.6396ZM11.7453 95.6076L125.032 95.6077L125.032 91.6077L11.7453 91.6076L11.7453 95.6076Z" fill="var(--instrument-tick-mark-secondary-color)" mask="url(#path-1-inside-1_208_29995)"/>
 </svg>
-`;var ii=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Za=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <mask id="path-1-inside-1_208_29982" fill="white">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M80 9.18359C71.6308 14.0249 66 23.0737 66 33.4377L66 151.06L94 151.06L94 33.4377C94 23.0737 88.3692 14.0249 80 9.18359Z"/>
 </mask>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M80 9.18359C71.6308 14.0249 66 23.0737 66 33.4377L66 151.06L94 151.06L94 33.4377C94 23.0737 88.3692 14.0249 80 9.18359Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 9.18359L81.0014 7.45238L80 6.87307L78.9985 7.45238L80 9.18359ZM66 151.06L64 151.06L64 153.06L66 153.06L66 151.06ZM94 151.06L94 153.06L96 153.06L96 151.06L94 151.06ZM68 33.4377C68 23.8165 73.2248 15.4133 81.0014 10.9148L78.9985 7.45238C70.0367 12.6365 64 22.3309 64 33.4377L68 33.4377ZM64 33.4377L64 151.06L68 151.06L68 33.4377L64 33.4377ZM66 153.06L94 153.06L94 149.06L66 149.06L66 153.06ZM96 151.06L96 33.4377L92 33.4377L92 151.06L96 151.06ZM96 33.4377C96 22.3309 89.9633 12.6365 81.0014 7.45238L78.9985 10.9148C86.7752 15.4133 92 23.8165 92 33.4377L96 33.4377Z" fill="var(--instrument-tick-mark-secondary-color)" mask="url(#path-1-inside-1_208_29982)"/>
 </svg>
-`;var ai=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Sa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M67.1154 52.6364H93.8846H95L91.6538 49.2273H85.9615H75.0385H69.3462L66 52.6364H67.1154Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M67.1154 79.9545H93.8846V74H91.6538H69.3462H67.1154V79.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M67.1154 83C67.1154 85.2091 68.9062 87 71.1154 87H89.8846C92.0938 87 93.8846 85.2091 93.8846 83V79.9545H67.1154V83Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3727,7 +3726,7 @@ li .active {
 <path d="M82.7308 41H78.2692L75.0385 49.2273H76.7115L79.3846 42.4205H81.6154L84.2885 49.2273H85.9615L82.7308 41Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M91.6538 64H93.8846V74M91.6538 64V57.75M91.6538 64V74M91.6538 57.75L93.8846 52.6364M91.6538 57.75H69.3462M93.8846 52.6364H67.1154M93.8846 52.6364H95L91.6538 49.2273H85.9615M67.1154 52.6364L69.3462 57.75M67.1154 52.6364H66L69.3462 49.2273H75.0385M69.3462 57.75V64M69.3462 64H67.1154V74M69.3462 64V74M75.0385 49.2273H85.9615M75.0385 49.2273L78.2692 41H82.7308L85.9615 49.2273M75.0385 49.2273H76.7115L79.3846 42.4205H81.6154L84.2885 49.2273H85.9615M93.8846 79.9545V83C93.8846 85.2091 92.0938 87 89.8846 87H71.1154C68.9062 87 67.1154 85.2091 67.1154 83V79.9545M93.8846 79.9545H67.1154M93.8846 79.9545V74M67.1154 79.9545V74M67.1154 74H69.3462M93.8846 74H91.6538M91.6538 74H69.3462" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var ni=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Aa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M80 77.9545V87C80 87 83.744 81.9921 82.7586 80C82.1892 78.8489 80 77.9545 80 77.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 87V77.9545C80 77.9545 77.8682 78.8255 77.2648 79.9545C77.2567 79.9697 77.2489 79.9848 77.2414 80C76.256 81.9921 80 87 80 87Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 87H90.7692C92.9784 87 94.7692 85.2091 94.7692 83V80H82.7586C83.744 81.9921 80 87 80 87Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3740,11 +3739,11 @@ li .active {
 <path d="M82.4615 41H77.5385L73.9735 49.2273H75.8196L78.7692 42.4205H81.2308L84.1804 49.2273H86.0265L82.4615 41Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M92.3077 64H94.7692V74V79.9545V80M92.3077 64V57.75M92.3077 64H80M92.3077 57.75L94.7692 52.6364M92.3077 57.75H67.6923M94.7692 52.6364H65.2308M94.7692 52.6364H96L92.3077 49.2273H86.0265M65.2308 52.6364L67.6923 57.75M65.2308 52.6364H64L67.6923 49.2273H73.9735M67.6923 57.75V64M67.6923 64H65.2308V74V79.9545M67.6923 64H80M73.9735 49.2273H86.0265M73.9735 49.2273L77.5385 41H82.4615L86.0265 49.2273M73.9735 49.2273H75.8196M86.0265 49.2273H84.1804M65.2308 79.9545V83C65.2308 85.2091 67.0216 87 69.2308 87H80M65.2308 79.9545H77.2648M75.8196 49.2273L78.7692 42.4205H81.2308L84.1804 49.2273M75.8196 49.2273H84.1804M80 64L80 77.9545M80 87H90.7692C92.9784 87 94.7692 85.2091 94.7692 83V80M80 87V77.9545M80 87C80 87 83.744 81.9921 82.7586 80M80 87C80 87 76.256 81.9921 77.2414 80C77.2489 79.9848 77.2567 79.9697 77.2648 79.9545M80 77.9545C80 77.9545 82.1892 78.8489 82.7586 80M80 77.9545C80 77.9545 77.8682 78.8255 77.2648 79.9545M82.7586 80H94.7692M75.5862 72L75.0345 71H71.7241L72.2759 72H75.5862ZM83.8621 72L84.4138 71H87.7241L87.1724 72H83.8621Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var si=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Pa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M140.366 87.1181H21.3855V83.0385L12.4844 80V71.5412H92.5943L105.575 58.5604L104.092 54.1099H102.608L104.092 52.9973H106.688V51.1429H107.429L104.462 41.5H106.688L111.88 51.1429C115.331 51.1429 118.772 51.5206 122.141 52.2692L130.424 54.1099H128.57L126.344 58.5604L131.907 64.1236H146.743C146.743 64.1236 143.808 67.7438 142.292 70.614C141.041 72.9834 139.325 77.1044 139.325 77.1044L143.176 76.4042C145.419 75.9963 147.484 77.7198 147.484 80C147.484 83.9312 144.297 87.1181 140.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80H147.484M12.4844 80L21.3855 83.0385V87.1181H140.366C144.297 87.1181 147.484 83.9312 147.484 80V80M12.4844 80V71.5412H92.5943M147.484 80V80C147.484 77.7198 145.419 75.9963 143.176 76.4042L139.325 77.1044C139.325 77.1044 141.041 72.9834 142.292 70.614C143.808 67.7438 146.743 64.1236 146.743 64.1236H131.907M92.5943 71.5412H97.4157L104.833 64.1236H131.907M92.5943 71.5412L105.575 58.5604M105.575 58.5604H126.344M105.575 58.5604L104.092 54.1099H128.57L126.344 58.5604M126.344 58.5604L131.907 64.1236M111.88 51.1429V51.1429C115.331 51.1429 118.772 51.5206 122.141 52.2692L130.424 54.1099H102.608L104.092 52.9973H106.688V51.1429H107.429M111.88 51.1429L106.688 41.5H104.462L107.429 51.1429M111.88 51.1429H107.429" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var li=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Oa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 74.4634L66.5 42.1402C66.5 9.25 80 9.25 80 9.25C80 9.25 93.5 9.25 93.5 42.1402L93.5 85.2378L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75L66.5 74.4634Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M66.5 74.4634L71 67.6585L71 61.9878L89.5625 61.9878L89.5625 81.2683L93.5 85.2378M93.5 85.2378L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75L66.5 42.1402C66.5 9.25 80 9.25 80 9.25C80 9.25 93.5 9.25 93.5 42.1402L93.5 85.2378Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M71 55.375L64.25 55.375L64.25 46.375L71 41.875L75.5 30.625L84.5 30.625L89 41.875L95.75 46.375L95.75 55.375L89 55.375L85.625 58.75L74.375 58.75L71 55.375Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3752,11 +3751,11 @@ li .active {
 <path d="M85.625 49.625L85.625 55.25L83.375 56.375L76.625 56.375L74.375 55.25L74.375 49.625L76.625 53L83.375 53L85.625 49.625Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M83.375 53L85.625 49.625L85.625 55.25L83.375 56.375M83.375 53L76.625 53M83.375 53L83.375 56.375M76.625 53L74.375 49.625L74.375 55.25L76.625 56.375M76.625 53L76.625 56.375M76.625 56.375L83.375 56.375" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var ci=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ta=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M21.3861 87.1181H140.367C144.298 87.1181 147.485 83.9312 147.485 80C147.485 77.3161 145.721 75.4558 143.354 74.1896C142.097 73.5171 141.313 72.47 142.293 70.614C143.809 67.7438 147.485 61 147.485 61C139.641 59.2601 125.9 58.5457 110.345 58.2682V55.5604L112.57 51.1099H114.425L106.142 49.2692C102.773 48.5206 99.3318 48.1429 95.8807 48.1429L94.7268 46H102.001L104.834 43H93.0345L90.6883 38.5H88.4631L90.2323 43H74.5007V26H64.0007V71.5412H8.48505C8.48505 71.5412 7.50138 78 12.485 80L21.3861 83.0385V87.1181ZM75.8339 58.1236L74.5007 60.5354V48.1429V46H90.7708L91.4301 48.1429H89.6883L86.6883 49.9973H77.0922L75.6087 51.1099H77.0922L78.5757 55.5604V58.1199C77.6695 58.1223 76.7557 58.1236 75.8339 58.1236Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.485 80C65.2058 80 147.485 80 147.485 80M12.485 80C15.9611 81.1866 21.3861 83.0385 21.3861 83.0385M12.485 80C7.50138 78 8.48505 71.5412 8.48505 71.5412H64.0007M12.485 80L21.3861 83.0385M147.485 80V80C147.485 83.9312 144.298 87.1181 140.367 87.1181V87.1181M147.485 80V80C147.485 77.3161 145.721 75.4557 143.354 74.1896V74.1896M147.485 80C147.485 77.3161 145.721 75.4558 143.354 74.1896M147.485 80C147.485 83.9312 144.298 87.1181 140.367 87.1181M21.3861 83.0385V87.1181H140.367M147.485 61C147.485 61 143.809 67.7438 142.293 70.614C141.313 72.47 142.097 73.5171 143.354 74.1896M147.485 61C134.501 58.1199 105.36 58.0499 78.5757 58.1199M147.485 61C139.641 59.2601 125.9 58.5457 110.345 58.2682V55.5604M78.5757 55.5604H110.345M78.5757 55.5604L77.0922 51.1099M78.5757 55.5604V58.1199M110.345 55.5604L112.57 51.1099M112.57 51.1099H77.0922M112.57 51.1099H114.425M77.0922 51.1099H75.6087M75.6087 51.1099H114.425M75.6087 51.1099L77.0922 49.9973H86.6883L89.6883 48.1429H91.4301M114.425 51.1099L106.142 49.2692M95.8807 48.1429V48.1429C99.3318 48.1429 102.773 48.5206 106.142 49.2692V49.2692M95.8807 48.1429H91.4301M95.8807 48.1429L94.7268 46M95.8807 48.1429C99.3318 48.1429 102.773 48.5206 106.142 49.2692M91.4301 48.1429L90.7708 46M64.0007 71.5412V26H74.5007V43M64.0007 71.5412H68.4164L74.5007 60.5354M74.5007 46V48.1429V60.5354M74.5007 46V43M74.5007 46H90.7708M74.5007 43H90.2323M93.0345 43H104.834L102.001 46H94.7268M93.0345 43L90.6883 38.5H88.4631L90.2323 43M93.0345 43H90.2323M90.7708 46H94.7268M74.5007 60.842V60.5354M78.5757 58.1199C77.6695 58.1223 76.7557 58.1236 75.8339 58.1236L74.5007 60.5354" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var di=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var za=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 81L66.5 42.1402C66.5 9.25 80 9.25 80 9.25C80 9.25 93.5 9.25 93.5 42.1402L93.5 81L93.5 135.25C93.5 142.706 87.4558 148.75 80 148.75C72.5442 148.75 66.5 142.706 66.5 135.25L66.5 81Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M66.5 81L73 81L73 77.9878L87 77.9878L87 81L93.5 81M93.5 81L93.5 135.25C93.5 142.706 87.4558 148.75 80 148.75V148.75C72.5442 148.75 66.5 142.706 66.5 135.25L66.5 42.1402C66.5 9.25 80 9.25 80 9.25C80 9.25 93.5 9.25 93.5 42.1402L93.5 81Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M74.375 80.125L71.5 84L67 84L64 80L64 65L71 59.25L75.5 46L84.5 46L89 59.25L96 65L96 80.125L93 84L88.5 84L85.625 80.125L85.625 76L74.375 76L74.375 80.125Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3766,7 +3765,7 @@ li .active {
 <rect x="82.4185" y="91.8209" width="5" height="31" transform="rotate(-150 82.4185 91.8209)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="79.9992" cy="91.0031" r="5.5" transform="rotate(-150 79.9992 91.0031)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var pi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ba=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <rect x="60" y="52" width="40" height="3" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M80.0036 77.9545V87C80.0036 87 83.7476 81.9921 82.7622 80C82.1928 78.8489 80.0036 77.9545 80.0036 77.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80.0036 87V77.9545C80.0036 77.9545 77.8718 78.8255 77.2684 79.9545C77.2603 79.9697 77.2525 79.9848 77.245 80C76.2596 81.9921 80.0036 87 80.0036 87Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3792,29 +3791,29 @@ li .active {
 <path d="M96 55L91 60" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M64 55L69 60" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var hi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ea=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M53.0312 72H80.9609C80.4482 64.7347 74.3918 59 66.9961 59C59.6003 59 53.544 64.7347 53.0312 72ZM139.961 72C139.448 64.7347 133.392 59 125.996 59C118.6 59 112.544 64.7347 112.031 72H139.961ZM110.961 72C110.448 64.7347 104.392 59 96.9961 59C89.6003 59 83.544 64.7347 83.0312 72H110.961Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M53.0312 72L52.5325 71.9648L52.4947 72.5H53.0312V72ZM80.9609 72V72.5H81.4975L81.4597 71.9648L80.9609 72ZM139.961 72V72.5H140.497L140.46 71.9648L139.961 72ZM112.031 72L111.532 71.9648L111.495 72.5H112.031V72ZM110.961 72V72.5H111.497L111.46 71.9648L110.961 72ZM83.0312 72L82.5325 71.9648L82.4947 72.5H83.0312V72ZM53.0312 72.5H80.9609V71.5H53.0312V72.5ZM81.4597 71.9648C80.9286 64.4396 74.6562 58.5 66.9961 58.5V59.5C74.1275 59.5 79.9678 65.0299 80.4622 72.0352L81.4597 71.9648ZM66.9961 58.5C59.336 58.5 53.0636 64.4396 52.5325 71.9648L53.53 72.0352C54.0244 65.0299 59.8647 59.5 66.9961 59.5V58.5ZM140.46 71.9648C139.929 64.4396 133.656 58.5 125.996 58.5V59.5C133.127 59.5 138.968 65.0299 139.462 72.0352L140.46 71.9648ZM125.996 58.5C118.336 58.5 112.064 64.4396 111.532 71.9648L112.53 72.0352C113.024 65.0299 118.865 59.5 125.996 59.5V58.5ZM112.031 72.5H139.961V71.5H112.031V72.5ZM111.46 71.9648C110.929 64.4396 104.656 58.5 96.9961 58.5V59.5C104.127 59.5 109.968 65.0299 110.462 72.0352L111.46 71.9648ZM96.9961 58.5C89.336 58.5 83.0636 64.4396 82.5325 71.9648L83.53 72.0352C84.0244 65.0299 89.8647 59.5 96.9961 59.5V58.5ZM83.0312 72.5H110.961V71.5H83.0312V72.5Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M140.366 87.1181H21.3855V83.0385L12.4844 80V71H18.4844V63L22 44H26V63H32.4844V53.5604V50.1099L31 48.9973L32 48.1429H37.4294L37.2747 38.5H39.5L41.88 48.1429H45.8152C48.7962 48.1429 51.7388 48.8152 54.4239 50.1099H52.5695L50.3443 53.5604V71H117.416L124.833 64.1236H148C148 64.1236 148 68.5 145.5 71C143.605 72.8947 143.5 75.6209 143.5 75.6209C145.701 75.6209 147.484 77.4047 147.484 79.6053V80C147.484 83.9312 144.297 87.1181 140.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80H147.484M12.4844 80L21.3855 83.0385V87.1181H140.366C144.297 87.1181 147.484 83.9312 147.484 80V80M12.4844 80V71H18.4844M147.484 80V79.6053C147.484 77.4047 145.701 75.6209 143.5 75.6209V75.6209C143.5 75.6209 143.605 72.8947 145.5 71C148 68.5 148 64.1236 148 64.1236H124.833L117.416 71H50.3443M18.4844 71H50.3443M18.4844 71V63L22 44H26V63H32.4844V53.5604M32.4844 53.5604H50.3443M32.4844 53.5604V50.1099M50.3443 53.5604L52.5695 50.1099H32.4844M50.3443 53.5604V71M32.4844 50.1099H54.4239V50.1099C51.7388 48.8152 48.7962 48.1429 45.8152 48.1429H41.88M32.4844 50.1099L31 48.9973L32 48.1429H37.4294M41.88 48.1429L39.5 38.5H37.2747L37.4294 48.1429M41.88 48.1429H37.4294" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="136" cy="70" r="2" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var ui=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Da=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 146.75L66.5 32.1402C66.5 11.5 80 9.25 80 9.25C80 9.25 93.5 11.5 93.5 32.1402L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M74 122L64 122L64 118L72 118L75 114L85 114L88 118L96 118L96 122L86 122L86 138.75L74 138.75L74 122Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="80" cy="44" r="11.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="80" cy="70" r="11.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="80" cy="96" r="11.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var vi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ia=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M140.366 87.1182H21.3855V83.0386L12.4844 80.0001C12.4844 77.5441 14.487 75.5592 16.943 75.5812L21.3855 75.621L84.5943 75.5413L96.8333 64.1237H100.012V49.5H101H103H105.575L106.76 54.5605H115.281C122.13 54.5605 128.463 58.203 131.907 64.1237H138C141.233 66.387 144.251 70.5308 145.98 73.1767C147.01 74.7539 147.484 76.6105 147.484 78.4946V80.0001C147.484 83.9313 144.297 87.1182 140.366 87.1182Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80.0001H147.484M12.4844 80.0001L21.3855 83.0386V87.1182H140.366C144.297 87.1182 147.484 83.9313 147.484 80.0001V80.0001M12.4844 80.0001V80.0001C12.4844 77.5441 14.487 75.5592 16.943 75.5812L21.3855 75.621L84.5943 75.5413L96.8333 64.1237H100.012M147.484 80.0001V78.4946C147.484 76.6105 147.01 74.7539 145.98 73.1767C144.251 70.5308 141.233 66.387 138 64.1237H131.907M106.76 54.5605H115.281C122.13 54.5605 128.463 58.203 131.907 64.1237V64.1237M131.907 64.1237H109M100.012 64.1237V49.5H101M100.012 64.1237H109M109 64.1237L105.575 49.5H103M101 49.5V45M101 49.5H103M103 49.5V47" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var mi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var ja=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M147.484 80.0001L146.814 81.5981C145.412 84.9422 142.14 87.1182 138.514 87.1182H21.3855V83.0386L12.4844 80.0001C12.4844 77.5376 14.4806 75.5413 16.9432 75.5413H21L30.5 56.5H32H34.5H36.5L33.5 75.5413H36.5943L48.8333 64.1237H100.012H127.5L145.461 66.8188C147.93 67.1894 149.587 69.5517 149.094 72L147.484 80.0001Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80.0001L21.3855 83.0386V87.1182H138.514C142.14 87.1182 145.412 84.9422 146.814 81.5981L147.484 80.0001L149.094 72M12.4844 80.0001V80.0001C12.4844 77.5376 14.4806 75.5413 16.9432 75.5413H21M12.4844 80.0001H107.04C116.302 80.0001 125.519 78.7134 134.427 76.1768L149.094 72M21 75.5413L30.5 56.5H32M21 75.5413H33.5M33.5 75.5413H36.5943L48.8333 64.1237H100.012H127.5L145.461 66.8188C147.93 67.1894 149.587 69.5517 149.094 72V72M33.5 75.5413L36.5 56.5H34.5M34.5 56.5V48.5M34.5 56.5H32M32 56.5V53" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var fi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ra=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M121.033 100.2L101 80H96L118.289 99.8667C118.741 100.27 119 100.846 119 101.452V102.835C119 103.478 119.522 104 120.165 104C120.809 104 121.33 103.478 121.33 102.835V100.922C121.33 100.652 121.223 100.392 121.033 100.2Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M39.2975 100.2L59.3301 80H64.3301L42.0407 99.8667C41.5887 100.27 41.3301 100.846 41.3301 101.452V102.835C41.3301 103.478 40.8085 104 40.1651 104C39.5216 104 39 103.478 39 102.835V100.922C39 100.652 39.1069 100.392 39.2975 100.2Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M121.033 100.2L101 80H96L118.289 99.8667C118.741 100.27 119 100.846 119 101.452V102.835C119 103.478 119.522 104 120.165 104C120.809 104 121.33 103.478 121.33 102.835V100.922C121.33 100.652 121.223 100.392 121.033 100.2Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -3834,7 +3833,7 @@ li .active {
 <ellipse cx="80" cy="79" rx="4" ry="4" transform="rotate(90 80 79)" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <ellipse cx="81" cy="78" rx="2" ry="2" transform="rotate(90 81 78)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var gi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Na=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M131 75C133.209 75 135 76.7909 135 79C135 81.2091 133.209 83 131 83V75Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M132 84V74C132 73.4477 131.552 73 131 73H89L98.7002 84.6402C98.8901 84.8682 99.1716 85 99.4684 85H131C131.552 85 132 84.5523 132 84Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M129.736 73.4611L122.576 85.9923C122.22 86.6154 121.557 87 120.839 87H69.8301C69.2805 87 68.7346 86.9094 68.2144 86.7317L28 73V68.0879L29.1795 65.9233C30.0014 64.415 31.5399 63.4342 33.2542 63.3257L70 61H90L124.906 65.3632C125.627 65.4533 126.319 65.6995 126.935 66.0846L129.925 67.9534C129.972 67.9824 130 68.0332 130 68.0879V72.4689C130 72.8169 129.909 73.159 129.736 73.4611Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3852,7 +3851,7 @@ li .active {
 <rect x="12.5" y="57.5" width="51" height="7" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="96.5" y="57.5" width="51" height="7" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var bi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Fa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <ellipse cx="80" cy="25" rx="4" ry="4" transform="rotate(90 80 25)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M87.5 26L87.5 50C87.5 50.8284 86.8284 51.5 86 51.5L74 51.5C73.1716 51.5 72.5 50.8284 72.5 50L72.5 26C72.5 25.1716 73.1716 24.5 74 24.5L86 24.5C86.8284 24.5 87.5 25.1716 87.5 26Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <g clip-path="url(#clip0_25406_62468)">
@@ -3881,7 +3880,7 @@ li .active {
 </clipPath>
 </defs>
 </svg>
-`;var Ci=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ua=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M44 66.5C44 65.6716 44.6716 65 45.5 65C46.3284 65 47 65.6716 47 66.5V73H44V66.5Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M53.4165 67.8786L68.1048 66.6196C68.2285 66.609 68.226 66.4272 68.102 66.4201L52.9506 65.5543C52.3191 65.5182 51.6855 65.5572 51.0632 65.6703L46.5 66.5L50.6284 67.6259C51.5357 67.8734 52.4795 67.9589 53.4165 67.8786Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M37.0835 67.8786L22.3952 66.6196C22.2715 66.609 22.2741 66.4272 22.398 66.4201L37.5494 65.5543C38.1809 65.5182 38.8145 65.5572 39.4368 65.6703L44 66.5L39.8716 67.6259C38.9643 67.8734 38.0205 67.9589 37.0835 67.8786Z" fill="var(--instrument-tick-mark-secondary-color)"/>
@@ -3899,7 +3898,7 @@ li .active {
 <ellipse cx="80" cy="82" rx="4" ry="4" transform="rotate(90 80 82)" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <ellipse cx="81" cy="81" rx="2" ry="2" transform="rotate(90 81 81)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var yi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Wa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M99 78C101.209 78 103 79.7909 103 82C103 84.2091 101.209 86 99 86V78Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M99 87V78L56 77L65.7024 87.6727C65.892 87.8811 66.1606 88 66.4424 88H98C98.5523 88 99 87.5523 99 87Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M44 66.5C44 65.6716 44.6716 65 45.5 65C46.3284 65 47 65.6716 47 66.5V73H44V66.5Z" fill="var(--instrument-tick-mark-secondary-color)"/>
@@ -3916,7 +3915,7 @@ li .active {
 <path d="M100.817 86.0114L92 80H88L99.3611 86.0863C100.986 86.9567 102 88.6505 102 90.4937V95.5C102 95.7761 102.224 96 102.5 96C102.776 96 103 95.7761 103 95.5V90.1425C103 88.4892 102.183 86.9428 100.817 86.0114Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M58 90.0902V95.5C58 95.7761 57.7761 96 57.5 96C57.2239 96 57 95.7761 57 95.5V89.7447C57 88.0352 57.8734 86.4442 59.3156 85.5264L66.7716 80.7817C67.5739 80.2712 68.5051 80 69.456 80H72L60.7639 85.618C59.07 86.465 58 88.1963 58 90.0902Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var wi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ga=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <ellipse cx="80" cy="61" rx="4" ry="4" transform="rotate(90 80 61)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M86 60C87.1046 60 88 60.8954 88 62L88 86C88 87.1046 87.1046 88 86 88L74 88C72.8954 88 72 87.1046 72 86L72 62C72 60.8954 72.8954 60 74 60L86 60Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M113.61 46.5204C113.678 46.429 113.565 46.3127 113.472 46.3788L92.0296 61.7523C89.9911 63.2139 87.5458 63.9999 85.0374 63.9999H73.9992C71.4028 63.9999 68.8764 63.1578 66.7993 61.6L46.5198 46.3906C46.4283 46.3221 46.3126 46.4353 46.3791 46.5283L61.7526 67.9705C63.2142 70.0091 64.0002 72.4544 64.0002 74.9627V85.0371C64.0002 87.5455 63.2142 89.9908 61.7526 92.0293L46.3791 113.472C46.3125 113.565 46.4283 113.679 46.5198 113.61L66.8002 98.3999C68.8774 96.8421 71.4038 95.9999 74.0002 95.9999H85.0373C87.5457 95.9999 89.9911 96.786 92.0297 98.2477L113.472 113.622C113.565 113.688 113.678 113.572 113.61 113.48L98.4002 93.2009C96.8423 91.1237 96.0002 88.5974 96.0002 86.001V73.999C96.0002 71.4025 96.8424 68.8761 98.4003 66.7989L113.61 46.5204Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -3925,7 +3924,7 @@ li .active {
 <path fill-rule="evenodd" clip-rule="evenodd" d="M96.6179 32.8858C95.9071 32.5923 95.0906 32.7324 94.5183 33.2461L93.7409 33.9444C93.2354 34.3986 93.3203 35.2148 93.9089 35.5547L109.257 44.4151C108.517 46.6231 109.405 49.1196 111.5 50.3291C112.445 50.8748 113.494 51.0755 114.503 50.9727L114.672 51.4717C114.857 52.0166 115.269 52.455 115.801 52.6748L131.382 59.1114C132.092 59.405 132.909 59.2648 133.481 58.751L134.26 58.0528C134.764 57.5984 134.679 56.7843 134.091 56.4444L118.743 47.583C119.483 45.375 118.594 42.8785 116.5 41.669C115.555 41.1238 114.507 40.9221 113.499 41.0244L113.328 40.5254C113.142 39.981 112.731 39.5431 112.199 39.3233L96.6179 32.8858ZM112.001 46C112.002 46.6902 112.359 47.3615 113 47.7315C113.149 47.8175 113.305 47.8796 113.464 47.9239L114.17 49.9942C113.435 50.026 112.683 49.8576 112 49.4629C110.386 48.531 109.666 46.6438 110.144 44.9278L112.001 46ZM113.833 42.003C114.566 41.9716 115.317 42.141 116 42.5352C117.614 43.4671 118.332 45.3543 117.854 47.0703L115.998 45.9981C115.997 45.3079 115.64 44.6366 115 44.2666C114.851 44.1808 114.695 44.1185 114.537 44.0743L113.833 42.003Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M134.569 102.481C134.429 101.816 133.68 101.482 133.091 101.822L117.743 110.683C116.201 108.938 113.595 108.459 111.5 109.668C110.555 110.214 109.856 111.022 109.441 111.947L108.925 111.844C108.36 111.732 107.774 111.87 107.318 112.221L93.9533 122.495C93.3435 122.964 93.0562 123.741 93.215 124.494L93.4308 125.516C93.5715 126.181 94.3207 126.515 94.9093 126.176L110.257 117.314C111.799 119.059 114.405 119.537 116.5 118.328C117.444 117.783 118.143 116.976 118.559 116.052L119.076 116.153C119.641 116.265 120.226 116.127 120.682 115.776L134.047 105.503C134.657 105.034 134.944 104.255 134.785 103.503L134.569 102.481ZM117.544 115.851C117.205 116.502 116.683 117.069 116 117.463C114.386 118.395 112.392 118.074 111.145 116.802L113.001 115.729C113.599 116.074 114.359 116.1 115 115.73C115.149 115.644 115.281 115.54 115.399 115.426L117.544 115.851ZM112 110.534C113.614 109.602 115.608 109.923 116.856 111.195L114.999 112.267C114.401 111.923 113.641 111.897 113 112.266C112.851 112.353 112.719 112.457 112.602 112.572L110.455 112.147C110.795 111.496 111.317 110.929 112 110.534Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Li=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var qa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M121.033 100.2L101 80H96L118.289 99.8667C118.741 100.27 119 100.846 119 101.452V102.835C119 103.478 119.522 104 120.165 104C120.809 104 121.33 103.478 121.33 102.835V100.922C121.33 100.652 121.223 100.392 121.033 100.2Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M39.2975 100.2L59.3301 80H64.3301L42.0407 99.8667C41.5887 100.27 41.3301 100.846 41.3301 101.452V102.835C41.3301 103.478 40.8085 104 40.1651 104C39.5216 104 39 103.478 39 102.835V100.922C39 100.652 39.1069 100.392 39.2975 100.2Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M121.033 100.2L101 80H96L118.289 99.8667C118.741 100.27 119 100.846 119 101.452V102.835C119 103.478 119.522 104 120.165 104C120.809 104 121.33 103.478 121.33 102.835V100.922C121.33 100.652 121.223 100.392 121.033 100.2Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -3941,7 +3940,7 @@ li .active {
 <ellipse cx="80" cy="79" rx="4" ry="4" transform="rotate(90 80 79)" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <ellipse cx="81" cy="78" rx="2" ry="2" transform="rotate(90 81 78)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var ki=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Xa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M131 75C133.209 75 135 76.7909 135 79C135 81.2091 133.209 83 131 83V75Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M132 84V74C132 73.4477 131.552 73 131 73H89L98.7002 84.6402C98.8901 84.8682 99.1716 85 99.4684 85H131C131.552 85 132 84.5523 132 84Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M129.736 73.4611L122.576 85.9923C122.22 86.6154 121.557 87 120.839 87H69.8301C69.2805 87 68.7346 86.9094 68.2144 86.7317L28 73V68.0879L29.1795 65.9233C30.0014 64.415 31.5399 63.4342 33.2542 63.3257L70 61H90L124.906 65.3632C125.627 65.4533 126.319 65.6995 126.935 66.0846L129.925 67.9534C129.972 67.9824 130 68.0332 130 68.0879V72.4689C130 72.8169 129.909 73.159 129.736 73.4611Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3957,7 +3956,7 @@ li .active {
 <rect x="12.5" y="57.5" width="51" height="7" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="96.5" y="57.5" width="51" height="7" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Mi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ya=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <ellipse cx="80" cy="25" rx="4" ry="4" transform="rotate(90 80 25)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M87.5 26L87.5 50C87.5 50.8284 86.8284 51.5 86 51.5L74 51.5C73.1716 51.5 72.5 50.8284 72.5 50L72.5 26C72.5 25.1716 73.1716 24.5 74 24.5L86 24.5C86.8284 24.5 87.5 25.1716 87.5 26Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <g clip-path="url(#clip0_30829_50593)">
@@ -3993,7 +3992,7 @@ li .active {
 </clipPath>
 </defs>
 </svg>
-`;var xi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ka=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M114.2 36.8008C118.177 36.8008 121.4 40.0243 121.4 44.0008V119.601C121.4 119.747 121.39 119.89 121.373 120.031C121.348 120.242 121.305 120.446 121.245 120.644C121.239 120.665 121.233 120.685 121.226 120.706C121.179 120.852 121.123 120.994 121.058 121.132C121.05 121.149 121.042 121.166 121.034 121.183C121.016 121.218 120.998 121.253 120.98 121.288C120.971 121.305 120.962 121.322 120.953 121.338C120.934 121.373 120.913 121.407 120.893 121.441C120.886 121.453 120.88 121.465 120.873 121.476C120.82 121.562 120.764 121.644 120.705 121.725C120.695 121.739 120.685 121.753 120.674 121.767C120.472 122.035 120.234 122.273 119.967 122.475C119.953 122.485 119.938 122.495 119.924 122.506C119.844 122.565 119.761 122.621 119.676 122.673C119.664 122.68 119.652 122.687 119.641 122.694C119.606 122.714 119.572 122.734 119.538 122.753C119.521 122.763 119.504 122.772 119.488 122.781C119.453 122.799 119.418 122.817 119.382 122.834C119.365 122.843 119.348 122.851 119.331 122.859C119.294 122.876 119.256 122.893 119.219 122.909C119.209 122.913 119.2 122.917 119.191 122.921C119.097 122.96 119.002 122.995 118.905 123.027C118.884 123.033 118.864 123.04 118.843 123.046C118.807 123.057 118.77 123.068 118.733 123.078C118.719 123.081 118.705 123.086 118.691 123.089C118.639 123.102 118.586 123.114 118.533 123.125C118.53 123.126 118.526 123.127 118.523 123.128C118.472 123.138 118.42 123.147 118.369 123.155C118.36 123.156 118.352 123.158 118.343 123.159C118.306 123.165 118.268 123.169 118.231 123.174C118.21 123.176 118.189 123.18 118.168 123.182L117.986 123.196L117.8 123.201H42.2001L42.0146 123.196C41.9318 123.192 41.8499 123.183 41.7686 123.174C41.7309 123.169 41.6933 123.165 41.6561 123.159C41.6475 123.158 41.6391 123.156 41.6306 123.155C41.5789 123.147 41.5276 123.138 41.4768 123.128C41.4732 123.127 41.4698 123.126 41.4662 123.125C41.4131 123.114 41.3603 123.102 41.308 123.089C41.2942 123.086 41.2805 123.081 41.2667 123.078C41.2295 123.068 41.1926 123.057 41.156 123.046C41.1354 123.04 41.1149 123.033 41.0944 123.027C40.9974 122.995 40.9021 122.96 40.8088 122.921C40.7993 122.917 40.7901 122.913 40.7807 122.909C40.7429 122.893 40.7053 122.876 40.6682 122.859C40.6511 122.851 40.6341 122.843 40.6172 122.834C40.5817 122.817 40.5465 122.799 40.5117 122.781C40.4949 122.772 40.4783 122.763 40.4616 122.753C40.4269 122.734 40.3928 122.714 40.3588 122.694C40.3472 122.687 40.3352 122.68 40.3236 122.673C40.2381 122.621 40.1555 122.565 40.0749 122.506C40.0609 122.495 40.0466 122.485 40.0327 122.475C39.7654 122.273 39.5271 122.035 39.3252 121.767C39.3147 121.753 39.3047 121.739 39.2944 121.725C39.2354 121.644 39.1789 121.562 39.1266 121.476C39.1195 121.465 39.1133 121.453 39.1063 121.441C39.0861 121.407 39.0658 121.373 39.0466 121.338C39.0374 121.322 39.0283 121.305 39.0193 121.288C39.0008 121.253 38.9831 121.218 38.9657 121.183C38.9574 121.166 38.9492 121.149 38.9411 121.132C38.8764 120.994 38.8204 120.852 38.7732 120.706C38.7667 120.685 38.7601 120.665 38.7539 120.644C38.6942 120.446 38.6515 120.242 38.6265 120.031C38.6096 119.89 38.6001 119.747 38.6001 119.601V44.0008C38.6001 40.0243 41.8236 36.8008 45.8001 36.8008H114.2ZM45.8001 40.4008C43.8741 40.4008 42.301 41.9133 42.2045 43.8153L42.2001 44.0008V116.001H117.8V44.0008C117.8 42.0126 116.188 40.4008 114.2 40.4008H45.8001Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="46.2998" y="81.4004" width="11.6" height="38.6" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="102.1" y="81.4004" width="11.6" height="38.6" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -4017,7 +4016,7 @@ li .active {
 <path d="M74.6001 20.5992C74.6001 17.6169 77.0178 15.1992 80.0001 15.1992C82.9824 15.1992 85.4001 17.6169 85.4001 20.5992V36.7992H74.6001V20.5992Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="76.3999" y="17" width="7.2" height="14.4" rx="3.6" fill="var(--instrument-frame-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Hi=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Ja=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M120 115.55C120 108.343 114.157 102.5 106.95 102.5C99.7427 102.5 93.9 108.343 93.9 115.55V121.4H120V115.55Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="5.4" cy="5.4" r="5.4" transform="matrix(-1 0 0 1 135.3 58.4004)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M129.7 55.3008H108.5C107.672 55.3009 107 55.9724 107 56.8008V70.8008C107 71.6291 107.672 72.3007 108.5 72.3008H129.7C130.529 72.3008 131.2 71.6292 131.2 70.8008V56.8008C131.2 55.9724 130.529 55.3008 129.7 55.3008Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -4039,7 +4038,7 @@ li .active {
 <path d="M91.2002 51.1992V50.1992H91.2002L91.2002 51.1992ZM84.002 57.3906H83.002V57.18L83.0869 56.9873L84.002 57.3906ZM84.002 57.5V58.5H83.002V57.5H84.002ZM98.4023 57.5H99.4023V58.5H98.4023V57.5ZM98.4023 57.3994L99.3176 56.9965L99.4023 57.189V57.3994H98.4023ZM91.2002 51.1992V52.1992C88.5179 52.1992 86.4709 54.2685 84.917 57.794L84.002 57.3906L83.0869 56.9873C84.7181 53.2864 87.2618 50.1992 91.2002 50.1992V51.1992ZM84.002 57.3906H85.002V57.5H84.002H83.002V57.3906H84.002ZM84.002 57.5V56.5H98.4023V57.5V58.5H84.002V57.5ZM98.4023 57.5H97.4023V57.3994H98.4023H99.4023V57.5H98.4023ZM98.4023 57.3994L97.4871 57.8023C95.9329 54.272 93.8846 52.1993 91.2002 52.1992L91.2002 51.1992L91.2002 50.1992C95.1417 50.1993 97.6864 53.2913 99.3176 56.9965L98.4023 57.3994Z" fill="var(--instrument-tick-mark-secondary-color)" mask="url(#path-15-inside-1_25406_62344)"/>
 <path d="M91.1997 56.1992C89.2401 56.1992 87.4828 56.3987 86.23 56.7119C85.5997 56.8695 85.1248 57.0492 84.8198 57.2295C84.5739 57.3749 84.5174 57.4716 84.5044 57.499C84.5171 57.526 84.5728 57.6235 84.8198 57.7695C85.1248 57.9498 85.5997 58.1295 86.23 58.2871C87.4828 58.6003 89.2401 58.7988 91.1997 58.7988C93.1592 58.7988 94.9166 58.6003 96.1694 58.2871C96.7997 58.1296 97.2746 57.9498 97.5796 57.7695C97.8287 57.6223 97.8848 57.5251 97.897 57.499C97.8845 57.4724 97.8276 57.3761 97.5796 57.2295C97.2746 57.0492 96.7997 56.8695 96.1694 56.7119C94.9166 56.3987 93.1592 56.1992 91.1997 56.1992Z" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var $i=l`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Qa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <circle cx="79.9999" cy="26.4996" r="5.4" transform="rotate(90 79.9999 26.4996)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M88.5 26.6992L88.5 47.8994C88.4999 48.7278 87.8284 49.3994 87 49.3994L73 49.3994C72.1716 49.3994 71.5001 48.7277 71.5 47.8994L71.5 26.6992C71.5 25.8708 72.1716 25.1992 73 25.1992L87 25.1992C87.8284 25.1992 88.5 25.8708 88.5 26.6992Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="36.7998" y="29.1992" width="86.4" height="111.6" rx="8" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -4066,70 +4065,70 @@ li .active {
 <rect x="74.6001" y="76" width="10.8" height="28.8" rx="5.4" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="76.3999" y="77.8008" width="7.2" height="14.4" rx="3.6" fill="var(--instrument-frame-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Pe=(t=>(t.none="none",t.small="small",t.medium="medium",t.large="large",t))(Pe||{}),Oe=(t=>(t.carFerryAft="car-ferry-aft",t.carFerrySide="car-ferry-side",t.carFerryTop="car-ferry-top",t.cargoFore="cargo-fore",t.cargoSide="cargo-side",t.cargoTop="cargo-top",t.cargoWindFore="cargo-wind-fore",t.cargoWindSide="cargo-wind-side",t.cargoWindTop="cargo-wind-top",t.fishingVesselSide="fishing-vessel-side",t.fishingVesselTop="fishing-vessel-top",t.foreFore="fore-fore",t.genericSide="generic-side",t.genericTop="generic-top",t.psvAft="psv-aft",t.psvFore="psv-fore",t.psvSide="psv-side",t.psvTop="psv-top",t.sovSide="sov-side",t.sovTop="sov-top",t.tankerFore="tanker-fore",t.tankerSide="tanker-side",t.tankerTop="tanker-top",t.usvLargeSide="usv-large-side",t.usvSmallSide="usv-small-side",t.droneMediumFront="drone-medium-front",t.droneMediumStbdSide="drone-medium-stbd-side",t.droneMediumTop="drone-medium-top",t.droneSmallFront="drone-small-front",t.droneSmallStbdSide="drone-small-stbd-side",t.droneSmallTop="drone-small-top",t.droneGenericFront="drone-generic-front",t.droneGenericSide="drone-generic-side",t.droneGenericTop="drone-generic-top",t.rovFront="rov-front",t.rovSide="rov-side",t.rovTop="rov-top",t))(Oe||{}),mr={"car-ferry-aft":U1,"car-ferry-side":W1,"car-ferry-top":G1,"cargo-fore":q1,"cargo-side":X1,"cargo-top":Y1,"cargo-wind-fore":J1,"cargo-wind-side":Q1,"cargo-wind-top":K1,"fishing-vessel-side":ei,"fishing-vessel-top":ti,"fore-fore":ri,"generic-side":oi,"generic-top":ii,"psv-aft":ai,"psv-fore":ni,"psv-side":si,"psv-top":li,"sov-side":ci,"sov-top":di,"tanker-fore":pi,"tanker-side":hi,"tanker-top":ui,"usv-large-side":vi,"usv-small-side":mi,"drone-medium-front":fi,"drone-medium-stbd-side":gi,"drone-medium-top":bi,"drone-small-front":Ci,"drone-small-stbd-side":yi,"drone-small-top":wi,"drone-generic-front":Li,"drone-generic-side":ki,"drone-generic-top":Mi,"rov-front":xi,"rov-side":Hi,"rov-top":$i};var Vi="important",ks=" !"+Vi,fr=qe(class extends De{constructor(t){if(super(t),t.type!==it.ATTRIBUTE||t.name!=="style"||t.strings?.length>2)throw Error("The `styleMap` directive must be used in the `style` attribute and must be the only part in the attribute.")}render(t){return Object.keys(t).reduce((e,i)=>{let o=t[i];return o==null?e:e+`${i=i.includes("-")?i:i.replace(/(?:^(webkit|moz|ms|o)|)(?=[A-Z])/g,"-$&").toLowerCase()}:${o};`},"")}update(t,[e]){let{style:i}=t.element;if(this.ft===void 0)return this.ft=new Set(Object.keys(e)),this.render(e);for(let o of this.ft)e[o]==null&&(this.ft.delete(o),o.includes("-")?i.removeProperty(o):i[o]=null);for(let o in e){let r=e[o];if(r!=null){this.ft.add(o);let a=typeof r=="string"&&r.endsWith(ks);o.includes("-")||a?i.setProperty(o,a?r.slice(0,-11):r,a?Vi:""):i[o]=r}}return fe}});function _i(t){return Si({filename:`wind-${t.wind+1}.svg`,fromDirectionDeg:t.fromDirectionDeg,radius:t.radius,color:t.color})}function Zi(t){return Si({filename:`current-${t.current}.svg`,fromDirectionDeg:t.fromDirectionDeg,radius:t.radius,color:t.color})}function Si(t){let{filename:e,fromDirectionDeg:i,radius:o,color:r}=t,a=(i-180)*Math.PI/180,n=Ms[e];return l`<g style=${fr(r?{"--instrument-regular-secondary-color":r}:{})} transform="translate(${-Math.sin(a)*o} ${Math.cos(a)*o}) rotate(${180+i}) translate(-24, 0) scale(2)">
+`;var Re=(r=>{r["none"]="none";r["small"]="small";r["medium"]="medium";r["large"]="large";return r})(Re||{});var Ne=(r=>{r["carFerryAft"]="car-ferry-aft";r["carFerrySide"]="car-ferry-side";r["carFerryTop"]="car-ferry-top";r["cargoFore"]="cargo-fore";r["cargoSide"]="cargo-side";r["cargoTop"]="cargo-top";r["cargoWindFore"]="cargo-wind-fore";r["cargoWindSide"]="cargo-wind-side";r["cargoWindTop"]="cargo-wind-top";r["fishingVesselSide"]="fishing-vessel-side";r["fishingVesselTop"]="fishing-vessel-top";r["foreFore"]="fore-fore";r["genericSide"]="generic-side";r["genericTop"]="generic-top";r["psvAft"]="psv-aft";r["psvFore"]="psv-fore";r["psvSide"]="psv-side";r["psvTop"]="psv-top";r["sovSide"]="sov-side";r["sovTop"]="sov-top";r["tankerFore"]="tanker-fore";r["tankerSide"]="tanker-side";r["tankerTop"]="tanker-top";r["usvLargeSide"]="usv-large-side";r["usvSmallSide"]="usv-small-side";r["droneMediumFront"]="drone-medium-front";r["droneMediumStbdSide"]="drone-medium-stbd-side";r["droneMediumTop"]="drone-medium-top";r["droneSmallFront"]="drone-small-front";r["droneSmallStbdSide"]="drone-small-stbd-side";r["droneSmallTop"]="drone-small-top";r["droneGenericFront"]="drone-generic-front";r["droneGenericSide"]="drone-generic-side";r["droneGenericTop"]="drone-generic-top";r["rovFront"]="rov-front";r["rovSide"]="rov-side";r["rovTop"]="rov-top";return r})(Ne||{});var At={["car-ferry-aft"]:fa,["car-ferry-side"]:ba,["car-ferry-top"]:wa,["cargo-fore"]:ya,["cargo-side"]:Ca,["cargo-top"]:La,["cargo-wind-fore"]:ka,["cargo-wind-side"]:xa,["cargo-wind-top"]:Ma,["fishing-vessel-side"]:Ha,["fishing-vessel-top"]:$a,["fore-fore"]:_a,["generic-side"]:Va,["generic-top"]:Za,["psv-aft"]:Sa,["psv-fore"]:Aa,["psv-side"]:Pa,["psv-top"]:Oa,["sov-side"]:Ta,["sov-top"]:za,["tanker-fore"]:Ba,["tanker-side"]:Ea,["tanker-top"]:Da,["usv-large-side"]:Ia,["usv-small-side"]:ja,["drone-medium-front"]:Ra,["drone-medium-stbd-side"]:Na,["drone-medium-top"]:Fa,["drone-small-front"]:Ua,["drone-small-stbd-side"]:Wa,["drone-small-top"]:Ga,["drone-generic-front"]:qa,["drone-generic-side"]:Xa,["drone-generic-top"]:Ya,["rov-front"]:Ka,["rov-side"]:Ja,["rov-top"]:Qa};var e1="important";var ls=" !"+e1;var Pt=Ie(class extends $e{constructor(r){if(super(r),r.type!==qe.ATTRIBUTE||"style"!==r.name||r.strings?.length>2)throw Error("The `styleMap` directive must be used in the `style` attribute and must be the only part in the attribute.")}render(r){return Object.keys(r).reduce((e,i)=>{const o=r[i];return null==o?e:e+`${i=i.includes("-")?i:i.replace(/(?:^(webkit|moz|ms|o)|)(?=[A-Z])/g,"-$&").toLowerCase()}:${o};`},"")}update(r,[e]){const{style:i}=r.element;if(void 0===this.ft)return this.ft=new Set(Object.keys(e)),this.render(e);for(const o of this.ft)null==e[o]&&(this.ft.delete(o),o.includes("-")?i.removeProperty(o):i[o]=null);for(const o in e){const t=e[o];if(null!=t){this.ft.add(o);const a="string"==typeof t&&t.endsWith(ls);o.includes("-")||a?i.setProperty(o,a?t.slice(0,-11):t,a?e1:""):i[o]=t}}return pe}});function r1(r){return o1({filename:`wind-${r.wind+1}.svg`,fromDirectionDeg:r.fromDirectionDeg,radius:r.radius,color:r.color})}function t1(r){return o1({filename:`current-${r.current}.svg`,fromDirectionDeg:r.fromDirectionDeg,radius:r.radius,color:r.color})}function o1(r){const{filename:e,fromDirectionDeg:i,radius:o,color:t}=r;const a=(i-180)*Math.PI/180;const n=ss[e];const v=t?{"--instrument-regular-secondary-color":t}:{};return s`<g style=${Pt(v)} transform="translate(${-Math.sin(a)*o} ${Math.cos(a)*o}) rotate(${180+i}) translate(-24, 0) scale(2)">
     ${n}
-  </g>`}var Ms={"current-0.svg":l`<path d="M11 2V22H13V2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
-<path d="M11 2V22H13V2Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-1.svg":l`<path d="M11 7.00002L11 24L13 24L13 7.00005L11 7.00002Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+  </g>`}var ss={"current-0.svg":s`<path d="M11 2V22H13V2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M11 2V22H13V2Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-1.svg":s`<path d="M11 7.00002L11 24L13 24L13 7.00005L11 7.00002Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79309 5.20723L12.0002 0.00012207L17.2073 5.20723L15.7931 6.62144L12.0002 2.82855L8.2073 6.62144L6.79309 5.20723Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 7.00002L11 24L13 24L13 7.00005L11 7.00002Z" fill="var(--instrument-regular-secondary-color)"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M6.79309 5.20723L12.0002 0.00012207L17.2073 5.20723L15.7931 6.62144L12.0002 2.82855L8.2073 6.62144L6.79309 5.20723Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-2.svg":l`<path d="M10.9742 12.0003L10.9742 24.0049L12.9999 24.005L12.9999 12.0004L10.9742 12.0003Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M6.79309 5.20723L12.0002 0.00012207L17.2073 5.20723L15.7931 6.62144L12.0002 2.82855L8.2073 6.62144L6.79309 5.20723Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-2.svg":s`<path d="M10.9742 12.0003L10.9742 24.0049L12.9999 24.005L12.9999 12.0004L10.9742 12.0003Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79285 5.20747L12 0.000366211L17.2071 5.20747L15.7928 6.62169L12 2.82879L8.20706 6.62169L6.79285 5.20747Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.99988 10.5861L12.207 5.37903L17.4141 10.5861L15.9999 12.0003L12.207 8.20745L8.41409 12.0003L6.99988 10.5861Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M10.9742 12.0003L10.9742 24.0049L12.9999 24.005L12.9999 12.0004L10.9742 12.0003Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79285 5.20747L12 0.000366211L17.2071 5.20747L15.7928 6.62169L12 2.82879L8.20706 6.62169L6.79285 5.20747Z" fill="var(--instrument-regular-secondary-color)"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M6.99988 10.5861L12.207 5.37903L17.4141 10.5861L15.9999 12.0003L12.207 8.20745L8.41409 12.0003L6.99988 10.5861Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-3.svg":l`<path d="M11 18L11 24L13 24L13 18L11 18Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M6.99988 10.5861L12.207 5.37903L17.4141 10.5861L15.9999 12.0003L12.207 8.20745L8.41409 12.0003L6.99988 10.5861Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-3.svg":s`<path d="M11 18L11 24L13 24L13 18L11 18Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 10.5858L12.2071 5.37866L17.4142 10.5858L16 12L12.2071 8.20709L8.41421 12L7 10.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 18L11 24L13 24L13 18L11 18Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 10.5858L12.2071 5.37866L17.4142 10.5858L16 12L12.2071 8.20709L8.41421 12L7 10.5858Z" fill="var(--instrument-regular-secondary-color)"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-4.svg":l`<path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-4.svg":s`<path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 10.5858L12.2071 5.37866L17.4142 10.5858L16 12L12.2071 8.20709L8.41421 12L7 10.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 22.5858L12.2071 17.3787L17.4142 22.5858L16 24L12.2071 20.2071L8.41421 24L7 22.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 10.5858L12.2071 5.37866L17.4142 10.5858L16 12L12.2071 8.20709L8.41421 12L7 10.5858Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" fill="var(--instrument-regular-secondary-color)"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M7 22.5858L12.2071 17.3787L17.4142 22.5858L16 24L12.2071 20.2071L8.41421 24L7 22.5858Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-1.svg":l`<path d="M12 2C6.47715 2 2 6.47715 2 12H3.90476C3.90476 7.52912 7.52912 3.90476 12 3.90476V2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7 22.5858L12.2071 17.3787L17.4142 22.5858L16 24L12.2071 20.2071L8.41421 24L7 22.5858Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-1.svg":s`<path d="M12 2C6.47715 2 2 6.47715 2 12H3.90476C3.90476 7.52912 7.52912 3.90476 12 3.90476V2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M22 12C22 6.47715 17.5228 2 12 2V3.90476C16.4709 3.90476 20.0952 7.52912 20.0952 12H22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M12 22C17.5228 22 22 17.5228 22 12H20.0952C20.0952 16.4709 16.4709 20.0952 12 20.0952V22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M2 12C2 17.5228 6.47715 22 12 22V20.0952C7.52912 20.0952 3.90476 16.4709 3.90476 12H2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M12 2C6.47715 2 2 6.47715 2 12H3.90476C3.90476 7.52912 7.52912 3.90476 12 3.90476V2Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M22 12C22 6.47715 17.5228 2 12 2V3.90476C16.4709 3.90476 20.0952 7.52912 20.0952 12H22Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M12 22C17.5228 22 22 17.5228 22 12H20.0952C20.0952 16.4709 16.4709 20.0952 12 20.0952V22Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M2 12C2 17.5228 6.47715 22 12 22V20.0952C7.52912 20.0952 3.90476 16.4709 3.90476 12H2Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-2.svg":l`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
-<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-3.svg":l`<path d="M11 24L13 24L13 7L15 7L12 -1.74846e-07L9 7L11 7L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M2 12C2 17.5228 6.47715 22 12 22V20.0952C7.52912 20.0952 3.90476 16.4709 3.90476 12H2Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-2.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-3.svg":s`<path d="M11 24L13 24L13 7L15 7L12 -1.74846e-07L9 7L11 7L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M8 21L8 19L11 19L11 21L8 21Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24L13 24L13 7L15 7L12 -1.74846e-07L9 7L11 7L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 21L8 19L11 19L11 21L8 21Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-4.svg":l`<path d="M11 24L13 24L13 7L15 7L12 -2.62268e-07L9 7L11 7L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 21L8 19L11 19L11 21L8 21Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-4.svg":s`<path d="M11 24L13 24L13 7L15 7L12 -2.62268e-07L9 7L11 7L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M6 24L6 22L11 22L11 24L6 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24L13 24L13 7L15 7L12 -2.62268e-07L9 7L11 7L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M6 24L6 22L11 22L11 24L6 24Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-5.svg":l`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M6 24L6 22L11 22L11 24L6 24Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-5.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M8 21L8 19H12V21H8Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 21L8 19H12V21H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-6.svg":l`<path d="M11 24H13L13 7L15 7L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 21L8 19H12V21H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-6.svg":s`<path d="M11 24H13L13 7L15 7L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24H13L13 7L15 7L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-7.svg":l`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-7.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M8 18L8 16H12V18H8Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 18L8 16H12V18H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-8.svg":l`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 18L8 16H12V18H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-8.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-9.svg":l`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-9.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
@@ -4138,7 +4137,7 @@ li .active {
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 15L8 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-10.svg":l`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 15L8 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-10.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
@@ -4149,16 +4148,16 @@ li .active {
 <path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 15L5 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 12L8 10H12V12H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-11.svg":l`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 20L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
-<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 20L5 22Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-12.svg":l`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 12L8 10H12V12H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-11.svg":s`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 20L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 20L5 22Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-12.svg":s`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-13.svg":l`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-13.svg":s`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 15L5 13H12V15H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M5 15L5 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>`};function Pi(t){let{areas:e,outerRadius:i,innerRadius:o,extension:r,targetSize:a,margin:n=.06}=t;if(e.length===0){let P=a;return{radiusOffset:0,x:-P/2,y:-P/2,width:P,height:P,viewBox:`${-P/2} ${-P/2} ${P} ${P}`}}let v=a*(1-2*n),u=P=>{let I=Ai(e,i+P,o+P,r);return Math.max(I.xMax-I.xMin,I.yMax-I.yMin)},m=0,b=a;for(let P=0;P<16&&u(b)<v;P++)b*=2;for(let P=0;P<50;P++){let I=(m+b)/2;u(I)<v?m=I:b=I}let g=Math.max(0,m),C=Ai(e,i+g,o+g,r),y=C.xMax-C.xMin,H=C.yMax-C.yMin,k=Math.max(y,H)*(1+n*2),w=(C.xMin+C.xMax)/2,$=(C.yMin+C.yMax)/2,B=gr(w-k/2),Q=gr($-k/2),F=gr(k),U=gr(k);return{radiusOffset:g,x:B,y:Q,width:F,height:U,viewBox:`${B} ${Q} ${F} ${U}`}}function Ai(t,e,i,o){let r=e+o,a=i,n=1/0,v=-1/0,u=1/0,m=-1/0,b=(g,C)=>{g<n&&(n=g),g>v&&(v=g),C<u&&(u=C),C>m&&(m=C)};for(let g of t){let C=g.startAngle*Math.PI/180,y=g.endAngle*Math.PI/180;for(let w of[r,a])b(w*Math.sin(C),-w*Math.cos(C)),b(w*Math.sin(y),-w*Math.cos(y));let H=(g.startAngle%360+360)%360,E=(g.endAngle%360+360)%360,k=[0,90,180,270];for(let w of k)if(xs(H,E,w)){let $=w*Math.PI/180;for(let B of[r,a])b(B*Math.sin($),-B*Math.cos($))}}return n===1/0?{xMin:0,xMax:0,yMin:0,yMax:0}:{xMin:n,xMax:v,yMin:u,yMax:m}}function xs(t,e,i){let o=(t%360+360)%360,r=(e%360+360)%360,a=(i%360+360)%360;return o<=r?a>=o&&a<=r:a>=o||a<=r}function gr(t){return Math.round(t*1e4)/1e4}var Hs=Object.defineProperty,$s=Object.getOwnPropertyDescriptor,M=(t,e,i,o)=>{for(var r=o>1?void 0:o?$s(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Hs(e,i,r),r},$t=(t=>(t.single="single",t.double="double",t.doubleThin="doubleThin",t.triple="triple",t))($t||{}),ke=368/2,Ht=320/2,br=224/2,Bi=272/2,Ti=176/2;function Vs(t){switch(t){case"single":return Ht;case"double":return br;case"doubleThin":return Bi;case"triple":return Ti;default:throw new Error(`Unknown WatchCircleType: ${t}`)}}var Oi=4,L=class extends d{constructor(){super(...arguments),this._setpointId=`watch-setpoint-${Math.random().toString(36).slice(2,9)}`,this._newSetpointId=`watch-new-setpoint-${Math.random().toString(36).slice(2,9)}`,this.state=be.active,this.priority=D.regular,this.watchCircleType="single",this.northArrow=!1,this.atAngleSetpoint=!1,this.angleSetpointAtZeroDeadband=.5,this.setpointOverride=!1,this.touching=!1,this.animateSetpoint=!1,this._setpointCssAngle=0,this._setpointCssAngleInit=!1,this.areas=[],this.barAreas=[],this.needles=[],this.tickmarks=[],this.tickmarksInside=!1,this.tickmarkStyle=Y.regular,this.advices=[],this.crosshairEnabled=!1,this.showLabels=!1,this.vessels=[],this.wind=null,this.windFromDirectionDeg=null,this.windSymbolRadius=null,this.current=null,this.currentFromDirectionDeg=null,this.currentSymbolRadius=null,this.starboardPortIndicator=!1,this.clipTop=0,this.clipBottom=0,this.scaleWindIcon=1,this.zoomToFitArc=!1,this.tickFadeAngle=0,this.rotPosition=kt.innerCircle,this.rotStartAngle=0,this.rotEndAngle=0,this.rotPortStarboard=!1,this.rotAtZeroDeadband=Mt,this._rotationsPerMinute=0,this._resizeController=new nt(this,{}),this._rOff=0}set rotationsPerMinute(t){this._rotationsPerMinute=t,this._rotController&&(this._rotController.rotationsPerMinute=t)}get rotationsPerMinute(){return this._rotationsPerMinute}willUpdate(t){if(super.willUpdate(t),t.has("newAngleSetpoint")&&this.animateSetpoint){let e=t.get("newAngleSetpoint");if(e!==void 0&&this.newAngleSetpoint===void 0){this._departingNewAngleSetpoint=e,clearTimeout(this._animationTimer);let i=V1(this);this._animationTimer=setTimeout(()=>{this._departingNewAngleSetpoint=void 0},i)}}}disconnectedCallback(){super.disconnectedCallback(),clearTimeout(this._animationTimer),this._rotController=vr(this,this._rotController)}updated(t){super.updated(t);let e=this.rotType?this.renderRoot.querySelector("#rot-spinner"):null;if(!e){this._rotController=vr(this,this._rotController);return}(!this._rotController||this._rotController.el!==e)&&(this._rotController=vr(this,this._rotController),this._rotController=new ur(this,e,this._rotationsPerMinute))}get innerRingRadius(){return Vs(this.watchCircleType)}watchCircle(){let t=[];if(this.state!==be.off){if(t.push(l`
+<path d="M5 15L5 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>`};function a1(r){const{areas:e,outerRadius:i,innerRadius:o,extension:t,targetSize:a,margin:n=.06}=r;if(e.length===0){const O=a;return{radiusOffset:0,x:-O/2,y:-O/2,width:O,height:O,viewBox:`${-O/2} ${-O/2} ${O} ${O}`}}const v=a*(1-2*n);const u=O=>{const I=i1(e,i+O,o+O,t);return Math.max(I.xMax-I.xMin,I.yMax-I.yMin)};let f=0;let w=a;for(let O=0;O<16&&u(w)<v;O++){w*=2}for(let O=0;O<50;O++){const I=(f+w)/2;const ie=u(I);if(ie<v){f=I}else{w=I}}const g=Math.max(0,f);const b=i1(e,i+g,o+g,t);const y=b.xMax-b.xMin;const L=b.yMax-b.yMin;const V=Math.max(y,L);const x=V*(1+n*2);const k=(b.xMin+b.xMax)/2;const _=(b.yMin+b.yMax)/2;const z=Ot(k-x/2);const K=Ot(_-x/2);const U=Ot(x);const W=Ot(x);return{radiusOffset:g,x:z,y:K,width:U,height:W,viewBox:`${z} ${K} ${U} ${W}`}}function i1(r,e,i,o){const t=e+o;const a=i;let n=Infinity;let v=-Infinity;let u=Infinity;let f=-Infinity;const w=(g,b)=>{if(g<n)n=g;if(g>v)v=g;if(b<u)u=b;if(b>f)f=b};for(const g of r){const b=g.startAngle*Math.PI/180;const y=g.endAngle*Math.PI/180;for(const k of[t,a]){w(k*Math.sin(b),-k*Math.cos(b));w(k*Math.sin(y),-k*Math.cos(y))}const L=(g.startAngle%360+360)%360;const V=(g.endAngle%360+360)%360;const x=[0,90,180,270];for(const k of x){if(cs(L,V,k)){const _=k*Math.PI/180;for(const z of[t,a]){w(z*Math.sin(_),-z*Math.cos(_))}}}}if(n===Infinity){return{xMin:0,xMax:0,yMin:0,yMax:0}}return{xMin:n,xMax:v,yMin:u,yMax:f}}function cs(r,e,i){const o=(r%360+360)%360;const t=(e%360+360)%360;const a=(i%360+360)%360;if(o<=t){return a>=o&&a<=t}return a>=o||a<=t}function Ot(r){return Math.round(r*1e4)/1e4}var ds=Object.defineProperty;var ps=Object.getOwnPropertyDescriptor;var H=(r,e,i,o)=>{var t=o>1?void 0:o?ps(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)ds(e,i,t);return t};var jr=(r=>{r["single"]="single";r["double"]="double";r["doubleThin"]="doubleThin";r["triple"]="triple";return r})(jr||{});var Ze=368/2;var Ir=320/2;var Tt=224/2;var l1=272/2;var s1=176/2;function hs(r){switch(r){case"single":return Ir;case"double":return Tt;case"doubleThin":return l1;case"triple":return s1;default:throw new Error(`Unknown WatchCircleType: ${r}`)}}var n1=4;var M=class extends d{constructor(){super(...arguments);this._setpointId=`watch-setpoint-${Math.random().toString(36).slice(2,9)}`;this._newSetpointId=`watch-new-setpoint-${Math.random().toString(36).slice(2,9)}`;this.state=ke.active;this.priority=D.regular;this.watchCircleType="single";this.northArrow=false;this.atAngleSetpoint=false;this.angleSetpointAtZeroDeadband=.5;this.setpointOverride=false;this.touching=false;this.animateSetpoint=false;this._setpointCssAngle=0;this._setpointCssAngleInit=false;this.areas=[];this.barAreas=[];this.needles=[];this.tickmarks=[];this.tickmarksInside=false;this.tickmarkStyle=Q.regular;this.advices=[];this.crosshairEnabled=false;this.showLabels=false;this.vessels=[];this.wind=null;this.windFromDirectionDeg=null;this.windSymbolRadius=null;this.current=null;this.currentFromDirectionDeg=null;this.currentSymbolRadius=null;this.starboardPortIndicator=false;this.clipTop=0;this.clipBottom=0;this.scaleWindIcon=1;this.zoomToFitArc=false;this.tickFadeAngle=0;this.rotPosition=Br.innerCircle;this.rotStartAngle=0;this.rotEndAngle=0;this.rotPortStarboard=false;this.rotAtZeroDeadband=Er;this._rotationsPerMinute=0;this._resizeController=new wr(this,{});this._rOff=0}set rotationsPerMinute(r){this._rotationsPerMinute=r;if(this._rotController){this._rotController.rotationsPerMinute=r}}get rotationsPerMinute(){return this._rotationsPerMinute}willUpdate(r){super.willUpdate(r);if(r.has("newAngleSetpoint")&&this.animateSetpoint){const e=r.get("newAngleSetpoint");if(e!==void 0&&this.newAngleSetpoint===void 0){this._departingNewAngleSetpoint=e;clearTimeout(this._animationTimer);const i=Yi(this);this._animationTimer=setTimeout(()=>{this._departingNewAngleSetpoint=void 0},i)}}}disconnectedCallback(){super.disconnectedCallback();clearTimeout(this._animationTimer);this._rotController=St(this,this._rotController)}updated(r){super.updated(r);const e=this.rotType?this.renderRoot.querySelector("#rot-spinner"):null;if(!e){this._rotController=St(this,this._rotController);return}if(!this._rotController||this._rotController.el!==e){this._rotController=St(this,this._rotController);this._rotController=new Zt(this,e,this._rotationsPerMinute)}}get innerRingRadius(){return hs(this.watchCircleType)}watchCircle(){const r=[];if(this.state!==ke.off){r.push(s`
         <circle
           cx="0"
           cy="0"
@@ -4166,53 +4165,53 @@ li .active {
           stroke="var(--instrument-frame-primary-color)"
           fill="none"
           stroke-width="24"
-        />`),this.watchCircleType!=="single"){let o=Ht+this._rOff,r=(this.watchCircleType==="doubleThin"?Bi:br)+this._rOff,a=(o+r)/2,n=o-r;t.push(l`
+        />`);if(this.watchCircleType!=="single"){const o=Ir+this._rOff;const t=(this.watchCircleType==="doubleThin"?l1:Tt)+this._rOff;const a=(o+t)/2;const n=o-t;r.push(s`
             <circle cx="0" cy="0" r=${a} stroke="var(--instrument-frame-secondary-color)" stroke-width=${n} fill="none" />
             <circle cx="0" cy="0" r=${o} stroke="var(--instrument-frame-secondary-color)" stroke-width="1" fill="none" vector-effect="non-scaling-stroke" />
-            <circle cx="0" cy="0" r=${r} stroke="var(--instrument-frame-secondary-color)" stroke-width="1" fill="none" vector-effect="non-scaling-stroke" />
-        `)}if(this.watchCircleType==="triple"){let o=br+this._rOff,r=Ti+this._rOff,a=(o+r)/2,n=o-r;t.push(l`<circle cx="0" cy="0" r=${a} stroke="var(--instrument-frame-primary-color)" stroke-width=${n} fill="none" />`)}}let e=Math.max(200,ke+this._rOff+50),i=t;if(this.areas.length>0){let o=this.areas.map(n=>wt({startAngle:n.startAngle,endAngle:n.endAngle,R:ke+this._rOff,r:this.innerRingRadius+this._rOff,roundOutsideCut:n.roundOutsideCut,roundInsideCut:n.roundInsideCut})),r=l`<mask id="cutMask">
+            <circle cx="0" cy="0" r=${t} stroke="var(--instrument-frame-secondary-color)" stroke-width="1" fill="none" vector-effect="non-scaling-stroke" />
+        `)}if(this.watchCircleType==="triple"){const o=Tt+this._rOff;const t=s1+this._rOff;const a=(o+t)/2;const n=o-t;r.push(s`<circle cx="0" cy="0" r=${a} stroke="var(--instrument-frame-primary-color)" stroke-width=${n} fill="none" />`)}}const e=Math.max(200,Ze+this._rOff+50);let i=r;if(this.areas.length>0){const o=this.areas.map(n=>{const v=Tr({startAngle:n.startAngle,endAngle:n.endAngle,R:Ze+this._rOff,r:this.innerRingRadius+this._rOff,roundOutsideCut:n.roundOutsideCut,roundInsideCut:n.roundInsideCut});return v});const t=s`<mask id="cutMask">
         <rect x="${-e}" y="${-e}" width="${e*2}" height="${e*2}" fill="black" />
-        ${o.map(n=>l`<path d=${n} fill="white" vector-effect="non-scaling-stroke" stroke="white" stroke-width="1"/>`)}
-      </mask>`,a=l`<clipPath id="rot-arc-clip">${this.areas.map(n=>l`<path d=${wt({startAngle:n.startAngle,endAngle:n.endAngle,R:ke+this._rOff+20,r:0,roundOutsideCut:n.roundOutsideCut,roundInsideCut:n.roundInsideCut})} />`)}</clipPath>`;i=[r,a,l`<g mask="url(#cutMask)">${t}</g>`],o.forEach(n=>{i.push(l`<path d=${n} fill="none" stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>`)})}else this.state!==be.off?(i.push(sr("outerRing",{radius:ke+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"})),i.push(l`
-          ${sr("innerRing",{radius:this.innerRingRadius+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"})}
-        `)):i.push(l`
-          ${sr("innerRing",{radius:ke+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"})}
-        `);return i}_renderTickFadeDefs(){if(this.tickFadeAngle<=0||this.areas.length===0)return f;let t=this.areas[0],e=t.endAngle-t.startAngle,i=Math.min(this.tickFadeAngle,e/4);if(i<.5)return f;let{startAngle:o,endAngle:r}=t,a=ke+this._rOff+200,n=y=>y*Math.PI/180,v=y=>a*Math.sin(n(y)),u=y=>-a*Math.cos(n(y)),m=(y,H)=>{let E=v(y),k=u(y),w=v(H),$=u(H),B=H-y>180?1:0;return`M 0 0 L ${E} ${k} A ${a} ${a} 0 ${B} 1 ${w} ${$} Z`},b=(ke+this.innerRingRadius)/2+this._rOff,g=y=>b*Math.sin(n(y)),C=y=>-b*Math.cos(n(y));return l`
+        ${o.map(n=>s`<path d=${n} fill="white" vector-effect="non-scaling-stroke" stroke="white" stroke-width="1"/>`)}
+      </mask>`;const a=s`<clipPath id="rot-arc-clip">${this.areas.map(n=>s`<path d=${Tr({startAngle:n.startAngle,endAngle:n.endAngle,R:Ze+this._rOff+20,r:0,roundOutsideCut:n.roundOutsideCut,roundInsideCut:n.roundInsideCut})} />`)}</clipPath>`;i=[t,a,s`<g mask="url(#cutMask)">${r}</g>`];o.forEach(n=>{i.push(s`<path d=${n} fill="none" stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>`)})}else{if(this.state!==ke.off){i.push(kt("outerRing",{radius:Ze+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"}));i.push(s`
+          ${kt("innerRing",{radius:this.innerRingRadius+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"})}
+        `)}else{i.push(s`
+          ${kt("innerRing",{radius:Ze+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"})}
+        `)}}return i}_renderTickFadeDefs(){if(this.tickFadeAngle<=0||this.areas.length===0)return m;const r=this.areas[0];const e=r.endAngle-r.startAngle;const i=Math.min(this.tickFadeAngle,e/4);if(i<.5)return m;const{startAngle:o,endAngle:t}=r;const a=Ze+this._rOff+200;const n=y=>y*Math.PI/180;const v=y=>a*Math.sin(n(y));const u=y=>-a*Math.cos(n(y));const f=(y,L)=>{const V=v(y),x=u(y);const k=v(L),_=u(L);const z=L-y>180?1:0;return`M 0 0 L ${V} ${x} A ${a} ${a} 0 ${z} 1 ${k} ${_} Z`};const w=(Ze+this.innerRingRadius)/2+this._rOff;const g=y=>w*Math.sin(n(y));const b=y=>-w*Math.cos(n(y));return s`
       <defs>
         <linearGradient id="tickFadeL" gradientUnits="userSpaceOnUse"
-          x1="${g(o)}" y1="${C(o)}"
-          x2="${g(o+i)}" y2="${C(o+i)}">
+          x1="${g(o)}" y1="${b(o)}"
+          x2="${g(o+i)}" y2="${b(o+i)}">
           <stop offset="0" stop-color="black" />
           <stop offset="1" stop-color="white" />
         </linearGradient>
         <linearGradient id="tickFadeR" gradientUnits="userSpaceOnUse"
-          x1="${g(r-i)}" y1="${C(r-i)}"
-          x2="${g(r)}" y2="${C(r)}">
+          x1="${g(t-i)}" y1="${b(t-i)}"
+          x2="${g(t)}" y2="${b(t)}">
           <stop offset="0" stop-color="white" />
           <stop offset="1" stop-color="black" />
         </linearGradient>
         <mask id="tickFadeMask" maskUnits="userSpaceOnUse"
           x="${-a}" y="${-a}" width="${a*2}" height="${a*2}">
-          <path d="${m(o+i,r-i)}" fill="white" />
-          <path d="${m(o,o+i)}" fill="url(#tickFadeL)" />
-          <path d="${m(r-i,r)}" fill="url(#tickFadeR)" />
+          <path d="${f(o+i,t-i)}" fill="white" />
+          <path d="${f(o,o+i)}" fill="url(#tickFadeL)" />
+          <path d="${f(t-i,t)}" fill="url(#tickFadeR)" />
         </mask>
       </defs>
-    `}renderCrosshair(t,e){let i=e&&e.positions.length>0,o=i?Math.max(...e.positions.map(a=>Math.abs(a.x!==0?a.x:a.y))):0,r=i?3/e.scale:0;return l`
-      ${i?l`
+    `}renderCrosshair(r,e){const i=e&&e.positions.length>0;const o=i?Math.max(...e.positions.map(a=>Math.abs(a.x!==0?a.x:a.y))):0;const t=i?3/e.scale:0;return s`
+      ${i?s`
         <defs>
           <mask
             id="crosshair-label-mask"
             maskUnits="userSpaceOnUse"
-            x="-${t}" y="-${t}"
-            width="${t*2}" height="${t*2}"
+            x="-${r}" y="-${r}"
+            width="${r*2}" height="${r*2}"
           >
-            <rect x="-${t}" y="-${t}" width="${t*2}" height="${t*2}" fill="white"/>
+            <rect x="-${r}" y="-${r}" width="${r*2}" height="${r*2}" fill="white"/>
             <!-- Annular ring knockout: hide crosshair between labels and inner ring -->
             <circle cx="0" cy="0" r="${e.innerRingRadius}" fill="black"/>
-            <circle cx="0" cy="0" r="${o-r}" fill="white"/>
+            <circle cx="0" cy="0" r="${o-t}" fill="white"/>
             <!-- Per-label rectangular knockouts -->
-            ${e.positions.map(a=>{let n=12/e.scale,v=3/e.scale,u=n+v*2;return l`
+            ${e.positions.map(a=>{const n=12/e.scale;const v=3/e.scale;const u=n+v*2;return s`
                 <rect
                   x="${a.x-u/2}" y="${a.y-u/2}"
                   width="${u}" height="${u}"
@@ -4222,12 +4221,12 @@ li .active {
                 />
               `})}
           </mask>
-        </defs>`:f}
-      <g mask=${i?"url(#crosshair-label-mask)":f}>
+        </defs>`:m}
+      <g mask=${i?"url(#crosshair-label-mask)":m}>
         <line
-          x1="-${t}"
+          x1="-${r}"
           y1="0"
-          x2="${t}"
+          x2="${r}"
           y2="0"
           stroke="var(--instrument-frame-tertiary-color)"
           stroke-width="1"
@@ -4235,117 +4234,117 @@ li .active {
         />
         <line
           x1="0"
-          y1="-${t}"
+          y1="-${r}"
           x2="0"
-          y2="${t}"
+          y2="${r}"
           stroke="var(--instrument-frame-tertiary-color)"
           stroke-width="1"
           vector-effect="non-scaling-stroke"
         />
       </g>
-    `}renderBars(){return this.barAreas.length===0?f:this.barAreas.map((t,e)=>{let i=Math.min(t.startAngle,t.endAngle),o=Math.max(t.startAngle,t.endAngle),r=wt({r:br+this._rOff,R:Ht+this._rOff,startAngle:i,endAngle:o,roundInsideCut:!1,roundOutsideCut:!1}),a=Ht+this._rOff+40,n=l`<mask id="barMask-${e}">
+    `}renderBars(){if(this.barAreas.length===0){return m}return this.barAreas.map((r,e)=>{const i=Math.min(r.startAngle,r.endAngle);const o=Math.max(r.startAngle,r.endAngle);const t=Tr({r:Tt+this._rOff,R:Ir+this._rOff,startAngle:i,endAngle:o,roundInsideCut:false,roundOutsideCut:false});const a=Ir+this._rOff+40;const n=s`<mask id="barMask-${e}">
         <rect x="${-a}" y="${-a}" width="${a*2}" height="${a*2}" fill="black" />
-        <path d=${wt({r:1,R:a,startAngle:i,endAngle:o,roundInsideCut:!1,roundOutsideCut:!1})} fill="white" />
-      </mask>`;return l`
+        <path d=${Tr({r:1,R:a,startAngle:i,endAngle:o,roundInsideCut:false,roundOutsideCut:false})} fill="white" />
+      </mask>`;return s`
         ${n}
         <g mask="url(#cutMask)">
-        <path 
-          d=${r} 
-          fill=${t.fillColor} 
-          stroke=${t.fillColor} 
-          stroke-width="1" 
-          vector-effect="non-scaling-stroke" 
-          mask="url(#barMask-${e})" 
+        <path
+          d=${t}
+          fill=${r.fillColor}
+          stroke=${r.fillColor}
+          stroke-width="1"
+          vector-effect="non-scaling-stroke"
+          mask="url(#barMask-${e})"
           />
           </g>
-          `})}renderNeedles(){return this.needles.length===0?f:this.needles.map(t=>l`
-        <rect 
-          transform="rotate(${t.angle})" 
-          x="-4" y="${-(Ht+this._rOff)}" width="8" height="48" rx="4" 
-          fill=${t.fillColor} 
-          stroke=${t.strokeColor}
+          `})}renderNeedles(){if(this.needles.length===0){return m}return this.needles.map(r=>{return s`
+        <rect
+          transform="rotate(${r.angle})"
+          x="-4" y="${-(Ir+this._rOff)}" width="8" height="48" rx="4"
+          fill=${r.fillColor}
+          stroke=${r.strokeColor}
           stroke-width="1"
           vector-effect="non-scaling-stroke"
           paint-order="stroke fill"
         />
-      `)}getScale({width:t,height:e}){let i=this.clientWidth,o=this.clientHeight;if(i===0||o===0){let a=this.parentElement?.getBoundingClientRect();a&&(i=a.width,o=a.height)}let r=Math.min(i/t,o/e);if(r===1/0||r<0)throw new Error("Watch scale is not valid");return r}getPadding(){return this.padding!==void 0?this.padding:this.tickmarks.length>0&&this.tickmarks.some(e=>e.text!==void 0)&&!this.tickmarksInside?24*2.5:24}render(){let t,e,i;if(this.arcFrame)this._rOff=this.arcFrame.radiusOffset,t=this.arcFrame.width,e=this.arcFrame.height,i=this.arcFrame.viewBox;else if(this.zoomToFitArc&&this.areas.length>0){let w=this.getPadding(),$=(176+w)*2,B=Pi({areas:this.areas,outerRadius:ke,innerRadius:this.innerRingRadius,extension:w,targetSize:$});this._rOff=B.radiusOffset,t=B.width,e=B.height,i=B.viewBox}else{this._rOff=0,t=(176+this.getPadding())*2,e=t*(1-this.clipTop/100-this.clipBottom/100);let w=-t/2+t*this.clipTop/100;i=`-${t/2} ${w} ${t} ${e}`}let o=this._rOff,r=this.getScale({width:t,height:e}),a=this.renderSetpoint(),n=(this.tickmarksInside?this.innerRingRadius:ke)+o,v=Math.max(...this.tickmarks.map(w=>w.text?.length??0)),u=this.tickmarks.map(w=>Ye(w.angle,{size:w.type,style:this.tickmarkStyle,scale:r,text:this.showLabels?void 0:w.text,inside:this.tickmarksInside,textRadius:n,rotation:this.rotation,maxDigits:v,color:w.color,radiusOffset:o})),m=this.advices?this.advices.map(w=>T1(w,o)):f,b=this.tickmarksInside&&this.showLabels,g=!this.northArrow,C=this.showLabels?ko({scale:r,inside:this.tickmarksInside,innerRadius:this.innerRingRadius+o,includeNorth:g}):void 0,y=C?N1({scale:r,rotation:this.rotation,inside:this.tickmarksInside,innerRadius:this.innerRingRadius+o,includeNorth:g}):f,H=this.northArrow?F1({scale:r,rotation:this.rotation,inside:this.northArrowInside??this.tickmarksInside}):f,E=this.wind!=null&&this.windFromDirectionDeg!=null?l`<g transform="scale(${this.scaleWindIcon})">${_i({wind:this.wind,fromDirectionDeg:this.windFromDirectionDeg,radius:this.windSymbolRadius??192,color:this.windColor})}</g>`:f,k=this.current!=null&&this.currentFromDirectionDeg!=null?Zi({current:this.current,fromDirectionDeg:this.currentFromDirectionDeg,radius:this.currentSymbolRadius??192,color:this.currentColor}):f;return c`
+      `})}getScale({width:r,height:e}){let i=this.clientWidth;let o=this.clientHeight;if(i===0||o===0){const a=this.parentElement?.getBoundingClientRect();if(a){i=a.width;o=a.height}}const t=Math.min(i/r,o/e);if(t===Infinity||t<0){throw new Error("Watch scale is not valid")}return t}getPadding(){if(this.padding!==void 0){return this.padding}const r=this.tickmarks.length>0&&this.tickmarks.some(e=>e.text!==void 0);if(r&&!this.tickmarksInside){return 24*2.5}return 24}render(){let r;let e;let i;if(this.arcFrame){this._rOff=this.arcFrame.radiusOffset;r=this.arcFrame.width;e=this.arcFrame.height;i=this.arcFrame.viewBox}else if(this.zoomToFitArc&&this.areas.length>0){const k=this.getPadding();const _=(176+k)*2;const z=a1({areas:this.areas,outerRadius:Ze,innerRadius:this.innerRingRadius,extension:k,targetSize:_});this._rOff=z.radiusOffset;r=z.width;e=z.height;i=z.viewBox}else{this._rOff=0;r=(176+this.getPadding())*2;e=r*(1-this.clipTop/100-this.clipBottom/100);const k=-r/2+r*this.clipTop/100;i=`-${r/2} ${k} ${r} ${e}`}const o=this._rOff;const t=this.getScale({width:r,height:e});const a=this.renderSetpoint();const n=(this.tickmarksInside?this.innerRingRadius:Ze)+o;const v=Math.max(...this.tickmarks.map(k=>k.text?.length??0));const u=this.tickmarks.map(k=>lr(k.angle,{size:k.type,style:this.tickmarkStyle,scale:t,text:this.showLabels?void 0:k.text,inside:this.tickmarksInside,textRadius:n,rotation:this.rotation,maxDigits:v,color:k.color,radiusOffset:o}));const f=this.advices?this.advices.map(k=>sa(k,o)):m;const w=this.tickmarksInside&&this.showLabels;const g=!this.northArrow;const b=this.showLabels?No({scale:t,inside:this.tickmarksInside,innerRadius:this.innerRingRadius+o,includeNorth:g}):void 0;const y=b?ma({scale:t,rotation:this.rotation,inside:this.tickmarksInside,innerRadius:this.innerRingRadius+o,includeNorth:g}):m;const L=this.northArrow?ga({scale:t,rotation:this.rotation,inside:this.northArrowInside??this.tickmarksInside}):m;const V=this.wind!=null&&this.windFromDirectionDeg!=null?s`<g transform="scale(${this.scaleWindIcon})">${r1({wind:this.wind,fromDirectionDeg:this.windFromDirectionDeg,radius:this.windSymbolRadius??192,color:this.windColor})}</g>`:m;const x=this.current!=null&&this.currentFromDirectionDeg!=null?t1({current:this.current,fromDirectionDeg:this.currentFromDirectionDeg,radius:this.currentSymbolRadius??192,color:this.currentColor}):m;return c`
       <svg
         width="100%"
         height="100%"
         viewBox=${i}
-        style="--scale: ${r}"
+        style="--scale: ${t}"
         transform="rotate(${this.rotation??0})"
       >
         ${this.watchCircle()} ${this.renderBars()}
-        ${this.crosshairEnabled?this.renderCrosshair(ke+o,b&&C?{positions:C,rotation:this.rotation,scale:r,innerRingRadius:this.innerRingRadius+o}:void 0):f}
-        ${H} ${this.renderStarboardPortIndicator()} ${k}
-        ${this._renderTickFadeDefs()} ${E}
-        ${this.tickFadeAngle>0&&this.areas.length>0?l`<g mask="url(#tickFadeMask)">${u}</g>`:u}
-        ${this.areas.length>0?l`<g clip-path="url(#rot-arc-clip)">${this.renderRot()}</g>`:this.renderRot()}
-        ${m} ${a}
-        ${this.tickFadeAngle>0&&this.areas.length>0?l`<g mask="url(#tickFadeMask)">${y}</g>`:y}
+        ${this.crosshairEnabled?this.renderCrosshair(Ze+o,w&&b?{positions:b,rotation:this.rotation,scale:t,innerRingRadius:this.innerRingRadius+o}:void 0):m}
+        ${L} ${this.renderStarboardPortIndicator()} ${x}
+        ${this._renderTickFadeDefs()} ${V}
+        ${this.tickFadeAngle>0&&this.areas.length>0?s`<g mask="url(#tickFadeMask)">${u}</g>`:u}
+        ${this.areas.length>0?s`<g clip-path="url(#rot-arc-clip)">${this.renderRot()}</g>`:this.renderRot()}
+        ${f} ${a}
+        ${this.tickFadeAngle>0&&this.areas.length>0?s`<g mask="url(#tickFadeMask)">${y}</g>`:y}
         ${this.renderVesselImage()} ${this.renderNeedles()}
       </svg>
-    `}getRotColors(){let e=(this.rotPriority??this.priority)===D.enhanced;if(this.rotPortStarboard){let i;if(this.rotType===lt.bar){let o=((this.rotEndAngle-this.rotStartAngle)%360+360)%360;i=o<=180?o:o-360}else i=this._rotationsPerMinute;if(i>0)return{dotColor:"var(--instrument-starboard-secondary-color)",barBgColor:"var(--instrument-starboard-primary-color)"};if(i<0)return{dotColor:"var(--instrument-port-secondary-color)",barBgColor:"var(--instrument-port-primary-color)"}}return{dotColor:e?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)",barBgColor:e?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}}renderRot(){if(!this.rotType)return f;let{dotColor:t,barBgColor:e}=this.getRotColors(),i=this._rOff;if(this.rotType===lt.bar){let n=wo(this.rotStartAngle,this.rotEndAngle),v=Lo(this.rotPosition,i),u=Number.isFinite(this.rotAtZeroDeadband)?this.rotAtZeroDeadband:Mt;return n<Math.max(u,v)?I1(e,this.rotStartAngle,this.rotPosition,i):l`
-        ${R1({startAngle:this.rotStartAngle,endAngle:this.rotEndAngle,barColor:e,position:this.rotPosition,maskId:"rot-bar-mask",radiusOffset:i})}
-        ${l`<g clip-path="url(#rot-bar-mask)">
+    `}getRotColors(){const r=this.rotPriority??this.priority;const e=r===D.enhanced;if(this.rotPortStarboard){let i;if(this.rotType===Cr.bar){const o=((this.rotEndAngle-this.rotStartAngle)%360+360)%360;i=o<=180?o:o-360}else{i=this._rotationsPerMinute}if(i>0){return{dotColor:"var(--instrument-starboard-secondary-color)",barBgColor:"var(--instrument-starboard-primary-color)"}}if(i<0){return{dotColor:"var(--instrument-port-secondary-color)",barBgColor:"var(--instrument-port-primary-color)"}}}return{dotColor:e?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)",barBgColor:e?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}}renderRot(){if(!this.rotType)return m;const{dotColor:r,barBgColor:e}=this.getRotColors();const i=this._rOff;if(this.rotType===Cr.bar){const n=jo(this.rotStartAngle,this.rotEndAngle);const v=Ro(this.rotPosition,i);const u=Number.isFinite(this.rotAtZeroDeadband)?this.rotAtZeroDeadband:Er;if(n<Math.max(u,v)){return ha(e,this.rotStartAngle,this.rotPosition,i)}return s`
+        ${ua({startAngle:this.rotStartAngle,endAngle:this.rotEndAngle,barColor:e,position:this.rotPosition,maskId:"rot-bar-mask",radiusOffset:i})}
+        ${s`<g clip-path="url(#rot-bar-mask)">
             <g id="rot-spinner">
-              ${j1(t,this.rotPosition,i)}
+              ${va(r,this.rotPosition,i)}
             </g>
           </g>`}
-      `}let a=(this.rotPriority??this.priority)===D.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";return this.rotPortStarboard&&(this._rotationsPerMinute>0?a="var(--instrument-starboard-secondary-color)":this._rotationsPerMinute<0&&(a="var(--instrument-port-secondary-color)")),l`
+      `}const o=this.rotPriority??this.priority;const t=o===D.enhanced;let a=t?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";if(this.rotPortStarboard){if(this._rotationsPerMinute>0){a="var(--instrument-starboard-secondary-color)"}else if(this._rotationsPerMinute<0){a="var(--instrument-port-secondary-color)"}}return s`
       <g id="rot-spinner">
-        ${D1(a,this.rotPosition,i)}
+        ${pa(a,this.rotPosition,i)}
       </g>
-    `}renderSetpoint(){if(this.angleSetpoint===void 0)return f;let t=Z1({state:this.state,priority:this.priority,atSetpoint:this.atAngleSetpoint,angleSetpoint:this.angleSetpoint,setpointAtZeroDeadband:this.angleSetpointAtZeroDeadband,newAngleSetpoint:this.newAngleSetpoint,touching:this.touching,setpointOverride:this.setpointOverride}),{visualState:e,colorMode:i,disabled:o,hasNewSetpoint:r}=t,a=mo(e),n=go+this._rOff+a-Oi,v=r?.75:1,u=fo({visualState:e,colorMode:i,disabled:o,id:this._setpointId}),m=this.animateSetpoint,b=this._departingNewAngleSetpoint!==void 0,g=this.angleSetpoint+90;this._setpointCssAngleInit?this._setpointCssAngle=_1(this._setpointCssAngle,g):(this._setpointCssAngle=g,this._setpointCssAngleInit=!0);let C=m?l`
-        <g style="transform: rotate(${this._setpointCssAngle}deg) translateX(${-n}px) rotate(270deg); opacity: ${v}; transition: transform var(${yt}, ${dr}) ease-out, opacity var(${yt}, ${dr}) ease-out;">
+    `}renderSetpoint(){if(this.angleSetpoint===void 0){return m}const r=Ji({state:this.state,priority:this.priority,atSetpoint:this.atAngleSetpoint,angleSetpoint:this.angleSetpoint,setpointAtZeroDeadband:this.angleSetpointAtZeroDeadband,newAngleSetpoint:this.newAngleSetpoint,touching:this.touching,setpointOverride:this.setpointOverride});const{visualState:e,colorMode:i,disabled:o,hasNewSetpoint:t}=r;const a=To(e);const n=Bo+this._rOff+a-n1;const v=t?.75:1;const u=zo({visualState:e,colorMode:i,disabled:o,id:this._setpointId});const f=this.animateSetpoint;const w=this._departingNewAngleSetpoint!==void 0;const g=this.angleSetpoint+90;if(!this._setpointCssAngleInit){this._setpointCssAngle=g;this._setpointCssAngleInit=true}else{this._setpointCssAngle=Ki(this._setpointCssAngle,g)}const b=f?s`
+        <g style="transform: rotate(${this._setpointCssAngle}deg) translateX(${-n}px) rotate(270deg); opacity: ${v}; transition: transform var(${Or}, ${Ht}) ease-out, opacity var(${Or}, ${Ht}) ease-out;">
           ${u}
         </g>
-      `:l`
+      `:s`
         <g transform="rotate(${this.angleSetpoint+90}) translate(${-n}, 0) rotate(270)" opacity="${v}">
           ${u}
         </g>
-      `;if(r||b){let y=r,H=y?this.newAngleSetpoint:this._departingNewAngleSetpoint,E=y?1:0,k=mo(cr.focus),w=go+this._rOff+k-Oi,$=fo({visualState:cr.focus,colorMode:i,disabled:!1,id:this._newSetpointId});if(m){let B=`var(${yt}, ${dr})`;return l`
-          ${C}
-          <g style="transform: rotate(${H+90}deg) translateX(${-w}px) rotate(270deg); opacity: ${E}; transition: opacity ${B} ease-out;">
-            ${$}
+      `;if(t||w){const y=t;const L=y?this.newAngleSetpoint:this._departingNewAngleSetpoint;const V=y?1:0;const x=To(Mt.focus);const k=Bo+this._rOff+x-n1;const _=zo({visualState:Mt.focus,colorMode:i,disabled:false,id:this._newSetpointId});if(f){const z=`var(${Or}, ${Ht})`;return s`
+          ${b}
+          <g style="transform: rotate(${L+90}deg) translateX(${-k}px) rotate(270deg); opacity: ${V}; transition: opacity ${z} ease-out;">
+            ${_}
           </g>
-        `}return l`
-        ${C}
-        <g transform="rotate(${H+90}) translate(${-w}, 0) rotate(270)" opacity="${E}">
-          ${$}
+        `}return s`
+        ${b}
+        <g transform="rotate(${L+90}) translate(${-k}, 0) rotate(270)" opacity="${V}">
+          ${_}
         </g>
-      `}return C}renderVesselImage(){return this.vessels.length===0?f:this.vessels.map(t=>{let e;switch(t.size){case Pe.large:e=224;break;case Pe.medium:e=160;break;default:e=100}let i=e/160;return l`<g style="transform: ${t.transform} scale(${i}) translate(-80px, -80px) ">${mr[t.vesselImage]}</g>`})}renderStarboardPortIndicator(){return this.starboardPortIndicator?[st(0,180,"var(--instrument-starboard-secondary-color)","var(--instrument-starboard-secondary-color)"),st(180,360,"var(--instrument-port-secondary-color)","var(--instrument-port-secondary-color)")]:f}};L.styles=x(A1);M([s({type:String})],L.prototype,"state",2);M([s({type:String})],L.prototype,"priority",2);M([s({type:String})],L.prototype,"watchCircleType",2);M([s({type:Boolean})],L.prototype,"northArrow",2);M([s({type:Boolean})],L.prototype,"northArrowInside",2);M([s({type:Number})],L.prototype,"angleSetpoint",2);M([s({type:Number})],L.prototype,"newAngleSetpoint",2);M([s({type:Boolean})],L.prototype,"atAngleSetpoint",2);M([s({type:Number})],L.prototype,"angleSetpointAtZeroDeadband",2);M([s({type:Boolean})],L.prototype,"setpointOverride",2);M([s({type:Boolean})],L.prototype,"touching",2);M([s({type:Boolean})],L.prototype,"animateSetpoint",2);M([re()],L.prototype,"_departingNewAngleSetpoint",2);M([s({type:Number})],L.prototype,"padding",2);M([s({type:Array,attribute:!1})],L.prototype,"areas",2);M([s({type:Array,attribute:!1})],L.prototype,"barAreas",2);M([s({type:Array,attribute:!1})],L.prototype,"needles",2);M([s({type:Array,attribute:!1})],L.prototype,"tickmarks",2);M([s({type:Boolean})],L.prototype,"tickmarksInside",2);M([s({type:String})],L.prototype,"tickmarkStyle",2);M([s({type:Array,attribute:!1})],L.prototype,"advices",2);M([s({type:Boolean})],L.prototype,"crosshairEnabled",2);M([s({type:Boolean})],L.prototype,"showLabels",2);M([s({type:Array,attribute:!1})],L.prototype,"vessels",2);M([s({type:Number})],L.prototype,"wind",2);M([s({type:Number})],L.prototype,"windFromDirectionDeg",2);M([s({type:Number})],L.prototype,"windSymbolRadius",2);M([s({type:String})],L.prototype,"windColor",2);M([s({type:Number})],L.prototype,"current",2);M([s({type:Number})],L.prototype,"currentFromDirectionDeg",2);M([s({type:Number})],L.prototype,"currentSymbolRadius",2);M([s({type:String})],L.prototype,"currentColor",2);M([s({type:Boolean})],L.prototype,"starboardPortIndicator",2);M([s({type:Number})],L.prototype,"clipTop",2);M([s({type:Number})],L.prototype,"clipBottom",2);M([s({type:Number})],L.prototype,"scaleWindIcon",2);M([s({type:Number})],L.prototype,"rotation",2);M([s({type:Boolean})],L.prototype,"zoomToFitArc",2);M([s({attribute:!1})],L.prototype,"arcFrame",2);M([s({type:Number})],L.prototype,"tickFadeAngle",2);M([s({type:String})],L.prototype,"rotType",2);M([s({type:String})],L.prototype,"rotPosition",2);M([s({type:Number})],L.prototype,"rotStartAngle",2);M([s({type:Number})],L.prototype,"rotEndAngle",2);M([s({type:String})],L.prototype,"rotPriority",2);M([s({type:Boolean})],L.prototype,"rotPortStarboard",2);M([s({type:Number})],L.prototype,"rotAtZeroDeadband",2);M([s({type:Number})],L.prototype,"rotationsPerMinute",1);L=M([h("obc-watch")],L);var Cr=(t=>(t.HDG="HDG",t.COG="COG",t))(Cr||{});function Mo(t,e,i=D.regular,o=0){let r=i===D.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";return t==="HDG"?l`
+      `}return b}renderVesselImage(){if(this.vessels.length===0){return m}return this.vessels.map(r=>{let e;switch(r.size){case Re.large:e=224;break;case Re.medium:e=160;break;default:e=100}const i=e/160;return s`<g style="transform: ${r.transform} scale(${i}) translate(-80px, -80px) ">${At[r.vesselImage]}</g>`})}renderStarboardPortIndicator(){if(!this.starboardPortIndicator){return m}return[yr(0,180,"var(--instrument-starboard-secondary-color)","var(--instrument-starboard-secondary-color)"),yr(180,360,"var(--instrument-port-secondary-color)","var(--instrument-port-secondary-color)")]}};M.styles=C(ea);H([l({type:String})],M.prototype,"state",2);H([l({type:String})],M.prototype,"priority",2);H([l({type:String})],M.prototype,"watchCircleType",2);H([l({type:Boolean})],M.prototype,"northArrow",2);H([l({type:Boolean})],M.prototype,"northArrowInside",2);H([l({type:Number})],M.prototype,"angleSetpoint",2);H([l({type:Number})],M.prototype,"newAngleSetpoint",2);H([l({type:Boolean})],M.prototype,"atAngleSetpoint",2);H([l({type:Number})],M.prototype,"angleSetpointAtZeroDeadband",2);H([l({type:Boolean})],M.prototype,"setpointOverride",2);H([l({type:Boolean})],M.prototype,"touching",2);H([l({type:Boolean})],M.prototype,"animateSetpoint",2);H([N()],M.prototype,"_departingNewAngleSetpoint",2);H([l({type:Number})],M.prototype,"padding",2);H([l({type:Array,attribute:false})],M.prototype,"areas",2);H([l({type:Array,attribute:false})],M.prototype,"barAreas",2);H([l({type:Array,attribute:false})],M.prototype,"needles",2);H([l({type:Array,attribute:false})],M.prototype,"tickmarks",2);H([l({type:Boolean})],M.prototype,"tickmarksInside",2);H([l({type:String})],M.prototype,"tickmarkStyle",2);H([l({type:Array,attribute:false})],M.prototype,"advices",2);H([l({type:Boolean})],M.prototype,"crosshairEnabled",2);H([l({type:Boolean})],M.prototype,"showLabels",2);H([l({type:Array,attribute:false})],M.prototype,"vessels",2);H([l({type:Number})],M.prototype,"wind",2);H([l({type:Number})],M.prototype,"windFromDirectionDeg",2);H([l({type:Number})],M.prototype,"windSymbolRadius",2);H([l({type:String})],M.prototype,"windColor",2);H([l({type:Number})],M.prototype,"current",2);H([l({type:Number})],M.prototype,"currentFromDirectionDeg",2);H([l({type:Number})],M.prototype,"currentSymbolRadius",2);H([l({type:String})],M.prototype,"currentColor",2);H([l({type:Boolean})],M.prototype,"starboardPortIndicator",2);H([l({type:Number})],M.prototype,"clipTop",2);H([l({type:Number})],M.prototype,"clipBottom",2);H([l({type:Number})],M.prototype,"scaleWindIcon",2);H([l({type:Number})],M.prototype,"rotation",2);H([l({type:Boolean})],M.prototype,"zoomToFitArc",2);H([l({attribute:false})],M.prototype,"arcFrame",2);H([l({type:Number})],M.prototype,"tickFadeAngle",2);H([l({type:String})],M.prototype,"rotType",2);H([l({type:String})],M.prototype,"rotPosition",2);H([l({type:Number})],M.prototype,"rotStartAngle",2);H([l({type:Number})],M.prototype,"rotEndAngle",2);H([l({type:String})],M.prototype,"rotPriority",2);H([l({type:Boolean})],M.prototype,"rotPortStarboard",2);H([l({type:Number})],M.prototype,"rotAtZeroDeadband",2);H([l({type:Number})],M.prototype,"rotationsPerMinute",1);M=H([h("obc-watch")],M);var zt=(r=>{r["HDG"]="HDG";r["COG"]="COG";return r})(zt||{});function Fo(r,e,i=D.regular,o=0){const t=i===D.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";if(r==="HDG"){return s`
       <g transform="rotate(${e}) translate(-256, ${-256-o})">
 
 <path d="M254.654 100.32C255.219 99.1903 256.906 99.2277 257.396 100.433L272.312 137.092L272.388 137.301C273.067 139.455 270.647 141.314 268.676 140.13V140.129L256 132.582L243.323 140.129L243.324 140.13C241.289 141.352 238.777 139.332 239.688 137.092L254.604 100.433L254.654 100.32Z"
- fill=${r} stroke="var(--border-silhouette-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+ fill=${t} stroke="var(--border-silhouette-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>
       </g>
-    `:t==="COG"?l`
+    `}else if(r==="COG"){return s`
       <g transform="rotate(${e}) translate(-256, ${-256-o})">
 <mask id="path-1-outside-1_133_32856" maskUnits="userSpaceOnUse" x="238" y="99" width="36" height="42" fill="black">
 <rect fill="white" x="238" y="99" width="36" height="42"/>
 <path fill-rule="evenodd" clip-rule="evenodd" vector-effect="non-scaling-stroke" d="M256 127.334L265.867 133.192L256 108.941L246.133 133.192L256 127.334ZM255.067 100.621C255.404 99.7929 256.596 99.7929 256.933 100.621L271.849 137.28C272.567 139.046 270.584 140.693 268.933 139.701L256 132L243.067 139.701C241.416 140.693 239.433 139.046 240.151 137.28L255.067 100.621Z"/>
 </mask>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M256 127.334L265.867 133.192L256 108.941L246.133 133.192L256 127.334ZM255.067 100.621C255.404 99.7929 256.596 99.7929 256.933 100.621L271.849 137.28C272.567 139.046 270.584 140.693 268.933 139.701L256 132L243.067 139.701C241.416 140.693 239.433 139.046 240.151 137.28L255.067 100.621Z"
-   fill=${r} />
-<path d="M256 127.334L256.511 126.474L256 126.171L255.489 126.474L256 127.334ZM265.867 133.192L265.357 134.052L267.914 135.571L266.793 132.816L265.867 133.192ZM256 108.941L256.926 108.564L256 106.288L255.074 108.564L256 108.941ZM246.133 133.192L245.207 132.816L244.086 135.571L246.643 134.052L246.133 133.192ZM255.067 100.621L254.14 100.244L255.067 100.621ZM256.933 100.621L257.86 100.244L256.933 100.621ZM271.849 137.28L270.922 137.657L271.849 137.28ZM268.933 139.701L269.448 138.844L269.445 138.842L268.933 139.701ZM256 132L256.512 131.141L256 130.836L255.488 131.141L256 132ZM243.067 139.701L242.555 138.842L242.552 138.844L243.067 139.701ZM240.151 137.28L241.078 137.657L240.151 137.28ZM255.489 128.193L265.357 134.052L266.378 132.333L256.511 126.474L255.489 128.193ZM266.793 132.816L256.926 108.564L255.074 109.318L264.941 133.569L266.793 132.816ZM255.074 108.564L245.207 132.816L247.059 133.569L256.926 109.318L255.074 108.564ZM246.643 134.052L256.511 128.193L255.489 126.474L245.622 132.333L246.643 134.052ZM255.993 100.998C255.994 100.994 255.996 100.992 255.996 100.992C255.996 100.992 255.995 100.993 255.994 100.994C255.991 100.997 255.988 101 255.986 101.002C255.984 101.003 255.984 101.002 255.987 101.002C255.99 101.001 255.994 101 256 101C256.006 101 256.01 101.001 256.013 101.002C256.016 101.002 256.016 101.003 256.014 101.002C256.012 101 256.009 100.997 256.006 100.994C256.005 100.993 256.004 100.992 256.004 100.992C256.004 100.992 256.006 100.994 256.007 100.998L257.86 100.244C257.185 98.5852 254.815 98.5852 254.14 100.244L255.993 100.998ZM256.007 100.998L270.922 137.657L272.775 136.903L257.86 100.244L256.007 100.998ZM270.922 137.657C271.255 138.473 270.33 139.373 269.448 138.844L268.418 140.558C270.838 142.012 273.879 139.618 272.775 136.903L270.922 137.657ZM269.445 138.842L256.512 131.141L255.488 132.859L268.422 140.56L269.445 138.842ZM255.488 131.141L242.555 138.842L243.578 140.56L256.512 132.859L255.488 131.141ZM242.552 138.844C241.67 139.373 240.745 138.473 241.078 137.657L239.225 136.903C238.121 139.618 241.162 142.012 243.582 140.558L242.552 138.844ZM241.078 137.657L255.993 100.998L254.14 100.244L239.225 136.903L241.078 137.657Z" 
+   fill=${t} />
+<path d="M256 127.334L256.511 126.474L256 126.171L255.489 126.474L256 127.334ZM265.867 133.192L265.357 134.052L267.914 135.571L266.793 132.816L265.867 133.192ZM256 108.941L256.926 108.564L256 106.288L255.074 108.564L256 108.941ZM246.133 133.192L245.207 132.816L244.086 135.571L246.643 134.052L246.133 133.192ZM255.067 100.621L254.14 100.244L255.067 100.621ZM256.933 100.621L257.86 100.244L256.933 100.621ZM271.849 137.28L270.922 137.657L271.849 137.28ZM268.933 139.701L269.448 138.844L269.445 138.842L268.933 139.701ZM256 132L256.512 131.141L256 130.836L255.488 131.141L256 132ZM243.067 139.701L242.555 138.842L242.552 138.844L243.067 139.701ZM240.151 137.28L241.078 137.657L240.151 137.28ZM255.489 128.193L265.357 134.052L266.378 132.333L256.511 126.474L255.489 128.193ZM266.793 132.816L256.926 108.564L255.074 109.318L264.941 133.569L266.793 132.816ZM255.074 108.564L245.207 132.816L247.059 133.569L256.926 109.318L255.074 108.564ZM246.643 134.052L256.511 128.193L255.489 126.474L245.622 132.333L246.643 134.052ZM255.993 100.998C255.994 100.994 255.996 100.992 255.996 100.992C255.996 100.992 255.995 100.993 255.994 100.994C255.991 100.997 255.988 101 255.986 101.002C255.984 101.003 255.984 101.002 255.987 101.002C255.99 101.001 255.994 101 256 101C256.006 101 256.01 101.001 256.013 101.002C256.016 101.002 256.016 101.003 256.014 101.002C256.012 101 256.009 100.997 256.006 100.994C256.005 100.993 256.004 100.992 256.004 100.992C256.004 100.992 256.006 100.994 256.007 100.998L257.86 100.244C257.185 98.5852 254.815 98.5852 254.14 100.244L255.993 100.998ZM256.007 100.998L270.922 137.657L272.775 136.903L257.86 100.244L256.007 100.998ZM270.922 137.657C271.255 138.473 270.33 139.373 269.448 138.844L268.418 140.558C270.838 142.012 273.879 139.618 272.775 136.903L270.922 137.657ZM269.445 138.842L256.512 131.141L255.488 132.859L268.422 140.56L269.445 138.842ZM255.488 131.141L242.555 138.842L243.578 140.56L256.512 132.859L255.488 131.141ZM242.552 138.844C241.67 139.373 240.745 138.473 241.078 137.657L239.225 136.903C238.121 139.618 241.162 142.012 243.582 140.558L242.552 138.844ZM241.078 137.657L255.993 100.998L254.14 100.244L239.225 136.903L241.078 137.657Z"
 fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="url(#path-1-outside-1_133_32856)"/>
 
       </g>
-    `:[]}var yr=class{constructor(e){this.atSetpoint=!1,this.touching=!1,this.autoAtSetpoint=!0,this.setpointOverride=!1,this.animateSetpoint=!1,this.autoAtSetpointDeadband=e?.defaultDeadband??2,this.setpointAtZeroDeadband=e?.defaultZeroDeadband??.5,this._angularWraparound=e?.angularWraparound??!1,this._onAnimationEnd=e?.onAnimationEnd}sync(e){let i=this.newSetpoint;(e.setpoint!==void 0||"setpoint"in e)&&(this.setpoint=e.setpoint),(e.newSetpoint!==void 0||"newSetpoint"in e)&&(this.newSetpoint=e.newSetpoint),e.atSetpoint!==void 0&&(this.atSetpoint=e.atSetpoint),e.touching!==void 0&&(this.touching=e.touching),e.autoAtSetpoint!==void 0&&(this.autoAtSetpoint=e.autoAtSetpoint),e.autoAtSetpointDeadband!==void 0&&(this.autoAtSetpointDeadband=e.autoAtSetpointDeadband),e.setpointAtZeroDeadband!==void 0&&(this.setpointAtZeroDeadband=e.setpointAtZeroDeadband),e.setpointOverride!==void 0&&(this.setpointOverride=e.setpointOverride),e.animateSetpoint!==void 0&&(this.animateSetpoint=e.animateSetpoint),i!==void 0&&this.newSetpoint===void 0&&this.animateSetpoint&&(this.departingNewSetpoint=i,clearTimeout(this._animationTimer),this._animationTimer=setTimeout(()=>{this.departingNewSetpoint=void 0,this._onAnimationEnd?.()},lr))}dispose(){clearTimeout(this._animationTimer)}computeAtSetpoint(e){return S1({value:e,setpoint:this.setpoint,touching:this.touching,auto:this.autoAtSetpoint,deadband:this.autoAtSetpointDeadband,atSetpointManual:this.atSetpoint,angularWraparound:this._angularWraparound})}};var _s=Object.defineProperty,Zs=Object.getOwnPropertyDescriptor,A=(t,e,i,o)=>{for(var r=o>1?void 0:o?Zs(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&_s(e,i,r),r};var Z=class extends d{constructor(){super(...arguments),this.heading=0,this.courseOverGround=0,this.headingSetpoint=null,this.atHeadingSetpoint=!1,this.headingSetpointAtZeroDeadband=.5,this.headingSetpointOverride=!1,this.autoAtHeadingSetpoint=!0,this.autoAtHeadingSetpointDeadband=2,this.animateSetpoint=!1,this.touching=!1,this.headingAdvices=[],this.windSpeed=null,this.windFromDirection=null,this.currentSpeed=null,this.currentFromDirection=null,this.vesselImage=Oe.genericTop,this.rotationsPerMinute=1,this.rotType=lt.dots,this.rotPosition=kt.innerCircle,this.rotMaxValue=10,this.rotArcExtent=60,this.rotPortStarboard=!1,this.rotAtZeroDeadband=Mt,this.direction="northUp",this.state=be.active,this.priority=D.regular,this.priorityElements=["hdg"],this.showLabels=!1,this.tickmarksInside=!1,this._headingSp=new yr({angularWraparound:!0,onAnimationEnd:()=>this.requestUpdate()}),this._resizeController=new nt(this,{})}willUpdate(t){super.willUpdate(t),this._headingSp.sync({setpoint:this.headingSetpoint??void 0,newSetpoint:this.newHeadingSetpoint,atSetpoint:this.atHeadingSetpoint,touching:this.touching,autoAtSetpoint:this.autoAtHeadingSetpoint,autoAtSetpointDeadband:this.autoAtHeadingSetpointDeadband,setpointAtZeroDeadband:this.headingSetpointAtZeroDeadband,setpointOverride:this.headingSetpointOverride,animateSetpoint:this.animateSetpoint})}disconnectedCallback(){super.disconnectedCallback(),this._headingSp.dispose()}getPadding(){let e=512-Math.min(this.clientHeight,this.clientWidth),i=e/128,o;return e>0?o=i*48:o=i*6,72+o}get angleAdviceRaw(){return this.headingAdvices.map(({minAngle:t,maxAngle:e,hinted:i,type:o})=>{let r=this.heading>=t&&this.heading<=e?j.triggered:i?j.hinted:j.regular;return{minAngle:t,maxAngle:e,type:o,state:r}})}priorityFor(t){return(Array.isArray(this.priorityElements)?this.priorityElements:[]).includes(t)?this.priority:D.regular}colorFor(t){return this.priorityFor(t)===D.enhanced?"var(--instrument-enhanced-secondary-color)":void 0}getRotation(){if(this.direction!=="northUp"){if(this.direction==="headingUp")return-this.heading;if(this.direction==="courseUp")return-this.courseOverGround}}render(){let t=[{angle:0,type:ee.main},{angle:90,type:ee.main},{angle:180,type:ee.main},{angle:270,type:ee.main}],e=this.getPadding(),i=(176+e)*2,o=`-${i/2} -${i/2} ${i} ${i}`;return c`
+    `}else{return[]}}var Bt=class{constructor(e){this.atSetpoint=false;this.touching=false;this.autoAtSetpoint=true;this.setpointOverride=false;this.animateSetpoint=false;this.autoAtSetpointDeadband=e?.defaultDeadband??2;this.setpointAtZeroDeadband=e?.defaultZeroDeadband??.5;this._angularWraparound=e?.angularWraparound??false;this._onAnimationEnd=e?.onAnimationEnd}sync(e){const i=this.newSetpoint;if(e.setpoint!==void 0||"setpoint"in e)this.setpoint=e.setpoint;if(e.newSetpoint!==void 0||"newSetpoint"in e)this.newSetpoint=e.newSetpoint;if(e.atSetpoint!==void 0)this.atSetpoint=e.atSetpoint;if(e.touching!==void 0)this.touching=e.touching;if(e.autoAtSetpoint!==void 0)this.autoAtSetpoint=e.autoAtSetpoint;if(e.autoAtSetpointDeadband!==void 0)this.autoAtSetpointDeadband=e.autoAtSetpointDeadband;if(e.setpointAtZeroDeadband!==void 0)this.setpointAtZeroDeadband=e.setpointAtZeroDeadband;if(e.setpointOverride!==void 0)this.setpointOverride=e.setpointOverride;if(e.animateSetpoint!==void 0)this.animateSetpoint=e.animateSetpoint;if(i!==void 0&&this.newSetpoint===void 0&&this.animateSetpoint){this.departingNewSetpoint=i;clearTimeout(this._animationTimer);this._animationTimer=setTimeout(()=>{this.departingNewSetpoint=void 0;this._onAnimationEnd?.()},xt)}}dispose(){clearTimeout(this._animationTimer)}computeAtSetpoint(e){return Qi({value:e,setpoint:this.setpoint,touching:this.touching,auto:this.autoAtSetpoint,deadband:this.autoAtSetpointDeadband,atSetpointManual:this.atSetpoint,angularWraparound:this._angularWraparound})}};var us=Object.defineProperty;var vs=Object.getOwnPropertyDescriptor;var P=(r,e,i,o)=>{var t=o>1?void 0:o?vs(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)us(e,i,t);return t};var S=class extends d{constructor(){super(...arguments);this.heading=0;this.courseOverGround=0;this.headingSetpoint=null;this.atHeadingSetpoint=false;this.headingSetpointAtZeroDeadband=.5;this.headingSetpointOverride=false;this.autoAtHeadingSetpoint=true;this.autoAtHeadingSetpointDeadband=2;this.animateSetpoint=false;this.touching=false;this.headingAdvices=[];this.windSpeed=null;this.windFromDirection=null;this.currentSpeed=null;this.currentFromDirection=null;this.vesselImage=Ne.genericTop;this.rotationsPerMinute=1;this.rotType=Cr.dots;this.rotPosition=Br.innerCircle;this.rotMaxValue=10;this.rotArcExtent=60;this.rotPortStarboard=false;this.rotAtZeroDeadband=Er;this.direction="northUp";this.state=ke.active;this.priority=D.regular;this.priorityElements=["hdg"];this.showLabels=false;this.tickmarksInside=false;this._headingSp=new Bt({angularWraparound:true,onAnimationEnd:()=>this.requestUpdate()});this._resizeController=new wr(this,{})}willUpdate(r){super.willUpdate(r);this._headingSp.sync({setpoint:this.headingSetpoint??void 0,newSetpoint:this.newHeadingSetpoint,atSetpoint:this.atHeadingSetpoint,touching:this.touching,autoAtSetpoint:this.autoAtHeadingSetpoint,autoAtSetpointDeadband:this.autoAtHeadingSetpointDeadband,setpointAtZeroDeadband:this.headingSetpointAtZeroDeadband,setpointOverride:this.headingSetpointOverride,animateSetpoint:this.animateSetpoint})}disconnectedCallback(){super.disconnectedCallback();this._headingSp.dispose()}getPadding(){const r=Math.min(this.clientHeight,this.clientWidth);const e=512-r;const i=e/128;let o;if(e>0){o=i*48}else{o=i*6}return 72+o}get angleAdviceRaw(){return this.headingAdvices.map(({minAngle:r,maxAngle:e,hinted:i,type:o})=>{const t=this.heading>=r&&this.heading<=e?R.triggered:i?R.hinted:R.regular;return{minAngle:r,maxAngle:e,type:o,state:t}})}priorityFor(r){const e=Array.isArray(this.priorityElements)?this.priorityElements:[];return e.includes(r)?this.priority:D.regular}colorFor(r){return this.priorityFor(r)===D.enhanced?"var(--instrument-enhanced-secondary-color)":void 0}getRotation(){if(this.direction==="northUp"){return void 0}else if(this.direction==="headingUp"){return-this.heading}else if(this.direction==="courseUp"){return-this.courseOverGround}return void 0}render(){const r=[{angle:0,type:te.main},{angle:90,type:te.main},{angle:180,type:te.main},{angle:270,type:te.main}];const e=this.getPadding();const i=(176+e)*2;const o=`-${i/2} -${i/2} ${i} ${i}`;return c`
       <div class="container">
         <obc-watch
           .touching=${this.touching}
           .padding=${e}
           .advices=${this.angleAdviceRaw}
-          .tickmarks=${t}
+          .tickmarks=${r}
           .state=${this.state}
-          .watchCircleType=${$t.triple}
+          .watchCircleType=${jr.triple}
           .showLabels=${this.showLabels}
           .tickmarksInside=${this.tickmarksInside}
-          .crosshairEnabled=${!0}
-          .northArrow=${!0}
+          .crosshairEnabled=${true}
+          .northArrow=${true}
           .angleSetpoint=${this.headingSetpoint??void 0}
           .newAngleSetpoint=${this.newHeadingSetpoint}
           .atAngleSetpoint=${this._headingSp.computeAtSetpoint(this.heading)}
@@ -4353,7 +4352,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
           .setpointOverride=${this.headingSetpointOverride}
           .priority=${this.priority}
           .animateSetpoint=${this.animateSetpoint}
-          .vessels=${[{size:Pe.medium,vesselImage:this.vesselImage,transform:`rotate(${this.heading}deg)`}]}
+          .vessels=${[{size:Re.medium,vesselImage:this.vesselImage,transform:`rotate(${this.heading}deg)`}]}
           .wind=${this.windSpeed}
           .windFromDirectionDeg=${this.windFromDirection}
           .windColor=${this.colorFor("wind")}
@@ -4372,11 +4371,11 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
         >
         </obc-watch>
         <svg viewBox="${o}">
-          ${Mo(Cr.HDG,this.heading+(this.getRotation()??0),this.priorityFor("hdg"))}
-          ${Mo(Cr.COG,this.courseOverGround+(this.getRotation()??0),this.priorityFor("cog"))}
+          ${Fo(zt.HDG,this.heading+(this.getRotation()??0),this.priorityFor("hdg"))}
+          ${Fo(zt.COG,this.courseOverGround+(this.getRotation()??0),this.priorityFor("cog"))}
         </svg>
       </div>
-    `}};Z.styles=p`
+    `}};S.styles=p`
     * {
       box-sizing: border-box;
     }
@@ -4400,58 +4399,58 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
       width: 100%;
       height: 100%;
     }
-  `;A([s({type:Number})],Z.prototype,"heading",2);A([s({type:Number})],Z.prototype,"courseOverGround",2);A([s({type:Number})],Z.prototype,"headingSetpoint",2);A([s({type:Number})],Z.prototype,"newHeadingSetpoint",2);A([s({type:Boolean})],Z.prototype,"atHeadingSetpoint",2);A([s({type:Number})],Z.prototype,"headingSetpointAtZeroDeadband",2);A([s({type:Boolean})],Z.prototype,"headingSetpointOverride",2);A([s({type:Boolean,attribute:!1})],Z.prototype,"autoAtHeadingSetpoint",2);A([s({type:Number})],Z.prototype,"autoAtHeadingSetpointDeadband",2);A([s({type:Boolean})],Z.prototype,"animateSetpoint",2);A([s({type:Boolean})],Z.prototype,"touching",2);A([s({type:Array,attribute:!1})],Z.prototype,"headingAdvices",2);A([s({type:Number})],Z.prototype,"windSpeed",2);A([s({type:Number})],Z.prototype,"windFromDirection",2);A([s({type:Number})],Z.prototype,"currentSpeed",2);A([s({type:Number})],Z.prototype,"currentFromDirection",2);A([s({type:String})],Z.prototype,"vesselImage",2);A([s({type:Number})],Z.prototype,"rotationsPerMinute",2);A([s({type:String})],Z.prototype,"rotType",2);A([s({type:String})],Z.prototype,"rotPosition",2);A([s({type:Number})],Z.prototype,"rotMaxValue",2);A([s({type:Number})],Z.prototype,"rotArcExtent",2);A([s({type:Boolean})],Z.prototype,"rotPortStarboard",2);A([s({type:Number})],Z.prototype,"rotAtZeroDeadband",2);A([s({type:String})],Z.prototype,"direction",2);A([s({type:String})],Z.prototype,"state",2);A([s({type:String})],Z.prototype,"priority",2);A([s({type:Array,attribute:!1})],Z.prototype,"priorityElements",2);A([s({type:Boolean})],Z.prototype,"showLabels",2);A([s({type:Boolean})],Z.prototype,"tickmarksInside",2);Z=A([h("obc-compass")],Z);function xo({height:t,minValue:e,maxValue:i,min:o,max:r,fill:a,stroke:n,x1:v}){let b=v+8+4,g=8/2,C=pe(o,e,i,t)-2*g,y=pe(r,e,i,t)+2*g,H=`M ${v+4} ${C} 
-                    A ${g} ${g} 0 0 0 ${b} ${C}
+  `;P([l({type:Number})],S.prototype,"heading",2);P([l({type:Number})],S.prototype,"courseOverGround",2);P([l({type:Number})],S.prototype,"headingSetpoint",2);P([l({type:Number})],S.prototype,"newHeadingSetpoint",2);P([l({type:Boolean})],S.prototype,"atHeadingSetpoint",2);P([l({type:Number})],S.prototype,"headingSetpointAtZeroDeadband",2);P([l({type:Boolean})],S.prototype,"headingSetpointOverride",2);P([l({type:Boolean,attribute:false})],S.prototype,"autoAtHeadingSetpoint",2);P([l({type:Number})],S.prototype,"autoAtHeadingSetpointDeadband",2);P([l({type:Boolean})],S.prototype,"animateSetpoint",2);P([l({type:Boolean})],S.prototype,"touching",2);P([l({type:Array,attribute:false})],S.prototype,"headingAdvices",2);P([l({type:Number})],S.prototype,"windSpeed",2);P([l({type:Number})],S.prototype,"windFromDirection",2);P([l({type:Number})],S.prototype,"currentSpeed",2);P([l({type:Number})],S.prototype,"currentFromDirection",2);P([l({type:String})],S.prototype,"vesselImage",2);P([l({type:Number})],S.prototype,"rotationsPerMinute",2);P([l({type:String})],S.prototype,"rotType",2);P([l({type:String})],S.prototype,"rotPosition",2);P([l({type:Number})],S.prototype,"rotMaxValue",2);P([l({type:Number})],S.prototype,"rotArcExtent",2);P([l({type:Boolean})],S.prototype,"rotPortStarboard",2);P([l({type:Number})],S.prototype,"rotAtZeroDeadband",2);P([l({type:String})],S.prototype,"direction",2);P([l({type:String})],S.prototype,"state",2);P([l({type:String})],S.prototype,"priority",2);P([l({type:Array,attribute:false})],S.prototype,"priorityElements",2);P([l({type:Boolean})],S.prototype,"showLabels",2);P([l({type:Boolean})],S.prototype,"tickmarksInside",2);S=P([h("obc-compass")],S);function Uo({height:r,minValue:e,maxValue:i,min:o,max:t,fill:a,stroke:n,x1:v}){const u=8;const f=4;const w=v+u+f;const g=u/2;const b=fe(o,e,i,r)-2*g;const y=fe(t,e,i,r)+2*g;const L=`M ${v+f} ${b}
+                    A ${g} ${g} 0 0 0 ${w} ${b}
                     V ${y}
-                    A ${g} ${g} 0 0 0 ${v+4} ${y}
-                    Z`;return l`<path d=${H} fill=${a} stroke=${n} stroke-width="1" vector-effect="non-scaling-stroke" />`}function wr({height:t,scaleWidth:e,minValue:i,maxValue:o,value:r,style:a,x1:n}){if(r>=o||r<=i)return null;let v=bo(a),u=pe(r,i,o,t);return l`<line x1=${n-2} x2=${n+e} y1=${u}  y2=${u} stroke=${v} stroke-width="1" vector-effect="non-scaling-stroke"/>`}function Ei(t,e,i,o,r,a){let n=o/2-r,v=-o/2,u=o/2-r,m=[];if(a.min>e){let b=pe(a.min,e,i,t);m.push(l`<line x1=${v} x2=${u} y1=${b} y2=${b} 
-                    stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke" 
-                    stroke-dasharray="4 4"/>`)}if(a.max<i){let b=pe(a.max,e,i,t);m.push(l`<line x1=${v} x2=${u} y1=${b} y2=${b} 
-                    stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke" 
-                    stroke-dasharray="4 4"/>`)}if(a.type===ce.caution){let b,g="var(--instrument-frame-primary-color)";a.state===j.hinted?b="var(--instrument-frame-tertiary-color)":a.state===j.regular?b="var(--instrument-tick-mark-tertiary-color)":(b="var(--on-caution-active-color)",g="var(--alert-caution-color)");let C=[],y=50;for(let k=-128;k<224;k+=16)C.push(l`<g transform="translate(0 ${-k}) ">
-            <path d="M 50 0 L 0 ${y}" stroke=${b} stroke-width="6"/>
+                    A ${g} ${g} 0 0 0 ${v+f} ${y}
+                    Z`;return s`<path d=${L} fill=${a} stroke=${n} stroke-width="1" vector-effect="non-scaling-stroke" />`}function Et({height:r,scaleWidth:e,minValue:i,maxValue:o,value:t,style:a,x1:n}){if(t>=o||t<=i){return null}const v=Eo(a);const u=fe(t,i,o,r);return s`<line x1=${n-2} x2=${n+e} y1=${u}  y2=${u} stroke=${v} stroke-width="1" vector-effect="non-scaling-stroke"/>`}function c1(r,e,i,o,t,a){const n=o/2-t;const v=-o/2;const u=o/2-t;const f=[];if(a.min>e){const w=fe(a.min,e,i,r);f.push(s`<line x1=${v} x2=${u} y1=${w} y2=${w}
+                    stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"
+                    stroke-dasharray="4 4"/>`)}if(a.max<i){const w=fe(a.max,e,i,r);f.push(s`<line x1=${v} x2=${u} y1=${w} y2=${w}
+                    stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"
+                    stroke-dasharray="4 4"/>`)}if(a.type===me.caution){let w;let g="var(--instrument-frame-primary-color)";if(a.state===R.hinted){w="var(--instrument-frame-tertiary-color)"}else if(a.state===R.regular){w="var(--instrument-tick-mark-tertiary-color)"}else{w="var(--on-caution-active-color)";g="var(--alert-caution-color)"}const b=[];const y=50;for(let x=-16*8;x<16*14;x+=16){b.push(s`<g transform="translate(0 ${-x}) ">
+            <path d="M 50 0 L 0 ${y}" stroke=${w} stroke-width="6"/>
             </g>
-            `);let H=`adviceMask-${a.min}-${a.max}`,E=Y.regular;return a.state===j.regular?E=Y.regular:a.state===j.triggered&&(E=Y.enhanced),l`
-            <mask id=${H}>
-                ${xo({height:t,minValue:e,maxValue:i,min:a.min,max:a.max,fill:"white",stroke:"black",x1:n})}
+            `)}const L=`adviceMask-${a.min}-${a.max}`;let V=Q.regular;if(a.state===R.regular){V=Q.regular}else if(a.state===R.triggered){V=Q.enhanced}return s`
+            <mask id=${L}>
+                ${Uo({height:r,minValue:e,maxValue:i,min:a.min,max:a.max,fill:"white",stroke:"black",x1:n})}
             </mask>
-            <g mask="url(#${H})">
-                ${g?l`<rect x="-256" y="-512" width="512" height="1024" fill="${g}"/>`:f}
-                ${C}
+            <g mask="url(#${L})">
+                ${g?s`<rect x="-256" y="-512" width="512" height="1024" fill="${g}"/>`:m}
+                ${b}
             </g>
-            ${xo({height:t,minValue:e,maxValue:i,min:a.min,max:a.max,fill:"none",stroke:b,x1:n})}
-            ${wr({height:t,scaleWidth:r,minValue:e,maxValue:i,value:a.min,style:E,x1:n})}
-            ${wr({height:t,scaleWidth:r,minValue:e,maxValue:i,value:a.max,style:E,x1:n})}
-            ${m}
-        `}else{let b,g,C;return a.state===j.hinted?(b="var(--instrument-frame-tertiary-color)",C="var(--instrument-frame-primary-color)",g=Y.regular):a.state===j.regular?(b="var(--instrument-regular-secondary-color)",C="var(--instrument-frame-primary-color)",g=Y.regular):(b="var(--instrument-enhanced-secondary-color)",C=b,g=Y.regular),l`
-            ${xo({height:t,minValue:e,maxValue:i,min:a.min,max:a.max,fill:C,stroke:b,x1:n})}
-            ${wr({height:t,scaleWidth:r,minValue:e,maxValue:i,value:a.min,style:g,x1:n})}
-            ${wr({height:t,scaleWidth:r,minValue:e,maxValue:i,value:a.max,style:g,x1:n})}
-            ${m}
-        `}}function Di({height:t,width:e,scaleWidth:i,minValue:o,maxValue:r},a,n,v,u,m,b){let C=`M -${e/2} 0  V -${t/2-8}  a 8 8 0 0 1 8 -8 h ${e-16} a 8 8 0 0 1 8 8 V ${t/2-8} a 8 8 0 0 1 -8 8 h -${e-16} a 8 8 0 0 1 -8 -8 Z`,y=l`
-      <path d=${C} 
+            ${Uo({height:r,minValue:e,maxValue:i,min:a.min,max:a.max,fill:"none",stroke:w,x1:n})}
+            ${Et({height:r,scaleWidth:t,minValue:e,maxValue:i,value:a.min,style:V,x1:n})}
+            ${Et({height:r,scaleWidth:t,minValue:e,maxValue:i,value:a.max,style:V,x1:n})}
+            ${f}
+        `}else{let w;let g;let b;if(a.state===R.hinted){w="var(--instrument-frame-tertiary-color)";b="var(--instrument-frame-primary-color)";g=Q.regular}else if(a.state===R.regular){w="var(--instrument-regular-secondary-color)";b="var(--instrument-frame-primary-color)";g=Q.regular}else{w="var(--instrument-enhanced-secondary-color)";b=w;g=Q.regular}return s`
+            ${Uo({height:r,minValue:e,maxValue:i,min:a.min,max:a.max,fill:b,stroke:w,x1:n})}
+            ${Et({height:r,scaleWidth:t,minValue:e,maxValue:i,value:a.min,style:g,x1:n})}
+            ${Et({height:r,scaleWidth:t,minValue:e,maxValue:i,value:a.max,style:g,x1:n})}
+            ${f}
+        `}}function p1({height:r,width:e,scaleWidth:i,minValue:o,maxValue:t},a,n,v,u,f,w){const g=8;const b=`M -${e/2} 0  V -${r/2-8}  a 8 8 0 0 1 8 -8 h ${e-g*2} a 8 8 0 0 1 8 8 V ${r/2-g} a 8 8 0 0 1 -8 8 h -${e-2*g} a 8 8 0 0 1 -8 -8 Z`;const y=s`
+      <path d=${b}
        fill=${v.container}
        />
-  `,H=e-i-8,E=l`
-      <path d="M -${e/2} 0  V -${t/2-8}  a 8 8 0 0 1 8 -8 h ${H} V ${t/2} h -${H} a 8 8 0 0 1 -8 -8 Z" 
+  `;const L=e-i-g;let V=s`
+      <path d="M -${e/2} 0  V -${r/2-g}  a 8 8 0 0 1 8 -8 h ${L} V ${r/2} h -${L} a 8 8 0 0 1 -8 -8 Z"
        stroke="var(--instrument-frame-secondary-color)"
        fill="var(--instrument-frame-secondary-color)"
        vector-effect="non-scaling-stroke"
        />
-  `,k=l`
-      <path d=${C} 
-      stroke="var(--instrument-frame-tertiary-color)" 
-      fill="none" 
+  `;const x=s`
+      <path d=${b}
+      stroke="var(--instrument-frame-tertiary-color)"
+      fill="none"
       vector-effect="non-scaling-stroke"/>
-  `;u.off&&(E=f);let{boxFill:w,boxStroke:$,barFill:B,barStroke:Q}=Ss(u.priority===D.enhanced),F=[],U="boxMask",P=u.hideContainer?f:l`
+  `;if(u.off){V=m}const{boxFill:k,boxStroke:_,barFill:z,barStroke:K}=ms(u.priority===D.enhanced);const U=[];const W="boxMask";const O=u.hideContainer?m:s`
   <defs>
-  <mask id=${U}>
-  <path d=${C} fill="white" stroke="white" vector-effect="non-scaling-stroke"/>
-  </defs>`,I=u.hideContainer?void 0:`url(#${U})`,ne=[];if(m.mainTickmarks)for(let te of m.mainTickmarks){if(te<o||te>r)continue;let _e=pe(te,o,r,t);F.push(l`<line x1=${-e/2} x2=${e/2} y1=${_e} y2=${_e} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`),ne.push(te)}let Ve=e/2-i+4;if(m.primaryTickmarkInterval!==void 0&&m.primaryTickmarkInterval>0&&Number.isFinite(m.primaryTickmarkInterval)){let{svgs:te,values:_e}=zi({height:t,interval:m.primaryTickmarkInterval,minValue:o,maxValue:r,tickmarksX:Ve,tickmarksWidth:e/2-Ve,skipValues:ne});F.push(...te),ne.push(..._e)}if(m.secondaryTickmarkInterval!==void 0&&m.secondaryTickmarkInterval>0&&Number.isFinite(m.secondaryTickmarkInterval)){let{svgs:te,values:_e}=zi({height:t,interval:m.secondaryTickmarkInterval,minValue:o,maxValue:r,tickmarksX:Ve,tickmarksWidth:8,skipValues:ne});F.push(...te),ne.push(..._e)}let rt=-e/2,Vo=e-i,Za=a.map(te=>{let _e=pe(te.min,o,r,t),Zo=pe(te.max,o,r,t),Pa=Math.min(_e,Zo),Oa=Math.abs(Zo-_e);return l`<rect width=${Vo} height=${Oa} x=${rt} y=${Pa} fill=${te.fill??w} stroke=${te.fill??$} vector-effect="non-scaling-stroke"/>`}),Sa=b.map(te=>Ei(t,o,r,e,i,te)),Aa=n?l`
-<rect x=${rt} y=${pe(n.value,o,r,t)-4} width=${Vo} height="8" rx="4" fill=${B} stroke=${Q} vector-effect="non-scaling-stroke"/>
-`:f,_o=[P,k,l`<g mask=${I}>${F}${Za} </g>`,Sa,Aa];return u.hideContainer||_o.splice(0,0,[y,E]),_o}function pe(t,e,i,o){let r=i-e;return(-t+e)*o/r+o/2}function zi({height:t,interval:e,tickmarksX:i,tickmarksWidth:o,minValue:r,maxValue:a,skipValues:n}){let v=[],u=[];for(let m=0;m<a;m+=e){if(n.includes(m))continue;let b=pe(m,r,a,t);u.push(m),v.push(l`<line x1=${i} x2=${i+o} y1=${b} y2=${b} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`)}for(let m=-e;m>r;m-=e){if(n.includes(m))continue;let b=pe(m,r,a,t);u.push(m),v.push(l`<line x1=${i} x2=${i+o} y1=${b} y2=${b} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`)}return{svgs:v,values:u}}function Ss(t){return t?{boxFill:"var(--instrument-enhanced-tertiary-color)",boxStroke:"var(--instrument-enhanced-tertiary-color)",barFill:"var(--instrument-enhanced-secondary-color)",barStroke:"var(--instrument-enhanced-tertiary-color)"}:{boxFill:"var(--instrument-regular-tertiary-color)",boxStroke:"var(--instrument-regular-tertiary-color)",barFill:"var(--instrument-regular-secondary-color)",barStroke:"var(--instrument-regular-tertiary-color)"}}var As=Object.defineProperty,Ps=Object.getOwnPropertyDescriptor,Me=(t,e,i,o)=>{for(var r=o>1?void 0:o?Ps(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&As(e,i,r),r},he=class extends d{constructor(){super(...arguments),this.depth=0,this.draft=0,this.advice=[],this.vesselScale=1,this.instrumentRange=10,this.primaryTickmarkInterval=50,this.secondaryTickmarkInterval=10,this.vesselImage=Oe.psvFore,this.priority=D.regular,this._boxWidth=336,this._gaugeWidth=72,this._scaleWidth=24}_toValue(t){return-t}_toTranslatedValue(t){return t*(this._boxWidth/2)/this.instrumentRange}_getAdvice(){return this.advice.map(t=>{let i=this.depth>=t.min&&this.depth<=t.max?j.triggered:t.hinted?j.hinted:j.regular;return{...t,min:this._toValue(t.max),max:this._toValue(t.min),state:i}})}render(){let t=this._boxWidth/2-this._gaugeWidth/2,e=8,i=l`
+  <mask id=${W}>
+  <path d=${b} fill="white" stroke="white" vector-effect="non-scaling-stroke"/>
+  </defs>`;const I=u.hideContainer?void 0:`url(#${W})`;const ie=[];if(f.mainTickmarks){for(const ae of f.mainTickmarks){if(ae<o||ae>t)continue;const Be=fe(ae,o,t,r);U.push(s`<line x1=${-e/2} x2=${e/2} y1=${Be} y2=${Be} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`);ie.push(ae)}}const ze=e/2-i+4;if(f.primaryTickmarkInterval!==void 0&&f.primaryTickmarkInterval>0&&Number.isFinite(f.primaryTickmarkInterval)){const{svgs:ae,values:Be}=d1({height:r,interval:f.primaryTickmarkInterval,minValue:o,maxValue:t,tickmarksX:ze,tickmarksWidth:e/2-ze,skipValues:ie});U.push(...ae);ie.push(...Be)}if(f.secondaryTickmarkInterval!==void 0&&f.secondaryTickmarkInterval>0&&Number.isFinite(f.secondaryTickmarkInterval)){const{svgs:ae,values:Be}=d1({height:r,interval:f.secondaryTickmarkInterval,minValue:o,maxValue:t,tickmarksX:ze,tickmarksWidth:8,skipValues:ie});U.push(...ae);ie.push(...Be)}const mr=-e/2;const Xo=e-i;const vn=a.map(ae=>{const Be=fe(ae.min,o,t,r);const Ko=fe(ae.max,o,t,r);const fn=Math.min(Be,Ko);const bn=Math.abs(Ko-Be);return s`<rect width=${Xo} height=${bn} x=${mr} y=${fn} fill=${ae.fill??k} stroke=${ae.fill??_} vector-effect="non-scaling-stroke"/>`});const mn=w.map(ae=>c1(r,o,t,e,i,ae));const gn=n?s`
+<rect x=${mr} y=${fe(n.value,o,t,r)-4} width=${Xo} height="8" rx="4" fill=${z} stroke=${K} vector-effect="non-scaling-stroke"/>
+`:m;const Yo=[O,x,s`<g mask=${I}>${U}${vn} </g>`,mn,gn];if(!u.hideContainer){Yo.splice(0,0,[y,V])}return Yo}function fe(r,e,i,o){const t=i-e;return(-r+e)*o/t+o/2}function d1({height:r,interval:e,tickmarksX:i,tickmarksWidth:o,minValue:t,maxValue:a,skipValues:n}){const v=[];const u=[];for(let f=0;f<a;f+=e){if(n.includes(f)){continue}const w=fe(f,t,a,r);u.push(f);v.push(s`<line x1=${i} x2=${i+o} y1=${w} y2=${w} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`)}for(let f=-e;f>t;f-=e){if(n.includes(f)){continue}const w=fe(f,t,a,r);u.push(f);v.push(s`<line x1=${i} x2=${i+o} y1=${w} y2=${w} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`)}return{svgs:v,values:u}}function ms(r){if(r){return{boxFill:"var(--instrument-enhanced-tertiary-color)",boxStroke:"var(--instrument-enhanced-tertiary-color)",barFill:"var(--instrument-enhanced-secondary-color)",barStroke:"var(--instrument-enhanced-tertiary-color)"}}else{return{boxFill:"var(--instrument-regular-tertiary-color)",boxStroke:"var(--instrument-regular-tertiary-color)",barFill:"var(--instrument-regular-secondary-color)",barStroke:"var(--instrument-regular-tertiary-color)"}}}var gs=Object.defineProperty;var fs=Object.getOwnPropertyDescriptor;var Se=(r,e,i,o)=>{var t=o>1?void 0:o?fs(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)gs(e,i,t);return t};var be=class extends d{constructor(){super(...arguments);this.depth=0;this.draft=0;this.advice=[];this.vesselScale=1;this.instrumentRange=10;this.primaryTickmarkInterval=50;this.secondaryTickmarkInterval=10;this.vesselImage=Ne.psvFore;this.priority=D.regular;this._boxWidth=336;this._gaugeWidth=72;this._scaleWidth=24}_toValue(r){return-r}_toTranslatedValue(r){return r*(this._boxWidth/2)/this.instrumentRange}_getAdvice(){return this.advice.map(r=>{const e=this.depth>=r.min&&this.depth<=r.max;const i=e?R.triggered:r.hinted?R.hinted:R.regular;return{...r,min:this._toValue(r.max),max:this._toValue(r.min),state:i}})}render(){const r=this._boxWidth/2-this._gaugeWidth/2;const e=8;const i=s`
     <rect fill="url(#seabedPattern)" y=${this._toTranslatedValue(this.depth)} x=${-this._boxWidth/2} width=${this._boxWidth-this._gaugeWidth} height=${this._toTranslatedValue(this.instrumentRange-this.depth)} fill="red" />
-    `,o=this.priority===D.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)",r=this.vesselScale*50/this.instrumentRange;return c`
+    `;const o=this.priority===D.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";const t=this.vesselScale*50/this.instrumentRange;return c`
       <div class="container">
         <svg viewbox="-200 -200 400 400">
           <rect
@@ -4463,8 +4462,8 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
             fill="var(--instrument-frame-secondary-color)"
           />
 
-          <g transform="translate(${t}, ${this._boxWidth/4})">
-            ${Di({height:this._boxWidth/2,minValue:this._toValue(this.instrumentRange),maxValue:this._toValue(0),width:this._gaugeWidth,scaleWidth:this._scaleWidth},[{min:this._toValue(this.depth),max:this._toValue(0)},{min:this._toValue(this.draft),max:this._toValue(0),fill:o}],{value:this._toValue(this.depth)},{container:"var(--instrument-frame-primary-color)"},{hideContainer:!1,off:!1,priority:this.priority},{primaryTickmarkInterval:this.primaryTickmarkInterval,secondaryTickmarkInterval:this.secondaryTickmarkInterval},this._getAdvice())}
+          <g transform="translate(${r}, ${this._boxWidth/4})">
+            ${p1({height:this._boxWidth/2,minValue:this._toValue(this.instrumentRange),maxValue:this._toValue(0),width:this._gaugeWidth,scaleWidth:this._scaleWidth},[{min:this._toValue(this.depth),max:this._toValue(0)},{min:this._toValue(this.draft),max:this._toValue(0),fill:o}],{value:this._toValue(this.depth)},{container:"var(--instrument-frame-primary-color)"},{hideContainer:false,off:false,priority:this.priority},{primaryTickmarkInterval:this.primaryTickmarkInterval,secondaryTickmarkInterval:this.secondaryTickmarkInterval},this._getAdvice())}
           </g>
           <defs>
             <mask id="hearlineMask">
@@ -4535,12 +4534,12 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
             />
             <g
               transform="
-              translate(0, ${this._toTranslatedValue(this.draft)-21*r})
+              translate(0, ${this._toTranslatedValue(this.draft)-21*t})
             translate(${-this._gaugeWidth/2-80} , -80)
-            scale(${r*3} )"
+            scale(${t*3} )"
               transform-origin="80 80"
             >
-              ${this.vesselImage?mr[this.vesselImage]:f}
+              ${this.vesselImage?At[this.vesselImage]:m}
             </g>
             ${i}
           </g>
@@ -4569,7 +4568,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
             d="M ${this._boxWidth/2} 0
             V -${this._boxWidth/2-e}
              a ${e} ${e} 0 0 0 ${-e} ${-e}
-             H ${-this._boxWidth/2+e} 
+             H ${-this._boxWidth/2+e}
              a ${e} ${e} 0 0 0 ${-e} ${e}
              V ${this._boxWidth/2-e}
              a ${e} ${e} 0 0 0 ${e} ${e}
@@ -4580,7 +4579,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
           />
         </svg>
       </div>
-    `}};he.styles=p`
+    `}};be.styles=p`
     * {
       box-sizing: border-box;
     }
@@ -4598,7 +4597,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
       width: 100%;
       height: 100%;
     }
-  `;Me([s({type:Number})],he.prototype,"depth",2);Me([s({type:Number})],he.prototype,"draft",2);Me([s({type:Array})],he.prototype,"advice",2);Me([s({type:Number})],he.prototype,"vesselScale",2);Me([s({type:Number})],he.prototype,"instrumentRange",2);Me([s({type:Number})],he.prototype,"primaryTickmarkInterval",2);Me([s({type:Number})],he.prototype,"secondaryTickmarkInterval",2);Me([s({type:String})],he.prototype,"vesselImage",2);Me([s({type:String})],he.prototype,"priority",2);he=Me([h("obc-depth-actual")],he);var Os=Object.defineProperty,Bs=Object.getOwnPropertyDescriptor,ie=(t,e,i,o)=>{for(var r=o>1?void 0:o?Bs(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Os(e,i,r),r};var J=class extends d{constructor(){super(...arguments),this.pitch=0,this.roll=0,this.minAvgPitch=0,this.maxAvgPitch=0,this.minAvgRoll=0,this.maxAvgRoll=0,this.vesselImageFore=Oe.psvFore,this.vesselImageSide=Oe.psvSide,this.maxPitchAdvice=void 0,this.maxRollAdvice=void 0,this.triggerPitchAdvice=!1,this.triggerRollAdvice=!1,this.priority=D.regular,this.priorityElements=["pitch","roll"]}priorityFor(t){return(Array.isArray(this.priorityElements)?this.priorityElements:[]).includes(t)?this.priority:D.regular}needleColor(t){return this.priorityFor(t)===D.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}barColor(t){return this.priorityFor(t)===D.enhanced?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)"}render(){return c`
+  `;Se([l({type:Number})],be.prototype,"depth",2);Se([l({type:Number})],be.prototype,"draft",2);Se([l({type:Array})],be.prototype,"advice",2);Se([l({type:Number})],be.prototype,"vesselScale",2);Se([l({type:Number})],be.prototype,"instrumentRange",2);Se([l({type:Number})],be.prototype,"primaryTickmarkInterval",2);Se([l({type:Number})],be.prototype,"secondaryTickmarkInterval",2);Se([l({type:String})],be.prototype,"vesselImage",2);Se([l({type:String})],be.prototype,"priority",2);be=Se([h("obc-depth-actual")],be);var bs=Object.defineProperty;var ws=Object.getOwnPropertyDescriptor;var le=(r,e,i,o)=>{var t=o>1?void 0:o?ws(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)bs(e,i,t);return t};var ee=class extends d{constructor(){super(...arguments);this.pitch=0;this.roll=0;this.minAvgPitch=0;this.maxAvgPitch=0;this.minAvgRoll=0;this.maxAvgRoll=0;this.vesselImageFore=Ne.psvFore;this.vesselImageSide=Ne.psvSide;this.maxPitchAdvice=void 0;this.maxRollAdvice=void 0;this.triggerPitchAdvice=false;this.triggerRollAdvice=false;this.priority=D.regular;this.priorityElements=["pitch","roll"]}priorityFor(r){const e=Array.isArray(this.priorityElements)?this.priorityElements:[];return e.includes(r)?this.priority:D.regular}needleColor(r){return this.priorityFor(r)===D.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}barColor(r){return this.priorityFor(r)===D.enhanced?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)"}render(){return c`
       <div class="container">
         <svg viewBox="-200 -200 400 400">
           <line
@@ -4610,16 +4609,16 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
           />
         </svg>
         <obc-watch
-          .watchCircleType=${$t.double}
-          .areas=${[{startAngle:60,endAngle:120,roundOutsideCut:!0,roundInsideCut:!0},{startAngle:240,endAngle:300,roundOutsideCut:!0,roundInsideCut:!0},{startAngle:315,endAngle:45,roundOutsideCut:!0,roundInsideCut:!0},{startAngle:135,endAngle:225,roundOutsideCut:!0,roundInsideCut:!0}]}
+          .watchCircleType=${jr.double}
+          .areas=${[{startAngle:60,endAngle:120,roundOutsideCut:true,roundInsideCut:true},{startAngle:240,endAngle:300,roundOutsideCut:true,roundInsideCut:true},{startAngle:315,endAngle:45,roundOutsideCut:true,roundInsideCut:true},{startAngle:135,endAngle:225,roundOutsideCut:true,roundInsideCut:true}]}
           .barAreas=${[{startAngle:this.minAvgRoll,endAngle:this.maxAvgRoll,fillColor:this.barColor("roll")},{startAngle:180+this.minAvgRoll,endAngle:180+this.maxAvgRoll,fillColor:this.barColor("roll")},{startAngle:90+this.minAvgPitch,endAngle:90+this.maxAvgPitch,fillColor:this.barColor("pitch")},{startAngle:270+this.minAvgPitch,endAngle:270+this.maxAvgPitch,fillColor:this.barColor("pitch")}]}
           .needles=${[{angle:this.roll,fillColor:this.needleColor("roll"),strokeColor:"var(--border-silhouette-color)"},{angle:180+this.roll,fillColor:this.needleColor("roll"),strokeColor:"var(--border-silhouette-color)"},{angle:90+this.pitch,fillColor:this.needleColor("pitch"),strokeColor:"var(--border-silhouette-color)"},{angle:270+this.pitch,fillColor:this.needleColor("pitch"),strokeColor:"var(--border-silhouette-color)"}]}
-          .vessels=${[{size:Pe.large,vesselImage:this.vesselImageSide,transform:`rotate(${this.pitch}deg)`},{size:Pe.large,vesselImage:this.vesselImageFore,transform:`rotate(${this.roll}deg)`}]}
-          .tickmarks=${[{angle:0,type:ee.main},{angle:90,type:ee.main},{angle:180,type:ee.main},{angle:270,type:ee.main}]}
+          .vessels=${[{size:Re.large,vesselImage:this.vesselImageSide,transform:`rotate(${this.pitch}deg)`},{size:Re.large,vesselImage:this.vesselImageFore,transform:`rotate(${this.roll}deg)`}]}
+          .tickmarks=${[{angle:0,type:te.main},{angle:90,type:te.main},{angle:180,type:te.main},{angle:270,type:te.main}]}
           .advices=${this.advices}
         ></obc-watch>
       </div>
-    `}get advices(){let t=[];if(this.maxPitchAdvice!==void 0){let e=this.triggerPitchAdvice?j.triggered:j.regular;t.push({minAngle:60,maxAngle:90-this.maxPitchAdvice,type:ce.caution,state:e,hideMinTickmark:!0}),t.push({minAngle:90+this.maxPitchAdvice,maxAngle:120,type:ce.caution,state:e,hideMaxTickmark:!0}),t.push({minAngle:240,maxAngle:270-this.maxPitchAdvice,type:ce.caution,state:e,hideMinTickmark:!0}),t.push({minAngle:270+this.maxPitchAdvice,maxAngle:300,type:ce.caution,state:e,hideMaxTickmark:!0})}if(this.maxRollAdvice!==void 0){let e=this.triggerRollAdvice?j.triggered:j.regular;t.push({minAngle:-45,maxAngle:-this.maxRollAdvice,type:ce.caution,state:e,hideMinTickmark:!0}),t.push({minAngle:this.maxRollAdvice,maxAngle:45,type:ce.caution,state:e,hideMaxTickmark:!0}),t.push({minAngle:135,maxAngle:180-this.maxRollAdvice,type:ce.caution,state:e,hideMinTickmark:!0}),t.push({minAngle:180+this.maxRollAdvice,maxAngle:225,type:ce.caution,state:e,hideMaxTickmark:!0})}return t}};J.styles=p`
+    `}get advices(){const r=[];if(this.maxPitchAdvice!==void 0){const e=this.triggerPitchAdvice?R.triggered:R.regular;r.push({minAngle:60,maxAngle:90-this.maxPitchAdvice,type:me.caution,state:e,hideMinTickmark:true});r.push({minAngle:90+this.maxPitchAdvice,maxAngle:120,type:me.caution,state:e,hideMaxTickmark:true});r.push({minAngle:240,maxAngle:270-this.maxPitchAdvice,type:me.caution,state:e,hideMinTickmark:true});r.push({minAngle:270+this.maxPitchAdvice,maxAngle:300,type:me.caution,state:e,hideMaxTickmark:true})}if(this.maxRollAdvice!==void 0){const e=this.triggerRollAdvice?R.triggered:R.regular;r.push({minAngle:-45,maxAngle:-this.maxRollAdvice,type:me.caution,state:e,hideMinTickmark:true});r.push({minAngle:this.maxRollAdvice,maxAngle:45,type:me.caution,state:e,hideMaxTickmark:true});r.push({minAngle:135,maxAngle:180-this.maxRollAdvice,type:me.caution,state:e,hideMinTickmark:true});r.push({minAngle:180+this.maxRollAdvice,maxAngle:225,type:me.caution,state:e,hideMaxTickmark:true})}return r}};ee.styles=p`
     * {
       box-sizing: border-box;
     }
@@ -4637,7 +4636,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
       width: 100%;
       height: 100%;
     }
-  `;ie([s({type:Number})],J.prototype,"pitch",2);ie([s({type:Number})],J.prototype,"roll",2);ie([s({type:Number})],J.prototype,"minAvgPitch",2);ie([s({type:Number})],J.prototype,"maxAvgPitch",2);ie([s({type:Number})],J.prototype,"minAvgRoll",2);ie([s({type:Number})],J.prototype,"maxAvgRoll",2);ie([s({type:String})],J.prototype,"vesselImageFore",2);ie([s({type:String})],J.prototype,"vesselImageSide",2);ie([s({type:Number})],J.prototype,"maxPitchAdvice",2);ie([s({type:Number})],J.prototype,"maxRollAdvice",2);ie([s({type:Boolean})],J.prototype,"triggerPitchAdvice",2);ie([s({type:Boolean})],J.prototype,"triggerRollAdvice",2);ie([s({type:String})],J.prototype,"priority",2);ie([s({type:Array,attribute:!1})],J.prototype,"priorityElements",2);J=ie([h("obc-pitch-roll")],J);var Ii=p`
+  `;le([l({type:Number})],ee.prototype,"pitch",2);le([l({type:Number})],ee.prototype,"roll",2);le([l({type:Number})],ee.prototype,"minAvgPitch",2);le([l({type:Number})],ee.prototype,"maxAvgPitch",2);le([l({type:Number})],ee.prototype,"minAvgRoll",2);le([l({type:Number})],ee.prototype,"maxAvgRoll",2);le([l({type:String})],ee.prototype,"vesselImageFore",2);le([l({type:String})],ee.prototype,"vesselImageSide",2);le([l({type:Number})],ee.prototype,"maxPitchAdvice",2);le([l({type:Number})],ee.prototype,"maxRollAdvice",2);le([l({type:Boolean})],ee.prototype,"triggerPitchAdvice",2);le([l({type:Boolean})],ee.prototype,"triggerRollAdvice",2);le([l({type:String})],ee.prototype,"priority",2);le([l({type:Array,attribute:false})],ee.prototype,"priorityElements",2);ee=le([h("obc-pitch-roll")],ee);var h1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -5141,9 +5140,9 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
 .wrapper.disabled .icon,.wrapper.disabled .label,.wrapper.disabled.inline-label .label,.wrapper.disabled.icon-text-under .label {
     color: var(--on-flat-disabled-color);
   }
-`;var Ts=Object.defineProperty,Es=Object.getOwnPropertyDescriptor,xe=(t,e,i,o)=>{for(var r=o>1?void 0:o?Es(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Ts(e,i,r),r},ct=(t=>(t.icon="icon",t.text="text",t.iconTextUnder="icon-text-under",t.iconText="text-icon",t))(ct||{}),Je=(t=>(t.flat="flat",t.regular="regular",t.normal="normal",t))(Je||{}),ue=class extends d{constructor(){super(...arguments),this.value="value",this.selected=!1,this.activated=!1,this.type="text",this.variant="regular",this.hugText=!1,this.showDivider=!0,this.disabled=!1,this.large=!1}onClick(t){if(this.disabled){t.preventDefault();return}this.selected||this.dispatchEvent(new CustomEvent("selected",{detail:{value:this.value}}))}render(){let t=this.type==="text"||this.type==="text-icon",e=this.type!=="text",i=this.type!=="icon",o=this.type==="icon-text-under";return c`
+`;var ys=Object.defineProperty;var Cs=Object.getOwnPropertyDescriptor;var Ae=(r,e,i,o)=>{var t=o>1?void 0:o?Cs(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)ys(e,i,t);return t};var Lr=(r=>{r["icon"]="icon";r["text"]="text";r["iconTextUnder"]="icon-text-under";r["iconText"]="text-icon";return r})(Lr||{});var sr=(r=>{r["flat"]="flat";r["regular"]="regular";r["normal"]="normal";return r})(sr||{});var we=class extends d{constructor(){super(...arguments);this.value="value";this.selected=false;this.activated=false;this.type="text";this.variant="regular";this.hugText=false;this.showDivider=true;this.disabled=false;this.large=false}onClick(r){if(this.disabled){r.preventDefault();return}if(!this.selected){this.dispatchEvent(new CustomEvent("selected",{detail:{value:this.value}}))}}render(){const r=this.type==="text"||this.type==="text-icon";const e=this.type!=="text";const i=this.type!=="icon";const o=this.type==="icon-text-under";return c`
       <button
-        class=${V({wrapper:!0,selected:this.selected,"inline-label":t,"type-flat":this.variant==="flat","type-regular":this.variant==="regular","type-normal":this.variant==="normal","icon-text-under":o,"hug-text":this.hugText,disabled:this.disabled,activated:this.activated,large:this.large})}
+        class=${$({wrapper:true,selected:this.selected,"inline-label":r,"type-flat":this.variant==="flat","type-regular":this.variant==="regular","type-normal":this.variant==="normal","icon-text-under":o,"hug-text":this.hugText,disabled:this.disabled,activated:this.activated,large:this.large})}
         ?disabled=${this.disabled}
         @click=${this.onClick}
       >
@@ -5157,7 +5156,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
               <div class="label"><slot></slot></div>
             </div>`:""}
       </button>
-    `}};ue.styles=x(Ii);xe([s({type:String})],ue.prototype,"value",2);xe([s({type:Boolean,reflect:!0})],ue.prototype,"selected",2);xe([s({type:Boolean,reflect:!0})],ue.prototype,"activated",2);xe([s({type:String})],ue.prototype,"type",2);xe([s({type:String})],ue.prototype,"variant",2);xe([s({type:Boolean})],ue.prototype,"hugText",2);xe([s({type:Boolean,reflect:!0})],ue.prototype,"showDivider",2);xe([s({type:Boolean,reflect:!0})],ue.prototype,"disabled",2);xe([s({type:Boolean,reflect:!0})],ue.prototype,"large",2);ue=xe([h("obc-toggle-button-option")],ue);var Ri=p`
+    `}};we.styles=C(h1);Ae([l({type:String})],we.prototype,"value",2);Ae([l({type:Boolean,reflect:true})],we.prototype,"selected",2);Ae([l({type:Boolean,reflect:true})],we.prototype,"activated",2);Ae([l({type:String})],we.prototype,"type",2);Ae([l({type:String})],we.prototype,"variant",2);Ae([l({type:Boolean})],we.prototype,"hugText",2);Ae([l({type:Boolean,reflect:true})],we.prototype,"showDivider",2);Ae([l({type:Boolean,reflect:true})],we.prototype,"disabled",2);Ae([l({type:Boolean,reflect:true})],we.prototype,"large",2);we=Ae([h("obc-toggle-button-option")],we);var u1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -5242,13 +5241,13 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
 .wrapper ::slotted(*) {
   flex: 1;
 }
-`;var zs=Object.defineProperty,Ds=Object.getOwnPropertyDescriptor,He=(t,e,i,o)=>{for(var r=o>1?void 0:o?Ds(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&zs(e,i,r),r},ve=class extends d{constructor(){super(...arguments),this.value="",this.type=ct.text,this.variant=Je.regular,this.hugText=!1,this.externalControl=!1,this.disabled=!1,this.large=!1,this._originalDisabledStates=new Map}hasAnyEnabledOption(){return this.disabled?!1:Array.from(this.options).some(t=>!t.disabled)}canSelectOption(t){if(this.disabled)return!1;let e=this.getOptionByValue(t);return e!==null&&!e.disabled}getOptionByValue(t){return Array.from(this.options).find(e=>e.value===t)||null}getFirstSelectableOption(){return this.disabled?null:Array.from(this.options).find(t=>!t.disabled)||null}updateSelection(t,e=!0){let i=this.value;if(!this.hasAnyEnabledOption()){this.options.forEach(o=>{o.selected=o.value===this.value}),this.setNoDivider();return}if(!this.canSelectOption(t)){if(this.value&&this.getOptionByValue(this.value)){this.options.forEach(r=>{r.selected=r.value===this.value}),this.setNoDivider();return}t=this.getFirstSelectableOption()?.value||""}this.value=t,this.options.forEach(o=>{o.selected=o.value===t}),this.setNoDivider(),e&&i!==t&&this.dispatchEvent(new CustomEvent("value",{detail:{value:t,previousValue:i}}))}updateActivated(t){t?this.options.forEach(e=>{e.activated=e.value===t}):this.options.forEach(e=>{e.activated=!1})}setNoDivider(){let t=Array.from(this.options).findIndex(i=>i.selected);if(this.options.forEach(i=>{i.showDivider=!0}),t===-1)return;let e=this.options[t+1];e&&(e.showDivider=!1)}firstUpdated(t){super.firstUpdated(t);let e=Array.from(this.options).map(o=>o.value),i=new Set(e);if(e.length!==i.size&&console.warn("Toggle button group has duplicate values. This may cause unexpected behavior."),this.options.forEach(o=>{this._originalDisabledStates.set(o,o.hasAttribute("disabled")),o.addEventListener("selected",a=>this.handleOptionClick(a)),new MutationObserver(a=>{a.forEach(n=>{n.attributeName==="disabled"&&!o.hasAttribute("data-group-disabled")&&(this._originalDisabledStates.set(o,o.hasAttribute("disabled")),this.handleOptionDisabledChange())})}).observe(o,{attributes:!0,attributeFilter:["disabled"]}),o.type=this.type,o.variant=this.variant,o.hugText=this.hugText,o.large=this.large,this.disabled&&(o.setAttribute("data-group-disabled","true"),o.disabled=!0)}),!this.value||!this.getOptionByValue(this.value)){let o=this.getFirstSelectableOption();o&&this.updateSelection(o.value,!1)}else this.updateSelection(this.value,!1);this.activated&&this.updateActivated(this.activated)}handleOptionDisabledChange(){if(this.getOptionByValue(this.value)?.disabled&&this.hasAnyEnabledOption()){let e=this.getFirstSelectableOption();e&&this.updateSelection(e.value)}}handleOptionClick(t){let{value:e}=t.detail;this.externalControl?this.dispatchEvent(new CustomEvent("value",{detail:{value:e,previousValue:this.value}})):this.updateSelection(e)}willUpdate(t){t.has("value")&&this.updateSelection(this.value),t.has("activated")&&this.updateActivated(this.activated),(t.has("type")||t.has("variant")||t.has("hugText")||t.has("large"))&&this.options.forEach(e=>{e.type=this.type,e.variant=this.variant,e.hugText=this.hugText,e.large=this.large}),t.has("disabled")&&this.options.forEach(e=>{if(this.disabled)e.setAttribute("data-group-disabled","true"),e.disabled=!0;else{e.removeAttribute("data-group-disabled");let i=this._originalDisabledStates.get(e)||!1;e.disabled=i}})}updated(t){if(super.updated(t),this.getOptionByValue(this.value)?.disabled&&this.hasAnyEnabledOption()){let i=this.getFirstSelectableOption();i&&this.updateSelection(i.value)}}render(){let t={"outer-wrapper":!0,flat:this.variant===Je.flat,regular:this.variant===Je.regular,"hug-text":this.hugText,"icon-text-under":this.type===ct.iconTextUnder,disabled:this.disabled,large:this.large};return c`
-      <div class=${V(t)}>
+`;var Ls=Object.defineProperty;var ks=Object.getOwnPropertyDescriptor;var Pe=(r,e,i,o)=>{var t=o>1?void 0:o?ks(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Ls(e,i,t);return t};var ye=class extends d{constructor(){super(...arguments);this.value="";this.type=Lr.text;this.variant=sr.regular;this.hugText=false;this.externalControl=false;this.disabled=false;this.large=false;this._originalDisabledStates=new Map}hasAnyEnabledOption(){if(this.disabled)return false;return Array.from(this.options).some(r=>!r.disabled)}canSelectOption(r){if(this.disabled)return false;const e=this.getOptionByValue(r);return e!==null&&!e.disabled}getOptionByValue(r){return Array.from(this.options).find(e=>e.value===r)||null}getFirstSelectableOption(){if(this.disabled)return null;return Array.from(this.options).find(r=>!r.disabled)||null}updateSelection(r,e=true){const i=this.value;if(!this.hasAnyEnabledOption()){this.options.forEach(o=>{o.selected=o.value===this.value});this.setNoDivider();return}if(!this.canSelectOption(r)){if(this.value&&this.getOptionByValue(this.value)){this.options.forEach(t=>{t.selected=t.value===this.value});this.setNoDivider();return}const o=this.getFirstSelectableOption();r=o?.value||""}this.value=r;this.options.forEach(o=>{o.selected=o.value===r});this.setNoDivider();if(e&&i!==r){this.dispatchEvent(new CustomEvent("value",{detail:{value:r,previousValue:i}}))}}updateActivated(r){if(r){this.options.forEach(e=>{e.activated=e.value===r})}else{this.options.forEach(e=>{e.activated=false})}}setNoDivider(){const r=Array.from(this.options).findIndex(i=>i.selected);this.options.forEach(i=>{i.showDivider=true});if(r===-1){return}const e=this.options[r+1];if(e){e.showDivider=false}}firstUpdated(r){super.firstUpdated(r);const e=Array.from(this.options).map(o=>o.value);const i=new Set(e);if(e.length!==i.size){console.warn("Toggle button group has duplicate values. This may cause unexpected behavior.")}this.options.forEach(o=>{this._originalDisabledStates.set(o,o.hasAttribute("disabled"));o.addEventListener("selected",a=>this.handleOptionClick(a));const t=new MutationObserver(a=>{a.forEach(n=>{if(n.attributeName==="disabled"&&!o.hasAttribute("data-group-disabled")){this._originalDisabledStates.set(o,o.hasAttribute("disabled"));this.handleOptionDisabledChange()}})});t.observe(o,{attributes:true,attributeFilter:["disabled"]});o.type=this.type;o.variant=this.variant;o.hugText=this.hugText;o.large=this.large;if(this.disabled){o.setAttribute("data-group-disabled","true");o.disabled=true}});if(!this.value||!this.getOptionByValue(this.value)){const o=this.getFirstSelectableOption();if(o){this.updateSelection(o.value,false)}}else{this.updateSelection(this.value,false)}if(this.activated){this.updateActivated(this.activated)}}handleOptionDisabledChange(){const r=this.getOptionByValue(this.value);if(r?.disabled&&this.hasAnyEnabledOption()){const e=this.getFirstSelectableOption();if(e){this.updateSelection(e.value)}}}handleOptionClick(r){const{value:e}=r.detail;if(this.externalControl){this.dispatchEvent(new CustomEvent("value",{detail:{value:e,previousValue:this.value}}))}else{this.updateSelection(e)}}willUpdate(r){if(r.has("value")){this.updateSelection(this.value)}if(r.has("activated")){this.updateActivated(this.activated)}if(r.has("type")||r.has("variant")||r.has("hugText")||r.has("large")){this.options.forEach(e=>{e.type=this.type;e.variant=this.variant;e.hugText=this.hugText;e.large=this.large})}if(r.has("disabled")){this.options.forEach(e=>{if(this.disabled){e.setAttribute("data-group-disabled","true");e.disabled=true}else{e.removeAttribute("data-group-disabled");const i=this._originalDisabledStates.get(e)||false;e.disabled=i}})}}updated(r){super.updated(r);const e=this.getOptionByValue(this.value);if(e?.disabled&&this.hasAnyEnabledOption()){const i=this.getFirstSelectableOption();if(i){this.updateSelection(i.value)}}}render(){const r={"outer-wrapper":true,flat:this.variant===sr.flat,regular:this.variant===sr.regular,"hug-text":this.hugText,"icon-text-under":this.type===Lr.iconTextUnder,disabled:this.disabled,large:this.large};return c`
+      <div class=${$(r)}>
         <div class="wrapper">
           <slot></slot>
         </div>
       </div>
-    `}};ve.styles=x(Ri);He([s({type:String})],ve.prototype,"value",2);He([s({type:String})],ve.prototype,"activated",2);He([s({type:String})],ve.prototype,"type",2);He([s({type:String})],ve.prototype,"variant",2);He([s({type:Boolean})],ve.prototype,"hugText",2);He([s({type:Boolean})],ve.prototype,"externalControl",2);He([s({type:Boolean,reflect:!0})],ve.prototype,"disabled",2);He([s({type:Boolean,reflect:!0})],ve.prototype,"large",2);He([Xo({selector:"obc-toggle-button-option"})],ve.prototype,"options",2);ve=He([h("obc-toggle-button-group")],ve);var ji=p`
+    `}};ye.styles=C(u1);Pe([l({type:String})],ye.prototype,"value",2);Pe([l({type:String})],ye.prototype,"activated",2);Pe([l({type:String})],ye.prototype,"type",2);Pe([l({type:String})],ye.prototype,"variant",2);Pe([l({type:Boolean})],ye.prototype,"hugText",2);Pe([l({type:Boolean})],ye.prototype,"externalControl",2);Pe([l({type:Boolean,reflect:true})],ye.prototype,"disabled",2);Pe([l({type:Boolean,reflect:true})],ye.prototype,"large",2);Pe([fi({selector:"obc-toggle-button-option"})],ye.prototype,"options",2);ye=Pe([h("obc-toggle-button-group")],ye);var v1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -5423,7 +5422,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
     height: auto;
     width: auto;
   }
-`;var Ni=p`
+`;var m1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -5752,7 +5751,7 @@ input:active ~ .thumb {
   border-color: var(--selected-pressed-background-color);
   background: var(--container-background-color);
 }
-`;var Is=Object.defineProperty,Rs=Object.getOwnPropertyDescriptor,me=(t,e,i,o)=>{for(var r=o>1?void 0:o?Rs(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Is(e,i,r),r},Vt=(t=>(t.Normal="normal",t.Enhanced="enhanced",t.NoInput="no-input",t))(Vt||{}),se=class extends d{constructor(){super(...arguments),this.value=50,this.min=0,this.max=100,this.stepClick=10,this.variant="normal",this.hasLeftIcon=!1,this.hasRightIcon=!1,this.allowSeeking=!1,this.seekingSpeed=1/3,this.disabled=!1,this.animationFrame=null,this.isMouseDown=!1,this.isTouchActive=!1,this.targetValue=0,this.isDragging=!1,this.animationStartTime=null,this.animationStartValue=0,this.onWindowMouseMove=t=>{this.onMouseMove(t)},this.onWindowMouseUp=()=>{this.onMouseUp()},this.onWindowTouchMove=t=>{this.onTouchMove(t)},this.onWindowTouchEnd=()=>{this.onTouchEnd()}}get ratio(){let t=this.max-this.min;if(!Number.isFinite(t)||t<=0)return 0;let e=(this.value-this.min)/t;return Number.isFinite(e)?Math.max(0,Math.min(1,e)):0}onInput(t){this.value=t,this.dispatchEvent(new CustomEvent("value",{detail:this.value}))}onReduceClick(){this.disabled||this.onInput(Math.max(this.value-this.stepClick,this.min))}onIncreaseClick(){this.disabled||this.onInput(Math.min(this.value+this.stepClick,this.max))}get slider(){return this.renderRoot.querySelector('input[type="range"]')}isClickingThumb(t){let e=this.slider.getBoundingClientRect(),i=e.left+24,o=e.width-48,r=48,a=this.ratio,n=i+o*a,v;return"touches"in t?v=t.touches[0].clientX:v=t.clientX,Math.abs(v-n)<=r/2}onMouseDown(t){this.variant==="no-input"||this.disabled||this.isClickingThumb(t)||(this.isMouseDown=!0,this.updateTargetValue(t),t.preventDefault(),window.addEventListener("mousemove",this.onWindowMouseMove),window.addEventListener("mouseup",this.onWindowMouseUp),this.startAnimation())}onTouchStart(t){this.variant==="no-input"||this.disabled||this.isClickingThumb(t)||(this.isTouchActive=!0,this.updateTargetValue(t),t.preventDefault(),window.addEventListener("touchmove",this.onWindowTouchMove,{passive:!1}),window.addEventListener("touchend",this.onWindowTouchEnd),this.startAnimation())}onMouseMove(t){this.isMouseDown&&this.updateTargetValue(t)}onTouchMove(t){this.isTouchActive&&this.updateTargetValue(t)}onMouseUp(){this.isMouseDown=!1,window.removeEventListener("mousemove",this.onWindowMouseMove),window.removeEventListener("mouseup",this.onWindowMouseUp),this.stopAnimation()}onTouchEnd(){this.isTouchActive=!1,window.removeEventListener("touchmove",this.onWindowTouchMove),window.removeEventListener("touchend",this.onWindowTouchEnd),this.stopAnimation()}updateTargetValue(t){let e=this.slider.getBoundingClientRect(),i=e.left+24,o=e.width-48,a=((t instanceof MouseEvent?t.clientX:t.touches[0].clientX)-i)/o,n=parseFloat(this.slider.min),v=parseFloat(this.slider.max),u=n+(v-n)*a;this.step?this.targetValue=Math.round(u/this.step)*this.step:this.targetValue=u}startAnimation(){this.isDragging=this.allowSeeking,this.animationStartTime=performance.now(),this.animationStartValue=parseFloat(this.slider.value);let t=parseFloat(this.slider.min),e=parseFloat(this.slider.max),i=this.step,o=1/this.seekingSpeed*1e3,r=this.targetValue>this.animationStartValue?1:-1,a=()=>{let n=this.targetValue;if(!this.isDragging){let v=performance.now(),u=v-(this.animationStartTime??v),m=Math.abs(e-t),b=Math.min(u/o,1),g=this.animationStartValue+r*m*b;r>0?(n=i===void 0?g:Math.ceil((g-t)/i)*i+t,n=Math.min(this.targetValue,n)):(n=i===void 0?g:Math.floor((g-t)/i)*i+t,n=Math.max(this.targetValue,n))}parseFloat(this.slider.value)!==n&&(this.slider.value=String(n),this.slider.dispatchEvent(new Event("input"))),r>0&&n<this.targetValue||r<0&&n>this.targetValue?this.animationFrame=requestAnimationFrame(a):(this.isMouseDown||this.isTouchActive)&&(this.animationStartTime=performance.now(),this.animationStartValue=parseFloat(this.slider.value),this.animationFrame=requestAnimationFrame(a),this.isDragging=!0)};this.animationFrame=requestAnimationFrame(a)}stopAnimation(){this.animationFrame!==null&&(cancelAnimationFrame(this.animationFrame),this.animationFrame=null)}render(){return c`
+`;var xs=Object.defineProperty;var Ms=Object.getOwnPropertyDescriptor;var Ce=(r,e,i,o)=>{var t=o>1?void 0:o?Ms(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)xs(e,i,t);return t};var Rr=(r=>{r["Normal"]="normal";r["Enhanced"]="enhanced";r["NoInput"]="no-input";return r})(Rr||{});var de=class extends d{constructor(){super(...arguments);this.value=50;this.min=0;this.max=100;this.stepClick=10;this.variant="normal";this.hasLeftIcon=false;this.hasRightIcon=false;this.allowSeeking=false;this.seekingSpeed=1/3;this.disabled=false;this.animationFrame=null;this.isMouseDown=false;this.isTouchActive=false;this.targetValue=0;this.isDragging=false;this.animationStartTime=null;this.animationStartValue=0;this.onWindowMouseMove=r=>{this.onMouseMove(r)};this.onWindowMouseUp=()=>{this.onMouseUp()};this.onWindowTouchMove=r=>{this.onTouchMove(r)};this.onWindowTouchEnd=()=>{this.onTouchEnd()}}get ratio(){const r=this.max-this.min;if(!Number.isFinite(r)||r<=0)return 0;const e=(this.value-this.min)/r;if(!Number.isFinite(e))return 0;return Math.max(0,Math.min(1,e))}onInput(r){this.value=r;this.dispatchEvent(new CustomEvent("value",{detail:this.value}))}onReduceClick(){if(this.disabled)return;this.onInput(Math.max(this.value-this.stepClick,this.min))}onIncreaseClick(){if(this.disabled)return;this.onInput(Math.min(this.value+this.stepClick,this.max))}get slider(){return this.renderRoot.querySelector('input[type="range"]')}isClickingThumb(r){const e=this.slider.getBoundingClientRect();const i=e.left+24;const o=e.width-48;const t=48;const a=this.ratio;const n=i+o*a;let v;if("touches"in r){v=r.touches[0].clientX}else{v=r.clientX}const u=Math.abs(v-n)<=t/2;return u}onMouseDown(r){if(this.variant==="no-input"||this.disabled)return;if(this.isClickingThumb(r))return;this.isMouseDown=true;this.updateTargetValue(r);r.preventDefault();window.addEventListener("mousemove",this.onWindowMouseMove);window.addEventListener("mouseup",this.onWindowMouseUp);this.startAnimation()}onTouchStart(r){if(this.variant==="no-input"||this.disabled)return;if(this.isClickingThumb(r))return;this.isTouchActive=true;this.updateTargetValue(r);r.preventDefault();window.addEventListener("touchmove",this.onWindowTouchMove,{passive:false});window.addEventListener("touchend",this.onWindowTouchEnd);this.startAnimation()}onMouseMove(r){if(this.isMouseDown){this.updateTargetValue(r)}}onTouchMove(r){if(this.isTouchActive){this.updateTargetValue(r)}}onMouseUp(){this.isMouseDown=false;window.removeEventListener("mousemove",this.onWindowMouseMove);window.removeEventListener("mouseup",this.onWindowMouseUp);this.stopAnimation()}onTouchEnd(){this.isTouchActive=false;window.removeEventListener("touchmove",this.onWindowTouchMove);window.removeEventListener("touchend",this.onWindowTouchEnd);this.stopAnimation()}updateTargetValue(r){const e=this.slider.getBoundingClientRect();const i=e.left+24;const o=e.width-48;const t=r instanceof MouseEvent?r.clientX:r.touches[0].clientX;const a=(t-i)/o;const n=parseFloat(this.slider.min);const v=parseFloat(this.slider.max);const u=n+(v-n)*a;if(this.step){this.targetValue=Math.round(u/this.step)*this.step}else{this.targetValue=u}}startAnimation(){this.isDragging=this.allowSeeking;this.animationStartTime=performance.now();this.animationStartValue=parseFloat(this.slider.value);const r=parseFloat(this.slider.min);const e=parseFloat(this.slider.max);const i=this.step;const o=1/this.seekingSpeed*1e3;const t=this.targetValue>this.animationStartValue?1:-1;const a=()=>{let n=this.targetValue;if(!this.isDragging){const v=performance.now();const u=v-(this.animationStartTime??v);const f=Math.abs(e-r);const w=Math.min(u/o,1);const g=this.animationStartValue+t*f*w;if(t>0){n=i===void 0?g:Math.ceil((g-r)/i)*i+r;n=Math.min(this.targetValue,n)}else{n=i===void 0?g:Math.floor((g-r)/i)*i+r;n=Math.max(this.targetValue,n)}}if(parseFloat(this.slider.value)!==n){this.slider.value=String(n);this.slider.dispatchEvent(new Event("input"))}if(t>0&&n<this.targetValue||t<0&&n>this.targetValue){this.animationFrame=requestAnimationFrame(a)}else if(this.isMouseDown||this.isTouchActive){this.animationStartTime=performance.now();this.animationStartValue=parseFloat(this.slider.value);this.animationFrame=requestAnimationFrame(a);this.isDragging=true}};this.animationFrame=requestAnimationFrame(a)}stopAnimation(){if(this.animationFrame!==null){cancelAnimationFrame(this.animationFrame);this.animationFrame=null}}render(){return c`
       ${this.hasLeftIcon?c` <obc-icon-button
             ?disabled=${this.disabled}
             @click=${this.onReduceClick}
@@ -5761,19 +5760,19 @@ input:active ~ .thumb {
             <slot name="icon-left"></slot>
           </obc-icon-button>`:null}
       <div
-        class=${V({wrapper:!0,[this.variant]:!0,disabled:this.disabled})}
-        style=${fr({"--_ratio":String(this.ratio)})}
+        class=${$({wrapper:true,[this.variant]:true,disabled:this.disabled})}
+        style=${Pt({"--_ratio":String(this.ratio)})}
       >
         <div class="track"></div>
         <input
           type="range"
           min=${this.min}
           max=${this.max}
-          step=${oe(this.step)}
+          step=${ne(this.step)}
           .value=${this.value.toString()}
           ?disabled=${this.variant==="no-input"||this.disabled}
           class="slider"
-          @input=${t=>{this.value=Number(t.target.value),this.dispatchEvent(new CustomEvent("value",{detail:this.value}))}}
+          @input=${r=>{this.value=Number(r.target.value);this.dispatchEvent(new CustomEvent("value",{detail:this.value}))}}
           @mousedown=${this.onMouseDown}
           @touchstart=${this.onTouchStart}
           @mousemove=${this.onMouseMove}
@@ -5809,7 +5808,7 @@ input:active ~ .thumb {
           >
             <slot name="icon-right"></slot>
           </obc-icon-button>`:null}
-    `}};se.styles=x(Ni);me([s({type:Number})],se.prototype,"value",2);me([s({type:Number})],se.prototype,"min",2);me([s({type:Number})],se.prototype,"max",2);me([s({type:Number})],se.prototype,"step",2);me([s({type:Number})],se.prototype,"stepClick",2);me([s({type:String})],se.prototype,"variant",2);me([s({type:Boolean})],se.prototype,"hasLeftIcon",2);me([s({type:Boolean})],se.prototype,"hasRightIcon",2);me([s({type:Boolean})],se.prototype,"allowSeeking",2);me([s({type:Number})],se.prototype,"seekingSpeed",2);me([s({type:Boolean})],se.prototype,"disabled",2);se=me([h("obc-slider")],se);var Fi=p`
+    `}};de.styles=C(m1);Ce([l({type:Number})],de.prototype,"value",2);Ce([l({type:Number})],de.prototype,"min",2);Ce([l({type:Number})],de.prototype,"max",2);Ce([l({type:Number})],de.prototype,"step",2);Ce([l({type:Number})],de.prototype,"stepClick",2);Ce([l({type:String})],de.prototype,"variant",2);Ce([l({type:Boolean})],de.prototype,"hasLeftIcon",2);Ce([l({type:Boolean})],de.prototype,"hasRightIcon",2);Ce([l({type:Boolean})],de.prototype,"allowSeeking",2);Ce([l({type:Number})],de.prototype,"seekingSpeed",2);Ce([l({type:Boolean})],de.prototype,"disabled",2);de=Ce([h("obc-slider")],de);var g1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -5923,7 +5922,7 @@ label .presenter {
       );
 
       /* Create the double border effect with proper spacing */
-      box-shadow: 
+      box-shadow:
         /* Inner border (1px) */
         0 0 0 1px var(--container-global-color, #fff),
         /* Outer border (variable width) */ 0 0 0
@@ -6143,19 +6142,19 @@ input {
   border-radius: 1px;
   background: var(--border-divider-color);
 }
-`;var js=Object.defineProperty,Ns=Object.getOwnPropertyDescriptor,Be=(t,e,i,o)=>{for(var r=o>1?void 0:o?Ns(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&js(e,i,r),r},Ce=class extends d{constructor(){super(...arguments),this.label="Label",this.checked=!1,this.disabled=!1,this.hasDescription=!1,this.description="",this.hasBottomDivider=!1,this.hasIcon=!1,this.externalControl=!1}_tryChange(t){if(this.disabled){t.preventDefault();return}let e=!this.checked;this.externalControl||(this.checked=e),t.stopPropagation(),this.dispatchEvent(new CustomEvent("input",{detail:{checked:e}})),this.externalControl&&(t.target.checked=this.checked)}render(){return c`
+`;var Hs=Object.defineProperty;var $s=Object.getOwnPropertyDescriptor;var Fe=(r,e,i,o)=>{var t=o>1?void 0:o?$s(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Hs(e,i,t);return t};var xe=class extends d{constructor(){super(...arguments);this.label="Label";this.checked=false;this.disabled=false;this.hasDescription=false;this.description="";this.hasBottomDivider=false;this.hasIcon=false;this.externalControl=false}_tryChange(r){if(this.disabled){r.preventDefault();return}const e=!this.checked;if(!this.externalControl){this.checked=e}r.stopPropagation();this.dispatchEvent(new CustomEvent("input",{detail:{checked:e}}));if(this.externalControl){r.target.checked=this.checked}}render(){return c`
       <label
-        class=${V({checked:this.checked,disabled:this.disabled,"has-description":this.hasDescription})}
+        class=${$({checked:this.checked,disabled:this.disabled,"has-description":this.hasDescription})}
       >
         <div class="icon-label-container">
-          ${this.hasIcon?c`<div class="icon-container"><slot name="icon"></slot></div>`:f}
+          ${this.hasIcon?c`<div class="icon-container"><slot name="icon"></slot></div>`:m}
           <div class="label-container">
             <span class="label">${this.label}</span>
-            ${this.hasDescription?c`<span class="description">${this.description}</span>`:f}
+            ${this.hasDescription?c`<span class="description">${this.description}</span>`:m}
           </div>
         </div>
         <div class="switch">
-          <div class="presenter ${V({checked:this.checked})}">
+          <div class="presenter ${$({checked:this.checked})}">
             <div class="knob"></div>
             <input
               type="checkbox"
@@ -6165,9 +6164,9 @@ input {
             />
           </div>
         </div>
-        ${this.hasBottomDivider?c`<div class="bottom-divider"></div>`:f}
+        ${this.hasBottomDivider?c`<div class="bottom-divider"></div>`:m}
       </label>
-    `}};Ce.styles=x(Fi);Be([s({type:String})],Ce.prototype,"label",2);Be([s({type:Boolean})],Ce.prototype,"checked",2);Be([s({type:Boolean})],Ce.prototype,"disabled",2);Be([s({type:Boolean})],Ce.prototype,"hasDescription",2);Be([s({type:String})],Ce.prototype,"description",2);Be([s({type:Boolean})],Ce.prototype,"hasBottomDivider",2);Be([s({type:Boolean})],Ce.prototype,"hasIcon",2);Be([s({type:Boolean})],Ce.prototype,"externalControl",2);Ce=Be([h("obc-toggle-switch")],Ce);var Fs=Object.defineProperty,Us=Object.getOwnPropertyDescriptor,Ui=(t,e,i,o)=>{for(var r=o>1?void 0:o?Us(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Fs(e,i,r),r},Lr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    `}};xe.styles=C(g1);Fe([l({type:String})],xe.prototype,"label",2);Fe([l({type:Boolean})],xe.prototype,"checked",2);Fe([l({type:Boolean})],xe.prototype,"disabled",2);Fe([l({type:Boolean})],xe.prototype,"hasDescription",2);Fe([l({type:String})],xe.prototype,"description",2);Fe([l({type:Boolean})],xe.prototype,"hasBottomDivider",2);Fe([l({type:Boolean})],xe.prototype,"hasIcon",2);Fe([l({type:Boolean})],xe.prototype,"externalControl",2);xe=Fe([h("obc-toggle-switch")],xe);var _s=Object.defineProperty;var Vs=Object.getOwnPropertyDescriptor;var f1=(r,e,i,o)=>{var t=o>1?void 0:o?Vs(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)_s(e,i,t);return t};var Dt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M16.9498 15.5355L15.5355 16.9497L16.9498 18.364L18.364 16.9497L16.9498 15.5355Z" fill="currentColor"/>
 <path d="M13 18V20H11V18H13Z" fill="currentColor"/>
 <path d="M8.46447 16.9498L7.05025 15.5355L5.63604 16.9498L7.05025 18.364L8.46447 16.9498Z" fill="currentColor"/>
@@ -6178,7 +6177,7 @@ input {
 <path d="M18 11H20V13H18V11Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 13C12.5523 13 13 12.5523 13 12C13 11.4477 12.5523 11 12 11C11.4477 11 11 11.4477 11 12C11 12.5523 11.4477 13 12 13ZM12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M16.9498 15.5355L15.5355 16.9497L16.9498 18.364L18.364 16.9497L16.9498 15.5355Z" style="fill: var(--element-active-color)"/>
 <path d="M13 18V20H11V18H13Z" style="fill: var(--element-active-color)"/>
 <path d="M8.46447 16.9498L7.05025 15.5355L5.63604 16.9498L7.05025 18.364L8.46447 16.9498Z" style="fill: var(--element-active-color)"/>
@@ -6191,7 +6190,7 @@ input {
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Lr.styles=p`
+    `}};Dt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6201,15 +6200,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Ui([s({type:Boolean})],Lr.prototype,"useCssColor",2);Lr=Ui([h("obi-display-brilliance-low")],Lr);var Ws=Object.defineProperty,Gs=Object.getOwnPropertyDescriptor,Wi=(t,e,i,o)=>{for(var r=o>1?void 0:o?Gs(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Ws(e,i,r),r},kr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;f1([l({type:Boolean})],Dt.prototype,"useCssColor",2);Dt=f1([h("obi-display-brilliance-low")],Dt);var Zs=Object.defineProperty;var Ss=Object.getOwnPropertyDescriptor;var b1=(r,e,i,o)=>{var t=o>1?void 0:o?Ss(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Zs(e,i,t);return t};var It=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.8331 9.17621C14.83 9.17312 14.8269 9.17002 14.8238 9.16694C14.1003 8.4458 13.1022 8 12 8C10.8978 8 9.89964 8.44583 9.17615 9.167C9.1731 9.17005 9.17005 9.1731 9.167 9.17615C8.44583 9.89964 8 10.8978 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 10.8978 15.5542 9.8997 14.8331 9.17621ZM12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14ZM18.364 4.22182L19.7782 5.63604L16.9497 8.46447L16.237 7.75175L15.5355 7.05025L18.364 4.22182ZM4.22183 5.63604L5.63605 4.22183L8.46447 7.05025L7.76316 7.75157L7.75175 7.76298L7.05026 8.46447L4.22183 5.63604ZM7.05025 15.5355L8.46446 16.9498L5.63603 19.7782L4.22182 18.364L7.05025 15.5355ZM16.9498 15.5355L19.7782 18.364L18.364 19.7782L15.5355 16.9497L16.9498 15.5355ZM11 2H13V6H11V2ZM2 13V11H6V13H2ZM13 22H11V18H13V22ZM22 11V13H18V11H22Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.8331 9.17621C14.83 9.17312 14.8269 9.17002 14.8238 9.16694C14.1003 8.4458 13.1022 8 12 8C10.8978 8 9.89964 8.44583 9.17615 9.167C9.1731 9.17005 9.17005 9.1731 9.167 9.17615C8.44583 9.89964 8 10.8978 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 10.8978 15.5542 9.8997 14.8331 9.17621ZM12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14ZM18.364 4.22182L19.7782 5.63604L16.9497 8.46447L16.237 7.75175L15.5355 7.05025L18.364 4.22182ZM4.22183 5.63604L5.63605 4.22183L8.46447 7.05025L7.76316 7.75157L7.75175 7.76298L7.05026 8.46447L4.22183 5.63604ZM7.05025 15.5355L8.46446 16.9498L5.63603 19.7782L4.22182 18.364L7.05025 15.5355ZM16.9498 15.5355L19.7782 18.364L18.364 19.7782L15.5355 16.9497L16.9498 15.5355ZM11 2H13V6H11V2ZM2 13V11H6V13H2ZM13 22H11V18H13V22ZM22 11V13H18V11H22Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};kr.styles=p`
+    `}};It.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6219,15 +6218,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Wi([s({type:Boolean})],kr.prototype,"useCssColor",2);kr=Wi([h("obi-display-brilliance-proposal")],kr);var qs=Object.defineProperty,Xs=Object.getOwnPropertyDescriptor,Gi=(t,e,i,o)=>{for(var r=o>1?void 0:o?Xs(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&qs(e,i,r),r},Mr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;b1([l({type:Boolean})],It.prototype,"useCssColor",2);It=b1([h("obi-display-brilliance-proposal")],It);var As=Object.defineProperty;var Ps=Object.getOwnPropertyDescriptor;var w1=(r,e,i,o)=>{var t=o>1?void 0:o?Ps(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)As(e,i,t);return t};var jt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 21C9.5 21 7.375 20.125 5.625 18.375C3.875 16.625 3 14.5 3 12C3 9.5 3.875 7.375 5.625 5.625C7.375 3.875 9.5 3 12 3C12.2333 3 12.4625 3.00833 12.6875 3.025C12.9125 3.04167 13.1333 3.06667 13.35 3.1C12.6667 3.58333 12.1208 4.2125 11.7125 4.9875C11.3042 5.7625 11.1 6.6 11.1 7.5C11.1 9 11.625 10.275 12.675 11.325C13.725 12.375 15 12.9 16.5 12.9C17.4167 12.9 18.2583 12.6958 19.025 12.2875C19.7917 11.8792 20.4167 11.3333 20.9 10.65C20.9333 10.8667 20.9583 11.0875 20.975 11.3125C20.9917 11.5375 21 11.7667 21 12C21 14.5 20.125 16.625 18.375 18.375C16.625 20.125 14.5 21 12 21ZM12 19C13.4667 19 14.7833 18.5958 15.95 17.7875C17.1167 16.9792 17.9667 15.925 18.5 14.625C18.1667 14.7083 17.8333 14.775 17.5 14.825C17.1667 14.875 16.8333 14.9 16.5 14.9C14.45 14.9 12.7042 14.1792 11.2625 12.7375C9.82083 11.2958 9.1 9.55 9.1 7.5C9.1 7.16667 9.125 6.83333 9.175 6.5C9.225 6.16667 9.29167 5.83333 9.375 5.5C8.075 6.03333 7.02083 6.88333 6.2125 8.05C5.40417 9.21667 5 10.5333 5 12C5 13.9333 5.68333 15.5833 7.05 16.95C8.41667 18.3167 10.0667 19 12 19Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 21C9.5 21 7.375 20.125 5.625 18.375C3.875 16.625 3 14.5 3 12C3 9.5 3.875 7.375 5.625 5.625C7.375 3.875 9.5 3 12 3C12.2333 3 12.4625 3.00833 12.6875 3.025C12.9125 3.04167 13.1333 3.06667 13.35 3.1C12.6667 3.58333 12.1208 4.2125 11.7125 4.9875C11.3042 5.7625 11.1 6.6 11.1 7.5C11.1 9 11.625 10.275 12.675 11.325C13.725 12.375 15 12.9 16.5 12.9C17.4167 12.9 18.2583 12.6958 19.025 12.2875C19.7917 11.8792 20.4167 11.3333 20.9 10.65C20.9333 10.8667 20.9583 11.0875 20.975 11.3125C20.9917 11.5375 21 11.7667 21 12C21 14.5 20.125 16.625 18.375 18.375C16.625 20.125 14.5 21 12 21ZM12 19C13.4667 19 14.7833 18.5958 15.95 17.7875C17.1167 16.9792 17.9667 15.925 18.5 14.625C18.1667 14.7083 17.8333 14.775 17.5 14.825C17.1667 14.875 16.8333 14.9 16.5 14.9C14.45 14.9 12.7042 14.1792 11.2625 12.7375C9.82083 11.2958 9.1 9.55 9.1 7.5C9.1 7.16667 9.125 6.83333 9.175 6.5C9.225 6.16667 9.29167 5.83333 9.375 5.5C8.075 6.03333 7.02083 6.88333 6.2125 8.05C5.40417 9.21667 5 10.5333 5 12C5 13.9333 5.68333 15.5833 7.05 16.95C8.41667 18.3167 10.0667 19 12 19Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Mr.styles=p`
+    `}};jt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6237,19 +6236,19 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Gi([s({type:Boolean})],Mr.prototype,"useCssColor",2);Mr=Gi([h("obi-palette-night")],Mr);var Ys=Object.defineProperty,Js=Object.getOwnPropertyDescriptor,qi=(t,e,i,o)=>{for(var r=o>1?void 0:o?Js(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Ys(e,i,r),r},xr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;w1([l({type:Boolean})],jt.prototype,"useCssColor",2);jt=w1([h("obi-palette-night")],jt);var Os=Object.defineProperty;var Ts=Object.getOwnPropertyDescriptor;var y1=(r,e,i,o)=>{var t=o>1?void 0:o?Ts(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Os(e,i,t);return t};var Rt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11.5529 3.75275C11.7695 3.24908 12.4805 3.24908 12.6971 3.75276L13.8662 6.47216C14.0151 6.81843 14.4328 6.95476 14.7559 6.76251L17.2931 5.2527C17.763 4.97306 18.3383 5.39286 18.2187 5.92818L17.5732 8.81846C17.491 9.18649 17.7491 9.5434 18.123 9.57861L21.0592 9.85509C21.603 9.9063 21.8228 10.5855 21.4128 10.948L19.1991 12.9052C19.1278 12.9683 19.0745 13.0436 19.0393 13.125H21C21.4142 13.125 21.75 13.4608 21.75 13.875C21.75 14.2892 21.4142 14.625 21 14.625H3C2.58579 14.625 2.25 14.2892 2.25 13.875C2.25 13.4608 2.58579 13.125 3 13.125H5.21069C5.17546 13.0436 5.12219 12.9683 5.05087 12.9052L2.83724 10.948C2.42724 10.5855 2.64697 9.9063 3.1908 9.85509L6.12699 9.57861C6.50087 9.5434 6.75903 9.18649 6.67683 8.81846L6.0313 5.92818C5.91173 5.39286 6.48698 4.97306 6.95691 5.2527L9.49414 6.76251C9.81722 6.95476 10.2349 6.81843 10.3838 6.47216L11.5529 3.75275ZM7.13114 13.125H17.1189C16.9886 10.4797 14.8026 8.375 12.125 8.375C9.44741 8.375 7.2614 10.4797 7.13114 13.125Z" fill="currentColor"/>
 <path d="M7.5 15.75C7.08579 15.75 6.75 16.0858 6.75 16.5C6.75 16.9142 7.08579 17.25 7.5 17.25H16.5C16.9142 17.25 17.25 16.9142 17.25 16.5C17.25 16.0858 16.9142 15.75 16.5 15.75H7.5Z" fill="currentColor"/>
 <path d="M13.875 19.25C13.875 19.6642 13.5392 20 13.125 20H12H10.875C10.4608 20 10.125 19.6642 10.125 19.25C10.125 18.8358 10.4608 18.5 10.875 18.5H12H13.125C13.5392 18.5 13.875 18.8358 13.875 19.25Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11.5529 3.75275C11.7695 3.24908 12.4805 3.24908 12.6971 3.75276L13.8662 6.47216C14.0151 6.81843 14.4328 6.95476 14.7559 6.76251L17.2931 5.2527C17.763 4.97306 18.3383 5.39286 18.2187 5.92818L17.5732 8.81846C17.491 9.18649 17.7491 9.5434 18.123 9.57861L21.0592 9.85509C21.603 9.9063 21.8228 10.5855 21.4128 10.948L19.1991 12.9052C19.1278 12.9683 19.0745 13.0436 19.0393 13.125H21C21.4142 13.125 21.75 13.4608 21.75 13.875C21.75 14.2892 21.4142 14.625 21 14.625H3C2.58579 14.625 2.25 14.2892 2.25 13.875C2.25 13.4608 2.58579 13.125 3 13.125H5.21069C5.17546 13.0436 5.12219 12.9683 5.05087 12.9052L2.83724 10.948C2.42724 10.5855 2.64697 9.9063 3.1908 9.85509L6.12699 9.57861C6.50087 9.5434 6.75903 9.18649 6.67683 8.81846L6.0313 5.92818C5.91173 5.39286 6.48698 4.97306 6.95691 5.2527L9.49414 6.76251C9.81722 6.95476 10.2349 6.81843 10.3838 6.47216L11.5529 3.75275ZM7.13114 13.125H17.1189C16.9886 10.4797 14.8026 8.375 12.125 8.375C9.44741 8.375 7.2614 10.4797 7.13114 13.125Z" style="fill: var(--element-active-color)"/>
 <path d="M7.5 15.75C7.08579 15.75 6.75 16.0858 6.75 16.5C6.75 16.9142 7.08579 17.25 7.5 17.25H16.5C16.9142 17.25 17.25 16.9142 17.25 16.5C17.25 16.0858 16.9142 15.75 16.5 15.75H7.5Z" style="fill: var(--element-active-color)"/>
 <path d="M13.875 19.25C13.875 19.6642 13.5392 20 13.125 20H12H10.875C10.4608 20 10.125 19.6642 10.125 19.25C10.125 18.8358 10.4608 18.5 10.875 18.5H12H13.125C13.5392 18.5 13.875 18.8358 13.875 19.25Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};xr.styles=p`
+    `}};Rt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6259,15 +6258,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;qi([s({type:Boolean})],xr.prototype,"useCssColor",2);xr=qi([h("obi-palette-dusk")],xr);var Qs=Object.defineProperty,Ks=Object.getOwnPropertyDescriptor,Xi=(t,e,i,o)=>{for(var r=o>1?void 0:o?Ks(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Qs(e,i,r),r},Hr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;y1([l({type:Boolean})],Rt.prototype,"useCssColor",2);Rt=y1([h("obi-palette-dusk")],Rt);var zs=Object.defineProperty;var Bs=Object.getOwnPropertyDescriptor;var C1=(r,e,i,o)=>{var t=o>1?void 0:o?Bs(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)zs(e,i,t);return t};var Nt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.4178 2.66892C14.7789 2.25636 15.4554 2.47526 15.5064 3.02113L15.7816 5.96838C15.8166 6.34367 16.1721 6.60197 16.5386 6.51851L19.4174 5.8631C19.9506 5.74171 20.3687 6.3182 20.0902 6.79072L18.5862 9.34191C18.3947 9.66677 18.5305 10.0858 18.8753 10.2344L21.5838 11.4014C22.0855 11.6175 22.0854 12.3314 21.5838 12.5501L19.2437 13.5701C19.9738 14.2507 20.5123 15.1503 20.7626 16.1622C21.9582 16.6967 22.7499 17.9449 22.7499 19.3243C22.7499 21.1817 21.3013 22.75 19.4588 22.75H9.62935C8.73882 22.75 7.89257 22.3876 7.27532 21.7385C6.61858 21.085 6.27173 20.2054 6.25014 19.2667L6.24994 19.2581V19.212C6.24994 18.6736 6.37017 18.152 6.59526 17.6786L4.5824 18.1369C4.04921 18.2582 3.63113 17.6818 3.90968 17.2092L5.41363 14.658C5.60514 14.3332 5.46938 13.9141 5.12449 13.7655L2.41601 12.5986C1.91436 12.3825 1.9144 11.6686 2.41608 11.4499L5.12472 10.2692C5.46962 10.1189 5.60543 9.69915 5.41397 9.37526L3.91034 6.83168C3.63185 6.36057 4.05 5.78196 4.58318 5.90066L7.4619 6.54149C7.82846 6.62309 8.18396 6.36299 8.21905 5.98753L8.49462 3.03888C8.54566 2.49275 9.2222 2.27043 9.58323 2.68116L11.5324 4.89872C11.7807 5.18109 12.2201 5.17998 12.4683 4.89635L14.4178 2.66892ZM8.77567 15.8232C9.0014 15.7627 9.23504 15.7262 9.47374 15.7151C9.91656 15.02 10.6813 14.5702 11.5529 14.5702C11.6374 14.5702 11.7229 14.5744 11.8091 14.5835C12.7056 13.1529 14.2426 12.25 15.947 12.25C16.3039 12.25 16.652 12.29 16.9877 12.3658C17.1542 10.1198 15.7772 7.96694 13.5391 7.2428C10.9118 6.39271 8.09283 7.83343 7.24274 10.4608C6.59862 12.4515 7.26972 14.5523 8.77567 15.8232ZM12.8665 15.771C13.4558 14.5213 14.6481 13.75 15.947 13.75C17.6096 13.75 19.0881 15.057 19.371 16.8409L19.4468 17.3191L19.9138 17.4469C20.6575 17.6504 21.2499 18.4014 21.2499 19.3243C21.2499 20.4233 20.4045 21.25 19.4588 21.25H9.62935C9.14786 21.25 8.69223 21.0546 8.35732 20.6995L8.34813 20.6898L8.3386 20.6804C7.9796 20.326 7.7653 19.8279 7.74994 19.2403V19.212C7.74994 18.6904 7.94322 18.1961 8.2958 17.8083C8.65036 17.419 9.1208 17.2115 9.62936 17.2115C9.73976 17.2115 9.76618 17.213 9.79884 17.2188L10.4228 17.329L10.6357 16.7323C10.7806 16.3265 11.1414 16.0702 11.5529 16.0702C11.6726 16.0702 11.7795 16.0905 11.8851 16.1372L12.5544 16.4329L12.8665 15.771Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.4178 2.66892C14.7789 2.25636 15.4554 2.47526 15.5064 3.02113L15.7816 5.96838C15.8166 6.34367 16.1721 6.60197 16.5386 6.51851L19.4174 5.8631C19.9506 5.74171 20.3687 6.3182 20.0902 6.79072L18.5862 9.34191C18.3947 9.66677 18.5305 10.0858 18.8753 10.2344L21.5838 11.4014C22.0855 11.6175 22.0854 12.3314 21.5838 12.5501L19.2437 13.5701C19.9738 14.2507 20.5123 15.1503 20.7626 16.1622C21.9582 16.6967 22.7499 17.9449 22.7499 19.3243C22.7499 21.1817 21.3013 22.75 19.4588 22.75H9.62935C8.73882 22.75 7.89257 22.3876 7.27532 21.7385C6.61858 21.085 6.27173 20.2054 6.25014 19.2667L6.24994 19.2581V19.212C6.24994 18.6736 6.37017 18.152 6.59526 17.6786L4.5824 18.1369C4.04921 18.2582 3.63113 17.6818 3.90968 17.2092L5.41363 14.658C5.60514 14.3332 5.46938 13.9141 5.12449 13.7655L2.41601 12.5986C1.91436 12.3825 1.9144 11.6686 2.41608 11.4499L5.12472 10.2692C5.46962 10.1189 5.60543 9.69915 5.41397 9.37526L3.91034 6.83168C3.63185 6.36057 4.05 5.78196 4.58318 5.90066L7.4619 6.54149C7.82846 6.62309 8.18396 6.36299 8.21905 5.98753L8.49462 3.03888C8.54566 2.49275 9.2222 2.27043 9.58323 2.68116L11.5324 4.89872C11.7807 5.18109 12.2201 5.17998 12.4683 4.89635L14.4178 2.66892ZM8.77567 15.8232C9.0014 15.7627 9.23504 15.7262 9.47374 15.7151C9.91656 15.02 10.6813 14.5702 11.5529 14.5702C11.6374 14.5702 11.7229 14.5744 11.8091 14.5835C12.7056 13.1529 14.2426 12.25 15.947 12.25C16.3039 12.25 16.652 12.29 16.9877 12.3658C17.1542 10.1198 15.7772 7.96694 13.5391 7.2428C10.9118 6.39271 8.09283 7.83343 7.24274 10.4608C6.59862 12.4515 7.26972 14.5523 8.77567 15.8232ZM12.8665 15.771C13.4558 14.5213 14.6481 13.75 15.947 13.75C17.6096 13.75 19.0881 15.057 19.371 16.8409L19.4468 17.3191L19.9138 17.4469C20.6575 17.6504 21.2499 18.4014 21.2499 19.3243C21.2499 20.4233 20.4045 21.25 19.4588 21.25H9.62935C9.14786 21.25 8.69223 21.0546 8.35732 20.6995L8.34813 20.6898L8.3386 20.6804C7.9796 20.326 7.7653 19.8279 7.74994 19.2403V19.212C7.74994 18.6904 7.94322 18.1961 8.2958 17.8083C8.65036 17.419 9.1208 17.2115 9.62936 17.2115C9.73976 17.2115 9.76618 17.213 9.79884 17.2188L10.4228 17.329L10.6357 16.7323C10.7806 16.3265 11.1414 16.0702 11.5529 16.0702C11.6726 16.0702 11.7795 16.0905 11.8851 16.1372L12.5544 16.4329L12.8665 15.771Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Hr.styles=p`
+    `}};Nt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6277,15 +6276,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Xi([s({type:Boolean})],Hr.prototype,"useCssColor",2);Hr=Xi([h("obi-palette-day")],Hr);var el=Object.defineProperty,tl=Object.getOwnPropertyDescriptor,Yi=(t,e,i,o)=>{for(var r=o>1?void 0:o?tl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&el(e,i,r),r},$r=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;C1([l({type:Boolean})],Nt.prototype,"useCssColor",2);Nt=C1([h("obi-palette-day")],Nt);var Es=Object.defineProperty;var Ds=Object.getOwnPropertyDescriptor;var L1=(r,e,i,o)=>{var t=o>1?void 0:o?Ds(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Es(e,i,t);return t};var Ft=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11.4279 2.37775C11.6445 1.87408 12.3555 1.87408 12.5721 2.37776L13.7412 5.09716C13.8901 5.44343 14.3078 5.57976 14.6309 5.38751L17.1681 3.8777C17.638 3.59806 18.2133 4.01786 18.0937 4.55318L17.4482 7.44346C17.366 7.81149 17.6241 8.1684 17.998 8.20361L20.9342 8.48009C21.478 8.5313 21.6978 9.21054 21.2878 9.57303L19.0741 11.5302C18.7923 11.7794 18.7923 12.2206 19.0741 12.4698L21.2878 14.427C21.6978 14.7895 21.478 15.4687 20.9342 15.5199L17.998 15.7964C17.6241 15.8316 17.366 16.1885 17.4482 16.5565L18.0937 19.4468C18.2133 19.9821 17.638 20.4019 17.1681 20.1223L14.6309 18.6125C14.3078 18.4202 13.8901 18.5566 13.7412 18.9028L12.5721 21.6222C12.3555 22.1259 11.6445 22.1259 11.4279 21.6222L10.2588 18.9028C10.1099 18.5566 9.69222 18.4202 9.36914 18.6125L6.83191 20.1223C6.36198 20.4019 5.78673 19.9821 5.9063 19.4468L6.55183 16.5565C6.63403 16.1885 6.37587 15.8316 6.00199 15.7964L3.06579 15.5199C2.52197 15.4687 2.30224 14.7895 2.71224 14.427L4.92587 12.4698C5.20775 12.2206 5.20774 11.7794 4.92587 11.5302L2.71224 9.57303C2.30224 9.21054 2.52197 8.5313 3.0658 8.48009L6.00199 8.20361C6.37587 8.1684 6.63403 7.81149 6.55183 7.44346L5.9063 4.55318C5.78673 4.01786 6.36198 3.59806 6.83191 3.8777L9.36914 5.38751C9.69222 5.57976 10.1099 5.44343 10.2588 5.09716L11.4279 2.37775ZM17 12C17 14.7614 14.7614 17 12 17C9.23858 17 7 14.7614 7 12C7 9.23858 9.23858 7 12 7C14.7614 7 17 9.23858 17 12Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11.4279 2.37775C11.6445 1.87408 12.3555 1.87408 12.5721 2.37776L13.7412 5.09716C13.8901 5.44343 14.3078 5.57976 14.6309 5.38751L17.1681 3.8777C17.638 3.59806 18.2133 4.01786 18.0937 4.55318L17.4482 7.44346C17.366 7.81149 17.6241 8.1684 17.998 8.20361L20.9342 8.48009C21.478 8.5313 21.6978 9.21054 21.2878 9.57303L19.0741 11.5302C18.7923 11.7794 18.7923 12.2206 19.0741 12.4698L21.2878 14.427C21.6978 14.7895 21.478 15.4687 20.9342 15.5199L17.998 15.7964C17.6241 15.8316 17.366 16.1885 17.4482 16.5565L18.0937 19.4468C18.2133 19.9821 17.638 20.4019 17.1681 20.1223L14.6309 18.6125C14.3078 18.4202 13.8901 18.5566 13.7412 18.9028L12.5721 21.6222C12.3555 22.1259 11.6445 22.1259 11.4279 21.6222L10.2588 18.9028C10.1099 18.5566 9.69222 18.4202 9.36914 18.6125L6.83191 20.1223C6.36198 20.4019 5.78673 19.9821 5.9063 19.4468L6.55183 16.5565C6.63403 16.1885 6.37587 15.8316 6.00199 15.7964L3.06579 15.5199C2.52197 15.4687 2.30224 14.7895 2.71224 14.427L4.92587 12.4698C5.20775 12.2206 5.20774 11.7794 4.92587 11.5302L2.71224 9.57303C2.30224 9.21054 2.52197 8.5313 3.0658 8.48009L6.00199 8.20361C6.37587 8.1684 6.63403 7.81149 6.55183 7.44346L5.9063 4.55318C5.78673 4.01786 6.36198 3.59806 6.83191 3.8777L9.36914 5.38751C9.69222 5.57976 10.1099 5.44343 10.2588 5.09716L11.4279 2.37775ZM17 12C17 14.7614 14.7614 17 12 17C9.23858 17 7 14.7614 7 12C7 9.23858 9.23858 7 12 7C14.7614 7 17 9.23858 17 12Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};$r.styles=p`
+    `}};Ft.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6295,19 +6294,19 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Yi([s({type:Boolean})],$r.prototype,"useCssColor",2);$r=Yi([h("obi-palette-day-bright")],$r);var rl=Object.defineProperty,ol=Object.getOwnPropertyDescriptor,Ji=(t,e,i,o)=>{for(var r=o>1?void 0:o?ol(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&rl(e,i,r),r},Vr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;L1([l({type:Boolean})],Ft.prototype,"useCssColor",2);Ft=L1([h("obi-palette-day-bright")],Ft);var Is=Object.defineProperty;var js=Object.getOwnPropertyDescriptor;var k1=(r,e,i,o)=>{var t=o>1?void 0:o?js(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Is(e,i,t);return t};var Ut=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M7 15H11V17H7C4.24 17 2 14.76 2 12C2 9.24 4.24 7 7 7H11V9H7C5.35 9 4 10.35 4 12C4 13.65 5.35 15 7 15Z" fill="currentColor"/>
 <path d="M13 7H17C19.76 7 22 9.24 22 12C22 14.76 19.76 17 17 17H13V15H17C18.65 15 20 13.65 20 12C20 10.35 18.65 9 17 9H13V7Z" fill="currentColor"/>
 <path d="M16 11H8V13H16V11Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M7 15H11V17H7C4.24 17 2 14.76 2 12C2 9.24 4.24 7 7 7H11V9H7C5.35 9 4 10.35 4 12C4 13.65 5.35 15 7 15Z" style="fill: var(--element-active-color)"/>
 <path d="M13 7H17C19.76 7 22 9.24 22 12C22 14.76 19.76 17 17 17H13V15H17C18.65 15 20 13.65 20 12C20 10.35 18.65 9 17 9H13V7Z" style="fill: var(--element-active-color)"/>
 <path d="M16 11H8V13H16V11Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Vr.styles=p`
+    `}};Ut.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6317,15 +6316,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Ji([s({type:Boolean})],Vr.prototype,"useCssColor",2);Vr=Ji([h("obi-link")],Vr);var il=Object.defineProperty,al=Object.getOwnPropertyDescriptor,Qi=(t,e,i,o)=>{for(var r=o>1?void 0:o?al(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&il(e,i,r),r},_r=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;k1([l({type:Boolean})],Ut.prototype,"useCssColor",2);Ut=k1([h("obi-link")],Ut);var Rs=Object.defineProperty;var Ns=Object.getOwnPropertyDescriptor;var x1=(r,e,i,o)=>{var t=o>1?void 0:o?Ns(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Rs(e,i,t);return t};var Wt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M13.9999 18L15.4099 16.59L10.8299 12L15.4099 7.41L13.9999 6L7.99991 12L13.9999 18Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M13.9999 18L15.4099 16.59L10.8299 12L15.4099 7.41L13.9999 6L7.99991 12L13.9999 18Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};_r.styles=p`
+    `}};Wt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6335,15 +6334,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Qi([s({type:Boolean})],_r.prototype,"useCssColor",2);_r=Qi([h("obi-chevron-left-google")],_r);var nl=Object.defineProperty,sl=Object.getOwnPropertyDescriptor,Ki=(t,e,i,o)=>{for(var r=o>1?void 0:o?sl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&nl(e,i,r),r},Zr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;x1([l({type:Boolean})],Wt.prototype,"useCssColor",2);Wt=x1([h("obi-chevron-left-google")],Wt);var Fs=Object.defineProperty;var Us=Object.getOwnPropertyDescriptor;var M1=(r,e,i,o)=>{var t=o>1?void 0:o?Us(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Fs(e,i,t);return t};var Gt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M20 3H4C2.9 3 2 3.9 2 5V15C2 16.1 2.9 17 4 17H10V19H8V21H16V19H14V17H20C21.1 17 22 16.1 22 15V5C22 3.9 21.1 3 20 3ZM4 15H20V5H4V15Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M20 3H4C2.9 3 2 3.9 2 5V15C2 16.1 2.9 17 4 17H10V19H8V21H16V19H14V17H20C21.1 17 22 16.1 22 15V5C22 3.9 21.1 3 20 3ZM4 15H20V5H4V15Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Zr.styles=p`
+    `}};Gt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6353,7 +6352,7 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Ki([s({type:Boolean})],Zr.prototype,"useCssColor",2);Zr=Ki([h("obi-screen-desk")],Zr);var Sr="lit-localize-status";var ea=t=>typeof t!="string"&&"strTag"in t,Ho=(t,e,i)=>{let o=t[0];for(let r=1;r<t.length;r++)o+=e[i?i[r-1]:r-1],o+=t[r];return o};var Ar=(t=>ea(t)?Ho(t.strings,t.values):t);var ae=Ar;var $o=class{constructor(e){this.__litLocalizeEventHandler=i=>{i.detail.status==="ready"&&this.host.requestUpdate()},this.host=e}hostConnected(){window.addEventListener(Sr,this.__litLocalizeEventHandler)}hostDisconnected(){window.removeEventListener(Sr,this.__litLocalizeEventHandler)}},ll=t=>t.addController(new $o(t)),ta=ll;var ra=()=>(t,e)=>(t.addInitializer(ta),t);var Pr=class{constructor(){this.settled=!1,this.promise=new Promise((e,i)=>{this._resolve=e,this._reject=i})}resolve(e){this.settled=!0,this._resolve(e)}reject(e){this.settled=!0,this._reject(e)}};var cl=[];for(let t=0;t<256;t++)cl[t]=(t>>4&15).toString(16)+(t&15).toString(16);var pl=new Pr;pl.resolve();var oa=p`
+  `;M1([l({type:Boolean})],Gt.prototype,"useCssColor",2);Gt=M1([h("obi-screen-desk")],Gt);var qt="lit-localize-status";var H1=r=>typeof r!=="string"&&"strTag"in r;var Wo=(r,e,i)=>{let o=r[0];for(let t=1;t<r.length;t++){o+=e[i?i[t-1]:t-1];o+=r[t]}return o};var Xt=(r=>H1(r)?Wo(r.strings,r.values):r);var se=Xt;var Go=class{constructor(e){this.__litLocalizeEventHandler=i=>{if(i.detail.status==="ready"){this.host.requestUpdate()}};this.host=e}hostConnected(){window.addEventListener(qt,this.__litLocalizeEventHandler)}hostDisconnected(){window.removeEventListener(qt,this.__litLocalizeEventHandler)}};var Ws=r=>r.addController(new Go(r));var $1=Ws;var _1=()=>(r,e)=>{r.addInitializer($1);return r};var Yt=class{constructor(){this.settled=false;this.promise=new Promise((e,i)=>{this._resolve=e;this._reject=i})}resolve(e){this.settled=true;this._resolve(e)}reject(e){this.settled=true;this._reject(e)}};var Gs=[];for(let r=0;r<256;r++){Gs[r]=(r>>4&15).toString(16)+(r&15).toString(16)}var Xs=new Yt;Xs.resolve();var V1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -6393,17 +6392,17 @@ input {
     background-color: var(--instrument-enhanced-secondary-color);
     fill: var(--instrument-enhanced-secondary-color);
   }
-`;var hl=Object.defineProperty,ul=Object.getOwnPropertyDescriptor,Or=(t,e,i,o)=>{for(var r=o>1?void 0:o?ul(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&hl(e,i,r),r},dt=class extends d{constructor(){super(...arguments),this.totalSteps=5,this.currentStep=1,this.fullwidth=!1}get validCurrentStep(){return Math.max(1,Math.min(this.currentStep,this.totalSteps))}get validTotalSteps(){return Math.max(1,this.totalSteps)}renderDots(){let t=[];for(let e=0;e<this.validTotalSteps;e++)t.push(c`
+`;var Ys=Object.defineProperty;var Ks=Object.getOwnPropertyDescriptor;var Kt=(r,e,i,o)=>{var t=o>1?void 0:o?Ks(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Ys(e,i,t);return t};var kr=class extends d{constructor(){super(...arguments);this.totalSteps=5;this.currentStep=1;this.fullwidth=false}get validCurrentStep(){return Math.max(1,Math.min(this.currentStep,this.totalSteps))}get validTotalSteps(){return Math.max(1,this.totalSteps)}renderDots(){const r=[];for(let e=0;e<this.validTotalSteps;e++){r.push(c`
         <div
-          class=${V({dot:!0,"state-active":e===this.validCurrentStep-1,"state-inactive":e!==this.validCurrentStep-1})}
+          class=${$({dot:true,"state-active":e===this.validCurrentStep-1,"state-inactive":e!==this.validCurrentStep-1})}
         ></div>
-      `);return t}render(){return c`
+      `)}return r}render(){return c`
       <div
-        class=${V({wrapper:!0,"style-fullwidth":this.fullwidth,"style-compact":!this.fullwidth})}
+        class=${$({wrapper:true,"style-fullwidth":this.fullwidth,"style-compact":!this.fullwidth})}
       >
         <div class="content-container">${this.renderDots()}</div>
       </div>
-    `}};dt.styles=x(oa);Or([s({type:Number})],dt.prototype,"totalSteps",2);Or([s({type:Number})],dt.prototype,"currentStep",2);Or([s({type:Boolean})],dt.prototype,"fullwidth",2);dt=Or([h("obc-progress-indicator-dots")],dt);var ia=p`
+    `}};kr.styles=C(V1);Kt([l({type:Number})],kr.prototype,"totalSteps",2);Kt([l({type:Number})],kr.prototype,"currentStep",2);Kt([l({type:Boolean})],kr.prototype,"fullwidth",2);kr=Kt([h("obc-progress-indicator-dots")],kr);var Z1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -6767,15 +6766,15 @@ input {
     white-space: nowrap;
     min-width: 0;
   }
-`;var vl=Object.defineProperty,ml=Object.getOwnPropertyDescriptor,aa=(t,e,i,o)=>{for(var r=o>1?void 0:o?ml(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&vl(e,i,r),r},Br=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+`;var Js=Object.defineProperty;var Qs=Object.getOwnPropertyDescriptor;var S1=(r,e,i,o)=>{var t=o>1?void 0:o?Qs(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Js(e,i,t);return t};var Jt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M9.5 15.0687C9.5 15.6745 9.5 15.9774 9.6198 16.1177C9.72374 16.2394 9.87967 16.304 10.0392 16.2914C10.2231 16.2769 10.4373 16.0627 10.8657 15.6344L13.9343 12.5657C14.1323 12.3677 14.2313 12.2687 14.2684 12.1546C14.3011 12.0541 14.3011 11.946 14.2684 11.8455C14.2313 11.7314 14.1323 11.6324 13.9343 11.4344L10.8657 8.36573C10.4373 7.93736 10.2231 7.72317 10.0392 7.7087C9.87967 7.69614 9.72374 7.76073 9.6198 7.88243C9.5 8.0227 9.5 8.3256 9.5 8.93142L9.5 15.0687Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M9.5 15.0687C9.5 15.6745 9.5 15.9774 9.6198 16.1177C9.72374 16.2394 9.87967 16.304 10.0392 16.2914C10.2231 16.2769 10.4373 16.0627 10.8657 15.6344L13.9343 12.5657C14.1323 12.3677 14.2313 12.2687 14.2684 12.1546C14.3011 12.0541 14.3011 11.946 14.2684 11.8455C14.2313 11.7314 14.1323 11.6324 13.9343 11.4344L10.8657 8.36573C10.4373 7.93736 10.2231 7.72317 10.0392 7.7087C9.87967 7.69614 9.72374 7.76073 9.6198 7.88243C9.5 8.0227 9.5 8.3256 9.5 8.93142L9.5 15.0687Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Br.styles=p`
+    `}};Jt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6785,7 +6784,7 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;aa([s({type:Boolean})],Br.prototype,"useCssColor",2);Br=aa([h("obi-arrow-flyout-google")],Br);var na=p`
+  `;S1([l({type:Boolean})],Jt.prototype,"useCssColor",2);Jt=S1([h("obi-arrow-flyout-google")],Jt);var A1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -6884,7 +6883,7 @@ ol {
   margin: 0;
   padding: 0;
 }
-`;var fl=Object.defineProperty,gl=Object.getOwnPropertyDescriptor,_t=(t,e,i,o)=>{for(var r=o>1?void 0:o?gl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&fl(e,i,r),r},Ke=(t=>(t.Full="full",t.IconOnly="icon-only",t.IconOnlyLarge="icon-only-large",t.Compact="compact",t))(Ke||{});var Qe=class extends d{constructor(){super(...arguments),this.variant="full",this.flyoutVariant="full",this.smallScreen=!1,this.slotObservers=[],this.hasFooter=!1}findAllElements(t,e,{slot:i,stopTag:o}={}){let r=[];for(let a of t.children)if(a.tagName.toLowerCase()===e){if(i&&a.getAttribute("slot")!==i)continue;r.push(a)}else{if(o&&a.tagName.toLowerCase()===o)continue;if(i&&a.getAttribute("slot")!==i)continue;r.push(...this.findAllElements(a,e,{stopTag:o}))}return r}findAllGroups(t){return this.findAllElements(t,"obc-navigation-item-group")}findRootItems(t){return this.findAllElements(t,"obc-navigation-item",{stopTag:"obc-navigation-item-group"})}findAllItems(t,e){return this.findAllElements(t,"obc-navigation-item",{slot:e})}closeAllGroups(){this.findAllGroups(this).forEach(e=>{e.close()})}registerGroup(t){t.forEach(e=>{e.addEventListener("open",()=>{t.forEach(o=>{o!==e&&o.close()})});let i=this.findAllGroups(e);this.registerGroup(i)})}cleanupSlotObservers(){this.slotObservers.forEach(t=>t.disconnect()),this.slotObservers=[]}setupSlotObservers(){this.cleanupSlotObservers();let t=this.shadowRoot?.querySelector('slot[name="main"]'),e=this.shadowRoot?.querySelector('slot[name="footer"]');this.hasFooter=e?.assignedElements().length>0,[t,e].forEach(i=>{i&&i.assignedElements().forEach(r=>{let a=new MutationObserver(()=>{this.setupItems()});a.observe(r,{childList:!0,subtree:!0}),this.slotObservers.push(a)})})}firstUpdated(t){super.firstUpdated(t);let e=this.findAllGroups(this);this.registerGroup(e)}updated(t){super.updated(t),(t.has("variant")||t.has("flyoutVariant"))&&this.setupItems()}setVariantToFlyoutItems(t){this.findAllElements(t,"obc-navigation-item").forEach(o=>{o.variant="full"}),this.findAllGroups(t).forEach(o=>{o.variant="full",this.setVariantToFlyoutItems(o)})}disconnectedCallback(){super.disconnectedCallback(),this.cleanupSlotObservers()}handleSlotChange(){this.setupItems(),this.setupSlotObservers()}setupItems(){let t=this.variant!=="full"||this.flyoutVariant==="compact";this.setHugToGroups(this,t),this.findAllGroups(this).forEach(o=>{o.variant=this.variant,this.setVariantToFlyoutItems(o)}),this.findRootItems(this).forEach(o=>{o.variant=this.variant});let i=this.smallScreen&&this.variant==="full"?"compact":this.variant;this.findAllItems(this,"footer").forEach(o=>{o.variant=i}),this.findAllItems(this,"logo").forEach(o=>{o.variant=i}),this.findAllItems(this).forEach(o=>{o.addEventListener("click",()=>{this.closeAllGroups()})})}setHugToGroups(t,e){this.findAllGroups(t).forEach(o=>{o.hug=e,this.setHugToGroups(o,e)})}render(){return c`
+`;var ec=Object.defineProperty;var rc=Object.getOwnPropertyDescriptor;var Nr=(r,e,i,o)=>{var t=o>1?void 0:o?rc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)ec(e,i,t);return t};var dr=(r=>{r["Full"]="full";r["IconOnly"]="icon-only";r["IconOnlyLarge"]="icon-only-large";r["Compact"]="compact";return r})(dr||{});var cr=class extends d{constructor(){super(...arguments);this.variant="full";this.flyoutVariant="full";this.smallScreen=false;this.slotObservers=[];this.hasFooter=false}findAllElements(r,e,{slot:i,stopTag:o}={}){const t=[];for(const a of r.children){if(a.tagName.toLowerCase()===e){if(i&&a.getAttribute("slot")!==i){continue}t.push(a)}else if(o&&a.tagName.toLowerCase()===o){continue}else{if(i&&a.getAttribute("slot")!==i){continue}t.push(...this.findAllElements(a,e,{stopTag:o}))}}return t}findAllGroups(r){return this.findAllElements(r,"obc-navigation-item-group")}findRootItems(r){return this.findAllElements(r,"obc-navigation-item",{stopTag:"obc-navigation-item-group"})}findAllItems(r,e){return this.findAllElements(r,"obc-navigation-item",{slot:e})}closeAllGroups(){const r=this.findAllGroups(this);r.forEach(e=>{e.close()})}registerGroup(r){r.forEach(e=>{e.addEventListener("open",()=>{r.forEach(o=>{if(o!==e){o.close()}})});const i=this.findAllGroups(e);this.registerGroup(i)})}cleanupSlotObservers(){this.slotObservers.forEach(r=>r.disconnect());this.slotObservers=[]}setupSlotObservers(){this.cleanupSlotObservers();const r=this.shadowRoot?.querySelector('slot[name="main"]');const e=this.shadowRoot?.querySelector('slot[name="footer"]');this.hasFooter=e?.assignedElements().length>0;[r,e].forEach(i=>{if(i){const o=i.assignedElements();o.forEach(t=>{const a=new MutationObserver(()=>{this.setupItems()});a.observe(t,{childList:true,subtree:true});this.slotObservers.push(a)})}})}firstUpdated(r){super.firstUpdated(r);const e=this.findAllGroups(this);this.registerGroup(e)}updated(r){super.updated(r);if(r.has("variant")||r.has("flyoutVariant")){this.setupItems()}}setVariantToFlyoutItems(r){const e=this.findAllElements(r,"obc-navigation-item");e.forEach(o=>{o.variant="full"});const i=this.findAllGroups(r);i.forEach(o=>{o.variant="full";this.setVariantToFlyoutItems(o)})}disconnectedCallback(){super.disconnectedCallback();this.cleanupSlotObservers()}handleSlotChange(){this.setupItems();this.setupSlotObservers()}setupItems(){const r=this.variant!=="full"||this.flyoutVariant==="compact";this.setHugToGroups(this,r);const e=this.findAllGroups(this);e.forEach(o=>{o.variant=this.variant;this.setVariantToFlyoutItems(o)});this.findRootItems(this).forEach(o=>{o.variant=this.variant});const i=this.smallScreen&&this.variant==="full"?"compact":this.variant;this.findAllItems(this,"footer").forEach(o=>{o.variant=i});this.findAllItems(this,"logo").forEach(o=>{o.variant=i});this.findAllItems(this).forEach(o=>{o.addEventListener("click",()=>{this.closeAllGroups()})})}setHugToGroups(r,e){const i=this.findAllGroups(r);i.forEach(o=>{o.hug=e;this.setHugToGroups(o,e)})}render(){return c`
       <div
         class="wrapper ${this.variant} ${this.smallScreen?"small-screen":""}"
       >
@@ -6897,43 +6896,43 @@ ol {
           <nav>
             <ol>
               <slot name="footer" @slotchange=${this.handleSlotChange}></slot>
-              ${this.smallScreen?c` <slot name="logo"></slot> `:f}
+              ${this.smallScreen?c` <slot name="logo"></slot> `:m}
             </ol>
           </nav>
-          ${this.smallScreen?f:c`
+          ${this.smallScreen?m:c`
                 <div class="logo">
                   <slot name="logo"></slot>
                 </div>
               `}
         </div>
       </div>
-    `}};Qe.styles=x(na);_t([s({type:String})],Qe.prototype,"variant",2);_t([s({type:String})],Qe.prototype,"flyoutVariant",2);_t([s({type:Boolean})],Qe.prototype,"smallScreen",2);_t([re()],Qe.prototype,"hasFooter",2);Qe=_t([h("obc-navigation-menu")],Qe);var bl=Object.defineProperty,Cl=Object.getOwnPropertyDescriptor,Te=(t,e,i,o)=>{for(var r=o>1?void 0:o?Cl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&bl(e,i,r),r},ye=class extends d{constructor(){super(...arguments),this.label="Label",this.checked=!1,this.variant=Ke.Full,this.group=!1,this.groupSelected=!1,this.hasIcon=!1,this.hasTrailingIcon=!1}onClick(){dispatchEvent(new CustomEvent("click"))}render(){let t=this.group&&this.variant!==Ke.IconOnly,e=this.variant===Ke.Compact;return c`
+    `}};cr.styles=C(A1);Nr([l({type:String})],cr.prototype,"variant",2);Nr([l({type:String})],cr.prototype,"flyoutVariant",2);Nr([l({type:Boolean})],cr.prototype,"smallScreen",2);Nr([N()],cr.prototype,"hasFooter",2);cr=Nr([h("obc-navigation-menu")],cr);var tc=Object.defineProperty;var oc=Object.getOwnPropertyDescriptor;var Ue=(r,e,i,o)=>{var t=o>1?void 0:o?oc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)tc(e,i,t);return t};var Me=class extends d{constructor(){super(...arguments);this.label="Label";this.checked=false;this.variant=dr.Full;this.group=false;this.groupSelected=false;this.hasIcon=false;this.hasTrailingIcon=false}onClick(){dispatchEvent(new CustomEvent("click"))}render(){const r=this.group&&this.variant!==dr.IconOnly;const e=this.variant===dr.Compact;return c`
       <a
-        class="${V({wrapper:!0,checked:this.checked,"group-selected":this.groupSelected&&this.group,"has-icon":this.hasIcon,[this.variant]:!0})}"
-        href=${oe(this.href)}
+        class="${$({wrapper:true,checked:this.checked,"group-selected":this.groupSelected&&this.group,"has-icon":this.hasIcon,[this.variant]:true})}"
+        href=${ne(this.href)}
         @click=${this.onClick}
       >
         <div class="visible-wrapper">
-          ${this.hasIcon?c`<slot name="icon" class="icon leading"></slot>`:f}
-          ${[Ke.IconOnly,Ke.IconOnlyLarge].includes(this.variant)?f:c`
+          ${this.hasIcon?c`<slot name="icon" class="icon leading"></slot>`:m}
+          ${![dr.IconOnly,dr.IconOnlyLarge].includes(this.variant)?c`
                 <span
                   part="label"
-                  class=${V({label:!0,"label-flyout":t&&!e})}
+                  class=${$({label:true,"label-flyout":r&&!e})}
                 >
                   ${this.label}
                 </span>
-              `}
-          ${t?c`
+              `:m}
+          ${r?c`
                 <div class="flyout-wrapper">
                   <obi-arrow-flyout-google
                     class="icon trailing"
                   ></obi-arrow-flyout-google>
                 </div>
-              `:f}
-          ${this.hasTrailingIcon&&!t?c`<slot name="trailing-icon" class="icon trailing"></slot>`:f}
+              `:m}
+          ${this.hasTrailingIcon&&!r?c`<slot name="trailing-icon" class="icon trailing"></slot>`:m}
         </div>
       </a>
-    `}};ye.styles=x(ia);Te([s({type:String})],ye.prototype,"label",2);Te([s({type:String})],ye.prototype,"href",2);Te([s({type:Boolean})],ye.prototype,"checked",2);Te([s({type:String})],ye.prototype,"variant",2);Te([s({type:Boolean})],ye.prototype,"group",2);Te([s({type:Boolean})],ye.prototype,"groupSelected",2);Te([s({type:Boolean,reflect:!0})],ye.prototype,"hasIcon",2);Te([s({type:Boolean})],ye.prototype,"hasTrailingIcon",2);ye=Te([h("obc-navigation-item")],ye);var sa=p`
+    `}};Me.styles=C(Z1);Ue([l({type:String})],Me.prototype,"label",2);Ue([l({type:String})],Me.prototype,"href",2);Ue([l({type:Boolean})],Me.prototype,"checked",2);Ue([l({type:String})],Me.prototype,"variant",2);Ue([l({type:Boolean})],Me.prototype,"group",2);Ue([l({type:Boolean})],Me.prototype,"groupSelected",2);Ue([l({type:Boolean,reflect:true})],Me.prototype,"hasIcon",2);Ue([l({type:Boolean})],Me.prototype,"hasTrailingIcon",2);Me=Ue([h("obc-navigation-item")],Me);var P1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -7260,8 +7259,8 @@ ol {
 .wrapper.integration.disabled .label {
       color: var(--element-disabled-color);
     }
-`;var yl=Object.defineProperty,wl=Object.getOwnPropertyDescriptor,et=(t,e,i,o)=>{for(var r=o>1?void 0:o?wl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&yl(e,i,r),r};var Ee=class extends d{constructor(){super(...arguments),this.label="Button",this.checked=!1,this.showLabel=!0,this.integration=!1,this.size="normal",this.disabled=!1}render(){return c` <button
-      class="${V({wrapper:!0,checked:this.checked,small:this.size==="small",integration:this.integration,disabled:this.disabled})}"
+`;var ic=Object.defineProperty;var ac=Object.getOwnPropertyDescriptor;var pr=(r,e,i,o)=>{var t=o>1?void 0:o?ac(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)ic(e,i,t);return t};var We=class extends d{constructor(){super(...arguments);this.label="Button";this.checked=false;this.showLabel=true;this.integration=false;this.size="normal";this.disabled=false}render(){return c` <button
+      class="${$({wrapper:true,checked:this.checked,small:this.size==="small",integration:this.integration,disabled:this.disabled})}"
       ?disabled=${this.disabled}
     >
       <div class="icon-wrapper">
@@ -7269,8 +7268,8 @@ ol {
           <slot name="icon"></slot>
         </span>
       </div>
-      ${this.showLabel?c`<div class="label">${this.label}</div>`:f}
-    </button>`}};Ee.styles=x(sa);et([s({type:String})],Ee.prototype,"label",2);et([s({type:Boolean})],Ee.prototype,"checked",2);et([s({type:Boolean,attribute:!1})],Ee.prototype,"showLabel",2);et([s({type:Boolean})],Ee.prototype,"integration",2);et([s({type:String})],Ee.prototype,"size",2);et([s({type:Boolean})],Ee.prototype,"disabled",2);Ee=et([h("obc-app-button")],Ee);var la=p`
+      ${this.showLabel?c`<div class="label">${this.label}</div>`:m}
+    </button>`}};We.styles=C(P1);pr([l({type:String})],We.prototype,"label",2);pr([l({type:Boolean})],We.prototype,"checked",2);pr([l({type:Boolean,attribute:false})],We.prototype,"showLabel",2);pr([l({type:Boolean})],We.prototype,"integration",2);pr([l({type:String})],We.prototype,"size",2);pr([l({type:Boolean})],We.prototype,"disabled",2);We=pr([h("obc-app-button")],We);var O1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -7663,22 +7662,22 @@ ol {
   height: 100%;
   flex-shrink: 0;
 }
-`;var Ll=Object.defineProperty,kl=Object.getOwnPropertyDescriptor,je=(t,e,i,o)=>{for(var r=o>1?void 0:o?kl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Ll(e,i,r),r};var $e=class extends d{constructor(){super(...arguments),this.variant="icon",this.size="regular",this.styleType="flat",this.static=!1,this.disabled=!1,this.initials=""}get formattedInitials(){if(!this.initials)return"";let t=this.initials.replace(/\s+/g,"").toUpperCase(),e=this.size==="large"?3:2;return t.length>e?(console.warn(`Initials "${this.initials}" are longer than ${e} characters.`),t.slice(0,e)):t}get shouldShowIcon(){return this.variant==="icon"}render(){let t=this.size==="large"&&this.styleType==="flat"?"normal":this.styleType,e={wrapper:!0,"wrapper-static":this.static,[`style-${t}`]:!0,"mode-icon":this.shouldShowIcon,"mode-initials":!this.shouldShowIcon,"state-static":this.static,[`size-${this.size}`]:!0},i=this.static?R`div`:R`button`,o=this.label&&!this.static?_`<span class="user-label" part="label">${this.label}</span>`:f;return _`
+`;var nc=Object.defineProperty;var lc=Object.getOwnPropertyDescriptor;var Je=(r,e,i,o)=>{var t=o>1?void 0:o?lc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)nc(e,i,t);return t};var Oe=class extends d{constructor(){super(...arguments);this.variant="icon";this.size="regular";this.styleType="flat";this.static=false;this.disabled=false;this.initials=""}get formattedInitials(){if(!this.initials)return"";const r=this.initials.replace(/\s+/g,"").toUpperCase();const e=this.size==="large"?3:2;if(r.length>e){console.warn(`Initials "${this.initials}" are longer than ${e} characters.`);return r.slice(0,e)}return r}get shouldShowIcon(){return this.variant==="icon"}render(){const r=this.size==="large"&&this.styleType==="flat"?"normal":this.styleType;const e={wrapper:true,"wrapper-static":this.static,[`style-${r}`]:true,"mode-icon":this.shouldShowIcon,"mode-initials":!this.shouldShowIcon,"state-static":this.static,[`size-${this.size}`]:true};const i=this.static?j`div`:j`button`;const o=this.label&&!this.static?Z`<span class="user-label" part="label">${this.label}</span>`:m;return Z`
         <${i}
-          class=${V(e)}
+          class=${$(e)}
           ?disabled=${this.disabled}
           aria-label=${this.initials||"User button"}
         >
         <div class="content-container" part="content-container">
           <div class="user-button-circle">
-            ${this.shouldShowIcon?_`
+            ${this.shouldShowIcon?Z`
                     <div class="icon-container">
                       <slot name="icon">
                         <!-- Fallback to default icon if no slot content -->
                         <obi-user></obi-user>
                       </slot>
                     </div>
-                  `:_`
+                  `:Z`
                     <span class="user-initials">
                       ${this.formattedInitials}
                     </span>
@@ -7687,7 +7686,7 @@ ol {
           ${o}
         </div>
         </${i}>
-      `}};$e.styles=x(la);je([s({type:String})],$e.prototype,"variant",2);je([s({type:String})],$e.prototype,"size",2);je([s({type:String})],$e.prototype,"styleType",2);je([s({type:Boolean})],$e.prototype,"static",2);je([s({type:Boolean})],$e.prototype,"disabled",2);je([s({type:String})],$e.prototype,"initials",2);je([s({type:String})],$e.prototype,"label",2);$e=je([h("obc-user-button")],$e);var ca=p`
+      `}};Oe.styles=C(O1);Je([l({type:String})],Oe.prototype,"variant",2);Je([l({type:String})],Oe.prototype,"size",2);Je([l({type:String})],Oe.prototype,"styleType",2);Je([l({type:Boolean})],Oe.prototype,"static",2);Je([l({type:Boolean})],Oe.prototype,"disabled",2);Je([l({type:String})],Oe.prototype,"initials",2);Je([l({type:String})],Oe.prototype,"label",2);Oe=Je([h("obc-user-button")],Oe);var T1=p`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -7937,9 +7936,9 @@ div[role="tabpanel"] {
   border-bottom-right-radius: var(--app-components-alert-menu-border-radius);
   overflow: hidden;
 }
-`;var Ml=Object.defineProperty,xl=Object.getOwnPropertyDescriptor,Zt=(t,e,i,o)=>{for(var r=o>1?void 0:o?xl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Ml(e,i,r),r},tt=class extends d{constructor(){super(...arguments),this.nTabs=1,this.selectedTab=0,this.hasDefaultSlotOnly=!1,this.hasTabIcons=!1}_handleKeyDown(t){if(!t.target.classList.contains("tab-button"))return;let i=this.selectedTab;switch(t.key){case"ArrowRight":this.setSelectedTab((i+1)%this.nTabs);break;case"ArrowLeft":this.setSelectedTab((i-1+this.nTabs)%this.nTabs);break;case"Home":this.setSelectedTab(0);break;case"End":this.setSelectedTab(this.nTabs-1);break;default:return}t.preventDefault(),this._focusTab(this.selectedTab)}setSelectedTab(t){this.selectedTab=t,this.dispatchEvent(new CustomEvent("tab-change",{detail:{tab:t}}))}_focusTab(t){this.shadowRoot?.querySelector(`button[data-index="${t}"]`)?.focus()}_generateTabHeaders(){return[...Array(this.nTabs)].map((t,e)=>{let i=e!==this.nTabs-1&&this.selectedTab!==e&&e+1!==this.selectedTab,o=this.hasTabIcons?c`<span class="tab-icon">
+`;var sc=Object.defineProperty;var cc=Object.getOwnPropertyDescriptor;var Fr=(r,e,i,o)=>{var t=o>1?void 0:o?cc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)sc(e,i,t);return t};var hr=class extends d{constructor(){super(...arguments);this.nTabs=1;this.selectedTab=0;this.hasDefaultSlotOnly=false;this.hasTabIcons=false}_handleKeyDown(r){const e=r.target;if(!e.classList.contains("tab-button"))return;const i=this.selectedTab;switch(r.key){case"ArrowRight":this.setSelectedTab((i+1)%this.nTabs);break;case"ArrowLeft":this.setSelectedTab((i-1+this.nTabs)%this.nTabs);break;case"Home":this.setSelectedTab(0);break;case"End":this.setSelectedTab(this.nTabs-1);break;default:return}r.preventDefault();this._focusTab(this.selectedTab)}setSelectedTab(r){this.selectedTab=r;this.dispatchEvent(new CustomEvent("tab-change",{detail:{tab:r}}))}_focusTab(r){const e=this.shadowRoot?.querySelector(`button[data-index="${r}"]`);e?.focus()}_generateTabHeaders(){return[...Array(this.nTabs)].map((r,e)=>{const i=e!==this.nTabs-1&&this.selectedTab!==e&&e+1!==this.selectedTab;const o=this.hasTabIcons?c`<span class="tab-icon">
             <slot name="tab-icon-${e}"></slot>
-          </span>`:f;return c`
+          </span>`:m;return c`
         <button
           class="tab-button ${i?"has-divider":""}"
           role="tab"
@@ -7958,7 +7957,7 @@ div[role="tabpanel"] {
             >
           </div>
         </button>
-      `})}_generateTabPanels(){return this.hasDefaultSlotOnly?c`<div
+      `})}_generateTabPanels(){if(this.hasDefaultSlotOnly){return c`<div
         role="tabpanel"
         class="tab-content"
         id="panel-${this.selectedTab}"
@@ -7966,7 +7965,7 @@ div[role="tabpanel"] {
         tabindex="0"
       >
         <slot></slot>
-      </div>`:[...Array(this.nTabs)].map((t,e)=>c`
+      </div>`}return[...Array(this.nTabs)].map((r,e)=>c`
         <div
           role="tabpanel"
           id="panel-${e}"
@@ -7983,7 +7982,7 @@ div[role="tabpanel"] {
         </div>
         <div class="tab-panels">${this._generateTabPanels()}</div>
       </div>
-    `}};tt.styles=x(ca);Zt([s({type:Number})],tt.prototype,"nTabs",2);Zt([s({type:Number})],tt.prototype,"selectedTab",2);Zt([s({type:Boolean})],tt.prototype,"hasDefaultSlotOnly",2);Zt([s({type:Boolean})],tt.prototype,"hasTabIcons",2);tt=Zt([h("obc-tabbed-card")],tt);var Hl=Object.defineProperty,$l=Object.getOwnPropertyDescriptor,da=(t,e,i,o)=>{for(var r=o>1?void 0:o?$l(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Hl(e,i,r),r},Tr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    `}};hr.styles=C(T1);Fr([l({type:Number})],hr.prototype,"nTabs",2);Fr([l({type:Number})],hr.prototype,"selectedTab",2);Fr([l({type:Boolean})],hr.prototype,"hasDefaultSlotOnly",2);Fr([l({type:Boolean})],hr.prototype,"hasTabIcons",2);hr=Fr([h("obc-tabbed-card")],hr);var dc=Object.defineProperty;var pc=Object.getOwnPropertyDescriptor;var z1=(r,e,i,o)=>{var t=o>1?void 0:o?pc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)dc(e,i,t);return t};var Qt=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 20.5C16.6944 20.5 20.5 16.6944 20.5 12C20.5 7.30558 16.6944 3.5 12 3.5C7.30558 3.5 3.5 7.30558 3.5 12C3.5 16.6944 7.30558 20.5 12 20.5ZM12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5ZM12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
 <path d="M11.25 5H12.75V7.5H11.25V5Z" fill="currentColor"/>
@@ -7995,7 +7994,7 @@ div[role="tabpanel"] {
 <path d="M15.7129 9.34839L14.6522 8.28773L16.42 6.51996L17.4807 7.58062L15.7129 9.34839Z" fill="currentColor"/>
 <path d="M14.6523 15.7122L15.713 14.6515L17.4808 16.4193L16.4201 17.4799L14.6523 15.7122Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 20.5C16.6944 20.5 20.5 16.6944 20.5 12C20.5 7.30558 16.6944 3.5 12 3.5C7.30558 3.5 3.5 7.30558 3.5 12C3.5 16.6944 7.30558 20.5 12 20.5ZM12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5ZM12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" style="fill: var(--element-active-color)"/>
 <path d="M11.25 5H12.75V7.5H11.25V5Z" style="fill: var(--element-active-color)"/>
@@ -8009,7 +8008,7 @@ div[role="tabpanel"] {
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Tr.styles=p`
+    `}};Qt.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8019,16 +8018,16 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;da([s({type:Boolean})],Tr.prototype,"useCssColor",2);Tr=da([h("obi-display-brilliance-iec")],Tr);var Vl=Object.defineProperty,_l=Object.getOwnPropertyDescriptor,q=(t,e,i,o)=>{for(var r=o>1?void 0:o?_l(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Vl(e,i,r),r};var N=class extends d{constructor(){super(...arguments),this.palette="day",this.brightness=50,this.showLinkBrightness=!1,this.showLinkPalette=!1,this.showBrightness=!0,this.showPalette=!0,this.showNightPalette=!0,this.showDuskPalette=!0,this.showDayPalette=!0,this.showBrightPalette=!0,this.variant="normal",this.brightnessUnit="%",this.brightnessMax=100,this.brightnessMinorStep=5,this.brightnessMajorStep=25,this.brightnessInputVariant="buttons",this.showScreenControlLink=!1}willUpdate(t){if(this.showPalette){let e=this.availablePalettes;e.length>0&&!e.includes(this.palette)&&(this.palette=e[0],this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}})))}}onPaletteChanged(t){this.palette=t.detail.value,this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:t.detail.value}}))}handleBrightnessChanged(t){this.brightness=t.detail,this.dispatchEvent(new CustomEvent("brightness-changed",{detail:{value:t.detail}}))}increaseBrightness(t){this.brightness=Math.max(0,Math.min(this.brightness+t,this.brightnessMax)),this.dispatchEvent(new CustomEvent("brightness-changed",{detail:{value:this.brightness}}))}get canIncreaseBrightness(){return this.brightness<this.brightnessMax}get canDecreaseBrightness(){return this.brightness>0}onLinkPaletteChanged(t){this.dispatchEvent(new CustomEvent("link-palette-changed",{detail:{value:t.target.checked}}))}onLinkBrightnessChanged(t){this.dispatchEvent(new CustomEvent("link-brightness-changed",{detail:{value:t.target.checked}}))}get availablePalettes(){let t=[];return this.showNightPalette&&t.push("night"),this.showDuskPalette&&t.push("dusk"),this.showDayPalette&&t.push("day"),this.showBrightPalette&&t.push("bright"),t}get canIncreasePalette(){let t=this.availablePalettes,e=t.indexOf(this.palette);return e>=0&&e<t.length-1}get canDecreasePalette(){return this.availablePalettes.indexOf(this.palette)>0}nextPalette(){if(this.canIncreasePalette){let t=this.availablePalettes,e=t.indexOf(this.palette);this.palette=t[e+1],this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}previousPalette(){if(this.canDecreasePalette){let t=this.availablePalettes,e=t.indexOf(this.palette);this.palette=t[e-1],this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}renderBrightness(){let t=this.variant==="tabbed"?f:c`<div class="title-container">
-            <h3>${ae("Brilliance")}</h3>
-          </div>`,e=this.brightness.toString().length+.5*this.brightnessUnit.length;return c`${t}
+  `;z1([l({type:Boolean})],Qt.prototype,"useCssColor",2);Qt=z1([h("obi-display-brilliance-iec")],Qt);var hc=Object.defineProperty;var uc=Object.getOwnPropertyDescriptor;var X=(r,e,i,o)=>{var t=o>1?void 0:o?uc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)hc(e,i,t);return t};var F=class extends d{constructor(){super(...arguments);this.palette="day";this.brightness=50;this.showLinkBrightness=false;this.showLinkPalette=false;this.showBrightness=true;this.showPalette=true;this.showNightPalette=true;this.showDuskPalette=true;this.showDayPalette=true;this.showBrightPalette=true;this.variant="normal";this.brightnessUnit="%";this.brightnessMax=100;this.brightnessMinorStep=5;this.brightnessMajorStep=25;this.brightnessInputVariant="buttons";this.showScreenControlLink=false}willUpdate(r){if(this.showPalette){const e=this.availablePalettes;if(e.length>0&&!e.includes(this.palette)){this.palette=e[0];this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}}onPaletteChanged(r){this.palette=r.detail.value;this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:r.detail.value}}))}handleBrightnessChanged(r){this.brightness=r.detail;this.dispatchEvent(new CustomEvent("brightness-changed",{detail:{value:r.detail}}))}increaseBrightness(r){this.brightness=Math.max(0,Math.min(this.brightness+r,this.brightnessMax));this.dispatchEvent(new CustomEvent("brightness-changed",{detail:{value:this.brightness}}))}get canIncreaseBrightness(){return this.brightness<this.brightnessMax}get canDecreaseBrightness(){return this.brightness>0}onLinkPaletteChanged(r){this.dispatchEvent(new CustomEvent("link-palette-changed",{detail:{value:r.target.checked}}))}onLinkBrightnessChanged(r){this.dispatchEvent(new CustomEvent("link-brightness-changed",{detail:{value:r.target.checked}}))}get availablePalettes(){const r=[];if(this.showNightPalette)r.push("night");if(this.showDuskPalette)r.push("dusk");if(this.showDayPalette)r.push("day");if(this.showBrightPalette)r.push("bright");return r}get canIncreasePalette(){const r=this.availablePalettes;const e=r.indexOf(this.palette);return e>=0&&e<r.length-1}get canDecreasePalette(){const r=this.availablePalettes;const e=r.indexOf(this.palette);return e>0}nextPalette(){if(this.canIncreasePalette){const r=this.availablePalettes;const e=r.indexOf(this.palette);this.palette=r[e+1];this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}previousPalette(){if(this.canDecreasePalette){const r=this.availablePalettes;const e=r.indexOf(this.palette);this.palette=r[e-1];this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}renderBrightness(){const r=this.variant==="tabbed"?m:c`<div class="title-container">
+            <h3>${se("Brilliance")}</h3>
+          </div>`;const e=this.brightness.toString().length+.5*this.brightnessUnit.length;return c`${r}
       <div class="content-container brilliance">
         ${this.variant==="compact"?c` <obc-slider
               value=${this.brightness}
               @value=${this.handleBrightnessChanged}
               min="0"
               max=${this.brightnessMax}
-              variant=${Vt.Normal}
+              variant=${Rr.Normal}
               haslefticon
               hasrighticon
             >
@@ -8053,14 +8052,14 @@ div[role="tabpanel"] {
                   ${this.brightnessInputVariant==="buttons"?c`
                         <obc-slider
                           value=${this.brightness}
-                          variant=${Vt.NoInput}
+                          variant=${Rr.NoInput}
                           min="0"
                           max=${this.brightnessMax}
                         ></obc-slider>
                       `:c`
                         <obc-slider
                           value=${this.brightness}
-                          variant=${Vt.Enhanced}
+                          variant=${Rr.Enhanced}
                           @value=${this.handleBrightnessChanged}
                           min="0"
                           max=${this.brightnessMax}
@@ -8115,29 +8114,29 @@ div[role="tabpanel"] {
                         ></obi-chevron-double-right-google>
                       </obc-button>
                     </div>
-                  `:f}
+                  `:m}
             `}
         ${this.showLinkBrightness?c`<obc-toggle-switch
-              .label="${ae("Link")}"
+              .label="${se("Link")}"
               hasicon
               @input=${this.onLinkBrightnessChanged}
             >
               <obi-link slot="icon"></obi-link>
-            </obc-toggle-switch>`:f}
-      </div>`}get effectivePalette(){let t=this.availablePalettes;return t.includes(this.palette)?this.palette:t[0]}get paletteIcon(){return this.effectivePalette==="night"?c`<obi-palette-night class="icon"></obi-palette-night>`:this.effectivePalette==="dusk"?c`<obi-palette-dusk class="icon"></obi-palette-dusk>`:this.effectivePalette==="day"?c`<obi-palette-day class="icon"></obi-palette-day>`:this.effectivePalette==="bright"?c`<obi-palette-day-bright
+            </obc-toggle-switch>`:m}
+      </div>`}get effectivePalette(){const r=this.availablePalettes;return r.includes(this.palette)?this.palette:r[0]}get paletteIcon(){if(this.effectivePalette==="night"){return c`<obi-palette-night class="icon"></obi-palette-night>`}else if(this.effectivePalette==="dusk"){return c`<obi-palette-dusk class="icon"></obi-palette-dusk>`}else if(this.effectivePalette==="day"){return c`<obi-palette-day class="icon"></obi-palette-day>`}else if(this.effectivePalette==="bright"){return c`<obi-palette-day-bright
         class="icon"
-      ></obi-palette-day-bright>`:f}paletteOptions(){let t=[];return this.showNightPalette&&t.push(c`<obc-toggle-button-option value="night" type="icon">
+      ></obi-palette-day-bright>`}else{return m}}paletteOptions(){const r=[];if(this.showNightPalette)r.push(c`<obc-toggle-button-option value="night" type="icon">
           <obi-palette-night slot="icon"></obi-palette-night>
-        </obc-toggle-button-option>`),this.showDuskPalette&&t.push(c`<obc-toggle-button-option value="dusk" type="icon">
+        </obc-toggle-button-option>`);if(this.showDuskPalette)r.push(c`<obc-toggle-button-option value="dusk" type="icon">
           <obi-palette-dusk slot="icon"></obi-palette-dusk>
-        </obc-toggle-button-option>`),this.showDayPalette&&t.push(c`<obc-toggle-button-option value="day" type="icon">
+        </obc-toggle-button-option>`);if(this.showDayPalette)r.push(c`<obc-toggle-button-option value="day" type="icon">
           <obi-palette-day slot="icon"></obi-palette-day>
-        </obc-toggle-button-option>`),this.showBrightPalette&&t.push(c`<obc-toggle-button-option value="bright" type="icon">
+        </obc-toggle-button-option>`);if(this.showBrightPalette)r.push(c`<obc-toggle-button-option value="bright" type="icon">
           <obi-palette-day-bright slot="icon"></obi-palette-day-bright>
-        </obc-toggle-button-option>`),t}renderPalette(){let t=this.availablePalettes;if(t.length===0)return f;let e={night:ae("Night"),dusk:ae("Dusk"),day:ae("Day"),bright:ae("Bright")},i=e[this.effectivePalette],o=i.length,r=t.indexOf(this.effectivePalette),a=Math.min(r+1,t.length-1),n=Math.max(r-1,0),v=e[t[a]],u=e[t[n]];return c`
-      ${this.variant==="tabbed"?f:c`
+        </obc-toggle-button-option>`);return r}renderPalette(){const r=this.availablePalettes;if(r.length===0)return m;const e={["night"]:se("Night"),["dusk"]:se("Dusk"),["day"]:se("Day"),["bright"]:se("Bright")};const i=e[this.effectivePalette];const o=i.length;const t=r.indexOf(this.effectivePalette);const a=Math.min(t+1,r.length-1);const n=Math.max(t-1,0);const v=e[r[a]];const u=e[r[n]];return c`
+      ${this.variant==="tabbed"?m:c`
             <div class="title-container">
-              <h3>${ae("Day")}/${ae("Night")}</h3>
+              <h3>${se("Day")}/${se("Night")}</h3>
             </div>
           `}
       <div
@@ -8146,8 +8145,8 @@ div[role="tabpanel"] {
         ${this.variant==="compact"?c` <obc-toggle-button-group
               value=${this.effectivePalette}
               @value=${this.onPaletteChanged}
-              variant=${Je.regular}
-              type=${ct.icon}
+              variant=${sr.regular}
+              type=${Lr.icon}
             >
               ${this.paletteOptions()}
             </obc-toggle-button-group>`:c`
@@ -8159,8 +8158,8 @@ div[role="tabpanel"] {
                   </div>
                 </div>
                 <obc-progress-indicator-dots
-                  .totalSteps=${t.length}
-                  .currentStep=${r+1}
+                  .totalSteps=${r.length}
+                  .currentStep=${t+1}
                 ></obc-progress-indicator-dots>
               </div>
               <div class="icon-button-container">
@@ -8194,17 +8193,17 @@ div[role="tabpanel"] {
               </div>
             `}
         ${this.showLinkPalette?c`<obc-toggle-switch
-              .label="${ae("Link")}"
+              .label="${se("Link")}"
               hasicon
               @input=${this.onLinkPaletteChanged}
             >
               <obi-link slot="icon"></obi-link>
-            </obc-toggle-switch>`:f}
+            </obc-toggle-switch>`:m}
       </div>
-    `}renderScreenControlLink(){return this.showScreenControlLink?c`
+    `}renderScreenControlLink(){if(!this.showScreenControlLink){return m}return c`
       <div class="footer">
         <obc-navigation-item
-          .label="${ae("Screen Control")}"
+          .label="${se("Screen Control")}"
           @click=${()=>this.handleScreenControlLinkClicked()}
           hasicon
         >
@@ -8213,12 +8212,12 @@ div[role="tabpanel"] {
           </obc-user-button>
         </obc-navigation-item>
       </div>
-    `:f}render(){return this.variant==="tabbed"?c`<obc-tabbed-card class="card" nTabs=${2} hasTabIcons>
-        <span slot="tab-title-0">${ae("Brilliance")}</span>
+    `}render(){if(this.variant==="tabbed"){return c`<obc-tabbed-card class="card" nTabs=${2} hasTabIcons>
+        <span slot="tab-title-0">${se("Brilliance")}</span>
         <obi-display-brilliance-iec
           slot="tab-icon-0"
         ></obi-display-brilliance-iec>
-        <span slot="tab-title-1">${ae("Day")}/${ae("Night")}</span>
+        <span slot="tab-title-1">${se("Day")}/${se("Night")}</span>
         <obi-palette-day-night-iec
           slot="tab-icon-1"
         ></obi-palette-day-night-iec>
@@ -8228,22 +8227,508 @@ div[role="tabpanel"] {
         <div slot="tab-content-1">
           ${this.renderPalette()} ${this.renderScreenControlLink()}
         </div>
-      </obc-tabbed-card>`:c`
+      </obc-tabbed-card>`}else{return c`
         <div class="card ${this.variant}">
-          ${this.showBrightness?this.renderBrightness():f}
-          ${this.showBrightness&&this.showPalette?c`<div class="divider"></div>`:f}
-          ${this.showPalette?this.renderPalette():f}
+          ${this.showBrightness?this.renderBrightness():m}
+          ${this.showBrightness&&this.showPalette?c`<div class="divider"></div>`:m}
+          ${this.showPalette?this.renderPalette():m}
           ${this.renderScreenControlLink()}
         </div>
-      `}handleScreenControlLinkClicked(){this.dispatchEvent(new CustomEvent("screen-control-link-clicked"))}};N.styles=x(ji);q([s({type:String})],N.prototype,"palette",2);q([s({type:Number})],N.prototype,"brightness",2);q([s({type:Boolean})],N.prototype,"showLinkBrightness",2);q([s({type:Boolean})],N.prototype,"showLinkPalette",2);q([s({type:Boolean,attribute:!1})],N.prototype,"showBrightness",2);q([s({type:Boolean,attribute:!1})],N.prototype,"showPalette",2);q([s({type:Boolean,attribute:!1})],N.prototype,"showNightPalette",2);q([s({type:Boolean,attribute:!1})],N.prototype,"showDuskPalette",2);q([s({type:Boolean,attribute:!1})],N.prototype,"showDayPalette",2);q([s({type:Boolean,attribute:!1})],N.prototype,"showBrightPalette",2);q([s({type:String})],N.prototype,"variant",2);q([s({type:String})],N.prototype,"brightnessUnit",2);q([s({type:Number})],N.prototype,"brightnessMax",2);q([s({type:Number})],N.prototype,"brightnessMinorStep",2);q([s({type:Number})],N.prototype,"brightnessMajorStep",2);q([s({type:String})],N.prototype,"brightnessInputVariant",2);q([s({type:Boolean})],N.prototype,"showScreenControlLink",2);N=q([ra(),h("obc-brilliance-menu")],N);var Zl=Object.defineProperty,Sl=Object.getOwnPropertyDescriptor,pa=(t,e,i,o)=>{for(var r=o>1?void 0:o?Sl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Zl(e,i,r),r},Er=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-<path d="M4 19V17H6V10C6 8.61667 6.41667 7.3875 7.25 6.3125C8.08333 5.2375 9.16667 4.53333 10.5 4.2V3.5C10.5 3.08333 10.6458 2.72917 10.9375 2.4375C11.2292 2.14583 11.5833 2 12 2C12.4167 2 12.7708 2.14583 13.0625 2.4375C13.3542 2.72917 13.5 3.08333 13.5 3.5V4.2C14.8333 4.53333 15.9167 5.2375 16.75 6.3125C17.5833 7.3875 18 8.61667 18 10V17H20V19H4ZM12 22C11.45 22 10.9792 21.8042 10.5875 21.4125C10.1958 21.0208 10 20.55 10 20H14C14 20.55 13.8042 21.0208 13.4125 21.4125C13.0208 21.8042 12.55 22 12 22ZM8 17H16V10C16 8.9 15.6083 7.95833 14.825 7.175C14.0417 6.39167 13.1 6 12 6C10.9 6 9.95833 6.39167 9.175 7.175C8.39167 7.95833 8 8.9 8 10V17Z" fill="currentColor"/>
+      `}}handleScreenControlLinkClicked(){this.dispatchEvent(new CustomEvent("screen-control-link-clicked"))}};F.styles=C(v1);X([l({type:String})],F.prototype,"palette",2);X([l({type:Number})],F.prototype,"brightness",2);X([l({type:Boolean})],F.prototype,"showLinkBrightness",2);X([l({type:Boolean})],F.prototype,"showLinkPalette",2);X([l({type:Boolean,attribute:false})],F.prototype,"showBrightness",2);X([l({type:Boolean,attribute:false})],F.prototype,"showPalette",2);X([l({type:Boolean,attribute:false})],F.prototype,"showNightPalette",2);X([l({type:Boolean,attribute:false})],F.prototype,"showDuskPalette",2);X([l({type:Boolean,attribute:false})],F.prototype,"showDayPalette",2);X([l({type:Boolean,attribute:false})],F.prototype,"showBrightPalette",2);X([l({type:String})],F.prototype,"variant",2);X([l({type:String})],F.prototype,"brightnessUnit",2);X([l({type:Number})],F.prototype,"brightnessMax",2);X([l({type:Number})],F.prototype,"brightnessMinorStep",2);X([l({type:Number})],F.prototype,"brightnessMajorStep",2);X([l({type:String})],F.prototype,"brightnessInputVariant",2);X([l({type:Boolean})],F.prototype,"showScreenControlLink",2);F=X([_1(),h("obc-brilliance-menu")],F);var B1=p`
+          * {
+            -webkit-tap-highlight-color: transparent;
+          }
+
+.wrapper {
+  position: relative;
+  user-select: none;
+  padding: 0;
+  background: transparent;
+  width: fit-content;
+  height: var(--ui-components-button-touch-target-size);
+  appearance: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-family-main);
+  font-weight: var(--global-typography-ui-button-font-weight);
+  font-size: var(--global-typography-ui-button-font-size);
+  line-height: var(--global-typography-ui-button-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+}
+
+.wrapper.full-width {
+    width: 100%;
+  }
+
+.wrapper.full-width .visible-wrapper {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+.wrapper .visible-wrapper {
+    height: var(--ui-components-button-visual-size);
+    border-radius: var(--ui-components-button-border-radius-top-left)
+      var(--ui-components-button-border-radius-top-right)
+      var(--ui-components-button-border-radius-bottom-right)
+      var(--ui-components-button-border-radius-bottom-left);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: calc(var(--ui-components-button-padding-horizontal) * 2);
+    padding-right: var(--ui-components-button-padding-horizontal);
+  }
+
+.wrapper .icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--global-size-spacing-icon-icon-size-regular);
+    width: var(--global-size-spacing-icon-icon-size-regular);
+  }
+
+.wrapper .icon {
+    height: var(--global-size-spacing-icon-icon-size-regular);
+    width: var(--global-size-spacing-icon-icon-size-regular);
+  }
+
+.wrapper.disabled .icon-container {
+    color: var(--on-normal-disabled-color);
+  }
+
+.wrapper.disabled .icon {
+    color: var(--on-normal-disabled-color);
+  }
+
+.wrapper .label {
+    padding-left: var(--ui-components-button-label-spacing);
+    padding-right: var(--ui-components-button-label-spacing);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+.wrapper {
+            cursor: pointer;
+}
+
+.wrapper:focus {
+            outline: none;
+}
+
+.wrapper .visible-wrapper {
+            border-color: var(--normal-enabled-border-color);
+            background-color: var(--normal-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--normal-enabled-border-color);
+            --base-background-color: var(--normal-enabled-background-color);
+}
+
+.wrapper.activated .visible-wrapper {
+            border-color: var(--normal-activated-border-color);
+            background-color: var(--normal-activated-background-color);
+            --base-border-color: var(--normal-activated-border-color);
+            --base-background-color: var(--normal-activated-background-color);
+}
+
+@media (hover:hover) {
+
+.wrapper:hover .visible-wrapper {
+                        border-color: color-mix(in srgb, var(--normal-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--normal-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+.wrapper:active .visible-wrapper {
+            border-color: var(--normal-pressed-border-color);
+            background-color: var(--normal-pressed-background-color);
+}
+
+.wrapper:focus-visible .visible-wrapper {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+.wrapper:disabled .visible-wrapper {
+            border-color: var(--normal-disabled-border-color);
+            background-color: var(--normal-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-normal-disabled-color) !important;
+}
+
+.wrapper.disabled .visible-wrapper {
+            border-color: var(--normal-disabled-border-color);
+            background-color: var(--normal-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-normal-disabled-color) !important;
+}
+
+.wrapper:disabled {
+            cursor: not-allowed;
+}
+
+.wrapper.disabled {
+            cursor: not-allowed;
+}
+
+.wrapper {
+  color: var(--on-normal-active-color);
+}
+
+.wrapper .icon {
+    color: var(--on-normal-neutral-color);
+  }
+
+.wrapper:disabled .icon {
+    color: var(--on-normal-disabled-color);
+  }
+
+.wrapper select {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    appearance: none;
+    appearance: base-select;
+    opacity: 0;
+  }
+
+.wrapper:has(select:focus-visible) .visible-wrapper {
+  outline-color: var(--border-focus-color);
+  outline-width: var(--global-size-spacing-border-weight-focusframe);
+  outline-style: solid;
+  border-color: var(--container-global-color);
+  z-index: 1;
+}
+
+::picker(select) {
+  appearance: base-select;
+  border: none;
+  min-width: var(--ui-components-context-menu-menu-width);
+  border-radius: 12px;
+  background: var(--container-global-color);
+  box-shadow: var(--shadow-floating);
+  padding: var(--ui-components-context-menu-margin-vertical)
+    var(--ui-components-context-menu-margin-horizontal);
+
+  overflow-y: auto;
+}
+
+.wrapper.open-top select::picker(select) {
+  position-area: block-start span-inline-end;
+}
+
+option {
+  height: var(--menu-navigation-components-navigation-item-touch-target-size);
+  min-height: var(
+    --menu-navigation-components-navigation-item-touch-target-size
+  );
+  padding: 0px
+    var(--menu-navigation-components-navigation-item-padding-horizontal);
+  border-radius: var(
+    --menu-navigation-components-navigation-item-border-radius
+  );
+}
+
+option {
+            border-color: var(--flat-enabled-border-color);
+            background-color: var(--flat-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--flat-enabled-border-color);
+            --base-background-color: var(--flat-enabled-background-color);
+}
+
+option:focus {
+            outline: none;
+}
+
+option.activated {
+            border-color: var(--flat-activated-border-color);
+            background-color: var(--flat-activated-background-color);
+            --base-border-color: var(--flat-activated-border-color);
+            --base-background-color: var(--flat-activated-background-color);
+}
+
+@media (hover:hover) {
+
+option:hover {
+                        border-color: color-mix(in srgb, var(--flat-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--flat-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+option:active {
+            border-color: var(--flat-pressed-border-color);
+            background-color: var(--flat-pressed-background-color);
+}
+
+option:focus-visible {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+option:disabled {
+            border-color: var(--flat-disabled-border-color);
+            background-color: var(--flat-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-flat-disabled-color) !important;
+}
+
+option.disabled {
+            border-color: var(--flat-disabled-border-color);
+            background-color: var(--flat-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-flat-disabled-color) !important;
+}
+
+option {
+  font-family: var(--font-family-main);
+  font-weight: var(--global-typography-ui-body-font-weight);
+  font-size: var(--global-typography-ui-body-font-size);
+  line-height: var(--global-typography-ui-body-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  color: var(--on-flat-neutral-color);
+}
+
+option:checked {
+            border-color: var(--amplified-enabled-border-color);
+            background-color: var(--amplified-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--amplified-enabled-border-color);
+            --base-background-color: var(--amplified-enabled-background-color);
+}
+
+option:checked:focus {
+            outline: none;
+}
+
+option.activated:checked {
+            border-color: var(--amplified-activated-border-color);
+            background-color: var(--amplified-activated-background-color);
+            --base-border-color: var(--amplified-activated-border-color);
+            --base-background-color: var(--amplified-activated-background-color);
+}
+
+@media (hover:hover) {
+
+option:checked:hover {
+                        border-color: color-mix(in srgb, var(--amplified-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--amplified-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+option:checked:active {
+            border-color: var(--amplified-pressed-border-color);
+            background-color: var(--amplified-pressed-background-color);
+}
+
+option:checked:focus-visible {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+option:checked:disabled {
+            border-color: var(--amplified-disabled-border-color);
+            background-color: var(--amplified-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-amplified-disabled-color) !important;
+}
+
+option.disabled:checked {
+            border-color: var(--amplified-disabled-border-color);
+            background-color: var(--amplified-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-amplified-disabled-color) !important;
+}
+
+option:checked {
+  color: var(--on-flat-active-color);
+  font-family: var(--font-family-main);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--global-typography-ui-body-active-font-size);
+  line-height: var(--global-typography-ui-body-active-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+}
+
+option::checkmark {
+  display: none;
+}
+
+.wrapper.flat {
+            cursor: pointer;
+}
+
+.wrapper.flat:focus {
+            outline: none;
+}
+
+.wrapper.flat .visible-wrapper {
+            border-color: var(--flat-enabled-border-color);
+            background-color: var(--flat-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--flat-enabled-border-color);
+            --base-background-color: var(--flat-enabled-background-color);
+}
+
+.wrapper.flat.activated .visible-wrapper {
+            border-color: var(--flat-activated-border-color);
+            background-color: var(--flat-activated-background-color);
+            --base-border-color: var(--flat-activated-border-color);
+            --base-background-color: var(--flat-activated-background-color);
+}
+
+@media (hover:hover) {
+
+.wrapper.flat:hover .visible-wrapper {
+                        border-color: color-mix(in srgb, var(--flat-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--flat-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+.wrapper.flat:active .visible-wrapper {
+            border-color: var(--flat-pressed-border-color);
+            background-color: var(--flat-pressed-background-color);
+}
+
+.wrapper.flat:focus-visible .visible-wrapper {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+.wrapper.flat:disabled .visible-wrapper {
+            border-color: var(--flat-disabled-border-color);
+            background-color: var(--flat-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-flat-disabled-color) !important;
+}
+
+.wrapper.flat.disabled .visible-wrapper {
+            border-color: var(--flat-disabled-border-color);
+            background-color: var(--flat-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-flat-disabled-color) !important;
+}
+
+.wrapper.flat:disabled {
+            cursor: not-allowed;
+}
+
+.wrapper.flat.disabled {
+            cursor: not-allowed;
+}
+
+.wrapper.integration {
+            cursor: pointer;
+}
+
+.wrapper.integration:focus {
+            outline: none;
+}
+
+.wrapper.integration .visible-wrapper {
+            border-color: var(--integration-selected-enabled-border-color);
+            background-color: var(--integration-selected-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--integration-selected-enabled-border-color);
+            --base-background-color: var(--integration-selected-enabled-background-color);
+}
+
+.wrapper.integration.activated .visible-wrapper {
+            border-color: var(--integration-selected-activated-border-color);
+            background-color: var(--integration-selected-activated-background-color);
+            --base-border-color: var(--integration-selected-activated-border-color);
+            --base-background-color: var(--integration-selected-activated-background-color);
+}
+
+@media (hover:hover) {
+
+.wrapper.integration:hover .visible-wrapper {
+                        border-color: color-mix(in srgb, var(--integration-selected-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--integration-selected-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+.wrapper.integration:active .visible-wrapper {
+            border-color: var(--integration-selected-pressed-border-color);
+            background-color: var(--integration-selected-pressed-background-color);
+}
+
+.wrapper.integration:focus-visible .visible-wrapper {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+.wrapper.integration:disabled .visible-wrapper {
+            border-color: var(--integration-selected-disabled-border-color);
+            background-color: var(--integration-selected-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--integration-on-selected-disabled-color) !important;
+}
+
+.wrapper.integration.disabled .visible-wrapper {
+            border-color: var(--integration-selected-disabled-border-color);
+            background-color: var(--integration-selected-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--integration-on-selected-disabled-color) !important;
+}
+
+.wrapper.integration:disabled {
+            cursor: not-allowed;
+}
+
+.wrapper.integration.disabled {
+            cursor: not-allowed;
+}
+
+.wrapper.integration .visible-wrapper {
+    box-sizing: border-box;
+    height: 40px;
+  }
+`;var vc=Object.defineProperty;var mc=Object.getOwnPropertyDescriptor;var E1=(r,e,i,o)=>{var t=o>1?void 0:o?mc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)vc(e,i,t);return t};var eo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+<path d="M8.9313 10C8.32548 10 8.02257 10 7.88231 10.1198C7.76061 10.2237 7.69602 10.3797 7.70858 10.5392C7.72305 10.7231 7.93724 10.9373 8.36561 11.3657L11.4342 14.4343C11.6323 14.6323 11.7313 14.7313 11.8454 14.7684C11.9458 14.8011 12.054 14.8011 12.1544 14.7684C12.2686 14.7313 12.3676 14.6323 12.5656 14.4343L15.6342 11.3657C16.0626 10.9373 16.2768 10.7231 16.2913 10.5392C16.3038 10.3797 16.2392 10.2237 16.1175 10.1198C15.9773 10 15.6744 10 15.0686 10H8.9313Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M4 19V17H6V10C6 8.61667 6.41667 7.3875 7.25 6.3125C8.08333 5.2375 9.16667 4.53333 10.5 4.2V3.5C10.5 3.08333 10.6458 2.72917 10.9375 2.4375C11.2292 2.14583 11.5833 2 12 2C12.4167 2 12.7708 2.14583 13.0625 2.4375C13.3542 2.72917 13.5 3.08333 13.5 3.5V4.2C14.8333 4.53333 15.9167 5.2375 16.75 6.3125C17.5833 7.3875 18 8.61667 18 10V17H20V19H4ZM12 22C11.45 22 10.9792 21.8042 10.5875 21.4125C10.1958 21.0208 10 20.55 10 20H14C14 20.55 13.8042 21.0208 13.4125 21.4125C13.0208 21.8042 12.55 22 12 22ZM8 17H16V10C16 8.9 15.6083 7.95833 14.825 7.175C14.0417 6.39167 13.1 6 12 6C10.9 6 9.95833 6.39167 9.175 7.175C8.39167 7.95833 8 8.9 8 10V17Z" style="fill: var(--element-active-color)"/>
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M8.9313 10C8.32548 10 8.02257 10 7.88231 10.1198C7.76061 10.2237 7.69602 10.3797 7.70858 10.5392C7.72305 10.7231 7.93724 10.9373 8.36561 11.3657L11.4342 14.4343C11.6323 14.6323 11.7313 14.7313 11.8454 14.7684C11.9458 14.8011 12.054 14.8011 12.1544 14.7684C12.2686 14.7313 12.3676 14.6323 12.5656 14.4343L15.6342 11.3657C16.0626 10.9373 16.2768 10.7231 16.2913 10.5392C16.3038 10.3797 16.2392 10.2237 16.1175 10.1198C15.9773 10 15.6744 10 15.0686 10H8.9313Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Er.styles=p`
+    `}};eo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8253,19 +8738,1423 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;pa([s({type:Boolean})],Er.prototype,"useCssColor",2);Er=pa([h("obi-alerts")],Er);var Al=Object.defineProperty,Pl=Object.getOwnPropertyDescriptor,ha=(t,e,i,o)=>{for(var r=o>1?void 0:o?Pl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Al(e,i,r),r},zr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;E1([l({type:Boolean})],eo.prototype,"useCssColor",2);eo=E1([h("obi-drop-down-google")],eo);var gc=Object.defineProperty;var fc=Object.getOwnPropertyDescriptor;var He=(r,e,i,o)=>{var t=o>1?void 0:o?fc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)gc(e,i,t);return t};var he=class extends d{constructor(){super(...arguments);this.options=[];this.disabled=false;this.fullWidth=false;this.type="label";this.openTop=false;this.integration=false;this.flat=false;this.selectedValue="";this.selectedLabel=""}connectedCallback(){super.connectedCallback();this.updateSelectedValues()}willUpdate(r){if(r.has("value")||r.has("options")){this.updateSelectedValues()}}updateSelectedValues(){if(this.options.length===0){this.selectedValue="";this.selectedLabel="";return}this.selectedValue=this.value||this.options[0].value;this.selectedLabel=this.value?this.options.find(r=>r.value===this.value)?.label||"":this.options[0].label}render(){return c`
+      <div
+        class=${$({wrapper:true,"full-width":this.fullWidth,"open-top":this.openTop,integration:this.integration,flat:this.flat&&!this.integration,disabled:this.disabled})}
+      >
+        <div class="visible-wrapper">
+          ${this.type!=="label"?c`<div class="icon-container"><slot name="icon"></slot></div>`:m}
+          ${this.type!=="icon"?c`<div class="label">${this.selectedLabel}</div>`:m}
+          <div class="icon">
+            <obi-drop-down-google></obi-drop-down-google>
+          </div>
+        </div>
+        <select @change=${this.changeHandler} ?disabled=${this.disabled}>
+          ${this.options.map(r=>{const e=r.level?(r.level-1)*2:0;const i=[];for(let o=0;o<e;o++){i.push(c`&nbsp;`)}return c`<option
+              value=${r.value}
+              ?selected=${r.value===this.selectedValue}
+            >
+              ${i}${r.label}
+            </option>`})}
+        </select>
+      </div>
+    `}changeHandler(r){const e=r.target;this.selectedValue=e.value;this.selectedLabel=this.options.find(i=>i.value===this.selectedValue).label.trim();this.dispatchEvent(new CustomEvent("dropdown-change",{detail:{value:this.selectedValue,label:this.selectedLabel}}));this.dispatchEvent(new CustomEvent("change",{detail:{value:this.selectedValue,label:this.selectedLabel}}))}};he.styles=C(B1);He([l({type:Array})],he.prototype,"options",2);He([l({type:String})],he.prototype,"value",2);He([l({type:Boolean})],he.prototype,"disabled",2);He([l({type:Boolean})],he.prototype,"fullWidth",2);He([l({type:String})],he.prototype,"type",2);He([l({type:Boolean})],he.prototype,"openTop",2);He([l({type:Boolean})],he.prototype,"integration",2);He([l({type:Boolean})],he.prototype,"flat",2);He([N()],he.prototype,"selectedValue",2);He([N()],he.prototype,"selectedLabel",2);he=He([h("obc-dropdown-button")],he);var D1=p`
+          * {
+            -webkit-tap-highlight-color: transparent;
+          }
+
+:host {
+  display: block;
+  width: 100%;
+  border-radius: 4px;
+}
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  user-select: none;
+}
+
+.title-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 4px var(--app-components-system-menu-padding-horizontal, 8px);
+  box-sizing: border-box;
+  background: var(--container-section-color);
+  border-top: 1px solid var(--border-outline-color);
+  border-bottom: 1px solid var(--border-outline-color);
+}
+
+.label-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: var(--app-components-system-menu-padding-horizontal, 8px);
+  padding-right: var(--app-components-system-menu-padding-horizontal, 8px);
+}
+
+.label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--menu-navigation-components-appointment-item-label-spacing, 8px);
+  font-family: var(--font-family-main);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--global-typography-ui-label-font-size);
+  line-height: var(--global-typography-ui-label-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  color: var(--on-flat-neutral-color);
+}
+
+.day-container {
+  display: flex;
+  align-items: center;
+}
+
+.date-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.content-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding-left: var(
+    --menu-navigation-components-appointment-item-padding-horizontal,
+    8px
+  );
+  padding-right: var(
+    --menu-navigation-components-appointment-item-padding-horizontal,
+    8px
+  );
+  box-sizing: border-box;
+}
+
+.event-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: calc(100% + 8px);
+  margin-left: -4px;
+  padding: 4px;
+  box-sizing: border-box;
+}
+`;var I1=(r,e,i)=>{const o=new Map;for(let t=e;t<=i;t++)o.set(r[t],t);return o};var j1=Ie(class extends $e{constructor(r){if(super(r),r.type!==qe.CHILD)throw Error("repeat() can only be used in text expressions")}dt(r,e,i){let o;void 0===i?i=e:void 0!==e&&(o=e);const t=[],a=[];let n=0;for(const v of r)t[n]=o?o(v,n):n,a[n]=i(v,n),n++;return{values:a,keys:t}}render(r,e,i){return this.dt(r,e,i).values}update(r,[e,i,o]){const t=aa(r),{values:a,keys:n}=this.dt(e,i,o);if(!Array.isArray(t))return this.ut=n,a;const v=this.ut??=[],u=[];let f,w,g=0,b=t.length-1,y=0,L=a.length-1;for(;g<=b&&y<=L;)if(null===t[g])g++;else if(null===t[b])b--;else if(v[g]===n[y])u[y]=Ke(t[g],a[y]),g++,y++;else if(v[b]===n[L])u[L]=Ke(t[b],a[L]),b--,L--;else if(v[g]===n[L])u[L]=Ke(t[g],a[L]),br(r,u[L+1],t[g]),g++,L--;else if(v[b]===n[y])u[y]=Ke(t[b],a[y]),br(r,t[g],t[b]),b--,y++;else if(void 0===f&&(f=I1(n,y,L),w=I1(v,g,b)),f.has(v[g]))if(f.has(v[b])){const V=w.get(n[y]),x=void 0!==V?t[V]:null;if(null===x){const k=br(r,t[g]);Ke(k,a[y]),u[y]=k}else u[y]=Ke(x,a[y]),br(r,t[g],x),t[V]=null;y++}else $t(t[b]),b--;else $t(t[g]),g++;for(;y<=L;){const V=br(r,u[L+1]);Ke(V,a[y]),u[y++]=V}for(;g<=b;){const V=t[g++];null!==V&&$t(V)}return this.ut=n,ia(r,u),pe}});var R1=p`
+          * {
+            -webkit-tap-highlight-color: transparent;
+          }
+
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.wrapper {
+  display: flex;
+  align-self: stretch;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 100%;
+  user-select: none;
+  border-radius: var(
+    --menu-navigation-components-appointment-item-border-radius,
+    6px
+  );
+}
+
+.wrapper {
+            cursor: pointer;
+}
+
+.wrapper:focus {
+            outline: none;
+}
+
+.wrapper .visible-wrapper {
+            border-color: var(--flat-enabled-border-color);
+            background-color: var(--flat-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--flat-enabled-border-color);
+            --base-background-color: var(--flat-enabled-background-color);
+}
+
+.wrapper.activated .visible-wrapper {
+            border-color: var(--flat-activated-border-color);
+            background-color: var(--flat-activated-background-color);
+            --base-border-color: var(--flat-activated-border-color);
+            --base-background-color: var(--flat-activated-background-color);
+}
+
+@media (hover:hover) {
+
+.wrapper:hover .visible-wrapper {
+                        border-color: color-mix(in srgb, var(--flat-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--flat-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+.wrapper:active .visible-wrapper {
+            border-color: var(--flat-pressed-border-color);
+            background-color: var(--flat-pressed-background-color);
+}
+
+.wrapper:focus-visible .visible-wrapper {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+.wrapper:disabled .visible-wrapper {
+            border-color: var(--flat-disabled-border-color);
+            background-color: var(--flat-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-flat-disabled-color) !important;
+}
+
+.wrapper.disabled .visible-wrapper {
+            border-color: var(--flat-disabled-border-color);
+            background-color: var(--flat-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-flat-disabled-color) !important;
+}
+
+.wrapper:disabled {
+            cursor: not-allowed;
+}
+
+.wrapper.disabled {
+            cursor: not-allowed;
+}
+
+.wrapper:focus-visible {
+    outline: 2px solid var(--instrument-frame-tertiary-color, #0066cc);
+    outline-offset: 2px;
+  }
+
+/* Keyboard press visual feedback - matches :active state from mixin */
+
+.wrapper.pressing .visible-wrapper {
+    background-color: var(--flat-pressed-background-color);
+    border-color: var(--flat-pressed-border-color);
+  }
+
+.wrapper .visible-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex: 1 0 0;
+    min-width: 0;
+    text-align: left;
+    gap: var(--menu-navigation-components-appointment-item-label-spacing, 8px);
+    padding: var(
+        --menu-navigation-components-appointment-item-padding-vertical,
+        4px
+      )
+      0 var(--menu-navigation-components-appointment-item-padding-vertical, 4px)
+      var(--menu-navigation-components-appointment-item-padding-horizontal, 8px);
+    border-radius: var(
+      --menu-navigation-components-appointment-item-border-radius,
+      6px
+    );
+    min-height: 48px;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+  }
+
+.wrapper.type-color-coded:not(:hover):not(:active) .visible-wrapper {
+      background: var(--Color-Base-Categorical-50, #e4eefd);
+      border: 1px solid var(--Color-Base-Categorical-100, #cadefc);
+    }
+
+.wrapper.disabled {
+    cursor: not-allowed;
+  }
+
+.wrapper.disabled .title,.wrapper.disabled .time-container,.wrapper.disabled .description {
+      color: var(--on-flat-disabled-color);
+    }
+
+.event-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 0 0;
+  min-width: 0;
+}
+
+.time-container {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-family-main);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--global-typography-ui-label-font-size);
+  line-height: var(--global-typography-ui-label-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  color: var(--on-flat-neutral-color);
+}
+
+.time {
+  white-space: pre-wrap;
+}
+
+.time-separator {
+  flex-shrink: 0;
+}
+
+.label-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: stretch;
+  min-width: 0;
+  padding-right: var(
+    --menu-navigation-components-appointment-item-padding-horizontal,
+    8px
+  );
+}
+
+.title-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: stretch;
+  min-width: 0;
+}
+
+.title {
+  font-family: var(--font-family-main);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--global-typography-ui-label-font-size);
+  line-height: var(--global-typography-ui-label-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  color: var(--on-flat-active-color);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.description-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: stretch;
+  min-width: 0;
+}
+
+.description {
+  font-family: var(--font-family-main);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--global-typography-ui-label-font-size);
+  line-height: var(--global-typography-ui-label-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  color: var(--on-flat-neutral-color);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.arrow {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--on-flat-neutral-color);
+}
+`;var bc=Object.defineProperty;var wc=Object.getOwnPropertyDescriptor;var ue=(r,e,i,o)=>{var t=o>1?void 0:o?wc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)bc(e,i,t);return t};var qo=(r=>{r["SingleLine"]="singleLine";r["DoubleLine"]="doubleLine";r["Aggregated"]="aggregated";return r})(qo||{});var ce=class extends d{constructor(){super(...arguments);this.title="";this.description="";this.startTime="";this.endTime="";this.eventItemType="singleLine";this.hasArrow=false;this.hasTime=false;this.hasEndTime=false;this.aggregatedCount=0;this.colorCoded=false;this.disabled=false;this._pressing=false}_handleClick(r){r.stopPropagation();this.dispatchEvent(new CustomEvent("event-click",{bubbles:true,composed:true,detail:{title:this.title,startTime:this.startTime,endTime:this.endTime}}))}_getAggregatedText(){const r=this.aggregatedCount??0;return r===1?"1 more event":`${r} more events`}_handleKeyDown(r){if(r.key==="Enter"||r.key===" "){r.stopPropagation();this._pressing=true;setTimeout(()=>{this._pressing=false},150)}}render(){const r=this.eventItemType==="aggregated";const e=this.eventItemType==="doubleLine";const i=this.colorCoded;return c`
+      <button
+        type="button"
+        @click=${this._handleClick}
+        @keydown=${this._handleKeyDown}
+        class=${$({wrapper:true,"type-aggregated":r,"type-double-line":e,"type-color-coded":i,disabled:this.disabled,pressing:this._pressing})}
+        ?disabled=${this.disabled}
+      >
+        <div class="visible-wrapper">
+          <div class="event-content">
+            ${this.hasTime&&this.startTime?c`
+                  <div class="time-container">
+                    <span class="time">${this.startTime}</span>
+                    ${this.hasEndTime&&this.endTime?c`
+                          <span class="time-separator">–</span>
+                          <span class="time">${this.endTime}</span>
+                        `:m}
+                  </div>
+                `:m}
+            <div class="label-container">
+              <div class="title-container">
+                <p class="title">
+                  ${r?this._getAggregatedText():this.title}
+                </p>
+              </div>
+              ${e&&this.description?c`
+                    <div class="description-container">
+                      <p class="description">${this.description}</p>
+                    </div>
+                  `:m}
+            </div>
+          </div>
+          ${this.hasArrow?c`<div class="arrow">
+                <obi-arrow-flyout-google></obi-arrow-flyout-google>
+              </div>`:m}
+        </div>
+      </button>
+    `}};ce.styles=C(R1);ue([l({type:String})],ce.prototype,"title",2);ue([l({type:String})],ce.prototype,"description",2);ue([l({type:String})],ce.prototype,"startTime",2);ue([l({type:String})],ce.prototype,"endTime",2);ue([l({type:String})],ce.prototype,"eventItemType",2);ue([l({type:Boolean})],ce.prototype,"hasArrow",2);ue([l({type:Boolean})],ce.prototype,"hasTime",2);ue([l({type:Boolean})],ce.prototype,"hasEndTime",2);ue([l({type:Number})],ce.prototype,"aggregatedCount",2);ue([l({type:Boolean})],ce.prototype,"colorCoded",2);ue([l({type:Boolean})],ce.prototype,"disabled",2);ue([N()],ce.prototype,"_pressing",2);ce=ue([h("obc-event-item")],ce);var yc=Object.defineProperty;var Cc=Object.getOwnPropertyDescriptor;var Ur=(r,e,i,o)=>{var t=o>1?void 0:o?Cc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)yc(e,i,t);return t};var ur=class extends d{constructor(){super(...arguments);this.showHeader=true;this.date=new Date;this.events=[]}get _normalizedDate(){if(this.date instanceof Date){return this.date}return new Date(this.date)}get _dayName(){return this._normalizedDate.toLocaleDateString(this.locale,{weekday:"long"})}get _monthName(){return this._normalizedDate.toLocaleDateString(this.locale,{month:"short"})}get _dateNumber(){return this._normalizedDate.getDate().toString()}get _year(){return this._normalizedDate.getFullYear().toString()}render(){return c`
+      <div class="wrapper">
+        ${this.showHeader?c`
+              <div class="title-container">
+                <div class="label-container">
+                  <div class="label">
+                    <span class="day-container">
+                      <span class="day">${this._dayName}</span>
+                      <span class="comma">,</span>
+                    </span>
+                    <span class="date-container">
+                      <span>${this._dateNumber}</span>
+                      <span class="month">${this._monthName}</span>
+                    </span>
+                    <span class="year">${this._year}</span>
+                  </div>
+                </div>
+              </div>
+            `:m}
+        <div class="content-container">
+          <div class="event-container" role="list" aria-label="Events">
+            ${j1(this.events,(r,e)=>`${r.title}-${r.startTime}-${r.endTime}-${e}`,r=>c`
+                <obc-event-item
+                  role="listitem"
+                  .title=${r.title}
+                  .description=${r.description??""}
+                  .startTime=${r.startTime}
+                  .endTime=${r.endTime}
+                  .eventItemType=${r.eventItemType??qo.SingleLine}
+                  .hasArrow=${r.hasArrow??false}
+                  .hasTime=${r.hasTime??false}
+                  .hasEndTime=${r.hasEndTime??false}
+                  .aggregatedCount=${r.aggregatedCount??0}
+                  .colorCoded=${r.colorCoded??false}
+                  .disabled=${r.disabled??false}
+                ></obc-event-item>
+              `)}
+          </div>
+        </div>
+      </div>
+    `}};ur.styles=C(D1);Ur([l({type:Boolean,attribute:false})],ur.prototype,"showHeader",2);Ur([l({attribute:false})],ur.prototype,"date",2);Ur([l({attribute:false})],ur.prototype,"events",2);Ur([l({type:String})],ur.prototype,"locale",2);ur=Ur([h("obc-event-list")],ur);var N1=p`
+          * {
+            -webkit-tap-highlight-color: transparent;
+          }
+
+:host {
+  display: inline-block;
+}
+
+.wrapper {
+  position: relative;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--app-components-notification-button-touch-target-size);
+  min-width: var(--app-components-notification-button-touch-target-size);
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Flat style - when no counter */
+
+.wrapper.flat {
+            cursor: pointer;
+}
+
+.wrapper.flat:focus {
+            outline: none;
+}
+
+.wrapper.flat .visible-wrapper {
+            border-color: var(--flat-enabled-border-color);
+            background-color: var(--flat-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--flat-enabled-border-color);
+            --base-background-color: var(--flat-enabled-background-color);
+}
+
+.wrapper.flat.activated .visible-wrapper {
+            border-color: var(--flat-activated-border-color);
+            background-color: var(--flat-activated-background-color);
+            --base-border-color: var(--flat-activated-border-color);
+            --base-background-color: var(--flat-activated-background-color);
+}
+
+@media (hover:hover) {
+
+.wrapper.flat:hover .visible-wrapper {
+                        border-color: color-mix(in srgb, var(--flat-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--flat-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+.wrapper.flat:active .visible-wrapper {
+            border-color: var(--flat-pressed-border-color);
+            background-color: var(--flat-pressed-background-color);
+}
+
+.wrapper.flat:focus-visible .visible-wrapper {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+.wrapper.flat:disabled .visible-wrapper {
+            border-color: var(--flat-disabled-border-color);
+            background-color: var(--flat-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-flat-disabled-color) !important;
+}
+
+.wrapper.flat.disabled .visible-wrapper {
+            border-color: var(--flat-disabled-border-color);
+            background-color: var(--flat-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-flat-disabled-color) !important;
+}
+
+.wrapper.flat:disabled {
+            cursor: not-allowed;
+}
+
+.wrapper.flat.disabled {
+            cursor: not-allowed;
+}
+
+/* Normal style - when has counter */
+
+.wrapper.normal {
+            cursor: pointer;
+}
+
+.wrapper.normal:focus {
+            outline: none;
+}
+
+.wrapper.normal .visible-wrapper {
+            border-color: var(--normal-enabled-border-color);
+            background-color: var(--normal-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--normal-enabled-border-color);
+            --base-background-color: var(--normal-enabled-background-color);
+}
+
+.wrapper.normal.activated .visible-wrapper {
+            border-color: var(--normal-activated-border-color);
+            background-color: var(--normal-activated-background-color);
+            --base-border-color: var(--normal-activated-border-color);
+            --base-background-color: var(--normal-activated-background-color);
+}
+
+@media (hover:hover) {
+
+.wrapper.normal:hover .visible-wrapper {
+                        border-color: color-mix(in srgb, var(--normal-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--normal-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+.wrapper.normal:active .visible-wrapper {
+            border-color: var(--normal-pressed-border-color);
+            background-color: var(--normal-pressed-background-color);
+}
+
+.wrapper.normal:focus-visible .visible-wrapper {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+.wrapper.normal:disabled .visible-wrapper {
+            border-color: var(--normal-disabled-border-color);
+            background-color: var(--normal-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-normal-disabled-color) !important;
+}
+
+.wrapper.normal.disabled .visible-wrapper {
+            border-color: var(--normal-disabled-border-color);
+            background-color: var(--normal-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-normal-disabled-color) !important;
+}
+
+.wrapper.normal:disabled {
+            cursor: not-allowed;
+}
+
+.wrapper.normal.disabled {
+            cursor: not-allowed;
+}
+
+/* Enhanced style - when has counter and enhanced */
+
+.wrapper.enhanced {
+            cursor: pointer;
+}
+
+.wrapper.enhanced:focus {
+            outline: none;
+}
+
+.wrapper.enhanced .visible-wrapper {
+            border-color: var(--notification-enabled-border-color);
+            background-color: var(--notification-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--notification-enabled-border-color);
+            --base-background-color: var(--notification-enabled-background-color);
+}
+
+.wrapper.enhanced.activated .visible-wrapper {
+            border-color: var(--notification-activated-border-color);
+            background-color: var(--notification-activated-background-color);
+            --base-border-color: var(--notification-activated-border-color);
+            --base-background-color: var(--notification-activated-background-color);
+}
+
+@media (hover:hover) {
+
+.wrapper.enhanced:hover .visible-wrapper {
+                        border-color: color-mix(in srgb, var(--notification-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--notification-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+.wrapper.enhanced:active .visible-wrapper {
+            border-color: var(--notification-pressed-border-color);
+            background-color: var(--notification-pressed-background-color);
+}
+
+.wrapper.enhanced:focus-visible .visible-wrapper {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+.wrapper.enhanced:disabled .visible-wrapper {
+            border-color: var(--notification-disabled-border-color);
+            background-color: var(--notification-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-notification-disabled-color) !important;
+}
+
+.wrapper.enhanced.disabled .visible-wrapper {
+            border-color: var(--notification-disabled-border-color);
+            background-color: var(--notification-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-notification-disabled-color) !important;
+}
+
+.wrapper.enhanced:disabled {
+            cursor: not-allowed;
+}
+
+.wrapper.enhanced.disabled {
+            cursor: not-allowed;
+}
+
+.visible-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: var(--ui-components-button-border-radius-top-left)
+    var(--ui-components-button-border-radius-top-right)
+    var(--ui-components-button-border-radius-bottom-right)
+    var(--ui-components-button-border-radius-bottom-left);
+}
+
+/* Visible wrapper when no counter (flat) */
+
+.wrapper.flat .visible-wrapper {
+  height: var(--ui-components-icon-button-visual-target-size);
+  min-width: var(--ui-components-icon-button-visual-target-size);
+}
+
+/* Visible wrapper when has counter (normal or enhanced) */
+
+.wrapper.has-counter .visible-wrapper {
+  height: var(--app-components-notification-button-visual-target-size);
+  min-width: var(--app-components-notification-button-visual-target-size);
+  padding: 0 var(--app-components-notification-button-padding-horizontal);
+  gap: var(--app-components-notification-button-counter-spacing);
+}
+
+/* Visible wrapper when active but no counter (normal or enhanced) */
+
+.wrapper.is-active:not(.has-counter):not(.flat) .visible-wrapper {
+  height: var(--app-components-notification-button-visual-target-size);
+  min-width: var(--app-components-notification-button-visual-target-size);
+  padding: 0 var(--app-components-notification-button-padding-horizontal);
+}
+
+/* Enhanced notification background */
+
+.wrapper.enhanced .visible-wrapper {
+  border-color: var(--notification-enabled-border-color);
+  background: var(--notification-enabled-background-color);
+}
+
+.icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ui-components-icon-button-icon-size);
+  height: var(--global-size-spacing-icon-icon-size-regular);
+}
+
+obi-notification,
+obi-notification-filled {
+  width: 100%;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+::slotted([slot="icon"]) {
+  width: 100%;
+  height: 100%;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.count-label {
+  font-family: var(--font-family-main);
+  font-weight: var(--global-typography-ui-button-font-weight);
+  font-size: var(--global-typography-ui-button-font-size);
+  line-height: var(--global-typography-ui-button-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Flat style (no counter) color rules */
+
+.wrapper.flat obi-notification,
+.wrapper.flat ::slotted([slot="icon"]) {
+  color: var(--on-flat-neutral-color);
+}
+
+.wrapper.flat.is-active obi-notification-filled,
+.wrapper.flat.is-active ::slotted([slot="icon"]) {
+  color: var(--notification-enabled-background-color);
+}
+
+/* Normal style (with counter) color rules - always notification color when normal */
+
+.wrapper.normal obi-notification,
+.wrapper.normal obi-notification-filled,
+.wrapper.normal ::slotted([slot="icon"]) {
+  color: var(--notification-enabled-background-color);
+}
+
+.wrapper.normal .count-label {
+  color: var(--on-normal-active-color);
+}
+
+/* Enhanced style (with counter) color rules */
+
+.wrapper.enhanced obi-notification,
+.wrapper.enhanced obi-notification-filled,
+.wrapper.enhanced ::slotted([slot="icon"]) {
+  color: var(--on-notification-active-color);
+}
+
+.wrapper.enhanced .count-label {
+  color: var(--on-alarm-active-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrapper {
+    transition: none;
+  }
+}
+`;var Lc=Object.defineProperty;var kc=Object.getOwnPropertyDescriptor;var F1=(r,e,i,o)=>{var t=o>1?void 0:o?kc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Lc(e,i,t);return t};var ro=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M14.1716 17H20V5H4V17H9.82843L12 19.1716L14.1716 17ZM12 22L9 19H5.2C4.0799 19 3.51984 19 3.09202 18.782C2.71569 18.5903 2.40973 18.2843 2.21799 17.908C2 17.4802 2 16.9201 2 15.8V6.2C2 5.0799 2 4.51984 2.21799 4.09202C2.40973 3.71569 2.71569 3.40973 3.09202 3.21799C3.51984 3 4.07989 3 5.2 3H18.8C19.9201 3 20.4802 3 20.908 3.21799C21.2843 3.40973 21.5903 3.71569 21.782 4.09202C22 4.51984 22 5.08008 22 6.20055V15.7994C22 16.9199 22 17.4802 21.782 17.908C21.5903 18.2843 21.2843 18.5903 20.908 18.782C20.4802 19 19.9201 19 18.8 19H15L12 22Z" fill="currentColor"/>
+</svg>
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M14.1716 17H20V5H4V17H9.82843L12 19.1716L14.1716 17ZM12 22L9 19H5.2C4.0799 19 3.51984 19 3.09202 18.782C2.71569 18.5903 2.40973 18.2843 2.21799 17.908C2 17.4802 2 16.9201 2 15.8V6.2C2 5.0799 2 4.51984 2.21799 4.09202C2.40973 3.71569 2.71569 3.40973 3.09202 3.21799C3.51984 3 4.07989 3 5.2 3H18.8C19.9201 3 20.4802 3 20.908 3.21799C21.2843 3.40973 21.5903 3.71569 21.782 4.09202C22 4.51984 22 5.08008 22 6.20055V15.7994C22 16.9199 22 17.4802 21.782 17.908C21.5903 18.2843 21.2843 18.5903 20.908 18.782C20.4802 19 19.9201 19 18.8 19H15L12 22Z" style="fill: var(--element-active-color)"/>
+</svg>
+`}render(){return c`
+      <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
+    `}};ro.styles=p`
+    .wrapper {
+      height: 100%;
+      width: 100%;
+      line-height: 0;
+    }
+    .wrapper > * {
+      height: 100%;
+      width: 100%;
+    }
+  `;F1([l({type:Boolean})],ro.prototype,"useCssColor",2);ro=F1([h("obi-notification")],ro);var xc=Object.defineProperty;var Mc=Object.getOwnPropertyDescriptor;var U1=(r,e,i,o)=>{var t=o>1?void 0:o?Mc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)xc(e,i,t);return t};var to=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M5 4C3.89543 4 3 4.89543 3 6V16C3 17.1046 3.89543 18 5 18H9L12 21L15 18H19C20.1046 18 21 17.1046 21 16V6C21 4.89543 20.1046 4 19 4H5Z" fill="currentColor"/>
+</svg>
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M5 4C3.89543 4 3 4.89543 3 6V16C3 17.1046 3.89543 18 5 18H9L12 21L15 18H19C20.1046 18 21 17.1046 21 16V6C21 4.89543 20.1046 4 19 4H5Z" style="fill: var(--element-active-color)"/>
+</svg>
+`}render(){return c`
+      <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
+    `}};to.styles=p`
+    .wrapper {
+      height: 100%;
+      width: 100%;
+      line-height: 0;
+    }
+    .wrapper > * {
+      height: 100%;
+      width: 100%;
+    }
+  `;U1([l({type:Boolean})],to.prototype,"useCssColor",2);to=U1([h("obi-notification-filled")],to);var Hc=Object.defineProperty;var $c=Object.getOwnPropertyDescriptor;var xr=(r,e,i,o)=>{var t=o>1?void 0:o?$c(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Hc(e,i,t);return t};var Qe=class extends d{constructor(){super(...arguments);this.buttonStyle="flat";this.count=0;this.showCount=false;this.isActive=false;this.ariaLabel="Notifications"}render(){const r=this.isActive&&this.buttonStyle==="normal";const e=this.isActive&&this.buttonStyle==="enhanced";const i=this.buttonStyle==="flat"||!r&&!e;const o=(r||e)&&this.showCount;const t={wrapper:true,"is-active":this.isActive,"has-counter":o,flat:i,normal:r,enhanced:e};const a={"visible-wrapper":true};return c`
+      <button
+        class="${$(t)}"
+        @click="${this.handleClick}"
+        aria-label="${this.ariaLabel}${o?`, ${this.count} new`:""}"
+        aria-pressed="${this.isActive}"
+        role="button"
+        type="button"
+      >
+        <div class="${$(a)}">
+          <div class="icon-container">
+            <slot name="icon"> ${this.renderDefaultIcon()} </slot>
+          </div>
+          ${o?c` <span class="count-label">${this.count}</span> `:m}
+        </div>
+      </button>
+    `}renderDefaultIcon(){if(this.isActive){return c`<obi-notification-filled></obi-notification-filled>`}return c`<obi-notification></obi-notification>`}handleClick(){const r=new CustomEvent("obc-click",{detail:{count:this.count,isActive:!this.isActive},composed:true,bubbles:true});this.dispatchEvent(r)}};Qe.styles=C(N1);xr([l({type:String})],Qe.prototype,"buttonStyle",2);xr([l({type:Number})],Qe.prototype,"count",2);xr([l({type:Boolean})],Qe.prototype,"showCount",2);xr([l({type:Boolean})],Qe.prototype,"isActive",2);xr([l({type:String})],Qe.prototype,"ariaLabel",2);Qe=xr([h("obc-notification-button")],Qe);var W1=p`
+          * {
+            -webkit-tap-highlight-color: transparent;
+          }
+obi-notification-filled {
+  color: var(--notification-enabled-background-color);
+}
+`;var G1=p`
+          * {
+            -webkit-tap-highlight-color: transparent;
+          }
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.wrapper {
+  display: flex;
+  width: var(--app-components-topbar-message-item-width);
+  height: var(--app-components-topbar-message-item-touch-target);
+  align-items: center;
+}
+
+.wrapper.large {
+  height: var(--app-components-topbar-message-item-touch-target-size-tall);
+  padding: var(--app-components-topbar-message-item-tall-padding-vertical) 0px;
+}
+
+.message-item-touch {
+            cursor: pointer;
+}
+
+.message-item-touch:focus {
+            outline: none;
+}
+
+.message-item-touch .message-item {
+            border-color: var(--normal-enabled-border-color);
+            background-color: var(--normal-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--normal-enabled-border-color);
+            --base-background-color: var(--normal-enabled-background-color);
+}
+
+.message-item-touch.activated .message-item {
+            border-color: var(--normal-activated-border-color);
+            background-color: var(--normal-activated-background-color);
+            --base-border-color: var(--normal-activated-border-color);
+            --base-background-color: var(--normal-activated-background-color);
+}
+
+@media (hover:hover) {
+
+.message-item-touch:hover .message-item {
+                        border-color: color-mix(in srgb, var(--normal-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--normal-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+.message-item-touch:active .message-item {
+            border-color: var(--normal-pressed-border-color);
+            background-color: var(--normal-pressed-background-color);
+}
+
+.message-item-touch:focus-visible .message-item {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+.message-item-touch:disabled .message-item {
+            border-color: var(--normal-disabled-border-color);
+            background-color: var(--normal-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-normal-disabled-color) !important;
+}
+
+.message-item-touch.disabled .message-item {
+            border-color: var(--normal-disabled-border-color);
+            background-color: var(--normal-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-normal-disabled-color) !important;
+}
+
+.message-item-touch:disabled {
+            cursor: not-allowed;
+}
+
+.message-item-touch.disabled {
+            cursor: not-allowed;
+}
+
+.message-item-touch {
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-width: 0;
+  display: flex;
+  appearance: none;
+  border: none;
+  background-color: transparent;
+  padding: 0;
+}
+
+.large .message-item-touch {
+    height: 100%;
+  }
+
+.message-item {
+  display: flex;
+  flex-grow: 1;
+  min-width: 0;
+  height: var(--app-components-topbar-message-item-visual-target);
+  padding: 0px var(--app-components-topbar-message-item-padding-horizontal);
+  gap: var(--app-components-topbar-message-item-label-spacing);
+  align-items: center;
+  border-radius: var(
+      --app-components-topbar-message-item-border-radius-top-left
+    )
+    var(--app-components-topbar-message-item-border-radius-top-right)
+    var(--app-components-topbar-message-item-border-radius-bottom-right)
+    var(--app-components-topbar-message-item-border-radius-bottom-left);
+
+  /* Support both old action-based and new type-based classes */
+}
+
+.action-text-button .message-item,.action-icon-button .message-item,.action-icon-no-click .message-item,.type-with-button .message-item,.type-with-icon-button .message-item {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right-width: 0;
+  }
+
+.large .message-item {
+    height: 100%;
+  }
+
+.icon {
+  width: var(--app-components-topbar-message-item-icon-size);
+  height: var(--app-components-topbar-message-item-icon-size);
+  color: var(--element-neutral-color);
+}
+
+.content-container {
+  display: flex;
+  min-width: 0;
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: 0;
+  justify-content: center;
+  align-items: center;
+  gap: var(--app-components-topbar-message-item-icon-spacing);
+}
+
+.message-container {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--app-components-topbar-message-item-label-spacing);
+  width: 100%;
+}
+
+.message-container.large {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    gap: 0;
+  }
+
+.title-container {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--app-components-topbar-message-item-label-padding);
+}
+
+.large .title-container {
+    width: 100%;
+  }
+
+.title {
+  font-family: var(--font-family-main);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--global-typography-ui-body-active-font-size);
+  line-height: var(--global-typography-ui-body-active-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  color: var(--element-active-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.description {
+  font-family: var(--font-family-main);
+  font-weight: var(--global-typography-ui-body-font-weight);
+  font-size: var(--global-typography-ui-body-font-size);
+  line-height: var(--global-typography-ui-body-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  flex-shrink: 10000000;
+  color: var(--element-neutral-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  width: 100%;
+  text-align: left;
+}
+
+::slotted(*) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timestamp-container {
+  display: flex;
+  align-items: center;
+  gap: var(--app-components-topbar-message-item-label-spacing);
+  flex-shrink: 0;
+}
+
+.time {
+  font-family: var(--font-family-main);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--global-typography-ui-label-font-size);
+  line-height: var(--global-typography-ui-label-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  color: var(--element-neutral-color);
+  flex-shrink: 0;
+}
+
+.action-wrapper {
+  appearance: none;
+  border: none;
+  background-color: transparent;
+  padding: 0;
+  display: flex;
+  min-width: var(--global-size-spacing-touch-target-min);
+  min-height: var(--global-size-spacing-touch-target-min);
+  padding: var(--ui-components-icon-button-padding-vertical) 0px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+
+  /* Text button should be 64px wide */
+}
+
+.action-wrapper.action-text-button,.type-with-button .action-wrapper {
+    width: var(--app-components-topbar-message-item-cta-button-width);
+  }
+
+/* Icon button should be 48px wide (touch target) */
+
+.action-wrapper.action-icon-button,.type-with-icon-button .action-wrapper {
+    width: var(--global-size-spacing-touch-target-min);
+  }
+
+.action-wrapper.action-icon-button,.type-with-icon-button .action-wrapper {
+    color: var(--on-normal-neutral-color);
+    width: var(--global-size-spacing-touch-target-min);
+  }
+
+.action-wrapper.action-text-button,.type-with-button .action-wrapper {
+    color: var(--on-normal-active-color);
+  }
+
+:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper) {
+            cursor: pointer;
+}
+
+:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper):focus {
+            outline: none;
+}
+
+:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper) .action {
+            border-color: var(--normal-enabled-border-color);
+            background-color: var(--normal-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            cursor: pointer;
+            --base-border-color: var(--normal-enabled-border-color);
+            --base-background-color: var(--normal-enabled-background-color);
+}
+
+.activated:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper) .action {
+            border-color: var(--normal-activated-border-color);
+            background-color: var(--normal-activated-background-color);
+            --base-border-color: var(--normal-activated-border-color);
+            --base-background-color: var(--normal-activated-background-color);
+}
+
+@media (hover:hover) {
+
+:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper):hover .action {
+                        border-color: color-mix(in srgb, var(--normal-hover-border-color) calc(var(--obc-can-hover) * 100%), var(--base-border-color));
+                        background-color: color-mix(in srgb, var(--normal-hover-background-color) calc(var(--obc-can-hover) * 100%), var(--base-background-color));
+            }
+}
+
+:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper):active .action {
+            border-color: var(--normal-pressed-border-color);
+            background-color: var(--normal-pressed-background-color);
+}
+
+:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper):focus-visible .action {
+            outline-color: var(--border-focus-color);
+            outline-width: var(--global-size-spacing-border-weight-focusframe);
+            outline-style: solid;
+            border-color: var(--container-global-color);
+            z-index: 1;
+}
+
+:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper):disabled .action {
+            border-color: var(--normal-disabled-border-color);
+            background-color: var(--normal-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-normal-disabled-color) !important;
+}
+
+.disabled:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper) .action {
+            border-color: var(--normal-disabled-border-color);
+            background-color: var(--normal-disabled-background-color);
+            cursor: not-allowed;
+            color: var(--on-normal-disabled-color) !important;
+}
+
+:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper):disabled {
+            cursor: not-allowed;
+}
+
+.disabled:is(.action-wrapper.action-icon-button,.action-wrapper.action-text-button,.type-with-button .action-wrapper,.type-with-icon-button .action-wrapper) {
+            cursor: not-allowed;
+}
+
+:is(.action-icon-no-click .action-wrapper) .action {
+            border-color: var(--normal-enabled-border-color);
+            background-color: var(--normal-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            --base-border-color: var(--normal-enabled-border-color);
+            --base-background-color: var(--normal-enabled-background-color);
+}
+
+.large .action-wrapper {
+    height: 100%;
+    padding: 0;
+  }
+
+.action {
+  font-family: var(--font-family-main);
+  font-weight: var(--global-typography-ui-button-font-weight);
+  font-size: var(--global-typography-ui-button-font-size);
+  line-height: var(--global-typography-ui-button-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+  display: flex;
+  height: var(--ui-components-icon-button-visual-target-size);
+  width: 100%;
+  padding: 0 var(--ui-components-button-padding-horizontal);
+  justify-content: center;
+  align-items: center;
+  align-self: stretch;
+  border-radius: 0 var(--ui-components-button-border-radius-top-right)
+    var(--ui-components-button-border-radius-bottom-right) 0;
+}
+
+.large .action {
+    height: 100%;
+  }
+
+/* For icon buttons, constrain the icon size */
+
+:is(.action-icon-button .action,.type-with-icon-button .action) ::slotted(*) {
+      width: var(--ui-components-icon-button-icon-size);
+      height: var(--global-size-spacing-icon-icon-size-regular);
+    }
+
+/* Text button specific styling */
+
+.action-text-button .action,
+.type-with-button .action {
+  padding: 0px var(--ui-components-button-label-spacing);
+  width: 100%;
+}
+
+/* Make sure text content fills available width */
+
+.action-text-button .action ::slotted(*),
+.type-with-button .action ::slotted(*) {
+  width: 100%;
+  text-align: center;
+}
+
+.wrapper.empty {
+  justify-content: center;
+  flex-direction: column;
+}
+
+.empty-message {
+  display: flex;
+  width: 100%;
+  height: var(--app-components-topbar-message-item-visual-target);
+  padding: 0px var(--app-components-topbar-message-item-padding-horizontal);
+  align-items: center;
+  flex-shrink: 0;
+  align-self: stretch;
+  border-radius: var(
+      --app-components-topbar-message-item-border-radius-top-left
+    )
+    var(--app-components-topbar-message-item-border-radius-top-right)
+    var(--app-components-topbar-message-item-border-radius-bottom-right)
+    var(--app-components-topbar-message-item-border-radius-bottom-left);
+}
+
+.empty-message {
+            border-color: var(--indent-enabled-border-color);
+            background-color: var(--indent-enabled-background-color);
+            border-width: 1px;
+            border-style: solid;
+            --base-border-color: var(--indent-enabled-border-color);
+            --base-background-color: var(--indent-enabled-background-color);
+  color: var(--on-indent-neutral-color);
+  font-family: var(--font-family-main);
+  font-weight: var(--global-typography-ui-body-font-weight);
+  font-size: var(--global-typography-ui-body-font-size);
+  line-height: var(--global-typography-ui-body-line-height);
+  font-feature-settings:
+    "liga" off,
+    "clig" off,
+    "ss04" on;
+}
+
+.large .empty-message {
+    height: 100%;
+  }
+`;var _c=Object.defineProperty;var Vc=Object.getOwnPropertyDescriptor;var er=(r,e,i,o)=>{var t=o>1?void 0:o?Vc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)_c(e,i,t);return t};var vr=(r=>{r["Simple"]="simple";r["WithButton"]="with-button";r["WithIconButton"]="with-icon-button";r["Inactive"]="inactive";return r})(vr||{});var Wr=(r=>{r["Regular"]="regular";r["Tall"]="tall";return r})(Wr||{});var Te=class extends d{constructor(){super(...arguments);this.type="with-button";this.size="regular";this.showTitle=true;this.showDescription=true;this.showTimestamp=true;this.hasTimestamp2=false;this.hasSecondaryIcon=false}onMessageClick(){this.dispatchEvent(new CustomEvent("message-click"))}onActionClick(){this.dispatchEvent(new CustomEvent("action-click"))}render(){const r=this.type==="inactive";const e=this.size==="tall";return c`
+      <div
+        class=${$({wrapper:true,empty:r,large:e,[`type-${this.type}`]:true})}
+      >
+        ${r?c`<div class="empty-message">
+              <slot name="empty">No active messages</slot>
+            </div>`:c`
+              <button class="message-item-touch" @click=${this.onMessageClick}>
+                <div class="message-item">
+                  <div class="icon primary">
+                    <slot name="primary-icon"></slot>
+                  </div>
+                  <div class="content-container">
+                    ${this.hasSecondaryIcon?c`<div class="icon secondary">
+                          <slot name="secondary-icon"></slot>
+                        </div>`:m}
+                    <div class="message-container ${e?"large":""}">
+                      <div class="title-container">
+                        ${this.showTitle?c`<div class="title">
+                              <slot name="title"></slot>
+                            </div>`:m}
+                        ${e?c`
+                              <div class="timestamp-container">
+                                ${this.showTimestamp?c`<div class="time">
+                                      <slot name="time"></slot>
+                                    </div>`:m}
+                                ${this.hasTimestamp2?c`<div class="time">
+                                      <slot name="time-secondary"></slot>
+                                    </div>`:m}
+                              </div>
+                            `:m}
+                      </div>
+                      ${this.showDescription?c`<div class="description">
+                            <slot name="description"></slot>
+                          </div>`:m}
+                    </div>
+                  </div>
+                  ${!e?c`
+                        <div class="timestamp-container">
+                          ${this.showTimestamp?c`<div class="time">
+                                <slot name="time"></slot>
+                              </div>`:m}
+                          ${this.hasTimestamp2?c`<div class="time secondary">
+                                <slot name="time-secondary"></slot>
+                              </div>`:m}
+                        </div>
+                      `:m}
+                </div>
+              </button>
+              ${this.type==="with-button"?c`
+                    <button
+                      class="action-wrapper action-text-button"
+                      @click=${this.onActionClick}
+                    >
+                      <div class="action">
+                        <slot name="action-text"></slot>
+                      </div>
+                    </button>
+                  `:this.type==="with-icon-button"?c`
+                      <button
+                        class="action-wrapper action-icon-button"
+                        @click=${this.onActionClick}
+                      >
+                        <div class="action">
+                          <slot name="action-icon"></slot>
+                        </div>
+                      </button>
+                    `:m}
+            `}
+      </div>
+    `}};Te.styles=C(G1);er([l({type:String})],Te.prototype,"type",2);er([l({type:String})],Te.prototype,"size",2);er([l({type:Boolean,attribute:false})],Te.prototype,"showTitle",2);er([l({type:Boolean,attribute:false})],Te.prototype,"showDescription",2);er([l({type:Boolean,attribute:false})],Te.prototype,"showTimestamp",2);er([l({type:Boolean})],Te.prototype,"hasTimestamp2",2);er([l({type:Boolean})],Te.prototype,"hasSecondaryIcon",2);Te=er([h("obc-topbar-message-item")],Te);var Zc=Object.defineProperty;var Sc=Object.getOwnPropertyDescriptor;var oe=(r,e,i,o)=>{var t=o>1?void 0:o?Sc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Zc(e,i,t);return t};var Y=class extends d{constructor(){super(...arguments);this.title="";this.description="";this.time="";this.timeSecondary="";this.actionLabel="View";this.type="simple";this.size="regular";this.showTitle=true;this.showDescription=true;this.showTimestamp=true;this.hasTimestamp2=false;this.hasSecondaryIcon=false;this.large=false;this.empty=false;this.emptyText="No active notification"}get mappedType(){if(this.empty||this.type==="inactive"){return vr.Inactive}switch(this.type){case"with-button":return vr.WithButton;case"with-icon-button":return vr.WithIconButton;case"simple":return vr.Simple;default:return vr.Simple}}get mappedSize(){if(this.large){return Wr.Tall}return this.size==="tall"?Wr.Tall:Wr.Regular}handleMessageClick(){this.dispatchEvent(new CustomEvent("message-click"))}handleActionClick(){this.dispatchEvent(new CustomEvent("action-click"))}render(){return c`
+      <obc-topbar-message-item
+        .type=${this.mappedType}
+        .size=${this.mappedSize}
+        .showTitle=${this.showTitle}
+        .showDescription=${this.showDescription}
+        .showTimestamp=${this.showTimestamp}
+        .hasTimestamp2=${this.hasTimestamp2}
+        .hasSecondaryIcon=${this.hasSecondaryIcon}
+        @message-click=${this.handleMessageClick}
+        @action-click=${this.handleActionClick}
+      >
+        <obi-notification-filled slot="primary-icon"></obi-notification-filled>
+
+        ${this.hasSecondaryIcon?c`<slot name="secondary-icon" slot="secondary-icon"></slot>`:m}
+        ${this.title&&this.showTitle?c`<span slot="title">${this.title}</span>`:m}
+        ${this.description&&this.showDescription?c`<span slot="description">${this.description}</span>`:m}
+        ${this.time&&this.showTimestamp?c`<span slot="time">${this.time}</span>`:m}
+        ${this.timeSecondary&&this.hasTimestamp2?c`<span slot="time-secondary">${this.timeSecondary}</span>`:m}
+        ${this.type==="with-button"?c`<span slot="action-text">${this.actionLabel}</span>`:this.type==="with-icon-button"?c`<obi-close-google slot="action-icon"></obi-close-google>`:m}
+
+        <span slot="empty">${this.emptyText}</span>
+      </obc-topbar-message-item>
+    `}};Y.styles=C(W1);oe([l({type:String})],Y.prototype,"title",2);oe([l({type:String})],Y.prototype,"description",2);oe([l({type:String})],Y.prototype,"time",2);oe([l({type:String})],Y.prototype,"timeSecondary",2);oe([l({type:String})],Y.prototype,"actionLabel",2);oe([l({type:String})],Y.prototype,"type",2);oe([l({type:String})],Y.prototype,"size",2);oe([l({type:Boolean,attribute:false})],Y.prototype,"showTitle",2);oe([l({type:Boolean,attribute:false})],Y.prototype,"showDescription",2);oe([l({type:Boolean,attribute:false})],Y.prototype,"showTimestamp",2);oe([l({type:Boolean})],Y.prototype,"hasTimestamp2",2);oe([l({type:Boolean})],Y.prototype,"hasSecondaryIcon",2);oe([l({type:Boolean})],Y.prototype,"large",2);oe([l({type:Boolean})],Y.prototype,"empty",2);oe([l({type:String})],Y.prototype,"emptyText",2);Y=oe([h("obc-notification-message-item")],Y);var Ac=Object.defineProperty;var Pc=Object.getOwnPropertyDescriptor;var q1=(r,e,i,o)=>{var t=o>1?void 0:o?Pc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Ac(e,i,t);return t};var oo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 19V17H6V10C6 8.61667 6.41667 7.3875 7.25 6.3125C8.08333 5.2375 9.16667 4.53333 10.5 4.2V3.5C10.5 3.08333 10.6458 2.72917 10.9375 2.4375C11.2292 2.14583 11.5833 2 12 2C12.4167 2 12.7708 2.14583 13.0625 2.4375C13.3542 2.72917 13.5 3.08333 13.5 3.5V4.2C14.8333 4.53333 15.9167 5.2375 16.75 6.3125C17.5833 7.3875 18 8.61667 18 10V17H20V19H4ZM12 22C11.45 22 10.9792 21.8042 10.5875 21.4125C10.1958 21.0208 10 20.55 10 20H14C14 20.55 13.8042 21.0208 13.4125 21.4125C13.0208 21.8042 12.55 22 12 22ZM8 17H16V10C16 8.9 15.6083 7.95833 14.825 7.175C14.0417 6.39167 13.1 6 12 6C10.9 6 9.95833 6.39167 9.175 7.175C8.39167 7.95833 8 8.9 8 10V17Z" fill="currentColor"/>
+</svg>
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 19V17H6V10C6 8.61667 6.41667 7.3875 7.25 6.3125C8.08333 5.2375 9.16667 4.53333 10.5 4.2V3.5C10.5 3.08333 10.6458 2.72917 10.9375 2.4375C11.2292 2.14583 11.5833 2 12 2C12.4167 2 12.7708 2.14583 13.0625 2.4375C13.3542 2.72917 13.5 3.08333 13.5 3.5V4.2C14.8333 4.53333 15.9167 5.2375 16.75 6.3125C17.5833 7.3875 18 8.61667 18 10V17H20V19H4ZM12 22C11.45 22 10.9792 21.8042 10.5875 21.4125C10.1958 21.0208 10 20.55 10 20H14C14 20.55 13.8042 21.0208 13.4125 21.4125C13.0208 21.8042 12.55 22 12 22ZM8 17H16V10C16 8.9 15.6083 7.95833 14.825 7.175C14.0417 6.39167 13.1 6 12 6C10.9 6 9.95833 6.39167 9.175 7.175C8.39167 7.95833 8 8.9 8 10V17Z" style="fill: var(--element-active-color)"/>
+</svg>
+`}render(){return c`
+      <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
+    `}};oo.styles=p`
+    .wrapper {
+      height: 100%;
+      width: 100%;
+      line-height: 0;
+    }
+    .wrapper > * {
+      height: 100%;
+      width: 100%;
+    }
+  `;q1([l({type:Boolean})],oo.prototype,"useCssColor",2);oo=q1([h("obi-alerts")],oo);var Oc=Object.defineProperty;var Tc=Object.getOwnPropertyDescriptor;var X1=(r,e,i,o)=>{var t=o>1?void 0:o?Tc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Oc(e,i,t);return t};var io=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M1.80718 1.3938L0.393188 2.80779L5.5855 8.0001H5.19963C4.07953 8.0001 3.51948 8.0001 3.09165 8.21809C2.71533 8.40983 2.40937 8.71579 2.21762 9.09212C1.99963 9.51994 1.99963 10.08 1.99963 11.2001V12.8001C1.99963 13.9202 1.99963 14.4803 2.21762 14.9081C2.40937 15.2844 2.71533 15.5904 3.09165 15.7821C3.51948 16.0001 4.07953 16.0001 5.19963 16.0001H7.99963L11.2683 19.2687C12.125 20.1255 12.5534 20.5539 12.9212 20.5828C13.2403 20.6079 13.5521 20.4787 13.76 20.2353C13.9996 19.9548 13.9996 19.349 13.9996 18.1374V16.4142L20.1922 22.6068L21.6064 21.1926L13.9996 13.586V5.86284C13.9996 4.65121 13.9996 4.04539 13.76 3.76486C13.5521 3.52145 13.2403 3.39228 12.9212 3.41739C12.5534 3.44634 12.125 3.87472 11.2683 4.73147L8.20663 7.7931L1.80718 1.3938ZM7.5855 10.0001H3.99963C3.99963 10.0001 3.99963 12.438 3.99963 14.0001H8.82806L11.9996 17.1717V14.4142L7.5855 10.0001ZM11.9996 11.586L9.62086 9.2073L11.9996 6.82853V11.586Z" fill="currentColor"/>
 <path d="M20.3852 17.1434C20.7544 16.6132 21.0663 16.0436 21.3147 15.444C21.767 14.352 21.9998 13.1817 21.9998 11.9998C21.9998 10.8179 21.767 9.64758 21.3147 8.55565C20.8624 7.46372 20.1995 6.47157 19.3637 5.63584C18.528 4.80011 17.5359 4.13718 16.4439 3.68489C16.2972 3.62413 16.1491 3.56733 15.9998 3.51452V5.67525C16.7228 6.0182 17.3825 6.48298 17.9495 7.05006C18.5995 7.70007 19.1152 8.47174 19.4669 9.32102C19.8187 10.1703 19.9998 11.0805 19.9998 11.9998C19.9998 12.9191 19.8187 13.8293 19.4669 14.6786C19.3198 15.0337 19.1441 15.3753 18.9419 15.7L20.3852 17.1434Z" fill="currentColor"/>
 <path d="M17.3801 14.1383L15.9998 12.758V8.5357C16.3019 8.71011 16.5805 8.92366 16.8282 9.17138C17.1996 9.54281 17.4943 9.98377 17.6953 10.4691C17.8963 10.9544 17.9998 11.4745 17.9998 11.9998C17.9998 12.5251 17.8963 13.0452 17.6953 13.5305C17.6076 13.7423 17.5021 13.9456 17.3801 14.1383Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M1.80718 1.3938L0.393188 2.80779L5.5855 8.0001H5.19963C4.07953 8.0001 3.51948 8.0001 3.09165 8.21809C2.71533 8.40983 2.40937 8.71579 2.21762 9.09212C1.99963 9.51994 1.99963 10.08 1.99963 11.2001V12.8001C1.99963 13.9202 1.99963 14.4803 2.21762 14.9081C2.40937 15.2844 2.71533 15.5904 3.09165 15.7821C3.51948 16.0001 4.07953 16.0001 5.19963 16.0001H7.99963L11.2683 19.2687C12.125 20.1255 12.5534 20.5539 12.9212 20.5828C13.2403 20.6079 13.5521 20.4787 13.76 20.2353C13.9996 19.9548 13.9996 19.349 13.9996 18.1374V16.4142L20.1922 22.6068L21.6064 21.1926L13.9996 13.586V5.86284C13.9996 4.65121 13.9996 4.04539 13.76 3.76486C13.5521 3.52145 13.2403 3.39228 12.9212 3.41739C12.5534 3.44634 12.125 3.87472 11.2683 4.73147L8.20663 7.7931L1.80718 1.3938ZM7.5855 10.0001H3.99963C3.99963 10.0001 3.99963 12.438 3.99963 14.0001H8.82806L11.9996 17.1717V14.4142L7.5855 10.0001ZM11.9996 11.586L9.62086 9.2073L11.9996 6.82853V11.586Z" style="fill: var(--element-active-color)"/>
 <path d="M20.3852 17.1434C20.7544 16.6132 21.0663 16.0436 21.3147 15.444C21.767 14.352 21.9998 13.1817 21.9998 11.9998C21.9998 10.8179 21.767 9.64758 21.3147 8.55565C20.8624 7.46372 20.1995 6.47157 19.3637 5.63584C18.528 4.80011 17.5359 4.13718 16.4439 3.68489C16.2972 3.62413 16.1491 3.56733 15.9998 3.51452V5.67525C16.7228 6.0182 17.3825 6.48298 17.9495 7.05006C18.5995 7.70007 19.1152 8.47174 19.4669 9.32102C19.8187 10.1703 19.9998 11.0805 19.9998 11.9998C19.9998 12.9191 19.8187 13.8293 19.4669 14.6786C19.3198 15.0337 19.1441 15.3753 18.9419 15.7L20.3852 17.1434Z" style="fill: var(--element-active-color)"/>
 <path d="M17.3801 14.1383L15.9998 12.758V8.5357C16.3019 8.71011 16.5805 8.92366 16.8282 9.17138C17.1996 9.54281 17.4943 9.98377 17.6953 10.4691C17.8963 10.9544 17.9998 11.4745 17.9998 11.9998C17.9998 12.5251 17.8963 13.0452 17.6953 13.5305C17.6076 13.7423 17.5021 13.9456 17.3801 14.1383Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};zr.styles=p`
+    `}};io.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8275,15 +10164,15 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;ha([s({type:Boolean})],zr.prototype,"useCssColor",2);zr=ha([h("obi-sound-muted")],zr);var Ol=Object.defineProperty,Bl=Object.getOwnPropertyDescriptor,ua=(t,e,i,o)=>{for(var r=o>1?void 0:o?Bl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Ol(e,i,r),r},Dr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;X1([l({type:Boolean})],io.prototype,"useCssColor",2);io=X1([h("obi-sound-muted")],io);var zc=Object.defineProperty;var Bc=Object.getOwnPropertyDescriptor;var Y1=(r,e,i,o)=>{var t=o>1?void 0:o?Bc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)zc(e,i,t);return t};var ao=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 12C8.9 12 7.95833 11.6083 7.175 10.825C6.39167 10.0417 6 9.1 6 8C6 6.9 6.39167 5.95833 7.175 5.175C7.95833 4.39167 8.9 4 10 4C11.1 4 12.0417 4.39167 12.825 5.175C13.6083 5.95833 14 6.9 14 8C14 9.1 13.6083 10.0417 12.825 10.825C12.0417 11.6083 11.1 12 10 12ZM2 20V17.2C2 16.65 2.14167 16.1333 2.425 15.65C2.70833 15.1667 3.1 14.8 3.6 14.55C4.45 14.1167 5.40833 13.75 6.475 13.45C7.54167 13.15 8.71667 13 10 13H10.35C10.45 13 10.55 13.0167 10.65 13.05C10.5167 13.35 10.4042 13.6625 10.3125 13.9875C10.2208 14.3125 10.15 14.65 10.1 15H10C8.81667 15 7.75417 15.15 6.8125 15.45C5.87083 15.75 5.1 16.05 4.5 16.35C4.35 16.4333 4.22917 16.55 4.1375 16.7C4.04583 16.85 4 17.0167 4 17.2V18H10.3C10.4 18.35 10.5333 18.6958 10.7 19.0375C10.8667 19.3792 11.05 19.7 11.25 20H2ZM16 21L15.7 19.5C15.5 19.4167 15.3125 19.3292 15.1375 19.2375C14.9625 19.1458 14.7833 19.0333 14.6 18.9L13.15 19.35L12.15 17.65L13.3 16.65C13.2667 16.4167 13.25 16.2 13.25 16C13.25 15.8 13.2667 15.5833 13.3 15.35L12.15 14.35L13.15 12.65L14.6 13.1C14.7833 12.9667 14.9625 12.8542 15.1375 12.7625C15.3125 12.6708 15.5 12.5833 15.7 12.5L16 11H18L18.3 12.5C18.5 12.5833 18.6875 12.675 18.8625 12.775C19.0375 12.875 19.2167 13 19.4 13.15L20.85 12.65L21.85 14.4L20.7 15.4C20.7333 15.6 20.75 15.8083 20.75 16.025C20.75 16.2417 20.7333 16.45 20.7 16.65L21.85 17.65L20.85 19.35L19.4 18.9C19.2167 19.0333 19.0375 19.1458 18.8625 19.2375C18.6875 19.3292 18.5 19.4167 18.3 19.5L18 21H16ZM17 18C17.55 18 18.0208 17.8042 18.4125 17.4125C18.8042 17.0208 19 16.55 19 16C19 15.45 18.8042 14.9792 18.4125 14.5875C18.0208 14.1958 17.55 14 17 14C16.45 14 15.9792 14.1958 15.5875 14.5875C15.1958 14.9792 15 15.45 15 16C15 16.55 15.1958 17.0208 15.5875 17.4125C15.9792 17.8042 16.45 18 17 18ZM10 10C10.55 10 11.0208 9.80417 11.4125 9.4125C11.8042 9.02083 12 8.55 12 8C12 7.45 11.8042 6.97917 11.4125 6.5875C11.0208 6.19583 10.55 6 10 6C9.45 6 8.97917 6.19583 8.5875 6.5875C8.19583 6.97917 8 7.45 8 8C8 8.55 8.19583 9.02083 8.5875 9.4125C8.97917 9.80417 9.45 10 10 10Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 12C8.9 12 7.95833 11.6083 7.175 10.825C6.39167 10.0417 6 9.1 6 8C6 6.9 6.39167 5.95833 7.175 5.175C7.95833 4.39167 8.9 4 10 4C11.1 4 12.0417 4.39167 12.825 5.175C13.6083 5.95833 14 6.9 14 8C14 9.1 13.6083 10.0417 12.825 10.825C12.0417 11.6083 11.1 12 10 12ZM2 20V17.2C2 16.65 2.14167 16.1333 2.425 15.65C2.70833 15.1667 3.1 14.8 3.6 14.55C4.45 14.1167 5.40833 13.75 6.475 13.45C7.54167 13.15 8.71667 13 10 13H10.35C10.45 13 10.55 13.0167 10.65 13.05C10.5167 13.35 10.4042 13.6625 10.3125 13.9875C10.2208 14.3125 10.15 14.65 10.1 15H10C8.81667 15 7.75417 15.15 6.8125 15.45C5.87083 15.75 5.1 16.05 4.5 16.35C4.35 16.4333 4.22917 16.55 4.1375 16.7C4.04583 16.85 4 17.0167 4 17.2V18H10.3C10.4 18.35 10.5333 18.6958 10.7 19.0375C10.8667 19.3792 11.05 19.7 11.25 20H2ZM16 21L15.7 19.5C15.5 19.4167 15.3125 19.3292 15.1375 19.2375C14.9625 19.1458 14.7833 19.0333 14.6 18.9L13.15 19.35L12.15 17.65L13.3 16.65C13.2667 16.4167 13.25 16.2 13.25 16C13.25 15.8 13.2667 15.5833 13.3 15.35L12.15 14.35L13.15 12.65L14.6 13.1C14.7833 12.9667 14.9625 12.8542 15.1375 12.7625C15.3125 12.6708 15.5 12.5833 15.7 12.5L16 11H18L18.3 12.5C18.5 12.5833 18.6875 12.675 18.8625 12.775C19.0375 12.875 19.2167 13 19.4 13.15L20.85 12.65L21.85 14.4L20.7 15.4C20.7333 15.6 20.75 15.8083 20.75 16.025C20.75 16.2417 20.7333 16.45 20.7 16.65L21.85 17.65L20.85 19.35L19.4 18.9C19.2167 19.0333 19.0375 19.1458 18.8625 19.2375C18.6875 19.3292 18.5 19.4167 18.3 19.5L18 21H16ZM17 18C17.55 18 18.0208 17.8042 18.4125 17.4125C18.8042 17.0208 19 16.55 19 16C19 15.45 18.8042 14.9792 18.4125 14.5875C18.0208 14.1958 17.55 14 17 14C16.45 14 15.9792 14.1958 15.5875 14.5875C15.1958 14.9792 15 15.45 15 16C15 16.55 15.1958 17.0208 15.5875 17.4125C15.9792 17.8042 16.45 18 17 18ZM10 10C10.55 10 11.0208 9.80417 11.4125 9.4125C11.8042 9.02083 12 8.55 12 8C12 7.45 11.8042 6.97917 11.4125 6.5875C11.0208 6.19583 10.55 6 10 6C9.45 6 8.97917 6.19583 8.5875 6.5875C8.19583 6.97917 8 7.45 8 8C8 8.55 8.19583 9.02083 8.5875 9.4125C8.97917 9.80417 9.45 10 10 10Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Dr.styles=p`
+    `}};ao.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8293,13 +10182,13 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;ua([s({type:Boolean})],Dr.prototype,"useCssColor",2);Dr=ua([h("obi-settings-user-proposal")],Dr);var Tl=Object.defineProperty,El=Object.getOwnPropertyDescriptor,va=(t,e,i,o)=>{for(var r=o>1?void 0:o?El(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Tl(e,i,r),r},Ir=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Y1([l({type:Boolean})],ao.prototype,"useCssColor",2);ao=Y1([h("obi-settings-user-proposal")],ao);var Ec=Object.defineProperty;var Dc=Object.getOwnPropertyDescriptor;var K1=(r,e,i,o)=>{var t=o>1?void 0:o?Dc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Ec(e,i,t);return t};var no=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 13L16 17H13V22H11V17H8L12 13Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 11.5607L15.5303 8.03033L14.4697 6.96967L12 9.43934L9.53033 6.96967L8.46967 8.03033L12 11.5607Z" fill="currentColor"/>
 <path d="M13 5.5C13 6.05228 12.5523 6.5 12 6.5C11.4477 6.5 11 6.05228 11 5.5C11 4.94772 11.4477 4.5 12 4.5C12.5523 4.5 13 4.94772 13 5.5Z" fill="currentColor"/>
 <path d="M13 2C13 2.55228 12.5523 3 12 3C11.4477 3 11 2.55228 11 2C11 1.44772 11.4477 1 12 1C12.5523 1 13 1.44772 13 2Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 13L16 17H13V22H11V17H8L12 13Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 11.5607L15.5303 8.03033L14.4697 6.96967L12 9.43934L9.53033 6.96967L8.46967 8.03033L12 11.5607Z" style="fill: var(--element-active-color)"/>
 <path d="M13 5.5C13 6.05228 12.5523 6.5 12 6.5C11.4477 6.5 11 6.05228 11 5.5C11 4.94772 11.4477 4.5 12 4.5C12.5523 4.5 13 4.94772 13 5.5Z" style="fill: var(--element-active-color)"/>
@@ -8307,7 +10196,7 @@ div[role="tabpanel"] {
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Ir.styles=p`
+    `}};no.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8317,15 +10206,15 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;va([s({type:Boolean})],Ir.prototype,"useCssColor",2);Ir=va([h("obi-collision-avoidance-head-on")],Ir);var zl=Object.defineProperty,Dl=Object.getOwnPropertyDescriptor,ma=(t,e,i,o)=>{for(var r=o>1?void 0:o?Dl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&zl(e,i,r),r},Rr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;K1([l({type:Boolean})],no.prototype,"useCssColor",2);no=K1([h("obi-collision-avoidance-head-on")],no);var Ic=Object.defineProperty;var jc=Object.getOwnPropertyDescriptor;var J1=(r,e,i,o)=>{var t=o>1?void 0:o?jc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Ic(e,i,t);return t};var lo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M8 19.5V4.5L20 12L8 19.5Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M8 19.5V4.5L20 12L8 19.5Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Rr.styles=p`
+    `}};lo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8335,17 +10224,17 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;ma([s({type:Boolean})],Rr.prototype,"useCssColor",2);Rr=ma([h("obi-media-play")],Rr);var Il=Object.defineProperty,Rl=Object.getOwnPropertyDescriptor,fa=(t,e,i,o)=>{for(var r=o>1?void 0:o?Rl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Il(e,i,r),r},jr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;J1([l({type:Boolean})],lo.prototype,"useCssColor",2);lo=J1([h("obi-media-play")],lo);var Rc=Object.defineProperty;var Nc=Object.getOwnPropertyDescriptor;var Q1=(r,e,i,o)=>{var t=o>1?void 0:o?Nc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Rc(e,i,t);return t};var so=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 5H6V19H10V5Z" fill="currentColor"/>
 <path d="M18 5H13.9967V19H18V5Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 5H6V19H10V5Z" style="fill: var(--element-active-color)"/>
 <path d="M18 5H13.9967V19H18V5Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};jr.styles=p`
+    `}};so.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8355,17 +10244,17 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;fa([s({type:Boolean})],jr.prototype,"useCssColor",2);jr=fa([h("obi-media-pause")],jr);var jl=Object.defineProperty,Nl=Object.getOwnPropertyDescriptor,ga=(t,e,i,o)=>{for(var r=o>1?void 0:o?Nl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&jl(e,i,r),r},Nr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Q1([l({type:Boolean})],so.prototype,"useCssColor",2);so=Q1([h("obi-media-pause")],so);var Fc=Object.defineProperty;var Uc=Object.getOwnPropertyDescriptor;var en=(r,e,i,o)=>{var t=o>1?void 0:o?Uc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Fc(e,i,t);return t};var co=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M17 5V19H20V5H17Z" fill="currentColor"/>
 <path d="M4 5V19L15 12L4 5Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M17 5V19H20V5H17Z" style="fill: var(--element-active-color)"/>
 <path d="M4 5V19L15 12L4 5Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Nr.styles=p`
+    `}};co.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8375,15 +10264,15 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;ga([s({type:Boolean})],Nr.prototype,"useCssColor",2);Nr=ga([h("obi-media-skip-next")],Nr);var Fl=Object.defineProperty,Ul=Object.getOwnPropertyDescriptor,ba=(t,e,i,o)=>{for(var r=o>1?void 0:o?Ul(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Fl(e,i,r),r},Fr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;en([l({type:Boolean})],co.prototype,"useCssColor",2);co=en([h("obi-media-skip-next")],co);var Wc=Object.defineProperty;var Gc=Object.getOwnPropertyDescriptor;var rn=(r,e,i,o)=>{var t=o>1?void 0:o?Gc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Wc(e,i,t);return t};var po=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 5C15.866 5 19 8.13401 19 12C19 15.866 15.866 19 12 19C10.067 19 8.317 18.2165 7.05025 16.9497L5.63604 18.364C7.26472 19.9926 9.51472 21 12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C9.17273 3 6.64996 4.30367 5 6.34267V3H3V10H10V8H6.25469C7.51964 6.18652 9.62125 5 12 5Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 5C15.866 5 19 8.13401 19 12C19 15.866 15.866 19 12 19C10.067 19 8.317 18.2165 7.05025 16.9497L5.63604 18.364C7.26472 19.9926 9.51472 21 12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C9.17273 3 6.64996 4.30367 5 6.34267V3H3V10H10V8H6.25469C7.51964 6.18652 9.62125 5 12 5Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Fr.styles=p`
+    `}};po.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8393,15 +10282,15 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;ba([s({type:Boolean})],Fr.prototype,"useCssColor",2);Fr=ba([h("obi-reset")],Fr);var Wl=Object.defineProperty,Gl=Object.getOwnPropertyDescriptor,Ca=(t,e,i,o)=>{for(var r=o>1?void 0:o?Gl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Wl(e,i,r),r},Ur=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;rn([l({type:Boolean})],po.prototype,"useCssColor",2);po=rn([h("obi-reset")],po);var qc=Object.defineProperty;var Xc=Object.getOwnPropertyDescriptor;var tn=(r,e,i,o)=>{var t=o>1?void 0:o?Xc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)qc(e,i,t);return t};var ho=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M5 19V5V16.35V14.225V19ZM5 21C4.45 21 3.97917 20.8042 3.5875 20.4125C3.19583 20.0208 3 19.55 3 19V5C3 4.45 3.19583 3.97917 3.5875 3.5875C3.97917 3.19583 4.45 3 5 3H19C19.55 3 20.0208 3.19583 20.4125 3.5875C20.8042 3.97917 21 4.45 21 5V13H19V5H5V19H12V21H5ZM17.35 22L13.8 18.45L15.225 17.05L17.35 19.175L21.6 14.925L23 16.35L17.35 22ZM8 13C8.28333 13 8.52083 12.9042 8.7125 12.7125C8.90417 12.5208 9 12.2833 9 12C9 11.7167 8.90417 11.4792 8.7125 11.2875C8.52083 11.0958 8.28333 11 8 11C7.71667 11 7.47917 11.0958 7.2875 11.2875C7.09583 11.4792 7 11.7167 7 12C7 12.2833 7.09583 12.5208 7.2875 12.7125C7.47917 12.9042 7.71667 13 8 13ZM8 9C8.28333 9 8.52083 8.90417 8.7125 8.7125C8.90417 8.52083 9 8.28333 9 8C9 7.71667 8.90417 7.47917 8.7125 7.2875C8.52083 7.09583 8.28333 7 8 7C7.71667 7 7.47917 7.09583 7.2875 7.2875C7.09583 7.47917 7 7.71667 7 8C7 8.28333 7.09583 8.52083 7.2875 8.7125C7.47917 8.90417 7.71667 9 8 9ZM11 13H17V11H11V13ZM11 9H17V7H11V9Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M5 19V5V16.35V14.225V19ZM5 21C4.45 21 3.97917 20.8042 3.5875 20.4125C3.19583 20.0208 3 19.55 3 19V5C3 4.45 3.19583 3.97917 3.5875 3.5875C3.97917 3.19583 4.45 3 5 3H19C19.55 3 20.0208 3.19583 20.4125 3.5875C20.8042 3.97917 21 4.45 21 5V13H19V5H5V19H12V21H5ZM17.35 22L13.8 18.45L15.225 17.05L17.35 19.175L21.6 14.925L23 16.35L17.35 22ZM8 13C8.28333 13 8.52083 12.9042 8.7125 12.7125C8.90417 12.5208 9 12.2833 9 12C9 11.7167 8.90417 11.4792 8.7125 11.2875C8.52083 11.0958 8.28333 11 8 11C7.71667 11 7.47917 11.0958 7.2875 11.2875C7.09583 11.4792 7 11.7167 7 12C7 12.2833 7.09583 12.5208 7.2875 12.7125C7.47917 12.9042 7.71667 13 8 13ZM8 9C8.28333 9 8.52083 8.90417 8.7125 8.7125C8.90417 8.52083 9 8.28333 9 8C9 7.71667 8.90417 7.47917 8.7125 7.2875C8.52083 7.09583 8.28333 7 8 7C7.71667 7 7.47917 7.09583 7.2875 7.2875C7.09583 7.47917 7 7.71667 7 8C7 8.28333 7.09583 8.52083 7.2875 8.7125C7.47917 8.90417 7.71667 9 8 9ZM11 13H17V11H11V13ZM11 9H17V7H11V9Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Ur.styles=p`
+    `}};ho.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8411,14 +10300,14 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;Ca([s({type:Boolean})],Ur.prototype,"useCssColor",2);Ur=Ca([h("obi-list-alt-check-google")],Ur);var ql=Object.defineProperty,Xl=Object.getOwnPropertyDescriptor,ya=(t,e,i,o)=>{for(var r=o>1?void 0:o?Xl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&ql(e,i,r),r},Wr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;tn([l({type:Boolean})],ho.prototype,"useCssColor",2);ho=tn([h("obi-list-alt-check-google")],ho);var Yc=Object.defineProperty;var Kc=Object.getOwnPropertyDescriptor;var on=(r,e,i,o)=>{var t=o>1?void 0:o?Kc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Yc(e,i,t);return t};var uo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/>
 <path d="M15.0623 7.5L12.0311 4.5L9 7.5H11.0311V10.5H13.0311V7.5H15.0623Z" fill="currentColor"/>
 <path d="M16 8.93782L13 11.9689L16 15V12.9689H19V10.9689H16V8.93782Z" fill="currentColor"/>
 <path d="M8 15.0622L11 12.0311L8 9V11.0311H5V13.0311H8V15.0622Z" fill="currentColor"/>
 <path d="M9.00012 16.5L12.0312 19.5L15.0623 16.5H13.0312V13.5H11.0312V16.5H9.00012Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" style="fill: var(--element-active-color)"/>
 <path d="M15.0623 7.5L12.0311 4.5L9 7.5H11.0311V10.5H13.0311V7.5H15.0623Z" style="fill: var(--element-active-color)"/>
 <path d="M16 8.93782L13 11.9689L16 15V12.9689H19V10.9689H16V8.93782Z" style="fill: var(--element-active-color)"/>
@@ -8427,7 +10316,7 @@ div[role="tabpanel"] {
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Wr.styles=p`
+    `}};uo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8437,15 +10326,15 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;ya([s({type:Boolean})],Wr.prototype,"useCssColor",2);Wr=ya([h("obi-router-component")],Wr);var Yl=Object.defineProperty,Jl=Object.getOwnPropertyDescriptor,wa=(t,e,i,o)=>{for(var r=o>1?void 0:o?Jl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Yl(e,i,r),r},Gr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;on([l({type:Boolean})],uo.prototype,"useCssColor",2);uo=on([h("obi-router-component")],uo);var Jc=Object.defineProperty;var Qc=Object.getOwnPropertyDescriptor;var an=(r,e,i,o)=>{var t=o>1?void 0:o?Qc(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)Jc(e,i,t);return t};var vo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M15.8506 12.4062C17.4207 10.8362 19.6451 10.3174 21.6465 10.8516L21.6475 10.8525C22.182 12.8542 21.6641 15.079 20.0938 16.6494L14.5254 22.2178L10.2822 17.9746L15.8506 12.4062ZM19.8428 12.6562C18.9025 12.7148 17.9811 13.1039 17.2646 13.8203L13.1104 17.9746L14.5244 19.3887L18.6787 15.2354C19.3954 14.5187 19.7844 13.5968 19.8428 12.6562ZM9 14H7V10H9V14ZM6 9H2V7H6V9ZM14 9H10V7H14V9ZM9 2V6H7V2H9Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M15.8506 12.4062C17.4207 10.8362 19.6451 10.3174 21.6465 10.8516L21.6475 10.8525C22.182 12.8542 21.6641 15.079 20.0938 16.6494L14.5254 22.2178L10.2822 17.9746L15.8506 12.4062ZM19.8428 12.6562C18.9025 12.7148 17.9811 13.1039 17.2646 13.8203L13.1104 17.9746L14.5244 19.3887L18.6787 15.2354C19.3954 14.5187 19.7844 13.5968 19.8428 12.6562ZM9 14H7V10H9V14ZM6 9H2V7H6V9ZM14 9H10V7H14V9ZM9 2V6H7V2H9Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Gr.styles=p`
+    `}};vo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8455,19 +10344,19 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;wa([s({type:Boolean})],Gr.prototype,"useCssColor",2);Gr=wa([h("obi-center-off-iec")],Gr);var Ql=Object.defineProperty,Kl=Object.getOwnPropertyDescriptor,La=(t,e,i,o)=>{for(var r=o>1?void 0:o?Kl(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&Ql(e,i,r),r},qr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;an([l({type:Boolean})],vo.prototype,"useCssColor",2);vo=an([h("obi-center-off-iec")],vo);var e2=Object.defineProperty;var r2=Object.getOwnPropertyDescriptor;var nn=(r,e,i,o)=>{var t=o>1?void 0:o?r2(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)e2(e,i,t);return t};var mo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M10.2036 5.55373C11.774 3.98336 13.9983 3.46545 16 4C16.5346 6.0017 16.0166 8.226 14.4463 9.79637L7.93843 16.3042L3.69579 12.0616L10.2036 5.55373ZM11.2643 6.61439C12.2058 5.67289 13.4612 5.23456 14.6969 5.30313C14.7654 6.53876 14.3271 7.79421 13.3856 8.73571L7.93843 14.1829L5.81711 12.0616L11.2643 6.61439Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M18.9564 16.9999C20.6132 16.9999 21.9564 15.6568 21.9564 13.9999C21.9564 12.343 20.6132 10.9999 18.9564 10.9999C17.2995 10.9999 15.9564 12.343 15.9564 13.9999C15.9564 15.6568 17.2995 16.9999 18.9564 16.9999Z" fill="currentColor"/>
 <path d="M14.2736 20.0002L15.6878 18.586L14.2736 17.1717L12.8594 18.586L11.4452 17.1717L10.7381 22.1215L15.6878 21.4144L14.2736 20.0002Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M10.2036 5.55373C11.774 3.98336 13.9983 3.46545 16 4C16.5346 6.0017 16.0166 8.226 14.4463 9.79637L7.93843 16.3042L3.69579 12.0616L10.2036 5.55373ZM11.2643 6.61439C12.2058 5.67289 13.4612 5.23456 14.6969 5.30313C14.7654 6.53876 14.3271 7.79421 13.3856 8.73571L7.93843 14.1829L5.81711 12.0616L11.2643 6.61439Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M18.9564 16.9999C20.6132 16.9999 21.9564 15.6568 21.9564 13.9999C21.9564 12.343 20.6132 10.9999 18.9564 10.9999C17.2995 10.9999 15.9564 12.343 15.9564 13.9999C15.9564 15.6568 17.2995 16.9999 18.9564 16.9999Z" style="fill: var(--element-active-color)"/>
 <path d="M14.2736 20.0002L15.6878 18.586L14.2736 17.1717L12.8594 18.586L11.4452 17.1717L10.7381 22.1215L15.6878 21.4144L14.2736 20.0002Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};qr.styles=p`
+    `}};mo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8477,19 +10366,19 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;La([s({type:Boolean})],qr.prototype,"useCssColor",2);qr=La([h("obi-motion-relative-proposal")],qr);var e2=Object.defineProperty,t2=Object.getOwnPropertyDescriptor,ka=(t,e,i,o)=>{for(var r=o>1?void 0:o?t2(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&e2(e,i,r),r},Xr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;nn([l({type:Boolean})],mo.prototype,"useCssColor",2);mo=nn([h("obi-motion-relative-proposal")],mo);var t2=Object.defineProperty;var o2=Object.getOwnPropertyDescriptor;var ln=(r,e,i,o)=>{var t=o>1?void 0:o?o2(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)t2(e,i,t);return t};var go=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M6.66517 5.99945C5.44261 7.222 4.79212 8.78595 4.6814 10.3822H1.35974L5.51182 14.5343L9.66389 10.3822L6.32378 10.3822C6.42988 9.20577 6.91891 8.05242 7.81852 7.1528C9.45628 5.51504 11.906 5.19671 13.8621 6.18398L14.591 4.73537C12.0213 3.439 8.81041 3.85421 6.66517 5.99945Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M8.82261 14.5019C10.1312 13.1934 11.9847 12.7618 13.6528 13.2073C14.0982 14.8754 13.6667 16.7289 12.3581 18.0375L7.64234 22.7533L4.10681 19.2177L8.82261 14.5019ZM12.3225 14.5376C11.4371 14.5464 10.5568 14.889 9.88327 15.5626L6.22813 19.2177L7.64234 20.6319L11.2975 16.9768C11.9711 16.3032 12.3137 15.4229 12.3225 14.5376Z" fill="currentColor"/>
 <path d="M22.8451 4.01494C21.1771 3.56944 19.3236 4.00097 18.015 5.30955L13.2992 10.0253L16.8347 13.5609L21.5505 8.84508C22.8591 7.53651 23.2906 5.68299 22.8451 4.01494Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M6.66517 5.99945C5.44261 7.222 4.79212 8.78595 4.6814 10.3822H1.35974L5.51182 14.5343L9.66389 10.3822L6.32378 10.3822C6.42988 9.20577 6.91891 8.05242 7.81852 7.1528C9.45628 5.51504 11.906 5.19671 13.8621 6.18398L14.591 4.73537C12.0213 3.439 8.81041 3.85421 6.66517 5.99945Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M8.82261 14.5019C10.1312 13.1934 11.9847 12.7618 13.6528 13.2073C14.0982 14.8754 13.6667 16.7289 12.3581 18.0375L7.64234 22.7533L4.10681 19.2177L8.82261 14.5019ZM12.3225 14.5376C11.4371 14.5464 10.5568 14.889 9.88327 15.5626L6.22813 19.2177L7.64234 20.6319L11.2975 16.9768C11.9711 16.3032 12.3137 15.4229 12.3225 14.5376Z" style="fill: var(--element-active-color)"/>
 <path d="M22.8451 4.01494C21.1771 3.56944 19.3236 4.00097 18.015 5.30955L13.2992 10.0253L16.8347 13.5609L21.5505 8.84508C22.8591 7.53651 23.2906 5.68299 22.8451 4.01494Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Xr.styles=p`
+    `}};go.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8499,15 +10388,15 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;ka([s({type:Boolean})],Xr.prototype,"useCssColor",2);Xr=ka([h("obi-motion-tm-reset-proposal-2")],Xr);var r2=Object.defineProperty,o2=Object.getOwnPropertyDescriptor,Ma=(t,e,i,o)=>{for(var r=o>1?void 0:o?o2(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&r2(e,i,r),r},Yr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;ln([l({type:Boolean})],go.prototype,"useCssColor",2);go=ln([h("obi-motion-tm-reset-proposal-2")],go);var i2=Object.defineProperty;var a2=Object.getOwnPropertyDescriptor;var sn=(r,e,i,o)=>{var t=o>1?void 0:o?a2(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)i2(e,i,t);return t};var fo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 21.05L3 14.05L4.65 12.8L12 18.5L19.35 12.8L21 14.05L12 21.05ZM12 16L3 9L12 2L21 9L12 16ZM12 13.45L17.75 9L12 4.55L6.25 9L12 13.45Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 21.05L3 14.05L4.65 12.8L12 18.5L19.35 12.8L21 14.05L12 21.05ZM12 16L3 9L12 2L21 9L12 16ZM12 13.45L17.75 9L12 4.55L6.25 9L12 13.45Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Yr.styles=p`
+    `}};fo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8517,13 +10406,13 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;Ma([s({type:Boolean})],Yr.prototype,"useCssColor",2);Yr=Ma([h("obi-chart-layers")],Yr);var i2=Object.defineProperty,a2=Object.getOwnPropertyDescriptor,xa=(t,e,i,o)=>{for(var r=o>1?void 0:o?a2(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&i2(e,i,r),r},Jr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;sn([l({type:Boolean})],fo.prototype,"useCssColor",2);fo=sn([h("obi-chart-layers")],fo);var n2=Object.defineProperty;var l2=Object.getOwnPropertyDescriptor;var cn=(r,e,i,o)=>{var t=o>1?void 0:o?l2(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)n2(e,i,t);return t};var bo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M4 8V4H8V2H4C2.89543 2 2 2.89543 2 4V8H4Z" fill="currentColor"/>
 <path d="M4 16H2V20C2 21.1046 2.89543 22 4 22H8V20H4V16Z" fill="currentColor"/>
 <path d="M16 20V22H20C21.1046 22 22 21.1046 22 20V16H20V20H16Z" fill="currentColor"/>
 <path d="M20 8H22V4.00002C22 2.89546 21.1046 2.00003 20 2.00002L16 2V4H20V8Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M4 8V4H8V2H4C2.89543 2 2 2.89543 2 4V8H4Z" style="fill: var(--element-active-color)"/>
 <path d="M4 16H2V20C2 21.1046 2.89543 22 4 22H8V20H4V16Z" style="fill: var(--element-active-color)"/>
 <path d="M16 20V22H20C21.1046 22 22 21.1046 22 20V16H20V20H16Z" style="fill: var(--element-active-color)"/>
@@ -8531,7 +10420,7 @@ div[role="tabpanel"] {
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Jr.styles=p`
+    `}};bo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8541,7 +10430,7 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;xa([s({type:Boolean})],Jr.prototype,"useCssColor",2);Jr=xa([h("obi-target-select-iec")],Jr);var n2=Object.defineProperty,s2=Object.getOwnPropertyDescriptor,Ha=(t,e,i,o)=>{for(var r=o>1?void 0:o?s2(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&n2(e,i,r),r},Qr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;cn([l({type:Boolean})],bo.prototype,"useCssColor",2);bo=cn([h("obi-target-select-iec")],bo);var s2=Object.defineProperty;var c2=Object.getOwnPropertyDescriptor;var dn=(r,e,i,o)=>{var t=o>1?void 0:o?c2(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)s2(e,i,t);return t};var wo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M7 19.4989C7 20.8797 5.88071 21.9989 4.5 21.9989C3.11929 21.9989 2 20.8797 2 19.4989C2 18.1182 3.11929 16.9989 4.5 16.9989C5.88071 16.9989 7 18.1182 7 19.4989Z" fill="currentColor"/>
 <path d="M15.9602 6.62457L17.3744 5.21036L18.7886 6.62457L17.3744 8.03879L15.9602 6.62457Z" fill="currentColor"/>
 <path d="M18.7886 3.79615L20.2028 2.38193L21.617 3.79615L20.2028 5.21036L18.7886 3.79615Z" fill="currentColor"/>
@@ -8555,7 +10444,7 @@ div[role="tabpanel"] {
 <path d="M7.67474 3.78642L8.19238 1.85456L10.1242 2.3722L9.60659 4.30405L7.67474 3.78642Z" fill="currentColor"/>
 <path d="M3.49967 3.5L3.49967 1.5L5.49967 1.5V3.5H3.49967Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M7 19.4989C7 20.8797 5.88071 21.9989 4.5 21.9989C3.11929 21.9989 2 20.8797 2 19.4989C2 18.1182 3.11929 16.9989 4.5 16.9989C5.88071 16.9989 7 18.1182 7 19.4989Z" style="fill: var(--element-active-color)"/>
 <path d="M15.9602 6.62457L17.3744 5.21036L18.7886 6.62457L17.3744 8.03879L15.9602 6.62457Z" style="fill: var(--element-active-color)"/>
 <path d="M18.7886 3.79615L20.2028 2.38193L21.617 3.79615L20.2028 5.21036L18.7886 3.79615Z" style="fill: var(--element-active-color)"/>
@@ -8571,7 +10460,7 @@ div[role="tabpanel"] {
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Qr.styles=p`
+    `}};wo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8581,7 +10470,7 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;Ha([s({type:Boolean})],Qr.prototype,"useCssColor",2);Qr=Ha([h("obi-radar-electronic-range-and-bearing-proposal")],Qr);var l2=Object.defineProperty,c2=Object.getOwnPropertyDescriptor,$a=(t,e,i,o)=>{for(var r=o>1?void 0:o?c2(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&l2(e,i,r),r},Kr=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;dn([l({type:Boolean})],wo.prototype,"useCssColor",2);wo=dn([h("obi-radar-electronic-range-and-bearing-proposal")],wo);var d2=Object.defineProperty;var p2=Object.getOwnPropertyDescriptor;var pn=(r,e,i,o)=>{var t=o>1?void 0:o?p2(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)d2(e,i,t);return t};var yo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M9.6645 14C9.13165 14 8.86523 14 8.72839 14.1092C8.60938 14.2042 8.54015 14.3483 8.54031 14.5005C8.5405 14.6756 8.70694 14.8837 9.03981 15.2998L12 19L14.9602 15.2998C15.2931 14.8837 15.4595 14.6756 15.4597 14.5005C15.4599 14.3483 15.3906 14.2042 15.2716 14.1092C15.1348 14 14.8684 14 14.3355 14H9.6645Z" fill="currentColor"/>
 <path d="M2 22H5V20H2V22Z" fill="currentColor"/>
 <path d="M7 22H11V20H7V22Z" fill="currentColor"/>
@@ -8590,7 +10479,7 @@ div[role="tabpanel"] {
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.97034 6.60754C6.8857 6.72976 6.84338 6.79087 6.82134 6.88005C6.80444 6.94847 6.80444 7.05153 6.82134 7.11995C6.84338 7.20913 6.8857 7.27024 6.97034 7.39246C8.05424 8.95767 9.89402 10 12 10C14.106 10 15.9458 8.95766 17.0297 7.39246C17.1143 7.27024 17.1566 7.20913 17.1787 7.11995C17.1956 7.05153 17.1956 6.94847 17.1787 6.88004C17.1566 6.79086 17.1143 6.72975 17.0297 6.60753C15.9458 5.04233 14.106 4 12 4C9.89402 4 8.05424 5.04233 6.97034 6.60754ZM19.3733 7.29651C19.4182 7.19726 19.4406 7.14764 19.4514 7.08452C19.4601 7.03407 19.4601 6.96593 19.4514 6.91548C19.4406 6.85236 19.4182 6.80274 19.3733 6.70349C18.1212 3.93428 15.2928 2 12 2C8.70721 2 5.87877 3.93428 4.62672 6.70349C4.58185 6.80274 4.55941 6.85236 4.54859 6.91548C4.53993 6.96593 4.53993 7.03407 4.54859 7.08452C4.55941 7.14764 4.58185 7.19726 4.62672 7.29651C5.87877 10.0657 8.70721 12 12 12C15.2928 12 18.1212 10.0657 19.3733 7.29651Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 9C10.896 9 10 8.104 10 7C10 5.896 10.896 5 12 5C13.104 5 14 5.896 14 7C14 8.104 13.104 9 12 9Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M9.6645 14C9.13165 14 8.86523 14 8.72839 14.1092C8.60938 14.2042 8.54015 14.3483 8.54031 14.5005C8.5405 14.6756 8.70694 14.8837 9.03981 15.2998L12 19L14.9602 15.2998C15.2931 14.8837 15.4595 14.6756 15.4597 14.5005C15.4599 14.3483 15.3906 14.2042 15.2716 14.1092C15.1348 14 14.8684 14 14.3355 14H9.6645Z" style="fill: var(--element-active-color)"/>
 <path d="M2 22H5V20H2V22Z" style="fill: var(--element-active-color)"/>
 <path d="M7 22H11V20H7V22Z" style="fill: var(--element-active-color)"/>
@@ -8601,7 +10490,7 @@ div[role="tabpanel"] {
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Kr.styles=p`
+    `}};yo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8611,19 +10500,19 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;$a([s({type:Boolean})],Kr.prototype,"useCssColor",2);Kr=$a([h("obi-monitoring-route")],Kr);var d2=Object.defineProperty,p2=Object.getOwnPropertyDescriptor,Va=(t,e,i,o)=>{for(var r=o>1?void 0:o?p2(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&d2(e,i,r),r},eo=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;pn([l({type:Boolean})],yo.prototype,"useCssColor",2);yo=pn([h("obi-monitoring-route")],yo);var h2=Object.defineProperty;var u2=Object.getOwnPropertyDescriptor;var hn=(r,e,i,o)=>{var t=o>1?void 0:o?u2(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)h2(e,i,t);return t};var Co=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <circle cx="12" cy="12" r="10" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z" fill="currentColor"/>
 <path d="M7.03865 16.2869L11.4846 5.33535C11.6661 4.88821 12.3339 4.88822 12.5154 5.33536L16.9613 16.2869C17.1482 16.7473 16.6205 17.1744 16.1697 16.9277L12.2763 14.7964C12.1053 14.7029 11.8947 14.7029 11.7237 14.7964L7.8303 16.9277C7.37952 17.1744 6.85176 16.7473 7.03865 16.2869Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <circle cx="12" cy="12" r="10" style="fill: var(--element-active-inverted-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z" style="fill: var(--element-active-color)"/>
 <path d="M7.03865 16.2869L11.4846 5.33535C11.6661 4.88821 12.3339 4.88822 12.5154 5.33536L16.9613 16.2869C17.1482 16.7473 16.6205 17.1744 16.1697 16.9277L12.2763 14.7964C12.1053 14.7029 11.8947 14.7029 11.7237 14.7964L7.8303 16.9277C7.37952 17.1744 6.85176 16.7473 7.03865 16.2869Z" style="fill: var(--element-active-color)"/>
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};eo.styles=p`
+    `}};Co.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8633,7 +10522,7 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;Va([s({type:Boolean})],eo.prototype,"useCssColor",2);eo=Va([h("obi-own-ship-alternative-filled")],eo);var h2=Object.defineProperty,u2=Object.getOwnPropertyDescriptor,_a=(t,e,i,o)=>{for(var r=o>1?void 0:o?u2(e,i):e,a=t.length-1,n;a>=0;a--)(n=t[a])&&(r=(o?n(e,i,r):n(r))||r);return o&&r&&h2(e,i,r),r},to=class extends d{constructor(){super(...arguments),this.useCssColor=!1,this.icon=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;hn([l({type:Boolean})],Co.prototype,"useCssColor",2);Co=hn([h("obi-own-ship-alternative-filled")],Co);var v2=Object.defineProperty;var m2=Object.getOwnPropertyDescriptor;var un=(r,e,i,o)=>{var t=o>1?void 0:o?m2(e,i):e;for(var a=r.length-1,n;a>=0;a--)if(n=r[a])t=(o?n(e,i,t):n(t))||t;if(o&&t)v2(e,i,t);return t};var Lo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M11 13C10.4477 13 10 13.4477 10 14C10 14.5523 10.4477 15 11 15H13C13.5523 15 14 14.5523 14 14C14 13.4477 13.5523 13 13 13H11Z" fill="currentColor"/>
 <path d="M10 10.5C10 9.94771 10.4477 9.5 11 9.5H13C13.5523 9.5 14 9.94771 14 10.5C14 11.0523 13.5523 11.5 13 11.5H11C10.4477 11.5 10 11.0523 10 10.5Z" fill="currentColor"/>
 <path d="M11 6C10.4477 6 10 6.44772 10 7C10 7.55228 10.4477 8 11 8H13C13.5523 8 14 7.55228 14 7C14 6.44772 13.5523 6 13 6H11Z" fill="currentColor"/>
@@ -8645,7 +10534,7 @@ div[role="tabpanel"] {
 <path d="M11 6C10.4477 6 10 6.44772 10 7C10 7.55228 10.4477 8 11 8H13C13.5523 8 14 7.55228 14 7C14 6.44772 13.5523 6 13 6H11Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 18H5.75C5.33579 18 5 18.3358 5 18.75C5 19.1642 5.33579 19.5 5.75 19.5H7V22H17V19.5H18.25C18.6642 19.5 19 19.1642 19 18.75C19 18.3358 18.6642 18 18.25 18H17V8.13589C17 4.52847 15.1638 2.32578 12.4415 1.18502L12 1L11.5585 1.18502C8.8362 2.32578 7 4.52847 7 8.13589V18ZM8.5 8.13589C8.5 6.59736 8.88734 5.45436 9.48804 4.5945C10.0693 3.76246 10.9128 3.10684 12 2.62785C13.0872 3.10684 13.9307 3.76246 14.512 4.5945C15.1127 5.45436 15.5 6.59736 15.5 8.13589V18H14C14 17.1716 13.3284 16.5 12.5 16.5H11.5C10.6716 16.5 10 17.1716 10 18H8.5V8.13589ZM8.5 20.5V19.5H15.5V20.5H8.5Z" fill="currentColor"/>
 </svg>
-`,this.iconCss=l`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M11 13C10.4477 13 10 13.4477 10 14C10 14.5523 10.4477 15 11 15H13C13.5523 15 14 14.5523 14 14C14 13.4477 13.5523 13 13 13H11Z" style="fill: var(--element-active-inverted-color)"/>
 <path d="M10 10.5C10 9.94771 10.4477 9.5 11 9.5H13C13.5523 9.5 14 9.94771 14 10.5C14 11.0523 13.5523 11.5 13 11.5H11C10.4477 11.5 10 11.0523 10 10.5Z" style="fill: var(--element-active-inverted-color)"/>
 <path d="M11 6C10.4477 6 10 6.44772 10 7C10 7.55228 10.4477 8 11 8H13C13.5523 8 14 7.55228 14 7C14 6.44772 13.5523 6 13 6H11Z" style="fill: var(--element-active-inverted-color)"/>
@@ -8659,7 +10548,7 @@ div[role="tabpanel"] {
 </svg>
 `}render(){return c`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};to.styles=p`
+    `}};Lo.styles=p`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8669,7 +10558,7 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;_a([s({type:Boolean})],to.prototype,"useCssColor",2);to=_a([h("obi-vessel-type-cargo-filled")],to);
+  `;un([l({type:Boolean})],Lo.prototype,"useCssColor",2);Lo=un([h("obi-vessel-type-cargo-filled")],Lo);
 /*! Bundled license information:
 
 @lit/reactive-element/css-tag.js:
@@ -8693,6 +10582,7 @@ lit-element/lit-element.js:
 @lit/reactive-element/decorators/query-assigned-nodes.js:
 lit-html/directive.js:
 lit-html/async-directive.js:
+lit-html/directives/repeat.js:
   (**
    * @license
    * Copyright 2017 Google LLC

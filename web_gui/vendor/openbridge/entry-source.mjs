@@ -15,6 +15,10 @@ import '@oicl/openbridge-webcomponents/dist/navigation-instruments/pitch-roll/pi
 import '@oicl/openbridge-webcomponents/dist/components/toggle-button-group/toggle-button-group.js';
 import '@oicl/openbridge-webcomponents/dist/components/toggle-button-option/toggle-button-option.js';
 import '@oicl/openbridge-webcomponents/dist/components/brilliance-menu/brilliance-menu.js';
+import '@oicl/openbridge-webcomponents/dist/components/dropdown-button/dropdown-button.js';
+import '@oicl/openbridge-webcomponents/dist/components/event-list/event-list.js';
+import '@oicl/openbridge-webcomponents/dist/components/notification-button/notification-button.js';
+import '@oicl/openbridge-webcomponents/dist/components/notification-message-item/notification-message-item.js';
 import '@oicl/openbridge-webcomponents/dist/icons/icon-chevron-left-google.js';
 import '@oicl/openbridge-webcomponents/dist/icons/icon-chevron-right-google.js';
 import '@oicl/openbridge-webcomponents/dist/icons/icon-alerts.js';

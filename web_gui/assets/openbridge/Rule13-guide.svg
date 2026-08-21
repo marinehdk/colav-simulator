@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Rule 13 追越 COLREGs 操作参考</title>
+  <desc id="desc">统一版式的高清矢量 COLREGs 规则、责任、操作流程与风险提示图</desc>
+  <defs>
+    <linearGradient id="header" x1="0" x2="1"><stop stop-color="#002f6c"/><stop offset="1" stop-color="#001f49"/></linearGradient>
+    <linearGradient id="ocean" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#0b5b8d"/><stop offset="1" stop-color="#063b68"/></linearGradient>
+    <pattern id="waves" width="80" height="28" patternUnits="userSpaceOnUse"><path d="M0 14 Q20 5 40 14 T80 14" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="2"/></pattern>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0d2a46" flood-opacity=".15"/></filter>
+    <marker id="arrow-white" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#fff"/></marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#83c44e"/></marker>
+    <style>
+      text{font-family:Inter,"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;fill:#102a43;text-rendering:geometricPrecision}
+      .title{font-size:38px;font-weight:750;fill:#fff;letter-spacing:.2px}.subtitle{font-size:20px;font-weight:650;fill:#dceaf6}.pill{font-size:17px;font-weight:650;fill:#002f6c}
+      .panel-title{font-size:20px;font-weight:720;fill:#003b73}.body{font-size:18px;font-weight:520}.small{font-size:16px;font-weight:540}.micro{font-size:14px;font-weight:540}.muted{fill:#52697d}.light{fill:#fff}.diagram-label{font-size:18px;font-weight:700;fill:#ffe44f}
+      .card{fill:#fff;stroke:#9fb9d0;stroke-width:1.5;filter:url(#shadow)}.metric{fill:#f3f7fb;stroke:#abc0d3}.metric-value{font-size:16px;font-weight:760;fill:#003b73}
+      .track{fill:none;stroke:#fff;stroke-width:3;stroke-dasharray:10 9}.action{fill:none;stroke:#83c44e;stroke-width:7;stroke-linecap:round}.sector{fill:none;stroke:#ffe44f;stroke-width:3;stroke-dasharray:8 6}
+      .mini-track{fill:none;stroke:#fff;stroke-width:3;stroke-dasharray:8 7}.mini-action{fill:none;stroke:#83c44e;stroke-width:6;stroke-linecap:round}.stage-number{font-size:15px;font-weight:760;fill:#fff}.stage-title{font-size:17px;font-weight:700;fill:#003b73}.divider{stroke:#d7e1ea}
+    </style>
+  </defs>
+  <rect width="1600" height="1000" fill="#eef3f8"/>
+  <rect width="1600" height="88" fill="url(#header)"/>
+  <text x="28" y="56" class="title" fill="#fff">Rule 13  追越 <tspan class="subtitle" fill="#dceaf6">(Overtaking) — COLREGs</tspan></text>
+  <g transform="translate(1290 22)"><rect width="282" height="46" rx="8" fill="#fff"/><text x="141" y="30" text-anchor="middle" class="pill">适用 ODD：A 开阔水域</text></g>
+
+  <g transform="translate(24 110)"><rect width="500" height="330" rx="12" fill="url(#ocean)" filter="url(#shadow)"/><rect width="500" height="330" rx="12" fill="url(#waves)"/><rect width="500" height="48" rx="12" fill="#002f6c"/><rect y="38" width="500" height="10" fill="#002f6c"/><text x="22" y="31" class="panel-title" style="fill:#fff">会遇态势示意图</text><rect x="18" y="66" width="464" height="48" rx="8" fill="#001f49" fill-opacity=".78"/><text x="34" y="97" class="small" style="fill:#fff">本船从目标船正横后 22.5° 以上方向接近</text><g transform="translate(45 64) scale(.82)">
+    <path d="M175 262 C180 205 215 145 255 90" class="track" marker-end="url(#arrow-white)"/>
+    <path d="M175 262 C110 205 115 120 255 90" class="action" marker-end="url(#arrow-green)"/>
+    <g transform="translate(175 275) rotate(0) scale(0.9)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#2f7d32" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g><g transform="translate(255 85) rotate(0) scale(0.9)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#0b4f94" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g>
+    <path d="M255 85 A98 98 0 0 0 163 151" class="sector"/>
+    <text x="62" y="174" class="diagram-label">目标船尾部扇区 112.5°</text></g></g>
+
+  <g><rect x="540" y="110" width="500" height="330" rx="12" class="card"/><rect x="540" y="110" width="500" height="48" rx="12" fill="#dceaf6"/><rect x="540" y="148" width="500" height="10" fill="#dceaf6"/><text x="566" y="141" class="panel-title">规则要点</text><g transform="translate(566 178)"><circle cx="0" cy="-6" r="4" fill="#006bd6"/><text class="body"><tspan x="16" y="0">追越船必须始终让清被追越船。</tspan></text></g><g transform="translate(566 233)"><circle cx="0" cy="-6" r="4" fill="#006bd6"/><text class="body"><tspan x="16" y="0">尽早、明显、大幅度采取避让行动。</tspan></text></g><g transform="translate(566 288)"><circle cx="0" cy="-6" r="4" fill="#006bd6"/><text class="body"><tspan x="16" y="0">只有完全驶过并清爽后，追越责任才解除。</tspan></text></g><g transform="translate(566 343)"><circle cx="0" cy="-6" r="4" fill="#006bd6"/><text class="body"><tspan x="16" y="0">被追越船保持航向和航速，并持续监视。</tspan></text></g><rect x="564" y="396" width="452" height="28" rx="6" fill="#e8f2fb"/><text x="580" y="416" class="micro" fill="#003b73">相关：Rule 5 / 6 / 7 / 8 与本规则责任条款</text></g>
+
+  <g><rect x="1056" y="110" width="520" height="330" rx="12" class="card"/><rect x="1056" y="110" width="520" height="48" rx="12" fill="#dceaf6"/><rect x="1056" y="148" width="520" height="10" fill="#dceaf6"/><text x="1082" y="141" class="panel-title">责任划分与判定阈值</text><g transform="translate(1107 210) rotate(0) scale(0.7)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#0b4f94" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g><text class="body"><tspan x="1142" y="190">本船：追越船 / Give-way</tspan><tspan x="1142" y="221">主动避让；优先向右舷大幅转向</tspan></text><line x1="1080" y1="248" x2="1552" y2="248" class="divider"/><g transform="translate(1107 298) rotate(0) scale(0.7)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#2f7d32" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g><text class="body"><tspan x="1142" y="278">目标船：被追越船 / Stand-on</tspan><tspan x="1142" y="309">保持航向航速；持续监视</tspan></text><g transform="translate(1080 360)"><rect width="144" height="54" rx="8" class="metric"/><text x="12" y="20" class="micro muted">CPA</text><text x="12" y="42" class="metric-value">≥ 1.0 NM</text></g><g transform="translate(1236 360)"><rect width="144" height="54" rx="8" class="metric"/><text x="12" y="20" class="micro muted">TCPA</text><text x="12" y="42" class="metric-value">≥ 12 min</text></g><g transform="translate(1392 360)"><rect width="144" height="54" rx="8" class="metric"/><text x="12" y="20" class="micro muted">方位</text><text x="12" y="42" class="metric-value">目标船正横后 &gt; 22.5°</text></g></g>
+
+  <g><rect x="24" y="458" width="1552" height="36" rx="8" fill="#002f6c"/><text x="44" y="483" class="panel-title" style="fill:#fff">避碰操作流程 · 从识别到恢复</text><g transform="translate(24 506)"><rect width="242" height="280" rx="10" class="card"/><rect width="242" height="42" rx="10" fill="#dceaf6"/><rect y="32" width="242" height="10" fill="#dceaf6"/><circle cx="24" cy="21" r="13" fill="#003b73"/><text x="24" y="27" text-anchor="middle" class="stage-number">1</text><text x="45" y="27" class="stage-title">识别局面</text><g transform="translate(0 38)"><g><path d="M82 138 L178 47" class="mini-track" marker-end="url(#arrow-white)"/><circle cx="121" cy="70" r="24" fill="none" stroke="#82b9e5" stroke-width="3"/><path d="M121 52V88M103 70H139" stroke="#82b9e5" stroke-width="3"/><g transform="translate(82 142) rotate(0) scale(0.42)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#0b4f94" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g><g transform="translate(181 43) rotate(45) scale(0.38)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#2f7d32" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g></g></g><line x1="14" y1="210" x2="228" y2="210" class="divider"/><text x="18" y="238" class="small">确认追越态势</text><text x="18" y="264" class="micro muted">持续评估 CPA / TCPA</text></g><g transform="translate(283 506)"><rect width="242" height="280" rx="10" class="card"/><rect width="242" height="42" rx="10" fill="#dceaf6"/><rect y="32" width="242" height="10" fill="#dceaf6"/><circle cx="24" cy="21" r="13" fill="#003b73"/><text x="24" y="27" text-anchor="middle" class="stage-number">2</text><text x="45" y="27" class="stage-title">尽早行动</text><g transform="translate(0 38)"><g><path d="M82 138 L178 47" class="mini-track" marker-end="url(#arrow-white)"/><path d="M92 132 C95 84 128 60 173 48" class="mini-action" marker-end="url(#arrow-green)"/><g transform="translate(82 142) rotate(0) scale(0.42)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#0b4f94" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g><g transform="translate(181 43) rotate(45) scale(0.38)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#2f7d32" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g></g></g><line x1="14" y1="210" x2="228" y2="210" class="divider"/><text x="18" y="238" class="small">右转并建立意图</text><text x="18" y="264" class="micro muted">持续评估 CPA / TCPA</text></g><g transform="translate(542 506)"><rect width="242" height="280" rx="10" class="card"/><rect width="242" height="42" rx="10" fill="#dceaf6"/><rect y="32" width="242" height="10" fill="#dceaf6"/><circle cx="24" cy="21" r="13" fill="#003b73"/><text x="24" y="27" text-anchor="middle" class="stage-number">3</text><text x="45" y="27" class="stage-title">持续让清</text><g transform="translate(0 38)"><g><path d="M82 138 L178 47" class="mini-track" marker-end="url(#arrow-white)"/><path d="M88 132 C120 106 148 82 175 57" class="mini-action" marker-end="url(#arrow-green)"/><g transform="translate(82 142) rotate(0) scale(0.42)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#0b4f94" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g><g transform="translate(181 43) rotate(45) scale(0.38)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#2f7d32" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g></g></g><line x1="14" y1="210" x2="228" y2="210" class="divider"/><text x="18" y="238" class="small">保持安全距离</text><text x="18" y="264" class="micro muted">持续评估 CPA / TCPA</text></g><g transform="translate(801 506)"><rect width="242" height="280" rx="10" class="card"/><rect width="242" height="42" rx="10" fill="#dceaf6"/><rect y="32" width="242" height="10" fill="#dceaf6"/><circle cx="24" cy="21" r="13" fill="#003b73"/><text x="24" y="27" text-anchor="middle" class="stage-number">4</text><text x="45" y="27" class="stage-title">追越准备</text><g transform="translate(0 38)"><g><path d="M82 138 L178 47" class="mini-track" marker-end="url(#arrow-white)"/><path d="M88 132 C120 106 148 82 175 57" class="mini-action" marker-end="url(#arrow-green)"/><g transform="translate(82 142) rotate(0) scale(0.42)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#0b4f94" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g><g transform="translate(181 43) rotate(45) scale(0.38)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#2f7d32" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g></g></g><line x1="14" y1="210" x2="228" y2="210" class="divider"/><text x="18" y="238" class="small">确认不妨碍目标船</text><text x="18" y="264" class="micro muted">持续评估 CPA / TCPA</text></g><g transform="translate(1060 506)"><rect width="242" height="280" rx="10" class="card"/><rect width="242" height="42" rx="10" fill="#dceaf6"/><rect y="32" width="242" height="10" fill="#dceaf6"/><circle cx="24" cy="21" r="13" fill="#003b73"/><text x="24" y="27" text-anchor="middle" class="stage-number">5</text><text x="45" y="27" class="stage-title">完成追越</text><g transform="translate(0 38)"><g><path d="M82 138 L178 47" class="mini-track" marker-end="url(#arrow-white)"/><path d="M88 132 C113 95 146 74 183 56" class="mini-action" marker-end="url(#arrow-green)"/><circle cx="183" cy="56" r="15" fill="#2f7d32"/><path d="M176 56l5 5 10-13" fill="none" stroke="#fff" stroke-width="4"/><g transform="translate(82 142) rotate(0) scale(0.42)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#0b4f94" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g><g transform="translate(181 43) rotate(45) scale(0.38)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#2f7d32" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g></g></g><line x1="14" y1="210" x2="228" y2="210" class="divider"/><text x="18" y="238" class="small">完全驶过并清爽</text><text x="18" y="264" class="micro muted">持续评估 CPA / TCPA</text></g><g transform="translate(1319 506)"><rect width="242" height="280" rx="10" class="card"/><rect width="242" height="42" rx="10" fill="#dceaf6"/><rect y="32" width="242" height="10" fill="#dceaf6"/><circle cx="24" cy="21" r="13" fill="#003b73"/><text x="24" y="27" text-anchor="middle" class="stage-number">6</text><text x="45" y="27" class="stage-title">恢复航线</text><g transform="translate(0 38)"><g><path d="M82 138 L178 47" class="mini-track" marker-end="url(#arrow-white)"/><path d="M87 132 C130 105 150 77 154 44" class="mini-action" marker-end="url(#arrow-green)"/><g transform="translate(82 142) rotate(0) scale(0.42)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#0b4f94" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g><g transform="translate(181 43) rotate(45) scale(0.38)">
+    <path d="M0 -30 C13 -25 17 -8 15 19 L8 32 H-8 L-15 19 C-17 -8 -13 -25 0 -30Z" fill="#2f7d32" stroke="#fff" stroke-width="3"/>
+    <rect x="-7" y="-7" width="14" height="18" rx="3" fill="#dceaf6"/>
+    <line x1="0" y1="-24" x2="0" y2="24" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  </g></g></g><line x1="14" y1="210" x2="228" y2="210" class="divider"/><text x="18" y="238" class="small">平稳返回计划航向</text><text x="18" y="264" class="micro muted">确认无新增风险</text></g></g>
+
+  <g><rect x="24" y="810" width="490" height="166" rx="12" class="card"/><rect x="24" y="810" width="490" height="42" rx="12" fill="#dceaf6"/><rect x="24" y="842" width="490" height="10" fill="#dceaf6"/><text x="48" y="838" class="panel-title">推荐行动原则 · Rule 8</text><g transform="translate(48 872)"><circle r="12" fill="#2f7d32"/><path d="M-5 0l4 4 8-9" fill="none" stroke="#fff" stroke-width="3"/><text x="20" y="6" class="body">大幅度</text></g><g transform="translate(274 872)"><circle r="12" fill="#2f7d32"/><path d="M-5 0l4 4 8-9" fill="none" stroke="#fff" stroke-width="3"/><text x="20" y="6" class="body">尽早</text></g><g transform="translate(48 914)"><circle r="12" fill="#2f7d32"/><path d="M-5 0l4 4 8-9" fill="none" stroke="#fff" stroke-width="3"/><text x="20" y="6" class="body">明显可见</text></g><g transform="translate(274 914)"><circle r="12" fill="#2f7d32"/><path d="M-5 0l4 4 8-9" fill="none" stroke="#fff" stroke-width="3"/><text x="20" y="6" class="body">持续有效</text></g></g>
+  <g><rect x="530" y="810" width="510" height="166" rx="12" class="card"/><rect x="530" y="810" width="510" height="42" rx="12" fill="#dceaf6"/><rect x="530" y="842" width="510" height="10" fill="#dceaf6"/><text x="554" y="838" class="panel-title">统一评估基线</text><text x="558" y="882" class="body">CPA 安全阈值</text><text x="810" y="882" class="body" font-weight="760">≥ 1.0 NM</text><line x1="554" y1="898" x2="1016" y2="898" class="divider"/><text x="558" y="927" class="body">提前行动参考 TCPA</text><text x="810" y="927" class="body" font-weight="760">≥ 12 min</text><text x="558" y="958" class="micro muted">阈值为 ODD-A 展示基线；实际项目按验证配置执行。</text></g>
+  <g><rect x="1056" y="810" width="520" height="166" rx="12" class="card"/><rect x="1056" y="810" width="520" height="42" rx="12" fill="#fff0ef"/><rect x="1056" y="842" width="520" height="10" fill="#fff0ef"/><text x="1082" y="838" class="panel-title" fill="#a5211b">常见风险与核心原则</text><text x="1082" y="866" class="small"><tspan fill="#c62828">●</tspan> 行动过迟或小角度转向</text><text x="1082" y="895" class="small"><tspan fill="#c62828">●</tspan> 未完全清爽即返回航线</text><rect x="1078" y="928" width="476" height="34" rx="7" fill="#e8f5e9"/><text x="1094" y="950" class="micro" fill="#1f6b2c">追越船承担持续让清责任，直至完全驶过并清爽。</text></g>
+</svg>

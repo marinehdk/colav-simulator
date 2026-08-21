@@ -18,11 +18,17 @@ mkdir -p /tmp/ob-vendor && cd /tmp/ob-vendor && npm init -y
 npm i @oicl/openbridge-webcomponents@1.0.1 esbuild
 # edit entry-source.mjs here first (note: compass/depth-actual/pitch-roll live
 # under dist/navigation-instruments/, not dist/components/)
-npx esbuild entry.mjs --bundle --format=esm --minify \
+npx esbuild entry.mjs --bundle --format=esm \
+  --minify-whitespace --minify-identifiers \
   --outfile=<repo>/web_gui/vendor/openbridge/openbridge-components.mjs
 cp node_modules/@oicl/openbridge-webcomponents/dist/openbridge.css \
   <repo>/web_gui/vendor/openbridge/openbridge.css
 ```
+
+Do not enable esbuild syntax minification for `1.0.1`: it rewrites the Lit
+`classMap()` template used by dropdown/event items and causes a runtime directive
+error. Whitespace + identifier minification keeps the bundle compact without
+changing tagged-template structure.
 
 Then bump the `?v=` cache-bust on the bundle URL in `app.js` /
 `modules/config-shell.js` and the `/static/vendor/openbridge/openbridge.css` href

@@ -27,6 +27,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from shapely.geometry import Point
 
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
@@ -318,6 +319,16 @@ def _local_polygon_coordinates(geometry: Any, origin_e: float, origin_n: float) 
         rings = [polygon.exterior, *polygon.interiors]
         output.append([[[float(north - origin_n), float(east - origin_e)] for east, north in ring.coords] for ring in rings])
     return output
+
+
+def _enc_depth_bin_at(enc: Any, *, east: float, north: float) -> float | None:
+    """Return the deepest charted minimum-depth bin covering a UTM position."""
+    point = Point(float(east), float(north))
+    for depth in sorted(enc.seabed, key=float, reverse=True):
+        geometry = enc.seabed[depth].geometry
+        if geometry is not None and not geometry.is_empty and geometry.covers(point):
+            return float(depth)
+    return None
 
 
 def render_enc(prepared: PreparedRun) -> Path:
@@ -790,6 +801,10 @@ class WebSessionManager:
             latitude, longitude = mapf.local2latlon(own["east"], own["north"], session.enc.utm_zone)
             own["latitude"] = float(latitude)
             own["longitude"] = float(longitude)
+            own["floor_depth_m"] = _enc_depth_bin_at(session.enc, east=own["east"], north=own["north"])
+            own["floor_depth_source"] = (
+                "ENC_DEPTH_BIN_LOWER_BOUND" if own["floor_depth_m"] is not None else "ENC_DEPTH_BIN_UNAVAILABLE"
+            )
         obstacles = ships[1:]
         target_routes = []
         for target in session.ship_list[1:]:

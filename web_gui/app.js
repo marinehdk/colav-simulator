@@ -202,7 +202,7 @@ const brillianceMenu = document.getElementById('brillianceMenu');
 // Brilliance-menu ships inside the same locally-bundled module config-shell.js
 // loads (vendor/openbridge/entry-source.mjs); re-import is a cache no-op and
 // failure degrades like every other best-effort OpenBridge piece.
-import('/static/vendor/openbridge/openbridge-components.mjs?v=20260820-fix-2').catch(() => {});
+import('/static/vendor/openbridge/openbridge-components.mjs?v=20260821-fix-45').catch(() => {});
 
 function applyPalette(palette, persist = true) {
   const nextPalette = PALETTE_NAMES[palette] ? palette : 'day';
@@ -589,10 +589,84 @@ function updateRouteCard(proj) {
   setText('liveRouteEta', totalTimeS === null ? '--:--:--' : formatDuration((proj.navigation?.simTime ?? 0) + totalTimeS));
 }
 
+const SENSOR_SOURCE_MOCKS = [
+  {
+    id: 'sidebarHdgSource',
+    value: 'gps1',
+    options: [
+      { value: 'gyro1', label: 'GYRO 1' },
+      { value: 'gyro2', label: 'GYRO 2' },
+      { value: 'gps1', label: 'GPS 1' },
+    ],
+  },
+  {
+    id: 'sidebarCogSource',
+    value: 'log2',
+    options: [
+      { value: 'gps1', label: 'GPS 1' },
+      { value: 'gps2', label: 'GPS 2' },
+      { value: 'log2', label: 'LOG 2' },
+    ],
+  },
+  {
+    id: 'sidebarStwSource',
+    value: 'log1',
+    options: [
+      { value: 'log1', label: 'LOG 1' },
+      { value: 'log2', label: 'LOG 2' },
+    ],
+  },
+  {
+    id: 'sidebarDepthSource',
+    value: 'enc',
+    options: [
+      { value: 'enc', label: 'ENC' },
+      { value: 'snd1', label: 'SND 1' },
+      { value: 'snd2', label: 'SND 2' },
+    ],
+  },
+  {
+    id: 'sidebarPositionSource',
+    value: 'gps1',
+    options: [
+      { value: 'gps1', label: 'GPS 1' },
+      { value: 'gps2', label: 'GPS 2' },
+      { value: 'ins1', label: 'INS 1' },
+    ],
+  },
+];
+
+function setupSensorSourceDropdowns() {
+  for (const config of SENSOR_SOURCE_MOCKS) {
+    const dropdown = document.getElementById(config.id);
+    if (!dropdown) continue;
+    Object.assign(dropdown, {
+      options: config.options,
+      value: dropdown.value || config.value,
+      type: 'label',
+      fullWidth: true,
+      flat: true,
+    });
+    if (dropdown.dataset.bound === 'true') continue;
+    dropdown.dataset.bound = 'true';
+    dropdown.addEventListener('dropdown-change', (event) => {
+      dropdown.value = event.detail.value;
+      dropdown.setAttribute('aria-label', `${config.id}: ${event.detail.label}`);
+    });
+  }
+}
+
 function updateOwnshipTelemetry(proj) {
   const nav = proj.navigation || {};
   const data = proj.raw;
   const os = data?.os;
+  const floorDepth = Number.isFinite(os?.floor_depth_m) ? Number(os.floor_depth_m) : null;
+  const vesselDraft = Number.isFinite(data?.enc_navigation_area?.vessel_draft_m)
+    ? Number(data.enc_navigation_area.vessel_draft_m)
+    : null;
+  const safeDepth = Number.isFinite(data?.enc_navigation_area?.minimum_depth_m)
+    ? Number(data.enc_navigation_area.minimum_depth_m)
+    : null;
   const headingDeg = Number.isFinite(nav.psi) ? ((nav.psi * 180 / Math.PI) % 360 + 360) % 360 : 0;
   const cogDeg = Number.isFinite(nav.cog) ? ((nav.cog * 180 / Math.PI) % 360 + 360) % 360 : headingDeg;
   const sogKnots = Number.isFinite(nav.sog) ? nav.sog * 1.94384 : 0;
@@ -606,7 +680,14 @@ function updateOwnshipTelemetry(proj) {
   const sbStw = document.getElementById('sidebarStwReadout');
   if (sbStw) sbStw.readouts = [{ type: 'value', value: Number(sogKnots.toFixed(1)), nDigits: 2, nDecimals: 1, unit: 'kn' }];
   const sbDepth = document.getElementById('sidebarDepthReadout');
-  if (sbDepth) sbDepth.readouts = [{ type: 'value', value: 15, nDigits: 2, nDecimals: 1, unit: 'm' }];
+  if (sbDepth) {
+    sbDepth.readouts = floorDepth === null
+      ? []
+      : [{ type: 'value', value: floorDepth, nDigits: 3, nDecimals: 0, unit: 'm' }];
+    sbDepth.setAttribute('aria-label', floorDepth === null
+      ? 'ENC 水深分层数据不可用'
+      : `船位 ENC 水深分层下限 ${floorDepth} 米`);
+  }
 
   if (Number.isFinite(nav.latitude)) {
     setText('sidebarLatReadout', formatCoordinate(nav.latitude, 'N', 'S'));
@@ -648,14 +729,36 @@ function updateOwnshipTelemetry(proj) {
 
   const liveDepthActual = document.getElementById('liveDepthActual');
   if (liveDepthActual) {
-    Object.assign(liveDepthActual, { depth: 15, draft: 2, vesselScale: 1, instrumentRange: 50, priority: 'enhanced' });
+    liveDepthActual.hidden = floorDepth === null;
+    if (floorDepth !== null) {
+      const instrumentRange = Math.max(50, 10 ** Math.ceil(Math.log10(Math.max(1, floorDepth))));
+      Object.assign(liveDepthActual, {
+        depth: floorDepth,
+        draft: vesselDraft ?? 0,
+        vesselScale: 1,
+        instrumentRange,
+        priority: 'enhanced',
+      });
+    }
   }
   const liveDraft = document.getElementById('liveDraftReadout');
-  if (liveDraft) liveDraft.readouts = [{ type: 'value', value: 2, nDigits: 1, unit: 'm' }];
+  if (liveDraft) liveDraft.readouts = vesselDraft === null
+    ? []
+    : [{ type: 'value', value: vesselDraft, nDigits: 2, nDecimals: 1, unit: 'm' }];
   const liveSafeDepth = document.getElementById('liveSafeDepthReadout');
-  if (liveSafeDepth) liveSafeDepth.readouts = [{ type: 'value', value: 5, nDigits: 1, unit: 'm' }];
+  if (liveSafeDepth) liveSafeDepth.readouts = safeDepth === null
+    ? []
+    : [{ type: 'value', value: safeDepth, nDigits: 2, nDecimals: 0, unit: 'm' }];
   const liveCurrentDepth = document.getElementById('liveCurrentDepthReadout');
-  if (liveCurrentDepth) liveCurrentDepth.readouts = [{ type: 'value', value: 15, nDigits: 2, unit: 'm' }];
+  if (liveCurrentDepth) {
+    liveCurrentDepth.readouts = floorDepth === null
+      ? []
+      : [{ type: 'value', value: floorDepth, nDigits: 3, nDecimals: 0, unit: 'm' }];
+    liveCurrentDepth.title = 'ENC depth-bin lower bound at ownship position';
+    liveCurrentDepth.setAttribute('aria-label', floorDepth === null
+      ? 'ENC 水深分层数据不可用'
+      : `船位 ENC 水深分层下限 ${floorDepth} 米`);
+  }
 
   const livePitchRoll = document.getElementById('livePitchRoll');
   if (livePitchRoll) {
@@ -665,6 +768,170 @@ function updateOwnshipTelemetry(proj) {
   if (livePitch) livePitch.readouts = [{ type: 'value', value: 0, nDigits: 1, unit: '°' }];
   const liveRoll = document.getElementById('liveRollReadout');
   if (liveRoll) liveRoll.readouts = [{ type: 'value', value: 0, nDigits: 2, unit: '°' }];
+}
+
+let riskDistanceUnit = 'nmi';
+let latestMonitorTimelineEvents = [];
+
+function formatRiskDistance(distanceM, unit = riskDistanceUnit) {
+  if (!Number.isFinite(distanceM)) return unit === 'nmi' ? '--- NM' : '--- km';
+  return unit === 'nmi'
+    ? `${(distanceM / METERS_PER_NAUTICAL_MILE).toFixed(2)} NM`
+    : `${(distanceM / 1000).toFixed(2)} km`;
+}
+
+function refreshRiskDistanceButtons() {
+  document.querySelectorAll('.risk-distance-toggle').forEach((button) => {
+    const distanceM = button.dataset.distanceM === '' ? NaN : Number(button.dataset.distanceM);
+    button.dataset.unit = riskDistanceUnit;
+    button.textContent = formatRiskDistance(distanceM);
+    button.disabled = !Number.isFinite(distanceM);
+    button.title = riskDistanceUnit === 'nmi' ? 'Click to show kilometres' : 'Click to show nautical miles';
+  });
+}
+
+function eventDisplayContent(event) {
+  const details = event.details || {};
+  const target = details.targetLabel || (details.target_id !== undefined ? `TS${details.target_id}` : '');
+  switch (event.type) {
+    case 'planner_solved':
+      return {
+        title: `Planner solution #${details.solve_id ?? '—'}`,
+        description: [
+          details.status,
+          typeof details.feasible === 'boolean' ? (details.feasible ? 'feasible' : 'infeasible') : null,
+        ].filter(Boolean).join(' · '),
+      };
+    case 'colregs_change': {
+      const from = details.from ? (ENCOUNTER_LABELS[details.from] || details.from) : 'Clear';
+      const to = details.to ? (ENCOUNTER_LABELS[details.to] || details.to) : 'Clear';
+      return { title: `COLREGs ${from} → ${to}`, description: target || 'Encounter state changed' };
+    }
+    case 'dcpa_level_change':
+      return {
+        title: `DCPA ${(details.level || 'unknown').toUpperCase()}${target ? ` · ${target}` : ''}`,
+        description: Number.isFinite(details.dcpaM) ? `${details.dcpaM.toFixed(1)} m closest approach` : 'Closest approach updated',
+      };
+    case 'collision':
+      return { title: 'Collision detected', description: target || `Ship ${details.ship_id ?? '—'}` };
+    case 'grounding':
+      return { title: 'Grounding detected', description: `Ship ${details.ship_id ?? '—'}` };
+    case 'time_limit':
+      return { title: 'Simulation time limit reached', description: 'Run stopped at configured duration' };
+    default:
+      return {
+        title: String(event.type || 'simulation_event').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()),
+        description: target || (details.ship_id !== undefined ? `Ship ${details.ship_id}` : 'Simulation event'),
+      };
+  }
+}
+
+function renderMonitorEventList(events) {
+  latestMonitorTimelineEvents = Array.isArray(events) ? events : [];
+  setText('liveEventCount', String(latestMonitorTimelineEvents.length));
+  const eventList = document.getElementById('liveEvents');
+  if (!eventList || !customElements.get('obc-event-list')) return;
+  const visibleEvents = latestMonitorTimelineEvents.slice(-8).reverse();
+  eventList.showHeader = false;
+  eventList.events = visibleEvents.length
+    ? visibleEvents.map((event) => {
+        const content = eventDisplayContent(event);
+        const details = event.details || {};
+        const colorCoded = ['collision', 'grounding', 'colregs_change'].includes(event.type)
+          || (event.type === 'dcpa_level_change' && details.level !== 'safe');
+        return {
+          title: content.title,
+          description: content.description,
+          startTime: Number.isFinite(event.simTime) ? formatDuration(event.simTime) : '--:--:--',
+          endTime: '',
+          eventItemType: 'doubleLine',
+          hasTime: true,
+          hasEndTime: false,
+          hasArrow: false,
+          colorCoded,
+        };
+      })
+    : [{
+        title: 'Waiting for simulation events',
+        description: 'Timeline is empty',
+        startTime: '--:--:--',
+        endTime: '',
+        eventItemType: 'doubleLine',
+        hasTime: true,
+        hasEndTime: false,
+        disabled: true,
+      }];
+}
+
+function renderNotificationCenter(events) {
+  const notificationEvents = Array.isArray(events) ? events : [];
+  const button = document.getElementById('alertBtn');
+  const items = document.getElementById('notificationItems');
+  setText('notificationPanelCount', String(notificationEvents.length));
+  if (button && customElements.get('obc-notification-button')) {
+    button.count = Math.min(notificationEvents.length, 99);
+    button.showCount = notificationEvents.length > 0;
+  }
+  if (!items || !customElements.get('obc-notification-message-item')) return;
+  const visibleEvents = notificationEvents.slice(-6).reverse();
+  if (!visibleEvents.length) {
+    const empty = document.createElement('obc-notification-message-item');
+    Object.assign(empty, {
+      type: 'inactive',
+      emptyText: 'No current-session notifications',
+    });
+    empty.setAttribute('role', 'listitem');
+    items.replaceChildren(empty);
+    return;
+  }
+  items.replaceChildren(...visibleEvents.map((event) => {
+    const content = eventDisplayContent(event);
+    const item = document.createElement('obc-notification-message-item');
+    Object.assign(item, {
+      type: 'simple',
+      size: 'regular',
+      title: content.title,
+      description: content.description,
+      time: Number.isFinite(event.simTime) ? formatDuration(event.simTime) : '--:--:--',
+      showTitle: true,
+      showDescription: true,
+      showTimestamp: true,
+    });
+    item.setAttribute('role', 'listitem');
+    return item;
+  }));
+}
+
+function setupNotificationCenter() {
+  const button = document.getElementById('alertBtn');
+  const panel = document.getElementById('notificationPanel');
+  if (!button || !panel || button.dataset.bound === 'true') return;
+  button.dataset.bound = 'true';
+  Object.assign(button, {
+    buttonStyle: 'normal',
+    ariaLabel: 'Notifications',
+    isActive: false,
+  });
+  const close = () => {
+    panel.hidden = true;
+    button.isActive = false;
+  };
+  button.addEventListener('obc-click', (event) => {
+    event.stopPropagation();
+    const open = panel.hidden;
+    panel.hidden = !open;
+    button.isActive = open;
+  });
+  panel.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('click', (event) => {
+    if (!panel.hidden && !panel.contains(event.target) && !event.composedPath().includes(button)) close();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || panel.hidden) return;
+    close();
+    (button.shadowRoot?.querySelector('button') || button).focus();
+  });
+  renderNotificationCenter(latestMonitorTimelineEvents);
 }
 
 function updateMonitorTelemetry(proj) {
@@ -683,19 +950,18 @@ function updateMonitorTelemetry(proj) {
         const isHighest = idx === 0;
         const dcpaText = t.dcpaM !== null ? `${t.dcpaM.toFixed(1)}` : '---';
         const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
-        const distText = t.distanceM !== null ? (t.distanceM >= 1000 ? `${(t.distanceM / 1000).toFixed(2)} km` : `${t.distanceM.toFixed(1)} m`) : '--- m';
         const colregLabel = t.encounter ? (ENCOUNTER_LABELS[t.encounter] || t.encounter) : '--';
         const priorityLabel = isHighest ? '优先目标' : (idx === 1 ? '次优先目标' : '监测目标');
         return `
           <article class="risk-target-card" ${isHighest ? 'data-priority="highest"' : ''}>
             <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.targetLabel || (t.targetId === null ? '--' : `TS${t.targetId}`)}</strong></div>
             <div class="risk-target-metrics">
-              <div class="risk-target-metric"><span>DCPA</span><strong>${dcpaText}</strong><small>m</small></div>
-              <div class="risk-target-metric"><span>TCPA</span><strong>${tcpaText}</strong><small>s</small></div>
+              <div class="risk-target-metric"><span>DCPA</span><strong>${dcpaText}<small>m</small></strong></div>
+              <div class="risk-target-metric"><span>TCPA</span><strong>${tcpaText}<small>s</small></strong></div>
             </div>
             <dl class="risk-target-facts">
               <div><dt>COLREGs Rule</dt><dd class="colreg-value">${colregLabel}</dd></div>
-              <div><dt>Target range</dt><dd>${distText}</dd></div>
+              <div><dt>Target range</dt><dd><button type="button" class="risk-distance-toggle" data-distance-m="${t.distanceM ?? ''}" data-unit="${riskDistanceUnit}" ${Number.isFinite(t.distanceM) ? '' : 'disabled'}>${formatRiskDistance(t.distanceM)}</button></dd></div>
             </dl>
           </article>
         `;
@@ -703,18 +969,8 @@ function updateMonitorTelemetry(proj) {
     }
   }
 
-  const eventList = document.getElementById('liveEvents');
-  if (eventList) {
-    const events = proj.timeline?.events || [];
-    if (!events.length) {
-      eventList.innerHTML = '<li><time>--:--</time><span>等待仿真事件…</span></li>';
-    } else {
-      eventList.innerHTML = events.slice(-4).reverse().map((ev) => {
-        const timeStr = typeof ev.simTime === 'number' ? `${ev.simTime.toFixed(1)}s` : '--:--';
-        return `<li><time>${timeStr}</time><span>${ev.summary || ev.text || ev.type}</span></li>`;
-      }).join('');
-    }
-  }
+  renderMonitorEventList(proj.timeline?.events || []);
+  renderNotificationCenter(proj.timeline?.events || []);
 }
 
 function updateAlgoTelemetry(proj) {
@@ -2854,6 +3110,13 @@ function setupDeploymentPagination() {
 }
 
 function setupDeploymentControls() {
+  document.getElementById('liveRiskTargetList')?.addEventListener('click', (event) => {
+    const button = event.target.closest('.risk-distance-toggle');
+    if (!button || button.disabled) return;
+    riskDistanceUnit = riskDistanceUnit === 'nmi' ? 'km' : 'nmi';
+    refreshRiskDistanceButtons();
+  });
+
   document.getElementById('startValidationBtn')?.addEventListener('click', async () => {
     try {
       await activeSessionRuntime.start();
@@ -2983,6 +3246,12 @@ function prepareWorkspaceLayout() {
   if (initialLogEntry) {
     initialLogEntry.textContent = `[${formatSystemTime()}] System ready. Waiting for simulation start…`;
   }
+  customElements.whenDefined('obc-dropdown-button').then(setupSensorSourceDropdowns);
+  customElements.whenDefined('obc-event-list').then(() => renderMonitorEventList(latestMonitorTimelineEvents));
+  Promise.all([
+    customElements.whenDefined('obc-notification-button'),
+    customElements.whenDefined('obc-notification-message-item'),
+  ]).then(setupNotificationCenter);
   setupDeploymentPagination();
   setupDeploymentControls();
 }

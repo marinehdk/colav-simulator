@@ -10,6 +10,12 @@ const legacy = await readFile(new URL('../../web_gui/app.js', import.meta.url), 
 const runtime = await readFile(new URL('../../web_gui/modules/active-session-runtime.js', import.meta.url), 'utf8');
 const instance = await readFile(new URL('../../web_gui/modules/session-runtime-instance.js', import.meta.url), 'utf8');
 const projection = await readFile(new URL('../../web_gui/modules/telemetry-projection.js', import.meta.url), 'utf8');
+const ruleGuides = await Promise.all([
+  'Rule13-guide.svg',
+  'Rule14-guide.svg',
+  'Rule15-guide.svg',
+  'Multiship-guide.svg',
+].map((name) => readFile(new URL(`../../web_gui/assets/openbridge/${name}`, import.meta.url), 'utf8')));
 
 test('Config starts disabled and boot establishes assembly before binding controls', () => {
   for (const id of [
@@ -161,6 +167,46 @@ test('Stepper chrome shows circular numbers, completion dots, and 25%-per-ready-
   assert.match(configCss, /\.assembly-step\[data-complete="true"\] \.step-state-dot \{[^}]*background: var\(--ob-accent\)/);
 });
 
+test('Stepper and Config Summary render tuple business labels instead of raw ids', () => {
+  for (const [id, label] of [
+    ['overtaking', 'Overtaking'],
+    ['head_on', 'Head-on'],
+    ['crossing_give_way', 'Give-way'],
+    ['crossing_stand_on', 'Stand-on'],
+  ]) {
+    assert.match(shell, new RegExp(`${id}: '${label}'`));
+  }
+  for (const helper of ['ruleDisplayLabel', 'scenarioDisplayLabel', 'algorithmDisplayLabel', 'trackerDisplayLabel']) {
+    assert.match(shell, new RegExp(`function ${helper}\\(snapshot\\)`));
+  }
+  assert.match(shell, /rule13: 'Rule 13 Overtaking'/);
+  assert.match(shell, /rule14: 'Rule 14 Head-on'/);
+  assert.match(shell, /mid_mpc_ipopt: 'Mid-MPC'/);
+  assert.match(shell, /god: 'Truth'/);
+  const stepper = shell.slice(shell.indexOf('function renderStepper('), shell.indexOf('function renderSummary('));
+  const summary = shell.slice(shell.indexOf('function renderSummary('), shell.indexOf('function createStatusText('));
+  for (const helper of ['ruleDisplayLabel', 'scenarioDisplayLabel', 'algorithmDisplayLabel', 'trackerDisplayLabel']) {
+    assert.match(stepper, new RegExp(`${helper}\\(snapshot\\)`));
+    assert.match(summary, new RegExp(`${helper}\\(snapshot\\)`));
+  }
+});
+
+test('COLREGS naming is consistent across step, card, and summary', () => {
+  assert.match(html, /data-config-step="rules"[^>]*>[\s\S]*?<strong>COLREGS<\/strong>/);
+  assert.match(html, /class="config-card-title"[^>]*>[\s\S]*?<strong>COLREGS<\/strong>/);
+  assert.match(shell, /\['COLREGS', ruleDisplayLabel\(snapshot\)\]/);
+  assert.doesNotMatch(html, /COLREG Rules/);
+});
+
+test('Config Contract renders YAML semantics without key-value color coding', () => {
+  assert.match(html, /id="validationContract"[^>]*aria-label="YAML Config Contract"/);
+  assert.match(shell, /function renderYamlContract\(draft\)/);
+  assert.match(shell, /className = 'yaml-key'/);
+  assert.match(shell, /className = 'yaml-value'/);
+  assert.match(shell, /JSON\.stringify\(value\)/);
+  assert.match(configCss, /\.yaml-key,[\s\S]*?\.yaml-value \{[^}]*color: inherit/);
+});
+
 test('Inspector has assembly-status pill, compact-header sections, and obc-button actions (gap #18; 32px ruling 2026-08-19: 236px rail must fit without inner scroll)', () => {
   assert.match(html, /id="validationAssemblyStatus"/);
   assert.match(html, /class="assembly-card-content"/);
@@ -197,6 +243,19 @@ test('Rule guide uses floating prev/next icon buttons over the media (gap #21)',
   assert.match(shell, /obi-chevron-left-google/);
   assert.match(shell, /obi-chevron-right-google/);
   assert.match(shell, /查看上一条规则图片|previous-rule-guide-image/);
+});
+
+test('four rule choices use one consistent vector guide system', () => {
+  for (const name of ['Rule13', 'Rule14', 'Rule15', 'Multiship']) {
+    assert.match(shell, new RegExp(`${name}-guide\\.svg\\?v=20260821-guide-3`));
+  }
+  assert.doesNotMatch(shell.slice(shell.indexOf('const RULE_IMAGES'), shell.indexOf('let assembly')), /Rule1[3-7]\.png/);
+  for (const svg of ruleGuides) {
+    assert.match(svg, /width="1600" height="1000" viewBox="0 0 1600 1000"/);
+    assert.match(svg, /Noto Sans SC/);
+    assert.match(svg, /避碰操作流程 · 从识别到恢复/);
+    assert.match(svg, /统一评估基线/);
+  }
 });
 
 test('Scenario and ENC selection render as horizontal snap carousels (gap #11)', () => {

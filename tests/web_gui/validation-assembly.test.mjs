@@ -31,6 +31,8 @@ const catalog = {
   verified_combinations: [
     { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'nominal', tracker_id: 'god' },
     { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'vo', tracker_id: 'god' },
+    { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'vo', tracker_id: 'kf' },
+    { validation_rule_id: 'rule13', scenario_id: 'overtaking', algorithm_id: 'nominal', tracker_id: 'god' },
     { validation_rule_id: 'rule13', scenario_id: 'overtaking', algorithm_id: 'vo', tracker_id: 'god' },
   ],
   experimental_combinations: [
@@ -108,25 +110,52 @@ test('active Run Specification becomes the draft and Default clears all override
   assert.deepEqual(activeSession.spec.algorithm_config, { horizon: 21, nested: { weight: 4 } });
 });
 
-test('tuple repair preserves latest field, then minimizes changes, then uses defaults and catalog order', () => {
+test('rule selection repairs only its dependent scenario and keeps algorithm plus tracker', () => {
   const rankingCatalog = structuredClone(catalog);
+  rankingCatalog.rules.push({ id: 'rule15', selectable: true });
+  rankingCatalog.scenarios.push(
+    { id: 'crossing_give_way', name: 'Give-way', dt: 0.1, t_end: 600, selectable: true },
+    { id: 'crossing_stand_on', name: 'Stand-on', dt: 0.1, t_end: 600, selectable: true },
+  );
   rankingCatalog.verified_combinations = [
     { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'nominal', tracker_id: 'god' },
-    { validation_rule_id: 'rule14', scenario_id: 'overtaking', algorithm_id: 'vo', tracker_id: 'kf' },
-    { validation_rule_id: 'rule14', scenario_id: 'busy', algorithm_id: 'vo', tracker_id: 'god' },
+    { validation_rule_id: 'rule15', scenario_id: 'crossing_give_way', algorithm_id: 'nominal', tracker_id: 'god' },
+    { validation_rule_id: 'rule15', scenario_id: 'crossing_stand_on', algorithm_id: 'nominal', tracker_id: 'god' },
   ];
   rankingCatalog.experimental_combinations = [];
   rankingCatalog.selectable_combinations = [...rankingCatalog.verified_combinations];
   const assembly = createValidationAssembly({ catalog: rankingCatalog });
 
-  assembly.edit('algorithm_id', 'vo');
+  assembly.edit('validation_rule_id', 'rule15');
   assert.deepEqual(
     Object.fromEntries(Object.entries(assembly.snapshot().draft).filter(([key]) => [
       'validation_rule_id', 'scenario_id', 'algorithm_id', 'tracker_id',
     ].includes(key))),
-    { validation_rule_id: 'rule14', scenario_id: 'busy', algorithm_id: 'vo', tracker_id: 'god' },
+    { validation_rule_id: 'rule15', scenario_id: 'crossing_give_way', algorithm_id: 'nominal', tracker_id: 'god' },
   );
   assert.ok(assembly.snapshot().notices.some((notice) => /repaired/i.test(notice.message)));
+});
+
+test('tuple options never repair a sibling algorithm or tracker behind the user', () => {
+  const coupledCatalog = structuredClone(catalog);
+  coupledCatalog.defaults = {
+    validation_rule_id: 'rule14',
+    scenario_id: 'head_on',
+    algorithm_id: 'vo',
+    tracker_id: 'god',
+  };
+  coupledCatalog.verified_combinations = [
+    { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'vo', tracker_id: 'god' },
+    { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'nominal', tracker_id: 'kf' },
+  ];
+  coupledCatalog.experimental_combinations = [];
+  coupledCatalog.selectable_combinations = [...coupledCatalog.verified_combinations];
+  const assembly = createValidationAssembly({ catalog: coupledCatalog });
+
+  assert.equal(assembly.snapshot().options.tracker_id.find((item) => item.id === 'kf').enabled, false);
+  assembly.edit('tracker_id', 'kf');
+  assert.equal(assembly.snapshot().draft.algorithm_id, 'vo');
+  assert.equal(assembly.snapshot().draft.tracker_id, 'god');
 });
 
 test('algorithm, tracker, and scenario changes clear only their opaque dependent contracts', () => {
@@ -162,6 +191,8 @@ test('algorithm, tracker, and scenario changes clear only their opaque dependent
 
 test('classification controls confirmation, active matching, and RUNNING replacement block', () => {
   const experimental = createValidationAssembly({ catalog });
+  experimental.edit('algorithm_id', 'vo');
+  experimental.edit('tracker_id', 'kf');
   experimental.edit('scenario_id', 'busy');
   assert.equal(experimental.snapshot().classification, 'experimental');
   assert.equal(experimental.snapshot().canCreate, false);

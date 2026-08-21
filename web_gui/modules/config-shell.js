@@ -1,13 +1,13 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260818-candidate2-runtime-final';
+import { createValidationAssembly } from './validation-assembly.js?v=20260820-no-hidden-tuple-repair';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260819-candidate3-projection';
 import { createSituationDisplay } from './situation-display.js?v=20260819-c4-situation-2';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const RULE_IMAGES = {
-  rule13: ['/static/assets/openbridge/Rule13.png'],
-  rule14: ['/static/assets/openbridge/Rule14.png'],
-  rule15: ['/static/assets/openbridge/Rule15.png'],
-  multiship: ['/static/assets/openbridge/Rule16.png', '/static/assets/openbridge/Rule17.png'],
+  rule13: ['/static/assets/openbridge/Rule13-guide.svg?v=20260821-guide-3'],
+  rule14: ['/static/assets/openbridge/Rule14-guide.svg?v=20260821-guide-3'],
+  rule15: ['/static/assets/openbridge/Rule15-guide.svg?v=20260821-guide-3'],
+  multiship: ['/static/assets/openbridge/Multiship-guide.svg?v=20260821-guide-3'],
 };
 
 let assembly = null;
@@ -46,7 +46,7 @@ async function loadOpenBridge() {
   try {
     // Single locally-bundled module: components + icons + lit, pinned to
     // @oicl/openbridge-webcomponents@1.0.1. See vendor/openbridge/entry-source.mjs.
-    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260820-fix-34');
+    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260821-fix-45');
     await Promise.all([
       customElements.whenDefined('obc-top-bar'),
       customElements.whenDefined('obc-card'),
@@ -105,10 +105,20 @@ const SCENARIO_LABELS = {
   head_on_sbmpc: 'Head-on (SB-MPC)',
 };
 
+const RULE_LABELS = {
+  rule13: 'Rule 13 Overtaking',
+  rule14: 'Rule 14 Head-on',
+  rule15: 'Rule 15 Crossing',
+  multiship: 'Multiship',
+};
+
 const ALGORITHM_LABELS = {
   mid_mpc_ipopt: 'Mid-MPC',
+  nominal: 'Nominal',
   vo: 'VO',
+  sbmpc: 'SB-MPC',
   potocnik_simplified_mpc: 'Fan-MPC',
+  potocnik_colreg_fan_mpc: 'Fan-MPC',
 };
 const ALGORITHM_ORDER = ['mid_mpc_ipopt', 'vo', 'potocnik_simplified_mpc'];
 const TRACKER_LABELS = {
@@ -286,16 +296,10 @@ function renderRuleChoices(snapshot) {
   const container = document.getElementById('validationRuleChoices');
   const selected = snapshot.draft?.validation_rule_id;
   const visibleRules = new Set(['rule13', 'rule14', 'rule15', 'multiship']);
-  const ruleLabels = {
-    rule13: 'Rule 13 Overtaking',
-    rule14: 'Rule 14 Head-on',
-    rule15: 'Rule 15 Crossing',
-    multiship: 'Multiship',
-  };
   container.replaceChildren(...(snapshot.options.validation_rule_id || []).filter((item) => visibleRules.has(item.id)).map((item) => {
     const card = makeChoiceCard({
       id: item.id,
-      name: ruleLabels[item.id] || item.id,
+      name: RULE_LABELS[item.id] || item.id,
       desc: `${item.readiness_grade || 'G0'} · ${item.enabled ? 'Selectable' : 'Unavailable'}`,
       grade: item.readiness_grade || 'G0',
       reason: item.incompatibility_reason || item.known_failure || '',
@@ -325,6 +329,29 @@ function selectedCatalogItem(snapshot, collection, id) {
   return snapshot.catalog?.[collection]?.find((item) => item.id === id) || null;
 }
 
+function scenarioDisplayLabel(snapshot) {
+  const id = snapshot.draft?.scenario_id;
+  if (!id) return '—';
+  return optionLabel(selectedCatalogItem(snapshot, 'scenarios', id) || { id }, SCENARIO_LABELS);
+}
+
+function ruleDisplayLabel(snapshot) {
+  const id = snapshot.draft?.validation_rule_id;
+  return id ? (RULE_LABELS[id] || id) : '—';
+}
+
+function algorithmDisplayLabel(snapshot) {
+  const id = snapshot.draft?.algorithm_id;
+  if (!id) return '—';
+  return optionLabel(selectedCatalogItem(snapshot, 'algorithms', id) || { id }, ALGORITHM_LABELS);
+}
+
+function trackerDisplayLabel(snapshot) {
+  const id = snapshot.draft?.tracker_id;
+  if (!id) return '—';
+  return optionLabel(selectedCatalogItem(snapshot, 'trackers', id) || { id }, TRACKER_LABELS);
+}
+
 function scenarioChartId(scenarioId) {
   return /(^|\/)(rl|rrt|planning)|boknafjorden|rogaland/i.test(scenarioId || '')
     ? 'Rogaland'
@@ -337,7 +364,7 @@ function renderRuleGuide(snapshot) {
   if (ruleId !== 'multiship') multishipRuleImageIndex = 0;
   const index = Math.min(multishipRuleImageIndex, sources.length - 1);
   const image = document.getElementById('validationRuleImage');
-  const shownRule = ruleId === 'multiship' ? `rule${16 + index}` : ruleId;
+  const shownRule = ruleId;
   image.src = sources[index];
   image.alt = `${shownRule.toUpperCase()} reference illustration`;
   const controls = document.getElementById('validationRuleImageSwitch');
@@ -672,10 +699,10 @@ function renderExecutionPlan(snapshot) {
 function renderStepper(snapshot) {
   const ready = Boolean(snapshot.draft) && snapshot.catalogStatus === 'ready' && snapshot.sessionStatus === 'known';
   const stepStates = [
-    ['rules', ready && Boolean(snapshot.draft.validation_rule_id), ready ? snapshot.draft.validation_rule_id : 'Loading'],
-    ['scenarios', ready && Boolean(snapshot.draft.scenario_id), ready ? snapshot.draft.scenario_id : 'Loading'],
+    ['rules', ready && Boolean(snapshot.draft.validation_rule_id), ready ? ruleDisplayLabel(snapshot) : 'Loading'],
+    ['scenarios', ready && Boolean(snapshot.draft.scenario_id), ready ? scenarioDisplayLabel(snapshot) : 'Loading'],
     ['algorithms', ready && Boolean(snapshot.draft.algorithm_id) && Boolean(snapshot.draft.tracker_id), ready
-      ? `${snapshot.draft.algorithm_id} + ${snapshot.draft.tracker_id}`
+      ? `${algorithmDisplayLabel(snapshot)} + ${trackerDisplayLabel(snapshot)}`
       : 'Loading'],
     ['params', ready && snapshot.valid, ready ? (snapshot.valid ? 'Valid' : 'Needs attention') : 'Loading'],
   ];
@@ -699,10 +726,10 @@ function renderSummary(snapshot) {
     return;
   }
   const rows = [
-    ['Rule', snapshot.draft.validation_rule_id],
-    ['Scenario', snapshot.draft.scenario_id],
-    ['Algorithm', snapshot.draft.algorithm_id],
-    ['Tracker', snapshot.draft.tracker_id],
+    ['COLREGS', ruleDisplayLabel(snapshot)],
+    ['Scenario', scenarioDisplayLabel(snapshot)],
+    ['Algorithm', algorithmDisplayLabel(snapshot)],
+    ['Tracker', trackerDisplayLabel(snapshot)],
     ['Tuple state', snapshot.classification === 'verified' ? 'Exact tuple available' : 'Experimental'],
     ['Draft state', snapshot.dirty ? 'Unsaved changes' : 'Not created'],
   ];
@@ -722,6 +749,38 @@ function renderSummary(snapshot) {
       ? 'Exact tuple available'
       : 'Experimental combination';
   }
+}
+
+function renderYamlContract(draft) {
+  const contract = document.getElementById('validationContract');
+  contract.replaceChildren();
+  if (!draft) {
+    const empty = document.createElement('span');
+    empty.className = 'yaml-empty';
+    empty.textContent = 'No catalog and no Active Run Specification.';
+    contract.append(empty);
+    return;
+  }
+  const keys = [
+    'validation_rule_id', 'scenario_id', 'algorithm_id', 'tracker_id',
+    'seed', 'episode_index', 'dt', 't_end', 'strict_no_fallback', 'evaluator_profile_id',
+  ];
+  contract.replaceChildren(...keys.map((key) => {
+    const row = document.createElement('div');
+    row.className = 'yaml-row';
+    const keyNode = document.createElement('span');
+    keyNode.className = 'yaml-key';
+    keyNode.textContent = key;
+    const separator = document.createElement('span');
+    separator.className = 'yaml-separator';
+    separator.textContent = ': ';
+    const valueNode = document.createElement('span');
+    valueNode.className = 'yaml-value';
+    const value = draft[key] ?? null;
+    valueNode.textContent = typeof value === 'string' ? JSON.stringify(value) : String(value);
+    row.append(keyNode, separator, valueNode);
+    return row;
+  }));
 }
 
 function createStatusText(snapshot) {
@@ -781,12 +840,7 @@ function render() {
   assemblyStatus.textContent = snapshot.valid ? (cleanMatch ? 'CREATED' : 'READY') : 'DRAFT';
   assemblyStatus.dataset.ready = String(snapshot.valid);
   assemblyStatus.dataset.created = String(cleanMatch);
-  document.getElementById('validationContract').textContent = draft
-    ? [
-        'validation_rule_id', 'scenario_id', 'algorithm_id', 'tracker_id',
-        'seed', 'episode_index', 'dt', 't_end', 'strict_no_fallback', 'evaluator_profile_id',
-      ].map((key) => `${key}: ${draft[key] ?? 'null'}`).join('\n')
-    : 'No catalog and no Active Run Specification.';
+  renderYamlContract(draft);
   const messages = snapshot.notices
     .filter((notice) => typeof notice.kind === 'string' && notice.kind.endsWith('-error'))
     .map((notice) => notice.message);

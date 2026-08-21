@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from shapely.geometry import box
 
+import gui_server.main as gui_main
 from colav_simulator.experiment import ExperimentRunner, RunSpec
 from gui_server.main import _select_primary_encounter, app
 
@@ -15,6 +18,21 @@ def _assert_primary_encounter_aliases(payload: dict) -> None:
     assert payload["dcpa"] == primary["dcpa_m"]
     assert payload["tcpa"] == primary["tcpa_s"]
     assert payload["colregs"] == primary["encounter"]
+
+
+def test_enc_depth_bin_reports_deepest_chart_layer_covering_position() -> None:
+    enc = SimpleNamespace(
+        seabed={
+            0: SimpleNamespace(geometry=box(0, 0, 100, 100)),
+            5: SimpleNamespace(geometry=box(10, 10, 90, 90)),
+            20: SimpleNamespace(geometry=box(30, 30, 70, 70)),
+        }
+    )
+
+    assert gui_main._enc_depth_bin_at(enc, east=50, north=50) == 20.0
+    assert gui_main._enc_depth_bin_at(enc, east=15, north=15) == 5.0
+    assert gui_main._enc_depth_bin_at(enc, east=5, north=5) == 0.0
+    assert gui_main._enc_depth_bin_at(enc, east=120, north=120) is None
 
 
 def test_colregs_log_identifies_target_and_cleared_context() -> None:
@@ -344,7 +362,7 @@ def test_chart_layer_controls_follow_navigation_semantics() -> None:
         assert all(legacy_label not in page.text for legacy_label in ("北向坐标", "东向坐标", "北向速度", "东向速度"))
 
 
-def test_real_session_api_and_websocket() -> None:
+def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
     with TestClient(app) as client:
         scenarios = client.get("/api/scenarios")
         assert scenarios.status_code == 200
@@ -377,6 +395,9 @@ def test_real_session_api_and_websocket() -> None:
         assert first.json()["enc_navigation_area"] == navigation_area
         assert -90.0 <= first.json()["os"]["latitude"] <= 90.0
         assert -180.0 <= first.json()["os"]["longitude"] <= 180.0
+        chart_depths = {float(depth) for depth in gui_main.manager.prepared.session.enc.seabed}
+        assert first.json()["os"]["floor_depth_m"] in chart_depths
+        assert first.json()["os"]["floor_depth_source"] == "ENC_DEPTH_BIN_LOWER_BOUND"
         _assert_primary_encounter_aliases(first.json())
 
         second = client.post(f"/api/sessions/{session_id}/step")

@@ -124,13 +124,12 @@ test('C5: cache-bust token bumped for every changed browser-served asset', () =>
   assert.notEqual(tokens[0], '20260819-c4-situation-2', 'token must differ from the C4 baseline');
 });
 
-test('C5: frozen modules stay byte-identical (active-session-runtime, validation-assembly, telemetry-projection, session-runtime-instance)', async () => {
+test('C5: frozen runtime and projection modules stay byte-identical', async () => {
   const { execFile } = await import('node:child_process');
   const { promisify } = await import('node:util');
   const run = promisify(execFile);
   for (const file of [
     'web_gui/modules/active-session-runtime.js',
-    'web_gui/modules/validation-assembly.js',
     'web_gui/modules/telemetry-projection.js',
     'web_gui/modules/session-runtime-instance.js',
   ]) {

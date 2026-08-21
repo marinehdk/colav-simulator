@@ -129,7 +129,7 @@ function selectableTuples(catalog) {
   }));
 }
 
-function catalogOptions(catalog) {
+function catalogOptions(catalog, draft) {
   if (!catalog) return {};
   const tuples = selectableTuples(catalog);
   const collections = {
@@ -142,7 +142,13 @@ function catalogOptions(catalog) {
     field,
     entries.map((entry) => ({
       ...clone(entry),
-      enabled: tuples.some((tuple) => tuple[field] === entry.id),
+      enabled: tuples.some((tuple) => {
+        if (tuple[field] !== entry.id) return false;
+        const fixedFields = field === 'validation_rule_id'
+          ? ['algorithm_id', 'tracker_id']
+          : TUPLE_FIELDS.filter((tupleField) => tupleField !== field);
+        return fixedFields.every((tupleField) => tuple[tupleField] === draft?.[tupleField]);
+      }),
     })),
   ]));
 }
@@ -234,10 +240,14 @@ export function createValidationAssembly({
       if (!EDITABLE_FIELDS.includes(field)) {
         throw new TypeError(`${field} is not user-editable through Validation Assembly.`);
       }
+      if (TUPLE_FIELDS.includes(field)) {
+        const option = catalogOptions(catalog, draft)[field]?.find((item) => item.id === value);
+        if (!option?.enabled) return false;
+      }
       const previous = clone(draft);
       draft[field] = clone(value);
       if (TUPLE_FIELDS.includes(field)) {
-        const repair = repairTuple(catalog, draft, field);
+        const repair = field === 'validation_rule_id' ? repairTuple(catalog, draft, field) : null;
         if (repair) {
           for (const tupleField of TUPLE_FIELDS) draft[tupleField] = repair[tupleField];
           notices.push({
@@ -258,6 +268,7 @@ export function createValidationAssembly({
           notices.push({ kind: 'override-cleared', message: 'Scenario override cleared after Scenario changed.' });
         }
       }
+      return true;
     },
     resetDefault() {
       if (creating) throw new Error('Validation Assembly is creating; controls are frozen.');
@@ -397,7 +408,7 @@ export function createValidationAssembly({
         createBlock,
         canCreate: createBlock === null,
         catalog,
-        options: catalogOptions(catalog),
+        options: catalogOptions(catalog, draft),
         executionPlan: executionPlan(catalog, draft),
         notices,
       });

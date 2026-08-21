@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
-  <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260820-fix-26" />
+  <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260821-fix-45" onerror="this.dataset.failed='true'" />
+  <link rel="stylesheet" href="/static/style.css?v=20260821-fix-46" />
 </head>
 <body>
   <div class="app-container">
@@ -16,7 +16,7 @@
         <span class="collision-app-icon" slot="app-icon" aria-label="对遇避碰场景" title="对遇避碰场景"><obi-collision-avoidance-head-on></obi-collision-avoidance-head-on></span>
         <span class="topbar-actions" slot="alerts" aria-label="通知、声音与系统设置">
           <obc-clock class="topbar-time" id="topbarBeijingClock" showseconds timezoneoffsethours="8" aria-label="北京时间" title="北京时间"></obc-clock>
-          <obc-icon-button class="topbar-action" id="alertBtn" variant="flat" aria-label="提醒" title="提醒"><obi-alerts></obi-alerts></obc-icon-button>
+          <obc-notification-button class="topbar-action" id="alertBtn" buttonstyle="normal" arialabel="Notifications"></obc-notification-button>
           <obc-icon-button class="topbar-action" id="soundBtn" variant="flat" aria-label="声音：已静音" title="声音：已静音"><obi-sound-muted></obi-sound-muted></obc-icon-button>
           <obc-icon-button class="topbar-action" id="settingsBtn" variant="flat" aria-label="系统菜单" title="系统菜单" aria-expanded="false"><obi-settings-user-proposal></obi-settings-user-proposal></obc-icon-button>
         </span>
@@ -38,7 +38,7 @@
       <aside class="assembly-steps" aria-label="Assembly Steps">
         <div class="assembly-steps-header"><strong>Assembly Steps</strong></div>
         <div class="assembly-step-list">
-          <button type="button" class="assembly-step active" data-config-step="rules" aria-pressed="true" data-complete="false"><span class="step-circle">01</span><strong>COLREG Rules</strong><small id="configStepRulesState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
+          <button type="button" class="assembly-step active" data-config-step="rules" aria-pressed="true" data-complete="false"><span class="step-circle">01</span><strong>COLREGS</strong><small id="configStepRulesState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
           <button type="button" class="assembly-step" data-config-step="scenarios" aria-pressed="false" data-complete="false"><span class="step-circle">02</span><strong>Scenarios</strong><small id="configStepScenariosState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
           <button type="button" class="assembly-step" data-config-step="algorithms" aria-pressed="false" data-complete="false"><span class="step-circle">03</span><strong>Algorithms</strong><small id="configStepAlgorithmsState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
           <button type="button" class="assembly-step" data-config-step="params" aria-pressed="false" data-complete="false"><span class="step-circle">04</span><strong>Parameters</strong><small id="configStepParamsState">Loading</small><i class="step-state-dot" aria-hidden="true"></i></button>
@@ -50,12 +50,12 @@
         <section class="config-step-panel" data-config-step-panel="rules">
           <div class="rule-step-layout">
             <section class="config-obc-card">
-              <div class="config-card-title"><span class="step">01</span><span class="card-title-copy"><strong>COLREG Rules</strong></span></div>
+              <div class="config-card-title"><span class="step">01</span><span class="card-title-copy"><strong>COLREGS</strong></span></div>
               <div class="config-card-content"><div class="choice-grid" id="validationRuleChoices" role="radiogroup" aria-label="COLREG rule"></div></div>
             </section>
             <section class="config-obc-card visual-card">
               <div class="rule-guide-media">
-                <img id="validationRuleImage" src="/static/assets/openbridge/Rule14.png" alt="COLREG Rule 14 reference illustration">
+                <img id="validationRuleImage" src="/static/assets/openbridge/Rule14-guide.svg?v=20260821-guide-3" alt="COLREG Rule 14 reference illustration">
                 <div class="rule-guide-actions" id="validationRuleImageSwitch" hidden></div>
               </div>
             </section>
@@ -207,7 +207,7 @@
 
       <aside class="assembly-summary" aria-label="Session Assembly">
         <section class="config-obc-card assembly-card">
-          <div class="config-card-title assembly-title"><span class="card-title-copy"><strong>Session Assembly</strong></span><span class="assembly-status" id="validationAssemblyStatus" data-ready="false">DRAFT</span></div>
+          <div class="config-card-title assembly-title"><span class="card-title-copy"><strong>Assembly</strong></span><span class="assembly-status" id="validationAssemblyStatus" data-ready="false">DRAFT</span></div>
           <div class="assembly-card-content">
             <section class="assembly-section">
               <h2>Config Summary</h2>
@@ -215,7 +215,7 @@
             </section>
             <section class="assembly-section">
               <h2>Config Contract</h2>
-              <div class="assembly-section-body assembly-contract-body"><pre class="request-preview" id="validationContract"></pre><div class="contract"><strong>Create contract</strong><ul><li>Single active session</li><li>Backend exact tuple is authoritative</li><li>strict_no_fallback=true</li><li>Stays CREATED after create</li></ul></div></div>
+              <div class="assembly-section-body assembly-contract-body"><div class="request-preview yaml-contract" id="validationContract" role="region" aria-label="YAML Config Contract"></div><div class="contract"><strong>Create contract</strong><ul><li>Single active session</li><li>Backend exact tuple is authoritative</li><li>strict_no_fallback=true</li><li>Stays CREATED after create</li></ul></div></div>
             </section>
           </div>
         </section>
@@ -242,29 +242,29 @@
               <div class="navigation-data-row">
                 <span class="navigation-data-label">HDG</span>
                 <obc-automation-button-readout-stack class="navigation-data-readout" id="sidebarHdgReadout" size="regular" aria-label="本船航向 0 度"></obc-automation-button-readout-stack>
-                <span class="navigation-data-source">GPS 1 <b aria-hidden="true">▾</b></span>
+                <obc-dropdown-button class="navigation-data-source-select" id="sidebarHdgSource" value="gps1" aria-label="HDG sensor source"></obc-dropdown-button>
               </div>
               <div class="navigation-data-row">
                 <span class="navigation-data-label">COG</span>
                 <obc-automation-button-readout-stack class="navigation-data-readout" id="sidebarCogReadout" size="regular" aria-label="本船对地航向 0 度"></obc-automation-button-readout-stack>
-                <span class="navigation-data-source">LOG 2 <b aria-hidden="true">▾</b></span>
+                <obc-dropdown-button class="navigation-data-source-select" id="sidebarCogSource" value="log2" aria-label="COG sensor source"></obc-dropdown-button>
               </div>
               <div class="navigation-section-divider" aria-hidden="true"></div>
               <div class="navigation-data-row">
                 <span class="navigation-data-label">STW</span>
                 <obc-automation-button-readout-stack class="navigation-data-readout" id="sidebarStwReadout" size="regular" aria-label="本船对水航速 0 节"></obc-automation-button-readout-stack>
-                <span class="navigation-data-source">LOG 1 <b aria-hidden="true">▾</b></span>
+                <obc-dropdown-button class="navigation-data-source-select" id="sidebarStwSource" value="log1" aria-label="STW sensor source"></obc-dropdown-button>
               </div>
               <div class="navigation-data-row">
                 <span class="navigation-data-label">DPTH</span>
-                <obc-automation-button-readout-stack class="navigation-data-readout" id="sidebarDepthReadout" size="regular" aria-label="当前水深 15 米"></obc-automation-button-readout-stack>
-                <span class="navigation-data-source">SND 1 <b aria-hidden="true">▾</b></span>
+                <obc-automation-button-readout-stack class="navigation-data-readout" id="sidebarDepthReadout" size="regular" aria-label="ENC 水深分层数据不可用"></obc-automation-button-readout-stack>
+                <obc-dropdown-button class="navigation-data-source-select" id="sidebarDepthSource" value="enc" aria-label="Depth data source"></obc-dropdown-button>
               </div>
               <div class="navigation-section-divider" aria-hidden="true"></div>
               <div class="navigation-position">
                 <div aria-label="纬度"><strong id="sidebarLatReadout">--°--.---′ N</strong></div>
                 <div aria-label="经度"><strong id="sidebarLonReadout">---°--.---′ E</strong></div>
-                <span class="navigation-data-source">GPS 1 <b aria-hidden="true">▾</b></span>
+                <obc-dropdown-button class="navigation-data-source-select" id="sidebarPositionSource" value="gps1" aria-label="Position sensor source"></obc-dropdown-button>
               </div>
             </section>
             <section class="navigation-info-section route-navigation-section" aria-labelledby="deployment-route-heading">
@@ -333,7 +333,7 @@
               <div class="live-detail-title"><strong class="live-depth-title-label">DEPTH</strong><div class="live-depth-title-spacer" aria-hidden="true"></div></div>
               <div class="live-depth-content">
                 <div class="live-depth-wrapper obc-component-size-regular">
-                  <obc-depth-actual id="liveDepthActual" aria-label="当前水深，Enhanced 显示" data-od-id="live-depth-actual"></obc-depth-actual>
+                  <obc-depth-actual id="liveDepthActual" aria-label="船位 ENC 水深分层下限" data-od-id="live-depth-actual"></obc-depth-actual>
                 </div>
                 <div class="live-depth-readouts" data-od-id="live-depth-readouts">
                   <div class="live-depth-readout">
@@ -345,8 +345,8 @@
                     <div class="live-depth-readout-caption"><strong>SAFETY</strong></div>
                   </div>
                   <div class="live-depth-readout">
-                    <obc-automation-button-readout-stack id="liveCurrentDepthReadout" size="enhanced" aria-label="当前水深 15 米" data-od-id="live-current-depth-readout"></obc-automation-button-readout-stack>
-                    <div class="live-depth-readout-caption"><strong>FLOOR</strong></div>
+                    <obc-automation-button-readout-stack id="liveCurrentDepthReadout" size="enhanced" aria-label="ENC 水深分层数据不可用" data-od-id="live-current-depth-readout"></obc-automation-button-readout-stack>
+                    <div class="live-depth-readout-caption"><strong>FLOOR</strong><small>ENC BIN</small></div>
                   </div>
                 </div>
               </div>
@@ -446,14 +446,16 @@
               <div class="risk-target-list" id="liveRiskTargetList" aria-label="目标风险列表">
                 <article class="risk-target-card" data-priority="highest">
                   <div class="risk-target-heading"><span>优先目标</span><strong id="riskTarget">--</strong></div>
-                  <div class="risk-target-metrics"><div class="risk-target-metric"><span>DCPA</span><strong id="riskDcpa">---</strong><small>m</small></div><div class="risk-target-metric"><span>TCPA</span><strong id="riskTcpa">---</strong><small>s</small></div></div>
-                  <dl class="risk-target-facts"><div><dt>COLREGs Rule</dt><dd class="colreg-value" id="riskColreg">--</dd></div><div><dt>Target range</dt><dd><span id="riskDistance">---</span> m</dd></div></dl>
+                  <div class="risk-target-metrics"><div class="risk-target-metric"><span>DCPA</span><strong><span id="riskDcpa">---</span><small>m</small></strong></div><div class="risk-target-metric"><span>TCPA</span><strong><span id="riskTcpa">---</span><small>s</small></strong></div></div>
+                  <dl class="risk-target-facts"><div><dt>COLREGs Rule</dt><dd class="colreg-value" id="riskColreg">--</dd></div><div><dt>Target range</dt><dd><button type="button" class="risk-distance-toggle" id="riskDistance" data-distance-m="" data-unit="nmi" disabled>--- NM</button></dd></div></dl>
                 </article>
               </div>
             </section>
             <section class="operations-panel monitor-event-strip" aria-labelledby="monitor-event-heading">
-              <h3 id="monitor-event-heading">CURRENT EVENT</h3>
-              <ol class="event-stream" id="liveEvents"><li><time>--:--</time><span>尚未创建当前验证</span></li></ol>
+              <header class="operations-panel-header"><strong id="monitor-event-heading">EVENT LIST</strong><small id="liveEventCount">0</small></header>
+              <div class="monitor-event-list-scroll">
+                <obc-event-list class="monitor-event-list" id="liveEvents" aria-label="Simulation event list"></obc-event-list>
+              </div>
             </section>
           </div>
 
@@ -550,11 +552,17 @@
     <section class="workface roadmap-workface" data-workface-panel="scenario" hidden><h2>Scenario</h2><p>Scenario library surface planned. Config uses live capability metadata; no silent busy-water generation occurs.</p></section>
     <section class="workface roadmap-workface" data-workface-panel="algorithm" hidden><h2>Algorithm</h2><p>Algorithm and tracker catalog surface planned. Exact Tuple evidence remains authoritative in Config.</p></section>
 
+    <section class="notification-popover" id="notificationPanel" aria-labelledby="notificationPanelHeading" hidden>
+      <header><strong id="notificationPanelHeading">Notifications</strong><span id="notificationPanelCount">0</span></header>
+      <div class="notification-items" id="notificationItems" role="list"></div>
+      <footer>Current-session simulation events</footer>
+    </section>
+
     <!-- C5 #4 (P:2003): hidden OpenBridge brilliance popover, opened from the top-bar dimming button. -->
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260820-fix-26"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260820-fix-26"></script>
+  <script type="module" src="/static/app.js?v=20260821-fix-46"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260821-fix-46"></script>
 </body>
 </html>
