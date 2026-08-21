@@ -12,35 +12,45 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from enum import StrEnum
+from datetime import date, datetime
+from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
+    HistoricalAISAlgorithmBinding,
     HistoricalAISCaseBuilder,
     HistoricalAISCaseBuildOutcome,
     HistoricalAISCaseBuildRequest,
+    HistoricalAISCompareBinding,
     HistoricalAISDiscoveryProfile,
+    HistoricalAISEvaluationBinding,
+    HistoricalAISHumanReferenceBinding,
 )
 from colav_simulator.historical_enc import ENCRegionProfile
+
+if TYPE_CHECKING:
+    from colav_simulator.experiment.contracts import RunSpec
+    from colav_simulator.historical_compare import HistoricalBenchmarkTrajectory
 
 ACCEPTANCE_SCHEMA_VERSION = "historical-ais-real-acceptance.v1"
 
 
-class HistoricalAcceptanceStatus(StrEnum):
+class HistoricalAcceptanceStatus(str, Enum):
     PASS = "PASS"
     BLOCKED = "BLOCKED"
     FAIL = "FAIL"
 
 
-class HistoricalAcceptanceBlockerCode(StrEnum):
+class HistoricalAcceptanceBlockerCode(str, Enum):
     SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
     SOURCE_DIGEST_MISMATCH = "SOURCE_DIGEST_MISMATCH"
     WINDOW_SELECTION_INVALID = "WINDOW_SELECTION_INVALID"
     NO_ENCOUNTER = "NO_ENCOUNTER"
     DIMENSIONS_UNAVAILABLE = "DIMENSIONS_UNAVAILABLE"
+    DIMENSION_PROVENANCE_INVALID = "DIMENSION_PROVENANCE_INVALID"
     ENC_UNQUALIFIED = "ENC_UNQUALIFIED"
     INTENT_NOT_ESTABLISHED = "INTENT_NOT_ESTABLISHED"
     TIME_COVERAGE_INSUFFICIENT = "TIME_COVERAGE_INSUFFICIENT"
@@ -95,6 +105,7 @@ class HistoricalAISDimensionRecord(HistoricalAISDimensionOverride):
     call_sign: str = ""
     vessel_name: str = ""
     measurement_date: str = ""
+    effective_date: str = ""
     journal_date: str = ""
     retrieved_at_utc: str = ""
     effective_as_of_t0: bool = False
@@ -110,6 +121,7 @@ class HistoricalAISDimensionRecord(HistoricalAISDimensionOverride):
                 "call_sign": self.call_sign,
                 "vessel_name": self.vessel_name,
                 "measurement_date": self.measurement_date,
+                "effective_date": self.effective_date,
                 "journal_date": self.journal_date,
                 "retrieved_at_utc": self.retrieved_at_utc,
                 "effective_as_of_t0": self.effective_as_of_t0,
@@ -141,6 +153,35 @@ class HistoricalAISDimensionRegistry:
 
     def record_for(self, mmsi: int) -> HistoricalAISDimensionRecord | None:
         return next((item for item in self.records if item.mmsi == int(mmsi)), None)
+
+    def validation_errors(self, t0_utc: str | None, selected_mmsi: tuple[int, ...]) -> tuple[str, ...]:
+        """Return fail-closed provenance errors for this benchmark T0."""
+        if t0_utc is None:
+            return ("dimension registry requires a frozen T0",)
+        try:
+            parsed_t0 = datetime.fromisoformat(t0_utc.replace("Z", "+00:00"))
+            if parsed_t0.tzinfo is None:
+                raise ValueError
+        except ValueError:
+            return ("dimension registry T0 must be timezone-aware ISO-8601",)
+        errors: list[str] = []
+        for mmsi in selected_mmsi:
+            record = self.record_for(mmsi)
+            if record is None:
+                errors.append(f"MMSI {mmsi} has no dimension registry record")
+                continue
+            if not record.effective_as_of_t0:
+                errors.append(f"MMSI {mmsi} is not proven effective as of T0")
+            for field_name in ("measurement_date", "effective_date", "journal_date"):
+                raw = getattr(record, field_name)
+                try:
+                    record_date = date.fromisoformat(raw)
+                except (TypeError, ValueError):
+                    errors.append(f"MMSI {mmsi} has invalid {field_name}")
+                    continue
+                if record_date > parsed_t0.date():
+                    errors.append(f"MMSI {mmsi} {field_name} is after T0")
+        return tuple(errors)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -203,14 +244,19 @@ class HistoricalAISAcceptanceRequest:
     discovery_profile: HistoricalAISDiscoveryProfile = field(default_factory=HistoricalAISDiscoveryProfile)
     dimension_overrides: tuple[HistoricalAISDimensionOverride, ...] = ()
     dimension_registry: HistoricalAISDimensionRegistry | None = None
-    run_spec: Any | None = None
-    human_reference: Any | None = None
+    run_spec: RunSpec | None = None
+    human_reference: HistoricalBenchmarkTrajectory | None = None
     human_reference_artifact_digest: str | None = None
 
     def __post_init__(self) -> None:
         """Freeze source and typed dimension override inputs."""
         object.__setattr__(self, "source", Path(self.source))
         object.__setattr__(self, "dimension_overrides", tuple(self.dimension_overrides))
+        if self.human_reference is not None:
+            trajectory_digest = self.human_reference.trajectory_digest
+            if self.human_reference_artifact_digest not in {None, trajectory_digest}:
+                raise ValueError("Human Reference artifact digest does not match the sealed trajectory")
+            object.__setattr__(self, "human_reference_artifact_digest", trajectory_digest)
 
 
 @dataclass(frozen=True)
@@ -248,7 +294,7 @@ class HistoricalAISAcceptanceOutcome:
 class HistoricalAISAcceptanceHarness:
     """Run bounded Dataset → Case preflight and stop at truthful blockers."""
 
-    def run(self, request: HistoricalAISAcceptanceRequest) -> HistoricalAISAcceptanceOutcome:
+    def run(self, request: HistoricalAISAcceptanceRequest) -> HistoricalAISAcceptanceOutcome:  # noqa: PLR0911
         if not isinstance(request, HistoricalAISAcceptanceRequest):
             return self._blocked(HistoricalAcceptanceBlockerCode.WINDOW_SELECTION_INVALID, "request type is invalid", {})
         source = request.source
@@ -331,6 +377,18 @@ class HistoricalAISAcceptanceHarness:
                 base_manifest,
                 descriptor,
             )
+        if request.dimension_registry is not None:
+            provenance_errors = request.dimension_registry.validation_errors(
+                request.window.t0_utc,
+                request.window.selected_mmsi,
+            )
+            if provenance_errors:
+                return self._blocked(
+                    HistoricalAcceptanceBlockerCode.DIMENSION_PROVENANCE_INVALID,
+                    "; ".join(provenance_errors),
+                    base_manifest,
+                    descriptor,
+                )
         registry_overrides = (
             tuple(item.to_dict() for item in request.dimension_registry.records)
             if request.dimension_registry is not None
@@ -347,6 +405,10 @@ class HistoricalAISAcceptanceHarness:
                 require_intent=request.dimension_registry is not None,
                 published=True if request.dimension_registry is not None else None,
                 dimension_overrides={item["mmsi"]: item for item in registry_overrides},
+                human_reference_binding=_human_reference_binding(request),
+                algorithm_binding=_algorithm_binding(request),
+                evaluation_binding=_evaluation_binding(request),
+                compare_binding=_compare_binding(request),
             )
         )
         if not case_outcome.success:
@@ -577,6 +639,7 @@ def build_hais_2026_07_01_dimension_registry(note_path: Path) -> HistoricalAISDi
                 call_sign="LDZS",
                 vessel_name="FREYJA",
                 measurement_date="2017-06-26",
+                effective_date="2017-06-26",
                 journal_date="2017-09-15",
                 retrieved_at_utc="2026-08-21T00:00:00Z",
                 effective_as_of_t0=True,
@@ -595,6 +658,7 @@ def build_hais_2026_07_01_dimension_registry(note_path: Path) -> HistoricalAISDi
                 call_sign="JXPT",
                 vessel_name="PELAGIA HORDAFOR",
                 measurement_date="2022-09-21",
+                effective_date="2022-09-21",
                 journal_date="2022-09-27",
                 retrieved_at_utc="2026-08-21T00:00:00Z",
                 effective_as_of_t0=True,
@@ -613,6 +677,7 @@ def build_hais_2026_07_01_dimension_registry(note_path: Path) -> HistoricalAISDi
                 call_sign="LEDI",
                 vessel_name="VALDERØY",
                 measurement_date="2016-12-20",
+                effective_date="2016-12-20",
                 journal_date="2017-01-11",
                 retrieved_at_utc="2026-08-21T00:00:00Z",
                 effective_as_of_t0=True,
@@ -643,6 +708,44 @@ def _schedule_context_count(schedule: Any | None) -> int:
         return 0
     return int(schedule.current_primary is not None) + sum(
         len(getattr(schedule, name, ()) or ()) for name in ("concurrent_required", "next_threats", "monitor")
+    )
+
+
+def _human_reference_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAISHumanReferenceBinding:
+    sample_count = len(request.human_reference.timestamps_s) if request.human_reference is not None else 0
+    return HistoricalAISHumanReferenceBinding(
+        artifact_digest=request.human_reference_artifact_digest,
+        sample_count=sample_count,
+    )
+
+
+def _algorithm_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAISAlgorithmBinding:
+    if request.run_spec is None:
+        return HistoricalAISAlgorithmBinding()
+    return HistoricalAISAlgorithmBinding(
+        algorithm_id=request.run_spec.algorithm_id,
+        configuration_digest=_sha256_json(request.run_spec.algorithm_config),
+    )
+
+
+def _evaluation_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAISEvaluationBinding:
+    if request.run_spec is None:
+        return HistoricalAISEvaluationBinding()
+    profile_id = request.run_spec.evaluator_profile_id
+    return HistoricalAISEvaluationBinding(
+        evaluator_id="behavior-compatible-evaluator-v2",
+        profile_id=profile_id,
+        profile_digest=_sha256_json({"profile_id": profile_id}),
+    )
+
+
+def _compare_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAISCompareBinding:
+    if request.run_spec is None:
+        return HistoricalAISCompareBinding()
+    from colav_simulator.historical_compare import HistoricalBenchmarkAlignmentProfile  # noqa: PLC0415
+
+    return HistoricalAISCompareBinding(
+        alignment_profile_digest=HistoricalBenchmarkAlignmentProfile().digest,
     )
 
 

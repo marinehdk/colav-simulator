@@ -9,8 +9,10 @@ from shapely.geometry import MultiPolygon
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_replay import (
     HistoricalActorSampleKind,
+    HistoricalActorShip,
     HistoricalAISReconstructionProfile,
     HistoricalAISReconstructor,
+    HistoricalCounterfactualActorShip,
     HistoricalReplayFactory,
     HistoricalReplayRequest,
 )
@@ -101,6 +103,43 @@ def test_reconstruction_does_not_expose_future_sample_from_current_lookup(tmp_pa
     assert actors.world_states_at(0.0)[0].sample.timestamp_utc.isoformat().startswith("2026-07-01T00:00:00")
     with pytest.raises(ValueError, match="future"):
         actors.current_observations_at(0.0, knowledge_cutoff_s=0.0, include_future=True)
+
+
+def test_counterfactual_pre_t0_plan_is_playback_without_planner_or_lifecycle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _write_csv(
+        tmp_path / "pre-t0-playback.csv",
+        "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
+        "2026-07-01T00:00:00Z,123456789,7.0,62.0,4,90,40,8\n"
+        "2026-07-01T00:00:02Z,123456789,7.0001,62.0,4,90,40,8\n",
+    )
+    profile = HistoricalAISReconstructionProfile(time_step_s=1.0, max_interpolation_gap_s=5.0)
+    actor = HistoricalAISReconstructor().reconstruct(_read(source), profile).actors[0]
+    ship = HistoricalCounterfactualActorShip(
+        actor,
+        profile,
+        t0_s=1.0,
+        nominal_intent={
+            "route_points_vxvy": (
+                (actor.samples[0].state_vxvy[0], actor.samples[0].state_vxvy[1]),
+                (actor.samples[-1].state_vxvy[0], actor.samples[-1].state_vxvy[1]),
+            ),
+            "speed_mps": 4.0,
+        },
+        simulation_end_s=2.0,
+    )
+    monkeypatch.setattr(
+        HistoricalActorShip,
+        "plan",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("playback called parent plan")),
+    )
+
+    references = ship.plan(0.0, 1.0, [])
+
+    assert references.shape == (9, 1)
+    assert references[0, 0] == pytest.approx(actor.samples[0].state_vxvy[0])
+    assert ship.counterfactual_phase == "HISTORICAL_REFERENCE"
 
 
 def test_replay_uses_normal_session_sensor_tracker_chain(tmp_path: Path) -> None:

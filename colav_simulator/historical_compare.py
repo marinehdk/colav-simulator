@@ -13,7 +13,7 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum
 from types import MappingProxyType
 from typing import Any
 
@@ -22,13 +22,13 @@ ALIGNMENT_SCHEMA_VERSION = "historical-compare-alignment.v1"
 SIMILARITY_METRIC_VERSION = "historical-similarity.v1"
 
 
-class HistoricalCompareStatus(StrEnum):
+class HistoricalCompareStatus(str, Enum):
     COMPLETE = "COMPLETE"
     INCOMPLETE = "INCOMPLETE"
     INVALID_REQUEST = "INVALID_REQUEST"
 
 
-class HistoricalCompareDomainStatus(StrEnum):
+class HistoricalCompareDomainStatus(str, Enum):
     COMPLETE = "COMPLETE"
     NOT_AVAILABLE = "NOT_AVAILABLE"
     INCOMPLETE = "INCOMPLETE"
@@ -726,7 +726,7 @@ def _jsonable(value: Any) -> Any:
         return value if math.isfinite(value) else None
     if isinstance(value, (datetime,)):
         return value.isoformat()
-    if isinstance(value, StrEnum):
+    if isinstance(value, Enum):
         return value.value
     if isinstance(value, Mapping):
         return {str(key): _jsonable(item) for key, item in value.items()}

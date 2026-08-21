@@ -13,8 +13,8 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import UTC, date, datetime, timedelta
-from enum import StrEnum
+from datetime import date, datetime, timedelta, timezone
+from enum import Enum
 from types import MappingProxyType
 from typing import Any
 
@@ -32,6 +32,7 @@ from colav_simulator.historical_replay import (
     HistoricalActor,
     HistoricalActorSampleKind,
     HistoricalActorSet,
+    HistoricalActorWorldSample,
     HistoricalAISReconstructionProfile,
     HistoricalAISReconstructor,
     HistoricalAISSourceObservationRef,
@@ -43,7 +44,10 @@ T0_SCHEMA_VERSION = "historical-ais-t0.v1"
 INTENT_SCHEMA_VERSION = "historical-ais-nominal-intent.v1"
 
 
-class HistoricalAISCaseBuildStatus(StrEnum):
+UTC = timezone.utc
+
+
+class HistoricalAISCaseBuildStatus(str, Enum):
     """Typed result of one immutable Historical AIS Case build attempt."""
 
     SUCCESS = "SUCCESS"
@@ -58,7 +62,7 @@ class HistoricalAISCaseBuildStatus(StrEnum):
     SOURCE_QUALITY_UNAVAILABLE = "SOURCE_QUALITY_UNAVAILABLE"
 
 
-class HistoricalAISDiscoveryType(StrEnum):
+class HistoricalAISDiscoveryType(str, Enum):
     """Discovery-only encounter label; never a runtime Lifecycle role."""
 
     HEAD_ON = "HEAD_ON"
@@ -508,6 +512,96 @@ class HistoricalAISNominalIntent:
 
 
 @dataclass(frozen=True)
+class HistoricalAISHumanReferenceBinding:
+    """Sealed comparison-only identity for post-T0 Human Reference evidence."""
+
+    artifact_digest: str | None = None
+    sample_count: int = 0
+    comparison_only: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate comparison-only binding identity."""
+        digest = self.artifact_digest.strip() if self.artifact_digest is not None else None
+        count = int(self.sample_count)
+        if count < 0:
+            raise ValueError("Human Reference sample_count must be non-negative")
+        if count and not digest:
+            raise ValueError("Human Reference samples require an artifact digest")
+        if not self.comparison_only:
+            raise ValueError("Human Reference binding must remain comparison-only")
+        object.__setattr__(self, "artifact_digest", digest or None)
+        object.__setattr__(self, "sample_count", count)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "artifact_digest": self.artifact_digest,
+            "sample_count": self.sample_count,
+            "comparison_only": self.comparison_only,
+        }
+
+
+@dataclass(frozen=True)
+class HistoricalAISAlgorithmBinding:
+    """Frozen requested algorithm/configuration identity for the Case."""
+
+    algorithm_id: str = "UNBOUND"
+    configuration_digest: str | None = None
+    capability_evidence_digest: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate frozen algorithm identity."""
+        if not self.algorithm_id.strip():
+            raise ValueError("algorithm_id is required")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "algorithm_id": self.algorithm_id,
+            "configuration_digest": self.configuration_digest,
+            "capability_evidence_digest": self.capability_evidence_digest,
+        }
+
+
+@dataclass(frozen=True)
+class HistoricalAISEvaluationBinding:
+    """Frozen Independent Evaluator identity for the Case."""
+
+    evaluator_id: str = "UNBOUND"
+    profile_id: str = "UNBOUND"
+    profile_digest: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate frozen Evaluator identity."""
+        if not self.evaluator_id.strip() or not self.profile_id.strip():
+            raise ValueError("Evaluator identity and profile are required")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "evaluator_id": self.evaluator_id,
+            "profile_id": self.profile_id,
+            "profile_digest": self.profile_digest,
+        }
+
+
+@dataclass(frozen=True)
+class HistoricalAISCompareBinding:
+    """Frozen comparison contract/alignment identity for the Case."""
+
+    contract_id: str = "historical-benchmark-compare.v1"
+    alignment_profile_digest: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate frozen comparison identity."""
+        if not self.contract_id.strip():
+            raise ValueError("comparison contract_id is required")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "contract_id": self.contract_id,
+            "alignment_profile_digest": self.alignment_profile_digest,
+        }
+
+
+@dataclass(frozen=True)
 class HistoricalAISCaseBuildRequest:
     """Inputs for the public Historical AIS Case Builder seam."""
 
@@ -526,6 +620,10 @@ class HistoricalAISCaseBuildRequest:
     require_intent: bool = True
     published: bool | None = None
     dimension_overrides: Mapping[int, Mapping[str, Any]] = field(default_factory=dict)
+    human_reference_binding: HistoricalAISHumanReferenceBinding = field(default_factory=HistoricalAISHumanReferenceBinding)
+    algorithm_binding: HistoricalAISAlgorithmBinding = field(default_factory=HistoricalAISAlgorithmBinding)
+    evaluation_binding: HistoricalAISEvaluationBinding = field(default_factory=HistoricalAISEvaluationBinding)
+    compare_binding: HistoricalAISCompareBinding = field(default_factory=HistoricalAISCompareBinding)
 
     def __post_init__(self) -> None:
         """Normalize request aliases and reject ambiguous Reference Vessel IDs."""
@@ -587,9 +685,14 @@ class HistoricalAISCase:
     t0_candidate: HistoricalAIST0Candidate | None
     nominal_intent: HistoricalAISNominalIntent | None
     source_quality_findings: tuple[Mapping[str, Any], ...]
+    human_reference_binding: HistoricalAISHumanReferenceBinding = field(default_factory=HistoricalAISHumanReferenceBinding)
+    algorithm_binding: HistoricalAISAlgorithmBinding = field(default_factory=HistoricalAISAlgorithmBinding)
+    evaluation_binding: HistoricalAISEvaluationBinding = field(default_factory=HistoricalAISEvaluationBinding)
+    compare_binding: HistoricalAISCompareBinding = field(default_factory=HistoricalAISCompareBinding)
     dimension_overrides: tuple[Mapping[str, Any], ...] = ()
     published: bool = True
     build_digest: str = ""
+    runtime_digest: str = ""
     schema_version: str = CASE_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -607,6 +710,8 @@ class HistoricalAISCase:
         )
         if not self.build_digest:
             object.__setattr__(self, "build_digest", _sha256_json(self._identity_dict()))
+        if not self.runtime_digest:
+            object.__setattr__(self, "runtime_digest", _sha256_json(self._runtime_identity_dict()))
 
     @property
     def dataset(self) -> HistoricalAISDatasetDescriptor:
@@ -638,7 +743,7 @@ class HistoricalAISCase:
 
     @property
     def case_digest(self) -> str:
-        return self.build_digest
+        return self.runtime_digest
 
     @property
     def reference_vessel_mmsi(self) -> int:
@@ -668,6 +773,55 @@ class HistoricalAISCase:
     def enc_profile_digest(self) -> str:
         return self.enc_profile.profile_digest
 
+    def runtime_actor_set(self) -> HistoricalActorSet:
+        """Return runtime world facts with Reference history sealed at T0."""
+        if self.t0_candidate is None:
+            return self.actor_set
+        ordered = (self.reference_actor, *self.traffic_actors)
+        actors = tuple(
+            _runtime_actor(actor, actor_id, self.t0_candidate.time_s, actor.mmsi == self.reference_mmsi)
+            for actor_id, actor in enumerate(ordered)
+        )
+        runtime_dataset_digest = _sha256_json(
+            {
+                "selection": self.selection.to_dict(),
+                "actors": [actor.to_dict() for actor in actors],
+            }
+        )
+        return HistoricalActorSet(
+            dataset_digest=runtime_dataset_digest,
+            selection_digest=self.selection.digest,
+            profile=self.reconstruction_profile,
+            time_origin_utc=self.actor_set.time_origin_utc,
+            actors=actors,
+            provider=self.actor_set.provider,
+            attribution=self.actor_set.attribution,
+            coverage_limitations=self.actor_set.coverage_limitations,
+        )
+
+    def _runtime_identity_dict(self) -> dict[str, Any]:
+        """Semantic runtime identity; excludes Human Reference/post-T0 source evidence."""
+        return {
+            "schema_version": self.schema_version,
+            "selection": self.selection.to_dict(),
+            "reconstruction_profile": self.reconstruction_profile.to_dict(),
+            "actor_set": self.runtime_actor_set().to_dict(),
+            "reference_actor_id": 0,
+            "reference_mmsi": self.reference_mmsi,
+            "traffic_actor_count": len(self.traffic_actor_ids),
+            "discovery_profile": self.discovery_profile.to_dict(),
+            "discovery_request": self.discovery_request.to_dict(),
+            "enc_profile": self.enc_profile.to_dict(),
+            "maneuver_detection_profile": self.maneuver_detection_profile.to_dict(),
+            "t0_candidate": self.t0_candidate.to_dict() if self.t0_candidate is not None else None,
+            "nominal_intent": self.nominal_intent.to_dict() if self.nominal_intent is not None else None,
+            "algorithm_binding": self.algorithm_binding.to_dict(),
+            "evaluation_binding": self.evaluation_binding.to_dict(),
+            "compare_binding": self.compare_binding.to_dict(),
+            "dimension_overrides": [dict(item) for item in self.dimension_overrides],
+            "published": self.published,
+        }
+
     def _identity_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
@@ -687,6 +841,10 @@ class HistoricalAISCase:
             "t0_candidate": self.t0_candidate.to_dict() if self.t0_candidate is not None else None,
             "nominal_intent": self.nominal_intent.to_dict() if self.nominal_intent is not None else None,
             "source_quality_findings": [dict(item) for item in self.source_quality_findings],
+            "human_reference_binding": self.human_reference_binding.to_dict(),
+            "algorithm_binding": self.algorithm_binding.to_dict(),
+            "evaluation_binding": self.evaluation_binding.to_dict(),
+            "compare_binding": self.compare_binding.to_dict(),
             "dimension_overrides": [dict(item) for item in self.dimension_overrides],
             "published": self.published,
         }
@@ -694,6 +852,7 @@ class HistoricalAISCase:
     def to_dict(self) -> dict[str, Any]:
         result = self._identity_dict()
         result["build_digest"] = self.build_digest
+        result["runtime_digest"] = self.runtime_digest
         return result
 
 
@@ -911,6 +1070,10 @@ class HistoricalAISCaseBuilder:
             t0_candidate=t0_candidate,
             nominal_intent=nominal_intent,
             source_quality_findings=source_quality,
+            human_reference_binding=request.human_reference_binding,
+            algorithm_binding=request.algorithm_binding,
+            evaluation_binding=request.evaluation_binding,
+            compare_binding=request.compare_binding,
             dimension_overrides=tuple(dict(value) for value in request.dimension_overrides.values()),
             published=request.published if request.published is not None else request.require_intent,
         )
@@ -1327,6 +1490,34 @@ def _apply_dimension_overrides(
     )
 
 
+def _runtime_actor(actor: HistoricalActor, actor_id: int, t0_s: float, truncate_reference: bool) -> HistoricalActor:
+    if not truncate_reference:
+        return replace(actor, actor_id=actor_id, actor_digest="")
+    samples = [sample for sample in actor.samples if sample.time_s < t0_s]
+    handoff = actor.sample_at(t0_s)
+    if handoff is None or not samples:
+        raise ValueError("Reference Vessel has no reconstructed state at T0")
+    samples.append(
+        HistoricalActorWorldSample(
+            time_s=t0_s,
+            timestamp_utc=handoff.timestamp_utc,
+            state_vxvy=handoff.state_vxvy,
+            kind=handoff.kind,
+            source_observation_refs=(),
+        )
+    )
+    source_refs = [reference.to_dict() for sample in samples for reference in sample.source_observation_refs]
+    return replace(
+        actor,
+        actor_id=actor_id,
+        samples=tuple(samples),
+        observed_source_points=sum(sample.kind is HistoricalActorSampleKind.OBSERVED for sample in samples),
+        derived_world_samples=sum(sample.kind is HistoricalActorSampleKind.INTERPOLATED for sample in samples),
+        source_observation_digest=_sha256_json(source_refs),
+        actor_digest="",
+    )
+
+
 def _coerce_utc(value: datetime | str) -> datetime:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00")) if isinstance(value, str) else value
     if parsed.tzinfo is None:
@@ -1345,7 +1536,7 @@ def _jsonable(value: Any) -> Any:
         return value if math.isfinite(value) else None
     if isinstance(value, (datetime, date)):
         return value.isoformat()
-    if isinstance(value, StrEnum):
+    if isinstance(value, Enum):
         return value.value
     if isinstance(value, bytes):
         return {"__bytes_hex__": value.hex()}
@@ -1372,6 +1563,7 @@ __all__ = [
     "INTENT_SCHEMA_VERSION",
     "T0_SCHEMA_VERSION",
     "HistoricalAISCase",
+    "HistoricalAISAlgorithmBinding",
     "HistoricalAISCaseBuildOutcome",
     "HistoricalAISCaseBuildFailureCode",
     "HistoricalAISCaseBuildRequest",
@@ -1385,6 +1577,9 @@ __all__ = [
     "HistoricalAISDiscoveryRequest",
     "HistoricalAISDiscoveryResult",
     "HistoricalAISDiscoveryType",
+    "HistoricalAISCompareBinding",
+    "HistoricalAISEvaluationBinding",
+    "HistoricalAISHumanReferenceBinding",
     "HistoricalAISManeuverDetectionProfile",
     "HistoricalAISNominalIntent",
     "HistoricalAISReferenceVessel",

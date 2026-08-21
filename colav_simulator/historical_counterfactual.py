@@ -9,17 +9,11 @@ artifact digest and never enters ``RunSpec``.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from enum import StrEnum
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_case import HistoricalAISCase
-from colav_simulator.historical_replay import (
-    HistoricalActor,
-    HistoricalActorSampleKind,
-    HistoricalActorSet,
-    HistoricalActorWorldSample,
-)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -51,9 +45,13 @@ class HistoricalAISCounterfactualRunRequest:
             raise ValueError("Counterfactual Run requires strict pre-T0 Nominal Intent")
         if not isinstance(self.run_spec, RunSpec):
             raise TypeError("run_spec must be RunSpec")
-        if self.human_reference_artifact_digest is not None:
-            digest = str(self.human_reference_artifact_digest).strip()
-            object.__setattr__(self, "human_reference_artifact_digest", digest or None)
+        frozen_digest = self.case.human_reference_binding.artifact_digest
+        requested_digest = self.human_reference_artifact_digest
+        if requested_digest is not None:
+            requested_digest = str(requested_digest).strip() or None
+        if requested_digest is not None and requested_digest != frozen_digest:
+            raise ValueError("Counterfactual Human Reference differs from frozen Human Reference binding")
+        object.__setattr__(self, "human_reference_artifact_digest", frozen_digest)
 
     @property
     def t0_s(self) -> float:
@@ -71,7 +69,7 @@ class HistoricalAISCounterfactualRunRequest:
 
     def to_run_spec(self) -> RunSpec:
         """Return a RunSpec with no post-T0 Reference Vessel samples."""
-        actor_set = _runtime_actor_set(self.case)
+        actor_set = self.case.runtime_actor_set()
         dt_sim = float(self.run_spec.dt or self.case.reconstruction_profile.time_step_s)
         t_end = self.run_spec.t_end
         if t_end is None:
@@ -88,8 +86,8 @@ class HistoricalAISCounterfactualRunRequest:
             "mode": COUNTERFACTUAL_MODE,
             "counterfactual_t0_s": self.t0_s,
             "nominal_intent": self.case.nominal_intent.to_dict(),
-            "case_digest": self.case.case_digest,
-            "dataset_digest": self.case.dataset_digest,
+            "case_digest": self.case.runtime_digest,
+            "dataset_digest": actor_set.dataset_digest,
             "selection_digest": self.case.selection.digest,
             "reconstruction_profile_digest": self.case.reconstruction_digest,
             "enc_profile_digest": self.case.enc_profile_digest,
@@ -100,7 +98,7 @@ class HistoricalAISCounterfactualRunRequest:
         return replace(self.run_spec, historical_replay=historical_replay, t_end=float(t_end))
 
 
-class HistoricalAISCounterfactualRunStatus(StrEnum):
+class HistoricalAISCounterfactualRunStatus(str, Enum):
     """Typed preparation/execution outcome for one Counterfactual Run."""
 
     COMPLETED = "COMPLETED"
@@ -233,69 +231,6 @@ def _handoff_status(error: Exception) -> HistoricalAISCounterfactualRunStatus:
     if "ENC" in message or "enc" in message:
         return HistoricalAISCounterfactualRunStatus.ENC_UNQUALIFIED
     return HistoricalAISCounterfactualRunStatus.HANDOFF_FAILED
-
-
-def _runtime_actor_set(case: HistoricalAISCase) -> HistoricalActorSet:
-    """Build the sealed runtime world with Reference history truncated at T0."""
-    reference = case.reference_actor
-    t0_s = case.t0_candidate.time_s  # type: ignore[union-attr]
-    ordered = (reference, *case.traffic_actors)
-    actors = []
-    for actor_id, source_actor in enumerate(ordered):
-        actor = _truncate_actor_at_t0(source_actor, t0_s) if source_actor.mmsi == case.reference_mmsi else source_actor
-        actors.append(_reassign_actor_id(actor, actor_id))
-    return HistoricalActorSet(
-        dataset_digest=case.dataset_digest,
-        selection_digest=case.selection.digest,
-        profile=case.reconstruction_profile,
-        time_origin_utc=case.actor_set.time_origin_utc,
-        actors=tuple(actors),
-        provider=case.actor_set.provider,
-        attribution=case.actor_set.attribution,
-        coverage_limitations=case.actor_set.coverage_limitations,
-    )
-
-
-def _truncate_actor_at_t0(actor: HistoricalActor, t0_s: float) -> HistoricalActor:
-    pre_t0 = [sample for sample in actor.samples if sample.time_s < t0_s]
-    handoff = actor.sample_at(t0_s)
-    if handoff is None or not pre_t0:
-        raise ValueError("Reference Vessel has no reconstructed state at T0")
-    handoff = HistoricalActorWorldSample(
-        time_s=t0_s,
-        timestamp_utc=handoff.timestamp_utc,
-        state_vxvy=handoff.state_vxvy,
-        kind=handoff.kind,
-        source_observation_refs=(),
-    )
-    samples = (*pre_t0, handoff)
-    return HistoricalActor(
-        actor_id=actor.actor_id,
-        mmsi=actor.mmsi,
-        samples=samples,
-        observed_source_points=sum(sample.kind is HistoricalActorSampleKind.OBSERVED for sample in samples),
-        derived_world_samples=sum(sample.kind is HistoricalActorSampleKind.INTERPOLATED for sample in samples),
-        length_m=actor.length_m,
-        width_m=actor.width_m,
-        dimensions_provenance=actor.dimensions_provenance,
-        source_observation_digest=actor.source_observation_digest,
-    )
-
-
-def _reassign_actor_id(actor: HistoricalActor, actor_id: int) -> HistoricalActor:
-    if actor.actor_id == actor_id:
-        return actor
-    return HistoricalActor(
-        actor_id=actor_id,
-        mmsi=actor.mmsi,
-        samples=actor.samples,
-        observed_source_points=actor.observed_source_points,
-        derived_world_samples=actor.derived_world_samples,
-        length_m=actor.length_m,
-        width_m=actor.width_m,
-        dimensions_provenance=actor.dimensions_provenance,
-        source_observation_digest=actor.source_observation_digest,
-    )
 
 
 __all__ = [

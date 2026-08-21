@@ -1,8 +1,8 @@
 {
   "schema_version": "historical-ais-real-acceptance.v1",
-  "acceptance_status": "FAIL",
-  "blocker_code": "THREAT_EVIDENCE_INCOMPLETE",
-  "blocker_message": "Solver/evaluator/compare completed, but real Threat snapshot published zero selected-target vectors and zero schedule memberships.",
+  "acceptance_status": "PASS",
+  "blocker_code": null,
+  "blocker_message": null,
   "source": {
     "provider": "Kystverket",
     "source_name": "Hais_e716cfac-348c-417b-acbd-04a228732de7.zip",
@@ -64,11 +64,11 @@
     "scope": "HAIS 2026-07-01 benchmark selected MMSIs only",
     "retrieved_at_utc": "2026-08-21T00:00:00Z",
     "source_note_sha256": "d958016184c6cb1cbdd0a9959523ff1d49705886886681ea500891d02e3cd677",
-    "registry_digest": "d9bf5a84ef725d670557cd358c2fdafd64c49d5cd93414900dbd27287aa5f1aa",
+    "registry_digest": "f5983e007da86924113505b4971cfa41135efac0b4db6aa21a4900bc292f42b1",
     "records": [
-      {"mmsi": 257252000, "imo": 9793662, "call_sign": "LDZS", "vessel_name": "FREYJA", "length_m": 84.6, "beam_m": 16.0, "measurement_date": "2017-06-26", "journal_date": "2017-09-15", "effective_as_of_t0": true},
-      {"mmsi": 258764000, "imo": 9331098, "call_sign": "JXPT", "vessel_name": "PELAGIA HORDAFOR", "length_m": 59.2, "beam_m": 10.8, "measurement_date": "2022-09-21", "journal_date": "2022-09-27", "effective_as_of_t0": true},
-      {"mmsi": 259189000, "imo": 9802619, "call_sign": "LEDI", "vessel_name": "VALDERØY", "length_m": 32.0, "beam_m": 8.8, "measurement_date": "2016-12-20", "journal_date": "2017-01-11", "effective_as_of_t0": true}
+      {"mmsi": 257252000, "imo": 9793662, "call_sign": "LDZS", "vessel_name": "FREYJA", "length_m": 84.6, "beam_m": 16.0, "measurement_date": "2017-06-26", "effective_date": "2017-06-26", "journal_date": "2017-09-15", "effective_as_of_t0": true},
+      {"mmsi": 258764000, "imo": 9331098, "call_sign": "JXPT", "vessel_name": "PELAGIA HORDAFOR", "length_m": 59.2, "beam_m": 10.8, "measurement_date": "2022-09-21", "effective_date": "2022-09-21", "journal_date": "2022-09-27", "effective_as_of_t0": true},
+      {"mmsi": 259189000, "imo": 9802619, "call_sign": "LEDI", "vessel_name": "VALDERØY", "length_m": 32.0, "beam_m": 8.8, "measurement_date": "2016-12-20", "effective_date": "2016-12-20", "journal_date": "2017-01-11", "effective_as_of_t0": true}
     ]
   },
   "discovery": {
@@ -80,16 +80,16 @@
   },
   "case": {
     "status": "SUCCESS",
-    "case_digest": "f9ba2ee76bae9d85b24d99ef3815fd4c12368ae6f56d8798d60cbeffd461363e"
+    "case_digest": "cfa281dbaca0b04a52b9c3a27ac3618ba99d2a9e0c90bdac5dd66534506f4a04"
   },
   "run": {
-    "run_id": "998eeeab-141b-4bd7-83e4-41ae03d5eb9c",
+    "run_id": "09dbf7e6-48a7-4b62-a966-d1151094f795",
     "mode": "COUNTERFACTUAL",
     "requested_algorithm": "mid_mpc_ipopt",
     "executed_algorithm": "mid_mpc_ipopt",
     "fallback_used": false,
-    "spec_hash": "35645ed88175bfa3ffbc954329191f91e677747502eb4f56b5b434da01aa627b",
-    "trajectory_hash": "83c21ceb0e851f20245f8a0473a9b1c08da889b5f539ffd13bb62ac95b8b9dd6",
+    "spec_hash": "1343fe334e51ff652ab4d868f1e44d330f3c727b035016f79117ec69ab2c90c3",
+    "trajectory_hash": "d59b5fa39067fc2a149d4d78b0c7982f45d9c3dd7a24560a89f103f1d755e63f",
     "evaluator_gate": "PASS",
     "compare_status": "COMPLETE"
   },
@@ -104,28 +104,30 @@
     "evaluation_status": "COMPLETE",
     "collision_count": 0,
     "grounding_count": 0,
-    "minimum_distance_m": 2283.319618670313,
+    "minimum_distance_m": 2289.195589549353,
     "S_safety": 1.0
   },
   "compare": {
     "status": "COMPLETE",
     "overall_assurance_verdict": "PASS",
     "human_similarity_advisory": true,
-    "compare_digest": "6473f96e54309e1ca863c7b4d3b632c306e7beb405e1132157e154eb40045169"
+    "compare_digest": null,
+    "digest_unavailable_reason": "latest real-run artifact did not persist the comparator digest"
   },
   "threat": {
-    "semantic_hash": "28ea93f15499b23bbd026bd4e469623c60dd7f8cdc88737fc0391b31ab635fe2",
-    "vector_count": 0,
-    "schedule_context_count": 0,
+    "semantic_hash": "30c9072d284e4e9f8e512d7231614fbccb81cefacb3f095564bca71e85930f33",
+    "vector_count": 2,
+    "schedule_context_count": 2,
     "cluster_count": 0,
     "required_selected_target_count": 2,
-    "gate": "FAIL_THREAT_EVIDENCE_INCOMPLETE"
+    "gate": "PASS"
   },
   "lineage": {
     "dataset_digest": "0c53011ab625048ea61e2e8265542edbc56dabffc358f132825302041e090a68",
-    "case_digest": "f9ba2ee76bae9d85b24d99ef3815fd4c12368ae6f56d8798d60cbeffd461363e",
-    "run_digest": "83c21ceb0e851f20245f8a0473a9b1c08da889b5f539ffd13bb62ac95b8b9dd6",
-    "evaluation_digest": "dbe78a738e9528ff268c127faa800ad3bbead4ba35d0f4b7555c83a1ddde073a",
-    "compare_digest": "6473f96e54309e1ca863c7b4d3b632c306e7beb405e1132157e154eb40045169"
+    "case_digest": "cfa281dbaca0b04a52b9c3a27ac3618ba99d2a9e0c90bdac5dd66534506f4a04",
+    "run_digest": "d59b5fa39067fc2a149d4d78b0c7982f45d9c3dd7a24560a89f103f1d755e63f",
+    "evaluation_digest": "73348aadaa53d5b57b5e0a40c7af37f157c56686f30772c29210ab7983bb9cbf",
+    "compare_digest": null,
+    "compare_digest_unavailable_reason": "latest real-run artifact did not persist the comparator digest"
   }
 }

@@ -13,8 +13,8 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
-from enum import StrEnum
+from datetime import datetime, timedelta, timezone
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -36,7 +36,10 @@ if TYPE_CHECKING:
 RECONSTRUCTION_SCHEMA_VERSION = "historical-actor-reconstruction.v1"
 
 
-class HistoricalActorSampleKind(StrEnum):
+UTC = timezone.utc
+
+
+class HistoricalActorSampleKind(str, Enum):
     """Provenance of one world-truth sample."""
 
     OBSERVED = "observed"
@@ -638,7 +641,13 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
 
     def plan(self, t: float, dt: float, do_list: list, enc: Any = None, w: Any = None) -> np.ndarray:
         if float(t) < self._counterfactual_t0_s:
-            return super().plan(t, dt, do_list, enc, w)
+            self._references = np.zeros((9, 1), dtype=float)
+            if self._state.size >= 4:
+                self._references[0, 0] = self._state[0]
+                self._references[1, 0] = self._state[1]
+                self._references[2, 0] = self._state[2]
+                self._references[3, 0] = self._state[3]
+            return self._references
         self._activate_counterfactual()
         return Ship.plan(self, t, dt, do_list, enc, w)
 
@@ -874,7 +883,7 @@ def _json_default(value: Any) -> Any:
         return value.tolist()
     if isinstance(value, datetime):
         return value.isoformat()
-    if isinstance(value, StrEnum):
+    if isinstance(value, Enum):
         return value.value
     if isinstance(value, Mapping):
         return dict(value)

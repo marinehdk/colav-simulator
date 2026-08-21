@@ -84,3 +84,18 @@ def test_zip_parquet_read_after_map_stack_uses_isolated_dataset_worker(tmp_path:
     assert len(result.observations) == 1
     assert result.observations[0].normalized.mmsi == 123456789
     assert "pyarrow.dataset" not in sys.modules
+
+
+def test_historical_contract_modules_are_python310_enum_compatible() -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    modules = (
+        "historical_acceptance.py",
+        "historical_case.py",
+        "historical_compare.py",
+        "historical_counterfactual.py",
+        "historical_replay.py",
+    )
+
+    for module in modules:
+        source = (project_root / "colav_simulator" / module).read_text(encoding="utf-8")
+        assert "StrEnum" not in source, module

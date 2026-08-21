@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -60,12 +61,12 @@ def test_acceptance_harness_blocks_missing_source_dimensions_without_defaults(
     assert outcome.manifest["lineage"]["run_digest"] is None
 
 
-def test_real_window_manifest_is_compact_and_records_typed_blocker() -> None:
+def test_real_window_manifest_is_compact_and_records_latest_real_pass() -> None:
     manifest_path = Path(__file__).parent / "fixtures" / "historical_ais_real_window_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    assert manifest["acceptance_status"] == "FAIL"
-    assert manifest["blocker_code"] == "THREAT_EVIDENCE_INCOMPLETE"
+    assert manifest["acceptance_status"] == "PASS"
+    assert manifest["blocker_code"] is None
     assert manifest["dimensions"]["default_dimensions_used"] is False
     assert manifest["dimensions"]["registry_applied"] is True
     assert manifest["dimensions"]["effective_dimensioned_actor_count"] == 3
@@ -79,11 +80,17 @@ def test_real_window_manifest_is_compact_and_records_typed_blocker() -> None:
     assert manifest["run"]["requested_algorithm"] == manifest["run"]["executed_algorithm"]
     assert manifest["leakage"]["human_reference_digest_in_run_spec"] is False
     assert manifest["leakage"]["nominal_intent_strict_pre_t0_only"] is True
-    assert manifest["threat"]["vector_count"] == 0
+    assert manifest["threat"]["vector_count"] == 2
+    assert manifest["threat"]["schedule_context_count"] == 2
+    assert manifest["threat"]["cluster_count"] == 0
+    assert manifest["threat"]["gate"] == "PASS"
+    assert manifest["evaluation"]["evaluator_gate"] == "PASS"
+    assert manifest["compare"]["status"] == "COMPLETE"
     assert manifest["source"]["archive_sha256"] == "d303d719cebaf0238c54b9e27f2a40b4414b26e3189b49cb84fbad4086b3f3d7"
     assert manifest["lineage"]["run_digest"]
     assert manifest["lineage"]["evaluation_digest"]
-    assert manifest["lineage"]["compare_digest"]
+    assert manifest["lineage"]["compare_digest"] is None
+    assert manifest["lineage"]["compare_digest_unavailable_reason"]
     assert manifest_path.stat().st_size < 10_000
 
 
@@ -134,6 +141,7 @@ def test_acceptance_harness_accepts_only_scoped_provenanced_dimension_registry(
                 source_digest="source-a",
                 imo=9000001,
                 measurement_date="2020-01-01",
+                effective_date="2020-01-02",
                 journal_date="2020-01-02",
                 retrieved_at_utc="2026-08-21T00:00:00Z",
                 effective_as_of_t0=True,
@@ -146,6 +154,7 @@ def test_acceptance_harness_accepts_only_scoped_provenanced_dimension_registry(
                 source_digest="source-b",
                 imo=9000002,
                 measurement_date="2020-01-01",
+                effective_date="2020-01-02",
                 journal_date="2020-01-02",
                 retrieved_at_utc="2026-08-21T00:00:00Z",
                 effective_as_of_t0=True,
@@ -165,3 +174,20 @@ def test_acceptance_harness_accepts_only_scoped_provenanced_dimension_registry(
     assert outcome.case_outcome is not None and outcome.case_outcome.case is not None
     assert outcome.case_outcome.case.reference_actor.dimensions_provenance.startswith("explicit:")
     assert outcome.manifest["dimensions"]["registry_digest"] == registry.digest
+
+    for invalid_record in (
+        replace(registry.records[0], effective_as_of_t0=False),
+        replace(registry.records[0], measurement_date="2026-07-02"),
+        replace(registry.records[0], effective_date="2026-07-02"),
+    ):
+        invalid_registry = replace(registry, records=(invalid_record, registry.records[1]))
+        blocked = HistoricalAISAcceptanceHarness().run(
+            HistoricalAISAcceptanceRequest(
+                source=source,
+                window=window,
+                enc_profile=qualified_historical_enc_profile,
+                dimension_registry=invalid_registry,
+            )
+        )
+        assert blocked.status is HistoricalAcceptanceStatus.BLOCKED
+        assert blocked.blocker_codes == ("DIMENSION_PROVENANCE_INVALID",)

@@ -9,11 +9,15 @@ from shapely.geometry import box
 
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
+    HistoricalAISAlgorithmBinding,
     HistoricalAISCaseBuilder,
     HistoricalAISCaseBuildOutcome,
     HistoricalAISCaseBuildRequest,
     HistoricalAISCaseBuildStatus,
+    HistoricalAISCompareBinding,
     HistoricalAISDiscoveryProfile,
+    HistoricalAISEvaluationBinding,
+    HistoricalAISHumanReferenceBinding,
     HistoricalAISNominalIntent,
 )
 from colav_simulator.historical_enc import ENCRegionProfile
@@ -72,6 +76,55 @@ def test_case_builder_returns_typed_no_encounter_outcome(
     assert outcome.case is None
     assert outcome.success is False
     assert outcome.failure_code == HistoricalAISCaseBuildStatus.NO_ENCOUNTER.value
+
+
+def test_case_builder_freezes_typed_benchmark_bindings(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
+    dataset, selection = _buildable_dataset(tmp_path)
+    human = HistoricalAISHumanReferenceBinding(
+        artifact_digest="human-reference-v1",
+        sample_count=12,
+    )
+    algorithm = HistoricalAISAlgorithmBinding(
+        algorithm_id="mid_mpc_ipopt",
+        configuration_digest="algorithm-config-v1",
+    )
+    evaluation = HistoricalAISEvaluationBinding(
+        evaluator_id="colav_evaluation_tool",
+        profile_id="historical-real-window-v1",
+        profile_digest="evaluator-profile-v1",
+    )
+    compare = HistoricalAISCompareBinding(
+        contract_id="historical-benchmark-compare.v1",
+        alignment_profile_digest="alignment-profile-v1",
+    )
+
+    outcome = HistoricalAISCaseBuilder().build(
+        HistoricalAISCaseBuildRequest(
+            dataset=dataset,
+            selection=selection,
+            enc_profile=qualified_historical_enc_profile,
+            reference_mmsi=123456789,
+            discovery_profile=HistoricalAISDiscoveryProfile(
+                max_encounter_range_m=2_000.0,
+                min_closing_speed_mps=0.0,
+            ),
+            require_intent=False,
+            human_reference_binding=human,
+            algorithm_binding=algorithm,
+            evaluation_binding=evaluation,
+            compare_binding=compare,
+        )
+    )
+
+    assert outcome.success is True
+    assert outcome.case is not None
+    assert outcome.case.human_reference_binding is human
+    assert outcome.case.algorithm_binding is algorithm
+    assert outcome.case.evaluation_binding is evaluation
+    assert outcome.case.compare_binding is compare
+    assert outcome.case.to_dict()["human_reference_binding"]["comparison_only"] is True
 
 
 def test_case_builder_discovers_head_on_crossing_overtaking_and_multi_ship(
@@ -495,3 +548,6 @@ def test_case_builder_intent_digest_ignores_post_t0_human_reference_changes(
     assert first.case is not None and second.case is not None
     assert first.case.nominal_intent is not None and second.case.nominal_intent is not None
     assert first.case.nominal_intent.intent_digest == second.case.nominal_intent.intent_digest
+    assert first.case.runtime_digest == second.case.runtime_digest
+    assert first.case.case_digest == second.case.case_digest
+    assert first.case.build_digest != second.case.build_digest
