@@ -633,6 +633,17 @@ def test_mid_mpc_rest_and_websocket_publish_one_typed_authority_projection() -> 
                 "scenario_id": "overtaking",
                 "algorithm_id": "mid_mpc_ipopt",
                 "tracker_id": "god",
+                "domain_profile": {
+                    "profile_id": "web-mid-mpc-domain",
+                    "version": "v1",
+                    "fore_m": 300.0,
+                    "aft_m": 100.0,
+                    "port_m": 120.0,
+                    "starboard_m": 180.0,
+                    "parameter_source": "web-test-fixture",
+                    "assumptions": ["engineering-envelope-only"],
+                    "qualification": "QUALIFIED",
+                },
                 "t_end": 1.0,
             },
         )

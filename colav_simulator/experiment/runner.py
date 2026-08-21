@@ -183,6 +183,17 @@ class ExperimentRunner:
                 spec.algorithm_id,
                 spec.tracker_id,
             )
+        if spec.validation_rule_id and spec.algorithm_id == "mid_mpc_ipopt":
+            if spec.domain_profile is None:
+                raise ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    "formal Mid-MPC run requires an explicitly supplied qualified ShipDomainProfile",
+                )
+            if not spec.domain_profile.qualified:
+                raise ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    "formal Mid-MPC run requires a qualified ShipDomainProfile",
+                )
         if (
             historical_request is None
             and spec.algorithm_id == "nominal"
@@ -306,6 +317,7 @@ class ExperimentRunner:
         try:
             threat_management_coordinator = ThreatManagementCoordinator(
                 lifecycle=EncounterLifecycle(event_sink=writer.append_lifecycle_event),
+                domain_profile=spec.domain_profile,
             )
             algorithm_config = copy.deepcopy(spec.algorithm_config)
             if spec.algorithm_id == "rrt":
@@ -322,6 +334,7 @@ class ExperimentRunner:
                 event_sink=writer.append_lifecycle_event,
                 artifact_sink=artifact_sink,
                 threat_management_coordinator=threat_management_coordinator,
+                domain_profile=spec.domain_profile,
             )
             algorithm = self.registry.build_algorithm(
                 spec.algorithm_id,

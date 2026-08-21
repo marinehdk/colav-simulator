@@ -1,3 +1,4 @@
+import copy
 import math
 from dataclasses import replace
 from types import SimpleNamespace
@@ -25,6 +26,7 @@ from colav_simulator.core.colav.threat_assessment import (
     OwnshipThreatPrediction,
     PredictionBasis,
     ShipDomainProfile,
+    ThreatEvidenceReferences,
     ThreatPrediction,
     ThreatScheduleContext,
     ThreatVector,
@@ -113,6 +115,16 @@ def _vector_for_graph(key: TrackKey) -> ThreatVector:
         uncertainty_radius_m=0.0,
         claim_completeness="FULL",
         prediction_basis=PredictionBasis.EXPLICIT_TRAJECTORY,
+        evidence_references=ThreatEvidenceReferences(
+            track_key=key,
+            track_hash="0" * 64,
+            prediction_key=key,
+            prediction_hash="1" * 64,
+            domain_hash="2" * 64,
+            profile_hash="3" * 64,
+            physical_facts_key=key,
+            physical_facts_hash="4" * 64,
+        ),
     )
 
 
@@ -145,7 +157,30 @@ def test_coordinator_publishes_one_cycle_account_from_shared_physical_facts() ->
     lifecycle_by_key = {decision.key: decision for decision in snapshot.lifecycle_snapshot.targets}
     vector_by_key = {vector.key: vector for vector in snapshot.vectors}
     for decision in lifecycle_by_key.values():
-        assert vector_by_key[decision.key].range_m == decision.geometry.range_m
+        vector = vector_by_key[decision.key]
+        assert vector.range_m == decision.geometry.range_m
+        assert vector.lifecycle_role is decision.role
+        assert vector.lifecycle_risk is decision.risk
+        assert vector.lifecycle_commitment is decision.commitment
+        references = vector.evidence_references
+        assert isinstance(references, ThreatEvidenceReferences)
+        assert references.track_key == decision.key
+        assert references.physical_facts_key == decision.key
+        assert references.track_hash
+        assert references.domain_hash
+        assert references.profile_hash == snapshot.profile_hash
+        assert references.physical_facts_hash
+    serialized = snapshot.to_dict()["vectors"][0]
+    serialized_decision = lifecycle_by_key[snapshot.vectors[0].key]
+    assert serialized["lifecycle_role"] == serialized_decision.role.value
+    assert serialized["lifecycle_risk"] == serialized_decision.risk.value
+    assert serialized["lifecycle_commitment"] == serialized_decision.commitment.value
+    assert serialized["evidence_references"]["track_key"] == {
+        "target_id": snapshot.vectors[0].key.target_id,
+        "generation": snapshot.vectors[0].key.generation,
+    }
+    with pytest.raises(ValueError):
+        replace(snapshot.vectors[0], lifecycle_role="CAPTAIN")
     assert snapshot.provenance["accepted_plan_applied_sequence"] is None
 
 
@@ -195,8 +230,7 @@ def test_accepted_plan_receipt_is_staged_until_next_cycle() -> None:
     target = _target(TrackKey(1, 1), 800.0)
     coordinator = ThreatManagementCoordinator()
     first = _cycle(0, 0.0, (target,))
-    receipt = AcceptedPlanReceipt(
-        receipt_hash="receipt-1",
+    receipt = AcceptedPlanReceipt.issue(
         accepted_sequence=0,
         accepted_at_s=0.0,
         valid_until_s=30.0,
@@ -211,7 +245,7 @@ def test_accepted_plan_receipt_is_staged_until_next_cycle() -> None:
     assert same_cycle.provenance["accepted_plan_applied_sequence"] is None
     assert same_cycle.provenance["accepted_plan_staged_sequence"] == 0
     assert next_cycle.provenance["accepted_plan_applied_sequence"] == 1
-    assert next_cycle.provenance["accepted_plan_receipt_hash"] == "receipt-1"
+    assert next_cycle.provenance["accepted_plan_receipt_hash"] == receipt.receipt_hash
 
 
 def test_schedule_separates_current_concurrent_next_and_monitor_with_typed_unknown() -> None:
@@ -387,7 +421,9 @@ def test_conflict_graph_empty_cycle_is_typed_and_deterministic() -> None:
     assert snapshot.conflict_graph.clusters == ()
     assert snapshot.conflict_graph.to_dict() == snapshot.conflict_graph.to_dict()
     assert snapshot.to_dict()["conflict_graph"]["semantic_hash"] == snapshot.conflict_graph.semantic_hash
-    assert "BASELINE_UNAVAILABLE" in {reason.value for reason in snapshot.conflict_graph.unavailable_reasons}
+    reasons = {reason.value for reason in snapshot.conflict_graph.unavailable_reasons}
+    assert "BASELINE_UNAVAILABLE" in reasons
+    assert "MISSING_ACCEPTED_PLAN_RECEIPT" in reasons
 
 
 @pytest.mark.parametrize("target_count", (0, 1, 16, 17))
@@ -531,8 +567,7 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
         reference_time_s=5.0,
         evidence_semantic_hash="accepted-evidence",
     )
-    receipt = AcceptedPlanReceipt(
-        receipt_hash="accepted-receipt",
+    receipt = AcceptedPlanReceipt.issue(
         accepted_sequence=0,
         accepted_at_s=5.0,
         valid_until_s=30.0,
@@ -562,10 +597,21 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
     plan_edges = [edge for edge in graph.edges if edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT]
     assert len(plan_edges) == 1
     assert plan_edges[0].members == (driver, affected)
-    assert plan_edges[0].plan_receipt_hash == "accepted-receipt"
+    assert plan_edges[0].plan_receipt_hash == receipt.receipt_hash
     assert plan_edges[0].witness.to_dict()["materiality"]["new_domain_violation"] is True
 
-    incomplete_receipt = replace(receipt, domain_profile_hash=None)
+    incomplete_receipt = AcceptedPlanReceipt.issue(
+        accepted_sequence=receipt.accepted_sequence,
+        accepted_at_s=receipt.accepted_at_s,
+        valid_until_s=receipt.valid_until_s,
+        accepted_prediction=accepted_prediction,
+        plan_target=driver,
+        target_keys=(affected,),
+        prediction_hash=accepted_prediction.semantic_hash,
+        acceptance_hash="l4-acceptance",
+        domain_profile_hash=None,
+        evidence_semantic_hash="accepted-evidence",
+    )
     incomplete_graph = ConflictGraphBuilder.build(
         vectors,
         predictions=(target_prediction,),
@@ -590,10 +636,17 @@ def test_accepted_plan_creates_plan_induced_edge_only_with_material_before_after
         reference_time_s=5.0,
         evidence_semantic_hash="accepted-evidence",
     )
-    benign_receipt = replace(
-        receipt,
+    benign_receipt = AcceptedPlanReceipt.issue(
+        accepted_sequence=receipt.accepted_sequence,
+        accepted_at_s=receipt.accepted_at_s,
+        valid_until_s=receipt.valid_until_s,
         accepted_prediction=benign_prediction,
+        plan_target=driver,
+        target_keys=(affected,),
         prediction_hash=benign_prediction.semantic_hash,
+        acceptance_hash="l4-acceptance",
+        domain_profile_hash=_domain_profile().profile_hash,
+        evidence_semantic_hash="accepted-evidence",
     )
     benign_graph = ConflictGraphBuilder.build(
         vectors,
@@ -653,7 +706,7 @@ def test_unaccepted_candidate_and_same_cycle_receipt_cannot_authorize_plan_induc
         "accepted_prediction": accepted_prediction.to_dict(),
         "target_key": [driver.key.target_id, driver.key.generation],
     }
-    with pytest.raises(ValueError, match="unaccepted solver candidate"):
+    with pytest.raises(ValueError, match="unaccepted candidate"):
         AcceptedPlanReceipt.from_mapping(unaccepted_candidate)
     coordinator = ThreatManagementCoordinator()
     first = coordinator.cycle(
@@ -668,8 +721,7 @@ def test_unaccepted_candidate_and_same_cycle_receipt_cannot_authorize_plan_induc
     assert not any(edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT for edge in first.conflict_graph.edges)
     assert "ACCEPTED_PLAN_RECEIPT_INVALID" in {reason.value for reason in first.conflict_graph.unavailable_reasons}
 
-    accepted = AcceptedPlanReceipt(
-        receipt_hash="accepted-receipt",
+    accepted = AcceptedPlanReceipt.issue(
         accepted_sequence=1,
         accepted_at_s=5.0,
         valid_until_s=30.0,
@@ -718,4 +770,74 @@ def test_mismatched_accepted_prediction_digest_is_rejected_before_staging() -> N
             valid_until_s=1.0,
             accepted_prediction=prediction,
             prediction_hash="tampered",
+        )
+
+
+@pytest.mark.parametrize(
+    ("path", "tampered"),
+    (
+        (("receipt_hash",), "not-the-canonical-hash"),
+        (("prediction_hash",), "tampered-prediction-hash"),
+        (("acceptance_hash",), "tampered-acceptance-hash"),
+        (("evidence_semantic_hash",), "tampered-evidence-hash"),
+        (("domain_profile_hash",), "tampered-profile-hash"),
+        (("accepted_at_s",), 1.0),
+        (("valid_until_s",), 6.0),
+        (("plan_target",), [8, 1]),
+        (("target_keys",), []),
+        (("accepted_prediction", "states_enu", 1, 0), 999.0),
+    ),
+)
+def test_tampered_accepted_plan_receipt_is_typed_unavailable(
+    path: tuple[object, ...],
+    tampered: object,
+) -> None:
+    key = TrackKey(9, 1)
+    prediction = OwnshipThreatPrediction(
+        times_s=np.array([0.0, 5.0]),
+        states_enu=np.array([[0.0, 0.0, 4.0, 0.0], [20.0, 0.0, 4.0, 0.0]]),
+        basis="ACCEPTED_PLAN",
+        source="l4-accepted-fixture",
+        target_keys=(key,),
+        reference_time_s=0.0,
+        evidence_semantic_hash="evidence-hash",
+    )
+    receipt = AcceptedPlanReceipt.issue(
+        accepted_sequence=0,
+        accepted_at_s=0.0,
+        valid_until_s=5.0,
+        accepted_prediction=prediction,
+        plan_target=key,
+        target_keys=(key,),
+        prediction_hash=prediction.semantic_hash,
+        acceptance_hash="acceptance-hash",
+        domain_profile_hash=_domain_profile().profile_hash,
+        evidence_semantic_hash="evidence-hash",
+    )
+    assert AcceptedPlanReceipt.from_mapping(receipt.to_dict()).receipt_hash == receipt.receipt_hash
+    document = copy.deepcopy(receipt.to_dict())
+    target: object = document
+    for segment in path[:-1]:
+        target = target[segment]
+    target[path[-1]] = tampered
+
+    snapshot = ThreatManagementCoordinator().cycle(
+        _cycle(0, 0.0, (_target(key, 800.0),)),
+        profile=_domain_profile(),
+        accepted_plan=document,
+    )
+
+    assert ConflictUnavailableReason.ACCEPTED_PLAN_RECEIPT_INVALID in snapshot.conflict_graph.unavailable_reasons
+
+
+def test_unaccepted_candidate_uses_context_vocabulary() -> None:
+    with pytest.raises(ValueError, match="unaccepted candidate"):
+        AcceptedPlanReceipt.from_mapping(
+            {
+                "receipt_hash": "candidate",
+                "sequence": 0,
+                "accepted_at_s": 0.0,
+                "valid_until_s": 1.0,
+                "candidate_hash": "not-accepted",
+            }
         )

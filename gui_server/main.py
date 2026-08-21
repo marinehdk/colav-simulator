@@ -152,6 +152,7 @@ class SessionCreateRequest(BaseModel):
     evaluator_profile_id: str = "ccta_2023_demo-v1"
     algorithm_config: dict[str, Any] = Field(default_factory=dict)
     tracker_config: dict[str, Any] = Field(default_factory=dict)
+    domain_profile: Any | None = None
     scenario_override: dict[str, Any] | None = None
 
     def to_spec(self) -> RunSpec:

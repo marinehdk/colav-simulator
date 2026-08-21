@@ -165,7 +165,7 @@ _Avoid_: Plan-induced conflict
 
 **Plan-Induced Conflict**:
 A conflict that appears or materially worsens only when a trustworthy accepted own-ship plan is compared with an explicit baseline.
-_Avoid_: Unaccepted solver candidate, GUI trajectory, direct encounter
+_Avoid_: Unaccepted candidate trajectory, GUI trajectory, direct encounter
 
 **Conflict Cluster**:
 A deterministic group of targets connected by typed conflict relationships.

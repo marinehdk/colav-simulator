@@ -8,6 +8,7 @@ import os
 import platform
 import sys
 import uuid
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -15,6 +16,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
 
 SCHEMA_VERSION = "1.0"
 
@@ -81,6 +84,7 @@ class RunSpec:
     reproduction_level: ReproductionLevel = ReproductionLevel.FUNCTIONAL
     algorithm_config: dict[str, Any] = field(default_factory=dict)
     tracker_config: dict[str, Any] = field(default_factory=dict)
+    domain_profile: ShipDomainProfile | Mapping[str, Any] | None = None
     scenario_override: dict[str, Any] | None = None
     output_root: str = "runs"
     replay_of_run_id: str | None = None
@@ -115,6 +119,8 @@ class RunSpec:
             raise ValueError("historical_replay must be a serialized replay request mapping")
         if isinstance(self.reproduction_level, str):
             self.reproduction_level = ReproductionLevel(self.reproduction_level)
+        if self.domain_profile is not None and not isinstance(self.domain_profile, ShipDomainProfile):
+            self.domain_profile = _ship_domain_profile_from_mapping(self.domain_profile)
 
     @property
     def seeds(self) -> SeedBundle:
@@ -123,11 +129,34 @@ class RunSpec:
     def to_dict(self) -> dict[str, Any]:
         output = asdict(self)
         output["reproduction_level"] = self.reproduction_level.value
+        if self.domain_profile is not None:
+            output["domain_profile"] = {
+                **self.domain_profile.to_dict(),
+                "profile_hash": self.domain_profile.profile_hash,
+            }
         return output
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> RunSpec:
         return cls(**value)
+
+
+def _ship_domain_profile_from_mapping(value: Mapping[str, Any]) -> ShipDomainProfile:
+    """Decode one versioned profile while preserving its public hash identity."""
+    if not isinstance(value, Mapping):
+        raise ValueError("domain_profile must be a ShipDomainProfile or mapping")
+    payload = dict(value)
+    model = payload.pop("model", "OFF_CENTRED_ELLIPSE")
+    if model != "OFF_CENTRED_ELLIPSE":
+        raise ValueError("ShipDomainProfile model must be OFF_CENTRED_ELLIPSE")
+    declared_hash = payload.pop("profile_hash", None)
+    try:
+        profile = ShipDomainProfile(**payload)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"invalid ShipDomainProfile: {exc}") from exc
+    if declared_hash is not None and str(declared_hash) != profile.profile_hash:
+        raise ValueError("ShipDomainProfile profile_hash does not match profile parameters")
+    return profile
 
 
 @dataclass

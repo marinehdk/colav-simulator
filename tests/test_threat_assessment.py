@@ -22,11 +22,13 @@ from colav_simulator.core.colav.threat_assessment import (
     ThreatAssessment,
     ThreatAssessmentRequest,
     ThreatCompleteness,
+    ThreatEvidenceReferences,
     ThreatPrediction,
     ThreatTargetObservation,
     ThreatUnavailableReason,
     ThreatWindow,
 )
+from colav_simulator.core.colav.threat_windows import domain_window_crossings
 from colav_simulator.core.tracking.trackers import TrackKey
 
 
@@ -122,6 +124,17 @@ def test_validity_and_completeness_are_typed_with_string_compatible_serializatio
         replace(window, completeness="MOSTLY")
 
 
+def test_domain_window_crossings_are_shared_and_interpolated_once() -> None:
+    crossing = domain_window_crossings(
+        np.array([0.0, 10.0, 20.0, 30.0]),
+        np.array([1.5, 0.5, 0.25, 1.5]),
+    )
+
+    assert crossing.entry_time_s == 5.0
+    assert crossing.peak_time_s == 20.0
+    assert crossing.exit_time_s == 26.0
+
+
 def test_current_domain_fact_is_independent_from_hull_clearance_and_missing_prediction_is_typed() -> None:
     target = ThreatTargetObservation(
         key=TrackKey(4, 1),
@@ -193,6 +206,12 @@ def test_prediction_facts_report_domain_entry_minimum_and_exit_without_using_cpa
 
     vector = ThreatAssessment().evaluate(request).vectors[0]
 
+    assert isinstance(vector.evidence_references, ThreatEvidenceReferences)
+    assert vector.evidence_references.track_key == target.key
+    assert vector.evidence_references.prediction_key == prediction.key
+    assert vector.evidence_references.prediction_hash
+    assert vector.evidence_references.domain_hash
+    assert vector.evidence_references.profile_hash == request.profile.profile_hash
     assert vector.prediction_basis is PredictionBasis.EXPLICIT_TRAJECTORY
     assert vector.predicted_domain.state is DomainState.INSIDE
     assert vector.predicted_domain.horizon_min_scale == 0.0

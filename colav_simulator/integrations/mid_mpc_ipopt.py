@@ -612,12 +612,22 @@ class _MidMpcFacade:
             "warm_start_eligible": warm_start_eligible,
             "dual_warm_start": False,
         }
-        receipt_stage = {
-            "schema_version": "colav.mid_mpc.receipt-stage@1",
-            "parent_acceptance_hash": acceptance_hash,
-            "receipt": receipt,
-        }
-        receipt_hash = _document_hash(receipt_stage)
+        issued_receipt = AcceptedPlanReceipt.issue(
+            accepted_sequence=snapshot.sequence,
+            accepted_at_s=planner_input.sim_time_s,
+            valid_until_s=planner_input.sim_time_s + self._config.assembly.decision_period_s,
+            accepted_prediction=accepted_prediction,
+            target_keys=tuple(
+                TrackKey(track.target_id, track.generation or 1)
+                for track in planner_input.tracks
+            ),
+            prediction_hash=accepted_prediction.semantic_hash,
+            acceptance_hash=acceptance_result.acceptance_hash,
+            domain_profile_hash=self._threat_management_coordinator.domain_profile.profile_hash,
+            evidence_semantic_hash=prediction_evidence.semantic_hash,
+        )
+        receipt_hash = issued_receipt.receipt_hash
+        receipt_stage = issued_receipt.canonical_payload
         accepted_plan_receipt = {**receipt, "receipt_hash": receipt_hash}
         n = self._config.assembly.horizon_steps
         next_accepted_primal = (
@@ -1268,9 +1278,15 @@ def create(  # noqa: PLR0913
     if threat_management_coordinator is None:
         threat_management_coordinator = ThreatManagementCoordinator(
             lifecycle=EncounterLifecycle(event_sink=context.event_sink),
+            domain_profile=context.domain_profile,
         )
     if not isinstance(threat_management_coordinator, ThreatManagementCoordinator):
         raise TypeError("FactoryContext.threat_management_coordinator must be ThreatManagementCoordinator")
+    if (
+        context.domain_profile is not None
+        and threat_management_coordinator.domain_profile.profile_hash != context.domain_profile.profile_hash
+    ):
+        raise ValueError("FactoryContext domain_profile does not match ThreatManagementCoordinator profile")
     facade = _MidMpcFacade(
         config,
         threat_management_coordinator=threat_management_coordinator,

@@ -50,6 +50,7 @@ from colav_simulator.core.colav.threat_assessment import (
     ThreatWindow,
     normalized_domain_scale,
 )
+from colav_simulator.core.colav.threat_windows import domain_window_crossings
 from colav_simulator.core.tracking.trackers import TrackKey
 
 
@@ -94,6 +95,54 @@ class AcceptedPlanReceipt:
     evidence_semantic_hash: str | None = None
 
     @classmethod
+    def issue(
+        cls,
+        *,
+        accepted_sequence: int,
+        accepted_at_s: float,
+        valid_until_s: float,
+        plan_id: str = "",
+        accepted_prediction: OwnshipThreatPrediction | None = None,
+        plan_target: TrackKey | None = None,
+        target_keys: tuple[TrackKey, ...] = (),
+        prediction_hash: str | None = None,
+        acceptance_hash: str | None = None,
+        domain_profile_hash: str | None = None,
+        evidence_semantic_hash: str | None = None,
+    ) -> AcceptedPlanReceipt:
+        """Issue a receipt whose identity is derived from its canonical authority payload."""
+        normalized_keys = tuple(sorted(target_keys, key=_track_key_sort))
+        receipt_hash = _sha256_json(
+            _accepted_plan_receipt_payload(
+                accepted_sequence=accepted_sequence,
+                accepted_at_s=accepted_at_s,
+                valid_until_s=valid_until_s,
+                plan_id=plan_id,
+                accepted_prediction=accepted_prediction,
+                plan_target=plan_target,
+                target_keys=normalized_keys,
+                prediction_hash=prediction_hash,
+                acceptance_hash=acceptance_hash,
+                domain_profile_hash=domain_profile_hash,
+                evidence_semantic_hash=evidence_semantic_hash,
+            )
+        )
+        return cls(
+            receipt_hash=receipt_hash,
+            accepted_sequence=accepted_sequence,
+            accepted_at_s=accepted_at_s,
+            valid_until_s=valid_until_s,
+            plan_id=plan_id,
+            accepted_prediction=accepted_prediction,
+            plan_target=plan_target,
+            target_keys=normalized_keys,
+            prediction_hash=prediction_hash,
+            acceptance_hash=acceptance_hash,
+            domain_profile_hash=domain_profile_hash,
+            evidence_semantic_hash=evidence_semantic_hash,
+        )
+
+    @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> AcceptedPlanReceipt:
         """Normalize an L4 receipt mapping without accepting an untyped candidate."""
         if not isinstance(value, Mapping):
@@ -130,7 +179,7 @@ class AcceptedPlanReceipt:
         if "candidate_hash" in value and not (
             value.get("parent_acceptance_hash") or value.get("semantic_acceptance_hash")
         ):
-            raise ValueError("unaccepted solver candidate cannot be used as an Accepted Plan Receipt")
+            raise ValueError("unaccepted candidate cannot be used as an Accepted Plan Receipt")
         return cls(
             receipt_hash=receipt_hash,
             accepted_sequence=int(accepted_sequence),
@@ -146,8 +195,17 @@ class AcceptedPlanReceipt:
                 else (accepted_prediction.prediction_hash if accepted_prediction is not None else None)
             ),
             acceptance_hash=(
-                str(value.get("semantic_acceptance_hash", value.get("parent_acceptance_hash")))
-                if value.get("semantic_acceptance_hash", value.get("parent_acceptance_hash")) is not None
+                str(
+                    value.get(
+                        "acceptance_hash",
+                        value.get("semantic_acceptance_hash", value.get("parent_acceptance_hash")),
+                    )
+                )
+                if value.get(
+                    "acceptance_hash",
+                    value.get("semantic_acceptance_hash", value.get("parent_acceptance_hash")),
+                )
+                is not None
                 else None
             ),
             domain_profile_hash=(
@@ -210,6 +268,32 @@ class AcceptedPlanReceipt:
             )
         ):
             raise ValueError("accepted plan artifact reference time does not match receipt")
+        if self.receipt_hash != self.canonical_hash:
+            raise ValueError("accepted plan receipt hash does not match canonical authority payload")
+
+    @property
+    def canonical_payload(self) -> dict[str, object]:
+        """Return the normalized, versioned payload protected by receipt_hash."""
+        return _accepted_plan_receipt_payload(
+            accepted_sequence=self.accepted_sequence,
+            accepted_at_s=self.accepted_at_s,
+            valid_until_s=self.valid_until_s,
+            plan_id=self.plan_id,
+            accepted_prediction=self.accepted_prediction,
+            plan_target=self.plan_target,
+            target_keys=self.target_keys,
+            prediction_hash=self.prediction_hash,
+            acceptance_hash=self.acceptance_hash,
+            domain_profile_hash=self.domain_profile_hash,
+            evidence_semantic_hash=self.evidence_semantic_hash,
+        )
+
+    @property
+    def canonical_hash(self) -> str:
+        return _sha256_json(self.canonical_payload)
+
+    def to_dict(self) -> dict[str, object]:
+        return {**self.canonical_payload, "receipt_hash": self.receipt_hash}
 
 
 class ThreatManagementCoordinator:
@@ -458,7 +542,7 @@ class ConflictGraphBuilder:
         if baseline_prediction is None:
             plan_reasons.append(ConflictUnavailableReason.BASELINE_UNAVAILABLE)
         if accepted_plan is None:
-            plan_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_UNAVAILABLE)
+            plan_reasons.append(ConflictUnavailableReason.MISSING_ACCEPTED_PLAN_RECEIPT)
         elif accepted_plan.accepted_prediction is None:
             plan_reasons.append(ConflictUnavailableReason.ACCEPTED_PLAN_PREDICTION_UNAVAILABLE)
         elif accepted_plan.valid_until_s + 1.0e-9 < sim_time_s:
@@ -756,14 +840,13 @@ def _ownship_domain_trace(
             )
         )
     scale_array = np.asarray(scales, dtype=float)
-    entry = _first_scale_entry(query, scale_array)
-    exit_time = _first_scale_exit(query, scale_array, entry)
+    crossing = domain_window_crossings(query, scale_array)
     return {
         "times_s": query.tolist(),
         "scales": scale_array.tolist(),
         "min_scale": float(np.min(scale_array)),
-        "tdv_s": entry,
-        "tde_s": exit_time,
+        "tdv_s": crossing.entry_time_s,
+        "tde_s": crossing.exit_time_s,
         "domain_violation": bool(np.any(scale_array < 1.0 - 1.0e-9)),
     }
 
@@ -784,42 +867,6 @@ def _prediction_at_times(prediction: ThreatPrediction, times: object) -> ThreatP
         basis=prediction.basis,
         model=prediction.model,
     )
-
-
-def _first_scale_entry(times: np.ndarray, scales: np.ndarray) -> float | None:
-    if scales[0] < 1.0 - 1.0e-9:
-        return float(times[0])
-    for index in range(1, scales.size):
-        if scales[index] < 1.0 - 1.0e-9:
-            return _linear_crossing(
-                float(times[index - 1]),
-                float(times[index]),
-                float(scales[index - 1]),
-                float(scales[index]),
-            )
-    return None
-
-
-def _first_scale_exit(times: np.ndarray, scales: np.ndarray, entry: float | None) -> float | None:
-    if entry is None:
-        return None
-    start = max(1, int(np.searchsorted(times, entry, side="left")))
-    for index in range(start, scales.size):
-        if scales[index] > 1.0 + 1.0e-9:
-            return _linear_crossing(
-                float(times[index - 1]),
-                float(times[index]),
-                float(scales[index - 1]),
-                float(scales[index]),
-            )
-    return None
-
-
-def _linear_crossing(t0: float, t1: float, scale0: float, scale1: float) -> float:
-    if math.isclose(scale0, scale1, abs_tol=1.0e-12):
-        return t1
-    fraction = (1.0 - scale0) / (scale1 - scale0)
-    return t0 + min(max(fraction, 0.0), 1.0) * (t1 - t0)
 
 
 def _material_plan_worsening(
@@ -906,9 +953,9 @@ def _attach_lifecycle_and_priority(
                 priority_reason=reason,
                 priority_key=priority_key,
                 window=window,
-                lifecycle_role=decision.role.value if decision is not None else None,
-                lifecycle_risk=decision.risk.value if decision is not None else None,
-                lifecycle_commitment=decision.commitment.value if decision is not None else None,
+                lifecycle_role=decision.role if decision is not None else None,
+                lifecycle_risk=decision.risk if decision is not None else None,
+                lifecycle_commitment=decision.commitment if decision is not None else None,
             )
         )
     return tuple(result)
@@ -1187,6 +1234,38 @@ def _facts_hash(facts: tuple[PhysicalEncounterFacts, ...]) -> str:
         for fact in facts
     ]
     return hashlib.sha256(json.dumps(payload, sort_keys=True, allow_nan=False, separators=(",", ":")).encode()).hexdigest()
+
+
+def _accepted_plan_receipt_payload(
+    *,
+    accepted_sequence: int,
+    accepted_at_s: float,
+    valid_until_s: float,
+    plan_id: str,
+    accepted_prediction: OwnshipThreatPrediction | None,
+    plan_target: TrackKey | None,
+    target_keys: tuple[TrackKey, ...],
+    prediction_hash: str | None,
+    acceptance_hash: str | None,
+    domain_profile_hash: str | None,
+    evidence_semantic_hash: str | None,
+) -> dict[str, object]:
+    return {
+        "schema_version": "colav.accepted-plan-receipt@1",
+        "accepted_sequence": accepted_sequence,
+        "accepted_at_s": accepted_at_s,
+        "valid_until_s": valid_until_s,
+        "plan_id": plan_id,
+        "accepted_prediction": (
+            None if accepted_prediction is None else accepted_prediction.to_dict()
+        ),
+        "plan_target": None if plan_target is None else _key_document(plan_target),
+        "target_keys": [_key_document(key) for key in sorted(target_keys, key=_track_key_sort)],
+        "prediction_hash": prediction_hash,
+        "acceptance_hash": acceptance_hash,
+        "domain_profile_hash": domain_profile_hash,
+        "evidence_semantic_hash": evidence_semantic_hash,
+    }
 
 
 def _track_key_from_value(value: Any) -> TrackKey:

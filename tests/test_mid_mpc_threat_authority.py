@@ -166,8 +166,7 @@ def test_mid_mpc_runtime_publishes_plan_induced_conflict_from_next_cycle_receipt
         evidence_semantic_hash="runtime-accepted-evidence",
     )
     coordinator.publish_accepted_plan(
-        AcceptedPlanReceipt(
-            receipt_hash="accepted-plan-conflict",
+        AcceptedPlanReceipt.issue(
             accepted_sequence=0,
             accepted_at_s=0.0,
             valid_until_s=30.0,

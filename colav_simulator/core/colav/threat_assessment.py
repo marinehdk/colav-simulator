@@ -14,10 +14,14 @@ import numpy as np
 
 from colav_simulator.common.string_enum import StringEnum
 from colav_simulator.core.colav.encounter_lifecycle import (
+    CommitmentPhase,
     ObservationHealth,
     OwnshipObservation,
+    OwnshipRole,
     PhysicalFactValidity,
+    RiskPhase,
 )
+from colav_simulator.core.colav.threat_windows import domain_window_crossings
 from colav_simulator.core.tracking.trackers import TrackKey
 
 THREAT_SCHEMA_VERSION = "colav.threat-management.snapshot@1"
@@ -287,7 +291,7 @@ class ConflictUnavailableReason(StringEnum):
     """Typed reasons why optional plan-induced evidence is unavailable."""
 
     BASELINE_UNAVAILABLE = "BASELINE_UNAVAILABLE"
-    ACCEPTED_PLAN_UNAVAILABLE = "ACCEPTED_PLAN_UNAVAILABLE"
+    MISSING_ACCEPTED_PLAN_RECEIPT = "MISSING_ACCEPTED_PLAN_RECEIPT"
     ACCEPTED_PLAN_PREDICTION_UNAVAILABLE = "ACCEPTED_PLAN_PREDICTION_UNAVAILABLE"
     ACCEPTED_PLAN_RECEIPT_INVALID = "ACCEPTED_PLAN_RECEIPT_INVALID"
     ACCEPTED_PLAN_EXPIRED = "ACCEPTED_PLAN_EXPIRED"
@@ -711,6 +715,51 @@ class DomainFacts:
 
 
 @dataclass(frozen=True)
+class ThreatEvidenceReferences:
+    """Typed semantic identities for evidence consumed by one ThreatVector."""
+
+    track_key: TrackKey
+    track_hash: str
+    prediction_key: TrackKey | None
+    prediction_hash: str | None
+    domain_hash: str
+    profile_hash: str
+    physical_facts_key: TrackKey | None
+    physical_facts_hash: str | None
+
+    def __post_init__(self) -> None:
+        """Reject incomplete key/hash pairs and non-canonical digests."""
+        if not isinstance(self.track_key, TrackKey):
+            raise TypeError("track evidence key must be TrackKey")
+        for key, name in (
+            (self.prediction_key, "prediction"),
+            (self.physical_facts_key, "physical facts"),
+        ):
+            if key is not None and not isinstance(key, TrackKey):
+                raise TypeError(f"{name} evidence key must be TrackKey")
+        if (self.prediction_key is None) != (self.prediction_hash is None):
+            raise ValueError("prediction evidence key and hash must have matching availability")
+        if (self.physical_facts_key is None) != (self.physical_facts_hash is None):
+            raise ValueError("physical facts evidence key and hash must have matching availability")
+        if self.prediction_key is not None and self.prediction_key != self.track_key:
+            raise ValueError("prediction evidence key must match track evidence key")
+        if self.physical_facts_key is not None and self.physical_facts_key != self.track_key:
+            raise ValueError("physical facts evidence key must match track evidence key")
+        for value, name in (
+            (self.track_hash, "track_hash"),
+            (self.prediction_hash, "prediction_hash"),
+            (self.domain_hash, "domain_hash"),
+            (self.profile_hash, "profile_hash"),
+            (self.physical_facts_hash, "physical_facts_hash"),
+        ):
+            if value is not None and (
+                len(value) != 64
+                or any(character not in "0123456789abcdef" for character in value)
+            ):
+                raise ValueError(f"{name} must be a canonical SHA-256 digest")
+
+
+@dataclass(frozen=True)
 class ThreatVector:
     """Canonical independent threat facts for one TrackKey target."""
 
@@ -727,14 +776,15 @@ class ThreatVector:
     uncertainty_radius_m: float | None
     claim_completeness: ThreatCompleteness | str
     prediction_basis: PredictionBasis
+    evidence_references: ThreatEvidenceReferences
     unavailable_reasons: tuple[ThreatUnavailableReason | str, ...] = ()
     priority_class: ThreatPriorityClass | str = ThreatPriorityClass.MONITOR
     priority_reason: str = ""
     priority_key: tuple[float, ...] = ()
     window: ThreatWindow | None = None
-    lifecycle_role: str | None = None
-    lifecycle_risk: str | None = None
-    lifecycle_commitment: str | None = None
+    lifecycle_role: OwnshipRole | str | None = None
+    lifecycle_risk: RiskPhase | str | None = None
+    lifecycle_commitment: CommitmentPhase | str | None = None
 
     def __post_init__(self) -> None:
         """Validate immutable physical and domain fact boundaries."""
@@ -756,6 +806,14 @@ class ThreatVector:
         object.__setattr__(self, "observation_health", ObservationHealth(self.observation_health))
         object.__setattr__(self, "prediction_basis", PredictionBasis(self.prediction_basis))
         object.__setattr__(self, "priority_class", ThreatPriorityClass(self.priority_class))
+        if not isinstance(self.evidence_references, ThreatEvidenceReferences):
+            raise TypeError("evidence_references must be ThreatEvidenceReferences")
+        if self.lifecycle_role is not None:
+            object.__setattr__(self, "lifecycle_role", OwnshipRole(self.lifecycle_role))
+        if self.lifecycle_risk is not None:
+            object.__setattr__(self, "lifecycle_risk", RiskPhase(self.lifecycle_risk))
+        if self.lifecycle_commitment is not None:
+            object.__setattr__(self, "lifecycle_commitment", CommitmentPhase(self.lifecycle_commitment))
         if not isinstance(self.priority_reason, str):
             raise TypeError("priority reason must be a string")
         object.__setattr__(self, "priority_key", tuple(float(value) for value in self.priority_key))
@@ -1197,6 +1255,21 @@ def _assess_target(  # noqa: PLR0912, PLR0915 - explicit typed evidence branches
         completeness = ThreatCompleteness.DEGRADED
     if unavailable and completeness is ThreatCompleteness.FULL:
         completeness = ThreatCompleteness.PARTIAL
+    physical_key = getattr(physical_fact, "key", None)
+    evidence_references = ThreatEvidenceReferences(
+        track_key=target.key,
+        track_hash=_sha256(target),
+        prediction_key=None if prediction is None else prediction.key,
+        prediction_hash=None if prediction is None else _sha256(prediction),
+        domain_hash=_sha256({"current": current_domain, "predicted": predicted_domain}),
+        profile_hash=profile.profile_hash,
+        physical_facts_key=physical_key,
+        physical_facts_hash=(
+            None
+            if physical_fact is None
+            else _sha256(_physical_facts_reference_document(physical_fact))
+        ),
+    )
     return ThreatVector(
         key=target.key,
         observation_health=target.health,
@@ -1211,8 +1284,31 @@ def _assess_target(  # noqa: PLR0912, PLR0915 - explicit typed evidence branches
         uncertainty_radius_m=uncertainty_radius_m,
         claim_completeness=completeness,
         prediction_basis=prediction.basis if prediction is not None else PredictionBasis.UNAVAILABLE,
+        evidence_references=evidence_references,
         unavailable_reasons=tuple(unavailable),
     )
+
+
+def _physical_facts_reference_document(fact: Any) -> dict[str, object]:
+    geometry = fact.geometry
+    return {
+        "key": fact.key,
+        "relative_position_ne_m": fact.relative_position_ne_m,
+        "relative_velocity_ne_mps": fact.relative_velocity_ne_mps,
+        "geometry": {
+            "range_m": geometry.range_m,
+            "dcpa_m": geometry.dcpa_m,
+            "signed_tcpa_s": geometry.signed_tcpa_s if math.isfinite(geometry.signed_tcpa_s) else None,
+            "relative_bearing_rad": geometry.relative_bearing_rad,
+            "contact_bearing_rad": geometry.contact_bearing_rad,
+            "course_difference_rad": geometry.course_difference_rad,
+        },
+        "observation_health": fact.observation_health,
+        "age_s": fact.age_s,
+        "hull_clearance_m": fact.hull_clearance_m,
+        "validity": fact.validity,
+        "unavailable_reason": fact.unavailable_reason,
+    }
 
 
 def _uncertainty_radius(target: ThreatTargetObservation, profile: ShipDomainProfile) -> float | None:
@@ -1318,7 +1414,7 @@ def _predicted_domain_facts(
         dtype=float,
     )
     minimum = float(np.min(scales))
-    peak_time_s = float(prediction.times_s[int(np.argmin(scales))])
+    crossing = domain_window_crossings(prediction.times_s, scales)
     inside = np.flatnonzero(scales < 1.0 - 1.0e-9)
     tangent = np.flatnonzero(np.isclose(scales, 1.0, rtol=0.0, atol=1.0e-9))
     if inside.size:
@@ -1327,52 +1423,15 @@ def _predicted_domain_facts(
         state = DomainState.TANGENT
     else:
         state = DomainState.NO_INTERSECTION
-    tdv_s = _first_domain_entry(prediction.times_s, scales)
-    tde_s = _first_domain_exit(prediction.times_s, scales, tdv_s, bool(inside.size))
     return DomainFacts(
         state=state,
         normalized_scale=minimum,
         uncertainty_radius_m=uncertainty_radius_m,
-        tdv_s=tdv_s,
-        tde_s=tde_s,
-        peak_time_s=peak_time_s,
+        tdv_s=crossing.entry_time_s,
+        tde_s=crossing.exit_time_s,
+        peak_time_s=crossing.peak_time_s,
         horizon_min_scale=minimum,
     )
-
-
-def _first_domain_entry(times: np.ndarray, scales: np.ndarray) -> float | None:
-    if scales[0] < 1.0 - 1.0e-9:
-        return float(times[0])
-    for index in range(1, scales.size):
-        previous = float(scales[index - 1])
-        current = float(scales[index])
-        if current < 1.0 - 1.0e-9:
-            return _crossing_time(times[index - 1], times[index], previous, current)
-    return None
-
-
-def _first_domain_exit(
-    times: np.ndarray,
-    scales: np.ndarray,
-    entry_time_s: float | None,
-    entered: bool,
-) -> float | None:
-    if not entered or entry_time_s is None:
-        return None
-    entry_index = max(0, int(np.searchsorted(times, entry_time_s, side="left")) - 1)
-    for index in range(max(1, entry_index + 1), scales.size):
-        previous = float(scales[index - 1])
-        current = float(scales[index])
-        if current > 1.0 + 1.0e-9:
-            return _crossing_time(times[index - 1], times[index], previous, current)
-    return None
-
-
-def _crossing_time(t0: float, t1: float, scale0: float, scale1: float) -> float:
-    if math.isclose(scale1, scale0, rel_tol=0.0, abs_tol=1.0e-12):
-        return float(t1)
-    fraction = (1.0 - scale0) / (scale1 - scale0)
-    return float(t0 + min(max(fraction, 0.0), 1.0) * (t1 - t0))
 
 
 def _normalized_domain_scale(
