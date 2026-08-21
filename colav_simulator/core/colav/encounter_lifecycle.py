@@ -203,6 +203,8 @@ class EncounterCycle:
     route_bearing_rad: float
     planned_speed_mps: float
     profile: PlannerOddProfile
+    physical_facts: tuple[PhysicalEncounterFacts, ...] = ()
+    primary_priority_facts: tuple[PrimaryPriorityFact, ...] = ()
 
     def __post_init__(self) -> None:
         """Validate one immutable lifecycle input cycle."""
@@ -213,9 +215,21 @@ class EncounterCycle:
         if not math.isfinite(self.route_bearing_rad) or not math.isfinite(self.planned_speed_mps):
             raise ValueError("route reference must be finite")
         object.__setattr__(self, "targets", tuple(self.targets))
+        object.__setattr__(self, "physical_facts", tuple(self.physical_facts))
+        object.__setattr__(self, "primary_priority_facts", tuple(self.primary_priority_facts))
         keys = [target.key for target in self.targets]
         if len(keys) != len(set(keys)):
             raise ValueError("target keys must be unique")
+        fact_keys = [fact.key for fact in self.physical_facts]
+        if len(fact_keys) != len(set(fact_keys)):
+            raise ValueError("physical fact keys must be unique")
+        if self.physical_facts and set(fact_keys) != set(keys):
+            raise ValueError("physical facts must cover every target")
+        priority_keys = [fact.key for fact in self.primary_priority_facts]
+        if len(priority_keys) != len(set(priority_keys)):
+            raise ValueError("primary priority fact keys must be unique")
+        if any(key not in keys for key in priority_keys):
+            raise ValueError("primary priority facts must reference a target")
 
     @property
     def input_hash(self) -> str:
@@ -249,6 +263,46 @@ class EncounterCycle:
                 "route_bearing_rad": self.route_bearing_rad,
                 "planned_speed_mps": self.planned_speed_mps,
                 "profile": asdict(self.profile),
+                "physical_facts": [
+                    {
+                        "key": asdict(fact.key),
+                        "relative_position_ne_m": fact.relative_position_ne_m.tolist(),
+                        "relative_velocity_ne_mps": fact.relative_velocity_ne_mps.tolist(),
+                        "geometry": {
+                            "range_m": fact.geometry.range_m,
+                            "dcpa_m": fact.geometry.dcpa_m,
+                            "signed_tcpa_s": (
+                                fact.geometry.signed_tcpa_s
+                                if math.isfinite(fact.geometry.signed_tcpa_s)
+                                else None
+                            ),
+                            "relative_bearing_rad": fact.geometry.relative_bearing_rad,
+                            "contact_bearing_rad": fact.geometry.contact_bearing_rad,
+                            "course_difference_rad": fact.geometry.course_difference_rad,
+                        },
+                        "observation_health": fact.observation_health.value,
+                        "age_s": fact.age_s,
+                        "hull_clearance_m": fact.hull_clearance_m,
+                        "validity": fact.validity,
+                        "unavailable_reason": fact.unavailable_reason,
+                    }
+                    for fact in sorted(self.physical_facts, key=lambda value: _track_key_sort(value.key))
+                ],
+                "primary_priority_facts": [
+                    {
+                        "key": asdict(fact.key),
+                        "hard_emergency": fact.hard_emergency,
+                        "current_domain_violation": fact.current_domain_violation,
+                        "predicted_domain_violation": fact.predicted_domain_violation,
+                        "future_severity": fact.future_severity,
+                        "completeness": fact.completeness,
+                        "reason": fact.reason,
+                    }
+                    for fact in sorted(
+                        self.primary_priority_facts,
+                        key=lambda value: _track_key_sort(value.key),
+                    )
+                ],
             }
         )
 
@@ -277,6 +331,29 @@ class TargetDecision:
     action_start_deadline_s: float | None
     action_achievement_deadline_s: float | None
     actual_course_change_rad: float | None
+
+
+@dataclass(frozen=True)
+class PrimaryPriorityFact:
+    """Planner-neutral ranking evidence supplied by Threat Assessment."""
+
+    key: TrackKey
+    hard_emergency: bool = False
+    current_domain_violation: bool | None = None
+    predicted_domain_violation: bool | None = None
+    future_severity: int | float | None = None
+    completeness: int | float | None = None
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        """Validate one immutable ranking fact without owning lifecycle state."""
+        if not isinstance(self.key, TrackKey):
+            raise TypeError("primary priority key must be TrackKey")
+        for value, name in ((self.future_severity, "future_severity"), (self.completeness, "completeness")):
+            if value is not None and (not math.isfinite(float(value)) or float(value) < 0.0):
+                raise ValueError(f"{name} must be finite and non-negative")
+        if not isinstance(self.reason, str):
+            raise TypeError("primary priority reason must be a string")
 
 
 @dataclass(frozen=True)
@@ -313,6 +390,11 @@ class DecisionSnapshot:
     primary_target: TrackKey | None = None
     events: tuple[LifecycleEvent, ...] = ()
     evidence_persisted: bool = True
+    primary_challenger: TrackKey | None = None
+    primary_candidate_since_s: float | None = None
+    primary_switch_remaining_s: float | None = None
+    primary_switch_reason: str | None = None
+    primary_preempted: bool = False
 
 
 @dataclass
@@ -358,6 +440,9 @@ class _LifecycleState:
     primary_target: TrackKey | None = None
     primary_candidate: TrackKey | None = None
     primary_candidate_since_s: float | None = None
+    primary_candidates: dict[tuple[TrackKey, TrackKey], float] | None = None
+    primary_switch_reason: str | None = None
+    primary_preempted: bool = False
 
 
 class EncounterLifecycle:
@@ -435,13 +520,30 @@ class EncounterLifecycle:
             raise LifecycleError(LifecycleFailure.TIME_GAP, "lifecycle cycle gap exceeds profile")
 
         target_states = deepcopy(current.targets) if current.epoch == cycle.epoch and current.targets else {}
-        decisions = tuple(self._advance_target(cycle, target, target_states) for target in cycle.targets)
-        primary_target, primary_candidate, primary_candidate_since_s = _advance_primary(
+        physical_facts = {
+            fact.key: fact
+            for fact in (cycle.physical_facts or canonical_physical_facts(cycle))
+        }
+        priority_facts = {fact.key: fact for fact in cycle.primary_priority_facts}
+        decisions = tuple(
+            self._advance_target(cycle, target, target_states, physical_facts.get(target.key))
+            for target in cycle.targets
+        )
+        (
+            primary_target,
+            primary_candidate,
+            primary_candidate_since_s,
+            primary_candidates,
+            primary_switch_reason,
+            primary_preempted,
+        ) = _advance_primary(
             cycle,
             decisions,
             current.primary_target if current.epoch == cycle.epoch else None,
             current.primary_candidate if current.epoch == cycle.epoch else None,
             current.primary_candidate_since_s if current.epoch == cycle.epoch else None,
+            deepcopy(current.primary_candidates) if current.epoch == cycle.epoch and current.primary_candidates else {},
+            priority_facts,
         )
         directive = _aggregate(cycle, decisions)
         events = self._transition_events(cycle, decisions, current.result)
@@ -457,6 +559,19 @@ class EncounterLifecycle:
             primary_target=primary_target,
             events=events,
             evidence_persisted=evidence_persisted,
+            primary_challenger=primary_candidate,
+            primary_candidate_since_s=primary_candidate_since_s,
+            primary_switch_remaining_s=(
+                None
+                if primary_candidate_since_s is None
+                else max(
+                    0.0,
+                    cycle.profile.primary_switch_confirmation_s
+                    - (cycle.sim_time_s - primary_candidate_since_s),
+                )
+            ),
+            primary_switch_reason=primary_switch_reason,
+            primary_preempted=primary_preempted,
         )
         self._state = _LifecycleState(
             epoch=cycle.epoch,
@@ -468,8 +583,15 @@ class EncounterLifecycle:
             primary_target=primary_target,
             primary_candidate=primary_candidate,
             primary_candidate_since_s=primary_candidate_since_s,
+            primary_candidates=primary_candidates,
+            primary_switch_reason=primary_switch_reason,
+            primary_preempted=primary_preempted,
         )
         return result
+
+    def cycle(self, cycle: EncounterCycle) -> DecisionSnapshot:
+        """Public cycle alias retained for coordinator seam vocabulary."""
+        return self.step(cycle)
 
     def _transition_events(
         self,
@@ -518,6 +640,7 @@ class EncounterLifecycle:
         cycle: EncounterCycle,
         target: TargetObservation,
         states: dict[TrackKey, _TargetState],
+        physical_fact: PhysicalEncounterFacts | None = None,
     ) -> TargetDecision:
         if target.health is ObservationHealth.UNUSABLE or target.age_s > cycle.profile.usable_age_s:
             raise LifecycleError(
@@ -526,11 +649,15 @@ class EncounterLifecycle:
             )
         state = states.setdefault(target.key, _TargetState())
         effective_health = _advance_observation_health(state, cycle, target)
-        geometry = pairwise_geometry(
-            cycle.ownship.position_ne_m,
-            cycle.ownship.velocity_ne_mps,
-            target.state_enu[:2],
-            target.state_enu[2:4],
+        geometry = (
+            physical_fact.geometry
+            if physical_fact is not None
+            else pairwise_geometry(
+                cycle.ownship.position_ne_m,
+                cycle.ownship.velocity_ne_mps,
+                target.state_enu[:2],
+                target.state_enu[2:4],
+            )
         )
         encounter, role = _classify(cycle, target, geometry)
         if (
@@ -605,6 +732,84 @@ class PairwiseGeometry:
     relative_bearing_rad: float
     contact_bearing_rad: float
     course_difference_rad: float
+
+
+@dataclass(frozen=True)
+class PhysicalEncounterFacts:
+    """Canonical online physical facts shared by Lifecycle and Threat Assessment."""
+
+    key: TrackKey
+    relative_position_ne_m: np.ndarray
+    relative_velocity_ne_mps: np.ndarray
+    geometry: PairwiseGeometry
+    observation_health: ObservationHealth
+    age_s: float
+    hull_clearance_m: float | None
+    validity: str = "VALID"
+    unavailable_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        """Freeze geometry inputs and retain unavailable facts explicitly."""
+        if not isinstance(self.key, TrackKey):
+            raise TypeError("physical fact key must be TrackKey")
+        object.__setattr__(
+            self,
+            "relative_position_ne_m",
+            _readonly(self.relative_position_ne_m, (2,), "relative position"),
+        )
+        object.__setattr__(
+            self,
+            "relative_velocity_ne_mps",
+            _readonly(self.relative_velocity_ne_mps, (2,), "relative velocity"),
+        )
+        if not isinstance(self.geometry, PairwiseGeometry):
+            raise TypeError("physical fact geometry must be PairwiseGeometry")
+        if not math.isfinite(self.age_s) or self.age_s < 0.0:
+            raise ValueError("physical fact age must be finite and non-negative")
+        if self.hull_clearance_m is not None and not math.isfinite(self.hull_clearance_m):
+            raise ValueError("physical fact hull clearance must be finite")
+        if not self.validity.strip():
+            raise ValueError("physical fact validity is required")
+        object.__setattr__(self, "observation_health", ObservationHealth(self.observation_health))
+
+
+def canonical_physical_facts(cycle: EncounterCycle) -> tuple[PhysicalEncounterFacts, ...]:
+    """Build one deterministic physical-facts set for a cycle."""
+    own_radius = 0.5 * math.hypot(cycle.ownship.length_m, cycle.ownship.width_m)
+    facts = []
+    for target in sorted(cycle.targets, key=lambda value: _track_key_sort(value.key)):
+        relative_position = target.state_enu[:2] - cycle.ownship.position_ne_m
+        relative_velocity = target.state_enu[2:4] - cycle.ownship.velocity_ne_mps
+        geometry = pairwise_geometry(
+            cycle.ownship.position_ne_m,
+            cycle.ownship.velocity_ne_mps,
+            target.state_enu[:2],
+            target.state_enu[2:4],
+        )
+        target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
+        hull_clearance = geometry.dcpa_m - own_radius - target_radius
+        validity = "VALID"
+        unavailable_reason = None
+        if target.health is ObservationHealth.UNUSABLE:
+            validity = "UNAVAILABLE"
+            unavailable_reason = "OBSERVATION_UNUSABLE"
+        elif target.age_s > cycle.profile.usable_age_s:
+            validity = "UNAVAILABLE"
+            unavailable_reason = "OBSERVATION_STALE"
+        facts.append(
+            PhysicalEncounterFacts(
+                key=target.key,
+                relative_position_ne_m=relative_position,
+                relative_velocity_ne_mps=relative_velocity,
+                geometry=geometry,
+                observation_health=target.health,
+                age_s=target.age_s,
+                hull_clearance_m=hull_clearance,
+                validity=validity,
+                unavailable_reason=unavailable_reason,
+            )
+        )
+    return tuple(facts)
 
 
 def pairwise_geometry(
@@ -1117,23 +1322,57 @@ def _advance_primary(
     current: TrackKey | None,
     candidate: TrackKey | None,
     candidate_since_s: float | None,
-) -> tuple[TrackKey | None, TrackKey | None, float | None]:
-    eligible = tuple(decision for decision in decisions if _primary_rank(decision) > 0)
+    primary_candidates: dict[tuple[TrackKey, TrackKey], float],
+    priority_facts: dict[TrackKey, PrimaryPriorityFact],
+) -> tuple[
+    TrackKey | None,
+    TrackKey | None,
+    float | None,
+    dict[tuple[TrackKey, TrackKey], float],
+    str,
+    bool,
+]:
+    if current is not None and candidate is not None and candidate_since_s is not None:
+        primary_candidates.setdefault((current, candidate), candidate_since_s)
+    eligible = tuple(
+        decision
+        for decision in decisions
+        if _primary_rank(decision) > 0 or _priority_is_eligible(priority_facts.get(decision.key))
+    )
     if not eligible:
-        return None, None, None
-    best = min(eligible, key=_primary_sort_key)
+        return None, None, None, {}, "PRIMARY_RELEASED" if current is not None else "NO_PRIMARY", False
+    best = min(
+        eligible,
+        key=lambda decision: _primary_sort_key(decision, priority_facts.get(decision.key)),
+    )
     by_key = {decision.key: decision for decision in eligible}
     if current not in by_key:
-        return best.key, None, None
+        return best.key, None, None, {}, "PRIMARY_ACQUIRED", False
     if best.key == current:
-        return current, None, None
+        return current, None, None, {}, "PRIMARY_STABLE", False
+    for pair in tuple(primary_candidates):
+        if pair[0] == current and pair[1] != best.key:
+            primary_candidates.pop(pair, None)
+    best_fact = priority_facts.get(best.key)
+    if best_fact is not None and best_fact.hard_emergency:
+        reason = (
+            "PREEMPT_CURRENT_DOMAIN_EMERGENCY"
+            if best_fact.current_domain_violation
+            else "PREEMPT_RESPONSE_TIME_EMERGENCY"
+        )
+        return best.key, None, None, {}, reason, True
     if best.rule17 is Rule17Stage.MUST_ACT and by_key[current].rule17 is not Rule17Stage.MUST_ACT:
-        return best.key, None, None
-    if candidate != best.key:
-        return current, best.key, cycle.sim_time_s
-    if candidate_since_s is None or cycle.sim_time_s - candidate_since_s < cycle.profile.primary_switch_confirmation_s:
-        return current, candidate, candidate_since_s
-    return best.key, None, None
+        return best.key, None, None, {}, "PREEMPT_RULE17_MUST_ACT", True
+
+    pair = (current, best.key)
+    started_at = primary_candidates.get(pair)
+    if candidate != best.key or started_at is None:
+        primary_candidates[pair] = cycle.sim_time_s
+        return current, best.key, cycle.sim_time_s, primary_candidates, "PRIMARY_CHALLENGER", False
+    if cycle.sim_time_s - started_at < cycle.profile.primary_switch_confirmation_s:
+        return current, best.key, started_at, primary_candidates, "HYSTERESIS_PENDING", False
+    primary_candidates.pop(pair, None)
+    return best.key, None, None, primary_candidates, "PRIMARY_SWITCH_CONFIRMED", False
 
 
 def _primary_rank(decision: TargetDecision) -> int:
@@ -1152,10 +1391,44 @@ def _primary_rank(decision: TargetDecision) -> int:
     return 0
 
 
-def _primary_sort_key(decision: TargetDecision) -> tuple[float, ...]:
+def _priority_is_eligible(fact: PrimaryPriorityFact | None) -> bool:
+    if fact is None:
+        return False
+    return bool(
+        fact.hard_emergency
+        or fact.current_domain_violation is True
+        or fact.predicted_domain_violation is True
+        or (fact.future_severity is not None and fact.future_severity > 0)
+    )
+
+
+def _primary_sort_key(
+    decision: TargetDecision,
+    fact: PrimaryPriorityFact | None = None,
+) -> tuple[float, ...]:
     tcpa = decision.geometry.signed_tcpa_s
     approaching_tcpa = tcpa if tcpa >= 0.0 else math.inf
+    if fact is None:
+        return (
+            -float(_primary_rank(decision)),
+            approaching_tcpa,
+            decision.geometry.dcpa_m,
+            decision.geometry.range_m,
+            float(decision.key.target_id),
+            float(decision.key.generation),
+        )
     return (
+        -float(1 if fact.hard_emergency else 0),
+        -float(1 if decision.rule17 is Rule17Stage.MUST_ACT else 0),
+        -float(
+            1
+            if decision.commitment is CommitmentPhase.COMMITTED and decision.risk is RiskPhase.ACTIVE
+            else 0
+        ),
+        -float(1 if fact.current_domain_violation is True else 0),
+        -float(1 if fact.predicted_domain_violation is True else 0),
+        -float(fact.future_severity or 0.0),
+        -float(fact.completeness or 0.0),
         -float(_primary_rank(decision)),
         approaching_tcpa,
         decision.geometry.dcpa_m,
@@ -1261,6 +1534,10 @@ def _readonly(value: np.ndarray, shape: tuple[int, ...], name: str) -> np.ndarra
 def _hash(value: object) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _track_key_sort(key: TrackKey) -> tuple[int, int]:
+    return key.target_id, key.generation
 
 
 def _wrap(angle: float) -> float:

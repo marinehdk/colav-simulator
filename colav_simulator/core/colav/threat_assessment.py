@@ -55,6 +55,202 @@ class ThreatUnavailableReason(StrEnum):
     TARGET_DIMENSIONS_UNAVAILABLE = "TARGET_DIMENSIONS_UNAVAILABLE"
     RELATIVE_MOTION_UNDEFINED = "RELATIVE_MOTION_UNDEFINED"
     UNCERTAINTY_UNAVAILABLE = "UNCERTAINTY_UNAVAILABLE"
+    PHYSICAL_FACT_UNAVAILABLE = "PHYSICAL_FACT_UNAVAILABLE"
+    OBSERVATION_STALE = "OBSERVATION_STALE"
+
+
+class ThreatPriorityClass(StrEnum):
+    """Versioned lexicographic priority classes, not a scalar safety score."""
+
+    RESPONSE_TIME_EMERGENCY = "RESPONSE_TIME_EMERGENCY"
+    RULE17_MUST_ACT = "RULE17_MUST_ACT"
+    COMMITTED_ACTIVE = "COMMITTED_ACTIVE"
+    CURRENT_DOMAIN_VIOLATION = "CURRENT_DOMAIN_VIOLATION"
+    PREDICTED_DOMAIN_VIOLATION = "PREDICTED_DOMAIN_VIOLATION"
+    FUTURE_SEVERITY = "FUTURE_SEVERITY"
+    UNKNOWN = "UNKNOWN"
+    MONITOR = "MONITOR"
+
+
+@dataclass(frozen=True)
+class ThreatWindow:
+    """A rolling, typed prediction window; never an executable maneuver script."""
+
+    key: TrackKey
+    entry_time_s: float | None = None
+    peak_time_s: float | None = None
+    exit_time_s: float | None = None
+    reference_time_s: float | None = None
+    horizon_end_s: float | None = None
+    prediction_basis: PredictionBasis | str = PredictionBasis.UNAVAILABLE
+    source: str = "ThreatAssessment"
+    completeness: str = "UNKNOWN"
+    unavailable_reason: ThreatUnavailableReason | str | None = None
+    entry_time_absolute_s: float | None = None
+    peak_time_absolute_s: float | None = None
+    exit_time_absolute_s: float | None = None
+
+    def __post_init__(self) -> None:
+        """Validate relative/absolute time identity and typed unknown bounds."""
+        if not isinstance(self.key, TrackKey):
+            raise TypeError("threat window key must be TrackKey")
+        for value, name in (
+            (self.entry_time_s, "entry_time_s"),
+            (self.peak_time_s, "peak_time_s"),
+            (self.exit_time_s, "exit_time_s"),
+            (self.reference_time_s, "reference_time_s"),
+            (self.horizon_end_s, "horizon_end_s"),
+            (self.entry_time_absolute_s, "entry_time_absolute_s"),
+            (self.peak_time_absolute_s, "peak_time_absolute_s"),
+            (self.exit_time_absolute_s, "exit_time_absolute_s"),
+        ):
+            if value is not None and (not math.isfinite(value) or value < 0.0):
+                raise ValueError(f"{name} must be finite and non-negative")
+        if self.entry_time_s is not None and self.peak_time_s is not None and self.peak_time_s < self.entry_time_s:
+            raise ValueError("peak time cannot precede entry")
+        if self.peak_time_s is not None and self.exit_time_s is not None and self.exit_time_s < self.peak_time_s:
+            raise ValueError("exit time cannot precede peak")
+        if self.reference_time_s is not None and self.horizon_end_s is not None and self.horizon_end_s < 0.0:
+            raise ValueError("horizon end must be non-negative")
+        object.__setattr__(self, "prediction_basis", PredictionBasis(self.prediction_basis))
+        if self.unavailable_reason is not None:
+            object.__setattr__(self, "unavailable_reason", ThreatUnavailableReason(self.unavailable_reason))
+
+    @property
+    def tdv_s(self) -> float | None:
+        return self.entry_time_s
+
+    @property
+    def tde_s(self) -> float | None:
+        return self.exit_time_s
+
+    @property
+    def relative_entry_time_s(self) -> float | None:
+        return self.entry_time_s
+
+    @property
+    def relative_peak_time_s(self) -> float | None:
+        return self.peak_time_s
+
+    @property
+    def relative_exit_time_s(self) -> float | None:
+        return self.exit_time_s
+
+
+class ThreatScheduleContext(StrEnum):
+    """Mutually exclusive semantic membership of one target in a snapshot."""
+
+    CURRENT_PRIMARY = "CURRENT_PRIMARY"
+    CONCURRENT_REQUIRED = "CONCURRENT_REQUIRED"
+    NEXT = "NEXT"
+    MONITOR = "MONITOR"
+    RELEASED = "RELEASED"
+    HISTORICAL = "HISTORICAL"
+
+
+@dataclass(frozen=True)
+class ThreatScheduleEntry:
+    """One target's explainable rolling schedule membership."""
+
+    key: TrackKey
+    context: ThreatScheduleContext | str
+    window: ThreatWindow | None = None
+    priority_class: ThreatPriorityClass | str = ThreatPriorityClass.MONITOR
+    priority_reason: str = ""
+    unavailable_reason: ThreatUnavailableReason | str | None = None
+    handoff_expectation: str | None = None
+
+    def __post_init__(self) -> None:
+        """Normalize enum fields and retain typed unavailable bounds."""
+        if not isinstance(self.key, TrackKey):
+            raise TypeError("schedule entry key must be TrackKey")
+        object.__setattr__(self, "context", ThreatScheduleContext(self.context))
+        object.__setattr__(self, "priority_class", ThreatPriorityClass(self.priority_class))
+        if self.unavailable_reason is not None:
+            object.__setattr__(self, "unavailable_reason", ThreatUnavailableReason(self.unavailable_reason))
+
+    @property
+    def membership(self) -> ThreatScheduleContext:
+        return self.context
+
+
+@dataclass(frozen=True)
+class ThreatScheduleEvent:
+    """Typed schedule transition that does not turn prediction into history."""
+
+    event_id: int
+    sim_time_s: float
+    event_type: str
+    key: TrackKey | None
+    reason: str
+    from_context: ThreatScheduleContext | str | None = None
+    to_context: ThreatScheduleContext | str | None = None
+    predicted: bool = True
+    schema_version: str = "colav.threat-schedule.event@1"
+
+    def __post_init__(self) -> None:
+        """Normalize event context fields before immutable publication."""
+        if self.event_id < 1 or not math.isfinite(self.sim_time_s) or self.sim_time_s < 0.0:
+            raise ValueError("schedule event identity/time is invalid")
+        if self.key is not None and not isinstance(self.key, TrackKey):
+            raise TypeError("schedule event key must be TrackKey")
+        if self.from_context is not None:
+            object.__setattr__(self, "from_context", ThreatScheduleContext(self.from_context))
+        if self.to_context is not None:
+            object.__setattr__(self, "to_context", ThreatScheduleContext(self.to_context))
+
+
+@dataclass(frozen=True)
+class ThreatSchedule:
+    """Rolling Current/Concurrent/Next/Monitor projection."""
+
+    current_primary: TrackKey | None = None
+    concurrent_required: tuple[TrackKey, ...] = ()
+    next_threats: tuple[TrackKey, ...] = ()
+    monitor: tuple[TrackKey, ...] = ()
+    released: tuple[TrackKey, ...] = ()
+    entries: tuple[ThreatScheduleEntry, ...] = ()
+    events: tuple[ThreatScheduleEvent, ...] = ()
+    horizon_start_s: float = 0.0
+    horizon_end_s: float | None = None
+    generated_at_s: float = 0.0
+    input_hash: str = ""
+    profile_hash: str = ""
+    schema_version: str = "colav.threat-schedule@1"
+
+    def __post_init__(self) -> None:
+        """Freeze membership and reject duplicate semantic placement."""
+        for name in ("concurrent_required", "next_threats", "monitor", "released", "entries", "events"):
+            object.__setattr__(self, name, tuple(getattr(self, name)))
+        if self.current_primary is not None and not isinstance(self.current_primary, TrackKey):
+            raise TypeError("current primary must be TrackKey")
+        groups = [
+            (self.current_primary,) if self.current_primary is not None else (),
+            self.concurrent_required,
+            self.next_threats,
+            self.monitor,
+            self.released,
+        ]
+        keys = [key for group in groups for key in group]
+        if len(keys) != len(set(keys)):
+            raise ValueError("one TrackKey cannot occupy multiple schedule contexts")
+        entry_keys = tuple(entry.key for entry in self.entries)
+        if len(entry_keys) != len(set(entry_keys)):
+            raise ValueError("schedule entries must have unique TrackKeys")
+        if set(entry_keys) != set(keys):
+            raise ValueError("schedule entries must cover every membership")
+
+    @property
+    def current(self) -> TrackKey | None:
+        return self.current_primary
+
+    @property
+    def concurrent(self) -> tuple[TrackKey, ...]:
+        return self.concurrent_required
+
+    @property
+    def next(self) -> tuple[TrackKey, ...]:
+        return self.next_threats
 
 
 @dataclass(frozen=True)
@@ -205,6 +401,13 @@ class ThreatVector:
     claim_completeness: str
     prediction_basis: PredictionBasis
     unavailable_reasons: tuple[ThreatUnavailableReason | str, ...] = ()
+    priority_class: ThreatPriorityClass | str = ThreatPriorityClass.MONITOR
+    priority_reason: str = ""
+    priority_key: tuple[float, ...] = ()
+    window: ThreatWindow | None = None
+    lifecycle_role: str | None = None
+    lifecycle_risk: str | None = None
+    lifecycle_commitment: str | None = None
 
     def __post_init__(self) -> None:
         """Validate immutable physical and domain fact boundaries."""
@@ -226,6 +429,10 @@ class ThreatVector:
             raise ValueError("claim_completeness is required")
         object.__setattr__(self, "observation_health", ObservationHealth(self.observation_health))
         object.__setattr__(self, "prediction_basis", PredictionBasis(self.prediction_basis))
+        object.__setattr__(self, "priority_class", ThreatPriorityClass(self.priority_class))
+        if not isinstance(self.priority_reason, str):
+            raise TypeError("priority reason must be a string")
+        object.__setattr__(self, "priority_key", tuple(float(value) for value in self.priority_key))
         reasons = tuple(
             sorted(
                 {ThreatUnavailableReason(reason) for reason in self.unavailable_reasons},
@@ -266,6 +473,18 @@ class ThreatVector:
     @property
     def horizon_min_domain_scale(self) -> float | None:
         return self.predicted_domain.horizon_min_scale
+
+    @property
+    def threat_window(self) -> ThreatWindow | None:
+        return self.window
+
+    @property
+    def current_domain_violation(self) -> bool:
+        return self.current_domain.state is DomainState.INSIDE
+
+    @property
+    def predicted_domain_violation(self) -> bool:
+        return self.predicted_domain.state is DomainState.INSIDE
 
 
 @dataclass(frozen=True)
@@ -344,6 +563,7 @@ class ThreatAssessmentRequest:
     targets: tuple[Any, ...]
     profile: ShipDomainProfile
     predictions: tuple[ThreatPrediction, ...] = ()
+    physical_facts: tuple[Any, ...] = ()
 
     def __post_init__(self) -> None:
         """Validate cycle identity and freeze target collection."""
@@ -371,6 +591,16 @@ class ThreatAssessmentRequest:
             raise ValueError("predictions must reference an assessment target")
         object.__setattr__(self, "targets", targets)
         object.__setattr__(self, "predictions", predictions)
+        facts = self.physical_facts.values() if isinstance(self.physical_facts, Mapping) else self.physical_facts
+        facts = tuple(facts)
+        fact_keys = tuple(getattr(value, "key", None) for value in facts)
+        if any(key is None for key in fact_keys) or len(fact_keys) != len(set(fact_keys)):
+            raise TypeError("physical_facts must contain unique keyed facts")
+        if any(key not in keys for key in fact_keys):
+            raise ValueError("physical_facts must reference an assessment target")
+        if facts and set(fact_keys) != set(keys):
+            raise ValueError("physical_facts must cover every target")
+        object.__setattr__(self, "physical_facts", facts)
 
     @property
     def input_hash(self) -> str:
@@ -392,6 +622,10 @@ class ThreatAssessmentRequest:
                 _json_value(value)
                 for value in sorted(self.predictions, key=lambda value: _track_key_sort(value.key))
             ],
+            "physical_facts": [
+                _json_value(value)
+                for value in sorted(self.physical_facts, key=lambda value: _track_key_sort(value.key))
+            ],
         }
 
 
@@ -410,6 +644,10 @@ class ThreatManagementSnapshot:
     canonicalizer_id: str = THREAT_CANONICALIZER_ID
     provenance: Mapping[str, object] = field(default_factory=lambda: MappingProxyType({}))
     _semantic_hash: str = ""
+    lifecycle_snapshot: Any | None = None
+    schedule: ThreatSchedule | None = None
+    events: tuple[ThreatScheduleEvent, ...] = ()
+    accepted_plan_receipt: Any | None = None
 
     def __post_init__(self) -> None:
         """Freeze result collections and compute its semantic identity."""
@@ -430,6 +668,7 @@ class ThreatManagementSnapshot:
         if len(keys) != len(set(keys)):
             raise ValueError("snapshot vector keys must be unique")
         object.__setattr__(self, "vectors", vectors)
+        object.__setattr__(self, "events", tuple(self.events))
         object.__setattr__(self, "provenance", _freeze_mapping(self.provenance))
         semantic_hash = _sha256(self.to_dict(include_hash=False))
         object.__setattr__(self, "_semantic_hash", semantic_hash)
@@ -437,6 +676,14 @@ class ThreatManagementSnapshot:
     @property
     def semantic_hash(self) -> str:
         return self._semantic_hash
+
+    @property
+    def lifecycle(self) -> Any | None:
+        return self.lifecycle_snapshot
+
+    @property
+    def threat_schedule(self) -> ThreatSchedule | None:
+        return self.schedule
 
     def to_dict(self, *, include_hash: bool = True) -> dict[str, object]:
         value: dict[str, object] = {
@@ -450,6 +697,10 @@ class ThreatManagementSnapshot:
             "profile": self.profile.to_dict(),
             "vectors": [_json_value(vector) for vector in self.vectors],
             "provenance": _json_value(self.provenance),
+            "lifecycle_snapshot": _json_value(self.lifecycle_snapshot),
+            "schedule": _json_value(self.schedule),
+            "events": [_json_value(event) for event in self.events],
+            "accepted_plan_receipt": _json_value(self.accepted_plan_receipt),
         }
         if include_hash:
             value["semantic_hash"] = self.semantic_hash
@@ -464,12 +715,14 @@ class ThreatAssessment:
         """Return one deterministic snapshot for the supplied immutable request."""
         if not isinstance(request, ThreatAssessmentRequest):
             raise TypeError("request must be ThreatAssessmentRequest")
+        physical_facts = {fact.key: fact for fact in request.physical_facts}
         vectors = tuple(
             _assess_target(
                 request.ownship,
                 _coerce_target(target),
                 request.profile,
                 {prediction.key: prediction for prediction in request.predictions}.get(target.key),
+                physical_facts.get(target.key),
             )
             for target in sorted(request.targets, key=lambda value: _track_key_sort(value.key))
         )
@@ -520,22 +773,35 @@ def _coerce_target(target: Any) -> ThreatTargetObservation:
     raise TypeError("assessment targets must be ThreatTargetObservation-compatible")
 
 
-def _assess_target(
+def _assess_target(  # noqa: PLR0912, PLR0915 - explicit typed evidence branches
     ownship: OwnshipObservation,
     target: ThreatTargetObservation,
     profile: ShipDomainProfile,
     prediction: ThreatPrediction | None,
+    physical_fact: Any | None = None,
 ) -> ThreatVector:
     relative_position = target.state_enu[:2] - ownship.position_ne_m
     relative_velocity = target.state_enu[2:4] - ownship.velocity_ne_mps
-    range_m = float(np.linalg.norm(relative_position))
+    if physical_fact is not None:
+        relative_position = np.asarray(physical_fact.relative_position_ne_m, dtype=float)
+        relative_velocity = np.asarray(physical_fact.relative_velocity_ne_mps, dtype=float)
+    canonical_geometry = getattr(physical_fact, "geometry", None)
+    range_m = (
+        float(canonical_geometry.range_m)
+        if canonical_geometry is not None
+        else float(np.linalg.norm(relative_position))
+    )
     if range_m > 1.0e-12:
         closing_speed_mps = -float(relative_position @ relative_velocity) / range_m
     else:
         closing_speed_mps = None
     relative_speed_sq = float(relative_velocity @ relative_velocity)
     unavailable: list[str] = []
-    if relative_speed_sq > 1.0e-12:
+    if canonical_geometry is not None and math.isfinite(canonical_geometry.signed_tcpa_s):
+        tcpa_signed_s = float(canonical_geometry.signed_tcpa_s)
+        tcpa_forward_s = max(0.0, tcpa_signed_s)
+        dcpa_m = float(canonical_geometry.dcpa_m)
+    elif relative_speed_sq > 1.0e-12:
         tcpa_signed_s = -float(relative_position @ relative_velocity) / relative_speed_sq
         tcpa_forward_s = max(0.0, tcpa_signed_s)
         dcpa_m = float(np.linalg.norm(relative_position + tcpa_forward_s * relative_velocity))
@@ -544,22 +810,47 @@ def _assess_target(
         tcpa_forward_s = None
         dcpa_m = range_m
         unavailable.append("RELATIVE_MOTION_UNDEFINED")
-    hull_clearance_m = None
+    hull_clearance_m = getattr(physical_fact, "hull_clearance_m", None)
     if target.length_m is None or target.width_m is None:
         unavailable.append("TARGET_DIMENSIONS_UNAVAILABLE")
-    elif dcpa_m is not None:
+    elif hull_clearance_m is None and dcpa_m is not None:
         own_radius = 0.5 * math.hypot(ownship.length_m, ownship.width_m)
         target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
         hull_clearance_m = dcpa_m - own_radius - target_radius
 
+    if getattr(physical_fact, "validity", "VALID") != "VALID":
+        unavailable.append(getattr(physical_fact, "unavailable_reason", None) or "PHYSICAL_FACT_UNAVAILABLE")
+
     uncertainty_radius_m = _uncertainty_radius(target, profile)
     if uncertainty_radius_m is None:
         unavailable.append(ThreatUnavailableReason.UNCERTAINTY_UNAVAILABLE)
-    current_domain = _current_domain_facts(ownship, target, profile, uncertainty_radius_m)
-    predicted_domain = _predicted_domain_facts(ownship, target, profile, uncertainty_radius_m, prediction)
+    physical_unavailable_reason = getattr(physical_fact, "unavailable_reason", None)
+    physical_unavailable = getattr(physical_fact, "validity", "VALID") != "VALID"
+    if physical_unavailable and physical_unavailable_reason:
+        current_domain = DomainFacts(
+            state=DomainState.UNKNOWN,
+            normalized_scale=None,
+            unavailable_reason=physical_unavailable_reason,
+            uncertainty_radius_m=uncertainty_radius_m,
+        )
+        predicted_domain = DomainFacts(
+            state=DomainState.UNKNOWN,
+            normalized_scale=None,
+            unavailable_reason=physical_unavailable_reason,
+            uncertainty_radius_m=uncertainty_radius_m,
+        )
+    else:
+        current_domain = _current_domain_facts(
+            ownship,
+            target,
+            profile,
+            uncertainty_radius_m,
+            relative_position_ne_m=relative_position,
+        )
+        predicted_domain = _predicted_domain_facts(ownship, target, profile, uncertainty_radius_m, prediction)
     if predicted_domain.unavailable_reason is not None:
         unavailable.append(predicted_domain.unavailable_reason)
-    completeness = "UNKNOWN" if target.health is ObservationHealth.UNUSABLE else "FULL"
+    completeness = "UNKNOWN" if target.health is ObservationHealth.UNUSABLE or physical_unavailable else "FULL"
     if target.health in {ObservationHealth.COASTING, ObservationHealth.DEGRADED}:
         completeness = "DEGRADED"
     if unavailable and completeness == "FULL":
@@ -595,6 +886,8 @@ def _current_domain_facts(
     target: ThreatTargetObservation,
     profile: ShipDomainProfile,
     uncertainty_radius_m: float | None,
+    *,
+    relative_position_ne_m: np.ndarray | None = None,
 ) -> DomainFacts:
     if not profile.qualified:
         return DomainFacts(
@@ -619,7 +912,11 @@ def _current_domain_facts(
         )
     forward = np.array([math.cos(ownship.heading_rad), math.sin(ownship.heading_rad)])
     starboard = np.array([math.sin(ownship.heading_rad), -math.cos(ownship.heading_rad)])
-    relative = target.state_enu[:2] - ownship.position_ne_m
+    relative = (
+        target.state_enu[:2] - ownship.position_ne_m
+        if relative_position_ne_m is None
+        else relative_position_ne_m
+    )
     x = float(relative @ forward)
     y = float(relative @ starboard)
     scale = _normalized_domain_scale(x, y, profile, uncertainty_radius_m)
@@ -786,7 +1083,10 @@ def _json_value(value: Any) -> Any:
     if hasattr(value, "to_dict") and callable(value.to_dict):
         return _json_value(value.to_dict())
     if isinstance(value, (np.floating, np.integer)):
-        return value.item()
+        numeric = value.item()
+        return numeric if not isinstance(numeric, float) or math.isfinite(numeric) else None
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
     return value
 
 

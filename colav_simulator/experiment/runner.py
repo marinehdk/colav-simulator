@@ -22,11 +22,14 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
     FactoryContext,
 )
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.core.colav.encounter_lifecycle import EncounterLifecycle
+from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
 from colav_simulator.evaluation import Evaluator, EvaluatorResult
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunManifest, RunOutcome, RunSpec, SessionState, content_hash
 from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
 from colav_simulator.experiment.session import SimulationSession
+from colav_simulator.historical_replay import HistoricalActorShip, HistoricalReplayRequest
 from colav_simulator.integrations import IntegrationRegistry
 from colav_simulator.scenario_generator import ScenarioGenerator
 from colav_simulator.simulator import Config as SimulatorConfig
@@ -137,8 +140,16 @@ class ExperimentRunner:
             raise FileNotFoundError(f"Unknown scenario: {scenario_id}")
         raise ValueError(f"Ambiguous scenario ID {scenario_id}: {matches}")
 
-    def prepare(self, spec: RunSpec) -> PreparedRun:  # noqa: PLR0912, PLR0915
+    def prepare(self, spec: RunSpec) -> PreparedRun:  # noqa: C901, PLR0912, PLR0915
         scenario_path = self.resolve_scenario(spec.scenario_id)
+        historical_request = (
+            HistoricalReplayRequest.from_dict(spec.historical_replay) if spec.historical_replay is not None else None
+        )
+        if historical_request is not None and spec.algorithm_id != "nominal":
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Historical Replay is non-counterfactual and cannot execute a COLAV algorithm",
+            )
         if spec.scenario_override is None:
             config = cp.extract(scenario_config.ScenarioConfig, scenario_path, paths.scenario_schema)
             source_version = scenario_path.stat().st_mtime_ns
@@ -152,6 +163,11 @@ class ExperimentRunner:
             config.dt_sim = spec.dt
         if spec.t_end is not None:
             config.t_end = spec.t_end
+        if historical_request is not None:
+            if spec.dt is None and historical_request.dt_sim is not None:
+                config.dt_sim = historical_request.dt_sim
+            if spec.t_end is None and historical_request.t_end_s is not None:
+                config.t_end = historical_request.t_end_s
         if spec.reload_enc:
             config.new_load_of_map_data = True
         capability_profile_id = None
@@ -162,12 +178,19 @@ class ExperimentRunner:
                 spec.algorithm_id,
                 spec.tracker_id,
             )
-        if spec.algorithm_id == "nominal" and config.ship_list and config.ship_list[0].colav is not None:
+        if (
+            historical_request is None
+            and spec.algorithm_id == "nominal"
+            and config.ship_list
+            and config.ship_list[0].colav is not None
+        ):
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
                 "nominal requires scenario guidance; the selected scenario embeds an onboard COLAV algorithm",
             )
         scenario_document = config.to_dict()
+        if historical_request is not None:
+            scenario_document["historical_replay"] = historical_request.to_dict()
         generator = ScenarioGenerator(seed=spec.seeds.scenario)
         episode_count = max(1, spec.episode_index + 1)
         enc_cache_key = (
@@ -188,7 +211,24 @@ class ExperimentRunner:
         if spec.episode_index >= len(episodes):
             raise RuntimeError(f"Scenario produced {len(episodes)} episodes; requested index {spec.episode_index}")
         episode = episodes[spec.episode_index]
+        if historical_request is not None:
+            episode["ship_list"] = [
+                HistoricalActorShip(
+                    actor,
+                    historical_request.actor_set.profile,
+                    simulation_length_m=historical_request.simulation_length_m,
+                    simulation_width_m=historical_request.simulation_width_m,
+                )
+                for actor in historical_request.actor_set.actors
+            ]
+            episode["config"].name = historical_request.scenario_name
+            episode["config"].t_start = 0.0
+            episode["config"].dt_sim = config.dt_sim
+            episode["config"].t_end = config.t_end
+            episode["config"].ship_list = []
         episode_document = episode["config"].to_dict()
+        if historical_request is not None:
+            episode_document["historical_replay"] = historical_request.to_dict()
 
         manifest = RunManifest.create(spec, self.registry.dependency_manifest())
         manifest.scenario_hash = content_hash(scenario_document)
@@ -203,6 +243,13 @@ class ExperimentRunner:
         manifest.algorithm_readiness_grade = self.capabilities.grade("algorithm", spec.algorithm_id)
         manifest.tracker_readiness_grade = self.capabilities.grade("tracker", spec.tracker_id)
         manifest.capability_profile_id = capability_profile_id
+        if historical_request is not None:
+            manifest.historical_replay_evidence = historical_request.evidence.to_dict()
+            manifest.diagnostic_only = True
+            manifest.diagnostic_only_reasons = [
+                *manifest.diagnostic_only_reasons,
+                "HISTORICAL_REPLAY/non-counterfactual",
+            ]
         output_root = Path(spec.output_root)
         if not output_root.is_absolute():
             output_root = self.project_root / output_root
@@ -223,6 +270,9 @@ class ExperimentRunner:
         )
         artifact_sink = BoundedArtifactSink(writer)
         try:
+            threat_management_coordinator = ThreatManagementCoordinator(
+                lifecycle=EncounterLifecycle(event_sink=writer.append_lifecycle_event),
+            )
             algorithm_config = copy.deepcopy(spec.algorithm_config)
             if spec.algorithm_id == "rrt":
                 algorithm_config.setdefault("seed", spec.seeds.algorithm)
@@ -237,6 +287,7 @@ class ExperimentRunner:
                 deadline_mode=DeadlineMode(spec.deadline_mode),
                 event_sink=writer.append_lifecycle_event,
                 artifact_sink=artifact_sink,
+                threat_management_coordinator=threat_management_coordinator,
             )
             algorithm = self.registry.build_algorithm(
                 spec.algorithm_id,
@@ -247,7 +298,12 @@ class ExperimentRunner:
                 descriptor_document = algorithm.descriptor_document()
                 manifest.algorithm_descriptor = descriptor_document
                 manifest.algorithm_build_identity = descriptor_document["build_identity"]
-            tracker = self.registry.build_tracker(spec.tracker_id, spec.tracker_config)
+            tracker_id_for_build = (
+                manifest.executed_tracker
+                if historical_request is not None and spec.tracker_id == "scenario_default"
+                else spec.tracker_id
+            )
+            tracker = self.registry.build_tracker(tracker_id_for_build, spec.tracker_config)
             colav_systems = [(0, algorithm)] if algorithm is not None else None
             trackers = [(0, tracker)] if tracker is not None else None
 
@@ -270,9 +326,14 @@ class ExperimentRunner:
                 trackers=trackers,
                 seed=spec.seeds.sensor,
                 terminate_on_collision_or_grounding=spec.terminate_on_collision_or_grounding,
+                threat_management_coordinator=threat_management_coordinator,
             )
             manifest.executed_algorithm = self._executed_algorithm_id(session)
-            manifest.fallback_used = manifest.executed_algorithm != manifest.requested_algorithm
+            if historical_request is not None:
+                manifest.executed_algorithm = "historical_replay"
+                manifest.fallback_used = False
+            else:
+                manifest.fallback_used = manifest.executed_algorithm != manifest.requested_algorithm
             if manifest.fallback_used and spec.strict_no_fallback:
                 raise ColavExecutionError(
                     PlanStatus.INVALID_INPUT,

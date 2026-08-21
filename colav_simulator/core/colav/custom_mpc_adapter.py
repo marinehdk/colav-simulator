@@ -62,6 +62,7 @@ class FactoryContext:
     deadline_mode: DeadlineMode = DeadlineMode.ENFORCE
     event_sink: Callable[[Any], object] | None = field(default=None, compare=False, repr=False)
     artifact_sink: Callable[[Any], object] | None = field(default=None, compare=False, repr=False)
+    threat_management_coordinator: Any | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         """Normalize and validate injected runtime values."""
@@ -82,6 +83,10 @@ class FactoryContext:
             raise TypeError("event_sink must be callable when specified")
         if self.artifact_sink is not None and not callable(self.artifact_sink):
             raise TypeError("artifact_sink must be callable when specified")
+        if self.threat_management_coordinator is not None and not callable(
+            getattr(self.threat_management_coordinator, "cycle", None)
+        ):
+            raise TypeError("threat_management_coordinator must expose cycle() when specified")
         object.__setattr__(self, "requested_algorithm", algorithm_id)
         if isinstance(self.deadline_mode, str):
             object.__setattr__(self, "deadline_mode", DeadlineMode(self.deadline_mode.upper()))

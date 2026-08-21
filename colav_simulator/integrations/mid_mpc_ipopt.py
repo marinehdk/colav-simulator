@@ -28,7 +28,6 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     EncounterKind,
     EncounterLifecycle,
     LifecycleError,
-    LifecycleEvent,
     LifecycleFailure,
     Maneuverability,
     ObservationHealth,
@@ -92,6 +91,10 @@ from colav_simulator.core.colav.rolling_plan import (
     RollingPlanIdentity,
     RollingPlanReference,
 )
+from colav_simulator.core.colav.threat_management import (
+    AcceptedPlanReceipt,
+    ThreatManagementCoordinator,
+)
 from colav_simulator.core.guidances import LOSGuidance
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -122,7 +125,7 @@ class _MidMpcFacade:
         self,
         config: _FacadeConfig,
         *,
-        event_sink: Callable[[LifecycleEvent], object] | None = None,
+        threat_management_coordinator: ThreatManagementCoordinator,
         artifact_sink: Callable[[object], object] | None = None,
     ) -> None:
         self._config = config
@@ -143,7 +146,9 @@ class _MidMpcFacade:
             self._solver.prewarm()
         self._assembler = MidMpcProblemAssembler()
         self._acceptance = MidMpcPlanAcceptance()
-        self._lifecycle = EncounterLifecycle(event_sink=event_sink)
+        if not isinstance(threat_management_coordinator, ThreatManagementCoordinator):
+            raise TypeError("threat_management_coordinator must be ThreatManagementCoordinator")
+        self._threat_management_coordinator = threat_management_coordinator
         self._last_guidance_time_s: float | None = None
         self._epoch_number = 1
         self._cycle_sequence = 0
@@ -160,7 +165,7 @@ class _MidMpcFacade:
     def reset(self) -> None:
         self._los.reset()
         self._epoch_number += 1
-        self._lifecycle.reset(
+        self._threat_management_coordinator.reset(
             epoch=f"mid-mpc-{self._epoch_number}",
             reason="adapter_reset",
             sim_time_s=0.0 if self._last_cycle_time_s is None else self._last_cycle_time_s,
@@ -324,7 +329,24 @@ class _MidMpcFacade:
                 route_bearing_rad=route_bearing,
                 planned_speed_mps=float(reference[3, 0]),
             )
-            snapshot = self._lifecycle.step(cycle)
+            for target in cycle.targets:
+                if target.health is ObservationHealth.UNUSABLE:
+                    raise LifecycleError(
+                        LifecycleFailure.UNUSABLE_OBSERVATION,
+                        f"target {target.key} observation is unusable",
+                    )
+                if target.age_s > cycle.profile.usable_age_s:
+                    raise LifecycleError(
+                        LifecycleFailure.UNUSABLE_OBSERVATION,
+                        f"target {target.key} observation is stale",
+                    )
+            threat_snapshot = self._threat_management_coordinator.cycle(
+                cycle,
+                profile=self._threat_management_coordinator.domain_profile,
+            )
+            snapshot = threat_snapshot.lifecycle_snapshot
+            if not isinstance(snapshot, DecisionSnapshot):
+                raise RuntimeError("Threat Management Coordinator did not publish a Lifecycle snapshot")
             rolling_identity, rolling_reference, prior_plan_safe, prior_revalidation_codes = self._rolling_reference(
                 planner_input, snapshot, capability
             )
@@ -332,7 +354,7 @@ class _MidMpcFacade:
                 AssemblyRequest(
                     planner_input=planner_input,
                     snapshot=snapshot,
-                    cycle_input_hash=cycle.input_hash,
+                    cycle_input_hash=snapshot.input_hash,
                     lifecycle_profile_hash=cycle.profile.hash,
                     route=RouteReference(
                         anchor_ne_m=route_anchor,
@@ -616,6 +638,9 @@ class _MidMpcFacade:
             self._accepted_request = acceptance_request
             self._accepted_trajectory = predicted.copy()
             self._accepted_acceptance_hash = acceptance_result.acceptance_hash
+            self._threat_management_coordinator.publish_accepted_plan(
+                AcceptedPlanReceipt.from_mapping(accepted_plan_receipt)
+            )
             self._rolling_plan.commit(
                 accepted_at_s=planner_input.sim_time_s,
                 dt_s=self._config.assembly.horizon_dt_s,
@@ -788,7 +813,15 @@ class _MidMpcFacade:
                 "target_fields": ["north_m", "east_m", "generation", "reference_time_s"],
                 "trajectory_source": "fresh_ipopt_solve",
             },
-            "lifecycle": _snapshot_document(snapshot, self._lifecycle),
+            "lifecycle": _snapshot_document(snapshot, self._threat_management_coordinator.lifecycle),
+            "threat_management": {
+                "schema_version": threat_snapshot.schema_version,
+                "semantic_hash": threat_snapshot.semantic_hash,
+                "input_hash": threat_snapshot.input_hash,
+                "lifecycle_input_hash": snapshot.input_hash,
+                "profile_hash": threat_snapshot.profile_hash,
+                "vector_count": len(threat_snapshot.vectors),
+            },
         }
         decision_by_key = {decision.key: decision for decision in snapshot.targets}
         return MPCSolution(
@@ -1160,9 +1193,16 @@ def create(  # noqa: PLR0913
             context.scenario_target_count if context.scenario_target_count and context.scenario_target_count > 1 else None
         ),
     )
+    threat_management_coordinator = context.threat_management_coordinator
+    if threat_management_coordinator is None:
+        threat_management_coordinator = ThreatManagementCoordinator(
+            lifecycle=EncounterLifecycle(event_sink=context.event_sink),
+        )
+    if not isinstance(threat_management_coordinator, ThreatManagementCoordinator):
+        raise TypeError("FactoryContext.threat_management_coordinator must be ThreatManagementCoordinator")
     facade = _MidMpcFacade(
         config,
-        event_sink=context.event_sink,
+        threat_management_coordinator=threat_management_coordinator,
         artifact_sink=context.artifact_sink,
     )
     descriptor = AlgorithmDescriptor(

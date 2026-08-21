@@ -13,6 +13,7 @@ import seacharts.enc as senc
 import colav_simulator.common.miscellaneous_helper_methods as mhm
 import colav_simulator.scenario_config as sc
 from colav_simulator.core import stochasticity
+from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
 from colav_simulator.core.ship import Ship
 from colav_simulator.experiment.contracts import SessionState
 from colav_simulator.simulator import Simulator
@@ -44,6 +45,7 @@ class SimulationSession:
         trackers: list | None = None,
         seed: int = 0,
         terminate_on_collision_or_grounding: bool = True,
+        threat_management_coordinator: ThreatManagementCoordinator | None = None,
     ) -> None:
         self.simulator = simulator
         self.ship_list = ship_list
@@ -51,6 +53,11 @@ class SimulationSession:
         self.enc = enc
         self.disturbance = disturbance
         self.terminate_on_collision_or_grounding = terminate_on_collision_or_grounding
+        self.threat_management_coordinator = (
+            threat_management_coordinator
+            if threat_management_coordinator is not None
+            else ThreatManagementCoordinator()
+        )
         self.state = SessionState.CREATED
         self.sequence = 0
         self._frames_live: list[dict[str, Any]] = []

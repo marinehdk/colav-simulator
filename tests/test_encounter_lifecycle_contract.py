@@ -20,6 +20,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     PairwiseGeometry,
     PassingSide,
     PlannerOddProfile,
+    PrimaryPriorityFact,
     RiskPhase,
     Rule17Stage,
     TargetObservation,
@@ -422,7 +423,7 @@ def test_primary_target_switch_uses_physical_time_hysteresis_without_resetting_t
     lifecycle = EncounterLifecycle()
     base = _head_on_cycle(sequence=0, sim_time_s=0.0)
     first = replace(base.targets[0], key=TrackKey(1, 1), state_enu=np.array([800.0, 0.0, -7.0, 0.0]))
-    second = replace(base.targets[0], key=TrackKey(2, 1), state_enu=np.array([1200.0, 0.0, -7.0, 0.0]))
+    second = replace(base.targets[0], key=TrackKey(2, 1), state_enu=np.array([5000.0, 0.0, -7.0, 0.0]))
     initial = lifecycle.step(replace(base, targets=(first, second)))
     assert initial.primary_target == TrackKey(1, 1)
 
@@ -449,6 +450,130 @@ def test_primary_target_switch_uses_physical_time_hysteresis_without_resetting_t
         TrackKey(2, 1),
     ]
     assert all(tuple(decision.episode for decision in snapshot.targets) == (1, 1) for snapshot in snapshots)
+
+
+def test_primary_target_uses_domain_priority_with_per_pair_hysteresis() -> None:
+    lifecycle = EncounterLifecycle()
+    base = _head_on_cycle(sequence=0, sim_time_s=0.0)
+    first = replace(base.targets[0], key=TrackKey(1, 1), state_enu=np.array([800.0, 0.0, -7.0, 0.0]))
+    second = replace(base.targets[0], key=TrackKey(2, 1), state_enu=np.array([1200.0, 0.0, -7.0, 0.0]))
+
+    def cycle(
+        sequence: int,
+        sim_time_s: float,
+        *,
+        domain_violation: bool = False,
+        emergency: bool = False,
+    ) -> EncounterCycle:
+        return replace(
+            base,
+            sequence=sequence,
+            sim_time_s=sim_time_s,
+            targets=(first, second),
+            primary_priority_facts=(
+                PrimaryPriorityFact(key=TrackKey(1, 1), future_severity=1),
+                PrimaryPriorityFact(
+                    key=TrackKey(2, 1),
+                    predicted_domain_violation=domain_violation,
+                    future_severity=0,
+                    hard_emergency=emergency,
+                    reason="predicted_domain_violation",
+                ),
+            ),
+        )
+
+    initial = lifecycle.step(cycle(0, 0.0))
+    pending = lifecycle.step(cycle(1, 5.0, domain_violation=True))
+    still_pending = lifecycle.step(cycle(2, 10.0, domain_violation=True))
+    switched = lifecycle.step(cycle(3, 15.0, domain_violation=True))
+
+    assert initial.primary_target == TrackKey(1, 1)
+    assert pending.primary_target == TrackKey(1, 1)
+    assert pending.primary_challenger == TrackKey(2, 1)
+    assert pending.primary_switch_remaining_s == pytest.approx(10.0)
+    assert still_pending.primary_target == TrackKey(1, 1)
+    assert switched.primary_target == TrackKey(2, 1)
+    assert switched.primary_switch_reason == "PRIMARY_SWITCH_CONFIRMED"
+
+    preempted = lifecycle.step(cycle(4, 20.0, domain_violation=True, emergency=True))
+    assert preempted.primary_target == TrackKey(2, 1)
+
+
+def test_primary_target_emergency_preempts_current_without_confirmation() -> None:
+    lifecycle = EncounterLifecycle()
+    base = _head_on_cycle(sequence=0, sim_time_s=0.0)
+    first = replace(base.targets[0], key=TrackKey(1, 1), state_enu=np.array([800.0, 0.0, -7.0, 0.0]))
+    second = replace(base.targets[0], key=TrackKey(2, 1), state_enu=np.array([5000.0, 0.0, -7.0, 0.0]))
+    normal = replace(
+        base,
+        targets=(first, second),
+        primary_priority_facts=(
+            PrimaryPriorityFact(key=TrackKey(1, 1), future_severity=1),
+            PrimaryPriorityFact(key=TrackKey(2, 1), future_severity=0),
+        ),
+    )
+    emergency = replace(
+        normal,
+        sequence=1,
+        sim_time_s=5.0,
+        primary_priority_facts=(
+            PrimaryPriorityFact(key=TrackKey(1, 1), future_severity=1),
+            PrimaryPriorityFact(
+                key=TrackKey(2, 1),
+                hard_emergency=True,
+                predicted_domain_violation=True,
+                future_severity=0,
+                reason="response_time_emergency",
+            ),
+        ),
+    )
+
+    lifecycle.step(normal)
+    snapshot = lifecycle.step(emergency)
+
+    assert snapshot.primary_target == TrackKey(2, 1)
+    assert snapshot.primary_challenger is None
+    assert snapshot.primary_preempted is True
+    assert snapshot.primary_switch_reason == "PREEMPT_RESPONSE_TIME_EMERGENCY"
+
+
+def test_primary_generation_change_does_not_inherit_challenger_confirmation() -> None:
+    lifecycle = EncounterLifecycle()
+    base = _head_on_cycle(sequence=0, sim_time_s=0.0)
+    first = replace(base.targets[0], key=TrackKey(1, 1), state_enu=np.array([800.0, 0.0, -7.0, 0.0]))
+    challenger = replace(base.targets[0], key=TrackKey(2, 1), state_enu=np.array([1200.0, 0.0, -7.0, 0.0]))
+
+    def cycle(
+        sequence: int,
+        sim_time_s: float,
+        target: TargetObservation,
+        *,
+        domain_violation: bool = False,
+    ) -> EncounterCycle:
+        return replace(
+            base,
+            sequence=sequence,
+            sim_time_s=sim_time_s,
+            targets=(first, target),
+            primary_priority_facts=(
+                PrimaryPriorityFact(key=first.key, future_severity=1),
+                PrimaryPriorityFact(
+                    key=target.key,
+                    predicted_domain_violation=domain_violation,
+                    future_severity=0,
+                ),
+            ),
+        )
+
+    lifecycle.step(cycle(0, 0.0, challenger))
+    pending = lifecycle.step(cycle(1, 5.0, challenger, domain_violation=True))
+    reused = replace(challenger, key=TrackKey(2, 2), observed_at_s=10.0, generated_at_s=10.0)
+    after_rearm = lifecycle.step(cycle(2, 10.0, reused, domain_violation=True))
+
+    assert pending.primary_challenger == TrackKey(2, 1)
+    assert after_rearm.primary_target == TrackKey(1, 1)
+    assert after_rearm.primary_challenger is None
+    assert after_rearm.primary_switch_reason == "PRIMARY_STABLE"
 
 
 def test_overtaking_directive_preserves_positive_speed_advantage() -> None:

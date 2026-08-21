@@ -2,11 +2,14 @@ import math
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from colav_simulator.core.colav import ThreatAssessment as ExportedThreatAssessment
 from colav_simulator.core.colav.encounter_lifecycle import (
     Maneuverability,
     OwnshipObservation,
+    PairwiseGeometry,
+    PhysicalEncounterFacts,
 )
 from colav_simulator.core.colav.threat_assessment import (
     DomainQualification,
@@ -229,6 +232,88 @@ def test_physical_cpa_facts_keep_receding_and_low_speed_cases_explicit() -> None
     assert by_key[TrackKey(9, 1)].tcpa_signed_s is None
     assert by_key[TrackKey(9, 1)].tcpa_forward_s is None
     assert "RELATIVE_MOTION_UNDEFINED" in by_key[TrackKey(9, 1)].unavailable_reasons
+
+
+def test_assessment_uses_canonical_relative_vectors_for_closing_speed() -> None:
+    target = ThreatTargetObservation(
+        key=TrackKey(11, 1),
+        state_enu=np.array([500.0, 0.0, 0.0, 0.0]),
+        covariance=np.zeros((4, 4)),
+        length_m=30.0,
+        width_m=7.0,
+        observed_at_s=10.0,
+        generated_at_s=10.0,
+        health="UPDATED",
+        source="canonical-facts-fixture",
+    )
+    fact = PhysicalEncounterFacts(
+        key=target.key,
+        relative_position_ne_m=np.array([100.0, 0.0]),
+        relative_velocity_ne_mps=np.array([-2.0, 0.0]),
+        geometry=PairwiseGeometry(
+            range_m=100.0,
+            dcpa_m=0.0,
+            signed_tcpa_s=50.0,
+            relative_bearing_rad=0.0,
+            contact_bearing_rad=0.0,
+            course_difference_rad=0.0,
+        ),
+        observation_health="UPDATED",
+        age_s=0.0,
+        hull_clearance_m=0.0,
+    )
+
+    vector = ThreatAssessment().evaluate(
+        ThreatAssessmentRequest(
+            epoch="run-1",
+            sequence=6,
+            sim_time_s=10.0,
+            ownship=_ownship(),
+            targets=(target,),
+            profile=_profile(),
+            physical_facts=(fact,),
+        )
+    ).vectors[0]
+
+    assert vector.range_m == 100.0
+    assert vector.closing_speed_mps == 2.0
+    assert vector.tcpa_signed_s == 50.0
+    assert vector.current_domain.state is DomainState.INSIDE
+
+
+def test_assessment_request_rejects_partial_canonical_physical_facts() -> None:
+    first = ThreatTargetObservation(
+        key=TrackKey(12, 1),
+        state_enu=np.array([500.0, 0.0, 0.0, 0.0]),
+        covariance=np.zeros((4, 4)),
+        length_m=30.0,
+        width_m=7.0,
+        observed_at_s=10.0,
+        generated_at_s=10.0,
+        health="UPDATED",
+        source="canonical-facts-fixture",
+    )
+    second = replace(first, key=TrackKey(13, 1), state_enu=np.array([600.0, 0.0, 0.0, 0.0]))
+    fact = PhysicalEncounterFacts(
+        key=first.key,
+        relative_position_ne_m=np.array([500.0, 0.0]),
+        relative_velocity_ne_mps=np.array([-7.0, 0.0]),
+        geometry=PairwiseGeometry(500.0, 0.0, 71.0, 0.0, 0.0, 0.0),
+        observation_health="UPDATED",
+        age_s=0.0,
+        hull_clearance_m=0.0,
+    )
+
+    with pytest.raises(ValueError, match="physical_facts must cover every target"):
+        ThreatAssessmentRequest(
+            epoch="run-1",
+            sequence=7,
+            sim_time_s=10.0,
+            ownship=_ownship(),
+            targets=(first, second),
+            profile=_profile(),
+            physical_facts=(fact,),
+        )
 
 
 def test_generation_is_part_of_semantic_identity_and_no_intersection_is_not_clear_claim() -> None:

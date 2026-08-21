@@ -11,6 +11,11 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
     PlannerInput,
     TrackedObstacle,
 )
+from colav_simulator.core.colav.encounter_lifecycle import (
+    PhysicalEncounterFacts,
+    PrimaryPriorityFact,
+    canonical_physical_facts,
+)
 from colav_simulator.core.colav.threat_assessment import (
     DomainFacts,
     DomainQualification,
@@ -21,9 +26,20 @@ from colav_simulator.core.colav.threat_assessment import (
     ThreatAssessmentRequest,
     ThreatManagementSnapshot,
     ThreatPrediction,
+    ThreatPriorityClass,
+    ThreatSchedule,
+    ThreatScheduleContext,
+    ThreatScheduleEntry,
+    ThreatScheduleEvent,
     ThreatTargetObservation,
     ThreatUnavailableReason,
     ThreatVector,
+    ThreatWindow,
+)
+from colav_simulator.core.colav.threat_management import (
+    DEFAULT_SHIP_DOMAIN_PROFILE,
+    AcceptedPlanReceipt,
+    ThreatManagementCoordinator,
 )
 
 __all__ = [
@@ -36,6 +52,9 @@ __all__ = [
     "MPCSolution",
     "PlannerInput",
     "TrackedObstacle",
+    "PhysicalEncounterFacts",
+    "PrimaryPriorityFact",
+    "canonical_physical_facts",
     "DomainFacts",
     "DomainQualification",
     "DomainState",
@@ -48,4 +67,13 @@ __all__ = [
     "ThreatTargetObservation",
     "ThreatUnavailableReason",
     "ThreatVector",
+    "ThreatPriorityClass",
+    "ThreatWindow",
+    "ThreatScheduleContext",
+    "ThreatScheduleEntry",
+    "ThreatScheduleEvent",
+    "ThreatSchedule",
+    "AcceptedPlanReceipt",
+    "DEFAULT_SHIP_DOMAIN_PROFILE",
+    "ThreatManagementCoordinator",
 ]
