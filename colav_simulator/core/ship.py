@@ -776,6 +776,7 @@ class Ship(IShip):
         # sort tracks after ID:
         tracks.sort(key=lambda x: x[0])
         labels = [track[0] for track in tracks]
+        generations = [track.key.generation if isinstance(track, trackers.TrackSnapshot) else None for track in tracks]
         xs_i_upd = [track[1].tolist() for track in tracks]
         P_i_upd = [track[2].tolist() for track in tracks]
         NISes = [float(NIS) for NIS in NISes]
@@ -806,6 +807,7 @@ class Ship(IShip):
             "do_covariances": P_i_upd,
             "do_NISes": NISes,
             "do_labels": labels,
+            "do_generations": generations,
             "active": active,
             # predicted trajectory from COLAV/planner
         }

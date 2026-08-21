@@ -127,7 +127,40 @@ test('legacy envelope without canonical threat facts stays explicitly unavailabl
 
 test('canvas threat style reads explicit backend display class and never uses distance fallbacks', async () => {
   const { targetThreatStyle } = await import('../../web_gui/modules/situation-display.js');
-  const target = { id: 1, x: 0, y: 0 };
+  const target = { id: 1, generation: 1, x: 0, y: 0 };
+  assert.equal(
+    targetThreatStyle({
+      threat_management: {
+        status: 'AVAILABLE',
+        vectors: [{ key: { target_id: 1, generation: 1 }, display_class: 'HIGH' }],
+      },
+      os: { x: 0, y: 0 },
+    }, { ...target, generation: 2 }),
+    'UNKNOWN',
+  );
+  assert.equal(
+    targetThreatStyle({
+      threat_management: {
+        status: 'AVAILABLE',
+        vectors: [
+          { key: { target_id: 1, generation: 1 }, display_class: 'HIGH' },
+          { key: { target_id: 1, generation: 2 }, display_class: 'CLEAR' },
+        ],
+      },
+      os: { x: 0, y: 0 },
+    }, { ...target, generation: 2 }),
+    'CLEAR',
+  );
+  assert.equal(
+    targetThreatStyle({
+      threat_management: {
+        status: 'AVAILABLE',
+        vectors: [{ key: { target_id: 1, generation: 1 }, display_class: 'HIGH' }],
+      },
+      os: { x: 0, y: 0 },
+    }, { id: 1, x: 0, y: 0 }),
+    'UNKNOWN',
+  );
   assert.equal(
     targetThreatStyle({
       threat_management: {

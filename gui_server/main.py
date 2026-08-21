@@ -980,6 +980,7 @@ class WebSessionManager:
         return jsonable(
             {
                 "labels": raw.get("do_labels", []),
+                "generations": raw.get("do_generations", []),
                 "states": states,
                 "covariances": raw.get("do_covariances", []),
                 "nis": raw.get("do_NISes", []),

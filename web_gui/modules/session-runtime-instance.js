@@ -1,5 +1,5 @@
 import { createActiveSessionRuntime } from './active-session-runtime.js?v=20260818-candidate2-runtime-final';
-import { createTelemetryProjection } from './telemetry-projection.js?v=20260821-threat-ui-fix3';
+import { createTelemetryProjection } from './telemetry-projection.js?v=20260821-trackkey-fix4';
 
 class SessionHttpError extends Error {
   constructor(response, detail) {

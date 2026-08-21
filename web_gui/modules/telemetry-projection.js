@@ -123,10 +123,22 @@ function projectNavigation(envelope) {
 function projectSensor(envelope) {
   const truth = envelope.obstacles ?? [];
   const truthById = new Map(truth.map((ship) => [String(ship.id), ship]));
-  if (envelope.executed_tracker === 'god') {
-    return freeze({ targets: freeze(truth.map((ship) => freeze(sensorTarget(ship, ship.x, ship.y, 'truth')))) });
-  }
   const trackSet = envelope.tracks?.[0];
+  const generationById = new Map((trackSet?.labels || []).map((id, index) => [
+    String(id),
+    trackSet?.generations?.[index] ?? null,
+  ]));
+  if (envelope.executed_tracker === 'god') {
+    return freeze({
+      targets: freeze(truth.map((ship) => freeze(sensorTarget(
+        ship,
+        ship.x,
+        ship.y,
+        'truth',
+        ship.generation ?? generationById.get(String(ship.id)) ?? null,
+      )))),
+    });
+  }
   const states = trackSet?.states;
   if (!Array.isArray(states) || states.length === 0) return freeze({ targets: freeze([]) });
   const targets = [];
@@ -146,6 +158,7 @@ function projectSensor(envelope) {
       : null;
     const target = freeze({
       id,
+      generation: trackSet.generations?.[index] ?? null,
       mmsi: ship?.mmsi ?? null,
       north: ship?.x ?? null,
       east: ship?.y ?? null,
@@ -163,9 +176,10 @@ function projectSensor(envelope) {
   return freeze({ targets: freeze(targets) });
 }
 
-function sensorTarget(ship, displayNorth, displayEast, positionSource) {
+function sensorTarget(ship, displayNorth, displayEast, positionSource, generation = null) {
   return {
     id: ship.id,
+    generation,
     mmsi: ship.mmsi ?? null,
     north: ship.x ?? null,
     east: ship.y ?? null,

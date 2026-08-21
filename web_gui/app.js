@@ -1,4 +1,4 @@
-import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260821-threat-ui-fix3';
+import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260821-trackkey-fix4';
 import {
   createSituationDisplay,
   targetsForDisplay,
@@ -7,7 +7,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260819-c4-situation-2';
+} from './modules/situation-display.js?v=20260821-trackkey-fix4';
 
 /**
  * Colav-Simulator Web GUI — app.js

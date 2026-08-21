@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 
 from colav_simulator.common.string_enum import StringEnum
-from colav_simulator.core.tracking.trackers import TrackKey
+from colav_simulator.core.tracking.trackers import TrackKey, track_key_sort
 
 
 class ObservationHealth(StringEnum):
@@ -293,7 +293,7 @@ class EncounterCycle:
                         "validity": fact.validity,
                         "unavailable_reason": fact.unavailable_reason,
                     }
-                    for fact in sorted(self.physical_facts, key=lambda value: _track_key_sort(value.key))
+                    for fact in sorted(self.physical_facts, key=lambda value: track_key_sort(value.key))
                 ],
                 "primary_priority_facts": [
                     {
@@ -307,7 +307,7 @@ class EncounterCycle:
                     }
                     for fact in sorted(
                         self.primary_priority_facts,
-                        key=lambda value: _track_key_sort(value.key),
+                        key=lambda value: track_key_sort(value.key),
                     )
                 ],
             }
@@ -783,7 +783,7 @@ def canonical_physical_facts(cycle: EncounterCycle) -> tuple[PhysicalEncounterFa
     """Build one deterministic physical-facts set for a cycle."""
     own_radius = 0.5 * math.hypot(cycle.ownship.length_m, cycle.ownship.width_m)
     facts = []
-    for target in sorted(cycle.targets, key=lambda value: _track_key_sort(value.key)):
+    for target in sorted(cycle.targets, key=lambda value: track_key_sort(value.key)):
         relative_position = target.state_enu[:2] - cycle.ownship.position_ne_m
         relative_velocity = target.state_enu[2:4] - cycle.ownship.velocity_ne_mps
         geometry = pairwise_geometry(
@@ -1540,10 +1540,6 @@ def _readonly(value: np.ndarray, shape: tuple[int, ...], name: str) -> np.ndarra
 def _hash(value: object) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     return hashlib.sha256(encoded).hexdigest()
-
-
-def _track_key_sort(key: TrackKey) -> tuple[int, int]:
-    return key.target_id, key.generation
 
 
 def _wrap(angle: float) -> float:

@@ -1,6 +1,6 @@
 import { createValidationAssembly } from './validation-assembly.js?v=20260820-no-hidden-tuple-repair';
-import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260821-threat-ui-fix3';
-import { createSituationDisplay } from './situation-display.js?v=20260819-c4-situation-2';
+import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260821-trackkey-fix4';
+import { createSituationDisplay } from './situation-display.js?v=20260821-trackkey-fix4';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const RULE_IMAGES = {

@@ -44,6 +44,13 @@ class TrackKey:
             raise ValueError("generation must be positive")
 
 
+def track_key_sort(key: TrackKey) -> tuple[int, int]:
+    """Return the canonical target-id then generation ordering key."""
+    if not isinstance(key, TrackKey):
+        raise TypeError("track_key_sort requires TrackKey")
+    return key.target_id, key.generation
+
+
 @dataclass(frozen=True)
 class TrackSnapshot(Sequence[Any]):
     """Immutable tracker-authoritative observation with legacy tuple access."""

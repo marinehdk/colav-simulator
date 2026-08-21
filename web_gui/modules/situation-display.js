@@ -171,9 +171,18 @@ export function wrapRadians(value) {
 
 export function targetsForDisplay(data) {
   const obstacles = data.obstacles || [];
-  if (data.executed_tracker === 'god') return obstacles;
-
   const trackSet = data.tracks?.[0];
+  const generationById = new Map((trackSet?.labels || []).map((id, index) => [
+    String(id),
+    trackSet?.generations?.[index] ?? null,
+  ]));
+  if (data.executed_tracker === 'god') {
+    return obstacles.map(target => ({
+      ...target,
+      generation: target.generation ?? generationById.get(String(target.id)) ?? null,
+    }));
+  }
+
   if (trackSet?.states?.length) {
     const truthById = new Map(obstacles.map(target => [String(target.id), target]));
     return trackSet.states.map((state, index) => {
@@ -186,6 +195,7 @@ export function targetsForDisplay(data) {
       return {
         ...truth,
         id,
+        generation: trackSet.generations?.[index] ?? null,
         x: Number(state[0]),
         y: Number(state[1]),
         psi: Number.isFinite(course) ? course : truth.psi,
@@ -201,10 +211,18 @@ export function targetsForDisplay(data) {
 export function targetThreatStyle(data, target) {
   const source = data?.threat_management;
   if (!target || source?.status !== 'AVAILABLE' || !Array.isArray(source.vectors)) return 'UNKNOWN';
+  const targetGeneration = target.generation;
+  if (targetGeneration === null || targetGeneration === undefined) return 'UNKNOWN';
   const vector = source.vectors.find((item) => {
     const key = item?.key ?? item;
     const targetId = key?.target_id ?? key?.targetId ?? item?.target_id ?? item?.targetId;
-    return targetId !== null && targetId !== undefined && String(targetId) === String(target.id);
+    const generation = key?.generation ?? item?.generation;
+    return targetId !== null
+      && targetId !== undefined
+      && generation !== null
+      && generation !== undefined
+      && String(targetId) === String(target.id)
+      && String(generation) === String(targetGeneration);
   });
   const explicit = vector?.display_class ?? vector?.displayClass ?? vector?.threat_class ?? vector?.threatClass;
   return ['HIGH', 'LOW', 'CLEAR', 'UNKNOWN'].includes(String(explicit).toUpperCase())

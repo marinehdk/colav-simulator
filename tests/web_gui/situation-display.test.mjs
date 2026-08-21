@@ -341,14 +341,16 @@ test('targetsForDisplay prefers tracker states unless executed_tracker is god', 
   const data = {
     executed_tracker: 'ekf',
     obstacles: [obstacle],
-    tracks: [{ states: [[10, 20, 3, 4]], labels: [7], covariances: [] }],
+    tracks: [{ states: [[10, 20, 3, 4]], labels: [7], generations: [4], covariances: [] }],
   };
   const [fromTracker] = targetsForDisplay(data);
   assert.equal(fromTracker.id, 7);
+  assert.equal(fromTracker.generation, 4);
   assert.equal(fromTracker.x, 10);
   assert.equal(fromTracker.source, 'tracker');
   const [fromGod] = targetsForDisplay({ ...data, executed_tracker: 'god' });
   assert.equal(fromGod.id, 1);
+  assert.equal(fromGod.generation, null);
   assert.equal(fromGod.x, 0);
 });
 

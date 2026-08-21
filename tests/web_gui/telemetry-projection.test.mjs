@@ -266,6 +266,21 @@ test('navigation projects raw own ship facts and playback status', () => {
   });
 });
 
+test('sensor projection preserves tracker generation with the displayed estimate', () => {
+  const projection = createTelemetryProjection();
+  const snapshot = projection.project(runtimeSnapshot({
+    envelope: envelope({
+      executed_tracker: 'kf',
+      obstacles: [{ id: 7, mmsi: 123456789, x: 10, y: 20, active: true }],
+      tracks: [{ labels: [7], generations: [3], states: [[11, 21, 2, 1]], covariances: [] }],
+    }),
+  }));
+
+  assert.equal(snapshot.sensor.targets[0].id, 7);
+  assert.equal(snapshot.sensor.targets[0].generation, 3);
+  assert.equal(snapshot.sensor.targets[0].positionSource, 'tracker');
+});
+
 /* ── 7. Duplicate-snapshot skip ── */
 test('duplicate envelope keys return the cached snapshot without notifying subscribers', () => {
   const projection = createTelemetryProjection();

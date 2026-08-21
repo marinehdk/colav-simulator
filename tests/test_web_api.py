@@ -399,6 +399,7 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
         assert first.json()["measurements"] is not None
         assert first.json()["tracks"] is not None
         assert first.json()["tracks"][0]["states"][0][0] < 5000.0
+        assert first.json()["tracks"][0]["generations"][0] == 1
         assert first.json()["enc_navigation_area"] == navigation_area
         assert -90.0 <= first.json()["os"]["latitude"] <= 90.0
         assert -180.0 <= first.json()["os"]["longitude"] <= 180.0

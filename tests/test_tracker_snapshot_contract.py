@@ -1,6 +1,6 @@
 import numpy as np
 
-from colav_simulator.core.tracking.trackers import GodTracker, TrackKey, TrackSnapshot, TrackStatus
+from colav_simulator.core.tracking.trackers import GodTracker, TrackKey, TrackSnapshot, TrackStatus, track_key_sort
 
 
 def _target(target_id: int, north_m: float) -> tuple[int, np.ndarray, float, float]:
@@ -33,3 +33,14 @@ def test_god_tracker_owns_generation_and_observation_provenance() -> None:
     np.testing.assert_array_equal(state, _target(7, 120.0)[1])
     np.testing.assert_array_equal(covariance, np.zeros((4, 4)))
     assert (length_m, width_m) == (30.0, 7.0)
+
+
+def test_track_key_sort_keeps_target_then_generation_ordering_golden() -> None:
+    keys = (TrackKey(8, 2), TrackKey(3, 4), TrackKey(8, 1), TrackKey(3, 1))
+
+    assert tuple(sorted(keys, key=track_key_sort)) == (
+        TrackKey(3, 1),
+        TrackKey(3, 4),
+        TrackKey(8, 1),
+        TrackKey(8, 2),
+    )
