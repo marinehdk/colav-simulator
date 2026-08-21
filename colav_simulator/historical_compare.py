@@ -148,10 +148,16 @@ class HistoricalBenchmarkTrajectory:
             state = ship.get("csog_state")
             if state is None or len(state) < 4:
                 continue
-            timestamps.append(float(ship.get("timestamp", frame.get("timestamp", len(timestamps)))))
-            positions.append((float(state[0]), float(state[1])))
-            speeds.append(float(state[2]))
-            courses.append(float(state[3]))
+            timestamp = float(ship.get("timestamp", frame.get("timestamp", len(timestamps))))
+            values = tuple(float(state[index]) for index in range(4))
+            if not math.isfinite(timestamp) or not all(math.isfinite(value) for value in values):
+                continue
+            if timestamps and timestamp <= timestamps[-1]:
+                continue
+            timestamps.append(timestamp)
+            positions.append((values[0], values[1]))
+            speeds.append(values[2])
+            courses.append(values[3])
         return cls(tuple(timestamps), tuple(positions), tuple(courses), tuple(speeds), source=source)
 
 
@@ -480,13 +486,15 @@ class HistoricalBenchmarkComparator:
         human_duration = (human.end_s - start) if human is not None and human.end_s >= start else None
         cf_duration = cf.end_s - start if cf.end_s >= start else None
         status = (
-            HistoricalCompareDomainStatus.COMPLETE if human_path is not None else HistoricalCompareDomainStatus.NOT_AVAILABLE
+            HistoricalCompareDomainStatus.COMPLETE
+            if human_path is not None and cf_path is not None
+            else HistoricalCompareDomainStatus.NOT_AVAILABLE
         )
         return HistoricalEfficiencyComparison(
             status=status,
             human_path_length_m=human_path,
             counterfactual_path_length_m=cf_path,
-            path_length_delta_m=(cf_path - human_path) if human_path is not None else None,
+            path_length_delta_m=(cf_path - human_path) if human_path is not None and cf_path is not None else None,
             human_duration_s=human_duration,
             counterfactual_duration_s=cf_duration,
             duration_delta_s=(cf_duration - human_duration)
