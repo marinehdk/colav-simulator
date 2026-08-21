@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import threading
 import uuid
+import zipfile
+import zlib
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
@@ -14,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.persistence import jsonable
+from colav_simulator.experiment.runner import ExperimentRunner, PreparedRun
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
     HistoricalAISAlgorithmBinding,
@@ -34,7 +37,6 @@ from colav_simulator.historical_compare import (
     HistoricalBenchmarkTrajectory,
 )
 from colav_simulator.historical_counterfactual import (
-    HistoricalAISCounterfactualPreparation,
     HistoricalAISCounterfactualRunner,
     HistoricalAISCounterfactualRunRequest,
 )
@@ -46,7 +48,16 @@ from colav_simulator.historical_enc import (
     ENCSimulationProjection,
     ENCSourceIdentity,
 )
+from colav_simulator.historical_replay import (
+    HistoricalActorSet,
+    HistoricalAISReconstructionProfile,
+    HistoricalAISReconstructor,
+    HistoricalReplayFactory,
+    HistoricalReplayRequest,
+)
 from colav_simulator.historical_serialization import semantic_hash
+from colav_simulator.simulator import Config as SimulatorConfig
+from colav_simulator.simulator import Simulator
 
 router = APIRouter()
 
@@ -56,6 +67,11 @@ class HistoricalWorkflowStatus(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+
+
+class HistoricalWorkflowMode(str, Enum):
+    HISTORICAL_REPLAY = "HISTORICAL_REPLAY"
+    COUNTERFACTUAL = "COUNTERFACTUAL"
 
 
 class HistoricalWorkflowErrorCode(str, Enum):
@@ -75,15 +91,29 @@ class HistoricalWorkflowErrorCode(str, Enum):
     TIME_COVERAGE_INSUFFICIENT = "TIME_COVERAGE_INSUFFICIENT"
     INTENT_NOT_ESTABLISHED = "INTENT_NOT_ESTABLISHED"
     SOURCE_QUALITY_UNAVAILABLE = "SOURCE_QUALITY_UNAVAILABLE"
+    DATASET_IDENTITY_MISMATCH = "DATASET_IDENTITY_MISMATCH"
+
+
+class HistoricalExpectedEntry(BaseModel):
+    entry_name: str = Field(min_length=1)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    uncompressed_bytes: int = Field(ge=0)
+    crc32: int = Field(ge=0, le=0xFFFFFFFF)
 
 
 class HistoricalWorkflowCreateRequest(BaseModel):
-    """Versioned request for Dataset → Case → normal Counterfactual preparation."""
+    """Versioned request for Replay or Dataset → Case → Counterfactual preparation."""
 
+    mode: HistoricalWorkflowMode
     source_path: str = Field(min_length=1)
     selection: dict[str, Any]
-    enc_profile: dict[str, Any]
-    case: dict[str, Any]
+    expected_archive_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_entries: list[HistoricalExpectedEntry] = Field(min_length=1)
+    expected_schema_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_selection_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    enc_profile: dict[str, Any] | None = None
+    case: dict[str, Any] = Field(default_factory=dict)
+    replay: dict[str, Any] = Field(default_factory=dict)
     run_spec: dict[str, Any]
     human_reference: dict[str, Any] | None = None
     alignment_profile: dict[str, Any] = Field(default_factory=dict)
@@ -108,13 +138,16 @@ class HistoricalWorkflowError(ValueError):
 @dataclass
 class _HistoricalWorkflow:
     workflow_id: str
+    mode: HistoricalWorkflowMode
     source_path: Path
-    case: HistoricalAISCase
-    run_request: HistoricalAISCounterfactualRunRequest
-    preparation: HistoricalAISCounterfactualPreparation
-    runner: HistoricalAISCounterfactualRunner
-    human_reference: HistoricalBenchmarkTrajectory
-    alignment_profile: HistoricalBenchmarkAlignmentProfile
+    dataset_descriptor: Any
+    prepared_run: PreparedRun
+    experiment_runner: ExperimentRunner
+    case: HistoricalAISCase | None = None
+    run_request: HistoricalAISCounterfactualRunRequest | None = None
+    replay_request: HistoricalReplayRequest | None = None
+    human_reference: HistoricalBenchmarkTrajectory | None = None
+    alignment_profile: HistoricalBenchmarkAlignmentProfile | None = None
     status: HistoricalWorkflowStatus = HistoricalWorkflowStatus.PREPARED
     result: Any | None = None
     compare: Any | None = None
@@ -135,15 +168,21 @@ class _HistoricalWorkflow:
         return {
             "schema_version": "historical-workflow.snapshot.v1",
             "workflow_id": self.workflow_id,
+            "mode": self.mode.value,
             "status": self.status.value,
             "message": self.message,
             "stages": {
                 "dataset": "SELECTED",
-                "case": "PUBLISHED",
+                "case": "PUBLISHED" if self.case is not None else "NOT_APPLICABLE",
+                "replay": (
+                    self.status.value
+                    if self.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY
+                    else "NOT_APPLICABLE"
+                ),
                 "counterfactual": (
                     self.status.value
-                    if self.status in {HistoricalWorkflowStatus.PREPARED, HistoricalWorkflowStatus.COMPLETED}
-                    else HistoricalWorkflowStatus.FAILED.value
+                    if self.mode is HistoricalWorkflowMode.COUNTERFACTUAL
+                    else "NOT_APPLICABLE"
                 ),
                 "evaluation": None if evaluation is None else evaluation["evaluation_status"],
                 "compare": None if compare_document is None else compare_document["status"],
@@ -151,20 +190,48 @@ class _HistoricalWorkflow:
             "lineage": dict(self.lineage),
             "leakage": {
                 "human_reference_digest_in_run_spec": (
-                    self.human_reference.trajectory_digest
+                    False
+                    if self.human_reference is None or self.run_request is None
+                    else self.human_reference.trajectory_digest
                     in repr(self.run_request.to_run_spec().to_dict())
                 ),
-                "reference_runtime_last_time_s": self.run_request.t0_s,
+                "reference_runtime_last_time_s": (
+                    None if self.run_request is None else self.run_request.t0_s
+                ),
             },
             "final_snapshot": jsonable(final_frame),
             "evidence": {
-                "dataset_descriptor": self.case.dataset_descriptor.to_dict(),
-                "case": {
-                    "build_digest": self.case.build_digest,
-                    "runtime_digest": self.case.runtime_digest,
-                    "runtime_actor_set_digest": self.case.runtime_actor_set_digest,
-                    "enc_preflight": self.case.enc_preflight.to_dict(),
-                },
+                "dataset_descriptor": self.dataset_descriptor.to_dict(),
+                "case": (
+                    None
+                    if self.case is None
+                    else {
+                        "build_digest": self.case.build_digest,
+                        "runtime_digest": self.case.runtime_digest,
+                        "runtime_actor_set_digest": self.case.runtime_actor_set_digest,
+                        "enc_preflight": self.case.enc_preflight.to_dict(),
+                    }
+                ),
+                "historical_replay": (
+                    None if self.replay_request is None else self.replay_request.evidence.to_dict()
+                ),
+                "run": (
+                    None
+                    if self.result is None
+                    else {
+                        "run_id": self.result.manifest.run_id,
+                        "historical_execution_mode": self.result.manifest.historical_execution_mode,
+                        "requested_algorithm": self.result.manifest.requested_algorithm,
+                        "executed_algorithm": self.result.manifest.executed_algorithm,
+                        "fallback_used": self.result.manifest.fallback_used,
+                        "session_contract": "SimulationSession",
+                        "replay_factory": (
+                            "HistoricalReplayFactory"
+                            if self.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY
+                            else None
+                        ),
+                    }
+                ),
                 "threat_snapshot": None if snapshot is None else snapshot.to_dict(),
                 "evaluation": jsonable(evaluation),
                 "compare_digest": None if self.compare is None else self.compare.compare_digest,
@@ -193,23 +260,26 @@ class HistoricalWorkflowManager:
                 raise HistoricalWorkflowError("INVALID_STATE", "workflow is not prepared")
             workflow.status = HistoricalWorkflowStatus.RUNNING
             try:
-                prepared = workflow.preparation.prepared_run
+                prepared = workflow.prepared_run
                 prepared.session.run_to_completion()
-                result = workflow.runner.runner.finalize(prepared)
-                result.manifest.historical_reference_artifact_digest = (
-                    workflow.human_reference.trajectory_digest
-                )
+                result = workflow.experiment_runner.finalize(prepared)
+                if workflow.human_reference is not None:
+                    result.manifest.historical_reference_artifact_digest = (
+                        workflow.human_reference.trajectory_digest
+                    )
                 result.writer.write_manifest(result.manifest)
                 snapshot = result.session.threat_management_coordinator.last_snapshot
-                compare_request = HistoricalBenchmarkCompareRequest.from_counterfactual_run(
-                    workflow.case,
-                    result,
-                    human_reference=workflow.human_reference,
-                    threat_evidence=None if snapshot is None else snapshot.to_dict(),
-                )
-                compare = HistoricalBenchmarkComparator().compare(
-                    replace(compare_request, alignment_profile=workflow.alignment_profile)
-                )
+                compare = None
+                if workflow.mode is HistoricalWorkflowMode.COUNTERFACTUAL:
+                    compare_request = HistoricalBenchmarkCompareRequest.from_counterfactual_run(
+                        workflow.case,
+                        result,
+                        human_reference=workflow.human_reference,
+                        threat_evidence=None if snapshot is None else snapshot.to_dict(),
+                    )
+                    compare = HistoricalBenchmarkComparator().compare(
+                        replace(compare_request, alignment_profile=workflow.alignment_profile)
+                    )
                 workflow.result = result
                 workflow.compare = compare
                 workflow.status = HistoricalWorkflowStatus.COMPLETED
@@ -217,7 +287,7 @@ class HistoricalWorkflowManager:
                     {
                         "run_digest": result.manifest.trajectory_hash,
                         "evaluation_digest": semantic_hash(result.evaluation.to_dict()),
-                        "compare_digest": compare.compare_digest,
+                        **({} if compare is None else {"compare_digest": compare.compare_digest}),
                     }
                 )
             except Exception as exc:
@@ -240,24 +310,45 @@ class HistoricalWorkflowManager:
 def _prepare_workflow(request: HistoricalWorkflowCreateRequest) -> _HistoricalWorkflow:
     if request.schema_version != "historical-workflow.request.v1":
         raise HistoricalWorkflowError("INVALID_REQUEST", "unsupported Historical workflow schema")
-    case_document = dict(request.case)
-    if case_document.get("published", True) is not True:
-        raise HistoricalWorkflowError("CASE_NOT_PUBLISHED", "Historical API requires a Published Case")
-    if request.human_reference is None:
-        raise HistoricalWorkflowError("BINDINGS_UNAVAILABLE", "Published Case requires Human Reference binding")
     if request.run_spec.get("historical_replay") is not None or _contains_future_reference(request.run_spec):
         raise HistoricalWorkflowError("FUTURE_LEAKAGE", "client-supplied Historical runtime actor data is forbidden")
-
     source = Path(request.source_path).expanduser().resolve()
     if not source.is_file():
         raise HistoricalWorkflowError("DATASET_UNAVAILABLE", f"Historical dataset does not exist: {source}")
     try:
         selection = HistoricalAISSelection(**request.selection)
         dataset = HistoricalAISDatasetReader(source).read(selection)
+        _validate_dataset_identity(request, source, dataset.descriptor)
+        run_spec = RunSpec.from_dict(dict(request.run_spec))
+    except HistoricalWorkflowError:
+        raise
+    except Exception as exc:
+        raise HistoricalWorkflowError("INVALID_REQUEST", str(exc)) from exc
+    if request.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY:
+        return _prepare_replay_workflow(request, source, dataset, run_spec)
+    return _prepare_counterfactual_workflow(request, source, dataset, selection, run_spec)
+
+
+def _prepare_counterfactual_workflow(
+    request: HistoricalWorkflowCreateRequest,
+    source: Path,
+    dataset: Any,
+    selection: HistoricalAISSelection,
+    run_spec: RunSpec,
+) -> _HistoricalWorkflow:
+    if request.replay:
+        raise HistoricalWorkflowError("INVALID_REQUEST", "Counterfactual mode cannot accept Replay configuration")
+    case_document = dict(request.case)
+    if case_document.get("published", True) is not True:
+        raise HistoricalWorkflowError("CASE_NOT_PUBLISHED", "Historical API requires a Published Case")
+    if request.human_reference is None:
+        raise HistoricalWorkflowError("BINDINGS_UNAVAILABLE", "Published Case requires Human Reference binding")
+    if request.enc_profile is None:
+        raise HistoricalWorkflowError("ENC_UNQUALIFIED", "Counterfactual mode requires ENC profile evidence")
+    try:
         enc_profile = _enc_profile(request.enc_profile)
         if enc_profile.qualification_state is not ENCQualificationState.QUALIFIED:
             raise HistoricalWorkflowError("ENC_UNQUALIFIED", "Historical workflow requires a qualified ENC profile")
-        run_spec = RunSpec.from_dict(dict(request.run_spec))
         if run_spec.validation_rule_id is None:
             raise HistoricalWorkflowError(
                 "BINDINGS_UNAVAILABLE",
@@ -334,11 +425,13 @@ def _prepare_workflow(request: HistoricalWorkflowCreateRequest) -> _HistoricalWo
     workflow_id = str(uuid.uuid4())
     return _HistoricalWorkflow(
         workflow_id=workflow_id,
+        mode=HistoricalWorkflowMode.COUNTERFACTUAL,
         source_path=source,
+        dataset_descriptor=dataset.descriptor,
+        prepared_run=preparation.prepared_run,
+        experiment_runner=counterfactual_runner.runner,
         case=case,
         run_request=run_request,
-        preparation=preparation,
-        runner=counterfactual_runner,
         human_reference=human_reference,
         alignment_profile=alignment,
         lineage={
@@ -347,6 +440,154 @@ def _prepare_workflow(request: HistoricalWorkflowCreateRequest) -> _HistoricalWo
             "runtime_actor_set_digest": case.runtime_actor_set_digest,
             "run_spec_digest": run_request.run_spec_digest,
         },
+    )
+
+
+def _prepare_replay_workflow(
+    request: HistoricalWorkflowCreateRequest,
+    source: Path,
+    dataset: Any,
+    run_spec: RunSpec,
+) -> _HistoricalWorkflow:
+    if request.human_reference is not None or _contains_future_reference(request.replay):
+        raise HistoricalWorkflowError("FUTURE_LEAKAGE", "Historical Replay cannot accept Human Reference evidence")
+    if request.enc_profile is not None or request.case:
+        raise HistoricalWorkflowError("INVALID_REQUEST", "Historical Replay cannot accept Counterfactual Case/ENC fields")
+    replay_document = dict(request.replay)
+    reference_mmsi = replay_document.pop("reference_mmsi", None)
+    if reference_mmsi is None:
+        raise HistoricalWorkflowError("INVALID_REQUEST", "Historical Replay requires reference_mmsi")
+    if run_spec.algorithm_id != "nominal":
+        raise HistoricalWorkflowError("INVALID_REQUEST", "Historical Replay cannot execute a COLAV algorithm")
+    try:
+        profile = HistoricalAISReconstructionProfile(**replay_document.pop("reconstruction_profile", {}))
+        actor_set = HistoricalAISReconstructor().reconstruct(dataset, profile)
+        actor_set = _reference_first_actor_set(actor_set, int(reference_mmsi))
+        reference = actor_set.actor(0)
+        replay_request = HistoricalReplayRequest(
+            actor_set=actor_set,
+            ownship_actor_id=0,
+            dt_sim=replay_document.pop("dt_sim", run_spec.dt),
+            t_end_s=replay_document.pop("t_end_s", run_spec.t_end),
+            scenario_name=str(replay_document.pop("scenario_name", "historical_replay")),
+            utm_zone=int(replay_document.pop("utm_zone", 33)),
+            simulation_length_m=float(
+                replay_document.pop("simulation_length_m", reference.length_m or 20.0)
+            ),
+            simulation_width_m=float(
+                replay_document.pop("simulation_width_m", reference.width_m or 5.0)
+            ),
+            mode=HistoricalWorkflowMode.HISTORICAL_REPLAY.value,
+            dataset_digest=dataset.descriptor.descriptor_sha256,
+            dataset_descriptor_digest=dataset.descriptor.descriptor_sha256,
+            runtime_actor_set_digest=actor_set.semantic_digest,
+        )
+        if replay_document:
+            raise ValueError(f"unsupported Replay fields: {sorted(replay_document)}")
+        experiment_runner = ExperimentRunner()
+        replay_spec = replace(
+            run_spec,
+            historical_replay=replay_request.to_dict(),
+            t_end=replay_request.t_end_s,
+            dt=replay_request.dt_sim,
+        )
+        prepared_run = experiment_runner.prepare(replay_spec)
+        simulator_config = SimulatorConfig(verbose=False)
+        simulator_config.visualizer.show_liveplot = False
+        simulator_config.visualizer.show_results = False
+        replay_preparation = HistoricalReplayFactory.prepare(
+            replay_request,
+            enc=prepared_run.session.enc,
+            simulator=Simulator(config=simulator_config),
+            sensor_seed=replay_spec.seeds.sensor,
+            terminate_on_collision_or_grounding=replay_spec.terminate_on_collision_or_grounding,
+        )
+        prepared_run.session = replay_preparation.session
+    except HistoricalWorkflowError:
+        raise
+    except Exception as exc:
+        raise HistoricalWorkflowError("INVALID_REQUEST", str(exc)) from exc
+    return _HistoricalWorkflow(
+        workflow_id=str(uuid.uuid4()),
+        mode=HistoricalWorkflowMode.HISTORICAL_REPLAY,
+        source_path=source,
+        dataset_descriptor=dataset.descriptor,
+        prepared_run=prepared_run,
+        experiment_runner=experiment_runner,
+        replay_request=replay_request,
+        lineage={
+            "dataset_digest": dataset.descriptor.descriptor_sha256,
+            "runtime_actor_set_digest": actor_set.semantic_digest,
+            "run_spec_digest": semantic_hash(replay_spec.to_dict()),
+        },
+    )
+
+
+def _validate_dataset_identity(request: HistoricalWorkflowCreateRequest, source: Path, descriptor: Any) -> None:
+    expected_entries = {item.entry_name: item for item in request.expected_entries}
+    observed_entries = {item.entry_name: item for item in descriptor.entry_digests}
+    crc_by_name = _entry_crc32(source)
+    mismatches: list[str] = []
+    if descriptor.archive_sha256 != request.expected_archive_sha256:
+        mismatches.append("archive_sha256")
+    if descriptor.schema_sha256 != request.expected_schema_sha256:
+        mismatches.append("schema_sha256")
+    if descriptor.selection_sha256 != request.expected_selection_sha256:
+        mismatches.append("selection_sha256")
+    if set(observed_entries) != set(expected_entries):
+        mismatches.append("selected_entry_names")
+    for name in sorted(set(observed_entries).intersection(expected_entries)):
+        expected = expected_entries[name]
+        observed = observed_entries[name]
+        if observed.sha256 != expected.sha256:
+            mismatches.append(f"entry:{name}:sha256")
+        if observed.uncompressed_bytes != expected.uncompressed_bytes:
+            mismatches.append(f"entry:{name}:uncompressed_bytes")
+        if crc_by_name.get(name) != expected.crc32:
+            mismatches.append(f"entry:{name}:crc32")
+    if mismatches:
+        raise HistoricalWorkflowError(
+            "DATASET_IDENTITY_MISMATCH",
+            "Historical Dataset identity differs from expected archive/entry contract",
+            {
+                "mismatches": mismatches,
+                "observed_archive_sha256": descriptor.archive_sha256,
+                "observed_schema_sha256": descriptor.schema_sha256,
+                "observed_selection_sha256": descriptor.selection_sha256,
+            },
+        )
+
+
+def _entry_crc32(source: Path) -> dict[str, int]:
+    if zipfile.is_zipfile(source):
+        with zipfile.ZipFile(source) as archive:
+            return {item.filename: int(item.CRC) for item in archive.infolist() if not item.is_dir()}
+    return {source.name: zlib.crc32(source.read_bytes())}
+
+
+def _reference_first_actor_set(actor_set: HistoricalActorSet, reference_mmsi: int) -> HistoricalActorSet:
+    try:
+        reference = next(actor for actor in actor_set.actors if actor.mmsi == reference_mmsi)
+    except StopIteration as exc:
+        raise HistoricalWorkflowError(
+            "REFERENCE_VESSEL_UNAVAILABLE",
+            f"Historical Replay reference_mmsi {reference_mmsi} is not selected",
+        ) from exc
+    ordered = (reference, *(actor for actor in actor_set.actors if actor.mmsi != reference_mmsi))
+    actors = []
+    for actor_id, actor in enumerate(ordered):
+        remapped = replace(actor, actor_id=actor_id, actor_digest="")
+        object.__setattr__(remapped, "_configured_max_gap_s", actor_set.profile.max_interpolation_gap_s)
+        actors.append(remapped)
+    return HistoricalActorSet(
+        dataset_digest=actor_set.dataset_digest,
+        selection_digest=actor_set.selection_digest,
+        profile=actor_set.profile,
+        time_origin_utc=actor_set.time_origin_utc,
+        actors=tuple(actors),
+        provider=actor_set.provider,
+        attribution=actor_set.attribution,
+        coverage_limitations=actor_set.coverage_limitations,
     )
 
 

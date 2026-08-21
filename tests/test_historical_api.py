@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_enc import ENCRegionProfile
 from gui_server.main import app
 
@@ -38,16 +40,34 @@ def _enc_document(profile: ENCRegionProfile) -> dict[str, object]:
 
 
 def _request(tmp_path: Path, profile: ENCRegionProfile) -> dict[str, object]:
+    source = _source(tmp_path / "historical-api.csv")
+    selection_document = {
+        "start_utc": datetime(2026, 7, 1, tzinfo=UTC).isoformat(),
+        "end_utc": datetime(2026, 7, 1, 0, 1, tzinfo=UTC).isoformat(),
+    }
+    descriptor = HistoricalAISDatasetReader(source).read(
+        HistoricalAISSelection(**selection_document)
+    ).descriptor
+    entry = descriptor.entry_digests[0]
     human_positions = tuple(
         profile.projection.project_wgs84(point)
         for point in ((7.0012, 62.0000), (7.0012, 61.9994))
     )
     return {
-        "source_path": str(_source(tmp_path / "historical-api.csv")),
-        "selection": {
-            "start_utc": datetime(2026, 7, 1, tzinfo=UTC).isoformat(),
-            "end_utc": datetime(2026, 7, 1, 0, 1, tzinfo=UTC).isoformat(),
-        },
+        "mode": "COUNTERFACTUAL",
+        "source_path": str(source),
+        "selection": selection_document,
+        "expected_archive_sha256": descriptor.archive_sha256,
+        "expected_schema_sha256": descriptor.schema_sha256,
+        "expected_selection_sha256": descriptor.selection_sha256,
+        "expected_entries": [
+            {
+                "entry_name": entry.entry_name,
+                "sha256": entry.sha256,
+                "uncompressed_bytes": entry.uncompressed_bytes,
+                "crc32": zlib.crc32(source.read_bytes()),
+            }
+        ],
         "enc_profile": _enc_document(profile),
         "case": {
             "published": True,
@@ -98,6 +118,7 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
         assert document["stages"] == {
             "dataset": "SELECTED",
             "case": "PUBLISHED",
+            "replay": "NOT_APPLICABLE",
             "counterfactual": "COMPLETED",
             "evaluation": "COMPLETE",
             "compare": document["compare"]["status"],
@@ -115,6 +136,41 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
         assert streamed["lineage"] == document["lineage"]
 
 
+def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims(
+    tmp_path: Path,
+    qualified_historical_enc_profile: ENCRegionProfile,
+) -> None:
+    request = _request(tmp_path, qualified_historical_enc_profile)
+    request["mode"] = "HISTORICAL_REPLAY"
+    request["replay"] = {
+        "reference_mmsi": 123456789,
+        "reconstruction_profile": {"time_step_s": 1.0, "max_interpolation_gap_s": 15.0},
+    }
+    request.pop("enc_profile")
+    request.pop("human_reference")
+    request["case"] = {}
+
+    with TestClient(app) as client:
+        prepared = client.post("/api/historical/workflows", json=request)
+        assert prepared.status_code == 200, prepared.json()
+        workflow_id = prepared.json()["workflow_id"]
+        executed = client.post(f"/api/historical/workflows/{workflow_id}/run")
+        assert executed.status_code == 200, executed.json()
+        document = executed.json()
+
+    assert document["mode"] == "HISTORICAL_REPLAY"
+    assert document["stages"]["replay"] == "COMPLETED"
+    assert document["stages"]["counterfactual"] == "NOT_APPLICABLE"
+    assert document["stages"]["case"] == "NOT_APPLICABLE"
+    assert document["compare"] is None
+    assert document["evidence"]["historical_replay"]["mode"] == "HISTORICAL_REPLAY"
+    assert document["evidence"]["run"]["historical_execution_mode"] == "HISTORICAL_REPLAY"
+    assert document["evidence"]["run"]["executed_algorithm"] == "historical_replay"
+    assert document["evidence"]["run"]["replay_factory"] == "HistoricalReplayFactory"
+    assert document["evidence"]["evaluation"]
+    assert document["final_snapshot"]
+
+
 @pytest.mark.parametrize(
     ("mutation", "expected_status"),
     (
@@ -122,6 +178,8 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
         ("unbound", "BINDINGS_UNAVAILABLE"),
         ("unqualified_enc", "ENC_UNQUALIFIED"),
         ("future_leakage", "FUTURE_LEAKAGE"),
+        ("archive_tamper", "DATASET_IDENTITY_MISMATCH"),
+        ("entry_tamper", "DATASET_IDENTITY_MISMATCH"),
     ),
 )
 def test_historical_api_rejects_unsealed_inputs(
@@ -138,8 +196,12 @@ def test_historical_api_rejects_unsealed_inputs(
     elif mutation == "unqualified_enc":
         request["enc_profile"]["qualification_state"] = "UNQUALIFIED"
         request["enc_profile"].pop("profile_digest", None)
-    else:
+    elif mutation == "future_leakage":
         request["run_spec"]["historical_replay"] = {"future_reference_samples": [1, 2, 3]}
+    elif mutation == "archive_tamper":
+        request["expected_archive_sha256"] = "0" * 64
+    else:
+        request["expected_entries"][0]["crc32"] += 1
 
     with TestClient(app) as client:
         response = client.post("/api/historical/workflows", json=request)
