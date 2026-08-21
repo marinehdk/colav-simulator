@@ -185,6 +185,9 @@ class RunManifest:
     replay_of_run_id: str | None = None
     replay_verified: bool | None = None
     historical_replay_evidence: dict[str, Any] | None = None
+    historical_case_digest: str | None = None
+    historical_reference_artifact_digest: str | None = None
+    historical_execution_mode: str | None = None
     schema_version: str = SCHEMA_VERSION
 
     @classmethod

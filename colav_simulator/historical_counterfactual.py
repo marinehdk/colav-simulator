@@ -1,0 +1,308 @@
+"""Counterfactual handoff contracts over the normal experiment runner.
+
+This module owns the information boundary around T0.  It creates a derived
+runtime actor set whose Reference Vessel contains only history through T0;
+post-T0 human reference data is represented, when available, by an external
+artifact digest and never enters ``RunSpec``.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
+
+from colav_simulator.experiment.contracts import RunSpec
+from colav_simulator.historical_case import HistoricalAISCase
+from colav_simulator.historical_replay import (
+    HistoricalActor,
+    HistoricalActorSampleKind,
+    HistoricalActorSet,
+    HistoricalActorWorldSample,
+)
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from colav_simulator.experiment.runner import PreparedRun, RunResult
+
+
+COUNTERFACTUAL_MODE = "COUNTERFACTUAL"
+
+
+@dataclass(frozen=True)
+class HistoricalAISCounterfactualRunRequest:
+    """Immutable request for one normal-simulator Counterfactual Run."""
+
+    case: HistoricalAISCase
+    run_spec: RunSpec
+    human_reference_artifact_digest: str | None = None
+    handoff_tolerance_m: float = 1e-6
+    handoff_tolerance_mps: float = 1e-6
+    handoff_tolerance_rad: float = 1e-6
+
+    def __post_init__(self) -> None:
+        """Validate that the case contains a sealed T0 and safe intent boundary."""
+        if not self.case.published:
+            raise ValueError("Counterfactual Run requires a Published HistoricalAISCase")
+        if self.case.t0_candidate is None or self.case.nominal_intent is None:
+            raise ValueError("Counterfactual Run requires frozen T0 and Nominal Intent")
+        if not self.case.nominal_intent.strict_pre_t0_only:
+            raise ValueError("Counterfactual Run requires strict pre-T0 Nominal Intent")
+        if not isinstance(self.run_spec, RunSpec):
+            raise TypeError("run_spec must be RunSpec")
+        if self.human_reference_artifact_digest is not None:
+            digest = str(self.human_reference_artifact_digest).strip()
+            object.__setattr__(self, "human_reference_artifact_digest", digest or None)
+
+    @property
+    def t0_s(self) -> float:
+        return self.case.t0_candidate.time_s  # type: ignore[union-attr]
+
+    @property
+    def nominal_intent_digest(self) -> str:
+        return self.case.nominal_intent.intent_digest  # type: ignore[union-attr]
+
+    @property
+    def run_spec_digest(self) -> str:
+        from colav_simulator.experiment.contracts import content_hash  # noqa: PLC0415
+
+        return content_hash(self.to_run_spec().to_dict())
+
+    def to_run_spec(self) -> RunSpec:
+        """Return a RunSpec with no post-T0 Reference Vessel samples."""
+        actor_set = _runtime_actor_set(self.case)
+        dt_sim = float(self.run_spec.dt or self.case.reconstruction_profile.time_step_s)
+        t_end = self.run_spec.t_end
+        if t_end is None:
+            t_end = max(actor.last_time_s for actor in actor_set.actors) + dt_sim
+        historical_replay = {
+            "actor_set": actor_set.to_dict(),
+            "ownship_actor_id": 0,
+            "dt_sim": dt_sim,
+            "t_end_s": float(t_end),
+            "scenario_name": "historical_counterfactual",
+            "utm_zone": self.case.enc_profile.projection.utm_zone,
+            "simulation_length_m": float(self.case.reference_actor.length_m or 20.0),
+            "simulation_width_m": float(self.case.reference_actor.width_m or 5.0),
+            "mode": COUNTERFACTUAL_MODE,
+            "counterfactual_t0_s": self.t0_s,
+            "nominal_intent": self.case.nominal_intent.to_dict(),
+            "case_digest": self.case.case_digest,
+            "dataset_digest": self.case.dataset_digest,
+            "selection_digest": self.case.selection.digest,
+            "reconstruction_profile_digest": self.case.reconstruction_digest,
+            "enc_profile_digest": self.case.enc_profile_digest,
+            "handoff_tolerance_m": self.handoff_tolerance_m,
+            "handoff_tolerance_mps": self.handoff_tolerance_mps,
+            "handoff_tolerance_rad": self.handoff_tolerance_rad,
+        }
+        return replace(self.run_spec, historical_replay=historical_replay, t_end=float(t_end))
+
+
+class HistoricalAISCounterfactualRunStatus(StrEnum):
+    """Typed preparation/execution outcome for one Counterfactual Run."""
+
+    COMPLETED = "COMPLETED"
+    INVALID_REQUEST = "INVALID_REQUEST"
+    CASE_NOT_PUBLISHED = "CASE_NOT_PUBLISHED"
+    T0_UNAVAILABLE = "T0_UNAVAILABLE"
+    INTENT_NOT_ESTABLISHED = "INTENT_NOT_ESTABLISHED"
+    ENC_UNQUALIFIED = "ENC_UNQUALIFIED"
+    REFERENCE_STATE_MISMATCH = "REFERENCE_STATE_MISMATCH"
+    ALGORITHM_UNAVAILABLE = "ALGORITHM_UNAVAILABLE"
+    HANDOFF_FAILED = "HANDOFF_FAILED"
+    RUN_FAILED = "RUN_FAILED"
+
+
+@dataclass(frozen=True)
+class HistoricalAISCounterfactualPreparation:
+    """Prepared normal ExperimentRunner session at the T0 handoff boundary."""
+
+    request: HistoricalAISCounterfactualRunRequest
+    prepared_run: PreparedRun
+
+    @property
+    def session(self) -> Any:
+        return self.prepared_run.session
+
+    @property
+    def manifest(self) -> Any:
+        return self.prepared_run.manifest
+
+    @property
+    def run_spec_digest(self) -> str:
+        return self.request.run_spec_digest
+
+
+@dataclass(frozen=True)
+class HistoricalAISCounterfactualRunOutcome:
+    """Typed result retaining normal RunResult and Human Reference availability."""
+
+    status: HistoricalAISCounterfactualRunStatus
+    result: RunResult | None = None
+    message: str = ""
+    human_reference_available: bool = False
+
+    @property
+    def success(self) -> bool:
+        return self.status is HistoricalAISCounterfactualRunStatus.COMPLETED
+
+    @property
+    def failure_code(self) -> str | None:
+        return None if self.success else self.status.value
+
+    @property
+    def human_reference_status(self) -> str:
+        return "AVAILABLE" if self.human_reference_available else "NOT_AVAILABLE"
+
+
+class HistoricalAISCounterfactualRunner:
+    """Run a Published HistoricalAISCase through the existing ExperimentRunner."""
+
+    def __init__(self, runner: Any | None = None, project_root: Path | None = None) -> None:
+        if runner is None:
+            from colav_simulator.experiment.runner import ExperimentRunner  # noqa: PLC0415
+
+            runner = ExperimentRunner(project_root)
+        self.runner = runner
+
+    def prepare(self, request: HistoricalAISCounterfactualRunRequest) -> HistoricalAISCounterfactualPreparation:
+        """Prepare normal Session/Simulator state without executing a run."""
+        from colav_simulator.experiment.runner import PreparedRun  # noqa: PLC0415
+
+        if not isinstance(request, HistoricalAISCounterfactualRunRequest):
+            raise TypeError("request must be HistoricalAISCounterfactualRunRequest")
+        prepared = self.runner.prepare(request.to_run_spec())
+        if not isinstance(prepared, PreparedRun):
+            raise TypeError("ExperimentRunner returned an invalid PreparedRun")
+        return HistoricalAISCounterfactualPreparation(request=request, prepared_run=prepared)
+
+    def run(self, request: HistoricalAISCounterfactualRunRequest) -> HistoricalAISCounterfactualRunOutcome:
+        """Execute and finalize one normal simulator Counterfactual Run."""
+        try:
+            prepared = self.prepare(request)
+        except Exception as exc:
+            return HistoricalAISCounterfactualRunOutcome(
+                status=_handoff_status(exc),
+                message=str(exc),
+            )
+        try:
+            prepared.session.run_to_completion()
+            result = self.runner.finalize(prepared.prepared_run)
+        except Exception as exc:
+            try:
+                prepared.prepared_run.artifact_sink.close(timeout_s=2.0)
+                self.runner.persist_failure(
+                    prepared.manifest,
+                    prepared.prepared_run.writer,
+                    exc,
+                    prepared.session.frames,
+                    prepared.session.events,
+                )
+            except Exception:
+                pass
+            return HistoricalAISCounterfactualRunOutcome(
+                status=HistoricalAISCounterfactualRunStatus.RUN_FAILED,
+                message=str(exc),
+                human_reference_available=request.human_reference_artifact_digest is not None,
+            )
+        result.manifest.historical_reference_artifact_digest = request.human_reference_artifact_digest
+        result.writer.write_manifest(result.manifest)
+        return HistoricalAISCounterfactualRunOutcome(
+            status=HistoricalAISCounterfactualRunStatus.COMPLETED,
+            result=result,
+            human_reference_available=request.human_reference_artifact_digest is not None,
+        )
+
+
+def _handoff_status(error: Exception) -> HistoricalAISCounterfactualRunStatus:
+    message = str(error)
+    if isinstance(error, TypeError):
+        return HistoricalAISCounterfactualRunStatus.INVALID_REQUEST
+    if "REFERENCE_STATE_MISMATCH" in message:
+        return HistoricalAISCounterfactualRunStatus.REFERENCE_STATE_MISMATCH
+    if "Published" in message:
+        return HistoricalAISCounterfactualRunStatus.CASE_NOT_PUBLISHED
+    if "Nominal Intent" in message or "intent" in message.lower():
+        return HistoricalAISCounterfactualRunStatus.INTENT_NOT_ESTABLISHED
+    if "T0" in message or "t0" in message:
+        return HistoricalAISCounterfactualRunStatus.T0_UNAVAILABLE
+    if "algorithm" in message.lower() or "fallback" in message.lower():
+        return HistoricalAISCounterfactualRunStatus.ALGORITHM_UNAVAILABLE
+    if "ENC" in message or "enc" in message:
+        return HistoricalAISCounterfactualRunStatus.ENC_UNQUALIFIED
+    return HistoricalAISCounterfactualRunStatus.HANDOFF_FAILED
+
+
+def _runtime_actor_set(case: HistoricalAISCase) -> HistoricalActorSet:
+    """Build the sealed runtime world with Reference history truncated at T0."""
+    reference = case.reference_actor
+    t0_s = case.t0_candidate.time_s  # type: ignore[union-attr]
+    ordered = (reference, *case.traffic_actors)
+    actors = []
+    for actor_id, source_actor in enumerate(ordered):
+        actor = _truncate_actor_at_t0(source_actor, t0_s) if source_actor.mmsi == case.reference_mmsi else source_actor
+        actors.append(_reassign_actor_id(actor, actor_id))
+    return HistoricalActorSet(
+        dataset_digest=case.dataset_digest,
+        selection_digest=case.selection.digest,
+        profile=case.reconstruction_profile,
+        time_origin_utc=case.actor_set.time_origin_utc,
+        actors=tuple(actors),
+        provider=case.actor_set.provider,
+        attribution=case.actor_set.attribution,
+        coverage_limitations=case.actor_set.coverage_limitations,
+    )
+
+
+def _truncate_actor_at_t0(actor: HistoricalActor, t0_s: float) -> HistoricalActor:
+    pre_t0 = [sample for sample in actor.samples if sample.time_s < t0_s]
+    handoff = actor.sample_at(t0_s)
+    if handoff is None or not pre_t0:
+        raise ValueError("Reference Vessel has no reconstructed state at T0")
+    handoff = HistoricalActorWorldSample(
+        time_s=t0_s,
+        timestamp_utc=handoff.timestamp_utc,
+        state_vxvy=handoff.state_vxvy,
+        kind=handoff.kind,
+        source_observation_refs=(),
+    )
+    samples = (*pre_t0, handoff)
+    return HistoricalActor(
+        actor_id=actor.actor_id,
+        mmsi=actor.mmsi,
+        samples=samples,
+        observed_source_points=sum(sample.kind is HistoricalActorSampleKind.OBSERVED for sample in samples),
+        derived_world_samples=sum(sample.kind is HistoricalActorSampleKind.INTERPOLATED for sample in samples),
+        length_m=actor.length_m,
+        width_m=actor.width_m,
+        dimensions_provenance=actor.dimensions_provenance,
+        source_observation_digest=actor.source_observation_digest,
+    )
+
+
+def _reassign_actor_id(actor: HistoricalActor, actor_id: int) -> HistoricalActor:
+    if actor.actor_id == actor_id:
+        return actor
+    return HistoricalActor(
+        actor_id=actor_id,
+        mmsi=actor.mmsi,
+        samples=actor.samples,
+        observed_source_points=actor.observed_source_points,
+        derived_world_samples=actor.derived_world_samples,
+        length_m=actor.length_m,
+        width_m=actor.width_m,
+        dimensions_provenance=actor.dimensions_provenance,
+        source_observation_digest=actor.source_observation_digest,
+    )
+
+
+__all__ = [
+    "COUNTERFACTUAL_MODE",
+    "HistoricalAISCounterfactualPreparation",
+    "HistoricalAISCounterfactualRunRequest",
+    "HistoricalAISCounterfactualRunOutcome",
+    "HistoricalAISCounterfactualRunStatus",
+    "HistoricalAISCounterfactualRunner",
+]

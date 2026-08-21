@@ -29,7 +29,11 @@ from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunManifest, RunOutcome, RunSpec, SessionState, content_hash
 from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
 from colav_simulator.experiment.session import SimulationSession
-from colav_simulator.historical_replay import HistoricalActorShip, HistoricalReplayRequest
+from colav_simulator.historical_replay import (
+    HistoricalActorShip,
+    HistoricalCounterfactualActorShip,
+    HistoricalReplayRequest,
+)
 from colav_simulator.integrations import IntegrationRegistry
 from colav_simulator.scenario_generator import ScenarioGenerator
 from colav_simulator.simulator import Config as SimulatorConfig
@@ -145,7 +149,8 @@ class ExperimentRunner:
         historical_request = (
             HistoricalReplayRequest.from_dict(spec.historical_replay) if spec.historical_replay is not None else None
         )
-        if historical_request is not None and spec.algorithm_id != "nominal":
+        counterfactual_mode = historical_request is not None and historical_request.mode == "COUNTERFACTUAL"
+        if historical_request is not None and not counterfactual_mode and spec.algorithm_id != "nominal":
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
                 "Historical Replay is non-counterfactual and cannot execute a COLAV algorithm",
@@ -212,15 +217,40 @@ class ExperimentRunner:
             raise RuntimeError(f"Scenario produced {len(episodes)} episodes; requested index {spec.episode_index}")
         episode = episodes[spec.episode_index]
         if historical_request is not None:
-            episode["ship_list"] = [
-                HistoricalActorShip(
-                    actor,
-                    historical_request.actor_set.profile,
-                    simulation_length_m=historical_request.simulation_length_m,
-                    simulation_width_m=historical_request.simulation_width_m,
-                )
-                for actor in historical_request.actor_set.actors
-            ]
+            if counterfactual_mode:
+                episode["ship_list"] = [
+                    (
+                        HistoricalCounterfactualActorShip(
+                            actor,
+                            historical_request.actor_set.profile,
+                            t0_s=float(historical_request.counterfactual_t0_s),
+                            nominal_intent=historical_request.nominal_intent or {},
+                            handoff_tolerance_m=historical_request.handoff_tolerance_m,
+                            handoff_tolerance_mps=historical_request.handoff_tolerance_mps,
+                            handoff_tolerance_rad=historical_request.handoff_tolerance_rad,
+                            simulation_length_m=historical_request.simulation_length_m,
+                            simulation_width_m=historical_request.simulation_width_m,
+                        )
+                        if actor.actor_id == historical_request.ownship_actor_id
+                        else HistoricalActorShip(
+                            actor,
+                            historical_request.actor_set.profile,
+                            simulation_length_m=historical_request.simulation_length_m,
+                            simulation_width_m=historical_request.simulation_width_m,
+                        )
+                    )
+                    for actor in historical_request.actor_set.actors
+                ]
+            else:
+                episode["ship_list"] = [
+                    HistoricalActorShip(
+                        actor,
+                        historical_request.actor_set.profile,
+                        simulation_length_m=historical_request.simulation_length_m,
+                        simulation_width_m=historical_request.simulation_width_m,
+                    )
+                    for actor in historical_request.actor_set.actors
+                ]
             episode["config"].name = historical_request.scenario_name
             episode["config"].t_start = 0.0
             episode["config"].dt_sim = config.dt_sim
@@ -245,11 +275,14 @@ class ExperimentRunner:
         manifest.capability_profile_id = capability_profile_id
         if historical_request is not None:
             manifest.historical_replay_evidence = historical_request.evidence.to_dict()
-            manifest.diagnostic_only = True
-            manifest.diagnostic_only_reasons = [
-                *manifest.diagnostic_only_reasons,
-                "HISTORICAL_REPLAY/non-counterfactual",
-            ]
+            manifest.historical_execution_mode = historical_request.mode
+            manifest.historical_case_digest = historical_request.case_digest
+            if not counterfactual_mode:
+                manifest.diagnostic_only = True
+                manifest.diagnostic_only_reasons = [
+                    *manifest.diagnostic_only_reasons,
+                    "HISTORICAL_REPLAY/non-counterfactual",
+                ]
         output_root = Path(spec.output_root)
         if not output_root.is_absolute():
             output_root = self.project_root / output_root
@@ -329,7 +362,10 @@ class ExperimentRunner:
                 threat_management_coordinator=threat_management_coordinator,
             )
             manifest.executed_algorithm = self._executed_algorithm_id(session)
-            if historical_request is not None:
+            if counterfactual_mode:
+                manifest.executed_algorithm = spec.algorithm_id
+                manifest.fallback_used = spec.algorithm_id != "nominal" and algorithm is None
+            elif historical_request is not None:
                 manifest.executed_algorithm = "historical_replay"
                 manifest.fallback_used = False
             else:
