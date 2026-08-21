@@ -13,6 +13,8 @@ import hashlib
 import json
 import math
 import re
+import subprocess
+import sys
 import tempfile
 import zipfile
 from collections.abc import Iterator, Mapping, Sequence
@@ -24,8 +26,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-import pyarrow as pa
-import pyarrow.dataset as ds
 from shapely.geometry import Point
 
 try:
@@ -1077,6 +1077,70 @@ def _gap_findings(observations: Sequence[HistoricalAISObservation], threshold_s:
 
 
 def _read_parquet_rows(path: Path, selection: HistoricalAISSelection) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Read one Parquet entry in a process isolated from the map stack.
+
+    ``pyarrow.dataset`` and the GIS stack can load conflicting native
+    libraries in one interpreter.  Keep Arrow out of the runtime process and
+    exchange only stdlib JSON values through temporary files.  The worker
+    still applies the predicates before materializing rows, so ZIP reads stay
+    bounded to the requested data.
+    """
+    with tempfile.TemporaryDirectory(prefix="historical-ais-worker-") as temporary:
+        request_path = Path(temporary) / "request.json"
+        response_path = Path(temporary) / "response.json"
+        request_path.write_text(
+            json.dumps(
+                {
+                    "path": str(path),
+                    "selection": _selection_worker_payload(selection),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        try:
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "colav_simulator.historical_ais_parquet_worker",
+                    str(request_path),
+                    str(response_path),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=300.0,
+                cwd=Path(__file__).resolve().parents[1],
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError("Historical AIS Parquet worker exceeded its 300 second limit") from exc
+        if completed.returncode != 0:
+            detail = completed.stderr.strip() or completed.stdout.strip() or "no worker diagnostics"
+            raise RuntimeError(
+                f"Historical AIS Parquet worker failed with exit code {completed.returncode}: {detail}"
+            )
+        if not response_path.is_file():
+            raise RuntimeError("Historical AIS Parquet worker exited without a response")
+        try:
+            response = json.loads(response_path.read_text(encoding="utf-8"))
+            rows = [_worker_decode(row) for row in response["rows"]]
+            schema = response["schema"]
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise RuntimeError("Historical AIS Parquet worker returned an invalid response") from exc
+        if not isinstance(rows, list) or not isinstance(schema, dict):
+            raise RuntimeError("Historical AIS Parquet worker returned an invalid response shape")
+        return rows, schema
+
+
+def _read_parquet_rows_in_process(
+    path: Path, selection: HistoricalAISSelection
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Read Parquet using Arrow; called only by the isolated worker."""
+    import pyarrow as pa  # noqa: PLC0415
+    import pyarrow.dataset as ds  # noqa: PLC0415
+
     dataset = ds.dataset(path, format="parquet")
     schema = dataset.schema
     expression: Any = None
@@ -1221,7 +1285,63 @@ def _entry_selected(name: str, selection: HistoricalAISSelection) -> bool:
     return True
 
 
-def _arrow_timestamp(value: datetime | None, field_type: pa.DataType) -> Any:
+def _selection_worker_payload(selection: HistoricalAISSelection) -> dict[str, Any]:
+    return {
+        "start_utc": selection.start_utc.isoformat() if selection.start_utc is not None else None,
+        "end_utc": selection.end_utc.isoformat() if selection.end_utc is not None else None,
+        "mmsi": list(selection.mmsi),
+        "bbox": list(selection.bbox) if selection.bbox is not None else None,
+        "wkt": selection.wkt,
+        "entries": list(selection.entries),
+        "gap_threshold_s": selection.gap_threshold_s,
+    }
+
+
+def _worker_encode(value: Any) -> Any:
+    """Encode Arrow row values without losing source-type distinctions."""
+    if isinstance(value, datetime):
+        return {"__historical_ais_type__": "datetime", "value": value.isoformat()}
+    if isinstance(value, date):
+        return {"__historical_ais_type__": "date", "value": value.isoformat()}
+    if isinstance(value, bytes):
+        return {"__historical_ais_type__": "bytes", "value": value.hex()}
+    if isinstance(value, memoryview):
+        return {"__historical_ais_type__": "bytes", "value": value.tobytes().hex()}
+    if isinstance(value, Decimal):
+        return {"__historical_ais_type__": "decimal", "value": str(value)}
+    if isinstance(value, float) and not math.isfinite(value):
+        return {"__historical_ais_type__": "float", "value": repr(value)}
+    if isinstance(value, Mapping):
+        return {str(key): _worker_encode(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_worker_encode(item) for item in value]
+    if hasattr(value, "item"):
+        return _worker_encode(value.item())
+    return value
+
+
+def _worker_decode(value: Any) -> Any:
+    if isinstance(value, list):
+        return [_worker_decode(item) for item in value]
+    if not isinstance(value, Mapping):
+        return value
+    marker = value.get("__historical_ais_type__")
+    if marker == "datetime":
+        return datetime.fromisoformat(str(value["value"]))
+    if marker == "date":
+        return date.fromisoformat(str(value["value"]))
+    if marker == "bytes":
+        return bytes.fromhex(str(value["value"]))
+    if marker == "decimal":
+        return Decimal(str(value["value"]))
+    if marker == "float":
+        return float(str(value["value"]))
+    return {str(key): _worker_decode(item) for key, item in value.items()}
+
+
+def _arrow_timestamp(value: datetime | None, field_type: Any) -> Any:
+    import pyarrow as pa  # noqa: PLC0415
+
     if value is None:
         return None
     if pa.types.is_string(field_type) or pa.types.is_large_string(field_type):

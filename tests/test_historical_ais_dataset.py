@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import math
+import subprocess
+import sys
 import zipfile
 from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 from pathlib import Path
 
-import pyarrow as pa
-import pyarrow.parquet as pq
 import pytest
 
 from colav_simulator.historical_ais import (
@@ -20,6 +20,36 @@ from colav_simulator.historical_ais import (
 def _write_csv(path: Path, rows: str) -> Path:
     path.write_text(rows, encoding="utf-8")
     return path
+
+
+def _write_parquet_pair(first: Path, second: Path) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; from datetime import datetime; from decimal import Decimal; "
+                "import pyarrow as pa; import pyarrow.parquet as pq; "
+                "table = pa.table({'date_time_utc': pa.array([datetime(2026, 7, 1, 0, 0), "
+                "datetime(2026, 7, 1, 0, 1)], type=pa.timestamp('ns')), "
+                "'mmsi': pa.array([123456789, 222222222], type=pa.int64()), "
+                "'longitude': pa.array([7.1, 9.0]), 'latitude': pa.array([62.0, 62.0]), "
+                "'speed_over_ground': pa.array([10.0, 2.0]), "
+                "'course_over_ground': pa.array([90.0, 180.0]), "
+                "'true_heading': pa.array([91, 181], type=pa.int16()), "
+                "'rate_of_turn': pa.array([0, 0], type=pa.int8()), "
+                "'draft': pa.array([Decimal('4.0'), Decimal('2.0')], type=pa.decimal128(10, 2)), "
+                "'ais_class': pa.array(['A', 'A']), 'data_source': pa.array(['G', 'G'])}); "
+                "pq.write_table(table, sys.argv[1]); "
+                "pq.write_table(table.replace_schema_metadata({b'geo': b'crs=OGC:CRS84'}), sys.argv[2])"
+            ),
+            str(first),
+            str(second),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_compact_offline_fixture_is_schema_valid() -> None:
@@ -91,25 +121,7 @@ def test_csv_read_exposes_immutable_descriptor_raw_and_normalized_facts(tmp_path
 def test_zip_daily_parquet_selection_reads_only_selected_entry_and_supports_wkt(tmp_path: Path) -> None:
     first = tmp_path / "hais_2026-07-01.snappy.parquet"
     second = tmp_path / "hais_2026-07-02.snappy.parquet"
-    table = pa.table(
-        {
-            "date_time_utc": pa.array(
-                [datetime(2026, 7, 1, 0, 0), datetime(2026, 7, 1, 0, 1)],
-                type=pa.timestamp("ns"),
-            ),
-            "mmsi": pa.array([123456789, 222222222], type=pa.int64()),
-            "longitude": pa.array([7.1, 9.0]),
-            "latitude": pa.array([62.0, 62.0]),
-            "speed_over_ground": pa.array([10.0, 2.0]),
-            "course_over_ground": pa.array([90.0, 180.0]),
-            "true_heading": pa.array([91, 181], type=pa.int16()),
-            "rate_of_turn": pa.array([0, 0], type=pa.int8()),
-            "ais_class": pa.array(["A", "A"]),
-            "data_source": pa.array(["G", "G"]),
-        }
-    )
-    pq.write_table(table, first)
-    pq.write_table(table.replace_schema_metadata({b"geo": b"crs=OGC:CRS84"}), second)
+    _write_parquet_pair(first, second)
     archive = tmp_path / "hais.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
         bundle.write(first, first.name)
@@ -129,6 +141,7 @@ def test_zip_daily_parquet_selection_reads_only_selected_entry_and_supports_wkt(
     assert len(result.observations) == 1
     assert result.observations[0].normalized.mmsi == 123456789
     assert result.observations[0].normalized.sog_mps == pytest.approx(10 * 0.514444)
+    assert result.observations[0].normalized.draft_m == pytest.approx(4.0)
 
 
 def test_quality_findings_keep_duplicates_and_type_unavailable_sentinels(tmp_path: Path) -> None:
