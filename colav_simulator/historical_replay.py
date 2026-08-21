@@ -46,6 +46,19 @@ class HistoricalActorSampleKind(str, Enum):
     INTERPOLATED = "interpolated"
 
 
+class HistoricalReplayQualificationStatus(str, Enum):
+    DIMENSIONS_UNAVAILABLE = "DIMENSIONS_UNAVAILABLE"
+    QUALITY_INCOMPLETE = "QUALITY_INCOMPLETE"
+
+
+class HistoricalReplayQualificationError(ValueError):
+    """Typed fail-closed boundary before normal Ship/Session construction."""
+
+    def __init__(self, status: HistoricalReplayQualificationStatus, message: str) -> None:
+        super().__init__(message)
+        self.status = HistoricalReplayQualificationStatus(status)
+
+
 @dataclass(frozen=True)
 class HistoricalAISReconstructionProfile:
     """Versioned, deterministic policy for converting AIS observations to actors."""
@@ -418,6 +431,20 @@ class HistoricalActorSet:
         return output
 
 
+def _require_actor_dimensions(actor: HistoricalActor) -> None:
+    if not actor.dimensions_known:
+        raise HistoricalReplayQualificationError(
+            HistoricalReplayQualificationStatus.DIMENSIONS_UNAVAILABLE,
+            f"MMSI {actor.mmsi} has no source-provenanced length/beam",
+        )
+    provenance = actor.dimensions_provenance.strip().lower()
+    if not provenance or "unavailable" in provenance or "default" in provenance:
+        raise HistoricalReplayQualificationError(
+            HistoricalReplayQualificationStatus.QUALITY_INCOMPLETE,
+            f"MMSI {actor.mmsi} dimension provenance is incomplete",
+        )
+
+
 class HistoricalActorShip(Ship):
     """A normal :class:`Ship` whose world motion is supplied by one actor.
 
@@ -430,10 +457,8 @@ class HistoricalActorShip(Ship):
         self,
         actor: HistoricalActor,
         profile: HistoricalAISReconstructionProfile,
-        *,
-        simulation_length_m: float = 20.0,
-        simulation_width_m: float = 5.0,
     ) -> None:
+        _require_actor_dimensions(actor)
         config = ShipConfig(id=actor.actor_id, mmsi=actor.mmsi)
         super().__init__(mmsi=actor.mmsi, identifier=actor.actor_id, config=config)
         self._historical_actor = actor
@@ -441,10 +466,8 @@ class HistoricalActorShip(Ship):
         self._historical_time_s: float | None = None
         self._historical_sample: HistoricalActorWorldSample | None = None
         self._references = np.zeros((9, 1), dtype=float)
-        self._historical_simulation_length_m = float(actor.length_m or simulation_length_m)
-        self._historical_simulation_width_m = float(actor.width_m or simulation_width_m)
-        if self._historical_simulation_length_m <= 0 or self._historical_simulation_width_m <= 0:
-            raise ValueError("simulation dimensions must be positive")
+        self._historical_simulation_length_m = float(actor.length_m)
+        self._historical_simulation_width_m = float(actor.width_m)
         self._model.params.length = self._historical_simulation_length_m
         self._model.params.width = self._historical_simulation_width_m
         self.t_start = actor.first_time_s
@@ -567,15 +590,8 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
         handoff_tolerance_mps: float = 1e-6,
         handoff_tolerance_rad: float = 1e-6,
         simulation_end_s: float | None = None,
-        simulation_length_m: float = 20.0,
-        simulation_width_m: float = 5.0,
     ) -> None:
-        super().__init__(
-            actor,
-            profile,
-            simulation_length_m=simulation_length_m,
-            simulation_width_m=simulation_width_m,
-        )
+        super().__init__(actor, profile)
         self._counterfactual_t0_s = float(t0_s)
         self._handoff_tolerance_m = float(handoff_tolerance_m)
         self._handoff_tolerance_mps = float(handoff_tolerance_mps)
@@ -897,6 +913,9 @@ class HistoricalReplayEvidence:
     t0_s: float | None = None
     nominal_intent_digest: str | None = None
     enc_profile_digest: str | None = None
+    dimension_registry_digest: str | None = None
+    dimension_effective_at_utc: str | None = None
+    dimension_record_digests: tuple[tuple[int, str], ...] = ()
 
     def __post_init__(self) -> None:
         """Validate the typed historical execution mode and lineage."""
@@ -908,6 +927,7 @@ class HistoricalReplayEvidence:
             raise ValueError("Counterfactual evidence requires Case, T0 and Nominal Intent identity")
         object.__setattr__(self, "actor_digests", tuple(sorted(self.actor_digests)))
         object.__setattr__(self, "coverage_limitations", tuple(self.coverage_limitations))
+        object.__setattr__(self, "dimension_record_digests", tuple(sorted(self.dimension_record_digests)))
         if self.time_origin_utc.tzinfo is None:
             raise ValueError("time_origin_utc must be timezone-aware")
         object.__setattr__(self, "time_origin_utc", self.time_origin_utc.astimezone(UTC))
@@ -948,6 +968,9 @@ class HistoricalReplayEvidence:
             "provider": self.provider,
             "attribution": self.attribution,
             "coverage_limitations": list(self.coverage_limitations),
+            "dimension_registry_digest": self.dimension_registry_digest,
+            "dimension_effective_at_utc": self.dimension_effective_at_utc,
+            "dimension_record_digests": [list(item) for item in self.dimension_record_digests],
         }
 
 
@@ -961,8 +984,6 @@ class HistoricalReplayRequest:
     t_end_s: float | None = None
     scenario_name: str = "historical_replay"
     utm_zone: int = 33
-    simulation_length_m: float = 20.0
-    simulation_width_m: float = 5.0
     mode: str = "HISTORICAL_REPLAY"
     counterfactual_t0_s: float | None = None
     nominal_intent: Mapping[str, Any] | None = None
@@ -977,6 +998,9 @@ class HistoricalReplayRequest:
     handoff_tolerance_m: float = 1e-6
     handoff_tolerance_mps: float = 1e-6
     handoff_tolerance_rad: float = 1e-6
+    dimension_registry_digest: str | None = None
+    dimension_effective_at_utc: str | None = None
+    dimension_record_digests: tuple[tuple[int, str], ...] = ()
 
     def __post_init__(self) -> None:  # noqa: PLR0912
         """Validate actor ownership and simulation bounds."""
@@ -1010,6 +1034,7 @@ class HistoricalReplayRequest:
             raise ValueError("t_end_s must be finite and positive")
         if self.utm_zone not in {32, 33}:
             raise ValueError("utm_zone must be 32 or 33")
+        object.__setattr__(self, "dimension_record_digests", tuple(sorted(self.dimension_record_digests)))
 
     @property
     def evidence(self) -> HistoricalReplayEvidence:
@@ -1033,6 +1058,9 @@ class HistoricalReplayRequest:
                 else None
             ),
             enc_profile_digest=self.enc_profile_digest,
+            dimension_registry_digest=self.dimension_registry_digest,
+            dimension_effective_at_utc=self.dimension_effective_at_utc,
+            dimension_record_digests=self.dimension_record_digests,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1043,8 +1071,6 @@ class HistoricalReplayRequest:
             "t_end_s": self.t_end_s,
             "scenario_name": self.scenario_name,
             "utm_zone": self.utm_zone,
-            "simulation_length_m": self.simulation_length_m,
-            "simulation_width_m": self.simulation_width_m,
             "mode": self.mode,
             "counterfactual_t0_s": self.counterfactual_t0_s,
             "nominal_intent": dict(self.nominal_intent) if self.nominal_intent is not None else None,
@@ -1059,6 +1085,9 @@ class HistoricalReplayRequest:
             "handoff_tolerance_m": self.handoff_tolerance_m,
             "handoff_tolerance_mps": self.handoff_tolerance_mps,
             "handoff_tolerance_rad": self.handoff_tolerance_rad,
+            "dimension_registry_digest": self.dimension_registry_digest,
+            "dimension_effective_at_utc": self.dimension_effective_at_utc,
+            "dimension_record_digests": [list(item) for item in self.dimension_record_digests],
             "evidence": self.evidence.to_dict(),
         }
 
@@ -1071,8 +1100,6 @@ class HistoricalReplayRequest:
             t_end_s=value.get("t_end_s"),
             scenario_name=str(value.get("scenario_name", "historical_replay")),
             utm_zone=int(value.get("utm_zone", 33)),
-            simulation_length_m=float(value.get("simulation_length_m", 20.0)),
-            simulation_width_m=float(value.get("simulation_width_m", 5.0)),
             mode=str(value.get("mode", "HISTORICAL_REPLAY")),
             counterfactual_t0_s=value.get("counterfactual_t0_s"),
             nominal_intent=value.get("nominal_intent"),
@@ -1087,6 +1114,11 @@ class HistoricalReplayRequest:
             handoff_tolerance_m=float(value.get("handoff_tolerance_m", 1e-6)),
             handoff_tolerance_mps=float(value.get("handoff_tolerance_mps", 1e-6)),
             handoff_tolerance_rad=float(value.get("handoff_tolerance_rad", 1e-6)),
+            dimension_registry_digest=value.get("dimension_registry_digest"),
+            dimension_effective_at_utc=value.get("dimension_effective_at_utc"),
+            dimension_record_digests=tuple(
+                (int(item[0]), str(item[1])) for item in value.get("dimension_record_digests", ())
+            ),
         )
 
 
@@ -1116,6 +1148,20 @@ class HistoricalReplayFactory:
         """Prepare a normal session; no actor-specific simulation loop exists."""
         from colav_simulator.experiment.session import SimulationSession  # noqa: PLC0415
 
+        for actor in request.actor_set.actors:
+            _require_actor_dimensions(actor)
+        explicit_mmsi = tuple(
+            actor.mmsi for actor in request.actor_set.actors if actor.dimensions_provenance.startswith("explicit:")
+        )
+        if explicit_mmsi and (
+            not request.dimension_registry_digest
+            or not request.dimension_effective_at_utc
+            or {mmsi for mmsi, _digest in request.dimension_record_digests} != set(explicit_mmsi)
+        ):
+            raise HistoricalReplayQualificationError(
+                HistoricalReplayQualificationStatus.QUALITY_INCOMPLETE,
+                "explicit Replay dimensions lack complete registry/effective/source-digest lineage",
+            )
         dt_sim = float(request.dt_sim or request.actor_set.profile.time_step_s)
         max_time = max(actor.last_time_s for actor in request.actor_set.actors) + dt_sim
         t_end = float(request.t_end_s if request.t_end_s is not None else max_time)
@@ -1140,15 +1186,7 @@ class HistoricalReplayFactory:
             n_random_ships_range=None,
             ship_list=[],
         )
-        ships = tuple(
-            HistoricalActorShip(
-                actor,
-                request.actor_set.profile,
-                simulation_length_m=request.simulation_length_m,
-                simulation_width_m=request.simulation_width_m,
-            )
-            for actor in request.actor_set.actors
-        )
+        ships = tuple(HistoricalActorShip(actor, request.actor_set.profile) for actor in request.actor_set.actors)
         if ships[0].id != request.ownship_actor_id:
             raise ValueError("ownship_actor_id must be the first actor ID for normal Simulator ownership")
         session = SimulationSession(
@@ -1184,6 +1222,8 @@ __all__ = [
     "HistoricalReplayFactory",
     "HistoricalAISReplayFactory",
     "HistoricalReplayPreparation",
+    "HistoricalReplayQualificationError",
+    "HistoricalReplayQualificationStatus",
     "HistoricalReplayRequest",
     "HistoricalActorShip",
     "HistoricalCounterfactualActorShip",

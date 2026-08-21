@@ -240,15 +240,11 @@ class ExperimentRunner:
                             handoff_tolerance_mps=historical_request.handoff_tolerance_mps,
                             handoff_tolerance_rad=historical_request.handoff_tolerance_rad,
                             simulation_end_s=float(episode["config"].t_end),
-                            simulation_length_m=historical_request.simulation_length_m,
-                            simulation_width_m=historical_request.simulation_width_m,
                         )
                         if actor.actor_id == historical_request.ownship_actor_id
                         else HistoricalActorShip(
                             actor,
                             historical_request.actor_set.profile,
-                            simulation_length_m=historical_request.simulation_length_m,
-                            simulation_width_m=historical_request.simulation_width_m,
                         )
                     )
                     for actor in historical_request.actor_set.actors
@@ -258,8 +254,6 @@ class ExperimentRunner:
                     HistoricalActorShip(
                         actor,
                         historical_request.actor_set.profile,
-                        simulation_length_m=historical_request.simulation_length_m,
-                        simulation_width_m=historical_request.simulation_width_m,
                     )
                     for actor in historical_request.actor_set.actors
                 ]

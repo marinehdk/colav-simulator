@@ -1036,7 +1036,7 @@ class HistoricalAISCaseBuilder:
                     dataset_selection_digest=request.dataset.descriptor.selection_sha256,
                 )
             actor_set = HistoricalAISReconstructor().reconstruct(request.dataset, request.reconstruction_profile)
-            actor_set = _apply_dimension_overrides(actor_set, request.dimension_overrides)
+            actor_set = apply_dimension_overrides(actor_set, request.dimension_overrides)
         except (TypeError, ValueError, KeyError) as exc:
             return self._failure(HistoricalAISCaseBuildStatus.INVALID_REQUEST, str(exc))
 
@@ -1564,9 +1564,10 @@ def _constant_velocity_fit_error(samples: Sequence[Any], speed: float, course: f
     return math.sqrt(sum(error * error for error in errors) / len(errors)) if errors else 0.0
 
 
-def _apply_dimension_overrides(
+def apply_dimension_overrides(
     actor_set: HistoricalActorSet, overrides: Mapping[int, Mapping[str, Any]]
 ) -> HistoricalActorSet:
+    """Apply only explicit source-provenanced per-MMSI dimension records."""
     if not overrides:
         return actor_set
     actors: list[HistoricalActor] = []
@@ -1691,4 +1692,5 @@ __all__ = [
     "HistoricalAISNominalIntent",
     "HistoricalAISReferenceVessel",
     "HistoricalAIST0Candidate",
+    "apply_dimension_overrides",
 ]

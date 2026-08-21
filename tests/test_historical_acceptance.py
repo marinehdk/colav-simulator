@@ -114,8 +114,7 @@ def test_real_window_manifest_records_replay_stable_graph_and_full_evidence() ->
     assert len(manifest["runs"]) == 2
     assert manifest["runs"][0]["run_id"] != manifest["runs"][1]["run_id"]
     assert all(
-        manifest["runs"][0][field] == manifest["runs"][1][field]
-        for field in manifest["determinism"]["compared_fields"]
+        manifest["runs"][0][field] == manifest["runs"][1][field] for field in manifest["determinism"]["compared_fields"]
     )
     assert manifest["runs"][0]["threat_graph_evidence_hash"] != manifest["runs"][1]["threat_graph_evidence_hash"]
     assert manifest["runs"][0]["threat_graph_semantic_hash"] == manifest["runs"][1]["threat_graph_semantic_hash"]

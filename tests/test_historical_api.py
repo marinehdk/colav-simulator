@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from colav_simulator.historical_acceptance import HistoricalAISDimensionRecord, HistoricalAISDimensionRegistry
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_enc import ENCRegionProfile
 from gui_server.main import app
@@ -39,20 +40,42 @@ def _enc_document(profile: ENCRegionProfile) -> dict[str, object]:
     }
 
 
+def _dimension_registry_document(*mmsi: int) -> dict[str, object]:
+    registry = HistoricalAISDimensionRegistry(
+        registry_id="historical-api-test-dimensions",
+        registry_version="1.0.0",
+        scope="historical API compact fixture",
+        retrieved_at_utc="2026-08-21T00:00:00Z",
+        source_note="compact first-party test certificate",
+        source_note_sha256="test-note-sha256",
+        records=tuple(
+            HistoricalAISDimensionRecord(
+                mmsi=value,
+                length_m=40.0,
+                width_m=8.0,
+                provenance="test measurement certificate",
+                source_digest=f"test-certificate-{value}",
+                measurement_date="2020-01-01",
+                effective_date="2020-01-02",
+                journal_date="2020-01-02",
+                retrieved_at_utc="2026-08-21T00:00:00Z",
+                effective_as_of_t0=True,
+            )
+            for value in mmsi
+        ),
+    )
+    return {**registry.to_dict(), "registry_digest": registry.digest}
+
+
 def _request(tmp_path: Path, profile: ENCRegionProfile) -> dict[str, object]:
     source = _source(tmp_path / "historical-api.csv")
     selection_document = {
         "start_utc": datetime(2026, 7, 1, tzinfo=UTC).isoformat(),
         "end_utc": datetime(2026, 7, 1, 0, 1, tzinfo=UTC).isoformat(),
     }
-    descriptor = HistoricalAISDatasetReader(source).read(
-        HistoricalAISSelection(**selection_document)
-    ).descriptor
+    descriptor = HistoricalAISDatasetReader(source).read(HistoricalAISSelection(**selection_document)).descriptor
     entry = descriptor.entry_digests[0]
-    human_positions = tuple(
-        profile.projection.project_wgs84(point)
-        for point in ((7.0012, 62.0000), (7.0012, 61.9994))
-    )
+    human_positions = tuple(profile.projection.project_wgs84(point) for point in ((7.0012, 62.0000), (7.0012, 61.9994)))
     return {
         "mode": "COUNTERFACTUAL",
         "source_path": str(source),
@@ -145,6 +168,8 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
     request["replay"] = {
         "reference_mmsi": 123456789,
         "reconstruction_profile": {"time_step_s": 1.0, "max_interpolation_gap_s": 15.0},
+        "dimension_registry": _dimension_registry_document(123456789, 223456789),
+        "dimension_effective_at_utc": "2026-07-01T00:00:00+00:00",
     }
     request.pop("enc_profile")
     request.pop("human_reference")
@@ -164,11 +189,54 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
     assert document["stages"]["case"] == "NOT_APPLICABLE"
     assert document["compare"] is None
     assert document["evidence"]["historical_replay"]["mode"] == "HISTORICAL_REPLAY"
+    assert document["evidence"]["historical_replay"]["dimension_registry_digest"]
+    assert len(document["evidence"]["historical_replay"]["dimension_record_digests"]) == 2
     assert document["evidence"]["run"]["historical_execution_mode"] == "HISTORICAL_REPLAY"
     assert document["evidence"]["run"]["executed_algorithm"] == "historical_replay"
     assert document["evidence"]["run"]["replay_factory"] == "HistoricalReplayFactory"
     assert document["evidence"]["evaluation"]
     assert document["final_snapshot"]
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_status"),
+    (
+        ("missing", "DIMENSIONS_UNAVAILABLE"),
+        ("partial", "QUALITY_INCOMPLETE"),
+        ("tamper", "QUALITY_INCOMPLETE"),
+        ("naked_numbers", "DIMENSIONS_UNAVAILABLE"),
+    ),
+)
+def test_historical_replay_api_rejects_unprovenanced_dimension_inputs(
+    tmp_path: Path,
+    qualified_historical_enc_profile: ENCRegionProfile,
+    mutation: str,
+    expected_status: str,
+) -> None:
+    request = _request(tmp_path, qualified_historical_enc_profile)
+    registry = _dimension_registry_document(123456789, 223456789)
+    replay = {
+        "reference_mmsi": 123456789,
+        "dimension_registry": registry,
+        "dimension_effective_at_utc": "2026-07-01T00:00:00+00:00",
+    }
+    if mutation in {"missing", "naked_numbers"}:
+        replay.pop("dimension_registry")
+    if mutation == "partial":
+        replay["dimension_registry"] = _dimension_registry_document(123456789)
+    if mutation == "tamper":
+        replay["dimension_registry"]["registry_digest"] = "0" * 64
+    if mutation == "naked_numbers":
+        replay.update({"simulation_length_m": 40.0, "simulation_width_m": 8.0})
+    request.update({"mode": "HISTORICAL_REPLAY", "replay": replay, "case": {}})
+    request.pop("enc_profile")
+    request.pop("human_reference")
+
+    with TestClient(app) as client:
+        response = client.post("/api/historical/workflows", json=request)
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["status"] == expected_status
 
 
 @pytest.mark.parametrize(

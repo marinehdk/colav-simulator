@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,6 +15,8 @@ from colav_simulator.historical_replay import (
     HistoricalAISReconstructor,
     HistoricalCounterfactualActorShip,
     HistoricalReplayFactory,
+    HistoricalReplayQualificationError,
+    HistoricalReplayQualificationStatus,
     HistoricalReplayRequest,
 )
 from colav_simulator.simulator import Config as SimulatorConfig
@@ -179,6 +182,49 @@ def test_replay_uses_normal_session_sensor_tracker_chain(tmp_path: Path) -> None
     assert target["historical_actor_truth"]["trajectory_digest"] == actors.actors[1].actor_digest
     assert prepared.evidence.mode == "HISTORICAL_REPLAY"
     assert prepared.evidence.counterfactual is False
+
+
+def test_replay_factory_fails_before_session_when_actor_dimensions_are_missing(tmp_path: Path) -> None:
+    source = _write_csv(
+        tmp_path / "missing-hull.csv",
+        "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
+        "2026-07-01T00:00:00Z,123456789,7.0,62.0,4,90,,\n"
+        "2026-07-01T00:00:02Z,123456789,7.0001,62.0,4,90,,\n",
+    )
+    actors = HistoricalAISReconstructor().reconstruct(_read(source))
+
+    with pytest.raises(HistoricalReplayQualificationError) as error:
+        HistoricalReplayFactory.prepare(
+            HistoricalReplayRequest(actor_set=actors),
+            enc=SimpleNamespace(),
+            simulator=Simulator(config=SimulatorConfig(verbose=False)),
+        )
+
+    assert error.value.status is HistoricalReplayQualificationStatus.DIMENSIONS_UNAVAILABLE
+
+
+def test_replay_factory_rejects_default_hull_provenance_before_session(tmp_path: Path) -> None:
+    source = _write_csv(
+        tmp_path / "default-hull.csv",
+        "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
+        "2026-07-01T00:00:00Z,123456789,7.0,62.0,4,90,40,8\n"
+        "2026-07-01T00:00:02Z,123456789,7.0001,62.0,4,90,40,8\n",
+    )
+    actors = HistoricalAISReconstructor().reconstruct(_read(source))
+    actors = replace(
+        actors,
+        actors=(replace(actors.actors[0], dimensions_provenance="silent_default", actor_digest=""),),
+        semantic_digest="",
+    )
+
+    with pytest.raises(HistoricalReplayQualificationError) as error:
+        HistoricalReplayFactory.prepare(
+            HistoricalReplayRequest(actor_set=actors),
+            enc=SimpleNamespace(),
+            simulator=Simulator(config=SimulatorConfig(verbose=False)),
+        )
+
+    assert error.value.status is HistoricalReplayQualificationStatus.QUALITY_INCOMPLETE
 
 
 def test_replay_reappearance_rearms_tracker_generation(tmp_path: Path) -> None:

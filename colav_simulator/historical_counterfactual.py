@@ -98,8 +98,6 @@ class HistoricalAISCounterfactualRunRequest:
             "t_end_s": float(t_end),
             "scenario_name": "historical_counterfactual",
             "utm_zone": self.case.enc_profile.projection.utm_zone,
-            "simulation_length_m": float(self.case.reference_actor.length_m or 20.0),
-            "simulation_width_m": float(self.case.reference_actor.width_m or 5.0),
             "mode": COUNTERFACTUAL_MODE,
             "counterfactual_t0_s": self.t0_s,
             "nominal_intent": self.case.nominal_intent.to_dict(),

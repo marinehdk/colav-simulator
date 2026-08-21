@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunner, PreparedRun
+from colav_simulator.historical_acceptance import HistoricalAISDimensionRecord, HistoricalAISDimensionRegistry
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
     HistoricalAISAlgorithmBinding,
@@ -29,6 +30,7 @@ from colav_simulator.historical_case import (
     HistoricalAISDiscoveryRequest,
     HistoricalAISEvaluationBinding,
     HistoricalAISHumanReferenceBinding,
+    apply_dimension_overrides,
 )
 from colav_simulator.historical_compare import (
     HistoricalBenchmarkAlignmentProfile,
@@ -82,11 +84,12 @@ class HistoricalWorkflowErrorCode(str, Enum):
     ENC_UNQUALIFIED = "ENC_UNQUALIFIED"
     FUTURE_LEAKAGE = "FUTURE_LEAKAGE"
     DATASET_UNAVAILABLE = "DATASET_UNAVAILABLE"
+    DIMENSIONS_UNAVAILABLE = "DIMENSIONS_UNAVAILABLE"
+    QUALITY_INCOMPLETE = "QUALITY_INCOMPLETE"
     COUNTERFACTUAL_PREPARE_FAILED = "COUNTERFACTUAL_PREPARE_FAILED"
     RUN_FAILED = "RUN_FAILED"
     NO_ENCOUNTER = "NO_ENCOUNTER"
     REFERENCE_VESSEL_UNAVAILABLE = "REFERENCE_VESSEL_UNAVAILABLE"
-    DIMENSIONS_UNAVAILABLE = "DIMENSIONS_UNAVAILABLE"
     INITIAL_SEPARATION_INVALID = "INITIAL_SEPARATION_INVALID"
     TIME_COVERAGE_INSUFFICIENT = "TIME_COVERAGE_INSUFFICIENT"
     INTENT_NOT_ESTABLISHED = "INTENT_NOT_ESTABLISHED"
@@ -156,11 +159,7 @@ class _HistoricalWorkflow:
 
     def document(self) -> dict[str, Any]:
         evaluation = None if self.result is None else self.result.evaluation.to_dict()
-        snapshot = (
-            None
-            if self.result is None
-            else self.result.session.threat_management_coordinator.last_snapshot
-        )
+        snapshot = None if self.result is None else self.result.session.threat_management_coordinator.last_snapshot
         final_frame = None
         if self.result is not None and self.result.session.frames:
             final_frame = self.result.session.frames[-1]
@@ -174,15 +173,9 @@ class _HistoricalWorkflow:
             "stages": {
                 "dataset": "SELECTED",
                 "case": "PUBLISHED" if self.case is not None else "NOT_APPLICABLE",
-                "replay": (
-                    self.status.value
-                    if self.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY
-                    else "NOT_APPLICABLE"
-                ),
+                "replay": (self.status.value if self.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY else "NOT_APPLICABLE"),
                 "counterfactual": (
-                    self.status.value
-                    if self.mode is HistoricalWorkflowMode.COUNTERFACTUAL
-                    else "NOT_APPLICABLE"
+                    self.status.value if self.mode is HistoricalWorkflowMode.COUNTERFACTUAL else "NOT_APPLICABLE"
                 ),
                 "evaluation": None if evaluation is None else evaluation["evaluation_status"],
                 "compare": None if compare_document is None else compare_document["status"],
@@ -192,12 +185,9 @@ class _HistoricalWorkflow:
                 "human_reference_digest_in_run_spec": (
                     False
                     if self.human_reference is None or self.run_request is None
-                    else self.human_reference.trajectory_digest
-                    in repr(self.run_request.to_run_spec().to_dict())
+                    else self.human_reference.trajectory_digest in repr(self.run_request.to_run_spec().to_dict())
                 ),
-                "reference_runtime_last_time_s": (
-                    None if self.run_request is None else self.run_request.t0_s
-                ),
+                "reference_runtime_last_time_s": (None if self.run_request is None else self.run_request.t0_s),
             },
             "final_snapshot": jsonable(final_frame),
             "evidence": {
@@ -212,9 +202,7 @@ class _HistoricalWorkflow:
                         "enc_preflight": self.case.enc_preflight.to_dict(),
                     }
                 ),
-                "historical_replay": (
-                    None if self.replay_request is None else self.replay_request.evidence.to_dict()
-                ),
+                "historical_replay": (None if self.replay_request is None else self.replay_request.evidence.to_dict()),
                 "run": (
                     None
                     if self.result is None
@@ -226,9 +214,7 @@ class _HistoricalWorkflow:
                         "fallback_used": self.result.manifest.fallback_used,
                         "session_contract": "SimulationSession",
                         "replay_factory": (
-                            "HistoricalReplayFactory"
-                            if self.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY
-                            else None
+                            "HistoricalReplayFactory" if self.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY else None
                         ),
                     }
                 ),
@@ -264,9 +250,7 @@ class HistoricalWorkflowManager:
                 prepared.session.run_to_completion()
                 result = workflow.experiment_runner.finalize(prepared)
                 if workflow.human_reference is not None:
-                    result.manifest.historical_reference_artifact_digest = (
-                        workflow.human_reference.trajectory_digest
-                    )
+                    result.manifest.historical_reference_artifact_digest = workflow.human_reference.trajectory_digest
                 result.writer.write_manifest(result.manifest)
                 snapshot = result.session.threat_management_coordinator.last_snapshot
                 compare = None
@@ -443,6 +427,24 @@ def _prepare_counterfactual_workflow(
     )
 
 
+def _dimension_registry_from_document(document: dict[str, Any]) -> HistoricalAISDimensionRegistry:
+    payload = dict(document)
+    expected_digest = str(payload.pop("registry_digest", ""))
+    records_document = payload.pop("records", None)
+    if not isinstance(records_document, list) or not records_document:
+        raise HistoricalWorkflowError("DIMENSIONS_UNAVAILABLE", "dimension registry records are required")
+    try:
+        registry = HistoricalAISDimensionRegistry(
+            **payload,
+            records=tuple(HistoricalAISDimensionRecord(**dict(record)) for record in records_document),
+        )
+    except (TypeError, ValueError) as exc:
+        raise HistoricalWorkflowError("QUALITY_INCOMPLETE", str(exc)) from exc
+    if not expected_digest or expected_digest != registry.digest:
+        raise HistoricalWorkflowError("QUALITY_INCOMPLETE", "dimension registry digest mismatch")
+    return registry
+
+
 def _prepare_replay_workflow(
     request: HistoricalWorkflowCreateRequest,
     source: Path,
@@ -462,8 +464,24 @@ def _prepare_replay_workflow(
     try:
         profile = HistoricalAISReconstructionProfile(**replay_document.pop("reconstruction_profile", {}))
         actor_set = HistoricalAISReconstructor().reconstruct(dataset, profile)
+        registry_document = replay_document.pop("dimension_registry", None)
+        effective_at = replay_document.pop("dimension_effective_at_utc", None)
+        if not isinstance(registry_document, dict):
+            raise HistoricalWorkflowError(
+                "DIMENSIONS_UNAVAILABLE",
+                "Historical Replay requires a versioned source-provenanced dimension registry",
+            )
+        registry = _dimension_registry_from_document(registry_document)
+        errors = registry.validation_errors(
+            str(effective_at) if effective_at is not None else None, tuple(a.mmsi for a in actor_set.actors)
+        )
+        if errors:
+            raise HistoricalWorkflowError("QUALITY_INCOMPLETE", "; ".join(errors))
+        actor_set = apply_dimension_overrides(
+            actor_set,
+            {record.mmsi: record.to_dict() for record in registry.records},
+        )
         actor_set = _reference_first_actor_set(actor_set, int(reference_mmsi))
-        reference = actor_set.actor(0)
         replay_request = HistoricalReplayRequest(
             actor_set=actor_set,
             ownship_actor_id=0,
@@ -471,16 +489,13 @@ def _prepare_replay_workflow(
             t_end_s=replay_document.pop("t_end_s", run_spec.t_end),
             scenario_name=str(replay_document.pop("scenario_name", "historical_replay")),
             utm_zone=int(replay_document.pop("utm_zone", 33)),
-            simulation_length_m=float(
-                replay_document.pop("simulation_length_m", reference.length_m or 20.0)
-            ),
-            simulation_width_m=float(
-                replay_document.pop("simulation_width_m", reference.width_m or 5.0)
-            ),
             mode=HistoricalWorkflowMode.HISTORICAL_REPLAY.value,
             dataset_digest=dataset.descriptor.descriptor_sha256,
             dataset_descriptor_digest=dataset.descriptor.descriptor_sha256,
             runtime_actor_set_digest=actor_set.semantic_digest,
+            dimension_registry_digest=registry.digest,
+            dimension_effective_at_utc=str(effective_at),
+            dimension_record_digests=tuple((record.mmsi, record.source_digest) for record in registry.records),
         )
         if replay_document:
             raise ValueError(f"unsupported Replay fields: {sorted(replay_document)}")
@@ -603,9 +618,7 @@ def _enc_profile(document: dict[str, Any]) -> ENCRegionProfile:
     value["source"] = ENCSourceIdentity(**value["source"])
     value["projection"] = ENCSimulationProjection(**value["projection"])
     value["hazard_layers"] = tuple(ENCLayerIdentity(**item) for item in value["hazard_layers"])
-    value["navigability_layers"] = tuple(
-        ENCLayerIdentity(**item) for item in value["navigability_layers"]
-    )
+    value["navigability_layers"] = tuple(ENCLayerIdentity(**item) for item in value["navigability_layers"])
     cache = dict(value["cache"])
     cache.pop("schema_version", None)
     value["cache"] = ENCCacheIdentity(**cache)
