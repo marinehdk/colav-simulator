@@ -84,6 +84,7 @@ class RunSpec:
     scenario_override: dict[str, Any] | None = None
     output_root: str = "runs"
     replay_of_run_id: str | None = None
+    historical_replay: dict[str, Any] | None = None
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -110,6 +111,8 @@ class RunSpec:
             raise ValueError("deadline_mode must be ENFORCE or OFF")
         if not self.evaluator_profile_id:
             raise ValueError("evaluator_profile_id is required")
+        if self.historical_replay is not None and not isinstance(self.historical_replay, dict):
+            raise ValueError("historical_replay must be a serialized replay request mapping")
         if isinstance(self.reproduction_level, str):
             self.reproduction_level = ReproductionLevel(self.reproduction_level)
 
@@ -181,6 +184,7 @@ class RunManifest:
     reproduction_status: str = "not_evaluated"
     replay_of_run_id: str | None = None
     replay_verified: bool | None = None
+    historical_replay_evidence: dict[str, Any] | None = None
     schema_version: str = SCHEMA_VERSION
 
     @classmethod
@@ -208,6 +212,9 @@ class RunManifest:
             executed_tracker=spec.tracker_id,
             validation_rule_id=spec.validation_rule_id,
             replay_of_run_id=spec.replay_of_run_id,
+            historical_replay_evidence=(
+                dict(spec.historical_replay.get("evidence", {})) if spec.historical_replay is not None else None
+            ),
             diagnostic_only=spec.deadline_mode == "OFF",
             diagnostic_only_reasons=["deadline_mode=OFF"] if spec.deadline_mode == "OFF" else [],
         )
