@@ -945,12 +945,12 @@ def _build_schedule(
     contexts: dict[TrackKey, ThreatScheduleContext] = {}
     for vector in vectors:
         decision = next((item for item in lifecycle_snapshot.targets if item.key == vector.key), None)
-        if decision is not None and decision.risk is RiskPhase.RELEASED:
-            context = ThreatScheduleContext.RELEASED
-        elif vector.key == current:
+        if vector.key == current:
             context = ThreatScheduleContext.CURRENT_PRIMARY
         elif vector.key in required:
             context = ThreatScheduleContext.CONCURRENT_REQUIRED
+        elif decision is not None and decision.risk is RiskPhase.RELEASED:
+            context = ThreatScheduleContext.RELEASED
         elif vector.predicted_domain.state is DomainState.INSIDE or vector.current_domain.state is DomainState.INSIDE:
             context = ThreatScheduleContext.NEXT
         else:
@@ -982,10 +982,18 @@ def _build_schedule(
         key=lambda vector: (vector.priority_key, vector.key.target_id, vector.key.generation),
     )
     return ThreatSchedule(
-        current_primary=current,
+        current_primary=(
+            current
+            if current is not None and contexts.get(current) is ThreatScheduleContext.CURRENT_PRIMARY
+            else None
+        ),
         concurrent_required=tuple(
             sorted(
-                required - ({current} if current is not None else set()),
+                (
+                    key
+                    for key, context in contexts.items()
+                    if context is ThreatScheduleContext.CONCURRENT_REQUIRED
+                ),
                 key=lambda key: (key.target_id, key.generation),
             )
         ),

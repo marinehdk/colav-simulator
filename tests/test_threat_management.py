@@ -12,6 +12,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     OwnshipObservation,
     PhysicalEncounterFacts,
     PlannerOddProfile,
+    RiskPhase,
     TargetObservation,
     canonical_physical_facts,
 )
@@ -264,6 +265,64 @@ def test_schedule_emits_typed_predicted_entry_event_without_claiming_realized_th
     assert any(event.event_type == "THREAT_ENTERED" and event.key == target.key for event in snapshot.events)
     event = next(event for event in snapshot.events if event.key == target.key)
     assert event.predicted is True
+
+
+def test_released_recovery_guard_target_has_one_schedule_membership() -> None:
+    key = TrackKey(1, 1)
+    coordinator = ThreatManagementCoordinator()
+    target = _target(key, 800.0)
+    coordinator.cycle(_cycle(0, 0.0, (target,)), profile=_domain_profile())
+    committed_snapshot = coordinator.cycle(
+        _cycle(1, 5.0, (replace(target, observed_at_s=5.0, generated_at_s=5.0),)),
+        profile=_domain_profile(),
+    )
+    committed = committed_snapshot.lifecycle_snapshot.targets[0]
+    altered_ownship = replace(
+        _ownship(),
+        position_ne_m=np.array([2_000.0, 0.0]),
+        heading_rad=committed.required_course_change_rad,
+        velocity_ne_mps=np.array(
+            [
+                7.0 * math.cos(committed.required_course_change_rad),
+                7.0 * math.sin(committed.required_course_change_rad),
+            ]
+        ),
+    )
+    clear_target = replace(
+        target,
+        state_enu=np.array([0.0, 0.0, -7.0, 0.0]),
+        observed_at_s=15.0,
+        generated_at_s=15.0,
+    )
+    coordinator.cycle(
+        replace(_cycle(2, 15.0, (clear_target,)), ownship=altered_ownship),
+        profile=_domain_profile(),
+    )
+    released_snapshot = coordinator.cycle(
+        replace(
+            _cycle(
+                3,
+                25.0,
+                (replace(clear_target, observed_at_s=25.0, generated_at_s=25.0),),
+            ),
+            ownship=replace(altered_ownship, heading_rad=math.pi, velocity_ne_mps=np.array([-7.0, 0.0])),
+        ),
+        profile=_domain_profile(),
+    )
+
+    lifecycle = released_snapshot.lifecycle_snapshot
+    assert lifecycle.targets[0].risk is RiskPhase.RELEASED
+    assert lifecycle.directive.required_targets == (key,)
+    schedule = released_snapshot.schedule
+    memberships = (
+        *((schedule.current_primary,) if schedule.current_primary is not None else ()),
+        *schedule.concurrent_required,
+        *schedule.next_threats,
+        *schedule.monitor,
+        *schedule.released,
+    )
+    assert memberships.count(key) == 1
+    assert key in set(schedule.concurrent_required) | ({schedule.current_primary} if schedule.current_primary else set())
 
 
 def test_unusable_observation_stays_typed_unknown_and_is_not_reclassified_as_clear() -> None:
