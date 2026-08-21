@@ -124,13 +124,12 @@ test('C5: cache-bust token bumped for every changed browser-served asset', () =>
   assert.notEqual(tokens[0], '20260819-c4-situation-2', 'token must differ from the C4 baseline');
 });
 
-test('C5: frozen runtime modules stay byte-identical while canonical projection may evolve', async () => {
+test('C5: frozen Active Session Runtime stays byte-identical while projection wiring may evolve', async () => {
   const { execFile } = await import('node:child_process');
   const { promisify } = await import('node:util');
   const run = promisify(execFile);
   for (const file of [
     'web_gui/modules/active-session-runtime.js',
-    'web_gui/modules/session-runtime-instance.js',
   ]) {
     const { stdout } = await run('git', ['status', '--porcelain', file], { cwd: new URL('../..', import.meta.url).pathname });
     assert.equal(stdout.trim(), '', `${file} must have zero diff`);

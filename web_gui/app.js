@@ -1,4 +1,4 @@
-import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260819-candidate3-projection';
+import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260821-threat-ui-fix3';
 import {
   createSituationDisplay,
   targetsForDisplay,

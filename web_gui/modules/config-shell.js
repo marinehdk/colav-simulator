@@ -1,5 +1,5 @@
 import { createValidationAssembly } from './validation-assembly.js?v=20260820-no-hidden-tuple-repair';
-import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260819-candidate3-projection';
+import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260821-threat-ui-fix3';
 import { createSituationDisplay } from './situation-display.js?v=20260819-c4-situation-2';
 
 const OPENBRIDGE_VERSION = '1.0.1';

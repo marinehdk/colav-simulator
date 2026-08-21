@@ -49,7 +49,7 @@ def test_colregs_log_identifies_target_and_cleared_context() -> None:
     assert script.status_code == 200
     assert projection.status_code == 200
     assert "const source = envelope.threat_management;" in projection.text
-    assert "function projectThreatVector(vector)" in projection.text
+    assert "function projectThreatVector(vector, lifecycleFact = null)" in projection.text
     assert "function projectThreatSchedule(schedule)" in projection.text
     assert "THREAT_SNAPSHOT_UNAVAILABLE" in projection.text
     assert "function renderTimelineLog(proj)" in script.text

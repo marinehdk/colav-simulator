@@ -196,11 +196,12 @@ function sameThreatKey(left, right) {
       || (a.generation !== null && b.generation !== null && String(a.generation) === String(b.generation)));
 }
 
-function projectThreatVector(vector) {
+function projectThreatVector(vector, lifecycleFact = null) {
   const key = threatKey(vector);
   const currentDomain = vector?.current_domain ?? vector?.currentDomain ?? null;
   const predictedDomain = vector?.predicted_domain ?? vector?.predictedDomain ?? null;
-  const lifecycle = vector?.lifecycle ?? null;
+  const lifecycle = vector?.lifecycle ?? lifecycleFact ?? null;
+  const rangeM = finiteOrNull(vector?.range_m ?? vector?.rangeM ?? vector?.distanceM);
   return freeze({
     key,
     targetId: key?.target_id ?? vector?.target_id ?? vector?.targetId ?? null,
@@ -227,7 +228,8 @@ function projectThreatVector(vector) {
     unavailableReasons: freeze(Array.isArray(vector?.unavailable_reasons)
       ? [...vector.unavailable_reasons]
       : Array.isArray(vector?.unavailableReasons) ? [...vector.unavailableReasons] : []),
-    rangeM: finiteOrNull(vector?.range_m ?? vector?.rangeM),
+    rangeM,
+    distanceM: rangeM,
     closingSpeedMps: finiteOrNull(vector?.closing_speed_mps ?? vector?.closingSpeedMps),
     dcpaM: finiteOrNull(vector?.dcpa_m ?? vector?.dcpaM),
     tcpaS: finiteOrNull(vector?.tcpa_forward_s ?? vector?.tcpaS),
@@ -291,7 +293,13 @@ function projectRisk(envelope) {
   const rawVectors = Array.isArray(source.vectors)
     ? source.vectors
     : Array.isArray(snapshot?.vectors) ? snapshot.vectors : [];
-  const targets = rawVectors.map(projectThreatVector);
+  const lifecycleTargets = Array.isArray(snapshot?.lifecycle_snapshot?.targets)
+    ? snapshot.lifecycle_snapshot.targets
+    : Array.isArray(snapshot?.lifecycleSnapshot?.targets) ? snapshot.lifecycleSnapshot.targets : [];
+  const targets = rawVectors.map((vector) => projectThreatVector(
+    vector,
+    lifecycleTargets.find((fact) => sameThreatKey(vector, fact?.key)) ?? null,
+  ));
   const schedule = projectThreatSchedule(source.schedule ?? snapshot?.schedule);
   const primaryRef = schedule?.currentPrimary ?? source.primary ?? snapshot?.primary ?? null;
   const primaryIndex = targets.findIndex(target => sameThreatKey(target.key, primaryRef));

@@ -36,9 +36,28 @@ test('canonical threat projection preserves backend vectors, schedule, conflicts
   const canonical = {
     schema_version: 'colav.threat-management.projection@1',
     status: 'AVAILABLE',
-    snapshot: { semantic_hash: 'snapshot-1' },
+    snapshot: {
+      semantic_hash: 'snapshot-1',
+      lifecycle_snapshot: {
+        targets: [{
+          key: { target_id: 2, generation: 1 },
+          encounter: 'OVERTAKING',
+          role: 'OVERTAKING',
+          risk: 'CANDIDATE',
+          commitment: 'NONE',
+        }],
+      },
+    },
     vectors: [
-      { key: { target_id: 2, generation: 1 }, dcpa_m: 12, predicted_domain: { state: 'INSIDE' } },
+      {
+        key: { target_id: 2, generation: 1 },
+        range_m: 1414.213562373095,
+        dcpa_m: 12,
+        lifecycle_role: 'OVERTAKING',
+        lifecycle_risk: 'CANDIDATE',
+        lifecycle_commitment: 'NONE',
+        predicted_domain: { state: 'INSIDE' },
+      },
       { key: { target_id: 1, generation: 3 }, dcpa_m: 90, predicted_domain: { state: 'UNKNOWN' } },
     ],
     schedule: {
@@ -64,9 +83,25 @@ test('canonical threat projection preserves backend vectors, schedule, conflicts
   assert.equal(snapshot.risk.primary.targetId, 2);
   assert.deepEqual(snapshot.risk.targets.map(target => target.targetId), [2, 1]);
   assert.equal(snapshot.risk.primary.dcpaM, 12);
+  assert.equal(snapshot.risk.primary.rangeM, 1414.213562373095);
+  assert.equal(snapshot.risk.primary.distanceM, 1414.213562373095);
+  assert.equal(snapshot.risk.primary.encounter, 'OVERTAKING');
+  assert.equal(snapshot.risk.primary.lifecycleRole, 'OVERTAKING');
+  assert.equal(snapshot.risk.primary.lifecycleRisk, 'CANDIDATE');
+  assert.equal(snapshot.risk.primary.lifecycleCommitment, 'NONE');
   assert.deepEqual(snapshot.risk.schedule.concurrentRequired, [{ target_id: 1, generation: 3 }]);
   assert.deepEqual(snapshot.risk.conflicts, canonical.conflicts);
   assert.equal(snapshot.risk.snapshotHash, 'snapshot-1');
+});
+
+test('mobile deployment stacks map, monitor, and information without hidden clipping', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*\/\* live-layout-mobile-stack \*\//);
+  assert.match(css, /\.live-chart-card\s*\{\s*order:\s*1/);
+  assert.match(css, /\.live-operations-sidebar\s*\{\s*order:\s*2/);
+  assert.match(css, /\.live-info-sidebar\s*\{\s*order:\s*3/);
+  assert.match(css, /\.workface-tabs\s*\{[^}]*overflow-x:\s*auto/);
 });
 
 test('legacy envelope without canonical threat facts stays explicitly unavailable', () => {
