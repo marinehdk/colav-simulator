@@ -10,6 +10,12 @@ import pytest
 
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunSpec
+from colav_simulator.historical_acceptance import (
+    HistoricalAcceptanceStatus,
+    HistoricalAISAcceptanceHarness,
+    HistoricalAISAcceptanceOutcome,
+    HistoricalAISPublishedCaseAcceptanceRequest,
+)
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
     HistoricalAISAlgorithmBinding,
@@ -183,6 +189,63 @@ def test_counterfactual_run_spec_keeps_historical_identity_and_capability_eviden
     assert document["historical_scenario_id"] == HISTORICAL_SCENARIO_ID
     assert document["algorithm_capability_evidence"]["exact_tuple"] == ["rule14", "head_on", "nominal", "god"]
     assert document["algorithm_capability_evidence"]["geometry_equivalence"] is False
+
+
+def test_published_case_acceptance_reuses_exact_case_identity(
+    tmp_path: Path,
+    qualified_historical_enc_profile: ENCRegionProfile,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    human = HistoricalBenchmarkTrajectory(
+        timestamps_s=(20.0, 30.0),
+        positions_xy=((0.0, 0.0), (1.0, 0.0)),
+        courses_rad=(0.0, 0.0),
+        speeds_mps=(1.0, 1.0),
+        source="TEST_HUMAN_REFERENCE",
+    )
+    case = _case(
+        tmp_path,
+        qualified_historical_enc_profile,
+        human_reference_artifact_digest=human.trajectory_digest,
+    )
+    case = replace(
+        case,
+        historical_scenario_id=HISTORICAL_SCENARIO_ID,
+        build_digest="",
+        runtime_digest="",
+    )
+    run_spec = RunSpec(
+        scenario_id=HISTORICAL_SCENARIO_ID,
+        historical_scenario_id=HISTORICAL_SCENARIO_ID,
+        algorithm_id="nominal",
+        tracker_id="god",
+        algorithm_capability_evidence={
+            "binding_role": "ALGORITHM_CAPABILITY_ONLY",
+            "geometry_equivalence": False,
+            "exact_tuple": ["rule14", "head_on", "nominal", "god"],
+        },
+    )
+    request = HistoricalAISPublishedCaseAcceptanceRequest(
+        case=case,
+        run_spec=run_spec,
+        human_reference=human,
+        human_reference_artifact_digest=human.trajectory_digest,
+    )
+    captured = {}
+
+    def execute(
+        _self, execution_request, case_outcome, _manifest, _descriptor
+    ) -> HistoricalAISAcceptanceOutcome:
+        captured["request"] = execution_request
+        captured["case"] = case_outcome.case
+        return HistoricalAISAcceptanceOutcome(HistoricalAcceptanceStatus.PASS, (), (), {})
+
+    monkeypatch.setattr(HistoricalAISAcceptanceHarness, "_execute_run_and_compare", execute)
+
+    HistoricalAISAcceptanceHarness().run_published_case(request)
+
+    assert captured["request"] is request
+    assert captured["case"] is case
 
 
 def test_human_reference_digest_does_not_change_counterfactual_run_spec(

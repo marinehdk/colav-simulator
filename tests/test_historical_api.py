@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
+from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_acceptance import HistoricalAISDimensionRecord, HistoricalAISDimensionRegistry
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_enc import ENCRegionProfile
@@ -85,6 +86,8 @@ def _request(tmp_path: Path, profile: ENCRegionProfile) -> dict[str, object]:
         "expected_archive_sha256": descriptor.archive_sha256,
         "expected_schema_sha256": descriptor.schema_sha256,
         "expected_selection_sha256": descriptor.selection_sha256,
+        "expected_normalized_sha256": descriptor.normalized_sha256,
+        "expected_descriptor_sha256": descriptor.descriptor_sha256,
         "expected_entries": [
             {
                 "entry_name": entry.entry_name,
@@ -168,7 +171,20 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
                     "human_similarity": None,
                 },
             },
-            "evidence": {"lineage": prepared.json()["lineage"]},
+            "evidence": {
+                "lineage": prepared.json()["lineage"],
+                "replay": {
+                    "status": "NOT_APPLICABLE",
+                    "mode": None,
+                    "factory": None,
+                    "dataset_digest": None,
+                    "runtime_actor_set_digest": None,
+                    "trajectory_digest": None,
+                    "manifest_digest": None,
+                    "dimension_registry_digest": None,
+                    "dimension_source_digest": None,
+                },
+            },
         }
 
         executed = client.post(f"/api/historical/workflows/{workflow_id}/run")
@@ -272,6 +288,16 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
         "mismatch_count": None,
     }
     assert document["presentation"]["compare"]["status"] == "NOT_APPLICABLE"
+    replay = document["presentation"]["evidence"]["replay"]
+    assert replay["status"] == "AVAILABLE"
+    assert replay["mode"] == "HISTORICAL_REPLAY"
+    assert replay["factory"] == "HistoricalReplayFactory"
+    assert replay["dataset_digest"] == document["evidence"]["historical_replay"]["dataset_digest"]
+    assert replay["runtime_actor_set_digest"]
+    assert len(replay["trajectory_digest"]) == 64
+    assert len(replay["manifest_digest"]) == 64
+    assert replay["dimension_registry_digest"]
+    assert len(replay["dimension_source_digest"]) == 64
 
 
 def test_scene_counterfactual_double_run_stays_operable_with_unqualified_cluster_evidence(
@@ -399,6 +425,53 @@ def test_scene_counterfactual_double_run_stays_operable_with_unqualified_cluster
     assert presentation["compare"]["overall_assurance_verdict"] == "PASS"
 
 
+def test_bound_scene_registration_keeps_one_case_without_disposable_prepared_run(tmp_path: Path) -> None:
+    scene_id = "hais_romsdal_20260701_120000_120100"
+    run_spec = RunSpec(
+        scenario_id=scene_id,
+        historical_scenario_id=scene_id,
+        algorithm_id="nominal",
+        tracker_id="god",
+        algorithm_capability_evidence={
+            "binding_role": "ALGORITHM_CAPABILITY_ONLY",
+            "geometry_equivalence": False,
+            "exact_tuple": ["rule14", "head_on", "nominal", "god"],
+        },
+    )
+    descriptor = SimpleNamespace(
+        descriptor_sha256="dataset",
+        selection_sha256="selection",
+        to_dict=lambda: {"descriptor_sha256": "dataset"},
+    )
+    case = SimpleNamespace(
+        build_digest="build",
+        runtime_digest="case",
+        runtime_actor_set_digest="actors",
+        enc_preflight=SimpleNamespace(to_dict=lambda: {"status": "PASS"}),
+    )
+    acceptance_request = object()
+    context = SimpleNamespace(
+        source=tmp_path / "bound.zip",
+        dataset=SimpleNamespace(descriptor=descriptor),
+        run_spec=run_spec,
+        case=case,
+        human_reference=SimpleNamespace(),
+        historical_scenario_id=scene_id,
+        case_identity={"dataset_digest": "dataset", "case_digest": "case", "runtime_actor_set_digest": "actors"},
+        acceptance_request=lambda: acceptance_request,
+    )
+    manager = historical_api.HistoricalWorkflowManager()
+
+    document = manager.create_bound_counterfactual(context)
+    workflow = manager._require(document["workflow_id"])
+
+    assert document["status"] == "PREPARED"
+    assert workflow.bound_context is context
+    assert workflow.case is case
+    assert workflow.qualification_request is acceptance_request
+    assert workflow.prepared_run is None
+
+
 @pytest.mark.parametrize(
     ("mutation", "expected_status"),
     (
@@ -449,6 +522,8 @@ def test_historical_replay_api_rejects_unprovenanced_dimension_inputs(
         ("future_leakage", "FUTURE_LEAKAGE"),
         ("archive_tamper", "DATASET_IDENTITY_MISMATCH"),
         ("entry_tamper", "DATASET_IDENTITY_MISMATCH"),
+        ("normalized_tamper", "DATASET_IDENTITY_MISMATCH"),
+        ("descriptor_tamper", "DATASET_IDENTITY_MISMATCH"),
     ),
 )
 def test_historical_api_rejects_unsealed_inputs(
@@ -469,8 +544,12 @@ def test_historical_api_rejects_unsealed_inputs(
         request["run_spec"]["historical_replay"] = {"future_reference_samples": [1, 2, 3]}
     elif mutation == "archive_tamper":
         request["expected_archive_sha256"] = "0" * 64
-    else:
+    elif mutation == "entry_tamper":
         request["expected_entries"][0]["crc32"] += 1
+    elif mutation == "normalized_tamper":
+        request["expected_normalized_sha256"] = "0" * 64
+    else:
+        request["expected_descriptor_sha256"] = "0" * 64
 
     with TestClient(app) as client:
         response = client.post("/api/historical/workflows", json=request)

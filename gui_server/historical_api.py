@@ -24,6 +24,7 @@ from colav_simulator.historical_acceptance import (
     HistoricalAISAcceptanceRequest,
     HistoricalAISDimensionRecord,
     HistoricalAISDimensionRegistry,
+    HistoricalAISPublishedCaseAcceptanceRequest,
 )
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
@@ -63,6 +64,10 @@ from colav_simulator.historical_replay import (
     HistoricalAISReconstructor,
     HistoricalReplayFactory,
     HistoricalReplayRequest,
+)
+from colav_simulator.historical_scenario_assembly import (
+    BoundHistoricalAISSceneContext,
+    HistoricalAISSceneAssembler,
 )
 from colav_simulator.historical_scenario_catalog import (
     HistoricalAISScenarioCatalog,
@@ -125,6 +130,8 @@ class HistoricalWorkflowCreateRequest(BaseModel):
     expected_entries: list[HistoricalExpectedEntry] = Field(min_length=1)
     expected_schema_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     expected_selection_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_normalized_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    expected_descriptor_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     enc_profile: dict[str, Any] | None = None
     case: dict[str, Any] = Field(default_factory=dict)
     replay: dict[str, Any] = Field(default_factory=dict)
@@ -162,8 +169,10 @@ class _HistoricalWorkflow:
     mode: HistoricalWorkflowMode
     source_path: Path
     dataset_descriptor: Any
-    prepared_run: PreparedRun
-    experiment_runner: ExperimentRunner
+    prepared_run: PreparedRun | None
+    experiment_runner: ExperimentRunner | None
+    run_spec: RunSpec | None = None
+    bound_context: BoundHistoricalAISSceneContext | None = None
     case: HistoricalAISCase | None = None
     run_request: HistoricalAISCounterfactualRunRequest | None = None
     replay_request: HistoricalReplayRequest | None = None
@@ -175,7 +184,7 @@ class _HistoricalWorkflow:
     message: str = ""
     lineage: dict[str, Any] = field(default_factory=dict)
     historical_scenario_id: str | None = None
-    qualification_request: HistoricalAISAcceptanceRequest | None = None
+    qualification_request: HistoricalAISAcceptanceRequest | HistoricalAISPublishedCaseAcceptanceRequest | None = None
     qualification_outcome: HistoricalAISAcceptanceOutcome | None = None
 
     def document(self) -> dict[str, Any]:
@@ -253,7 +262,7 @@ class _HistoricalWorkflow:
                         "replay_factory": (
                             "HistoricalReplayFactory" if self.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY else None
                         ),
-                        "algorithm_capability_evidence": self.prepared_run.spec.algorithm_capability_evidence,
+                        "algorithm_capability_evidence": _workflow_spec(self).algorithm_capability_evidence,
                     }
                 ),
                 "threat_snapshot": None if snapshot is None else snapshot.to_dict(),
@@ -351,8 +360,8 @@ def _workflow_presentation(
             "fallback_used": _run_value(run, "fallback_used"),
             **(
                 {}
-                if workflow.prepared_run.spec.algorithm_capability_evidence is None
-                else {"algorithm_capability_evidence": workflow.prepared_run.spec.algorithm_capability_evidence}
+                if _workflow_spec(workflow).algorithm_capability_evidence is None
+                else {"algorithm_capability_evidence": _workflow_spec(workflow).algorithm_capability_evidence}
             ),
         },
         "threat": threat,
@@ -368,6 +377,7 @@ def _workflow_presentation(
                 ),
                 **dict(workflow.lineage),
             },
+            "replay": _presentation_replay(workflow),
             **(
                 {}
                 if workflow.historical_scenario_id is None
@@ -378,18 +388,50 @@ def _workflow_presentation(
                         "selection_sha256": workflow.dataset_descriptor.selection_sha256,
                         "runtime_actor_set_sha256": workflow.lineage.get("runtime_actor_set_digest"),
                     },
-                    "replay": (
-                        workflow.replay_request.evidence.to_dict()
-                        if workflow.replay_request is not None
-                        else {
-                            "mode": workflow.mode.value,
-                            "historical_scenario_id": workflow.historical_scenario_id,
-                            "case_digest": workflow.lineage.get("case_digest"),
-                        }
-                    ),
                 }
             ),
         },
+    }
+
+
+def _presentation_replay(workflow: _HistoricalWorkflow) -> dict[str, Any]:
+    if workflow.mode is not HistoricalWorkflowMode.HISTORICAL_REPLAY:
+        return {
+            "status": "NOT_APPLICABLE",
+            "mode": None,
+            "factory": None,
+            "dataset_digest": None,
+            "runtime_actor_set_digest": None,
+            "trajectory_digest": None,
+            "manifest_digest": None,
+            "dimension_registry_digest": None,
+            "dimension_source_digest": None,
+        }
+    if workflow.replay_request is None:
+        return {
+            "status": "UNAVAILABLE",
+            "mode": None,
+            "factory": None,
+            "dataset_digest": None,
+            "runtime_actor_set_digest": None,
+            "trajectory_digest": None,
+            "manifest_digest": None,
+            "dimension_registry_digest": None,
+            "dimension_source_digest": None,
+        }
+    evidence = workflow.replay_request.evidence
+    manifest = None if workflow.result is None else workflow.result.manifest
+    dimension_sources = list(evidence.dimension_record_digests)
+    return {
+        "status": "AVAILABLE",
+        "mode": evidence.mode,
+        "factory": "HistoricalReplayFactory",
+        "dataset_digest": evidence.dataset_digest,
+        "runtime_actor_set_digest": evidence.runtime_actor_set_digest,
+        "trajectory_digest": None if manifest is None else manifest.trajectory_hash,
+        "manifest_digest": None if manifest is None else semantic_hash(manifest.to_dict()),
+        "dimension_registry_digest": evidence.dimension_registry_digest,
+        "dimension_source_digest": semantic_hash(dimension_sources) if dimension_sources else None,
     }
 
 
@@ -578,6 +620,14 @@ def _run_value(run: Any | None, field_name: str) -> Any:
     return getattr(run, field_name, None)
 
 
+def _workflow_spec(workflow: _HistoricalWorkflow) -> RunSpec:
+    if workflow.run_spec is not None:
+        return workflow.run_spec
+    if workflow.prepared_run is not None:
+        return workflow.prepared_run.spec
+    raise RuntimeError("Historical workflow RunSpec is unavailable")
+
+
 class HistoricalWorkflowManager:
     """Own typed API workflow state while execution stays in normal sessions."""
 
@@ -589,12 +639,44 @@ class HistoricalWorkflowManager:
         self,
         request: HistoricalWorkflowCreateRequest,
         *,
-        qualification_request: HistoricalAISAcceptanceRequest | None = None,
+        qualification_request: HistoricalAISAcceptanceRequest | HistoricalAISPublishedCaseAcceptanceRequest | None = None,
     ) -> dict[str, Any]:
         with self._lock:
             workflow = _prepare_workflow(request)
-            workflow.historical_scenario_id = workflow.prepared_run.spec.historical_scenario_id
+            workflow.run_spec = _workflow_spec(workflow)
+            workflow.historical_scenario_id = workflow.run_spec.historical_scenario_id
             workflow.qualification_request = qualification_request
+            self._workflows[workflow.workflow_id] = workflow
+            return workflow.document()
+
+    def create_bound_counterfactual(self, context: BoundHistoricalAISSceneContext) -> dict[str, Any]:
+        """Register a PREPARED qualification without creating a disposable run."""
+        with self._lock:
+            alignment = HistoricalBenchmarkAlignmentProfile()
+            workflow = _HistoricalWorkflow(
+                workflow_id=str(uuid.uuid4()),
+                mode=HistoricalWorkflowMode.COUNTERFACTUAL,
+                source_path=context.source,
+                dataset_descriptor=context.dataset.descriptor,
+                prepared_run=None,
+                experiment_runner=None,
+                run_spec=context.run_spec,
+                bound_context=context,
+                case=context.case,
+                human_reference=context.human_reference,
+                alignment_profile=alignment,
+                historical_scenario_id=context.historical_scenario_id,
+                qualification_request=context.acceptance_request(),
+                lineage=dict(context.case_identity),
+            )
+            self._workflows[workflow.workflow_id] = workflow
+            return workflow.document()
+
+    def register(self, workflow: _HistoricalWorkflow) -> dict[str, Any]:
+        """Register an already prepared Replay workflow over a bound Dataset."""
+        with self._lock:
+            workflow.run_spec = _workflow_spec(workflow)
+            workflow.historical_scenario_id = workflow.run_spec.historical_scenario_id
             self._workflows[workflow.workflow_id] = workflow
             return workflow.document()
 
@@ -606,8 +688,11 @@ class HistoricalWorkflowManager:
             workflow.status = HistoricalWorkflowStatus.RUNNING
             if workflow.qualification_request is not None:
                 try:
-                    workflow.prepared_run.artifact_sink.close(timeout_s=2.0)
-                    outcome = HistoricalAISAcceptanceHarness().run(workflow.qualification_request)
+                    harness = HistoricalAISAcceptanceHarness()
+                    if isinstance(workflow.qualification_request, HistoricalAISPublishedCaseAcceptanceRequest):
+                        outcome = harness.run_published_case(workflow.qualification_request)
+                    else:
+                        outcome = harness.run(workflow.qualification_request)
                 except Exception as exc:
                     workflow.status = HistoricalWorkflowStatus.FAILED
                     workflow.message = str(exc)
@@ -622,6 +707,8 @@ class HistoricalWorkflowManager:
                 return workflow.document()
             try:
                 prepared = workflow.prepared_run
+                if prepared is None or workflow.experiment_runner is None:
+                    raise RuntimeError("Historical workflow has no prepared single-run session")
                 prepared.session.run_to_completion()
                 result = workflow.experiment_runner.finalize(prepared)
                 if workflow.human_reference is not None:
@@ -929,6 +1016,10 @@ def _validate_dataset_identity(request: HistoricalWorkflowCreateRequest, source:
         mismatches.append("schema_sha256")
     if descriptor.selection_sha256 != request.expected_selection_sha256:
         mismatches.append("selection_sha256")
+    if request.expected_normalized_sha256 is not None and descriptor.normalized_sha256 != request.expected_normalized_sha256:
+        mismatches.append("normalized_sha256")
+    if request.expected_descriptor_sha256 is not None and descriptor.descriptor_sha256 != request.expected_descriptor_sha256:
+        mismatches.append("descriptor_sha256")
     if set(observed_entries) != set(expected_entries):
         mismatches.append("selected_entry_names")
     for name in sorted(set(observed_entries).intersection(expected_entries)):
@@ -1051,19 +1142,22 @@ def create_historical_scenario_workflow(
     """Build and prepare a complete normal Historical Replay/Counterfactual workflow."""
     try:
         descriptor = historical_scenario_catalog.get(scenario_id)
-        payload = descriptor.build_workflow_payload(
-            request.mode.value,
+        context = HistoricalAISSceneAssembler().bind(
+            descriptor,
             run_spec_overrides=request.run_spec,
         )
-        qualification_request = (
-            descriptor.build_acceptance_request(run_spec_overrides=request.run_spec)
-            if request.mode is HistoricalWorkflowMode.COUNTERFACTUAL
-            else None
+        if request.mode is HistoricalWorkflowMode.COUNTERFACTUAL:
+            return historical_workflows.create_bound_counterfactual(context)
+        payload = context.replay_workflow_payload()
+        replay_request = HistoricalWorkflowCreateRequest(**payload)
+        replay_workflow = _prepare_replay_workflow(
+            replay_request,
+            context.source,
+            context.dataset,
+            RunSpec.from_dict(dict(replay_request.run_spec)),
         )
-        return historical_workflows.create(
-            HistoricalWorkflowCreateRequest(**payload),
-            qualification_request=qualification_request,
-        )
+        replay_workflow.bound_context = context
+        return historical_workflows.register(replay_workflow)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Historical AIS scenario not found") from exc
     except HistoricalAISScenarioError as exc:

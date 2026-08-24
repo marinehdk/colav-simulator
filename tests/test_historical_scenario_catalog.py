@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
+from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssembler
 from colav_simulator.historical_scenario_catalog import (
     HISTORICAL_AIS_SCENARIO_ID,
     HistoricalAISScenarioCatalog,
+    HistoricalAISScenarioError,
     HistoricalAISScenarioReadiness,
     HistoricalAISScenarioSourceReadiness,
 )
@@ -75,6 +78,36 @@ def test_descriptor_digest_covers_nested_facts(tmp_path) -> None:
     changed = HistoricalAISScenarioCatalog(changed_path).get(HISTORICAL_AIS_SCENARIO_ID)
 
     assert changed.descriptor_sha256 != original.descriptor_sha256
+
+
+@pytest.mark.parametrize("tampered_field", ("normalized_sha256", "descriptor_sha256"))
+def test_bound_scene_rejects_tampered_derived_dataset_identity(tampered_field: str) -> None:
+    descriptor = HistoricalAISScenarioCatalog().get(HISTORICAL_AIS_SCENARIO_ID)
+    window = descriptor.current_window
+    values = {
+        "archive_sha256": descriptor.archive_sha256,
+        "schema_sha256": window["expected_schema_sha256"],
+        "selection_sha256": window["expected_selection_sha256"],
+        "normalized_sha256": window["expected_normalized_sha256"],
+        "descriptor_sha256": window["expected_descriptor_sha256"],
+        "entry_digests": (
+            SimpleNamespace(
+                entry_name=window["entry_name"],
+                sha256=window["entry_sha256"],
+                uncompressed_bytes=window["entry_uncompressed_bytes"],
+            ),
+        ),
+    }
+    values[tampered_field] = "0" * 64
+
+    with pytest.raises(HistoricalAISScenarioError) as raised:
+        HistoricalAISSceneAssembler.validate_dataset_identity(
+            descriptor,
+            SimpleNamespace(descriptor=SimpleNamespace(**values)),
+        )
+
+    assert raised.value.status is HistoricalAISScenarioReadiness.DATASET_IDENTITY_MISMATCH
+    assert tampered_field in str(raised.value)
 
 
 def test_published_presentation_keeps_scene_qualification_and_runtime_separate(monkeypatch) -> None:

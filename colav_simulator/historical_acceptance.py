@@ -24,6 +24,7 @@ from colav_simulator.historical_case import (
     HistoricalAISCaseBuilder,
     HistoricalAISCaseBuildOutcome,
     HistoricalAISCaseBuildRequest,
+    HistoricalAISCaseBuildStatus,
     HistoricalAISCompareBinding,
     HistoricalAISDiscoveryProfile,
     HistoricalAISEvaluationBinding,
@@ -264,6 +265,27 @@ class HistoricalAISAcceptanceRequest:
 
 
 @dataclass(frozen=True)
+class HistoricalAISPublishedCaseAcceptanceRequest:
+    """Qualification request that reuses one already Published Case identity."""
+
+    case: Any
+    run_spec: RunSpec
+    human_reference: HistoricalBenchmarkTrajectory
+    human_reference_artifact_digest: str
+
+    def __post_init__(self) -> None:
+        """Require one coherent Published Case and Human Reference binding."""
+        if not self.case.published:
+            raise ValueError("acceptance requires a Published HistoricalAISCase")
+        if self.case.historical_scenario_id != self.run_spec.historical_scenario_id:
+            raise ValueError("Published Case and RunSpec Historical scenario identities differ")
+        if self.human_reference.trajectory_digest != self.human_reference_artifact_digest:
+            raise ValueError("Human Reference digest differs from Published Case acceptance request")
+        if self.case.human_reference_binding.artifact_digest != self.human_reference_artifact_digest:
+            raise ValueError("Published Case Human Reference binding differs from acceptance request")
+
+
+@dataclass(frozen=True)
 class HistoricalAISAcceptanceOutcome:
     status: HistoricalAcceptanceStatus
     blocker_codes: tuple[str, ...]
@@ -446,9 +468,62 @@ class HistoricalAISAcceptanceHarness:
             case_outcome=case_outcome,
         )
 
+    def run_published_case(
+        self,
+        request: HistoricalAISPublishedCaseAcceptanceRequest,
+    ) -> HistoricalAISAcceptanceOutcome:
+        """Run two qualifications over the exact same Published Case object."""
+        case = request.case
+        descriptor = case.dataset_descriptor.to_dict()
+        case_outcome = HistoricalAISCaseBuildOutcome(HistoricalAISCaseBuildStatus.SUCCESS, case=case)
+        manifest = {
+            "schema_version": ACCEPTANCE_SCHEMA_VERSION,
+            "historical_scenario_id": case.historical_scenario_id,
+            "source": {
+                "archive_sha256": case.dataset_descriptor.archive_sha256,
+                "selection": case.selection.to_dict(),
+            },
+            "dataset": {
+                "descriptor_sha256": case.dataset_descriptor.descriptor_sha256,
+                "archive_sha256": case.dataset_descriptor.archive_sha256,
+                "selection_sha256": case.dataset_descriptor.selection_sha256,
+                "schema_sha256": case.dataset_descriptor.schema_sha256,
+                "normalized_sha256": case.dataset_descriptor.normalized_sha256,
+            },
+            "enc_profile": {
+                "profile_id": case.enc_profile.profile_id,
+                "profile_digest": case.enc_profile.profile_digest,
+                "qualification_state": case.enc_profile.qualification_state.value,
+            },
+            "enc_preflight": case.enc_preflight.to_dict(),
+            "dimensions": {
+                "default_dimensions_used": False,
+                "explicit_overrides": [dict(item) for item in case.dimension_overrides],
+            },
+            "case": {
+                "status": "SUCCESS",
+                "historical_scenario_id": case.historical_scenario_id,
+                "case_digest": case.case_digest,
+                "runtime_actor_set_digest": case.runtime_actor_set_digest,
+                "human_reference_binding": case.human_reference_binding.to_dict(),
+                "algorithm_binding": case.algorithm_binding.to_dict(),
+                "evaluation_binding": case.evaluation_binding.to_dict(),
+                "compare_binding": case.compare_binding.to_dict(),
+            },
+            "lineage": {
+                "historical_scenario_id": case.historical_scenario_id,
+                "dataset_digest": case.dataset_descriptor.descriptor_sha256,
+                "case_digest": case.case_digest,
+                "run_digest": None,
+                "evaluation_digest": None,
+                "compare_digest": None,
+            },
+        }
+        return self._execute_run_and_compare(request, case_outcome, manifest, descriptor)
+
     def _execute_run_and_compare(  # noqa: PLR0911
         self,
-        request: HistoricalAISAcceptanceRequest,
+        request: HistoricalAISAcceptanceRequest | HistoricalAISPublishedCaseAcceptanceRequest,
         case_outcome: HistoricalAISCaseBuildOutcome,
         manifest: dict[str, Any],
         descriptor: dict[str, Any],
@@ -988,6 +1063,7 @@ __all__ = [
     "HistoricalAISAcceptanceHarness",
     "HistoricalAISAcceptanceOutcome",
     "HistoricalAISAcceptanceRequest",
+    "HistoricalAISPublishedCaseAcceptanceRequest",
     "HistoricalAISDimensionOverride",
     "HistoricalAISDimensionRecord",
     "HistoricalAISDimensionRegistry",
