@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from colav_simulator.experiment.session import SimulationSession
 
 RECONSTRUCTION_SCHEMA_VERSION = "historical-actor-reconstruction.v1"
+COUNTERFACTUAL_ROUTE_EXTENSION_M = 10_000.0
 
 
 UTC = timezone.utc
@@ -607,7 +608,10 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
         route_length = float(np.linalg.norm(route_delta))
         if route_length <= 1e-9:
             raise ValueError("counterfactual Nominal Intent route must have non-zero travel")
-        route_points = (*route_points, tuple((last_point + route_delta / route_length * 10_000.0).tolist()))
+        route_points = (
+            *route_points,
+            tuple((last_point + route_delta / route_length * COUNTERFACTUAL_ROUTE_EXTENSION_M).tolist()),
+        )
         self.set_nominal_plan(
             np.asarray(route_points, dtype=float).T,
             np.full(len(route_points), float(nominal_intent.get("speed_mps", 0.0)), dtype=float),
@@ -913,6 +917,9 @@ class HistoricalReplayEvidence:
     t0_s: float | None = None
     nominal_intent_digest: str | None = None
     enc_profile_digest: str | None = None
+    enc_profile_id: str | None = None
+    enc_qualification_state: str | None = None
+    enc_supported_extent_projected: tuple[float, float, float, float] | None = None
     dimension_registry_digest: str | None = None
     dimension_effective_at_utc: str | None = None
     dimension_record_digests: tuple[tuple[int, str], ...] = ()
@@ -957,6 +964,13 @@ class HistoricalReplayEvidence:
             "t0_s": self.t0_s,
             "nominal_intent_digest": self.nominal_intent_digest,
             "enc_profile_digest": self.enc_profile_digest,
+            "enc_profile_id": self.enc_profile_id,
+            "enc_qualification_state": self.enc_qualification_state,
+            "enc_supported_extent_projected": (
+                None
+                if self.enc_supported_extent_projected is None
+                else list(self.enc_supported_extent_projected)
+            ),
             "dataset_digest": self.dataset_digest,
             "dataset_descriptor_digest": self.dataset_descriptor_digest,
             "runtime_actor_set_digest": self.runtime_actor_set_digest,
@@ -995,6 +1009,9 @@ class HistoricalReplayRequest:
     selection_digest: str | None = None
     reconstruction_profile_digest: str | None = None
     enc_profile_digest: str | None = None
+    enc_profile_id: str | None = None
+    enc_qualification_state: str | None = None
+    enc_supported_extent_projected: tuple[float, float, float, float] | None = None
     handoff_tolerance_m: float = 1e-6
     handoff_tolerance_mps: float = 1e-6
     handoff_tolerance_rad: float = 1e-6
@@ -1002,7 +1019,7 @@ class HistoricalReplayRequest:
     dimension_effective_at_utc: str | None = None
     dimension_record_digests: tuple[tuple[int, str], ...] = ()
 
-    def __post_init__(self) -> None:  # noqa: PLR0912
+    def __post_init__(self) -> None:  # noqa: C901, PLR0912
         """Validate actor ownership and simulation bounds."""
         if not self.scenario_name.strip():
             raise ValueError("scenario_name is required")
@@ -1034,6 +1051,14 @@ class HistoricalReplayRequest:
             raise ValueError("t_end_s must be finite and positive")
         if self.utm_zone not in {32, 33}:
             raise ValueError("utm_zone must be 32 or 33")
+        if self.enc_supported_extent_projected is not None:
+            extent = tuple(float(value) for value in self.enc_supported_extent_projected)
+            if len(extent) != 4 or not all(math.isfinite(value) for value in extent):
+                raise ValueError("qualified ENC projected extent must contain four finite values")
+            min_x, min_y, max_x, max_y = extent
+            if min_x > max_x or min_y > max_y:
+                raise ValueError("qualified ENC projected extent must be ordered")
+            object.__setattr__(self, "enc_supported_extent_projected", extent)
         object.__setattr__(self, "dimension_record_digests", tuple(sorted(self.dimension_record_digests)))
 
     @property
@@ -1058,6 +1083,9 @@ class HistoricalReplayRequest:
                 else None
             ),
             enc_profile_digest=self.enc_profile_digest,
+            enc_profile_id=self.enc_profile_id,
+            enc_qualification_state=self.enc_qualification_state,
+            enc_supported_extent_projected=self.enc_supported_extent_projected,
             dimension_registry_digest=self.dimension_registry_digest,
             dimension_effective_at_utc=self.dimension_effective_at_utc,
             dimension_record_digests=self.dimension_record_digests,
@@ -1082,6 +1110,13 @@ class HistoricalReplayRequest:
             "selection_digest": self.selection_digest,
             "reconstruction_profile_digest": self.reconstruction_profile_digest,
             "enc_profile_digest": self.enc_profile_digest,
+            "enc_profile_id": self.enc_profile_id,
+            "enc_qualification_state": self.enc_qualification_state,
+            "enc_supported_extent_projected": (
+                None
+                if self.enc_supported_extent_projected is None
+                else list(self.enc_supported_extent_projected)
+            ),
             "handoff_tolerance_m": self.handoff_tolerance_m,
             "handoff_tolerance_mps": self.handoff_tolerance_mps,
             "handoff_tolerance_rad": self.handoff_tolerance_rad,
@@ -1111,6 +1146,13 @@ class HistoricalReplayRequest:
             selection_digest=value.get("selection_digest"),
             reconstruction_profile_digest=value.get("reconstruction_profile_digest"),
             enc_profile_digest=value.get("enc_profile_digest"),
+            enc_profile_id=value.get("enc_profile_id"),
+            enc_qualification_state=value.get("enc_qualification_state"),
+            enc_supported_extent_projected=(
+                None
+                if value.get("enc_supported_extent_projected") is None
+                else tuple(float(item) for item in value["enc_supported_extent_projected"])
+            ),
             handoff_tolerance_m=float(value.get("handoff_tolerance_m", 1e-6)),
             handoff_tolerance_mps=float(value.get("handoff_tolerance_mps", 1e-6)),
             handoff_tolerance_rad=float(value.get("handoff_tolerance_rad", 1e-6)),

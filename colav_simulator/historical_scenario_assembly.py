@@ -428,6 +428,9 @@ def _replay_document(context: BoundHistoricalAISReplayContext) -> dict[str, Any]
         "t_end_s": 60.0,
         "scenario_name": context.historical_scenario_id,
         "utm_zone": 33,
+        "enc_profile_id": context.enc_profile.profile_id,
+        "enc_qualification_state": context.enc_profile.qualification_state.value,
+        "enc_supported_extent_projected": list(context.enc_profile.supported_extent_projected),
     }
 
 

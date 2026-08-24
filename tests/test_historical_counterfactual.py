@@ -10,6 +10,11 @@ import pytest
 
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunSpec
+from colav_simulator.experiment.runner import (
+    _historical_runtime_config,
+    _historical_runtime_map,
+    _historical_runtime_map_proof,
+)
 from colav_simulator.historical_acceptance import (
     HistoricalAcceptanceStatus,
     HistoricalAISAcceptanceHarness,
@@ -157,6 +162,74 @@ def test_counterfactual_run_spec_contains_reference_history_only_through_t0(
     assert replay_request.evidence.case_digest == case.case_digest
     assert replay_request.evidence.dataset_descriptor_digest == case.dataset_digest
     assert replay_request.evidence.runtime_actor_set_digest == spec.historical_replay["runtime_actor_set_digest"]
+
+
+def test_counterfactual_runtime_enc_window_is_bounded_by_sealed_case_facts(
+    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+) -> None:
+    case = _case(tmp_path, qualified_historical_enc_profile)
+    case = replace(
+        case,
+        historical_scenario_id=HISTORICAL_SCENARIO_ID,
+        build_digest="",
+        runtime_digest="",
+    )
+    request = HistoricalAISCounterfactualRunRequest(
+        case=case,
+        run_spec=RunSpec(
+            scenario_id=HISTORICAL_SCENARIO_ID,
+            historical_scenario_id=HISTORICAL_SCENARIO_ID,
+            validation_rule_id="rule14",
+            algorithm_id="nominal",
+            tracker_id="god",
+            algorithm_capability_evidence={
+                "binding_role": "ALGORITHM_CAPABILITY_ONLY",
+                "geometry_equivalence": False,
+                "exact_tuple": ["rule14", "head_on", "nominal", "god"],
+            },
+            t_end=30.0,
+        ),
+    )
+    replay = HistoricalReplayRequest.from_dict(request.to_run_spec().historical_replay)
+
+    origin, size = _historical_runtime_map(replay)
+    proof = _historical_runtime_map_proof(replay)
+    config = _historical_runtime_config(request.to_run_spec(), replay)
+
+    assert config.map_origin_enu == origin
+    assert config.map_size == size
+    assert proof.actor_state_count == sum(len(actor.samples) for actor in replay.actor_set.actors)
+    assert proof.nominal_route_point_count == len(case.nominal_intent.route_points_vxvy)
+    assert proof.reachable_radius_m == pytest.approx(proof.speed_bound_mps * proof.post_t0_duration_s)
+    assert proof.navigation_margin.value_m >= proof.navigation_margin.hull_extent_m
+    handoff = replay.actor_set.actor(replay.ownship_actor_id).sample_at(replay.counterfactual_t0_s)
+    assert handoff is not None
+    handoff_north, handoff_east = handoff.state_vxvy[:2]
+    assert proof.origin_enu[0] <= handoff_east - proof.reachable_radius_m
+    assert proof.origin_enu[1] <= handoff_north - proof.reachable_radius_m
+    assert proof.origin_enu[0] + proof.size_m[0] >= handoff_east + proof.reachable_radius_m
+    assert proof.origin_enu[1] + proof.size_m[1] >= handoff_north + proof.reachable_radius_m
+    assert proof.origin_enu[0] >= proof.qualified_profile_extent_projected[0]
+    assert proof.origin_enu[1] >= proof.qualified_profile_extent_projected[1]
+    assert proof.origin_enu[0] + proof.size_m[0] <= proof.qualified_profile_extent_projected[2]
+    assert proof.origin_enu[1] + proof.size_m[1] <= proof.qualified_profile_extent_projected[3]
+    assert size != (30_000.0, 40_000.0)
+
+    with pytest.raises(ValueError, match="qualified ENC projected extent"):
+        _historical_runtime_map_proof(replace(replay, enc_supported_extent_projected=None))
+
+    with pytest.raises(ValueError, match="exceeds the qualified ENC profile"):
+        _historical_runtime_map_proof(
+            replace(
+                replay,
+                enc_supported_extent_projected=(
+                    proof.origin_enu[0] + 1.0,
+                    proof.origin_enu[1],
+                    proof.origin_enu[0] + proof.size_m[0],
+                    proof.origin_enu[1] + proof.size_m[1],
+                ),
+            )
+        )
 
 
 def test_counterfactual_run_spec_keeps_historical_identity_and_capability_evidence_separate(
@@ -338,10 +411,20 @@ def test_post_t0_human_reference_changes_compare_only_not_runtime_or_commands(
     assert first_request.run_spec_digest == second_request.run_spec_digest
     assert first_request.to_run_spec().to_dict() == second_request.to_run_spec().to_dict()
 
-    first = HistoricalAISCounterfactualRunner().run(first_request)
-    second = HistoricalAISCounterfactualRunner().run(second_request)
+    shared_runner = HistoricalAISCounterfactualRunner()
+    first = shared_runner.run(first_request)
+    second = shared_runner.run(second_request)
     assert first.success is True and second.success is True
     assert first.result is not None and second.result is not None
+    assert first.result.session is not second.result.session
+    assert (
+        first.result.session.threat_management_coordinator
+        is not second.result.session.threat_management_coordinator
+    )
+    assert (
+        first.result.session.threat_management_coordinator.lifecycle
+        is not second.result.session.threat_management_coordinator.lifecycle
+    )
 
     def runtime_oracle(result: object) -> tuple[object, object, object]:
         frames = result.session.frames

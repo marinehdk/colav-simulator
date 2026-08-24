@@ -597,7 +597,8 @@ class HistoricalAISAcceptanceHarness:
             "nominal_intent_strict_pre_t0_only": case.nominal_intent.strict_pre_t0_only,
             "status": "PASS_CONTRACT",
         }
-        run_outcome = HistoricalAISCounterfactualRunner().run(run_request)
+        counterfactual_runner = HistoricalAISCounterfactualRunner()
+        run_outcome = counterfactual_runner.run(run_request)
         if not run_outcome.success or run_outcome.result is None:
             return self._fail(
                 HistoricalAcceptanceBlockerCode.RUN_FAILED,
@@ -696,7 +697,7 @@ class HistoricalAISAcceptanceHarness:
                 case_outcome,
             )
         first_determinism = _determinism_evidence(result, compare_outcome)
-        second_outcome = HistoricalAISCounterfactualRunner().run(run_request)
+        second_outcome = counterfactual_runner.run(run_request)
         if not second_outcome.success or second_outcome.result is None:
             return self._fail(
                 HistoricalAcceptanceBlockerCode.RUN_FAILED,

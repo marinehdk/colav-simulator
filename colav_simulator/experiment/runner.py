@@ -25,6 +25,7 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.core.colav.encounter_lifecycle import EncounterLifecycle
 from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
+from colav_simulator.core.models import KinematicCSOGParams
 from colav_simulator.evaluation import Evaluator, EvaluatorResult
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunManifest, RunOutcome, RunSpec, SessionState, content_hash
@@ -62,6 +63,61 @@ class RunResult:
     run_dir: Path
     session: SimulationSession
     writer: EvidenceWriter
+
+
+@dataclass(frozen=True)
+class HistoricalRuntimeNavigationMargin:
+    """Typed margin derived from sealed dimensions and runtime dynamics."""
+
+    policy_id: str
+    hull_extent_m: float
+    one_step_displacement_m: float
+    value_m: float
+    sources: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "policy_id": self.policy_id,
+            "hull_extent_m": self.hull_extent_m,
+            "one_step_displacement_m": self.one_step_displacement_m,
+            "value_m": self.value_m,
+            "sources": list(self.sources),
+        }
+
+
+@dataclass(frozen=True)
+class HistoricalRuntimeMapProof:
+    """Proof that a Historical runtime map is bounded and profile-contained."""
+
+    origin_enu: tuple[float, float]
+    size_m: tuple[float, float]
+    qualified_profile_extent_projected: tuple[float, float, float, float]
+    actor_state_count: int
+    nominal_route_point_count: int
+    reachable_radius_m: float
+    run_duration_s: float
+    post_t0_duration_s: float
+    speed_bound_mps: float
+    speed_bound_sources: tuple[str, ...]
+    navigation_margin: HistoricalRuntimeNavigationMargin
+    rounding_grid_m: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "policy_id": "historical-runtime-map.v2",
+            "origin_enu": list(self.origin_enu),
+            "size_m": list(self.size_m),
+            "qualified_profile_extent_projected": list(self.qualified_profile_extent_projected),
+            "actor_state_count": self.actor_state_count,
+            "nominal_route_point_count": self.nominal_route_point_count,
+            "reachable_radius_m": self.reachable_radius_m,
+            "run_duration_s": self.run_duration_s,
+            "post_t0_duration_s": self.post_t0_duration_s,
+            "speed_bound_mps": self.speed_bound_mps,
+            "speed_bound_sources": list(self.speed_bound_sources),
+            "navigation_margin": self.navigation_margin.to_dict(),
+            "rounding_grid_m": self.rounding_grid_m,
+        }
 
 
 class ExperimentRunError(RuntimeError):
@@ -157,6 +213,7 @@ class ExperimentRunner:
         capability_tuple = spec.capability_tuple
         scenario_path = None if spec.historical_scenario_id is not None else self.resolve_scenario(spec.scenario_id)
         counterfactual_mode = historical_request is not None and historical_request.mode == "COUNTERFACTUAL"
+        runtime_map_proof: HistoricalRuntimeMapProof | None = None
         if historical_request is not None and not counterfactual_mode and spec.algorithm_id != "nominal":
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
@@ -164,6 +221,7 @@ class ExperimentRunner:
             )
         if spec.historical_scenario_id is not None:
             config = _historical_runtime_config(spec, historical_request)
+            runtime_map_proof = _historical_runtime_map_proof(historical_request)
             source_version = content_hash(config.to_dict())
         elif spec.scenario_override is None:
             if scenario_path is None:  # pragma: no cover - guarded by Historical branch
@@ -276,6 +334,10 @@ class ExperimentRunner:
         episode_document = episode["config"].to_dict()
         if historical_request is not None:
             episode_document["historical_replay"] = historical_request.to_dict()
+            if counterfactual_mode and runtime_map_proof is None:
+                runtime_map_proof = _historical_runtime_map_proof(historical_request)
+            if runtime_map_proof is not None:
+                episode_document["historical_runtime_map"] = runtime_map_proof.to_dict()
 
         manifest = RunManifest.create(spec, self.registry.dependency_manifest())
         manifest.scenario_hash = content_hash(scenario_document)
@@ -591,7 +653,15 @@ class ExperimentRunner:
 
 
 def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest | None) -> scenario_config.ScenarioConfig:
-    """Build a geometry-neutral loader config; Historical Actors replace its placeholder ship."""
+    """Build a bounded loader config; Historical Actors replace its placeholder ship.
+
+    The chart qualification profile remains the authority for source, coverage,
+    and hazards. Runtime ENC loading only needs a bounded window containing the
+    sealed actor samples and, for Counterfactual, the sealed nominal route plus
+    its reachable post-T0 envelope. Loading the former 30 x 40 km rectangle made
+    ``seacharts`` preprocess an unnecessarily large chart and made constrained
+    triangulation dominate every run.
+    """
     if request is None:
         raise ColavExecutionError(PlanStatus.INVALID_INPUT, "Historical scenario has no sealed actor request")
     ownship = request.actor_set.actor(request.ownship_actor_id)
@@ -601,6 +671,7 @@ def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest |
     course_deg = math.degrees(math.atan2(velocity_east, velocity_north)) % 360.0
     duration = float(request.t_end_s or spec.t_end or max(actor.last_time_s for actor in request.actor_set.actors) + 1.0)
     step = float(request.dt_sim or spec.dt or request.actor_set.profile.time_step_s)
+    map_origin_enu, map_size = _historical_runtime_map(request)
     document = {
         "name": spec.historical_scenario_id,
         "save_scenario": False,
@@ -610,8 +681,8 @@ def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest |
         "type": "MS",
         "utm_zone": request.utm_zone,
         "map_data_files": ["More_og_Romsdal_utm33.gdb"],
-        "map_size": [30_000.0, 40_000.0],
-        "map_origin_enu": [33_500.0, 6_945_450.0],
+        "map_size": list(map_size),
+        "map_origin_enu": list(map_origin_enu),
         "new_load_of_map_data": True,
         "n_episodes": 1,
         "n_random_ships": 0,
@@ -642,13 +713,148 @@ def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest |
                         "T_U": 5.0,
                         "r_max": 4.0,
                         "U_min": 0.0,
-                        "U_max": 15.0,
+                        "U_max": _historical_speed_bound_mps(request),
                     }
                 },
             }
         ],
     }
     return scenario_config.ScenarioConfig.from_dict(document)
+
+
+def _historical_runtime_map(
+    request: HistoricalReplayRequest,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Return the profile-contained map derived by :func:`_historical_runtime_map_proof`."""
+    proof = _historical_runtime_map_proof(request)
+    return proof.origin_enu, proof.size_m
+
+
+def _historical_speed_bound_mps(request: HistoricalReplayRequest) -> float:
+    """Return the explicit speed bound enforced by the runtime CSOG model."""
+    observed_speeds = [
+        math.hypot(sample.state_vxvy[2], sample.state_vxvy[3])
+        for actor in request.actor_set.actors
+        for sample in actor.samples
+    ]
+    intent_speed = float((request.nominal_intent or {}).get("speed_mps", 0.0))
+    model_speed = float(KinematicCSOGParams().U_max)
+    candidates = (*observed_speeds, intent_speed, model_speed)
+    if not candidates or not all(math.isfinite(value) and value >= 0.0 for value in candidates):
+        raise ValueError("Historical runtime speed bound lacks finite source evidence")
+    return max(candidates)
+
+
+def _historical_runtime_map_proof(request: HistoricalReplayRequest) -> HistoricalRuntimeMapProof:
+    """Prove a finite runtime window from actor, route, duration, and ENC facts."""
+    profile_extent = request.enc_supported_extent_projected
+    if profile_extent is None:
+        raise ValueError("qualified ENC projected extent evidence is required for Historical runtime")
+    if not request.enc_profile_id or request.enc_qualification_state != "QUALIFIED":
+        raise ValueError("Historical runtime requires a qualified ENC profile identity")
+    profile_min_east, profile_min_north, profile_max_east, profile_max_north = profile_extent
+    speed_bound_mps = _historical_speed_bound_mps(request)
+    run_duration_s = float(
+        request.t_end_s
+        if request.t_end_s is not None
+        else max(actor.last_time_s for actor in request.actor_set.actors)
+        + float(request.dt_sim or request.actor_set.profile.time_step_s)
+    )
+    if not math.isfinite(run_duration_s) or run_duration_s <= 0.0:
+        raise ValueError("Historical runtime duration must be finite and positive")
+    dt_sim = float(request.dt_sim or request.actor_set.profile.time_step_s)
+    if not math.isfinite(dt_sim) or dt_sim <= 0.0:
+        raise ValueError("Historical runtime timestep must be finite and positive")
+    post_t0_duration_s = (
+        max(0.0, run_duration_s - float(request.counterfactual_t0_s or 0.0))
+        if request.mode == "COUNTERFACTUAL"
+        else 0.0
+    )
+
+    points_enu: list[tuple[float, float]] = [
+        (sample.state_vxvy[1], sample.state_vxvy[0])
+        for actor in request.actor_set.actors
+        for sample in actor.samples
+    ]
+    actor_state_count = len(points_enu)
+    route_points = tuple(
+        tuple(float(value) for value in point)
+        for point in (request.nominal_intent or {}).get("route_points_vxvy", ())
+    )
+    points_enu.extend((east, north) for north, east in route_points)
+    reachable_radius_m = speed_bound_mps * post_t0_duration_s
+    if reachable_radius_m:
+        handoff = request.actor_set.actor(request.ownship_actor_id).sample_at(
+            float(request.counterfactual_t0_s or 0.0)
+        )
+        if handoff is None:
+            raise ValueError("Historical runtime map lacks an ownship state at Counterfactual T0")
+        north, east = handoff.state_vxvy[:2]
+        points_enu.extend(
+            (
+                (east - reachable_radius_m, north),
+                (east + reachable_radius_m, north),
+                (east, north - reachable_radius_m),
+                (east, north + reachable_radius_m),
+            )
+        )
+    if not points_enu:
+        raise ValueError("Historical Replay requires at least one finite actor position")
+    if not all(math.isfinite(value) for point in points_enu for value in point):
+        raise ValueError("Historical Replay actor/map positions must be finite")
+
+    dimensions = [
+        max(float(actor.length_m), float(actor.width_m))
+        for actor in request.actor_set.actors
+        if actor.length_m is not None and actor.width_m is not None
+    ]
+    if len(dimensions) != len(request.actor_set.actors):
+        raise ValueError("Historical runtime navigation margin lacks vessel-dimension evidence")
+    hull_extent_m = max(dimensions)
+    one_step_displacement_m = speed_bound_mps * dt_sim
+    navigation_margin = HistoricalRuntimeNavigationMargin(
+        policy_id="historical-runtime-navigation-margin.v1",
+        hull_extent_m=hull_extent_m,
+        one_step_displacement_m=one_step_displacement_m,
+        value_m=max(hull_extent_m, one_step_displacement_m),
+        sources=(
+            "sealed_actor_dimensions",
+            "sealed_runtime_speed_bound",
+            "run_spec_dt",
+        ),
+    )
+    grid_m = navigation_margin.value_m
+    east_values = [point[0] for point in points_enu]
+    north_values = [point[1] for point in points_enu]
+    min_east = math.floor((min(east_values) - navigation_margin.value_m) / grid_m) * grid_m
+    max_east = math.ceil((max(east_values) + navigation_margin.value_m) / grid_m) * grid_m
+    min_north = math.floor((min(north_values) - navigation_margin.value_m) / grid_m) * grid_m
+    max_north = math.ceil((max(north_values) + navigation_margin.value_m) / grid_m) * grid_m
+    if (
+        min_east < profile_min_east
+        or min_north < profile_min_north
+        or max_east > profile_max_east
+        or max_north > profile_max_north
+    ):
+        raise ValueError("Historical runtime map exceeds the qualified ENC profile extent")
+    return HistoricalRuntimeMapProof(
+        origin_enu=(min_east, min_north),
+        size_m=(max_east - min_east, max_north - min_north),
+        qualified_profile_extent_projected=profile_extent,
+        actor_state_count=actor_state_count,
+        nominal_route_point_count=len(route_points),
+        reachable_radius_m=reachable_radius_m,
+        run_duration_s=run_duration_s,
+        post_t0_duration_s=post_t0_duration_s,
+        speed_bound_mps=speed_bound_mps,
+        speed_bound_sources=(
+            "sealed_actor_sample_velocity",
+            "sealed_nominal_intent_speed" if request.nominal_intent else "not_applicable",
+            "KinematicCSOGParams.U_max",
+        ),
+        navigation_margin=navigation_margin,
+        rounding_grid_m=grid_m,
+    )
 
 
 def _scenario_target_count(spec: RunSpec) -> int | None:
