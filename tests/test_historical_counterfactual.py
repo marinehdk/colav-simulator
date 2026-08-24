@@ -8,9 +8,11 @@ from pathlib import Path
 
 import pytest
 
+import colav_simulator.experiment.runner as experiment_runner_module
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.runner import (
+    HistoricalRuntimeMapProof,
     _historical_runtime_config,
     _historical_runtime_map,
     _historical_runtime_map_proof,
@@ -165,7 +167,9 @@ def test_counterfactual_run_spec_contains_reference_history_only_through_t0(
 
 
 def test_counterfactual_runtime_enc_window_is_bounded_by_sealed_case_facts(
-    tmp_path: Path, qualified_historical_enc_profile: ENCRegionProfile
+    tmp_path: Path,
+    qualified_historical_enc_profile: ENCRegionProfile,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     case = _case(tmp_path, qualified_historical_enc_profile)
     case = replace(
@@ -192,12 +196,38 @@ def test_counterfactual_runtime_enc_window_is_bounded_by_sealed_case_facts(
     )
     replay = HistoricalReplayRequest.from_dict(request.to_run_spec().historical_replay)
 
-    origin, size = _historical_runtime_map(replay)
     proof = _historical_runtime_map_proof(replay)
-    config = _historical_runtime_config(request.to_run_spec(), replay)
+    proof_calls = 0
+    passed_proofs = []
+    original_runtime_map = _historical_runtime_map
+
+    def proof_spy(_request: HistoricalReplayRequest) -> HistoricalRuntimeMapProof:
+        nonlocal proof_calls
+        proof_calls += 1
+        return proof
+
+    def map_spy(
+        map_request: HistoricalReplayRequest,
+        *,
+        runtime_map_proof: HistoricalRuntimeMapProof | None = None,
+    ) -> tuple[tuple[float, float], tuple[float, float]]:
+        passed_proofs.append(runtime_map_proof)
+        return original_runtime_map(map_request, runtime_map_proof=runtime_map_proof)
+
+    monkeypatch.setattr(experiment_runner_module, "_historical_runtime_map_proof", proof_spy)
+    monkeypatch.setattr(experiment_runner_module, "_historical_runtime_map", map_spy)
+    config = _historical_runtime_config(
+        request.to_run_spec(),
+        replay,
+        runtime_map_proof=proof,
+    )
+    origin, size = proof.origin_enu, proof.size_m
 
     assert config.map_origin_enu == origin
     assert config.map_size == size
+    assert proof_calls == 0
+    assert passed_proofs == [proof]
+    assert passed_proofs[0] is proof
     assert proof.actor_state_count == sum(len(actor.samples) for actor in replay.actor_set.actors)
     assert proof.nominal_route_point_count == len(case.nominal_intent.route_points_vxvy)
     assert proof.reachable_radius_m == pytest.approx(proof.speed_bound_mps * proof.post_t0_duration_s)

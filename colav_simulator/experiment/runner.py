@@ -220,8 +220,12 @@ class ExperimentRunner:
                 "Historical Replay is non-counterfactual and cannot execute a COLAV algorithm",
             )
         if spec.historical_scenario_id is not None:
-            config = _historical_runtime_config(spec, historical_request)
             runtime_map_proof = _historical_runtime_map_proof(historical_request)
+            config = _historical_runtime_config(
+                spec,
+                historical_request,
+                runtime_map_proof=runtime_map_proof,
+            )
             source_version = content_hash(config.to_dict())
         elif spec.scenario_override is None:
             if scenario_path is None:  # pragma: no cover - guarded by Historical branch
@@ -652,7 +656,12 @@ class ExperimentRunner:
             raise RuntimeError("Fallback detected in strict run")
 
 
-def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest | None) -> scenario_config.ScenarioConfig:
+def _historical_runtime_config(
+    spec: RunSpec,
+    request: HistoricalReplayRequest | None,
+    *,
+    runtime_map_proof: HistoricalRuntimeMapProof | None = None,
+) -> scenario_config.ScenarioConfig:
     """Build a bounded loader config; Historical Actors replace its placeholder ship.
 
     The chart qualification profile remains the authority for source, coverage,
@@ -664,6 +673,7 @@ def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest |
     """
     if request is None:
         raise ColavExecutionError(PlanStatus.INVALID_INPUT, "Historical scenario has no sealed actor request")
+    proof = runtime_map_proof or _historical_runtime_map_proof(request)
     ownship = request.actor_set.actor(request.ownship_actor_id)
     sample = ownship.samples[0]
     north, east, velocity_north, velocity_east = sample.state_vxvy
@@ -671,7 +681,7 @@ def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest |
     course_deg = math.degrees(math.atan2(velocity_east, velocity_north)) % 360.0
     duration = float(request.t_end_s or spec.t_end or max(actor.last_time_s for actor in request.actor_set.actors) + 1.0)
     step = float(request.dt_sim or spec.dt or request.actor_set.profile.time_step_s)
-    map_origin_enu, map_size = _historical_runtime_map(request)
+    map_origin_enu, map_size = _historical_runtime_map(request, runtime_map_proof=proof)
     document = {
         "name": spec.historical_scenario_id,
         "save_scenario": False,
@@ -713,7 +723,7 @@ def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest |
                         "T_U": 5.0,
                         "r_max": 4.0,
                         "U_min": 0.0,
-                        "U_max": _historical_speed_bound_mps(request),
+                        "U_max": proof.speed_bound_mps,
                     }
                 },
             }
@@ -724,9 +734,11 @@ def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest |
 
 def _historical_runtime_map(
     request: HistoricalReplayRequest,
+    *,
+    runtime_map_proof: HistoricalRuntimeMapProof | None = None,
 ) -> tuple[tuple[float, float], tuple[float, float]]:
     """Return the profile-contained map derived by :func:`_historical_runtime_map_proof`."""
-    proof = _historical_runtime_map_proof(request)
+    proof = runtime_map_proof or _historical_runtime_map_proof(request)
     return proof.origin_enu, proof.size_m
 
 
