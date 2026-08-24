@@ -69,7 +69,8 @@ function clearScenario(documentRef, state) {
     'historicalAISDigestArchive', 'historicalAISDigestEntry', 'historicalAISDigestSchema',
     'historicalAISDigestSelection', 'historicalAISDigestNormalized', 'historicalAISDigestDescriptor',
     'historicalAISDigestEncProfile', 'historicalAISDigestEncCache', 'historicalAISDigestEncSource',
-    'historicalAISDigestDimensionRegistry', 'historicalAISScenarioLimitation',
+    'historicalAISDigestDimensionRegistry', 'historicalAISDigestDimensionSource',
+    'historicalAISScenarioLimitation',
   ]) setText(documentRef, id, null);
   const preview = documentRef.getElementById('historicalAISScenePreview');
   if (preview) preview.hidden = true;
@@ -122,6 +123,7 @@ function renderScenarioDetail(documentRef, state) {
   setText(documentRef, 'historicalAISDigestEncCache', scenario.digests.encCache);
   setText(documentRef, 'historicalAISDigestEncSource', scenario.digests.encSource);
   setText(documentRef, 'historicalAISDigestDimensionRegistry', scenario.digests.dimensionRegistry);
+  setText(documentRef, 'historicalAISDigestDimensionSource', scenario.digests.dimensionSource);
   setText(documentRef, 'historicalAISScenarioLimitation', scenario.limitations.length ? scenario.limitations.join(' · ') : null);
   const qualification = scenario.qualification;
   setText(documentRef, 'historicalAISScenarioQualificationThreat', [qualification?.status, qualification?.code].filter(Boolean).join(' · '));
@@ -140,6 +142,7 @@ function renderWorkflow(documentRef, state) {
   const runtime = presentation?.runtime;
   const qualification = presentation?.qualification;
   const replay = presentation?.evidence?.replay;
+  const workflowDigests = presentation?.evidence?.digests;
 
   setText(documentRef, 'historicalAISWorkflowAuthority', available && workflow.workflowId ? `Historical workflow · ${workflow.workflowId}` : null);
   setText(documentRef, 'historicalAISWorkflowStatus', available ? workflow.lifecycle : workflow.error?.code);
@@ -177,6 +180,17 @@ function renderWorkflow(documentRef, state) {
   setText(documentRef, 'historicalAISReplayManifest', replay?.manifest_digest);
   setText(documentRef, 'historicalAISReplayDimensionRegistry', replay?.dimension_registry_digest);
   setText(documentRef, 'historicalAISReplayDimensionSource', replay?.dimension_source_digest);
+  setText(documentRef, 'historicalAISWorkflowDigestArchive', workflowDigests?.archive_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestEntry', workflowDigests?.entry_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestSchema', workflowDigests?.schema_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestSelection', workflowDigests?.selection_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestNormalized', workflowDigests?.normalized_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestDescriptor', workflowDigests?.descriptor_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestEncProfile', workflowDigests?.enc_profile_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestEncCache', workflowDigests?.enc_cache_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestEncSource', workflowDigests?.enc_source_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestDimensionRegistry', workflowDigests?.dimension_registry_sha256);
+  setText(documentRef, 'historicalAISWorkflowDigestDimensionSource', workflowDigests?.dimension_source_sha256);
 }
 
 function renderBenchmark(documentRef, state) {

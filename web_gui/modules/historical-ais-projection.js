@@ -140,6 +140,7 @@ export function projectHistoricalAISScenario(value) {
       encCache: presentationDigests?.enc_cache_sha256 ?? null,
       encSource: presentationDigests?.enc_source_sha256 ?? null,
       dimensionRegistry: presentationDigests?.dimension_registry_sha256 ?? null,
+      dimensionSource: presentationDigests?.dimension_source_sha256 ?? null,
     },
     algorithmCapability: {
       bindingRole: capability.binding_role ?? null,

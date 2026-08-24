@@ -71,6 +71,19 @@
       }
     },
     "evidence": {
+      "digests": {
+        "archive_sha256": "workflow-archive",
+        "entry_sha256": "workflow-entry",
+        "schema_sha256": "workflow-schema",
+        "selection_sha256": "workflow-selection",
+        "normalized_sha256": "workflow-normalized",
+        "descriptor_sha256": "workflow-descriptor",
+        "enc_profile_sha256": "workflow-enc-profile",
+        "enc_cache_sha256": "workflow-enc-cache",
+        "enc_source_sha256": "workflow-enc-source",
+        "dimension_registry_sha256": "workflow-dimension-registry",
+        "dimension_source_sha256": "workflow-dimension-source"
+      },
       "replay": {
         "status": "NOT_APPLICABLE",
         "mode": null,

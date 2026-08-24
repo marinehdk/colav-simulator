@@ -37,6 +37,7 @@ test('Historical AIS remains additive while initial DOM exposes no fabricated sc
   assert.match(html, /id="historicalAISScenarioDuration">—/);
   assert.match(html, /id="historicalAISScenarioActors">—/);
   assert.match(html, /id="historicalAISScenePreview" hidden/);
+  assert.match(html, /BBox \(WGS84 \/ OGC:CRS84\)/);
   assert.match(styles, /\.historical-ais-workbench/);
 
   assert.match(html, /id="validationScenarioChoices"/);
@@ -123,6 +124,7 @@ test('DOM separates bounded scene operability from incomplete predictive qualifi
         enc_cache_sha256: 'c'.repeat(64),
         enc_source_sha256: 'd'.repeat(64),
         dimension_registry_sha256: 'e'.repeat(64),
+        dimension_source_sha256: 'f'.repeat(64),
       },
     },
   };
@@ -158,6 +160,21 @@ test('DOM separates bounded scene operability from incomplete predictive qualifi
   assert.equal(elements.get('historicalAISDigestEncCache').textContent, 'c'.repeat(64));
   assert.equal(elements.get('historicalAISDigestEncSource').textContent, 'd'.repeat(64));
   assert.equal(elements.get('historicalAISDigestDimensionRegistry').textContent, 'e'.repeat(64));
+  assert.equal(elements.get('historicalAISDigestDimensionSource').textContent, 'f'.repeat(64));
+  assert.equal(elements.get('historicalAISWorkflowDigestArchive').textContent, 'workflow-archive');
+  assert.equal(elements.get('historicalAISWorkflowDigestEntry').textContent, 'workflow-entry');
+  assert.equal(elements.get('historicalAISWorkflowDigestSchema').textContent, 'workflow-schema');
+  assert.equal(elements.get('historicalAISWorkflowDigestSelection').textContent, 'workflow-selection');
+  assert.equal(elements.get('historicalAISWorkflowDigestNormalized').textContent, 'workflow-normalized');
+  assert.equal(elements.get('historicalAISWorkflowDigestDescriptor').textContent, 'workflow-descriptor');
+  assert.equal(elements.get('historicalAISWorkflowDigestEncProfile').textContent, 'workflow-enc-profile');
+  assert.equal(elements.get('historicalAISWorkflowDigestEncCache').textContent, 'workflow-enc-cache');
+  assert.equal(elements.get('historicalAISWorkflowDigestEncSource').textContent, 'workflow-enc-source');
+  assert.equal(
+    elements.get('historicalAISWorkflowDigestDimensionRegistry').textContent,
+    'workflow-dimension-registry',
+  );
+  assert.equal(elements.get('historicalAISWorkflowDigestDimensionSource').textContent, 'workflow-dimension-source');
   assert.notEqual(elements.get('historicalAISWorkflowStatus').textContent, 'FAILED');
 
   const replayShape = structuredClone(runtimeShape);
