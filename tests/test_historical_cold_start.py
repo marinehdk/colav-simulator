@@ -29,6 +29,15 @@ def test_counterfactual_actor_set_counts_targets_for_realtime_prewarm() -> None:
     assert _scenario_target_count(spec) == 2
 
 
+def test_generated_multiship_episode_counts_targets_for_realtime_prewarm() -> None:
+    spec = SimpleNamespace(scenario_override=None, historical_replay=None)
+
+    assert _scenario_target_count(
+        spec,
+        episode={"ship_list": [{"id": 0}, {"id": 1}, {"id": 2}, {"id": 3}]},
+    ) == 3
+
+
 def test_first_multitarget_plan_uses_prepared_graph_and_commits_under_deadline(tmp_path) -> None:
     spec = SimpleNamespace(
         scenario_override=None,

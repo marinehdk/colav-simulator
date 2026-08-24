@@ -41,6 +41,12 @@ def _run(args: argparse.Namespace) -> int:
             algorithm_id,
             tracker_id,
         )
+        PRODUCT_CAPABILITY_POLICY.validate(
+            validation_rule_id,
+            args.scenario,
+            algorithm_id,
+            tracker_id,
+        )
         spec = RunSpec(
             scenario_id=args.scenario,
             validation_rule_id=validation_rule_id,
@@ -54,8 +60,9 @@ def _run(args: argparse.Namespace) -> int:
             output_root=args.output,
         )
         result = ExperimentRunner().run(spec)
-    except ColavExecutionError as exc:
-        print(json.dumps({"status": exc.status.value, "reason": str(exc)}, indent=2))
+    except (ColavExecutionError, ValueError) as exc:
+        status = exc.status.value if isinstance(exc, ColavExecutionError) else PlanStatus.INVALID_INPUT.value
+        print(json.dumps({"status": status, "reason": str(exc)}, indent=2))
         return 2
     print(
         json.dumps(
@@ -127,8 +134,11 @@ def _batch(args: argparse.Namespace) -> int:
     seeds = range(args.seed_start, args.seed_start + args.seed_count)
     algorithm_config = _load_algorithm_config(args.algorithm_config)
     algorithms = args.algorithm or [PRODUCT_CAPABILITY_POLICY.default_algorithm_id]
-    tracker_id = args.tracker or PRODUCT_CAPABILITY_POLICY.default_tracker_id
+    if isinstance(algorithms, str):
+        algorithms = [algorithms]
+    tracker_id = (args.tracker or PRODUCT_CAPABILITY_POLICY.default_tracker_id).strip().lower()
     try:
+        algorithms = [algorithm.strip().lower() for algorithm in algorithms]
         if args.default_matrix:
             specs = BatchRunner.default_specs(algorithms, seeds, tracker_id)
             specs = [
@@ -155,10 +165,18 @@ def _batch(args: argparse.Namespace) -> int:
                 for scenario in args.scenario
                 for seed in seeds
                 ]
-    except ColavExecutionError as exc:
-        print(json.dumps({"status": exc.status.value, "reason": str(exc)}, indent=2))
+        for spec in specs:
+            PRODUCT_CAPABILITY_POLICY.validate(
+                spec.validation_rule_id,
+                spec.scenario_id,
+                spec.algorithm_id,
+                spec.tracker_id,
+            )
+        batch_dir = BatchRunner().run(specs, Path(args.output))
+    except (ColavExecutionError, ValueError) as exc:
+        status = exc.status.value if isinstance(exc, ColavExecutionError) else PlanStatus.INVALID_INPUT.value
+        print(json.dumps({"status": status, "reason": str(exc)}, indent=2))
         return 2
-    batch_dir = BatchRunner().run(specs, Path(args.output))
     print(json.dumps({"batch_dir": str(batch_dir), "runs": len(specs)}, indent=2))
     return 0
 

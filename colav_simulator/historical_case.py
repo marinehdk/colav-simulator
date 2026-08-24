@@ -16,7 +16,7 @@ from enum import Enum
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
-from colav_simulator.core.colav.diagnostics import ColavExecutionError
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.experiment.contracts import InternalExecutionPurpose
 from colav_simulator.historical_ais import (
     HistoricalAISDatasetDescriptor,
@@ -580,6 +580,12 @@ class HistoricalAISCapabilityReceipt:
             raise ValueError("capability receipt identity is required")
         if self.evidence_hash != _sha256_json(dict(self.evidence)):
             raise ValueError("capability receipt evidence hash mismatch")
+        evidence_tuple = tuple(
+            self.evidence.get(field_name)
+            for field_name in ("validation_rule_id", "scenario_id", "algorithm_id", "tracker_id")
+        )
+        if evidence_tuple != self.exact_tuple:
+            raise ValueError("capability receipt evidence exact tuple differs from receipt identity")
 
     @classmethod
     def from_catalog(
@@ -598,9 +604,15 @@ class HistoricalAISCapabilityReceipt:
         key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
         if purpose is not None:
             catalog.validate_internal(*key, purpose=purpose)
-        elif algorithm_id == "nominal" and tracker_id == "god":
-            catalog.validate_internal(*key, purpose=InternalExecutionPurpose.EVALUATOR_BASELINE)
         else:
+            if not catalog.policy.allows_algorithm(algorithm_id):
+                raise ColavExecutionError(
+                    # A retained legacy integration must identify why it is
+                    # being used; product selection cannot silently become an
+                    # evaluator baseline or Historical Replay.
+                    PlanStatus.INVALID_INPUT,
+                    "Internal execution requires an explicit InternalExecutionPurpose",
+                )
             catalog.validate(*key)
         exact = catalog.exact_combination_document(key, product_only=False)
         return cls(

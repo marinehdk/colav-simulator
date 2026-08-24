@@ -32,16 +32,17 @@ class SkippingRunner:
         raise ExperimentRunError(manifest, run_dir)
 
 
-def test_default_matrix_has_every_scenario_and_thirty_seeds() -> None:
-    specs = BatchRunner.default_specs(["nominal"])
-    assert len(specs) == 30 * 30
+def test_default_matrix_contains_only_product_scenarios_and_thirty_seeds() -> None:
+    specs = BatchRunner.default_specs(["vo"])
+    assert len(specs) == 6 * 30
     assert {spec.seed for spec in specs} == set(range(30))
-    assert len({spec.scenario_id for spec in specs}) == 30
+    assert len({spec.scenario_id for spec in specs}) == 6
+    assert all(spec.validation_rule_id for spec in specs)
 
 
 def test_batch_keeps_failed_runs_in_all_reports(tmp_path: Path) -> None:
     batch_dir = BatchRunner(FailingRunner()).run(
-        [RunSpec("head_on", algorithm_id="rlmpc", seed=4)],
+        [RunSpec("head_on", validation_rule_id="rule14", algorithm_id="vo", tracker_id="god", seed=4)],
         tmp_path,
     )
     records = json.loads((batch_dir / "records.json").read_text(encoding="utf-8"))
@@ -58,7 +59,7 @@ def test_batch_keeps_failed_runs_in_all_reports(tmp_path: Path) -> None:
 
 def test_batch_separates_skipped_dependencies_from_algorithm_failures(tmp_path: Path) -> None:
     batch_dir = BatchRunner(SkippingRunner()).run(
-        [RunSpec("head_on", algorithm_id="paper_mpc", seed=4)],
+        [RunSpec("head_on", validation_rule_id="rule14", algorithm_id="vo", tracker_id="god", seed=4)],
         tmp_path,
     )
     records = json.loads((batch_dir / "records.json").read_text(encoding="utf-8"))

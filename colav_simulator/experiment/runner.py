@@ -225,7 +225,13 @@ class ExperimentRunner:
                     PlanStatus.INVALID_INPUT,
                     "Counterfactual product run requires an explicit exact capability tuple",
                 )
-            if capability_tuple[1] != spec.scenario_id:
+            cross_scene_capability_evidence = (
+                spec.historical_scenario_id is not None
+                and isinstance(spec.algorithm_capability_evidence, dict)
+                and spec.algorithm_capability_evidence.get("binding_role") == "ALGORITHM_CAPABILITY_ONLY"
+                and spec.algorithm_capability_evidence.get("geometry_equivalence") is False
+            )
+            if capability_tuple[1] != spec.scenario_id and not cross_scene_capability_evidence:
                 raise ColavExecutionError(
                     PlanStatus.INVALID_INPUT,
                     "Counterfactual capability tuple scenario differs from RunSpec",
@@ -505,7 +511,7 @@ class ExperimentRunner:
                 strict_no_fallback=spec.strict_no_fallback,
                 scenario_id=spec.scenario_id,
                 tracker_id=manifest.executed_tracker,
-                scenario_target_count=_scenario_target_count(spec),
+                scenario_target_count=_scenario_target_count(spec, episode=episode),
                 solve_period_override_s=spec.solve_period_s,
                 deadline_mode=DeadlineMode(spec.deadline_mode),
                 event_sink=writer.append_lifecycle_event,
@@ -974,8 +980,18 @@ def _historical_runtime_map_proof(request: HistoricalReplayRequest) -> Historica
     )
 
 
-def _scenario_target_count(spec: RunSpec) -> int | None:
-    """Derive the scenario's target-ship count from its immutable actor list."""
+def _scenario_target_count(spec: RunSpec, *, episode: Mapping[str, Any] | None = None) -> int | None:
+    """Derive target-ship count from the generated episode or sealed inputs.
+
+    The generated episode is authoritative for normal YAML scenarios: random
+    and fixed multiship generators can materialize actors not represented in
+    ``RunSpec.scenario_override``.  Historical inputs remain supported as a
+    fallback so the helper is useful before episode materialization too.
+    """
+    if episode is not None:
+        ship_list = episode.get("ship_list")
+        if isinstance(ship_list, (list, tuple)) and len(ship_list) > 1:
+            return len(ship_list) - 1
     override = spec.scenario_override or {}
     ship_list = override.get("ship_list")
     if isinstance(ship_list, list) and len(ship_list) > 1:

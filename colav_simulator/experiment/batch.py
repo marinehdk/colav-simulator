@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from colav_simulator.core.colav.diagnostics import ColavExecutionError
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY
 from colav_simulator.experiment.contracts import RunOutcome, RunSpec
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner
@@ -55,6 +55,9 @@ class BatchRunner:
         self.runner = runner or ExperimentRunner()
 
     def run(self, specs: Iterable[RunSpec], output_root: Path) -> Path:
+        specs = tuple(specs)
+        for spec in specs:
+            self._validate_product_spec(spec)
         batch_dir = output_root / f"batch-{uuid.uuid4()}"
         batch_dir.mkdir(parents=True, exist_ok=False)
         records: list[BatchRecord] = []
@@ -119,6 +122,26 @@ class BatchRunner:
         return batch_dir
 
     @staticmethod
+    def _validate_product_spec(spec: RunSpec) -> None:
+        """Validate every batch item before any run can bypass product policy."""
+        if not isinstance(spec, RunSpec):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Batch items must be RunSpec instances",
+            )
+        if spec.validation_rule_id is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Batch RunSpec requires an explicit validation_rule_id and exact capability tuple",
+            )
+        PRODUCT_CAPABILITY_POLICY.validate(
+            spec.validation_rule_id,
+            spec.scenario_id,
+            spec.algorithm_id,
+            spec.tracker_id,
+        )
+
+    @staticmethod
     def _planner_statuses(frames: list[dict]) -> dict[str, int]:
         counts: dict[str, int] = {}
         for frame in frames:
@@ -151,6 +174,7 @@ class BatchRunner:
                     # one published exact tuple. Unsupported legacy/catalog
                     # scenarios remain available through explicit specs.
                     continue
+                PRODUCT_CAPABILITY_POLICY.validate(rule_id, scenario, algorithm_id, tracker_id)
                 output.extend(
                     RunSpec(
                         scenario_id=scenario,

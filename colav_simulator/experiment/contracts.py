@@ -191,6 +191,21 @@ def _normalize_algorithm_capability_evidence(spec: RunSpec) -> dict[str, Any]:
         raise ValueError("Algorithm Capability evidence cannot claim geometry equivalence")
     if len(exact_tuple) != 4:
         raise ValueError("Algorithm Capability evidence requires one exact tuple")
+    if not all(isinstance(item, str) and item.strip() for item in exact_tuple):
+        raise ValueError("Algorithm Capability evidence exact tuple must contain four non-empty strings")
+    exact_tuple = (
+        str(exact_tuple[0]).strip().lower(),
+        str(exact_tuple[1]).strip(),
+        str(exact_tuple[2]).strip().lower(),
+        str(exact_tuple[3]).strip().lower(),
+    )
+    if spec.validation_rule_id is not None and exact_tuple[0] != spec.validation_rule_id:
+        raise ValueError("Algorithm Capability evidence rule differs from RunSpec")
+    # Historical AIS deliberately carries a capability tuple from a verified
+    # geometry-equivalent catalogue scene.  Product RunSpecs do not have that
+    # cross-scene evidence boundary, so their scenario must match exactly.
+    if spec.historical_scenario_id is None and exact_tuple[1] != spec.scenario_id:
+        raise ValueError("Algorithm Capability evidence scenario differs from RunSpec")
     if exact_tuple[2:] != (spec.algorithm_id, spec.tracker_id):
         raise ValueError("Algorithm Capability evidence algorithm/tracker differs from RunSpec")
     evidence["exact_tuple"] = list(exact_tuple)

@@ -17,6 +17,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
+from colav_simulator.experiment.contracts import InternalExecutionPurpose
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
     HistoricalAISAlgorithmBinding,
@@ -1027,9 +1028,15 @@ def _algorithm_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAIS
         from colav_simulator.integrations import IntegrationRegistry  # noqa: PLC0415
 
         try:
+            purpose = (
+                InternalExecutionPurpose.EVALUATOR_BASELINE
+                if request.run_spec.algorithm_id == "nominal"
+                else None
+            )
             receipt = HistoricalAISCapabilityReceipt.from_catalog(
                 CapabilityCatalog(IntegrationRegistry()),
                 *capability_tuple,
+                purpose=purpose,
             )
         except (ColavExecutionError, KeyError, StopIteration, ValueError):
             receipt = None

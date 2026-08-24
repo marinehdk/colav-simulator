@@ -182,21 +182,6 @@ class BusyWaterDraftRequest(BaseModel):
     document: dict[str, Any]
 
 
-LEGACY_SCENARIOS = {
-    "Crossing": "crossing_give_way",
-    "Head-on": "paper_ccta2023_head_on",
-    "Overtaking": "overtaking",
-    "Multi-Obstacle": "paper_ccta2023_multiship",
-}
-LEGACY_ALGORITHMS = {
-    "Nominal": "nominal",
-    "CustomMPC": "custom_mpc",
-    "PSBMPC": "psbmpc",
-    "RLMPC": "rlmpc",
-    "RRT-Star": "rrt",
-}
-
-
 def _execution_error_detail(exc: Exception) -> dict[str, str]:
     if isinstance(exc, ColavExecutionError):
         status = exc.status
@@ -1359,26 +1344,48 @@ def api_enc_tile() -> FileResponse:
 
 @app.get("/api/algo_status")
 def api_algo_status() -> JSONResponse:
+    """Expose only product-active integrations and their selection constraints."""
+    policy = manager.runner.capabilities.policy
     statuses = manager.runner.registry.statuses()
-    legacy = {
-        "Nominal": statuses["nominal"].available,
-        "CustomMPC": False,
-        "PSBMPC": statuses["psbmpc"].available,
-        "RLMPC": statuses["rlmpc"].available,
-        "RRT-Star": statuses["rrt"].available,
-    }
-    return JSONResponse(legacy)
-
-
-def _ensure_legacy_session(scenario: str | None = None, algorithm: str | None = None) -> str:
-    if manager.prepared:
-        return manager.session_id
-    spec = RunSpec(
-        scenario_id=LEGACY_SCENARIOS.get(scenario or "Head-on", scenario or "paper_ccta2023_head_on"),
-        algorithm_id=LEGACY_ALGORITHMS.get(algorithm or "Nominal", algorithm or "nominal"),
+    product_ids = set(policy.algorithm_ids) | set(policy.tracker_ids)
+    product = []
+    for identifier in (*policy.algorithm_ids, *policy.tracker_ids):
+        status = statuses.get(identifier)
+        if status is None:
+            continue
+        product.append(
+            {
+                **status.to_dict(),
+                "active": True,
+                "available": bool(status.available),
+                "selectable": bool(status.available),
+                "constraints": policy.constraints(identifier)
+                if identifier in policy.algorithm_ids
+                else {"requires_explicit_tracker_id": True},
+            }
+        )
+    internal_legacy = [
+        {
+            "integration_id": identifier,
+            "kind": status.kind,
+            "active": False,
+            "available": False,
+            "selectable": False,
+            "reason": "Retained for internal replay/evaluator compatibility only.",
+        }
+        for identifier, status in sorted(statuses.items())
+        if identifier not in product_ids
+    ]
+    return JSONResponse(
+        {
+            "schema_version": "product-algorithm-status.v1",
+            "product": product,
+            "algorithms": [item for item in product if item["kind"] == "algorithm"],
+            "trackers": [item for item in product if item["kind"] == "tracker"],
+            "constraints": policy.to_dict()["constraints"],
+            "internal_legacy": internal_legacy,
+        }
     )
-    manager.create(spec)
-    return manager.session_id
 
 
 @app.post("/api/start")
@@ -1424,7 +1431,12 @@ def api_select_algorithm(algorithm: str = "vo") -> dict[str, Any]:
     algorithm_id = algorithm.strip().lower()
     try:
         current = manager.prepared.spec if manager.prepared is not None else None
-        if current is not None and (
+        if current is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Deprecated algorithm selector requires an active product session",
+            )
+        if (
             current.validation_rule_id is None
             or current.historical_replay is not None
             or current.historical_scenario_id is not None
@@ -1433,33 +1445,13 @@ def api_select_algorithm(algorithm: str = "vo") -> dict[str, Any]:
                 PlanStatus.INVALID_INPUT,
                 "Deprecated algorithm selector requires an active product exact tuple",
             )
-        validation_rule_id = current.validation_rule_id if current is not None else "rule14"
-        scenario_id = current.scenario_id if current is not None else "head_on"
-        tracker_id = current.tracker_id if current is not None else "god"
-        manager.runner.capabilities.policy.require_integrations(algorithm_id, tracker_id)
-        description = manager.create(
-            RunSpec(
-                scenario_id=scenario_id,
-                validation_rule_id=validation_rule_id,
-                algorithm_id=algorithm_id,
-                tracker_id=tracker_id,
-                seed=current.seed if current is not None else 0,
-                episode_index=current.episode_index if current is not None else 0,
-                dt=current.dt if current is not None else None,
-                t_end=current.t_end if current is not None else None,
-                strict_no_fallback=True,
-                evaluator_profile_id=(
-                    current.evaluator_profile_id if current is not None else "ccta_2023_demo-v1"
-                ),
-                tracker_config=dict(current.tracker_config) if current is not None else {},
-                domain_profile=(
-                    current.domain_profile
-                    if current is not None and manager.runner.capabilities.policy.requires_domain_profile(algorithm_id)
-                    else None
-                ),
-                scenario_override=current.scenario_override if current is not None else None,
-            )
+        manager.runner.capabilities.policy.validate(
+            current.validation_rule_id,
+            current.scenario_id,
+            algorithm_id,
+            current.tracker_id,
         )
+        description = manager.create(replace(current, algorithm_id=algorithm_id))
     except Exception as exc:
         raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
     return {"status": "ok", "algorithm": algorithm_id, **description}
