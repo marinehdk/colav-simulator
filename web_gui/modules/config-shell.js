@@ -117,10 +117,10 @@ const ALGORITHM_LABELS = {
   nominal: 'Nominal',
   vo: 'VO',
   sbmpc: 'SB-MPC',
-  potocnik_simplified_mpc: 'Fan-MPC',
+  potocnik_simplified_mpc: 'Potočnik Reference',
   potocnik_colreg_fan_mpc: 'Fan-MPC',
 };
-const ALGORITHM_ORDER = ['mid_mpc_ipopt', 'vo', 'potocnik_simplified_mpc'];
+const ALGORITHM_ORDER = ['mid_mpc_ipopt', 'vo', 'potocnik_colreg_fan_mpc', 'potocnik_simplified_mpc'];
 const TRACKER_LABELS = {
   god: 'Truth',
   kf: 'Kalman',
@@ -411,7 +411,7 @@ function renderScenarioDetail(snapshot) {
 
   const allScenarios = snapshot.options.scenario_id || [];
   const ruleScenarios = allScenarios.filter(
-    (item) => (supportedScenarioIds.size === 0 || supportedScenarioIds.has(item.id)) && item.enabled !== false
+    (item) => supportedScenarioIds.size === 0 || supportedScenarioIds.has(item.id)
   );
   const scenariosToDisplay = ruleScenarios.length > 0 ? ruleScenarios : allScenarios.filter((item) => item.enabled !== false);
 

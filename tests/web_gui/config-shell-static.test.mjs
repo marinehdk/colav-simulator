@@ -191,6 +191,20 @@ test('Stepper and Config Summary render tuple business labels instead of raw ids
   }
 });
 
+test('Rule 15 keeps the Give-way scenario visible when the current tuple disables it', () => {
+  const scenarioDetail = shell.slice(shell.indexOf('function renderScenarioDetail('), shell.indexOf('function renderScenarioPreviewCanvas('));
+  assert.match(scenarioDetail, /const ruleScenarios = allScenarios\.filter\(/);
+  assert.match(scenarioDetail, /supportedScenarioIds\.has\(item\.id\)/);
+  assert.doesNotMatch(scenarioDetail, /supportedScenarioIds\.has\(item\.id\)\) && item\.enabled !== false/);
+  assert.match(shell, /enabled: !locked && item\.enabled !== false/);
+});
+
+test('Algorithm choices distinguish the executable COLREG Fan-MPC from the Potočnik reference', () => {
+  assert.match(shell, /potocnik_colreg_fan_mpc: 'Fan-MPC'/);
+  assert.match(shell, /potocnik_simplified_mpc: 'Potočnik Reference'/);
+  assert.match(shell, /ALGORITHM_ORDER = \['mid_mpc_ipopt', 'vo', 'potocnik_colreg_fan_mpc', 'potocnik_simplified_mpc'\]/);
+});
+
 test('COLREGS naming is consistent across step, card, and summary', () => {
   assert.match(html, /data-config-step="rules"[^>]*>[\s\S]*?<strong>COLREGS<\/strong>/);
   assert.match(html, /class="config-card-title"[^>]*>[\s\S]*?<strong>COLREGS<\/strong>/);

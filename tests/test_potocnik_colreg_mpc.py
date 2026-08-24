@@ -72,9 +72,7 @@ def test_head_on_commands_substantial_starboard_action() -> None:
 
 
 def test_overtaking_commands_substantial_starboard_action() -> None:
-    solution = solver().solve(
-        planner_input(track(position_ne=(1000.0, 0.0), velocity_ne=(5.0, 0.0)))
-    )
+    solution = solver().solve(planner_input(track(position_ne=(1000.0, 0.0), velocity_ne=(5.0, 0.0))))
 
     assert solution.algorithm_details["active_encounters"] == ["overtaking"]
     assert np.rad2deg(solution.control_reference[2, 0]) >= 5.0
@@ -148,10 +146,7 @@ def test_candidate_rollout_batches_speed_scales_without_changing_order() -> None
     colreg_solver = solver()
     ownship = planner_input().ownship_state
     speeds = 7.0 * np.asarray(colreg_solver.params.speed_scales)
-    expected = [
-        colreg_solver._generate_candidate_bundle(ownship, speed, 0.5)
-        for speed in speeds
-    ]
+    expected = [colreg_solver._generate_candidate_bundle(ownship, speed, 0.5) for speed in speeds]
 
     candidates, controls = colreg_solver._generate_candidate_bundle(ownship, speeds, 0.5)
 
@@ -368,11 +363,11 @@ def test_stand_on_emergency_minimizes_course_change_before_speed() -> None:
     assert np.rad2deg(controls[selection.index, 2, 0]) == pytest.approx(40.0)
 
 
-def test_policy_releases_stale_give_way_after_safe_dcpa(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_policy_releases_colreg_after_cpa_has_passed(monkeypatch: pytest.MonkeyPatch) -> None:
     classifications = iter(
         (
             ("crossing_give_way", 100.0, 100.0, 100.0, 45.0),
-            ("clear", 1000.0, 50.0, 50.0, 45.0),
+            ("clear", 1000.0, 50.0, -1.0, 45.0),
         )
     )
     monkeypatch.setattr(
@@ -390,6 +385,35 @@ def test_policy_releases_stale_give_way_after_safe_dcpa(monkeypatch: pytest.Monk
     assert released.encounters[0]["detected_geometry"] == "clear"
     assert released.encounters[0]["encounter"] == "clear"
     assert released.give_way_targets == ()
+
+
+def test_policy_holds_colreg_commitment_until_cpa_has_passed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    classifications = iter(
+        (
+            ("head_on", 100.0, 100.0, 100.0, 0.0),
+            ("clear", 1000.0, 50.0, 50.0, 0.0),
+            ("clear", 1000.0, 50.0, -1.0, 0.0),
+        )
+    )
+    monkeypatch.setattr(
+        potocnik_colreg_mpc,
+        "classify_geometry",
+        lambda *_args: next(classifications),
+    )
+    colreg_solver = solver()
+    target = track(position_ne=(1000.0, 0.0), velocity_ne=(-7.0, 0.0))
+
+    active = colreg_solver._encounter_policy(planner_input(target))
+    approaching = colreg_solver._encounter_policy(planner_input(target))
+    passed = colreg_solver._encounter_policy(planner_input(target))
+
+    assert active.give_way_targets == (1,)
+    assert approaching.encounters[0]["encounter"] == "head_on"
+    assert approaching.give_way_targets == (1,)
+    assert passed.encounters[0]["encounter"] == "clear"
+    assert passed.give_way_targets == ()
 
 
 def test_policy_retains_give_way_while_dcpa_is_inside_safety_buffer(

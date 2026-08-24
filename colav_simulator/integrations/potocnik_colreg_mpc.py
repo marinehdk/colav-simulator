@@ -422,19 +422,9 @@ class PotocnikColregFanMPC:
                 track.length_m,
             )
             previous = self._encounter_state.get(track.target_id, "clear")
-            own_radius = 0.5 * float(
-                np.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
-            )
-            target_radius = 0.5 * float(np.hypot(track.length_m, track.width_m))
-            required_center_clearance = self.params.collision_distance_m + own_radius + target_radius
             if detected != "clear":
                 encounter = detected
-            elif (
-                previous != "clear"
-                and signed_tcpa > 0.0
-                and dcpa <= required_center_clearance
-                and distance <= self.params.colreg_zone_distance_m
-            ):
+            elif previous != "clear" and signed_tcpa > 0.0 and distance <= self.params.colreg_zone_distance_m:
                 encounter = previous
             else:
                 encounter = "clear"
@@ -490,13 +480,9 @@ class PotocnikColregFanMPC:
                 np.ones(count, dtype=bool),
             )
         own_radius = 0.5 * float(np.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m))
-        target_ne = np.stack(
-            [np.vstack((target["north_m"], target["east_m"])) for target in targets]
-        )
+        target_ne = np.stack([np.vstack((target["north_m"], target["east_m"])) for target in targets])
         clearance = _batched_continuous_minimum_distance(candidates[:, :2], target_ne)
-        target_radii = np.asarray(
-            [0.5 * np.hypot(target["length_m"], target["width_m"]) for target in targets]
-        )
+        target_radii = np.asarray([0.5 * np.hypot(target["length_m"], target["width_m"]) for target in targets])
         required = self.params.collision_distance_m + own_radius + target_radii
         minimum = np.min(clearance, axis=0)
         feasible = np.all(clearance >= required[:, None], axis=0)
@@ -652,9 +638,7 @@ class PotocnikColregFanMPC:
         elif self._maneuver_phase == "RETURN" and not policy.give_way_targets and not policy.stand_on_targets:
             return_error = np.abs(_wrap_angle(controls[selection, 2, 0] - target_course))
             selection = selection[np.isclose(return_error, np.min(return_error))]
-        scoring_course = (
-            self._stand_on_course if stand_on_reference_active or stand_on_emergency_active else target_course
-        )
+        scoring_course = self._stand_on_course if stand_on_reference_active or stand_on_emergency_active else target_course
         route_score = np.abs(_wrap_angle(controls[selection, 2, 0] - scoring_course))
         route_score += 0.25 * (1.0 - speed_scales[selection])
         continuity_score = np.zeros(selection.size)
