@@ -14,6 +14,7 @@ from colav_simulator.core.colav.threat_assessment import (
 )
 from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
 from colav_simulator.experiment import ExperimentRunner, RunSpec
+from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY
 from colav_simulator.integrations import mid_mpc_ipopt
 from gui_server.main import app
 
@@ -43,6 +44,33 @@ def test_run_spec_round_trips_versioned_ship_domain_profile() -> None:
     assert document["domain_profile"]["version"] == "v1"
     assert document["domain_profile"]["profile_hash"] == profile.profile_hash
     assert restored.domain_profile == profile
+
+
+def test_product_policy_parses_and_validates_domain_profile() -> None:
+    profile = _qualified_profile()
+
+    parsed = PRODUCT_CAPABILITY_POLICY.parse_domain_profile(profile.to_dict())
+
+    assert parsed == profile
+    assert PRODUCT_CAPABILITY_POLICY.validate_domain_profile("mid_mpc_ipopt", parsed) == profile
+    assert PRODUCT_CAPABILITY_POLICY.validate_domain_profile("vo", None) is None
+
+
+def test_product_policy_rejects_missing_unqualified_and_tampered_profile() -> None:
+    with pytest.raises(ColavExecutionError, match="explicitly supplied qualified") as missing:
+        PRODUCT_CAPABILITY_POLICY.validate_domain_profile("mid_mpc_ipopt", None)
+    assert missing.value.status is PlanStatus.INVALID_INPUT
+
+    unqualified = replace(_qualified_profile(), qualification=DomainQualification.UNQUALIFIED)
+    with pytest.raises(ColavExecutionError, match="qualified ShipDomainProfile") as rejected:
+        PRODUCT_CAPABILITY_POLICY.validate_domain_profile("mid_mpc_ipopt", unqualified)
+    assert rejected.value.status is PlanStatus.INVALID_INPUT
+
+    tampered = _qualified_profile().to_dict()
+    tampered["profile_hash"] = "tampered"
+    with pytest.raises(ColavExecutionError, match="profile_hash") as tampered_error:
+        PRODUCT_CAPABILITY_POLICY.parse_domain_profile(tampered)
+    assert tampered_error.value.status is PlanStatus.INVALID_INPUT
 
 
 def test_default_threat_coordinator_remains_unqualified() -> None:
@@ -155,6 +183,25 @@ def test_formal_mid_run_requires_explicit_qualified_profile(tmp_path) -> None:
         )
     assert rejected.value.status is PlanStatus.INVALID_INPUT
     assert "qualified ShipDomainProfile" in str(rejected.value)
+
+
+def test_formal_mid_run_short_smoke_executes_with_qualified_profile(tmp_path) -> None:
+    result = ExperimentRunner().run(
+        RunSpec(
+            "head_on",
+            validation_rule_id="rule14",
+            algorithm_id="mid_mpc_ipopt",
+            tracker_id="god",
+            domain_profile=_qualified_profile(),
+            dt=0.1,
+            t_end=0.2,
+            output_root=str(tmp_path),
+        )
+    )
+
+    assert result.manifest.executed_algorithm == "mid_mpc_ipopt"
+    assert result.manifest.fallback_used is False
+    assert result.manifest.execution_outcome.value == "COMPLETED"
 
 
 def test_api_description_preserves_qualified_domain_profile_identity() -> None:

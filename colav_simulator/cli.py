@@ -18,6 +18,7 @@ from colav_simulator.common import paths
 from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter, FactoryContext
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.core.colav.prediction_evidence import verify_evidence_document
+from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
 from colav_simulator.experiment.batch import BatchRunner
 from colav_simulator.experiment.busy_water import (
     DEFAULT_SEED,
@@ -47,6 +48,8 @@ def _run(args: argparse.Namespace) -> int:
             algorithm_id,
             tracker_id,
         )
+        domain_profile = _load_domain_profile(getattr(args, "domain_profile_file", None))
+        PRODUCT_CAPABILITY_POLICY.validate_domain_profile(algorithm_id, domain_profile)
         spec = RunSpec(
             scenario_id=args.scenario,
             validation_rule_id=validation_rule_id,
@@ -57,10 +60,11 @@ def _run(args: argparse.Namespace) -> int:
             t_end=args.t_end,
             evaluator_profile_id=args.evaluator_profile,
             algorithm_config=_load_algorithm_config(args.algorithm_config),
+            domain_profile=domain_profile,
             output_root=args.output,
         )
         result = ExperimentRunner().run(spec)
-    except (ColavExecutionError, ValueError) as exc:
+    except (ColavExecutionError, OSError, ValueError) as exc:
         status = exc.status.value if isinstance(exc, ColavExecutionError) else PlanStatus.INVALID_INPUT.value
         print(json.dumps({"status": status, "reason": str(exc)}, indent=2))
         return 2
@@ -139,8 +143,11 @@ def _batch(args: argparse.Namespace) -> int:
     tracker_id = (args.tracker or PRODUCT_CAPABILITY_POLICY.default_tracker_id).strip().lower()
     try:
         algorithms = [algorithm.strip().lower() for algorithm in algorithms]
+        domain_profile = _load_domain_profile(getattr(args, "domain_profile_file", None))
+        for algorithm in algorithms:
+            PRODUCT_CAPABILITY_POLICY.validate_domain_profile(algorithm, domain_profile)
         if args.default_matrix:
-            specs = BatchRunner.default_specs(algorithms, seeds, tracker_id)
+            specs = BatchRunner.default_specs(algorithms, seeds, tracker_id, domain_profile=domain_profile)
             specs = [
                 replace(
                     spec,
@@ -160,6 +167,7 @@ def _batch(args: argparse.Namespace) -> int:
                     seed=seed,
                     evaluator_profile_id=args.evaluator_profile,
                     algorithm_config=algorithm_config,
+                    domain_profile=domain_profile,
                 )
                 for algorithm in algorithms
                 for scenario in args.scenario
@@ -173,7 +181,7 @@ def _batch(args: argparse.Namespace) -> int:
                 spec.tracker_id,
             )
         batch_dir = BatchRunner().run(specs, Path(args.output))
-    except (ColavExecutionError, ValueError) as exc:
+    except (ColavExecutionError, OSError, ValueError) as exc:
         status = exc.status.value if isinstance(exc, ColavExecutionError) else PlanStatus.INVALID_INPUT.value
         print(json.dumps({"status": status, "reason": str(exc)}, indent=2))
         return 2
@@ -259,6 +267,21 @@ def _load_algorithm_config(path_value: str | None) -> dict:
             lock_path = (path.parent / lock_path).resolve()
         document["dependency_lock"] = str(lock_path)
     return document
+
+
+def _load_domain_profile(path_value: str | None) -> ShipDomainProfile | None:
+    """Load one explicit JSON/YAML ShipDomainProfile document."""
+    if path_value is None:
+        return None
+    path = Path(path_value).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"domain profile not found: {path}")
+    with path.open(encoding="utf-8") as stream:
+        document = yaml.safe_load(stream) if path.suffix.lower() in {".yaml", ".yml"} else json.load(stream)
+    profile = PRODUCT_CAPABILITY_POLICY.parse_domain_profile(document)
+    if profile is None:
+        raise ColavExecutionError(PlanStatus.INVALID_INPUT, "domain profile file must contain a profile mapping")
+    return profile
 
 
 def _serve(args: argparse.Namespace) -> int:
@@ -349,6 +372,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--dt", type=float)
     run_parser.add_argument("--t-end", type=float)
     run_parser.add_argument("--algorithm-config")
+    run_parser.add_argument("--domain-profile-file")
     run_parser.add_argument("--evaluator-profile", default="ccta_2023_demo-v1")
     run_parser.add_argument("--output", default="runs")
     run_parser.set_defaults(handler=_run)
@@ -377,6 +401,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch_parser.add_argument("--seed-count", type=int, default=30)
     batch_parser.add_argument("--default-matrix", action="store_true")
     batch_parser.add_argument("--algorithm-config")
+    batch_parser.add_argument("--domain-profile-file")
     batch_parser.add_argument("--evaluator-profile", default="ccta_2023_demo-v1")
     batch_parser.add_argument("--output", default="runs")
     batch_parser.set_defaults(handler=_batch)

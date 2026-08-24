@@ -217,6 +217,7 @@ class ExperimentRunner:
     def prepare(self, spec: RunSpec) -> PreparedRun:
         """Prepare one product run through the published exact-tuple policy."""
         self.capabilities.policy.require_integrations(spec.algorithm_id, spec.tracker_id)
+        self.capabilities.policy.validate_domain_profile(spec.algorithm_id, spec.domain_profile)
         historical_mode = str((spec.historical_replay or {}).get("mode", "")).upper()
         if historical_mode == "COUNTERFACTUAL":
             capability_tuple = spec.capability_tuple
@@ -310,7 +311,6 @@ class ExperimentRunner:
                 PlanStatus.INVALID_INPUT,
                 "Historical scenario identity requires a sealed Historical Replay request",
             )
-        capability_tuple = spec.capability_tuple
         scenario_path = None if spec.historical_scenario_id is not None else self.resolve_scenario(spec.scenario_id)
         counterfactual_mode = historical_request is not None and historical_request.mode == "COUNTERFACTUAL"
         runtime_map_proof: HistoricalRuntimeMapProof | None = None
@@ -353,17 +353,6 @@ class ExperimentRunner:
                 config.t_end = historical_request.t_end_s
         if spec.reload_enc:
             config.new_load_of_map_data = True
-        if capability_tuple is not None and self.capabilities.policy.requires_domain_profile(spec.algorithm_id):
-            if spec.domain_profile is None:
-                raise ColavExecutionError(
-                    PlanStatus.INVALID_INPUT,
-                    "formal Mid-MPC run requires an explicitly supplied qualified ShipDomainProfile",
-                )
-            if not spec.domain_profile.qualified:
-                raise ColavExecutionError(
-                    PlanStatus.INVALID_INPUT,
-                    "formal Mid-MPC run requires a qualified ShipDomainProfile",
-                )
         if (
             historical_request is None
             and spec.algorithm_id == "nominal"

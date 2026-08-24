@@ -12,6 +12,7 @@ import pytest
 os.environ["MPLBACKEND"] = "Agg"
 
 if TYPE_CHECKING:
+    from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
     from colav_simulator.experiment.g3_gate import G3DisplayResult
     from colav_simulator.experiment.runner import RunResult
     from colav_simulator.historical_enc import ENCRegionProfile
@@ -85,9 +86,31 @@ def qualified_historical_enc_profile() -> ENCRegionProfile:
     )
 
 
+@pytest.fixture(scope="session")
+def qualified_ship_domain_profile() -> ShipDomainProfile:
+    """Explicit qualified engineering profile for formal Mid-MPC P1 runs."""
+    from colav_simulator.core.colav.threat_assessment import (  # noqa: PLC0415
+        DomainQualification,
+        ShipDomainProfile,
+    )
+
+    return ShipDomainProfile(
+        profile_id="p1-mid-mpc-domain",
+        version="v1",
+        fore_m=300.0,
+        aft_m=100.0,
+        port_m=120.0,
+        starboard_m=180.0,
+        parameter_source="P1 test fixture engineering envelope",
+        assumptions=("test-only engineering envelope",),
+        qualification=DomainQualification.QUALIFIED,
+    )
+
+
 @dataclass
 class P1RunHarness:
     output_root: Path
+    mid_domain_profile: ShipDomainProfile
     _nominal: dict[tuple[str, str], RunResult] = field(default_factory=dict)
     _candidate: dict[tuple[str, str, str, str, float | None], RunResult] = field(default_factory=dict)
 
@@ -126,6 +149,7 @@ class P1RunHarness:
             strict_no_fallback=True,
             solve_period_s=solve_period_s,
             algorithm_config=config,
+            domain_profile=self.mid_domain_profile if algorithm_id == "mid_mpc_ipopt" else None,
             output_root=str(self.output_root / scenario_id / algorithm_id / tracker_id),
         )
         runner = ExperimentRunner(PROJECT_ROOT)
@@ -186,5 +210,8 @@ def _validation_rule_for_scenario(scenario_id: str) -> str:
 
 
 @pytest.fixture(scope="session")
-def p1_run_harness(tmp_path_factory: pytest.TempPathFactory) -> P1RunHarness:
-    return P1RunHarness(tmp_path_factory.mktemp("p1-g3-runs"))
+def p1_run_harness(
+    tmp_path_factory: pytest.TempPathFactory,
+    qualified_ship_domain_profile: ShipDomainProfile,
+) -> P1RunHarness:
+    return P1RunHarness(tmp_path_factory.mktemp("p1-g3-runs"), qualified_ship_domain_profile)

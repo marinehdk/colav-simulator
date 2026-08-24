@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
-from colav_simulator.experiment.contracts import InternalExecutionPurpose
+from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
+from colav_simulator.experiment.contracts import InternalExecutionPurpose, _ship_domain_profile_from_mapping
 from colav_simulator.experiment.g3_gate import PREDICATE_VERSION
 
 CAPABILITY_SCHEMA_VERSION = "1.0"
@@ -215,6 +217,51 @@ class ProductCapabilityPolicy:
     def requires_domain_profile(self, algorithm_id: str) -> bool:
         """Return whether this product algorithm needs an explicit domain profile."""
         return algorithm_id.strip().lower() in self.domain_profile_algorithm_ids
+
+    def parse_domain_profile(
+        self,
+        value: ShipDomainProfile | Mapping[str, Any] | None,
+    ) -> ShipDomainProfile | None:
+        """Parse one explicit profile at the product boundary.
+
+        Profile mappings are content-addressed by :class:`ShipDomainProfile`.
+        A caller may omit the profile only for algorithms that do not require
+        one; Mid-MPC validation is handled by :meth:`validate_domain_profile`.
+        """
+        if value is None:
+            return None
+        if isinstance(value, ShipDomainProfile):
+            return value
+        if not isinstance(value, Mapping):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "domain_profile must be a ShipDomainProfile or mapping",
+            )
+        try:
+            return _ship_domain_profile_from_mapping(value)
+        except (TypeError, ValueError) as exc:
+            raise ColavExecutionError(PlanStatus.INVALID_INPUT, str(exc)) from exc
+
+    def validate_domain_profile(
+        self,
+        algorithm_id: str,
+        value: ShipDomainProfile | Mapping[str, Any] | None,
+    ) -> ShipDomainProfile | None:
+        """Validate the profile requirement for one product algorithm."""
+        profile = self.parse_domain_profile(value)
+        if not self.requires_domain_profile(algorithm_id):
+            return profile
+        if profile is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "formal Mid-MPC run requires an explicitly supplied qualified ShipDomainProfile",
+            )
+        if not profile.qualified:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "formal Mid-MPC run requires a qualified ShipDomainProfile",
+            )
+        return profile
 
     def constraints(self, algorithm_id: str | None = None) -> dict[str, Any]:
         """Return the same domain-profile contract consumed by API and UI."""

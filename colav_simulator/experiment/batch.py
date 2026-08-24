@@ -7,14 +7,16 @@ import json
 import math
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
 from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY
 from colav_simulator.experiment.contracts import RunOutcome, RunSpec
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner
@@ -140,6 +142,7 @@ class BatchRunner:
             spec.algorithm_id,
             spec.tracker_id,
         )
+        PRODUCT_CAPABILITY_POLICY.validate_domain_profile(spec.algorithm_id, spec.domain_profile)
 
     @staticmethod
     def _planner_statuses(frames: list[dict]) -> dict[str, int]:
@@ -158,10 +161,14 @@ class BatchRunner:
         algorithms: Iterable[str],
         seeds: Iterable[int] = range(30),
         tracker_id: str = PRODUCT_CAPABILITY_POLICY.default_tracker_id,
+        domain_profile: ShipDomainProfile | Mapping[str, Any] | None = None,
     ) -> list[RunSpec]:
         scenarios = [*STANDARD_SCENARIOS, *PAPER_SCENARIOS, *IMAZU_SCENARIOS, *AIS_SCENARIOS]
         seed_values = tuple(seeds)
         tracker_id = tracker_id.strip().lower()
+        parsed_domain_profile = (
+            PRODUCT_CAPABILITY_POLICY.parse_domain_profile(domain_profile) if domain_profile is not None else None
+        )
         output: list[RunSpec] = []
         for algorithm in algorithms:
             algorithm_id = algorithm.strip().lower()
@@ -182,6 +189,7 @@ class BatchRunner:
                         algorithm_id=algorithm_id,
                         tracker_id=tracker_id,
                         seed=seed,
+                        domain_profile=parsed_domain_profile,
                     )
                     for seed in seed_values
                 )

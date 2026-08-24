@@ -173,7 +173,7 @@ def _ship_domain_profile_from_mapping(value: Mapping[str, Any]) -> ShipDomainPro
     declared_hash = payload.pop("profile_hash", None)
     try:
         profile = ShipDomainProfile(**payload)
-    except (TypeError, ValueError) as exc:
+    except (AttributeError, TypeError, ValueError) as exc:
         raise ValueError(f"invalid ShipDomainProfile: {exc}") from exc
     if declared_hash is not None and str(declared_hash) != profile.profile_hash:
         raise ValueError("ShipDomainProfile profile_hash does not match profile parameters")

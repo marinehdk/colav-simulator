@@ -1,9 +1,11 @@
 import json
 from argparse import Namespace
+from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
-from colav_simulator.cli import _load_algorithm_config, _plugin_check, _verify_mid_mpc_evidence, build_parser
+from colav_simulator.cli import _batch, _load_algorithm_config, _plugin_check, _run, _verify_mid_mpc_evidence, build_parser
 from colav_simulator.core.colav.prediction_evidence import (
     OptimizationIntervalReference,
     OwnshipPrediction,
@@ -104,6 +106,162 @@ def test_cli_parser_accepts_plugin_check_and_run_algorithm_config() -> None:
 
     assert plugin.command == "plugin-check"
     assert run.algorithm_config == "config/custom_mpc_example.yaml"
+
+
+def test_cli_parser_accepts_explicit_mid_mpc_domain_profile_file(tmp_path) -> None:
+    profile = tmp_path / "domain-profile.json"
+    profile.write_text(json.dumps({"profile_id": "profile", "version": "1"}), encoding="utf-8")
+
+    parser = build_parser()
+    run = parser.parse_args(
+        [
+            "run",
+            "--scenario",
+            "head_on",
+            "--algorithm",
+            "mid_mpc_ipopt",
+            "--domain-profile-file",
+            str(profile),
+        ]
+    )
+    batch = parser.parse_args(
+        [
+            "batch",
+            "--scenario",
+            "head_on",
+            "--algorithm",
+            "mid_mpc_ipopt",
+            "--domain-profile-file",
+            str(profile),
+            "--seed-count",
+            "1",
+        ]
+    )
+
+    assert run.domain_profile_file == str(profile)
+    assert batch.domain_profile_file == str(profile)
+
+
+def test_cli_mid_mpc_missing_profile_is_typed_invalid_input(capsys, tmp_path) -> None:
+    status = _run(
+        Namespace(
+            scenario="head_on",
+            validation_rule_id="rule14",
+            algorithm="mid_mpc_ipopt",
+            tracker="god",
+            seed=0,
+            dt=None,
+            t_end=0.2,
+            evaluator_profile="ccta_2023_demo-v1",
+            algorithm_config=None,
+            domain_profile_file=None,
+            output=str(tmp_path),
+        )
+    )
+
+    assert status == 2
+    assert json.loads(capsys.readouterr().out)["status"] == "INVALID_INPUT"
+
+
+def test_cli_mid_mpc_qualified_profile_is_forwarded_to_runner(monkeypatch, capsys, tmp_path) -> None:
+    profile = tmp_path / "domain-profile.json"
+    profile.write_text(
+        json.dumps(
+            {
+                "profile_id": "cli-domain",
+                "version": "v1",
+                "fore_m": 300.0,
+                "aft_m": 100.0,
+                "port_m": 120.0,
+                "starboard_m": 180.0,
+                "parameter_source": "test-fixture",
+                "assumptions": ["engineering-envelope-only"],
+                "qualification": "QUALIFIED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured = {}
+
+    def fake_run(_runner, spec) -> SimpleNamespace:
+        captured["spec"] = spec
+        return SimpleNamespace(
+            manifest=SimpleNamespace(
+                run_id="run",
+                state=SimpleNamespace(value="FINISHED"),
+                execution_outcome=SimpleNamespace(value="COMPLETED"),
+                reproduction_status="PASS",
+            ),
+            run_dir=tmp_path / "run",
+        )
+
+    monkeypatch.setattr("colav_simulator.cli.ExperimentRunner.run", fake_run)
+    status = _run(
+        Namespace(
+            scenario="head_on",
+            validation_rule_id="rule14",
+            algorithm="mid_mpc_ipopt",
+            tracker="god",
+            seed=0,
+            dt=None,
+            t_end=0.2,
+            evaluator_profile="ccta_2023_demo-v1",
+            algorithm_config=None,
+            domain_profile_file=str(profile),
+            output=str(tmp_path),
+        )
+    )
+
+    assert status == 0
+    assert captured["spec"].domain_profile.profile_id == "cli-domain"
+    assert json.loads(capsys.readouterr().out)["execution_outcome"] == "COMPLETED"
+
+
+def test_cli_batch_forwards_explicit_domain_profile_to_each_spec(monkeypatch, capsys, tmp_path) -> None:
+    profile = tmp_path / "domain-profile.json"
+    profile.write_text(
+        json.dumps(
+            {
+                "profile_id": "batch-cli-domain",
+                "version": "v1",
+                "fore_m": 300.0,
+                "aft_m": 100.0,
+                "port_m": 120.0,
+                "starboard_m": 180.0,
+                "parameter_source": "test-fixture",
+                "assumptions": ["engineering-envelope-only"],
+                "qualification": "QUALIFIED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured = {}
+
+    def fake_batch_run(_runner, specs, _output_root) -> Path:
+        captured["specs"] = tuple(specs)
+        return tmp_path / "batch"
+
+    monkeypatch.setattr("colav_simulator.cli.BatchRunner.run", fake_batch_run)
+    status = _batch(
+        Namespace(
+            scenario=["head_on"],
+            algorithm=["mid_mpc_ipopt"],
+            tracker="god",
+            validation_rule_id="rule14",
+            seed_start=0,
+            seed_count=1,
+            default_matrix=False,
+            algorithm_config=None,
+            evaluator_profile="ccta_2023_demo-v1",
+            domain_profile_file=str(profile),
+            output=str(tmp_path),
+        )
+    )
+
+    assert status == 0
+    assert len(captured["specs"]) == 1
+    assert captured["specs"][0].domain_profile.profile_id == "batch-cli-domain"
+    assert json.loads(capsys.readouterr().out)["runs"] == 1
 
 
 def test_cli_verifies_mid_mpc_semantic_artifact_without_claiming_authenticity(capsys, tmp_path) -> None:

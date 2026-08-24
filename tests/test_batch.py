@@ -4,9 +4,24 @@ import json
 from pathlib import Path
 
 from colav_simulator.core.colav.diagnostics import PlanStatus
+from colav_simulator.core.colav.threat_assessment import DomainQualification, ShipDomainProfile
 from colav_simulator.experiment import ExperimentRunError, RunManifest, RunSpec, SessionState
 from colav_simulator.experiment.batch import BatchRunner
 from colav_simulator.experiment.contracts import RunOutcome
+
+
+def _qualified_profile() -> ShipDomainProfile:
+    return ShipDomainProfile(
+        profile_id="batch-domain",
+        version="v1",
+        fore_m=300.0,
+        aft_m=100.0,
+        port_m=120.0,
+        starboard_m=180.0,
+        parameter_source="test-fixture",
+        assumptions=("engineering-envelope-only",),
+        qualification=DomainQualification.QUALIFIED,
+    )
 
 
 class FailingRunner:
@@ -72,3 +87,16 @@ def test_batch_separates_skipped_dependencies_from_algorithm_failures(tmp_path: 
     assert summary[0]["skip_count"] == 1
     assert failures == []
     assert skipped[0]["seed"] == 4
+
+
+def test_batch_default_specs_preserve_explicit_mid_mpc_domain_profile() -> None:
+    profile = _qualified_profile()
+
+    specs = BatchRunner.default_specs(
+        ["mid_mpc_ipopt"],
+        seeds=[0],
+        domain_profile=profile.to_dict(),
+    )
+
+    assert specs
+    assert all(spec.domain_profile == profile for spec in specs)
