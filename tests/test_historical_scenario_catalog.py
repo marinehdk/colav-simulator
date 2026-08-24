@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import zlib
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -113,7 +114,7 @@ def test_bound_scene_rejects_tampered_derived_dataset_identity(tampered_field: s
     assert tampered_field in str(raised.value)
 
 
-def test_replay_binding_succeeds_without_encounter_or_intent_while_counterfactual_fails_typed(
+def test_replay_binding_succeeds_without_encounter_or_intent_while_counterfactual_fails_typed(  # noqa: PLR0915
     tmp_path: Path,
     qualified_historical_enc_profile: ENCRegionProfile,
 ) -> None:
@@ -176,15 +177,46 @@ def test_replay_binding_succeeds_without_encounter_or_intent_while_counterfactua
     replay = assembler.bind_replay(descriptor, environ=environ)
 
     assert replay.dataset.descriptor.descriptor_sha256 == observed.descriptor_sha256
-    assert not hasattr(replay, "enc_profile")
     assert not hasattr(replay, "case")
     assert not hasattr(replay, "human_reference")
-    assert enc_calls["count"] == 0
+    assert replay.enc_preflight.status.value == "PASS"
+    assert replay.enc_preflight.all_positions_contained is True
+    assert replay.enc_evidence == {
+        "profile_id": qualified_historical_enc_profile.profile_id,
+        "profile_digest": qualified_historical_enc_profile.profile_digest,
+        "cache_digest": qualified_historical_enc_profile.cache.artifact_digest,
+        "source_digest": qualified_historical_enc_profile.source.source_digest,
+        "preflight_status": "PASS",
+        "all_positions_contained": True,
+    }
+    assert enc_calls["count"] == 1
     assert replay.replay_workflow_payload()["mode"] == "HISTORICAL_REPLAY"
     with pytest.raises(HistoricalAISScenarioError) as raised:
         assembler.bind_counterfactual(descriptor, environ=environ)
     assert raised.value.status is HistoricalAISScenarioReadiness.CASE_BUILD_FAILED
-    assert enc_calls["count"] == 1
+    assert enc_calls["count"] == 2
+
+    tampered_document = json.loads(json.dumps(document))
+    tampered_document["enc"]["profile_digest"] = "0" * 64
+    tampered_path = tmp_path / "tampered-profile.json"
+    tampered_path.write_text(json.dumps(tampered_document), encoding="utf-8")
+    tampered = HistoricalAISScenarioCatalog(tampered_path).get(HISTORICAL_AIS_SCENARIO_ID)
+    with pytest.raises(HistoricalAISScenarioError) as profile_error:
+        assembler.bind_replay(tampered, environ=environ)
+    assert profile_error.value.status is HistoricalAISScenarioReadiness.ENC_UNQUALIFIED
+
+    outside_profile = replace(
+        qualified_historical_enc_profile,
+        supported_extent_projected=(0.0, 0.0, 1.0, 1.0),
+    )
+    outside_document = json.loads(json.dumps(document))
+    outside_document["enc"]["profile_digest"] = outside_profile.profile_digest
+    outside_path = tmp_path / "outside-profile.json"
+    outside_path.write_text(json.dumps(outside_document), encoding="utf-8")
+    outside = HistoricalAISScenarioCatalog(outside_path).get(HISTORICAL_AIS_SCENARIO_ID)
+    with pytest.raises(HistoricalAISScenarioError) as outside_error:
+        HistoricalAISSceneAssembler(enc_builder=lambda: outside_profile).bind_replay(outside, environ=environ)
+    assert outside_error.value.status is HistoricalAISScenarioReadiness.OUTSIDE_COVERAGE
 
 
 def test_published_presentation_keeps_scene_qualification_and_runtime_separate(monkeypatch) -> None:

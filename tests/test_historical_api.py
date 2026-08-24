@@ -171,6 +171,14 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
                     "human_similarity": None,
                 },
             },
+            "enc": {
+                "profile_id": None,
+                "profile_digest": None,
+                "cache_digest": None,
+                "source_digest": None,
+                "preflight_status": None,
+                "all_positions_contained": None,
+            },
             "evidence": {
                 "lineage": prepared.json()["lineage"],
                 "replay": {
@@ -183,6 +191,14 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
                     "manifest_digest": None,
                     "dimension_registry_digest": None,
                     "dimension_source_digest": None,
+                },
+                "enc": {
+                    "profile_id": None,
+                    "profile_digest": None,
+                    "cache_digest": None,
+                    "source_digest": None,
+                    "preflight_status": None,
+                    "all_positions_contained": None,
                 },
             },
         }
@@ -470,6 +486,14 @@ def test_bound_scene_registration_keeps_one_case_without_disposable_prepared_run
             "enc_source_digest": "enc-source",
             "dimension_registry_digest": "dimensions",
             "dimension_source_digest": "dimension-sources",
+        },
+        enc_evidence={
+            "profile_id": "enc",
+            "profile_digest": "enc-profile",
+            "cache_digest": "enc-cache",
+            "source_digest": "enc-source",
+            "preflight_status": "PASS",
+            "all_positions_contained": True,
         },
         acceptance_request=lambda: acceptance_request,
     )

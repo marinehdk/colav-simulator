@@ -10,9 +10,9 @@ from typing import Any, Protocol
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_acceptance import (
-    HistoricalAISDimensionRecord,
     HistoricalAISDimensionRegistry,
     HistoricalAISPublishedCaseAcceptanceRequest,
+    decode_dimension_registry,
 )
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISReadResult, HistoricalAISSelection
 from colav_simulator.historical_case import (
@@ -27,7 +27,13 @@ from colav_simulator.historical_case import (
     HistoricalAISHumanReferenceBinding,
 )
 from colav_simulator.historical_compare import HistoricalBenchmarkAlignmentProfile, HistoricalBenchmarkTrajectory
-from colav_simulator.historical_enc import ENCQualificationState, ENCRegionProfile, build_expanded_romsdal_profile
+from colav_simulator.historical_enc import (
+    ENCPreflightResult,
+    ENCPreflightStatus,
+    ENCQualificationState,
+    ENCRegionProfile,
+    build_expanded_romsdal_profile,
+)
 from colav_simulator.historical_scenario_source import (
     HistoricalAISScenarioError,
     HistoricalAISScenarioReadiness,
@@ -61,6 +67,8 @@ class BoundHistoricalAISReplayContext:
     selection: HistoricalAISSelection
     dataset: HistoricalAISReadResult
     dimension_registry: HistoricalAISDimensionRegistry
+    enc_profile: ENCRegionProfile
+    enc_preflight: ENCPreflightResult
 
     @property
     def historical_scenario_id(self) -> str:
@@ -69,16 +77,26 @@ class BoundHistoricalAISReplayContext:
     @property
     def authority_digests(self) -> dict[str, str | None]:
         """Expose only bound ENC/dimension identities; absent authorities remain null."""
-        profile = getattr(self, "enc_profile", None)
         dimension_sources = tuple(
             (record.mmsi, record.source_digest) for record in self.dimension_registry.records
         )
         return {
-            "enc_profile_digest": None if profile is None else profile.profile_digest,
-            "enc_cache_digest": None if profile is None else profile.cache.artifact_digest,
-            "enc_source_digest": None if profile is None else profile.source.source_digest,
+            "enc_profile_digest": self.enc_profile.profile_digest,
+            "enc_cache_digest": self.enc_profile.cache.artifact_digest,
+            "enc_source_digest": self.enc_profile.source.source_digest,
             "dimension_registry_digest": self.dimension_registry.digest,
             "dimension_source_digest": semantic_hash(dimension_sources) if dimension_sources else None,
+        }
+
+    @property
+    def enc_evidence(self) -> dict[str, Any]:
+        return {
+            "profile_id": self.enc_profile.profile_id,
+            "profile_digest": self.enc_profile.profile_digest,
+            "cache_digest": self.enc_profile.cache.artifact_digest,
+            "source_digest": self.enc_profile.source.source_digest,
+            "preflight_status": self.enc_preflight.status.value,
+            "all_positions_contained": self.enc_preflight.all_positions_contained,
         }
 
     def replay_workflow_payload(self) -> dict[str, Any]:
@@ -110,7 +128,6 @@ class BoundHistoricalAISReplayContext:
 class BoundHistoricalAISSceneContext(BoundHistoricalAISReplayContext):
     """Full Counterfactual authority reusing one Published Case."""
 
-    enc_profile: ENCRegionProfile
     human_reference: HistoricalBenchmarkTrajectory
     run_spec: RunSpec
     case: HistoricalAISCase
@@ -159,12 +176,26 @@ class HistoricalAISSceneAssembler:
         selection = descriptor.selection()
         dataset = self._dataset_reader_type(source).read(selection)
         self.validate_dataset_identity(descriptor, dataset)
+        enc_profile = self._qualified_enc_profile(descriptor)
+        enc_preflight = enc_profile.preflight_historical_ais(dataset)
+        if not enc_preflight.qualified:
+            status = (
+                HistoricalAISScenarioReadiness.OUTSIDE_COVERAGE
+                if enc_preflight.status is ENCPreflightStatus.OUTSIDE_COVERAGE
+                else HistoricalAISScenarioReadiness.ENC_UNQUALIFIED
+            )
+            raise HistoricalAISScenarioError(
+                status,
+                f"Historical Replay ENC preflight failed: {enc_preflight.status.value}",
+            )
         return BoundHistoricalAISReplayContext(
             descriptor=descriptor,
             source=source,
             selection=selection,
             dataset=dataset,
-            dimension_registry=_dimension_registry(descriptor),
+            dimension_registry=decode_dimension_registry(descriptor.dimensions),
+            enc_profile=enc_profile,
+            enc_preflight=enc_preflight,
         )
 
     def bind_counterfactual(
@@ -175,18 +206,9 @@ class HistoricalAISSceneAssembler:
         environ: Mapping[str, str] | None = None,
     ) -> BoundHistoricalAISSceneContext:
         replay = self.bind_replay(descriptor, environ=environ)
-        enc_profile = self._enc_builder()
-        if (
-            enc_profile.profile_digest != str(descriptor.enc["profile_digest"])
-            or enc_profile.qualification_state is not ENCQualificationState.QUALIFIED
-        ):
-            raise HistoricalAISScenarioError(
-                HistoricalAISScenarioReadiness.ENC_IDENTITY_MISMATCH,
-                "Romsdal ENC identity/qualification differs from the scene descriptor",
-            )
         human_reference = _historical_reference(
             replay.dataset,
-            enc_profile,
+            replay.enc_profile,
             int(descriptor.current_window["reference_mmsi"]),
         )
         run_spec = RunSpec.from_dict(_run_spec(descriptor, "COUNTERFACTUAL", run_spec_overrides))
@@ -194,7 +216,7 @@ class HistoricalAISSceneAssembler:
             descriptor,
             replay.dataset,
             replay.selection,
-            enc_profile,
+            replay.enc_profile,
             replay.dimension_registry,
             human_reference,
             run_spec,
@@ -205,11 +227,24 @@ class HistoricalAISSceneAssembler:
             selection=replay.selection,
             dataset=replay.dataset,
             dimension_registry=replay.dimension_registry,
-            enc_profile=enc_profile,
+            enc_profile=replay.enc_profile,
+            enc_preflight=replay.enc_preflight,
             human_reference=human_reference,
             run_spec=run_spec,
             case=case,
         )
+
+    def _qualified_enc_profile(self, descriptor: HistoricalSceneDescriptor) -> ENCRegionProfile:
+        profile = self._enc_builder()
+        if (
+            profile.profile_digest != str(descriptor.enc["profile_digest"])
+            or profile.qualification_state is not ENCQualificationState.QUALIFIED
+        ):
+            raise HistoricalAISScenarioError(
+                HistoricalAISScenarioReadiness.ENC_UNQUALIFIED,
+                "Romsdal ENC identity/qualification differs from the scene descriptor",
+            )
+        return profile
 
     @staticmethod
     def validate_dataset_identity(
@@ -339,23 +374,6 @@ def _run_spec(
             raise ValueError(f"unsupported Historical AIS run options: {unknown}")
         result.update(dict(overrides))
     return result
-
-
-def _dimension_registry(descriptor: HistoricalSceneDescriptor) -> HistoricalAISDimensionRegistry:
-    dimensions = descriptor.dimensions
-    records = tuple(
-        HistoricalAISDimensionRecord(**{**dict(record), "source_urls": tuple(record.get("source_urls", ()))})
-        for record in dimensions["records"]
-    )
-    return HistoricalAISDimensionRegistry(
-        registry_id=str(dimensions["registry_id"]),
-        registry_version=str(dimensions["registry_version"]),
-        scope=str(dimensions["scope"]),
-        retrieved_at_utc=str(dimensions["retrieved_at_utc"]),
-        source_note=str(dimensions["source_note"]),
-        source_note_sha256=str(dimensions["source_note_sha256"]),
-        records=records,
-    )
 
 
 def _historical_reference(

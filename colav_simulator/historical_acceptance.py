@@ -204,6 +204,34 @@ class HistoricalAISDimensionRegistry:
         return _sha256_json(self.to_dict())
 
 
+def decode_dimension_registry(
+    document: Mapping[str, Any],
+    *,
+    require_digest: bool = False,
+) -> HistoricalAISDimensionRegistry:
+    """Decode and optionally authenticate one shared dimension-registry document."""
+    payload = dict(document)
+    expected_digest = str(payload.pop("registry_digest", ""))
+    records_document = payload.pop("records", None)
+    if not isinstance(records_document, (list, tuple)) or not records_document:
+        raise ValueError("dimension registry records are required")
+    records = tuple(
+        HistoricalAISDimensionRecord(
+            **{
+                **dict(record),
+                "source_urls": tuple(record.get("source_urls", ())),
+            }
+        )
+        for record in records_document
+    )
+    registry = HistoricalAISDimensionRegistry(**payload, records=records)
+    if require_digest and not expected_digest:
+        raise ValueError("dimension registry digest is required")
+    if expected_digest and expected_digest != registry.digest:
+        raise ValueError("dimension registry digest mismatch")
+    return registry
+
+
 @dataclass(frozen=True)
 class HistoricalRealWindowSelection:
     """Compact external-data selection manifest; no source rows are embedded."""
@@ -1071,4 +1099,5 @@ __all__ = [
     "HistoricalAcceptanceStatus",
     "HistoricalRealWindowSelection",
     "build_hais_2026_07_01_dimension_registry",
+    "decode_dimension_registry",
 ]

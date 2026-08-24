@@ -22,9 +22,9 @@ from colav_simulator.historical_acceptance import (
     HistoricalAISAcceptanceHarness,
     HistoricalAISAcceptanceOutcome,
     HistoricalAISAcceptanceRequest,
-    HistoricalAISDimensionRecord,
     HistoricalAISDimensionRegistry,
     HistoricalAISPublishedCaseAcceptanceRequest,
+    decode_dimension_registry,
 )
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
@@ -269,6 +269,7 @@ class _HistoricalWorkflow:
                 "threat_snapshot": None if snapshot is None else snapshot.to_dict(),
                 "evaluation": jsonable(evaluation),
                 "compare_digest": None if self.compare is None else self.compare.compare_digest,
+                "enc": _workflow_enc_evidence(self),
             },
             "compare": compare_document,
             "presentation": _workflow_presentation(
@@ -313,6 +314,7 @@ def _workflow_presentation(
     threat = _presentation_threat(workflow)
     leakage_status = "NOT_APPLICABLE" if workflow.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY else "PASS_CONTRACT"
     compare = _presentation_compare(workflow)
+    enc_evidence = _workflow_enc_evidence(workflow)
     determinism_presentation = {
         "status": determinism.get("status"),
         "mismatch_count": (
@@ -369,6 +371,7 @@ def _workflow_presentation(
         "leakage": {"status": leakage_status},
         "determinism": determinism_presentation,
         "compare": compare,
+        "enc": enc_evidence,
         "evidence": {
             "lineage": {
                 **(
@@ -379,6 +382,7 @@ def _workflow_presentation(
                 **dict(workflow.lineage),
             },
             "replay": _presentation_replay(workflow),
+            "enc": enc_evidence,
             **(
                 {}
                 if workflow.historical_scenario_id is None
@@ -449,6 +453,20 @@ def _presentation_replay(workflow: _HistoricalWorkflow) -> dict[str, Any]:
         "dimension_registry_digest": evidence.dimension_registry_digest,
         "dimension_source_digest": semantic_hash(dimension_sources) if dimension_sources else None,
     }
+
+
+def _workflow_enc_evidence(workflow: _HistoricalWorkflow) -> dict[str, Any]:
+    context = workflow.bound_context
+    if context is None:
+        return {
+            "profile_id": None,
+            "profile_digest": None,
+            "cache_digest": None,
+            "source_digest": None,
+            "preflight_status": None,
+            "all_positions_contained": None,
+        }
+    return context.enc_evidence
 
 
 def _presentation_threat(workflow: _HistoricalWorkflow) -> dict[str, Any]:
@@ -599,6 +617,7 @@ def _qualified_workflow_document(workflow: _HistoricalWorkflow) -> dict[str, Any
             "evaluation": evaluation,
             "compare_digest": None if compare is None else compare.get("compare_digest"),
             "determinism": determinism,
+            "enc": _workflow_enc_evidence(workflow),
         },
         "compare": compare,
         "presentation": _workflow_presentation(
@@ -917,21 +936,10 @@ def _prepare_counterfactual_workflow(
 
 
 def _dimension_registry_from_document(document: dict[str, Any]) -> HistoricalAISDimensionRegistry:
-    payload = dict(document)
-    expected_digest = str(payload.pop("registry_digest", ""))
-    records_document = payload.pop("records", None)
-    if not isinstance(records_document, list) or not records_document:
-        raise HistoricalWorkflowError("DIMENSIONS_UNAVAILABLE", "dimension registry records are required")
     try:
-        registry = HistoricalAISDimensionRegistry(
-            **payload,
-            records=tuple(HistoricalAISDimensionRecord(**dict(record)) for record in records_document),
-        )
+        return decode_dimension_registry(document, require_digest=True)
     except (TypeError, ValueError) as exc:
         raise HistoricalWorkflowError("QUALITY_INCOMPLETE", str(exc)) from exc
-    if not expected_digest or expected_digest != registry.digest:
-        raise HistoricalWorkflowError("QUALITY_INCOMPLETE", "dimension registry digest mismatch")
-    return registry
 
 
 def _prepare_replay_workflow(

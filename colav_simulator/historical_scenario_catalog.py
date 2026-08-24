@@ -10,7 +10,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
-from colav_simulator.historical_acceptance import HistoricalAISDimensionRecord, HistoricalAISDimensionRegistry
+from colav_simulator.historical_acceptance import HistoricalAISDimensionRegistry, decode_dimension_registry
 from colav_simulator.historical_ais import HistoricalAISSelection
 from colav_simulator.historical_scenario_source import (
     HAIS_ARCHIVE_ENV_VAR,
@@ -177,6 +177,14 @@ class HistoricalAISScenarioDescriptor:
                 "target_mmsi": list(self.current_window["target_mmsi"]),
                 "enc_profile_id": self.enc["profile_id"],
             },
+            "enc_evidence": {
+                "profile_id": self.enc["profile_id"],
+                "profile_digest": self.enc["profile_digest"],
+                "cache_digest": None,
+                "source_digest": None,
+                "preflight_status": None,
+                "all_positions_contained": None,
+            },
             "digests": {
                 "descriptor_sha256": self.descriptor_sha256,
                 "archive_sha256": self.archive_sha256,
@@ -193,19 +201,7 @@ class HistoricalAISScenarioDescriptor:
         }
 
     def dimension_registry(self) -> HistoricalAISDimensionRegistry:
-        records = tuple(
-            HistoricalAISDimensionRecord(**{**dict(record), "source_urls": tuple(record.get("source_urls", ()))})
-            for record in self.dimensions["records"]
-        )
-        return HistoricalAISDimensionRegistry(
-            registry_id=str(self.dimensions["registry_id"]),
-            registry_version=str(self.dimensions["registry_version"]),
-            scope=str(self.dimensions["scope"]),
-            retrieved_at_utc=str(self.dimensions["retrieved_at_utc"]),
-            source_note=str(self.dimensions["source_note"]),
-            source_note_sha256=str(self.dimensions["source_note_sha256"]),
-            records=records,
-        )
+        return decode_dimension_registry(self.dimensions)
 
     def dimension_source_digest(self) -> str | None:
         sources = tuple(
