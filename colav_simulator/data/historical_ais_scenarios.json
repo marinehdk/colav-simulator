@@ -1,0 +1,179 @@
+{
+  "schema_version": "historical-ais-scenario.v1",
+  "scenario_id": "hais_romsdal_20260701_120000_120100",
+  "display_name": "Romsdal AIS 2026-07-01 12:00-12:01 UTC",
+  "kind": "HISTORICAL_AIS",
+  "modes": [
+    "HISTORICAL_REPLAY",
+    "COUNTERFACTUAL"
+  ],
+  "archive_scope": {
+    "source_name": "Hais_e716cfac-348c-417b-acbd-04a228732de7.zip",
+    "archive_sha256": "d303d719cebaf0238c54b9e27f2a40b4414b26e3189b49cb84fbad4086b3f3d7",
+    "first_entry_date": "2026-07-01",
+    "last_entry_date": "2026-07-23",
+    "day_count": 23,
+    "row_count": 51522509,
+    "union_mmsi_count": 1226,
+    "scope_status": "SOURCE_SCOPE_AUDIT"
+  },
+  "current_window": {
+    "entry_name": "hais_2026-07-01.snappy.parquet",
+    "start_utc": "2026-07-01T12:00:00+00:00",
+    "end_utc": "2026-07-01T12:01:00+00:00",
+    "duration_s": 60,
+    "t0_utc": "2026-07-01T12:00:30+00:00",
+    "bbox": [
+      6.05,
+      62.44,
+      6.17,
+      62.5
+    ],
+    "selection_mmsi": [
+      257252000,
+      258764000,
+      259189000,
+      259197000
+    ],
+    "runtime_mmsi": [
+      257252000,
+      258764000,
+      259189000
+    ],
+    "selected_mmsi": [
+      257252000,
+      258764000,
+      259189000
+    ],
+    "selection_filter_mmsi_count": 4,
+    "runtime_actor_count": 3,
+    "target_count": 2,
+    "reference_mmsi": 259189000,
+    "target_mmsi": [
+      257252000,
+      258764000
+    ],
+    "source_row_count": 24,
+    "normalized_row_count": 24,
+    "quality_finding_count": 98,
+    "expected_schema_sha256": "392e666a2128d89288eb5d073c1bdd8c65f0da583cba3c5b0e8e12ca3b0c8632",
+    "expected_selection_sha256": "a591ed0435c98098b76132ee4b678ce41105b6c3b612e701136adbf4fadc1836",
+    "expected_normalized_sha256": "794c92696aa061ab0b0c2128edbc51bd13eb20c65b54974bd3c654902a4e5adf",
+    "expected_descriptor_sha256": "0c53011ab625048ea61e2e8265542edbc56dabffc358f132825302041e090a68",
+    "entry_sha256": "6d4d8073b9f779047cd4f527c0837a5ebdec4cb4fbf58e024d0c8daae84a25bc",
+    "entry_uncompressed_bytes": 67079215,
+    "entry_crc32": 2951374176
+  },
+  "enc": {
+    "profile_id": "romsdal-expanded",
+    "profile_digest": "4dcb6b101a5b53600566648865c999f33f461b2e4d95d9b1ec0fd903270aa707",
+    "qualification_state": "QUALIFIED",
+    "coverage_wgs84": [
+      5.8607358605834055,
+      62.346574810508976,
+      6.5425633974359645,
+      62.73792273444624
+    ]
+  },
+  "dimensions": {
+    "registry_id": "hais-2026-07-01-sdir-dimensions",
+    "registry_version": "1.0.0",
+    "scope": "HAIS 2026-07-01 benchmark selected MMSIs only",
+    "retrieved_at_utc": "2026-08-21T00:00:00Z",
+    "source_note": "Latest conferred SDIR measurement available before T0; public registry view queried 2026-08-21.",
+    "source_note_sha256": "d958016184c6cb1cbdd0a9959523ff1d49705886886681ea500891d02e3cd677",
+    "records": [
+      {
+        "mmsi": 257252000,
+        "length_m": 84.6,
+        "width_m": 16.0,
+        "provenance": "SDIR_NOR_measurement_certificate",
+        "source_digest": "sdir-vessel-93640-9793662",
+        "imo": 9793662,
+        "call_sign": "LDZS",
+        "vessel_name": "FREYJA",
+        "measurement_date": "2017-06-26",
+        "effective_date": "2017-06-26",
+        "journal_date": "2017-09-15",
+        "retrieved_at_utc": "2026-08-21T00:00:00Z",
+        "effective_as_of_t0": true,
+        "source_urls": [
+          "https://sdir-p-apim-common.azure-api.net/los-vessel-data/93640"
+        ]
+      },
+      {
+        "mmsi": 258764000,
+        "length_m": 59.2,
+        "width_m": 10.8,
+        "provenance": "SDIR_NOR_measurement_certificate",
+        "source_digest": "sdir-vessel-106419-9331098",
+        "imo": 9331098,
+        "call_sign": "JXPT",
+        "vessel_name": "PELAGIA HORDAFOR",
+        "measurement_date": "2022-09-21",
+        "effective_date": "2022-09-21",
+        "journal_date": "2022-09-27",
+        "retrieved_at_utc": "2026-08-21T00:00:00Z",
+        "effective_as_of_t0": true,
+        "source_urls": [
+          "https://sdir-p-apim-common.azure-api.net/los-vessel-data/106419"
+        ]
+      },
+      {
+        "mmsi": 259189000,
+        "length_m": 32.0,
+        "width_m": 8.8,
+        "provenance": "SDIR_NOR_measurement_certificate",
+        "source_digest": "sdir-vessel-94133-9802619",
+        "imo": 9802619,
+        "call_sign": "LEDI",
+        "vessel_name": "VALDERØY",
+        "measurement_date": "2016-12-20",
+        "effective_date": "2016-12-20",
+        "journal_date": "2017-01-11",
+        "retrieved_at_utc": "2026-08-21T00:00:00Z",
+        "effective_as_of_t0": true,
+        "source_urls": [
+          "https://sdir-p-apim-common.azure-api.net/los-vessel-data/94133"
+        ]
+      }
+    ]
+  },
+  "runtime_binding": {
+    "execution_scenario_id": "paper_ccta2023_multiship",
+    "validation_rule_id": "multiship",
+    "algorithm_id": "mid_mpc_ipopt",
+    "tracker_id": "god",
+    "evaluator_profile_id": "ccta_2023_demo-v1",
+    "domain_profile": {
+      "profile_id": "historical-ais-romsdal-domain",
+      "version": "1",
+      "model": "OFF_CENTRED_ELLIPSE",
+      "fore_m": 300.0,
+      "aft_m": 100.0,
+      "port_m": 120.0,
+      "starboard_m": 180.0,
+      "parameter_source": "Historical AIS benchmark engineering profile",
+      "assumptions": [
+        "versioned engineering envelope for the selected Romsdal benchmark",
+        "selected actor dimensions are sourced from SDIR measurement certificates",
+        "metres and not a COLREG statutory distance"
+      ],
+      "qualification": "QUALIFIED",
+      "uncertainty_multiplier": 2.0,
+      "units": "m"
+    }
+  },
+  "source_binding": {
+    "env_var": "COLAV_HAIS_ARCHIVE_PATH",
+    "expected_archive_sha256": "d303d719cebaf0238c54b9e27f2a40b4414b26e3189b49cb84fbad4086b3f3d7"
+  },
+  "limitations": [
+    "CURRENT_WINDOW_ONLY",
+    "CURRENT_ACTOR_SET_ONLY",
+    "ARCHIVE_NOT_FULLY_ENC_QUALIFIED",
+    "AIS_COVERAGE_NOT_EXHAUSTIVE",
+    "DIMENSIONS_ONLY_CURRENT_ACTOR_SET",
+    "ARCHIVE_SCOPE_IS_NOT_RUNTIME_SELECTION"
+  ]
+}

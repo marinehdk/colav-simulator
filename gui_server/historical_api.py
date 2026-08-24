@@ -57,6 +57,10 @@ from colav_simulator.historical_replay import (
     HistoricalReplayFactory,
     HistoricalReplayRequest,
 )
+from colav_simulator.historical_scenario_catalog import (
+    HistoricalAISScenarioCatalog,
+    HistoricalAISScenarioError,
+)
 from colav_simulator.historical_serialization import semantic_hash
 from colav_simulator.simulator import Config as SimulatorConfig
 from colav_simulator.simulator import Simulator
@@ -121,6 +125,13 @@ class HistoricalWorkflowCreateRequest(BaseModel):
     human_reference: dict[str, Any] | None = None
     alignment_profile: dict[str, Any] = Field(default_factory=dict)
     schema_version: str = "historical-workflow.request.v1"
+
+
+class HistoricalScenarioWorkflowCreateRequest(BaseModel):
+    """Small UI request; source, Dataset, Case and runtime contracts stay server-owned."""
+
+    mode: HistoricalWorkflowMode
+    run_spec: dict[str, Any] = Field(default_factory=dict)
 
 
 class HistoricalWorkflowError(ValueError):
@@ -645,6 +656,45 @@ def _contains_future_reference(value: Any) -> bool:
 
 
 historical_workflows = HistoricalWorkflowManager()
+historical_scenario_catalog = HistoricalAISScenarioCatalog()
+
+
+@router.get("/api/historical/scenarios")
+def list_historical_scenarios() -> list[dict[str, Any]]:
+    """List independent Historical AIS scene descriptors."""
+    return historical_scenario_catalog.list()
+
+
+@router.get("/api/historical/scenarios/{scenario_id}")
+def get_historical_scenario(scenario_id: str) -> dict[str, Any]:
+    """Return one bounded Historical AIS descriptor and source readiness."""
+    try:
+        return historical_scenario_catalog.document(scenario_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Historical AIS scenario not found") from exc
+
+
+@router.post("/api/historical/scenarios/{scenario_id}/workflows")
+def create_historical_scenario_workflow(
+    scenario_id: str,
+    request: HistoricalScenarioWorkflowCreateRequest,
+) -> dict[str, Any]:
+    """Build and prepare a complete normal Historical Replay/Counterfactual workflow."""
+    try:
+        descriptor = historical_scenario_catalog.get(scenario_id)
+        payload = descriptor.build_workflow_payload(
+            request.mode.value,
+            run_spec_overrides=request.run_spec,
+        )
+        return historical_workflows.create(HistoricalWorkflowCreateRequest(**payload))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Historical AIS scenario not found") from exc
+    except HistoricalAISScenarioError as exc:
+        raise HTTPException(status_code=422, detail=exc.detail()) from exc
+    except HistoricalWorkflowError as exc:
+        raise HTTPException(status_code=422, detail=exc.detail()) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail={"status": "INVALID_REQUEST", "reason": str(exc)}) from exc
 
 
 @router.post("/api/historical/workflows")

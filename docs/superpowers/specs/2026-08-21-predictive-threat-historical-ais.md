@@ -202,6 +202,42 @@ Focused checks, closed-loop checks, full pytest, Ruff/static/diff checks and rea
 - Treating a human trajectory as optimal ground truth or bit-exact human similarity as success.
 - Committing the large HAIS archive, importing an external repository wholesale, or using scenario-specific special cases, forced PASS, hidden fallback or threshold reduction.
 
+## Scope Addendum — independent AIS multi-ship scene (2026-08-24)
+
+This addendum is normative for the first front-end Historical AIS delivery. It narrows the initial catalog scope; it does not broaden the source archive or make a general HAIS claim.
+
+### Published scene identity and modes
+
+- Publish one independent catalog descriptor with ID `hais_romsdal_20260701_120000_120100`.
+- Expose it through a dedicated Historical AIS catalog/workflow API. The legacy `/api/scenarios` response remains the scripted YAML catalog and must not contain this ID.
+- The descriptor represents one immutable Historical AIS selection and exposes two workflow modes: `HISTORICAL_REPLAY` and `COUNTERFACTUAL`. The mode is the only semantic branch; do not publish duplicate scenario IDs for the two modes.
+- The descriptor is not a Rule 13/14/15 or generic `multiship` validation scene. It must not be added to existing rule `supported_scenarios`, `verified_combinations`, `experimental_combinations`, or generic COLAV Create exact tuples. Existing YAML scenario files and existing exact tuples are compatibility surfaces and remain byte/identity stable.
+- Existing scripted scenes (`head_on`, `overtaking`, `crossing_*`, `paper_ccta2023_multiship`, and `romsdal_busy_water_*`) remain unchanged and continue to use the existing Config assembly. The new scene is selected through a dedicated Historical AIS surface.
+
+### Current source, window and actor-count boundary
+
+The first descriptor is limited to the compact, qualified acceptance window already sealed in the repository fixture:
+
+- Source entry: `hais_2026-07-01.snappy.parquet` from the local Kystverket HAIS archive; archive identity, entry identity, schema identity and selection identity remain content-addressed.
+- Selection window: `2026-07-01T12:00:00+00:00` through `2026-07-01T12:01:00+00:00`, inclusive/exclusive according to the Historical AIS selection contract; bounding box `[6.05, 62.44, 6.17, 62.50]` in WGS84; selected source MMSIs `[257252000, 258764000, 259189000, 259197000]`.
+- Published runtime actors: exactly three dimensioned actors, `[257252000, 258764000, 259189000]`; `259189000` is the Reference Vessel and `T0 = 2026-07-01T12:00:30+00:00`. The fourth selected MMSI is retained as source-selection provenance but is not silently promoted to a runtime actor.
+- Current fixture evidence is 24 source rows, 24 normalized rows and 98 retained quality findings. These numbers describe this window only, not the 23-day archive or all HAIS traffic.
+- ENC: `romsdal-expanded`, qualification `QUALIFIED`, with preflight required to pass and every selected runtime position contained. This qualification does not extend to the full archive, arbitrary larger windows or regions outside the profile.
+- Vessel dimensions come from the named, versioned dimension registry. No default hull dimensions may be applied when a future selection lacks proof.
+- HAIS coverage remains an AIS-reporting observation boundary: absent small craft or non-reporting vessels must not be interpreted as empty water. The descriptor must surface this limitation beside source/window/actor counts.
+
+### Future expansion invariants
+
+Future windows, entries, actors, dimension registries or ENC regions require a new Published Case/descriptor or an explicit versioned revision. Expansion must not mutate this descriptor's Dataset, Selection, T0, actor set, ENC qualification, digests or sealed evidence. Each expansion repeats source quality checks, actor reconstruction, dimension provenance and ENC preflight before it becomes selectable. A larger actor count is a new acceptance scope; it is not implied by the current three-actor result.
+
+### Front-end acceptance contract
+
+- OpenBridge mounts the descriptor under a dedicated Historical AIS entry in `Evaluation` or `Scenario`; it does not alter existing Rule Config cards or their exact-tuple assembly.
+- The panel shows source archive/entry, UTC window, WGS84 bounding box, selected and published actor counts, MMSI/Reference Vessel, T0, ENC profile/qualification, coverage limitation and readiness/digest state before run.
+- `Historical Replay` invokes the historical workflow and renders playback/evidence. `Counterfactual` invokes the same immutable Case with post-T0 Reference Vessel control through the normal algorithm path; surrounding actors remain playback and Human Reference remains Compare-only.
+- The panel consumes the backend REST/WS workflow snapshot and only formats/projects it. It must render typed unavailable/incomplete states and must never compute CPA, domain, Primary, schedule, clusters or verdicts in browser code.
+- A front-end acceptance run must expose `status=COMPLETE`, `compare.status=COMPLETE`, `overall_assurance_verdict=PASS`, `leakage.status=PASS_CONTRACT`, `fallback=false`, non-empty threat vector/schedule/cluster evidence, `determinism.mismatches=[]`, and an independent evaluator gate `PASS`. These claims are scoped to this qualified three-actor window.
+
 ## Further Notes
 
 The repository glossary in `CONTEXT.md` and ADRs 0001–0003 define the shared vocabulary and authority boundaries. The existing design log records how DP-01–DP-04 were confirmed and how DP-05–DP-21 were frozen for implementation. Research citations in the offline attachment remain background; no external claim supersedes the project contracts above. This document is the implementation source of truth after the original attachment and issue body are synchronized.
