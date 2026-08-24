@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
@@ -145,17 +146,28 @@ class ExperimentRunner:
         raise ValueError(f"Ambiguous scenario ID {scenario_id}: {matches}")
 
     def prepare(self, spec: RunSpec) -> PreparedRun:  # noqa: C901, PLR0912, PLR0915
-        scenario_path = self.resolve_scenario(spec.scenario_id)
         historical_request = (
             HistoricalReplayRequest.from_dict(spec.historical_replay) if spec.historical_replay is not None else None
         )
+        if spec.historical_scenario_id is not None and historical_request is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Historical scenario identity requires a sealed Historical Replay request",
+            )
+        capability_tuple = spec.capability_tuple
+        scenario_path = None if spec.historical_scenario_id is not None else self.resolve_scenario(spec.scenario_id)
         counterfactual_mode = historical_request is not None and historical_request.mode == "COUNTERFACTUAL"
         if historical_request is not None and not counterfactual_mode and spec.algorithm_id != "nominal":
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
                 "Historical Replay is non-counterfactual and cannot execute a COLAV algorithm",
             )
-        if spec.scenario_override is None:
+        if spec.historical_scenario_id is not None:
+            config = _historical_runtime_config(spec, historical_request)
+            source_version = content_hash(config.to_dict())
+        elif spec.scenario_override is None:
+            if scenario_path is None:  # pragma: no cover - guarded by Historical branch
+                raise RuntimeError("scenario source path is unavailable")
             config = cp.extract(scenario_config.ScenarioConfig, scenario_path, paths.scenario_schema)
             source_version = scenario_path.stat().st_mtime_ns
         else:
@@ -163,7 +175,11 @@ class ExperimentRunner:
             cp.validate(override_document, futils.read_yaml_into_dict(paths.scenario_schema))
             config = scenario_config.ScenarioConfig.from_dict(override_document)
             source_version = content_hash(override_document)
-        config.filename = scenario_path.name
+        config.filename = (
+            f"{spec.historical_scenario_id}.historical"
+            if spec.historical_scenario_id is not None
+            else scenario_path.name  # type: ignore[union-attr]
+        )
         if spec.dt is not None:
             config.dt_sim = spec.dt
         if spec.t_end is not None:
@@ -176,14 +192,9 @@ class ExperimentRunner:
         if spec.reload_enc:
             config.new_load_of_map_data = True
         capability_profile_id = None
-        if spec.validation_rule_id:
-            capability_profile_id = self.capabilities.validate(
-                spec.validation_rule_id,
-                spec.scenario_id,
-                spec.algorithm_id,
-                spec.tracker_id,
-            )
-        if spec.validation_rule_id and spec.algorithm_id == "mid_mpc_ipopt":
+        if capability_tuple is not None:
+            capability_profile_id = self.capabilities.validate(*capability_tuple)
+        if capability_tuple is not None and spec.algorithm_id == "mid_mpc_ipopt":
             if spec.domain_profile is None:
                 raise ColavExecutionError(
                     PlanStatus.INVALID_INPUT,
@@ -210,7 +221,7 @@ class ExperimentRunner:
         generator = ScenarioGenerator(seed=spec.seeds.scenario)
         episode_count = max(1, spec.episode_index + 1)
         enc_cache_key = (
-            str(scenario_path.resolve()),
+            spec.historical_scenario_id or str(scenario_path.resolve()),  # type: ignore[union-attr]
             source_version,
             spec.seeds.scenario,
             episode_count,
@@ -270,7 +281,17 @@ class ExperimentRunner:
         manifest.scenario_hash = content_hash(scenario_document)
         manifest.episode_hash = content_hash(episode_document)
         manifest.enc_hash = _enc_hash(tuple(episode["config"].map_data_files))
-        manifest.scenario_provenance = self._scenario_provenance(spec.scenario_id)
+        manifest.scenario_provenance = (
+            {
+                "source": "HistoricalAISScenarioCatalog",
+                "reconstructed": True,
+                "confidence": "content_addressed",
+                "historical_scenario_id": spec.historical_scenario_id,
+                "algorithm_capability_evidence": spec.algorithm_capability_evidence,
+            }
+            if spec.historical_scenario_id is not None
+            else self._scenario_provenance(spec.scenario_id)
+        )
         manifest.executed_tracker = self._executed_tracker_id(spec, config)
         manifest.scenario_readiness_grade = self.capabilities._scenario_capability(
             spec.scenario_id,
@@ -283,6 +304,7 @@ class ExperimentRunner:
             manifest.historical_replay_evidence = historical_request.evidence.to_dict()
             manifest.historical_execution_mode = historical_request.mode
             manifest.historical_case_digest = historical_request.case_digest
+            manifest.historical_scenario_id = spec.historical_scenario_id
             if not counterfactual_mode:
                 manifest.diagnostic_only = True
                 manifest.diagnostic_only_reasons = [
@@ -298,7 +320,11 @@ class ExperimentRunner:
             {
                 "schema_version": spec.schema_version,
                 "scenario_id": spec.scenario_id,
-                "source": self._scenario_source(scenario_path),
+                "source": (
+                    "historical-runtime-template"
+                    if spec.historical_scenario_id is not None
+                    else self._scenario_source(scenario_path)  # type: ignore[arg-type]
+                ),
                 "source_hash": manifest.scenario_hash,
                 "episode_hash": manifest.episode_hash,
                 "enc_hash": manifest.enc_hash,
@@ -562,6 +588,67 @@ class ExperimentRunner:
         prepared.manifest.fallback_used = fallback
         if fallback and prepared.spec.strict_no_fallback:
             raise RuntimeError("Fallback detected in strict run")
+
+
+def _historical_runtime_config(spec: RunSpec, request: HistoricalReplayRequest | None) -> scenario_config.ScenarioConfig:
+    """Build a geometry-neutral loader config; Historical Actors replace its placeholder ship."""
+    if request is None:
+        raise ColavExecutionError(PlanStatus.INVALID_INPUT, "Historical scenario has no sealed actor request")
+    ownship = request.actor_set.actor(request.ownship_actor_id)
+    sample = ownship.samples[0]
+    north, east, velocity_north, velocity_east = sample.state_vxvy
+    speed = math.hypot(velocity_north, velocity_east)
+    course_deg = math.degrees(math.atan2(velocity_east, velocity_north)) % 360.0
+    duration = float(request.t_end_s or spec.t_end or max(actor.last_time_s for actor in request.actor_set.actors) + 1.0)
+    step = float(request.dt_sim or spec.dt or request.actor_set.profile.time_step_s)
+    document = {
+        "name": spec.historical_scenario_id,
+        "save_scenario": False,
+        "t_start": 0.0,
+        "t_end": duration,
+        "dt_sim": step,
+        "type": "MS",
+        "utm_zone": request.utm_zone,
+        "map_data_files": ["More_og_Romsdal_utm33.gdb"],
+        "map_size": [30_000.0, 40_000.0],
+        "map_origin_enu": [33_500.0, 6_945_450.0],
+        "new_load_of_map_data": True,
+        "n_episodes": 1,
+        "n_random_ships": 0,
+        "ship_list": [
+            {
+                "csog_state": [north, east, speed, course_deg],
+                "waypoints": [[north, north + 1.0], [east, east]],
+                "speed_plan": [speed, speed],
+                "id": ownship.actor_id,
+                "mmsi": ownship.mmsi,
+                "guidance": {
+                    "los": {
+                        "pass_angle_threshold": 80.0,
+                        "R_a": 40.0,
+                        "K_p": 0.015,
+                        "K_i": 0.0,
+                        "max_cross_track_error_int": 200.0,
+                        "cross_track_error_int_threshold": 30.0,
+                    }
+                },
+                "controller": {"pass_through_cs": ""},
+                "model": {
+                    "csog": {
+                        "draft": 3.0,
+                        "length": ownship.length_m,
+                        "width": ownship.width_m,
+                        "T_chi": 3.0,
+                        "T_U": 5.0,
+                        "r_max": 4.0,
+                        "U_min": 0.0,
+                        "U_max": 15.0,
+                    }
+                },
+            }
+        ],
+    }
+    return scenario_config.ScenarioConfig.from_dict(document)
 
 
 def _scenario_target_count(spec: RunSpec) -> int | None:

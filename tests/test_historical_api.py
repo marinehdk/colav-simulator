@@ -3,6 +3,7 @@ from __future__ import annotations
 import zlib
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 from colav_simulator.historical_acceptance import HistoricalAISDimensionRecord, HistoricalAISDimensionRegistry
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_enc import ENCRegionProfile
+from gui_server import historical_api
 from gui_server.main import app
 
 UTC = timezone.utc
@@ -131,6 +133,43 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
         assert prepared.json()["status"] == "PREPARED"
         assert prepared.json()["evidence"]["dataset_descriptor"]["descriptor_sha256"]
         assert prepared.json()["evidence"]["case"]["enc_preflight"]["status"] == "PASS"
+        assert prepared.json()["presentation"] == {
+            "schema_version": "historical-workflow.presentation.v1",
+            "scenario": {"id": None, "kind": "AD_HOC_HISTORICAL_WORKFLOW"},
+            "operability": {"status": "AVAILABLE", "scope": "AD_HOC"},
+            "qualification": {
+                **prepared.json()["qualification"],
+                "determinism": {"status": "NOT_CHECKED", "mismatch_count": None},
+                "threat_graph": None,
+            },
+            "runtime": {
+                "mode": "COUNTERFACTUAL",
+                "status": "PREPARED",
+                "requested_algorithm": None,
+                "executed_algorithm": None,
+                "fallback_used": None,
+            },
+            "threat": {
+                "status": "UNAVAILABLE",
+                "vector_count": None,
+                "schedule_entry_count": None,
+                "cluster_count": None,
+            },
+            "leakage": {"status": "PASS_CONTRACT"},
+            "determinism": {"status": "NOT_CHECKED", "mismatch_count": None},
+            "compare": {
+                "status": "UNAVAILABLE",
+                "overall_assurance_verdict": None,
+                "domain_statuses": {
+                    "safety": None,
+                    "colreg": None,
+                    "maneuver": None,
+                    "efficiency": None,
+                    "human_similarity": None,
+                },
+            },
+            "evidence": {"lineage": prepared.json()["lineage"]},
+        }
 
         executed = client.post(f"/api/historical/workflows/{workflow_id}/run")
         assert executed.status_code == 200, executed.json()
@@ -138,6 +177,12 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
         assert final.status_code == 200
         document = final.json()
         assert document["status"] == "COMPLETED"
+        assert document["qualification"] == {
+            "status": "NOT_QUALIFIED",
+            "execution_mode": "RUN_ONLY",
+            "run_count": 1,
+            "reason": "single Counterfactual run is not deterministic qualification evidence",
+        }
         assert document["stages"] == {
             "dataset": "SELECTED",
             "case": "PUBLISHED",
@@ -151,6 +196,31 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
         assert document["final_snapshot"]
         assert document["evidence"]["evaluation"]
         assert document["evidence"]["compare_digest"] == document["lineage"]["compare_digest"]
+        presentation = document["presentation"]
+        assert presentation["runtime"]["fallback_used"] is False
+        assert presentation["threat"] == {
+            "status": "UNAVAILABLE",
+            "vector_count": None,
+            "schedule_entry_count": None,
+            "cluster_count": None,
+        }
+        assert presentation["leakage"] == {"status": "PASS_CONTRACT"}
+        assert presentation["determinism"] == {"status": "NOT_CHECKED", "mismatch_count": None}
+        assert presentation["compare"]["status"] == "COMPLETE"
+        assert presentation["compare"]["overall_assurance_verdict"] == document["compare"][
+            "overall_assurance_verdict"
+        ]
+        assert set(presentation["compare"]["domain_statuses"]) == {
+            "safety",
+            "colreg",
+            "maneuver",
+            "efficiency",
+            "human_similarity",
+        }
+        assert all(
+            value is None or isinstance(value, str)
+            for value in presentation["compare"]["domain_statuses"].values()
+        )
 
         with client.websocket_connect(f"/ws/historical/{workflow_id}") as websocket:
             streamed = websocket.receive_json()
@@ -196,6 +266,137 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
     assert document["evidence"]["run"]["replay_factory"] == "HistoricalReplayFactory"
     assert document["evidence"]["evaluation"]
     assert document["final_snapshot"]
+    assert document["presentation"]["leakage"] == {"status": "NOT_APPLICABLE"}
+    assert document["presentation"]["determinism"] == {
+        "status": "NOT_APPLICABLE",
+        "mismatch_count": None,
+    }
+    assert document["presentation"]["compare"]["status"] == "NOT_APPLICABLE"
+
+
+def test_scene_counterfactual_double_run_stays_operable_with_unqualified_cluster_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scene_id = "hais_romsdal_20260701_120000_120100"
+    manifest = {
+        "historical_scenario_id": scene_id,
+        "lineage": {
+            "historical_scenario_id": scene_id,
+            "dataset_digest": "dataset",
+            "case_digest": "case",
+            "run_digest": "run",
+            "evaluation_digest": "evaluation",
+            "compare_digest": "compare",
+        },
+        "case": {"historical_scenario_id": scene_id, "case_digest": "case"},
+        "run": {
+            "historical_scenario_id": scene_id,
+            "mode": "COUNTERFACTUAL",
+            "requested_algorithm": "nominal",
+            "executed_algorithm": "nominal",
+            "fallback_used": False,
+        },
+        "threat": {"vector_count": 2, "schedule_context_count": 2, "cluster_count": 0},
+        "evaluation": {"evaluation_status": "COMPLETE", "gate": "PASS"},
+        "compare": {
+            "status": "COMPLETE",
+            "overall_assurance_verdict": "PASS",
+            "compare_digest": "compare",
+            "domain_statuses": {
+                "safety": "COMPLETE",
+                "colreg": "COMPLETE",
+                "maneuver": "COMPLETE",
+                "efficiency": "COMPLETE",
+                "human_similarity": "COMPLETE",
+            },
+        },
+        "leakage": {"status": "PASS_CONTRACT"},
+        "runs": [{"run_id": "first"}, {"run_id": "second"}],
+        "determinism": {"status": "PASS", "mismatches": []},
+    }
+    outcome = historical_api.HistoricalAISAcceptanceOutcome(
+        status=historical_api.HistoricalAcceptanceStatus.FAIL,
+        blocker_codes=("THREAT_EVIDENCE_INCOMPLETE",),
+        blocker_messages=("observed cluster_count=0 does not qualify predictive conflict clustering",),
+        manifest=manifest,
+        dataset_descriptor={"descriptor_sha256": "dataset"},
+    )
+    monkeypatch.setattr(historical_api.HistoricalAISAcceptanceHarness, "run", lambda _self, _request: outcome)
+    workflow_id = "bounded-unqualified-workflow"
+    workflow = historical_api._HistoricalWorkflow(
+        workflow_id=workflow_id,
+        mode=historical_api.HistoricalWorkflowMode.COUNTERFACTUAL,
+        source_path=tmp_path / "unused.zip",
+        dataset_descriptor=SimpleNamespace(descriptor_sha256="dataset", selection_sha256="selection"),
+        prepared_run=SimpleNamespace(
+            artifact_sink=SimpleNamespace(close=lambda **_kwargs: None),
+            spec=SimpleNamespace(
+                algorithm_capability_evidence={
+                    "binding_role": "ALGORITHM_CAPABILITY_ONLY",
+                    "geometry_equivalence": False,
+                }
+            ),
+        ),
+        experiment_runner=SimpleNamespace(),
+        lineage={"dataset_digest": "dataset", "runtime_actor_set_digest": "actors"},
+        historical_scenario_id=scene_id,
+        qualification_request=object(),
+    )
+    historical_api.historical_workflows._workflows[workflow_id] = workflow
+    try:
+        with TestClient(app) as client:
+            completed = client.post(f"/api/historical/workflows/{workflow_id}/run")
+    finally:
+        historical_api.historical_workflows._workflows.pop(workflow_id, None)
+
+    document = completed.json()
+    assert document["status"] == "COMPLETED"
+    assert document["historical_scenario_id"] == scene_id
+    qualification = document["qualification"]
+    assert qualification["status"] == "NOT_QUALIFIED"
+    assert qualification["code"] == "THREAT_EVIDENCE_INCOMPLETE"
+    assert qualification["execution_mode"] == "DOUBLE_RUN_ACCEPTANCE"
+    assert qualification["run_count"] == 2
+    assert qualification["actual_counts"] == {
+        "vector_count": 2,
+        "schedule_context_count": 2,
+        "cluster_count": 0,
+    }
+    assert qualification["future_gate"] == "NONEMPTY_NATURAL_CLUSTER"
+    assert document["determinism"] == {"status": "PASS", "mismatches": []}
+    assert document["evidence"]["threat"] == {
+        "vector_count": 2,
+        "schedule_context_count": 2,
+        "cluster_count": 0,
+    }
+    presentation = document["presentation"]
+    assert presentation["scenario"] == {
+        "id": scene_id,
+        "kind": "HISTORICAL_AIS",
+        "status": "AVAILABLE",
+        "scope": "BOUNDED",
+    }
+    assert presentation["runtime"]["status"] == "COMPLETED"
+    assert presentation["runtime"]["fallback_used"] is False
+    assert presentation["threat"] == {
+        "status": "AVAILABLE",
+        "vector_count": 2,
+        "schedule_entry_count": 2,
+        "cluster_count": 0,
+    }
+    assert presentation["qualification"]["status"] == "NOT_QUALIFIED"
+    assert presentation["qualification"]["code"] == "THREAT_EVIDENCE_INCOMPLETE"
+    assert presentation["qualification"]["determinism"] == {"status": "PASS", "mismatch_count": 0}
+    assert presentation["qualification"]["threat_graph"] == {
+        "status": "NOT_QUALIFIED",
+        "code": "THREAT_EVIDENCE_INCOMPLETE",
+        "vector_count": 2,
+        "schedule_entry_count": 2,
+        "cluster_count": 0,
+    }
+    assert presentation["compare"]["status"] == "COMPLETE"
+    assert presentation["compare"]["overall_assurance_verdict"] == "PASS"
 
 
 @pytest.mark.parametrize(

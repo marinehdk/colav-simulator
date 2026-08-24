@@ -302,8 +302,10 @@ class HistoricalAISAcceptanceHarness:
         if not isinstance(request, HistoricalAISAcceptanceRequest):
             return self._blocked(HistoricalAcceptanceBlockerCode.WINDOW_SELECTION_INVALID, "request type is invalid", {})
         source = request.source
+        historical_scenario_id = request.run_spec.historical_scenario_id if request.run_spec is not None else None
         base_manifest = {
             "schema_version": ACCEPTANCE_SCHEMA_VERSION,
+            "historical_scenario_id": historical_scenario_id,
             "source": request.window.to_dict(),
             "enc_profile": {
                 "profile_id": request.enc_profile.profile_id,
@@ -320,6 +322,7 @@ class HistoricalAISAcceptanceHarness:
                 "registry_digest": request.dimension_registry.digest if request.dimension_registry else None,
             },
             "lineage": {
+                "historical_scenario_id": historical_scenario_id,
                 "dataset_digest": None,
                 "case_digest": None,
                 "run_digest": None,
@@ -405,6 +408,7 @@ class HistoricalAISAcceptanceHarness:
                 enc_profile=request.enc_profile,
                 discovery_profile=request.discovery_profile,
                 reference_mmsi=request.window.reference_mmsi,
+                historical_scenario_id=historical_scenario_id,
                 t0_utc=request.window.t0_utc,
                 require_intent=request.dimension_registry is not None,
                 published=True if request.dimension_registry is not None else None,
@@ -423,6 +427,7 @@ class HistoricalAISAcceptanceHarness:
         built_case = case_outcome.case
         base_manifest["case"] = {
             "status": "SUCCESS",
+            "historical_scenario_id": built_case.historical_scenario_id,  # type: ignore[union-attr]
             "case_digest": built_case.case_digest,  # type: ignore[union-attr]
             "runtime_actor_set_digest": built_case.runtime_actor_set_digest,  # type: ignore[union-attr]
             "human_reference_binding": built_case.human_reference_binding.to_dict(),  # type: ignore[union-attr]
@@ -502,12 +507,14 @@ class HistoricalAISAcceptanceHarness:
         run_manifest = result.manifest
         manifest["run"] = {
             "run_id": run_manifest.run_id,
+            "historical_scenario_id": request.run_spec.historical_scenario_id,
             "mode": run_manifest.historical_execution_mode,
             "requested_algorithm": run_manifest.requested_algorithm,
             "executed_algorithm": run_manifest.executed_algorithm,
             "fallback_used": run_manifest.fallback_used,
             "spec_hash": run_manifest.spec_hash,
             "trajectory_hash": run_manifest.trajectory_hash,
+            "algorithm_capability_evidence": request.run_spec.algorithm_capability_evidence,
         }
         manifest["lineage"]["run_digest"] = run_manifest.trajectory_hash
         if (
@@ -546,7 +553,7 @@ class HistoricalAISAcceptanceHarness:
         ):
             return self._fail(
                 HistoricalAcceptanceBlockerCode.THREAT_EVIDENCE_INCOMPLETE,
-                "real Counterfactual Threat snapshot lacks mandatory selected-target vectors/schedule membership",
+                "real Counterfactual Threat snapshot lacks mandatory vectors or schedule membership",
                 manifest,
                 descriptor,
                 case_outcome,
@@ -644,6 +651,22 @@ class HistoricalAISAcceptanceHarness:
             return self._fail(
                 HistoricalAcceptanceBlockerCode.DETERMINISM_MISMATCH,
                 f"Counterfactual deterministic semantic mismatch: {', '.join(mismatches)}",
+                manifest,
+                descriptor,
+                case_outcome,
+            )
+        return self._finish_qualification(manifest, descriptor, case_outcome)
+
+    def _finish_qualification(
+        self,
+        manifest: dict[str, Any],
+        descriptor: dict[str, Any],
+        case_outcome: HistoricalAISCaseBuildOutcome,
+    ) -> HistoricalAISAcceptanceOutcome:
+        if manifest["threat"]["cluster_count"] < 1:
+            return self._fail(
+                HistoricalAcceptanceBlockerCode.THREAT_EVIDENCE_INCOMPLETE,
+                "observed conflict cluster count is empty after deterministic Counterfactual qualification",
                 manifest,
                 descriptor,
                 case_outcome,
@@ -892,7 +915,8 @@ def _algorithm_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAIS
     if request.run_spec is None:
         return HistoricalAISAlgorithmBinding()
     receipt = None
-    if request.run_spec.validation_rule_id is not None:
+    capability_tuple = request.run_spec.capability_tuple
+    if capability_tuple is not None:
         from colav_simulator.core.colav.diagnostics import ColavExecutionError  # noqa: PLC0415
         from colav_simulator.experiment.capabilities import CapabilityCatalog  # noqa: PLC0415
         from colav_simulator.integrations import IntegrationRegistry  # noqa: PLC0415
@@ -900,10 +924,7 @@ def _algorithm_binding(request: HistoricalAISAcceptanceRequest) -> HistoricalAIS
         try:
             receipt = HistoricalAISCapabilityReceipt.from_catalog(
                 CapabilityCatalog(IntegrationRegistry()),
-                request.run_spec.validation_rule_id,
-                request.run_spec.scenario_id,
-                request.run_spec.algorithm_id,
-                request.run_spec.tracker_id,
+                *capability_tuple,
             )
         except (ColavExecutionError, KeyError, StopIteration, ValueError):
             receipt = None

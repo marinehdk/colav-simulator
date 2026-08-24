@@ -230,13 +230,23 @@ The first descriptor is limited to the compact, qualified acceptance window alre
 
 Future windows, entries, actors, dimension registries or ENC regions require a new Published Case/descriptor or an explicit versioned revision. Expansion must not mutate this descriptor's Dataset, Selection, T0, actor set, ENC qualification, digests or sealed evidence. Each expansion repeats source quality checks, actor reconstruction, dimension provenance and ENC preflight before it becomes selectable. A larger actor count is a new acceptance scope; it is not implied by the current three-actor result.
 
+Conflict-cluster qualification is also a future gate, separate from scene operability. A later qualified window must produce its cluster evidence naturally through canonical Threat Management and reproduce it across independent runs. No descriptor, fixture, acceptance harness or browser projection may seal an expected cluster count of one, inject an edge/cluster, reinterpret `cluster_count=0` as one, or use the older sealed manifest's cluster value as an expected value for this scene.
+
+### Current operational and qualification result
+
+- The bounded scene is operational when its declared source binding and preflight are available: scene status `AVAILABLE`, scope `BOUNDED`. `AVAILABLE/BOUNDED` means this exact source/window/actor/ENC contract can run; it does not mean every predictive capability is qualified.
+- The current Counterfactual evidence is two independent runs with deterministic status `PASS` and `mismatches=[]`. Workflow, Independent Evaluator and Compare complete; `fallback=false`; the independent evaluator gate and overall assurance verdict are `PASS` within the declared bounded scope.
+- The canonical Threat result is `vector_count=2`, `schedule_entry_count=2`, `cluster_count=0`. Zero clusters is the observed result for this window and must remain visible as zero.
+- Predictive vector/schedule evidence is available, but conflict-cluster qualification is `status=NOT_QUALIFIED`, `code=THREAT_EVIDENCE_INCOMPLETE`. This typed qualification gap does not make the bounded Replay/Counterfactual workflow unavailable or rewrite its completed evaluator/compare evidence.
+- `ENC QUALIFIED` and the versioned engineering Ship Domain qualification remain facts owned by those profiles. They must not be projected as `Predictive Cluster QUALIFIED` or as an unqualified global scene claim.
+
 ### Front-end acceptance contract
 
 - OpenBridge mounts the descriptor under a dedicated Historical AIS entry in `Evaluation` or `Scenario`; it does not alter existing Rule Config cards or their exact-tuple assembly.
 - The panel shows source archive/entry, UTC window, WGS84 bounding box, selected and published actor counts, MMSI/Reference Vessel, T0, ENC profile/qualification, coverage limitation and readiness/digest state before run.
 - `Historical Replay` invokes the historical workflow and renders playback/evidence. `Counterfactual` invokes the same immutable Case with post-T0 Reference Vessel control through the normal algorithm path; surrounding actors remain playback and Human Reference remains Compare-only.
 - The panel consumes the backend REST/WS workflow snapshot and only formats/projects it. It must render typed unavailable/incomplete states and must never compute CPA, domain, Primary, schedule, clusters or verdicts in browser code.
-- A front-end acceptance run must expose `status=COMPLETE`, `compare.status=COMPLETE`, `overall_assurance_verdict=PASS`, `leakage.status=PASS_CONTRACT`, `fallback=false`, non-empty threat vector/schedule/cluster evidence, `determinism.mismatches=[]`, and an independent evaluator gate `PASS`. These claims are scoped to this qualified three-actor window.
+- A front-end acceptance run must expose scene `status=AVAILABLE`, scope `BOUNDED`; completed workflow/evaluator/compare; `overall_assurance_verdict=PASS`; `leakage.status=PASS_CONTRACT`; `fallback=false`; threat counts `2/2/0`; double-run determinism `PASS` with `mismatches=[]`; and independent evaluator gate `PASS`. It must separately expose predictive cluster qualification as `THREAT_EVIDENCE_INCOMPLETE/NOT_QUALIFIED`. These claims are scoped to this bounded three-actor window; cluster qualification remains future work.
 
 ## Further Notes
 

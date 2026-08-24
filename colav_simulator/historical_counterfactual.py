@@ -51,13 +51,10 @@ class HistoricalAISCounterfactualRunRequest:
         if not self.case.algorithm_binding.bound:
             raise ValueError("Counterfactual Case lacks a verified CapabilityCatalog receipt")
         receipt = self.case.algorithm_binding.capability_receipt
-        if receipt is None or receipt.exact_tuple != (
-            self.run_spec.validation_rule_id,
-            self.run_spec.scenario_id,
-            self.run_spec.algorithm_id,
-            self.run_spec.tracker_id,
-        ):
+        if receipt is None or receipt.exact_tuple != self.run_spec.capability_tuple:
             raise ValueError("Counterfactual exact tuple differs from frozen CapabilityCatalog receipt")
+        if self.case.historical_scenario_id != self.run_spec.historical_scenario_id:
+            raise ValueError("Counterfactual Historical scenario identity differs from frozen Case binding")
         if self.case.algorithm_binding.configuration_digest != semantic_hash(self.run_spec.algorithm_config):
             raise ValueError("Counterfactual algorithm configuration differs from frozen Case binding")
         if self.case.evaluation_binding.profile_id != self.run_spec.evaluator_profile_id:

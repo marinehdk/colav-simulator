@@ -38,6 +38,7 @@ from colav_simulator.historical_serialization import semantic_hash
 from colav_simulator.integrations import IntegrationRegistry
 
 UTC = timezone.utc
+HISTORICAL_SCENARIO_ID = "hais_romsdal_20260701_120000_120100"
 
 
 def _case(
@@ -150,6 +151,38 @@ def test_counterfactual_run_spec_contains_reference_history_only_through_t0(
     assert replay_request.evidence.case_digest == case.case_digest
     assert replay_request.evidence.dataset_descriptor_digest == case.dataset_digest
     assert replay_request.evidence.runtime_actor_set_digest == spec.historical_replay["runtime_actor_set_digest"]
+
+
+def test_counterfactual_run_spec_keeps_historical_identity_and_capability_evidence_separate(
+    tmp_path: Path,
+    qualified_historical_enc_profile: ENCRegionProfile,
+) -> None:
+    case = _case(tmp_path, qualified_historical_enc_profile)
+    case = replace(
+        case,
+        historical_scenario_id=HISTORICAL_SCENARIO_ID,
+        build_digest="",
+        runtime_digest="",
+    )
+    run_spec = RunSpec(
+        scenario_id=HISTORICAL_SCENARIO_ID,
+        historical_scenario_id=HISTORICAL_SCENARIO_ID,
+        algorithm_id="nominal",
+        tracker_id="god",
+        algorithm_capability_evidence={
+            "binding_role": "ALGORITHM_CAPABILITY_ONLY",
+            "geometry_equivalence": False,
+            "exact_tuple": ["rule14", "head_on", "nominal", "god"],
+        },
+    )
+
+    request = HistoricalAISCounterfactualRunRequest(case=case, run_spec=run_spec)
+    document = request.to_run_spec().to_dict()
+
+    assert document["scenario_id"] == HISTORICAL_SCENARIO_ID
+    assert document["historical_scenario_id"] == HISTORICAL_SCENARIO_ID
+    assert document["algorithm_capability_evidence"]["exact_tuple"] == ["rule14", "head_on", "nominal", "god"]
+    assert document["algorithm_capability_evidence"]["geometry_equivalence"] is False
 
 
 def test_human_reference_digest_does_not_change_counterfactual_run_spec(

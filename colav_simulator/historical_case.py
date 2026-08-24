@@ -728,6 +728,7 @@ class HistoricalAISCaseBuildRequest:
     )
     reference_mmsi: int | None = None
     reference_vessel_mmsi: int | None = None
+    historical_scenario_id: str | None = None
     t0_utc: datetime | str | None = None
     require_intent: bool = True
     published: bool | None = None
@@ -743,6 +744,11 @@ class HistoricalAISCaseBuildRequest:
             raise TypeError("selection must be HistoricalAISSelection")
         if self.t0_utc is not None:
             object.__setattr__(self, "t0_utc", _coerce_utc(self.t0_utc))
+        if self.historical_scenario_id is not None:
+            historical_scenario_id = str(self.historical_scenario_id).strip()
+            if not historical_scenario_id:
+                raise ValueError("historical_scenario_id must not be empty")
+            object.__setattr__(self, "historical_scenario_id", historical_scenario_id)
         if self.published is not None:
             object.__setattr__(self, "require_intent", bool(self.published))
         object.__setattr__(
@@ -797,6 +803,7 @@ class HistoricalAISCase:
     t0_candidate: HistoricalAIST0Candidate | None
     nominal_intent: HistoricalAISNominalIntent | None
     source_quality_findings: tuple[Mapping[str, Any], ...]
+    historical_scenario_id: str | None = None
     human_reference_binding: HistoricalAISHumanReferenceBinding = field(default_factory=HistoricalAISHumanReferenceBinding)
     algorithm_binding: HistoricalAISAlgorithmBinding = field(default_factory=HistoricalAISAlgorithmBinding)
     evaluation_binding: HistoricalAISEvaluationBinding = field(default_factory=HistoricalAISEvaluationBinding)
@@ -921,6 +928,7 @@ class HistoricalAISCase:
         """Semantic runtime identity; excludes Human Reference/post-T0 source evidence."""
         return {
             "schema_version": self.schema_version,
+            "historical_scenario_id": self.historical_scenario_id,
             "selection": self.selection.to_dict(),
             "reconstruction_profile": self.reconstruction_profile.to_dict(),
             "actor_set": self.runtime_actor_set().to_dict(),
@@ -943,6 +951,7 @@ class HistoricalAISCase:
     def _identity_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
+            "historical_scenario_id": self.historical_scenario_id,
             "dataset": self.dataset_descriptor.to_dict(),
             "selection": self.selection.to_dict(),
             "reconstruction_profile": self.reconstruction_profile.to_dict(),
@@ -1204,6 +1213,7 @@ class HistoricalAISCaseBuilder:
             t0_candidate=t0_candidate,
             nominal_intent=nominal_intent,
             source_quality_findings=source_quality,
+            historical_scenario_id=request.historical_scenario_id,
             human_reference_binding=request.human_reference_binding,
             algorithm_binding=request.algorithm_binding,
             evaluation_binding=request.evaluation_binding,

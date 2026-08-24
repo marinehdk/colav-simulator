@@ -140,8 +140,8 @@
     ]
   },
   "runtime_binding": {
-    "execution_scenario_id": "paper_ccta2023_multiship",
-    "validation_rule_id": "multiship",
+    "historical_scenario_id": "hais_romsdal_20260701_120000_120100",
+    "kind": "HISTORICAL_AIS",
     "algorithm_id": "mid_mpc_ipopt",
     "tracker_id": "god",
     "evaluator_profile_id": "ccta_2023_demo-v1",
@@ -163,6 +163,16 @@
       "uncertainty_multiplier": 2.0,
       "units": "m"
     }
+  },
+  "algorithm_capability_evidence": {
+    "binding_role": "ALGORITHM_CAPABILITY_ONLY",
+    "geometry_equivalence": false,
+    "exact_tuple": [
+      "multiship",
+      "paper_ccta2023_multiship",
+      "mid_mpc_ipopt",
+      "god"
+    ]
   },
   "source_binding": {
     "env_var": "COLAV_HAIS_ARCHIVE_PATH",

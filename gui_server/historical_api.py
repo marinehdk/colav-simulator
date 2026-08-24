@@ -17,7 +17,14 @@ from pydantic import BaseModel, Field
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunner, PreparedRun
-from colav_simulator.historical_acceptance import HistoricalAISDimensionRecord, HistoricalAISDimensionRegistry
+from colav_simulator.historical_acceptance import (
+    HistoricalAcceptanceStatus,
+    HistoricalAISAcceptanceHarness,
+    HistoricalAISAcceptanceOutcome,
+    HistoricalAISAcceptanceRequest,
+    HistoricalAISDimensionRecord,
+    HistoricalAISDimensionRegistry,
+)
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_case import (
     HistoricalAISAlgorithmBinding,
@@ -167,20 +174,35 @@ class _HistoricalWorkflow:
     compare: Any | None = None
     message: str = ""
     lineage: dict[str, Any] = field(default_factory=dict)
+    historical_scenario_id: str | None = None
+    qualification_request: HistoricalAISAcceptanceRequest | None = None
+    qualification_outcome: HistoricalAISAcceptanceOutcome | None = None
 
     def document(self) -> dict[str, Any]:
+        if self.qualification_outcome is not None:
+            return _qualified_workflow_document(self)
         evaluation = None if self.result is None else self.result.evaluation.to_dict()
         snapshot = None if self.result is None else self.result.session.threat_management_coordinator.last_snapshot
         final_frame = None
         if self.result is not None and self.result.session.frames:
             final_frame = self.result.session.frames[-1]
         compare_document = None if self.compare is None else self.compare.to_dict()
+        qualification = _workflow_qualification(self)
+        determinism = {
+            "status": "NOT_APPLICABLE"
+            if self.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY
+            else "NOT_CHECKED",
+            "mismatches": [],
+        }
         return {
             "schema_version": "historical-workflow.snapshot.v1",
             "workflow_id": self.workflow_id,
+            "historical_scenario_id": self.historical_scenario_id,
             "mode": self.mode.value,
             "status": self.status.value,
             "message": self.message,
+            "qualification": qualification,
+            "determinism": determinism,
             "stages": {
                 "dataset": "SELECTED",
                 "case": "PUBLISHED" if self.case is not None else "NOT_APPLICABLE",
@@ -191,7 +213,10 @@ class _HistoricalWorkflow:
                 "evaluation": None if evaluation is None else evaluation["evaluation_status"],
                 "compare": None if compare_document is None else compare_document["status"],
             },
-            "lineage": dict(self.lineage),
+            "lineage": {
+                **({} if self.historical_scenario_id is None else {"historical_scenario_id": self.historical_scenario_id}),
+                **dict(self.lineage),
+            },
             "leakage": {
                 "human_reference_digest_in_run_spec": (
                     False
@@ -219,6 +244,7 @@ class _HistoricalWorkflow:
                     if self.result is None
                     else {
                         "run_id": self.result.manifest.run_id,
+                        "historical_scenario_id": self.result.manifest.historical_scenario_id,
                         "historical_execution_mode": self.result.manifest.historical_execution_mode,
                         "requested_algorithm": self.result.manifest.requested_algorithm,
                         "executed_algorithm": self.result.manifest.executed_algorithm,
@@ -227,6 +253,7 @@ class _HistoricalWorkflow:
                         "replay_factory": (
                             "HistoricalReplayFactory" if self.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY else None
                         ),
+                        "algorithm_capability_evidence": self.prepared_run.spec.algorithm_capability_evidence,
                     }
                 ),
                 "threat_snapshot": None if snapshot is None else snapshot.to_dict(),
@@ -234,7 +261,321 @@ class _HistoricalWorkflow:
                 "compare_digest": None if self.compare is None else self.compare.compare_digest,
             },
             "compare": compare_document,
+            "presentation": _workflow_presentation(
+                self,
+                qualification=qualification,
+                determinism=determinism,
+                run=(None if self.result is None else self.result.manifest),
+            ),
         }
+
+
+def _workflow_qualification(workflow: _HistoricalWorkflow) -> dict[str, Any]:
+    if workflow.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY:
+        return {
+            "status": "NOT_APPLICABLE",
+            "execution_mode": "HISTORICAL_REPLAY",
+            "run_count": 1 if workflow.result is not None else 0,
+            "reason": "Historical Replay is playback evidence, not Counterfactual qualification",
+        }
+    if workflow.qualification_request is not None:
+        return {
+            "status": "PENDING",
+            "execution_mode": "DOUBLE_RUN_ACCEPTANCE",
+            "run_count": 0,
+            "reason": "qualification requires two independent Run/Evaluation/Compare executions",
+        }
+    return {
+        "status": "NOT_QUALIFIED",
+        "execution_mode": "RUN_ONLY",
+        "run_count": 1 if workflow.result is not None else 0,
+        "reason": "single Counterfactual run is not deterministic qualification evidence",
+    }
+
+
+def _workflow_presentation(
+    workflow: _HistoricalWorkflow,
+    *,
+    qualification: dict[str, Any],
+    determinism: dict[str, Any],
+    run: Any | None,
+) -> dict[str, Any]:
+    threat = _presentation_threat(workflow)
+    leakage_status = "NOT_APPLICABLE" if workflow.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY else "PASS_CONTRACT"
+    compare = _presentation_compare(workflow)
+    determinism_presentation = {
+        "status": determinism.get("status"),
+        "mismatch_count": (
+            len(determinism.get("mismatches", ()))
+            if determinism.get("status") in {"PASS", "FAIL"}
+            else None
+        ),
+    }
+    threat_graph_qualification = None
+    if qualification.get("execution_mode") == "DOUBLE_RUN_ACCEPTANCE" and threat["status"] == "AVAILABLE":
+        threat_graph_qualification = {
+            "status": qualification.get("status"),
+            "code": qualification.get("code"),
+            "vector_count": threat["vector_count"],
+            "schedule_entry_count": threat["schedule_entry_count"],
+            "cluster_count": threat["cluster_count"],
+        }
+    qualification_presentation = {
+        **qualification,
+        "determinism": determinism_presentation,
+        "threat_graph": threat_graph_qualification,
+    }
+    scene = {
+        "id": workflow.historical_scenario_id,
+        "kind": "HISTORICAL_AIS" if workflow.historical_scenario_id else "AD_HOC_HISTORICAL_WORKFLOW",
+        **(
+            {}
+            if workflow.historical_scenario_id is None
+            else {"status": "AVAILABLE", "scope": "BOUNDED"}
+        ),
+    }
+    return {
+        "schema_version": "historical-workflow.presentation.v1",
+        "scenario": scene,
+        "operability": (
+            {"status": "AVAILABLE", "scope": "BOUNDED"}
+            if workflow.historical_scenario_id is not None
+            else {"status": "AVAILABLE", "scope": "AD_HOC"}
+        ),
+        "qualification": qualification_presentation,
+        "runtime": {
+            "mode": workflow.mode.value,
+            "status": workflow.status.value,
+            "requested_algorithm": _run_value(run, "requested_algorithm"),
+            "executed_algorithm": _run_value(run, "executed_algorithm"),
+            "fallback_used": _run_value(run, "fallback_used"),
+            **(
+                {}
+                if workflow.prepared_run.spec.algorithm_capability_evidence is None
+                else {"algorithm_capability_evidence": workflow.prepared_run.spec.algorithm_capability_evidence}
+            ),
+        },
+        "threat": threat,
+        "leakage": {"status": leakage_status},
+        "determinism": determinism_presentation,
+        "compare": compare,
+        "evidence": {
+            "lineage": {
+                **(
+                    {}
+                    if workflow.historical_scenario_id is None
+                    else {"historical_scenario_id": workflow.historical_scenario_id}
+                ),
+                **dict(workflow.lineage),
+            },
+            **(
+                {}
+                if workflow.historical_scenario_id is None
+                else {
+                    "source_readiness": "READY",
+                    "digests": {
+                        "dataset_descriptor_sha256": workflow.dataset_descriptor.descriptor_sha256,
+                        "selection_sha256": workflow.dataset_descriptor.selection_sha256,
+                        "runtime_actor_set_sha256": workflow.lineage.get("runtime_actor_set_digest"),
+                    },
+                    "replay": (
+                        workflow.replay_request.evidence.to_dict()
+                        if workflow.replay_request is not None
+                        else {
+                            "mode": workflow.mode.value,
+                            "historical_scenario_id": workflow.historical_scenario_id,
+                            "case_digest": workflow.lineage.get("case_digest"),
+                        }
+                    ),
+                }
+            ),
+        },
+    }
+
+
+def _presentation_threat(workflow: _HistoricalWorkflow) -> dict[str, Any]:
+    if workflow.qualification_outcome is not None:
+        threat = dict(workflow.qualification_outcome.manifest.get("threat", {}) or {})
+        counts = (
+            threat.get("vector_count"),
+            threat.get("schedule_context_count"),
+            threat.get("cluster_count"),
+        )
+        if all(isinstance(value, int) and not isinstance(value, bool) for value in counts):
+            return {
+                "status": "AVAILABLE",
+                "vector_count": counts[0],
+                "schedule_entry_count": counts[1],
+                "cluster_count": counts[2],
+            }
+    snapshot = None if workflow.result is None else workflow.result.session.threat_management_coordinator.last_snapshot
+    if snapshot is None:
+        return {
+            "status": "UNAVAILABLE",
+            "vector_count": None,
+            "schedule_entry_count": None,
+            "cluster_count": None,
+        }
+    counts = (
+        len(snapshot.vectors) if snapshot.vectors is not None else None,
+        len(snapshot.schedule.entries) if snapshot.schedule is not None else None,
+        len(snapshot.conflict_graph.clusters) if snapshot.conflict_graph is not None else None,
+    )
+    if not all(isinstance(value, int) and not isinstance(value, bool) for value in counts):
+        return {
+            "status": "UNAVAILABLE",
+            "vector_count": None,
+            "schedule_entry_count": None,
+            "cluster_count": None,
+        }
+    return {
+        "status": "AVAILABLE",
+        "vector_count": counts[0],
+        "schedule_entry_count": counts[1],
+        "cluster_count": counts[2],
+    }
+
+
+def _presentation_compare(workflow: _HistoricalWorkflow) -> dict[str, Any]:
+    if workflow.mode is HistoricalWorkflowMode.HISTORICAL_REPLAY:
+        return {
+            "status": "NOT_APPLICABLE",
+            "overall_assurance_verdict": None,
+            "domain_statuses": _empty_compare_domains(),
+        }
+    if workflow.qualification_outcome is not None:
+        compare = dict(workflow.qualification_outcome.manifest.get("compare", {}) or {})
+    else:
+        compare = {} if workflow.compare is None else workflow.compare.to_dict()
+    if not compare:
+        return {
+            "status": "UNAVAILABLE",
+            "overall_assurance_verdict": None,
+            "domain_statuses": _empty_compare_domains(),
+        }
+    domains = compare.get("domain_statuses")
+    if not isinstance(domains, dict):
+        raw_domains = compare.get("domains", {})
+        domains = {
+            key: (value.get("status") if isinstance(value, dict) else None)
+            for key, value in raw_domains.items()
+        }
+    return {
+        "status": compare.get("status"),
+        "overall_assurance_verdict": compare.get("overall_assurance_verdict"),
+        "domain_statuses": {**_empty_compare_domains(), **domains},
+    }
+
+
+def _empty_compare_domains() -> dict[str, None]:
+    return {
+        "safety": None,
+        "colreg": None,
+        "maneuver": None,
+        "efficiency": None,
+        "human_similarity": None,
+    }
+
+
+def _qualified_workflow_document(workflow: _HistoricalWorkflow) -> dict[str, Any]:
+    outcome = workflow.qualification_outcome
+    if outcome is None:  # pragma: no cover - guarded by caller
+        raise RuntimeError("qualification outcome is unavailable")
+    manifest = dict(outcome.manifest)
+    qualified = outcome.status is HistoricalAcceptanceStatus.PASS
+    qualification_incomplete = _qualification_incomplete(outcome)
+    completed = qualified or qualification_incomplete
+    runs = list(manifest.get("runs", ()))
+    run_count = len(runs) if runs else int(bool(manifest.get("run")))
+    threat = dict(manifest.get("threat", {}) or {})
+    qualification = {
+        "status": "QUALIFIED" if qualified else "NOT_QUALIFIED",
+        "code": None if qualified else (outcome.blocker_codes[0] if outcome.blocker_codes else "QUALIFICATION_FAILED"),
+        "execution_mode": "DOUBLE_RUN_ACCEPTANCE",
+        "run_count": run_count,
+        "reason": "" if qualified else "; ".join(outcome.blocker_messages),
+        "actual_counts": {
+            "vector_count": threat.get("vector_count"),
+            "schedule_context_count": threat.get("schedule_context_count"),
+            "cluster_count": threat.get("cluster_count"),
+        },
+        "future_gate": "NONEMPTY_NATURAL_CLUSTER" if qualification_incomplete else None,
+    }
+    determinism = dict(manifest.get("determinism", {"status": "NOT_CHECKED", "mismatches": []}))
+    run = dict(manifest.get("run", {}))
+    evaluation = manifest.get("evaluation")
+    compare = manifest.get("compare")
+    status = HistoricalWorkflowStatus.COMPLETED if completed else HistoricalWorkflowStatus.FAILED
+    lineage = {"historical_scenario_id": workflow.historical_scenario_id, **dict(manifest.get("lineage", {}))}
+    return {
+        "schema_version": "historical-workflow.snapshot.v1",
+        "workflow_id": workflow.workflow_id,
+        "historical_scenario_id": workflow.historical_scenario_id,
+        "mode": workflow.mode.value,
+        "status": status.value,
+        "message": workflow.message,
+        "qualification": qualification,
+        "determinism": determinism,
+        "stages": {
+            "dataset": "SELECTED",
+            "case": "PUBLISHED" if manifest.get("case") else "NOT_APPLICABLE",
+            "replay": "NOT_APPLICABLE",
+            "counterfactual": status.value,
+            "evaluation": None if evaluation is None else evaluation.get("evaluation_status"),
+            "compare": None if compare is None else compare.get("status"),
+        },
+        "lineage": lineage,
+        "leakage": manifest.get("leakage", {}),
+        "final_snapshot": None,
+        "evidence": {
+            "dataset_descriptor": outcome.dataset_descriptor,
+            "case": manifest.get("case"),
+            "historical_replay": None,
+            "run": run or None,
+            "threat": threat,
+            "threat_snapshot": None,
+            "evaluation": evaluation,
+            "compare_digest": None if compare is None else compare.get("compare_digest"),
+            "determinism": determinism,
+        },
+        "compare": compare,
+        "presentation": _workflow_presentation(
+            workflow,
+            qualification=qualification,
+            determinism=determinism,
+            run=run,
+        ),
+    }
+
+
+def _qualification_incomplete(outcome: HistoricalAISAcceptanceOutcome) -> bool:
+    manifest = outcome.manifest
+    run = manifest.get("run", {})
+    evaluation = manifest.get("evaluation", {})
+    compare = manifest.get("compare", {})
+    leakage = manifest.get("leakage", {})
+    determinism = manifest.get("determinism", {})
+    threat = manifest.get("threat", {})
+    return (
+        outcome.blocker_codes == ("THREAT_EVIDENCE_INCOMPLETE",)
+        and run.get("fallback_used") is False
+        and run.get("requested_algorithm") == run.get("executed_algorithm")
+        and evaluation.get("evaluation_status") == "COMPLETE"
+        and evaluation.get("gate") == "PASS"
+        and compare.get("status") == "COMPLETE"
+        and leakage.get("status") == "PASS_CONTRACT"
+        and determinism.get("status") == "PASS"
+        and not determinism.get("mismatches")
+        and threat.get("cluster_count") == 0
+    )
+
+
+def _run_value(run: Any | None, field_name: str) -> Any:
+    if run is None:
+        return None
+    if isinstance(run, dict):
+        return run.get(field_name)
+    return getattr(run, field_name, None)
 
 
 class HistoricalWorkflowManager:
@@ -244,9 +585,16 @@ class HistoricalWorkflowManager:
         self._workflows: dict[str, _HistoricalWorkflow] = {}
         self._lock = threading.RLock()
 
-    def create(self, request: HistoricalWorkflowCreateRequest) -> dict[str, Any]:
+    def create(
+        self,
+        request: HistoricalWorkflowCreateRequest,
+        *,
+        qualification_request: HistoricalAISAcceptanceRequest | None = None,
+    ) -> dict[str, Any]:
         with self._lock:
             workflow = _prepare_workflow(request)
+            workflow.historical_scenario_id = workflow.prepared_run.spec.historical_scenario_id
+            workflow.qualification_request = qualification_request
             self._workflows[workflow.workflow_id] = workflow
             return workflow.document()
 
@@ -256,6 +604,22 @@ class HistoricalWorkflowManager:
             if workflow.status is not HistoricalWorkflowStatus.PREPARED:
                 raise HistoricalWorkflowError("INVALID_STATE", "workflow is not prepared")
             workflow.status = HistoricalWorkflowStatus.RUNNING
+            if workflow.qualification_request is not None:
+                try:
+                    workflow.prepared_run.artifact_sink.close(timeout_s=2.0)
+                    outcome = HistoricalAISAcceptanceHarness().run(workflow.qualification_request)
+                except Exception as exc:
+                    workflow.status = HistoricalWorkflowStatus.FAILED
+                    workflow.message = str(exc)
+                    raise HistoricalWorkflowError("RUN_FAILED", str(exc), workflow.lineage) from exc
+                workflow.qualification_outcome = outcome
+                workflow.status = (
+                    HistoricalWorkflowStatus.COMPLETED
+                    if outcome.status is HistoricalAcceptanceStatus.PASS or _qualification_incomplete(outcome)
+                    else HistoricalWorkflowStatus.FAILED
+                )
+                workflow.message = "; ".join(outcome.blocker_messages)
+                return workflow.document()
             try:
                 prepared = workflow.prepared_run
                 prepared.session.run_to_completion()
@@ -344,31 +708,36 @@ def _prepare_counterfactual_workflow(
         enc_profile = _enc_profile(request.enc_profile)
         if enc_profile.qualification_state is not ENCQualificationState.QUALIFIED:
             raise HistoricalWorkflowError("ENC_UNQUALIFIED", "Historical workflow requires a qualified ENC profile")
-        if run_spec.validation_rule_id is None:
+        capability_tuple = run_spec.capability_tuple
+        if capability_tuple is None:
             raise HistoricalWorkflowError(
                 "BINDINGS_UNAVAILABLE",
-                "Published Case requires a validation_rule_id for exact capability evidence",
+                "Published Case requires exact Algorithm Capability evidence",
             )
         human_reference = HistoricalBenchmarkTrajectory(**request.human_reference)
         alignment = HistoricalBenchmarkAlignmentProfile(**request.alignment_profile)
         counterfactual_runner = HistoricalAISCounterfactualRunner()
         capability_receipt = HistoricalAISCapabilityReceipt.from_catalog(
             counterfactual_runner.runner.capabilities,
-            run_spec.validation_rule_id,
-            run_spec.scenario_id,
-            run_spec.algorithm_id,
-            run_spec.tracker_id,
+            *capability_tuple,
         )
         discovery_profile = HistoricalAISDiscoveryProfile(**case_document.pop("discovery_profile", {}))
         discovery_request = HistoricalAISDiscoveryRequest(**case_document.pop("discovery_request", {}))
         published = case_document.pop("published", True)
         dimension_overrides = case_document.pop("dimension_overrides", {})
+        historical_scenario_id = case_document.pop("historical_scenario_id", run_spec.historical_scenario_id)
+        if historical_scenario_id != run_spec.historical_scenario_id:
+            raise HistoricalWorkflowError(
+                "INVALID_REQUEST",
+                "Case Historical scenario identity differs from RunSpec",
+            )
         build_request = HistoricalAISCaseBuildRequest(
             dataset=dataset,
             selection=selection,
             enc_profile=enc_profile,
             discovery_profile=discovery_profile,
             discovery_request=discovery_request,
+            historical_scenario_id=historical_scenario_id,
             published=published,
             require_intent=True,
             dimension_overrides=dimension_overrides,
@@ -686,7 +1055,15 @@ def create_historical_scenario_workflow(
             request.mode.value,
             run_spec_overrides=request.run_spec,
         )
-        return historical_workflows.create(HistoricalWorkflowCreateRequest(**payload))
+        qualification_request = (
+            descriptor.build_acceptance_request(run_spec_overrides=request.run_spec)
+            if request.mode is HistoricalWorkflowMode.COUNTERFACTUAL
+            else None
+        )
+        return historical_workflows.create(
+            HistoricalWorkflowCreateRequest(**payload),
+            qualification_request=qualification_request,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Historical AIS scenario not found") from exc
     except HistoricalAISScenarioError as exc:

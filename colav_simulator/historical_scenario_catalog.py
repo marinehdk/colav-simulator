@@ -15,9 +15,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
-from colav_simulator.historical_acceptance import HistoricalAISDimensionRecord, HistoricalAISDimensionRegistry
+from colav_simulator.experiment.contracts import RunSpec
+from colav_simulator.historical_acceptance import (
+    HistoricalAISAcceptanceRequest,
+    HistoricalAISDimensionRecord,
+    HistoricalAISDimensionRegistry,
+    HistoricalRealWindowSelection,
+)
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_compare import HistoricalBenchmarkTrajectory
 from colav_simulator.historical_enc import build_expanded_romsdal_profile
@@ -91,6 +98,7 @@ class HistoricalAISScenarioDescriptor:
     enc: Mapping[str, Any]
     dimensions: Mapping[str, Any]
     runtime_binding: Mapping[str, Any]
+    algorithm_capability_evidence: Mapping[str, Any]
     source_binding: Mapping[str, Any]
     limitations: tuple[str, ...]
     descriptor_sha256: str = ""
@@ -103,20 +111,31 @@ class HistoricalAISScenarioDescriptor:
             raise ValueError("unsupported Historical AIS scenario ID")
         if self.kind != "HISTORICAL_AIS":
             raise ValueError("Historical AIS scenario kind is required")
+        if self.runtime_binding.get("historical_scenario_id") != self.scenario_id:
+            raise ValueError("runtime binding must retain the Historical AIS scenario identity")
         if tuple(self.modes) != ("HISTORICAL_REPLAY", "COUNTERFACTUAL"):
             raise ValueError("Historical AIS scenario must publish Replay and Counterfactual modes")
+        capability = self.algorithm_capability_evidence
+        if capability.get("binding_role") != "ALGORITHM_CAPABILITY_ONLY":
+            raise ValueError("paper tuple may be used only as Algorithm Capability evidence")
+        if capability.get("geometry_equivalence") is not False:
+            raise ValueError("Algorithm Capability evidence must deny geometry equivalence")
+        exact_tuple = tuple(capability.get("exact_tuple", ()))
+        if len(exact_tuple) != 4:
+            raise ValueError("Algorithm Capability evidence requires one exact tuple")
         if str(self.source_binding.get("env_var")) != HAIS_ARCHIVE_ENV_VAR:
             raise ValueError("Historical AIS source binding must use COLAV_HAIS_ARCHIVE_PATH")
         expected = str(self.source_binding.get("expected_archive_sha256", ""))
         if len(expected) != 64 or any(character not in "0123456789abcdef" for character in expected):
             raise ValueError("Historical AIS archive digest must be a lowercase SHA-256")
         object.__setattr__(self, "modes", tuple(self.modes))
-        object.__setattr__(self, "archive_scope", dict(self.archive_scope))
-        object.__setattr__(self, "current_window", dict(self.current_window))
-        object.__setattr__(self, "enc", dict(self.enc))
-        object.__setattr__(self, "dimensions", dict(self.dimensions))
-        object.__setattr__(self, "runtime_binding", dict(self.runtime_binding))
-        object.__setattr__(self, "source_binding", dict(self.source_binding))
+        object.__setattr__(self, "archive_scope", _deep_freeze(self.archive_scope))
+        object.__setattr__(self, "current_window", _deep_freeze(self.current_window))
+        object.__setattr__(self, "enc", _deep_freeze(self.enc))
+        object.__setattr__(self, "dimensions", _deep_freeze(self.dimensions))
+        object.__setattr__(self, "runtime_binding", _deep_freeze(self.runtime_binding))
+        object.__setattr__(self, "algorithm_capability_evidence", _deep_freeze(capability))
+        object.__setattr__(self, "source_binding", _deep_freeze(self.source_binding))
         limitations = tuple(HistoricalAISScenarioLimitation(value).value for value in self.limitations)
         object.__setattr__(self, "limitations", limitations)
         if not self.descriptor_sha256:
@@ -131,12 +150,13 @@ class HistoricalAISScenarioDescriptor:
             "display_name": self.display_name,
             "kind": self.kind,
             "modes": list(self.modes),
-            "archive_scope": dict(self.archive_scope),
-            "current_window": dict(self.current_window),
-            "enc": dict(self.enc),
-            "dimensions": dict(self.dimensions),
-            "runtime_binding": dict(self.runtime_binding),
-            "source_binding": dict(self.source_binding),
+            "archive_scope": _deep_thaw(self.archive_scope),
+            "current_window": _deep_thaw(self.current_window),
+            "enc": _deep_thaw(self.enc),
+            "dimensions": _deep_thaw(self.dimensions),
+            "runtime_binding": _deep_thaw(self.runtime_binding),
+            "algorithm_capability_evidence": _deep_thaw(self.algorithm_capability_evidence),
+            "source_binding": _deep_thaw(self.source_binding),
             "limitations": list(self.limitations),
         }
 
@@ -148,6 +168,58 @@ class HistoricalAISScenarioDescriptor:
         document = self._identity_dict()
         document["descriptor_sha256"] = self.descriptor_sha256
         return document
+
+    def presentation(self, readiness: HistoricalAISScenarioSourceReadiness) -> dict[str, Any]:
+        """Return canonical scene, qualification and runtime presentation facts."""
+        operability = self.operability(readiness)
+        return {
+            "schema_version": "historical-ais-scenario.presentation.v1",
+            "scenario": {"id": self.scenario_id, "kind": self.kind},
+            "operability": operability,
+            "qualification": {
+                "status": "NOT_QUALIFIED",
+                "code": "THREAT_EVIDENCE_INCOMPLETE",
+                "source_readiness": readiness.status.value,
+                "future_gate": "NONEMPTY_NATURAL_CLUSTER",
+                "limitations": list(self.limitations),
+            },
+            "runtime": {
+                "modes": list(self.modes),
+                "historical_scenario_id": self.scenario_id,
+                "algorithm_id": self.runtime_binding["algorithm_id"],
+                "tracker_id": self.runtime_binding["tracker_id"],
+                "algorithm_capability_evidence": _deep_thaw(self.algorithm_capability_evidence),
+            },
+            "replay_evidence": {
+                "entry_name": self.current_window["entry_name"],
+                "source_row_count": self.current_window["source_row_count"],
+                "normalized_row_count": self.current_window["normalized_row_count"],
+                "runtime_actor_count": self.current_window["runtime_actor_count"],
+                "reference_mmsi": self.current_window["reference_mmsi"],
+                "target_mmsi": list(self.current_window["target_mmsi"]),
+                "enc_profile_id": self.enc["profile_id"],
+            },
+            "digests": {
+                "descriptor_sha256": self.descriptor_sha256,
+                "archive_sha256": self.archive_sha256,
+                "entry_sha256": self.current_window["entry_sha256"],
+                "selection_sha256": self.current_window["expected_selection_sha256"],
+                "normalized_sha256": self.current_window["expected_normalized_sha256"],
+                "enc_profile_sha256": self.enc["profile_digest"],
+                "dimension_registry_sha256": self._dimension_registry().digest,
+            },
+        }
+
+    def operability(self, readiness: HistoricalAISScenarioSourceReadiness) -> dict[str, str]:
+        """Report bounded operability from source, ENC and dimension readiness only."""
+        runtime_mmsi = {int(value) for value in self.current_window["runtime_mmsi"]}
+        dimension_mmsi = {int(record["mmsi"]) for record in self.dimensions["records"]}
+        available = (
+            readiness.status is HistoricalAISScenarioReadiness.READY
+            and self.enc["qualification_state"] == "QUALIFIED"
+            and runtime_mmsi <= dimension_mmsi
+        )
+        return {"status": "AVAILABLE" if available else "UNAVAILABLE", "scope": "BOUNDED"}
 
     def readiness(self, environ: Mapping[str, str] | None = None) -> HistoricalAISScenarioSourceReadiness:
         """Check configured source identity without exposing its local path."""
@@ -266,12 +338,53 @@ class HistoricalAISScenarioDescriptor:
             "run_spec": self._run_spec("COUNTERFACTUAL", run_spec_overrides),
         }
 
+    def build_acceptance_request(
+        self,
+        *,
+        run_spec_overrides: Mapping[str, Any] | None = None,
+        environ: Mapping[str, str] | None = None,
+    ) -> HistoricalAISAcceptanceRequest:
+        """Build the two-run Counterfactual qualification request for this scene."""
+        source = self.require_source(environ)
+        selection = self.selection()
+        dataset = HistoricalAISDatasetReader(source).read(selection)
+        enc_profile = build_expanded_romsdal_profile()
+        if enc_profile.profile_digest != str(self.enc["profile_digest"]):
+            raise HistoricalAISScenarioError(
+                HistoricalAISScenarioReadiness.SOURCE_ARCHIVE_UNREADABLE,
+                "Romsdal ENC profile digest differs from the published scene descriptor",
+            )
+        human_reference = _historical_reference(dataset, enc_profile, int(self.current_window["reference_mmsi"]))
+        window = HistoricalRealWindowSelection(
+            source_name=str(self.archive_scope["source_name"]),
+            archive_sha256=self.archive_sha256,
+            entry_name=str(self.current_window["entry_name"]),
+            selection=selection,
+            reference_mmsi=int(self.current_window["reference_mmsi"]),
+            selected_mmsi=tuple(int(value) for value in self.current_window["runtime_mmsi"]),
+            enc_profile_id=str(self.enc["profile_id"]),
+            dimension_registry_id=str(self.dimensions["registry_id"]),
+            t0_utc=str(self.current_window["t0_utc"]),
+        )
+        return HistoricalAISAcceptanceRequest(
+            source=source,
+            window=window,
+            enc_profile=enc_profile,
+            dimension_registry=self._dimension_registry(),
+            run_spec=RunSpec.from_dict(self._run_spec("COUNTERFACTUAL", run_spec_overrides)),
+            human_reference=human_reference,
+            human_reference_artifact_digest=human_reference.trajectory_digest,
+        )
+
     def _run_spec(self, mode: str, overrides: Mapping[str, Any] | None) -> dict[str, Any]:
         binding = self.runtime_binding
+        capability_evidence = _deep_thaw(self.algorithm_capability_evidence)
         if mode == "HISTORICAL_REPLAY":
+            capability_evidence["exact_tuple"][2] = "nominal"
             result: dict[str, Any] = {
-                "scenario_id": str(binding["execution_scenario_id"]),
-                "validation_rule_id": str(binding["validation_rule_id"]),
+                "scenario_id": self.scenario_id,
+                "historical_scenario_id": self.scenario_id,
+                "algorithm_capability_evidence": capability_evidence,
                 "algorithm_id": "nominal",
                 "tracker_id": str(binding["tracker_id"]),
                 "t_end": 60.0,
@@ -281,8 +394,9 @@ class HistoricalAISScenarioDescriptor:
             }
         else:
             result = {
-                "scenario_id": str(binding["execution_scenario_id"]),
-                "validation_rule_id": str(binding["validation_rule_id"]),
+                "scenario_id": self.scenario_id,
+                "historical_scenario_id": self.scenario_id,
+                "algorithm_capability_evidence": capability_evidence,
                 "algorithm_id": str(binding["algorithm_id"]),
                 "tracker_id": str(binding["tracker_id"]),
                 "t_end": 60.0,
@@ -334,6 +448,7 @@ class HistoricalAISScenarioDescriptor:
     def _case_document(self) -> dict[str, Any]:
         return {
             "published": True,
+            "historical_scenario_id": self.scenario_id,
             "reference_mmsi": int(self.current_window["reference_mmsi"]),
             "t0_utc": str(self.current_window["t0_utc"]),
             "discovery_profile": {
@@ -392,6 +507,7 @@ class HistoricalAISScenarioCatalog:
                 enc=dict(document["enc"]),
                 dimensions=dict(document["dimensions"]),
                 runtime_binding=dict(document["runtime_binding"]),
+                algorithm_capability_evidence=dict(document["algorithm_capability_evidence"]),
                 source_binding=dict(document["source_binding"]),
                 limitations=tuple(str(value) for value in document["limitations"]),
                 descriptor_sha256=str(document.get("descriptor_sha256", "")),
@@ -399,14 +515,19 @@ class HistoricalAISScenarioCatalog:
         }
 
     def list(self, environ: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
-        return [
-            {
-                **descriptor.to_dict(),
-                "id": descriptor.scenario_id,
-                "readiness": descriptor.readiness(environ).to_dict(),
-            }
-            for descriptor in self._descriptors.values()
-        ]
+        output = []
+        for descriptor in self._descriptors.values():
+            readiness = descriptor.readiness(environ)
+            output.append(
+                {
+                    **descriptor.to_dict(),
+                    "id": descriptor.scenario_id,
+                    "readiness": readiness.to_dict(),
+                    "operability": descriptor.operability(readiness),
+                    "presentation": descriptor.presentation(readiness),
+                }
+            )
+        return output
 
     def get(self, scenario_id: str) -> HistoricalAISScenarioDescriptor:
         try:
@@ -416,7 +537,13 @@ class HistoricalAISScenarioCatalog:
 
     def document(self, scenario_id: str, environ: Mapping[str, str] | None = None) -> dict[str, Any]:
         descriptor = self.get(scenario_id)
-        return {**descriptor.to_dict(), "readiness": descriptor.readiness(environ).to_dict()}
+        readiness = descriptor.readiness(environ)
+        return {
+            **descriptor.to_dict(),
+            "readiness": readiness.to_dict(),
+            "operability": descriptor.operability(readiness),
+            "presentation": descriptor.presentation(readiness),
+        }
 
 
 def _historical_reference(dataset: Any, enc_profile: Any, reference_mmsi: int) -> HistoricalBenchmarkTrajectory:
@@ -460,6 +587,22 @@ def _enc_document(profile: Any) -> dict[str, Any]:
         "hazard_geometry_wkb_hex": profile.hazard_geometry_wkb.hex(),
         "navigability_geometry_wkb_hex": profile.navigability_geometry_wkb.hex(),
     }
+
+
+def _deep_freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(key): _deep_freeze(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_deep_freeze(item) for item in value)
+    return value
+
+
+def _deep_thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _deep_thaw(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_deep_thaw(item) for item in value]
+    return value
 
 
 def _sha256_file(path: Path) -> str:

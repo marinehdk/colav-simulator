@@ -89,6 +89,8 @@ class RunSpec:
     output_root: str = "runs"
     replay_of_run_id: str | None = None
     historical_replay: dict[str, Any] | None = None
+    historical_scenario_id: str | None = None
+    algorithm_capability_evidence: dict[str, Any] | None = None
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -117,6 +119,9 @@ class RunSpec:
             raise ValueError("evaluator_profile_id is required")
         if self.historical_replay is not None and not isinstance(self.historical_replay, dict):
             raise ValueError("historical_replay must be a serialized replay request mapping")
+        self.historical_scenario_id = _normalize_historical_scenario_id(self)
+        if self.algorithm_capability_evidence is not None:
+            self.algorithm_capability_evidence = _normalize_algorithm_capability_evidence(self)
         if isinstance(self.reproduction_level, str):
             self.reproduction_level = ReproductionLevel(self.reproduction_level)
         if self.domain_profile is not None and not isinstance(self.domain_profile, ShipDomainProfile):
@@ -125,6 +130,15 @@ class RunSpec:
     @property
     def seeds(self) -> SeedBundle:
         return SeedBundle.derive(self.seed)
+
+    @property
+    def capability_tuple(self) -> tuple[str, str, str, str] | None:
+        """Return execution capability evidence without changing scenario identity."""
+        if self.algorithm_capability_evidence is not None:
+            return tuple(self.algorithm_capability_evidence["exact_tuple"])  # type: ignore[return-value]
+        if self.validation_rule_id is None:
+            return None
+        return (self.validation_rule_id, self.scenario_id, self.algorithm_id, self.tracker_id)
 
     def to_dict(self) -> dict[str, Any]:
         output = asdict(self)
@@ -157,6 +171,32 @@ def _ship_domain_profile_from_mapping(value: Mapping[str, Any]) -> ShipDomainPro
     if declared_hash is not None and str(declared_hash) != profile.profile_hash:
         raise ValueError("ShipDomainProfile profile_hash does not match profile parameters")
     return profile
+
+
+def _normalize_algorithm_capability_evidence(spec: RunSpec) -> dict[str, Any]:
+    if spec.historical_scenario_id is None:
+        raise ValueError("Algorithm Capability evidence requires historical_scenario_id")
+    evidence = dict(spec.algorithm_capability_evidence or {})
+    exact_tuple = tuple(evidence.get("exact_tuple", ()))
+    if evidence.get("binding_role") != "ALGORITHM_CAPABILITY_ONLY":
+        raise ValueError("Algorithm Capability evidence binding_role is invalid")
+    if evidence.get("geometry_equivalence") is not False:
+        raise ValueError("Algorithm Capability evidence cannot claim geometry equivalence")
+    if len(exact_tuple) != 4:
+        raise ValueError("Algorithm Capability evidence requires one exact tuple")
+    if exact_tuple[2:] != (spec.algorithm_id, spec.tracker_id):
+        raise ValueError("Algorithm Capability evidence algorithm/tracker differs from RunSpec")
+    evidence["exact_tuple"] = list(exact_tuple)
+    return evidence
+
+
+def _normalize_historical_scenario_id(spec: RunSpec) -> str | None:
+    if spec.historical_scenario_id is None:
+        return None
+    historical_scenario_id = spec.historical_scenario_id.strip()
+    if not historical_scenario_id or historical_scenario_id != spec.scenario_id:
+        raise ValueError("historical_scenario_id must equal the authoritative scenario_id")
+    return historical_scenario_id
 
 
 @dataclass
@@ -217,6 +257,7 @@ class RunManifest:
     historical_case_digest: str | None = None
     historical_reference_artifact_digest: str | None = None
     historical_execution_mode: str | None = None
+    historical_scenario_id: str | None = None
     schema_version: str = SCHEMA_VERSION
 
     @classmethod
