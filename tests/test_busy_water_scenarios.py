@@ -4,7 +4,7 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from colav_simulator.core.colav.diagnostics import ColavExecutionError
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.experiment.busy_water import (
     BUSY_WATER_DURATION_S,
     DEFAULT_ENCOUNTER_MIX,
@@ -139,8 +139,9 @@ def test_mid_mpc_is_selectable_only_for_capacity_bounded_busy_water() -> None:
     assert catalog.validate("multiship", "romsdal_busy_water_16", "mid_mpc_ipopt", "god") == (
         "multiship:romsdal_busy_water_16:mid_mpc_ipopt:god"
     )
-    with pytest.raises(ColavExecutionError, match="No selectable capability tuple"):
+    with pytest.raises(ColavExecutionError, match="No product capability tuple") as raised:
         catalog.validate("multiship", "romsdal_busy_water_80_stress", "mid_mpc_ipopt", "god")
+    assert raised.value.status is PlanStatus.INVALID_INPUT
 
 
 def test_busy_water_generate_and_draft_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
