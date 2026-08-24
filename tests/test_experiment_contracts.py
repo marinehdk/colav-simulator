@@ -29,9 +29,9 @@ def test_seed_bundle_is_stable_and_separated() -> None:
 
 
 def test_run_spec_validation_and_round_trip() -> None:
-    spec = RunSpec("head_on", algorithm_id="SBMPC", tracker_id="KF", seed=7, dt=0.5)
+    spec = RunSpec("head_on", algorithm_id="VO", tracker_id="GOD", seed=7, dt=0.5)
     assert RunSpec.from_dict(spec.to_dict()).to_dict() == spec.to_dict()
-    assert spec.algorithm_id == "sbmpc"
+    assert spec.algorithm_id == "vo"
     with pytest.raises(ValueError):
         RunSpec("", seed=0)
     with pytest.raises(ValueError):

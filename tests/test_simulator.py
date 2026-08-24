@@ -10,18 +10,19 @@ from pprint import pformat
 import pytest
 
 import colav_simulator.common.paths as dp
-import colav_simulator.core.colav.colav_interface as ci
 import colav_simulator.scenario_generator as sg
 import colav_simulator.simulator as sim
+from colav_simulator.integrations import IntegrationRegistry
 
 
 def test_simulator() -> None:
-    sbmpc_obj = ci.SBMPCWrapper()
+    vo = IntegrationRegistry().build_algorithm("vo")
+    assert vo is not None
     scenario_generator = sg.ScenarioGenerator()
     scenario_data_list = scenario_generator.generate_configured_scenarios()
     simulator = sim.Simulator()
     simulator.toggle_liveplot_visibility(True)
-    output = simulator.run(scenario_data_list, colav_systems=[(0, sbmpc_obj)])
+    output = simulator.run(scenario_data_list, colav_systems=[(0, vo)])
     print("Simulation output: ", pformat(output))
 
 
@@ -60,10 +61,11 @@ def test_simulator_data_output() -> None:
         n_episodes=1,
         delete_existing_files=True,
     )
-    sbmpc_obj = ci.SBMPCWrapper()
+    vo = IntegrationRegistry().build_algorithm("vo")
+    assert vo is not None
     simulator = sim.Simulator()
     simulator.toggle_liveplot_visibility(True)
-    output = simulator.run([scenario_data], colav_systems=[(0, sbmpc_obj)])
+    output = simulator.run([scenario_data], colav_systems=[(0, vo)])
 
     print("Episode 1 vessel data container length:")
     print(len(output[0]["episode_simdata_list"][0]["vessel_data"]))
