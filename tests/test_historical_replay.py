@@ -10,6 +10,8 @@ from shapely.geometry import MultiPolygon
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_replay import (
     ENCPreflightEvidence,
+    ENCPreflightEvidenceError,
+    ENCPreflightEvidenceErrorCode,
     HistoricalActorSampleKind,
     HistoricalActorSet,
     HistoricalActorShip,
@@ -47,6 +49,49 @@ def _enc_evidence(actor_set: HistoricalActorSet) -> ENCPreflightEvidence:
         preflight_status="PASS",
         all_positions_contained=True,
     )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    (
+        ("tamper", ENCPreflightEvidenceErrorCode.QUALITY_INCOMPLETE),
+        ("unqualified", ENCPreflightEvidenceErrorCode.ENC_UNQUALIFIED),
+        ("preflight", ENCPreflightEvidenceErrorCode.PREFLIGHT_FAILED),
+        ("outside", ENCPreflightEvidenceErrorCode.OUTSIDE_COVERAGE),
+    ),
+)
+def test_enc_preflight_evidence_uses_structured_error_codes(
+    mutation: str,
+    expected_code: ENCPreflightEvidenceErrorCode,
+) -> None:
+    document = ENCPreflightEvidence(
+        profile_id="enc",
+        qualification_state="QUALIFIED",
+        supported_extent_projected=(0.0, 0.0, 10.0, 10.0),
+        profile_digest="profile",
+        cache_digest="cache",
+        source_digest="source",
+        preflight_status="PASS",
+        all_positions_contained=True,
+    ).to_dict()
+    if mutation == "tamper":
+        document["profile_digest"] = "changed"
+    elif mutation == "unqualified":
+        document["qualification_state"] = "UNQUALIFIED"
+    elif mutation == "preflight":
+        document["preflight_status"] = "HAZARD_INTERSECTION"
+    else:
+        document["all_positions_contained"] = False
+
+    with pytest.raises(ENCPreflightEvidenceError) as raised:
+        ENCPreflightEvidence.from_dict(document)
+
+    assert raised.value.code is expected_code
+    if mutation == "tamper":
+        document["supported_extent_projected"] = None
+        with pytest.raises(ENCPreflightEvidenceError) as malformed:
+            ENCPreflightEvidence.from_dict(document)
+        assert malformed.value.code is ENCPreflightEvidenceErrorCode.QUALITY_INCOMPLETE
 
 
 def test_reconstruction_profile_is_versioned_and_semantically_stable() -> None:

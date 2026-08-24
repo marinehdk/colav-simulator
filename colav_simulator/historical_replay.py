@@ -898,6 +898,23 @@ HistoricalAISActorReconstructor = HistoricalAISReconstructor
 HistoricalActorReconstructionProfile = HistoricalAISReconstructionProfile
 
 
+class ENCPreflightEvidenceErrorCode(str, Enum):
+    """Machine-readable failure boundary for Replay ENC evidence."""
+
+    ENC_UNQUALIFIED = "ENC_UNQUALIFIED"
+    PREFLIGHT_FAILED = "PREFLIGHT_FAILED"
+    OUTSIDE_COVERAGE = "OUTSIDE_COVERAGE"
+    QUALITY_INCOMPLETE = "QUALITY_INCOMPLETE"
+
+
+class ENCPreflightEvidenceError(ValueError):
+    """Typed validation error consumed directly by API classification."""
+
+    def __init__(self, code: ENCPreflightEvidenceErrorCode | str, message: str) -> None:
+        super().__init__(message)
+        self.code = ENCPreflightEvidenceErrorCode(code)
+
+
 @dataclass(frozen=True)
 class ENCPreflightEvidence:
     """Authenticated qualified-ENC/preflight contract for Historical runtime."""
@@ -914,23 +931,52 @@ class ENCPreflightEvidence:
 
     def __post_init__(self) -> None:
         """Validate qualification, coverage extent and semantic identity."""
-        extent = tuple(float(value) for value in self.supported_extent_projected)
+        try:
+            extent = tuple(float(value) for value in self.supported_extent_projected)
+        except (TypeError, ValueError) as exc:
+            raise ENCPreflightEvidenceError(
+                ENCPreflightEvidenceErrorCode.QUALITY_INCOMPLETE,
+                "qualified ENC projected extent must contain four finite values",
+            ) from exc
         if len(extent) != 4 or not all(math.isfinite(value) for value in extent):
-            raise ValueError("qualified ENC projected extent must contain four finite values")
+            raise ENCPreflightEvidenceError(
+                ENCPreflightEvidenceErrorCode.QUALITY_INCOMPLETE,
+                "qualified ENC projected extent must contain four finite values",
+            )
         min_x, min_y, max_x, max_y = extent
         if min_x > max_x or min_y > max_y:
-            raise ValueError("qualified ENC projected extent must be ordered")
+            raise ENCPreflightEvidenceError(
+                ENCPreflightEvidenceErrorCode.QUALITY_INCOMPLETE,
+                "qualified ENC projected extent must be ordered",
+            )
         identities = (self.profile_id, self.profile_digest, self.cache_digest, self.source_digest)
         if not all(str(value).strip() for value in identities):
-            raise ValueError("qualified ENC profile/cache/source identity is required")
+            raise ENCPreflightEvidenceError(
+                ENCPreflightEvidenceErrorCode.QUALITY_INCOMPLETE,
+                "qualified ENC profile/cache/source identity is required",
+            )
         if self.qualification_state != "QUALIFIED":
-            raise ValueError("ENC qualification state must be QUALIFIED")
-        if self.preflight_status != "PASS" or self.all_positions_contained is not True:
-            raise ValueError("ENC preflight must PASS with all positions contained")
+            raise ENCPreflightEvidenceError(
+                ENCPreflightEvidenceErrorCode.ENC_UNQUALIFIED,
+                "ENC qualification state must be QUALIFIED",
+            )
+        if self.all_positions_contained is not True or self.preflight_status == "OUTSIDE_COVERAGE":
+            raise ENCPreflightEvidenceError(
+                ENCPreflightEvidenceErrorCode.OUTSIDE_COVERAGE,
+                "ENC preflight does not contain all Replay positions",
+            )
+        if self.preflight_status != "PASS":
+            raise ENCPreflightEvidenceError(
+                ENCPreflightEvidenceErrorCode.PREFLIGHT_FAILED,
+                f"ENC preflight status is {self.preflight_status}",
+            )
         object.__setattr__(self, "supported_extent_projected", extent)
         digest = _sha256_json(self._identity_dict())
         if self.evidence_digest and self.evidence_digest != digest:
-            raise ValueError("ENC preflight evidence digest mismatch")
+            raise ENCPreflightEvidenceError(
+                ENCPreflightEvidenceErrorCode.QUALITY_INCOMPLETE,
+                "ENC preflight evidence digest mismatch",
+            )
         object.__setattr__(self, "evidence_digest", digest)
 
     def _identity_dict(self) -> dict[str, Any]:
@@ -950,17 +996,25 @@ class ENCPreflightEvidence:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> ENCPreflightEvidence:
-        return cls(
-            profile_id=str(value.get("profile_id", "")),
-            qualification_state=str(value.get("qualification_state", "")),
-            supported_extent_projected=tuple(value.get("supported_extent_projected", ())),
-            profile_digest=str(value.get("profile_digest", "")),
-            cache_digest=str(value.get("cache_digest", "")),
-            source_digest=str(value.get("source_digest", "")),
-            preflight_status=str(value.get("preflight_status", "")),
-            all_positions_contained=value.get("all_positions_contained") is True,
-            evidence_digest=str(value.get("evidence_digest", "")),
-        )
+        try:
+            return cls(
+                profile_id=str(value.get("profile_id", "")),
+                qualification_state=str(value.get("qualification_state", "")),
+                supported_extent_projected=tuple(value.get("supported_extent_projected", ())),
+                profile_digest=str(value.get("profile_digest", "")),
+                cache_digest=str(value.get("cache_digest", "")),
+                source_digest=str(value.get("source_digest", "")),
+                preflight_status=str(value.get("preflight_status", "")),
+                all_positions_contained=value.get("all_positions_contained") is True,
+                evidence_digest=str(value.get("evidence_digest", "")),
+            )
+        except ENCPreflightEvidenceError:
+            raise
+        except (TypeError, ValueError) as exc:
+            raise ENCPreflightEvidenceError(
+                ENCPreflightEvidenceErrorCode.QUALITY_INCOMPLETE,
+                "ENC preflight evidence has an invalid field shape",
+            ) from exc
 
 
 @dataclass(frozen=True)
@@ -1216,7 +1270,10 @@ def _validate_actor_positions_in_enc(
         )
     ]
     if outside:
-        raise ValueError("Historical Replay actor positions are outside qualified ENC coverage")
+        raise ENCPreflightEvidenceError(
+            ENCPreflightEvidenceErrorCode.OUTSIDE_COVERAGE,
+            "Historical Replay actor positions are outside qualified ENC coverage",
+        )
 
 
 @dataclass(frozen=True)
@@ -1306,6 +1363,8 @@ HistoricalAISReplayFactory = HistoricalReplayFactory
 
 __all__ = [
     "ENCPreflightEvidence",
+    "ENCPreflightEvidenceError",
+    "ENCPreflightEvidenceErrorCode",
     "HistoricalAISActorReconstructor",
     "HistoricalAISReconstructionProfile",
     "HistoricalAISReconstructor",

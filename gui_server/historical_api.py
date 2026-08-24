@@ -60,6 +60,7 @@ from colav_simulator.historical_enc import (
 )
 from colav_simulator.historical_replay import (
     ENCPreflightEvidence,
+    ENCPreflightEvidenceError,
     HistoricalActorSet,
     HistoricalAISReconstructionProfile,
     HistoricalAISReconstructor,
@@ -101,6 +102,7 @@ class HistoricalWorkflowErrorCode(str, Enum):
     BINDINGS_UNAVAILABLE = "BINDINGS_UNAVAILABLE"
     ENC_UNQUALIFIED = "ENC_UNQUALIFIED"
     OUTSIDE_COVERAGE = "OUTSIDE_COVERAGE"
+    PREFLIGHT_FAILED = "PREFLIGHT_FAILED"
     FUTURE_LEAKAGE = "FUTURE_LEAKAGE"
     DATASET_UNAVAILABLE = "DATASET_UNAVAILABLE"
     DIMENSIONS_UNAVAILABLE = "DIMENSIONS_UNAVAILABLE"
@@ -967,14 +969,8 @@ def _decode_replay_enc_evidence(replay_document: dict[str, Any]) -> ENCPreflight
         )
     try:
         return ENCPreflightEvidence.from_dict(document)
-    except ValueError as exc:
-        if "evidence digest mismatch" in str(exc):
-            status = "QUALITY_INCOMPLETE"
-        elif "positions contained" in str(exc):
-            status = "OUTSIDE_COVERAGE"
-        else:
-            status = "ENC_UNQUALIFIED"
-        raise HistoricalWorkflowError(status, str(exc)) from exc
+    except ENCPreflightEvidenceError as exc:
+        raise HistoricalWorkflowError(exc.code.value, str(exc)) from exc
 
 
 def _build_historical_replay_request(
@@ -1003,10 +999,8 @@ def _build_historical_replay_request(
             dimension_effective_at_utc=str(effective_at),
             dimension_record_digests=tuple((record.mmsi, record.source_digest) for record in registry.records),
         )
-    except ValueError as exc:
-        if "outside qualified ENC coverage" in str(exc):
-            raise HistoricalWorkflowError("OUTSIDE_COVERAGE", str(exc)) from exc
-        raise
+    except ENCPreflightEvidenceError as exc:
+        raise HistoricalWorkflowError(exc.code.value, str(exc)) from exc
     if replay_document:
         raise ValueError(f"unsupported Replay fields: {sorted(replay_document)}")
     return request

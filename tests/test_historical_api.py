@@ -351,6 +351,7 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
     (
         ("tamper", "QUALITY_INCOMPLETE"),
         ("unqualified", "ENC_UNQUALIFIED"),
+        ("preflight", "PREFLIGHT_FAILED"),
         ("outside", "OUTSIDE_COVERAGE"),
     ),
 )
@@ -366,6 +367,8 @@ def test_historical_replay_api_rejects_invalid_typed_enc_preflight_evidence(
         evidence["profile_digest"] = "0" * 64
     elif mutation == "unqualified":
         evidence["qualification_state"] = "UNQUALIFIED"
+    elif mutation == "preflight":
+        evidence["preflight_status"] = "HAZARD_INTERSECTION"
     else:
         evidence["all_positions_contained"] = False
     request.update(
