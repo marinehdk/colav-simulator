@@ -98,7 +98,7 @@ test('legacy Deployment configuration is hidden and cannot imply it applies to V
   assert.match(legacy, /LEGACY_CONFIG_CARD_IDS/);
   assert.match(legacy, /Configuration moved to Config/);
   assert.doesNotMatch(legacy, /Create from Config to apply it/);
-  assert.match(legacy, /future Scenario surface/);
+  assert.match(legacy, /Validation Assembly .*sole capability\/catalog and.*bootstrap authority/s);
 });
 
 test('ENC loading is replacement-bound and stale fetch/image callbacks are inert', async () => {
