@@ -156,6 +156,59 @@ function countFrom(value, candidates) {
   return 0;
 }
 
+function hasCountField(value, candidates) {
+  const object = asObject(value);
+  return candidates.some(candidate => Object.prototype.hasOwnProperty.call(object, candidate));
+}
+
+function actualCount(primary, candidates, fallback) {
+  return hasCountField(primary, candidates) ? countFrom(primary, candidates) : countFrom(fallback, candidates);
+}
+
+function normalizeDomainStatuses(value) {
+  return Object.fromEntries(Object.entries(asObject(value)).map(([domain, status]) => [
+    domain,
+    typeof status === 'string' ? status : firstDefined(asObject(status).status, null),
+  ]));
+}
+
+function normalizeDeterminism(document, evidence, mode) {
+  if (mode === 'HISTORICAL_REPLAY') return { status: 'NOT_APPLICABLE', mismatches: [] };
+  const rawValue = firstDefined(evidence.determinism, document.determinism);
+  const raw = asObject(rawValue);
+  const mismatchesValue = firstDefined(raw.mismatches, document.determinism_mismatches);
+  const mismatches = asArray(mismatchesValue);
+  if (typeof raw.status === 'string' && raw.status) {
+    return { status: raw.status, mismatches };
+  }
+  if (Array.isArray(mismatchesValue)) {
+    return { status: mismatches.length ? 'FAIL' : 'PASS', mismatches };
+  }
+  return { status: 'NOT_CHECKED', mismatches: [] };
+}
+
+function normalizeLeakage(leakage, mode) {
+  if (typeof leakage.status === 'string' && leakage.status) return leakage.status;
+  if (mode === 'HISTORICAL_REPLAY') return 'NOT_APPLICABLE';
+  if (Object.prototype.hasOwnProperty.call(leakage, 'human_reference_digest_in_run_spec')) {
+    return leakage.human_reference_digest_in_run_spec === false ? 'PASS_CONTRACT' : 'FAIL_CONTRACT';
+  }
+  return null;
+}
+
+function normalizeExpectedThreat(scenario) {
+  const sealed = asObject(scenario.sealed_expected);
+  const expectedEvidence = asObject(scenario.expected_evidence);
+  const expected = asObject(firstDefined(sealed.threat, expectedEvidence.threat));
+  const keys = ['vectors', 'vector_count', 'schedule', 'schedule_context_count', 'clusters', 'cluster_count'];
+  if (!hasCountField(expected, keys)) return null;
+  return {
+    vectors: countFrom(expected, ['vectors', 'vector_count']),
+    schedule: countFrom(expected, ['schedule', 'schedule_context_count']),
+    clusters: countFrom(expected, ['clusters', 'cluster_count']),
+  };
+}
+
 function normalizeEvidence(workflow) {
   const document = asObject(workflow);
   const evidence = asObject(document.evidence);
@@ -164,22 +217,24 @@ function normalizeEvidence(workflow) {
   const threat = asObject(firstDefined(evidence.threat, document.threat));
   const compare = asObject(firstDefined(document.compare, evidence.compare));
   const evaluation = asObject(firstDefined(evidence.evaluation, document.evaluation));
-  const determinism = asObject(firstDefined(evidence.determinism, document.determinism));
-  const conflicts = asObject(firstDefined(snapshot.conflicts, snapshot.conflict_graph, threat.conflicts));
-  const schedule = asObject(firstDefined(snapshot.schedule, threat.schedule));
+  const snapshotSchedule = asObject(snapshot.schedule);
+  const evidenceSchedule = asObject(threat.schedule);
+  const snapshotConflictGraph = asObject(snapshot.conflict_graph);
+  const evidenceConflictGraph = asObject(threat.conflict_graph);
   const leakage = asObject(document.leakage);
-  const domainStatuses = asObject(firstDefined(compare.domain_statuses, compare.domains));
+  const domainStatuses = normalizeDomainStatuses(firstDefined(compare.domain_statuses, compare.domains));
+  const mode = firstDefined(document.mode, run.historical_execution_mode, null);
 
   return {
-    mode: firstDefined(document.mode, run.historical_execution_mode, null),
+    mode,
     fallback: firstDefined(run.fallback_used, null),
     threat: {
-      vectors: countFrom(snapshot, ['vectors', 'vector_count']) || countFrom(threat, ['vectors', 'vector_count']),
-      schedule: countFrom(schedule, ['context', 'contexts', 'schedule_context_count']) || countFrom(threat, ['schedule_context_count']),
-      clusters: countFrom(conflicts, ['clusters', 'cluster_count']) || countFrom(threat, ['cluster_count']),
+      vectors: actualCount(snapshot, ['vectors', 'vector_count'], threat),
+      schedule: actualCount(snapshotSchedule, ['entries', 'schedule_context_count'], evidenceSchedule),
+      clusters: actualCount(snapshotConflictGraph, ['clusters', 'cluster_count'], evidenceConflictGraph),
     },
-    leakage: firstDefined(leakage.status, null),
-    determinism: asArray(firstDefined(determinism.mismatches, document.determinism_mismatches, [])),
+    leakage: normalizeLeakage(leakage, mode),
+    determinism: normalizeDeterminism(document, evidence, mode),
     compareDomains: domainStatuses,
     verdict: firstDefined(compare.overall_assurance_verdict, compare.verdict, null),
     evaluationStatus: firstDefined(evaluation.evaluation_status, null),
@@ -230,6 +285,9 @@ export function createHistoricalAISProjection(value, workflow = null) {
       profileId: firstDefined(scenario.enc.profile_id, 'romsdal-expanded'),
       qualification: firstDefined(scenario.enc.qualification_state, scenario.enc.qualification, 'UNKNOWN'),
       preflight: firstDefined(scenario.enc.preflight_status, scenario.enc.status, 'UNKNOWN'),
+    },
+    qualification: {
+      expectedThreat: normalizeExpectedThreat(scenario),
     },
     modes: asArray(scenario.modes),
     limitation: scenario.limitation,
@@ -400,6 +458,12 @@ function renderScenarioDetail(documentRef, projection) {
   setText(documentRef, 'historicalAISScenarioEnc', `${projection.enc.profileId} · ${projection.enc.qualification}`);
   setText(documentRef, 'historicalAISScenarioRows', `${formatRows(projection.selection.sourceRows)} source / ${formatRows(projection.selection.normalizedRows)} normalized`);
   setText(documentRef, 'historicalAISScenarioQuality', `${formatRows(projection.selection.qualityFindings)} quality findings`);
+  const expectedThreat = projection.qualification.expectedThreat;
+  setText(
+    documentRef,
+    'historicalAISScenarioQualificationThreat',
+    expectedThreat ? `${expectedThreat.vectors}/${expectedThreat.schedule}/${expectedThreat.clusters} sealed expected · not runtime` : 'NOT PUBLISHED',
+  );
   setText(documentRef, 'historicalAISScenarioLimitation', projection.limitation);
   const banner = documentRef.getElementById('historicalAISScenarioLimitation');
   banner?.closest('.historical-ais-limitation')?.classList.toggle('is-warning', !projection.source.bound);
@@ -430,7 +494,14 @@ function renderBenchmark(documentRef, projection, selectedMode) {
   setText(documentRef, 'historicalAISEvidenceFallback', projection.evidence.fallback === null ? '—' : String(projection.evidence.fallback));
   setText(documentRef, 'historicalAISEvidenceThreat', `${projection.evidence.threat.vectors}/${projection.evidence.threat.schedule}/${projection.evidence.threat.clusters}`);
   setText(documentRef, 'historicalAISEvidenceLeakage', projection.evidence.leakage);
-  setText(documentRef, 'historicalAISEvidenceDeterminism', projection.evidence.determinism.length ? `${projection.evidence.determinism.length} mismatch` : 'PASS · 0 mismatches');
+  const determinism = projection.evidence.determinism;
+  setText(
+    documentRef,
+    'historicalAISEvidenceDeterminism',
+    ['PASS', 'FAIL'].includes(determinism.status)
+      ? `${determinism.status} · ${determinism.mismatches.length} mismatches`
+      : determinism.status,
+  );
   setText(documentRef, 'historicalAISEvidenceVerdict', projection.evidence.verdict || projection.evidence.evaluationGate);
   const domains = projection.evidence.compareDomains || {};
   ['safety', 'colreg', 'maneuver', 'efficiency', 'human_similarity'].forEach(domain => {

@@ -1,0 +1,57 @@
+{
+  "schema_version": "historical-workflow.snapshot.v1",
+  "workflow_id": "workflow-browser-regression",
+  "mode": "COUNTERFACTUAL",
+  "status": "COMPLETED",
+  "stages": {
+    "dataset": "SELECTED",
+    "case": "PUBLISHED",
+    "replay": "NOT_APPLICABLE",
+    "counterfactual": "COMPLETED",
+    "evaluation": "COMPLETE",
+    "compare": "COMPLETE"
+  },
+  "leakage": {
+    "human_reference_digest_in_run_spec": false,
+    "reference_runtime_last_time_s": 30.0
+  },
+  "evidence": {
+    "run": {
+      "fallback_used": false,
+      "historical_execution_mode": "COUNTERFACTUAL"
+    },
+    "threat_snapshot": {
+      "vectors": [
+        { "track_key": "257252000:0" },
+        { "track_key": "258764000:0" }
+      ],
+      "schedule": {
+        "entries": [
+          { "track_key": "257252000:0", "membership": "PRIMARY" },
+          { "track_key": "258764000:0", "membership": "CONCURRENT_REQUIRED" }
+        ]
+      },
+      "conflicts": {
+        "edges": []
+      },
+      "conflict_graph": {
+        "clusters": []
+      }
+    },
+    "evaluation": {
+      "evaluation_status": "COMPLETE",
+      "gate": "PASS"
+    }
+  },
+  "compare": {
+    "status": "COMPLETE",
+    "overall_assurance_verdict": "PASS",
+    "domain_statuses": {
+      "safety": { "status": "COMPLETE", "verdict": "PASS" },
+      "colreg": { "status": "COMPLETE", "verdict": "PASS" },
+      "maneuver": { "status": "COMPLETE" },
+      "efficiency": { "status": "COMPLETE" },
+      "human_similarity": { "status": "COMPLETE" }
+    }
+  }
+}

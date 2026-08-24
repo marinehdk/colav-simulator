@@ -10,6 +10,10 @@ import {
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
+const runtimeShape = JSON.parse(await readFile(
+  new URL('./fixtures/historical-workflow-runtime-shape.json', import.meta.url),
+  'utf8',
+));
 
 test('Historical AIS is an additive Scenario and Evaluation workface surface', () => {
   assert.match(html, /id="historicalAISScenarioList"/);
@@ -41,48 +45,21 @@ test('browse projection labels the bounded one-minute window and archive limitat
   assert.match(projection.limitation, /全archive未完成ENC资格/);
 });
 
-test('completed counterfactual projection exposes typed evidence without calculating risk in the browser', () => {
-  const projection = createHistoricalAISProjection(DEFAULT_HISTORICAL_AIS_SCENARIO, {
-    workflow_id: 'workflow-1',
-    mode: 'COUNTERFACTUAL',
-    status: 'COMPLETED',
-    stages: {
-      dataset: 'SELECTED',
-      case: 'PUBLISHED',
-      replay: 'NOT_APPLICABLE',
-      counterfactual: 'COMPLETED',
-      evaluation: 'COMPLETE',
-      compare: 'COMPLETE',
+test('completed counterfactual projection reads runtime threat shape instead of sealed expected counts', () => {
+  const projection = createHistoricalAISProjection({
+    ...DEFAULT_HISTORICAL_AIS_SCENARIO,
+    sealed_expected: {
+      threat: { vector_count: 2, schedule_context_count: 2, cluster_count: 1 },
     },
-    leakage: { status: 'PASS_CONTRACT' },
-    evidence: {
-      run: { fallback_used: false },
-      threat_snapshot: {
-        vectors: [{}, {}],
-        schedule: { context: [{}, {}] },
-        conflicts: { clusters: [{}] },
-      },
-      evaluation: { evaluation_status: 'COMPLETE', gate: 'PASS' },
-    },
-    compare: {
-      status: 'COMPLETE',
-      overall_assurance_verdict: 'PASS',
-      domain_statuses: {
-        safety: 'COMPLETE',
-        colreg: 'COMPLETE',
-        maneuver: 'COMPLETE',
-        efficiency: 'COMPLETE',
-        human_similarity: 'COMPLETE',
-      },
-    },
-  });
+  }, runtimeShape);
 
-  assert.equal(projection.workflowId, 'workflow-1');
+  assert.equal(projection.workflowId, 'workflow-browser-regression');
   assert.equal(projection.evidence.mode, 'COUNTERFACTUAL');
   assert.equal(projection.evidence.fallback, false);
-  assert.deepEqual(projection.evidence.threat, { vectors: 2, schedule: 2, clusters: 1 });
+  assert.deepEqual(projection.evidence.threat, { vectors: 2, schedule: 2, clusters: 0 });
+  assert.deepEqual(projection.qualification.expectedThreat, { vectors: 2, schedule: 2, clusters: 1 });
   assert.equal(projection.evidence.leakage, 'PASS_CONTRACT');
-  assert.deepEqual(projection.evidence.determinism, []);
+  assert.deepEqual(projection.evidence.determinism, { status: 'NOT_CHECKED', mismatches: [] });
   assert.deepEqual(projection.evidence.compareDomains, {
     safety: 'COMPLETE',
     colreg: 'COMPLETE',
@@ -91,6 +68,24 @@ test('completed counterfactual projection exposes typed evidence without calcula
     human_similarity: 'COMPLETE',
   });
   assert.equal(projection.evidence.verdict, 'PASS');
+});
+
+test('Replay and explicit determinism keep typed not-applicable and pass/fail boundaries', () => {
+  const replay = createHistoricalAISProjection(DEFAULT_HISTORICAL_AIS_SCENARIO, {
+    mode: 'HISTORICAL_REPLAY',
+    leakage: {},
+  });
+  assert.equal(replay.evidence.leakage, 'NOT_APPLICABLE');
+  assert.deepEqual(replay.evidence.determinism, { status: 'NOT_APPLICABLE', mismatches: [] });
+
+  const checked = createHistoricalAISProjection(DEFAULT_HISTORICAL_AIS_SCENARIO, {
+    ...runtimeShape,
+    determinism: { status: 'FAIL', mismatches: ['threat_graph_semantic_hash'] },
+  });
+  assert.deepEqual(checked.evidence.determinism, {
+    status: 'FAIL',
+    mismatches: ['threat_graph_semantic_hash'],
+  });
 });
 
 test('Historical AIS API adapter uses the dedicated scenario/workflow contract', async () => {
