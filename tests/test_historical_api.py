@@ -439,8 +439,12 @@ def test_bound_scene_registration_keeps_one_case_without_disposable_prepared_run
         },
     )
     descriptor = SimpleNamespace(
+        archive_sha256="archive",
+        entry_digests=(SimpleNamespace(sha256="entry"),),
+        schema_sha256="schema",
         descriptor_sha256="dataset",
         selection_sha256="selection",
+        normalized_sha256="normalized",
         to_dict=lambda: {"descriptor_sha256": "dataset"},
     )
     case = SimpleNamespace(
@@ -457,7 +461,16 @@ def test_bound_scene_registration_keeps_one_case_without_disposable_prepared_run
         case=case,
         human_reference=SimpleNamespace(),
         historical_scenario_id=scene_id,
-        case_identity={"dataset_digest": "dataset", "case_digest": "case", "runtime_actor_set_digest": "actors"},
+        case_identity={
+            "dataset_digest": "dataset",
+            "case_digest": "case",
+            "runtime_actor_set_digest": "actors",
+            "enc_profile_digest": "enc-profile",
+            "enc_cache_digest": "enc-cache",
+            "enc_source_digest": "enc-source",
+            "dimension_registry_digest": "dimensions",
+            "dimension_source_digest": "dimension-sources",
+        },
         acceptance_request=lambda: acceptance_request,
     )
     manager = historical_api.HistoricalWorkflowManager()
@@ -470,6 +483,26 @@ def test_bound_scene_registration_keeps_one_case_without_disposable_prepared_run
     assert workflow.case is case
     assert workflow.qualification_request is acceptance_request
     assert workflow.prepared_run is None
+    assert document["lineage"]["enc_profile_digest"] == "enc-profile"
+    assert document["lineage"]["enc_cache_digest"] == "enc-cache"
+    assert document["lineage"]["enc_source_digest"] == "enc-source"
+    assert document["lineage"]["dimension_registry_digest"] == "dimensions"
+    assert document["lineage"]["dimension_source_digest"] == "dimension-sources"
+    assert document["presentation"]["evidence"]["digests"] == {
+        "archive_sha256": "archive",
+        "entry_sha256": "entry",
+        "schema_sha256": "schema",
+        "selection_sha256": "selection",
+        "normalized_sha256": "normalized",
+        "descriptor_sha256": "dataset",
+        "dataset_descriptor_sha256": "dataset",
+        "runtime_actor_set_sha256": "actors",
+        "enc_profile_sha256": "enc-profile",
+        "enc_cache_sha256": "enc-cache",
+        "enc_source_sha256": "enc-source",
+        "dimension_registry_sha256": "dimensions",
+        "dimension_source_sha256": "dimension-sources",
+    }
 
 
 @pytest.mark.parametrize(

@@ -22,7 +22,10 @@ from colav_simulator.historical_scenario_source import (
 from colav_simulator.historical_serialization import semantic_hash
 
 if TYPE_CHECKING:
-    from colav_simulator.historical_scenario_assembly import BoundHistoricalAISSceneContext
+    from colav_simulator.historical_scenario_assembly import (
+        BoundHistoricalAISReplayContext,
+        BoundHistoricalAISSceneContext,
+    )
 
 HISTORICAL_AIS_SCENARIO_ID = "hais_romsdal_20260701_120000_120100"
 HISTORICAL_AIS_SCENARIO_SCHEMA_VERSION = "historical-ais-scenario.v1"
@@ -182,7 +185,10 @@ class HistoricalAISScenarioDescriptor:
                 "selection_sha256": self.current_window["expected_selection_sha256"],
                 "normalized_sha256": self.current_window["expected_normalized_sha256"],
                 "enc_profile_sha256": self.enc["profile_digest"],
+                "enc_cache_sha256": None,
+                "enc_source_sha256": None,
                 "dimension_registry_sha256": self.dimension_registry().digest,
+                "dimension_source_sha256": self.dimension_source_digest(),
             },
         }
 
@@ -201,7 +207,23 @@ class HistoricalAISScenarioDescriptor:
             records=records,
         )
 
-    def bind_context(
+    def dimension_source_digest(self) -> str | None:
+        sources = tuple(
+            (int(record["mmsi"]), str(record["source_digest"]))
+            for record in self.dimensions["records"]
+        )
+        return semantic_hash(sources) if sources else None
+
+    def bind_replay(
+        self,
+        *,
+        environ: Mapping[str, str] | None = None,
+    ) -> BoundHistoricalAISReplayContext:
+        from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssembler  # noqa: PLC0415
+
+        return HistoricalAISSceneAssembler().bind_replay(self, environ=environ)
+
+    def bind_counterfactual(
         self,
         *,
         run_spec_overrides: Mapping[str, Any] | None = None,
@@ -209,7 +231,11 @@ class HistoricalAISScenarioDescriptor:
     ) -> BoundHistoricalAISSceneContext:
         from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssembler  # noqa: PLC0415
 
-        return HistoricalAISSceneAssembler().bind(self, run_spec_overrides=run_spec_overrides, environ=environ)
+        return HistoricalAISSceneAssembler().bind_counterfactual(
+            self,
+            run_spec_overrides=run_spec_overrides,
+            environ=environ,
+        )
 
 
 class HistoricalAISScenarioCatalog:

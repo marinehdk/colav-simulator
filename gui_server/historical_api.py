@@ -66,6 +66,7 @@ from colav_simulator.historical_replay import (
     HistoricalReplayRequest,
 )
 from colav_simulator.historical_scenario_assembly import (
+    BoundHistoricalAISReplayContext,
     BoundHistoricalAISSceneContext,
     HistoricalAISSceneAssembler,
 )
@@ -172,7 +173,7 @@ class _HistoricalWorkflow:
     prepared_run: PreparedRun | None
     experiment_runner: ExperimentRunner | None
     run_spec: RunSpec | None = None
-    bound_context: BoundHistoricalAISSceneContext | None = None
+    bound_context: BoundHistoricalAISReplayContext | BoundHistoricalAISSceneContext | None = None
     case: HistoricalAISCase | None = None
     run_request: HistoricalAISCounterfactualRunRequest | None = None
     replay_request: HistoricalReplayRequest | None = None
@@ -384,14 +385,29 @@ def _workflow_presentation(
                 else {
                     "source_readiness": "READY",
                     "digests": {
-                        "dataset_descriptor_sha256": workflow.dataset_descriptor.descriptor_sha256,
+                        "archive_sha256": getattr(workflow.dataset_descriptor, "archive_sha256", None),
+                        "entry_sha256": _selected_entry_digest(workflow.dataset_descriptor),
+                        "schema_sha256": getattr(workflow.dataset_descriptor, "schema_sha256", None),
                         "selection_sha256": workflow.dataset_descriptor.selection_sha256,
+                        "normalized_sha256": getattr(workflow.dataset_descriptor, "normalized_sha256", None),
+                        "descriptor_sha256": workflow.dataset_descriptor.descriptor_sha256,
+                        "dataset_descriptor_sha256": workflow.dataset_descriptor.descriptor_sha256,
                         "runtime_actor_set_sha256": workflow.lineage.get("runtime_actor_set_digest"),
+                        "enc_profile_sha256": workflow.lineage.get("enc_profile_digest"),
+                        "enc_cache_sha256": workflow.lineage.get("enc_cache_digest"),
+                        "enc_source_sha256": workflow.lineage.get("enc_source_digest"),
+                        "dimension_registry_sha256": workflow.lineage.get("dimension_registry_digest"),
+                        "dimension_source_sha256": workflow.lineage.get("dimension_source_digest"),
                     },
                 }
             ),
         },
     }
+
+
+def _selected_entry_digest(descriptor: Any) -> str | None:
+    entries = tuple(getattr(descriptor, "entry_digests", ()) or ())
+    return entries[0].sha256 if len(entries) == 1 else None
 
 
 def _presentation_replay(workflow: _HistoricalWorkflow) -> dict[str, Any]:
@@ -548,7 +564,11 @@ def _qualified_workflow_document(workflow: _HistoricalWorkflow) -> dict[str, Any
     evaluation = manifest.get("evaluation")
     compare = manifest.get("compare")
     status = HistoricalWorkflowStatus.COMPLETED if completed else HistoricalWorkflowStatus.FAILED
-    lineage = {"historical_scenario_id": workflow.historical_scenario_id, **dict(manifest.get("lineage", {}))}
+    lineage = {
+        "historical_scenario_id": workflow.historical_scenario_id,
+        **dict(workflow.lineage),
+        **dict(manifest.get("lineage", {})),
+    }
     return {
         "schema_version": "historical-workflow.snapshot.v1",
         "workflow_id": workflow.workflow_id,
@@ -677,6 +697,8 @@ class HistoricalWorkflowManager:
         with self._lock:
             workflow.run_spec = _workflow_spec(workflow)
             workflow.historical_scenario_id = workflow.run_spec.historical_scenario_id
+            if workflow.bound_context is not None:
+                workflow.lineage.update(workflow.bound_context.authority_digests)
             self._workflows[workflow.workflow_id] = workflow
             return workflow.document()
 
@@ -1142,12 +1164,13 @@ def create_historical_scenario_workflow(
     """Build and prepare a complete normal Historical Replay/Counterfactual workflow."""
     try:
         descriptor = historical_scenario_catalog.get(scenario_id)
-        context = HistoricalAISSceneAssembler().bind(
-            descriptor,
-            run_spec_overrides=request.run_spec,
-        )
         if request.mode is HistoricalWorkflowMode.COUNTERFACTUAL:
+            context = HistoricalAISSceneAssembler().bind_counterfactual(
+                descriptor,
+                run_spec_overrides=request.run_spec,
+            )
             return historical_workflows.create_bound_counterfactual(context)
+        context = HistoricalAISSceneAssembler().bind_replay(descriptor)
         payload = context.replay_workflow_payload()
         replay_request = HistoricalWorkflowCreateRequest(**payload)
         replay_workflow = _prepare_replay_workflow(

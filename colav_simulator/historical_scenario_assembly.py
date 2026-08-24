@@ -53,40 +53,33 @@ class HistoricalSceneDescriptor(Protocol):
 
 
 @dataclass(frozen=True)
-class BoundHistoricalAISSceneContext:
-    """One content-verified Dataset/ENC/Case authority reused by every run."""
+class BoundHistoricalAISReplayContext:
+    """Lightweight Replay authority with no Counterfactual-only facts."""
 
     descriptor: HistoricalSceneDescriptor
     source: Path
     selection: HistoricalAISSelection
     dataset: HistoricalAISReadResult
-    enc_profile: ENCRegionProfile
     dimension_registry: HistoricalAISDimensionRegistry
-    human_reference: HistoricalBenchmarkTrajectory
-    run_spec: RunSpec
-    case: HistoricalAISCase
 
     @property
     def historical_scenario_id(self) -> str:
         return self.descriptor.scenario_id
 
     @property
-    def case_identity(self) -> dict[str, str]:
-        return {
-            "historical_scenario_id": self.historical_scenario_id,
-            "dataset_digest": self.dataset.descriptor.descriptor_sha256,
-            "case_digest": self.case.case_digest,
-            "runtime_actor_set_digest": self.case.runtime_actor_set_digest,
-        }
-
-    def acceptance_request(self) -> HistoricalAISPublishedCaseAcceptanceRequest:
-        """Return two-run qualification over this exact Published Case object."""
-        return HistoricalAISPublishedCaseAcceptanceRequest(
-            case=self.case,
-            run_spec=self.run_spec,
-            human_reference=self.human_reference,
-            human_reference_artifact_digest=self.human_reference.trajectory_digest,
+    def authority_digests(self) -> dict[str, str | None]:
+        """Expose only bound ENC/dimension identities; absent authorities remain null."""
+        profile = getattr(self, "enc_profile", None)
+        dimension_sources = tuple(
+            (record.mmsi, record.source_digest) for record in self.dimension_registry.records
         )
+        return {
+            "enc_profile_digest": None if profile is None else profile.profile_digest,
+            "enc_cache_digest": None if profile is None else profile.cache.artifact_digest,
+            "enc_source_digest": None if profile is None else profile.source.source_digest,
+            "dimension_registry_digest": self.dimension_registry.digest,
+            "dimension_source_digest": semantic_hash(dimension_sources) if dimension_sources else None,
+        }
 
     def replay_workflow_payload(self) -> dict[str, Any]:
         """Serialize Replay preparation without reopening the archive."""
@@ -113,6 +106,35 @@ class BoundHistoricalAISSceneContext:
         return payload
 
 
+@dataclass(frozen=True)
+class BoundHistoricalAISSceneContext(BoundHistoricalAISReplayContext):
+    """Full Counterfactual authority reusing one Published Case."""
+
+    enc_profile: ENCRegionProfile
+    human_reference: HistoricalBenchmarkTrajectory
+    run_spec: RunSpec
+    case: HistoricalAISCase
+
+    @property
+    def case_identity(self) -> dict[str, str]:
+        return {
+            "historical_scenario_id": self.historical_scenario_id,
+            "dataset_digest": self.dataset.descriptor.descriptor_sha256,
+            "case_digest": self.case.case_digest,
+            "runtime_actor_set_digest": self.case.runtime_actor_set_digest,
+            **self.authority_digests,
+        }
+
+    def acceptance_request(self) -> HistoricalAISPublishedCaseAcceptanceRequest:
+        """Return two-run qualification over this exact Published Case object."""
+        return HistoricalAISPublishedCaseAcceptanceRequest(
+            case=self.case,
+            run_spec=self.run_spec,
+            human_reference=self.human_reference,
+            human_reference_artifact_digest=self.human_reference.trajectory_digest,
+        )
+
+
 class HistoricalAISSceneAssembler:
     """Perform source/Dataset/ENC/dimension/Human/Case binding exactly once."""
 
@@ -125,19 +147,34 @@ class HistoricalAISSceneAssembler:
     ) -> None:
         self._dataset_reader_type = dataset_reader_type
         self._enc_builder = enc_builder
-        self._capability_catalog = capability_catalog or CapabilityCatalog(IntegrationRegistry())
+        self._capability_catalog = capability_catalog
 
-    def bind(
+    def bind_replay(
+        self,
+        descriptor: HistoricalSceneDescriptor,
+        *,
+        environ: Mapping[str, str] | None = None,
+    ) -> BoundHistoricalAISReplayContext:
+        source = HistoricalAISSceneSourceBinder.require_source(descriptor, environ)
+        selection = descriptor.selection()
+        dataset = self._dataset_reader_type(source).read(selection)
+        self.validate_dataset_identity(descriptor, dataset)
+        return BoundHistoricalAISReplayContext(
+            descriptor=descriptor,
+            source=source,
+            selection=selection,
+            dataset=dataset,
+            dimension_registry=_dimension_registry(descriptor),
+        )
+
+    def bind_counterfactual(
         self,
         descriptor: HistoricalSceneDescriptor,
         *,
         run_spec_overrides: Mapping[str, Any] | None = None,
         environ: Mapping[str, str] | None = None,
     ) -> BoundHistoricalAISSceneContext:
-        source = HistoricalAISSceneSourceBinder.require_source(descriptor, environ)
-        selection = descriptor.selection()
-        dataset = self._dataset_reader_type(source).read(selection)
-        self.validate_dataset_identity(descriptor, dataset)
+        replay = self.bind_replay(descriptor, environ=environ)
         enc_profile = self._enc_builder()
         if (
             enc_profile.profile_digest != str(descriptor.enc["profile_digest"])
@@ -147,17 +184,28 @@ class HistoricalAISSceneAssembler:
                 HistoricalAISScenarioReadiness.ENC_IDENTITY_MISMATCH,
                 "Romsdal ENC identity/qualification differs from the scene descriptor",
             )
-        registry = _dimension_registry(descriptor)
-        human_reference = _historical_reference(dataset, enc_profile, int(descriptor.current_window["reference_mmsi"]))
+        human_reference = _historical_reference(
+            replay.dataset,
+            enc_profile,
+            int(descriptor.current_window["reference_mmsi"]),
+        )
         run_spec = RunSpec.from_dict(_run_spec(descriptor, "COUNTERFACTUAL", run_spec_overrides))
-        case = self._publish_case(descriptor, dataset, selection, enc_profile, registry, human_reference, run_spec)
+        case = self._publish_case(
+            descriptor,
+            replay.dataset,
+            replay.selection,
+            enc_profile,
+            replay.dimension_registry,
+            human_reference,
+            run_spec,
+        )
         return BoundHistoricalAISSceneContext(
-            descriptor=descriptor,
-            source=source,
-            selection=selection,
-            dataset=dataset,
+            descriptor=replay.descriptor,
+            source=replay.source,
+            selection=replay.selection,
+            dataset=replay.dataset,
+            dimension_registry=replay.dimension_registry,
             enc_profile=enc_profile,
-            dimension_registry=registry,
             human_reference=human_reference,
             run_spec=run_spec,
             case=case,
@@ -214,7 +262,8 @@ class HistoricalAISSceneAssembler:
                 HistoricalAISScenarioReadiness.CASE_BUILD_FAILED,
                 "Published Case lacks exact Algorithm Capability evidence",
             )
-        receipt = HistoricalAISCapabilityReceipt.from_catalog(self._capability_catalog, *capability_tuple)
+        catalog = self._capability_catalog or CapabilityCatalog(IntegrationRegistry())
+        receipt = HistoricalAISCapabilityReceipt.from_catalog(catalog, *capability_tuple)
         alignment = HistoricalBenchmarkAlignmentProfile()
         outcome = HistoricalAISCaseBuilder().build(
             HistoricalAISCaseBuildRequest(
@@ -342,7 +391,7 @@ def _historical_reference(
     )
 
 
-def _replay_document(context: BoundHistoricalAISSceneContext) -> dict[str, Any]:
+def _replay_document(context: BoundHistoricalAISReplayContext) -> dict[str, Any]:
     registry = context.dimension_registry
     return {
         "reference_mmsi": int(context.descriptor.current_window["reference_mmsi"]),
@@ -381,4 +430,8 @@ def _thaw(value: Any) -> Any:
     return value
 
 
-__all__ = ["BoundHistoricalAISSceneContext", "HistoricalAISSceneAssembler"]
+__all__ = [
+    "BoundHistoricalAISReplayContext",
+    "BoundHistoricalAISSceneContext",
+    "HistoricalAISSceneAssembler",
+]
