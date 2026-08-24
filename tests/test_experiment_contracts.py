@@ -97,7 +97,7 @@ def test_runner_writes_complete_evidence_bundle(tmp_path: Path) -> None:
         RunSpec(
             "paper_ccta2023_multiship",
             validation_rule_id="multiship",
-            algorithm_id="potocnik_colreg_fan_mpc",
+            algorithm_id="vo",
             tracker_id="god",
             seed=3,
             t_end=0.2,
@@ -144,6 +144,10 @@ def test_runner_writes_complete_evidence_bundle(tmp_path: Path) -> None:
     trajectory = json.loads(inspection.stdout)
     assert {"sim_time", "ship_id", "north_m", "east_m", "tracks_json", "colav_json"}.issubset(trajectory["columns"])
     assert trajectory["rows"] == 8
+    replay = runner.replay(result.run_dir, tmp_path / "replays")
+    assert replay.manifest.replay_verified is True
+    assert replay.manifest.episode_hash == result.manifest.episode_hash
+    assert replay.manifest.trajectory_hash == result.manifest.trajectory_hash
 
 
 def test_pause_does_not_advance_time(tmp_path: Path) -> None:

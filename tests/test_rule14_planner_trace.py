@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlannerTrace
-from colav_simulator.experiment.contracts import RunSpec
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlannerTrace, PlanStatus
+from colav_simulator.experiment.contracts import InternalExecutionPurpose, RunSpec
 from colav_simulator.experiment.runner import ExperimentRunner
 
 
@@ -41,14 +41,17 @@ def test_planner_trace_requires_finite_9xn() -> None:
         ).to_dict()
 
 
-def test_nominal_rejects_scenario_embedded_colav(tmp_path: Path) -> None:
+def test_evaluator_baseline_rejects_unregistered_scenario_with_typed_error(tmp_path: Path) -> None:
     runner = ExperimentRunner(Path.cwd())
-    with pytest.raises(ColavExecutionError, match="embeds an onboard COLAV"):
-        runner.prepare(
+    with pytest.raises(ColavExecutionError, match="No internal capability tuple") as raised:
+        runner.prepare_internal(
             RunSpec(
                 scenario_id="head_on_sbmpc",
+                validation_rule_id="rule14",
                 algorithm_id="nominal",
                 tracker_id="god",
                 output_root=str(tmp_path),
-            )
+            ),
+            purpose=InternalExecutionPurpose.EVALUATOR_BASELINE,
         )
+    assert raised.value.status is PlanStatus.INVALID_INPUT

@@ -100,7 +100,10 @@ class P1RunHarness:
         algorithm_config: dict | None = None,
         solve_period_s: float | None = None,
     ) -> RunResult:
-        from colav_simulator.experiment.contracts import RunSpec  # noqa: PLC0415
+        from colav_simulator.experiment.contracts import (  # noqa: PLC0415
+            InternalExecutionPurpose,
+            RunSpec,
+        )
         from colav_simulator.experiment.runner import ExperimentRunner  # noqa: PLC0415
 
         config = algorithm_config or {}
@@ -113,18 +116,23 @@ class P1RunHarness:
         )
         if key in self._candidate:
             return self._candidate[key]
-        result = ExperimentRunner(PROJECT_ROOT).run(
-            RunSpec(
-                scenario_id=scenario_id,
-                algorithm_id=algorithm_id,
-                tracker_id=tracker_id,
-                seed=0,
-                terminate_on_collision_or_grounding=False,
-                strict_no_fallback=True,
-                solve_period_s=solve_period_s,
-                algorithm_config=config,
-                output_root=str(self.output_root / scenario_id / algorithm_id / tracker_id),
-            )
+        spec = RunSpec(
+            scenario_id=scenario_id,
+            validation_rule_id=_validation_rule_for_scenario(scenario_id),
+            algorithm_id=algorithm_id,
+            tracker_id=tracker_id,
+            seed=0,
+            terminate_on_collision_or_grounding=False,
+            strict_no_fallback=True,
+            solve_period_s=solve_period_s,
+            algorithm_config=config,
+            output_root=str(self.output_root / scenario_id / algorithm_id / tracker_id),
+        )
+        runner = ExperimentRunner(PROJECT_ROOT)
+        result = (
+            runner.run_internal(spec, purpose=InternalExecutionPurpose.EVALUATOR_BASELINE)
+            if algorithm_id == "nominal"
+            else runner.run(spec)
         )
         self._candidate[key] = result
         return result
@@ -162,6 +170,19 @@ class P1RunHarness:
             expected_algorithm=algorithm_id,
             dt_sim=candidate.session.config.dt_sim,
         )
+
+
+def _validation_rule_for_scenario(scenario_id: str) -> str:
+    """Map a published P1 scenario to its exact product validation rule."""
+    if scenario_id in {"overtaking", "overtaken"}:
+        return "rule13"
+    if scenario_id == "head_on":
+        return "rule14"
+    if scenario_id in {"crossing_give_way", "crossing_stand_on"}:
+        return "rule15"
+    if scenario_id in {"paper_ccta2023_multiship", "romsdal_busy_water_16"}:
+        return "multiship"
+    raise ValueError(f"P1 harness has no product validation rule for {scenario_id!r}")
 
 
 @pytest.fixture(scope="session")
