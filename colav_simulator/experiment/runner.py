@@ -202,7 +202,49 @@ class ExperimentRunner:
             raise FileNotFoundError(f"Unknown scenario: {scenario_id}")
         raise ValueError(f"Ambiguous scenario ID {scenario_id}: {matches}")
 
-    def prepare(self, spec: RunSpec) -> PreparedRun:  # noqa: C901, PLR0912, PLR0915
+    def prepare(self, spec: RunSpec) -> PreparedRun:
+        """Prepare one product run through the published exact-tuple policy."""
+        self.capabilities.policy.require_integrations(spec.algorithm_id, spec.tracker_id)
+        if spec.validation_rule_id is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Product RunSpec requires an explicit validation_rule_id and exact capability tuple",
+            )
+        if spec.historical_replay is not None or spec.historical_scenario_id is not None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Historical Replay requires the explicit prepare_historical seam",
+            )
+        capability_profile_id = self.capabilities.validate(
+            spec.validation_rule_id,
+            spec.scenario_id,
+            spec.algorithm_id,
+            spec.tracker_id,
+        )
+        return self._prepare(spec, capability_profile_id=capability_profile_id)
+
+    def prepare_historical(self, spec: RunSpec) -> PreparedRun:
+        """Prepare a sealed Historical Replay/Counterfactual internal run."""
+        if spec.historical_replay is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "prepare_historical requires a sealed Historical Replay request",
+            )
+        capability_tuple = spec.capability_tuple
+        if capability_tuple is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Historical internal execution requires an exact internal capability tuple",
+            )
+        capability_profile_id = self.capabilities.validate_internal(*capability_tuple)
+        return self._prepare(spec, capability_profile_id=capability_profile_id)
+
+    def _prepare(  # noqa: C901, PLR0912, PLR0915
+        self,
+        spec: RunSpec,
+        *,
+        capability_profile_id: str,
+    ) -> PreparedRun:
         historical_request = (
             HistoricalReplayRequest.from_dict(spec.historical_replay) if spec.historical_replay is not None else None
         )
@@ -254,14 +296,6 @@ class ExperimentRunner:
                 config.t_end = historical_request.t_end_s
         if spec.reload_enc:
             config.new_load_of_map_data = True
-        capability_profile_id = None
-        if capability_tuple is not None:
-            validator = (
-                self.capabilities.validate_internal
-                if historical_request is not None
-                else self.capabilities.validate
-            )
-            capability_profile_id = validator(*capability_tuple)
         if capability_tuple is not None and spec.algorithm_id == "mid_mpc_ipopt":
             if spec.domain_profile is None:
                 raise ColavExecutionError(
@@ -570,7 +604,13 @@ class ExperimentRunner:
         )
 
     def run(self, spec: RunSpec) -> RunResult:
-        prepared = self.prepare(spec)
+        return self._run_prepared(self.prepare(spec))
+
+    def run_historical(self, spec: RunSpec) -> RunResult:
+        """Execute one sealed Historical internal run."""
+        return self._run_prepared(self.prepare_historical(spec))
+
+    def _run_prepared(self, prepared: PreparedRun) -> RunResult:
         try:
             prepared.session.run_to_completion()
             return self.finalize(prepared)
@@ -596,7 +636,11 @@ class ExperimentRunner:
             output_root=str(output_root or source_spec.output_root),
             replay_of_run_id=manifest_document["run_id"],
         )
-        result = self.run(replay_spec)
+        result = (
+            self.run_historical(replay_spec)
+            if replay_spec.historical_replay is not None
+            else self.run(replay_spec)
+        )
         expected_episode_hash = source_episode["episode_hash"]
         source_trajectory_hash = manifest_document.get("trajectory_hash") or _file_hash(
             source_run_dir / "trajectory.parquet"

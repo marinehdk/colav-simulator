@@ -47,6 +47,18 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
         "tracker_ids": ["god"],
         "default_algorithm_id": "vo",
         "default_tracker_id": "god",
+        "constraints": {
+            "requires_explicit_validation_rule_id": True,
+            "requires_exact_tuple": True,
+            "algorithms": {
+                "vo": {"requires_domain_profile": False},
+                "potocnik_colreg_fan_mpc": {"requires_domain_profile": False},
+                "mid_mpc_ipopt": {
+                    "requires_domain_profile": True,
+                    "required_domain_qualification": "QUALIFIED",
+                },
+            },
+        },
     }
     combinations = catalog["verified_combinations"]
     assert len(combinations) == EXPECTED_COUNTS[rule_id]
@@ -161,3 +173,21 @@ def test_product_policy_rejects_legacy_integrations_even_when_registry_can_build
     with pytest.raises(ColavExecutionError) as raised:
         catalog.validate("rule14", "head_on", "vo", "kf")
     assert raised.value.status is PlanStatus.INVALID_INPUT
+
+
+def test_session_api_rejects_missing_product_rule_instead_of_running_nominal() -> None:
+    with TestClient(app) as client:
+        legacy = client.post(
+            "/api/sessions",
+            json={
+                "scenario_id": "head_on",
+                "algorithm_id": "nominal",
+                "tracker_id": "god",
+            },
+        )
+        defaulted = client.post("/api/sessions", json={"scenario_id": "head_on"})
+
+    for response in (legacy, defaulted):
+        assert response.status_code == 422
+        assert response.json()["detail"]["status"] == "INVALID_INPUT"
+        assert "validation_rule_id" in response.json()["detail"]["reason"]

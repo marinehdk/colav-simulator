@@ -1060,7 +1060,7 @@ def _prepare_replay_workflow(
             t_end=replay_request.t_end_s,
             dt=replay_request.dt_sim,
         )
-        prepared_run = experiment_runner.prepare(replay_spec)
+        prepared_run = experiment_runner.prepare_historical(replay_spec)
         simulator_config = SimulatorConfig(verbose=False)
         simulator_config.visualizer.show_liveplot = False
         simulator_config.visualizer.show_results = False

@@ -32,7 +32,8 @@ def test_session_speed_is_authoritative_and_resets_with_session() -> None:
             "/api/sessions",
             json={
                 "scenario_id": "head_on",
-                "algorithm_id": "nominal",
+                "validation_rule_id": "rule14",
+                "algorithm_id": "vo",
                 "tracker_id": "god",
                 "t_end": 1.0,
             },

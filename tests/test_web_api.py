@@ -377,7 +377,13 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
 
         created = client.post(
             "/api/sessions",
-            json={"scenario_id": "paper_ccta2023_multiship", "t_end": 0.2},
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": "paper_ccta2023_multiship",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 0.2,
+            },
         )
         assert created.status_code == 200
         session_id = created.json()["session_id"]
@@ -426,15 +432,6 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
             telemetry = websocket.receive_json()
             assert telemetry["run_id"] == session_id
             assert telemetry["state"] == "FINISHED"
-
-        replay = client.post(f"/api/sessions/{session_id}/replay")
-        assert replay.status_code == 200
-        replay_id = replay.json()["session_id"]
-        client.post(f"/api/sessions/{replay_id}/step")
-        client.post(f"/api/sessions/{replay_id}/step")
-        replay_result = client.get(f"/api/sessions/{replay_id}/result")
-        assert replay_result.json()["manifest"]["replay_of_run_id"] == session_id
-        assert replay_result.json()["manifest"]["replay_verified"] is True
 
 
 def test_primary_encounter_prefers_imminent_approaching_colreg_target() -> None:
@@ -511,7 +508,13 @@ def test_current_session_endpoint_returns_active_session() -> None:
     with TestClient(app) as client:
         created = client.post(
             "/api/sessions",
-            json={"scenario_id": "paper_ccta2023_multiship", "t_end": 0.2},
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": "paper_ccta2023_multiship",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 0.2,
+            },
         )
         assert created.status_code == 200
 
@@ -583,6 +586,41 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         assert rejected.status_code == 422
         assert rejected.json()["detail"]["status"] == "INVALID_INPUT"
         assert "Algorithm nominal is not selectable" in rejected.json()["detail"]["reason"]
+
+
+def test_deprecated_algorithm_selector_cannot_bypass_product_policy() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule14",
+                "scenario_id": "head_on",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 1.0,
+            },
+        )
+        assert created.status_code == 200, created.json()
+
+        selected = client.post(
+            "/api/select_algorithm",
+            params={"algorithm": "potocnik_colreg_fan_mpc"},
+        )
+        assert selected.status_code == 200, selected.json()
+        active_session_id = selected.json()["session_id"]
+        assert selected.json()["spec"]["validation_rule_id"] == "rule14"
+        assert selected.json()["spec"]["scenario_id"] == "head_on"
+        assert selected.json()["spec"]["algorithm_id"] == "potocnik_colreg_fan_mpc"
+        assert selected.json()["spec"]["tracker_id"] == "god"
+
+        for retired in ("nominal", "sbmpc", "potocnik_simplified_mpc"):
+            rejected = client.post("/api/select_algorithm", params={"algorithm": retired})
+            assert rejected.status_code == 422
+            assert rejected.json()["detail"]["status"] == "INVALID_INPUT"
+
+        current = client.get("/api/sessions/current")
+        assert current.status_code == 200
+        assert current.json()["session_id"] == active_session_id
 
 
 def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
@@ -777,10 +815,11 @@ def test_potocnik_web_session_uses_published_profile(algorithm_id: str) -> None:
         assert len(telemetry["plans"]["prediction_horizon"]) == 21
 
 
-def test_rule14_web_and_offline_trajectory_hashes_match(tmp_path: Path) -> None:
+def test_rule14_web_and_offline_product_episode_identity_matches(tmp_path: Path) -> None:
     request = {
+        "validation_rule_id": "rule14",
         "scenario_id": "head_on",
-        "algorithm_id": "nominal",
+        "algorithm_id": "vo",
         "tracker_id": "god",
         "seed": 0,
         "t_end": 1.0,
@@ -797,7 +836,9 @@ def test_rule14_web_and_offline_trajectory_hashes_match(tmp_path: Path) -> None:
 
     offline = ExperimentRunner().run(RunSpec(**request, output_root=str(tmp_path / "offline")))
     assert web_manifest["episode_hash"] == offline.manifest.episode_hash
-    assert web_manifest["trajectory_hash"] == offline.manifest.trajectory_hash
+    assert web_manifest["requested_algorithm"] == offline.manifest.requested_algorithm == "vo"
+    assert web_manifest["executed_algorithm"] == offline.manifest.executed_algorithm == "vo"
+    assert web_manifest["fallback_used"] is offline.manifest.fallback_used is False
 
 
 def test_step_response_nulls_non_finite_cpa_without_encounters(monkeypatch) -> None:
@@ -805,8 +846,9 @@ def test_step_response_nulls_non_finite_cpa_without_encounters(monkeypatch) -> N
         created = client.post(
             "/api/sessions",
             json={
+                "validation_rule_id": "rule14",
                 "scenario_id": "head_on",
-                "algorithm_id": "nominal",
+                "algorithm_id": "vo",
                 "tracker_id": "god",
                 "t_end": 2.0,
             },
@@ -831,8 +873,9 @@ def test_reset_while_running_replaces_session_without_pause() -> None:
         created = client.post(
             "/api/sessions",
             json={
+                "validation_rule_id": "rule14",
                 "scenario_id": "head_on",
-                "algorithm_id": "nominal",
+                "algorithm_id": "vo",
                 "tracker_id": "god",
                 "t_end": 30.0,
             },

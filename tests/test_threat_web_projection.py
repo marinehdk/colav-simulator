@@ -30,7 +30,8 @@ def test_legacy_session_exposes_typed_threat_unavailable_over_rest_and_websocket
             "/api/sessions",
             json={
                 "scenario_id": "paper_ccta2023_multiship",
-                "algorithm_id": "nominal",
+                "validation_rule_id": "multiship",
+                "algorithm_id": "vo",
                 "tracker_id": "god",
                 "t_end": 0.2,
             },

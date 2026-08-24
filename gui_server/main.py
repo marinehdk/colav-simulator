@@ -143,7 +143,7 @@ def _canonical_threat_projection(colav_data: dict[str, Any], planner: dict[str, 
 class SessionCreateRequest(BaseModel):
     scenario_id: str = "head_on"
     validation_rule_id: str | None = None
-    algorithm_id: str = "nominal"
+    algorithm_id: str = "vo"
     tracker_id: str = "god"
     seed: int = Field(default=0, ge=0)
     episode_index: int = Field(default=0, ge=0)
@@ -157,6 +157,11 @@ class SessionCreateRequest(BaseModel):
     scenario_override: dict[str, Any] | None = None
 
     def to_spec(self) -> RunSpec:
+        if self.validation_rule_id is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Product session create requires an explicit validation_rule_id and exact capability tuple",
+            )
         payload = self.model_dump()
         override = payload.get("scenario_override")
         if override is not None:
@@ -1358,13 +1363,49 @@ def api_reset(scenario: str = "Head-on") -> dict[str, Any]:
 
 
 @app.post("/api/select_algorithm")
-def api_select_algorithm(algorithm: str = "CustomMPC") -> dict[str, Any]:
-    scenario = manager.prepared.spec.scenario_id if manager.prepared else "paper_ccta2023_head_on"
-    algorithm_id = LEGACY_ALGORITHMS.get(algorithm, algorithm.lower())
+def api_select_algorithm(algorithm: str = "vo") -> dict[str, Any]:
+    """Deprecated selector constrained to the current product exact tuple."""
+    algorithm_id = algorithm.strip().lower()
     try:
-        description = manager.create(RunSpec(scenario_id=scenario, algorithm_id=algorithm_id))
+        current = manager.prepared.spec if manager.prepared is not None else None
+        if current is not None and (
+            current.validation_rule_id is None
+            or current.historical_replay is not None
+            or current.historical_scenario_id is not None
+        ):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Deprecated algorithm selector requires an active product exact tuple",
+            )
+        validation_rule_id = current.validation_rule_id if current is not None else "rule14"
+        scenario_id = current.scenario_id if current is not None else "head_on"
+        tracker_id = current.tracker_id if current is not None else "god"
+        manager.runner.capabilities.policy.require_integrations(algorithm_id, tracker_id)
+        description = manager.create(
+            RunSpec(
+                scenario_id=scenario_id,
+                validation_rule_id=validation_rule_id,
+                algorithm_id=algorithm_id,
+                tracker_id=tracker_id,
+                seed=current.seed if current is not None else 0,
+                episode_index=current.episode_index if current is not None else 0,
+                dt=current.dt if current is not None else None,
+                t_end=current.t_end if current is not None else None,
+                strict_no_fallback=True,
+                evaluator_profile_id=(
+                    current.evaluator_profile_id if current is not None else "ccta_2023_demo-v1"
+                ),
+                tracker_config=dict(current.tracker_config) if current is not None else {},
+                domain_profile=(
+                    current.domain_profile
+                    if current is not None and algorithm_id == "mid_mpc_ipopt"
+                    else None
+                ),
+                scenario_override=current.scenario_override if current is not None else None,
+            )
+        )
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
     return {"status": "ok", "algorithm": algorithm_id, **description}
 
 

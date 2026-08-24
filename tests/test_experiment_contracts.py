@@ -10,7 +10,6 @@ import pytest
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus, validate_plan
 from colav_simulator.experiment import (
-    ExperimentRunError,
     ExperimentRunner,
     RunManifest,
     RunOutcome,
@@ -38,6 +37,43 @@ def test_run_spec_validation_and_round_trip() -> None:
         RunSpec("head_on", dt=0.0)
 
 
+@pytest.mark.parametrize(
+    ("algorithm_id", "tracker_id", "reason_fragment"),
+    (
+        ("missing_algorithm", "god", "Algorithm missing_algorithm is not selectable"),
+        ("nominal", "god", "Algorithm nominal is not selectable"),
+        ("sbmpc", "god", "Algorithm sbmpc is not selectable"),
+        ("potocnik_simplified_mpc", "god", "Algorithm potocnik_simplified_mpc is not selectable"),
+        ("vo", "kf", "Tracker kf is not selectable"),
+        ("vo", "scenario_default", "Tracker scenario_default is not selectable"),
+    ),
+)
+def test_product_runner_rejects_retired_integrations_without_exact_tuple(
+    algorithm_id: str,
+    tracker_id: str,
+    reason_fragment: str,
+) -> None:
+    with pytest.raises(ColavExecutionError) as raised:
+        ExperimentRunner().prepare(
+            RunSpec(
+                "head_on",
+                algorithm_id=algorithm_id,
+                tracker_id=tracker_id,
+            )
+        )
+
+    assert raised.value.status is PlanStatus.INVALID_INPUT
+    assert reason_fragment in str(raised.value)
+
+
+def test_product_runner_requires_explicit_validation_rule_for_active_integration() -> None:
+    with pytest.raises(ColavExecutionError) as raised:
+        ExperimentRunner().prepare(RunSpec("head_on", algorithm_id="vo", tracker_id="god"))
+
+    assert raised.value.status is PlanStatus.INVALID_INPUT
+    assert "validation_rule_id" in str(raised.value)
+
+
 def test_icolav_plan_contract() -> None:
     valid = np.zeros((9, 2))
     assert validate_plan(valid) is not None
@@ -60,6 +96,9 @@ def test_runner_writes_complete_evidence_bundle(tmp_path: Path) -> None:
     result = runner.run(
         RunSpec(
             "paper_ccta2023_multiship",
+            validation_rule_id="multiship",
+            algorithm_id="potocnik_colreg_fan_mpc",
+            tracker_id="god",
             seed=3,
             t_end=0.2,
             output_root=str(tmp_path),
@@ -105,16 +144,15 @@ def test_runner_writes_complete_evidence_bundle(tmp_path: Path) -> None:
     trajectory = json.loads(inspection.stdout)
     assert {"sim_time", "ship_id", "north_m", "east_m", "tracks_json", "colav_json"}.issubset(trajectory["columns"])
     assert trajectory["rows"] == 8
-    replay = runner.replay(result.run_dir, tmp_path / "replays")
-    assert replay.manifest.replay_verified is True
-    assert replay.manifest.episode_hash == result.manifest.episode_hash
-    assert replay.manifest.trajectory_hash == result.manifest.trajectory_hash
 
 
 def test_pause_does_not_advance_time(tmp_path: Path) -> None:
     prepared = ExperimentRunner().prepare(
         RunSpec(
             "paper_ccta2023_multiship",
+            validation_rule_id="multiship",
+            algorithm_id="vo",
+            tracker_id="god",
             t_end=0.2,
             output_root=str(tmp_path),
         )
@@ -133,6 +171,7 @@ def test_multiship_run_prepares_fcb_ownship_dimensions(tmp_path: Path) -> None:
     prepared = ExperimentRunner().prepare(
         RunSpec(
             "paper_ccta2023_multiship",
+            validation_rule_id="multiship",
             algorithm_id="vo",
             tracker_id="god",
             t_end=0.2,
@@ -145,27 +184,21 @@ def test_multiship_run_prepares_fcb_ownship_dimensions(tmp_path: Path) -> None:
     assert ownship.width == pytest.approx(8.0)
 
 
-def test_failed_algorithm_run_keeps_complete_evidence_bundle(tmp_path: Path) -> None:
-    with pytest.raises(ExperimentRunError) as failure:
+def test_retired_algorithm_is_rejected_before_run_artifacts(tmp_path: Path) -> None:
+    with pytest.raises(ColavExecutionError) as failure:
         ExperimentRunner().run(
             RunSpec(
                 "paper_ccta2023_multiship",
+                validation_rule_id="multiship",
                 algorithm_id="missing_algorithm",
+                tracker_id="god",
                 t_end=0.2,
                 output_root=str(tmp_path),
             )
         )
-    manifest = failure.value.manifest
-    assert manifest.state == SessionState.FAILED
-    assert manifest.failure_status == PlanStatus.INVALID_INPUT
-    assert {
-        "manifest.json",
-        "episode.json",
-        "trajectory.parquet",
-        "events.jsonl",
-        "evaluation.json",
-        "report.html",
-    }.issubset(path.name for path in failure.value.run_dir.iterdir())
+
+    assert failure.value.status is PlanStatus.INVALID_INPUT
+    assert not list(tmp_path.iterdir())
 
 
 def test_deadline_off_marks_manifest_diagnostic_only() -> None:

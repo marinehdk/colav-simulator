@@ -200,6 +200,7 @@ class ProductCapabilityPolicy:
     tracker_ids: tuple[str, ...] = ("god",)
     default_algorithm_id: str = "vo"
     default_tracker_id: str = "god"
+    domain_profile_algorithm_ids: tuple[str, ...] = ("mid_mpc_ipopt",)
 
     def allows_algorithm(self, identifier: str) -> bool:
         return identifier in self.algorithm_ids
@@ -226,6 +227,45 @@ class ProductCapabilityPolicy:
 
     def rejection_reason(self, kind: str, identifier: str) -> str:
         return f"{kind.capitalize()} {identifier} is not selectable in the current product capability policy."
+
+    def require_integrations(self, algorithm_id: str, tracker_id: str) -> None:
+        """Reject retired product identities before tuple/dependency work."""
+        if not self.allows_algorithm(algorithm_id):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                self.rejection_reason("algorithm", algorithm_id),
+            )
+        if not self.allows_tracker(tracker_id):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                self.rejection_reason("tracker", tracker_id),
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Publish one machine-readable product selection contract."""
+        constraints = {
+            algorithm_id: {
+                "requires_domain_profile": algorithm_id in self.domain_profile_algorithm_ids,
+                **(
+                    {"required_domain_qualification": "QUALIFIED"}
+                    if algorithm_id in self.domain_profile_algorithm_ids
+                    else {}
+                ),
+            }
+            for algorithm_id in self.algorithm_ids
+        }
+        return {
+            "policy_id": "colav-product-v1",
+            "algorithm_ids": list(self.algorithm_ids),
+            "tracker_ids": list(self.tracker_ids),
+            "default_algorithm_id": self.default_algorithm_id,
+            "default_tracker_id": self.default_tracker_id,
+            "constraints": {
+                "requires_explicit_validation_rule_id": True,
+                "requires_exact_tuple": True,
+                "algorithms": constraints,
+            },
+        }
 
 
 PRODUCT_CAPABILITY_POLICY = ProductCapabilityPolicy()
@@ -764,13 +804,7 @@ class CapabilityCatalog:
         default_rule = validation_rule_id or "rule14"
         return {
             "schema_version": CAPABILITY_SCHEMA_VERSION,
-            "product_capability_policy": {
-                "policy_id": "colav-product-v1",
-                "algorithm_ids": list(self.policy.algorithm_ids),
-                "tracker_ids": list(self.policy.tracker_ids),
-                "default_algorithm_id": self.policy.default_algorithm_id,
-                "default_tracker_id": self.policy.default_tracker_id,
-            },
+            "product_capability_policy": self.policy.to_dict(),
             "rules": [self._rule_document(rule_id) for rule_id in rule_ids],
             "scenarios": annotated_scenarios,
             "algorithms": [
@@ -885,16 +919,7 @@ class CapabilityCatalog:
         """Validate one product-selectable exact tuple for a session run."""
         if validation_rule_id not in RULES:
             raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unsupported validation rule: {validation_rule_id}")
-        if not self.policy.allows_algorithm(algorithm_id):
-            raise ColavExecutionError(
-                PlanStatus.INVALID_INPUT,
-                self.policy.rejection_reason("algorithm", algorithm_id),
-            )
-        if not self.policy.allows_tracker(tracker_id):
-            raise ColavExecutionError(
-                PlanStatus.INVALID_INPUT,
-                self.policy.rejection_reason("tracker", tracker_id),
-            )
+        self.policy.require_integrations(algorithm_id, tracker_id)
         scenario_combinations = [
             *self._product_combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id),
             *self._product_experimental_combination_documents(

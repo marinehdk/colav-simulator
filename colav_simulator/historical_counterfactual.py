@@ -202,7 +202,7 @@ class HistoricalAISCounterfactualRunner:
 
         if not isinstance(request, HistoricalAISCounterfactualRunRequest):
             raise TypeError("request must be HistoricalAISCounterfactualRunRequest")
-        prepared = self.runner.prepare(request.to_run_spec())
+        prepared = self.runner.prepare_historical(request.to_run_spec())
         if not isinstance(prepared, PreparedRun):
             raise TypeError("ExperimentRunner returned an invalid PreparedRun")
         return HistoricalAISCounterfactualPreparation(request=request, prepared_run=prepared)

@@ -88,8 +88,9 @@ def test_api_rejects_invalid_ship_domain_profile_with_typed_status() -> None:
         response = client.post(
             "/api/sessions",
             json={
+                "validation_rule_id": "multiship",
                 "scenario_id": "paper_ccta2023_multiship",
-                "algorithm_id": "nominal",
+                "algorithm_id": "mid_mpc_ipopt",
                 "tracker_id": "god",
                 "domain_profile": {
                     "profile_id": "invalid",
@@ -113,8 +114,9 @@ def test_api_rejects_invalid_ship_domain_profile_with_typed_status() -> None:
         malformed = client.post(
             "/api/sessions",
             json={
+                "validation_rule_id": "rule14",
                 "scenario_id": "head_on",
-                "algorithm_id": "nominal",
+                "algorithm_id": "mid_mpc_ipopt",
                 "tracker_id": "god",
                 "domain_profile": ["not", "a", "profile"],
             },
@@ -161,8 +163,9 @@ def test_api_description_preserves_qualified_domain_profile_identity() -> None:
         response = client.post(
             "/api/sessions",
             json={
+                "validation_rule_id": "multiship",
                 "scenario_id": "paper_ccta2023_multiship",
-                "algorithm_id": "nominal",
+                "algorithm_id": "mid_mpc_ipopt",
                 "tracker_id": "god",
                 "domain_profile": profile.to_dict(),
                 "t_end": 0.2,
