@@ -673,9 +673,9 @@ obc-clock:not(:defined),
 .historical-ais-run-boundary { margin: 0 var(--s-4) var(--s-4); color: var(--ob-muted); font-size: 10px; line-height: 1.45; }
 .historical-ais-stage-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: var(--s-1) !important; border-bottom: 0 !important; }
 .historical-ais-stage-grid span,
-.historical-ais-compare-grid span { display: flex; flex-direction: column; gap: 2px; padding: var(--s-1) var(--s-2); border: 1px solid var(--ob-border); border-radius: 3px; color: var(--ob-muted); font: 9px/1.3 var(--font-mono); }
+.historical-ais-compare-grid span { display: flex; flex-direction: column; min-width: 0; gap: 2px; padding: var(--s-1) var(--s-2); border: 1px solid var(--ob-border); border-radius: 3px; color: var(--ob-muted); font: 9px/1.3 var(--font-mono); overflow-wrap: anywhere; }
 .historical-ais-stage-grid strong,
-.historical-ais-compare-grid strong { color: var(--ob-text); font-size: 10px; overflow-wrap: anywhere; }
+.historical-ais-compare-grid strong { min-width: 0; max-width: 100%; color: var(--ob-text); font-size: 10px; overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
 .historical-ais-compare-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-1); padding: 0 var(--s-4) var(--s-4); }
 .historical-ais-scenario-grid { display: grid; grid-template-columns: minmax(220px, .68fr) minmax(0, 1.8fr); gap: var(--s-3); align-items: stretch; }
 .historical-ais-scenario-list-card,
@@ -708,6 +708,11 @@ obc-clock:not(:defined),
   .historical-ais-scenario-detail-card { min-height: 0; }
   .historical-ais-scene-preview { min-height: 220px; }
   .historical-ais-scene-preview img { min-height: 220px; }
+  .historical-ais-compare-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; }
+}
+
+@media (max-width: 520px) {
+  .historical-ais-compare-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 1050px) {
