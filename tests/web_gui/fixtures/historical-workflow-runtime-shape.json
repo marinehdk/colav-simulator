@@ -69,6 +69,19 @@
         "schedule_entry_count": 2,
         "cluster_count": 0
       }
+    },
+    "evidence": {
+      "replay": {
+        "status": "NOT_APPLICABLE",
+        "mode": null,
+        "factory": null,
+        "dataset_digest": null,
+        "runtime_actor_set_digest": null,
+        "trajectory_digest": null,
+        "manifest_digest": null,
+        "dimension_registry_digest": null,
+        "dimension_source_digest": null
+      }
     }
   },
   "stages": {

@@ -116,7 +116,13 @@ test('DOM separates bounded scene operability from incomplete predictive qualifi
         descriptor_sha256: descriptorSha,
         archive_sha256: descriptor.archive_scope.archive_sha256,
         entry_sha256: descriptor.current_window.entry_sha256,
+        schema_sha256: descriptor.current_window.expected_schema_sha256,
         selection_sha256: descriptor.current_window.expected_selection_sha256,
+        normalized_sha256: descriptor.current_window.expected_normalized_sha256,
+        enc_profile_sha256: descriptor.enc.profile_digest,
+        enc_cache_sha256: 'c'.repeat(64),
+        enc_source_sha256: 'd'.repeat(64),
+        dimension_registry_sha256: 'e'.repeat(64),
       },
     },
   };
@@ -145,7 +151,48 @@ test('DOM separates bounded scene operability from incomplete predictive qualifi
   assert.equal(elements.get('historicalAISQualificationThreatGraph').textContent, '2/2/0');
   assert.equal(elements.get('historicalAISWorkflowStatus').textContent, 'COMPLETED');
   assert.equal(elements.get('historicalAISEvidenceVerdict').textContent, 'PASS');
+  assert.equal(elements.get('historicalAISReplayStatus').textContent, 'NOT_APPLICABLE');
+  assert.equal(elements.get('historicalAISDigestSchema').textContent, descriptor.current_window.expected_schema_sha256);
+  assert.equal(elements.get('historicalAISDigestNormalized').textContent, descriptor.current_window.expected_normalized_sha256);
+  assert.equal(elements.get('historicalAISDigestEncProfile').textContent, descriptor.enc.profile_digest);
+  assert.equal(elements.get('historicalAISDigestEncCache').textContent, 'c'.repeat(64));
+  assert.equal(elements.get('historicalAISDigestEncSource').textContent, 'd'.repeat(64));
+  assert.equal(elements.get('historicalAISDigestDimensionRegistry').textContent, 'e'.repeat(64));
   assert.notEqual(elements.get('historicalAISWorkflowStatus').textContent, 'FAILED');
+
+  const replayShape = structuredClone(runtimeShape);
+  replayShape.mode = 'HISTORICAL_REPLAY';
+  replayShape.presentation.evidence.replay = {
+    status: 'AVAILABLE',
+    mode: 'HISTORICAL_REPLAY',
+    factory: 'HistoricalReplayFactory',
+    dataset_digest: 'dataset-digest',
+    runtime_actor_set_digest: 'actor-set-digest',
+    trajectory_digest: 'trajectory-digest',
+    manifest_digest: 'manifest-digest',
+    dimension_registry_digest: 'dimension-registry-digest',
+    dimension_source_digest: 'dimension-source-digest',
+  };
+  const replayWorkflow = projectHistoricalAISWorkflow(replayShape);
+  renderHistoricalAISWorkbench(documentRef, {
+    catalog: { status: 'READY', error: null },
+    detail: { status: 'READY', error: null },
+    scenarios: [scenario],
+    scenario,
+    selectedId: scenario.scenarioId,
+    selectedMode: 'HISTORICAL_REPLAY',
+    workflow: replayWorkflow,
+    busy: false,
+  });
+  assert.equal(elements.get('historicalAISReplayStatus').textContent, 'AVAILABLE');
+  assert.equal(elements.get('historicalAISReplayMode').textContent, 'HISTORICAL_REPLAY');
+  assert.equal(elements.get('historicalAISReplayFactory').textContent, 'HistoricalReplayFactory');
+  assert.equal(elements.get('historicalAISReplayDataset').textContent, 'dataset-digest');
+  assert.equal(elements.get('historicalAISReplayActorSet').textContent, 'actor-set-digest');
+  assert.equal(elements.get('historicalAISReplayTrajectory').textContent, 'trajectory-digest');
+  assert.equal(elements.get('historicalAISReplayManifest').textContent, 'manifest-digest');
+  assert.equal(elements.get('historicalAISReplayDimensionRegistry').textContent, 'dimension-registry-digest');
+  assert.equal(elements.get('historicalAISReplayDimensionSource').textContent, 'dimension-source-digest');
 });
 
 test('missing canonical presentation is typed unavailable with null workflow facts', () => {

@@ -66,8 +66,10 @@ function clearScenario(documentRef, state) {
     'historicalAISScenarioReference', 'historicalAISScenarioT0', 'historicalAISScenarioTargets',
     'historicalAISScenarioEnc', 'historicalAISScenarioRows', 'historicalAISScenarioQuality',
     'historicalAISScenarioQualificationThreat', 'historicalAISScenarioCapability',
-    'historicalAISDigestArchive', 'historicalAISDigestEntry', 'historicalAISDigestSelection',
-    'historicalAISDigestDescriptor', 'historicalAISScenarioLimitation',
+    'historicalAISDigestArchive', 'historicalAISDigestEntry', 'historicalAISDigestSchema',
+    'historicalAISDigestSelection', 'historicalAISDigestNormalized', 'historicalAISDigestDescriptor',
+    'historicalAISDigestEncProfile', 'historicalAISDigestEncCache', 'historicalAISDigestEncSource',
+    'historicalAISDigestDimensionRegistry', 'historicalAISScenarioLimitation',
   ]) setText(documentRef, id, null);
   const preview = documentRef.getElementById('historicalAISScenePreview');
   if (preview) preview.hidden = true;
@@ -112,8 +114,14 @@ function renderScenarioDetail(documentRef, state) {
     : null);
   setText(documentRef, 'historicalAISDigestArchive', scenario.digests.archive);
   setText(documentRef, 'historicalAISDigestEntry', scenario.digests.entry);
+  setText(documentRef, 'historicalAISDigestSchema', scenario.digests.schema);
   setText(documentRef, 'historicalAISDigestSelection', scenario.digests.selection);
+  setText(documentRef, 'historicalAISDigestNormalized', scenario.digests.normalized);
   setText(documentRef, 'historicalAISDigestDescriptor', scenario.digests.descriptor);
+  setText(documentRef, 'historicalAISDigestEncProfile', scenario.digests.encProfile);
+  setText(documentRef, 'historicalAISDigestEncCache', scenario.digests.encCache);
+  setText(documentRef, 'historicalAISDigestEncSource', scenario.digests.encSource);
+  setText(documentRef, 'historicalAISDigestDimensionRegistry', scenario.digests.dimensionRegistry);
   setText(documentRef, 'historicalAISScenarioLimitation', scenario.limitations.length ? scenario.limitations.join(' · ') : null);
   const qualification = scenario.qualification;
   setText(documentRef, 'historicalAISScenarioQualificationThreat', [qualification?.status, qualification?.code].filter(Boolean).join(' · '));
@@ -131,6 +139,7 @@ function renderWorkflow(documentRef, state) {
   const compare = presentation?.compare;
   const runtime = presentation?.runtime;
   const qualification = presentation?.qualification;
+  const replay = presentation?.evidence?.replay;
 
   setText(documentRef, 'historicalAISWorkflowAuthority', available && workflow.workflowId ? `Historical workflow · ${workflow.workflowId}` : null);
   setText(documentRef, 'historicalAISWorkflowStatus', available ? workflow.lifecycle : workflow.error?.code);
@@ -159,6 +168,15 @@ function renderWorkflow(documentRef, state) {
   for (const domain of ['safety', 'colreg', 'maneuver', 'efficiency', 'human_similarity']) {
     setText(documentRef, `historicalAISCompare-${domain}`, domains?.[domain]);
   }
+  setText(documentRef, 'historicalAISReplayStatus', replay?.status);
+  setText(documentRef, 'historicalAISReplayMode', replay?.mode);
+  setText(documentRef, 'historicalAISReplayFactory', replay?.factory);
+  setText(documentRef, 'historicalAISReplayDataset', replay?.dataset_digest);
+  setText(documentRef, 'historicalAISReplayActorSet', replay?.runtime_actor_set_digest);
+  setText(documentRef, 'historicalAISReplayTrajectory', replay?.trajectory_digest);
+  setText(documentRef, 'historicalAISReplayManifest', replay?.manifest_digest);
+  setText(documentRef, 'historicalAISReplayDimensionRegistry', replay?.dimension_registry_digest);
+  setText(documentRef, 'historicalAISReplayDimensionSource', replay?.dimension_source_digest);
 }
 
 function renderBenchmark(documentRef, state) {

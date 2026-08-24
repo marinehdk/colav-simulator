@@ -132,8 +132,14 @@ export function projectHistoricalAISScenario(value) {
     digests: {
       archive: presentationDigests?.archive_sha256 ?? null,
       entry: presentationDigests?.entry_sha256 ?? null,
+      schema: presentationDigests?.schema_sha256 ?? null,
       selection: presentationDigests?.selection_sha256 ?? null,
+      normalized: presentationDigests?.normalized_sha256 ?? null,
       descriptor: presentationDigests?.descriptor_sha256 ?? null,
+      encProfile: presentationDigests?.enc_profile_sha256 ?? null,
+      encCache: presentationDigests?.enc_cache_sha256 ?? null,
+      encSource: presentationDigests?.enc_source_sha256 ?? null,
+      dimensionRegistry: presentationDigests?.dimension_registry_sha256 ?? null,
     },
     algorithmCapability: {
       bindingRole: capability.binding_role ?? null,
