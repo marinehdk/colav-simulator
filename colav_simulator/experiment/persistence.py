@@ -135,56 +135,7 @@ class EvidenceWriter:
         }
 
     def write_trajectory(self, frames: list[dict[str, Any]]) -> Path:
-        rows: list[dict[str, Any]] = []
-        for frame in frames:
-            ship_keys = sorted(key for key in frame if key.startswith("Ship"))
-            for ship_key in ship_keys:
-                ship = frame[ship_key]
-                if not ship:
-                    continue
-                csog = np.asarray(ship.get("csog_state", np.full(4, np.nan)), dtype=float)
-                state = np.asarray(ship.get("state", np.full(6, np.nan)), dtype=float)
-                control = np.asarray(ship.get("input", np.full(3, np.nan)), dtype=float)
-                references = np.asarray(ship.get("references", np.full(9, np.nan)), dtype=float)
-                colav_summary = _trajectory_colav_summary(ship.get("colav"))
-                planner = colav_summary.get("planner", {})
-                row = {
-                    "sim_time": float(ship.get("timestamp", np.nan)),
-                    "ship_key": ship_key,
-                    "ship_id": int(ship.get("id", -1)),
-                    "mmsi": int(ship.get("mmsi", -1)),
-                    "north_m": float(csog[0]),
-                    "east_m": float(csog[1]),
-                    "sog_mps": float(csog[2]),
-                    "cog_rad": float(csog[3]),
-                    "psi_rad": float(state[2]),
-                    "surge_mps": float(state[3]),
-                    "sway_mps": float(state[4]),
-                    "yaw_rate_radps": float(state[5]),
-                    "active": bool(ship.get("active", False)),
-                    "control_json": canonical_json(jsonable(control)),
-                    "references_json": canonical_json(jsonable(references)),
-                    "waypoints_json": canonical_json(jsonable(ship.get("waypoints"))),
-                    "tracks_json": canonical_json(
-                        jsonable(
-                            {
-                                "labels": ship.get("do_labels"),
-                                "states": ship.get("do_estimates"),
-                                "covariances": ship.get("do_covariances"),
-                                "nis": ship.get("do_NISes"),
-                            }
-                        )
-                    ),
-                    "measurements_json": canonical_json(jsonable(ship.get("sensor_measurements"))),
-                    "colav_json": canonical_json(jsonable(colav_summary)),
-                    "planner_solve_id": int(planner.get("solve_id", 0)),
-                    "planner_solver_executed": bool(planner.get("solver_executed", False)),
-                    "applied_course_ref_rad": float(references[2]) if references.size > 2 else np.nan,
-                    "applied_speed_ref_mps": float(references[3]) if references.size > 3 else np.nan,
-                }
-                for index in range(min(control.size, 3)):
-                    row[f"control_{index}"] = float(control[index])
-                rows.append(row)
+        rows = _trajectory_rows(frames)
         path = self.run_dir / "trajectory.parquet"
         staging = self.run_dir / ".trajectory.rows.jsonl"
         with staging.open("w", encoding="utf-8") as stream:
@@ -474,6 +425,106 @@ class BoundedArtifactSink:
         artifacts = sorted(directory.glob("*.json.gz"), key=lambda path: (path.stat().st_mtime_ns, path.name))
         for path in artifacts[: -self._retention]:
             path.unlink(missing_ok=True)
+
+
+_VOLATILE_TRAJECTORY_KEY_PARTS = ("elapsed", "wall_time", "walltime")
+
+
+def _trajectory_rows(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for frame in frames:
+        ship_keys = sorted(key for key in frame if key.startswith("Ship"))
+        for ship_key in ship_keys:
+            ship = frame[ship_key]
+            if not ship:
+                continue
+            csog = np.asarray(ship.get("csog_state", np.full(4, np.nan)), dtype=float)
+            state = np.asarray(ship.get("state", np.full(6, np.nan)), dtype=float)
+            control = np.asarray(ship.get("input", np.full(3, np.nan)), dtype=float)
+            references = np.asarray(ship.get("references", np.full(9, np.nan)), dtype=float)
+            colav_summary = _trajectory_colav_summary(ship.get("colav"))
+            planner = colav_summary.get("planner", {})
+            row = {
+                "sim_time": float(ship.get("timestamp", np.nan)),
+                "ship_key": ship_key,
+                "ship_id": int(ship.get("id", -1)),
+                "mmsi": int(ship.get("mmsi", -1)),
+                "north_m": float(csog[0]),
+                "east_m": float(csog[1]),
+                "sog_mps": float(csog[2]),
+                "cog_rad": float(csog[3]),
+                "psi_rad": float(state[2]),
+                "surge_mps": float(state[3]),
+                "sway_mps": float(state[4]),
+                "yaw_rate_radps": float(state[5]),
+                "active": bool(ship.get("active", False)),
+                "control_json": canonical_json(jsonable(control)),
+                "references_json": canonical_json(jsonable(references)),
+                "waypoints_json": canonical_json(jsonable(ship.get("waypoints"))),
+                "tracks_json": canonical_json(
+                    jsonable(
+                        {
+                            "labels": ship.get("do_labels"),
+                            "states": ship.get("do_estimates"),
+                            "covariances": ship.get("do_covariances"),
+                            "nis": ship.get("do_NISes"),
+                        }
+                    )
+                ),
+                "measurements_json": canonical_json(jsonable(ship.get("sensor_measurements"))),
+                "colav_json": canonical_json(jsonable(colav_summary)),
+                "planner_solve_id": int(planner.get("solve_id", 0)),
+                "planner_solver_executed": bool(planner.get("solver_executed", False)),
+                "applied_course_ref_rad": float(references[2]) if references.size > 2 else np.nan,
+                "applied_speed_ref_mps": float(references[3]) if references.size > 3 else np.nan,
+            }
+            for index in range(min(control.size, 3)):
+                row[f"control_{index}"] = float(control[index])
+            rows.append(row)
+    return rows
+
+
+def _semantic_trajectory_value(value: Any, key: str | None = None) -> Any:
+    key_lower = key.lower() if key else ""
+    if key_lower == "run_id" or key_lower.endswith("_run_id"):
+        return None
+    if any(part in key_lower for part in _VOLATILE_TRAJECTORY_KEY_PARTS):
+        return None
+    if isinstance(value, dict):
+        return {
+            str(child_key): _semantic_trajectory_value(child_value, str(child_key))
+            for child_key, child_value in value.items()
+            if _semantic_trajectory_value(child_value, str(child_key)) is not None
+        }
+    if isinstance(value, (list, tuple)):
+        return [_semantic_trajectory_value(child) for child in value]
+    return jsonable(value)
+
+
+def trajectory_semantic_hash(frames: list[dict[str, Any]]) -> str:
+    """Hash trajectory facts while excluding run identity and wall-clock timing."""
+    return _trajectory_rows_semantic_hash(_trajectory_rows(frames))
+
+
+def trajectory_artifact_semantic_hash(path: Path) -> str:
+    """Compute the semantic hash for a legacy trajectory artifact."""
+    from pyarrow import parquet  # noqa: PLC0415
+
+    return _trajectory_rows_semantic_hash(parquet.read_table(path).to_pylist())
+
+
+def _trajectory_rows_semantic_hash(rows: list[dict[str, Any]]) -> str:
+    semantic_rows = []
+    for row in rows:
+        semantic_row = {}
+        for key, raw_value in row.items():
+            value = json.loads(raw_value) if key.endswith("_json") and isinstance(raw_value, str) else raw_value
+            normalized = _semantic_trajectory_value(value, key)
+            if normalized is not None:
+                semantic_row[key] = normalized
+        semantic_rows.append(semantic_row)
+    payload = {"schema_version": "trajectory-semantic.v1", "rows": semantic_rows}
+    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
 
 def _trajectory_colav_summary(value: Any) -> dict[str, Any]:

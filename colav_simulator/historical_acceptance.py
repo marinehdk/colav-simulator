@@ -617,7 +617,8 @@ class HistoricalAISAcceptanceHarness:
             "executed_algorithm": run_manifest.executed_algorithm,
             "fallback_used": run_manifest.fallback_used,
             "spec_hash": run_manifest.spec_hash,
-            "trajectory_hash": run_manifest.trajectory_hash,
+            "trajectory_hash": run_manifest.trajectory_semantic_hash,
+            "trajectory_artifact_hash": run_manifest.trajectory_artifact_hash,
             "algorithm_capability_evidence": request.run_spec.algorithm_capability_evidence,
         }
         manifest["lineage"]["run_digest"] = run_manifest.trajectory_hash
@@ -944,7 +945,7 @@ def _determinism_run_lineage(result: Any, compare_outcome: Any, evidence: Mappin
     return {
         "run_id": result.manifest.run_id,
         "spec_hash": result.manifest.spec_hash,
-        "trajectory_artifact_hash": result.manifest.trajectory_hash,
+        "trajectory_artifact_hash": result.manifest.trajectory_artifact_hash,
         "evaluation_gate": result.manifest.evaluation_gate,
         "compare_status": compare_outcome.status.value,
         "compare_digest": compare_outcome.compare_digest,

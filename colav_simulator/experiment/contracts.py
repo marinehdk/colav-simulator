@@ -225,6 +225,8 @@ class RunManifest:
     episode_hash: str = ""
     enc_hash: str = ""
     trajectory_hash: str = ""
+    trajectory_semantic_hash: str = ""
+    trajectory_artifact_hash: str = ""
     scenario_provenance: dict[str, Any] = field(default_factory=dict)
     requested_algorithm: str = "nominal"
     executed_algorithm: str = "nominal"

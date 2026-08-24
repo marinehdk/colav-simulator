@@ -29,8 +29,20 @@ from colav_simulator.core.colav.threat_management import ThreatManagementCoordin
 from colav_simulator.core.models import KinematicCSOGParams
 from colav_simulator.evaluation import Evaluator, EvaluatorResult
 from colav_simulator.experiment.capabilities import CapabilityCatalog
-from colav_simulator.experiment.contracts import RunManifest, RunOutcome, RunSpec, SessionState, content_hash
-from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
+from colav_simulator.experiment.contracts import (
+    InternalExecutionPurpose,
+    RunManifest,
+    RunOutcome,
+    RunSpec,
+    SessionState,
+    content_hash,
+)
+from colav_simulator.experiment.persistence import (
+    BoundedArtifactSink,
+    EvidenceWriter,
+    trajectory_artifact_semantic_hash,
+    trajectory_semantic_hash,
+)
 from colav_simulator.experiment.session import SimulationSession
 from colav_simulator.historical_replay import (
     HistoricalActorShip,
@@ -205,6 +217,31 @@ class ExperimentRunner:
     def prepare(self, spec: RunSpec) -> PreparedRun:
         """Prepare one product run through the published exact-tuple policy."""
         self.capabilities.policy.require_integrations(spec.algorithm_id, spec.tracker_id)
+        historical_mode = str((spec.historical_replay or {}).get("mode", "")).upper()
+        if historical_mode == "COUNTERFACTUAL":
+            capability_tuple = spec.capability_tuple
+            if capability_tuple is None:
+                raise ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    "Counterfactual product run requires an explicit exact capability tuple",
+                )
+            if capability_tuple[1] != spec.scenario_id:
+                raise ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    "Counterfactual capability tuple scenario differs from RunSpec",
+                )
+            if capability_tuple[2] != spec.algorithm_id or capability_tuple[3] != spec.tracker_id:
+                raise ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    "Counterfactual capability tuple integration differs from RunSpec",
+                )
+            capability_profile_id = self.capabilities.validate(*capability_tuple)
+            normalized_spec = (
+                spec
+                if spec.validation_rule_id is not None
+                else replace(spec, validation_rule_id=capability_tuple[0])
+            )
+            return self._prepare(normalized_spec, capability_profile_id=capability_profile_id)
         if spec.validation_rule_id is None:
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
@@ -213,7 +250,7 @@ class ExperimentRunner:
         if spec.historical_replay is not None or spec.historical_scenario_id is not None:
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
-                "Historical Replay requires the explicit prepare_historical seam",
+                "Historical Replay requires the explicit prepare_internal seam",
             )
         capability_profile_id = self.capabilities.validate(
             spec.validation_rule_id,
@@ -223,12 +260,12 @@ class ExperimentRunner:
         )
         return self._prepare(spec, capability_profile_id=capability_profile_id)
 
-    def prepare_historical(self, spec: RunSpec) -> PreparedRun:
-        """Prepare a sealed Historical Replay/Counterfactual internal run."""
-        if spec.historical_replay is None:
+    def prepare_internal(self, spec: RunSpec, *, purpose: InternalExecutionPurpose) -> PreparedRun:
+        """Prepare one explicitly typed internal Replay or evaluator baseline run."""
+        if not isinstance(purpose, InternalExecutionPurpose):
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
-                "prepare_historical requires a sealed Historical Replay request",
+                "Internal execution requires a typed InternalExecutionPurpose",
             )
         capability_tuple = spec.capability_tuple
         if capability_tuple is None:
@@ -236,7 +273,21 @@ class ExperimentRunner:
                 PlanStatus.INVALID_INPUT,
                 "Historical internal execution requires an exact internal capability tuple",
             )
-        capability_profile_id = self.capabilities.validate_internal(*capability_tuple)
+        historical_mode = str((spec.historical_replay or {}).get("mode", "")).upper()
+        if purpose is InternalExecutionPurpose.HISTORICAL_REPLAY and historical_mode != "HISTORICAL_REPLAY":
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "HISTORICAL_REPLAY purpose requires a sealed Historical Replay request",
+            )
+        if purpose is InternalExecutionPurpose.EVALUATOR_BASELINE and spec.historical_replay is not None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "EVALUATOR_BASELINE purpose cannot carry Historical runtime actors",
+            )
+        capability_profile_id = self.capabilities.validate_internal(
+            *capability_tuple,
+            purpose=purpose,
+        )
         return self._prepare(spec, capability_profile_id=capability_profile_id)
 
     def _prepare(  # noqa: C901, PLR0912, PLR0915
@@ -296,7 +347,7 @@ class ExperimentRunner:
                 config.t_end = historical_request.t_end_s
         if spec.reload_enc:
             config.new_load_of_map_data = True
-        if capability_tuple is not None and spec.algorithm_id == "mid_mpc_ipopt":
+        if capability_tuple is not None and self.capabilities.policy.requires_domain_profile(spec.algorithm_id):
             if spec.domain_profile is None:
                 raise ColavExecutionError(
                     PlanStatus.INVALID_INPUT,
@@ -589,7 +640,9 @@ class ExperimentRunner:
         prepared.manifest.evaluation_gate = evaluation.hard_gate.outcome.value
         prepared.manifest.reproduction_status = evaluation.reproduction_status
         trajectory_path = prepared.writer.write_trajectory(prepared.session.frames)
-        prepared.manifest.trajectory_hash = _file_hash(trajectory_path)
+        prepared.manifest.trajectory_artifact_hash = _file_hash(trajectory_path)
+        prepared.manifest.trajectory_semantic_hash = trajectory_semantic_hash(prepared.session.frames)
+        prepared.manifest.trajectory_hash = prepared.manifest.trajectory_semantic_hash
         prepared.writer.write_events(prepared.session.events)
         prepared.writer.write_evaluation(evaluation)
         prepared.writer.write_run_metrics(_run_metrics(evaluation, prepared.session, prepared.manifest.fallback_used))
@@ -606,9 +659,9 @@ class ExperimentRunner:
     def run(self, spec: RunSpec) -> RunResult:
         return self._run_prepared(self.prepare(spec))
 
-    def run_historical(self, spec: RunSpec) -> RunResult:
-        """Execute one sealed Historical internal run."""
-        return self._run_prepared(self.prepare_historical(spec))
+    def run_internal(self, spec: RunSpec, *, purpose: InternalExecutionPurpose) -> RunResult:
+        """Execute one explicitly typed internal Replay or evaluator baseline run."""
+        return self._run_prepared(self.prepare_internal(spec, purpose=purpose))
 
     def _run_prepared(self, prepared: PreparedRun) -> RunResult:
         try:
@@ -636,25 +689,26 @@ class ExperimentRunner:
             output_root=str(output_root or source_spec.output_root),
             replay_of_run_id=manifest_document["run_id"],
         )
+        historical_mode = str((replay_spec.historical_replay or {}).get("mode", "")).upper()
         result = (
-            self.run_historical(replay_spec)
-            if replay_spec.historical_replay is not None
+            self.run_internal(replay_spec, purpose=InternalExecutionPurpose.HISTORICAL_REPLAY)
+            if historical_mode == "HISTORICAL_REPLAY"
             else self.run(replay_spec)
         )
         expected_episode_hash = source_episode["episode_hash"]
-        source_trajectory_hash = manifest_document.get("trajectory_hash") or _file_hash(
+        source_trajectory_hash = manifest_document.get("trajectory_semantic_hash") or trajectory_artifact_semantic_hash(
             source_run_dir / "trajectory.parquet"
         )
         result.manifest.replay_verified = (
             result.manifest.episode_hash == expected_episode_hash
-            and result.manifest.trajectory_hash == source_trajectory_hash
+            and result.manifest.trajectory_semantic_hash == source_trajectory_hash
         )
         result.writer.write_manifest(result.manifest)
         if not result.manifest.replay_verified:
             raise RuntimeError(
                 "Replay mismatch: "
                 f"episode {result.manifest.episode_hash} != {expected_episode_hash} or "
-                f"trajectory {result.manifest.trajectory_hash} != {source_trajectory_hash}"
+                f"trajectory semantic hash {result.manifest.trajectory_semantic_hash} != {source_trajectory_hash}"
             )
         return result
 
@@ -686,7 +740,9 @@ class ExperimentRunner:
             }
         )
         trajectory_path = writer.write_trajectory(frames)
-        manifest.trajectory_hash = _file_hash(trajectory_path)
+        manifest.trajectory_artifact_hash = _file_hash(trajectory_path)
+        manifest.trajectory_semantic_hash = trajectory_semantic_hash(frames)
+        manifest.trajectory_hash = manifest.trajectory_semantic_hash
         writer.write_events(failure_events)
         writer.write_failed_evaluation(str(exc), status.value)
         writer.write_failure_report(manifest)
