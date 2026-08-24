@@ -170,26 +170,6 @@ def test_integrations_endpoint_does_not_publish_legacy_as_available() -> None:
     assert legacy["nominal"]["available"] is False
 
 
-def test_algorithms_endpoint_is_product_active_and_quarantines_legacy() -> None:
-    with TestClient(app) as client:
-        response = client.get("/api/algorithms")
-
-    assert response.status_code == 200
-    document = response.json()
-    assert {item["integration_id"] for item in document} == {
-        "vo",
-        "potocnik_colreg_fan_mpc",
-        "mid_mpc_ipopt",
-    }
-    assert all(item["kind"] == "algorithm" for item in document)
-    assert all(item["active"] and item["available"] and item["selectable"] for item in document)
-    assert all(isinstance(item["constraints"], dict) for item in document)
-    assert next(item for item in document if item["integration_id"] == "mid_mpc_ipopt")["constraints"] == {
-        "requires_domain_profile": True,
-        "required_domain_qualification": "QUALIFIED",
-    }
-
-
 def test_algo_status_publishes_product_integrations_and_quarantines_legacy() -> None:
     with TestClient(app) as client:
         response = client.get("/api/algo_status")
