@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260821-fix-45" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260824-release-surface" />
+  <link rel="stylesheet" href="/static/style.css?v=20260824-mobile-final" />
 </head>
 <body>
   <div class="app-container">
@@ -29,9 +29,7 @@
         <button type="button" class="workface-tab" data-workface="algorithm" aria-selected="false"><obi-router-component aria-hidden="true"></obi-router-component><span>Algorithm</span></button>
       </nav>
     </header>
-    <div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden>
-      OpenBridge 1.0.1 failed to load. Product shell components unavailable; retry network/CDN access.
-    </div>
+    <div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden></div>
 
     <section class="workface config-workface" id="configWorkface" data-workface-panel="config" aria-label="Validation Config">
       <h1 class="configure-title">Validation Config</h1>
@@ -659,8 +657,8 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260824-release-surface"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260824-release-surface"></script>
+  <script type="module" src="/static/app.js?v=20260824-mobile-final"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260824-mobile-final"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260824-canonical-presentation"></script>
 </body>
 </html>

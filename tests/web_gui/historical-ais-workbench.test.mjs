@@ -47,8 +47,11 @@ test('Historical AIS remains additive while initial DOM exposes no fabricated sc
 test('Historical Compare domains stay readable without horizontal overflow on mobile', () => {
   const compareCardRule = styles.match(/\.historical-ais-compare-grid span \{[^}]+\}/)?.[0] || '';
   assert.match(compareCardRule, /min-width:\s*0/);
+  assert.match(compareCardRule, /max-width:\s*100%/);
+  assert.match(compareCardRule, /width:\s*100%/);
   assert.match(compareCardRule, /overflow-wrap:\s*anywhere/);
   assert.match(styles, /\.historical-ais-compare-grid strong \{[^}]*word-break:\s*break-word/);
+  assert.match(styles, /\.historical-ais-compare-grid \{[^}]*min-width:\s*0[^}]*width:\s*100%[^}]*max-width:\s*100%/);
   assert.match(
     styles,
     /@media \(max-width: 760px\) \{[\s\S]*?\.historical-ais-compare-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); overflow-x: visible;/,

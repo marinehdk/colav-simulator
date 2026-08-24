@@ -17,6 +17,15 @@ const ruleGuides = await Promise.all([
   'Multiship-guide.svg',
 ].map((name) => readFile(new URL(`../../web_gui/assets/openbridge/${name}`, import.meta.url), 'utf8')));
 
+test('OpenBridge fallback is empty until failure and clears after a successful bundle load', () => {
+  assert.match(html, /<div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden><\/div>/);
+  assert.match(shell, /openbridgeLoadError/);
+  assert.match(shell, /banner\.hidden\s*=\s*true/);
+  assert.match(shell, /banner\.textContent\s*=\s*''/);
+  assert.match(shell, /banner\.dataset\.state\s*=\s*'loaded'/);
+  assert.match(shell, /banner\.dataset\.state\s*=\s*'error'/);
+});
+
 test('Config starts disabled and boot establishes assembly before binding controls', () => {
   for (const id of [
     'validationSeed',

@@ -35,8 +35,18 @@ async function fetchJson(url, options) {
 
 function showOpenBridgeError(error) {
   const banner = document.getElementById('openbridgeLoadError');
+  if (!banner) return;
   banner.hidden = false;
+  banner.dataset.state = 'error';
   banner.textContent = `OpenBridge ${OPENBRIDGE_VERSION} failed to load: ${error.message}. Check /static/vendor/openbridge/ and retry the page.`;
+}
+
+function clearOpenBridgeError() {
+  const banner = document.getElementById('openbridgeLoadError');
+  if (!banner) return;
+  banner.hidden = true;
+  banner.textContent = '';
+  banner.dataset.state = 'loaded';
 }
 
 async function loadOpenBridge() {
@@ -52,6 +62,7 @@ async function loadOpenBridge() {
       customElements.whenDefined('obc-card'),
     ]);
     document.documentElement.dataset.openbridge = OPENBRIDGE_VERSION;
+    clearOpenBridgeError();
   } catch (error) {
     showOpenBridgeError(error);
   }
