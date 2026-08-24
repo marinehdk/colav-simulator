@@ -591,19 +591,9 @@ class HistoricalAISCapabilityReceipt:
         """Validate and seal one exact tuple from the live CapabilityCatalog."""
         from colav_simulator.experiment.capabilities import CAPABILITY_SCHEMA_VERSION  # noqa: PLC0415
 
-        catalog.validate(validation_rule_id, scenario_id, algorithm_id, tracker_id)
-        document = catalog.document([], validation_rule_id)
-        exact = next(
-            item
-            for item in document["selectable_combinations"]
-            if (
-                item["validation_rule_id"],
-                item["scenario_id"],
-                item["algorithm_id"],
-                item["tracker_id"],
-            )
-            == (validation_rule_id, scenario_id, algorithm_id, tracker_id)
-        )
+        key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
+        catalog.validate_internal(*key)
+        exact = catalog.exact_combination_document(key, product_only=False)
         return cls(
             validation_rule_id,
             scenario_id,

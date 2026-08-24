@@ -11,10 +11,10 @@ from colav_simulator.integrations import IntegrationRegistry
 from gui_server.main import app
 
 EXPECTED_COUNTS = {
-    "rule13": 12,
-    "rule14": 9,
-    "rule15": 11,
-    "multiship": 6,
+    "rule13": 6,
+    "rule14": 3,
+    "rule15": 6,
+    "multiship": 3,
 }
 EXPECTED_SCENARIOS = {
     "rule13": {"overtaking", "overtaken"},
@@ -41,6 +41,13 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
 
     assert response.status_code == 200
     catalog = response.json()
+    assert catalog["product_capability_policy"] == {
+        "policy_id": "colav-product-v1",
+        "algorithm_ids": ["vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt"],
+        "tracker_ids": ["god"],
+        "default_algorithm_id": "vo",
+        "default_tracker_id": "god",
+    }
     combinations = catalog["verified_combinations"]
     assert len(combinations) == EXPECTED_COUNTS[rule_id]
     assert {item["scenario_id"] for item in combinations} == EXPECTED_SCENARIOS[rule_id]
@@ -59,16 +66,13 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
         assert item["latest_evidence"]["encounter_profile_id"] == "legacy-g3-v1"
 
     selectable_trackers = {item["id"] for item in catalog["trackers"] if item["selectable"]}
-    assert selectable_trackers == ({"god", "kf"} if rule_id == "rule14" else {"god"})
-    expected_algorithms = {
-        "nominal",
-        "vo",
-        "sbmpc",
-        "potocnik_colreg_fan_mpc",
-        "potocnik_simplified_mpc",
-        "mid_mpc_ipopt",
-    }
+    assert selectable_trackers == {"god"}
+    expected_algorithms = {"vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt"}
     assert {item["id"] for item in catalog["algorithms"] if item["selectable"]} == expected_algorithms
+    assert {
+        item["id"] for item in catalog["algorithms"] if not item["selectable"]
+    } >= {"nominal", "sbmpc", "potocnik_simplified_mpc"}
+    assert {item["id"] for item in catalog["trackers"] if not item["selectable"]} >= {"kf", "scenario_default"}
     if rule_id == "multiship":
         mid_mpc = next(item for item in catalog["algorithms"] if item["id"] == "mid_mpc_ipopt")
         assert "global all-vessel safety is not established" in mid_mpc["known_failure"]
@@ -80,7 +84,10 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
         ("rule13", "crossing_give_way", "vo", "god"),
         ("rule15", "overtaking", "vo", "god"),
         ("rule13", "overtaking", "vo", "kf"),
-        ("rule15", "crossing_give_way", "sbmpc", "kf"),
+        ("rule15", "crossing_give_way", "sbmpc", "god"),
+        ("rule15", "crossing_give_way", "vo", "scenario_default"),
+        ("rule14", "head_on", "nominal", "god"),
+        ("rule14", "head_on", "potocnik_simplified_mpc", "god"),
         ("rule15", "crossing_give_way", "potocnik_simplified_mpc", "god"),
         ("multiship", "paper_ccta2023_multiship", "vo", "kf"),
         ("rule14", "head_on", "psbmpc", "god"),
@@ -125,7 +132,7 @@ def test_global_g3_grade_cannot_create_a_missing_cross_product() -> None:
         )
 
     assert response.status_code == 422
-    assert "No verified G3 capability tuple" in response.json()["detail"]["reason"]
+    assert "Tracker kf is not selectable" in response.json()["detail"]["reason"]
 
 
 def test_invalid_tuple_precedes_dependency_availability(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -141,3 +148,16 @@ def test_invalid_tuple_precedes_dependency_availability(monkeypatch: pytest.Monk
     with pytest.raises(ColavExecutionError) as unavailable_dependency:
         catalog.validate("rule14", "head_on", "vo", "god")
     assert unavailable_dependency.value.status is PlanStatus.DEPENDENCY_UNAVAILABLE
+
+
+def test_product_policy_rejects_legacy_integrations_even_when_registry_can_build_them() -> None:
+    catalog = CapabilityCatalog(IntegrationRegistry())
+
+    for algorithm_id in ("nominal", "sbmpc", "potocnik_simplified_mpc"):
+        with pytest.raises(ColavExecutionError) as raised:
+            catalog.validate("rule14", "head_on", algorithm_id, "god")
+        assert raised.value.status is PlanStatus.INVALID_INPUT
+
+    with pytest.raises(ColavExecutionError) as raised:
+        catalog.validate("rule14", "head_on", "vo", "kf")
+    assert raised.value.status is PlanStatus.INVALID_INPUT

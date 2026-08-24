@@ -248,6 +248,14 @@ Conflict-cluster qualification is also a future gate, separate from scene operab
 - The panel consumes the backend REST/WS workflow snapshot and only formats/projects it. It must render typed unavailable/incomplete states and must never compute CPA, domain, Primary, schedule, clusters or verdicts in browser code.
 - A front-end acceptance run must expose scene `status=AVAILABLE`, scope `BOUNDED`; completed workflow/evaluator/compare; `overall_assurance_verdict=PASS`; `leakage.status=PASS_CONTRACT`; `fallback=false`; threat counts `2/2/0`; double-run determinism `PASS` with `mismatches=[]`; and independent evaluator gate `PASS`. It must separately expose predictive cluster qualification as `THREAT_EVIDENCE_INCOMPLETE/NOT_QUALIFIED`. These claims are scoped to this bounded three-actor window; cluster qualification remains future work.
 
+### Product capability boundary
+
+- The product Config/API surface exposes only VO, Fan-MPC (`potocnik_colreg_fan_mpc`) and Mid-MPC (`mid_mpc_ipopt`) algorithms, each with the God tracker. The published capability catalog contains only those Product-Selectable Exact Tuples: 6 Rule 13 tuples, 3 Rule 14 tuples, 6 Rule 15 tuples and 3 Multiship tuples.
+- `/api/capabilities` publishes the product policy identity and allowlists alongside the filtered exact tuples, so a client need not infer the product boundary from registry entries or a Cartesian product.
+- Nominal, SB-MPC, Potočnik simplified MPC, KF and scenario-default tracker implementations may remain in the runtime registry for internal Historical Replay, evaluator baselines and compatibility fixtures. They are Internal Legacy Tuples: product session validation returns typed `INVALID_INPUT`, and they do not appear in `verified_combinations`, `experimental_combinations` or `selectable_combinations`.
+- Busy-water experimental evidence is similarly restricted to the three product algorithms with God; the 80-ship stress scene has no Mid-MPC experimental tuple until separately qualified.
+- Historical Replay may continue to use Nominal internally because it is playback, not a product-selectable COLAV validation session. Counterfactual runs use the published product algorithm binding and God tracker.
+
 ## Further Notes
 
 The repository glossary in `CONTEXT.md` and ADRs 0001–0003 define the shared vocabulary and authority boundaries. The existing design log records how DP-01–DP-04 were confirmed and how DP-05–DP-21 were frozen for implementation. Research citations in the offline attachment remain background; no external claim supersedes the project contracts above. This document is the implementation source of truth after the original attachment and issue body are synchronized.

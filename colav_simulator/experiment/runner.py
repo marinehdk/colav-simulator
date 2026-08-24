@@ -256,7 +256,12 @@ class ExperimentRunner:
             config.new_load_of_map_data = True
         capability_profile_id = None
         if capability_tuple is not None:
-            capability_profile_id = self.capabilities.validate(*capability_tuple)
+            validator = (
+                self.capabilities.validate_internal
+                if historical_request is not None
+                else self.capabilities.validate
+            )
+            capability_profile_id = validator(*capability_tuple)
         if capability_tuple is not None and spec.algorithm_id == "mid_mpc_ipopt":
             if spec.domain_profile is None:
                 raise ColavExecutionError(

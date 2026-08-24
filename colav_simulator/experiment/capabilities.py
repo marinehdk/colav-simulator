@@ -186,6 +186,51 @@ TRACKERS: dict[str, Capability] = {
 GRADE_VALUE = {"G0": 0, "G1": 1, "G2": 2, "G3": 3, "G4": 4}
 
 
+@dataclass(frozen=True)
+class ProductCapabilityPolicy:
+    """Define the integrations exposed by the current product surface.
+
+    The registry intentionally retains legacy builders for internal replay,
+    evaluator baselines, and compatibility tests.  This policy is the
+    explicit boundary for user-selectable validation sessions; it is not a
+    statement that a retained legacy implementation can no longer be built.
+    """
+
+    algorithm_ids: tuple[str, ...] = ("vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt")
+    tracker_ids: tuple[str, ...] = ("god",)
+    default_algorithm_id: str = "vo"
+    default_tracker_id: str = "god"
+
+    def allows_algorithm(self, identifier: str) -> bool:
+        return identifier in self.algorithm_ids
+
+    def allows_tracker(self, identifier: str) -> bool:
+        return identifier in self.tracker_ids
+
+    def allows_tuple(self, key: tuple[str, str, str, str]) -> bool:
+        return self.allows_algorithm(key[2]) and self.allows_tracker(key[3])
+
+    def filter_documents(self, documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in documents
+            if self.allows_tuple(
+                (
+                    str(item["validation_rule_id"]),
+                    str(item["scenario_id"]),
+                    str(item["algorithm_id"]),
+                    str(item["tracker_id"]),
+                )
+            )
+        ]
+
+    def rejection_reason(self, kind: str, identifier: str) -> str:
+        return f"{kind.capitalize()} {identifier} is not selectable in the current product capability policy."
+
+
+PRODUCT_CAPABILITY_POLICY = ProductCapabilityPolicy()
+
+
 def _evidence(
     *,
     role: str,
@@ -528,7 +573,7 @@ VERIFIED_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
     ),
 }
 
-_BUSY_WATER_ALGORITHMS = ("nominal", "vo", "sbmpc", "potocnik_colreg_fan_mpc")
+_BUSY_WATER_ALGORITHMS = PRODUCT_CAPABILITY_POLICY.algorithm_ids[:2]
 _BUSY_WATER_EVIDENCE = {
     "romsdal_busy_water_16": {
         "seed": 20250731,
@@ -620,8 +665,43 @@ def _experimental_combination_documents(
 class CapabilityCatalog:
     """Resolve selectable combinations from exact raw-evidence tuples."""
 
-    def __init__(self, registry: Any) -> None:
+    def __init__(self, registry: Any, policy: ProductCapabilityPolicy = PRODUCT_CAPABILITY_POLICY) -> None:
         self.registry = registry
+        self.policy = policy
+
+    def _product_combination_documents(
+        self,
+        *,
+        rule_id: str | None = None,
+        scenario_id: str | None = None,
+        algorithm_id: str | None = None,
+        tracker_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return self.policy.filter_documents(
+            _combination_documents(
+                rule_id=rule_id,
+                scenario_id=scenario_id,
+                algorithm_id=algorithm_id,
+                tracker_id=tracker_id,
+            )
+        )
+
+    def _product_experimental_combination_documents(
+        self,
+        *,
+        rule_id: str | None = None,
+        scenario_id: str | None = None,
+        algorithm_id: str | None = None,
+        tracker_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return self.policy.filter_documents(
+            _experimental_combination_documents(
+                rule_id=rule_id,
+                scenario_id=scenario_id,
+                algorithm_id=algorithm_id,
+                tracker_id=tracker_id,
+            )
+        )
 
     @staticmethod
     def _scenario_capability(scenario_id: str, valid: bool) -> Capability:
@@ -637,8 +717,8 @@ class CapabilityCatalog:
 
     def annotate_scenario(self, document: dict[str, Any]) -> dict[str, Any]:
         capability = self._scenario_capability(document["id"], bool(document.get("valid")))
-        combinations = _combination_documents(scenario_id=document["id"])
-        experimental = _experimental_combination_documents(scenario_id=document["id"])
+        combinations = self._product_combination_documents(scenario_id=document["id"])
+        experimental = self._product_experimental_combination_documents(scenario_id=document["id"])
         selectable_combinations = combinations + experimental
         dependency_available = bool(document.get("valid"))
         runtime_ready = dependency_available and GRADE_VALUE[capability.readiness_grade] >= 2
@@ -684,6 +764,13 @@ class CapabilityCatalog:
         default_rule = validation_rule_id or "rule14"
         return {
             "schema_version": CAPABILITY_SCHEMA_VERSION,
+            "product_capability_policy": {
+                "policy_id": "colav-product-v1",
+                "algorithm_ids": list(self.policy.algorithm_ids),
+                "tracker_ids": list(self.policy.tracker_ids),
+                "default_algorithm_id": self.policy.default_algorithm_id,
+                "default_tracker_id": self.policy.default_tracker_id,
+            },
             "rules": [self._rule_document(rule_id) for rule_id in rule_ids],
             "scenarios": annotated_scenarios,
             "algorithms": [
@@ -706,22 +793,21 @@ class CapabilityCatalog:
                 )
                 for identifier, capability in TRACKERS.items()
             ],
-            "verified_combinations": _combination_documents(rule_id=validation_rule_id),
-            "experimental_combinations": _experimental_combination_documents(rule_id=validation_rule_id),
-            "selectable_combinations": _combination_documents(rule_id=validation_rule_id)
-            + _experimental_combination_documents(rule_id=validation_rule_id),
+            "verified_combinations": self._product_combination_documents(rule_id=validation_rule_id),
+            "experimental_combinations": self._product_experimental_combination_documents(rule_id=validation_rule_id),
+            "selectable_combinations": self._product_combination_documents(rule_id=validation_rule_id)
+                + self._product_experimental_combination_documents(rule_id=validation_rule_id),
             "defaults": {
                 "validation_rule_id": default_rule,
                 "scenario_id": RULES[default_rule]["default_scenario"],
-                "algorithm_id": "nominal",
-                "tracker_id": "god",
+                "algorithm_id": self.policy.default_algorithm_id,
+                "tracker_id": self.policy.default_tracker_id,
             },
         }
 
-    @staticmethod
-    def _rule_document(rule_id: str) -> dict[str, Any]:
+    def _rule_document(self, rule_id: str) -> dict[str, Any]:
         rule = RULES[rule_id]
-        combinations = _combination_documents(rule_id=rule_id)
+        combinations = self.policy.filter_documents(_combination_documents(rule_id=rule_id))
         supported_scenarios = sorted({item["scenario_id"] for item in combinations})
         selectable = rule["readiness_grade"] == "G3" and bool(combinations)
         return {
@@ -745,8 +831,8 @@ class CapabilityCatalog:
             "incompatibility_reason": None if selectable else "Rule has no verified G3 capability tuple.",
         }
 
-    @staticmethod
     def _integration_document(
+        self,
         identifier: str,
         capability: Capability,
         status: Any,
@@ -755,15 +841,19 @@ class CapabilityCatalog:
     ) -> dict[str, Any]:
         filters = {"rule_id": validation_rule_id}
         filters[f"{kind}_id"] = identifier
-        combinations = _combination_documents(**filters)
-        experimental = _experimental_combination_documents(**filters)
+        combinations = self.policy.filter_documents(_combination_documents(**filters))
+        experimental = self.policy.filter_documents(_experimental_combination_documents(**filters))
         selectable_combinations = combinations + experimental
         dependency_available = bool(status and status.available)
         minimum_grade = 2 if identifier in {"nominal", "god", "kf"} else 3
         grade_ready = GRADE_VALUE[capability.readiness_grade] >= minimum_grade
         runtime_ready = dependency_available and GRADE_VALUE[capability.readiness_grade] >= 2
         selectable = runtime_ready and grade_ready and bool(selectable_combinations)
-        if not dependency_available:
+        if not self.policy.allows_algorithm(identifier) and kind == "algorithm":
+            incompatibility = self.policy.rejection_reason(kind, identifier)
+        elif not self.policy.allows_tracker(identifier) and kind == "tracker":
+            incompatibility = self.policy.rejection_reason(kind, identifier)
+        elif not dependency_available:
             incompatibility = status.reason if status else "Integration is not registered."
         elif not grade_ready:
             incompatibility = capability.known_failure or f"{identifier} has not passed its readiness gate."
@@ -792,11 +882,25 @@ class CapabilityCatalog:
         }
 
     def validate(self, validation_rule_id: str, scenario_id: str, algorithm_id: str, tracker_id: str) -> str:
+        """Validate one product-selectable exact tuple for a session run."""
         if validation_rule_id not in RULES:
             raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unsupported validation rule: {validation_rule_id}")
+        if not self.policy.allows_algorithm(algorithm_id):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                self.policy.rejection_reason("algorithm", algorithm_id),
+            )
+        if not self.policy.allows_tracker(tracker_id):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                self.policy.rejection_reason("tracker", tracker_id),
+            )
         scenario_combinations = [
-            *_combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id),
-            *_experimental_combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id),
+            *self._product_combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id),
+            *self._product_experimental_combination_documents(
+                rule_id=validation_rule_id,
+                scenario_id=scenario_id,
+            ),
         ]
         if not scenario_combinations:
             raise ColavExecutionError(
@@ -806,7 +910,10 @@ class CapabilityCatalog:
         key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
         if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
             has_experimental_scope = bool(
-                _experimental_combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id)
+                self._product_experimental_combination_documents(
+                    rule_id=validation_rule_id,
+                    scenario_id=scenario_id,
+                )
             )
             label = "selectable capability" if has_experimental_scope else "verified G3 capability"
             raise ColavExecutionError(
@@ -816,6 +923,65 @@ class CapabilityCatalog:
         self._require_available(ALGORITHMS, algorithm_id)
         self._require_available(TRACKERS, tracker_id)
         return ":".join(key)
+
+    def validate_internal(self, validation_rule_id: str, scenario_id: str, algorithm_id: str, tracker_id: str) -> str:
+        """Validate a retained legacy tuple for internal Historical AIS evidence.
+
+        This seam is intentionally separate from :meth:`validate`: product
+        sessions cannot use legacy integrations, while Historical Replay may
+        still seal a Nominal pre-T0 reference and evaluator fixtures.
+        """
+        if validation_rule_id not in RULES:
+            raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unsupported validation rule: {validation_rule_id}")
+        key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
+        if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"No internal capability tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
+            )
+        self._require_available(ALGORITHMS, algorithm_id)
+        self._require_available(TRACKERS, tracker_id)
+        return ":".join(key)
+
+    @staticmethod
+    def exact_combination_document(
+        key: tuple[str, str, str, str],
+        *,
+        product_only: bool = True,
+    ) -> dict[str, Any]:
+        """Return the sealed raw-evidence document for one exact tuple."""
+        if product_only and not PRODUCT_CAPABILITY_POLICY.allows_tuple(key):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                PRODUCT_CAPABILITY_POLICY.rejection_reason("capability tuple", ":".join(key)),
+            )
+        if key in VERIFIED_COMBINATIONS:
+            evidence = VERIFIED_COMBINATIONS[key]
+            document = _combination_documents(
+                rule_id=key[0],
+                scenario_id=key[1],
+                algorithm_id=key[2],
+                tracker_id=key[3],
+            )
+        elif key in EXPERIMENTAL_COMBINATIONS:
+            evidence = EXPERIMENTAL_COMBINATIONS[key]
+            document = _experimental_combination_documents(
+                rule_id=key[0],
+                scenario_id=key[1],
+                algorithm_id=key[2],
+                tracker_id=key[3],
+            )
+        else:
+            raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unknown capability tuple: {':'.join(key)}")
+        if not document:
+            raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unknown capability tuple: {':'.join(key)}")
+        # Keep this lookup explicit so callers cannot accidentally seal a
+        # different tuple when the evidence map is extended.
+        item = document[0]
+        if item["latest_evidence"] != evidence:
+            item = dict(item)
+            item["latest_evidence"] = dict(evidence)
+        return item
 
     def _require_available(self, capabilities: dict[str, Capability], identifier: str) -> None:
         capability = capabilities.get(identifier)

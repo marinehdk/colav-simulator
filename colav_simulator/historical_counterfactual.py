@@ -120,7 +120,13 @@ class HistoricalAISCounterfactualRunRequest:
             "handoff_tolerance_mps": self.handoff_tolerance_mps,
             "handoff_tolerance_rad": self.handoff_tolerance_rad,
         }
-        return replace(self.run_spec, historical_replay=historical_replay, t_end=float(t_end))
+        return replace(
+            self.run_spec,
+            scenario_id=self.case.historical_scenario_id or self.run_spec.scenario_id,
+            historical_scenario_id=self.case.historical_scenario_id or self.run_spec.historical_scenario_id,
+            historical_replay=historical_replay,
+            t_end=float(t_end),
+        )
 
 
 class HistoricalAISCounterfactualRunStatus(str, Enum):

@@ -16,6 +16,18 @@ _Avoid_: Draft, live configuration
 A Rule, Scenario, Algorithm, and Tracker combination recognized by the capability catalog as one indivisible execution choice.
 _Avoid_: Cartesian product, independent selections
 
+**Product Capability Policy**:
+The explicit allowlist for integrations exposed by the product Config/API surface: VO, Fan-MPC, and Mid-MPC with the God tracker. It is separate from the registry, which may retain legacy builders for internal Historical Replay and evaluator fixtures.
+_Avoid_: Every registered integration is selectable
+
+**Product-Selectable Exact Tuple**:
+An Exact Tuple that passes the Product Capability Policy and has verified or explicitly experimental evidence for the selected Rule and Scenario.
+_Avoid_: Globally available algorithm, registry entry
+
+**Internal Legacy Tuple**:
+An exact tuple retained for Historical Replay, evaluator baselines, or compatibility tests but rejected by product session validation and omitted from selectable capability evidence.
+_Avoid_: User-selectable capability
+
 **Verified Tuple**:
 An Exact Tuple backed by the catalog's verified capability evidence. Its evidence applies to that tuple, not to every use of its Algorithm or Tracker.
 _Avoid_: Globally validated algorithm

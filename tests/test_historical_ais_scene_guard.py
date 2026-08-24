@@ -1,9 +1,9 @@
 """Compatibility guards for the first independent Historical AIS catalog scene.
 
 These tests deliberately keep the existing scripted scenario and capability
-surfaces as characterization baselines.  The descriptor test is RED until the
-dedicated Historical AIS catalog/workbench is published by the implementation
-agent; it does not authorize changing the legacy Config catalog.
+surfaces as characterization baselines.  The independent Historical AIS
+descriptor is checked through its dedicated catalog; it does not authorize
+changing the legacy Config catalog.
 """
 
 from __future__ import annotations
@@ -73,43 +73,23 @@ EXPECTED_SCENARIO_YAML_SHA256 = {
 
 EXPECTED_VERIFIED_TUPLES = frozenset(
     {
-        ("rule14", "head_on", "nominal", "god"),
         ("rule14", "head_on", "mid_mpc_ipopt", "god"),
         ("rule14", "head_on", "vo", "god"),
-        ("rule14", "head_on", "sbmpc", "god"),
-        ("rule14", "head_on", "potocnik_simplified_mpc", "god"),
         ("rule14", "head_on", "potocnik_colreg_fan_mpc", "god"),
-        ("rule14", "head_on", "nominal", "kf"),
-        ("rule14", "head_on", "vo", "kf"),
-        ("rule14", "head_on", "sbmpc", "kf"),
-        ("rule13", "overtaking", "nominal", "god"),
         ("rule13", "overtaking", "mid_mpc_ipopt", "god"),
         ("rule13", "overtaking", "vo", "god"),
-        ("rule13", "overtaking", "sbmpc", "god"),
-        ("rule13", "overtaking", "potocnik_simplified_mpc", "god"),
         ("rule13", "overtaking", "potocnik_colreg_fan_mpc", "god"),
-        ("rule13", "overtaken", "nominal", "god"),
         ("rule13", "overtaken", "mid_mpc_ipopt", "god"),
         ("rule13", "overtaken", "vo", "god"),
-        ("rule13", "overtaken", "sbmpc", "god"),
-        ("rule13", "overtaken", "potocnik_simplified_mpc", "god"),
         ("rule13", "overtaken", "potocnik_colreg_fan_mpc", "god"),
-        ("rule15", "crossing_give_way", "nominal", "god"),
         ("rule15", "crossing_give_way", "mid_mpc_ipopt", "god"),
         ("rule15", "crossing_give_way", "vo", "god"),
-        ("rule15", "crossing_give_way", "sbmpc", "god"),
         ("rule15", "crossing_give_way", "potocnik_colreg_fan_mpc", "god"),
-        ("rule15", "crossing_stand_on", "nominal", "god"),
         ("rule15", "crossing_stand_on", "mid_mpc_ipopt", "god"),
         ("rule15", "crossing_stand_on", "vo", "god"),
-        ("rule15", "crossing_stand_on", "sbmpc", "god"),
-        ("rule15", "crossing_stand_on", "potocnik_simplified_mpc", "god"),
         ("rule15", "crossing_stand_on", "potocnik_colreg_fan_mpc", "god"),
-        ("multiship", "paper_ccta2023_multiship", "nominal", "god"),
         ("multiship", "paper_ccta2023_multiship", "mid_mpc_ipopt", "god"),
         ("multiship", "paper_ccta2023_multiship", "vo", "god"),
-        ("multiship", "paper_ccta2023_multiship", "sbmpc", "god"),
-        ("multiship", "paper_ccta2023_multiship", "potocnik_simplified_mpc", "god"),
         ("multiship", "paper_ccta2023_multiship", "potocnik_colreg_fan_mpc", "god"),
     }
 )
@@ -173,7 +153,7 @@ def test_existing_verified_exact_tuples_remain_unchanged_and_independent() -> No
 
 
 def test_independent_historical_ais_catalog_publishes_current_scene() -> None:
-    """RED until the dedicated independent AIS catalog descriptor is mounted."""
+    """The dedicated catalog publishes the bounded independent AIS scene."""
     with TestClient(app) as client:
         response = client.get("/api/historical/scenarios")
 

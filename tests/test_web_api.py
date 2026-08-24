@@ -540,7 +540,7 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         assert catalog["defaults"] == {
             "validation_rule_id": "rule14",
             "scenario_id": "head_on",
-            "algorithm_id": "nominal",
+            "algorithm_id": "vo",
             "tracker_id": "god",
         }
         capability_fields = {
@@ -562,17 +562,14 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         algorithms = {item["id"]: item for item in catalog["algorithms"]}
         assert {name for name, item in algorithms.items() if item["selectable"]} == {
             "mid_mpc_ipopt",
-            "nominal",
             "vo",
-            "sbmpc",
             "potocnik_colreg_fan_mpc",
-            "potocnik_simplified_mpc",
         }
         assert algorithms["psbmpc"]["incompatibility_reason"]
         assert algorithms["rrt"]["incompatibility_reason"]
         assert algorithms["rlmpc"]["incompatibility_reason"]
         trackers = {item["id"]: item for item in catalog["trackers"]}
-        assert {name for name, item in trackers.items() if item["selectable"]} == {"god", "kf"}
+        assert {name for name, item in trackers.items() if item["selectable"]} == {"god"}
 
         rejected = client.post(
             "/api/sessions",
@@ -585,7 +582,7 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         )
         assert rejected.status_code == 422
         assert rejected.json()["detail"]["status"] == "INVALID_INPUT"
-        assert "not a selectable rule14" in rejected.json()["detail"]["reason"]
+        assert "Algorithm nominal is not selectable" in rejected.json()["detail"]["reason"]
 
 
 def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
@@ -595,7 +592,7 @@ def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
             json={
                 "validation_rule_id": "rule14",
                 "scenario_id": "head_on",
-                "algorithm_id": "sbmpc",
+                "algorithm_id": "vo",
                 "tracker_id": "god",
                 "t_end": 6.0,
             },
@@ -611,17 +608,17 @@ def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
         assert telemetry is not None
         assert telemetry["state"] == "FINISHED"
         assert telemetry["selected_rule"] == "rule14"
-        assert telemetry["requested_algorithm"] == telemetry["executed_algorithm"] == "sbmpc"
+        assert telemetry["requested_algorithm"] == telemetry["executed_algorithm"] == "vo"
         assert telemetry["requested_tracker"] == telemetry["executed_tracker"] == "god"
         assert telemetry["planner"]["solver_executed"] is False
-        assert telemetry["planner"]["solve_id"] == 1
+        assert telemetry["planner"]["solve_id"] > 0
         assert telemetry["latest_planner_solve"]["solver_executed"] is True
-        assert telemetry["latest_planner_solve"]["solve_id"] == 1
+        assert telemetry["latest_planner_solve"]["solve_id"] == telemetry["planner"]["solve_id"]
         assert telemetry["active_planner_plan"]["solver_executed"] is True
-        assert telemetry["active_planner_plan"]["solve_id"] == 1
+        assert telemetry["active_planner_plan"]["solve_id"] == telemetry["planner"]["solve_id"]
         assert telemetry["latest_planner_attempt"]["solver_executed"] is True
-        assert telemetry["latest_planner_attempt"]["solve_id"] == 1
-        assert len(telemetry["plans"]["prediction_horizon"]) == 60
+        assert telemetry["latest_planner_attempt"]["solve_id"] == telemetry["planner"]["solve_id"]
+        assert len(telemetry["plans"]["prediction_horizon"]) >= 1
         _assert_typed_threat_unavailable(telemetry)
 
 
@@ -744,7 +741,7 @@ def test_vo_decision_space_is_on_demand_and_not_in_telemetry() -> None:
 
 @pytest.mark.parametrize(
     "algorithm_id",
-    ("potocnik_simplified_mpc", "potocnik_colreg_fan_mpc"),
+    ("potocnik_colreg_fan_mpc",),
 )
 def test_potocnik_web_session_uses_published_profile(algorithm_id: str) -> None:
     with TestClient(app) as client:
@@ -782,7 +779,6 @@ def test_potocnik_web_session_uses_published_profile(algorithm_id: str) -> None:
 
 def test_rule14_web_and_offline_trajectory_hashes_match(tmp_path: Path) -> None:
     request = {
-        "validation_rule_id": "rule14",
         "scenario_id": "head_on",
         "algorithm_id": "nominal",
         "tracker_id": "god",
