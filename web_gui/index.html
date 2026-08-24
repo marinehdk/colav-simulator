@@ -555,31 +555,31 @@
           <div>
             <p class="historical-ais-eyebrow">EVALUATION / HISTORICAL AIS</p>
             <h1>Historical AIS Benchmark</h1>
-            <p>One published AIS multi-ship scene · two workflow modes · separate Historical workflow authority.</p>
+            <p>Catalog-backed AIS multi-ship scenes · separate Historical workflow authority.</p>
           </div>
           <div class="historical-ais-header-status">
-            <span class="historical-ais-status-pill" id="historicalAISBenchmarkSource">SOURCE UNBOUND</span>
+            <span class="historical-ais-status-pill" id="historicalAISBenchmarkSource">UNAVAILABLE</span>
             <span class="historical-ais-catalog-status" id="historicalAISCatalogStatus" data-state="info">Loading catalog…</span>
           </div>
         </header>
         <div class="historical-ais-benchmark-grid">
           <section class="historical-ais-card historical-ais-benchmark-context" aria-labelledby="historicalAISBenchmarkHeading">
-            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">PUBLISHED SCENE</p><h2 id="historicalAISBenchmarkHeading">Current acceptance window</h2></div><span class="historical-ais-status-pill" id="historicalAISWorkflowStatus">BROWSE ONLY</span></div>
+            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">PUBLISHED SCENE</p><h2 id="historicalAISBenchmarkHeading">Catalog scene</h2></div><span class="historical-ais-status-pill" id="historicalAISWorkflowStatus">UNAVAILABLE</span></div>
             <dl class="historical-ais-facts">
-              <div><dt>Scene</dt><dd id="historicalAISBenchmarkScenario">Romsdal AIS</dd></div>
-              <div><dt>Window</dt><dd id="historicalAISBenchmarkWindow">1 min · 3 runtime actors</dd></div>
-              <div><dt>Authority</dt><dd id="historicalAISWorkflowAuthority">No Historical workflow selected</dd></div>
+              <div><dt>Scene</dt><dd id="historicalAISBenchmarkScenario">—</dd></div>
+              <div><dt>Identity</dt><dd id="historicalAISBenchmarkWindow">—</dd></div>
+              <div><dt>Scene operability</dt><dd id="historicalAISSceneOperability">—</dd></div>
+              <div><dt>Predictive qualification</dt><dd id="historicalAISPredictiveQualification">—</dd></div>
+              <div><dt>Future gate</dt><dd id="historicalAISFutureGate">—</dd></div>
+              <div><dt>Authority</dt><dd id="historicalAISWorkflowAuthority">—</dd></div>
             </dl>
-            <div class="historical-ais-limitation is-warning"><strong>Scope limitation</strong><p id="historicalAISBenchmarkLimitation">当前仅验证该窗口/3船；全archive未完成ENC资格。</p></div>
+            <div class="historical-ais-limitation is-warning"><strong>Scope limitation</strong><p id="historicalAISBenchmarkLimitation">—</p></div>
           </section>
 
           <section class="historical-ais-card historical-ais-mode-card" aria-labelledby="historicalAISModeHeading">
-            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">WORKFLOW MODE</p><h2 id="historicalAISModeHeading">Choose benchmark mode</h2></div><span class="historical-ais-status-pill">ONE SCENE</span></div>
-            <div class="historical-ais-mode-choices" id="historicalAISModeChoices" role="group" aria-label="Historical AIS workflow mode">
-              <button type="button" class="historical-ais-mode-choice active" data-historical-mode="HISTORICAL_REPLAY" aria-pressed="true"><strong>Historical Replay</strong><small>全船历史 AIS 回放；不运行 COLAV。</small></button>
-              <button type="button" class="historical-ais-mode-choice" data-historical-mode="COUNTERFACTUAL" aria-pressed="false"><strong>Counterfactual</strong><small>T0 后 Reference Vessel 交给 Mid-MPC；其他船继续历史回放。</small></button>
-            </div>
-            <p class="historical-ais-mode-description" id="historicalAISModeDescription">全船历史 AIS 回放；不运行 COLAV。</p>
+            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">WORKFLOW MODE</p><h2 id="historicalAISModeHeading">Choose benchmark mode</h2></div><span class="historical-ais-status-pill">CATALOG</span></div>
+            <div class="historical-ais-mode-choices" id="historicalAISModeChoices" role="group" aria-label="Historical AIS workflow mode"></div>
+            <p class="historical-ais-mode-description" id="historicalAISModeDescription">—</p>
             <obc-button id="historicalAISRun" variant="normal" disabled>Run Historical Workflow</obc-button>
             <p class="historical-ais-run-boundary">Source must be bound and qualified before Run. Historical workflow does not replace the single Active Session.</p>
           </section>
@@ -592,6 +592,9 @@
               <div><dt>Threat vector / schedule / cluster</dt><dd id="historicalAISEvidenceThreat">—</dd></div>
               <div><dt>Leakage</dt><dd id="historicalAISEvidenceLeakage">—</dd></div>
               <div><dt>Determinism</dt><dd id="historicalAISEvidenceDeterminism">—</dd></div>
+              <div><dt>Runtime qualification</dt><dd id="historicalAISRuntimeQualification">—</dd></div>
+              <div><dt>Qualification determinism</dt><dd id="historicalAISQualificationDeterminism">—</dd></div>
+              <div><dt>Qualification graph V/S/C</dt><dd id="historicalAISQualificationThreatGraph">—</dd></div>
             </dl>
             <div class="historical-ais-compare-grid" aria-label="Compare domains">
               <span>Safety <strong id="historicalAISCompare-safety">—</strong></span><span>COLREG <strong id="historicalAISCompare-colreg">—</strong></span><span>Maneuver <strong id="historicalAISCompare-maneuver">—</strong></span><span>Efficiency <strong id="historicalAISCompare-efficiency">—</strong></span><span>Human Similarity <strong id="historicalAISCompare-human_similarity">—</strong></span>
@@ -609,25 +612,25 @@
             <p>Independent AIS multi-ship scene. Existing COLREG scenario cards and ordinary Session Create remain unchanged.</p>
           </div>
           <div class="historical-ais-header-status">
-            <span class="historical-ais-status-pill" id="historicalAISScenarioHeaderStatus">UNBOUND</span>
-            <span class="historical-ais-status-pill">HISTORICAL AIS / MS</span>
+            <span class="historical-ais-status-pill" id="historicalAISScenarioHeaderStatus">UNAVAILABLE</span>
+            <span class="historical-ais-status-pill">CATALOG</span>
           </div>
         </header>
         <div class="historical-ais-scenario-grid">
           <section class="historical-ais-card historical-ais-scenario-list-card" aria-labelledby="historicalAISScenarioListHeading">
-            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">SCENE CATALOG</p><h2 id="historicalAISScenarioListHeading">Published AIS scenes</h2></div><span class="historical-ais-catalog-status" id="historicalAISScenarioCatalogStatus">One scene</span></div>
+            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">SCENE CATALOG</p><h2 id="historicalAISScenarioListHeading">Published AIS scenes</h2></div><span class="historical-ais-catalog-status" id="historicalAISScenarioCatalogStatus">LOADING</span></div>
             <div class="historical-ais-scenario-list" id="historicalAISScenarioList" role="listbox" aria-label="Historical AIS scenarios"></div>
             <p class="historical-ais-run-boundary">Mode is selected in Evaluation. This catalog does not enter Config exact tuples.</p>
           </section>
           <section class="historical-ais-card historical-ais-scenario-detail-card" id="historicalAISScenarioDetail" aria-labelledby="historicalAISScenarioDetailHeading">
-            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">SCENE DETAIL</p><h2 id="historicalAISScenarioDetailHeading"><span id="historicalAISScenarioName">Romsdal AIS</span></h2><p id="historicalAISScenarioDescription">One immutable HAIS selection shared by Historical Replay and Counterfactual.</p></div><span class="historical-ais-status-pill" id="historicalAISScenarioSourceStatus">UNBOUND</span></div>
+            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">SCENE DETAIL</p><h2 id="historicalAISScenarioDetailHeading"><span id="historicalAISScenarioName">SCENARIO UNAVAILABLE</span></h2><p id="historicalAISScenarioDescription">—</p></div><span class="historical-ais-status-pill" id="historicalAISScenarioSourceStatus">UNAVAILABLE</span></div>
             <div class="historical-ais-detail-layout">
               <dl class="historical-ais-facts">
-                <div><dt>Current window</dt><dd id="historicalAISScenarioWindow">—</dd></div><div><dt>Duration</dt><dd id="historicalAISScenarioDuration">1 min</dd></div><div><dt>Actors</dt><dd id="historicalAISScenarioActors">3 runtime actors</dd></div><div><dt>Source entry</dt><dd id="historicalAISScenarioEntry">—</dd></div><div><dt>Archive</dt><dd id="historicalAISScenarioArchive">—</dd></div><div><dt>Selection filter</dt><dd id="historicalAISScenarioFilter">—</dd></div><div><dt>BBox</dt><dd id="historicalAISScenarioBbox">—</dd></div><div><dt>Reference / T0</dt><dd id="historicalAISScenarioReference">—</dd><dd id="historicalAISScenarioT0">—</dd></div><div><dt>Targets</dt><dd id="historicalAISScenarioTargets">—</dd></div><div><dt>ENC</dt><dd id="historicalAISScenarioEnc">romsdal-expanded · QUALIFIED</dd></div><div><dt>Rows</dt><dd id="historicalAISScenarioRows">—</dd></div><div><dt>Quality</dt><dd id="historicalAISScenarioQuality">—</dd></div><div><dt>Sealed qualification</dt><dd id="historicalAISScenarioQualificationThreat">NOT PUBLISHED</dd></div><div><dt>Source</dt><dd id="historicalAISScenarioSource">—</dd></div>
+                <div><dt>Scene identity</dt><dd id="historicalAISScenarioIdentity">—</dd></div><div><dt>Current window</dt><dd id="historicalAISScenarioWindow">—</dd></div><div><dt>Duration</dt><dd id="historicalAISScenarioDuration">—</dd></div><div><dt>Actors</dt><dd id="historicalAISScenarioActors">—</dd></div><div><dt>Source entry</dt><dd id="historicalAISScenarioEntry">—</dd></div><div><dt>Archive</dt><dd id="historicalAISScenarioArchive">—</dd></div><div><dt>Selection filter</dt><dd id="historicalAISScenarioFilter">—</dd></div><div><dt>BBox</dt><dd id="historicalAISScenarioBbox">—</dd></div><div><dt>Reference / T0</dt><dd id="historicalAISScenarioReference">—</dd><dd id="historicalAISScenarioT0">—</dd></div><div><dt>Targets</dt><dd id="historicalAISScenarioTargets">—</dd></div><div><dt>ENC</dt><dd id="historicalAISScenarioEnc">—</dd></div><div><dt>Rows</dt><dd id="historicalAISScenarioRows">—</dd></div><div><dt>Quality</dt><dd id="historicalAISScenarioQuality">—</dd></div><div><dt>Scene qualification</dt><dd id="historicalAISScenarioQualificationThreat">—</dd></div><div><dt>Algorithm capability</dt><dd id="historicalAISScenarioCapability">—</dd></div><div><dt>Archive digest</dt><dd id="historicalAISDigestArchive">—</dd></div><div><dt>Entry digest</dt><dd id="historicalAISDigestEntry">—</dd></div><div><dt>Selection digest</dt><dd id="historicalAISDigestSelection">—</dd></div><div><dt>Descriptor digest</dt><dd id="historicalAISDigestDescriptor">—</dd></div><div><dt>Source</dt><dd id="historicalAISScenarioSource">—</dd></div>
               </dl>
-              <div class="historical-ais-scene-preview"><img src="/static/assets/openbridge/romsdal-head-on-seacharts.png" alt="Romsdal ENC reference chart"><span>ENC reference · romsdal-expanded</span></div>
+              <div class="historical-ais-scene-preview" id="historicalAISScenePreview" hidden><img src="/static/assets/openbridge/romsdal-head-on-seacharts.png" alt="Catalog ENC reference chart"><span>Catalog ENC reference · not AIS geometry</span></div>
             </div>
-            <div class="historical-ais-limitation is-warning"><strong>Acceptance boundary</strong><p id="historicalAISScenarioLimitation">当前仅验证该窗口/3船；全archive未完成ENC资格。</p></div>
+            <div class="historical-ais-limitation is-warning"><strong>Acceptance boundary</strong><p id="historicalAISScenarioLimitation">—</p></div>
           </section>
         </div>
       </div>
@@ -646,6 +649,6 @@
 
   <script type="module" src="/static/app.js?v=20260821-trackkey-fix4"></script>
   <script type="module" src="/static/modules/config-shell.js?v=20260821-trackkey-fix4"></script>
-  <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260824-ais-scene"></script>
+  <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260824-canonical-presentation"></script>
 </body>
 </html>

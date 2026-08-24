@@ -3,6 +3,74 @@
   "workflow_id": "workflow-browser-regression",
   "mode": "COUNTERFACTUAL",
   "status": "COMPLETED",
+  "presentation": {
+    "schema_version": "historical-workflow.presentation.v1",
+    "scenario": {
+      "id": "hais_romsdal_20260701_120000_120100",
+      "kind": "HISTORICAL_AIS",
+      "status": "AVAILABLE",
+      "scope": "BOUNDED"
+    },
+    "operability": {
+      "status": "AVAILABLE",
+      "scope": "BOUNDED"
+    },
+    "runtime": {
+      "mode": "COUNTERFACTUAL",
+      "status": "COMPLETED",
+      "requested_algorithm": "mid_mpc_ipopt",
+      "executed_algorithm": "mid_mpc_ipopt",
+      "fallback_used": false
+    },
+    "threat": {
+      "status": "AVAILABLE",
+      "vector_count": 2,
+      "schedule_entry_count": 2,
+      "cluster_count": 0
+    },
+    "leakage": {
+      "status": "PASS_CONTRACT"
+    },
+    "determinism": {
+      "status": "PASS",
+      "mismatch_count": 0
+    },
+    "compare": {
+      "status": "COMPLETE",
+      "overall_assurance_verdict": "PASS",
+      "domain_statuses": {
+        "safety": "COMPLETE",
+        "colreg": "COMPLETE",
+        "maneuver": "COMPLETE",
+        "efficiency": "COMPLETE",
+        "human_similarity": "COMPLETE"
+      }
+    },
+    "qualification": {
+      "status": "NOT_QUALIFIED",
+      "code": "THREAT_EVIDENCE_INCOMPLETE",
+      "execution_mode": "DOUBLE_RUN_ACCEPTANCE",
+      "run_count": 2,
+      "reason": "natural conflict cluster is empty",
+      "actual_counts": {
+        "vector_count": 2,
+        "schedule_entry_count": 2,
+        "cluster_count": 0
+      },
+      "future_gate": "NONEMPTY_NATURAL_CLUSTER",
+      "determinism": {
+        "status": "PASS",
+        "mismatch_count": 0
+      },
+      "threat_graph": {
+        "status": "NOT_QUALIFIED",
+        "code": "THREAT_EVIDENCE_INCOMPLETE",
+        "vector_count": 2,
+        "schedule_entry_count": 2,
+        "cluster_count": 0
+      }
+    }
+  },
   "stages": {
     "dataset": "SELECTED",
     "case": "PUBLISHED",

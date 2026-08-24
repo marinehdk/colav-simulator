@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import { createHistoricalAISApi } from '../../web_gui/modules/historical-ais-api.js';
 import {
-  DEFAULT_HISTORICAL_AIS_SCENARIO,
-  createHistoricalAISApi,
-  createHistoricalAISProjection,
-} from '../../web_gui/modules/historical-ais-workbench.js';
+  projectHistoricalAISScenario,
+  projectHistoricalAISWorkflow,
+} from '../../web_gui/modules/historical-ais-projection.js';
+import { renderHistoricalAISWorkbench } from '../../web_gui/modules/historical-ais-render.js';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -14,81 +15,161 @@ const runtimeShape = JSON.parse(await readFile(
   new URL('./fixtures/historical-workflow-runtime-shape.json', import.meta.url),
   'utf8',
 ));
+const descriptor = JSON.parse(await readFile(
+  new URL('../../colav_simulator/data/historical_ais_scenarios.json', import.meta.url),
+  'utf8',
+));
+const clientSources = await Promise.all([
+  'historical-ais-api.js',
+  'historical-ais-controller.js',
+  'historical-ais-projection.js',
+  'historical-ais-render.js',
+  'historical-ais-workbench.js',
+].map(name => readFile(new URL(`../../web_gui/modules/${name}`, import.meta.url), 'utf8')));
 
-test('Historical AIS is an additive Scenario and Evaluation workface surface', () => {
+test('Historical AIS remains additive while initial DOM exposes no fabricated scene facts', () => {
   assert.match(html, /id="historicalAISScenarioList"/);
   assert.match(html, /id="historicalAISScenarioDetail"/);
   assert.match(html, /id="historicalAISBenchmark"/);
-  assert.match(html, /id="historicalAISModeChoices"/);
-  assert.match(html, /id="historicalAISRun"/);
-  assert.match(html, /historical-ais-workbench\.js/);
+  assert.match(html, /id="historicalAISModeChoices"[^>]*><\/div>/);
+  assert.match(html, /id="historicalAISRun"[^>]*disabled/);
+  assert.match(html, /id="historicalAISScenarioName">SCENARIO UNAVAILABLE/);
+  assert.match(html, /id="historicalAISScenarioDuration">—/);
+  assert.match(html, /id="historicalAISScenarioActors">—/);
+  assert.match(html, /id="historicalAISScenePreview" hidden/);
+  assert.match(styles, /\.historical-ais-workbench/);
 
-  // Existing COLREG assembly remains the only owner of rule-scoped cards.
   assert.match(html, /id="validationScenarioChoices"/);
   assert.match(html, /data-config-step-panel="scenarios"/);
-  assert.match(styles, /\.historical-ais-workbench/);
+});
+test('workflow projection reads canonical presentation and ignores raw evidence shape', () => {
+  const expected = structuredClone(runtimeShape.presentation);
+  const original = projectHistoricalAISWorkflow(runtimeShape);
+  const tamperedRaw = structuredClone(runtimeShape);
+  tamperedRaw.evidence.threat_snapshot.vectors = [];
+  tamperedRaw.evidence.threat_snapshot.schedule.entries = [];
+  tamperedRaw.evidence.threat_snapshot.conflict_graph.clusters = [{}, {}, {}];
+  tamperedRaw.leakage.human_reference_digest_in_run_spec = true;
+  tamperedRaw.compare.domain_statuses.safety = { status: 'FAILED' };
+  tamperedRaw.determinism = { status: 'FAIL', mismatches: ['raw-only'] };
+  const tampered = projectHistoricalAISWorkflow(tamperedRaw);
+
+  assert.equal(original.status, 'AVAILABLE');
+  assert.deepEqual(original.presentation, expected);
+  assert.deepEqual(tampered.presentation, expected);
+  assert.equal(original.presentation.threat.cluster_count, 0);
+  assert.equal(original.presentation.qualification.status, 'NOT_QUALIFIED');
+  assert.notEqual(original.presentation.qualification.status, 'QUALIFIED');
+  assert.equal(original.presentation.leakage.status, 'PASS_CONTRACT');
+  assert.equal(original.presentation.determinism.status, 'PASS');
+  assert.equal(original.presentation.compare.domain_statuses.safety, 'COMPLETE');
 });
 
-test('browse projection labels the bounded one-minute window and archive limitation', () => {
-  const projection = createHistoricalAISProjection(DEFAULT_HISTORICAL_AIS_SCENARIO);
-
-  assert.equal(projection.scenarioId, 'hais_romsdal_20260701_120000_120100');
-  assert.equal(projection.selection.durationLabel, '1 min');
-  assert.equal(projection.selection.runtimeActorCount, 3);
-  assert.equal(projection.source.archiveDays, 23);
-  assert.equal(projection.source.archiveRows, 51_522_509);
-  assert.equal(projection.source.archiveMmsi, 1_226);
-  assert.doesNotMatch(JSON.stringify(DEFAULT_HISTORICAL_AIS_SCENARIO), /Downloads|\/Users\//);
-  assert.equal(projection.source.bound, false);
-  assert.equal(projection.run.available, false);
-  assert.match(projection.limitation, /当前仅验证该窗口\/3船/);
-  assert.match(projection.limitation, /全archive未完成ENC资格/);
-});
-
-test('completed counterfactual projection reads runtime threat shape instead of sealed expected counts', () => {
-  const projection = createHistoricalAISProjection({
-    ...DEFAULT_HISTORICAL_AIS_SCENARIO,
-    sealed_expected: {
-      threat: { vector_count: 2, schedule_context_count: 2, cluster_count: 1 },
+test('DOM separates bounded scene operability from incomplete predictive qualification', () => {
+  class FakeElement {
+    constructor() {
+      this.textContent = '';
+      this.dataset = {};
+      this.classList = { toggle() {} };
+      this.children = [];
+      this.hidden = false;
+      this.disabled = false;
+      this.title = '';
+    }
+    append(...children) { this.children.push(...children); }
+    replaceChildren(...children) { this.children = children; }
+    setAttribute(name, value) { this[name] = value; }
+  }
+  const elements = new Map(
+    [...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new FakeElement()]),
+  );
+  const documentRef = {
+    getElementById: id => elements.get(id) || null,
+    querySelectorAll: () => [],
+    createElement: () => new FakeElement(),
+  };
+  const descriptorSha = 'b'.repeat(64);
+  const scenarioDocument = {
+    ...descriptor,
+    id: descriptor.scenario_id,
+    descriptor_sha256: descriptorSha,
+    readiness: { status: 'READY', env_var: 'COLAV_HAIS_ARCHIVE_PATH' },
+    presentation: {
+      schema_version: 'historical-ais-scenario.presentation.v1',
+      scenario: { id: descriptor.scenario_id, kind: 'HISTORICAL_AIS' },
+      operability: { status: 'AVAILABLE', scope: 'BOUNDED' },
+      qualification: {
+        status: 'NOT_QUALIFIED',
+        code: 'THREAT_EVIDENCE_INCOMPLETE',
+        source_readiness: 'READY',
+        future_gate: 'NONEMPTY_NATURAL_CLUSTER',
+        limitations: descriptor.limitations,
+      },
+      runtime: {
+        modes: descriptor.modes,
+        historical_scenario_id: descriptor.scenario_id,
+        algorithm_id: 'mid_mpc_ipopt',
+        tracker_id: 'god',
+        algorithm_capability_evidence: descriptor.algorithm_capability_evidence,
+      },
+      digests: {
+        descriptor_sha256: descriptorSha,
+        archive_sha256: descriptor.archive_scope.archive_sha256,
+        entry_sha256: descriptor.current_window.entry_sha256,
+        selection_sha256: descriptor.current_window.expected_selection_sha256,
+      },
     },
-  }, runtimeShape);
+  };
+  const scenario = projectHistoricalAISScenario(scenarioDocument);
+  const workflow = projectHistoricalAISWorkflow(runtimeShape);
 
-  assert.equal(projection.workflowId, 'workflow-browser-regression');
-  assert.equal(projection.evidence.mode, 'COUNTERFACTUAL');
-  assert.equal(projection.evidence.fallback, false);
-  assert.deepEqual(projection.evidence.threat, { vectors: 2, schedule: 2, clusters: 0 });
-  assert.deepEqual(projection.qualification.expectedThreat, { vectors: 2, schedule: 2, clusters: 1 });
-  assert.equal(projection.evidence.leakage, 'PASS_CONTRACT');
-  assert.deepEqual(projection.evidence.determinism, { status: 'NOT_CHECKED', mismatches: [] });
-  assert.deepEqual(projection.evidence.compareDomains, {
-    safety: 'COMPLETE',
-    colreg: 'COMPLETE',
-    maneuver: 'COMPLETE',
-    efficiency: 'COMPLETE',
-    human_similarity: 'COMPLETE',
+  renderHistoricalAISWorkbench(documentRef, {
+    catalog: { status: 'READY', error: null },
+    detail: { status: 'READY', error: null },
+    scenarios: [scenario],
+    scenario,
+    selectedId: scenario.scenarioId,
+    selectedMode: 'COUNTERFACTUAL',
+    workflow,
+    busy: false,
   });
-  assert.equal(projection.evidence.verdict, 'PASS');
+
+  assert.equal(elements.get('historicalAISSceneOperability').textContent, 'AVAILABLE · BOUNDED');
+  assert.equal(
+    elements.get('historicalAISPredictiveQualification').textContent,
+    'NOT_QUALIFIED · THREAT_EVIDENCE_INCOMPLETE',
+  );
+  assert.equal(elements.get('historicalAISFutureGate').textContent, 'NONEMPTY_NATURAL_CLUSTER');
+  assert.equal(elements.get('historicalAISEvidenceThreat').textContent, '2/2/0');
+  assert.equal(elements.get('historicalAISEvidenceDeterminism').textContent, 'PASS · 0 mismatches');
+  assert.equal(elements.get('historicalAISQualificationThreatGraph').textContent, '2/2/0');
+  assert.equal(elements.get('historicalAISWorkflowStatus').textContent, 'COMPLETED');
+  assert.equal(elements.get('historicalAISEvidenceVerdict').textContent, 'PASS');
+  assert.notEqual(elements.get('historicalAISWorkflowStatus').textContent, 'FAILED');
 });
 
-test('Replay and explicit determinism keep typed not-applicable and pass/fail boundaries', () => {
-  const replay = createHistoricalAISProjection(DEFAULT_HISTORICAL_AIS_SCENARIO, {
-    mode: 'HISTORICAL_REPLAY',
-    leakage: {},
-  });
-  assert.equal(replay.evidence.leakage, 'NOT_APPLICABLE');
-  assert.deepEqual(replay.evidence.determinism, { status: 'NOT_APPLICABLE', mismatches: [] });
+test('missing canonical presentation is typed unavailable with null workflow facts', () => {
+  const missing = structuredClone(runtimeShape);
+  delete missing.presentation;
+  const projection = projectHistoricalAISWorkflow(missing);
 
-  const checked = createHistoricalAISProjection(DEFAULT_HISTORICAL_AIS_SCENARIO, {
-    ...runtimeShape,
-    determinism: { status: 'FAIL', mismatches: ['threat_graph_semantic_hash'] },
-  });
-  assert.deepEqual(checked.evidence.determinism, {
-    status: 'FAIL',
-    mismatches: ['threat_graph_semantic_hash'],
-  });
+  assert.equal(projection.status, 'UNAVAILABLE');
+  assert.equal(projection.error.code, 'INVALID_WORKFLOW_PRESENTATION');
+  assert.equal(projection.workflowId, null);
+  assert.equal(projection.presentation, null);
 });
 
-test('Historical AIS API adapter uses the dedicated scenario/workflow contract', async () => {
+test('browser modules do not inspect raw evidence or carry a default scenario', () => {
+  const combined = clientSources.join('\n');
+  assert.doesNotMatch(combined, /DEFAULT_HISTORICAL_AIS_SCENARIO/);
+  assert.doesNotMatch(combined, /threat_snapshot|human_reference_digest_in_run_spec|determinism_mismatches/);
+  assert.doesNotMatch(combined, /evidence\.run|evidence\.threat|compare\.domain_statuses/);
+  assert.doesNotMatch(combined, /sealed_expected|cluster_count:\s*1/);
+  assert.doesNotMatch(combined, /expected_cluster_count|sealed_expected_cluster/);
+  assert.ok(clientSources.at(-1).split('\n').length < 80, 'composition root stays shallow');
+});
+
+test('Historical AIS API adapter uses only dedicated scenario/workflow routes', async () => {
   const requests = [];
   const fetchImpl = async (url, options = {}) => {
     requests.push({ url, options });
@@ -96,62 +177,24 @@ test('Historical AIS API adapter uses the dedicated scenario/workflow contract',
       ok: true,
       status: 200,
       async json() {
-        if (url === '/api/historical/scenarios') return [DEFAULT_HISTORICAL_AIS_SCENARIO];
-        if (url.includes('/workflows') && options.method === 'POST' && url.endsWith('/run')) {
-          return { workflow_id: 'workflow-1', status: 'COMPLETED' };
-        }
-        if (url.includes('/workflows') && options.method === 'POST') {
-          return { workflow_id: 'workflow-1', status: 'PREPARED' };
-        }
-        return DEFAULT_HISTORICAL_AIS_SCENARIO;
+        if (url === '/api/historical/scenarios') return [];
+        return runtimeShape;
       },
     };
   };
   const api = createHistoricalAISApi({ fetchImpl, WebSocketImpl: null });
 
-  assert.deepEqual(await api.listScenarios(), [DEFAULT_HISTORICAL_AIS_SCENARIO]);
-  await api.getScenario(DEFAULT_HISTORICAL_AIS_SCENARIO.id);
-  await api.createWorkflow(DEFAULT_HISTORICAL_AIS_SCENARIO.id, 'COUNTERFACTUAL');
-  await api.runWorkflow('workflow-1');
+  await api.listScenarios();
+  await api.getScenario('hais_romsdal_20260701_120000_120100');
+  await api.createWorkflow('hais_romsdal_20260701_120000_120100', 'COUNTERFACTUAL');
+  await api.runWorkflow('workflow-browser-regression');
 
   assert.deepEqual(requests.map(request => request.url), [
     '/api/historical/scenarios',
-    `/api/historical/scenarios/${DEFAULT_HISTORICAL_AIS_SCENARIO.id}`,
-    `/api/historical/scenarios/${DEFAULT_HISTORICAL_AIS_SCENARIO.id}/workflows`,
-    '/api/historical/workflows/workflow-1/run',
+    '/api/historical/scenarios/hais_romsdal_20260701_120000_120100',
+    '/api/historical/scenarios/hais_romsdal_20260701_120000_120100/workflows',
+    '/api/historical/workflows/workflow-browser-regression/run',
   ]);
-  assert.equal(JSON.parse(requests[2].options.body).mode, 'COUNTERFACTUAL');
+  assert.deepEqual(JSON.parse(requests[2].options.body), { mode: 'COUNTERFACTUAL' });
   assert.ok(requests.every(request => !request.url.startsWith('/api/scenarios')));
-});
-
-test('scenario projection accepts the published catalog descriptor shape', () => {
-  const projection = createHistoricalAISProjection({
-    id: 'hais_romsdal_20260701_120000_120100',
-    display_name: 'Romsdal AIS 2026-07-01 12:00-12:01 UTC',
-    kind: 'HISTORICAL_AIS',
-    modes: ['HISTORICAL_REPLAY', 'COUNTERFACTUAL'],
-    archive_scope: { source_name: 'HAIS.zip', day_count: 23, row_count: 51_522_509, union_mmsi_count: 1_226 },
-    current_window: {
-      entry_name: 'hais_2026-07-01.snappy.parquet',
-      start_utc: '2026-07-01T12:00:00+00:00',
-      end_utc: '2026-07-01T12:01:00+00:00',
-      t0_utc: '2026-07-01T12:00:30+00:00',
-      bbox: [6.05, 62.44, 6.17, 62.5],
-      selection_mmsi: [257252000, 258764000, 259189000, 259197000],
-      runtime_mmsi: [257252000, 258764000, 259189000],
-      source_row_count: 24,
-      normalized_row_count: 24,
-      quality_finding_count: 98,
-      reference_mmsi: 259189000,
-    },
-    enc: { profile_id: 'romsdal-expanded', qualification_state: 'QUALIFIED' },
-    readiness: { status: 'SOURCE_BINDING_MISSING' },
-  });
-
-  assert.equal(projection.source.archiveRows, 51_522_509);
-  assert.equal(projection.selection.filterMmsi.length, 4);
-  assert.deepEqual(projection.selection.selectedMmsi, [257252000, 258764000, 259189000]);
-  assert.equal(projection.selection.referenceMmsi, 259189000);
-  assert.deepEqual(projection.modes.map(mode => mode.id), ['HISTORICAL_REPLAY', 'COUNTERFACTUAL']);
-  assert.equal(projection.run.available, false);
 });
