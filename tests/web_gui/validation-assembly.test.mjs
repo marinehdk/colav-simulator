@@ -44,6 +44,63 @@ catalog.selectable_combinations = [
   ...catalog.experimental_combinations,
 ];
 
+const productionCatalog = {
+  schema_version: 'capability-catalog.v1',
+  defaults: {
+    validation_rule_id: 'rule14',
+    scenario_id: 'head_on',
+    algorithm_id: 'legacy-default',
+    tracker_id: 'legacy-tracker',
+  },
+  rules: [{ id: 'rule14', selectable: true }],
+  scenarios: [{ id: 'head_on', name: 'Head on', dt: 0.1, t_end: 600, selectable: true }],
+  algorithms: [
+    { id: 'mid_mpc_ipopt', selectable: true },
+    { id: 'vo', selectable: true },
+    { id: 'potocnik_colreg_fan_mpc', selectable: true },
+  ],
+  trackers: [{ id: 'god', selectable: true }],
+  verified_combinations: [
+    { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'mid_mpc_ipopt', tracker_id: 'god' },
+    { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'vo', tracker_id: 'god' },
+    { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'potocnik_colreg_fan_mpc', tracker_id: 'god' },
+  ],
+  experimental_combinations: [],
+};
+productionCatalog.selectable_combinations = [...productionCatalog.verified_combinations];
+productionCatalog.selectable_combinations[1].latest_evidence = { source: 'catalog-only' };
+
+test('production catalog defaults to VO plus Truth and exposes only supported choices', () => {
+  const assembly = createValidationAssembly({ catalog: productionCatalog });
+  const snapshot = assembly.snapshot();
+
+  assert.equal(snapshot.draft.algorithm_id, 'vo');
+  assert.equal(snapshot.draft.tracker_id, 'god');
+  assert.equal(Object.hasOwn(snapshot.draft, 'latest_evidence'), false);
+  assert.deepEqual(snapshot.options.algorithm_id.map((item) => item.id), [
+    'mid_mpc_ipopt',
+    'vo',
+    'potocnik_colreg_fan_mpc',
+  ]);
+  assert.deepEqual(snapshot.options.tracker_id.map((item) => item.id), ['god']);
+});
+
+test('production Mid-MPC draft is valid but Create-blocked by a typed ShipDomainProfile requirement', () => {
+  const assembly = createValidationAssembly({ catalog: productionCatalog });
+  assert.equal(assembly.edit('algorithm_id', 'mid_mpc_ipopt'), true);
+
+  const snapshot = assembly.snapshot();
+  assert.equal(snapshot.classification, 'verified');
+  assert.equal(snapshot.valid, true);
+  assert.equal(snapshot.createBlock, 'requires-qualified-ship-domain-profile');
+  assert.equal(snapshot.canCreate, false);
+  assert.match(snapshot.createBlockReason, /requires a qualified ShipDomainProfile/);
+  assert.throws(
+    () => assembly.beginCreate(),
+    /requires-qualified-ship-domain-profile:.*requires a qualified ShipDomainProfile/,
+  );
+});
+
 test('bootstrap without an active session uses complete catalog defaults', () => {
   const assembly = createValidationAssembly({ catalog });
 

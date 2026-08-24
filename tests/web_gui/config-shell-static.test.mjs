@@ -315,6 +315,25 @@ test('Algorithm selection is a carousel and tracker a 2-column choice grid (gap 
   assert.match(configCss, /\.tracker-choice-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
+test('production Config exposes only the three supported avoidance algorithms and Truth tracker', () => {
+  assert.match(shell, /const ALGORITHM_ORDER = \['mid_mpc_ipopt', 'vo', 'potocnik_colreg_fan_mpc'\];/);
+  assert.match(shell, /const TRACKER_ORDER = \['god'\];/);
+  assert.match(shell, /potocnik_colreg_fan_mpc: 'Fan-MPC'/);
+  assert.match(shell, /god: 'Truth'/);
+  assert.doesNotMatch(shell, /potocnik_simplified_mpc/);
+  assert.doesNotMatch(shell, /\bnominal\b/);
+  assert.doesNotMatch(shell, /\bsbmpc\b/);
+  assert.doesNotMatch(shell, /\bkf\b/);
+});
+
+test('Mid-MPC selection has a visible qualified ShipDomainProfile boundary and no fallback path', () => {
+  assert.match(shell, /requires-qualified-ship-domain-profile/);
+  assert.match(shell, /requires a qualified ShipDomainProfile/);
+  assert.match(shell, /create\.disabled =/);
+  assert.match(shell, /create\.title = .*createStatusText\(snapshot\)/);
+  assert.doesNotMatch(shell, /fallback.*Mid-MPC|Mid-MPC.*fallback/i);
+});
+
 test('Algorithm detail chrome: role eyebrow, grade pill, 20px heading, binding footer (gap #14)', () => {
   assert.match(html, /class="algorithm-detail-eyebrow"/);
   assert.match(html, /id="validationAlgorithmGrade"/);

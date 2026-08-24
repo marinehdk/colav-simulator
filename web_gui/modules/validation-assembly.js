@@ -27,6 +27,15 @@ const EDITABLE_FIELDS = [
   't_end',
 ];
 
+const PRODUCTION_ALGORITHM_ORDER = [
+  'mid_mpc_ipopt',
+  'vo',
+  'potocnik_colreg_fan_mpc',
+];
+const PRODUCTION_TRACKER_ORDER = ['god'];
+const MID_MPC_DOMAIN_PROFILE_BLOCK = 'requires-qualified-ship-domain-profile';
+const MID_MPC_DOMAIN_PROFILE_MESSAGE = 'Mid-MPC requires a qualified ShipDomainProfile; Config cannot provide one.';
+
 function clone(value) {
   return value === undefined ? undefined : structuredClone(value);
 }
@@ -50,7 +59,48 @@ function equalSpec(left, right) {
   return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
 }
 
+function isProductionCatalog(catalog) {
+  return Boolean(catalog)
+    && PRODUCTION_ALGORITHM_ORDER.every((id) => (catalog.algorithms || []).some((item) => item.id === id))
+    && (catalog.trackers || []).some((item) => item.id === 'god');
+}
+
+function presentationEntries(catalog, field, entries) {
+  if (!isProductionCatalog(catalog)) return entries;
+  if (field === 'algorithm_id') {
+    return entries.filter((entry) => PRODUCTION_ALGORITHM_ORDER.includes(entry.id));
+  }
+  if (field === 'tracker_id') {
+    return entries.filter((entry) => PRODUCTION_TRACKER_ORDER.includes(entry.id));
+  }
+  return entries;
+}
+
+function preferredDefaultTuple(catalog) {
+  if (!isProductionCatalog(catalog)) return null;
+  const tuples = selectableTuples(catalog);
+  const defaults = catalog.defaults || {};
+  const algorithmPriority = ['vo', 'potocnik_colreg_fan_mpc', 'mid_mpc_ipopt'];
+  const pick = (candidates) => algorithmPriority
+    .map((algorithmId) => candidates.find((tuple) => tuple.algorithm_id === algorithmId))
+    .find(Boolean) || null;
+  return pick(tuples.filter((tuple) => (
+    tuple.validation_rule_id === defaults.validation_rule_id
+    && tuple.scenario_id === defaults.scenario_id
+    && tuple.tracker_id === 'god'
+  )))
+    || pick(tuples.filter((tuple) => (
+      tuple.validation_rule_id === defaults.validation_rule_id
+      && tuple.tracker_id === 'god'
+    )))
+    || pick(tuples.filter((tuple) => tuple.tracker_id === 'god'));
+}
+
 function defaultSpec(catalog) {
+  const preferred = preferredDefaultTuple(catalog);
+  const preferredFields = preferred
+    ? Object.fromEntries(TUPLE_FIELDS.map((field) => [field, preferred[field]]))
+    : {};
   return {
     validation_rule_id: catalog.defaults.validation_rule_id,
     scenario_id: catalog.defaults.scenario_id,
@@ -65,6 +115,7 @@ function defaultSpec(catalog) {
     algorithm_config: {},
     tracker_config: {},
     scenario_override: null,
+    ...preferredFields,
   };
 }
 
@@ -120,8 +171,8 @@ function selectableTuples(catalog) {
   const collections = {
     validation_rule_id: catalog.rules || [],
     scenario_id: catalog.scenarios || [],
-    algorithm_id: catalog.algorithms || [],
-    tracker_id: catalog.trackers || [],
+    algorithm_id: presentationEntries(catalog, 'algorithm_id', catalog.algorithms || []),
+    tracker_id: presentationEntries(catalog, 'tracker_id', catalog.trackers || []),
   };
   return (catalog.selectable_combinations || []).filter((tuple) => TUPLE_FIELDS.every((field) => {
     const entry = collections[field].find((item) => item.id === tuple[field]);
@@ -135,8 +186,8 @@ function catalogOptions(catalog, draft) {
   const collections = {
     validation_rule_id: catalog.rules || [],
     scenario_id: catalog.scenarios || [],
-    algorithm_id: catalog.algorithms || [],
-    tracker_id: catalog.trackers || [],
+    algorithm_id: presentationEntries(catalog, 'algorithm_id', catalog.algorithms || []),
+    tracker_id: presentationEntries(catalog, 'tracker_id', catalog.trackers || []),
   };
   return Object.fromEntries(Object.entries(collections).map(([field, entries]) => [
     field,
@@ -177,6 +228,14 @@ function validationErrors(draft) {
     errors.t_end = 't_end must be null or greater than zero.';
   }
   return errors;
+}
+
+function createConstraint(draft) {
+  if (draft?.algorithm_id !== 'mid_mpc_ipopt') return null;
+  return {
+    code: MID_MPC_DOMAIN_PROFILE_BLOCK,
+    message: MID_MPC_DOMAIN_PROFILE_MESSAGE,
+  };
 }
 
 function repairTuple(catalog, draft, latestField = null) {
@@ -286,6 +345,8 @@ export function createValidationAssembly({
       if (activeState === 'RUNNING') throw new Error('Active Session is RUNNING; pause it before Create.');
       if (activeSpec && equalSpec(draft, activeSpec)) throw new Error('Validation Draft matches active session.');
       if (classification === 'unavailable') throw new Error('Exact Tuple is unavailable.');
+      const constraint = createConstraint(draft);
+      if (constraint) throw new Error(`${constraint.code}: ${constraint.message}`);
       if (classification === 'experimental' && !confirmedExperimental) {
         throw new Error('Experimental tuple requires confirmation before Create.');
       }
@@ -380,6 +441,7 @@ export function createValidationAssembly({
     snapshot() {
       const classification = classify(catalog, draft);
       const errors = validationErrors(draft);
+      const constraint = createConstraint(draft);
       const matchesActive = Boolean(activeSpec && equalSpec(draft, activeSpec));
       let createBlock = null;
       if (creating) createBlock = 'creating';
@@ -389,6 +451,7 @@ export function createValidationAssembly({
       else if (activeState === 'RUNNING') createBlock = 'active-running';
       else if (matchesActive) createBlock = 'matches-active';
       else if (classification === 'unavailable') createBlock = 'unavailable';
+      else if (constraint) createBlock = constraint.code;
       else if (Object.keys(errors).length) createBlock = 'invalid-draft';
       else if (classification === 'experimental') createBlock = 'experimental-confirmation';
       return clone({
@@ -406,6 +469,8 @@ export function createValidationAssembly({
         activeSpec,
         matchesActive,
         createBlock,
+        createBlockReason: constraint?.message || null,
+        createConstraint: constraint,
         canCreate: createBlock === null,
         catalog,
         options: catalogOptions(catalog, draft),

@@ -1,4 +1,4 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260820-no-hidden-tuple-repair';
+import { createValidationAssembly } from './validation-assembly.js?v=20260824-capability-policy';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260821-trackkey-fix4';
 import { createSituationDisplay } from './situation-display.js?v=20260821-trackkey-fix4';
 
@@ -102,7 +102,6 @@ const SCENARIO_LABELS = {
   paper_ccta2023_multiship: 'Three-Ship',
   romsdal_busy_water_16: 'Multiship-Configurable',
   paper_ccta2023_head_on: 'Head-on (Paper)',
-  head_on_sbmpc: 'Head-on (SB-MPC)',
 };
 
 const RULE_LABELS = {
@@ -114,18 +113,14 @@ const RULE_LABELS = {
 
 const ALGORITHM_LABELS = {
   mid_mpc_ipopt: 'Mid-MPC',
-  nominal: 'Nominal',
   vo: 'VO',
-  sbmpc: 'SB-MPC',
-  potocnik_simplified_mpc: 'Fan-MPC',
   potocnik_colreg_fan_mpc: 'Fan-MPC',
 };
-const ALGORITHM_ORDER = ['mid_mpc_ipopt', 'vo', 'potocnik_simplified_mpc'];
+const ALGORITHM_ORDER = ['mid_mpc_ipopt', 'vo', 'potocnik_colreg_fan_mpc'];
 const TRACKER_LABELS = {
   god: 'Truth',
-  kf: 'Kalman',
 };
-const TRACKER_ORDER = ['god', 'kf'];
+const TRACKER_ORDER = ['god'];
 
 function optionLabel(item, labels) {
   return (labels || {})[item.id] || SCENARIO_LABELS[item.id] || item.name || item.display_name || item.id;
@@ -343,12 +338,14 @@ function ruleDisplayLabel(snapshot) {
 function algorithmDisplayLabel(snapshot) {
   const id = snapshot.draft?.algorithm_id;
   if (!id) return '—';
+  if (!ALGORITHM_ORDER.includes(id)) return 'Unavailable';
   return optionLabel(selectedCatalogItem(snapshot, 'algorithms', id) || { id }, ALGORITHM_LABELS);
 }
 
 function trackerDisplayLabel(snapshot) {
   const id = snapshot.draft?.tracker_id;
   if (!id) return '—';
+  if (!TRACKER_ORDER.includes(id)) return 'Unavailable';
   return optionLabel(selectedCatalogItem(snapshot, 'trackers', id) || { id }, TRACKER_LABELS);
 }
 
@@ -537,11 +534,13 @@ function renderAlgorithmDetail(snapshot) {
     card.dataset.choiceId = item.id;
     return card;
   }));
-  document.getElementById('validationAlgorithmName').textContent = optionLabel(algorithm || { id: draft.algorithm_id }, ALGORITHM_LABELS);
-  document.getElementById('validationTrackerName').textContent = optionLabel(tracker || { id: draft.tracker_id }, TRACKER_LABELS);
+  document.getElementById('validationAlgorithmName').textContent = algorithmDisplayLabel(snapshot);
+  document.getElementById('validationTrackerName').textContent = trackerDisplayLabel(snapshot);
   document.getElementById('validationAlgorithmGrade').textContent = `${algorithm?.readiness_grade || 'G0'} · ${algorithm?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
   document.getElementById('validationTrackerGrade').textContent = `${tracker?.readiness_grade || 'G0'} · ${tracker?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
-  document.getElementById('validationAlgorithmSummary').textContent = algorithm?.known_failure
+  document.getElementById('validationAlgorithmSummary').textContent = snapshot.createBlock === 'requires-qualified-ship-domain-profile'
+    ? snapshot.createBlockReason
+    : algorithm?.known_failure
     ? `Known failure reported by catalog: ${algorithm.known_failure}`
     : 'Registered integration; no failure reported by the catalog.';
   document.getElementById('validationTrackerSummary').textContent = tracker?.known_failure
@@ -794,6 +793,7 @@ function createStatusText(snapshot) {
     'runtime-pending': 'Active Session command in progress · controls frozen',
     'current-session-loading': 'Loading current-session authority…',
     'current-session-unknown': 'Current-session authority unknown · read-only',
+    'requires-qualified-ship-domain-profile': 'Mid-MPC requires a qualified ShipDomainProfile; Config cannot provide one.',
   };
   if (snapshot.sessionStatus === 'loading' || snapshot.catalogStatus === 'error') {
     return snapshot.sessionStatus === 'loading'
