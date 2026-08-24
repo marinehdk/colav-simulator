@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>predictive-threat 底层逻辑速查</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header>
+    <div class="eyebrow">Reference 05</div>
+    <h1>predictive-threat 底层逻辑</h1>
+    <p class="lede">一份用于读代码、查 trace、解释 UI 数值的压缩卡片。</p>
+  </header>
+
+  <div class="goal"><strong>一句话</strong>：每个仿真周期先冻结物理事实，再由纯评估器计算每船 threat vector；Lifecycle 负责有状态的 Primary/承诺，Coordinator 把它们合成一个不可变 snapshot。</div>
+
+  <h2>1. 运行时主链</h2>
+  <pre><code>MidMpcFacade.solve(PlannerInput)
+  ├─ _encounter_cycle()                         # ownship + tracks
+  ├─ _threat_target_predictions()                # target constant velocity
+  ├─ _threat_baseline_prediction()               # ownship current-motion baseline
+  └─ ThreatManagementCoordinator.cycle()
+       ├─ canonical_physical_facts(cycle)        # one shared physical account
+       ├─ ThreatAssessment.evaluate(request)      # pure per-target vectors
+       ├─ EncounterLifecycle.cycle()              # FSM + Primary + directive
+       ├─ attach priority/lifecycle + ThreatWindow
+       ├─ build rolling schedule + typed events
+       ├─ ConflictGraphBuilder.build()
+       └─ ThreatManagementSnapshot
+
+accepted solver plan ──post_commit──&gt; staged receipt
+next cycle ────────────&gt; applied receipt ──&gt; optional PLAN_INDUCED_CONFLICT</code></pre>
+
+  <h2>2. 三种时间/预测身份</h2>
+  <table>
+    <thead><tr><th>对象</th><th>来源</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>ThreatPrediction</code></td><td>目标当前状态 + 常速度</td><td>预测 domain、TDV/TDE、Threat Window、直接窗口冲突</td></tr>
+      <tr><td><code>OwnshipThreatPrediction</code> baseline</td><td>自船当前运动直线外推</td><td>与已接受计划做 before/after 比较</td></tr>
+      <tr><td>accepted prediction</td><td>真实 solver 执行并通过 acceptance 的轨迹</td><td>下一周期可产生 plan-induced evidence；不是 raw candidate</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. DCPA/TCPA 与船舶域</h2>
+  <p>令 <code>r = p_target - p_own</code>，<code>v = v_target - v_own</code>：</p>
+  <pre><code>range       = ||r||
+closing    = -(r · v) / ||r||
+tcpa_signed = -(r · v) / ||v||²
+tcpa_forward = max(0, tcpa_signed)
+dcpa        = ||r + tcpa_forward · v||
+hull_clearance = dcpa - ownship_radius - target_radius</code></pre>
+  <p>若相对速度接近零，TCPA/DCPA 不能假装精确；代码保留 DCPA≈当前距离，并记录 <code>RELATIVE_MOTION_UNDEFINED</code>。</p>
+  <p>Off-centred ellipse 的尺度：</p>
+  <pre><code>a = (fore + aft) / 2 + uncertainty_radius
+b = (port + starboard) / 2 + uncertainty_radius
+c = (fore - aft) / 2
+scale = sqrt(((forward - c) / a)² + (starboard / b)²)
+scale &lt; 1  → INSIDE     scale = 1 → TANGENT     scale &gt; 1 → OUTSIDE</code></pre>
+  <p><code>uncertainty_radius = multiplier × sqrt(max_eigenvalue(position_covariance))</code>。V1 默认 multiplier 为 2。预测域在 horizon 每个 sample 计算 scale，取最小值；穿越 scale=1 的相邻点做线性插值生成 TDV/TDE。</p>
+
+  <h2>4. 不可用 ≠ CLEAR</h2>
+  <table>
+    <thead><tr><th>缺口</th><th>发布结果</th></tr></thead>
+    <tbody>
+      <tr><td>无目标 prediction</td><td><code>predicted_domain=UNKNOWN</code> + <code>PREDICTION_UNAVAILABLE</code></td></tr>
+      <tr><td>无 covariance</td><td><code>current_domain=UNKNOWN</code> + <code>UNCERTAINTY_UNAVAILABLE</code></td></tr>
+      <tr><td>profile 未 qualified</td><td><code>UNQUALIFIED</code>，不发布尺度</td></tr>
+      <tr><td>stale/unusable observation 或 invalid physical facts</td><td><code>UNKNOWN</code>，降低 completeness；不变成 CLEAR</td></tr>
+      <tr><td>目标 generation 改变</td><td>新的 <code>TrackKey(target_id, generation)</code>，不继承旧 FSM</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Primary 不是 weighted risk score</h2>
+  <p><code>ThreatAssessment</code> 只产出 ranking facts；它不保存 Primary。唯一有状态的 Primary authority 是 <code>EncounterLifecycle</code>。</p>
+  <ol>
+    <li>hard hull/response-time emergency</li>
+    <li>Rule 17 <code>MUST_ACT</code></li>
+    <li>已承诺且 active</li>
+    <li>current domain violation</li>
+    <li>predicted domain violation</li>
+    <li>future severity/completeness</li>
+    <li>approaching TCPA、DCPA、range、TrackKey/generation tie-break</li>
+  </ol>
+  <p>普通 challenger 需经过 physical-time hysteresis；emergency 或 <code>MUST_ACT</code> 可立即 preempt。Lifecycle 的 required targets/directive 不能因为 UI 或另一个 target 排名更高而被删除。</p>
+
+  <h2>6. Schedule 与 Conflict Graph</h2>
+  <p>每个 <code>TrackKey</code> 在一个 snapshot 只能占一个 schedule context：</p>
+  <pre><code>CURRENT_PRIMARY → Lifecycle primary
+CONCURRENT_REQUIRED → Lifecycle aggregate directive required set
+NEXT → current/predicted domain violation，但尚未成为 obligation
+MONITOR → 保留 observation/evidence，无当前 obligation
+RELEASED → 已释放，但 evidence 保留</code></pre>
+  <p>Direct edge：两个完整 Threat Window 的时间区间相交。Plan-induced edge：只在 baseline、fresh accepted receipt、target/profile/prediction identity 和 hash 全部匹配，且 accepted plan 造成新 violation、至少提前 5 秒 TDV 或 scale 恶化至少 0.1 时生成。Edges 做 input-order-independent connected components；A-B 与 B-C 会形成一个 cluster。</p>
+
+  <h2>7. 最后一道边界</h2>
+  <ul>
+    <li>Threat Domain 是 anticipatory/advisory evidence，不是 L4 hard safety gate。</li>
+    <li>Mid-MPC assembler 消费 Lifecycle directive 与 tracked targets；浏览器不重新算 CPA、domain、Primary、window 或 cluster。</li>
+    <li>API/WS 只投影 backend <code>ThreatManagementSnapshot</code>。缺 snapshot 时前端显示 <code>UNAVAILABLE</code>，不推断“安全”。</li>
+  </ul>
+
+  <div class="callout"><strong>代码锚点</strong>：<code>threat_assessment.py</code> 1160 起是纯评估入口；<code>threat_management.py</code> 365 起是周期编排；<code>encounter_lifecycle.py</code> 506 起是状态推进；<code>mid_mpc_ipopt.py</code> 295 起是在线接线。</div>
+
+  <nav class="next"><a href="../lessons/0005-predictive-threat-under-the-hood.html">进入第 5 课</a><a href="../lessons/0004-choosing-an-algorithm-entry.html">复习第 4 课</a></nav>
+</main></body>
+</html>

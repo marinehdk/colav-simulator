@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 5 课：predictive-threat 底层逻辑</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body><main>
+  <header>
+    <div class="eyebrow">Lesson 0005 · 约 18 分钟</div>
+    <h1>predictive-threat 底层逻辑</h1>
+    <p class="lede">从 <code>PlannerInput</code> 到后端 snapshot，再到 UI 的一条完整追踪线。目标不是背类名，而是能定位“事实在哪里产生、状态谁拥有、预测何时生效”。</p>
+  </header>
+
+  <div class="goal"><strong>完成标准</strong>：你能解释一次在线 cycle 如何生成每个目标的 Threat Vector、如何由 Lifecycle 决定 Primary/required targets、为何 prediction 缺失时是 UNKNOWN，以及为何浏览器不能自行计算风险。</div>
+
+  <div class="callout"><strong>本课源码边界</strong>：以 worktree <code>/Users/marine/Code/.worktrees/Colav-Simulator/predictive-threat-historical-ais</code> 的 threat 实现为准，HEAD <code>effff03</code>。当前 dirty 变更只涉及 Historical AIS spec/test，不改写 threat source。课堂结论已用 Python 76 个 focused tests 与 Node 33 个 projection tests 复核。</div>
+
+  <h2>先画一条主链</h2>
+  <div class="flow">
+    <div><strong>1 · PlannerInput</strong><code>ownship + tracks</code><br>保留 <code>TrackKey</code> generation</div>
+    <div><strong>2 · 预测输入</strong><code>_encounter_cycle</code><br>目标常速度 + 自船 baseline</div>
+    <div><strong>3 · 物理事实</strong><code>canonical_physical_facts</code><br>一次计算，Lifecycle/Threat 共用</div>
+    <div><strong>4 · Threat facts</strong><code>ThreatAssessment.evaluate</code><br>向量、domain、TDV/TDE</div>
+    <div><strong>5 · 有状态决策</strong><code>EncounterLifecycle</code><br>FSM、Primary、directive</div>
+    <div><strong>6 · 发布</strong><code>snapshot → API/WS → UI</code><br>浏览器只 projection</div>
+  </div>
+
+  <p><strong>核心模型：</strong><code>predictive-threat</code> 不是一个分数函数。它是“物理事实 + 预测窗口 + 生命周期状态 + 证据身份”的组合。纯评估器不拥有状态；状态机不重新发明物理事实。</p>
+
+  <h2>1. 输入：预测到底从哪里来？</h2>
+  <div class="architecture">
+    <button class="layer" data-reveal aria-expanded="false"><strong><code>ThreatPrediction</code>：目标轨迹</strong><span class="detail">Mid-MPC 当前将每个 target 用常速度外推：<code>p_target(t) = p_target(0) + t · v_target</code>。它用于预测 Ship Domain，不等于目标真实意图，也不等于 solver 轨迹。</span></button>
+    <button class="layer" data-reveal aria-expanded="false"><strong><code>OwnshipThreatPrediction</code>：自船 baseline</strong><span class="detail">当前运动 baseline 同样是直线外推，只用于回答“accepted plan 相比不操舵会不会让其他目标变差”。它不是已接受计划。</span></button>
+    <button class="layer" data-reveal aria-expanded="false"><strong>accepted plan：solver 之后才进入</strong><span class="detail">只有真实 solver 执行并通过 acceptance 的轨迹，才会在 post-commit 生成 receipt。Coordinator 先 stage；下一 cycle 才能 apply。raw candidate、stale cache、GUI 数据都不能作为 plan-induced evidence。</span></button>
+  </div>
+
+  <h2>2. 第一个事实层：DCPA/TCPA</h2>
+  <p>对一个 target，先做相对运动：</p>
+  <pre><code>r = p_target - p_own
+v = v_target - v_own
+range = ||r||
+closing_speed = -(r · v) / ||r||
+tcpa_signed = -(r · v) / ||v||²
+tcpa_forward = max(0, tcpa_signed)
+dcpa = ||r + tcpa_forward · v||</code></pre>
+  <p>如果已有 <code>PhysicalEncounterFacts</code>，Threat Assessment 直接复用其中的 canonical geometry；没有时才在自己的 seam 计算。这样 Lifecycle 和 Threat Vector 不会因为各算一次而产生两套 DCPA/TCPA。</p>
+  <p>船体净空是：</p>
+  <pre><code>hull_clearance = DCPA - ownship_radius - target_radius</code></pre>
+  <p>注意：<code>hull_clearance ≤ 0</code> 是 response-time emergency 的候选依据；Ship Domain 本身不会替代 L4 continuous/swept safety。</p>
+
+  <h2>3. 第二个事实层：Ship Domain 与窗口</h2>
+  <p>V1 使用有前后、左右偏置的椭圆工程域。把目标位置投到自船 forward/starboard 坐标：</p>
+  <pre><code>a = (fore + aft) / 2 + uncertainty_radius
+b = (port + starboard) / 2 + uncertainty_radius
+c = (fore - aft) / 2
+scale = sqrt(((forward - c) / a)² + (starboard / b)²)</code></pre>
+  <p><code>scale &lt; 1</code> 表示进入域，<code>scale = 1</code> 为 tangent，<code>scale &gt; 1</code> 为 outside。uncertainty radius 来自 position covariance 最大特征值的平方根，再乘 profile multiplier；默认 profile 是 <code>UNQUALIFIED</code>，所以不能被误读为已经合格的安全域。</p>
+  <div class="architecture">
+    <button class="layer" data-reveal aria-expanded="false"><strong>Current Domain</strong><span class="detail">在当前相对位置上计算一次 scale。无 covariance、unusable observation、unqualified profile 时发布 <code>UNKNOWN/UNQUALIFIED</code>，不发布伪造尺度。</span></button>
+    <button class="layer" data-reveal aria-expanded="false"><strong>Predicted Domain</strong><span class="detail">沿预测 horizon 逐 sample 计算 scale，记录最小 scale。第一次严格低于 1 的 crossing 是 TDV；重新高于 1 的 crossing 是 TDE；peak 是最小 sample 的时间。</span></button>
+    <button class="layer" data-reveal aria-expanded="false"><strong>Threat Window</strong><span class="detail">Window 只描述未来 exposure：entry/peak/exit、relative/absolute time、basis、horizon、completeness。它不是 executable maneuver script。</span></button>
+  </div>
+
+  <h2>4. 第三个事实层：Threat Vector</h2>
+  <p><code>ThreatAssessment.evaluate(request)</code> 是纯函数式 public seam：按 <code>TrackKey</code> 排序，逐目标构造 immutable <code>ThreatVector</code>，再发布 snapshot/hash。向量至少同时携带：</p>
+  <ul class="source-list">
+    <li><strong>物理：</strong>range、closing speed、DCPA、signed/forward TCPA、hull clearance。</li>
+    <li><strong>预测：</strong>current/predicted domain、minimum scale、TDV/TDE、prediction basis。</li>
+    <li><strong>可信度：</strong>observation health、uncertainty、claim completeness、typed unavailable reasons。</li>
+    <li><strong>证据：</strong>track/prediction/domain/profile/physical-facts hashes。</li>
+  </ul>
+  <div class="callout"><strong>关键防错</strong>：无 prediction 不等于“未来不会进入”；无 covariance 不等于“当前安全”；stale/unusable 不等于“目标消失”。代码让它们变成 typed <code>UNKNOWN</code>/<code>UNQUALIFIED</code>，而不是零值或 CLEAR。</div>
+
+  <section class="quiz" data-quiz data-correct="a" data-success="正确：预测域无法声明时必须是 UNKNOWN，并带 PREDICTION_UNAVAILABLE；不能把 outside 当作 clear。" data-retry="再看一遍 UNKNOWN 规则：缺失证据不能被当成负风险。">
+    <h2>检索练习 1</h2>
+    <p>当前 domain 在 ellipse 外，但没有 target prediction。predicted domain 应是什么？</p>
+    <div class="answers">
+      <button data-answer="a">输出为未知</button>
+      <button data-answer="b">输出为清晰</button>
+      <button data-answer="c">输出为紧急</button>
+      <button data-answer="d">输出为确认</button>
+    </div>
+    <p class="feedback" aria-live="polite"></p>
+  </section>
+
+  <h2>5. 谁决定 Primary？不是 ThreatAssessment</h2>
+  <p>Coordinator 先根据 vector 生成 <code>PrimaryPriorityFact</code>，再把它连同 canonical physical facts 交给唯一的 <code>EncounterLifecycle</code>。Lifecycle 保存 per-<code>TrackKey</code> episode、role、risk、commitment、passing side、Rule 17 stage、recovery guard 和 Primary challenger。</p>
+  <div class="flow">
+    <div><strong>CLEAR</strong><code>无当前 obligation</code></div>
+    <div><strong>CANDIDATE</strong><code>进入确认窗口</code></div>
+    <div><strong>COMMITTED / ACTIVE</strong><code>承诺并执行</code></div>
+    <div><strong>PAST_CLEAR</strong><code>净空 + route clear</code></div>
+    <div><strong>RELEASED</strong><code>确认后恢复航线</code></div>
+    <div><strong>REARM</strong><code>tombstone 后新 episode</code></div>
+  </div>
+  <p>Primary 的选择是 lexicographic，而不是 weighted average：</p>
+  <ol>
+    <li>response-time/hull emergency；</li>
+    <li>Rule 17 <code>MUST_ACT</code>；</li>
+    <li>committed + active；</li>
+    <li>current domain violation；</li>
+    <li>predicted domain violation；</li>
+    <li>future severity/completeness；</li>
+    <li>approaching TCPA、DCPA、range、<code>TrackKey</code> tie-break。</li>
+  </ol>
+  <p>普通 challenger 需要经过约 10 秒的 physical-time hysteresis；emergency 或 <code>MUST_ACT</code> 可以 preempt。更重要：Primary 变化不能删掉 Lifecycle 的 required targets；这些 targets 最后成为 Aggregate Directive，供 Mid-MPC assembler 消费。</p>
+
+  <section class="quiz" data-quiz data-correct="b" data-success="正确：普通 challenger 要等 primary switch confirmation；只有 emergency 或 MUST_ACT 允许立即 preempt。" data-retry="Primary 是 Lifecycle 状态，不是前端按当前距离即时重排。">
+    <h2>检索练习 2</h2>
+    <p>新 target 排名更高，但不是 emergency，也不是 Rule 17 MUST_ACT。下一步是什么？</p>
+    <div class="answers">
+      <button data-answer="a">立即切换主目标</button>
+      <button data-answer="b">等待迟滞确认</button>
+      <button data-answer="c">交给前端排序</button>
+      <button data-answer="d">丢弃原有目标</button>
+    </div>
+    <p class="feedback" aria-live="polite"></p>
+  </section>
+
+  <h2>6. Schedule：把状态排成可解释序列</h2>
+  <p>每个 target 在一个 snapshot 只能属于一个 context：</p>
+  <div class="architecture">
+    <button class="layer" data-reveal aria-expanded="false"><strong><code>CURRENT_PRIMARY</code></strong><span class="detail">Lifecycle 当前 Primary。schedule 不能自己选 Primary。</span></button>
+    <button class="layer" data-reveal aria-expanded="false"><strong><code>CONCURRENT_REQUIRED</code></strong><span class="detail">Aggregate Directive 必须同时考虑的 target；包括仍需 recovery guard 的 target。</span></button>
+    <button class="layer" data-reveal aria-expanded="false"><strong><code>NEXT</code> / <code>MONITOR</code></strong><span class="detail">未来 domain exposure 但暂未成为 obligation 的 target 属于 NEXT；没有当前/预测 obligation 但保留 evidence 的属于 MONITOR。</span></button>
+    <button class="layer" data-reveal aria-expanded="false"><strong><code>RELEASED</code></strong><span class="detail">Lifecycle 已释放但证据仍在 snapshot 中。schedule 不是 history rewrite。</span></button>
+  </div>
+  <p>Schedule events 由相邻两个 immutable schedule 推导，例如 <code>THREAT_ENTERED</code>、<code>THREAT_ESCALATED</code>、<code>PRIMARY_CHALLENGER</code>、<code>PRIMARY_SWITCHED</code>。event 的 <code>predicted</code> 字段区分“预测窗口进入”和“当前 obligation 出现”。</p>
+
+  <h2>7. Conflict Graph：两类冲突，两个证据门槛</h2>
+  <p><strong>Direct window overlap：</strong>两个完整 Threat Window 的 <code>[entry, exit]</code>（没有 exit 时到 horizon end）发生时间相交，就生成 <code>DIRECT_WINDOW_OVERLAP</code>。这只说明多个 exposure 同期存在。</p>
+  <p><strong>Plan-induced conflict：</strong>必须有 baseline、下一周期已 apply 的 accepted receipt、匹配的 target/prediction/profile hashes。然后比较 baseline 与 accepted ownship path；只有新 violation、TDV 至少提前 5 秒或 minimum scale 恶化至少 0.1，才生成 <code>PLAN_INDUCED_CONFLICT</code>。最后用 connected components 形成 transitive cluster。</p>
+
+  <section class="quiz" data-quiz data-correct="c" data-success="正确：receipt 在同一 cycle 只被 stage；下一 cycle 才可 apply，随后才有资格做 plan-induced 比较。" data-retry="accepted plan 走 post-commit → stage → next cycle apply，不能同周期反馈。">
+    <h2>检索练习 3</h2>
+    <p>solver 刚通过 acceptance，receipt 在本 cycle 发布。这个 cycle 能立刻生成 plan-induced edge 吗？</p>
+    <div class="answers">
+      <button data-answer="a">能立即生成</button>
+      <button data-answer="b">永远不能生成</button>
+      <button data-answer="c">下周期才可用</button>
+      <button data-answer="d">只由浏览器生成</button>
+    </div>
+    <p class="feedback" aria-live="polite"></p>
+  </section>
+
+  <h2>8. 进入 UI 后发生什么？</h2>
+  <p><code>mid_mpc_ipopt.py</code> 把 snapshot 序列化进 planner <code>algorithm_details.threat_management</code>；<code>gui_server.main._canonical_threat_projection()</code> 只抽取 canonical snapshot/vectors/schedule/conflict graph；<code>web_gui/modules/telemetry-projection.js</code> 再做字段命名、Primary 标记和 null-safe display。</p>
+  <p>所以前端可以做单位格式化、卡片排序展示和 inspection context，但不能做：</p>
+  <ul class="source-list">
+    <li>重算 DCPA/TCPA；</li>
+    <li>按距离挑 Primary；</li>
+    <li>从 trajectory 自己推 TDV/TDE；</li>
+    <li>自行合并 conflict cluster；</li>
+    <li>缺 snapshot 时推断 CLEAR。</li>
+  </ul>
+
+  <h2>口述挑战：用一句话分清四个边界</h2>
+  <p>假设某 target 当前位置会落在 domain 内，但 covariance 缺失；另一个 target 有完整 prediction 且 window 与第三个 target 重叠。请你口述：</p>
+  <ol>
+    <li>第一个 target 的 current/predicted domain 和 completeness 应如何发布？</li>
+    <li>第二、第三个 target 会产生什么 graph edge？它是否自动意味着 L4 collision？</li>
+    <li>如果新 target 比当前 Primary 更危险，但尚未满足 preemption 条件，谁保持状态、等待什么？</li>
+  </ol>
+  <p>下一轮直接把你的答案发给我。我会按“事实层 / 状态层 / 执行层 / 证据层”逐句批改；确认你能独立复述后，再写入下一条 learning record。</p>
+
+  <h2>源码与主读物</h2>
+  <ul class="source-list">
+    <li><a href="file:///Users/marine/Code/.worktrees/Colav-Simulator/predictive-threat-historical-ais/docs/superpowers/specs/2026-08-21-predictive-threat-historical-ais.md">Normative Spec DP-05–DP-19</a>：先读 authority boundary，再读实现。</li>
+    <li><a href="file:///Users/marine/Code/.worktrees/Colav-Simulator/predictive-threat-historical-ais/colav_simulator/core/colav/threat_assessment.py"><code>threat_assessment.py</code></a>：<code>ThreatAssessment.evaluate</code>、<code>_assess_target</code>、domain/window/vector。</li>
+    <li><a href="file:///Users/marine/Code/.worktrees/Colav-Simulator/predictive-threat-historical-ais/colav_simulator/core/colav/threat_management.py"><code>threat_management.py</code></a>：Coordinator、schedule、ConflictGraph。</li>
+    <li><a href="file:///Users/marine/Code/.worktrees/Colav-Simulator/predictive-threat-historical-ais/colav_simulator/core/colav/encounter_lifecycle.py"><code>encounter_lifecycle.py</code></a>：唯一 Primary/FSM authority。</li>
+    <li><a href="../reference/predictive-threat-under-the-hood.html">底层逻辑速查卡</a>：复习时查公式和边界。</li>
+  </ul>
+
+  <div class="callout"><strong>老师提示</strong>：如果某个字段、event 或 hash 仍不清楚，直接贴出 target snapshot/trace 片段。我会沿源码调用链解释，不用“风险分数”类比掩盖真实边界。</div>
+
+  <nav class="next"><a href="../reference/predictive-threat-under-the-hood.html">打开速查卡</a><a href="0004-choosing-an-algorithm-entry.html">复习第 4 课</a></nav>
+  <script src="../assets/lesson.js"></script>
+</main></body>
+</html>
