@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260821-fix-45" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260821-fix-61" />
+  <link rel="stylesheet" href="/static/style.css?v=20260824-fan-regression-1" />
 </head>
 <body>
   <div class="app-container">
@@ -234,7 +234,7 @@
       <h1 class="configure-title" hidden>验证实施</h1>
       <div class="live-layout">
         <!-- ── LEFT: Live Info Sidebar (OWN SHIP / ROUTE / SENSOR) ── -->
-        <aside class="live-info-sidebar" aria-label="运行信息" data-od-id="deployment-information-sidebar">
+        <aside class="live-info-sidebar" id="liveInfoSidebar" aria-label="运行信息" data-od-id="deployment-information-sidebar">
           <!-- Page 0: ROUTE & OWN SHIP -->
           <div class="ownship-info-page" data-ownship-card-page="0">
             <section class="navigation-info-section ownship-navigation-section" aria-labelledby="ownship-summary-heading">
@@ -439,13 +439,13 @@
         </div>
 
         <!-- ── RIGHT: Live Operations Sidebar (MONITOR / ALGO) ── -->
-        <aside class="live-operations-sidebar" aria-label="运行操作" data-od-id="deployment-operation-sidebar">
+        <aside class="live-operations-sidebar" id="liveOperationsSidebar" aria-label="运行操作" data-od-id="deployment-operation-sidebar">
           <!-- Page 0: MONITOR -->
           <div class="operations-info-page operations-monitor-page" data-operations-card-page="0" aria-label="Collision Safety Monitor">
             <section class="operations-panel monitor-safety-panel" aria-labelledby="collision-safety-heading">
               <header class="operations-panel-header"><strong id="collision-safety-heading">COLLISION SAFETY</strong></header>
               <div class="risk-target-list" id="liveRiskTargetList" aria-label="目标风险列表">
-                <article class="risk-target-card" data-priority="highest">
+                <article class="risk-target-card" data-priority="highest" data-threat="safe">
                   <div class="risk-target-heading"><span>优先目标</span><strong id="riskTarget">--</strong></div>
                   <div class="risk-target-metrics"><div class="risk-target-metric"><span>DCPA</span><strong><span id="riskDcpa">---</span><small>m</small></strong></div><div class="risk-target-metric"><span>TCPA</span><strong><span id="riskTcpa">---</span><small>s</small></strong></div></div>
                   <dl class="risk-target-facts"><div><dt>COLREGs Rule</dt><dd class="colreg-value" id="riskColreg">--</dd></div><div><dt>Target range</dt><dd><button type="button" class="risk-distance-toggle" id="riskDistance" data-distance-m="" data-unit="nmi" disabled>--- NM</button></dd></div></dl>
@@ -555,7 +555,7 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260821-fix-61"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260821-fix-61"></script>
+  <script type="module" src="/static/app.js?v=20260824-fan-regression-1"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260824-fan-regression-1"></script>
 </body>
 </html>

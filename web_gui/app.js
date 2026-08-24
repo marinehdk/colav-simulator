@@ -202,6 +202,69 @@ const PALETTE_NAMES = { day: true, dusk: true, night: true, bright: true };
 const mainTopBar = document.getElementById('mainTopBar');
 const brillianceMenu = document.getElementById('brillianceMenu');
 
+let leftSidebarCollapsed = false;
+let rightSidebarCollapsed = false;
+
+function syncDeploymentSidebarControls() {
+  const layout = document.querySelector('.live-layout');
+  const leftSidebar = document.getElementById('liveInfoSidebar');
+  const rightSidebar = document.getElementById('liveOperationsSidebar');
+  if (!layout) return;
+
+  layout.classList.toggle('left-sidebar-collapsed', leftSidebarCollapsed);
+  layout.classList.toggle('right-sidebar-collapsed', rightSidebarCollapsed);
+  leftSidebar?.setAttribute('aria-hidden', String(leftSidebarCollapsed));
+  rightSidebar?.setAttribute('aria-hidden', String(rightSidebarCollapsed));
+
+  if (mainTopBar) {
+    mainTopBar.menuButtonActivated = leftSidebarCollapsed;
+    mainTopBar.appsButtonActivated = rightSidebarCollapsed;
+    const applyToggleMetadata = () => {
+      const leftToggle = mainTopBar.shadowRoot?.querySelector('.menu-button > obc-icon-button');
+      const rightToggle = mainTopBar.shadowRoot?.querySelector('.apps-button');
+      const toggles = [
+        [leftToggle, leftSidebarCollapsed, '左侧栏', 'liveInfoSidebar'],
+        [rightToggle, rightSidebarCollapsed, '右侧栏', 'liveOperationsSidebar'],
+      ];
+      toggles.forEach(([button, collapsed, label, controls]) => {
+        if (!button) return;
+        const action = collapsed ? '展开' : '收起';
+        const attributes = {
+          'aria-label': `${action}${label}`,
+          title: `${action}${label}`,
+          'aria-expanded': String(!collapsed),
+          'aria-controls': controls,
+        };
+        [button, button.shadowRoot?.querySelector('button')].filter(Boolean).forEach((element) => {
+          Object.entries(attributes).forEach(([name, value]) => element.setAttribute(name, value));
+        });
+      });
+    };
+    applyToggleMetadata();
+    mainTopBar.updateComplete?.then(applyToggleMetadata);
+  }
+}
+
+function setupDeploymentSidebarToggles() {
+  if (!mainTopBar || mainTopBar.dataset.sidebarTogglesBound === 'true') {
+    syncDeploymentSidebarControls();
+    return;
+  }
+  mainTopBar.dataset.sidebarTogglesBound = 'true';
+  mainTopBar.addEventListener('menu-button-clicked', () => {
+    leftSidebarCollapsed = !leftSidebarCollapsed;
+    syncDeploymentSidebarControls();
+  });
+  mainTopBar.addEventListener('apps-button-clicked', () => {
+    rightSidebarCollapsed = !rightSidebarCollapsed;
+    syncDeploymentSidebarControls();
+  });
+  syncDeploymentSidebarControls();
+}
+
+setupDeploymentSidebarToggles();
+customElements.whenDefined('obc-top-bar').then(syncDeploymentSidebarControls);
+
 // Brilliance-menu ships inside the same locally-bundled module config-shell.js
 // loads (vendor/openbridge/entry-source.mjs); re-import is a cache no-op and
 // failure degrades like every other best-effort OpenBridge piece.
@@ -776,6 +839,19 @@ function updateOwnshipTelemetry(proj) {
 let riskDistanceUnit = 'nmi';
 let latestMonitorTimelineEvents = [];
 
+function riskThreatLevel(target) {
+  const stage = Number(target?.stage);
+  const dcpa = target?.dcpaM === null || target?.dcpaM === undefined
+    ? null
+    : Number(target.dcpaM);
+  const fsmState = String(target?.fsmState || '').toUpperCase();
+  if (fsmState === 'EM' || stage >= 4 || (Number.isFinite(dcpa) && dcpa <= DCPA_WARN)) {
+    return 'danger';
+  }
+  if (stage >= 2 || (Number.isFinite(dcpa) && dcpa <= DCPA_SAFE)) return 'warn';
+  return 'safe';
+}
+
 function formatRiskDistance(distanceM, unit = riskDistanceUnit) {
   if (!Number.isFinite(distanceM)) return unit === 'nmi' ? '--- NM' : '--- km';
   return unit === 'nmi'
@@ -796,74 +872,256 @@ function refreshRiskDistanceButtons() {
 function eventDisplayContent(event) {
   const details = event.details || {};
   const target = details.targetLabel || (details.target_id !== undefined ? `TS${details.target_id}` : '');
+  const content = ({ eventType, status = '', subject = '', detail = '', cardTone = 'info', statusTone = cardTone }) => ({
+    title: [eventType, status].filter(Boolean).join(' '),
+    description: [subject, detail].filter(Boolean).join('  '),
+    eventType,
+    status,
+    subject,
+    detail,
+    cardTone,
+    statusTone,
+  });
   switch (event.type) {
     case 'planner_solved':
-      return {
-        title: `Planner solution #${details.solve_id ?? '—'}`,
-        description: [
-          details.status,
-          typeof details.feasible === 'boolean' ? (details.feasible ? 'feasible' : 'infeasible') : null,
-        ].filter(Boolean).join(' · '),
-      };
+      return content({
+        eventType: 'Planner solution',
+        status: details.status || '',
+        subject: `#${details.solve_id ?? '—'}`,
+        detail: typeof details.feasible === 'boolean' ? (details.feasible ? 'feasible' : 'infeasible') : '',
+      });
     case 'colregs_change': {
       const from = details.from ? (ENCOUNTER_LABELS[details.from] || details.from) : 'Clear';
       const to = details.to ? (ENCOUNTER_LABELS[details.to] || details.to) : 'Clear';
-      return { title: `COLREGs ${from} → ${to}`, description: target || 'Encounter state changed' };
+      const cleared = details.to === 'clear';
+      return content({
+        eventType: 'COLREGs',
+        status: cleared ? 'Clear' : 'Hold',
+        subject: target,
+        detail: cleared ? `${from} → Clear` : to,
+        cardTone: 'info',
+        statusTone: cleared ? 'safe' : 'warning',
+      });
     }
-    case 'dcpa_level_change':
-      return {
-        title: `DCPA ${(details.level || 'unknown').toUpperCase()}${target ? ` · ${target}` : ''}`,
-        description: Number.isFinite(details.dcpaM) ? `${details.dcpaM.toFixed(1)} m closest approach` : 'Closest approach updated',
-      };
+    case 'dcpa_level_change': {
+      const status = String(details.level || 'unknown').toUpperCase();
+      return content({
+        eventType: 'DCPA',
+        status,
+        subject: target,
+        detail: Number.isFinite(details.dcpaM) ? `${details.dcpaM.toFixed(1)} m closest approach` : 'Closest approach updated',
+        cardTone: 'info',
+        statusTone: status === 'DANGER' ? 'danger' : status === 'WARN' ? 'warning' : 'safe',
+      });
+    }
     case 'collision':
-      return { title: 'Collision detected', description: target || `Ship ${details.ship_id ?? '—'}` };
+      return content({
+        eventType: 'Collision',
+        status: 'DANGER',
+        subject: target || `Ship ${details.ship_id ?? '—'}`,
+        detail: 'Collision detected',
+        cardTone: 'danger',
+        statusTone: 'danger',
+      });
     case 'grounding':
-      return { title: 'Grounding detected', description: `Ship ${details.ship_id ?? '—'}` };
+      return content({
+        eventType: 'Grounding',
+        status: 'DANGER',
+        subject: `Ship ${details.ship_id ?? '—'}`,
+        detail: 'Grounding detected',
+        cardTone: 'danger',
+        statusTone: 'danger',
+      });
     case 'time_limit':
-      return { title: 'Simulation time limit reached', description: 'Run stopped at configured duration' };
+      return content({ eventType: 'Simulation', status: 'Time limit', detail: 'Run stopped at configured duration' });
+    case 'goal_reached':
+      return content({
+        eventType: 'Avoidance',
+        status: 'Complete',
+        subject: `Ship ${details.ship_id ?? '—'}`,
+        detail: 'Mission route reached',
+        cardTone: 'safe',
+        statusTone: 'safe',
+      });
+    case 'session_started':
+      return content({ eventType: 'Simulation', status: 'Started', detail: 'Session is ready for monitoring' });
+    case 'session_paused':
+      return content({ eventType: 'Simulation', status: 'Paused', detail: 'Manual pause' });
+    case 'session_finished':
+      return content({ eventType: 'Simulation', status: 'Finished', detail: 'Session completed' });
+    case 'session_failed':
+      return content({
+        eventType: 'Simulation',
+        status: 'Failed',
+        detail: details.reason || 'Runtime failure',
+        cardTone: 'danger',
+        statusTone: 'danger',
+      });
     default:
-      return {
-        title: String(event.type || 'simulation_event').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()),
-        description: target || (details.ship_id !== undefined ? `Ship ${details.ship_id}` : 'Simulation event'),
-      };
+      return content({
+        eventType: String(event.type || 'simulation_event').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()),
+        subject: target || (details.ship_id !== undefined ? `Ship ${details.ship_id}` : ''),
+        detail: 'Simulation event',
+      });
   }
+}
+
+const MONITOR_HIDDEN_EVENT_TYPES = new Set(['planner_solved']);
+
+function monitorEventTone(event) {
+  return eventDisplayContent(event).cardTone;
+}
+
+function monitorToneColor(tone) {
+  return tone === 'danger'
+    ? 'var(--alert-alarm-color, #d82828)'
+    : tone === 'warning'
+      ? 'var(--alert-warning-color, #b87800)'
+      : tone === 'safe'
+        ? 'var(--alert-success-color, #16804b)'
+        : 'var(--ob-accent-mid, #5d8fd5)';
+}
+
+function decorateMonitorEventItems(eventList, events) {
+  const eventItems = [...(eventList.shadowRoot?.querySelectorAll('obc-event-item') || [])];
+  eventItems.forEach((item, index) => {
+    const event = events[index];
+    const presentation = event ? eventDisplayContent(event) : null;
+    const tone = event ? monitorEventTone(event) : 'info';
+    const statusTone = presentation?.statusTone || 'info';
+    const accent = monitorToneColor(tone);
+    const statusAccent = monitorToneColor(statusTone);
+    const background = `color-mix(in srgb, ${accent} 8%, var(--ob-surface, #ffffff))`;
+    const border = `color-mix(in srgb, ${accent} 38%, var(--ob-border, #dddddd))`;
+    item.dataset.eventTone = tone;
+    item.dataset.eventStatusTone = statusTone;
+    item.style.setProperty('--flat-enabled-background-color', background);
+    item.style.setProperty('--flat-enabled-border-color', border);
+    item.style.setProperty('--flat-hover-background-color', background);
+    item.style.setProperty('--flat-hover-border-color', border);
+    const shadow = item.shadowRoot;
+    const wrapper = shadow?.querySelector('.wrapper');
+    const visibleWrapper = shadow?.querySelector('.visible-wrapper');
+    const content = shadow?.querySelector('.event-content');
+    const title = shadow?.querySelector('.title');
+    const description = shadow?.querySelector('.description');
+    if (wrapper) wrapper.classList.remove('type-color-coded');
+    if (visibleWrapper) {
+      visibleWrapper.style.background = background;
+      visibleWrapper.style.borderColor = border;
+      visibleWrapper.style.borderLeft = `3px solid ${accent}`;
+      visibleWrapper.style.padding = '8px 10px 6px';
+      visibleWrapper.style.minHeight = '64px';
+    }
+    if (content) content.style.justifyContent = 'space-between';
+    if (title) {
+      title.style.color = 'var(--ob-text, #1f1f1f)';
+      title.style.fontSize = '12px';
+      title.style.fontWeight = '650';
+      title.style.lineHeight = '17px';
+      title.style.whiteSpace = 'normal';
+      title.style.overflow = 'visible';
+      title.style.textOverflow = 'clip';
+      title.style.display = 'block';
+      if (presentation) {
+        const header = document.createElement('span');
+        header.className = 'event-title-line';
+        header.style.display = 'block';
+        header.style.whiteSpace = 'nowrap';
+        const eventType = document.createElement('span');
+        eventType.className = 'event-type';
+        eventType.textContent = presentation.eventType;
+        header.append(eventType);
+        if (presentation.status) {
+          const status = document.createElement('span');
+          status.className = 'event-status';
+          status.textContent = ` ${presentation.status}`;
+          status.style.color = statusAccent;
+          status.style.fontWeight = '750';
+          header.append(status);
+        }
+        const body = document.createElement('span');
+        body.className = 'event-body-line';
+        body.style.display = 'flex';
+        body.style.flexWrap = 'wrap';
+        body.style.columnGap = '10px';
+        body.style.rowGap = '2px';
+        body.style.marginTop = '3px';
+        body.style.fontSize = '11px';
+        body.style.fontWeight = '500';
+        body.style.lineHeight = '15px';
+        if (presentation.subject) {
+          const subject = document.createElement('span');
+          subject.className = 'event-subject';
+          subject.textContent = presentation.subject;
+          subject.style.fontWeight = '700';
+          body.append(subject);
+        }
+        if (presentation.detail) {
+          const detail = document.createElement('span');
+          detail.className = 'event-detail';
+          detail.textContent = presentation.detail;
+          body.append(detail);
+        }
+        title.replaceChildren(header, body);
+      }
+    }
+    if (description) {
+      description.style.color = 'var(--ob-subtle, #707070)';
+      description.style.fontFamily = 'var(--font-mono)';
+      description.style.fontSize = '9px';
+      description.style.lineHeight = '13px';
+      description.style.textAlign = 'right';
+      description.style.whiteSpace = 'nowrap';
+    }
+  });
 }
 
 function renderMonitorEventList(events) {
   latestMonitorTimelineEvents = Array.isArray(events) ? events : [];
-  setText('liveEventCount', String(latestMonitorTimelineEvents.length));
+  const visibleEvents = latestMonitorTimelineEvents
+    .filter((event) => !MONITOR_HIDDEN_EVENT_TYPES.has(event?.type))
+    .slice()
+    .reverse();
+  setText('liveEventCount', String(visibleEvents.length));
   const eventList = document.getElementById('liveEvents');
   if (!eventList || !customElements.get('obc-event-list')) return;
-  const visibleEvents = latestMonitorTimelineEvents.slice(-8).reverse();
   eventList.showHeader = false;
   eventList.events = visibleEvents.length
     ? visibleEvents.map((event) => {
         const content = eventDisplayContent(event);
-        const details = event.details || {};
-        const colorCoded = ['collision', 'grounding', 'colregs_change'].includes(event.type)
-          || (event.type === 'dcpa_level_change' && details.level !== 'safe');
+        const startTime = Number.isFinite(event.simTime) ? formatDuration(event.simTime) : '--:--:--';
         return {
-          title: content.title,
-          description: content.description,
-          startTime: Number.isFinite(event.simTime) ? formatDuration(event.simTime) : '--:--:--',
+          title: [content.title, content.description].filter(Boolean).join(' · '),
+          description: startTime,
+          startTime,
           endTime: '',
           eventItemType: 'doubleLine',
-          hasTime: true,
+          hasTime: false,
           hasEndTime: false,
           hasArrow: false,
-          colorCoded,
+          colorCoded: false,
         };
       })
     : [{
         title: 'Waiting for simulation events',
-        description: 'Timeline is empty',
+        description: '--:--:--',
         startTime: '--:--:--',
         endTime: '',
         eventItemType: 'doubleLine',
-        hasTime: true,
+        hasTime: false,
         hasEndTime: false,
+        hasArrow: false,
         disabled: true,
       }];
+  const decorate = () => decorateMonitorEventItems(eventList, visibleEvents);
+  decorate();
+  eventList.updateComplete?.then(() => {
+    const itemUpdates = [...(eventList.shadowRoot?.querySelectorAll('obc-event-item') || [])]
+      .map((item) => item.updateComplete)
+      .filter(Boolean);
+    Promise.all(itemUpdates).then(decorate);
+  });
 }
 
 function renderNotificationCenter(events) {
@@ -943,7 +1201,7 @@ function updateMonitorTelemetry(proj) {
     const targets = proj.risk?.targets || [];
     if (!targets.length) {
       container.innerHTML = `
-        <article class="risk-target-card" data-priority="none">
+        <article class="risk-target-card" data-priority="none" data-threat="safe">
           <div class="risk-target-heading"><span>当前目标</span><strong>无威胁目标</strong></div>
           <p style="margin:0;font-size:10px;color:var(--ob-subtle);">当前安全探测范围内无临近会遇船舶。</p>
         </article>
@@ -951,12 +1209,13 @@ function updateMonitorTelemetry(proj) {
     } else {
       container.innerHTML = targets.map((t, idx) => {
         const isHighest = idx === 0;
+        const threatLevel = riskThreatLevel(t);
         const dcpaText = t.dcpaM !== null ? `${t.dcpaM.toFixed(1)}` : '---';
         const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
         const colregLabel = t.encounter ? (ENCOUNTER_LABELS[t.encounter] || t.encounter) : '--';
         const priorityLabel = isHighest ? '优先目标' : (idx === 1 ? '次优先目标' : '监测目标');
         return `
-          <article class="risk-target-card" ${isHighest ? 'data-priority="highest"' : ''}>
+          <article class="risk-target-card" data-threat="${threatLevel}" ${isHighest ? 'data-priority="highest"' : ''}>
             <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.targetLabel || (t.targetId === null ? '--' : `TS${t.targetId}`)}</strong></div>
             <div class="risk-target-metrics">
               <div class="risk-target-metric"><span>DCPA</span><strong>${dcpaText}<small>m</small></strong></div>

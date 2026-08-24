@@ -29,6 +29,18 @@ test('top-bar notifications use OpenBridge controls and projected simulation eve
   assert.match(app, /addEventListener\('obc-click'/);
 });
 
+test('Deployment top-bar menu and apps buttons collapse the matching sidebars', () => {
+  assert.match(html, /id="liveInfoSidebar"/);
+  assert.match(html, /id="liveOperationsSidebar"/);
+  assert.match(app, /addEventListener\('menu-button-clicked'/);
+  assert.match(app, /addEventListener\('apps-button-clicked'/);
+  assert.match(app, /left-sidebar-collapsed/);
+  assert.match(app, /right-sidebar-collapsed/);
+  assert.match(app, /'aria-controls': controls/);
+  assert.match(styles, /\.live-layout\.left-sidebar-collapsed\s*\{/);
+  assert.match(styles, /\.live-layout\.right-sidebar-collapsed\s*\{/);
+});
+
 test('DEPTH uses the live ENC depth bin instead of a fixed 15 m value', () => {
   assert.match(html, /id="sidebarDepthSource" value="enc"/);
   assert.match(html, /<strong>FLOOR<\/strong><small>ENC BIN<\/small>/);
@@ -62,12 +74,42 @@ test('Target range defaults to nautical miles and toggles to kilometres from met
   assert.match(html, /class="risk-distance-toggle"[^>]*data-unit="nmi"/);
 });
 
+test('risk cards use the projected threat level for card and COLREGs colors', () => {
+  assert.match(app, /function riskThreatLevel\(target\)/);
+  assert.match(app, /data-threat="\$\{threatLevel\}"/);
+  assert.match(styles, /\.risk-target-card\[data-threat="safe"\]/);
+  assert.match(styles, /\.risk-target-card\[data-threat="warn"\]/);
+  assert.match(styles, /\.risk-target-card\[data-threat="danger"\]/);
+  assert.match(styles, /\.risk-target-facts \.colreg-value \{[^}]*color: var\(--risk-card-color\)/);
+});
+
+test('monitor event list grows into the remaining right-sidebar space', () => {
+  assert.match(styles, /\.operations-info-page \{[^}]*overflow: hidden;/s);
+  assert.match(styles, /\.operations-monitor-page \{[^}]*gap: 0;[^}]*padding-bottom: 0;/s);
+  assert.match(styles, /\.monitor-safety-panel \{[^}]*flex: 0 1 auto;/s);
+  assert.match(styles, /\.risk-target-list \{[^}]*flex: 0 1 auto;/s);
+  assert.match(styles, /\.monitor-event-strip \{[^}]*flex: 1 1 240px;[^}]*min-height: 240px;/s);
+  assert.match(styles, /\.operations-card-switcher \{ margin-top: 0;/);
+});
+
 test('EVENT LIST uses OpenBridge event-list with projected timeline data', () => {
   assert.match(html, /id="monitor-event-heading">EVENT LIST</);
   assert.match(html, /<obc-event-list[^>]*id="liveEvents"/);
   assert.match(vendorEntry, /components\/event-list\/event-list\.js/);
   assert.match(app, /renderMonitorEventList\(proj\.timeline\?\.events \|\| \[\]\)/);
+  assert.match(app, /MONITOR_HIDDEN_EVENT_TYPES = new Set\(\['planner_solved'\]\)/);
+  assert.match(app, /filter\(\(event\) => !MONITOR_HIDDEN_EVENT_TYPES\.has\(event\?\.type\)\)/);
+  assert.match(app, /case 'goal_reached':/);
+  assert.match(app, /function monitorEventTone\(event\)/);
+  assert.match(app, /item\.dataset\.eventTone = tone/);
+  assert.match(app, /item\.dataset\.eventStatusTone = statusTone/);
+  assert.match(app, /header\.className = 'event-title-line'/);
+  assert.match(app, /body\.className = 'event-body-line'/);
   assert.match(app, /eventItemType: 'doubleLine'/);
+  assert.match(app, /description: startTime/);
+  assert.match(app, /decorateMonitorEventItems\(eventList, visibleEvents\)/);
+  assert.match(styles, /overflow-y: scroll/);
+  assert.match(styles, /--global-typography-ui-label-font-size: 12px/);
   assert.match(app, /colorCoded/);
   assert.doesNotMatch(app, /eventList\.innerHTML/);
 });
