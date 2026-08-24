@@ -1080,7 +1080,20 @@ def api_capabilities(validation_rule_id: str | None = None) -> dict[str, Any]:
 
 @app.get("/api/algorithms")
 def api_algorithms() -> list[dict[str, Any]]:
-    return [status.to_dict() for status in manager.runner.registry.statuses().values()]
+    """Expose the active product algorithms, not the retained integration registry."""
+    policy = manager.runner.capabilities.policy
+    statuses = manager.runner.registry.statuses()
+    return [
+        {
+            **statuses[identifier].to_dict(),
+            "active": True,
+            "available": bool(statuses[identifier].available),
+            "selectable": bool(statuses[identifier].available),
+            "constraints": policy.constraints(identifier),
+        }
+        for identifier in policy.algorithm_ids
+        if identifier in statuses
+    ]
 
 
 @app.get("/api/integrations")
