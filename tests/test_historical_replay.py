@@ -9,7 +9,9 @@ from shapely.geometry import MultiPolygon
 
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_replay import (
+    ENCPreflightEvidence,
     HistoricalActorSampleKind,
+    HistoricalActorSet,
     HistoricalActorShip,
     HistoricalAISReconstructionProfile,
     HistoricalAISReconstructor,
@@ -30,6 +32,21 @@ def _write_csv(path: Path, rows: str) -> Path:
 
 def _read(path: Path) -> object:
     return HistoricalAISDatasetReader(path).read(HistoricalAISSelection())
+
+
+def _enc_evidence(actor_set: HistoricalActorSet) -> ENCPreflightEvidence:
+    east = [sample.state_vxvy[1] for actor in actor_set.actors for sample in actor.samples]
+    north = [sample.state_vxvy[0] for actor in actor_set.actors for sample in actor.samples]
+    return ENCPreflightEvidence(
+        profile_id="test-enc",
+        qualification_state="QUALIFIED",
+        supported_extent_projected=(min(east) - 100.0, min(north) - 100.0, max(east) + 100.0, max(north) + 100.0),
+        profile_digest="profile-digest",
+        cache_digest="cache-digest",
+        source_digest="source-digest",
+        preflight_status="PASS",
+        all_positions_contained=True,
+    )
 
 
 def test_reconstruction_profile_is_versioned_and_semantically_stable() -> None:
@@ -167,7 +184,7 @@ def test_replay_uses_normal_session_sensor_tracker_chain(tmp_path: Path) -> None
     simulator_config.visualizer.show_liveplot = False
     simulator = Simulator(config=simulator_config)
     prepared = HistoricalReplayFactory.prepare(
-        HistoricalReplayRequest(actor_set=actors, t_end_s=2.0),
+        HistoricalReplayRequest(actor_set=actors, t_end_s=2.0, enc_preflight_evidence=_enc_evidence(actors)),
         enc=enc,
         simulator=simulator,
     )
@@ -195,7 +212,7 @@ def test_replay_factory_fails_before_session_when_actor_dimensions_are_missing(t
 
     with pytest.raises(HistoricalReplayQualificationError) as error:
         HistoricalReplayFactory.prepare(
-            HistoricalReplayRequest(actor_set=actors),
+            HistoricalReplayRequest(actor_set=actors, enc_preflight_evidence=_enc_evidence(actors)),
             enc=SimpleNamespace(),
             simulator=Simulator(config=SimulatorConfig(verbose=False)),
         )
@@ -219,7 +236,7 @@ def test_replay_factory_rejects_default_hull_provenance_before_session(tmp_path:
 
     with pytest.raises(HistoricalReplayQualificationError) as error:
         HistoricalReplayFactory.prepare(
-            HistoricalReplayRequest(actor_set=actors),
+            HistoricalReplayRequest(actor_set=actors, enc_preflight_evidence=_enc_evidence(actors)),
             enc=SimpleNamespace(),
             simulator=Simulator(config=SimulatorConfig(verbose=False)),
         )
@@ -252,7 +269,9 @@ def test_replay_reappearance_rearms_tracker_generation(tmp_path: Path) -> None:
     )
     simulator = Simulator(config=SimulatorConfig(verbose=False))
     prepared = HistoricalReplayFactory.prepare(
-        HistoricalReplayRequest(actor_set=actors, t_end_s=11.0), enc=enc, simulator=simulator
+        HistoricalReplayRequest(actor_set=actors, t_end_s=11.0, enc_preflight_evidence=_enc_evidence(actors)),
+        enc=enc,
+        simulator=simulator,
     )
 
     first_generation = None
@@ -279,7 +298,11 @@ def test_replay_request_round_trip_preserves_sealed_lineage(tmp_path: Path) -> N
     actors = HistoricalAISReconstructor().reconstruct(
         _read(source), HistoricalAISReconstructionProfile(time_step_s=1.0, max_interpolation_gap_s=5.0)
     )
-    request = HistoricalReplayRequest(actor_set=actors, t_end_s=2.0)
+    request = HistoricalReplayRequest(
+        actor_set=actors,
+        t_end_s=2.0,
+        enc_preflight_evidence=_enc_evidence(actors),
+    )
     restored = HistoricalReplayRequest.from_dict(request.to_dict())
 
     assert restored.actor_set.semantic_digest == actors.semantic_digest

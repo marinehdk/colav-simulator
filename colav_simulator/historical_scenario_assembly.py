@@ -34,6 +34,7 @@ from colav_simulator.historical_enc import (
     ENCRegionProfile,
     build_expanded_romsdal_profile,
 )
+from colav_simulator.historical_replay import ENCPreflightEvidence
 from colav_simulator.historical_scenario_source import (
     HistoricalAISScenarioError,
     HistoricalAISScenarioReadiness,
@@ -428,9 +429,16 @@ def _replay_document(context: BoundHistoricalAISReplayContext) -> dict[str, Any]
         "t_end_s": 60.0,
         "scenario_name": context.historical_scenario_id,
         "utm_zone": 33,
-        "enc_profile_id": context.enc_profile.profile_id,
-        "enc_qualification_state": context.enc_profile.qualification_state.value,
-        "enc_supported_extent_projected": list(context.enc_profile.supported_extent_projected),
+        "enc_preflight_evidence": ENCPreflightEvidence(
+            profile_id=context.enc_profile.profile_id,
+            qualification_state=context.enc_profile.qualification_state.value,
+            supported_extent_projected=context.enc_profile.supported_extent_projected,
+            profile_digest=context.enc_profile.profile_digest,
+            cache_digest=context.enc_profile.cache.artifact_digest,
+            source_digest=context.enc_profile.source.source_digest,
+            preflight_status=context.enc_preflight.status.value,
+            all_positions_contained=context.enc_preflight.all_positions_contained,
+        ).to_dict(),
     }
 
 

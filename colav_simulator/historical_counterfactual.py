@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_case import HistoricalAISCase
+from colav_simulator.historical_replay import ENCPreflightEvidence
 from colav_simulator.historical_serialization import semantic_hash
 
 if TYPE_CHECKING:
@@ -105,10 +106,16 @@ class HistoricalAISCounterfactualRunRequest:
             "case_runtime_digest": self.case.case_runtime_digest,
             "selection_digest": self.case.selection.digest,
             "reconstruction_profile_digest": self.case.reconstruction_digest,
-            "enc_profile_digest": self.case.enc_profile_digest,
-            "enc_profile_id": self.case.enc_profile.profile_id,
-            "enc_qualification_state": self.case.enc_profile.qualification_state.value,
-            "enc_supported_extent_projected": list(self.case.enc_profile.supported_extent_projected),
+            "enc_preflight_evidence": ENCPreflightEvidence(
+                profile_id=self.case.enc_profile.profile_id,
+                qualification_state=self.case.enc_profile.qualification_state.value,
+                supported_extent_projected=self.case.enc_profile.supported_extent_projected,
+                profile_digest=self.case.enc_profile_digest,
+                cache_digest=self.case.enc_profile.cache.artifact_digest,
+                source_digest=self.case.enc_profile.source.source_digest,
+                preflight_status=self.case.enc_preflight.status.value,
+                all_positions_contained=self.case.enc_preflight.all_positions_contained,
+            ).to_dict(),
             "handoff_tolerance_m": self.handoff_tolerance_m,
             "handoff_tolerance_mps": self.handoff_tolerance_mps,
             "handoff_tolerance_rad": self.handoff_tolerance_rad,

@@ -12,6 +12,7 @@ from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_acceptance import HistoricalAISDimensionRecord, HistoricalAISDimensionRegistry
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_enc import ENCRegionProfile
+from colav_simulator.historical_replay import ENCPreflightEvidence
 from gui_server import historical_api
 from gui_server.main import app
 
@@ -68,6 +69,19 @@ def _dimension_registry_document(*mmsi: int) -> dict[str, object]:
         ),
     )
     return {**registry.to_dict(), "registry_digest": registry.digest}
+
+
+def _enc_preflight_evidence(profile: ENCRegionProfile) -> dict[str, object]:
+    return ENCPreflightEvidence(
+        profile_id=profile.profile_id,
+        qualification_state=profile.qualification_state.value,
+        supported_extent_projected=profile.supported_extent_projected,
+        profile_digest=profile.profile_digest,
+        cache_digest=profile.cache.artifact_digest,
+        source_digest=profile.source.source_digest,
+        preflight_status="PASS",
+        all_positions_contained=True,
+    ).to_dict()
 
 
 def _request(tmp_path: Path, profile: ENCRegionProfile) -> dict[str, object]:
@@ -272,6 +286,7 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
         "reconstruction_profile": {"time_step_s": 1.0, "max_interpolation_gap_s": 15.0},
         "dimension_registry": _dimension_registry_document(123456789, 223456789),
         "dimension_effective_at_utc": "2026-07-01T00:00:00+00:00",
+        "enc_preflight_evidence": _enc_preflight_evidence(qualified_historical_enc_profile),
     }
     request.pop("enc_profile")
     request.pop("human_reference")
@@ -292,6 +307,21 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
     assert document["compare"] is None
     assert document["evidence"]["historical_replay"]["mode"] == "HISTORICAL_REPLAY"
     assert document["evidence"]["historical_replay"]["dimension_registry_digest"]
+    enc_evidence = document["evidence"]["historical_replay"]["enc_preflight_evidence"]
+    assert enc_evidence["qualification_state"] == "QUALIFIED"
+    assert enc_evidence["preflight_status"] == "PASS"
+    assert enc_evidence["all_positions_contained"] is True
+    assert enc_evidence["profile_digest"] == qualified_historical_enc_profile.profile_digest
+    assert enc_evidence["cache_digest"] == qualified_historical_enc_profile.cache.artifact_digest
+    assert enc_evidence["source_digest"] == qualified_historical_enc_profile.source.source_digest
+    assert document["evidence"]["enc"] == {
+        "profile_id": qualified_historical_enc_profile.profile_id,
+        "profile_digest": qualified_historical_enc_profile.profile_digest,
+        "cache_digest": qualified_historical_enc_profile.cache.artifact_digest,
+        "source_digest": qualified_historical_enc_profile.source.source_digest,
+        "preflight_status": "PASS",
+        "all_positions_contained": True,
+    }
     assert len(document["evidence"]["historical_replay"]["dimension_record_digests"]) == 2
     assert document["evidence"]["run"]["historical_execution_mode"] == "HISTORICAL_REPLAY"
     assert document["evidence"]["run"]["executed_algorithm"] == "historical_replay"
@@ -314,6 +344,50 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
     assert len(replay["manifest_digest"]) == 64
     assert replay["dimension_registry_digest"]
     assert len(replay["dimension_source_digest"]) == 64
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_status"),
+    (
+        ("tamper", "QUALITY_INCOMPLETE"),
+        ("unqualified", "ENC_UNQUALIFIED"),
+        ("outside", "OUTSIDE_COVERAGE"),
+    ),
+)
+def test_historical_replay_api_rejects_invalid_typed_enc_preflight_evidence(
+    tmp_path: Path,
+    qualified_historical_enc_profile: ENCRegionProfile,
+    mutation: str,
+    expected_status: str,
+) -> None:
+    request = _request(tmp_path, qualified_historical_enc_profile)
+    evidence = _enc_preflight_evidence(qualified_historical_enc_profile)
+    if mutation == "tamper":
+        evidence["profile_digest"] = "0" * 64
+    elif mutation == "unqualified":
+        evidence["qualification_state"] = "UNQUALIFIED"
+    else:
+        evidence["all_positions_contained"] = False
+    request.update(
+        {
+            "mode": "HISTORICAL_REPLAY",
+            "case": {},
+            "replay": {
+                "reference_mmsi": 123456789,
+                "dimension_registry": _dimension_registry_document(123456789, 223456789),
+                "dimension_effective_at_utc": "2026-07-01T00:00:00+00:00",
+                "enc_preflight_evidence": evidence,
+            },
+        }
+    )
+    request.pop("enc_profile")
+    request.pop("human_reference")
+
+    with TestClient(app) as client:
+        response = client.post("/api/historical/workflows", json=request)
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["status"] == expected_status
 
 
 def test_scene_counterfactual_double_run_stays_operable_with_unqualified_cluster_evidence(
@@ -550,6 +624,7 @@ def test_historical_replay_api_rejects_unprovenanced_dimension_inputs(
         "reference_mmsi": 123456789,
         "dimension_registry": registry,
         "dimension_effective_at_utc": "2026-07-01T00:00:00+00:00",
+        "enc_preflight_evidence": _enc_preflight_evidence(qualified_historical_enc_profile),
     }
     if mutation in {"missing", "naked_numbers"}:
         replay.pop("dimension_registry")

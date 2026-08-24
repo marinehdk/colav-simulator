@@ -59,6 +59,7 @@ from colav_simulator.historical_enc import (
     ENCSourceIdentity,
 )
 from colav_simulator.historical_replay import (
+    ENCPreflightEvidence,
     HistoricalActorSet,
     HistoricalAISReconstructionProfile,
     HistoricalAISReconstructor,
@@ -99,6 +100,7 @@ class HistoricalWorkflowErrorCode(str, Enum):
     CASE_NOT_PUBLISHED = "CASE_NOT_PUBLISHED"
     BINDINGS_UNAVAILABLE = "BINDINGS_UNAVAILABLE"
     ENC_UNQUALIFIED = "ENC_UNQUALIFIED"
+    OUTSIDE_COVERAGE = "OUTSIDE_COVERAGE"
     FUTURE_LEAKAGE = "FUTURE_LEAKAGE"
     DATASET_UNAVAILABLE = "DATASET_UNAVAILABLE"
     DIMENSIONS_UNAVAILABLE = "DIMENSIONS_UNAVAILABLE"
@@ -457,16 +459,30 @@ def _presentation_replay(workflow: _HistoricalWorkflow) -> dict[str, Any]:
 
 def _workflow_enc_evidence(workflow: _HistoricalWorkflow) -> dict[str, Any]:
     context = workflow.bound_context
-    if context is None:
+    if context is not None:
+        return context.enc_evidence
+    replay_enc = (
+        None
+        if workflow.replay_request is None
+        else workflow.replay_request.evidence.enc_preflight_evidence
+    )
+    if replay_enc is not None:
         return {
-            "profile_id": None,
-            "profile_digest": None,
-            "cache_digest": None,
-            "source_digest": None,
-            "preflight_status": None,
-            "all_positions_contained": None,
+            "profile_id": replay_enc.profile_id,
+            "profile_digest": replay_enc.profile_digest,
+            "cache_digest": replay_enc.cache_digest,
+            "source_digest": replay_enc.source_digest,
+            "preflight_status": replay_enc.preflight_status,
+            "all_positions_contained": replay_enc.all_positions_contained,
         }
-    return context.enc_evidence
+    return {
+        "profile_id": None,
+        "profile_digest": None,
+        "cache_digest": None,
+        "source_digest": None,
+        "preflight_status": None,
+        "all_positions_contained": None,
+    }
 
 
 def _presentation_threat(workflow: _HistoricalWorkflow) -> dict[str, Any]:
@@ -942,6 +958,60 @@ def _dimension_registry_from_document(document: dict[str, Any]) -> HistoricalAIS
         raise HistoricalWorkflowError("QUALITY_INCOMPLETE", str(exc)) from exc
 
 
+def _decode_replay_enc_evidence(replay_document: dict[str, Any]) -> ENCPreflightEvidence:
+    document = replay_document.pop("enc_preflight_evidence", None)
+    if not isinstance(document, dict):
+        raise HistoricalWorkflowError(
+            "ENC_UNQUALIFIED",
+            "Historical Replay requires typed qualified ENC preflight evidence",
+        )
+    try:
+        return ENCPreflightEvidence.from_dict(document)
+    except ValueError as exc:
+        if "evidence digest mismatch" in str(exc):
+            status = "QUALITY_INCOMPLETE"
+        elif "positions contained" in str(exc):
+            status = "OUTSIDE_COVERAGE"
+        else:
+            status = "ENC_UNQUALIFIED"
+        raise HistoricalWorkflowError(status, str(exc)) from exc
+
+
+def _build_historical_replay_request(
+    actor_set: HistoricalActorSet,
+    dataset: Any,
+    run_spec: RunSpec,
+    replay_document: dict[str, Any],
+    enc_evidence: ENCPreflightEvidence,
+    registry: HistoricalAISDimensionRegistry,
+    effective_at: Any,
+) -> HistoricalReplayRequest:
+    try:
+        request = HistoricalReplayRequest(
+            actor_set=actor_set,
+            ownship_actor_id=0,
+            dt_sim=replay_document.pop("dt_sim", run_spec.dt),
+            t_end_s=replay_document.pop("t_end_s", run_spec.t_end),
+            scenario_name=str(replay_document.pop("scenario_name", "historical_replay")),
+            utm_zone=int(replay_document.pop("utm_zone", 33)),
+            mode=HistoricalWorkflowMode.HISTORICAL_REPLAY.value,
+            dataset_digest=dataset.descriptor.descriptor_sha256,
+            dataset_descriptor_digest=dataset.descriptor.descriptor_sha256,
+            runtime_actor_set_digest=actor_set.semantic_digest,
+            enc_preflight_evidence=enc_evidence,
+            dimension_registry_digest=registry.digest,
+            dimension_effective_at_utc=str(effective_at),
+            dimension_record_digests=tuple((record.mmsi, record.source_digest) for record in registry.records),
+        )
+    except ValueError as exc:
+        if "outside qualified ENC coverage" in str(exc):
+            raise HistoricalWorkflowError("OUTSIDE_COVERAGE", str(exc)) from exc
+        raise
+    if replay_document:
+        raise ValueError(f"unsupported Replay fields: {sorted(replay_document)}")
+    return request
+
+
 def _prepare_replay_workflow(
     request: HistoricalWorkflowCreateRequest,
     source: Path,
@@ -969,6 +1039,7 @@ def _prepare_replay_workflow(
                 "Historical Replay requires a versioned source-provenanced dimension registry",
             )
         registry = _dimension_registry_from_document(registry_document)
+        enc_evidence = _decode_replay_enc_evidence(replay_document)
         errors = registry.validation_errors(
             str(effective_at) if effective_at is not None else None, tuple(a.mmsi for a in actor_set.actors)
         )
@@ -979,23 +1050,15 @@ def _prepare_replay_workflow(
             {record.mmsi: record.to_dict() for record in registry.records},
         )
         actor_set = _reference_first_actor_set(actor_set, int(reference_mmsi))
-        replay_request = HistoricalReplayRequest(
-            actor_set=actor_set,
-            ownship_actor_id=0,
-            dt_sim=replay_document.pop("dt_sim", run_spec.dt),
-            t_end_s=replay_document.pop("t_end_s", run_spec.t_end),
-            scenario_name=str(replay_document.pop("scenario_name", "historical_replay")),
-            utm_zone=int(replay_document.pop("utm_zone", 33)),
-            mode=HistoricalWorkflowMode.HISTORICAL_REPLAY.value,
-            dataset_digest=dataset.descriptor.descriptor_sha256,
-            dataset_descriptor_digest=dataset.descriptor.descriptor_sha256,
-            runtime_actor_set_digest=actor_set.semantic_digest,
-            dimension_registry_digest=registry.digest,
-            dimension_effective_at_utc=str(effective_at),
-            dimension_record_digests=tuple((record.mmsi, record.source_digest) for record in registry.records),
+        replay_request = _build_historical_replay_request(
+            actor_set,
+            dataset,
+            run_spec,
+            replay_document,
+            enc_evidence,
+            registry,
+            effective_at,
         )
-        if replay_document:
-            raise ValueError(f"unsupported Replay fields: {sorted(replay_document)}")
         experiment_runner = ExperimentRunner()
         replay_spec = replace(
             run_spec,
@@ -1031,6 +1094,13 @@ def _prepare_replay_workflow(
             "dataset_digest": dataset.descriptor.descriptor_sha256,
             "runtime_actor_set_digest": actor_set.semantic_digest,
             "run_spec_digest": semantic_hash(replay_spec.to_dict()),
+            "enc_profile_digest": enc_evidence.profile_digest,
+            "enc_cache_digest": enc_evidence.cache_digest,
+            "enc_source_digest": enc_evidence.source_digest,
+            "dimension_registry_digest": registry.digest,
+            "dimension_source_digest": semantic_hash(
+                tuple((record.mmsi, record.source_digest) for record in registry.records)
+            ),
         },
     )
 

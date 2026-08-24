@@ -899,6 +899,71 @@ HistoricalActorReconstructionProfile = HistoricalAISReconstructionProfile
 
 
 @dataclass(frozen=True)
+class ENCPreflightEvidence:
+    """Authenticated qualified-ENC/preflight contract for Historical runtime."""
+
+    profile_id: str
+    qualification_state: str
+    supported_extent_projected: tuple[float, float, float, float]
+    profile_digest: str
+    cache_digest: str
+    source_digest: str
+    preflight_status: str
+    all_positions_contained: bool
+    evidence_digest: str = ""
+
+    def __post_init__(self) -> None:
+        """Validate qualification, coverage extent and semantic identity."""
+        extent = tuple(float(value) for value in self.supported_extent_projected)
+        if len(extent) != 4 or not all(math.isfinite(value) for value in extent):
+            raise ValueError("qualified ENC projected extent must contain four finite values")
+        min_x, min_y, max_x, max_y = extent
+        if min_x > max_x or min_y > max_y:
+            raise ValueError("qualified ENC projected extent must be ordered")
+        identities = (self.profile_id, self.profile_digest, self.cache_digest, self.source_digest)
+        if not all(str(value).strip() for value in identities):
+            raise ValueError("qualified ENC profile/cache/source identity is required")
+        if self.qualification_state != "QUALIFIED":
+            raise ValueError("ENC qualification state must be QUALIFIED")
+        if self.preflight_status != "PASS" or self.all_positions_contained is not True:
+            raise ValueError("ENC preflight must PASS with all positions contained")
+        object.__setattr__(self, "supported_extent_projected", extent)
+        digest = _sha256_json(self._identity_dict())
+        if self.evidence_digest and self.evidence_digest != digest:
+            raise ValueError("ENC preflight evidence digest mismatch")
+        object.__setattr__(self, "evidence_digest", digest)
+
+    def _identity_dict(self) -> dict[str, Any]:
+        return {
+            "profile_id": self.profile_id,
+            "qualification_state": self.qualification_state,
+            "supported_extent_projected": list(self.supported_extent_projected),
+            "profile_digest": self.profile_digest,
+            "cache_digest": self.cache_digest,
+            "source_digest": self.source_digest,
+            "preflight_status": self.preflight_status,
+            "all_positions_contained": self.all_positions_contained,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**self._identity_dict(), "evidence_digest": self.evidence_digest}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> ENCPreflightEvidence:
+        return cls(
+            profile_id=str(value.get("profile_id", "")),
+            qualification_state=str(value.get("qualification_state", "")),
+            supported_extent_projected=tuple(value.get("supported_extent_projected", ())),
+            profile_digest=str(value.get("profile_digest", "")),
+            cache_digest=str(value.get("cache_digest", "")),
+            source_digest=str(value.get("source_digest", "")),
+            preflight_status=str(value.get("preflight_status", "")),
+            all_positions_contained=value.get("all_positions_contained") is True,
+            evidence_digest=str(value.get("evidence_digest", "")),
+        )
+
+
+@dataclass(frozen=True)
 class HistoricalReplayEvidence:
     """Lineage bound to a normal Historical Replay session."""
 
@@ -916,10 +981,7 @@ class HistoricalReplayEvidence:
     case_digest: str | None = None
     t0_s: float | None = None
     nominal_intent_digest: str | None = None
-    enc_profile_digest: str | None = None
-    enc_profile_id: str | None = None
-    enc_qualification_state: str | None = None
-    enc_supported_extent_projected: tuple[float, float, float, float] | None = None
+    enc_preflight_evidence: ENCPreflightEvidence | None = None
     dimension_registry_digest: str | None = None
     dimension_effective_at_utc: str | None = None
     dimension_record_digests: tuple[tuple[int, str], ...] = ()
@@ -963,13 +1025,8 @@ class HistoricalReplayEvidence:
             "case_runtime_digest": self.case_runtime_digest,
             "t0_s": self.t0_s,
             "nominal_intent_digest": self.nominal_intent_digest,
-            "enc_profile_digest": self.enc_profile_digest,
-            "enc_profile_id": self.enc_profile_id,
-            "enc_qualification_state": self.enc_qualification_state,
-            "enc_supported_extent_projected": (
-                None
-                if self.enc_supported_extent_projected is None
-                else list(self.enc_supported_extent_projected)
+            "enc_preflight_evidence": (
+                None if self.enc_preflight_evidence is None else self.enc_preflight_evidence.to_dict()
             ),
             "dataset_digest": self.dataset_digest,
             "dataset_descriptor_digest": self.dataset_descriptor_digest,
@@ -1008,10 +1065,7 @@ class HistoricalReplayRequest:
     case_runtime_digest: str | None = None
     selection_digest: str | None = None
     reconstruction_profile_digest: str | None = None
-    enc_profile_digest: str | None = None
-    enc_profile_id: str | None = None
-    enc_qualification_state: str | None = None
-    enc_supported_extent_projected: tuple[float, float, float, float] | None = None
+    enc_preflight_evidence: ENCPreflightEvidence | Mapping[str, Any] | None = None
     handoff_tolerance_m: float = 1e-6
     handoff_tolerance_mps: float = 1e-6
     handoff_tolerance_rad: float = 1e-6
@@ -1051,14 +1105,12 @@ class HistoricalReplayRequest:
             raise ValueError("t_end_s must be finite and positive")
         if self.utm_zone not in {32, 33}:
             raise ValueError("utm_zone must be 32 or 33")
-        if self.enc_supported_extent_projected is not None:
-            extent = tuple(float(value) for value in self.enc_supported_extent_projected)
-            if len(extent) != 4 or not all(math.isfinite(value) for value in extent):
-                raise ValueError("qualified ENC projected extent must contain four finite values")
-            min_x, min_y, max_x, max_y = extent
-            if min_x > max_x or min_y > max_y:
-                raise ValueError("qualified ENC projected extent must be ordered")
-            object.__setattr__(self, "enc_supported_extent_projected", extent)
+        if self.enc_preflight_evidence is not None and not isinstance(self.enc_preflight_evidence, ENCPreflightEvidence):
+            object.__setattr__(self, "enc_preflight_evidence", ENCPreflightEvidence.from_dict(self.enc_preflight_evidence))
+        if self.mode == "HISTORICAL_REPLAY" and self.enc_preflight_evidence is None:
+            raise ValueError("Historical Replay requires qualified ENC preflight evidence")
+        if self.enc_preflight_evidence is not None:
+            _validate_actor_positions_in_enc(self.actor_set, self.enc_preflight_evidence)
         object.__setattr__(self, "dimension_record_digests", tuple(sorted(self.dimension_record_digests)))
 
     @property
@@ -1082,10 +1134,7 @@ class HistoricalReplayRequest:
                 if self.nominal_intent is not None and self.nominal_intent.get("intent_digest") is not None
                 else None
             ),
-            enc_profile_digest=self.enc_profile_digest,
-            enc_profile_id=self.enc_profile_id,
-            enc_qualification_state=self.enc_qualification_state,
-            enc_supported_extent_projected=self.enc_supported_extent_projected,
+            enc_preflight_evidence=self.enc_preflight_evidence,
             dimension_registry_digest=self.dimension_registry_digest,
             dimension_effective_at_utc=self.dimension_effective_at_utc,
             dimension_record_digests=self.dimension_record_digests,
@@ -1109,13 +1158,8 @@ class HistoricalReplayRequest:
             "case_runtime_digest": self.case_runtime_digest,
             "selection_digest": self.selection_digest,
             "reconstruction_profile_digest": self.reconstruction_profile_digest,
-            "enc_profile_digest": self.enc_profile_digest,
-            "enc_profile_id": self.enc_profile_id,
-            "enc_qualification_state": self.enc_qualification_state,
-            "enc_supported_extent_projected": (
-                None
-                if self.enc_supported_extent_projected is None
-                else list(self.enc_supported_extent_projected)
+            "enc_preflight_evidence": (
+                None if self.enc_preflight_evidence is None else self.enc_preflight_evidence.to_dict()
             ),
             "handoff_tolerance_m": self.handoff_tolerance_m,
             "handoff_tolerance_mps": self.handoff_tolerance_mps,
@@ -1145,14 +1189,7 @@ class HistoricalReplayRequest:
             case_runtime_digest=value.get("case_runtime_digest"),
             selection_digest=value.get("selection_digest"),
             reconstruction_profile_digest=value.get("reconstruction_profile_digest"),
-            enc_profile_digest=value.get("enc_profile_digest"),
-            enc_profile_id=value.get("enc_profile_id"),
-            enc_qualification_state=value.get("enc_qualification_state"),
-            enc_supported_extent_projected=(
-                None
-                if value.get("enc_supported_extent_projected") is None
-                else tuple(float(item) for item in value["enc_supported_extent_projected"])
-            ),
+            enc_preflight_evidence=value.get("enc_preflight_evidence"),
             handoff_tolerance_m=float(value.get("handoff_tolerance_m", 1e-6)),
             handoff_tolerance_mps=float(value.get("handoff_tolerance_mps", 1e-6)),
             handoff_tolerance_rad=float(value.get("handoff_tolerance_rad", 1e-6)),
@@ -1162,6 +1199,24 @@ class HistoricalReplayRequest:
                 (int(item[0]), str(item[1])) for item in value.get("dimension_record_digests", ())
             ),
         )
+
+
+def _validate_actor_positions_in_enc(
+    actor_set: HistoricalActorSet,
+    evidence: ENCPreflightEvidence,
+) -> None:
+    min_east, min_north, max_east, max_north = evidence.supported_extent_projected
+    outside = [
+        (actor.mmsi, sample.time_s)
+        for actor in actor_set.actors
+        for sample in actor.samples
+        if not (
+            min_east <= sample.state_vxvy[1] <= max_east
+            and min_north <= sample.state_vxvy[0] <= max_north
+        )
+    ]
+    if outside:
+        raise ValueError("Historical Replay actor positions are outside qualified ENC coverage")
 
 
 @dataclass(frozen=True)
@@ -1250,6 +1305,7 @@ HistoricalAISReplayFactory = HistoricalReplayFactory
 
 
 __all__ = [
+    "ENCPreflightEvidence",
     "HistoricalAISActorReconstructor",
     "HistoricalAISReconstructionProfile",
     "HistoricalAISReconstructor",

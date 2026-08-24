@@ -759,11 +759,10 @@ def _historical_speed_bound_mps(request: HistoricalReplayRequest) -> float:
 
 def _historical_runtime_map_proof(request: HistoricalReplayRequest) -> HistoricalRuntimeMapProof:
     """Prove a finite runtime window from actor, route, duration, and ENC facts."""
-    profile_extent = request.enc_supported_extent_projected
-    if profile_extent is None:
+    enc_evidence = request.enc_preflight_evidence
+    if enc_evidence is None:
         raise ValueError("qualified ENC projected extent evidence is required for Historical runtime")
-    if not request.enc_profile_id or request.enc_qualification_state != "QUALIFIED":
-        raise ValueError("Historical runtime requires a qualified ENC profile identity")
+    profile_extent = enc_evidence.supported_extent_projected
     profile_min_east, profile_min_north, profile_max_east, profile_max_north = profile_extent
     speed_bound_mps = _historical_speed_bound_mps(request)
     run_duration_s = float(

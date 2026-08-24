@@ -246,20 +246,23 @@ def test_counterfactual_runtime_enc_window_is_bounded_by_sealed_case_facts(
     assert size != (30_000.0, 40_000.0)
 
     with pytest.raises(ValueError, match="qualified ENC projected extent"):
-        _historical_runtime_map_proof(replace(replay, enc_supported_extent_projected=None))
+        _historical_runtime_map_proof(replace(replay, enc_preflight_evidence=None))
 
+    narrowed = replace(
+        replay,
+        enc_preflight_evidence=replace(
+            replay.enc_preflight_evidence,
+            supported_extent_projected=(
+                proof.origin_enu[0] + 1.0,
+                proof.origin_enu[1],
+                proof.origin_enu[0] + proof.size_m[0],
+                proof.origin_enu[1] + proof.size_m[1],
+            ),
+            evidence_digest="",
+        ),
+    )
     with pytest.raises(ValueError, match="exceeds the qualified ENC profile"):
-        _historical_runtime_map_proof(
-            replace(
-                replay,
-                enc_supported_extent_projected=(
-                    proof.origin_enu[0] + 1.0,
-                    proof.origin_enu[1],
-                    proof.origin_enu[0] + proof.size_m[0],
-                    proof.origin_enu[1] + proof.size_m[1],
-                ),
-            )
-        )
+        _historical_runtime_map_proof(narrowed)
 
 
 def test_counterfactual_run_spec_keeps_historical_identity_and_capability_evidence_separate(
