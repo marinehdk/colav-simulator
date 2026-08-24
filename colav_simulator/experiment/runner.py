@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
@@ -869,11 +870,25 @@ def _historical_runtime_map_proof(request: HistoricalReplayRequest) -> Historica
 
 
 def _scenario_target_count(spec: RunSpec) -> int | None:
-    """Derive the scenario's target-ship count from an explicit ship list."""
+    """Derive the scenario's target-ship count from its immutable actor list."""
     override = spec.scenario_override or {}
     ship_list = override.get("ship_list")
     if isinstance(ship_list, list) and len(ship_list) > 1:
         return len(ship_list) - 1
+    historical = spec.historical_replay
+    if isinstance(historical, Mapping):
+        actor_set = historical.get("actor_set")
+        actors = actor_set.get("actors") if isinstance(actor_set, Mapping) else None
+        if isinstance(actors, list) and actors:
+            try:
+                ownship_actor_id = int(historical.get("ownship_actor_id", 0))
+                actor_ids = [int(actor["actor_id"]) for actor in actors if isinstance(actor, Mapping)]
+            except (KeyError, TypeError, ValueError):
+                actor_ids = []
+            if len(actor_ids) == len(actors) and ownship_actor_id in actor_ids:
+                target_count = sum(actor_id != ownship_actor_id for actor_id in actor_ids)
+                if target_count > 0:
+                    return target_count
     return None
 
 
