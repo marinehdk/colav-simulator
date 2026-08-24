@@ -1098,6 +1098,44 @@ def api_algorithms() -> list[dict[str, Any]]:
     return [status.to_dict() for status in manager.runner.registry.statuses().values()]
 
 
+@app.get("/api/integrations")
+def api_integrations() -> dict[str, Any]:
+    """Expose product integrations without presenting retained legacy builders as selectable."""
+    catalog = manager.runner.list_capabilities()
+    policy = manager.runner.capabilities.policy
+    entries = [*catalog["algorithms"], *catalog["trackers"]]
+    product_ids = set(policy.algorithm_ids) | set(policy.tracker_ids)
+    product = [
+        {
+            **entry,
+            "availability_scope": "product",
+            "available": bool(entry.get("dependency_available")),
+            "selectable": bool(entry.get("selectable")),
+        }
+        for entry in entries
+        if entry["id"] in product_ids
+    ]
+    internal_legacy = [
+        {
+            "id": entry["id"],
+            "kind": entry["kind"],
+            "availability_scope": "internal_legacy",
+            "available": False,
+            "dependency_available": False,
+            "selectable": False,
+            "incompatibility_reason": "Retained for internal replay/evaluator compatibility only.",
+        }
+        for entry in entries
+        if entry["id"] not in product_ids
+    ]
+    return {
+        "schema_version": "integration-catalog.v1",
+        "product_capability_policy": policy.to_dict(),
+        "product": product,
+        "internal_legacy": internal_legacy,
+    }
+
+
 @app.get("/api/busy-water/generate")
 def api_busy_water_generate(
     profile: str = "acceptance",
@@ -1345,21 +1383,39 @@ def _ensure_legacy_session(scenario: str | None = None, algorithm: str | None = 
 
 @app.post("/api/start")
 def api_start() -> dict[str, Any]:
-    session_id = _ensure_legacy_session()
-    return manager.start(session_id)
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "status": "DEPRECATED_ENDPOINT",
+            "endpoint": "/api/start",
+            "replacement": "/api/sessions/{session_id}/start",
+        },
+    )
 
 
 @app.post("/api/pause")
 def api_pause() -> dict[str, Any]:
-    session_id = _ensure_legacy_session()
-    return manager.pause(session_id)
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "status": "DEPRECATED_ENDPOINT",
+            "endpoint": "/api/pause",
+            "replacement": "/api/sessions/{session_id}/pause",
+        },
+    )
 
 
 @app.post("/api/reset")
 def api_reset(scenario: str = "Head-on") -> dict[str, Any]:
-    algorithm = manager.prepared.spec.algorithm_id if manager.prepared else "nominal"
-    scenario_id = LEGACY_SCENARIOS.get(scenario, scenario)
-    return manager.create(RunSpec(scenario_id=scenario_id, algorithm_id=algorithm))
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "status": "DEPRECATED_ENDPOINT",
+            "endpoint": "/api/reset",
+            "replacement": "/api/sessions/{session_id}/reset",
+            "legacy_scenario": scenario,
+        },
+    )
 
 
 @app.post("/api/select_algorithm")
@@ -1398,7 +1454,7 @@ def api_select_algorithm(algorithm: str = "vo") -> dict[str, Any]:
                 tracker_config=dict(current.tracker_config) if current is not None else {},
                 domain_profile=(
                     current.domain_profile
-                    if current is not None and algorithm_id == "mid_mpc_ipopt"
+                    if current is not None and manager.runner.capabilities.policy.requires_domain_profile(algorithm_id)
                     else None
                 ),
                 scenario_override=current.scenario_override if current is not None else None,

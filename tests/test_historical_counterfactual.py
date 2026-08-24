@@ -81,7 +81,7 @@ def _case(
     )
     dataset = HistoricalAISDatasetReader(source).read(selection)
     receipt = HistoricalAISCapabilityReceipt.from_catalog(
-        CapabilityCatalog(IntegrationRegistry()), "rule14", "head_on", "nominal", "god"
+        CapabilityCatalog(IntegrationRegistry()), "rule14", "head_on", "vo", "god"
     )
     alignment = HistoricalBenchmarkAlignmentProfile()
     outcome = HistoricalAISCaseBuilder().build(
@@ -99,7 +99,7 @@ def _case(
                 artifact_digest=human_reference_artifact_digest,
                 sample_count=1,
             ),
-            algorithm_binding=HistoricalAISAlgorithmBinding("nominal", semantic_hash({}), receipt.evidence_hash, receipt),
+            algorithm_binding=HistoricalAISAlgorithmBinding("vo", semantic_hash({}), receipt.evidence_hash, receipt),
             evaluation_binding=HistoricalAISEvaluationBinding(
                 "evaluator",
                 "ccta_2023_demo-v1",
@@ -128,7 +128,7 @@ def test_counterfactual_run_spec_contains_reference_history_only_through_t0(
         run_spec=RunSpec(
             scenario_id="head_on",
             validation_rule_id="rule14",
-            algorithm_id="nominal",
+            algorithm_id="vo",
             tracker_id="god",
             t_end=30.0,
             terminate_on_collision_or_grounding=False,
@@ -184,12 +184,12 @@ def test_counterfactual_runtime_enc_window_is_bounded_by_sealed_case_facts(
             scenario_id=HISTORICAL_SCENARIO_ID,
             historical_scenario_id=HISTORICAL_SCENARIO_ID,
             validation_rule_id="rule14",
-            algorithm_id="nominal",
+            algorithm_id="vo",
             tracker_id="god",
             algorithm_capability_evidence={
                 "binding_role": "ALGORITHM_CAPABILITY_ONLY",
                 "geometry_equivalence": False,
-                "exact_tuple": ["rule14", "head_on", "nominal", "god"],
+                "exact_tuple": ["rule14", "head_on", "vo", "god"],
             },
             t_end=30.0,
         ),
@@ -279,12 +279,12 @@ def test_counterfactual_run_spec_keeps_historical_identity_and_capability_eviden
     run_spec = RunSpec(
         scenario_id=HISTORICAL_SCENARIO_ID,
         historical_scenario_id=HISTORICAL_SCENARIO_ID,
-        algorithm_id="nominal",
+        algorithm_id="vo",
         tracker_id="god",
         algorithm_capability_evidence={
             "binding_role": "ALGORITHM_CAPABILITY_ONLY",
             "geometry_equivalence": False,
-            "exact_tuple": ["rule14", "head_on", "nominal", "god"],
+            "exact_tuple": ["rule14", "head_on", "vo", "god"],
         },
     )
 
@@ -293,7 +293,7 @@ def test_counterfactual_run_spec_keeps_historical_identity_and_capability_eviden
 
     assert document["scenario_id"] == HISTORICAL_SCENARIO_ID
     assert document["historical_scenario_id"] == HISTORICAL_SCENARIO_ID
-    assert document["algorithm_capability_evidence"]["exact_tuple"] == ["rule14", "head_on", "nominal", "god"]
+    assert document["algorithm_capability_evidence"]["exact_tuple"] == ["rule14", "head_on", "vo", "god"]
     assert document["algorithm_capability_evidence"]["geometry_equivalence"] is False
 
 
@@ -323,12 +323,12 @@ def test_published_case_acceptance_reuses_exact_case_identity(
     run_spec = RunSpec(
         scenario_id=HISTORICAL_SCENARIO_ID,
         historical_scenario_id=HISTORICAL_SCENARIO_ID,
-        algorithm_id="nominal",
+        algorithm_id="vo",
         tracker_id="god",
         algorithm_capability_evidence={
             "binding_role": "ALGORITHM_CAPABILITY_ONLY",
             "geometry_equivalence": False,
-            "exact_tuple": ["rule14", "head_on", "nominal", "god"],
+            "exact_tuple": ["rule14", "head_on", "vo", "god"],
         },
     )
     request = HistoricalAISPublishedCaseAcceptanceRequest(
@@ -370,7 +370,7 @@ def test_human_reference_digest_does_not_change_counterfactual_run_spec(
     base = RunSpec(
         scenario_id="head_on",
         validation_rule_id="rule14",
-        algorithm_id="nominal",
+        algorithm_id="vo",
         tracker_id="god",
         t_end=30.0,
         output_root=str(tmp_path / "run"),
@@ -393,7 +393,7 @@ def test_counterfactual_rejects_human_reference_not_frozen_in_case(
     with pytest.raises(ValueError, match="frozen Human Reference"):
         HistoricalAISCounterfactualRunRequest(
             case,
-            RunSpec(scenario_id="head_on", validation_rule_id="rule14", tracker_id="god"),
+            RunSpec(scenario_id="head_on", validation_rule_id="rule14", algorithm_id="vo", tracker_id="god"),
             "human-b",
         )
 
@@ -430,7 +430,7 @@ def test_post_t0_human_reference_changes_compare_only_not_runtime_or_commands(
     base = RunSpec(
         scenario_id="head_on",
         validation_rule_id="rule14",
-        algorithm_id="nominal",
+        algorithm_id="vo",
         tracker_id="god",
         t_end=30.0,
         terminate_on_collision_or_grounding=False,
@@ -473,7 +473,13 @@ def test_post_t0_human_reference_changes_compare_only_not_runtime_or_commands(
 
     assert runtime_oracle(first.result) == runtime_oracle(second.result)
     assert first.result.manifest.trajectory_hash == second.result.manifest.trajectory_hash
-    assert first.result.evaluation.to_dict() == second.result.evaluation.to_dict()
+    first_evaluation = first.result.evaluation.to_dict()
+    second_evaluation = second.result.evaluation.to_dict()
+    for evaluation in (first_evaluation, second_evaluation):
+        solver_diagnostics = evaluation["diagnostics"].get("solver", {})
+        solver_diagnostics.pop("elapsed_ms_mean", None)
+        solver_diagnostics.pop("elapsed_ms_p95", None)
+    assert first_evaluation == second_evaluation
     first_threat = first.result.session.threat_management_coordinator.last_snapshot
     second_threat = second.result.session.threat_management_coordinator.last_snapshot
     assert (first_threat is None) is (second_threat is None)
@@ -506,7 +512,7 @@ def test_counterfactual_session_handoffs_at_t0_and_keeps_targets_on_history(
         run_spec=RunSpec(
             scenario_id="head_on",
             validation_rule_id="rule14",
-            algorithm_id="nominal",
+        algorithm_id="vo",
             tracker_id="god",
             t_end=30.0,
             terminate_on_collision_or_grounding=False,
@@ -542,7 +548,7 @@ def test_counterfactual_reference_remains_active_after_t0(
         run_spec=RunSpec(
             scenario_id="head_on",
             validation_rule_id="rule14",
-            algorithm_id="nominal",
+        algorithm_id="vo",
             tracker_id="god",
             t_end=30.0,
             terminate_on_collision_or_grounding=False,
@@ -573,7 +579,7 @@ def test_counterfactual_run_seals_typed_mode_and_compare_only_human_reference(
         run_spec=RunSpec(
             scenario_id="head_on",
             validation_rule_id="rule14",
-            algorithm_id="nominal",
+        algorithm_id="vo",
             tracker_id="god",
             t_end=30.0,
             terminate_on_collision_or_grounding=False,

@@ -44,6 +44,13 @@ class RunOutcome(StrEnum):
     SKIPPED = "SKIPPED"
 
 
+class InternalExecutionPurpose(StrEnum):
+    """Narrow reasons allowed to use retained non-product integrations."""
+
+    HISTORICAL_REPLAY = "HISTORICAL_REPLAY"
+    EVALUATOR_BASELINE = "EVALUATOR_BASELINE"
+
+
 @dataclass(frozen=True)
 class SeedBundle:
     """Independent random streams derived from one user-facing seed."""

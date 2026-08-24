@@ -25,6 +25,7 @@ from colav_simulator.experiment.busy_water import (
     preflight_document,
     write_busy_water_scenario,
 )
+from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.runner import ExperimentRunner
 from colav_simulator.integrations import IntegrationRegistry
@@ -32,18 +33,30 @@ from colav_simulator.scenario_generator import ScenarioGenerator
 
 
 def _run(args: argparse.Namespace) -> int:
-    spec = RunSpec(
-        scenario_id=args.scenario,
-        algorithm_id=args.algorithm,
-        tracker_id=args.tracker,
-        seed=args.seed,
-        dt=args.dt,
-        t_end=args.t_end,
-        evaluator_profile_id=args.evaluator_profile,
-        algorithm_config=_load_algorithm_config(args.algorithm_config),
-        output_root=args.output,
-    )
-    result = ExperimentRunner().run(spec)
+    algorithm_id = (args.algorithm or PRODUCT_CAPABILITY_POLICY.default_algorithm_id).strip().lower()
+    tracker_id = (args.tracker or PRODUCT_CAPABILITY_POLICY.default_tracker_id).strip().lower()
+    try:
+        validation_rule_id = getattr(args, "validation_rule_id", None) or PRODUCT_CAPABILITY_POLICY.infer_rule(
+            args.scenario,
+            algorithm_id,
+            tracker_id,
+        )
+        spec = RunSpec(
+            scenario_id=args.scenario,
+            validation_rule_id=validation_rule_id,
+            algorithm_id=algorithm_id,
+            tracker_id=tracker_id,
+            seed=args.seed,
+            dt=args.dt,
+            t_end=args.t_end,
+            evaluator_profile_id=args.evaluator_profile,
+            algorithm_config=_load_algorithm_config(args.algorithm_config),
+            output_root=args.output,
+        )
+        result = ExperimentRunner().run(spec)
+    except ColavExecutionError as exc:
+        print(json.dumps({"status": exc.status.value, "reason": str(exc)}, indent=2))
+        return 2
     print(
         json.dumps(
             {
@@ -113,30 +126,38 @@ def _verify_mid_mpc_evidence(args: argparse.Namespace) -> int:
 def _batch(args: argparse.Namespace) -> int:
     seeds = range(args.seed_start, args.seed_start + args.seed_count)
     algorithm_config = _load_algorithm_config(args.algorithm_config)
-    if args.default_matrix:
-        specs = BatchRunner.default_specs(args.algorithm, seeds, args.tracker)
-        specs = [
-            replace(
-                spec,
-                algorithm_config=algorithm_config,
-                evaluator_profile_id=args.evaluator_profile,
-            )
-            for spec in specs
-        ]
-    else:
-        specs = [
-            RunSpec(
-                scenario_id=scenario,
-                algorithm_id=algorithm,
-                tracker_id=args.tracker,
-                seed=seed,
-                evaluator_profile_id=args.evaluator_profile,
-                algorithm_config=algorithm_config,
-            )
-            for algorithm in args.algorithm
-            for scenario in args.scenario
-            for seed in seeds
-        ]
+    algorithms = args.algorithm or [PRODUCT_CAPABILITY_POLICY.default_algorithm_id]
+    tracker_id = args.tracker or PRODUCT_CAPABILITY_POLICY.default_tracker_id
+    try:
+        if args.default_matrix:
+            specs = BatchRunner.default_specs(algorithms, seeds, tracker_id)
+            specs = [
+                replace(
+                    spec,
+                    algorithm_config=algorithm_config,
+                    evaluator_profile_id=args.evaluator_profile,
+                )
+                for spec in specs
+            ]
+        else:
+            specs = [
+                RunSpec(
+                    scenario_id=scenario,
+                    validation_rule_id=getattr(args, "validation_rule_id", None)
+                    or PRODUCT_CAPABILITY_POLICY.infer_rule(scenario, algorithm, tracker_id),
+                    algorithm_id=algorithm,
+                    tracker_id=tracker_id,
+                    seed=seed,
+                    evaluator_profile_id=args.evaluator_profile,
+                    algorithm_config=algorithm_config,
+                )
+                for algorithm in algorithms
+                for scenario in args.scenario
+                for seed in seeds
+                ]
+    except ColavExecutionError as exc:
+        print(json.dumps({"status": exc.status.value, "reason": str(exc)}, indent=2))
+        return 2
     batch_dir = BatchRunner().run(specs, Path(args.output))
     print(json.dumps({"batch_dir": str(batch_dir), "runs": len(specs)}, indent=2))
     return 0
@@ -303,8 +324,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_parser = subparsers.add_parser("run", help="run one experiment")
     run_parser.add_argument("--scenario", required=True)
-    run_parser.add_argument("--algorithm", default="nominal")
-    run_parser.add_argument("--tracker", default="scenario_default")
+    run_parser.add_argument("--algorithm", default=PRODUCT_CAPABILITY_POLICY.default_algorithm_id)
+    run_parser.add_argument("--tracker", default=PRODUCT_CAPABILITY_POLICY.default_tracker_id)
+    run_parser.add_argument("--validation-rule-id", "--validation-rule", dest="validation_rule_id")
     run_parser.add_argument("--seed", type=int, default=0)
     run_parser.add_argument("--dt", type=float)
     run_parser.add_argument("--t-end", type=float)
@@ -330,8 +352,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     batch_parser = subparsers.add_parser("batch", help="run a failure-preserving experiment matrix")
     batch_parser.add_argument("--scenario", action="append", default=[])
-    batch_parser.add_argument("--algorithm", action="append", required=True)
-    batch_parser.add_argument("--tracker", default="scenario_default")
+    batch_parser.add_argument("--algorithm", action="append", default=[])
+    batch_parser.add_argument("--tracker", default=PRODUCT_CAPABILITY_POLICY.default_tracker_id)
+    batch_parser.add_argument("--validation-rule-id", "--validation-rule", dest="validation_rule_id")
     batch_parser.add_argument("--seed-start", type=int, default=0)
     batch_parser.add_argument("--seed-count", type=int, default=30)
     batch_parser.add_argument("--default-matrix", action="store_true")

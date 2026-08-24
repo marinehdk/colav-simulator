@@ -12,6 +12,8 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from colav_simulator.core.colav.diagnostics import ColavExecutionError
+from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_case import HistoricalAISCase
 from colav_simulator.historical_replay import ENCPreflightEvidence
@@ -37,7 +39,7 @@ class HistoricalAISCounterfactualRunRequest:
     handoff_tolerance_mps: float = 1e-6
     handoff_tolerance_rad: float = 1e-6
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: PLR0912
         """Validate that the case contains a sealed T0 and safe intent boundary."""
         if not self.case.published:
             raise ValueError("Counterfactual Run requires a Published HistoricalAISCase")
@@ -54,6 +56,10 @@ class HistoricalAISCounterfactualRunRequest:
         receipt = self.case.algorithm_binding.capability_receipt
         if receipt is None or receipt.exact_tuple != self.run_spec.capability_tuple:
             raise ValueError("Counterfactual exact tuple differs from frozen CapabilityCatalog receipt")
+        try:
+            PRODUCT_CAPABILITY_POLICY.validate(*receipt.exact_tuple)
+        except ColavExecutionError as exc:
+            raise ValueError("Counterfactual requires a product-selectable exact capability tuple") from exc
         if self.case.historical_scenario_id != self.run_spec.historical_scenario_id:
             raise ValueError("Counterfactual Historical scenario identity differs from frozen Case binding")
         if self.case.algorithm_binding.configuration_digest != semantic_hash(self.run_spec.algorithm_config):
@@ -202,7 +208,7 @@ class HistoricalAISCounterfactualRunner:
 
         if not isinstance(request, HistoricalAISCounterfactualRunRequest):
             raise TypeError("request must be HistoricalAISCounterfactualRunRequest")
-        prepared = self.runner.prepare_historical(request.to_run_spec())
+        prepared = self.runner.prepare(request.to_run_spec())
         if not isinstance(prepared, PreparedRun):
             raise TypeError("ExperimentRunner returned an invalid PreparedRun")
         return HistoricalAISCounterfactualPreparation(request=request, prepared_run=prepared)

@@ -16,6 +16,8 @@ from enum import Enum
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
+from colav_simulator.core.colav.diagnostics import ColavExecutionError
+from colav_simulator.experiment.contracts import InternalExecutionPurpose
 from colav_simulator.historical_ais import (
     HistoricalAISDatasetDescriptor,
     HistoricalAISReadResult,
@@ -587,12 +589,19 @@ class HistoricalAISCapabilityReceipt:
         scenario_id: str,
         algorithm_id: str,
         tracker_id: str,
+        *,
+        purpose: InternalExecutionPurpose | None = None,
     ) -> HistoricalAISCapabilityReceipt:
         """Validate and seal one exact tuple from the live CapabilityCatalog."""
         from colav_simulator.experiment.capabilities import CAPABILITY_SCHEMA_VERSION  # noqa: PLC0415
 
         key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
-        catalog.validate_internal(*key)
+        if purpose is not None:
+            catalog.validate_internal(*key, purpose=purpose)
+        elif algorithm_id == "nominal" and tracker_id == "god":
+            catalog.validate_internal(*key, purpose=InternalExecutionPurpose.EVALUATOR_BASELINE)
+        else:
+            catalog.validate(*key)
         exact = catalog.exact_combination_document(key, product_only=False)
         return cls(
             validation_rule_id,
@@ -1183,6 +1192,21 @@ class HistoricalAISCaseBuilder:
                     HistoricalAISCaseBuildStatus.BINDINGS_UNAVAILABLE,
                     "Published HistoricalAISCase requires frozen benchmark bindings",
                     unbound_bindings=unbound,
+                )
+            receipt = request.algorithm_binding.capability_receipt
+            if receipt is None:
+                return self._failure(
+                    HistoricalAISCaseBuildStatus.BINDINGS_UNAVAILABLE,
+                    "Published HistoricalAISCase requires a product-selectable exact capability tuple",
+                )
+            try:
+                from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY  # noqa: PLC0415
+
+                PRODUCT_CAPABILITY_POLICY.validate(*receipt.exact_tuple)
+            except (ColavExecutionError, ValueError) as exc:
+                return self._failure(
+                    HistoricalAISCaseBuildStatus.BINDINGS_UNAVAILABLE,
+                    f"Published HistoricalAISCase capability tuple is not product-selectable: {exc}",
                 )
 
         traffic_actor_ids = tuple(sorted(actor.actor_id for actor in actor_set.actors if actor.mmsi in target_mmsis))

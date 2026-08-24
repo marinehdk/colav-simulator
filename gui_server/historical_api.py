@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, WebSocket
 from pydantic import BaseModel, Field
 
-from colav_simulator.experiment.contracts import RunSpec
+from colav_simulator.experiment.contracts import InternalExecutionPurpose, RunSpec
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunner, PreparedRun
 from colav_simulator.historical_acceptance import (
@@ -1060,7 +1060,10 @@ def _prepare_replay_workflow(
             t_end=replay_request.t_end_s,
             dt=replay_request.dt_sim,
         )
-        prepared_run = experiment_runner.prepare_historical(replay_spec)
+        prepared_run = experiment_runner.prepare_internal(
+            replay_spec,
+            purpose=InternalExecutionPurpose.HISTORICAL_REPLAY,
+        )
         simulator_config = SimulatorConfig(verbose=False)
         simulator_config.visualizer.show_liveplot = False
         simulator_config.visualizer.show_results = False

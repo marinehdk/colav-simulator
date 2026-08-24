@@ -529,15 +529,9 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         script = client.get("/static/app.js")
         assert response.status_code == 200
         assert script.status_code == 200
-        assert all(
-            token in script.text
-            for token in (
-                "function syncExactCombinationAvailability(changedSelectId = null)",
-                "capabilityCatalog.verified_combinations",
-                "function setExactSelectionAvailability(",
-                "syncExactCombinationAvailability();",
-            )
-        )
+        assert "activeSessionRuntime.subscribe(syncDeploymentRuntime)" in script.text
+        assert "activeSessionRuntime.bootstrap()" not in script.text
+        assert "/api/capabilities" not in script.text
         catalog = response.json()
         assert catalog["schema_version"] == "1.0"
         assert catalog["defaults"] == {

@@ -69,12 +69,12 @@ def _buildable_dataset(tmp_path: Path) -> tuple[object, HistoricalAISSelection]:
 
 def _published_bindings(human_digest: str = "fixture-human-reference") -> dict[str, object]:
     receipt = HistoricalAISCapabilityReceipt.from_catalog(
-        CapabilityCatalog(IntegrationRegistry()), "rule14", "head_on", "nominal", "god"
+        CapabilityCatalog(IntegrationRegistry()), "rule14", "head_on", "vo", "god"
     )
     alignment = HistoricalBenchmarkAlignmentProfile()
     return {
         "human_reference_binding": HistoricalAISHumanReferenceBinding(human_digest, sample_count=1),
-        "algorithm_binding": HistoricalAISAlgorithmBinding("nominal", "nominal-config", receipt.evidence_hash, receipt),
+        "algorithm_binding": HistoricalAISAlgorithmBinding("vo", "vo-config", receipt.evidence_hash, receipt),
         "evaluation_binding": HistoricalAISEvaluationBinding("evaluator", "profile", "profile-digest"),
         "compare_binding": HistoricalAISCompareBinding(
             alignment_profile=alignment.to_dict(), alignment_profile_digest=alignment.digest

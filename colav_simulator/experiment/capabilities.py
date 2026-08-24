@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.experiment.contracts import InternalExecutionPurpose
 from colav_simulator.experiment.g3_gate import PREDICATE_VERSION
 
 CAPABILITY_SCHEMA_VERSION = "1.0"
@@ -211,6 +212,61 @@ class ProductCapabilityPolicy:
     def allows_tuple(self, key: tuple[str, str, str, str]) -> bool:
         return self.allows_algorithm(key[2]) and self.allows_tracker(key[3])
 
+    def requires_domain_profile(self, algorithm_id: str) -> bool:
+        """Return whether this product algorithm needs an explicit domain profile."""
+        return algorithm_id.strip().lower() in self.domain_profile_algorithm_ids
+
+    def constraints(self, algorithm_id: str | None = None) -> dict[str, Any]:
+        """Return the same domain-profile contract consumed by API and UI."""
+        documents = {
+            identifier: {
+                "requires_domain_profile": self.requires_domain_profile(identifier),
+                **(
+                    {"required_domain_qualification": "QUALIFIED"}
+                    if self.requires_domain_profile(identifier)
+                    else {}
+                ),
+            }
+            for identifier in self.algorithm_ids
+        }
+        if algorithm_id is None:
+            return documents
+        return documents.get(
+            algorithm_id.strip().lower(),
+            {
+                "requires_domain_profile": self.requires_domain_profile(algorithm_id),
+            },
+        )
+
+    def infer_rule(self, scenario_id: str, algorithm_id: str, tracker_id: str) -> str:
+        """Infer one and only one product Rule for an exact scenario tuple."""
+        algorithm_id = algorithm_id.strip().lower()
+        tracker_id = tracker_id.strip().lower()
+        self.require_integrations(algorithm_id, tracker_id)
+        candidates = {
+            rule_id
+            for rule_id, scenario, candidate_algorithm, candidate_tracker in (
+                *VERIFIED_COMBINATIONS,
+                *EXPERIMENTAL_COMBINATIONS,
+            )
+            if scenario == scenario_id
+            and candidate_algorithm == algorithm_id
+            and candidate_tracker == tracker_id
+            and self.allows_tuple((rule_id, scenario, candidate_algorithm, candidate_tracker))
+        }
+        if len(candidates) != 1:
+            if not candidates:
+                raise ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    f"No unique product validation rule for {scenario_id}/{algorithm_id}/{tracker_id}",
+                )
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"Multiple product validation rules for {scenario_id}/{algorithm_id}/{tracker_id}: "
+                f"{', '.join(sorted(candidates))}",
+            )
+        return next(iter(candidates))
+
     def filter_documents(self, documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [
             item
@@ -241,19 +297,58 @@ class ProductCapabilityPolicy:
                 self.rejection_reason("tracker", tracker_id),
             )
 
+    def validate(
+        self,
+        validation_rule_id: str,
+        scenario_id: str,
+        algorithm_id: str,
+        tracker_id: str,
+    ) -> tuple[str, str, str, str]:
+        """Validate a product-selectable exact tuple without registry concerns."""
+        algorithm_id = algorithm_id.strip().lower()
+        tracker_id = tracker_id.strip().lower()
+        if validation_rule_id not in RULES:
+            raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unsupported validation rule: {validation_rule_id}")
+        self.require_integrations(algorithm_id, tracker_id)
+        key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
+        if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"No product capability tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
+            )
+        return key
+
+    def validate_internal(
+        self,
+        validation_rule_id: str,
+        scenario_id: str,
+        algorithm_id: str,
+        tracker_id: str,
+        purpose: InternalExecutionPurpose,
+    ) -> tuple[str, str, str, str]:
+        """Validate one explicit internal baseline/replay purpose and tuple."""
+        if not isinstance(purpose, InternalExecutionPurpose):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Internal execution requires a typed InternalExecutionPurpose",
+            )
+        algorithm_id = algorithm_id.strip().lower()
+        tracker_id = tracker_id.strip().lower()
+        if algorithm_id != "nominal" or tracker_id != "god":
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"{purpose.value} permits only nominal/god internal baseline tuple",
+            )
+        key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
+        if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"No internal capability tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
+            )
+        return key
+
     def to_dict(self) -> dict[str, Any]:
         """Publish one machine-readable product selection contract."""
-        constraints = {
-            algorithm_id: {
-                "requires_domain_profile": algorithm_id in self.domain_profile_algorithm_ids,
-                **(
-                    {"required_domain_qualification": "QUALIFIED"}
-                    if algorithm_id in self.domain_profile_algorithm_ids
-                    else {}
-                ),
-            }
-            for algorithm_id in self.algorithm_ids
-        }
         return {
             "policy_id": "colav-product-v1",
             "algorithm_ids": list(self.algorithm_ids),
@@ -263,7 +358,7 @@ class ProductCapabilityPolicy:
             "constraints": {
                 "requires_explicit_validation_rule_id": True,
                 "requires_exact_tuple": True,
-                "algorithms": constraints,
+                "algorithms": self.constraints(),
             },
         }
 
@@ -917,9 +1012,7 @@ class CapabilityCatalog:
 
     def validate(self, validation_rule_id: str, scenario_id: str, algorithm_id: str, tracker_id: str) -> str:
         """Validate one product-selectable exact tuple for a session run."""
-        if validation_rule_id not in RULES:
-            raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unsupported validation rule: {validation_rule_id}")
-        self.policy.require_integrations(algorithm_id, tracker_id)
+        key = self.policy.validate(validation_rule_id, scenario_id, algorithm_id, tracker_id)
         scenario_combinations = [
             *self._product_combination_documents(rule_id=validation_rule_id, scenario_id=scenario_id),
             *self._product_experimental_combination_documents(
@@ -932,38 +1025,26 @@ class CapabilityCatalog:
                 PlanStatus.INVALID_INPUT,
                 f"{scenario_id} is not a selectable {validation_rule_id} validation scene",
             )
-        key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
-        if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
-            has_experimental_scope = bool(
-                self._product_experimental_combination_documents(
-                    rule_id=validation_rule_id,
-                    scenario_id=scenario_id,
-                )
-            )
-            label = "selectable capability" if has_experimental_scope else "verified G3 capability"
-            raise ColavExecutionError(
-                PlanStatus.INVALID_INPUT,
-                f"No {label} tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
-            )
         self._require_available(ALGORITHMS, algorithm_id)
         self._require_available(TRACKERS, tracker_id)
         return ":".join(key)
 
-    def validate_internal(self, validation_rule_id: str, scenario_id: str, algorithm_id: str, tracker_id: str) -> str:
+    def validate_internal(
+        self,
+        validation_rule_id: str,
+        scenario_id: str,
+        algorithm_id: str,
+        tracker_id: str,
+        *,
+        purpose: InternalExecutionPurpose,
+    ) -> str:
         """Validate a retained legacy tuple for internal Historical AIS evidence.
 
         This seam is intentionally separate from :meth:`validate`: product
         sessions cannot use legacy integrations, while Historical Replay may
         still seal a Nominal pre-T0 reference and evaluator fixtures.
         """
-        if validation_rule_id not in RULES:
-            raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unsupported validation rule: {validation_rule_id}")
-        key = (validation_rule_id, scenario_id, algorithm_id, tracker_id)
-        if key not in VERIFIED_COMBINATIONS and key not in EXPERIMENTAL_COMBINATIONS:
-            raise ColavExecutionError(
-                PlanStatus.INVALID_INPUT,
-                f"No internal capability tuple for {validation_rule_id}/{scenario_id}/{algorithm_id}/{tracker_id}",
-            )
+        key = self.policy.validate_internal(validation_rule_id, scenario_id, algorithm_id, tracker_id, purpose)
         self._require_available(ALGORITHMS, algorithm_id)
         self._require_available(TRACKERS, tracker_id)
         return ":".join(key)

@@ -120,7 +120,7 @@ def _request(tmp_path: Path, profile: ENCRegionProfile) -> dict[str, object]:
         "run_spec": {
             "scenario_id": "overtaking",
             "validation_rule_id": "rule13",
-            "algorithm_id": "nominal",
+            "algorithm_id": "vo",
             "tracker_id": "god",
             "t_end": 30.0,
             "terminate_on_collision_or_grounding": False,
@@ -281,6 +281,7 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
 ) -> None:
     request = _request(tmp_path, qualified_historical_enc_profile)
     request["mode"] = "HISTORICAL_REPLAY"
+    request["run_spec"]["algorithm_id"] = "nominal"
     request["replay"] = {
         "reference_mmsi": 123456789,
         "reconstruction_profile": {"time_step_s": 1.0, "max_interpolation_gap_s": 15.0},
@@ -383,6 +384,7 @@ def test_historical_replay_api_rejects_invalid_typed_enc_preflight_evidence(
             },
         }
     )
+    request["run_spec"]["algorithm_id"] = "nominal"
     request.pop("enc_profile")
     request.pop("human_reference")
 
@@ -412,8 +414,8 @@ def test_scene_counterfactual_double_run_stays_operable_with_unqualified_cluster
         "run": {
             "historical_scenario_id": scene_id,
             "mode": "COUNTERFACTUAL",
-            "requested_algorithm": "nominal",
-            "executed_algorithm": "nominal",
+            "requested_algorithm": "vo",
+            "executed_algorithm": "vo",
             "fallback_used": False,
         },
         "threat": {"vector_count": 2, "schedule_context_count": 2, "cluster_count": 0},
@@ -523,12 +525,12 @@ def test_bound_scene_registration_keeps_one_case_without_disposable_prepared_run
     run_spec = RunSpec(
         scenario_id=scene_id,
         historical_scenario_id=scene_id,
-        algorithm_id="nominal",
+        algorithm_id="vo",
         tracker_id="god",
         algorithm_capability_evidence={
             "binding_role": "ALGORITHM_CAPABILITY_ONLY",
             "geometry_equivalence": False,
-            "exact_tuple": ["rule14", "head_on", "nominal", "god"],
+            "exact_tuple": ["rule14", "head_on", "vo", "god"],
         },
     )
     descriptor = SimpleNamespace(
@@ -638,6 +640,7 @@ def test_historical_replay_api_rejects_unprovenanced_dimension_inputs(
     if mutation == "naked_numbers":
         replay.update({"simulation_length_m": 40.0, "simulation_width_m": 8.0})
     request.update({"mode": "HISTORICAL_REPLAY", "replay": replay, "case": {}})
+    request["run_spec"]["algorithm_id"] = "nominal"
     request.pop("enc_profile")
     request.pop("human_reference")
 

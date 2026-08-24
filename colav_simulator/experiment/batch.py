@@ -14,6 +14,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from colav_simulator.core.colav.diagnostics import ColavExecutionError
+from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY
 from colav_simulator.experiment.contracts import RunOutcome, RunSpec
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner
 
@@ -132,15 +134,34 @@ class BatchRunner:
     def default_specs(
         algorithms: Iterable[str],
         seeds: Iterable[int] = range(30),
-        tracker_id: str = "scenario_default",
+        tracker_id: str = PRODUCT_CAPABILITY_POLICY.default_tracker_id,
     ) -> list[RunSpec]:
         scenarios = [*STANDARD_SCENARIOS, *PAPER_SCENARIOS, *IMAZU_SCENARIOS, *AIS_SCENARIOS]
-        return [
-            RunSpec(scenario_id=scenario, algorithm_id=algorithm, tracker_id=tracker_id, seed=seed)
-            for algorithm in algorithms
-            for scenario in scenarios
-            for seed in seeds
-        ]
+        seed_values = tuple(seeds)
+        tracker_id = tracker_id.strip().lower()
+        output: list[RunSpec] = []
+        for algorithm in algorithms:
+            algorithm_id = algorithm.strip().lower()
+            PRODUCT_CAPABILITY_POLICY.require_integrations(algorithm_id, tracker_id)
+            for scenario in scenarios:
+                try:
+                    rule_id = PRODUCT_CAPABILITY_POLICY.infer_rule(scenario, algorithm_id, tracker_id)
+                except ColavExecutionError:
+                    # The default product matrix contains only scenarios with
+                    # one published exact tuple. Unsupported legacy/catalog
+                    # scenarios remain available through explicit specs.
+                    continue
+                output.extend(
+                    RunSpec(
+                        scenario_id=scenario,
+                        validation_rule_id=rule_id,
+                        algorithm_id=algorithm_id,
+                        tracker_id=tracker_id,
+                        seed=seed,
+                    )
+                    for seed in seed_values
+                )
+        return output
 
     @staticmethod
     def _write_records(batch_dir: Path, records: list[BatchRecord]) -> None:
