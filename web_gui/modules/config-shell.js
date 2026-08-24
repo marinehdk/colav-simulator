@@ -1,4 +1,4 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260824-capability-policy';
+import { createValidationAssembly } from './validation-assembly.js?v=20260824-policy-source';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260821-trackkey-fix4';
 import { createSituationDisplay } from './situation-display.js?v=20260821-trackkey-fix4';
 
@@ -116,18 +116,12 @@ const ALGORITHM_LABELS = {
   vo: 'VO',
   potocnik_colreg_fan_mpc: 'Fan-MPC',
 };
-const ALGORITHM_ORDER = ['mid_mpc_ipopt', 'vo', 'potocnik_colreg_fan_mpc'];
 const TRACKER_LABELS = {
   god: 'Truth',
 };
-const TRACKER_ORDER = ['god'];
 
 function optionLabel(item, labels) {
   return (labels || {})[item.id] || SCENARIO_LABELS[item.id] || item.name || item.display_name || item.id;
-}
-
-function orderOptions(options, order) {
-  return order.map((id) => (options || []).find((item) => item.id === id)).filter(Boolean);
 }
 
 const CAROUSEL_CONFIGS = {
@@ -338,14 +332,14 @@ function ruleDisplayLabel(snapshot) {
 function algorithmDisplayLabel(snapshot) {
   const id = snapshot.draft?.algorithm_id;
   if (!id) return '—';
-  if (!ALGORITHM_ORDER.includes(id)) return 'Unavailable';
+  if (!snapshot.productCapabilityPolicy?.algorithm_ids.includes(id)) return 'Unavailable';
   return optionLabel(selectedCatalogItem(snapshot, 'algorithms', id) || { id }, ALGORITHM_LABELS);
 }
 
 function trackerDisplayLabel(snapshot) {
   const id = snapshot.draft?.tracker_id;
   if (!id) return '—';
-  if (!TRACKER_ORDER.includes(id)) return 'Unavailable';
+  if (!snapshot.productCapabilityPolicy?.tracker_ids.includes(id)) return 'Unavailable';
   return optionLabel(selectedCatalogItem(snapshot, 'trackers', id) || { id }, TRACKER_LABELS);
 }
 
@@ -516,10 +510,10 @@ function renderAlgorithmDetail(snapshot) {
   const draft = snapshot.draft;
   const algorithm = selectedCatalogItem(snapshot, 'algorithms', draft.algorithm_id);
   const tracker = selectedCatalogItem(snapshot, 'trackers', draft.tracker_id);
-  const algorithmOptions = orderOptions(snapshot.options.algorithm_id, ALGORITHM_ORDER);
+  const algorithmOptions = snapshot.options.algorithm_id || [];
   renderChoiceCarousel('algorithm', algorithmOptions, draft.algorithm_id, snapshot.readOnly || snapshot.creating, ALGORITHM_LABELS);
   const trackerLocked = snapshot.readOnly || snapshot.creating;
-  const trackerOptions = orderOptions(snapshot.options.tracker_id, TRACKER_ORDER);
+  const trackerOptions = snapshot.options.tracker_id || [];
   document.getElementById('validationTrackerChoices').replaceChildren(...trackerOptions.map((item) => {
     const card = makeChoiceCard({
       id: item.id,
@@ -538,7 +532,7 @@ function renderAlgorithmDetail(snapshot) {
   document.getElementById('validationTrackerName').textContent = trackerDisplayLabel(snapshot);
   document.getElementById('validationAlgorithmGrade').textContent = `${algorithm?.readiness_grade || 'G0'} · ${algorithm?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
   document.getElementById('validationTrackerGrade').textContent = `${tracker?.readiness_grade || 'G0'} · ${tracker?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
-  document.getElementById('validationAlgorithmSummary').textContent = snapshot.createBlock === 'requires-qualified-ship-domain-profile'
+  document.getElementById('validationAlgorithmSummary').textContent = snapshot.createConstraint
     ? snapshot.createBlockReason
     : algorithm?.known_failure
     ? `Known failure reported by catalog: ${algorithm.known_failure}`
@@ -793,13 +787,13 @@ function createStatusText(snapshot) {
     'runtime-pending': 'Active Session command in progress · controls frozen',
     'current-session-loading': 'Loading current-session authority…',
     'current-session-unknown': 'Current-session authority unknown · read-only',
-    'requires-qualified-ship-domain-profile': 'Mid-MPC requires a qualified ShipDomainProfile; Config cannot provide one.',
   };
   if (snapshot.sessionStatus === 'loading' || snapshot.catalogStatus === 'error') {
     return snapshot.sessionStatus === 'loading'
       ? 'Loading capabilities and current session…'
       : 'Catalog unavailable · Active Spec read-only';
   }
+  if (snapshot.createBlockReason) return snapshot.createBlockReason;
   return labels[snapshot.createBlock] || (snapshot.dirty ? 'Unsaved changes' : 'Ready');
 }
 
@@ -844,6 +838,9 @@ function render() {
   const messages = snapshot.notices
     .filter((notice) => typeof notice.kind === 'string' && notice.kind.endsWith('-error'))
     .map((notice) => notice.message);
+  if (snapshot.createBlock?.startsWith('product-capability-policy-') && snapshot.createBlockReason) {
+    messages.unshift(snapshot.createBlockReason);
+  }
   document.getElementById('validationNotices').replaceChildren(...messages.map((message) => {
     const item = document.createElement('div');
     item.textContent = message;

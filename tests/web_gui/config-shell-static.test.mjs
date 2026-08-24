@@ -315,9 +315,11 @@ test('Algorithm selection is a carousel and tracker a 2-column choice grid (gap 
   assert.match(configCss, /\.tracker-choice-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
-test('production Config exposes only the three supported avoidance algorithms and Truth tracker', () => {
-  assert.match(shell, /const ALGORITHM_ORDER = \['mid_mpc_ipopt', 'vo', 'potocnik_colreg_fan_mpc'\];/);
-  assert.match(shell, /const TRACKER_ORDER = \['god'\];/);
+test('production Config takes ordered algorithm and tracker choices only from product policy projection', () => {
+  assert.doesNotMatch(shell, /ALGORITHM_ORDER|TRACKER_ORDER/);
+  assert.match(shell, /snapshot\.options\.algorithm_id/);
+  assert.match(shell, /snapshot\.options\.tracker_id/);
+  assert.match(shell, /snapshot\.productCapabilityPolicy/);
   assert.match(shell, /potocnik_colreg_fan_mpc: 'Fan-MPC'/);
   assert.match(shell, /god: 'Truth'/);
   assert.doesNotMatch(shell, /potocnik_simplified_mpc/);
@@ -326,11 +328,13 @@ test('production Config exposes only the three supported avoidance algorithms an
   assert.doesNotMatch(shell, /\bkf\b/);
 });
 
-test('Mid-MPC selection has a visible qualified ShipDomainProfile boundary and no fallback path', () => {
-  assert.match(shell, /requires-qualified-ship-domain-profile/);
-  assert.match(shell, /requires a qualified ShipDomainProfile/);
+test('Create constraint rendering consumes typed policy projection without algorithm-specific requirement hardcodes', () => {
+  assert.match(shell, /snapshot\.createConstraint/);
+  assert.match(shell, /snapshot\.createBlockReason/);
   assert.match(shell, /create\.disabled =/);
   assert.match(shell, /create\.title = .*createStatusText\(snapshot\)/);
+  assert.doesNotMatch(shell, /requires-qualified-ship-domain-profile/);
+  assert.doesNotMatch(shell, /requires a qualified ShipDomainProfile/);
   assert.doesNotMatch(shell, /fallback.*Mid-MPC|Mid-MPC.*fallback/i);
 });
 
