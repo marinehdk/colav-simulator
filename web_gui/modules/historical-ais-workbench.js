@@ -12,15 +12,17 @@ export function mountHistoricalAISWorkbench({
     render: state => renderHistoricalAISWorkbench(documentRef, state),
   });
 
-  documentRef.getElementById('historicalAISScenarioList')?.addEventListener('click', event => {
-    const button = event.target.closest('[data-historical-scenario-id]');
-    if (button) controller.selectScenario(button.dataset.historicalScenarioId);
-  });
   documentRef.getElementById('historicalAISModeChoices')?.addEventListener('click', event => {
     const button = event.target.closest('[data-historical-mode]');
     if (button) controller.selectMode(button.dataset.historicalMode);
   });
   documentRef.getElementById('historicalAISRun')?.addEventListener('click', controller.runWorkflow);
+  documentRef.getElementById('historicalAISDeploy')?.addEventListener('click', async () => {
+    const created = await controller.deployInteractive();
+    if (created?.session_id) {
+      documentRef.querySelector('[data-workface="deployment"]')?.click();
+    }
+  });
 
   controller.publish();
   controller.load();

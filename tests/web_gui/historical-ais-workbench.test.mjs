@@ -27,18 +27,19 @@ const clientSources = await Promise.all([
   'historical-ais-workbench.js',
 ].map(name => readFile(new URL(`../../web_gui/modules/${name}`, import.meta.url), 'utf8')));
 
-test('Historical AIS remains additive while initial DOM exposes no fabricated scene facts', () => {
-  assert.match(html, /id="historicalAISScenarioList"/);
-  assert.match(html, /id="historicalAISScenarioDetail"/);
+test('Historical AIS benchmark DOM stays additive with no fabricated scene facts', () => {
   assert.match(html, /id="historicalAISBenchmark"/);
   assert.match(html, /id="historicalAISModeChoices"[^>]*><\/div>/);
   assert.match(html, /id="historicalAISRun"[^>]*disabled/);
-  assert.match(html, /id="historicalAISScenarioName">SCENARIO UNAVAILABLE/);
-  assert.match(html, /id="historicalAISScenarioDuration">—/);
-  assert.match(html, /id="historicalAISScenarioActors">—/);
-  assert.match(html, /id="historicalAISScenePreview" hidden/);
-  assert.match(html, /BBox \(WGS84 \/ OGC:CRS84\)/);
+  assert.match(html, /id="historicalAISDeploy"[^>]*disabled/);
   assert.match(styles, /\.historical-ais-workbench/);
+
+  // C4: the standalone Scenario/Algorithm workfaces are gone; the workface set
+  // is the workflow itself and AIS browsing lives in Config + Evaluation.
+  assert.doesNotMatch(html, /data-workface-panel="scenario"/);
+  assert.doesNotMatch(html, /data-workface-panel="algorithm"/);
+  assert.doesNotMatch(html, /data-workface="scenario"/);
+  assert.doesNotMatch(html, /data-workface="algorithm"/);
 
   assert.match(html, /id="validationScenarioChoices"/);
   assert.match(html, /data-config-step-panel="scenarios"/);
@@ -173,13 +174,6 @@ test('DOM separates bounded scene operability from incomplete predictive qualifi
   assert.equal(elements.get('historicalAISWorkflowStatus').textContent, 'COMPLETED');
   assert.equal(elements.get('historicalAISEvidenceVerdict').textContent, 'PASS');
   assert.equal(elements.get('historicalAISReplayStatus').textContent, 'NOT_APPLICABLE');
-  assert.equal(elements.get('historicalAISDigestSchema').textContent, descriptor.current_window.expected_schema_sha256);
-  assert.equal(elements.get('historicalAISDigestNormalized').textContent, descriptor.current_window.expected_normalized_sha256);
-  assert.equal(elements.get('historicalAISDigestEncProfile').textContent, descriptor.enc.profile_digest);
-  assert.equal(elements.get('historicalAISDigestEncCache').textContent, 'c'.repeat(64));
-  assert.equal(elements.get('historicalAISDigestEncSource').textContent, 'd'.repeat(64));
-  assert.equal(elements.get('historicalAISDigestDimensionRegistry').textContent, 'e'.repeat(64));
-  assert.equal(elements.get('historicalAISDigestDimensionSource').textContent, 'f'.repeat(64));
   assert.equal(elements.get('historicalAISWorkflowDigestArchive').textContent, 'workflow-archive');
   assert.equal(elements.get('historicalAISWorkflowDigestEntry').textContent, 'workflow-entry');
   assert.equal(elements.get('historicalAISWorkflowDigestSchema').textContent, 'workflow-schema');
@@ -271,13 +265,26 @@ test('Historical AIS API adapter uses only dedicated scenario/workflow routes', 
   await api.getScenario('hais_romsdal_20260701_120000_120100');
   await api.createWorkflow('hais_romsdal_20260701_120000_120100', 'COUNTERFACTUAL');
   await api.runWorkflow('workflow-browser-regression');
+  await api.createActiveSession({
+    validationRuleId: 'multiship',
+    scenarioId: 'hais_romsdal_20260701_120000_120100',
+    algorithmId: 'mid_mpc_ipopt',
+    trackerId: 'god',
+  });
 
   assert.deepEqual(requests.map(request => request.url), [
     '/api/historical/scenarios',
     '/api/historical/scenarios/hais_romsdal_20260701_120000_120100',
     '/api/historical/scenarios/hais_romsdal_20260701_120000_120100/workflows',
     '/api/historical/workflows/workflow-browser-regression/run',
+    '/api/sessions',
   ]);
   assert.deepEqual(JSON.parse(requests[2].options.body), { mode: 'COUNTERFACTUAL' });
+  assert.deepEqual(JSON.parse(requests[4].options.body), {
+    validation_rule_id: 'multiship',
+    scenario_id: 'hais_romsdal_20260701_120000_120100',
+    algorithm_id: 'mid_mpc_ipopt',
+    tracker_id: 'god',
+  });
   assert.ok(requests.every(request => !request.url.startsWith('/api/scenarios')));
 });

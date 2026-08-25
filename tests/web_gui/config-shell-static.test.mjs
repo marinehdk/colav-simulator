@@ -466,8 +466,6 @@ test('C5 pull-forward: workface tabs carry icons and pressed-pill chrome (gap #2
     config: 'obi-settings-user-proposal',
     deployment: 'obi-media-play',
     evaluation: 'obi-list-alt-check-google',
-    scenario: 'obi-collision-avoidance-head-on',
-    algorithm: 'obi-router-component',
   };
   for (const [workface, icon] of Object.entries(tabIcons)) {
     assert.match(html, new RegExp(`data-workface="${workface}"[^>]*>\\s*<${icon}`));

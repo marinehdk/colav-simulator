@@ -25,8 +25,6 @@
         <button type="button" class="workface-tab active" data-workface="config" aria-selected="true"><obi-settings-user-proposal aria-hidden="true"></obi-settings-user-proposal><span>Config</span></button>
         <button type="button" class="workface-tab" data-workface="deployment" aria-selected="false"><obi-media-play aria-hidden="true"></obi-media-play><span>Deployment</span></button>
         <button type="button" class="workface-tab" data-workface="evaluation" aria-selected="false"><obi-list-alt-check-google aria-hidden="true"></obi-list-alt-check-google><span>Evaluation</span></button>
-        <button type="button" class="workface-tab" data-workface="scenario" aria-selected="false"><obi-collision-avoidance-head-on aria-hidden="true"></obi-collision-avoidance-head-on><span>Scenario</span></button>
-        <button type="button" class="workface-tab" data-workface="algorithm" aria-selected="false"><obi-router-component aria-hidden="true"></obi-router-component><span>Algorithm</span></button>
       </nav>
     </header>
     <div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden></div>
@@ -553,7 +551,7 @@
           <div>
             <p class="historical-ais-eyebrow">EVALUATION / HISTORICAL AIS</p>
             <h1>Historical AIS Benchmark</h1>
-            <p>Catalog-backed AIS multi-ship scenes · separate Historical workflow authority.</p>
+            <p>Catalog-backed AIS multi-ship scenes · benchmark evidence stays headless.</p>
           </div>
           <div class="historical-ais-header-status">
             <span class="historical-ais-status-pill" id="historicalAISBenchmarkSource">UNAVAILABLE</span>
@@ -579,7 +577,9 @@
             <div class="historical-ais-mode-choices" id="historicalAISModeChoices" role="group" aria-label="Historical AIS workflow mode"></div>
             <p class="historical-ais-mode-description" id="historicalAISModeDescription">—</p>
             <obc-button id="historicalAISRun" variant="normal" disabled>Run Historical Workflow</obc-button>
-            <p class="historical-ais-run-boundary">Source must be bound and qualified before Run. Historical workflow does not replace the single Active Session.</p>
+            <p class="historical-ais-run-boundary">Source must be bound and qualified before Run. Benchmark workflows stay headless and are not benchmark-replaceable by interactive sessions.</p>
+            <obc-button id="historicalAISDeploy" variant="flat" disabled>Open in Deployment</obc-button>
+            <p class="historical-ais-run-boundary" id="historicalAISDeployStatus">Interactive Counterfactual session on the AIS scene — the bound algorithm takes over ownship at T0. Full tuple choice lives in Config.</p>
           </section>
 
           <section class="historical-ais-card historical-ais-evidence-card" aria-labelledby="historicalAISEvidenceHeading">
@@ -613,40 +613,6 @@
         </div>
       </div>
     </section>
-    <section class="workface historical-ais-scenario-workface" data-workface-panel="scenario" hidden>
-      <div class="historical-ais-workbench" id="historicalAISScenarioWorkbench" aria-label="Historical AIS Scenario Library">
-        <header class="historical-ais-workbench-header">
-          <div>
-            <p class="historical-ais-eyebrow">SCENARIO / HISTORICAL AIS</p>
-            <h1>Historical AIS Scenario</h1>
-            <p>Independent AIS multi-ship scene. Existing COLREG scenario cards and ordinary Session Create remain unchanged.</p>
-          </div>
-          <div class="historical-ais-header-status">
-            <span class="historical-ais-status-pill" id="historicalAISScenarioHeaderStatus">UNAVAILABLE</span>
-            <span class="historical-ais-status-pill">CATALOG</span>
-          </div>
-        </header>
-        <div class="historical-ais-scenario-grid">
-          <section class="historical-ais-card historical-ais-scenario-list-card" aria-labelledby="historicalAISScenarioListHeading">
-            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">SCENE CATALOG</p><h2 id="historicalAISScenarioListHeading">Published AIS scenes</h2></div><span class="historical-ais-catalog-status" id="historicalAISScenarioCatalogStatus">LOADING</span></div>
-            <div class="historical-ais-scenario-list" id="historicalAISScenarioList" role="listbox" aria-label="Historical AIS scenarios"></div>
-            <p class="historical-ais-run-boundary">Mode is selected in Evaluation. This catalog does not enter Config exact tuples.</p>
-          </section>
-          <section class="historical-ais-card historical-ais-scenario-detail-card" id="historicalAISScenarioDetail" aria-labelledby="historicalAISScenarioDetailHeading">
-            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">SCENE DETAIL</p><h2 id="historicalAISScenarioDetailHeading"><span id="historicalAISScenarioName">SCENARIO UNAVAILABLE</span></h2><p id="historicalAISScenarioDescription">—</p></div><span class="historical-ais-status-pill" id="historicalAISScenarioSourceStatus">UNAVAILABLE</span></div>
-            <div class="historical-ais-detail-layout">
-              <dl class="historical-ais-facts">
-                <div><dt>Scene identity</dt><dd id="historicalAISScenarioIdentity">—</dd></div><div><dt>Current window</dt><dd id="historicalAISScenarioWindow">—</dd></div><div><dt>Duration</dt><dd id="historicalAISScenarioDuration">—</dd></div><div><dt>Actors</dt><dd id="historicalAISScenarioActors">—</dd></div><div><dt>Source entry</dt><dd id="historicalAISScenarioEntry">—</dd></div><div><dt>Archive</dt><dd id="historicalAISScenarioArchive">—</dd></div><div><dt>Selection filter</dt><dd id="historicalAISScenarioFilter">—</dd></div><div><dt>BBox (WGS84 / OGC:CRS84)</dt><dd id="historicalAISScenarioBbox">—</dd></div><div><dt>Reference / T0</dt><dd id="historicalAISScenarioReference">—</dd><dd id="historicalAISScenarioT0">—</dd></div><div><dt>Targets</dt><dd id="historicalAISScenarioTargets">—</dd></div><div><dt>ENC</dt><dd id="historicalAISScenarioEnc">—</dd></div><div><dt>Rows</dt><dd id="historicalAISScenarioRows">—</dd></div><div><dt>Quality</dt><dd id="historicalAISScenarioQuality">—</dd></div><div><dt>Scene qualification</dt><dd id="historicalAISScenarioQualificationThreat">—</dd></div><div><dt>Algorithm capability</dt><dd id="historicalAISScenarioCapability">—</dd></div><div><dt>Archive digest</dt><dd id="historicalAISDigestArchive">—</dd></div><div><dt>Entry digest</dt><dd id="historicalAISDigestEntry">—</dd></div><div><dt>Schema digest</dt><dd id="historicalAISDigestSchema">—</dd></div><div><dt>Selection digest</dt><dd id="historicalAISDigestSelection">—</dd></div><div><dt>Normalized digest</dt><dd id="historicalAISDigestNormalized">—</dd></div><div><dt>Descriptor digest</dt><dd id="historicalAISDigestDescriptor">—</dd></div><div><dt>ENC profile digest</dt><dd id="historicalAISDigestEncProfile">—</dd></div><div><dt>ENC cache digest</dt><dd id="historicalAISDigestEncCache">—</dd></div><div><dt>ENC source digest</dt><dd id="historicalAISDigestEncSource">—</dd></div><div><dt>Dimension registry</dt><dd id="historicalAISDigestDimensionRegistry">—</dd></div><div><dt>Dimension source</dt><dd id="historicalAISDigestDimensionSource">—</dd></div><div><dt>Source</dt><dd id="historicalAISScenarioSource">—</dd></div>
-              </dl>
-              <div class="historical-ais-scene-preview" id="historicalAISScenePreview" hidden><img src="/static/assets/openbridge/romsdal-head-on-seacharts.png" alt="Catalog ENC reference chart"><span>Catalog ENC reference · not AIS geometry</span></div>
-            </div>
-            <div class="historical-ais-limitation is-warning"><strong>Acceptance boundary</strong><p id="historicalAISScenarioLimitation">—</p></div>
-          </section>
-        </div>
-      </div>
-    </section>
-    <section class="workface roadmap-workface" data-workface-panel="algorithm" hidden><h2>Algorithm</h2><p>Algorithm and tracker catalog surface planned. Exact Tuple evidence remains authoritative in Config.</p></section>
-
     <section class="notification-popover" id="notificationPanel" aria-labelledby="notificationPanelHeading" hidden>
       <header><strong id="notificationPanelHeading">Notifications</strong><span id="notificationPanelCount">0</span></header>
       <div class="notification-items" id="notificationItems" role="list"></div>

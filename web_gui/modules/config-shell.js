@@ -69,13 +69,12 @@ async function loadOpenBridge() {
 }
 
 // C5 #22 (P:2776, P:3398-3402): per-view document title and workface persistence.
-// switchWorkface stays the single authority for panel toggling.
+// switchWorkface stays the single authority for panel toggling.  Workfaces are
+// the three workflow stages; tuple-dimension browsing lives in Config steps.
 const WORKFACE_TITLES = {
   config: 'Config',
   deployment: 'Deployment',
   evaluation: 'Evaluation',
-  scenario: 'Scenario',
-  algorithm: 'Algorithm',
 };
 
 function switchWorkface(name) {
@@ -113,6 +112,7 @@ const SCENARIO_LABELS = {
   paper_ccta2023_multiship: 'Three-Ship',
   romsdal_busy_water_16: 'Multiship-Configurable',
   paper_ccta2023_head_on: 'Head-on (Paper)',
+  hais_romsdal_20260701_120000_120100: 'AIS Romsdal (Historical)',
 };
 
 const RULE_LABELS = {
@@ -421,13 +421,24 @@ function renderScenarioDetail(snapshot) {
   const chart = scenarioChartId(snapshot.draft.scenario_id);
   renderChoiceCarousel('scenario', scenariosToDisplay, snapshot.draft.scenario_id, snapshot.readOnly || snapshot.creating);
   renderChoiceCarousel('enc', [{ id: chart.toLowerCase(), name: chart, desc: 'Derived reference', grade: 'ENC' }], chart.toLowerCase(), false);
-  replaceDefinitionRows(document.getElementById('validationScenarioFacts'), [
+  const historical = scenario?.historical_ais;
+  const factRows = [
     ['Scenario ID', snapshot.draft.scenario_id],
     ['Type', scenario?.type],
     ['Readiness', scenario?.readiness_grade],
     ['Ships', scenario?.ships],
     ['Catalog source', scenario?.provenance?.source || scenario?.source],
-  ]);
+  ];
+  if (historical) {
+    factRows.push(
+      ['Window', `${historical.start_utc} → ${historical.end_utc}`],
+      ['T0 (algorithm takeover)', historical.t0_utc],
+      ['BBox WGS84', `[${(historical.bbox || []).join(', ')}]`],
+      ['Reference / targets', `${historical.reference_mmsi} / ${(historical.target_mmsi || []).join(', ')}`],
+      ['Limitations', (historical.limitations || []).join(' · ') || null],
+    );
+  }
+  replaceDefinitionRows(document.getElementById('validationScenarioFacts'), factRows);
   const image = document.getElementById('validationScenarioImage');
   const placeholder = document.getElementById('validationScenarioPlaceholder');
   image.hidden = chart !== 'Romsdal';
@@ -440,9 +451,11 @@ function renderScenarioDetail(snapshot) {
     note.textContent = 'No bundled reference image for this region. Reference frame only — no geography is invented; live ENC remains in Deployment.';
     placeholder.append(title, note);
   }
-  document.getElementById('validationScenarioPreview').textContent = chart === 'Romsdal'
-    ? `${scenario?.name || snapshot.draft.scenario_id} · catalog metadata paired with static Romsdal reference image. Live ENC remains in Deployment.`
-    : `${scenario?.name || snapshot.draft.scenario_id} · no production reference image is bundled for ${chart}. Live ENC remains in Deployment.`;
+  document.getElementById('validationScenarioPreview').textContent = historical
+    ? `${scenario?.name || snapshot.draft.scenario_id} · Historical AIS bounded window. Selection runs Counterfactual semantics: AIS actors replay history and the selected algorithm takes over ownship at T0. Live ENC in Deployment.`
+    : chart === 'Romsdal'
+      ? `${scenario?.name || snapshot.draft.scenario_id} · catalog metadata paired with static Romsdal reference image. Live ENC remains in Deployment.`
+      : `${scenario?.name || snapshot.draft.scenario_id} · no production reference image is bundled for ${chart}. Live ENC remains in Deployment.`;
   renderScenarioPreviewCanvas(scenario);
 }
 

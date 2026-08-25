@@ -20,6 +20,8 @@ function initialState() {
     selectedMode: null,
     workflow: unavailableHistoricalWorkflow(),
     busy: false,
+    deploying: false,
+    deployError: null,
   };
 }
 
@@ -107,5 +109,31 @@ export function createHistoricalAISController({ api, render }) {
     }
   }
 
-  return { state, load, selectScenario, selectMode, runWorkflow, publish };
+  /** Open one interactive Counterfactual Active Session; returns its document or null. */
+  async function deployInteractive() {
+    const scenario = state.scenario;
+    // tuple[1] is the paper scene: ALGORITHM_CAPABILITY_ONLY cross-scene evidence
+    // deliberately differs from the Historical scenario id (ADR-0004).
+    const tuple = scenario?.algorithmCapability?.exactTuple;
+    if (state.detail.status !== 'READY' || !scenario?.readiness.canRun || !Array.isArray(tuple) || tuple.length !== 4) return null;
+    state.deploying = true;
+    state.deployError = null;
+    publish();
+    try {
+      return await api.createActiveSession({
+        validationRuleId: tuple[0],
+        scenarioId: scenario.scenarioId,
+        algorithmId: tuple[2],
+        trackerId: tuple[3],
+      });
+    } catch (error) {
+      state.deployError = typedError(error, 'SESSION_CREATE_FAILED');
+      return null;
+    } finally {
+      state.deploying = false;
+      publish();
+    }
+  }
+
+  return { state, load, selectScenario, selectMode, runWorkflow, deployInteractive, publish };
 }

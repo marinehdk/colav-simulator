@@ -30,107 +30,6 @@ function createModeChoice(documentRef, mode, selectedMode) {
   return button;
 }
 
-function renderScenarioList(documentRef, state) {
-  const list = documentRef.getElementById('historicalAISScenarioList');
-  if (!list) return;
-  list.replaceChildren(...state.scenarios.map(scenario => {
-    const button = documentRef.createElement('button');
-    button.type = 'button';
-    button.className = 'historical-ais-scenario-choice';
-    button.dataset.historicalScenarioId = scenario.scenarioId;
-    button.setAttribute('aria-pressed', String(scenario.scenarioId === state.selectedId));
-    const title = documentRef.createElement('strong');
-    title.textContent = scenario.title;
-    const meta = documentRef.createElement('small');
-    meta.textContent = [
-      scenario.identity,
-      scenario.selection?.runtimeActorCount === null ? null : `${scenario.selection.runtimeActorCount} runtime actors`,
-      scenario.enc?.profileId,
-    ].filter(Boolean).join(' · ');
-    button.append(title, meta);
-    return button;
-  }));
-}
-
-function clearScenario(documentRef, state) {
-  const error = state.detail.error || state.catalog.error;
-  setText(documentRef, 'historicalAISScenarioName', error ? 'SCENARIO ERROR' : 'SCENARIO UNAVAILABLE');
-  setText(documentRef, 'historicalAISScenarioDescription', error ? `${error.code}: ${error.message}` : null);
-  setText(documentRef, 'historicalAISScenarioSourceStatus', state.detail.status);
-  setText(documentRef, 'historicalAISScenarioHeaderStatus', state.detail.status);
-  for (const id of [
-    'historicalAISScenarioIdentity', 'historicalAISScenarioWindow', 'historicalAISScenarioDuration',
-    'historicalAISSceneOperability', 'historicalAISPredictiveQualification', 'historicalAISFutureGate',
-    'historicalAISScenarioActors', 'historicalAISScenarioSource', 'historicalAISScenarioArchive',
-    'historicalAISScenarioEntry', 'historicalAISScenarioFilter', 'historicalAISScenarioBbox',
-    'historicalAISScenarioReference', 'historicalAISScenarioT0', 'historicalAISScenarioTargets',
-    'historicalAISScenarioEnc', 'historicalAISScenarioRows', 'historicalAISScenarioQuality',
-    'historicalAISScenarioQualificationThreat', 'historicalAISScenarioCapability',
-    'historicalAISDigestArchive', 'historicalAISDigestEntry', 'historicalAISDigestSchema',
-    'historicalAISDigestSelection', 'historicalAISDigestNormalized', 'historicalAISDigestDescriptor',
-    'historicalAISDigestEncProfile', 'historicalAISDigestEncCache', 'historicalAISDigestEncSource',
-    'historicalAISDigestDimensionRegistry', 'historicalAISDigestDimensionSource',
-    'historicalAISScenarioLimitation',
-  ]) setText(documentRef, id, null);
-  const preview = documentRef.getElementById('historicalAISScenePreview');
-  if (preview) preview.hidden = true;
-}
-
-function renderScenarioDetail(documentRef, state) {
-  const scenario = state.scenario;
-  if (!scenario) {
-    clearScenario(documentRef, state);
-    return;
-  }
-  const selection = scenario.selection;
-  setText(documentRef, 'historicalAISScenarioName', scenario.title);
-  setText(documentRef, 'historicalAISScenarioDescription', scenario.description);
-  setText(documentRef, 'historicalAISScenarioSourceStatus', scenario.readiness.status);
-  setText(documentRef, 'historicalAISScenarioHeaderStatus', `${scenario.operability.status} · ${scenario.operability.scope}`);
-  setText(documentRef, 'historicalAISScenarioIdentity', scenario.identity);
-  setText(documentRef, 'historicalAISSceneOperability', `${scenario.operability.status} · ${scenario.operability.scope}`);
-  setText(documentRef, 'historicalAISPredictiveQualification', [scenario.qualification.status, scenario.qualification.code].filter(Boolean).join(' · '));
-  setText(documentRef, 'historicalAISFutureGate', scenario.qualification.future_gate);
-  setText(documentRef, 'historicalAISScenarioWindow', selection.startUtc && selection.endUtc ? `${selection.startUtc} → ${selection.endUtc}` : null);
-  setText(documentRef, 'historicalAISScenarioDuration', selection.durationLabel);
-  setText(documentRef, 'historicalAISScenarioActors', selection.runtimeActorCount === null ? null : `${selection.runtimeActorCount} runtime actors`);
-  setText(documentRef, 'historicalAISScenarioSource', scenario.source.archiveName);
-  const archiveFacts = [
-    scenario.source.archiveDays === null ? null : `${scenario.source.archiveDays} days`,
-    formatNumber(scenario.source.archiveRows) ? `${formatNumber(scenario.source.archiveRows)} rows` : null,
-    formatNumber(scenario.source.archiveMmsi) ? `${formatNumber(scenario.source.archiveMmsi)} MMSI` : null,
-  ].filter(Boolean);
-  setText(documentRef, 'historicalAISScenarioArchive', archiveFacts.length ? archiveFacts.join(' · ') : null);
-  setText(documentRef, 'historicalAISScenarioEntry', selection.entryName);
-  setText(documentRef, 'historicalAISScenarioFilter', Array.isArray(selection.filterMmsi) ? `${selection.filterMmsi.length} MMSI filter` : null);
-  setText(documentRef, 'historicalAISScenarioBbox', formatBbox(selection.bbox));
-  setText(documentRef, 'historicalAISScenarioReference', selection.referenceMmsi);
-  setText(documentRef, 'historicalAISScenarioT0', selection.t0Utc);
-  setText(documentRef, 'historicalAISScenarioTargets', formatList(selection.targetMmsi));
-  setText(documentRef, 'historicalAISScenarioEnc', [scenario.enc.profileId, scenario.enc.qualification].filter(Boolean).join(' · '));
-  setText(documentRef, 'historicalAISScenarioRows', selection.sourceRows === null || selection.normalizedRows === null ? null : `${selection.sourceRows} source / ${selection.normalizedRows} normalized`);
-  setText(documentRef, 'historicalAISScenarioQuality', selection.qualityFindings === null ? null : `${selection.qualityFindings} quality findings`);
-  setText(documentRef, 'historicalAISScenarioCapability', scenario.algorithmCapability
-    ? `${scenario.algorithmCapability.bindingRole === 'ALGORITHM_CAPABILITY_ONLY' && scenario.algorithmCapability.geometryEquivalence === false ? 'algorithm-only/not geometry' : '—'} · ${formatList(scenario.algorithmCapability.exactTuple) || '—'}`
-    : null);
-  setText(documentRef, 'historicalAISDigestArchive', scenario.digests.archive);
-  setText(documentRef, 'historicalAISDigestEntry', scenario.digests.entry);
-  setText(documentRef, 'historicalAISDigestSchema', scenario.digests.schema);
-  setText(documentRef, 'historicalAISDigestSelection', scenario.digests.selection);
-  setText(documentRef, 'historicalAISDigestNormalized', scenario.digests.normalized);
-  setText(documentRef, 'historicalAISDigestDescriptor', scenario.digests.descriptor);
-  setText(documentRef, 'historicalAISDigestEncProfile', scenario.digests.encProfile);
-  setText(documentRef, 'historicalAISDigestEncCache', scenario.digests.encCache);
-  setText(documentRef, 'historicalAISDigestEncSource', scenario.digests.encSource);
-  setText(documentRef, 'historicalAISDigestDimensionRegistry', scenario.digests.dimensionRegistry);
-  setText(documentRef, 'historicalAISDigestDimensionSource', scenario.digests.dimensionSource);
-  setText(documentRef, 'historicalAISScenarioLimitation', scenario.limitations.length ? scenario.limitations.join(' · ') : null);
-  const qualification = scenario.qualification;
-  setText(documentRef, 'historicalAISScenarioQualificationThreat', [qualification?.status, qualification?.code].filter(Boolean).join(' · '));
-  const preview = documentRef.getElementById('historicalAISScenePreview');
-  if (preview) preview.hidden = false;
-}
-
 function renderWorkflow(documentRef, state) {
   const workflow = state.workflow;
   const available = workflow.status === 'AVAILABLE';
@@ -213,12 +112,19 @@ function renderBenchmark(documentRef, state) {
     run.textContent = state.busy ? 'RUNNING' : 'Run Historical Workflow';
     run.title = scenario?.readiness.canRun ? '' : 'Canonical source readiness is not READY';
   }
+  const deploy = documentRef.getElementById('historicalAISDeploy');
+  if (deploy) {
+    deploy.disabled = !scenario?.readiness.canRun || state.busy || state.deploying;
+    deploy.textContent = state.deploying ? 'CREATING' : 'Open in Deployment';
+    deploy.title = scenario?.readiness.canRun ? '' : 'Canonical source readiness is not READY';
+  }
+  setText(documentRef, 'historicalAISDeployStatus', state.deployError
+    ? `Deploy failed · ${state.deployError.code}: ${state.deployError.message}`
+    : 'Interactive Counterfactual session on the AIS scene — the bound algorithm takes over ownship at T0. Full tuple choice lives in Config.');
   renderWorkflow(documentRef, state);
 }
 
 export function renderHistoricalAISWorkbench(documentRef, state) {
-  renderScenarioList(documentRef, state);
-  renderScenarioDetail(documentRef, state);
   renderBenchmark(documentRef, state);
   const catalogStatus = documentRef.getElementById('historicalAISCatalogStatus');
   if (catalogStatus) {
@@ -227,5 +133,5 @@ export function renderHistoricalAISWorkbench(documentRef, state) {
       : state.catalog.status;
     catalogStatus.dataset.state = state.catalog.status === 'READY' ? 'ready' : state.catalog.status === 'ERROR' ? 'error' : 'info';
   }
-  setText(documentRef, 'historicalAISScenarioCatalogStatus', state.catalog.status);
+
 }

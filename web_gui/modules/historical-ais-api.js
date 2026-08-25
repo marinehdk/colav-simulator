@@ -21,7 +21,7 @@ async function responseJson(fetchImpl, url, options = {}) {
   return body;
 }
 
-export function createHistoricalAISApi({ fetchImpl = globalThis.fetch, WebSocketImpl = globalThis.WebSocket } = {}) {
+export function createHistoricalAISApi({ fetchImpl = globalThis.fetch } = {}) {
   return {
     async listScenarios() {
       const body = await responseJson(fetchImpl, '/api/historical/scenarios');
@@ -45,22 +45,17 @@ export function createHistoricalAISApi({ fetchImpl = globalThis.fetch, WebSocket
     async getWorkflow(workflowId) {
       return responseJson(fetchImpl, `/api/historical/workflows/${encodeURIComponent(workflowId)}`);
     },
-    connectWorkflow(workflowId, onDocument, onError) {
-      if (typeof WebSocketImpl !== 'function') return null;
-      const location = globalThis.location;
-      const protocol = location?.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = location?.host;
-      if (!host) return null;
-      const socket = new WebSocketImpl(`${protocol}//${host}/ws/historical/${encodeURIComponent(workflowId)}`);
-      socket.addEventListener?.('message', event => {
-        try {
-          onDocument(JSON.parse(event.data));
-        } catch (error) {
-          onError?.(error);
-        }
+    async createActiveSession({ validationRuleId, scenarioId, algorithmId, trackerId }) {
+      return responseJson(fetchImpl, '/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          validation_rule_id: validationRuleId,
+          scenario_id: scenarioId,
+          algorithm_id: algorithmId,
+          tracker_id: trackerId,
+        }),
       });
-      socket.addEventListener?.('error', event => onError?.(event));
-      return socket;
     },
   };
 }

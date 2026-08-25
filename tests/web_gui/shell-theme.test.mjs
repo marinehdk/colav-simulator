@@ -98,9 +98,10 @@ test('C5 #8: 520 tier degrades top bar, turns Assembly Steps into a horizontal s
 test('C5 #22: switchWorkface sets the per-view document title and persists the workface (P:2776, P:3398-3402)', () => {
   assert.match(shell, /document\.title = `综合避碰仿真器 · \$\{WORKFACE_TITLES\[workface\]\}`/);
   assert.match(shell, /localStorage\.setItem\('colav-workface', workface\)/);
-  for (const view of ['Config', 'Deployment', 'Evaluation', 'Scenario', 'Algorithm']) {
+  for (const view of ['Config', 'Deployment', 'Evaluation']) {
     assert.match(shell, new RegExp(`:\\s*'${view}'`));
   }
+  assert.doesNotMatch(shell, /scenario:\s*'Scenario'|algorithm:\s*'Algorithm'/);
 });
 
 test('C5 #22: boot restores the persisted workface through switchWorkface (single panel authority)', () => {
