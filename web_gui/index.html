@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260821-fix-45" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260824-fan-regression-1" />
+  <link rel="stylesheet" href="/static/style.css?v=20260825-map-display-9" />
 </head>
 <body>
   <div class="app-container">
@@ -412,7 +412,78 @@
                   <button class="map-mode-button" type="button" data-map-orientation="heading" aria-pressed="false" aria-label="Heading Up" title="Heading Up">H</button>
                   <button class="map-mode-button active" type="button" data-map-orientation="north" aria-pressed="true" aria-label="North Up" title="North Up">N</button>
                 </div>
-                <obc-icon-button variant="flat" id="chartLayersBtn" aria-label="海图图层" title="海图图层"><obi-chart-layers></obi-chart-layers></obc-icon-button>
+                <obc-icon-button variant="flat" id="chartLayersBtn" aria-label="海图显示" title="海图显示" aria-expanded="false" aria-controls="chartDisplayPopover"><obi-chart-layers></obi-chart-layers></obc-icon-button>
+                <section class="chart-display-popover" id="chartDisplayPopover" role="dialog" aria-label="海图显示" hidden>
+                  <div class="chart-display-popover-header">
+                    <strong>海图显示</strong>
+                    <obc-icon-button variant="flat" id="closeChartDisplayBtn" aria-label="关闭海图显示" title="关闭海图显示"><span aria-hidden="true">×</span></obc-icon-button>
+                  </div>
+                  <div class="chart-display-popover-body">
+                    <section class="chart-display-section" aria-labelledby="chartLegendHeading">
+                      <h3 id="chartLegendHeading">图标说明</h3>
+                      <div class="canvas-legend" aria-label="分类图标说明">
+                        <div class="legend-category" data-legend-group="navigation">
+                          <span class="legend-category-title">导航</span>
+                          <span class="legend-item" data-legend-layer="ships"><span class="color-box ownship"></span>本船</span>
+                          <span class="legend-item" data-legend-layer="route"><span class="color-box route"></span>初始航线</span>
+                          <span class="legend-item" data-legend-layer="motionVectors"><span class="color-box motion"></span>60s 向量</span>
+                        </div>
+                        <div class="legend-category" data-legend-group="algorithm">
+                          <span class="legend-category-title">算法</span>
+                          <span class="legend-item" data-legend-layer="prediction"><span class="color-box horizon"></span>当前预测</span>
+                          <span class="legend-item" data-legend-layer="previousPrediction"><span class="color-box previous"></span>上次预测</span>
+                        </div>
+                        <div class="legend-category" data-legend-group="perception">
+                          <span class="legend-category-title">感知</span>
+                          <span class="legend-item" data-legend-layer="tracks"><span class="color-box track"></span>Tracker</span>
+                          <span class="legend-item" data-legend-layer="measurements"><span class="color-box measurement"></span>量测</span>
+                          <span class="legend-item" data-legend-layer="covariance"><span class="color-box covariance"></span>协方差</span>
+                          <span class="legend-item" data-legend-layer="radarRange"><span class="color-box radar-range"></span>探测圈</span>
+                          <span class="legend-item" data-legend-layer="responseRange"><span class="color-box response-range"></span><span id="response-range-legend-label">安全区</span></span>
+                        </div>
+                        <div class="legend-category" data-legend-group="risk">
+                          <span class="legend-category-title">目标</span>
+                          <span class="legend-item" data-legend-layer="ships"><span class="color-box clear"></span>探测圈外</span>
+                          <span class="legend-item" data-legend-layer="ships"><span class="color-box low"></span>雷达监控</span>
+                          <span class="legend-item" data-legend-layer="ships"><span class="color-box high"></span>避碰响应</span>
+                          <span class="legend-item" data-legend-layer="ships"><span class="color-box unknown"></span>未评估</span>
+                        </div>
+                      </div>
+                    </section>
+                    <section class="chart-display-section" aria-labelledby="chartLayersHeading">
+                      <h3 id="chartLayersHeading">航行展示</h3>
+                      <div class="layer-controls" aria-label="仿真图层">
+                        <fieldset>
+                          <legend>基础</legend>
+                          <label><input type="checkbox" data-layer="safeWater" checked> 安全海域 <span class="layer-state" data-layer-state="safeWater">数据未提供</span></label>
+                          <label><input type="checkbox" data-layer="ships" checked> 船舶</label>
+                        </fieldset>
+                        <fieldset>
+                          <legend>导航</legend>
+                          <label><input type="checkbox" data-layer="route" checked> 初始航线</label>
+                          <label><input type="checkbox" data-layer="waypoints" checked> 航点</label>
+                          <label><input type="checkbox" data-layer="history" checked> 历史航迹</label>
+                          <label><input type="checkbox" data-layer="motionVectors" checked> 60s 向量</label>
+                        </fieldset>
+                        <fieldset>
+                          <legend>感知</legend>
+                          <label><input type="checkbox" data-layer="truth"> 真值</label>
+                          <label><input type="checkbox" data-layer="measurements"> 量测</label>
+                          <label><input type="checkbox" data-layer="tracks"> Track ID</label>
+                          <label><input type="checkbox" data-layer="covariance"> 协方差</label>
+                          <label><input type="checkbox" data-layer="radarRange" checked> 探测圈</label>
+                          <label><input type="checkbox" data-layer="responseRange" checked> <span id="response-range-control-label">安全区</span> <span class="layer-state" data-layer-state="responseRange">数据未提供</span></label>
+                        </fieldset>
+                        <fieldset>
+                          <legend>算法</legend>
+                          <label><input type="checkbox" data-layer="prediction" checked> 当前预测</label>
+                          <label><input type="checkbox" data-layer="previousPrediction"> 上次预测</label>
+                          <label><input type="checkbox" data-layer="executionPoint" checked> 执行点</label>
+                        </fieldset>
+                      </div>
+                    </section>
+                  </div>
+                </section>
               </div>
               <div class="deployment-tool-zone deployment-tool-zone--simulation" data-od-id="live-playback-controls" aria-label="仿真控制与时间">
                 <div class="deployment-time-readout" aria-label="仿真时间"><span>SIM TIME</span><strong id="liveSimulationTime">--:--:--</strong></div>
@@ -555,7 +626,7 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260824-fan-regression-1"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260824-fan-regression-1"></script>
+  <script type="module" src="/static/app.js?v=20260825-map-display-9"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260825-map-display-9"></script>
 </body>
 </html>

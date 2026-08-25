@@ -43,6 +43,29 @@ export const THREAT_STYLES = {
   HIGH: { color: '#FF4D5A', fill: 'rgba(255,77,90,0.82)', rank: 3 },
 };
 
+export const TARGET_RISK_STYLES = Object.freeze({
+  safe: Object.freeze({
+    color: '#16804B',
+    fill: 'rgba(22,128,75,0.16)',
+    outlineColor: '#16804B',
+    rank: 1,
+  }),
+  warn: Object.freeze({
+    color: '#B87800',
+    fill: 'rgba(184,120,0,0.16)',
+    outlineColor: '#B87800',
+    rank: 2,
+  }),
+  danger: Object.freeze({
+    color: '#D82828',
+    fill: 'rgba(216,40,40,0.18)',
+    outlineColor: '#D82828',
+    rank: 3,
+  }),
+});
+
+const OWNSHIP_OUTLINE_COLOR = '#123C70';
+
 /** Ordered layer table — the render-order contract (ruling 8). */
 export const LAYER_ORDER = [
   'safeWater',
@@ -455,6 +478,7 @@ export function createSituationDisplay(options) {
   let ownshipThreatPlotVisible = false;
   let clickMode = null;
   let selectionCallback = onSelectionChange;
+  let targetThreatLevels = new Map();
 
   /* ── interpolation pipeline (moved from app.js per M3) ── */
   let currentData = null;
@@ -1116,7 +1140,7 @@ export function createSituationDisplay(options) {
     targetsForDisplay(data).forEach(target => {
       const threat = targetThreat(data, target);
       if (denseTrafficMode(data) && threat.rank < 3 && target.id !== selectedTargetId) return;
-      drawMotionVector(target, threat.color, true);
+      drawMotionVector(target, '#111817', true);
       drew = true;
     });
     if (drew) drawSequence.push('motionVectors');
@@ -1157,32 +1181,20 @@ export function createSituationDisplay(options) {
       ctx.lineTo(point.x + nx * 3, point.y + ny * 3);
       ctx.stroke();
     }
-    if (ownship) drawDoubleChevron(ctx, end, course);
-    else drawArrowHead(end, course, color);
-    ctx.restore();
-  }
-
-  function drawArrowHead(point, heading, color) {
-    ctx.save();
-    ctx.translate(point.x, point.y);
-    ctx.rotate(heading);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(0, -7);
-    ctx.lineTo(4, 2);
-    ctx.lineTo(-4, 2);
-    ctx.closePath();
-    ctx.fill();
+    drawDoubleChevron(ctx, end, course);
     ctx.restore();
   }
 
   function targetThreat(data, target) {
     if (!target || !data.os) return THREAT_STYLES.UNKNOWN;
+    const riskLevel = targetThreatLevels.get(String(target.id));
+    const riskOutline = TARGET_RISK_STYLES[riskLevel]?.outlineColor;
     const distance = Math.hypot(target.x - data.os.x, target.y - data.os.y);
     const responseRange = getResponseRange();
-    if (responseRange?.threatActivation && distance <= responseRange.distanceM) return THREAT_STYLES.HIGH;
-    if (distance <= RADAR_DETECTION_RANGE_M) return THREAT_STYLES.LOW;
-    return THREAT_STYLES.CLEAR;
+    const threat = responseRange?.threatActivation && distance <= responseRange.distanceM
+      ? THREAT_STYLES.HIGH
+      : distance <= RADAR_DETECTION_RANGE_M ? THREAT_STYLES.LOW : THREAT_STYLES.CLEAR;
+    return riskOutline ? { ...threat, outlineColor: riskOutline } : threat;
   }
 
   function drawShips(data) {
@@ -1192,7 +1204,6 @@ export function createSituationDisplay(options) {
     targets.forEach(target => {
       const threat = targetThreat(data, target);
       const point = worldToCanvas(target.x, target.y);
-      if (threat.rank >= 2) drawThreatRings(point, threat, target.id === selectedTargetId);
       const compact = dense && threat.rank < 3 && target.id !== selectedTargetId;
       drawTargetSprite(point, target.psi, target.length || 30, target.width || 7, threat, compact);
       targetHitRegions.push({ x: point.x, y: point.y, radius: 14, target });
@@ -1229,6 +1240,7 @@ export function createSituationDisplay(options) {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
     ctx.shadowBlur = 2;
     ctx.drawImage(ownshipSprite, -iconPx / 2, -iconPx / 2, iconPx, iconPx);
+    strokeShipContour(iconPx * 0.82, iconPx * 0.26, OWNSHIP_OUTLINE_COLOR, 2);
     ctx.restore();
   }
 
@@ -1249,7 +1261,27 @@ export function createSituationDisplay(options) {
     ctx.shadowColor = threat?.color || 'rgba(0, 0, 0, 0.45)';
     ctx.shadowBlur = compact ? 1 : 3;
     ctx.drawImage(targetSprite, -iconPx / 2, -iconPx / 2, iconPx, iconPx);
+    strokeShipContour(
+      iconPx * 0.82,
+      iconPx * 0.26,
+      threat?.outlineColor || threat?.color || THREAT_STYLES.UNKNOWN.color,
+      compact ? 1.4 : 2,
+    );
     ctx.restore();
+  }
+
+  function strokeShipContour(lengthPx, widthPx, color, lineWidth) {
+    const path = new Path2D();
+    path.moveTo(0, -lengthPx / 2);
+    path.bezierCurveTo(widthPx * 0.34, -lengthPx * 0.40, widthPx / 2, -lengthPx * 0.18, widthPx / 2, lengthPx * 0.38);
+    path.lineTo(widthPx * 0.42, lengthPx / 2);
+    path.lineTo(-widthPx * 0.42, lengthPx / 2);
+    path.lineTo(-widthPx / 2, lengthPx * 0.38);
+    path.bezierCurveTo(-widthPx / 2, -lengthPx * 0.18, -widthPx * 0.34, -lengthPx * 0.40, 0, -lengthPx / 2);
+    path.closePath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke(path);
   }
 
   function drawHull(point, heading, lengthM, widthM, threat, ownship, compact = false) {
@@ -1267,11 +1299,11 @@ export function createSituationDisplay(options) {
     path.bezierCurveTo(-widthPx / 2, -lengthPx * 0.18, -widthPx * 0.34, -lengthPx * 0.40, 0, -lengthPx / 2);
     path.closePath();
     ctx.fillStyle = ownship ? '#F7FAFA' : threat.fill;
-    ctx.strokeStyle = ownship ? '#111817' : threat.color;
+    ctx.strokeStyle = ownship ? OWNSHIP_OUTLINE_COLOR : threat.outlineColor || threat.color;
     ctx.lineWidth = ownship ? 1.5 : 2;
     ctx.fill(path);
     ctx.stroke(path);
-    ctx.strokeStyle = ownship ? '#65706F' : hexToRgba(threat.color, 0.75);
+    ctx.strokeStyle = ownship ? '#65706F' : hexToRgba(threat.outlineColor || threat.color, 0.75);
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, -lengthPx * 0.36);
@@ -1294,19 +1326,6 @@ export function createSituationDisplay(options) {
     ctx.setLineDash([3, 3]);
     ctx.strokeRect(-widthPx / 2, -lengthPx / 2, widthPx, lengthPx);
     ctx.restore();
-  }
-
-  function drawThreatRings(point, threat, selected) {
-    const radii = threat === THREAT_STYLES.HIGH ? [22, 31] : [23];
-    radii.forEach((radius, index) => {
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = hexToRgba(threat.color, selected ? 0.9 : 0.45 - index * 0.12);
-      ctx.lineWidth = selected ? 2 : 1.2;
-      ctx.setLineDash(threat === THREAT_STYLES.LOW ? [5, 4] : []);
-      ctx.stroke();
-    });
-    ctx.setLineDash([]);
   }
 
   function drawDetectionZones(data) {
@@ -1709,6 +1728,18 @@ export function createSituationDisplay(options) {
     rerender();
   }
 
+  function setTargetThreatLevels(levels) {
+    const nextLevels = new Map(
+      Object.entries(levels || {})
+        .map(([id, level]) => [String(id), String(level)])
+        .filter(([, level]) => Boolean(TARGET_RISK_STYLES[level])),
+    );
+    if (nextLevels.size === targetThreatLevels.size
+      && [...nextLevels].every(([id, level]) => targetThreatLevels.get(id) === level)) return;
+    targetThreatLevels = nextLevels;
+    rerender();
+  }
+
   /* ════════════ pointer / click routing ════════════ */
 
   function handleClickAt(x, y) {
@@ -1834,6 +1865,7 @@ export function createSituationDisplay(options) {
     setLayerVisible,
     getLayerState,
     onLayerStateChange(cb) { layerStateSink = cb; },
+    setTargetThreatLevels,
     setClickMode,
     onSelectionChange(cb) { selectionCallback = cb; },
     selectTarget(id) { selectTarget(id); },

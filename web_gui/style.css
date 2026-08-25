@@ -832,7 +832,7 @@ obc-clock:not(:defined),
   flex-shrink: 0;
 }
 
-.color-box.ownship  { background: #f7fafa; border: 1px solid #65706f; }
+.color-box.ownship  { background: #123c70; border: 1px solid #123c70; }
 .color-box.route {
   width: 18px;
   height: 0;
@@ -842,7 +842,7 @@ obc-clock:not(:defined),
 .color-box.motion {
   width: 18px;
   height: 0;
-  border-top: 2px solid #fff;
+  border-top: 2px solid #111817;
   border-radius: 0;
 }
 .color-box.track { background: var(--accent-green); }
@@ -2097,13 +2097,6 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   color: var(--accent-red);
 }
 
-/* ENC map toggle active state */
-#toggleENC.enc-on {
-  background: rgba(0, 242, 254, 0.15);
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-}
-
 /* ══════════════════════════════════════════════
    Algorithm Availability Status Row
 ══════════════════════════════════════════════ */
@@ -2779,6 +2772,138 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .deployment-display-bar > .deployment-tool-zone--tools { justify-self: end; }
 
 .deployment-tool-zone { display: flex; align-items: center; gap: var(--s-1); }
+.deployment-tool-zone--chart { position: relative; }
+
+.chart-display-popover {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--s-2) + var(--s-3));
+  z-index: 20;
+  display: block;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(58vh, 580px);
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--ob-border) 82%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ob-surface) 74%, transparent);
+  box-shadow: 0 8px 22px var(--ob-overlay-strong);
+  backdrop-filter: blur(8px);
+  --border-outline-color: var(--ob-border);
+}
+
+.chart-display-popover[hidden] { display: none; }
+
+.chart-display-popover > .chart-display-popover-header,
+.chart-display-popover > .chart-display-popover-body {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chart-display-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 38px;
+  padding: 4px var(--s-2) 4px var(--s-3);
+  border-bottom: 1px solid var(--ob-border);
+  background: color-mix(in srgb, var(--ob-surface) 48%, transparent);
+}
+
+.chart-display-popover-header strong {
+  color: var(--ob-text);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.chart-display-popover-body {
+  max-height: min(52vh, 510px);
+  overflow-y: auto;
+  padding: 4px var(--s-2) var(--s-2);
+  scrollbar-width: thin;
+}
+
+.chart-display-section {
+  padding-top: 6px;
+}
+
+.chart-display-section h3 {
+  margin: 0 0 4px;
+  color: var(--ob-subtle);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 16px;
+  letter-spacing: .02em;
+}
+
+.chart-display-popover .canvas-legend {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  padding: 0;
+  gap: 5px 7px;
+  color: var(--ob-text);
+  font-size: 10px;
+}
+
+.chart-display-popover .legend-category {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: 16px repeat(2, minmax(20px, 1fr));
+  grid-auto-flow: row;
+  align-content: stretch;
+  align-items: center;
+  min-height: 72px;
+  gap: 3px;
+  padding: 5px 6px 6px;
+  border: 1px solid color-mix(in srgb, var(--ob-border) 72%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ob-surface) 28%, transparent);
+}
+
+.chart-display-popover .legend-category-title {
+  grid-column: 1 / -1;
+  align-self: start;
+  color: var(--ob-accent);
+  font-size: 10px;
+}
+
+.chart-display-popover .legend-item {
+  min-width: 0;
+  line-height: 14px;
+}
+
+.chart-display-popover .layer-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: row;
+  align-items: stretch;
+  min-width: 0;
+  max-height: none;
+  padding: 0;
+  gap: 5px 7px;
+  color: var(--ob-text);
+  font-size: 10px;
+  overflow: visible;
+}
+
+.chart-display-popover .layer-controls fieldset {
+  padding: 4px 6px 6px;
+  border-color: var(--ob-border);
+  border-radius: var(--radius);
+  gap: 3px;
+}
+
+.chart-display-popover .layer-controls legend {
+  color: var(--ob-accent);
+}
+
+.chart-display-popover .layer-controls input {
+  accent-color: var(--ob-accent);
+}
+
+.chart-display-popover [data-legend-layer][hidden],
+.chart-display-popover [data-legend-group][hidden] {
+  display: none;
+}
 
 .map-zoom-control { display: flex; align-items: center; border: 1px solid var(--ob-border); border-radius: var(--radius); overflow: hidden; background: var(--ob-surface); }
 .map-symbol-button { min-width: 32px; height: 36px; padding: 0 8px; border: 0; background: transparent; color: var(--ob-text); font-size: 16px; cursor: pointer; }

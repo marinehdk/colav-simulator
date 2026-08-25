@@ -144,7 +144,7 @@ function plannerResponseRange() {
     if (Number.isFinite(distanceM) && distanceM > 0) {
       return {
         distanceM,
-        label: `论文 COLREG 区（${(distanceM / 1852).toFixed(1)} nm）`,
+        label: '安全区',
         threatActivation: false,
       };
     }
@@ -350,16 +350,41 @@ document.getElementById('zoomOut')?.addEventListener('click', () => situationDis
 document.getElementById('zoomReset')?.addEventListener('click', () => situationDisplay.fitView());
 document.getElementById('zoomInBtn')?.addEventListener('click', () => situationDisplay.zoomIn());
 document.getElementById('zoomOutBtn')?.addEventListener('click', () => situationDisplay.zoomOut());
-document.getElementById('toggleENC')?.addEventListener('click', function () {
-  const visible = !situationDisplay.isEncVisible();
-  situationDisplay.setEncVisible(visible);
-  this.classList.toggle('enc-on', visible);
-  this.setAttribute('aria-pressed', String(visible));
-});
-document.getElementById('chartLayersBtn')?.addEventListener('click', function () {
-  const visible = !situationDisplay.isEncVisible();
-  situationDisplay.setEncVisible(visible);
-});
+function syncChartDisplayPopoverState() {
+  const button = document.getElementById('chartLayersBtn');
+  const panel = document.getElementById('chartDisplayPopover');
+  if (button && panel) button.setAttribute('aria-expanded', String(!panel.hidden));
+}
+
+function setupChartDisplayPopover() {
+  const button = document.getElementById('chartLayersBtn');
+  const panel = document.getElementById('chartDisplayPopover');
+  const closeButton = document.getElementById('closeChartDisplayBtn');
+  if (!button || !panel || button.dataset.bound === 'true') return;
+  button.dataset.bound = 'true';
+  const close = () => {
+    panel.hidden = true;
+    syncChartDisplayPopoverState();
+  };
+  button.addEventListener('click', event => {
+    event.stopPropagation();
+    panel.hidden = !panel.hidden;
+    syncChartDisplayPopoverState();
+  });
+  closeButton?.addEventListener('click', close);
+  panel.addEventListener('click', event => event.stopPropagation());
+  document.addEventListener('click', event => {
+    if (!panel.hidden && !panel.contains(event.target) && !event.composedPath().includes(button)) close();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || panel.hidden) return;
+    close();
+    (button.shadowRoot?.querySelector('button') || button).focus();
+  });
+  syncChartDisplayPopoverState();
+}
+
+setupChartDisplayPopover();
 document.querySelectorAll('[data-map-orientation]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('[data-map-orientation]').forEach(b => {
@@ -498,7 +523,7 @@ function updateUI(proj) {
   }
   lastRuntimeState = proj.state || lastRuntimeState;
 
-  const responseRangeLabel = plannerResponseRange()?.label || '规划/响应范围';
+  const responseRangeLabel = plannerResponseRange()?.label || '安全区';
   setText('response-range-control-label', responseRangeLabel);
   setText('response-range-legend-label', responseRangeLabel);
 
@@ -2449,6 +2474,12 @@ function renderProjection(proj) {
   currentData = data;
   if (data.os) {
     updateUI(proj);
+    const targetThreatLevels = Object.fromEntries(
+      (proj.risk?.targets || [])
+        .filter(target => target.targetId !== null && target.targetId !== undefined)
+        .map(target => [String(target.targetId), riskThreatLevel(target)]),
+    );
+    situationDisplay.setTargetThreatLevels(targetThreatLevels);
     situationDisplay.render(data);
     renderTimelineLog(proj);
   }
@@ -3449,7 +3480,6 @@ async function boot() {
   updateBeijingClock();
   window.setInterval(updateBeijingClock, 1000);
   updateLegendVisibility();
-  document.getElementById('toggleENC')?.classList.add('enc-on');
   activeSessionRuntime.subscribe(syncDeploymentRuntime);
   telemetryProjection.subscribe(renderProjection);
   try {

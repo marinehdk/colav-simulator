@@ -5,6 +5,7 @@ import test from 'node:test';
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const app = await readFile(new URL('../../web_gui/app.js', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
+const situationDisplay = await readFile(new URL('../../web_gui/modules/situation-display.js', import.meta.url), 'utf8');
 const lineGraph = await readFile(new URL('../../web_gui/modules/line-graph.js', import.meta.url), 'utf8');
 const vendorEntry = await readFile(new URL('../../web_gui/vendor/openbridge/entry-source.mjs', import.meta.url), 'utf8');
 
@@ -112,6 +113,43 @@ test('EVENT LIST uses OpenBridge event-list with projected timeline data', () =>
   assert.match(styles, /--global-typography-ui-label-font-size: 12px/);
   assert.match(app, /colorCoded/);
   assert.doesNotMatch(app, /eventList\.innerHTML/);
+});
+
+test('海图显示 restores the pre-OpenBridge legend and layer controls in an OpenBridge popover', () => {
+  assert.match(html, /id="chartLayersBtn"[^>]*aria-label="海图显示"[^>]*aria-controls="chartDisplayPopover"/);
+  assert.match(html, /<section[^>]*class="chart-display-popover"[^>]*id="chartDisplayPopover"[^>]*role="dialog"/);
+  assert.doesNotMatch(html, /id="toggleENC"/);
+  assert.match(html, /id="closeChartDisplayBtn"/);
+  assert.match(html, /data-legend-group="perception"[\s\S]*data-legend-group="risk"/);
+  assert.match(html, /data-legend-group="risk"[\s\S]*<span class="legend-category-title">目标<\/span>/);
+  assert.doesNotMatch(html, /<span class="legend-category-title">目标状态<\/span>/);
+  assert.match(html, /<legend>感知<\/legend>[\s\S]*<legend>算法<\/legend>/);
+  assert.doesNotMatch(html, /<legend>感知调试<\/legend>/);
+  assert.match(html, />探测圈<\/span>/);
+  assert.match(html, /id="response-range-legend-label">安全区</);
+  assert.match(html, /id="response-range-control-label">安全区</);
+  assert.doesNotMatch(html, /雷达探测圈（2 km）|雷达探测圈 2 km/);
+  for (const layer of ['safeWater', 'ships', 'route', 'motionVectors', 'prediction', 'previousPrediction', 'radarRange', 'responseRange']) {
+    assert.match(html, new RegExp(`data-layer="${layer}"`));
+  }
+  assert.match(app, /function setupChartDisplayPopover\(/);
+  assert.match(app, /chartDisplayPopover/);
+  assert.match(styles, /\.chart-display-popover\s*\{/);
+  assert.match(styles, /width: min\(360px, calc\(100vw - 24px\)\)/);
+  assert.match(styles, /bottom: calc\(100% \+ var\(--s-2\) \+ var\(--s-3\)\)/);
+  assert.match(styles, /var\(--ob-surface\) 74%, transparent/);
+  assert.match(styles, /grid-template-rows: 16px repeat\(2, minmax\(20px, 1fr\)\)/);
+});
+
+test('situation display uses black target motion vectors and risk-driven ship outlines', () => {
+  assert.match(situationDisplay, /drawMotionVector\(target, '#111817', true\)/);
+  assert.match(situationDisplay, /drawDoubleChevron\(ctx, end, course\);/);
+  assert.doesNotMatch(situationDisplay, /drawArrowHead/);
+  assert.doesNotMatch(situationDisplay, /drawThreatRings/);
+  assert.match(situationDisplay, /const OWNSHIP_OUTLINE_COLOR = '#123C70'/);
+  assert.match(situationDisplay, /setTargetThreatLevels\(levels\)/);
+  assert.match(situationDisplay, /threat\?\.outlineColor \|\| threat\?\.color/);
+  assert.match(app, /situationDisplay\.setTargetThreatLevels\(targetThreatLevels\)/);
 });
 
 test('planner diagnostics render directly on the chart for each supported algorithm', () => {
