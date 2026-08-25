@@ -2489,13 +2489,16 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .ownship-sensor-page .live-compass-content { width: 100%; height: auto; padding-inline: var(--s-2); }
 .ownship-sensor-page .live-depth-content { height: 244px; justify-content: space-between; padding-inline: var(--s-1); }
 
-/* The compass pads itself below 512px (dial shrinks to ~55-62% of the
-   element), so the dial renders at the component's native size and is
-   center-cropped to the card width; the crop only trims the outermost
-   E/S/W label ring. */
+/* A 0.408 scale makes the compass's real outer ring ~155px, matching the
+   Depth main square (~151px) and Pitch/Roll outer ring (~155px). Keeping the
+   transformed host inside a 210px wrapper also stops the N marker from
+   intruding into the mode controls above. */
 .ownship-sensor-page .live-compass-dial {
   position: relative;
-  width: 100%;
+  width: 210px;
+  max-width: 100%;
+  height: 210px;
+  flex: 0 0 210px;
   aspect-ratio: 1;
   overflow: hidden;
 }
@@ -2506,7 +2509,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   width: 512px;
   height: 512px;
   margin: -256px 0 0 -256px;
-  transform: scale(0.5);
+  transform: scale(0.408);
 }
 
 .ownship-sensor-page .live-compass-readouts,
@@ -2645,12 +2648,14 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .route-steering-row strong[data-mode="collision"] { color: var(--ob-danger); }
 
 .route-value-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-1); padding: 0 var(--s-3) var(--s-3); }
+.route-value-grid-primary { grid-template-columns: minmax(46px, .8fr) minmax(62px, 1.05fr) minmax(78px, 1.25fr); column-gap: 4px; }
 .route-value-grid > div { min-width: 0; }
 .route-value-grid span, .route-value-grid strong { display: block; }
 .route-value-grid span { min-height: 28px; color: var(--ob-subtle); font-size: 9px; line-height: 13px; }
 .route-value-grid strong { overflow: hidden; color: var(--ob-text); font: 500 12px/18px var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
 .route-value-grid strong small { color: var(--ob-subtle); font-size: 9px; }
-.route-value-grid-primary strong { color: var(--ob-accent); font-size: 17px; line-height: 22px; }
+.route-value-grid-primary strong { overflow: visible; color: var(--ob-accent); font-size: 15px; line-height: 22px; text-overflow: clip; }
+.route-value-grid-primary strong small { font-size: 8px; }
 
 .route-leg { padding-top: var(--s-2); }
 .route-leg + .route-leg { border-top: 1px solid var(--ob-border); }
@@ -3031,26 +3036,32 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   --menu-navigation-components-appointment-item-padding-vertical: 3px;
 }
 
-.algorithm-diagnostic-panel, .algorithm-performance-panel { flex: 0 0 auto; }
-.algorithm-status-badge { padding: 2px 6px; border: 1px solid var(--alert-warning-color, #b87800); border-radius: var(--radius); color: var(--alert-warning-color, #b87800); font: 650 9px/14px var(--font-mono); }
+.operations-algo-page,
+.operations-perf-page { overflow-y: auto; scrollbar-width: thin; }
+.algorithm-diagnostic-panel, .algorithm-performance-panel { flex: 1 0 auto; }
+.operations-algo-page .operations-panel-header strong,
+.operations-perf-page .operations-panel-header strong { font-size: 11px; }
+.algorithm-status-badge { padding: 2px 6px; border: 1px solid var(--alert-warning-color, #b87800); border-radius: var(--radius); color: var(--alert-warning-color, #b87800); font: 650 10px/15px var(--font-mono); }
 
 .algorithm-data-groups { padding: 0 var(--s-3); }
 .algorithm-data-group + .algorithm-data-group { border-top: 1px solid var(--ob-border); }
-.algorithm-data-group h3 { margin: 0; padding: var(--s-2) 0 var(--s-1); color: var(--ob-subtle); font-size: 9px; font-weight: 650; line-height: 14px; }
+.algorithm-data-group h3 { margin: 0; padding: 10px 0 5px; color: var(--ob-subtle); font-size: 11px; font-weight: 650; line-height: 16px; }
 .algorithm-data-list { margin: 0; }
 .algorithm-data-row {
-  min-height: 32px;
+  min-height: 42px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(56px, 116px) 34px;
+  grid-template-columns: minmax(0, 1fr) minmax(64px, 116px) 34px;
   align-items: center;
   gap: var(--s-1);
   border-bottom: 1px solid var(--ob-border);
 }
 .algorithm-data-row:last-child { border-bottom: 0; }
-.algorithm-data-row dt { min-width: 0; color: var(--ob-subtle); font-size: 10px; }
-.algorithm-data-row dd { margin: 0; overflow: hidden; color: var(--ob-accent); font: 650 11px/16px var(--font-mono); text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.algorithm-data-row dt { min-width: 0; color: var(--ob-subtle); font-size: 12px; line-height: 16px; }
+.algorithm-data-row dd { margin: 0; overflow: hidden; color: var(--ob-accent); font: 650 13px/18px var(--font-mono); text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .algorithm-data-row dd[data-state="success"] { color: var(--alert-success-color, #16804b); }
-.algorithm-data-row small { color: var(--ob-subtle); font-size: 9px; line-height: 14px; text-align: left; white-space: nowrap; }
+.algorithm-data-row small { color: var(--ob-subtle); font-size: 10px; line-height: 15px; text-align: left; white-space: nowrap; }
 
-.algorithm-performance-list { padding: 0 var(--s-3); }
-.algorithm-performance-panel colav-line-graph { display: block; height: 220px; margin: var(--s-2); }
+.algorithm-performance-list { padding: 4px var(--s-3); }
+.algorithm-performance-list .algorithm-data-row { min-height: 46px; }
+.algorithm-performance-list .algorithm-data-row dd { font-size: 15px; line-height: 20px; }
+.algorithm-performance-panel colav-line-graph { display: block; height: 300px; margin: var(--s-2) 4px; }

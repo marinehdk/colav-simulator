@@ -53,6 +53,23 @@ test('DEPTH uses the live ENC depth bin instead of a fixed 15 m value', () => {
   assert.doesNotMatch(app, /value: 15, nDigits: 2/);
 });
 
+test('sensor instruments use comparable drawing-region sizes without compass control overlap', () => {
+  assert.match(styles, /\.live-compass-dial \{[^}]*width: 210px;[^}]*height: 210px;[^}]*overflow: hidden;/s);
+  assert.match(styles, /\.live-compass-dial obc-compass \{[^}]*transform: scale\(0\.408\)/s);
+  assert.match(styles, /\.live-depth-wrapper \{[^}]*height: 180px;/s);
+  assert.match(styles, /\.live-pitch-roll-wrapper \{[^}]*height: 180px;/s);
+});
+
+test('ROUTE radius switches between metres and kilometres without ellipsis', () => {
+  assert.match(app, /function formatRouteRadius\(radiusM\)/);
+  assert.match(app, /radiusM < 1000/);
+  assert.match(app, /unit: 'm'/);
+  assert.match(app, /unit: 'km'/);
+  assert.match(app, /setHtml\('liveRouteRadius'/);
+  assert.match(styles, /\.route-value-grid-primary \{[^}]*minmax\(78px, 1\.25fr\)/);
+  assert.match(styles, /\.route-value-grid-primary strong \{[^}]*overflow: visible;[^}]*text-overflow: clip;/);
+});
+
 test('ROUTE destination times use the same 12px\/18px value typography as Current leg', () => {
   assert.match(styles, /\.route-value-grid strong \{[^}]*font: 500 12px\/18px var\(--font-mono\)/);
   assert.match(styles, /\.route-destination strong \{[^}]*font: 500 12px\/18px var\(--font-mono\)/);
@@ -187,6 +204,22 @@ test('performance charts use reusable Web Component graphs with English axes and
   assert.match(lineGraph, /class="axis-label x-label"/);
   assert.match(lineGraph, /class="axis-label y-label"/);
   assert.match(lineGraph, /class="legend"/);
+});
+
+test('algorithm detail and performance pages use readable typography and full-width interactive graphs', () => {
+  assert.match(styles, /\.algorithm-data-row \{[^}]*min-height: 42px;/);
+  assert.match(styles, /\.algorithm-data-row dt \{[^}]*font-size: 12px;/);
+  assert.match(styles, /\.algorithm-data-row dd \{[^}]*font: 650 13px\/18px/);
+  assert.match(styles, /\.algorithm-performance-list \.algorithm-data-row dd \{[^}]*font-size: 15px;/);
+  assert.match(styles, /\.algorithm-performance-panel colav-line-graph \{[^}]*height: 300px;[^}]*margin: var\(--s-2\) 4px;/);
+  assert.match(lineGraph, /const PLOT = \{ left: 36, top: 22, right: 294, bottom: 156 \}/);
+  assert.match(lineGraph, /class="axis-label y-label" x="36" y="12"/);
+  assert.doesNotMatch(lineGraph, /rotate\(-90\)/);
+  assert.match(lineGraph, /class="hover-crosshair hover-x"/);
+  assert.match(lineGraph, /addEventListener\('pointermove'/);
+  assert.match(lineGraph, /this\._hoverPointer = \{ clientX: event\.clientX \}/);
+  assert.match(lineGraph, /if \(this\._hoverPointer\) this\._showHoverForPointer\(this\._hoverPointer\)/);
+  assert.match(lineGraph, /X \$\{formatTick\(xValue\)\} · Y \$\{formatTick\(yValue\)\}/);
 });
 
 test('ownship click error reporting tolerates the removed legacy busy-water status node', () => {

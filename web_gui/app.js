@@ -1,5 +1,5 @@
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260819-candidate3-projection';
-import './modules/line-graph.js?v=20260821-graph-3';
+import './modules/line-graph.js?v=20260825-hover-2';
 import {
   createSituationDisplay,
   targetsForDisplay,
@@ -747,6 +747,16 @@ function setupSensorSourceDropdowns() {
   }
 }
 
+function formatRouteRadius(radiusM) {
+  if (!Number.isFinite(radiusM) || radiusM < 0) return null;
+  if (radiusM < 1000) return { value: String(Math.round(radiusM)), unit: 'm' };
+  const radiusKm = radiusM / 1000;
+  const value = radiusKm < 10
+    ? radiusKm.toFixed(2)
+    : radiusKm < 100 ? radiusKm.toFixed(1) : String(Math.round(radiusKm));
+  return { value, unit: 'km' };
+}
+
 function updateOwnshipTelemetry(proj) {
   const nav = proj.navigation || {};
   const data = proj.raw;
@@ -796,9 +806,10 @@ function updateOwnshipTelemetry(proj) {
   const turnRadiusM = Math.abs(rotDegMin) >= 1 && Number.isFinite(nav.sog) && nav.sog > 0.1 && yawRate > 1e-4
     ? nav.sog / yawRate
     : null;
-  setText('liveRouteRadius', turnRadiusM === null
-    ? '---'
-    : turnRadiusM >= 1852 ? `${(turnRadiusM / 1852).toFixed(2)} NM` : `${Math.round(turnRadiusM)} m`);
+  const routeRadius = formatRouteRadius(turnRadiusM);
+  setHtml('liveRouteRadius', routeRadius
+    ? `${routeRadius.value}<small> ${routeRadius.unit}</small>`
+    : '---');
   updateRouteCard(proj);
 
   // 3. Page 1: SENSOR Card Instruments

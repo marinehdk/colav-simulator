@@ -1,6 +1,6 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEWBOX = { width: 300, height: 190 };
-const PLOT = { left: 48, top: 18, right: 286, bottom: 146 };
+const PLOT = { left: 36, top: 22, right: 294, bottom: 156 };
 const TICK_COUNT = 5;
 
 function svgNode(name, attributes = {}) {
@@ -26,11 +26,13 @@ class ColavLineGraph extends HTMLElement {
     super();
     this._values = [];
     this._xValues = [];
+    this._plotState = null;
+    this._hoverPointer = null;
     this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = `
       <style>
         :host { min-width: 0; color: var(--ob-text, #16201d); font-family: var(--font-ui, sans-serif); }
-        figure { height: 100%; margin: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border: 1px solid var(--ob-border, #c7cecb); border-radius: var(--radius, 4px); background: var(--ob-surface, #fff); overflow: hidden; }
+        figure { height: 100%; box-sizing: border-box; margin: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border: 1px solid var(--ob-border, #c7cecb); border-radius: var(--radius, 4px); background: var(--ob-surface, #fff); overflow: hidden; }
         figcaption { min-height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--ob-border, #c7cecb); }
         .caption { font-size: 10px; font-weight: 650; }
         .summary { color: var(--ob-subtle, #65736f); font: 500 9px/14px var(--font-mono, monospace); white-space: nowrap; }
@@ -41,6 +43,10 @@ class ColavLineGraph extends HTMLElement {
         .marker { fill: var(--ob-accent, #1e5aa8); }
         text { fill: var(--ob-subtle, #65736f); font: 8px var(--font-mono, monospace); }
         .axis-label { fill: var(--ob-muted, #4d5d58); font-size: 8px; font-weight: 600; }
+        .hover-crosshair { stroke: var(--ob-accent, #1e5aa8); stroke-width: 1; stroke-dasharray: 3 3; opacity: .75; vector-effect: non-scaling-stroke; }
+        .hover-point { fill: var(--ob-surface, #fff); stroke: var(--ob-accent, #1e5aa8); stroke-width: 2; vector-effect: non-scaling-stroke; }
+        .hover-tooltip-bg { fill: color-mix(in srgb, var(--ob-surface, #fff) 92%, transparent); stroke: var(--ob-border, #c7cecb); stroke-width: 1; }
+        .hover-tooltip-text { fill: var(--ob-text, #16201d); font-size: 9px; font-weight: 650; }
         .empty { font-size: 10px; }
         .legend { min-height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-top: 1px solid var(--ob-border, #c7cecb); color: var(--ob-subtle, #65736f); font-size: 9px; }
         .legend i { width: 16px; height: 2px; background: var(--ob-accent, #1e5aa8); }
@@ -49,18 +55,34 @@ class ColavLineGraph extends HTMLElement {
         <figcaption><span class="caption"></span><span class="summary">Waiting for data</span></figcaption>
         <svg viewBox="0 0 300 190" role="img">
           <g class="grid-lines"></g>
-          <line class="axis" x1="48" y1="18" x2="48" y2="146"></line>
-          <line class="axis" x1="48" y1="146" x2="286" y2="146"></line>
+          <line class="axis" x1="36" y1="22" x2="36" y2="156"></line>
+          <line class="axis" x1="36" y1="156" x2="294" y2="156"></line>
           <g class="tick-labels"></g>
           <polyline class="series"></polyline>
           <circle class="marker" r="2.5" display="none"></circle>
+          <g class="hover" display="none" pointer-events="none">
+            <line class="hover-crosshair hover-x"></line>
+            <line class="hover-crosshair hover-y"></line>
+            <circle class="hover-point" r="3"></circle>
+            <rect class="hover-tooltip-bg" width="122" height="18" rx="3"></rect>
+            <text class="hover-tooltip-text"></text>
+          </g>
           <text class="empty" x="167" y="82" text-anchor="middle">Waiting for data</text>
           <text class="axis-label x-label" x="167" y="181" text-anchor="middle"></text>
-          <text class="axis-label y-label" transform="translate(10 82) rotate(-90)" text-anchor="middle"></text>
+          <text class="axis-label y-label" x="36" y="12" text-anchor="start"></text>
         </svg>
         <div class="legend"><i></i><span></span></div>
       </figure>
     `;
+    const svg = this.shadowRoot.querySelector('svg');
+    svg.addEventListener('pointermove', event => {
+      this._hoverPointer = { clientX: event.clientX };
+      this._showHoverForPointer(this._hoverPointer);
+    });
+    svg.addEventListener('pointerleave', () => {
+      this._hoverPointer = null;
+      this._hideHover();
+    });
   }
 
   connectedCallback() {
@@ -78,6 +100,65 @@ class ColavLineGraph extends HTMLElement {
       ? suppliedX
       : this._values.map((_, index) => index + 1);
     this._render();
+  }
+
+  _hideHover() {
+    this.shadowRoot?.querySelector('.hover')?.setAttribute('display', 'none');
+  }
+
+  _showHoverForPointer(event) {
+    if (!this._plotState || !this._values.length) return;
+    const svg = this.shadowRoot.querySelector('svg');
+    const bounds = svg.getBoundingClientRect();
+    if (!bounds.width) return;
+    const pointerX = (event.clientX - bounds.left) / bounds.width * VIEWBOX.width;
+    if (pointerX < PLOT.left || pointerX > PLOT.right) {
+      this._hideHover();
+      return;
+    }
+
+    const { xMin, xSpan, hasXRange, xAt, yAt, unit } = this._plotState;
+    const targetX = hasXRange
+      ? xMin + (pointerX - PLOT.left) / (PLOT.right - PLOT.left) * xSpan
+      : xMin;
+    let nearestIndex = 0;
+    for (let index = 1; index < this._xValues.length; index += 1) {
+      if (Math.abs(this._xValues[index] - targetX) < Math.abs(this._xValues[nearestIndex] - targetX)) {
+        nearestIndex = index;
+      }
+    }
+
+    const xValue = this._xValues[nearestIndex];
+    const yValue = this._values[nearestIndex];
+    const x = xAt(xValue);
+    const y = yAt(yValue);
+    const tooltipWidth = 122;
+    const tooltipX = x + 7 + tooltipWidth <= VIEWBOX.width
+      ? x + 7
+      : x - tooltipWidth - 7;
+    const tooltipY = Math.max(PLOT.top, Math.min(PLOT.bottom - 20, y - 23));
+    const hover = this.shadowRoot.querySelector('.hover');
+    const vertical = hover.querySelector('.hover-x');
+    const horizontal = hover.querySelector('.hover-y');
+    const point = hover.querySelector('.hover-point');
+    const background = hover.querySelector('.hover-tooltip-bg');
+    const text = hover.querySelector('.hover-tooltip-text');
+    vertical.setAttribute('x1', x);
+    vertical.setAttribute('x2', x);
+    vertical.setAttribute('y1', PLOT.top);
+    vertical.setAttribute('y2', PLOT.bottom);
+    horizontal.setAttribute('x1', PLOT.left);
+    horizontal.setAttribute('x2', PLOT.right);
+    horizontal.setAttribute('y1', y);
+    horizontal.setAttribute('y2', y);
+    point.setAttribute('cx', x);
+    point.setAttribute('cy', y);
+    background.setAttribute('x', tooltipX);
+    background.setAttribute('y', tooltipY);
+    text.setAttribute('x', tooltipX + 5);
+    text.setAttribute('y', tooltipY + 12);
+    text.textContent = `X ${formatTick(xValue)} · Y ${formatTick(yValue)}${unit ? ` ${unit}` : ''}`;
+    hover.removeAttribute('display');
   }
 
   _render() {
@@ -98,8 +179,10 @@ class ColavLineGraph extends HTMLElement {
     const labels = this.shadowRoot.querySelector('.tick-labels');
     grid.replaceChildren();
     labels.replaceChildren();
+    this._hideHover();
 
     if (!this._values.length) {
+      this._plotState = null;
       empty.removeAttribute('display');
       marker.setAttribute('display', 'none');
       series.setAttribute('points', '');
@@ -121,6 +204,7 @@ class ColavLineGraph extends HTMLElement {
       ? PLOT.left + (value - xMin) / xSpan * (PLOT.right - PLOT.left)
       : (PLOT.left + PLOT.right) / 2;
     const yAt = value => PLOT.bottom - (value - yMin) / ySpan * (PLOT.bottom - PLOT.top);
+    this._plotState = { xMin, xSpan, hasXRange, xAt, yAt, unit };
 
     for (let index = 0; index < TICK_COUNT; index += 1) {
       const ratio = index / (TICK_COUNT - 1);
@@ -145,6 +229,7 @@ class ColavLineGraph extends HTMLElement {
     const suffix = unit ? ` ${unit}` : '';
     this.shadowRoot.querySelector('.summary').textContent =
       `Latest ${formatTick(this._values.at(-1))}${suffix} · Max ${formatTick(rawMax)}${suffix}`;
+    if (this._hoverPointer) this._showHoverForPointer(this._hoverPointer);
   }
 }
 
