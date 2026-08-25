@@ -10,6 +10,7 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
 from colav_simulator.experiment.contracts import InternalExecutionPurpose, _ship_domain_profile_from_mapping
 from colav_simulator.experiment.g3_gate import PREDICATE_VERSION
+from colav_simulator.historical_scenario_catalog import HISTORICAL_AIS_SCENARIO_ID
 
 CAPABILITY_SCHEMA_VERSION = "1.0"
 ENCOUNTER_PROFILE_ID = "legacy-g3-v1"
@@ -105,6 +106,13 @@ SCENARIOS: dict[str, Capability] = {
         ("rrt_test",),
         ("static", "enc"),
         "Scenario preparation fails with an empty safe-sea Polygon.",
+    ),
+    HISTORICAL_AIS_SCENARIO_ID: Capability(
+        "G2",
+        ("multiship",),
+        (HISTORICAL_AIS_SCENARIO_ID,),
+        ("dynamic", "enc"),
+        None,
     ),
 }
 
@@ -779,6 +787,23 @@ EXPERIMENTAL_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
 }
 EXPERIMENTAL_COMBINATIONS[("multiship", "romsdal_busy_water_16", "mid_mpc_ipopt", "god")] = dict(
     _BUSY_WATER_EVIDENCE["romsdal_busy_water_16"]
+)
+
+# Historical AIS scene: experimental Counterfactual selection for every product
+# algorithm on Truth.  Verified-tuple evidence stays on the paper scene via the
+# descriptor's ALGORITHM_CAPABILITY_ONLY cross-scene receipt (ADR-0004).
+_HISTORICAL_AIS_EVIDENCE = {
+    "seed": 0,
+    "evidence_role": "experimental_historical_counterfactual",
+    "readiness_grade": "G2",
+    "promotion_status": "NOT_QUALIFIED_THREAT_EVIDENCE_INCOMPLETE",
+    "scope": "bounded_historical_window_counterfactual",
+}
+EXPERIMENTAL_COMBINATIONS.update(
+    {
+        ("multiship", HISTORICAL_AIS_SCENARIO_ID, algorithm_id, "god"): dict(_HISTORICAL_AIS_EVIDENCE)
+        for algorithm_id in PRODUCT_CAPABILITY_POLICY.algorithm_ids
+    }
 )
 
 

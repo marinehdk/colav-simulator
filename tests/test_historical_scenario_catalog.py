@@ -263,14 +263,21 @@ def test_historical_scenario_catalog_api_is_separate_from_legacy_scenarios(monke
     with TestClient(app) as client:
         scenarios = client.get("/api/historical/scenarios")
         descriptor = client.get(f"/api/historical/scenarios/{HISTORICAL_AIS_SCENARIO_ID}")
-        legacy = client.get("/api/scenarios")
+        merged = client.get("/api/scenarios")
 
     assert scenarios.status_code == 200
     assert [item["id"] for item in scenarios.json()] == [HISTORICAL_AIS_SCENARIO_ID]
     assert descriptor.status_code == 200
     assert descriptor.json()["kind"] == "HISTORICAL_AIS"
     assert descriptor.json()["readiness"]["status"] == "SOURCE_BINDING_MISSING"
-    assert HISTORICAL_AIS_SCENARIO_ID not in {item["id"] for item in legacy.json()}
+    # ADR-0004: the merged /api/scenarios seam lists the scene (not selectable
+    # without the archive binding); the historical API stays the deep
+    # descriptor/readiness surface.
+    merged_entry = next(
+        (item for item in merged.json() if item["id"] == HISTORICAL_AIS_SCENARIO_ID), None
+    )
+    assert merged_entry is not None
+    assert merged_entry["selectable"] is False
 
 
 def test_historical_scenario_workflow_creation_fails_closed_without_archive_binding(monkeypatch) -> None:

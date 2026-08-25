@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import math
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from functools import lru_cache
@@ -197,7 +198,59 @@ class ExperimentRunner:
                     }
                 )
             )
+        scenarios.extend(
+            self.capabilities.annotate_scenario(document)
+            for document in self._historical_scenario_documents()
+        )
         return scenarios
+
+    def _historical_scenario_documents(self) -> list[dict[str, Any]]:
+        """List bounded Historical AIS scenes through the same catalog seam.
+
+        Listing uses a cheap source-presence check; archive content identity
+        stays fail-closed at Counterfactual binding time (prepare path).
+        """
+        from colav_simulator.historical_scenario_catalog import (  # noqa: PLC0415
+            HAIS_ARCHIVE_ENV_VAR,
+            HistoricalAISScenarioCatalog,
+        )
+
+        raw_path = os.environ.get(HAIS_ARCHIVE_ENV_VAR, "").strip()
+        source_present = bool(raw_path) and Path(raw_path).expanduser().is_file()
+        documents = []
+        for entry in HistoricalAISScenarioCatalog().list():
+            window = entry["current_window"]
+            documents.append(
+                {
+                    "id": entry["id"],
+                    "name": entry["display_name"],
+                    "type": str(entry.get("kind", "HISTORICAL_AIS")),
+                    "dt": 1.0,
+                    "t_start": 0.0,
+                    "t_end": float(window.get("duration_s", 60.0)),
+                    "ships": int(window.get("runtime_actor_count", 0)),
+                    "provenance": {
+                        "source": "HistoricalAISScenarioCatalog",
+                        "reconstructed": True,
+                        "confidence": "source_presence_only",
+                    },
+                    "valid": source_present,
+                    "reason": None if source_present else f"{HAIS_ARCHIVE_ENV_VAR} is not configured",
+                    "historical_ais": {
+                        "start_utc": window["start_utc"],
+                        "end_utc": window["end_utc"],
+                        "t0_utc": window["t0_utc"],
+                        "bbox": list(window["bbox"]),
+                        "reference_mmsi": window["reference_mmsi"],
+                        "target_mmsi": list(window["target_mmsi"]),
+                        "runtime_actor_count": int(window.get("runtime_actor_count", 0)),
+                        "modes": list(entry.get("modes", ())),
+                        "limitations": list(entry.get("limitations", ())),
+                        "source_present": source_present,
+                    },
+                }
+            )
+        return documents
 
     def list_capabilities(self, validation_rule_id: str | None = None) -> dict[str, Any]:
         """Return the selection catalog with readiness distinct from import status."""

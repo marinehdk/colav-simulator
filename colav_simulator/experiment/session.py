@@ -16,6 +16,7 @@ from colav_simulator.core import stochasticity
 from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
 from colav_simulator.core.ship import Ship
 from colav_simulator.experiment.contracts import SessionState
+from colav_simulator.experiment.threat_baseline import baseline_due, build_baseline_cycle_inputs
 from colav_simulator.simulator import Simulator
 
 
@@ -60,6 +61,8 @@ class SimulationSession:
         )
         self.state = SessionState.CREATED
         self.sequence = 0
+        self._baseline_threat_sequence = 0
+        self.baseline_threat_failure_reason: str | None = None
         self._frames_live: list[dict[str, Any]] = []
         self._frame_blobs: list[bytes] | None = None
         self._frames_decoded: list[dict[str, Any]] | None = None
@@ -147,6 +150,7 @@ class SimulationSession:
                 self._frames_decoded = None
             self.sequence += 1
             step_events = self._planner_events(payload)
+            self._advance_baseline_threat_cycle()
             stress_only = self.config.name.startswith("romsdal_busy_water_80_stress")
             collision_evidence = [] if stress_only else self.simulator.detect_ship_collisions(0)
             collision = bool(collision_evidence)
@@ -180,6 +184,33 @@ class SimulationSession:
             self.state = SessionState.FAILED
             self._event("session_failed", reason=str(exc))
             raise
+
+    def _advance_baseline_threat_cycle(self) -> None:
+        """Advance the coordinator once per tick when no adapter cycle ran.
+
+        Failures degrade to a recorded reason — a monitor-grade cycle must not
+        fail a run.
+        """
+        coordinator = self.threat_management_coordinator
+        if coordinator is None:
+            return
+        sim_time = float(self.simulator.t)
+        if not baseline_due(coordinator, sim_time, float(self.simulator.dt)):
+            return
+        try:
+            self._baseline_threat_sequence += 1
+            inputs = build_baseline_cycle_inputs(
+                self.ship_list,
+                sim_time_s=sim_time,
+                sequence=self._baseline_threat_sequence,
+            )
+            coordinator.cycle(
+                inputs.cycle,
+                predictions=inputs.predictions,
+                baseline_prediction=inputs.baseline_prediction,
+            )
+        except Exception as exc:  # noqa: BLE001 - monitor-grade degradation
+            self.baseline_threat_failure_reason = str(exc)
 
     def _event(self, event_type: str, *, event_sim_time: float | None = None, **details: Any) -> dict[str, Any]:
         event = {

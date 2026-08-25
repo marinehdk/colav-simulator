@@ -12,14 +12,13 @@ from colav_simulator.experiment import ExperimentRunner, RunSpec
 from gui_server.main import _select_primary_encounter, app
 
 
-def _assert_typed_threat_unavailable(payload: dict) -> None:
+def _assert_baseline_threat_available(payload: dict) -> None:
+    """Session-owned baseline cycle (ADR-0002): canonical account, inert aliases."""
     threat = payload["threat_management"]
-    assert threat["status"] == "UNAVAILABLE"
-    assert threat["unavailable_reason"] == "THREAT_SNAPSHOT_UNAVAILABLE"
-    assert threat["snapshot"] is None
-    assert threat["vectors"] == []
-    assert threat["schedule"] is None
-    assert threat["conflicts"] is None
+    assert threat["status"] == "AVAILABLE"
+    assert threat["unavailable_reason"] is None
+    assert threat["snapshot"] is not None
+    assert isinstance(threat["vectors"], list)
     assert payload["primary_encounter"] is None
     assert payload["dcpa"] is None
     assert payload["tcpa"] is None
@@ -412,7 +411,7 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
         chart_depths = {float(depth) for depth in gui_main.manager.prepared.session.enc.seabed}
         assert first.json()["os"]["floor_depth_m"] in chart_depths
         assert first.json()["os"]["floor_depth_source"] == "ENC_DEPTH_BIN_LOWER_BOUND"
-        _assert_typed_threat_unavailable(first.json())
+        _assert_baseline_threat_available(first.json())
 
         second = client.post(f"/api/sessions/{session_id}/step")
         assert second.status_code == 200
@@ -651,7 +650,7 @@ def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
         assert telemetry["latest_planner_attempt"]["solver_executed"] is True
         assert telemetry["latest_planner_attempt"]["solve_id"] == telemetry["planner"]["solve_id"]
         assert len(telemetry["plans"]["prediction_horizon"]) >= 1
-        _assert_typed_threat_unavailable(telemetry)
+        _assert_baseline_threat_available(telemetry)
 
 
 def test_mid_mpc_rest_and_websocket_publish_one_typed_authority_projection() -> None:

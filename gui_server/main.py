@@ -42,6 +42,8 @@ from colav_simulator.experiment.busy_water import (
 from colav_simulator.experiment.contracts import RunSpec, SessionState
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner, PreparedRun, RunResult
+from colav_simulator.historical_counterfactual import HistoricalAISCounterfactualRunRequest
+from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCatalog
 from gui_server.historical_api import router as historical_api_router
 
 log = logging.getLogger("gui_server")
@@ -106,16 +108,7 @@ def _canonical_threat_projection(colav_data: dict[str, Any], planner: dict[str, 
         or colav_data.get("threat_management")
     )
     if not isinstance(candidate, dict):
-        return {
-            "schema_version": THREAT_PROJECTION_SCHEMA,
-            "status": "UNAVAILABLE",
-            "snapshot": None,
-            "vectors": [],
-            "schedule": None,
-            "conflicts": None,
-            "conflict_graph": None,
-            "unavailable_reason": "THREAT_SNAPSHOT_UNAVAILABLE",
-        }
+        return _threat_unavailable()
     snapshot = candidate.get("snapshot")
     if snapshot is None and "vectors" in candidate:
         snapshot = candidate
@@ -137,6 +130,39 @@ def _canonical_threat_projection(colav_data: dict[str, Any], planner: dict[str, 
         "conflicts": graph,
         "conflict_graph": graph,
         "unavailable_reason": None if available else candidate.get("unavailable_reason", "THREAT_SNAPSHOT_UNAVAILABLE"),
+    }
+
+
+def _threat_unavailable(reason: str = "THREAT_SNAPSHOT_UNAVAILABLE") -> dict[str, Any]:
+    return {
+        "schema_version": THREAT_PROJECTION_SCHEMA,
+        "status": "UNAVAILABLE",
+        "snapshot": None,
+        "vectors": [],
+        "schedule": None,
+        "conflicts": None,
+        "conflict_graph": None,
+        "unavailable_reason": reason,
+    }
+
+
+def _session_threat_projection(session: Any) -> dict[str, Any]:
+    """Project the session-owned canonical snapshot when no adapter published one."""
+    coordinator = getattr(session, "threat_management_coordinator", None)
+    snapshot = coordinator.last_snapshot if coordinator is not None else None
+    if snapshot is None:
+        return _threat_unavailable()
+    document = snapshot.to_dict()
+    return {
+        "schema_version": THREAT_PROJECTION_SCHEMA,
+        "status": "AVAILABLE",
+        "snapshot": jsonable(document),
+        "vectors": jsonable(document.get("vectors", [])),
+        "schedule": jsonable(document.get("schedule")),
+        # The legacy alias deliberately mirrors the typed conflict_graph field.
+        "conflicts": jsonable(document.get("conflict_graph")),
+        "conflict_graph": jsonable(document.get("conflict_graph")),
+        "unavailable_reason": None,
     }
 
 
@@ -172,6 +198,49 @@ class SessionCreateRequest(BaseModel):
             preflight_document(override, seed=self.seed)
             payload["scenario_override"] = override
         return RunSpec(**payload, output_root="runs")
+
+
+def _historical_session_spec(request: SessionCreateRequest) -> RunSpec | None:
+    """Build the Counterfactual RunSpec when the selection names a Historical AIS scene."""
+    try:
+        descriptor = HistoricalAISScenarioCatalog().get(request.scenario_id)
+    except KeyError:
+        return None
+    if request.validation_rule_id is None:
+        raise ColavExecutionError(
+            PlanStatus.INVALID_INPUT,
+            "Product session create requires an explicit validation_rule_id and exact capability tuple",
+        )
+    manager.runner.capabilities.validate(
+        request.validation_rule_id,
+        request.scenario_id,
+        request.algorithm_id,
+        request.tracker_id,
+    )
+    overrides: dict[str, Any] = {
+        "algorithm_id": request.algorithm_id,
+        "algorithm_config": request.algorithm_config,
+        "tracker_config": request.tracker_config,
+        "evaluator_profile_id": request.evaluator_profile_id,
+    }
+    if request.dt is not None:
+        overrides["dt"] = request.dt
+    if request.t_end is not None:
+        overrides["t_end"] = request.t_end
+    if request.domain_profile is not None:
+        overrides["domain_profile"] = request.domain_profile
+    context = descriptor.bind_counterfactual(run_spec_overrides=overrides)
+    counterfactual = HistoricalAISCounterfactualRunRequest(
+        case=context.case,
+        run_spec=context.run_spec,
+        human_reference_artifact_digest=context.human_reference.trajectory_digest,
+    )
+    return replace(
+        counterfactual.to_run_spec(),
+        validation_rule_id=request.validation_rule_id,
+        seed=request.seed,
+        strict_no_fallback=request.strict_no_fallback,
+    )
 
 
 class BusyWaterDraftRequest(BaseModel):
@@ -792,6 +861,17 @@ class WebSessionManager:
         colav_data = own_raw.get("colav", {}) if own_raw else {}
         planner = colav_data.get("planner", {})
         threat_management = _canonical_threat_projection(colav_data, planner)
+        adapter_published_threat = bool(
+            planner.get("threat_management")
+            or planner.get("algorithm_details", {}).get("threat_management")
+            or colav_data.get("threat_management")
+        )
+        if not adapter_published_threat:
+            # Session-owned baseline cycle (ADR-0002): every session exposes the
+            # coordinator's canonical account, not only algorithm adapters that
+            # publish their own threat document.  A typed adapter UNAVAILABLE
+            # document is never masked by this fallback.
+            threat_management = _session_threat_projection(session)
         # Legacy aliases remain present for old clients, but never carry a
         # browser/server-local risk interpretation.
         encounters = []
@@ -1201,7 +1281,8 @@ def api_save_busy_water_draft(request: BusyWaterDraftRequest) -> dict[str, Any]:
 @app.post("/api/sessions")
 def api_create_session(request: SessionCreateRequest) -> dict[str, Any]:
     try:
-        return manager.create(request.to_spec())
+        spec = _historical_session_spec(request) or request.to_spec()
+        return manager.create(spec)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
 

@@ -1,9 +1,9 @@
 """Compatibility guards for the first independent Historical AIS catalog scene.
 
-These tests deliberately keep the existing scripted scenario and capability
-surfaces as characterization baselines.  The independent Historical AIS
-descriptor is checked through its dedicated catalog; it does not authorize
-changing the legacy Config catalog.
+These tests keep the scripted scenario corpus and the verified exact tuples as
+characterization baselines.  Per ADR-0004 the Historical AIS scene is merged
+into the product catalog as Counterfactual-only EXPERIMENTAL tuples; verified
+tuples and the YAML corpus stay unchanged.
 """
 
 from __future__ import annotations
@@ -111,7 +111,8 @@ def test_existing_scenario_ids_remain_in_api_catalog() -> None:
     assert response.status_code == 200
     observed_ids = {item["id"] for item in response.json()}
     assert set(EXPECTED_SCENARIO_YAML_SHA256) <= observed_ids
-    assert HISTORICAL_AIS_SCENE_ID not in observed_ids
+    # ADR-0004: the Historical AIS scene is listed through the merged catalog seam.
+    assert HISTORICAL_AIS_SCENE_ID in observed_ids
 
 
 def test_existing_verified_exact_tuples_remain_unchanged_and_independent() -> None:
@@ -136,20 +137,22 @@ def test_existing_verified_exact_tuples_remain_unchanged_and_independent() -> No
         }
         assert observed_filtered == {item for item in EXPECTED_VERIFIED_TUPLES if item[0] == rule_id}
 
-    all_catalog_items = [
-        *catalog["rules"],
-        *catalog["scenarios"],
-        *catalog["algorithms"],
-        *catalog["trackers"],
-        *catalog["verified_combinations"],
-        *catalog["experimental_combinations"],
-        *catalog["selectable_combinations"],
-    ]
-    assert all(
-        HISTORICAL_AIS_SCENE_ID not in (item.get("supported_scenarios") or [])
-        and item.get("scenario_id") != HISTORICAL_AIS_SCENE_ID
-        for item in all_catalog_items
-    )
+    # ADR-0004: the Historical AIS scene is Counterfactual-only EXPERIMENTAL —
+    # never verified, never nominal-selectable, and confined to the multiship rule.
+    hais_experimental = {
+        tuple(item[field] for field in tuple_fields)
+        for item in catalog["experimental_combinations"]
+        if item["scenario_id"] == HISTORICAL_AIS_SCENE_ID
+    }
+    assert hais_experimental == {
+        ("multiship", HISTORICAL_AIS_SCENE_ID, "vo", "god"),
+        ("multiship", HISTORICAL_AIS_SCENE_ID, "potocnik_colreg_fan_mpc", "god"),
+        ("multiship", HISTORICAL_AIS_SCENE_ID, "mid_mpc_ipopt", "god"),
+    }
+    hais_scenarios = [item for item in catalog["scenarios"] if item["id"] == HISTORICAL_AIS_SCENE_ID]
+    assert len(hais_scenarios) == 1
+    assert hais_scenarios[0]["supported_rules"] == ["multiship"]
+    assert hais_scenarios[0]["historical_ais"]["reference_mmsi"] == 259189000
 
 
 def test_independent_historical_ais_catalog_publishes_current_scene() -> None:

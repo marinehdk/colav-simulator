@@ -354,7 +354,6 @@ def _run_spec(
     binding = descriptor.runtime_binding
     capability = _thaw(descriptor.algorithm_capability_evidence)
     algorithm_id = "nominal" if mode == "HISTORICAL_REPLAY" else str(binding["algorithm_id"])
-    capability["exact_tuple"][2] = algorithm_id
     result = {
         "scenario_id": descriptor.scenario_id,
         "historical_scenario_id": descriptor.scenario_id,
@@ -369,11 +368,25 @@ def _run_spec(
     if mode != "HISTORICAL_REPLAY":
         result["domain_profile"] = _thaw(binding["domain_profile"])
     if overrides:
-        allowed = {"algorithm_config", "tracker_config", "dt", "t_end", "evaluator_profile_id", "domain_profile"}
+        allowed = {
+            "algorithm_id",
+            "algorithm_config",
+            "tracker_config",
+            "dt",
+            "t_end",
+            "evaluator_profile_id",
+            "domain_profile",
+        }
         unknown = sorted(set(overrides).difference(allowed))
         if unknown:
             raise ValueError(f"unsupported Historical AIS run options: {unknown}")
+        if mode == "HISTORICAL_REPLAY" and "algorithm_id" in overrides:
+            raise ValueError("HISTORICAL_REPLAY algorithm stays sealed to nominal")
         result.update(dict(overrides))
+        if "algorithm_id" in overrides:
+            algorithm_id = str(overrides["algorithm_id"]).strip().lower()
+    capability["exact_tuple"][2] = algorithm_id
+    result["algorithm_id"] = algorithm_id
     return result
 
 

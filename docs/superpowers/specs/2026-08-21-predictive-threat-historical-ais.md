@@ -209,9 +209,9 @@ This addendum is normative for the first front-end Historical AIS delivery. It n
 ### Published scene identity and modes
 
 - Publish one independent catalog descriptor with ID `hais_romsdal_20260701_120000_120100`.
-- Expose it through a dedicated Historical AIS catalog/workflow API. The legacy `/api/scenarios` response remains the scripted YAML catalog and must not contain this ID.
+- Expose it through a dedicated Historical AIS catalog/workflow API. ~~The legacy `/api/scenarios` response remains the scripted YAML catalog and must not contain this ID.~~ *[Revised 2026-08-25: the merged catalog seam lists this ID (cheap source-presence gate) per ADR-0004.]*
 - The descriptor represents one immutable Historical AIS selection and exposes two workflow modes: `HISTORICAL_REPLAY` and `COUNTERFACTUAL`. The mode is the only semantic branch; do not publish duplicate scenario IDs for the two modes.
-- The descriptor is not a Rule 13/14/15 or generic `multiship` validation scene. It must not be added to existing rule `supported_scenarios`, `verified_combinations`, `experimental_combinations`, or generic COLAV Create exact tuples. Existing YAML scenario files and existing exact tuples are compatibility surfaces and remain byte/identity stable.
+- The descriptor is not a Rule 13/14/15 or generic `multiship` validation scene. ~~It must not be added to existing rule `supported_scenarios`, `verified_combinations`, `experimental_combinations`, or generic COLAV Create exact tuples.~~ *[Revised 2026-08-25: Counterfactual-only EXPERIMENTAL `multiship` tuples and ordinary Create are admitted per ADR-0004; the scene never enters `verified_combinations`.]* Existing YAML scenario files and existing exact tuples are compatibility surfaces and remain byte/identity stable.
 - Existing scripted scenes (`head_on`, `overtaking`, `crossing_*`, `paper_ccta2023_multiship`, and `romsdal_busy_water_*`) remain unchanged and continue to use the existing Config assembly. The new scene is selected through a dedicated Historical AIS surface.
 
 ### Current source, window and actor-count boundary
@@ -242,7 +242,7 @@ Conflict-cluster qualification is also a future gate, separate from scene operab
 
 ### Front-end acceptance contract
 
-- OpenBridge mounts the descriptor under a dedicated Historical AIS entry in `Evaluation` or `Scenario`; it does not alter existing Rule Config cards or their exact-tuple assembly.
+- OpenBridge mounts the benchmark surface under a dedicated Historical AIS entry in `Evaluation` *[Revised 2026-08-25: the `Scenario`/`Algorithm` workfaces are deleted; scene browsing lives in Config Step 02, interactive playback in Deployment per ADR-0004]*; it does not alter existing Rule Config cards or their exact-tuple assembly.
 - The panel shows source archive/entry, UTC window, WGS84 bounding box, selected and published actor counts, MMSI/Reference Vessel, T0, ENC profile/qualification, coverage limitation and readiness/digest state before run.
 - `Historical Replay` invokes the historical workflow and renders playback/evidence. `Counterfactual` invokes the same immutable Case with post-T0 Reference Vessel control through the normal algorithm path; surrounding actors remain playback and Human Reference remains Compare-only.
 - The panel consumes the backend REST/WS workflow snapshot and only formats/projects it. It must render typed unavailable/incomplete states and must never compute CPA, domain, Primary, schedule, clusters or verdicts in browser code.
@@ -250,7 +250,7 @@ Conflict-cluster qualification is also a future gate, separate from scene operab
 
 ### Product capability boundary
 
-- The product Config/API surface exposes only VO, Fan-MPC (`potocnik_colreg_fan_mpc`) and Mid-MPC (`mid_mpc_ipopt`) algorithms, each with the God tracker. The published capability catalog contains only those Product-Selectable Exact Tuples: 6 Rule 13 tuples, 3 Rule 14 tuples, 6 Rule 15 tuples and 3 Multiship tuples.
+- The product Config/API surface exposes only VO, Fan-MPC (`potocnik_colreg_fan_mpc`) and Mid-MPC (`mid_mpc_ipopt`) algorithms, each with the God tracker. The published capability catalog contains only those Product-Selectable Exact Tuples: 6 Rule 13 tuples, 3 Rule 14 tuples, 6 Rule 15 tuples and 3 Multiship verified tuples *[plus Historical-AIS/busy-water EXPERIMENTAL Multiship tuples after the 2026-08-25 revision]*.
 - `/api/capabilities` publishes the product policy identity and allowlists alongside the filtered exact tuples, so a client need not infer the product boundary from registry entries or a Cartesian product.
 - Nominal, SB-MPC, Potočnik simplified MPC, KF and scenario-default tracker implementations may remain in the runtime registry for internal Historical Replay, evaluator baselines and compatibility fixtures. They are Internal Legacy Tuples: product session validation returns typed `INVALID_INPUT`, and they do not appear in `verified_combinations`, `experimental_combinations` or `selectable_combinations`.
 - Busy-water experimental evidence is similarly restricted to the three product algorithms with God; the 80-ship stress scene has no Mid-MPC experimental tuple until separately qualified.
@@ -259,3 +259,14 @@ Conflict-cluster qualification is also a future gate, separate from scene operab
 ## Further Notes
 
 The repository glossary in `CONTEXT.md` and ADRs 0001–0003 define the shared vocabulary and authority boundaries. The existing design log records how DP-01–DP-04 were confirmed and how DP-05–DP-21 were frozen for implementation. Research citations in the offline attachment remain background; no external claim supersedes the project contracts above. This document is the implementation source of truth after the original attachment and issue body are synchronized.
+
+## Addendum 2026-08-25 — Product Catalog Integration (ADR-0004)
+
+The scene-visibility boundary above is revised by user decision: the canonical
+Historical AIS scene now also enters the product Config catalog as
+Counterfactual-only EXPERIMENTAL tuples (`multiship × hais × product algorithm ×
+god`), and `POST /api/sessions` creates an ordinary Active Session that
+Deployment plays back. Verified tuples, the YAML corpus, the product capability
+policy, and the headless Historical Workflow evidence authority (double-run
+qualification/determinism/Compare) are unchanged. See
+`docs/adr/0004-historical-ais-scene-in-product-catalog.md`.
