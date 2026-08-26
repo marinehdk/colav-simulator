@@ -35,6 +35,7 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 from colav_simulator.experiment.busy_water import (
     ACCEPTANCE_SCENARIO_ID,
     DEFAULT_SEED,
+    DEFAULT_TARGET_COUNT,
     STRESS_SCENARIO_ID,
     build_busy_water_document,
     normalize_encounter_mix,
@@ -1412,7 +1413,7 @@ def api_integrations() -> dict[str, Any]:
 @app.get("/api/busy-water/generate")
 def api_busy_water_generate(
     profile: str = "acceptance",
-    target_count: int = 15,
+    target_count: int = DEFAULT_TARGET_COUNT,
     seed: int = DEFAULT_SEED,
     crossing_ratio: float = 0.6,
     head_on_ratio: float = 0.2,

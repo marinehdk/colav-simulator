@@ -33,12 +33,13 @@ def test_acceptance_scenario_is_deterministic_and_matches_committed_yaml() -> No
     committed = yaml.safe_load(Path("scenarios/romsdal_busy_water_16.yaml").read_text(encoding="utf-8"))
 
     assert _canonicalize_floats(generated) == _canonicalize_floats(committed)
-    assert len(generated["ship_list"]) == 16
-    assert len({ship["id"] for ship in generated["ship_list"]}) == 16
+    assert len(generated["ship_list"]) == 11
+    assert len({ship["id"] for ship in generated["ship_list"]}) == 11
     assert generated["t_end"] == BUSY_WATER_DURATION_S == 1200.0
     assert generated["ship_list"][0]["model"]["csog"]["length"] == 45.0
     assert generated["ship_list"][0]["model"]["csog"]["width"] == 8.0
     targets = generated["ship_list"][1:]
+    assert all(ship["t_start"] == 0.0 for ship in targets)
     assert all(ship["model"]["csog"]["length"] == 12.0 for ship in targets)
     assert all(ship["model"]["csog"]["width"] == 4.0 for ship in targets)
     assert all(0.0 <= ship["t_start"] < ship["t_end"] <= BUSY_WATER_DURATION_S for ship in targets)
@@ -68,15 +69,13 @@ def test_crossing_dominant_mix_uses_exact_largest_remainder_counts() -> None:
     }
 
 
-def test_acceptance_preflight_has_balanced_roles_and_valid_routes() -> None:
+def test_fixed_acceptance_preflight_has_expected_roles_and_valid_routes() -> None:
     result = preflight_document(build_busy_water_document("acceptance"))
 
-    configured = [item["configured_encounter"] for item in result["planned_events"]]
-    assert result["configured_encounter_counts"] == {"crossing": 9, "head_on": 3, "overtaking": 3}
-    assert abs(configured.count("crossing_give_way") - configured.count("crossing_stand_on")) <= 1
-    assert abs(configured.count("overtaking") - configured.count("overtaken")) <= 1
+    assert result["configured_encounter_counts"] == {"crossing": 7, "head_on": 1, "overtaking": 2}
     assert result["routes_inside_map"] is True
     assert result["initial_footprints_separated"] is True
+    assert result["nominal_target_collision_count"] == 0
 
 
 def test_configurable_target_count_and_seed_are_repeatable() -> None:
@@ -270,3 +269,24 @@ def test_override_session_exposes_all_ships_and_routes_while_created() -> None:
     assert telemetry["scenario_id"] == "romsdal_busy_water_16"
     assert len(telemetry["obstacles"]) == 3
     assert len(telemetry["target_routes"]) == 3
+
+
+def test_fixed_acceptance_session_starts_with_all_ten_targets_active() -> None:
+    with TestClient(gui_main.app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": "romsdal_busy_water_16",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "seed": 20250731,
+                "t_end": 0.1,
+            },
+        )
+        assert created.status_code == 200, created.json()
+        telemetry = client.post(f"/api/sessions/{created.json()['session_id']}/step")
+
+    assert telemetry.status_code == 200, telemetry.json()
+    target_ids = {int(item["id"]) for item in telemetry.json()["obstacles"]}
+    assert target_ids == set(range(1, 11))

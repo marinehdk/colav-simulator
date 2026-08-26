@@ -110,7 +110,7 @@ const SCENARIO_LABELS = {
   crossing_give_way: 'Give-way',
   crossing_stand_on: 'Stand-on',
   paper_ccta2023_multiship: 'Three-Ship',
-  romsdal_busy_water_16: 'Multiship-Configurable',
+  romsdal_busy_water_16: 'Multiship-10 Fixed',
   paper_ccta2023_head_on: 'Head-on (Paper)',
   hais_romsdal_20260701_120007_121007: 'AIS Romsdal (Historical)',
 };

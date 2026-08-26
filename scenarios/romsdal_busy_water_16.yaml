@@ -1,624 +1,434 @@
 name: romsdal_busy_water_16
 save_scenario: false
-t_start: 0.0
-t_end: 1200.0
+t_start: 0
+t_end: 1200
 dt_sim: 0.1
 utm_zone: 33
 map_size:
-- 5000.0
-- 5000.0
+- 5000
+- 5000
 map_origin_enu:
-- 38500.0
-- 6955450.0
+- 38500
+- 6955450
 map_data_files:
 - More_og_Romsdal_utm33.gdb
 new_load_of_map_data: true
 type: MS
 n_episodes: 1
-n_random_ships: 15
+n_random_ships: 10
 ship_list:
 - csog_state:
-  - 6956650.0
-  - 39800.0
-  - 6.0
-  - 0.0
+  - 6956650
+  - 39800
+  - 6
+  - 0
   waypoints:
-  - - 6956650.0
-    - 6960300.0
-  - - 39800.0
-    - 39800.0
+  - - 6956650
+    - 6960300
+  - - 39800
+    - 39800
   speed_plan:
-  - 6.0
-  - 6.0
+  - 6
+  - 6
   id: 0
   mmsi: 100
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 45.0
-      width: 8.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
+      draft: 3
+      length: 45
+      width: 8
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
 - csog_state:
-  - 6959631.002155135
-  - 39980.0
-  - 6.173985957108381
-  - 270.0
+  - 6957413.739475355
+  - 39489.328714643605
+  - 4.115552
+  - 90.36109815784562
   waypoints:
-  - - 6959631.002155135
-    - 6959631.002155135
-  - - 39980.0
-    - 39680.0
+  - - 6957413.739475355
+    - 6957409.732430226
+  - - 39489.328714643605
+    - 40125.121862510336
   speed_plan:
-  - 6.173985957108381
-  - 6.173985957108381
+  - 4.115552
+  - 4.115552
   id: 1
   mmsi: 101
-  t_start: 474.9099339667083
-  t_end: 523.5009094052897
+  t_start: 0.0
+  t_end: 154.48857767135945
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
   encounter_role: crossing_give_way
 - csog_state:
-  - 6956789.157882886
-  - 39825.08483043028
-  - 4.425526962490222
-  - 0.0
+  - 6957139.481798666
+  - 40224.89268202486
+  - 4.115552
+  - 271.36916588489106
   waypoints:
-  - - 6956680.302696476
-    - 6957680.302696476
-  - - 39825.08483043028
-    - 39825.08483043028
+  - - 6957139.481798666
+    - 6957162.422296388
+  - - 40224.89268202486
+    - 39265.079474767204
   speed_plan:
-  - 4.425526962490222
-  - 4.425526962490222
+  - 4.115552
+  - 4.115552
   id: 2
   mmsi: 102
   t_start: 0.0
-  t_end: 201.36467840844628
+  t_end: 233.28275734607953
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: overtaking
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
+  encounter_role: crossing_give_way
 - csog_state:
-  - 6957875.165708322
-  - 39790.45438888329
-  - 4.80804607061596
-  - 180.0
+  - 6957410.585545713
+  - 40675.03413880861
+  - 2.57222
+  - 288.7056493669495
   waypoints:
-  - - 6957875.165708322
-    - 6956875.165708322
-  - - 39790.45438888329
-    - 39790.45438888329
+  - - 6957410.585545713
+    - 6957815.75140703
+  - - 40675.03413880861
+    - 39478.41169220605
   speed_plan:
-  - 4.80804607061596
-  - 4.80804607061596
+  - 2.57222
+  - 2.57222
   id: 3
   mmsi: 103
-  t_start: 16.868603423522615
-  t_end: 224.85329935050854
+  t_start: 0.0
+  t_end: 491.1533712609114
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: head_on
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
+  encounter_role: crossing_give_way
 - csog_state:
-  - 6957062.975472527
-  - 39767.00248756167
-  - 4.3596282058860645
-  - 0.0
+  - 6958154.429352203
+  - 39740.18193418492
+  - 4.115552
+  - 181.526320856853
   waypoints:
-  - - 6957062.975472527
-    - 6958062.975472527
-  - - 39767.00248756167
-    - 39767.00248756167
+  - - 6958154.429352203
+    - 6956483.15402666
+  - - 39740.18193418492
+    - 39695.649753997044
   speed_plan:
-  - 4.3596282058860645
-  - 4.3596282058860645
+  - 4.115552
+  - 4.115552
   id: 4
   mmsi: 104
-  t_start: 37.473899723256736
-  t_end: 266.85125778554976
+  t_start: 0.0
+  t_end: 406.2319013878413
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
   encounter_role: overtaking
 - csog_state:
-  - 6957795.105290548
-  - 39980.0
-  - 5.160585233314142
-  - 270.0
+  - 6957999.646698784
+  - 39379.45871343021
+  - 3.086664
+  - 68.28385457825709
   waypoints:
-  - - 6957795.105290548
-    - 6957795.105290548
-  - - 39980.0
-    - 39680.0
+  - - 6957999.646698784
+    - 6958373.888135085
+  - - 39379.45871343021
+    - 40319.11507773341
   speed_plan:
-  - 5.160585233314142
-  - 5.160585233314142
+  - 3.086664
+  - 3.086664
   id: 5
   mmsi: 105
-  t_start: 150.20379256616798
-  t_end: 208.3367341680915
+  t_start: 0.0
+  t_end: 327.68060656757973
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
   encounter_role: crossing_give_way
 - csog_state:
-  - 6957991.3953934545
-  - 39980.0
-  - 4.837359631743537
-  - 270.0
+  - 6958493.075170569
+  - 40490.767510116566
+  - 4.115552
+  - 277.92350642513793
   waypoints:
-  - - 6957991.3953934545
-    - 6957991.3953934545
-  - - 39980.0
-    - 39680.0
+  - - 6958493.075170569
+    - 6958660.2465456715
+  - - 40490.767510116566
+    - 39289.648169534805
   speed_plan:
-  - 4.837359631743537
-  - 4.837359631743537
+  - 4.115552
+  - 4.115552
   id: 6
   mmsi: 106
-  t_start: 180.074535803814
-  t_end: 242.09183921688907
+  t_start: 0.0
+  t_end: 294.6620451266029
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
   encounter_role: crossing_give_way
 - csog_state:
-  - 6958150.833677789
-  - 39680.0
-  - 4.30229869155238
-  - 90.0
+  - 6959156.558117707
+  - 39867.327591844485
+  - 2.57222
+  - 180.07918062291716
   waypoints:
-  - - 6958150.833677789
-    - 6958150.833677789
-  - - 39680.0
-    - 39980.0
+  - - 6959156.558117707
+    - 6957845.966091352
+  - - 39867.327591844485
+    - 39865.516401561676
   speed_plan:
-  - 4.30229869155238
-  - 4.30229869155238
+  - 2.57222
+  - 2.57222
   id: 7
   mmsi: 107
-  t_start: 221.1660065994365
-  t_end: 290.8961721476942
+  t_start: 0.0
+  t_end: 509.51834518605244
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: crossing_stand_on
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
+  encounter_role: head_on
 - csog_state:
-  - 6958352.022361822
-  - 39680.0
-  - 5.177776897070122
-  - 90.0
+  - 6958391.3370487355
+  - 39783.32496368751
+  - 1.543332
+  - 359.891219532455
   waypoints:
-  - - 6958352.022361822
-    - 6958352.022361822
-  - - 39680.0
-    - 39980.0
+  - - 6958391.3370487355
+    - 6959805.425805184
+  - - 39783.32496368751
+    - 39780.64020361949
   speed_plan:
-  - 5.177776897070122
-  - 5.177776897070122
+  - 1.543332
+  - 1.543332
   id: 8
   mmsi: 108
-  t_start: 258.07296798158836
-  t_end: 316.01289199989765
+  t_start: 0.0
+  t_end: 916.2586566348932
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: crossing_stand_on
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
+  encounter_role: overtaking
 - csog_state:
-  - 6958543.83192438
-  - 39980.0
-  - 5.222374645652616
-  - 270.0
+  - 6958868.9993680185
+  - 39419.670388818195
+  - 2.057776
+  - 76.82429157226409
   waypoints:
-  - - 6958543.83192438
-    - 6958543.83192438
-  - - 39980.0
-    - 39680.0
+  - - 6958868.9993680185
+    - 6959117.855596614
+  - - 39419.670388818195
+    - 40482.701371915115
   speed_plan:
-  - 5.222374645652616
-  - 5.222374645652616
+  - 2.057776
+  - 2.057776
   id: 9
   mmsi: 109
-  t_start: 276.0129903760004
-  t_end: 333.45812220884125
+  t_start: 0.0
+  t_end: 530.558803629847
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
   encounter_role: crossing_give_way
 - csog_state:
-  - 6958213.283671098
-  - 39801.14658928982
-  - 7.034039448568683
-  - 0.0
+  - 6959514.3769035125
+  - 40378.39762513421
+  - 2.57222
+  - 208.02563998381567
   waypoints:
-  - - 6958213.283671098
-    - 6959213.283671098
-  - - 39801.14658928982
-    - 39801.14658928982
+  - - 6959514.3769035125
+    - 6957657.45989599
+  - - 40378.39762513421
+    - 39389.99118149647
   speed_plan:
-  - 7.034039448568683
-  - 7.034039448568683
+  - 2.57222
+  - 2.57222
   id: 10
   mmsi: 110
-  t_start: 272.7977008629496
-  t_end: 414.9635228364793
-  guidance:
-    los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
-      K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
-  controller:
-    pass_through_cs: ''
-  model:
-    csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: overtaken
-- csog_state:
-  - 6958893.506404963
-  - 39680.0
-  - 5.56429297003601
-  - 90.0
-  waypoints:
-  - - 6958893.506404963
-    - 6958893.506404963
-  - - 39680.0
-    - 39980.0
-  speed_plan:
-  - 5.56429297003601
-  - 5.56429297003601
-  id: 11
-  mmsi: 111
-  t_start: 356.2442216496597
-  t_end: 410.15942733985514
-  guidance:
-    los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
-      K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
-  controller:
-    pass_through_cs: ''
-  model:
-    csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: crossing_stand_on
-- csog_state:
-  - 6959656.0160246575
-  - 39778.38221473818
-  - 6.098363675979204
-  - 180.0
-  waypoints:
-  - - 6959656.0160246575
-    - 6958656.0160246575
-  - - 39778.38221473818
-    - 39778.38221473818
-  speed_plan:
-  - 6.098363675979204
-  - 6.098363675979204
-  id: 12
-  mmsi: 112
-  t_start: 335.6801307365644
-  t_end: 499.6585441491479
-  guidance:
-    los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
-      K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
-  controller:
-    pass_through_cs: ''
-  model:
-    csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: head_on
-- csog_state:
-  - 6959281.045224856
-  - 39680.0
-  - 4.175671175180124
-  - 90.0
-  waypoints:
-  - - 6959281.045224856
-    - 6959281.045224856
-  - - 39680.0
-    - 39980.0
-  speed_plan:
-  - 4.175671175180124
-  - 4.175671175180124
-  id: 13
-  mmsi: 113
-  t_start: 413.58137498834003
-  t_end: 485.42611261595243
-  guidance:
-    los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
-      K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
-  controller:
-    pass_through_cs: ''
-  model:
-    csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: crossing_stand_on
-- csog_state:
-  - 6959483.234642769
-  - 39980.0
-  - 4.630357112555936
-  - 270.0
-  waypoints:
-  - - 6959483.234642769
-    - 6959483.234642769
-  - - 39980.0
-    - 39680.0
-  speed_plan:
-  - 4.630357112555936
-  - 4.630357112555936
-  id: 14
-  mmsi: 114
-  t_start: 433.3780790306926
-  t_end: 498.16789819744827
-  guidance:
-    los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
-      K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
-  controller:
-    pass_through_cs: ''
-  model:
-    csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: crossing_give_way
-- csog_state:
-  - 6957394.411725688
-  - 39794.6283587346
-  - 5.715263568180881
-  - 180.0
-  waypoints:
-  - - 6957531.252229464
-    - 6956531.252229464
-  - - 39794.6283587346
-    - 39794.6283587346
-  speed_plan:
-  - 5.715263568180881
-  - 5.715263568180881
-  id: 15
-  mmsi: 115
   t_start: 0.0
-  t_end: 151.02706741804565
+  t_end: 817.8108133533095
   guidance:
     los:
-      pass_angle_threshold: 80.0
-      R_a: 40.0
+      pass_angle_threshold: 80
+      R_a: 40
       K_p: 0.015
-      K_i: 0.0
-      max_cross_track_error_int: 200.0
-      cross_track_error_int_threshold: 30.0
+      K_i: 0
+      max_cross_track_error_int: 200
+      cross_track_error_int_threshold: 30
   controller:
     pass_through_cs: ''
   model:
     csog:
-      draft: 3.0
-      length: 12.0
-      width: 4.0
-      T_chi: 3.0
-      T_U: 5.0
-      r_max: 4.0
-      U_min: 0.0
-      U_max: 15.0
-  encounter_role: head_on
+      draft: 3
+      length: 12
+      width: 4
+      T_chi: 3
+      T_U: 5
+      r_max: 4
+      U_min: 0
+      U_max: 15
+  encounter_role: crossing_give_way

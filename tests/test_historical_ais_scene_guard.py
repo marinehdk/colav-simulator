@@ -65,7 +65,7 @@ EXPECTED_SCENARIO_YAML_SHA256 = {
     "rlmpc_scenario_ms_channel": "efc9c69858b6d17f15812eaa1afc2bf5cc0b9fb1ce755be468a9e4c6b532b19f",
     "rlmpc_scenario_ms_channel_vimmjipda": "a21c0375e727c0bc54237398f790bce4aafb9a1ceaae622eefbea9ae16224ead",
     "rogaland_random_rl": "564d37589880dd50c38d5e5c345ecb16a88cd39f87748b11f215b2599eb7da4c",
-    "romsdal_busy_water_16": "a5a5d34e928697c6736899779648c23b6928224a36acd86b5dab95d9e0ac22f3",
+    "romsdal_busy_water_16": "851a238d1e6b84ad623d720c1dc02fe2acee17688df4176b46ec4f57aea43e38",
     "romsdal_busy_water_80_stress": "d614c32314bc1e2a7ab540d1fd298f80bfdb0cc0aefbaa015e591ae3b5ed350b",
     "rrt_test": "ea62d5ba5c1b0182bebbc1d6c9c46d3c8baa38991d3b270fc27edf9e0be5a4b2",
     "simple_planning_example": "cfeda84231b6b19812e66f91a8cd4e4df6bb802fc23441df1ddb1083e16caa27",

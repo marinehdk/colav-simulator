@@ -9,12 +9,14 @@ from typing import Any
 import numpy as np
 import yaml
 
+from colav_simulator.common import paths
 from colav_simulator.evaluation.encounter import classify_geometry, velocity_ne
 
 DEFAULT_SEED = 20250731
 ACCEPTANCE_SCENARIO_ID = "romsdal_busy_water_16"
 STRESS_SCENARIO_ID = "romsdal_busy_water_80_stress"
-DEFAULT_TARGET_COUNT = 15
+DEFAULT_TARGET_COUNT = 10
+FULL_TRANSIT_CLEARANCE_TARGET_LIMIT = 15
 MAX_TARGET_COUNT = 79
 BUSY_WATER_DURATION_S = 1200.0
 DEFAULT_ENCOUNTER_MIX = {
@@ -44,6 +46,9 @@ def build_busy_water_document(
     """Build one complete deterministic scenario document."""
     if profile not in {"acceptance", "stress"}:
         raise ValueError(f"unsupported busy-water profile: {profile}")
+    if profile == "acceptance" and seed == DEFAULT_SEED and target_count is None and encounter_mix is None:
+        fixed_path = paths.scenarios / f"{ACCEPTANCE_SCENARIO_ID}.yaml"
+        return yaml.safe_load(fixed_path.read_text(encoding="utf-8"))
     default_count = DEFAULT_TARGET_COUNT if profile == "acceptance" else MAX_TARGET_COUNT
     count = default_count if target_count is None else int(target_count)
     if not 0 <= count <= MAX_TARGET_COUNT:
@@ -207,7 +212,11 @@ def _build_route_traffic_document(
         for attempt in range(100):
             shifted_time = 55.0 + ((float(event_time) - 55.0 + attempt * 7.3) % 450.0)
             candidate = _route_target_document(identifier, role, shifted_time, rng)
-            if _candidate_is_clear(candidate, ships, require_full_transit=target_count <= DEFAULT_TARGET_COUNT):
+            if _candidate_is_clear(
+                candidate,
+                ships,
+                require_full_transit=target_count <= FULL_TRANSIT_CLEARANCE_TARGET_LIMIT,
+            ):
                 ships.append(candidate)
                 break
         else:

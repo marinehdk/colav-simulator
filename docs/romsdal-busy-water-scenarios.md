@@ -17,19 +17,18 @@ implied by these scenarios.
 
 ### `romsdal_busy_water_16`
 
-- Ship0 plus 15 scripted targets by default, 1200 s, `dt_sim=0.1 s`.
-- Default mix is crossing 60%, head-on 20%, and overtaking 20%. Fifteen targets
-  therefore produce 9 CS, 3 HO, and 3 OT routes. CS and OT responsibility roles
-  alternate with a difference of at most one.
+- Fixed Ship0 plus 10 scripted targets, 1200 s, `dt_sim=0.1 s`.
+- All 10 targets are present and active at T=0. Their fixed encounter roles are
+  7 CS, 1 HO, and 2 OT.
 - Every target makes one constant-speed transit from its entry endpoint to its
   exit endpoint near Ship0's nominal lane. It never reverses. After reaching
   the exit, its active window closes and it disappears from tracking.
-- Nominal, VO, SB-MPC, and COLREG fan MPC are selectable with God tracker as
-  experimental G2 combinations. Selection is not verified G3 evidence.
+- VO, Fan-MPC, and Mid-MPC are selectable with God tracker as experimental G2
+  combinations. Selection is not verified G3 evidence.
 
 ### `romsdal_busy_water_80_stress`
 
-- Ship0 plus 79 scripted targets, 600 s, `dt_sim=0.5 s`.
+- Ship0 plus 79 scripted targets, 1200 s, `dt_sim=0.5 s`.
 - Same route-adjacent seeded generator and crossing-dominant distribution.
 - Capacity and UI-load fixture only. Global collision freedom and algorithm G3
   are not claimed.
@@ -41,19 +40,13 @@ implied by these scenarios.
   the interactive scenario cards. The configurable scene is limited to 0-40
   target ships. A 3000 s run remains an optional soak test.
 
-## Generate And Preflight
+## Fixed Scene And Preflight
 
-The committed YAML files are runtime truth. Tests regenerate them and compare
-the normalized documents to prevent drift.
+The committed YAML files are runtime truth. The acceptance scene preserves the
+previously authored 10-target geometry directly; it is not regenerated during
+normal product use.
 
 ```bash
-MPLBACKEND=Agg .venv/bin/python -m colav_simulator.cli busy-water-generate \
-  --profile acceptance \
-  --seed 20250731 \
-  --target-count 15 \
-  --crossing-ratio 0.6 --head-on-ratio 0.2 --overtaking-ratio 0.2 \
-  --output scenarios/romsdal_busy_water_16.yaml
-
 MPLBACKEND=Agg .venv/bin/python -m colav_simulator.cli busy-water-generate \
   --profile stress \
   --seed 20250731 \
@@ -71,18 +64,11 @@ separation, map bounds, nominal target-target collisions, planned encounter
 roles, navigable initial points, and scripted route intersections with ENC
 hazards.
 
-## Interactive Authoring
+## Product Surface
 
-Open the busy-water settings button on the chart to choose 0-40 targets. The
-generated document enters the normal RunSpec, manifest, scenario hash, and
-evaluation path as a validated override.
-
-Before starting the simulation, select any target ship to edit speed and both
-UTM route endpoints. Endpoints may be typed or picked on the map. Applying an
-edit creates a new paused session; a running session is never mutated. Complete
-documents can be saved and reloaded from ignored `runs/scenario_drafts` YAML
-files, preserving every vessel state, route, active window, and single-pass
-exit behavior.
+The Config workface exposes the fixed 10-target scene as `Multiship-10 Fixed`.
+It does not expose per-vessel route/speed editing or a runtime scenario
+override. Active Sessions load the committed scenario document directly.
 
 ## Evidence Boundaries
 
