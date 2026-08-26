@@ -210,6 +210,32 @@ function sameThreatKey(left, right) {
       || (a.generation !== null && b.generation !== null && String(a.generation) === String(b.generation)));
 }
 
+const THREAT_SCHEDULE_DISPLAY_RANK = freeze({
+  CURRENT_PRIMARY: 0,
+  CONCURRENT_REQUIRED: 1,
+  NEXT: 2,
+  MONITOR: 3,
+  RELEASED: 4,
+  HISTORICAL: 5,
+});
+
+function comparePriorityKeys(left, right) {
+  const size = Math.max(left.length, right.length);
+  for (let index = 0; index < size; index += 1) {
+    const leftValue = Number.isFinite(Number(left[index])) ? Number(left[index]) : Infinity;
+    const rightValue = Number.isFinite(Number(right[index])) ? Number(right[index]) : Infinity;
+    if (leftValue !== rightValue) return leftValue - rightValue;
+  }
+  return 0;
+}
+
+function threatDisplayOrder(target, sourceIndex) {
+  const contextRank = target.isPrimary
+    ? THREAT_SCHEDULE_DISPLAY_RANK.CURRENT_PRIMARY
+    : (THREAT_SCHEDULE_DISPLAY_RANK[target.scheduleClass] ?? Infinity);
+  return { target, sourceIndex, contextRank };
+}
+
 function projectThreatVector(vector, lifecycleFact = null) {
   const key = threatKey(vector);
   const currentDomain = vector?.current_domain ?? vector?.currentDomain ?? null;
@@ -235,6 +261,9 @@ function projectThreatVector(vector, lifecycleFact = null) {
     scheduleClass: vector?.schedule_class ?? vector?.scheduleClass ?? null,
     priorityClass: vector?.priority_class ?? vector?.priorityClass ?? null,
     priorityReason: vector?.priority_reason ?? vector?.priorityReason ?? null,
+    priorityKey: freeze(Array.isArray(vector?.priority_key)
+      ? [...vector.priority_key]
+      : Array.isArray(vector?.priorityKey) ? [...vector.priorityKey] : []),
     lifecycleRole: vector?.lifecycle_role ?? vector?.lifecycleRole ?? lifecycle?.role ?? null,
     lifecycleRisk: vector?.lifecycle_risk ?? vector?.lifecycleRisk ?? lifecycle?.risk ?? null,
     lifecycleCommitment: vector?.lifecycle_commitment
@@ -331,7 +360,17 @@ function projectRisk(envelope) {
       priorityReason: target.priorityReason ?? entry?.priority_reason ?? null,
     });
   });
-  const primary = primaryIndex >= 0 ? markedTargets[primaryIndex] : null;
+  // Canonical vectors remain TrackKey-sorted for hashing. Display order follows
+  // the backend-owned Threat Schedule and priority key, never browser CPA math.
+  const displayTargets = markedTargets
+    .map(threatDisplayOrder)
+    .sort((left, right) => (
+      left.contextRank - right.contextRank
+      || comparePriorityKeys(left.target.priorityKey, right.target.priorityKey)
+      || left.sourceIndex - right.sourceIndex
+    ))
+    .map(({ target }) => target);
+  const primary = displayTargets.find(target => target.isPrimary) ?? null;
   const available = source.status === 'AVAILABLE' || snapshot !== null;
   return freeze({
     status: available ? 'AVAILABLE' : 'UNAVAILABLE',
@@ -340,7 +379,7 @@ function projectRisk(envelope) {
     snapshotHash: snapshot?.semantic_hash ?? snapshot?.semanticHash ?? null,
     profileHash: snapshot?.profile_hash ?? snapshot?.profileHash ?? null,
     primary,
-    targets: freeze(markedTargets),
+    targets: freeze(displayTargets),
     dcpaM: primary?.dcpaM ?? null,
     tcpaS: primary?.tcpaS ?? null,
     colregs: primary?.encounter ?? null,

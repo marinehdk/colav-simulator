@@ -131,6 +131,10 @@ test('risk cards use the projected threat level for card and COLREGs colors', ()
   assert.match(app, /riskStateLabel\(t\)/);
   assert.match(app, /<dt>Risk state<\/dt>/);
   assert.match(app, /proj\.risk\?\.primary\?\.avoidanceActionActive === true/);
+  assert.match(app, /CURRENT_PRIMARY: 'PRIMARY'/);
+  assert.match(app, /CONCURRENT_REQUIRED: 'REQUIRED'/);
+  assert.match(styles, /\.risk-target-card\[data-priority="highest"\]/);
+  assert.match(styles, /\.risk-target-card\[data-priority="highest"\] \.risk-target-heading span/);
   assert.match(styles, /\.risk-target-card\[data-threat="safe"\]/);
   assert.match(styles, /\.risk-target-card\[data-threat="warn"\]/);
   assert.match(styles, /\.risk-target-card\[data-threat="danger"\]/);

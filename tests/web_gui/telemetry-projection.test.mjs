@@ -145,12 +145,12 @@ test('nominal guidance frames report SOLVE phase without a solver execution', ()
 });
 
 /* ── 3. Canonical threat projection ── */
-test('risk targets preserve canonical backend order and schedule without browser ranking', () => {
+test('risk targets follow canonical schedule display order without metric ranking', () => {
   const projection = createTelemetryProjection();
   const vectors = [
-    { key: { target_id: 1, generation: 1 }, dcpa_m: 800, tcpa_forward_s: 300, display_class: 'LOW' },
-    { key: { target_id: 2, generation: 1 }, dcpa_m: 150, tcpa_forward_s: 60, display_class: 'HIGH' },
-    { key: { target_id: 3, generation: 1 }, dcpa_m: 400, tcpa_forward_s: 120, display_class: 'CLEAR' },
+    { key: { target_id: 1, generation: 1 }, dcpa_m: 800, tcpa_forward_s: 300, display_class: 'LOW', priority_key: [2] },
+    { key: { target_id: 2, generation: 1 }, dcpa_m: 150, tcpa_forward_s: 60, display_class: 'HIGH', priority_key: [2] },
+    { key: { target_id: 3, generation: 1 }, dcpa_m: 400, tcpa_forward_s: 120, display_class: 'CLEAR', priority_key: [2] },
   ];
   const snapshot = projection.project(runtimeSnapshot({
     envelope: envelope({
@@ -161,9 +161,9 @@ test('risk targets preserve canonical backend order and schedule without browser
         schedule: {
           current_primary: { target_id: 2, generation: 1 },
           entries: [
-            { key: { target_id: 1, generation: 1 }, context: 'MONITOR' },
+            { key: { target_id: 1, generation: 1 }, context: 'CONCURRENT_REQUIRED' },
             { key: { target_id: 2, generation: 1 }, context: 'CURRENT_PRIMARY' },
-            { key: { target_id: 3, generation: 1 }, context: 'NEXT' },
+            { key: { target_id: 3, generation: 1 }, context: 'CONCURRENT_REQUIRED' },
           ],
         },
         conflict_graph: { edges: [], clusters: [] },
@@ -175,13 +175,41 @@ test('risk targets preserve canonical backend order and schedule without browser
       tcpa: 1,
     }),
   }));
-  assert.deepEqual(snapshot.risk.targets.map((target) => target.targetId), [1, 2, 3]);
+  assert.deepEqual(snapshot.risk.targets.map((target) => target.targetId), [2, 1, 3]);
   assert.equal(snapshot.risk.primary.targetId, 2);
   assert.equal(snapshot.risk.primary.displayClass, 'HIGH');
   assert.equal(snapshot.risk.primary.scheduleClass, 'CURRENT_PRIMARY');
   assert.equal(snapshot.risk.dcpaM, 150);
   assert.equal(snapshot.risk.tcpaS, 60);
   assert.deepEqual(snapshot.risk.conflictGraph, { edges: [], clusters: [] });
+});
+
+test('equal schedule contexts use backend priority keys before stable target identity', () => {
+  const projection = createTelemetryProjection();
+  const vectors = [
+    { key: { target_id: 1, generation: 1 }, priority_key: [4, 0] },
+    { key: { target_id: 2, generation: 1 }, priority_key: [2, 0] },
+    { key: { target_id: 3, generation: 1 }, priority_key: [3, 0] },
+  ];
+  const snapshot = projection.project(runtimeSnapshot({
+    envelope: envelope({
+      threat_management: {
+        status: 'AVAILABLE',
+        snapshot: { semantic_hash: 'threat-priority', vectors },
+        vectors,
+        schedule: {
+          current_primary: { target_id: 2, generation: 1 },
+          entries: [
+            { key: { target_id: 1, generation: 1 }, context: 'CONCURRENT_REQUIRED' },
+            { key: { target_id: 2, generation: 1 }, context: 'CURRENT_PRIMARY' },
+            { key: { target_id: 3, generation: 1 }, context: 'CONCURRENT_REQUIRED' },
+          ],
+        },
+      },
+    }),
+  }));
+
+  assert.deepEqual(snapshot.risk.targets.map((target) => target.targetId), [2, 3, 1]);
 });
 
 test('risk DCPA and TCPA never fall back to legacy root mirrors', () => {

@@ -3156,9 +3156,25 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .risk-target-card[data-threat="danger"] {
   --risk-card-color: var(--alert-alarm-color, #d82828);
 }
+.risk-target-card[data-priority="highest"] {
+  border-width: 2px;
+  border-left-width: 5px;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--risk-card-color) 24%, transparent),
+    0 3px 9px color-mix(in srgb, var(--risk-card-color) 16%, transparent);
+}
 .risk-target-heading { display: flex; align-items: center; gap: var(--s-2); padding-bottom: var(--s-2); }
 .risk-target-heading span { color: var(--ob-subtle); font-size: 10px; }
 .risk-target-heading strong { margin-left: auto; color: var(--risk-card-color); font: 650 14px/18px var(--font-mono); }
+.risk-target-card[data-priority="highest"] .risk-target-heading span {
+  padding: 2px 6px;
+  border: 1px solid var(--risk-card-color);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--risk-card-color) 9%, var(--ob-surface));
+  color: var(--risk-card-color);
+  font-weight: 800;
+  letter-spacing: .04em;
+}
 
 .risk-target-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
 .risk-target-metric { min-width: 0; padding: var(--s-2); border: 1px solid color-mix(in srgb, var(--risk-card-color) 24%, var(--ob-border)); border-radius: var(--radius); background: var(--ob-work-bg); }

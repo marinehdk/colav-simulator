@@ -735,6 +735,19 @@ function riskStateLabel(target) {
   }[String(target?.displayClass || '').toUpperCase()] || 'UNKNOWN';
 }
 
+const RISK_SCHEDULE_LABELS = {
+  CURRENT_PRIMARY: 'PRIMARY',
+  CONCURRENT_REQUIRED: 'REQUIRED',
+  NEXT: 'NEXT',
+  MONITOR: 'MONITOR',
+  RELEASED: 'RELEASED',
+  HISTORICAL: 'HISTORICAL',
+};
+
+function riskScheduleLabel(target) {
+  return RISK_SCHEDULE_LABELS[target?.scheduleClass] || (target?.isPrimary ? 'PRIMARY' : 'TARGET');
+}
+
 function formatRiskDistance(distanceM, unit = riskDistanceUnit) {
   if (!Number.isFinite(distanceM)) return unit === 'nmi' ? '--- NM' : '--- km';
   return unit === 'nmi'
@@ -1112,12 +1125,12 @@ function updateMonitorTelemetry(proj) {
         const dcpaText = t.dcpaM !== null ? `${t.dcpaM.toFixed(1)}` : '---';
         const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
         const colregLabel = t.encounter ? (ENCOUNTER_LABELS[t.encounter] || t.encounter) : '--';
-        const priorityLabel = t.scheduleClass || (isHighest ? '当前 Primary' : '未分类');
+        const priorityLabel = riskScheduleLabel(t);
         const historical = historicalById.get(String(t.targetId)) || {};
         const sampleKind = historical.historical_sample_kind || '--';
         const dimensions = String(historical.dimensions_provenance || '').includes('ASSUMED') ? 'ASSUMED' : 'PROVEN';
         return `
-          <article class="risk-target-card" data-threat="${threatLevel}" ${isHighest ? 'data-priority="highest"' : ''}>
+          <article class="risk-target-card" data-threat="${threatLevel}" data-schedule="${t.scheduleClass || 'UNKNOWN'}" ${isHighest ? 'data-priority="highest"' : ''}>
             <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.targetLabel || (t.targetId === null ? '--' : `TS${t.targetId}`)}</strong></div>
             <div class="risk-target-metrics">
               <div class="risk-target-metric"><span>DCPA</span><strong>${dcpaText}<small>m</small></strong></div>
