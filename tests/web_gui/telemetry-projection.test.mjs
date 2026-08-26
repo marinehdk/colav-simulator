@@ -438,6 +438,55 @@ test('backend envelope events remain deduplicated across repeated snapshots', ()
   assert.equal(keys.length, 1);
 });
 
+test('backend operational history replaces per-step raw events and survives repeated delivery', () => {
+  const projection = createTelemetryProjection();
+  const started = {
+    event_id: 1,
+    type: 'session_started',
+    sequence: 0,
+    sim_time: 0,
+    details: {},
+  };
+  const entered = {
+    event_id: 2,
+    type: 'threat_entered',
+    sequence: 5,
+    sim_time: 5,
+    details: { target_id: 2, to_context: 'CURRENT_PRIMARY', reason: 'current_required_obligation' },
+  };
+  projection.project(runtimeSnapshot({
+    envelope: envelope({
+      seq: 5,
+      events: [{ type: 'planner_solved', sequence: 5, details: { planner: { solve_id: 5 } } }],
+      operational_events: [started, entered],
+    }),
+  }));
+  projection.project(runtimeSnapshot({
+    envelope: envelope({ seq: 6, events: [], operational_events: [started, entered] }),
+  }));
+
+  assert.deepEqual(projection.snapshot().timeline.events.map((event) => event.type), [
+    'session_started',
+    'threat_entered',
+  ]);
+  assert.equal(projection.snapshot().timeline.events.every((event) => event.source === 'operational'), true);
+});
+
+test('a new operational event re-projects even when frame sequence and state are unchanged', () => {
+  const projection = createTelemetryProjection();
+  const started = { event_id: 1, type: 'session_started', sequence: 0, sim_time: 0, details: {} };
+  const paused = { event_id: 2, type: 'session_paused', sequence: 0, sim_time: 0, details: {} };
+
+  projection.project(runtimeSnapshot({
+    envelope: envelope({ seq: 0, state: 'PAUSED', operational_events: [started] }),
+  }));
+  const next = projection.project(runtimeSnapshot({
+    envelope: envelope({ seq: 0, state: 'PAUSED', operational_events: [started, paused] }),
+  }));
+
+  assert.deepEqual(next.timeline.events.map((event) => event.type), ['session_started', 'session_paused']);
+});
+
 /* ── 12. Session replacement ── */
 test('a new session id clears history and dedup keys before projecting', () => {
   const projection = createTelemetryProjection();

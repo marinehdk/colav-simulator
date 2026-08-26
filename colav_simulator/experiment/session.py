@@ -19,6 +19,48 @@ from colav_simulator.experiment.contracts import SessionState
 from colav_simulator.experiment.threat_baseline import baseline_due, build_baseline_cycle_inputs
 from colav_simulator.simulator import Simulator
 
+OPERATIONAL_EVENT_CAP = 1000
+_OPERATIONAL_HIDDEN_EVENT_TYPES = frozenset({"planner_solved", "threat_lifecycle_active"})
+
+
+def _enum_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(getattr(value, "value", value))
+
+
+def _track_identity(key: Any) -> tuple[int, int] | None:
+    if key is None:
+        return None
+    target_id = getattr(key, "target_id", None)
+    generation = getattr(key, "generation", None)
+    if target_id is None or generation is None:
+        return None
+    return int(target_id), int(generation)
+
+
+def _track_details(key: Any) -> dict[str, int]:
+    identity = _track_identity(key)
+    return {} if identity is None else {"target_id": identity[0], "generation": identity[1]}
+
+
+def _vector_event_details(vector: Any) -> dict[str, Any]:
+    lifecycle = getattr(vector, "lifecycle", None)
+    return {
+        **_track_details(getattr(vector, "key", None)),
+        "display_class": _enum_text(getattr(vector, "display_class", None)),
+        "priority_class": _enum_text(getattr(vector, "priority_class", None)),
+        "observation_health": _enum_text(getattr(vector, "observation_health", None)),
+        "encounter": _enum_text(getattr(lifecycle, "encounter", None)),
+        "role": _enum_text(getattr(lifecycle, "role", None)),
+        "risk": _enum_text(getattr(lifecycle, "risk", None)),
+        "commitment": _enum_text(getattr(lifecycle, "commitment", None)),
+        "dcpa_m": getattr(vector, "dcpa_m", None),
+        "tcpa_s": getattr(vector, "tcpa_forward_s", None),
+        "range_m": getattr(vector, "range_m", None),
+        "avoidance_action_active": getattr(vector, "avoidance_action_active", None),
+    }
+
 
 @dataclass
 class SessionSnapshot:
@@ -70,7 +112,15 @@ class SimulationSession:
         self.events: list[dict[str, Any]] = []
         self.step_times_ms: list[float] = []
         self._last_planner_solve_ids: dict[str, int] = {}
+        self._planner_success_by_ship: dict[str, bool] = {}
         self._seen_active_track_keys: set[tuple[int, int]] = set()
+        self._seen_threat_event_keys: set[tuple[Any, ...]] = set()
+        self._avoidance_action_by_track: dict[tuple[int, int], bool] = {}
+        self._reported_emergency_tracks: set[tuple[int, int]] = set()
+        self._display_class_by_track: dict[tuple[int, int], str | None] = {}
+        self._encounter_role_by_track: dict[tuple[int, int], tuple[str | None, str | None]] = {}
+        self._observation_health_by_track: dict[tuple[int, int], str | None] = {}
+        self._last_primary_track_key: tuple[int, int] | None = None
         self.historical_recovery_status: dict[str, Any] = {"status": "NOT_STARTED", "hold_s": 0.0}
         self._historical_recovery_event_emitted = False
         self.failure_reason: str | None = None
@@ -108,11 +158,18 @@ class SimulationSession:
             self._frames_decoded = [pickle.loads(blob) for blob in self._frame_blobs]
         return self._frames_decoded
 
+    @property
+    def operational_events(self) -> list[dict[str, Any]]:
+        """Bounded operator-facing history; raw solver cadence stays in ``events``."""
+        visible = [event for event in self.events if event["type"] not in _OPERATIONAL_HIDDEN_EVENT_TYPES]
+        return visible[-OPERATIONAL_EVENT_CAP:]
+
     def start(self) -> None:
         if self.state in {SessionState.FINISHED, SessionState.FAILED}:
             raise RuntimeError(f"Cannot start a {self.state.value} session")
+        previous = self.state
         self.state = SessionState.RUNNING
-        self._event("session_started")
+        self._event("session_resumed" if previous is SessionState.PAUSED else "session_started")
 
     def pause(self) -> None:
         if self.state == SessionState.RUNNING:
@@ -154,6 +211,7 @@ class SimulationSession:
             self.sequence += 1
             step_events = self._planner_events(payload)
             step_events.extend(self._advance_baseline_threat_cycle())
+            step_events.extend(self._record_threat_management_events())
             step_events.extend(self._advance_historical_recovery())
             stress_only = self.config.name.startswith("romsdal_busy_water_80_stress")
             collision_evidence = [] if stress_only else self.simulator.detect_ship_collisions(0)
@@ -269,8 +327,194 @@ class SimulationSession:
             self.baseline_threat_failure_reason = str(exc)
             return []
 
+    def _record_threat_management_events(self) -> list[dict[str, Any]]:
+        """Copy canonical Risk/Lifecycle transitions into the Session event journal."""
+        coordinator = self.threat_management_coordinator
+        snapshot = None if coordinator is None else coordinator.last_snapshot
+        if snapshot is None:
+            return []
+        epoch = str(getattr(snapshot, "epoch", "session"))
+        sequence = int(getattr(snapshot, "sequence", self.sequence))
+        vectors_by_key = {
+            identity: vector
+            for vector in tuple(getattr(snapshot, "vectors", ()))
+            if (identity := _track_identity(getattr(vector, "key", None))) is not None
+        }
+        recorded = self._record_schedule_events(snapshot, epoch, sequence, vectors_by_key)
+        recorded.extend(self._record_lifecycle_events(snapshot, epoch, sequence, vectors_by_key))
+        event_time = float(getattr(snapshot, "sim_time_s", self.simulator.t))
+        for identity, vector in vectors_by_key.items():
+            recorded.extend(self._record_vector_transitions(identity, vector, event_time))
+        schedule = getattr(snapshot, "schedule", None)
+        self._last_primary_track_key = _track_identity(getattr(schedule, "current_primary", None))
+        return recorded
+
+    def _record_schedule_events(
+        self,
+        snapshot: Any,
+        epoch: str,
+        sequence: int,
+        vectors_by_key: dict[tuple[int, int], Any],
+    ) -> list[dict[str, Any]]:
+        recorded = []
+        canonical_events = tuple(getattr(snapshot, "events", ()))
+        primary_switched = any(
+            str(getattr(event, "event_type", "")).upper() == "PRIMARY_SWITCHED"
+            for event in canonical_events
+        )
+        for canonical in canonical_events:
+            event_key = ("schedule", epoch, sequence, int(getattr(canonical, "event_id", 0)))
+            if event_key in self._seen_threat_event_keys:
+                continue
+            self._seen_threat_event_keys.add(event_key)
+            key = getattr(canonical, "key", None)
+            identity = _track_identity(key)
+            details = {
+                "canonical_event_id": int(getattr(canonical, "event_id", 0)),
+                "snapshot_sequence": sequence,
+                **_track_details(key),
+                "reason": getattr(canonical, "reason", None),
+                "from_context": _enum_text(getattr(canonical, "from_context", None)),
+                "to_context": _enum_text(getattr(canonical, "to_context", None)),
+                "predicted": bool(getattr(canonical, "predicted", False)),
+            }
+            if identity is not None and identity in vectors_by_key:
+                details.update(_vector_event_details(vectors_by_key[identity]))
+            event_type = str(getattr(canonical, "event_type", "THREAT_EVENT")).lower()
+            if (
+                event_type == "schedule_reorder"
+                and primary_switched
+                and "CURRENT_PRIMARY" in {details["from_context"], details["to_context"]}
+            ):
+                continue
+            same_context = details["from_context"] == details["to_context"]
+            if event_type == "threat_escalated" and same_context:
+                emergency = details.get("priority_class") == "RESPONSE_TIME_EMERGENCY"
+                if not emergency or identity is None or identity in self._reported_emergency_tracks:
+                    continue
+                self._reported_emergency_tracks.add(identity)
+            if event_type in {"threat_clearing", "threat_released"} and identity is not None:
+                self._reported_emergency_tracks.discard(identity)
+            if event_type == "primary_switched":
+                self._enrich_primary_switch(details, identity)
+            recorded.append(
+                self._event(
+                    event_type,
+                    event_sim_time=float(getattr(canonical, "sim_time_s", self.simulator.t)),
+                    **details,
+                )
+            )
+        return recorded
+
+    def _enrich_primary_switch(self, details: dict[str, Any], identity: tuple[int, int] | None) -> None:
+        if self._last_primary_track_key is not None:
+            details["from_target_id"] = self._last_primary_track_key[0]
+            details["from_generation"] = self._last_primary_track_key[1]
+        if identity is not None:
+            details["to_target_id"] = identity[0]
+            details["to_generation"] = identity[1]
+
+    def _record_lifecycle_events(
+        self,
+        snapshot: Any,
+        epoch: str,
+        sequence: int,
+        vectors_by_key: dict[tuple[int, int], Any],
+    ) -> list[dict[str, Any]]:
+        recorded = []
+        lifecycle_snapshot = getattr(snapshot, "lifecycle_snapshot", None)
+        for canonical in tuple(getattr(lifecycle_snapshot, "events", ())):
+            event_key = ("lifecycle", epoch, int(getattr(canonical, "event_id", 0)))
+            if event_key in self._seen_threat_event_keys:
+                continue
+            self._seen_threat_event_keys.add(event_key)
+            key = getattr(canonical, "target_key", None)
+            identity = _track_identity(key)
+            details = {
+                "canonical_event_id": int(getattr(canonical, "event_id", 0)),
+                "snapshot_sequence": sequence,
+                **_track_details(key),
+                "from_state": getattr(canonical, "from_state", None),
+                "to_state": getattr(canonical, "to_state", None),
+                "reason": getattr(canonical, "reason", None),
+            }
+            if identity is not None and identity in vectors_by_key:
+                details.update(_vector_event_details(vectors_by_key[identity]))
+            recorded.append(
+                self._event(
+                    str(getattr(canonical, "event_type", "TARGET_TRANSITION")).lower(),
+                    event_sim_time=float(getattr(canonical, "sim_time_s", self.simulator.t)),
+                    **details,
+                )
+            )
+        return recorded
+
+    def _record_vector_transitions(
+        self,
+        identity: tuple[int, int],
+        vector: Any,
+        event_time: float,
+    ) -> list[dict[str, Any]]:
+        recorded = []
+        details = _vector_event_details(vector)
+        active = getattr(vector, "avoidance_action_active", None)
+        if isinstance(active, bool):
+            previous = self._avoidance_action_by_track.get(identity)
+            if active and previous is not True:
+                recorded.append(self._event("avoidance_action_started", event_sim_time=event_time, **details))
+            elif not active and previous is True:
+                recorded.append(self._event("avoidance_action_ended", event_sim_time=event_time, **details))
+            self._avoidance_action_by_track[identity] = active
+
+        display_class = details["display_class"]
+        previous_display_class = self._display_class_by_track.get(identity)
+        if previous_display_class is not None and display_class != previous_display_class:
+            recorded.append(
+                self._event(
+                    "risk_level_changed",
+                    event_sim_time=event_time,
+                    **details,
+                    from_display_class=previous_display_class,
+                    to_display_class=display_class,
+                )
+            )
+        self._display_class_by_track[identity] = display_class
+
+        encounter_role = (details["encounter"], details["role"])
+        previous_encounter_role = self._encounter_role_by_track.get(identity)
+        if previous_encounter_role is not None and encounter_role != previous_encounter_role:
+            recorded.append(
+                self._event(
+                    "colregs_changed",
+                    event_sim_time=event_time,
+                    **details,
+                    from_encounter=previous_encounter_role[0],
+                    from_role=previous_encounter_role[1],
+                    to_encounter=encounter_role[0],
+                    to_role=encounter_role[1],
+                )
+            )
+        self._encounter_role_by_track[identity] = encounter_role
+
+        observation_health = details["observation_health"]
+        previous_health = self._observation_health_by_track.get(identity)
+        if previous_health is not None and observation_health != previous_health:
+            recovered = observation_health == "UPDATED"
+            recorded.append(
+                self._event(
+                    "observation_recovered" if recovered else "observation_degraded",
+                    event_sim_time=event_time,
+                    **details,
+                    from_health=previous_health,
+                    to_health=observation_health,
+                )
+            )
+        self._observation_health_by_track[identity] = observation_health
+        return recorded
+
     def _event(self, event_type: str, *, event_sim_time: float | None = None, **details: Any) -> dict[str, Any]:
         event = {
+            "event_id": len(self.events) + 1,
             "sequence": self.sequence,
             "sim_time": float(self.simulator.t if event_sim_time is None else event_sim_time),
             "type": event_type,
@@ -278,6 +522,10 @@ class SimulationSession:
         }
         self.events.append(event)
         return event
+
+    def record_event(self, event_type: str, **details: Any) -> dict[str, Any]:
+        """Record a Session event coordinated by the Web lifecycle boundary."""
+        return self._event(event_type, **details)
 
     def _advance_historical_recovery(self) -> list[dict[str, Any]]:
         snapshot = None if self.threat_management_coordinator is None else self.threat_management_coordinator.last_snapshot
@@ -324,14 +572,39 @@ class SimulationSession:
             if self._last_planner_solve_ids.get(ship_key) == solve_id:
                 continue
             self._last_planner_solve_ids[ship_key] = solve_id
+            ship_id = int(ship_data["id"])
+            event_time = float(planner["sim_time"])
             events.append(
-                self._event(
-                    "planner_solved",
-                    event_sim_time=float(planner["sim_time"]),
-                    ship_id=int(ship_data["id"]),
-                    planner=planner,
-                )
+                self._event("planner_solved", event_sim_time=event_time, ship_id=ship_id, planner=planner)
             )
+            algorithm_details = planner.get("algorithm_details") or {}
+            failure_code = algorithm_details.get("failure_code")
+            succeeded = planner.get("feasible") is True and not failure_code
+            previous_success = self._planner_success_by_ship.get(ship_key)
+            if not succeeded and previous_success is not False:
+                events.append(
+                    self._event(
+                        "planner_failed",
+                        event_sim_time=event_time,
+                        ship_id=ship_id,
+                        solve_id=solve_id,
+                        status=planner.get("status"),
+                        feasible=planner.get("feasible"),
+                        failure_code=failure_code,
+                        reason=algorithm_details.get("reason"),
+                    )
+                )
+            elif succeeded and previous_success is False:
+                events.append(
+                    self._event(
+                        "planner_recovered",
+                        event_sim_time=event_time,
+                        ship_id=ship_id,
+                        solve_id=solve_id,
+                        status=planner.get("status"),
+                    )
+                )
+            self._planner_success_by_ship[ship_key] = succeeded
         return events
 
     def simulation_dataframe(self) -> pd.DataFrame:

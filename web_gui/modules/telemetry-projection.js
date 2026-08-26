@@ -16,8 +16,8 @@ export const SBMPC_SOLVE_PERIOD_FALLBACK_S = 5;
 export const VO_SOLVE_PERIOD_FALLBACK_S = 1;
 
 export const TIMELINE_LIMITATIONS = Object.freeze([
-  'Lifecycle events never appear in telemetry; the timeline holds per-step events only.',
-  'Timeline history only covers snapshots observed by this projection.',
+  'Timeline consumes the backend-owned bounded operational event journal.',
+  'Raw successful solver cadence remains available to algorithm diagnostics only.',
   'Session Replacement clears the timeline and derived event state.',
 ]);
 
@@ -467,17 +467,20 @@ function trimEventDetails(type, details) {
 }
 
 function recordEnvelopeEvents(envelope, sessionId, state) {
-  const events = Array.isArray(envelope.events) ? envelope.events : [];
+  const hasOperationalHistory = Array.isArray(envelope.operational_events);
+  const events = hasOperationalHistory ? envelope.operational_events : (Array.isArray(envelope.events) ? envelope.events : []);
   const recorded = [];
   events.forEach((event) => {
     if (!event || typeof event !== 'object') return;
-    const key = [
-      sessionId,
-      event.sequence ?? envelope.seq ?? '',
-      event.type,
-      event.details?.ship_id ?? '',
-      event.details?.planner?.solve_id ?? '',
-    ].join(':');
+    const key = event.event_id !== undefined && event.event_id !== null
+      ? [sessionId, 'event', event.event_id].join(':')
+      : [
+        sessionId,
+        event.sequence ?? envelope.seq ?? '',
+        event.type,
+        event.details?.ship_id ?? '',
+        event.details?.planner?.solve_id ?? '',
+      ].join(':');
     if (state.seenEventKeys.has(key)) return;
     state.seenEventKeys.add(key);
     if (state.seenEventKeys.size > SEEN_EVENT_KEY_CAP) {
@@ -491,7 +494,7 @@ function recordEnvelopeEvents(envelope, sessionId, state) {
       sequence: event.sequence ?? envelope.seq ?? null,
       simTime: event.sim_time ?? envelope.sim_time ?? null,
       type: event.type,
-      source: 'envelope',
+      source: hasOperationalHistory ? 'operational' : 'envelope',
       details: freeze(trimEventDetails(event.type, event.details)),
     }));
   });
@@ -541,6 +544,9 @@ function projectOutcome(runtimeOutcome, envelope, state) {
 
 function envelopeKey(envelope) {
   const playback = envelope.playback ?? {};
+  const latestOperationalEvent = Array.isArray(envelope.operational_events)
+    ? envelope.operational_events.at(-1)
+    : null;
   return [
     envelope.run_id ?? '',
     envelope.seq ?? '',
@@ -550,6 +556,7 @@ function envelopeKey(envelope) {
     playback.realtime_limited ?? '',
     playback.scheduler_lag_ms ?? '',
     envelope.reproduction_status ?? '',
+    latestOperationalEvent?.event_id ?? '',
     envelope.threat_management?.snapshot?.semantic_hash
       ?? envelope.threat_management?.snapshot?.semanticHash
       ?? envelope.threat_management?.status

@@ -416,6 +416,9 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
         second = client.post(f"/api/sessions/{session_id}/step")
         assert second.status_code == 200
         assert second.json()["state"] == "FINISHED"
+        operational_types = [event["type"] for event in second.json()["operational_events"]]
+        assert "planner_solved" not in operational_types
+        assert operational_types[-2:] == ["time_limit", "session_finished"]
 
         result = client.get(f"/api/sessions/{session_id}/result")
         assert result.status_code == 200
@@ -431,6 +434,7 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
             telemetry = websocket.receive_json()
             assert telemetry["run_id"] == session_id
             assert telemetry["state"] == "FINISHED"
+            assert telemetry["operational_events"] == second.json()["operational_events"]
 
 
 def test_primary_encounter_prefers_imminent_approaching_colreg_target() -> None:
@@ -881,7 +885,12 @@ def test_reset_while_running_replaces_session_without_pause() -> None:
         assert started.json()["state"] == "RUNNING"
 
         reset = client.post(f"/api/sessions/{session_id}/reset")
+        assert reset.status_code == 200, reset.text
+        replacement_id = reset.json()["session_id"]
+        with client.websocket_connect(f"/ws/sessions/{replacement_id}") as websocket:
+            telemetry = websocket.receive_json()
 
-    assert reset.status_code == 200, reset.text
-    assert reset.json()["session_id"] != session_id
+    assert replacement_id != session_id
     assert reset.json()["state"] == "CREATED"
+    assert [event["type"] for event in telemetry["operational_events"]] == ["session_reset"]
+    assert telemetry["operational_events"][0]["details"]["previous_session_id"] == session_id

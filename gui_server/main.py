@@ -701,7 +701,11 @@ class WebSessionManager:
             prepared = self._require(session_id)
             if prepared.session.state == SessionState.RUNNING:
                 prepared.session.pause()
-            return self.create(replace(prepared.spec))
+            previous_session_id = prepared.manifest.run_id
+            self.create(replace(prepared.spec))
+            self.prepared.session.record_event("session_reset", previous_session_id=previous_session_id)
+            self._publish_telemetry(None)
+            return self.describe()
 
     def tick(self) -> float | None:
         with self.lock:
@@ -727,9 +731,12 @@ class WebSessionManager:
             if self.result is None:
                 raise RuntimeError("Replay is available only after the source session finishes")
             expected = (prepared.manifest.episode_hash, prepared.manifest.trajectory_hash)
-            description = self.create(replace(prepared.spec, replay_of_run_id=prepared.manifest.run_id))
+            previous_session_id = prepared.manifest.run_id
+            self.create(replace(prepared.spec, replay_of_run_id=prepared.manifest.run_id))
             self.replay_expected = expected
-            return description
+            self.prepared.session.record_event("session_replayed", previous_session_id=previous_session_id)
+            self._publish_telemetry(None)
+            return self.describe()
 
     def _finalize(self, prepared: PreparedRun) -> None:
         self.result = self.runner.finalize(prepared)
@@ -1060,17 +1067,20 @@ class WebSessionManager:
             source_time = float(session.simulator.t)
         runtime_time = self._runtime_time_document(source_time)
         events = list(snapshot.events if snapshot is not None else [])
+        operational_events = list(session.operational_events)
         historical_spec = self.prepared.spec.historical_replay
         if isinstance(historical_spec, dict):
             event_origin_s = float(historical_spec.get("t_start_s", 0.0))
-            events = [
-                {
+            def project_event_time(event: dict[str, Any]) -> dict[str, Any]:
+                source_event_time = float(event.get("sim_time", 0.0))
+                return {
                     **event,
-                    "source_time_s": float(event.get("sim_time", 0.0)),
-                    "sim_time": max(0.0, float(event.get("sim_time", 0.0)) - event_origin_s),
+                    "source_time_s": source_event_time,
+                    "sim_time": max(0.0, source_event_time - event_origin_s),
                 }
-                for event in events
-            ]
+
+            events = [project_event_time(event) for event in events]
+            operational_events = [project_event_time(event) for event in operational_events]
         step_ms = float(snapshot.step_time_ms) if snapshot is not None else 0.0
         historical_context = None
         if isinstance(self.prepared.spec.historical_replay, dict):
@@ -1200,6 +1210,7 @@ class WebSessionManager:
             "latest_planner_attempt": self.latest_planner_attempt,
             "execution": jsonable(execution),
             "events": jsonable(events),
+            "operational_events": jsonable(operational_events),
             "step": session.sequence,
             "scenario_time": runtime_time["sim_time"],
             "running": session.state == SessionState.RUNNING,

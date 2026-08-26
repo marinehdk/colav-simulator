@@ -161,7 +161,14 @@ test('EVENT LIST uses OpenBridge event-list with projected timeline data', () =>
   assert.match(vendorEntry, /components\/event-list\/event-list\.js/);
   assert.match(app, /renderMonitorEventList\(proj\.timeline\?\.events \|\| \[\]\)/);
   assert.match(app, /MONITOR_HIDDEN_EVENT_TYPES = new Set\(\['planner_solved'\]\)/);
-  assert.match(app, /filter\(\(event\) => !MONITOR_HIDDEN_EVENT_TYPES\.has\(event\?\.type\)\)/);
+  assert.match(app, /function visibleMonitorEvents\(events\)/);
+  assert.match(app, /const visibleEvents = visibleMonitorEvents\(latestMonitorTimelineEvents\)/);
+  assert.match(app, /const visibleEvents = visibleMonitorEvents\(events\)/);
+  assert.match(app, /case 'threat_entered':/);
+  assert.match(app, /case 'target_transition':/);
+  assert.match(app, /case 'avoidance_action_started':/);
+  assert.match(app, /case 'primary_switched':/);
+  assert.match(app, /case 'planner_failed':/);
   assert.match(app, /case 'goal_reached':/);
   assert.match(app, /function monitorEventTone\(event\)/);
   assert.match(app, /item\.dataset\.eventTone = tone/);

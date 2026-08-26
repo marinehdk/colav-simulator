@@ -76,13 +76,17 @@ _Avoid_: Latest frame, newest planner
 Which origin a displayed target position came from: `tracker` (tracker estimate) or `truth` (ground-truth state).
 _Avoid_: Estimated flag, sensor blend
 
-**Derived Event**:
-A timeline event produced by the projection's own state machines (COLREGs change, DCPA level crossing) rather than delivered in the envelope.
-_Avoid_: Backend event, lifecycle event
+**Operational Event**:
+A backend-owned, operator-relevant transition copied from Session, canonical Threat Management, Encounter Lifecycle, or material planner health. Repeated successful solves and per-step heartbeats remain raw audit evidence, not Operational Events.
+_Avoid_: Browser-derived risk event, solver heartbeat
+
+**Operational Event Journal**:
+The bounded current-Session history delivered in each telemetry envelope so reconnecting consumers recover the same event identity, time, content, and order.
+_Avoid_: Browser-local history, per-frame event delta
 
 **Timeline Limitations**:
-The standing constraints of the projection timeline: lifecycle events never appear in telemetry, history only covers observed snapshots, and Session Replacement clears it.
-_Avoid_: Full run log, event history
+The Operational Event Journal and projection timeline retain the latest 1000 core events; raw audit artifacts may contain additional solver cadence, and Session Replacement clears the timeline.
+_Avoid_: Unbounded audit log, browser Risk state machine
 # Collision Avoidance Planning
 
 Colav-Simulator separates mission-following intent from temporary collision-avoidance intent across a rolling prediction horizon.

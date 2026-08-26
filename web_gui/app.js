@@ -838,6 +838,23 @@ function refreshRiskDistanceButtons() {
 function eventDisplayContent(event) {
   const details = event.details || {};
   const target = details.targetLabel || (details.target_id !== undefined ? `TS${details.target_id}` : '');
+  const contextLabel = (value) => String(value || '').replaceAll('_', ' ');
+  const reasonLabel = (value) => String(value || '').replaceAll('_', ' ');
+  const transitionLabel = (from, to) => [from, to].filter(Boolean).map(contextLabel).join(' → ');
+  const lifecycleStateLabel = (value) => {
+    const state = String(value || '');
+    if (state.includes('ACTIVE') || state.includes('COMMITTED')) return 'AVOIDING';
+    if (state.includes('PAST_CLEAR')) return 'CLEARING';
+    if (state.includes('RELEASED')) return 'RELEASED';
+    if (state.includes('CANDIDATE') || state.includes('MONITORING')) return 'MONITOR';
+    if (state.includes('CLEAR')) return 'SAFE';
+    return contextLabel(state);
+  };
+  const riskEvidence = () => [
+    Number.isFinite(details.dcpa_m) ? `DCPA ${details.dcpa_m.toFixed(1)} m` : '',
+    Number.isFinite(details.tcpa_s) ? `TCPA ${details.tcpa_s.toFixed(1)} s` : '',
+  ].filter(Boolean).join(' · ');
+  const withEvidence = (...parts) => [...parts.filter(Boolean), riskEvidence()].filter(Boolean).join(' · ');
   const content = ({ eventType, status = '', subject = '', detail = '', cardTone = 'info', statusTone = cardTone }) => ({
     title: [eventType, status].filter(Boolean).join(' '),
     description: [subject, detail].filter(Boolean).join('  '),
@@ -880,6 +897,160 @@ function eventDisplayContent(event) {
         statusTone: status === 'DANGER' ? 'danger' : status === 'WARN' ? 'warning' : 'safe',
       });
     }
+    case 'threat_entered':
+      return content({
+        eventType: 'Threat',
+        status: contextLabel(details.to_context || 'ENTERED'),
+        subject: target,
+        detail: withEvidence(reasonLabel(details.reason)),
+        cardTone: details.to_context === 'CURRENT_PRIMARY' ? 'danger' : 'warning',
+      });
+    case 'threat_escalated':
+      return content({
+        eventType: 'Threat',
+        status: 'ESCALATED',
+        subject: target,
+        detail: withEvidence(transitionLabel(details.from_context, details.to_context) || reasonLabel(details.reason)),
+        cardTone: 'warning',
+      });
+    case 'threat_clearing':
+      return content({
+        eventType: 'Threat',
+        status: 'CLEARING',
+        subject: target,
+        detail: transitionLabel(details.from_context, details.to_context),
+        cardTone: 'safe',
+      });
+    case 'threat_released':
+      return content({
+        eventType: 'Threat',
+        status: 'RELEASED',
+        subject: target,
+        detail: withEvidence(reasonLabel(details.reason)),
+        cardTone: 'safe',
+      });
+    case 'primary_switched': {
+      const from = details.from_target_id === undefined ? '--' : `TS${details.from_target_id}`;
+      const to = details.to_target_id === undefined ? (target || '--') : `TS${details.to_target_id}`;
+      return content({
+        eventType: 'Primary',
+        status: 'SWITCHED',
+        subject: `${from} → ${to}`,
+        detail: withEvidence(reasonLabel(details.reason)),
+        cardTone: 'warning',
+      });
+    }
+    case 'schedule_reorder':
+      return content({
+        eventType: 'Threat schedule',
+        status: contextLabel(details.to_context || 'UPDATED'),
+        subject: target,
+        detail: transitionLabel(details.from_context, details.to_context) || reasonLabel(details.reason),
+      });
+    case 'target_transition': {
+      const toState = String(details.to_state || '');
+      const fromSummary = lifecycleStateLabel(details.from_state);
+      const toSummary = lifecycleStateLabel(toState);
+      const sameSummaryChanged = fromSummary && fromSummary === toSummary && details.from_state !== details.to_state;
+      const stateTransition = sameSummaryChanged
+        ? transitionLabel(
+          String(details.from_state || '').replaceAll('/', ' · '),
+          String(details.to_state || '').replaceAll('/', ' · '),
+        )
+        : fromSummary ? `${fromSummary} → ${toSummary}` : '';
+      return content({
+        eventType: 'Risk state',
+        status: toSummary || 'UPDATED',
+        subject: target,
+        detail: withEvidence(stateTransition),
+        cardTone: toSummary === 'AVOIDING' ? 'danger' : ['CLEARING', 'RELEASED', 'SAFE'].includes(toSummary) ? 'safe' : 'warning',
+      });
+    }
+    case 'risk_level_changed': {
+      const to = String(details.to_display_class || details.display_class || 'UNKNOWN').toUpperCase();
+      return content({
+        eventType: 'Risk',
+        status: to,
+        subject: target,
+        detail: withEvidence(transitionLabel(details.from_display_class, details.to_display_class)),
+        cardTone: to === 'HIGH' ? 'danger' : to === 'CLEAR' ? 'safe' : 'warning',
+      });
+    }
+    case 'colregs_changed':
+      return content({
+        eventType: 'COLREGs',
+        status: 'UPDATED',
+        subject: target,
+        detail: transitionLabel(details.from_encounter, details.to_encounter),
+        cardTone: details.to_encounter === 'CLEAR' ? 'safe' : 'warning',
+      });
+    case 'observation_degraded':
+      return content({
+        eventType: 'Observation',
+        status: contextLabel(details.to_health || 'DEGRADED'),
+        subject: target,
+        detail: transitionLabel(details.from_health, details.to_health),
+        cardTone: details.to_health === 'UNUSABLE' ? 'danger' : 'warning',
+      });
+    case 'observation_recovered':
+      return content({
+        eventType: 'Observation',
+        status: 'RECOVERED',
+        subject: target,
+        detail: transitionLabel(details.from_health, details.to_health),
+        cardTone: 'safe',
+      });
+    case 'avoidance_action_started':
+      return content({
+        eventType: 'Avoidance',
+        status: 'ACTIVE',
+        subject: target,
+        detail: withEvidence([contextLabel(details.encounter), contextLabel(details.role)].filter(Boolean).join(' · ')),
+        cardTone: 'danger',
+      });
+    case 'avoidance_action_ended':
+      return content({
+        eventType: 'Avoidance',
+        status: 'RECOVERY',
+        subject: target,
+        detail: 'Collision-avoidance action released',
+        cardTone: 'safe',
+      });
+    case 'threat_lifecycle_active':
+      return content({
+        eventType: 'Threat lifecycle',
+        status: 'ACTIVE',
+        subject: target,
+        detail: 'Canonical avoidance duty active',
+        cardTone: 'danger',
+      });
+    case 'algorithm_handoff':
+      return content({
+        eventType: 'Algorithm handoff',
+        status: 'ACTIVE',
+        detail: reasonLabel(details.trigger || 'Lifecycle active'),
+        cardTone: 'warning',
+      });
+    case 'historical_recovery_complete':
+      return content({ eventType: 'Historical recovery', status: 'COMPLETE', detail: reasonLabel(details.reason), cardTone: 'safe' });
+    case 'historical_handoff_not_triggered':
+      return content({ eventType: 'Algorithm handoff', status: 'NOT TRIGGERED', detail: reasonLabel(details.reason), cardTone: 'warning' });
+    case 'planner_failed':
+      return content({
+        eventType: 'Planner',
+        status: 'FAILED',
+        subject: `#${details.solve_id ?? '—'}`,
+        detail: details.failure_code || details.reason || details.status || 'Plan unavailable',
+        cardTone: 'danger',
+      });
+    case 'planner_recovered':
+      return content({
+        eventType: 'Planner',
+        status: 'RECOVERED',
+        subject: `#${details.solve_id ?? '—'}`,
+        detail: details.status || 'Feasible plan restored',
+        cardTone: 'safe',
+      });
     case 'collision':
       return content({
         eventType: 'Collision',
@@ -911,8 +1082,14 @@ function eventDisplayContent(event) {
       });
     case 'session_started':
       return content({ eventType: 'Simulation', status: 'Started', detail: 'Session is ready for monitoring' });
+    case 'session_resumed':
+      return content({ eventType: 'Simulation', status: 'Resumed', detail: 'Execution resumed' });
     case 'session_paused':
       return content({ eventType: 'Simulation', status: 'Paused', detail: 'Manual pause' });
+    case 'session_reset':
+      return content({ eventType: 'Simulation', status: 'Reset', detail: 'New session created from immutable Run Specification' });
+    case 'session_replayed':
+      return content({ eventType: 'Simulation', status: 'Replay', detail: 'Replay session created from source run' });
     case 'session_finished':
       return content({ eventType: 'Simulation', status: 'Finished', detail: 'Session completed' });
     case 'session_failed':
@@ -933,6 +1110,15 @@ function eventDisplayContent(event) {
 }
 
 const MONITOR_HIDDEN_EVENT_TYPES = new Set(['planner_solved']);
+
+function visibleMonitorEvents(events) {
+  return (Array.isArray(events) ? events : []).filter((event) => (
+    !MONITOR_HIDDEN_EVENT_TYPES.has(event?.type)
+    && event?.type !== 'primary_challenger'
+    && !(event?.type === 'schedule_reorder'
+      && event?.details?.reason === 'deterministic_track_key_order_changed')
+  ));
+}
 
 function monitorEventTone(event) {
   return eventDisplayContent(event).cardTone;
@@ -1045,10 +1231,7 @@ function decorateMonitorEventItems(eventList, events) {
 
 function renderMonitorEventList(events) {
   latestMonitorTimelineEvents = Array.isArray(events) ? events : [];
-  const visibleEvents = latestMonitorTimelineEvents
-    .filter((event) => !MONITOR_HIDDEN_EVENT_TYPES.has(event?.type))
-    .slice()
-    .reverse();
+  const visibleEvents = visibleMonitorEvents(latestMonitorTimelineEvents).slice().reverse();
   setText('liveEventCount', String(visibleEvents.length));
   const eventList = document.getElementById('liveEvents');
   if (!eventList || !customElements.get('obc-event-list')) return;
@@ -1091,17 +1274,17 @@ function renderMonitorEventList(events) {
 }
 
 function renderNotificationCenter(events) {
-  const notificationEvents = Array.isArray(events) ? events : [];
+  const visibleEvents = visibleMonitorEvents(events);
   const button = document.getElementById('alertBtn');
   const items = document.getElementById('notificationItems');
-  setText('notificationPanelCount', String(notificationEvents.length));
+  setText('notificationPanelCount', String(visibleEvents.length));
   if (button && customElements.get('obc-notification-button')) {
-    button.count = Math.min(notificationEvents.length, 99);
-    button.showCount = notificationEvents.length > 0;
+    button.count = Math.min(visibleEvents.length, 99);
+    button.showCount = visibleEvents.length > 0;
   }
   if (!items || !customElements.get('obc-notification-message-item')) return;
-  const visibleEvents = notificationEvents.slice(-6).reverse();
-  if (!visibleEvents.length) {
+  const recentEvents = visibleEvents.slice(-6).reverse();
+  if (!recentEvents.length) {
     const empty = document.createElement('obc-notification-message-item');
     Object.assign(empty, {
       type: 'inactive',
@@ -1111,7 +1294,7 @@ function renderNotificationCenter(events) {
     items.replaceChildren(empty);
     return;
   }
-  items.replaceChildren(...visibleEvents.map((event) => {
+  items.replaceChildren(...recentEvents.map((event) => {
     const content = eventDisplayContent(event);
     const item = document.createElement('obc-notification-message-item');
     Object.assign(item, {
