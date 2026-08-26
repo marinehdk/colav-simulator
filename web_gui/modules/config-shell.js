@@ -1,4 +1,4 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260824-policy-source';
+import { createValidationAssembly } from './validation-assembly.js?v=20260826-mid-ais';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260821-trackkey-fix4';
 import { createSituationDisplay } from './situation-display.js?v=20260826-ais-route-v3';
 

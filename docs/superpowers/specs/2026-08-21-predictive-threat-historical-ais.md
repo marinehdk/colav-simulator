@@ -330,9 +330,9 @@ It does not alter the authority separation in ADR-0001..0003.
   `Recenter` restores follow. Synthetic 10km guidance WPT is not displayed.
 - `1x/2x/5x` buttons express requested scheduler rate; adjacent actual-rate
   text reports measured effective rate without promising attainment.
-- VO and Fan-MPC remain Experimental until independent full `600s`, three-target,
-  no-pruning/no-fallback runs pass. Mid-MPC remains unselectable until this exact
-  revised actor set receives separate Historical Algorithm Qualification.
+- VO, Fan-MPC, and Mid-MPC are Experimental product tuples. Each must complete
+  an uninterrupted full `600s`, three-target, no-pruning/no-fallback execution;
+  successful execution remains distinct from Historical Algorithm Qualification.
 - Acceptance reports display qualification, full-window execution,
   handoff/Shadow/recovery, requested vs effective rate, evaluator outcome,
   global all-vessel safety, determinism, and browser evidence separately.

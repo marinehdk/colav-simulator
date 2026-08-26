@@ -285,6 +285,7 @@ class ExperimentRunner:
                         "limitations": list(entry.get("limitations", ())),
                         "source_present": source_present,
                     },
+                    "domain_profile": dict(entry["runtime_binding"]["domain_profile"]),
                 }
             )
         return documents

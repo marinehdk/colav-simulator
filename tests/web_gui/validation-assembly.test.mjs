@@ -167,6 +167,44 @@ test('domain-profile block follows policy metadata when assigned to a different 
   assert.equal(assembly.snapshot().createBlock, null);
 });
 
+test('catalog-qualified Historical AIS domain profile admits Mid-MPC as experimental', () => {
+  const historical = structuredClone(productionCatalog);
+  historical.scenarios.push({
+    id: 'hais_romsdal_20260701_120007_121007',
+    name: 'Historical AIS',
+    dt: 1,
+    t_end: 600,
+    selectable: true,
+    domain_profile: { qualification: 'QUALIFIED' },
+  });
+  const tuples = [
+    {
+      validation_rule_id: 'rule14',
+      scenario_id: 'hais_romsdal_20260701_120007_121007',
+      algorithm_id: 'vo',
+      tracker_id: 'god',
+    },
+    {
+      validation_rule_id: 'rule14',
+      scenario_id: 'hais_romsdal_20260701_120007_121007',
+      algorithm_id: 'mid_mpc_ipopt',
+      tracker_id: 'god',
+    },
+  ];
+  historical.experimental_combinations = tuples;
+  historical.selectable_combinations = [...historical.verified_combinations, ...tuples];
+  const assembly = createValidationAssembly({ catalog: historical });
+
+  assert.equal(assembly.edit('scenario_id', 'hais_romsdal_20260701_120007_121007'), true);
+  assert.equal(assembly.edit('algorithm_id', 'mid_mpc_ipopt'), true);
+  const snapshot = assembly.snapshot();
+  assert.equal(snapshot.classification, 'experimental');
+  assert.equal(snapshot.createConstraint, null);
+  assert.equal(snapshot.createBlock, 'experimental-confirmation');
+  assert.equal(snapshot.canCreate, false);
+  assert.doesNotThrow(() => assembly.beginCreate({ confirmedExperimental: true }));
+});
+
 test('missing or malformed product policy is typed unavailable and cannot Create', () => {
   const missingPolicy = structuredClone(productionCatalog);
   delete missingPolicy.product_capability_policy;

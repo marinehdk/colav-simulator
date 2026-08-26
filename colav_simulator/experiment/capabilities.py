@@ -789,9 +789,8 @@ EXPERIMENTAL_COMBINATIONS[("multiship", "romsdal_busy_water_16", "mid_mpc_ipopt"
     _BUSY_WATER_EVIDENCE["romsdal_busy_water_16"]
 )
 
-# Historical AIS scene: VO/Fan-MPC remain experimental until their full-window
-# no-pruning/no-fallback gates run. Mid-MPC is excluded because 34 targets exceed
-# its frozen native capacity of 16 (ADR-0005).
+# Historical AIS scene: VO/Fan-MPC/Mid-MPC remain experimental after full-window
+# execution because scene/algorithm qualification gates remain separate (ADR-0005).
 _HISTORICAL_AIS_EVIDENCE = {
     "seed": 0,
     "evidence_role": "experimental_historical_counterfactual",
@@ -802,7 +801,7 @@ _HISTORICAL_AIS_EVIDENCE = {
 EXPERIMENTAL_COMBINATIONS.update(
     {
         ("multiship", HISTORICAL_AIS_SCENARIO_ID, algorithm_id, "god"): dict(_HISTORICAL_AIS_EVIDENCE)
-        for algorithm_id in ("vo", "potocnik_colreg_fan_mpc")
+        for algorithm_id in ("vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt")
     }
 )
 

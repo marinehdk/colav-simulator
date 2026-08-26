@@ -44,7 +44,11 @@ def test_hais_scene_listed_with_source_presence_gate(monkeypatch) -> None:
         for item in catalog["experimental_combinations"]
         if item["scenario_id"] == HISTORICAL_AIS_SCENE_ID
     }
-    assert experimental == {("vo", "god"), ("potocnik_colreg_fan_mpc", "god")}
+    assert experimental == {
+        ("vo", "god"),
+        ("potocnik_colreg_fan_mpc", "god"),
+        ("mid_mpc_ipopt", "god"),
+    }
 
 
 def test_hais_session_create_fails_closed_without_source(monkeypatch) -> None:
@@ -95,7 +99,7 @@ def test_hais_session_create_rejects_foreign_rule(monkeypatch) -> None:
     assert "rule14" in response.text
 
 
-def test_hais_session_create_keeps_unqualified_mid_mpc_unselectable(monkeypatch) -> None:
+def test_hais_session_create_allows_mid_mpc_tuple_to_reach_source_gate(monkeypatch) -> None:
     monkeypatch.delenv("COLAV_HAIS_ARCHIVE_PATH", raising=False)
     with TestClient(app) as client:
         response = client.post(
@@ -109,7 +113,7 @@ def test_hais_session_create_keeps_unqualified_mid_mpc_unselectable(monkeypatch)
         )
 
     assert response.status_code == 422
-    assert "not selectable" in response.text or "No product capability tuple" in response.text
+    assert "COLAV_HAIS_ARCHIVE_PATH" in response.text
 
 
 def _archive_bound() -> bool:

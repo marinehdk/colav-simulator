@@ -310,11 +310,13 @@ function validationErrors(draft) {
   return errors;
 }
 
-function createConstraint(draft, policy) {
+function createConstraint(draft, policy, catalog) {
   if (!draft || policy.status !== 'ready') return null;
   const constraint = policy.value.constraints.algorithms[draft.algorithm_id];
   if (!constraint?.requires_domain_profile) return null;
   const qualification = constraint.required_domain_qualification;
+  const scenario = (catalog?.scenarios || []).find((item) => item.id === draft.scenario_id);
+  if (scenario?.domain_profile?.qualification === qualification) return null;
   return {
     code: 'requires-domain-profile',
     algorithm_id: draft.algorithm_id,
@@ -440,7 +442,7 @@ export function createValidationAssembly({
       if (activeState === 'RUNNING') throw new Error('Active Session is RUNNING; pause it before Create.');
       if (activeSpec && equalSpec(draft, activeSpec)) throw new Error('Validation Draft matches active session.');
       if (classification === 'unavailable') throw new Error('Exact Tuple is unavailable.');
-      const constraint = createConstraint(draft, policy);
+      const constraint = createConstraint(draft, policy, catalog);
       if (constraint) throw new Error(`${constraint.code}: ${constraint.message}`);
       if (classification === 'experimental' && !confirmedExperimental) {
         throw new Error('Experimental tuple requires confirmation before Create.');
@@ -537,7 +539,7 @@ export function createValidationAssembly({
       const policy = productCapabilityPolicy(catalog);
       const classification = classify(catalog, draft);
       const errors = validationErrors(draft);
-      const constraint = createConstraint(draft, policy);
+      const constraint = createConstraint(draft, policy, catalog);
       const matchesActive = Boolean(activeSpec && equalSpec(draft, activeSpec));
       let createBlock = null;
       if (creating) createBlock = 'creating';
