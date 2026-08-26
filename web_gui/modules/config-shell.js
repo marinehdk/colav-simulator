@@ -1,6 +1,6 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260826-ais-threat-merge-v1';
-import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260826-ais-threat-merge-v1';
-import { createSituationDisplay } from './situation-display.js?v=20260826-ais-threat-merge-v1';
+import { createValidationAssembly } from './validation-assembly.js?v=20260826-chart-view-control-v1';
+import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260826-chart-view-control-v1';
+import { createSituationDisplay } from './situation-display.js?v=20260826-radar-card-v1';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const RULE_IMAGES = {
@@ -56,7 +56,7 @@ async function loadOpenBridge() {
   try {
     // Single locally-bundled module: components + icons + lit, pinned to
     // @oicl/openbridge-webcomponents@1.0.1. See vendor/openbridge/entry-source.mjs.
-    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260821-fix-45');
+    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260826-speed-gauge-v1');
     await Promise.all([
       customElements.whenDefined('obc-top-bar'),
       customElements.whenDefined('obc-card'),

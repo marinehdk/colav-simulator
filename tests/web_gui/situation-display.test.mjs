@@ -358,6 +358,17 @@ test('fitView sizes the ENC tile to the wrapper without user adjustment, and res
   assert.notEqual(display.getViewScale(), userScale);
 });
 
+test('recenterOwnship places ownship at the viewport centre for every scenario', async () => {
+  const wrapper = fakeWrapper(800, 600);
+  const { display } = await createDisplay({ wrapper });
+  const snapshot = sampleSnapshot({ scenario_id: 'head_on' });
+  display.render(snapshot);
+
+  assert.notDeepEqual(display.worldToCanvas(snapshot.os.x, snapshot.os.y), { x: 400, y: 300 });
+  display.recenterOwnship();
+  assert.deepEqual(display.worldToCanvas(snapshot.os.x, snapshot.os.y), { x: 400, y: 300 });
+});
+
 test('render draws the documented LAYER_ORDER sequence and layer toggles filter it', async () => {
   const { display, mod } = await createDisplay();
   display.render(sampleSnapshot());

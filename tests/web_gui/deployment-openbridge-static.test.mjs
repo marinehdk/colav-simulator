@@ -60,6 +60,36 @@ test('sensor instruments use comparable drawing-region sizes without compass con
   assert.match(styles, /\.live-pitch-roll-wrapper \{[^}]*height: 180px;/s);
 });
 
+test('SPEED Advices gauge follows COMPASS and renders live STW through the vendored Web Component', () => {
+  const compassIndex = html.indexOf('data-od-id="live-compass-card"');
+  const speedIndex = html.indexOf('data-od-id="live-speed-card"');
+  const radarIndex = html.indexOf('data-od-id="live-radar-card"');
+  const depthIndex = html.indexOf('data-od-id="live-depth-actual-card"');
+  assert.ok(compassIndex >= 0 && compassIndex < speedIndex && speedIndex < radarIndex && radarIndex < depthIndex);
+  assert.match(html, /<obc-speed-gauge[^>]*id="liveSpeedGauge"[^>]*aria-label="本船对水速度"/);
+  assert.match(vendorEntry, /navigation-instruments\/speed-gauge\/speed-gauge\.js/);
+  assert.match(app, /const liveSpeedGauge = document\.getElementById\('liveSpeedGauge'\)/);
+  assert.match(app, /speed: sogKnots/);
+  assert.match(app, /minSpeed: -5/);
+  assert.match(app, /maxSpeed: 25/);
+  assert.match(app, /showLabels: true/);
+  assert.match(app, /showReadout: true/);
+  assert.match(app, /tickmarkInterval: 5/);
+  assert.match(app, /speedAdvices: \[/);
+  assert.match(app, /minSpeed: 15, maxSpeed: 18, type: 'advice', hinted: false/);
+  assert.match(app, /minSpeed: 20, maxSpeed: 25, type: 'caution', hinted: false/);
+  assert.match(styles, /\.ownship-sensor-page \.live-speed-wrapper {[^}]*width: 240px;[^}]*height: 240px;/s);
+  assert.match(styles, /\.ownship-sensor-page \.live-speed-wrapper {[^}]*--global-typography-instrument-value-large-font-size: 16px;/s);
+});
+
+test('RADAR Mini Map uses canonical detection range and projected Risk levels', () => {
+  assert.match(html, /<canvas[^>]*id="liveRadarMiniMap"[^>]*aria-label="雷达 Mini Map"/);
+  assert.match(app, /createRadarMiniMap/);
+  assert.match(app, /buildRadarModel\(data, RADAR_DETECTION_RANGE_M, targetThreatLevels\)/);
+  assert.match(app, /radarMiniMap\.render\(radarModel\)/);
+  assert.match(styles, /\.ownship-sensor-page \.live-radar-wrapper {[^}]*width: 240px;[^}]*height: 240px;/s);
+});
+
 test('ROUTE radius switches between metres and kilometres without ellipsis', () => {
   assert.match(app, /function formatRouteRadius\(radiusM\)/);
   assert.match(app, /radiusM < 1000/);
@@ -158,6 +188,31 @@ test('海图显示 restores the pre-OpenBridge legend and layer controls in an O
   assert.match(styles, /bottom: calc\(100% \+ var\(--s-2\) \+ var\(--s-3\)\)/);
   assert.match(styles, /var\(--ob-surface\) 74%, transparent/);
   assert.match(styles, /grid-template-rows: 16px repeat\(2, minmax\(20px, 1fr\)\)/);
+});
+
+test('chart view control combines heading, north, fit, and ownship-centre actions as H N F C', () => {
+  const start = html.indexOf('<div class="map-mode-control" aria-label="海图视角">');
+  assert.ok(start >= 0, 'chart view control exists');
+  const end = html.indexOf('</div>', start);
+  const control = html.slice(start, end);
+  const controls = [
+    'data-map-orientation="heading"',
+    'data-map-orientation="north"',
+    'id="fitTrafficBtn"',
+    'id="recenterChartBtn"',
+  ];
+  controls.reduce((previousIndex, token) => {
+    const index = control.indexOf(token);
+    assert.ok(index > previousIndex, `${token} follows the preceding view action`);
+    return index;
+  }, -1);
+  assert.match(control, /aria-label="Heading Up"[^>]*>H<\/button>/);
+  assert.match(control, /aria-label="North Up"[^>]*>N<\/button>/);
+  assert.match(control, /aria-label="Fit View"[^>]*>F<\/button>/);
+  assert.match(control, /aria-label="Centre on Ownship"[^>]*>C<\/button>/);
+  assert.doesNotMatch(html, />FIT<\/button>|>OS<\/button>/);
+  assert.match(app, /fitTrafficBtn'\)\?\.addEventListener\('click', \(\) => situationDisplay\.fitTraffic\(\)\)/);
+  assert.match(app, /recenterChartBtn'\)\?\.addEventListener\('click', \(\) => situationDisplay\.recenterOwnship\(\)\)/);
 });
 
 test('situation display uses black target motion vectors and risk-driven ship outlines', () => {

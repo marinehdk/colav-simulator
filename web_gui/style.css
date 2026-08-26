@@ -2564,6 +2564,8 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 }
 
 .ownship-sensor-page > [data-od-id="live-compass-card"] { height: 338px; flex: 0 0 338px; }
+.ownship-sensor-page > [data-od-id="live-speed-card"] { height: 282px; flex: 0 0 282px; }
+.ownship-sensor-page > [data-od-id="live-radar-card"] { height: 282px; flex: 0 0 282px; }
 .ownship-sensor-page > [data-od-id="live-depth-actual-card"] { height: 282px; }
 .ownship-sensor-page > [data-od-id="live-pitch-roll-card"] { height: 282px; }
 
@@ -2653,6 +2655,55 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   height: 180px;
   flex: 0 0 180px;
   margin: 0;
+}
+
+.ownship-sensor-page .live-speed-content {
+  width: 100%;
+  height: 244px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ownship-sensor-page .live-speed-wrapper {
+  --global-typography-instrument-value-large-font-size: 16px;
+  --global-typography-instrument-value-large-line-height: 18px;
+  --global-typography-instrument-value-large-container-height: 18px;
+  --global-typography-instrument-label-font-size: 9px;
+  --global-typography-instrument-unit-font-size: 9px;
+  width: 240px;
+  max-width: 100%;
+  height: 240px;
+  flex: 0 0 240px;
+}
+
+.ownship-sensor-page .live-radar-content {
+  width: 100%;
+  height: 244px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ownship-sensor-page .live-radar-wrapper {
+  width: 240px;
+  max-width: 100%;
+  height: 240px;
+  flex: 0 0 240px;
+}
+
+.ownship-sensor-page .live-radar-wrapper canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ownship-sensor-page .live-speed-wrapper obc-speed-gauge {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .ownship-sensor-page .live-pitch-roll-content {

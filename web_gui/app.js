@@ -1,13 +1,15 @@
-import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260826-ais-threat-merge-v1';
-import './modules/line-graph.js?v=20260826-ais-threat-merge-v1';
+import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260826-chart-view-control-v1';
+import './modules/line-graph.js?v=20260826-chart-view-control-v1';
 import {
   createSituationDisplay,
+  RADAR_DETECTION_RANGE_M,
   plannerSurfaceType,
   wrapRadians,
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260826-ais-threat-merge-v1';
+} from './modules/situation-display.js?v=20260826-radar-card-v1';
+import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260826-radar-card-v1';
 
 /**
  * Colav-Simulator Web GUI — app.js
@@ -117,6 +119,7 @@ const situationDisplay = createSituationDisplay({
   onLayerStateChange: syncLayerControls,
   onSelectionChange: () => {},
 });
+const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveRadarMiniMap') });
 
 /* ══════════════════════════════════════════════
    OPENBRIDGE THEME (C5 #4 — full prototype behavior, P:2849-2870 / P:3179-3204)
@@ -193,7 +196,7 @@ customElements.whenDefined('obc-top-bar').then(syncDeploymentSidebarControls);
 // Brilliance-menu ships inside the same locally-bundled module config-shell.js
 // loads (vendor/openbridge/entry-source.mjs); re-import is a cache no-op and
 // failure degrades like every other best-effort OpenBridge piece.
-import('/static/vendor/openbridge/openbridge-components.mjs?v=20260821-fix-45').catch(() => {});
+import('/static/vendor/openbridge/openbridge-components.mjs?v=20260826-speed-gauge-v1').catch(() => {});
 
 function applyPalette(palette, persist = true) {
   const nextPalette = PALETTE_NAMES[palette] ? palette : 'day';
@@ -648,6 +651,25 @@ function updateOwnshipTelemetry(proj) {
   if (liveCog) liveCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 3, unit: '°' }];
   const liveRot = document.getElementById('liveRotReadout');
   if (liveRot) liveRot.readouts = [{ type: 'value', value: Math.abs(rotDegSec), nDigits: 1, unit: '°/s' }];
+
+  const liveSpeedGauge = document.getElementById('liveSpeedGauge');
+  if (liveSpeedGauge) {
+    Object.assign(liveSpeedGauge, {
+      speed: sogKnots,
+      minSpeed: -5,
+      maxSpeed: 25,
+      needleType: 'full',
+      priority: 'regular',
+      showLabels: true,
+      showReadout: true,
+      tickmarkInterval: 5,
+      speedAdvices: [
+        { minSpeed: 15, maxSpeed: 18, type: 'advice', hinted: false },
+        { minSpeed: 20, maxSpeed: 25, type: 'caution', hinted: false },
+      ],
+    });
+    liveSpeedGauge.setAttribute('aria-label', `本船对水速度 ${sogKnots.toFixed(1)} 节`);
+  }
 
   const liveDepthActual = document.getElementById('liveDepthActual');
   if (liveDepthActual) {
@@ -2342,6 +2364,8 @@ function renderProjection(proj) {
         .filter(target => target.targetId !== null && target.targetId !== undefined)
         .map(target => [String(target.targetId), riskThreatLevel(target)]),
     );
+    const radarModel = buildRadarModel(data, RADAR_DETECTION_RANGE_M, targetThreatLevels);
+    radarMiniMap.render(radarModel);
     situationDisplay.setTargetThreatLevels(targetThreatLevels);
     situationDisplay.render(data);
     renderTimelineLog(proj);
@@ -2393,6 +2417,7 @@ function resetDeploymentForSession(data) {
   lastDisplayedSolveId = null;
   lastSolveSimTime = null;
   lastRuntimeState = 'CREATED';
+  radarMiniMap.render(buildRadarModel(data, RADAR_DETECTION_RANGE_M, {}));
   setRuntimePanelsExpanded(false);
   renderSolveTimeline();
   renderedTimelineEvents = 0;
@@ -2445,6 +2470,7 @@ function syncDeploymentRuntime(snapshot) {
       );
     } else {
       situationDisplay.clearSession();
+      radarMiniMap.render(buildRadarModel(null, RADAR_DETECTION_RANGE_M, {}));
       currentData = null;
       setText('val-run-state', 'NO SESSION');
       setText('val-sim-time', '0.0 s');

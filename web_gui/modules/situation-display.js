@@ -33,7 +33,7 @@ const MOTION_VECTOR_SECONDS = 60;
 const MOTION_TICK_SECONDS = 10;
 const PREDICTION_MARKER_SECONDS = 10;
 const PREDICTION_LABEL_SECONDS = 60;
-const RADAR_DETECTION_RANGE_M = 2000;
+export const RADAR_DETECTION_RANGE_M = 2000;
 const BUSY_WATER_SCENARIO_ID = 'romsdal_busy_water_16';
 const HISTORICAL_AIS_SCENARIO_PREFIX = 'hais_romsdal_';
 const HISTORICAL_OWN_SHIP_SPAN_M = 6 * 1852;
@@ -644,8 +644,15 @@ export function createSituationDisplay(options) {
   }
 
   function recenterOwnship() {
-    userAdjusted = false;
-    applyOwnshipFollowView(currentData || lastRenderedData);
+    const data = currentData || lastRenderedData;
+    if (String(data?.scenario_id || '').startsWith(HISTORICAL_AIS_SCENARIO_PREFIX)) {
+      userAdjusted = false;
+      applyOwnshipFollowView(data);
+    } else if (Number.isFinite(data?.os?.x) && Number.isFinite(data?.os?.y)) {
+      panX = -Number(data.os.y) * viewScale;
+      panY = Number(data.os.x) * viewScale;
+      userAdjusted = true;
+    }
     updateScaleBar();
     rerender();
   }
