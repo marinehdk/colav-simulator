@@ -6,7 +6,7 @@
   "presentation": {
     "schema_version": "historical-workflow.presentation.v1",
     "scenario": {
-      "id": "hais_romsdal_20260701_120000_120100",
+      "id": "hais_romsdal_20260701_120007_121007",
       "kind": "HISTORICAL_AIS",
       "status": "AVAILABLE",
       "scope": "BOUNDED"

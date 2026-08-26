@@ -270,3 +270,69 @@ Deployment plays back. Verified tuples, the YAML corpus, the product capability
 policy, and the headless Historical Workflow evidence authority (double-run
 qualification/determinism/Compare) are unchanged. See
 `docs/adr/0004-historical-ais-scene-in-product-catalog.md`.
+
+## Addendum 2026-08-25 — Ten-Minute Live Counterfactual Replacement (ADR-0005)
+
+This addendum supersedes the one-minute scene identity, fixed T0,
+no-default-dimensions rule, causal-only Mission Route rule, and three-algorithm
+Historical tuples above.
+It does not alter the authority separation in ADR-0001..0003.
+
+### Scene and source contract
+
+- Canonical ID: `hais_romsdal_20260701_120007_121007`; the old one-minute ID has no alias.
+- Source selection: `2026-07-01T11:59:07Z`–`12:10:07Z`; playable interval:
+  `12:00:07Z`–`12:10:07Z`; `SIM TIME=0..600s` retains exact AIS UTC identity.
+- BBox remains `[6.05, 62.44, 6.17, 62.50]`; all 35 MMSIs remain in source
+  lineage. Runtime contains one Reference plus three user-accepted local moving
+  targets: `257252000`, `258764000`, and `259257000`. Static/harbour context is
+  excluded before tracker, Threat Management, Planner, and display assembly.
+- Missing hulls use visible `ASSUMED_HULL.v1` (`85m x 16m`, draft `3m`) in
+  tracker, Threat Management, Planner, Ship Domain, and collision evaluation.
+- Observed reports remain immutable. Gaps up to `300s` use endpoint-exact
+  linear UTM interpolation only when the segment remains in qualified
+  navigable ENC water; larger/invalid gaps are `INACTIVE / DATA GAP`.
+- Traffic-context observed points intersecting chart hazards remain typed
+  `ENC_HAZARD_OBSERVED`; they are not moved or deleted. Reference Ownship and
+  the Counterfactual route retain strict navigability gates.
+
+### Live handoff and Shadow contract
+
+- Deployment is an ordinary online Active Session; algorithm results are not
+  precomputed or replayed from cache.
+- Historical Reference Ownship remains factual until the canonical Encounter
+  Lifecycle first reaches `RiskPhase.ACTIVE`. That event atomically and
+  irreversibly hands control to the selected algorithm for the rest of the run.
+- No fixed T0, `NEXT` trigger, current-domain emergency trigger, forced handoff,
+  threshold reduction, target pruning, or fallback is permitted.
+- Before execution, seal a three-point Historical Reference Route from factual
+  Ownship AIS: playback start, maximum chord-deviation observed turn, and final
+  observed point. Display these as `WPT1/WPT2/WPT3` and provide the frozen route
+  geometry to Guidance/Planner. Runtime Shadow updates, timestamps, commands,
+  and target futures remain comparison-only.
+- Shadow Ownship continues the factual AIS trajectory as a purple,
+  semi-transparent comparison-only vessel and dashed trail. It never enters
+  tracker, Threat Management, Planner, control, collision detection, or the
+  Counterfactual verdict.
+- Backend Shadow Comparison publishes same-time deviation, COG/SOG deltas,
+  maximum deviation, separate realized-clearance summaries, and recovery;
+  browser code only formats this document.
+- Recovery requires every relevant target `RELEASED` plus continuous final
+  `30s` with nearest-leg cross-track error `<=100m` and course error `<=5deg`; otherwise
+  the run is `RECOVERY_INCOMPLETE` and cannot qualify its tuple.
+
+### Product/UI and qualification contract
+
+- Historical Display Qualification requires at least one target to reach
+  `ACTIVE` naturally. Other `MONITOR/CLEAR` traffic remains visible.
+- Default chart mode follows controlled Ownship with `6NM` total horizontal
+  span. `Fit Traffic` frames active traffic, real route, and Shadow;
+  `Recenter` restores follow. Synthetic 10km guidance WPT is not displayed.
+- `1x/2x/5x` buttons express requested scheduler rate; adjacent actual-rate
+  text reports measured effective rate without promising attainment.
+- VO and Fan-MPC remain Experimental until independent full `600s`, three-target,
+  no-pruning/no-fallback runs pass. Mid-MPC remains unselectable until this exact
+  revised actor set receives separate Historical Algorithm Qualification.
+- Acceptance reports display qualification, full-window execution,
+  handoff/Shadow/recovery, requested vs effective rate, evaluator outcome,
+  global all-vessel safety, determinism, and browser evidence separately.

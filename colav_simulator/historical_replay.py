@@ -178,6 +178,7 @@ class HistoricalActor:
     width_m: float | None
     dimensions_provenance: str
     source_observation_digest: str
+    draft_m: float | None = None
     actor_digest: str = ""
     _sample_times: tuple[float, ...] = field(init=False, repr=False, compare=False)
 
@@ -196,6 +197,8 @@ class HistoricalActor:
             raise ValueError("length_m must be positive when provided")
         if self.width_m is not None and (not math.isfinite(self.width_m) or self.width_m <= 0):
             raise ValueError("width_m must be positive when provided")
+        if self.draft_m is not None and (not math.isfinite(self.draft_m) or self.draft_m <= 0):
+            raise ValueError("draft_m must be positive when provided")
         object.__setattr__(self, "samples", samples)
         object.__setattr__(self, "_sample_times", tuple(sample.time_s for sample in samples))
         if not self.actor_digest:
@@ -293,6 +296,7 @@ class HistoricalActor:
             "length_m": self.length_m,
             "width_m": self.width_m,
             "dimensions_provenance": self.dimensions_provenance,
+            "draft_m": self.draft_m,
             "source_observation_digest": self.source_observation_digest,
         }
 
@@ -376,6 +380,7 @@ class HistoricalActorSet:
                 width_m=actor_document.get("width_m"),
                 dimensions_provenance=str(actor_document["dimensions_provenance"]),
                 source_observation_digest=str(actor_document["source_observation_digest"]),
+                draft_m=actor_document.get("draft_m"),
                 actor_digest=str(actor_document.get("actor_digest", "")),
             )
             object.__setattr__(actor, "_configured_max_gap_s", profile.max_interpolation_gap_s)
@@ -471,6 +476,8 @@ class HistoricalActorShip(Ship):
         self._historical_simulation_width_m = float(actor.width_m)
         self._model.params.length = self._historical_simulation_length_m
         self._model.params.width = self._historical_simulation_width_m
+        if actor.draft_m is not None:
+            self._model.params.draft = float(actor.draft_m)
         self.t_start = actor.first_time_s
         self.t_end = actor.last_time_s + profile.time_step_s
         self.prepare_at_time(actor.first_time_s)
@@ -570,11 +577,71 @@ class HistoricalActorShip(Ship):
         payload["historical_actor_dimensions"] = {
             "length_m": self._historical_actor.length_m,
             "width_m": self._historical_actor.width_m,
+            "draft_m": self._historical_actor.draft_m,
             "provenance": self._historical_actor.dimensions_provenance,
             "simulation_length_m": self._historical_simulation_length_m,
             "simulation_width_m": self._historical_simulation_width_m,
         }
         return payload
+
+
+def _three_point_reference_route(
+    actor: HistoricalActor,
+    *,
+    start_s: float,
+    end_s: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Seal start, dominant turn, and final observed point from factual Ownship AIS."""
+    start = actor.sample_at(float(start_s))
+    observed = [
+        sample
+        for sample in actor.samples
+        if sample.kind is HistoricalActorSampleKind.OBSERVED
+        and float(start_s) < sample.time_s <= float(end_s)
+    ]
+    if start is None or len(observed) < 2:
+        raise ValueError("Historical Reference Route requires start, turn, and final AIS points")
+    end = observed[-1]
+    interior = [sample for sample in observed[:-1] if sample.time_s > start.time_s]
+    if not interior:
+        raise ValueError("Historical Reference Route lacks an observed interior turn point")
+    start_position = np.asarray(start.state_vxvy[:2], dtype=float)
+    end_position = np.asarray(end.state_vxvy[:2], dtype=float)
+    chord = end_position - start_position
+    chord_length_sq = float(chord @ chord)
+    if chord_length_sq <= 1e-9:
+        raise ValueError("Historical Reference Route endpoints have no displacement")
+
+    def chord_deviation(sample: HistoricalActorWorldSample) -> float:
+        position = np.asarray(sample.state_vxvy[:2], dtype=float)
+        fraction = float(np.clip(((position - start_position) @ chord) / chord_length_sq, 0.0, 1.0))
+        return float(np.linalg.norm(position - (start_position + fraction * chord)))
+
+    turn = max(interior, key=chord_deviation)
+    route_samples = (start, turn, end)
+    route = np.asarray([sample.state_vxvy[:2] for sample in route_samples], dtype=float).T
+    speeds = np.asarray(
+        [math.hypot(sample.state_vxvy[2], sample.state_vxvy[3]) for sample in route_samples],
+        dtype=float,
+    )
+    return route, speeds
+
+
+def _nearest_route_segment_error(route: np.ndarray, position: np.ndarray) -> tuple[float, float] | None:
+    """Return cross-track distance and course for the nearest nonzero route leg."""
+    best: tuple[float, float] | None = None
+    for index in range(route.shape[1] - 1):
+        start = route[:, index]
+        delta = route[:, index + 1] - start
+        length_sq = float(delta @ delta)
+        if length_sq <= 1e-9:
+            continue
+        fraction = float(np.clip(((position - start) @ delta) / length_sq, 0.0, 1.0))
+        distance = float(np.linalg.norm(position - (start + fraction * delta)))
+        course = float(math.atan2(delta[1], delta[0]))
+        if best is None or distance < best[0]:
+            best = (distance, course)
+    return best
 
 
 class HistoricalCounterfactualActorShip(HistoricalActorShip):
@@ -585,20 +652,60 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
         actor: HistoricalActor,
         profile: HistoricalAISReconstructionProfile,
         *,
-        t0_s: float,
-        nominal_intent: Mapping[str, Any],
+        t0_s: float | None,
+        nominal_intent: Mapping[str, Any] | None,
+        handoff_trigger: str = "FIXED_T0",
         handoff_tolerance_m: float = 1e-6,
         handoff_tolerance_mps: float = 1e-6,
         handoff_tolerance_rad: float = 1e-6,
         simulation_end_s: float | None = None,
+        reference_route_start_s: float | None = None,
     ) -> None:
         super().__init__(actor, profile)
-        self._counterfactual_t0_s = float(t0_s)
+        self._handoff_trigger = str(handoff_trigger).strip().upper()
+        if self._handoff_trigger not in {"FIXED_T0", "LIFECYCLE_ACTIVE"}:
+            raise ValueError("handoff_trigger must be FIXED_T0 or LIFECYCLE_ACTIVE")
+        self._counterfactual_t0_s = None if t0_s is None else float(t0_s)
         self._handoff_tolerance_m = float(handoff_tolerance_m)
         self._handoff_tolerance_mps = float(handoff_tolerance_mps)
         self._handoff_tolerance_rad = float(handoff_tolerance_rad)
-        if not math.isfinite(self._counterfactual_t0_s) or self._counterfactual_t0_s < actor.first_time_s:
-            raise ValueError("counterfactual T0 must be finite and within Reference Vessel history")
+        if self._handoff_trigger == "FIXED_T0":
+            if (
+                self._counterfactual_t0_s is None
+                or not math.isfinite(self._counterfactual_t0_s)
+                or self._counterfactual_t0_s < actor.first_time_s
+            ):
+                raise ValueError("counterfactual T0 must be finite and within Reference Vessel history")
+            if nominal_intent is None:
+                raise ValueError("counterfactual Nominal Intent is required")
+            self._set_fixed_nominal_intent(nominal_intent)
+        elif self._counterfactual_t0_s is not None or nominal_intent is not None:
+            raise ValueError("Lifecycle-triggered handoff derives T0 and Mission Route at runtime")
+        self._simulation_end_s = None if simulation_end_s is None else float(simulation_end_s)
+        self._reference_route_start_s = (
+            None if reference_route_start_s is None else float(reference_route_start_s)
+        )
+        if simulation_end_s is not None:
+            lower_bound = actor.first_time_s if self._counterfactual_t0_s is None else self._counterfactual_t0_s
+            if not math.isfinite(float(simulation_end_s)) or float(simulation_end_s) <= lower_bound:
+                raise ValueError("simulation_end_s must be later than Historical playback/handoff")
+            self.t_end = self._simulation_end_s
+        self._sealed_reference_route: np.ndarray | None = None
+        self._sealed_reference_speeds: np.ndarray | None = None
+        if self._handoff_trigger == "LIFECYCLE_ACTIVE":
+            if self._reference_route_start_s is None or self._simulation_end_s is None:
+                raise ValueError("Lifecycle handoff requires sealed Historical Reference Route bounds")
+            self._sealed_reference_route, self._sealed_reference_speeds = _three_point_reference_route(
+                actor,
+                start_s=self._reference_route_start_s,
+                end_s=self._simulation_end_s,
+            )
+        self._counterfactual_phase = "HISTORICAL_REFERENCE"
+        self._counterfactual_handoff_state: np.ndarray | None = None
+        self._recovery_hold_s = 0.0
+        self._recovery_complete = False
+
+    def _set_fixed_nominal_intent(self, nominal_intent: Mapping[str, Any]) -> None:
         route_points = tuple(tuple(float(item) for item in point) for point in nominal_intent.get("route_points_vxvy", ()))
         if len(route_points) < 2:
             raise ValueError("counterfactual Nominal Intent requires at least two route points")
@@ -616,19 +723,13 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
             np.asarray(route_points, dtype=float).T,
             np.full(len(route_points), float(nominal_intent.get("speed_mps", 0.0)), dtype=float),
         )
-        if simulation_end_s is not None:
-            if not math.isfinite(float(simulation_end_s)) or float(simulation_end_s) <= self._counterfactual_t0_s:
-                raise ValueError("simulation_end_s must be later than counterfactual T0")
-            self.t_end = float(simulation_end_s)
-        self._counterfactual_phase = "HISTORICAL_REFERENCE"
-        self._counterfactual_handoff_state: np.ndarray | None = None
 
     @property
     def counterfactual_phase(self) -> str:
         return self._counterfactual_phase
 
     @property
-    def counterfactual_t0_s(self) -> float:
+    def counterfactual_t0_s(self) -> float | None:
         return self._counterfactual_t0_s
 
     @property
@@ -638,13 +739,78 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
     def historical_is_active_at(self, time_s: float) -> bool:
         """Keep the Reference Vessel active after T0 under normal Ship dynamics."""
         query = float(time_s)
-        if query < self._counterfactual_t0_s:
+        if self._counterfactual_phase == "HISTORICAL_REFERENCE":
             return super().historical_is_active_at(query)
         return True
+
+    def prepare_at_time(self, time_s: float) -> None:
+        """Stop factual playback from overwriting Counterfactual state after handoff."""
+        if getattr(self, "_counterfactual_phase", "HISTORICAL_REFERENCE") == "COUNTERFACTUAL_REALIZED":
+            return
+        super().prepare_at_time(time_s)
+
+    def shadow_sample_at(self, time_s: float) -> HistoricalActorWorldSample | None:
+        """Return immutable factual continuation for comparison-only projection."""
+        return self._historical_actor.sample_at(float(time_s))
+
+    def request_lifecycle_handoff(self, time_s: float, lifecycle_snapshot: Any) -> bool:
+        """Branch once when canonical Lifecycle first reports ACTIVE."""
+        if self._handoff_trigger != "LIFECYCLE_ACTIVE" or self._counterfactual_phase != "HISTORICAL_REFERENCE":
+            return False
+        targets = tuple(getattr(lifecycle_snapshot, "targets", ()) or ())
+        if not any(
+            str(getattr(getattr(target, "risk", None), "value", getattr(target, "risk", ""))) == "ACTIVE"
+            for target in targets
+        ):
+            return False
+        handoff_time = float(time_s)
+        self.prepare_at_time(handoff_time)
+        if self._sealed_reference_route is None or self._sealed_reference_speeds is None:
+            raise ValueError("HANDOFF_NOT_TRIGGERED: Historical Reference Route is unavailable")
+        self.set_nominal_plan(self._sealed_reference_route.copy(), self._sealed_reference_speeds.copy())
+        self._counterfactual_t0_s = handoff_time
+        self._activate_counterfactual()
+        return True
+
+    def update_recovery_status(
+        self,
+        lifecycle_snapshot: Any,
+        relevant_track_keys: set[tuple[int, int]],
+        dt_s: float,
+    ) -> dict[str, Any]:
+        """Evaluate the frozen 30s/100m/5deg recovery contract."""
+        if self._counterfactual_phase != "COUNTERFACTUAL_REALIZED":
+            return {"status": "NOT_STARTED", "hold_s": 0.0}
+        decisions = {
+            (int(target.key.target_id), int(target.key.generation)): target
+            for target in tuple(getattr(lifecycle_snapshot, "targets", ()) or ())
+        }
+        all_released = bool(relevant_track_keys) and all(
+            key in decisions and str(getattr(decisions[key].risk, "value", decisions[key].risk)) == "RELEASED"
+            for key in relevant_track_keys
+        )
+        route = np.asarray(self.waypoints, dtype=float)
+        route_error = _nearest_route_segment_error(route, self._state[:2])
+        if route_error is None:
+            return {"status": "RECOVERY_INCOMPLETE", "hold_s": 0.0, "reason": "MISSION_ROUTE_INVALID"}
+        cross_track_m, route_course = route_error
+        course_error_rad = abs(float(_angle_delta(float(self._state[2]), route_course)))
+        within_corridor = cross_track_m <= 100.0 and course_error_rad <= math.radians(5.0)
+        self._recovery_hold_s = self._recovery_hold_s + float(dt_s) if all_released and within_corridor else 0.0
+        self._recovery_complete = self._recovery_complete or self._recovery_hold_s >= 30.0
+        return {
+            "status": "RECOVERY_COMPLETE" if self._recovery_complete else "RECOVERY_INCOMPLETE",
+            "all_relevant_targets_released": all_released,
+            "cross_track_error_m": cross_track_m,
+            "course_error_rad": course_error_rad,
+            "hold_s": self._recovery_hold_s,
+        }
 
     def _activate_counterfactual(self) -> None:
         if self._counterfactual_phase == "COUNTERFACTUAL_REALIZED":
             return
+        if self._counterfactual_t0_s is None:
+            raise ValueError("REFERENCE_STATE_MISMATCH: handoff time is unavailable")
         expected = self._historical_actor.sample_at(self._counterfactual_t0_s)
         if expected is None:
             raise ValueError("REFERENCE_STATE_MISMATCH: no reconstructed state at T0")
@@ -660,7 +826,11 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
         self._counterfactual_phase = "COUNTERFACTUAL_REALIZED"
 
     def plan(self, t: float, dt: float, do_list: list, enc: Any = None, w: Any = None) -> np.ndarray:
-        if float(t) < self._counterfactual_t0_s:
+        if self._counterfactual_phase == "HISTORICAL_REFERENCE" and (
+            self._handoff_trigger == "LIFECYCLE_ACTIVE"
+            or self._counterfactual_t0_s is None
+            or float(t) < self._counterfactual_t0_s
+        ):
             self._references = np.zeros((9, 1), dtype=float)
             if self._state.size >= 4:
                 self._references[0, 0] = self._state[0]
@@ -673,6 +843,8 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
 
     def forward(self, dt: float, w: Any = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         if self._counterfactual_phase == "HISTORICAL_REFERENCE":
+            if self._handoff_trigger == "LIFECYCLE_ACTIVE" or self._counterfactual_t0_s is None:
+                return super().forward(dt, w)
             current_time = float(self._historical_time_s or 0.0)
             next_time = current_time + float(dt)
             if next_time <= self._counterfactual_t0_s + 1e-9:
@@ -685,6 +857,8 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
     def reset(self, seed: int | None) -> None:
         self._counterfactual_phase = "HISTORICAL_REFERENCE"
         self._counterfactual_handoff_state = None
+        self._recovery_hold_s = 0.0
+        self._recovery_complete = False
         super().reset(seed)
 
     def get_colav_data(self) -> dict[str, Any]:
@@ -695,7 +869,9 @@ class HistoricalCounterfactualActorShip(HistoricalActorShip):
         planner = data.setdefault("planner", {})
         details = planner.setdefault("algorithm_details", {})
         details["counterfactual_mode"] = self._counterfactual_phase
+        details["mission_route_source"] = "SEALED_FULL_HISTORICAL_OWN_SHIP_AIS"
         details["counterfactual_t0_s"] = self._counterfactual_t0_s
+        details["handoff_trigger"] = self._handoff_trigger
         details["human_reference_in_runtime"] = False
         return data
 
@@ -1039,6 +1215,7 @@ class HistoricalReplayEvidence:
     dimension_registry_digest: str | None = None
     dimension_effective_at_utc: str | None = None
     dimension_record_digests: tuple[tuple[int, str], ...] = ()
+    handoff_trigger: str = "FIXED_T0"
 
     def __post_init__(self) -> None:
         """Validate the typed historical execution mode and lineage."""
@@ -1046,8 +1223,19 @@ class HistoricalReplayEvidence:
             raise ValueError("Historical evidence mode must be HISTORICAL_REPLAY or COUNTERFACTUAL")
         if self.counterfactual != (self.mode == "COUNTERFACTUAL"):
             raise ValueError("Historical evidence mode/counterfactual flag mismatch")
-        if self.counterfactual and (self.case_digest is None or self.t0_s is None or self.nominal_intent_digest is None):
-            raise ValueError("Counterfactual evidence requires Case, T0 and Nominal Intent identity")
+        object.__setattr__(self, "handoff_trigger", str(self.handoff_trigger).strip().upper())
+        if self.handoff_trigger not in {"FIXED_T0", "LIFECYCLE_ACTIVE"}:
+            raise ValueError("unsupported Historical handoff trigger")
+        if self.counterfactual and self.case_digest is None:
+            raise ValueError("Counterfactual evidence requires Case identity")
+        if self.counterfactual and self.handoff_trigger == "FIXED_T0" and (
+            self.t0_s is None or self.nominal_intent_digest is None
+        ):
+            raise ValueError("Fixed-T0 Counterfactual evidence requires T0 and Nominal Intent identity")
+        if self.handoff_trigger == "LIFECYCLE_ACTIVE" and (
+            self.t0_s is not None or self.nominal_intent_digest is not None
+        ):
+            raise ValueError("Lifecycle Counterfactual evidence cannot seal fixed T0 or future intent")
         object.__setattr__(self, "actor_digests", tuple(sorted(self.actor_digests)))
         object.__setattr__(self, "coverage_limitations", tuple(self.coverage_limitations))
         object.__setattr__(self, "dimension_record_digests", tuple(sorted(self.dimension_record_digests)))
@@ -1079,6 +1267,7 @@ class HistoricalReplayEvidence:
             "case_runtime_digest": self.case_runtime_digest,
             "t0_s": self.t0_s,
             "nominal_intent_digest": self.nominal_intent_digest,
+            "handoff_trigger": self.handoff_trigger,
             "enc_preflight_evidence": (
                 None if self.enc_preflight_evidence is None else self.enc_preflight_evidence.to_dict()
             ),
@@ -1106,10 +1295,12 @@ class HistoricalReplayRequest:
     actor_set: HistoricalActorSet
     ownship_actor_id: int = 0
     dt_sim: float | None = None
+    t_start_s: float = 0.0
     t_end_s: float | None = None
     scenario_name: str = "historical_replay"
     utm_zone: int = 33
     mode: str = "HISTORICAL_REPLAY"
+    handoff_trigger: str = "FIXED_T0"
     counterfactual_t0_s: float | None = None
     nominal_intent: Mapping[str, Any] | None = None
     case_digest: str | None = None
@@ -1132,15 +1323,23 @@ class HistoricalReplayRequest:
         if not self.scenario_name.strip():
             raise ValueError("scenario_name is required")
         object.__setattr__(self, "mode", str(self.mode).upper())
+        object.__setattr__(self, "handoff_trigger", str(self.handoff_trigger).strip().upper())
         if self.mode not in {"HISTORICAL_REPLAY", "COUNTERFACTUAL"}:
             raise ValueError("mode must be HISTORICAL_REPLAY or COUNTERFACTUAL")
+        if self.handoff_trigger not in {"FIXED_T0", "LIFECYCLE_ACTIVE"}:
+            raise ValueError("handoff_trigger must be FIXED_T0 or LIFECYCLE_ACTIVE")
         if self.mode == "COUNTERFACTUAL":
-            if self.counterfactual_t0_s is None or self.nominal_intent is None or self.case_digest is None:
-                raise ValueError("Counterfactual request requires T0, Nominal Intent and Case identity")
-            t0_s = float(self.counterfactual_t0_s)
-            if not math.isfinite(t0_s) or t0_s < 0.0:
-                raise ValueError("counterfactual_t0_s must be finite and non-negative")
-            object.__setattr__(self, "counterfactual_t0_s", t0_s)
+            if self.case_digest is None:
+                raise ValueError("Counterfactual request requires Case identity")
+            if self.handoff_trigger == "FIXED_T0":
+                if self.counterfactual_t0_s is None or self.nominal_intent is None:
+                    raise ValueError("Fixed-T0 Counterfactual requires T0 and Nominal Intent")
+                t0_s = float(self.counterfactual_t0_s)
+                if not math.isfinite(t0_s) or t0_s < 0.0:
+                    raise ValueError("counterfactual_t0_s must be finite and non-negative")
+                object.__setattr__(self, "counterfactual_t0_s", t0_s)
+            elif self.counterfactual_t0_s is not None or self.nominal_intent is not None:
+                raise ValueError("Lifecycle Counterfactual derives T0 and Mission Route at runtime")
             for name in ("handoff_tolerance_m", "handoff_tolerance_mps", "handoff_tolerance_rad"):
                 tolerance = float(getattr(self, name))
                 if not math.isfinite(tolerance) or tolerance < 0.0:
@@ -1153,10 +1352,15 @@ class HistoricalReplayRequest:
             if self.runtime_actor_set_digest not in {None, self.actor_set.semantic_digest}:
                 raise ValueError("runtime actor-set digest lineage mismatch")
         self.actor_set.actor(self.ownship_actor_id)
+        if not math.isfinite(self.t_start_s) or self.t_start_s < 0:
+            raise ValueError("t_start_s must be finite and non-negative")
+        object.__setattr__(self, "t_start_s", float(self.t_start_s))
         if self.dt_sim is not None and (not math.isfinite(self.dt_sim) or self.dt_sim <= 0):
             raise ValueError("dt_sim must be finite and positive")
         if self.t_end_s is not None and (not math.isfinite(self.t_end_s) or self.t_end_s <= 0):
             raise ValueError("t_end_s must be finite and positive")
+        if self.t_end_s is not None and self.t_end_s <= self.t_start_s:
+            raise ValueError("t_end_s must be later than t_start_s")
         if self.utm_zone not in {32, 33}:
             raise ValueError("utm_zone must be 32 or 33")
         if self.enc_preflight_evidence is not None and not isinstance(self.enc_preflight_evidence, ENCPreflightEvidence):
@@ -1192,6 +1396,7 @@ class HistoricalReplayRequest:
             dimension_registry_digest=self.dimension_registry_digest,
             dimension_effective_at_utc=self.dimension_effective_at_utc,
             dimension_record_digests=self.dimension_record_digests,
+            handoff_trigger=self.handoff_trigger,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1199,10 +1404,12 @@ class HistoricalReplayRequest:
             "actor_set": self.actor_set.to_dict(),
             "ownship_actor_id": self.ownship_actor_id,
             "dt_sim": self.dt_sim,
+            "t_start_s": self.t_start_s,
             "t_end_s": self.t_end_s,
             "scenario_name": self.scenario_name,
             "utm_zone": self.utm_zone,
             "mode": self.mode,
+            "handoff_trigger": self.handoff_trigger,
             "counterfactual_t0_s": self.counterfactual_t0_s,
             "nominal_intent": dict(self.nominal_intent) if self.nominal_intent is not None else None,
             "case_digest": self.case_digest,
@@ -1230,10 +1437,12 @@ class HistoricalReplayRequest:
             actor_set=HistoricalActorSet.from_dict(value["actor_set"]),
             ownship_actor_id=int(value.get("ownship_actor_id", 0)),
             dt_sim=value.get("dt_sim"),
+            t_start_s=float(value.get("t_start_s", 0.0)),
             t_end_s=value.get("t_end_s"),
             scenario_name=str(value.get("scenario_name", "historical_replay")),
             utm_zone=int(value.get("utm_zone", 33)),
             mode=str(value.get("mode", "HISTORICAL_REPLAY")),
+            handoff_trigger=str(value.get("handoff_trigger", "FIXED_T0")),
             counterfactual_t0_s=value.get("counterfactual_t0_s"),
             nominal_intent=value.get("nominal_intent"),
             case_digest=value.get("case_digest"),
@@ -1322,7 +1531,7 @@ class HistoricalReplayFactory:
         config = scenario_config.ScenarioConfig(
             name=request.scenario_name,
             save_scenario=False,
-            t_start=0.0,
+            t_start=request.t_start_s,
             t_end=t_end,
             dt_sim=dt_sim,
             type=scenario_config.ScenarioType.MS,

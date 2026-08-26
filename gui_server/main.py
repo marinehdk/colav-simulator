@@ -10,12 +10,14 @@ mpl.use("Agg")
 import asyncio
 import json
 import logging
+import os
 import re
 import threading
 import time
 from collections import deque
 from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +44,7 @@ from colav_simulator.experiment.busy_water import (
 from colav_simulator.experiment.contracts import RunSpec, SessionState
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner, PreparedRun, RunResult
-from colav_simulator.historical_counterfactual import HistoricalAISCounterfactualRunRequest
+from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssembler
 from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCatalog
 from gui_server.historical_api import router as historical_api_router
 
@@ -211,12 +213,49 @@ def _historical_session_spec(request: SessionCreateRequest) -> RunSpec | None:
             PlanStatus.INVALID_INPUT,
             "Product session create requires an explicit validation_rule_id and exact capability tuple",
         )
+    if request.algorithm_id == "mid_mpc_ipopt":
+        from colav_simulator.core.colav.mid_mpc.models import MidMpcConfig  # noqa: PLC0415
+
+        target_count = int(descriptor.current_window["target_count"])
+        capacity = MidMpcConfig().max_targets
+        if target_count > capacity:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"TARGET_CAPACITY_EXCEEDED: {target_count} > {capacity}",
+            )
     manager.runner.capabilities.validate(
         request.validation_rule_id,
         request.scenario_id,
         request.algorithm_id,
         request.tracker_id,
     )
+    cached = manager.historical_spec_cache.get(request.scenario_id)
+    if (
+        cached is not None
+        and request.dt is None
+        and request.t_end is None
+        and request.domain_profile is None
+    ):
+        capability = dict(cached.algorithm_capability_evidence or {})
+        exact_tuple = list(capability.get("exact_tuple", ()))
+        if len(exact_tuple) == 4:
+            exact_tuple[0] = request.validation_rule_id
+            exact_tuple[2] = request.algorithm_id
+            exact_tuple[3] = request.tracker_id
+            capability["exact_tuple"] = exact_tuple
+        return replace(
+            cached,
+            validation_rule_id=request.validation_rule_id,
+            algorithm_id=request.algorithm_id,
+            tracker_id=request.tracker_id,
+            seed=request.seed,
+            episode_index=request.episode_index,
+            strict_no_fallback=request.strict_no_fallback,
+            evaluator_profile_id=request.evaluator_profile_id,
+            algorithm_config=request.algorithm_config,
+            tracker_config=request.tracker_config,
+            algorithm_capability_evidence=capability,
+        )
     overrides: dict[str, Any] = {
         "algorithm_id": request.algorithm_id,
         "algorithm_config": request.algorithm_config,
@@ -229,14 +268,14 @@ def _historical_session_spec(request: SessionCreateRequest) -> RunSpec | None:
         overrides["t_end"] = request.t_end
     if request.domain_profile is not None:
         overrides["domain_profile"] = request.domain_profile
-    context = descriptor.bind_counterfactual(run_spec_overrides=overrides)
-    counterfactual = HistoricalAISCounterfactualRunRequest(
-        case=context.case,
-        run_spec=context.run_spec,
-        human_reference_artifact_digest=context.human_reference.trajectory_digest,
+    lifecycle_spec = HistoricalAISSceneAssembler(
+        capability_catalog=manager.runner.capabilities,
+    ).bind_lifecycle_counterfactual(
+        descriptor,
+        run_spec_overrides=overrides,
     )
     return replace(
-        counterfactual.to_run_spec(),
+        lifecycle_spec,
         validation_rule_id=request.validation_rule_id,
         seed=request.seed,
         strict_no_fallback=request.strict_no_fallback,
@@ -407,6 +446,7 @@ class WebSessionManager:
 
     def __init__(self) -> None:
         self.runner = ExperimentRunner(BASE_DIR)
+        self.historical_spec_cache: dict[str, RunSpec] = {}
         self.prepared: PreparedRun | None = None
         self.result: RunResult | None = None
         self.latest: dict[str, Any] = {}
@@ -424,6 +464,9 @@ class WebSessionManager:
         self.latest_planner_attempt: dict[str, Any] = {}
         self.enc_navigation_area: dict[str, Any] = {}
         self._telemetry_trails: dict[int, deque[list[float]]] = {}
+        self._shadow_max_deviation_m = 0.0
+        self._last_shadow_ownship: dict[str, Any] | None = None
+        self._last_shadow_comparison: dict[str, Any] | None = None
         self._telemetry_published_at = 0.0
         self._latest_stream_document = ""
         self._latest_compact_stream_document = ""
@@ -452,6 +495,9 @@ class WebSessionManager:
             self.active_planner_plan = {}
             self.latest_planner_attempt = {}
             self._telemetry_trails = {}
+            self._shadow_max_deviation_m = 0.0
+            self._last_shadow_ownship = None
+            self._last_shadow_comparison = None
             self._telemetry_published_at = 0.0
             self._latest_stream_document = ""
             self._latest_compact_stream_document = ""
@@ -469,6 +515,8 @@ class WebSessionManager:
     def describe(self) -> dict[str, Any]:
         if not self.prepared:
             return {"active": False}
+        source_time = float(self.prepared.session.simulator.t)
+        runtime_time = self._runtime_time_document(source_time)
         return {
             "active": True,
             "session_id": self.session_id,
@@ -476,9 +524,25 @@ class WebSessionManager:
             "spec": self.prepared.spec.to_dict(),
             "run_dir": str(self.prepared.run_dir),
             "sequence": self.prepared.session.sequence,
-            "sim_time": float(self.prepared.session.simulator.t),
+            **runtime_time,
             "failure_reason": self.prepared.session.failure_reason,
             "playback": self._playback_status(),
+        }
+
+    def _runtime_time_document(self, source_time_s: float) -> dict[str, Any]:
+        historical = None if self.prepared is None else self.prepared.spec.historical_replay
+        if not isinstance(historical, dict):
+            return {"sim_time": float(source_time_s), "source_time_s": float(source_time_s), "ais_utc": None}
+        origin_s = float(historical.get("t_start_s", 0.0))
+        actor_set = historical.get("actor_set", {})
+        raw_origin = actor_set.get("time_origin_utc") if isinstance(actor_set, dict) else None
+        ais_utc = None
+        if raw_origin:
+            ais_utc = (datetime.fromisoformat(str(raw_origin)) + timedelta(seconds=float(source_time_s))).isoformat()
+        return {
+            "sim_time": max(0.0, float(source_time_s) - origin_s),
+            "source_time_s": float(source_time_s),
+            "ais_utc": ais_utc,
         }
 
     def set_speed(self, session_id: str, multiplier: float) -> dict[str, Any]:
@@ -613,6 +677,8 @@ class WebSessionManager:
     def step(self, session_id: str) -> dict[str, Any]:
         with self.lock:
             prepared = self._require(session_id)
+            if prepared.session.state in {SessionState.FINISHED, SessionState.FAILED}:
+                raise RuntimeError(f"Cannot step a {prepared.session.state.value} session")
             try:
                 snapshot = prepared.session.step_once()
                 self._record_telemetry_trails(snapshot.payload)
@@ -825,6 +891,10 @@ class WebSessionManager:
                     "cog": float(csog[3]),
                     "trajectory": trail,
                     "active": bool(raw.get("active", True)),
+                    "historical_sample_kind": str(
+                        raw.get("historical_actor_truth", {}).get("sample_kind", "")
+                    ).upper() or None,
+                    "dimensions_provenance": raw.get("historical_actor_dimensions", {}).get("provenance"),
                     "measurements": jsonable(raw.get("sensor_measurements")),
                     "tracks": self._local_tracks(raw, origin_n, origin_e),
                     "colav": jsonable(raw.get("colav", {})),
@@ -979,15 +1049,127 @@ class WebSessionManager:
             "applied_speed_ref_mps": float(references[3]) if references.size > 3 else None,
             "selected_command": planner.get("selected_command", {}),
         }
-        sim_time = float(snapshot.sim_time) if snapshot is not None else float(session.simulator.t)
-        events = snapshot.events if snapshot is not None else []
+        source_time = float(snapshot.sim_time) if snapshot is not None else float(session.simulator.t)
+        if session.state is SessionState.FINISHED and session.simulator.t >= session.simulator.t_end:
+            source_time = float(session.simulator.t)
+        runtime_time = self._runtime_time_document(source_time)
+        events = list(snapshot.events if snapshot is not None else [])
+        historical_spec = self.prepared.spec.historical_replay
+        if isinstance(historical_spec, dict):
+            event_origin_s = float(historical_spec.get("t_start_s", 0.0))
+            events = [
+                {
+                    **event,
+                    "source_time_s": float(event.get("sim_time", 0.0)),
+                    "sim_time": max(0.0, float(event.get("sim_time", 0.0)) - event_origin_s),
+                }
+                for event in events
+            ]
         step_ms = float(snapshot.step_time_ms) if snapshot is not None else 0.0
+        historical_context = None
+        if isinstance(self.prepared.spec.historical_replay, dict):
+            context_states = []
+            for ship in session.ship_list:
+                sample_at = getattr(getattr(ship, "historical_actor", None), "sample_at", None)
+                sample = None if sample_at is None else sample_at(source_time)
+                context_states.append(
+                    {
+                        "actor_id": int(ship.id),
+                        "mmsi": int(ship.mmsi),
+                        "status": "INACTIVE / DATA GAP" if sample is None else sample.kind.value.upper(),
+                        "dimensions_provenance": getattr(
+                            getattr(ship, "historical_actor", None),
+                            "dimensions_provenance",
+                            None,
+                        ),
+                    }
+                )
+            historical_context = {
+                "total_actor_count": len(context_states),
+                "active_actor_count": sum(item["status"] != "INACTIVE / DATA GAP" for item in context_states),
+                "inactive_actor_count": sum(item["status"] == "INACTIVE / DATA GAP" for item in context_states),
+                "actors": context_states,
+            }
+        shadow_ownship = None
+        shadow_comparison = {"status": "NOT_AVAILABLE"}
+        ownship_object = session.ship_list[0]
+        shadow_sample_at = getattr(ownship_object, "shadow_sample_at", None)
+        handoff_source_s = getattr(ownship_object, "counterfactual_t0_s", None)
+        if shadow_sample_at is not None and handoff_source_s is not None and source_time >= float(handoff_source_s):
+            shadow_sample = shadow_sample_at(source_time)
+            if shadow_sample is not None:
+                north, east, velocity_north, velocity_east = shadow_sample.state_vxvy
+                speed = float(np.hypot(velocity_north, velocity_east))
+                course = float(np.arctan2(velocity_east, velocity_north)) if speed > 1e-12 else 0.0
+                local_north = float(north - origin_n)
+                local_east = float(east - origin_e)
+                deviation = float(np.hypot(float(own.get("x", 0.0)) - local_north, float(own.get("y", 0.0)) - local_east))
+                self._shadow_max_deviation_m = max(self._shadow_max_deviation_m, deviation)
+                course_delta = float(
+                    np.arctan2(
+                        np.sin(float(own.get("cog", 0.0)) - course),
+                        np.cos(float(own.get("cog", 0.0)) - course),
+                    )
+                )
+                actor = getattr(ownship_object, "historical_actor", None)
+                trail = []
+                if actor is not None:
+                    trail = [
+                        [float(sample.state_vxvy[0] - origin_n), float(sample.state_vxvy[1] - origin_e)]
+                        for sample in actor.samples
+                        if float(handoff_source_s) <= sample.time_s <= source_time
+                    ]
+                shadow_ownship = {
+                    "id": "shadow-ownship",
+                    "label": "AIS SHADOW",
+                    "mmsi": int(getattr(ownship_object, "mmsi", 0)),
+                    "x": local_north,
+                    "y": local_east,
+                    "north": float(north),
+                    "east": float(east),
+                    "psi": course,
+                    "cog": course,
+                    "sog": speed,
+                    "trajectory": trail,
+                    "sample_kind": shadow_sample.kind.value.upper(),
+                    "comparison_only": True,
+                }
+                shadow_comparison = {
+                    "status": "AVAILABLE",
+                    "handoff_sim_time_s": float(handoff_source_s)
+                    - float(self.prepared.spec.historical_replay.get("t_start_s", 0.0)),
+                    "handoff_source_time_s": float(handoff_source_s),
+                    "deviation_m": deviation,
+                    "maximum_deviation_m": self._shadow_max_deviation_m,
+                    "delta_cog_rad": course_delta,
+                    "delta_sog_mps": float(own.get("sog", 0.0)) - speed,
+                    "comparison_only": True,
+                    "recovery": jsonable(session.historical_recovery_status),
+                }
+                self._last_shadow_ownship = dict(shadow_ownship)
+                self._last_shadow_comparison = dict(shadow_comparison)
+        if (
+            handoff_source_s is not None
+            and shadow_ownship is None
+            and self._last_shadow_ownship is not None
+            and self._last_shadow_comparison is not None
+        ):
+            shadow_ownship = {
+                **self._last_shadow_ownship,
+                "sample_kind": "INACTIVE / DATA GAP",
+                "active": False,
+            }
+            shadow_comparison = {
+                **self._last_shadow_comparison,
+                "status": "INACTIVE / DATA GAP",
+                "recovery": jsonable(session.historical_recovery_status),
+            }
         return {
             "schema_version": "1.0",
             "run_id": self.session_id,
             "scenario_id": self.prepared.spec.scenario_id,
             "seq": session.sequence,
-            "sim_time": sim_time,
+            **runtime_time,
             "state": session.state.value,
             "truth": ships,
             "measurements": [ship["measurements"] for ship in ships],
@@ -1013,9 +1195,12 @@ class WebSessionManager:
             "execution": jsonable(execution),
             "events": jsonable(events),
             "step": session.sequence,
-            "scenario_time": sim_time,
+            "scenario_time": runtime_time["sim_time"],
             "running": session.state == SessionState.RUNNING,
             "os": own,
+            "shadow_ownship": shadow_ownship,
+            "shadow_comparison": shadow_comparison,
+            "historical_context": historical_context,
             "obstacles": obstacles,
             "waypoints": local_waypoints,
             "prediction_horizon": self.current_prediction_horizon,
@@ -1035,6 +1220,7 @@ class WebSessionManager:
             "step_time_ms": step_ms,
             "playback": self._playback_status(),
             "failure_reason": session.failure_reason,
+            "baseline_threat_failure_reason": session.baseline_threat_failure_reason,
             "reproduction_status": self.result.manifest.reproduction_status if self.result else "running",
         }
 
@@ -1123,6 +1309,23 @@ async def _simulation_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if os.environ.get("COLAV_HAIS_PREWARM_ON_STARTUP", "").strip() == "1":
+        started = time.perf_counter()
+        log.info("Preloading Historical AIS ENC before accepting sessions")
+        try:
+            request = SessionCreateRequest(
+                validation_rule_id="multiship",
+                scenario_id="hais_romsdal_20260701_120007_121007",
+                algorithm_id="vo",
+                tracker_id="god",
+            )
+            spec = _historical_session_spec(request)
+            if spec is not None:
+                await asyncio.to_thread(manager.runner.preload_historical_enc, spec)
+                manager.historical_spec_cache[request.scenario_id] = spec
+            log.info("Historical AIS ENC ready in %.1fs", time.perf_counter() - started)
+        except Exception:  # noqa: BLE001 - optional startup acceleration
+            log.exception("Historical AIS ENC preload failed; Create will retry synchronously")
     task = asyncio.create_task(_simulation_loop())
     try:
         yield

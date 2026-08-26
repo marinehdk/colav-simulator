@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import zlib
 from dataclasses import replace
 from pathlib import Path
@@ -26,17 +27,41 @@ def test_catalog_publishes_one_independent_bounded_ais_scene(monkeypatch) -> Non
     monkeypatch.delenv("COLAV_HAIS_ARCHIVE_PATH", raising=False)
     descriptor = HistoricalAISScenarioCatalog().get(HISTORICAL_AIS_SCENARIO_ID)
 
-    assert descriptor.scenario_id == "hais_romsdal_20260701_120000_120100"
+    assert descriptor.scenario_id == "hais_romsdal_20260701_120007_121007"
     assert descriptor.kind == "HISTORICAL_AIS"
     assert descriptor.modes == ("HISTORICAL_REPLAY", "COUNTERFACTUAL")
     assert descriptor.archive_scope["day_count"] == 23
     assert descriptor.archive_scope["row_count"] == 51_522_509
     assert descriptor.archive_scope["union_mmsi_count"] == 1_226
-    assert descriptor.current_window["source_row_count"] == 24
-    assert descriptor.current_window["selection_filter_mmsi_count"] == 4
-    assert descriptor.current_window["runtime_actor_count"] == 3
-    assert descriptor.current_window["target_mmsi"] == (257252000, 258764000)
+    assert descriptor.current_window["source_start_utc"] == "2026-07-01T11:59:07+00:00"
+    assert descriptor.current_window["playback_start_utc"] == "2026-07-01T12:00:07+00:00"
+    assert descriptor.current_window["playback_end_utc"] == "2026-07-01T12:10:07+00:00"
+    assert descriptor.current_window["duration_s"] == 600
+    assert descriptor.current_window["lookback_s"] == 60
+    assert descriptor.current_window["selection_filter_mmsi_count"] == 0
+    assert descriptor.current_window["runtime_actor_count"] == 4
+    assert descriptor.current_window["target_count"] == 3
+    assert descriptor.current_window["runtime_mmsi"] == (
+        257252000,
+        258764000,
+        259189000,
+        259257000,
+    )
+    assert descriptor.current_window["runtime_filter"] == {
+        "policy_id": "local-moving-traffic.v1",
+        "movement_span_min_m": 100.0,
+        "retained_target_mmsi": (257252000, 258764000, 259257000),
+        "reason": "USER_ACCEPTED_LOCAL_MOVING_TRAFFIC_ONLY",
+    }
+    assert len(descriptor.current_window["target_mmsi"]) == 3
     assert descriptor.current_window["reference_mmsi"] == 259189000
+    registry = descriptor.dimension_registry()
+    assert len(registry.records) == 4
+    assumed = [record for record in registry.records if record.method == "ASSUMED_HULL.v1"]
+    assert len(assumed) == 1
+    assert {(record.length_m, record.width_m) for record in assumed} == {(85.0, 16.0)}
+    assert {record.draft_m for record in assumed} == {3.0}
+    assert all(record.provenance == "ASSUMED" for record in assumed)
     assert "CURRENT_WINDOW_ONLY" in descriptor.limitations
     assert "CURRENT_ACTOR_SET_ONLY" in descriptor.limitations
     assert "ARCHIVE_NOT_FULLY_ENC_QUALIFIED" in descriptor.limitations
@@ -46,6 +71,23 @@ def test_catalog_publishes_one_independent_bounded_ais_scene(monkeypatch) -> Non
     assert descriptor.descriptor_sha256 == descriptor.to_dict()["descriptor_sha256"]
     assert "/Users/" not in json.dumps(document)
     assert "Downloads" not in json.dumps(document)
+
+    with pytest.raises(KeyError):
+        HistoricalAISScenarioCatalog().get("hais_romsdal_20260701_120000_120100")
+
+
+def test_real_ten_minute_replay_binds_all_traffic_without_moving_hazard_observations() -> None:
+    archive = os.environ.get("COLAV_HAIS_ARCHIVE_PATH", "").strip()
+    if not archive or not Path(archive).is_file():
+        pytest.skip("real HAIS archive not bound")
+
+    context = HistoricalAISScenarioCatalog().get(HISTORICAL_AIS_SCENARIO_ID).bind_replay()
+
+    assert context.dataset.descriptor.normalized_row_count == 1595
+    assert len(context.dimension_registry.records) == 35
+    assert context.enc_preflight.status.value == "PASS"
+    assert len(context.enc_preflight.hazard_observation_ids) == 18
+    assert context.enc_preflight.failure_codes == ("TRAFFIC_CONTEXT_HAZARD_OBSERVED",)
 
 
 def test_descriptor_is_deeply_immutable_and_separates_capability_evidence() -> None:
@@ -59,7 +101,7 @@ def test_descriptor_is_deeply_immutable_and_separates_capability_evidence() -> N
     assert evidence["exact_tuple"] == (
         "multiship",
         "paper_ccta2023_multiship",
-        "mid_mpc_ipopt",
+        "vo",
         "god",
     )
 

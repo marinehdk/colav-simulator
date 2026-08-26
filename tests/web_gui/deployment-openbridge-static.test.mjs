@@ -70,3 +70,21 @@ test('EVENT LIST uses OpenBridge event-list with projected timeline data', () =>
   assert.match(app, /colorCoded/);
   assert.doesNotMatch(app, /eventList\.innerHTML/);
 });
+
+test('three Workfaces occupy three equal centered columns', () => {
+  assert.equal((html.match(/class="workface-tab(?: active)?" data-workface=/g) || []).length, 3);
+  assert.match(styles, /\.workface-tabs \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 520px\)[\s\S]*\.workface-tabs \{[^}]*grid-template-columns: repeat\(3, minmax\(88px, 1fr\)\)/);
+});
+
+test('AIS comparison is the third left information page, not a monitor panel', () => {
+  assert.match(
+    html,
+    /class="ownship-info-page ownship-ais-page"[^>]*data-ownship-card-page="2"[\s\S]*?id="shadowComparisonPanel"/,
+  );
+  assert.match(html, /id="ownshipCardPosition" aria-label="第 1 张，共 3 张"[\s\S]*?aria-label="AIS"/);
+  const monitorPage = html.match(/data-operations-card-page="0"[\s\S]*?<!-- Page 1: ALGO -->/)?.[0] || '';
+  assert.doesNotMatch(monitorPage, /id="shadowComparisonPanel"/);
+  assert.match(app, /shadowPanel\.hidden = false/);
+  assert.doesNotMatch(app, /shadowPanel\.hidden = !shadowAvailable/);
+});

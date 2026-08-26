@@ -1614,6 +1614,7 @@ def apply_dimension_overrides(
             continue
         length = float(document.get("length_m"))
         width = float(document.get("width_m", document.get("beam_m")))
+        draft = None if document.get("draft_m") is None else float(document["draft_m"])
         provenance = str(document.get("provenance") or document.get("measurement_source") or "").strip()
         source_digest = str(document.get("source_digest") or "").strip()
         if (
@@ -1643,6 +1644,7 @@ def apply_dimension_overrides(
                 width_m=width,
                 dimensions_provenance=f"explicit:{provenance}",
                 source_observation_digest=actor.source_observation_digest,
+                draft_m=draft,
             )
         )
     return HistoricalActorSet(

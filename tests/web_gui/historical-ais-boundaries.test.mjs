@@ -50,9 +50,9 @@ test('scenario projection accepts only the canonical versioned descriptor', () =
   assert.equal(available.status, 'AVAILABLE');
   assert.equal(available.identity, 'HISTORICAL_AIS');
   assert.deepEqual(available.operability, { status: 'UNAVAILABLE', scope: 'BOUNDED' });
-  assert.equal(available.scenarioId, 'hais_romsdal_20260701_120000_120100');
+  assert.equal(available.scenarioId, 'hais_romsdal_20260701_120007_121007');
   assert.equal(available.source.archiveRows, 51_522_509);
-  assert.equal(available.selection.runtimeActorCount, 3);
+  assert.equal(available.selection.runtimeActorCount, 4);
   assert.equal(available.digests.archive, canonicalDescriptor.presentation.digests.archive_sha256);
   assert.equal(available.digests.entry, canonicalDescriptor.presentation.digests.entry_sha256);
   assert.equal(available.digests.selection, canonicalDescriptor.presentation.digests.selection_sha256);

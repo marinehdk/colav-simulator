@@ -240,6 +240,18 @@ class _HistoricalWorkflow:
                 "reference_runtime_last_time_s": (None if self.run_request is None else self.run_request.t0_s),
             },
             "final_snapshot": jsonable(final_frame),
+            "lifecycle_events": (
+                []
+                if self.result is None
+                else jsonable(
+                    [
+                        event
+                        for event in self.result.session.events
+                        if event.get("type")
+                        in {"threat_lifecycle_active", "algorithm_handoff", "historical_recovery_complete"}
+                    ]
+                )
+            ),
             "evidence": {
                 "dataset_descriptor": self.dataset_descriptor.to_dict(),
                 "case": (
@@ -987,6 +999,7 @@ def _build_historical_replay_request(
             actor_set=actor_set,
             ownship_actor_id=0,
             dt_sim=replay_document.pop("dt_sim", run_spec.dt),
+            t_start_s=float(replay_document.pop("t_start_s", 0.0)),
             t_end_s=replay_document.pop("t_end_s", run_spec.t_end),
             scenario_name=str(replay_document.pop("scenario_name", "historical_replay")),
             utm_zone=int(replay_document.pop("utm_zone", 33)),

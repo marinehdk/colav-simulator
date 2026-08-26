@@ -262,27 +262,27 @@ test('Historical AIS API adapter uses only dedicated scenario/workflow routes', 
   const api = createHistoricalAISApi({ fetchImpl, WebSocketImpl: null });
 
   await api.listScenarios();
-  await api.getScenario('hais_romsdal_20260701_120000_120100');
-  await api.createWorkflow('hais_romsdal_20260701_120000_120100', 'COUNTERFACTUAL');
+  await api.getScenario('hais_romsdal_20260701_120007_121007');
+  await api.createWorkflow('hais_romsdal_20260701_120007_121007', 'COUNTERFACTUAL');
   await api.runWorkflow('workflow-browser-regression');
   await api.createActiveSession({
     validationRuleId: 'multiship',
-    scenarioId: 'hais_romsdal_20260701_120000_120100',
+    scenarioId: 'hais_romsdal_20260701_120007_121007',
     algorithmId: 'mid_mpc_ipopt',
     trackerId: 'god',
   });
 
   assert.deepEqual(requests.map(request => request.url), [
     '/api/historical/scenarios',
-    '/api/historical/scenarios/hais_romsdal_20260701_120000_120100',
-    '/api/historical/scenarios/hais_romsdal_20260701_120000_120100/workflows',
+    '/api/historical/scenarios/hais_romsdal_20260701_120007_121007',
+    '/api/historical/scenarios/hais_romsdal_20260701_120007_121007/workflows',
     '/api/historical/workflows/workflow-browser-regression/run',
     '/api/sessions',
   ]);
   assert.deepEqual(JSON.parse(requests[2].options.body), { mode: 'COUNTERFACTUAL' });
   assert.deepEqual(JSON.parse(requests[4].options.body), {
     validation_rule_id: 'multiship',
-    scenario_id: 'hais_romsdal_20260701_120000_120100',
+    scenario_id: 'hais_romsdal_20260701_120007_121007',
     algorithm_id: 'mid_mpc_ipopt',
     tracker_id: 'god',
   });

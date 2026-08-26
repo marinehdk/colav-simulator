@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -12,7 +12,6 @@ from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.historical_acceptance import (
     HistoricalAISDimensionRegistry,
     HistoricalAISPublishedCaseAcceptanceRequest,
-    decode_dimension_registry,
 )
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISReadResult, HistoricalAISSelection
 from colav_simulator.historical_case import (
@@ -25,6 +24,7 @@ from colav_simulator.historical_case import (
     HistoricalAISDiscoveryProfile,
     HistoricalAISEvaluationBinding,
     HistoricalAISHumanReferenceBinding,
+    apply_dimension_overrides,
 )
 from colav_simulator.historical_compare import HistoricalBenchmarkAlignmentProfile, HistoricalBenchmarkTrajectory
 from colav_simulator.historical_enc import (
@@ -34,7 +34,13 @@ from colav_simulator.historical_enc import (
     ENCRegionProfile,
     build_expanded_romsdal_profile,
 )
-from colav_simulator.historical_replay import ENCPreflightEvidence
+from colav_simulator.historical_replay import (
+    ENCPreflightEvidence,
+    HistoricalActorSet,
+    HistoricalAISReconstructionProfile,
+    HistoricalAISReconstructor,
+    HistoricalReplayRequest,
+)
 from colav_simulator.historical_scenario_source import (
     HistoricalAISScenarioError,
     HistoricalAISScenarioReadiness,
@@ -57,6 +63,8 @@ class HistoricalSceneDescriptor(Protocol):
     algorithm_capability_evidence: Mapping[str, Any]
 
     def selection(self) -> HistoricalAISSelection: ...
+
+    def dimension_registry(self) -> HistoricalAISDimensionRegistry: ...
 
 
 @dataclass(frozen=True)
@@ -179,6 +187,11 @@ class HistoricalAISSceneAssembler:
         self.validate_dataset_identity(descriptor, dataset)
         enc_profile = self._qualified_enc_profile(descriptor)
         enc_preflight = enc_profile.preflight_historical_ais(dataset)
+        enc_preflight = _retain_traffic_context_hazard_observations(
+            dataset,
+            enc_preflight,
+            reference_mmsi=int(descriptor.current_window["reference_mmsi"]),
+        )
         if not enc_preflight.qualified:
             status = (
                 HistoricalAISScenarioReadiness.OUTSIDE_COVERAGE
@@ -194,7 +207,7 @@ class HistoricalAISSceneAssembler:
             source=source,
             selection=selection,
             dataset=dataset,
-            dimension_registry=decode_dimension_registry(descriptor.dimensions),
+            dimension_registry=descriptor.dimension_registry(),
             enc_profile=enc_profile,
             enc_preflight=enc_preflight,
         )
@@ -233,6 +246,81 @@ class HistoricalAISSceneAssembler:
             human_reference=human_reference,
             run_spec=run_spec,
             case=case,
+        )
+
+    def bind_lifecycle_counterfactual(
+        self,
+        descriptor: HistoricalSceneDescriptor,
+        *,
+        run_spec_overrides: Mapping[str, Any] | None = None,
+        environ: Mapping[str, str] | None = None,
+    ) -> RunSpec:
+        """Bind a Live Counterfactual Session with lifecycle-owned handoff."""
+        replay = self.bind_replay(descriptor, environ=environ)
+        profile = HistoricalAISReconstructionProfile()
+        actors = HistoricalAISReconstructor().reconstruct(replay.dataset, profile)
+        actors = _runtime_actor_subset(
+            actors,
+            tuple(int(value) for value in descriptor.current_window["runtime_mmsi"]),
+        )
+        actors = apply_dimension_overrides(
+            actors,
+            {record.mmsi: record.to_dict() for record in replay.dimension_registry.records},
+        )
+        actors = _reference_first_actor_set(
+            actors,
+            int(descriptor.current_window["reference_mmsi"]),
+        )
+        window = descriptor.current_window
+        playback_origin_s = float(window["lookback_s"])
+        run_spec = RunSpec.from_dict(_run_spec(descriptor, "COUNTERFACTUAL", run_spec_overrides))
+        duration_s = float(run_spec.t_end or window["duration_s"])
+        source_end_s = playback_origin_s + duration_s
+        case_digest = semantic_hash(
+            {
+                "descriptor": getattr(descriptor, "descriptor_sha256", descriptor.scenario_id),
+                "actor_set": actors.semantic_digest,
+                "handoff_trigger": "LIFECYCLE_ACTIVE",
+            }
+        )
+        request = HistoricalReplayRequest(
+            actor_set=actors,
+            ownship_actor_id=0,
+            dt_sim=float(run_spec.dt or profile.time_step_s),
+            t_start_s=playback_origin_s,
+            t_end_s=source_end_s,
+            scenario_name="historical_lifecycle_counterfactual",
+            utm_zone=replay.enc_profile.projection.utm_zone,
+            mode="COUNTERFACTUAL",
+            handoff_trigger="LIFECYCLE_ACTIVE",
+            case_digest=case_digest,
+            case_runtime_digest=case_digest,
+            dataset_digest=replay.dataset.descriptor.descriptor_sha256,
+            dataset_descriptor_digest=replay.dataset.descriptor.descriptor_sha256,
+            runtime_actor_set_digest=actors.semantic_digest,
+            selection_digest=replay.dataset.descriptor.selection_sha256,
+            reconstruction_profile_digest=profile.digest,
+            enc_preflight_evidence=ENCPreflightEvidence(
+                profile_id=replay.enc_profile.profile_id,
+                qualification_state=replay.enc_profile.qualification_state.value,
+                supported_extent_projected=replay.enc_profile.supported_extent_projected,
+                profile_digest=replay.enc_profile.profile_digest,
+                cache_digest=replay.enc_profile.cache.artifact_digest,
+                source_digest=replay.enc_profile.source.source_digest,
+                preflight_status=replay.enc_preflight.status.value,
+                all_positions_contained=replay.enc_preflight.all_positions_contained,
+            ),
+            dimension_registry_digest=replay.dimension_registry.digest,
+            dimension_effective_at_utc=str(window["playback_start_utc"]),
+            dimension_record_digests=tuple(
+                (record.mmsi, record.source_digest) for record in replay.dimension_registry.records
+            ),
+        )
+        return replace(
+            run_spec,
+            historical_replay=request.to_dict(),
+            t_end=duration_s,
+            dt=request.dt_sim,
         )
 
     def _qualified_enc_profile(self, descriptor: HistoricalSceneDescriptor) -> ENCRegionProfile:
@@ -360,7 +448,7 @@ def _run_spec(
         "algorithm_capability_evidence": capability,
         "algorithm_id": algorithm_id,
         "tracker_id": str(binding["tracker_id"]),
-        "t_end": 60.0,
+        "t_end": float(descriptor.current_window["duration_s"]),
         "terminate_on_collision_or_grounding": False,
         "strict_no_fallback": True,
         "evaluator_profile_id": str(binding["evaluator_profile_id"]),
@@ -423,8 +511,91 @@ def _historical_reference(
     )
 
 
+def _reference_first_actor_set(actor_set: HistoricalActorSet, reference_mmsi: int) -> HistoricalActorSet:
+    try:
+        reference = next(actor for actor in actor_set.actors if actor.mmsi == reference_mmsi)
+    except StopIteration as exc:
+        raise HistoricalAISScenarioError(
+            HistoricalAISScenarioReadiness.CASE_BUILD_FAILED,
+            f"Historical Reference MMSI {reference_mmsi} is unavailable",
+        ) from exc
+    ordered = (reference, *(actor for actor in actor_set.actors if actor.mmsi != reference_mmsi))
+    remapped = []
+    for actor_id, actor in enumerate(ordered):
+        item = replace(actor, actor_id=actor_id, actor_digest="")
+        object.__setattr__(item, "_configured_max_gap_s", actor_set.profile.max_interpolation_gap_s)
+        remapped.append(item)
+    return HistoricalActorSet(
+        dataset_digest=actor_set.dataset_digest,
+        selection_digest=actor_set.selection_digest,
+        profile=actor_set.profile,
+        time_origin_utc=actor_set.time_origin_utc,
+        actors=tuple(remapped),
+        provider=actor_set.provider,
+        attribution=actor_set.attribution,
+        coverage_limitations=actor_set.coverage_limitations,
+    )
+
+
+def _runtime_actor_subset(actor_set: HistoricalActorSet, runtime_mmsi: tuple[int, ...]) -> HistoricalActorSet:
+    """Seal the user-accepted local moving-traffic set before runtime assembly."""
+    allowed = tuple(dict.fromkeys(int(value) for value in runtime_mmsi))
+    available = {actor.mmsi: actor for actor in actor_set.actors}
+    missing = sorted(set(allowed).difference(available))
+    if missing:
+        raise HistoricalAISScenarioError(
+            HistoricalAISScenarioReadiness.CASE_BUILD_FAILED,
+            f"Historical runtime actor set is missing configured MMSI: {missing}",
+        )
+    selected = tuple(available[mmsi] for mmsi in allowed)
+    remapped = []
+    for actor_id, actor in enumerate(selected):
+        item = replace(actor, actor_id=actor_id, actor_digest="")
+        object.__setattr__(item, "_configured_max_gap_s", actor_set.profile.max_interpolation_gap_s)
+        remapped.append(item)
+    return HistoricalActorSet(
+        dataset_digest=actor_set.dataset_digest,
+        selection_digest=actor_set.selection_digest,
+        profile=actor_set.profile,
+        time_origin_utc=actor_set.time_origin_utc,
+        actors=tuple(remapped),
+        provider=actor_set.provider,
+        attribution=actor_set.attribution,
+        coverage_limitations=actor_set.coverage_limitations,
+    )
+
+
+def _retain_traffic_context_hazard_observations(
+    dataset: HistoricalAISReadResult,
+    preflight: ENCPreflightResult,
+    *,
+    reference_mmsi: int,
+) -> ENCPreflightResult:
+    """Keep source observations while retaining strict Ownship/coverage gates."""
+    if preflight.status is not ENCPreflightStatus.UNQUALIFIED:
+        return preflight
+    if preflight.failure_codes != ("HAZARD_INTERSECTION",):
+        return preflight
+    if preflight.outside_observation_ids or preflight.uncovered_observation_ids or preflight.navigability_observation_ids:
+        return preflight
+    ownship_ids = {
+        f"{observation.raw.entry_name}:{observation.raw.source_row_index}"
+        for observation in dataset.observations
+        if observation.normalized.mmsi == reference_mmsi
+    }
+    if ownship_ids.intersection(preflight.hazard_observation_ids):
+        return preflight
+    return replace(
+        preflight,
+        status=ENCPreflightStatus.PASS,
+        failure_codes=("TRAFFIC_CONTEXT_HAZARD_OBSERVED",),
+    )
+
+
 def _replay_document(context: BoundHistoricalAISReplayContext) -> dict[str, Any]:
     registry = context.dimension_registry
+    window = context.descriptor.current_window
+    playback_origin_s = float(window.get("lookback_s", 0.0))
     return {
         "reference_mmsi": int(context.descriptor.current_window["reference_mmsi"]),
         "reconstruction_profile": {
@@ -437,9 +608,10 @@ def _replay_document(context: BoundHistoricalAISReplayContext) -> dict[str, Any]
             "gap_policy": "terminate_without_ghost_extrapolation",
         },
         "dimension_registry": {**registry.to_dict(), "registry_digest": registry.digest},
-        "dimension_effective_at_utc": str(context.descriptor.current_window["t0_utc"]),
+        "dimension_effective_at_utc": str(window["playback_start_utc"]),
         "dt_sim": 1.0,
-        "t_end_s": 60.0,
+        "t_start_s": playback_origin_s,
+        "t_end_s": playback_origin_s + float(window["duration_s"]),
         "scenario_name": context.historical_scenario_id,
         "utm_zone": 33,
         "enc_preflight_evidence": ENCPreflightEvidence(

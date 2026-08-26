@@ -6,7 +6,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260821-trackkey-fix4';
+} from './modules/situation-display.js?v=20260826-ais-route-v3';
 
 /**
  * Colav-Simulator Web GUI — app.js
@@ -211,6 +211,8 @@ document.getElementById('zoomOut')?.addEventListener('click', () => situationDis
 document.getElementById('zoomReset')?.addEventListener('click', () => situationDisplay.fitView());
 document.getElementById('zoomInBtn')?.addEventListener('click', () => situationDisplay.zoomIn());
 document.getElementById('zoomOutBtn')?.addEventListener('click', () => situationDisplay.zoomOut());
+document.getElementById('fitTrafficBtn')?.addEventListener('click', () => situationDisplay.fitTraffic());
+document.getElementById('recenterChartBtn')?.addEventListener('click', () => situationDisplay.recenterOwnship());
 document.getElementById('toggleENC')?.addEventListener('click', function () {
   const visible = !situationDisplay.isEncVisible();
   situationDisplay.setEncVisible(visible);
@@ -321,6 +323,8 @@ function updateUI(proj) {
 function updateDeploymentDisplay(proj) {
   const simTime = proj.navigation?.simTime ?? 0;
   setText('liveSimulationTime', `${simTime.toFixed(1)} s`);
+  const aisUtc = proj.raw?.ais_utc;
+  setText('liveAisUtc', aisUtc ? `AIS ${String(aisUtc).slice(11, 19)}Z` : '');
   setText('liveControlState', proj.state || 'NOT CREATED');
   const emptyState = document.getElementById('liveEmptyState');
   if (emptyState) {
@@ -753,6 +757,13 @@ function setupNotificationCenter() {
 }
 
 function updateMonitorTelemetry(proj) {
+  const historicalContext = proj.raw?.historical_context;
+  setText(
+    'liveContextCount',
+    historicalContext
+      ? `${historicalContext.active_actor_count}/${historicalContext.total_actor_count} ACTIVE`
+      : '',
+  );
   const container = document.getElementById('liveRiskTargetList');
   if (container) {
     const targets = proj.risk?.targets || [];
@@ -771,12 +782,16 @@ function updateMonitorTelemetry(proj) {
         </article>
       `;
     } else {
+      const historicalById = new Map((proj.raw?.obstacles || []).map(target => [String(target.id), target]));
       container.innerHTML = targets.map((t) => {
         const isHighest = t.isPrimary === true;
         const dcpaText = t.dcpaM !== null ? `${t.dcpaM.toFixed(1)}` : '---';
         const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
         const colregLabel = t.encounter ? (ENCOUNTER_LABELS[t.encounter] || t.encounter) : '--';
         const priorityLabel = t.scheduleClass || (isHighest ? '当前 Primary' : '未分类');
+        const historical = historicalById.get(String(t.targetId)) || {};
+        const sampleKind = historical.historical_sample_kind || '--';
+        const dimensions = String(historical.dimensions_provenance || '').includes('ASSUMED') ? 'ASSUMED' : 'PROVEN';
         return `
           <article class="risk-target-card" ${isHighest ? 'data-priority="highest"' : ''}>
             <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.targetLabel || (t.targetId === null ? '--' : `TS${t.targetId}`)}</strong></div>
@@ -787,11 +802,33 @@ function updateMonitorTelemetry(proj) {
             <dl class="risk-target-facts">
               <div><dt>COLREGs Rule</dt><dd class="colreg-value">${colregLabel}</dd></div>
               <div><dt>Target range</dt><dd><button type="button" class="risk-distance-toggle" data-distance-m="${t.distanceM ?? ''}" data-unit="${riskDistanceUnit}" ${Number.isFinite(t.distanceM) ? '' : 'disabled'}>${formatRiskDistance(t.distanceM)}</button></dd></div>
+              <div><dt>AIS state</dt><dd>${sampleKind}</dd></div>
+              <div><dt>Hull dimensions</dt><dd>${dimensions}</dd></div>
             </dl>
           </article>
         `;
       }).join('');
     }
+  }
+
+  const shadow = proj.raw?.shadow_comparison;
+  const shadowPanel = document.getElementById('shadowComparisonPanel');
+  const shadowAvailable = ['AVAILABLE', 'INACTIVE / DATA GAP'].includes(shadow?.status);
+  if (shadowPanel) shadowPanel.hidden = false;
+  if (shadowAvailable) {
+    setText('shadowComparisonStatus', shadow.status === 'AVAILABLE' ? 'COMPARISON ONLY' : shadow.status);
+    setText('shadowDeviation', `${Number(shadow.deviation_m).toFixed(1)} m`);
+    setText('shadowMaximumDeviation', `${Number(shadow.maximum_deviation_m).toFixed(1)} m`);
+    setText('shadowDeltaCog', `${(Number(shadow.delta_cog_rad) * 180 / Math.PI).toFixed(1)}°`);
+    setText('shadowDeltaSog', `${(Number(shadow.delta_sog_mps) / 0.514444).toFixed(1)} kn`);
+    setText('shadowRecovery', shadow.recovery?.status || 'NOT STARTED');
+  } else {
+    setText('shadowComparisonStatus', 'NOT AVAILABLE');
+    setText('shadowDeviation', '-- m');
+    setText('shadowMaximumDeviation', '-- m');
+    setText('shadowDeltaCog', '--°');
+    setText('shadowDeltaSog', '-- kn');
+    setText('shadowRecovery', 'NOT STARTED');
   }
 
   renderMonitorEventList(proj.timeline?.events || []);
@@ -2159,6 +2196,7 @@ function syncRuntimeControls(snapshot) {
     || snapshot.outcome.status !== 'ready'
     || !snapshot.outcome.result);
   document.querySelectorAll('.speed-preset').forEach((button) => { button.disabled = locked; });
+  setControlDisabled('livePlaybackRate', locked);
 }
 
 function syncDeploymentRuntime(snapshot) {

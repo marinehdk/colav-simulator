@@ -63,36 +63,14 @@ def test_acceptance_harness_blocks_missing_source_dimensions_without_defaults(
     assert outcome.manifest["lineage"]["run_digest"] is None
 
 
-def test_real_window_manifest_records_replay_stable_graph_and_full_evidence() -> None:
+def test_one_minute_real_window_manifest_cannot_qualify_ten_minute_replacement() -> None:
     manifest_path = Path(__file__).parent / "fixtures" / "historical_ais_real_window_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    assert manifest["acceptance_status"] == "PASS"
-    assert manifest["blocker_code"] is None
-    assert manifest["dimensions"]["default_dimensions_used"] is False
-    assert manifest["dimensions"]["registry_applied"] is True
-    assert manifest["dimensions"]["effective_dimensioned_actor_count"] == 3
-    assert manifest["enc_preflight"]["status"] == "PASS"
-    assert manifest["case"]["status"] == "SUCCESS"
-    assert manifest["case"]["algorithm_binding"]["capability_receipt"]["exact_tuple"] == [
-        "multiship",
-        "paper_ccta2023_multiship",
-        "mid_mpc_ipopt",
-        "god",
-    ]
-    assert manifest["case"]["algorithm_binding"]["capability_receipt"]["evidence_hash"]
-    assert manifest["case"]["compare_binding"]["alignment_profile_digest"]
-    assert manifest["run"]["fallback_used"] is False
-    assert manifest["run"]["requested_algorithm"] == manifest["run"]["executed_algorithm"]
-    assert manifest["leakage"]["human_reference_digest_in_run_spec"] is False
-    assert manifest["leakage"]["nominal_intent_strict_pre_t0_only"] is True
-    assert manifest["threat"]["vector_count"] == 2
-    assert manifest["threat"]["schedule_context_count"] == 2
-    assert manifest["threat"]["cluster_count"] == 1
-    assert manifest["threat"]["graph_semantic_hash"]
-    assert manifest["threat"]["graph_evidence_hash"]
-    assert manifest["evaluation"]["gate"] == "PASS"
-    assert manifest["compare"]["status"] == "COMPLETE"
+    assert manifest["acceptance_status"] == "SUPERSEDED"
+    assert manifest["blocker_code"] == "TEN_MINUTE_REQUALIFICATION_PENDING"
+    assert manifest["superseded_by_scenario_id"] == "hais_romsdal_20260701_120007_121007"
+    assert manifest["source"]["selection"]["end_utc"] == "2026-07-01T12:01:00+00:00"
     assert manifest["source"]["archive_sha256"] == "d303d719cebaf0238c54b9e27f2a40b4414b26e3189b49cb84fbad4086b3f3d7"
     assert manifest["lineage"]["run_digest"]
     assert manifest["lineage"]["evaluation_digest"]

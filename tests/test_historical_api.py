@@ -245,10 +245,10 @@ def test_historical_api_uses_normal_session_and_publishes_final_evidence(
         presentation = document["presentation"]
         assert presentation["runtime"]["fallback_used"] is False
         assert presentation["threat"] == {
-            "status": "UNAVAILABLE",
-            "vector_count": None,
-            "schedule_entry_count": None,
-            "cluster_count": None,
+            "status": "AVAILABLE",
+            "vector_count": 1,
+            "schedule_entry_count": 1,
+            "cluster_count": 0,
         }
         assert presentation["leakage"] == {"status": "PASS_CONTRACT"}
         assert presentation["determinism"] == {"status": "NOT_CHECKED", "mismatch_count": None}
@@ -399,7 +399,7 @@ def test_scene_counterfactual_double_run_stays_operable_with_unqualified_cluster
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scene_id = "hais_romsdal_20260701_120000_120100"
+    scene_id = "hais_romsdal_20260701_120007_121007"
     manifest = {
         "historical_scenario_id": scene_id,
         "lineage": {
@@ -521,7 +521,7 @@ def test_scene_counterfactual_double_run_stays_operable_with_unqualified_cluster
 
 
 def test_bound_scene_registration_keeps_one_case_without_disposable_prepared_run(tmp_path: Path) -> None:
-    scene_id = "hais_romsdal_20260701_120000_120100"
+    scene_id = "hais_romsdal_20260701_120007_121007"
     run_spec = RunSpec(
         scenario_id=scene_id,
         historical_scenario_id=scene_id,

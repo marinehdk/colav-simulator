@@ -10,7 +10,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
-from colav_simulator.historical_acceptance import HistoricalAISDimensionRegistry, decode_dimension_registry
 from colav_simulator.historical_ais import HistoricalAISSelection
 from colav_simulator.historical_scenario_source import (
     HAIS_ARCHIVE_ENV_VAR,
@@ -22,12 +21,13 @@ from colav_simulator.historical_scenario_source import (
 from colav_simulator.historical_serialization import semantic_hash
 
 if TYPE_CHECKING:
+    from colav_simulator.historical_acceptance import HistoricalAISDimensionRegistry
     from colav_simulator.historical_scenario_assembly import (
         BoundHistoricalAISReplayContext,
         BoundHistoricalAISSceneContext,
     )
 
-HISTORICAL_AIS_SCENARIO_ID = "hais_romsdal_20260701_120000_120100"
+HISTORICAL_AIS_SCENARIO_ID = "hais_romsdal_20260701_120007_121007"
 HISTORICAL_AIS_SCENARIO_SCHEMA_VERSION = "historical-ais-scenario.v1"
 
 
@@ -39,6 +39,7 @@ class HistoricalAISScenarioLimitation(str, Enum):
     ARCHIVE_NOT_FULLY_ENC_QUALIFIED = "ARCHIVE_NOT_FULLY_ENC_QUALIFIED"
     AIS_COVERAGE_NOT_EXHAUSTIVE = "AIS_COVERAGE_NOT_EXHAUSTIVE"
     DIMENSIONS_ONLY_CURRENT_ACTOR_SET = "DIMENSIONS_ONLY_CURRENT_ACTOR_SET"
+    ASSUMED_HULL_DIMENSIONS = "ASSUMED_HULL_DIMENSIONS"
     ARCHIVE_SCOPE_IS_NOT_RUNTIME_SELECTION = "ARCHIVE_SCOPE_IS_NOT_RUNTIME_SELECTION"
 
 
@@ -141,7 +142,7 @@ class HistoricalAISScenarioDescriptor:
 
     def operability(self, readiness: HistoricalAISScenarioSourceReadiness) -> dict[str, str]:
         runtime_mmsi = {int(value) for value in self.current_window["runtime_mmsi"]}
-        dimension_mmsi = {int(record["mmsi"]) for record in self.dimensions["records"]}
+        dimension_mmsi = {record.mmsi for record in self.dimension_registry().records}
         available = (
             readiness.status is HistoricalAISScenarioReadiness.READY
             and self.enc["qualification_state"] == "QUALIFIED"
@@ -201,12 +202,40 @@ class HistoricalAISScenarioDescriptor:
         }
 
     def dimension_registry(self) -> HistoricalAISDimensionRegistry:
-        return decode_dimension_registry(self.dimensions)
+        from colav_simulator.historical_acceptance import decode_dimension_registry  # noqa: PLC0415
+
+        document = _deep_thaw(self.dimensions)
+        assumed_hull = dict(document.pop("assumed_hull", {}))
+        assumed_mmsi = tuple(int(value) for value in document.pop("assumed_mmsi", ()))
+        if assumed_mmsi:
+            profile_id = str(assumed_hull["profile_id"])
+            effective_date = str(assumed_hull["effective_date"])
+            document["records"].extend(
+                {
+                    "mmsi": mmsi,
+                    "length_m": float(assumed_hull["length_m"]),
+                    "width_m": float(assumed_hull["width_m"]),
+                    "draft_m": float(assumed_hull["draft_m"]),
+                    "provenance": str(assumed_hull["provenance"]),
+                    "source_digest": f"{assumed_hull['source_digest']}:{mmsi}",
+                    "method": profile_id,
+                    "measurement_date": effective_date,
+                    "effective_date": effective_date,
+                    "journal_date": effective_date,
+                    "retrieved_at_utc": "2026-08-25T00:00:00Z",
+                    "effective_as_of_t0": True,
+                    "identity_source": "Historical AIS MMSI",
+                    "measurement_source": "Versioned engineering assumption",
+                    "source_urls": [],
+                }
+                for mmsi in assumed_mmsi
+            )
+        return decode_dimension_registry(document)
 
     def dimension_source_digest(self) -> str | None:
         sources = tuple(
-            (int(record["mmsi"]), str(record["source_digest"]))
-            for record in self.dimensions["records"]
+            (record.mmsi, record.source_digest)
+            for record in self.dimension_registry().records
         )
         return semantic_hash(sources) if sources else None
 

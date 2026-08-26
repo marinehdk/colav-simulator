@@ -1,6 +1,6 @@
 import { createValidationAssembly } from './validation-assembly.js?v=20260824-policy-source';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260821-trackkey-fix4';
-import { createSituationDisplay } from './situation-display.js?v=20260821-trackkey-fix4';
+import { createSituationDisplay } from './situation-display.js?v=20260826-ais-route-v3';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const RULE_IMAGES = {
@@ -112,7 +112,7 @@ const SCENARIO_LABELS = {
   paper_ccta2023_multiship: 'Three-Ship',
   romsdal_busy_water_16: 'Multiship-Configurable',
   paper_ccta2023_head_on: 'Head-on (Paper)',
-  hais_romsdal_20260701_120000_120100: 'AIS Romsdal (Historical)',
+  hais_romsdal_20260701_120007_121007: 'AIS Romsdal (Historical)',
 };
 
 const RULE_LABELS = {

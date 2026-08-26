@@ -342,7 +342,7 @@ obc-clock:not(:defined),
 .workface-tab > obi-[a-z-]:not(:defined) { display: none; }
 
 .workface-tabs { position: relative; z-index: 2; }
-.workface-tabs { grid-column: 2; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; height: 100%; align-items: center; }
+.workface-tabs { grid-column: 2; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; height: 100%; align-items: center; }
 .workface-tab { min-width: 0; min-height: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--ob-muted); font-size: 12px; font-weight: 550; letter-spacing: .02em; cursor: pointer; }
 .workface-tab > obi-[a-z-] { width: 18px; height: 18px; flex: 0 0 18px; }
 .workface-tab > span { width: auto; height: auto; flex: 0 1 auto; }
@@ -2530,6 +2530,13 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   scrollbar-width: none;
 }
 
+.ownship-ais-page {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+}
+
+.ownship-ais-page > #shadowComparisonPanel { width: 100%; }
+
 .ownship-sensor-page::-webkit-scrollbar { display: none; }
 
 .ownship-sensor-page > obc-card,
@@ -3099,7 +3106,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 @media (max-width: 520px) {
   .workface-tabs {
     min-width: 0;
-    grid-template-columns: repeat(5, minmax(88px, 1fr));
+    grid-template-columns: repeat(3, minmax(88px, 1fr));
     overflow-x: auto;
     overscroll-behavior-inline: contain;
     scrollbar-width: thin;

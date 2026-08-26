@@ -51,7 +51,7 @@ from colav_simulator.historical_serialization import semantic_hash
 from colav_simulator.integrations import IntegrationRegistry
 
 UTC = timezone.utc
-HISTORICAL_SCENARIO_ID = "hais_romsdal_20260701_120000_120100"
+HISTORICAL_SCENARIO_ID = "hais_romsdal_20260701_120007_121007"
 
 
 def _case(

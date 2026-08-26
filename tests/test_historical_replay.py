@@ -4,9 +4,11 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 from shapely.geometry import MultiPolygon
 
+from colav_simulator.core.colav.encounter_lifecycle import RiskPhase
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_replay import (
     ENCPreflightEvidence,
@@ -207,6 +209,62 @@ def test_counterfactual_pre_t0_plan_is_playback_without_planner_or_lifecycle(
     assert ship.counterfactual_phase == "HISTORICAL_REFERENCE"
 
 
+def test_lifecycle_active_handoff_branches_once_and_preserves_shadow(tmp_path: Path) -> None:
+    source = _write_csv(
+        tmp_path / "dynamic-handoff.csv",
+        "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
+        "2026-07-01T00:00:00Z,123456789,7.0100,62.000,8,270,40,8\n"
+        "2026-07-01T00:00:30Z,123456789,7.0070,62.000,8,270,40,8\n"
+        "2026-07-01T00:01:00Z,123456789,7.0040,62.000,8,270,40,8\n"
+        "2026-07-01T00:01:30Z,123456789,7.0020,61.997,8,210,40,8\n"
+        "2026-07-01T00:02:00Z,123456789,7.0000,61.994,8,210,40,8\n",
+    )
+    profile = HistoricalAISReconstructionProfile(time_step_s=1.0, max_interpolation_gap_s=300.0)
+    actor = HistoricalAISReconstructor().reconstruct(_read(source), profile).actors[0]
+    ship = HistoricalCounterfactualActorShip(
+        actor,
+        profile,
+        t0_s=None,
+        nominal_intent=None,
+        handoff_trigger="LIFECYCLE_ACTIVE",
+        simulation_end_s=120.0,
+        reference_route_start_s=0.0,
+    )
+    lifecycle = SimpleNamespace(targets=(SimpleNamespace(risk=RiskPhase.ACTIVE),))
+
+    activated = ship.request_lifecycle_handoff(60.0, lifecycle)
+
+    assert activated is True
+    assert ship.counterfactual_phase == "COUNTERFACTUAL_REALIZED"
+    assert ship.counterfactual_t0_s == 60.0
+    assert ship.waypoints.shape == (2, 3)
+    assert np.allclose(ship.waypoints[:, 0], actor.sample_at(0.0).state_vxvy[:2])
+    assert np.allclose(ship.waypoints[:, 1], actor.sample_at(60.0).state_vxvy[:2])
+    assert np.allclose(ship.waypoints[:, 2], actor.sample_at(120.0).state_vxvy[:2])
+    assert ship.shadow_sample_at(120.0) == actor.sample_at(120.0)
+    realized_state = ship.state.copy()
+    ship.prepare_at_time(90.0)
+    assert np.array_equal(ship.state, realized_state)
+    assert ship.request_lifecycle_handoff(61.0, lifecycle) is False
+    released = SimpleNamespace(
+        targets=(
+            SimpleNamespace(
+                key=SimpleNamespace(target_id=1, generation=1),
+                risk=RiskPhase.RELEASED,
+            ),
+        )
+    )
+    route_delta = ship.waypoints[:, -1] - ship.waypoints[:, -2]
+    route_course = float(np.arctan2(route_delta[1], route_delta[0]))
+    recovered_position = ship.waypoints[:, -2] + 0.5 * route_delta
+    ship.set_initial_state(
+        np.array([recovered_position[0], recovered_position[1], ship.state[3], route_course]),
+    )
+    for _ in range(30):
+        recovery = ship.update_recovery_status(released, {(1, 1)}, 1.0)
+    assert recovery["status"] == "RECOVERY_COMPLETE", recovery
+
+
 def test_replay_uses_normal_session_sensor_tracker_chain(tmp_path: Path) -> None:
     source = _write_csv(
         tmp_path / "session.csv",
@@ -244,6 +302,41 @@ def test_replay_uses_normal_session_sensor_tracker_chain(tmp_path: Path) -> None
     assert target["historical_actor_truth"]["trajectory_digest"] == actors.actors[1].actor_digest
     assert prepared.evidence.mode == "HISTORICAL_REPLAY"
     assert prepared.evidence.counterfactual is False
+
+
+def test_replay_starts_at_historical_playback_origin_without_ghost_ownship(tmp_path: Path) -> None:
+    source = _write_csv(
+        tmp_path / "playback-origin.csv",
+        "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
+        "2026-07-01T00:00:01Z,123456789,7.0,62.0,4,90,40,8\n"
+        "2026-07-01T00:00:03Z,123456789,7.0001,62.0,4,90,40,8\n"
+        "2026-07-01T00:00:00Z,223456789,7.01,62.0,4,270,40,8\n"
+        "2026-07-01T00:00:03Z,223456789,7.0099,62.0,4,270,40,8\n",
+    )
+    actors = HistoricalAISReconstructor().reconstruct(_read(source))
+    enc = SimpleNamespace(
+        seabed=[],
+        land=SimpleNamespace(geometry=MultiPolygon()),
+        shore=SimpleNamespace(geometry=MultiPolygon()),
+    )
+    request = HistoricalReplayRequest(
+        actor_set=actors,
+        t_start_s=1.0,
+        t_end_s=4.0,
+        enc_preflight_evidence=_enc_evidence(actors),
+    )
+
+    prepared = HistoricalReplayFactory.prepare(
+        request,
+        enc=enc,
+        simulator=Simulator(config=SimulatorConfig(verbose=False)),
+    )
+    snapshot = prepared.session.step_once()
+
+    assert snapshot.sim_time == 1.0
+    assert snapshot.payload["Ship0"]["id"] == 0
+    assert snapshot.payload["Ship0"]["active"] is True
+    assert HistoricalReplayRequest.from_dict(request.to_dict()).t_start_s == 1.0
 
 
 def test_replay_factory_fails_before_session_when_actor_dimensions_are_missing(tmp_path: Path) -> None:
@@ -355,3 +448,29 @@ def test_replay_request_round_trip_preserves_sealed_lineage(tmp_path: Path) -> N
     assert restored.to_dict()["evidence"]["mode"] == "HISTORICAL_REPLAY"
     assert restored.evidence.provider == "Kystverket"
     assert restored.evidence.coverage_limitations
+
+
+def test_lifecycle_counterfactual_request_has_no_fixed_t0_or_future_intent(tmp_path: Path) -> None:
+    source = _write_csv(
+        tmp_path / "lifecycle-request.csv",
+        "date_time_utc,mmsi,longitude,latitude,speed_over_ground,course_over_ground,length,width\n"
+        "2026-07-01T00:00:00Z,123456789,7.0,62.0,4,90,40,8\n"
+        "2026-07-01T00:00:02Z,123456789,7.0001,62.0,4,90,40,8\n",
+    )
+    actors = HistoricalAISReconstructor().reconstruct(_read(source))
+    request = HistoricalReplayRequest(
+        actor_set=actors,
+        mode="COUNTERFACTUAL",
+        handoff_trigger="LIFECYCLE_ACTIVE",
+        case_digest="dynamic-case",
+        case_runtime_digest="dynamic-case",
+        runtime_actor_set_digest=actors.semantic_digest,
+        dataset_descriptor_digest=actors.dataset_digest,
+        enc_preflight_evidence=_enc_evidence(actors),
+    )
+
+    restored = HistoricalReplayRequest.from_dict(request.to_dict())
+
+    assert restored.handoff_trigger == "LIFECYCLE_ACTIVE"
+    assert restored.counterfactual_t0_s is None
+    assert restored.nominal_intent is None

@@ -202,3 +202,63 @@ _Avoid_: CLEAR risk state, permission to forget a duty
 **Historical Actor**:
 A vessel reconstructed from historical AIS for a replay or counterfactual environment, distinct from the runtime tracker estimate presented to the Planner.
 _Avoid_: Planner future knowledge, Human Reference trajectory
+
+**Algorithm Handoff**:
+The one-way atomic transfer of Counterfactual Ownship control from Historical Reference motion to the selected algorithm when the canonical Encounter Lifecycle first reaches `ACTIVE`. Control is not returned during that Active Session.
+_Avoid_: Fixed T0, first predicted threat, current-domain emergency, historical rejoin
+
+**Shadow Ownship**:
+The immutable Historical Reference continuation displayed beside Counterfactual Ownship after Algorithm Handoff. It is comparison-only and never participates in tracking, Threat Management, Planner input, control, collision detection, or realized counterfactual evaluation.
+_Avoid_: Second own ship, ghost obstacle, planner target
+
+**Shadow Deviation**:
+The same-time planar separation between Counterfactual Ownship and Shadow Ownship after Algorithm Handoff. It is comparison evidence, not a safety clearance or navigation error.
+_Avoid_: Cross-track error, DCPA, hull clearance
+
+**Shadow Comparison**:
+The backend-owned, same-time comparison between Counterfactual Ownship and Shadow Ownship, including motion divergence and separately scoped realized-clearance summaries. It does not issue an Independent Evaluator verdict or assume either trajectory is preferable.
+_Avoid_: Counterfactual safety verdict, browser comparison engine, human optimality claim
+
+**Historical Playback Origin**:
+The first source instant at which every required runtime actor has a valid reconstructed state; it maps to simulation elapsed time zero while retaining absolute AIS UTC identity. Earlier selected observations may serve as reconstruction lookback but are not playable frames.
+_Avoid_: Dataset selection start, first archive row, extrapolated start
+
+**Live Counterfactual Session**:
+An ordinary Active Session that advances Historical Actors, canonical Threat Management, and the selected algorithm together on each runtime tick. Its Deployment telemetry is produced online rather than replayed from a precomputed algorithm run.
+_Avoid_: Cached result playback, pre-rendered counterfactual, benchmark replay
+
+**Historical Display Qualification**:
+Pre-publication evidence that a bounded Historical AIS window naturally reaches the required canonical Encounter Lifecycle phases, including `ACTIVE`, without forced activation or altered safety thresholds. An unqualified window cannot enter the product scenario catalog.
+_Avoid_: Runtime fallback, scenario-specific trigger, algorithm PASS
+
+**Traffic Context Target**:
+A published Historical Actor that remains present in the same bounded time-space as the qualifying encounter and stays visible regardless of whether its lifecycle is `ACTIVE`, `MONITOR`, or `CLEAR`.
+_Avoid_: Decorative vessel, risk-filtered contact, Shadow Ownship
+
+**Assumed Historical Hull**:
+A versioned `85m x 16m`, `3m` draft physical profile assigned to a Historical Actor whose source-provenanced dimensions are unavailable. The assumption is visible and participates in tracking, Threat Management, planning, Ship Domain, and collision evaluation exactly as declared.
+_Avoid_: Display-only size, proven vessel dimensions, invisible planner fallback
+
+**Historical Interpolation Segment**:
+An endpoint-exact linear UTM position and velocity reconstruction between two observed AIS reports no more than `300s` apart, accepted only when the segment remains inside qualified navigable ENC water.
+_Avoid_: Spline-smoothed route, land-avoiding invented path, ghost extrapolation
+
+**Ownship-Follow View**:
+The default Historical AIS chart view centered on the currently controlled Ownship with a `6NM` total horizontal span. After Algorithm Handoff it follows Counterfactual Ownship while Shadow Ownship remains comparison context.
+_Avoid_: Full qualified ENC extent, target-centred view, synthetic-route fit
+
+**Historical Algorithm Qualification**:
+Full-window evidence that one selected algorithm accepts every admitted Historical Target and completes the Live Counterfactual Session without target pruning or fallback. Only qualified algorithm/scene tuples may enter the product catalog.
+_Avoid_: Registry availability, partial target run, capacity fallback
+
+**Historical Reference Route**:
+The three-point route sealed before execution from factual Ownship AIS: playback start, the observed point with maximum perpendicular deviation from the start-to-final chord, and the final observed point. It is declared scenario route geometry; runtime Shadow updates, timestamps, target futures, and future control values remain outside Planner authority.
+_Avoid_: Runtime Shadow feedback, synthetic 10km waypoint, target future leakage
+
+**Local Moving Traffic Set**:
+The Historical AIS runtime subset containing Ownship and the three user-accepted moving contacts in the encounter water area. All 35 bounded source contacts remain in Dataset lineage, but stationary/harbour contacts are excluded before runtime actor, tracker, Threat, Planner, and display assembly.
+_Avoid_: Display-only pruning, hidden planner targets, deleting source AIS evidence
+
+**Recovery Complete**:
+The post-encounter state in which all relevant targets are `RELEASED` and Counterfactual Ownship remains within `100m` cross-track and `5deg` course error of the nearest leg of the Historical Reference Route for the final continuous `30s`.
+_Avoid_: Threat release alone, one recovered tick, Shadow rejoin

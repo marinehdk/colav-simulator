@@ -17,7 +17,7 @@ from gui_server.main import app
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS_ROOT = PROJECT_ROOT / "scenarios"
-HISTORICAL_AIS_SCENE_ID = "hais_romsdal_20260701_120000_120100"
+HISTORICAL_AIS_SCENE_ID = "hais_romsdal_20260701_120007_121007"
 
 # Byte-level characterization of the committed scripted scenario corpus.  A
 # new independent Historical AIS descriptor may be added, but existing files
@@ -147,7 +147,6 @@ def test_existing_verified_exact_tuples_remain_unchanged_and_independent() -> No
     assert hais_experimental == {
         ("multiship", HISTORICAL_AIS_SCENE_ID, "vo", "god"),
         ("multiship", HISTORICAL_AIS_SCENE_ID, "potocnik_colreg_fan_mpc", "god"),
-        ("multiship", HISTORICAL_AIS_SCENE_ID, "mid_mpc_ipopt", "god"),
     }
     hais_scenarios = [item for item in catalog["scenarios"] if item["id"] == HISTORICAL_AIS_SCENE_ID]
     assert len(hais_scenarios) == 1

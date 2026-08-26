@@ -80,6 +80,7 @@ class HistoricalAISDimensionOverride:
     width_m: float
     provenance: str
     source_digest: str
+    draft_m: float | None = None
     method: str = "EXPLICIT_TYPED_OVERRIDE"
 
     def __post_init__(self) -> None:
@@ -91,6 +92,11 @@ class HistoricalAISDimensionOverride:
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError(f"{name} must be finite and positive")
             object.__setattr__(self, name, value)
+        if self.draft_m is not None:
+            draft = float(self.draft_m)
+            if not math.isfinite(draft) or draft <= 0.0:
+                raise ValueError("draft_m must be finite and positive when provided")
+            object.__setattr__(self, "draft_m", draft)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -100,6 +106,7 @@ class HistoricalAISDimensionOverride:
             "provenance": self.provenance,
             "source_digest": self.source_digest,
             "method": self.method,
+            "draft_m": self.draft_m,
         }
 
 

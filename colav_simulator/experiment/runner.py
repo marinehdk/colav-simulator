@@ -165,6 +165,39 @@ class ExperimentRunner:
         self.capabilities = CapabilityCatalog(self.registry)
         self.evaluator = evaluator or Evaluator()
         self._enc_cache: dict[tuple[str, int | str, int, int], Any] = {}
+        self._historical_episode_cache: dict[tuple[str, int | str, int, int], tuple[list, Any]] = {}
+
+    def preload_historical_enc(self, spec: RunSpec) -> bool:
+        """Warm only the expensive ENC object; create no session or run artifact."""
+        request = (
+            HistoricalReplayRequest.from_dict(spec.historical_replay)
+            if spec.historical_replay is not None
+            else None
+        )
+        if spec.historical_scenario_id is None or request is None:
+            raise ValueError("Historical ENC preload requires a sealed Historical RunSpec")
+        proof = _historical_runtime_map_proof(request)
+        config = _historical_runtime_config(spec, request, runtime_map_proof=proof)
+        source_version = content_hash(config.to_dict())
+        episode_count = max(1, spec.episode_index + 1)
+        cache_key = (
+            spec.historical_scenario_id,
+            source_version,
+            spec.seeds.scenario,
+            episode_count,
+        )
+        if cache_key in self._historical_episode_cache:
+            return False
+        generator = ScenarioGenerator(seed=spec.seeds.scenario)
+        episodes, enc = generator.generate(
+            config=config,
+            n_episodes=episode_count,
+            show_plots=False,
+            save_scenario=False,
+        )
+        self._enc_cache[cache_key] = copy.deepcopy(enc)
+        self._historical_episode_cache[cache_key] = (episodes, enc)
+        return True
 
     def list_scenarios(self) -> list[dict[str, Any]]:
         scenarios = []
@@ -239,6 +272,10 @@ class ExperimentRunner:
                     "historical_ais": {
                         "start_utc": window["start_utc"],
                         "end_utc": window["end_utc"],
+                        "playback_start_utc": window.get("playback_start_utc", window["start_utc"]),
+                        "playback_end_utc": window.get("playback_end_utc", window["end_utc"]),
+                        "duration_s": int(window.get("duration_s", 0)),
+                        "lookback_s": int(window.get("lookback_s", 0)),
                         "t0_utc": window["t0_utc"],
                         "bbox": list(window["bbox"]),
                         "reference_mmsi": window["reference_mmsi"],
@@ -402,7 +439,7 @@ class ExperimentRunner:
         if historical_request is not None:
             if spec.dt is None and historical_request.dt_sim is not None:
                 config.dt_sim = historical_request.dt_sim
-            if spec.t_end is None and historical_request.t_end_s is not None:
+            if historical_request.t_end_s is not None:
                 config.t_end = historical_request.t_end_s
         if spec.reload_enc:
             config.new_load_of_map_data = True
@@ -427,15 +464,21 @@ class ExperimentRunner:
             spec.seeds.scenario,
             episode_count,
         )
-        cached_enc = None if spec.reload_enc else self._enc_cache.get(enc_cache_key)
-        episodes, enc = generator.generate(
-            config=config,
-            enc=cached_enc,
-            n_episodes=episode_count,
-            show_plots=False,
-            save_scenario=False,
-        )
-        self._enc_cache[enc_cache_key] = copy.deepcopy(enc)
+        cached_episode = None if spec.reload_enc else self._historical_episode_cache.get(enc_cache_key)
+        if historical_request is not None and cached_episode is not None:
+            episodes, enc = copy.deepcopy(cached_episode)
+        else:
+            cached_enc = None if spec.reload_enc else self._enc_cache.get(enc_cache_key)
+            episodes, enc = generator.generate(
+                config=config,
+                enc=cached_enc,
+                n_episodes=episode_count,
+                show_plots=False,
+                save_scenario=False,
+            )
+            self._enc_cache[enc_cache_key] = copy.deepcopy(enc)
+            if historical_request is not None and not spec.reload_enc:
+                self._historical_episode_cache[enc_cache_key] = copy.deepcopy((episodes, enc))
         if spec.episode_index >= len(episodes):
             raise RuntimeError(f"Scenario produced {len(episodes)} episodes; requested index {spec.episode_index}")
         episode = episodes[spec.episode_index]
@@ -446,12 +489,18 @@ class ExperimentRunner:
                         HistoricalCounterfactualActorShip(
                             actor,
                             historical_request.actor_set.profile,
-                            t0_s=float(historical_request.counterfactual_t0_s),
-                            nominal_intent=historical_request.nominal_intent or {},
+                            t0_s=(
+                                None
+                                if historical_request.counterfactual_t0_s is None
+                                else float(historical_request.counterfactual_t0_s)
+                            ),
+                            nominal_intent=historical_request.nominal_intent,
+                            handoff_trigger=historical_request.handoff_trigger,
                             handoff_tolerance_m=historical_request.handoff_tolerance_m,
                             handoff_tolerance_mps=historical_request.handoff_tolerance_mps,
                             handoff_tolerance_rad=historical_request.handoff_tolerance_rad,
                             simulation_end_s=float(episode["config"].t_end),
+                            reference_route_start_s=float(historical_request.t_start_s),
                         )
                         if actor.actor_id == historical_request.ownship_actor_id
                         else HistoricalActorShip(
@@ -470,7 +519,7 @@ class ExperimentRunner:
                     for actor in historical_request.actor_set.actors
                 ]
             episode["config"].name = historical_request.scenario_name
-            episode["config"].t_start = 0.0
+            episode["config"].t_start = config.t_start
             episode["config"].dt_sim = config.dt_sim
             episode["config"].t_end = config.t_end
             episode["config"].ship_list = []
@@ -839,7 +888,7 @@ def _historical_runtime_config(
     document = {
         "name": spec.historical_scenario_id,
         "save_scenario": False,
-        "t_start": 0.0,
+        "t_start": request.t_start_s,
         "t_end": duration,
         "dt_sim": step,
         "type": "MS",
@@ -930,8 +979,13 @@ def _historical_runtime_map_proof(request: HistoricalReplayRequest) -> Historica
     dt_sim = float(request.dt_sim or request.actor_set.profile.time_step_s)
     if not math.isfinite(dt_sim) or dt_sim <= 0.0:
         raise ValueError("Historical runtime timestep must be finite and positive")
+    handoff_bound_s = (
+        float(request.counterfactual_t0_s)
+        if request.counterfactual_t0_s is not None
+        else float(request.t_start_s)
+    )
     post_t0_duration_s = (
-        max(0.0, run_duration_s - float(request.counterfactual_t0_s or 0.0))
+        max(0.0, run_duration_s - handoff_bound_s)
         if request.mode == "COUNTERFACTUAL"
         else 0.0
     )
@@ -949,9 +1003,7 @@ def _historical_runtime_map_proof(request: HistoricalReplayRequest) -> Historica
     points_enu.extend((east, north) for north, east in route_points)
     reachable_radius_m = speed_bound_mps * post_t0_duration_s
     if reachable_radius_m:
-        handoff = request.actor_set.actor(request.ownship_actor_id).sample_at(
-            float(request.counterfactual_t0_s or 0.0)
-        )
+        handoff = request.actor_set.actor(request.ownship_actor_id).sample_at(handoff_bound_s)
         if handoff is None:
             raise ValueError("Historical runtime map lacks an ownship state at Counterfactual T0")
         north, east = handoff.state_vxvy[:2]

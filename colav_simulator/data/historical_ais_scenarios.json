@@ -1,7 +1,7 @@
 {
   "schema_version": "historical-ais-scenario.v1",
-  "scenario_id": "hais_romsdal_20260701_120000_120100",
-  "display_name": "Romsdal AIS 2026-07-01 12:00-12:01 UTC",
+  "scenario_id": "hais_romsdal_20260701_120007_121007",
+  "display_name": "Romsdal AIS 2026-07-01 12:00:07-12:10:07 UTC",
   "kind": "HISTORICAL_AIS",
   "modes": [
     "HISTORICAL_REPLAY",
@@ -19,47 +19,59 @@
   },
   "current_window": {
     "entry_name": "hais_2026-07-01.snappy.parquet",
-    "start_utc": "2026-07-01T12:00:00+00:00",
-    "end_utc": "2026-07-01T12:01:00+00:00",
-    "duration_s": 60,
-    "t0_utc": "2026-07-01T12:00:30+00:00",
+    "start_utc": "2026-07-01T11:59:07+00:00",
+    "end_utc": "2026-07-01T12:10:07+00:00",
+    "source_start_utc": "2026-07-01T11:59:07+00:00",
+    "playback_start_utc": "2026-07-01T12:00:07+00:00",
+    "playback_end_utc": "2026-07-01T12:10:07+00:00",
+    "duration_s": 600,
+    "lookback_s": 60,
+    "t0_utc": null,
     "bbox": [
       6.05,
       62.44,
       6.17,
       62.5
     ],
-    "selection_mmsi": [
-      257252000,
-      258764000,
-      259189000,
-      259197000
-    ],
+    "selection_mmsi": [],
     "runtime_mmsi": [
       257252000,
       258764000,
-      259189000
+      259189000,
+      259257000
     ],
     "selected_mmsi": [
       257252000,
       258764000,
-      259189000
+      259189000,
+      259257000
     ],
-    "selection_filter_mmsi_count": 4,
-    "runtime_actor_count": 3,
-    "target_count": 2,
+    "selection_filter_mmsi_count": 0,
+    "runtime_actor_count": 4,
+    "target_count": 3,
     "reference_mmsi": 259189000,
     "target_mmsi": [
       257252000,
-      258764000
+      258764000,
+      259257000
     ],
-    "source_row_count": 24,
-    "normalized_row_count": 24,
-    "quality_finding_count": 98,
+    "runtime_filter": {
+      "policy_id": "local-moving-traffic.v1",
+      "movement_span_min_m": 100.0,
+      "retained_target_mmsi": [
+        257252000,
+        258764000,
+        259257000
+      ],
+      "reason": "USER_ACCEPTED_LOCAL_MOVING_TRAFFIC_ONLY"
+    },
+    "source_row_count": 1595,
+    "normalized_row_count": 1595,
+    "quality_finding_count": 6489,
     "expected_schema_sha256": "392e666a2128d89288eb5d073c1bdd8c65f0da583cba3c5b0e8e12ca3b0c8632",
-    "expected_selection_sha256": "a591ed0435c98098b76132ee4b678ce41105b6c3b612e701136adbf4fadc1836",
-    "expected_normalized_sha256": "794c92696aa061ab0b0c2128edbc51bd13eb20c65b54974bd3c654902a4e5adf",
-    "expected_descriptor_sha256": "0c53011ab625048ea61e2e8265542edbc56dabffc358f132825302041e090a68",
+    "expected_selection_sha256": "24f19a34f7fc064d0319bdebdf3c559be6afc8f9c1693e1f393e4066499ff051",
+    "expected_normalized_sha256": "b433919f29763de10e429f0bf8e397a7d3379212413ddddac182a1e9e012094f",
+    "expected_descriptor_sha256": "1ad4f640b10fce10089cbe94825a911b456e60a7455569fe73a139e0e9f41ba0",
     "entry_sha256": "6d4d8073b9f779047cd4f527c0837a5ebdec4cb4fbf58e024d0c8daae84a25bc",
     "entry_uncompressed_bytes": 67079215,
     "entry_crc32": 2951374176
@@ -137,12 +149,24 @@
           "https://sdir-p-apim-common.azure-api.net/los-vessel-data/94133"
         ]
       }
+    ],
+    "assumed_hull": {
+      "profile_id": "ASSUMED_HULL.v1",
+      "length_m": 85.0,
+      "width_m": 16.0,
+      "draft_m": 3.0,
+      "provenance": "ASSUMED",
+      "source_digest": "design-decision-assumed-hull-v1-85x16-draft3",
+      "effective_date": "2026-07-01"
+    },
+    "assumed_mmsi": [
+      259257000
     ]
   },
   "runtime_binding": {
-    "historical_scenario_id": "hais_romsdal_20260701_120000_120100",
+    "historical_scenario_id": "hais_romsdal_20260701_120007_121007",
     "kind": "HISTORICAL_AIS",
-    "algorithm_id": "mid_mpc_ipopt",
+    "algorithm_id": "vo",
     "tracker_id": "god",
     "evaluator_profile_id": "ccta_2023_demo-v1",
     "domain_profile": {
@@ -156,7 +180,8 @@
       "parameter_source": "Historical AIS benchmark engineering profile",
       "assumptions": [
         "versioned engineering envelope for the selected Romsdal benchmark",
-        "selected actor dimensions are sourced from SDIR measurement certificates",
+        "known actor dimensions are sourced from SDIR measurement certificates",
+        "unknown actor dimensions use the visible ASSUMED_HULL.v1 profile",
         "metres and not a COLREG statutory distance"
       ],
       "qualification": "QUALIFIED",
@@ -170,7 +195,7 @@
     "exact_tuple": [
       "multiship",
       "paper_ccta2023_multiship",
-      "mid_mpc_ipopt",
+      "vo",
       "god"
     ]
   },
@@ -183,7 +208,7 @@
     "CURRENT_ACTOR_SET_ONLY",
     "ARCHIVE_NOT_FULLY_ENC_QUALIFIED",
     "AIS_COVERAGE_NOT_EXHAUSTIVE",
-    "DIMENSIONS_ONLY_CURRENT_ACTOR_SET",
+    "ASSUMED_HULL_DIMENSIONS",
     "ARCHIVE_SCOPE_IS_NOT_RUNTIME_SELECTION"
   ]
 }

@@ -1,8 +1,9 @@
 {
   "schema_version": "historical-ais-real-acceptance.v1",
-  "acceptance_status": "PASS",
-  "blocker_code": null,
-  "blocker_message": null,
+  "acceptance_status": "SUPERSEDED",
+  "blocker_code": "TEN_MINUTE_REQUALIFICATION_PENDING",
+  "blocker_message": "One-minute evidence is historical only and cannot qualify hais_romsdal_20260701_120007_121007.",
+  "superseded_by_scenario_id": "hais_romsdal_20260701_120007_121007",
   "sealed_evidence": {
     "run_manifest_sha256": "6e65f7fd5973bd085220563f584e21574572b94081cd02db8ba727ff0458c252",
     "evaluation_artifact_sha256": "532c852863e25fc1662f04eb565abc70e8a38319d2f0bdabbba39fc1d7fc284b",

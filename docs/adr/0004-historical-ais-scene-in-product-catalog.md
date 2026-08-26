@@ -1,6 +1,6 @@
 # Historical AIS Scene in the Product Catalog
 
-> **Status**: accepted (2026-08-25)
+> **Status**: superseded by ADR-0005 (2026-08-25)
 
 The canonical Historical AIS scene (`hais_romsdal_20260701_120000_120100`) enters
 the product scenario catalog and the ordinary Config → Deployment flow. This
