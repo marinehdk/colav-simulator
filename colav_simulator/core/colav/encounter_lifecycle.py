@@ -386,6 +386,37 @@ class AggregateDirective:
 
 
 @dataclass(frozen=True)
+class PrimarySelectionEvidence:
+    """Typed explanation of the Lifecycle-owned Primary decision."""
+
+    winner: TrackKey | None
+    winning_class: str | None
+    decisive_factor: str | None
+    challenger: TrackKey | None
+    confirmation_remaining_s: float | None
+    switch_reason: str
+    preempted: bool = False
+
+    def __post_init__(self) -> None:
+        """Validate target identity, explanation tokens, and confirmation time."""
+        for key, name in ((self.winner, "winner"), (self.challenger, "challenger")):
+            if key is not None and not isinstance(key, TrackKey):
+                raise TypeError(f"primary selection {name} must be TrackKey")
+        if self.confirmation_remaining_s is not None and (
+            not math.isfinite(self.confirmation_remaining_s) or self.confirmation_remaining_s < 0.0
+        ):
+            raise ValueError("primary selection confirmation time must be finite and non-negative")
+        for value, name in (
+            (self.winning_class, "winning_class"),
+            (self.decisive_factor, "decisive_factor"),
+        ):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"primary selection {name} must be a non-empty string")
+        if not isinstance(self.switch_reason, str) or not self.switch_reason.strip():
+            raise ValueError("primary selection switch reason is required")
+
+
+@dataclass(frozen=True)
 class DecisionSnapshot:
     epoch: str
     sequence: int
@@ -402,6 +433,7 @@ class DecisionSnapshot:
     primary_switch_remaining_s: float | None = None
     primary_switch_reason: str | None = None
     primary_preempted: bool = False
+    primary_selection_evidence: PrimarySelectionEvidence | None = None
 
 
 @dataclass
@@ -552,6 +584,24 @@ class EncounterLifecycle:
             deepcopy(current.primary_candidates) if current.epoch == cycle.epoch and current.primary_candidates else {},
             priority_facts,
         )
+        primary_switch_remaining_s = (
+            None
+            if primary_candidate_since_s is None
+            else max(
+                0.0,
+                cycle.profile.primary_switch_confirmation_s
+                - (cycle.sim_time_s - primary_candidate_since_s),
+            )
+        )
+        primary_selection_evidence = _primary_selection_evidence(
+            decisions,
+            priority_facts,
+            winner=primary_target,
+            challenger=primary_candidate,
+            confirmation_remaining_s=primary_switch_remaining_s,
+            switch_reason=primary_switch_reason,
+            preempted=primary_preempted,
+        )
         directive = _aggregate(cycle, decisions)
         events = self._transition_events(cycle, decisions, current.result)
         evidence_persisted = all(self._record_event(event) for event in events)
@@ -568,17 +618,10 @@ class EncounterLifecycle:
             evidence_persisted=evidence_persisted,
             primary_challenger=primary_candidate,
             primary_candidate_since_s=primary_candidate_since_s,
-            primary_switch_remaining_s=(
-                None
-                if primary_candidate_since_s is None
-                else max(
-                    0.0,
-                    cycle.profile.primary_switch_confirmation_s
-                    - (cycle.sim_time_s - primary_candidate_since_s),
-                )
-            ),
+            primary_switch_remaining_s=primary_switch_remaining_s,
             primary_switch_reason=primary_switch_reason,
             primary_preempted=primary_preempted,
+            primary_selection_evidence=primary_selection_evidence,
         )
         self._state = _LifecycleState(
             epoch=cycle.epoch,
@@ -1412,35 +1455,140 @@ def _primary_sort_key(
     decision: TargetDecision,
     fact: PrimaryPriorityFact | None = None,
 ) -> tuple[float, ...]:
+    return tuple(value for _factor, value in _primary_sort_components(decision, fact))
+
+
+def _primary_sort_components(
+    decision: TargetDecision,
+    fact: PrimaryPriorityFact | None,
+) -> tuple[tuple[str, float], ...]:
     tcpa = decision.geometry.signed_tcpa_s
     approaching_tcpa = tcpa if tcpa >= 0.0 else math.inf
     if fact is None:
         return (
-            -float(_primary_rank(decision)),
-            approaching_tcpa,
-            decision.geometry.dcpa_m,
-            decision.geometry.range_m,
-            float(decision.key.target_id),
-            float(decision.key.generation),
+            ("LIFECYCLE_PHASE", -float(_primary_rank(decision))),
+            ("TCPA", approaching_tcpa),
+            ("DCPA", decision.geometry.dcpa_m),
+            ("RANGE", decision.geometry.range_m),
+            ("TRACK_IDENTITY", float(decision.key.target_id)),
+            ("TRACK_IDENTITY", float(decision.key.generation)),
         )
     return (
-        -float(1 if fact.hard_emergency else 0),
-        -float(1 if decision.rule17 is Rule17Stage.MUST_ACT else 0),
-        -float(
-            1
-            if decision.commitment is CommitmentPhase.COMMITTED and decision.risk is RiskPhase.ACTIVE
-            else 0
+        ("HARD_EMERGENCY", -float(1 if fact.hard_emergency else 0)),
+        ("RULE17_MUST_ACT", -float(1 if decision.rule17 is Rule17Stage.MUST_ACT else 0)),
+        (
+            "COMMITTED_ACTIVE",
+            -float(
+                1
+                if decision.commitment is CommitmentPhase.COMMITTED and decision.risk is RiskPhase.ACTIVE
+                else 0
+            ),
         ),
-        -float(1 if fact.current_domain_violation is True else 0),
-        -float(1 if fact.predicted_domain_violation is True else 0),
-        -float(fact.future_severity or 0.0),
-        -float(fact.completeness or 0.0),
-        -float(_primary_rank(decision)),
-        approaching_tcpa,
-        decision.geometry.dcpa_m,
-        decision.geometry.range_m,
-        float(decision.key.target_id),
-        float(decision.key.generation),
+        ("CURRENT_DOMAIN_VIOLATION", -float(1 if fact.current_domain_violation is True else 0)),
+        ("PREDICTED_DOMAIN_VIOLATION", -float(1 if fact.predicted_domain_violation is True else 0)),
+        ("FUTURE_SEVERITY", -float(fact.future_severity or 0.0)),
+        ("COMPLETENESS", -float(fact.completeness or 0.0)),
+        ("LIFECYCLE_PHASE", -float(_primary_rank(decision))),
+        ("TCPA", approaching_tcpa),
+        ("DCPA", decision.geometry.dcpa_m),
+        ("RANGE", decision.geometry.range_m),
+        ("TRACK_IDENTITY", float(decision.key.target_id)),
+        ("TRACK_IDENTITY", float(decision.key.generation)),
+    )
+
+
+def _primary_winning_class(
+    decision: TargetDecision,
+    fact: PrimaryPriorityFact | None,
+) -> str:
+    if fact is not None and fact.hard_emergency:
+        return "RESPONSE_TIME_EMERGENCY"
+    if decision.rule17 is Rule17Stage.MUST_ACT:
+        return "RULE17_MUST_ACT"
+    if decision.commitment is CommitmentPhase.COMMITTED and decision.risk is RiskPhase.ACTIVE:
+        return "COMMITTED_ACTIVE"
+    if fact is not None and fact.current_domain_violation is True:
+        return "CURRENT_DOMAIN_VIOLATION"
+    if fact is not None and fact.predicted_domain_violation is True:
+        return "PREDICTED_DOMAIN_VIOLATION"
+    if fact is not None and (fact.future_severity or 0.0) > 0.0:
+        return "FUTURE_SEVERITY"
+    if decision.risk is RiskPhase.CANDIDATE:
+        return "CANDIDATE"
+    if decision.risk is RiskPhase.PAST_CLEAR or decision.recovery_guard_active:
+        return "PAST_CLEAR"
+    return "UNKNOWN"
+
+
+def _primary_decisive_factor(
+    winner: TargetDecision,
+    runner_up: TargetDecision | None,
+    priority_facts: dict[TrackKey, PrimaryPriorityFact],
+) -> str:
+    if runner_up is None:
+        return "ONLY_ELIGIBLE_TARGET"
+    winner_components = _primary_sort_components(winner, priority_facts.get(winner.key))
+    runner_components = _primary_sort_components(runner_up, priority_facts.get(runner_up.key))
+    for (factor, winner_value), (_other_factor, runner_value) in zip(
+        winner_components,
+        runner_components,
+        strict=False,
+    ):
+        if winner_value != runner_value:
+            return factor
+    return "TRACK_IDENTITY"
+
+
+def _primary_selection_evidence(
+    decisions: tuple[TargetDecision, ...],
+    priority_facts: dict[TrackKey, PrimaryPriorityFact],
+    *,
+    winner: TrackKey | None,
+    challenger: TrackKey | None,
+    confirmation_remaining_s: float | None,
+    switch_reason: str,
+    preempted: bool,
+) -> PrimarySelectionEvidence:
+    by_key = {decision.key: decision for decision in decisions}
+    selected = by_key.get(winner)
+    if selected is None:
+        return PrimarySelectionEvidence(
+            winner=None,
+            winning_class=None,
+            decisive_factor=None,
+            challenger=challenger,
+            confirmation_remaining_s=confirmation_remaining_s,
+            switch_reason=switch_reason,
+            preempted=preempted,
+        )
+    eligible = tuple(
+        decision
+        for decision in decisions
+        if _primary_rank(decision) > 0 or _priority_is_eligible(priority_facts.get(decision.key))
+    )
+    ordered = tuple(
+        sorted(
+            eligible,
+            key=lambda decision: _primary_sort_key(decision, priority_facts.get(decision.key)),
+        )
+    )
+    runner_up = next((decision for decision in ordered if decision.key != winner), None)
+    if challenger is not None:
+        decisive_factor = "HYSTERESIS_HOLD"
+    elif preempted and switch_reason == "PREEMPT_RULE17_MUST_ACT":
+        decisive_factor = "RULE17_MUST_ACT"
+    elif preempted:
+        decisive_factor = "HARD_EMERGENCY"
+    else:
+        decisive_factor = _primary_decisive_factor(selected, runner_up, priority_facts)
+    return PrimarySelectionEvidence(
+        winner=winner,
+        winning_class=_primary_winning_class(selected, priority_facts.get(winner)),
+        decisive_factor=decisive_factor,
+        challenger=challenger,
+        confirmation_remaining_s=confirmation_remaining_s,
+        switch_reason=switch_reason,
+        preempted=preempted,
     )
 
 

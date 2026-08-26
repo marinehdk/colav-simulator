@@ -135,6 +135,11 @@ test('risk cards use the projected threat level for card and COLREGs colors', ()
   assert.match(app, /CONCURRENT_REQUIRED: 'REQUIRED'/);
   assert.match(styles, /\.risk-target-card\[data-priority="highest"\]/);
   assert.match(styles, /\.risk-target-card\[data-priority="highest"\] \.risk-target-heading span/);
+  assert.match(app, /function primarySelectionStatus\(selection\)/);
+  assert.match(app, /function primarySelectionExplanation\(selection, target\)/);
+  assert.match(app, /ACTIVE COLREG OBLIGATION/);
+  assert.match(app, /CHALLENGER TS\$\{selection\.challenger\.target_id\}/);
+  assert.match(styles, /\.risk-target-explanation/);
   assert.match(styles, /\.risk-target-card\[data-threat="safe"\]/);
   assert.match(styles, /\.risk-target-card\[data-threat="warn"\]/);
   assert.match(styles, /\.risk-target-card\[data-threat="danger"\]/);

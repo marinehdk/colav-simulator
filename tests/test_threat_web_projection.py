@@ -58,6 +58,12 @@ def test_product_session_exposes_baseline_threat_over_rest_and_websocket() -> No
             and isinstance(vector["avoidance_action_active"], bool)
             for vector in threat["vectors"]
         )
+        selection = threat["snapshot"]["lifecycle_snapshot"]["primary_selection_evidence"]
+        assert selection["winner"] is not None
+        assert selection["winning_class"]
+        assert selection["decisive_factor"]
+        assert selection["switch_reason"]
+        assert isinstance(selection["preempted"], bool)
         # Legacy browser-computed aliases stay inert.
         assert payload["primary_encounter"] is None
         assert payload["dcpa"] is None

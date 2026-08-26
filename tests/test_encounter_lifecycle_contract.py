@@ -491,9 +491,21 @@ def test_primary_target_uses_domain_priority_with_per_pair_hysteresis() -> None:
     assert pending.primary_target == TrackKey(1, 1)
     assert pending.primary_challenger == TrackKey(2, 1)
     assert pending.primary_switch_remaining_s == pytest.approx(10.0)
+    assert pending.primary_selection_evidence.winner == TrackKey(1, 1)
+    assert pending.primary_selection_evidence.winning_class == "COMMITTED_ACTIVE"
+    assert pending.primary_selection_evidence.decisive_factor == "HYSTERESIS_HOLD"
+    assert pending.primary_selection_evidence.challenger == TrackKey(2, 1)
+    assert pending.primary_selection_evidence.confirmation_remaining_s == pytest.approx(10.0)
+    assert pending.primary_selection_evidence.switch_reason == "PRIMARY_CHALLENGER"
+    assert pending.primary_selection_evidence.preempted is False
     assert still_pending.primary_target == TrackKey(1, 1)
     assert switched.primary_target == TrackKey(2, 1)
     assert switched.primary_switch_reason == "PRIMARY_SWITCH_CONFIRMED"
+    assert switched.primary_selection_evidence.winner == TrackKey(2, 1)
+    assert switched.primary_selection_evidence.winning_class == "COMMITTED_ACTIVE"
+    assert switched.primary_selection_evidence.decisive_factor == "PREDICTED_DOMAIN_VIOLATION"
+    assert switched.primary_selection_evidence.challenger is None
+    assert switched.primary_selection_evidence.confirmation_remaining_s is None
 
     preempted = lifecycle.step(cycle(4, 20.0, domain_violation=True, emergency=True))
     assert preempted.primary_target == TrackKey(2, 1)
@@ -535,6 +547,10 @@ def test_primary_target_emergency_preempts_current_without_confirmation() -> Non
     assert snapshot.primary_challenger is None
     assert snapshot.primary_preempted is True
     assert snapshot.primary_switch_reason == "PREEMPT_RESPONSE_TIME_EMERGENCY"
+    assert snapshot.primary_selection_evidence.winner == TrackKey(2, 1)
+    assert snapshot.primary_selection_evidence.winning_class == "RESPONSE_TIME_EMERGENCY"
+    assert snapshot.primary_selection_evidence.decisive_factor == "HARD_EMERGENCY"
+    assert snapshot.primary_selection_evidence.preempted is True
 
 
 def test_primary_generation_change_does_not_inherit_challenger_confirmation() -> None:

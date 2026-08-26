@@ -156,7 +156,22 @@ test('risk targets follow canonical schedule display order without metric rankin
     envelope: envelope({
       threat_management: {
         status: 'AVAILABLE',
-        snapshot: { semantic_hash: 'threat-1', profile_hash: 'profile-1', vectors },
+        snapshot: {
+          semantic_hash: 'threat-1',
+          profile_hash: 'profile-1',
+          vectors,
+          lifecycle_snapshot: {
+            primary_selection_evidence: {
+              winner: { target_id: 2, generation: 1 },
+              winning_class: 'COMMITTED_ACTIVE',
+              decisive_factor: 'TCPA',
+              challenger: { target_id: 3, generation: 1 },
+              confirmation_remaining_s: 6.2,
+              switch_reason: 'HYSTERESIS_PENDING',
+              preempted: false,
+            },
+          },
+        },
         vectors,
         schedule: {
           current_primary: { target_id: 2, generation: 1 },
@@ -181,6 +196,15 @@ test('risk targets follow canonical schedule display order without metric rankin
   assert.equal(snapshot.risk.primary.scheduleClass, 'CURRENT_PRIMARY');
   assert.equal(snapshot.risk.dcpaM, 150);
   assert.equal(snapshot.risk.tcpaS, 60);
+  assert.deepEqual(snapshot.risk.primarySelection, {
+    winner: { target_id: 2, generation: 1 },
+    winningClass: 'COMMITTED_ACTIVE',
+    decisiveFactor: 'TCPA',
+    challenger: { target_id: 3, generation: 1 },
+    confirmationRemainingS: 6.2,
+    switchReason: 'HYSTERESIS_PENDING',
+    preempted: false,
+  });
   assert.deepEqual(snapshot.risk.conflictGraph, { edges: [], clusters: [] });
 });
 

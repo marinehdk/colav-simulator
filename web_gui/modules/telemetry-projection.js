@@ -43,6 +43,7 @@ function emptyProjection() {
       snapshotHash: null,
       profileHash: null,
       primary: null,
+      primarySelection: null,
       targets: freeze([]),
       dcpaM: null,
       tcpaS: null,
@@ -316,6 +317,21 @@ function projectThreatSchedule(schedule) {
   });
 }
 
+function projectPrimarySelection(value) {
+  if (!value || typeof value !== 'object') return null;
+  return freeze({
+    winner: threatKey(value.winner),
+    winningClass: value.winning_class ?? value.winningClass ?? null,
+    decisiveFactor: value.decisive_factor ?? value.decisiveFactor ?? null,
+    challenger: threatKey(value.challenger),
+    confirmationRemainingS: finiteOrNull(
+      value.confirmation_remaining_s ?? value.confirmationRemainingS,
+    ),
+    switchReason: value.switch_reason ?? value.switchReason ?? null,
+    preempted: value.preempted === true,
+  });
+}
+
 function projectRisk(envelope) {
   const source = envelope.threat_management;
   if (!source || typeof source !== 'object') {
@@ -326,6 +342,7 @@ function projectRisk(envelope) {
       snapshotHash: null,
       profileHash: null,
       primary: null,
+      primarySelection: null,
       targets: freeze([]),
       dcpaM: null,
       tcpaS: null,
@@ -339,14 +356,19 @@ function projectRisk(envelope) {
   const rawVectors = Array.isArray(source.vectors)
     ? source.vectors
     : Array.isArray(snapshot?.vectors) ? snapshot.vectors : [];
-  const lifecycleTargets = Array.isArray(snapshot?.lifecycle_snapshot?.targets)
-    ? snapshot.lifecycle_snapshot.targets
-    : Array.isArray(snapshot?.lifecycleSnapshot?.targets) ? snapshot.lifecycleSnapshot.targets : [];
+  const lifecycleSnapshot = snapshot?.lifecycle_snapshot ?? snapshot?.lifecycleSnapshot ?? null;
+  const lifecycleTargets = Array.isArray(lifecycleSnapshot?.targets) ? lifecycleSnapshot.targets : [];
   const targets = rawVectors.map((vector) => projectThreatVector(
     vector,
     lifecycleTargets.find((fact) => sameThreatKey(vector, fact?.key)) ?? null,
   ));
   const schedule = projectThreatSchedule(source.schedule ?? snapshot?.schedule);
+  const primarySelection = projectPrimarySelection(
+    source.primary_selection_evidence
+      ?? source.primarySelectionEvidence
+      ?? lifecycleSnapshot?.primary_selection_evidence
+      ?? lifecycleSnapshot?.primarySelectionEvidence,
+  );
   const primaryRef = schedule?.currentPrimary ?? source.primary ?? snapshot?.primary ?? null;
   const primaryIndex = targets.findIndex(target => sameThreatKey(target.key, primaryRef));
   const scheduleEntry = (target) => schedule?.entries?.find(entry => sameThreatKey(target.key, entry?.key));
@@ -379,6 +401,7 @@ function projectRisk(envelope) {
     snapshotHash: snapshot?.semantic_hash ?? snapshot?.semanticHash ?? null,
     profileHash: snapshot?.profile_hash ?? snapshot?.profileHash ?? null,
     primary,
+    primarySelection,
     targets: freeze(displayTargets),
     dcpaM: primary?.dcpaM ?? null,
     tcpaS: primary?.tcpaS ?? null,

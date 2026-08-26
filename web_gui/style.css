@@ -3175,6 +3175,28 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   font-weight: 800;
   letter-spacing: .04em;
 }
+.risk-target-heading span em {
+  margin-left: 6px;
+  color: inherit;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.risk-target-explanation {
+  margin: -2px 0 var(--s-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  color: var(--ob-subtle);
+  font: 650 9px/14px var(--font-mono);
+}
+.risk-target-explanation strong {
+  color: var(--risk-card-color);
+  font: inherit;
+  white-space: nowrap;
+}
 
 .risk-target-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
 .risk-target-metric { min-width: 0; padding: var(--s-2); border: 1px solid color-mix(in srgb, var(--risk-card-color) 24%, var(--ob-border)); border-radius: var(--radius); background: var(--ob-work-bg); }

@@ -15,6 +15,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     PhysicalEncounterFacts,
     PhysicalFactValidity,
     PrimaryPriorityFact,
+    PrimarySelectionEvidence,
     canonical_physical_facts,
 )
 from colav_simulator.core.colav.threat_assessment import (
@@ -70,6 +71,7 @@ __all__ = [
     "PhysicalEncounterFacts",
     "PhysicalFactValidity",
     "PrimaryPriorityFact",
+    "PrimarySelectionEvidence",
     "canonical_physical_facts",
     "DomainFacts",
     "DomainQualification",

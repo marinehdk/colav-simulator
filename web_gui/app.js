@@ -748,6 +748,76 @@ function riskScheduleLabel(target) {
   return RISK_SCHEDULE_LABELS[target?.scheduleClass] || (target?.isPrimary ? 'PRIMARY' : 'TARGET');
 }
 
+const PRIMARY_SWITCH_STATUS_LABELS = {
+  PRIMARY_STABLE: 'STABLE',
+  PRIMARY_ACQUIRED: 'ACQUIRED',
+  PRIMARY_SWITCH_CONFIRMED: 'SWITCHED',
+  PRIMARY_CHALLENGER: 'PENDING',
+  HYSTERESIS_PENDING: 'PENDING',
+  PREEMPT_CURRENT_DOMAIN_EMERGENCY: 'PREEMPT',
+  PREEMPT_RESPONSE_TIME_EMERGENCY: 'PREEMPT',
+  PREEMPT_RULE17_MUST_ACT: 'PREEMPT',
+};
+
+const PRIMARY_CLASS_LABELS = {
+  RESPONSE_TIME_EMERGENCY: 'RESPONSE EMERGENCY',
+  RULE17_MUST_ACT: 'RULE 17 MUST ACT',
+  COMMITTED_ACTIVE: 'COMMITTED ACTIVE',
+  CURRENT_DOMAIN_VIOLATION: 'CURRENT DOMAIN',
+  PREDICTED_DOMAIN_VIOLATION: 'PREDICTED DOMAIN',
+  FUTURE_SEVERITY: 'FUTURE THREAT',
+  CANDIDATE: 'CANDIDATE',
+  PAST_CLEAR: 'PAST CLEAR',
+};
+
+const PRIMARY_FACTOR_LABELS = {
+  HARD_EMERGENCY: 'HARD EMERGENCY',
+  RULE17_MUST_ACT: 'RULE 17 PRIORITY',
+  COMMITTED_ACTIVE: 'ACTIVE DUTY',
+  CURRENT_DOMAIN_VIOLATION: 'CURRENT DOMAIN LEAD',
+  PREDICTED_DOMAIN_VIOLATION: 'PREDICTED DOMAIN LEAD',
+  FUTURE_SEVERITY: 'SEVERITY LEAD',
+  COMPLETENESS: 'EVIDENCE LEAD',
+  LIFECYCLE_PHASE: 'LIFECYCLE LEAD',
+  TCPA: 'TCPA LEAD',
+  DCPA: 'DCPA LEAD',
+  RANGE: 'RANGE LEAD',
+  TRACK_IDENTITY: 'STABLE TIE-BREAK',
+  ONLY_ELIGIBLE_TARGET: 'ONLY TARGET',
+  HYSTERESIS_HOLD: 'HYSTERESIS HOLD',
+};
+
+function primarySelectionStatus(selection) {
+  return PRIMARY_SWITCH_STATUS_LABELS[selection?.switchReason] || 'STATUS UNKNOWN';
+}
+
+function primarySelectionExplanation(selection, target) {
+  if (selection?.challenger?.target_id !== null && selection?.challenger?.target_id !== undefined) {
+    const remaining = Number.isFinite(selection.confirmationRemainingS)
+      ? ` · ${selection.confirmationRemainingS.toFixed(1)}s`
+      : '';
+    return {
+      summary: `CHALLENGER TS${selection.challenger.target_id}${remaining}`,
+      detail: 'SWITCH PENDING',
+    };
+  }
+  const summary = PRIMARY_CLASS_LABELS[selection?.winningClass]
+    || PRIMARY_CLASS_LABELS[target?.priorityClass]
+    || 'PRIORITY UNAVAILABLE';
+  const detail = PRIMARY_FACTOR_LABELS[selection?.decisiveFactor] || 'BASIS UNAVAILABLE';
+  const redundantEmergency = (
+    selection?.winningClass === 'RESPONSE_TIME_EMERGENCY'
+      && selection?.decisiveFactor === 'HARD_EMERGENCY'
+  ) || (
+    selection?.winningClass === 'RULE17_MUST_ACT'
+      && selection?.decisiveFactor === 'RULE17_MUST_ACT'
+  );
+  return {
+    summary,
+    detail: redundantEmergency ? '' : detail,
+  };
+}
+
 function formatRiskDistance(distanceM, unit = riskDistanceUnit) {
   if (!Number.isFinite(distanceM)) return unit === 'nmi' ? '--- NM' : '--- km';
   return unit === 'nmi'
@@ -1126,12 +1196,22 @@ function updateMonitorTelemetry(proj) {
         const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
         const colregLabel = t.encounter ? (ENCOUNTER_LABELS[t.encounter] || t.encounter) : '--';
         const priorityLabel = riskScheduleLabel(t);
+        const primaryStatus = isHighest ? primarySelectionStatus(proj.risk.primarySelection) : '';
+        const explanation = isHighest
+          ? primarySelectionExplanation(proj.risk.primarySelection, t)
+          : t.scheduleClass === 'CONCURRENT_REQUIRED'
+            ? { summary: 'ACTIVE COLREG OBLIGATION', detail: '' }
+            : null;
+        const explanationMarkup = explanation
+          ? `<div class="risk-target-explanation"><span>${explanation.summary}</span>${explanation.detail ? `<strong>${explanation.detail}</strong>` : ''}</div>`
+          : '';
         const historical = historicalById.get(String(t.targetId)) || {};
         const sampleKind = historical.historical_sample_kind || '--';
         const dimensions = String(historical.dimensions_provenance || '').includes('ASSUMED') ? 'ASSUMED' : 'PROVEN';
         return `
           <article class="risk-target-card" data-threat="${threatLevel}" data-schedule="${t.scheduleClass || 'UNKNOWN'}" ${isHighest ? 'data-priority="highest"' : ''}>
-            <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.targetLabel || (t.targetId === null ? '--' : `TS${t.targetId}`)}</strong></div>
+            <div class="risk-target-heading"><span>${priorityLabel}${primaryStatus ? `<em>${primaryStatus}</em>` : ''}</span><strong>${t.targetLabel || (t.targetId === null ? '--' : `TS${t.targetId}`)}</strong></div>
+            ${explanationMarkup}
             <div class="risk-target-metrics">
               <div class="risk-target-metric"><span>DCPA</span><strong>${dcpaText}<small>m</small></strong></div>
               <div class="risk-target-metric"><span>TCPA</span><strong>${tcpaText}<small>s</small></strong></div>
