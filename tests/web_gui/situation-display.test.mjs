@@ -310,6 +310,13 @@ test('updateFrozenRoute freezes first valid route per run and re-freezes per new
   assert.deepEqual(updateFrozenRoute(routes, { waypoints: [[7, 7], [7, 7]] }), [[7, 7], [7, 7]], 'unbound run has its own key');
 });
 
+test('Historical AIS reference route uses normal waypoint labels', async () => {
+  const { waypointLabel } = await import(new URL('../../web_gui/modules/situation-display.js', import.meta.url).href);
+
+  assert.equal(waypointLabel(1, 'hais_romsdal_20260701_120007_121007'), 'WPT2');
+  assert.equal(waypointLabel(1, 'head_on'), 'WPT2');
+});
+
 /* ── Instance seam ──────────────────────────── */
 
 test('utmToCanvas / canvasToUtm round-trip through the ENC origin mapping', async () => {
@@ -358,7 +365,16 @@ test('render draws the documented LAYER_ORDER sequence and layer toggles filter 
   const order = full.filter(id => mod.LAYER_ORDER.includes(id));
   // sample has no tracker track states, no busy-water target routes, no planner
   // surface attach, and previousPrediction defaults off
-  const skip = new Set(['tracks', 'targetRoutes', 'plannerSurface', 'threatPlot', 'previousPrediction', 'targetPredictions', 'measurements']);
+  const skip = new Set([
+    'tracks',
+    'targetRoutes',
+    'plannerSurface',
+    'threatPlot',
+    'shadowOwnship',
+    'previousPrediction',
+    'targetPredictions',
+    'measurements',
+  ]);
   const expected = mod.LAYER_ORDER.filter(id => !skip.has(id));
   assert.deepEqual(order, expected);
   assert.ok(full.includes('base'));
@@ -454,14 +470,16 @@ test('targetsForDisplay prefers tracker states unless executed_tracker is god', 
   const data = {
     executed_tracker: 'ekf',
     obstacles: [obstacle],
-    tracks: [{ states: [[10, 20, 3, 4]], labels: [7], covariances: [] }],
+    tracks: [{ states: [[10, 20, 3, 4]], labels: [7], generations: [4], covariances: [] }],
   };
   const [fromTracker] = targetsForDisplay(data);
   assert.equal(fromTracker.id, 7);
+  assert.equal(fromTracker.generation, 4);
   assert.equal(fromTracker.x, 10);
   assert.equal(fromTracker.source, 'tracker');
   const [fromGod] = targetsForDisplay({ ...data, executed_tracker: 'god' });
   assert.equal(fromGod.id, 1);
+  assert.equal(fromGod.generation, null);
   assert.equal(fromGod.x, 0);
 });
 
@@ -506,4 +524,23 @@ test('LAYER_ORDER sequence claims a slot only when something drew (fix-round tig
   assert.equal(seq.includes('targetPredictions'), false);
   display.render(sampleSnapshot({ seq: 2 })); // two-point horizons draw again
   assert.ok(display.getDrawSequence().includes('prediction'));
+});
+
+test('Historical AIS follows Ownship at 6NM span and draws comparison-only Shadow', async () => {
+  const wrapper = fakeWrapper(800, 600);
+  const { display } = await createDisplay({ wrapper });
+  const snapshot = sampleSnapshot({
+    scenario_id: 'hais_romsdal_20260701_120007_121007',
+    os: { id: 0, x: 100, y: 200, psi: 0, cog: 0, sog: 4, trajectory: [] },
+    shadow_ownship: {
+      id: 'shadow-ownship', label: 'AIS SHADOW', x: 130, y: 250,
+      psi: 0.1, cog: 0.1, sog: 4, trajectory: [[110, 220], [130, 250]], comparison_only: true,
+    },
+  });
+
+  display.render(snapshot);
+
+  assert.equal(display.getViewScale(), 800 / (6 * 1852));
+  assert.deepEqual(display.worldToCanvas(100, 200), { x: 400, y: 300 });
+  assert.ok(display.getDrawSequence().includes('shadowOwnship'));
 });

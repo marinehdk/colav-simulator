@@ -5,6 +5,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
@@ -22,11 +25,31 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
     FactoryContext,
 )
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.core.colav.encounter_lifecycle import EncounterLifecycle
+from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
+from colav_simulator.core.models import KinematicCSOGParams
 from colav_simulator.evaluation import Evaluator, EvaluatorResult
 from colav_simulator.experiment.capabilities import CapabilityCatalog
-from colav_simulator.experiment.contracts import RunManifest, RunOutcome, RunSpec, SessionState, content_hash
-from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
+from colav_simulator.experiment.contracts import (
+    InternalExecutionPurpose,
+    RunManifest,
+    RunOutcome,
+    RunSpec,
+    SessionState,
+    content_hash,
+)
+from colav_simulator.experiment.persistence import (
+    BoundedArtifactSink,
+    EvidenceWriter,
+    trajectory_artifact_semantic_hash,
+    trajectory_semantic_hash,
+)
 from colav_simulator.experiment.session import SimulationSession
+from colav_simulator.historical_replay import (
+    HistoricalActorShip,
+    HistoricalCounterfactualActorShip,
+    HistoricalReplayRequest,
+)
 from colav_simulator.integrations import IntegrationRegistry
 from colav_simulator.scenario_generator import ScenarioGenerator
 from colav_simulator.simulator import Config as SimulatorConfig
@@ -54,6 +77,61 @@ class RunResult:
     run_dir: Path
     session: SimulationSession
     writer: EvidenceWriter
+
+
+@dataclass(frozen=True)
+class HistoricalRuntimeNavigationMargin:
+    """Typed margin derived from sealed dimensions and runtime dynamics."""
+
+    policy_id: str
+    hull_extent_m: float
+    one_step_displacement_m: float
+    value_m: float
+    sources: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "policy_id": self.policy_id,
+            "hull_extent_m": self.hull_extent_m,
+            "one_step_displacement_m": self.one_step_displacement_m,
+            "value_m": self.value_m,
+            "sources": list(self.sources),
+        }
+
+
+@dataclass(frozen=True)
+class HistoricalRuntimeMapProof:
+    """Proof that a Historical runtime map is bounded and profile-contained."""
+
+    origin_enu: tuple[float, float]
+    size_m: tuple[float, float]
+    qualified_profile_extent_projected: tuple[float, float, float, float]
+    actor_state_count: int
+    nominal_route_point_count: int
+    reachable_radius_m: float
+    run_duration_s: float
+    post_t0_duration_s: float
+    speed_bound_mps: float
+    speed_bound_sources: tuple[str, ...]
+    navigation_margin: HistoricalRuntimeNavigationMargin
+    rounding_grid_m: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "policy_id": "historical-runtime-map.v2",
+            "origin_enu": list(self.origin_enu),
+            "size_m": list(self.size_m),
+            "qualified_profile_extent_projected": list(self.qualified_profile_extent_projected),
+            "actor_state_count": self.actor_state_count,
+            "nominal_route_point_count": self.nominal_route_point_count,
+            "reachable_radius_m": self.reachable_radius_m,
+            "run_duration_s": self.run_duration_s,
+            "post_t0_duration_s": self.post_t0_duration_s,
+            "speed_bound_mps": self.speed_bound_mps,
+            "speed_bound_sources": list(self.speed_bound_sources),
+            "navigation_margin": self.navigation_margin.to_dict(),
+            "rounding_grid_m": self.rounding_grid_m,
+        }
 
 
 class ExperimentRunError(RuntimeError):
@@ -87,6 +165,39 @@ class ExperimentRunner:
         self.capabilities = CapabilityCatalog(self.registry)
         self.evaluator = evaluator or Evaluator()
         self._enc_cache: dict[tuple[str, int | str, int, int], Any] = {}
+        self._historical_episode_cache: dict[tuple[str, int | str, int, int], tuple[list, Any]] = {}
+
+    def preload_historical_enc(self, spec: RunSpec) -> bool:
+        """Warm only the expensive ENC object; create no session or run artifact."""
+        request = (
+            HistoricalReplayRequest.from_dict(spec.historical_replay)
+            if spec.historical_replay is not None
+            else None
+        )
+        if spec.historical_scenario_id is None or request is None:
+            raise ValueError("Historical ENC preload requires a sealed Historical RunSpec")
+        proof = _historical_runtime_map_proof(request)
+        config = _historical_runtime_config(spec, request, runtime_map_proof=proof)
+        source_version = content_hash(config.to_dict())
+        episode_count = max(1, spec.episode_index + 1)
+        cache_key = (
+            spec.historical_scenario_id,
+            source_version,
+            spec.seeds.scenario,
+            episode_count,
+        )
+        if cache_key in self._historical_episode_cache:
+            return False
+        generator = ScenarioGenerator(seed=spec.seeds.scenario)
+        episodes, enc = generator.generate(
+            config=config,
+            n_episodes=episode_count,
+            show_plots=False,
+            save_scenario=False,
+        )
+        self._enc_cache[cache_key] = copy.deepcopy(enc)
+        self._historical_episode_cache[cache_key] = (episodes, enc)
+        return True
 
     def list_scenarios(self) -> list[dict[str, Any]]:
         scenarios = []
@@ -120,7 +231,64 @@ class ExperimentRunner:
                     }
                 )
             )
+        scenarios.extend(
+            self.capabilities.annotate_scenario(document)
+            for document in self._historical_scenario_documents()
+        )
         return scenarios
+
+    def _historical_scenario_documents(self) -> list[dict[str, Any]]:
+        """List bounded Historical AIS scenes through the same catalog seam.
+
+        Listing uses a cheap source-presence check; archive content identity
+        stays fail-closed at Counterfactual binding time (prepare path).
+        """
+        from colav_simulator.historical_scenario_catalog import (  # noqa: PLC0415
+            HAIS_ARCHIVE_ENV_VAR,
+            HistoricalAISScenarioCatalog,
+        )
+
+        raw_path = os.environ.get(HAIS_ARCHIVE_ENV_VAR, "").strip()
+        source_present = bool(raw_path) and Path(raw_path).expanduser().is_file()
+        documents = []
+        for entry in HistoricalAISScenarioCatalog().list():
+            window = entry["current_window"]
+            documents.append(
+                {
+                    "id": entry["id"],
+                    "name": entry["display_name"],
+                    "type": str(entry.get("kind", "HISTORICAL_AIS")),
+                    "dt": 1.0,
+                    "t_start": 0.0,
+                    "t_end": float(window.get("duration_s", 60.0)),
+                    "ships": int(window.get("runtime_actor_count", 0)),
+                    "provenance": {
+                        "source": "HistoricalAISScenarioCatalog",
+                        "reconstructed": True,
+                        "confidence": "source_presence_only",
+                    },
+                    "valid": source_present,
+                    "reason": None if source_present else f"{HAIS_ARCHIVE_ENV_VAR} is not configured",
+                    "historical_ais": {
+                        "start_utc": window["start_utc"],
+                        "end_utc": window["end_utc"],
+                        "playback_start_utc": window.get("playback_start_utc", window["start_utc"]),
+                        "playback_end_utc": window.get("playback_end_utc", window["end_utc"]),
+                        "duration_s": int(window.get("duration_s", 0)),
+                        "lookback_s": int(window.get("lookback_s", 0)),
+                        "t0_utc": window["t0_utc"],
+                        "bbox": list(window["bbox"]),
+                        "reference_mmsi": window["reference_mmsi"],
+                        "target_mmsi": list(window["target_mmsi"]),
+                        "runtime_actor_count": int(window.get("runtime_actor_count", 0)),
+                        "modes": list(entry.get("modes", ())),
+                        "limitations": list(entry.get("limitations", ())),
+                        "source_present": source_present,
+                    },
+                    "domain_profile": dict(entry["runtime_binding"]["domain_profile"]),
+                }
+            )
+        return documents
 
     def list_capabilities(self, validation_rule_id: str | None = None) -> dict[str, Any]:
         """Return the selection catalog with readiness distinct from import status."""
@@ -137,9 +305,122 @@ class ExperimentRunner:
             raise FileNotFoundError(f"Unknown scenario: {scenario_id}")
         raise ValueError(f"Ambiguous scenario ID {scenario_id}: {matches}")
 
-    def prepare(self, spec: RunSpec) -> PreparedRun:  # noqa: PLR0912, PLR0915
-        scenario_path = self.resolve_scenario(spec.scenario_id)
-        if spec.scenario_override is None:
+    def prepare(self, spec: RunSpec) -> PreparedRun:
+        """Prepare one product run through the published exact-tuple policy."""
+        self.capabilities.policy.require_integrations(spec.algorithm_id, spec.tracker_id)
+        self.capabilities.policy.validate_domain_profile(spec.algorithm_id, spec.domain_profile)
+        historical_mode = str((spec.historical_replay or {}).get("mode", "")).upper()
+        if historical_mode == "COUNTERFACTUAL":
+            capability_tuple = spec.capability_tuple
+            if capability_tuple is None:
+                raise ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    "Counterfactual product run requires an explicit exact capability tuple",
+                )
+            cross_scene_capability_evidence = (
+                spec.historical_scenario_id is not None
+                and isinstance(spec.algorithm_capability_evidence, dict)
+                and spec.algorithm_capability_evidence.get("binding_role") == "ALGORITHM_CAPABILITY_ONLY"
+                and spec.algorithm_capability_evidence.get("geometry_equivalence") is False
+            )
+            if capability_tuple[1] != spec.scenario_id and not cross_scene_capability_evidence:
+                raise ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    "Counterfactual capability tuple scenario differs from RunSpec",
+                )
+            if capability_tuple[2] != spec.algorithm_id or capability_tuple[3] != spec.tracker_id:
+                raise ColavExecutionError(
+                    PlanStatus.INVALID_INPUT,
+                    "Counterfactual capability tuple integration differs from RunSpec",
+                )
+            capability_profile_id = self.capabilities.validate(*capability_tuple)
+            normalized_spec = (
+                spec
+                if spec.validation_rule_id is not None
+                else replace(spec, validation_rule_id=capability_tuple[0])
+            )
+            return self._prepare(normalized_spec, capability_profile_id=capability_profile_id)
+        if spec.validation_rule_id is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Product RunSpec requires an explicit validation_rule_id and exact capability tuple",
+            )
+        if spec.historical_replay is not None or spec.historical_scenario_id is not None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Historical Replay requires the explicit prepare_internal seam",
+            )
+        capability_profile_id = self.capabilities.validate(
+            spec.validation_rule_id,
+            spec.scenario_id,
+            spec.algorithm_id,
+            spec.tracker_id,
+        )
+        return self._prepare(spec, capability_profile_id=capability_profile_id)
+
+    def prepare_internal(self, spec: RunSpec, *, purpose: InternalExecutionPurpose) -> PreparedRun:
+        """Prepare one explicitly typed internal Replay or evaluator baseline run."""
+        if not isinstance(purpose, InternalExecutionPurpose):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Internal execution requires a typed InternalExecutionPurpose",
+            )
+        capability_tuple = spec.capability_tuple
+        if capability_tuple is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Historical internal execution requires an exact internal capability tuple",
+            )
+        historical_mode = str((spec.historical_replay or {}).get("mode", "")).upper()
+        if purpose is InternalExecutionPurpose.HISTORICAL_REPLAY and historical_mode != "HISTORICAL_REPLAY":
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "HISTORICAL_REPLAY purpose requires a sealed Historical Replay request",
+            )
+        if purpose is InternalExecutionPurpose.EVALUATOR_BASELINE and spec.historical_replay is not None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "EVALUATOR_BASELINE purpose cannot carry Historical runtime actors",
+            )
+        capability_profile_id = self.capabilities.validate_internal(
+            *capability_tuple,
+            purpose=purpose,
+        )
+        return self._prepare(spec, capability_profile_id=capability_profile_id)
+
+    def _prepare(  # noqa: C901, PLR0912, PLR0915
+        self,
+        spec: RunSpec,
+        *,
+        capability_profile_id: str,
+    ) -> PreparedRun:
+        historical_request = (
+            HistoricalReplayRequest.from_dict(spec.historical_replay) if spec.historical_replay is not None else None
+        )
+        if spec.historical_scenario_id is not None and historical_request is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Historical scenario identity requires a sealed Historical Replay request",
+            )
+        scenario_path = None if spec.historical_scenario_id is not None else self.resolve_scenario(spec.scenario_id)
+        counterfactual_mode = historical_request is not None and historical_request.mode == "COUNTERFACTUAL"
+        runtime_map_proof: HistoricalRuntimeMapProof | None = None
+        if historical_request is not None and not counterfactual_mode and spec.algorithm_id != "nominal":
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Historical Replay is non-counterfactual and cannot execute a COLAV algorithm",
+            )
+        if spec.historical_scenario_id is not None:
+            runtime_map_proof = _historical_runtime_map_proof(historical_request)
+            config = _historical_runtime_config(
+                spec,
+                historical_request,
+                runtime_map_proof=runtime_map_proof,
+            )
+            source_version = content_hash(config.to_dict())
+        elif spec.scenario_override is None:
+            if scenario_path is None:  # pragma: no cover - guarded by Historical branch
+                raise RuntimeError("scenario source path is unavailable")
             config = cp.extract(scenario_config.ScenarioConfig, scenario_path, paths.scenario_schema)
             source_version = scenario_path.stat().st_mtime_ns
         else:
@@ -147,54 +428,125 @@ class ExperimentRunner:
             cp.validate(override_document, futils.read_yaml_into_dict(paths.scenario_schema))
             config = scenario_config.ScenarioConfig.from_dict(override_document)
             source_version = content_hash(override_document)
-        config.filename = scenario_path.name
+        config.filename = (
+            f"{spec.historical_scenario_id}.historical"
+            if spec.historical_scenario_id is not None
+            else scenario_path.name  # type: ignore[union-attr]
+        )
         if spec.dt is not None:
             config.dt_sim = spec.dt
         if spec.t_end is not None:
             config.t_end = spec.t_end
+        if historical_request is not None:
+            if spec.dt is None and historical_request.dt_sim is not None:
+                config.dt_sim = historical_request.dt_sim
+            if historical_request.t_end_s is not None:
+                config.t_end = historical_request.t_end_s
         if spec.reload_enc:
             config.new_load_of_map_data = True
-        capability_profile_id = None
-        if spec.validation_rule_id:
-            capability_profile_id = self.capabilities.validate(
-                spec.validation_rule_id,
-                spec.scenario_id,
-                spec.algorithm_id,
-                spec.tracker_id,
-            )
-        if spec.algorithm_id == "nominal" and config.ship_list and config.ship_list[0].colav is not None:
+        if (
+            historical_request is None
+            and spec.algorithm_id == "nominal"
+            and config.ship_list
+            and config.ship_list[0].colav is not None
+        ):
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
                 "nominal requires scenario guidance; the selected scenario embeds an onboard COLAV algorithm",
             )
         scenario_document = config.to_dict()
+        if historical_request is not None:
+            scenario_document["historical_replay"] = historical_request.to_dict()
         generator = ScenarioGenerator(seed=spec.seeds.scenario)
         episode_count = max(1, spec.episode_index + 1)
         enc_cache_key = (
-            str(scenario_path.resolve()),
+            spec.historical_scenario_id or str(scenario_path.resolve()),  # type: ignore[union-attr]
             source_version,
             spec.seeds.scenario,
             episode_count,
         )
-        cached_enc = None if spec.reload_enc else self._enc_cache.get(enc_cache_key)
-        episodes, enc = generator.generate(
-            config=config,
-            enc=cached_enc,
-            n_episodes=episode_count,
-            show_plots=False,
-            save_scenario=False,
-        )
-        self._enc_cache[enc_cache_key] = copy.deepcopy(enc)
+        cached_episode = None if spec.reload_enc else self._historical_episode_cache.get(enc_cache_key)
+        if historical_request is not None and cached_episode is not None:
+            episodes, enc = copy.deepcopy(cached_episode)
+        else:
+            cached_enc = None if spec.reload_enc else self._enc_cache.get(enc_cache_key)
+            episodes, enc = generator.generate(
+                config=config,
+                enc=cached_enc,
+                n_episodes=episode_count,
+                show_plots=False,
+                save_scenario=False,
+            )
+            self._enc_cache[enc_cache_key] = copy.deepcopy(enc)
+            if historical_request is not None and not spec.reload_enc:
+                self._historical_episode_cache[enc_cache_key] = copy.deepcopy((episodes, enc))
         if spec.episode_index >= len(episodes):
             raise RuntimeError(f"Scenario produced {len(episodes)} episodes; requested index {spec.episode_index}")
         episode = episodes[spec.episode_index]
+        if historical_request is not None:
+            if counterfactual_mode:
+                episode["ship_list"] = [
+                    (
+                        HistoricalCounterfactualActorShip(
+                            actor,
+                            historical_request.actor_set.profile,
+                            t0_s=(
+                                None
+                                if historical_request.counterfactual_t0_s is None
+                                else float(historical_request.counterfactual_t0_s)
+                            ),
+                            nominal_intent=historical_request.nominal_intent,
+                            handoff_trigger=historical_request.handoff_trigger,
+                            handoff_tolerance_m=historical_request.handoff_tolerance_m,
+                            handoff_tolerance_mps=historical_request.handoff_tolerance_mps,
+                            handoff_tolerance_rad=historical_request.handoff_tolerance_rad,
+                            simulation_end_s=float(episode["config"].t_end),
+                            reference_route_start_s=float(historical_request.t_start_s),
+                        )
+                        if actor.actor_id == historical_request.ownship_actor_id
+                        else HistoricalActorShip(
+                            actor,
+                            historical_request.actor_set.profile,
+                        )
+                    )
+                    for actor in historical_request.actor_set.actors
+                ]
+            else:
+                episode["ship_list"] = [
+                    HistoricalActorShip(
+                        actor,
+                        historical_request.actor_set.profile,
+                    )
+                    for actor in historical_request.actor_set.actors
+                ]
+            episode["config"].name = historical_request.scenario_name
+            episode["config"].t_start = config.t_start
+            episode["config"].dt_sim = config.dt_sim
+            episode["config"].t_end = config.t_end
+            episode["config"].ship_list = []
         episode_document = episode["config"].to_dict()
+        if historical_request is not None:
+            episode_document["historical_replay"] = historical_request.to_dict()
+            if counterfactual_mode and runtime_map_proof is None:
+                runtime_map_proof = _historical_runtime_map_proof(historical_request)
+            if runtime_map_proof is not None:
+                episode_document["historical_runtime_map"] = runtime_map_proof.to_dict()
 
         manifest = RunManifest.create(spec, self.registry.dependency_manifest())
         manifest.scenario_hash = content_hash(scenario_document)
         manifest.episode_hash = content_hash(episode_document)
         manifest.enc_hash = _enc_hash(tuple(episode["config"].map_data_files))
-        manifest.scenario_provenance = self._scenario_provenance(spec.scenario_id)
+        manifest.scenario_provenance = (
+            {
+                "source": "HistoricalAISScenarioCatalog",
+                "reconstructed": True,
+                "confidence": "content_addressed",
+                "historical_scenario_id": spec.historical_scenario_id,
+                "algorithm_capability_evidence": spec.algorithm_capability_evidence,
+            }
+            if spec.historical_scenario_id is not None
+            else self._scenario_provenance(spec.scenario_id)
+        )
         manifest.executed_tracker = self._executed_tracker_id(spec, config)
         manifest.scenario_readiness_grade = self.capabilities._scenario_capability(
             spec.scenario_id,
@@ -203,6 +555,17 @@ class ExperimentRunner:
         manifest.algorithm_readiness_grade = self.capabilities.grade("algorithm", spec.algorithm_id)
         manifest.tracker_readiness_grade = self.capabilities.grade("tracker", spec.tracker_id)
         manifest.capability_profile_id = capability_profile_id
+        if historical_request is not None:
+            manifest.historical_replay_evidence = historical_request.evidence.to_dict()
+            manifest.historical_execution_mode = historical_request.mode
+            manifest.historical_case_digest = historical_request.case_digest
+            manifest.historical_scenario_id = spec.historical_scenario_id
+            if not counterfactual_mode:
+                manifest.diagnostic_only = True
+                manifest.diagnostic_only_reasons = [
+                    *manifest.diagnostic_only_reasons,
+                    "HISTORICAL_REPLAY/non-counterfactual",
+                ]
         output_root = Path(spec.output_root)
         if not output_root.is_absolute():
             output_root = self.project_root / output_root
@@ -212,7 +575,11 @@ class ExperimentRunner:
             {
                 "schema_version": spec.schema_version,
                 "scenario_id": spec.scenario_id,
-                "source": self._scenario_source(scenario_path),
+                "source": (
+                    "historical-runtime-template"
+                    if spec.historical_scenario_id is not None
+                    else self._scenario_source(scenario_path)  # type: ignore[arg-type]
+                ),
                 "source_hash": manifest.scenario_hash,
                 "episode_hash": manifest.episode_hash,
                 "enc_hash": manifest.enc_hash,
@@ -223,6 +590,10 @@ class ExperimentRunner:
         )
         artifact_sink = BoundedArtifactSink(writer)
         try:
+            threat_management_coordinator = ThreatManagementCoordinator(
+                lifecycle=EncounterLifecycle(event_sink=writer.append_lifecycle_event),
+                domain_profile=spec.domain_profile,
+            )
             algorithm_config = copy.deepcopy(spec.algorithm_config)
             if spec.algorithm_id == "rrt":
                 algorithm_config.setdefault("seed", spec.seeds.algorithm)
@@ -232,11 +603,13 @@ class ExperimentRunner:
                 strict_no_fallback=spec.strict_no_fallback,
                 scenario_id=spec.scenario_id,
                 tracker_id=manifest.executed_tracker,
-                scenario_target_count=_scenario_target_count(spec),
+                scenario_target_count=_scenario_target_count(spec, episode=episode),
                 solve_period_override_s=spec.solve_period_s,
                 deadline_mode=DeadlineMode(spec.deadline_mode),
                 event_sink=writer.append_lifecycle_event,
                 artifact_sink=artifact_sink,
+                threat_management_coordinator=threat_management_coordinator,
+                domain_profile=spec.domain_profile,
             )
             algorithm = self.registry.build_algorithm(
                 spec.algorithm_id,
@@ -247,7 +620,12 @@ class ExperimentRunner:
                 descriptor_document = algorithm.descriptor_document()
                 manifest.algorithm_descriptor = descriptor_document
                 manifest.algorithm_build_identity = descriptor_document["build_identity"]
-            tracker = self.registry.build_tracker(spec.tracker_id, spec.tracker_config)
+            tracker_id_for_build = (
+                manifest.executed_tracker
+                if historical_request is not None and spec.tracker_id == "scenario_default"
+                else spec.tracker_id
+            )
+            tracker = self.registry.build_tracker(tracker_id_for_build, spec.tracker_config)
             colav_systems = [(0, algorithm)] if algorithm is not None else None
             trackers = [(0, tracker)] if tracker is not None else None
 
@@ -270,9 +648,17 @@ class ExperimentRunner:
                 trackers=trackers,
                 seed=spec.seeds.sensor,
                 terminate_on_collision_or_grounding=spec.terminate_on_collision_or_grounding,
+                threat_management_coordinator=threat_management_coordinator,
             )
             manifest.executed_algorithm = self._executed_algorithm_id(session)
-            manifest.fallback_used = manifest.executed_algorithm != manifest.requested_algorithm
+            if counterfactual_mode:
+                manifest.executed_algorithm = spec.algorithm_id
+                manifest.fallback_used = spec.algorithm_id != "nominal" and algorithm is None
+            elif historical_request is not None:
+                manifest.executed_algorithm = "historical_replay"
+                manifest.fallback_used = False
+            else:
+                manifest.fallback_used = manifest.executed_algorithm != manifest.requested_algorithm
             if manifest.fallback_used and spec.strict_no_fallback:
                 raise ColavExecutionError(
                     PlanStatus.INVALID_INPUT,
@@ -352,7 +738,9 @@ class ExperimentRunner:
         prepared.manifest.evaluation_gate = evaluation.hard_gate.outcome.value
         prepared.manifest.reproduction_status = evaluation.reproduction_status
         trajectory_path = prepared.writer.write_trajectory(prepared.session.frames)
-        prepared.manifest.trajectory_hash = _file_hash(trajectory_path)
+        prepared.manifest.trajectory_artifact_hash = _file_hash(trajectory_path)
+        prepared.manifest.trajectory_semantic_hash = trajectory_semantic_hash(prepared.session.frames)
+        prepared.manifest.trajectory_hash = prepared.manifest.trajectory_semantic_hash
         prepared.writer.write_events(prepared.session.events)
         prepared.writer.write_evaluation(evaluation)
         prepared.writer.write_run_metrics(_run_metrics(evaluation, prepared.session, prepared.manifest.fallback_used))
@@ -367,7 +755,13 @@ class ExperimentRunner:
         )
 
     def run(self, spec: RunSpec) -> RunResult:
-        prepared = self.prepare(spec)
+        return self._run_prepared(self.prepare(spec))
+
+    def run_internal(self, spec: RunSpec, *, purpose: InternalExecutionPurpose) -> RunResult:
+        """Execute one explicitly typed internal Replay or evaluator baseline run."""
+        return self._run_prepared(self.prepare_internal(spec, purpose=purpose))
+
+    def _run_prepared(self, prepared: PreparedRun) -> RunResult:
         try:
             prepared.session.run_to_completion()
             return self.finalize(prepared)
@@ -393,21 +787,26 @@ class ExperimentRunner:
             output_root=str(output_root or source_spec.output_root),
             replay_of_run_id=manifest_document["run_id"],
         )
-        result = self.run(replay_spec)
+        historical_mode = str((replay_spec.historical_replay or {}).get("mode", "")).upper()
+        result = (
+            self.run_internal(replay_spec, purpose=InternalExecutionPurpose.HISTORICAL_REPLAY)
+            if historical_mode == "HISTORICAL_REPLAY"
+            else self.run(replay_spec)
+        )
         expected_episode_hash = source_episode["episode_hash"]
-        source_trajectory_hash = manifest_document.get("trajectory_hash") or _file_hash(
+        source_trajectory_hash = manifest_document.get("trajectory_semantic_hash") or trajectory_artifact_semantic_hash(
             source_run_dir / "trajectory.parquet"
         )
         result.manifest.replay_verified = (
             result.manifest.episode_hash == expected_episode_hash
-            and result.manifest.trajectory_hash == source_trajectory_hash
+            and result.manifest.trajectory_semantic_hash == source_trajectory_hash
         )
         result.writer.write_manifest(result.manifest)
         if not result.manifest.replay_verified:
             raise RuntimeError(
                 "Replay mismatch: "
                 f"episode {result.manifest.episode_hash} != {expected_episode_hash} or "
-                f"trajectory {result.manifest.trajectory_hash} != {source_trajectory_hash}"
+                f"trajectory semantic hash {result.manifest.trajectory_semantic_hash} != {source_trajectory_hash}"
             )
         return result
 
@@ -439,7 +838,9 @@ class ExperimentRunner:
             }
         )
         trajectory_path = writer.write_trajectory(frames)
-        manifest.trajectory_hash = _file_hash(trajectory_path)
+        manifest.trajectory_artifact_hash = _file_hash(trajectory_path)
+        manifest.trajectory_semantic_hash = trajectory_semantic_hash(frames)
+        manifest.trajectory_hash = manifest.trajectory_semantic_hash
         writer.write_events(failure_events)
         writer.write_failed_evaluation(str(exc), status.value)
         writer.write_failure_report(manifest)
@@ -459,12 +860,251 @@ class ExperimentRunner:
             raise RuntimeError("Fallback detected in strict run")
 
 
-def _scenario_target_count(spec: RunSpec) -> int | None:
-    """Derive the scenario's target-ship count from an explicit ship list."""
+def _historical_runtime_config(
+    spec: RunSpec,
+    request: HistoricalReplayRequest | None,
+    *,
+    runtime_map_proof: HistoricalRuntimeMapProof | None = None,
+) -> scenario_config.ScenarioConfig:
+    """Build a bounded loader config; Historical Actors replace its placeholder ship.
+
+    The chart qualification profile remains the authority for source, coverage,
+    and hazards. Runtime ENC loading only needs a bounded window containing the
+    sealed actor samples and, for Counterfactual, the sealed nominal route plus
+    its reachable post-T0 envelope. Loading the former 30 x 40 km rectangle made
+    ``seacharts`` preprocess an unnecessarily large chart and made constrained
+    triangulation dominate every run.
+    """
+    if request is None:
+        raise ColavExecutionError(PlanStatus.INVALID_INPUT, "Historical scenario has no sealed actor request")
+    proof = runtime_map_proof or _historical_runtime_map_proof(request)
+    ownship = request.actor_set.actor(request.ownship_actor_id)
+    sample = ownship.samples[0]
+    north, east, velocity_north, velocity_east = sample.state_vxvy
+    speed = math.hypot(velocity_north, velocity_east)
+    course_deg = math.degrees(math.atan2(velocity_east, velocity_north)) % 360.0
+    duration = float(request.t_end_s or spec.t_end or max(actor.last_time_s for actor in request.actor_set.actors) + 1.0)
+    step = float(request.dt_sim or spec.dt or request.actor_set.profile.time_step_s)
+    map_origin_enu, map_size = _historical_runtime_map(request, runtime_map_proof=proof)
+    document = {
+        "name": spec.historical_scenario_id,
+        "save_scenario": False,
+        "t_start": request.t_start_s,
+        "t_end": duration,
+        "dt_sim": step,
+        "type": "MS",
+        "utm_zone": request.utm_zone,
+        "map_data_files": ["More_og_Romsdal_utm33.gdb"],
+        "map_size": list(map_size),
+        "map_origin_enu": list(map_origin_enu),
+        "new_load_of_map_data": True,
+        "n_episodes": 1,
+        "n_random_ships": 0,
+        "ship_list": [
+            {
+                "csog_state": [north, east, speed, course_deg],
+                "waypoints": [[north, north + 1.0], [east, east]],
+                "speed_plan": [speed, speed],
+                "id": ownship.actor_id,
+                "mmsi": ownship.mmsi,
+                "guidance": {
+                    "los": {
+                        "pass_angle_threshold": 80.0,
+                        "R_a": 40.0,
+                        "K_p": 0.015,
+                        "K_i": 0.0,
+                        "max_cross_track_error_int": 200.0,
+                        "cross_track_error_int_threshold": 30.0,
+                    }
+                },
+                "controller": {"pass_through_cs": ""},
+                "model": {
+                    "csog": {
+                        "draft": 3.0,
+                        "length": ownship.length_m,
+                        "width": ownship.width_m,
+                        "T_chi": 3.0,
+                        "T_U": 5.0,
+                        "r_max": 4.0,
+                        "U_min": 0.0,
+                        "U_max": proof.speed_bound_mps,
+                    }
+                },
+            }
+        ],
+    }
+    return scenario_config.ScenarioConfig.from_dict(document)
+
+
+def _historical_runtime_map(
+    request: HistoricalReplayRequest,
+    *,
+    runtime_map_proof: HistoricalRuntimeMapProof | None = None,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Return the profile-contained map derived by :func:`_historical_runtime_map_proof`."""
+    proof = runtime_map_proof or _historical_runtime_map_proof(request)
+    return proof.origin_enu, proof.size_m
+
+
+def _historical_speed_bound_mps(request: HistoricalReplayRequest) -> float:
+    """Return the explicit speed bound enforced by the runtime CSOG model."""
+    observed_speeds = [
+        math.hypot(sample.state_vxvy[2], sample.state_vxvy[3])
+        for actor in request.actor_set.actors
+        for sample in actor.samples
+    ]
+    intent_speed = float((request.nominal_intent or {}).get("speed_mps", 0.0))
+    model_speed = float(KinematicCSOGParams().U_max)
+    candidates = (*observed_speeds, intent_speed, model_speed)
+    if not candidates or not all(math.isfinite(value) and value >= 0.0 for value in candidates):
+        raise ValueError("Historical runtime speed bound lacks finite source evidence")
+    return max(candidates)
+
+
+def _historical_runtime_map_proof(request: HistoricalReplayRequest) -> HistoricalRuntimeMapProof:
+    """Prove a finite runtime window from actor, route, duration, and ENC facts."""
+    enc_evidence = request.enc_preflight_evidence
+    if enc_evidence is None:
+        raise ValueError("qualified ENC projected extent evidence is required for Historical runtime")
+    profile_extent = enc_evidence.supported_extent_projected
+    profile_min_east, profile_min_north, profile_max_east, profile_max_north = profile_extent
+    speed_bound_mps = _historical_speed_bound_mps(request)
+    run_duration_s = float(
+        request.t_end_s
+        if request.t_end_s is not None
+        else max(actor.last_time_s for actor in request.actor_set.actors)
+        + float(request.dt_sim or request.actor_set.profile.time_step_s)
+    )
+    if not math.isfinite(run_duration_s) or run_duration_s <= 0.0:
+        raise ValueError("Historical runtime duration must be finite and positive")
+    dt_sim = float(request.dt_sim or request.actor_set.profile.time_step_s)
+    if not math.isfinite(dt_sim) or dt_sim <= 0.0:
+        raise ValueError("Historical runtime timestep must be finite and positive")
+    handoff_bound_s = (
+        float(request.counterfactual_t0_s)
+        if request.counterfactual_t0_s is not None
+        else float(request.t_start_s)
+    )
+    post_t0_duration_s = (
+        max(0.0, run_duration_s - handoff_bound_s)
+        if request.mode == "COUNTERFACTUAL"
+        else 0.0
+    )
+
+    points_enu: list[tuple[float, float]] = [
+        (sample.state_vxvy[1], sample.state_vxvy[0])
+        for actor in request.actor_set.actors
+        for sample in actor.samples
+    ]
+    actor_state_count = len(points_enu)
+    route_points = tuple(
+        tuple(float(value) for value in point)
+        for point in (request.nominal_intent or {}).get("route_points_vxvy", ())
+    )
+    points_enu.extend((east, north) for north, east in route_points)
+    reachable_radius_m = speed_bound_mps * post_t0_duration_s
+    if reachable_radius_m:
+        handoff = request.actor_set.actor(request.ownship_actor_id).sample_at(handoff_bound_s)
+        if handoff is None:
+            raise ValueError("Historical runtime map lacks an ownship state at Counterfactual T0")
+        north, east = handoff.state_vxvy[:2]
+        points_enu.extend(
+            (
+                (east - reachable_radius_m, north),
+                (east + reachable_radius_m, north),
+                (east, north - reachable_radius_m),
+                (east, north + reachable_radius_m),
+            )
+        )
+    if not points_enu:
+        raise ValueError("Historical Replay requires at least one finite actor position")
+    if not all(math.isfinite(value) for point in points_enu for value in point):
+        raise ValueError("Historical Replay actor/map positions must be finite")
+
+    dimensions = [
+        max(float(actor.length_m), float(actor.width_m))
+        for actor in request.actor_set.actors
+        if actor.length_m is not None and actor.width_m is not None
+    ]
+    if len(dimensions) != len(request.actor_set.actors):
+        raise ValueError("Historical runtime navigation margin lacks vessel-dimension evidence")
+    hull_extent_m = max(dimensions)
+    one_step_displacement_m = speed_bound_mps * dt_sim
+    navigation_margin = HistoricalRuntimeNavigationMargin(
+        policy_id="historical-runtime-navigation-margin.v1",
+        hull_extent_m=hull_extent_m,
+        one_step_displacement_m=one_step_displacement_m,
+        value_m=max(hull_extent_m, one_step_displacement_m),
+        sources=(
+            "sealed_actor_dimensions",
+            "sealed_runtime_speed_bound",
+            "run_spec_dt",
+        ),
+    )
+    grid_m = navigation_margin.value_m
+    east_values = [point[0] for point in points_enu]
+    north_values = [point[1] for point in points_enu]
+    min_east = math.floor((min(east_values) - navigation_margin.value_m) / grid_m) * grid_m
+    max_east = math.ceil((max(east_values) + navigation_margin.value_m) / grid_m) * grid_m
+    min_north = math.floor((min(north_values) - navigation_margin.value_m) / grid_m) * grid_m
+    max_north = math.ceil((max(north_values) + navigation_margin.value_m) / grid_m) * grid_m
+    if (
+        min_east < profile_min_east
+        or min_north < profile_min_north
+        or max_east > profile_max_east
+        or max_north > profile_max_north
+    ):
+        raise ValueError("Historical runtime map exceeds the qualified ENC profile extent")
+    return HistoricalRuntimeMapProof(
+        origin_enu=(min_east, min_north),
+        size_m=(max_east - min_east, max_north - min_north),
+        qualified_profile_extent_projected=profile_extent,
+        actor_state_count=actor_state_count,
+        nominal_route_point_count=len(route_points),
+        reachable_radius_m=reachable_radius_m,
+        run_duration_s=run_duration_s,
+        post_t0_duration_s=post_t0_duration_s,
+        speed_bound_mps=speed_bound_mps,
+        speed_bound_sources=(
+            "sealed_actor_sample_velocity",
+            "sealed_nominal_intent_speed" if request.nominal_intent else "not_applicable",
+            "KinematicCSOGParams.U_max",
+        ),
+        navigation_margin=navigation_margin,
+        rounding_grid_m=grid_m,
+    )
+
+
+def _scenario_target_count(spec: RunSpec, *, episode: Mapping[str, Any] | None = None) -> int | None:
+    """Derive target-ship count from the generated episode or sealed inputs.
+
+    The generated episode is authoritative for normal YAML scenarios: random
+    and fixed multiship generators can materialize actors not represented in
+    ``RunSpec.scenario_override``.  Historical inputs remain supported as a
+    fallback so the helper is useful before episode materialization too.
+    """
+    if episode is not None:
+        ship_list = episode.get("ship_list")
+        if isinstance(ship_list, (list, tuple)) and len(ship_list) > 1:
+            return len(ship_list) - 1
     override = spec.scenario_override or {}
     ship_list = override.get("ship_list")
     if isinstance(ship_list, list) and len(ship_list) > 1:
         return len(ship_list) - 1
+    historical = spec.historical_replay
+    if isinstance(historical, Mapping):
+        actor_set = historical.get("actor_set")
+        actors = actor_set.get("actors") if isinstance(actor_set, Mapping) else None
+        if isinstance(actors, list) and actors:
+            try:
+                ownship_actor_id = int(historical.get("ownship_actor_id", 0))
+                actor_ids = [int(actor["actor_id"]) for actor in actors if isinstance(actor, Mapping)]
+            except (KeyError, TypeError, ValueError):
+                actor_ids = []
+            if len(actor_ids) == len(actors) and ownship_actor_id in actor_ids:
+                target_count = sum(actor_id != ownship_actor_id for actor_id in actor_ids)
+                if target_count > 0:
+                    return target_count
     return None
 
 

@@ -9,6 +9,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     CommitmentPhase,
     DecisionSnapshot,
     EncounterCycle,
+    EncounterKind,
     EncounterLifecycle,
     Maneuverability,
     ObservationHealth,
@@ -364,6 +365,42 @@ def test_strict_assembler_keeps_clear_bystander_inside_physical_safety_domain() 
     assert bystander_window.start_k == bystander_activation.cpa_hard_from_k
     assert bystander_window.start_k < outcome.grid.control_intervals
     assert bystander_window.stop_k == outcome.grid.control_intervals
+
+
+def test_unknown_active_safety_target_without_commitment_baseline_keeps_hold_policy() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    active = replace(
+        snapshot.targets[0],
+        encounter=EncounterKind.UNKNOWN,
+        role=OwnshipRole.UNKNOWN,
+        risk=RiskPhase.ACTIVE,
+        commitment=CommitmentPhase.NONE,
+        passing_side=PassingSide.NONE,
+        baseline_course_rad=None,
+        required_course_change_rad=0.0,
+        route_recovery_allowed=False,
+    )
+    safety_only = replace(
+        snapshot,
+        targets=(active,),
+        directive=replace(
+            snapshot.directive,
+            required_targets=(active.key,),
+            passing_side=PassingSide.NONE,
+            minimum_course_change_rad=0.0,
+        ),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, safety_only))
+
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.problem.route_objective is not None
+    assert outcome.problem.route_objective.avoidance_corridor_bearing_rad == pytest.approx(
+        planner_input.ownship_state[2]
+    )
 
 
 def test_route_recovery_conflict_activates_cpa_rows_before_turning_back() -> None:

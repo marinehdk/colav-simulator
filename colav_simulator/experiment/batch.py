@@ -7,13 +7,17 @@ import json
 import math
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
+from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY
 from colav_simulator.experiment.contracts import RunOutcome, RunSpec
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner
 
@@ -53,6 +57,9 @@ class BatchRunner:
         self.runner = runner or ExperimentRunner()
 
     def run(self, specs: Iterable[RunSpec], output_root: Path) -> Path:
+        specs = tuple(specs)
+        for spec in specs:
+            self._validate_product_spec(spec)
         batch_dir = output_root / f"batch-{uuid.uuid4()}"
         batch_dir.mkdir(parents=True, exist_ok=False)
         records: list[BatchRecord] = []
@@ -117,6 +124,27 @@ class BatchRunner:
         return batch_dir
 
     @staticmethod
+    def _validate_product_spec(spec: RunSpec) -> None:
+        """Validate every batch item before any run can bypass product policy."""
+        if not isinstance(spec, RunSpec):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Batch items must be RunSpec instances",
+            )
+        if spec.validation_rule_id is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Batch RunSpec requires an explicit validation_rule_id and exact capability tuple",
+            )
+        PRODUCT_CAPABILITY_POLICY.validate(
+            spec.validation_rule_id,
+            spec.scenario_id,
+            spec.algorithm_id,
+            spec.tracker_id,
+        )
+        PRODUCT_CAPABILITY_POLICY.validate_domain_profile(spec.algorithm_id, spec.domain_profile)
+
+    @staticmethod
     def _planner_statuses(frames: list[dict]) -> dict[str, int]:
         counts: dict[str, int] = {}
         for frame in frames:
@@ -132,15 +160,40 @@ class BatchRunner:
     def default_specs(
         algorithms: Iterable[str],
         seeds: Iterable[int] = range(30),
-        tracker_id: str = "scenario_default",
+        tracker_id: str = PRODUCT_CAPABILITY_POLICY.default_tracker_id,
+        domain_profile: ShipDomainProfile | Mapping[str, Any] | None = None,
     ) -> list[RunSpec]:
         scenarios = [*STANDARD_SCENARIOS, *PAPER_SCENARIOS, *IMAZU_SCENARIOS, *AIS_SCENARIOS]
-        return [
-            RunSpec(scenario_id=scenario, algorithm_id=algorithm, tracker_id=tracker_id, seed=seed)
-            for algorithm in algorithms
-            for scenario in scenarios
-            for seed in seeds
-        ]
+        seed_values = tuple(seeds)
+        tracker_id = tracker_id.strip().lower()
+        parsed_domain_profile = (
+            PRODUCT_CAPABILITY_POLICY.parse_domain_profile(domain_profile) if domain_profile is not None else None
+        )
+        output: list[RunSpec] = []
+        for algorithm in algorithms:
+            algorithm_id = algorithm.strip().lower()
+            PRODUCT_CAPABILITY_POLICY.require_integrations(algorithm_id, tracker_id)
+            for scenario in scenarios:
+                try:
+                    rule_id = PRODUCT_CAPABILITY_POLICY.infer_rule(scenario, algorithm_id, tracker_id)
+                except ColavExecutionError:
+                    # The default product matrix contains only scenarios with
+                    # one published exact tuple. Unsupported legacy/catalog
+                    # scenarios remain available through explicit specs.
+                    continue
+                PRODUCT_CAPABILITY_POLICY.validate(rule_id, scenario, algorithm_id, tracker_id)
+                output.extend(
+                    RunSpec(
+                        scenario_id=scenario,
+                        validation_rule_id=rule_id,
+                        algorithm_id=algorithm_id,
+                        tracker_id=tracker_id,
+                        seed=seed,
+                        domain_profile=parsed_domain_profile,
+                    )
+                    for seed in seed_values
+                )
+        return output
 
     @staticmethod
     def _write_records(batch_dir: Path, records: list[BatchRecord]) -> None:

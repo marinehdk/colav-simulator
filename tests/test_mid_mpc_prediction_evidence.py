@@ -121,6 +121,43 @@ def test_runtime_applied_reference_reports_linear_interpolation_without_changing
     assert applied.interval_index == 0
 
 
+def test_inline_envelope_externalizes_large_accepted_prediction_in_receipt() -> None:
+    envelope = EvidenceEnvelope(_record())
+    accepted_prediction = {
+        "times_s": [float(index * 5) for index in range(81)],
+        "states_enu": [[float(index), float(index * 2), 7.0, 0.1] for index in range(81)],
+        "basis": "ACCEPTED_PLAN",
+        "model": "mid_mpc_ipopt",
+        "source": "L4_ACCEPTED_RECEIPT",
+        "target_keys": [{"target_id": index, "generation": 1} for index in range(16)],
+        "reference_time_s": 10.0,
+        "coordinate_frame": "ENU",
+        "linear_unit": "m",
+        "angle_unit": "rad",
+        "prediction_hash": "prediction-hash",
+        "evidence_semantic_hash": "evidence-hash",
+    }
+    authority = {"receipt": {"receipt_hash": "receipt-hash", "accepted_prediction": accepted_prediction}}
+
+    inline = envelope.to_inline_dict(
+        capacity_bytes=2000,
+        artifact_reference={"sha256": "artifact-hash", "relative_path": "artifacts/evidence.json.gz"},
+        authority=authority,
+    )
+
+    receipt = inline["authority"]["receipt"]
+    assert receipt["receipt_hash"] == "receipt-hash"
+    assert receipt["accepted_prediction"] is None
+    assert receipt["accepted_prediction_reference"]["prediction_hash"] == "prediction-hash"
+    assert receipt["accepted_prediction_unavailable_reason"] == "INLINE_CAPACITY_EXTERNAL_ARTIFACT"
+
+    pending = envelope.to_inline_dict(capacity_bytes=2000, authority=authority)
+    pending_receipt = pending["authority"]["receipt"]
+    assert pending_receipt["accepted_prediction"] is None
+    assert pending_receipt["accepted_prediction_reference"]["artifact_reference"]["status"] == "PENDING"
+    assert pending_receipt["accepted_prediction_unavailable_reason"] == "INLINE_CAPACITY_EXTERNAL_ARTIFACT_PENDING"
+
+
 def test_selected_target_predictions_must_reconcile_across_nlp_and_l4_purposes() -> None:
     key = EvidenceTrackKey(7, 2)
     nlp = TargetPredictionEvidence(

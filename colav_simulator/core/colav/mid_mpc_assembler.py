@@ -464,7 +464,15 @@ def _resolve_policy(
     }[snapshot.directive.passing_side]
     lateral_active = snapshot.directive.minimum_course_change_rad > 0.0
     committed_route_bearing = route.bearing_rad
-    corridor_decisions = tuple(decision for decision in binding.required_decisions if not decision.route_recovery_allowed)
+    corridor_decisions = tuple(
+        decision
+        for decision in binding.required_decisions
+        if not decision.route_recovery_allowed
+        and (
+            decision.passing_side is not PassingSide.NONE
+            or decision.required_course_change_rad > 0.0
+        )
+    )
     if corridor_decisions:
         corridor = max(corridor_decisions, key=lambda decision: decision.required_course_change_rad)
         if corridor.baseline_course_rad is None:

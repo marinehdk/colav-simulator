@@ -27,6 +27,9 @@ const EDITABLE_FIELDS = [
   't_end',
 ];
 
+const PRODUCT_POLICY_MISSING = 'product-capability-policy-missing';
+const PRODUCT_POLICY_INVALID = 'product-capability-policy-invalid';
+
 function clone(value) {
   return value === undefined ? undefined : structuredClone(value);
 }
@@ -50,12 +53,137 @@ function equalSpec(left, right) {
   return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
 }
 
+function policyFailure(status, code, message) {
+  return { status, code, message, value: null };
+}
+
+function orderedIdentifiers(value, field) {
+  if (!Array.isArray(value) || !value.length) {
+    throw new TypeError(`${field} must be a non-empty array.`);
+  }
+  if (!value.every((item) => typeof item === 'string' && item.length > 0)) {
+    throw new TypeError(`${field} must contain non-empty strings.`);
+  }
+  if (new Set(value).size !== value.length) {
+    throw new TypeError(`${field} must not contain duplicates.`);
+  }
+  return [...value];
+}
+
+function productCapabilityPolicy(catalog) {
+  if (!catalog || !Object.hasOwn(catalog, 'product_capability_policy')) {
+    return policyFailure(
+      'missing',
+      PRODUCT_POLICY_MISSING,
+      'Capability catalog does not expose product_capability_policy.',
+    );
+  }
+  const raw = catalog.product_capability_policy;
+  try {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new TypeError('product_capability_policy must be an object.');
+    }
+    if (typeof raw.policy_id !== 'string' || !raw.policy_id.length) {
+      throw new TypeError('policy_id must be a non-empty string.');
+    }
+    const algorithmIds = orderedIdentifiers(raw.algorithm_ids, 'algorithm_ids');
+    const trackerIds = orderedIdentifiers(raw.tracker_ids, 'tracker_ids');
+    if (!algorithmIds.includes(raw.default_algorithm_id)) {
+      throw new TypeError('default_algorithm_id must be present in algorithm_ids.');
+    }
+    if (!trackerIds.includes(raw.default_tracker_id)) {
+      throw new TypeError('default_tracker_id must be present in tracker_ids.');
+    }
+    const constraints = raw.constraints;
+    if (!constraints || typeof constraints !== 'object' || Array.isArray(constraints)) {
+      throw new TypeError('constraints must be an object.');
+    }
+    if (constraints.requires_explicit_validation_rule_id !== true) {
+      throw new TypeError('constraints.requires_explicit_validation_rule_id must be true.');
+    }
+    if (constraints.requires_exact_tuple !== true) {
+      throw new TypeError('constraints.requires_exact_tuple must be true.');
+    }
+    if (!constraints.algorithms || typeof constraints.algorithms !== 'object' || Array.isArray(constraints.algorithms)) {
+      throw new TypeError('constraints.algorithms must be an object.');
+    }
+    const algorithmConstraints = Object.fromEntries(algorithmIds.map((algorithmId) => {
+      const constraint = constraints.algorithms[algorithmId];
+      if (!constraint || typeof constraint !== 'object' || Array.isArray(constraint)) {
+        throw new TypeError(`constraints.algorithms.${algorithmId} must be an object.`);
+      }
+      if (typeof constraint.requires_domain_profile !== 'boolean') {
+        throw new TypeError(`constraints.algorithms.${algorithmId}.requires_domain_profile must be boolean.`);
+      }
+      const normalized = { requires_domain_profile: constraint.requires_domain_profile };
+      if (constraint.requires_domain_profile) {
+        if (
+          typeof constraint.required_domain_qualification !== 'string'
+          || !constraint.required_domain_qualification.length
+        ) {
+          throw new TypeError(
+            `constraints.algorithms.${algorithmId}.required_domain_qualification must be a non-empty string.`,
+          );
+        }
+        normalized.required_domain_qualification = constraint.required_domain_qualification;
+      }
+      return [algorithmId, normalized];
+    }));
+    const algorithmCatalogIds = new Set((catalog.algorithms || []).map((item) => item.id));
+    const trackerCatalogIds = new Set((catalog.trackers || []).map((item) => item.id));
+    for (const algorithmId of algorithmIds) {
+      if (!algorithmCatalogIds.has(algorithmId)) {
+        throw new TypeError(`algorithm_ids references missing catalog algorithm ${algorithmId}.`);
+      }
+    }
+    for (const trackerId of trackerIds) {
+      if (!trackerCatalogIds.has(trackerId)) {
+        throw new TypeError(`tracker_ids references missing catalog tracker ${trackerId}.`);
+      }
+    }
+    return {
+      status: 'ready',
+      code: null,
+      message: null,
+      value: {
+        policy_id: raw.policy_id,
+        algorithm_ids: algorithmIds,
+        tracker_ids: trackerIds,
+        default_algorithm_id: raw.default_algorithm_id,
+        default_tracker_id: raw.default_tracker_id,
+        constraints: {
+          requires_explicit_validation_rule_id: true,
+          requires_exact_tuple: true,
+          algorithms: algorithmConstraints,
+        },
+      },
+    };
+  } catch (error) {
+    return policyFailure(
+      'invalid',
+      PRODUCT_POLICY_INVALID,
+      `Invalid product_capability_policy: ${String(error.message || error)}`,
+    );
+  }
+}
+
+function policyEntries(catalog, policy, field) {
+  if (policy.status !== 'ready') return [];
+  const collection = field === 'algorithm_id' ? catalog.algorithms || [] : catalog.trackers || [];
+  const identifiers = field === 'algorithm_id'
+    ? policy.value.algorithm_ids
+    : policy.value.tracker_ids;
+  return identifiers.map((id) => collection.find((entry) => entry.id === id)).filter(Boolean);
+}
+
 function defaultSpec(catalog) {
+  const policy = productCapabilityPolicy(catalog);
+  if (policy.status !== 'ready') return null;
   return {
     validation_rule_id: catalog.defaults.validation_rule_id,
     scenario_id: catalog.defaults.scenario_id,
-    algorithm_id: catalog.defaults.algorithm_id,
-    tracker_id: catalog.defaults.tracker_id,
+    algorithm_id: policy.value.default_algorithm_id,
+    tracker_id: policy.value.default_tracker_id,
     seed: 0,
     episode_index: 0,
     dt: null,
@@ -69,7 +197,7 @@ function defaultSpec(catalog) {
 }
 
 function normalizeSpec(spec, catalog) {
-  const normalized = catalog ? defaultSpec(catalog) : {
+  const normalized = (catalog ? defaultSpec(catalog) : null) || {
     validation_rule_id: null,
     scenario_id: null,
     algorithm_id: null,
@@ -117,11 +245,13 @@ function entryExecutionReady(entry) {
 }
 
 function selectableTuples(catalog) {
+  const policy = productCapabilityPolicy(catalog);
+  if (policy.status !== 'ready') return [];
   const collections = {
     validation_rule_id: catalog.rules || [],
     scenario_id: catalog.scenarios || [],
-    algorithm_id: catalog.algorithms || [],
-    tracker_id: catalog.trackers || [],
+    algorithm_id: policyEntries(catalog, policy, 'algorithm_id'),
+    tracker_id: policyEntries(catalog, policy, 'tracker_id'),
   };
   return (catalog.selectable_combinations || []).filter((tuple) => TUPLE_FIELDS.every((field) => {
     const entry = collections[field].find((item) => item.id === tuple[field]);
@@ -131,12 +261,13 @@ function selectableTuples(catalog) {
 
 function catalogOptions(catalog, draft) {
   if (!catalog) return {};
+  const policy = productCapabilityPolicy(catalog);
   const tuples = selectableTuples(catalog);
   const collections = {
     validation_rule_id: catalog.rules || [],
     scenario_id: catalog.scenarios || [],
-    algorithm_id: catalog.algorithms || [],
-    tracker_id: catalog.trackers || [],
+    algorithm_id: policyEntries(catalog, policy, 'algorithm_id'),
+    tracker_id: policyEntries(catalog, policy, 'tracker_id'),
   };
   return Object.fromEntries(Object.entries(collections).map(([field, entries]) => [
     field,
@@ -179,8 +310,24 @@ function validationErrors(draft) {
   return errors;
 }
 
+function createConstraint(draft, policy, catalog) {
+  if (!draft || policy.status !== 'ready') return null;
+  const constraint = policy.value.constraints.algorithms[draft.algorithm_id];
+  if (!constraint?.requires_domain_profile) return null;
+  const qualification = constraint.required_domain_qualification;
+  const scenario = (catalog?.scenarios || []).find((item) => item.id === draft.scenario_id);
+  if (scenario?.domain_profile?.qualification === qualification) return null;
+  return {
+    code: 'requires-domain-profile',
+    algorithm_id: draft.algorithm_id,
+    required_domain_qualification: qualification,
+    message: `Selected algorithm requires an explicit ${qualification} ShipDomainProfile; Config cannot provide one.`,
+  };
+}
+
 function repairTuple(catalog, draft, latestField = null) {
   if (classify(catalog, draft) !== 'unavailable') return null;
+  const policyDefaults = defaultSpec(catalog);
   const candidates = selectableTuples(catalog)
     .map((tuple, index) => ({ tuple, index }))
     .filter(({ tuple }) => latestField === null || tuple[latestField] === draft[latestField]);
@@ -190,8 +337,8 @@ function repairTuple(catalog, draft, latestField = null) {
     const changedLeft = otherFields.filter((field) => left.tuple[field] !== draft[field]).length;
     const changedRight = otherFields.filter((field) => right.tuple[field] !== draft[field]).length;
     if (changedLeft !== changedRight) return changedLeft - changedRight;
-    const defaultsLeft = otherFields.filter((field) => left.tuple[field] === catalog.defaults[field]).length;
-    const defaultsRight = otherFields.filter((field) => right.tuple[field] === catalog.defaults[field]).length;
+    const defaultsLeft = otherFields.filter((field) => left.tuple[field] === policyDefaults?.[field]).length;
+    const defaultsRight = otherFields.filter((field) => right.tuple[field] === policyDefaults?.[field]).length;
     return defaultsRight - defaultsLeft || left.index - right.index;
   });
   return candidates[0].tuple;
@@ -232,11 +379,18 @@ export function createValidationAssembly({
     }
   }
 
+  function requireProductPolicy() {
+    const policy = productCapabilityPolicy(catalog);
+    if (policy.status !== 'ready') throw new Error(`${policy.code}: ${policy.message}`);
+    return policy;
+  }
+
   return {
     edit(field, value) {
       if (creating) throw new Error('Validation Assembly is creating; controls are frozen.');
       requireEditableAuthority('editing');
       if (!catalog) throw new Error('Capability catalog unavailable; Active Spec is read-only.');
+      requireProductPolicy();
       if (!EDITABLE_FIELDS.includes(field)) {
         throw new TypeError(`${field} is not user-editable through Validation Assembly.`);
       }
@@ -274,6 +428,7 @@ export function createValidationAssembly({
       if (creating) throw new Error('Validation Assembly is creating; controls are frozen.');
       requireEditableAuthority('Default');
       if (!catalog) throw new Error('Capability catalog unavailable; Default is disabled.');
+      requireProductPolicy();
       draft = defaultSpec(catalog);
       notices.length = 0;
     },
@@ -281,11 +436,14 @@ export function createValidationAssembly({
       if (creating) throw new Error('Validation Assembly is already creating.');
       requireEditableAuthority('Create');
       if (!catalog) throw new Error('Capability catalog unavailable; Create is disabled.');
+      const policy = requireProductPolicy();
       const classification = classify(catalog, draft);
       if (Object.keys(validationErrors(draft)).length) throw new Error('Validation Draft is invalid.');
       if (activeState === 'RUNNING') throw new Error('Active Session is RUNNING; pause it before Create.');
       if (activeSpec && equalSpec(draft, activeSpec)) throw new Error('Validation Draft matches active session.');
       if (classification === 'unavailable') throw new Error('Exact Tuple is unavailable.');
+      const constraint = createConstraint(draft, policy, catalog);
+      if (constraint) throw new Error(`${constraint.code}: ${constraint.message}`);
       if (classification === 'experimental' && !confirmedExperimental) {
         throw new Error('Experimental tuple requires confirmation before Create.');
       }
@@ -378,27 +536,33 @@ export function createValidationAssembly({
       });
     },
     snapshot() {
+      const policy = productCapabilityPolicy(catalog);
       const classification = classify(catalog, draft);
       const errors = validationErrors(draft);
+      const constraint = createConstraint(draft, policy, catalog);
       const matchesActive = Boolean(activeSpec && equalSpec(draft, activeSpec));
       let createBlock = null;
       if (creating) createBlock = 'creating';
       else if (runtimePending) createBlock = 'runtime-pending';
       else if (sessionStatus === 'loading') createBlock = 'current-session-loading';
       else if (sessionStatus !== 'known') createBlock = 'current-session-unknown';
+      else if (catalog && policy.status !== 'ready') createBlock = policy.code;
       else if (activeState === 'RUNNING') createBlock = 'active-running';
       else if (matchesActive) createBlock = 'matches-active';
       else if (classification === 'unavailable') createBlock = 'unavailable';
+      else if (constraint) createBlock = constraint.code;
       else if (Object.keys(errors).length) createBlock = 'invalid-draft';
       else if (classification === 'experimental') createBlock = 'experimental-confirmation';
       return clone({
         draft,
         dirty: draft ? !equalSpec(draft, baseline) : false,
         classification,
-        valid: classification !== 'unavailable' && Object.keys(errors).length === 0,
+        valid: policy.status === 'ready' && classification !== 'unavailable' && Object.keys(errors).length === 0,
         validationErrors: errors,
         catalogStatus: catalog ? 'ready' : 'error',
-        readOnly: !catalog || sessionStatus !== 'known' || Boolean(runtimePending),
+        productPolicyStatus: policy.status,
+        productCapabilityPolicy: policy.value,
+        readOnly: !catalog || policy.status !== 'ready' || sessionStatus !== 'known' || Boolean(runtimePending),
         sessionStatus,
         creating,
         runtimePending,
@@ -406,6 +570,8 @@ export function createValidationAssembly({
         activeSpec,
         matchesActive,
         createBlock,
+        createBlockReason: policy.status !== 'ready' ? policy.message : constraint?.message || null,
+        createConstraint: constraint,
         canCreate: createBlock === null,
         catalog,
         options: catalogOptions(catalog, draft),

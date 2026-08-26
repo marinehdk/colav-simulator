@@ -1,19 +1,19 @@
-import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260819-candidate3-projection';
-import './modules/line-graph.js?v=20260825-hover-2';
+import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260826-ais-threat-merge-v1';
+import './modules/line-graph.js?v=20260826-ais-threat-merge-v1';
 import {
   createSituationDisplay,
-  targetsForDisplay,
   plannerSurfaceType,
   wrapRadians,
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260821-situation-1';
+} from './modules/situation-display.js?v=20260826-ais-threat-merge-v1';
 
 /**
  * Colav-Simulator Web GUI — app.js
- * Deployment adapter/host: owns the Situation Display instance, the planner
- * surface panel, target-edit panel, catalogs, and runtime control wiring.
+ * Deployment adapter/host: owns the Situation Display instance, planner
+ * surface panel, and runtime projection/control wiring. Validation Assembly
+ * owns Config policy, catalog, and Active Session creation.
  * ENC situation canvas rendering lives in modules/situation-display.js.
  */
 
@@ -22,30 +22,7 @@ import {
 ══════════════════════════════════════════════ */
 const SAFETY_MARGIN_DEFAULT = 150;
 const PERF_HISTORY_LEN      = 60;
-const DCPA_SAFE  = 300;   // m – green
-const DCPA_WARN  = 100;   // m – amber/red
-const TCPA_SAFE  = 120;   // s
-const TCPA_WARN  = 40;    // s
 const VO_DECISION_FETCH_INTERVAL_MS = 200;
-const METERS_PER_KNOT = 0.514444;
-
-const SCENARIO_GROUPS = {
-  rule13: { types: ['OT_ing', 'OT_en'], defaultScenario: 'overtaking' },
-  rule14: { types: ['HO'], defaultScenario: 'head_on' },
-  rule15: { types: ['CR_GW', 'CR_SO'], defaultScenario: 'crossing_give_way' },
-  multiship: { types: ['MS'], defaultScenario: 'paper_ccta2023_multiship' },
-};
-
-const SCENARIO_TYPE_DESCRIPTIONS = {
-  HO: '对遇场景',
-  OT_ing: '本船追越',
-  OT_en: '本船被追越',
-  CR_GW: '交叉让路',
-  CR_SO: '交叉直航',
-  MS: '多船综合遭遇',
-  SS: '单船航路规划',
-};
-
 const ENCOUNTER_LABELS = {
   head_on: 'Rule 14 Head-on',
   overtaking: 'Rule 13 Overtaking',
@@ -55,36 +32,6 @@ const ENCOUNTER_LABELS = {
   clear: 'Clear',
 };
 
-const SCENARIO_LABELS = {
-  aalesund_random1: 'Ålesund 随机对遇',
-  boknafjorden_generation_test: 'Boknafjorden 交叉',
-  crossing_give_way: '标准交叉 · 让路',
-  crossing_stand_on: '标准交叉 · 直航',
-  head_on: '标准对遇',
-  head_on_sbmpc: 'SB-MPC 对遇验证',
-  overtaken: '标准被追越',
-  overtaking: '标准追越',
-  paper_ccta2023_head_on: '论文复现 · 对遇',
-  paper_ccta2023_multiship: '论文复现 · 四船',
-  romsdal_busy_water_16: 'Romsdal 多船可配置',
-  rl_scenario: 'RL',
-  rl_scenario_smaller: 'RL',
-  rlmpc_scenario: 'RLMPC',
-  rlmpc_scenario_ms_channel: 'RLMPC',
-  rlmpc_scenario_ms_channel_vimmjipda: 'RLMPC + VIMMJIPDA',
-  rogaland_random_rl: 'RL Rogaland',
-  rrt_test: 'RRT*',
-  'saved/rlmpc_scenario_ms_channel/rlmpc_scenario_ms_channel_ep001_27072026_040243': 'RLMPC 回放',
-};
-
-const ENC_CHARTS = {
-  romsdal: { label: 'Romsdal' },
-  rogaland: { label: 'Rogaland' },
-};
-
-let scenarioCatalog = [];
-let capabilityCatalog = null;
-let ruleCatalog = [];
 let solveTimeline = [];
 let lastDisplayedSolveId = null;
 let lastRuntimeState = 'CREATED';
@@ -111,12 +58,6 @@ let voDecisionSpaceRetryTimer = null;
 let lastVODecisionRequestAt = 0;
 let lastVORenderKey = null;
 let voRenderGeometry = null;
-let selectedTargetId = null;
-let targetEditorKey = null;
-let busyWaterDocument = null;
-let busyWaterSeed = 20250731;
-let busyWaterMix = { crossing: 0.6, head_on: 0.2, overtaking: 0.2 };
-
 function currentRunId() {
   return deploymentRuntimeSnapshot.session?.session_id || null;
 }
@@ -128,18 +69,7 @@ function plannerResponseRange() {
   const planner = telemetryProjection.snapshot().planner;
   const algorithmId = planner.algorithmId;
   const constraints = planner.display?.constraints || {};
-  if (algorithmId === 'sbmpc') {
-    const configuredRange = Number(constraints.activation_distance_m);
-    const distanceM = Number.isFinite(configuredRange) && configuredRange > 0
-      ? configuredRange
-      : 1000;
-    return {
-      distanceM,
-      label: `避碰响应圈（${(distanceM / 1000).toFixed(1)} km）`,
-      threatActivation: true,
-    };
-  }
-  if (['potocnik_simplified_mpc', 'potocnik_colreg_fan_mpc'].includes(algorithmId)) {
+  if (algorithmId === 'potocnik_colreg_fan_mpc') {
     const distanceM = Number(constraints.planning_zone?.distance_m);
     if (Number.isFinite(distanceM) && distanceM > 0) {
       return {
@@ -165,7 +95,9 @@ const situationDisplay = createSituationDisplay({
   canvas: document.getElementById('simCanvas'),
   wrapper: document.getElementById('canvasWrapper'),
   getResponseRange: () => plannerResponseRange(),
-  getScenarioId: () => document.getElementById('scenarioSelect')?.value || null,
+  // Config owns the draft. Deployment only receives the immutable active
+  // session projection; it must not read retired selector DOM.
+  getScenarioId: () => deploymentRuntimeSnapshot.session?.spec?.scenario_id || null,
   getPlannerSurface: () => {
     const type = plannerSurfaceType(currentDiagnosticPlanner());
     if (type === 'vo') {
@@ -385,6 +317,8 @@ function setupChartDisplayPopover() {
 }
 
 setupChartDisplayPopover();
+document.getElementById('fitTrafficBtn')?.addEventListener('click', () => situationDisplay.fitTraffic());
+document.getElementById('recenterChartBtn')?.addEventListener('click', () => situationDisplay.recenterOwnship());
 document.querySelectorAll('[data-map-orientation]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('[data-map-orientation]').forEach(b => {
@@ -404,105 +338,6 @@ document.querySelectorAll('[data-layer]').forEach(input => {
   });
 });
 
-function startRoutePointPick(mode) {
-  situationDisplay.setClickMode({
-    id: 'route-pick',
-    onPick: async point => {
-      const suffix = mode === 'start' ? '1' : '2';
-      try {
-        const coordinate = await utmToWgs84(point.north, point.east);
-        document.getElementById(`targetRouteLat${suffix}`).value = coordinate.latitude.toFixed(6);
-        document.getElementById(`targetRouteLon${suffix}`).value = coordinate.longitude.toFixed(6);
-      } finally {
-        situationDisplay.setClickMode(null);
-      }
-    },
-  });
-}
-
-async function utmToWgs84(north, east) {
-  const params = new URLSearchParams({ north: String(north), east: String(east), utm_zone: '33' });
-  return apiRequest(`/api/coordinates/to-wgs84?${params}`);
-}
-
-async function wgs84ToUtm(latitude, longitude) {
-  const params = new URLSearchParams({
-    latitude: String(latitude),
-    longitude: String(longitude),
-    utm_zone: '33',
-  });
-  return apiRequest(`/api/coordinates/to-utm?${params}`);
-}
-
-function renderBusyTargetList() {
-  const list = document.getElementById('busyTargetList');
-  list.replaceChildren();
-  for (const ship of busyWaterDocument?.ship_list?.slice(1) || []) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.dataset.targetId = String(ship.id);
-    button.textContent = `TS${ship.id}`;
-    button.setAttribute('role', 'option');
-    button.classList.toggle('selected', String(ship.id) === String(selectedTargetId));
-    button.setAttribute('aria-selected', String(ship.id) === String(selectedTargetId));
-    list.appendChild(button);
-  }
-}
-
-function colregsEditorValue(role) {
-  if (role === 'head_on') return 'HO';
-  if (String(role).startsWith('crossing_')) return 'CS';
-  if (role === 'overtaking' || role === 'overtaken') return 'OT';
-  return 'UNKNOWN';
-}
-
-function encounterRoleFromEditor(value) {
-  return { HO: 'head_on', CS: 'crossing_give_way', OT: 'overtaking', UNKNOWN: 'unknown' }[value];
-}
-
-async function updateTargetDetails(target, data) {
-  const form = document.getElementById('targetEditForm');
-  if (!target) {
-    form.hidden = true;
-    targetEditorKey = null;
-    renderBusyTargetList();
-    return;
-  }
-  const ship = busyWaterDocument?.ship_list?.find(item => String(item.id) === String(target.id));
-  const editable = Boolean(ship && data?.state !== 'RUNNING');
-  form.hidden = !editable;
-  if (editable) {
-    const key = JSON.stringify([ship.id, ship.csog_state[2], ship.waypoints, ship.encounter_role]);
-    if (targetEditorKey !== key) {
-      targetEditorKey = key;
-      let start;
-      let end;
-      try {
-        [start, end] = await Promise.all([
-          utmToWgs84(ship.waypoints[0][0], ship.waypoints[1][0]),
-          utmToWgs84(ship.waypoints[0][1], ship.waypoints[1][1]),
-        ]);
-      } catch (error) {
-        targetEditorKey = null;
-        throw error;
-      }
-      if (String(selectedTargetId) !== String(ship.id)) return;
-      document.getElementById('targetIdentifier').value = `TS${ship.id}`;
-      document.getElementById('targetSpeed').value = (Number(ship.csog_state[2]) / METERS_PER_KNOT).toFixed(1);
-      document.getElementById('targetRouteLat1').value = start.latitude.toFixed(6);
-      document.getElementById('targetRouteLon1').value = start.longitude.toFixed(6);
-      document.getElementById('targetRouteLat2').value = end.latitude.toFixed(6);
-      document.getElementById('targetRouteLon2').value = end.longitude.toFixed(6);
-      document.getElementById('targetColregs').value = colregsEditorValue(ship.encounter_role);
-    }
-  }
-  renderBusyTargetList();
-}
-
-function selectedBusyWaterShip() {
-  return busyWaterDocument?.ship_list?.find(item => String(item.id) === String(selectedTargetId));
-}
-
 /* ══════════════════════════════════════════════
    UI TELEMETRY UPDATE
 ══════════════════════════════════════════════ */
@@ -510,12 +345,6 @@ function updateUI(proj) {
   const data = proj.raw;
   const navigation = proj.navigation;
   const os = data?.os;
-  if (selectedTargetId !== null) {
-    const target = targetsForDisplay(data).find(item => String(item.id) === String(selectedTargetId));
-    updateTargetDetails(target || null, data).catch(error => {
-      document.getElementById('busyWaterStatus').textContent = error.message;
-    });
-  }
 
   const previousRuntimeState = lastRuntimeState;
   if (proj.state === 'RUNNING' && previousRuntimeState !== 'RUNNING') {
@@ -550,20 +379,16 @@ function updateUI(proj) {
   const dcpaEl = document.getElementById('val-dcpa');
   if (dcpaEl) {
     dcpaEl.textContent = dcpa === null ? '--- m' : `${dcpa.toFixed(1)} m`;
-    setRiskClass(dcpaEl, dcpa, DCPA_SAFE, DCPA_WARN, true);
+    setThreatClass(dcpaEl, primary?.displayClass);
   }
-  const dcpaPct = dcpa === null ? 0 : Math.max(0, Math.min(100, (1 - dcpa / (DCPA_SAFE * 2)) * 100));
-  setRiskBar('dcpaBar', dcpaPct,
-    dcpa === null ? 'safe' : dcpa > DCPA_SAFE ? 'safe' : dcpa > DCPA_WARN ? 'warn' : 'danger');
+  setThreatBar('dcpaBar', primary?.displayPercent, primary?.displayClass);
 
   const tcpaEl = document.getElementById('val-tcpa');
   if (tcpaEl) {
     tcpaEl.textContent = tcpa === null ? '--- s' : `${tcpa.toFixed(1)} s`;
-    setRiskClass(tcpaEl, tcpa, TCPA_SAFE, TCPA_WARN, true);
+    setThreatClass(tcpaEl, primary?.displayClass);
   }
-  const tcpaPct = tcpa === null ? 0 : Math.max(0, Math.min(100, (1 - tcpa / (TCPA_SAFE * 2)) * 100));
-  setRiskBar('tcpaBar', tcpaPct,
-    tcpa === null ? 'safe' : tcpa > TCPA_SAFE ? 'safe' : tcpa > TCPA_WARN ? 'warn' : 'danger');
+  setThreatBar('tcpaBar', primary?.displayPercent, primary?.displayClass);
 
   updateColregsBadge(proj.risk.colregs);
 
@@ -594,6 +419,8 @@ function updateUI(proj) {
 function updateDeploymentDisplay(proj) {
   const simTime = proj.navigation?.simTime ?? 0;
   setText('liveSimulationTime', `${simTime.toFixed(1)} s`);
+  const aisUtc = proj.raw?.ais_utc;
+  setText('liveAisUtc', aisUtc ? `AIS ${String(aisUtc).slice(11, 19)}Z` : '');
   setText('liveControlState', proj.state || 'NOT CREATED');
   const emptyState = document.getElementById('liveEmptyState');
   if (emptyState) {
@@ -642,9 +469,9 @@ function formatDuration(totalSeconds) {
 
 function updateRouteCard(proj) {
   const data = proj.raw || {};
-  // Steering mode: TRACK while no encounter is classified; COLLISION once the
-  // encounter monitor reports any non-clear COLREGs situation.
-  const collisionActive = (proj.risk?.targets || []).some((t) => t.encounter && t.encounter !== 'clear');
+  // Steering mode is advisory display only and follows an explicit backend
+  // threat class; no browser encounter or distance calculation is performed.
+  const collisionActive = proj.risk?.status === 'AVAILABLE' && proj.risk?.primary?.displayClass === 'HIGH';
   const steeringMode = document.getElementById('liveSteeringMode');
   if (steeringMode) {
     steeringMode.textContent = collisionActive ? 'COLLISION' : 'TRACK';
@@ -876,16 +703,11 @@ let riskDistanceUnit = 'nmi';
 let latestMonitorTimelineEvents = [];
 
 function riskThreatLevel(target) {
-  const stage = Number(target?.stage);
-  const dcpa = target?.dcpaM === null || target?.dcpaM === undefined
-    ? null
-    : Number(target.dcpaM);
-  const fsmState = String(target?.fsmState || '').toUpperCase();
-  if (fsmState === 'EM' || stage >= 4 || (Number.isFinite(dcpa) && dcpa <= DCPA_WARN)) {
-    return 'danger';
-  }
-  if (stage >= 2 || (Number.isFinite(dcpa) && dcpa <= DCPA_SAFE)) return 'warn';
-  return 'safe';
+  return {
+    HIGH: 'danger',
+    LOW: 'warn',
+    CLEAR: 'safe',
+  }[String(target?.displayClass || '').toUpperCase()] || 'unknown';
 }
 
 function formatRiskDistance(distanceM, unit = riskDistanceUnit) {
@@ -1232,24 +1054,42 @@ function setupNotificationCenter() {
 }
 
 function updateMonitorTelemetry(proj) {
+  const historicalContext = proj.raw?.historical_context;
+  setText(
+    'liveContextCount',
+    historicalContext
+      ? `${historicalContext.active_actor_count}/${historicalContext.total_actor_count} ACTIVE`
+      : '',
+  );
   const container = document.getElementById('liveRiskTargetList');
   if (container) {
     const targets = proj.risk?.targets || [];
-    if (!targets.length) {
+    if (proj.risk?.status !== 'AVAILABLE') {
       container.innerHTML = `
-        <article class="risk-target-card" data-priority="none" data-threat="safe">
-          <div class="risk-target-heading"><span>当前目标</span><strong>无威胁目标</strong></div>
-          <p style="margin:0;font-size:10px;color:var(--ob-subtle);">当前安全探测范围内无临近会遇船舶。</p>
+        <article class="risk-target-card" data-priority="none">
+          <div class="risk-target-heading"><span>Threat Management</span><strong>不可用</strong></div>
+          <p style="margin:0;font-size:10px;color:var(--ob-subtle);">${proj.risk?.unavailableReason || '等待后端威胁事实。'}</p>
+        </article>
+      `;
+    } else if (!targets.length) {
+      container.innerHTML = `
+        <article class="risk-target-card" data-priority="none">
+          <div class="risk-target-heading"><span>Threat Management</span><strong>无目标</strong></div>
+          <p style="margin:0;font-size:10px;color:var(--ob-subtle);">后端未发布当前威胁向量。</p>
         </article>
       `;
     } else {
-      container.innerHTML = targets.map((t, idx) => {
-        const isHighest = idx === 0;
+      const historicalById = new Map((proj.raw?.obstacles || []).map(target => [String(target.id), target]));
+      container.innerHTML = targets.map((t) => {
+        const isHighest = t.isPrimary === true;
         const threatLevel = riskThreatLevel(t);
         const dcpaText = t.dcpaM !== null ? `${t.dcpaM.toFixed(1)}` : '---';
         const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
         const colregLabel = t.encounter ? (ENCOUNTER_LABELS[t.encounter] || t.encounter) : '--';
-        const priorityLabel = isHighest ? '优先目标' : (idx === 1 ? '次优先目标' : '监测目标');
+        const priorityLabel = t.scheduleClass || (isHighest ? '当前 Primary' : '未分类');
+        const historical = historicalById.get(String(t.targetId)) || {};
+        const sampleKind = historical.historical_sample_kind || '--';
+        const dimensions = String(historical.dimensions_provenance || '').includes('ASSUMED') ? 'ASSUMED' : 'PROVEN';
         return `
           <article class="risk-target-card" data-threat="${threatLevel}" ${isHighest ? 'data-priority="highest"' : ''}>
             <div class="risk-target-heading"><span>${priorityLabel}</span><strong>${t.targetLabel || (t.targetId === null ? '--' : `TS${t.targetId}`)}</strong></div>
@@ -1260,11 +1100,33 @@ function updateMonitorTelemetry(proj) {
             <dl class="risk-target-facts">
               <div><dt>COLREGs Rule</dt><dd class="colreg-value">${colregLabel}</dd></div>
               <div><dt>Target range</dt><dd><button type="button" class="risk-distance-toggle" data-distance-m="${t.distanceM ?? ''}" data-unit="${riskDistanceUnit}" ${Number.isFinite(t.distanceM) ? '' : 'disabled'}>${formatRiskDistance(t.distanceM)}</button></dd></div>
+              <div><dt>AIS state</dt><dd>${sampleKind}</dd></div>
+              <div><dt>Hull dimensions</dt><dd>${dimensions}</dd></div>
             </dl>
           </article>
         `;
       }).join('');
     }
+  }
+
+  const shadow = proj.raw?.shadow_comparison;
+  const shadowPanel = document.getElementById('shadowComparisonPanel');
+  const shadowAvailable = ['AVAILABLE', 'INACTIVE / DATA GAP'].includes(shadow?.status);
+  if (shadowPanel) shadowPanel.hidden = false;
+  if (shadowAvailable) {
+    setText('shadowComparisonStatus', shadow.status === 'AVAILABLE' ? 'COMPARISON ONLY' : shadow.status);
+    setText('shadowDeviation', `${Number(shadow.deviation_m).toFixed(1)} m`);
+    setText('shadowMaximumDeviation', `${Number(shadow.maximum_deviation_m).toFixed(1)} m`);
+    setText('shadowDeltaCog', `${(Number(shadow.delta_cog_rad) * 180 / Math.PI).toFixed(1)}°`);
+    setText('shadowDeltaSog', `${(Number(shadow.delta_sog_mps) / 0.514444).toFixed(1)} kn`);
+    setText('shadowRecovery', shadow.recovery?.status || 'NOT STARTED');
+  } else {
+    setText('shadowComparisonStatus', 'NOT AVAILABLE');
+    setText('shadowDeviation', '-- m');
+    setText('shadowMaximumDeviation', '-- m');
+    setText('shadowDeltaCog', '--°');
+    setText('shadowDeltaSog', '-- kn');
+    setText('shadowRecovery', 'NOT STARTED');
   }
 
   renderMonitorEventList(proj.timeline?.events || []);
@@ -1364,36 +1226,37 @@ function formatCourse(value) {
   return `${degrees.toFixed(1)}°`;
 }
 
-function setRiskClass(el, value, safe, warn, invert) {
+function setThreatClass(el, displayClass) {
   el.classList.remove('safe', 'warn', 'danger');
-  if (!Number.isFinite(value)) return;
-  if (invert) {
-    if (value > safe) el.classList.add('safe');
-    else if (value > warn) el.classList.add('warn');
-    else el.classList.add('danger');
-  }
+  const level = String(displayClass || '').toUpperCase();
+  if (level === 'HIGH') el.classList.add('danger');
+  else if (level === 'LOW') el.classList.add('warn');
+  else if (level === 'CLEAR') el.classList.add('safe');
 }
 
-function setRiskBar(id, pct, level) {
+function setThreatBar(id, displayPercent, displayClass) {
   const bar = document.getElementById(id);
   if (!bar) return;
-  bar.style.width      = `${pct}%`;
-  bar.style.background = level === 'safe' ? 'var(--risk-safe)'
-                       : level === 'warn' ? 'var(--risk-warn)'
-                                          : 'var(--risk-danger)';
+  const percent = Number.isFinite(displayPercent) ? Math.max(0, Math.min(100, displayPercent)) : 0;
+  const level = String(displayClass || '').toUpperCase();
+  bar.style.width = `${percent}%`;
+  bar.style.background = level === 'CLEAR' ? 'var(--risk-safe)'
+                       : level === 'LOW' ? 'var(--risk-warn)'
+                                         : level === 'HIGH' ? 'var(--risk-danger)' : 'var(--ob-subtle)';
 }
 
 function updateColregsBadge(rule) {
   const badge     = document.getElementById('val-colregs');
   if (!badge) return;
-  const label = ENCOUNTER_LABELS[rule] || rule || 'Clear';
+  const label = rule ? (ENCOUNTER_LABELS[rule] || rule) : '--';
   badge.textContent = label;
   badge.className   = 'colregs-badge';
   if      (rule === 'head_on')          badge.classList.add('rule-14');
   else if (rule === 'crossing_give_way') badge.classList.add('rule-15-giveway');
   else if (rule === 'crossing_stand_on') badge.classList.add('rule-15-standon');
   else if (rule === 'overtaking')        badge.classList.add('rule-13');
-  else                                   badge.classList.add('clear');
+  else if (rule)                         badge.classList.add('clear');
+  else                                   badge.classList.add('unknown');
 }
 
 function updatePlannerPanel(proj) {
@@ -1560,20 +1423,16 @@ function drawPlannerSurface(planner) {
   const details = planner.algorithm_details || {};
   const isVO = algorithmId === 'vo';
   const isMidMPC = algorithmId === 'mid_mpc_ipopt';
-  const isSimplifiedMPC = ['potocnik_simplified_mpc', 'potocnik_colreg_fan_mpc'].includes(algorithmId);
+  const isFanMPC = algorithmId === 'potocnik_colreg_fan_mpc';
   const matrix = details.candidate_costs;
   const selectionMatrix = matrix;
   const label = algorithmId === 'vo'
     ? '速度决策空间'
     : isMidMPC
       ? 'Mid-MPC · IPOPT 优化轨迹'
-      : algorithmId === 'sbmpc'
-      ? 'SB-MPC 候选控制代价'
-      : isSimplifiedMPC
-        ? (algorithmId === 'potocnik_colreg_fan_mpc'
-          ? 'Fan-MPC · 规则与安全筛选'
-          : '简化 MPC · 扇形轨迹筛选')
-        : '名义 LOS 引导';
+      : isFanMPC
+        ? 'Fan-MPC · 规则与安全筛选'
+        : '算法不可用';
   const surfaceExplanation = document.getElementById('val-surface-explanation');
   const surfaceMeta = document.getElementById('val-surface-meta');
   if (surfaceExplanation) surfaceExplanation.hidden = !isVO;
@@ -1615,7 +1474,7 @@ function drawPlannerSurface(planner) {
       : isVO ? '-- m/s' : '--',
   );
   const objectiveHistoryWrap = document.getElementById('objectiveHistoryWrap');
-  if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = !['sbmpc', 'mid_mpc_ipopt'].includes(algorithmId);
+  if (objectiveHistoryWrap) objectiveHistoryWrap.hidden = !isMidMPC;
   const voLegend = document.getElementById('voSurfaceLegend');
   if (voLegend) voLegend.hidden = !isVO;
   if (isVO) {
@@ -1628,7 +1487,7 @@ function drawPlannerSurface(planner) {
   // Before the first solve there is nothing meaningful to plot; keep the
   // screen empty instead of a placeholder caption.
   if (!planner.algorithm_id || !Number(planner.solve_id)) return;
-  if (isSimplifiedMPC) {
+  if (isFanMPC) {
     drawSimplifiedMpcFan(surface, canvas, planner, details);
     return;
   }
@@ -2496,22 +2355,6 @@ function renderProjection(proj) {
   }
 }
 
-/* ══════════════════════════════════════════════
-   WEBSOCKET
-══════════════════════════════════════════════ */
-async function apiRequest(url, options = {}) {
-  const response = await fetch(url, options);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const detail = data.detail;
-    const message = typeof detail === 'object'
-      ? `${detail.status || 'ERROR'}: ${detail.reason || JSON.stringify(detail)}`
-      : detail || `HTTP ${response.status}`;
-    throw new Error(message);
-  }
-  return data;
-}
-
 function setSessionConnectionState(state, logEvent = false) {
   const states = {
     connected: { text: '会话: 连通', logClass: 'log-ok' },
@@ -2533,55 +2376,6 @@ function setSessionConnectionState(state, logEvent = false) {
   const connStatus = document.getElementById('conn-status');
   if (connStatus) connStatus.textContent = next.text;
   if (logEvent) pushLog(next.text, next.logClass);
-}
-
-function isBusyWaterScenario(scenarioId) {
-  return scenarioId === 'romsdal_busy_water_16';
-}
-
-function syncBusyWaterSetupVisibility(scenarioId = document.getElementById('scenarioSelect').value) {
-  const visible = isBusyWaterScenario(scenarioId);
-  document.getElementById('cardBusyWater').hidden = !visible;
-  if (visible) renderBusyTargetList();
-}
-
-async function generateBusyWaterDocument({ scenarioId, targetCount, seed, crossing, headOn, overtaking }) {
-  const params = new URLSearchParams({
-    profile: 'acceptance',
-    target_count: String(targetCount),
-    seed: String(seed),
-    crossing_ratio: String(crossing),
-    head_on_ratio: String(headOn),
-    overtaking_ratio: String(overtaking),
-  });
-  const payload = await apiRequest(`/api/busy-water/generate?${params}`);
-  busyWaterDocument = payload.document;
-  busyWaterSeed = Number(seed);
-  busyWaterMix = {
-    crossing: Number(payload.encounter_mix.crossing),
-    head_on: Number(payload.encounter_mix.head_on),
-    overtaking: Number(payload.encounter_mix.overtaking),
-  };
-  selectedTargetId = null;
-  targetEditorKey = null;
-  document.getElementById('targetEditForm').hidden = true;
-  renderBusyTargetList();
-  return payload;
-}
-
-async function persistBusyWaterDocument() {
-  if (!busyWaterDocument) return;
-  await apiRequest('/api/busy-water/drafts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: 'Current Multiship',
-      base_scenario_id: 'romsdal_busy_water_16',
-      seed: busyWaterSeed,
-      encounter_mix: busyWaterMix,
-      document: busyWaterDocument,
-    }),
-  });
 }
 
 function resetDeploymentForSession(data) {
@@ -2611,7 +2405,6 @@ function resetDeploymentForSession(data) {
   renderedTimelineEvents = 0;
   setEncStatus('loading');
   syncPlaybackStatus(data.playback, false);
-  syncEncChartSelect(document.getElementById('scenarioSelect')?.value);
   situationDisplay.beginSession(data.session_id || currentRunId());
 }
 
@@ -2632,6 +2425,7 @@ function syncRuntimeControls(snapshot) {
     || snapshot.outcome.status !== 'ready'
     || !snapshot.outcome.result);
   document.querySelectorAll('.speed-preset').forEach((button) => { button.disabled = locked; });
+  setControlDisabled('livePlaybackRate', locked);
 }
 
 function syncDeploymentRuntime(snapshot) {
@@ -2651,7 +2445,6 @@ function syncDeploymentRuntime(snapshot) {
     handledOutcomeKey = '';
     reportedFailureSessionId = null;
     if (snapshot.session) {
-      restoreSessionSelection(snapshot.session.spec || {});
       resetDeploymentForSession(snapshot.session);
       pushLog(
         `Active Session: ${snapshot.session.spec?.scenario_id} / ${snapshot.session.spec?.algorithm_id} / ${snapshot.session.spec?.tracker_id}`,
@@ -2694,421 +2487,9 @@ function syncDeploymentRuntime(snapshot) {
   syncRuntimeControls(snapshot);
 }
 
-async function populateCatalogs(ruleId = 'rule14') {
-  const [catalog, allCapabilities] = await Promise.all([
-    apiRequest(`/api/capabilities?validation_rule_id=${encodeURIComponent(ruleId)}`),
-    ruleCatalog.length ? Promise.resolve(null) : apiRequest('/api/capabilities'),
-  ]);
-  capabilityCatalog = catalog;
-  if (allCapabilities) ruleCatalog = allCapabilities.rules;
-
-  const scenarioSelect = document.getElementById('scenarioSelect');
-  const selectedScenario = scenarioSelect?.value;
-  scenarioCatalog = catalog.scenarios.filter(item => item.id !== 'romsdal_busy_water_80_stress');
-  populateScenarioOptions(ruleId, selectedScenario);
-
-  document.querySelectorAll('.qtab').forEach(tab => {
-    const rule = ruleCatalog.find(item => item.id === tab.dataset.group);
-    const selectable = Boolean(rule?.selectable);
-    tab.disabled = !selectable;
-    tab.classList.toggle('available', selectable);
-    tab.classList.toggle('unavailable', !selectable);
-    tab.querySelector('.selection-state').textContent =
-      `${rule?.readiness_grade || 'G0'} · ${selectable ? '可选' : '禁选'}`;
-    tab.title = rule?.incompatibility_reason || `${rule?.readiness_grade || 'G0'} display ready`;
-  });
-
-  const integrations = [...catalog.algorithms, ...catalog.trackers];
-  const statusMap = Object.fromEntries(integrations.map(item => [item.id, item]));
-  document.querySelectorAll('[data-integration]').forEach(chip => {
-    const status = statusMap[chip.dataset.integration];
-    const selectable = Boolean(status?.selectable);
-    chip.classList.toggle('available', selectable);
-    chip.classList.toggle('unavailable', !selectable);
-    chip.querySelector('.integration-state').textContent = status?.dependency_available
-      ? `${status.readiness_grade} · ${selectable ? '可选' : '禁选'}`
-      : '缺依赖';
-    chip.title = status?.incompatibility_reason
-      || `${status?.source || '内置接口'}${status?.version ? ` · v${status.version}` : ''}`;
-  });
-
-  ensureSelectableValue(
-    document.getElementById('algoSelect'),
-    catalog.algorithms,
-    catalog.defaults.algorithm_id,
-  );
-  ensureSelectableValue(
-    document.getElementById('trackerSelect'),
-    catalog.trackers,
-    catalog.defaults.tracker_id,
-  );
-  document.querySelectorAll('#algoSelect option').forEach(option => {
-    const status = statusMap[option.value];
-    option.disabled = !status?.selectable;
-    option.title = status?.incompatibility_reason || `${status?.readiness_grade || 'G0'} ready`;
-  });
-  document.querySelectorAll('#trackerSelect option').forEach(option => {
-    const status = statusMap[option.value];
-    option.disabled = !status?.selectable;
-    option.title = status?.incompatibility_reason || `${status?.readiness_grade || 'G0'} ready`;
-  });
-  document.querySelectorAll('[data-algorithm]').forEach(card => {
-    setSelectionAvailability(card, statusMap[card.dataset.algorithm]);
-  });
-  document.querySelectorAll('[data-tracker]').forEach(card => {
-    setSelectionAvailability(card, statusMap[card.dataset.tracker]);
-  });
-  syncExactCombinationAvailability();
-  syncSelectionCards('algorithm', document.getElementById('algoSelect')?.value);
-  syncSelectionCards('tracker', document.getElementById('trackerSelect')?.value);
-}
-
-function syncExactCombinationAvailability(changedSelectId = null) {
-  if (!capabilityCatalog) return;
-  const ruleId = document.querySelector('.qtab.active')?.dataset.group || 'rule14';
-  const combinations = (capabilityCatalog.selectable_combinations
-    || capabilityCatalog.verified_combinations
-    || [])
-    .filter(item => item.validation_rule_id === ruleId);
-  const scenarioSelect = document.getElementById('scenarioSelect');
-  const algorithmSelect = document.getElementById('algoSelect');
-  const trackerSelect = document.getElementById('trackerSelect');
-  const current = {
-    scenario_id: scenarioSelect?.value,
-    algorithm_id: algorithmSelect?.value,
-    tracker_id: trackerSelect?.value,
-  };
-  const exact = combinations.find(item => (
-    item.scenario_id === current.scenario_id
-    && item.algorithm_id === current.algorithm_id
-    && item.tracker_id === current.tracker_id
-  ));
-  let preferred = null;
-  if (changedSelectId === 'scenarioSelect') {
-    preferred = combinations.find(item => (
-      item.scenario_id === current.scenario_id
-      && item.tracker_id === current.tracker_id
-    )) || combinations.find(item => item.scenario_id === current.scenario_id);
-  } else if (changedSelectId === 'algoSelect') {
-    preferred = combinations.find(item => (
-      item.algorithm_id === current.algorithm_id
-      && item.scenario_id === current.scenario_id
-    )) || combinations.find(item => item.algorithm_id === current.algorithm_id);
-  } else if (changedSelectId === 'trackerSelect') {
-    preferred = combinations.find(item => (
-      item.tracker_id === current.tracker_id
-      && item.scenario_id === current.scenario_id
-      && item.algorithm_id === current.algorithm_id
-    )) || combinations.find(item => item.tracker_id === current.tracker_id);
-  }
-  const selected = exact
-    || preferred
-    || combinations.find(item => (
-      item.scenario_id === current.scenario_id
-      && item.algorithm_id === capabilityCatalog.defaults.algorithm_id
-      && item.tracker_id === capabilityCatalog.defaults.tracker_id
-    ))
-    || combinations[0];
-  if (!selected) return;
-  if (scenarioSelect) scenarioSelect.value = selected.scenario_id;
-  if (algorithmSelect) algorithmSelect.value = selected.algorithm_id;
-  if (trackerSelect) trackerSelect.value = selected.tracker_id;
-
-  const selectedIds = {
-    scenario_id: scenarioSelect.value,
-    algorithm_id: algorithmSelect.value,
-    tracker_id: trackerSelect.value,
-  };
-  const permits = (kind, value) => combinations.some(item => {
-    if (item[kind] !== value) return false;
-    if (kind === 'scenario_id') return true;
-    return (
-      (kind === 'algorithm_id' || item.algorithm_id === selectedIds.algorithm_id)
-      && (kind === 'tracker_id' || item.tracker_id === selectedIds.tracker_id)
-      && item.scenario_id === selectedIds.scenario_id
-    );
-  });
-  document.querySelectorAll('#scenarioSelect option').forEach(option => {
-    option.disabled = !permits('scenario_id', option.value);
-    if (option.disabled) option.title = '当前规则下无可用算法组合';
-  });
-  document.querySelectorAll('#algoSelect option').forEach(option => {
-    option.disabled = !permits('algorithm_id', option.value);
-    if (option.disabled) option.title = '未通过当前场景与跟踪器的精确 G3 组合门';
-  });
-  document.querySelectorAll('#trackerSelect option').forEach(option => {
-    option.disabled = !permits('tracker_id', option.value);
-    if (option.disabled) option.title = '未通过当前场景与算法的精确 G3 组合门';
-  });
-
-  const statusById = Object.fromEntries(
-    [...capabilityCatalog.scenarios, ...capabilityCatalog.algorithms, ...capabilityCatalog.trackers]
-      .map(item => [item.id, item]),
-  );
-  document.querySelectorAll('[data-scenario]').forEach(card => {
-    setExactSelectionAvailability(card, statusById[card.dataset.scenario], permits('scenario_id', card.dataset.scenario));
-  });
-  document.querySelectorAll('[data-algorithm]').forEach(card => {
-    setExactSelectionAvailability(card, statusById[card.dataset.algorithm], permits('algorithm_id', card.dataset.algorithm));
-  });
-  document.querySelectorAll('[data-tracker]').forEach(card => {
-    setExactSelectionAvailability(card, statusById[card.dataset.tracker], permits('tracker_id', card.dataset.tracker));
-  });
-  syncScenarioCards(scenarioSelect.value);
-  syncSelectionCards('algorithm', algorithmSelect.value);
-  syncSelectionCards('tracker', trackerSelect.value);
-  syncBusyWaterSetupVisibility(scenarioSelect.value);
-}
-
-function setExactSelectionAvailability(card, status, selectable) {
-  setSelectionAvailability(card, {
-    ...(status || {}),
-    selectable,
-    incompatibility_reason: selectable
-      ? null
-      : '该选项不属于当前 rule/scenario/algorithm/tracker 可用组合',
-  });
-}
-
-function ensureSelectableValue(select, entries, preferredId) {
-  if (!select) return;
-  const current = entries.find(item => item.id === select.value && item.selectable);
-  const fallback = entries.find(item => item.id === preferredId && item.selectable)
-    || entries.find(item => item.selectable);
-  select.value = (current || fallback)?.id || '';
-}
-
-function setSelectionAvailability(card, status) {
-  const selectable = Boolean(status?.selectable);
-  card.hidden = !selectable;
-  card.classList.toggle('available', selectable);
-  card.classList.toggle('unavailable', !selectable);
-  card.disabled = !selectable;
-  card.querySelector('.selection-state').textContent = status?.dependency_available
-    ? `${status.readiness_grade} · ${selectable ? '可选' : '禁选'}`
-    : '缺依赖';
-  card.title = status?.incompatibility_reason || `${status?.readiness_grade || 'G0'} ready`;
-}
-
-function syncSelectionCards(kind, value) {
-  document.querySelectorAll(`[data-${kind}]`).forEach(card => {
-    const selected = card.dataset[kind] === value;
-    card.classList.toggle('selected', selected);
-    card.setAttribute('aria-pressed', String(selected));
-  });
-}
-
-function restoreSessionSelection(spec = {}) {
-  const ruleId = spec.validation_rule_id || 'rule14';
-  setActiveQuickGroup(ruleId);
-  const values = [
-    ['scenarioSelect', spec.scenario_id],
-    ['algoSelect', spec.algorithm_id],
-    ['trackerSelect', spec.tracker_id],
-  ];
-  values.forEach(([id, value]) => {
-    const select = document.getElementById(id);
-    if (value && select?.querySelector(`option[value="${CSS.escape(value)}"]`)) select.value = value;
-  });
-  syncExactCombinationAvailability();
-}
-
 /* ══════════════════════════════════════════════
    CONTROLS
 ══════════════════════════════════════════════ */
-function scenarioDisplayName(item) {
-  const fallback = (item.name || item.id.split('/').pop())
-    .replaceAll('_', ' ')
-    .replace(/\b\w/g, char => char.toUpperCase());
-  return `${SCENARIO_LABELS[item.id] || fallback} · ${item.readiness_grade} · ${Math.round(item.t_end)}s`;
-}
-
-function scenarioChart(scenarioId) {
-  return /(^|\/)(rl|rrt|planning)|boknafjorden|rogaland/i.test(scenarioId)
-    ? 'rogaland'
-    : 'romsdal';
-}
-
-function syncEncChartSelect(scenarioId) {
-  const select = document.getElementById('encChartSelect');
-  if (!select) return;
-  const availableCharts = new Set(
-    scenarioCatalog.filter(item => item.selectable).map(item => scenarioChart(item.id)),
-  );
-  Object.keys(ENC_CHARTS).forEach(chartId => {
-    const option = select.querySelector(`option[value="${chartId}"]`);
-    if (option) option.disabled = !availableCharts.has(chartId);
-  });
-  const chartId = scenarioChart(scenarioId);
-  if (select.querySelector(`option[value="${chartId}"]`)) select.value = chartId;
-}
-
-function setActiveQuickGroup(groupId) {
-  document.querySelectorAll('.qtab').forEach(tab => {
-    const selected = tab.dataset.group === groupId;
-    tab.classList.toggle('active', selected);
-    tab.classList.toggle('selected', selected);
-    tab.setAttribute('aria-pressed', String(selected));
-  });
-}
-
-function renderScenarioCards(items, selectedScenario) {
-  const catalog = document.getElementById('scenarioCatalog');
-  catalog.replaceChildren();
-  items.forEach(item => {
-    const card = document.createElement('button');
-    const selectable = Boolean(item.selectable);
-    card.type = 'button';
-    card.className = 'selection-card';
-    card.dataset.scenario = item.id;
-    card.disabled = !selectable;
-    card.classList.toggle('available', selectable);
-    card.classList.toggle('unavailable', !selectable);
-    card.classList.toggle('selected', item.id === selectedScenario);
-    card.setAttribute('aria-pressed', String(item.id === selectedScenario));
-    card.title = item.incompatibility_reason || `${item.readiness_grade} ready`;
-    const name = document.createElement('span');
-    name.className = 'selection-name';
-    name.textContent = SCENARIO_LABELS[item.id] || item.name || item.id.split('/').pop().replaceAll('_', ' ');
-    const description = document.createElement('span');
-    description.className = 'selection-description';
-    description.textContent =
-      `${SCENARIO_TYPE_DESCRIPTIONS[item.type] || item.type} · ${Math.round(item.t_end)}s`;
-    const state = document.createElement('span');
-    state.className = 'selection-state';
-    state.textContent = `${item.readiness_grade} · ${selectable ? '可选' : '禁选'}`;
-    card.append(name, description, state);
-    catalog.appendChild(card);
-  });
-}
-
-function syncScenarioCards(scenarioId) {
-  document.querySelectorAll('[data-scenario]').forEach(card => {
-    const selected = card.dataset.scenario === scenarioId;
-    card.classList.toggle('selected', selected);
-    card.setAttribute('aria-pressed', String(selected));
-  });
-}
-
-function populateScenarioOptions(groupId, preferredScenario) {
-  const group = SCENARIO_GROUPS[groupId] || SCENARIO_GROUPS.rule14;
-  const items = scenarioCatalog.filter(item => group.types.includes(item.type) && item.selectable);
-  const scenarioSelect = document.getElementById('scenarioSelect');
-  scenarioSelect.replaceChildren();
-  items.forEach(item => {
-    const option = document.createElement('option');
-    option.value = item.id;
-    option.textContent = scenarioDisplayName(item);
-    option.disabled = !item.selectable;
-    option.title = item.incompatibility_reason || `${item.readiness_grade} ready`;
-    scenarioSelect.appendChild(option);
-  });
-  const selectableItems = items.filter(item => item.selectable);
-  const selectedScenario = selectableItems.some(item => item.id === preferredScenario)
-    ? preferredScenario
-    : selectableItems.some(item => item.id === group.defaultScenario)
-      ? group.defaultScenario
-      : selectableItems[0]?.id;
-  if (selectedScenario) scenarioSelect.value = selectedScenario;
-  setActiveQuickGroup(groupId);
-  renderScenarioCards(items, selectedScenario);
-  syncEncChartSelect(selectedScenario);
-  return selectedScenario;
-}
-
-function syncQuickScenarioTab(scenarioId) {
-  const scenario = scenarioCatalog.find(item => item.id === scenarioId);
-  if (!scenario) return;
-  const groupId = Object.entries(SCENARIO_GROUPS)
-    .find(([, group]) => group.types.includes(scenario.type))?.[0];
-  if (groupId) setActiveQuickGroup(groupId);
-}
-
-document.getElementById('busyWaterForm')?.addEventListener('submit', async event => {
-  event.preventDefault();
-  const scenarioId = document.getElementById('scenarioSelect').value;
-  const status = document.getElementById('busyWaterStatus');
-  const targetCount = Number(document.getElementById('busyTargetCount').value);
-  if (!Number.isInteger(targetCount) || targetCount < 0 || targetCount > 40) {
-    status.textContent = '目标船数量必须为 0–40 的整数';
-    return;
-  }
-  status.textContent = '生成中…';
-  try {
-    const payload = await generateBusyWaterDocument({
-      scenarioId,
-      targetCount,
-      seed: busyWaterSeed,
-      crossing: 0.6,
-      headOn: 0.2,
-      overtaking: 0.2,
-    });
-    status.textContent = `已生成 ${payload.preflight.target_count} 艘目标船`;
-    await persistBusyWaterDocument();
-    pushLog('Legacy busy-water draft saved only. Validation Draft and Active Session are unchanged; explicit attachment belongs to the future Scenario surface.', 'log-info');
-  } catch (error) {
-    status.textContent = error.message;
-  }
-});
-
-document.getElementById('busyTargetList')?.addEventListener('click', event => {
-  const button = event.target.closest('[data-target-id]');
-  if (!button) return;
-  targetEditorKey = null;
-  situationDisplay.selectTarget(Number(button.dataset.targetId));
-});
-
-document.getElementById('pickTargetRouteStart')?.addEventListener('click', () => startRoutePointPick('start'));
-document.getElementById('pickTargetRouteEnd')?.addEventListener('click', () => startRoutePointPick('end'));
-document.getElementById('cancelTargetEdit')?.addEventListener('click', () => {
-  situationDisplay.setClickMode(null);
-  situationDisplay.selectTarget(null);
-  targetEditorKey = null;
-  document.getElementById('targetEditForm').hidden = true;
-  renderBusyTargetList();
-});
-
-document.getElementById('targetEditForm')?.addEventListener('submit', async event => {
-  event.preventDefault();
-  const ship = selectedBusyWaterShip();
-  if (!ship || currentData?.state === 'RUNNING') return;
-  const speedKnots = Number(document.getElementById('targetSpeed').value);
-  const lat1 = Number(document.getElementById('targetRouteLat1').value);
-  const lon1 = Number(document.getElementById('targetRouteLon1').value);
-  const lat2 = Number(document.getElementById('targetRouteLat2').value);
-  const lon2 = Number(document.getElementById('targetRouteLon2').value);
-  if (![speedKnots, lat1, lon1, lat2, lon2].every(Number.isFinite) || speedKnots <= 0) {
-    pushLog('经纬度与航速必须有效。', 'log-danger');
-    return;
-  }
-  const [start, end] = await Promise.all([wgs84ToUtm(lat1, lon1), wgs84ToUtm(lat2, lon2)]);
-  const { north: n1, east: e1 } = start;
-  const { north: n2, east: e2 } = end;
-  if (Math.hypot(n2 - n1, e2 - e1) < 100) {
-    pushLog('目标船航线至少需要 100 m。', 'log-danger');
-    return;
-  }
-  const speed = speedKnots * METERS_PER_KNOT;
-  const candidate = structuredClone(busyWaterDocument);
-  const edited = candidate.ship_list.find(item => String(item.id) === String(ship.id));
-  const course = (Math.atan2(e2 - e1, n2 - n1) * 180 / Math.PI + 360) % 360;
-  edited.csog_state = [n1, e1, speed, course];
-  edited.waypoints = [[n1, n2], [e1, e2]];
-  edited.speed_plan = [speed, speed];
-  edited.encounter_role = encounterRoleFromEditor(document.getElementById('targetColregs').value);
-  busyWaterDocument = candidate;
-  targetEditorKey = null;
-  await updateTargetDetails({ id: ship.id }, currentData || { state: 'CREATED' });
-  try {
-    await persistBusyWaterDocument();
-    document.getElementById('busyWaterStatus').textContent = `TS${ship.id} 仅保存到 legacy draft`;
-    pushLog(`TS${ship.id} saved to legacy draft only. Validation Draft and Active Session are unchanged; explicit attachment belongs to the future Scenario surface.`, 'log-ok');
-  } catch (error) {
-    document.getElementById('busyWaterStatus').textContent = '仅 legacy draft 本地变更；持久化失败；Validation Draft 与 Active Session 未改变';
-    pushLog(`目标船配置保存失败: ${error.message}`, 'log-danger');
-  }
-});
-
 document.getElementById('btnStart')?.addEventListener('click', async () => {
   try {
     await activeSessionRuntime.start();
@@ -3153,83 +2534,6 @@ document.getElementById('btnReplay')?.addEventListener('click', async () => {
   } catch (error) {
     pushLog(error.message, 'log-danger');
   }
-});
-
-document.querySelectorAll('[data-algorithm]').forEach(card => {
-  card.addEventListener('click', () => {
-    if (card.disabled) return;
-    const select = document.getElementById('algoSelect');
-    if (!select || select.value === card.dataset.algorithm) return;
-    select.value = card.dataset.algorithm;
-    select.dispatchEvent(new Event('change'));
-  });
-});
-
-document.querySelectorAll('[data-tracker]').forEach(card => {
-  card.addEventListener('click', () => {
-    if (card.disabled) return;
-    const select = document.getElementById('trackerSelect');
-    if (!select || select.value === card.dataset.tracker) return;
-    select.value = card.dataset.tracker;
-    select.dispatchEvent(new Event('change'));
-  });
-});
-
-document.getElementById('scenarioCatalog')?.addEventListener('click', event => {
-  const card = event.target.closest('[data-scenario]');
-  if (!card || card.disabled) return;
-  const select = document.getElementById('scenarioSelect');
-  if (!select || select.value === card.dataset.scenario) return;
-  select.value = card.dataset.scenario;
-  select.dispatchEvent(new Event('change'));
-});
-
-document.getElementById('encChartSelect')?.addEventListener('change', async event => {
-  const chartId = event.target.value;
-  const activeGroup = document.querySelector('.qtab.active')?.dataset.group || 'rule14';
-  const group = SCENARIO_GROUPS[activeGroup] || SCENARIO_GROUPS.rule14;
-  const target = scenarioCatalog.find(item => (
-    item.selectable
-    && group.types.includes(item.type)
-    && scenarioChart(item.id) === chartId
-  ));
-  if (!target) {
-    syncEncChartSelect(document.getElementById('scenarioSelect')?.value);
-    return;
-  }
-  populateScenarioOptions(activeGroup, target.id);
-  setEncStatus('loading');
-  pushLog('Legacy chart selector changed locally; Validation Draft and Active Session are unchanged.', 'log-info');
-});
-
-['algoSelect', 'scenarioSelect', 'trackerSelect'].forEach(id => {
-  document.getElementById(id)?.addEventListener('change', async () => {
-    syncExactCombinationAvailability(id);
-    if (id === 'scenarioSelect') {
-      const scenarioId = document.getElementById(id).value;
-      syncBusyWaterSetupVisibility(scenarioId);
-      syncQuickScenarioTab(scenarioId);
-      syncScenarioCards(scenarioId);
-      syncEncChartSelect(scenarioId);
-      setEncStatus('loading');
-    } else if (id === 'algoSelect') {
-      syncSelectionCards('algorithm', document.getElementById(id).value);
-    } else {
-      syncSelectionCards('tracker', document.getElementById(id).value);
-    }
-    pushLog('Legacy selection changed locally; active session was not replaced.', 'log-info');
-  });
-});
-
-document.querySelectorAll('.qtab').forEach(tab => {
-  tab.addEventListener('click', async () => {
-    if (tab.disabled) return;
-    try {
-      await populateCatalogs(tab.dataset.group);
-    } catch (error) {
-      pushLog(error.message, 'log-danger');
-    }
-  });
 });
 
 document.querySelectorAll('.speed-preset').forEach(button => {
@@ -3492,26 +2796,14 @@ async function boot() {
   window.setInterval(updateBeijingClock, 1000);
   updateLegendVisibility();
   activeSessionRuntime.subscribe(syncDeploymentRuntime);
+  // Reconcile once in case Config's module evaluated and bootstrapped first;
+  // this is a read-only snapshot adoption, not a second bootstrap.
+  syncDeploymentRuntime(activeSessionRuntime.snapshot());
   telemetryProjection.subscribe(renderProjection);
-  try {
-    const runtimeSnapshot = await activeSessionRuntime.bootstrap();
-    const existing = runtimeSnapshot.session;
-    if (existing) {
-      pushLog(`Session restored: ${existing.spec.scenario_id} / ${existing.spec.algorithm_id} / ${existing.spec.tracker_id}`, 'log-info');
-    } else {
-      setSessionConnectionState('disconnected');
-      pushLog('No active session. Assemble and Create one from Config.', 'log-info');
-    }
-  } catch (error) {
-    pushLog(`Initialization failed: ${error.message}`, 'log-danger');
-  }
-  try {
-    const existing = activeSessionRuntime.snapshot().session;
-    await populateCatalogs(existing?.spec?.validation_rule_id || 'rule14');
-    if (existing) restoreSessionSelection(existing.spec);
-  } catch (error) {
-    pushLog(`Capability catalog unavailable; Deployment remains active: ${error.message}`, 'log-danger');
-  }
+  // Validation Assembly (config-shell.js) is the sole capability/catalog and
+  // Active Session bootstrap authority. Deployment only subscribes to the
+  // shared runtime projection; it must never fetch a legacy catalog or create
+  // a second bootstrap race.
 }
 
 window.addEventListener('pagehide', () => {

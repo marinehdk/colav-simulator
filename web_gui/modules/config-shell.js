@@ -1,6 +1,6 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260820-no-hidden-tuple-repair';
-import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260819-candidate3-projection';
-import { createSituationDisplay } from './situation-display.js?v=20260821-situation-1';
+import { createValidationAssembly } from './validation-assembly.js?v=20260826-ais-threat-merge-v1';
+import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260826-ais-threat-merge-v1';
+import { createSituationDisplay } from './situation-display.js?v=20260826-ais-threat-merge-v1';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const RULE_IMAGES = {
@@ -35,8 +35,18 @@ async function fetchJson(url, options) {
 
 function showOpenBridgeError(error) {
   const banner = document.getElementById('openbridgeLoadError');
+  if (!banner) return;
   banner.hidden = false;
+  banner.dataset.state = 'error';
   banner.textContent = `OpenBridge ${OPENBRIDGE_VERSION} failed to load: ${error.message}. Check /static/vendor/openbridge/ and retry the page.`;
+}
+
+function clearOpenBridgeError() {
+  const banner = document.getElementById('openbridgeLoadError');
+  if (!banner) return;
+  banner.hidden = true;
+  banner.textContent = '';
+  banner.dataset.state = 'loaded';
 }
 
 async function loadOpenBridge() {
@@ -52,19 +62,19 @@ async function loadOpenBridge() {
       customElements.whenDefined('obc-card'),
     ]);
     document.documentElement.dataset.openbridge = OPENBRIDGE_VERSION;
+    clearOpenBridgeError();
   } catch (error) {
     showOpenBridgeError(error);
   }
 }
 
 // C5 #22 (P:2776, P:3398-3402): per-view document title and workface persistence.
-// switchWorkface stays the single authority for panel toggling.
+// switchWorkface stays the single authority for panel toggling.  Workfaces are
+// the three workflow stages; tuple-dimension browsing lives in Config steps.
 const WORKFACE_TITLES = {
   config: 'Config',
   deployment: 'Deployment',
   evaluation: 'Evaluation',
-  scenario: 'Scenario',
-  algorithm: 'Algorithm',
 };
 
 function switchWorkface(name) {
@@ -102,7 +112,7 @@ const SCENARIO_LABELS = {
   paper_ccta2023_multiship: 'Three-Ship',
   romsdal_busy_water_16: 'Multiship-Configurable',
   paper_ccta2023_head_on: 'Head-on (Paper)',
-  head_on_sbmpc: 'Head-on (SB-MPC)',
+  hais_romsdal_20260701_120007_121007: 'AIS Romsdal (Historical)',
 };
 
 const RULE_LABELS = {
@@ -114,25 +124,15 @@ const RULE_LABELS = {
 
 const ALGORITHM_LABELS = {
   mid_mpc_ipopt: 'Mid-MPC',
-  nominal: 'Nominal',
   vo: 'VO',
-  sbmpc: 'SB-MPC',
-  potocnik_simplified_mpc: 'Potočnik Reference',
   potocnik_colreg_fan_mpc: 'Fan-MPC',
 };
-const ALGORITHM_ORDER = ['mid_mpc_ipopt', 'vo', 'potocnik_colreg_fan_mpc', 'potocnik_simplified_mpc'];
 const TRACKER_LABELS = {
   god: 'Truth',
-  kf: 'Kalman',
 };
-const TRACKER_ORDER = ['god', 'kf'];
 
 function optionLabel(item, labels) {
   return (labels || {})[item.id] || SCENARIO_LABELS[item.id] || item.name || item.display_name || item.id;
-}
-
-function orderOptions(options, order) {
-  return order.map((id) => (options || []).find((item) => item.id === id)).filter(Boolean);
 }
 
 const CAROUSEL_CONFIGS = {
@@ -343,12 +343,14 @@ function ruleDisplayLabel(snapshot) {
 function algorithmDisplayLabel(snapshot) {
   const id = snapshot.draft?.algorithm_id;
   if (!id) return '—';
+  if (!snapshot.productCapabilityPolicy?.algorithm_ids.includes(id)) return 'Unavailable';
   return optionLabel(selectedCatalogItem(snapshot, 'algorithms', id) || { id }, ALGORITHM_LABELS);
 }
 
 function trackerDisplayLabel(snapshot) {
   const id = snapshot.draft?.tracker_id;
   if (!id) return '—';
+  if (!snapshot.productCapabilityPolicy?.tracker_ids.includes(id)) return 'Unavailable';
   return optionLabel(selectedCatalogItem(snapshot, 'trackers', id) || { id }, TRACKER_LABELS);
 }
 
@@ -419,13 +421,24 @@ function renderScenarioDetail(snapshot) {
   const chart = scenarioChartId(snapshot.draft.scenario_id);
   renderChoiceCarousel('scenario', scenariosToDisplay, snapshot.draft.scenario_id, snapshot.readOnly || snapshot.creating);
   renderChoiceCarousel('enc', [{ id: chart.toLowerCase(), name: chart, desc: 'Derived reference', grade: 'ENC' }], chart.toLowerCase(), false);
-  replaceDefinitionRows(document.getElementById('validationScenarioFacts'), [
+  const historical = scenario?.historical_ais;
+  const factRows = [
     ['Scenario ID', snapshot.draft.scenario_id],
     ['Type', scenario?.type],
     ['Readiness', scenario?.readiness_grade],
     ['Ships', scenario?.ships],
     ['Catalog source', scenario?.provenance?.source || scenario?.source],
-  ]);
+  ];
+  if (historical) {
+    factRows.push(
+      ['Window', `${historical.start_utc} → ${historical.end_utc}`],
+      ['T0 (algorithm takeover)', historical.t0_utc],
+      ['BBox WGS84', `[${(historical.bbox || []).join(', ')}]`],
+      ['Reference / targets', `${historical.reference_mmsi} / ${(historical.target_mmsi || []).join(', ')}`],
+      ['Limitations', (historical.limitations || []).join(' · ') || null],
+    );
+  }
+  replaceDefinitionRows(document.getElementById('validationScenarioFacts'), factRows);
   const image = document.getElementById('validationScenarioImage');
   const placeholder = document.getElementById('validationScenarioPlaceholder');
   image.hidden = chart !== 'Romsdal';
@@ -438,9 +451,11 @@ function renderScenarioDetail(snapshot) {
     note.textContent = 'No bundled reference image for this region. Reference frame only — no geography is invented; live ENC remains in Deployment.';
     placeholder.append(title, note);
   }
-  document.getElementById('validationScenarioPreview').textContent = chart === 'Romsdal'
-    ? `${scenario?.name || snapshot.draft.scenario_id} · catalog metadata paired with static Romsdal reference image. Live ENC remains in Deployment.`
-    : `${scenario?.name || snapshot.draft.scenario_id} · no production reference image is bundled for ${chart}. Live ENC remains in Deployment.`;
+  document.getElementById('validationScenarioPreview').textContent = historical
+    ? `${scenario?.name || snapshot.draft.scenario_id} · Historical AIS bounded window. Selection runs Counterfactual semantics: AIS actors replay history and the selected algorithm takes over ownship at T0. Live ENC in Deployment.`
+    : chart === 'Romsdal'
+      ? `${scenario?.name || snapshot.draft.scenario_id} · catalog metadata paired with static Romsdal reference image. Live ENC remains in Deployment.`
+      : `${scenario?.name || snapshot.draft.scenario_id} · no production reference image is bundled for ${chart}. Live ENC remains in Deployment.`;
   renderScenarioPreviewCanvas(scenario);
 }
 
@@ -519,10 +534,10 @@ function renderAlgorithmDetail(snapshot) {
   const draft = snapshot.draft;
   const algorithm = selectedCatalogItem(snapshot, 'algorithms', draft.algorithm_id);
   const tracker = selectedCatalogItem(snapshot, 'trackers', draft.tracker_id);
-  const algorithmOptions = orderOptions(snapshot.options.algorithm_id, ALGORITHM_ORDER);
+  const algorithmOptions = snapshot.options.algorithm_id || [];
   renderChoiceCarousel('algorithm', algorithmOptions, draft.algorithm_id, snapshot.readOnly || snapshot.creating, ALGORITHM_LABELS);
   const trackerLocked = snapshot.readOnly || snapshot.creating;
-  const trackerOptions = orderOptions(snapshot.options.tracker_id, TRACKER_ORDER);
+  const trackerOptions = snapshot.options.tracker_id || [];
   document.getElementById('validationTrackerChoices').replaceChildren(...trackerOptions.map((item) => {
     const card = makeChoiceCard({
       id: item.id,
@@ -537,11 +552,13 @@ function renderAlgorithmDetail(snapshot) {
     card.dataset.choiceId = item.id;
     return card;
   }));
-  document.getElementById('validationAlgorithmName').textContent = optionLabel(algorithm || { id: draft.algorithm_id }, ALGORITHM_LABELS);
-  document.getElementById('validationTrackerName').textContent = optionLabel(tracker || { id: draft.tracker_id }, TRACKER_LABELS);
+  document.getElementById('validationAlgorithmName').textContent = algorithmDisplayLabel(snapshot);
+  document.getElementById('validationTrackerName').textContent = trackerDisplayLabel(snapshot);
   document.getElementById('validationAlgorithmGrade').textContent = `${algorithm?.readiness_grade || 'G0'} · ${algorithm?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
   document.getElementById('validationTrackerGrade').textContent = `${tracker?.readiness_grade || 'G0'} · ${tracker?.runtime_ready === false ? 'BLOCKED' : 'AVAILABLE'}`;
-  document.getElementById('validationAlgorithmSummary').textContent = algorithm?.known_failure
+  document.getElementById('validationAlgorithmSummary').textContent = snapshot.createConstraint
+    ? snapshot.createBlockReason
+    : algorithm?.known_failure
     ? `Known failure reported by catalog: ${algorithm.known_failure}`
     : 'Registered integration; no failure reported by the catalog.';
   document.getElementById('validationTrackerSummary').textContent = tracker?.known_failure
@@ -800,6 +817,7 @@ function createStatusText(snapshot) {
       ? 'Loading capabilities and current session…'
       : 'Catalog unavailable · Active Spec read-only';
   }
+  if (snapshot.createBlockReason) return snapshot.createBlockReason;
   return labels[snapshot.createBlock] || (snapshot.dirty ? 'Unsaved changes' : 'Ready');
 }
 
@@ -844,6 +862,9 @@ function render() {
   const messages = snapshot.notices
     .filter((notice) => typeof notice.kind === 'string' && notice.kind.endsWith('-error'))
     .map((notice) => notice.message);
+  if (snapshot.createBlock?.startsWith('product-capability-policy-') && snapshot.createBlockReason) {
+    messages.unshift(snapshot.createBlockReason);
+  }
   document.getElementById('validationNotices').replaceChildren(...messages.map((message) => {
     const item = document.createElement('div');
     item.textContent = message;

@@ -18,6 +18,7 @@ from colav_simulator.common import paths
 from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter, FactoryContext
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.core.colav.prediction_evidence import verify_evidence_document
+from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
 from colav_simulator.experiment.batch import BatchRunner
 from colav_simulator.experiment.busy_water import (
     DEFAULT_SEED,
@@ -25,6 +26,7 @@ from colav_simulator.experiment.busy_water import (
     preflight_document,
     write_busy_water_scenario,
 )
+from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.runner import ExperimentRunner
 from colav_simulator.integrations import IntegrationRegistry
@@ -32,18 +34,40 @@ from colav_simulator.scenario_generator import ScenarioGenerator
 
 
 def _run(args: argparse.Namespace) -> int:
-    spec = RunSpec(
-        scenario_id=args.scenario,
-        algorithm_id=args.algorithm,
-        tracker_id=args.tracker,
-        seed=args.seed,
-        dt=args.dt,
-        t_end=args.t_end,
-        evaluator_profile_id=args.evaluator_profile,
-        algorithm_config=_load_algorithm_config(args.algorithm_config),
-        output_root=args.output,
-    )
-    result = ExperimentRunner().run(spec)
+    algorithm_id = (args.algorithm or PRODUCT_CAPABILITY_POLICY.default_algorithm_id).strip().lower()
+    tracker_id = (args.tracker or PRODUCT_CAPABILITY_POLICY.default_tracker_id).strip().lower()
+    try:
+        validation_rule_id = getattr(args, "validation_rule_id", None) or PRODUCT_CAPABILITY_POLICY.infer_rule(
+            args.scenario,
+            algorithm_id,
+            tracker_id,
+        )
+        PRODUCT_CAPABILITY_POLICY.validate(
+            validation_rule_id,
+            args.scenario,
+            algorithm_id,
+            tracker_id,
+        )
+        domain_profile = _load_domain_profile(getattr(args, "domain_profile_file", None))
+        PRODUCT_CAPABILITY_POLICY.validate_domain_profile(algorithm_id, domain_profile)
+        spec = RunSpec(
+            scenario_id=args.scenario,
+            validation_rule_id=validation_rule_id,
+            algorithm_id=algorithm_id,
+            tracker_id=tracker_id,
+            seed=args.seed,
+            dt=args.dt,
+            t_end=args.t_end,
+            evaluator_profile_id=args.evaluator_profile,
+            algorithm_config=_load_algorithm_config(args.algorithm_config),
+            domain_profile=domain_profile,
+            output_root=args.output,
+        )
+        result = ExperimentRunner().run(spec)
+    except (ColavExecutionError, OSError, ValueError) as exc:
+        status = exc.status.value if isinstance(exc, ColavExecutionError) else PlanStatus.INVALID_INPUT.value
+        print(json.dumps({"status": status, "reason": str(exc)}, indent=2))
+        return 2
     print(
         json.dumps(
             {
@@ -113,31 +137,54 @@ def _verify_mid_mpc_evidence(args: argparse.Namespace) -> int:
 def _batch(args: argparse.Namespace) -> int:
     seeds = range(args.seed_start, args.seed_start + args.seed_count)
     algorithm_config = _load_algorithm_config(args.algorithm_config)
-    if args.default_matrix:
-        specs = BatchRunner.default_specs(args.algorithm, seeds, args.tracker)
-        specs = [
-            replace(
-                spec,
-                algorithm_config=algorithm_config,
-                evaluator_profile_id=args.evaluator_profile,
+    algorithms = args.algorithm or [PRODUCT_CAPABILITY_POLICY.default_algorithm_id]
+    if isinstance(algorithms, str):
+        algorithms = [algorithms]
+    tracker_id = (args.tracker or PRODUCT_CAPABILITY_POLICY.default_tracker_id).strip().lower()
+    try:
+        algorithms = [algorithm.strip().lower() for algorithm in algorithms]
+        domain_profile = _load_domain_profile(getattr(args, "domain_profile_file", None))
+        for algorithm in algorithms:
+            PRODUCT_CAPABILITY_POLICY.validate_domain_profile(algorithm, domain_profile)
+        if args.default_matrix:
+            specs = BatchRunner.default_specs(algorithms, seeds, tracker_id, domain_profile=domain_profile)
+            specs = [
+                replace(
+                    spec,
+                    algorithm_config=algorithm_config,
+                    evaluator_profile_id=args.evaluator_profile,
+                )
+                for spec in specs
+            ]
+        else:
+            specs = [
+                RunSpec(
+                    scenario_id=scenario,
+                    validation_rule_id=getattr(args, "validation_rule_id", None)
+                    or PRODUCT_CAPABILITY_POLICY.infer_rule(scenario, algorithm, tracker_id),
+                    algorithm_id=algorithm,
+                    tracker_id=tracker_id,
+                    seed=seed,
+                    evaluator_profile_id=args.evaluator_profile,
+                    algorithm_config=algorithm_config,
+                    domain_profile=domain_profile,
+                )
+                for algorithm in algorithms
+                for scenario in args.scenario
+                for seed in seeds
+                ]
+        for spec in specs:
+            PRODUCT_CAPABILITY_POLICY.validate(
+                spec.validation_rule_id,
+                spec.scenario_id,
+                spec.algorithm_id,
+                spec.tracker_id,
             )
-            for spec in specs
-        ]
-    else:
-        specs = [
-            RunSpec(
-                scenario_id=scenario,
-                algorithm_id=algorithm,
-                tracker_id=args.tracker,
-                seed=seed,
-                evaluator_profile_id=args.evaluator_profile,
-                algorithm_config=algorithm_config,
-            )
-            for algorithm in args.algorithm
-            for scenario in args.scenario
-            for seed in seeds
-        ]
-    batch_dir = BatchRunner().run(specs, Path(args.output))
+        batch_dir = BatchRunner().run(specs, Path(args.output))
+    except (ColavExecutionError, OSError, ValueError) as exc:
+        status = exc.status.value if isinstance(exc, ColavExecutionError) else PlanStatus.INVALID_INPUT.value
+        print(json.dumps({"status": status, "reason": str(exc)}, indent=2))
+        return 2
     print(json.dumps({"batch_dir": str(batch_dir), "runs": len(specs)}, indent=2))
     return 0
 
@@ -222,6 +269,21 @@ def _load_algorithm_config(path_value: str | None) -> dict:
     return document
 
 
+def _load_domain_profile(path_value: str | None) -> ShipDomainProfile | None:
+    """Load one explicit JSON/YAML ShipDomainProfile document."""
+    if path_value is None:
+        return None
+    path = Path(path_value).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"domain profile not found: {path}")
+    with path.open(encoding="utf-8") as stream:
+        document = yaml.safe_load(stream) if path.suffix.lower() in {".yaml", ".yml"} else json.load(stream)
+    profile = PRODUCT_CAPABILITY_POLICY.parse_domain_profile(document)
+    if profile is None:
+        raise ColavExecutionError(PlanStatus.INVALID_INPUT, "domain profile file must contain a profile mapping")
+    return profile
+
+
 def _serve(args: argparse.Namespace) -> int:
     uvicorn.run("gui_server.main:app", host=args.host, port=args.port, reload=args.reload)
     return 0
@@ -303,12 +365,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_parser = subparsers.add_parser("run", help="run one experiment")
     run_parser.add_argument("--scenario", required=True)
-    run_parser.add_argument("--algorithm", default="nominal")
-    run_parser.add_argument("--tracker", default="scenario_default")
+    run_parser.add_argument("--algorithm", default=PRODUCT_CAPABILITY_POLICY.default_algorithm_id)
+    run_parser.add_argument("--tracker", default=PRODUCT_CAPABILITY_POLICY.default_tracker_id)
+    run_parser.add_argument("--validation-rule-id", "--validation-rule", dest="validation_rule_id")
     run_parser.add_argument("--seed", type=int, default=0)
     run_parser.add_argument("--dt", type=float)
     run_parser.add_argument("--t-end", type=float)
     run_parser.add_argument("--algorithm-config")
+    run_parser.add_argument("--domain-profile-file")
     run_parser.add_argument("--evaluator-profile", default="ccta_2023_demo-v1")
     run_parser.add_argument("--output", default="runs")
     run_parser.set_defaults(handler=_run)
@@ -330,12 +394,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     batch_parser = subparsers.add_parser("batch", help="run a failure-preserving experiment matrix")
     batch_parser.add_argument("--scenario", action="append", default=[])
-    batch_parser.add_argument("--algorithm", action="append", required=True)
-    batch_parser.add_argument("--tracker", default="scenario_default")
+    batch_parser.add_argument("--algorithm", action="append", default=[])
+    batch_parser.add_argument("--tracker", default=PRODUCT_CAPABILITY_POLICY.default_tracker_id)
+    batch_parser.add_argument("--validation-rule-id", "--validation-rule", dest="validation_rule_id")
     batch_parser.add_argument("--seed-start", type=int, default=0)
     batch_parser.add_argument("--seed-count", type=int, default=30)
     batch_parser.add_argument("--default-matrix", action="store_true")
     batch_parser.add_argument("--algorithm-config")
+    batch_parser.add_argument("--domain-profile-file")
     batch_parser.add_argument("--evaluator-profile", default="ccta_2023_demo-v1")
     batch_parser.add_argument("--output", default="runs")
     batch_parser.set_defaults(handler=_batch)

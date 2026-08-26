@@ -4,7 +4,7 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from colav_simulator.core.colav.diagnostics import ColavExecutionError
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.experiment.busy_water import (
     BUSY_WATER_DURATION_S,
     DEFAULT_ENCOUNTER_MIX,
@@ -112,7 +112,7 @@ def test_busy_water_scenarios_expose_capacity_compatible_experimental_algorithms
     assert response.status_code == 200
     catalog = response.json()
     scenarios = {item["id"]: item for item in catalog["scenarios"]}
-    expected = {"nominal", "vo", "sbmpc", "potocnik_colreg_fan_mpc"}
+    expected = {"vo", "potocnik_colreg_fan_mpc"}
     for scenario_id in ("romsdal_busy_water_16", "romsdal_busy_water_80_stress"):
         assert scenarios[scenario_id]["readiness_grade"] == "G2"
         assert scenarios[scenario_id]["verified_combinations"] == []
@@ -124,15 +124,13 @@ def test_busy_water_scenarios_expose_capacity_compatible_experimental_algorithms
         assert algorithms == expected_algorithms
 
 
-@pytest.mark.parametrize("algorithm_id", ("nominal", "vo", "sbmpc", "potocnik_colreg_fan_mpc"))
+@pytest.mark.parametrize("algorithm_id", ("vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt"))
 def test_experimental_busy_water_algorithms_are_selectable(algorithm_id: str) -> None:
     catalog = CapabilityCatalog(IntegrationRegistry())
 
     assert catalog.validate("multiship", "romsdal_busy_water_16", algorithm_id, "god") == (
         f"multiship:romsdal_busy_water_16:{algorithm_id}:god"
     )
-    with pytest.raises(ColavExecutionError, match="No selectable capability tuple"):
-        catalog.validate("multiship", "romsdal_busy_water_16", algorithm_id, "kf")
 
 
 def test_mid_mpc_is_selectable_only_for_capacity_bounded_busy_water() -> None:
@@ -141,8 +139,9 @@ def test_mid_mpc_is_selectable_only_for_capacity_bounded_busy_water() -> None:
     assert catalog.validate("multiship", "romsdal_busy_water_16", "mid_mpc_ipopt", "god") == (
         "multiship:romsdal_busy_water_16:mid_mpc_ipopt:god"
     )
-    with pytest.raises(ColavExecutionError, match="No selectable capability tuple"):
+    with pytest.raises(ColavExecutionError, match="No product capability tuple") as raised:
         catalog.validate("multiship", "romsdal_busy_water_80_stress", "mid_mpc_ipopt", "god")
+    assert raised.value.status is PlanStatus.INVALID_INPUT
 
 
 def test_busy_water_generate_and_draft_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -255,7 +254,7 @@ def test_override_session_exposes_all_ships_and_routes_while_created() -> None:
             json={
                 "validation_rule_id": "multiship",
                 "scenario_id": "romsdal_busy_water_16",
-                "algorithm_id": "nominal",
+                "algorithm_id": "vo",
                 "tracker_id": "god",
                 "seed": 31,
                 "t_end": 0.1,

@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260821-fix-45" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260825-operations-2" />
+  <link rel="stylesheet" href="/static/style.css?v=20260826-ais-threat-merge-v1" />
 </head>
 <body>
   <div class="app-container">
@@ -25,13 +25,9 @@
         <button type="button" class="workface-tab active" data-workface="config" aria-selected="true"><obi-settings-user-proposal aria-hidden="true"></obi-settings-user-proposal><span>Config</span></button>
         <button type="button" class="workface-tab" data-workface="deployment" aria-selected="false"><obi-media-play aria-hidden="true"></obi-media-play><span>Deployment</span></button>
         <button type="button" class="workface-tab" data-workface="evaluation" aria-selected="false"><obi-list-alt-check-google aria-hidden="true"></obi-list-alt-check-google><span>Evaluation</span></button>
-        <button type="button" class="workface-tab" data-workface="scenario" aria-selected="false"><obi-collision-avoidance-head-on aria-hidden="true"></obi-collision-avoidance-head-on><span>Scenario</span></button>
-        <button type="button" class="workface-tab" data-workface="algorithm" aria-selected="false"><obi-router-component aria-hidden="true"></obi-router-component><span>Algorithm</span></button>
       </nav>
     </header>
-    <div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden>
-      OpenBridge 1.0.1 failed to load. Product shell components unavailable; retry network/CDN access.
-    </div>
+    <div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden></div>
 
     <section class="workface config-workface" id="configWorkface" data-workface-panel="config" aria-label="Validation Config">
       <h1 class="configure-title">Validation Config</h1>
@@ -371,12 +367,27 @@
             </section>
           </div>
 
+          <!-- Page 2: AIS -->
+          <div class="ownship-info-page ownship-ais-page" data-ownship-card-page="2" aria-label="Historical AIS Comparison" hidden>
+            <section class="operations-panel" id="shadowComparisonPanel" aria-labelledby="shadow-comparison-heading">
+              <header class="operations-panel-header"><strong id="shadow-comparison-heading">AIS vs ALGORITHM</strong><small id="shadowComparisonStatus">NOT AVAILABLE</small></header>
+              <dl class="risk-target-facts">
+                <div><dt>Shadow deviation</dt><dd id="shadowDeviation">-- m</dd></div>
+                <div><dt>Maximum deviation</dt><dd id="shadowMaximumDeviation">-- m</dd></div>
+                <div><dt>ΔCOG</dt><dd id="shadowDeltaCog">--°</dd></div>
+                <div><dt>ΔSOG</dt><dd id="shadowDeltaSog">-- kn</dd></div>
+                <div><dt>Route recovery</dt><dd id="shadowRecovery">NOT STARTED</dd></div>
+              </dl>
+            </section>
+          </div>
+
           <!-- Switcher -->
           <nav class="ownship-card-switcher" aria-label="切换本船信息卡片" data-od-id="ownship-card-switcher">
             <obc-icon-button id="previousOwnshipCardBtn" variant="flat" aria-label="上一张本船信息卡片" title="上一张本船信息卡片"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
-            <div class="ownship-card-position" id="ownshipCardPosition" aria-label="第 1 张，共 2 张">
+            <div class="ownship-card-position" id="ownshipCardPosition" aria-label="第 1 张，共 3 张">
               <button class="ownship-card-dot" type="button" aria-label="ROUTE" data-tooltip="ROUTE" aria-current="true"></button>
               <button class="ownship-card-dot" type="button" aria-label="SENSOR" data-tooltip="SENSOR"></button>
+              <button class="ownship-card-dot" type="button" aria-label="AIS" data-tooltip="AIS"></button>
             </div>
             <obc-icon-button id="nextOwnshipCardBtn" variant="flat" aria-label="下一张本船信息卡片" title="下一张本船信息卡片"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
           </nav>
@@ -484,9 +495,11 @@
                     </section>
                   </div>
                 </section>
+                <button class="map-mode-button" type="button" id="fitTrafficBtn" aria-label="Fit Traffic" title="Fit Traffic">FIT</button>
+                <button class="map-mode-button" type="button" id="recenterChartBtn" aria-label="Recenter Ownship" title="Recenter Ownship">OS</button>
               </div>
               <div class="deployment-tool-zone deployment-tool-zone--simulation" data-od-id="live-playback-controls" aria-label="仿真控制与时间">
-                <div class="deployment-time-readout" aria-label="仿真时间"><span>SIM TIME</span><strong id="liveSimulationTime">--:--:--</strong></div>
+                <div class="deployment-time-readout" aria-label="仿真时间"><span>SIM TIME</span><strong id="liveSimulationTime">--:--:--</strong><small id="liveAisUtc"></small></div>
                 <obc-icon-button variant="normal" id="startValidationBtn" aria-label="开始验证" title="开始验证"><obi-media-play></obi-media-play></obc-icon-button>
                 <obc-icon-button variant="flat" id="pauseValidationBtn" aria-label="暂停验证" title="暂停验证"><obi-media-pause></obi-media-pause></obc-icon-button>
                 <obc-icon-button variant="flat" id="stepValidationBtn" aria-label="单步执行" title="单步执行"><obi-media-skip-next></obi-media-skip-next></obc-icon-button>
@@ -509,12 +522,12 @@
           </div>
         </div>
 
-        <!-- ── RIGHT: Live Operations Sidebar (MONITOR / ALGO) ── -->
+        <!-- ── RIGHT: Live Operations Sidebar (MONITOR / ALGO / PERFORMANCE) ── -->
         <aside class="live-operations-sidebar" id="liveOperationsSidebar" aria-label="运行操作" data-od-id="deployment-operation-sidebar">
           <!-- Page 0: MONITOR -->
           <div class="operations-info-page operations-monitor-page" data-operations-card-page="0" aria-label="Collision Safety Monitor">
             <section class="operations-panel monitor-safety-panel" aria-labelledby="collision-safety-heading">
-              <header class="operations-panel-header"><strong id="collision-safety-heading">COLLISION SAFETY</strong></header>
+              <header class="operations-panel-header"><strong id="collision-safety-heading">COLLISION SAFETY</strong><small id="liveContextCount"></small></header>
               <div class="risk-target-list" id="liveRiskTargetList" aria-label="目标风险列表">
                 <article class="risk-target-card" data-priority="highest" data-threat="safe">
                   <div class="risk-target-heading"><span>优先目标</span><strong id="riskTarget">--</strong></div>
@@ -601,7 +614,7 @@
 
           <nav class="operations-card-switcher" aria-label="切换运行监控页面" data-od-id="operations-card-switcher">
             <obc-icon-button id="previousOperationsCardBtn" variant="flat" aria-label="上一张运行监控页面" title="上一张运行监控页面"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
-            <div class="operations-card-position" id="operationsCardPosition" aria-label="第 1 张，共 2 张">
+            <div class="operations-card-position" id="operationsCardPosition" aria-label="第 1 张，共 3 张">
               <button class="operations-card-dot" type="button" aria-label="MONITOR" data-tooltip="MONITOR" aria-current="true"></button>
               <button class="operations-card-dot" type="button" aria-label="ALGO" data-tooltip="ALGO"></button>
               <button class="operations-card-dot" type="button" aria-label="PERFORMANCE" data-tooltip="PERFORMANCE"></button>
@@ -612,10 +625,74 @@
       </div>
     </section>
 
-    <section class="workface roadmap-workface" data-workface-panel="evaluation" hidden><h2>Evaluation</h2><p>Current-session result and evidence remain available through Deployment. Run history and Compare require future backend contracts.</p></section>
-    <section class="workface roadmap-workface" data-workface-panel="scenario" hidden><h2>Scenario</h2><p>Scenario library surface planned. Config uses live capability metadata; no silent busy-water generation occurs.</p></section>
-    <section class="workface roadmap-workface" data-workface-panel="algorithm" hidden><h2>Algorithm</h2><p>Algorithm and tracker catalog surface planned. Exact Tuple evidence remains authoritative in Config.</p></section>
+    <section class="workface historical-ais-scenario-workface" data-workface-panel="evaluation" hidden>
+      <div class="historical-ais-workbench" id="historicalAISBenchmark" aria-label="Historical AIS Benchmark">
+        <header class="historical-ais-workbench-header">
+          <div>
+            <p class="historical-ais-eyebrow">EVALUATION / HISTORICAL AIS</p>
+            <h1>Historical AIS Benchmark</h1>
+            <p>Catalog-backed AIS multi-ship scenes · benchmark evidence stays headless.</p>
+          </div>
+          <div class="historical-ais-header-status">
+            <span class="historical-ais-status-pill" id="historicalAISBenchmarkSource">UNAVAILABLE</span>
+            <span class="historical-ais-catalog-status" id="historicalAISCatalogStatus" data-state="info">Loading catalog…</span>
+          </div>
+        </header>
+        <div class="historical-ais-benchmark-grid">
+          <section class="historical-ais-card historical-ais-benchmark-context" aria-labelledby="historicalAISBenchmarkHeading">
+            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">PUBLISHED SCENE</p><h2 id="historicalAISBenchmarkHeading">Catalog scene</h2></div><span class="historical-ais-status-pill" id="historicalAISWorkflowStatus">UNAVAILABLE</span></div>
+            <dl class="historical-ais-facts">
+              <div><dt>Scene</dt><dd id="historicalAISBenchmarkScenario">—</dd></div>
+              <div><dt>Identity</dt><dd id="historicalAISBenchmarkWindow">—</dd></div>
+              <div><dt>Scene operability</dt><dd id="historicalAISSceneOperability">—</dd></div>
+              <div><dt>Predictive qualification</dt><dd id="historicalAISPredictiveQualification">—</dd></div>
+              <div><dt>Future gate</dt><dd id="historicalAISFutureGate">—</dd></div>
+              <div><dt>Authority</dt><dd id="historicalAISWorkflowAuthority">—</dd></div>
+            </dl>
+            <div class="historical-ais-limitation is-warning"><strong>Scope limitation</strong><p id="historicalAISBenchmarkLimitation">—</p></div>
+          </section>
 
+          <section class="historical-ais-card historical-ais-mode-card" aria-labelledby="historicalAISModeHeading">
+            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">WORKFLOW MODE</p><h2 id="historicalAISModeHeading">Choose benchmark mode</h2></div><span class="historical-ais-status-pill">CATALOG</span></div>
+            <div class="historical-ais-mode-choices" id="historicalAISModeChoices" role="group" aria-label="Historical AIS workflow mode"></div>
+            <p class="historical-ais-mode-description" id="historicalAISModeDescription">—</p>
+            <obc-button id="historicalAISRun" variant="normal" disabled>Run Historical Workflow</obc-button>
+            <p class="historical-ais-run-boundary">Source must be bound and qualified before Run. Benchmark workflows stay headless and are not benchmark-replaceable by interactive sessions.</p>
+            <obc-button id="historicalAISDeploy" variant="flat" disabled>Open in Deployment</obc-button>
+            <p class="historical-ais-run-boundary" id="historicalAISDeployStatus">Interactive Counterfactual session on the AIS scene — the bound algorithm takes over ownship at T0. Full tuple choice lives in Config.</p>
+          </section>
+
+          <section class="historical-ais-card historical-ais-evidence-card" aria-labelledby="historicalAISEvidenceHeading">
+            <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">EVIDENCE</p><h2 id="historicalAISEvidenceHeading">Workflow result</h2></div><span class="historical-ais-status-pill" id="historicalAISEvidenceVerdict">—</span></div>
+            <dl class="historical-ais-evidence-facts">
+              <div><dt>Stages</dt><dd class="historical-ais-stage-grid"><span>Dataset <strong id="historicalAISStage-dataset">—</strong></span><span>Case <strong id="historicalAISStage-case">—</strong></span><span>Replay <strong id="historicalAISStage-replay">—</strong></span><span>Counterfactual <strong id="historicalAISStage-counterfactual">—</strong></span><span>Evaluation <strong id="historicalAISStage-evaluation">—</strong></span><span>Compare <strong id="historicalAISStage-compare">—</strong></span></dd></div>
+              <div><dt>Fallback</dt><dd id="historicalAISEvidenceFallback">—</dd></div>
+              <div><dt>Threat vector / schedule / cluster</dt><dd id="historicalAISEvidenceThreat">—</dd></div>
+              <div><dt>Leakage</dt><dd id="historicalAISEvidenceLeakage">—</dd></div>
+              <div><dt>Determinism</dt><dd id="historicalAISEvidenceDeterminism">—</dd></div>
+              <div><dt>Runtime qualification</dt><dd id="historicalAISRuntimeQualification">—</dd></div>
+              <div><dt>Qualification determinism</dt><dd id="historicalAISQualificationDeterminism">—</dd></div>
+              <div><dt>Qualification graph V/S/C</dt><dd id="historicalAISQualificationThreatGraph">—</dd></div>
+            </dl>
+            <div class="historical-ais-compare-grid" aria-label="Compare domains">
+              <span>Safety <strong id="historicalAISCompare-safety">—</strong></span><span>COLREG <strong id="historicalAISCompare-colreg">—</strong></span><span>Maneuver <strong id="historicalAISCompare-maneuver">—</strong></span><span>Efficiency <strong id="historicalAISCompare-efficiency">—</strong></span><span>Human Similarity <strong id="historicalAISCompare-human_similarity">—</strong></span>
+            </div>
+            <section class="historical-ais-replay-panel" aria-labelledby="historicalAISReplayHeading">
+              <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">REPLAY EVIDENCE</p><h3 id="historicalAISReplayHeading">Canonical replay lineage</h3></div><span class="historical-ais-status-pill" id="historicalAISReplayStatus">—</span></div>
+              <dl class="historical-ais-evidence-facts">
+                <div><dt>Mode</dt><dd id="historicalAISReplayMode">—</dd></div><div><dt>Factory</dt><dd id="historicalAISReplayFactory">—</dd></div><div><dt>Dataset</dt><dd id="historicalAISReplayDataset">—</dd></div><div><dt>Actor set</dt><dd id="historicalAISReplayActorSet">—</dd></div><div><dt>Trajectory</dt><dd id="historicalAISReplayTrajectory">—</dd></div><div><dt>Manifest</dt><dd id="historicalAISReplayManifest">—</dd></div><div><dt>Dimension registry</dt><dd id="historicalAISReplayDimensionRegistry">—</dd></div><div><dt>Dimension source</dt><dd id="historicalAISReplayDimensionSource">—</dd></div>
+              </dl>
+            </section>
+            <section class="historical-ais-replay-panel" aria-labelledby="historicalAISWorkflowLineageHeading">
+              <div class="historical-ais-card-heading"><div><p class="historical-ais-eyebrow">WORKFLOW LINEAGE</p><h3 id="historicalAISWorkflowLineageHeading">Canonical workflow digests</h3></div></div>
+              <dl class="historical-ais-evidence-facts">
+                <div><dt>Archive</dt><dd id="historicalAISWorkflowDigestArchive">—</dd></div><div><dt>Entry</dt><dd id="historicalAISWorkflowDigestEntry">—</dd></div><div><dt>Schema</dt><dd id="historicalAISWorkflowDigestSchema">—</dd></div><div><dt>Selection</dt><dd id="historicalAISWorkflowDigestSelection">—</dd></div><div><dt>Normalized</dt><dd id="historicalAISWorkflowDigestNormalized">—</dd></div><div><dt>Descriptor</dt><dd id="historicalAISWorkflowDigestDescriptor">—</dd></div><div><dt>ENC profile</dt><dd id="historicalAISWorkflowDigestEncProfile">—</dd></div><div><dt>ENC cache</dt><dd id="historicalAISWorkflowDigestEncCache">—</dd></div><div><dt>ENC source</dt><dd id="historicalAISWorkflowDigestEncSource">—</dd></div><div><dt>Dimension registry</dt><dd id="historicalAISWorkflowDigestDimensionRegistry">—</dd></div><div><dt>Dimension source</dt><dd id="historicalAISWorkflowDigestDimensionSource">—</dd></div>
+              </dl>
+            </section>
+          </section>
+        </div>
+      </div>
+    </section>
     <section class="notification-popover" id="notificationPanel" aria-labelledby="notificationPanelHeading" hidden>
       <header><strong id="notificationPanelHeading">Notifications</strong><span id="notificationPanelCount">0</span></header>
       <div class="notification-items" id="notificationItems" role="list"></div>
@@ -626,7 +703,8 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260825-operations-2"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260825-operations-2"></script>
+  <script type="module" src="/static/app.js?v=20260826-ais-threat-merge-v1"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260826-ais-threat-merge-v1"></script>
+  <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260824-canonical-presentation"></script>
 </body>
 </html>

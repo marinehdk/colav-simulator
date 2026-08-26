@@ -28,7 +28,6 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     EncounterKind,
     EncounterLifecycle,
     LifecycleError,
-    LifecycleEvent,
     LifecycleFailure,
     Maneuverability,
     ObservationHealth,
@@ -92,6 +91,17 @@ from colav_simulator.core.colav.rolling_plan import (
     RollingPlanIdentity,
     RollingPlanReference,
 )
+from colav_simulator.core.colav.threat_assessment import (
+    OwnshipThreatPrediction,
+    PredictionBasis,
+)
+from colav_simulator.core.colav.threat_assessment import (
+    ThreatPrediction as ThreatTargetPrediction,
+)
+from colav_simulator.core.colav.threat_management import (
+    AcceptedPlanReceipt,
+    ThreatManagementCoordinator,
+)
 from colav_simulator.core.guidances import LOSGuidance
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -122,7 +132,7 @@ class _MidMpcFacade:
         self,
         config: _FacadeConfig,
         *,
-        event_sink: Callable[[LifecycleEvent], object] | None = None,
+        threat_management_coordinator: ThreatManagementCoordinator,
         artifact_sink: Callable[[object], object] | None = None,
     ) -> None:
         self._config = config
@@ -143,7 +153,9 @@ class _MidMpcFacade:
             self._solver.prewarm()
         self._assembler = MidMpcProblemAssembler()
         self._acceptance = MidMpcPlanAcceptance()
-        self._lifecycle = EncounterLifecycle(event_sink=event_sink)
+        if not isinstance(threat_management_coordinator, ThreatManagementCoordinator):
+            raise TypeError("threat_management_coordinator must be ThreatManagementCoordinator")
+        self._threat_management_coordinator = threat_management_coordinator
         self._last_guidance_time_s: float | None = None
         self._epoch_number = 1
         self._cycle_sequence = 0
@@ -160,7 +172,7 @@ class _MidMpcFacade:
     def reset(self) -> None:
         self._los.reset()
         self._epoch_number += 1
-        self._lifecycle.reset(
+        self._threat_management_coordinator.reset(
             epoch=f"mid-mpc-{self._epoch_number}",
             reason="adapter_reset",
             sim_time_s=0.0 if self._last_cycle_time_s is None else self._last_cycle_time_s,
@@ -324,7 +336,26 @@ class _MidMpcFacade:
                 route_bearing_rad=route_bearing,
                 planned_speed_mps=float(reference[3, 0]),
             )
-            snapshot = self._lifecycle.step(cycle)
+            for target in cycle.targets:
+                if target.health is ObservationHealth.UNUSABLE:
+                    raise LifecycleError(
+                        LifecycleFailure.UNUSABLE_OBSERVATION,
+                        f"target {target.key} observation is unusable",
+                    )
+                if target.age_s > cycle.profile.usable_age_s:
+                    raise LifecycleError(
+                        LifecycleFailure.UNUSABLE_OBSERVATION,
+                        f"target {target.key} observation is stale",
+                    )
+            threat_snapshot = self._threat_management_coordinator.cycle(
+                cycle,
+                profile=self._threat_management_coordinator.domain_profile,
+                predictions=self._threat_target_predictions(planner_input),
+                baseline_prediction=self._threat_baseline_prediction(planner_input),
+            )
+            snapshot = threat_snapshot.lifecycle_snapshot
+            if not isinstance(snapshot, DecisionSnapshot):
+                raise RuntimeError("Threat Management Coordinator did not publish a Lifecycle snapshot")
             rolling_identity, rolling_reference, prior_plan_safe, prior_revalidation_codes = self._rolling_reference(
                 planner_input, snapshot, capability
             )
@@ -332,7 +363,7 @@ class _MidMpcFacade:
                 AssemblyRequest(
                     planner_input=planner_input,
                     snapshot=snapshot,
-                    cycle_input_hash=cycle.input_hash,
+                    cycle_input_hash=snapshot.input_hash,
                     lifecycle_profile_hash=cycle.profile.hash,
                     route=RouteReference(
                         anchor_ne_m=route_anchor,
@@ -551,6 +582,11 @@ class _MidMpcFacade:
         self._unresolved_streak = 0
         self._unresolved_streak_token = None
         warm_start_eligible = capability.exact_tuple in _WARM_START_ELIGIBLE_TUPLES
+        accepted_prediction = OwnshipThreatPrediction.from_prediction_evidence(
+            prediction_evidence,
+            reference_time_s=planner_input.sim_time_s,
+            target_keys=tuple(TrackKey(track.target_id, track.generation or 1) for track in planner_input.tracks),
+        )
         receipt = {
             "schema_version": "colav.mid_mpc.receipt@1",
             "parent_acceptance_hash": acceptance_hash,
@@ -566,18 +602,32 @@ class _MidMpcFacade:
             "scenario_id": self._config.scenario_id,
             "algorithm_seed": self._config.algorithm_seed,
             "tracker_id": self._config.tracker_id,
+            "accepted_prediction": accepted_prediction.to_dict(),
+            "prediction_hash": accepted_prediction.semantic_hash,
+            "evidence_semantic_hash": prediction_evidence.semantic_hash,
+            "domain_profile_hash": self._threat_management_coordinator.domain_profile.profile_hash,
             "target_keys": [
                 {"target_id": track.target_id, "generation": track.generation} for track in planner_input.tracks
             ],
             "warm_start_eligible": warm_start_eligible,
             "dual_warm_start": False,
         }
-        receipt_stage = {
-            "schema_version": "colav.mid_mpc.receipt-stage@1",
-            "parent_acceptance_hash": acceptance_hash,
-            "receipt": receipt,
-        }
-        receipt_hash = _document_hash(receipt_stage)
+        issued_receipt = AcceptedPlanReceipt.issue(
+            accepted_sequence=snapshot.sequence,
+            accepted_at_s=planner_input.sim_time_s,
+            valid_until_s=planner_input.sim_time_s + self._config.assembly.decision_period_s,
+            accepted_prediction=accepted_prediction,
+            target_keys=tuple(
+                TrackKey(track.target_id, track.generation or 1)
+                for track in planner_input.tracks
+            ),
+            prediction_hash=accepted_prediction.semantic_hash,
+            acceptance_hash=acceptance_result.acceptance_hash,
+            domain_profile_hash=self._threat_management_coordinator.domain_profile.profile_hash,
+            evidence_semantic_hash=prediction_evidence.semantic_hash,
+        )
+        receipt_hash = issued_receipt.receipt_hash
+        receipt_stage = issued_receipt.canonical_payload
         accepted_plan_receipt = {**receipt, "receipt_hash": receipt_hash}
         n = self._config.assembly.horizon_steps
         next_accepted_primal = (
@@ -616,6 +666,9 @@ class _MidMpcFacade:
             self._accepted_request = acceptance_request
             self._accepted_trajectory = predicted.copy()
             self._accepted_acceptance_hash = acceptance_result.acceptance_hash
+            self._threat_management_coordinator.publish_accepted_plan(
+                AcceptedPlanReceipt.from_mapping(accepted_plan_receipt)
+            )
             self._rolling_plan.commit(
                 accepted_at_s=planner_input.sim_time_s,
                 dt_s=self._config.assembly.horizon_dt_s,
@@ -667,6 +720,7 @@ class _MidMpcFacade:
             decision.commitment is CommitmentPhase.COMMITTED and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
             for decision in snapshot.targets
         )
+        threat_snapshot_document = threat_snapshot.to_dict()
         details = {
             "formulation": "mass-l3-mid-mpc-ipopt-frozen",
             "solver_backend": "ipopt",
@@ -788,7 +842,23 @@ class _MidMpcFacade:
                 "target_fields": ["north_m", "east_m", "generation", "reference_time_s"],
                 "trajectory_source": "fresh_ipopt_solve",
             },
-            "lifecycle": _snapshot_document(snapshot, self._lifecycle),
+            "lifecycle": _snapshot_document(snapshot, self._threat_management_coordinator.lifecycle),
+            "threat_management": {
+                "schema_version": threat_snapshot.schema_version,
+                "status": "AVAILABLE",
+                "semantic_hash": threat_snapshot.semantic_hash,
+                "input_hash": threat_snapshot.input_hash,
+                "lifecycle_input_hash": snapshot.input_hash,
+                "profile_hash": threat_snapshot.profile_hash,
+                "vector_count": len(threat_snapshot.vectors),
+                "snapshot": threat_snapshot_document,
+                "vectors": threat_snapshot_document["vectors"],
+                "schedule": threat_snapshot_document["schedule"],
+                "conflict_graph": threat_snapshot.conflict_graph.to_dict()
+                if threat_snapshot.conflict_graph is not None
+                else None,
+                "unavailable_reason": None,
+            },
         }
         decision_by_key = {decision.key: decision for decision in snapshot.targets}
         return MPCSolution(
@@ -921,6 +991,50 @@ class _MidMpcFacade:
             route_bearing_rad=route_bearing_rad,
             planned_speed_mps=planned_speed_mps,
             profile=self._config.profile,
+        )
+
+    def _threat_target_predictions(
+        self,
+        planner_input: PlannerInput,
+    ) -> tuple[ThreatTargetPrediction, ...]:
+        """Project tracker states on the declared Mid-MPC constant-velocity basis."""
+        times = np.arange(self._config.assembly.horizon_steps + 1, dtype=float) * self._config.assembly.horizon_dt_s
+        predictions = []
+        for track in planner_input.tracks:
+            generation = track.generation or 1
+            positions = track.state_enu[:2] + times[:, None] * track.state_enu[2:4]
+            velocities = np.repeat(track.state_enu[None, 2:4], times.size, axis=0)
+            predictions.append(
+                ThreatTargetPrediction(
+                    key=TrackKey(track.target_id, generation),
+                    times_s=times,
+                    states_enu=np.column_stack((positions, velocities)),
+                    basis=PredictionBasis.CONSTANT_VELOCITY,
+                    model="mid_mpc_constant_velocity_targets",
+                )
+            )
+        return tuple(predictions)
+
+    def _threat_baseline_prediction(self, planner_input: PlannerInput) -> OwnshipThreatPrediction:
+        """Declare the current-motion ownship baseline without invoking solver authority."""
+        times = np.arange(self._config.assembly.horizon_steps + 1, dtype=float) * self._config.assembly.horizon_dt_s
+        ownship = planner_input.ownship_state
+        velocity = np.array(
+            [
+                ownship[3] * math.cos(ownship[2]) - ownship[4] * math.sin(ownship[2]),
+                ownship[3] * math.sin(ownship[2]) + ownship[4] * math.cos(ownship[2]),
+            ]
+        )
+        positions = ownship[:2] + times[:, None] * velocity
+        velocities = np.repeat(velocity[None, :], times.size, axis=0)
+        return OwnshipThreatPrediction(
+            times_s=times,
+            states_enu=np.column_stack((positions, velocities)),
+            basis="CURRENT_MOTION_BASELINE",
+            model="mid_mpc_current_motion_baseline",
+            source="PLANNER_INPUT",
+            target_keys=tuple(TrackKey(track.target_id, track.generation or 1) for track in planner_input.tracks),
+            reference_time_s=planner_input.sim_time_s,
         )
 
     def _target_observation(self, track: object) -> TargetObservation:
@@ -1160,9 +1274,22 @@ def create(  # noqa: PLR0913
             context.scenario_target_count if context.scenario_target_count and context.scenario_target_count > 1 else None
         ),
     )
+    threat_management_coordinator = context.threat_management_coordinator
+    if threat_management_coordinator is None:
+        threat_management_coordinator = ThreatManagementCoordinator(
+            lifecycle=EncounterLifecycle(event_sink=context.event_sink),
+            domain_profile=context.domain_profile,
+        )
+    if not isinstance(threat_management_coordinator, ThreatManagementCoordinator):
+        raise TypeError("FactoryContext.threat_management_coordinator must be ThreatManagementCoordinator")
+    if (
+        context.domain_profile is not None
+        and threat_management_coordinator.domain_profile.profile_hash != context.domain_profile.profile_hash
+    ):
+        raise ValueError("FactoryContext domain_profile does not match ThreatManagementCoordinator profile")
     facade = _MidMpcFacade(
         config,
-        event_sink=context.event_sink,
+        threat_management_coordinator=threat_management_coordinator,
         artifact_sink=context.artifact_sink,
     )
     descriptor = AlgorithmDescriptor(

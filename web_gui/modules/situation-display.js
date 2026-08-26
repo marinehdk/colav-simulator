@@ -35,6 +35,8 @@ const PREDICTION_MARKER_SECONDS = 10;
 const PREDICTION_LABEL_SECONDS = 60;
 const RADAR_DETECTION_RANGE_M = 2000;
 const BUSY_WATER_SCENARIO_ID = 'romsdal_busy_water_16';
+const HISTORICAL_AIS_SCENARIO_PREFIX = 'hais_romsdal_';
+const HISTORICAL_OWN_SHIP_SPAN_M = 6 * 1852;
 
 export const THREAT_STYLES = {
   UNKNOWN: { color: '#4F5B60', fill: 'rgba(104,116,122,0.72)', rank: 0 },
@@ -83,6 +85,7 @@ export const LAYER_ORDER = [
   'targetRoutes',
   'plannerSurface',
   'threatPlot',
+  'shadowOwnship',
   'ships',
 ];
 
@@ -128,6 +131,10 @@ export function validRoute(route) {
   return Array.isArray(route) && route.length >= 2
     && Array.isArray(route[0]) && route[0].length >= 2
     && route[0].length === route[1]?.length;
+}
+
+export function waypointLabel(index, _scenarioId) {
+  return `WPT${index + 1}`;
 }
 
 export function chooseGridSpacing(worldWidth) {
@@ -197,9 +204,18 @@ export function wrapRadians(value) {
 
 export function targetsForDisplay(data) {
   const obstacles = data.obstacles || [];
-  if (data.executed_tracker === 'god') return obstacles;
-
   const trackSet = data.tracks?.[0];
+  const generationById = new Map((trackSet?.labels || []).map((id, index) => [
+    String(id),
+    trackSet?.generations?.[index] ?? null,
+  ]));
+  if (data.executed_tracker === 'god') {
+    return obstacles.map(target => ({
+      ...target,
+      generation: target.generation ?? generationById.get(String(target.id)) ?? null,
+    }));
+  }
+
   if (trackSet?.states?.length) {
     const truthById = new Map(obstacles.map(target => [String(target.id), target]));
     return trackSet.states.map((state, index) => {
@@ -212,6 +228,7 @@ export function targetsForDisplay(data) {
       return {
         ...truth,
         id,
+        generation: trackSet.generations?.[index] ?? null,
         x: Number(state[0]),
         y: Number(state[1]),
         psi: Number.isFinite(course) ? course : truth.psi,
@@ -222,6 +239,28 @@ export function targetsForDisplay(data) {
     }).filter(target => Number.isFinite(target.x) && Number.isFinite(target.y));
   }
   return [];
+}
+
+export function targetThreatStyle(data, target) {
+  const source = data?.threat_management;
+  if (!target || source?.status !== 'AVAILABLE' || !Array.isArray(source.vectors)) return 'UNKNOWN';
+  const targetGeneration = target.generation;
+  if (targetGeneration === null || targetGeneration === undefined) return 'UNKNOWN';
+  const vector = source.vectors.find((item) => {
+    const key = item?.key ?? item;
+    const targetId = key?.target_id ?? key?.targetId ?? item?.target_id ?? item?.targetId;
+    const generation = key?.generation ?? item?.generation;
+    return targetId !== null
+      && targetId !== undefined
+      && generation !== null
+      && generation !== undefined
+      && String(targetId) === String(target.id)
+      && String(generation) === String(targetGeneration);
+  });
+  const explicit = vector?.display_class ?? vector?.displayClass ?? vector?.threat_class ?? vector?.threatClass;
+  return ['HIGH', 'LOW', 'CLEAR', 'UNKNOWN'].includes(String(explicit).toUpperCase())
+    ? String(explicit).toUpperCase()
+    : 'UNKNOWN';
 }
 
 export function plannerSurfaceType(planner) {
@@ -567,6 +606,50 @@ export function createSituationDisplay(options) {
     rerender();
   }
 
+  function applyOwnshipFollowView(data) {
+    if (userAdjusted
+      || !String(data?.scenario_id || '').startsWith(HISTORICAL_AIS_SCENARIO_PREFIX)
+      || !Number.isFinite(data?.os?.x)
+      || !Number.isFinite(data?.os?.y)) return;
+    viewScale = wrapper.clientWidth / HISTORICAL_OWN_SHIP_SPAN_M;
+    panX = -Number(data.os.y) * viewScale;
+    panY = Number(data.os.x) * viewScale;
+  }
+
+  function fitTraffic() {
+    const data = currentData || lastRenderedData;
+    if (!data) return;
+    const points = [data.os, ...(data.obstacles || []), data.shadow_ownship]
+      .filter(item => Number.isFinite(item?.x) && Number.isFinite(item?.y))
+      .map(item => [Number(item.x), Number(item.y)]);
+    if (validRoute(data.waypoints)) {
+      data.waypoints[0].forEach((north, index) => points.push([Number(north), Number(data.waypoints[1][index])]));
+    }
+    if (!points.length) return;
+    const north = points.map(point => point[0]);
+    const east = points.map(point => point[1]);
+    const northSpan = Math.max(500, Math.max(...north) - Math.min(...north));
+    const eastSpan = Math.max(500, Math.max(...east) - Math.min(...east));
+    viewScale = Math.max(0.005, Math.min(
+      wrapper.clientWidth / (eastSpan * 1.15),
+      wrapper.clientHeight / (northSpan * 1.15),
+    ));
+    const centerNorth = (Math.max(...north) + Math.min(...north)) / 2;
+    const centerEast = (Math.max(...east) + Math.min(...east)) / 2;
+    panX = -centerEast * viewScale;
+    panY = centerNorth * viewScale;
+    userAdjusted = true;
+    updateScaleBar();
+    rerender();
+  }
+
+  function recenterOwnship() {
+    userAdjusted = false;
+    applyOwnshipFollowView(currentData || lastRenderedData);
+    updateScaleBar();
+    rerender();
+  }
+
   function utmToCanvas(easting, northing) {
     if (!encInfo) return { x: 0, y: 0 };
     const de = easting - encInfo.origin_e;
@@ -760,6 +843,7 @@ export function createSituationDisplay(options) {
 
   function renderCanvas(data) {
     lastRenderedData = data;
+    applyOwnshipFollowView(data);
     drawSequence = ['base'];
     const W = wrapper.clientWidth;
     const H = wrapper.clientHeight;
@@ -820,6 +904,7 @@ export function createSituationDisplay(options) {
     const surface = getPlannerSurface();
     if (data.os && plannerSurfaceAttached && surface) drawPlannerSurfaceOnMap(data.os, surface);
     if (data.os && !plannerSurfaceAttached && ownshipThreatPlotVisible) drawCollisionThreatPlot(data, W, H);
+    drawShadowOwnship(data.shadow_ownship);
     if (visibleLayers.ships) drawShips(data);
     ctx.restore();
   }
@@ -953,7 +1038,12 @@ export function createSituationDisplay(options) {
       ctx.arc(point.x, point.y, active ? 7 : 5, 0, 2 * Math.PI);
       ctx.fill();
       ctx.stroke();
-      drawMapLabel(`WPT${index + 1}`, point.x + 9, point.y - 7, passed ? '#9AA3A7' : palette['--situation-route']);
+      drawMapLabel(
+        waypointLabel(index, currentData?.scenario_id || getScenarioId()),
+        point.x + 9,
+        point.y - 7,
+        passed ? '#9AA3A7' : palette['--situation-route'],
+      );
     });
     drawSequence.push('waypoints');
   }
@@ -1187,14 +1277,10 @@ export function createSituationDisplay(options) {
 
   function targetThreat(data, target) {
     if (!target || !data.os) return THREAT_STYLES.UNKNOWN;
+    const canonicalThreat = THREAT_STYLES[targetThreatStyle(data, target)] || THREAT_STYLES.UNKNOWN;
     const riskLevel = targetThreatLevels.get(String(target.id));
     const riskOutline = TARGET_RISK_STYLES[riskLevel]?.outlineColor;
-    const distance = Math.hypot(target.x - data.os.x, target.y - data.os.y);
-    const responseRange = getResponseRange();
-    const threat = responseRange?.threatActivation && distance <= responseRange.distanceM
-      ? THREAT_STYLES.HIGH
-      : distance <= RADAR_DETECTION_RANGE_M ? THREAT_STYLES.LOW : THREAT_STYLES.CLEAR;
-    return riskOutline ? { ...threat, outlineColor: riskOutline } : threat;
+    return riskOutline ? { ...canonicalThreat, outlineColor: riskOutline } : canonicalThreat;
   }
 
   function drawShips(data) {
@@ -1224,6 +1310,39 @@ export function createSituationDisplay(options) {
     }
     drawAvoidingLabels(labels);
     drawSequence.push('ships');
+  }
+
+  function drawShadowOwnship(shadow) {
+    if (!shadow?.comparison_only || !Number.isFinite(shadow.x) || !Number.isFinite(shadow.y)) return;
+    const points = Array.isArray(shadow.trajectory) ? shadow.trajectory : [];
+    if (points.length >= 2) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(176,108,255,0.82)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 5]);
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        const mapped = worldToCanvas(Number(point[0]), Number(point[1]));
+        if (index === 0) ctx.moveTo(mapped.x, mapped.y);
+        else ctx.lineTo(mapped.x, mapped.y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+    const point = worldToCanvas(shadow.x, shadow.y);
+    ctx.save();
+    ctx.globalAlpha = 0.58;
+    drawHull(
+      point,
+      Number(shadow.psi) || 0,
+      Number(shadow.length) || 85,
+      Number(shadow.width) || 16,
+      { color: '#B06CFF', fill: 'rgba(176,108,255,0.70)' },
+      false,
+    );
+    ctx.restore();
+    drawAvoidingLabels([{ text: 'AIS SHADOW', point, color: '#C99BFF' }]);
+    drawSequence.push('shadowOwnship');
   }
 
   function drawOwnshipSprite(point, heading, lengthM, widthM) {
@@ -1872,6 +1991,8 @@ export function createSituationDisplay(options) {
     getSelectedTargetId: () => (selectedTargetId === undefined ? null : selectedTargetId),
     isOwnshipThreatPlotVisible: () => ownshipThreatPlotVisible,
     fitView,
+    fitTraffic,
+    recenterOwnship,
     zoomIn() {
       zoomAtCanvasPoint(wrapper.clientWidth / 2, wrapper.clientHeight / 2, 1.25);
       userAdjusted = true;

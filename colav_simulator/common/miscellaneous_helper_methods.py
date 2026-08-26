@@ -962,6 +962,9 @@ def extract_do_states_from_ship_list(t: float, ship_list: list) -> list:
     """
     true_do_states = []
     for i, ship_obj in enumerate(ship_list):
+        prepare_at_time = getattr(ship_obj, "prepare_at_time", None)
+        if prepare_at_time is not None:
+            prepare_at_time(t)
         if ship_is_active(ship_obj, t):
             vxvy_state = convert_state_to_vxvy_state(ship_obj.csog_state)
             true_do_states.append((i, vxvy_state, ship_obj.length, ship_obj.width))
@@ -970,6 +973,9 @@ def extract_do_states_from_ship_list(t: float, ship_list: list) -> list:
 
 def ship_is_active(ship_obj: object, t: float) -> bool:
     """Return whether one scripted ship participates at simulation time ``t``."""
+    historical_is_active_at = getattr(ship_obj, "historical_is_active_at", None)
+    if historical_is_active_at is not None:
+        return bool(historical_is_active_at(t))
     return float(getattr(ship_obj, "t_start", 0.0)) <= t < float(getattr(ship_obj, "t_end", np.inf))
 
 

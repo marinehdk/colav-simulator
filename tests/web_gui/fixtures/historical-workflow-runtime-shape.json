@@ -1,0 +1,151 @@
+{
+  "schema_version": "historical-workflow.snapshot.v1",
+  "workflow_id": "workflow-browser-regression",
+  "mode": "COUNTERFACTUAL",
+  "status": "COMPLETED",
+  "presentation": {
+    "schema_version": "historical-workflow.presentation.v1",
+    "scenario": {
+      "id": "hais_romsdal_20260701_120007_121007",
+      "kind": "HISTORICAL_AIS",
+      "status": "AVAILABLE",
+      "scope": "BOUNDED"
+    },
+    "operability": {
+      "status": "AVAILABLE",
+      "scope": "BOUNDED"
+    },
+    "runtime": {
+      "mode": "COUNTERFACTUAL",
+      "status": "COMPLETED",
+      "requested_algorithm": "mid_mpc_ipopt",
+      "executed_algorithm": "mid_mpc_ipopt",
+      "fallback_used": false
+    },
+    "threat": {
+      "status": "AVAILABLE",
+      "vector_count": 2,
+      "schedule_entry_count": 2,
+      "cluster_count": 0
+    },
+    "leakage": {
+      "status": "PASS_CONTRACT"
+    },
+    "determinism": {
+      "status": "PASS",
+      "mismatch_count": 0
+    },
+    "compare": {
+      "status": "COMPLETE",
+      "overall_assurance_verdict": "PASS",
+      "domain_statuses": {
+        "safety": "COMPLETE",
+        "colreg": "COMPLETE",
+        "maneuver": "COMPLETE",
+        "efficiency": "COMPLETE",
+        "human_similarity": "COMPLETE"
+      }
+    },
+    "qualification": {
+      "status": "NOT_QUALIFIED",
+      "code": "THREAT_EVIDENCE_INCOMPLETE",
+      "execution_mode": "DOUBLE_RUN_ACCEPTANCE",
+      "run_count": 2,
+      "reason": "natural conflict cluster is empty",
+      "actual_counts": {
+        "vector_count": 2,
+        "schedule_entry_count": 2,
+        "cluster_count": 0
+      },
+      "future_gate": "NONEMPTY_NATURAL_CLUSTER",
+      "determinism": {
+        "status": "PASS",
+        "mismatch_count": 0
+      },
+      "threat_graph": {
+        "status": "NOT_QUALIFIED",
+        "code": "THREAT_EVIDENCE_INCOMPLETE",
+        "vector_count": 2,
+        "schedule_entry_count": 2,
+        "cluster_count": 0
+      }
+    },
+    "evidence": {
+      "digests": {
+        "archive_sha256": "workflow-archive",
+        "entry_sha256": "workflow-entry",
+        "schema_sha256": "workflow-schema",
+        "selection_sha256": "workflow-selection",
+        "normalized_sha256": "workflow-normalized",
+        "descriptor_sha256": "workflow-descriptor",
+        "enc_profile_sha256": "workflow-enc-profile",
+        "enc_cache_sha256": "workflow-enc-cache",
+        "enc_source_sha256": "workflow-enc-source",
+        "dimension_registry_sha256": "workflow-dimension-registry",
+        "dimension_source_sha256": "workflow-dimension-source"
+      },
+      "replay": {
+        "status": "NOT_APPLICABLE",
+        "mode": null,
+        "factory": null,
+        "dataset_digest": null,
+        "runtime_actor_set_digest": null,
+        "trajectory_digest": null,
+        "manifest_digest": null,
+        "dimension_registry_digest": null,
+        "dimension_source_digest": null
+      }
+    }
+  },
+  "stages": {
+    "dataset": "SELECTED",
+    "case": "PUBLISHED",
+    "replay": "NOT_APPLICABLE",
+    "counterfactual": "COMPLETED",
+    "evaluation": "COMPLETE",
+    "compare": "COMPLETE"
+  },
+  "leakage": {
+    "human_reference_digest_in_run_spec": false,
+    "reference_runtime_last_time_s": 30.0
+  },
+  "evidence": {
+    "run": {
+      "fallback_used": false,
+      "historical_execution_mode": "COUNTERFACTUAL"
+    },
+    "threat_snapshot": {
+      "vectors": [
+        { "track_key": "257252000:0" },
+        { "track_key": "258764000:0" }
+      ],
+      "schedule": {
+        "entries": [
+          { "track_key": "257252000:0", "membership": "PRIMARY" },
+          { "track_key": "258764000:0", "membership": "CONCURRENT_REQUIRED" }
+        ]
+      },
+      "conflicts": {
+        "edges": []
+      },
+      "conflict_graph": {
+        "clusters": []
+      }
+    },
+    "evaluation": {
+      "evaluation_status": "COMPLETE",
+      "gate": "PASS"
+    }
+  },
+  "compare": {
+    "status": "COMPLETE",
+    "overall_assurance_verdict": "PASS",
+    "domain_statuses": {
+      "safety": { "status": "COMPLETE", "verdict": "PASS" },
+      "colreg": { "status": "COMPLETE", "verdict": "PASS" },
+      "maneuver": { "status": "COMPLETE" },
+      "efficiency": { "status": "COMPLETE" },
+      "human_similarity": { "status": "COMPLETE" }
+    }
+  }
+}

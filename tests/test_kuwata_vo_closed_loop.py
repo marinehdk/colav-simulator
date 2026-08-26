@@ -170,6 +170,27 @@ def test_overtaking_commits_once_passes_and_returns_to_route(
     assert summary["solver"]["fallback_count"] == 0
 
 
+def test_overtaken_vo_closed_loop_keeps_rule13_evidence_and_clearance(
+    p1_run_harness: P1RunHarness,
+) -> None:
+    """Keep the distinct Rule 13 overtaken direction in active product coverage."""
+    candidate = p1_run_harness.run("overtaken", "vo", "god")
+    summary, rows = summarize(candidate, Acceptance())
+
+    assert candidate.manifest.spec["validation_rule_id"] == "rule13"
+    assert candidate.manifest.requested_algorithm == candidate.manifest.executed_algorithm == "vo"
+    assert candidate.manifest.requested_tracker == candidate.manifest.executed_tracker == "god"
+    assert candidate.manifest.fallback_used is False
+    assert summary["truth"]["ship0_vs_target"]["continuous_collision"] is False
+    assert summary["truth"]["grounding"]["grounded"] is False
+    assert summary["solver"]["fallback_count"] == 0
+    assert summary["finite_state_outputs"]
+    active_rows = [row for row in rows if "OT_en" in row["active_rules"]]
+    assert active_rows
+    assert all(row["overtaking_state"] == "CLEAR" for row in active_rows)
+    assert any(row["rule_tcpa_s"] is not None and row["rule_tcpa_s"] > 0.0 for row in active_rows)
+
+
 def test_both_head_on_vessels_execute_starboard_vo_maneuvers() -> None:
     session = _project_fixture_session("head_on_both_vo", "vo")
     session.run_to_completion()

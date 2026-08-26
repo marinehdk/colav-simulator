@@ -473,12 +473,22 @@ class EvidenceEnvelope:
     ) -> dict[str, object]:
         """Return the bounded realtime envelope without full trajectory vectors."""
         artifact = _json_value(artifact_reference) if artifact_reference is not None else None
+        authority_document = _json_value(authority) if authority is not None else None
         fixed = {
             "schema_version": self.schema_version,
             "artifact_reference": artifact,
-            "authority": _json_value(authority) if authority is not None else None,
+            "authority": authority_document,
         }
         inline_capacity = capacity_bytes - len(canonical_bytes(fixed)) - 32
+        if inline_capacity < 256:
+            authority_document = _externalize_inline_accepted_prediction(
+                authority_document,
+                artifact_reference=artifact,
+            )
+            fixed["authority"] = authority_document
+            inline_capacity = capacity_bytes - len(canonical_bytes(fixed)) - 32
+        if inline_capacity < 256:
+            raise ValueError("INLINE_CAPACITY_EXCEEDED: accepted prediction requires external artifact capacity")
         value = {
             **fixed,
             "inline": inline_projection(self.semantic_record, capacity_bytes=inline_capacity),
@@ -568,6 +578,49 @@ def canonical_bytes(value: object) -> bytes:
         ensure_ascii=False,
         allow_nan=False,
     ).encode("utf-8")
+
+
+def _externalize_inline_accepted_prediction(
+    authority: object,
+    *,
+    artifact_reference: object,
+) -> object:
+    """Replace oversized accepted-plan knots with a typed artifact reference.
+
+    Full accepted prediction remains in the sealed semantic/artifact record.
+    Realtime authority carries identity and the external reference only; it
+    never truncates or silently drops a legal prediction.
+    """
+    if not isinstance(authority, dict):
+        return authority
+    receipt = authority.get("receipt")
+    if not isinstance(receipt, dict) or not isinstance(receipt.get("accepted_prediction"), dict):
+        return authority
+    compact_authority = dict(authority)
+    compact_receipt = dict(receipt)
+    accepted_prediction = dict(compact_receipt.pop("accepted_prediction"))
+    pending_artifact = artifact_reference is None
+    reference = artifact_reference or {
+        "status": "PENDING",
+        "semantic_hash": accepted_prediction.get("evidence_semantic_hash"),
+        "reason": "POST_COMMIT_ARTIFACT_PENDING",
+    }
+    compact_receipt["accepted_prediction"] = None
+    compact_receipt["accepted_prediction_reference"] = {
+        "artifact_reference": reference,
+        "prediction_hash": accepted_prediction.get("prediction_hash"),
+        "evidence_semantic_hash": accepted_prediction.get("evidence_semantic_hash"),
+        "reference_time_s": accepted_prediction.get("reference_time_s"),
+        "target_keys": accepted_prediction.get("target_keys", []),
+        "basis": accepted_prediction.get("basis"),
+        "model": accepted_prediction.get("model"),
+        "source": accepted_prediction.get("source"),
+    }
+    compact_receipt["accepted_prediction_unavailable_reason"] = (
+        "INLINE_CAPACITY_EXTERNAL_ARTIFACT_PENDING" if pending_artifact else "INLINE_CAPACITY_EXTERNAL_ARTIFACT"
+    )
+    compact_authority["receipt"] = compact_receipt
+    return compact_authority
 
 
 def reduce_evidence(events: Sequence[EvidenceEvent]) -> EvidenceTimeline:  # noqa: C901, PLR0912, PLR0915

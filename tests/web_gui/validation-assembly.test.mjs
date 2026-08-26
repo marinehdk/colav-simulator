@@ -5,6 +5,21 @@ import { createValidationAssembly } from '../../web_gui/modules/validation-assem
 
 const catalog = {
   schema_version: 'capability-catalog.v1',
+  product_capability_policy: {
+    policy_id: 'synthetic-reducer-policy',
+    algorithm_ids: ['nominal', 'vo'],
+    tracker_ids: ['god', 'kf'],
+    default_algorithm_id: 'nominal',
+    default_tracker_id: 'god',
+    constraints: {
+      requires_explicit_validation_rule_id: true,
+      requires_exact_tuple: true,
+      algorithms: {
+        nominal: { requires_domain_profile: false },
+        vo: { requires_domain_profile: false },
+      },
+    },
+  },
   defaults: {
     validation_rule_id: 'rule14',
     scenario_id: 'head_on',
@@ -43,6 +58,175 @@ catalog.selectable_combinations = [
   ...catalog.verified_combinations,
   ...catalog.experimental_combinations,
 ];
+
+const productionCatalog = {
+  schema_version: 'capability-catalog.v1',
+  product_capability_policy: {
+    policy_id: 'colav-product-v1',
+    algorithm_ids: ['vo', 'potocnik_colreg_fan_mpc', 'mid_mpc_ipopt'],
+    tracker_ids: ['god'],
+    default_algorithm_id: 'vo',
+    default_tracker_id: 'god',
+    constraints: {
+      requires_explicit_validation_rule_id: true,
+      requires_exact_tuple: true,
+      algorithms: {
+        vo: { requires_domain_profile: false },
+        potocnik_colreg_fan_mpc: { requires_domain_profile: false },
+        mid_mpc_ipopt: {
+          requires_domain_profile: true,
+          required_domain_qualification: 'QUALIFIED',
+        },
+      },
+    },
+  },
+  defaults: {
+    validation_rule_id: 'rule14',
+    scenario_id: 'head_on',
+    algorithm_id: 'legacy-default',
+    tracker_id: 'legacy-tracker',
+  },
+  rules: [{ id: 'rule14', selectable: true }],
+  scenarios: [{ id: 'head_on', name: 'Head on', dt: 0.1, t_end: 600, selectable: true }],
+  algorithms: [
+    { id: 'mid_mpc_ipopt', selectable: true },
+    { id: 'vo', selectable: true },
+    { id: 'potocnik_colreg_fan_mpc', selectable: true },
+  ],
+  trackers: [{ id: 'god', selectable: true }],
+  verified_combinations: [
+    { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'mid_mpc_ipopt', tracker_id: 'god' },
+    { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'vo', tracker_id: 'god' },
+    { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'potocnik_colreg_fan_mpc', tracker_id: 'god' },
+  ],
+  experimental_combinations: [],
+};
+productionCatalog.selectable_combinations = [...productionCatalog.verified_combinations];
+productionCatalog.selectable_combinations[1].latest_evidence = { source: 'catalog-only' };
+
+test('product policy owns selector order and defaults without leaking tuple evidence into Run Specification', () => {
+  const assembly = createValidationAssembly({ catalog: productionCatalog });
+  const snapshot = assembly.snapshot();
+
+  assert.equal(snapshot.draft.algorithm_id, 'vo');
+  assert.equal(snapshot.draft.tracker_id, 'god');
+  assert.equal(Object.hasOwn(snapshot.draft, 'latest_evidence'), false);
+  assert.deepEqual(snapshot.options.algorithm_id.map((item) => item.id), [
+    'vo',
+    'potocnik_colreg_fan_mpc',
+    'mid_mpc_ipopt',
+  ]);
+  assert.deepEqual(snapshot.options.tracker_id.map((item) => item.id), ['god']);
+  assert.equal(snapshot.productPolicyStatus, 'ready');
+  assert.deepEqual(snapshot.productCapabilityPolicy.algorithm_ids, [
+    'vo',
+    'potocnik_colreg_fan_mpc',
+    'mid_mpc_ipopt',
+  ]);
+});
+
+test('algorithm constraint metadata drives a typed domain-profile Create block', () => {
+  const assembly = createValidationAssembly({ catalog: productionCatalog });
+  assert.equal(assembly.edit('algorithm_id', 'mid_mpc_ipopt'), true);
+
+  const snapshot = assembly.snapshot();
+  assert.equal(snapshot.classification, 'verified');
+  assert.equal(snapshot.valid, true);
+  assert.equal(snapshot.createBlock, 'requires-domain-profile');
+  assert.equal(snapshot.canCreate, false);
+  assert.deepEqual(snapshot.createConstraint, {
+    code: 'requires-domain-profile',
+    algorithm_id: 'mid_mpc_ipopt',
+    required_domain_qualification: 'QUALIFIED',
+    message: 'Selected algorithm requires an explicit QUALIFIED ShipDomainProfile; Config cannot provide one.',
+  });
+  assert.equal(snapshot.createBlockReason, snapshot.createConstraint.message);
+  assert.throws(
+    () => assembly.beginCreate(),
+    /requires-domain-profile:.*QUALIFIED ShipDomainProfile/,
+  );
+});
+
+test('domain-profile block follows policy metadata when assigned to a different algorithm', () => {
+  const reassigned = structuredClone(productionCatalog);
+  reassigned.product_capability_policy.constraints.algorithms.vo = {
+    requires_domain_profile: true,
+    required_domain_qualification: 'REVIEWED',
+  };
+  reassigned.product_capability_policy.constraints.algorithms.mid_mpc_ipopt = {
+    requires_domain_profile: false,
+  };
+  const assembly = createValidationAssembly({ catalog: reassigned });
+
+  assert.equal(assembly.snapshot().draft.algorithm_id, 'vo');
+  assert.equal(assembly.snapshot().createConstraint.algorithm_id, 'vo');
+  assert.match(assembly.snapshot().createBlockReason, /REVIEWED ShipDomainProfile/);
+
+  assert.equal(assembly.edit('algorithm_id', 'mid_mpc_ipopt'), true);
+  assert.equal(assembly.snapshot().createConstraint, null);
+  assert.equal(assembly.snapshot().createBlock, null);
+});
+
+test('catalog-qualified Historical AIS domain profile admits Mid-MPC as experimental', () => {
+  const historical = structuredClone(productionCatalog);
+  historical.scenarios.push({
+    id: 'hais_romsdal_20260701_120007_121007',
+    name: 'Historical AIS',
+    dt: 1,
+    t_end: 600,
+    selectable: true,
+    domain_profile: { qualification: 'QUALIFIED' },
+  });
+  const tuples = [
+    {
+      validation_rule_id: 'rule14',
+      scenario_id: 'hais_romsdal_20260701_120007_121007',
+      algorithm_id: 'vo',
+      tracker_id: 'god',
+    },
+    {
+      validation_rule_id: 'rule14',
+      scenario_id: 'hais_romsdal_20260701_120007_121007',
+      algorithm_id: 'mid_mpc_ipopt',
+      tracker_id: 'god',
+    },
+  ];
+  historical.experimental_combinations = tuples;
+  historical.selectable_combinations = [...historical.verified_combinations, ...tuples];
+  const assembly = createValidationAssembly({ catalog: historical });
+
+  assert.equal(assembly.edit('scenario_id', 'hais_romsdal_20260701_120007_121007'), true);
+  assert.equal(assembly.edit('algorithm_id', 'mid_mpc_ipopt'), true);
+  const snapshot = assembly.snapshot();
+  assert.equal(snapshot.classification, 'experimental');
+  assert.equal(snapshot.createConstraint, null);
+  assert.equal(snapshot.createBlock, 'experimental-confirmation');
+  assert.equal(snapshot.canCreate, false);
+  assert.doesNotThrow(() => assembly.beginCreate({ confirmedExperimental: true }));
+});
+
+test('missing or malformed product policy is typed unavailable and cannot Create', () => {
+  const missingPolicy = structuredClone(productionCatalog);
+  delete missingPolicy.product_capability_policy;
+  const missing = createValidationAssembly({ catalog: missingPolicy });
+  assert.equal(missing.snapshot().productPolicyStatus, 'missing');
+  assert.equal(missing.snapshot().createBlock, 'product-capability-policy-missing');
+  assert.equal(missing.snapshot().readOnly, true);
+  assert.equal(missing.snapshot().canCreate, false);
+  assert.deepEqual(missing.snapshot().options.algorithm_id, []);
+  assert.deepEqual(missing.snapshot().options.tracker_id, []);
+  assert.throws(() => missing.beginCreate(), /product-capability-policy-missing/);
+
+  const invalidPolicy = structuredClone(productionCatalog);
+  delete invalidPolicy.product_capability_policy.constraints.algorithms.mid_mpc_ipopt;
+  const invalid = createValidationAssembly({ catalog: invalidPolicy });
+  assert.equal(invalid.snapshot().productPolicyStatus, 'invalid');
+  assert.equal(invalid.snapshot().createBlock, 'product-capability-policy-invalid');
+  assert.equal(invalid.snapshot().readOnly, true);
+  assert.equal(invalid.snapshot().canCreate, false);
+  assert.match(invalid.snapshot().createBlockReason, /mid_mpc_ipopt/);
+  assert.throws(() => invalid.beginCreate(), /product-capability-policy-invalid/);
+});
 
 test('bootstrap without an active session uses complete catalog defaults', () => {
   const assembly = createValidationAssembly({ catalog });
@@ -144,6 +328,7 @@ test('tuple options never repair a sibling algorithm or tracker behind the user'
     algorithm_id: 'vo',
     tracker_id: 'god',
   };
+  coupledCatalog.product_capability_policy.default_algorithm_id = 'vo';
   coupledCatalog.verified_combinations = [
     { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'vo', tracker_id: 'god' },
     { validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'nominal', tracker_id: 'kf' },
@@ -309,6 +494,8 @@ test('catalog failure leaves Active Spec read-only and replacement repairs stale
 test('snapshot exposes catalog-backed disabled options and scenario-default clock sources', () => {
   const withUnavailable = structuredClone(catalog);
   withUnavailable.algorithms.push({ id: 'rlmpc', selectable: false, known_failure: 'solver unavailable' });
+  withUnavailable.product_capability_policy.algorithm_ids.push('rlmpc');
+  withUnavailable.product_capability_policy.constraints.algorithms.rlmpc = { requires_domain_profile: false };
   const assembly = createValidationAssembly({ catalog: withUnavailable });
 
   let snapshot = assembly.snapshot();

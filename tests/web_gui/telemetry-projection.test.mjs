@@ -3,8 +3,6 @@ import test from 'node:test';
 
 import {
   createTelemetryProjection,
-  DCPA_SAFE,
-  DCPA_WARN,
   SBMPC_SOLVE_PERIOD_FALLBACK_S,
   VO_SOLVE_PERIOD_FALLBACK_S,
 } from '../../web_gui/modules/telemetry-projection.js';
@@ -146,44 +144,63 @@ test('nominal guidance frames report SOLVE phase without a solver execution', ()
   assert.equal(snapshot.planner.display, planner);
 });
 
-/* ── 3. Multiship risk ordering ── */
-test('risk targets sort primary first then ascending DCPA and never invent values', () => {
+/* ── 3. Canonical threat projection ── */
+test('risk targets preserve canonical backend order and schedule without browser ranking', () => {
   const projection = createTelemetryProjection();
-  const far = encounter({ target_id: 1, dcpa_m: 800, tcpa_s: 300 });
-  const near = encounter({ target_id: 2, dcpa_m: 150, tcpa_s: 60 });
-  const mid = encounter({ target_id: 3, dcpa_m: 400, tcpa_s: 120 });
-  const primary = { ...far, priority_score: 9.5, selection_reason: 'composite_cpa_risk', target_label: 'TS1' };
+  const vectors = [
+    { key: { target_id: 1, generation: 1 }, dcpa_m: 800, tcpa_forward_s: 300, display_class: 'LOW' },
+    { key: { target_id: 2, generation: 1 }, dcpa_m: 150, tcpa_forward_s: 60, display_class: 'HIGH' },
+    { key: { target_id: 3, generation: 1 }, dcpa_m: 400, tcpa_forward_s: 120, display_class: 'CLEAR' },
+  ];
   const snapshot = projection.project(runtimeSnapshot({
-    envelope: envelope({ encounters: [near, mid, far], primary_encounter: primary, dcpa: null, tcpa: null }),
+    envelope: envelope({
+      threat_management: {
+        status: 'AVAILABLE',
+        snapshot: { semantic_hash: 'threat-1', profile_hash: 'profile-1', vectors },
+        vectors,
+        schedule: {
+          current_primary: { target_id: 2, generation: 1 },
+          entries: [
+            { key: { target_id: 1, generation: 1 }, context: 'MONITOR' },
+            { key: { target_id: 2, generation: 1 }, context: 'CURRENT_PRIMARY' },
+            { key: { target_id: 3, generation: 1 }, context: 'NEXT' },
+          ],
+        },
+        conflict_graph: { edges: [], clusters: [] },
+      },
+      // Contradictory legacy fields must not affect projection.
+      encounters: [encounter({ target_id: 99, dcpa_m: 1 })],
+      primary_encounter: encounter({ target_id: 99, dcpa_m: 1 }),
+      dcpa: 1,
+      tcpa: 1,
+    }),
   }));
   assert.deepEqual(snapshot.risk.targets.map((target) => target.targetId), [1, 2, 3]);
-  assert.equal(snapshot.risk.primary.targetId, 1);
-  assert.equal(snapshot.risk.primary.targetLabel, 'TS1');
-  assert.equal(snapshot.risk.primary.priorityScore, 9.5);
-  assert.equal(snapshot.risk.primary.selectionReason, 'composite_cpa_risk');
-  for (const target of snapshot.risk.targets) {
-    assert.ok(!('priorityScore' in target), 'risk target entries must not carry priority fields');
-    assert.ok(!('selectionReason' in target));
-  }
-  assert.equal(snapshot.risk.dcpaM, 800, 'risk DCPA mirrors the primary encounter');
-  assert.equal(snapshot.risk.tcpaS, 300);
+  assert.equal(snapshot.risk.primary.targetId, 2);
+  assert.equal(snapshot.risk.primary.displayClass, 'HIGH');
+  assert.equal(snapshot.risk.primary.scheduleClass, 'CURRENT_PRIMARY');
+  assert.equal(snapshot.risk.dcpaM, 150);
+  assert.equal(snapshot.risk.tcpaS, 60);
+  assert.deepEqual(snapshot.risk.conflictGraph, { edges: [], clusters: [] });
 });
 
-test('risk DCPA and TCPA fall back to root mirrors without inventing Infinity', () => {
+test('risk DCPA and TCPA never fall back to legacy root mirrors', () => {
   const projection = createTelemetryProjection();
   const snapshot = projection.project(runtimeSnapshot({
     envelope: envelope({ dcpa: 155.3, tcpa: 42.5 }),
   }));
-  assert.equal(snapshot.risk.dcpaM, 155.3);
-  assert.equal(snapshot.risk.tcpaS, 42.5);
+  assert.equal(snapshot.risk.status, 'UNAVAILABLE');
+  assert.equal(snapshot.risk.dcpaM, null);
+  assert.equal(snapshot.risk.tcpaS, null);
 });
 
 /* ── 4. Clear ── */
-test('clear water yields a null primary and clear COLREGs string', () => {
+test('missing canonical facts yields unavailable, not an inferred clear state', () => {
   const projection = createTelemetryProjection();
   const snapshot = projection.project(runtimeSnapshot({ envelope: envelope() }));
+  assert.equal(snapshot.risk.status, 'UNAVAILABLE');
   assert.equal(snapshot.risk.primary, null);
-  assert.equal(snapshot.risk.colregs, 'clear');
+  assert.equal(snapshot.risk.colregs, null);
   assert.deepEqual(snapshot.risk.targets, []);
   assert.equal(snapshot.risk.dcpaM, null, 'null root mirrors stay null instead of Infinity or zero');
   assert.equal(snapshot.risk.tcpaS, null);
@@ -247,6 +264,21 @@ test('navigation projects raw own ship facts and playback status', () => {
     realtimeLimited: false,
     schedulerLagMs: 0.5,
   });
+});
+
+test('sensor projection preserves tracker generation with the displayed estimate', () => {
+  const projection = createTelemetryProjection();
+  const snapshot = projection.project(runtimeSnapshot({
+    envelope: envelope({
+      executed_tracker: 'kf',
+      obstacles: [{ id: 7, mmsi: 123456789, x: 10, y: 20, active: true }],
+      tracks: [{ labels: [7], generations: [3], states: [[11, 21, 2, 1]], covariances: [] }],
+    }),
+  }));
+
+  assert.equal(snapshot.sensor.targets[0].id, 7);
+  assert.equal(snapshot.sensor.targets[0].generation, 3);
+  assert.equal(snapshot.sensor.targets[0].positionSource, 'tracker');
 });
 
 /* ── 7. Duplicate-snapshot skip ── */
@@ -329,68 +361,29 @@ test('planner_solved timeline entries store trimmed solve facts without the plan
   assert.equal(JSON.stringify(entry.details).includes('predicted_trajectory'), false);
 });
 
-/* ── 11. Derived events ── */
-test('derived COLREGs and DCPA level events track threshold crossings with stable keys', () => {
-  assert.equal(DCPA_SAFE, 300);
-  assert.equal(DCPA_WARN, 100);
+/* ── 11. Backend-owned threat events ── */
+test('projection does not synthesize COLREG or DCPA events from legacy fields', () => {
   const projection = createTelemetryProjection();
 
   const first = projection.project(runtimeSnapshot({
     envelope: envelope({ seq: 1, primary_encounter: encounter({ target_id: 2, dcpa_m: 800 }), dcpa: 800, colregs: 'head_on' }),
   }));
-  let derived = first.timeline.events.filter((event) => event.source === 'derived');
-  assert.equal(derived.length, 2);
-  assert.equal(derived[0].type, 'colregs_change');
-  assert.deepEqual(
-    { from: derived[0].details.from, to: derived[0].details.to, targetLabel: derived[0].details.targetLabel },
-    { from: null, to: 'head_on', targetLabel: 'TS2' },
-  );
-  assert.equal(derived[1].type, 'dcpa_level_change');
-  assert.deepEqual(derived[1].details, { level: 'safe', dcpaM: 800, targetLabel: 'TS2' });
-
-  const warn = projection.project(runtimeSnapshot({
-    envelope: envelope({ seq: 2, primary_encounter: encounter({ target_id: 2, dcpa_m: 250 }), dcpa: 250, colregs: 'head_on' }),
-  }));
-  derived = warn.timeline.events.filter((event) => event.source === 'derived');
-  assert.equal(derived.length, 3);
-  assert.deepEqual(derived.at(-1).details, { level: 'warn', dcpaM: 250, targetLabel: 'TS2' });
-
-  const danger = projection.project(runtimeSnapshot({
-    envelope: envelope({ seq: 3, primary_encounter: encounter({ target_id: 2, dcpa_m: 50 }), dcpa: 50, colregs: 'head_on' }),
-  }));
-  assert.deepEqual(
-    danger.timeline.events.filter((event) => event.type === 'dcpa_level_change').at(-1).details,
-    { level: 'danger', dcpaM: 50, targetLabel: 'TS2' },
-  );
-
-  const duplicate = projection.project(runtimeSnapshot({
-    envelope: envelope({ seq: 3, primary_encounter: encounter({ target_id: 2, dcpa_m: 50 }), dcpa: 50, colregs: 'head_on' }),
-  }));
-  assert.equal(duplicate, danger);
-  assert.equal(danger.timeline.events.filter((event) => event.source === 'derived').length, 4);
-
-  const cleared = projection.project(runtimeSnapshot({
-    envelope: envelope({ seq: 4, dcpa: null, colregs: 'clear' }),
-  }));
-  const clearChange = cleared.timeline.events.filter((event) => event.type === 'colregs_change').at(-1);
-  assert.deepEqual(
-    { from: clearChange.details.from, to: clearChange.details.to, targetLabel: clearChange.details.targetLabel },
-    { from: 'head_on', to: 'clear', targetLabel: 'TS2' },
-  );
+  assert.equal(first.risk.status, 'UNAVAILABLE');
+  assert.equal(first.timeline.events.filter((event) => event.source === 'derived').length, 0);
 });
 
-test('derived event keys stay unique across repeated crossings', () => {
+test('backend envelope events remain deduplicated across repeated snapshots', () => {
   const projection = createTelemetryProjection();
   let seq = 1;
-  const push = (dcpa) => projection.project(runtimeSnapshot({
-    envelope: envelope({ seq: seq++, primary_encounter: encounter({ dcpa_m: dcpa }), dcpa, colregs: 'head_on' }),
+  const event = { type: 'threat_schedule_changed', sequence: 1, details: { target_id: 1 } };
+  const push = () => projection.project(runtimeSnapshot({
+    envelope: envelope({ seq: seq++, events: [event] }),
   }));
-  push(800);
-  push(250);
-  push(800);
-  const keys = projection.snapshot().timeline.events.filter((event) => event.source === 'derived').map((event) => event.key);
+  push();
+  push();
+  const keys = projection.snapshot().timeline.events.filter((item) => item.source === 'envelope').map((item) => item.key);
   assert.equal(new Set(keys).size, keys.length);
-  assert.ok(keys.every((key) => key.startsWith('derived:run-1:')));
+  assert.equal(keys.length, 1);
 });
 
 /* ── 12. Session replacement ── */
@@ -416,8 +409,7 @@ test('a new session id clears history and dedup keys before projecting', () => {
   const envelopeEvents = replacement.timeline.events.filter((item) => item.source === 'envelope');
   assert.equal(envelopeEvents.length, 1, 'old dedup keys must not suppress the new session event');
   const derived = replacement.timeline.events.filter((item) => item.source === 'derived');
-  assert.equal(derived.length, 2, 'derived state machines restart for the new session');
-  assert.ok(derived.every((item) => item.key.startsWith('derived:run-2:')));
+  assert.equal(derived.length, 0, 'browser does not recreate backend threat state machines');
 });
 
 /* ── 13. Safety fields ── */

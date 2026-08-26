@@ -12,8 +12,10 @@ import pytest
 os.environ["MPLBACKEND"] = "Agg"
 
 if TYPE_CHECKING:
+    from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
     from colav_simulator.experiment.g3_gate import G3DisplayResult
     from colav_simulator.experiment.runner import RunResult
+    from colav_simulator.historical_enc import ENCRegionProfile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 project_root = str(PROJECT_ROOT)
@@ -38,9 +40,77 @@ def close_plots_before_each_test(monkeypatch: pytest.MonkeyPatch):
         plt.close("all")
 
 
+@pytest.fixture
+def qualified_historical_enc_profile() -> ENCRegionProfile:
+    """Public-contract ENC profile shared by historical seam tests."""
+    from shapely.geometry import box  # noqa: PLC0415
+
+    from colav_simulator.historical_enc import (  # noqa: PLC0415
+        ENCCacheIdentity,
+        ENCLayerIdentity,
+        ENCQualificationState,
+        ENCRegionProfile,
+        ENCSimulationProjection,
+        ENCSourceIdentity,
+    )
+
+    return ENCRegionProfile(
+        profile_id="case-test",
+        profile_version="1.0.0",
+        source=ENCSourceIdentity(
+            provider="test",
+            source_name="test.gdb",
+            source_digest="source-digest",
+            source_crs="EPSG:25833",
+            format="FileGDB",
+        ),
+        projection=ENCSimulationProjection(
+            input_crs="EPSG:4326",
+            simulation_crs="EPSG:25833",
+            utm_zone=33,
+        ),
+        supported_extent_wgs84=(0.0, 50.0, 20.0, 70.0),
+        supported_extent_projected=(0.0, 5_000_000.0, 1_000_000.0, 8_000_000.0),
+        hazard_layers=(ENCLayerIdentity("LAND", "land", 0),),
+        navigability_layers=(ENCLayerIdentity("DEPARE", "depth", 0),),
+        cache=ENCCacheIdentity(
+            cache_id="cache",
+            preprocessing_version="test.v1",
+            source_digest="source-digest",
+            artifact_digest="artifact-digest",
+        ),
+        qualification_state=ENCQualificationState.QUALIFIED,
+        qualification_reasons=(),
+        provenance={"source": "test"},
+        coverage_geometry_wkb=box(0.0, 5_000_000.0, 1_000_000.0, 8_000_000.0).wkb,
+    )
+
+
+@pytest.fixture(scope="session")
+def qualified_ship_domain_profile() -> ShipDomainProfile:
+    """Explicit qualified engineering profile for formal Mid-MPC P1 runs."""
+    from colav_simulator.core.colav.threat_assessment import (  # noqa: PLC0415
+        DomainQualification,
+        ShipDomainProfile,
+    )
+
+    return ShipDomainProfile(
+        profile_id="p1-mid-mpc-domain",
+        version="v1",
+        fore_m=300.0,
+        aft_m=100.0,
+        port_m=120.0,
+        starboard_m=180.0,
+        parameter_source="P1 test fixture engineering envelope",
+        assumptions=("test-only engineering envelope",),
+        qualification=DomainQualification.QUALIFIED,
+    )
+
+
 @dataclass
 class P1RunHarness:
     output_root: Path
+    mid_domain_profile: ShipDomainProfile
     _nominal: dict[tuple[str, str], RunResult] = field(default_factory=dict)
     _candidate: dict[tuple[str, str, str, str, float | None], RunResult] = field(default_factory=dict)
 
@@ -53,7 +123,10 @@ class P1RunHarness:
         algorithm_config: dict | None = None,
         solve_period_s: float | None = None,
     ) -> RunResult:
-        from colav_simulator.experiment.contracts import RunSpec  # noqa: PLC0415
+        from colav_simulator.experiment.contracts import (  # noqa: PLC0415
+            InternalExecutionPurpose,
+            RunSpec,
+        )
         from colav_simulator.experiment.runner import ExperimentRunner  # noqa: PLC0415
 
         config = algorithm_config or {}
@@ -66,18 +139,24 @@ class P1RunHarness:
         )
         if key in self._candidate:
             return self._candidate[key]
-        result = ExperimentRunner(PROJECT_ROOT).run(
-            RunSpec(
-                scenario_id=scenario_id,
-                algorithm_id=algorithm_id,
-                tracker_id=tracker_id,
-                seed=0,
-                terminate_on_collision_or_grounding=False,
-                strict_no_fallback=True,
-                solve_period_s=solve_period_s,
-                algorithm_config=config,
-                output_root=str(self.output_root / scenario_id / algorithm_id / tracker_id),
-            )
+        spec = RunSpec(
+            scenario_id=scenario_id,
+            validation_rule_id=_validation_rule_for_scenario(scenario_id),
+            algorithm_id=algorithm_id,
+            tracker_id=tracker_id,
+            seed=0,
+            terminate_on_collision_or_grounding=False,
+            strict_no_fallback=True,
+            solve_period_s=solve_period_s,
+            algorithm_config=config,
+            domain_profile=self.mid_domain_profile if algorithm_id == "mid_mpc_ipopt" else None,
+            output_root=str(self.output_root / scenario_id / algorithm_id / tracker_id),
+        )
+        runner = ExperimentRunner(PROJECT_ROOT)
+        result = (
+            runner.run_internal(spec, purpose=InternalExecutionPurpose.EVALUATOR_BASELINE)
+            if algorithm_id == "nominal"
+            else runner.run(spec)
         )
         self._candidate[key] = result
         return result
@@ -117,6 +196,22 @@ class P1RunHarness:
         )
 
 
+def _validation_rule_for_scenario(scenario_id: str) -> str:
+    """Map a published P1 scenario to its exact product validation rule."""
+    if scenario_id in {"overtaking", "overtaken"}:
+        return "rule13"
+    if scenario_id == "head_on":
+        return "rule14"
+    if scenario_id in {"crossing_give_way", "crossing_stand_on"}:
+        return "rule15"
+    if scenario_id in {"paper_ccta2023_multiship", "romsdal_busy_water_16"}:
+        return "multiship"
+    raise ValueError(f"P1 harness has no product validation rule for {scenario_id!r}")
+
+
 @pytest.fixture(scope="session")
-def p1_run_harness(tmp_path_factory: pytest.TempPathFactory) -> P1RunHarness:
-    return P1RunHarness(tmp_path_factory.mktemp("p1-g3-runs"))
+def p1_run_harness(
+    tmp_path_factory: pytest.TempPathFactory,
+    qualified_ship_domain_profile: ShipDomainProfile,
+) -> P1RunHarness:
+    return P1RunHarness(tmp_path_factory.mktemp("p1-g3-runs"), qualified_ship_domain_profile)

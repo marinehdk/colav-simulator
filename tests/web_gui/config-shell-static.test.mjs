@@ -17,6 +17,15 @@ const ruleGuides = await Promise.all([
   'Multiship-guide.svg',
 ].map((name) => readFile(new URL(`../../web_gui/assets/openbridge/${name}`, import.meta.url), 'utf8')));
 
+test('OpenBridge fallback is empty until failure and clears after a successful bundle load', () => {
+  assert.match(html, /<div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden><\/div>/);
+  assert.match(shell, /openbridgeLoadError/);
+  assert.match(shell, /banner\.hidden\s*=\s*true/);
+  assert.match(shell, /banner\.textContent\s*=\s*''/);
+  assert.match(shell, /banner\.dataset\.state\s*=\s*'loaded'/);
+  assert.match(shell, /banner\.dataset\.state\s*=\s*'error'/);
+});
+
 test('Config starts disabled and boot establishes assembly before binding controls', () => {
   for (const id of [
     'validationSeed',
@@ -98,7 +107,7 @@ test('legacy Deployment configuration is hidden and cannot imply it applies to V
   assert.match(legacy, /LEGACY_CONFIG_CARD_IDS/);
   assert.match(legacy, /Configuration moved to Config/);
   assert.doesNotMatch(legacy, /Create from Config to apply it/);
-  assert.match(legacy, /future Scenario surface/);
+  assert.match(legacy, /Validation Assembly .*sole capability\/catalog and.*bootstrap authority/s);
 });
 
 test('ENC loading is replacement-bound and stale fetch/image callbacks are inert', async () => {
@@ -199,10 +208,11 @@ test('Rule 15 keeps the Give-way scenario visible when the current tuple disable
   assert.match(shell, /enabled: !locked && item\.enabled !== false/);
 });
 
-test('Algorithm choices distinguish the executable COLREG Fan-MPC from the Potočnik reference', () => {
+test('Algorithm choices expose only the three product algorithms', () => {
+  assert.match(shell, /mid_mpc_ipopt: 'Mid-MPC'/);
+  assert.match(shell, /vo: 'VO'/);
   assert.match(shell, /potocnik_colreg_fan_mpc: 'Fan-MPC'/);
-  assert.match(shell, /potocnik_simplified_mpc: 'Potočnik Reference'/);
-  assert.match(shell, /ALGORITHM_ORDER = \['mid_mpc_ipopt', 'vo', 'potocnik_colreg_fan_mpc', 'potocnik_simplified_mpc'\]/);
+  assert.doesNotMatch(shell, /sbmpc:|potocnik_simplified_mpc:|ALGORITHM_ORDER/);
 });
 
 test('COLREGS naming is consistent across step, card, and summary', () => {
@@ -329,6 +339,29 @@ test('Algorithm selection is a carousel and tracker a 2-column choice grid (gap 
   assert.match(configCss, /\.tracker-choice-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
+test('production Config takes ordered algorithm and tracker choices only from product policy projection', () => {
+  assert.doesNotMatch(shell, /ALGORITHM_ORDER|TRACKER_ORDER/);
+  assert.match(shell, /snapshot\.options\.algorithm_id/);
+  assert.match(shell, /snapshot\.options\.tracker_id/);
+  assert.match(shell, /snapshot\.productCapabilityPolicy/);
+  assert.match(shell, /potocnik_colreg_fan_mpc: 'Fan-MPC'/);
+  assert.match(shell, /god: 'Truth'/);
+  assert.doesNotMatch(shell, /potocnik_simplified_mpc/);
+  assert.doesNotMatch(shell, /\bnominal\b/);
+  assert.doesNotMatch(shell, /\bsbmpc\b/);
+  assert.doesNotMatch(shell, /\bkf\b/);
+});
+
+test('Create constraint rendering consumes typed policy projection without algorithm-specific requirement hardcodes', () => {
+  assert.match(shell, /snapshot\.createConstraint/);
+  assert.match(shell, /snapshot\.createBlockReason/);
+  assert.match(shell, /create\.disabled =/);
+  assert.match(shell, /create\.title = .*createStatusText\(snapshot\)/);
+  assert.doesNotMatch(shell, /requires-qualified-ship-domain-profile/);
+  assert.doesNotMatch(shell, /requires a qualified ShipDomainProfile/);
+  assert.doesNotMatch(shell, /fallback.*Mid-MPC|Mid-MPC.*fallback/i);
+});
+
 test('Algorithm detail chrome: role eyebrow, grade pill, 20px heading, binding footer (gap #14)', () => {
   assert.match(html, /class="algorithm-detail-eyebrow"/);
   assert.match(html, /id="validationAlgorithmGrade"/);
@@ -448,8 +481,6 @@ test('C5 pull-forward: workface tabs carry icons and pressed-pill chrome (gap #2
     config: 'obi-settings-user-proposal',
     deployment: 'obi-media-play',
     evaluation: 'obi-list-alt-check-google',
-    scenario: 'obi-collision-avoidance-head-on',
-    algorithm: 'obi-router-component',
   };
   for (const [workface, icon] of Object.entries(tabIcons)) {
     assert.match(html, new RegExp(`data-workface="${workface}"[^>]*>\\s*<${icon}`));

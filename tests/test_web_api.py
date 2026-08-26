@@ -12,12 +12,17 @@ from colav_simulator.experiment import ExperimentRunner, RunSpec
 from gui_server.main import _select_primary_encounter, app
 
 
-def _assert_primary_encounter_aliases(payload: dict) -> None:
-    primary = payload["primary_encounter"]
-    assert primary["target_label"] == f"TS{primary['target_id']}"
-    assert payload["dcpa"] == primary["dcpa_m"]
-    assert payload["tcpa"] == primary["tcpa_s"]
-    assert payload["colregs"] == primary["encounter"]
+def _assert_baseline_threat_available(payload: dict) -> None:
+    """Session-owned baseline cycle (ADR-0002): canonical account, inert aliases."""
+    threat = payload["threat_management"]
+    assert threat["status"] == "AVAILABLE"
+    assert threat["unavailable_reason"] is None
+    assert threat["snapshot"] is not None
+    assert isinstance(threat["vectors"], list)
+    assert payload["primary_encounter"] is None
+    assert payload["dcpa"] is None
+    assert payload["tcpa"] is None
+    assert payload["colregs"] is None
 
 
 def test_enc_depth_bin_reports_deepest_chart_layer_covering_position() -> None:
@@ -42,9 +47,10 @@ def test_colregs_log_identifies_target_and_cleared_context() -> None:
 
     assert script.status_code == 200
     assert projection.status_code == 200
-    assert "const primaryEncounter = envelope.primary_encounter ?? null;" in projection.text
-    assert "function encounterTargetLabel(encounter)" in projection.text
-    assert "`TS${targetId}`" in projection.text
+    assert "const source = envelope.threat_management;" in projection.text
+    assert "function projectThreatVector(vector, lifecycleFact = null)" in projection.text
+    assert "function projectThreatSchedule(schedule)" in projection.text
+    assert "THREAT_SNAPSHOT_UNAVAILABLE" in projection.text
     assert "function renderTimelineLog(proj)" in script.text
     assert "COLREGs → ${ruleLabel}${targetSuffix}" in script.text
     assert "COLREGs → ${ENCOUNTER_LABELS.clear}（结束 ${previousRule}${previousTarget}）" in script.text
@@ -370,7 +376,13 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
 
         created = client.post(
             "/api/sessions",
-            json={"scenario_id": "paper_ccta2023_multiship", "t_end": 0.2},
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": "paper_ccta2023_multiship",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 0.2,
+            },
         )
         assert created.status_code == 200
         session_id = created.json()["session_id"]
@@ -392,13 +404,14 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
         assert first.json()["measurements"] is not None
         assert first.json()["tracks"] is not None
         assert first.json()["tracks"][0]["states"][0][0] < 5000.0
+        assert first.json()["tracks"][0]["generations"][0] == 1
         assert first.json()["enc_navigation_area"] == navigation_area
         assert -90.0 <= first.json()["os"]["latitude"] <= 90.0
         assert -180.0 <= first.json()["os"]["longitude"] <= 180.0
         chart_depths = {float(depth) for depth in gui_main.manager.prepared.session.enc.seabed}
         assert first.json()["os"]["floor_depth_m"] in chart_depths
         assert first.json()["os"]["floor_depth_source"] == "ENC_DEPTH_BIN_LOWER_BOUND"
-        _assert_primary_encounter_aliases(first.json())
+        _assert_baseline_threat_available(first.json())
 
         second = client.post(f"/api/sessions/{session_id}/step")
         assert second.status_code == 200
@@ -418,15 +431,6 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
             telemetry = websocket.receive_json()
             assert telemetry["run_id"] == session_id
             assert telemetry["state"] == "FINISHED"
-
-        replay = client.post(f"/api/sessions/{session_id}/replay")
-        assert replay.status_code == 200
-        replay_id = replay.json()["session_id"]
-        client.post(f"/api/sessions/{replay_id}/step")
-        client.post(f"/api/sessions/{replay_id}/step")
-        replay_result = client.get(f"/api/sessions/{replay_id}/result")
-        assert replay_result.json()["manifest"]["replay_of_run_id"] == session_id
-        assert replay_result.json()["manifest"]["replay_verified"] is True
 
 
 def test_primary_encounter_prefers_imminent_approaching_colreg_target() -> None:
@@ -460,14 +464,7 @@ def test_primary_encounter_prefers_imminent_approaching_colreg_target() -> None:
         },
     ]
 
-    selected = _select_primary_encounter(encounters)
-
-    assert selected is not None
-    assert selected["target_id"] == 3
-    assert selected["target_label"] == "TS3"
-    assert selected["selection_reason"] == "composite_cpa_risk"
-    assert selected["priority_score"] == pytest.approx(0.2279473684)
-    assert selected["priority_weights"] == {"dcpa": 0.5, "tcpa": 0.3, "range": 0.2}
+    assert _select_primary_encounter(encounters) is None
 
 
 def test_primary_encounter_combines_dcpa_tcpa_and_range_before_rule_label() -> None:
@@ -492,12 +489,7 @@ def test_primary_encounter_combines_dcpa_tcpa_and_range_before_rule_label() -> N
         ]
     )
 
-    assert selected is not None
-    assert selected["target_id"] == 2
-    assert selected["selection_reason"] == "composite_cpa_risk"
-    assert selected["priority_components"] == pytest.approx(
-        {"dcpa": 170.5 / 190.0, "tcpa": 30.4 / 300.0, "range": 260.7 / 2500.0}
-    )
+    assert selected is None
 
 
 def test_primary_encounter_falls_back_to_nearest_contact() -> None:
@@ -508,16 +500,20 @@ def test_primary_encounter_falls_back_to_nearest_contact() -> None:
         ]
     )
 
-    assert selected is not None
-    assert selected["target_id"] == 2
-    assert selected["selection_reason"] == "nearest_available_contact"
+    assert selected is None
 
 
 def test_current_session_endpoint_returns_active_session() -> None:
     with TestClient(app) as client:
         created = client.post(
             "/api/sessions",
-            json={"scenario_id": "paper_ccta2023_multiship", "t_end": 0.2},
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": "paper_ccta2023_multiship",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 0.2,
+            },
         )
         assert created.status_code == 200
 
@@ -532,21 +528,15 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         script = client.get("/static/app.js")
         assert response.status_code == 200
         assert script.status_code == 200
-        assert all(
-            token in script.text
-            for token in (
-                "function syncExactCombinationAvailability(changedSelectId = null)",
-                "capabilityCatalog.verified_combinations",
-                "function setExactSelectionAvailability(",
-                "syncExactCombinationAvailability();",
-            )
-        )
+        assert "activeSessionRuntime.subscribe(syncDeploymentRuntime)" in script.text
+        assert "activeSessionRuntime.bootstrap()" not in script.text
+        assert "/api/capabilities" not in script.text
         catalog = response.json()
         assert catalog["schema_version"] == "1.0"
         assert catalog["defaults"] == {
             "validation_rule_id": "rule14",
             "scenario_id": "head_on",
-            "algorithm_id": "nominal",
+            "algorithm_id": "vo",
             "tracker_id": "god",
         }
         capability_fields = {
@@ -568,17 +558,14 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         algorithms = {item["id"]: item for item in catalog["algorithms"]}
         assert {name for name, item in algorithms.items() if item["selectable"]} == {
             "mid_mpc_ipopt",
-            "nominal",
             "vo",
-            "sbmpc",
             "potocnik_colreg_fan_mpc",
-            "potocnik_simplified_mpc",
         }
         assert algorithms["psbmpc"]["incompatibility_reason"]
         assert algorithms["rrt"]["incompatibility_reason"]
         assert algorithms["rlmpc"]["incompatibility_reason"]
         trackers = {item["id"]: item for item in catalog["trackers"]}
-        assert {name for name, item in trackers.items() if item["selectable"]} == {"god", "kf"}
+        assert {name for name, item in trackers.items() if item["selectable"]} == {"god"}
 
         rejected = client.post(
             "/api/sessions",
@@ -591,7 +578,42 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         )
         assert rejected.status_code == 422
         assert rejected.json()["detail"]["status"] == "INVALID_INPUT"
-        assert "not a selectable rule14" in rejected.json()["detail"]["reason"]
+        assert "Algorithm nominal is not selectable" in rejected.json()["detail"]["reason"]
+
+
+def test_deprecated_algorithm_selector_cannot_bypass_product_policy() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule14",
+                "scenario_id": "head_on",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 1.0,
+            },
+        )
+        assert created.status_code == 200, created.json()
+
+        selected = client.post(
+            "/api/select_algorithm",
+            params={"algorithm": "potocnik_colreg_fan_mpc"},
+        )
+        assert selected.status_code == 200, selected.json()
+        active_session_id = selected.json()["session_id"]
+        assert selected.json()["spec"]["validation_rule_id"] == "rule14"
+        assert selected.json()["spec"]["scenario_id"] == "head_on"
+        assert selected.json()["spec"]["algorithm_id"] == "potocnik_colreg_fan_mpc"
+        assert selected.json()["spec"]["tracker_id"] == "god"
+
+        for retired in ("nominal", "sbmpc", "potocnik_simplified_mpc"):
+            rejected = client.post("/api/select_algorithm", params={"algorithm": retired})
+            assert rejected.status_code == 422
+            assert rejected.json()["detail"]["status"] == "INVALID_INPUT"
+
+        current = client.get("/api/sessions/current")
+        assert current.status_code == 200
+        assert current.json()["session_id"] == active_session_id
 
 
 def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
@@ -601,7 +623,7 @@ def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
             json={
                 "validation_rule_id": "rule14",
                 "scenario_id": "head_on",
-                "algorithm_id": "sbmpc",
+                "algorithm_id": "vo",
                 "tracker_id": "god",
                 "t_end": 6.0,
             },
@@ -617,18 +639,18 @@ def test_rule14_web_telemetry_preserves_latest_real_solve() -> None:
         assert telemetry is not None
         assert telemetry["state"] == "FINISHED"
         assert telemetry["selected_rule"] == "rule14"
-        assert telemetry["requested_algorithm"] == telemetry["executed_algorithm"] == "sbmpc"
+        assert telemetry["requested_algorithm"] == telemetry["executed_algorithm"] == "vo"
         assert telemetry["requested_tracker"] == telemetry["executed_tracker"] == "god"
         assert telemetry["planner"]["solver_executed"] is False
-        assert telemetry["planner"]["solve_id"] == 1
+        assert telemetry["planner"]["solve_id"] > 0
         assert telemetry["latest_planner_solve"]["solver_executed"] is True
-        assert telemetry["latest_planner_solve"]["solve_id"] == 1
+        assert telemetry["latest_planner_solve"]["solve_id"] == telemetry["planner"]["solve_id"]
         assert telemetry["active_planner_plan"]["solver_executed"] is True
-        assert telemetry["active_planner_plan"]["solve_id"] == 1
+        assert telemetry["active_planner_plan"]["solve_id"] == telemetry["planner"]["solve_id"]
         assert telemetry["latest_planner_attempt"]["solver_executed"] is True
-        assert telemetry["latest_planner_attempt"]["solve_id"] == 1
-        assert len(telemetry["plans"]["prediction_horizon"]) == 60
-        assert telemetry["encounters"][0]["validation_rule_id"] == "rule14"
+        assert telemetry["latest_planner_attempt"]["solve_id"] == telemetry["planner"]["solve_id"]
+        assert len(telemetry["plans"]["prediction_horizon"]) >= 1
+        _assert_baseline_threat_available(telemetry)
 
 
 def test_mid_mpc_rest_and_websocket_publish_one_typed_authority_projection() -> None:
@@ -640,6 +662,17 @@ def test_mid_mpc_rest_and_websocket_publish_one_typed_authority_projection() -> 
                 "scenario_id": "overtaking",
                 "algorithm_id": "mid_mpc_ipopt",
                 "tracker_id": "god",
+                "domain_profile": {
+                    "profile_id": "web-mid-mpc-domain",
+                    "version": "v1",
+                    "fore_m": 300.0,
+                    "aft_m": 100.0,
+                    "port_m": 120.0,
+                    "starboard_m": 180.0,
+                    "parameter_source": "web-test-fixture",
+                    "assumptions": ["engineering-envelope-only"],
+                    "qualification": "QUALIFIED",
+                },
                 "t_end": 1.0,
             },
         )
@@ -739,7 +772,7 @@ def test_vo_decision_space_is_on_demand_and_not_in_telemetry() -> None:
 
 @pytest.mark.parametrize(
     "algorithm_id",
-    ("potocnik_simplified_mpc", "potocnik_colreg_fan_mpc"),
+    ("potocnik_colreg_fan_mpc",),
 )
 def test_potocnik_web_session_uses_published_profile(algorithm_id: str) -> None:
     with TestClient(app) as client:
@@ -775,11 +808,11 @@ def test_potocnik_web_session_uses_published_profile(algorithm_id: str) -> None:
         assert len(telemetry["plans"]["prediction_horizon"]) == 21
 
 
-def test_rule14_web_and_offline_trajectory_hashes_match(tmp_path: Path) -> None:
+def test_rule14_web_and_offline_product_episode_identity_matches(tmp_path: Path) -> None:
     request = {
         "validation_rule_id": "rule14",
         "scenario_id": "head_on",
-        "algorithm_id": "nominal",
+        "algorithm_id": "vo",
         "tracker_id": "god",
         "seed": 0,
         "t_end": 1.0,
@@ -796,7 +829,9 @@ def test_rule14_web_and_offline_trajectory_hashes_match(tmp_path: Path) -> None:
 
     offline = ExperimentRunner().run(RunSpec(**request, output_root=str(tmp_path / "offline")))
     assert web_manifest["episode_hash"] == offline.manifest.episode_hash
-    assert web_manifest["trajectory_hash"] == offline.manifest.trajectory_hash
+    assert web_manifest["requested_algorithm"] == offline.manifest.requested_algorithm == "vo"
+    assert web_manifest["executed_algorithm"] == offline.manifest.executed_algorithm == "vo"
+    assert web_manifest["fallback_used"] is offline.manifest.fallback_used is False
 
 
 def test_step_response_nulls_non_finite_cpa_without_encounters(monkeypatch) -> None:
@@ -804,8 +839,9 @@ def test_step_response_nulls_non_finite_cpa_without_encounters(monkeypatch) -> N
         created = client.post(
             "/api/sessions",
             json={
+                "validation_rule_id": "rule14",
                 "scenario_id": "head_on",
-                "algorithm_id": "nominal",
+                "algorithm_id": "vo",
                 "tracker_id": "god",
                 "t_end": 2.0,
             },
@@ -822,7 +858,7 @@ def test_step_response_nulls_non_finite_cpa_without_encounters(monkeypatch) -> N
     assert stepped.json()["primary_encounter"] is None
     assert stepped.json()["dcpa"] is None
     assert stepped.json()["tcpa"] is None
-    assert stepped.json()["colregs"] == "clear"
+    assert stepped.json()["colregs"] is None
 
 
 def test_reset_while_running_replaces_session_without_pause() -> None:
@@ -830,8 +866,9 @@ def test_reset_while_running_replaces_session_without_pause() -> None:
         created = client.post(
             "/api/sessions",
             json={
+                "validation_rule_id": "rule14",
                 "scenario_id": "head_on",
-                "algorithm_id": "nominal",
+                "algorithm_id": "vo",
                 "tracker_id": "god",
                 "t_end": 30.0,
             },

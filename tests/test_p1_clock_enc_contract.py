@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from colav_simulator.experiment.contracts import RunSpec
+from colav_simulator.experiment.contracts import InternalExecutionPurpose, RunSpec
 from colav_simulator.experiment.runner import ExperimentRunner, RunResult, _enc_hash
 
 
@@ -63,18 +63,20 @@ def test_short_comparison_uses_one_clock_and_enc_identity(tmp_path: Path) -> Non
 
 
 def _run_short(runner: ExperimentRunner, output_root: Path, algorithm_id: str) -> RunResult:
-    return runner.run(
-        RunSpec(
-            scenario_id="head_on",
-            algorithm_id=algorithm_id,
-            tracker_id="god",
-            seed=0,
-            t_end=1.0,
-            terminate_on_collision_or_grounding=False,
-            strict_no_fallback=True,
-            output_root=str(output_root / algorithm_id),
-        )
+    spec = RunSpec(
+        scenario_id="head_on",
+        validation_rule_id="rule14",
+        algorithm_id=algorithm_id,
+        tracker_id="god",
+        seed=0,
+        t_end=1.0,
+        terminate_on_collision_or_grounding=False,
+        strict_no_fallback=True,
+        output_root=str(output_root / algorithm_id),
     )
+    if algorithm_id == "nominal":
+        return runner.run_internal(spec, purpose=InternalExecutionPurpose.EVALUATOR_BASELINE)
+    return runner.run(spec)
 
 
 def _assert_frame_clock(result: RunResult) -> None:

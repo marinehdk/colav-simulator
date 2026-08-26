@@ -98,9 +98,10 @@ test('C5 #8: 520 tier degrades top bar, turns Assembly Steps into a horizontal s
 test('C5 #22: switchWorkface sets the per-view document title and persists the workface (P:2776, P:3398-3402)', () => {
   assert.match(shell, /document\.title = `综合避碰仿真器 · \$\{WORKFACE_TITLES\[workface\]\}`/);
   assert.match(shell, /localStorage\.setItem\('colav-workface', workface\)/);
-  for (const view of ['Config', 'Deployment', 'Evaluation', 'Scenario', 'Algorithm']) {
+  for (const view of ['Config', 'Deployment', 'Evaluation']) {
     assert.match(shell, new RegExp(`:\\s*'${view}'`));
   }
+  assert.doesNotMatch(shell, /scenario:\s*'Scenario'|algorithm:\s*'Algorithm'/);
 });
 
 test('C5 #22: boot restores the persisted workface through switchWorkface (single panel authority)', () => {
@@ -124,14 +125,12 @@ test('C5: cache-bust token bumped for every changed browser-served asset', () =>
   assert.notEqual(tokens[0], '20260819-c4-situation-2', 'token must differ from the C4 baseline');
 });
 
-test('C5: frozen runtime and projection modules stay byte-identical', async () => {
+test('C5: frozen Active Session Runtime stays byte-identical while projection wiring may evolve', async () => {
   const { execFile } = await import('node:child_process');
   const { promisify } = await import('node:util');
   const run = promisify(execFile);
   for (const file of [
     'web_gui/modules/active-session-runtime.js',
-    'web_gui/modules/telemetry-projection.js',
-    'web_gui/modules/session-runtime-instance.js',
   ]) {
     const { stdout } = await run('git', ['status', '--porcelain', file], { cwd: new URL('../..', import.meta.url).pathname });
     assert.equal(stdout.trim(), '', `${file} must have zero diff`);

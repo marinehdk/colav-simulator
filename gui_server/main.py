@@ -8,15 +8,16 @@ import matplotlib as mpl
 mpl.use("Agg")
 
 import asyncio
-import copy
 import json
 import logging
+import os
 import re
 import threading
 import time
 from collections import deque
 from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -31,8 +32,6 @@ from shapely.geometry import Point
 
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
-from colav_simulator.evaluation import EncounterMonitor
-from colav_simulator.evaluation.profiles import load_evaluator_profile
 from colav_simulator.experiment.busy_water import (
     ACCEPTANCE_SCENARIO_ID,
     DEFAULT_SEED,
@@ -45,6 +44,9 @@ from colav_simulator.experiment.busy_water import (
 from colav_simulator.experiment.contracts import RunSpec, SessionState
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner, PreparedRun, RunResult
+from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssembler
+from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCatalog
+from gui_server.historical_api import router as historical_api_router
 
 log = logging.getLogger("gui_server")
 logging.basicConfig(level=logging.INFO)
@@ -53,9 +55,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 GUI_DIR = BASE_DIR / "web_gui"
 DRAFT_DIR = BASE_DIR / "runs" / "scenario_drafts"
 BUSY_WATER_SCENARIOS = {ACCEPTANCE_SCENARIO_ID, STRESS_SCENARIO_ID}
-_PRIMARY_PROFILE = load_evaluator_profile()
-_PRIMARY_RISK_WEIGHTS = {"dcpa": 0.5, "tcpa": 0.3, "range": 0.2}
-_PRIMARY_TCPA_SCALE_S = 5.0 * _PRIMARY_PROFILE.encounter.emergency_tcpa_s
+THREAT_PROJECTION_SCHEMA = "colav.threat-management.projection@1"
 TELEMETRY_PUBLISH_INTERVAL_S = 0.1
 TELEMETRY_TRAIL_HISTORY_POINTS = 500
 TELEMETRY_MAX_TRAIL_POINTS = 120
@@ -97,74 +97,81 @@ def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) ->
     return compact
 
 
-def _bounded_risk_ratio(value: Any, scale: float) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return 1.0
-    if not np.isfinite(number) or number < 0.0:
-        return 1.0
-    return float(np.clip(number / scale, 0.0, 1.0))
+def _select_primary_encounter(_encounters: list[dict[str, Any]]) -> None:
+    """Deprecated compatibility symbol; Primary belongs to canonical backend facts."""
+    return None
 
 
-def _primary_risk(item: dict[str, Any]) -> tuple[float, dict[str, float]]:
-    components = {
-        "dcpa": _bounded_risk_ratio(item.get("dcpa_m"), _PRIMARY_PROFILE.safety.preferred_m),
-        "tcpa": _bounded_risk_ratio(item.get("signed_tcpa_s"), _PRIMARY_TCPA_SCALE_S),
-        "range": _bounded_risk_ratio(item.get("distance_m"), _PRIMARY_PROFILE.stages.stage2_entry_m),
+def _canonical_threat_projection(colav_data: dict[str, Any], planner: dict[str, Any]) -> dict[str, Any]:
+    """Project only a canonical backend threat document for REST/WS consumers."""
+    candidate = (
+        planner.get("threat_management")
+        or planner.get("algorithm_details", {}).get("threat_management")
+        or colav_data.get("threat_management")
+    )
+    if not isinstance(candidate, dict):
+        return _threat_unavailable()
+    snapshot = candidate.get("snapshot")
+    if snapshot is None and "vectors" in candidate:
+        snapshot = candidate
+    vectors = snapshot.get("vectors", []) if isinstance(snapshot, dict) else []
+    schedule = candidate.get("schedule")
+    if schedule is None and isinstance(snapshot, dict):
+        schedule = snapshot.get("schedule")
+    conflicts = candidate.get("conflicts", candidate.get("conflict_graph"))
+    if conflicts is None and isinstance(snapshot, dict):
+        conflicts = snapshot.get("conflicts", snapshot.get("conflict_graph"))
+    available = candidate.get("status") == "AVAILABLE" or isinstance(snapshot, dict)
+    graph = jsonable(conflicts) if isinstance(conflicts, (dict, list)) else None
+    return {
+        "schema_version": THREAT_PROJECTION_SCHEMA,
+        "status": "AVAILABLE" if available else "UNAVAILABLE",
+        "snapshot": jsonable(snapshot) if isinstance(snapshot, dict) else None,
+        "vectors": jsonable(vectors) if isinstance(vectors, list) else [],
+        "schedule": jsonable(schedule) if isinstance(schedule, dict) else None,
+        "conflicts": graph,
+        "conflict_graph": graph,
+        "unavailable_reason": None if available else candidate.get("unavailable_reason", "THREAT_SNAPSHOT_UNAVAILABLE"),
     }
-    score = sum(_PRIMARY_RISK_WEIGHTS[name] * components[name] for name in components)
-    return float(score), components
 
 
-def _select_primary_encounter(encounters: list[dict[str, Any]]) -> dict[str, Any] | None:
-    if not encounters:
-        return None
+def _threat_unavailable(reason: str = "THREAT_SNAPSHOT_UNAVAILABLE") -> dict[str, Any]:
+    return {
+        "schema_version": THREAT_PROJECTION_SCHEMA,
+        "status": "UNAVAILABLE",
+        "snapshot": None,
+        "vectors": [],
+        "schedule": None,
+        "conflicts": None,
+        "conflict_graph": None,
+        "unavailable_reason": reason,
+    }
 
-    approaching = [
-        item
-        for item in encounters
-        if np.isfinite(float(item.get("signed_tcpa_s", float("inf")))) and float(item.get("signed_tcpa_s", 0.0)) > 0.0
-    ]
-    if approaching:
 
-        def priority(item: dict[str, Any]) -> tuple[Any, ...]:
-            score, _ = _primary_risk(item)
-            return (
-                score,
-                float(item.get("signed_tcpa_s", float("inf"))),
-                float(item.get("dcpa_m", float("inf"))),
-                float(item.get("distance_m", float("inf"))),
-                -int(item.get("stage", 0)),
-                int(item.get("target_id", 0)),
-            )
-
-        selected = copy.deepcopy(min(approaching, key=priority))
-        score, components = _primary_risk(selected)
-        selected["priority_score"] = score
-        selected["priority_components"] = components
-        selected["priority_weights"] = dict(_PRIMARY_RISK_WEIGHTS)
-        selected["selection_reason"] = "composite_cpa_risk"
-    else:
-        selected = copy.deepcopy(
-            min(
-                encounters,
-                key=lambda item: (
-                    float(item.get("distance_m", float("inf"))),
-                    float(item.get("dcpa_m", float("inf"))),
-                    int(item.get("target_id", 0)),
-                ),
-            )
-        )
-        selected["selection_reason"] = "nearest_available_contact"
-    selected["target_label"] = f"TS{selected['target_id']}"
-    return selected
+def _session_threat_projection(session: Any) -> dict[str, Any]:
+    """Project the session-owned canonical snapshot when no adapter published one."""
+    coordinator = getattr(session, "threat_management_coordinator", None)
+    snapshot = coordinator.last_snapshot if coordinator is not None else None
+    if snapshot is None:
+        return _threat_unavailable()
+    document = snapshot.to_dict()
+    return {
+        "schema_version": THREAT_PROJECTION_SCHEMA,
+        "status": "AVAILABLE",
+        "snapshot": jsonable(document),
+        "vectors": jsonable(document.get("vectors", [])),
+        "schedule": jsonable(document.get("schedule")),
+        # The legacy alias deliberately mirrors the typed conflict_graph field.
+        "conflicts": jsonable(document.get("conflict_graph")),
+        "conflict_graph": jsonable(document.get("conflict_graph")),
+        "unavailable_reason": None,
+    }
 
 
 class SessionCreateRequest(BaseModel):
     scenario_id: str = "head_on"
     validation_rule_id: str | None = None
-    algorithm_id: str = "nominal"
+    algorithm_id: str = "vo"
     tracker_id: str = "god"
     seed: int = Field(default=0, ge=0)
     episode_index: int = Field(default=0, ge=0)
@@ -174,9 +181,15 @@ class SessionCreateRequest(BaseModel):
     evaluator_profile_id: str = "ccta_2023_demo-v1"
     algorithm_config: dict[str, Any] = Field(default_factory=dict)
     tracker_config: dict[str, Any] = Field(default_factory=dict)
+    domain_profile: Any | None = None
     scenario_override: dict[str, Any] | None = None
 
     def to_spec(self) -> RunSpec:
+        if self.validation_rule_id is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Product session create requires an explicit validation_rule_id and exact capability tuple",
+            )
         payload = self.model_dump()
         override = payload.get("scenario_override")
         if override is not None:
@@ -189,27 +202,92 @@ class SessionCreateRequest(BaseModel):
         return RunSpec(**payload, output_root="runs")
 
 
+def _historical_session_spec(request: SessionCreateRequest) -> RunSpec | None:
+    """Build the Counterfactual RunSpec when the selection names a Historical AIS scene."""
+    try:
+        descriptor = HistoricalAISScenarioCatalog().get(request.scenario_id)
+    except KeyError:
+        return None
+    if request.validation_rule_id is None:
+        raise ColavExecutionError(
+            PlanStatus.INVALID_INPUT,
+            "Product session create requires an explicit validation_rule_id and exact capability tuple",
+        )
+    if request.algorithm_id == "mid_mpc_ipopt":
+        from colav_simulator.core.colav.mid_mpc.models import MidMpcConfig  # noqa: PLC0415
+
+        target_count = int(descriptor.current_window["target_count"])
+        capacity = MidMpcConfig().max_targets
+        if target_count > capacity:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"TARGET_CAPACITY_EXCEEDED: {target_count} > {capacity}",
+            )
+    manager.runner.capabilities.validate(
+        request.validation_rule_id,
+        request.scenario_id,
+        request.algorithm_id,
+        request.tracker_id,
+    )
+    cached = manager.historical_spec_cache.get(request.scenario_id)
+    if (
+        cached is not None
+        and request.dt is None
+        and request.t_end is None
+        and request.domain_profile is None
+    ):
+        capability = dict(cached.algorithm_capability_evidence or {})
+        exact_tuple = list(capability.get("exact_tuple", ()))
+        if len(exact_tuple) == 4:
+            exact_tuple[0] = request.validation_rule_id
+            exact_tuple[2] = request.algorithm_id
+            exact_tuple[3] = request.tracker_id
+            capability["exact_tuple"] = exact_tuple
+        return replace(
+            cached,
+            validation_rule_id=request.validation_rule_id,
+            algorithm_id=request.algorithm_id,
+            tracker_id=request.tracker_id,
+            seed=request.seed,
+            episode_index=request.episode_index,
+            strict_no_fallback=request.strict_no_fallback,
+            evaluator_profile_id=request.evaluator_profile_id,
+            algorithm_config=request.algorithm_config,
+            tracker_config=request.tracker_config,
+            algorithm_capability_evidence=capability,
+        )
+    overrides: dict[str, Any] = {
+        "algorithm_id": request.algorithm_id,
+        "algorithm_config": request.algorithm_config,
+        "tracker_config": request.tracker_config,
+        "evaluator_profile_id": request.evaluator_profile_id,
+    }
+    if request.dt is not None:
+        overrides["dt"] = request.dt
+    if request.t_end is not None:
+        overrides["t_end"] = request.t_end
+    if request.domain_profile is not None:
+        overrides["domain_profile"] = request.domain_profile
+    lifecycle_spec = HistoricalAISSceneAssembler(
+        capability_catalog=manager.runner.capabilities,
+    ).bind_lifecycle_counterfactual(
+        descriptor,
+        run_spec_overrides=overrides,
+    )
+    return replace(
+        lifecycle_spec,
+        validation_rule_id=request.validation_rule_id,
+        seed=request.seed,
+        strict_no_fallback=request.strict_no_fallback,
+    )
+
+
 class BusyWaterDraftRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     base_scenario_id: str
     seed: int = Field(default=DEFAULT_SEED, ge=0)
     encounter_mix: dict[str, float] = Field(default_factory=lambda: {"crossing": 0.6, "head_on": 0.2, "overtaking": 0.2})
     document: dict[str, Any]
-
-
-LEGACY_SCENARIOS = {
-    "Crossing": "crossing_give_way",
-    "Head-on": "paper_ccta2023_head_on",
-    "Overtaking": "overtaking",
-    "Multi-Obstacle": "paper_ccta2023_multiship",
-}
-LEGACY_ALGORITHMS = {
-    "Nominal": "nominal",
-    "CustomMPC": "custom_mpc",
-    "PSBMPC": "psbmpc",
-    "RLMPC": "rlmpc",
-    "RRT-Star": "rrt",
-}
 
 
 def _execution_error_detail(exc: Exception) -> dict[str, str]:
@@ -368,6 +446,7 @@ class WebSessionManager:
 
     def __init__(self) -> None:
         self.runner = ExperimentRunner(BASE_DIR)
+        self.historical_spec_cache: dict[str, RunSpec] = {}
         self.prepared: PreparedRun | None = None
         self.result: RunResult | None = None
         self.latest: dict[str, Any] = {}
@@ -377,7 +456,6 @@ class WebSessionManager:
         self.effective_speed_multiplier: float | None = None
         self.scheduler_lag_ms = 0.0
         self.realtime_limited = False
-        self.encounter_monitor = EncounterMonitor()
         self.previous_prediction_horizon: list[list[float]] = []
         self.current_prediction_horizon: list[list[float]] = []
         self.last_solve_id: int | None = None
@@ -386,6 +464,9 @@ class WebSessionManager:
         self.latest_planner_attempt: dict[str, Any] = {}
         self.enc_navigation_area: dict[str, Any] = {}
         self._telemetry_trails: dict[int, deque[list[float]]] = {}
+        self._shadow_max_deviation_m = 0.0
+        self._last_shadow_ownship: dict[str, Any] | None = None
+        self._last_shadow_comparison: dict[str, Any] | None = None
         self._telemetry_published_at = 0.0
         self._latest_stream_document = ""
         self._latest_compact_stream_document = ""
@@ -407,10 +488,6 @@ class WebSessionManager:
             self.prepared = replacement
             self.result = None
             self.replay_expected = None
-            self.encounter_monitor = EncounterMonitor(
-                spec.validation_rule_id,
-                spec.evaluator_profile_id,
-            )
             self.previous_prediction_horizon = []
             self.current_prediction_horizon = []
             self.last_solve_id = None
@@ -418,6 +495,9 @@ class WebSessionManager:
             self.active_planner_plan = {}
             self.latest_planner_attempt = {}
             self._telemetry_trails = {}
+            self._shadow_max_deviation_m = 0.0
+            self._last_shadow_ownship = None
+            self._last_shadow_comparison = None
             self._telemetry_published_at = 0.0
             self._latest_stream_document = ""
             self._latest_compact_stream_document = ""
@@ -435,6 +515,8 @@ class WebSessionManager:
     def describe(self) -> dict[str, Any]:
         if not self.prepared:
             return {"active": False}
+        source_time = float(self.prepared.session.simulator.t)
+        runtime_time = self._runtime_time_document(source_time)
         return {
             "active": True,
             "session_id": self.session_id,
@@ -442,9 +524,25 @@ class WebSessionManager:
             "spec": self.prepared.spec.to_dict(),
             "run_dir": str(self.prepared.run_dir),
             "sequence": self.prepared.session.sequence,
-            "sim_time": float(self.prepared.session.simulator.t),
+            **runtime_time,
             "failure_reason": self.prepared.session.failure_reason,
             "playback": self._playback_status(),
+        }
+
+    def _runtime_time_document(self, source_time_s: float) -> dict[str, Any]:
+        historical = None if self.prepared is None else self.prepared.spec.historical_replay
+        if not isinstance(historical, dict):
+            return {"sim_time": float(source_time_s), "source_time_s": float(source_time_s), "ais_utc": None}
+        origin_s = float(historical.get("t_start_s", 0.0))
+        actor_set = historical.get("actor_set", {})
+        raw_origin = actor_set.get("time_origin_utc") if isinstance(actor_set, dict) else None
+        ais_utc = None
+        if raw_origin:
+            ais_utc = (datetime.fromisoformat(str(raw_origin)) + timedelta(seconds=float(source_time_s))).isoformat()
+        return {
+            "sim_time": max(0.0, float(source_time_s) - origin_s),
+            "source_time_s": float(source_time_s),
+            "ais_utc": ais_utc,
         }
 
     def set_speed(self, session_id: str, multiplier: float) -> dict[str, Any]:
@@ -579,6 +677,8 @@ class WebSessionManager:
     def step(self, session_id: str) -> dict[str, Any]:
         with self.lock:
             prepared = self._require(session_id)
+            if prepared.session.state in {SessionState.FINISHED, SessionState.FAILED}:
+                raise RuntimeError(f"Cannot step a {prepared.session.state.value} session")
             try:
                 snapshot = prepared.session.step_once()
                 self._record_telemetry_trails(snapshot.payload)
@@ -791,6 +891,10 @@ class WebSessionManager:
                     "cog": float(csog[3]),
                     "trajectory": trail,
                     "active": bool(raw.get("active", True)),
+                    "historical_sample_kind": str(
+                        raw.get("historical_actor_truth", {}).get("sample_kind", "")
+                    ).upper() or None,
+                    "dimensions_provenance": raw.get("historical_actor_dimensions", {}).get("provenance"),
                     "measurements": jsonable(raw.get("sensor_measurements")),
                     "tracks": self._local_tracks(raw, origin_n, origin_e),
                     "colav": jsonable(raw.get("colav", {})),
@@ -818,11 +922,6 @@ class WebSessionManager:
                     "speed_mps": float(target.csog_state[2]),
                 }
             )
-        encounters = [item.to_dict() for item in self.encounter_monitor.update(ships)]
-        primary_encounter = _select_primary_encounter(encounters)
-        dcpa = float(primary_encounter["dcpa_m"]) if primary_encounter else float("inf")
-        tcpa = float(primary_encounter["tcpa_s"]) if primary_encounter else float("inf")
-        encounter = primary_encounter["encounter"] if primary_encounter else "clear"
         own_raw = frame.get("Ship0", {})
         waypoints = np.asarray(own_raw.get("waypoints", np.zeros((2, 0))), dtype=float)
         if waypoints.ndim == 2 and waypoints.size:
@@ -831,6 +930,25 @@ class WebSessionManager:
             local_waypoints = [[], []]
         colav_data = own_raw.get("colav", {}) if own_raw else {}
         planner = colav_data.get("planner", {})
+        threat_management = _canonical_threat_projection(colav_data, planner)
+        adapter_published_threat = bool(
+            planner.get("threat_management")
+            or planner.get("algorithm_details", {}).get("threat_management")
+            or colav_data.get("threat_management")
+        )
+        if not adapter_published_threat:
+            # Session-owned baseline cycle (ADR-0002): every session exposes the
+            # coordinator's canonical account, not only algorithm adapters that
+            # publish their own threat document.  A typed adapter UNAVAILABLE
+            # document is never masked by this fallback.
+            threat_management = _session_threat_projection(session)
+        # Legacy aliases remain present for old clients, but never carry a
+        # browser/server-local risk interpretation.
+        encounters = []
+        primary_encounter = None
+        dcpa = None
+        tcpa = None
+        encounter = None
         solve_id = int(planner.get("solve_id", 0))
         algorithm_details = planner.get("algorithm_details", {})
         prediction_render = planner.get("prediction_render", {})
@@ -931,15 +1049,127 @@ class WebSessionManager:
             "applied_speed_ref_mps": float(references[3]) if references.size > 3 else None,
             "selected_command": planner.get("selected_command", {}),
         }
-        sim_time = float(snapshot.sim_time) if snapshot is not None else float(session.simulator.t)
-        events = snapshot.events if snapshot is not None else []
+        source_time = float(snapshot.sim_time) if snapshot is not None else float(session.simulator.t)
+        if session.state is SessionState.FINISHED and session.simulator.t >= session.simulator.t_end:
+            source_time = float(session.simulator.t)
+        runtime_time = self._runtime_time_document(source_time)
+        events = list(snapshot.events if snapshot is not None else [])
+        historical_spec = self.prepared.spec.historical_replay
+        if isinstance(historical_spec, dict):
+            event_origin_s = float(historical_spec.get("t_start_s", 0.0))
+            events = [
+                {
+                    **event,
+                    "source_time_s": float(event.get("sim_time", 0.0)),
+                    "sim_time": max(0.0, float(event.get("sim_time", 0.0)) - event_origin_s),
+                }
+                for event in events
+            ]
         step_ms = float(snapshot.step_time_ms) if snapshot is not None else 0.0
+        historical_context = None
+        if isinstance(self.prepared.spec.historical_replay, dict):
+            context_states = []
+            for ship in session.ship_list:
+                sample_at = getattr(getattr(ship, "historical_actor", None), "sample_at", None)
+                sample = None if sample_at is None else sample_at(source_time)
+                context_states.append(
+                    {
+                        "actor_id": int(ship.id),
+                        "mmsi": int(ship.mmsi),
+                        "status": "INACTIVE / DATA GAP" if sample is None else sample.kind.value.upper(),
+                        "dimensions_provenance": getattr(
+                            getattr(ship, "historical_actor", None),
+                            "dimensions_provenance",
+                            None,
+                        ),
+                    }
+                )
+            historical_context = {
+                "total_actor_count": len(context_states),
+                "active_actor_count": sum(item["status"] != "INACTIVE / DATA GAP" for item in context_states),
+                "inactive_actor_count": sum(item["status"] == "INACTIVE / DATA GAP" for item in context_states),
+                "actors": context_states,
+            }
+        shadow_ownship = None
+        shadow_comparison = {"status": "NOT_AVAILABLE"}
+        ownship_object = session.ship_list[0]
+        shadow_sample_at = getattr(ownship_object, "shadow_sample_at", None)
+        handoff_source_s = getattr(ownship_object, "counterfactual_t0_s", None)
+        if shadow_sample_at is not None and handoff_source_s is not None and source_time >= float(handoff_source_s):
+            shadow_sample = shadow_sample_at(source_time)
+            if shadow_sample is not None:
+                north, east, velocity_north, velocity_east = shadow_sample.state_vxvy
+                speed = float(np.hypot(velocity_north, velocity_east))
+                course = float(np.arctan2(velocity_east, velocity_north)) if speed > 1e-12 else 0.0
+                local_north = float(north - origin_n)
+                local_east = float(east - origin_e)
+                deviation = float(np.hypot(float(own.get("x", 0.0)) - local_north, float(own.get("y", 0.0)) - local_east))
+                self._shadow_max_deviation_m = max(self._shadow_max_deviation_m, deviation)
+                course_delta = float(
+                    np.arctan2(
+                        np.sin(float(own.get("cog", 0.0)) - course),
+                        np.cos(float(own.get("cog", 0.0)) - course),
+                    )
+                )
+                actor = getattr(ownship_object, "historical_actor", None)
+                trail = []
+                if actor is not None:
+                    trail = [
+                        [float(sample.state_vxvy[0] - origin_n), float(sample.state_vxvy[1] - origin_e)]
+                        for sample in actor.samples
+                        if float(handoff_source_s) <= sample.time_s <= source_time
+                    ]
+                shadow_ownship = {
+                    "id": "shadow-ownship",
+                    "label": "AIS SHADOW",
+                    "mmsi": int(getattr(ownship_object, "mmsi", 0)),
+                    "x": local_north,
+                    "y": local_east,
+                    "north": float(north),
+                    "east": float(east),
+                    "psi": course,
+                    "cog": course,
+                    "sog": speed,
+                    "trajectory": trail,
+                    "sample_kind": shadow_sample.kind.value.upper(),
+                    "comparison_only": True,
+                }
+                shadow_comparison = {
+                    "status": "AVAILABLE",
+                    "handoff_sim_time_s": float(handoff_source_s)
+                    - float(self.prepared.spec.historical_replay.get("t_start_s", 0.0)),
+                    "handoff_source_time_s": float(handoff_source_s),
+                    "deviation_m": deviation,
+                    "maximum_deviation_m": self._shadow_max_deviation_m,
+                    "delta_cog_rad": course_delta,
+                    "delta_sog_mps": float(own.get("sog", 0.0)) - speed,
+                    "comparison_only": True,
+                    "recovery": jsonable(session.historical_recovery_status),
+                }
+                self._last_shadow_ownship = dict(shadow_ownship)
+                self._last_shadow_comparison = dict(shadow_comparison)
+        if (
+            handoff_source_s is not None
+            and shadow_ownship is None
+            and self._last_shadow_ownship is not None
+            and self._last_shadow_comparison is not None
+        ):
+            shadow_ownship = {
+                **self._last_shadow_ownship,
+                "sample_kind": "INACTIVE / DATA GAP",
+                "active": False,
+            }
+            shadow_comparison = {
+                **self._last_shadow_comparison,
+                "status": "INACTIVE / DATA GAP",
+                "recovery": jsonable(session.historical_recovery_status),
+            }
         return {
             "schema_version": "1.0",
             "run_id": self.session_id,
             "scenario_id": self.prepared.spec.scenario_id,
             "seq": session.sequence,
-            "sim_time": sim_time,
+            **runtime_time,
             "state": session.state.value,
             "truth": ships,
             "measurements": [ship["measurements"] for ship in ships],
@@ -957,6 +1187,7 @@ class WebSessionManager:
             "enc_navigation_area": self.enc_navigation_area,
             "encounters": encounters,
             "primary_encounter": primary_encounter,
+            "threat_management": threat_management,
             "planner": jsonable(planner),
             "latest_planner_solve": self.latest_planner_solve,
             "active_planner_plan": self.active_planner_plan,
@@ -964,9 +1195,12 @@ class WebSessionManager:
             "execution": jsonable(execution),
             "events": jsonable(events),
             "step": session.sequence,
-            "scenario_time": sim_time,
+            "scenario_time": runtime_time["sim_time"],
             "running": session.state == SessionState.RUNNING,
             "os": own,
+            "shadow_ownship": shadow_ownship,
+            "shadow_comparison": shadow_comparison,
+            "historical_context": historical_context,
             "obstacles": obstacles,
             "waypoints": local_waypoints,
             "prediction_horizon": self.current_prediction_horizon,
@@ -975,7 +1209,7 @@ class WebSessionManager:
             "dcpa": dcpa,
             "tcpa": tcpa,
             "colregs": encounter,
-            "safety_margin": 150.0,
+            "safety_margin": None,
             "selected_algorithm": self.prepared.manifest.executed_algorithm,
             "requested_algorithm": self.prepared.manifest.requested_algorithm,
             "executed_algorithm": self.prepared.manifest.executed_algorithm,
@@ -986,6 +1220,7 @@ class WebSessionManager:
             "step_time_ms": step_ms,
             "playback": self._playback_status(),
             "failure_reason": session.failure_reason,
+            "baseline_threat_failure_reason": session.baseline_threat_failure_reason,
             "reproduction_status": self.result.manifest.reproduction_status if self.result else "running",
         }
 
@@ -1001,6 +1236,7 @@ class WebSessionManager:
         return jsonable(
             {
                 "labels": raw.get("do_labels", []),
+                "generations": raw.get("do_generations", []),
                 "states": states,
                 "covariances": raw.get("do_covariances", []),
                 "nis": raw.get("do_NISes", []),
@@ -1073,6 +1309,23 @@ async def _simulation_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if os.environ.get("COLAV_HAIS_PREWARM_ON_STARTUP", "").strip() == "1":
+        started = time.perf_counter()
+        log.info("Preloading Historical AIS ENC before accepting sessions")
+        try:
+            request = SessionCreateRequest(
+                validation_rule_id="multiship",
+                scenario_id="hais_romsdal_20260701_120007_121007",
+                algorithm_id="vo",
+                tracker_id="god",
+            )
+            spec = _historical_session_spec(request)
+            if spec is not None:
+                await asyncio.to_thread(manager.runner.preload_historical_enc, spec)
+                manager.historical_spec_cache[request.scenario_id] = spec
+            log.info("Historical AIS ENC ready in %.1fs", time.perf_counter() - started)
+        except Exception:  # noqa: BLE001 - optional startup acceleration
+            log.exception("Historical AIS ENC preload failed; Create will retry synchronously")
     task = asyncio.create_task(_simulation_loop())
     try:
         yield
@@ -1084,6 +1337,7 @@ async def lifespan(_: FastAPI):
 
 manager = WebSessionManager()
 app = FastAPI(title="COLAV Simulator Research Control", version="1.0", lifespan=lifespan)
+app.include_router(historical_api_router)
 if GUI_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(GUI_DIR)), name="static")
 
@@ -1110,6 +1364,44 @@ def api_capabilities(validation_rule_id: str | None = None) -> dict[str, Any]:
 @app.get("/api/algorithms")
 def api_algorithms() -> list[dict[str, Any]]:
     return [status.to_dict() for status in manager.runner.registry.statuses().values()]
+
+
+@app.get("/api/integrations")
+def api_integrations() -> dict[str, Any]:
+    """Expose product integrations without presenting retained legacy builders as selectable."""
+    catalog = manager.runner.list_capabilities()
+    policy = manager.runner.capabilities.policy
+    entries = [*catalog["algorithms"], *catalog["trackers"]]
+    product_ids = set(policy.algorithm_ids) | set(policy.tracker_ids)
+    product = [
+        {
+            **entry,
+            "availability_scope": "product",
+            "available": bool(entry.get("dependency_available")),
+            "selectable": bool(entry.get("selectable")),
+        }
+        for entry in entries
+        if entry["id"] in product_ids
+    ]
+    internal_legacy = [
+        {
+            "id": entry["id"],
+            "kind": entry["kind"],
+            "availability_scope": "internal_legacy",
+            "available": False,
+            "dependency_available": False,
+            "selectable": False,
+            "incompatibility_reason": "Retained for internal replay/evaluator compatibility only.",
+        }
+        for entry in entries
+        if entry["id"] not in product_ids
+    ]
+    return {
+        "schema_version": "integration-catalog.v1",
+        "product_capability_policy": policy.to_dict(),
+        "product": product,
+        "internal_legacy": internal_legacy,
+    }
 
 
 @app.get("/api/busy-water/generate")
@@ -1192,7 +1484,8 @@ def api_save_busy_water_draft(request: BusyWaterDraftRequest) -> dict[str, Any]:
 @app.post("/api/sessions")
 def api_create_session(request: SessionCreateRequest) -> dict[str, Any]:
     try:
-        return manager.create(request.to_spec())
+        spec = _historical_session_spec(request) or request.to_spec()
+        return manager.create(spec)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
 
@@ -1335,55 +1628,116 @@ def api_enc_tile() -> FileResponse:
 
 @app.get("/api/algo_status")
 def api_algo_status() -> JSONResponse:
+    """Expose only product-active integrations and their selection constraints."""
+    policy = manager.runner.capabilities.policy
     statuses = manager.runner.registry.statuses()
-    legacy = {
-        "Nominal": statuses["nominal"].available,
-        "CustomMPC": False,
-        "PSBMPC": statuses["psbmpc"].available,
-        "RLMPC": statuses["rlmpc"].available,
-        "RRT-Star": statuses["rrt"].available,
-    }
-    return JSONResponse(legacy)
-
-
-def _ensure_legacy_session(scenario: str | None = None, algorithm: str | None = None) -> str:
-    if manager.prepared:
-        return manager.session_id
-    spec = RunSpec(
-        scenario_id=LEGACY_SCENARIOS.get(scenario or "Head-on", scenario or "paper_ccta2023_head_on"),
-        algorithm_id=LEGACY_ALGORITHMS.get(algorithm or "Nominal", algorithm or "nominal"),
+    product_ids = set(policy.algorithm_ids) | set(policy.tracker_ids)
+    product = []
+    for identifier in (*policy.algorithm_ids, *policy.tracker_ids):
+        status = statuses.get(identifier)
+        if status is None:
+            continue
+        product.append(
+            {
+                **status.to_dict(),
+                "active": True,
+                "available": bool(status.available),
+                "selectable": bool(status.available),
+                "constraints": policy.constraints(identifier)
+                if identifier in policy.algorithm_ids
+                else {"requires_explicit_tracker_id": True},
+            }
+        )
+    internal_legacy = [
+        {
+            "integration_id": identifier,
+            "kind": status.kind,
+            "active": False,
+            "available": False,
+            "selectable": False,
+            "reason": "Retained for internal replay/evaluator compatibility only.",
+        }
+        for identifier, status in sorted(statuses.items())
+        if identifier not in product_ids
+    ]
+    return JSONResponse(
+        {
+            "schema_version": "product-algorithm-status.v1",
+            "product": product,
+            "algorithms": [item for item in product if item["kind"] == "algorithm"],
+            "trackers": [item for item in product if item["kind"] == "tracker"],
+            "constraints": policy.to_dict()["constraints"],
+            "internal_legacy": internal_legacy,
+        }
     )
-    manager.create(spec)
-    return manager.session_id
 
 
 @app.post("/api/start")
 def api_start() -> dict[str, Any]:
-    session_id = _ensure_legacy_session()
-    return manager.start(session_id)
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "status": "DEPRECATED_ENDPOINT",
+            "endpoint": "/api/start",
+            "replacement": "/api/sessions/{session_id}/start",
+        },
+    )
 
 
 @app.post("/api/pause")
 def api_pause() -> dict[str, Any]:
-    session_id = _ensure_legacy_session()
-    return manager.pause(session_id)
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "status": "DEPRECATED_ENDPOINT",
+            "endpoint": "/api/pause",
+            "replacement": "/api/sessions/{session_id}/pause",
+        },
+    )
 
 
 @app.post("/api/reset")
 def api_reset(scenario: str = "Head-on") -> dict[str, Any]:
-    algorithm = manager.prepared.spec.algorithm_id if manager.prepared else "nominal"
-    scenario_id = LEGACY_SCENARIOS.get(scenario, scenario)
-    return manager.create(RunSpec(scenario_id=scenario_id, algorithm_id=algorithm))
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "status": "DEPRECATED_ENDPOINT",
+            "endpoint": "/api/reset",
+            "replacement": "/api/sessions/{session_id}/reset",
+            "legacy_scenario": scenario,
+        },
+    )
 
 
 @app.post("/api/select_algorithm")
-def api_select_algorithm(algorithm: str = "CustomMPC") -> dict[str, Any]:
-    scenario = manager.prepared.spec.scenario_id if manager.prepared else "paper_ccta2023_head_on"
-    algorithm_id = LEGACY_ALGORITHMS.get(algorithm, algorithm.lower())
+def api_select_algorithm(algorithm: str = "vo") -> dict[str, Any]:
+    """Deprecated selector constrained to the current product exact tuple."""
+    algorithm_id = algorithm.strip().lower()
     try:
-        description = manager.create(RunSpec(scenario_id=scenario, algorithm_id=algorithm_id))
+        current = manager.prepared.spec if manager.prepared is not None else None
+        if current is None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Deprecated algorithm selector requires an active product session",
+            )
+        if (
+            current.validation_rule_id is None
+            or current.historical_replay is not None
+            or current.historical_scenario_id is not None
+        ):
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "Deprecated algorithm selector requires an active product exact tuple",
+            )
+        manager.runner.capabilities.policy.validate(
+            current.validation_rule_id,
+            current.scenario_id,
+            algorithm_id,
+            current.tracker_id,
+        )
+        description = manager.create(replace(current, algorithm_id=algorithm_id))
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
     return {"status": "ok", "algorithm": algorithm_id, **description}
 
 

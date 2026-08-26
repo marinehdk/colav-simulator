@@ -8,6 +8,7 @@ import os
 import platform
 import sys
 import uuid
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -15,6 +16,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
 
 SCHEMA_VERSION = "1.0"
 
@@ -39,6 +42,13 @@ class RunOutcome(StrEnum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
+
+
+class InternalExecutionPurpose(StrEnum):
+    """Narrow reasons allowed to use retained non-product integrations."""
+
+    HISTORICAL_REPLAY = "HISTORICAL_REPLAY"
+    EVALUATOR_BASELINE = "EVALUATOR_BASELINE"
 
 
 @dataclass(frozen=True)
@@ -81,9 +91,13 @@ class RunSpec:
     reproduction_level: ReproductionLevel = ReproductionLevel.FUNCTIONAL
     algorithm_config: dict[str, Any] = field(default_factory=dict)
     tracker_config: dict[str, Any] = field(default_factory=dict)
+    domain_profile: ShipDomainProfile | Mapping[str, Any] | None = None
     scenario_override: dict[str, Any] | None = None
     output_root: str = "runs"
     replay_of_run_id: str | None = None
+    historical_replay: dict[str, Any] | None = None
+    historical_scenario_id: str | None = None
+    algorithm_capability_evidence: dict[str, Any] | None = None
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -110,21 +124,101 @@ class RunSpec:
             raise ValueError("deadline_mode must be ENFORCE or OFF")
         if not self.evaluator_profile_id:
             raise ValueError("evaluator_profile_id is required")
+        if self.historical_replay is not None and not isinstance(self.historical_replay, dict):
+            raise ValueError("historical_replay must be a serialized replay request mapping")
+        self.historical_scenario_id = _normalize_historical_scenario_id(self)
+        if self.algorithm_capability_evidence is not None:
+            self.algorithm_capability_evidence = _normalize_algorithm_capability_evidence(self)
         if isinstance(self.reproduction_level, str):
             self.reproduction_level = ReproductionLevel(self.reproduction_level)
+        if self.domain_profile is not None and not isinstance(self.domain_profile, ShipDomainProfile):
+            self.domain_profile = _ship_domain_profile_from_mapping(self.domain_profile)
 
     @property
     def seeds(self) -> SeedBundle:
         return SeedBundle.derive(self.seed)
 
+    @property
+    def capability_tuple(self) -> tuple[str, str, str, str] | None:
+        """Return execution capability evidence without changing scenario identity."""
+        if self.algorithm_capability_evidence is not None:
+            return tuple(self.algorithm_capability_evidence["exact_tuple"])  # type: ignore[return-value]
+        if self.validation_rule_id is None:
+            return None
+        return (self.validation_rule_id, self.scenario_id, self.algorithm_id, self.tracker_id)
+
     def to_dict(self) -> dict[str, Any]:
         output = asdict(self)
         output["reproduction_level"] = self.reproduction_level.value
+        if self.domain_profile is not None:
+            output["domain_profile"] = {
+                **self.domain_profile.to_dict(),
+                "profile_hash": self.domain_profile.profile_hash,
+            }
         return output
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> RunSpec:
         return cls(**value)
+
+
+def _ship_domain_profile_from_mapping(value: Mapping[str, Any]) -> ShipDomainProfile:
+    """Decode one versioned profile while preserving its public hash identity."""
+    if not isinstance(value, Mapping):
+        raise ValueError("domain_profile must be a ShipDomainProfile or mapping")
+    payload = dict(value)
+    model = payload.pop("model", "OFF_CENTRED_ELLIPSE")
+    if model != "OFF_CENTRED_ELLIPSE":
+        raise ValueError("ShipDomainProfile model must be OFF_CENTRED_ELLIPSE")
+    declared_hash = payload.pop("profile_hash", None)
+    try:
+        profile = ShipDomainProfile(**payload)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ValueError(f"invalid ShipDomainProfile: {exc}") from exc
+    if declared_hash is not None and str(declared_hash) != profile.profile_hash:
+        raise ValueError("ShipDomainProfile profile_hash does not match profile parameters")
+    return profile
+
+
+def _normalize_algorithm_capability_evidence(spec: RunSpec) -> dict[str, Any]:
+    if spec.historical_scenario_id is None:
+        raise ValueError("Algorithm Capability evidence requires historical_scenario_id")
+    evidence = dict(spec.algorithm_capability_evidence or {})
+    exact_tuple = tuple(evidence.get("exact_tuple", ()))
+    if evidence.get("binding_role") != "ALGORITHM_CAPABILITY_ONLY":
+        raise ValueError("Algorithm Capability evidence binding_role is invalid")
+    if evidence.get("geometry_equivalence") is not False:
+        raise ValueError("Algorithm Capability evidence cannot claim geometry equivalence")
+    if len(exact_tuple) != 4:
+        raise ValueError("Algorithm Capability evidence requires one exact tuple")
+    if not all(isinstance(item, str) and item.strip() for item in exact_tuple):
+        raise ValueError("Algorithm Capability evidence exact tuple must contain four non-empty strings")
+    exact_tuple = (
+        str(exact_tuple[0]).strip().lower(),
+        str(exact_tuple[1]).strip(),
+        str(exact_tuple[2]).strip().lower(),
+        str(exact_tuple[3]).strip().lower(),
+    )
+    if spec.validation_rule_id is not None and exact_tuple[0] != spec.validation_rule_id:
+        raise ValueError("Algorithm Capability evidence rule differs from RunSpec")
+    # Historical AIS deliberately carries a capability tuple from a verified
+    # geometry-equivalent catalogue scene.  Product RunSpecs do not have that
+    # cross-scene evidence boundary, so their scenario must match exactly.
+    if spec.historical_scenario_id is None and exact_tuple[1] != spec.scenario_id:
+        raise ValueError("Algorithm Capability evidence scenario differs from RunSpec")
+    if exact_tuple[2:] != (spec.algorithm_id, spec.tracker_id):
+        raise ValueError("Algorithm Capability evidence algorithm/tracker differs from RunSpec")
+    evidence["exact_tuple"] = list(exact_tuple)
+    return evidence
+
+
+def _normalize_historical_scenario_id(spec: RunSpec) -> str | None:
+    if spec.historical_scenario_id is None:
+        return None
+    historical_scenario_id = spec.historical_scenario_id.strip()
+    if not historical_scenario_id or historical_scenario_id != spec.scenario_id:
+        raise ValueError("historical_scenario_id must equal the authoritative scenario_id")
+    return historical_scenario_id
 
 
 @dataclass
@@ -146,6 +240,8 @@ class RunManifest:
     episode_hash: str = ""
     enc_hash: str = ""
     trajectory_hash: str = ""
+    trajectory_semantic_hash: str = ""
+    trajectory_artifact_hash: str = ""
     scenario_provenance: dict[str, Any] = field(default_factory=dict)
     requested_algorithm: str = "nominal"
     executed_algorithm: str = "nominal"
@@ -181,6 +277,11 @@ class RunManifest:
     reproduction_status: str = "not_evaluated"
     replay_of_run_id: str | None = None
     replay_verified: bool | None = None
+    historical_replay_evidence: dict[str, Any] | None = None
+    historical_case_digest: str | None = None
+    historical_reference_artifact_digest: str | None = None
+    historical_execution_mode: str | None = None
+    historical_scenario_id: str | None = None
     schema_version: str = SCHEMA_VERSION
 
     @classmethod
@@ -208,6 +309,9 @@ class RunManifest:
             executed_tracker=spec.tracker_id,
             validation_rule_id=spec.validation_rule_id,
             replay_of_run_id=spec.replay_of_run_id,
+            historical_replay_evidence=(
+                dict(spec.historical_replay.get("evidence", {})) if spec.historical_replay is not None else None
+            ),
             diagnostic_only=spec.deadline_mode == "OFF",
             diagnostic_only_reasons=["deadline_mode=OFF"] if spec.deadline_mode == "OFF" else [],
         )
