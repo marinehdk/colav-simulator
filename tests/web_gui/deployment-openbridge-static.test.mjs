@@ -224,12 +224,11 @@ test('algorithm detail and performance pages use readable typography and full-wi
   assert.match(lineGraph, /X \$\{formatTick\(xValue\)\} · Y \$\{formatTick\(yValue\)\}/);
 });
 
-test('ownship click error reporting tolerates the removed legacy busy-water status node', () => {
+test('chart selection stays inside the Situation Display inspection context', () => {
   const start = app.indexOf('onSelectionChange: target =>');
-  const selectionHandler = app.slice(start, app.indexOf('\n  },\n});', start));
-  assert.doesNotMatch(selectionHandler, /document\.getElementById\('busyWaterStatus'\)\.textContent/);
-  assert.match(selectionHandler, /const status = document\.getElementById\('busyWaterStatus'\)/);
-  assert.match(selectionHandler, /if \(status\) status\.textContent = error\.message/);
+  assert.equal(start, -1);
+  assert.match(app, /onSelectionChange: \(\) => \{\}/);
+  assert.doesNotMatch(app, /selectedTargetId|updateTargetDetails|busyWaterStatus/);
 });
 
 test('three Workfaces occupy three equal centered columns', () => {

@@ -173,6 +173,21 @@ class SimulationSession:
                 or (self.terminate_on_collision_or_grounding and (collision or grounding))
             )
             if time_limit:
+                if (
+                    historical_full_window
+                    and getattr(self.ship_list[0], "counterfactual_phase", None) == "HISTORICAL_REFERENCE"
+                ):
+                    self.historical_recovery_status = {
+                        "status": "NOT_EXECUTED",
+                        "reason": "HANDOFF_NOT_TRIGGERED",
+                    }
+                    step_events.append(
+                        self._event(
+                            "historical_handoff_not_triggered",
+                            reason="HANDOFF_NOT_TRIGGERED",
+                            counterfactual_avoidance="NOT_EXECUTED",
+                        )
+                    )
                 step_events.append(self._event("time_limit"))
             if terminated or time_limit:
                 self.state = SessionState.FINISHED

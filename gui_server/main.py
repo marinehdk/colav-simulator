@@ -208,6 +208,11 @@ def _historical_session_spec(request: SessionCreateRequest) -> RunSpec | None:
         descriptor = HistoricalAISScenarioCatalog().get(request.scenario_id)
     except KeyError:
         return None
+    if not request.strict_no_fallback:
+        raise ColavExecutionError(
+            PlanStatus.INVALID_INPUT,
+            "Historical AIS sessions require strict_no_fallback=true",
+        )
     if request.validation_rule_id is None:
         raise ColavExecutionError(
             PlanStatus.INVALID_INPUT,

@@ -6,12 +6,11 @@ accepted-plan receipts) advances the shared coordinator inside its adapter;
 every other session runs this baseline cycle so Web and Evidence consumers
 always read one canonical account instead of a typed UNAVAILABLE placeholder.
 
-Facts basis: the Product Capability Policy admits only the God tracker, so for
-every product session the tracker estimate equals world truth; this baseline
-freezes truth facts directly and labels them ``session_baseline_truth``.  The
-zero covariance and UPDATED health therefore describe perfect-knowledge truth
-monitoring, not a fabricated sensor confidence claim.  ``baseline_due`` keeps
-adapter-owned lifecycles (any non-baseline snapshot epoch) permanently exempt.
+Facts basis: the Product Capability Policy admits only the God tracker, but the
+baseline still freezes its typed ``TrackSnapshot`` output so target generation,
+observation health, covariance and provenance retain their Tracker identity.
+``baseline_due`` keeps adapter-owned lifecycles (any non-baseline snapshot
+epoch) permanently exempt.
 """
 
 from __future__ import annotations
@@ -22,7 +21,6 @@ from typing import Any
 
 import numpy as np
 
-import colav_simulator.common.miscellaneous_helper_methods as mhm
 from colav_simulator.core.colav.encounter_lifecycle import (
     EncounterCycle,
     Maneuverability,
@@ -36,7 +34,7 @@ from colav_simulator.core.colav.threat_assessment import (
     PredictionBasis,
     ThreatPrediction,
 )
-from colav_simulator.core.tracking.trackers import TrackKey
+from colav_simulator.core.tracking.trackers import TrackSnapshot, TrackStatus
 
 BASELINE_PROFILE = PlannerOddProfile()
 BASELINE_MANEUVERABILITY = Maneuverability(
@@ -46,7 +44,6 @@ BASELINE_MANEUVERABILITY = Maneuverability(
 )
 BASELINE_PREDICTION_DT_S = 2.0
 BASELINE_PREDICTION_STEPS = 60
-BASELINE_SOURCE = "session_baseline_truth"
 BASELINE_EPOCH = "session-baseline"
 
 
@@ -83,12 +80,8 @@ def build_baseline_cycle_inputs(
         width_m=float(ownship_ship.width),
         maneuverability=BASELINE_MANEUVERABILITY,
     )
-    do_states = [
-        entry
-        for entry in mhm.extract_do_states_from_ship_list(sim_time_s, ship_list)
-        if entry[0] != ownship_index
-    ]
-    targets = tuple(_target_observation(entry, sim_time_s) for entry in do_states)
+    tracks, _ = ownship_ship.get_do_track_information()
+    targets = tuple(_target_observation(track) for track in tracks)
     cycle = EncounterCycle(
         epoch=BASELINE_EPOCH,
         sequence=sequence,
@@ -146,18 +139,24 @@ def baseline_due(coordinator: Any, sim_time_s: float, dt_s: float) -> bool:
     return last.sim_time_s < sim_time_s - dt_s - 1.0e-9
 
 
-def _target_observation(entry: tuple[Any, ...], sim_time_s: float) -> TargetObservation:
-    target_id, state, length, width = entry
+def _target_observation(track: TrackSnapshot) -> TargetObservation:
+    if not isinstance(track, TrackSnapshot):
+        raise TypeError("baseline Threat Management requires typed TrackSnapshot input")
+    health = {
+        TrackStatus.UPDATED: ObservationHealth.UPDATED,
+        TrackStatus.COASTING: ObservationHealth.COASTING,
+        TrackStatus.TERMINATED: ObservationHealth.UNUSABLE,
+    }[track.status]
     return TargetObservation(
-        key=TrackKey(int(target_id), 1),
-        state_enu=np.asarray(state, dtype=float).reshape(4),
-        covariance=np.zeros((4, 4)),
-        length_m=float(length),
-        width_m=float(width),
-        observed_at_s=sim_time_s,
-        generated_at_s=sim_time_s,
-        health=ObservationHealth.UPDATED,
-        source=BASELINE_SOURCE,
+        key=track.key,
+        state_enu=track.state,
+        covariance=track.covariance,
+        length_m=track.length_m,
+        width_m=track.width_m,
+        observed_at_s=track.observed_at_s,
+        generated_at_s=track.generated_at_s,
+        health=health,
+        source=track.source,
     )
 
 

@@ -115,14 +115,7 @@ const situationDisplay = createSituationDisplay({
     if (label) label.textContent = text;
   },
   onLayerStateChange: syncLayerControls,
-  onSelectionChange: target => {
-    selectedTargetId = target?.id ?? null;
-    updateTargetDetails(target || null, currentData).catch(error => {
-      const status = document.getElementById('busyWaterStatus');
-      if (status) status.textContent = error.message;
-      else pushLog(error.message, 'log-danger');
-    });
-  },
+  onSelectionChange: () => {},
 });
 
 /* ══════════════════════════════════════════════

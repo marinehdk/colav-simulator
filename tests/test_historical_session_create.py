@@ -99,6 +99,24 @@ def test_hais_session_create_rejects_foreign_rule(monkeypatch) -> None:
     assert "rule14" in response.text
 
 
+def test_hais_session_create_rejects_fallback_enabled(monkeypatch) -> None:
+    monkeypatch.delenv("COLAV_HAIS_ARCHIVE_PATH", raising=False)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": HISTORICAL_AIS_SCENE_ID,
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "strict_no_fallback": False,
+            },
+        )
+
+    assert response.status_code == 422
+    assert "Historical AIS sessions require strict_no_fallback=true" in response.text
+
+
 def test_hais_session_create_allows_mid_mpc_tuple_to_reach_source_gate(monkeypatch) -> None:
     monkeypatch.delenv("COLAV_HAIS_ARCHIVE_PATH", raising=False)
     with TestClient(app) as client:
