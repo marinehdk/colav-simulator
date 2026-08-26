@@ -229,6 +229,9 @@ function projectThreatVector(vector, lifecycleFact = null) {
     predictionBasis: vector?.prediction_basis ?? vector?.predictionBasis ?? null,
     displayClass: vector?.display_class ?? vector?.displayClass ?? null,
     displayPercent: finiteOrNull(vector?.display_percent ?? vector?.displayPercent),
+    avoidanceActionActive: typeof (vector?.avoidance_action_active ?? vector?.avoidanceActionActive) === 'boolean'
+      ? (vector?.avoidance_action_active ?? vector?.avoidanceActionActive)
+      : null,
     scheduleClass: vector?.schedule_class ?? vector?.scheduleClass ?? null,
     priorityClass: vector?.priority_class ?? vector?.priorityClass ?? null,
     priorityReason: vector?.priority_reason ?? vector?.priorityReason ?? null,

@@ -56,6 +56,8 @@ test('canonical threat projection preserves backend vectors, schedule, conflicts
         lifecycle_role: 'OVERTAKING',
         lifecycle_risk: 'CANDIDATE',
         lifecycle_commitment: 'NONE',
+        display_class: 'LOW',
+        avoidance_action_active: false,
         predicted_domain: { state: 'INSIDE' },
       },
       { key: { target_id: 1, generation: 3 }, dcpa_m: 90, predicted_domain: { state: 'UNKNOWN' } },
@@ -89,6 +91,8 @@ test('canonical threat projection preserves backend vectors, schedule, conflicts
   assert.equal(snapshot.risk.primary.lifecycleRole, 'OVERTAKING');
   assert.equal(snapshot.risk.primary.lifecycleRisk, 'CANDIDATE');
   assert.equal(snapshot.risk.primary.lifecycleCommitment, 'NONE');
+  assert.equal(snapshot.risk.primary.displayClass, 'LOW');
+  assert.equal(snapshot.risk.primary.avoidanceActionActive, false);
   assert.deepEqual(snapshot.risk.schedule.concurrentRequired, [{ target_id: 1, generation: 3 }]);
   assert.deepEqual(snapshot.risk.conflicts, canonical.conflicts);
   assert.equal(snapshot.risk.snapshotHash, 'snapshot-1');

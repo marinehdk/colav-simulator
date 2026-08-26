@@ -127,6 +127,10 @@ test('risk cards use the projected threat level for card and COLREGs colors', ()
   assert.match(app, /target\?\.displayClass/);
   assert.doesNotMatch(app, /DCPA_SAFE|DCPA_WARN/);
   assert.match(app, /data-threat="\$\{threatLevel\}"/);
+  assert.match(app, /function riskStateLabel\(target\)/);
+  assert.match(app, /riskStateLabel\(t\)/);
+  assert.match(app, /<dt>Risk state<\/dt>/);
+  assert.match(app, /proj\.risk\?\.primary\?\.avoidanceActionActive === true/);
   assert.match(styles, /\.risk-target-card\[data-threat="safe"\]/);
   assert.match(styles, /\.risk-target-card\[data-threat="warn"\]/);
   assert.match(styles, /\.risk-target-card\[data-threat="danger"\]/);

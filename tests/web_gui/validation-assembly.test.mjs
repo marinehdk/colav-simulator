@@ -343,15 +343,15 @@ test('tuple options never repair a sibling algorithm or tracker behind the user'
   assert.equal(assembly.snapshot().draft.tracker_id, 'god');
 });
 
-test('algorithm, tracker, and scenario changes clear only their opaque dependent contracts', () => {
+test('scenario changes clear scenario-specific contracts and clock overrides', () => {
   const activeSession = {
     state: 'PAUSED',
     spec: {
       ...catalog.defaults,
       seed: 0,
       episode_index: 0,
-      dt: null,
-      t_end: null,
+      dt: 1,
+      t_end: 700,
       strict_no_fallback: true,
       evaluator_profile_id: 'ccta_2023_demo-v1',
       algorithm_config: { private_algorithm_key: 3 },
@@ -371,6 +371,8 @@ test('algorithm, tracker, and scenario changes clear only their opaque dependent
 
   assembly.edit('scenario_id', 'busy');
   assert.equal(assembly.snapshot().draft.scenario_override, null);
+  assert.equal(assembly.snapshot().draft.dt, null);
+  assert.equal(assembly.snapshot().draft.t_end, null);
   assert.ok(assembly.snapshot().notices.some((notice) => /override/i.test(notice.message)));
 });
 

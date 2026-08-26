@@ -80,6 +80,15 @@ class ThreatPriorityClass(StringEnum):
     MONITOR = "MONITOR"
 
 
+class ThreatDisplayClass(StringEnum):
+    """Backend-owned presentation class for canonical online risk facts."""
+
+    CLEAR = "CLEAR"
+    LOW = "LOW"
+    HIGH = "HIGH"
+    UNKNOWN = "UNKNOWN"
+
+
 class ThreatCompleteness(StringEnum):
     """Typed completeness of a published threat claim."""
 
@@ -841,6 +850,8 @@ class ThreatVector:
     lifecycle_role: OwnshipRole | str | None = None
     lifecycle_risk: RiskPhase | str | None = None
     lifecycle_commitment: CommitmentPhase | str | None = None
+    display_class: ThreatDisplayClass | str = ThreatDisplayClass.UNKNOWN
+    avoidance_action_active: bool = False
 
     def __post_init__(self) -> None:
         """Validate immutable physical and domain fact boundaries."""
@@ -870,6 +881,9 @@ class ThreatVector:
             object.__setattr__(self, "lifecycle_risk", RiskPhase(self.lifecycle_risk))
         if self.lifecycle_commitment is not None:
             object.__setattr__(self, "lifecycle_commitment", CommitmentPhase(self.lifecycle_commitment))
+        object.__setattr__(self, "display_class", ThreatDisplayClass(self.display_class))
+        if not isinstance(self.avoidance_action_active, bool):
+            raise TypeError("avoidance_action_active must be a boolean")
         if not isinstance(self.priority_reason, str):
             raise TypeError("priority reason must be a string")
         object.__setattr__(self, "priority_key", tuple(float(value) for value in self.priority_key))

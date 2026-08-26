@@ -419,7 +419,12 @@ export function createValidationAssembly({
         }
         if (draft.scenario_id !== previous.scenario_id) {
           draft.scenario_override = null;
-          notices.push({ kind: 'override-cleared', message: 'Scenario override cleared after Scenario changed.' });
+          draft.dt = null;
+          draft.t_end = null;
+          notices.push({
+            kind: 'override-cleared',
+            message: 'Scenario override and clock overrides cleared after Scenario changed.',
+          });
         }
       }
       return true;

@@ -465,9 +465,10 @@ function formatDuration(totalSeconds) {
 
 function updateRouteCard(proj) {
   const data = proj.raw || {};
-  // Steering mode is advisory display only and follows an explicit backend
-  // threat class; no browser encounter or distance calculation is performed.
-  const collisionActive = proj.risk?.status === 'AVAILABLE' && proj.risk?.primary?.displayClass === 'HIGH';
+  // Steering mode is advisory display only and follows the backend-owned
+  // canonical avoidance action; the browser never infers action from geometry.
+  const collisionActive = proj.risk?.status === 'AVAILABLE'
+    && proj.risk?.primary?.avoidanceActionActive === true;
   const steeringMode = document.getElementById('liveSteeringMode');
   if (steeringMode) {
     steeringMode.textContent = collisionActive ? 'COLLISION' : 'TRACK';
@@ -723,6 +724,15 @@ function riskThreatLevel(target) {
     LOW: 'warn',
     CLEAR: 'safe',
   }[String(target?.displayClass || '').toUpperCase()] || 'unknown';
+}
+
+function riskStateLabel(target) {
+  if (target?.avoidanceActionActive === true) return 'AVOIDING';
+  return {
+    LOW: 'MONITOR',
+    CLEAR: 'SAFE',
+    UNKNOWN: 'UNKNOWN',
+  }[String(target?.displayClass || '').toUpperCase()] || 'UNKNOWN';
 }
 
 function formatRiskDistance(distanceM, unit = riskDistanceUnit) {
@@ -1098,6 +1108,7 @@ function updateMonitorTelemetry(proj) {
       container.innerHTML = targets.map((t) => {
         const isHighest = t.isPrimary === true;
         const threatLevel = riskThreatLevel(t);
+        const riskState = riskStateLabel(t);
         const dcpaText = t.dcpaM !== null ? `${t.dcpaM.toFixed(1)}` : '---';
         const tcpaText = t.tcpaS !== null ? `${t.tcpaS.toFixed(1)}` : '---';
         const colregLabel = t.encounter ? (ENCOUNTER_LABELS[t.encounter] || t.encounter) : '--';
@@ -1114,6 +1125,7 @@ function updateMonitorTelemetry(proj) {
             </div>
             <dl class="risk-target-facts">
               <div><dt>COLREGs Rule</dt><dd class="colreg-value">${colregLabel}</dd></div>
+              <div><dt>Risk state</dt><dd>${riskState}</dd></div>
               <div><dt>Target range</dt><dd><button type="button" class="risk-distance-toggle" data-distance-m="${t.distanceM ?? ''}" data-unit="${riskDistanceUnit}" ${Number.isFinite(t.distanceM) ? '' : 'disabled'}>${formatRiskDistance(t.distanceM)}</button></dd></div>
               <div><dt>AIS state</dt><dd>${sampleKind}</dd></div>
               <div><dt>Hull dimensions</dt><dd>${dimensions}</dd></div>

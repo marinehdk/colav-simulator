@@ -189,6 +189,60 @@ def test_coordinator_publishes_one_cycle_account_from_shared_physical_facts() ->
     )
 
 
+def test_canonical_display_state_tracks_monitoring_then_achieved_avoidance_action() -> None:
+    key = TrackKey(1, 1)
+    target = _target(key, 800.0)
+    coordinator = ThreatManagementCoordinator()
+    profile = _domain_profile()
+
+    candidate = coordinator.cycle(_cycle(0, 0.0, (target,)), profile=profile)
+    assert candidate.vectors[0].lifecycle_risk is RiskPhase.CANDIDATE
+    assert candidate.vectors[0].display_class == "LOW"
+    assert candidate.vectors[0].avoidance_action_active is False
+
+    active = coordinator.cycle(
+        _cycle(
+            1,
+            5.0,
+            (replace(target, observed_at_s=5.0, generated_at_s=5.0),),
+        ),
+        profile=profile,
+    )
+    decision = active.lifecycle_snapshot.targets[0]
+    assert decision.risk is RiskPhase.ACTIVE
+    assert decision.action_achieved is False
+    assert active.vectors[0].display_class == "LOW"
+    assert active.vectors[0].avoidance_action_active is False
+
+    avoidance_heading = decision.baseline_course_rad + decision.required_course_change_rad
+    avoiding_ownship = replace(
+        _ownship(),
+        heading_rad=avoidance_heading,
+        velocity_ne_mps=np.array(
+            [
+                7.0 * math.cos(avoidance_heading),
+                7.0 * math.sin(avoidance_heading),
+            ]
+        ),
+    )
+    avoiding = coordinator.cycle(
+        replace(
+            _cycle(
+                2,
+                10.0,
+                (replace(target, observed_at_s=10.0, generated_at_s=10.0),),
+            ),
+            ownship=avoiding_ownship,
+        ),
+        profile=profile,
+    )
+
+    assert avoiding.lifecycle_snapshot.targets[0].action_achieved is True
+    assert avoiding.vectors[0].display_class == "HIGH"
+    assert avoiding.vectors[0].avoidance_action_active is True
+    assert avoiding.to_dict()["vectors"][0]["display_class"] == "HIGH"
+
+
 def test_threat_hashing_uses_one_canonical_helper() -> None:
     source = Path(__file__).resolve().parents[1] / "colav_simulator/core/colav/threat_management.py"
     assert "hashlib.sha256(json.dumps" not in source.read_text(encoding="utf-8")

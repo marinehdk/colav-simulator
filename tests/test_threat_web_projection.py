@@ -53,6 +53,11 @@ def test_product_session_exposes_baseline_threat_over_rest_and_websocket() -> No
         assert threat["snapshot"] is not None
         assert len(threat["vectors"]) == 3
         assert threat["unavailable_reason"] is None
+        assert all(
+            vector["display_class"] in {"CLEAR", "LOW", "HIGH", "UNKNOWN"}
+            and isinstance(vector["avoidance_action_active"], bool)
+            for vector in threat["vectors"]
+        )
         # Legacy browser-computed aliases stay inert.
         assert payload["primary_encounter"] is None
         assert payload["dcpa"] is None

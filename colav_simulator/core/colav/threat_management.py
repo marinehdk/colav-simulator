@@ -40,6 +40,7 @@ from colav_simulator.core.colav.threat_assessment import (
     ThreatAssessment,
     ThreatAssessmentRequest,
     ThreatCompleteness,
+    ThreatDisplayClass,
     ThreatManagementSnapshot,
     ThreatPrediction,
     ThreatPriorityClass,
@@ -972,6 +973,7 @@ def _attach_lifecycle_and_priority(
         decision = decisions.get(vector.key)
         priority_class, reason, priority_key = _resolved_priority(vector, decision)
         window = _window(vector, prediction_by_key.get(vector.key), sim_time_s)
+        display_class, avoidance_action_active = _display_state(vector, decision)
         result.append(
             replace(
                 vector,
@@ -982,9 +984,25 @@ def _attach_lifecycle_and_priority(
                 lifecycle_role=decision.role if decision is not None else None,
                 lifecycle_risk=decision.risk if decision is not None else None,
                 lifecycle_commitment=decision.commitment if decision is not None else None,
+                display_class=display_class,
+                avoidance_action_active=avoidance_action_active,
             )
         )
     return tuple(result)
+
+
+def _display_state(vector: Any, decision: Any | None) -> tuple[ThreatDisplayClass, bool]:
+    """Project one UI class from the canonical Lifecycle action state."""
+    if decision is None or vector.claim_completeness is ThreatCompleteness.UNKNOWN:
+        return ThreatDisplayClass.UNKNOWN, False
+    avoidance_action_active = bool(
+        decision.risk is RiskPhase.ACTIVE and decision.action_achieved
+    )
+    if avoidance_action_active:
+        return ThreatDisplayClass.HIGH, True
+    if decision.risk in {RiskPhase.CANDIDATE, RiskPhase.ACTIVE}:
+        return ThreatDisplayClass.LOW, False
+    return ThreatDisplayClass.CLEAR, False
 
 
 def _resolved_priority(vector: Any, decision: Any) -> tuple[ThreatPriorityClass, str, tuple[float, ...]]:
