@@ -61,6 +61,9 @@ let voDecisionSpaceRetryTimer = null;
 let lastVODecisionRequestAt = 0;
 let lastVORenderKey = null;
 let voRenderGeometry = null;
+let latestMonitorProjection = null;
+let latestVesselMarkers = [];
+let selectedVesselTarget = null;
 function currentRunId() {
   return deploymentRuntimeSnapshot.session?.session_id || null;
 }
@@ -118,9 +121,152 @@ const situationDisplay = createSituationDisplay({
     if (label) label.textContent = text;
   },
   onLayerStateChange: syncLayerControls,
-  onSelectionChange: () => {},
+  onSelectionChange: showVesselPlacard,
+  onTargetMarkersChange: renderVesselMarkers,
 });
 const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveRadarMiniMap') });
+
+function vesselMarkerElement(id) {
+  return document.querySelector(`.vessel-marker[data-target-id="${CSS.escape(String(id))}"]`);
+}
+
+function applyVesselMarkerModel(component, marker) {
+  Object.assign(component, {
+    type: 'flat',
+    state: marker.state,
+    selected: marker.selected,
+    heading: marker.headingDeg,
+    course: marker.courseDeg,
+    speedIndicator: marker.speedIndicator,
+    turnRate: marker.turnRateDeg,
+    vesselImage: 'cargo-top',
+    vesselImageSize: 28,
+    number: Number(marker.id),
+    name: `TS${marker.id}`,
+  });
+  component.setAttribute('aria-hidden', 'true');
+}
+
+function renderVesselMarkers(markers = []) {
+  latestVesselMarkers = markers;
+  const layer = document.getElementById('vesselMarkerLayer');
+  if (!layer) return;
+  const activeIds = new Set(markers.map(marker => String(marker.id)));
+  layer.querySelectorAll('.vessel-marker').forEach((element) => {
+    if (!activeIds.has(element.dataset.targetId)) element.remove();
+  });
+  markers.forEach((marker) => {
+    let host = vesselMarkerElement(marker.id);
+    if (!host) {
+      host = document.createElement('div');
+      host.className = 'vessel-marker';
+      host.dataset.targetId = String(marker.id);
+      host.setAttribute('role', 'button');
+      host.tabIndex = 0;
+      const select = (event) => {
+        event.stopPropagation();
+        situationDisplay.selectTarget(host.dataset.targetId);
+      };
+      host.addEventListener('click', select);
+      host.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') select(event);
+      });
+      const component = document.createElement('obc-chart-object-vessel-button');
+      host.appendChild(component);
+      layer.appendChild(host);
+    }
+    host.style.left = `${marker.anchor.x}px`;
+    host.style.top = `${marker.anchor.y}px`;
+    host.hidden = marker.anchor.x < -40
+      || marker.anchor.y < -40
+      || marker.anchor.x > layer.clientWidth + 40
+      || marker.anchor.y > layer.clientHeight + 40;
+    host.setAttribute('aria-label', `TS${marker.id}, ${marker.state}, click for vessel details`);
+    applyVesselMarkerModel(host.firstElementChild, marker);
+  });
+
+  if (selectedVesselTarget) {
+    const selected = markers.find(marker => String(marker.id) === String(selectedVesselTarget.id));
+    if (selected) showVesselPlacard(selected.target, { anchor: selected.anchor });
+  }
+}
+
+function hideVesselPlacard() {
+  selectedVesselTarget = null;
+  const placard = document.getElementById('vesselDetailPlacard');
+  if (placard) placard.hidden = true;
+}
+
+function placardMetric(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
+}
+
+function showVesselPlacard(target, context = {}) {
+  const placard = document.getElementById('vesselDetailPlacard');
+  const wrapper = document.getElementById('canvasWrapper');
+  if (!placard || !wrapper || !target) {
+    hideVesselPlacard();
+    return;
+  }
+  selectedVesselTarget = target;
+  const marker = latestVesselMarkers.find(item => String(item.id) === String(target.id));
+  const anchor = context.anchor || marker?.anchor;
+  if (!anchor) {
+    placard.hidden = true;
+    return;
+  }
+  const riskTarget = latestMonitorProjection?.risk?.targets
+    ?.find(item => String(item.targetId) === String(target.id));
+  const ownship = latestMonitorProjection?.raw?.os || currentData?.os;
+  const northDelta = Number(target.x) - Number(ownship?.x);
+  const eastDelta = Number(target.y) - Number(ownship?.y);
+  const geometricRangeM = Math.hypot(northDelta, eastDelta);
+  const rangeM = Number.isFinite(riskTarget?.distanceM) ? riskTarget.distanceM : geometricRangeM;
+  const bearingDeg = Number.isFinite(northDelta) && Number.isFinite(eastDelta)
+    ? (Math.atan2(eastDelta, northDelta) * 180 / Math.PI + 360) % 360
+    : NaN;
+  const headingDeg = Number.isFinite(target.psi)
+    ? (Number(target.psi) * 180 / Math.PI + 360) % 360
+    : NaN;
+  const speedKnots = Number.isFinite(target.sog) ? Number(target.sog) / 0.514444 : NaN;
+  const dcpaNm = Number.isFinite(riskTarget?.dcpaM)
+    ? Math.abs(riskTarget.dcpaM) / METERS_PER_NAUTICAL_MILE
+    : NaN;
+  const tcpaMin = Number.isFinite(riskTarget?.tcpaS) ? riskTarget.tcpaS / 60 : NaN;
+  const source = deploymentRuntimeSnapshot.session?.spec?.historical_scenario_id ? 'AIS' : 'TRACK';
+  Object.assign(placard, {
+    pointerDirection: anchor.y > 220 ? 'bottom' : 'top',
+    headerVariant: 'condensed',
+    index: String(target.id),
+    cardTitle: target.name || `TS${target.id}`,
+    description: target.mmsi ? `MMSI ${target.mmsi}` : 'Tracked target vessel',
+    source,
+    interactive: false,
+  });
+  placard.dataset.placement = anchor.y > 220 ? 'above' : 'below';
+  const halfWidth = Math.min(165, Math.max(80, wrapper.clientWidth / 2 - 8));
+  placard.style.left = `${Math.min(wrapper.clientWidth - halfWidth, Math.max(halfWidth, anchor.x))}px`;
+  placard.style.top = `${anchor.y + (anchor.y > 220 ? -38 : 38)}px`;
+  placard.hidden = false;
+  placard.setAttribute('aria-label', `${target.name || `TS${target.id}`} vessel details`);
+
+  placardMetric('vesselPlacardBearing', Number.isFinite(bearingDeg) ? Math.round(bearingDeg).toString().padStart(3, '0') : '---');
+  placardMetric('vesselPlacardRange', Number.isFinite(rangeM) ? (rangeM / METERS_PER_NAUTICAL_MILE).toFixed(1) : '---');
+  placardMetric('vesselPlacardDcpa', Number.isFinite(dcpaNm) ? dcpaNm.toFixed(dcpaNm < 0.1 ? 3 : 2) : '---');
+  placardMetric('vesselPlacardTcpa', Number.isFinite(tcpaMin) ? tcpaMin.toFixed(1) : '---');
+  placardMetric('vesselPlacardHeading', Number.isFinite(headingDeg) ? Math.round(headingDeg).toString().padStart(3, '0') : '---');
+  placardMetric('vesselPlacardSpeed', Number.isFinite(speedKnots) ? speedKnots.toFixed(1) : '---');
+  const symbol = document.getElementById('vesselPlacardSymbol');
+  if (symbol) Object.assign(symbol, {
+    type: 'flat-large',
+    heading: Number.isFinite(headingDeg) ? headingDeg : 0,
+    course: Number.isFinite(headingDeg) ? headingDeg : 0,
+    state: marker?.state || 'enabled',
+    vesselImage: 'cargo-top',
+    vesselImageSize: 28,
+  });
+}
 
 /* ══════════════════════════════════════════════
    OPENBRIDGE THEME (C5 #4 — full prototype behavior, P:2849-2870 / P:3179-3204)
@@ -197,7 +343,7 @@ customElements.whenDefined('obc-top-bar').then(syncDeploymentSidebarControls);
 // Brilliance-menu ships inside the same locally-bundled module config-shell.js
 // loads (vendor/openbridge/entry-source.mjs); re-import is a cache no-op and
 // failure degrades like every other best-effort OpenBridge piece.
-import('/static/vendor/openbridge/openbridge-components.mjs?v=20260826-speed-gauge-v1').catch(() => {});
+import('/static/vendor/openbridge/openbridge-components.mjs?v=20260827-vessel-placard-v1').catch(() => {});
 
 function applyPalette(palette, persist = true) {
   const nextPalette = PALETTE_NAMES[palette] ? palette : 'day';
@@ -1356,6 +1502,7 @@ function setupNotificationCenter() {
 }
 
 function updateMonitorTelemetry(proj) {
+  latestMonitorProjection = proj;
   const historicalContext = proj.raw?.historical_context;
   setText(
     'liveContextCount',
@@ -2735,6 +2882,8 @@ function resetDeploymentForSession(data) {
   // Animation/ENC teardown lives in the situation-display module
   // (beginSession/clearSession call resetAnimation internally).
   currentData = null;
+  latestMonitorProjection = null;
+  hideVesselPlacard();
   perfHistory.length = 0;
   solveTimeline = [];
   lastDisplayedSolveId = null;
@@ -2985,6 +3134,10 @@ function setupDeploymentPagination() {
 }
 
 function setupDeploymentControls() {
+  document.getElementById('vesselDetailPlacard')?.addEventListener('click', event => event.stopPropagation());
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && selectedVesselTarget) situationDisplay.selectTarget(null);
+  });
   document.getElementById('liveRiskTargetList')?.addEventListener('click', (event) => {
     const button = event.target.closest('.risk-distance-toggle');
     if (!button || button.disabled) return;

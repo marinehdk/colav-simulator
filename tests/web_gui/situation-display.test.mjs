@@ -427,6 +427,37 @@ test('hit-testing resolves the topmost (last drawn) target and reports selection
   assert.equal(selections.at(-1), null);
 });
 
+test('OpenBridge target markers receive rotated screen anchors and selection context', async () => {
+  const markerFrames = [];
+  const selections = [];
+  const { display } = await createDisplay({
+    onTargetMarkersChange: markers => markerFrames.push(markers),
+    onSelectionChange: (target, context) => selections.push({ target, context }),
+  });
+  const snapshot = sampleSnapshot();
+  display.render(snapshot);
+
+  const markers = markerFrames.at(-1);
+  assert.equal(markers.length, 2);
+  assert.deepEqual(markers.map(marker => marker.id), [1, 2]);
+  assert.ok(markers.every(marker => Number.isFinite(marker.anchor.x) && Number.isFinite(marker.anchor.y)));
+  assert.equal(markers[0].headingDeg, 180);
+
+  const first = markers[0];
+  display.handleClickAt(first.anchor.x, first.anchor.y);
+  assert.equal(selections.at(-1).target.id, 1);
+  assert.deepEqual(selections.at(-1).context.anchor, first.anchor);
+
+  const headingFrames = [];
+  const { display: headingDisplay } = await createDisplay({
+    onTargetMarkersChange: markers => headingFrames.push(markers),
+  });
+  headingDisplay.setOrientation('heading');
+  headingDisplay.render({ ...snapshot, os: { ...snapshot.os, psi: Math.PI / 2 } });
+  const headingUp = headingFrames.at(-1).find(marker => marker.id === 1);
+  assert.equal(headingUp.headingDeg, 90);
+});
+
 test('registered click mode intercepts clicks with UTM coords and is mutually exclusive with selection', async () => {
   const picks = [];
   const selections = [];

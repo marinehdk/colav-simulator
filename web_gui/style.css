@@ -844,6 +844,7 @@ obc-clock:not(:defined),
   border-radius: 7px;
   backdrop-filter: blur(8px);
   pointer-events: auto;
+  cursor: pointer;
 }
 
 .map-chart-select {
@@ -1165,6 +1166,126 @@ canvas#simCanvas {
 }
 
 canvas#simCanvas.route-pick-mode { cursor: crosshair; }
+
+.vessel-marker-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.vessel-marker {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  filter: drop-shadow(0 1px 2px rgba(4, 28, 42, 0.36));
+}
+
+.vessel-marker obc-chart-object-vessel-button { display: block; }
+
+.vessel-detail-placard {
+  position: absolute;
+  z-index: 5;
+  width: min(330px, calc(100% - 16px));
+  pointer-events: auto;
+  --overlay-container-background-color: color-mix(in srgb, var(--ob-surface) 92%, transparent);
+}
+
+.vessel-detail-placard[hidden] { display: none !important; }
+
+.vessel-detail-placard[data-placement="above"] { transform: translate(-50%, -100%); }
+.vessel-detail-placard[data-placement="below"] { transform: translate(-50%, 0); }
+
+.vessel-placard-body {
+  width: 328px;
+  max-width: 100%;
+  color: var(--ob-text);
+  font-family: var(--font-ui);
+  background: color-mix(in srgb, var(--ob-surface) 84%, transparent);
+  backdrop-filter: blur(7px);
+}
+
+.vessel-placard-primary {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  min-height: 72px;
+  padding: 7px 12px 5px;
+  border-bottom: 1px solid var(--ob-border);
+}
+
+.vessel-placard-dial {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ob-border-strong);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ob-surface) 72%, transparent);
+}
+
+.vessel-placard-dial > span {
+  position: absolute;
+  top: 1px;
+  font: 600 8px/1 var(--font-ui);
+  color: var(--ob-subtle);
+}
+
+.vessel-placard-dial obc-chart-object-vessel-button { transform: scale(.72); }
+
+.vessel-placard-feature {
+  display: grid;
+  grid-template-columns: auto min-content;
+  align-items: center;
+  justify-content: center;
+  column-gap: 6px;
+  min-width: 0;
+}
+
+.vessel-placard-feature strong {
+  font: 600 34px/1 var(--font-ui);
+  color: var(--ob-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.vessel-placard-feature > span {
+  display: grid;
+  gap: 2px;
+  font: 600 12px/1 var(--font-ui);
+  color: var(--ob-subtle);
+}
+
+.vessel-placard-feature small { font-size: 10px; font-weight: 500; }
+
+.vessel-placard-secondary {
+  display: grid;
+  grid-template-columns: 42px 52px 28px 42px 52px 28px;
+  align-items: baseline;
+  justify-content: space-between;
+  row-gap: 8px;
+  padding: 8px 14px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vessel-placard-secondary span {
+  font: 600 11px/1 var(--font-ui);
+  color: var(--ob-subtle);
+}
+
+.vessel-placard-secondary strong {
+  text-align: right;
+  font: 600 16px/1 var(--font-ui);
+  color: var(--ob-text);
+}
+
+.vessel-placard-secondary small {
+  font: 500 10px/1 var(--font-ui);
+  color: var(--ob-subtle);
+}
 
 .ovl-label { color: var(--text-dim); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .ovl-val   { color: var(--accent-cyan); font-size: 0.85rem; font-weight: 600; }

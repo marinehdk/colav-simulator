@@ -321,11 +321,11 @@ test('algorithm detail and performance pages use readable typography and full-wi
   assert.match(lineGraph, /X \$\{formatTick\(xValue\)\} · Y \$\{formatTick\(yValue\)\}/);
 });
 
-test('chart selection stays inside the Situation Display inspection context', () => {
-  const start = app.indexOf('onSelectionChange: target =>');
-  assert.equal(start, -1);
-  assert.match(app, /onSelectionChange: \(\) => \{\}/);
-  assert.doesNotMatch(app, /selectedTargetId|updateTargetDetails|busyWaterStatus/);
+test('chart selection renders only the anchored OpenBridge vessel placard', () => {
+  assert.match(app, /onSelectionChange: showVesselPlacard/);
+  assert.match(app, /onTargetMarkersChange: renderVesselMarkers/);
+  assert.match(app, /id="vesselDetailPlacard"|getElementById\('vesselDetailPlacard'\)/);
+  assert.doesNotMatch(app, /updateTargetDetails|busyWaterStatus/);
 });
 
 test('three Workfaces occupy three equal centered columns', () => {

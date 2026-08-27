@@ -449,6 +449,7 @@ export function createSituationDisplay(options) {
     onLog = () => {},
     onLayerStateChange = () => {},
     onSelectionChange = () => {},
+    onTargetMarkersChange = null,
   } = options;
   if (!canvas || !wrapper) throw new Error('situation-display requires canvas and wrapper');
 
@@ -504,6 +505,17 @@ export function createSituationDisplay(options) {
     return { x: w / 2 + dx * cos - dy * sin, y: h / 2 + dx * sin + dy * cos };
   }
 
+  function drawnToScreen(x, y) {
+    if (!headingRotation) return { x, y };
+    const w = wrapper.clientWidth;
+    const h = wrapper.clientHeight;
+    const dx = x - w / 2;
+    const dy = y - h / 2;
+    const cos = Math.cos(headingRotation);
+    const sin = Math.sin(headingRotation);
+    return { x: w / 2 + dx * cos + dy * sin, y: h / 2 - dx * sin + dy * cos };
+  }
+
   /* ── layers (ruling 6) ── */
   const visibleLayers = { ...DEFAULT_LAYERS };
   const layerAvailability = {};
@@ -517,6 +529,7 @@ export function createSituationDisplay(options) {
   let ownshipThreatPlotVisible = false;
   let clickMode = null;
   let selectionCallback = onSelectionChange;
+  const markerSink = typeof onTargetMarkersChange === 'function' ? onTargetMarkersChange : null;
   let targetThreatLevels = new Map();
 
   /* ── interpolation pipeline (moved from app.js per M3) ── */
@@ -913,6 +926,7 @@ export function createSituationDisplay(options) {
     if (data.os && !plannerSurfaceAttached && ownshipThreatPlotVisible) drawCollisionThreatPlot(data, W, H);
     drawShadowOwnship(data.shadow_ownship);
     if (visibleLayers.ships) drawShips(data);
+    else markerSink?.([]);
     ctx.restore();
   }
 
@@ -1294,16 +1308,34 @@ export function createSituationDisplay(options) {
     const targets = targetsForDisplay(data);
     const dense = denseTrafficMode(data);
     const labels = [];
+    const markers = [];
     targets.forEach(target => {
       const threat = targetThreat(data, target);
       const point = worldToCanvas(target.x, target.y);
       const compact = dense && threat.rank < 3 && target.id !== selectedTargetId;
-      drawTargetSprite(point, target.psi, target.length || 30, target.width || 7, threat, compact);
-      targetHitRegions.push({ x: point.x, y: point.y, radius: 14, target });
-      if ((!dense && threat.rank >= 2) || threat.rank >= 3 || target.id === selectedTargetId) {
+      if (markerSink) {
+        const relativeHeading = wrapRadians((Number(target.psi) || 0) - headingRotation);
+        markers.push({
+          id: target.id,
+          target,
+          anchor: drawnToScreen(point.x, point.y),
+          headingDeg: Math.round(relativeHeading * 180 / Math.PI),
+          courseDeg: Math.round(wrapRadians((Number(target.cog) || Number(target.psi) || 0) - headingRotation) * 180 / Math.PI),
+          speedIndicator: Number(target.sog) < 0.1 ? 'stopped' : Number(target.sog) < 2 ? 'one' : Number(target.sog) < 5 ? 'two' : 'three',
+          turnRateDeg: Number.isFinite(target.r) ? Number(target.r) * 180 / Math.PI : 0,
+          state: threat.rank >= 3 ? 'alarm' : threat.rank >= 2 ? 'caution' : threat.rank >= 1 ? 'active' : 'enabled',
+          selected: String(target.id) === String(selectedTargetId),
+          compact,
+        });
+      } else {
+        drawTargetSprite(point, target.psi, target.length || 30, target.width || 7, threat, compact);
+      }
+      targetHitRegions.push({ x: point.x, y: point.y, radius: markerSink ? 32 : 14, target });
+      if (!markerSink && ((!dense && threat.rank >= 2) || threat.rank >= 3 || target.id === selectedTargetId)) {
         labels.push({ text: `TS${target.id}`, point, color: threat.color });
       }
     });
+    markerSink?.(markers);
     if (visibleLayers.truth && data.executed_tracker !== 'god') {
       (data.obstacles || []).forEach(target => {
         const point = worldToCanvas(target.x, target.y);
@@ -1894,7 +1926,13 @@ export function createSituationDisplay(options) {
       || (selectedTargetId === null ? null
         : targetsForDisplay(currentData || lastRenderedData || {}).find(item => String(item.id) === String(selectedTargetId))
         || (Number.isFinite(Number(selectedTargetId)) ? { id: selectedTargetId } : null));
-    selectionCallback(resolved);
+    const point = resolved && Number.isFinite(resolved.x) && Number.isFinite(resolved.y)
+      ? worldToCanvas(resolved.x, resolved.y)
+      : null;
+    selectionCallback(resolved, {
+      selectedTargetId,
+      anchor: point ? drawnToScreen(point.x, point.y) : null,
+    });
     rerender();
   }
 
@@ -1957,6 +1995,8 @@ export function createSituationDisplay(options) {
   function beginSession(runId) {
     activeRunId = runId || null;
     ownshipThreatPlotVisible = false;
+    selectTarget(null, null);
+    markerSink?.([]);
     resetAnimation();
     // Ruling 3: a new session generation resets the view (fit ENC).
     userAdjusted = false;
@@ -1974,6 +2014,8 @@ export function createSituationDisplay(options) {
     encInfo = null;
     encImage = null;
     encReady = false;
+    selectTarget(null, null);
+    markerSink?.([]);
     setEncStatus('idle');
   }
 

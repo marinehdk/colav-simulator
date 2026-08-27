@@ -57,7 +57,7 @@ async function loadOpenBridge() {
   try {
     // Single locally-bundled module: components + icons + lit, pinned to
     // @oicl/openbridge-webcomponents@1.0.1. See vendor/openbridge/entry-source.mjs.
-    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260826-speed-gauge-v1');
+    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260827-vessel-placard-v1');
     await Promise.all([
       customElements.whenDefined('obc-top-bar'),
       customElements.whenDefined('obc-card'),

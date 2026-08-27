@@ -41,3 +41,5 @@ import '@oicl/openbridge-webcomponents/dist/icons/icon-monitoring-route.js';
 import '@oicl/openbridge-webcomponents/dist/icons/icon-own-ship-alternative-filled.js';
 import '@oicl/openbridge-webcomponents/dist/icons/icon-vessel-type-cargo-filled.js';
 import '@oicl/openbridge-webcomponents/dist/navigation-instruments/speed-gauge/speed-gauge.js';
+import '@oicl/openbridge-webcomponents/dist/ar/chart-object-vessel-button/chart-object-vessel-button.js';
+import '@oicl/openbridge-webcomponents/dist/ar/poi-card/poi-card.js';
