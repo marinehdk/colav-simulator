@@ -3,6 +3,15 @@ from __future__ import annotations
 import numpy as np
 
 from colav_simulator.core.colav.custom_mpc_adapter import DeadlineMode, FactoryContext
+from colav_simulator.core.colav.encounter_lifecycle import (
+    EncounterCycle,
+    Maneuverability,
+    ObservationHealth,
+    OwnshipObservation,
+    PlannerOddProfile,
+    RiskPhase,
+    TargetObservation,
+)
 from colav_simulator.core.colav.threat_assessment import (
     ConflictEdgeType,
     OwnshipThreatPrediction,
@@ -12,6 +21,92 @@ from colav_simulator.core.colav.threat_assessment import (
 from colav_simulator.core.colav.threat_management import AcceptedPlanReceipt, ThreatManagementCoordinator
 from colav_simulator.core.tracking.trackers import TrackKey, TrackSnapshot, TrackStatus
 from colav_simulator.integrations import mid_mpc_ipopt
+
+
+def _historical_handoff_cycle(sequence: int, sim_time_s: float) -> EncounterCycle:
+    return EncounterCycle(
+        epoch="session-baseline",
+        sequence=sequence,
+        sim_time_s=sim_time_s,
+        ownship=OwnshipObservation(
+            position_ne_m=np.array([0.0, 0.0]),
+            velocity_ne_mps=np.array([7.0, 0.0]),
+            heading_rad=0.0,
+            length_m=15.0,
+            width_m=4.0,
+            maneuverability=Maneuverability(np.deg2rad(3.0), 0.3, (0.0, 8.0)),
+        ),
+        targets=(
+            TargetObservation(
+                key=TrackKey(1, 1),
+                state_enu=np.array([1_000.0, 0.0, -7.0, 0.0]),
+                covariance=np.zeros((4, 4)),
+                length_m=30.0,
+                width_m=7.0,
+                observed_at_s=sim_time_s,
+                generated_at_s=sim_time_s,
+                health=ObservationHealth.UPDATED,
+                source="god",
+            ),
+        ),
+        route_bearing_rad=0.0,
+        planned_speed_mps=7.0,
+        profile=PlannerOddProfile(),
+    )
+
+
+def test_mid_mpc_consumes_existing_active_handoff_snapshot_without_recycling_lifecycle() -> None:
+    coordinator = ThreatManagementCoordinator()
+    adapter = mid_mpc_ipopt.create(
+        context=FactoryContext(
+            requested_algorithm="mid_mpc_ipopt",
+            algorithm_seed=0,
+            scenario_id="historical-handoff",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+            threat_management_coordinator=coordinator,
+        ),
+        horizon_steps=4,
+        horizon_dt_s=5.0,
+        solve_period_s=5.0,
+        deadline_s=20.0,
+    )
+    coordinator.cycle(_historical_handoff_cycle(1, 61.0))
+    handoff = coordinator.cycle(_historical_handoff_cycle(2, 67.0))
+    assert handoff.lifecycle_snapshot.targets[0].risk is RiskPhase.ACTIVE
+
+    target = TrackSnapshot(
+        key=TrackKey(1, 1),
+        state=np.array([1_000.0, 0.0, -7.0, 0.0]),
+        covariance=np.zeros((4, 4)),
+        length_m=30.0,
+        width_m=7.0,
+        observed_at_s=67.0,
+        generated_at_s=67.0,
+        status=TrackStatus.UPDATED,
+        source="god",
+    )
+
+    adapter.plan(
+        67.0,
+        np.array([[0.0, 500.0], [0.0, 0.0]]),
+        np.array([7.0, 7.0]),
+        np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0]),
+        [target],
+        dt=1.0,
+        os_length=15.0,
+        os_model_name="Viknes",
+        os_controller_name="FLSC",
+        os_max_turn_rate_radps=np.deg2rad(3.0),
+    )
+
+    trace = adapter.get_colav_data()["planner"]
+    lifecycle = trace["algorithm_details"]["lifecycle"]
+    assert lifecycle["epoch"] == "session-baseline"
+    assert lifecycle["sequence"] == 2
+    assert lifecycle["targets"][0]["risk"] == "ACTIVE"
+    assert trace["algorithm_details"]["selected_target_ids"] == [1]
+    assert coordinator.last_snapshot is handoff
 
 
 def test_mid_mpc_uses_injected_runtime_threat_coordinator_and_native_solver() -> None:

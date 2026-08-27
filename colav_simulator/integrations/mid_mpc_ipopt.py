@@ -94,6 +94,7 @@ from colav_simulator.core.colav.rolling_plan import (
 from colav_simulator.core.colav.threat_assessment import (
     OwnshipThreatPrediction,
     PredictionBasis,
+    ThreatManagementSnapshot,
 )
 from colav_simulator.core.colav.threat_assessment import (
     ThreatPrediction as ThreatTargetPrediction,
@@ -158,6 +159,7 @@ class _MidMpcFacade:
         self._threat_management_coordinator = threat_management_coordinator
         self._last_guidance_time_s: float | None = None
         self._epoch_number = 1
+        self._cycle_epoch = f"mid-mpc-{self._epoch_number}"
         self._cycle_sequence = 0
         self._last_cycle_time_s: float | None = None
         self._artifact_sink = artifact_sink
@@ -172,8 +174,9 @@ class _MidMpcFacade:
     def reset(self) -> None:
         self._los.reset()
         self._epoch_number += 1
+        self._cycle_epoch = f"mid-mpc-{self._epoch_number}"
         self._threat_management_coordinator.reset(
-            epoch=f"mid-mpc-{self._epoch_number}",
+            epoch=self._cycle_epoch,
             reason="adapter_reset",
             sim_time_s=0.0 if self._last_cycle_time_s is None else self._last_cycle_time_s,
         )
@@ -322,7 +325,11 @@ class _MidMpcFacade:
         )
         self._last_guidance_time_s = planner_input.sim_time_s
         route_bearing = _unwrap_near(float(reference[2, 0]), float(ownship[2]))
-        if self._last_cycle_time_s is not None and planner_input.sim_time_s != self._last_cycle_time_s:
+        canonical_snapshot = self._canonical_snapshot_at(planner_input)
+        if canonical_snapshot is not None:
+            self._cycle_epoch = canonical_snapshot.epoch
+            self._cycle_sequence = canonical_snapshot.sequence
+        elif self._last_cycle_time_s is not None and planner_input.sim_time_s != self._last_cycle_time_s:
             self._cycle_sequence += 1
         self._last_cycle_time_s = planner_input.sim_time_s
         route_anchor, mission_leg_bearing = _nearest_route_projection(
@@ -347,12 +354,14 @@ class _MidMpcFacade:
                         LifecycleFailure.UNUSABLE_OBSERVATION,
                         f"target {target.key} observation is stale",
                     )
-            threat_snapshot = self._threat_management_coordinator.cycle(
-                cycle,
-                profile=self._threat_management_coordinator.domain_profile,
-                predictions=self._threat_target_predictions(planner_input),
-                baseline_prediction=self._threat_baseline_prediction(planner_input),
-            )
+            threat_snapshot = canonical_snapshot
+            if threat_snapshot is None:
+                threat_snapshot = self._threat_management_coordinator.cycle(
+                    cycle,
+                    profile=self._threat_management_coordinator.domain_profile,
+                    predictions=self._threat_target_predictions(planner_input),
+                    baseline_prediction=self._threat_baseline_prediction(planner_input),
+                )
             snapshot = threat_snapshot.lifecycle_snapshot
             if not isinstance(snapshot, DecisionSnapshot):
                 raise RuntimeError("Threat Management Coordinator did not publish a Lifecycle snapshot")
@@ -972,7 +981,7 @@ class _MidMpcFacade:
         )
         targets = tuple(self._target_observation(track) for track in planner_input.tracks)
         return EncounterCycle(
-            epoch=f"mid-mpc-{self._epoch_number}",
+            epoch=self._cycle_epoch,
             sequence=self._cycle_sequence,
             sim_time_s=planner_input.sim_time_s,
             ownship=OwnshipObservation(
@@ -992,6 +1001,28 @@ class _MidMpcFacade:
             planned_speed_mps=planned_speed_mps,
             profile=self._config.profile,
         )
+
+    def _canonical_snapshot_at(
+        self,
+        planner_input: PlannerInput,
+    ) -> ThreatManagementSnapshot | None:
+        """Consume a same-time runtime snapshot instead of recycling Lifecycle."""
+        snapshot = self._threat_management_coordinator.last_snapshot
+        if snapshot is None or not math.isclose(
+            snapshot.sim_time_s,
+            planner_input.sim_time_s,
+            rel_tol=0.0,
+            abs_tol=1.0e-9,
+        ):
+            return None
+        lifecycle = snapshot.lifecycle_snapshot
+        if not isinstance(lifecycle, DecisionSnapshot) or lifecycle.profile_hash != self._config.profile.hash:
+            return None
+        planner_keys = {TrackKey(track.target_id, track.generation) for track in planner_input.tracks}
+        lifecycle_keys = {target.key for target in lifecycle.targets}
+        if planner_keys != lifecycle_keys:
+            return None
+        return snapshot
 
     def _threat_target_predictions(
         self,

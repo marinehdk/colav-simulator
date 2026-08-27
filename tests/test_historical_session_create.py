@@ -9,6 +9,7 @@ when the user-provided HAIS archive is bound.
 
 from __future__ import annotations
 
+import math
 import os
 
 import pytest
@@ -209,3 +210,56 @@ def test_hais_counterfactual_session_creates_and_advances() -> None:
         assert current["state"] == "PAUSED"
         assert current["sim_time"] >= 35.0
         assert current["source_time_s"] >= 95.0
+
+
+def test_hais_mid_mpc_first_control_frame_preserves_the_active_handoff_snapshot() -> None:
+    """The canonical ACTIVE snapshot reaches Mid-MPC without a second Lifecycle cycle."""
+    if not _archive_bound():
+        pytest.skip("real HAIS archive not bound via COLAV_HAIS_ARCHIVE_PATH")
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": HISTORICAL_AIS_SCENE_ID,
+                "algorithm_id": "mid_mpc_ipopt",
+                "tracker_id": "god",
+            },
+        )
+        assert created.status_code == 200, created.text
+        session_id = created.json()["session_id"]
+
+        first = client.post(f"/api/sessions/{session_id}/step")
+        assert first.status_code == 200, first.text
+        assert first.json()["source_time_s"] == 60.0
+        assert first.json()["os"]["sog"] > 6.0
+
+        handoff_frame = None
+        for _ in range(10):
+            stepped = client.post(f"/api/sessions/{session_id}/step")
+            assert stepped.status_code == 200, stepped.text
+            candidate = stepped.json()
+            if any(event["type"] == "algorithm_handoff" for event in candidate["events"]):
+                handoff_frame = candidate
+                break
+
+        assert handoff_frame is not None
+        assert 66.0 <= handoff_frame["source_time_s"] <= 67.0
+
+        controlled = client.post(f"/api/sessions/{session_id}/step")
+        assert controlled.status_code == 200, controlled.text
+        control_frame = controlled.json()
+        planner = control_frame["planner"]
+        assert planner["algorithm_id"] == "mid_mpc_ipopt"
+        assert planner["solver_executed"] is True
+        assert planner["sim_time"] == handoff_frame["source_time_s"] + 1.0
+        lifecycle = planner["algorithm_details"]["lifecycle"]
+        assert lifecycle["epoch"] == "session-baseline"
+        assert any(target["risk"] == "ACTIVE" for target in lifecycle["targets"])
+        assert planner["algorithm_details"]["selected_target_ids"]
+        applied_course = control_frame["execution"]["applied_course_ref_rad"]
+        course_delta = math.atan2(
+            math.sin(applied_course - control_frame["os"]["psi"]),
+            math.cos(applied_course - control_frame["os"]["psi"]),
+        )
+        assert abs(course_delta) <= math.radians(3.0) + 1.0e-6
