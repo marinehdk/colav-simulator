@@ -1425,22 +1425,46 @@ function updateMonitorTelemetry(proj) {
 
   const shadow = proj.raw?.shadow_comparison;
   const shadowPanel = document.getElementById('shadowComparisonPanel');
-  const shadowAvailable = ['AVAILABLE', 'INACTIVE / DATA GAP'].includes(shadow?.status);
+  const shadowValues = document.getElementById('shadowComparisonValues');
+  const shadowEmpty = document.getElementById('shadowComparisonEmpty');
+  const shadowStatus = document.getElementById('shadowComparisonStatus');
+  const sessionSpec = deploymentRuntimeSnapshot.session?.spec;
+  const isHistoricalAisScenario = Boolean(sessionSpec?.historical_scenario_id);
+  const shadowMetricsAvailable = isHistoricalAisScenario
+    && ['AVAILABLE', 'INACTIVE / DATA GAP'].includes(shadow?.status)
+    && [
+      shadow?.deviation_m,
+      shadow?.maximum_deviation_m,
+      shadow?.delta_cog_rad,
+      shadow?.delta_sog_mps,
+    ].every(Number.isFinite);
   if (shadowPanel) shadowPanel.hidden = false;
-  if (shadowAvailable) {
+  if (shadowValues) shadowValues.hidden = !shadowMetricsAvailable;
+  if (shadowEmpty) {
+    shadowEmpty.hidden = shadowMetricsAvailable;
+    shadowEmpty.textContent = isHistoricalAisScenario
+      ? 'Waiting for historical AIS comparison data.'
+      : 'Available in AIS Historical sessions only.';
+  }
+  if (shadowStatus) {
+    shadowStatus.dataset.state = shadowMetricsAvailable
+      ? (shadow.status === 'AVAILABLE' ? 'available' : 'data-gap')
+      : 'unavailable';
+  }
+  if (shadowMetricsAvailable) {
     setText('shadowComparisonStatus', shadow.status === 'AVAILABLE' ? 'COMPARISON ONLY' : shadow.status);
-    setText('shadowDeviation', `${Number(shadow.deviation_m).toFixed(1)} m`);
-    setText('shadowMaximumDeviation', `${Number(shadow.maximum_deviation_m).toFixed(1)} m`);
-    setText('shadowDeltaCog', `${(Number(shadow.delta_cog_rad) * 180 / Math.PI).toFixed(1)}°`);
-    setText('shadowDeltaSog', `${(Number(shadow.delta_sog_mps) / 0.514444).toFixed(1)} kn`);
+    setText('shadowDeviation', Number(shadow.deviation_m).toFixed(1));
+    setText('shadowMaximumDeviation', Number(shadow.maximum_deviation_m).toFixed(1));
+    setText('shadowDeltaCog', (Number(shadow.delta_cog_rad) * 180 / Math.PI).toFixed(1));
+    setText('shadowDeltaSog', (Number(shadow.delta_sog_mps) / 0.514444).toFixed(1));
     setText('shadowRecovery', shadow.recovery?.status || 'NOT STARTED');
   } else {
-    setText('shadowComparisonStatus', 'NOT AVAILABLE');
-    setText('shadowDeviation', '-- m');
-    setText('shadowMaximumDeviation', '-- m');
-    setText('shadowDeltaCog', '--°');
-    setText('shadowDeltaSog', '-- kn');
-    setText('shadowRecovery', 'NOT STARTED');
+    setText('shadowComparisonStatus', isHistoricalAisScenario ? 'WAITING' : 'NOT APPLICABLE');
+    setText('shadowDeviation', '');
+    setText('shadowMaximumDeviation', '');
+    setText('shadowDeltaCog', '');
+    setText('shadowDeltaSog', '');
+    setText('shadowRecovery', '');
   }
 
   renderMonitorEventList(proj.timeline?.events || []);

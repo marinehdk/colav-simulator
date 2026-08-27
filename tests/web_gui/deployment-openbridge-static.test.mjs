@@ -337,11 +337,22 @@ test('three Workfaces occupy three equal centered columns', () => {
 test('AIS comparison is the third left information page, not a monitor panel', () => {
   assert.match(
     html,
-    /class="ownship-info-page ownship-ais-page"[^>]*data-ownship-card-page="2"[\s\S]*?id="shadowComparisonPanel"/,
+    /class="ownship-info-page ownship-ais-page"[^>]*data-ownship-card-page="2"[^>]*aria-label="AIS"[\s\S]*?id="shadowComparisonPanel"/,
   );
+  assert.match(html, /id="shadow-comparison-heading">AIS<\/strong>/);
+  assert.match(html, /id="shadowComparisonValues"[^>]*hidden[\s\S]*?class="algorithm-data-list"/);
+  assert.match(html, /id="shadowComparisonEmpty"/);
+  assert.match(html, /class="algorithm-data-row"[\s\S]*?id="shadowDeviation"[\s\S]*?<small>m<\/small>/);
   assert.match(html, /id="ownshipCardPosition" aria-label="第 1 张，共 3 张"[\s\S]*?aria-label="AIS"/);
   const monitorPage = html.match(/data-operations-card-page="0"[\s\S]*?<!-- Page 1: ALGO -->/)?.[0] || '';
   assert.doesNotMatch(monitorPage, /id="shadowComparisonPanel"/);
   assert.match(app, /shadowPanel\.hidden = false/);
+  assert.match(app, /const isHistoricalAisScenario = Boolean\(sessionSpec\?\.historical_scenario_id\)/);
+  assert.match(app, /shadowValues\.hidden = !shadowMetricsAvailable/);
+  assert.match(app, /shadowEmpty\.hidden = shadowMetricsAvailable/);
+  assert.match(app, /setText\('shadowDeviation', ''\)/);
   assert.doesNotMatch(app, /shadowPanel\.hidden = !shadowAvailable/);
+  assert.doesNotMatch(app, /setText\('shadowDeviation', '-- m'\)/);
+  assert.match(styles, /\.ais-comparison-panel \.algorithm-data-row/);
+  assert.match(styles, /\.ais-comparison-empty\[hidden\]/);
 });

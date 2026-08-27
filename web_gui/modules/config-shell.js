@@ -13,6 +13,7 @@ const RULE_IMAGES = {
 let assembly = null;
 let multishipRuleImageIndex = 0;
 let lastRuntimeSyncKey = null;
+let validationAuthorityRefreshPending = false;
 
 class ApiError extends Error {
   constructor(response, detail) {
@@ -888,7 +889,10 @@ function edit(field, value) {
 
 function bindControls() {
   document.querySelectorAll('[data-workface]').forEach((button) => {
-    button.addEventListener('click', () => switchWorkface(button.dataset.workface));
+    button.addEventListener('click', () => {
+      switchWorkface(button.dataset.workface);
+      if (button.dataset.workface === 'config') void refreshValidationAuthority();
+    });
   });
   document.querySelectorAll('[data-config-step]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -900,6 +904,7 @@ function bindControls() {
       document.querySelectorAll('[data-config-step-panel]').forEach((panel) => {
         panel.hidden = panel.dataset.configStepPanel !== button.dataset.configStep;
       });
+      if (button.dataset.configStep === 'scenario') void refreshValidationAuthority();
       // Carousel bounds measured while a panel was hidden are 0-width; re-measure
       // after the newly visible panel has laid out.
       requestAnimationFrame(() => rebindCarouselScrollers());
@@ -971,8 +976,11 @@ function syncRuntimeAuthority(runtimeSnapshot, reason = 'runtime-sync') {
 }
 
 async function refreshValidationAuthority() {
+  if (validationAuthorityRefreshPending || assembly.snapshot().creating) return;
+  validationAuthorityRefreshPending = true;
+  try {
     const [catalogResult, currentResult] = await Promise.allSettled([
-      fetchJson('/api/capabilities'),
+      fetchJson('/api/capabilities', { cache: 'no-store' }),
       activeSessionRuntime.refreshAuthority(),
     ]);
     if (catalogResult.status === 'fulfilled') {
@@ -985,8 +993,10 @@ async function refreshValidationAuthority() {
     } else {
       syncRuntimeAuthority(activeSessionRuntime.snapshot(), 'authority-refresh-failed');
     }
-    retry.disabled = false;
+  } finally {
+    validationAuthorityRefreshPending = false;
     render();
+  }
 }
 
 async function createSessionFromDraft() {
@@ -1012,7 +1022,7 @@ async function createSessionFromDraft() {
     if (!assembly.rejectCreate(pending.token, error)) return;
     if (error.status === 422) {
       try {
-        const refreshed = await fetchJson('/api/capabilities');
+        const refreshed = await fetchJson('/api/capabilities', { cache: 'no-store' });
         assembly.replaceCatalog(refreshed, { reason: 'stale-capability-rejection' });
       } catch (catalogError) {
         assembly.markCatalogFailure(catalogError);
@@ -1043,7 +1053,7 @@ async function bootConfig() {
     requestAnimationFrame(() => setTimeout(rebindNumberFields, 0));
   });
   const [catalogResult, currentResult] = await Promise.allSettled([
-    fetchJson('/api/capabilities'),
+    fetchJson('/api/capabilities', { cache: 'no-store' }),
     activeSessionRuntime.bootstrap(),
   ]);
   if (catalogResult.status === 'fulfilled') {

@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260826-speed-gauge-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260827-instrument-polish-v7" />
+  <link rel="stylesheet" href="/static/style.css?v=20260827-ais-card-v2" />
 </head>
 <body>
   <div class="app-container">
@@ -384,16 +384,22 @@
           </div>
 
           <!-- Page 2: AIS -->
-          <div class="ownship-info-page ownship-ais-page" data-ownship-card-page="2" aria-label="Historical AIS Comparison" hidden>
-            <section class="operations-panel" id="shadowComparisonPanel" aria-labelledby="shadow-comparison-heading">
-              <header class="operations-panel-header"><strong id="shadow-comparison-heading">AIS vs ALGORITHM</strong><small id="shadowComparisonStatus">NOT AVAILABLE</small></header>
-              <dl class="risk-target-facts">
-                <div><dt>Shadow deviation</dt><dd id="shadowDeviation">-- m</dd></div>
-                <div><dt>Maximum deviation</dt><dd id="shadowMaximumDeviation">-- m</dd></div>
-                <div><dt>ΔCOG</dt><dd id="shadowDeltaCog">--°</dd></div>
-                <div><dt>ΔSOG</dt><dd id="shadowDeltaSog">-- kn</dd></div>
-                <div><dt>Route recovery</dt><dd id="shadowRecovery">NOT STARTED</dd></div>
-              </dl>
+          <div class="ownship-info-page ownship-ais-page" data-ownship-card-page="2" aria-label="AIS" hidden>
+            <section class="operations-panel ais-comparison-panel" id="shadowComparisonPanel" aria-labelledby="shadow-comparison-heading">
+              <header class="operations-panel-header"><strong id="shadow-comparison-heading">AIS</strong><span class="algorithm-status-badge" id="shadowComparisonStatus" data-state="unavailable">NOT APPLICABLE</span></header>
+              <p class="ais-comparison-empty" id="shadowComparisonEmpty">Available in AIS Historical sessions only.</p>
+              <div class="algorithm-data-groups" id="shadowComparisonValues" hidden>
+                <section class="algorithm-data-group" aria-labelledby="ais-comparison-metrics-heading">
+                  <h3 id="ais-comparison-metrics-heading">HISTORICAL COMPARISON</h3>
+                  <dl class="algorithm-data-list">
+                    <div class="algorithm-data-row"><dt>Shadow deviation</dt><dd id="shadowDeviation"></dd><small>m</small></div>
+                    <div class="algorithm-data-row"><dt>Maximum deviation</dt><dd id="shadowMaximumDeviation"></dd><small>m</small></div>
+                    <div class="algorithm-data-row"><dt>ΔCOG</dt><dd id="shadowDeltaCog"></dd><small>°</small></div>
+                    <div class="algorithm-data-row"><dt>ΔSOG</dt><dd id="shadowDeltaSog"></dd><small>kn</small></div>
+                    <div class="algorithm-data-row"><dt>Route recovery</dt><dd id="shadowRecovery"></dd><small></small></div>
+                  </dl>
+                </section>
+              </div>
             </section>
           </div>
 
@@ -719,8 +725,8 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260827-instrument-polish-v7"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260827-instrument-polish-v7"></script>
+  <script type="module" src="/static/app.js?v=20260827-ais-card-v2"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260827-ais-card-v2"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260824-canonical-presentation"></script>
 </body>
 </html>

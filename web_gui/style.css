@@ -2549,6 +2549,36 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 
 .ownship-ais-page > #shadowComparisonPanel { width: 100%; }
 
+.ais-comparison-panel .operations-panel-header strong { font-size: 11px; }
+.ais-comparison-panel .algorithm-data-row {
+  grid-template-columns: minmax(0, 1fr) minmax(54px, 90px) 26px;
+}
+.ais-comparison-panel .algorithm-data-row dd { color: var(--ob-accent); }
+.ais-comparison-panel .algorithm-status-badge[data-state="available"] {
+  border-color: var(--alert-success-color, #16804b);
+  color: var(--alert-success-color, #16804b);
+}
+.ais-comparison-panel .algorithm-status-badge[data-state="data-gap"] {
+  border-color: var(--alert-warning-color, #b87800);
+  color: var(--alert-warning-color, #b87800);
+}
+.ais-comparison-panel .algorithm-status-badge[data-state="unavailable"] {
+  border-color: var(--ob-border);
+  color: var(--ob-muted);
+}
+.ais-comparison-empty {
+  margin: var(--s-3);
+  padding: var(--s-4) var(--s-3);
+  border: 1px solid var(--ob-border);
+  border-radius: var(--radius);
+  background: var(--ob-surface);
+  color: var(--ob-subtle);
+  font-size: 12px;
+  line-height: 17px;
+}
+.ais-comparison-empty[hidden],
+#shadowComparisonValues[hidden] { display: none; }
+
 .ownship-sensor-page::-webkit-scrollbar { display: none; }
 
 .ownship-sensor-page > obc-card,

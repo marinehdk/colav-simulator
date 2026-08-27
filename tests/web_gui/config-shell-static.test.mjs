@@ -108,6 +108,16 @@ test('Config delegates Create and authority refresh through runtime public seam'
   assert.match(shell, /assembly\.setRuntimePending\(runtimeSnapshot\.pending\?\.command \|\| null\)/);
 });
 
+test('Config activation refreshes the capability catalog without browser cache reuse', () => {
+  assert.match(shell, /button\.dataset\.workface === 'config'[\s\S]*?refreshValidationAuthority\(\)/);
+  assert.match(shell, /fetchJson\('\/api\/capabilities', \{ cache: 'no-store' \}\)/);
+  const refresh = shell.slice(
+    shell.indexOf('async function refreshValidationAuthority()'),
+    shell.indexOf('async function createSessionFromDraft()'),
+  );
+  assert.doesNotMatch(refresh, /retry\.disabled/);
+});
+
 test('legacy Deployment configuration is hidden and cannot imply it applies to Validation Draft', () => {
   assert.match(legacy, /LEGACY_CONFIG_CARD_IDS/);
   assert.match(legacy, /Configuration moved to Config/);
