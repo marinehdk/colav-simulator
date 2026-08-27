@@ -17,6 +17,11 @@ const ruleGuides = await Promise.all([
   'Multiship-guide.svg',
 ].map((name) => readFile(new URL(`../../web_gui/assets/openbridge/${name}`, import.meta.url), 'utf8')));
 
+test('AIS historical scenario label avoids repeating its Romsdal ENC region', () => {
+  assert.match(shell, /hais_romsdal_20260701_120007_121007: 'AIS Historical'/);
+  assert.doesNotMatch(shell, /AIS Romsdal \(Historical\)/);
+});
+
 test('OpenBridge fallback is empty until failure and clears after a successful bundle load', () => {
   assert.match(html, /<div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden><\/div>/);
   assert.match(shell, /openbridgeLoadError/);

@@ -796,6 +796,7 @@ class Ship(IShip):
             "mmsi": self.mmsi,
             "csog_state": csog_state,
             "state": self._state,
+            "turn_rate": self.turn_rate,
             "input": self._input,
             "waypoints": self._waypoints,
             "speed_plan": self._speed_plan,
@@ -917,6 +918,24 @@ class Ship(IShip):
             np.ndarray: Ship state.
         """
         return self._state
+
+    @property
+    def turn_rate(self) -> float:
+        """Return the model's actual instantaneous course/heading rate in rad/s."""
+        if self._state.size < 6:
+            return 0.0
+        if isinstance(self._model, models.KinematicCSOG):
+            if self._input.size < 1:
+                return 0.0
+            course_error = mf.wrap_angle_diff_to_pmpi(float(self._input[0]), float(self._state[2]))
+            return float(
+                mf.sat(
+                    course_error / self._model.params.T_chi,
+                    -self._model.params.r_max,
+                    self._model.params.r_max,
+                )
+            )
+        return float(self._state[5])
 
     @property
     def max_speed(self) -> float:

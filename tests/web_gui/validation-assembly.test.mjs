@@ -3,6 +3,22 @@ import test from 'node:test';
 
 import { createValidationAssembly } from '../../web_gui/modules/validation-assembly.js';
 
+const qualifiedProductDomainProfile = {
+  profile_id: 'colav.mid-mpc-validation-domain.v1',
+  version: '1',
+  model: 'OFF_CENTRED_ELLIPSE',
+  fore_m: 300,
+  aft_m: 100,
+  port_m: 120,
+  starboard_m: 180,
+  parameter_source: 'backend-risk-model',
+  assumptions: ['simulator-validation-only'],
+  qualification: 'QUALIFIED',
+  uncertainty_multiplier: 2,
+  units: 'm',
+  profile_hash: 'catalog-profile-hash',
+};
+
 const catalog = {
   schema_version: 'capability-catalog.v1',
   product_capability_policy: {
@@ -87,7 +103,14 @@ const productionCatalog = {
     tracker_id: 'legacy-tracker',
   },
   rules: [{ id: 'rule14', selectable: true }],
-  scenarios: [{ id: 'head_on', name: 'Head on', dt: 0.1, t_end: 600, selectable: true }],
+  scenarios: [{
+    id: 'head_on',
+    name: 'Head on',
+    dt: 0.1,
+    t_end: 600,
+    selectable: true,
+    domain_profile: qualifiedProductDomainProfile,
+  }],
   algorithms: [
     { id: 'mid_mpc_ipopt', selectable: true },
     { id: 'vo', selectable: true },
@@ -125,26 +148,32 @@ test('product policy owns selector order and defaults without leaking tuple evid
   ]);
 });
 
-test('algorithm constraint metadata drives a typed domain-profile Create block', () => {
+test('backend-qualified scenario profile is frozen into the Mid-MPC Run Specification', () => {
   const assembly = createValidationAssembly({ catalog: productionCatalog });
   assert.equal(assembly.edit('algorithm_id', 'mid_mpc_ipopt'), true);
 
   const snapshot = assembly.snapshot();
   assert.equal(snapshot.classification, 'verified');
   assert.equal(snapshot.valid, true);
+  assert.equal(snapshot.createBlock, null);
+  assert.equal(snapshot.canCreate, true);
+  assert.deepEqual(snapshot.draft.domain_profile, qualifiedProductDomainProfile);
+  assert.equal(assembly.edit('algorithm_id', 'vo'), true);
+  assert.equal(assembly.snapshot().draft.domain_profile, null);
+  assert.equal(assembly.edit('algorithm_id', 'mid_mpc_ipopt'), true);
+  assert.deepEqual(assembly.beginCreate().spec.domain_profile, qualifiedProductDomainProfile);
+});
+
+test('Mid-MPC stays blocked when the backend catalog supplies no qualified domain profile', () => {
+  const missingProfile = structuredClone(productionCatalog);
+  delete missingProfile.scenarios[0].domain_profile;
+  const assembly = createValidationAssembly({ catalog: missingProfile });
+
+  assert.equal(assembly.edit('algorithm_id', 'mid_mpc_ipopt'), true);
+  const snapshot = assembly.snapshot();
   assert.equal(snapshot.createBlock, 'requires-domain-profile');
   assert.equal(snapshot.canCreate, false);
-  assert.deepEqual(snapshot.createConstraint, {
-    code: 'requires-domain-profile',
-    algorithm_id: 'mid_mpc_ipopt',
-    required_domain_qualification: 'QUALIFIED',
-    message: 'Selected algorithm requires an explicit QUALIFIED ShipDomainProfile; Config cannot provide one.',
-  });
-  assert.equal(snapshot.createBlockReason, snapshot.createConstraint.message);
-  assert.throws(
-    () => assembly.beginCreate(),
-    /requires-domain-profile:.*QUALIFIED ShipDomainProfile/,
-  );
+  assert.match(snapshot.createBlockReason, /QUALIFIED ShipDomainProfile/);
 });
 
 test('domain-profile block follows policy metadata when assigned to a different algorithm', () => {
@@ -175,7 +204,7 @@ test('catalog-qualified Historical AIS domain profile admits Mid-MPC as experime
     dt: 1,
     t_end: 600,
     selectable: true,
-    domain_profile: { qualification: 'QUALIFIED' },
+    domain_profile: qualifiedProductDomainProfile,
   });
   const tuples = [
     {
@@ -244,6 +273,7 @@ test('bootstrap without an active session uses complete catalog defaults', () =>
     evaluator_profile_id: 'ccta_2023_demo-v1',
     algorithm_config: {},
     tracker_config: {},
+    domain_profile: null,
     scenario_override: null,
   });
   assert.equal(assembly.snapshot().dirty, false);

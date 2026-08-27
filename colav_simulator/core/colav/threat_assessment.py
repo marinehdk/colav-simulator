@@ -977,6 +977,8 @@ class ShipDomainProfile:
             raise ValueError("ShipDomainProfile geometry must be positive and finite")
         if not math.isfinite(self.uncertainty_multiplier) or self.uncertainty_multiplier < 0.0:
             raise ValueError("ShipDomainProfile uncertainty multiplier must be finite and non-negative")
+        for field_name in ("fore_m", "aft_m", "port_m", "starboard_m", "uncertainty_multiplier"):
+            object.__setattr__(self, field_name, float(getattr(self, field_name)))
         object.__setattr__(self, "qualification", DomainQualification(self.qualification))
         object.__setattr__(self, "assumptions", assumptions)
 

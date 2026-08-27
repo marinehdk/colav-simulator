@@ -85,6 +85,12 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
         item["id"] for item in catalog["algorithms"] if not item["selectable"]
     } >= {"nominal", "sbmpc", "potocnik_simplified_mpc"}
     assert {item["id"] for item in catalog["trackers"] if not item["selectable"]} >= {"kf", "scenario_default"}
+    for scenario_id in EXPECTED_SCENARIOS[rule_id]:
+        scenario = next(item for item in catalog["scenarios"] if item["id"] == scenario_id)
+        profile = scenario["domain_profile"]
+        assert profile["profile_id"] == "colav.mid-mpc-validation-domain.v1"
+        assert profile["qualification"] == "QUALIFIED"
+        assert len(profile["profile_hash"]) == 64
     if rule_id == "multiship":
         mid_mpc = next(item for item in catalog["algorithms"] if item["id"] == "mid_mpc_ipopt")
         assert "global all-vessel safety is not established" in mid_mpc["known_failure"]

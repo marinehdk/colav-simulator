@@ -411,6 +411,7 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
         chart_depths = {float(depth) for depth in gui_main.manager.prepared.session.enc.seabed}
         assert first.json()["os"]["floor_depth_m"] in chart_depths
         assert first.json()["os"]["floor_depth_source"] == "ENC_DEPTH_BIN_LOWER_BOUND"
+        assert abs(first.json()["os"]["r"]) > 0.0
         _assert_baseline_threat_available(first.json())
 
         second = client.post(f"/api/sessions/{session_id}/step")

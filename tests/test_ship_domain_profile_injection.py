@@ -46,6 +46,19 @@ def test_run_spec_round_trips_versioned_ship_domain_profile() -> None:
     assert restored.domain_profile == profile
 
 
+def test_ship_domain_profile_hash_survives_javascript_number_serialization() -> None:
+    profile = _qualified_profile()
+    document = profile.to_dict()
+    for field in ("fore_m", "aft_m", "port_m", "starboard_m", "uncertainty_multiplier"):
+        document[field] = int(document[field])
+    document["profile_hash"] = profile.profile_hash
+
+    restored = RunSpec("head_on", domain_profile=document).domain_profile
+
+    assert restored == profile
+    assert restored.profile_hash == profile.profile_hash
+
+
 def test_product_policy_parses_and_validates_domain_profile() -> None:
     profile = _qualified_profile()
 
@@ -225,3 +238,23 @@ def test_api_description_preserves_qualified_domain_profile_identity() -> None:
     assert serialized["version"] == profile.version
     assert serialized["qualification"] == "QUALIFIED"
     assert serialized["profile_hash"] == profile.profile_hash
+
+
+def test_catalog_profile_creates_mid_mpc_session_without_frontend_owned_parameters() -> None:
+    with TestClient(app) as client:
+        catalog = client.get("/api/capabilities", params={"validation_rule_id": "rule14"}).json()
+        scenario = next(item for item in catalog["scenarios"] if item["id"] == "head_on")
+        response = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule14",
+                "scenario_id": "head_on",
+                "algorithm_id": "mid_mpc_ipopt",
+                "tracker_id": "god",
+                "domain_profile": scenario["domain_profile"],
+                "t_end": 1.0,
+            },
+        )
+
+    assert response.status_code == 200, response.json()
+    assert response.json()["spec"]["domain_profile"] == scenario["domain_profile"]

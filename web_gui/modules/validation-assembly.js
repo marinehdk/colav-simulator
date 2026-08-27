@@ -11,6 +11,7 @@ const CREATE_FIELDS = [
   'evaluator_profile_id',
   'algorithm_config',
   'tracker_config',
+  'domain_profile',
   'scenario_override',
 ];
 const TUPLE_FIELDS = [
@@ -192,6 +193,7 @@ function defaultSpec(catalog) {
     evaluator_profile_id: 'ccta_2023_demo-v1',
     algorithm_config: {},
     tracker_config: {},
+    domain_profile: null,
     scenario_override: null,
   };
 }
@@ -210,6 +212,7 @@ function normalizeSpec(spec, catalog) {
     evaluator_profile_id: 'ccta_2023_demo-v1',
     algorithm_config: {},
     tracker_config: {},
+    domain_profile: null,
     scenario_override: null,
   };
   for (const field of CREATE_FIELDS) {
@@ -315,14 +318,25 @@ function createConstraint(draft, policy, catalog) {
   const constraint = policy.value.constraints.algorithms[draft.algorithm_id];
   if (!constraint?.requires_domain_profile) return null;
   const qualification = constraint.required_domain_qualification;
-  const scenario = (catalog?.scenarios || []).find((item) => item.id === draft.scenario_id);
-  if (scenario?.domain_profile?.qualification === qualification) return null;
+  if (draft.domain_profile?.qualification === qualification) return null;
   return {
     code: 'requires-domain-profile',
     algorithm_id: draft.algorithm_id,
     required_domain_qualification: qualification,
     message: `Selected algorithm requires an explicit ${qualification} ShipDomainProfile; Config cannot provide one.`,
   };
+}
+
+function domainProfileForDraft(catalog, draft) {
+  const policy = productCapabilityPolicy(catalog);
+  if (!draft || policy.status !== 'ready') return null;
+  const constraint = policy.value.constraints.algorithms[draft.algorithm_id];
+  if (!constraint?.requires_domain_profile) return null;
+  const scenario = (catalog?.scenarios || []).find((item) => item.id === draft.scenario_id);
+  const profile = scenario?.domain_profile;
+  return profile?.qualification === constraint.required_domain_qualification
+    ? clone(profile)
+    : null;
 }
 
 function repairTuple(catalog, draft, latestField = null) {
@@ -426,6 +440,7 @@ export function createValidationAssembly({
             message: 'Scenario override and clock overrides cleared after Scenario changed.',
           });
         }
+        draft.domain_profile = domainProfileForDraft(catalog, draft);
       }
       return true;
     },
@@ -525,6 +540,7 @@ export function createValidationAssembly({
         if (draft.tracker_id !== previous.tracker_id) draft.tracker_config = {};
         if (draft.scenario_id !== previous.scenario_id) draft.scenario_override = null;
       }
+      draft.domain_profile = domainProfileForDraft(catalog, draft);
       notices.push({
         kind: 'catalog-refreshed',
         message: repair

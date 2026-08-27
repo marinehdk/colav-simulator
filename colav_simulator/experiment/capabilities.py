@@ -8,6 +8,7 @@ from typing import Any
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
+from colav_simulator.core.colav.threat_management import MID_MPC_VALIDATION_DOMAIN_PROFILE
 from colav_simulator.experiment.contracts import InternalExecutionPurpose, _ship_domain_profile_from_mapping
 from colav_simulator.experiment.g3_gate import PREDICATE_VERSION
 from colav_simulator.historical_scenario_catalog import HISTORICAL_AIS_SCENARIO_ID
@@ -931,6 +932,13 @@ class CapabilityCatalog:
         selectable = runtime_ready and bool(selectable_combinations)
         failure = capability.known_failure or document.get("reason")
         output = dict(document)
+        if "domain_profile" not in output and any(
+            item["algorithm_id"] == "mid_mpc_ipopt" for item in selectable_combinations
+        ):
+            output["domain_profile"] = {
+                **MID_MPC_VALIDATION_DOMAIN_PROFILE.to_dict(),
+                "profile_hash": MID_MPC_VALIDATION_DOMAIN_PROFILE.profile_hash,
+            }
         output.update(
             {
                 "readiness_grade": capability.readiness_grade,

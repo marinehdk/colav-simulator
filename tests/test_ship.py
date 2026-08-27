@@ -19,6 +19,22 @@ from colav_simulator.scenario_config import OwnshipPositionGenerationMethod
 from colav_simulator.scenario_generator import ScenarioGenerator
 
 
+def test_kinematic_ship_turn_rate_uses_applied_course_dynamics() -> None:
+    params = models.KinematicCSOGParams(T_chi=2.0, r_max=0.2)
+    model = models.KinematicCSOG(params)
+    controller = controllers.PassThroughCS()
+    vessel = ship.Ship(mmsi=1, identifier=0, model=model, controller=controller)
+    vessel.set_initial_state(np.array([0.0, 0.0, 5.0, 0.0]))
+    references = np.zeros(9)
+    references[2] = 0.3
+    references[3] = 5.0
+    vessel.set_references(references)
+    vessel._input = controller.compute_inputs(references, vessel.state, dt=0.1)
+
+    assert vessel.state[5] == 0.0, "KinematicCSOG reserves the six-state yaw-rate slot"
+    assert np.isclose(vessel.turn_rate, 0.15)
+
+
 def test_ship() -> None:  # noqa: PLR0915
     fig_size = [25, 13]  # figure1 size in cm
     dpi_value = 150  # figure dpi value

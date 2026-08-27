@@ -871,6 +871,7 @@ class WebSessionManager:
                     "waypoints": ship.waypoints,
                     "speed_plan": ship.speed_plan,
                     "references": np.zeros(9),
+                    "turn_rate": ship.turn_rate,
                     "active": bool(ship.t_start <= session.simulator.t < ship.t_end),
                 }
                 for index, ship in enumerate(session.ship_list)
@@ -899,7 +900,7 @@ class WebSessionManager:
                     "psi": float(state[2]),
                     "u": float(state[3]),
                     "v": float(state[4]),
-                    "r": float(state[5]),
+                    "r": float(raw.get("turn_rate", state[5])),
                     "sog": float(csog[2]),
                     "cog": float(csog[3]),
                     "trajectory": trail,

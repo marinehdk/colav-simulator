@@ -105,6 +105,7 @@ export function createRadarMiniMap({ canvas }) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(headingRad);
+    ctx.setLineDash([]);
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = '#123C70';
     ctx.lineWidth = 1.4;
@@ -195,6 +196,12 @@ export function createRadarMiniMap({ canvas }) {
     ctx.fillText('E', centerX + radius - 9, centerY);
     ctx.fillText('S', centerX, centerY + radius - 9);
     ctx.fillText('W', centerX - radius + 9, centerY);
+    const ringLabel = (distanceM) => distanceM >= 1000
+      ? `${Number((distanceM / 1000).toFixed(1))} km`
+      : `${Math.round(distanceM)} m`;
+    ctx.textAlign = 'left';
+    ctx.fillText(ringLabel(model.rangeM / 2), centerX + 5, centerY - radius / 2 + 10);
+    ctx.fillText(ringLabel(model.rangeM), centerX + 5, centerY - radius + 27);
 
     const rangeLabel = model.rangeM >= 1000
       ? `${(model.rangeM / 1000).toFixed(1)} km`

@@ -9,7 +9,7 @@ import {
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
 } from './modules/situation-display.js?v=20260826-radar-card-v1';
-import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260826-radar-card-v1';
+import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
 
 /**
  * Colav-Simulator Web GUI — app.js
@@ -38,6 +38,7 @@ let solveTimeline = [];
 let lastDisplayedSolveId = null;
 let lastRuntimeState = 'CREATED';
 let lastSolveSimTime = null;
+let lastDisplayedRotDegSec = 0;
 
 /* ══════════════════════════════════════════════
    ADAPTER STATE (view/ENC/layer state lives in the Display module)
@@ -595,7 +596,6 @@ function updateOwnshipTelemetry(proj) {
   const headingDeg = Number.isFinite(nav.psi) ? ((nav.psi * 180 / Math.PI) % 360 + 360) % 360 : 0;
   const cogDeg = Number.isFinite(nav.cog) ? ((nav.cog * 180 / Math.PI) % 360 + 360) % 360 : headingDeg;
   const sogKnots = Number.isFinite(nav.sog) ? nav.sog * 1.94384 : 0;
-  const rotDegMin = Math.round((os?.r || 0) * 180 / Math.PI * 60);
 
   // 1. Page 0: OWN SHIP Card Readouts
   const sbHdg = document.getElementById('sidebarHdgReadout');
@@ -623,10 +623,16 @@ function updateOwnshipTelemetry(proj) {
 
   // 2. Page 0: ROUTE Card
   setText('liveRouteCourse', `${Math.round(headingDeg).toString().padStart(3, '0')}°`);
-  const rotDegSec = Math.abs(os?.r || 0) >= 1e-4 ? (os.r * 180 / Math.PI) : null;
-  setHtml('liveRouteRot', rotDegSec === null ? '---' : `${rotDegSec.toFixed(1)}<small>°/s</small>`);
+  const rawRotDegSec = Number.isFinite(os?.r) ? os.r * 180 / Math.PI : null;
+  if (rawRotDegSec !== null) {
+    const normalizedRotDegSec = Math.abs(rawRotDegSec) < 0.05 ? 0 : rawRotDegSec;
+    lastDisplayedRotDegSec = normalizedRotDegSec;
+  }
+  const rotDegSec = lastDisplayedRotDegSec;
+  const rotDegMin = rotDegSec * 60;
+  setHtml('liveRouteRot', `${rotDegSec.toFixed(1)}<small>°/s</small>`);
   // Turn radius from ROT: R = v/ω; straight track (|ROT| < 1°/min) has no meaningful radius.
-  const yawRate = Math.abs(os?.r || 0);
+  const yawRate = Math.abs(rotDegSec) * Math.PI / 180;
   const turnRadiusM = Math.abs(rotDegMin) >= 1 && Number.isFinite(nav.sog) && nav.sog > 0.1 && yawRate > 1e-4
     ? nav.sog / yawRate
     : null;
@@ -651,7 +657,10 @@ function updateOwnshipTelemetry(proj) {
   const liveCog = document.getElementById('liveCogReadout');
   if (liveCog) liveCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 3, unit: '°' }];
   const liveRot = document.getElementById('liveRotReadout');
-  if (liveRot) liveRot.readouts = [{ type: 'value', value: Math.abs(rotDegSec), nDigits: 1, unit: '°/s' }];
+  if (liveRot) {
+    liveRot.readouts = [{ type: 'value', value: Number(rotDegSec.toFixed(1)), nDigits: 2, nDecimals: 1, unit: '°/s' }];
+    liveRot.setAttribute('aria-label', `本船转向率 ${rotDegSec.toFixed(1)} 度每秒`);
+  }
 
   const liveSpeedGauge = document.getElementById('liveSpeedGauge');
   if (liveSpeedGauge) {
@@ -680,7 +689,9 @@ function updateOwnshipTelemetry(proj) {
       Object.assign(liveDepthActual, {
         depth: floorDepth,
         draft: vesselDraft ?? 0,
-        vesselScale: 1,
+        // OpenBridge renders vessel size as vesselScale * 50 / instrumentRange.
+        // Compensate the changing range so the on-screen vessel remains stable.
+        vesselScale: instrumentRange / 100,
         instrumentRange,
         priority: 'enhanced',
       });

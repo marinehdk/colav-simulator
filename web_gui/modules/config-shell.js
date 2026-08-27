@@ -1,4 +1,4 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260826-chart-view-control-v1';
+import { createValidationAssembly } from './validation-assembly.js?v=20260827-mid-mpc-domain-v1';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260826-chart-view-control-v1';
 import { createSituationDisplay } from './situation-display.js?v=20260826-radar-card-v1';
 
@@ -112,7 +112,7 @@ const SCENARIO_LABELS = {
   paper_ccta2023_multiship: 'Three-Ship',
   romsdal_busy_water_16: 'Multiship-10 Fixed',
   paper_ccta2023_head_on: 'Head-on (Paper)',
-  hais_romsdal_20260701_120007_121007: 'AIS Romsdal (Historical)',
+  hais_romsdal_20260701_120007_121007: 'AIS Historical',
 };
 
 const RULE_LABELS = {

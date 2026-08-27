@@ -60,6 +60,14 @@ test('sensor instruments use comparable drawing-region sizes without compass con
   assert.match(styles, /\.live-pitch-roll-wrapper \{[^}]*height: 180px;/s);
 });
 
+test('position readouts align right and depth vessel size stays independent of range', () => {
+  assert.match(styles, /\.navigation-position > div \{[^}]*justify-content: flex-start;/s);
+  assert.match(styles, /\.navigation-position strong \{[^}]*width: 13ch;[^}]*text-align: right;/s);
+  assert.match(styles, /\.navigation-position strong \{[^}]*font-variant-numeric: tabular-nums;/s);
+  assert.match(app, /vesselScale: instrumentRange \/ 100/);
+  assert.match(styles, /\.live-depth-wrapper obc-depth-actual \{[^}]*width: 100%;[^}]*height: 100%;/s);
+});
+
 test('SPEED Advices gauge follows COMPASS and renders live STW through the vendored Web Component', () => {
   const compassIndex = html.indexOf('data-od-id="live-compass-card"');
   const speedIndex = html.indexOf('data-od-id="live-speed-card"');
@@ -98,6 +106,20 @@ test('ROUTE radius switches between metres and kilometres without ellipsis', () 
   assert.match(app, /setHtml\('liveRouteRadius'/);
   assert.match(styles, /\.route-value-grid-primary \{[^}]*minmax\(78px, 1\.25fr\)/);
   assert.match(styles, /\.route-value-grid-primary strong \{[^}]*overflow: visible;[^}]*text-overflow: clip;/);
+});
+
+test('ROUTE and COMPASS ROT normalize rounded zero and retain the last valid value', () => {
+  assert.match(app, /let lastDisplayedRotDegSec = 0/);
+  assert.match(app, /const rawRotDegSec = Number\.isFinite\(os\?\.r\)/);
+  assert.match(app, /Math\.abs\(rawRotDegSec\) < 0\.05 \? 0 : rawRotDegSec/);
+  assert.match(app, /lastDisplayedRotDegSec = normalizedRotDegSec/);
+  assert.match(app, /const rotDegSec = lastDisplayedRotDegSec/);
+  assert.doesNotMatch(app, /liveRouteRot[^\n]*---/);
+  assert.doesNotMatch(app, /liveRot\.readouts = rotDegSec === null/);
+  assert.match(app, /nDigits: 2, nDecimals: 1, unit: '°\/s'/);
+  assert.match(app, /本船转向率 \$\{rotDegSec\.toFixed\(1\)\} 度每秒/);
+  assert.match(app, /const yawRate = Math\.abs\(rotDegSec\) \* Math\.PI \/ 180/);
+  assert.match(app, /routeRadius = formatRouteRadius\(turnRadiusM\)/);
 });
 
 test('ROUTE destination times use the same 12px\/18px value typography as Current leg', () => {

@@ -77,6 +77,22 @@ DEFAULT_SHIP_DOMAIN_PROFILE = ShipDomainProfile(
     qualification="UNQUALIFIED",
 )
 
+MID_MPC_VALIDATION_DOMAIN_PROFILE = ShipDomainProfile(
+    profile_id="colav.mid-mpc-validation-domain.v1",
+    version="1",
+    fore_m=300.0,
+    aft_m=100.0,
+    port_m=120.0,
+    starboard_m=180.0,
+    parameter_source="Colav-Simulator Mid-MPC P1 dynamic-validation evidence",
+    assumptions=(
+        "qualified only for declared Colav-Simulator product validation tuples",
+        "off-centred elliptical engineering envelope",
+        "metres and not a COLREG statutory distance",
+    ),
+    qualification="QUALIFIED",
+)
+
 
 @dataclass(frozen=True)
 class AcceptedPlanReceipt:
