@@ -781,7 +781,10 @@ class MidMpcPlanAcceptance:
                     if target.action_start_deadline_s is not None
                     else request.execution.sim_time_s + request.policy.horizon_dt_s
                 )
+                first_executable_offset_s = float(candidate.times_s[1]) if candidate.times_s.size > 1 else 0.0
                 start_offset_s = max(0.0, start_deadline_s - request.execution.sim_time_s)
+                if start_deadline_s < request.execution.sim_time_s:
+                    start_offset_s = first_executable_offset_s
                 start_delta = side_sign * _course_delta_at(candidate, target.baseline_course_rad, start_offset_s)
                 if not target.action_achieved and start_delta < math.radians(1.0):
                     _fail(
@@ -797,6 +800,8 @@ class MidMpcPlanAcceptance:
                     else request.execution.sim_time_s + 2.0 * request.policy.horizon_dt_s
                 )
                 achievement_offset_s = max(0.0, achievement_deadline_s - request.execution.sim_time_s)
+                if achievement_deadline_s < request.execution.sim_time_s:
+                    achievement_offset_s = first_executable_offset_s
                 achieved_delta = side_sign * _course_delta_at(
                     candidate,
                     target.baseline_course_rad,
@@ -867,24 +872,30 @@ class MidMpcPlanAcceptance:
                 and request.execution.sim_time_s > target.action_start_deadline_s
                 and float(target.actual_course_change_rad or 0.0) < math.radians(1.0)
             ):
-                _fail(
-                    findings,
-                    AcceptanceLayer.COLREG,
-                    "COLREG_ACTUAL_START_DEADLINE",
-                    "actual vessel maneuver missed the Lifecycle action-start deadline",
-                    target_key=target.key,
+                findings.append(
+                    AcceptanceFinding(
+                        AcceptanceLayer.COLREG,
+                        AcceptanceOutcome.WARN,
+                        "COLREG_ACTUAL_START_DEADLINE",
+                        "actual vessel maneuver missed the Lifecycle action-start deadline",
+                        target_key=target.key,
+                        mandatory=False,
+                    )
                 )
             if (
                 target.action_achievement_deadline_s is not None
                 and request.execution.sim_time_s > target.action_achievement_deadline_s
                 and not target.action_achieved
             ):
-                _fail(
-                    findings,
-                    AcceptanceLayer.COLREG,
-                    "COLREG_ACTION_DEADLINE",
-                    "actual maneuver achievement missed the Lifecycle deadline",
-                    target_key=target.key,
+                findings.append(
+                    AcceptanceFinding(
+                        AcceptanceLayer.COLREG,
+                        AcceptanceOutcome.WARN,
+                        "COLREG_ACTION_DEADLINE_MISSED",
+                        "actual maneuver missed the Lifecycle deadline; candidate recovery remains mandatory",
+                        mandatory=False,
+                        target_key=target.key,
+                    )
                 )
         if not any(item.layer is AcceptanceLayer.COLREG and item.outcome is AcceptanceOutcome.FAIL for item in findings):
             findings.append(

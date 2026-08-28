@@ -366,6 +366,46 @@ def test_locked_starboard_commitment_rejects_port_candidate() -> None:
     assert accepted.accepted is True
 
 
+def test_overdue_give_way_action_accepts_first_executable_recovery_command() -> None:
+    authority = AuthorityTarget(
+        key=TrackKey(34, 1),
+        encounter="CROSSING",
+        role="GIVE_WAY",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=5.0,
+        action_achievement_deadline_s=10.0,
+        actual_course_change_rad=np.deg2rad(2.0),
+    )
+    request = _request(
+        authority_targets=(authority,),
+        course=np.deg2rad(np.array([2.0, 6.0, 6.0])),
+    )
+    request = replace(
+        request,
+        authority=replace(request.authority, sim_time_s=20.0),
+        execution=replace(
+            request.execution,
+            sim_time_s=20.0,
+            capability=replace(request.execution.capability, valid_at_s=20.0),
+        ),
+    )
+
+    result = MidMpcPlanAcceptance().evaluate(request)
+    codes = {finding.code for finding in result.findings}
+
+    assert result.accepted is True
+    assert "COLREG_ACTION_DEADLINE" not in codes
+    assert "COLREG_ACTION_DEADLINE_MISSED" in codes
+
+
 def test_locked_starboard_candidate_is_checked_before_commitment() -> None:
     authority = AuthorityTarget(
         key=TrackKey(33, 1),

@@ -9,8 +9,11 @@ when the user-provided HAIS archive is bound.
 
 from __future__ import annotations
 
+import gzip
+import json
 import math
 import os
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -263,3 +266,85 @@ def test_hais_mid_mpc_first_control_frame_preserves_the_active_handoff_snapshot(
             math.cos(applied_course - control_frame["os"]["psi"]),
         )
         assert abs(course_delta) <= math.radians(3.0) + 1.0e-6
+
+
+def test_hais_mid_mpc_executes_observable_avoidance_before_the_ts3_close_approach() -> None:
+    """The real HAIS scene must produce a visible Mid-MPC manoeuvre, not only successful solves."""
+    if not _archive_bound():
+        pytest.skip("real HAIS archive not bound via COLAV_HAIS_ARCHIVE_PATH")
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": HISTORICAL_AIS_SCENE_ID,
+                "algorithm_id": "mid_mpc_ipopt",
+                "tracker_id": "god",
+            },
+        )
+        assert created.status_code == 200, created.text
+        session_id = created.json()["session_id"]
+
+        headings: list[float] = []
+        give_way_frames = 0
+        selected_target_ids: set[int] = set()
+        frame = None
+        while frame is None or frame["sim_time"] < 340.0:
+            stepped = client.post(f"/api/sessions/{session_id}/step")
+            assert stepped.status_code == 200, stepped.text
+            frame = stepped.json()
+            if frame["sim_time"] < 8.0:
+                continue
+            headings.append(float(frame["os"]["psi"]))
+            planner = frame.get("planner") or {}
+            details = planner.get("algorithm_details") or {}
+            if details.get("decision_intent") == "GIVE_WAY":
+                give_way_frames += 1
+            selected_target_ids.update(int(value) for value in details.get("selected_target_ids", []))
+
+        unwrapped = [headings[0]]
+        for heading in headings[1:]:
+            delta = math.atan2(
+                math.sin(heading - unwrapped[-1]),
+                math.cos(heading - unwrapped[-1]),
+            )
+            unwrapped.append(unwrapped[-1] + delta)
+        max_heading_change = max(abs(heading - unwrapped[0]) for heading in unwrapped)
+        overdue_actions: list[dict[str, object]] = []
+        artifact_dir = Path(created.json()["spec"]["output_root"]) / session_id / "artifacts" / "mid_mpc"
+        for artifact_path in artifact_dir.glob("*.json.gz"):
+            with gzip.open(artifact_path, "rt", encoding="utf-8") as handle:
+                artifact = json.load(handle)
+            sim_time = artifact["request_stage"]["identity"]["sim_time_s"]
+            for target in artifact["request_stage"]["decision_snapshot"]["targets"]:
+                deadline = target.get("action_achievement_deadline_s")
+                if (
+                    target.get("role") == "GIVE_WAY"
+                    and target.get("commitment") == "COMMITTED"
+                    and isinstance(deadline, (int, float))
+                    and sim_time > deadline
+                    and target.get("action_achieved") is not True
+                ):
+                    overdue_actions.append(
+                        {
+                            "sim_time": sim_time,
+                            "target_id": target["key"]["target_id"],
+                            "deadline": deadline,
+                            "actual_course_change_rad": target.get("actual_course_change_rad"),
+                        }
+                    )
+
+        assert give_way_frames > 0
+        assert 3 in selected_target_ids
+        assert (
+            max(
+                (float(item["sim_time"]) - float(item["deadline"]) for item in overdue_actions),
+                default=0.0,
+            )
+            <= 10.0
+        ), overdue_actions
+        assert max_heading_change >= math.radians(5.0), {
+            "max_heading_change_deg": math.degrees(max_heading_change),
+            "give_way_frames": give_way_frames,
+            "selected_target_ids": sorted(selected_target_ids),
+        }

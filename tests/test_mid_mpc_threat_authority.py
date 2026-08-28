@@ -109,6 +109,82 @@ def test_mid_mpc_consumes_existing_active_handoff_snapshot_without_recycling_lif
     assert coordinator.last_snapshot is handoff
 
 
+def test_mid_mpc_replans_immediately_when_canonical_colreg_authority_changes() -> None:
+    coordinator = ThreatManagementCoordinator()
+    adapter = mid_mpc_ipopt.create(
+        context=FactoryContext(
+            requested_algorithm="mid_mpc_ipopt",
+            algorithm_seed=0,
+            scenario_id="historical-authority-change",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+            threat_management_coordinator=coordinator,
+        ),
+        horizon_steps=4,
+        horizon_dt_s=5.0,
+        solve_period_s=10.0,
+        deadline_s=20.0,
+    )
+    covariance = np.zeros((4, 4))
+    initial_target = TrackSnapshot(
+        key=TrackKey(1, 1),
+        state=np.array([1_000.0, 0.0, -7.0, 0.0]),
+        covariance=covariance,
+        length_m=30.0,
+        width_m=7.0,
+        observed_at_s=61.0,
+        generated_at_s=61.0,
+        status=TrackStatus.UPDATED,
+        source="god",
+    )
+    coordinator.cycle(_historical_handoff_cycle(1, 61.0))
+    adapter.plan(
+        61.0,
+        np.array([[0.0, 500.0], [0.0, 0.0]]),
+        np.array([7.0, 7.0]),
+        np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0]),
+        [initial_target],
+        dt=1.0,
+        os_length=15.0,
+        os_model_name="Viknes",
+        os_controller_name="FLSC",
+        os_max_turn_rate_radps=np.deg2rad(3.0),
+    )
+    assert adapter.get_colav_data()["planner"]["solve_id"] == 1
+
+    coordinator.cycle(_historical_handoff_cycle(2, 67.0))
+    active_target = TrackSnapshot(
+        key=TrackKey(1, 1),
+        state=np.array([958.0, 0.0, -7.0, 0.0]),
+        covariance=covariance,
+        length_m=30.0,
+        width_m=7.0,
+        observed_at_s=67.0,
+        generated_at_s=67.0,
+        status=TrackStatus.UPDATED,
+        source="god",
+    )
+    predicted = np.asarray(adapter.get_colav_data()["planner"]["predicted_trajectory"])
+    adapter.plan(
+        67.0,
+        np.array([[0.0, 500.0], [0.0, 0.0]]),
+        np.array([7.0, 7.0]),
+        predicted[:6, 1],
+        [active_target],
+        dt=1.0,
+        os_length=15.0,
+        os_model_name="Viknes",
+        os_controller_name="FLSC",
+        os_max_turn_rate_radps=np.deg2rad(3.0),
+    )
+
+    trace = adapter.get_colav_data()["planner"]
+    assert trace["solver_executed"] is True
+    assert trace["solve_id"] == 2
+    assert trace["algorithm_details"]["hold_replan_reason"] == "HOLD_COLREG_AUTHORITY_CHANGED"
+    assert trace["algorithm_details"]["lifecycle"]["targets"][0]["risk"] == "ACTIVE"
+
+
 def test_mid_mpc_uses_injected_runtime_threat_coordinator_and_native_solver() -> None:
     coordinator = ThreatManagementCoordinator()
     adapter = mid_mpc_ipopt.create(

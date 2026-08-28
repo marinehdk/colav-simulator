@@ -86,6 +86,7 @@ from colav_simulator.core.colav.prediction_evidence import (
     TargetPredictionEvidence,
 )
 from colav_simulator.core.colav.rolling_plan import (
+    PlanRevisionReason,
     RollingPlan,
     RollingPlanAssessment,
     RollingPlanIdentity,
@@ -226,6 +227,11 @@ class _MidMpcFacade:
             or self._config.tracker_id != context.get("tracker_id")
         ):
             raise _hold_rejection("HOLD_CAPABILITY_CHANGED", "active plant/controller capability changed")
+        if self._held_authority_revision_reason(planner_input, capability) is PlanRevisionReason.COLREG_AUTHORITY_CHANGED:
+            raise _hold_rejection(
+                "HOLD_COLREG_AUTHORITY_CHANGED",
+                "held plan predates the current canonical COLREG authority",
+            )
         prediction_error_m, velocity_error_mps = _held_target_prediction_error(
             planner_input,
             solution,
@@ -294,6 +300,27 @@ class _MidMpcFacade:
             "acceptance_hash": held_result.acceptance_hash,
             "layers": [asdict(layer) for layer in held_result.layers],
         }
+
+    def _held_authority_revision_reason(
+        self,
+        planner_input: PlannerInput,
+        capability: PlantCapabilityEvidence,
+    ) -> PlanRevisionReason | None:
+        canonical_threat_snapshot = self._canonical_snapshot_at(planner_input)
+        if canonical_threat_snapshot is None:
+            return None
+        reference = self._rolling_plan.reference(
+            current_time_s=planner_input.sim_time_s,
+            horizon_steps=self._config.assembly.horizon_steps,
+            dt_s=self._config.assembly.horizon_dt_s,
+            identity=_rolling_plan_identity(
+                planner_input,
+                canonical_threat_snapshot.lifecycle_snapshot,
+                capability,
+            ),
+            prior_plan_safe=True,
+        )
+        return reference.revision_reason
 
     def solve(self, planner_input: PlannerInput) -> MPCSolution:  # noqa: C901, PLR0912, PLR0915
         if len(planner_input.tracks) > self._config.assembly.max_targets:
@@ -594,7 +621,10 @@ class _MidMpcFacade:
         accepted_prediction = OwnshipThreatPrediction.from_prediction_evidence(
             prediction_evidence,
             reference_time_s=planner_input.sim_time_s,
-            target_keys=tuple(TrackKey(track.target_id, track.generation or 1) for track in planner_input.tracks),
+            target_keys=tuple(
+                TrackKey(track.target_id, track.generation or 1)
+                for track in planner_input.tracks
+            ),
         )
         receipt = {
             "schema_version": "colav.mid_mpc.receipt@1",
@@ -626,10 +656,7 @@ class _MidMpcFacade:
             accepted_at_s=planner_input.sim_time_s,
             valid_until_s=planner_input.sim_time_s + self._config.assembly.decision_period_s,
             accepted_prediction=accepted_prediction,
-            target_keys=tuple(
-                TrackKey(track.target_id, track.generation or 1)
-                for track in planner_input.tracks
-            ),
+            target_keys=tuple(TrackKey(track.target_id, track.generation or 1) for track in planner_input.tracks),
             prediction_hash=accepted_prediction.semantic_hash,
             acceptance_hash=acceptance_result.acceptance_hash,
             domain_profile_hash=self._threat_management_coordinator.domain_profile.profile_hash,
