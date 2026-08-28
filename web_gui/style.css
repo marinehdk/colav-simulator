@@ -1181,7 +1181,9 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   height: 64px;
   display: grid;
   place-items: center;
-  transform: translate(-50%, -50%);
+  transform: translate3d(-128px, -128px, 0);
+  will-change: transform;
+  contain: layout paint;
   pointer-events: auto;
   cursor: pointer;
   color: rgba(0, 230, 118, .42);
@@ -1219,16 +1221,18 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 
 .vessel-detail-placard {
   position: absolute;
+  top: 0;
+  left: 0;
   z-index: 5;
   width: min(330px, calc(100% - 16px));
   pointer-events: auto;
+  transform: translate3d(-1000px, -1000px, 0);
+  will-change: transform;
+  contain: layout paint;
   --overlay-container-background-color: color-mix(in srgb, var(--ob-surface) 92%, transparent);
 }
 
 .vessel-detail-placard[hidden] { display: none !important; }
-
-.vessel-detail-placard[data-placement="above"] { transform: translate(-50%, -100%); }
-.vessel-detail-placard[data-placement="below"] { transform: translate(-50%, 0); }
 
 .vessel-placard-body {
   width: 328px;
@@ -1266,7 +1270,13 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   color: var(--ob-subtle);
 }
 
-.vessel-placard-dial obc-chart-object-vessel-button { transform: scale(.72); }
+.vessel-placard-dial obc-chart-object-vessel-button {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(.72);
+  transform-origin: center;
+}
 
 .vessel-placard-feature {
   display: grid;

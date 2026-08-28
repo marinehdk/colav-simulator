@@ -248,8 +248,9 @@ test('ownship future motion uses a black double-chevron arrow', async () => {
   assert.equal(surface.calls.some(([name]) => name === 'fill'), false);
 });
 
-test('COLAV threat plot is hidden by default and toggles only from the ownship hit region', async () => {
-  const { display } = await createDisplay();
+test('ownship click selects ownship for the shared placard and never toggles the legacy threat plot', async () => {
+  const selections = [];
+  const { display } = await createDisplay({ onSelectionChange: (vessel, context) => selections.push({ vessel, context }) });
   const snapshot = sampleSnapshot({ encounters: [
     { relative_bearing_deg: 0, stage: 3, signed_tcpa_s: 90 },
   ] });
@@ -258,10 +259,11 @@ test('COLAV threat plot is hidden by default and toggles only from the ownship h
   assert.equal(display.getDrawSequence().includes('threatPlot'), false);
   const ownship = display.worldToCanvas(snapshot.os.x, snapshot.os.y);
   display.handleClickAt(ownship.x, ownship.y);
-  assert.equal(display.isOwnshipThreatPlotVisible(), true);
-  assert.equal(display.getDrawSequence().includes('threatPlot'), true);
-  display.handleClickAt(ownship.x, ownship.y);
   assert.equal(display.isOwnshipThreatPlotVisible(), false);
+  assert.equal(display.getDrawSequence().includes('threatPlot'), false);
+  assert.equal(selections.at(-1).vessel.id, 0);
+  assert.equal(selections.at(-1).context.kind, 'ownship');
+  assert.ok(Number.isFinite(selections.at(-1).context.anchor.x));
 });
 
 test('interpolateTelemetry interpolates positions and wraps angles per vessel id', async () => {
@@ -429,9 +431,10 @@ test('hit-testing resolves the topmost (last drawn) target and reports selection
 
 test('OpenBridge target markers receive rotated screen anchors and selection context', async () => {
   const markerFrames = [];
+  const markerContexts = [];
   const selections = [];
   const { display } = await createDisplay({
-    onTargetMarkersChange: markers => markerFrames.push(markers),
+    onTargetMarkersChange: (markers, context) => { markerFrames.push(markers); markerContexts.push(context); },
     onSelectionChange: (target, context) => selections.push({ target, context }),
   });
   const snapshot = sampleSnapshot();
@@ -442,6 +445,8 @@ test('OpenBridge target markers receive rotated screen anchors and selection con
   assert.deepEqual(markers.map(marker => marker.id), [1, 2]);
   assert.ok(markers.every(marker => Number.isFinite(marker.anchor.x) && Number.isFinite(marker.anchor.y)));
   assert.equal(markers[0].headingDeg, 180);
+  assert.equal(markerContexts.at(-1).ownship.vessel.id, 0);
+  assert.ok(Number.isFinite(markerContexts.at(-1).ownship.anchor.x));
 
   const first = markers[0];
   display.handleClickAt(first.anchor.x, first.anchor.y);

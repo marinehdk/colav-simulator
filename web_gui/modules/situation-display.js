@@ -1335,7 +1335,7 @@ export function createSituationDisplay(options) {
         labels.push({ text: `TS${target.id}`, point, color: threat.color });
       }
     });
-    markerSink?.(markers);
+    let ownshipMarker = null;
     if (visibleLayers.truth && data.executed_tracker !== 'god') {
       (data.obstacles || []).forEach(target => {
         const point = worldToCanvas(target.x, target.y);
@@ -1346,7 +1346,9 @@ export function createSituationDisplay(options) {
       const point = worldToCanvas(data.os.x, data.os.y);
       drawOwnshipSprite(point, data.os.psi, FCB45_LENGTH_M, FCB45_WIDTH_M);
       ownshipHitRegion = { x: point.x, y: point.y, radius: 24 };
+      ownshipMarker = { vessel: data.os, anchor: drawnToScreen(point.x, point.y) };
     }
+    markerSink?.(markers, { ownship: ownshipMarker });
     drawAvoidingLabels(labels);
     drawSequence.push('ships');
   }
@@ -1912,8 +1914,14 @@ export function createSituationDisplay(options) {
       return;
     }
     if (ownshipHitRegion && Math.hypot(p.x - ownshipHitRegion.x, p.y - ownshipHitRegion.y) <= ownshipHitRegion.radius) {
-      ownshipThreatPlotVisible = !ownshipThreatPlotVisible;
-      selectTarget(null, null);
+      selectedTargetId = null;
+      const ownship = (currentData || lastRenderedData || {}).os || null;
+      selectionCallback(ownship, {
+        kind: 'ownship',
+        selectedTargetId: null,
+        anchor: drawnToScreen(ownshipHitRegion.x, ownshipHitRegion.y),
+      });
+      rerender();
       return;
     }
     selectTarget(null, null);

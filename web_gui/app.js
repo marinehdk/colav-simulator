@@ -8,7 +8,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260828-vessel-marker-v2';
+} from './modules/situation-display.js?v=20260828-ownship-placard-v3';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
 
 /**
@@ -63,7 +63,9 @@ let lastVORenderKey = null;
 let voRenderGeometry = null;
 let latestMonitorProjection = null;
 let latestVesselMarkers = [];
+let latestOwnshipMarker = null;
 let selectedVesselTarget = null;
+let selectedVesselAnchor = null;
 function currentRunId() {
   return deploymentRuntimeSnapshot.session?.session_id || null;
 }
@@ -147,8 +149,9 @@ function applyVesselMarkerModel(component, marker) {
   component.setAttribute('aria-hidden', 'true');
 }
 
-function renderVesselMarkers(markers = []) {
+function renderVesselMarkers(markers = [], context = {}) {
   latestVesselMarkers = markers;
+  latestOwnshipMarker = context.ownship || null;
   const layer = document.getElementById('vesselMarkerLayer');
   if (!layer) return;
   const activeIds = new Set(markers.map(marker => String(marker.id)));
@@ -175,8 +178,7 @@ function renderVesselMarkers(markers = []) {
       host.appendChild(component);
       layer.appendChild(host);
     }
-    host.style.left = `${marker.anchor.x}px`;
-    host.style.top = `${marker.anchor.y}px`;
+    host.style.transform = `translate3d(${marker.anchor.x - 32}px, ${marker.anchor.y - 32}px, 0)`;
     host.hidden = marker.anchor.x < -40
       || marker.anchor.y < -40
       || marker.anchor.x > layer.clientWidth + 40
@@ -188,13 +190,22 @@ function renderVesselMarkers(markers = []) {
   });
 
   if (selectedVesselTarget) {
-    const selected = markers.find(marker => String(marker.id) === String(selectedVesselTarget.id));
-    if (selected) showVesselPlacard(selected.target, { anchor: selected.anchor });
+    if (String(selectedVesselTarget.id) === '0' && latestOwnshipMarker) {
+      selectedVesselTarget = latestOwnshipMarker.vessel;
+      positionVesselPlacard(latestOwnshipMarker.anchor);
+    } else {
+      const selected = markers.find(marker => String(marker.id) === String(selectedVesselTarget.id));
+      if (selected) {
+        selectedVesselTarget = selected.target;
+        positionVesselPlacard(selected.anchor);
+      }
+    }
   }
 }
 
 function hideVesselPlacard() {
   selectedVesselTarget = null;
+  selectedVesselAnchor = null;
   const placard = document.getElementById('vesselDetailPlacard');
   if (placard) placard.hidden = true;
 }
@@ -202,6 +213,20 @@ function hideVesselPlacard() {
 function placardMetric(id, value) {
   const element = document.getElementById(id);
   if (element) element.textContent = value;
+}
+
+function positionVesselPlacard(anchor) {
+  const placard = document.getElementById('vesselDetailPlacard');
+  const wrapper = document.getElementById('canvasWrapper');
+  if (!placard || !wrapper || !anchor) return;
+  selectedVesselAnchor = anchor;
+  const above = anchor.y > 220;
+  const halfWidth = Math.min(165, Math.max(80, wrapper.clientWidth / 2 - 8));
+  const left = Math.min(wrapper.clientWidth - halfWidth, Math.max(halfWidth, anchor.x));
+  const top = anchor.y + (above ? -38 : 38);
+  placard.dataset.placement = above ? 'above' : 'below';
+  placard.pointerDirection = above ? 'bottom' : 'top';
+  placard.style.transform = `translate3d(${left}px, ${top}px, 0) translate(-50%, ${above ? '-100%' : '0'})`;
 }
 
 function showVesselPlacard(target, context = {}) {
@@ -212,8 +237,9 @@ function showVesselPlacard(target, context = {}) {
     return;
   }
   selectedVesselTarget = target;
+  const isOwnship = String(target.id) === '0';
   const marker = latestVesselMarkers.find(item => String(item.id) === String(target.id));
-  const anchor = context.anchor || marker?.anchor;
+  const anchor = context.anchor || (isOwnship ? latestOwnshipMarker?.anchor : marker?.anchor);
   if (!anchor) {
     placard.hidden = true;
     return;
@@ -236,22 +262,20 @@ function showVesselPlacard(target, context = {}) {
     ? Math.abs(riskTarget.dcpaM) / METERS_PER_NAUTICAL_MILE
     : NaN;
   const tcpaMin = Number.isFinite(riskTarget?.tcpaS) ? riskTarget.tcpaS / 60 : NaN;
-  const source = deploymentRuntimeSnapshot.session?.spec?.historical_scenario_id ? 'AIS' : 'TRACK';
+  const source = isOwnship
+    ? 'OWN'
+    : deploymentRuntimeSnapshot.session?.spec?.historical_scenario_id ? 'AIS' : 'TRACK';
   Object.assign(placard, {
-    pointerDirection: anchor.y > 220 ? 'bottom' : 'top',
     headerVariant: 'condensed',
-    index: String(target.id),
-    cardTitle: target.name || `TS${target.id}`,
-    description: target.mmsi ? `MMSI ${target.mmsi}` : 'Tracked target vessel',
+    index: isOwnship ? 'OS' : String(target.id),
+    cardTitle: isOwnship ? 'OWN SHIP' : target.name || `TS${target.id}`,
+    description: isOwnship ? 'Controlled ownship' : target.mmsi ? `MMSI ${target.mmsi}` : 'Tracked target vessel',
     source,
     interactive: false,
   });
-  placard.dataset.placement = anchor.y > 220 ? 'above' : 'below';
-  const halfWidth = Math.min(165, Math.max(80, wrapper.clientWidth / 2 - 8));
-  placard.style.left = `${Math.min(wrapper.clientWidth - halfWidth, Math.max(halfWidth, anchor.x))}px`;
-  placard.style.top = `${anchor.y + (anchor.y > 220 ? -38 : 38)}px`;
+  positionVesselPlacard(anchor);
   placard.hidden = false;
-  placard.setAttribute('aria-label', `${target.name || `TS${target.id}`} vessel details`);
+  placard.setAttribute('aria-label', `${isOwnship ? 'OWN SHIP' : target.name || `TS${target.id}`} vessel details`);
 
   placardMetric('vesselPlacardBearing', Number.isFinite(bearingDeg) ? Math.round(bearingDeg).toString().padStart(3, '0') : '---');
   placardMetric('vesselPlacardRange', Number.isFinite(rangeM) ? (rangeM / METERS_PER_NAUTICAL_MILE).toFixed(1) : '---');
@@ -1505,6 +1529,16 @@ function setupNotificationCenter() {
 
 function updateMonitorTelemetry(proj) {
   latestMonitorProjection = proj;
+  if (selectedVesselTarget) {
+    const isOwnship = String(selectedVesselTarget.id) === '0';
+    const freshVessel = isOwnship
+      ? proj.raw?.os
+      : (proj.raw?.obstacles || []).find(vessel => String(vessel.id) === String(selectedVesselTarget.id));
+    const anchor = isOwnship
+      ? latestOwnshipMarker?.anchor
+      : latestVesselMarkers.find(marker => String(marker.id) === String(selectedVesselTarget.id))?.anchor;
+    if (freshVessel && anchor) showVesselPlacard(freshVessel, { anchor });
+  }
   const historicalContext = proj.raw?.historical_context;
   setText(
     'liveContextCount',

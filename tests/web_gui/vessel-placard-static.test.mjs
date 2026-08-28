@@ -25,7 +25,7 @@ test('Deployment provides target marker and anchored placard layers', () => {
 test('Situation Display emits screen-space marker anchors without owning DOM cards', () => {
   assert.match(display, /onTargetMarkersChange/);
   assert.match(display, /drawnToScreen/);
-  assert.match(display, /markerSink\?\.\(markers\)/);
+  assert.match(display, /markerSink\?\.\(markers, \{ ownship: ownshipMarker \}\)/);
   assert.doesNotMatch(display, /document\.createElement\(['"]obc-poi-card/);
 });
 
@@ -39,7 +39,8 @@ test('Deployment adapter renders marker components and canonical target metrics'
 
 test('target marker centers the OpenBridge component exactly on the world anchor', () => {
   assert.match(styles, /\.vessel-marker \{[^}]*display: grid;[^}]*place-items: center;/s);
-  assert.match(styles, /transform: translate\(-50%, -50%\)/);
+  assert.match(app, /marker\.anchor\.x - 32/);
+  assert.match(app, /marker\.anchor\.y - 32/);
 });
 
 test('Risk rings are light-DOM one-pixel translucent circles, not native five-pixel alert rings', () => {
@@ -55,4 +56,21 @@ test('ownship sprite does not add a second black contour around the icon', () =>
   const ownshipSource = display.slice(ownshipStart, targetStart);
   assert.ok(ownshipStart >= 0 && targetStart > ownshipStart);
   assert.doesNotMatch(ownshipSource, /strokeShipContour/);
+});
+
+test('marker and placard follow interpolated anchors through compositor transforms only', () => {
+  assert.match(app, /host\.style\.transform = `translate3d/);
+  assert.doesNotMatch(app, /host\.style\.left =/);
+  assert.doesNotMatch(app, /host\.style\.top =/);
+  assert.match(app, /positionVesselPlacard\(selected\.anchor\)/);
+  assert.doesNotMatch(app, /if \(selected\) showVesselPlacard/);
+  assert.match(styles, /\.vessel-marker \{[^}]*will-change: transform;/s);
+  assert.match(styles, /\.vessel-detail-placard \{[^}]*will-change: transform;/s);
+});
+
+test('placard compass symbol is geometrically centered under the N label', () => {
+  assert.match(
+    styles,
+    /\.vessel-placard-dial obc-chart-object-vessel-button \{[^}]*position: absolute;[^}]*left: 50%;[^}]*top: 50%;[^}]*translate\(-50%, -50%\)/s,
+  );
 });
