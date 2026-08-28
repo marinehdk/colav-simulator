@@ -1,4 +1,4 @@
-import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260826-chart-view-control-v1';
+import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260828-unfocused-telemetry-v1';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
 import {
   createSituationDisplay,

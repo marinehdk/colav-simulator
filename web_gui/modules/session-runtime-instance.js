@@ -1,4 +1,4 @@
-import { createActiveSessionRuntime } from './active-session-runtime.js?v=20260818-candidate2-runtime-final';
+import { createActiveSessionRuntime } from './active-session-runtime.js?v=20260828-unfocused-telemetry-v1';
 import { createTelemetryProjection } from './telemetry-projection.js?v=20260826-operational-events-v2';
 
 class SessionHttpError extends Error {

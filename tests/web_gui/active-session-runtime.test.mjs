@@ -87,7 +87,7 @@ function createHarness() {
       timers.delete(entry[0]);
       entry[1].callback();
     },
-    setFocus(value) { focused = value; },
+    setFocus(value) { focused = value; for (const listener of visibilityListeners) listener(); },
     setNow(value) { now = value; },
     setOnline(value) { online = value; for (const listener of onlineListeners) listener(); },
     setVisible(value) { visible = value; for (const listener of visibilityListeners) listener(); },
@@ -584,6 +584,26 @@ test('command responses are bound to session identity and authority revision', a
   assert.equal(harness.runtime.snapshot().sessionState, 'PAUSED');
   assert.equal(harness.runtime.snapshot().session.sequence, 9);
   assert.equal(harness.runtime.snapshot().pending, null);
+});
+
+test('telemetry keeps flowing while the window is unfocused but visible', async () => {
+  const harness = createHarness();
+  const boot = harness.runtime.bootstrap();
+  harness.requests[0].pending.resolve(session('run-1', 'RUNNING'));
+  await boot;
+  assert.equal(harness.sockets.length, 1);
+  harness.sockets[0].open();
+
+  // User clicks into another application: window blurs but stays visible.
+  harness.setFocus(false);
+  assert.equal(harness.sockets[0].closeCalls, 0);
+  assert.equal(harness.runtime.snapshot().connection.status, 'connected');
+
+  harness.sockets[0].message(telemetry('run-1', 'RUNNING', 1));
+  assert.equal(harness.runtime.snapshot().telemetry.envelope.seq, 1);
+
+  harness.sockets[0].message(telemetry('run-1', 'RUNNING', 2));
+  assert.equal(harness.runtime.snapshot().telemetry.envelope.seq, 2);
 });
 
 test('late REST lifecycle response cannot overwrite a newer terminal WebSocket state', async () => {

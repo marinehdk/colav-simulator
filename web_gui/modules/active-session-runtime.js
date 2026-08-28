@@ -154,8 +154,7 @@ export function createActiveSessionRuntime({ http, wsFactory, scheduler, clock, 
     return !destroyed
       && Boolean(state.session?.session_id)
       && online.isOnline()
-      && visibility.isVisible()
-      && visibility.hasFocus();
+      && visibility.isVisible();
   }
 
   function scheduleReconnect(sessionId, generation) {
@@ -393,7 +392,7 @@ export function createActiveSessionRuntime({ http, wsFactory, scheduler, clock, 
 
   function handleEnvironmentChange() {
     if (destroyed || !bootstrapPromise) return;
-    if (!online.isOnline() || !visibility.isVisible() || !visibility.hasFocus()) {
+    if (!online.isOnline() || !visibility.isVisible()) {
       suspendTransport();
       return;
     }
