@@ -1,6 +1,6 @@
 import { createValidationAssembly } from './validation-assembly.js?v=20260827-mid-mpc-domain-v1';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260826-chart-view-control-v1';
-import { createSituationDisplay } from './situation-display.js?v=20260826-radar-card-v1';
+import { createSituationDisplay } from './situation-display.js?v=20260828-vessel-marker-v2';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const RULE_IMAGES = {

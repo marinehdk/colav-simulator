@@ -8,7 +8,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260826-radar-card-v1';
+} from './modules/situation-display.js?v=20260828-vessel-marker-v2';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
 
 /**
@@ -132,15 +132,15 @@ function vesselMarkerElement(id) {
 
 function applyVesselMarkerModel(component, marker) {
   Object.assign(component, {
-    type: 'flat',
-    state: marker.state,
-    selected: marker.selected,
+    type: 'flat-large',
+    state: 'enabled',
+    selected: false,
     heading: marker.headingDeg,
     course: marker.courseDeg,
     speedIndicator: marker.speedIndicator,
     turnRate: marker.turnRateDeg,
     vesselImage: 'cargo-top',
-    vesselImageSize: 28,
+    vesselImageSize: 34,
     number: Number(marker.id),
     name: `TS${marker.id}`,
   });
@@ -182,6 +182,8 @@ function renderVesselMarkers(markers = []) {
       || marker.anchor.x > layer.clientWidth + 40
       || marker.anchor.y > layer.clientHeight + 40;
     host.setAttribute('aria-label', `TS${marker.id}, ${marker.state}, click for vessel details`);
+    host.dataset.riskState = marker.state;
+    host.dataset.selected = String(marker.selected);
     applyVesselMarkerModel(host.firstElementChild, marker);
   });
 

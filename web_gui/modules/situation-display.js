@@ -1398,7 +1398,6 @@ export function createSituationDisplay(options) {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
     ctx.shadowBlur = 2;
     ctx.drawImage(ownshipSprite, -iconPx / 2, -iconPx / 2, iconPx, iconPx);
-    strokeShipContour(iconPx * 0.82, iconPx * 0.26, OWNSHIP_OUTLINE_COLOR, 2);
     ctx.restore();
   }
 

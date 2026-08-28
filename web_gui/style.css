@@ -1179,12 +1179,43 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   position: absolute;
   width: 64px;
   height: 64px;
+  display: grid;
+  place-items: center;
   transform: translate(-50%, -50%);
   pointer-events: auto;
+  cursor: pointer;
+  color: rgba(0, 230, 118, .42);
   filter: drop-shadow(0 1px 2px rgba(4, 28, 42, 0.36));
 }
 
 .vessel-marker obc-chart-object-vessel-button { display: block; }
+
+.vessel-marker::before,
+.vessel-marker::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.vessel-marker::before {
+  width: 44px;
+  height: 44px;
+  opacity: .56;
+}
+
+.vessel-marker::after {
+  width: 50px;
+  height: 50px;
+  opacity: .28;
+}
+
+.vessel-marker[data-risk-state="active"],
+.vessel-marker[data-risk-state="caution"] { color: rgba(255, 179, 0, .62); }
+.vessel-marker[data-risk-state="alarm"] { color: rgba(255, 75, 75, .66); }
+.vessel-marker[data-selected="true"]::after { opacity: .58; }
 
 .vessel-detail-placard {
   position: absolute;
