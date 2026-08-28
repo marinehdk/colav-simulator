@@ -901,13 +901,17 @@ def _classify(
 ) -> tuple[EncounterKind, OwnshipRole]:
     own_speed = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
     target_speed = float(np.linalg.norm(target.state_enu[2:4]))
-    if min(own_speed, target_speed) < cycle.profile.cog_min_speed_mps:
-        return EncounterKind.UNKNOWN, OwnshipRole.UNKNOWN
     own_radius = 0.5 * math.hypot(cycle.ownship.length_m, cycle.ownship.width_m)
     target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
     hull_clearance = geometry.dcpa_m - own_radius - target_radius
+    # The CLEAR exit must be evaluated before the low-speed early return: COLREG
+    # bearing geometry is meaningless below cog_min_speed_mps, but hull-clearance
+    # separation is valid at any speed. A moored contact far from the corridor
+    # would otherwise classify UNKNOWN and escalate to ACTIVE purely on dwell time.
     if geometry.signed_tcpa_s <= 0.0 or hull_clearance >= cycle.profile.comfortable_hull_clearance_m:
         return EncounterKind.CLEAR, OwnshipRole.NONE
+    if min(own_speed, target_speed) < cycle.profile.cog_min_speed_mps:
+        return EncounterKind.UNKNOWN, OwnshipRole.UNKNOWN
 
     bearing = math.degrees(geometry.relative_bearing_rad)
     contact_bearing = math.degrees(geometry.contact_bearing_rad)

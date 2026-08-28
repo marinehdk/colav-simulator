@@ -408,6 +408,30 @@ def test_unknown_role_contact_remains_an_optimizer_safety_target() -> None:
     assert confirmed.directive.passing_side is PassingSide.NONE
 
 
+def test_stationary_distant_contact_classifies_clear_instead_of_unknown_candidate() -> None:
+    """A moored contact far from the hull-corridor must stay CLEAR, not escalate.
+
+    Regression: the low-speed early return in _classify ran before the CLEAR
+    geometry check, so any stationary harbour contact became UNKNOWN and then
+    ACTIVE after entry_confirmation_s — triggering the algorithm handoff and
+    planner avoidance against a vessel whose predicted domain shows no
+    intersection.
+    """
+    lifecycle = EncounterLifecycle()
+    base = _head_on_cycle(sequence=0, sim_time_s=0.0)
+    moored = replace(base.targets[0], state_enu=np.array([2000.0, 1500.0, 0.0, 0.0]))
+    first = lifecycle.step(replace(base, targets=(moored,))).targets[0]
+    second_cycle = _head_on_cycle(sequence=1, sim_time_s=10.0)
+    second_target = replace(moored, observed_at_s=10.0, generated_at_s=10.0)
+    confirmed = lifecycle.step(replace(second_cycle, targets=(second_target,)))
+
+    assert first.encounter is EncounterKind.CLEAR
+    assert first.role is OwnshipRole.NONE
+    assert first.risk is RiskPhase.CLEAR
+    assert confirmed.targets[0].risk is RiskPhase.CLEAR
+    assert confirmed.directive.required_targets == ()
+
+
 def test_compatible_commitments_produce_one_aggregate_directive() -> None:
     lifecycle = EncounterLifecycle()
     lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
