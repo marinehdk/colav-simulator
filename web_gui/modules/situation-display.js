@@ -1324,6 +1324,7 @@ export function createSituationDisplay(options) {
           speedIndicator: Number(target.sog) < 0.1 ? 'stopped' : Number(target.sog) < 2 ? 'one' : Number(target.sog) < 5 ? 'two' : 'three',
           turnRateDeg: Number.isFinite(target.r) ? Number(target.r) * 180 / Math.PI : 0,
           state: threat.rank >= 3 ? 'alarm' : threat.rank >= 2 ? 'caution' : threat.rank >= 1 ? 'active' : 'enabled',
+          riskLevel: targetThreatLevels.get(String(target.id)) || 'unknown',
           selected: String(target.id) === String(selectedTargetId),
           compact,
         });

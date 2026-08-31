@@ -47,7 +47,29 @@ test('Risk rings are light-DOM one-pixel translucent circles, not native five-pi
   assert.match(app, /state: 'enabled'/);
   assert.match(app, /host\.dataset\.riskState = marker\.state/);
   assert.match(styles, /\.vessel-marker::before[\s\S]*border: 1px solid currentColor/);
-  assert.match(styles, /\.vessel-marker::after[\s\S]*opacity: \.28/);
+  assert.match(styles, /\.vessel-marker::after[\s\S]*border: 1px solid currentColor/);
+});
+
+test('target name is one centered label below the complete risk ring', () => {
+  assert.match(app, /label\.className = 'vessel-marker-label'/);
+  assert.match(app, /label\.textContent = marker\.target\.name \|\| `TS\$\{marker\.id\}`/);
+  assert.match(app, /number: null/);
+  assert.match(app, /name: ''/);
+  assert.match(
+    styles,
+    /\.vessel-marker-label \{[^}]*left: 50%;[^}]*top: 60px;[^}]*transform: translateX\(-50%\);[^}]*text-align: center;/s,
+  );
+  assert.match(styles, /\.vessel-marker \{[^}]*contain: layout;/s);
+  assert.doesNotMatch(styles, /\.vessel-marker \{[^}]*contain: layout paint;/s);
+});
+
+test('risk rings use the canonical Collision Safety color with readable opacity', () => {
+  assert.match(display, /riskLevel: targetThreatLevels\.get\(String\(target\.id\)\) \|\| 'unknown'/);
+  assert.match(app, /host\.dataset\.threat = marker\.riskLevel/);
+  assert.match(styles, /\.risk-target-card\[data-threat="safe"\],\s*\.vessel-marker\[data-threat="safe"\]/);
+  assert.match(styles, /\.vessel-marker \{[^}]*color: var\(--risk-card-color\);/s);
+  assert.match(styles, /\.vessel-marker::before[\s\S]*opacity: \.92/);
+  assert.match(styles, /\.vessel-marker::after[\s\S]*opacity: \.72/);
 });
 
 test('ownship sprite does not add a second black contour around the icon', () => {

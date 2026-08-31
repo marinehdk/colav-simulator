@@ -8,7 +8,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260828-ownship-placard-v3';
+} from './modules/situation-display.js?v=20260831-vessel-risk-label-v4';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
 
 /**
@@ -143,8 +143,8 @@ function applyVesselMarkerModel(component, marker) {
     turnRate: marker.turnRateDeg,
     vesselImage: 'cargo-top',
     vesselImageSize: 34,
-    number: Number(marker.id),
-    name: `TS${marker.id}`,
+    number: null,
+    name: '',
   });
   component.setAttribute('aria-hidden', 'true');
 }
@@ -175,7 +175,9 @@ function renderVesselMarkers(markers = [], context = {}) {
         if (event.key === 'Enter' || event.key === ' ') select(event);
       });
       const component = document.createElement('obc-chart-object-vessel-button');
-      host.appendChild(component);
+      const label = document.createElement('span');
+      label.className = 'vessel-marker-label';
+      host.append(component, label);
       layer.appendChild(host);
     }
     host.style.transform = `translate3d(${marker.anchor.x - 32}px, ${marker.anchor.y - 32}px, 0)`;
@@ -185,7 +187,10 @@ function renderVesselMarkers(markers = [], context = {}) {
       || marker.anchor.y > layer.clientHeight + 40;
     host.setAttribute('aria-label', `TS${marker.id}, ${marker.state}, click for vessel details`);
     host.dataset.riskState = marker.state;
+    host.dataset.threat = marker.riskLevel;
     host.dataset.selected = String(marker.selected);
+    const label = host.querySelector('.vessel-marker-label');
+    label.textContent = marker.target.name || `TS${marker.id}`;
     applyVesselMarkerModel(host.firstElementChild, marker);
   });
 

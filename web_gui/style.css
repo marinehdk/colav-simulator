@@ -1183,14 +1183,28 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   place-items: center;
   transform: translate3d(-128px, -128px, 0);
   will-change: transform;
-  contain: layout paint;
+  contain: layout;
   pointer-events: auto;
   cursor: pointer;
-  color: rgba(0, 230, 118, .42);
+  --risk-card-color: var(--ob-subtle);
+  color: var(--risk-card-color);
   filter: drop-shadow(0 1px 2px rgba(4, 28, 42, 0.36));
 }
 
 .vessel-marker obc-chart-object-vessel-button { display: block; }
+
+.vessel-marker-label {
+  position: absolute;
+  left: 50%;
+  top: 60px;
+  min-width: 64px;
+  transform: translateX(-50%);
+  color: var(--ob-text);
+  font: 600 11px/14px var(--font-mono);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
 
 .vessel-marker::before,
 .vessel-marker::after {
@@ -1205,19 +1219,16 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .vessel-marker::before {
   width: 44px;
   height: 44px;
-  opacity: .56;
+  opacity: .92;
 }
 
 .vessel-marker::after {
   width: 50px;
   height: 50px;
-  opacity: .28;
+  opacity: .72;
 }
 
-.vessel-marker[data-risk-state="active"],
-.vessel-marker[data-risk-state="caution"] { color: rgba(255, 179, 0, .62); }
-.vessel-marker[data-risk-state="alarm"] { color: rgba(255, 75, 75, .66); }
-.vessel-marker[data-selected="true"]::after { opacity: .58; }
+.vessel-marker[data-selected="true"]::after { opacity: .96; }
 
 .vessel-detail-placard {
   position: absolute;
@@ -3345,13 +3356,16 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--risk-card-color) 5%, var(--risk-card-tint));
 }
-.risk-target-card[data-threat="safe"] {
+.risk-target-card[data-threat="safe"],
+.vessel-marker[data-threat="safe"] {
   --risk-card-color: var(--alert-success-color, #16804b);
 }
-.risk-target-card[data-threat="warn"] {
+.risk-target-card[data-threat="warn"],
+.vessel-marker[data-threat="warn"] {
   --risk-card-color: var(--alert-warning-color, #b87800);
 }
-.risk-target-card[data-threat="danger"] {
+.risk-target-card[data-threat="danger"],
+.vessel-marker[data-threat="danger"] {
   --risk-card-color: var(--alert-alarm-color, #d82828);
 }
 .risk-target-card[data-priority="highest"] {
