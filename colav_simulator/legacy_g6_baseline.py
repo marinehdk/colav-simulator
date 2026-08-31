@@ -56,18 +56,24 @@ def _test_identity() -> dict[str, Any]:
         "tree_sha256": _tree_hash(PINNED_BASELINE_COMMIT, "tests"),
         "file_count": len(test_files),
         "files_sha256": _sha256_bytes("\n".join(test_files).encode()),
-        "known_preexisting_failure": {
-            "nodeid": (
-                "tests/test_historical_ais_scene_guard.py::"
-                "test_existing_verified_exact_tuples_remain_unchanged_and_independent"
-            ),
-            "observed_extra_tuple": [
-                "multiship",
-                "hais_romsdal_20260701_120007_121007",
-                "mid_mpc_ipopt",
-                "god",
-            ],
-        },
+        "known_preexisting_failures": [
+            {
+                "nodeid": (
+                    "tests/test_historical_ais_scene_guard.py::"
+                    "test_existing_verified_exact_tuples_remain_unchanged_and_independent"
+                ),
+                "reason": "extra mid_mpc_ipopt Historical AIS experimental tuple",
+            },
+            {
+                "nodeid": "tests/test_playback_speed.py::test_playback_ui_uses_server_state_and_frame_interpolation",
+                "reason": "moved VO key assertion",
+            },
+            {
+                "nodeid": "tests/test_playback_speed.py::test_ownship_uses_fcb45_top_view_sprite",
+                "reason": "moved sprite code",
+            },
+        ],
+        "baseline_full_pytest": {"passed": 815, "skipped": 8, "failed": 3},
     }
 
 
