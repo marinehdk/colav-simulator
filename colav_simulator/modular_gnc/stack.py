@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from colav_simulator.modular_gnc.command_latch import CommandLatch
@@ -73,6 +74,11 @@ class ModularShipStack:
         if not self._initialized:
             return self._uninitialized_failure("stack must be reset before step")
         before = self.snapshot()
+        if not math.isfinite(dt_s):
+            return self._failure_output(
+                before,
+                FacadeFailure(FailureCode.NONFINITE_INPUT, "dt_s must be finite", "facade", self._tick),
+            )
         if dt_s <= 0.0:
             return self._failure_output(
                 before,
@@ -95,6 +101,8 @@ class ModularShipStack:
             return self._failure_output(before, latched.failure)
         try:
             for phase in self._modules.phase_order:
+                if phase == "guidance" and latched.tracked_route is None:
+                    continue
                 if not self._phase_due(phase):
                     continue
                 self._modules.run_phase(

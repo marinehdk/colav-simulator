@@ -10,6 +10,22 @@ from types import MappingProxyType
 from typing import Any
 
 
+def _deep_freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_deep_freeze(item) for item in value)
+    return value
+
+
+def _deep_thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _deep_thaw(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_deep_thaw(item) for item in value]
+    return value
+
+
 class UnsupportedModuleCombinationError(ValueError):
     """Raised when selected module identity or tuple is unsupported."""
 
@@ -80,7 +96,12 @@ class ModuleSelection:
 
     def __post_init__(self) -> None:
         """Freeze module parameters."""
-        object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))
+        object.__setattr__(self, "parameters", _deep_freeze(self.parameters))
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> ModuleSelection:
+        """Reuse immutable selection during episode template cloning."""
+        memo[id(self)] = self
+        return self
 
 
 @dataclass(frozen=True)
@@ -96,18 +117,23 @@ class ShipModulesConfig:
     def __post_init__(self) -> None:
         """Freeze nested normalized mappings."""
         object.__setattr__(self, "modules", MappingProxyType(dict(self.modules)))
-        object.__setattr__(self, "scheduler", MappingProxyType(dict(self.scheduler)))
-        object.__setattr__(self, "source", MappingProxyType(dict(self.source)))
+        object.__setattr__(self, "scheduler", _deep_freeze(self.scheduler))
+        object.__setattr__(self, "source", _deep_freeze(self.source))
 
     def with_overrides(self, overrides: Mapping[str, Any]) -> ShipModulesConfig:
         """Re-normalize with controlled scenario overrides."""
-        source = dict(self.source)
+        source = _deep_thaw(self.source)
         source["overrides"] = _deep_merge(dict(source.get("overrides", {})), dict(overrides))
         return normalize_ship_modules(source)
 
     def to_dict(self) -> dict[str, Any]:
         """Return original opt-in configuration shape."""
-        return json.loads(json.dumps(dict(self.source)))
+        return _deep_thaw(self.source)
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> ShipModulesConfig:
+        """Reuse immutable configuration during episode template cloning."""
+        memo[id(self)] = self
+        return self
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -166,12 +192,12 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     for role, selection in modules.items():
         _validate_selection(role, selection)
     scheduler = normalized["scheduler"]
-    if any(not isinstance(value, int) or value <= 0 for value in scheduler.values()):
+    if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in scheduler.values()):
         raise UnsupportedModuleCombinationError("scheduler periods must be positive integer ticks")
     canonical = {
         "preset": preset,
         "modules": {
-            role: {"identity": value.identity, "parameters": dict(value.parameters)} for role, value in modules.items()
+            role: {"identity": value.identity, "parameters": _deep_thaw(value.parameters)} for role, value in modules.items()
         },
         "scheduler": scheduler,
     }

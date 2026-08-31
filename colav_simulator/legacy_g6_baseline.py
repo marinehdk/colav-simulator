@@ -202,9 +202,7 @@ def current_baseline(*, execution_identity: dict[str, str] | None = None) -> dic
         "reference_scenarios": [
             {
                 "scenario_id": scenario["scenario_id"],
-                "config_sha256": _sha256_bytes(
-                    json.dumps(scenario, sort_keys=True, separators=(",", ":")).encode()
-                ),
+                "config_sha256": _sha256_bytes(json.dumps(scenario, sort_keys=True, separators=(",", ":")).encode()),
                 "seed": scenario["seed"],
                 **scenario_evidence,
             }

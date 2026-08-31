@@ -57,6 +57,47 @@ def test_ship_modules_parse_normalize_hash_and_round_trip() -> None:
     assert config.to_dict()["ship_modules"] == config_dict["ship_modules"]
 
 
+def test_normalized_config_is_isolated_from_nested_source_mutation() -> None:
+    source = _modular_config()
+    normalized = normalize_ship_modules(source)
+    expected = normalized.to_dict()
+    expected_hash = normalized.config_hash
+
+    source["overrides"]["scheduler"]["controller_period_ticks"] = 99
+    source["modules"]["plant"]["parameters"]["nested"] = ["mutated"]
+
+    assert normalized.to_dict() == expected
+    assert normalized.config_hash == expected_hash
+
+
+def test_normalized_config_nested_data_cannot_stale_hash_or_round_trip() -> None:
+    normalized = normalize_ship_modules(_modular_config())
+    expected = normalized.to_dict()
+    expected_hash = normalized.config_hash
+
+    with pytest.raises(TypeError):
+        normalized.source["overrides"]["scheduler"]["controller_period_ticks"] = 99
+    with pytest.raises(TypeError):
+        normalized.source["modules"]["plant"]["parameters"]["nested"] = [1, 2]
+    with pytest.raises(TypeError):
+        normalized.modules["plant"].parameters["nested"] = {"values": [1, 2]}
+
+    exported = normalized.to_dict()
+    exported["overrides"]["scheduler"]["controller_period_ticks"] = 99
+
+    assert normalized.to_dict() == expected
+    assert normalized.config_hash == expected_hash
+
+
+def test_scheduler_periods_reject_bool_during_normalization() -> None:
+    for period in ("plant_period_ticks", "guidance_period_ticks", "controller_period_ticks"):
+        config = _modular_config()
+        config["overrides"]["scheduler"][period] = True
+
+        with pytest.raises(UnsupportedModuleCombinationError, match="positive integer ticks"):
+            normalize_ship_modules(config)
+
+
 def test_configuration_rejects_unknown_keys_and_wrong_module_roles() -> None:
     typo = _modular_config()
     typo["overides"] = typo.pop("overrides")

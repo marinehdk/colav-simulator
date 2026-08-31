@@ -402,14 +402,17 @@ ship_list:
                     required: False
                     type: integer
                     min: 1
+                    forbidden: [true, false]
                   guidance_period_ticks:
                     required: False
                     type: integer
                     min: 1
+                    forbidden: [true, false]
                   controller_period_ticks:
                     required: False
                     type: integer
                     min: 1
+                    forbidden: [true, false]
           modules:
             required: True
             type: dict

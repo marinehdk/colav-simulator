@@ -58,8 +58,7 @@ def _compiler_identity(compiler: str, expected_executable_sha256: str) -> tuple[
     executable_hash = _sha256_file(Path(executable))
     if executable_hash != expected_executable_sha256:
         raise CharacterizationError(
-            "compiler executable hash mismatch: "
-            f"expected {expected_executable_sha256}, observed {executable_hash}"
+            f"compiler executable hash mismatch: expected {expected_executable_sha256}, observed {executable_hash}"
         )
     result = subprocess.run([executable, "--version"], check=True, capture_output=True)
     return executable, executable_hash, _sha256(result.stdout + result.stderr)
@@ -84,9 +83,7 @@ def build_characterization_fixture(
         raise CharacterizationError(
             f"metadata keys mismatch: missing={sorted(missing_metadata)}, extra={sorted(extra_metadata)}"
         )
-    compiler_path, compiler_executable_hash, compiler_version_hash = _compiler_identity(
-        compiler, expected_compiler_sha256
-    )
+    compiler_path, compiler_executable_hash, compiler_version_hash = _compiler_identity(compiler, expected_compiler_sha256)
     recipe = source / "build_characterization.sh"
     if not recipe.is_file() or not recipe.stat().st_mode & 0o111:
         raise CharacterizationError("frozen source executable build recipe unavailable")

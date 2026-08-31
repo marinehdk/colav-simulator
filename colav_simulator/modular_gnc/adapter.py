@@ -52,6 +52,7 @@ class ModularShipAdapter(IShip):
         self._stack = stack
         self._failure_policy = failure_policy or FailurePolicy()
         self._next_tick = 0
+        self._seed = 0
         self._last_failure: FacadeFailure | None = None
 
     @classmethod
@@ -72,7 +73,9 @@ class ModularShipAdapter(IShip):
         self._legacy._state = navigation.as_array()
 
     def forward(
-        self, dt: float, w: stochasticity.DisturbanceData | None = None  # noqa: ARG002
+        self,
+        dt: float,
+        w: stochasticity.DisturbanceData | None = None,  # noqa: ARG002
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Advance modular stack, except historical trajectory playback bypasses it."""
         if self._legacy._trajectory.size > 0:
@@ -81,7 +84,8 @@ class ModularShipAdapter(IShip):
         try:
             command = CommandInput.direct(self._next_tick, DirectReference(references, self._next_tick))
         except ValueError as exc:
-            failure = FacadeFailure(FailureCode.INVALID_INPUT, str(exc), "adapter", self._next_tick)
+            code = FailureCode.NONFINITE_INPUT if not np.isfinite(references).all() else FailureCode.INVALID_INPUT
+            failure = FacadeFailure(code, str(exc), "adapter", self._next_tick)
             self._failure_policy.apply(failure)
             raise AssertionError("abort policy must raise") from exc
         output = self._stack.step(command, dt)
@@ -105,7 +109,8 @@ class ModularShipAdapter(IShip):
     def reset(self, seed: int | None) -> None:
         """Reset legacy-side services and modular facade."""
         self._legacy.reset(seed)
-        self._stack.reset(self._navigation(), 0 if seed is None else seed)
+        self._seed = 0 if seed is None else seed
+        self._stack.reset(self._navigation(), self._seed)
         self._next_tick = 0
         self._last_failure = None
 
@@ -113,7 +118,15 @@ class ModularShipAdapter(IShip):
         self._legacy.set_id(identifier)
 
     def set_initial_state(self, csog_state: np.ndarray, t_start: float | None = None) -> None:
-        self._legacy.set_initial_state(csog_state, t_start)
+        candidate = np.asarray(csog_state, dtype=np.float64)
+        if candidate.size != 4:
+            raise ValueError(f"Ship{self.id}: Initial state must be a 4D vector!")
+        if not np.isfinite(candidate).all():
+            raise ValueError("initial state must contain only finite values")
+        self._legacy.set_initial_state(candidate, t_start)
+        self._stack.reset(self._navigation(), self._seed)
+        self._next_tick = 0
+        self._last_failure = None
 
     def set_goal_state(self, csog_state: np.ndarray) -> None:
         self._legacy.set_goal_state(csog_state)
@@ -173,7 +186,8 @@ class ModularShipAdapter(IShip):
 
     def __getattr__(self, name: str) -> Any:
         """Expose de-facto read properties consumed across simulator ecosystem."""
-        return getattr(self._legacy, name)
+        legacy = object.__getattribute__(self, "_legacy")
+        return getattr(legacy, name)
 
     @property
     def state(self) -> np.ndarray:

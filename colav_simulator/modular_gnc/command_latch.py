@@ -63,12 +63,21 @@ class CommandLatch:
         self._last_input_tick = command.tick
 
         if command.direct_reference is not None:
-            if command.direct_reference.latched_tick < self._last_direct_source_tick:
+            reference_tick = command.direct_reference.latched_tick
+            if reference_tick != command.tick:
+                code = FailureCode.STALE_INPUT if reference_tick < command.tick else FailureCode.INVALID_INPUT
+                return self._failure(
+                    command,
+                    code,
+                    "direct reference latched_tick must equal command tick",
+                    {"command_tick": command.tick, "latched_tick": reference_tick},
+                )
+            if reference_tick < self._last_direct_source_tick:
                 return self._failure(command, FailureCode.STALE_INPUT, "stale direct reference")
-            self._last_direct_source_tick = command.direct_reference.latched_tick
+            self._last_direct_source_tick = reference_tick
             self._pending_route = None
             self._pending_direct = command.direct_reference
-            if self._held_direct is None or command.tick % self._controller_period_ticks == 0:
+            if command.tick % self._controller_period_ticks == 0:
                 self._held_direct = self._pending_direct
         elif command.tracked_route is not None:
             route = command.tracked_route

@@ -18,6 +18,7 @@ python -m colav_simulator.modular_gnc.characterization \
   --source /external/l45-source-20260824-v2 \
   --output /tmp/agx-l45-characterization \
   --compiler c++ \
+  --compiler-sha256 <independently-recorded-compiler-executable-sha256> \
   --manifest-sha256 <independently-recorded-manifest-sha256> \
   --config /external/evidence/config.json \
   --dependencies /external/evidence/dependencies.json \

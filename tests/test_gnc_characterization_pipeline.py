@@ -32,7 +32,7 @@ def _source_tree(tmp_path: Path) -> tuple[Path, str, dict[str, Path]]:
     recipe.write_text(
         "#!/bin/sh\nset -eu\n"
         "printf '%s' "
-        "'{\"schema_version\":\"agx-l45-characterization-output.v1\",\"samples\":[1.0,2.0]}' "
+        '\'{"schema_version":"agx-l45-characterization-output.v1","samples":[1.0,2.0]}\' '
         "> fixture-output.json\n",
         encoding="utf-8",
     )
@@ -115,10 +115,10 @@ def test_pipeline_detects_recipe_tampering(tmp_path: Path) -> None:
 def test_pipeline_detects_compiler_wrapper_tampering(tmp_path: Path) -> None:
     source, manifest_hash, metadata = _source_tree(tmp_path)
     compiler = tmp_path / "compiler-wrapper"
-    compiler.write_text("#!/bin/sh\nexec c++ \"$@\"\n", encoding="utf-8")
+    compiler.write_text('#!/bin/sh\nexec c++ "$@"\n', encoding="utf-8")
     compiler.chmod(compiler.stat().st_mode | stat.S_IXUSR)
     compiler_hash = _sha256(compiler)
-    compiler.write_text("#!/bin/sh\n# tampered\nexec c++ \"$@\"\n", encoding="utf-8")
+    compiler.write_text('#!/bin/sh\n# tampered\nexec c++ "$@"\n', encoding="utf-8")
 
     with pytest.raises(CharacterizationError, match="compiler executable hash mismatch"):
         build_characterization_fixture(
@@ -165,6 +165,15 @@ def test_pipeline_rejects_stale_preexisting_output(tmp_path: Path) -> None:
         )
 
     assert not (source / "fixture-output.json").exists()
+
+
+def test_readme_cli_recipe_declares_compiler_executable_identity() -> None:
+    readme = Path("tools/gnc_characterization/README.md").read_text(encoding="utf-8")
+
+    assert "--compiler-sha256 <independently-recorded-compiler-executable-sha256>" in readme
+    assert "python -m colav_simulator.modular_gnc.characterization" in readme
+    assert all(f"--{name} " in readme for name in ("source", "output", "compiler", "manifest-sha256"))
+    assert all(f"--{name} " in readme for name in ("config", "dependencies", "assets", "tests", "seeds"))
 
 
 def test_pipeline_executes_recipe_and_hashes_actual_metadata(tmp_path: Path) -> None:
