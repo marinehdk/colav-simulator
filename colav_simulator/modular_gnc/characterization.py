@@ -140,10 +140,9 @@ def _validate_fixture_inputs(
         raise CharacterizationError(
             f"metadata keys mismatch: missing={sorted(missing_metadata)}, extra={sorted(extra_metadata)}"
         )
-    for name, path in build_inputs.items():
+    for name in build_inputs:
         if not name or "/" in name or "\\" in name:
             raise CharacterizationError(f"build input name invalid: {name!r}")
-        _sha256_file(Path(path))
 
 
 def _input_identities(
@@ -227,6 +226,34 @@ def _recipe_command(
     return command, run_root
 
 
+def _stage_external_recipe_and_inputs(
+    run_root: Path,
+    recipe_path: Path,
+    recipe_sha256: str,
+    build_inputs: Mapping[str, Path],
+    input_identities: Mapping[str, str],
+) -> tuple[Path, dict[str, Path]]:
+    recipe_root = run_root / "recipe"
+    recipe_root.mkdir()
+    staged_recipe = recipe_root / recipe_path.name
+    shutil.copyfile(recipe_path, staged_recipe)
+    shutil.copymode(recipe_path, staged_recipe)
+    if _sha256_file(staged_recipe) != recipe_sha256:
+        raise CharacterizationError("staged recipe hash mismatch")
+    build_input_root = run_root / "build-inputs"
+    build_input_root.mkdir()
+    staged_build_inputs: dict[str, Path] = {}
+    for name, path in sorted(build_inputs.items()):
+        suffix = Path(path).suffix
+        staged_path = build_input_root / f"{name}{suffix}"
+        shutil.copyfile(path, staged_path)
+        expected_hash = input_identities[f"build_input:{name}"]
+        if _sha256_file(staged_path) != expected_hash:
+            raise CharacterizationError(f"staged build input hash mismatch: {name}")
+        staged_build_inputs[name] = staged_path
+    return staged_recipe, staged_build_inputs
+
+
 def _execute_recipe(
     source: Path,
     recipe_path: Path,
@@ -235,6 +262,8 @@ def _execute_recipe(
     recipe_is_external: bool,
     build_inputs: Mapping[str, Path],
     source_files: Mapping[str, str],
+    recipe_sha256: str,
+    input_identities: Mapping[str, str],
 ) -> tuple[dict[str, Any], bytes | None]:
     with tempfile.TemporaryDirectory(prefix="colav-gnc-characterization-") as temporary:
         run_root = Path(temporary)
@@ -243,15 +272,16 @@ def _execute_recipe(
         _verify_declared_source_files(staged_source, source_files)
         for stale in ("fixture-output.json", "fixture-output.npz"):
             (staged_source / stale).unlink(missing_ok=True)
+        staged_recipe = recipe_path
         staged_build_inputs: dict[str, Path] = {}
         if recipe_is_external:
-            build_input_root = run_root / "build-inputs"
-            build_input_root.mkdir()
-            for name, path in sorted(build_inputs.items()):
-                suffix = Path(path).suffix
-                staged_path = build_input_root / f"{name}{suffix}"
-                shutil.copyfile(path, staged_path)
-                staged_build_inputs[name] = staged_path
+            staged_recipe, staged_build_inputs = _stage_external_recipe_and_inputs(
+                run_root,
+                recipe_path,
+                recipe_sha256,
+                build_inputs,
+                input_identities,
+            )
         run_output_json = run_root / "fixture-output.json"
         run_output_npz = run_root / "fixture-output.npz"
         run_environment = os.environ.copy()
@@ -267,7 +297,7 @@ def _execute_recipe(
             source,
             staged_source,
             run_root,
-            recipe_path,
+            staged_recipe,
             compiler_path,
             run_output_json,
             run_output_npz,
@@ -351,6 +381,7 @@ def build_characterization_fixture(
         raise CharacterizationError("external recipe identity unavailable")
     if expected_recipe_sha256 is not None and recipe_sha256 != expected_recipe_sha256:
         raise CharacterizationError(f"recipe hash mismatch: expected {expected_recipe_sha256}, observed {recipe_sha256}")
+    input_identities = _input_identities(metadata, build_inputs)
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists() and not output.is_dir():
         raise CharacterizationError("fixture output path must be a directory")
@@ -364,6 +395,8 @@ def build_characterization_fixture(
             recipe_is_external,
             build_inputs,
             source_identity["files"],
+            recipe_sha256,
+            input_identities,
         )
         recipe_mode = "repo_adapter" if recipe_is_external else "source_owned"
         characterization_path = candidate / "characterization.json"
@@ -371,7 +404,7 @@ def build_characterization_fixture(
         characterization_npz_path = candidate / "characterization.npz"
         if npz_payload is not None:
             characterization_npz_path.write_bytes(npz_payload)
-        identities = _input_identities(metadata, build_inputs)
+        identities = dict(input_identities)
         identities.update(
             {
                 "source": expected_manifest_sha256,

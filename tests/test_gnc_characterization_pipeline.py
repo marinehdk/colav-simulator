@@ -336,6 +336,69 @@ def test_pipeline_rejects_explicit_recipe_inside_frozen_source(tmp_path: Path) -
         )
 
 
+def test_external_recipe_executes_from_staged_copy(tmp_path: Path) -> None:
+    source, manifest_hash, metadata = _source_tree(tmp_path)
+    recipe = tmp_path / "sentinel-recipe.sh"
+    recipe.write_text(
+        "#!/bin/sh\nset -eu\n"
+        'touch "$0.sentinel"\n'
+        'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[9.0]}\' > "$2"\n'
+        "python3 -c 'import sys,numpy as np; np.savez(sys.argv[1],source_values=np.array([1.0]))' \"$3\"\n",
+        encoding="utf-8",
+    )
+    recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
+    probe = tmp_path / "probe.cpp"
+    probe.write_text("int probe_identity = 8;\n", encoding="utf-8")
+
+    build_characterization_fixture(
+        source,
+        tmp_path / "out",
+        compiler="c++",
+        expected_compiler_sha256=_compiler_hash(),
+        expected_manifest_sha256=manifest_hash,
+        metadata=metadata,
+        recipe=recipe,
+        expected_recipe_sha256=_sha256(recipe),
+        build_inputs={"probe": probe},
+    )
+
+    assert not recipe.with_name(recipe.name + ".sentinel").exists()
+
+
+def test_manifest_keeps_pre_execution_build_input_identity(tmp_path: Path) -> None:
+    source, manifest_hash, metadata = _source_tree(tmp_path)
+    probe = tmp_path / "probe.cpp"
+    probe.write_text("bound-before-execution", encoding="utf-8")
+    recipe = tmp_path / "mutating-recipe.sh"
+    recipe.write_text(
+        "#!/bin/sh\nset -eu\n"
+        "bound=$5\n"
+        "staged_probe=${bound#probe=}\n"
+        'test "$(cat "$staged_probe")" = bound-before-execution\n'
+        f"printf '%s' 'mutated-after-staging' > '{probe}'\n"
+        'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[10.0]}\' > "$2"\n'
+        "python3 -c 'import sys,numpy as np; np.savez(sys.argv[1],source_values=np.array([1.0]))' \"$3\"\n",
+        encoding="utf-8",
+    )
+    recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
+    expected_probe_hash = _sha256(probe)
+
+    manifest = build_characterization_fixture(
+        source,
+        tmp_path / "out",
+        compiler="c++",
+        expected_compiler_sha256=_compiler_hash(),
+        expected_manifest_sha256=manifest_hash,
+        metadata=metadata,
+        recipe=recipe,
+        expected_recipe_sha256=_sha256(recipe),
+        build_inputs={"probe": probe},
+    )
+
+    assert manifest["sha256"]["build_input:probe"] == expected_probe_hash
+    assert _sha256(probe) != expected_probe_hash
+
+
 def test_pipeline_rejects_source_owned_recipe_not_bound_by_manifest(tmp_path: Path) -> None:
     source, _, metadata = _source_tree(tmp_path)
     manifest = source / "manifest.json"
