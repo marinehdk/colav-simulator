@@ -7,6 +7,7 @@ import stat
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from colav_simulator.modular_gnc.characterization import (
@@ -35,9 +36,8 @@ def _source_tree(tmp_path: Path) -> tuple[Path, str, dict[str, Path]]:
         "printf '%s' "
         '\'{"schema_version":"agx-l45-characterization-output.v1","samples":[1.0,2.0]}\' '
         "> fixture-output.json\n"
-        "python3 -c 'import sys,zipfile; "
-        'z=zipfile.ZipFile(sys.argv[1],"w"); '
-        'z.writestr("source_values.npy",b"x"); z.close()\' '
+        "python3 -c 'import sys,numpy as np; "
+        "np.savez(sys.argv[1],source_values=np.array([1.0]))' "
         "fixture-output.npz\n",
         encoding="utf-8",
     )
@@ -220,9 +220,8 @@ def test_pipeline_runs_external_recipe_without_touching_source(tmp_path: Path) -
         'test -d "$source_root"\n'
         'test -x "$compiler"\n'
         'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[3.0]}\' > "$json_output"\n'
-        "python3 -c 'import sys,zipfile; "
-        'z=zipfile.ZipFile(sys.argv[1],"w"); '
-        'z.writestr("source_values.npy",b"x"); z.close()\' '
+        "python3 -c 'import sys,numpy as np; "
+        "np.savez(sys.argv[1],source_values=np.array([1.0]))' "
         '"$npz_output"\n',
         encoding="utf-8",
     )
@@ -264,9 +263,8 @@ def test_pipeline_accepts_source_only_csv_manifest(tmp_path: Path) -> None:
     recipe.write_text(
         "#!/bin/sh\nset -eu\n"
         'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[4.0]}\' > "$2"\n'
-        "python3 -c 'import sys,zipfile; "
-        'z=zipfile.ZipFile(sys.argv[1],"w"); '
-        'z.writestr("source_values.npy",b"x"); z.close()\' '
+        "python3 -c 'import sys,numpy as np; "
+        "np.savez(sys.argv[1],source_values=np.array([1.0]))' "
         '"$3"\n',
         encoding="utf-8",
     )
@@ -318,6 +316,117 @@ def test_pipeline_rejects_external_recipe_hash_mismatch(tmp_path: Path) -> None:
         )
 
 
+def test_pipeline_rejects_explicit_recipe_inside_frozen_source(tmp_path: Path) -> None:
+    source, manifest_hash, metadata = _source_tree(tmp_path)
+    recipe = source / "build_characterization.sh"
+    probe = tmp_path / "probe.cpp"
+    probe.write_text("int probe_identity = 5;\n", encoding="utf-8")
+
+    with pytest.raises(CharacterizationError, match="external recipe must be outside frozen source"):
+        build_characterization_fixture(
+            source,
+            tmp_path / "out",
+            compiler="c++",
+            expected_compiler_sha256=_compiler_hash(),
+            expected_manifest_sha256=manifest_hash,
+            metadata=metadata,
+            recipe=recipe,
+            expected_recipe_sha256=_sha256(recipe),
+            build_inputs={"probe": probe},
+        )
+
+
+def test_pipeline_rejects_source_owned_recipe_not_bound_by_manifest(tmp_path: Path) -> None:
+    source, _, metadata = _source_tree(tmp_path)
+    manifest = source / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "baseline_id": SOURCE_BASELINE_ID,
+                "files": {"source.cpp": _sha256(source / "source.cpp")},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CharacterizationError, match="source-owned recipe is not bound by source manifest"):
+        build_characterization_fixture(
+            source,
+            tmp_path / "out",
+            compiler="c++",
+            expected_compiler_sha256=_compiler_hash(),
+            expected_manifest_sha256=_sha256(manifest),
+            metadata=metadata,
+        )
+
+
+def test_failed_run_preserves_existing_fixture_directory(tmp_path: Path) -> None:
+    source, manifest_hash, metadata = _source_tree(tmp_path)
+    recipe = tmp_path / "failing-recipe.sh"
+    recipe.write_text("#!/bin/sh\nset -eu\nexit 1\n", encoding="utf-8")
+    recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
+    probe = tmp_path / "probe.cpp"
+    probe.write_text("int probe_identity = 6;\n", encoding="utf-8")
+    output = tmp_path / "out"
+    output.mkdir()
+    expected_files = {
+        "characterization.json": b"old-json",
+        "characterization.npz": b"old-npz",
+        "manifest.json": b"old-manifest",
+    }
+    for name, contents in expected_files.items():
+        (output / name).write_bytes(contents)
+
+    with pytest.raises(CharacterizationError, match="characterization recipe failed"):
+        build_characterization_fixture(
+            source,
+            output,
+            compiler="c++",
+            expected_compiler_sha256=_compiler_hash(),
+            expected_manifest_sha256=manifest_hash,
+            metadata=metadata,
+            recipe=recipe,
+            expected_recipe_sha256=_sha256(recipe),
+            build_inputs={"probe": probe},
+        )
+
+    assert {name: (output / name).read_bytes() for name in expected_files} == expected_files
+
+
+def test_recipe_consumes_the_hashed_staged_build_input(tmp_path: Path) -> None:
+    source, manifest_hash, metadata = _source_tree(tmp_path)
+    recipe = tmp_path / "bound-input-recipe.sh"
+    recipe.write_text(
+        "#!/bin/sh\nset -eu\n"
+        "bound=$5\n"
+        'case "$bound" in probe=*) probe=${bound#probe=} ;; *) exit 3 ;; esac\n'
+        'test "$(cat "$probe")" = bound-probe\n'
+        'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[7.0]}\' > "$2"\n'
+        "python3 -c 'import sys,numpy as np; np.savez(sys.argv[1],source_values=np.array([1.0]))' \"$3\"\n",
+        encoding="utf-8",
+    )
+    recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
+    bound_probe = tmp_path / "bound-probe.cpp"
+    bound_probe.write_text("bound-probe", encoding="utf-8")
+    unrelated_probe = tmp_path / "unrelated-probe.cpp"
+    unrelated_probe.write_text("unrelated-probe", encoding="utf-8")
+
+    manifest = build_characterization_fixture(
+        source,
+        tmp_path / "out",
+        compiler="c++",
+        expected_compiler_sha256=_compiler_hash(),
+        expected_manifest_sha256=manifest_hash,
+        metadata=metadata,
+        recipe=recipe,
+        expected_recipe_sha256=_sha256(recipe),
+        build_inputs={"probe": bound_probe},
+    )
+
+    assert manifest["sha256"]["build_input:probe"] == _sha256(bound_probe)
+    assert _sha256(bound_probe) != _sha256(unrelated_probe)
+
+
 def test_pipeline_rejects_invalid_npz_output(tmp_path: Path) -> None:
     source, manifest_hash, metadata = _source_tree(tmp_path)
     recipe = tmp_path / "repo-owned-recipe.sh"
@@ -330,6 +439,36 @@ def test_pipeline_rejects_invalid_npz_output(tmp_path: Path) -> None:
     recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
     probe = tmp_path / "probe.cpp"
     probe.write_text("int probe_identity = 4;\n", encoding="utf-8")
+
+    with pytest.raises(CharacterizationError, match="NPZ output is invalid"):
+        build_characterization_fixture(
+            source,
+            tmp_path / "out",
+            compiler="c++",
+            expected_compiler_sha256=_compiler_hash(),
+            expected_manifest_sha256=manifest_hash,
+            metadata=metadata,
+            recipe=recipe,
+            expected_recipe_sha256=_sha256(recipe),
+            build_inputs={"probe": probe},
+        )
+
+
+def test_pipeline_rejects_zip_with_invalid_npy_member(tmp_path: Path) -> None:
+    source, manifest_hash, metadata = _source_tree(tmp_path)
+    recipe = tmp_path / "invalid-npy-recipe.sh"
+    recipe.write_text(
+        "#!/bin/sh\nset -eu\n"
+        'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[8.0]}\' > "$2"\n'
+        "python3 -c 'import sys,zipfile; "
+        'z=zipfile.ZipFile(sys.argv[1],"w"); '
+        'z.writestr("source_values.npy",b"x"); z.close()\' '
+        '"$3"\n',
+        encoding="utf-8",
+    )
+    recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
+    probe = tmp_path / "probe.cpp"
+    probe.write_text("int probe_identity = 7;\n", encoding="utf-8")
 
     with pytest.raises(CharacterizationError, match="NPZ output is invalid"):
         build_characterization_fixture(
@@ -376,7 +515,7 @@ def test_committed_agx_fixture_is_content_addressed_and_source_only() -> None:
     assert manifest["sha256"]["tests"] == "5f7acc3ee1496927b74b81a1a4d65d301c2ef3b169c59550a3706e86395960dc"
     assert manifest["sha256"]["seeds"] == "1fbb532fd2bbfa179537dadf2b7b8ddbc216ae8e16caad62ebcd557aedd72a67"
     assert manifest["sha256"]["compiler_executable"] == "2aafdb1e153fc490fbd510d352572eee55ecdd29dd95eca239b4460c1afe3a12"
-    assert manifest["sha256"]["recipe"] == "d77ff9d1145d8e23b1d46527e39ef9213b3999da64cf9b225b636a913d873b38"
+    assert manifest["sha256"]["recipe"] == "8910cab2472d61429e47e9d8d323df5af321a8c9ddd46d77acb017265f3ac96c"
     assert manifest["sha256"]["build_input:probe"] == "894efd8f0f808740405eda34cdda1c1d758fcdf76e9f8aed012d9638117248f3"
     assert manifest["sha256"]["output"] == "a6a4bd18132499edc0753b9e2a0867d50056a129e15f32495322fde5bdffb56e"
     assert manifest["sha256"]["output_npz"] == "899b42efa0669af6b36ce578db437ebedba388e45e8520edcd4b861983ba4c49"
@@ -389,3 +528,7 @@ def test_committed_agx_fixture_is_content_addressed_and_source_only() -> None:
     payload = json.loads(characterization.read_text(encoding="utf-8"))
     assert payload["evidence_kind"] == "SOURCE_BEHAVIOR_CHARACTERIZATION"
     assert payload["claim_ceiling"] == "not_vessel_validation"
+    expected_values = np.asarray([value for case in payload["cases"] for value in case["values"]], dtype=np.float64)
+    with np.load(npz, allow_pickle=False) as arrays:
+        np.testing.assert_array_equal(arrays["source_values"], expected_values)
+        assert int(arrays["source_value_count"][0]) == expected_values.size

@@ -16,6 +16,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 SOURCE_BASELINE_ID = "l45-source-20260824-v2"
 _REQUIRED_METADATA = frozenset({"config", "dependencies", "assets", "tests", "seeds"})
 
@@ -87,6 +89,15 @@ def _verify_source_manifest(
     baseline_id, files, manifest_format = _load_source_manifest(manifest_path)
     if baseline_id != SOURCE_BASELINE_ID:
         raise CharacterizationError("source baseline identity mismatch")
+    _verify_declared_source_files(source, files)
+    return {
+        "baseline_id": baseline_id,
+        "files": files,
+        "format": manifest_format,
+    }
+
+
+def _verify_declared_source_files(source: Path, files: Mapping[str, str]) -> None:
     for relative, expected in files.items():
         path = source / relative
         try:
@@ -96,11 +107,6 @@ def _verify_source_manifest(
         observed = _sha256_file(path)
         if observed != expected:
             raise CharacterizationError(f"source file hash mismatch: {relative}")
-    return {
-        "baseline_id": baseline_id,
-        "files": files,
-        "format": manifest_format,
-    }
 
 
 def _compiler_identity(compiler: str, expected_executable_sha256: str) -> tuple[str, str, str]:
@@ -159,6 +165,38 @@ def _validate_npz(path: Path) -> None:
         raise CharacterizationError("characterization NPZ output is invalid") from exc
     if not members or any(not member.endswith(".npy") or member.startswith("/") for member in members):
         raise CharacterizationError("characterization NPZ output is invalid")
+    try:
+        with zipfile.ZipFile(path) as archive:
+            for member in members:
+                with archive.open(member) as npy_file:
+                    np.lib.format.read_array(npy_file, allow_pickle=False)
+    except (EOFError, OSError, TypeError, ValueError, zipfile.BadZipFile) as exc:
+        raise CharacterizationError("characterization NPZ output is invalid") from exc
+
+
+def _publish_fixture(candidate: Path, output: Path) -> None:
+    if output.exists() and not output.is_dir():
+        raise CharacterizationError("fixture output path must be a directory")
+    backup: Path | None = None
+    if output.exists():
+        backup = Path(tempfile.mkdtemp(prefix=f".{output.name}.backup-", dir=output.parent))
+        backup.rmdir()
+        try:
+            os.replace(output, backup)
+        except OSError as exc:
+            backup.rmdir()
+            raise CharacterizationError(f"fixture output backup failed: {exc}") from exc
+    try:
+        os.replace(candidate, output)
+    except OSError as exc:
+        if backup is not None:
+            try:
+                os.replace(backup, output)
+            except OSError as rollback_exc:
+                raise CharacterizationError(f"fixture output publication and rollback failed: {rollback_exc}") from exc
+        raise CharacterizationError(f"fixture output publication failed: {exc}") from exc
+    if backup is not None:
+        shutil.rmtree(backup)
 
 
 def _recipe_command(
@@ -170,6 +208,7 @@ def _recipe_command(
     json_output: Path,
     npz_output: Path,
     recipe_is_external: bool,
+    staged_build_inputs: Mapping[str, Path],
 ) -> tuple[list[str], Path]:
     if not recipe_is_external:
         try:
@@ -177,13 +216,15 @@ def _recipe_command(
         except ValueError as exc:
             raise CharacterizationError("source-owned recipe must be inside frozen source") from exc
         return [str(staged_source / staged_recipe), compiler_path], staged_source
-    return [
+    command = [
         str(recipe_path),
         str(staged_source),
         str(json_output),
         str(npz_output),
         compiler_path,
-    ], run_root
+    ]
+    command.extend(f"{name}={staged_build_inputs[name]}" for name in sorted(staged_build_inputs))
+    return command, run_root
 
 
 def _execute_recipe(
@@ -192,13 +233,25 @@ def _execute_recipe(
     compiler_path: str,
     require_npz: bool,
     recipe_is_external: bool,
+    build_inputs: Mapping[str, Path],
+    source_files: Mapping[str, str],
 ) -> tuple[dict[str, Any], bytes | None]:
     with tempfile.TemporaryDirectory(prefix="colav-gnc-characterization-") as temporary:
         run_root = Path(temporary)
         staged_source = run_root / "source"
         shutil.copytree(source, staged_source, symlinks=True)
+        _verify_declared_source_files(staged_source, source_files)
         for stale in ("fixture-output.json", "fixture-output.npz"):
             (staged_source / stale).unlink(missing_ok=True)
+        staged_build_inputs: dict[str, Path] = {}
+        if recipe_is_external:
+            build_input_root = run_root / "build-inputs"
+            build_input_root.mkdir()
+            for name, path in sorted(build_inputs.items()):
+                suffix = Path(path).suffix
+                staged_path = build_input_root / f"{name}{suffix}"
+                shutil.copyfile(path, staged_path)
+                staged_build_inputs[name] = staged_path
         run_output_json = run_root / "fixture-output.json"
         run_output_npz = run_root / "fixture-output.npz"
         run_environment = os.environ.copy()
@@ -219,6 +272,7 @@ def _execute_recipe(
             run_output_json,
             run_output_npz,
             recipe_is_external,
+            staged_build_inputs,
         )
         try:
             subprocess.run(
@@ -282,6 +336,14 @@ def build_characterization_fixture(
     if not recipe_path.is_file() or not recipe_path.stat().st_mode & 0o111:
         raise CharacterizationError("characterization executable build recipe unavailable")
     recipe_is_external = recipe is not None
+    try:
+        relative_recipe = recipe_path.relative_to(source).as_posix()
+    except ValueError:
+        relative_recipe = None
+    if recipe_is_external and relative_recipe is not None:
+        raise CharacterizationError("external recipe must be outside frozen source")
+    if not recipe_is_external and relative_recipe not in source_identity["files"]:
+        raise CharacterizationError("source-owned recipe is not bound by source manifest")
     if recipe_is_external and not build_inputs:
         raise CharacterizationError("external recipe build inputs unavailable")
     recipe_sha256 = _sha256_file(recipe_path)
@@ -289,50 +351,61 @@ def build_characterization_fixture(
         raise CharacterizationError("external recipe identity unavailable")
     if expected_recipe_sha256 is not None and recipe_sha256 != expected_recipe_sha256:
         raise CharacterizationError(f"recipe hash mismatch: expected {expected_recipe_sha256}, observed {recipe_sha256}")
-    output.mkdir(parents=True, exist_ok=True)
-    for stale in ("characterization.json", "characterization.npz", "manifest.json"):
-        (output / stale).unlink(missing_ok=True)
-    payload, npz_payload = _execute_recipe(source, recipe_path, compiler_path, require_npz, recipe_is_external)
-    recipe_mode = "repo_adapter" if recipe_is_external else "source_owned"
-    characterization_path = output / "characterization.json"
-    characterization_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    characterization_npz_path = output / "characterization.npz"
-    if npz_payload is not None:
-        characterization_npz_path.write_bytes(npz_payload)
-    identities = _input_identities(metadata, build_inputs)
-    identities.update(
-        {
-            "source": expected_manifest_sha256,
-            "recipe": recipe_sha256,
-            "compiler_executable": compiler_executable_hash,
-            "compiler_version": compiler_version_hash,
-            "output": _sha256_file(characterization_path),
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists() and not output.is_dir():
+        raise CharacterizationError("fixture output path must be a directory")
+    with tempfile.TemporaryDirectory(prefix=f".{output.name}.candidate-", dir=output.parent) as candidate_dir:
+        candidate = Path(candidate_dir)
+        payload, npz_payload = _execute_recipe(
+            source,
+            recipe_path,
+            compiler_path,
+            require_npz,
+            recipe_is_external,
+            build_inputs,
+            source_identity["files"],
+        )
+        recipe_mode = "repo_adapter" if recipe_is_external else "source_owned"
+        characterization_path = candidate / "characterization.json"
+        characterization_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        characterization_npz_path = candidate / "characterization.npz"
+        if npz_payload is not None:
+            characterization_npz_path.write_bytes(npz_payload)
+        identities = _input_identities(metadata, build_inputs)
+        identities.update(
+            {
+                "source": expected_manifest_sha256,
+                "recipe": recipe_sha256,
+                "compiler_executable": compiler_executable_hash,
+                "compiler_version": compiler_version_hash,
+                "output": _sha256_file(characterization_path),
+            }
+        )
+        if characterization_npz_path.is_file():
+            identities["output_npz"] = _sha256_file(characterization_npz_path)
+        manifest = {
+            "schema_version": "agx-l45-characterization-manifest.v1",
+            "source_baseline_id": SOURCE_BASELINE_ID,
+            "source_manifest_sha256": expected_manifest_sha256,
+            "source_manifest_format": source_identity["format"],
+            "evidence_kind": "SOURCE_BEHAVIOR_CHARACTERIZATION",
+            "acceptance_claim": "A2 prerequisite only; not vessel validation",
+            "recipe_mode": recipe_mode,
+            "build_inputs": sorted(build_inputs),
+            "recipe_executed": True,
+            "fixture_artifacts": {
+                "json": "characterization.json",
+                "npz": "characterization.npz" if characterization_npz_path.is_file() else None,
+            },
+            "fixture_producer": {
+                "owner": "TDL Lead",
+                "recovery": "restore verified external source-only v2 archive and declared Linux/AGX/container toolchain",
+                "single_point_of_failure": True,
+            },
+            "sha256": identities,
         }
-    )
-    if characterization_npz_path.is_file():
-        identities["output_npz"] = _sha256_file(characterization_npz_path)
-    manifest = {
-        "schema_version": "agx-l45-characterization-manifest.v1",
-        "source_baseline_id": SOURCE_BASELINE_ID,
-        "source_manifest_sha256": expected_manifest_sha256,
-        "source_manifest_format": source_identity["format"],
-        "evidence_kind": "SOURCE_BEHAVIOR_CHARACTERIZATION",
-        "acceptance_claim": "A2 prerequisite only; not vessel validation",
-        "recipe_mode": recipe_mode,
-        "build_inputs": sorted(build_inputs),
-        "recipe_executed": True,
-        "fixture_artifacts": {
-            "json": "characterization.json",
-            "npz": "characterization.npz" if characterization_npz_path.is_file() else None,
-        },
-        "fixture_producer": {
-            "owner": "TDL Lead",
-            "recovery": "restore verified external source-only v2 archive and declared Linux/AGX/container toolchain",
-            "single_point_of_failure": True,
-        },
-        "sha256": identities,
-    }
-    (output / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        (candidate / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _publish_fixture(candidate, output)
     return manifest
 
 

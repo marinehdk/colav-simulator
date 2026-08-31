@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-if [ "$#" -ne 4 ]; then
-    echo "usage: build_frozen_source_fixture.sh SOURCE_ROOT OUTPUT_JSON OUTPUT_NPZ COMPILER" >&2
+if [ "$#" -lt 5 ]; then
+    echo "usage: build_frozen_source_fixture.sh SOURCE_ROOT OUTPUT_JSON OUTPUT_NPZ COMPILER probe=PATH" >&2
     exit 2
 fi
 
@@ -10,7 +10,14 @@ source_root=$1
 json_output=$2
 npz_output=$3
 compiler=$4
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+probe_path=
+shift 4
+for bound_input in "$@"; do
+    case "$bound_input" in
+        probe=*) probe_path=${bound_input#probe=} ;;
+        *) echo "unsupported build input: $bound_input" >&2; exit 2 ;;
+    esac
+done
 
 test -d "$source_root"
 test -f "$source_root/SOURCE_MANIFEST.csv"
@@ -19,6 +26,8 @@ test -f "$source_root/src/environment/env_engines/include/env_engines/wind_load_
 test -f "$source_root/src/environment/env_engines/include/env_engines/wave_response_model.hpp"
 test -f "$source_root/src/environment/env_engines/include/env_engines/wave_drift_model.hpp"
 test -x "$compiler"
+test -n "$probe_path"
+test -f "$probe_path"
 command -v python3 >/dev/null 2>&1
 mkdir -p "$(dirname -- "$json_output")" "$(dirname -- "$npz_output")"
 
@@ -32,7 +41,7 @@ trap 'rm -rf "$run_root"' EXIT HUP INT TERM
     -Wextra \
     -Wpedantic \
     -I"$source_root/src/environment/env_engines/include" \
-    "$script_dir/frozen_source_probe.cpp" \
+    "$probe_path" \
     "$source_root/src/environment/env_engines/src/current/current_load_model.cpp" \
     "$source_root/src/environment/env_engines/src/wind/wind_load_model.cpp" \
     "$source_root/src/environment/env_engines/src/wave/wave_response_model.cpp" \
