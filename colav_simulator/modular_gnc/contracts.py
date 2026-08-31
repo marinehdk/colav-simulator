@@ -87,9 +87,10 @@ class NavigationState:
     heading_positive: str = field(default="right", init=False)
 
     def __post_init__(self) -> None:
-        """Validate finite scalar fields."""
+        """Validate finite scalar fields and coerce navigation source."""
         for name in ("north_m", "east_m", "heading_rad", "surge_mps", "sway_mps", "yaw_rate_radps"):
             object.__setattr__(self, name, _finite_scalar(name, getattr(self, name)))
+        object.__setattr__(self, "source", NavigationSource(self.source))
 
     def as_array(self) -> FloatArray:
         """Return six-element legacy-compatible state copy."""

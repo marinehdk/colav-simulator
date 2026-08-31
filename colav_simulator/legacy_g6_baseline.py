@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +51,18 @@ def _tree_hash(commit: str, path: str | None = None) -> str:
     if path is not None:
         args.extend(["--", path])
     return _sha256_bytes(_git_bytes(*args))
+
+
+def _execution_commit(root: Path) -> str:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except subprocess.CalledProcessError as exc:
+        raise BaselineMismatchError("execution identity is not a pinned git checkout") from exc
 
 
 def _test_identity() -> dict[str, Any]:
@@ -172,13 +186,14 @@ def _expected_output_hash(document: dict[str, Any]) -> str:
     return _sha256_bytes(encoded)
 
 
-def current_baseline() -> dict[str, Any]:
-    """Build current characterization against pinned legacy source identity."""
+def current_baseline(*, execution_identity: dict[str, str] | None = None) -> dict[str, Any]:
+    """Build characterization from currently imported code for comparison only."""
     scenario = _scenario_config()
     scenario_evidence = _run_reference_scenario(scenario)
     document = {
         "schema_version": SCHEMA_VERSION,
         "pinned_commit": PINNED_BASELINE_COMMIT,
+        "execution_identity": execution_identity or {"commit": PINNED_BASELINE_COMMIT, "isolation": "git_archive"},
         "main_checkout_dirty_work_included": False,
         "acceptance_claim": "G6 legacy regression characterization; A1 only",
         "source_sha256": _tree_hash(PINNED_BASELINE_COMMIT),
@@ -190,7 +205,6 @@ def current_baseline() -> dict[str, Any]:
                 "config_sha256": _sha256_bytes(
                     json.dumps(scenario, sort_keys=True, separators=(",", ":")).encode()
                 ),
-                "test_sha256": _sha256_file(Path(__file__).resolve()),
                 "seed": scenario["seed"],
                 **scenario_evidence,
             }
@@ -200,9 +214,120 @@ def current_baseline() -> dict[str, Any]:
     return document
 
 
-def capture_baseline(output: Path) -> dict[str, Any]:
-    """Write reproducible pinned-commit legacy characterization."""
-    baseline = current_baseline()
+def _capture_from_pinned_archive(output: Path) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="gnc-g6-pinned-") as directory:
+        archive_root = Path(directory)
+        archive = subprocess.Popen(
+            ["git", "-C", str(_REPOSITORY_ROOT), "archive", PINNED_BASELINE_COMMIT],
+            stdout=subprocess.PIPE,
+        )
+        if archive.stdout is None:
+            raise BaselineMismatchError("failed to open pinned git archive stream")
+        extracted = subprocess.run(
+            ["tar", "-x", "-C", str(archive_root)],
+            stdin=archive.stdout,
+            capture_output=True,
+            check=False,
+        )
+        archive.stdout.close()
+        archive_status = archive.wait()
+        if archive_status != 0 or extracted.returncode != 0:
+            raise BaselineMismatchError("failed to create isolated pinned git archive")
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = str(archive_root)
+        script = """
+import hashlib
+import json
+import sys
+import numpy as np
+from colav_simulator.core import controllers, models, ship
+
+scenario = json.loads(sys.argv[1])
+model = models.KinematicCSOG(models.KinematicCSOGParams(
+    length=10.0, width=3.0, draft=0.5, T_chi=3.0, T_U=5.0,
+    r_max=0.4, U_min=0.0, U_max=15.0,
+))
+controller = controllers.PassThroughCS()
+vessel = ship.Ship(mmsi=42042, identifier=0, model=model, controller=controller)
+vessel.set_initial_state(np.asarray(scenario["initial_csog"], dtype=np.float64))
+schedule = {item["tick"]: item for item in scenario["reference_schedule"]}
+references = np.zeros(9, dtype=np.float64)
+tick_hashes = []
+for tick in range(scenario["ticks"]):
+    if tick in schedule:
+        references[2] = schedule[tick]["course_rad"]
+        references[3] = schedule[tick]["speed_mps"]
+        vessel.set_references(references)
+    state, inputs, applied_references = vessel.forward(float(scenario["dt_s"]))
+    trace = {
+        "tick": tick,
+        "state": np.asarray(state, dtype=np.float64).tolist(),
+        "inputs": np.asarray(inputs, dtype=np.float64).tolist(),
+        "references": np.asarray(applied_references, dtype=np.float64).tolist(),
+    }
+    encoded = json.dumps(trace, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    tick_hashes.append(hashlib.sha256(encoded).hexdigest())
+invalid_state_error = None
+try:
+    vessel.set_initial_state(np.zeros(3))
+except ValueError as exc:
+    invalid_state_error = {"type": type(exc).__name__, "message": str(exc)}
+evidence = {
+    "per_tick_sha256": tick_hashes,
+    "execution_chain": {
+        "ship_type": type(vessel).__name__,
+        "model_type": type(vessel._model).__name__,
+        "controller_type": type(vessel._controller).__name__,
+        "modular_path_selected": False,
+    },
+    "error_semantics": {"invalid_initial_state": invalid_state_error},
+}
+print(json.dumps(evidence, sort_keys=True, separators=(",", ":")))
+"""
+        scenario = _scenario_config()
+        result = subprocess.run(
+            [sys.executable, "-c", script, json.dumps(scenario, sort_keys=True)],
+            cwd=archive_root,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise BaselineMismatchError(f"isolated pinned capture failed: {result.stderr.strip()}")
+    evidence = json.loads(result.stdout)
+    document = current_baseline(execution_identity={"commit": PINNED_BASELINE_COMMIT, "isolation": "git_archive"})
+    document["reference_scenarios"] = [
+        {
+            "scenario_id": scenario["scenario_id"],
+            "config_sha256": _sha256_bytes(json.dumps(scenario, sort_keys=True, separators=(",", ":")).encode()),
+            "seed": scenario["seed"],
+            **evidence,
+        }
+    ]
+    document["expected_output_sha256"] = _expected_output_hash(document)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return document
+
+
+def capture_baseline(
+    output: Path,
+    *,
+    execution_root: Path | None = None,
+) -> dict[str, Any]:
+    """Write characterization only from isolated pinned code or verified pinned identity."""
+    if execution_root is None:
+        return _capture_from_pinned_archive(output)
+    root = execution_root.resolve()
+    observed_commit = _execution_commit(root)
+    if observed_commit != PINNED_BASELINE_COMMIT:
+        raise BaselineMismatchError(
+            f"execution identity mismatch: expected {PINNED_BASELINE_COMMIT}, observed {observed_commit}"
+        )
+    if Path(__file__).resolve().parents[1] != root:
+        raise BaselineMismatchError("execution identity root does not match imported pinned code")
+    baseline = current_baseline(execution_identity={"commit": observed_commit, "isolation": "git_archive"})
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(baseline, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return baseline
@@ -224,6 +349,7 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     capture = subparsers.add_parser("capture")
     capture.add_argument("--output", type=Path, default=_DEFAULT_BASELINE)
+    capture.add_argument("--execution-root", type=Path)
     compare = subparsers.add_parser("compare")
     compare.add_argument("--baseline", type=Path, default=_DEFAULT_BASELINE)
     return parser
@@ -233,7 +359,7 @@ def main(argv: list[str] | None = None) -> int:
     """Run baseline capture or comparison CLI."""
     args = _parser().parse_args(argv)
     if args.command == "capture":
-        capture_baseline(args.output)
+        capture_baseline(args.output, execution_root=args.execution_root)
     else:
         compare_baseline(args.baseline)
     return 0

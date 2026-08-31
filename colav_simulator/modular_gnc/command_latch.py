@@ -36,10 +36,22 @@ class CommandLatch:
         self._held_direct: DirectReference | None = None
         self._pending_route: TrackedRoute | None = None
 
-    def _failure(self, command: CommandInput, code: FailureCode, message: str) -> LatchedCommand:
+    def _failure(
+        self,
+        command: CommandInput,
+        code: FailureCode,
+        message: str,
+        details: dict[str, int | str] | None = None,
+    ) -> LatchedCommand:
         return LatchedCommand(
             tick=command.tick,
-            failure=FacadeFailure(code=code, message=message, phase="command_latch", tick=command.tick),
+            failure=FacadeFailure(
+                code=code,
+                message=message,
+                phase="command_latch",
+                tick=command.tick,
+                details={} if details is None else details,
+            ),
         )
 
     def consume(self, command: CommandInput) -> LatchedCommand:
@@ -70,6 +82,17 @@ class CommandLatch:
             return LatchedCommand(tick=command.tick, tracked_route=self._pending_route)
         elif command.tick % self._controller_period_ticks == 0 and self._pending_direct is not None:
             self._held_direct = self._pending_direct
+
+        if self._pending_route is not None and not (
+            self._pending_route.valid_from_tick <= command.tick <= self._pending_route.valid_until_tick
+        ):
+            route = self._pending_route
+            return self._failure(
+                command,
+                FailureCode.EXPIRED_ROUTE,
+                "held tracked route is outside validity interval",
+                {"route_id": route.route_id, "valid_until_tick": route.valid_until_tick},
+            )
 
         return LatchedCommand(
             tick=command.tick,

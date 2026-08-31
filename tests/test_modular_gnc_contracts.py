@@ -43,6 +43,14 @@ def test_navigation_state_pins_frames_units_signs_and_truth_source() -> None:
         navigation.north_m = 3.0
 
 
+def test_navigation_state_coerces_valid_source_and_rejects_bogus_values() -> None:
+    navigation = NavigationState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, source="ESTIMATE")
+
+    assert navigation.source is NavigationSource.ESTIMATE
+    with pytest.raises(ValueError, match="NavigationSource"):
+        NavigationState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, source="BOGUS")
+
+
 def test_contracts_reject_nonfinite_and_wrong_shapes() -> None:
     with pytest.raises(ValueError, match="finite"):
         NavigationState(0.0, 0.0, 0.0, np.nan, 0.0, 0.0)

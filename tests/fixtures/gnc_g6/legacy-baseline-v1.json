@@ -4,7 +4,11 @@
     "pyproject_sha256": "6dd786ad41ba0f2d97fb8f163f279e391f8ed27eed5abd6cfcd94d51ca46c781",
     "uv_lock_sha256": "5f6803e4b18ff2d5480b515779900409f8d40983d2e108b3ff71c7cc3ab24ce4"
   },
-  "expected_output_sha256": "2267c175aaf872bbe81a1b100db9e314b5a12da41c52b468505df4987be20ead",
+  "execution_identity": {
+    "commit": "8968f31b982d48773d08f814439827328bf4b35d",
+    "isolation": "git_archive"
+  },
+  "expected_output_sha256": "daaa8b7b52adec27dbecab576141ca4a0bf3f128b8f5031a5e492cd46794a4ea",
   "main_checkout_dirty_work_included": false,
   "pinned_commit": "8968f31b982d48773d08f814439827328bf4b35d",
   "reference_scenarios": [
@@ -37,8 +41,7 @@
         "1417d51e2616cbf29695220244605f3fffbc230e40a5edba32db9ea0f10146fd"
       ],
       "scenario_id": "legacy_kinematic_direct_reference_v1",
-      "seed": 42042,
-      "test_sha256": "9d545a6f92fb083e90c5198314fccada57d03f0d6f144bbab744bbd8cdac705f"
+      "seed": 42042
     }
   ],
   "schema_version": "gnc-g6-legacy-baseline.v1",

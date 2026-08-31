@@ -78,6 +78,18 @@ class ModularShipStack:
                 before,
                 FacadeFailure(FailureCode.INVALID_INPUT, "dt_s must be positive", "facade", self._tick),
             )
+        if command.tick != self._tick:
+            code = FailureCode.STALE_INPUT if command.tick < self._tick else FailureCode.OUT_OF_ORDER_INPUT
+            return self._failure_output(
+                before,
+                FacadeFailure(
+                    code,
+                    "command tick must equal stack tick",
+                    "facade",
+                    self._tick,
+                    details={"command_tick": command.tick, "stack_tick": self._tick},
+                ),
+            )
         latched = self._latch.consume(command)
         if latched.failure is not None:
             return self._failure_output(before, latched.failure)

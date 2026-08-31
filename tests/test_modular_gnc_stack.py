@@ -76,6 +76,30 @@ def test_scheduler_runs_only_due_phases_and_holds_direct_reference() -> None:
     assert modules.plant_state().values[2] == 0.3
 
 
+def test_command_tick_must_match_stack_tick() -> None:
+    for command_tick, expected_code in ((1, FailureCode.OUT_OF_ORDER_INPUT), (2, FailureCode.OUT_OF_ORDER_INPUT)):
+        stack = ModularShipStack(_config(), PassThroughModules())
+        stack.reset(_initial(), seed=6)
+        before = stack.snapshot()
+
+        failed = stack.step(CommandInput.none(command_tick), dt_s=0.2)
+
+        assert failed.failure.code is expected_code
+        assert failed.failure.details == {"command_tick": command_tick, "stack_tick": 0}
+        assert stack.snapshot() == before
+
+    stack = ModularShipStack(_config(), PassThroughModules())
+    stack.reset(_initial(), seed=6)
+    stack.step(CommandInput.none(0), dt_s=0.2)
+    before = stack.snapshot()
+
+    stale = stack.step(CommandInput.none(0), dt_s=0.2)
+
+    assert stale.failure.code is FailureCode.STALE_INPUT
+    assert stale.failure.details == {"command_tick": 0, "stack_tick": 1}
+    assert stack.snapshot() == before
+
+
 def test_tracked_route_is_consumed_only_on_due_guidance_phase() -> None:
     modules = PassThroughModules()
     stack = ModularShipStack(_config(), modules)
@@ -99,6 +123,35 @@ def test_tracked_route_is_consumed_only_on_due_guidance_phase() -> None:
     stack.step(CommandInput.none(4), dt_s=0.2)
 
     assert modules.route_consumptions == ((4, "route", 1),)
+
+
+def test_expired_held_route_fails_before_due_guidance_consumes_it() -> None:
+    modules = PassThroughModules()
+    stack = ModularShipStack(_config(), modules)
+    stack.reset(_initial(), seed=6)
+    route = TrackedRoute(
+        route_id="route",
+        revision=1,
+        accepted=True,
+        valid_from_tick=1,
+        valid_until_tick=3,
+        waypoints_ne_m=np.array([[0.0, 10.0], [0.0, 1.0]]),
+        speed_mps=np.array([2.0, 2.0]),
+        task=ControlTask.TRANSIT,
+    )
+
+    stack.step(CommandInput.none(0), dt_s=0.2)
+    stack.step(CommandInput.route(1, route), dt_s=0.2)
+    stack.step(CommandInput.none(2), dt_s=0.2)
+    stack.step(CommandInput.none(3), dt_s=0.2)
+    before = stack.snapshot()
+
+    failed = stack.step(CommandInput.none(4), dt_s=0.2)
+
+    assert failed.failure.code is FailureCode.EXPIRED_ROUTE
+    assert failed.failure.details == {"route_id": "route", "valid_until_tick": 3}
+    assert modules.route_consumptions == ()
+    assert stack.snapshot() == before
 
 
 def test_invalid_dt_is_structured_and_snapshot_unchanged() -> None:

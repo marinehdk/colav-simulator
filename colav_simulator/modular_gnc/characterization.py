@@ -51,12 +51,18 @@ def _verify_source_manifest(source: Path, expected_manifest_sha256: str) -> dict
     return manifest
 
 
-def _compiler_identity(compiler: str) -> tuple[str, str]:
+def _compiler_identity(compiler: str, expected_executable_sha256: str) -> tuple[str, str, str]:
     executable = shutil.which(compiler)
     if executable is None:
         raise CharacterizationError(f"compiler unavailable: {compiler}")
+    executable_hash = _sha256_file(Path(executable))
+    if executable_hash != expected_executable_sha256:
+        raise CharacterizationError(
+            "compiler executable hash mismatch: "
+            f"expected {expected_executable_sha256}, observed {executable_hash}"
+        )
     result = subprocess.run([executable, "--version"], check=True, capture_output=True)
-    return executable, _sha256(result.stdout + result.stderr)
+    return executable, executable_hash, _sha256(result.stdout + result.stderr)
 
 
 def build_characterization_fixture(
@@ -66,6 +72,7 @@ def build_characterization_fixture(
     compiler: str,
     expected_manifest_sha256: str,
     metadata: Mapping[str, Path],
+    expected_compiler_sha256: str,
 ) -> dict[str, Any]:
     """Execute frozen recipe and hash verified source and actual evidence inputs."""
     if not source.is_dir():
@@ -77,17 +84,20 @@ def build_characterization_fixture(
         raise CharacterizationError(
             f"metadata keys mismatch: missing={sorted(missing_metadata)}, extra={sorted(extra_metadata)}"
         )
-    compiler_path, compiler_hash = _compiler_identity(compiler)
+    compiler_path, compiler_executable_hash, compiler_version_hash = _compiler_identity(
+        compiler, expected_compiler_sha256
+    )
     recipe = source / "build_characterization.sh"
     if not recipe.is_file() or not recipe.stat().st_mode & 0o111:
         raise CharacterizationError("frozen source executable build recipe unavailable")
+    source_output = source / "fixture-output.json"
+    source_output.unlink(missing_ok=True)
     try:
         subprocess.run([str(recipe), compiler_path], cwd=source, check=True, capture_output=True)
     except subprocess.CalledProcessError as exc:
         raise CharacterizationError(f"characterization recipe failed: {exc.stderr.decode(errors='replace')}") from exc
-    source_output = source / "fixture-output.json"
     if not source_output.is_file():
-        raise CharacterizationError("characterization output unavailable")
+        raise CharacterizationError("new characterization output unavailable")
     payload = json.loads(source_output.read_text(encoding="utf-8"))
     if payload.get("schema_version") != "agx-l45-characterization-output.v1":
         raise CharacterizationError("characterization output version mismatch")
@@ -99,7 +109,9 @@ def build_characterization_fixture(
     identities.update(
         {
             "source": expected_manifest_sha256,
-            "compiler": compiler_hash,
+            "recipe": _sha256_file(recipe),
+            "compiler_executable": compiler_executable_hash,
+            "compiler_version": compiler_version_hash,
             "output": _sha256_file(characterization_path),
         }
     )
@@ -126,6 +138,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--compiler", default="c++")
+    parser.add_argument("--compiler-sha256", required=True)
     parser.add_argument("--manifest-sha256", required=True)
     for name in sorted(_REQUIRED_METADATA):
         parser.add_argument(f"--{name}", type=Path, required=True)
@@ -142,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         compiler=args.compiler,
         expected_manifest_sha256=args.manifest_sha256,
         metadata=metadata,
+        expected_compiler_sha256=args.compiler_sha256,
     )
     return 0
 
