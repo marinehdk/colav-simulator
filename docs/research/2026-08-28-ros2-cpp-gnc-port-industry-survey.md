@@ -1,7 +1,7 @@
 # ROS 2 C++ 船舶 GNC 模块移植与集成调研
 
-日期：2026-08-28  
-范围：将同事的 ROS 2 Humble/C++ 船舶 4DOF 水动力（风、浪、流、执行器、RK4）、PID/SMC/NDO 控制和 ILOS 导引接入本项目。  
+日期：2026-08-28
+范围：将同事的 ROS 2 Humble/C++ 船舶 4DOF 水动力（风、浪、流、执行器、RK4）、PID/SMC/NDO 控制和 ILOS 导引接入本项目。
 方法：只使用 ROS 2/FMI/pybind11 官方资料、官方开源仓库/源码和原始论文；未使用 NotebookLM。本文是集成决策输入，不替项目裁决架构。
 
 ## 结论摘要
@@ -43,7 +43,7 @@
 4. 保留控制器、NDO、ILOS 的内部离散状态和 `reset()` 语义；每 episode、暂停/继续、重新初始化的行为都必须可测试。
 5. 将参数单位、符号、饱和、抗积分饱和、舵角速率限制、死区、推力分配和异常输入处理写成契约，而不是凭 Python 命名猜测。
 
-**优势。** 最容易在 pytest 中逐项检查、断点和记录全部内部量，且直接服从现有 `IModel/IController/IGuidance`。  
+**优势。** 最容易在 pytest 中逐项检查、断点和记录全部内部量，且直接服从现有 `IModel/IController/IGuidance`。
 **主要失效。** “按公式重写”常会改变矩阵乘法顺序、角度 wrap、浮点类型、初始化次序、离散化和饱和顺序；复杂 NDO/SMC 的切换函数或 ILOS 积分器还可能因 `dt=0`、低速、路径段切换、反向航行而漂移。纯 Python 的可读性不构成论文复现或安全闭环证据。
 
 ### 2. C++ 纯算法库 + pybind11
@@ -67,7 +67,7 @@ Python adapter 再把本项目的 `xs/u/w/refs` 映射到这个边界。若 `ste
 - 并发：C++ core 是否线程安全、是否允许释放 GIL、是否有 Python callback；释放 GIL 后不得访问 Python 对象，且所有 observer/控制器实例都应是 per-ship/per-episode 状态。
 - 异常：数值失败、非法维度、参数缺失、饱和和超时必须区分；不能在 Python adapter 中吞掉异常并静默降级到另一算法。
 
-**优势。** 保留 C++ 数值实现和内部状态，可在同一 Python simulation time 下无 DDS 网络延迟调用。  
+**优势。** 保留 C++ 数值实现和内部状态，可在同一 Python simulation time 下无 DDS 网络延迟调用。
 **主要失效。** ABI 或 wheel 不匹配、数组 stride 被误当 contiguous、C++ 对象析构/线程跨越 Python 生命周期、GIL 死锁、STL 隐式复制、C++ exception 变成未分类 `RuntimeError`，以及“扩展能 import”但尚未证明方程和外层 RK4 语义一致。
 
 ### 3. ROS 2 独立进程桥
@@ -81,7 +81,7 @@ Python adapter 再把本项目的 `xs/u/w/refs` 映射到这个边界。若 `ste
 - 控制周期和队列深度；输入是否必须逐步一一对应，过期 command 如何拒绝，乱序/重复消息如何处理。
 - QoS profile、deadline、reliability、transient/local 语义及启动顺序。可用 [ROS2 rosbag2 官方仓库](https://github.com/ros2/rosbag2)录制/回放，但 replay 仍需保存版本、参数和时间策略。
 
-**优势。** 能保留同事的 ROS2 节点、参数、日志、launch、诊断和未来实船/硬件接口；可以单独杀掉/重启模块观察系统故障边界。ROS2 官方的节点、参数、QoS 和组合能力为此提供平台机制。  
+**优势。** 能保留同事的 ROS2 节点、参数、日志、launch、诊断和未来实船/硬件接口；可以单独杀掉/重启模块观察系统故障边界。ROS2 官方的节点、参数、QoS 和组合能力为此提供平台机制。
 **主要失效。** DDS queue 产生的旧状态、QoS 不匹配导致的“无消息”、异步 bridge 延迟使控制器使用非同一时刻的 state/reference、ROS timer 与 simulator `dt` 漂移、启动时未初始化参数、进程崩溃后 simulator 仍继续推进、服务/话题重置不幂等。因而它更适合系统集成证据，不适合作为第一步判定数值等价。
 
 ### 4. FMI/FMU 封装
@@ -94,7 +94,7 @@ Python adapter 再把本项目的 `xs/u/w/refs` 映射到这个边界。若 `ste
 - 若同事代码必须保留内部 RK4、执行器、wave phase、NDO/ILOS 采样状态，CS 更接近现状；但每个 `fmi3DoStep` 只能在通信点交换，需显式记录通信步长和延迟，不能把 CS FMU 当作本地 derivative 函数。
 - SE 只有在确实要让外部 scheduler 分开调度 model partitions 时才有价值；对单一 Python 仿真循环会增加调度复杂度，不能自动解决算法边界。
 
-**优势。** 标准化动态模型交付、跨工具/团队边界清晰、可保留二进制实现并与其他 FMI 工具联合仿真。  
+**优势。** 标准化动态模型交付、跨工具/团队边界清晰、可保留二进制实现并与其他 FMI 工具联合仿真。
 **主要失效。** FMU 只在某平台 binary 可用、导出器与 importer 对 FMI 版本/能力 flag 不兼容、ME/CS 选错导致 double integration 或隐藏状态、CS communication step 太大导致闭环延迟、无法读出 NDO/ILOS 内部量而不利于调试、FMU reset/terminate 生命周期未对齐 episode。FMI 本身也不规定 co-simulation master algorithm，因此“符合 FMI”不等于数值/实时性已经验证。
 
 ## 4DOF/GNC 契约必须先做的对照表
