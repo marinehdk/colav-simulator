@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 def build_modular_ship_adapter(config: Config) -> IShip:
-    """Construct opt-in modular adapter through registered deterministic test modules."""
+    """Construct an opt-in modular adapter using contracts-only pass-through modules."""
     from colav_simulator.modular_gnc.adapter import ModularShipAdapter  # noqa: PLC0415
     from colav_simulator.modular_gnc.stack import ModularShipStack  # noqa: PLC0415
 

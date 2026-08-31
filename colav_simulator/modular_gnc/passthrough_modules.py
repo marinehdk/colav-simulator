@@ -11,7 +11,7 @@ from colav_simulator.modular_gnc.contracts import DirectReference, NavigationSta
 
 @dataclass(frozen=True)
 class PassThroughSnapshot:
-    """Deterministic test-module state."""
+    """Deterministic contracts-only pass-through state."""
 
     state: PlantState
     phase_counts: tuple[tuple[str, int], ...]
@@ -46,7 +46,7 @@ class PassThroughModules:
     ) -> None:
         """Record fixed phase order and consume due direct/route authority."""
         if phase == self._fail_phase and tick == self._fail_tick:
-            raise RuntimeError(f"test module failure in {phase}")
+            raise RuntimeError(f"pass-through module failure in {phase}")
         self._phase_counts[phase] += 1
         if phase == "guidance" and route is not None:
             self._route_consumptions.append((tick, route.route_id, route.revision))
@@ -65,7 +65,7 @@ class PassThroughModules:
         return self._state
 
     def snapshot(self) -> PassThroughSnapshot:
-        """Capture complete test-module state."""
+        """Capture complete pass-through module state."""
         return PassThroughSnapshot(
             self._state,
             tuple(sorted(self._phase_counts.items())),
@@ -73,7 +73,7 @@ class PassThroughModules:
         )
 
     def restore(self, snapshot: PassThroughSnapshot) -> None:
-        """Restore complete test-module state."""
+        """Restore complete pass-through module state."""
         self._state = snapshot.state
         self._phase_counts = dict(snapshot.phase_counts)
         self._route_consumptions = list(snapshot.route_consumptions)

@@ -1,3 +1,5 @@
+"""Capture and compare the pinned legacy G6 regression baseline."""
+
 from __future__ import annotations
 
 import argparse
