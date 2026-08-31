@@ -383,6 +383,34 @@ ship_list:
         schema:
           type: float
 
+      ship_modules:
+        required: False
+        type: dict
+        schema:
+          preset:
+            required: False
+            type: string
+          overrides:
+            required: False
+            type: dict
+            allow_unknown: True
+          modules:
+            required: True
+            type: dict
+            schema:
+              plant:
+                required: True
+                type: dict
+                allow_unknown: True
+              guidance:
+                required: True
+                type: dict
+                allow_unknown: True
+              controller:
+                required: True
+                type: dict
+                allow_unknown: True
+
       colav:
         required: False
         type: dict
