@@ -261,11 +261,15 @@ def _target_window(
     prediction_dt_s = float(target.prediction.times_s[1] - target.prediction.times_s[0])
     recovery_guard_intervals = max(1, math.ceil(15.0 / prediction_dt_s)) + 1
     for recovery_k in range(action_complete_k, recovery_paths.shape[0]):
-        route_cpa_k = int(np.argmin(node_distance_m[recovery_k]))
-        # Preserve 15 seconds plus one synchronization interval after nominal
-        # CPA so reduced-order tracking cannot release before actual CPA.
-        if recovery_k < route_cpa_k + recovery_guard_intervals:
-            continue
+        if not target.route_recovery_allowed:
+            route_cpa_k = int(np.argmin(node_distance_m[recovery_k]))
+            # Preserve 15 seconds plus one synchronization interval after nominal
+            # CPA so reduced-order tracking cannot release before actual CPA.
+            # A lifecycle recovery clearance already carries that guarantee
+            # statefully; re-applying it on every horizon recompile pinned the
+            # recovery step ahead of the applied command indefinitely.
+            if recovery_k < route_cpa_k + recovery_guard_intervals:
+                continue
         recovery_safe[recovery_k] = bool(
             np.all(node_safe[recovery_k, recovery_k:]) and np.all(swept_safe[recovery_k, recovery_k:])
         )

@@ -342,7 +342,6 @@ def _assemble_problem(
         binding,
         policy,
         target_predictions,
-        rolling_plan,
     )
     if profile is AssemblyProfile.COLAV_STRICT:
         horizon_encounter_plan = replace(horizon_encounter_plan, solver_consumed=True)
@@ -468,10 +467,7 @@ def _resolve_policy(
         decision
         for decision in binding.required_decisions
         if not decision.route_recovery_allowed
-        and (
-            decision.passing_side is not PassingSide.NONE
-            or decision.required_course_change_rad > 0.0
-        )
+        and (decision.passing_side is not PassingSide.NONE or decision.required_course_change_rad > 0.0)
     )
     if corridor_decisions:
         corridor = max(corridor_decisions, key=lambda decision: decision.required_course_change_rad)
@@ -896,7 +892,6 @@ def _compile_horizon_encounter_plan(
     binding: _TargetBinding,
     policy: _PolicyResolution,
     target_predictions: tuple[TargetPrediction, ...],
-    rolling_plan: RollingPlanReference | None,
 ) -> HorizonEncounterPlan:
     prediction_by_key = {prediction.key: prediction for prediction in target_predictions}
     own_radius_m = 0.5 * math.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
@@ -939,32 +934,7 @@ def _compile_horizon_encounter_plan(
             ),
         )
     )
-    return _anchor_recovery_to_rolling_plan(plan, rolling_plan)
-
-
-def _anchor_recovery_to_rolling_plan(
-    plan: HorizonEncounterPlan,
-    rolling_plan: RollingPlanReference | None,
-) -> HorizonEncounterPlan:
-    if rolling_plan is None or not rolling_plan.active or rolling_plan.recovery_at_s is None or not plan.target_windows:
-        return plan
-    dt_s = float(plan.times_s[1] - plan.times_s[0])
-    remaining_s = max(0.0, rolling_plan.recovery_at_s - plan.reference_time_s)
-    anchored_k = min(plan.times_s.size - 1, math.ceil(remaining_s / dt_s - 1.0e-9))
-    windows = tuple(
-        replace(window, recovery_from_k=max(anchored_k, window.action_complete_k)) for window in plan.target_windows
-    )
-    recovery_from_k = max(window.recovery_from_k for window in windows if window.recovery_from_k is not None)
-    action_complete_k = max(window.action_complete_k for window in windows)
-    phases = [HorizonEncounterPhase.PASS] * plan.times_s.size
-    phases[:action_complete_k] = [HorizonEncounterPhase.ALTER] * action_complete_k
-    phases[recovery_from_k:] = [HorizonEncounterPhase.RECOVER] * (len(phases) - recovery_from_k)
-    return replace(
-        plan,
-        phases=tuple(phases),
-        target_windows=windows,
-        recovery_from_k=recovery_from_k,
-    )
+    return plan
 
 
 def request_hash_document(

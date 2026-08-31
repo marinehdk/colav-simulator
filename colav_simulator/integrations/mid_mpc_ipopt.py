@@ -365,9 +365,14 @@ class _MidMpcFacade:
         )
         capability = _active_capability(planner_input, self._config)
         try:
+            # The lifecycle route bearing is the mission leg to recover to
+            # (side selection, recovery clearance, course-recovered guard) —
+            # not the LOS convergence course, which leans off-route while the
+            # ship is deviated and made recovery clearances test a hard turn
+            # across the astern quarter instead of the actual rejoin.
             cycle = self._encounter_cycle(
                 planner_input,
-                route_bearing_rad=route_bearing,
+                route_bearing_rad=mission_leg_bearing,
                 planned_speed_mps=float(reference[3, 0]),
             )
             for target in cycle.targets:
@@ -621,10 +626,7 @@ class _MidMpcFacade:
         accepted_prediction = OwnshipThreatPrediction.from_prediction_evidence(
             prediction_evidence,
             reference_time_s=planner_input.sim_time_s,
-            target_keys=tuple(
-                TrackKey(track.target_id, track.generation or 1)
-                for track in planner_input.tracks
-            ),
+            target_keys=tuple(TrackKey(track.target_id, track.generation or 1) for track in planner_input.tracks),
         )
         receipt = {
             "schema_version": "colav.mid_mpc.receipt@1",

@@ -398,9 +398,7 @@ def test_unknown_active_safety_target_without_commitment_baseline_keeps_hold_pol
 
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.problem.route_objective is not None
-    assert outcome.problem.route_objective.avoidance_corridor_bearing_rad == pytest.approx(
-        planner_input.ownship_state[2]
-    )
+    assert outcome.problem.route_objective.avoidance_corridor_bearing_rad == pytest.approx(planner_input.ownship_state[2])
 
 
 def test_route_recovery_conflict_activates_cpa_rows_before_turning_back() -> None:
@@ -453,7 +451,14 @@ def test_route_recovery_wait_holds_current_course_until_rejoin_is_safe() -> None
     assert outcome.horizon_encounter_plan.avoidance_corridor_bearing_rad == pytest.approx(current_heading)
 
 
-def test_recovery_window_keeps_accepted_absolute_rolling_plan_time() -> None:
+def test_rolling_plan_authority_does_not_alter_recovery_timing() -> None:
+    """Rolling plans are continuity authority only: swept-path evidence owns recovery timing.
+
+    The removed rolling-plan anchor deferred `recovery_from_k` to the accepted
+    plan's `recovery_at_s`; each acceptance then re-published a deferral ~one
+    corridor ahead, so recovery never approached (livelock) and could even be
+    forced where the swept-path check found no safe recovery step.
+    """
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()
     lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
@@ -479,11 +484,16 @@ def test_recovery_window_keeps_accepted_absolute_rolling_plan_time() -> None:
         overlap_intervals=request.config.horizon_steps,
     )
 
-    outcome = MidMpcProblemAssembler().assemble(replace(request, rolling_plan=rolling_plan))
+    with_rolling = MidMpcProblemAssembler().assemble(replace(request, rolling_plan=rolling_plan))
+    without_rolling = MidMpcProblemAssembler().assemble(replace(request, rolling_plan=None))
 
-    assert isinstance(outcome, AssemblySuccess)
-    assert outcome.horizon_encounter_plan.recovery_from_k == 2
-    assert all(window.recovery_from_k == 2 for window in outcome.horizon_encounter_plan.target_windows)
+    assert isinstance(with_rolling, AssemblySuccess)
+    assert isinstance(without_rolling, AssemblySuccess)
+    evidence_plan = without_rolling.horizon_encounter_plan
+    continuity_plan = with_rolling.horizon_encounter_plan
+    assert continuity_plan.recovery_from_k == evidence_plan.recovery_from_k
+    assert continuity_plan.phases == evidence_plan.phases
+    assert continuity_plan.target_windows == evidence_plan.target_windows
 
 
 def test_recover_first_reference_anchors_first_step_on_own_heading() -> None:
