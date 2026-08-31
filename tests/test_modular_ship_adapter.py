@@ -8,8 +8,8 @@ import pytest
 from colav_simulator.core import ship
 from colav_simulator.modular_gnc.adapter import FailurePolicy, ModularShipAbort, ModularShipAdapter
 from colav_simulator.modular_gnc.contracts import FacadeFailure, FailureCode
+from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
 from colav_simulator.modular_gnc.stack import ModularShipStack
-from colav_simulator.modular_gnc.test_modules import PassThroughModules
 
 
 def _config() -> ship.Config:
@@ -104,6 +104,15 @@ def test_adapter_telemetry_is_pre_forward_and_ais_playback_bypasses_stack() -> N
 
     assert telemetry["state"][0] == 10.0
     np.testing.assert_array_equal(state, np.array([1.0, 3.0, 0.1, 5.0, 0.0, 0.0]))
+
+
+def test_invalid_adapter_input_maps_to_structured_abort() -> None:
+    adapter = _adapter()
+    adapter.reset(seed=4)
+    adapter._legacy._references = np.full((9, 1), np.nan)
+
+    with pytest.raises(ModularShipAbort, match="INVALID_INPUT"):
+        adapter.forward(0.2)
 
 
 def test_failure_policy_maps_all_codes_and_unmapped_aborts() -> None:

@@ -1,3 +1,5 @@
+"""Independent legacy IShip adapter and structured failure policy."""
+
 from __future__ import annotations
 
 import copy
@@ -24,25 +26,17 @@ class ModularShipAbort(RuntimeError):
 
 @dataclass(frozen=True)
 class FailurePolicy:
-    """Map every facade code to explicit simulator behavior."""
+    """Map every facade failure to slice-one default episode abort."""
 
-    overrides: dict[FailureCode, str] | None = None
-
-    def action_for(self, code: FailureCode) -> str:
-        """Return configured action; default all mapped codes to abort."""
-        action = (self.overrides or {}).get(code, "abort_episode")
-        if action not in {"abort_episode", "skip_ship", "degraded_continue"}:
-            return "abort_episode"
-        return action
+    def action_for(self, code: FailureCode) -> str:  # noqa: ARG002
+        """Return only supported slice-one action."""
+        return "abort_episode"
 
     def apply(self, failure: FacadeFailure, override: str | None = None) -> str:
-        """Validate action and raise for default or unmapped behavior."""
-        action = override if override is not None else self.action_for(failure.code)
-        if action not in {"abort_episode", "skip_ship", "degraded_continue"}:
-            raise ModularShipAbort(f"unmapped modular failure action {action}: {failure.code.value}")
-        if action == "abort_episode":
-            raise ModularShipAbort(f"{failure.code.value} at {failure.phase} tick {failure.tick}: {failure.message}")
-        return action
+        """Abort for default behavior and reject unsupported experimental policies."""
+        if override is not None and override != "abort_episode":
+            raise ModularShipAbort(f"unsupported modular failure action {override}: {failure.code.value}")
+        raise ModularShipAbort(f"{failure.code.value} at {failure.phase} tick {failure.tick}: {failure.message}")
 
 
 class ModularShipAdapter(IShip):
@@ -83,18 +77,18 @@ class ModularShipAdapter(IShip):
         """Advance modular stack, except historical trajectory playback bypasses it."""
         if self._legacy._trajectory.size > 0:
             return self._legacy.forward(dt, w)
-        if dt <= 0.0:
-            return self.state, np.empty(3), np.empty(9)
         references = self._legacy._references[:, 0]
-        command = CommandInput.direct(self._next_tick, DirectReference(references, self._next_tick))
+        try:
+            command = CommandInput.direct(self._next_tick, DirectReference(references, self._next_tick))
+        except ValueError as exc:
+            failure = FacadeFailure(FailureCode.INVALID_INPUT, str(exc), "adapter", self._next_tick)
+            self._failure_policy.apply(failure)
+            raise AssertionError("abort policy must raise") from exc
         output = self._stack.step(command, dt)
         if output.failure is not None:
             self._last_failure = output.failure
-            action = self._failure_policy.apply(output.failure)
-            if action == "skip_ship":
-                return self.state, np.empty(3), references
-            if action == "degraded_continue":
-                return self.state, np.zeros(3), references
+            self._failure_policy.apply(output.failure)
+            raise AssertionError("abort policy must raise")
         self._sync_stack_state(output.navigation)
         self._next_tick += 1
         self._legacy._input = np.zeros(3, dtype=np.float64)

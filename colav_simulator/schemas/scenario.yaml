@@ -393,7 +393,23 @@ ship_list:
           overrides:
             required: False
             type: dict
-            allow_unknown: True
+            schema:
+              scheduler:
+                required: False
+                type: dict
+                schema:
+                  plant_period_ticks:
+                    required: False
+                    type: integer
+                    min: 1
+                  guidance_period_ticks:
+                    required: False
+                    type: integer
+                    min: 1
+                  controller_period_ticks:
+                    required: False
+                    type: integer
+                    min: 1
           modules:
             required: True
             type: dict
@@ -401,15 +417,33 @@ ship_list:
               plant:
                 required: True
                 type: dict
-                allow_unknown: True
+                schema:
+                  identity:
+                    required: True
+                    type: string
+                  parameters:
+                    required: False
+                    type: dict
               guidance:
                 required: True
                 type: dict
-                allow_unknown: True
+                schema:
+                  identity:
+                    required: True
+                    type: string
+                  parameters:
+                    required: False
+                    type: dict
               controller:
                 required: True
                 type: dict
-                allow_unknown: True
+                schema:
+                  identity:
+                    required: True
+                    type: string
+                  parameters:
+                    required: False
+                    type: dict
 
       colav:
         required: False

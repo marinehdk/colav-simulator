@@ -57,6 +57,23 @@ def test_ship_modules_parse_normalize_hash_and_round_trip() -> None:
     assert config.to_dict()["ship_modules"] == config_dict["ship_modules"]
 
 
+def test_configuration_rejects_unknown_keys_and_wrong_module_roles() -> None:
+    typo = _modular_config()
+    typo["overides"] = typo.pop("overrides")
+    with pytest.raises(UnsupportedModuleCombinationError, match="unknown ship_modules keys"):
+        normalize_ship_modules(typo)
+
+    bad_module_key = _modular_config()
+    bad_module_key["modules"]["plant"]["identitty"] = bad_module_key["modules"]["plant"].pop("identity")
+    with pytest.raises(UnsupportedModuleCombinationError, match="unknown selection keys"):
+        normalize_ship_modules(bad_module_key)
+
+    wrong_role = _modular_config()
+    wrong_role["modules"]["plant"]["identity"] = "pass_through_controller"
+    with pytest.raises(UnsupportedModuleCombinationError, match="registered for role controller"):
+        normalize_ship_modules(wrong_role)
+
+
 def test_registry_rejects_unsupported_tuple_separately_from_dependency_unavailable() -> None:
     unsupported = _modular_config()
     unsupported["modules"]["plant"]["identity"] = "missing_plant"

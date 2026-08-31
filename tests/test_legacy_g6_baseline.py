@@ -24,6 +24,14 @@ def test_committed_baseline_is_pinned_and_self_consistent() -> None:
     assert baseline["test_suite"]["file_count"] > 0
     assert baseline["reference_scenarios"]
     assert all(case["per_tick_sha256"] for case in baseline["reference_scenarios"])
+    case = baseline["reference_scenarios"][0]
+    assert case["execution_chain"] == {
+        "controller_type": "PassThroughCS",
+        "model_type": "KinematicCSOG",
+        "modular_path_selected": False,
+        "ship_type": "Ship",
+    }
+    assert case["error_semantics"]["invalid_initial_state"]["type"] == "ValueError"
     assert baseline["expected_output_sha256"]
 
     compare_baseline(FIXTURE)

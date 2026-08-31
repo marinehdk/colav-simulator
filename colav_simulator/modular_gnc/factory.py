@@ -1,3 +1,5 @@
+"""Opt-in modular ship composition factory."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

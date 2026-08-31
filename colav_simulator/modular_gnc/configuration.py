@@ -1,3 +1,5 @@
+"""Strict opt-in modular ship configuration and minimal registry v1."""
+
 from __future__ import annotations
 
 import hashlib
@@ -21,6 +23,7 @@ class RegistryEntry:
     """Minimal registry v1 metadata."""
 
     identity: str
+    role: str
     implementation_version: str
     interface_version: str
     capabilities: frozenset[str]
@@ -36,16 +39,27 @@ class RegistryEntry:
 REGISTRY_V1 = MappingProxyType(
     {
         "pass_through_plant": RegistryEntry(
-            "pass_through_plant", "1.0.0", "plant.v1", frozenset({"PLANAR_3DOF", "KINEMATIC_REFERENCE"}), {}
+            "pass_through_plant",
+            "plant",
+            "1.0.0",
+            "plant.v1",
+            frozenset({"PLANAR_3DOF", "KINEMATIC_REFERENCE"}),
+            {},
         ),
         "pass_through_guidance": RegistryEntry(
-            "pass_through_guidance", "1.0.0", "guidance.v1", frozenset({"DIRECT_REFERENCE"}), {}
+            "pass_through_guidance", "guidance", "1.0.0", "guidance.v1", frozenset({"DIRECT_REFERENCE"}), {}
         ),
         "pass_through_controller": RegistryEntry(
-            "pass_through_controller", "1.0.0", "controller.v1", frozenset({"TRANSIT"}), {}
+            "pass_through_controller", "controller", "1.0.0", "controller.v1", frozenset({"TRANSIT"}), {}
         ),
         "optional_native_controller": RegistryEntry(
-            "optional_native_controller", "1.0.0", "controller.v1", frozenset({"TRANSIT"}), {}, available=False
+            "optional_native_controller",
+            "controller",
+            "1.0.0",
+            "controller.v1",
+            frozenset({"TRANSIT"}),
+            {},
+            available=False,
         ),
     }
 )
@@ -106,10 +120,14 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return result
 
 
-def _validate_selection(selection: ModuleSelection) -> None:
+def _validate_selection(role: str, selection: ModuleSelection) -> None:
     entry = REGISTRY_V1.get(selection.identity)
     if entry is None:
         raise UnsupportedModuleCombinationError(f"unsupported module identity: {selection.identity}")
+    if entry.role != role:
+        raise UnsupportedModuleCombinationError(
+            f"module {selection.identity} is registered for role {entry.role}, not {role}"
+        )
     if not entry.available:
         raise DependencyUnavailableError(f"dependency unavailable for module: {selection.identity}")
     unknown = set(selection.parameters) - set(entry.parameter_schema)
@@ -120,20 +138,33 @@ def _validate_selection(selection: ModuleSelection) -> None:
 def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     """Apply defaults, preset, then controlled overrides and validate registry tuple."""
     source = json.loads(json.dumps(config))
+    unknown_top = set(source) - {"preset", "overrides", "modules"}
+    if unknown_top:
+        raise UnsupportedModuleCombinationError(f"unknown ship_modules keys: {sorted(unknown_top)}")
     preset = str(source.get("preset", "legacy_equivalent"))
     if preset not in _PRESETS:
         raise UnsupportedModuleCombinationError(f"unsupported preset: {preset}")
     normalized = _deep_merge({}, _PRESETS[preset])
-    normalized = _deep_merge(normalized, dict(source.get("overrides", {})))
+    overrides = dict(source.get("overrides", {}))
+    if set(overrides) - {"scheduler"}:
+        raise UnsupportedModuleCombinationError("overrides may contain only scheduler")
+    if set(overrides.get("scheduler", {})) - set(_PRESETS[preset]["scheduler"]):
+        raise UnsupportedModuleCombinationError("unknown scheduler override keys")
+    normalized = _deep_merge(normalized, overrides)
     raw_modules = source.get("modules", {})
     required_roles = {"plant", "guidance", "controller"}
     if set(raw_modules) != required_roles:
         raise UnsupportedModuleCombinationError("modules must select plant, guidance, and controller")
-    modules = {
-        role: ModuleSelection(str(raw["identity"]), raw.get("parameters", {})) for role, raw in raw_modules.items()
-    }
-    for selection in modules.values():
-        _validate_selection(selection)
+    modules = {}
+    for role, raw in raw_modules.items():
+        unknown_selection = set(raw) - {"identity", "parameters"}
+        if unknown_selection:
+            raise UnsupportedModuleCombinationError(f"unknown selection keys for {role}: {sorted(unknown_selection)}")
+        if "identity" not in raw:
+            raise UnsupportedModuleCombinationError(f"missing module identity for {role}")
+        modules[role] = ModuleSelection(str(raw["identity"]), raw.get("parameters", {}))
+    for role, selection in modules.items():
+        _validate_selection(role, selection)
     scheduler = normalized["scheduler"]
     if any(not isinstance(value, int) or value <= 0 for value in scheduler.values()):
         raise UnsupportedModuleCombinationError("scheduler periods must be positive integer ticks")

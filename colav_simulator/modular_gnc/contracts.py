@@ -1,3 +1,5 @@
+"""Immutable typed values for modular GNC facade and module seams."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping

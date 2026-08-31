@@ -1,10 +1,12 @@
+"""Deterministic pass-through modules for contracts-only slice one."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
 
-from colav_simulator.modular_gnc.contracts import DirectReference, NavigationState, PlantState
+from colav_simulator.modular_gnc.contracts import DirectReference, NavigationState, PlantState, TrackedRoute
 
 
 @dataclass(frozen=True)
@@ -13,6 +15,7 @@ class PassThroughSnapshot:
 
     state: PlantState
     phase_counts: tuple[tuple[str, int], ...]
+    route_consumptions: tuple[tuple[int, str, int], ...]
 
 
 class PassThroughModules:
@@ -25,17 +28,28 @@ class PassThroughModules:
         self._fail_tick = fail_tick
         self._state = PlantState(np.zeros(6), frozenset({"PLANAR_3DOF"}))
         self._phase_counts = dict.fromkeys(self.phase_order, 0)
+        self._route_consumptions: list[tuple[int, str, int]] = []
 
     def reset(self, navigation: NavigationState, seed: int) -> None:  # noqa: ARG002
         """Reset deterministic state from navigation truth projection."""
         self._state = PlantState(navigation.as_array(), frozenset({"PLANAR_3DOF"}))
         self._phase_counts = dict.fromkeys(self.phase_order, 0)
+        self._route_consumptions: list[tuple[int, str, int]] = []
 
-    def run_phase(self, phase: str, tick: int, reference: DirectReference | None, dt_s: float) -> None:  # noqa: ARG002
-        """Record fixed phase order and apply direct-reference pass-through at plant phase."""
+    def run_phase(
+        self,
+        phase: str,
+        tick: int,
+        reference: DirectReference | None,
+        route: TrackedRoute | None,
+        dt_s: float,  # noqa: ARG002
+    ) -> None:
+        """Record fixed phase order and consume due direct/route authority."""
         if phase == self._fail_phase and tick == self._fail_tick:
             raise RuntimeError(f"test module failure in {phase}")
         self._phase_counts[phase] += 1
+        if phase == "guidance" and route is not None:
+            self._route_consumptions.append((tick, route.route_id, route.revision))
         if phase == "plant" and reference is not None:
             values = self._state.values.copy()
             values[2] = reference.values[2]
@@ -52,9 +66,19 @@ class PassThroughModules:
 
     def snapshot(self) -> PassThroughSnapshot:
         """Capture complete test-module state."""
-        return PassThroughSnapshot(self._state, tuple(sorted(self._phase_counts.items())))
+        return PassThroughSnapshot(
+            self._state,
+            tuple(sorted(self._phase_counts.items())),
+            tuple(self._route_consumptions),
+        )
 
     def restore(self, snapshot: PassThroughSnapshot) -> None:
         """Restore complete test-module state."""
         self._state = snapshot.state
         self._phase_counts = dict(snapshot.phase_counts)
+        self._route_consumptions = list(snapshot.route_consumptions)
+
+    @property
+    def route_consumptions(self) -> tuple[tuple[int, str, int], ...]:
+        """Return route consumptions observed at guidance phases."""
+        return tuple(self._route_consumptions)

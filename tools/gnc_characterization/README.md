@@ -1,13 +1,15 @@
 # Frozen AGX L4-5 characterization fixture producer
 
-Purpose: generate source-behavior characterization evidence from external frozen source-only baseline `l45-source-20260824-v2`. Outputs are migration evidence only, never vessel validation.
+Purpose: generate source-behavior characterization from external frozen baseline `l45-source-20260824-v2`. Output remains migration evidence, never vessel validation.
 
 ## Required external inputs
 
 - Frozen source directory outside Git.
-- `manifest.sha256` containing `2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411`.
+- `manifest.json` with baseline ID plus SHA-256 for every declared source file.
+- Expected SHA-256 of that manifest supplied independently.
+- Executable source-owned `build_characterization.sh` producing `fixture-output.json` schema `agx-l45-characterization-output.v1`.
 - Linux/AGX or container compiler/toolchain.
-- Source-owned `build_characterization.sh` producing `fixture-output.json` schema `agx-l45-characterization-output.v1`.
+- Actual config, dependency, asset, test, and seed metadata files.
 
 ## Recipe
 
@@ -15,15 +17,17 @@ Purpose: generate source-behavior characterization evidence from external frozen
 python -m colav_simulator.modular_gnc.characterization \
   --source /external/l45-source-20260824-v2 \
   --output /tmp/agx-l45-characterization \
-  --compiler c++
+  --compiler c++ \
+  --manifest-sha256 <independently-recorded-manifest-sha256> \
+  --config /external/evidence/config.json \
+  --dependencies /external/evidence/dependencies.json \
+  --assets /external/evidence/assets.json \
+  --tests /external/evidence/tests.json \
+  --seeds /external/evidence/seeds.json
 ```
 
-Commit only reviewed JSON/NPZ fixture outputs and manifest identities. Never copy source directory, build tree, binaries, or external assets into repository.
-
-## Failure behavior
-
-Missing source, wrong manifest, missing compiler, missing build recipe, or output schema mismatch fails visibly. No fallback or cross-version fixture reuse.
+No no-execute mode exists. Missing external source/toolchain/recipe/metadata fails honestly. Commit only reviewed JSON/NPZ outputs and manifest identities. Never copy external source, build trees, binaries, or assets into Git.
 
 ## Ownership and recovery
 
-TDL Lead owns fixture production. Producer remains operational single point: recovery requires restoring frozen external source archive, declared compiler/container, and rerunning recipe. Preserve generated `manifest.json` with source/config/compiler/dependency/asset/test/seed/output SHA-256 identities.
+TDL Lead owns fixture production. Producer remains operational single point. Recovery requires verified frozen source archive, independent manifest identity, declared compiler/container, and complete metadata inputs.

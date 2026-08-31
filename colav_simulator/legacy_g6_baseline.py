@@ -73,7 +73,12 @@ def _test_identity() -> dict[str, Any]:
                 "reason": "moved sprite code",
             },
         ],
-        "baseline_full_pytest": {"passed": 815, "skipped": 8, "failed": 3},
+        "baseline_full_pytest_observation": {
+            "status": "externally_observed_not_reproduced_by_capture_cli",
+            "passed": 815,
+            "skipped": 8,
+            "failed": 3,
+        },
     }
 
 
@@ -100,7 +105,7 @@ def _scenario_config() -> dict[str, Any]:
     }
 
 
-def _run_reference_scenario(config: dict[str, Any]) -> list[str]:
+def _run_reference_scenario(config: dict[str, Any]) -> dict[str, Any]:
     model = models.KinematicCSOG(
         models.KinematicCSOGParams(
             length=10.0,
@@ -119,6 +124,12 @@ def _run_reference_scenario(config: dict[str, Any]) -> list[str]:
     schedule = {item["tick"]: item for item in config["reference_schedule"]}
     references = np.zeros(9, dtype=np.float64)
     tick_hashes = []
+    execution_chain = {
+        "ship_type": type(vessel).__name__,
+        "model_type": type(vessel._model).__name__,
+        "controller_type": type(vessel._controller).__name__,
+        "modular_path_selected": False,
+    }
     for tick in range(config["ticks"]):
         if tick in schedule:
             references[2] = schedule[tick]["course_rad"]
@@ -133,7 +144,16 @@ def _run_reference_scenario(config: dict[str, Any]) -> list[str]:
         }
         encoded = json.dumps(trace, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
         tick_hashes.append(_sha256_bytes(encoded))
-    return tick_hashes
+    invalid_state_error = None
+    try:
+        vessel.set_initial_state(np.zeros(3))
+    except ValueError as exc:
+        invalid_state_error = {"type": type(exc).__name__, "message": str(exc)}
+    return {
+        "per_tick_sha256": tick_hashes,
+        "execution_chain": execution_chain,
+        "error_semantics": {"invalid_initial_state": invalid_state_error},
+    }
 
 
 def _without_expected_hash(document: dict[str, Any]) -> dict[str, Any]:
@@ -153,6 +173,7 @@ def _expected_output_hash(document: dict[str, Any]) -> str:
 def current_baseline() -> dict[str, Any]:
     """Build current characterization against pinned legacy source identity."""
     scenario = _scenario_config()
+    scenario_evidence = _run_reference_scenario(scenario)
     document = {
         "schema_version": SCHEMA_VERSION,
         "pinned_commit": PINNED_BASELINE_COMMIT,
@@ -169,7 +190,7 @@ def current_baseline() -> dict[str, Any]:
                 ),
                 "test_sha256": _sha256_file(Path(__file__).resolve()),
                 "seed": scenario["seed"],
-                "per_tick_sha256": _run_reference_scenario(scenario),
+                **scenario_evidence,
             }
         ],
     }

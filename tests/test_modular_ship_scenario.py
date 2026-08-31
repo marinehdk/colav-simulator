@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
-from colav_simulator.common import paths
+from colav_simulator.common import config_parsing, paths
 from colav_simulator.modular_gnc.adapter import ModularShipAdapter
+from colav_simulator.scenario_config import ScenarioConfig
 from colav_simulator.scenario_generator import ScenarioGenerator
 
 
@@ -61,3 +63,20 @@ def test_load_episode_selects_independent_modular_adapter_and_preserves_raw_tele
     assert isinstance(ships[0], ModularShipAdapter)
     ships[0].reset(seed=1)
     assert ships[0].get_sim_data(0.0, 0)["csog_state"].shape == (4,)
+
+
+def test_full_yaml_schema_rejects_misspelled_modular_keys(tmp_path: Path) -> None:
+    scenario = yaml.safe_load((paths.scenarios / "head_on.yaml").read_text(encoding="utf-8"))
+    scenario["ship_list"][0]["ship_modules"] = {
+        "preset": "legacy_equivalent",
+        "modules": {
+            "plant": {"identitty": "pass_through_plant", "parameters": {}},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "pass_through_controller", "parameters": {}},
+        },
+    }
+    path = tmp_path / "invalid.yaml"
+    path.write_text(yaml.safe_dump(scenario), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="identitty"):
+        config_parsing.extract(ScenarioConfig, path, paths.scenario_schema)

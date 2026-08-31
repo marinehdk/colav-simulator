@@ -1,3 +1,5 @@
+"""Deterministic contracts-only ModularShipStack facade."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -9,10 +11,11 @@ from colav_simulator.modular_gnc.contracts import (
     FacadeFailure,
     FailureCode,
     NavigationState,
+    PlantState,
     StackOutput,
     StackSnapshot,
 )
-from colav_simulator.modular_gnc.test_modules import PassThroughModules
+from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
 
 
 class ModularShipStack:
@@ -68,25 +71,28 @@ class ModularShipStack:
     def step(self, command: CommandInput, dt_s: float) -> StackOutput:
         """Advance one integer simulation tick with fixed phase order and local atomic commit."""
         if not self._initialized:
-            raise RuntimeError("stack must be reset before step")
-        if dt_s <= 0.0:
-            raise ValueError("dt_s must be positive")
+            return self._uninitialized_failure("stack must be reset before step")
         before = self.snapshot()
+        if dt_s <= 0.0:
+            return self._failure_output(
+                before,
+                FacadeFailure(FailureCode.INVALID_INPUT, "dt_s must be positive", "facade", self._tick),
+            )
         latched = self._latch.consume(command)
         if latched.failure is not None:
-            self.restore(before)
-            return StackOutput(
-                tick=self._tick,
-                navigation=self._modules.navigation(),
-                plant=self._modules.plant_state(),
-                applied_reference=None,
-                failure=latched.failure,
-            )
+            return self._failure_output(before, latched.failure)
         try:
             for phase in self._modules.phase_order:
-                self._modules.run_phase(phase, self._tick, latched.direct_reference, dt_s)
+                if not self._phase_due(phase):
+                    continue
+                self._modules.run_phase(
+                    phase,
+                    self._tick,
+                    latched.direct_reference,
+                    latched.tracked_route,
+                    dt_s,
+                )
         except Exception as exc:  # noqa: BLE001
-            self.restore(before)
             failure = FacadeFailure(
                 code=FailureCode.MODULE_FAILURE,
                 message=str(exc),
@@ -94,13 +100,7 @@ class ModularShipStack:
                 tick=self._tick,
                 details={"exception_type": type(exc).__name__},
             )
-            return StackOutput(
-                tick=self._tick,
-                navigation=self._modules.navigation(),
-                plant=self._modules.plant_state(),
-                applied_reference=None,
-                failure=failure,
-            )
+            return self._failure_output(before, failure)
         output = StackOutput(
             tick=self._tick,
             navigation=self._modules.navigation(),
@@ -109,6 +109,37 @@ class ModularShipStack:
         )
         self._tick += 1
         return output
+
+    def _phase_due(self, phase: str) -> bool:
+        period_key = {
+            "guidance": "guidance_period_ticks",
+            "controller": "controller_period_ticks",
+            "allocator": "controller_period_ticks",
+            "actuator": "controller_period_ticks",
+            "environment": "plant_period_ticks",
+            "plant": "plant_period_ticks",
+        }[phase]
+        return self._tick % self._config.scheduler[period_key] == 0
+
+    def _failure_output(self, before: StackSnapshot, failure: FacadeFailure) -> StackOutput:
+        self.restore(before)
+        return StackOutput(
+            tick=self._tick,
+            navigation=self._modules.navigation(),
+            plant=self._modules.plant_state(),
+            applied_reference=None,
+            failure=failure,
+        )
+
+    def _uninitialized_failure(self, message: str) -> StackOutput:
+        zero = NavigationState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        return StackOutput(
+            tick=self._tick,
+            navigation=zero,
+            plant=PlantState(zero.as_array(), frozenset({"PLANAR_3DOF"})),
+            applied_reference=None,
+            failure=FacadeFailure(FailureCode.INVALID_INPUT, message, "facade", self._tick),
+        )
 
     @property
     def tick(self) -> int:

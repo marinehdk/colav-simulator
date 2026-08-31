@@ -3,9 +3,16 @@ from __future__ import annotations
 import numpy as np
 
 from colav_simulator.modular_gnc.configuration import ShipModulesConfig, normalize_ship_modules
-from colav_simulator.modular_gnc.contracts import CommandInput, DirectReference, FailureCode, NavigationState
+from colav_simulator.modular_gnc.contracts import (
+    CommandInput,
+    ControlTask,
+    DirectReference,
+    FailureCode,
+    NavigationState,
+    TrackedRoute,
+)
+from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
 from colav_simulator.modular_gnc.stack import ModularShipStack
-from colav_simulator.modular_gnc.test_modules import PassThroughModules
 
 
 def _config() -> ShipModulesConfig:
@@ -53,14 +60,66 @@ def test_new_instance_reset_restore_and_repeated_seed_are_equivalent() -> None:
     assert replay == trace_first
 
 
+def test_scheduler_runs_only_due_phases_and_holds_direct_reference() -> None:
+    modules = PassThroughModules()
+    stack = ModularShipStack(_config(), modules)
+    stack.reset(_initial(), seed=5)
+
+    stack.step(_command(0, 0.2), dt_s=0.2)
+    stack.step(_command(1, 0.3), dt_s=0.2)
+    stack.step(CommandInput.none(2), dt_s=0.2)
+    stack.step(CommandInput.none(3), dt_s=0.2)
+    stack.step(CommandInput.none(4), dt_s=0.2)
+
+    counts = dict(modules.snapshot().phase_counts)
+    assert counts == {"environment": 5, "guidance": 2, "controller": 3, "allocator": 3, "actuator": 3, "plant": 5}
+    assert modules.plant_state().values[2] == 0.3
+
+
+def test_tracked_route_is_consumed_only_on_due_guidance_phase() -> None:
+    modules = PassThroughModules()
+    stack = ModularShipStack(_config(), modules)
+    stack.reset(_initial(), seed=6)
+    route = TrackedRoute(
+        route_id="route",
+        revision=1,
+        accepted=True,
+        valid_from_tick=1,
+        valid_until_tick=8,
+        waypoints_ne_m=np.array([[0.0, 10.0], [0.0, 1.0]]),
+        speed_mps=np.array([2.0, 2.0]),
+        task=ControlTask.TRANSIT,
+    )
+
+    stack.step(CommandInput.none(0), dt_s=0.2)
+    stack.step(CommandInput.route(1, route), dt_s=0.2)
+    assert modules.route_consumptions == ()
+    stack.step(CommandInput.none(2), dt_s=0.2)
+    stack.step(CommandInput.none(3), dt_s=0.2)
+    stack.step(CommandInput.none(4), dt_s=0.2)
+
+    assert modules.route_consumptions == ((4, "route", 1),)
+
+
+def test_invalid_dt_is_structured_and_snapshot_unchanged() -> None:
+    stack = ModularShipStack(_config(), PassThroughModules())
+    stack.reset(_initial(), seed=10)
+    before = stack.snapshot()
+
+    failed = stack.step(_command(0, 0.2), dt_s=0.0)
+
+    assert failed.failure.code is FailureCode.INVALID_INPUT
+    assert stack.snapshot() == before
+
+
 def test_failed_phase_leaves_facade_snapshot_unchanged() -> None:
-    modules = PassThroughModules(fail_phase="controller", fail_tick=1)
+    modules = PassThroughModules(fail_phase="controller", fail_tick=2)
     stack = ModularShipStack(_config(), modules)
     stack.reset(_initial(), seed=11)
     stack.step(_command(0, 0.2), dt_s=0.2)
+    stack.step(_command(1, 0.3), dt_s=0.2)
     before = stack.snapshot()
-
-    failed = stack.step(_command(1, 0.3), dt_s=0.2)
+    failed = stack.step(CommandInput.none(2), dt_s=0.2)
 
     assert failed.failure.code is FailureCode.MODULE_FAILURE
     assert stack.snapshot() == before

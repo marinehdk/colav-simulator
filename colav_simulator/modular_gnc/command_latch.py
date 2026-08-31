@@ -1,3 +1,5 @@
+"""Tick-boundary command authority validation and zero-order hold."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -32,6 +34,7 @@ class CommandLatch:
         self._last_direct_source_tick = -1
         self._pending_direct: DirectReference | None = None
         self._held_direct: DirectReference | None = None
+        self._pending_route: TrackedRoute | None = None
 
     def _failure(self, command: CommandInput, code: FailureCode, message: str) -> LatchedCommand:
         return LatchedCommand(
@@ -51,6 +54,7 @@ class CommandLatch:
             if command.direct_reference.latched_tick < self._last_direct_source_tick:
                 return self._failure(command, FailureCode.STALE_INPUT, "stale direct reference")
             self._last_direct_source_tick = command.direct_reference.latched_tick
+            self._pending_route = None
             self._pending_direct = command.direct_reference
             if self._held_direct is None or command.tick % self._controller_period_ticks == 0:
                 self._held_direct = self._pending_direct
@@ -58,20 +62,40 @@ class CommandLatch:
             route = command.tracked_route
             self._pending_direct = None
             self._held_direct = None
+            self._pending_route = route
             if not route.accepted:
                 return self._failure(command, FailureCode.REJECTED_ROUTE, "tracked route was not accepted")
             if not route.valid_from_tick <= command.tick <= route.valid_until_tick:
                 return self._failure(command, FailureCode.EXPIRED_ROUTE, "tracked route is outside validity interval")
-            return LatchedCommand(tick=command.tick, tracked_route=route)
+            return LatchedCommand(tick=command.tick, tracked_route=self._pending_route)
         elif command.tick % self._controller_period_ticks == 0 and self._pending_direct is not None:
             self._held_direct = self._pending_direct
 
-        return LatchedCommand(tick=command.tick, direct_reference=self._held_direct)
+        return LatchedCommand(
+            tick=command.tick,
+            direct_reference=self._held_direct,
+            tracked_route=self._pending_route,
+        )
 
-    def snapshot(self) -> tuple[int, int, DirectReference | None, DirectReference | None]:
+    def snapshot(self) -> tuple[int, int, DirectReference | None, DirectReference | None, TrackedRoute | None]:
         """Return complete latch state."""
-        return self._last_input_tick, self._last_direct_source_tick, self._pending_direct, self._held_direct
+        return (
+            self._last_input_tick,
+            self._last_direct_source_tick,
+            self._pending_direct,
+            self._held_direct,
+            self._pending_route,
+        )
 
-    def restore(self, state: tuple[int, int, DirectReference | None, DirectReference | None]) -> None:
+    def restore(
+        self,
+        state: tuple[int, int, DirectReference | None, DirectReference | None, TrackedRoute | None],
+    ) -> None:
         """Restore complete latch state."""
-        self._last_input_tick, self._last_direct_source_tick, self._pending_direct, self._held_direct = state
+        (
+            self._last_input_tick,
+            self._last_direct_source_tick,
+            self._pending_direct,
+            self._held_direct,
+            self._pending_route,
+        ) = state
