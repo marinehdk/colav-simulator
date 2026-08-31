@@ -1,0 +1,36 @@
+{
+  "acceptance_claim": "A2 prerequisite only; not vessel validation",
+  "build_inputs": [
+    "probe"
+  ],
+  "evidence_kind": "SOURCE_BEHAVIOR_CHARACTERIZATION",
+  "fixture_artifacts": {
+    "json": "characterization.json",
+    "npz": "characterization.npz"
+  },
+  "fixture_producer": {
+    "owner": "TDL Lead",
+    "recovery": "restore verified external source-only v2 archive and declared Linux/AGX/container toolchain",
+    "single_point_of_failure": true
+  },
+  "recipe_executed": true,
+  "recipe_mode": "repo_adapter",
+  "schema_version": "agx-l45-characterization-manifest.v1",
+  "sha256": {
+    "assets": "4af679cfd7d1e1008588f8ee2434f289c12ffbc08027acfcc8aa1aec2e49b20f",
+    "build_input:probe": "894efd8f0f808740405eda34cdda1c1d758fcdf76e9f8aed012d9638117248f3",
+    "compiler_executable": "2aafdb1e153fc490fbd510d352572eee55ecdd29dd95eca239b4460c1afe3a12",
+    "compiler_version": "8d6e704227c739386853b14c98257428d8ffbffd817517db0b2e088d28c773f6",
+    "config": "d2ce10e1576bf06dd29ffc707d9ef5e1b5ad9ce399c8292a14f20bc5ab6eb789",
+    "dependencies": "3781c60585a21a877d7bddd4d5c5e898eb6413fed004c6e49c2fe489e6a500cf",
+    "output": "a6a4bd18132499edc0753b9e2a0867d50056a129e15f32495322fde5bdffb56e",
+    "output_npz": "899b42efa0669af6b36ce578db437ebedba388e45e8520edcd4b861983ba4c49",
+    "recipe": "d77ff9d1145d8e23b1d46527e39ef9213b3999da64cf9b225b636a913d873b38",
+    "seeds": "1fbb532fd2bbfa179537dadf2b7b8ddbc216ae8e16caad62ebcd557aedd72a67",
+    "source": "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411",
+    "tests": "5f7acc3ee1496927b74b81a1a4d65d301c2ef3b169c59550a3706e86395960dc"
+  },
+  "source_baseline_id": "l45-source-20260824-v2",
+  "source_manifest_format": "csv",
+  "source_manifest_sha256": "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411"
+}

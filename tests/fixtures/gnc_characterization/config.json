@@ -1,0 +1,17 @@
+{
+  "schema_version": "agx-l45-characterization-config.v1",
+  "source_baseline_id": "l45-source-20260824-v2",
+  "source_seam": "env_engines_pure_load_models",
+  "compiler_flags": [
+    "-std=c++17",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic"
+  ],
+  "output_schema": "agx-l45-characterization-output.v1",
+  "npz_members": [
+    "source_values.float64",
+    "source_value_count.int64"
+  ]
+}

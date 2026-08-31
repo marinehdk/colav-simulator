@@ -4,6 +4,7 @@ import hashlib
 import json
 import shutil
 import stat
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -33,7 +34,11 @@ def _source_tree(tmp_path: Path) -> tuple[Path, str, dict[str, Path]]:
         "#!/bin/sh\nset -eu\n"
         "printf '%s' "
         '\'{"schema_version":"agx-l45-characterization-output.v1","samples":[1.0,2.0]}\' '
-        "> fixture-output.json\n",
+        "> fixture-output.json\n"
+        "python3 -c 'import sys,zipfile; "
+        'z=zipfile.ZipFile(sys.argv[1],"w"); '
+        'z.writestr("source_values.npy",b"x"); z.close()\' '
+        "fixture-output.npz\n",
         encoding="utf-8",
     )
     recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
@@ -154,7 +159,7 @@ def test_pipeline_rejects_stale_preexisting_output(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with pytest.raises(CharacterizationError, match="new characterization output unavailable"):
+    with pytest.raises(CharacterizationError, match="new characterization JSON output unavailable"):
         build_characterization_fixture(
             source,
             tmp_path / "out",
@@ -164,7 +169,7 @@ def test_pipeline_rejects_stale_preexisting_output(tmp_path: Path) -> None:
             metadata=metadata,
         )
 
-    assert not (source / "fixture-output.json").exists()
+    assert (source / "fixture-output.json").exists()
 
 
 def test_readme_cli_recipe_declares_compiler_executable_identity() -> None:
@@ -172,7 +177,10 @@ def test_readme_cli_recipe_declares_compiler_executable_identity() -> None:
 
     assert "--compiler-sha256 <independently-recorded-compiler-executable-sha256>" in readme
     assert "python -m colav_simulator.modular_gnc.characterization" in readme
-    assert all(f"--{name} " in readme for name in ("source", "output", "compiler", "manifest-sha256"))
+    assert all(f"--{name} " in readme for name in ("source", "source-manifest", "output", "compiler", "manifest-sha256"))
+    assert "--recipe " in readme
+    assert "--recipe-sha256 " in readme
+    assert "--build-input " in readme
     assert all(f"--{name} " in readme for name in ("config", "dependencies", "assets", "tests", "seeds"))
 
 
@@ -199,4 +207,185 @@ def test_pipeline_executes_recipe_and_hashes_actual_metadata(tmp_path: Path) -> 
     assert manifest["sha256"]["compiler_executable"]
     assert manifest["recipe_executed"] is True
     assert (output / "characterization.json").exists()
+    assert (output / "characterization.npz").exists()
     assert not (output / source.name).exists()
+
+
+def test_pipeline_runs_external_recipe_without_touching_source(tmp_path: Path) -> None:
+    source, manifest_hash, metadata = _source_tree(tmp_path)
+    recipe = tmp_path / "repo-owned-recipe.sh"
+    recipe.write_text(
+        "#!/bin/sh\nset -eu\n"
+        "source_root=$1\njson_output=$2\nnpz_output=$3\ncompiler=$4\n"
+        'test -d "$source_root"\n'
+        'test -x "$compiler"\n'
+        'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[3.0]}\' > "$json_output"\n'
+        "python3 -c 'import sys,zipfile; "
+        'z=zipfile.ZipFile(sys.argv[1],"w"); '
+        'z.writestr("source_values.npy",b"x"); z.close()\' '
+        '"$npz_output"\n',
+        encoding="utf-8",
+    )
+    recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
+    probe = tmp_path / "probe.cpp"
+    probe.write_text("int probe_identity = 1;\n", encoding="utf-8")
+    source_output = source / "fixture-output.json"
+    source_npz = source / "fixture-output.npz"
+    source_snapshot = (source_output.exists(), source_npz.exists())
+
+    manifest = build_characterization_fixture(
+        source,
+        tmp_path / "out",
+        compiler="c++",
+        expected_compiler_sha256=_compiler_hash(),
+        expected_manifest_sha256=manifest_hash,
+        metadata=metadata,
+        recipe=recipe,
+        expected_recipe_sha256=_sha256(recipe),
+        build_inputs={"probe": probe},
+    )
+
+    assert manifest["recipe_mode"] == "repo_adapter"
+    assert manifest["sha256"]["build_input:probe"] == _sha256(probe)
+    assert manifest["sha256"]["output_npz"] == _sha256(tmp_path / "out" / "characterization.npz")
+    assert (source_output.exists(), source_npz.exists()) == source_snapshot
+
+
+def test_pipeline_accepts_source_only_csv_manifest(tmp_path: Path) -> None:
+    source, _, metadata = _source_tree(tmp_path)
+    source_manifest = source / "SOURCE_MANIFEST.csv"
+    source_manifest.write_text(
+        "relative_path,kind,size_bytes,lines,sha256\n"
+        f"source.cpp,code,0,0,{_sha256(source / 'source.cpp')}\n"
+        f"build_characterization.sh,build_or_runtime_asset,0,0,{_sha256(source / 'build_characterization.sh')}\n",
+        encoding="utf-8",
+    )
+    recipe = tmp_path / "repo-owned-recipe.sh"
+    recipe.write_text(
+        "#!/bin/sh\nset -eu\n"
+        'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[4.0]}\' > "$2"\n'
+        "python3 -c 'import sys,zipfile; "
+        'z=zipfile.ZipFile(sys.argv[1],"w"); '
+        'z.writestr("source_values.npy",b"x"); z.close()\' '
+        '"$3"\n',
+        encoding="utf-8",
+    )
+    recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
+    probe = tmp_path / "probe.cpp"
+    probe.write_text("int probe_identity = 2;\n", encoding="utf-8")
+
+    manifest = build_characterization_fixture(
+        source,
+        tmp_path / "out",
+        compiler="c++",
+        expected_compiler_sha256=_compiler_hash(),
+        expected_manifest_sha256=_sha256(source_manifest),
+        source_manifest=source_manifest,
+        metadata=metadata,
+        recipe=recipe,
+        expected_recipe_sha256=_sha256(recipe),
+        build_inputs={"probe": probe},
+    )
+
+    assert manifest["source_manifest_format"] == "csv"
+    assert manifest["source_baseline_id"] == SOURCE_BASELINE_ID
+
+
+def test_pipeline_rejects_external_recipe_hash_mismatch(tmp_path: Path) -> None:
+    source, manifest_hash, metadata = _source_tree(tmp_path)
+    recipe = tmp_path / "repo-owned-recipe.sh"
+    recipe.write_text(
+        "#!/bin/sh\nset -eu\n"
+        'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[5.0]}\' > "$2"\n'
+        "printf '%s' 'hash-npz' > \"$3\"\n",
+        encoding="utf-8",
+    )
+    recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
+    probe = tmp_path / "probe.cpp"
+    probe.write_text("int probe_identity = 3;\n", encoding="utf-8")
+
+    with pytest.raises(CharacterizationError, match="recipe hash mismatch"):
+        build_characterization_fixture(
+            source,
+            tmp_path / "out",
+            compiler="c++",
+            expected_compiler_sha256=_compiler_hash(),
+            expected_manifest_sha256=manifest_hash,
+            metadata=metadata,
+            recipe=recipe,
+            expected_recipe_sha256="0" * 64,
+            build_inputs={"probe": probe},
+        )
+
+
+def test_pipeline_rejects_invalid_npz_output(tmp_path: Path) -> None:
+    source, manifest_hash, metadata = _source_tree(tmp_path)
+    recipe = tmp_path / "repo-owned-recipe.sh"
+    recipe.write_text(
+        "#!/bin/sh\nset -eu\n"
+        'printf \'%s\' \'{"schema_version":"agx-l45-characterization-output.v1","samples":[6.0]}\' > "$2"\n'
+        "printf '%s' 'not-an-npz' > \"$3\"\n",
+        encoding="utf-8",
+    )
+    recipe.chmod(recipe.stat().st_mode | stat.S_IXUSR)
+    probe = tmp_path / "probe.cpp"
+    probe.write_text("int probe_identity = 4;\n", encoding="utf-8")
+
+    with pytest.raises(CharacterizationError, match="NPZ output is invalid"):
+        build_characterization_fixture(
+            source,
+            tmp_path / "out",
+            compiler="c++",
+            expected_compiler_sha256=_compiler_hash(),
+            expected_manifest_sha256=manifest_hash,
+            metadata=metadata,
+            recipe=recipe,
+            expected_recipe_sha256=_sha256(recipe),
+            build_inputs={"probe": probe},
+        )
+
+
+def test_repository_recipe_and_probe_are_executable_and_documented() -> None:
+    recipe = Path("tools/gnc_characterization/build_frozen_source_fixture.sh")
+    probe = Path("tools/gnc_characterization/frozen_source_probe.cpp")
+
+    assert recipe.is_file()
+    assert recipe.stat().st_mode & stat.S_IXUSR
+    assert probe.is_file()
+    readme = Path("tools/gnc_characterization/README.md").read_text(encoding="utf-8")
+    assert "build_frozen_source_fixture.sh" in readme
+    assert "frozen_source_probe.cpp" in readme
+
+
+def test_committed_agx_fixture_is_content_addressed_and_source_only() -> None:
+    fixture_dir = Path("tests/fixtures/gnc_characterization")
+    manifest = json.loads((fixture_dir / "manifest.json").read_text(encoding="utf-8"))
+    characterization = fixture_dir / manifest["fixture_artifacts"]["json"]
+    npz = fixture_dir / manifest["fixture_artifacts"]["npz"]
+
+    assert manifest["evidence_kind"] == "SOURCE_BEHAVIOR_CHARACTERIZATION"
+    assert manifest["acceptance_claim"] == "A2 prerequisite only; not vessel validation"
+    assert manifest["source_baseline_id"] == SOURCE_BASELINE_ID
+    assert manifest["recipe_mode"] == "repo_adapter"
+    assert manifest["build_inputs"] == ["probe"]
+    assert manifest["source_manifest_format"] == "csv"
+    assert manifest["sha256"]["source"] == "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411"
+    assert manifest["sha256"]["config"] == "d2ce10e1576bf06dd29ffc707d9ef5e1b5ad9ce399c8292a14f20bc5ab6eb789"
+    assert manifest["sha256"]["dependencies"] == "3781c60585a21a877d7bddd4d5c5e898eb6413fed004c6e49c2fe489e6a500cf"
+    assert manifest["sha256"]["assets"] == "4af679cfd7d1e1008588f8ee2434f289c12ffbc08027acfcc8aa1aec2e49b20f"
+    assert manifest["sha256"]["tests"] == "5f7acc3ee1496927b74b81a1a4d65d301c2ef3b169c59550a3706e86395960dc"
+    assert manifest["sha256"]["seeds"] == "1fbb532fd2bbfa179537dadf2b7b8ddbc216ae8e16caad62ebcd557aedd72a67"
+    assert manifest["sha256"]["compiler_executable"] == "2aafdb1e153fc490fbd510d352572eee55ecdd29dd95eca239b4460c1afe3a12"
+    assert manifest["sha256"]["recipe"] == "d77ff9d1145d8e23b1d46527e39ef9213b3999da64cf9b225b636a913d873b38"
+    assert manifest["sha256"]["build_input:probe"] == "894efd8f0f808740405eda34cdda1c1d758fcdf76e9f8aed012d9638117248f3"
+    assert manifest["sha256"]["output"] == "a6a4bd18132499edc0753b9e2a0867d50056a129e15f32495322fde5bdffb56e"
+    assert manifest["sha256"]["output_npz"] == "899b42efa0669af6b36ce578db437ebedba388e45e8520edcd4b861983ba4c49"
+    for name in ("config", "dependencies", "assets", "tests", "seeds"):
+        assert _sha256(fixture_dir / f"{name}.json") == manifest["sha256"][name]
+    assert _sha256(characterization) == manifest["sha256"]["output"]
+    assert _sha256(npz) == manifest["sha256"]["output_npz"]
+    with zipfile.ZipFile(npz) as archive:
+        assert archive.namelist() == ["source_values.npy", "source_value_count.npy"]
+    payload = json.loads(characterization.read_text(encoding="utf-8"))
+    assert payload["evidence_kind"] == "SOURCE_BEHAVIOR_CHARACTERIZATION"
+    assert payload["claim_ceiling"] == "not_vessel_validation"

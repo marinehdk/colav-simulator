@@ -1,0 +1,67 @@
+{
+  "cases": [
+    {
+      "name": "current_source_models",
+      "values": [
+        1.1468128620045885,
+        0.8030070108914643,
+        1.4,
+        34.99999999999999,
+        true,
+        0,
+        0,
+        1.4,
+        1.1468128620045885,
+        0.8030070108914644,
+        1.14404667006147e-13,
+        48063.81825,
+        311613.75498749997,
+        30280.2054975
+      ]
+    },
+    {
+      "name": "wind_source_models",
+      "values": [
+        13.040818350312696,
+        1.018424170922256,
+        8.328068101698248,
+        326.1557910066416,
+        true,
+        -5925.711184763495,
+        -30212.338920117923,
+        302123.38920117926,
+        -174850.19223687347,
+        17.53432094820763,
+        218.42405323114102
+      ]
+    },
+    {
+      "name": "wave_source_models",
+      "values": [
+        -8250.485443632775,
+        -3905.144426125052,
+        -248196.71756989326,
+        27455.595689070655,
+        10395.007740802605,
+        6076.536258898746,
+        17742.422482139034,
+        58954.483392710754,
+        false,
+        false
+      ]
+    }
+  ],
+  "checks": {
+    "current_depth_ok": true,
+    "current_horizontal_ok": true
+  },
+  "claim_ceiling": "not_vessel_validation",
+  "evidence_kind": "SOURCE_BEHAVIOR_CHARACTERIZATION",
+  "natural_frequencies": {
+    "heave": 0.6139389597101653,
+    "roll": 1.1987542361760395
+  },
+  "schema_version": "agx-l45-characterization-output.v1",
+  "seed": 20260824,
+  "source_kernel_seam": "env_engines_pure_load_models"
+}
