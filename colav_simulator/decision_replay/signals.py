@@ -143,6 +143,40 @@ def _enum_text(value: Any) -> Any:
     return str(getattr(value, "value", value))
 
 
+def waypoints_of(ship: dict[str, Any]) -> list[list[float]] | None:
+    """Mission route waypoints (2 x n [N; E] rows), or None when absent."""
+    waypoints = ship.get("waypoints")
+    return waypoints if isinstance(waypoints, list) and waypoints else None
+
+
+def algorithm_details(ship: dict[str, Any]) -> dict[str, Any]:
+    """Planner algorithm_details document, or an empty dict."""
+    planner = planner_of(ship)
+    details = (planner or {}).get("algorithm_details")
+    return details if isinstance(details, dict) else {}
+
+
+def lifecycle_targets(ship: dict[str, Any]) -> list[dict[str, Any]]:
+    """Per-target lifecycle decisions (risk/commitment/recovery) this tick."""
+    lifecycle = algorithm_details(ship).get("lifecycle") or {}
+    targets = lifecycle.get("targets")
+    return [target for target in targets if isinstance(target, dict)] if isinstance(targets, list) else []
+
+
+def committed_target_ids(ship: dict[str, Any]) -> list[int]:
+    """Target ids holding the route hostage: COMMITTED and ACTIVE or PAST_CLEAR."""
+    return sorted(
+        int(target["target_id"])
+        for target in lifecycle_targets(ship)
+        if target.get("commitment") == "COMMITTED" and target.get("risk") in {"ACTIVE", "PAST_CLEAR"}
+    )
+
+
+def route_recovery_allowed(ship: dict[str, Any]) -> bool:
+    """Whether any target's lifecycle currently allows returning to the route."""
+    return any(bool(target.get("route_recovery_allowed")) for target in lifecycle_targets(ship))
+
+
 def applied_reference(ship: dict[str, Any]) -> dict[str, float | None]:
     """Course/speed reference actually applied this tick."""
     references = ship.get("references")

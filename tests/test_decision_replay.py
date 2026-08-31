@@ -92,6 +92,16 @@ def test_compare_self_is_identical(recorded_run: Path) -> None:
     assert report["identical"] is True
 
 
+def test_route_adherence_reports_cross_track_and_terminal(recorded_run: Path) -> None:
+    report = probes.route_adherence(TraceBundle(recorded_run), interval_s=10.0)
+    assert report["run_id"] == recorded_run.name
+    assert report["samples"], "expected at least one route sample"
+    assert {"t", "cross_track_m", "mode", "committed"} <= set(report["samples"][0])
+    assert report["max_cross_track_m"] >= 0.0
+    assert report["final"] is not None
+    assert any(event["type"] == "session_finished" for event in report["terminal_events"])
+
+
 def test_reduced_legacy_run_dir(tmp_path: Path) -> None:
     run_dir = tmp_path / "legacy"
     run_dir.mkdir()

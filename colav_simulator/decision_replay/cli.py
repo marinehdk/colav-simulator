@@ -15,6 +15,8 @@ from colav_simulator.decision_replay.recorder import record
 
 
 def _build_spec(args: argparse.Namespace) -> Any:
+    from colav_simulator.core.colav.threat_management import MID_MPC_VALIDATION_DOMAIN_PROFILE  # noqa: PLC0415
+    from colav_simulator.experiment.capabilities import PRODUCT_CAPABILITY_POLICY  # noqa: PLC0415
     from colav_simulator.experiment.contracts import RunSpec  # noqa: PLC0415
 
     algorithm_config = json.loads(args.algorithm_config) if args.algorithm_config else {}
@@ -42,6 +44,8 @@ def _build_spec(args: argparse.Namespace) -> Any:
             seed=args.seed,
             strict_no_fallback=True,
         )
+    needs_profile = PRODUCT_CAPABILITY_POLICY.requires_domain_profile(args.algorithm)
+    domain_profile = MID_MPC_VALIDATION_DOMAIN_PROFILE if needs_profile else None
     return RunSpec(
         scenario_id=args.scenario,
         validation_rule_id=args.validation_rule_id,
@@ -52,6 +56,7 @@ def _build_spec(args: argparse.Namespace) -> Any:
         t_end=args.t_end,
         evaluator_profile_id=args.evaluator_profile,
         algorithm_config=algorithm_config,
+        domain_profile=domain_profile,
         output_root=args.output,
     )
 
@@ -116,6 +121,11 @@ def _cmd_explain(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_route(args: argparse.Namespace) -> int:
+    _emit(probes.route_adherence(_open(args), interval_s=args.interval_s, ship_index=args.ship_index))
+    return 0
+
+
 def _cmd_compare(args: argparse.Namespace) -> int:
     _emit(probes.compare_runs(TraceBundle(Path(args.run_a)), TraceBundle(Path(args.run_b))))
     return 0
@@ -170,6 +180,11 @@ def build_parser() -> argparse.ArgumentParser:
     explain_parser = with_run_dir(subparsers.add_parser("explain", help="full crosshair of tick at T"))
     explain_parser.add_argument("at", type=float)
     explain_parser.set_defaults(fn=_cmd_explain)
+
+    route_parser = with_run_dir(subparsers.add_parser("route", help="route adherence: leave/return/terminal timeline"))
+    route_parser.add_argument("--interval-s", type=float, default=30.0)
+    route_parser.add_argument("--ship-index", type=int, default=0)
+    route_parser.set_defaults(fn=_cmd_route)
 
     compare_parser = subparsers.add_parser("compare", help="first divergence between two recorded runs")
     compare_parser.add_argument("run_a")

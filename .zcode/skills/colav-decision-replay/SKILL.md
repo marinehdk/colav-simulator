@@ -18,6 +18,7 @@ Core discipline (inherited from the MASS-L3 colregs-probe pattern): **one record
 - "Why did risk go MONITOR → AVOIDING at t=7s?" → `risk` + `chain`
 - "When did the planner first solve / why did it fail?" → `solves`
 - "What did the planner see and do at tick t?" → `explain`
+- "The ship avoided and never came back to the route" / "避让后为什么不回航线" → `route`
 - "Did my fix change behavior?" → `compare`
 
 ## Workflow
@@ -52,6 +53,7 @@ RUN=runs/<run_id>
 .venv/bin/python -m colav_simulator.decision_replay solves   $RUN
 .venv/bin/python -m colav_simulator.decision_replay risk     $RUN [--target-id 3]
 .venv/bin/python -m colav_simulator.decision_replay explain  $RUN 7.0
+.venv/bin/python -m colav_simulator.decision_replay route    $RUN [--interval-s 30] [--ship-index 0]
 .venv/bin/python -m colav_simulator.decision_replay compare  $RUN_A $RUN_B
 ```
 
@@ -73,7 +75,8 @@ Read probes in causal order and stop at the first layer that contradicts expecta
 2. `risk`/`chain`: tracker health (`observation_health`, NIS, AIS state) → physical facts (range/DCPA/TCPA) → display class → lifecycle (encounter/role/risk). A wrong decision with healthy inputs is a threat/lifecycle defect; a wrong decision with degraded inputs is a tracking defect.
 3. `primary`: schedule entries carry `context` + `priority_reason`; the `primary_switch_history` gives the exact switch events.
 4. `solves`: first solve, feasibility, `failure_code`, selected vs applied reference.
-5. Only after the layer is pinpointed, read that module's source and change code. Then `record` the same spec again and `compare` — regress the cohort, not just the scenario.
+5. `route`: read the leave/return story in order — `route_reference_mode` (los vs lifecycle_commitment), `committed_set` transitions (who holds the route hostage, and for how long vs. physical clearance), `route_recovery_allowed` (recovery signal that may be overridden), then the recovery delay and terminal event (`grounding`/`collision`). A long commitment tail after physical past-and-clear, or a `recovery_allowed=True` that never reaches the applied command, is the defect layer.
+6. Only after the layer is pinpointed, read that module's source and change code. Then `record` the same spec again and `compare` — regress the cohort, not just the scenario.
 
 ## Report shapes (abbreviated)
 
@@ -88,6 +91,16 @@ Read probes in causal order and stop at the first layer that contradicts expecta
                        "vector": {"dcpa_m": 1881.7, "tcpa_s": 219.7, "range_m": 2355.0,
                                   "display_class": "MONITOR", "lifecycle_risk": "ACTIVE"}}],
  "primary_switch_history": [...]}
+// route
+{"run_id": "...", "max_cross_track_m": 1147.6, "final": {"t": 680.3, "cross_track_m": 900.7, "mode": "los"},
+ "transitions": [{"t": 5.1, "kind": "route_reference_mode", "value": "lifecycle_commitment"},
+                 {"t": 5.1, "kind": "committed_set", "value": [2, 4, 7, 8, 10]},
+                 {"t": 145.1, "kind": "route_recovery_allowed", "value": true},
+                 {"t": 560.6, "kind": "route_reference_mode", "value": "los"}],
+ "samples": [{"t": 300.0, "cross_track_m": 772.4, "heading_deg": 15.1, "cmd_course_deg": 15.1,
+              "mode": "lifecycle_commitment", "intent": "GIVE_WAY", "committed": [7, 8, 10],
+              "recovery_allowed": true}],
+ "terminal_events": [{"t": 680.4, "type": "grounding", "details": {"ship_id": 0}}]}
 ```
 
 ## Pitfalls
@@ -96,5 +109,7 @@ Read probes in causal order and stop at the first layer that contradicts expecta
 - Legacy run dirs (no `decision/`) are `reduced`: only `events.jsonl` is available; frame probes return empty — re-record instead of guessing.
 - The GUI console script always loads the **main checkout** (worktree footgun): record from the checkout you are debugging. Use `.venv/bin/python -m colav_simulator.decision_replay` in worktrees.
 - Keep `COLAV_HAIS_ARCHIVE_PATH=` empty for reproducible offline work; set it only when the specific archived scene is the subject.
+- Paper scenario + `mid_mpc_ipopt` record auto-injects `MID_MPC_VALIDATION_DOMAIN_PROFILE` (formal runs reject Mid-MPC without a qualified ShipDomainProfile — the CLI now matches GUI semantics).
+- Multi-ship paper frames carry every vessel (`Ship0..ShipN`); own ship is usually `Ship0`. Waypoints are a 2 x n `[N; E]` array and `state` is `[N, E, psi, ...]` — not x/y.
 - Parquet is banned in-process (SIGSEGV); the trace is JSONL+gzip on purpose — do not "upgrade" it.
 - `predicted_trajectory` / `target_predictions` are deliberately excluded from probe briefs to keep reports small; pull them from the raw frame when needed.

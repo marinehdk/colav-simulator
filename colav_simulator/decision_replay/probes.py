@@ -8,6 +8,9 @@ them, pytest asserts on them.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import math
 from typing import Any
 
 from colav_simulator.decision_replay import signals
@@ -293,6 +296,134 @@ def explain_tick(bundle: TraceBundle, at: float, *, ship_index: int = 0, context
         "diagnostics": (ship.get("colav") or {}).get("diagnostics"),
         "events_window": [event for event in bundle.events() if abs((event.get("sim_time") or 0) - t) <= context_s],
     }
+
+
+def route_adherence(
+    bundle: TraceBundle,
+    *,
+    interval_s: float = 30.0,
+    ship_index: int = 0,
+) -> dict[str, Any]:
+    """Why the own ship left the mission route and whether/when it came back.
+
+    Answers "the ship avoided and never returned to the route": cross-track
+    distance timeline, route_reference_mode / decision_intent / committed-set
+    transitions, and the terminal event. Red signal: cross-track keeps growing
+    or stays flat after commitments clear.
+    """
+    transitions: list[dict[str, Any]] = []
+    samples: list[dict[str, Any]] = []
+    state = {"waypoints": None, "mode": None, "intent": None, "side": None, "committed": None, "recovery": None}
+    next_sample = -1.0
+    max_cross_track = 0.0
+    final_row: dict[str, Any] | None = None
+    for frame in bundle.frames():
+        t = signals.sim_time(frame)
+        ship = signals.ship_of(frame, ship_index)
+        planner = signals.planner_of(ship) or {}
+        details = signals.algorithm_details(ship)
+        waypoints = signals.waypoints_of(ship)
+        wp_hash = _waypoints_hash(waypoints)
+        committed = signals.committed_target_ids(ship)
+        recovery = signals.route_recovery_allowed(ship)
+        cmd = planner.get("selected_command") or {}
+        row = {
+            "t": round(t, 1),
+            "cross_track_m": _route_cross_track_m(waypoints, ship.get("state")) if waypoints else None,
+            "heading_deg": _heading_deg(ship),
+            "cmd_course_deg": round(math.degrees(float(cmd["course_rad"])) % 360.0, 1) if "course_rad" in cmd else None,
+            "mode": details.get("route_reference_mode"),
+            "intent": details.get("decision_intent"),
+            "committed": committed,
+            "recovery_allowed": recovery,
+        }
+        if wp_hash != state["waypoints"]:
+            transitions.append({"t": round(t, 1), "kind": "waypoints", "value": wp_hash})
+            state["waypoints"] = wp_hash
+        for key, kind in (
+            ("mode", "route_reference_mode"),
+            ("intent", "decision_intent"),
+            ("side", "preferred_side"),
+        ):
+            value = details.get(kind)
+            if value != state[key]:
+                transitions.append({"t": round(t, 1), "kind": kind, "value": _enum_text(value)})
+                state[key] = value
+        if committed != state["committed"]:
+            transitions.append({"t": round(t, 1), "kind": "committed_set", "value": committed})
+            state["committed"] = committed
+        if recovery != state["recovery"]:
+            transitions.append({"t": round(t, 1), "kind": "route_recovery_allowed", "value": recovery})
+            state["recovery"] = recovery
+        if row["cross_track_m"] is not None:
+            max_cross_track = max(max_cross_track, row["cross_track_m"])
+        if t >= next_sample:
+            samples.append(row)
+            next_sample = t + interval_s
+        final_row = row
+    terminal_events = [
+        event
+        for event in bundle.events()
+        if event.get("type") in {"grounding", "collision", "session_finished", "time_limit"}
+    ]
+    return {
+        "run_id": bundle.run_id,
+        "max_cross_track_m": round(max_cross_track, 1),
+        "final": final_row,
+        "transitions": transitions,
+        "samples": samples,
+        "terminal_events": [
+            {"t": event.get("sim_time"), "type": event.get("type"), "details": event.get("details")}
+            for event in terminal_events
+        ],
+    }
+
+
+def _waypoints_hash(waypoints: list[list[float]] | None) -> str | None:
+    if waypoints is None:
+        return None
+    return hashlib.md5(json.dumps(waypoints).encode()).hexdigest()[:8]
+
+
+def _route_cross_track_m(waypoints: list[list[float]], state: Any) -> float | None:
+    """Minimal distance from the own ship to the waypoint polyline, in metres."""
+    if not isinstance(state, list) or len(state) < 2:
+        return None
+    position = (float(state[0]), float(state[1]))  # (N, E)
+    points = (
+        list(zip(waypoints[0], waypoints[1], strict=True))
+        if len(waypoints) == 2
+        else [(float(pair[0]), float(pair[1])) for pair in waypoints]
+    )
+    if len(points) == 1:
+        return round(math.hypot(position[0] - points[0][0], position[1] - points[0][1]), 1)
+    best = math.inf
+    for start, end in zip(points[:-1], points[1:], strict=True):
+        delta = (end[0] - start[0], end[1] - start[1])
+        length_squared = delta[0] * delta[0] + delta[1] * delta[1]
+        fraction = (
+            0.0
+            if length_squared == 0.0
+            else max(
+                0.0, min(1.0, ((position[0] - start[0]) * delta[0] + (position[1] - start[1]) * delta[1]) / length_squared)
+            )  # noqa: E501
+        )
+        closest = (start[0] + fraction * delta[0], start[1] + fraction * delta[1])
+        best = min(best, math.hypot(position[0] - closest[0], position[1] - closest[1]))
+    return round(best, 1)
+
+
+def _heading_deg(ship: dict[str, Any]) -> float | None:
+    state = ship.get("state")
+    if not isinstance(state, list) or len(state) < 3:
+        return None
+    return round(math.degrees(float(state[2])) % 360.0, 1)
+
+
+def _enum_text(value: Any) -> Any:
+    if value is None:
+        return None
+    return str(getattr(value, "value", value))
 
 
 def _planner_brief(ship: dict[str, Any]) -> dict[str, Any] | None:
