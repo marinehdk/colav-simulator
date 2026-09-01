@@ -28,6 +28,7 @@ from colav_simulator.modular_gnc.contracts import (
     EnvironmentalLoads,
     EnvironmentTruth,
     FailureCode,
+    MeanDriftModel,
     MeanDriftSourceSample,
     NavigationState,
     OutOfDomainError,
@@ -948,6 +949,8 @@ def test_stack_integration_with_wave_load_mode() -> None:
                     "identity": "standard_environmental_load",
                     "parameters": {
                         "wave_mode": "both",
+                        "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+                        "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
                     },
                 },
             }
@@ -964,6 +967,11 @@ def test_stack_integration_with_wave_load_mode() -> None:
     assert out.environmental_loads.wave_first_order != VesselLoad.zero()
     assert out.environmental_loads.wave_mean_drift != VesselLoad.zero()
     assert out.environmental_loads.details["wave_mode"] == "both"
+    assert out.environmental_loads.details["mean_drift_model"] == "diagonal_ai2"
+    assert out.environmental_loads.details["wave_first_order_asset_id"] == "default_inferred_wave_response_v1"
+    assert out.environmental_loads.details["wave_first_order_asset_trust"] == "inferred"
+    assert out.environmental_loads.details["wave_mean_drift_asset_id"] == "default_inferred_diagonal_drift_v1"
+    assert out.environmental_loads.details["wave_mean_drift_asset_trust"] == "inferred"
     assert out.environmental_loads.details["first_order_components_count"] == 16
     assert out.environmental_loads.details["mean_drift_components_count"] == 16
 
@@ -1556,8 +1564,10 @@ def test_wave_inferred_assets_cannot_be_falsely_validated() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_load_model_modes_isolation_and_diagnostics(standard_vessel_params: VesselEnvironmentalParameters) -> None:
-    """Verify WaveLoadMode OFF, FIRST_ORDER, MEAN_DRIFT, and BOTH isolate modes and report diagnostics."""
+def test_load_model_modes_isolation_off_and_first_order(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Verify WaveLoadMode OFF and FIRST_ORDER isolate modes and report diagnostics."""
     comp = WaveComponent(amplitude_m=1.0, omega_radps=0.7, phase_rad=0.0, direction_to_rad=0.0)
     truth = EnvironmentTruth(
         wind=WindSample(velocity_ne=(0.0, 0.0)),
@@ -1578,6 +1588,11 @@ def test_load_model_modes_isolation_and_diagnostics(standard_vessel_params: Vess
     assert loads_off.wave_first_order == VesselLoad.zero()
     assert loads_off.wave_mean_drift == VesselLoad.zero()
     assert loads_off.details["wave_mode"] == "off"
+    assert loads_off.details["mean_drift_model"] == "off"
+    assert loads_off.details["wave_first_order_asset_id"] is None
+    assert loads_off.details["wave_first_order_asset_trust"] is None
+    assert loads_off.details["wave_mean_drift_asset_id"] is None
+    assert loads_off.details["wave_mean_drift_asset_trust"] is None
     assert loads_off.details["first_order_components_count"] == 0
     assert loads_off.details["mean_drift_components_count"] == 0
 
@@ -1591,8 +1606,37 @@ def test_load_model_modes_isolation_and_diagnostics(standard_vessel_params: Vess
     assert loads_1st.wave_first_order != VesselLoad.zero()
     assert loads_1st.wave_mean_drift == VesselLoad.zero()
     assert loads_1st.details["wave_mode"] == "first_order"
+    assert loads_1st.details["mean_drift_model"] == "off"
+    assert loads_1st.details["wave_first_order_asset_id"] == "default_inferred_wave_response_v1"
+    assert loads_1st.details["wave_first_order_asset_trust"] == "inferred"
+    assert loads_1st.details["wave_mean_drift_asset_id"] is None
+    assert loads_1st.details["wave_mean_drift_asset_trust"] is None
     assert loads_1st.details["first_order_components_count"] == 1
     assert loads_1st.details["mean_drift_components_count"] == 0
+
+
+def test_load_model_modes_isolation_drift_and_both(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Verify WaveLoadMode MEAN_DRIFT and BOTH isolate modes and report diagnostics."""
+    comp = WaveComponent(amplitude_m=1.0, omega_radps=0.7, phase_rad=0.0, direction_to_rad=0.0)
+    truth = EnvironmentTruth(
+        wind=WindSample(velocity_ne=(0.0, 0.0)),
+        current=CurrentSample(velocity_ne=(0.0, 0.0)),
+        wave=WaveFieldSample(significant_height_m=2.0, peak_period_s=8.0, direction_to_rad=0.0, components=(comp,)),
+        mean_drift=MeanDriftSourceSample(components=(comp,)),
+        time_s=0.5,
+        tick=5,
+    )
+    nav = NavigationState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+    # Mode FIRST_ORDER reference
+    m_1st = EnvironmentalLoadModel(
+        vessel_params=standard_vessel_params,
+        wave_mode=WaveLoadMode.FIRST_ORDER,
+        wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+    )
+    loads_1st = m_1st.compute_loads(truth, nav)
 
     # 3. Mode MEAN_DRIFT: only mean-drift is computed; first-order is zero
     m_drift = EnvironmentalLoadModel(
@@ -1604,6 +1648,11 @@ def test_load_model_modes_isolation_and_diagnostics(standard_vessel_params: Vess
     assert loads_drift.wave_first_order == VesselLoad.zero()
     assert loads_drift.wave_mean_drift != VesselLoad.zero()
     assert loads_drift.details["wave_mode"] == "mean_drift"
+    assert loads_drift.details["mean_drift_model"] == "diagonal_ai2"
+    assert loads_drift.details["wave_first_order_asset_id"] is None
+    assert loads_drift.details["wave_first_order_asset_trust"] is None
+    assert loads_drift.details["wave_mean_drift_asset_id"] == "default_inferred_diagonal_drift_v1"
+    assert loads_drift.details["wave_mean_drift_asset_trust"] == "inferred"
     assert loads_drift.details["first_order_components_count"] == 0
     assert loads_drift.details["mean_drift_components_count"] == 1
 
@@ -1618,12 +1667,17 @@ def test_load_model_modes_isolation_and_diagnostics(standard_vessel_params: Vess
     assert loads_both.wave_first_order == loads_1st.wave_first_order
     assert loads_both.wave_mean_drift == loads_drift.wave_mean_drift
     assert loads_both.details["wave_mode"] == "both"
+    assert loads_both.details["mean_drift_model"] == "diagonal_ai2"
+    assert loads_both.details["wave_first_order_asset_id"] == "default_inferred_wave_response_v1"
+    assert loads_both.details["wave_first_order_asset_trust"] == "inferred"
+    assert loads_both.details["wave_mean_drift_asset_id"] == "default_inferred_diagonal_drift_v1"
+    assert loads_both.details["wave_mean_drift_asset_trust"] == "inferred"
     assert loads_both.details["first_order_components_count"] == 1
     assert loads_both.details["mean_drift_components_count"] == 1
 
 
 def test_load_model_mode_missing_asset_fails_in_init(standard_vessel_params: VesselEnvironmentalParameters) -> None:
-    """Verify EnvironmentalLoadModel fails at init if required wave asset for mode is missing."""
+    """Verify EnvironmentalLoadModel fails at init if required wave asset for mode is missing or irrelevant."""
     with pytest.raises(AssetMissingError, match="First-order wave response asset is required"):
         EnvironmentalLoadModel(vessel_params=standard_vessel_params, wave_mode=WaveLoadMode.FIRST_ORDER)
 
@@ -1635,6 +1689,144 @@ def test_load_model_mode_missing_asset_fails_in_init(standard_vessel_params: Ves
             vessel_params=standard_vessel_params,
             wave_mode=WaveLoadMode.BOTH,
             wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+        )
+
+    # Irrelevant asset provided in OFF, FIRST_ORDER, or MEAN_DRIFT mode rejected
+    with pytest.raises(ValueError, match="wave_first_order_asset must not be provided"):
+        EnvironmentalLoadModel(
+            vessel_params=standard_vessel_params,
+            wave_mode=WaveLoadMode.OFF,
+            wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+        )
+
+    with pytest.raises(ValueError, match="wave_mean_drift_asset must not be provided"):
+        EnvironmentalLoadModel(
+            vessel_params=standard_vessel_params,
+            wave_mode=WaveLoadMode.FIRST_ORDER,
+            wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+            wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+        )
+
+    with pytest.raises(ValueError, match="wave_first_order_asset must not be provided"):
+        EnvironmentalLoadModel(
+            vessel_params=standard_vessel_params,
+            wave_mode=WaveLoadMode.MEAN_DRIFT,
+            wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+            wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+        )
+
+
+def test_environmental_load_model_from_params_strict_asset_resolution() -> None:
+    """Verify EnvironmentalLoadModel.from_params strictly resolves known IDs and rejects missing/irrelevant IDs (P1-1)."""
+    # 1. Mode OFF: no wave IDs allowed
+    m_off = EnvironmentalLoadModel.from_params({"wave_mode": "off"})
+    assert m_off.wave_mode == WaveLoadMode.OFF
+    assert m_off.wave_first_order_asset is None
+    assert m_off.wave_mean_drift_asset is None
+
+    with pytest.raises(ValueError, match="wave asset IDs must not be provided"):
+        EnvironmentalLoadModel.from_params(
+            {
+                "wave_mode": "off",
+                "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            }
+        )
+
+    # 2. Mode FIRST_ORDER: requires wave_first_order_asset_id
+    m_1st = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": "first_order",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+        }
+    )
+    assert m_1st.wave_mode == WaveLoadMode.FIRST_ORDER
+    assert m_1st.wave_first_order_asset is DEFAULT_INFERRED_WAVE_RESPONSE_ASSET
+    assert m_1st.wave_mean_drift_asset is None
+
+    with pytest.raises(AssetMissingError, match="wave_first_order_asset_id is required"):
+        EnvironmentalLoadModel.from_params({"wave_mode": "first_order"})
+
+    with pytest.raises(ValueError, match="wave_mean_drift_asset_id is not allowed"):
+        EnvironmentalLoadModel.from_params(
+            {
+                "wave_mode": "first_order",
+                "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+                "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+            }
+        )
+
+    with pytest.raises(AssetMissingError, match="Unknown wave_first_order_asset_id"):
+        EnvironmentalLoadModel.from_params(
+            {
+                "wave_mode": "first_order",
+                "wave_first_order_asset_id": "unknown_asset_v1",
+            }
+        )
+
+    # 3. Mode MEAN_DRIFT: requires wave_mean_drift_asset_id
+    m_drift = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": "mean_drift",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+        }
+    )
+    assert m_drift.wave_mode == WaveLoadMode.MEAN_DRIFT
+    assert m_drift.wave_first_order_asset is None
+    assert m_drift.wave_mean_drift_asset is DEFAULT_INFERRED_WAVE_DRIFT_ASSET
+
+    with pytest.raises(AssetMissingError, match="wave_mean_drift_asset_id is required"):
+        EnvironmentalLoadModel.from_params({"wave_mode": "mean_drift"})
+
+    with pytest.raises(ValueError, match="wave_first_order_asset_id is not allowed"):
+        EnvironmentalLoadModel.from_params(
+            {
+                "wave_mode": "mean_drift",
+                "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+                "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+            }
+        )
+
+    with pytest.raises(AssetMissingError, match="Unknown wave_mean_drift_asset_id"):
+        EnvironmentalLoadModel.from_params(
+            {
+                "wave_mode": "mean_drift",
+                "wave_mean_drift_asset_id": "unknown_drift_asset_v1",
+            }
+        )
+
+    # 4. Mode BOTH: requires both asset IDs
+    m_both = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": "both",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+        }
+    )
+    assert m_both.wave_mode == WaveLoadMode.BOTH
+    assert m_both.wave_first_order_asset is DEFAULT_INFERRED_WAVE_RESPONSE_ASSET
+    assert m_both.wave_mean_drift_asset is DEFAULT_INFERRED_WAVE_DRIFT_ASSET
+
+    with pytest.raises(AssetMissingError, match="Both wave_first_order_asset_id and wave_mean_drift_asset_id are required"):
+        EnvironmentalLoadModel.from_params(
+            {
+                "wave_mode": "both",
+                "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            }
+        )
+
+
+def test_full_pair_qtf_unsupported_rejection(standard_vessel_params: VesselEnvironmentalParameters) -> None:
+    """Verify Full component-pair QTF is explicitly rejected as unsupported/deferred (P1-2)."""
+    comp = WaveComponent(amplitude_m=1.0, omega_radps=0.7, phase_rad=0.0, direction_to_rad=0.0)
+    sample = MeanDriftSourceSample(components=(comp,))
+
+    with pytest.raises(NotImplementedError, match="Full component-pair QTF"):
+        MeanDriftLoadModel.calculate(
+            wave=sample,
+            heading_rad=0.0,
+            params=standard_vessel_params,
+            asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+            drift_model=MeanDriftModel.FULL_PAIR_QTF,
         )
 
 

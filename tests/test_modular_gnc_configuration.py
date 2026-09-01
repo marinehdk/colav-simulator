@@ -209,17 +209,69 @@ def test_environment_parameters_change_config_hash() -> None:
     assert norm1.config_hash != norm2.config_hash
 
 
-def test_wave_mode_configuration_validation_and_hash() -> None:
-    for mode in ("off", "first_order", "mean_drift", "both"):
-        cfg = _modular_config()
-        cfg["modules"]["load_model"] = {
-            "identity": "standard_environmental_load",
-            "parameters": {"wave_mode": mode},
-        }
-        norm = normalize_ship_modules(cfg)
-        assert norm.modules["load_model"].parameters["wave_mode"] == mode
+def test_wave_mode_configuration_valid_modes_and_hash() -> None:
+    # 1. Mode off (default and explicit): no wave asset IDs
+    cfg_default = _modular_config()
+    cfg_default["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {},
+    }
+    norm_default = normalize_ship_modules(cfg_default)
+    assert "wave_mode" not in norm_default.modules["load_model"].parameters
 
-    # Invalid wave mode rejected
+    cfg_off = _modular_config()
+    cfg_off["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {"wave_mode": "off"},
+    }
+    norm_off = normalize_ship_modules(cfg_off)
+    assert norm_off.modules["load_model"].parameters["wave_mode"] == "off"
+
+    # 2. Mode first_order: requires wave_first_order_asset_id
+    cfg_1st = _modular_config()
+    cfg_1st["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {
+            "wave_mode": "first_order",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+        },
+    }
+    norm_1st = normalize_ship_modules(cfg_1st)
+    assert norm_1st.modules["load_model"].parameters["wave_first_order_asset_id"] == "default_inferred_wave_response_v1"
+
+    # 3. Mode mean_drift: requires wave_mean_drift_asset_id
+    cfg_drift = _modular_config()
+    cfg_drift["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {
+            "wave_mode": "mean_drift",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+        },
+    }
+    norm_drift = normalize_ship_modules(cfg_drift)
+    assert norm_drift.modules["load_model"].parameters["wave_mean_drift_asset_id"] == "default_inferred_diagonal_drift_v1"
+
+    # 4. Mode both: requires both asset IDs
+    cfg_both = _modular_config()
+    cfg_both["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {
+            "wave_mode": "both",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+        },
+    }
+    norm_both = normalize_ship_modules(cfg_both)
+    assert norm_both.modules["load_model"].parameters["wave_mode"] == "both"
+
+    # Different wave mode / asset parameters change config hash
+    assert norm_off.config_hash != norm_1st.config_hash
+    assert norm_1st.config_hash != norm_drift.config_hash
+    assert norm_drift.config_hash != norm_both.config_hash
+
+
+def test_wave_mode_configuration_invalid_modes_and_assets() -> None:
+    # 5. Invalid wave mode rejected
     bad_cfg = _modular_config()
     bad_cfg["modules"]["load_model"] = {
         "identity": "standard_environmental_load",
@@ -228,17 +280,78 @@ def test_wave_mode_configuration_validation_and_hash() -> None:
     with pytest.raises(UnsupportedModuleCombinationError, match="unknown wave_mode"):
         normalize_ship_modules(bad_cfg)
 
-    # Different wave mode changes config hash
-    cfg_off = _modular_config()
-    cfg_off["modules"]["load_model"] = {
+    # 6. Mode off rejecting irrelevant asset IDs
+    bad_off = _modular_config()
+    bad_off["modules"]["load_model"] = {
         "identity": "standard_environmental_load",
-        "parameters": {"wave_mode": "off"},
+        "parameters": {"wave_mode": "off", "wave_first_order_asset_id": "default_inferred_wave_response_v1"},
     }
-    cfg_both = _modular_config()
-    cfg_both["modules"]["load_model"] = {
+    with pytest.raises(UnsupportedModuleCombinationError, match="not allowed when wave_mode is 'off'"):
+        normalize_ship_modules(bad_off)
+
+    # 7. Mode first_order missing first_order asset ID or supplying drift asset ID
+    bad_1st_missing = _modular_config()
+    bad_1st_missing["modules"]["load_model"] = {
         "identity": "standard_environmental_load",
-        "parameters": {"wave_mode": "both"},
+        "parameters": {"wave_mode": "first_order"},
     }
-    norm_off = normalize_ship_modules(cfg_off)
-    norm_both = normalize_ship_modules(cfg_both)
-    assert norm_off.config_hash != norm_both.config_hash
+    with pytest.raises(UnsupportedModuleCombinationError, match="wave_first_order_asset_id is required"):
+        normalize_ship_modules(bad_1st_missing)
+
+    bad_1st_extra = _modular_config()
+    bad_1st_extra["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {
+            "wave_mode": "first_order",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+        },
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="wave_mean_drift_asset_id is not allowed"):
+        normalize_ship_modules(bad_1st_extra)
+
+    # 8. Mode mean_drift missing drift asset ID or supplying first_order asset ID
+    bad_drift_missing = _modular_config()
+    bad_drift_missing["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {"wave_mode": "mean_drift"},
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="wave_mean_drift_asset_id is required"):
+        normalize_ship_modules(bad_drift_missing)
+
+    bad_drift_extra = _modular_config()
+    bad_drift_extra["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {
+            "wave_mode": "mean_drift",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+        },
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="wave_first_order_asset_id is not allowed"):
+        normalize_ship_modules(bad_drift_extra)
+
+    # 9. Mode both missing one asset ID
+    bad_both_missing = _modular_config()
+    bad_both_missing["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {
+            "wave_mode": "both",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+        },
+    }
+    match_msg = "both wave_first_order_asset_id and wave_mean_drift_asset_id are required"
+    with pytest.raises(UnsupportedModuleCombinationError, match=match_msg):
+        normalize_ship_modules(bad_both_missing)
+
+    # 10. Unknown asset ID rejected
+    bad_unknown_id = _modular_config()
+    bad_unknown_id["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {
+            "wave_mode": "first_order",
+            "wave_first_order_asset_id": "unknown_rao_asset_v999",
+        },
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="unknown wave_first_order_asset_id"):
+        normalize_ship_modules(bad_unknown_id)

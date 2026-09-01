@@ -19,6 +19,7 @@ from colav_simulator.modular_gnc.contracts import (
     CurrentStrategy,
     EnvironmentalLoads,
     EnvironmentTruth,
+    MeanDriftModel,
     MeanDriftSourceSample,
     NavigationState,
     OutOfDomainError,
@@ -457,7 +458,7 @@ class WaveRaoTableAsset:
 
 @dataclass(frozen=True)
 class InferredWaveDriftAsset:
-    """Inferred second-order wave mean-drift load asset (TS-23, VR-10)."""
+    """Inferred second-order wave mean-drift load asset using diagonal A_i^2 reflection (TS-23, VR-10)."""
 
     metadata: AssetMetadata
     inferred_surge_scale: float = 0.75
@@ -466,6 +467,7 @@ class InferredWaveDriftAsset:
     inferred_roll_lever_scale: float = 0.45
     max_force_n: float | None = 2.0e6
     max_moment_nm: float | None = 5.0e7
+    model_type: MeanDriftModel = MeanDriftModel.DIAGONAL_AI2
 
     def __post_init__(self) -> None:
         """Validate parameters and ensure inferred asset cannot be marked validated."""
@@ -485,6 +487,7 @@ class InferredWaveDriftAsset:
             object.__setattr__(self, "max_force_n", _finite_scalar("max_force_n", self.max_force_n))
         if self.max_moment_nm is not None:
             object.__setattr__(self, "max_moment_nm", _finite_scalar("max_moment_nm", self.max_moment_nm))
+        object.__setattr__(self, "model_type", MeanDriftModel(self.model_type))
 
     def verify_integrity(self) -> bool:
         """Verify asset integrity hash against metadata."""
@@ -531,6 +534,7 @@ class WaveDriftTableAsset:
 
     metadata: AssetMetadata
     table: tuple[WaveDriftEntry, ...]
+    model_type: MeanDriftModel = MeanDriftModel.DIAGONAL_AI2
 
     def __post_init__(self) -> None:
         """Validate non-empty table and freeze."""
@@ -540,6 +544,7 @@ class WaveDriftTableAsset:
             if not isinstance(entry, WaveDriftEntry):
                 raise TypeError(f"table[{i}] must be WaveDriftEntry, got {type(entry).__name__}")
         object.__setattr__(self, "table", tuple(self.table))
+        object.__setattr__(self, "model_type", MeanDriftModel(self.model_type))
 
     def verify_integrity(self) -> bool:
         """Verify table content SHA-256 against metadata hash."""
@@ -763,11 +768,11 @@ DEFAULT_INFERRED_CURRENT_ASSET = InferredCurrentAsset(
 
 DEFAULT_INFERRED_WAVE_RESPONSE_ASSET = InferredWaveResponseAsset(
     metadata=AssetMetadata(
-        asset_id="wave_response_inferred_v1",
+        asset_id="default_inferred_wave_response_v1",
         asset_type="wave_response_inferred",
         trust_level=AssetTrustLevel.INFERRED,
         source_type="inferred",
-        sha256="3fd1ff5cb26516a276e8f5a9bd16952fa94d4db504c15d43d75f7d20e2638062",
+        sha256="ded3ba8a98fd4ca190bc433fdf3691b2cacb9693bcc56be114fac7664585c55a",
         license="MIT",
         applicability_domain=ApplicabilityDomain(
             heading_range_deg=(0.0, 360.0),
@@ -782,11 +787,11 @@ DEFAULT_INFERRED_WAVE_RESPONSE_ASSET = InferredWaveResponseAsset(
 
 DEFAULT_INFERRED_WAVE_DRIFT_ASSET = InferredWaveDriftAsset(
     metadata=AssetMetadata(
-        asset_id="wave_drift_inferred_v1",
+        asset_id="default_inferred_diagonal_drift_v1",
         asset_type="wave_drift_inferred",
         trust_level=AssetTrustLevel.INFERRED,
         source_type="inferred",
-        sha256="0db2d1a386ea54cf46c89a48b723a3b33810991bc951c0de1153933d4600755a",
+        sha256="6be6b12ff69b44f32f8d7f3465af8d1c7cb5a6d1d3a2249e05ffccbb97178b68",
         license="MIT",
         applicability_domain=ApplicabilityDomain(
             heading_range_deg=(0.0, 360.0),
@@ -794,10 +799,19 @@ DEFAULT_INFERRED_WAVE_DRIFT_ASSET = InferredWaveDriftAsset(
             draft_range_m=(0.5, 30.0),
             custom_bounds={"omega_radps": (0.01, 5.0), "wave_height_m": (0.0, 30.0)},
         ),
-        provenance={"standard_basis": "Diagonal mean-drift QTF reflection scaffold", "created_by": "modular_gnc"},
+        provenance={"standard_basis": "Diagonal mean-drift reflection scaffold (A_i^2)", "created_by": "modular_gnc"},
         uncertainty={"drift_std": 0.15},
-    )
+    ),
+    model_type=MeanDriftModel.DIAGONAL_AI2,
 )
+
+KNOWN_WAVE_FIRST_ORDER_ASSETS: Mapping[str, InferredWaveResponseAsset | WaveRaoTableAsset] = {
+    "default_inferred_wave_response_v1": DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+}
+
+KNOWN_WAVE_MEAN_DRIFT_ASSETS: Mapping[str, InferredWaveDriftAsset | WaveDriftTableAsset] = {
+    "default_inferred_diagonal_drift_v1": DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -1350,6 +1364,7 @@ class MeanDriftLoadModel:
         heading_rad: float,
         params: VesselEnvironmentalParameters,
         asset: InferredWaveDriftAsset | WaveDriftTableAsset | None = None,
+        drift_model: MeanDriftModel | str = MeanDriftModel.DIAGONAL_AI2,
     ) -> VesselLoad:
         """Calculate second-order wave mean-drift load in vessel body frame.
 
@@ -1358,14 +1373,32 @@ class MeanDriftLoadModel:
             heading_rad: Vessel heading in radians (0=North, clockwise positive).
             params: Vessel geometry and fluid parameters.
             asset: Wave drift asset (InferredWaveDriftAsset or WaveDriftTableAsset).
+            drift_model: Formulation to calculate (only DIAGONAL_AI2 supported; FULL_PAIR_QTF rejected).
 
         Returns:
             VesselLoad in body frame (surge_n, sway_n, yaw_nm, roll_nm).
         """
+        model = MeanDriftModel(drift_model)
+        if model == MeanDriftModel.FULL_PAIR_QTF:
+            raise NotImplementedError(
+                "Full component-pair QTF mean-drift calculation is unsupported/deferred; "
+                "only diagonal_ai2 drift coefficient formulation is supported."
+            )
+        if model != MeanDriftModel.DIAGONAL_AI2:
+            raise ValueError(f"Unsupported mean drift model: {model}")
+
         if asset is None:
             raise AssetMissingError("Wave drift asset is required for MeanDriftLoadModel")
         if not asset.verify_integrity():
             raise AssetIntegrityError(f"Integrity check failed for wave drift asset: {asset.metadata.asset_id}")
+
+        if asset.model_type == MeanDriftModel.FULL_PAIR_QTF:
+            raise NotImplementedError(
+                "Full component-pair QTF asset is unsupported/deferred; "
+                "only diagonal_ai2 drift coefficient formulation is supported."
+            )
+        if asset.model_type != MeanDriftModel.DIAGONAL_AI2:
+            raise ValueError(f"Unsupported asset model_type: {asset.model_type}")
 
         if not wave.components:
             return VesselLoad.zero()
@@ -1446,6 +1479,78 @@ def _build_vessel_parameters(params: dict[str, Any] | Mapping[str, Any]) -> Vess
     )
 
 
+def _resolve_single_wave_mode_assets(
+    wave_mode: WaveLoadMode,
+    w1_id: str | None,
+    wmd_id: str | None,
+) -> tuple[InferredWaveResponseAsset | WaveRaoTableAsset | None, InferredWaveDriftAsset | WaveDriftTableAsset | None]:
+    """Resolve wave assets for OFF, FIRST_ORDER, and MEAN_DRIFT modes."""
+    if wave_mode == WaveLoadMode.OFF:
+        if w1_id is not None or wmd_id is not None:
+            raise ValueError("wave asset IDs must not be provided when wave_mode is OFF")
+        return None, None
+    if wave_mode == WaveLoadMode.FIRST_ORDER:
+        if w1_id is None:
+            raise AssetMissingError("wave_first_order_asset_id is required when wave_mode is 'first_order'")
+        if wmd_id is not None:
+            raise ValueError("wave_mean_drift_asset_id is not allowed when wave_mode is 'first_order'")
+        if w1_id not in KNOWN_WAVE_FIRST_ORDER_ASSETS:
+            raise AssetMissingError(f"Unknown wave_first_order_asset_id: {w1_id}")
+        return KNOWN_WAVE_FIRST_ORDER_ASSETS[w1_id], None
+
+    # MEAN_DRIFT
+    if wmd_id is None:
+        raise AssetMissingError("wave_mean_drift_asset_id is required when wave_mode is 'mean_drift'")
+    if w1_id is not None:
+        raise ValueError("wave_first_order_asset_id is not allowed when wave_mode is 'mean_drift'")
+    if wmd_id not in KNOWN_WAVE_MEAN_DRIFT_ASSETS:
+        raise AssetMissingError(f"Unknown wave_mean_drift_asset_id: {wmd_id}")
+    return None, KNOWN_WAVE_MEAN_DRIFT_ASSETS[wmd_id]
+
+
+def _resolve_wave_assets_from_params(
+    wave_mode: WaveLoadMode,
+    w1_id: str | None,
+    wmd_id: str | None,
+) -> tuple[InferredWaveResponseAsset | WaveRaoTableAsset | None, InferredWaveDriftAsset | WaveDriftTableAsset | None]:
+    """Resolve explicit wave assets from IDs with strict mode validation and zero defaults."""
+    if wave_mode in (WaveLoadMode.OFF, WaveLoadMode.FIRST_ORDER, WaveLoadMode.MEAN_DRIFT):
+        return _resolve_single_wave_mode_assets(wave_mode, w1_id, wmd_id)
+
+    # BOTH
+    if w1_id is None or wmd_id is None:
+        raise AssetMissingError(
+            "Both wave_first_order_asset_id and wave_mean_drift_asset_id are required when wave_mode is 'both'"
+        )
+    if w1_id not in KNOWN_WAVE_FIRST_ORDER_ASSETS:
+        raise AssetMissingError(f"Unknown wave_first_order_asset_id: {w1_id}")
+    if wmd_id not in KNOWN_WAVE_MEAN_DRIFT_ASSETS:
+        raise AssetMissingError(f"Unknown wave_mean_drift_asset_id: {wmd_id}")
+    return KNOWN_WAVE_FIRST_ORDER_ASSETS[w1_id], KNOWN_WAVE_MEAN_DRIFT_ASSETS[wmd_id]
+    if wmd_id not in KNOWN_WAVE_MEAN_DRIFT_ASSETS:
+        raise AssetMissingError(f"Unknown wave_mean_drift_asset_id: {wmd_id}")
+    return KNOWN_WAVE_FIRST_ORDER_ASSETS[w1_id], KNOWN_WAVE_MEAN_DRIFT_ASSETS[wmd_id]
+
+
+def _validate_load_model_wave_assets(
+    wave_mode: WaveLoadMode,
+    wave_first_order_asset: InferredWaveResponseAsset | WaveRaoTableAsset | None,
+    wave_mean_drift_asset: InferredWaveDriftAsset | WaveDriftTableAsset | None,
+) -> None:
+    """Validate presence or absence of wave assets against declared wave mode."""
+    if wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
+        if wave_first_order_asset is None:
+            raise AssetMissingError(f"First-order wave response asset is required when wave_mode is '{wave_mode.value}'")
+    elif wave_first_order_asset is not None:
+        raise ValueError(f"wave_first_order_asset must not be provided when wave_mode is '{wave_mode.value}'")
+
+    if wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
+        if wave_mean_drift_asset is None:
+            raise AssetMissingError(f"Wave mean-drift asset is required when wave_mode is '{wave_mode.value}'")
+    elif wave_mean_drift_asset is not None:
+        raise ValueError(f"wave_mean_drift_asset must not be provided when wave_mode is '{wave_mode.value}'")
+
+
 class EnvironmentalLoadModel:
     """Plant-side environmental load model with explicit component summation and current de-duplication (VR-09, VR-10)."""
 
@@ -1482,12 +1587,7 @@ class EnvironmentalLoadModel:
         self._wind_asset = wind_asset
         self._current_asset = current_asset
 
-        if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
-            if wave_first_order_asset is None:
-                raise AssetMissingError("First-order wave response asset is required when wave_mode is FIRST_ORDER or BOTH")
-        if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
-            if wave_mean_drift_asset is None:
-                raise AssetMissingError("Wave mean-drift asset is required when wave_mode is MEAN_DRIFT or BOTH")
+        _validate_load_model_wave_assets(self._wave_mode, wave_first_order_asset, wave_mean_drift_asset)
 
         self._wave_first_order_asset = wave_first_order_asset
         self._wave_mean_drift_asset = wave_mean_drift_asset
@@ -1624,6 +1724,11 @@ class EnvironmentalLoadModel:
                 "enable_wind": self._enable_wind,
                 "enable_current": self._enable_current,
                 "wave_mode": self._wave_mode.value,
+                "mean_drift_model": (
+                    MeanDriftModel.DIAGONAL_AI2.value
+                    if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH)
+                    else "off"
+                ),
                 "first_order_components_count": (
                     len(truth.wave.components) if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH) else 0
                 ),
@@ -1635,8 +1740,18 @@ class EnvironmentalLoadModel:
                 "wave_first_order_asset_id": (
                     self._wave_first_order_asset.metadata.asset_id if self._wave_first_order_asset is not None else None
                 ),
+                "wave_first_order_asset_trust": (
+                    self._wave_first_order_asset.metadata.trust_level.value
+                    if self._wave_first_order_asset is not None
+                    else None
+                ),
                 "wave_mean_drift_asset_id": (
                     self._wave_mean_drift_asset.metadata.asset_id if self._wave_mean_drift_asset is not None else None
+                ),
+                "wave_mean_drift_asset_trust": (
+                    self._wave_mean_drift_asset.metadata.trust_level.value
+                    if self._wave_mean_drift_asset is not None
+                    else None
                 ),
             },
         )
@@ -1656,13 +1771,10 @@ class EnvironmentalLoadModel:
         wave_mode_raw = params.get("wave_mode", "off")
         wave_mode = WaveLoadMode(wave_mode_raw)
 
-        wave_1st_asset = None
-        if wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
-            wave_1st_asset = DEFAULT_INFERRED_WAVE_RESPONSE_ASSET
+        w1_id = params.get("wave_first_order_asset_id")
+        wmd_id = params.get("wave_mean_drift_asset_id")
 
-        wave_drift_asset = None
-        if wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
-            wave_drift_asset = DEFAULT_INFERRED_WAVE_DRIFT_ASSET
+        wave_1st_asset, wave_drift_asset = _resolve_wave_assets_from_params(wave_mode, w1_id, wmd_id)
 
         v_params = _build_vessel_parameters(params)
 

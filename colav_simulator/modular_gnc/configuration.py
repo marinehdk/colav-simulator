@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
+from colav_simulator.modular_gnc.contracts import WaveLoadMode
+
 
 def _deep_freeze(value: Any) -> Any:
     if isinstance(value, Mapping):
@@ -133,6 +135,8 @@ REGISTRY_V1 = MappingProxyType(
                 "gravity_mps2": {"type": "number"},
                 "current_strategy": {"type": "string"},
                 "wave_mode": {"type": "string"},
+                "wave_first_order_asset_id": {"type": "string"},
+                "wave_mean_drift_asset_id": {"type": "string"},
                 "enable_wind": {"type": "boolean"},
                 "enable_current": {"type": "boolean"},
                 "current_relative_damping": {"type": "boolean"},
@@ -302,21 +306,70 @@ def _validate_current_strategy_deduplication(modules: Mapping[str, ModuleSelecti
             )
 
 
+KNOWN_WAVE_FIRST_ORDER_ASSET_IDS: frozenset[str] = frozenset({"default_inferred_wave_response_v1"})
+KNOWN_WAVE_MEAN_DRIFT_ASSET_IDS: frozenset[str] = frozenset({"default_inferred_diagonal_drift_v1"})
+
+
+def _validate_wave_asset_ids_presence(
+    wave_mode: WaveLoadMode,
+    w1_id: str | None,
+    wmd_id: str | None,
+) -> None:
+    """Validate required vs forbidden wave asset IDs per mode (VR-09, VR-10)."""
+    if wave_mode == WaveLoadMode.OFF:
+        if w1_id is not None or wmd_id is not None:
+            raise UnsupportedModuleCombinationError(
+                "wave_first_order_asset_id and wave_mean_drift_asset_id are not allowed when wave_mode is 'off'"
+            )
+    elif wave_mode == WaveLoadMode.FIRST_ORDER:
+        if w1_id is None:
+            raise UnsupportedModuleCombinationError("wave_first_order_asset_id is required when wave_mode is 'first_order'")
+        if wmd_id is not None:
+            raise UnsupportedModuleCombinationError(
+                "wave_mean_drift_asset_id is not allowed when wave_mode is 'first_order'"
+            )
+    elif wave_mode == WaveLoadMode.MEAN_DRIFT:
+        if wmd_id is None:
+            raise UnsupportedModuleCombinationError("wave_mean_drift_asset_id is required when wave_mode is 'mean_drift'")
+        if w1_id is not None:
+            raise UnsupportedModuleCombinationError(
+                "wave_first_order_asset_id is not allowed when wave_mode is 'mean_drift'"
+            )
+    elif wave_mode == WaveLoadMode.BOTH and (w1_id is None or wmd_id is None):
+        raise UnsupportedModuleCombinationError(
+            "both wave_first_order_asset_id and wave_mean_drift_asset_id are required when wave_mode is 'both'"
+        )
+
+
 def _validate_wave_mode(modules: Mapping[str, ModuleSelection]) -> None:
-    """Validate explicit wave load mode (VR-09, VR-10, spec L106)."""
-    if "load_model" in modules:
-        lm_params = modules["load_model"].parameters
-        wave_mode = lm_params.get("wave_mode")
-        if wave_mode is not None:
-            if not isinstance(wave_mode, str):
-                raise UnsupportedModuleCombinationError(
-                    f"parameter wave_mode for load_model must be a string, got {type(wave_mode).__name__}"
-                )
-            valid_modes = {"off", "first_order", "mean_drift", "both"}
-            if wave_mode.lower() not in valid_modes:
-                raise UnsupportedModuleCombinationError(
-                    f"unknown wave_mode: {wave_mode} (must be one of {sorted(valid_modes)})"
-                )
+    """Validate explicit wave load mode and required asset IDs (VR-09, VR-10, spec L106)."""
+    if "load_model" not in modules:
+        return
+    lm_params = modules["load_model"].parameters
+    wave_mode_raw = lm_params.get("wave_mode", "off")
+    if not isinstance(wave_mode_raw, str):
+        raise UnsupportedModuleCombinationError(
+            f"parameter wave_mode for load_model must be a string, got {type(wave_mode_raw).__name__}"
+        )
+    valid_modes = {"off", "first_order", "mean_drift", "both"}
+    if wave_mode_raw.lower() not in valid_modes:
+        raise UnsupportedModuleCombinationError(f"unknown wave_mode: {wave_mode_raw} (must be one of {sorted(valid_modes)})")
+    wave_mode = WaveLoadMode(wave_mode_raw.lower())
+
+    w1_id = lm_params.get("wave_first_order_asset_id")
+    wmd_id = lm_params.get("wave_mean_drift_asset_id")
+
+    if w1_id is not None and w1_id not in KNOWN_WAVE_FIRST_ORDER_ASSET_IDS:
+        raise UnsupportedModuleCombinationError(
+            f"unknown wave_first_order_asset_id: {w1_id} (known: {sorted(KNOWN_WAVE_FIRST_ORDER_ASSET_IDS)})"
+        )
+
+    if wmd_id is not None and wmd_id not in KNOWN_WAVE_MEAN_DRIFT_ASSET_IDS:
+        raise UnsupportedModuleCombinationError(
+            f"unknown wave_mean_drift_asset_id: {wmd_id} (known: {sorted(KNOWN_WAVE_MEAN_DRIFT_ASSET_IDS)})"
+        )
+
+    _validate_wave_asset_ids_presence(wave_mode, w1_id, wmd_id)
 
 
 def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:

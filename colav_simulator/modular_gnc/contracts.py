@@ -117,6 +117,14 @@ class WaveLoadMode(str, Enum):
     BOTH = "both"
 
 
+class MeanDriftModel(str, Enum):
+    """Explicit second-order wave mean-drift model formulation (VR-09, VR-10)."""
+
+    OFF = "off"
+    DIAGONAL_AI2 = "diagonal_ai2"
+    FULL_PAIR_QTF = "full_pair_qtf"
+
+
 def _non_empty_str(name: str, value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} must be a non-empty string")
