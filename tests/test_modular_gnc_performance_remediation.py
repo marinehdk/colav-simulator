@@ -437,3 +437,70 @@ def test_slice4_rk4_10s_trajectory_equivalence_against_scalar(
     assert max_abs_diff <= 1e-9, f"max absolute trajectory diff exceeded: {max_abs_diff} > 1e-9"
 
 
+@pytest.mark.parametrize("harmonics", [32, 128])
+def test_deterministic_microbenchmark(harmonics: int) -> None:
+    """Deterministic local microbenchmark for 32 and 128 harmonics verifying repeatability and bounded execution."""
+    import time
+    import numpy as np
+    from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
+    from colav_simulator.modular_gnc.integrators import rk4_step
+    from colav_simulator.modular_gnc.plant import Generic3DOFPlant, Generic3DOFPlantParameters
+
+    plant_params = Generic3DOFPlantParameters(
+        mass_kg=1.6e7,
+        i_z_kgm2=3.0e10,
+        x_g_m=0.0,
+        x_dot_u_kg=-5.0e6,
+        y_dot_v_kg=-3.5e7,
+        n_dot_r_kgm2=-2.0e10,
+        y_dot_r_kgm=1.0e6,
+        n_dot_v_kgm=1.0e6,
+        d_u=5.0e4,
+        d_uu=2.0e5,
+        d_v=3.0e5,
+        d_vv=1.5e6,
+        d_r=8.0e7,
+        d_rr=2.5e9,
+    )
+    plant = Generic3DOFPlant(plant_params)
+    dt_s = 0.02
+    steps = 100
+
+    field = AnalyticEnvironmentField(
+        dt_s=dt_s,
+        field_seed=42,
+        wave_significant_height_m=1.5,
+        wave_peak_period_s=8.0,
+        wave_direction_to_rad=0.4,
+        wave_num_components=harmonics,
+        wave_directional_spread_rad=0.25,
+    )
+    load_model = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": "both",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+            "enable_wind": False,
+            "enable_current": False,
+        }
+    )
+
+    def run_trajectory() -> tuple[np.ndarray, float]:
+        state = np.array([0.0, 0.0, 0.1, 1.5, 0.0, 0.0], dtype=np.float64)
+        ctrl = VesselLoad.zero()
+        t0 = time.perf_counter()
+        for tick in range(steps):
+            state = rk4_step(plant, tick, dt_s, state, ctrl, field, load_model)
+        elapsed = time.perf_counter() - t0
+        return state, elapsed
+
+    state1, elapsed1 = run_trajectory()
+    state2, elapsed2 = run_trajectory()
+
+    # Bit-identical determinism across repeats
+    assert np.array_equal(state1, state2), "optimized path must be bit-identical across repeats"
+    # Coarse non-flaky sanity check: 100 steps (400 RK stages) must finish in under 2 seconds locally
+    assert elapsed1 < 2.0
+
+
+
