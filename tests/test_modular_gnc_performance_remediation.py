@@ -14,6 +14,7 @@ from colav_simulator.modular_gnc.contracts import (
     CurrentStrategy,
     EnvironmentTruth,
     NavigationState,
+    OutOfDomainError,
     VesselLoad,
     WaveComponent,
     WaveFieldSample,
@@ -246,4 +247,193 @@ def test_slice3_batched_domain_bounds_exact_match(standard_vessel_params: Vessel
             params=standard_vessel_params,
             asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
         )
+
+
+@pytest.mark.parametrize("wave_mode", ["off", "first_order", "mean_drift", "both"])
+def test_slice4_compute_total_load_for_rhs_equality(
+    standard_vessel_params: VesselEnvironmentalParameters, wave_mode: str
+) -> None:
+    """Slice 4: compute_total_load_for_rhs matches compute_loads().total exactly across wave modes."""
+    model = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": wave_mode,
+            "wave_first_order_asset_id": (
+                "default_inferred_wave_response_v1" if wave_mode in ("first_order", "both") else None
+            ),
+            "wave_mean_drift_asset_id": (
+                "default_inferred_diagonal_drift_v1" if wave_mode in ("mean_drift", "both") else None
+            ),
+            "enable_wind": True,
+            "enable_current": True,
+            "current_strategy": "external_current_load",
+        }
+    )
+
+    comp1 = WaveComponent(amplitude_m=0.8, omega_radps=0.8, phase_rad=0.3, direction_to_rad=0.2)
+    comp2 = WaveComponent(amplitude_m=0.5, omega_radps=1.2, phase_rad=1.0, direction_to_rad=1.5)
+    truth = EnvironmentTruth(
+        wind=WindSample(velocity_ne=(10.0, 5.0)),
+        current=CurrentSample(velocity_ne=(0.5, 0.2)),
+        wave=WaveFieldSample(significant_height_m=1.5, peak_period_s=7.0, direction_to_rad=0.4, components=(comp1, comp2)),
+        mean_drift=MeanDriftSourceSample(components=(comp1, comp2)),
+        time_s=2.5,
+        tick=25,
+        stage_offset_s=0.0,
+    )
+    nav = NavigationState(100.0, 50.0, 0.4, 2.0, 0.2, 0.01)
+
+    full_loads = model.compute_loads(truth, nav)
+    total_fast = model.compute_total_load_for_rhs(truth, nav)
+
+    _assert_load_close(total_fast, full_loads.total, rtol=1e-12, atol=1e-9)
+
+
+def test_slice4_error_parity(standard_vessel_params: VesselEnvironmentalParameters) -> None:
+    """Slice 4: compute_total_load_for_rhs fails with same exceptions as compute_loads."""
+    model = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": "both",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+        }
+    )
+
+    # 1. Invalid truth type
+    with pytest.raises(TypeError, match="truth must be EnvironmentTruth"):
+        model.compute_loads("bad", NavigationState(0, 0, 0, 0, 0, 0))  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="truth must be EnvironmentTruth"):
+        model.compute_total_load_for_rhs("bad", NavigationState(0, 0, 0, 0, 0, 0))  # type: ignore[arg-type]
+
+    # 2. Invalid state type
+    comp = WaveComponent(amplitude_m=1.0, omega_radps=1.0, phase_rad=0.0, direction_to_rad=0.0)
+    truth = EnvironmentTruth(
+        wind=WindSample(velocity_ne=(0.0, 0.0)),
+        current=CurrentSample(velocity_ne=(0.0, 0.0)),
+        wave=WaveFieldSample(significant_height_m=1.0, peak_period_s=5.0, direction_to_rad=0.0, components=(comp,)),
+        mean_drift=MeanDriftSourceSample(components=(comp,)),
+        time_s=0.0,
+        tick=0,
+    )
+    with pytest.raises(TypeError, match="vessel_state must be NavigationState or PlantState"):
+        model.compute_loads(truth, "bad_state")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="vessel_state must be NavigationState or PlantState"):
+        model.compute_total_load_for_rhs(truth, "bad_state")  # type: ignore[arg-type]
+
+    # 3. Out of domain wave
+    bad_comp = WaveComponent(amplitude_m=1.0, omega_radps=10.0, phase_rad=0.0, direction_to_rad=0.0)
+    bad_truth = EnvironmentTruth(
+        wind=WindSample(velocity_ne=(0.0, 0.0)),
+        current=CurrentSample(velocity_ne=(0.0, 0.0)),
+        wave=WaveFieldSample(significant_height_m=1.0, peak_period_s=5.0, direction_to_rad=0.0, components=(bad_comp,)),
+        mean_drift=MeanDriftSourceSample(components=(bad_comp,)),
+        time_s=0.0,
+        tick=0,
+    )
+    nav = NavigationState(0, 0, 0, 0, 0, 0)
+    with pytest.raises(OutOfDomainError, match="outside applicability domain"):
+        model.compute_loads(bad_truth, nav)
+    with pytest.raises(OutOfDomainError, match="outside applicability domain"):
+        model.compute_total_load_for_rhs(bad_truth, nav)
+
+
+def test_slice4_rk4_10s_trajectory_equivalence_against_scalar(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Slice 4: Full 10s RK4 trajectory (500 steps, 2000 RK stages) matches scalar reference within rtol<=1e-11, atol<=1e-9."""
+    import numpy as np
+    from colav_simulator.modular_gnc.contracts import EnvironmentalLoads, PlantState
+    from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
+    from colav_simulator.modular_gnc.integrators import rk4_step
+    from colav_simulator.modular_gnc.plant import Generic3DOFPlant, Generic3DOFPlantParameters
+
+    plant_params = Generic3DOFPlantParameters(
+        mass_kg=1.6e7,
+        i_z_kgm2=3.0e10,
+        x_g_m=0.0,
+        x_dot_u_kg=-5.0e6,
+        y_dot_v_kg=-3.5e7,
+        n_dot_r_kgm2=-2.0e10,
+        y_dot_r_kgm=1.0e6,
+        n_dot_v_kgm=1.0e6,
+        d_u=5.0e4,
+        d_uu=2.0e5,
+        d_v=3.0e5,
+        d_vv=1.5e6,
+        d_r=8.0e7,
+        d_rr=2.5e9,
+    )
+    plant = Generic3DOFPlant(plant_params)
+
+    dt_s = 0.02  # 50 Hz
+    total_steps = 500  # 10s
+    field = AnalyticEnvironmentField(
+        dt_s=dt_s,
+        field_seed=5400,
+        wave_significant_height_m=1.5,
+        wave_peak_period_s=8.0,
+        wave_direction_to_rad=0.4,
+        wave_num_components=32,
+        wave_directional_spread_rad=0.25,
+    )
+
+    load_model = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": "both",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+            "enable_wind": False,
+            "enable_current": False,
+        }
+    )
+
+    # Class for scalar reference query
+    class ScalarReferenceLoadModel:
+        def __init__(self, base_model: EnvironmentalLoadModel) -> None:
+            self._base = base_model
+
+        def compute_loads(self, truth: EnvironmentTruth, state: PlantState | NavigationState) -> EnvironmentalLoads:
+            w1 = FirstOrderWaveLoadModel._calculate_inferred_scalar(
+                wave=truth.wave,
+                heading=state.heading_rad,
+                u=state.surge_mps,
+                v=state.sway_mps,
+                t=truth.time_s,
+                params=self._base.vessel_params,
+                asset=self._base.wave_first_order_asset,
+            )
+            wmd = MeanDriftLoadModel._calculate_inferred_scalar(
+                wave=truth.mean_drift,
+                heading=state.heading_rad,
+                params=self._base.vessel_params,
+                asset=self._base.wave_mean_drift_asset,
+            )
+            return EnvironmentalLoads.from_components(wave_first_order=w1, wave_mean_drift=wmd)
+
+    scalar_load_model = ScalarReferenceLoadModel(load_model)
+
+    x0_vec = np.array([0.0, 0.0, 0.1, 1.5, 0.0, 0.0], dtype=np.float64)
+    x0_scal = np.array([0.0, 0.0, 0.1, 1.5, 0.0, 0.0], dtype=np.float64)
+
+    state_vec = x0_vec.copy()
+    state_scal = x0_scal.copy()
+    ctrl = VesselLoad.zero()
+
+    max_rel_diff = 0.0
+    max_abs_diff = 0.0
+
+    for tick in range(total_steps):
+        state_vec = rk4_step(plant, tick, dt_s, state_vec, ctrl, field, load_model)
+        state_scal = rk4_step(plant, tick, dt_s, state_scal, ctrl, field, scalar_load_model)
+
+        abs_diff = np.max(np.abs(state_vec - state_scal))
+        rel_diff = np.max(np.abs((state_vec - state_scal) / np.maximum(np.abs(state_scal), 1e-9)))
+
+        if abs_diff > max_abs_diff:
+            max_abs_diff = float(abs_diff)
+        if rel_diff > max_rel_diff:
+            max_rel_diff = float(rel_diff)
+
+    assert max_rel_diff <= 1e-11, f"max relative trajectory diff exceeded: {max_rel_diff} > 1e-11"
+    assert max_abs_diff <= 1e-9, f"max absolute trajectory diff exceeded: {max_abs_diff} > 1e-9"
+
 

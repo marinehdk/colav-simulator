@@ -2052,6 +2052,76 @@ class EnvironmentalLoadModel:
             },
         )
 
+    def compute_total_load_for_rhs(
+        self,
+        truth: EnvironmentTruth,
+        vessel_state: NavigationState | PlantState,
+    ) -> VesselLoad:
+        """Internal fast path computing only the total VesselLoad for integrator stages (Slice 4)."""
+        if not isinstance(truth, EnvironmentTruth):
+            raise TypeError(f"truth must be EnvironmentTruth, got {type(truth).__name__}")
+
+        if isinstance(vessel_state, (NavigationState, PlantState)):
+            heading_rad = vessel_state.heading_rad
+            surge_mps = vessel_state.surge_mps
+            sway_mps = vessel_state.sway_mps
+        else:
+            raise TypeError(f"vessel_state must be NavigationState or PlantState, got {type(vessel_state).__name__}")
+
+        # 1. Wind load
+        if self._enable_wind:
+            wind_load = WindLoadModel.calculate(
+                wind=truth.wind,
+                heading_rad=heading_rad,
+                surge_mps=surge_mps,
+                sway_mps=sway_mps,
+                params=self._vessel_params,
+                asset=self._wind_asset,
+            )
+        else:
+            wind_load = VesselLoad.zero()
+
+        # 2. Current load
+        if self._enable_current:
+            current_load = CurrentLoadModel.calculate(
+                current=truth.current,
+                heading_rad=heading_rad,
+                surge_mps=surge_mps,
+                sway_mps=sway_mps,
+                params=self._vessel_params,
+                strategy=self._current_strategy,
+                asset=self._current_asset,
+            )
+        else:
+            current_load = VesselLoad.zero()
+
+        # 3. Wave first-order load
+        if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
+            wave_1st = FirstOrderWaveLoadModel.calculate(
+                wave=truth.wave,
+                heading_rad=heading_rad,
+                surge_mps=surge_mps,
+                sway_mps=sway_mps,
+                stage_time_s=truth.time_s,
+                params=self._vessel_params,
+                asset=self._wave_first_order_asset,
+            )
+        else:
+            wave_1st = VesselLoad.zero()
+
+        # 4. Wave mean-drift load
+        if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
+            wave_drift = MeanDriftLoadModel.calculate(
+                wave=truth.mean_drift,
+                heading_rad=heading_rad,
+                params=self._vessel_params,
+                asset=self._wave_mean_drift_asset,
+            )
+        else:
+            wave_drift = VesselLoad.zero()
+
+        return wind_load + current_load + wave_1st + wave_drift
+
     @classmethod
     def from_params(cls, params: dict[str, Any] | Mapping[str, Any]) -> EnvironmentalLoadModel:
         """Construct EnvironmentalLoadModel from normalized parameter dictionary."""

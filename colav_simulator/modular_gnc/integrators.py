@@ -40,6 +40,9 @@ def _query_env_load(
         else (frozenset({"ROLL_4DOF"}) if len(state_vector) == 8 else frozenset({"PLANAR_3DOF"}))
     )
     vessel_state = PlantState(state_vector, caps)
+    fast_compute = getattr(load_model, "compute_total_load_for_rhs", None)
+    if fast_compute is not None and callable(fast_compute):
+        return fast_compute(truth, vessel_state)
     env_loads = load_model.compute_loads(truth, vessel_state)
     return env_loads.total
 
