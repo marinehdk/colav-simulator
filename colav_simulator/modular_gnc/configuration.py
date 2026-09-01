@@ -443,6 +443,13 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     scheduler = normalized["scheduler"]
     if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in scheduler.values()):
         raise UnsupportedModuleCombinationError("scheduler periods must be positive integer ticks")
+
+    if "plant" in modules and modules["plant"].identity == "generic_3dof_plant" and scheduler.get("plant_period_ticks") != 1:
+        raise UnsupportedModuleCombinationError(
+            "generic_3dof_plant requires plant_period_ticks == 1 (base-clock cadence only; "
+            f"got {scheduler.get('plant_period_ticks')})"
+        )
+
     canonical = {
         "preset": preset,
         "modules": {

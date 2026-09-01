@@ -5,11 +5,13 @@ from __future__ import annotations
 import math
 
 import numpy as np
+import pytest
 
 from colav_simulator.core.ship import Config
 from colav_simulator.modular_gnc.adapter import ModularShipAdapter
 from colav_simulator.modular_gnc.configuration import (
     ShipModulesConfig,
+    UnsupportedModuleCombinationError,
     normalize_ship_modules,
 )
 from colav_simulator.modular_gnc.contracts import (
@@ -22,6 +24,8 @@ from colav_simulator.modular_gnc.contracts import (
     PlantState,
 )
 from colav_simulator.modular_gnc.factory import build_modular_ship_adapter
+from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
+from colav_simulator.modular_gnc.plant import Generic3DOFPlant, Generic3DOFPlantParameters
 from colav_simulator.modular_gnc.stack import ModularShipStack
 
 
@@ -196,3 +200,60 @@ def test_modular_ship_adapter_with_generic_plant() -> None:
     state, _, _ = adapter.forward(dt=0.1)
     # After step, surge velocity has increased
     assert state[3] > 0.0
+
+
+def test_generic_plant_accepts_period_1_and_rejects_period_greater_than_1() -> None:
+    # 1. Period 1 is accepted
+    valid_cfg = normalize_ship_modules(
+        {
+            "preset": "legacy_equivalent",
+            "overrides": {"scheduler": {"plant_period_ticks": 1}},
+            "modules": {
+                "plant": {"identity": "generic_3dof_plant", "parameters": _plant_params()},
+                "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+                "controller": {"identity": "pass_through_controller", "parameters": {}},
+            },
+        }
+    )
+    assert valid_cfg.scheduler["plant_period_ticks"] == 1
+
+    # 2. Period 2 (and >1) rejected at normalization
+    with pytest.raises(UnsupportedModuleCombinationError, match="generic_3dof_plant requires plant_period_ticks == 1"):
+        normalize_ship_modules(
+            {
+                "preset": "legacy_equivalent",
+                "overrides": {"scheduler": {"plant_period_ticks": 2}},
+                "modules": {
+                    "plant": {"identity": "generic_3dof_plant", "parameters": _plant_params()},
+                    "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+                    "controller": {"identity": "pass_through_controller", "parameters": {}},
+                },
+            }
+        )
+
+
+def test_generic_plant_runtime_defense_rejects_bypass() -> None:
+    # Bypass normalization by creating a config with pass-through plant, then manually pairing with generic plant in modules
+    base_cfg = normalize_ship_modules(
+        {
+            "preset": "legacy_equivalent",
+            "overrides": {"scheduler": {"plant_period_ticks": 2}},
+            "modules": {
+                "plant": {"identity": "pass_through_plant", "parameters": {}},
+                "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+                "controller": {"identity": "pass_through_controller", "parameters": {}},
+            },
+        }
+    )
+    assert base_cfg.scheduler["plant_period_ticks"] == 2
+
+    # PassThrough plant permits period 2 (old behavior unchanged)
+    pt_modules = PassThroughModules()
+    pt_stack = ModularShipStack(base_cfg, pt_modules)
+    assert pt_stack is not None
+
+    # But injecting Generic3DOFPlant with period 2 fails at runtime in ModularShipStack.__init__
+    gen_plant = Generic3DOFPlant(Generic3DOFPlantParameters(**_plant_params()))
+    gen_modules = PassThroughModules(plant=gen_plant)
+    with pytest.raises(UnsupportedModuleCombinationError, match="generic_3dof_plant requires plant_period_ticks == 1"):
+        ModularShipStack(base_cfg, gen_modules)

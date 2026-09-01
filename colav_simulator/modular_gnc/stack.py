@@ -7,7 +7,10 @@ from collections.abc import Mapping
 from typing import Any
 
 from colav_simulator.modular_gnc.command_latch import CommandLatch
-from colav_simulator.modular_gnc.configuration import ShipModulesConfig
+from colav_simulator.modular_gnc.configuration import (
+    ShipModulesConfig,
+    UnsupportedModuleCombinationError,
+)
 from colav_simulator.modular_gnc.contracts import (
     CommandInput,
     FacadeFailure,
@@ -36,6 +39,20 @@ class ModularShipStack:
     snapshot_schema_version = "modular-ship-stack.snapshot.v1"
 
     def __init__(self, config: ShipModulesConfig, modules: PassThroughModules) -> None:
+        if (
+            "plant" in config.modules
+            and config.modules["plant"].identity == "generic_3dof_plant"
+            and config.scheduler.get("plant_period_ticks") != 1
+        ):
+            raise UnsupportedModuleCombinationError(
+                "generic_3dof_plant requires plant_period_ticks == 1 (base-clock cadence only; "
+                f"got {config.scheduler.get('plant_period_ticks')})"
+            )
+        if getattr(modules, "_plant", None) is not None and config.scheduler.get("plant_period_ticks") != 1:
+            raise UnsupportedModuleCombinationError(
+                "generic_3dof_plant requires plant_period_ticks == 1 (base-clock cadence only; "
+                f"got {config.scheduler.get('plant_period_ticks')})"
+            )
         self._config = config
         self._modules = modules
         self._latch = CommandLatch(config.scheduler["controller_period_ticks"])
