@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
+import math
 from types import MappingProxyType
 from typing import Any
 
@@ -51,6 +52,243 @@ class FailureCode(str, Enum):
     DEPENDENCY_UNAVAILABLE = "DEPENDENCY_UNAVAILABLE"
     MODULE_FAILURE = "MODULE_FAILURE"
     OUT_OF_DOMAIN = "OUT_OF_DOMAIN"
+
+
+class CurrentReference(str, Enum):
+    """Reference depth datum for ocean current velocity."""
+
+    SURFACE = "surface"
+    DEPTH_AVERAGED = "depth_averaged"
+
+
+class EnvironmentStatus(str, Enum):
+    """Availability status of environment sources or observations."""
+
+    AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+@dataclass(frozen=True)
+class WindSample:
+    """Immutable raw wind field sample in NE world to-direction."""
+
+    velocity_ne: tuple[float, float]
+    reference_height_m: float = 10.0
+    frame: str = field(default="NE-to", init=False)
+    units: str = field(default="m/s,m", init=False)
+
+    def __post_init__(self) -> None:
+        """Validate finite components, positive reference height, and freeze."""
+        if len(self.velocity_ne) != 2:
+            raise ValueError("velocity_ne must have 2 components (vn, ve)")
+        vn = _finite_scalar("velocity_ne[0]", self.velocity_ne[0])
+        ve = _finite_scalar("velocity_ne[1]", self.velocity_ne[1])
+        ref_h = _finite_scalar("reference_height_m", self.reference_height_m)
+        if ref_h <= 0.0:
+            raise ValueError("reference_height_m must be positive")
+        object.__setattr__(self, "velocity_ne", (vn, ve))
+        object.__setattr__(self, "reference_height_m", ref_h)
+
+    @property
+    def speed_mps(self) -> float:
+        """Return wind speed magnitude in m/s."""
+        return float(math.hypot(self.velocity_ne[0], self.velocity_ne[1]))
+
+    @property
+    def direction_to_rad(self) -> float:
+        """Return compass to-direction angle in rad [0, 2*pi)."""
+        return float(math.atan2(self.velocity_ne[1], self.velocity_ne[0]) % (2.0 * math.pi))
+
+
+@dataclass(frozen=True)
+class CurrentSample:
+    """Immutable raw ocean current field sample in NE world to-direction."""
+
+    velocity_ne: tuple[float, float]
+    reference: CurrentReference = CurrentReference.SURFACE
+    frame: str = field(default="NE-to", init=False)
+    units: str = field(default="m/s", init=False)
+
+    def __post_init__(self) -> None:
+        """Validate finite components, coerce reference datum, and freeze."""
+        if len(self.velocity_ne) != 2:
+            raise ValueError("velocity_ne must have 2 components (vn, ve)")
+        vn = _finite_scalar("velocity_ne[0]", self.velocity_ne[0])
+        ve = _finite_scalar("velocity_ne[1]", self.velocity_ne[1])
+        object.__setattr__(self, "velocity_ne", (vn, ve))
+        object.__setattr__(self, "reference", CurrentReference(self.reference))
+
+    @property
+    def speed_mps(self) -> float:
+        """Return current speed magnitude in m/s."""
+        return float(math.hypot(self.velocity_ne[0], self.velocity_ne[1]))
+
+    @property
+    def direction_to_rad(self) -> float:
+        """Return compass to-direction angle in rad [0, 2*pi)."""
+        return float(math.atan2(self.velocity_ne[1], self.velocity_ne[0]) % (2.0 * math.pi))
+
+
+@dataclass(frozen=True)
+class WaveComponent:
+    """Immutable regular harmonic wave component."""
+
+    amplitude_m: float
+    omega_radps: float
+    phase_rad: float
+    direction_to_rad: float
+
+    def __post_init__(self) -> None:
+        """Validate non-negative amplitude, positive frequency, and finite angles."""
+        amp = _finite_scalar("amplitude_m", self.amplitude_m)
+        if amp < 0.0:
+            raise ValueError("amplitude_m must be non-negative")
+        omega = _finite_scalar("omega_radps", self.omega_radps)
+        if omega <= 0.0:
+            raise ValueError("omega_radps must be positive")
+        phase = _finite_scalar("phase_rad", self.phase_rad)
+        direction = _finite_scalar("direction_to_rad", self.direction_to_rad)
+        object.__setattr__(self, "amplitude_m", amp)
+        object.__setattr__(self, "omega_radps", omega)
+        object.__setattr__(self, "phase_rad", phase)
+        object.__setattr__(self, "direction_to_rad", direction % (2.0 * math.pi))
+
+
+@dataclass(frozen=True)
+class WaveFieldSample:
+    """Immutable raw wave field description."""
+
+    significant_height_m: float
+    peak_period_s: float
+    direction_to_rad: float
+    components: tuple[WaveComponent, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Validate non-negative Hs, positive Tp, and freeze components."""
+        hs = _finite_scalar("significant_height_m", self.significant_height_m)
+        if hs < 0.0:
+            raise ValueError("significant_height_m must be non-negative")
+        tp = _finite_scalar("peak_period_s", self.peak_period_s)
+        if tp <= 0.0:
+            raise ValueError("peak_period_s must be positive")
+        dir_rad = _finite_scalar("direction_to_rad", self.direction_to_rad)
+        object.__setattr__(self, "significant_height_m", hs)
+        object.__setattr__(self, "peak_period_s", tp)
+        object.__setattr__(self, "direction_to_rad", dir_rad % (2.0 * math.pi))
+        object.__setattr__(self, "components", tuple(self.components))
+
+
+@dataclass(frozen=True)
+class MeanDriftSourceSample:
+    """Immutable vessel-independent wave energy and directional reference for #51 mean-drift load model.
+
+    Explicitly contains NO vessel forces or moments (VR-49-01, ALT-49-01).
+    """
+
+    components: tuple[WaveComponent, ...]
+    directional_spread_rad: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Validate non-negative directional spread and freeze components."""
+        spread = _finite_scalar("directional_spread_rad", self.directional_spread_rad)
+        if spread < 0.0:
+            raise ValueError("directional_spread_rad must be non-negative")
+        object.__setattr__(self, "components", tuple(self.components))
+        object.__setattr__(self, "directional_spread_rad", spread)
+
+
+@dataclass(frozen=True)
+class EnvironmentTruth:
+    """Complete immutable true environment state at query time and position."""
+
+    wind: WindSample
+    current: CurrentSample
+    wave: WaveFieldSample
+    mean_drift: MeanDriftSourceSample
+    time_s: float = 0.0
+    tick: int = 0
+    stage_offset_s: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Validate time, tick, and non-negative stage offset."""
+        object.__setattr__(self, "time_s", _finite_scalar("time_s", self.time_s))
+        if self.tick < 0:
+            raise ValueError("tick must be non-negative")
+        offset = _finite_scalar("stage_offset_s", self.stage_offset_s)
+        if offset < 0.0:
+            raise ValueError("stage_offset_s must be non-negative")
+        object.__setattr__(self, "stage_offset_s", offset)
+
+
+@dataclass(frozen=True)
+class EnvironmentObservation:
+    """Immutable observed or estimated environment state for GNC guidance/control."""
+
+    wind: WindSample | None = None
+    current: CurrentSample | None = None
+    wave: WaveFieldSample | None = None
+    mean_drift: MeanDriftSourceSample | None = None
+    source: str = "PASS_THROUGH"
+    quality: float = 1.0
+    age_s: float = 0.0
+    status: EnvironmentStatus = EnvironmentStatus.AVAILABLE
+    time_s: float = 0.0
+    tick: int = 0
+
+    def __post_init__(self) -> None:
+        """Validate metadata, coerce status enum, and freeze."""
+        object.__setattr__(self, "source", str(self.source))
+        object.__setattr__(self, "quality", _finite_scalar("quality", self.quality))
+        age = _finite_scalar("age_s", self.age_s)
+        if age < 0.0:
+            raise ValueError("age_s must be non-negative")
+        object.__setattr__(self, "age_s", age)
+        object.__setattr__(self, "status", EnvironmentStatus(self.status))
+        object.__setattr__(self, "time_s", _finite_scalar("time_s", self.time_s))
+        if self.tick < 0:
+            raise ValueError("tick must be non-negative")
+
+    @classmethod
+    def from_truth(
+        cls,
+        truth: EnvironmentTruth,
+        source: str = "PASS_THROUGH",
+        quality: float = 1.0,
+    ) -> EnvironmentObservation:
+        """Construct explicit pass-through observation from truth with type separation."""
+        return cls(
+            wind=truth.wind,
+            current=truth.current,
+            wave=truth.wave,
+            mean_drift=truth.mean_drift,
+            source=source,
+            quality=quality,
+            age_s=0.0,
+            status=EnvironmentStatus.AVAILABLE,
+            time_s=truth.time_s,
+            tick=truth.tick,
+        )
+
+    @classmethod
+    def unavailable(
+        cls,
+        source: str = "UNAVAILABLE",
+        tick: int = 0,
+        time_s: float = 0.0,
+    ) -> EnvironmentObservation:
+        """Construct explicit unavailable observation."""
+        return cls(
+            wind=None,
+            current=None,
+            wave=None,
+            mean_drift=None,
+            source=source,
+            quality=0.0,
+            age_s=0.0,
+            status=EnvironmentStatus.UNAVAILABLE,
+            time_s=time_s,
+            tick=tick,
+        )
 
 
 def _finite_scalar(name: str, value: float) -> float:
