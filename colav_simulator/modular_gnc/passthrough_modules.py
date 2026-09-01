@@ -9,6 +9,7 @@ import numpy as np
 
 from colav_simulator.modular_gnc.contracts import (
     DirectReference,
+    EnvironmentalLoads,
     EnvironmentObservation,
     EnvironmentTruth,
     NavigationSource,
@@ -19,6 +20,7 @@ from colav_simulator.modular_gnc.contracts import (
 
 if TYPE_CHECKING:
     from colav_simulator.modular_gnc.environment import EnvironmentField
+    from colav_simulator.modular_gnc.load_model import EnvironmentalLoadModel
 
 
 @dataclass(frozen=True)
@@ -31,6 +33,7 @@ class PassThroughSnapshot:
     navigation_source: NavigationSource = NavigationSource.TRUTH_PROJECTION
     held_truth: EnvironmentTruth | None = None
     held_observation: EnvironmentObservation | None = None
+    held_loads: EnvironmentalLoads | None = None
 
 
 class PassThroughModules:
@@ -43,16 +46,19 @@ class PassThroughModules:
         fail_phase: str | None = None,
         fail_tick: int | None = None,
         environment_field: EnvironmentField | None = None,
+        load_model: EnvironmentalLoadModel | None = None,
     ) -> None:
         self._fail_phase = fail_phase
         self._fail_tick = fail_tick
         self._environment_field = environment_field
+        self._load_model = load_model
         self._state = PlantState(np.zeros(6), frozenset({"PLANAR_3DOF"}))
         self._navigation_source = NavigationSource.TRUTH_PROJECTION
         self._phase_counts = dict.fromkeys(self.phase_order, 0)
         self._route_consumptions: list[tuple[int, str, int]] = []
         self._held_truth: EnvironmentTruth | None = None
         self._held_observation: EnvironmentObservation | None = None
+        self._held_loads: EnvironmentalLoads | None = None
 
     def reset(self, navigation: NavigationState, seed: int) -> None:  # noqa: ARG002
         """Reset deterministic state from navigation truth projection."""
@@ -67,6 +73,11 @@ class PassThroughModules:
         else:
             self._held_truth = None
             self._held_observation = None
+
+        if self._load_model is not None and self._held_truth is not None:
+            self._held_loads = self._load_model.compute_loads(self._held_truth, navigation)
+        else:
+            self._held_loads = None
 
     def run_phase(
         self,
@@ -84,6 +95,8 @@ class PassThroughModules:
             pos = (self._state.values[0], self._state.values[1])
             self._held_truth = self._environment_field.sample_at(tick, 0.0, pos)
             self._held_observation = self._environment_field.sample_observation(tick, 0.0, pos)
+            if self._load_model is not None and self._held_truth is not None:
+                self._held_loads = self._load_model.compute_loads(self._held_truth, self.navigation())
         if phase == "guidance" and route is not None:
             self._route_consumptions.append((tick, route.route_id, route.revision))
         if phase == "plant" and reference is not None:
@@ -108,6 +121,10 @@ class PassThroughModules:
         """Return currently held environment observation sample."""
         return self._held_observation
 
+    def environmental_loads(self) -> EnvironmentalLoads | None:
+        """Return currently held environmental loads."""
+        return self._held_loads
+
     def snapshot(self) -> PassThroughSnapshot:
         """Capture complete pass-through module state."""
         return PassThroughSnapshot(
@@ -117,6 +134,7 @@ class PassThroughModules:
             self._navigation_source,
             self._held_truth,
             self._held_observation,
+            self._held_loads,
         )
 
     def restore(self, snapshot: PassThroughSnapshot) -> None:
@@ -127,6 +145,7 @@ class PassThroughModules:
         self._route_consumptions = list(snapshot.route_consumptions)
         self._held_truth = snapshot.held_truth
         self._held_observation = snapshot.held_observation
+        self._held_loads = snapshot.held_loads
 
     @property
     def route_consumptions(self) -> tuple[tuple[int, str, int], ...]:

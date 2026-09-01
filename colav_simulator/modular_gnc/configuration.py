@@ -60,7 +60,7 @@ REGISTRY_V1 = MappingProxyType(
             "1.0.0",
             "plant.v1",
             frozenset({"PLANAR_3DOF", "KINEMATIC_REFERENCE"}),
-            {},
+            {"current_relative_damping": {"type": "boolean"}},
         ),
         "pass_through_guidance": RegistryEntry(
             "pass_through_guidance", "guidance", "1.0.0", "guidance.v1", frozenset({"DIRECT_REFERENCE"}), {}
@@ -104,6 +104,40 @@ REGISTRY_V1 = MappingProxyType(
             "1.0.0",
             "environment.v1",
             frozenset({"PASS_THROUGH"}),
+            {},
+        ),
+        "standard_environmental_load": RegistryEntry(
+            "standard_environmental_load",
+            "load_model",
+            "1.0.0",
+            "load_model.v1",
+            frozenset({"WIND_LOAD", "CURRENT_LOAD"}),
+            {
+                "length_between_perpendiculars_m": {"type": "number"},
+                "beam_m": {"type": "number"},
+                "draft_m": {"type": "number"},
+                "wind_frontal_area_m2": {"type": "number"},
+                "wind_lateral_area_m2": {"type": "number"},
+                "wind_z_center_m": {"type": "number"},
+                "wind_roll_moment_arm_m": {"type": "number"},
+                "air_density_kg_m3": {"type": "number"},
+                "water_depth_m": {"type": "number"},
+                "kg_m": {"type": "number"},
+                "current_roll_moment_arm_m": {"type": "number"},
+                "water_density_kg_m3": {"type": "number"},
+                "current_strategy": {"type": "string"},
+                "enable_wind": {"type": "boolean"},
+                "enable_current": {"type": "boolean"},
+                "current_relative_damping": {"type": "boolean"},
+                "external_current_load": {"type": "boolean"},
+            },
+        ),
+        "pass_through_load_model": RegistryEntry(
+            "pass_through_load_model",
+            "load_model",
+            "1.0.0",
+            "load_model.v1",
+            frozenset({"ZERO_LOAD"}),
             {},
         ),
     }
@@ -190,6 +224,46 @@ def _validate_selection(role: str, selection: ModuleSelection) -> None:
         raise UnsupportedModuleCombinationError(f"unsupported parameters for {selection.identity}: {sorted(unknown)}")
 
 
+def _validate_current_strategy_deduplication(modules: Mapping[str, ModuleSelection]) -> None:
+    """Validate exclusive current strategy contract (spec L105, VR-09)."""
+    if "load_model" in modules:
+        lm_params = modules["load_model"].parameters
+        c_strat = lm_params.get("current_strategy")
+        has_crd = bool(lm_params.get("current_relative_damping", False))
+        has_ecl = bool(lm_params.get("external_current_load", False))
+
+        if has_crd and has_ecl:
+            raise UnsupportedModuleCombinationError(
+                "current_relative_damping and external_current_load are mutually exclusive (de-duplication VR-09/L105)"
+            )
+        if c_strat is not None:
+            if str(c_strat) in ("both", "duplicate", "all"):
+                raise UnsupportedModuleCombinationError(
+                    f"unsupported current_strategy '{c_strat}': current_relative_damping and "
+                    "external_current_load are mutually exclusive"
+                )
+            if str(c_strat) not in ("none", "current_relative_damping", "external_current_load"):
+                raise UnsupportedModuleCombinationError(f"unknown current_strategy: {c_strat}")
+            if (str(c_strat) == "current_relative_damping" and has_ecl) or (
+                str(c_strat) == "external_current_load" and has_crd
+            ):
+                raise UnsupportedModuleCombinationError(
+                    "current_relative_damping and external_current_load are mutually exclusive"
+                )
+
+    if "plant" in modules and "load_model" in modules:
+        plant_params = modules["plant"].parameters
+        lm_params = modules["load_model"].parameters
+        plant_crd = bool(plant_params.get("current_relative_damping", False))
+        lm_ecl = lm_params.get("current_strategy") == "external_current_load" or bool(
+            lm_params.get("external_current_load", False)
+        )
+        if plant_crd and lm_ecl:
+            raise UnsupportedModuleCombinationError(
+                "cannot combine plant current_relative_damping with load_model external_current_load (VR-09/L105)"
+            )
+
+
 def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     """Apply defaults, preset, then controlled overrides and validate registry tuple."""
     source = json.loads(json.dumps(config))
@@ -208,10 +282,10 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     normalized = _deep_merge(normalized, overrides)
     raw_modules = source.get("modules", {})
     required_roles = {"plant", "guidance", "controller"}
-    allowed_roles = {"plant", "guidance", "controller", "environment"}
+    allowed_roles = {"plant", "guidance", "controller", "environment", "load_model"}
     if not (required_roles.issubset(raw_modules) and set(raw_modules).issubset(allowed_roles)):
         raise UnsupportedModuleCombinationError(
-            "modules must select plant, guidance, and controller (optional: environment)"
+            "modules must select plant, guidance, and controller (optional: environment, load_model)"
         )
     modules = {}
     for role, raw in raw_modules.items():
@@ -223,6 +297,9 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
         modules[role] = ModuleSelection(str(raw["identity"]), raw.get("parameters", {}))
     for role, selection in modules.items():
         _validate_selection(role, selection)
+
+    _validate_current_strategy_deduplication(modules)
+
     scheduler = normalized["scheduler"]
     if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in scheduler.values()):
         raise UnsupportedModuleCombinationError("scheduler periods must be positive integer ticks")

@@ -20,6 +20,7 @@ from colav_simulator.modular_gnc.environment import (
     AnalyticEnvironmentField,
     PassThroughEnvironmentField,
 )
+from colav_simulator.modular_gnc.load_model import EnvironmentalLoadModel
 from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
 
 
@@ -55,7 +56,16 @@ class ModularShipStack:
                 )
             elif env_sel.identity == "pass_through_environment":
                 env_field = PassThroughEnvironmentField(dt_s=dt_s)
-        modules = PassThroughModules(environment_field=env_field)
+
+        load_model = None
+        if "load_model" in config.modules:
+            lm_sel = config.modules["load_model"]
+            if lm_sel.identity == "standard_environmental_load":
+                load_model = EnvironmentalLoadModel.from_params(lm_sel.parameters)
+            elif lm_sel.identity == "pass_through_load_model":
+                load_model = None
+
+        modules = PassThroughModules(environment_field=env_field, load_model=load_model)
         return cls(config, modules)
 
     def reset(self, navigation: NavigationState, seed: int) -> None:
@@ -148,6 +158,7 @@ class ModularShipStack:
             plant=self._modules.plant_state(),
             applied_reference=latched.direct_reference,
             environment_observation=getattr(self._modules, "environment_observation", lambda: None)(),
+            environmental_loads=getattr(self._modules, "environmental_loads", lambda: None)(),
         )
         self._tick += 1
         return output
@@ -172,6 +183,7 @@ class ModularShipStack:
             applied_reference=None,
             failure=failure,
             environment_observation=getattr(self._modules, "environment_observation", lambda: None)(),
+            environmental_loads=getattr(self._modules, "environmental_loads", lambda: None)(),
         )
 
     def _uninitialized_failure(self, message: str) -> StackOutput:
@@ -182,6 +194,7 @@ class ModularShipStack:
             plant=PlantState(zero.as_array(), frozenset({"PLANAR_3DOF"})),
             applied_reference=None,
             failure=FacadeFailure(FailureCode.INVALID_INPUT, message, "facade", self._tick),
+            environmental_loads=None,
         )
 
     @property
