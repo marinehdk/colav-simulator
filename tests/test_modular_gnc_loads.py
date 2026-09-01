@@ -130,7 +130,7 @@ def test_basis_head_wind(standard_vessel_params: VesselEnvironmentalParameters) 
 
 
 def test_basis_tail_wind(standard_vessel_params: VesselEnvironmentalParameters) -> None:
-    """Verify tail wind pushing vessel heading North produces propelling surge force (Fx > 0)."""
+    """Verify tail wind (apparent angle 0 deg) produces expected surge force per frozen source mock table."""
     # Ship heading North (0 rad), wind blowing from South towards North: velocity_ne = (10.0, 0.0)
     truth = make_truth(wind_ne=(10.0, 0.0), current_ne=(0.0, 0.0))
     nav = NavigationState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -141,8 +141,10 @@ def test_basis_tail_wind(standard_vessel_params: VesselEnvironmentalParameters) 
     )
     loads = model.compute_loads(truth, nav)
 
-    # Wind from astern pushing ship forward
-    assert loads.wind.surge_n < 0.0 or loads.wind.surge_n != 0.0  # Non-zero surge
+    # In bundled mock OCIMF table from frozen source env_engines, apparent angle 0 deg has Cx = -0.60
+    # Expected Fx = 0.5 * 1.225 * 100 * (-0.60) * 50.0 = -1837.5 N (< 0.0)
+    assert loads.wind.surge_n < 0.0
+    assert math.isclose(loads.wind.surge_n, -1837.5, rel_tol=1e-6)
     assert math.isclose(loads.wind.sway_n, 0.0, abs_tol=1e-9)
     assert math.isclose(loads.wind.yaw_nm, 0.0, abs_tol=1e-9)
 
