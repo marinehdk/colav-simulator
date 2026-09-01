@@ -12,12 +12,12 @@ from colav_simulator.modular_gnc.contracts import (
     EnvironmentObservation,
     EnvironmentStatus,
     EnvironmentTruth,
-    FailureCode,
     MeanDriftSourceSample,
     WaveComponent,
     WaveFieldSample,
     WindSample,
 )
+from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
 
 
 def test_wind_sample_pins_frame_units_to_direction_and_speed() -> None:
@@ -124,25 +124,62 @@ def test_environment_truth_and_observation_type_separation() -> None:
     assert unavailable_obs.wind is None
     assert unavailable_obs.quality == 0.0
 
-    # Type level assertion functions simulating plant vs GNC consumers
-    def plant_consumer(t: EnvironmentTruth) -> float:
-        if not isinstance(t, EnvironmentTruth):
-            raise TypeError("Plant consumer strictly requires EnvironmentTruth")
-        return t.wind.speed_mps
+    # Type separation via constructor rejections (RA-05)
+    with pytest.raises(TypeError, match="wind must be WindSample, got EnvironmentObservation"):
+        EnvironmentTruth(wind=obs, current=current, wave=wave, mean_drift=drift, tick=0)  # type: ignore[arg-type]
 
-    def gnc_consumer(o: EnvironmentObservation) -> float:
-        if not isinstance(o, EnvironmentObservation):
-            raise TypeError("GNC consumer strictly requires EnvironmentObservation")
-        if o.status is EnvironmentStatus.UNAVAILABLE or o.wind is None:
-            raise ValueError(FailureCode.DEPENDENCY_UNAVAILABLE.value)
-        return o.wind.speed_mps
+    with pytest.raises(TypeError, match="wind must be WindSample or None, got EnvironmentTruth"):
+        EnvironmentObservation(wind=truth)  # type: ignore[arg-type]
 
-    assert plant_consumer(truth) == 5.0
-    with pytest.raises(TypeError, match="EnvironmentTruth"):
-        plant_consumer(obs)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="truth must be EnvironmentTruth"):
+        EnvironmentObservation.from_truth(obs)  # type: ignore[arg-type]
 
-    assert gnc_consumer(obs) == 5.0
-    with pytest.raises(TypeError, match="EnvironmentObservation"):
-        gnc_consumer(truth)  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match=FailureCode.DEPENDENCY_UNAVAILABLE.value):
-        gnc_consumer(unavailable_obs)
+    # Real public field API returns strictly separated types
+    field = AnalyticEnvironmentField(dt_s=0.1, field_seed=42, wind_velocity_ne=(5.0, 0.0))
+    truth_sample = field.sample_at(0, 0.0)
+    obs_sample = field.sample_observation(0, 0.0)
+
+    assert isinstance(truth_sample, EnvironmentTruth)
+    assert not isinstance(truth_sample, EnvironmentObservation)
+    assert isinstance(obs_sample, EnvironmentObservation)
+    assert not isinstance(obs_sample, EnvironmentTruth)
+
+
+def test_environment_contracts_negative_types_and_ticks() -> None:
+    wind = WindSample(velocity_ne=(1.0, 1.0), reference_height_m=10.0)
+    current = CurrentSample(velocity_ne=(0.2, 0.2))
+    comp = WaveComponent(amplitude_m=0.5, omega_radps=1.0, phase_rad=0.0, direction_to_rad=0.0)
+    wave = WaveFieldSample(significant_height_m=1.0, peak_period_s=5.0, direction_to_rad=0.0, components=(comp,))
+    drift = MeanDriftSourceSample(components=(comp,))
+
+    # Reject bool for tick
+    with pytest.raises(TypeError, match="tick must be an integer, got bool"):
+        EnvironmentTruth(wind=wind, current=current, wave=wave, mean_drift=drift, tick=True)
+    with pytest.raises(TypeError, match="tick must be an integer, got bool"):
+        EnvironmentObservation(tick=False)
+
+    # Reject float or non-int for tick
+    with pytest.raises(TypeError, match="tick must be an integer"):
+        EnvironmentTruth(wind=wind, current=current, wave=wave, mean_drift=drift, tick=2.5)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="tick must be an integer"):
+        EnvironmentObservation(tick="not-an-int")  # type: ignore[arg-type]
+
+    # Reject negative ticks
+    with pytest.raises(ValueError, match="tick must be non-negative"):
+        EnvironmentTruth(wind=wind, current=current, wave=wave, mean_drift=drift, tick=-1)
+    with pytest.raises(ValueError, match="tick must be non-negative"):
+        EnvironmentObservation(tick=-5)
+
+    # Reject non-WaveComponent items in components
+    with pytest.raises(TypeError, match="must be WaveComponent"):
+        WaveFieldSample(1.0, 5.0, 0.0, components=(123,))  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="must be WaveComponent"):
+        MeanDriftSourceSample(components=[wind])  # type: ignore[list-item]
+
+    # Reject non-sequence for components
+    with pytest.raises(TypeError, match="must be a sequence of WaveComponent"):
+        WaveFieldSample(1.0, 5.0, 0.0, components=123)  # type: ignore[arg-type]
+
+    # Reject empty string source
+    with pytest.raises(ValueError, match="source must be a non-empty string"):
+        EnvironmentObservation(source="")

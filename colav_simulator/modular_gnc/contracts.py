@@ -68,6 +68,23 @@ class EnvironmentStatus(str, Enum):
     UNAVAILABLE = "UNAVAILABLE"
 
 
+def _finite_scalar(name: str, value: float) -> float:
+    if isinstance(value, bool):
+        raise TypeError(f"{name} must be a float, got bool")
+    result = float(value)
+    if not np.isfinite(result):
+        raise ValueError(f"{name} must be finite")
+    return result
+
+
+def _non_bool_int(name: str, value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an integer, got {type(value).__name__}")
+    if value < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return int(value)
+
+
 @dataclass(frozen=True)
 class WindSample:
     """Immutable raw wind field sample in NE world to-direction."""
@@ -172,6 +189,11 @@ class WaveFieldSample:
         if tp <= 0.0:
             raise ValueError("peak_period_s must be positive")
         dir_rad = _finite_scalar("direction_to_rad", self.direction_to_rad)
+        if not isinstance(self.components, (list, tuple)):
+            raise TypeError("components must be a sequence of WaveComponent")
+        for i, comp in enumerate(self.components):
+            if not isinstance(comp, WaveComponent):
+                raise TypeError(f"components[{i}] must be WaveComponent, got {type(comp).__name__}")
         object.__setattr__(self, "significant_height_m", hs)
         object.__setattr__(self, "peak_period_s", tp)
         object.__setattr__(self, "direction_to_rad", dir_rad % (2.0 * math.pi))
@@ -193,6 +215,11 @@ class MeanDriftSourceSample:
         spread = _finite_scalar("directional_spread_rad", self.directional_spread_rad)
         if spread < 0.0:
             raise ValueError("directional_spread_rad must be non-negative")
+        if not isinstance(self.components, (list, tuple)):
+            raise TypeError("components must be a sequence of WaveComponent")
+        for i, comp in enumerate(self.components):
+            if not isinstance(comp, WaveComponent):
+                raise TypeError(f"components[{i}] must be WaveComponent, got {type(comp).__name__}")
         object.__setattr__(self, "components", tuple(self.components))
         object.__setattr__(self, "directional_spread_rad", spread)
 
@@ -210,10 +237,17 @@ class EnvironmentTruth:
     stage_offset_s: float = 0.0
 
     def __post_init__(self) -> None:
-        """Validate time, tick, and non-negative stage offset."""
+        """Validate time, tick, child types, and non-negative stage offset."""
+        if not isinstance(self.wind, WindSample):
+            raise TypeError(f"wind must be WindSample, got {type(self.wind).__name__}")
+        if not isinstance(self.current, CurrentSample):
+            raise TypeError(f"current must be CurrentSample, got {type(self.current).__name__}")
+        if not isinstance(self.wave, WaveFieldSample):
+            raise TypeError(f"wave must be WaveFieldSample, got {type(self.wave).__name__}")
+        if not isinstance(self.mean_drift, MeanDriftSourceSample):
+            raise TypeError(f"mean_drift must be MeanDriftSourceSample, got {type(self.mean_drift).__name__}")
         object.__setattr__(self, "time_s", _finite_scalar("time_s", self.time_s))
-        if self.tick < 0:
-            raise ValueError("tick must be non-negative")
+        object.__setattr__(self, "tick", _non_bool_int("tick", self.tick))
         offset = _finite_scalar("stage_offset_s", self.stage_offset_s)
         if offset < 0.0:
             raise ValueError("stage_offset_s must be non-negative")
@@ -236,8 +270,18 @@ class EnvironmentObservation:
     tick: int = 0
 
     def __post_init__(self) -> None:
-        """Validate metadata, coerce status enum, and freeze."""
-        object.__setattr__(self, "source", str(self.source))
+        """Validate metadata, child types, coerce status enum, and freeze."""
+        if self.wind is not None and not isinstance(self.wind, WindSample):
+            raise TypeError(f"wind must be WindSample or None, got {type(self.wind).__name__}")
+        if self.current is not None and not isinstance(self.current, CurrentSample):
+            raise TypeError(f"current must be CurrentSample or None, got {type(self.current).__name__}")
+        if self.wave is not None and not isinstance(self.wave, WaveFieldSample):
+            raise TypeError(f"wave must be WaveFieldSample or None, got {type(self.wave).__name__}")
+        if self.mean_drift is not None and not isinstance(self.mean_drift, MeanDriftSourceSample):
+            raise TypeError(f"mean_drift must be MeanDriftSourceSample or None, got {type(self.mean_drift).__name__}")
+        if not isinstance(self.source, str) or not self.source:
+            raise ValueError("source must be a non-empty string")
+        object.__setattr__(self, "source", self.source)
         object.__setattr__(self, "quality", _finite_scalar("quality", self.quality))
         age = _finite_scalar("age_s", self.age_s)
         if age < 0.0:
@@ -245,8 +289,7 @@ class EnvironmentObservation:
         object.__setattr__(self, "age_s", age)
         object.__setattr__(self, "status", EnvironmentStatus(self.status))
         object.__setattr__(self, "time_s", _finite_scalar("time_s", self.time_s))
-        if self.tick < 0:
-            raise ValueError("tick must be non-negative")
+        object.__setattr__(self, "tick", _non_bool_int("tick", self.tick))
 
     @classmethod
     def from_truth(
@@ -256,6 +299,8 @@ class EnvironmentObservation:
         quality: float = 1.0,
     ) -> EnvironmentObservation:
         """Construct explicit pass-through observation from truth with type separation."""
+        if not isinstance(truth, EnvironmentTruth):
+            raise TypeError(f"truth must be EnvironmentTruth, got {type(truth).__name__}")
         return cls(
             wind=truth.wind,
             current=truth.current,
@@ -289,13 +334,6 @@ class EnvironmentObservation:
             time_s=time_s,
             tick=tick,
         )
-
-
-def _finite_scalar(name: str, value: float) -> float:
-    result = float(value)
-    if not np.isfinite(result):
-        raise ValueError(f"{name} must be finite")
-    return result
 
 
 def immutable_float64_array(name: str, values: Any, shape: tuple[int, ...]) -> FloatArray:
