@@ -1791,6 +1791,13 @@ async def _stream(websocket: WebSocket, session_id: str | None = None, *, compac
             receive_task = asyncio.create_task(websocket.receive())
     except (WebSocketDisconnect, ConnectionError, OSError):
         return
+    except RuntimeError as exc:
+        # Uvicorn's websockets-sansio implementation reports a peer-close race
+        # as RuntimeError instead of OSError/WebSocketDisconnect.
+        error_text = str(exc)
+        if "websocket.send" not in error_text or "websocket.close" not in error_text:
+            raise
+        return
     finally:
         receive_task.cancel()
         with suppress(asyncio.CancelledError, WebSocketDisconnect, ConnectionError, OSError):

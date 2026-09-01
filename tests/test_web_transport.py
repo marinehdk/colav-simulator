@@ -46,6 +46,17 @@ class _SendClosedWebSocket:
         raise AssertionError("send failure should terminate the stream first")
 
 
+class _RuntimeClosedWebSocket:
+    async def accept(self) -> None:
+        return None
+
+    async def send_text(self, _document: str) -> None:
+        raise RuntimeError("Unexpected ASGI message 'websocket.send', after sending 'websocket.close'.")
+
+    async def receive(self) -> dict[str, str | int]:
+        raise AssertionError("send failure should terminate the stream first")
+
+
 def test_display_trail_is_bounded_without_losing_endpoints() -> None:
     trail = [[float(index), float(-index)] for index in range(500)]
 
@@ -111,6 +122,10 @@ def test_stream_stops_after_client_disconnect_without_republishing_forever() -> 
 
 def test_stream_ignores_socket_send_failure_after_peer_closes() -> None:
     asyncio.run(_stream(_SendClosedWebSocket()))
+
+
+def test_stream_ignores_uvicorn_close_race_after_peer_closes() -> None:
+    asyncio.run(_stream(_RuntimeClosedWebSocket()))
 
 
 def test_compact_stream_payload_removes_wire_duplicates_and_repeated_static_data() -> None:
