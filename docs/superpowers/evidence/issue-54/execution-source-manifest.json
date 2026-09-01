@@ -1,6 +1,6 @@
 {
   "archive_path": "/tmp/issue54-H-source.tar.gz",
-  "archive_sha256": "a0e24311824fbee4c319ef336afc32771f61478e3670391020e0db17a983ebb5",
+  "archive_sha256": "ea9f8ea57b21fbfb29be923fec3bbd6b53cd92e11d35d1ff6ad3b2abc4d62942",
   "clean_status": true,
   "creation_command": "git archive --format=tar 6372f961ff39c9048d27baf61cca926d11566a7a | gzip -1 > /tmp/issue54-H-source.tar.gz",
   "execution_source_commit": "6372f961ff39c9048d27baf61cca926d11566a7a",
