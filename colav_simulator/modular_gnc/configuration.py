@@ -112,7 +112,7 @@ REGISTRY_V1 = MappingProxyType(
             "load_model",
             "1.0.0",
             "load_model.v1",
-            frozenset({"WIND_LOAD", "CURRENT_LOAD"}),
+            frozenset({"WIND_LOAD", "CURRENT_LOAD", "WAVE_FIRST_ORDER_LOAD", "WAVE_MEAN_DRIFT_LOAD"}),
             {
                 "length_between_perpendiculars_m": {"type": "number"},
                 "beam_m": {"type": "number"},
@@ -126,7 +126,13 @@ REGISTRY_V1 = MappingProxyType(
                 "kg_m": {"type": "number"},
                 "current_roll_moment_arm_m": {"type": "number"},
                 "water_density_kg_m3": {"type": "number"},
+                "displacement_ton": {"type": "number"},
+                "gm_t_m": {"type": "number"},
+                "bow_angle_rad": {"type": "number"},
+                "c_wl_aft": {"type": "number"},
+                "gravity_mps2": {"type": "number"},
                 "current_strategy": {"type": "string"},
+                "wave_mode": {"type": "string"},
                 "enable_wind": {"type": "boolean"},
                 "enable_current": {"type": "boolean"},
                 "current_relative_damping": {"type": "boolean"},
@@ -296,6 +302,23 @@ def _validate_current_strategy_deduplication(modules: Mapping[str, ModuleSelecti
             )
 
 
+def _validate_wave_mode(modules: Mapping[str, ModuleSelection]) -> None:
+    """Validate explicit wave load mode (VR-09, VR-10, spec L106)."""
+    if "load_model" in modules:
+        lm_params = modules["load_model"].parameters
+        wave_mode = lm_params.get("wave_mode")
+        if wave_mode is not None:
+            if not isinstance(wave_mode, str):
+                raise UnsupportedModuleCombinationError(
+                    f"parameter wave_mode for load_model must be a string, got {type(wave_mode).__name__}"
+                )
+            valid_modes = {"off", "first_order", "mean_drift", "both"}
+            if wave_mode.lower() not in valid_modes:
+                raise UnsupportedModuleCombinationError(
+                    f"unknown wave_mode: {wave_mode} (must be one of {sorted(valid_modes)})"
+                )
+
+
 def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     """Apply defaults, preset, then controlled overrides and validate registry tuple."""
     source = json.loads(json.dumps(config))
@@ -331,6 +354,7 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
         _validate_selection(role, selection)
 
     _validate_current_strategy_deduplication(modules)
+    _validate_wave_mode(modules)
 
     scheduler = normalized["scheduler"]
     if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in scheduler.values()):

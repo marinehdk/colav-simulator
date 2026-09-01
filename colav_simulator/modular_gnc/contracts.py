@@ -108,6 +108,15 @@ class CurrentStrategy(str, Enum):
     EXTERNAL_CURRENT_LOAD = "external_current_load"
 
 
+class WaveLoadMode(str, Enum):
+    """Explicit wave load calculation mode (VR-09, VR-10, spec L106)."""
+
+    OFF = "off"
+    FIRST_ORDER = "first_order"
+    MEAN_DRIFT = "mean_drift"
+    BOTH = "both"
+
+
 def _non_empty_str(name: str, value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} must be a non-empty string")

@@ -207,3 +207,39 @@ def test_environment_parameters_change_config_hash() -> None:
     norm1 = normalize_ship_modules(cfg1)
     norm2 = normalize_ship_modules(cfg2)
     assert norm1.config_hash != norm2.config_hash
+
+
+def test_wave_mode_configuration_validation_and_hash() -> None:
+    for mode in ("off", "first_order", "mean_drift", "both"):
+        cfg = _modular_config()
+        cfg["modules"]["load_model"] = {
+            "identity": "standard_environmental_load",
+            "parameters": {"wave_mode": mode},
+        }
+        norm = normalize_ship_modules(cfg)
+        assert norm.modules["load_model"].parameters["wave_mode"] == mode
+
+    # Invalid wave mode rejected
+    bad_cfg = _modular_config()
+    bad_cfg["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {"wave_mode": "invalid_wave_mode"},
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="unknown wave_mode"):
+        normalize_ship_modules(bad_cfg)
+
+    # Different wave mode changes config hash
+    cfg_off = _modular_config()
+    cfg_off["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {"wave_mode": "off"},
+    }
+    cfg_both = _modular_config()
+    cfg_both["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {"wave_mode": "both"},
+    }
+    norm_off = normalize_ship_modules(cfg_off)
+    norm_both = normalize_ship_modules(cfg_both)
+    assert norm_off.config_hash != norm_both.config_hash
+
