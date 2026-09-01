@@ -22,23 +22,37 @@ from colav_simulator.modular_gnc.contracts import (
 )
 
 
+def _non_empty_str(name: str, value: Any) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{name} must be a non-empty string")
+    return value
+
+
 def derive_prf_seed(master_seed: int, domain: str) -> int:
     """Derive deterministic non-negative 64-bit integer seed for a named domain."""
-    h = hashlib.sha256(f"{int(master_seed)}:{str(domain)}".encode()).digest()
+    valid_seed = _non_bool_int("master_seed", master_seed)
+    valid_domain = _non_empty_str("domain", domain)
+    h = hashlib.sha256(f"{valid_seed}:{valid_domain}".encode()).digest()
     return int.from_bytes(h[:8], byteorder="big", signed=False)
 
 
 def prf_uniform(seed: int, tick: int, channel: str) -> float:
     """Generate stateless uniform float in [0.0, 1.0) using keyed PRF."""
-    h = hashlib.sha256(f"{int(seed)}:{str(channel)}:{int(tick)}".encode()).digest()
+    valid_seed = _non_bool_int("seed", seed)
+    valid_tick = _non_bool_int("tick", tick)
+    valid_channel = _non_empty_str("channel", channel)
+    h = hashlib.sha256(f"{valid_seed}:{valid_channel}:{valid_tick}".encode()).digest()
     val = int.from_bytes(h[:8], byteorder="big", signed=False) >> 11
     return float(val / (1 << 53))
 
 
 def prf_gaussian(seed: int, tick: int, channel: str) -> float:
     """Generate stateless standard normal float using Box-Muller transform on keyed PRF."""
-    u1 = max(1e-15, prf_uniform(seed, tick, f"{channel}:u1"))
-    u2 = prf_uniform(seed, tick, f"{channel}:u2")
+    valid_seed = _non_bool_int("seed", seed)
+    valid_tick = _non_bool_int("tick", tick)
+    valid_channel = _non_empty_str("channel", channel)
+    u1 = max(1e-15, prf_uniform(valid_seed, valid_tick, f"{valid_channel}:u1"))
+    u2 = prf_uniform(valid_seed, valid_tick, f"{valid_channel}:u2")
     return float(math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2))
 
 
@@ -213,7 +227,8 @@ class AnalyticEnvironmentField:
         episode_seed: int,
     ) -> AnalyticEnvironmentField:
         """Construct deterministic field from frozen parameter mapping and master seed."""
-        field_seed = derive_prf_seed(episode_seed, "environment_field")
+        valid_seed = _non_bool_int("episode_seed", episode_seed)
+        field_seed = derive_prf_seed(valid_seed, "environment_field")
         return cls(
             dt_s=dt_s,
             field_seed=field_seed,
@@ -253,19 +268,22 @@ class AnalyticEnvironmentField:
         position_ne: tuple[float, float] | FloatArray = (0.0, 0.0),  # noqa: ARG002
     ) -> EnvironmentTruth:
         """Pure query returning immutable EnvironmentTruth at exact simulation time."""
-        if tick < 0:
-            raise ValueError("tick must be non-negative")
+        valid_tick = _non_bool_int("tick", tick)
         if not (0.0 <= stage_offset_s < self._dt_s):
             raise ValueError(f"stage_offset_s must be in [0, {self._dt_s}), got {stage_offset_s}")
 
-        time_s = tick * self._dt_s + stage_offset_s
+        time_s = valid_tick * self._dt_s + stage_offset_s
 
         # Stateless PRF perturbations per tick
         wind_n_pert = (
-            prf_gaussian(self._field_seed, tick, "wind_n") * self._wind_pert_std[0] if self._wind_pert_std[0] > 0.0 else 0.0
+            prf_gaussian(self._field_seed, valid_tick, "wind_n") * self._wind_pert_std[0]
+            if self._wind_pert_std[0] > 0.0
+            else 0.0
         )
         wind_e_pert = (
-            prf_gaussian(self._field_seed, tick, "wind_e") * self._wind_pert_std[1] if self._wind_pert_std[1] > 0.0 else 0.0
+            prf_gaussian(self._field_seed, valid_tick, "wind_e") * self._wind_pert_std[1]
+            if self._wind_pert_std[1] > 0.0
+            else 0.0
         )
         wind_sample = WindSample(
             velocity_ne=(self._wind_base_ne[0] + wind_n_pert, self._wind_base_ne[1] + wind_e_pert),
@@ -273,12 +291,12 @@ class AnalyticEnvironmentField:
         )
 
         curr_n_pert = (
-            prf_gaussian(self._field_seed, tick, "curr_n") * self._current_pert_std[0]
+            prf_gaussian(self._field_seed, valid_tick, "curr_n") * self._current_pert_std[0]
             if self._current_pert_std[0] > 0.0
             else 0.0
         )
         curr_e_pert = (
-            prf_gaussian(self._field_seed, tick, "curr_e") * self._current_pert_std[1]
+            prf_gaussian(self._field_seed, valid_tick, "curr_e") * self._current_pert_std[1]
             if self._current_pert_std[1] > 0.0
             else 0.0
         )
@@ -305,7 +323,7 @@ class AnalyticEnvironmentField:
             wave=wave_sample,
             mean_drift=drift_sample,
             time_s=time_s,
-            tick=tick,
+            tick=valid_tick,
             stage_offset_s=stage_offset_s,
         )
 
@@ -316,14 +334,13 @@ class AnalyticEnvironmentField:
         position_ne: tuple[float, float] | FloatArray = (0.0, 0.0),
     ) -> EnvironmentObservation:
         """Return immutable EnvironmentObservation at exact simulation time."""
-        if tick < 0:
-            raise ValueError("tick must be non-negative")
+        valid_tick = _non_bool_int("tick", tick)
         if not (0.0 <= stage_offset_s < self._dt_s):
             raise ValueError(f"stage_offset_s must be in [0, {self._dt_s}), got {stage_offset_s}")
         if not self._available:
-            time_s = tick * self._dt_s + stage_offset_s
-            return EnvironmentObservation.unavailable(source="ANALYTIC_FIELD", tick=tick, time_s=time_s)
-        truth = self.sample_at(tick, stage_offset_s, position_ne)
+            time_s = valid_tick * self._dt_s + stage_offset_s
+            return EnvironmentObservation.unavailable(source="ANALYTIC_FIELD", tick=valid_tick, time_s=time_s)
+        truth = self.sample_at(valid_tick, stage_offset_s, position_ne)
         return EnvironmentObservation.from_truth(truth, source="ANALYTIC_FIELD", quality=1.0)
 
 
@@ -347,18 +364,17 @@ class PassThroughEnvironmentField:
         position_ne: tuple[float, float] | FloatArray = (0.0, 0.0),  # noqa: ARG002
     ) -> EnvironmentTruth:
         """Return deterministic zero EnvironmentTruth."""
-        if tick < 0:
-            raise ValueError("tick must be non-negative")
+        valid_tick = _non_bool_int("tick", tick)
         if not (0.0 <= stage_offset_s < self._dt_s):
             raise ValueError(f"stage_offset_s must be in [0, {self._dt_s}), got {stage_offset_s}")
-        time_s = tick * self._dt_s + stage_offset_s
+        time_s = valid_tick * self._dt_s + stage_offset_s
         return EnvironmentTruth(
             wind=WindSample(velocity_ne=(0.0, 0.0)),
             current=CurrentSample(velocity_ne=(0.0, 0.0)),
             wave=WaveFieldSample(significant_height_m=0.0, peak_period_s=1.0, direction_to_rad=0.0),
             mean_drift=MeanDriftSourceSample(components=()),
             time_s=time_s,
-            tick=tick,
+            tick=valid_tick,
             stage_offset_s=stage_offset_s,
         )
 

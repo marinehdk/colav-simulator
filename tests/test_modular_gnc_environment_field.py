@@ -54,6 +54,64 @@ def test_prf_uniform_and_gaussian_are_stateless_and_reproducible() -> None:
     assert math.isfinite(g1)
 
 
+def test_prf_helpers_reject_invalid_and_non_integer_inputs() -> None:
+    # derive_prf_seed input validations
+    with pytest.raises(TypeError, match="master_seed must be an integer"):
+        derive_prf_seed(1.9, "domain")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="master_seed must be an integer, got bool"):
+        derive_prf_seed(True, "domain")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="master_seed must be an integer"):
+        derive_prf_seed("42", "domain")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="master_seed must be an integer"):
+        derive_prf_seed(None, "domain")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="master_seed must be non-negative"):
+        derive_prf_seed(-1, "domain")
+    with pytest.raises(ValueError, match="domain must be a non-empty string"):
+        derive_prf_seed(42, "")
+    with pytest.raises(ValueError, match="domain must be a non-empty string"):
+        derive_prf_seed(42, 123)  # type: ignore[arg-type]
+
+    # prf_uniform input validations
+    with pytest.raises(TypeError, match="seed must be an integer"):
+        prf_uniform(1.9, tick=10, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="tick must be an integer"):
+        prf_uniform(10, tick=1.9, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="seed must be an integer, got bool"):
+        prf_uniform(True, tick=10, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="tick must be an integer, got bool"):
+        prf_uniform(10, tick=False, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="seed must be an integer"):
+        prf_uniform(None, tick=10, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="tick must be an integer"):
+        prf_uniform(10, tick=None, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="seed must be non-negative"):
+        prf_uniform(-1, tick=10, channel="wind_n")
+    with pytest.raises(ValueError, match="tick must be non-negative"):
+        prf_uniform(10, tick=-1, channel="wind_n")
+    with pytest.raises(ValueError, match="channel must be a non-empty string"):
+        prf_uniform(10, tick=10, channel="")
+    with pytest.raises(ValueError, match="channel must be a non-empty string"):
+        prf_uniform(10, tick=10, channel=123)  # type: ignore[arg-type]
+
+    # prf_gaussian input validations
+    with pytest.raises(TypeError, match="seed must be an integer"):
+        prf_gaussian(1.9, tick=10, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="tick must be an integer"):
+        prf_gaussian(10, tick=1.9, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="seed must be an integer, got bool"):
+        prf_gaussian(True, tick=10, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="tick must be an integer, got bool"):
+        prf_gaussian(10, tick=False, channel="wind_n")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="seed must be non-negative"):
+        prf_gaussian(-1, tick=10, channel="wind_n")
+    with pytest.raises(ValueError, match="tick must be non-negative"):
+        prf_gaussian(10, tick=-1, channel="wind_n")
+    with pytest.raises(ValueError, match="channel must be a non-empty string"):
+        prf_gaussian(10, tick=10, channel="")
+    with pytest.raises(ValueError, match="channel must be a non-empty string"):
+        prf_gaussian(10, tick=10, channel=None)  # type: ignore[arg-type]
+
+
 def test_analytic_environment_field_sample_at_exact_time_and_stage_offset() -> None:
     field = AnalyticEnvironmentField(
         dt_s=0.1,
