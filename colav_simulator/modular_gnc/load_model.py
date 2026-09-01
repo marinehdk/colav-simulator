@@ -96,8 +96,9 @@ class WindCoeffTableAsset:
         for i in range(len(self.table) - 1):
             if self.table[i + 1].angle_deg <= self.table[i].angle_deg:
                 raise ValueError(
-                    f"Wind table angles must be strictly increasing without duplicates; "
-                    f"table[{i}].angle_deg ({self.table[i].angle_deg}) >= table[{i+1}].angle_deg ({self.table[i+1].angle_deg})"
+                    f"Wind table angles must be strictly increasing; "
+                    f"table[{i}].angle_deg ({self.table[i].angle_deg}) >= "
+                    f"table[{i + 1}].angle_deg ({self.table[i + 1].angle_deg})"
                 )
         object.__setattr__(self, "table", tuple(self.table))
 
@@ -174,8 +175,9 @@ class CurrentCoeffTableAsset:
         for i in range(len(self.table) - 1):
             if self.table[i + 1].heading_deg <= self.table[i].heading_deg:
                 raise ValueError(
-                    f"Current table headings must be strictly increasing without duplicates; "
-                    f"table[{i}].heading_deg ({self.table[i].heading_deg}) >= table[{i+1}].heading_deg ({self.table[i+1].heading_deg})"
+                    f"Current table headings must be strictly increasing; "
+                    f"table[{i}].heading_deg ({self.table[i].heading_deg}) >= "
+                    f"table[{i + 1}].heading_deg ({self.table[i + 1].heading_deg})"
                 )
         object.__setattr__(self, "table", tuple(self.table))
 
@@ -607,6 +609,62 @@ class CurrentLoadModel:
         )
 
 
+def _resolve_current_strategy(params: dict[str, Any] | Mapping[str, Any]) -> CurrentStrategy:
+    """Resolve and validate current strategy from normalized parameter mapping."""
+    if "current_relative_damping" in params:
+        raw_crd = params["current_relative_damping"]
+        if not isinstance(raw_crd, bool):
+            raise TypeError(f"current_relative_damping must be an exact bool, got {type(raw_crd).__name__}")
+        has_crd = raw_crd
+    else:
+        has_crd = False
+
+    if "external_current_load" in params:
+        raw_ecl = params["external_current_load"]
+        if not isinstance(raw_ecl, bool):
+            raise TypeError(f"external_current_load must be an exact bool, got {type(raw_ecl).__name__}")
+        has_ecl = raw_ecl
+    else:
+        has_ecl = False
+
+    if has_crd and has_ecl:
+        raise ValueError(
+            "current_relative_damping and external_current_load are mutually exclusive (de-duplication VR-09/L105)"
+        )
+
+    strat_str = params.get("current_strategy")
+    if strat_str is not None:
+        if not isinstance(strat_str, str):
+            raise TypeError(f"current_strategy must be a string, got {type(strat_str).__name__}")
+        if strat_str in ("both", "duplicate", "all"):
+            raise ValueError(
+                f"unsupported current_strategy '{strat_str}': current_relative_damping and "
+                "external_current_load are mutually exclusive"
+            )
+        return CurrentStrategy(strat_str)
+    if has_ecl:
+        return CurrentStrategy.EXTERNAL_CURRENT_LOAD
+    return CurrentStrategy.CURRENT_RELATIVE_DAMPING
+
+
+def _build_vessel_parameters(params: dict[str, Any] | Mapping[str, Any]) -> VesselEnvironmentalParameters:
+    """Construct VesselEnvironmentalParameters from parameter mapping."""
+    return VesselEnvironmentalParameters(
+        length_between_perpendiculars_m=params.get("length_between_perpendiculars_m", 44.1),
+        beam_m=params.get("beam_m", 8.0),
+        draft_m=params.get("draft_m", 1.55),
+        wind_frontal_area_m2=params.get("wind_frontal_area_m2", 50.0),
+        wind_lateral_area_m2=params.get("wind_lateral_area_m2", 150.0),
+        wind_z_center_m=params.get("wind_z_center_m", 3.0),
+        wind_roll_moment_arm_m=params.get("wind_roll_moment_arm_m"),
+        air_density_kg_m3=params.get("air_density_kg_m3", 1.225),
+        water_depth_m=params.get("water_depth_m", 50.0),
+        kg_m=params.get("kg_m", 2.0),
+        current_roll_moment_arm_m=params.get("current_roll_moment_arm_m"),
+        water_density_kg_m3=params.get("water_density_kg_m3", 1025.0),
+    )
+
+
 class EnvironmentalLoadModel:
     """Plant-side environmental load model with explicit component summation and current de-duplication (VR-09, VR-10)."""
 
@@ -736,43 +794,7 @@ class EnvironmentalLoadModel:
     @classmethod
     def from_params(cls, params: dict[str, Any] | Mapping[str, Any]) -> EnvironmentalLoadModel:
         """Construct EnvironmentalLoadModel from normalized parameter dictionary."""
-        if "current_relative_damping" in params:
-            raw_crd = params["current_relative_damping"]
-            if not isinstance(raw_crd, bool):
-                raise TypeError(f"current_relative_damping must be an exact bool, got {type(raw_crd).__name__}")
-            has_crd = raw_crd
-        else:
-            has_crd = False
-
-        if "external_current_load" in params:
-            raw_ecl = params["external_current_load"]
-            if not isinstance(raw_ecl, bool):
-                raise TypeError(f"external_current_load must be an exact bool, got {type(raw_ecl).__name__}")
-            has_ecl = raw_ecl
-        else:
-            has_ecl = False
-
-        if has_crd and has_ecl:
-            raise ValueError(
-                "current_relative_damping and external_current_load are mutually exclusive (de-duplication VR-09/L105)"
-            )
-
-        strat_str = params.get("current_strategy")
-        if strat_str is not None:
-            if not isinstance(strat_str, str):
-                raise TypeError(f"current_strategy must be a string, got {type(strat_str).__name__}")
-            if strat_str in ("both", "duplicate", "all"):
-                raise ValueError(
-                    f"unsupported current_strategy '{strat_str}': current_relative_damping and "
-                    "external_current_load are mutually exclusive"
-                )
-            strategy = CurrentStrategy(strat_str)
-        elif has_ecl:
-            strategy = CurrentStrategy.EXTERNAL_CURRENT_LOAD
-        elif has_crd:
-            strategy = CurrentStrategy.CURRENT_RELATIVE_DAMPING
-        else:
-            strategy = CurrentStrategy.CURRENT_RELATIVE_DAMPING
+        strategy = _resolve_current_strategy(params)
 
         enable_wind = params.get("enable_wind", True)
         if not isinstance(enable_wind, bool):
@@ -781,20 +803,7 @@ class EnvironmentalLoadModel:
         if not isinstance(enable_current, bool):
             raise TypeError(f"enable_current must be an exact bool, got {type(enable_current).__name__}")
 
-        v_params = VesselEnvironmentalParameters(
-            length_between_perpendiculars_m=params.get("length_between_perpendiculars_m", 44.1),
-            beam_m=params.get("beam_m", 8.0),
-            draft_m=params.get("draft_m", 1.55),
-            wind_frontal_area_m2=params.get("wind_frontal_area_m2", 50.0),
-            wind_lateral_area_m2=params.get("wind_lateral_area_m2", 150.0),
-            wind_z_center_m=params.get("wind_z_center_m", 3.0),
-            wind_roll_moment_arm_m=params.get("wind_roll_moment_arm_m"),
-            air_density_kg_m3=params.get("air_density_kg_m3", 1.225),
-            water_depth_m=params.get("water_depth_m", 50.0),
-            kg_m=params.get("kg_m", 2.0),
-            current_roll_moment_arm_m=params.get("current_roll_moment_arm_m"),
-            water_density_kg_m3=params.get("water_density_kg_m3", 1025.0),
-        )
+        v_params = _build_vessel_parameters(params)
 
         return cls(
             vessel_params=v_params,

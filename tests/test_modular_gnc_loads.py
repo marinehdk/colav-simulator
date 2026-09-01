@@ -578,8 +578,6 @@ def test_current_table_interpolation_fallback_ccy() -> None:
     assert math.isclose(cmx, 0.01)
 
 
-
-
 # ---------------------------------------------------------------------------
 # 9. Asset Trust & Validation Impossibility (TS-23, VR-10, ALT-25)
 # ---------------------------------------------------------------------------
@@ -664,7 +662,6 @@ def test_contracts_nested_deep_freeze_and_aliasing() -> None:
     assert loads.details["status"]["active"] is True
 
 
-
 @pytest.mark.parametrize("bad_angle", [float("nan"), float("inf"), float("-inf"), "45.0", True])
 def test_asset_angle_normalization_rejects_nonfinite(bad_angle: Any) -> None:
     """Verify WindCoeffEntry, CurrentCoeffEntry, and InferredCurrentAsset reject nonfinite/invalid angles."""
@@ -682,7 +679,6 @@ def test_asset_angle_normalization_rejects_nonfinite(bad_angle: Any) -> None:
 
     with pytest.raises((TypeError, ValueError)):
         DEFAULT_INFERRED_CURRENT_ASSET.evaluate(bad_angle)
-
 
 
 # ---------------------------------------------------------------------------
@@ -957,5 +953,3 @@ def test_stack_out_of_domain_maps_to_typed_failure_code() -> None:
     assert step1.failure.code == FailureCode.OUT_OF_DOMAIN
     assert step1.failure.phase == "environment"
     assert step1.failure.details["exception_type"] == "OutOfDomainError"
-
-

@@ -210,6 +210,35 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return result
 
 
+def _validate_parameter_type(identity: str, param_name: str, raw_val: Any, spec: Mapping[str, Any]) -> None:
+    expected_type = spec.get("type")
+    if expected_type == "boolean":
+        if not isinstance(raw_val, bool):
+            raise UnsupportedModuleCombinationError(
+                f"parameter {param_name} for {identity} must be an exact boolean, got {type(raw_val).__name__}"
+            )
+    elif expected_type == "number":
+        if isinstance(raw_val, bool) or not isinstance(raw_val, (int, float)) or not math.isfinite(raw_val):
+            raise UnsupportedModuleCombinationError(
+                f"parameter {param_name} for {identity} must be a finite number, got {raw_val!r}"
+            )
+    elif expected_type == "integer":
+        if isinstance(raw_val, bool) or not isinstance(raw_val, int):
+            raise UnsupportedModuleCombinationError(
+                f"parameter {param_name} for {identity} must be an integer, got {raw_val!r}"
+            )
+    elif expected_type == "string":
+        if not isinstance(raw_val, str):
+            raise UnsupportedModuleCombinationError(
+                f"parameter {param_name} for {identity} must be a string, got {raw_val!r}"
+            )
+    elif expected_type == "array":
+        if not isinstance(raw_val, (list, tuple)):
+            raise UnsupportedModuleCombinationError(
+                f"parameter {param_name} for {identity} must be an array, got {raw_val!r}"
+            )
+
+
 def _validate_selection(role: str, selection: ModuleSelection) -> None:
     entry = REGISTRY_V1.get(selection.identity)
     if entry is None:
@@ -224,33 +253,7 @@ def _validate_selection(role: str, selection: ModuleSelection) -> None:
     if unknown:
         raise UnsupportedModuleCombinationError(f"unsupported parameters for {selection.identity}: {sorted(unknown)}")
     for param_name, raw_val in selection.parameters.items():
-        spec = entry.parameter_schema[param_name]
-        expected_type = spec.get("type")
-        if expected_type == "boolean":
-            if not isinstance(raw_val, bool):
-                raise UnsupportedModuleCombinationError(
-                    f"parameter {param_name} for {selection.identity} must be an exact boolean, got {type(raw_val).__name__}"
-                )
-        elif expected_type == "number":
-            if isinstance(raw_val, bool) or not isinstance(raw_val, (int, float)) or not math.isfinite(raw_val):
-                raise UnsupportedModuleCombinationError(
-                    f"parameter {param_name} for {selection.identity} must be a finite number, got {raw_val!r}"
-                )
-        elif expected_type == "integer":
-            if isinstance(raw_val, bool) or not isinstance(raw_val, int):
-                raise UnsupportedModuleCombinationError(
-                    f"parameter {param_name} for {selection.identity} must be an integer, got {raw_val!r}"
-                )
-        elif expected_type == "string":
-            if not isinstance(raw_val, str):
-                raise UnsupportedModuleCombinationError(
-                    f"parameter {param_name} for {selection.identity} must be a string, got {raw_val!r}"
-                )
-        elif expected_type == "array":
-            if not isinstance(raw_val, (list, tuple)):
-                raise UnsupportedModuleCombinationError(
-                    f"parameter {param_name} for {selection.identity} must be an array, got {raw_val!r}"
-                )
+        _validate_parameter_type(selection.identity, param_name, raw_val, entry.parameter_schema[param_name])
 
 
 def _validate_current_strategy_deduplication(modules: Mapping[str, ModuleSelection]) -> None:

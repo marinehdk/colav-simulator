@@ -152,7 +152,6 @@ def test_configuration_rejects_invalid_numeric_parameters(bad_num: Any) -> None:
         normalize_ship_modules(cfg)
 
 
-
 def test_environment_module_selection_normalization_and_validation() -> None:
     cfg = _modular_config()
     cfg["modules"]["environment"] = {
