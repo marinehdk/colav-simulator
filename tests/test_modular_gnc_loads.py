@@ -630,16 +630,27 @@ def test_asset_angle_normalization_rejects_nonfinite(bad_angle: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 10. Benchmark Parity Tests (with env_model_baseline_v1.json)
+# 10. Benchmark Parity Tests (with frozen external baseline)
 # ---------------------------------------------------------------------------
+
+FROZEN_SOURCE_TREE = "L4-5_source_only_20260824_v2"
+FROZEN_BENCHMARK_RELATIVE_PATH = "src/environment/env_engines/data/benchmarks/env_model_baseline_v1.json"
+FROZEN_BENCHMARK_ID = "env_model_baseline_v1"
+FROZEN_BENCHMARK_SCHEMA_VERSION = "env_model_baseline.v1"
+FROZEN_BENCHMARK_SHA256 = "66672967bd34a46d399c66e159c53775ac0f9de4df4983270289e118f6a148d3"
 
 
 def test_benchmark_wind_beam_10ms_parity() -> None:
-    """Verify exact numerical parity with env_model_baseline_v1.json wind_beam_10ms_v1 case."""
-    # From env_model_baseline_v1.json:
-    # wind_speed_mps: 10.0, wind_direction_deg_to: 90.0, heading_deg: 0.0
-    # frontal_area: 450.0, lateral_area: 1500.0, lpp: 270.0, z_center: 15.0, air_rho: 1.225
-    # Expected: force_x = 5512.5, force_y = 73500.0, torque_x = -1102500.0, torque_z = 0.0
+    """Verify exact numerical parity with frozen baseline case 'wind_beam_10ms_v1'.
+
+    Source: L4-5_source_only_20260824_v2 / env_model_baseline_v1.json
+    SHA-256: 66672967bd34a46d399c66e159c53775ac0f9de4df4983270289e118f6a148d3
+    Case ID: wind_beam_10ms_v1 (model: wind, asset: wind_ocimf_embedded_mock_v1)
+    Inputs: wind_speed=10.0 m/s, wind_dir=90.0 deg (to East), heading=0.0 deg,
+            frontal_area=450.0 m2, lateral_area=1500.0 m2, lpp=270.0 m,
+            z_center=15.0 m, air_rho=1.225 kg/m3.
+    Expected: force_x=5512.5 N, force_y=73500.0 N, torque_x=-1102500.0 Nm, torque_z=0.0 Nm.
+    """
     wind = WindSample(velocity_ne=(0.0, 10.0))  # 90 deg to-direction = East
     params = VesselEnvironmentalParameters(
         length_between_perpendiculars_m=270.0,
@@ -667,11 +678,15 @@ def test_benchmark_wind_beam_10ms_parity() -> None:
 
 
 def test_benchmark_current_beam_inferred_1p2ms_parity() -> None:
-    """Verify exact numerical parity with env_model_baseline_v1.json current_beam_inferred_1p2ms_v1 case."""
-    # From env_model_baseline_v1.json:
-    # apparent_current_speed_mps: 1.2, apparent_current_direction_deg: 90.0
-    # draft: 6.0, depth: 50.0, lpp: 80.0, beam: 15.0, kg: 4.0, water_rho: 1025.0
-    # Expected: force_x ~ 0.0, force_y = 247968.0, torque_x = 495936.0, torque_z = 283392.0
+    """Verify exact numerical parity with frozen baseline case 'current_beam_inferred_1p2ms_v1'.
+
+    Source: L4-5_source_only_20260824_v2 / env_model_baseline_v1.json
+    SHA-256: 66672967bd34a46d399c66e159c53775ac0f9de4df4983270289e118f6a148d3
+    Case ID: current_beam_inferred_1p2ms_v1 (model: current, asset: current_coeffs_mock_v1)
+    Inputs: apparent_speed=1.2 m/s, apparent_dir=90.0 deg, draft=6.0 m,
+            depth=50.0 m, lpp=80.0 m, beam=15.0 m, kg=4.0 m, water_rho=1025.0 kg/m3.
+    Expected: force_x ~ 0.0 N, force_y=247968.0 N, torque_x=495936.0 Nm, torque_z=283392.0 Nm.
+    """
     current = CurrentSample(velocity_ne=(0.0, 1.2))  # 90 deg to-direction
     params = VesselEnvironmentalParameters(
         length_between_perpendiculars_m=80.0,
