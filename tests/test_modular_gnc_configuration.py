@@ -7,6 +7,7 @@ import pytest
 
 from colav_simulator.core import ship
 from colav_simulator.modular_gnc.configuration import (
+    REGISTRY_V1,
     DependencyUnavailableError,
     UnsupportedModuleCombinationError,
     normalize_ship_modules,
@@ -159,3 +160,26 @@ def test_environment_module_selection_normalization_and_validation() -> None:
     }
     with pytest.raises(UnsupportedModuleCombinationError, match="registered for role plant, not environment"):
         normalize_ship_modules(role_mismatch_cfg)
+
+
+def test_registry_parameter_schema_nested_is_deep_frozen() -> None:
+    entry = REGISTRY_V1["analytic_environment_field"]
+    with pytest.raises(TypeError):
+        entry.parameter_schema["wind_velocity_ne"]["type"] = "string"
+
+
+def test_environment_parameters_change_config_hash() -> None:
+    cfg1 = _modular_config()
+    cfg1["modules"]["environment"] = {
+        "identity": "analytic_environment_field",
+        "parameters": {"wind_velocity_ne": [3.0, 4.0]},
+    }
+    cfg2 = _modular_config()
+    cfg2["modules"]["environment"] = {
+        "identity": "analytic_environment_field",
+        "parameters": {"wind_velocity_ne": [3.0, 4.1]},
+    }
+
+    norm1 = normalize_ship_modules(cfg1)
+    norm2 = normalize_ship_modules(cfg2)
+    assert norm1.config_hash != norm2.config_hash

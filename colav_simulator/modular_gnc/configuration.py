@@ -49,7 +49,7 @@ class RegistryEntry:
     def __post_init__(self) -> None:
         """Freeze capabilities and parameter schema."""
         object.__setattr__(self, "capabilities", frozenset(self.capabilities))
-        object.__setattr__(self, "parameter_schema", MappingProxyType(dict(self.parameter_schema)))
+        object.__setattr__(self, "parameter_schema", _deep_freeze(self.parameter_schema))
 
 
 REGISTRY_V1 = MappingProxyType(
