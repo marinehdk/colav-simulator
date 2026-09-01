@@ -77,6 +77,35 @@ REGISTRY_V1 = MappingProxyType(
             {},
             available=False,
         ),
+        "analytic_environment_field": RegistryEntry(
+            "analytic_environment_field",
+            "environment",
+            "1.0.0",
+            "environment.v1",
+            frozenset({"WIND", "CURRENT", "WAVE_FIELD", "MEAN_DRIFT"}),
+            {
+                "wind_velocity_ne": {"type": "array"},
+                "wind_reference_height_m": {"type": "number"},
+                "wind_perturbation_std": {"type": "array"},
+                "current_velocity_ne": {"type": "array"},
+                "current_reference": {"type": "string"},
+                "current_perturbation_std": {"type": "array"},
+                "wave_significant_height_m": {"type": "number"},
+                "wave_peak_period_s": {"type": "number"},
+                "wave_direction_to_rad": {"type": "number"},
+                "wave_num_components": {"type": "integer"},
+                "wave_directional_spread_rad": {"type": "number"},
+                "available": {"type": "boolean"},
+            },
+        ),
+        "pass_through_environment": RegistryEntry(
+            "pass_through_environment",
+            "environment",
+            "1.0.0",
+            "environment.v1",
+            frozenset({"PASS_THROUGH"}),
+            {},
+        ),
     }
 )
 
@@ -179,8 +208,11 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     normalized = _deep_merge(normalized, overrides)
     raw_modules = source.get("modules", {})
     required_roles = {"plant", "guidance", "controller"}
-    if set(raw_modules) != required_roles:
-        raise UnsupportedModuleCombinationError("modules must select plant, guidance, and controller")
+    allowed_roles = {"plant", "guidance", "controller", "environment"}
+    if not (required_roles.issubset(raw_modules) and set(raw_modules).issubset(allowed_roles)):
+        raise UnsupportedModuleCombinationError(
+            "modules must select plant, guidance, and controller (optional: environment)"
+        )
     modules = {}
     for role, raw in raw_modules.items():
         unknown_selection = set(raw) - {"identity", "parameters"}

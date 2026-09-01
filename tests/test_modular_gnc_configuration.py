@@ -125,3 +125,38 @@ def test_registry_rejects_unsupported_tuple_separately_from_dependency_unavailab
     unavailable["modules"]["controller"]["identity"] = "optional_native_controller"
     with pytest.raises(DependencyUnavailableError):
         normalize_ship_modules(unavailable)
+
+
+def test_environment_module_selection_normalization_and_validation() -> None:
+    cfg = _modular_config()
+    cfg["modules"]["environment"] = {
+        "identity": "analytic_environment_field",
+        "parameters": {
+            "wind_velocity_ne": [3.0, 4.0],
+            "wave_significant_height_m": 1.2,
+            "wave_peak_period_s": 6.5,
+        },
+    }
+    normalized = normalize_ship_modules(cfg)
+    assert "environment" in normalized.modules
+    assert normalized.modules["environment"].identity == "analytic_environment_field"
+    assert normalized.modules["environment"].parameters["wind_velocity_ne"] == (3.0, 4.0)
+
+    # Unknown environment parameter rejected
+    bad_param_cfg = _modular_config()
+    bad_param_cfg["modules"]["environment"] = {
+        "identity": "analytic_environment_field",
+        "parameters": {"unknown_field": 123},
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="unsupported parameters"):
+        normalize_ship_modules(bad_param_cfg)
+
+    # Role mismatch for environment rejected
+    role_mismatch_cfg = _modular_config()
+    role_mismatch_cfg["modules"]["environment"] = {
+        "identity": "pass_through_plant",
+        "parameters": {},
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="registered for role plant, not environment"):
+        normalize_ship_modules(role_mismatch_cfg)
+
