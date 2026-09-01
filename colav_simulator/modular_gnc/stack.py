@@ -12,6 +12,7 @@ from colav_simulator.modular_gnc.contracts import (
     FacadeFailure,
     FailureCode,
     NavigationState,
+    OutOfDomainError,
     PlantState,
     StackOutput,
     StackSnapshot,
@@ -143,6 +144,15 @@ class ModularShipStack:
                     latched.tracked_route,
                     dt_s,
                 )
+        except OutOfDomainError as exc:
+            failure = FacadeFailure(
+                code=FailureCode.OUT_OF_DOMAIN,
+                message=str(exc),
+                phase=phase,
+                tick=self._tick,
+                details={"exception_type": type(exc).__name__},
+            )
+            return self._failure_output(before, failure)
         except Exception as exc:  # noqa: BLE001
             failure = FacadeFailure(
                 code=FailureCode.MODULE_FAILURE,

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
+import numpy as np
 import pytest
 
 from colav_simulator.modular_gnc.configuration import (
@@ -20,8 +22,10 @@ from colav_simulator.modular_gnc.contracts import (
     CurrentReference,
     CurrentSample,
     CurrentStrategy,
+    DirectReference,
     EnvironmentalLoads,
     EnvironmentTruth,
+    FailureCode,
     MeanDriftSourceSample,
     NavigationState,
     OutOfDomainError,
@@ -913,3 +917,45 @@ def test_stack_integration_with_load_model() -> None:
 
     assert step1.environmental_loads == step1_replay.environmental_loads
     assert step1.plant == step1_replay.plant
+
+
+def test_stack_out_of_domain_maps_to_typed_failure_code() -> None:
+    """Verify ModularShipStack maps OutOfDomainError to FailureCode.OUT_OF_DOMAIN."""
+    config = normalize_ship_modules(
+        {
+            "modules": {
+                "plant": {"identity": "pass_through_plant"},
+                "guidance": {"identity": "pass_through_guidance"},
+                "controller": {"identity": "pass_through_controller"},
+                "environment": {
+                    "identity": "analytic_environment_field",
+                    "parameters": {
+                        "wind_velocity_ne": [-50.0, 0.0],  # Within 60 m/s limit at surge=0
+                    },
+                },
+                "load_model": {
+                    "identity": "standard_environmental_load",
+                },
+            }
+        }
+    )
+
+    stack = ModularShipStack.from_config(config, dt_s=0.1)
+    nav0 = NavigationState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    stack.reset(nav0, seed=42)
+
+    # Step 0: Command ship to surge forward at 20 m/s into the -50 m/s wind
+    ref_vals = np.zeros(9)
+    ref_vals[3] = 20.0
+    cmd0 = CommandInput.direct(0, DirectReference(values=ref_vals, latched_tick=0))
+    step0 = stack.step(cmd0, dt_s=0.1)
+    assert step0.failure is None
+
+    # Step 1: Apparent wind speed is 70 m/s, exceeding 60 m/s asset domain
+    step1 = stack.step(CommandInput.none(1), dt_s=0.1)
+    assert step1.failure is not None
+    assert step1.failure.code == FailureCode.OUT_OF_DOMAIN
+    assert step1.failure.phase == "environment"
+    assert step1.failure.details["exception_type"] == "OutOfDomainError"
+
+
