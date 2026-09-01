@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import threading
 from itertools import pairwise
@@ -12,7 +13,37 @@ from gui_server.main import (
     WebSessionManager,
     _compact_stream_payload,
     _sample_display_trail,
+    _stream,
 )
+
+
+class _DisconnectingWebSocket:
+    def __init__(self) -> None:
+        self.send_count = 0
+        self.receive_count = 0
+
+    async def accept(self) -> None:
+        return None
+
+    async def send_text(self, _document: str) -> None:
+        self.send_count += 1
+        if self.send_count > 1:
+            raise AssertionError("stream did not observe the client disconnect")
+
+    async def receive(self) -> dict[str, str | int]:
+        self.receive_count += 1
+        return {"type": "websocket.disconnect", "code": 1000}
+
+
+class _SendClosedWebSocket:
+    async def accept(self) -> None:
+        return None
+
+    async def send_text(self, _document: str) -> None:
+        raise OSError("peer closed")
+
+    async def receive(self) -> dict[str, str | int]:
+        raise AssertionError("send failure should terminate the stream first")
 
 
 def test_display_trail_is_bounded_without_losing_endpoints() -> None:
@@ -67,6 +98,19 @@ def test_stream_document_is_cached_and_json_safe() -> None:
 
     assert first is second
     assert json.loads(first) == {"seq": 7, "dcpa": None}
+
+
+def test_stream_stops_after_client_disconnect_without_republishing_forever() -> None:
+    websocket = _DisconnectingWebSocket()
+
+    asyncio.run(_stream(websocket))
+
+    assert websocket.send_count == 1
+    assert websocket.receive_count == 1
+
+
+def test_stream_ignores_socket_send_failure_after_peer_closes() -> None:
+    asyncio.run(_stream(_SendClosedWebSocket()))
 
 
 def test_compact_stream_payload_removes_wire_duplicates_and_repeated_static_data() -> None:

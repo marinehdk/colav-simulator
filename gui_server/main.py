@@ -1774,6 +1774,7 @@ def api_set_speed(multiplier: float = 1.0) -> dict[str, Any]:
 async def _stream(websocket: WebSocket, session_id: str | None = None, *, compact: bool = False) -> None:
     await websocket.accept()
     include_static = True
+    receive_task = asyncio.create_task(websocket.receive())
     try:
         while True:
             if session_id and manager.session_id != session_id:
@@ -1781,9 +1782,19 @@ async def _stream(websocket: WebSocket, session_id: str | None = None, *, compac
                 return
             await websocket.send_text(manager.stream_document(compact=compact, include_static=include_static))
             include_static = False
-            await asyncio.sleep(0.1)
-    except WebSocketDisconnect:
+            try:
+                message = await asyncio.wait_for(asyncio.shield(receive_task), timeout=0.1)
+            except asyncio.TimeoutError:
+                continue
+            if message.get("type") == "websocket.disconnect":
+                return
+            receive_task = asyncio.create_task(websocket.receive())
+    except (WebSocketDisconnect, ConnectionError, OSError):
         return
+    finally:
+        receive_task.cancel()
+        with suppress(asyncio.CancelledError, WebSocketDisconnect, ConnectionError, OSError):
+            await receive_task
 
 
 @app.websocket("/ws/sessions/{session_id}")
