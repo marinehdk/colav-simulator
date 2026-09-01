@@ -29,10 +29,12 @@ from colav_simulator.modular_gnc.contracts import (
 
 
 def _normalize_degrees(angle_deg: float) -> float:
-    """Normalize angle to [0.0, 360.0)."""
+    """Normalize finite angle to [0.0, 360.0)."""
+    if isinstance(angle_deg, bool) or not isinstance(angle_deg, (int, float)):
+        raise TypeError(f"angle_deg must be a float, got {type(angle_deg).__name__}")
     if not math.isfinite(angle_deg):
-        return 0.0
-    val = angle_deg % 360.0
+        raise ValueError(f"angle_deg must be finite, got {angle_deg}")
+    val = float(angle_deg) % 360.0
     if val < 0.0:
         val += 360.0
     return float(val)
@@ -222,8 +224,9 @@ class InferredCurrentAsset:
 
     def evaluate(self, gamma_rad: float) -> tuple[float, float, float, float]:
         """Evaluate (ccx, ccy, cmz, cmx) analytically from relative flow angle."""
-        c = math.cos(gamma_rad)
-        s = math.sin(gamma_rad)
+        gamma = _finite_scalar("gamma_rad", gamma_rad)
+        c = math.cos(gamma)
+        s = math.sin(gamma)
         ccx = 0.15 * c
         ccy = 0.70 * s * abs(s)
         cmz = 0.010 * s

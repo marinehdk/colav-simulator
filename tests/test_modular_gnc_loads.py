@@ -34,9 +34,11 @@ from colav_simulator.modular_gnc.load_model import (
     DEFAULT_INFERRED_CURRENT_ASSET,
     DEFAULT_OCIMF_WIND_ASSET,
     DEFAULT_TABLE_CURRENT_ASSET,
+    CurrentCoeffEntry,
     CurrentLoadModel,
     EnvironmentalLoadModel,
     VesselEnvironmentalParameters,
+    WindCoeffEntry,
     WindCoeffTableAsset,
     WindLoadModel,
     world_ne_to_body_velocity,
@@ -542,6 +544,26 @@ def test_valid_calibrated_asset_creation() -> None:
     )
     assert meta.trust_level == AssetTrustLevel.VALIDATED_FOR_VESSEL
     assert meta.source_type == "tank_test"
+
+
+@pytest.mark.parametrize("bad_angle", [float("nan"), float("inf"), float("-inf"), "45.0", True])
+def test_asset_angle_normalization_rejects_nonfinite(bad_angle: Any) -> None:
+    """Verify WindCoeffEntry, CurrentCoeffEntry, and InferredCurrentAsset reject nonfinite/invalid angles."""
+    with pytest.raises((TypeError, ValueError)):
+        WindCoeffEntry(angle_deg=bad_angle, cx=0.1, cy=0.2, cn=0.01)
+
+    with pytest.raises((TypeError, ValueError)):
+        CurrentCoeffEntry(heading_deg=bad_angle, ccx=0.1, ccy=0.2, cmz=0.01)
+
+    with pytest.raises((TypeError, ValueError)):
+        DEFAULT_OCIMF_WIND_ASSET.interpolate(bad_angle)
+
+    with pytest.raises((TypeError, ValueError)):
+        DEFAULT_TABLE_CURRENT_ASSET.interpolate(bad_angle)
+
+    with pytest.raises((TypeError, ValueError)):
+        DEFAULT_INFERRED_CURRENT_ASSET.evaluate(bad_angle)
+
 
 
 # ---------------------------------------------------------------------------
