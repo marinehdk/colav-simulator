@@ -10,6 +10,7 @@ import {
   simplifiedMpcFanGeometry,
 } from './modules/situation-display.js?v=20260831-vessel-risk-label-v4';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
+import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
 /**
  * Colav-Simulator Web GUI — app.js
@@ -604,34 +605,6 @@ function updateDeploymentDisplay(proj) {
 
 const METERS_PER_NAUTICAL_MILE = 1852;
 
-function routeLegs(waypoints) {
-  const [norths, easts] = Array.isArray(waypoints) ? waypoints : [[], []];
-  if (!Array.isArray(norths) || norths.length < 2) return [];
-  return norths.slice(0, -1).map((_, index) => ({
-    from: { n: norths[index], e: easts[index] },
-    to: { n: norths[index + 1], e: easts[index + 1] },
-  }));
-}
-
-function routeProgress(legs, pos) {
-  // Active leg: the first leg the ownship has not fully passed; if all are
-  // passed the ownship is on the final approach (remaining distance 0).
-  for (let index = 0; index < legs.length; index++) {
-    const leg = legs[index];
-    const dn = leg.to.n - leg.from.n;
-    const de = leg.to.e - leg.from.e;
-    const length = Math.hypot(dn, de);
-    if (length === 0) continue;
-    const t = ((pos.n - leg.from.n) * dn + (pos.e - leg.from.e) * de) / (length * length);
-    if (t < 1 || index === legs.length - 1) {
-      const remaining = Math.max(0, (1 - Math.max(t, 0))) * length;
-      const later = legs.slice(index + 1).reduce((sum, item) => sum + Math.hypot(item.to.n - item.from.n, item.to.e - item.from.e), 0);
-      return { index, leg, remaining, total: remaining + later, t };
-    }
-  }
-  return null;
-}
-
 function formatDuration(totalSeconds) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '--:--:--';
   const seconds = Math.floor(totalSeconds);
@@ -655,12 +628,11 @@ function updateRouteCard(proj) {
   const legs = routeLegs(data.waypoints);
   const os = data.os || {};
   const nextLegSection = document.querySelector('.route-leg[aria-labelledby="next-leg-heading"]');
-  // A start→end route has a single leg; "Next leg" only exists with a waypoint in between.
-  const hasNextLeg = legs.length >= 2;
-  if (nextLegSection) nextLegSection.hidden = !hasNextLeg;
   if (!Number.isFinite(os.x) || !Number.isFinite(os.y) || !legs.length) return;
   const progress = routeProgress(legs, { n: os.x, e: os.y });
   if (!progress) return;
+  const next = progress.nextLeg;
+  if (nextLegSection) nextLegSection.hidden = next === null;
   const legCourseDeg = ((Math.atan2(progress.leg.to.e - progress.leg.from.e, progress.leg.to.n - progress.leg.from.n)
     * 180 / Math.PI) % 360 + 360) % 360;
   setText('liveLegCourse', `${Math.round(legCourseDeg).toString().padStart(3, '0')}°`);
@@ -668,8 +640,7 @@ function updateRouteCard(proj) {
   const sog = proj.navigation?.sog;
   const legTimeS = Number.isFinite(sog) && sog > 0.05 ? progress.remaining / sog : null;
   setText('liveLegTime', formatDuration(legTimeS));
-  if (hasNextLeg) {
-    const next = legs[progress.index + 1];
+  if (next) {
     const nextCourseDeg = ((Math.atan2(next.to.e - next.from.e, next.to.n - next.from.n)
       * 180 / Math.PI) % 360 + 360) % 360;
     const nextLength = Math.hypot(next.to.n - next.from.n, next.to.e - next.from.e);
