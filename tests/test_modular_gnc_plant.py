@@ -480,21 +480,43 @@ def test_roll_4dof_restoring_dominated_stability_and_equilibrium(
     assert math.isclose(omega_n, math.sqrt(3.0e8 / 2.0e9), rel_tol=1e-6)
 
 
-def test_roll_4dof_unactuated_roll_actuator_channel(valid_4dof_params: GenericRoll4DOFPlantParameters) -> None:
-    """Prove control actuator input has strictly NO roll moment channel (RA-12)."""
+def test_roll_4dof_unactuated_roll_actuator_channel_strict_rejection(
+    valid_4dof_params: GenericRoll4DOFPlantParameters,
+) -> None:
+    """Prove control actuator input strictly enforces 3 channels and rejects roll moments (RA-12, VR-16)."""
     plant = GenericRoll4DOFPlant(valid_4dof_params)
     state = np.zeros(8, dtype=np.float64)
 
-    # Control input providing surge, sway, yaw, and an attempted roll moment
-    ctrl_attempt = VesselLoad(surge_n=1e5, sway_n=2e4, yaw_nm=5e5, roll_nm=1e7)
-    ctrl_zero_roll = VesselLoad(surge_n=1e5, sway_n=2e4, yaw_nm=5e5, roll_nm=0.0)
+    # 1. 3-channel control array accepted
+    ctrl_3arr = np.array([1.0e5, 2.0e4, 5.0e5])
+    deriv_3arr = plant.rhs(0.0, state, ctrl_3arr)
+    assert deriv_3arr.shape == (8,)
+    assert deriv_3arr[6] == 0.0  # Zero roll accel
 
-    deriv1 = plant.rhs(0.0, state, ctrl_attempt)
-    deriv2 = plant.rhs(0.0, state, ctrl_zero_roll)
+    # 2. VesselLoad with roll_nm == 0 accepted
+    ctrl_zero_roll = VesselLoad(surge_n=1.0e5, sway_n=2.0e4, yaw_nm=5.0e5, roll_nm=0.0)
+    deriv_zero_roll = plant.rhs(0.0, state, ctrl_zero_roll)
+    np.testing.assert_array_equal(deriv_3arr, deriv_zero_roll)
 
-    # Roll acceleration p_dot (deriv[6]) must be identical (roll is unactuated by control)
-    np.testing.assert_array_equal(deriv1, deriv2)
-    assert deriv1[6] == 0.0
+    # 3. VesselLoad with nonzero positive roll hard-fails
+    ctrl_pos_roll = VesselLoad(surge_n=1.0e5, sway_n=2.0e4, yaw_nm=5.0e5, roll_nm=100.0)
+    with pytest.raises(ValueError, match="roll is unactuated in roll-4DOF plant"):
+        plant.rhs(0.0, state, ctrl_pos_roll)
+
+    # 4. VesselLoad with nonzero negative roll hard-fails
+    ctrl_neg_roll = VesselLoad(surge_n=1.0e5, sway_n=2.0e4, yaw_nm=5.0e5, roll_nm=-50.0)
+    with pytest.raises(ValueError, match="roll is unactuated in roll-4DOF plant"):
+        plant.rhs(0.0, state, ctrl_neg_roll)
+
+    # 5. 4-vector control hard-fails even when roll channel is 0.0
+    ctrl_4arr_zero = np.array([1.0e5, 2.0e4, 0.0, 5.0e5])
+    with pytest.raises(ValueError, match="4-channel control input is rejected"):
+        plant.rhs(0.0, state, ctrl_4arr_zero)
+
+    # 6. 4-vector control hard-fails with nonzero roll
+    ctrl_4arr_nonzero = np.array([1.0e5, 2.0e4, 100.0, 5.0e5])
+    with pytest.raises(ValueError, match="4-channel control input is rejected"):
+        plant.rhs(0.0, state, ctrl_4arr_nonzero)
 
 
 def test_roll_4dof_environmental_roll_moment_affects_dynamics(
@@ -512,6 +534,19 @@ def test_roll_4dof_environmental_roll_moment_affects_dynamics(
     # Environmental roll moment produces positive roll acceleration
     p_dot = deriv[6]
     m_33 = plant.mass_matrix[2, 2]
+    expected_p_dot = 4.0e6 / m_33
+    assert math.isclose(p_dot, expected_p_dot, rel_tol=1e-6)
+    assert p_dot > 0.0
+
+    # Environmental 4-element array with roll moment accepted
+    env_4arr = np.array([0.0, 0.0, 4.0e6, 0.0])
+    deriv_4arr = plant.rhs(0.0, state, ctrl, env_4arr)
+    np.testing.assert_array_equal(deriv, deriv_4arr)
+
+    # Environmental 3-element array accepted (implies 0 roll moment)
+    env_3arr = np.array([1.0e4, 5.0e3, 2.0e4])
+    deriv_3arr = plant.rhs(0.0, state, ctrl, env_3arr)
+    assert deriv_3arr[6] == 0.0  # Zero roll accel when env roll is absent
     expected_p_dot = 4.0e6 / m_33
     assert math.isclose(p_dot, expected_p_dot, rel_tol=1e-6)
     assert p_dot > 0.0

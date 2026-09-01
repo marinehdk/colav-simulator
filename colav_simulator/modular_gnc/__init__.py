@@ -13,10 +13,12 @@ from colav_simulator.modular_gnc.contracts import (
     DirectReference,
     FacadeFailure,
     NavigationState,
+    PlantInputSemantics,
     PlantState,
     StackOutput,
     StackSnapshot,
     TrackedRoute,
+    canonicalize_plant_input_semantics,
 )
 from colav_simulator.modular_gnc.integrators import rk4_step
 from colav_simulator.modular_gnc.plant import (
@@ -37,6 +39,7 @@ __all__ = [
     "GenericRoll4DOFPlant",
     "GenericRoll4DOFPlantParameters",
     "NavigationState",
+    "PlantInputSemantics",
     "PlantState",
     "RedesignDecision",
     "ReferenceComparison",
@@ -45,5 +48,6 @@ __all__ = [
     "TrackedRoute",
     "build_generic_3dof_plant_redesign_decisions",
     "build_generic_roll_4dof_plant_redesign_decisions",
+    "canonicalize_plant_input_semantics",
     "rk4_step",
 ]

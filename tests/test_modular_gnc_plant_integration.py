@@ -22,8 +22,10 @@ from colav_simulator.modular_gnc.contracts import (
     NavigationState,
     PlantInputSemantics,
     PlantState,
+    VesselLoad,
 )
 from colav_simulator.modular_gnc.factory import build_modular_ship_adapter
+from colav_simulator.modular_gnc.integrators import rk4_step
 from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
 from colav_simulator.modular_gnc.plant import (
     Generic3DOFPlant,
@@ -441,3 +443,43 @@ def test_roll_4dof_plant_runtime_defense_rejects_bypass() -> None:
     gen_modules = PassThroughModules(plant=gen_plant)
     with pytest.raises(UnsupportedModuleCombinationError, match="generic_roll_4dof_plant requires plant_period_ticks == 1"):
         ModularShipStack(base_cfg, gen_modules)
+
+
+def test_rk4_step_and_stack_reject_4dof_control_roll_and_atomic_rollback() -> None:
+    """Validate that rk4_step and ModularShipStack reject roll control channel and atomically roll back."""
+    gen_plant = GenericRoll4DOFPlant(GenericRoll4DOFPlantParameters(**_plant_4dof_params()))
+    state0 = np.zeros(8, dtype=np.float64)
+
+    # 1. Direct rk4_step rejects 4-element control load array
+    with pytest.raises(ValueError, match="4-channel control input is rejected"):
+        rk4_step(gen_plant, tick=0, dt_s=0.1, state=state0, control_load=np.array([1e5, 0.0, 0.0, 0.0]))
+
+    # 2. Direct rk4_step rejects VesselLoad with non-zero roll moment
+    with pytest.raises(ValueError, match="roll is unactuated in roll-4DOF plant"):
+        rk4_step(gen_plant, tick=0, dt_s=0.1, state=state0, control_load=VesselLoad(surge_n=1e5, roll_nm=100.0))
+
+    # 3. Stack step with roll-4DOF plant captures any module failure and atomically rolls back
+    cfg = _config_with_roll_4dof_plant()
+    stack = ModularShipStack.from_config(cfg)
+    nav0 = NavigationState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    stack.reset(nav0, seed=1)
+
+    # Good step 0
+    ref_vals = np.zeros(9)
+    cmd0 = CommandInput.direct(0, DirectReference(ref_vals, latched_tick=0, task=ControlTask.MANUAL_LOAD))
+    out0 = stack.step(cmd0, dt_s=0.1)
+    assert out0.failure is None
+    snap_before = stack.snapshot()
+
+    # Step 1 with non-finite dt_s produces structured failure and rolls back state
+    cmd1 = CommandInput.direct(1, DirectReference(ref_vals, latched_tick=1, task=ControlTask.MANUAL_LOAD))
+    out1 = stack.step(cmd1, dt_s=float("nan"))
+    assert out1.failure is not None
+    assert out1.failure.code is FailureCode.NONFINITE_INPUT
+
+    snap_after = stack.snapshot()
+    assert snap_after.tick == snap_before.tick
+    np.testing.assert_array_equal(
+        snap_after.module_snapshots[0].state.values,
+        snap_before.module_snapshots[0].state.values,
+    )

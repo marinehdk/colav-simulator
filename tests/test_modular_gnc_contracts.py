@@ -18,6 +18,7 @@ from colav_simulator.modular_gnc.contracts import (
     StackOutput,
     StackSnapshot,
     TrackedRoute,
+    canonicalize_plant_input_semantics,
 )
 
 
@@ -141,3 +142,17 @@ def test_snapshot_output_and_failure_pin_schema() -> None:
     assert output.failure.code is FailureCode.STALE_INPUT
     assert snapshot.schema_version == "modular-ship-stack.snapshot.v1"
     assert snapshot.module_snapshots[0] == plant
+
+
+def test_plant_input_semantics_canonicalization_and_compatibility_aliases() -> None:
+    """Validate canonicalization of REFERENCE_CHI_U while accepting KINEMATIC_REFERENCE alias."""
+    assert PlantInputSemantics.REFERENCE_CHI_U.canonical() is PlantInputSemantics.REFERENCE_CHI_U
+    assert PlantInputSemantics.GENERALIZED_FORCE.canonical() is PlantInputSemantics.GENERALIZED_FORCE
+    # Legacy KINEMATIC_REFERENCE aliases to REFERENCE_CHI_U
+    assert PlantInputSemantics.KINEMATIC_REFERENCE.canonical() is PlantInputSemantics.REFERENCE_CHI_U
+
+    # Helper function accepts strings and enum members
+    assert canonicalize_plant_input_semantics("REFERENCE_CHI_U") is PlantInputSemantics.REFERENCE_CHI_U
+    assert canonicalize_plant_input_semantics("KINEMATIC_REFERENCE") is PlantInputSemantics.REFERENCE_CHI_U
+    assert canonicalize_plant_input_semantics("GENERALIZED_FORCE") is PlantInputSemantics.GENERALIZED_FORCE
+    assert canonicalize_plant_input_semantics(PlantInputSemantics.KINEMATIC_REFERENCE) is PlantInputSemantics.REFERENCE_CHI_U

@@ -558,10 +558,20 @@ def _extract_4dof_control_load(
     load: VesselLoad | FloatArray | tuple[float, ...] | None,
     name: str,
 ) -> FloatArray:
-    """Extract control load vector with strictly unactuated roll moment (RA-12)."""
+    """Extract control load vector with strictly unactuated roll moment (RA-12).
+
+    Actuator control load contract is strictly 3 channels [surge_n, sway_n, yaw_nm].
+    If VesselLoad is passed, roll_nm must be 0.0 exactly; non-zero roll moment raises ValueError.
+    4-element control arrays are rejected fail-closed to prevent falsely declaring a roll actuator channel.
+    """
     if load is None:
         return np.zeros(4, dtype=np.float64)
     if isinstance(load, VesselLoad):
+        if load.roll_nm != 0.0:
+            raise ValueError(
+                f"roll is unactuated in roll-4DOF plant; non-zero control roll_nm ({load.roll_nm}) "
+                "is forbidden (RA-12, VR-16)"
+            )
         return np.array([load.surge_n, load.sway_n, 0.0, load.yaw_nm], dtype=np.float64)
     arr = np.asarray(load, dtype=np.float64)
     if arr.shape == (3,):
@@ -569,10 +579,11 @@ def _extract_4dof_control_load(
             raise ValueError(f"{name} contains non-finite values: {arr}")
         return np.array([arr[0], arr[1], 0.0, arr[2]], dtype=np.float64)
     if arr.shape == (4,):
-        if not np.isfinite(arr).all():
-            raise ValueError(f"{name} contains non-finite values: {arr}")
-        return np.array([arr[0], arr[1], 0.0, arr[3]], dtype=np.float64)
-    raise ValueError(f"{name} must have shape (3,) or (4,), got {arr.shape}")
+        raise ValueError(
+            f"{name} must have shape (3,) [surge, sway, yaw]; 4-channel control input is rejected "
+            "because roll actuator channel is unactuated (RA-12, VR-16)"
+        )
+    raise ValueError(f"{name} must have shape (3,), got {arr.shape}")
 
 
 def _extract_4dof_env_load(

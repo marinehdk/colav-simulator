@@ -49,6 +49,17 @@ class PlantInputSemantics(str, Enum):
     KINEMATIC_REFERENCE = "KINEMATIC_REFERENCE"
     REFERENCE_CHI_U = "REFERENCE_CHI_U"
 
+    def canonical(self) -> PlantInputSemantics:
+        """Return canonical semantics, aliasing legacy KINEMATIC_REFERENCE to REFERENCE_CHI_U."""
+        if self is PlantInputSemantics.KINEMATIC_REFERENCE:
+            return PlantInputSemantics.REFERENCE_CHI_U
+        return self
+
+
+def canonicalize_plant_input_semantics(semantics: PlantInputSemantics | str) -> PlantInputSemantics:
+    """Return canonical plant input semantics, aliasing legacy KINEMATIC_REFERENCE to REFERENCE_CHI_U."""
+    return PlantInputSemantics(semantics).canonical()
+
 
 class FailureCode(str, Enum):
     """Stable facade failure codes."""
