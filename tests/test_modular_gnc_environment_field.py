@@ -16,6 +16,7 @@ from colav_simulator.modular_gnc.contracts import (
 )
 from colav_simulator.modular_gnc.environment import (
     AnalyticEnvironmentField,
+    PassThroughEnvironmentField,
     derive_prf_seed,
     prf_gaussian,
     prf_uniform,
@@ -105,6 +106,78 @@ def test_analytic_environment_field_validates_stage_offset_and_ticks() -> None:
 
     with pytest.raises(ValueError, match="stage_offset_s must be in"):
         field.sample_at(tick=0, stage_offset_s=0.15)
+
+
+def test_unavailable_field_validates_stage_offset_and_ticks_before_availability() -> None:
+    field_unavail = AnalyticEnvironmentField(dt_s=0.1, field_seed=123, available=False)
+
+    with pytest.raises(ValueError, match="tick must be non-negative"):
+        field_unavail.sample_observation(tick=-1, stage_offset_s=0.0)
+
+    with pytest.raises(ValueError, match="stage_offset_s must be in"):
+        field_unavail.sample_observation(tick=0, stage_offset_s=-0.01)
+
+    with pytest.raises(ValueError, match="stage_offset_s must be in"):
+        field_unavail.sample_observation(tick=0, stage_offset_s=0.1)
+
+    with pytest.raises(ValueError, match="stage_offset_s must be in"):
+        field_unavail.sample_observation(tick=0, stage_offset_s=0.25)
+
+
+def test_field_construction_rejections_and_strict_validation() -> None:
+    # Malformed vector length
+    with pytest.raises(ValueError, match="must be a 2-element sequence"):
+        AnalyticEnvironmentField(dt_s=0.1, field_seed=1, wind_velocity_ne=(1.0, 2.0, 3.0))  # type: ignore[arg-type]
+
+    # Negative perturbation sigma
+    with pytest.raises(ValueError, match="components must be non-negative"):
+        AnalyticEnvironmentField(dt_s=0.1, field_seed=1, wind_perturbation_std=(-0.1, 0.0))
+
+    with pytest.raises(ValueError, match="components must be non-negative"):
+        AnalyticEnvironmentField(dt_s=0.1, field_seed=1, current_perturbation_std=(0.0, -0.5))
+
+    # Non-integral wave_num_components (no lossy int truncation)
+    with pytest.raises(TypeError, match="wave_num_components must be an integer"):
+        AnalyticEnvironmentField(dt_s=0.1, field_seed=1, wave_num_components=2.5)  # type: ignore[arg-type]
+
+    # Boolean passed for wave_num_components or seed
+    with pytest.raises(TypeError, match="wave_num_components must be an integer, got bool"):
+        AnalyticEnvironmentField(dt_s=0.1, field_seed=1, wave_num_components=True)  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="field_seed must be an integer, got bool"):
+        AnalyticEnvironmentField(dt_s=0.1, field_seed=True)  # type: ignore[arg-type]
+
+    # Boolean passed for dt_s
+    with pytest.raises(ValueError, match="dt_s must be positive and finite float"):
+        AnalyticEnvironmentField(dt_s=True, field_seed=1)  # type: ignore[arg-type]
+
+    # Non-bool passed for available
+    with pytest.raises(TypeError, match="available must be bool"):
+        AnalyticEnvironmentField(dt_s=0.1, field_seed=1, available="true")  # type: ignore[arg-type]
+
+
+def test_pass_through_environment_field_explicit_contract() -> None:
+    field = PassThroughEnvironmentField(dt_s=0.2)
+    assert field.dt_s == 0.2
+
+    truth = field.sample_at(tick=3, stage_offset_s=0.05)
+    assert truth.tick == 3
+    assert math.isclose(truth.time_s, 0.65)
+    assert truth.wind.velocity_ne == (0.0, 0.0)
+    assert truth.current.velocity_ne == (0.0, 0.0)
+    assert truth.wave.significant_height_m == 0.0
+    assert truth.mean_drift.components == ()
+
+    obs = field.sample_observation(tick=3, stage_offset_s=0.05)
+    assert obs.status is EnvironmentStatus.AVAILABLE
+    assert obs.source == "PASS_THROUGH"
+    assert obs.wind.velocity_ne == (0.0, 0.0)
+
+    # Validates ticks and offsets
+    with pytest.raises(ValueError, match="tick must be non-negative"):
+        field.sample_at(tick=-1)
+    with pytest.raises(ValueError, match="stage_offset_s must be in"):
+        field.sample_at(tick=0, stage_offset_s=0.2)
 
 
 def test_analytic_environment_field_observation_and_unavailability() -> None:

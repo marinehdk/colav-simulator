@@ -18,6 +18,7 @@ from colav_simulator.modular_gnc.contracts import (
     WaveFieldSample,
     WindSample,
     _finite_scalar,
+    _non_bool_int,
 )
 
 
@@ -93,6 +94,21 @@ def _generate_wave_components(
     return tuple(components)
 
 
+def _validate_vector2(name: str, val: Any) -> tuple[float, float]:
+    if not isinstance(val, (list, tuple)) or len(val) != 2:
+        raise ValueError(f"{name} must be a 2-element sequence (n, e)")
+    v0 = _finite_scalar(f"{name}[0]", val[0])
+    v1 = _finite_scalar(f"{name}[1]", val[1])
+    return (v0, v1)
+
+
+def _validate_std2(name: str, val: Any) -> tuple[float, float]:
+    v0, v1 = _validate_vector2(name, val)
+    if v0 < 0.0 or v1 < 0.0:
+        raise ValueError(f"{name} components must be non-negative")
+    return (v0, v1)
+
+
 @runtime_checkable
 class EnvironmentField(Protocol):
     """Abstract pure environment field interface."""
@@ -142,45 +158,49 @@ class AnalyticEnvironmentField:
         available: bool = True,
         components: Sequence[WaveComponent] = (),
     ) -> None:
-        if not math.isfinite(dt_s) or dt_s <= 0.0:
-            raise ValueError("dt_s must be positive and finite")
+        if isinstance(dt_s, bool) or not math.isfinite(dt_s) or dt_s <= 0.0:
+            raise ValueError("dt_s must be positive and finite float")
         self._dt_s = float(dt_s)
-        self._field_seed = int(field_seed)
+        self._field_seed = _non_bool_int("field_seed", field_seed)
 
-        self._wind_base_ne = (
-            _finite_scalar("wind_velocity_ne[0]", wind_velocity_ne[0]),
-            _finite_scalar("wind_velocity_ne[1]", wind_velocity_ne[1]),
-        )
+        self._wind_base_ne = _validate_vector2("wind_velocity_ne", wind_velocity_ne)
         self._wind_ref_h = _finite_scalar("wind_reference_height_m", wind_reference_height_m)
-        self._wind_pert_std = (
-            _finite_scalar("wind_perturbation_std[0]", wind_perturbation_std[0]),
-            _finite_scalar("wind_perturbation_std[1]", wind_perturbation_std[1]),
-        )
+        if self._wind_ref_h <= 0.0:
+            raise ValueError("wind_reference_height_m must be positive")
+        self._wind_pert_std = _validate_std2("wind_perturbation_std", wind_perturbation_std)
 
-        self._current_base_ne = (
-            _finite_scalar("current_velocity_ne[0]", current_velocity_ne[0]),
-            _finite_scalar("current_velocity_ne[1]", current_velocity_ne[1]),
-        )
+        self._current_base_ne = _validate_vector2("current_velocity_ne", current_velocity_ne)
         self._current_ref = CurrentReference(current_reference)
-        self._current_pert_std = (
-            _finite_scalar("current_perturbation_std[0]", current_perturbation_std[0]),
-            _finite_scalar("current_perturbation_std[1]", current_perturbation_std[1]),
-        )
+        self._current_pert_std = _validate_std2("current_perturbation_std", current_perturbation_std)
 
         self._wave_hs = _finite_scalar("wave_significant_height_m", wave_significant_height_m)
+        if self._wave_hs < 0.0:
+            raise ValueError("wave_significant_height_m must be non-negative")
         self._wave_tp = _finite_scalar("wave_peak_period_s", wave_peak_period_s)
+        if self._wave_tp <= 0.0:
+            raise ValueError("wave_peak_period_s must be positive")
         self._wave_dir = _finite_scalar("wave_direction_to_rad", wave_direction_to_rad) % (2.0 * math.pi)
+        num_comp = _non_bool_int("wave_num_components", wave_num_components)
         self._wave_spread = _finite_scalar("wave_directional_spread_rad", wave_directional_spread_rad)
-        self._available = bool(available)
+        if self._wave_spread < 0.0:
+            raise ValueError("wave_directional_spread_rad must be non-negative")
+        if not isinstance(available, bool):
+            raise TypeError(f"available must be bool, got {type(available).__name__}")
+        self._available = available
 
         if components:
+            if not isinstance(components, (list, tuple)):
+                raise TypeError("components must be a sequence of WaveComponent")
+            for i, comp in enumerate(components):
+                if not isinstance(comp, WaveComponent):
+                    raise TypeError(f"components[{i}] must be WaveComponent, got {type(comp).__name__}")
             self._wave_components = tuple(components)
         else:
             self._wave_components = _generate_wave_components(
                 self._wave_hs,
                 self._wave_tp,
                 self._wave_dir,
-                int(wave_num_components),
+                num_comp,
                 self._wave_spread,
                 self._field_seed,
             )
@@ -194,26 +214,21 @@ class AnalyticEnvironmentField:
     ) -> AnalyticEnvironmentField:
         """Construct deterministic field from frozen parameter mapping and master seed."""
         field_seed = derive_prf_seed(episode_seed, "environment_field")
-        wind_vel = tuple(params.get("wind_velocity_ne", (0.0, 0.0)))
-        wind_pert = tuple(params.get("wind_perturbation_std", (0.0, 0.0)))
-        current_vel = tuple(params.get("current_velocity_ne", (0.0, 0.0)))
-        current_pert = tuple(params.get("current_perturbation_std", (0.0, 0.0)))
-
         return cls(
             dt_s=dt_s,
             field_seed=field_seed,
-            wind_velocity_ne=(float(wind_vel[0]), float(wind_vel[1])),
-            wind_reference_height_m=float(params.get("wind_reference_height_m", 10.0)),
-            wind_perturbation_std=(float(wind_pert[0]), float(wind_pert[1])),
-            current_velocity_ne=(float(current_vel[0]), float(current_vel[1])),
+            wind_velocity_ne=params.get("wind_velocity_ne", (0.0, 0.0)),
+            wind_reference_height_m=params.get("wind_reference_height_m", 10.0),
+            wind_perturbation_std=params.get("wind_perturbation_std", (0.0, 0.0)),
+            current_velocity_ne=params.get("current_velocity_ne", (0.0, 0.0)),
             current_reference=params.get("current_reference", CurrentReference.SURFACE),
-            current_perturbation_std=(float(current_pert[0]), float(current_pert[1])),
-            wave_significant_height_m=float(params.get("wave_significant_height_m", 0.0)),
-            wave_peak_period_s=float(params.get("wave_peak_period_s", 8.0)),
-            wave_direction_to_rad=float(params.get("wave_direction_to_rad", 0.0)),
-            wave_num_components=int(params.get("wave_num_components", 0)),
-            wave_directional_spread_rad=float(params.get("wave_directional_spread_rad", 0.0)),
-            available=bool(params.get("available", True)),
+            current_perturbation_std=params.get("current_perturbation_std", (0.0, 0.0)),
+            wave_significant_height_m=params.get("wave_significant_height_m", 0.0),
+            wave_peak_period_s=params.get("wave_peak_period_s", 8.0),
+            wave_direction_to_rad=params.get("wave_direction_to_rad", 0.0),
+            wave_num_components=params.get("wave_num_components", 0),
+            wave_directional_spread_rad=params.get("wave_directional_spread_rad", 0.0),
+            available=params.get("available", True),
         )
 
     @property
@@ -301,8 +316,58 @@ class AnalyticEnvironmentField:
         position_ne: tuple[float, float] | FloatArray = (0.0, 0.0),
     ) -> EnvironmentObservation:
         """Return immutable EnvironmentObservation at exact simulation time."""
+        if tick < 0:
+            raise ValueError("tick must be non-negative")
+        if not (0.0 <= stage_offset_s < self._dt_s):
+            raise ValueError(f"stage_offset_s must be in [0, {self._dt_s}), got {stage_offset_s}")
         if not self._available:
             time_s = tick * self._dt_s + stage_offset_s
             return EnvironmentObservation.unavailable(source="ANALYTIC_FIELD", tick=tick, time_s=time_s)
         truth = self.sample_at(tick, stage_offset_s, position_ne)
         return EnvironmentObservation.from_truth(truth, source="ANALYTIC_FIELD", quality=1.0)
+
+
+class PassThroughEnvironmentField:
+    """Deterministic record-only pass-through environment field returning zero environment."""
+
+    def __init__(self, dt_s: float) -> None:
+        if isinstance(dt_s, bool) or not math.isfinite(dt_s) or dt_s <= 0.0:
+            raise ValueError("dt_s must be positive and finite float")
+        self._dt_s = float(dt_s)
+
+    @property
+    def dt_s(self) -> float:
+        """Return simulation tick step size in seconds."""
+        return self._dt_s
+
+    def sample_at(
+        self,
+        tick: int,
+        stage_offset_s: float = 0.0,
+        position_ne: tuple[float, float] | FloatArray = (0.0, 0.0),  # noqa: ARG002
+    ) -> EnvironmentTruth:
+        """Return deterministic zero EnvironmentTruth."""
+        if tick < 0:
+            raise ValueError("tick must be non-negative")
+        if not (0.0 <= stage_offset_s < self._dt_s):
+            raise ValueError(f"stage_offset_s must be in [0, {self._dt_s}), got {stage_offset_s}")
+        time_s = tick * self._dt_s + stage_offset_s
+        return EnvironmentTruth(
+            wind=WindSample(velocity_ne=(0.0, 0.0)),
+            current=CurrentSample(velocity_ne=(0.0, 0.0)),
+            wave=WaveFieldSample(significant_height_m=0.0, peak_period_s=1.0, direction_to_rad=0.0),
+            mean_drift=MeanDriftSourceSample(components=()),
+            time_s=time_s,
+            tick=tick,
+            stage_offset_s=stage_offset_s,
+        )
+
+    def sample_observation(
+        self,
+        tick: int,
+        stage_offset_s: float = 0.0,
+        position_ne: tuple[float, float] | FloatArray = (0.0, 0.0),
+    ) -> EnvironmentObservation:
+        """Return deterministic zero EnvironmentObservation with PASS_THROUGH source."""
+        truth = self.sample_at(tick, stage_offset_s, position_ne)
+        return EnvironmentObservation.from_truth(truth, source="PASS_THROUGH", quality=1.0)
