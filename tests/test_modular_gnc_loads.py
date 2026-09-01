@@ -569,6 +569,46 @@ def test_valid_calibrated_asset_creation() -> None:
     assert meta.source_type == "tank_test"
 
 
+def test_contracts_nested_deep_freeze_and_aliasing() -> None:
+    """Verify deep-freeze on AssetMetadata and EnvironmentalLoads prevents nested mutation and aliasing."""
+    raw_prov = {"author": {"name": "Alice", "team": "GNC"}, "tags": ["baseline", "v1"]}
+    raw_unc = {"bounds": {"lower": 0.01, "upper": 0.05}, "list": [1, 2]}
+    meta = AssetMetadata(
+        asset_id="tank_test_asset_v2",
+        asset_type="current_coeff_table",
+        trust_level=AssetTrustLevel.CALIBRATED,
+        source_type="tank_test",
+        sha256="d" * 64,
+        license="Proprietary",
+        provenance=raw_prov,
+        uncertainty=raw_unc,
+    )
+
+    # Rejection of nested mutation
+    with pytest.raises(TypeError):
+        meta.provenance["author"]["name"] = "Bob"
+    with pytest.raises(TypeError):
+        meta.uncertainty["bounds"]["lower"] = 0.02
+    assert isinstance(meta.provenance["tags"], tuple)
+
+    # Aliasing isolation
+    raw_prov["author"]["name"] = "Charlie"
+    raw_prov["tags"].append("v2")
+    assert meta.provenance["author"]["name"] == "Alice"
+    assert meta.provenance["tags"] == ("baseline", "v1")
+
+    # EnvironmentalLoads details deep-freeze
+    raw_details = {"status": {"active": True}, "sub_list": [10, 20]}
+    loads = EnvironmentalLoads.from_components(details=raw_details)
+    with pytest.raises(TypeError):
+        loads.details["status"]["active"] = False
+    assert isinstance(loads.details["sub_list"], tuple)
+
+    raw_details["status"]["active"] = False
+    assert loads.details["status"]["active"] is True
+
+
+
 @pytest.mark.parametrize("bad_angle", [float("nan"), float("inf"), float("-inf"), "45.0", True])
 def test_asset_angle_normalization_rejects_nonfinite(bad_angle: Any) -> None:
     """Verify WindCoeffEntry, CurrentCoeffEntry, and InferredCurrentAsset reject nonfinite/invalid angles."""

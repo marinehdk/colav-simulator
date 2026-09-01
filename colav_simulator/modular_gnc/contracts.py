@@ -15,6 +15,17 @@ from numpy.typing import NDArray
 FloatArray = NDArray[np.float64]
 
 
+def _deep_freeze(value: Any) -> Any:
+    """Recursively freeze nested mappings, sequences, and sets."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_deep_freeze(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(_deep_freeze(item) for item in value)
+    return value
+
+
 class NavigationSource(str, Enum):
     """Origin of navigation state consumed by modular GNC."""
 
@@ -471,8 +482,8 @@ class AssetMetadata:
             raise TypeError(
                 f"applicability_domain must be ApplicabilityDomain, got {type(self.applicability_domain).__name__}"
             )
-        object.__setattr__(self, "provenance", MappingProxyType(dict(self.provenance)))
-        object.__setattr__(self, "uncertainty", MappingProxyType(dict(self.uncertainty)))
+        object.__setattr__(self, "provenance", _deep_freeze(self.provenance))
+        object.__setattr__(self, "uncertainty", _deep_freeze(self.uncertainty))
 
 
 @dataclass(frozen=True)
@@ -556,7 +567,7 @@ class EnvironmentalLoads:
             and math.isclose(self.total.roll_nm, expected_total.roll_nm, rel_tol=1e-9, abs_tol=1e-9)
         ):
             raise ValueError(f"total load {self.total} does not match explicit sum of components {expected_total}")
-        object.__setattr__(self, "details", MappingProxyType(dict(self.details)))
+        object.__setattr__(self, "details", _deep_freeze(self.details))
 
     @classmethod
     def from_components(
@@ -787,7 +798,7 @@ class FacadeFailure:
         """Validate failure tick and freeze details."""
         if self.tick < 0:
             raise ValueError("tick must be non-negative")
-        object.__setattr__(self, "details", MappingProxyType(dict(self.details)))
+        object.__setattr__(self, "details", _deep_freeze(self.details))
 
 
 @dataclass(frozen=True)
