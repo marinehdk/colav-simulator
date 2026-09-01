@@ -1,8 +1,8 @@
 """Reproducible modular GNC performance characterization harness."""
 
-from .benchmark import BenchmarkConfig, main, run_benchmark, validate_config
+from .benchmark import BenchmarkConfig, main, payload_sha256, run_benchmark, validate_config
 
-__all__ = ["BenchmarkConfig", "main", "run_benchmark", "validate_config"]
+__all__ = ["BenchmarkConfig", "main", "payload_sha256", "run_benchmark", "validate_config"]
 
 __version__ = "1.0"
 

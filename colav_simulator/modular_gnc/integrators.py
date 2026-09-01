@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -50,6 +52,7 @@ def rk4_step(
     control_load: VesselLoad | FloatArray | tuple[float, ...],
     environment_field: EnvironmentField | None = None,
     load_model: EnvironmentalLoadModel | None = None,
+    stage_timing_sink: Callable[[int, int], None] | None = None,
 ) -> FloatArray:
     """Advance continuous plant state across one fixed simulation step dt_s using classical RK4.
 
@@ -82,29 +85,41 @@ def rk4_step(
     t0 = valid_tick * valid_dt
 
     # --- Stage 1 (k1) at t0, stage_offset=0.0 ---
+    stage_start_ns = time.perf_counter_ns() if stage_timing_sink is not None else 0
     env_load_1 = _query_env_load(environment_field, load_model, valid_tick, 0.0, x0, caps)
     k1 = np.asarray(plant.rhs(t0, x0, control_load, env_load_1), dtype=np.float64)
+    if stage_timing_sink is not None:
+        stage_timing_sink(1, time.perf_counter_ns() - stage_start_ns)
     if k1.shape != state_shape or not np.isfinite(k1).all():
         raise ValueError(f"stage 1 derivative (k1) contains non-finite values: {k1}")
 
     # --- Stage 2 (k2) at t0 + dt/2, stage_offset=dt/2 ---
     x1 = x0 + half_dt * k1
+    stage_start_ns = time.perf_counter_ns() if stage_timing_sink is not None else 0
     env_load_2 = _query_env_load(environment_field, load_model, valid_tick, half_dt, x1, caps)
     k2 = np.asarray(plant.rhs(t0 + half_dt, x1, control_load, env_load_2), dtype=np.float64)
+    if stage_timing_sink is not None:
+        stage_timing_sink(2, time.perf_counter_ns() - stage_start_ns)
     if k2.shape != state_shape or not np.isfinite(k2).all():
         raise ValueError(f"stage 2 derivative (k2) contains non-finite values: {k2}")
 
     # --- Stage 3 (k3) at t0 + dt/2, stage_offset=dt/2 ---
     x2 = x0 + half_dt * k2
+    stage_start_ns = time.perf_counter_ns() if stage_timing_sink is not None else 0
     env_load_3 = _query_env_load(environment_field, load_model, valid_tick, half_dt, x2, caps)
     k3 = np.asarray(plant.rhs(t0 + half_dt, x2, control_load, env_load_3), dtype=np.float64)
+    if stage_timing_sink is not None:
+        stage_timing_sink(3, time.perf_counter_ns() - stage_start_ns)
     if k3.shape != state_shape or not np.isfinite(k3).all():
         raise ValueError(f"stage 3 derivative (k3) contains non-finite values: {k3}")
 
     # --- Stage 4 (k4) at t0 + dt, stage coordinate (tick+1, stage_offset=0.0) ---
     x3 = x0 + valid_dt * k3
+    stage_start_ns = time.perf_counter_ns() if stage_timing_sink is not None else 0
     env_load_4 = _query_env_load(environment_field, load_model, valid_tick + 1, 0.0, x3, caps)
     k4 = np.asarray(plant.rhs(t0 + valid_dt, x3, control_load, env_load_4), dtype=np.float64)
+    if stage_timing_sink is not None:
+        stage_timing_sink(4, time.perf_counter_ns() - stage_start_ns)
     if k4.shape != state_shape or not np.isfinite(k4).all():
         raise ValueError(f"stage 4 derivative (k4) contains non-finite values: {k4}")
 

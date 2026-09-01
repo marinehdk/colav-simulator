@@ -1,4 +1,4 @@
-"""Render aggregate Issue #54 benchmark JSON as a reviewable Markdown table."""
+"""Render v2 Issue #54 benchmark JSON as reviewable Markdown evidence."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import Any
 
 
 def _format_ns(value: float) -> str:
+    """Format nanoseconds with an explicit human-readable unit."""
     if value >= 1_000_000:
         return f"{value / 1_000_000:.3f} ms"
     if value >= 1_000:
@@ -17,97 +18,112 @@ def _format_ns(value: float) -> str:
     return f"{value:.1f} ns"
 
 
-def render_report(data: dict[str, Any], result_sha256: str | None = None) -> str:
-    """Render benchmark evidence with explicit claim and decision ceilings."""
+def render_report(data: dict[str, Any], result_file_sha256: str | None = None) -> str:
+    """Render corrected metrics, provenance, threshold proposal, and boundaries."""
     provenance = data["provenance"]
-    rows = data["rows"]
     lines = [
         "# Issue #54 modular GNC performance evidence",
         "",
         f"- Schema: `{data['schema_version']}`",
         f"- Claim ceiling: `{data['claim_ceiling']}`",
-        f"- Commit: `{provenance.get('commit_head')}`",
+        f"- Execution source commit H: `{provenance.get('execution_source_commit')}`",
+        f"- Execution source archive SHA-256: `{provenance.get('execution_source_archive_sha256')}`",
+        f"- Execution source manifest SHA-256: `{provenance.get('execution_source_manifest_sha256')}`",
+        f"- Execution source dirty: `{provenance.get('execution_source_dirty')}`",
         f"- Platform: `{provenance.get('os')}`, `{provenance.get('kernel')}`, `{provenance.get('architecture')}`",
         f"- Python: `{provenance.get('python_executable')}` / `{provenance.get('python_version')}`",
         f"- uv.lock SHA-256: `{provenance.get('uv_lock_sha256')}`",
         f"- Dependency freeze SHA-256: `{provenance.get('dependency_freeze_sha256')}`",
         f"- Harness config SHA-256: `{provenance.get('harness_config_hash')}`",
-        f"- Result SHA-256: `{result_sha256 or provenance.get('result_sha256')}`",
+        f"- Input SHA-256: `{provenance.get('input_hash')}`",
+        f"- `result_file_sha256`: `{result_file_sha256}`",
+        f"- `payload_sha256`: `{provenance.get('payload_sha256')}`",
         f"- CPU affinity: `{provenance.get('cpu_affinity_status')}`",
         "",
-        "## Contract",
+        "## Contract and traceability",
         "",
-        "The harness directly instantiates `AnalyticEnvironmentField`, `EnvironmentalLoadModel`, "
-        "`Generic3DOFPlant`, and scheduler-owned `rk4_step`. It excludes GUI, legacy simulation, "
-        "COLAV, and adapter overhead. Each measured simulated second is 50 base ticks × 4 RK4 "
-        "stages = 200 RHS evaluations per ship per simulated second. No simulation state uses wall time.",
+        "Direct path: `AnalyticEnvironmentField` + `EnvironmentalLoadModel` + `Generic3DOFPlant` + "
+        "scheduler-owned `rk4_step`; GUI, legacy simulation, COLAV, and adapters excluded. "
+        "Fixed 50 Hz × RK4 × 4 stages = 200 direct RHS evaluations per ship per simulated second. "
+        "Each k1/k2/k3/k4 sample directly times stage-specific environment query, load model, and plant RHS. "
+        "Parent RSS monitoring is outside worker timing loop.",
+        "",
+        f"Authoritative RA-03: `{data['traceability']['authoritative_ra03']['path']}`, "
+        f"section `{data['traceability']['authoritative_ra03']['section']}`.",
         "",
         "## Matrix results",
         "",
+        "Scenario RTF = common-axis simulated seconds / wall seconds. Aggregate ship-s/s = ships × "
+        "scenario simulated seconds / wall seconds. Percentiles below pool direct samples across all three repeats.",
+        "",
         (
-            "| Ships | Harmonics | Median RTF/ship | RHS p50 | RHS p95 | RK4 step p50 | "
-            "RK4 step p95 | Peak RSS | RHS identity | Repeat digest |"
+            "| Ships | Harmonics | Scenario RTF median (min/max/CV) | Aggregate ship-s/s | k1 p95 | "
+            "k2 p95 | k3 p95 | k4 p95 | Pooled RHS p95 | RK4 step p95 | Peak current RSS | "
+            "Max row delta RSS |"
         ),
-        "|---:|---:|---:|---:|---:|---:|---:|---:|:---:|:---:|",
+        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
-    for row in rows:
+    for row in data["rows"]:
+        rtf = row["scenario_rtf"]
+        stage = row["direct_stage_latency_ns_pooled_across_repeats"]
         lines.append(
-            f"| {row['ships']} | {row['harmonics']} | {row['median_rtf_per_ship']:.3f} | "
-            f"{_format_ns(row['median_rhs_latency_ns']['p50'])} | "
-            f"{_format_ns(row['median_rhs_latency_ns']['p95'])} | "
-            f"{_format_ns(row['median_rk4_step_latency_ns']['p50'])} | "
-            f"{_format_ns(row['median_rk4_step_latency_ns']['p95'])} | "
-            f"{row['peak_rss_bytes'] / (1024 * 1024):.2f} MiB | "
-            f"{row['rhs_count_identity']} | {row['deterministic_output_digest']} |"
+            f"| {row['ships']} | {row['harmonics']} | "
+            f"{rtf['median']:.3f} ({rtf['min']:.3f}/{rtf['max']:.3f}/{rtf['cv']:.3f}) | "
+            f"{row['aggregate_ship_seconds_per_wall_second']:.3f} | "
+            f"{_format_ns(stage['k1']['p95'])} | {_format_ns(stage['k2']['p95'])} | "
+            f"{_format_ns(stage['k3']['p95'])} | {_format_ns(stage['k4']['p95'])} | "
+            f"{_format_ns(row['direct_pooled_rhs_latency_ns_pooled_across_repeats']['p95'])} | "
+            f"{_format_ns(row['rk4_step_latency_ns_pooled_across_repeats']['p95'])} | "
+            f"{row['peak_current_rss_bytes'] / 1048576:.2f} MiB | {row['max_delta_current_rss_bytes'] / 1048576:.2f} MiB |"
         )
     lines.extend(
         [
             "",
-            "## Harmonic scaling ratios",
+            "## Harmonic scaling",
             "",
-            "Ratios are measured ratios relative to the 8-harmonic row for the same ship count; "
-            "they are not a fitted complexity claim.",
+            "Ratios are descriptive measurements relative to the 8-harmonic row for each ship count; "
+            "no complexity model is claimed.",
             "",
-            "| Ships | From | To | RHS p95 ratio | RTF ratio |",
+            "| Ships | From | To | Direct pooled RHS p95 ratio | Scenario RTF ratio |",
             "|---:|---:|---:|---:|---:|",
         ]
     )
     for item in data["harmonic_scaling"]:
         lines.append(
             f"| {item['ships']} | {item['from_harmonics']} | {item['to_harmonics']} | "
-            f"{item['rhs_p95_ratio']:.3f} | {item['rtf_ratio']:.3f} |"
+            f"{item['direct_pooled_rhs_p95_ratio']:.3f} | {item['scenario_rtf_ratio']:.3f} |"
         )
     proposal = data["threshold_proposal"]
     lines.extend(
         [
             "",
-            "## Threshold proposal (PROPOSED_NOT_APPROVED)",
+            "## Threshold proposal — PROPOSED_NOT_APPROVED",
             "",
-            "No numeric threshold is approved by this artifact. Issue #54 requires approval in the issue "
-            "before subsequent slices; absence remains NO-GO for subsequent slices.",
+            "No GO/NO-GO decision is made here. These candidate thresholds require issue-owner approval.",
             "",
-            "Options recorded without decision:",
+            "| Candidate | Limit | Observed representative 20 ships/32 harmonics | Result |",
+            "|---|---:|---:|:---:|",
+        ]
+    )
+    for name, check in proposal["checks"].items():
+        lines.append(f"| {name} | {check['limit']} | {check['observed']:.6g} | {check['pass']} |")
+    lines.extend(
+        [
             "",
-            *[f"1. {option}" for option in proposal["options"]],
+            "- Representative row: 20 ships / 32 harmonics.",
+            "- Scenario RTF floor: 1.00.",
+            "- Direct pooled RHS p95 ceiling: 0.25 ms for 20-ship serial aggregate; separate per-ship reference: 5 ms.",
+            "- Memory ceilings: 128 MiB peak current RSS and 64 MiB per-row current-RSS delta.",
+            "- Harmonic guards: 8→32 ≤ 2.00 and 8→128 ≤ 5.25 direct pooled RHS p95 ratio.",
+            "- Stress row: 20 ships / 128 harmonics, candidate Scenario RTF floor 0.25; not representative GO row.",
+            "- Decision options recorded only: Python GO; remediation-vectorization; same-contract native adapter.",
             "",
-            (f"- Required 20-ship representative RTF floor: `{proposal['required_20_ship_representative_row_rtf_floor']}`"),
-            (
-                "- RHS reference budget: "
-                f"`{proposal['rhs_p95_budget_relative_to_5ms']['per_ship_serial_budget_ms']} ms` per serial RHS budget"
-            ),
-            f"- Memory ceiling: `{proposal['memory_ceiling_bytes']}`",
-            f"- Harmonic scaling guard: `{proposal['harmonic_scaling_guard']}`",
+            "## Boundaries",
             "",
-            "## Boundaries and remaining blockers",
-            "",
-            "- This is performance characterization and A2 blocker evidence only.",
-            "- It is not plant parity, vessel validation, COLAV, SIL, HIL, or sea-trial evidence.",
-            "- A2 parity remains blocked pending the performance decision; issue #55 remains blocked.",
-            "- CPU affinity/governor was uncontrolled unless separately recorded by the execution environment.",
-            (
-                "- Per-RHS latency is a stage-batch wall-time attribution divided by four; "
-                "RK4 step timing is directly measured."
-            ),
+            "- Performance characterization and A2 blocker evidence only.",
+            "- No plant parity, vessel validation, COLAV, SIL, HIL, or sea-trial claim.",
+            "- A2 remains blocked pending the performance decision; #55 remains blocked.",
+            "- Rollback point: `17c075b0cb8fd3d13a1f5cc9294e319fe1bd2c98`.",
             "",
         ]
     )
@@ -115,14 +131,14 @@ def render_report(data: dict[str, Any], result_sha256: str | None = None) -> str
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Render Markdown from a benchmark result JSON file."""
+    """Render Markdown from a v2 benchmark result JSON file."""
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=Path)
     parser.add_argument("output", type=Path)
     args = parser.parse_args(argv)
     data = json.loads(args.input.read_text(encoding="utf-8"))
-    result_sha = hashlib.sha256(args.input.read_bytes()).hexdigest()
-    args.output.write_text(render_report(data, result_sha), encoding="utf-8")
+    result_file_sha256 = hashlib.sha256(args.input.read_bytes()).hexdigest()
+    args.output.write_text(render_report(data, result_file_sha256), encoding="utf-8")
     return 0
 
 

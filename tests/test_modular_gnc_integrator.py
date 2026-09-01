@@ -202,6 +202,26 @@ def test_rk4_endpoint_stage_satisfies_exact_time_identity() -> None:
     assert math.isclose(truth_stage4.time_s, 0.1)
 
 
+def test_rk4_direct_stage_timing_callback_has_four_independent_samples(plant: Generic3DOFPlant) -> None:
+    timings: list[tuple[int, int]] = []
+    state = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+
+    timed = rk4_step(
+        plant,
+        tick=0,
+        dt_s=0.1,
+        state=state,
+        control_load=VesselLoad.zero(),
+        stage_timing_sink=lambda stage, elapsed: timings.append((stage, elapsed)),
+    )
+    untimed = rk4_step(plant, tick=0, dt_s=0.1, state=state, control_load=VesselLoad.zero())
+
+    assert [stage for stage, _ in timings] == [1, 2, 3, 4]
+    assert len(timings) == 4
+    assert all(elapsed >= 0 for _, elapsed in timings)
+    np.testing.assert_array_equal(timed, untimed)
+
+
 def test_rk4_rejects_nonfinite_during_stages(plant: Generic3DOFPlant) -> None:
     class FailingStagePlant:
         def __init__(self) -> None:
