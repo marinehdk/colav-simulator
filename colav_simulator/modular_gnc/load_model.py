@@ -1187,7 +1187,7 @@ class FirstOrderWaveLoadModel:
         )
 
     @classmethod
-    def _calculate_inferred(
+    def _calculate_inferred(  # noqa: PLR0915
         cls,
         wave: WaveFieldSample,
         heading: float,
@@ -1228,12 +1228,7 @@ class FirstOrderWaveLoadModel:
         omega_rao = np.maximum(np.abs(omega_e), 1.0e-4)
 
         e_half = np.exp(-k * (params.draft_m * 0.5))
-        sway_geom = (
-            params.water_density_kg_m3
-            * params.gravity_mps2
-            * params.beam_m
-            * params.length_between_perpendiculars_m
-        )
+        sway_geom = params.water_density_kg_m3 * params.gravity_mps2 * params.beam_m * params.length_between_perpendiculars_m
         f_fk_sway = amps * (sway_geom * k * e_half)
 
         k_denom = np.maximum(k, 1.0e-8)
@@ -1507,7 +1502,7 @@ class MeanDriftLoadModel:
         )
 
     @classmethod
-    def _calculate_inferred(
+    def _calculate_inferred(  # noqa: PLR0915
         cls,
         wave: WaveFieldSample | MeanDriftSourceSample,
         heading: float,
@@ -1883,7 +1878,9 @@ class EnvironmentalLoadModel:
         if wave_first_order_asset is not None and not wave_first_order_asset.verify_integrity():
             raise AssetIntegrityError(f"Integrity check failed for wave asset: {wave_first_order_asset.metadata.asset_id}")
         if wave_mean_drift_asset is not None and not wave_mean_drift_asset.verify_integrity():
-            raise AssetIntegrityError(f"Integrity check failed for wave drift asset: {wave_mean_drift_asset.metadata.asset_id}")
+            raise AssetIntegrityError(
+                f"Integrity check failed for wave drift asset: {wave_mean_drift_asset.metadata.asset_id}"
+            )
 
         self._wave_first_order_asset = wave_first_order_asset
         self._wave_mean_drift_asset = wave_mean_drift_asset

@@ -3,26 +3,31 @@
 from __future__ import annotations
 
 import hashlib
+import time
 import unittest.mock
+
+import numpy as np
 import pytest
 
 from colav_simulator.modular_gnc.contracts import (
     AssetIntegrityError,
     AssetMetadata,
-    AssetMissingError,
     AssetTrustLevel,
-    CurrentStrategy,
+    CurrentSample,
+    EnvironmentalLoads,
     EnvironmentTruth,
+    MeanDriftSourceSample,
     NavigationState,
     OutOfDomainError,
+    PlantState,
     VesselLoad,
     WaveComponent,
     WaveFieldSample,
     WaveLoadMode,
-    MeanDriftSourceSample,
     WindSample,
-    CurrentSample,
 )
+from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
+from colav_simulator.modular_gnc.integrators import rk4_step
 from colav_simulator.modular_gnc.load_model import (
     DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
     DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
@@ -33,6 +38,7 @@ from colav_simulator.modular_gnc.load_model import (
     MeanDriftLoadModel,
     VesselEnvironmentalParameters,
 )
+from colav_simulator.modular_gnc.plant import Generic3DOFPlant, Generic3DOFPlantParameters
 
 
 @pytest.fixture
@@ -127,7 +133,6 @@ def test_slice1_corrupted_asset_fails_at_construction(standard_vessel_params: Ve
 
 
 def _assert_load_close(a: VesselLoad, b: VesselLoad, rtol: float = 1e-12, atol: float = 1e-9) -> None:
-    import numpy as np
     assert np.isclose(a.surge_n, b.surge_n, rtol=rtol, atol=atol), f"surge diff: {a.surge_n} vs {b.surge_n}"
     assert np.isclose(a.sway_n, b.sway_n, rtol=rtol, atol=atol), f"sway diff: {a.sway_n} vs {b.sway_n}"
     assert np.isclose(a.yaw_nm, b.yaw_nm, rtol=rtol, atol=atol), f"yaw diff: {a.yaw_nm} vs {b.yaw_nm}"
@@ -139,8 +144,6 @@ def test_slice2_scalar_vs_vectorized_first_order_equivalence(
     standard_vessel_params: VesselEnvironmentalParameters, harmonics: int
 ) -> None:
     """Slice 2: First-order vectorized implementation matches scalar reference oracle within strict tolerances."""
-    import numpy as np
-
     rng = np.random.default_rng(12345 + harmonics)
     components = []
     for _ in range(harmonics):
@@ -187,8 +190,6 @@ def test_slice2_scalar_vs_vectorized_mean_drift_equivalence(
     standard_vessel_params: VesselEnvironmentalParameters, harmonics: int
 ) -> None:
     """Slice 2: Mean-drift vectorized implementation matches scalar reference oracle within strict tolerances."""
-    import numpy as np
-
     rng = np.random.default_rng(54321 + harmonics)
     components = []
     for _ in range(harmonics):
@@ -339,13 +340,7 @@ def test_slice4_error_parity(standard_vessel_params: VesselEnvironmentalParamete
 def test_slice4_rk4_10s_trajectory_equivalence_against_scalar(
     standard_vessel_params: VesselEnvironmentalParameters,
 ) -> None:
-    """Slice 4: Full 10s RK4 trajectory (500 steps, 2000 RK stages) matches scalar reference within rtol<=1e-11, atol<=1e-9."""
-    import numpy as np
-    from colav_simulator.modular_gnc.contracts import EnvironmentalLoads, PlantState
-    from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
-    from colav_simulator.modular_gnc.integrators import rk4_step
-    from colav_simulator.modular_gnc.plant import Generic3DOFPlant, Generic3DOFPlantParameters
-
+    """Slice 4: Full 10s RK4 trajectory matches scalar reference within rtol<=1e-11, atol<=1e-9."""
     plant_params = Generic3DOFPlantParameters(
         mass_kg=1.6e7,
         i_z_kgm2=3.0e10,
@@ -440,12 +435,6 @@ def test_slice4_rk4_10s_trajectory_equivalence_against_scalar(
 @pytest.mark.parametrize("harmonics", [32, 128])
 def test_deterministic_microbenchmark(harmonics: int) -> None:
     """Deterministic local microbenchmark for 32 and 128 harmonics verifying repeatability and bounded execution."""
-    import time
-    import numpy as np
-    from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
-    from colav_simulator.modular_gnc.integrators import rk4_step
-    from colav_simulator.modular_gnc.plant import Generic3DOFPlant, Generic3DOFPlantParameters
-
     plant_params = Generic3DOFPlantParameters(
         mass_kg=1.6e7,
         i_z_kgm2=3.0e10,
@@ -501,6 +490,4 @@ def test_deterministic_microbenchmark(harmonics: int) -> None:
     assert np.array_equal(state1, state2), "optimized path must be bit-identical across repeats"
     # Coarse non-flaky sanity check: 100 steps (400 RK stages) must finish in under 2 seconds locally
     assert elapsed1 < 2.0
-
-
-
+    assert elapsed2 < 2.0
