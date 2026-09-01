@@ -169,7 +169,7 @@ class CurrentCoeffTableAsset:
 
     def verify_integrity(self) -> bool:
         """Verify table content SHA-256 against metadata hash."""
-        raw_rows = [(entry.heading_deg, entry.ccx, entry.ccy, entry.cmz) for entry in self.table]
+        raw_rows = [(entry.heading_deg, entry.ccx, entry.ccy, entry.cmz, entry.cmx) for entry in self.table]
         payload = json.dumps(raw_rows, separators=(",", ":")).encode("utf-8")
         calc_sha = hashlib.sha256(payload).hexdigest()
         return calc_sha == self.metadata.sha256
@@ -391,7 +391,7 @@ DEFAULT_TABLE_CURRENT_ASSET = CurrentCoeffTableAsset(
         asset_type="current_coeff_table",
         trust_level=AssetTrustLevel.MOCK,
         source_type="mock",
-        sha256="6c3391daa24862632e5c423b9d95cda66f15162b034830a839a18e762e4f1226",
+        sha256="d4cb5edccda7f56fea0b4904a62068422c68b6cde1827a2614a3791ed39aeea9",
         license="MIT",
         applicability_domain=ApplicabilityDomain(
             heading_range_deg=(0.0, 360.0),

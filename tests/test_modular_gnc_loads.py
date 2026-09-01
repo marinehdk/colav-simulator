@@ -35,6 +35,7 @@ from colav_simulator.modular_gnc.load_model import (
     DEFAULT_OCIMF_WIND_ASSET,
     DEFAULT_TABLE_CURRENT_ASSET,
     CurrentCoeffEntry,
+    CurrentCoeffTableAsset,
     CurrentLoadModel,
     EnvironmentalLoadModel,
     VesselEnvironmentalParameters,
@@ -499,6 +500,26 @@ def test_tampered_asset_hash_fails_integrity() -> None:
             params=params,
             asset=tampered_asset,
         )
+
+
+def test_current_asset_cmx_mutation_fails_integrity() -> None:
+    """Verify that mutating only cmx in current table asset invalidates sha256 integrity."""
+    orig = DEFAULT_TABLE_CURRENT_ASSET
+    assert orig.verify_integrity()
+
+    # Mutate ONLY cmx in the first entry
+    mutated_entries = list(orig.table)
+    first = mutated_entries[0]
+    mutated_entries[0] = CurrentCoeffEntry(
+        heading_deg=first.heading_deg,
+        ccx=first.ccx,
+        ccy=first.ccy,
+        cmz=first.cmz,
+        cmx=first.cmx + 0.05,
+    )
+    mutated_asset = CurrentCoeffTableAsset(metadata=orig.metadata, table=tuple(mutated_entries))
+    assert not mutated_asset.verify_integrity()
+
 
 
 # ---------------------------------------------------------------------------
