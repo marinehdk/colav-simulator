@@ -242,4 +242,3 @@ def test_wave_mode_configuration_validation_and_hash() -> None:
     norm_off = normalize_ship_modules(cfg_off)
     norm_both = normalize_ship_modules(cfg_both)
     assert norm_off.config_hash != norm_both.config_hash
-

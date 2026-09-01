@@ -19,10 +19,13 @@ from colav_simulator.modular_gnc.contracts import (
     CurrentStrategy,
     EnvironmentalLoads,
     EnvironmentTruth,
+    MeanDriftSourceSample,
     NavigationState,
     OutOfDomainError,
     PlantState,
     VesselLoad,
+    WaveFieldSample,
+    WaveLoadMode,
     WindSample,
     _finite_scalar,
 )
@@ -249,6 +252,345 @@ class InferredCurrentAsset:
 
 
 @dataclass(frozen=True)
+class InferredWaveResponseAsset:
+    """Inferred Froude-Krylov and analytical RAO wave response model asset (TS-23, VR-10)."""
+
+    metadata: AssetMetadata
+    fk_scale_factor: float = 0.1
+    rao_cutoff_surge: float = 0.25
+    rao_cutoff_sway: float = 0.30
+    rao_cutoff_yaw: float = 0.20
+    rao_scale_max: float = 3.0
+    rao_scale_max_roll: float = 5.0
+    rao_damping_heave: float = 0.10
+    rao_damping_roll: float = 0.15
+    rao_surge_scale: float = 1.0
+    rao_sway_scale: float = 1.0
+    rao_roll_scale: float = 1.0
+    rao_yaw_scale: float = 1.0
+
+    def __post_init__(self) -> None:
+        """Validate parameters and ensure inferred asset cannot be marked validated."""
+        if self.metadata.trust_level == AssetTrustLevel.VALIDATED_FOR_VESSEL:
+            raise ValueError("Inferred wave response asset cannot have VALIDATED_FOR_VESSEL trust level")
+        for f in (
+            "fk_scale_factor",
+            "rao_cutoff_surge",
+            "rao_cutoff_sway",
+            "rao_cutoff_yaw",
+            "rao_scale_max",
+            "rao_scale_max_roll",
+            "rao_damping_heave",
+            "rao_damping_roll",
+            "rao_surge_scale",
+            "rao_sway_scale",
+            "rao_roll_scale",
+            "rao_yaw_scale",
+        ):
+            val = _finite_scalar(f, getattr(self, f))
+            if val < 0.0:
+                raise ValueError(f"{f} must be non-negative")
+            object.__setattr__(self, f, val)
+
+    def verify_integrity(self) -> bool:
+        """Verify asset integrity hash against metadata."""
+        d = {
+            "asset_id": self.metadata.asset_id,
+            "fk_scale_factor": self.fk_scale_factor,
+            "rao_cutoff_surge": self.rao_cutoff_surge,
+            "rao_cutoff_sway": self.rao_cutoff_sway,
+            "rao_cutoff_yaw": self.rao_cutoff_yaw,
+            "rao_scale_max": self.rao_scale_max,
+            "rao_scale_max_roll": self.rao_scale_max_roll,
+            "rao_damping_heave": self.rao_damping_heave,
+            "rao_damping_roll": self.rao_damping_roll,
+            "rao_surge_scale": self.rao_surge_scale,
+            "rao_sway_scale": self.rao_sway_scale,
+            "rao_roll_scale": self.rao_roll_scale,
+            "rao_yaw_scale": self.rao_yaw_scale,
+        }
+        payload = json.dumps(d, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return self.metadata.sha256 == hashlib.sha256(payload).hexdigest()
+
+
+@dataclass(frozen=True)
+class WaveRaoEntry:
+    """Single tabular RAO entry for a frequency and relative heading."""
+
+    omega_radps: float
+    heading_deg: float
+    surge_amp_n_per_m: float
+    surge_phase_rad: float
+    sway_amp_n_per_m: float
+    sway_phase_rad: float
+    roll_amp_nm_per_m: float
+    roll_phase_rad: float
+    yaw_amp_nm_per_m: float
+    yaw_phase_rad: float
+
+    def __post_init__(self) -> None:
+        """Validate finite values."""
+        omega = _finite_scalar("omega_radps", self.omega_radps)
+        if omega <= 0.0:
+            raise ValueError("omega_radps must be positive")
+        object.__setattr__(self, "omega_radps", omega)
+        object.__setattr__(self, "heading_deg", _normalize_degrees(self.heading_deg))
+        for field_name in (
+            "surge_amp_n_per_m",
+            "surge_phase_rad",
+            "sway_amp_n_per_m",
+            "sway_phase_rad",
+            "roll_amp_nm_per_m",
+            "roll_phase_rad",
+            "yaw_amp_nm_per_m",
+            "yaw_phase_rad",
+        ):
+            object.__setattr__(self, field_name, _finite_scalar(field_name, getattr(self, field_name)))
+
+
+@dataclass(frozen=True)
+class WaveRaoTableAsset:
+    """Immutable tabular RAO asset with verification (TS-23, TS-27)."""
+
+    metadata: AssetMetadata
+    table: tuple[WaveRaoEntry, ...]
+
+    def __post_init__(self) -> None:
+        """Validate non-empty table and freeze."""
+        if not self.table:
+            raise ValueError("Wave RAO table cannot be empty")
+        for i, entry in enumerate(self.table):
+            if not isinstance(entry, WaveRaoEntry):
+                raise TypeError(f"table[{i}] must be WaveRaoEntry, got {type(entry).__name__}")
+        object.__setattr__(self, "table", tuple(self.table))
+
+    def verify_integrity(self) -> bool:
+        """Verify table content SHA-256 against metadata hash."""
+        raw_rows = [
+            (
+                entry.omega_radps,
+                entry.heading_deg,
+                entry.surge_amp_n_per_m,
+                entry.surge_phase_rad,
+                entry.sway_amp_n_per_m,
+                entry.sway_phase_rad,
+                entry.roll_amp_nm_per_m,
+                entry.roll_phase_rad,
+                entry.yaw_amp_nm_per_m,
+                entry.yaw_phase_rad,
+            )
+            for entry in self.table
+        ]
+        payload = json.dumps(raw_rows, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest() == self.metadata.sha256
+
+    def interpolate(
+        self, omega_radps: float, heading_deg: float
+    ) -> tuple[float, float, float, float, float, float, float, float]:
+        """Interpolate RAO amplitudes and phases at (omega, heading_deg)."""
+        norm_heading = _normalize_degrees(heading_deg)
+        if len(self.table) == 1:
+            e = self.table[0]
+            return (
+                e.surge_amp_n_per_m,
+                e.surge_phase_rad,
+                e.sway_amp_n_per_m,
+                e.sway_phase_rad,
+                e.roll_amp_nm_per_m,
+                e.roll_phase_rad,
+                e.yaw_amp_nm_per_m,
+                e.yaw_phase_rad,
+            )
+        for e in self.table:
+            if math.isclose(e.omega_radps, omega_radps, abs_tol=1e-6) and math.isclose(
+                e.heading_deg, norm_heading, abs_tol=1e-4
+            ):
+                return (
+                    e.surge_amp_n_per_m,
+                    e.surge_phase_rad,
+                    e.sway_amp_n_per_m,
+                    e.sway_phase_rad,
+                    e.roll_amp_nm_per_m,
+                    e.roll_phase_rad,
+                    e.yaw_amp_nm_per_m,
+                    e.yaw_phase_rad,
+                )
+        dists = []
+        for e in self.table:
+            d_head = min(abs(e.heading_deg - norm_heading), 360.0 - abs(e.heading_deg - norm_heading)) / 180.0
+            d_om = abs(e.omega_radps - omega_radps) / max(omega_radps, 0.1)
+            dist = math.hypot(d_om, d_head)
+            dists.append((dist, e))
+        dists.sort(key=lambda x: x[0])
+        if dists[0][0] < 1e-9:
+            e = dists[0][1]
+            return (
+                e.surge_amp_n_per_m,
+                e.surge_phase_rad,
+                e.sway_amp_n_per_m,
+                e.sway_phase_rad,
+                e.roll_amp_nm_per_m,
+                e.roll_phase_rad,
+                e.yaw_amp_nm_per_m,
+                e.yaw_phase_rad,
+            )
+        top_k = dists[: min(4, len(dists))]
+        weights = [1.0 / (d[0] ** 2) for d in top_k]
+        tot_w = sum(weights)
+        norm_w = [w / tot_w for w in weights]
+        res = [0.0] * 8
+        for w, (_, e) in zip(norm_w, top_k, strict=True):
+            vals = (
+                e.surge_amp_n_per_m,
+                e.surge_phase_rad,
+                e.sway_amp_n_per_m,
+                e.sway_phase_rad,
+                e.roll_amp_nm_per_m,
+                e.roll_phase_rad,
+                e.yaw_amp_nm_per_m,
+                e.yaw_phase_rad,
+            )
+            for idx, val in enumerate(vals):
+                res[idx] += w * val
+        return (res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7])
+
+
+@dataclass(frozen=True)
+class InferredWaveDriftAsset:
+    """Inferred second-order wave mean-drift load asset (TS-23, VR-10)."""
+
+    metadata: AssetMetadata
+    inferred_surge_scale: float = 0.75
+    inferred_sway_scale: float = 0.35
+    inferred_yaw_lever_scale: float = 0.12
+    inferred_roll_lever_scale: float = 0.45
+    max_force_n: float | None = 2.0e6
+    max_moment_nm: float | None = 5.0e7
+
+    def __post_init__(self) -> None:
+        """Validate parameters and ensure inferred asset cannot be marked validated."""
+        if self.metadata.trust_level == AssetTrustLevel.VALIDATED_FOR_VESSEL:
+            raise ValueError("Inferred wave drift asset cannot have VALIDATED_FOR_VESSEL trust level")
+        for f in (
+            "inferred_surge_scale",
+            "inferred_sway_scale",
+            "inferred_yaw_lever_scale",
+            "inferred_roll_lever_scale",
+        ):
+            val = _finite_scalar(f, getattr(self, f))
+            if val < 0.0:
+                raise ValueError(f"{f} must be non-negative")
+            object.__setattr__(self, f, val)
+        if self.max_force_n is not None:
+            object.__setattr__(self, "max_force_n", _finite_scalar("max_force_n", self.max_force_n))
+        if self.max_moment_nm is not None:
+            object.__setattr__(self, "max_moment_nm", _finite_scalar("max_moment_nm", self.max_moment_nm))
+
+    def verify_integrity(self) -> bool:
+        """Verify asset integrity hash against metadata."""
+        d = {
+            "asset_id": self.metadata.asset_id,
+            "inferred_roll_lever_scale": self.inferred_roll_lever_scale,
+            "inferred_surge_scale": self.inferred_surge_scale,
+            "inferred_sway_scale": self.inferred_sway_scale,
+            "inferred_yaw_lever_scale": self.inferred_yaw_lever_scale,
+            "max_force_n": self.max_force_n,
+            "max_moment_nm": self.max_moment_nm,
+        }
+        payload = json.dumps(d, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return self.metadata.sha256 == hashlib.sha256(payload).hexdigest()
+
+
+@dataclass(frozen=True)
+class WaveDriftEntry:
+    """Single tabular second-order drift coefficient entry."""
+
+    omega_radps: float
+    heading_deg: float
+    c_dx_n_per_m2: float
+    c_dy_n_per_m2: float
+    c_dn_nm_per_m2: float
+    c_dk_nm_per_m2: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Validate finite coefficients."""
+        omega = _finite_scalar("omega_radps", self.omega_radps)
+        if omega <= 0.0:
+            raise ValueError("omega_radps must be positive")
+        object.__setattr__(self, "omega_radps", omega)
+        object.__setattr__(self, "heading_deg", _normalize_degrees(self.heading_deg))
+        object.__setattr__(self, "c_dx_n_per_m2", _finite_scalar("c_dx_n_per_m2", self.c_dx_n_per_m2))
+        object.__setattr__(self, "c_dy_n_per_m2", _finite_scalar("c_dy_n_per_m2", self.c_dy_n_per_m2))
+        object.__setattr__(self, "c_dn_nm_per_m2", _finite_scalar("c_dn_nm_per_m2", self.c_dn_nm_per_m2))
+        object.__setattr__(self, "c_dk_nm_per_m2", _finite_scalar("c_dk_nm_per_m2", self.c_dk_nm_per_m2))
+
+
+@dataclass(frozen=True)
+class WaveDriftTableAsset:
+    """Immutable tabular mean drift coefficient asset (TS-23, TS-27)."""
+
+    metadata: AssetMetadata
+    table: tuple[WaveDriftEntry, ...]
+
+    def __post_init__(self) -> None:
+        """Validate non-empty table and freeze."""
+        if not self.table:
+            raise ValueError("Wave drift table cannot be empty")
+        for i, entry in enumerate(self.table):
+            if not isinstance(entry, WaveDriftEntry):
+                raise TypeError(f"table[{i}] must be WaveDriftEntry, got {type(entry).__name__}")
+        object.__setattr__(self, "table", tuple(self.table))
+
+    def verify_integrity(self) -> bool:
+        """Verify table content SHA-256 against metadata hash."""
+        raw_rows = [
+            (
+                entry.omega_radps,
+                entry.heading_deg,
+                entry.c_dx_n_per_m2,
+                entry.c_dy_n_per_m2,
+                entry.c_dn_nm_per_m2,
+                entry.c_dk_nm_per_m2,
+            )
+            for entry in self.table
+        ]
+        payload = json.dumps(raw_rows, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest() == self.metadata.sha256
+
+    def interpolate(self, omega_radps: float, heading_deg: float) -> tuple[float, float, float, float]:
+        """Interpolate drift coefficients (cdx, cdy, cdn, cdk) at (omega, heading_deg)."""
+        norm_heading = _normalize_degrees(heading_deg)
+        if len(self.table) == 1:
+            e = self.table[0]
+            return e.c_dx_n_per_m2, e.c_dy_n_per_m2, e.c_dn_nm_per_m2, e.c_dk_nm_per_m2
+        for e in self.table:
+            if math.isclose(e.omega_radps, omega_radps, abs_tol=1e-6) and math.isclose(
+                e.heading_deg, norm_heading, abs_tol=1e-4
+            ):
+                return e.c_dx_n_per_m2, e.c_dy_n_per_m2, e.c_dn_nm_per_m2, e.c_dk_nm_per_m2
+        dists = []
+        for e in self.table:
+            d_head = min(abs(e.heading_deg - norm_heading), 360.0 - abs(e.heading_deg - norm_heading)) / 180.0
+            d_om = abs(e.omega_radps - omega_radps) / max(omega_radps, 0.1)
+            dist = math.hypot(d_om, d_head)
+            dists.append((dist, e))
+        dists.sort(key=lambda x: x[0])
+        if dists[0][0] < 1e-9:
+            e = dists[0][1]
+            return e.c_dx_n_per_m2, e.c_dy_n_per_m2, e.c_dn_nm_per_m2, e.c_dk_nm_per_m2
+        top_k = dists[: min(4, len(dists))]
+        weights = [1.0 / (d[0] ** 2) for d in top_k]
+        tot_w = sum(weights)
+        norm_w = [w / tot_w for w in weights]
+        res = [0.0] * 4
+        for w, (_, e) in zip(norm_w, top_k, strict=True):
+            vals = (e.c_dx_n_per_m2, e.c_dy_n_per_m2, e.c_dn_nm_per_m2, e.c_dk_nm_per_m2)
+            for idx, val in enumerate(vals):
+                res[idx] += w * val
+        return (res[0], res[1], res[2], res[3])
+
+
+@dataclass(frozen=True)
 class VesselEnvironmentalParameters:
     """Vessel hydrodynamic and aerodynamic geometry parameters (SI units)."""
 
@@ -264,59 +606,42 @@ class VesselEnvironmentalParameters:
     kg_m: float = 0.0
     current_roll_moment_arm_m: float | None = None
     water_density_kg_m3: float = 1025.0
+    displacement_ton: float = 50000.0
+    gm_t_m: float = 1.5
+    bow_angle_rad: float = 0.6
+    c_wl_aft: float = 0.95
+    gravity_mps2: float = 9.81
+    wave_roll_moment_arm_m: float | None = None
 
     def __post_init__(self) -> None:
         """Validate positive physical parameters."""
-        lpp = _finite_scalar("length_between_perpendiculars_m", self.length_between_perpendiculars_m)
-        if lpp <= 0.0:
-            raise ValueError("length_between_perpendiculars_m must be positive")
-        beam = _finite_scalar("beam_m", self.beam_m)
-        if beam <= 0.0:
-            raise ValueError("beam_m must be positive")
-        draft = _finite_scalar("draft_m", self.draft_m)
-        if draft <= 0.0:
-            raise ValueError("draft_m must be positive")
-        fa = _finite_scalar("wind_frontal_area_m2", self.wind_frontal_area_m2)
-        if fa <= 0.0:
-            raise ValueError("wind_frontal_area_m2 must be positive")
-        la = _finite_scalar("wind_lateral_area_m2", self.wind_lateral_area_m2)
-        if la <= 0.0:
-            raise ValueError("wind_lateral_area_m2 must be positive")
-        air_rho = _finite_scalar("air_density_kg_m3", self.air_density_kg_m3)
-        if air_rho <= 0.0:
-            raise ValueError("air_density_kg_m3 must be positive")
-        water_rho = _finite_scalar("water_density_kg_m3", self.water_density_kg_m3)
-        if water_rho <= 0.0:
-            raise ValueError("water_density_kg_m3 must be positive")
-        depth = _finite_scalar("water_depth_m", self.water_depth_m)
-        if depth <= 0.0:
-            raise ValueError("water_depth_m must be positive")
-        z_c = _finite_scalar("wind_z_center_m", self.wind_z_center_m)
-        kg = _finite_scalar("kg_m", self.kg_m)
+        positive_fields = (
+            "length_between_perpendiculars_m",
+            "beam_m",
+            "draft_m",
+            "wind_frontal_area_m2",
+            "wind_lateral_area_m2",
+            "air_density_kg_m3",
+            "water_density_kg_m3",
+            "water_depth_m",
+            "displacement_ton",
+            "gm_t_m",
+            "c_wl_aft",
+            "gravity_mps2",
+        )
+        for name in positive_fields:
+            val = _finite_scalar(name, getattr(self, name))
+            if val <= 0.0:
+                raise ValueError(f"{name} must be positive")
+            object.__setattr__(self, name, val)
 
-        object.__setattr__(self, "length_between_perpendiculars_m", lpp)
-        object.__setattr__(self, "beam_m", beam)
-        object.__setattr__(self, "draft_m", draft)
-        object.__setattr__(self, "wind_frontal_area_m2", fa)
-        object.__setattr__(self, "wind_lateral_area_m2", la)
-        object.__setattr__(self, "air_density_kg_m3", air_rho)
-        object.__setattr__(self, "water_density_kg_m3", water_rho)
-        object.__setattr__(self, "water_depth_m", depth)
-        object.__setattr__(self, "wind_z_center_m", z_c)
-        object.__setattr__(self, "kg_m", kg)
+        for name in ("wind_z_center_m", "kg_m", "bow_angle_rad"):
+            object.__setattr__(self, name, _finite_scalar(name, getattr(self, name)))
 
-        if self.wind_roll_moment_arm_m is not None:
-            object.__setattr__(
-                self,
-                "wind_roll_moment_arm_m",
-                _finite_scalar("wind_roll_moment_arm_m", self.wind_roll_moment_arm_m),
-            )
-        if self.current_roll_moment_arm_m is not None:
-            object.__setattr__(
-                self,
-                "current_roll_moment_arm_m",
-                _finite_scalar("current_roll_moment_arm_m", self.current_roll_moment_arm_m),
-            )
+        for arm_name in ("wind_roll_moment_arm_m", "current_roll_moment_arm_m", "wave_roll_moment_arm_m"):
+            raw_arm = getattr(self, arm_name)
+            if raw_arm is not None:
+                object.__setattr__(self, arm_name, _finite_scalar(arm_name, raw_arm))
 
 
 # ---------------------------------------------------------------------------
@@ -433,6 +758,44 @@ DEFAULT_INFERRED_CURRENT_ASSET = InferredCurrentAsset(
         ),
         provenance={"standard_basis": "Fossen relative cross-flow formulation", "created_by": "modular_gnc"},
         uncertainty={"crossflow_cd_std": 0.1},
+    )
+)
+
+DEFAULT_INFERRED_WAVE_RESPONSE_ASSET = InferredWaveResponseAsset(
+    metadata=AssetMetadata(
+        asset_id="wave_response_inferred_v1",
+        asset_type="wave_response_inferred",
+        trust_level=AssetTrustLevel.INFERRED,
+        source_type="inferred",
+        sha256="3fd1ff5cb26516a276e8f5a9bd16952fa94d4db504c15d43d75f7d20e2638062",
+        license="MIT",
+        applicability_domain=ApplicabilityDomain(
+            heading_range_deg=(0.0, 360.0),
+            speed_range_mps=(0.0, 30.0),
+            draft_range_m=(0.5, 30.0),
+            custom_bounds={"omega_radps": (0.01, 5.0), "wave_height_m": (0.0, 30.0)},
+        ),
+        provenance={"standard_basis": "Froude-Krylov + analytical RAO scaffold", "created_by": "modular_gnc"},
+        uncertainty={"rao_std": 0.1},
+    )
+)
+
+DEFAULT_INFERRED_WAVE_DRIFT_ASSET = InferredWaveDriftAsset(
+    metadata=AssetMetadata(
+        asset_id="wave_drift_inferred_v1",
+        asset_type="wave_drift_inferred",
+        trust_level=AssetTrustLevel.INFERRED,
+        source_type="inferred",
+        sha256="0db2d1a386ea54cf46c89a48b723a3b33810991bc951c0de1153933d4600755a",
+        license="MIT",
+        applicability_domain=ApplicabilityDomain(
+            heading_range_deg=(0.0, 360.0),
+            speed_range_mps=(0.0, 30.0),
+            draft_range_m=(0.5, 30.0),
+            custom_bounds={"omega_radps": (0.01, 5.0), "wave_height_m": (0.0, 30.0)},
+        ),
+        provenance={"standard_basis": "Diagonal mean-drift QTF reflection scaffold", "created_by": "modular_gnc"},
+        uncertainty={"drift_std": 0.15},
     )
 )
 
@@ -609,6 +972,418 @@ class CurrentLoadModel:
         )
 
 
+class FirstOrderWaveLoadModel:
+    """Pure calculation of first-order wave excitation loads on vessel hull (SI: N, N·m)."""
+
+    @classmethod
+    def _calculate_inferred(
+        cls,
+        wave: WaveFieldSample,
+        heading: float,
+        u: float,
+        v: float,
+        t: float,
+        params: VesselEnvironmentalParameters,
+        asset: InferredWaveResponseAsset,
+    ) -> VesselLoad:
+        c_kxx = 0.4
+        k_xx = c_kxx * params.beam_m
+        if k_xx < 1.0e-3 or params.gm_t_m < 1.0e-4:
+            roll_nat_freq = 0.4
+        else:
+            roll_nat_freq = math.sqrt(params.gravity_mps2 * params.gm_t_m / (k_xx * k_xx))
+
+        total_fx = 0.0
+        total_fy = 0.0
+        total_mx = 0.0
+        total_mz = 0.0
+
+        for comp in wave.components:
+            gamma_dir = comp.direction_to_rad - heading
+            gamma_deg = _normalize_degrees(math.degrees(gamma_dir))
+
+            if not asset.metadata.applicability_domain.contains(
+                heading_deg=gamma_deg,
+                omega_radps=comp.omega_radps,
+                wave_height_m=2.0 * comp.amplitude_m,
+            ):
+                raise OutOfDomainError(
+                    f"Wave component (omega={comp.omega_radps:.2f} rad/s, gamma={gamma_deg:.1f} deg, "
+                    f"amp={comp.amplitude_m:.2f} m) outside applicability domain of asset {asset.metadata.asset_id}"
+                )
+
+            if comp.amplitude_m <= 0.0:
+                continue
+
+            k = (comp.omega_radps * comp.omega_radps) / params.gravity_mps2
+            vel_along_wave = u * math.cos(gamma_dir) + v * math.sin(gamma_dir)
+            omega_e = comp.omega_radps - k * vel_along_wave
+            omega_rao = max(abs(omega_e), 1.0e-4)
+
+            h_surge = math.cos(gamma_dir)
+            h_sway = math.sin(gamma_dir)
+            h_roll = math.sin(gamma_dir)
+            h_yaw = math.sin(2.0 * gamma_dir)
+
+            e_half = math.exp(-k * params.draft_m / 2.0)
+            f_fk_sway = (
+                comp.amplitude_m
+                * params.water_density_kg_m3
+                * params.gravity_mps2
+                * params.beam_m
+                * params.length_between_perpendiculars_m
+                * k
+                * e_half
+            )
+
+            i_depth_roll = (1.0 - math.exp(-k * params.draft_m)) / max(k, 1.0e-8)
+            f_fk_roll_raw = (
+                comp.amplitude_m
+                * params.water_density_kg_m3
+                * params.gravity_mps2
+                * (params.beam_m * params.beam_m / 4.0)
+                * params.length_between_perpendiculars_m
+                * i_depth_roll
+            )
+            f_fk_roll = f_fk_roll_raw * 0.03
+
+            r_surge = omega_rao / max(asset.rao_cutoff_surge, 1.0e-4)
+            rao_surge = min(1.0 / math.sqrt(1.0 + r_surge * r_surge), asset.rao_scale_max)
+
+            r_sway = omega_rao / max(asset.rao_cutoff_sway, 1.0e-4)
+            rao_sway = min(1.0 / math.sqrt(1.0 + r_sway * r_sway), asset.rao_scale_max)
+
+            r_yaw = omega_rao / max(asset.rao_cutoff_yaw, 1.0e-4)
+            rao_yaw = min(1.0 / math.sqrt(1.0 + r_yaw * r_yaw), asset.rao_scale_max)
+
+            r_roll = omega_rao / max(roll_nat_freq, 1.0e-4)
+            if r_roll < 0.5:
+                rao_roll = 1.0
+            elif r_roll <= 2.0:
+                d_roll = math.sqrt((1.0 - r_roll * r_roll) ** 2 + 4.0 * (asset.rao_damping_roll**2) * (r_roll**2))
+                rao_roll = min(1.0 / max(d_roll, 1.0e-6), asset.rao_scale_max_roll)
+            else:
+                rao_roll = min(2.0 / (r_roll * r_roll), asset.rao_scale_max_roll)
+
+            phase_t = omega_e * t + comp.phase_rad
+
+            total_fx += asset.rao_surge_scale * asset.fk_scale_factor * f_fk_sway * h_surge * math.cos(phase_t) * rao_surge
+            total_fy += asset.rao_sway_scale * asset.fk_scale_factor * f_fk_sway * h_sway * math.cos(phase_t) * rao_sway
+            total_mx += asset.rao_roll_scale * f_fk_roll * h_roll * math.cos(phase_t) * rao_roll
+            total_mz += (
+                asset.rao_yaw_scale
+                * asset.fk_scale_factor
+                * f_fk_sway
+                * params.length_between_perpendiculars_m
+                * 0.5
+                * h_yaw
+                * math.sin(phase_t)
+                * rao_yaw
+            )
+
+        return VesselLoad(
+            surge_n=float(total_fx),
+            sway_n=float(total_fy),
+            yaw_nm=float(total_mz),
+            roll_nm=float(total_mx),
+        )
+
+    @classmethod
+    def _calculate_tabular(
+        cls,
+        wave: WaveFieldSample,
+        heading: float,
+        u: float,
+        v: float,
+        t: float,
+        params: VesselEnvironmentalParameters,
+        asset: WaveRaoTableAsset,
+    ) -> VesselLoad:
+        total_fx = 0.0
+        total_fy = 0.0
+        total_mx = 0.0
+        total_mz = 0.0
+
+        for comp in wave.components:
+            gamma_dir = comp.direction_to_rad - heading
+            gamma_deg = _normalize_degrees(math.degrees(gamma_dir))
+
+            if not asset.metadata.applicability_domain.contains(
+                heading_deg=gamma_deg,
+                omega_radps=comp.omega_radps,
+                wave_height_m=2.0 * comp.amplitude_m,
+            ):
+                raise OutOfDomainError(
+                    f"Wave component (omega={comp.omega_radps:.2f} rad/s, gamma={gamma_deg:.1f} deg, "
+                    f"amp={comp.amplitude_m:.2f} m) outside applicability domain of asset {asset.metadata.asset_id}"
+                )
+
+            if comp.amplitude_m <= 0.0:
+                continue
+
+            k = (comp.omega_radps * comp.omega_radps) / params.gravity_mps2
+            vel_along_wave = u * math.cos(gamma_dir) + v * math.sin(gamma_dir)
+            omega_e = comp.omega_radps - k * vel_along_wave
+
+            amp_x, ph_x, amp_y, ph_y, amp_k, ph_k, amp_n, ph_n = asset.interpolate(comp.omega_radps, gamma_deg)
+            phase_base = omega_e * t + comp.phase_rad
+
+            total_fx += comp.amplitude_m * amp_x * math.cos(phase_base + ph_x)
+            total_fy += comp.amplitude_m * amp_y * math.cos(phase_base + ph_y)
+            total_mx += comp.amplitude_m * amp_k * math.cos(phase_base + ph_k)
+            total_mz += comp.amplitude_m * amp_n * math.sin(phase_base + ph_n)
+
+        return VesselLoad(
+            surge_n=float(total_fx),
+            sway_n=float(total_fy),
+            yaw_nm=float(total_mz),
+            roll_nm=float(total_mx),
+        )
+
+    @classmethod
+    def calculate(
+        cls,
+        wave: WaveFieldSample,
+        heading_rad: float,
+        surge_mps: float,
+        sway_mps: float,
+        stage_time_s: float,
+        params: VesselEnvironmentalParameters,
+        asset: InferredWaveResponseAsset | WaveRaoTableAsset | None = None,
+    ) -> VesselLoad:
+        """Calculate first-order wave excitation load in vessel body frame.
+
+        Args:
+            wave: WaveFieldSample containing harmonic wave components.
+            heading_rad: Vessel heading in radians (0=North, clockwise positive).
+            surge_mps: Vessel forward speed u in m/s.
+            sway_mps: Vessel starboard speed v in m/s.
+            stage_time_s: Exact stage time t = tick * dt_s + stage_offset_s.
+            params: Vessel geometry and fluid parameters.
+            asset: Wave response asset (InferredWaveResponseAsset or WaveRaoTableAsset).
+
+        Returns:
+            VesselLoad in body frame (surge_n, sway_n, yaw_nm, roll_nm).
+        """
+        if asset is None:
+            raise AssetMissingError("Wave response asset is required for FirstOrderWaveLoadModel")
+        if not asset.verify_integrity():
+            raise AssetIntegrityError(f"Integrity check failed for wave asset: {asset.metadata.asset_id}")
+
+        if not wave.components:
+            return VesselLoad.zero()
+
+        heading = _finite_scalar("heading_rad", heading_rad)
+        u = _finite_scalar("surge_mps", surge_mps)
+        v = _finite_scalar("sway_mps", sway_mps)
+        t = _finite_scalar("stage_time_s", stage_time_s)
+        speed = math.hypot(u, v)
+
+        if not asset.metadata.applicability_domain.contains(speed_mps=speed, draft_m=params.draft_m):
+            raise OutOfDomainError(
+                f"Vessel state (speed={speed:.2f} m/s, draft={params.draft_m:.2f} m) "
+                f"outside applicability domain of asset {asset.metadata.asset_id}"
+            )
+
+        if isinstance(asset, InferredWaveResponseAsset):
+            return cls._calculate_inferred(wave, heading, u, v, t, params, asset)
+        if isinstance(asset, WaveRaoTableAsset):
+            return cls._calculate_tabular(wave, heading, u, v, t, params, asset)
+        raise TypeError(f"Unsupported wave response asset type: {type(asset).__name__}")
+
+
+class MeanDriftLoadModel:
+    """Pure calculation of second-order wave mean-drift loads on vessel hull (SI: N, N·m)."""
+
+    @staticmethod
+    def _eval_inferred_drift_coeffs(
+        comp: Any,
+        heading: float,
+        params: VesselEnvironmentalParameters,
+        asset: InferredWaveDriftAsset,
+    ) -> tuple[float, float, float, float]:
+        gamma_dir = comp.direction_to_rad - heading
+        gamma_deg = _normalize_degrees(math.degrees(gamma_dir))
+
+        if not asset.metadata.applicability_domain.contains(
+            heading_deg=gamma_deg,
+            omega_radps=comp.omega_radps,
+            wave_height_m=2.0 * comp.amplitude_m,
+        ):
+            raise OutOfDomainError(
+                f"Wave component (omega={comp.omega_radps:.2f} rad/s, gamma={gamma_deg:.1f} deg, "
+                f"amp={comp.amplitude_m:.2f} m) outside applicability domain of asset {asset.metadata.asset_id}"
+            )
+
+        if comp.amplitude_m <= 0.0:
+            return 0.0, 0.0, 0.0, 0.0
+
+        l_val = max(params.length_between_perpendiculars_m, 0.1)
+        b_val = max(params.beam_m, 0.1)
+        t_val = max(params.draft_m, 0.1)
+        kg_val = max(params.kg_m, t_val)
+
+        k = max((comp.omega_radps * comp.omega_radps) / params.gravity_mps2, 1.0e-8)
+        kl = min(max(k * l_val, 0.0), 60.0)
+        kb = min(max(k * b_val, 0.0), 60.0)
+        kt = min(max(k * t_val, 0.0), 60.0)
+
+        long_wave_build_up = (kl * kl) / (1.0 + kl * kl)
+        short_wave_decay = 1.0 / math.sqrt(1.0 + (kl / 8.0) ** 4.0)
+        draft_participation = math.sqrt(max(0.0, 1.0 - math.exp(-2.0 * kt)))
+        finite_beam_reflection = 1.0 - math.exp(-2.0 * kb)
+
+        freq_shape = min(
+            max(long_wave_build_up * short_wave_decay * max(0.25, draft_participation), 0.0),
+            1.5,
+        )
+        head_eff = min(
+            max(asset.inferred_surge_scale * finite_beam_reflection * freq_shape, 0.0),
+            1.0,
+        )
+        beam_eff = min(
+            max(asset.inferred_sway_scale * finite_beam_reflection * freq_shape, 0.0),
+            1.0,
+        )
+
+        c = math.cos(gamma_dir)
+        s = math.sin(gamma_dir)
+        c_abs = abs(c)
+        s_abs = abs(s)
+
+        surge_per_amp2 = params.water_density_kg_m3 * params.gravity_mps2 * b_val * head_eff
+        sway_per_amp2 = params.water_density_kg_m3 * params.gravity_mps2 * l_val * beam_eff
+        yaw_lever = asset.inferred_yaw_lever_scale * l_val
+        roll_lever = asset.inferred_roll_lever_scale * max(0.1, kg_val - 0.33 * t_val)
+
+        cfx = surge_per_amp2 * c * c_abs
+        cfy = sway_per_amp2 * s * s_abs
+        cmz = sway_per_amp2 * yaw_lever * c * s
+        cmx = sway_per_amp2 * roll_lever * s * s_abs
+        return cfx, cfy, cmz, cmx
+
+    @classmethod
+    def _calculate_inferred(
+        cls,
+        wave: WaveFieldSample | MeanDriftSourceSample,
+        heading: float,
+        params: VesselEnvironmentalParameters,
+        asset: InferredWaveDriftAsset,
+    ) -> VesselLoad:
+        total_fx = 0.0
+        total_fy = 0.0
+        total_mx = 0.0
+        total_mz = 0.0
+
+        for comp in wave.components:
+            cfx, cfy, cmz, cmx = cls._eval_inferred_drift_coeffs(comp, heading, params, asset)
+            amp_sq = comp.amplitude_m * comp.amplitude_m
+            total_fx += cfx * amp_sq
+            total_fy += cfy * amp_sq
+            total_mz += cmz * amp_sq
+            total_mx += cmx * amp_sq
+
+        if asset.max_force_n is not None and asset.max_force_n > 0.0:
+            fnorm = math.hypot(total_fx, total_fy)
+            if fnorm > asset.max_force_n:
+                scale = asset.max_force_n / fnorm
+                total_fx *= scale
+                total_fy *= scale
+        if asset.max_moment_nm is not None and asset.max_moment_nm > 0.0:
+            total_mx = math.copysign(min(abs(total_mx), asset.max_moment_nm), total_mx)
+            total_mz = math.copysign(min(abs(total_mz), asset.max_moment_nm), total_mz)
+
+        return VesselLoad(
+            surge_n=float(total_fx),
+            sway_n=float(total_fy),
+            yaw_nm=float(total_mz),
+            roll_nm=float(total_mx),
+        )
+
+    @classmethod
+    def _calculate_tabular(
+        cls,
+        wave: WaveFieldSample | MeanDriftSourceSample,
+        heading: float,
+        asset: WaveDriftTableAsset,
+    ) -> VesselLoad:
+        total_fx = 0.0
+        total_fy = 0.0
+        total_mx = 0.0
+        total_mz = 0.0
+
+        for comp in wave.components:
+            gamma_dir = comp.direction_to_rad - heading
+            gamma_deg = _normalize_degrees(math.degrees(gamma_dir))
+
+            if not asset.metadata.applicability_domain.contains(
+                heading_deg=gamma_deg,
+                omega_radps=comp.omega_radps,
+                wave_height_m=2.0 * comp.amplitude_m,
+            ):
+                raise OutOfDomainError(
+                    f"Wave component (omega={comp.omega_radps:.2f} rad/s, gamma={gamma_deg:.1f} deg, "
+                    f"amp={comp.amplitude_m:.2f} m) outside applicability domain of asset {asset.metadata.asset_id}"
+                )
+
+            if comp.amplitude_m <= 0.0:
+                continue
+
+            cdx, cdy, cdn, cdk = asset.interpolate(comp.omega_radps, gamma_deg)
+            amp_sq = comp.amplitude_m * comp.amplitude_m
+            total_fx += cdx * amp_sq
+            total_fy += cdy * amp_sq
+            total_mz += cdn * amp_sq
+            total_mx += cdk * amp_sq
+
+        return VesselLoad(
+            surge_n=float(total_fx),
+            sway_n=float(total_fy),
+            yaw_nm=float(total_mz),
+            roll_nm=float(total_mx),
+        )
+
+    @classmethod
+    def calculate(
+        cls,
+        wave: WaveFieldSample | MeanDriftSourceSample,
+        heading_rad: float,
+        params: VesselEnvironmentalParameters,
+        asset: InferredWaveDriftAsset | WaveDriftTableAsset | None = None,
+    ) -> VesselLoad:
+        """Calculate second-order wave mean-drift load in vessel body frame.
+
+        Args:
+            wave: WaveFieldSample or MeanDriftSourceSample with wave components.
+            heading_rad: Vessel heading in radians (0=North, clockwise positive).
+            params: Vessel geometry and fluid parameters.
+            asset: Wave drift asset (InferredWaveDriftAsset or WaveDriftTableAsset).
+
+        Returns:
+            VesselLoad in body frame (surge_n, sway_n, yaw_nm, roll_nm).
+        """
+        if asset is None:
+            raise AssetMissingError("Wave drift asset is required for MeanDriftLoadModel")
+        if not asset.verify_integrity():
+            raise AssetIntegrityError(f"Integrity check failed for wave drift asset: {asset.metadata.asset_id}")
+
+        if not wave.components:
+            return VesselLoad.zero()
+
+        heading = _finite_scalar("heading_rad", heading_rad)
+
+        if not asset.metadata.applicability_domain.contains(draft_m=params.draft_m):
+            raise OutOfDomainError(
+                f"Vessel draft ({params.draft_m:.2f} m) outside applicability domain of asset {asset.metadata.asset_id}"
+            )
+
+        if isinstance(asset, InferredWaveDriftAsset):
+            return cls._calculate_inferred(wave, heading, params, asset)
+        if isinstance(asset, WaveDriftTableAsset):
+            return cls._calculate_tabular(wave, heading, asset)
+        raise TypeError(f"Unsupported wave drift asset type: {type(asset).__name__}")
+
+
 def _resolve_current_strategy(params: dict[str, Any] | Mapping[str, Any]) -> CurrentStrategy:
     """Resolve and validate current strategy from normalized parameter mapping."""
     if "current_relative_damping" in params:
@@ -662,6 +1437,12 @@ def _build_vessel_parameters(params: dict[str, Any] | Mapping[str, Any]) -> Vess
         kg_m=params.get("kg_m", 2.0),
         current_roll_moment_arm_m=params.get("current_roll_moment_arm_m"),
         water_density_kg_m3=params.get("water_density_kg_m3", 1025.0),
+        displacement_ton=params.get("displacement_ton", 50000.0),
+        gm_t_m=params.get("gm_t_m", 1.5),
+        bow_angle_rad=params.get("bow_angle_rad", 0.6),
+        c_wl_aft=params.get("c_wl_aft", 0.95),
+        gravity_mps2=params.get("gravity_mps2", 9.81),
+        wave_roll_moment_arm_m=params.get("wave_roll_moment_arm_m"),
     )
 
 
@@ -672,8 +1453,11 @@ class EnvironmentalLoadModel:
         self,
         vessel_params: VesselEnvironmentalParameters,
         current_strategy: CurrentStrategy | str = CurrentStrategy.CURRENT_RELATIVE_DAMPING,
+        wave_mode: WaveLoadMode | str = WaveLoadMode.OFF,
         wind_asset: WindCoeffTableAsset | None = DEFAULT_OCIMF_WIND_ASSET,
         current_asset: CurrentCoeffTableAsset | InferredCurrentAsset | None = DEFAULT_INFERRED_CURRENT_ASSET,
+        wave_first_order_asset: InferredWaveResponseAsset | WaveRaoTableAsset | None = None,
+        wave_mean_drift_asset: InferredWaveDriftAsset | WaveDriftTableAsset | None = None,
         enable_wind: bool = True,
         enable_current: bool = True,
     ) -> None:
@@ -682,8 +1466,11 @@ class EnvironmentalLoadModel:
         Args:
             vessel_params: Immutable vessel dimensions and fluid parameters.
             current_strategy: Declared strategy for ocean current (spec L105).
+            wave_mode: Declared mode for wave loads (OFF, FIRST_ORDER, MEAN_DRIFT, BOTH).
             wind_asset: Wind coefficient asset.
             current_asset: Current coefficient asset.
+            wave_first_order_asset: First-order wave response asset (required if wave_mode in FIRST_ORDER, BOTH).
+            wave_mean_drift_asset: Second-order wave mean-drift asset (required if wave_mode in MEAN_DRIFT, BOTH).
             enable_wind: Whether to calculate wind loads.
             enable_current: Whether to calculate current loads.
         """
@@ -691,8 +1478,20 @@ class EnvironmentalLoadModel:
             raise TypeError(f"vessel_params must be VesselEnvironmentalParameters, got {type(vessel_params).__name__}")
         self._vessel_params = vessel_params
         self._current_strategy = CurrentStrategy(current_strategy)
+        self._wave_mode = WaveLoadMode(wave_mode)
         self._wind_asset = wind_asset
         self._current_asset = current_asset
+
+        if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
+            if wave_first_order_asset is None:
+                raise AssetMissingError("First-order wave response asset is required when wave_mode is FIRST_ORDER or BOTH")
+        if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
+            if wave_mean_drift_asset is None:
+                raise AssetMissingError("Wave mean-drift asset is required when wave_mode is MEAN_DRIFT or BOTH")
+
+        self._wave_first_order_asset = wave_first_order_asset
+        self._wave_mean_drift_asset = wave_mean_drift_asset
+
         if not isinstance(enable_wind, bool):
             raise TypeError(f"enable_wind must be an exact bool, got {type(enable_wind).__name__}")
         if not isinstance(enable_current, bool):
@@ -711,6 +1510,11 @@ class EnvironmentalLoadModel:
         return self._current_strategy
 
     @property
+    def wave_mode(self) -> WaveLoadMode:
+        """Return declared wave load mode."""
+        return self._wave_mode
+
+    @property
     def wind_asset(self) -> WindCoeffTableAsset | None:
         """Return wind asset."""
         return self._wind_asset
@@ -719,6 +1523,16 @@ class EnvironmentalLoadModel:
     def current_asset(self) -> CurrentCoeffTableAsset | InferredCurrentAsset | None:
         """Return current asset."""
         return self._current_asset
+
+    @property
+    def wave_first_order_asset(self) -> InferredWaveResponseAsset | WaveRaoTableAsset | None:
+        """Return first-order wave response asset."""
+        return self._wave_first_order_asset
+
+    @property
+    def wave_mean_drift_asset(self) -> InferredWaveDriftAsset | WaveDriftTableAsset | None:
+        """Return wave mean-drift asset."""
+        return self._wave_mean_drift_asset
 
     def compute_loads(
         self,
@@ -775,9 +1589,30 @@ class EnvironmentalLoadModel:
         else:
             current_load = VesselLoad.zero()
 
-        # Wave loads are zero for Issue #50 (delivered in #51 with RAO/QTF)
-        wave_1st = VesselLoad.zero()
-        wave_drift = VesselLoad.zero()
+        # 3. Wave first-order load
+        if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
+            wave_1st = FirstOrderWaveLoadModel.calculate(
+                wave=truth.wave,
+                heading_rad=heading_rad,
+                surge_mps=surge_mps,
+                sway_mps=sway_mps,
+                stage_time_s=truth.time_s,
+                params=self._vessel_params,
+                asset=self._wave_first_order_asset,
+            )
+        else:
+            wave_1st = VesselLoad.zero()
+
+        # 4. Wave mean-drift load
+        if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
+            wave_drift = MeanDriftLoadModel.calculate(
+                wave=truth.mean_drift,
+                heading_rad=heading_rad,
+                params=self._vessel_params,
+                asset=self._wave_mean_drift_asset,
+            )
+        else:
+            wave_drift = VesselLoad.zero()
 
         return EnvironmentalLoads.from_components(
             wind=wind_load,
@@ -788,6 +1623,21 @@ class EnvironmentalLoadModel:
                 "current_strategy": self._current_strategy.value,
                 "enable_wind": self._enable_wind,
                 "enable_current": self._enable_current,
+                "wave_mode": self._wave_mode.value,
+                "first_order_components_count": (
+                    len(truth.wave.components) if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH) else 0
+                ),
+                "mean_drift_components_count": (
+                    len(truth.mean_drift.components)
+                    if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH)
+                    else 0
+                ),
+                "wave_first_order_asset_id": (
+                    self._wave_first_order_asset.metadata.asset_id if self._wave_first_order_asset is not None else None
+                ),
+                "wave_mean_drift_asset_id": (
+                    self._wave_mean_drift_asset.metadata.asset_id if self._wave_mean_drift_asset is not None else None
+                ),
             },
         )
 
@@ -803,11 +1653,31 @@ class EnvironmentalLoadModel:
         if not isinstance(enable_current, bool):
             raise TypeError(f"enable_current must be an exact bool, got {type(enable_current).__name__}")
 
+        wave_mode_raw = params.get("wave_mode", "off")
+        wave_mode = WaveLoadMode(wave_mode_raw)
+
+        wave_1st_asset = None
+        if wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
+            wave_1st_asset = DEFAULT_INFERRED_WAVE_RESPONSE_ASSET
+
+        wave_drift_asset = None
+        if wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
+            wave_drift_asset = DEFAULT_INFERRED_WAVE_DRIFT_ASSET
+
         v_params = _build_vessel_parameters(params)
 
         return cls(
             vessel_params=v_params,
             current_strategy=strategy,
+            wave_mode=wave_mode,
+            wind_asset=DEFAULT_OCIMF_WIND_ASSET if enable_wind else None,
+            current_asset=(
+                DEFAULT_INFERRED_CURRENT_ASSET
+                if (enable_current and strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD)
+                else None
+            ),
+            wave_first_order_asset=wave_1st_asset,
+            wave_mean_drift_asset=wave_drift_asset,
             enable_wind=enable_wind,
             enable_current=enable_current,
         )
