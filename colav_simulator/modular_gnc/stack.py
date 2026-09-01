@@ -30,6 +30,8 @@ from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
 from colav_simulator.modular_gnc.plant import (
     Generic3DOFPlant,
     Generic3DOFPlantParameters,
+    GenericRoll4DOFPlant,
+    GenericRoll4DOFPlantParameters,
 )
 
 
@@ -41,16 +43,22 @@ class ModularShipStack:
     def __init__(self, config: ShipModulesConfig, modules: PassThroughModules) -> None:
         if (
             "plant" in config.modules
-            and config.modules["plant"].identity == "generic_3dof_plant"
+            and config.modules["plant"].identity in ("generic_3dof_plant", "generic_roll_4dof_plant")
             and config.scheduler.get("plant_period_ticks") != 1
         ):
+            plant_id = config.modules["plant"].identity
             raise UnsupportedModuleCombinationError(
-                "generic_3dof_plant requires plant_period_ticks == 1 (base-clock cadence only; "
+                f"{plant_id} requires plant_period_ticks == 1 (base-clock cadence only; "
                 f"got {config.scheduler.get('plant_period_ticks')})"
             )
         if getattr(modules, "_plant", None) is not None and config.scheduler.get("plant_period_ticks") != 1:
+            plant_id = (
+                "generic_roll_4dof_plant"
+                if "ROLL_4DOF" in getattr(modules._plant, "capabilities", ())
+                else "generic_3dof_plant"
+            )
             raise UnsupportedModuleCombinationError(
-                "generic_3dof_plant requires plant_period_ticks == 1 (base-clock cadence only; "
+                f"{plant_id} requires plant_period_ticks == 1 (base-clock cadence only; "
                 f"got {config.scheduler.get('plant_period_ticks')})"
             )
         self._config = config
@@ -97,6 +105,9 @@ class ModularShipStack:
             if plant_sel.identity == "generic_3dof_plant":
                 plant_params = Generic3DOFPlantParameters(**plant_sel.parameters)
                 plant = Generic3DOFPlant(plant_params)
+            elif plant_sel.identity == "generic_roll_4dof_plant":
+                plant_params_4dof = GenericRoll4DOFPlantParameters(**plant_sel.parameters)
+                plant = GenericRoll4DOFPlant(plant_params_4dof)
             elif plant_sel.identity == "pass_through_plant":
                 plant = None
 

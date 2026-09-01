@@ -33,6 +33,10 @@ class UnsupportedModuleCombinationError(ValueError):
     """Raised when selected module identity or tuple is unsupported."""
 
 
+class CapabilityMismatchError(UnsupportedModuleCombinationError):
+    """Raised when plant input semantics and controller output capabilities are incompatible (RA-13, TS-17)."""
+
+
 class DependencyUnavailableError(RuntimeError):
     """Raised when supported module dependency is unavailable."""
 
@@ -62,7 +66,7 @@ REGISTRY_V1 = MappingProxyType(
             "plant",
             "1.0.0",
             "plant.v1",
-            frozenset({"PLANAR_3DOF", "KINEMATIC_REFERENCE"}),
+            frozenset({"PLANAR_3DOF", "KINEMATIC_REFERENCE", "REFERENCE_CHI_U"}),
             {"current_relative_damping": {"type": "boolean"}},
         ),
         "generic_3dof_plant": RegistryEntry(
@@ -96,11 +100,70 @@ REGISTRY_V1 = MappingProxyType(
                 "damping_tolerance": {"type": "number"},
             },
         ),
+        "generic_roll_4dof_plant": RegistryEntry(
+            "generic_roll_4dof_plant",
+            "plant",
+            "1.0.0",
+            "plant.v1",
+            frozenset({"ROLL_4DOF", "GENERALIZED_FORCE"}),
+            {
+                "mass_kg": {"type": "number"},
+                "i_x_kgm2": {"type": "number"},
+                "i_z_kgm2": {"type": "number"},
+                "x_g_m": {"type": "number"},
+                "z_g_m": {"type": "number"},
+                "x_dot_u_kg": {"type": "number"},
+                "y_dot_v_kg": {"type": "number"},
+                "k_dot_p_kgm2": {"type": "number"},
+                "n_dot_r_kgm2": {"type": "number"},
+                "y_dot_r_kgm": {"type": "number"},
+                "n_dot_v_kgm": {"type": "number"},
+                "y_dot_p_kgm": {"type": "number"},
+                "k_dot_v_kgm": {"type": "number"},
+                "k_dot_r_kgm2": {"type": "number"},
+                "n_dot_p_kgm2": {"type": "number"},
+                "d_u": {"type": "number"},
+                "d_uu": {"type": "number"},
+                "d_v": {"type": "number"},
+                "d_vv": {"type": "number"},
+                "d_p": {"type": "number"},
+                "d_pp": {"type": "number"},
+                "d_r": {"type": "number"},
+                "d_rr": {"type": "number"},
+                "d_vr": {"type": "number"},
+                "d_rv": {"type": "number"},
+                "d_vp": {"type": "number"},
+                "d_pv": {"type": "number"},
+                "d_pr": {"type": "number"},
+                "d_rp": {"type": "number"},
+                "restoring_k_phi": {"type": "number"},
+                "restoring_k_n": {"type": "number"},
+                "restoring_k_e": {"type": "number"},
+                "restoring_k_psi": {"type": "number"},
+                "mass_symmetry_tolerance": {"type": "number"},
+                "min_mass_eigenvalue": {"type": "number"},
+                "damping_tolerance": {"type": "number"},
+            },
+        ),
         "pass_through_guidance": RegistryEntry(
             "pass_through_guidance", "guidance", "1.0.0", "guidance.v1", frozenset({"DIRECT_REFERENCE"}), {}
         ),
         "pass_through_controller": RegistryEntry(
-            "pass_through_controller", "controller", "1.0.0", "controller.v1", frozenset({"TRANSIT"}), {}
+            "pass_through_controller",
+            "controller",
+            "1.0.0",
+            "controller.v1",
+            frozenset({"TRANSIT"}),
+            {},
+        ),
+        "marine_pid": RegistryEntry(
+            "marine_pid",
+            "controller",
+            "1.0.0",
+            "controller.v1",
+            frozenset({"TRANSIT", "GENERALIZED_FORCE"}),
+            {},
+            available=False,
         ),
         "optional_native_controller": RegistryEntry(
             "optional_native_controller",
@@ -280,7 +343,7 @@ def _validate_parameter_type(identity: str, param_name: str, raw_val: Any, spec:
             )
 
 
-def _validate_selection(role: str, selection: ModuleSelection) -> None:
+def _validate_selection(role: str, selection: ModuleSelection, check_availability: bool = True) -> None:
     entry = REGISTRY_V1.get(selection.identity)
     if entry is None:
         raise UnsupportedModuleCombinationError(f"unsupported module identity: {selection.identity}")
@@ -288,7 +351,7 @@ def _validate_selection(role: str, selection: ModuleSelection) -> None:
         raise UnsupportedModuleCombinationError(
             f"module {selection.identity} is registered for role {entry.role}, not {role}"
         )
-    if not entry.available:
+    if check_availability and not entry.available:
         raise DependencyUnavailableError(f"dependency unavailable for module: {selection.identity}")
     unknown = set(selection.parameters) - set(entry.parameter_schema)
     if unknown:
@@ -372,6 +435,52 @@ def _validate_wave_asset_ids_presence(
         )
 
 
+def _validate_plant_controller_compatibility(modules: Mapping[str, ModuleSelection]) -> None:
+    """Validate input-domain and capability compatibility between plant and controller (RA-13, TS-17)."""
+    if "plant" not in modules or "controller" not in modules:
+        return
+
+    plant_entry = REGISTRY_V1.get(modules["plant"].identity)
+    ctrl_entry = REGISTRY_V1.get(modules["controller"].identity)
+
+    if plant_entry is None or ctrl_entry is None:
+        return
+
+    plant_caps = plant_entry.capabilities
+    ctrl_caps = ctrl_entry.capabilities
+
+    # 1. Plant input semantics declaration
+    has_force_input = "GENERALIZED_FORCE" in plant_caps
+    has_ref_input = "KINEMATIC_REFERENCE" in plant_caps or "REFERENCE_CHI_U" in plant_caps
+
+    if not has_force_input and not has_ref_input:
+        raise CapabilityMismatchError(
+            f"plant {plant_entry.identity} does not declare valid input semantics "
+            "(must declare GENERALIZED_FORCE or REFERENCE_CHI_U / KINEMATIC_REFERENCE)"
+        )
+
+    # 2. Controller output semantics declaration
+    has_force_output = "GENERALIZED_FORCE" in ctrl_caps
+    has_ref_output = "KINEMATIC_REFERENCE" in ctrl_caps or "REFERENCE_CHI_U" in ctrl_caps
+
+    if not has_force_output and not has_ref_output and "TRANSIT" not in ctrl_caps:
+        raise CapabilityMismatchError(f"controller {ctrl_entry.identity} missing required output semantics capability")
+
+    # 3. Specific semantic incompatibility: controller produces GENERALIZED_FORCE but plant is kinematic-reference
+    if has_force_output and not has_force_input:
+        raise CapabilityMismatchError(
+            f"incompatible module tuple: controller {ctrl_entry.identity} produces GENERALIZED_FORCE "
+            f"but plant {plant_entry.identity} accepts only kinematic reference [chi_d, U_d] (RA-13)"
+        )
+
+    # 4. Controller produces pure kinematic reference but plant accepts only GENERALIZED_FORCE
+    if has_ref_output and not has_ref_input and not has_force_output:
+        raise CapabilityMismatchError(
+            f"incompatible module tuple: controller {ctrl_entry.identity} produces kinematic reference "
+            f"but plant {plant_entry.identity} accepts only GENERALIZED_FORCE (RA-13)"
+        )
+
+
 def _validate_wave_mode(modules: Mapping[str, ModuleSelection]) -> None:
     """Validate explicit wave load mode and required asset IDs (VR-09, VR-10, spec L106)."""
     if "load_model" not in modules:
@@ -403,6 +512,25 @@ def _validate_wave_mode(modules: Mapping[str, ModuleSelection]) -> None:
     _validate_wave_asset_ids_presence(wave_mode, w1_id, wmd_id)
 
 
+def _parse_modules_mapping(raw_modules: Mapping[str, Any]) -> dict[str, ModuleSelection]:
+    """Parse and validate structural presence of module selections."""
+    required_roles = {"plant", "guidance", "controller"}
+    allowed_roles = {"plant", "guidance", "controller", "environment", "load_model"}
+    if not (required_roles.issubset(raw_modules) and set(raw_modules).issubset(allowed_roles)):
+        raise UnsupportedModuleCombinationError(
+            "modules must select plant, guidance, and controller (optional: environment, load_model)"
+        )
+    modules = {}
+    for role, raw in raw_modules.items():
+        unknown_selection = set(raw) - {"identity", "parameters"}
+        if unknown_selection:
+            raise UnsupportedModuleCombinationError(f"unknown selection keys for {role}: {sorted(unknown_selection)}")
+        if "identity" not in raw:
+            raise UnsupportedModuleCombinationError(f"missing module identity for {role}")
+        modules[role] = ModuleSelection(str(raw["identity"]), raw.get("parameters", {}))
+    return modules
+
+
 def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     """Apply defaults, preset, then controlled overrides and validate registry tuple."""
     source = json.loads(json.dumps(config))
@@ -419,23 +547,18 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     if set(overrides.get("scheduler", {})) - set(_PRESETS[preset]["scheduler"]):
         raise UnsupportedModuleCombinationError("unknown scheduler override keys")
     normalized = _deep_merge(normalized, overrides)
-    raw_modules = source.get("modules", {})
-    required_roles = {"plant", "guidance", "controller"}
-    allowed_roles = {"plant", "guidance", "controller", "environment", "load_model"}
-    if not (required_roles.issubset(raw_modules) and set(raw_modules).issubset(allowed_roles)):
-        raise UnsupportedModuleCombinationError(
-            "modules must select plant, guidance, and controller (optional: environment, load_model)"
-        )
-    modules = {}
-    for role, raw in raw_modules.items():
-        unknown_selection = set(raw) - {"identity", "parameters"}
-        if unknown_selection:
-            raise UnsupportedModuleCombinationError(f"unknown selection keys for {role}: {sorted(unknown_selection)}")
-        if "identity" not in raw:
-            raise UnsupportedModuleCombinationError(f"missing module identity for {role}")
-        modules[role] = ModuleSelection(str(raw["identity"]), raw.get("parameters", {}))
+
+    modules = _parse_modules_mapping(source.get("modules", {}))
+
     for role, selection in modules.items():
-        _validate_selection(role, selection)
+        _validate_selection(role, selection, check_availability=False)
+
+    _validate_plant_controller_compatibility(modules)
+
+    for selection in modules.values():
+        entry = REGISTRY_V1[selection.identity]
+        if not entry.available:
+            raise DependencyUnavailableError(f"dependency unavailable for module: {selection.identity}")
 
     _validate_current_strategy_deduplication(modules)
     _validate_wave_mode(modules)
@@ -444,9 +567,14 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in scheduler.values()):
         raise UnsupportedModuleCombinationError("scheduler periods must be positive integer ticks")
 
-    if "plant" in modules and modules["plant"].identity == "generic_3dof_plant" and scheduler.get("plant_period_ticks") != 1:
+    if (
+        "plant" in modules
+        and modules["plant"].identity in ("generic_3dof_plant", "generic_roll_4dof_plant")
+        and scheduler.get("plant_period_ticks") != 1
+    ):
+        plant_id = modules["plant"].identity
         raise UnsupportedModuleCombinationError(
-            "generic_3dof_plant requires plant_period_ticks == 1 (base-clock cadence only; "
+            f"{plant_id} requires plant_period_ticks == 1 (base-clock cadence only; "
             f"got {scheduler.get('plant_period_ticks')})"
         )
 

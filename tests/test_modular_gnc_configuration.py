@@ -8,7 +8,9 @@ import pytest
 from colav_simulator.core import ship
 from colav_simulator.modular_gnc.configuration import (
     REGISTRY_V1,
+    CapabilityMismatchError,
     DependencyUnavailableError,
+    RegistryEntry,
     UnsupportedModuleCombinationError,
     normalize_ship_modules,
 )
@@ -355,3 +357,229 @@ def test_wave_mode_configuration_invalid_modes_and_assets() -> None:
     }
     with pytest.raises(UnsupportedModuleCombinationError, match="unknown wave_first_order_asset_id"):
         normalize_ship_modules(bad_unknown_id)
+
+
+def _plant_4dof_params() -> dict[str, float]:
+    return {
+        "mass_kg": 1.6e7,
+        "i_x_kgm2": 1.5e9,
+        "i_z_kgm2": 3.0e10,
+        "x_g_m": 0.0,
+        "z_g_m": 0.0,
+        "x_dot_u_kg": -5.0e6,
+        "y_dot_v_kg": -3.5e7,
+        "k_dot_p_kgm2": -5.0e8,
+        "n_dot_r_kgm2": -2.0e10,
+        "y_dot_r_kgm": 1.0e6,
+        "n_dot_v_kgm": 1.0e6,
+        "d_u": 5.0e4,
+        "d_uu": 2.0e5,
+        "d_v": 3.0e5,
+        "d_vv": 1.5e6,
+        "d_p": 2.0e7,
+        "d_pp": 5.0e7,
+        "d_r": 8.0e7,
+        "d_rr": 2.5e9,
+        "restoring_k_phi": 3.0e8,
+    }
+
+
+def _plant_3dof_params() -> dict[str, float]:
+    return {
+        "mass_kg": 1.6e7,
+        "i_z_kgm2": 3.0e10,
+        "x_g_m": 0.0,
+        "x_dot_u_kg": -5.0e6,
+        "y_dot_v_kg": -3.5e7,
+        "n_dot_r_kgm2": -2.0e10,
+        "y_dot_r_kgm": 1.0e6,
+        "n_dot_v_kgm": 1.0e6,
+        "d_u": 5.0e4,
+        "d_uu": 2.0e5,
+        "d_v": 3.0e5,
+        "d_vv": 1.5e6,
+        "d_r": 8.0e7,
+        "d_rr": 2.5e9,
+    }
+
+
+def test_input_domain_capability_marine_pid_rejects_kinematic_plant() -> None:
+    """Validate that marine_pid (force output) is rejected when paired with kinematic plant (RA-13)."""
+    cfg = {
+        "preset": "legacy_equivalent",
+        "modules": {
+            "plant": {"identity": "pass_through_plant", "parameters": {}},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "marine_pid", "parameters": {}},
+        },
+    }
+    with pytest.raises(CapabilityMismatchError, match="controller marine_pid produces GENERALIZED_FORCE"):
+        normalize_ship_modules(cfg)
+
+
+def test_input_domain_capability_marine_pid_with_force_plants_passes_capability_check() -> None:
+    """Validate that marine_pid tuple with force plants passes capability check, failing on availability."""
+    for plant_id, params in (
+        ("generic_3dof_plant", _plant_3dof_params()),
+        ("generic_roll_4dof_plant", _plant_4dof_params()),
+    ):
+        cfg = {
+            "preset": "legacy_equivalent",
+            "overrides": {"scheduler": {"plant_period_ticks": 1}},
+            "modules": {
+                "plant": {"identity": plant_id, "parameters": params},
+                "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+                "controller": {"identity": "marine_pid", "parameters": {}},
+            },
+        }
+        with pytest.raises(DependencyUnavailableError, match="dependency unavailable for module: marine_pid"):
+            normalize_ship_modules(cfg)
+
+
+def test_input_domain_capability_compatibility_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test full compatibility matrix between plant input semantics and controller output capabilities."""
+    custom_registry = dict(REGISTRY_V1)
+    custom_registry["fake_force_controller"] = RegistryEntry(
+        "fake_force_controller",
+        "controller",
+        "1.0.0",
+        "controller.v1",
+        frozenset({"TRANSIT", "GENERALIZED_FORCE"}),
+        {},
+        available=True,
+    )
+    custom_registry["fake_kinematic_controller"] = RegistryEntry(
+        "fake_kinematic_controller",
+        "controller",
+        "1.0.0",
+        "controller.v1",
+        frozenset({"TRANSIT", "KINEMATIC_REFERENCE"}),
+        {},
+        available=True,
+    )
+    custom_registry["fake_unknown_controller"] = RegistryEntry(
+        "fake_unknown_controller",
+        "controller",
+        "1.0.0",
+        "controller.v1",
+        frozenset({"CUSTOM_UNKNOWN_CAP"}),
+        {},
+        available=True,
+    )
+    monkeypatch.setattr("colav_simulator.modular_gnc.configuration.REGISTRY_V1", custom_registry)
+
+    # 1. Force controller with kinematic plant -> REJECT
+    cfg_force_kinematic = {
+        "preset": "legacy_equivalent",
+        "modules": {
+            "plant": {"identity": "pass_through_plant", "parameters": {}},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "fake_force_controller", "parameters": {}},
+        },
+    }
+    with pytest.raises(CapabilityMismatchError, match="produces GENERALIZED_FORCE"):
+        normalize_ship_modules(cfg_force_kinematic)
+
+    # 2. Force controller with generic 3DOF plant -> ACCEPT
+    cfg_force_3dof = {
+        "preset": "legacy_equivalent",
+        "overrides": {"scheduler": {"plant_period_ticks": 1}},
+        "modules": {
+            "plant": {"identity": "generic_3dof_plant", "parameters": _plant_3dof_params()},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "fake_force_controller", "parameters": {}},
+        },
+    }
+    norm_3dof = normalize_ship_modules(cfg_force_3dof)
+    assert norm_3dof.modules["controller"].identity == "fake_force_controller"
+
+    # 3. Force controller with generic roll 4DOF plant -> ACCEPT
+    cfg_force_4dof = {
+        "preset": "legacy_equivalent",
+        "overrides": {"scheduler": {"plant_period_ticks": 1}},
+        "modules": {
+            "plant": {"identity": "generic_roll_4dof_plant", "parameters": _plant_4dof_params()},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "fake_force_controller", "parameters": {}},
+        },
+    }
+    norm_4dof = normalize_ship_modules(cfg_force_4dof)
+    assert norm_4dof.modules["controller"].identity == "fake_force_controller"
+
+    # 4. Kinematic controller with kinematic plant -> ACCEPT
+    cfg_kin_kin = {
+        "preset": "legacy_equivalent",
+        "modules": {
+            "plant": {"identity": "pass_through_plant", "parameters": {}},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "fake_kinematic_controller", "parameters": {}},
+        },
+    }
+    norm_kin = normalize_ship_modules(cfg_kin_kin)
+    assert norm_kin.modules["controller"].identity == "fake_kinematic_controller"
+
+    # 5. Kinematic controller with force plant -> REJECT
+    cfg_kin_force = {
+        "preset": "legacy_equivalent",
+        "overrides": {"scheduler": {"plant_period_ticks": 1}},
+        "modules": {
+            "plant": {"identity": "generic_3dof_plant", "parameters": _plant_3dof_params()},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "fake_kinematic_controller", "parameters": {}},
+        },
+    }
+    with pytest.raises(CapabilityMismatchError, match="produces kinematic reference"):
+        normalize_ship_modules(cfg_kin_force)
+
+    # 6. Unknown controller capability -> REJECT
+    cfg_unknown = {
+        "preset": "legacy_equivalent",
+        "modules": {
+            "plant": {"identity": "pass_through_plant", "parameters": {}},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "fake_unknown_controller", "parameters": {}},
+        },
+    }
+    with pytest.raises(CapabilityMismatchError, match="missing required output semantics capability"):
+        normalize_ship_modules(cfg_unknown)
+
+
+def test_generic_roll_4dof_plant_configuration_normalization_and_hash() -> None:
+    cfg = {
+        "preset": "legacy_equivalent",
+        "overrides": {"scheduler": {"plant_period_ticks": 1}},
+        "modules": {
+            "plant": {"identity": "generic_roll_4dof_plant", "parameters": _plant_4dof_params()},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "pass_through_controller", "parameters": {}},
+        },
+    }
+    norm = normalize_ship_modules(cfg)
+    assert norm.modules["plant"].identity == "generic_roll_4dof_plant"
+    assert norm.modules["plant"].parameters["restoring_k_phi"] == 3.0e8
+
+    # Changing restoring_k_phi alters config hash
+    cfg2 = dict(cfg)
+    cfg2_params = dict(_plant_4dof_params())
+    cfg2_params["restoring_k_phi"] = 3.5e8
+    cfg2["modules"] = {
+        "plant": {"identity": "generic_roll_4dof_plant", "parameters": cfg2_params},
+        "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+        "controller": {"identity": "pass_through_controller", "parameters": {}},
+    }
+    norm2 = normalize_ship_modules(cfg2)
+    assert norm.config_hash != norm2.config_hash
+
+
+def test_generic_roll_4dof_plant_requires_base_cadence() -> None:
+    cfg = {
+        "preset": "legacy_equivalent",
+        "overrides": {"scheduler": {"plant_period_ticks": 2}},
+        "modules": {
+            "plant": {"identity": "generic_roll_4dof_plant", "parameters": _plant_4dof_params()},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "pass_through_controller", "parameters": {}},
+        },
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="requires plant_period_ticks == 1"):
+        normalize_ship_modules(cfg)
