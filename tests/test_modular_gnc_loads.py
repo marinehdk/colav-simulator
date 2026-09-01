@@ -523,6 +523,58 @@ def test_current_asset_cmx_mutation_fails_integrity() -> None:
     assert not mutated_asset.verify_integrity()
 
 
+def test_table_asset_rejects_non_increasing_headings() -> None:
+    """Verify table assets reject unordered or duplicate heading/angle entries."""
+    meta = DEFAULT_TABLE_CURRENT_ASSET.metadata
+
+    # Duplicate angles
+    with pytest.raises(ValueError, match="strictly increasing"):
+        CurrentCoeffTableAsset(
+            metadata=meta,
+            table=(
+                CurrentCoeffEntry(0.0, 0.1, 0.0, 0.0),
+                CurrentCoeffEntry(0.0, 0.1, 0.0, 0.0),
+            ),
+        )
+
+    # Decreasing angles
+    with pytest.raises(ValueError, match="strictly increasing"):
+        CurrentCoeffTableAsset(
+            metadata=meta,
+            table=(
+                CurrentCoeffEntry(90.0, 0.1, 0.0, 0.0),
+                CurrentCoeffEntry(45.0, 0.1, 0.0, 0.0),
+            ),
+        )
+
+    # Wind table duplicate angles
+    with pytest.raises(ValueError, match="strictly increasing"):
+        WindCoeffTableAsset(
+            metadata=DEFAULT_OCIMF_WIND_ASSET.metadata,
+            table=(
+                WindCoeffEntry(50.0, 0.1, 0.0, 0.0),
+                WindCoeffEntry(50.0, 0.2, 0.0, 0.0),
+            ),
+        )
+
+
+def test_current_table_interpolation_fallback_ccy() -> None:
+    """Verify CurrentCoeffTableAsset.interpolate correctly accesses ccy on fallback path."""
+    meta = DEFAULT_TABLE_CURRENT_ASSET.metadata
+    # Custom table starting at 30 deg; querying at 10 deg triggers the fallback path
+    table = (
+        CurrentCoeffEntry(30.0, 0.15, 0.25, 0.05, 0.01),
+        CurrentCoeffEntry(180.0, -0.15, 0.0, 0.0, 0.0),
+    )
+    asset = CurrentCoeffTableAsset(metadata=meta, table=table)
+    ccx, ccy, cmz, cmx = asset.interpolate(10.0)
+    assert math.isclose(ccx, 0.15)
+    assert math.isclose(ccy, 0.25)
+    assert math.isclose(cmz, 0.05)
+    assert math.isclose(cmx, 0.01)
+
+
+
 
 # ---------------------------------------------------------------------------
 # 9. Asset Trust & Validation Impossibility (TS-23, VR-10, ALT-25)

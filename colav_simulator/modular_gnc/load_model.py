@@ -87,12 +87,18 @@ class WindCoeffTableAsset:
     table: tuple[WindCoeffEntry, ...]
 
     def __post_init__(self) -> None:
-        """Validate non-empty table and freeze."""
+        """Validate non-empty table, strictly increasing angles without duplicates, and freeze."""
         if not self.table:
             raise ValueError("Wind coefficient table cannot be empty")
         for i, entry in enumerate(self.table):
             if not isinstance(entry, WindCoeffEntry):
                 raise TypeError(f"table[{i}] must be WindCoeffEntry, got {type(entry).__name__}")
+        for i in range(len(self.table) - 1):
+            if self.table[i + 1].angle_deg <= self.table[i].angle_deg:
+                raise ValueError(
+                    f"Wind table angles must be strictly increasing without duplicates; "
+                    f"table[{i}].angle_deg ({self.table[i].angle_deg}) >= table[{i+1}].angle_deg ({self.table[i+1].angle_deg})"
+                )
         object.__setattr__(self, "table", tuple(self.table))
 
     def verify_integrity(self) -> bool:
@@ -159,12 +165,18 @@ class CurrentCoeffTableAsset:
     table: tuple[CurrentCoeffEntry, ...]
 
     def __post_init__(self) -> None:
-        """Validate non-empty table and freeze."""
+        """Validate non-empty table, strictly increasing headings without duplicates, and freeze."""
         if not self.table:
             raise ValueError("Current coefficient table cannot be empty")
         for i, entry in enumerate(self.table):
             if not isinstance(entry, CurrentCoeffEntry):
                 raise TypeError(f"table[{i}] must be CurrentCoeffEntry, got {type(entry).__name__}")
+        for i in range(len(self.table) - 1):
+            if self.table[i + 1].heading_deg <= self.table[i].heading_deg:
+                raise ValueError(
+                    f"Current table headings must be strictly increasing without duplicates; "
+                    f"table[{i}].heading_deg ({self.table[i].heading_deg}) >= table[{i+1}].heading_deg ({self.table[i+1].heading_deg})"
+                )
         object.__setattr__(self, "table", tuple(self.table))
 
     def verify_integrity(self) -> bool:
@@ -203,7 +215,7 @@ class CurrentCoeffTableAsset:
                     self.table[i].cmz + t * (self.table[i + 1].cmz - self.table[i].cmz),
                     self.table[i].cmx + t * (self.table[i + 1].cmx - self.table[i].cmx),
                 )
-        return first.ccx, first.cy, first.cmz, first.cmx
+        return first.ccx, first.ccy, first.cmz, first.cmx
 
 
 @dataclass(frozen=True)
