@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
@@ -255,6 +255,40 @@ class WaveComponent:
 
 
 @dataclass(frozen=True)
+class WaveComponentArrays:
+    """Contiguous immutable float64 arrays for wave component batches."""
+
+    amplitudes: FloatArray
+    omegas: FloatArray
+    phases: FloatArray
+    directions: FloatArray
+    omega_sq: FloatArray
+    amp_sq: FloatArray
+
+
+def build_wave_component_arrays(
+    components: tuple[WaveComponent, ...] | Sequence[WaveComponent],
+) -> WaveComponentArrays | None:
+    """Build contiguous immutable float64 component arrays from sequence of WaveComponent."""
+    if not components:
+        return None
+    n = len(components)
+    amps = np.fromiter((c.amplitude_m for c in components), dtype=np.float64, count=n)
+    omegas = np.fromiter((c.omega_radps for c in components), dtype=np.float64, count=n)
+    phases = np.fromiter((c.phase_rad for c in components), dtype=np.float64, count=n)
+    dirs = np.fromiter((c.direction_to_rad for c in components), dtype=np.float64, count=n)
+    omega_sq = omegas * omegas
+    amp_sq = amps * amps
+    amps.flags.writeable = False
+    omegas.flags.writeable = False
+    phases.flags.writeable = False
+    dirs.flags.writeable = False
+    omega_sq.flags.writeable = False
+    amp_sq.flags.writeable = False
+    return WaveComponentArrays(amps, omegas, phases, dirs, omega_sq, amp_sq)
+
+
+@dataclass(frozen=True)
 class WaveFieldSample:
     """Immutable raw wave field description."""
 
@@ -282,6 +316,18 @@ class WaveFieldSample:
         object.__setattr__(self, "direction_to_rad", dir_rad % (2.0 * math.pi))
         object.__setattr__(self, "components", tuple(self.components))
 
+    @property
+    def component_arrays(self) -> WaveComponentArrays | None:
+        """Return cached or lazily constructed contiguous immutable component arrays."""
+        cached = getattr(self, "_cached_component_arrays", None)
+        if cached is None and self.components:
+            cached = build_wave_component_arrays(self.components)
+            try:
+                object.__setattr__(self, "_cached_component_arrays", cached)
+            except Exception:
+                pass
+        return cached
+
 
 @dataclass(frozen=True)
 class MeanDriftSourceSample:
@@ -305,6 +351,18 @@ class MeanDriftSourceSample:
                 raise TypeError(f"components[{i}] must be WaveComponent, got {type(comp).__name__}")
         object.__setattr__(self, "components", tuple(self.components))
         object.__setattr__(self, "directional_spread_rad", spread)
+
+    @property
+    def component_arrays(self) -> WaveComponentArrays | None:
+        """Return cached or lazily constructed contiguous immutable component arrays."""
+        cached = getattr(self, "_cached_component_arrays", None)
+        if cached is None and self.components:
+            cached = build_wave_component_arrays(self.components)
+            try:
+                object.__setattr__(self, "_cached_component_arrays", cached)
+            except Exception:
+                pass
+        return cached
 
 
 @dataclass(frozen=True)

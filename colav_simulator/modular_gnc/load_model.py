@@ -9,6 +9,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
 from colav_simulator.modular_gnc.contracts import (
     ApplicabilityDomain,
     AssetIntegrityError,
@@ -19,12 +21,14 @@ from colav_simulator.modular_gnc.contracts import (
     CurrentStrategy,
     EnvironmentalLoads,
     EnvironmentTruth,
+    FloatArray,
     MeanDriftModel,
     MeanDriftSourceSample,
     NavigationState,
     OutOfDomainError,
     PlantState,
     VesselLoad,
+    WaveComponentArrays,
     WaveFieldSample,
     WaveLoadMode,
     WindSample,
@@ -1021,11 +1025,55 @@ class CurrentLoadModel:
         )
 
 
+def _extract_wave_component_arrays(wave: WaveFieldSample | MeanDriftSourceSample) -> WaveComponentArrays | None:
+    """Extract or retrieve cached contiguous immutable float64 component arrays."""
+    return wave.component_arrays
+
+
+def _check_wave_domain_batch(
+    asset_id: str,
+    domain: ApplicabilityDomain,
+    gamma_deg: FloatArray,
+    omegas: FloatArray,
+    amplitudes: FloatArray,
+) -> None:
+    """Perform batched applicability domain checks and raise OutOfDomainError on violation."""
+    h_min, h_max = domain.heading_range_deg
+    heading_mask = (gamma_deg >= h_min) & (gamma_deg <= h_max)
+    if not np.all(heading_mask):
+        idx = int(np.where(~heading_mask)[0][0])
+        raise OutOfDomainError(
+            f"Wave component (omega={omegas[idx]:.2f} rad/s, gamma={gamma_deg[idx]:.1f} deg, "
+            f"amp={amplitudes[idx]:.2f} m) outside applicability domain of asset {asset_id}"
+        )
+
+    if "omega_radps" in domain.custom_bounds:
+        om_min, om_max = domain.custom_bounds["omega_radps"]
+        om_mask = (omegas >= om_min) & (omegas <= om_max)
+        if not np.all(om_mask):
+            idx = int(np.where(~om_mask)[0][0])
+            raise OutOfDomainError(
+                f"Wave component (omega={omegas[idx]:.2f} rad/s, gamma={gamma_deg[idx]:.1f} deg, "
+                f"amp={amplitudes[idx]:.2f} m) outside applicability domain of asset {asset_id}"
+            )
+
+    if "wave_height_m" in domain.custom_bounds:
+        wh_min, wh_max = domain.custom_bounds["wave_height_m"]
+        heights = 2.0 * amplitudes
+        h_mask = (heights >= wh_min) & (heights <= wh_max)
+        if not np.all(h_mask):
+            idx = int(np.where(~h_mask)[0][0])
+            raise OutOfDomainError(
+                f"Wave component (omega={omegas[idx]:.2f} rad/s, gamma={gamma_deg[idx]:.1f} deg, "
+                f"amp={amplitudes[idx]:.2f} m) outside applicability domain of asset {asset_id}"
+            )
+
+
 class FirstOrderWaveLoadModel:
     """Pure calculation of first-order wave excitation loads on vessel hull (SI: N, N·m)."""
 
     @classmethod
-    def _calculate_inferred(
+    def _calculate_inferred_scalar(
         cls,
         wave: WaveFieldSample,
         heading: float,
@@ -1035,6 +1083,7 @@ class FirstOrderWaveLoadModel:
         params: VesselEnvironmentalParameters,
         asset: InferredWaveResponseAsset,
     ) -> VesselLoad:
+        """Scalar reference implementation kept as private test oracle."""
         c_kxx = 0.4
         k_xx = c_kxx * params.beam_m
         if k_xx < 1.0e-3 or params.gm_t_m < 1.0e-4:
@@ -1135,6 +1184,113 @@ class FirstOrderWaveLoadModel:
             sway_n=float(total_fy),
             yaw_nm=float(total_mz),
             roll_nm=float(total_mx),
+        )
+
+    @classmethod
+    def _calculate_inferred(
+        cls,
+        wave: WaveFieldSample,
+        heading: float,
+        u: float,
+        v: float,
+        t: float,
+        params: VesselEnvironmentalParameters,
+        asset: InferredWaveResponseAsset,
+    ) -> VesselLoad:
+        arrays = _extract_wave_component_arrays(wave)
+        if arrays is None or len(arrays.amplitudes) == 0:
+            return VesselLoad.zero()
+
+        amps = arrays.amplitudes
+        omegas = arrays.omegas
+        phases = arrays.phases
+        dirs = arrays.directions
+
+        gamma_dir = dirs - heading
+        gamma_deg = np.degrees(gamma_dir) % 360.0
+
+        _check_wave_domain_batch(asset.metadata.asset_id, asset.metadata.applicability_domain, gamma_deg, omegas, amps)
+
+        c_kxx = 0.4
+        k_xx = c_kxx * params.beam_m
+        if k_xx < 1.0e-3 or params.gm_t_m < 1.0e-4:
+            roll_nat_freq = 0.4
+        else:
+            roll_nat_freq = math.sqrt(params.gravity_mps2 * params.gm_t_m / (k_xx * k_xx))
+
+        cos_gamma = np.cos(gamma_dir)
+        sin_gamma = np.sin(gamma_dir)
+        sin_2gamma = np.sin(2.0 * gamma_dir)
+
+        k = arrays.omega_sq / params.gravity_mps2
+        vel_along_wave = u * cos_gamma + v * sin_gamma
+        omega_e = omegas - k * vel_along_wave
+        omega_rao = np.maximum(np.abs(omega_e), 1.0e-4)
+
+        e_half = np.exp(-k * (params.draft_m * 0.5))
+        sway_geom = (
+            params.water_density_kg_m3
+            * params.gravity_mps2
+            * params.beam_m
+            * params.length_between_perpendiculars_m
+        )
+        f_fk_sway = amps * (sway_geom * k * e_half)
+
+        k_denom = np.maximum(k, 1.0e-8)
+        i_depth_roll = (1.0 - np.exp(-k * params.draft_m)) / k_denom
+        roll_geom = (
+            params.water_density_kg_m3
+            * params.gravity_mps2
+            * (params.beam_m * params.beam_m * 0.25)
+            * params.length_between_perpendiculars_m
+            * 0.03
+        )
+        f_fk_roll = amps * (roll_geom * i_depth_roll)
+
+        r_surge = omega_rao / max(asset.rao_cutoff_surge, 1.0e-4)
+        rao_surge = np.minimum(1.0 / np.sqrt(1.0 + r_surge * r_surge), asset.rao_scale_max)
+
+        r_sway = omega_rao / max(asset.rao_cutoff_sway, 1.0e-4)
+        rao_sway = np.minimum(1.0 / np.sqrt(1.0 + r_sway * r_sway), asset.rao_scale_max)
+
+        r_yaw = omega_rao / max(asset.rao_cutoff_yaw, 1.0e-4)
+        rao_yaw = np.minimum(1.0 / np.sqrt(1.0 + r_yaw * r_yaw), asset.rao_scale_max)
+
+        r_roll = omega_rao / max(roll_nat_freq, 1.0e-4)
+        r_roll_sq = r_roll * r_roll
+        d_roll = np.sqrt((1.0 - r_roll_sq) ** 2 + 4.0 * (asset.rao_damping_roll**2) * r_roll_sq)
+        mid_val = np.minimum(1.0 / np.maximum(d_roll, 1.0e-6), asset.rao_scale_max_roll)
+        high_val = np.minimum(2.0 / r_roll_sq, asset.rao_scale_max_roll)
+        rao_roll = np.where(r_roll < 0.5, 1.0, np.where(r_roll <= 2.0, mid_val, high_val))
+
+        phase_t = omega_e * t + phases
+        cos_phase = np.cos(phase_t)
+        sin_phase = np.sin(phase_t)
+
+        fx_comp = (asset.rao_surge_scale * asset.fk_scale_factor) * (f_fk_sway * cos_gamma * cos_phase * rao_surge)
+        fy_comp = (asset.rao_sway_scale * asset.fk_scale_factor) * (f_fk_sway * sin_gamma * cos_phase * rao_sway)
+        mx_comp = asset.rao_roll_scale * (f_fk_roll * sin_gamma * cos_phase * rao_roll)
+        mz_comp = (asset.rao_yaw_scale * asset.fk_scale_factor * params.length_between_perpendiculars_m * 0.5) * (
+            f_fk_sway * sin_2gamma * sin_phase * rao_yaw
+        )
+
+        if np.any(amps <= 0.0):
+            mask = amps > 0.0
+            total_fx = float(np.sum(fx_comp[mask]))
+            total_fy = float(np.sum(fy_comp[mask]))
+            total_mx = float(np.sum(mx_comp[mask]))
+            total_mz = float(np.sum(mz_comp[mask]))
+        else:
+            total_fx = float(np.sum(fx_comp))
+            total_fy = float(np.sum(fy_comp))
+            total_mx = float(np.sum(mx_comp))
+            total_mz = float(np.sum(mz_comp))
+
+        return VesselLoad(
+            surge_n=total_fx,
+            sway_n=total_fy,
+            yaw_nm=total_mz,
+            roll_nm=total_mx,
         )
 
     @classmethod
@@ -1312,13 +1468,14 @@ class MeanDriftLoadModel:
         return cfx, cfy, cmz, cmx
 
     @classmethod
-    def _calculate_inferred(
+    def _calculate_inferred_scalar(
         cls,
         wave: WaveFieldSample | MeanDriftSourceSample,
         heading: float,
         params: VesselEnvironmentalParameters,
         asset: InferredWaveDriftAsset,
     ) -> VesselLoad:
+        """Scalar reference implementation kept as private test oracle."""
         total_fx = 0.0
         total_fy = 0.0
         total_mx = 0.0
@@ -1347,6 +1504,104 @@ class MeanDriftLoadModel:
             sway_n=float(total_fy),
             yaw_nm=float(total_mz),
             roll_nm=float(total_mx),
+        )
+
+    @classmethod
+    def _calculate_inferred(
+        cls,
+        wave: WaveFieldSample | MeanDriftSourceSample,
+        heading: float,
+        params: VesselEnvironmentalParameters,
+        asset: InferredWaveDriftAsset,
+    ) -> VesselLoad:
+        arrays = _extract_wave_component_arrays(wave)
+        if arrays is None or len(arrays.amplitudes) == 0:
+            return VesselLoad.zero()
+
+        amps = arrays.amplitudes
+        omegas = arrays.omegas
+        dirs = arrays.directions
+
+        gamma_dir = dirs - heading
+        gamma_deg = np.degrees(gamma_dir) % 360.0
+
+        _check_wave_domain_batch(asset.metadata.asset_id, asset.metadata.applicability_domain, gamma_deg, omegas, amps)
+
+        l_val = max(params.length_between_perpendiculars_m, 0.1)
+        b_val = max(params.beam_m, 0.1)
+        t_val = max(params.draft_m, 0.1)
+        kg_val = max(params.kg_m, t_val)
+
+        k = np.maximum(arrays.omega_sq / params.gravity_mps2, 1.0e-8)
+        kl = np.clip(k * l_val, 0.0, 60.0)
+        kb = np.clip(k * b_val, 0.0, 60.0)
+        kt = np.clip(k * t_val, 0.0, 60.0)
+
+        long_wave_build_up = (kl * kl) / (1.0 + kl * kl)
+        short_wave_decay = 1.0 / np.sqrt(1.0 + (kl / 8.0) ** 4.0)
+        draft_participation = np.sqrt(np.maximum(0.0, 1.0 - np.exp(-2.0 * kt)))
+        finite_beam_reflection = 1.0 - np.exp(-2.0 * kb)
+
+        freq_shape = np.clip(
+            long_wave_build_up * short_wave_decay * np.maximum(0.25, draft_participation),
+            0.0,
+            1.5,
+        )
+        head_eff = np.clip(
+            asset.inferred_surge_scale * finite_beam_reflection * freq_shape,
+            0.0,
+            1.0,
+        )
+        beam_eff = np.clip(
+            asset.inferred_sway_scale * finite_beam_reflection * freq_shape,
+            0.0,
+            1.0,
+        )
+
+        c = np.cos(gamma_dir)
+        s = np.sin(gamma_dir)
+        c_abs = np.abs(c)
+        s_abs = np.abs(s)
+
+        surge_per_amp2 = (params.water_density_kg_m3 * params.gravity_mps2 * b_val) * head_eff
+        sway_per_amp2 = (params.water_density_kg_m3 * params.gravity_mps2 * l_val) * beam_eff
+        yaw_lever = asset.inferred_yaw_lever_scale * l_val
+        roll_lever = asset.inferred_roll_lever_scale * max(0.1, kg_val - 0.33 * t_val)
+
+        amp_sq = arrays.amp_sq
+
+        cfx = surge_per_amp2 * c * c_abs
+        cfy = sway_per_amp2 * s * s_abs
+        cmz = sway_per_amp2 * (yaw_lever * c * s)
+        cmx = sway_per_amp2 * (roll_lever * s * s_abs)
+
+        if np.any(amps <= 0.0):
+            mask = amps > 0.0
+            total_fx = float(np.sum((cfx * amp_sq)[mask]))
+            total_fy = float(np.sum((cfy * amp_sq)[mask]))
+            total_mz = float(np.sum((cmz * amp_sq)[mask]))
+            total_mx = float(np.sum((cmx * amp_sq)[mask]))
+        else:
+            total_fx = float(np.sum(cfx * amp_sq))
+            total_fy = float(np.sum(cfy * amp_sq))
+            total_mz = float(np.sum(cmz * amp_sq))
+            total_mx = float(np.sum(cmx * amp_sq))
+
+        if asset.max_force_n is not None and asset.max_force_n > 0.0:
+            fnorm = math.hypot(total_fx, total_fy)
+            if fnorm > asset.max_force_n:
+                scale = asset.max_force_n / fnorm
+                total_fx *= scale
+                total_fy *= scale
+        if asset.max_moment_nm is not None and asset.max_moment_nm > 0.0:
+            total_mx = math.copysign(min(abs(total_mx), asset.max_moment_nm), total_mx)
+            total_mz = math.copysign(min(abs(total_mz), asset.max_moment_nm), total_mz)
+
+        return VesselLoad(
+            surge_n=total_fx,
+            sway_n=total_fy,
+            yaw_nm=total_mz,
+            roll_nm=total_mx,
         )
 
     @classmethod

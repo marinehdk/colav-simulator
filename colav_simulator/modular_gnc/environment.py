@@ -19,6 +19,7 @@ from colav_simulator.modular_gnc.contracts import (
     WindSample,
     _finite_scalar,
     _non_bool_int,
+    build_wave_component_arrays,
 )
 
 
@@ -218,6 +219,7 @@ class AnalyticEnvironmentField:
                 self._wave_spread,
                 self._field_seed,
             )
+        self._cached_component_arrays = build_wave_component_arrays(self._wave_components)
 
     @classmethod
     def from_params(
@@ -316,6 +318,13 @@ class AnalyticEnvironmentField:
             components=self._wave_components,
             directional_spread_rad=self._wave_spread,
         )
+
+        if self._cached_component_arrays is not None:
+            try:
+                object.__setattr__(wave_sample, "_cached_component_arrays", self._cached_component_arrays)
+                object.__setattr__(drift_sample, "_cached_component_arrays", self._cached_component_arrays)
+            except Exception:
+                pass
 
         return EnvironmentTruth(
             wind=wind_sample,
