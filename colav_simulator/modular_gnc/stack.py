@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any
 
 from colav_simulator.modular_gnc.command_latch import CommandLatch
@@ -23,6 +24,10 @@ from colav_simulator.modular_gnc.environment import (
 )
 from colav_simulator.modular_gnc.load_model import EnvironmentalLoadModel
 from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
+from colav_simulator.modular_gnc.plant import (
+    Generic3DOFPlant,
+    Generic3DOFPlantParameters,
+)
 
 
 class ModularShipStack:
@@ -41,14 +46,17 @@ class ModularShipStack:
     @classmethod
     def from_config(
         cls,
-        config: ShipModulesConfig,
+        config: ShipModulesConfig | Mapping[str, Any],
         episode_seed: int = 0,
         dt_s: float = 0.1,
     ) -> ModularShipStack:
         """Build registered modular implementation."""
+        from colav_simulator.modular_gnc.configuration import normalize_ship_modules  # noqa: PLC0415
+
+        cfg = config if isinstance(config, ShipModulesConfig) else normalize_ship_modules(config)
         env_field = None
-        if "environment" in config.modules:
-            env_sel = config.modules["environment"]
+        if "environment" in cfg.modules:
+            env_sel = cfg.modules["environment"]
             if env_sel.identity == "analytic_environment_field":
                 env_field = AnalyticEnvironmentField.from_params(
                     env_sel.parameters,
@@ -59,15 +67,24 @@ class ModularShipStack:
                 env_field = PassThroughEnvironmentField(dt_s=dt_s)
 
         load_model = None
-        if "load_model" in config.modules:
-            lm_sel = config.modules["load_model"]
+        if "load_model" in cfg.modules:
+            lm_sel = cfg.modules["load_model"]
             if lm_sel.identity == "standard_environmental_load":
                 load_model = EnvironmentalLoadModel.from_params(lm_sel.parameters)
             elif lm_sel.identity == "pass_through_load_model":
                 load_model = None
 
-        modules = PassThroughModules(environment_field=env_field, load_model=load_model)
-        return cls(config, modules)
+        plant = None
+        if "plant" in cfg.modules:
+            plant_sel = cfg.modules["plant"]
+            if plant_sel.identity == "generic_3dof_plant":
+                plant_params = Generic3DOFPlantParameters(**plant_sel.parameters)
+                plant = Generic3DOFPlant(plant_params)
+            elif plant_sel.identity == "pass_through_plant":
+                plant = None
+
+        modules = PassThroughModules(environment_field=env_field, load_model=load_model, plant=plant)
+        return cls(cfg, modules)
 
     def reset(self, navigation: NavigationState, seed: int) -> None:
         """Idempotently reset all facade-owned state."""

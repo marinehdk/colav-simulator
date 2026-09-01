@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from colav_simulator.modular_gnc.contracts import (
+    ControlTask,
     DirectReference,
     EnvironmentalLoads,
     EnvironmentObservation,
@@ -16,11 +17,14 @@ from colav_simulator.modular_gnc.contracts import (
     NavigationState,
     PlantState,
     TrackedRoute,
+    VesselLoad,
 )
+from colav_simulator.modular_gnc.integrators import rk4_step
 
 if TYPE_CHECKING:
     from colav_simulator.modular_gnc.environment import EnvironmentField
     from colav_simulator.modular_gnc.load_model import EnvironmentalLoadModel
+    from colav_simulator.modular_gnc.plant import Generic3DOFPlant
 
 
 @dataclass(frozen=True)
@@ -47,12 +51,18 @@ class PassThroughModules:
         fail_tick: int | None = None,
         environment_field: EnvironmentField | None = None,
         load_model: EnvironmentalLoadModel | None = None,
+        plant: Generic3DOFPlant | None = None,
     ) -> None:
         self._fail_phase = fail_phase
         self._fail_tick = fail_tick
         self._environment_field = environment_field
         self._load_model = load_model
-        self._state = PlantState(np.zeros(6), frozenset({"PLANAR_3DOF"}))
+        self._plant = plant
+        capabilities = frozenset({"PLANAR_3DOF"}) if plant is None else plant.capabilities
+        input_semantics = (
+            PlantState.__dataclass_fields__["input_semantics"].default if plant is None else plant.input_semantics
+        )
+        self._state = PlantState(np.zeros(6), capabilities, input_semantics=input_semantics)
         self._navigation_source = NavigationSource.TRUTH_PROJECTION
         self._phase_counts = dict.fromkeys(self.phase_order, 0)
         self._route_consumptions: list[tuple[int, str, int]] = []
@@ -62,7 +72,13 @@ class PassThroughModules:
 
     def reset(self, navigation: NavigationState, seed: int) -> None:  # noqa: ARG002
         """Reset deterministic state from navigation truth projection."""
-        self._state = PlantState(navigation.as_array(), frozenset({"PLANAR_3DOF"}))
+        capabilities = frozenset({"PLANAR_3DOF"}) if self._plant is None else self._plant.capabilities
+        input_semantics = (
+            PlantState.__dataclass_fields__["input_semantics"].default
+            if self._plant is None
+            else self._plant.input_semantics
+        )
+        self._state = PlantState(navigation.as_array(), capabilities, input_semantics=input_semantics)
         self._navigation_source = navigation.source
         self._phase_counts = dict.fromkeys(self.phase_order, 0)
         self._route_consumptions: list[tuple[int, str, int]] = []
@@ -99,11 +115,45 @@ class PassThroughModules:
                 self._held_loads = self._load_model.compute_loads(self._held_truth, self.navigation())
         if phase == "guidance" and route is not None:
             self._route_consumptions.append((tick, route.route_id, route.revision))
-        if phase == "plant" and reference is not None:
-            values = self._state.values.copy()
-            values[2] = reference.values[2]
-            values[3] = reference.values[3]
-            self._state = PlantState(values, self._state.capabilities)
+        if phase == "plant":
+            if self._plant is not None:
+                if reference is not None:
+                    if reference.task == ControlTask.MANUAL_LOAD:
+                        ctrl_load = VesselLoad(
+                            surge_n=float(reference.values[0]),
+                            sway_n=float(reference.values[1]),
+                            yaw_nm=float(reference.values[2]),
+                        )
+                    elif abs(reference.values[6]) > 0.0 or abs(reference.values[7]) > 0.0 or abs(reference.values[8]) > 0.0:
+                        ctrl_load = VesselLoad(
+                            surge_n=float(reference.values[6]),
+                            sway_n=float(reference.values[7]),
+                            yaw_nm=float(reference.values[8]),
+                        )
+                    else:
+                        ctrl_load = VesselLoad(
+                            surge_n=float(reference.values[0]),
+                            sway_n=float(reference.values[1]),
+                            yaw_nm=float(reference.values[2]),
+                        )
+                else:
+                    ctrl_load = VesselLoad.zero()
+
+                new_values = rk4_step(
+                    plant=self._plant,
+                    tick=tick,
+                    dt_s=dt_s,
+                    state=self._state.values,
+                    control_load=ctrl_load,
+                    environment_field=self._environment_field,
+                    load_model=self._load_model,
+                )
+                self._state = PlantState(new_values, self._plant.capabilities, input_semantics=self._plant.input_semantics)
+            elif reference is not None:
+                values = self._state.values.copy()
+                values[2] = reference.values[2]
+                values[3] = reference.values[3]
+                self._state = PlantState(values, self._state.capabilities)
 
     def navigation(self) -> NavigationState:
         """Project complete pass-through state to navigation view."""
