@@ -1,0 +1,1380 @@
+{
+  "benchmark": {
+    "config": {
+      "base_hz": 50,
+      "cpu_affinity": [],
+      "dt_s": 0.02,
+      "harmonics": [
+        8,
+        32,
+        128
+      ],
+      "measured_s": 0.5,
+      "repeats": 3,
+      "rk_stages": 4,
+      "seed": 5400,
+      "ships": [
+        1,
+        5,
+        20
+      ],
+      "warmup_s": 0.1,
+      "wave_mode": "both"
+    },
+    "constants": {
+      "base_hz": 50,
+      "rhs_count_identity": "measured_ticks * ships * 4 == rhs_count",
+      "rhs_evaluations_per_ship_second": 200,
+      "rk_stages": 4
+    },
+    "harmonics": [
+      8,
+      32,
+      128
+    ],
+    "name": "modular_gnc_environment_load_generic_3dof_rk4",
+    "plant": "generic_3dof_required",
+    "scope": "direct EnvironmentField + EnvironmentalLoadModel + Generic3DOFPlant + rk4_step",
+    "warmup_and_measurement": "deterministic warmup followed by measured ticks; no wall-clock in simulation state",
+    "wave_mode": "BOTH"
+  },
+  "claim_ceiling": "performance_characterization_and_A2_blocker_evidence_only",
+  "decisions": {
+    "a2_parity": "BLOCKED_PENDING_PERFORMANCE_DECISION",
+    "issue_55": "BLOCKED",
+    "made": false
+  },
+  "harmonic_scaling": [
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.0,
+      "rtf_ratio": 1.0,
+      "ships": 1,
+      "to_harmonics": 8
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.7381492214907308,
+      "rtf_ratio": 1.8100264178746062,
+      "ships": 1,
+      "to_harmonics": 32
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 4.800772119598151,
+      "rtf_ratio": 5.035458353408328,
+      "ships": 1,
+      "to_harmonics": 128
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.0,
+      "rtf_ratio": 1.0,
+      "ships": 5,
+      "to_harmonics": 8
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.8564958914342629,
+      "rtf_ratio": 1.8505335143370922,
+      "ships": 5,
+      "to_harmonics": 32
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 5.125373505976095,
+      "rtf_ratio": 5.170645362209919,
+      "ships": 5,
+      "to_harmonics": 128
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.0,
+      "rtf_ratio": 1.0,
+      "ships": 20,
+      "to_harmonics": 8
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.841474811050954,
+      "rtf_ratio": 1.8426968984487466,
+      "ships": 20,
+      "to_harmonics": 32
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 5.080011256351516,
+      "rtf_ratio": 5.135365354949242,
+      "ships": 20,
+      "to_harmonics": 128
+    }
+  ],
+  "provenance": {
+    "architecture": "aarch64",
+    "commit_head": null,
+    "compiler": "none; no native code invoked",
+    "cpu": "aarch64",
+    "cpu_affinity": [],
+    "cpu_affinity_status": "uncontrolled",
+    "dependency_freeze": [
+      "appdirs==1.4.4",
+      "apturl==0.5.2",
+      "argcomplete==1.8.1",
+      "attrs==21.2.0",
+      "bcrypt==3.2.0",
+      "beniget==0.4.1",
+      "blinker==1.4",
+      "bloom==0.14.3",
+      "breezy==3.2.1",
+      "Brlapi==0.8.3",
+      "Brotli==1.0.9",
+      "catkin-pkg==1.1.0",
+      "catkin-pkg-modules==1.1.0",
+      "certifi==2020.6.20",
+      "chardet==4.0.0",
+      "click==8.0.3",
+      "click-plugins==1.1.1",
+      "cligj==0.7.2",
+      "colcon-argcomplete==0.3.3",
+      "colcon-bash==0.5.0",
+      "colcon-cd==0.2.1",
+      "colcon-cmake==0.2.30",
+      "colcon-common-extensions==0.3.0",
+      "colcon-core==0.21.0",
+      "colcon-defaults==0.2.9",
+      "colcon-devtools==0.3.0",
+      "colcon-installed-package-information==0.2.1",
+      "colcon-library-path==0.2.1",
+      "colcon-metadata==0.2.5",
+      "colcon-mixin==0.2.3",
+      "colcon-notification==0.3.1",
+      "colcon-output==0.2.14",
+      "colcon-override-check==0.0.1",
+      "colcon-package-information==0.4.1",
+      "colcon-package-selection==0.2.10",
+      "colcon-parallel-executor==0.3.0",
+      "colcon-pkg-config==0.1.0",
+      "colcon-powershell==0.5.0",
+      "colcon-python-setup-py==0.2.9",
+      "colcon-recursive-crawl==0.2.3",
+      "colcon-ros==0.5.0",
+      "colcon-test-result==0.3.8",
+      "colcon-zsh==0.5.0",
+      "colorama==0.4.4",
+      "configobj==5.0.6",
+      "cov-core==1.15.0",
+      "coverage==6.2",
+      "cpuset==1.6",
+      "cryptography==3.4.8",
+      "cupshelpers==1.0",
+      "cycler==0.11.0",
+      "dbus-python==1.2.18",
+      "decorator==4.4.2",
+      "defer==1.0.6",
+      "Deprecated==1.2.13",
+      "descartes==1.1.0",
+      "distlib==0.3.4",
+      "distro==1.7.0",
+      "distro-info==1.1+ubuntu0.2",
+      "docutils==0.17.1",
+      "dulwich==0.20.31",
+      "duplicity==0.8.21",
+      "empy==3.3.4",
+      "fastbencode==0.0.5",
+      "fasteners==0.14.1",
+      "fastimport==0.9.14",
+      "Fiona==1.8.21",
+      "flake8==4.0.1",
+      "fonttools==4.29.1",
+      "fs==2.4.12",
+      "future==0.18.2",
+      "gast==0.5.2",
+      "geographiclib==1.52",
+      "geopandas==0.10.2",
+      "geopy==2.2.0",
+      "gpg==1.16.0",
+      "httplib2==0.20.2",
+      "idna==3.3",
+      "importlib-metadata==4.6.4",
+      "iniconfig==1.1.1",
+      "jeepney==0.7.1",
+      "Jetson.GPIO==2.1.7",
+      "keyring==23.5.0",
+      "kiwisolver==1.3.2",
+      "language-selector==0.1",
+      "lark==1.1.1",
+      "launchpadlib==1.10.16",
+      "lazr.restfulclient==0.14.4",
+      "lazr.uri==1.0.6",
+      "lockfile==0.12.2",
+      "louis==3.20.0",
+      "lxml==4.8.0",
+      "lz4==3.1.3+dfsg",
+      "macaroonbakery==1.3.1",
+      "Mako==1.1.3",
+      "MarkupSafe==2.0.1",
+      "matplotlib==3.5.1",
+      "mccabe==0.6.1",
+      "mercurial==6.1.1",
+      "monotonic==1.6",
+      "more-itertools==8.10.0",
+      "mpi4py==3.1.3",
+      "mpmath==0.0.0",
+      "munch==2.5.0",
+      "netifaces==0.11.0",
+      "nose2==0.9.2",
+      "notify2==0.3",
+      "numpy==1.21.5",
+      "oauthlib==3.2.0",
+      "olefile==0.46",
+      "onboard==1.4.1",
+      "packaging==21.3",
+      "pandas==1.3.5",
+      "paramiko==2.9.3",
+      "patiencediff==0.2.1",
+      "pexpect==4.8.0",
+      "Pillow==9.0.1",
+      "pluggy==0.13.0",
+      "ply==3.11",
+      "protobuf==3.12.4",
+      "psutil==5.9.0",
+      "psycopg2==2.9.2",
+      "ptyprocess==0.7.0",
+      "py==1.10.0",
+      "pycairo==1.20.1",
+      "pycodestyle==2.8.0",
+      "pycups==2.0.1",
+      "pydocstyle==6.1.1",
+      "pydot==1.4.2",
+      "pyflakes==2.4.0",
+      "PyGithub==1.55",
+      "Pygments==2.11.2",
+      "PyGObject==3.42.1",
+      "PyJWT==2.3.0",
+      "pymacaroons==0.13.0",
+      "PyNaCl==1.5.0",
+      "PyOpenGL==3.1.5",
+      "pyparsing==2.4.7",
+      "pyproj==3.3.0",
+      "PyQt5==5.15.6",
+      "PyQt5-sip==12.9.1",
+      "pyRFC3339==1.1",
+      "pytest==6.2.5",
+      "pytest-cov==3.0.0",
+      "python-apt==2.4.0+ubuntu4",
+      "python-dateutil==2.8.1",
+      "python-dbusmock==0.27.5",
+      "python-debian==0.1.43+ubuntu1.1",
+      "python-gitlab==2.10.1",
+      "pythran==0.10.0",
+      "pytz==2022.1",
+      "pyxdg==0.27",
+      "PyYAML==5.4.1",
+      "requests==2.25.1",
+      "requests-toolbelt==0.9.1",
+      "roman==3.3",
+      "rosdep==0.26.0",
+      "rosdep-modules==0.26.0",
+      "rosdistro==1.0.1",
+      "rosdistro-modules==1.0.1",
+      "rospkg-modules==1.6.1",
+      "Rtree==0.9.7",
+      "scipy==1.8.0",
+      "SecretStorage==3.3.1",
+      "Shapely==1.8.0",
+      "six==1.16.0",
+      "snowballstemmer==2.2.0",
+      "sympy==1.9",
+      "systemd-python==234",
+      "tensorrt==10.3.0",
+      "tensorrt_dispatch==10.3.0",
+      "tensorrt_lean==10.3.0",
+      "toml==0.10.2",
+      "ubuntu-advantage-tools==8001",
+      "ubuntu-drivers-common==0.0.0",
+      "ufoLib2==0.13.1",
+      "unicodedata2==14.0.0",
+      "urllib3==1.26.5",
+      "urwid==2.1.2",
+      "vcstool==0.3.0",
+      "vcstools==0.1.42",
+      "wadllib==1.3.6",
+      "websockets==12.0",
+      "wrapt==1.13.3",
+      "xdg==5",
+      "xkit==0.0.0",
+      "zipp==1.0.0"
+    ],
+    "dependency_freeze_sha256": "abfc6dbeb9145fc2530f500e16e76ef0510cf57051453507bc3d40b23e916dc0",
+    "gpu": "not queried; no GPU kernel invoked",
+    "harness_config_hash": "835a627900207d8f531e01760020fe4a48831689d38c4b1b4e0dd78924c55747",
+    "kernel": "5.15.148-rt-tegra",
+    "memory_bytes": 65893822464,
+    "os": "Linux-5.15.148-rt-tegra-aarch64-with-glibc2.35",
+    "python_executable": "/usr/bin/python3",
+    "python_version": "3.10.12",
+    "result_sha256": "7d0679339c2ec9b78df405a28b1cd042e2251014058bd632744ddd892df0ea13",
+    "timestamp_utc": "2026-09-01T16:13:24.945306+00:00",
+    "timezone": [
+      "CST",
+      "CST"
+    ],
+    "tracked_archive_sha256": null,
+    "uv_lock_sha256": "5f6803e4b18ff2d5480b515779900409f8d40983d2e108b3ff71c7cc3ab24ce4"
+  },
+  "rows": [
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 8,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 456048.0,
+        "p95": 485158.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 1824192.0,
+        "p95": 1931443.2,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 10.873880256743622,
+      "output_digest": "6c48ca6155ff766dafe434419976851509cf559fb4f9444e45def9ee89047afa",
+      "peak_rss_bytes": 34488320,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "6c48ca6155ff766dafe434419976851509cf559fb4f9444e45def9ee89047afa",
+          "peak_rss_bytes": 34488320,
+          "repeat": 1,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 462791.0,
+            "p95": 490413.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1851167.0,
+            "p95": 1952509.9999999998,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 10.769396021470643,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.046427859,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "6c48ca6155ff766dafe434419976851509cf559fb4f9444e45def9ee89047afa",
+          "peak_rss_bytes": 34488320,
+          "repeat": 2,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 453864.0,
+            "p95": 469559.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1815457.0,
+            "p95": 1874076.4,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 10.939990694006315,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.045703878,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "6c48ca6155ff766dafe434419976851509cf559fb4f9444e45def9ee89047afa",
+          "peak_rss_bytes": 34488320,
+          "repeat": 3,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 456048.0,
+            "p95": 485158.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1824192.0,
+            "p95": 1931443.2,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 10.873880256743622,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.045981746,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 1
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 32,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 829398.0,
+        "p95": 843277.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 3317592.0,
+        "p95": 3372833.8,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 6.007580966421528,
+      "output_digest": "04e26444349e188982b52243edeab5886844a092a877752fcc585e49144693cb",
+      "peak_rss_bytes": 34488320,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "04e26444349e188982b52243edeab5886844a092a877752fcc585e49144693cb",
+          "peak_rss_bytes": 34488320,
+          "repeat": 1,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 824734.0,
+            "p95": 829518.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 3298937.0,
+            "p95": 3317772.2,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 6.060822487067235,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.082497054,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "04e26444349e188982b52243edeab5886844a092a877752fcc585e49144693cb",
+          "peak_rss_bytes": 34488320,
+          "repeat": 2,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 831966.0,
+            "p95": 843277.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 3327864.0,
+            "p95": 3372833.8,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 6.007580966421528,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.083228175,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "04e26444349e188982b52243edeab5886844a092a877752fcc585e49144693cb",
+          "peak_rss_bytes": 34488320,
+          "repeat": 3,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 829398.0,
+            "p95": 886818.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 3317592.0,
+            "p95": 3516689.3999999994,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 5.894231342898169,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.084828703,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 1
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 128,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 2319606.0,
+        "p95": 2329133.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 9278425.0,
+        "p95": 9316348.4,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 2.1594618589951136,
+      "output_digest": "c9c997f23496212a928a0058e14a64cd81e562374e186cae56640e829d85e8ed",
+      "peak_rss_bytes": 34488320,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "c9c997f23496212a928a0058e14a64cd81e562374e186cae56640e829d85e8ed",
+          "peak_rss_bytes": 34488320,
+          "repeat": 1,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 2319606.0,
+            "p95": 2344236.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 9278425.0,
+            "p95": 9375512.4,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 2.1540764345588994,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.23211804,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "c9c997f23496212a928a0058e14a64cd81e562374e186cae56640e829d85e8ed",
+          "peak_rss_bytes": 34488320,
+          "repeat": 2,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 2321070.0,
+            "p95": 2329133.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 9284280.0,
+            "p95": 9316348.4,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 2.1594618589951136,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.231539167,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "c9c997f23496212a928a0058e14a64cd81e562374e186cae56640e829d85e8ed",
+          "peak_rss_bytes": 34488320,
+          "repeat": 3,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 2270569.0,
+            "p95": 2323525.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 9082278.0,
+            "p95": 9293520.8,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 2.1880680169870397,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.228512092,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 1
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 8,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 439665.0,
+        "p95": 449792.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 1758662.0,
+        "p95": 1799049.2,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 2.2633316071054055,
+      "output_digest": "276e68aa0bdec8d68086acfdec2732ca14a6e3e32b75f46fcea157c6becd317e",
+      "peak_rss_bytes": 34488320,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "276e68aa0bdec8d68086acfdec2732ca14a6e3e32b75f46fcea157c6becd317e",
+          "peak_rss_bytes": 34488320,
+          "repeat": 1,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 439665.0,
+            "p95": 449792.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1758662.0,
+            "p95": 1799049.2,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 2.263495206272522,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.220897309,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "276e68aa0bdec8d68086acfdec2732ca14a6e3e32b75f46fcea157c6becd317e",
+          "peak_rss_bytes": 34488320,
+          "repeat": 2,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 440377.0,
+            "p95": 451808.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1761509.0,
+            "p95": 1806703.0,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 2.257364858270309,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.221497202,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "276e68aa0bdec8d68086acfdec2732ca14a6e3e32b75f46fcea157c6becd317e",
+          "peak_rss_bytes": 34488320,
+          "repeat": 3,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 439569.0,
+            "p95": 448017.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1758278.0,
+            "p95": 1791901.4,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 2.2633316071054055,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.220913276,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 5
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 32,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 814431.0,
+        "p95": 835037.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 3257725.0,
+        "p95": 3340055.0,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 1.2230697739706637,
+      "output_digest": "0f04078eea307298085985438217fd351958316c5ba4126ad6f9cad882a463e0",
+      "peak_rss_bytes": 34488320,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "0f04078eea307298085985438217fd351958316c5ba4126ad6f9cad882a463e0",
+          "peak_rss_bytes": 34488320,
+          "repeat": 1,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 814183.0,
+            "p95": 833893.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 3256733.0,
+            "p95": 3335255.2,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 1.2242971335254522,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.408397591,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "0f04078eea307298085985438217fd351958316c5ba4126ad6f9cad882a463e0",
+          "peak_rss_bytes": 34488320,
+          "repeat": 2,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 814431.0,
+            "p95": 835037.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 3257725.0,
+            "p95": 3340055.0,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 1.2230697739706637,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.408807421,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "0f04078eea307298085985438217fd351958316c5ba4126ad6f9cad882a463e0",
+          "peak_rss_bytes": 34488320,
+          "repeat": 3,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 815079.0,
+            "p95": 839141.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 3260317.0,
+            "p95": 3356239.8,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 1.2213749945581638,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.409374682,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 5
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 128,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 2283081.0,
+        "p95": 2305352.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 9132327.0,
+        "p95": 9220921.6,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 0.43772710146535054,
+      "output_digest": "bc9d260a59b4859e506e83f47b22ea8ce13b6ff05952770a98e199b11c3fb383",
+      "peak_rss_bytes": 34488320,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "bc9d260a59b4859e506e83f47b22ea8ce13b6ff05952770a98e199b11c3fb383",
+          "peak_rss_bytes": 34488320,
+          "repeat": 1,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 2283769.0,
+            "p95": 2305352.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 9135078.0,
+            "p95": 9220921.6,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 0.4375216260923855,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 1.142800653,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "bc9d260a59b4859e506e83f47b22ea8ce13b6ff05952770a98e199b11c3fb383",
+          "peak_rss_bytes": 34488320,
+          "repeat": 2,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 2283081.0,
+            "p95": 2304384.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 9132327.0,
+            "p95": 9216686.6,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 0.4379707182816046,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 1.141628833,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "bc9d260a59b4859e506e83f47b22ea8ce13b6ff05952770a98e199b11c3fb383",
+          "peak_rss_bytes": 34488320,
+          "repeat": 3,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 2281330.0,
+            "p95": 2307504.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 9125321.0,
+            "p95": 9229551.0,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 34488320,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 0.43772710146535054,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 1.142264206,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 5
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 8,
+      "max_delta_rss_bytes": 937984,
+      "median_rhs_latency_ns": {
+        "p50": 440697.0,
+        "p95": 454143.6,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 1762790.5,
+        "p95": 1816577.4,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 0.5637572571160973,
+      "output_digest": "48a58c0226e456d6aec915d4aee7ce6a14f469626ac4f2e6c6d26c984c7d841b",
+      "peak_rss_bytes": 35426304,
+      "repeats": [
+        {
+          "delta_rss_bytes": 937984,
+          "expected_rhs_count": 2000,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "48a58c0226e456d6aec915d4aee7ce6a14f469626ac4f2e6c6d26c984c7d841b",
+          "peak_rss_bytes": 35426304,
+          "repeat": 1,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 444173.0,
+            "p95": 461766.8,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1776693.0,
+            "p95": 1847068.15,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 35426304,
+          "rss_before_bytes": 34488320,
+          "rtf_per_ship": 0.5588624945869837,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.894674459,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "48a58c0226e456d6aec915d4aee7ce6a14f469626ac4f2e6c6d26c984c7d841b",
+          "peak_rss_bytes": 35426304,
+          "repeat": 2,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 440649.0,
+            "p95": 453275.2,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1762599.0,
+            "p95": 1813103.8,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 35426304,
+          "rss_before_bytes": 35426304,
+          "rtf_per_ship": 0.5641639871528847,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.886267134,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "48a58c0226e456d6aec915d4aee7ce6a14f469626ac4f2e6c6d26c984c7d841b",
+          "peak_rss_bytes": 35426304,
+          "repeat": 3,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 440697.0,
+            "p95": 454143.6,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1762790.5,
+            "p95": 1816577.4,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 35426304,
+          "rss_before_bytes": 35426304,
+          "rtf_per_ship": 0.5637572571160973,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.886906543,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 20
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 32,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 813108.0,
+        "p95": 836294.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 3252434.0,
+        "p95": 3345179.0,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 0.30594139361209644,
+      "output_digest": "9456154bec266ae7b955736e83eb9e498f7df7a7743d5b6b9ea4ae8cfde16ac0",
+      "peak_rss_bytes": 35426304,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "9456154bec266ae7b955736e83eb9e498f7df7a7743d5b6b9ea4ae8cfde16ac0",
+          "peak_rss_bytes": 35426304,
+          "repeat": 1,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 812280.0,
+            "p95": 836041.2,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 3249121.0,
+            "p95": 3344167.75,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 35426304,
+          "rss_before_bytes": 35426304,
+          "rtf_per_ship": 0.3063503367430473,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 1.63211833,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "9456154bec266ae7b955736e83eb9e498f7df7a7743d5b6b9ea4ae8cfde16ac0",
+          "peak_rss_bytes": 35426304,
+          "repeat": 2,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 813136.0,
+            "p95": 836732.4,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 3252545.5,
+            "p95": 3346932.55,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 35426304,
+          "rss_before_bytes": 35426304,
+          "rtf_per_ship": 0.30594139361209644,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 1.634299936,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "9456154bec266ae7b955736e83eb9e498f7df7a7743d5b6b9ea4ae8cfde16ac0",
+          "peak_rss_bytes": 35426304,
+          "repeat": 3,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 813108.0,
+            "p95": 836294.0,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 3252434.0,
+            "p95": 3345179.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 35426304,
+          "rss_before_bytes": 35426304,
+          "rtf_per_ship": 0.3059161794391682,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 1.634434638,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 20
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 128,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 2271268.0,
+        "p95": 2307054.6,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 9085073.0,
+        "p95": 9228218.45,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 0.10977938630457373,
+      "output_digest": "b8b0ad956a66684d4dac4da7b5148bacf90538eec280ce9a67de26c19271fff9",
+      "peak_rss_bytes": 35426304,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "b8b0ad956a66684d4dac4da7b5148bacf90538eec280ce9a67de26c19271fff9",
+          "peak_rss_bytes": 35426304,
+          "repeat": 1,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 2284296.5,
+            "p95": 2307054.6,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 9137186.5,
+            "p95": 9228218.45,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 35426304,
+          "rss_before_bytes": 35426304,
+          "rtf_per_ship": 0.10944332555364573,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 4.568574625,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "b8b0ad956a66684d4dac4da7b5148bacf90538eec280ce9a67de26c19271fff9",
+          "peak_rss_bytes": 35426304,
+          "repeat": 2,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 2267630.5,
+            "p95": 2296350.0,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 9070524.0,
+            "p95": 9185403.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 35426304,
+          "rss_before_bytes": 35426304,
+          "rtf_per_ship": 0.10982755180281001,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 4.552591693,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "b8b0ad956a66684d4dac4da7b5148bacf90538eec280ce9a67de26c19271fff9",
+          "peak_rss_bytes": 35426304,
+          "repeat": 3,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "p50": 2271268.0,
+            "p95": 2309015.4,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 9085073.0,
+            "p95": 9236063.55,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 35426304,
+          "rss_before_bytes": 35426304,
+          "rtf_per_ship": 0.10977938630457373,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 4.554589134,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 20
+    }
+  ],
+  "schema_version": "gnc-performance.v1",
+  "threshold_proposal": {
+    "harmonic_scaling_guard": null,
+    "memory_ceiling_bytes": null,
+    "note": "Numeric thresholds require later issue approval; absent thresholds are NO-GO for subsequent slices.",
+    "options": [
+      "Python GO",
+      "approved remediation/vectorization",
+      "optional same-contract native adapter"
+    ],
+    "required_20_ship_representative_row_rtf_floor": null,
+    "rhs_p95_budget_relative_to_5ms": {
+      "accounting": "200 RHS evaluations per ship per simulated second; aggregate multi-ship wall load must also be reviewed",
+      "per_ship_serial_budget_ms": 5.0,
+      "proposed_budget_ms": null
+    },
+    "status": "PROPOSED_NOT_APPROVED"
+  }
+}

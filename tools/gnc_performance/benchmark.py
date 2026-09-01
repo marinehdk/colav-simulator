@@ -319,7 +319,7 @@ def _run_one(config: BenchmarkConfig, ships: int, harmonics: int) -> dict[str, A
 def platform_provenance(config: BenchmarkConfig, result_path: Path | None = None) -> dict[str, Any]:
     """Collect platform, dependency, source, and configuration provenance."""
     uv_lock = Path(__file__).resolve().parents[2] / "uv.lock"
-    git_head = _command(("git", "rev-parse", "HEAD"))
+    git_head = os.environ.get("GNC_COMMIT_HEAD") or _command(("git", "rev-parse", "HEAD"))
     dependency_freeze = _command((sys.executable, "-m", "pip", "freeze"))
     dep_hash = hashlib.sha256(dependency_freeze.encode()).hexdigest()
     uv_hash = hashlib.sha256(uv_lock.read_bytes()).hexdigest() if uv_lock.exists() else None
