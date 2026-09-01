@@ -431,7 +431,7 @@ def _current_rss(pid: int) -> tuple[int | None, str]:
     return None, "unavailable"
 
 
-def _run_isolated_repeat(ships: int, harmonics: int, config: BenchmarkConfig, repeat: int) -> dict[str, Any]:
+def _run_isolated_repeat(ships: int, harmonics: int, config: BenchmarkConfig, repeat: int) -> dict[str, Any]:  # noqa: PLR0912
     """Run one row/repeat in a fresh worker while parent monitors current RSS."""
     root = Path(__file__).resolve().parents[2]
     with tempfile.TemporaryDirectory(prefix="gnc-performance-worker-") as temp_dir:
@@ -473,6 +473,8 @@ def _run_isolated_repeat(ships: int, harmonics: int, config: BenchmarkConfig, re
             if current is not None:
                 methods.add(method)
                 unavailable_since = time.monotonic()
+                if not ready_seen:
+                    startup_rss_samples.append(current)
             elif time.monotonic() - unavailable_since > 5.0:
                 process.terminate()
                 process.wait(timeout=5)
@@ -504,7 +506,7 @@ def _run_isolated_repeat(ships: int, harmonics: int, config: BenchmarkConfig, re
         result = json.loads(output_path.read_text(encoding="utf-8"))
         result.update(
             {
-                "startup_peak_current_rss_bytes": max(startup_rss_samples),
+                "startup_peak_current_rss_bytes": max(startup_rss_samples) if startup_rss_samples else baseline_rss,
                 "baseline_current_rss_bytes": baseline_rss,
                 "peak_current_rss_bytes": max(measured_rss_samples),
                 "delta_current_rss_bytes": max(measured_rss_samples) - baseline_rss,
@@ -587,11 +589,16 @@ def _aggregate_row(config: BenchmarkConfig, ships: int, harmonics: int) -> dict[
         "rk4_step_latency_ns_median_of_repeat_p95": statistics.median(
             item["rk4_step_latency_ns"]["p95"] for item in repeats
         ),
+        "startup_peak_current_rss_bytes": max(item["startup_peak_current_rss_bytes"] for item in repeats),
+        "baseline_current_rss_bytes": min(item["baseline_current_rss_bytes"] for item in repeats),
         "peak_current_rss_bytes": max(item["peak_current_rss_bytes"] for item in repeats),
         "max_delta_current_rss_bytes": max(item["delta_current_rss_bytes"] for item in repeats),
-        "startup_peak_current_rss_bytes": max(item["startup_peak_current_rss_bytes"] for item in repeats),
         "rss_monitor_methods": sorted({method for item in repeats for method in item["rss_monitor_methods"]}),
         "rss_monitor_sample_counts": [item["rss_monitor_sample_count"] for item in repeats],
+        "rss_baseline_semantics": (
+            "baseline captured at synchronized READY boundary; peak and delta cover only "
+            "START_MEASUREMENT through worker completion"
+        ),
         "stage_count_identity": all(item["stage_count_identity"] for item in repeats),
         "pooled_rhs_count_identity": all(item["pooled_rhs_count_identity"] for item in repeats),
         "deterministic_output_trajectory_digest": len(digest_values) == 1,
@@ -665,13 +672,15 @@ def platform_provenance(
         "harness_config_hash": config.config_hash,
         "input_hash": _input_hash(config),
         "source_hashes": _source_hashes(),
-        "execution_source_commit": _git_head(),
+        "execution_source_commit": _git_head()
+        if execution_source is None
+        else execution_source.get("execution_source_commit"),
         "execution_source_archive_sha256": None,
         "execution_source_manifest_sha256": None,
         "execution_source_manifest_path": None,
         "execution_source_dirty": None,
-        "execution_command": execution_command,
-        "execution_command_shell": shlex.join(execution_command) if execution_command else None,
+        "execution_command": execution_command or [sys.executable, "-m", "tools.gnc_performance"],
+        "execution_command_shell": shlex.join(execution_command or [sys.executable, "-m", "tools.gnc_performance"]),
         "result_file_sha256": _sha256_file(result_path) if result_path and result_path.exists() else None,
         "payload_sha256": None,
         "cpu_affinity": list(config.cpu_affinity),

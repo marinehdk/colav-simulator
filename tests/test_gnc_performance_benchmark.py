@@ -10,7 +10,10 @@ import pytest
 
 from tools.gnc_performance.benchmark import (
     BenchmarkConfig,
+    _current_rss,
+    _dependency_capture,
     _percentile,
+    _run_capture,
     config_to_dict,
     payload_sha256,
     run_benchmark,
@@ -130,3 +133,29 @@ def test_default_duration_contract_is_full_10_second_run() -> None:
     assert config.warmup_s == 2.0
     assert config.measured_s == 10.0
     assert config.repeats == 3
+
+
+def test_dependency_capture_is_nonempty_and_strict() -> None:
+    capture = _dependency_capture()
+    assert capture["returncode"] == 0
+    assert capture["stdout"].strip()
+    assert capture["argv"]
+
+
+def test_capture_rejects_nonzero_command() -> None:
+    with pytest.raises(RuntimeError, match="required command failed"):
+        _run_capture(("/usr/bin/false",))
+
+
+def test_current_rss_method_is_valid_for_current_process() -> None:
+    rss, method = _current_rss(__import__("os").getpid())
+    assert rss is not None and rss > 1_000_000
+    assert method != "unavailable"
+
+
+def test_result_stores_replayable_module_command() -> None:
+    result = run_benchmark(_small_config(ships=(1,), harmonics=(1,)))
+    command = result["provenance"]["execution_command"]
+    assert "-m" in command
+    assert "tools.gnc_performance" in command
+    assert result["provenance"]["execution_command_shell"]
