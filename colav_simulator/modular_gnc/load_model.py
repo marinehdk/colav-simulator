@@ -1527,9 +1527,6 @@ def _resolve_wave_assets_from_params(
     if wmd_id not in KNOWN_WAVE_MEAN_DRIFT_ASSETS:
         raise AssetMissingError(f"Unknown wave_mean_drift_asset_id: {wmd_id}")
     return KNOWN_WAVE_FIRST_ORDER_ASSETS[w1_id], KNOWN_WAVE_MEAN_DRIFT_ASSETS[wmd_id]
-    if wmd_id not in KNOWN_WAVE_MEAN_DRIFT_ASSETS:
-        raise AssetMissingError(f"Unknown wave_mean_drift_asset_id: {wmd_id}")
-    return KNOWN_WAVE_FIRST_ORDER_ASSETS[w1_id], KNOWN_WAVE_MEAN_DRIFT_ASSETS[wmd_id]
 
 
 def _validate_load_model_wave_assets(
