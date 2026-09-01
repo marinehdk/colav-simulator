@@ -33,9 +33,26 @@ class ModularShipStack:
         self._initialized = False
 
     @classmethod
-    def from_config(cls, config: ShipModulesConfig) -> ModularShipStack:
-        """Build registered contracts-only implementation."""
-        return cls(config, PassThroughModules())
+    def from_config(
+        cls,
+        config: ShipModulesConfig,
+        episode_seed: int = 0,
+        dt_s: float = 0.1,
+    ) -> ModularShipStack:
+        """Build registered modular implementation."""
+        env_field = None
+        if "environment" in config.modules:
+            env_sel = config.modules["environment"]
+            if env_sel.identity == "analytic_environment_field":
+                from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
+
+                env_field = AnalyticEnvironmentField.from_params(
+                    env_sel.parameters,
+                    dt_s=dt_s,
+                    episode_seed=episode_seed,
+                )
+        modules = PassThroughModules(environment_field=env_field)
+        return cls(config, modules)
 
     def reset(self, navigation: NavigationState, seed: int) -> None:
         """Idempotently reset all facade-owned state."""
@@ -126,6 +143,7 @@ class ModularShipStack:
             navigation=self._modules.navigation(),
             plant=self._modules.plant_state(),
             applied_reference=latched.direct_reference,
+            environment_observation=getattr(self._modules, "environment_observation", lambda: None)(),
         )
         self._tick += 1
         return output

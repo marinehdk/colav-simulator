@@ -514,6 +514,7 @@ class StackOutput:
     plant: PlantState
     applied_reference: DirectReference | None
     failure: FacadeFailure | None = None
+    environment_observation: EnvironmentObservation | None = None
 
 
 @dataclass(frozen=True)
