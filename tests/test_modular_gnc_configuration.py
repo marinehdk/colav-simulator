@@ -159,4 +159,3 @@ def test_environment_module_selection_normalization_and_validation() -> None:
     }
     with pytest.raises(UnsupportedModuleCombinationError, match="registered for role plant, not environment"):
         normalize_ship_modules(role_mismatch_cfg)
-

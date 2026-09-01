@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 import hashlib
 import math
+from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
-
-import numpy as np
 
 from colav_simulator.modular_gnc.contracts import (
     CurrentReference,
     CurrentSample,
     EnvironmentObservation,
-    EnvironmentStatus,
     EnvironmentTruth,
     FloatArray,
     MeanDriftSourceSample,
@@ -250,14 +247,10 @@ class AnalyticEnvironmentField:
 
         # Stateless PRF perturbations per tick
         wind_n_pert = (
-            prf_gaussian(self._field_seed, tick, "wind_n") * self._wind_pert_std[0]
-            if self._wind_pert_std[0] > 0.0
-            else 0.0
+            prf_gaussian(self._field_seed, tick, "wind_n") * self._wind_pert_std[0] if self._wind_pert_std[0] > 0.0 else 0.0
         )
         wind_e_pert = (
-            prf_gaussian(self._field_seed, tick, "wind_e") * self._wind_pert_std[1]
-            if self._wind_pert_std[1] > 0.0
-            else 0.0
+            prf_gaussian(self._field_seed, tick, "wind_e") * self._wind_pert_std[1] if self._wind_pert_std[1] > 0.0 else 0.0
         )
         wind_sample = WindSample(
             velocity_ne=(self._wind_base_ne[0] + wind_n_pert, self._wind_base_ne[1] + wind_e_pert),

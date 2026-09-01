@@ -2,19 +2,13 @@ from __future__ import annotations
 
 import math
 
-import numpy as np
-import pytest
-
 from colav_simulator.modular_gnc.configuration import ShipModulesConfig, normalize_ship_modules
 from colav_simulator.modular_gnc.contracts import (
     CommandInput,
-    CurrentReference,
     EnvironmentObservation,
     EnvironmentStatus,
     EnvironmentTruth,
-    FailureCode,
     NavigationState,
-    WindSample,
 )
 from colav_simulator.modular_gnc.stack import ModularShipStack
 

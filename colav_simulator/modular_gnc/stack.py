@@ -16,6 +16,7 @@ from colav_simulator.modular_gnc.contracts import (
     StackOutput,
     StackSnapshot,
 )
+from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
 from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
 
 
@@ -44,8 +45,6 @@ class ModularShipStack:
         if "environment" in config.modules:
             env_sel = config.modules["environment"]
             if env_sel.identity == "analytic_environment_field":
-                from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
-
                 env_field = AnalyticEnvironmentField.from_params(
                     env_sel.parameters,
                     dt_s=dt_s,
