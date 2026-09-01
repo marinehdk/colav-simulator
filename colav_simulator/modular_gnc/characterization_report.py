@@ -165,6 +165,58 @@ def build_generic_3dof_plant_redesign_decisions() -> tuple[RedesignDecision, ...
     )
 
 
+def build_generic_roll_4dof_plant_redesign_decisions() -> tuple[RedesignDecision, ...]:
+    """Return explicit catalog of intentional redesigns for generic roll-4DOF plant vs source C++."""
+    return (
+        RedesignDecision(
+            decision_id="REDESIGN-ROLL4DOF-01",
+            topic="unactuated_roll_actuator_channel",
+            source_behavior="C++ source allowed arbitrary roll moment in control wrench container",
+            redesign_behavior="GenericRoll4DOFPlant strictly excludes roll moment actuator channel (RA-12)",
+            specification_reference="RA-12, VR-16, TS-22",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-ROLL4DOF-02",
+            topic="restoring_dominated_roll_stability",
+            source_behavior="C++ source implemented vessel-specific GM roll moment without stability contract",
+            redesign_behavior="GenericRoll4DOFPlant implements restoring stiffness K_phi * phi with dissipative damping",
+            specification_reference="RA-12, VR-08, TS-05",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-ROLL4DOF-03",
+            topic="pure_rhs_vs_internal_integrator",
+            source_behavior="C++ ShipDynamicsNode owned internal RK4 and wall timer",
+            redesign_behavior="GenericRoll4DOFPlant exposes a pure stateless 8-state RHS integrated by scheduler RK4",
+            specification_reference="VR-11, TS-13",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-ROLL4DOF-04",
+            topic="no_silent_clipping_or_nan_repair",
+            source_behavior="C++ source silently clamped velocities and reset state on NaN",
+            redesign_behavior="GenericRoll4DOFPlant never silently clamps or repairs non-finite inputs",
+            specification_reference="VR-12, TS-17",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-ROLL4DOF-05",
+            topic="4x4_mass_spd_and_coupling_validation",
+            source_behavior="C++ source used fixed 4x4 matrix without formal SPD/coupling guarantees",
+            redesign_behavior=(
+                "GenericRoll4DOFPlant validates 4x4 symmetry, positive-definiteness, and dissipativity up-front"
+            ),
+            specification_reference="VR-08, TS-11",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-ROLL4DOF-06",
+            topic="typed_4dof_truth_and_3dof_navigation_projection",
+            source_behavior="C++ published mixed 4DOF odometry directly into ROS topics",
+            redesign_behavior=(
+                "PlantState retains full 4DOF truth (phi, p); NavigationState projection remains 3DOF (TS-12)"
+            ),
+            specification_reference="VR-07, TS-12",
+        ),
+    )
+
+
 def load_characterization_fixture_manifest(fixture_dir: Path | str) -> dict[str, Any]:
     """Load and return parsed characterization fixture manifest JSON."""
     manifest_file = Path(fixture_dir) / "manifest.json"

@@ -13,6 +13,7 @@ from colav_simulator.modular_gnc.characterization_report import (
     RedesignDecision,
     ReferenceComparison,
     build_generic_3dof_plant_redesign_decisions,
+    build_generic_roll_4dof_plant_redesign_decisions,
     load_characterization_fixture_manifest,
 )
 
@@ -100,4 +101,20 @@ def test_characterization_report_binds_to_fixture_manifest_sha256() -> None:
     )
     assert report.manifest_sha256 == "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411"
     assert len(report.comparisons) == 1
+    assert len(report.redesigns) == 6
+
+
+def test_characterization_report_generic_roll_4dof_plant_redesigns() -> None:
+    redesigns_4dof = build_generic_roll_4dof_plant_redesign_decisions()
+    assert len(redesigns_4dof) == 6
+    decision_ids = {r.decision_id for r in redesigns_4dof}
+    assert "REDESIGN-ROLL4DOF-01" in decision_ids
+    assert "REDESIGN-ROLL4DOF-02" in decision_ids
+    assert "REDESIGN-ROLL4DOF-03" in decision_ids
+    assert "REDESIGN-ROLL4DOF-04" in decision_ids
+    assert "REDESIGN-ROLL4DOF-05" in decision_ids
+    assert "REDESIGN-ROLL4DOF-06" in decision_ids
+
+    report = CharacterizationParityReport(redesigns=redesigns_4dof)
+    assert report.claim_ceiling == "candidate_A2_migration_verified_only"
     assert len(report.redesigns) == 6
