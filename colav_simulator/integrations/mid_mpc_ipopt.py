@@ -411,6 +411,10 @@ class _MidMpcFacade:
                         bearing_rad=route_bearing,
                         mission_leg_bearing_rad=mission_leg_bearing,
                         planned_speed_mps=float(reference[3, 0]),
+                        mission_waypoints_ne_m=tuple(
+                            (float(point[0]), float(point[1]))
+                            for point in np.asarray(planner_input.waypoints_enu_m, dtype=float).T
+                        ),
                     ),
                     capability=CapabilitySnapshot(
                         heading_window_rad=self._config.assembly.heading_window_rad,

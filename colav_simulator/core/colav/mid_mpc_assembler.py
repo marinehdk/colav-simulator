@@ -67,6 +67,7 @@ class RouteReference:
     bearing_rad: float
     mission_leg_bearing_rad: float
     planned_speed_mps: float
+    mission_waypoints_ne_m: tuple[tuple[float, float], ...] = ()
 
     def __post_init__(self) -> None:
         """Validate immutable route evidence."""
@@ -78,6 +79,12 @@ class RouteReference:
         )
         if not np.isfinite(values).all():
             raise ValueError("route reference values must be finite")
+        waypoints = tuple((float(point[0]), float(point[1])) for point in self.mission_waypoints_ne_m)
+        if waypoints and len(waypoints) < 2:
+            raise ValueError("mission route requires at least two waypoints when supplied")
+        if waypoints and not np.isfinite(waypoints).all():
+            raise ValueError("mission route waypoints must be finite")
+        object.__setattr__(self, "mission_waypoints_ne_m", waypoints)
 
 
 @dataclass(frozen=True)
@@ -810,14 +817,20 @@ def _staged_route_references(
     previous_heading = ownship_heading_rad
     headings: list[float] = []
     lateral_references: list[float] = []
-
     for phase in plan.phases[:-1]:
+        absolute_position = np.asarray(ownship_position_ne_m, dtype=float) + position
+        mission, mission_anchor = _mission_route_projection(route, absolute_position)
         cross_track = float((position - route_origin) @ route_normal)
         lateral_references.append(cross_track)
         if phase in {HorizonEncounterPhase.ALTER, HorizonEncounterPhase.PASS}:
             desired_heading = corridor
         elif speed > 1.0e-9 and maximum_recovery_delta > 1.0e-9:
-            requested_lateral_velocity = float(np.clip(-cross_track / dt_s, -speed, speed))
+            if mission_anchor is not None:
+                mission_normal = np.array((-math.sin(mission), math.cos(mission)), dtype=float)
+                mission_cross_track = float((absolute_position - np.asarray(mission_anchor, dtype=float)) @ mission_normal)
+            else:
+                mission_cross_track = cross_track
+            requested_lateral_velocity = float(np.clip(-mission_cross_track / dt_s, -speed, speed))
             recovery_delta = math.asin(requested_lateral_velocity / speed)
             recovery_delta = float(np.clip(recovery_delta, -maximum_recovery_delta, maximum_recovery_delta))
             desired_heading = mission + recovery_delta
@@ -839,6 +852,34 @@ def _staged_route_references(
         previous_heading = heading
 
     return tuple(headings), tuple(lateral_references)
+
+
+def _mission_route_projection(
+    route: RouteReference,
+    position_ne_m: np.ndarray,
+) -> tuple[float, tuple[float, float] | None]:
+    """Project one predicted stage onto the mission polyline and retain its tangent."""
+    if not route.mission_waypoints_ne_m:
+        return route.mission_leg_bearing_rad, None
+
+    points = tuple(np.asarray(point, dtype=float) for point in route.mission_waypoints_ne_m)
+    candidates: list[tuple[float, int, float, np.ndarray]] = []
+    for segment_index, (start, end) in enumerate(zip(points[:-1], points[1:], strict=True)):
+        delta = end - start
+        length = float(np.linalg.norm(delta))
+        if length <= 1.0e-9:
+            continue
+        fraction = float(np.clip((position_ne_m - start) @ delta / (length * length), 0.0, 1.0))
+        anchor = start + fraction * delta
+        bearing = math.atan2(float(delta[1]), float(delta[0]))
+        candidates.append((float(np.linalg.norm(position_ne_m - anchor)), segment_index, bearing, anchor))
+    if not candidates:
+        return route.mission_leg_bearing_rad, None
+    # At a shared waypoint both adjacent segments have the same projection;
+    # prefer the later segment so the horizon turns instead of sticking to the
+    # completed leg.
+    _, _, bearing, anchor = min(candidates, key=lambda candidate: (candidate[0], -candidate[1]))
+    return bearing, (float(anchor[0]), float(anchor[1]))
 
 
 def _compile_numerical_preparation(
@@ -949,12 +990,15 @@ def request_hash_document(
     profile: AssemblyProfile,
 ) -> dict[str, object]:
     """Return canonical cycle evidence used as the hash-chain root."""
+    route_document = asdict(route)
+    if not route.mission_waypoints_ne_m:
+        route_document.pop("mission_waypoints_ne_m")
     return {
         "schema_version": "colav.mid_mpc.request@2",
         "frame": frame.value,
         "identity": _identity(snapshot),
         "decision_snapshot": asdict(snapshot),
-        "route": asdict(route),
+        "route": route_document,
         "capability": asdict(capability),
         "config": asdict(config),
         "rolling_plan": None if rolling_plan is None else asdict(rolling_plan),

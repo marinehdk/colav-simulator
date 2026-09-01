@@ -538,6 +538,77 @@ def test_recover_first_reference_anchors_first_step_on_own_heading() -> None:
     assert len(lateral) == steps
 
 
+def test_mission_reference_uses_future_waypoint_turn_inside_horizon() -> None:
+    config = MidMpcAssemblyConfig()
+    plan = HorizonEncounterPlan(
+        reference_time_s=5.0,
+        times_s=np.arange(config.horizon_steps + 1, dtype=float) * config.horizon_dt_s,
+        mission_route_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=0.0,
+        phases=(HorizonEncounterPhase.MISSION,) * (config.horizon_steps + 1),
+        target_windows=(),
+        recovery_from_k=0,
+    )
+    route = RouteReference(
+        anchor_ne_m=(0.0, 0.0),
+        bearing_rad=0.0,
+        mission_leg_bearing_rad=0.0,
+        planned_speed_mps=5.0,
+        mission_waypoints_ne_m=((0.0, 0.0), (100.0, 0.0), (100.0, 500.0)),
+    )
+
+    references, _ = _staged_route_references(
+        plan,
+        route,
+        ownship_position_ne_m=(0.0, 0.0),
+        ownship_heading_rad=0.0,
+        planned_speed_mps=5.0,
+        dt_s=config.horizon_dt_s,
+        rot_max_rad_s=config.rot_max_rad_s,
+        heading_window_rad=config.heading_window_rad,
+    )
+
+    assert max(references[:10]) > math.radians(45.0)
+    assert references[-1] == pytest.approx(math.pi / 2, abs=0.05)
+
+
+def test_avoidance_corridor_delays_but_does_not_erase_future_waypoint_turn() -> None:
+    config = MidMpcAssemblyConfig()
+    recover_from_k = 15
+    plan = HorizonEncounterPlan(
+        reference_time_s=5.0,
+        times_s=np.arange(config.horizon_steps + 1, dtype=float) * config.horizon_dt_s,
+        mission_route_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=0.0,
+        phases=(HorizonEncounterPhase.PASS,) * recover_from_k
+        + (HorizonEncounterPhase.RECOVER,) * (config.horizon_steps + 1 - recover_from_k),
+        target_windows=(),
+        recovery_from_k=recover_from_k,
+    )
+    route = RouteReference(
+        anchor_ne_m=(0.0, 0.0),
+        bearing_rad=0.0,
+        mission_leg_bearing_rad=0.0,
+        planned_speed_mps=5.0,
+        mission_waypoints_ne_m=((0.0, 0.0), (100.0, 0.0), (100.0, 500.0)),
+    )
+
+    references, _ = _staged_route_references(
+        plan,
+        route,
+        ownship_position_ne_m=(0.0, 0.0),
+        ownship_heading_rad=0.0,
+        planned_speed_mps=5.0,
+        dt_s=config.horizon_dt_s,
+        rot_max_rad_s=config.rot_max_rad_s,
+        heading_window_rad=config.heading_window_rad,
+    )
+
+    assert references[:recover_from_k] == pytest.approx((0.0,) * recover_from_k)
+    assert max(references[recover_from_k:]) > math.radians(45.0)
+    assert references[-1] == pytest.approx(math.pi / 2, abs=0.05)
+
+
 def test_structural_signature_stays_fixed_when_only_row_bounds_change() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()
