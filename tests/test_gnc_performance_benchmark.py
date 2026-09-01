@@ -60,6 +60,11 @@ def test_direct_stage_samples_have_four_counts_and_no_synthetic_field() -> None:
     assert "rhs_latency_ns" not in repeat
     assert "output_digest" not in row
     assert row["output_trajectory_digest"]
+    assert row["repeats"][0]["trajectory_vector_count"] == 2
+    assert (
+        "every measured post-RK4 trajectory state, ordered tick-major then ship-index"
+        in row["repeats"][0]["trajectory_digest_scope"]
+    )
 
 
 def test_repeated_digest_is_deterministic() -> None:

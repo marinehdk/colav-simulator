@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
         "clean_status": True,
         "archive_sha256": archive_sha,
         "archive_path": str(args.archive),
-        "creation_command": f"git archive --format=tar {commit} | gzip -1 > {args.archive}",
+        "creation_command": f"git archive --format=tar {commit} | gzip -1 -n > {args.archive}",
         "inventory": inventory,
         "harness_and_production_file_blobs": {path: blob_by_path[path] for path in harness_paths if path in blob_by_path},
     }

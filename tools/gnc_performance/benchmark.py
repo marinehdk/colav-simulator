@@ -11,8 +11,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import resource
+import shlex
+import shutil
 import statistics
 import subprocess
 import sys
@@ -225,7 +228,7 @@ def payload_sha256(result: dict[str, Any]) -> str:
 
 
 def _digest_states(states: list[np.ndarray]) -> str:
-    """Hash canonical measured-repeat final state vectors."""
+    """Hash every measured post-RK4 state in tick-major, then ship-index order."""
     digest = hashlib.sha256()
     for state in states:
         digest.update(np.asarray(state, dtype="<f8").tobytes(order="C"))
@@ -237,12 +240,75 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _command(cmd: tuple[str, ...]) -> str:
-    """Capture stdout from a best-effort provenance command."""
+def _run_capture(argv: tuple[str, ...], *, required: bool = True) -> dict[str, Any]:
+    """Run provenance command and fail closed on execution or nonzero status."""
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, check=False).stdout
-    except OSError:
-        return ""
+        completed = subprocess.run(argv, capture_output=True, text=True, check=False)
+    except OSError as exc:
+        if required:
+            raise RuntimeError(f"required command unavailable: {argv!r}: {exc}") from exc
+        return {"argv": list(argv), "returncode": None, "stdout": "", "stderr": str(exc)}
+    result = {
+        "argv": list(argv),
+        "returncode": completed.returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+    }
+    if required and completed.returncode != 0:
+        raise RuntimeError(f"required command failed: {result!r}")
+    return result
+
+
+def _dependency_capture() -> dict[str, Any]:
+    """Capture a non-empty dependency freeze using pip or verified uv fallback."""
+    pip_argv = (sys.executable, "-m", "pip", "freeze")
+    try:
+        result = _run_capture(pip_argv)
+        if not result["stdout"].strip():
+            raise RuntimeError("dependency freeze command returned empty stdout")
+        return result
+    except RuntimeError as pip_error:
+        uv_path = shutil.which("uv")
+        if uv_path is None:
+            raise RuntimeError(f"pip freeze failed and verified uv executable not found: {pip_error}") from pip_error
+        uv_result = _run_capture((uv_path, "pip", "freeze", "--python", sys.executable))
+        if not uv_result["stdout"].strip():
+            raise RuntimeError("uv pip freeze returned empty stdout") from pip_error
+        return uv_result
+
+
+def _git_head() -> str | None:
+    """Read current Git HEAD with strict command status."""
+    result = _run_capture(("git", "rev-parse", "HEAD"))
+    value = result["stdout"].strip()
+    return value or None
+
+
+def _current_process_rss() -> int | None:
+    """Return current worker RSS for READY protocol diagnostics."""
+    if psutil is not None:
+        try:
+            return int(psutil.Process().memory_info().rss)
+        except (psutil.Error, OSError):
+            return None
+    status = Path(f"/proc/{os.getpid()}/status")
+    if status.exists():
+        for line in status.read_text(encoding="utf-8").splitlines():
+            if line.startswith("VmRSS:"):
+                return int(line.split()[1]) * 1024
+    return None
+
+
+def _invocation_argv() -> list[str]:
+    """Return replayable module-form invocation from Python's original argv."""
+    raw = list(getattr(sys, "orig_argv", []))
+    try:
+        module_index = raw.index("tools.gnc_performance")
+        if module_index <= 0 or raw[module_index - 1] != "-m":
+            raise ValueError
+        return raw
+    except (ValueError, IndexError):
+        return [sys.executable, "-m", "tools.gnc_performance", *sys.argv[1:]]
 
 
 def _worker_result(
@@ -251,6 +317,7 @@ def _worker_result(
     config: BenchmarkConfig,
     repeat: int,
     output_path: Path,
+    control_path: Path,
 ) -> None:
     """Execute one isolated worker repeat and write direct stage samples."""
     field = _make_field(harmonics, config.seed + harmonics * 1009, config.dt_s)
@@ -263,6 +330,16 @@ def _worker_result(
     for tick in range(warmup_ticks):
         for ship in stacks:
             ship["state"] = rk4_step(ship["plant"], tick, config.dt_s, ship["state"], ship["control"], field, load_model)
+
+    ready_payload = {"event": "READY_FOR_MEASUREMENT", "pid": os.getpid(), "rss_bytes": _current_process_rss()}
+    control_path.write_text(json.dumps(ready_payload), encoding="utf-8")
+    start_deadline = time.monotonic() + 30.0
+    while True:
+        if control_path.exists() and "START_MEASUREMENT" in control_path.read_text(encoding="utf-8"):
+            break
+        if time.monotonic() > start_deadline:
+            raise TimeoutError("timed out waiting for START_MEASUREMENT")
+        time.sleep(0.001)
 
     step_samples: list[int] = []
     final_states: list[np.ndarray] = []
@@ -319,11 +396,16 @@ def _worker_result(
         "pooled_rhs_count_identity": sum(actual_stage_counts.values()) == expected_rhs_count,
         "output_trajectory_digest": _digest_states(final_states),
         "trajectory_digest_scope": (
-            "concatenated measured-repeat final ship state float64 little-endian byte vectors in ship index order"
+            "every measured post-RK4 trajectory state, ordered tick-major then ship-index, "
+            "encoded as float64 little-endian vectors"
         ),
+        "trajectory_vector_count": measured_ticks * ships,
         "process_lifetime_peak_rss_bytes": _process_lifetime_peak_rss_bytes(),
     }
     output_path.write_text(json.dumps(result, sort_keys=True), encoding="utf-8")
+    control_path.write_text(
+        json.dumps({"event": "DONE", "pid": os.getpid(), "rss_bytes": _current_process_rss()}), encoding="utf-8"
+    )
 
 
 def _process_lifetime_peak_rss_bytes() -> int:
@@ -354,6 +436,7 @@ def _run_isolated_repeat(ships: int, harmonics: int, config: BenchmarkConfig, re
     root = Path(__file__).resolve().parents[2]
     with tempfile.TemporaryDirectory(prefix="gnc-performance-worker-") as temp_dir:
         output_path = Path(temp_dir) / "worker.json"
+        control_path = Path(temp_dir) / "control.json"
         command = [
             sys.executable,
             "-m",
@@ -361,6 +444,8 @@ def _run_isolated_repeat(ships: int, harmonics: int, config: BenchmarkConfig, re
             "--worker",
             "--worker-output",
             str(output_path),
+            "--worker-control",
+            str(control_path),
             "--worker-ships",
             str(ships),
             "--worker-harmonics",
@@ -377,26 +462,40 @@ def _run_isolated_repeat(ships: int, harmonics: int, config: BenchmarkConfig, re
             str(repeat),
         ]
         process = subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        rss_samples: list[int] = []
-        method = "unavailable"
+        startup_rss_samples: list[int] = []
+        measured_rss_samples: list[int] = []
+        methods: set[str] = set()
+        ready_seen = False
         unavailable_since = time.monotonic()
+        baseline_rss: int | None = None
         while process.poll() is None:
             current, method = _current_rss(process.pid)
-            if current is None:
-                if time.monotonic() - unavailable_since > 5.0:
-                    process.terminate()
-                    process.wait(timeout=5)
-                    raise RuntimeError("no valid current-RSS monitoring method available")
-                time.sleep(0.001)
-                continue
-            unavailable_since = time.monotonic()
-            rss_samples.append(current)
+            if current is not None:
+                methods.add(method)
+                unavailable_since = time.monotonic()
+            elif time.monotonic() - unavailable_since > 5.0:
+                process.terminate()
+                process.wait(timeout=5)
+                raise RuntimeError("no valid current-RSS monitoring method available")
+            if not ready_seen and control_path.exists():
+                ready = json.loads(control_path.read_text(encoding="utf-8"))
+                if ready.get("event") == "READY_FOR_MEASUREMENT":
+                    ready_seen = True
+                    baseline_rss = current
+                    if baseline_rss is None:
+                        raise RuntimeError("no valid current-RSS baseline at READY_FOR_MEASUREMENT")
+                    startup_rss_samples.append(baseline_rss)
+                    control_path.write_text(json.dumps({"event": "START_MEASUREMENT"}), encoding="utf-8")
+                    measured_rss_samples.append(baseline_rss)
+            elif ready_seen and current is not None:
+                measured_rss_samples.append(current)
             time.sleep(0.01)
-        final_rss, final_method = _current_rss(process.pid)
-        if final_rss is not None:
-            rss_samples.append(final_rss)
-        if not rss_samples:
-            raise RuntimeError("worker exited before a valid current-RSS sample was captured")
+        if not ready_seen or baseline_rss is None:
+            raise RuntimeError("worker exited before READY_FOR_MEASUREMENT baseline")
+        if not measured_rss_samples:
+            raise RuntimeError("worker exited before measured-interval RSS sample")
+        if process.returncode is not None and process.returncode != 0:
+            measured_rss_samples.append(baseline_rss)
         stdout, stderr = process.communicate()
         if process.returncode != 0:
             raise RuntimeError(f"isolated worker failed with code {process.returncode}: {stderr or stdout}")
@@ -405,12 +504,16 @@ def _run_isolated_repeat(ships: int, harmonics: int, config: BenchmarkConfig, re
         result = json.loads(output_path.read_text(encoding="utf-8"))
         result.update(
             {
-                "baseline_current_rss_bytes": min(rss_samples),
-                "peak_current_rss_bytes": max(rss_samples),
-                "delta_current_rss_bytes": max(rss_samples) - min(rss_samples),
-                "rss_monitor_method": final_method if final_method != "unavailable" else method,
-                "rss_monitor_sample_count": len(rss_samples),
+                "startup_peak_current_rss_bytes": max(startup_rss_samples),
+                "baseline_current_rss_bytes": baseline_rss,
+                "peak_current_rss_bytes": max(measured_rss_samples),
+                "delta_current_rss_bytes": max(measured_rss_samples) - baseline_rss,
+                "rss_monitor_methods": sorted(methods),
+                "rss_monitor_sample_count": len(measured_rss_samples),
                 "worker_command": command,
+                "rss_protocol": (
+                    "READY_FOR_MEASUREMENT -> parent baseline capture -> START_MEASUREMENT -> measured samples -> DONE"
+                ),
             }
         )
         return result
@@ -486,7 +589,8 @@ def _aggregate_row(config: BenchmarkConfig, ships: int, harmonics: int) -> dict[
         ),
         "peak_current_rss_bytes": max(item["peak_current_rss_bytes"] for item in repeats),
         "max_delta_current_rss_bytes": max(item["delta_current_rss_bytes"] for item in repeats),
-        "rss_monitor_methods": sorted({item["rss_monitor_method"] for item in repeats}),
+        "startup_peak_current_rss_bytes": max(item["startup_peak_current_rss_bytes"] for item in repeats),
+        "rss_monitor_methods": sorted({method for item in repeats for method in item["rss_monitor_methods"]}),
         "rss_monitor_sample_counts": [item["rss_monitor_sample_count"] for item in repeats],
         "stage_count_identity": all(item["stage_count_identity"] for item in repeats),
         "pooled_rhs_count_identity": all(item["pooled_rhs_count_identity"] for item in repeats),
@@ -528,7 +632,7 @@ def _source_hashes() -> dict[str, str]:
 
 def _git_head() -> str | None:
     """Read current Git HEAD when available."""
-    value = _command(("git", "rev-parse", "HEAD")).strip()
+    value = _run_capture(("git", "rev-parse", "HEAD"))["stdout"].strip()
     return value or None
 
 
@@ -540,7 +644,8 @@ def platform_provenance(
 ) -> dict[str, Any]:
     """Collect platform, dependency, source, and configuration provenance."""
     uv_lock = Path(__file__).resolve().parents[2] / "uv.lock"
-    dependency_freeze = _command((sys.executable, "-m", "pip", "freeze"))
+    dependency_capture = _dependency_capture()
+    dependency_freeze = dependency_capture["stdout"]
     provenance = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "timezone": time.tzname,
@@ -556,6 +661,7 @@ def platform_provenance(
         "uv_lock_sha256": _sha256_file(uv_lock) if uv_lock.exists() else None,
         "dependency_freeze_sha256": hashlib.sha256(dependency_freeze.encode()).hexdigest(),
         "dependency_freeze": dependency_freeze.splitlines(),
+        "dependency_capture": dependency_capture,
         "harness_config_hash": config.config_hash,
         "input_hash": _input_hash(config),
         "source_hashes": _source_hashes(),
@@ -565,6 +671,7 @@ def platform_provenance(
         "execution_source_manifest_path": None,
         "execution_source_dirty": None,
         "execution_command": execution_command,
+        "execution_command_shell": shlex.join(execution_command) if execution_command else None,
         "result_file_sha256": _sha256_file(result_path) if result_path and result_path.exists() else None,
         "payload_sha256": None,
         "cpu_affinity": list(config.cpu_affinity),
@@ -757,6 +864,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-manifest", type=Path)
     parser.add_argument("--worker", action="store_true")
     parser.add_argument("--worker-output", type=Path)
+    parser.add_argument("--worker-control", type=Path)
     parser.add_argument("--worker-ships", type=int)
     parser.add_argument("--worker-harmonics", type=int)
     parser.add_argument("--worker-warmup-s", type=float)
@@ -771,8 +879,13 @@ def main(argv: list[str] | None = None) -> int:
     """Run parent benchmark or one internal isolated worker."""
     args = _parser().parse_args(argv)
     if args.worker:
-        if args.worker_output is None or args.worker_ships is None or args.worker_harmonics is None:
-            raise ValueError("worker mode requires output, ships, and harmonics")
+        if (
+            args.worker_output is None
+            or args.worker_control is None
+            or args.worker_ships is None
+            or args.worker_harmonics is None
+        ):
+            raise ValueError("worker mode requires output, control, ships, and harmonics")
         worker_config = BenchmarkConfig(
             ships=(args.worker_ships,),
             harmonics=(args.worker_harmonics,),
@@ -781,7 +894,14 @@ def main(argv: list[str] | None = None) -> int:
             repeats=args.worker_repeats,
             seed=args.worker_seed,
         )
-        _worker_result(args.worker_ships, args.worker_harmonics, worker_config, args.worker_repeat, args.worker_output)
+        _worker_result(
+            args.worker_ships,
+            args.worker_harmonics,
+            worker_config,
+            args.worker_repeat,
+            args.worker_output,
+            args.worker_control,
+        )
         return 0
 
     if args.output is None:
@@ -795,7 +915,7 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
     )
     execution_source = _manifest_execution_source(args.source_manifest, args.source_commit, args.source_archive_sha256)
-    result = run_benchmark(config, execution_source=execution_source, execution_command=[sys.executable, *sys.argv])
+    result = run_benchmark(config, execution_source=execution_source, execution_command=_invocation_argv())
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
