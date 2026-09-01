@@ -68,6 +68,47 @@ class EnvironmentStatus(str, Enum):
     UNAVAILABLE = "UNAVAILABLE"
 
 
+class AssetTrustLevel(str, Enum):
+    """Four-tier trust level for hydrodynamic and environmental assets (TS-23, VR-10)."""
+
+    MOCK = "mock"
+    INFERRED = "inferred"
+    CALIBRATED = "calibrated"
+    VALIDATED_FOR_VESSEL = "validated_for_vessel"
+
+
+class OutOfDomainError(ValueError):
+    """Raised when an environmental or hydrodynamic input is outside asset applicability domain (TS-17, VR-10)."""
+
+
+class AssetMissingError(RuntimeError):
+    """Raised when a required environmental or hydrodynamic asset is missing (TS-17, VR-10)."""
+
+
+class AssetIntegrityError(ValueError):
+    """Raised when an asset content hash verification fails (TS-27, VR-10)."""
+
+
+class CurrentStrategy(str, Enum):
+    """Exclusive strategy for ocean current disturbance handling (spec L105, VR-09)."""
+
+    NONE = "none"
+    CURRENT_RELATIVE_DAMPING = "current_relative_damping"
+    EXTERNAL_CURRENT_LOAD = "external_current_load"
+
+
+def _non_empty_str(name: str, value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    return value.strip()
+
+
+def _validate_sha256(name: str, value: Any) -> str:
+    if not isinstance(value, str) or len(value) != 64 or not all(c in "0123456789abcdefABCDEF" for c in value):
+        raise ValueError(f"{name} must be a 64-character hex string")
+    return value.lower()
+
+
 def _finite_scalar(name: str, value: float) -> float:
     if isinstance(value, bool):
         raise TypeError(f"{name} must be a float, got bool")
@@ -336,6 +377,210 @@ class EnvironmentObservation:
         )
 
 
+@dataclass(frozen=True)
+class ApplicabilityDomain:
+    """Declared validity domain ranges for environmental and hydrodynamic assets (TS-23, VR-10)."""
+
+    heading_range_deg: tuple[float, float] = (0.0, 360.0)
+    speed_range_mps: tuple[float, float] = (0.0, 100.0)
+    draft_range_m: tuple[float, float] = (0.0, 50.0)
+    custom_bounds: Mapping[str, tuple[float, float]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate range bounds and freeze custom bounds."""
+        for field_name in ("heading_range_deg", "speed_range_mps", "draft_range_m"):
+            val = getattr(self, field_name)
+            if not isinstance(val, (tuple, list)) or len(val) != 2:
+                raise ValueError(f"{field_name} must be a 2-tuple (min, max)")
+            v_min = _finite_scalar(f"{field_name}[0]", val[0])
+            v_max = _finite_scalar(f"{field_name}[1]", val[1])
+            if v_min > v_max:
+                raise ValueError(f"{field_name} min ({v_min}) cannot exceed max ({v_max})")
+            object.__setattr__(self, field_name, (v_min, v_max))
+
+        custom: dict[str, tuple[float, float]] = {}
+        for k, val in self.custom_bounds.items():
+            if not isinstance(val, (tuple, list)) or len(val) != 2:
+                raise ValueError(f"custom_bounds[{k}] must be a 2-tuple (min, max)")
+            c_min = _finite_scalar(f"custom_bounds[{k}][0]", val[0])
+            c_max = _finite_scalar(f"custom_bounds[{k}][1]", val[1])
+            if c_min > c_max:
+                raise ValueError(f"custom_bounds[{k}] min ({c_min}) cannot exceed max ({c_max})")
+            custom[str(k)] = (c_min, c_max)
+        object.__setattr__(self, "custom_bounds", MappingProxyType(custom))
+
+    def contains(
+        self,
+        heading_deg: float | None = None,
+        speed_mps: float | None = None,
+        draft_m: float | None = None,
+        **custom: float,
+    ) -> bool:
+        """Check if inputs fall strictly within declared domain bounds."""
+        if heading_deg is not None:
+            if not (self.heading_range_deg[0] <= heading_deg <= self.heading_range_deg[1]):
+                return False
+        if speed_mps is not None:
+            if not (self.speed_range_mps[0] <= speed_mps <= self.speed_range_mps[1]):
+                return False
+        if draft_m is not None:
+            if not (self.draft_range_m[0] <= draft_m <= self.draft_range_m[1]):
+                return False
+        for k, v in custom.items():
+            if k in self.custom_bounds:
+                b_min, b_max = self.custom_bounds[k]
+                if not (b_min <= v <= b_max):
+                    return False
+        return True
+
+
+@dataclass(frozen=True)
+class AssetMetadata:
+    """Immutable metadata record carrying provenance, trust, hash, license, domain, and uncertainty (TS-23, VR-10)."""
+
+    asset_id: str
+    asset_type: str
+    trust_level: AssetTrustLevel
+    source_type: str
+    sha256: str
+    license: str
+    provenance: Mapping[str, Any] = field(default_factory=dict)
+    applicability_domain: ApplicabilityDomain = field(default_factory=ApplicabilityDomain)
+    uncertainty: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate non-empty strings, hash format, trust level, and freeze mappings."""
+        object.__setattr__(self, "asset_id", _non_empty_str("asset_id", self.asset_id))
+        object.__setattr__(self, "asset_type", _non_empty_str("asset_type", self.asset_type))
+        trust = AssetTrustLevel(self.trust_level)
+        object.__setattr__(self, "trust_level", trust)
+        source = _non_empty_str("source_type", self.source_type)
+        object.__setattr__(self, "source_type", source)
+        object.__setattr__(self, "sha256", _validate_sha256("sha256", self.sha256))
+        object.__setattr__(self, "license", _non_empty_str("license", self.license))
+
+        # Structural impossibility of mock/inferred becoming validated (TS-23, VR-10, ALT-25):
+        if source.lower() in {"mock", "inferred"} and trust == AssetTrustLevel.VALIDATED_FOR_VESSEL:
+            raise ValueError(
+                f"Asset {self.asset_id} with source_type '{source}' cannot have "
+                f"trust_level '{trust.value}' (mock/inferred assets never become validated per TS-23/VR-10/ALT-25)"
+            )
+        if not isinstance(self.applicability_domain, ApplicabilityDomain):
+            raise TypeError(
+                f"applicability_domain must be ApplicabilityDomain, got {type(self.applicability_domain).__name__}"
+            )
+        object.__setattr__(self, "provenance", MappingProxyType(dict(self.provenance)))
+        object.__setattr__(self, "uncertainty", MappingProxyType(dict(self.uncertainty)))
+
+
+@dataclass(frozen=True)
+class VesselLoad:
+    """Immutable body-frame vessel generalized loads in SI units (N, N·m).
+
+    Sign conventions:
+    - surge_n: body-x forward positive (N) (TS-03)
+    - sway_n: body-y starboard positive (N) (TS-03)
+    - yaw_nm: body-z right/clockwise positive (N·m) (TS-04, TS-05)
+    - roll_nm: body-x starboard-down positive (N·m) (TS-05)
+    """
+
+    surge_n: float = 0.0
+    sway_n: float = 0.0
+    yaw_nm: float = 0.0
+    roll_nm: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Validate finite values and freeze."""
+        object.__setattr__(self, "surge_n", _finite_scalar("surge_n", self.surge_n))
+        object.__setattr__(self, "sway_n", _finite_scalar("sway_n", self.sway_n))
+        object.__setattr__(self, "yaw_nm", _finite_scalar("yaw_nm", self.yaw_nm))
+        object.__setattr__(self, "roll_nm", _finite_scalar("roll_nm", self.roll_nm))
+
+    @classmethod
+    def zero(cls) -> VesselLoad:
+        """Construct zero vessel load."""
+        return cls(0.0, 0.0, 0.0, 0.0)
+
+    def __add__(self, other: object) -> VesselLoad:
+        """Explicit component-wise summation."""
+        if not isinstance(other, VesselLoad):
+            return NotImplemented
+        return VesselLoad(
+            surge_n=self.surge_n + other.surge_n,
+            sway_n=self.sway_n + other.sway_n,
+            yaw_nm=self.yaw_nm + other.yaw_nm,
+            roll_nm=self.roll_nm + other.roll_nm,
+        )
+
+    def as_array(self, capabilities: frozenset[str] | None = None) -> FloatArray:
+        """Export as 3DOF [X, Y, N] or 4DOF [X, Y, K, N] array."""
+        if capabilities is not None and "ROLL_4DOF" in capabilities:
+            return np.array([self.surge_n, self.sway_n, self.roll_nm, self.yaw_nm], dtype=np.float64)
+        return np.array([self.surge_n, self.sway_n, self.yaw_nm], dtype=np.float64)
+
+
+@dataclass(frozen=True)
+class EnvironmentalLoads:
+    """Immutable environmental load decomposition and explicit total sum (VR-09, TS-09).
+
+    Components retain separate identities (ALT-23 rejected total-only wrench).
+    """
+
+    wind: VesselLoad = field(default_factory=VesselLoad.zero)
+    current: VesselLoad = field(default_factory=VesselLoad.zero)
+    wave_first_order: VesselLoad = field(default_factory=VesselLoad.zero)
+    wave_mean_drift: VesselLoad = field(default_factory=VesselLoad.zero)
+    total: VesselLoad = field(default_factory=VesselLoad.zero)
+    details: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate component types, verify explicit total sum, and freeze details."""
+        if not isinstance(self.wind, VesselLoad):
+            raise TypeError(f"wind must be VesselLoad, got {type(self.wind).__name__}")
+        if not isinstance(self.current, VesselLoad):
+            raise TypeError(f"current must be VesselLoad, got {type(self.current).__name__}")
+        if not isinstance(self.wave_first_order, VesselLoad):
+            raise TypeError(f"wave_first_order must be VesselLoad, got {type(self.wave_first_order).__name__}")
+        if not isinstance(self.wave_mean_drift, VesselLoad):
+            raise TypeError(f"wave_mean_drift must be VesselLoad, got {type(self.wave_mean_drift).__name__}")
+        if not isinstance(self.total, VesselLoad):
+            raise TypeError(f"total must be VesselLoad, got {type(self.total).__name__}")
+
+        expected_total = self.wind + self.current + self.wave_first_order + self.wave_mean_drift
+        if not (
+            math.isclose(self.total.surge_n, expected_total.surge_n, rel_tol=1e-9, abs_tol=1e-9)
+            and math.isclose(self.total.sway_n, expected_total.sway_n, rel_tol=1e-9, abs_tol=1e-9)
+            and math.isclose(self.total.yaw_nm, expected_total.yaw_nm, rel_tol=1e-9, abs_tol=1e-9)
+            and math.isclose(self.total.roll_nm, expected_total.roll_nm, rel_tol=1e-9, abs_tol=1e-9)
+        ):
+            raise ValueError(f"total load {self.total} does not match explicit sum of components {expected_total}")
+        object.__setattr__(self, "details", MappingProxyType(dict(self.details)))
+
+    @classmethod
+    def from_components(
+        cls,
+        wind: VesselLoad | None = None,
+        current: VesselLoad | None = None,
+        wave_first_order: VesselLoad | None = None,
+        wave_mean_drift: VesselLoad | None = None,
+        details: Mapping[str, Any] | None = None,
+    ) -> EnvironmentalLoads:
+        """Construct EnvironmentalLoads by explicitly summing non-None components."""
+        w = wind if wind is not None else VesselLoad.zero()
+        c = current if current is not None else VesselLoad.zero()
+        w1 = wave_first_order if wave_first_order is not None else VesselLoad.zero()
+        wmd = wave_mean_drift if wave_mean_drift is not None else VesselLoad.zero()
+        tot = w + c + w1 + wmd
+        return cls(
+            wind=w,
+            current=c,
+            wave_first_order=w1,
+            wave_mean_drift=wmd,
+            total=tot,
+            details=details or {},
+        )
+
+
 def immutable_float64_array(name: str, values: Any, shape: tuple[int, ...]) -> FloatArray:
     """Validate strict shape and return owned read-only float64 array."""
     array = np.array(values, dtype=np.float64, copy=True)
@@ -553,6 +798,7 @@ class StackOutput:
     applied_reference: DirectReference | None
     failure: FacadeFailure | None = None
     environment_observation: EnvironmentObservation | None = None
+    environmental_loads: EnvironmentalLoads | None = None
 
 
 @dataclass(frozen=True)
