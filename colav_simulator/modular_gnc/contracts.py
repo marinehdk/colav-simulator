@@ -112,6 +112,8 @@ def _validate_sha256(name: str, value: Any) -> str:
 def _finite_scalar(name: str, value: float) -> float:
     if isinstance(value, bool):
         raise TypeError(f"{name} must be a float, got bool")
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"{name} must be a float, got {type(value).__name__}")
     result = float(value)
     if not np.isfinite(result):
         raise ValueError(f"{name} must be finite")

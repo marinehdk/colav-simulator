@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -222,6 +223,34 @@ def _validate_selection(role: str, selection: ModuleSelection) -> None:
     unknown = set(selection.parameters) - set(entry.parameter_schema)
     if unknown:
         raise UnsupportedModuleCombinationError(f"unsupported parameters for {selection.identity}: {sorted(unknown)}")
+    for param_name, raw_val in selection.parameters.items():
+        spec = entry.parameter_schema[param_name]
+        expected_type = spec.get("type")
+        if expected_type == "boolean":
+            if not isinstance(raw_val, bool):
+                raise UnsupportedModuleCombinationError(
+                    f"parameter {param_name} for {selection.identity} must be an exact boolean, got {type(raw_val).__name__}"
+                )
+        elif expected_type == "number":
+            if isinstance(raw_val, bool) or not isinstance(raw_val, (int, float)) or not math.isfinite(raw_val):
+                raise UnsupportedModuleCombinationError(
+                    f"parameter {param_name} for {selection.identity} must be a finite number, got {raw_val!r}"
+                )
+        elif expected_type == "integer":
+            if isinstance(raw_val, bool) or not isinstance(raw_val, int):
+                raise UnsupportedModuleCombinationError(
+                    f"parameter {param_name} for {selection.identity} must be an integer, got {raw_val!r}"
+                )
+        elif expected_type == "string":
+            if not isinstance(raw_val, str):
+                raise UnsupportedModuleCombinationError(
+                    f"parameter {param_name} for {selection.identity} must be a string, got {raw_val!r}"
+                )
+        elif expected_type == "array":
+            if not isinstance(raw_val, (list, tuple)):
+                raise UnsupportedModuleCombinationError(
+                    f"parameter {param_name} for {selection.identity} must be an array, got {raw_val!r}"
+                )
 
 
 def _validate_current_strategy_deduplication(modules: Mapping[str, ModuleSelection]) -> None:
@@ -229,8 +258,8 @@ def _validate_current_strategy_deduplication(modules: Mapping[str, ModuleSelecti
     if "load_model" in modules:
         lm_params = modules["load_model"].parameters
         c_strat = lm_params.get("current_strategy")
-        has_crd = bool(lm_params.get("current_relative_damping", False))
-        has_ecl = bool(lm_params.get("external_current_load", False))
+        has_crd = lm_params.get("current_relative_damping", False)
+        has_ecl = lm_params.get("external_current_load", False)
 
         if has_crd and has_ecl:
             raise UnsupportedModuleCombinationError(
@@ -254,9 +283,9 @@ def _validate_current_strategy_deduplication(modules: Mapping[str, ModuleSelecti
     if "plant" in modules and "load_model" in modules:
         plant_params = modules["plant"].parameters
         lm_params = modules["load_model"].parameters
-        plant_crd = bool(plant_params.get("current_relative_damping", False))
-        lm_ecl = lm_params.get("current_strategy") == "external_current_load" or bool(
-            lm_params.get("external_current_load", False)
+        plant_crd = plant_params.get("current_relative_damping", False)
+        lm_ecl = lm_params.get("current_strategy") == "external_current_load" or lm_params.get(
+            "external_current_load", False
         )
         if plant_crd and lm_ecl:
             raise UnsupportedModuleCombinationError(

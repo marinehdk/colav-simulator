@@ -620,8 +620,12 @@ class EnvironmentalLoadModel:
         self._current_strategy = CurrentStrategy(current_strategy)
         self._wind_asset = wind_asset
         self._current_asset = current_asset
-        self._enable_wind = bool(enable_wind)
-        self._enable_current = bool(enable_current)
+        if not isinstance(enable_wind, bool):
+            raise TypeError(f"enable_wind must be an exact bool, got {type(enable_wind).__name__}")
+        if not isinstance(enable_current, bool):
+            raise TypeError(f"enable_current must be an exact bool, got {type(enable_current).__name__}")
+        self._enable_wind = enable_wind
+        self._enable_current = enable_current
 
     @property
     def vessel_params(self) -> VesselEnvironmentalParameters:
@@ -717,8 +721,22 @@ class EnvironmentalLoadModel:
     @classmethod
     def from_params(cls, params: dict[str, Any] | Mapping[str, Any]) -> EnvironmentalLoadModel:
         """Construct EnvironmentalLoadModel from normalized parameter dictionary."""
-        has_crd = bool(params.get("current_relative_damping", False))
-        has_ecl = bool(params.get("external_current_load", False))
+        if "current_relative_damping" in params:
+            raw_crd = params["current_relative_damping"]
+            if not isinstance(raw_crd, bool):
+                raise TypeError(f"current_relative_damping must be an exact bool, got {type(raw_crd).__name__}")
+            has_crd = raw_crd
+        else:
+            has_crd = False
+
+        if "external_current_load" in params:
+            raw_ecl = params["external_current_load"]
+            if not isinstance(raw_ecl, bool):
+                raise TypeError(f"external_current_load must be an exact bool, got {type(raw_ecl).__name__}")
+            has_ecl = raw_ecl
+        else:
+            has_ecl = False
+
         if has_crd and has_ecl:
             raise ValueError(
                 "current_relative_damping and external_current_load are mutually exclusive (de-duplication VR-09/L105)"
@@ -726,6 +744,8 @@ class EnvironmentalLoadModel:
 
         strat_str = params.get("current_strategy")
         if strat_str is not None:
+            if not isinstance(strat_str, str):
+                raise TypeError(f"current_strategy must be a string, got {type(strat_str).__name__}")
             if strat_str in ("both", "duplicate", "all"):
                 raise ValueError(
                     f"unsupported current_strategy '{strat_str}': current_relative_damping and "
@@ -738,6 +758,13 @@ class EnvironmentalLoadModel:
             strategy = CurrentStrategy.CURRENT_RELATIVE_DAMPING
         else:
             strategy = CurrentStrategy.CURRENT_RELATIVE_DAMPING
+
+        enable_wind = params.get("enable_wind", True)
+        if not isinstance(enable_wind, bool):
+            raise TypeError(f"enable_wind must be an exact bool, got {type(enable_wind).__name__}")
+        enable_current = params.get("enable_current", True)
+        if not isinstance(enable_current, bool):
+            raise TypeError(f"enable_current must be an exact bool, got {type(enable_current).__name__}")
 
         v_params = VesselEnvironmentalParameters(
             length_between_perpendiculars_m=params.get("length_between_perpendiculars_m", 44.1),
@@ -757,6 +784,6 @@ class EnvironmentalLoadModel:
         return cls(
             vessel_params=v_params,
             current_strategy=strategy,
-            enable_wind=bool(params.get("enable_wind", True)),
-            enable_current=bool(params.get("enable_current", True)),
+            enable_wind=enable_wind,
+            enable_current=enable_current,
         )

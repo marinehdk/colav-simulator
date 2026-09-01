@@ -128,6 +128,31 @@ def test_registry_rejects_unsupported_tuple_separately_from_dependency_unavailab
         normalize_ship_modules(unavailable)
 
 
+@pytest.mark.parametrize("bad_val", ["yes", "0", 0, 1, None])
+def test_configuration_rejects_lossy_coercion_for_booleans(bad_val: Any) -> None:
+    """Validate that booleans in load_model parameters strictly reject strings/ints/None."""
+    cfg = _modular_config()
+    cfg["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {"enable_wind": bad_val},
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="must be an exact boolean"):
+        normalize_ship_modules(cfg)
+
+
+@pytest.mark.parametrize("bad_num", ["44.1", float("nan"), float("inf"), float("-inf")])
+def test_configuration_rejects_invalid_numeric_parameters(bad_num: Any) -> None:
+    """Validate that numeric fields reject strings and non-finite values."""
+    cfg = _modular_config()
+    cfg["modules"]["load_model"] = {
+        "identity": "standard_environmental_load",
+        "parameters": {"length_between_perpendiculars_m": bad_num},
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="must be a finite number"):
+        normalize_ship_modules(cfg)
+
+
+
 def test_environment_module_selection_normalization_and_validation() -> None:
     cfg = _modular_config()
     cfg["modules"]["environment"] = {

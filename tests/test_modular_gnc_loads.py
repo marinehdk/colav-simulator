@@ -633,6 +633,43 @@ def test_world_ne_to_body_velocity_transformations() -> None:
     assert math.isclose(vy, 10.0)
 
 
+@pytest.mark.parametrize("bad_val", ["yes", "0", 0, 1, None])
+def test_environmental_load_model_rejects_non_bool_flags(
+    standard_vessel_params: VesselEnvironmentalParameters, bad_val: Any
+) -> None:
+    """Verify EnvironmentalLoadModel and from_params reject non-exact bool flags."""
+    with pytest.raises(TypeError, match="must be an exact bool"):
+        EnvironmentalLoadModel(standard_vessel_params, enable_wind=bad_val)
+
+    with pytest.raises(TypeError, match="must be an exact bool"):
+        EnvironmentalLoadModel(standard_vessel_params, enable_current=bad_val)
+
+    with pytest.raises(TypeError, match="must be an exact bool"):
+        EnvironmentalLoadModel.from_params({"enable_wind": bad_val})
+
+    with pytest.raises(TypeError, match="must be an exact bool"):
+        EnvironmentalLoadModel.from_params({"enable_current": bad_val})
+
+    with pytest.raises(TypeError, match="must be an exact bool"):
+        EnvironmentalLoadModel.from_params({"current_relative_damping": bad_val})
+
+    with pytest.raises(TypeError, match="must be an exact bool"):
+        EnvironmentalLoadModel.from_params({"external_current_load": bad_val})
+
+
+@pytest.mark.parametrize("bad_num", ["44.1", float("nan"), float("inf"), float("-inf")])
+def test_vessel_parameters_reject_invalid_numerics(bad_num: Any) -> None:
+    """Verify VesselEnvironmentalParameters rejects string numbers and non-finite values."""
+    with pytest.raises((TypeError, ValueError)):
+        VesselEnvironmentalParameters(
+            length_between_perpendiculars_m=bad_num,
+            beam_m=8.0,
+            draft_m=1.55,
+            wind_frontal_area_m2=50.0,
+            wind_lateral_area_m2=150.0,
+        )
+
+
 def test_compute_loads_with_plant_state(standard_vessel_params: VesselEnvironmentalParameters) -> None:
     """Verify compute_loads accepts PlantState truth."""
     truth = make_truth(wind_ne=(10.0, 0.0))
