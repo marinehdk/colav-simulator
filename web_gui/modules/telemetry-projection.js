@@ -584,6 +584,7 @@ function freshState() {
     ship0Grounded: false,
     anyCollision: false,
     anyGrounding: false,
+    encNavigationArea: null,
   };
 }
 
@@ -614,6 +615,12 @@ export function createTelemetryProjection() {
 
   function build(envelope, runtimeSnapshot) {
     const sessionId = envelope.run_id ?? null;
+    if (Object.hasOwn(envelope, 'enc_navigation_area')) {
+      state.encNavigationArea = envelope.enc_navigation_area;
+    }
+    const rawEnvelope = !Object.hasOwn(envelope, 'enc_navigation_area') && state.encNavigationArea !== null
+      ? freeze({ ...envelope, enc_navigation_area: state.encNavigationArea })
+      : envelope;
     const derived = [];
     const navigation = projectNavigation(envelope);
     derived.push(...recordEnvelopeEvents(envelope, sessionId ?? 'run', state));
@@ -632,7 +639,7 @@ export function createTelemetryProjection() {
       seq: envelope.seq ?? null,
       simTime: envelope.sim_time ?? null,
       state: envelope.state ?? null,
-      raw: envelope,
+      raw: rawEnvelope,
       navigation,
       sensor: projectSensor(envelope),
       risk,

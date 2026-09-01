@@ -111,6 +111,35 @@ def test_stream_document_is_cached_and_json_safe() -> None:
     assert json.loads(first) == {"seq": 7, "dcpa": None}
 
 
+def test_static_once_stream_document_omits_only_repeated_enc_navigation_area() -> None:
+    manager = WebSessionManager.__new__(WebSessionManager)
+    manager.latest = {
+        "schema_version": "1.0",
+        "run_id": "run-1",
+        "seq": 410,
+        "sim_time": 410.0,
+        "state": "RUNNING",
+        "os": {"id": 0, "north": 12.0},
+        "obstacles": [{"id": 1}],
+        "enc_navigation_area": {"safe_water": "large-static-value"},
+    }
+    manager._latest_stream_document = ""
+    manager._latest_static_once_stream_document = ""
+    manager._latest_static_once_dynamic_stream_document = ""
+    manager._latest_compact_stream_document = ""
+    manager._latest_compact_static_stream_document = ""
+    manager.lock = threading.RLock()
+
+    initial = json.loads(manager.stream_document(static_once=True, include_static=True))
+    update = json.loads(manager.stream_document(static_once=True, include_static=False))
+
+    assert initial["enc_navigation_area"] == manager.latest["enc_navigation_area"]
+    assert "enc_navigation_area" not in update
+    assert update["os"] == manager.latest["os"]
+    assert update["obstacles"] == manager.latest["obstacles"]
+    assert len(json.dumps(update)) < len(json.dumps(initial))
+
+
 def test_stream_stops_after_client_disconnect_without_republishing_forever() -> None:
     websocket = _DisconnectingWebSocket()
 
@@ -190,6 +219,6 @@ def test_browser_uses_shared_runtime_without_reinflating_telemetry() -> None:
 
     assert "?transport=compact-v1" not in script
     assert "inflateTelemetryPayload" not in script
-    assert "new WebSocket(`${protocol}//${location.host}${path}`)" in instance
+    assert "?transport=static-once-v1" in instance
     assert "telemetryProjection.project(runtimeSnapshot)" in instance
     assert "envelope = JSON.parse(event.data)" in runtime

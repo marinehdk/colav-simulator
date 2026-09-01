@@ -258,6 +258,39 @@ test('missing canonical facts yields unavailable, not an inferred clear state', 
   assert.equal(snapshot.risk.tcpaS, null);
 });
 
+test('static-once telemetry retains ENC navigation data without reinflating runtime envelopes', () => {
+  const projection = createTelemetryProjection();
+  const navigationArea = {
+    vessel_draft_m: 5.5,
+    minimum_depth_m: 12,
+    safe_water: { polygons: [[[[0, 0], [1, 0], [1, 1], [0, 0]]]] },
+  };
+  const initial = projection.project(runtimeSnapshot({
+    envelope: envelope({
+      transport: { schema_version: 'colav.telemetry.static-once@1', static_included: true },
+      enc_navigation_area: navigationArea,
+    }),
+  }));
+  const updateEnvelope = envelope({
+    seq: 2,
+    sim_time: 11,
+    transport: { schema_version: 'colav.telemetry.static-once@1', static_included: false },
+  });
+  const update = projection.project(runtimeSnapshot({ envelope: updateEnvelope }));
+
+  assert.equal(initial.raw.enc_navigation_area, navigationArea);
+  assert.equal(update.raw.enc_navigation_area, navigationArea);
+  assert.equal(Object.hasOwn(updateEnvelope, 'enc_navigation_area'), false);
+
+  const nextSession = projection.project(runtimeSnapshot({
+    envelope: envelope({
+      run_id: 'run-2',
+      transport: { schema_version: 'colav.telemetry.static-once@1', static_included: false },
+    }),
+  }));
+  assert.equal(Object.hasOwn(nextSession.raw, 'enc_navigation_area'), false);
+});
+
 /* ── 5. Missing planner ── */
 test('absent or empty planner sections degrade to null fields without throwing', () => {
   const projection = createTelemetryProjection();

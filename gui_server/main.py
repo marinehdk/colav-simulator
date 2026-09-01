@@ -98,6 +98,17 @@ def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) ->
     return compact
 
 
+def _static_once_stream_payload(payload: dict[str, Any], *, include_static: bool) -> dict[str, Any]:
+    streamed = dict(payload)
+    streamed["transport"] = {
+        "schema_version": "colav.telemetry.static-once@1",
+        "static_included": include_static,
+    }
+    if not include_static:
+        streamed.pop("enc_navigation_area", None)
+    return streamed
+
+
 def _select_primary_encounter(_encounters: list[dict[str, Any]]) -> None:
     """Deprecated compatibility symbol; Primary belongs to canonical backend facts."""
     return None
@@ -475,6 +486,8 @@ class WebSessionManager:
         self._last_shadow_comparison: dict[str, Any] | None = None
         self._telemetry_published_at = 0.0
         self._latest_stream_document = ""
+        self._latest_static_once_stream_document = ""
+        self._latest_static_once_dynamic_stream_document = ""
         self._latest_compact_stream_document = ""
         self._latest_compact_static_stream_document = ""
         self.lock = threading.RLock()
@@ -610,6 +623,8 @@ class WebSessionManager:
 
     def _invalidate_stream_documents(self) -> None:
         self._latest_stream_document = ""
+        self._latest_static_once_stream_document = ""
+        self._latest_static_once_dynamic_stream_document = ""
         self._latest_compact_stream_document = ""
         self._latest_compact_static_stream_document = ""
 
@@ -620,10 +635,31 @@ class WebSessionManager:
             separators=(",", ":"),
         )
 
-    def stream_document(self, *, compact: bool = False, include_static: bool = True) -> str:
+    def stream_document(
+        self,
+        *,
+        compact: bool = False,
+        static_once: bool = False,
+        include_static: bool = True,
+    ) -> str:
         with self.lock:
             if not self.latest:
                 self.latest = self._telemetry(None)
+            if static_once:
+                attribute = (
+                    "_latest_static_once_stream_document"
+                    if include_static
+                    else "_latest_static_once_dynamic_stream_document"
+                )
+                document = getattr(self, attribute)
+                if not document:
+                    document = json.dumps(
+                        jsonable(_static_once_stream_payload(self.latest, include_static=include_static)),
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                    setattr(self, attribute, document)
+                return document
             if not compact:
                 if not self._latest_stream_document:
                     self._cache_stream_document()
@@ -1771,7 +1807,13 @@ def api_set_speed(multiplier: float = 1.0) -> dict[str, Any]:
     }
 
 
-async def _stream(websocket: WebSocket, session_id: str | None = None, *, compact: bool = False) -> None:
+async def _stream(
+    websocket: WebSocket,
+    session_id: str | None = None,
+    *,
+    compact: bool = False,
+    static_once: bool = False,
+) -> None:
     await websocket.accept()
     include_static = True
     receive_task = asyncio.create_task(websocket.receive())
@@ -1780,7 +1822,13 @@ async def _stream(websocket: WebSocket, session_id: str | None = None, *, compac
             if session_id and manager.session_id != session_id:
                 await websocket.send_json({"error": "session_not_found"})
                 return
-            await websocket.send_text(manager.stream_document(compact=compact, include_static=include_static))
+            await websocket.send_text(
+                manager.stream_document(
+                    compact=compact,
+                    static_once=static_once,
+                    include_static=include_static,
+                )
+            )
             include_static = False
             try:
                 message = await asyncio.wait_for(asyncio.shield(receive_task), timeout=0.1)
@@ -1806,7 +1854,13 @@ async def _stream(websocket: WebSocket, session_id: str | None = None, *, compac
 
 @app.websocket("/ws/sessions/{session_id}")
 async def websocket_session(websocket: WebSocket, session_id: str) -> None:
-    await _stream(websocket, session_id, compact=websocket.query_params.get("transport") == "compact-v1")
+    transport = websocket.query_params.get("transport")
+    await _stream(
+        websocket,
+        session_id,
+        compact=transport == "compact-v1",
+        static_once=transport == "static-once-v1",
+    )
 
 
 @app.websocket("/ws")

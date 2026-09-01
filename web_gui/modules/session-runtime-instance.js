@@ -1,5 +1,5 @@
 import { createActiveSessionRuntime } from './active-session-runtime.js?v=20260828-unfocused-telemetry-v1';
-import { createTelemetryProjection } from './telemetry-projection.js?v=20260826-operational-events-v2';
+import { createTelemetryProjection } from './telemetry-projection.js?v=20260901-static-once-v1';
 
 class SessionHttpError extends Error {
   constructor(response, detail) {
@@ -59,7 +59,7 @@ export const activeSessionRuntime = createActiveSessionRuntime({
   http,
   wsFactory(path) {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return new WebSocket(`${protocol}//${location.host}${path}`);
+    return new WebSocket(`${protocol}//${location.host}${path}?transport=static-once-v1`);
   },
   scheduler: {
     setTimeout: (callback, delay) => window.setTimeout(callback, delay),

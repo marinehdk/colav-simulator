@@ -1,5 +1,5 @@
 import { createValidationAssembly } from './validation-assembly.js?v=20260827-mid-mpc-domain-v1';
-import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260828-unfocused-telemetry-v1';
+import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260901-static-once-v1';
 import { createSituationDisplay } from './situation-display.js?v=20260831-vessel-risk-label-v4';
 
 const OPENBRIDGE_VERSION = '1.0.1';
