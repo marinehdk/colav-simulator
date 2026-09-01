@@ -1,0 +1,1221 @@
+{
+  "benchmark": {
+    "config": {
+      "base_hz": 50,
+      "cpu_affinity": [],
+      "dt_s": 0.02,
+      "harmonics": [
+        8,
+        32,
+        128
+      ],
+      "measured_s": 0.5,
+      "repeats": 3,
+      "rk_stages": 4,
+      "seed": 5400,
+      "ships": [
+        1,
+        5,
+        20
+      ],
+      "warmup_s": 0.1,
+      "wave_mode": "both"
+    },
+    "constants": {
+      "base_hz": 50,
+      "rhs_count_identity": "measured_ticks * ships * 4 == rhs_count",
+      "rhs_evaluations_per_ship_second": 200,
+      "rk_stages": 4
+    },
+    "harmonics": [
+      8,
+      32,
+      128
+    ],
+    "name": "modular_gnc_environment_load_generic_3dof_rk4",
+    "plant": "generic_3dof_required",
+    "scope": "direct EnvironmentField + EnvironmentalLoadModel + Generic3DOFPlant + rk4_step",
+    "warmup_and_measurement": "deterministic warmup followed by measured ticks; no wall-clock in simulation state",
+    "wave_mode": "BOTH"
+  },
+  "claim_ceiling": "performance_characterization_and_A2_blocker_evidence_only",
+  "decisions": {
+    "a2_parity": "BLOCKED_PENDING_PERFORMANCE_DECISION",
+    "issue_55": "BLOCKED",
+    "made": false
+  },
+  "harmonic_scaling": [
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.0,
+      "rtf_ratio": 1.0,
+      "ships": 1,
+      "to_harmonics": 8
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.9230571732001354,
+      "rtf_ratio": 1.9232605076680565,
+      "ships": 1,
+      "to_harmonics": 32
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 5.647612823415454,
+      "rtf_ratio": 5.662718425433492,
+      "ships": 1,
+      "to_harmonics": 128
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.0,
+      "rtf_ratio": 1.0,
+      "ships": 5,
+      "to_harmonics": 8
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.9339918287757092,
+      "rtf_ratio": 1.93800837850953,
+      "ships": 5,
+      "to_harmonics": 32
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 5.63874831700636,
+      "rtf_ratio": 5.661618206076385,
+      "ships": 5,
+      "to_harmonics": 128
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.0,
+      "rtf_ratio": 1.0,
+      "ships": 20,
+      "to_harmonics": 8
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 1.9470707542809906,
+      "rtf_ratio": 1.9534203269233181,
+      "ships": 20,
+      "to_harmonics": 32
+    },
+    {
+      "from_harmonics": 8,
+      "rhs_p95_ratio": 5.651908097854868,
+      "rtf_ratio": 5.68808741962883,
+      "ships": 20,
+      "to_harmonics": 128
+    }
+  ],
+  "provenance": {
+    "architecture": "arm64",
+    "commit_head": "4000349675ce1bd11e5af5c36ae749376252a466",
+    "compiler": "none; no native code invoked",
+    "cpu": "arm",
+    "cpu_affinity": [],
+    "cpu_affinity_status": "uncontrolled",
+    "dependency_freeze": [],
+    "dependency_freeze_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gpu": "not queried; no GPU kernel invoked",
+    "harness_config_hash": "835a627900207d8f531e01760020fe4a48831689d38c4b1b4e0dd78924c55747",
+    "kernel": "25.6.0",
+    "memory_bytes": 8589934592,
+    "os": "macOS-26.6.2-arm64-arm-64bit",
+    "python_executable": "/Users/marine/Code/.worktrees/Colav-Simulator/modular-gnc-stack/.venv/bin/python",
+    "python_version": "3.11.15",
+    "result_sha256": "b65728a5ae9e86e3f066a3294bb2d39a8eb4fdc17403c69fc87fe7bb8ccb658f",
+    "rss_measurement": "resource.RUSAGE_SELF.ru_maxrss; bytes on macOS, KiB converted to bytes on Linux",
+    "source_archive_note": "Set GNC_TRACKED_ARCHIVE_SHA256 when executed from a staged content-addressed archive on AGX.",
+    "timestamp_utc": "2026-09-01T16:06:10.216462+00:00",
+    "timezone": [
+      "CST",
+      "CST"
+    ],
+    "tracked_archive_sha256": "368df405a7a4d7e42e957c1b8689d7dc1c31d11a4af286022a29e1d85124ecb6",
+    "uv_lock_sha256": "5f6803e4b18ff2d5480b515779900409f8d40983d2e108b3ff71c7cc3ab24ce4"
+  },
+  "rows": [
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 8,
+      "max_delta_rss_bytes": 16384,
+      "median_rhs_latency_ns": {
+        "p50": 84521.0,
+        "p95": 85687.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 338084.0,
+        "p95": 342625.0,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 58.92838727736119,
+      "output_digest": "6c48ca6155ff766dafe434419976851509cf559fb4f9444e45def9ee89047afa",
+      "peak_rss_bytes": 37093376,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "6c48ca6155ff766dafe434419976851509cf559fb4f9444e45def9ee89047afa",
+          "peak_rss_bytes": 37060608,
+          "repeat": 1,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 84833.0,
+            "p95": 85687.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 339333.0,
+            "p95": 342625.0,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37060608,
+          "rss_before_bytes": 37060608,
+          "rtf_per_ship": 58.92838727736119,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.008484875,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 16384,
+          "expected_rhs_count": 100,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "6c48ca6155ff766dafe434419976851509cf559fb4f9444e45def9ee89047afa",
+          "peak_rss_bytes": 37076992,
+          "repeat": 2,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 83958.0,
+            "p95": 85458.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 335833.0,
+            "p95": 341641.4,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37076992,
+          "rss_before_bytes": 37060608,
+          "rtf_per_ship": 59.28297244823855,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.008434125,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 16384,
+          "expected_rhs_count": 100,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "6c48ca6155ff766dafe434419976851509cf559fb4f9444e45def9ee89047afa",
+          "peak_rss_bytes": 37093376,
+          "repeat": 3,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 84521.0,
+            "p95": 86281.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 338084.0,
+            "p95": 344541.6,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37093376,
+          "rss_before_bytes": 37076992,
+          "rtf_per_ship": 58.920866683525894,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.008485958,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 1
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 32,
+      "max_delta_rss_bytes": 32768,
+      "median_rhs_latency_ns": {
+        "p50": 162958.0,
+        "p95": 164781.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 651833.0,
+        "p95": 658733.2,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 30.639836383273714,
+      "output_digest": "f3041cabc0a136d3f3fa3f79339b1ff816a25bfb71f8154f1456d1ea0ce95f2e",
+      "peak_rss_bytes": 37142528,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "f3041cabc0a136d3f3fa3f79339b1ff816a25bfb71f8154f1456d1ea0ce95f2e",
+          "peak_rss_bytes": 37093376,
+          "repeat": 1,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 162958.0,
+            "p95": 164771.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 651833.0,
+            "p95": 658267.2,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37093376,
+          "rss_before_bytes": 37093376,
+          "rtf_per_ship": 30.639836383273714,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.016318625,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "f3041cabc0a136d3f3fa3f79339b1ff816a25bfb71f8154f1456d1ea0ce95f2e",
+          "peak_rss_bytes": 37093376,
+          "repeat": 2,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 161343.0,
+            "p95": 164781.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 645375.0,
+            "p95": 658733.2,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37093376,
+          "rss_before_bytes": 37093376,
+          "rtf_per_ship": 30.83445750626325,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.016215625,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 32768,
+          "expected_rhs_count": 100,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "f3041cabc0a136d3f3fa3f79339b1ff816a25bfb71f8154f1456d1ea0ce95f2e",
+          "peak_rss_bytes": 37142528,
+          "repeat": 3,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 165218.0,
+            "p95": 166958.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 660875.0,
+            "p95": 667592.2,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37142528,
+          "rss_before_bytes": 37109760,
+          "rtf_per_ship": 30.21657792662061,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.016547208,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 1
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 128,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 481656.0,
+        "p95": 483927.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 1926625.0,
+        "p95": 1935459.0,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 10.406377794221704,
+      "output_digest": "fbb5d5265fad32ccc3df0c74a7d156bb7c5a5137705246d7c3cadba00f95fb98",
+      "peak_rss_bytes": 37142528,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "fbb5d5265fad32ccc3df0c74a7d156bb7c5a5137705246d7c3cadba00f95fb98",
+          "peak_rss_bytes": 37142528,
+          "repeat": 1,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 481656.0,
+            "p95": 484739.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1926625.0,
+            "p95": 1938824.8,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37142528,
+          "rss_before_bytes": 37142528,
+          "rtf_per_ship": 10.406377794221704,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.048047458,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "fbb5d5265fad32ccc3df0c74a7d156bb7c5a5137705246d7c3cadba00f95fb98",
+          "peak_rss_bytes": 37142528,
+          "repeat": 2,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 481718.0,
+            "p95": 483927.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1926875.0,
+            "p95": 1935459.0,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37142528,
+          "rss_before_bytes": 37142528,
+          "rtf_per_ship": 10.417796997640911,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.047994792,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 100,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "fbb5d5265fad32ccc3df0c74a7d156bb7c5a5137705246d7c3cadba00f95fb98",
+          "peak_rss_bytes": 37142528,
+          "repeat": 3,
+          "rhs_count": 100,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 481541.0,
+            "p95": 483375.0,
+            "sample_count": 100,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1926167.0,
+            "p95": 1933416.6,
+            "sample_count": 25,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37142528,
+          "rss_before_bytes": 37142528,
+          "rtf_per_ship": 10.40581838421324,
+          "ships": 1,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 0.5,
+          "wall_seconds": 0.048050041,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 1
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 8,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 85052.0,
+        "p95": 86156.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 340209.0,
+        "p95": 344616.6,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 11.762745517023598,
+      "output_digest": "276e68aa0bdec8d68086acfdec2732ca14a6e3e32b75f46fcea157c6becd317e",
+      "peak_rss_bytes": 37158912,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "276e68aa0bdec8d68086acfdec2732ca14a6e3e32b75f46fcea157c6becd317e",
+          "peak_rss_bytes": 37142528,
+          "repeat": 1,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 84448.0,
+            "p95": 85541.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 337792.0,
+            "p95": 342075.2,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37142528,
+          "rss_before_bytes": 37142528,
+          "rtf_per_ship": 11.843254526343838,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.042218125,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "276e68aa0bdec8d68086acfdec2732ca14a6e3e32b75f46fcea157c6becd317e",
+          "peak_rss_bytes": 37158912,
+          "repeat": 2,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 85052.0,
+            "p95": 86156.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 340209.0,
+            "p95": 344616.6,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37158912,
+          "rss_before_bytes": 37158912,
+          "rtf_per_ship": 11.762745517023598,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.042507083,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "276e68aa0bdec8d68086acfdec2732ca14a6e3e32b75f46fcea157c6becd317e",
+          "peak_rss_bytes": 37158912,
+          "repeat": 3,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 85218.0,
+            "p95": 86406.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 340875.0,
+            "p95": 345575.0,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37158912,
+          "rss_before_bytes": 37158912,
+          "rtf_per_ship": 11.7305377240955,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.042623792,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 5
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 32,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 165062.0,
+        "p95": 166625.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 660250.0,
+        "p95": 666316.6,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 6.069501890425267,
+      "output_digest": "2ac5e8f2bfa987a9ee11087ab295783618158f1c5125786c83f88eeb17cbee04",
+      "peak_rss_bytes": 37158912,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "2ac5e8f2bfa987a9ee11087ab295783618158f1c5125786c83f88eeb17cbee04",
+          "peak_rss_bytes": 37158912,
+          "repeat": 1,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 164979.0,
+            "p95": 166625.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 659917.0,
+            "p95": 666316.6,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37158912,
+          "rss_before_bytes": 37158912,
+          "rtf_per_ship": 6.072929838724967,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.082332583,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "2ac5e8f2bfa987a9ee11087ab295783618158f1c5125786c83f88eeb17cbee04",
+          "peak_rss_bytes": 37158912,
+          "repeat": 2,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 165062.0,
+            "p95": 166406.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 660250.0,
+            "p95": 665566.8,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37158912,
+          "rss_before_bytes": 37158912,
+          "rtf_per_ship": 6.069501890425267,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.082379083,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "2ac5e8f2bfa987a9ee11087ab295783618158f1c5125786c83f88eeb17cbee04",
+          "peak_rss_bytes": 37158912,
+          "repeat": 3,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 165312.0,
+            "p95": 168510.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 661250.0,
+            "p95": 673983.6,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37158912,
+          "rss_before_bytes": 37158912,
+          "rtf_per_ship": 6.0484876772708915,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.082665292,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 5
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 128,
+      "max_delta_rss_bytes": 0,
+      "median_rhs_latency_ns": {
+        "p50": 482781.0,
+        "p95": 485812.0,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 1931125.0,
+        "p95": 1943241.8,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 2.0776295908472107,
+      "output_digest": "df36eaed303720b5ea4db9ed5ff903decf54dcdb2482b4117da5c19f5236cd77",
+      "peak_rss_bytes": 37158912,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "df36eaed303720b5ea4db9ed5ff903decf54dcdb2482b4117da5c19f5236cd77",
+          "peak_rss_bytes": 37158912,
+          "repeat": 1,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 482645.0,
+            "p95": 485312.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1930583.0,
+            "p95": 1941100.0,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37158912,
+          "rss_before_bytes": 37158912,
+          "rtf_per_ship": 2.0784856984595304,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.24055975,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "df36eaed303720b5ea4db9ed5ff903decf54dcdb2482b4117da5c19f5236cd77",
+          "peak_rss_bytes": 37158912,
+          "repeat": 2,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 482781.0,
+            "p95": 485812.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1931125.0,
+            "p95": 1943241.8,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37158912,
+          "rss_before_bytes": 37158912,
+          "rtf_per_ship": 2.0776295908472107,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.240658875,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 500,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "df36eaed303720b5ea4db9ed5ff903decf54dcdb2482b4117da5c19f5236cd77",
+          "peak_rss_bytes": 37158912,
+          "repeat": 3,
+          "rhs_count": 500,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 484166.0,
+            "p95": 486812.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1936666.0,
+            "p95": 1947116.6,
+            "sample_count": 125,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37158912,
+          "rss_before_bytes": 37158912,
+          "rtf_per_ship": 2.071787434609209,
+          "ships": 5,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 2.5,
+          "wall_seconds": 0.2413375,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 5
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 8,
+      "max_delta_rss_bytes": 98304,
+      "median_rhs_latency_ns": {
+        "p50": 84666.0,
+        "p95": 86011.05,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 338666.5,
+        "p95": 344046.15,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 2.951770287332699,
+      "output_digest": "48a58c0226e456d6aec915d4aee7ce6a14f469626ac4f2e6c6d26c984c7d841b",
+      "peak_rss_bytes": 37306368,
+      "repeats": [
+        {
+          "delta_rss_bytes": 98304,
+          "expected_rhs_count": 2000,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "48a58c0226e456d6aec915d4aee7ce6a14f469626ac4f2e6c6d26c984c7d841b",
+          "peak_rss_bytes": 37257216,
+          "repeat": 1,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 84645.0,
+            "p95": 86011.05,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 338583.0,
+            "p95": 344046.15,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37257216,
+          "rss_before_bytes": 37158912,
+          "rtf_per_ship": 2.9532064438964607,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.1693075,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 16384,
+          "expected_rhs_count": 2000,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "48a58c0226e456d6aec915d4aee7ce6a14f469626ac4f2e6c6d26c984c7d841b",
+          "peak_rss_bytes": 37306368,
+          "repeat": 2,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 84666.0,
+            "p95": 85983.7,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 338666.5,
+            "p95": 343935.75,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37306368,
+          "rss_before_bytes": 37289984,
+          "rtf_per_ship": 2.951770287332699,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.169389875,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 8,
+          "measured_ticks": 25,
+          "output_digest": "48a58c0226e456d6aec915d4aee7ce6a14f469626ac4f2e6c6d26c984c7d841b",
+          "peak_rss_bytes": 37306368,
+          "repeat": 3,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 85400.5,
+            "p95": 88166.0,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 341604.0,
+            "p95": 352667.0,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37306368,
+          "rss_before_bytes": 37306368,
+          "rtf_per_ship": 2.916628886600489,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.171430792,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 20
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 32,
+      "max_delta_rss_bytes": 16384,
+      "median_rhs_latency_ns": {
+        "p50": 165734.0,
+        "p95": 167469.6,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 662937.0,
+        "p95": 669881.25,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 1.5110779009767985,
+      "output_digest": "296d24b3c6a516b328343f924bbc672bbe107b71d71a1fc195066b2d2d3350af",
+      "peak_rss_bytes": 37322752,
+      "repeats": [
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "296d24b3c6a516b328343f924bbc672bbe107b71d71a1fc195066b2d2d3350af",
+          "peak_rss_bytes": 37306368,
+          "repeat": 1,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 165546.5,
+            "p95": 167469.6,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 662187.5,
+            "p95": 669881.25,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37306368,
+          "rss_before_bytes": 37306368,
+          "rtf_per_ship": 1.5110779009767985,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.330889625,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 16384,
+          "expected_rhs_count": 2000,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "296d24b3c6a516b328343f924bbc672bbe107b71d71a1fc195066b2d2d3350af",
+          "peak_rss_bytes": 37322752,
+          "repeat": 2,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 165734.0,
+            "p95": 167334.05,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 662937.0,
+            "p95": 669337.2,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37322752,
+          "rss_before_bytes": 37306368,
+          "rtf_per_ship": 1.5111037809817303,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.330883958,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 32,
+          "measured_ticks": 25,
+          "output_digest": "296d24b3c6a516b328343f924bbc672bbe107b71d71a1fc195066b2d2d3350af",
+          "peak_rss_bytes": 37322752,
+          "repeat": 3,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 166125.0,
+            "p95": 167501.55,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 664500.0,
+            "p95": 670006.25,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37322752,
+          "rss_before_bytes": 37322752,
+          "rtf_per_ship": 1.5070318104274545,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.331778,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 20
+    },
+    {
+      "deterministic_output_digest": true,
+      "harmonics": 128,
+      "max_delta_rss_bytes": 16384,
+      "median_rhs_latency_ns": {
+        "p50": 483046.5,
+        "p95": 486126.55,
+        "unit": "ns"
+      },
+      "median_rk4_step_latency_ns": {
+        "p50": 1932187.5,
+        "p95": 1944506.25,
+        "unit": "ns"
+      },
+      "median_rtf_per_ship": 0.5189389806398781,
+      "output_digest": "bf1fd0b2117de8541d90d403d97a24c55bab695c78605736036223a61f66dd7e",
+      "peak_rss_bytes": 37355520,
+      "repeats": [
+        {
+          "delta_rss_bytes": 16384,
+          "expected_rhs_count": 2000,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "bf1fd0b2117de8541d90d403d97a24c55bab695c78605736036223a61f66dd7e",
+          "peak_rss_bytes": 37339136,
+          "repeat": 1,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 484864.5,
+            "p95": 487479.5,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1939458.5,
+            "p95": 1949918.1,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37339136,
+          "rss_before_bytes": 37322752,
+          "rtf_per_ship": 0.5170752241408374,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.966977292,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 16384,
+          "expected_rhs_count": 2000,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "bf1fd0b2117de8541d90d403d97a24c55bab695c78605736036223a61f66dd7e",
+          "peak_rss_bytes": 37355520,
+          "repeat": 2,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 482291.0,
+            "p95": 485266.8,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1929167.0,
+            "p95": 1941068.15,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37355520,
+          "rss_before_bytes": 37339136,
+          "rtf_per_ship": 0.5199122492105782,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.96170075,
+          "warmup_ticks": 5
+        },
+        {
+          "delta_rss_bytes": 0,
+          "expected_rhs_count": 2000,
+          "harmonics": 128,
+          "measured_ticks": 25,
+          "output_digest": "bf1fd0b2117de8541d90d403d97a24c55bab695c78605736036223a61f66dd7e",
+          "peak_rss_bytes": 37355520,
+          "repeat": 3,
+          "rhs_count": 2000,
+          "rhs_count_identity": true,
+          "rhs_latency_ns": {
+            "measurement": "RK4 step wall time divided by 4; per-stage attribution is estimated, not independently timed",
+            "p50": 483046.5,
+            "p95": 486126.55,
+            "sample_count": 2000,
+            "unit": "ns"
+          },
+          "rk4_step_latency_ns": {
+            "p50": 1932187.5,
+            "p95": 1944506.25,
+            "sample_count": 500,
+            "unit": "ns"
+          },
+          "rss_after_bytes": 37355520,
+          "rss_before_bytes": 37355520,
+          "rtf_per_ship": 0.5189389806398781,
+          "ships": 20,
+          "simulated_seconds_per_ship": 0.5,
+          "simulated_ship_seconds": 10.0,
+          "wall_seconds": 0.963504417,
+          "warmup_ticks": 5
+        }
+      ],
+      "rhs_count_identity": true,
+      "ships": 20
+    }
+  ],
+  "schema_version": "gnc-performance.v1",
+  "threshold_proposal": {
+    "harmonic_scaling_guard": null,
+    "memory_ceiling_bytes": null,
+    "note": "Numeric thresholds require later issue approval; absent thresholds are NO-GO for subsequent slices.",
+    "options": [
+      "Python GO",
+      "approved remediation/vectorization",
+      "optional same-contract native adapter"
+    ],
+    "required_20_ship_representative_row_rtf_floor": null,
+    "rhs_p95_budget_relative_to_5ms": {
+      "accounting": "200 RHS evaluations per ship per simulated second; aggregate multi-ship wall load must also be reviewed",
+      "per_ship_serial_budget_ms": 5.0,
+      "proposed_budget_ms": null
+    },
+    "status": "PROPOSED_NOT_APPROVED"
+  }
+}
