@@ -5,6 +5,8 @@ from colav_simulator.modular_gnc.characterization_report import (
     CharacterizationParityReport,
     RedesignDecision,
     ReferenceComparison,
+    build_generic_3dof_plant_redesign_decisions,
+    build_generic_roll_4dof_plant_redesign_decisions,
 )
 from colav_simulator.modular_gnc.contracts import (
     CommandInput,
@@ -20,6 +22,8 @@ from colav_simulator.modular_gnc.integrators import rk4_step
 from colav_simulator.modular_gnc.plant import (
     Generic3DOFPlant,
     Generic3DOFPlantParameters,
+    GenericRoll4DOFPlant,
+    GenericRoll4DOFPlantParameters,
 )
 
 __all__ = [
@@ -30,6 +34,8 @@ __all__ = [
     "FacadeFailure",
     "Generic3DOFPlant",
     "Generic3DOFPlantParameters",
+    "GenericRoll4DOFPlant",
+    "GenericRoll4DOFPlantParameters",
     "NavigationState",
     "PlantState",
     "RedesignDecision",
@@ -37,5 +43,7 @@ __all__ = [
     "StackOutput",
     "StackSnapshot",
     "TrackedRoute",
+    "build_generic_3dof_plant_redesign_decisions",
+    "build_generic_roll_4dof_plant_redesign_decisions",
     "rk4_step",
 ]

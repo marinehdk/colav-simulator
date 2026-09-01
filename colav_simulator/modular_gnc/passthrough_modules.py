@@ -24,7 +24,7 @@ from colav_simulator.modular_gnc.integrators import rk4_step
 if TYPE_CHECKING:
     from colav_simulator.modular_gnc.environment import EnvironmentField
     from colav_simulator.modular_gnc.load_model import EnvironmentalLoadModel
-    from colav_simulator.modular_gnc.plant import Generic3DOFPlant
+    from colav_simulator.modular_gnc.plant import Generic3DOFPlant, GenericRoll4DOFPlant
 
 
 @dataclass(frozen=True)
@@ -51,7 +51,7 @@ class PassThroughModules:
         fail_tick: int | None = None,
         environment_field: EnvironmentField | None = None,
         load_model: EnvironmentalLoadModel | None = None,
-        plant: Generic3DOFPlant | None = None,
+        plant: Generic3DOFPlant | GenericRoll4DOFPlant | None = None,
     ) -> None:
         self._fail_phase = fail_phase
         self._fail_tick = fail_tick
@@ -62,7 +62,8 @@ class PassThroughModules:
         input_semantics = (
             PlantState.__dataclass_fields__["input_semantics"].default if plant is None else plant.input_semantics
         )
-        self._state = PlantState(np.zeros(6), capabilities, input_semantics=input_semantics)
+        init_dim = 8 if "ROLL_4DOF" in capabilities else 6
+        self._state = PlantState(np.zeros(init_dim), capabilities, input_semantics=input_semantics)
         self._navigation_source = NavigationSource.TRUTH_PROJECTION
         self._phase_counts = dict.fromkeys(self.phase_order, 0)
         self._route_consumptions: list[tuple[int, str, int]] = []
@@ -78,7 +79,23 @@ class PassThroughModules:
             if self._plant is None
             else self._plant.input_semantics
         )
-        self._state = PlantState(navigation.as_array(), capabilities, input_semantics=input_semantics)
+        if "ROLL_4DOF" in capabilities:
+            values = np.array(
+                [
+                    navigation.north_m,
+                    navigation.east_m,
+                    navigation.heading_rad,
+                    0.0,
+                    navigation.surge_mps,
+                    navigation.sway_mps,
+                    0.0,
+                    navigation.yaw_rate_radps,
+                ],
+                dtype=np.float64,
+            )
+        else:
+            values = navigation.as_array()
+        self._state = PlantState(values, capabilities, input_semantics=input_semantics)
         self._navigation_source = navigation.source
         self._phase_counts = dict.fromkeys(self.phase_order, 0)
         self._route_consumptions: list[tuple[int, str, int]] = []
@@ -157,7 +174,7 @@ class PassThroughModules:
 
     def navigation(self) -> NavigationState:
         """Project complete pass-through state to navigation view."""
-        return NavigationState(*self._state.values, source=self._navigation_source)
+        return self._state.to_navigation_state(source=self._navigation_source)
 
     def plant_state(self) -> PlantState:
         """Return immutable plant state."""

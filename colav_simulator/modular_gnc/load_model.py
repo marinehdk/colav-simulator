@@ -1653,9 +1653,9 @@ class EnvironmentalLoadModel:
             surge_mps = vessel_state.surge_mps
             sway_mps = vessel_state.sway_mps
         elif isinstance(vessel_state, PlantState):
-            heading_rad = float(vessel_state.values[2])
-            surge_mps = float(vessel_state.values[3])
-            sway_mps = float(vessel_state.values[4])
+            heading_rad = vessel_state.heading_rad
+            surge_mps = vessel_state.surge_mps
+            sway_mps = vessel_state.sway_mps
         else:
             raise TypeError(f"vessel_state must be NavigationState or PlantState, got {type(vessel_state).__name__}")
 

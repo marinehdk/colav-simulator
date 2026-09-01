@@ -70,6 +70,33 @@ def test_plant_state_is_float64_immutable_and_capability_aware() -> None:
     assert state.values[0] == 0.0
     assert state.input_semantics is PlantInputSemantics.GENERALIZED_FORCE
 
+    # 4DOF PlantState requires 8 values and supports property getters
+    values_4dof = np.array([1.0, 2.0, 0.3, 0.04, 3.0, 0.1, 0.005, 0.02])
+    state_4dof = PlantState(
+        values=values_4dof,
+        capabilities=frozenset({"ROLL_4DOF", "GENERALIZED_FORCE"}),
+        input_semantics=PlantInputSemantics.GENERALIZED_FORCE,
+    )
+    assert state_4dof.values.shape == (8,)
+    assert state_4dof.north_m == 1.0
+    assert state_4dof.east_m == 2.0
+    assert state_4dof.heading_rad == 0.3
+    assert state_4dof.roll_rad == 0.04
+    assert state_4dof.surge_mps == 3.0
+    assert state_4dof.sway_mps == 0.1
+    assert state_4dof.roll_rate_radps == 0.005
+    assert state_4dof.yaw_rate_radps == 0.02
+
+    # Projection to 3DOF NavigationState
+    nav_proj = state_4dof.to_navigation_state()
+    assert nav_proj.as_array().shape == (6,)
+    assert nav_proj.north_m == 1.0
+    assert nav_proj.east_m == 2.0
+    assert nav_proj.heading_rad == 0.3
+    assert nav_proj.surge_mps == 3.0
+    assert nav_proj.sway_mps == 0.1
+    assert nav_proj.yaw_rate_radps == 0.02
+
 
 def test_command_input_is_discriminated_and_authority_is_mutually_exclusive() -> None:
     direct = DirectReference(values=np.arange(9), latched_tick=4)

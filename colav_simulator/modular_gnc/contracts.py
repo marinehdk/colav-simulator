@@ -47,6 +47,7 @@ class PlantInputSemantics(str, Enum):
 
     GENERALIZED_FORCE = "GENERALIZED_FORCE"
     KINEMATIC_REFERENCE = "KINEMATIC_REFERENCE"
+    REFERENCE_CHI_U = "REFERENCE_CHI_U"
 
 
 class FailureCode(str, Enum):
@@ -687,6 +688,58 @@ class PlantState:
         )
 
     __hash__ = None
+
+    @property
+    def north_m(self) -> float:
+        """Return north position in meters."""
+        return float(self.values[0])
+
+    @property
+    def east_m(self) -> float:
+        """Return east position in meters."""
+        return float(self.values[1])
+
+    @property
+    def heading_rad(self) -> float:
+        """Return heading / yaw angle in radians."""
+        return float(self.values[2])
+
+    @property
+    def roll_rad(self) -> float:
+        """Return roll angle in radians (0.0 for 3DOF)."""
+        return float(self.values[3]) if "ROLL_4DOF" in self.capabilities else 0.0
+
+    @property
+    def surge_mps(self) -> float:
+        """Return body surge velocity in m/s."""
+        return float(self.values[4]) if "ROLL_4DOF" in self.capabilities else float(self.values[3])
+
+    @property
+    def sway_mps(self) -> float:
+        """Return body sway velocity in m/s."""
+        return float(self.values[5]) if "ROLL_4DOF" in self.capabilities else float(self.values[4])
+
+    @property
+    def roll_rate_radps(self) -> float:
+        """Return roll rate in rad/s (0.0 for 3DOF)."""
+        return float(self.values[6]) if "ROLL_4DOF" in self.capabilities else 0.0
+
+    @property
+    def yaw_rate_radps(self) -> float:
+        """Return yaw rate in rad/s."""
+        return float(self.values[7]) if "ROLL_4DOF" in self.capabilities else float(self.values[5])
+
+    def to_navigation_state(self, source: NavigationSource = NavigationSource.TRUTH_PROJECTION) -> NavigationState:
+        """Project full physical truth state to 3DOF planar navigation view."""
+        return NavigationState(
+            north_m=self.north_m,
+            east_m=self.east_m,
+            heading_rad=self.heading_rad,
+            surge_mps=self.surge_mps,
+            sway_mps=self.sway_mps,
+            yaw_rate_radps=self.yaw_rate_radps,
+            source=source,
+        )
 
 
 @dataclass(frozen=True, eq=False)
