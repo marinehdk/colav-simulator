@@ -108,10 +108,15 @@ class WindCoeffTableAsset:
 
     def verify_integrity(self) -> bool:
         """Verify table content SHA-256 against metadata hash."""
+        cached = getattr(self, "_integrity_verified", None)
+        if cached is not None:
+            return cached
         raw_rows = [(entry.angle_deg, entry.cx, entry.cy, entry.cn) for entry in self.table]
         payload = json.dumps(raw_rows, separators=(",", ":")).encode("utf-8")
         calc_sha = hashlib.sha256(payload).hexdigest()
-        return calc_sha == self.metadata.sha256
+        valid = calc_sha == self.metadata.sha256
+        object.__setattr__(self, "_integrity_verified", valid)
+        return valid
 
     def interpolate(self, angle_deg: float) -> tuple[float, float, float]:
         """Linearly interpolate (cx, cy, cn) at relative angle [0, 360)."""
@@ -187,10 +192,15 @@ class CurrentCoeffTableAsset:
 
     def verify_integrity(self) -> bool:
         """Verify table content SHA-256 against metadata hash."""
+        cached = getattr(self, "_integrity_verified", None)
+        if cached is not None:
+            return cached
         raw_rows = [(entry.heading_deg, entry.ccx, entry.ccy, entry.cmz, entry.cmx) for entry in self.table]
         payload = json.dumps(raw_rows, separators=(",", ":")).encode("utf-8")
         calc_sha = hashlib.sha256(payload).hexdigest()
-        return calc_sha == self.metadata.sha256
+        valid = calc_sha == self.metadata.sha256
+        object.__setattr__(self, "_integrity_verified", valid)
+        return valid
 
     def interpolate(self, angle_deg: float) -> tuple[float, float, float, float]:
         """Linearly interpolate (ccx, ccy, cmz, cmx) at relative angle [0, 360)."""
@@ -237,8 +247,13 @@ class InferredCurrentAsset:
 
     def verify_integrity(self) -> bool:
         """Verify metadata consistency."""
+        cached = getattr(self, "_integrity_verified", None)
+        if cached is not None:
+            return cached
         payload = b"inferred_crossflow_v1"
-        return self.metadata.sha256 == hashlib.sha256(payload).hexdigest()
+        valid = self.metadata.sha256 == hashlib.sha256(payload).hexdigest()
+        object.__setattr__(self, "_integrity_verified", valid)
+        return valid
 
     def evaluate(self, gamma_rad: float) -> tuple[float, float, float, float]:
         """Evaluate (ccx, ccy, cmz, cmx) analytically from relative flow angle."""
@@ -295,6 +310,9 @@ class InferredWaveResponseAsset:
 
     def verify_integrity(self) -> bool:
         """Verify asset integrity hash against metadata."""
+        cached = getattr(self, "_integrity_verified", None)
+        if cached is not None:
+            return cached
         d = {
             "asset_id": self.metadata.asset_id,
             "fk_scale_factor": self.fk_scale_factor,
@@ -311,7 +329,9 @@ class InferredWaveResponseAsset:
             "rao_yaw_scale": self.rao_yaw_scale,
         }
         payload = json.dumps(d, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        return self.metadata.sha256 == hashlib.sha256(payload).hexdigest()
+        valid = self.metadata.sha256 == hashlib.sha256(payload).hexdigest()
+        object.__setattr__(self, "_integrity_verified", valid)
+        return valid
 
 
 @dataclass(frozen=True)
@@ -367,6 +387,9 @@ class WaveRaoTableAsset:
 
     def verify_integrity(self) -> bool:
         """Verify table content SHA-256 against metadata hash."""
+        cached = getattr(self, "_integrity_verified", None)
+        if cached is not None:
+            return cached
         raw_rows = [
             (
                 entry.omega_radps,
@@ -383,7 +406,9 @@ class WaveRaoTableAsset:
             for entry in self.table
         ]
         payload = json.dumps(raw_rows, separators=(",", ":")).encode("utf-8")
-        return hashlib.sha256(payload).hexdigest() == self.metadata.sha256
+        valid = hashlib.sha256(payload).hexdigest() == self.metadata.sha256
+        object.__setattr__(self, "_integrity_verified", valid)
+        return valid
 
     def interpolate(
         self, omega_radps: float, heading_deg: float
@@ -491,6 +516,9 @@ class InferredWaveDriftAsset:
 
     def verify_integrity(self) -> bool:
         """Verify asset integrity hash against metadata."""
+        cached = getattr(self, "_integrity_verified", None)
+        if cached is not None:
+            return cached
         d = {
             "asset_id": self.metadata.asset_id,
             "inferred_roll_lever_scale": self.inferred_roll_lever_scale,
@@ -501,7 +529,9 @@ class InferredWaveDriftAsset:
             "max_moment_nm": self.max_moment_nm,
         }
         payload = json.dumps(d, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        return self.metadata.sha256 == hashlib.sha256(payload).hexdigest()
+        valid = self.metadata.sha256 == hashlib.sha256(payload).hexdigest()
+        object.__setattr__(self, "_integrity_verified", valid)
+        return valid
 
 
 @dataclass(frozen=True)
@@ -548,6 +578,9 @@ class WaveDriftTableAsset:
 
     def verify_integrity(self) -> bool:
         """Verify table content SHA-256 against metadata hash."""
+        cached = getattr(self, "_integrity_verified", None)
+        if cached is not None:
+            return cached
         raw_rows = [
             (
                 entry.omega_radps,
@@ -560,7 +593,9 @@ class WaveDriftTableAsset:
             for entry in self.table
         ]
         payload = json.dumps(raw_rows, separators=(",", ":")).encode("utf-8")
-        return hashlib.sha256(payload).hexdigest() == self.metadata.sha256
+        valid = hashlib.sha256(payload).hexdigest() == self.metadata.sha256
+        object.__setattr__(self, "_integrity_verified", valid)
+        return valid
 
     def interpolate(self, omega_radps: float, heading_deg: float) -> tuple[float, float, float, float]:
         """Interpolate drift coefficients (cdx, cdy, cdn, cdk) at (omega, heading_deg)."""
@@ -1585,6 +1620,15 @@ class EnvironmentalLoadModel:
         self._current_asset = current_asset
 
         _validate_load_model_wave_assets(self._wave_mode, wave_first_order_asset, wave_mean_drift_asset)
+
+        if wind_asset is not None and not wind_asset.verify_integrity():
+            raise AssetIntegrityError(f"Integrity check failed for wind asset: {wind_asset.metadata.asset_id}")
+        if current_asset is not None and not current_asset.verify_integrity():
+            raise AssetIntegrityError(f"Integrity check failed for current asset: {current_asset.metadata.asset_id}")
+        if wave_first_order_asset is not None and not wave_first_order_asset.verify_integrity():
+            raise AssetIntegrityError(f"Integrity check failed for wave asset: {wave_first_order_asset.metadata.asset_id}")
+        if wave_mean_drift_asset is not None and not wave_mean_drift_asset.verify_integrity():
+            raise AssetIntegrityError(f"Integrity check failed for wave drift asset: {wave_mean_drift_asset.metadata.asset_id}")
 
         self._wave_first_order_asset = wave_first_order_asset
         self._wave_mean_drift_asset = wave_mean_drift_asset
