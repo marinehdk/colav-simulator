@@ -16,7 +16,10 @@ from colav_simulator.modular_gnc.contracts import (
     StackOutput,
     StackSnapshot,
 )
-from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
+from colav_simulator.modular_gnc.environment import (
+    AnalyticEnvironmentField,
+    PassThroughEnvironmentField,
+)
 from colav_simulator.modular_gnc.passthrough_modules import PassThroughModules
 
 
@@ -50,6 +53,8 @@ class ModularShipStack:
                     dt_s=dt_s,
                     episode_seed=episode_seed,
                 )
+            elif env_sel.identity == "pass_through_environment":
+                env_field = PassThroughEnvironmentField(dt_s=dt_s)
         modules = PassThroughModules(environment_field=env_field)
         return cls(config, modules)
 
@@ -166,6 +171,7 @@ class ModularShipStack:
             plant=self._modules.plant_state(),
             applied_reference=None,
             failure=failure,
+            environment_observation=getattr(self._modules, "environment_observation", lambda: None)(),
         )
 
     def _uninitialized_failure(self, message: str) -> StackOutput:

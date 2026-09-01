@@ -171,3 +171,49 @@ def test_backward_compatible_passthrough_when_no_environment_configured() -> Non
     assert out.environment_observation is None
     assert stack.modules.environment_truth() is None
     assert stack.modules.environment_observation() is None
+
+
+def test_pass_through_environment_configured_explicit_behavior() -> None:
+    config = normalize_ship_modules(
+        {
+            "preset": "legacy_equivalent",
+            "modules": {
+                "plant": {"identity": "pass_through_plant", "parameters": {}},
+                "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+                "controller": {"identity": "pass_through_controller", "parameters": {}},
+                "environment": {"identity": "pass_through_environment", "parameters": {}},
+            },
+        }
+    )
+    stack = ModularShipStack.from_config(config, dt_s=0.1)
+    stack.reset(_initial(), seed=1)
+
+    out = stack.step(CommandInput.none(0), dt_s=0.1)
+    assert out.environment_observation is not None
+    assert out.environment_observation.status is EnvironmentStatus.AVAILABLE
+    assert out.environment_observation.source == "PASS_THROUGH"
+    assert out.environment_observation.wind.velocity_ne == (0.0, 0.0)
+
+    # Truth is held in modules
+    truth = stack.modules.environment_truth()
+    assert truth is not None
+    assert truth.wind.velocity_ne == (0.0, 0.0)
+    assert truth.wave.significant_height_m == 0.0
+
+
+def test_failure_output_preserves_held_environment_observation() -> None:
+    config = _env_config()
+    stack = ModularShipStack.from_config(config, episode_seed=42, dt_s=0.1)
+    stack.reset(_initial(), seed=1)
+
+    # Step successfully at tick 0
+    out_0 = stack.step(CommandInput.none(0), dt_s=0.1)
+    assert out_0.environment_observation is not None
+    held_obs = out_0.environment_observation
+
+    # Provide an invalid dt at tick 1 causing facade failure
+    failed_out = stack.step(CommandInput.none(1), dt_s=-0.1)
+    assert failed_out.failure is not None
+    assert failed_out.environment_observation is not None
+    # Held observation is preserved from the restored state
+    assert failed_out.environment_observation == held_obs
