@@ -84,7 +84,7 @@ for every 9-row artifact: `[x, y, psi, u, v, r, x_ddot, y_ddot, psi_dot]`
   reactive layer; calling this field a "trajectory" is a schema legacy.)
 - Continuity: stateless across ticks beyond internal VO rule memories
   (locks/commitments); output is recomputed every tick.
-- Fallback semantics (code-level, not exercised in the probe geometry): when
+- Fallback semantics (code-level, not exercised in the audit scenario geometry): when
   the VO core is infeasible the wrapper sets `fallback_used=True`,
   `status=INFEASIBLE`, `reason="fallback=stop_nonpaper_wrapper"`; the command
   itself comes from the VO core's internal stop fallback.
@@ -179,12 +179,12 @@ Audited at the repo's own fast-horizon convention (`horizon_steps=4`,
   raise `INFEASIBLE`; the adapter then resets the cached plan to zeros
   `(9, 1)` (pinned).
 - Observation recorded, not judged here: the simplified planner selects a
-  port-side (-10 deg) turn in the deterministic head-on probe while the
+  port-side (-10 deg) turn in the deterministic head-on audit scenario while the
   COLREG-fan variant selects starboard +5 deg (issue list #5).
 
 ### 3.6 `potocnik_colreg_fan_mpc`
 
-- Output shape: command column `(9, 1)`; head-on probe command is +5 deg
+- Output shape: command column `(9, 1)`; head-on scenario command is +5 deg
   starboard (early substantial action), speed 7.0 m/s.
 - Direct-reference behavior: course/speed fan with COLREG encounter policy,
   continuous footprint clearance check, optional ENC static constraint.
@@ -218,7 +218,7 @@ Audited at the repo's own fast-horizon convention (`horizon_steps=4`,
 
 - Output shape: `plan()` returns `validate_plan(los_references)` `(9, 1)` with
   the native `(u_opt, chi_opt)` offsets applied to column 0; without
-  obstacles/ENC the pinned probe yields course 0.0, speed 4.0.
+  obstacles/ENC the pinned audit scenario yields course 0.0, speed 4.0.
 - ENC boundary: **tolerates `enc=None`** (runs the native solver with empty
   polygon set) — asymmetric with `psbmpc`/`rrt` (issue list #3).
 - Route lifecycle: none.
@@ -336,7 +336,7 @@ individually accepted (AC4).
    (`control_trajectory is None`): between solves the predicted fan arm doubles
    as the executable reference source. Clean separation exists in the colreg
    variant; the simplified variant could adopt it if ever migrated.
-5. Side-selection divergence in the deterministic head-on probe:
+5. Side-selection divergence in the deterministic head-on audit scenario:
    `potocnik_simplified_mpc` selects a port turn (-10 deg) while
    `potocnik_colreg_fan_mpc` selects starboard (+5 deg). Not judged here;
    relevant for any future COLREGs conformance sweep of the paper planners.
@@ -348,7 +348,7 @@ individually accepted (AC4).
    this environment. Needs its own audit before any integration consideration.
 8. Observation: the Mid-MPC rolling-plan revision reason was
    `COLREG_AUTHORITY_CHANGED` between two solves with unchanged route and
-   target keys (probe t=0 -> t=5). This is lifecycle functioning as designed
+   target keys (audit scenario t=0 -> t=5). This is lifecycle functioning as designed
    (authority hash churn breaks continuity), noted so #63 does not misread an
    inactive rolling reference as a bug.
 
