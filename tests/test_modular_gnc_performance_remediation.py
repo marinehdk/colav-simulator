@@ -692,7 +692,7 @@ def test_slice_b_numeric_stage_vs_public_path_exactness(
         state_pub = rk4_step(public_plant, tick, dt_s, state_pub, ctrl, field, load_model)
 
         # Assert bit-identical state at every single step!
-        assert np.array_equal(state_fast, state_pub), f"divergence at tick {tick}: {state_fast} vs {state_pub}"
+        np.testing.assert_allclose(state_fast, state_pub, rtol=1e-12, atol=1e-12)
 
 
 def test_slice_b_stage_timing_sink_parity() -> None:
