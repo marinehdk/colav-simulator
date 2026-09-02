@@ -881,3 +881,59 @@ def test_slice_b_stage_error_validation_parity(
     overspeed_state = np.array([0.0, 0.0, 0.0, 35.0, 0.0, 0.0], dtype=np.float64)
     with pytest.raises(OutOfDomainError, match="outside applicability domain"):
         rk4_step(plant, 0, dt_s, overspeed_state, VesselLoad.zero(), field_waves, load_model)
+
+
+def test_slice_3a_static_wave_invariants_precomputed_once(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Slice 3A: Precomputed wave and hull geometry factors are created once and stay stage-invariant."""
+    model = EnvironmentalLoadModel(
+        vessel_params=standard_vessel_params,
+        wave_mode=WaveLoadMode.BOTH,
+        wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+        wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+    )
+    comp1 = WaveComponent(amplitude_m=1.0, omega_radps=0.8, phase_rad=0.2, direction_to_rad=0.5)
+    comp2 = WaveComponent(amplitude_m=0.5, omega_radps=1.2, phase_rad=1.0, direction_to_rad=1.5)
+    wave = WaveFieldSample(significant_height_m=1.5, peak_period_s=8.0, direction_to_rad=0.5, components=(comp1, comp2))
+
+    invariants1 = model.get_fused_static_invariants(wave)
+    invariants2 = model.get_fused_static_invariants(wave)
+    assert invariants1 is invariants2
+    assert hasattr(invariants1, "k_1st")
+    assert hasattr(invariants1, "sway_base_1st")
+    assert hasattr(invariants1, "drift_cfx_factor")
+    assert hasattr(invariants1, "drift_cfy_factor")
+    assert hasattr(invariants1, "drift_cmz_factor")
+
+    # Arrays must be immutable (flags.writeable == False)
+    assert not invariants1.k_1st.flags.writeable
+    assert not invariants1.sway_base_1st.flags.writeable
+    assert not invariants1.drift_cfx_factor.flags.writeable
+    assert not invariants1.drift_cfy_factor.flags.writeable
+    assert not invariants1.drift_cmz_factor.flags.writeable
+
+
+def test_slice_3a_static_domain_validation_and_first_violator_error(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Slice 3A: Static domain check validates once at binding and preserves first-violator index."""
+    model = EnvironmentalLoadModel(
+        vessel_params=standard_vessel_params,
+        wave_mode=WaveLoadMode.BOTH,
+        wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+        wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+    )
+    # Asset omega range is [0.01, 5.0]
+    # First component ok, second component violates
+    c_ok = WaveComponent(amplitude_m=1.0, omega_radps=1.0, phase_rad=0.0, direction_to_rad=0.0)
+    c_bad = WaveComponent(amplitude_m=1.0, omega_radps=6.0, phase_rad=0.0, direction_to_rad=0.0)
+    wave_violating = WaveFieldSample(
+        significant_height_m=2.0, peak_period_s=6.0, direction_to_rad=0.0, components=(c_ok, c_bad)
+    )
+
+    with pytest.raises(OutOfDomainError) as excinfo:
+        model.get_fused_static_invariants(wave_violating)
+    assert "omega=6.00 rad/s" in str(excinfo.value)
+    assert "outside applicability domain" in str(excinfo.value)
+

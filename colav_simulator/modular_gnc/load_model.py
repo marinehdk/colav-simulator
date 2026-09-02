@@ -1033,6 +1033,69 @@ def _extract_wave_component_arrays(wave: WaveFieldSample | MeanDriftSourceSample
     return wave.component_arrays
 
 
+@dataclass(frozen=True)
+class FusedWaveStaticInvariants:
+    """Precomputed stage-invariant wave and hull geometry factors (Slice 3A)."""
+
+    arrays: WaveComponentArrays
+    k_1st: FloatArray
+    sway_base_1st: FloatArray
+    roll_base_1st: FloatArray
+    drift_cfx_factor: FloatArray
+    drift_cfy_factor: FloatArray
+    drift_cmz_factor: FloatArray
+    drift_cmx_factor: FloatArray
+    has_zero_amps: bool
+
+
+def _check_wave_domain_static(
+    asset_id: str,
+    domain: ApplicabilityDomain,
+    omegas: FloatArray,
+    amplitudes: FloatArray,
+) -> None:
+    """Validate static component omega and wave height domains once at binding (Slice 3A)."""
+    if "omega_radps" in domain.custom_bounds:
+        om_min, om_max = domain.custom_bounds["omega_radps"]
+        om_mask = (omegas >= om_min) & (omegas <= om_max)
+        if not np.all(om_mask):
+            idx = int(np.where(~om_mask)[0][0])
+            raise OutOfDomainError(
+                f"Wave component (omega={omegas[idx]:.2f} rad/s, "
+                f"amp={amplitudes[idx]:.2f} m) outside applicability domain of asset {asset_id}"
+            )
+
+    if "wave_height_m" in domain.custom_bounds:
+        wh_min, wh_max = domain.custom_bounds["wave_height_m"]
+        heights = 2.0 * amplitudes
+        h_mask = (heights >= wh_min) & (heights <= wh_max)
+        if not np.all(h_mask):
+            idx = int(np.where(~h_mask)[0][0])
+            raise OutOfDomainError(
+                f"Wave component (omega={omegas[idx]:.2f} rad/s, "
+                f"amp={amplitudes[idx]:.2f} m) outside applicability domain of asset {asset_id}"
+            )
+
+
+def _check_wave_domain_heading(
+    asset_id: str,
+    domain: ApplicabilityDomain,
+    gamma_deg: FloatArray,
+    omegas: FloatArray,
+    amplitudes: FloatArray,
+) -> None:
+    """Validate stage-dependent relative heading domain (Slice 3A)."""
+    h_min, h_max = domain.heading_range_deg
+    if not (h_min <= 0.0 and h_max >= 360.0):
+        heading_mask = (gamma_deg >= h_min) & (gamma_deg <= h_max)
+        if not np.all(heading_mask):
+            idx = int(np.where(~heading_mask)[0][0])
+            raise OutOfDomainError(
+                f"Wave component (omega={omegas[idx]:.2f} rad/s, gamma={gamma_deg[idx]:.1f} deg, "
+                f"amp={amplitudes[idx]:.2f} m) outside applicability domain of asset {asset_id}"
+            )
+
+
 def _check_wave_domain_batch(
     asset_id: str,
     domain: ApplicabilityDomain,
@@ -1957,6 +2020,138 @@ class EnvironmentalLoadModel:
             self._static_drift_max_force_n = wdrift_asset.max_force_n
             self._static_drift_max_moment_nm = wdrift_asset.max_moment_nm
 
+        self._cached_fused_wave_sample: WaveFieldSample | MeanDriftSourceSample | None = None
+        self._cached_fused_invariants: FusedWaveStaticInvariants | None = None
+
+    def get_fused_static_invariants(
+        self, wave: WaveFieldSample | MeanDriftSourceSample
+    ) -> FusedWaveStaticInvariants:
+        """Precompute and cache immutable stage-invariant wave/hull factors (Slice 3A)."""
+        if self._cached_fused_wave_sample is wave and self._cached_fused_invariants is not None:
+            return self._cached_fused_invariants
+        invariants = self._build_fused_static_invariants(wave)
+        self._cached_fused_wave_sample = wave
+        self._cached_fused_invariants = invariants
+        return invariants
+
+    def _build_fused_static_invariants(
+        self, wave: WaveFieldSample | MeanDriftSourceSample
+    ) -> FusedWaveStaticInvariants:
+        """Build immutable stage-invariant wave/hull factors with static domain validation (Slice 3A)."""
+        w1_asset = self._wave_first_order_asset
+        wdrift_asset = self._wave_mean_drift_asset
+        if w1_asset is None or wdrift_asset is None:
+            raise AssetMissingError("Wave assets required for fused wave load calculation")
+
+        arrays = _extract_wave_component_arrays(wave)
+        if arrays is None or len(arrays.amplitudes) == 0:
+            empty_arr = np.empty(0, dtype=np.float64)
+            empty_arr.flags.writeable = False
+            empty_comp_arrays = WaveComponentArrays(
+                amplitudes=empty_arr,
+                omegas=empty_arr,
+                phases=empty_arr,
+                directions=empty_arr,
+                omega_sq=empty_arr,
+                amp_sq=empty_arr,
+            )
+            return FusedWaveStaticInvariants(
+                arrays=empty_comp_arrays,
+                k_1st=empty_arr,
+                sway_base_1st=empty_arr,
+                roll_base_1st=empty_arr,
+                drift_cfx_factor=empty_arr,
+                drift_cfy_factor=empty_arr,
+                drift_cmz_factor=empty_arr,
+                drift_cmx_factor=empty_arr,
+                has_zero_amps=False,
+            )
+
+        # Static domain checks on component frequencies and amplitudes
+        _check_wave_domain_static(
+            w1_asset.metadata.asset_id,
+            w1_asset.metadata.applicability_domain,
+            arrays.omegas,
+            arrays.amplitudes,
+        )
+        if wdrift_asset.metadata.applicability_domain != w1_asset.metadata.applicability_domain:
+            _check_wave_domain_static(
+                wdrift_asset.metadata.asset_id,
+                wdrift_asset.metadata.applicability_domain,
+                arrays.omegas,
+                arrays.amplitudes,
+            )
+
+        if not wdrift_asset.metadata.applicability_domain.contains(draft_m=self._vessel_params.draft_m):
+            raise OutOfDomainError(
+                f"Vessel draft ({self._vessel_params.draft_m:.2f} m) outside applicability domain of asset "
+                f"{wdrift_asset.metadata.asset_id}"
+            )
+
+        # Precompute 1st-order static arrays
+        k_1st = arrays.omega_sq * self._static_inv_gravity
+        k_denom = np.maximum(k_1st, 1.0e-8)
+        e_half = np.exp(-k_1st * self._static_draft_half)
+        sway_base_1st = arrays.amplitudes * (self._static_sway_geom_1st * k_1st * e_half)
+
+        i_depth_roll = (1.0 - np.exp(-k_1st * self._static_draft)) / k_denom
+        roll_base_1st = arrays.amplitudes * (self._static_roll_geom_1st * i_depth_roll)
+
+        # Precompute drift static factors
+        k_drift = k_denom
+        kl = np.minimum(np.maximum(k_drift * self._static_l_val, 0.0), 60.0)
+        kb = np.minimum(np.maximum(k_drift * self._static_b_val, 0.0), 60.0)
+        kt = np.minimum(np.maximum(k_drift * self._static_t_val, 0.0), 60.0)
+
+        long_wave_build_up = (kl * kl) / (1.0 + kl * kl)
+        short_wave_decay = 1.0 / np.sqrt(1.0 + (kl / 8.0) ** 4.0)
+        draft_participation = np.sqrt(np.maximum(0.0, 1.0 - np.exp(-2.0 * kt)))
+        finite_beam_reflection = 1.0 - np.exp(-2.0 * kb)
+
+        freq_shape = np.minimum(
+            np.maximum(long_wave_build_up * short_wave_decay * np.maximum(0.25, draft_participation), 0.0),
+            1.5,
+        )
+        head_eff = np.minimum(
+            np.maximum(self._static_inferred_surge_scale * finite_beam_reflection * freq_shape, 0.0),
+            1.0,
+        )
+        beam_eff = np.minimum(
+            np.maximum(self._static_inferred_sway_scale * finite_beam_reflection * freq_shape, 0.0),
+            1.0,
+        )
+
+        surge_per_amp2 = self._static_surge_geom_drift * head_eff
+        sway_per_amp2 = self._static_sway_geom_drift * beam_eff
+
+        amp_sq = arrays.amp_sq
+        drift_cfx_factor = surge_per_amp2 * amp_sq
+        drift_cfy_factor = sway_per_amp2 * amp_sq
+        drift_cmz_factor = sway_per_amp2 * (self._static_yaw_lever * amp_sq)
+        drift_cmx_factor = sway_per_amp2 * (self._static_roll_lever * amp_sq)
+
+        k_1st.flags.writeable = False
+        sway_base_1st.flags.writeable = False
+        roll_base_1st.flags.writeable = False
+        drift_cfx_factor.flags.writeable = False
+        drift_cfy_factor.flags.writeable = False
+        drift_cmz_factor.flags.writeable = False
+        drift_cmx_factor.flags.writeable = False
+
+        has_zero_amps = bool(np.any(arrays.amplitudes <= 0.0))
+
+        return FusedWaveStaticInvariants(
+            arrays=arrays,
+            k_1st=k_1st,
+            sway_base_1st=sway_base_1st,
+            roll_base_1st=roll_base_1st,
+            drift_cfx_factor=drift_cfx_factor,
+            drift_cfy_factor=drift_cfy_factor,
+            drift_cmz_factor=drift_cmz_factor,
+            drift_cmx_factor=drift_cmx_factor,
+            has_zero_amps=has_zero_amps,
+        )
+
     @property
     def vessel_params(self) -> VesselEnvironmentalParameters:
         """Return immutable vessel environmental parameters."""
@@ -2208,7 +2403,7 @@ class EnvironmentalLoadModel:
         sway_mps: float,
         stage_time_s: float,
     ) -> tuple[VesselLoad, VesselLoad]:
-        """Fused evaluation of first-order wave and diagonal Ai2 mean-drift loads (Slice A)."""
+        """Fused evaluation of first-order wave and diagonal Ai2 mean-drift loads (Slice 3A)."""
         w1_asset = self._wave_first_order_asset
         wdrift_asset = self._wave_mean_drift_asset
         if w1_asset is None or wdrift_asset is None:
@@ -2229,8 +2424,9 @@ class EnvironmentalLoadModel:
                 f"outside applicability domain of asset {w1_asset.metadata.asset_id}"
             )
 
-        arrays = _extract_wave_component_arrays(wave)
-        if arrays is None or len(arrays.amplitudes) == 0:
+        invariants = self.get_fused_static_invariants(wave)
+        arrays = invariants.arrays
+        if len(arrays.amplitudes) == 0:
             return VesselLoad.zero(), VesselLoad.zero()
 
         amps = arrays.amplitudes
@@ -2241,9 +2437,15 @@ class EnvironmentalLoadModel:
         gamma_dir = dirs - heading
         gamma_deg = np.degrees(gamma_dir) % 360.0
 
-        _check_wave_domain_batch(w1_asset.metadata.asset_id, w1_asset.metadata.applicability_domain, gamma_deg, omegas, amps)
+        _check_wave_domain_heading(
+            w1_asset.metadata.asset_id,
+            w1_asset.metadata.applicability_domain,
+            gamma_deg,
+            omegas,
+            amps,
+        )
         if wdrift_asset.metadata.applicability_domain != w1_asset.metadata.applicability_domain:
-            _check_wave_domain_batch(
+            _check_wave_domain_heading(
                 wdrift_asset.metadata.asset_id,
                 wdrift_asset.metadata.applicability_domain,
                 gamma_deg,
@@ -2255,17 +2457,9 @@ class EnvironmentalLoadModel:
         sin_gamma = np.sin(gamma_dir)
         sin_2gamma = np.sin(2.0 * gamma_dir)
 
-        k_1st = arrays.omega_sq * self._static_inv_gravity
         vel_along_wave = u * cos_gamma + v * sin_gamma
-        omega_e = omegas - k_1st * vel_along_wave
+        omega_e = omegas - invariants.k_1st * vel_along_wave
         omega_rao = np.maximum(np.abs(omega_e), 1.0e-4)
-
-        e_half = np.exp(-k_1st * self._static_draft_half)
-        f_fk_sway = amps * (self._static_sway_geom_1st * k_1st * e_half)
-
-        k_denom = np.maximum(k_1st, 1.0e-8)
-        i_depth_roll = (1.0 - np.exp(-k_1st * self._static_draft)) / k_denom
-        f_fk_roll = amps * (self._static_roll_geom_1st * i_depth_roll)
 
         r_surge = omega_rao / self._static_rao_cutoff_surge
         rao_surge = np.minimum(1.0 / np.sqrt(1.0 + r_surge * r_surge), self._static_rao_scale_max)
@@ -2287,68 +2481,41 @@ class EnvironmentalLoadModel:
         cos_phase = np.cos(phase_t)
         sin_phase = np.sin(phase_t)
 
-        fx_1st_comp = self._static_fx_scale_1st * (f_fk_sway * cos_gamma * cos_phase * rao_surge)
-        fy_1st_comp = self._static_fy_scale_1st * (f_fk_sway * sin_gamma * cos_phase * rao_sway)
-        mx_1st_comp = self._static_mx_scale_1st * (f_fk_roll * sin_gamma * cos_phase * rao_roll)
-        mz_1st_comp = self._static_mz_scale_1st * (f_fk_sway * sin_2gamma * sin_phase * rao_yaw)
+        fx_1st_comp = self._static_fx_scale_1st * (invariants.sway_base_1st * cos_gamma * cos_phase * rao_surge)
+        fy_1st_comp = self._static_fy_scale_1st * (invariants.sway_base_1st * sin_gamma * cos_phase * rao_sway)
+        mx_1st_comp = self._static_mx_scale_1st * (invariants.roll_base_1st * sin_gamma * cos_phase * rao_roll)
+        mz_1st_comp = self._static_mz_scale_1st * (invariants.sway_base_1st * sin_2gamma * sin_phase * rao_yaw)
 
         # Drift components
-        k_drift = k_denom
-        kl = np.minimum(np.maximum(k_drift * self._static_l_val, 0.0), 60.0)
-        kb = np.minimum(np.maximum(k_drift * self._static_b_val, 0.0), 60.0)
-        kt = np.minimum(np.maximum(k_drift * self._static_t_val, 0.0), 60.0)
-
-        long_wave_build_up = (kl * kl) / (1.0 + kl * kl)
-        short_wave_decay = 1.0 / np.sqrt(1.0 + (kl / 8.0) ** 4.0)
-        draft_participation = np.sqrt(np.maximum(0.0, 1.0 - np.exp(-2.0 * kt)))
-        finite_beam_reflection = 1.0 - np.exp(-2.0 * kb)
-
-        freq_shape = np.minimum(
-            np.maximum(long_wave_build_up * short_wave_decay * np.maximum(0.25, draft_participation), 0.0),
-            1.5,
-        )
-        head_eff = np.minimum(
-            np.maximum(self._static_inferred_surge_scale * finite_beam_reflection * freq_shape, 0.0),
-            1.0,
-        )
-        beam_eff = np.minimum(
-            np.maximum(self._static_inferred_sway_scale * finite_beam_reflection * freq_shape, 0.0),
-            1.0,
-        )
-
         c_abs = np.abs(cos_gamma)
         s_abs = np.abs(sin_gamma)
 
-        surge_per_amp2 = self._static_surge_geom_drift * head_eff
-        sway_per_amp2 = self._static_sway_geom_drift * beam_eff
+        cfx = invariants.drift_cfx_factor * cos_gamma * c_abs
+        cfy = invariants.drift_cfy_factor * sin_gamma * s_abs
+        cmz = invariants.drift_cmz_factor * (cos_gamma * sin_gamma)
+        cmx = invariants.drift_cmx_factor * (sin_gamma * s_abs)
 
-        amp_sq = arrays.amp_sq
-        cfx = surge_per_amp2 * cos_gamma * c_abs
-        cfy = sway_per_amp2 * sin_gamma * s_abs
-        cmz = sway_per_amp2 * (self._static_yaw_lever * cos_gamma * sin_gamma)
-        cmx = sway_per_amp2 * (self._static_roll_lever * sin_gamma * s_abs)
-
-        if np.any(amps <= 0.0):
+        if invariants.has_zero_amps:
             mask = amps > 0.0
             total_1st_fx = float(np.sum(fx_1st_comp[mask]))
             total_1st_fy = float(np.sum(fy_1st_comp[mask]))
             total_1st_mx = float(np.sum(mx_1st_comp[mask]))
             total_1st_mz = float(np.sum(mz_1st_comp[mask]))
 
-            total_drift_fx = float(np.sum((cfx * amp_sq)[mask]))
-            total_drift_fy = float(np.sum((cfy * amp_sq)[mask]))
-            total_drift_mz = float(np.sum((cmz * amp_sq)[mask]))
-            total_drift_mx = float(np.sum((cmx * amp_sq)[mask]))
+            total_drift_fx = float(np.sum(cfx[mask]))
+            total_drift_fy = float(np.sum(cfy[mask]))
+            total_drift_mz = float(np.sum(cmz[mask]))
+            total_drift_mx = float(np.sum(cmx[mask]))
         else:
             total_1st_fx = float(np.sum(fx_1st_comp))
             total_1st_fy = float(np.sum(fy_1st_comp))
             total_1st_mx = float(np.sum(mx_1st_comp))
             total_1st_mz = float(np.sum(mz_1st_comp))
 
-            total_drift_fx = float(np.sum(cfx * amp_sq))
-            total_drift_fy = float(np.sum(cfy * amp_sq))
-            total_drift_mz = float(np.sum(cmz * amp_sq))
-            total_drift_mx = float(np.sum(cmx * amp_sq))
+            total_drift_fx = float(np.sum(cfx))
+            total_drift_fy = float(np.sum(cfy))
+            total_drift_mz = float(np.sum(cmz))
+            total_drift_mx = float(np.sum(cmx))
 
         if self._static_drift_max_force_n is not None and self._static_drift_max_force_n > 0.0:
             fnorm = math.hypot(total_drift_fx, total_drift_fy)
