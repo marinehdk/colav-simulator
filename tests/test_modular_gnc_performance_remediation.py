@@ -491,3 +491,133 @@ def test_deterministic_microbenchmark(harmonics: int) -> None:
     # Coarse non-flaky sanity check: 100 steps (400 RK stages) must finish in under 2 seconds locally
     assert elapsed1 < 2.0
     assert elapsed2 < 2.0
+
+
+@pytest.mark.parametrize("harmonics", [0, 1, 8, 32, 128])
+def test_slice_a_fused_inferred_wave_loads_equivalence(
+    standard_vessel_params: VesselEnvironmentalParameters, harmonics: int
+) -> None:
+    """Slice A: Fused BOTH-mode wave kernel produces bit-identical / strict-tolerance loads vs separate Batch 1 kernels."""
+    rng = np.random.default_rng(9999 + harmonics)
+    components = []
+    for _ in range(harmonics):
+        amp = float(rng.uniform(0.1, 2.5))
+        om = float(rng.uniform(0.3, 2.0))
+        ph = float(rng.uniform(0.0, 2.0 * np.pi))
+        dr = float(rng.uniform(0.0, 2.0 * np.pi))
+        components.append(WaveComponent(amplitude_m=amp, omega_radps=om, phase_rad=ph, direction_to_rad=dr))
+
+    wave = WaveFieldSample(significant_height_m=2.0, peak_period_s=8.0, direction_to_rad=0.5, components=tuple(components))
+    drift = MeanDriftSourceSample(components=tuple(components))
+
+    model = EnvironmentalLoadModel(
+        vessel_params=standard_vessel_params,
+        wave_mode=WaveLoadMode.BOTH,
+        wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+        wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+        enable_wind=False,
+        enable_current=False,
+    )
+
+    test_cases = [
+        (0.0, 0.0, 0.0, 0.0),
+        (0.5, 2.0, 0.2, 1.5),
+        (np.pi / 2, 5.0, -0.5, 10.0),
+        (np.pi, 1.0, 0.0, 0.2),
+        (3 * np.pi / 2, 3.0, 0.1, 5.5),
+        (5.5, 4.0, -0.3, 100.0),
+    ]
+
+    for heading, u, v, t in test_cases:
+        truth = EnvironmentTruth(
+            wind=WindSample(velocity_ne=(0.0, 0.0)),
+            current=CurrentSample(velocity_ne=(0.0, 0.0)),
+            wave=wave,
+            mean_drift=drift,
+            time_s=t,
+            tick=0,
+        )
+        nav = NavigationState(0.0, 0.0, heading, u, v, 0.0)
+
+        # 1. Separate vector calls
+        w1_sep = FirstOrderWaveLoadModel.calculate(
+            wave=wave,
+            heading_rad=heading,
+            surge_mps=u,
+            sway_mps=v,
+            stage_time_s=t,
+            params=standard_vessel_params,
+            asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+        )
+        wdrift_sep = MeanDriftLoadModel.calculate(
+            wave=drift,
+            heading_rad=heading,
+            params=standard_vessel_params,
+            asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+        )
+
+        # 2. Fused call
+        w1_fused, wdrift_fused = model._calculate_fused_inferred_wave_loads(
+            wave=wave,
+            heading_rad=heading,
+            surge_mps=u,
+            sway_mps=v,
+            stage_time_s=t,
+        )
+
+        _assert_load_close(w1_fused, w1_sep, rtol=1e-12, atol=1e-9)
+        _assert_load_close(wdrift_fused, wdrift_sep, rtol=1e-12, atol=1e-9)
+
+        # 3. Model compute_loads and compute_total_load_for_rhs
+        full_loads = model.compute_loads(truth, nav)
+        total_rhs = model.compute_total_load_for_rhs(truth, nav)
+
+        _assert_load_close(full_loads.wave_first_order, w1_sep, rtol=1e-12, atol=1e-9)
+        _assert_load_close(full_loads.wave_mean_drift, wdrift_sep, rtol=1e-12, atol=1e-9)
+        _assert_load_close(full_loads.total, w1_sep + wdrift_sep, rtol=1e-12, atol=1e-9)
+        _assert_load_close(total_rhs, w1_sep + wdrift_sep, rtol=1e-12, atol=1e-9)
+
+
+def test_slice_a_fused_out_of_domain_parity(standard_vessel_params: VesselEnvironmentalParameters) -> None:
+    """Slice A: Fused BOTH-mode wave kernel raises exact OutOfDomainError as separate path."""
+    model = EnvironmentalLoadModel(
+        vessel_params=standard_vessel_params,
+        wave_mode=WaveLoadMode.BOTH,
+        wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+        wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+    )
+
+    # 1. Out of domain speed (>30 m/s)
+    comp = WaveComponent(amplitude_m=1.0, omega_radps=1.0, phase_rad=0.0, direction_to_rad=0.0)
+    wave = WaveFieldSample(significant_height_m=1.0, peak_period_s=5.0, direction_to_rad=0.0, components=(comp,))
+    truth = EnvironmentTruth(
+        wind=WindSample(velocity_ne=(0.0, 0.0)),
+        current=CurrentSample(velocity_ne=(0.0, 0.0)),
+        wave=wave,
+        mean_drift=MeanDriftSourceSample(components=(comp,)),
+        time_s=0.0,
+        tick=0,
+    )
+    overspeed_nav = NavigationState(0.0, 0.0, 0.0, 35.0, 0.0, 0.0)
+
+    with pytest.raises(OutOfDomainError, match="outside applicability domain"):
+        model.compute_loads(truth, overspeed_nav)
+    with pytest.raises(OutOfDomainError, match="outside applicability domain"):
+        model.compute_total_load_for_rhs(truth, overspeed_nav)
+
+    # 2. Out of domain omega (>5.0 rad/s)
+    bad_comp = WaveComponent(amplitude_m=1.0, omega_radps=8.0, phase_rad=0.0, direction_to_rad=0.0)
+    bad_truth = EnvironmentTruth(
+        wind=WindSample(velocity_ne=(0.0, 0.0)),
+        current=CurrentSample(velocity_ne=(0.0, 0.0)),
+        wave=WaveFieldSample(significant_height_m=1.0, peak_period_s=5.0, direction_to_rad=0.0, components=(bad_comp,)),
+        mean_drift=MeanDriftSourceSample(components=(bad_comp,)),
+        time_s=0.0,
+        tick=0,
+    )
+    normal_nav = NavigationState(0.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+
+    with pytest.raises(OutOfDomainError, match="outside applicability domain"):
+        model.compute_loads(bad_truth, normal_nav)
+    with pytest.raises(OutOfDomainError, match="outside applicability domain"):
+        model.compute_total_load_for_rhs(bad_truth, normal_nav)

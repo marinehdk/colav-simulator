@@ -1528,28 +1528,25 @@ class MeanDriftLoadModel:
         kg_val = max(params.kg_m, t_val)
 
         k = np.maximum(arrays.omega_sq / params.gravity_mps2, 1.0e-8)
-        kl = np.clip(k * l_val, 0.0, 60.0)
-        kb = np.clip(k * b_val, 0.0, 60.0)
-        kt = np.clip(k * t_val, 0.0, 60.0)
+        kl = np.minimum(np.maximum(k * l_val, 0.0), 60.0)
+        kb = np.minimum(np.maximum(k * b_val, 0.0), 60.0)
+        kt = np.minimum(np.maximum(k * t_val, 0.0), 60.0)
 
         long_wave_build_up = (kl * kl) / (1.0 + kl * kl)
         short_wave_decay = 1.0 / np.sqrt(1.0 + (kl / 8.0) ** 4.0)
         draft_participation = np.sqrt(np.maximum(0.0, 1.0 - np.exp(-2.0 * kt)))
         finite_beam_reflection = 1.0 - np.exp(-2.0 * kb)
 
-        freq_shape = np.clip(
-            long_wave_build_up * short_wave_decay * np.maximum(0.25, draft_participation),
-            0.0,
+        freq_shape = np.minimum(
+            np.maximum(long_wave_build_up * short_wave_decay * np.maximum(0.25, draft_participation), 0.0),
             1.5,
         )
-        head_eff = np.clip(
-            asset.inferred_surge_scale * finite_beam_reflection * freq_shape,
-            0.0,
+        head_eff = np.minimum(
+            np.maximum(asset.inferred_surge_scale * finite_beam_reflection * freq_shape, 0.0),
             1.0,
         )
-        beam_eff = np.clip(
-            asset.inferred_sway_scale * finite_beam_reflection * freq_shape,
-            0.0,
+        beam_eff = np.minimum(
+            np.maximum(asset.inferred_sway_scale * finite_beam_reflection * freq_shape, 0.0),
             1.0,
         )
 
@@ -1836,7 +1833,7 @@ def _validate_load_model_wave_assets(
 class EnvironmentalLoadModel:
     """Plant-side environmental load model with explicit component summation and current de-duplication (VR-09, VR-10)."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0912, PLR0915
         self,
         vessel_params: VesselEnvironmentalParameters,
         current_strategy: CurrentStrategy | str = CurrentStrategy.CURRENT_RELATIVE_DAMPING,
@@ -1892,6 +1889,71 @@ class EnvironmentalLoadModel:
         self._enable_wind = enable_wind
         self._enable_current = enable_current
 
+        self._fused_wave_kernel_ready = (
+            self._wave_mode == WaveLoadMode.BOTH
+            and isinstance(self._wave_first_order_asset, InferredWaveResponseAsset)
+            and isinstance(self._wave_mean_drift_asset, InferredWaveDriftAsset)
+        )
+        if self._fused_wave_kernel_ready:
+            w1_asset = self._wave_first_order_asset
+            wdrift_asset = self._wave_mean_drift_asset
+            if w1_asset is None or wdrift_asset is None:
+                raise AssetMissingError("Wave assets required for fused wave load initialization")
+
+            k_xx = 0.4 * vessel_params.beam_m
+            if k_xx < 1.0e-3 or vessel_params.gm_t_m < 1.0e-4:
+                self._static_roll_nat_freq = 0.4
+            else:
+                self._static_roll_nat_freq = math.sqrt(vessel_params.gravity_mps2 * vessel_params.gm_t_m / (k_xx * k_xx))
+
+            self._static_sway_geom_1st = (
+                vessel_params.water_density_kg_m3
+                * vessel_params.gravity_mps2
+                * vessel_params.beam_m
+                * vessel_params.length_between_perpendiculars_m
+            )
+            self._static_roll_geom_1st = (
+                vessel_params.water_density_kg_m3
+                * vessel_params.gravity_mps2
+                * (vessel_params.beam_m * vessel_params.beam_m * 0.25)
+                * vessel_params.length_between_perpendiculars_m
+                * 0.03
+            )
+            self._static_fx_scale_1st = w1_asset.rao_surge_scale * w1_asset.fk_scale_factor
+            self._static_fy_scale_1st = w1_asset.rao_sway_scale * w1_asset.fk_scale_factor
+            self._static_mx_scale_1st = w1_asset.rao_roll_scale
+            self._static_mz_scale_1st = (
+                w1_asset.rao_yaw_scale * w1_asset.fk_scale_factor * vessel_params.length_between_perpendiculars_m * 0.5
+            )
+            self._static_draft_half = vessel_params.draft_m * 0.5
+            self._static_draft = vessel_params.draft_m
+            self._static_inv_gravity = 1.0 / vessel_params.gravity_mps2
+            self._static_rao_cutoff_surge = max(w1_asset.rao_cutoff_surge, 1.0e-4)
+            self._static_rao_cutoff_sway = max(w1_asset.rao_cutoff_sway, 1.0e-4)
+            self._static_rao_cutoff_yaw = max(w1_asset.rao_cutoff_yaw, 1.0e-4)
+            self._static_rao_cutoff_roll = max(self._static_roll_nat_freq, 1.0e-4)
+            self._static_rao_scale_max = w1_asset.rao_scale_max
+            self._static_rao_scale_max_roll = w1_asset.rao_scale_max_roll
+            self._static_rao_damping_roll_sq_4 = 4.0 * (w1_asset.rao_damping_roll**2)
+
+            l_val = max(vessel_params.length_between_perpendiculars_m, 0.1)
+            b_val = max(vessel_params.beam_m, 0.1)
+            t_val = max(vessel_params.draft_m, 0.1)
+            kg_val = max(vessel_params.kg_m, t_val)
+
+            self._static_l_val = l_val
+            self._static_b_val = b_val
+            self._static_t_val = t_val
+            self._static_kg_val = kg_val
+            self._static_surge_geom_drift = vessel_params.water_density_kg_m3 * vessel_params.gravity_mps2 * b_val
+            self._static_sway_geom_drift = vessel_params.water_density_kg_m3 * vessel_params.gravity_mps2 * l_val
+            self._static_yaw_lever = wdrift_asset.inferred_yaw_lever_scale * l_val
+            self._static_roll_lever = wdrift_asset.inferred_roll_lever_scale * max(0.1, kg_val - 0.33 * t_val)
+            self._static_inferred_surge_scale = wdrift_asset.inferred_surge_scale
+            self._static_inferred_sway_scale = wdrift_asset.inferred_sway_scale
+            self._static_drift_max_force_n = wdrift_asset.max_force_n
+            self._static_drift_max_moment_nm = wdrift_asset.max_moment_nm
+
     @property
     def vessel_params(self) -> VesselEnvironmentalParameters:
         """Return immutable vessel environmental parameters."""
@@ -1927,7 +1989,7 @@ class EnvironmentalLoadModel:
         """Return wave mean-drift asset."""
         return self._wave_mean_drift_asset
 
-    def compute_loads(
+    def compute_loads(  # noqa: PLR0912
         self,
         truth: EnvironmentTruth,
         vessel_state: NavigationState | PlantState,
@@ -1982,30 +2044,38 @@ class EnvironmentalLoadModel:
         else:
             current_load = VesselLoad.zero()
 
-        # 3. Wave first-order load
-        if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
-            wave_1st = FirstOrderWaveLoadModel.calculate(
+        # 3. Wave loads (first-order and mean-drift)
+        if self._fused_wave_kernel_ready and truth.wave.components == truth.mean_drift.components:
+            wave_1st, wave_drift = self._calculate_fused_inferred_wave_loads(
                 wave=truth.wave,
                 heading_rad=heading_rad,
                 surge_mps=surge_mps,
                 sway_mps=sway_mps,
                 stage_time_s=truth.time_s,
-                params=self._vessel_params,
-                asset=self._wave_first_order_asset,
             )
         else:
-            wave_1st = VesselLoad.zero()
+            if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
+                wave_1st = FirstOrderWaveLoadModel.calculate(
+                    wave=truth.wave,
+                    heading_rad=heading_rad,
+                    surge_mps=surge_mps,
+                    sway_mps=sway_mps,
+                    stage_time_s=truth.time_s,
+                    params=self._vessel_params,
+                    asset=self._wave_first_order_asset,
+                )
+            else:
+                wave_1st = VesselLoad.zero()
 
-        # 4. Wave mean-drift load
-        if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
-            wave_drift = MeanDriftLoadModel.calculate(
-                wave=truth.mean_drift,
-                heading_rad=heading_rad,
-                params=self._vessel_params,
-                asset=self._wave_mean_drift_asset,
-            )
-        else:
-            wave_drift = VesselLoad.zero()
+            if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
+                wave_drift = MeanDriftLoadModel.calculate(
+                    wave=truth.mean_drift,
+                    heading_rad=heading_rad,
+                    params=self._vessel_params,
+                    asset=self._wave_mean_drift_asset,
+                )
+            else:
+                wave_drift = VesselLoad.zero()
 
         return EnvironmentalLoads.from_components(
             wind=wind_load,
@@ -2049,7 +2119,7 @@ class EnvironmentalLoadModel:
             },
         )
 
-    def compute_total_load_for_rhs(
+    def compute_total_load_for_rhs(  # noqa: PLR0912
         self,
         truth: EnvironmentTruth,
         vessel_state: NavigationState | PlantState,
@@ -2092,32 +2162,215 @@ class EnvironmentalLoadModel:
         else:
             current_load = VesselLoad.zero()
 
-        # 3. Wave first-order load
-        if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
-            wave_1st = FirstOrderWaveLoadModel.calculate(
+        # 3. Wave loads (first-order and mean-drift)
+        if self._fused_wave_kernel_ready and truth.wave.components == truth.mean_drift.components:
+            wave_1st, wave_drift = self._calculate_fused_inferred_wave_loads(
                 wave=truth.wave,
                 heading_rad=heading_rad,
                 surge_mps=surge_mps,
                 sway_mps=sway_mps,
                 stage_time_s=truth.time_s,
-                params=self._vessel_params,
-                asset=self._wave_first_order_asset,
             )
         else:
-            wave_1st = VesselLoad.zero()
+            if self._wave_mode in (WaveLoadMode.FIRST_ORDER, WaveLoadMode.BOTH):
+                wave_1st = FirstOrderWaveLoadModel.calculate(
+                    wave=truth.wave,
+                    heading_rad=heading_rad,
+                    surge_mps=surge_mps,
+                    sway_mps=sway_mps,
+                    stage_time_s=truth.time_s,
+                    params=self._vessel_params,
+                    asset=self._wave_first_order_asset,
+                )
+            else:
+                wave_1st = VesselLoad.zero()
 
-        # 4. Wave mean-drift load
-        if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
-            wave_drift = MeanDriftLoadModel.calculate(
-                wave=truth.mean_drift,
-                heading_rad=heading_rad,
-                params=self._vessel_params,
-                asset=self._wave_mean_drift_asset,
-            )
-        else:
-            wave_drift = VesselLoad.zero()
+            if self._wave_mode in (WaveLoadMode.MEAN_DRIFT, WaveLoadMode.BOTH):
+                wave_drift = MeanDriftLoadModel.calculate(
+                    wave=truth.mean_drift,
+                    heading_rad=heading_rad,
+                    params=self._vessel_params,
+                    asset=self._wave_mean_drift_asset,
+                )
+            else:
+                wave_drift = VesselLoad.zero()
 
         return wind_load + current_load + wave_1st + wave_drift
+
+    def _calculate_fused_inferred_wave_loads(  # noqa: PLR0915
+        self,
+        wave: WaveFieldSample,
+        heading_rad: float,
+        surge_mps: float,
+        sway_mps: float,
+        stage_time_s: float,
+    ) -> tuple[VesselLoad, VesselLoad]:
+        """Fused evaluation of first-order wave and diagonal Ai2 mean-drift loads (Slice A)."""
+        w1_asset = self._wave_first_order_asset
+        wdrift_asset = self._wave_mean_drift_asset
+        if w1_asset is None or wdrift_asset is None:
+            raise AssetMissingError("Wave assets required for fused wave load calculation")
+
+        if not wave.components:
+            return VesselLoad.zero(), VesselLoad.zero()
+
+        heading = _finite_scalar("heading_rad", heading_rad)
+        u = _finite_scalar("surge_mps", surge_mps)
+        v = _finite_scalar("sway_mps", sway_mps)
+        t = _finite_scalar("stage_time_s", stage_time_s)
+        speed = math.hypot(u, v)
+
+        if not w1_asset.metadata.applicability_domain.contains(speed_mps=speed, draft_m=self._vessel_params.draft_m):
+            raise OutOfDomainError(
+                f"Vessel state (speed={speed:.2f} m/s, draft={self._vessel_params.draft_m:.2f} m) "
+                f"outside applicability domain of asset {w1_asset.metadata.asset_id}"
+            )
+
+        arrays = _extract_wave_component_arrays(wave)
+        if arrays is None or len(arrays.amplitudes) == 0:
+            return VesselLoad.zero(), VesselLoad.zero()
+
+        amps = arrays.amplitudes
+        omegas = arrays.omegas
+        phases = arrays.phases
+        dirs = arrays.directions
+
+        gamma_dir = dirs - heading
+        gamma_deg = np.degrees(gamma_dir) % 360.0
+
+        _check_wave_domain_batch(w1_asset.metadata.asset_id, w1_asset.metadata.applicability_domain, gamma_deg, omegas, amps)
+        if wdrift_asset.metadata.applicability_domain != w1_asset.metadata.applicability_domain:
+            _check_wave_domain_batch(
+                wdrift_asset.metadata.asset_id,
+                wdrift_asset.metadata.applicability_domain,
+                gamma_deg,
+                omegas,
+                amps,
+            )
+
+        cos_gamma = np.cos(gamma_dir)
+        sin_gamma = np.sin(gamma_dir)
+        sin_2gamma = np.sin(2.0 * gamma_dir)
+
+        k_1st = arrays.omega_sq * self._static_inv_gravity
+        vel_along_wave = u * cos_gamma + v * sin_gamma
+        omega_e = omegas - k_1st * vel_along_wave
+        omega_rao = np.maximum(np.abs(omega_e), 1.0e-4)
+
+        e_half = np.exp(-k_1st * self._static_draft_half)
+        f_fk_sway = amps * (self._static_sway_geom_1st * k_1st * e_half)
+
+        k_denom = np.maximum(k_1st, 1.0e-8)
+        i_depth_roll = (1.0 - np.exp(-k_1st * self._static_draft)) / k_denom
+        f_fk_roll = amps * (self._static_roll_geom_1st * i_depth_roll)
+
+        r_surge = omega_rao / self._static_rao_cutoff_surge
+        rao_surge = np.minimum(1.0 / np.sqrt(1.0 + r_surge * r_surge), self._static_rao_scale_max)
+
+        r_sway = omega_rao / self._static_rao_cutoff_sway
+        rao_sway = np.minimum(1.0 / np.sqrt(1.0 + r_sway * r_sway), self._static_rao_scale_max)
+
+        r_yaw = omega_rao / self._static_rao_cutoff_yaw
+        rao_yaw = np.minimum(1.0 / np.sqrt(1.0 + r_yaw * r_yaw), self._static_rao_scale_max)
+
+        r_roll = omega_rao / self._static_rao_cutoff_roll
+        r_roll_sq = r_roll * r_roll
+        d_roll = np.sqrt((1.0 - r_roll_sq) ** 2 + self._static_rao_damping_roll_sq_4 * r_roll_sq)
+        mid_val = np.minimum(1.0 / np.maximum(d_roll, 1.0e-6), self._static_rao_scale_max_roll)
+        high_val = np.minimum(2.0 / r_roll_sq, self._static_rao_scale_max_roll)
+        rao_roll = np.where(r_roll < 0.5, 1.0, np.where(r_roll <= 2.0, mid_val, high_val))
+
+        phase_t = omega_e * t + phases
+        cos_phase = np.cos(phase_t)
+        sin_phase = np.sin(phase_t)
+
+        fx_1st_comp = self._static_fx_scale_1st * (f_fk_sway * cos_gamma * cos_phase * rao_surge)
+        fy_1st_comp = self._static_fy_scale_1st * (f_fk_sway * sin_gamma * cos_phase * rao_sway)
+        mx_1st_comp = self._static_mx_scale_1st * (f_fk_roll * sin_gamma * cos_phase * rao_roll)
+        mz_1st_comp = self._static_mz_scale_1st * (f_fk_sway * sin_2gamma * sin_phase * rao_yaw)
+
+        # Drift components
+        k_drift = k_denom
+        kl = np.minimum(np.maximum(k_drift * self._static_l_val, 0.0), 60.0)
+        kb = np.minimum(np.maximum(k_drift * self._static_b_val, 0.0), 60.0)
+        kt = np.minimum(np.maximum(k_drift * self._static_t_val, 0.0), 60.0)
+
+        long_wave_build_up = (kl * kl) / (1.0 + kl * kl)
+        short_wave_decay = 1.0 / np.sqrt(1.0 + (kl / 8.0) ** 4.0)
+        draft_participation = np.sqrt(np.maximum(0.0, 1.0 - np.exp(-2.0 * kt)))
+        finite_beam_reflection = 1.0 - np.exp(-2.0 * kb)
+
+        freq_shape = np.minimum(
+            np.maximum(long_wave_build_up * short_wave_decay * np.maximum(0.25, draft_participation), 0.0),
+            1.5,
+        )
+        head_eff = np.minimum(
+            np.maximum(self._static_inferred_surge_scale * finite_beam_reflection * freq_shape, 0.0),
+            1.0,
+        )
+        beam_eff = np.minimum(
+            np.maximum(self._static_inferred_sway_scale * finite_beam_reflection * freq_shape, 0.0),
+            1.0,
+        )
+
+        c_abs = np.abs(cos_gamma)
+        s_abs = np.abs(sin_gamma)
+
+        surge_per_amp2 = self._static_surge_geom_drift * head_eff
+        sway_per_amp2 = self._static_sway_geom_drift * beam_eff
+
+        amp_sq = arrays.amp_sq
+        cfx = surge_per_amp2 * cos_gamma * c_abs
+        cfy = sway_per_amp2 * sin_gamma * s_abs
+        cmz = sway_per_amp2 * (self._static_yaw_lever * cos_gamma * sin_gamma)
+        cmx = sway_per_amp2 * (self._static_roll_lever * sin_gamma * s_abs)
+
+        if np.any(amps <= 0.0):
+            mask = amps > 0.0
+            total_1st_fx = float(np.sum(fx_1st_comp[mask]))
+            total_1st_fy = float(np.sum(fy_1st_comp[mask]))
+            total_1st_mx = float(np.sum(mx_1st_comp[mask]))
+            total_1st_mz = float(np.sum(mz_1st_comp[mask]))
+
+            total_drift_fx = float(np.sum((cfx * amp_sq)[mask]))
+            total_drift_fy = float(np.sum((cfy * amp_sq)[mask]))
+            total_drift_mz = float(np.sum((cmz * amp_sq)[mask]))
+            total_drift_mx = float(np.sum((cmx * amp_sq)[mask]))
+        else:
+            total_1st_fx = float(np.sum(fx_1st_comp))
+            total_1st_fy = float(np.sum(fy_1st_comp))
+            total_1st_mx = float(np.sum(mx_1st_comp))
+            total_1st_mz = float(np.sum(mz_1st_comp))
+
+            total_drift_fx = float(np.sum(cfx * amp_sq))
+            total_drift_fy = float(np.sum(cfy * amp_sq))
+            total_drift_mz = float(np.sum(cmz * amp_sq))
+            total_drift_mx = float(np.sum(cmx * amp_sq))
+
+        if self._static_drift_max_force_n is not None and self._static_drift_max_force_n > 0.0:
+            fnorm = math.hypot(total_drift_fx, total_drift_fy)
+            if fnorm > self._static_drift_max_force_n:
+                scale = self._static_drift_max_force_n / fnorm
+                total_drift_fx *= scale
+                total_drift_fy *= scale
+        if self._static_drift_max_moment_nm is not None and self._static_drift_max_moment_nm > 0.0:
+            total_drift_mx = math.copysign(min(abs(total_drift_mx), self._static_drift_max_moment_nm), total_drift_mx)
+            total_drift_mz = math.copysign(min(abs(total_drift_mz), self._static_drift_max_moment_nm), total_drift_mz)
+
+        return (
+            VesselLoad(
+                surge_n=total_1st_fx,
+                sway_n=total_1st_fy,
+                yaw_nm=total_1st_mz,
+                roll_nm=total_1st_mx,
+            ),
+            VesselLoad(
+                surge_n=total_drift_fx,
+                sway_n=total_drift_fy,
+                yaw_nm=total_drift_mz,
+                roll_nm=total_drift_mx,
+            ),
+        )
 
     @classmethod
     def from_params(cls, params: dict[str, Any] | Mapping[str, Any]) -> EnvironmentalLoadModel:
