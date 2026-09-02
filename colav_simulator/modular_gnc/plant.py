@@ -348,6 +348,62 @@ class Generic3DOFPlant:
             dtype=np.float64,
         )
 
+    def rhs_numeric_3dof(
+        self,
+        x: FloatArray,
+        tau_ctrl: tuple[float, float, float],
+        tau_env: tuple[float, float, float],
+    ) -> FloatArray:
+        """Internal fast RHS calculation for Generic3DOFPlant during integrator stages (Slice B/C)."""
+        north = float(x[0])
+        east = float(x[1])
+        psi = float(x[2])
+        u = float(x[3])
+        v = float(x[4])
+        r = float(x[5])
+
+        # Kinematics
+        cos_psi = math.cos(psi)
+        sin_psi = math.sin(psi)
+        d_north = u * cos_psi - v * sin_psi
+        d_east = u * sin_psi + v * cos_psi
+        d_psi = r
+
+        # Dynamics: Coriolis
+        m11 = self._m_mat[0, 0]
+        m22 = self._m_mat[1, 1]
+        m23 = self._m_mat[1, 2]
+        c13 = m22 * v + m23 * r
+        c23 = m11 * u
+
+        c_fx = -c13 * r
+        c_fy = c23 * r
+        c_mz = c13 * u - c23 * v
+
+        p = self._params
+        abs_u = abs(u)
+        abs_v = abs(v)
+        abs_r = abs(r)
+
+        d_fx = (p.d_u + p.d_uu * abs_u) * u
+        d_fy = (p.d_v + p.d_vv * abs_v) * v + p.d_vr * r
+        d_mz = (p.d_r + p.d_rr * abs_r) * r + p.d_rv * v
+
+        g_fx = p.restoring_k_n * north
+        g_fy = p.restoring_k_e * east
+        g_mz = p.restoring_k_psi * psi
+
+        net_fx = (tau_ctrl[0] + tau_env[0]) - c_fx - d_fx - g_fx
+        net_fy = (tau_ctrl[1] + tau_env[1]) - c_fy - d_fy - g_fy
+        net_mz = (tau_ctrl[2] + tau_env[2]) - c_mz - d_mz - g_mz
+
+        inv_m = self._inv_m_mat
+        du = inv_m[0, 0] * net_fx
+        dv = inv_m[1, 1] * net_fy + inv_m[1, 2] * net_mz
+        dr = inv_m[2, 1] * net_fy + inv_m[2, 2] * net_mz
+
+        return np.array([d_north, d_east, d_psi, du, dv, dr], dtype=np.float64)
+
 
 @dataclass(frozen=True)
 class GenericRoll4DOFPlantParameters:

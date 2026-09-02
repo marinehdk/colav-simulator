@@ -155,7 +155,7 @@ class EnvironmentField(Protocol):
 class AnalyticEnvironmentField:
     """Immutable, deterministic analytic environment field driven by keyed PRF."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0912
         self,
         dt_s: float,
         field_seed: int,
@@ -221,6 +221,25 @@ class AnalyticEnvironmentField:
             )
         self._cached_component_arrays = build_wave_component_arrays(self._wave_components)
 
+        wave_sample = WaveFieldSample(
+            significant_height_m=self._wave_hs,
+            peak_period_s=self._wave_tp,
+            direction_to_rad=self._wave_dir,
+            components=self._wave_components,
+        )
+        drift_sample = MeanDriftSourceSample(
+            components=self._wave_components,
+            directional_spread_rad=self._wave_spread,
+        )
+        if self._cached_component_arrays is not None:
+            try:
+                object.__setattr__(wave_sample, "_cached_component_arrays", self._cached_component_arrays)
+                object.__setattr__(drift_sample, "_cached_component_arrays", self._cached_component_arrays)
+            except Exception:
+                pass
+        self._cached_wave_sample = wave_sample
+        self._cached_mean_drift_sample = drift_sample
+
     @classmethod
     def from_params(
         cls,
@@ -263,6 +282,46 @@ class AnalyticEnvironmentField:
         """Return availability flag."""
         return self._available
 
+    @property
+    def wave_sample(self) -> WaveFieldSample:
+        """Return immutable WaveFieldSample."""
+        return self._cached_wave_sample
+
+    @property
+    def mean_drift_sample(self) -> MeanDriftSourceSample:
+        """Return immutable MeanDriftSourceSample."""
+        return self._cached_mean_drift_sample
+
+    def sample_wind_velocity_ne(self, tick: int) -> tuple[float, float]:
+        """Sample world NE wind velocity vector at given tick (m/s)."""
+        valid_tick = _non_bool_int("tick", tick)
+        wind_n_pert = (
+            prf_gaussian(self._field_seed, valid_tick, "wind_n") * self._wind_pert_std[0]
+            if self._wind_pert_std[0] > 0.0
+            else 0.0
+        )
+        wind_e_pert = (
+            prf_gaussian(self._field_seed, valid_tick, "wind_e") * self._wind_pert_std[1]
+            if self._wind_pert_std[1] > 0.0
+            else 0.0
+        )
+        return (self._wind_base_ne[0] + wind_n_pert, self._wind_base_ne[1] + wind_e_pert)
+
+    def sample_current_velocity_ne(self, tick: int) -> tuple[float, float]:
+        """Sample world NE current velocity vector at given tick (m/s)."""
+        valid_tick = _non_bool_int("tick", tick)
+        curr_n_pert = (
+            prf_gaussian(self._field_seed, valid_tick, "curr_n") * self._current_pert_std[0]
+            if self._current_pert_std[0] > 0.0
+            else 0.0
+        )
+        curr_e_pert = (
+            prf_gaussian(self._field_seed, valid_tick, "curr_e") * self._current_pert_std[1]
+            if self._current_pert_std[1] > 0.0
+            else 0.0
+        )
+        return (self._current_base_ne[0] + curr_n_pert, self._current_base_ne[1] + curr_e_pert)
+
     def sample_at(
         self,
         tick: int,
@@ -276,61 +335,23 @@ class AnalyticEnvironmentField:
 
         time_s = valid_tick * self._dt_s + stage_offset_s
 
-        # Stateless PRF perturbations per tick
-        wind_n_pert = (
-            prf_gaussian(self._field_seed, valid_tick, "wind_n") * self._wind_pert_std[0]
-            if self._wind_pert_std[0] > 0.0
-            else 0.0
-        )
-        wind_e_pert = (
-            prf_gaussian(self._field_seed, valid_tick, "wind_e") * self._wind_pert_std[1]
-            if self._wind_pert_std[1] > 0.0
-            else 0.0
-        )
+        wind_vel = self.sample_wind_velocity_ne(valid_tick)
         wind_sample = WindSample(
-            velocity_ne=(self._wind_base_ne[0] + wind_n_pert, self._wind_base_ne[1] + wind_e_pert),
+            velocity_ne=wind_vel,
             reference_height_m=self._wind_ref_h,
         )
 
-        curr_n_pert = (
-            prf_gaussian(self._field_seed, valid_tick, "curr_n") * self._current_pert_std[0]
-            if self._current_pert_std[0] > 0.0
-            else 0.0
-        )
-        curr_e_pert = (
-            prf_gaussian(self._field_seed, valid_tick, "curr_e") * self._current_pert_std[1]
-            if self._current_pert_std[1] > 0.0
-            else 0.0
-        )
+        curr_vel = self.sample_current_velocity_ne(valid_tick)
         current_sample = CurrentSample(
-            velocity_ne=(self._current_base_ne[0] + curr_n_pert, self._current_base_ne[1] + curr_e_pert),
+            velocity_ne=curr_vel,
             reference=self._current_ref,
         )
-
-        wave_sample = WaveFieldSample(
-            significant_height_m=self._wave_hs,
-            peak_period_s=self._wave_tp,
-            direction_to_rad=self._wave_dir,
-            components=self._wave_components,
-        )
-
-        drift_sample = MeanDriftSourceSample(
-            components=self._wave_components,
-            directional_spread_rad=self._wave_spread,
-        )
-
-        if self._cached_component_arrays is not None:
-            try:
-                object.__setattr__(wave_sample, "_cached_component_arrays", self._cached_component_arrays)
-                object.__setattr__(drift_sample, "_cached_component_arrays", self._cached_component_arrays)
-            except Exception:
-                pass
 
         return EnvironmentTruth(
             wind=wind_sample,
             current=current_sample,
-            wave=wave_sample,
-            mean_drift=drift_sample,
+            wave=self._cached_wave_sample,
+            mean_drift=self._cached_mean_drift_sample,
             time_s=time_s,
             tick=valid_tick,
             stage_offset_s=stage_offset_s,

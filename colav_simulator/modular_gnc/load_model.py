@@ -7,7 +7,10 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from colav_simulator.modular_gnc.environment import AnalyticEnvironmentField
 
 import numpy as np
 
@@ -2371,6 +2374,169 @@ class EnvironmentalLoadModel:
                 roll_nm=total_drift_mx,
             ),
         )
+
+    def compute_stage_load_3dof(  # noqa: C901, PLR0912, PLR0915
+        self,
+        field: AnalyticEnvironmentField,
+        tick: int,
+        stage_offset_s: float,
+        state_vector: FloatArray,
+    ) -> tuple[float, float, float]:
+        """Internal fast path computing 3DOF load tuple (surge_n, sway_n, yaw_nm) for RK stages (Slice B)."""
+        psi = float(state_vector[2])
+        u = float(state_vector[3])
+        v = float(state_vector[4])
+        time_s = tick * field.dt_s + stage_offset_s
+
+        # 1. Wind load
+        if self._enable_wind:
+            wind_vel = field.sample_wind_velocity_ne(tick)
+            vx_b, vy_b = world_ne_to_body_velocity(wind_vel, psi)
+            rel_u = vx_b - u
+            rel_v = vy_b - v
+            apparent_speed = math.hypot(rel_u, rel_v)
+            if apparent_speed >= 1e-9:
+                apparent_dir_deg = _normalize_degrees(math.degrees(math.atan2(rel_v, rel_u)))
+                if self._wind_asset is None:
+                    raise AssetMissingError("Wind coefficient asset is required for WindLoadModel")
+                if not self._wind_asset.metadata.applicability_domain.contains(
+                    heading_deg=apparent_dir_deg, speed_mps=apparent_speed
+                ):
+                    raise OutOfDomainError(
+                        f"Apparent wind (dir={apparent_dir_deg:.1f} deg, speed={apparent_speed:.2f} m/s) "
+                        f"outside applicability domain of asset {self._wind_asset.metadata.asset_id}"
+                    )
+                cx, cy, cn = self._wind_asset.interpolate(apparent_dir_deg)
+                q_wind = 0.5 * self._vessel_params.air_density_kg_m3 * apparent_speed * apparent_speed
+                wind_fx = q_wind * cx * self._vessel_params.wind_frontal_area_m2
+                wind_fy = q_wind * cy * self._vessel_params.wind_lateral_area_m2
+                wind_mz = (
+                    q_wind
+                    * cn
+                    * self._vessel_params.wind_lateral_area_m2
+                    * self._vessel_params.length_between_perpendiculars_m
+                )
+            else:
+                wind_fx = 0.0
+                wind_fy = 0.0
+                wind_mz = 0.0
+        else:
+            wind_fx = 0.0
+            wind_fy = 0.0
+            wind_mz = 0.0
+
+        # 2. Current load
+        if self._enable_current and self._current_strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD:
+            curr_vel = field.sample_current_velocity_ne(tick)
+            vcx_b, vcy_b = world_ne_to_body_velocity(curr_vel, psi)
+            rel_u = vcx_b - u
+            rel_v = vcy_b - v
+            speed = math.hypot(rel_u, rel_v)
+            if speed >= 1e-9:
+                apparent_dir_rad = math.atan2(rel_v, rel_u)
+                apparent_dir_deg = _normalize_degrees(math.degrees(apparent_dir_rad))
+                safe_t = min(self._vessel_params.draft_m, self._vessel_params.water_depth_m * 0.95)
+                if safe_t <= 0.0:
+                    curr_fx = 0.0
+                    curr_fy = 0.0
+                    curr_mz = 0.0
+                else:
+                    if self._current_asset is None:
+                        raise AssetMissingError("Current asset is required when strategy is EXTERNAL_CURRENT_LOAD")
+                    if not self._current_asset.metadata.applicability_domain.contains(
+                        heading_deg=apparent_dir_deg,
+                        speed_mps=speed,
+                        draft_m=safe_t,
+                    ):
+                        raise OutOfDomainError(
+                            f"Apparent current (dir={apparent_dir_deg:.1f} deg, speed={speed:.2f} m/s, "
+                            f"draft={safe_t:.2f} m) outside applicability domain of asset "
+                            f"{self._current_asset.metadata.asset_id}"
+                        )
+                    if isinstance(self._current_asset, InferredCurrentAsset):
+                        ccx, ccy, cmz, _ = self._current_asset.evaluate(apparent_dir_rad)
+                    elif isinstance(self._current_asset, CurrentCoeffTableAsset):
+                        ccx, ccy, cmz, _ = self._current_asset.interpolate(apparent_dir_deg)
+                    else:
+                        raise TypeError(f"Unsupported current asset type: {type(self._current_asset).__name__}")
+
+                    s_long = self._vessel_params.beam_m * safe_t
+                    s_trans = self._vessel_params.length_between_perpendiculars_m * safe_t
+                    v2 = speed * speed
+                    half_rho = 0.5 * self._vessel_params.water_density_kg_m3
+
+                    curr_fx = half_rho * ccx * s_long * v2
+                    curr_fy = half_rho * ccy * s_trans * v2
+                    curr_mz = half_rho * cmz * s_trans * self._vessel_params.length_between_perpendiculars_m * v2
+            else:
+                curr_fx = 0.0
+                curr_fy = 0.0
+                curr_mz = 0.0
+        else:
+            curr_fx = 0.0
+            curr_fy = 0.0
+            curr_mz = 0.0
+
+        # 3. Wave loads
+        if self._wave_mode == WaveLoadMode.OFF:
+            wave_fx = 0.0
+            wave_fy = 0.0
+            wave_mz = 0.0
+        elif self._fused_wave_kernel_ready:
+            w1, wdrift = self._calculate_fused_inferred_wave_loads(
+                wave=field.wave_sample,
+                heading_rad=psi,
+                surge_mps=u,
+                sway_mps=v,
+                stage_time_s=time_s,
+            )
+            wave_fx = w1.surge_n + wdrift.surge_n
+            wave_fy = w1.sway_n + wdrift.sway_n
+            wave_mz = w1.yaw_nm + wdrift.yaw_nm
+        elif self._wave_mode == WaveLoadMode.FIRST_ORDER:
+            w1 = FirstOrderWaveLoadModel.calculate(
+                wave=field.wave_sample,
+                heading_rad=psi,
+                surge_mps=u,
+                sway_mps=v,
+                stage_time_s=time_s,
+                params=self._vessel_params,
+                asset=self._wave_first_order_asset,
+            )
+            wave_fx = w1.surge_n
+            wave_fy = w1.sway_n
+            wave_mz = w1.yaw_nm
+        elif self._wave_mode == WaveLoadMode.MEAN_DRIFT:
+            wdrift = MeanDriftLoadModel.calculate(
+                wave=field.mean_drift_sample,
+                heading_rad=psi,
+                params=self._vessel_params,
+                asset=self._wave_mean_drift_asset,
+            )
+            wave_fx = wdrift.surge_n
+            wave_fy = wdrift.sway_n
+            wave_mz = wdrift.yaw_nm
+        else:
+            w1 = FirstOrderWaveLoadModel.calculate(
+                wave=field.wave_sample,
+                heading_rad=psi,
+                surge_mps=u,
+                sway_mps=v,
+                stage_time_s=time_s,
+                params=self._vessel_params,
+                asset=self._wave_first_order_asset,
+            )
+            wdrift = MeanDriftLoadModel.calculate(
+                wave=field.mean_drift_sample,
+                heading_rad=psi,
+                params=self._vessel_params,
+                asset=self._wave_mean_drift_asset,
+            )
+            wave_fx = w1.surge_n + wdrift.surge_n
+            wave_fy = w1.sway_n + wdrift.sway_n
+            wave_mz = w1.yaw_nm + wdrift.yaw_nm
+
+        return (wind_fx + curr_fx + wave_fx, wind_fy + curr_fy + wave_fy, wind_mz + curr_mz + wave_mz)
 
     @classmethod
     def from_params(cls, params: dict[str, Any] | Mapping[str, Any]) -> EnvironmentalLoadModel:

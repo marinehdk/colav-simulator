@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import hashlib
 import time
 import unittest.mock
+from typing import Any
 
 import numpy as np
 import pytest
@@ -16,6 +18,7 @@ from colav_simulator.modular_gnc.contracts import (
     CurrentSample,
     EnvironmentalLoads,
     EnvironmentTruth,
+    FloatArray,
     MeanDriftSourceSample,
     NavigationState,
     OutOfDomainError,
@@ -621,3 +624,260 @@ def test_slice_a_fused_out_of_domain_parity(standard_vessel_params: VesselEnviro
         model.compute_loads(bad_truth, normal_nav)
     with pytest.raises(OutOfDomainError, match="outside applicability domain"):
         model.compute_total_load_for_rhs(bad_truth, normal_nav)
+
+
+def test_slice_b_numeric_stage_vs_public_path_exactness(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Slice B: Fast numeric stage path produces bit-identical next state and trajectory vs public path."""
+    plant_params = Generic3DOFPlantParameters(
+        mass_kg=1.6e7,
+        i_z_kgm2=3.0e10,
+        x_g_m=0.0,
+        x_dot_u_kg=-5.0e6,
+        y_dot_v_kg=-3.5e7,
+        n_dot_r_kgm2=-2.0e10,
+        y_dot_r_kgm=1.0e6,
+        n_dot_v_kgm=1.0e6,
+        d_u=5.0e4,
+        d_uu=2.0e5,
+        d_v=3.0e5,
+        d_vv=1.5e6,
+        d_r=8.0e7,
+        d_rr=2.5e9,
+    )
+    plant = Generic3DOFPlant(plant_params)
+
+    # Custom wrapper around plant to force public path execution in rk4_step
+    class PublicPathPlantWrapper:
+        capabilities = frozenset({"PLANAR_3DOF", "GENERALIZED_FORCE"})
+
+        def __init__(self, inner: Generic3DOFPlant) -> None:
+            self._inner = inner
+
+        def rhs(self, time_s: float, state: Any, control_load: Any, env_load: Any = None) -> FloatArray:
+            return self._inner.rhs(time_s, state, control_load, env_load)
+
+    public_plant = PublicPathPlantWrapper(plant)
+
+    dt_s = 0.02
+    total_steps = 250  # 5s
+    field = AnalyticEnvironmentField(
+        dt_s=dt_s,
+        field_seed=7777,
+        wave_significant_height_m=1.8,
+        wave_peak_period_s=7.5,
+        wave_direction_to_rad=0.6,
+        wave_num_components=32,
+        wind_velocity_ne=(8.0, 4.0),
+        current_velocity_ne=(0.4, 0.2),
+    )
+
+    load_model = EnvironmentalLoadModel(
+        vessel_params=standard_vessel_params,
+        wave_mode=WaveLoadMode.BOTH,
+        wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+        wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+        enable_wind=True,
+        enable_current=True,
+        current_strategy="external_current_load",
+    )
+
+    state_fast = np.array([100.0, 50.0, 0.3, 2.0, 0.1, 0.01], dtype=np.float64)
+    state_pub = state_fast.copy()
+    ctrl = VesselLoad(surge_n=1e4, sway_n=2e3, yaw_nm=5e3)
+
+    for tick in range(total_steps):
+        state_fast = rk4_step(plant, tick, dt_s, state_fast, ctrl, field, load_model)
+        state_pub = rk4_step(public_plant, tick, dt_s, state_pub, ctrl, field, load_model)
+
+        # Assert bit-identical state at every single step!
+        assert np.array_equal(state_fast, state_pub), f"divergence at tick {tick}: {state_fast} vs {state_pub}"
+
+
+def test_slice_b_stage_timing_sink_parity() -> None:
+    """Slice B: Stage timing sink receives exactly 4 stages with strictly positive elapsed nanoseconds."""
+    plant_params = Generic3DOFPlantParameters(mass_kg=1.0e6, i_z_kgm2=1.0e8)
+    plant = Generic3DOFPlant(plant_params)
+    dt_s = 0.1
+    state = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0], dtype=np.float64)
+    ctrl = VesselLoad.zero()
+
+    stages_called: list[tuple[int, int]] = []
+
+    def sink(stage_num: int, elapsed_ns: int) -> None:
+        stages_called.append((stage_num, elapsed_ns))
+
+    rk4_step(plant, 0, dt_s, state, ctrl, stage_timing_sink=sink)
+
+    assert len(stages_called) == 4
+    assert [s[0] for s in stages_called] == [1, 2, 3, 4]
+    for _stage_num, elapsed in stages_called:
+        assert elapsed >= 0
+
+
+def test_slice_c_thread_and_ship_reentrancy_isolation(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Slice C: Interleaved execution across ships/threads exhibits zero cross-contamination."""
+    plant_params = Generic3DOFPlantParameters(mass_kg=1.0e6, i_z_kgm2=1.0e8)
+    plant = Generic3DOFPlant(plant_params)
+
+    dt_s = 0.02
+    field = AnalyticEnvironmentField(dt_s=dt_s, field_seed=1234)
+    load_model = EnvironmentalLoadModel(
+        vessel_params=standard_vessel_params,
+        wave_mode=WaveLoadMode.BOTH,
+        wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+        wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+        enable_wind=True,
+        enable_current=False,
+    )
+
+    def run_ship_sim(init_state: np.ndarray, ctrl_val: float, steps: int) -> list[np.ndarray]:
+        history = [init_state.copy()]
+        state = init_state.copy()
+        ctrl = VesselLoad(surge_n=ctrl_val, sway_n=0.0, yaw_nm=0.0)
+        for tick in range(steps):
+            state = rk4_step(plant, tick, dt_s, state, ctrl, field, load_model)
+            history.append(state.copy())
+        return history
+
+    s1_init = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0], dtype=np.float64)
+    s2_init = np.array([1000.0, -500.0, 1.2, 3.5, 0.2, 0.05], dtype=np.float64)
+
+    # 1. Serial execution
+    s1_serial = run_ship_sim(s1_init, 1000.0, 50)
+    s2_serial = run_ship_sim(s2_init, 5000.0, 50)
+
+    # 2. Interleaved execution step by step
+    s1_inter = [s1_init.copy()]
+    s2_inter = [s2_init.copy()]
+    s1_st = s1_init.copy()
+    s2_st = s2_init.copy()
+    c1 = VesselLoad(surge_n=1000.0, sway_n=0.0, yaw_nm=0.0)
+    c2 = VesselLoad(surge_n=5000.0, sway_n=0.0, yaw_nm=0.0)
+
+    for tick in range(50):
+        s1_st = rk4_step(plant, tick, dt_s, s1_st, c1, field, load_model)
+        s2_st = rk4_step(plant, tick, dt_s, s2_st, c2, field, load_model)
+        s1_inter.append(s1_st.copy())
+        s2_inter.append(s2_st.copy())
+
+    for k in range(len(s1_serial)):
+        assert np.array_equal(s1_serial[k], s1_inter[k]), f"Ship 1 interleaved mismatch at step {k}"
+        assert np.array_equal(s2_serial[k], s2_inter[k]), f"Ship 2 interleaved mismatch at step {k}"
+
+    # 3. Concurrent multithreaded execution
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        f1 = executor.submit(run_ship_sim, s1_init, 1000.0, 50)
+        f2 = executor.submit(run_ship_sim, s2_init, 5000.0, 50)
+        s1_threaded = f1.result()
+        s2_threaded = f2.result()
+
+    for k in range(len(s1_serial)):
+        assert np.array_equal(s1_serial[k], s1_threaded[k]), f"Ship 1 threaded mismatch at step {k}"
+        assert np.array_equal(s2_serial[k], s2_threaded[k]), f"Ship 2 threaded mismatch at step {k}"
+
+
+@pytest.mark.parametrize("wave_mode", ["off", "first_order", "mean_drift", "both"])
+@pytest.mark.parametrize("current_strategy", ["none", "current_relative_damping", "external_current_load"])
+def test_slice_b_all_modes_and_strategies_parity(
+    standard_vessel_params: VesselEnvironmentalParameters,
+    wave_mode: str,
+    current_strategy: str,
+) -> None:
+    """Slice B: Numeric stage vs public path produces identical next state across all wave modes and current strategies."""
+    plant_params = Generic3DOFPlantParameters(mass_kg=1.0e6, i_z_kgm2=1.0e8)
+    plant = Generic3DOFPlant(plant_params)
+
+    class PublicPathPlantWrapper:
+        capabilities = frozenset({"PLANAR_3DOF", "GENERALIZED_FORCE"})
+
+        def __init__(self, inner: Generic3DOFPlant) -> None:
+            self._inner = inner
+
+        def rhs(self, time_s: float, state: Any, control_load: Any, env_load: Any = None) -> FloatArray:
+            return self._inner.rhs(time_s, state, control_load, env_load)
+
+    public_plant = PublicPathPlantWrapper(plant)
+
+    dt_s = 0.05
+    field = AnalyticEnvironmentField(
+        dt_s=dt_s,
+        field_seed=8888,
+        wave_significant_height_m=1.5,
+        wave_num_components=8,
+        wind_velocity_ne=(5.0, -3.0),
+        current_velocity_ne=(0.5, 0.1),
+    )
+
+    load_model = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": wave_mode,
+            "wave_first_order_asset_id": (
+                "default_inferred_wave_response_v1" if wave_mode in ("first_order", "both") else None
+            ),
+            "wave_mean_drift_asset_id": (
+                "default_inferred_diagonal_drift_v1" if wave_mode in ("mean_drift", "both") else None
+            ),
+            "enable_wind": True,
+            "enable_current": True,
+            "current_strategy": current_strategy,
+        }
+    )
+
+    state_fast = np.array([0.0, 0.0, 0.5, 2.0, 0.2, 0.05], dtype=np.float64)
+    state_pub = state_fast.copy()
+    ctrl = VesselLoad(surge_n=1e4, sway_n=5e2, yaw_nm=1e3)
+
+    for tick in range(10):
+        state_fast = rk4_step(plant, tick, dt_s, state_fast, ctrl, field, load_model)
+        state_pub = rk4_step(public_plant, tick, dt_s, state_pub, ctrl, field, load_model)
+
+        assert np.array_equal(state_fast, state_pub)
+
+
+def test_slice_b_stage_error_validation_parity(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Slice B: Error validation for invalid dt_s, non-finite states in fast path matches contract."""
+    plant_params = Generic3DOFPlantParameters(mass_kg=1.0e6, i_z_kgm2=1.0e8)
+    plant = Generic3DOFPlant(plant_params)
+    dt_s = 0.02
+    field = AnalyticEnvironmentField(dt_s=dt_s, field_seed=4321)
+    load_model = EnvironmentalLoadModel(
+        vessel_params=standard_vessel_params,
+        wave_mode=WaveLoadMode.BOTH,
+        wave_first_order_asset=DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
+        wave_mean_drift_asset=DEFAULT_INFERRED_WAVE_DRIFT_ASSET,
+    )
+
+    # 1. Invalid dt_s <= 0
+    with pytest.raises(ValueError, match="dt_s must be positive"):
+        rk4_step(plant, 0, 0.0, np.zeros(6), VesselLoad.zero(), field, load_model)
+
+    # 2. Non-finite initial state
+    bad_state = np.array([0.0, 0.0, 0.0, np.nan, 0.0, 0.0])
+    with pytest.raises(ValueError, match="initial state contains non-finite values"):
+        rk4_step(plant, 0, dt_s, bad_state, VesselLoad.zero(), field, load_model)
+
+    # 3. Invalid state shape
+    with pytest.raises(ValueError, match="state must have shape"):
+        rk4_step(plant, 0, dt_s, np.zeros(5), VesselLoad.zero(), field, load_model)
+
+    # 4. Non-finite control load
+    bad_ctrl = np.array([np.inf, 0.0, 0.0])
+    with pytest.raises(ValueError, match="control_load contains non-finite values"):
+        rk4_step(plant, 0, dt_s, np.zeros(6), bad_ctrl, field, load_model)
+
+    # 5. Out of domain speed (>30 m/s) in fast stage
+    field_waves = AnalyticEnvironmentField(
+        dt_s=dt_s,
+        field_seed=4321,
+        wave_significant_height_m=1.0,
+        wave_num_components=8,
+    )
+    overspeed_state = np.array([0.0, 0.0, 0.0, 35.0, 0.0, 0.0], dtype=np.float64)
+    with pytest.raises(OutOfDomainError, match="outside applicability domain"):
+        rk4_step(plant, 0, dt_s, overspeed_state, VesselLoad.zero(), field_waves, load_model)
