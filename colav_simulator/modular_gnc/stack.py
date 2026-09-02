@@ -111,7 +111,21 @@ class ModularShipStack:
             elif plant_sel.identity == "pass_through_plant":
                 plant = None
 
-        modules = PassThroughModules(environment_field=env_field, load_model=load_model, plant=plant)
+        controller = None
+        if "controller" in cfg.modules:
+            ctrl_sel = cfg.modules["controller"]
+            if ctrl_sel.identity == "marine_pid":
+                from colav_simulator.modular_gnc.controller import MarinePID, MarinePIDConfig  # noqa: PLC0415
+
+                ctrl_cfg = MarinePIDConfig.from_params(ctrl_sel.parameters)
+                controller = MarinePID(ctrl_cfg)
+
+        modules = PassThroughModules(
+            environment_field=env_field,
+            load_model=load_model,
+            plant=plant,
+            controller=controller,
+        )
         return cls(cfg, modules)
 
     def reset(self, navigation: NavigationState, seed: int) -> None:
@@ -214,6 +228,8 @@ class ModularShipStack:
             applied_reference=latched.direct_reference,
             environment_observation=getattr(self._modules, "environment_observation", lambda: None)(),
             environmental_loads=getattr(self._modules, "environmental_loads", lambda: None)(),
+            controller_trace=getattr(self._modules, "controller_trace", lambda: None)(),
+            achieved_load=getattr(self._modules, "achieved_load", lambda: None)(),
         )
         self._tick += 1
         return output
@@ -239,6 +255,8 @@ class ModularShipStack:
             failure=failure,
             environment_observation=getattr(self._modules, "environment_observation", lambda: None)(),
             environmental_loads=getattr(self._modules, "environmental_loads", lambda: None)(),
+            controller_trace=getattr(self._modules, "controller_trace", lambda: None)(),
+            achieved_load=getattr(self._modules, "achieved_load", lambda: None)(),
         )
 
     def _uninitialized_failure(self, message: str) -> StackOutput:

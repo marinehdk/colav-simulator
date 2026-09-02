@@ -6,11 +6,14 @@ import numpy as np
 import pytest
 
 from colav_simulator.modular_gnc.contracts import (
+    AchievedGeneralizedLoad,
+    AchievedLoadStatus,
     CommandInput,
     ControlTask,
     DirectReference,
     FacadeFailure,
     FailureCode,
+    MarinePIDTrace,
     NavigationSource,
     NavigationState,
     PlantInputSemantics,
@@ -18,6 +21,7 @@ from colav_simulator.modular_gnc.contracts import (
     StackOutput,
     StackSnapshot,
     TrackedRoute,
+    VesselLoad,
     canonicalize_plant_input_semantics,
 )
 
@@ -156,3 +160,116 @@ def test_plant_input_semantics_canonicalization_and_compatibility_aliases() -> N
     assert canonicalize_plant_input_semantics("KINEMATIC_REFERENCE") is PlantInputSemantics.REFERENCE_CHI_U
     assert canonicalize_plant_input_semantics("GENERALIZED_FORCE") is PlantInputSemantics.GENERALIZED_FORCE
     assert canonicalize_plant_input_semantics(PlantInputSemantics.KINEMATIC_REFERENCE) is PlantInputSemantics.REFERENCE_CHI_U
+
+
+def test_achieved_generalized_load_contract_and_immutability() -> None:
+    """AchievedGeneralizedLoad enforces finite values, status enum, immutability, and VesselLoad conversion."""
+    load = AchievedGeneralizedLoad(
+        surge_n=100.0,
+        sway_n=20.0,
+        yaw_nm=50.0,
+        roll_nm=0.0,
+        status=AchievedLoadStatus.AVAILABLE,
+        saturated=True,
+        source="ALLOCATOR",
+        tick=5,
+        time_s=0.5,
+    )
+    assert load.surge_n == 100.0
+    assert load.sway_n == 20.0
+    assert load.yaw_nm == 50.0
+    assert load.status is AchievedLoadStatus.AVAILABLE
+    assert load.saturated is True
+    assert load.source == "ALLOCATOR"
+    assert load.tick == 5
+    assert load.time_s == 0.5
+
+    vl = load.as_vessel_load()
+    assert isinstance(vl, VesselLoad)
+    assert vl.surge_n == 100.0
+    assert vl.sway_n == 20.0
+    assert vl.yaw_nm == 50.0
+
+    # Unavailable factory
+    unavail = AchievedGeneralizedLoad.unavailable(tick=3, time_s=0.3)
+    assert unavail.status is AchievedLoadStatus.UNAVAILABLE
+    assert unavail.surge_n == 0.0
+
+    # Immutability
+    with pytest.raises(FrozenInstanceError):
+        load.surge_n = 200.0  # type: ignore[misc]
+
+    # Non-finite rejection
+    with pytest.raises(ValueError, match="finite"):
+        AchievedGeneralizedLoad(surge_n=float("nan"))
+    with pytest.raises(TypeError, match="saturated"):
+        AchievedGeneralizedLoad(saturated="not_a_bool")  # type: ignore[arg-type]
+
+
+def test_marine_pid_trace_contract_and_immutability() -> None:
+    """MarinePIDTrace enforces strict decomposition, finite values, 3-tuples, and immutability."""
+    trace = MarinePIDTrace(
+        tick=10,
+        time_s=1.0,
+        dt_s=0.1,
+        errors=(0.5, -0.2, 0.05),
+        measurement=(3.0, 0.1, 0.8),
+        reference=(3.5, -0.1, 0.85),
+        p_term=(500.0, -200.0, 100.0),
+        i_term=(50.0, -20.0, 10.0),
+        d_term=(-25.0, 10.0, -5.0),
+        feedforward=(0.0, 0.0, 0.0),
+        raw_request=(525.0, -210.0, 105.0),
+        saturated_output=(500.0, -200.0, 100.0),
+        saturation_flags=(True, True, False),
+        antiwindup_correction=(-25.0, 10.0, 0.0),
+        achieved_output=(500.0, -200.0, 100.0),
+    )
+    assert trace.tick == 10
+    assert trace.time_s == 1.0
+    assert trace.dt_s == 0.1
+    assert trace.errors == (0.5, -0.2, 0.05)
+    assert trace.p_term == (500.0, -200.0, 100.0)
+    assert trace.saturation_flags == (True, True, False)
+    assert trace.antiwindup_correction == (-25.0, 10.0, 0.0)
+    assert trace.achieved_output == (500.0, -200.0, 100.0)
+
+    # Immutability
+    with pytest.raises(FrozenInstanceError):
+        trace.tick = 11  # type: ignore[misc]
+
+    # Non-finite and shape checks
+    with pytest.raises(ValueError, match="dt_s must be positive"):
+        MarinePIDTrace(
+            tick=0,
+            time_s=0.0,
+            dt_s=-0.1,
+            errors=(0.0, 0.0, 0.0),
+            measurement=(0.0, 0.0, 0.0),
+            reference=(0.0, 0.0, 0.0),
+            p_term=(0.0, 0.0, 0.0),
+            i_term=(0.0, 0.0, 0.0),
+            d_term=(0.0, 0.0, 0.0),
+            feedforward=(0.0, 0.0, 0.0),
+            raw_request=(0.0, 0.0, 0.0),
+            saturated_output=(0.0, 0.0, 0.0),
+            saturation_flags=(False, False, False),
+            antiwindup_correction=(0.0, 0.0, 0.0),
+        )
+    with pytest.raises(ValueError, match="errors must be a 3-tuple"):
+        MarinePIDTrace(
+            tick=0,
+            time_s=0.0,
+            dt_s=0.1,
+            errors=(0.0, 0.0),  # type: ignore[arg-type]
+            measurement=(0.0, 0.0, 0.0),
+            reference=(0.0, 0.0, 0.0),
+            p_term=(0.0, 0.0, 0.0),
+            i_term=(0.0, 0.0, 0.0),
+            d_term=(0.0, 0.0, 0.0),
+            feedforward=(0.0, 0.0, 0.0),
+            raw_request=(0.0, 0.0, 0.0),
+            saturated_output=(0.0, 0.0, 0.0),
+            saturation_flags=(False, False, False),
+            antiwindup_correction=(0.0, 0.0, 0.0),
+        )

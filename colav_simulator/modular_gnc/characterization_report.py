@@ -217,6 +217,62 @@ def build_generic_roll_4dof_plant_redesign_decisions() -> tuple[RedesignDecision
     )
 
 
+def build_marine_pid_redesign_decisions() -> tuple[RedesignDecision, ...]:
+    """Return explicit catalog of intentional redesigns for marine_pid vs source C++ (VR-13..15, TS-19..21)."""
+    return (
+        RedesignDecision(
+            decision_id="REDESIGN-PID-01",
+            topic="derivative_on_measurement",
+            source_behavior="C++ source computed derivative on error, causing derivative kick on reference jumps",
+            redesign_behavior="MarinePID computes derivative strictly on measurement state (no kick on reference step)",
+            specification_reference="VR-15, TS-20",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-PID-02",
+            topic="dt_aware_derivative_filtering",
+            source_behavior="C++ source used fixed filter rate assuming hardcoded 10 Hz ROS wall timer",
+            redesign_behavior="MarinePID uses continuous-time invariant dt-aware filter alpha = dt / (tau_d + dt)",
+            specification_reference="VR-15, TS-20",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-PID-03",
+            topic="single_tracking_antiwindup_path",
+            source_behavior="C++ source combined multi-layer heuristic clamping, decay, and conflicting anti-windup",
+            redesign_behavior=(
+                "MarinePID enforces exactly one tracking anti-windup path using back-calculation from achieved load"
+            ),
+            specification_reference="VR-15, TS-20",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-PID-04",
+            topic="achieved_load_feedback_contract",
+            source_behavior=(
+                "C++ source lacked explicit achieved-load feedback contract, assuming perfect actuator execution"
+            ),
+            redesign_behavior="MarinePID defines typed AchievedGeneralizedLoad input without truth leakage from plant",
+            specification_reference="VR-15, VR-19, TS-20, TS-21",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-PID-05",
+            topic="term_level_trace_decomposition",
+            source_behavior="C++ source output only aggregated wrench without term-level attribution",
+            redesign_behavior=(
+                "MarinePID traces P, I, D, feedforward, raw request, saturation, and correction separately every tick"
+            ),
+            specification_reference="VR-15, VR-18, TS-20",
+        ),
+        RedesignDecision(
+            decision_id="REDESIGN-PID-06",
+            topic="clean_pid_identity_exclusion",
+            source_behavior="C++ source mixed SMC, NDO, and scenario-specific policies inside a single control_loop()",
+            redesign_behavior=(
+                "MarinePID strictly excludes SMC, NDO, gain scheduling, and scenario branches from PID identity"
+            ),
+            specification_reference="VR-13, TS-19",
+        ),
+    )
+
+
 def load_characterization_fixture_manifest(fixture_dir: Path | str) -> dict[str, Any]:
     """Load and return parsed characterization fixture manifest JSON."""
     manifest_file = Path(fixture_dir) / "manifest.json"

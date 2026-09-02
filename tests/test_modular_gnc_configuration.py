@@ -417,8 +417,22 @@ def test_input_domain_capability_marine_pid_rejects_kinematic_plant() -> None:
         normalize_ship_modules(cfg)
 
 
+def _marine_pid_params() -> dict[str, Any]:
+    return {
+        "kp": [1000.0, 500.0, 2000.0],
+        "ki": [100.0, 50.0, 200.0],
+        "kd": [200.0, 100.0, 400.0],
+        "tau_d": [0.1, 0.1, 0.1],
+        "antiwindup_gain": [1.0, 1.0, 1.0],
+        "min_output": [-10000.0, -5000.0, -20000.0],
+        "max_output": [10000.0, 5000.0, 20000.0],
+        "feedforward_gain": [0.0, 0.0, 0.0],
+        "allow_ideal_passthrough": True,
+    }
+
+
 def test_input_domain_capability_marine_pid_with_force_plants_passes_capability_check() -> None:
-    """Validate that marine_pid tuple with force plants passes capability check, failing on availability."""
+    """Validate that marine_pid tuple with force plants passes capability check and normalizes successfully."""
     for plant_id, params in (
         ("generic_3dof_plant", _plant_3dof_params()),
         ("generic_roll_4dof_plant", _plant_4dof_params()),
@@ -429,11 +443,38 @@ def test_input_domain_capability_marine_pid_with_force_plants_passes_capability_
             "modules": {
                 "plant": {"identity": plant_id, "parameters": params},
                 "guidance": {"identity": "pass_through_guidance", "parameters": {}},
-                "controller": {"identity": "marine_pid", "parameters": {}},
+                "controller": {"identity": "marine_pid", "parameters": _marine_pid_params()},
             },
         }
-        with pytest.raises(DependencyUnavailableError, match="dependency unavailable for module: marine_pid"):
-            normalize_ship_modules(cfg)
+        normalized = normalize_ship_modules(cfg)
+        assert normalized.modules["controller"].identity == "marine_pid"
+        assert normalized.modules["plant"].identity == plant_id
+
+
+def test_marine_pid_configuration_strict_validation_rejects_bad_params() -> None:
+    """Validate that invalid parameters in marine_pid raise UnsupportedModuleCombinationError."""
+    # Negative gain
+    bad_params = _marine_pid_params()
+    bad_params["kp"] = [-1.0, 1.0, 1.0]
+    cfg = {
+        "preset": "legacy_equivalent",
+        "overrides": {"scheduler": {"plant_period_ticks": 1}},
+        "modules": {
+            "plant": {"identity": "generic_3dof_plant", "parameters": _plant_3dof_params()},
+            "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+            "controller": {"identity": "marine_pid", "parameters": bad_params},
+        },
+    }
+    with pytest.raises(UnsupportedModuleCombinationError, match="invalid marine_pid parameters"):
+        normalize_ship_modules(cfg)
+
+    # Inverted limits
+    bad_params2 = _marine_pid_params()
+    bad_params2["min_output"] = [1000.0, 0.0, 0.0]
+    bad_params2["max_output"] = [500.0, 0.0, 0.0]
+    cfg["modules"]["controller"]["parameters"] = bad_params2
+    with pytest.raises(UnsupportedModuleCombinationError, match="cannot exceed max_output"):
+        normalize_ship_modules(cfg)
 
 
 def test_input_domain_capability_compatibility_matrix(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -940,6 +940,184 @@ class FacadeFailure:
         object.__setattr__(self, "details", _deep_freeze(self.details))
 
 
+class AchievedLoadStatus(str, Enum):
+    """Availability status of achieved load feedback."""
+
+    AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+@dataclass(frozen=True)
+class AchievedGeneralizedLoad:
+    """Immutable feedback of actual generalized loads achieved by allocator/actuator (TS-20, VR-15).
+
+    Carries achieved 3DOF generalized load [X, Y, N] and optional roll moment K,
+    along with saturation flags, availability status, and metadata source.
+    """
+
+    surge_n: float = 0.0
+    sway_n: float = 0.0
+    yaw_nm: float = 0.0
+    roll_nm: float = 0.0
+    status: AchievedLoadStatus = AchievedLoadStatus.AVAILABLE
+    saturated: bool = False
+    source: str = "IDEAL_PASSTHROUGH"
+    tick: int = 0
+    time_s: float = 0.0
+    details: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate finite components, types, and freeze details."""
+        object.__setattr__(self, "surge_n", _finite_scalar("surge_n", self.surge_n))
+        object.__setattr__(self, "sway_n", _finite_scalar("sway_n", self.sway_n))
+        object.__setattr__(self, "yaw_nm", _finite_scalar("yaw_nm", self.yaw_nm))
+        object.__setattr__(self, "roll_nm", _finite_scalar("roll_nm", self.roll_nm))
+        object.__setattr__(self, "status", AchievedLoadStatus(self.status))
+        if not isinstance(self.saturated, bool):
+            raise TypeError(f"saturated must be a boolean, got {type(self.saturated).__name__}")
+        object.__setattr__(self, "source", _non_empty_str("source", self.source))
+        object.__setattr__(self, "tick", _non_bool_int("tick", self.tick))
+        object.__setattr__(self, "time_s", _finite_scalar("time_s", self.time_s))
+        object.__setattr__(self, "details", _deep_freeze(self.details))
+
+    @classmethod
+    def from_vessel_load(
+        cls,
+        load: VesselLoad,
+        status: AchievedLoadStatus = AchievedLoadStatus.AVAILABLE,
+        saturated: bool = False,
+        source: str = "IDEAL_PASSTHROUGH",
+        tick: int = 0,
+        time_s: float = 0.0,
+        details: Mapping[str, Any] | None = None,
+    ) -> AchievedGeneralizedLoad:
+        """Construct achieved load from VesselLoad."""
+        if not isinstance(load, VesselLoad):
+            raise TypeError(f"load must be VesselLoad, got {type(load).__name__}")
+        return cls(
+            surge_n=load.surge_n,
+            sway_n=load.sway_n,
+            yaw_nm=load.yaw_nm,
+            roll_nm=load.roll_nm,
+            status=status,
+            saturated=saturated,
+            source=source,
+            tick=tick,
+            time_s=time_s,
+            details=details or {},
+        )
+
+    @classmethod
+    def unavailable(
+        cls,
+        source: str = "UNAVAILABLE",
+        tick: int = 0,
+        time_s: float = 0.0,
+    ) -> AchievedGeneralizedLoad:
+        """Construct explicit unavailable achieved load feedback."""
+        return cls(
+            surge_n=0.0,
+            sway_n=0.0,
+            yaw_nm=0.0,
+            roll_nm=0.0,
+            status=AchievedLoadStatus.UNAVAILABLE,
+            saturated=False,
+            source=source,
+            tick=tick,
+            time_s=time_s,
+        )
+
+    def as_vessel_load(self) -> VesselLoad:
+        """Convert to VesselLoad."""
+        return VesselLoad(
+            surge_n=self.surge_n,
+            sway_n=self.sway_n,
+            yaw_nm=self.yaw_nm,
+            roll_nm=self.roll_nm,
+        )
+
+
+@dataclass(frozen=True)
+class MarinePIDTrace:
+    """Immutable per-tick trace decomposing marine PID control terms (TS-20, VR-15, VR-18).
+
+    Traces:
+    - P, I, D, feedforward components separately
+    - raw requested force [X, Y, N]
+    - saturated output force [X, Y, N]
+    - achieved output force [X, Y, N] or None if unavailable
+    - per-channel saturation flags
+    - anti-windup back-calculation correction
+    - tracking errors [e_u, e_v, e_psi] or [e_x, e_y, e_psi]
+    - measured and reference values
+    - dt and timestamp
+    """
+
+    tick: int
+    time_s: float
+    dt_s: float
+    errors: tuple[float, float, float]
+    measurement: tuple[float, float, float]
+    reference: tuple[float, float, float]
+    p_term: tuple[float, float, float]
+    i_term: tuple[float, float, float]
+    d_term: tuple[float, float, float]
+    feedforward: tuple[float, float, float]
+    raw_request: tuple[float, float, float]
+    saturated_output: tuple[float, float, float]
+    saturation_flags: tuple[bool, bool, bool]
+    antiwindup_correction: tuple[float, float, float]
+    achieved_output: tuple[float, float, float] | None = None
+    details: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate components and freeze."""
+        object.__setattr__(self, "tick", _non_bool_int("tick", self.tick))
+        object.__setattr__(self, "time_s", _finite_scalar("time_s", self.time_s))
+        dt = _finite_scalar("dt_s", self.dt_s)
+        if dt <= 0.0:
+            raise ValueError(f"dt_s must be positive, got {dt}")
+        object.__setattr__(self, "dt_s", dt)
+
+        for field_name in (
+            "errors",
+            "measurement",
+            "reference",
+            "p_term",
+            "i_term",
+            "d_term",
+            "feedforward",
+            "raw_request",
+            "saturated_output",
+            "antiwindup_correction",
+        ):
+            val = getattr(self, field_name)
+            if not isinstance(val, (tuple, list)) or len(val) != 3:
+                raise ValueError(f"{field_name} must be a 3-tuple, got {val!r}")
+            tup = tuple(_finite_scalar(f"{field_name}[{i}]", v) for i, v in enumerate(val))
+            object.__setattr__(self, field_name, tup)
+
+        flags = self.saturation_flags
+        if not isinstance(flags, (tuple, list)) or len(flags) != 3:
+            raise ValueError(f"saturation_flags must be a 3-tuple, got {flags!r}")
+        for i, f in enumerate(flags):
+            if not isinstance(f, bool):
+                raise TypeError(f"saturation_flags[{i}] must be bool, got {type(f).__name__}")
+        object.__setattr__(self, "saturation_flags", tuple(bool(f) for f in flags))
+
+        if self.achieved_output is not None:
+            ach = self.achieved_output
+            if not isinstance(ach, (tuple, list)) or len(ach) != 3:
+                raise ValueError(f"achieved_output must be a 3-tuple or None, got {ach!r}")
+            object.__setattr__(
+                self,
+                "achieved_output",
+                tuple(_finite_scalar(f"achieved_output[{i}]", v) for i, v in enumerate(ach)),
+            )
+
+        object.__setattr__(self, "details", _deep_freeze(self.details))
+
+
 @dataclass(frozen=True)
 class StackOutput:
     """Immutable facade output."""
@@ -951,6 +1129,8 @@ class StackOutput:
     failure: FacadeFailure | None = None
     environment_observation: EnvironmentObservation | None = None
     environmental_loads: EnvironmentalLoads | None = None
+    controller_trace: MarinePIDTrace | None = None
+    achieved_load: AchievedGeneralizedLoad | None = None
 
 
 @dataclass(frozen=True)

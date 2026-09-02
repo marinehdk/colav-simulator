@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from colav_simulator.modular_gnc.contracts import (
+    AchievedGeneralizedLoad,
+    AchievedLoadStatus,
     ControlTask,
     DirectReference,
     EnvironmentalLoads,
     EnvironmentObservation,
     EnvironmentTruth,
+    MarinePIDTrace,
     NavigationSource,
     NavigationState,
     PlantState,
@@ -22,6 +25,7 @@ from colav_simulator.modular_gnc.contracts import (
 from colav_simulator.modular_gnc.integrators import rk4_step
 
 if TYPE_CHECKING:
+    from colav_simulator.modular_gnc.controller import MarinePID
     from colav_simulator.modular_gnc.environment import EnvironmentField
     from colav_simulator.modular_gnc.load_model import EnvironmentalLoadModel
     from colav_simulator.modular_gnc.plant import Generic3DOFPlant, GenericRoll4DOFPlant
@@ -38,6 +42,10 @@ class PassThroughSnapshot:
     held_truth: EnvironmentTruth | None = None
     held_observation: EnvironmentObservation | None = None
     held_loads: EnvironmentalLoads | None = None
+    held_control_load: VesselLoad | None = None
+    held_controller_trace: MarinePIDTrace | None = None
+    held_achieved_load: AchievedGeneralizedLoad | None = None
+    controller_snapshot: Any = None
 
 
 class PassThroughModules:
@@ -52,12 +60,14 @@ class PassThroughModules:
         environment_field: EnvironmentField | None = None,
         load_model: EnvironmentalLoadModel | None = None,
         plant: Generic3DOFPlant | GenericRoll4DOFPlant | None = None,
+        controller: MarinePID | None = None,
     ) -> None:
         self._fail_phase = fail_phase
         self._fail_tick = fail_tick
         self._environment_field = environment_field
         self._load_model = load_model
         self._plant = plant
+        self._controller = controller
         capabilities = frozenset({"PLANAR_3DOF"}) if plant is None else plant.capabilities
         input_semantics = (
             PlantState.__dataclass_fields__["input_semantics"].default if plant is None else plant.input_semantics
@@ -70,6 +80,9 @@ class PassThroughModules:
         self._held_truth: EnvironmentTruth | None = None
         self._held_observation: EnvironmentObservation | None = None
         self._held_loads: EnvironmentalLoads | None = None
+        self._held_control_load: VesselLoad | None = None
+        self._held_controller_trace: MarinePIDTrace | None = None
+        self._held_achieved_load: AchievedGeneralizedLoad | None = None
 
     def reset(self, navigation: NavigationState, seed: int) -> None:  # noqa: ARG002
         """Reset deterministic state from navigation truth projection."""
@@ -99,6 +112,12 @@ class PassThroughModules:
         self._navigation_source = navigation.source
         self._phase_counts = dict.fromkeys(self.phase_order, 0)
         self._route_consumptions: list[tuple[int, str, int]] = []
+        if self._controller is not None:
+            self._controller.reset(seed)
+        self._held_control_load = None
+        self._held_controller_trace = None
+        self._held_achieved_load = None
+
         if self._environment_field is not None:
             pos = (navigation.north_m, navigation.east_m)
             self._held_truth = self._environment_field.sample_at(0, 0.0, pos)
@@ -112,13 +131,37 @@ class PassThroughModules:
         else:
             self._held_loads = None
 
+    def _resolve_plant_control_load(self, reference: DirectReference | None) -> VesselLoad:
+        """Resolve control load from controller or reference fallback."""
+        if self._held_control_load is not None:
+            return self._held_control_load
+        if reference is None:
+            return VesselLoad.zero()
+        if reference.task == ControlTask.MANUAL_LOAD:
+            return VesselLoad(
+                surge_n=float(reference.values[0]),
+                sway_n=float(reference.values[1]),
+                yaw_nm=float(reference.values[2]),
+            )
+        if abs(reference.values[6]) > 0.0 or abs(reference.values[7]) > 0.0 or abs(reference.values[8]) > 0.0:
+            return VesselLoad(
+                surge_n=float(reference.values[6]),
+                sway_n=float(reference.values[7]),
+                yaw_nm=float(reference.values[8]),
+            )
+        return VesselLoad(
+            surge_n=float(reference.values[0]),
+            sway_n=float(reference.values[1]),
+            yaw_nm=float(reference.values[2]),
+        )
+
     def run_phase(
         self,
         phase: str,
         tick: int,
         reference: DirectReference | None,
         route: TrackedRoute | None,
-        dt_s: float,  # noqa: ARG002
+        dt_s: float,
     ) -> None:
         """Record fixed phase order and consume due direct/route authority."""
         if phase == self._fail_phase and tick == self._fail_tick:
@@ -132,30 +175,28 @@ class PassThroughModules:
                 self._held_loads = self._load_model.compute_loads(self._held_truth, self.navigation())
         if phase == "guidance" and route is not None:
             self._route_consumptions.append((tick, route.route_id, route.revision))
+        if phase == "controller" and self._controller is not None and reference is not None:
+            vessel_load, trace = self._controller.compute_control(
+                measurement=self.navigation(),
+                reference=reference,
+                dt_s=dt_s,
+                tick=tick,
+                time_s=tick * dt_s,
+                achieved_load=self._held_achieved_load,
+            )
+            self._held_control_load = vessel_load
+            self._held_controller_trace = trace
+            self._held_achieved_load = AchievedGeneralizedLoad.from_vessel_load(
+                vessel_load,
+                status=AchievedLoadStatus.AVAILABLE,
+                saturated=any(trace.saturation_flags),
+                source="IDEAL_PASSTHROUGH",
+                tick=tick,
+                time_s=tick * dt_s,
+            )
         if phase == "plant":
             if self._plant is not None:
-                if reference is not None:
-                    if reference.task == ControlTask.MANUAL_LOAD:
-                        ctrl_load = VesselLoad(
-                            surge_n=float(reference.values[0]),
-                            sway_n=float(reference.values[1]),
-                            yaw_nm=float(reference.values[2]),
-                        )
-                    elif abs(reference.values[6]) > 0.0 or abs(reference.values[7]) > 0.0 or abs(reference.values[8]) > 0.0:
-                        ctrl_load = VesselLoad(
-                            surge_n=float(reference.values[6]),
-                            sway_n=float(reference.values[7]),
-                            yaw_nm=float(reference.values[8]),
-                        )
-                    else:
-                        ctrl_load = VesselLoad(
-                            surge_n=float(reference.values[0]),
-                            sway_n=float(reference.values[1]),
-                            yaw_nm=float(reference.values[2]),
-                        )
-                else:
-                    ctrl_load = VesselLoad.zero()
-
+                ctrl_load = self._resolve_plant_control_load(reference)
                 new_values = rk4_step(
                     plant=self._plant,
                     tick=tick,
@@ -192,6 +233,18 @@ class PassThroughModules:
         """Return currently held environmental loads."""
         return self._held_loads
 
+    def controller_trace(self) -> MarinePIDTrace | None:
+        """Return currently held controller trace."""
+        return self._held_controller_trace
+
+    def achieved_load(self) -> AchievedGeneralizedLoad | None:
+        """Return currently held achieved load."""
+        return self._held_achieved_load
+
+    def control_load(self) -> VesselLoad | None:
+        """Return currently held control load."""
+        return self._held_control_load
+
     def snapshot(self) -> PassThroughSnapshot:
         """Capture complete pass-through module state."""
         return PassThroughSnapshot(
@@ -202,11 +255,26 @@ class PassThroughModules:
             self._held_truth,
             self._held_observation,
             self._held_loads,
+            self._held_control_load,
+            self._held_controller_trace,
+            self._held_achieved_load,
+            self._controller.snapshot() if self._controller is not None else None,
         )
 
     def restore(self, snapshot: PassThroughSnapshot) -> None:
         """Restore complete pass-through module state."""
         self._state = snapshot.state
+        self._phase_counts = dict(snapshot.phase_counts)
+        self._route_consumptions = list(snapshot.route_consumptions)
+        self._navigation_source = snapshot.navigation_source
+        self._held_truth = snapshot.held_truth
+        self._held_observation = snapshot.held_observation
+        self._held_loads = snapshot.held_loads
+        self._held_control_load = snapshot.held_control_load
+        self._held_controller_trace = snapshot.held_controller_trace
+        self._held_achieved_load = snapshot.held_achieved_load
+        if self._controller is not None and snapshot.controller_snapshot is not None:
+            self._controller.restore(snapshot.controller_snapshot)
         self._navigation_source = snapshot.navigation_source
         self._phase_counts = dict(snapshot.phase_counts)
         self._route_consumptions = list(snapshot.route_consumptions)

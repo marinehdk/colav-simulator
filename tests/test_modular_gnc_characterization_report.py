@@ -14,6 +14,7 @@ from colav_simulator.modular_gnc.characterization_report import (
     ReferenceComparison,
     build_generic_3dof_plant_redesign_decisions,
     build_generic_roll_4dof_plant_redesign_decisions,
+    build_marine_pid_redesign_decisions,
     load_characterization_fixture_manifest,
 )
 
@@ -116,5 +117,21 @@ def test_characterization_report_generic_roll_4dof_plant_redesigns() -> None:
     assert "REDESIGN-ROLL4DOF-06" in decision_ids
 
     report = CharacterizationParityReport(redesigns=redesigns_4dof)
+    assert report.claim_ceiling == "candidate_A2_migration_verified_only"
+    assert len(report.redesigns) == 6
+
+
+def test_characterization_report_marine_pid_redesigns() -> None:
+    redesigns_pid = build_marine_pid_redesign_decisions()
+    assert len(redesigns_pid) == 6
+    decision_ids = {r.decision_id for r in redesigns_pid}
+    assert "REDESIGN-PID-01" in decision_ids
+    assert "REDESIGN-PID-02" in decision_ids
+    assert "REDESIGN-PID-03" in decision_ids
+    assert "REDESIGN-PID-04" in decision_ids
+    assert "REDESIGN-PID-05" in decision_ids
+    assert "REDESIGN-PID-06" in decision_ids
+
+    report = CharacterizationParityReport(redesigns=redesigns_pid)
     assert report.claim_ceiling == "candidate_A2_migration_verified_only"
     assert len(report.redesigns) == 6

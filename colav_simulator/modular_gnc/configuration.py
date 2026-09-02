@@ -161,9 +161,21 @@ REGISTRY_V1 = MappingProxyType(
             "controller",
             "1.0.0",
             "controller.v1",
-            frozenset({"TRANSIT", "GENERALIZED_FORCE"}),
-            {},
-            available=False,
+            frozenset({"TRANSIT", "GENERALIZED_FORCE", "CONTROLLER_TRACE"}),
+            {
+                "kp": {"type": "array"},
+                "ki": {"type": "array"},
+                "kd": {"type": "array"},
+                "tau_d": {"type": "array"},
+                "antiwindup_gain": {"type": "array"},
+                "min_output": {"type": "array"},
+                "max_output": {"type": "array"},
+                "feedforward_gain": {"type": "array"},
+                "integral_limit": {"type": "array"},
+                "allow_ideal_passthrough": {"type": "boolean"},
+                "position_mode": {"type": "boolean"},
+            },
+            available=True,
         ),
         "optional_native_controller": RegistryEntry(
             "optional_native_controller",
@@ -562,6 +574,14 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
 
     _validate_current_strategy_deduplication(modules)
     _validate_wave_mode(modules)
+
+    if "controller" in modules and modules["controller"].identity == "marine_pid":
+        from colav_simulator.modular_gnc.controller import MarinePIDConfig  # noqa: PLC0415
+
+        try:
+            MarinePIDConfig.from_params(modules["controller"].parameters)
+        except (ValueError, TypeError) as exc:
+            raise UnsupportedModuleCombinationError(f"invalid marine_pid parameters: {exc}") from exc
 
     scheduler = normalized["scheduler"]
     if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in scheduler.values()):
