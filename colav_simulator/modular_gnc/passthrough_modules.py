@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from colav_simulator.modular_gnc.allocator import AllocatorSolution, DataDrivenAllocator
 from colav_simulator.modular_gnc.contracts import (
     AchievedGeneralizedLoad,
     AchievedLoadStatus,
@@ -61,6 +62,8 @@ class PassThroughSnapshot:
     guidance_snapshot: Any = None
     held_guidance_reference: DirectReference | None = None
     held_guidance_trace: ILOSGuidanceTrace | None = None
+    allocator_snapshot: Any = None
+    held_allocator_solution: AllocatorSolution | None = None
 
 
 class PassThroughModules:
@@ -77,6 +80,7 @@ class PassThroughModules:
         plant: Generic3DOFPlant | GenericRoll4DOFPlant | None = None,
         controller: MarinePID | None = None,
         guidance: IntegralLineOfSightGuidance | None = None,
+        allocator: DataDrivenAllocator | None = None,
     ) -> None:
         self._fail_phase = fail_phase
         self._fail_tick = fail_tick
@@ -85,6 +89,7 @@ class PassThroughModules:
         self._plant = plant
         self._controller = controller
         self._guidance = guidance
+        self._allocator = allocator
         capabilities = frozenset({"PLANAR_3DOF"}) if plant is None else plant.capabilities
         input_semantics = (
             PlantState.__dataclass_fields__["input_semantics"].default if plant is None else plant.input_semantics
@@ -102,6 +107,7 @@ class PassThroughModules:
         self._held_achieved_load: AchievedGeneralizedLoad | None = None
         self._held_guidance_reference: DirectReference | None = None
         self._held_guidance_trace: ILOSGuidanceTrace | None = None
+        self._held_allocator_solution: AllocatorSolution | None = None
 
     def reset(self, navigation: NavigationState, seed: int) -> None:  # noqa: ARG002
         """Reset deterministic state from navigation truth projection."""
@@ -135,11 +141,14 @@ class PassThroughModules:
             self._controller.reset(seed)
         if self._guidance is not None:
             self._guidance.reset()
+        if self._allocator is not None:
+            self._allocator.reset()
         self._held_control_load = None
         self._held_controller_trace = None
         self._held_achieved_load = None
         self._held_guidance_reference = None
         self._held_guidance_trace = None
+        self._held_allocator_solution = None
 
         if self._environment_field is not None:
             pos = (navigation.north_m, navigation.east_m)
@@ -154,8 +163,8 @@ class PassThroughModules:
         else:
             self._held_loads = None
 
-    def _resolve_plant_control_load(self, reference: DirectReference | None) -> VesselLoad:
-        """Resolve control load from controller or reference fallback."""
+    def _resolve_requested_control_load(self, reference: DirectReference | None) -> VesselLoad:
+        """Resolve the requested control load from controller output or reference fallback."""
         if self._held_control_load is not None:
             return self._held_control_load
         if reference is None:
@@ -177,6 +186,12 @@ class PassThroughModules:
             sway_n=float(reference.values[1]),
             yaw_nm=float(reference.values[2]),
         )
+
+    def _resolve_plant_control_load(self, reference: DirectReference | None) -> VesselLoad:
+        """Resolve the control load applied by the plant (allocator achieved when present)."""
+        if self._held_allocator_solution is not None:
+            return self._held_allocator_solution.achieved
+        return self._resolve_requested_control_load(reference)
 
     def run_phase(
         self,
@@ -224,6 +239,11 @@ class PassThroughModules:
                 tick=tick,
                 time_s=tick * dt_s,
             )
+        if phase == "allocator" and self._allocator is not None:
+            requested = self._resolve_requested_control_load(effective_reference)
+            solution = self._allocator.allocate(requested, tick=tick, time_s=tick * dt_s)
+            self._held_allocator_solution = solution
+            self._held_achieved_load = solution.to_achieved_generalized_load()
         if phase == "plant":
             if self._plant is not None:
                 ctrl_load = self._resolve_plant_control_load(effective_reference)
@@ -275,6 +295,10 @@ class PassThroughModules:
         """Return currently held achieved load."""
         return self._held_achieved_load
 
+    def allocator_solution(self) -> AllocatorSolution | None:
+        """Return currently held allocator solution."""
+        return self._held_allocator_solution
+
     def control_load(self) -> VesselLoad | None:
         """Return currently held control load."""
         return self._held_control_load
@@ -296,6 +320,8 @@ class PassThroughModules:
             self._guidance.snapshot() if self._guidance is not None else None,
             self._held_guidance_reference,
             self._held_guidance_trace,
+            self._allocator.snapshot() if self._allocator is not None else None,
+            self._held_allocator_solution,
         )
 
     def restore(self, snapshot: PassThroughSnapshot) -> None:
@@ -314,8 +340,11 @@ class PassThroughModules:
             self._controller.restore(snapshot.controller_snapshot)
         if self._guidance is not None and snapshot.guidance_snapshot is not None:
             self._guidance.restore(snapshot.guidance_snapshot)
+        if self._allocator is not None and snapshot.allocator_snapshot is not None:
+            self._allocator.restore(snapshot.allocator_snapshot)
         self._held_guidance_reference = snapshot.held_guidance_reference
         self._held_guidance_trace = snapshot.held_guidance_trace
+        self._held_allocator_solution = snapshot.held_allocator_solution
         self._navigation_source = snapshot.navigation_source
         self._phase_counts = dict(snapshot.phase_counts)
         self._route_consumptions = list(snapshot.route_consumptions)
@@ -326,7 +355,8 @@ class PassThroughModules:
     @property
     def supported_tasks(self) -> frozenset[ControlTask]:
         """Return intersection of guidance/controller/plant/allocator/actuator task capabilities (Issue #56, AC1)."""
-        tasks = PASS_THROUGH_ALLOCATOR_TASKS & PASS_THROUGH_ACTUATOR_TASKS
+        tasks = PASS_THROUGH_ACTUATOR_TASKS
+        tasks &= self._allocator.supported_tasks if self._allocator is not None else PASS_THROUGH_ALLOCATOR_TASKS
         tasks &= self._plant.supported_tasks if self._plant is not None else PASS_THROUGH_PLANT_TASKS
         tasks &= self._controller.supported_tasks if self._controller is not None else PASS_THROUGH_CONTROLLER_TASKS
         if self._guidance is not None:

@@ -79,7 +79,7 @@ class ModularShipStack:
         self._initialized = False
 
     @classmethod
-    def from_config(
+    def from_config(  # noqa: PLR0912
         cls,
         config: ShipModulesConfig | Mapping[str, Any],
         episode_seed: int = 0,
@@ -132,12 +132,21 @@ class ModularShipStack:
 
         guidance = _build_guidance(cfg.modules["guidance"]) if "guidance" in cfg.modules else None
 
+        allocator = None
+        if "allocator" in cfg.modules:
+            alloc_sel = cfg.modules["allocator"]
+            if alloc_sel.identity == "data_driven_allocator":
+                from colav_simulator.modular_gnc.allocator import DataDrivenAllocator  # noqa: PLC0415
+
+                allocator = DataDrivenAllocator.from_params(alloc_sel.parameters)
+
         modules = PassThroughModules(
             environment_field=env_field,
             load_model=load_model,
             plant=plant,
             controller=controller,
             guidance=guidance,
+            allocator=allocator,
         )
         return cls(cfg, modules)
 

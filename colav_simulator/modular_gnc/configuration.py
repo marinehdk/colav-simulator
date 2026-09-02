@@ -271,6 +271,14 @@ REGISTRY_V1 = MappingProxyType(
             frozenset({"ZERO_LOAD"}),
             {},
         ),
+        "data_driven_allocator": RegistryEntry(
+            "data_driven_allocator",
+            "allocator",
+            "1.0.0",
+            "allocator.v1",
+            frozenset({"GENERALIZED_FORCE", "ALLOCATOR_DIAGNOSTICS", "ACTUATOR_HEALTH"}),
+            {"layout_asset_id": {"type": "string"}},
+        ),
     }
 )
 
@@ -428,6 +436,27 @@ def _validate_current_strategy_deduplication(modules: Mapping[str, ModuleSelecti
 
 KNOWN_WAVE_FIRST_ORDER_ASSET_IDS: frozenset[str] = frozenset({"default_inferred_wave_response_v1"})
 KNOWN_WAVE_MEAN_DRIFT_ASSET_IDS: frozenset[str] = frozenset({"default_inferred_diagonal_drift_v1"})
+KNOWN_ACTUATOR_LAYOUT_ASSET_IDS: frozenset[str] = frozenset(
+    {
+        "default_triple_actuator_layout_v1",
+        "quad_diagonal_actuator_layout_v1",
+        "main_only_actuator_layout_v1",
+    }
+)
+
+
+def _validate_allocator_layout_asset(modules: Mapping[str, ModuleSelection]) -> None:
+    """Validate allocator layout asset id presence and knownness (Issue #58, TS-23, VR-10)."""
+    if "allocator" not in modules:
+        return
+    alloc_params = modules["allocator"].parameters
+    layout_id = alloc_params.get("layout_asset_id")
+    if layout_id is None:
+        raise UnsupportedModuleCombinationError("layout_asset_id is required for data_driven_allocator")
+    if layout_id not in KNOWN_ACTUATOR_LAYOUT_ASSET_IDS:
+        raise UnsupportedModuleCombinationError(
+            f"unknown actuator layout asset id: {layout_id} (known: {sorted(KNOWN_ACTUATOR_LAYOUT_ASSET_IDS)})"
+        )
 
 
 def _validate_wave_asset_ids_presence(
@@ -541,10 +570,11 @@ def _validate_wave_mode(modules: Mapping[str, ModuleSelection]) -> None:
 def _parse_modules_mapping(raw_modules: Mapping[str, Any]) -> dict[str, ModuleSelection]:
     """Parse and validate structural presence of module selections."""
     required_roles = {"plant", "guidance", "controller"}
-    allowed_roles = {"plant", "guidance", "controller", "environment", "load_model"}
+    allowed_roles = {"plant", "guidance", "controller", "environment", "load_model", "allocator"}
     if not (required_roles.issubset(raw_modules) and set(raw_modules).issubset(allowed_roles)):
         raise UnsupportedModuleCombinationError(
-            "modules must select plant, guidance, and controller (optional: environment, load_model)"
+            "modules must select plant, guidance, and controller "
+            "(optional: environment, load_model, allocator)"
         )
     modules = {}
     for role, raw in raw_modules.items():
@@ -588,6 +618,7 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
 
     _validate_current_strategy_deduplication(modules)
     _validate_wave_mode(modules)
+    _validate_allocator_layout_asset(modules)
 
     if "controller" in modules and modules["controller"].identity == "marine_pid":
         from colav_simulator.modular_gnc.controller import MarinePIDConfig  # noqa: PLC0415
