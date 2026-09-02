@@ -13,6 +13,7 @@ import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
@@ -89,7 +90,7 @@ class FourArmBinding:
         for label, arm in self.arms.items():
             if arm.geometry_hash != self.geometry_hash or arm.input_hash != self.input_hash:
                 raise AttributionError(f"arm {label} is not bound to the shared geometry/input hashes")
-        object.__setattr__(self, "arms", dict(self.arms))
+        object.__setattr__(self, "arms", MappingProxyType(dict(self.arms)))
 
     def attributes_to(self, observed: ArmIdentity, claimed: ArmIdentity) -> bool:
         """Decide attribution strictly from content hashes; labels are never consulted."""

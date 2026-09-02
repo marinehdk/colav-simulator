@@ -14,6 +14,14 @@ from colav_simulator.modular_gnc.contracts import (
     NavigationState,
     TrackedRoute,
 )
+from colav_simulator.modular_gnc.controller import MarinePID, MarinePIDConfig
+from colav_simulator.modular_gnc.passthrough_modules import (
+    PASS_THROUGH_ACTUATOR_TASKS,
+    PASS_THROUGH_ALLOCATOR_TASKS,
+    PASS_THROUGH_CONTROLLER_TASKS,
+    PASS_THROUGH_PLANT_TASKS,
+)
+from colav_simulator.modular_gnc.plant import Generic3DOFPlant, GenericRoll4DOFPlant
 from colav_simulator.modular_gnc.stack import ModularShipStack
 
 _PLANT_PARAMS = {
@@ -223,12 +231,8 @@ class TestBumplessTransitPoseHoldTransfer:
         stack = _position_mode_stack()
         outputs = []
         for tick in range(6):
-            if tick < tick_of_transfer:
-                command = _pose_reference(tick, 5.0, -5.0, 0.2, ControlTask.TRANSIT)
-            elif tick == tick_of_transfer:
-                command = _pose_reference(tick, 5.0, -5.0, 0.2, transfer_task)
-            else:
-                command = _pose_reference(tick, 5.0, -5.0, 0.2, transfer_task)
+            task = ControlTask.TRANSIT if tick < tick_of_transfer else transfer_task
+            command = _pose_reference(tick, 5.0, -5.0, 0.2, task)
             output = stack.step(command, dt_s=0.1)
             assert output.failure is None
             outputs.append(output)
@@ -270,8 +274,6 @@ class TestBumplessTransitPoseHoldTransfer:
             np.testing.assert_array_equal(np.array(trace_after.i_term, dtype=np.float64), expected)
 
     def test_derivative_term_invariant_under_reference_jump(self) -> None:
-        from colav_simulator.modular_gnc.controller import MarinePID, MarinePIDConfig
-
         params = dict(_MARINE_PID_PARAMS)
         params["position_mode"] = True
         controller = MarinePID(MarinePIDConfig.from_params(params))
@@ -323,28 +325,17 @@ class TestTaskCapabilityDeclarations:
     """Supported task sets follow module capability declarations (AC1)."""
 
     def test_pass_through_plant_declares_transit_only(self) -> None:
-        from colav_simulator.modular_gnc.passthrough_modules import (
-            PASS_THROUGH_ALLOCATOR_TASKS,
-            PASS_THROUGH_ACTUATOR_TASKS,
-            PASS_THROUGH_CONTROLLER_TASKS,
-            PASS_THROUGH_PLANT_TASKS,
-        )
-
         assert PASS_THROUGH_PLANT_TASKS == frozenset({ControlTask.TRANSIT})
         assert PASS_THROUGH_CONTROLLER_TASKS == frozenset({ControlTask.TRANSIT, ControlTask.MANUAL_LOAD})
         assert PASS_THROUGH_ALLOCATOR_TASKS == frozenset(ControlTask)
         assert PASS_THROUGH_ACTUATOR_TASKS == frozenset(ControlTask)
 
     def test_generic_plants_declare_load_executable_tasks(self) -> None:
-        from colav_simulator.modular_gnc.plant import Generic3DOFPlant, GenericRoll4DOFPlant
-
         expected = frozenset({ControlTask.TRANSIT, ControlTask.POSE_HOLD, ControlTask.MANUAL_LOAD})
         assert Generic3DOFPlant.supported_tasks == expected
         assert GenericRoll4DOFPlant.supported_tasks == expected
 
     def test_marine_pid_declares_pose_hold_only_in_position_mode(self) -> None:
-        from colav_simulator.modular_gnc.controller import MarinePID, MarinePIDConfig
-
         velocity_mode = MarinePID(MarinePIDConfig.from_params(_MARINE_PID_PARAMS))
         position_params = dict(_MARINE_PID_PARAMS)
         position_params["position_mode"] = True
