@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -12,12 +12,16 @@ from colav_simulator.core import stochasticity
 from colav_simulator.core.ship import Config, IShip, Ship
 from colav_simulator.modular_gnc.contracts import (
     CommandInput,
+    ControlTask,
     DirectReference,
     FacadeFailure,
     FailureCode,
     NavigationState,
 )
 from colav_simulator.modular_gnc.stack import ModularShipStack
+
+if TYPE_CHECKING:
+    from colav_simulator.modular_gnc.configuration import ShipModulesConfig
 
 
 class ModularShipAbort(RuntimeError):
@@ -64,6 +68,16 @@ class ModularShipAdapter(IShip):
         if legacy_services._references.size == 0:
             legacy_services._references = np.zeros((9, 1), dtype=np.float64)
         return cls(legacy_services, stack)
+
+    @property
+    def modular_stack_config(self) -> ShipModulesConfig:
+        """Return the frozen normalized modular configuration owning this adapter (Issue #60 AC4)."""
+        return self._stack.config
+
+    @property
+    def modular_stack_supported_tasks(self) -> frozenset[ControlTask]:
+        """Return the assembled stack's supported task intersection (Issue #60 AC1)."""
+        return self._stack.modules.supported_tasks
 
     def _navigation(self) -> NavigationState:
         state = self._legacy.state
