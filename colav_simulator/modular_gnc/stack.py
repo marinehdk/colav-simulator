@@ -36,6 +36,15 @@ from colav_simulator.modular_gnc.plant import (
 )
 
 
+def _build_guidance(selection: Any) -> Any:
+    """Build the registered guidance implementation for a module selection."""
+    if selection.identity == "integral_line_of_sight":
+        from colav_simulator.modular_gnc.guidance_ilos import IntegralLineOfSightGuidance  # noqa: PLC0415
+
+        return IntegralLineOfSightGuidance.from_params(selection.parameters)
+    return None
+
+
 class ModularShipStack:
     """Contracts-only deterministic facade; atomicity is facade-local."""
 
@@ -121,11 +130,14 @@ class ModularShipStack:
                 ctrl_cfg = MarinePIDConfig.from_params(ctrl_sel.parameters)
                 controller = MarinePID(ctrl_cfg)
 
+        guidance = _build_guidance(cfg.modules["guidance"]) if "guidance" in cfg.modules else None
+
         modules = PassThroughModules(
             environment_field=env_field,
             load_model=load_model,
             plant=plant,
             controller=controller,
+            guidance=guidance,
         )
         return cls(cfg, modules)
 

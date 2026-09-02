@@ -148,6 +148,20 @@ REGISTRY_V1 = MappingProxyType(
         "pass_through_guidance": RegistryEntry(
             "pass_through_guidance", "guidance", "1.0.0", "guidance.v1", frozenset({"DIRECT_REFERENCE"}), {}
         ),
+        "integral_line_of_sight": RegistryEntry(
+            "integral_line_of_sight",
+            "guidance",
+            "1.0.0",
+            "guidance.v1",
+            frozenset({"TRACKED_ROUTE", "TRANSIT", "GUIDANCE_TRACE"}),
+            {
+                "lookahead_distance_m": {"type": "number"},
+                "integral_gain": {"type": "number"},
+                "max_integral_cross_track_error_m": {"type": "number"},
+                "integral_error_threshold_m": {"type": "number"},
+                "max_speed_mps": {"type": "number"},
+            },
+        ),
         "pass_through_controller": RegistryEntry(
             "pass_through_controller",
             "controller",
