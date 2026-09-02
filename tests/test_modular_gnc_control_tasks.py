@@ -94,6 +94,21 @@ def _build_stack(config: dict) -> ModularShipStack:
     return stack
 
 
+def _position_mode_stack() -> ModularShipStack:
+    """Force plant + position-mode marine_pid: both TRANSIT and POSE_HOLD executable."""
+    config = _generic_plant_marine_pid_config(position_mode=True)
+    config["overrides"] = {"scheduler": {"plant_period_ticks": 1, "controller_period_ticks": 1}}
+    return _build_stack(config)
+
+
+def _pose_reference(tick: int, north: float, east: float, heading: float, task: ControlTask) -> CommandInput:
+    values = np.zeros(9)
+    values[0] = north
+    values[1] = east
+    values[2] = heading
+    return CommandInput.direct(tick, DirectReference(values, latched_tick=tick, task=task))
+
+
 class TestExecutionTimeTaskRejection:
     """Unsupported tasks are rejected before any phase executes (AC1)."""
 
@@ -189,6 +204,119 @@ class TestExecutionTimeTaskRejection:
         assert output.failure is not None
         assert output.failure.code is FailureCode.CAPABILITY_MISMATCH
         assert stack.tick == 0
+
+
+class TestBumplessTransitPoseHoldTransfer:
+    """Deterministic bumpless transfer contract for TRANSIT <-> POSE_HOLD (Issue #56, AC2).
+
+    Derived from existing controller/stack semantics:
+    - marine_pid computes derivative on measurement and never consults the task label,
+      so a task transition must not reset or rebase any controller internal state
+      (integral, previous measurement, filtered derivative).
+    - Therefore a pure task relabel with identical reference values must produce a
+      bit-identical trajectory, and the integral recursion must continue across the
+      transition boundary without discontinuity.
+    """
+
+    @staticmethod
+    def _run_transit_then_task(tick_of_transfer: int, transfer_task: ControlTask) -> list:
+        stack = _position_mode_stack()
+        outputs = []
+        for tick in range(6):
+            if tick < tick_of_transfer:
+                command = _pose_reference(tick, 5.0, -5.0, 0.2, ControlTask.TRANSIT)
+            elif tick == tick_of_transfer:
+                command = _pose_reference(tick, 5.0, -5.0, 0.2, transfer_task)
+            else:
+                command = _pose_reference(tick, 5.0, -5.0, 0.2, transfer_task)
+            output = stack.step(command, dt_s=0.1)
+            assert output.failure is None
+            outputs.append(output)
+        return outputs
+
+    def test_task_relabel_with_identical_values_is_bit_identical(self) -> None:
+        transit_run = self._run_transit_then_task(3, ControlTask.TRANSIT)
+        pose_hold_run = self._run_transit_then_task(3, ControlTask.POSE_HOLD)
+
+        for transit_out, pose_out in zip(transit_run, pose_hold_run, strict=True):
+            assert transit_out.plant == pose_out.plant
+            assert transit_out.controller_trace == pose_out.controller_trace
+
+    def test_control_output_continuous_at_transfer_tick(self) -> None:
+        transit_run = self._run_transit_then_task(3, ControlTask.TRANSIT)
+        pose_hold_run = self._run_transit_then_task(3, ControlTask.POSE_HOLD)
+
+        transit_trace = transit_run[3].controller_trace
+        pose_trace = pose_hold_run[3].controller_trace
+        assert transit_trace is not None and pose_trace is not None
+        assert transit_trace.saturated_output == pose_trace.saturated_output
+        assert transit_trace.raw_request == pose_trace.raw_request
+
+    def test_integral_recursion_continues_across_transfer_boundary(self) -> None:
+        outputs = self._run_transit_then_task(3, ControlTask.POSE_HOLD)
+        dt = 0.1
+        ki = np.array([100.0, 50.0, 200.0])
+        aw = np.array([1.0, 1.0, 1.0])
+
+        for before, after in zip(outputs[:-1], outputs[1:], strict=True):
+            trace_before = before.controller_trace
+            trace_after = after.controller_trace
+            assert trace_before is not None and trace_after is not None
+            delta = dt * (
+                ki * np.array(trace_before.errors, dtype=np.float64)
+                + aw * np.array(trace_before.antiwindup_correction, dtype=np.float64)
+            )
+            expected = np.array(trace_before.i_term, dtype=np.float64) + delta
+            np.testing.assert_array_equal(np.array(trace_after.i_term, dtype=np.float64), expected)
+
+    def test_derivative_term_invariant_under_reference_jump(self) -> None:
+        from colav_simulator.modular_gnc.controller import MarinePID, MarinePIDConfig
+
+        params = dict(_MARINE_PID_PARAMS)
+        params["position_mode"] = True
+        controller = MarinePID(MarinePIDConfig.from_params(params))
+        dt = 0.1
+        measurements = [
+            NavigationState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            NavigationState(0.01, -0.01, 0.001, 0.1, 0.0, 0.01),
+            NavigationState(0.03, -0.02, 0.003, 0.2, 0.0, 0.01),
+            NavigationState(0.06, -0.04, 0.006, 0.3, 0.0, 0.01),
+        ]
+
+        def run(reference_values: list[np.ndarray]) -> list:
+            controller.reset(seed=0)
+            traces = []
+            for tick, measurement in enumerate(measurements):
+                _, trace = controller.compute_control(
+                    measurement=measurement,
+                    reference=DirectReference(reference_values[tick], latched_tick=tick),
+                    dt_s=dt,
+                    tick=tick,
+                )
+                traces.append(trace)
+            return traces
+
+        constant = [np.array([1.0, 1.0, 0.1] + [0.0] * 6) for _ in range(4)]
+        jumped = [np.array([1.0, 1.0, 0.1] + [0.0] * 6) for _ in range(2)]
+        jumped.append(np.array([4.0, -2.0, 0.5] + [0.0] * 6))
+        jumped.append(np.array([4.0, -2.0, 0.5] + [0.0] * 6))
+
+        constant_traces = run(constant)
+        jumped_traces = run(jumped)
+
+        assert constant_traces[2].d_term == jumped_traces[2].d_term
+        assert constant_traces[2].measurement == jumped_traces[2].measurement
+
+    def test_transfer_command_leaves_stack_state_untouched_before_execution(self) -> None:
+        stack = _position_mode_stack()
+        for tick in range(3):
+            stack.step(_pose_reference(tick, 5.0, -5.0, 0.2, ControlTask.TRANSIT), dt_s=0.1)
+        before = stack.snapshot()
+
+        rejected = stack.step(_pose_reference(3, 5.0, -5.0, 0.2, ControlTask.CONTROLLED_STOP), dt_s=0.1)
+
+        assert rejected.failure is not None
+        assert stack.snapshot() == before
 
 
 class TestTaskCapabilityDeclarations:
