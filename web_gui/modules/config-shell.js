@@ -807,7 +807,7 @@ function createStatusText(snapshot) {
     'matches-active': 'Matches active session',
     unavailable: 'Unavailable Exact Tuple',
     'invalid-draft': 'Invalid parameters',
-    'experimental-confirmation': 'Experimental · confirmation required',
+    'experimental-confirmation': 'Experimental · inline notice shown',
     creating: 'CREATING · immutable snapshot in flight',
     'runtime-pending': 'Active Session command in progress · controls frozen',
     'current-session-loading': 'Loading current-session authority…',
@@ -850,7 +850,7 @@ function render() {
     classification.textContent = snapshot.classification === 'verified'
       ? 'Verified Exact Tuple · normal Create'
       : snapshot.classification === 'experimental'
-        ? 'Experimental Exact Tuple · amber confirmation required'
+        ? 'Experimental Exact Tuple · no Verified evidence · Create available'
         : 'Unavailable · Create blocked';
   }
   renderSummary(snapshot);
@@ -863,6 +863,9 @@ function render() {
   const messages = snapshot.notices
     .filter((notice) => typeof notice.kind === 'string' && notice.kind.endsWith('-error'))
     .map((notice) => notice.message);
+  if (snapshot.classification === 'experimental' && !cleanMatch) {
+    messages.unshift('Experimental Exact Tuple has no Verified Tuple evidence. Create runs as experimental.');
+  }
   if (snapshot.createBlock?.startsWith('product-capability-policy-') && snapshot.createBlockReason) {
     messages.unshift(snapshot.createBlockReason);
   }
@@ -1001,9 +1004,9 @@ async function refreshValidationAuthority() {
 
 async function createSessionFromDraft() {
   const before = assembly.snapshot();
-  const confirmedExperimental = before.classification !== 'experimental'
-    || window.confirm('Experimental Exact Tuple has no Verified Tuple evidence. Create this session?');
-  if (!confirmedExperimental) return;
+  // Clicking Create is the user's explicit action. Experimental status remains
+  // visible in the inspector instead of blocking the entire UI with a native modal.
+  const confirmedExperimental = before.classification === 'experimental';
   let pending;
   try {
     pending = assembly.beginCreate({ confirmedExperimental });

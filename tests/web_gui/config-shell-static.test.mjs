@@ -377,6 +377,13 @@ test('Create constraint rendering consumes typed policy projection without algor
   assert.doesNotMatch(shell, /fallback.*Mid-MPC|Mid-MPC.*fallback/i);
 });
 
+test('Experimental Create uses a non-blocking inline notice instead of native confirm', () => {
+  assert.doesNotMatch(shell, /window\.confirm|\bconfirm\(/);
+  assert.match(shell, /Experimental Exact Tuple has no Verified Tuple evidence/);
+  assert.match(shell, /before\.classification === 'experimental'/);
+  assert.match(shell, /assembly\.beginCreate\(\{ confirmedExperimental \}\)/);
+});
+
 test('Algorithm detail chrome: role eyebrow, grade pill, 20px heading, binding footer (gap #14)', () => {
   assert.match(html, /class="algorithm-detail-eyebrow"/);
   assert.match(html, /id="validationAlgorithmGrade"/);
