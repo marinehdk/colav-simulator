@@ -1121,6 +1121,117 @@ class MarinePIDTrace:
 
 
 @dataclass(frozen=True)
+class ActuatorDynamicsTrace:
+    """Immutable per-tick resolved actuator dynamics evidence (TS-22, VR-15, G9).
+
+    Only the resolved fidelity profile produces this trace; the ideal profile
+    emits none, keeping identity, config hash, and evidence separate between
+    the two fidelity profiles (Issue #59 AC1). Rate limiting and transport
+    delay appear as explicit first-class fields; nothing is hidden or silently
+    clipped. The achieved generalized load is strictly 3DOF body [X, Y, N];
+    no roll channel exists (RA-12, VR-16).
+    """
+
+    fidelity_profile: str
+    actuator_identity: str
+    config_hash: str
+    tick: int
+    time_s: float
+    dt_s: float
+    actuator_commands_n: Mapping[str, float]
+    actuator_outputs_n: Mapping[str, float]
+    rate_limited_actuators: tuple[str, ...]
+    pending_delay_ticks: Mapping[str, int]
+    achieved_load: tuple[float, float, float]
+
+    def __post_init__(self) -> None:
+        """Enforce resolved-only identity, validate fields, and freeze mappings."""
+        if self.fidelity_profile != "resolved":
+            raise ValueError(
+                f"ActuatorDynamicsTrace is resolved-profile evidence only, got fidelity_profile "
+                f"'{self.fidelity_profile}' (ideal fidelity emits no actuator trace, Issue #59 AC1)"
+            )
+        object.__setattr__(self, "actuator_identity", _non_empty_str("actuator_identity", self.actuator_identity))
+        object.__setattr__(self, "config_hash", _validate_sha256("config_hash", self.config_hash))
+        object.__setattr__(self, "tick", _non_bool_int("tick", self.tick))
+        object.__setattr__(self, "time_s", _finite_scalar("time_s", self.time_s))
+        dt = _finite_scalar("dt_s", self.dt_s)
+        if dt <= 0.0:
+            raise ValueError(f"dt_s must be positive, got {dt}")
+        object.__setattr__(self, "dt_s", dt)
+
+        for field_name in ("actuator_commands_n", "actuator_outputs_n"):
+            raw = getattr(self, field_name)
+            if not isinstance(raw, Mapping):
+                raise TypeError(f"{field_name} must be a mapping, got {type(raw).__name__}")
+            frozen = {}
+            for key, value in raw.items():
+                key_str = _non_empty_str(f"{field_name} key", key)
+                frozen[key_str] = _finite_scalar(f"{field_name}[{key_str}]", value)
+            object.__setattr__(self, field_name, MappingProxyType(frozen))
+
+        if not isinstance(self.rate_limited_actuators, (tuple, list)):
+            raise TypeError("rate_limited_actuators must be a tuple of actuator ids")
+        object.__setattr__(
+            self,
+            "rate_limited_actuators",
+            tuple(_non_empty_str("rate_limited_actuators entry", entry) for entry in self.rate_limited_actuators),
+        )
+
+        pending_raw = self.pending_delay_ticks
+        if not isinstance(pending_raw, Mapping):
+            raise TypeError(f"pending_delay_ticks must be a mapping, got {type(pending_raw).__name__}")
+        pending = {}
+        for key, value in pending_raw.items():
+            key_str = _non_empty_str("pending_delay_ticks key", key)
+            pending[key_str] = _non_bool_int(f"pending_delay_ticks[{key_str}]", value)
+        object.__setattr__(self, "pending_delay_ticks", MappingProxyType(pending))
+
+        achieved = self.achieved_load
+        if not isinstance(achieved, (tuple, list)) or len(achieved) != 3:
+            raise ValueError(f"achieved_load must be a 3-tuple [X, Y, N], got {achieved!r}")
+        object.__setattr__(
+            self, "achieved_load", tuple(_finite_scalar(f"achieved_load[{i}]", v) for i, v in enumerate(achieved))
+        )
+
+    def achieved_vessel_load(self) -> VesselLoad:
+        """Project the actuator outputs into a strictly 3DOF body VesselLoad."""
+        return VesselLoad(
+            surge_n=self.achieved_load[0],
+            sway_n=self.achieved_load[1],
+            yaw_nm=self.achieved_load[2],
+            roll_nm=0.0,
+        )
+
+    def to_achieved_generalized_load(self) -> AchievedGeneralizedLoad:
+        """Project into the achieved-load feedback contract with resolved-profile provenance (VR-15).
+
+        The saturated flag reports an active actuator-level constraint keeping the
+        delivered load below the command; under the resolved profile this is rate
+        limiting (the allocator's force-limit clipping is reported separately in
+        its own solution diagnostics). Rate-limited actuators and pending delay
+        depth remain explicit in details, so no evidence is conflated or hidden.
+        """
+        return AchievedGeneralizedLoad.from_vessel_load(
+            self.achieved_vessel_load(),
+            status=AchievedLoadStatus.AVAILABLE,
+            saturated=bool(self.rate_limited_actuators),
+            source="RESOLVED_ACTUATOR_DYNAMICS",
+            tick=self.tick,
+            time_s=self.time_s,
+            details={
+                "fidelity_profile": self.fidelity_profile,
+                "actuator_identity": self.actuator_identity,
+                "actuator_config_hash": self.config_hash,
+                "actuator_commands_n": dict(self.actuator_commands_n),
+                "actuator_outputs_n": dict(self.actuator_outputs_n),
+                "rate_limited_actuators": self.rate_limited_actuators,
+                "pending_delay_ticks": dict(self.pending_delay_ticks),
+            },
+        )
+
+
+@dataclass(frozen=True)
 class StackOutput:
     """Immutable facade output."""
 
@@ -1133,6 +1244,7 @@ class StackOutput:
     environmental_loads: EnvironmentalLoads | None = None
     controller_trace: MarinePIDTrace | None = None
     achieved_load: AchievedGeneralizedLoad | None = None
+    actuator_trace: ActuatorDynamicsTrace | None = None
 
 
 @dataclass(frozen=True)

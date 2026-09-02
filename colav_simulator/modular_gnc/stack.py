@@ -45,6 +45,24 @@ def _build_guidance(selection: Any) -> Any:
     return None
 
 
+def _build_allocator(selection: Any) -> Any:
+    """Build the registered allocator implementation for a module selection."""
+    if selection.identity == "data_driven_allocator":
+        from colav_simulator.modular_gnc.allocator import DataDrivenAllocator  # noqa: PLC0415
+
+        return DataDrivenAllocator.from_params(selection.parameters)
+    return None
+
+
+def _build_actuator(selection: Any) -> Any:
+    """Build the registered actuator dynamics implementation for a module selection."""
+    if selection.identity == "resolved_actuator_dynamics":
+        from colav_simulator.modular_gnc.actuator_dynamics import ResolvedActuatorDynamics  # noqa: PLC0415
+
+        return ResolvedActuatorDynamics.from_params(selection.parameters)
+    return None
+
+
 class ModularShipStack:
     """Contracts-only deterministic facade; atomicity is facade-local."""
 
@@ -70,6 +88,13 @@ class ModularShipStack:
             raise UnsupportedModuleCombinationError(
                 f"{plant_id} requires plant_period_ticks == 1 (base-clock cadence only; "
                 f"got {config.scheduler.get('plant_period_ticks')})"
+            )
+        if (
+            "actuator" in config.modules or getattr(modules, "_actuator", None) is not None
+        ) and config.scheduler.get("controller_period_ticks") != 1:
+            raise UnsupportedModuleCombinationError(
+                "resolved_actuator_dynamics requires controller_period_ticks == 1 (base-clock cadence only; "
+                f"got {config.scheduler.get('controller_period_ticks')})"
             )
         self._config = config
         self._modules = modules
@@ -132,13 +157,9 @@ class ModularShipStack:
 
         guidance = _build_guidance(cfg.modules["guidance"]) if "guidance" in cfg.modules else None
 
-        allocator = None
-        if "allocator" in cfg.modules:
-            alloc_sel = cfg.modules["allocator"]
-            if alloc_sel.identity == "data_driven_allocator":
-                from colav_simulator.modular_gnc.allocator import DataDrivenAllocator  # noqa: PLC0415
+        allocator = _build_allocator(cfg.modules["allocator"]) if "allocator" in cfg.modules else None
 
-                allocator = DataDrivenAllocator.from_params(alloc_sel.parameters)
+        actuator = _build_actuator(cfg.modules["actuator"]) if "actuator" in cfg.modules else None
 
         modules = PassThroughModules(
             environment_field=env_field,
@@ -147,6 +168,7 @@ class ModularShipStack:
             controller=controller,
             guidance=guidance,
             allocator=allocator,
+            actuator=actuator,
         )
         return cls(cfg, modules)
 
@@ -268,6 +290,7 @@ class ModularShipStack:
             environmental_loads=getattr(self._modules, "environmental_loads", lambda: None)(),
             controller_trace=getattr(self._modules, "controller_trace", lambda: None)(),
             achieved_load=getattr(self._modules, "achieved_load", lambda: None)(),
+            actuator_trace=getattr(self._modules, "actuator_trace", lambda: None)(),
         )
         self._tick += 1
         return output
@@ -304,6 +327,7 @@ class ModularShipStack:
             environmental_loads=getattr(self._modules, "environmental_loads", lambda: None)(),
             controller_trace=getattr(self._modules, "controller_trace", lambda: None)(),
             achieved_load=getattr(self._modules, "achieved_load", lambda: None)(),
+            actuator_trace=getattr(self._modules, "actuator_trace", lambda: None)(),
         )
 
     def _uninitialized_failure(self, message: str) -> StackOutput:

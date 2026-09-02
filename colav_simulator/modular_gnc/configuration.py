@@ -279,6 +279,18 @@ REGISTRY_V1 = MappingProxyType(
             frozenset({"GENERALIZED_FORCE", "ALLOCATOR_DIAGNOSTICS", "ACTUATOR_HEALTH"}),
             {"layout_asset_id": {"type": "string"}},
         ),
+        "resolved_actuator_dynamics": RegistryEntry(
+            "resolved_actuator_dynamics",
+            "actuator",
+            "1.0.0",
+            "actuator.v1",
+            frozenset({"GENERALIZED_FORCE", "ACTUATOR_DYNAMICS_TRACE"}),
+            {
+                "layout_asset_id": {"type": "string"},
+                "rate_limit_n_per_s": {"type": "object"},
+                "delay_ticks": {"type": "object"},
+            },
+        ),
     }
 )
 
@@ -332,6 +344,11 @@ class ShipModulesConfig:
         """Return original opt-in configuration shape."""
         return _deep_thaw(self.source)
 
+    @property
+    def fidelity_profile(self) -> str:
+        """Return the explicit fidelity profile: resolved when an actuator module is selected, ideal otherwise (AC1)."""
+        return "resolved" if "actuator" in self.modules else "ideal"
+
     def __deepcopy__(self, memo: dict[int, Any]) -> ShipModulesConfig:
         """Reuse immutable configuration during episode template cloning."""
         memo[id(self)] = self
@@ -374,6 +391,11 @@ def _validate_parameter_type(identity: str, param_name: str, raw_val: Any, spec:
         if not isinstance(raw_val, (list, tuple)):
             raise UnsupportedModuleCombinationError(
                 f"parameter {param_name} for {identity} must be an array, got {raw_val!r}"
+            )
+    elif expected_type == "object":
+        if not isinstance(raw_val, Mapping):
+            raise UnsupportedModuleCombinationError(
+                f"parameter {param_name} for {identity} must be an object keyed by id, got {type(raw_val).__name__}"
             )
 
 
@@ -457,6 +479,54 @@ def _validate_allocator_layout_asset(modules: Mapping[str, ModuleSelection]) -> 
         raise UnsupportedModuleCombinationError(
             f"unknown actuator layout asset id: {layout_id} (known: {sorted(KNOWN_ACTUATOR_LAYOUT_ASSET_IDS)})"
         )
+
+
+def _validate_actuator_profile(
+    modules: Mapping[str, ModuleSelection],
+    scheduler: Mapping[str, int],
+) -> None:
+    """Validate resolved actuator profile assembly: single owner, matched layout, base clock (AC4, TS-22)."""
+    if "actuator" not in modules:
+        return
+    selection = modules["actuator"]
+    if selection.identity != "resolved_actuator_dynamics":
+        raise UnsupportedModuleCombinationError(f"unsupported actuator module identity: {selection.identity}")
+
+    allocator = modules.get("allocator")
+    if allocator is None or allocator.identity != "data_driven_allocator":
+        raise UnsupportedModuleCombinationError(
+            "resolved_actuator_dynamics requires the data_driven_allocator module: the allocator owns "
+            "force limits, command saturation, effectiveness, and failures (Issue #59 AC4, TS-22)"
+        )
+
+    actuator_layout = selection.parameters.get("layout_asset_id")
+    allocator_layout = allocator.parameters.get("layout_asset_id")
+    if actuator_layout != allocator_layout:
+        raise UnsupportedModuleCombinationError(
+            "allocator and actuator must bind the same actuator layout asset: allocator "
+            f"layout_asset_id is {allocator_layout!r} but actuator layout_asset_id is {actuator_layout!r}"
+        )
+
+    if "plant" in modules:
+        plant_entry = REGISTRY_V1.get(modules["plant"].identity)
+        if plant_entry is not None and "GENERALIZED_FORCE" not in plant_entry.capabilities:
+            raise CapabilityMismatchError(
+                f"resolved_actuator_dynamics produces GENERALIZED_FORCE but plant {plant_entry.identity} "
+                "accepts only kinematic references (RA-13)"
+            )
+
+    if scheduler.get("controller_period_ticks") != 1:
+        raise UnsupportedModuleCombinationError(
+            "resolved_actuator_dynamics is a discrete dynamics phase and requires "
+            f"controller_period_ticks == 1 (base-clock cadence only; got {scheduler.get('controller_period_ticks')})"
+        )
+
+    from colav_simulator.modular_gnc.actuator_dynamics import ResolvedActuatorDynamicsConfig  # noqa: PLC0415
+
+    try:
+        ResolvedActuatorDynamicsConfig.from_params(selection.parameters)
+    except (ValueError, TypeError) as exc:
+        raise UnsupportedModuleCombinationError(f"invalid resolved_actuator_dynamics parameters: {exc}") from exc
 
 
 def _validate_wave_asset_ids_presence(
@@ -570,11 +640,11 @@ def _validate_wave_mode(modules: Mapping[str, ModuleSelection]) -> None:
 def _parse_modules_mapping(raw_modules: Mapping[str, Any]) -> dict[str, ModuleSelection]:
     """Parse and validate structural presence of module selections."""
     required_roles = {"plant", "guidance", "controller"}
-    allowed_roles = {"plant", "guidance", "controller", "environment", "load_model", "allocator"}
+    allowed_roles = {"plant", "guidance", "controller", "environment", "load_model", "allocator", "actuator"}
     if not (required_roles.issubset(raw_modules) and set(raw_modules).issubset(allowed_roles)):
         raise UnsupportedModuleCombinationError(
             "modules must select plant, guidance, and controller "
-            "(optional: environment, load_model, allocator)"
+            "(optional: environment, load_model, allocator, actuator)"
         )
     modules = {}
     for role, raw in raw_modules.items():
@@ -619,6 +689,7 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     _validate_current_strategy_deduplication(modules)
     _validate_wave_mode(modules)
     _validate_allocator_layout_asset(modules)
+    _validate_actuator_profile(modules, normalized["scheduler"])
 
     if "controller" in modules and modules["controller"].identity == "marine_pid":
         from colav_simulator.modular_gnc.controller import MarinePIDConfig  # noqa: PLC0415
