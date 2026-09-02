@@ -47,6 +47,7 @@ from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner, PreparedRun, RunResult
 from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssembler
 from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCatalog
+from colav_simulator.modular_gnc.catalog import list_stack_catalog
 from gui_server.historical_api import router as historical_api_router
 
 log = logging.getLogger("gui_server")
@@ -96,6 +97,28 @@ def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) ->
     if not include_static:
         compact.pop("enc_navigation_area", None)
     return compact
+
+
+def _modular_gnc_telemetry_metadata(session: Any) -> dict[str, Any] | None:
+    """Return additive modular GNC evidence metadata for the ownship (Issue #60 AC4).
+
+    The envelope ``schema_version`` stays ``1.0``; this key is additive only.
+    Legacy (non-modular) ownships carry ``None`` — no invented facts, no
+    inflated claims. Evidence labels come from the Python-side stack evidence
+    document, never from client-side interpretation.
+    """
+    ships = getattr(session, "ship_list", ()) or ()
+    if not ships:
+        return None
+    config = getattr(ships[0], "modular_stack_config", None)
+    if config is None:
+        return None
+    from colav_simulator.modular_gnc.catalog import stack_evidence_document  # noqa: PLC0415
+
+    return stack_evidence_document(
+        config,
+        supported_tasks=getattr(ships[0], "modular_stack_supported_tasks", None) or None,
+    )
 
 
 def _select_primary_encounter(_encounters: list[dict[str, Any]]) -> None:
@@ -858,6 +881,7 @@ class WebSessionManager:
                 "sim_time": 0.0,
                 "state": SessionState.CREATED.value,
                 "events": [],
+                "modular_gnc": None,
             }
         session = self.prepared.session
         frame = snapshot.payload if snapshot is not None else (session.last_frame or {})
@@ -1235,6 +1259,7 @@ class WebSessionManager:
             "executed_tracker": self.prepared.manifest.executed_tracker,
             "selected_rule": self.prepared.spec.validation_rule_id,
             "selected_scenario": self.prepared.spec.scenario_id,
+            "modular_gnc": _modular_gnc_telemetry_metadata(session),
             "step_time_ms": step_ms,
             "playback": self._playback_status(),
             "failure_reason": session.failure_reason,
@@ -1377,6 +1402,12 @@ def api_capabilities(validation_rule_id: str | None = None) -> dict[str, Any]:
         return manager.runner.list_capabilities(validation_rule_id)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
+
+
+@app.get("/api/gnc/stacks")
+def api_gnc_stacks() -> dict[str, Any]:
+    """Expose only modular stacks the backend validated (Issue #60, AC1/AC3)."""
+    return list_stack_catalog()
 
 
 @app.get("/api/algorithms")
