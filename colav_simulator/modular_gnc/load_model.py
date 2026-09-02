@@ -2542,17 +2542,140 @@ class EnvironmentalLoadModel:
             ),
         )
 
-    def compute_stage_load_3dof(  # noqa: C901, PLR0912, PLR0915
+    def _calculate_fused_inferred_wave_loads_3dof_raw(  # noqa: PLR0915
+        self,
+        wave: WaveFieldSample,
+        heading_rad: float,
+        surge_mps: float,
+        sway_mps: float,
+        stage_time_s: float,
+    ) -> tuple[float, float, float]:
+        """Direct numeric evaluation of fused first-order wave and diagonal Ai2 mean-drift 3DOF loads (Slice 3B)."""
+        w1_asset = self._wave_first_order_asset
+        wdrift_asset = self._wave_mean_drift_asset
+        if w1_asset is None or wdrift_asset is None:
+            raise AssetMissingError("Wave assets required for fused wave load calculation")
+
+        if not wave.components:
+            return 0.0, 0.0, 0.0
+
+        heading = _finite_scalar("heading_rad", heading_rad)
+        u = _finite_scalar("surge_mps", surge_mps)
+        v = _finite_scalar("sway_mps", sway_mps)
+        t = _finite_scalar("stage_time_s", stage_time_s)
+        speed = math.hypot(u, v)
+
+        if not w1_asset.metadata.applicability_domain.contains(speed_mps=speed, draft_m=self._vessel_params.draft_m):
+            raise OutOfDomainError(
+                f"Vessel state (speed={speed:.2f} m/s, draft={self._vessel_params.draft_m:.2f} m) "
+                f"outside applicability domain of asset {w1_asset.metadata.asset_id}"
+            )
+
+        invariants = self.get_fused_static_invariants(wave)
+        arrays = invariants.arrays
+        if len(arrays.amplitudes) == 0:
+            return 0.0, 0.0, 0.0
+
+        amps = arrays.amplitudes
+        omegas = arrays.omegas
+        phases = arrays.phases
+        dirs = arrays.directions
+
+        gamma_dir = dirs - heading
+        gamma_deg = np.degrees(gamma_dir) % 360.0
+
+        _check_wave_domain_heading(
+            w1_asset.metadata.asset_id,
+            w1_asset.metadata.applicability_domain,
+            gamma_deg,
+            omegas,
+            amps,
+        )
+        if wdrift_asset.metadata.applicability_domain != w1_asset.metadata.applicability_domain:
+            _check_wave_domain_heading(
+                wdrift_asset.metadata.asset_id,
+                wdrift_asset.metadata.applicability_domain,
+                gamma_deg,
+                omegas,
+                amps,
+            )
+
+        cos_gamma = np.cos(gamma_dir)
+        sin_gamma = np.sin(gamma_dir)
+        sin_2gamma = np.sin(2.0 * gamma_dir)
+
+        vel_along_wave = u * cos_gamma + v * sin_gamma
+        omega_e = omegas - invariants.k_1st * vel_along_wave
+        omega_rao = np.maximum(np.abs(omega_e), 1.0e-4)
+
+        r_surge = omega_rao / self._static_rao_cutoff_surge
+        rao_surge = np.minimum(1.0 / np.sqrt(1.0 + r_surge * r_surge), self._static_rao_scale_max)
+
+        r_sway = omega_rao / self._static_rao_cutoff_sway
+        rao_sway = np.minimum(1.0 / np.sqrt(1.0 + r_sway * r_sway), self._static_rao_scale_max)
+
+        r_yaw = omega_rao / self._static_rao_cutoff_yaw
+        rao_yaw = np.minimum(1.0 / np.sqrt(1.0 + r_yaw * r_yaw), self._static_rao_scale_max)
+
+        phase_t = omega_e * t + phases
+        cos_phase = np.cos(phase_t)
+        sin_phase = np.sin(phase_t)
+
+        fx_1st_comp = self._static_fx_scale_1st * (invariants.sway_base_1st * cos_gamma * cos_phase * rao_surge)
+        fy_1st_comp = self._static_fy_scale_1st * (invariants.sway_base_1st * sin_gamma * cos_phase * rao_sway)
+        mz_1st_comp = self._static_mz_scale_1st * (invariants.sway_base_1st * sin_2gamma * sin_phase * rao_yaw)
+
+        # Drift components
+        c_abs = np.abs(cos_gamma)
+        s_abs = np.abs(sin_gamma)
+
+        cfx = invariants.drift_cfx_factor * cos_gamma * c_abs
+        cfy = invariants.drift_cfy_factor * sin_gamma * s_abs
+        cmz = invariants.drift_cmz_factor * (cos_gamma * sin_gamma)
+
+        if invariants.has_zero_amps:
+            mask = amps > 0.0
+            total_1st_fx = float(np.sum(fx_1st_comp[mask]))
+            total_1st_fy = float(np.sum(fy_1st_comp[mask]))
+            total_1st_mz = float(np.sum(mz_1st_comp[mask]))
+
+            total_drift_fx = float(np.sum(cfx[mask]))
+            total_drift_fy = float(np.sum(cfy[mask]))
+            total_drift_mz = float(np.sum(cmz[mask]))
+        else:
+            total_1st_fx = float(np.sum(fx_1st_comp))
+            total_1st_fy = float(np.sum(fy_1st_comp))
+            total_1st_mz = float(np.sum(mz_1st_comp))
+
+            total_drift_fx = float(np.sum(cfx))
+            total_drift_fy = float(np.sum(cfy))
+            total_drift_mz = float(np.sum(cmz))
+
+        if self._static_drift_max_force_n is not None and self._static_drift_max_force_n > 0.0:
+            fnorm = math.hypot(total_drift_fx, total_drift_fy)
+            if fnorm > self._static_drift_max_force_n:
+                scale = self._static_drift_max_force_n / fnorm
+                total_drift_fx *= scale
+                total_drift_fy *= scale
+        if self._static_drift_max_moment_nm is not None and self._static_drift_max_moment_nm > 0.0:
+            total_drift_mz = math.copysign(min(abs(total_drift_mz), self._static_drift_max_moment_nm), total_drift_mz)
+
+        return (
+            total_1st_fx + total_drift_fx,
+            total_1st_fy + total_drift_fy,
+            total_1st_mz + total_drift_mz,
+        )
+
+    def compute_stage_load_3dof_raw(  # noqa: C901, PLR0912, PLR0915
         self,
         field: AnalyticEnvironmentField,
         tick: int,
         stage_offset_s: float,
-        state_vector: FloatArray,
+        psi: float,
+        u: float,
+        v: float,
     ) -> tuple[float, float, float]:
-        """Internal fast path computing 3DOF load tuple (surge_n, sway_n, yaw_nm) for RK stages (Slice B)."""
-        psi = float(state_vector[2])
-        u = float(state_vector[3])
-        v = float(state_vector[4])
+        """Direct scalar evaluation of 3DOF stage load tuple (surge_n, sway_n, yaw_nm) (Slice 3B)."""
         time_s = tick * field.dt_s + stage_offset_s
 
         # 1. Wind load
@@ -2650,16 +2773,13 @@ class EnvironmentalLoadModel:
             wave_fy = 0.0
             wave_mz = 0.0
         elif self._fused_wave_kernel_ready:
-            w1, wdrift = self._calculate_fused_inferred_wave_loads(
+            wave_fx, wave_fy, wave_mz = self._calculate_fused_inferred_wave_loads_3dof_raw(
                 wave=field.wave_sample,
                 heading_rad=psi,
                 surge_mps=u,
                 sway_mps=v,
                 stage_time_s=time_s,
             )
-            wave_fx = w1.surge_n + wdrift.surge_n
-            wave_fy = w1.sway_n + wdrift.sway_n
-            wave_mz = w1.yaw_nm + wdrift.yaw_nm
         elif self._wave_mode == WaveLoadMode.FIRST_ORDER:
             w1 = FirstOrderWaveLoadModel.calculate(
                 wave=field.wave_sample,
@@ -2704,6 +2824,23 @@ class EnvironmentalLoadModel:
             wave_mz = w1.yaw_nm + wdrift.yaw_nm
 
         return (wind_fx + curr_fx + wave_fx, wind_fy + curr_fy + wave_fy, wind_mz + curr_mz + wave_mz)
+
+    def compute_stage_load_3dof(
+        self,
+        field: AnalyticEnvironmentField,
+        tick: int,
+        stage_offset_s: float,
+        state_vector: FloatArray,
+    ) -> tuple[float, float, float]:
+        """Internal fast path computing 3DOF load tuple (surge_n, sway_n, yaw_nm) for RK stages (Slice 3B)."""
+        return self.compute_stage_load_3dof_raw(
+            field=field,
+            tick=tick,
+            stage_offset_s=stage_offset_s,
+            psi=float(state_vector[2]),
+            u=float(state_vector[3]),
+            v=float(state_vector[4]),
+        )
 
     @classmethod
     def from_params(cls, params: dict[str, Any] | Mapping[str, Any]) -> EnvironmentalLoadModel:

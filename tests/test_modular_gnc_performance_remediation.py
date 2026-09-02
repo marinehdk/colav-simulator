@@ -937,3 +937,55 @@ def test_slice_3a_static_domain_validation_and_first_violator_error(
     assert "omega=6.00 rad/s" in str(excinfo.value)
     assert "outside applicability domain" in str(excinfo.value)
 
+
+def test_slice_3b_fast_3dof_kernel_parity(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Slice 3B: compute_stage_load_3dof and compute_stage_load_3dof_raw match compute_loads exactly."""
+    model = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": "both",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+            "enable_wind": True,
+            "enable_current": True,
+            "current_strategy": "external_current_load",
+        }
+    )
+
+    field = AnalyticEnvironmentField(
+        dt_s=0.02,
+        field_seed=12345,
+        wind_velocity_ne=(10.0, 5.0),
+        current_velocity_ne=(0.6, -0.2),
+        wave_significant_height_m=1.8,
+        wave_peak_period_s=7.0,
+        wave_direction_to_rad=0.5,
+        wave_num_components=16,
+    )
+
+    states = [
+        (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        (10.0, 20.0, 0.5, 3.0, 0.2, 0.01),
+        (50.0, -30.0, np.pi / 2, 2.0, -0.3, -0.02),
+        (-100.0, 100.0, np.pi, 1.5, 0.0, 0.0),
+        (0.0, 0.0, 5.0, 3.5, 0.4, 0.05),
+    ]
+
+    for tick in range(10):
+        for s in states:
+            st_vec = np.array(s, dtype=np.float64)
+            truth = field.sample_at(tick, 0.01)
+            nav = NavigationState(s[0], s[1], s[2], s[3], s[4], s[5])
+
+            full_load = model.compute_loads(truth, nav)
+            tuple_load = model.compute_stage_load_3dof(field, tick, 0.01, st_vec)
+            raw_load = model.compute_stage_load_3dof_raw(field, tick, 0.01, s[2], s[3], s[4])
+
+            assert np.isclose(tuple_load[0], full_load.total.surge_n, rtol=1e-12, atol=1e-9)
+            assert np.isclose(tuple_load[1], full_load.total.sway_n, rtol=1e-12, atol=1e-9)
+            assert np.isclose(tuple_load[2], full_load.total.yaw_nm, rtol=1e-12, atol=1e-9)
+
+            assert tuple_load == raw_load
+
+
