@@ -478,6 +478,20 @@ obc-clock:not(:defined),
 .scenario-scrollbar::part(wrapper) { overflow-y: hidden !important; }
 #validationEncChoices .choice, #validationEncChoices .choice-card { pointer-events: none; }
 .scenario-choice-grid { width: 100%; min-width: 100%; display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc((100% - var(--s-2)) / 2); align-items: start; gap: var(--s-2); padding: 1px 1px 4px; scroll-snap-align: start; box-sizing: border-box; }
+/* Issue #60: ownship GNC stack evidence panel (Config workface, evidence-only). */
+.gnc-stack-layout { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--s-3); }
+.gnc-stack-content { display: grid; gap: var(--s-2); align-content: start; }
+.gnc-stack-select-label { color: var(--ob-muted); font-weight: 650; font-size: .8rem; }
+.gnc-stack-select { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--ob-border); border-radius: 4px; background: var(--ob-surface); color: var(--ob-text); font-family: var(--font-mono); font-size: .78rem; }
+.gnc-stack-select:disabled { opacity: .56; }
+.gnc-stack-note { margin: 0; color: var(--ob-muted); font-size: .74rem; overflow-wrap: anywhere; }
+.gnc-stack-unavailable { padding: var(--s-2); border: 1px dashed var(--ob-border); border-radius: 4px; color: var(--ob-muted); font-size: .78rem; }
+.gnc-stack-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-3); }
+.gnc-stack-evidence-section { min-width: 0; }
+.gnc-stack-evidence-section h3 { margin: 0 0 var(--s-1); color: var(--ob-text); font-size: .82rem; }
+.gnc-stack-evidence-section dl > div { display: grid; grid-template-columns: minmax(100px, .42fr) minmax(0, 1fr); gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--ob-border); }
+.gnc-stack-evidence-section dt { color: var(--ob-muted); }
+.gnc-stack-evidence-section dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--ob-text); font-family: var(--font-mono); }
 .scenario-choice-grid[data-count="1"] { justify-content: center; }
 .scenario-choice-grid .choice, .scenario-choice-grid .choice-card { width: 100%; min-height: 56px; height: 56px; scroll-snap-align: start; scroll-snap-stop: normal; box-sizing: border-box; }
 .scenario-placeholder { position: absolute; inset: 0; display: grid; place-content: center; gap: var(--s-2); padding: var(--s-5); border: 1px dashed var(--ob-border); margin: 24px; border-radius: var(--radius); background: var(--ob-work-bg); color: var(--ob-muted); text-align: center; font-size: .78rem; }
