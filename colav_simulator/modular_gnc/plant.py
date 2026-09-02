@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from colav_simulator.modular_gnc.contracts import (
+    ControlTask,
     FloatArray,
     PlantInputSemantics,
     PlantState,
@@ -202,6 +203,7 @@ class Generic3DOFPlant:
 
     capabilities = frozenset({"PLANAR_3DOF", "GENERALIZED_FORCE"})
     input_semantics = PlantInputSemantics.GENERALIZED_FORCE
+    supported_tasks = frozenset({ControlTask.TRANSIT, ControlTask.POSE_HOLD, ControlTask.MANUAL_LOAD})
 
     def __init__(self, params: Generic3DOFPlantParameters) -> None:
         if not isinstance(params, Generic3DOFPlantParameters):
@@ -706,6 +708,7 @@ class GenericRoll4DOFPlant:
 
     capabilities = frozenset({"ROLL_4DOF", "GENERALIZED_FORCE"})
     input_semantics = PlantInputSemantics.GENERALIZED_FORCE
+    supported_tasks = frozenset({ControlTask.TRANSIT, ControlTask.POSE_HOLD, ControlTask.MANUAL_LOAD})
 
     def __init__(self, params: GenericRoll4DOFPlantParameters) -> None:
         if not isinstance(params, GenericRoll4DOFPlantParameters):

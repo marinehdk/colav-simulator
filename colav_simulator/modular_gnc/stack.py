@@ -13,6 +13,7 @@ from colav_simulator.modular_gnc.configuration import (
 )
 from colav_simulator.modular_gnc.contracts import (
     CommandInput,
+    ControlTask,
     FacadeFailure,
     FailureCode,
     NavigationState,
@@ -187,6 +188,22 @@ class ModularShipStack:
                     details={"command_tick": command.tick, "stack_tick": self._tick},
                 ),
             )
+        command_task = self._command_task(command)
+        if command_task is not None and command_task not in self._modules.supported_tasks:
+            return self._failure_output(
+                before,
+                FacadeFailure(
+                    FailureCode.CAPABILITY_MISMATCH,
+                    f"control task {command_task.value} is not supported by the assembled modules "
+                    f"(Issue #56 AC1: unsupported tasks are rejected before execution)",
+                    "facade",
+                    self._tick,
+                    details={
+                        "task": command_task.value,
+                        "supported_tasks": sorted(task.value for task in self._modules.supported_tasks),
+                    },
+                ),
+            )
         latched = self._latch.consume(command)
         if latched.failure is not None:
             return self._failure_output(before, latched.failure)
@@ -244,6 +261,15 @@ class ModularShipStack:
             "plant": "plant_period_ticks",
         }[phase]
         return self._tick % self._config.scheduler[period_key] == 0
+
+    @staticmethod
+    def _command_task(command: CommandInput) -> ControlTask | None:
+        """Return the control task carried by the command, if any."""
+        if command.direct_reference is not None:
+            return command.direct_reference.task
+        if command.tracked_route is not None:
+            return command.tracked_route.task
+        return None
 
     def _failure_output(self, before: StackSnapshot, failure: FacadeFailure) -> StackOutput:
         self.restore(before)

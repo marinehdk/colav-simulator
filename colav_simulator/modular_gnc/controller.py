@@ -14,6 +14,7 @@ import numpy as np
 from colav_simulator.modular_gnc.contracts import (
     AchievedGeneralizedLoad,
     AchievedLoadStatus,
+    ControlTask,
     DirectReference,
     MarinePIDTrace,
     NavigationState,
@@ -223,6 +224,17 @@ class MarinePID:
         self._filtered_derivative = np.zeros(3, dtype=np.float64)
         self._initialized = False
         self._latest_trace: MarinePIDTrace | None = None
+
+    @property
+    def supported_tasks(self) -> frozenset[ControlTask]:
+        """Declare executable control tasks from configuration (Issue #56, AC1).
+
+        Velocity mode tracks transit references only; position mode regulates body-frame
+        pose errors and therefore additionally executes POSE_HOLD.
+        """
+        if self._config.position_mode:
+            return frozenset({ControlTask.TRANSIT, ControlTask.POSE_HOLD})
+        return frozenset({ControlTask.TRANSIT})
 
     @property
     def config(self) -> MarinePIDConfig:

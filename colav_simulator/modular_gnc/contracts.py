@@ -820,9 +820,10 @@ class DirectReference:
     task: ControlTask = ControlTask.TRANSIT
 
     def __post_init__(self) -> None:
-        """Validate tick and strict legacy reference shape."""
+        """Validate tick, coerce control task, and enforce strict legacy reference shape."""
         if self.latched_tick < 0:
             raise ValueError("latched_tick must be non-negative")
+        object.__setattr__(self, "task", ControlTask(self.task))
         object.__setattr__(self, "values", immutable_float64_array("DirectReference.values", self.values, (9,)))
 
     def __eq__(self, other: object) -> bool:
@@ -851,9 +852,10 @@ class TrackedRoute:
     task: ControlTask
 
     def __post_init__(self) -> None:
-        """Validate route identity, validity, geometry, and speed profile."""
+        """Validate route identity, validity, control task, geometry, and speed profile."""
         if not self.route_id:
             raise ValueError("route_id must not be empty")
+        object.__setattr__(self, "task", ControlTask(self.task))
         if self.revision < 0 or self.valid_from_tick < 0 or self.valid_until_tick < self.valid_from_tick:
             raise ValueError("route revision and validity ticks are invalid")
         waypoints = np.array(self.waypoints_ne_m, dtype=np.float64, copy=True)

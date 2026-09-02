@@ -30,6 +30,17 @@ if TYPE_CHECKING:
     from colav_simulator.modular_gnc.load_model import EnvironmentalLoadModel
     from colav_simulator.modular_gnc.plant import Generic3DOFPlant, GenericRoll4DOFPlant
 
+# Explicit per-role control-task capability declarations (Issue #56, AC1).
+# The kinematic pass-through plant executes transit-style course/speed references only;
+# it has no force input channel, so MANUAL_LOAD is not executable through it.
+PASS_THROUGH_PLANT_TASKS: frozenset[ControlTask] = frozenset({ControlTask.TRANSIT})
+# The pass-through controller is an identity map: it forwards transit references and
+# executes manual generalized loads verbatim (existing tested MANUAL_LOAD semantics).
+PASS_THROUGH_CONTROLLER_TASKS: frozenset[ControlTask] = frozenset({ControlTask.TRANSIT, ControlTask.MANUAL_LOAD})
+# Ideal pass-through allocator/actuator apply every resolved load without reinterpretation.
+PASS_THROUGH_ALLOCATOR_TASKS: frozenset[ControlTask] = frozenset(ControlTask)
+PASS_THROUGH_ACTUATOR_TASKS: frozenset[ControlTask] = frozenset(ControlTask)
+
 
 @dataclass(frozen=True)
 class PassThroughSnapshot:
@@ -281,6 +292,14 @@ class PassThroughModules:
         self._held_truth = snapshot.held_truth
         self._held_observation = snapshot.held_observation
         self._held_loads = snapshot.held_loads
+
+    @property
+    def supported_tasks(self) -> frozenset[ControlTask]:
+        """Return intersection of controller/plant/allocator/actuator task capabilities (Issue #56, AC1)."""
+        tasks = PASS_THROUGH_ALLOCATOR_TASKS & PASS_THROUGH_ACTUATOR_TASKS
+        tasks &= self._plant.supported_tasks if self._plant is not None else PASS_THROUGH_PLANT_TASKS
+        tasks &= self._controller.supported_tasks if self._controller is not None else PASS_THROUGH_CONTROLLER_TASKS
+        return frozenset(tasks)
 
     @property
     def route_consumptions(self) -> tuple[tuple[int, str, int], ...]:
