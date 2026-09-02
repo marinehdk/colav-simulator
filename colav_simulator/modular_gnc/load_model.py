@@ -2023,9 +2023,7 @@ class EnvironmentalLoadModel:
         self._cached_fused_wave_sample: WaveFieldSample | MeanDriftSourceSample | None = None
         self._cached_fused_invariants: FusedWaveStaticInvariants | None = None
 
-    def get_fused_static_invariants(
-        self, wave: WaveFieldSample | MeanDriftSourceSample
-    ) -> FusedWaveStaticInvariants:
+    def get_fused_static_invariants(self, wave: WaveFieldSample | MeanDriftSourceSample) -> FusedWaveStaticInvariants:
         """Precompute and cache immutable stage-invariant wave/hull factors (Slice 3A)."""
         if self._cached_fused_wave_sample is wave and self._cached_fused_invariants is not None:
             return self._cached_fused_invariants
@@ -2034,9 +2032,7 @@ class EnvironmentalLoadModel:
         self._cached_fused_invariants = invariants
         return invariants
 
-    def _build_fused_static_invariants(
-        self, wave: WaveFieldSample | MeanDriftSourceSample
-    ) -> FusedWaveStaticInvariants:
+    def _build_fused_static_invariants(self, wave: WaveFieldSample | MeanDriftSourceSample) -> FusedWaveStaticInvariants:
         """Build immutable stage-invariant wave/hull factors with static domain validation (Slice 3A)."""
         w1_asset = self._wave_first_order_asset
         wdrift_asset = self._wave_mean_drift_asset

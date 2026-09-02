@@ -348,20 +348,18 @@ class Generic3DOFPlant:
             dtype=np.float64,
         )
 
-    def rhs_numeric_3dof(
+    def rhs_numeric_3dof_raw(
         self,
-        x: FloatArray,
+        north: float,
+        east: float,
+        psi: float,
+        u: float,
+        v: float,
+        r: float,
         tau_ctrl: tuple[float, float, float],
         tau_env: tuple[float, float, float],
-    ) -> FloatArray:
-        """Internal fast RHS calculation for Generic3DOFPlant during integrator stages (Slice B/C)."""
-        north = float(x[0])
-        east = float(x[1])
-        psi = float(x[2])
-        u = float(x[3])
-        v = float(x[4])
-        r = float(x[5])
-
+    ) -> tuple[float, float, float, float, float, float]:
+        """Internal fast RHS evaluation returning raw 6-tuple derivative (Slice 3C)."""
         # Kinematics
         cos_psi = math.cos(psi)
         sin_psi = math.sin(psi)
@@ -402,7 +400,26 @@ class Generic3DOFPlant:
         dv = inv_m[1, 1] * net_fy + inv_m[1, 2] * net_mz
         dr = inv_m[2, 1] * net_fy + inv_m[2, 2] * net_mz
 
-        return np.array([d_north, d_east, d_psi, du, dv, dr], dtype=np.float64)
+        return (d_north, d_east, d_psi, du, dv, dr)
+
+    def rhs_numeric_3dof(
+        self,
+        x: FloatArray,
+        tau_ctrl: tuple[float, float, float],
+        tau_env: tuple[float, float, float],
+    ) -> FloatArray:
+        """Internal fast RHS calculation for Generic3DOFPlant during integrator stages (Slice B/C)."""
+        res = self.rhs_numeric_3dof_raw(
+            float(x[0]),
+            float(x[1]),
+            float(x[2]),
+            float(x[3]),
+            float(x[4]),
+            float(x[5]),
+            tau_ctrl,
+            tau_env,
+        )
+        return np.array(res, dtype=np.float64)
 
 
 @dataclass(frozen=True)

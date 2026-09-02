@@ -989,3 +989,87 @@ def test_slice_3b_fast_3dof_kernel_parity(
             assert tuple_load == raw_load
 
 
+def test_slice_3c_scalar_rhs_and_rk4_trajectory(
+    standard_vessel_params: VesselEnvironmentalParameters,
+) -> None:
+    """Slice 3C: plant.rhs_numeric_3dof_raw produces bit-identical derivatives and RK4 trajectory matches baseline."""
+    plant_params = Generic3DOFPlantParameters(
+        mass_kg=1.6e7,
+        i_z_kgm2=3.0e10,
+        x_g_m=0.0,
+        x_dot_u_kg=-5.0e6,
+        y_dot_v_kg=-3.5e7,
+        n_dot_r_kgm2=-2.0e10,
+        y_dot_r_kgm=1.0e6,
+        n_dot_v_kgm=1.0e6,
+        d_u=5.0e4,
+        d_uu=2.0e5,
+        d_v=3.0e5,
+        d_vv=1.5e6,
+        d_r=8.0e7,
+        d_rr=2.5e9,
+    )
+    plant = Generic3DOFPlant(plant_params)
+
+    # 1. Direct RHS equivalence test
+    test_states = [
+        np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0]),
+        np.array([100.0, -50.0, 0.7, 3.5, -0.2, 0.02]),
+        np.array([-500.0, 200.0, 2.5, 0.0, 0.5, -0.05]),
+    ]
+    tau_c = (1.5e5, -2.0e4, 5.0e5)
+    tau_e = (5.0e4, 1.0e4, -1.0e5)
+
+    for st in test_states:
+        rhs_arr = plant.rhs_numeric_3dof(st, tau_c, tau_e)
+        rhs_raw = plant.rhs_numeric_3dof_raw(
+            float(st[0]), float(st[1]), float(st[2]), float(st[3]), float(st[4]), float(st[5]), tau_c, tau_e
+        )
+        assert isinstance(rhs_raw, tuple)
+        assert len(rhs_raw) == 6
+        assert np.array_equal(rhs_arr, np.array(rhs_raw))
+
+    # 2. RK4 10s trajectory equivalence
+    dt_s = 0.02
+    steps = 500  # 10s
+    field = AnalyticEnvironmentField(
+        dt_s=dt_s,
+        field_seed=99999,
+        wind_velocity_ne=(8.0, 4.0),
+        current_velocity_ne=(0.4, 0.1),
+        wave_significant_height_m=1.5,
+        wave_peak_period_s=8.0,
+        wave_direction_to_rad=0.3,
+        wave_num_components=32,
+    )
+    load_model = EnvironmentalLoadModel.from_params(
+        {
+            "wave_mode": "both",
+            "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+            "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+            "enable_wind": True,
+            "enable_current": True,
+            "current_strategy": "external_current_load",
+        }
+    )
+
+    class PublicPathPlantWrapper:
+        capabilities = frozenset({"PLANAR_3DOF", "GENERALIZED_FORCE"})
+
+        def __init__(self, inner: Generic3DOFPlant) -> None:
+            self._inner = inner
+
+        def rhs(self, time_s: float, state: Any, control_load: Any, env_load: Any = None) -> FloatArray:
+            return self._inner.rhs(time_s, state, control_load, env_load)
+
+    public_plant = PublicPathPlantWrapper(plant)
+
+    state_fast = np.array([0.0, 0.0, 0.1, 2.0, 0.0, 0.0], dtype=np.float64)
+    state_pub = state_fast.copy()
+    ctrl = VesselLoad(surge_n=5.0e4, sway_n=-5.0e3, yaw_nm=2.0e4)
+
+    for tick in range(steps):
+        state_fast = rk4_step(plant, tick, dt_s, state_fast, ctrl, field, load_model)
+        state_pub = rk4_step(public_plant, tick, dt_s, state_pub, ctrl, field, load_model)
+
+    np.testing.assert_allclose(state_fast, state_pub, rtol=1e-12, atol=1e-12)

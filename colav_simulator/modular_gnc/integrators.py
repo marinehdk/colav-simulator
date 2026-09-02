@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 
 
 class _Generic3DOFStageEvaluator:
-    """Private typed stage evaluator bound at rk4_step entry for Generic3DOFPlant (Slice B/C)."""
+    """Private typed stage evaluator bound at rk4_step entry for Generic3DOFPlant (Slice 3B/3C)."""
 
     def __init__(
         self,
@@ -40,24 +41,57 @@ class _Generic3DOFStageEvaluator:
         self._dt_s = dt_s
         self._tau_ctrl = tau_ctrl
 
-    def evaluate_stage(self, tick: int, stage_offset_s: float, state_vector: FloatArray) -> FloatArray:
-        """Evaluate one RK stage with zero public dataclass reconstruction."""
+    def evaluate_stage_raw(
+        self,
+        tick: int,
+        stage_offset_s: float,
+        north: float,
+        east: float,
+        psi: float,
+        u: float,
+        v: float,
+        r: float,
+    ) -> tuple[float, float, float, float, float, float]:
+        """Evaluate one RK stage returning raw 6-tuple with zero intermediate allocations (Slice 3C)."""
         if not (0.0 <= stage_offset_s < self._dt_s):
             raise ValueError(f"stage_offset_s must be in [0, {self._dt_s}), got {stage_offset_s}")
-        if not np.isfinite(state_vector).all():
-            raise ValueError(f"stage state contains non-finite values: {state_vector}")
+        if not (
+            math.isfinite(north)
+            and math.isfinite(east)
+            and math.isfinite(psi)
+            and math.isfinite(u)
+            and math.isfinite(v)
+            and math.isfinite(r)
+        ):
+            raise ValueError(f"stage state contains non-finite values: [{north}, {east}, {psi}, {u}, {v}, {r}]")
 
         if self._field is None or self._load_model is None:
             tau_env = (0.0, 0.0, 0.0)
         else:
-            tau_env = self._load_model.compute_stage_load_3dof(
+            tau_env = self._load_model.compute_stage_load_3dof_raw(
                 field=self._field,
                 tick=tick,
                 stage_offset_s=stage_offset_s,
-                state_vector=state_vector,
+                psi=psi,
+                u=u,
+                v=v,
             )
 
-        return self._plant.rhs_numeric_3dof(state_vector, self._tau_ctrl, tau_env)
+        return self._plant.rhs_numeric_3dof_raw(north, east, psi, u, v, r, self._tau_ctrl, tau_env)
+
+    def evaluate_stage(self, tick: int, stage_offset_s: float, state_vector: FloatArray) -> FloatArray:
+        """Evaluate one RK stage with zero public dataclass reconstruction."""
+        res = self.evaluate_stage_raw(
+            tick,
+            stage_offset_s,
+            float(state_vector[0]),
+            float(state_vector[1]),
+            float(state_vector[2]),
+            float(state_vector[3]),
+            float(state_vector[4]),
+            float(state_vector[5]),
+        )
+        return np.array(res, dtype=np.float64)
 
 
 def _query_env_load(
@@ -149,47 +183,92 @@ def rk4_step(  # noqa: C901, PLR0912, PLR0915
             tau_ctrl=tau_ctrl,
         )
 
+        x0_0 = float(x0[0])
+        x0_1 = float(x0[1])
+        x0_2 = float(x0[2])
+        x0_3 = float(x0[3])
+        x0_4 = float(x0[4])
+        x0_5 = float(x0[5])
+
         # --- Stage 1 (k1) at t0, stage_offset=0.0 ---
         stage_start_ns = time.perf_counter_ns() if stage_timing_sink is not None else 0
-        k1 = evaluator.evaluate_stage(valid_tick, 0.0, x0)
+        k1_0, k1_1, k1_2, k1_3, k1_4, k1_5 = evaluator.evaluate_stage_raw(
+            valid_tick, 0.0, x0_0, x0_1, x0_2, x0_3, x0_4, x0_5
+        )
         if stage_timing_sink is not None:
             stage_timing_sink(1, time.perf_counter_ns() - stage_start_ns)
-        if k1.shape != state_shape or not np.isfinite(k1).all():
-            raise ValueError(f"stage 1 derivative (k1) contains non-finite values: {k1}")
 
         # --- Stage 2 (k2) at t0 + dt/2, stage_offset=dt/2 ---
-        x1 = x0 + half_dt * k1
+        x1_0 = x0_0 + half_dt * k1_0
+        x1_1 = x0_1 + half_dt * k1_1
+        x1_2 = x0_2 + half_dt * k1_2
+        x1_3 = x0_3 + half_dt * k1_3
+        x1_4 = x0_4 + half_dt * k1_4
+        x1_5 = x0_5 + half_dt * k1_5
+
         stage_start_ns = time.perf_counter_ns() if stage_timing_sink is not None else 0
-        k2 = evaluator.evaluate_stage(valid_tick, half_dt, x1)
+        k2_0, k2_1, k2_2, k2_3, k2_4, k2_5 = evaluator.evaluate_stage_raw(
+            valid_tick, half_dt, x1_0, x1_1, x1_2, x1_3, x1_4, x1_5
+        )
         if stage_timing_sink is not None:
             stage_timing_sink(2, time.perf_counter_ns() - stage_start_ns)
-        if k2.shape != state_shape or not np.isfinite(k2).all():
-            raise ValueError(f"stage 2 derivative (k2) contains non-finite values: {k2}")
 
         # --- Stage 3 (k3) at t0 + dt/2, stage_offset=dt/2 ---
-        x2 = x0 + half_dt * k2
+        x2_0 = x0_0 + half_dt * k2_0
+        x2_1 = x0_1 + half_dt * k2_1
+        x2_2 = x0_2 + half_dt * k2_2
+        x2_3 = x0_3 + half_dt * k2_3
+        x2_4 = x0_4 + half_dt * k2_4
+        x2_5 = x0_5 + half_dt * k2_5
+
         stage_start_ns = time.perf_counter_ns() if stage_timing_sink is not None else 0
-        k3 = evaluator.evaluate_stage(valid_tick, half_dt, x2)
+        k3_0, k3_1, k3_2, k3_3, k3_4, k3_5 = evaluator.evaluate_stage_raw(
+            valid_tick, half_dt, x2_0, x2_1, x2_2, x2_3, x2_4, x2_5
+        )
         if stage_timing_sink is not None:
             stage_timing_sink(3, time.perf_counter_ns() - stage_start_ns)
-        if k3.shape != state_shape or not np.isfinite(k3).all():
-            raise ValueError(f"stage 3 derivative (k3) contains non-finite values: {k3}")
 
         # --- Stage 4 (k4) at t0 + dt, stage coordinate (tick+1, stage_offset=0.0) ---
-        x3 = x0 + valid_dt * k3
+        x3_0 = x0_0 + valid_dt * k3_0
+        x3_1 = x0_1 + valid_dt * k3_1
+        x3_2 = x0_2 + valid_dt * k3_2
+        x3_3 = x0_3 + valid_dt * k3_3
+        x3_4 = x0_4 + valid_dt * k3_4
+        x3_5 = x0_5 + valid_dt * k3_5
+
         stage_start_ns = time.perf_counter_ns() if stage_timing_sink is not None else 0
-        k4 = evaluator.evaluate_stage(valid_tick + 1, 0.0, x3)
+        k4_0, k4_1, k4_2, k4_3, k4_4, k4_5 = evaluator.evaluate_stage_raw(
+            valid_tick + 1, 0.0, x3_0, x3_1, x3_2, x3_3, x3_4, x3_5
+        )
         if stage_timing_sink is not None:
             stage_timing_sink(4, time.perf_counter_ns() - stage_start_ns)
-        if k4.shape != state_shape or not np.isfinite(k4).all():
-            raise ValueError(f"stage 4 derivative (k4) contains non-finite values: {k4}")
 
         # --- RK4 Combination ---
-        x_next = x0 + (valid_dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
-        if not np.isfinite(x_next).all():
-            raise ValueError(f"integrated state contains non-finite values: {x_next}")
+        dt_6 = valid_dt / 6.0
+        x_next_0 = x0_0 + dt_6 * (k1_0 + 2.0 * k2_0 + 2.0 * k3_0 + k4_0)
+        x_next_1 = x0_1 + dt_6 * (k1_1 + 2.0 * k2_1 + 2.0 * k3_1 + k4_1)
+        x_next_2 = x0_2 + dt_6 * (k1_2 + 2.0 * k2_2 + 2.0 * k3_2 + k4_2)
+        x_next_3 = x0_3 + dt_6 * (k1_3 + 2.0 * k2_3 + 2.0 * k3_3 + k4_3)
+        x_next_4 = x0_4 + dt_6 * (k1_4 + 2.0 * k2_4 + 2.0 * k3_4 + k4_4)
+        x_next_5 = x0_5 + dt_6 * (k1_5 + 2.0 * k2_5 + 2.0 * k3_5 + k4_5)
 
-        return x_next
+        if not (
+            math.isfinite(x_next_0)
+            and math.isfinite(x_next_1)
+            and math.isfinite(x_next_2)
+            and math.isfinite(x_next_3)
+            and math.isfinite(x_next_4)
+            and math.isfinite(x_next_5)
+        ):
+            raise ValueError(
+                f"integrated state contains non-finite values: "
+                f"[{x_next_0}, {x_next_1}, {x_next_2}, {x_next_3}, {x_next_4}, {x_next_5}]"
+            )
+
+        return np.array(
+            [x_next_0, x_next_1, x_next_2, x_next_3, x_next_4, x_next_5],
+            dtype=np.float64,
+        )
 
     # Fallback / Public path for non-AnalyticEnvironmentField or non-Generic3DOFPlant or non-EnvironmentalLoadModel
     caps = getattr(plant, "capabilities", None)
