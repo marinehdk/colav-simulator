@@ -1,4 +1,13 @@
-"""Independent legacy IShip adapter and structured failure policy."""
+"""Independent legacy IShip adapter and structured failure policy.
+
+Feeding boundary (Issue #63): the wrapped legacy planner layer stays
+environment-truth-fed in both stacks. When a ``MidMpcRouteBridge`` route source
+is attached, this adapter feeds the modular facade the planner's *accepted*
+Mid-MPC rolling route per tick instead of the direct reference column; DP-19
+constrains only the modular guidance/control/allocation internals downstream of
+the facade boundary. Without a route source the adapter behaves exactly like
+the slice-one direct-reference adapter (every non-Mid-MPC planner stays there).
+"""
 
 from __future__ import annotations
 
@@ -18,6 +27,7 @@ from colav_simulator.modular_gnc.contracts import (
     FailureCode,
     NavigationState,
 )
+from colav_simulator.modular_gnc.route_bridge import MidMpcRouteBridge
 from colav_simulator.modular_gnc.stack import ModularShipStack
 
 if TYPE_CHECKING:
@@ -44,30 +54,46 @@ class FailurePolicy:
 
 
 class ModularShipAdapter(IShip):
-    """Independent IShip bridge around ModularShipStack and legacy-side services."""
+    """Independent IShip bridge around ModularShipStack and legacy-side services.
+
+    Command authority per tick is exclusive: with a route source attached the
+    adapter consumes the accepted Mid-MPC route through ``CommandInput.route``
+    and never builds a ``DirectReference`` (the ``CommandInput`` discriminated
+    union forbids both); without one it consumes the legacy direct-reference
+    column exactly as before. The returned ``references`` array stays the raw
+    legacy planner telemetry in both modes and is never executed by the facade
+    on the route path.
+    """
 
     def __init__(
         self,
         legacy_services: Ship,
         stack: ModularShipStack,
         failure_policy: FailurePolicy | None = None,
+        route_source: MidMpcRouteBridge | None = None,
     ) -> None:
         self._legacy = legacy_services
         self._stack = stack
         self._failure_policy = failure_policy or FailurePolicy()
+        self._route_source = route_source
         self._next_tick = 0
         self._seed = 0
         self._last_failure: FacadeFailure | None = None
 
     @classmethod
-    def from_legacy_config(cls, config: Config, stack: ModularShipStack) -> ModularShipAdapter:
+    def from_legacy_config(
+        cls,
+        config: Config,
+        stack: ModularShipStack,
+        route_source: MidMpcRouteBridge | None = None,
+    ) -> ModularShipAdapter:
         """Build legacy planner/tracker/telemetry services without subclassing Ship."""
         legacy_config = copy.copy(config)
         legacy_config.ship_modules = None
         legacy_services = Ship(mmsi=config.mmsi, identifier=config.id, config=legacy_config)
         if legacy_services._references.size == 0:
             legacy_services._references = np.zeros((9, 1), dtype=np.float64)
-        return cls(legacy_services, stack)
+        return cls(legacy_services, stack, route_source=route_source)
 
     @property
     def modular_stack_config(self) -> ShipModulesConfig:
@@ -86,6 +112,12 @@ class ModularShipAdapter(IShip):
     def _sync_stack_state(self, navigation: NavigationState) -> None:
         self._legacy._state = navigation.as_array()
 
+    def _abort(self, failure: FacadeFailure) -> None:
+        """Record and apply the structured failure policy (always raises)."""
+        self._last_failure = failure
+        self._failure_policy.apply(failure)
+        raise AssertionError("abort policy must raise")
+
     def forward(
         self,
         dt: float,
@@ -95,22 +127,48 @@ class ModularShipAdapter(IShip):
         if self._legacy._trajectory.size > 0:
             return self._legacy.forward(dt, w)
         references = self._legacy._references[:, 0]
+        if self._route_source is not None:
+            self._forward_tracked_route(dt)
+            self._next_tick += 1
+            self._legacy._input = np.zeros(3, dtype=np.float64)
+            return self.state, self._legacy._input, references
         try:
             command = CommandInput.direct(self._next_tick, DirectReference(references, self._next_tick))
         except ValueError as exc:
             code = FailureCode.NONFINITE_INPUT if not np.isfinite(references).all() else FailureCode.INVALID_INPUT
-            failure = FacadeFailure(code, str(exc), "adapter", self._next_tick)
-            self._failure_policy.apply(failure)
-            raise AssertionError("abort policy must raise") from exc
+            self._abort(FacadeFailure(code, str(exc), "adapter", self._next_tick))
         output = self._stack.step(command, dt)
         if output.failure is not None:
-            self._last_failure = output.failure
-            self._failure_policy.apply(output.failure)
-            raise AssertionError("abort policy must raise")
+            self._abort(output.failure)
         self._sync_stack_state(output.navigation)
         self._next_tick += 1
         self._legacy._input = np.zeros(3, dtype=np.float64)
         return self.state, self._legacy._input, references
+
+    def _forward_tracked_route(self, dt: float) -> None:
+        """Advance one tick under the accepted-route authority (Issue #63)."""
+        decision = self._route_source.current_route(
+            tick=self._next_tick,
+            planner_data=self._legacy.get_colav_data(),
+        )
+        if decision.failure is not None or decision.route is None:
+            self._abort(
+                decision.failure
+                or FacadeFailure(
+                    FailureCode.REJECTED_ROUTE,
+                    "route source returned no route and no failure",
+                    "adapter",
+                    self._next_tick,
+                )
+            )
+        try:
+            command = CommandInput.route(self._next_tick, decision.route)
+        except ValueError as exc:
+            self._abort(FacadeFailure(FailureCode.INVALID_INPUT, str(exc), "adapter", self._next_tick))
+        output = self._stack.step(command, dt)
+        if output.failure is not None:
+            self._abort(output.failure)
+        self._sync_stack_state(output.navigation)
 
     def track_obstacles(self, t: float, dt: float, true_do_states: list) -> tuple[list, list]:
         """Delegate sensors and tracker unchanged."""
@@ -125,6 +183,8 @@ class ModularShipAdapter(IShip):
         self._legacy.reset(seed)
         self._seed = 0 if seed is None else seed
         self._stack.reset(self._navigation(), self._seed)
+        if self._route_source is not None:
+            self._route_source.reset()
         self._next_tick = 0
         self._last_failure = None
 
@@ -139,6 +199,8 @@ class ModularShipAdapter(IShip):
             raise ValueError("initial state must contain only finite values")
         self._legacy.set_initial_state(candidate, t_start)
         self._stack.reset(self._navigation(), self._seed)
+        if self._route_source is not None:
+            self._route_source.reset()
         self._next_tick = 0
         self._last_failure = None
 
