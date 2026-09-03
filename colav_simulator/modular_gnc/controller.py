@@ -80,6 +80,9 @@ class MarinePIDConfig:
     integral_limit: tuple[float, float, float] | None = None
     allow_ideal_passthrough: bool = True
     position_mode: bool = False
+    reference_shaper_enable: bool = False
+    heading_rate_limit_rad_s: float = 0.0
+    heading_accel_limit_rad_s2: float = 0.0
     config_hash: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -105,6 +108,22 @@ class MarinePIDConfig:
             raise TypeError(f"allow_ideal_passthrough must be bool, got {type(self.allow_ideal_passthrough).__name__}")
         if not isinstance(self.position_mode, bool):
             raise TypeError(f"position_mode must be bool, got {type(self.position_mode).__name__}")
+        if not isinstance(self.reference_shaper_enable, bool):
+            raise TypeError(
+                f"reference_shaper_enable must be bool, got {type(self.reference_shaper_enable).__name__}"
+            )
+
+        rate_lim = _finite_scalar("heading_rate_limit_rad_s", self.heading_rate_limit_rad_s)
+        accel_lim = _finite_scalar("heading_accel_limit_rad_s2", self.heading_accel_limit_rad_s2)
+        if rate_lim < 0.0:
+            raise ValueError(f"heading_rate_limit_rad_s must be non-negative, got {rate_lim}")
+        if accel_lim < 0.0:
+            raise ValueError(f"heading_accel_limit_rad_s2 must be non-negative, got {accel_lim}")
+        if self.reference_shaper_enable and (rate_lim <= 0.0 or accel_lim <= 0.0):
+            raise ValueError(
+                "reference_shaper_enable requires strictly positive heading_rate_limit_rad_s and "
+                f"heading_accel_limit_rad_s2 (got {rate_lim}, {accel_lim})"
+            )
 
         object.__setattr__(self, "kp", kp_val)
         object.__setattr__(self, "ki", ki_val)
@@ -115,6 +134,8 @@ class MarinePIDConfig:
         object.__setattr__(self, "max_output", max_out_val)
         object.__setattr__(self, "feedforward_gain", ff_val)
         object.__setattr__(self, "integral_limit", int_lim_val)
+        object.__setattr__(self, "heading_rate_limit_rad_s", rate_lim)
+        object.__setattr__(self, "heading_accel_limit_rad_s2", accel_lim)
 
         # Content-addressed hash for reproducibility (TS-27)
         canonical = {
@@ -129,6 +150,9 @@ class MarinePIDConfig:
             "integral_limit": list(int_lim_val) if int_lim_val is not None else None,
             "allow_ideal_passthrough": self.allow_ideal_passthrough,
             "position_mode": self.position_mode,
+            "reference_shaper_enable": self.reference_shaper_enable,
+            "heading_rate_limit_rad_s": rate_lim,
+            "heading_accel_limit_rad_s2": accel_lim,
         }
         raw_json = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
         object.__setattr__(self, "config_hash", hashlib.sha256(raw_json.encode("utf-8")).hexdigest())
@@ -149,6 +173,9 @@ class MarinePIDConfig:
             "integral_limit",
             "allow_ideal_passthrough",
             "position_mode",
+            "reference_shaper_enable",
+            "heading_rate_limit_rad_s",
+            "heading_accel_limit_rad_s2",
         ):
             if key in params:
                 kwargs[key] = params[key]
@@ -168,6 +195,9 @@ class MarinePIDConfig:
             "integral_limit": list(self.integral_limit) if self.integral_limit is not None else None,
             "allow_ideal_passthrough": self.allow_ideal_passthrough,
             "position_mode": self.position_mode,
+            "reference_shaper_enable": self.reference_shaper_enable,
+            "heading_rate_limit_rad_s": self.heading_rate_limit_rad_s,
+            "heading_accel_limit_rad_s2": self.heading_accel_limit_rad_s2,
             "config_hash": self.config_hash,
         }
 
@@ -182,6 +212,7 @@ class MarinePIDSnapshot:
     filtered_derivative: tuple[float, float, float]
     initialized: bool
     last_trace: MarinePIDTrace | None = None
+    shaper_state: tuple[float, float, float] | None = None
 
     def __post_init__(self) -> None:
         """Validate snapshot schema version and components."""
@@ -199,6 +230,9 @@ class MarinePIDSnapshot:
             "filtered_derivative",
             _validate_3tuple_finite("filtered_derivative", self.filtered_derivative),
         )
+        if self.shaper_state is not None:
+            shaper = _validate_3tuple_finite("shaper_state", self.shaper_state)
+            object.__setattr__(self, "shaper_state", shaper)
 
 
 class MarinePID:
@@ -224,6 +258,7 @@ class MarinePID:
         self._filtered_derivative = np.zeros(3, dtype=np.float64)
         self._initialized = False
         self._latest_trace: MarinePIDTrace | None = None
+        self._shaper_state: tuple[float, float, float] | None = None
 
     @property
     def supported_tasks(self) -> frozenset[ControlTask]:
@@ -253,6 +288,7 @@ class MarinePID:
         self._filtered_derivative = np.zeros(3, dtype=np.float64)
         self._initialized = True
         self._latest_trace = None
+        self._shaper_state = None
 
     def snapshot(self) -> MarinePIDSnapshot:
         """Capture deterministic internal state for replay."""
@@ -275,6 +311,7 @@ class MarinePID:
             ),
             initialized=self._initialized,
             last_trace=self._latest_trace,
+            shaper_state=self._shaper_state,
         )
 
     def restore(self, snapshot: MarinePIDSnapshot) -> None:
@@ -288,6 +325,53 @@ class MarinePID:
         self._filtered_derivative = np.array(snapshot.filtered_derivative, dtype=np.float64)
         self._initialized = snapshot.initialized
         self._latest_trace = snapshot.last_trace
+        self._shaper_state = snapshot.shaper_state
+
+    def _shape_heading_reference(
+        self,
+        measurement: NavigationState,
+        raw_heading: float,
+        dt: float,
+    ) -> tuple[float, float, float]:
+        """Advance the third-order (psi_d, r_d, rdot_d) reference chain one control step.
+
+        Fossen Handbook 2nd ed. SS15.2/SS12.1.1 reference model with rate and
+        acceleration saturation (Issue #67): the commanded heading is tracked by
+        an integrator chain whose braking rate follows the double-integrator
+        energy law r* = sqrt(2 * a_max * |e|) (capped at the rate limit), and
+        whose rate can only change within the acceleration limit.  The chain is
+        bumplessly initialised from the measured heading and yaw rate on first
+        use after reset.  Angle errors take the shortest wrapped path.
+        """
+        if self._shaper_state is None:
+            self._shaper_state = (float(measurement.heading_rad), float(measurement.yaw_rate_radps), 0.0)
+
+        psi_d, r_d, _rdot_d = self._shaper_state
+        error = wrap_to_pi(raw_heading - psi_d)
+        rate_cap = self._config.heading_rate_limit_rad_s
+        accel_cap = self._config.heading_accel_limit_rad_s2
+
+        # Braking law evaluated on the look-ahead error: the distance that will
+        # remain after this step's advance at the current rate.  Commanding
+        # r* <= sqrt(2*a*look_ahead) keeps the invariant r <= sqrt(2*a*|e|)
+        # after every discrete step, so the chain brakes to the target instead
+        # of the discrete sqrt-law limit cycle.
+        abs_error = abs(error)
+        advance_now = abs(r_d) * dt
+        terminal_band = accel_cap * dt * dt
+        if abs_error <= terminal_band + advance_now:
+            # Terminal band: deadbeat rate that lands exactly on the target.
+            r_star = error / dt
+        else:
+            look_ahead = abs_error - advance_now
+            r_star = math.copysign(min(rate_cap, math.sqrt(2.0 * accel_cap * look_ahead)), error)
+        # Acceleration-limited (deadbeat-clamped) tracking of the braking rate.
+        rdot = max(-accel_cap, min(accel_cap, (r_star - r_d) / dt))
+        r_d_new = max(-rate_cap, min(rate_cap, r_d + rdot * dt))
+        psi_d_new = wrap_to_pi(psi_d + r_d_new * dt)
+
+        self._shaper_state = (psi_d_new, r_d_new, rdot)
+        return self._shaper_state
 
     def _extract_signals(
         self, measurement: NavigationState, reference: DirectReference
@@ -392,10 +476,21 @@ class MarinePID:
         tick_int = _non_bool_int("tick", tick)
         time_float = _finite_scalar("time_s", time_s)
 
+        details: dict[str, Any] = {}
+        if self._config.reference_shaper_enable:
+            psi_d, r_d, rdot_d = self._shape_heading_reference(measurement, float(reference.values[2]), dt)
+            shaped_values = np.array(reference.values, dtype=np.float64)
+            shaped_values[2] = psi_d
+            reference = DirectReference(shaped_values, reference.latched_tick, reference.task)
+            details["reference_shaper"] = {
+                "psi_d_rad": psi_d,
+                "r_d_rad_s": r_d,
+                "rdot_d_rad_s2": rdot_d,
+            }
+
         meas_vec, ref_vec, errors = self._extract_signals(measurement, reference)
         d_term = self._update_derivative(meas_vec, dt)
         p_term = np.array(self._config.kp, dtype=np.float64) * errors
-
         ref_ff = np.array([reference.values[6], reference.values[7], reference.values[8]], dtype=np.float64)
         ff_term = np.array(self._config.feedforward_gain, dtype=np.float64) * ref_ff
 
@@ -443,6 +538,7 @@ class MarinePID:
             saturation_flags=sat_flags,
             antiwindup_correction=(float(aw_correction[0]), float(aw_correction[1]), float(aw_correction[2])),
             achieved_output=(float(achieved_out[0]), float(achieved_out[1]), float(achieved_out[2])),
+            details=details,
         )
         self._latest_trace = trace
 
