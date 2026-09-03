@@ -398,17 +398,50 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
                 "restoring_k_phi": 220000.0 * 9.81 * 1.5,
             }
         ),
-        # Seed gains for slice 5 are placeholder zeros; slice 6 writes the
-        # pole-placement derivation (kept separate so the gain derivation has
-        # its own red/green cycle).
+        # fcb45_marine_pid seed gains (Issue #67 slice 6), provenance
+        # calibrated_from_vendor_config for the limits and derived-from-model
+        # for the gains (see _PARAMETER_PROVENANCE_BY_IDENTITY; derivation
+        # mirrored in tests/test_modular_gnc_fcb45_seed_gains.py):
+        #
+        # Yaw channel (moment-scale pole placement, Fossen Handbook 2nd ed.
+        # Alg-15.1 logic with an explicit third pole):
+        #   I_eff = I_z + N_r_dot = 3.65e7 kg.m^2, d_eff = d_r = 1.6e6 N.m.s
+        #   T = I_eff/d_eff = 22.8125 s, open-loop bandwidth 1/T = 0.0438 rad/s
+        #   zeta = 0.9, omega_n = 0.025 rad/s in [2/T/5, 2/T/3], third pole
+        #   a = 3*omega_n = 0.075 rad/s (non-dominant)
+        #   kd = I_eff*(2*zeta*omega_n + a) - d_eff = 2.78e6
+        #   kp = I_eff*(omega_n^2 + 2*zeta*omega_n*a)    = 1.46e5
+        #   ki = I_eff*omega_n^2*a                        = 1710.94
+        #   (Fossen's Ki~Kp/10 thumb needs omega_n >= 0.056 rad/s here to pass
+        #   Routh — 64% of 1/T, outside the band — so the placed ki (~kp/85)
+        #   stays deliberately below that ceiling.)
+        # Feedforward: Nomoto inverse tau_FF = I_eff*rdot_d + d_eff*r_d.
+        # Surge (1st-order P+I, pole 0.08 rad/s, damping linearised at the
+        # 7.8 m/s service speed): kp = m_11*0.08 - (d_u + 2*d_uu*7.8) = 11492,
+        # ki = kp/10.  Sway (pole 0.15 rad/s): kp = m_22*0.15 - d_v = 7000,
+        # ki = 700.
+        # Shaper limits: 0.05 rad/s (~2.9 deg/s ROT), 0.02 rad/s^2.  Moment cap:
+        # vendor Mz(u) = min(9.6e5, 3.6e5 + 2500*u^2) N.m.
         "fcb45_marine_pid": MappingProxyType(
             {
-                "kp": (0.0, 0.0, 0.0),
-                "ki": (0.0, 0.0, 0.0),
-                "kd": (0.0, 0.0, 0.0),
+                "kp": (11492.0, 7000.0, 1.46e5),
+                "ki": (1149.2, 700.0, 1710.9375),
+                "kd": (0.0, 0.0, 2.78e6),
+                "tau_d": (0.1, 0.1, 0.1),
+                "antiwindup_gain": (1.0, 1.0, 1.0),
                 "min_output": (-2.0e5, -4.0e4, -9.6e5),
                 "max_output": (2.0e5, 4.0e4, 9.6e5),
+                "feedforward_gain": (0.0, 0.0, 0.0),
+                "integral_limit": (2.0e5, 4.0e4, 9.6e5),
                 "allow_ideal_passthrough": True,
+                "reference_shaper_enable": True,
+                "heading_rate_limit_rad_s": 0.05,
+                "heading_accel_limit_rad_s2": 0.02,
+                "yaw_rate_ff_gain": 1.6e6,
+                "yaw_accel_ff_gain": 3.65e7,
+                "yaw_limit_base_nm": 3.6e5,
+                "yaw_limit_speed_coeff": 2500.0,
+                "yaw_limit_cap_nm": 9.6e5,
             }
         ),
     }
