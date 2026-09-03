@@ -262,6 +262,7 @@ class ModularShipStack:
                     latched.direct_reference,
                     latched.tracked_route,
                     dt_s,
+                    phase_dt_s=dt_s * self._phase_period_ticks(phase),
                 )
         except OutOfDomainError as exc:
             failure = FacadeFailure(
@@ -295,16 +296,21 @@ class ModularShipStack:
         self._tick += 1
         return output
 
+    _PHASE_PERIOD_KEYS: Mapping[str, str] = {
+        "guidance": "guidance_period_ticks",
+        "controller": "controller_period_ticks",
+        "allocator": "controller_period_ticks",
+        "actuator": "controller_period_ticks",
+        "environment": "plant_period_ticks",
+        "plant": "plant_period_ticks",
+    }
+
+    def _phase_period_ticks(self, phase: str) -> int:
+        """Return the scheduler period in ticks for one phase."""
+        return self._config.scheduler[self._PHASE_PERIOD_KEYS[phase]]
+
     def _phase_due(self, phase: str) -> bool:
-        period_key = {
-            "guidance": "guidance_period_ticks",
-            "controller": "controller_period_ticks",
-            "allocator": "controller_period_ticks",
-            "actuator": "controller_period_ticks",
-            "environment": "plant_period_ticks",
-            "plant": "plant_period_ticks",
-        }[phase]
-        return self._tick % self._config.scheduler[period_key] == 0
+        return self._tick % self._phase_period_ticks(phase) == 0
 
     @staticmethod
     def _command_task(command: CommandInput) -> ControlTask | None:
