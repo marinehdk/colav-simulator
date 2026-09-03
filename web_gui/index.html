@@ -199,6 +199,31 @@
             </section>
           </div>
         </section>
+        <section class="config-step-panel gnc-stack-panel" id="gncStackPanel" aria-label="Ownship GNC Stack">
+          <div class="gnc-stack-layout">
+            <section class="config-obc-card">
+              <div class="config-card-title"><span class="card-title-copy"><strong>Ownship GNC Stack</strong><span>Only backend-validated modular stacks are listed</span></span></div>
+              <div class="config-card-content gnc-stack-content">
+                <label class="gnc-stack-select-label" for="gncStackSelect">Modular stack</label>
+                <select id="gncStackSelect" class="gnc-stack-select" aria-label="Ownship GNC stack" disabled></select>
+                <p class="gnc-stack-note" id="gncStackCeilingNote"></p>
+                <p class="gnc-stack-note">Ownship stack binding comes from the scenario ship configuration; this catalog is evidence-only and creates no session.</p>
+                <div class="gnc-stack-unavailable" id="gncStackUnavailable" hidden>GNC stack catalog unavailable · backend authority unreachable.</div>
+              </div>
+            </section>
+            <section class="config-obc-card gnc-stack-detail-card">
+              <div class="config-card-title"><span class="card-title-copy"><strong>Stack Evidence</strong><span>Maturity, fidelity, asset trust, and acceptance stay separate fields</span></span></div>
+              <div class="config-card-content">
+                <div class="gnc-stack-detail-grid">
+                  <section class="gnc-stack-evidence-section"><h3>Modules</h3><dl id="gncStackModules"></dl></section>
+                  <section class="gnc-stack-evidence-section"><h3>Fidelity</h3><dl id="gncStackFidelity"></dl></section>
+                  <section class="gnc-stack-evidence-section"><h3>Asset trust</h3><dl id="gncStackAssetTrust"></dl></section>
+                  <section class="gnc-stack-evidence-section"><h3>Acceptance</h3><dl id="gncStackAcceptance"></dl></section>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
       </div>
 
       <aside class="assembly-summary" aria-label="Session Assembly">

@@ -383,6 +383,71 @@ ship_list:
         schema:
           type: float
 
+      ship_modules:
+        required: False
+        type: dict
+        schema:
+          preset:
+            required: False
+            type: string
+          overrides:
+            required: False
+            type: dict
+            schema:
+              scheduler:
+                required: False
+                type: dict
+                schema:
+                  plant_period_ticks:
+                    required: False
+                    type: integer
+                    min: 1
+                    forbidden: [true, false]
+                  guidance_period_ticks:
+                    required: False
+                    type: integer
+                    min: 1
+                    forbidden: [true, false]
+                  controller_period_ticks:
+                    required: False
+                    type: integer
+                    min: 1
+                    forbidden: [true, false]
+          modules:
+            required: True
+            type: dict
+            schema:
+              plant:
+                required: True
+                type: dict
+                schema:
+                  identity:
+                    required: True
+                    type: string
+                  parameters:
+                    required: False
+                    type: dict
+              guidance:
+                required: True
+                type: dict
+                schema:
+                  identity:
+                    required: True
+                    type: string
+                  parameters:
+                    required: False
+                    type: dict
+              controller:
+                required: True
+                type: dict
+                schema:
+                  identity:
+                    required: True
+                    type: string
+                  parameters:
+                    required: False
+                    type: dict
+
       colav:
         required: False
         type: dict

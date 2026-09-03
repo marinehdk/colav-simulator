@@ -46,6 +46,7 @@ class Config:
     goal_csog_state: np.ndarray | None = None  # In format [x[north], y[east], SOG [m/s], COG[deg]], similar to AIS data.
     waypoints: np.ndarray | None = None
     speed_plan: np.ndarray | None = None
+    ship_modules: Any | None = None
 
     @classmethod
     def from_dict(cls, config_dict: dict) -> "Config":  # noqa: C901, PLR0912, D102
@@ -97,6 +98,11 @@ class Config:
         if "colav" in config_dict:
             config.colav = ci.Config.from_dict(config_dict["colav"])
 
+        if "ship_modules" in config_dict:
+            from colav_simulator.modular_gnc.configuration import normalize_ship_modules  # noqa: PLC0415
+
+            config.ship_modules = normalize_ship_modules(config_dict["ship_modules"])
+
         # COLAV take priority over guidance, if both are specified.
         if config.colav and config.guidance:
             config.guidance = None
@@ -143,7 +149,20 @@ class Config:
         if self.colav is not None:
             config_dict["colav"] = self.colav.to_dict()
 
+        if self.ship_modules is not None:
+            config_dict["ship_modules"] = self.ship_modules.to_dict()
+
         return config_dict
+
+
+def build_ship(config: Config) -> "IShip":
+    """Build exact legacy Ship unless modular composition is explicitly selected."""
+    if config.ship_modules is None:
+        return Ship(mmsi=config.mmsi, identifier=config.id, config=config)
+
+    from colav_simulator.modular_gnc.factory import build_modular_ship_adapter  # noqa: PLC0415
+
+    return build_modular_ship_adapter(config)
 
 
 class ShipBuilder:

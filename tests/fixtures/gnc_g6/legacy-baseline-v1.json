@@ -1,0 +1,74 @@
+{
+  "acceptance_claim": "G6 legacy regression characterization; A1 only",
+  "dependencies": {
+    "pyproject_sha256": "6dd786ad41ba0f2d97fb8f163f279e391f8ed27eed5abd6cfcd94d51ca46c781",
+    "uv_lock_sha256": "5f6803e4b18ff2d5480b515779900409f8d40983d2e108b3ff71c7cc3ab24ce4"
+  },
+  "execution_identity": {
+    "commit": "8968f31b982d48773d08f814439827328bf4b35d",
+    "isolation": "git_archive"
+  },
+  "expected_output_sha256": "daaa8b7b52adec27dbecab576141ca4a0bf3f128b8f5031a5e492cd46794a4ea",
+  "main_checkout_dirty_work_included": false,
+  "pinned_commit": "8968f31b982d48773d08f814439827328bf4b35d",
+  "reference_scenarios": [
+    {
+      "config_sha256": "b746efb49c71c24e6595fcef7b8973d0e5ebbb227421f6fbc62a443362abbf40",
+      "error_semantics": {
+        "invalid_initial_state": {
+          "message": "Ship0: Initial state must be a 4D vector!",
+          "type": "ValueError"
+        }
+      },
+      "execution_chain": {
+        "controller_type": "PassThroughCS",
+        "model_type": "KinematicCSOG",
+        "modular_path_selected": false,
+        "ship_type": "Ship"
+      },
+      "per_tick_sha256": [
+        "f8a776c615eb196f0138fdaef9318b77da20212dd6415cea66fe1bcde6751a47",
+        "6e03af7e3c8978210d3a3a9f84035338da8ba4108701fa23c9215003e77bb3ff",
+        "7c0ec4b7c53a40cb6fd6b94fa8a0262db22c0ac303d49d75042522b9d238ff22",
+        "10fe4af338731acfc2db3acffc691b980ce4fe638e63d9d40984b97cb954f45f",
+        "fc3a1b15878490a62fd0ff65ac3fbe8fbe1aa5e2cc62766adb6273c139d481cd",
+        "f45261c050be041889e26523a744f6f826102b91a86faced6e4519e1d7098e62",
+        "439c120f2ed0b0acefe8bb3edd1404d2fd77d1d7e475b6db4f6e2d6a657ae18a",
+        "f442403bf2d04c0ea3b79b1931bc484d3b835ce4c012646d629b49dc24e41665",
+        "58cf093d3b41cd74af0d323c11bbeb1e4fc574ac190cf2842d95cda7aa47e2d5",
+        "943fd7840519878e86de1d79f5f3204e9f69a24ae72449b8463289d8020d6af0",
+        "619e05a5f2024411169e5bd3a425b55cd38c7b5abbb976fd749513da3086d73c",
+        "1417d51e2616cbf29695220244605f3fffbc230e40a5edba32db9ea0f10146fd"
+      ],
+      "scenario_id": "legacy_kinematic_direct_reference_v1",
+      "seed": 42042
+    }
+  ],
+  "schema_version": "gnc-g6-legacy-baseline.v1",
+  "source_sha256": "86ddad84feaa36bec2fafdec2200b1b701e921600b6d137d4bfe071df0c2f598",
+  "test_suite": {
+    "baseline_full_pytest_observation": {
+      "failed": 3,
+      "passed": 815,
+      "skipped": 8,
+      "status": "externally_observed_not_reproduced_by_capture_cli"
+    },
+    "file_count": 88,
+    "files_sha256": "c2d9c616b4d7c605109bb5cfdb523cafb04c565fa7c0a828ed9423c27cf4bac6",
+    "known_preexisting_failures": [
+      {
+        "nodeid": "tests/test_historical_ais_scene_guard.py::test_existing_verified_exact_tuples_remain_unchanged_and_independent",
+        "reason": "extra mid_mpc_ipopt Historical AIS experimental tuple"
+      },
+      {
+        "nodeid": "tests/test_playback_speed.py::test_playback_ui_uses_server_state_and_frame_interpolation",
+        "reason": "moved VO key assertion"
+      },
+      {
+        "nodeid": "tests/test_playback_speed.py::test_ownship_uses_fcb45_top_view_sprite",
+        "reason": "moved sprite code"
+      }
+    ],
+    "tree_sha256": "96a53d492892b180a5f40957f99b8ea26337689ba528889aa1a057965f456200"
+  }
+}

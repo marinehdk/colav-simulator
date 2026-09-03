@@ -1,0 +1,47 @@
+Issue #54 v4 execution transcript
+
+Start
+  worktree=/Users/marine/Code/.worktrees/Colav-Simulator/modular-gnc-stack
+  expected_audit_start_head=638e6908f057577a9cbe7907170c58fd19767d9a
+  execution_source_H4=638e6908f057577a9cbe7907170c58fd19767d9a
+  final_execution_source_H4=638e6908f057577a9cbe7907170c58fd19767d9a
+  source_dirty=false before archive
+
+H4 archive
+  command=git archive --format=tar 638e6908f057577a9cbe7907170c58fd19767d9a | gzip -1 -n > /tmp/issue54-H4-final-source.tar.gz
+  archive_sha256=5323b72340677bf21d80a6222caab80cdcd14401225de4ce6081836cdbca1359
+  manifest_sha256=e14a2c21d0a20fd7e1bd64b2c15e1f5bbc62d01d4f913d7fc117d56e2f0bd1da
+  manifest_creation_command=git archive --format=tar 638e6908f057577a9cbe7907170c58fd19767d9a | gzip -1 -n > /tmp/issue54-H4-final-source.tar.gz
+
+AGX isolated staging
+  root=/tmp/colav-gnc-issue54-H4-638e690
+  remote_archive=/tmp/colav-gnc-issue54-H4-638e690/source.tar.gz
+  remote_archive_sha256=5323b72340677bf21d80a6222caab80cdcd14401225de4ce6081836cdbca1359
+  remote_manifest_sha256=e14a2c21d0a20fd7e1bd64b2c15e1f5bbc62d01d4f913d7fc117d56e2f0bd1da
+  extraction=tar -xzf source.tar.gz -C src
+
+Replay smoke
+  cwd=/tmp/colav-gnc-issue54-H4-638e690/src
+  command=/usr/bin/python3 -m tools.gnc_performance --ships 1 --harmonics 8 --warmup-s 0.02 --measured-s 0.02 --repeats 3 --output /tmp/colav-gnc-issue54-H4-638e690/replay-smoke.json --source-commit 638e6908f057577a9cbe7907170c58fd19767d9a --source-archive-sha256 5323b72340677bf21d80a6222caab80cdcd14401225de4ce6081836cdbca1359 --source-manifest /tmp/colav-gnc-issue54-H4-638e690/execution-source-manifest.json
+  result_file_sha256=31de0240a5b765a2fe06ed6c4af7c824809313842a0f1ff4b0727f9a95cbc284
+  payload_sha256=57e4136f60d29a154b2949118d92c7e6a27513e14d692d7a09fa659486f8c25f
+
+Local full matrix
+  command=.venv/bin/python -m tools.gnc_performance --output docs/superpowers/evidence/issue-54/v4-final/local-results-final.json --source-commit 638e6908f057577a9cbe7907170c58fd19767d9a --source-archive-sha256 5323b72340677bf21d80a6222caab80cdcd14401225de4ce6081836cdbca1359 --source-manifest docs/superpowers/evidence/issue-54/v4-final/execution-source-manifest.json
+  config=1,5,20 ships x 8,32,128 harmonics; warmup=2.0s; measured=10.0s; repeats=3; dt=0.02s
+  result_file_sha256=f63846b4253f4031c6f6a327549eb7d7b40693ca0ac7a51e75c9b9186bdf10e1
+  payload_sha256=e69f81aa3ddf131581ac948e20ec13bf480c59484cdac9a650d9d6ca5a2c3f14
+
+AGX full matrix
+  command=/usr/bin/python3 -m tools.gnc_performance --output /tmp/colav-gnc-issue54-H4-638e690/agx-results-final.json --source-commit 638e6908f057577a9cbe7907170c58fd19767d9a --source-archive-sha256 5323b72340677bf21d80a6222caab80cdcd14401225de4ce6081836cdbca1359 --source-manifest /tmp/colav-gnc-issue54-H4-638e690/execution-source-manifest.json
+  config=1,5,20 ships x 8,32,128 harmonics; warmup=2.0s; measured=10.0s; repeats=3; dt=0.02s
+  result_file_sha256=ad0043116f8760eb70410f6bdf2ed3455af4e001c7c919344eeac951c167ce4a
+  payload_sha256=e1671f1c6f1251a03648447c4d550c95da2ef62c27ae7807601b0a1c6dddc0b1
+
+Verification
+  corrected source tests=269 passed
+  ruff check=All checks passed
+  local+AGX payload recomputation=true
+  local+AGX dependency capture returncode=0 and non-empty
+  local+AGX synchronized RSS baseline/peak/delta fields present with psutil method set
+  no GO/NO-GO decision; issue #55 remains blocked; no live/frozen source or services modified

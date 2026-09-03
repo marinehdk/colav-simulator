@@ -1,0 +1,44 @@
+Issue #54 corrected performance execution transcript
+
+Worktree
+  path=/Users/marine/Code/.worktrees/Colav-Simulator/modular-gnc-stack
+  branch=feat/modular-gnc-stack
+  audit_start_head=17c075b0cb8fd3d13a1f5cc9294e319fe1bd2c98
+  execution_source_commit_H=6372f961ff39c9048d27baf61cca926d11566a7a
+  execution_source_dirty=false
+
+Execution source archive
+  command: git archive --format=tar 6372f961ff39c9048d27baf61cca926d11566a7a | gzip -1 > /tmp/issue54-H-source.tar.gz
+  local_sha256=ea9f8ea57b21fbfb29be923fec3bbd6b53cd92e11d35d1ff6ad3b2abc4d62942
+  manifest=docs/superpowers/evidence/issue-54/execution-source-manifest.json
+  manifest_sha256=35acb8d2664938fbc4883fda24345b6f7798ad50816d0c1d6a178b01ba1ac0b8
+
+AGX staging
+  isolated_root=/tmp/colav-gnc-issue54-H-6372f96
+  command: scp /tmp/issue54-H-source.tar.gz agx:/tmp/colav-gnc-issue54-H-6372f96/source.tar.gz
+  remote_verification: sha256sum /tmp/colav-gnc-issue54-H-6372f96/source.tar.gz
+  remote_sha256=ea9f8ea57b21fbfb29be923fec3bbd6b53cd92e11d35d1ff6ad3b2abc4d62942
+  extraction: tar -xzf source.tar.gz -C src
+  manifest_sha256_remote=35acb8d2664938fbc4883fda24345b6f7798ad50816d0c1d6a178b01ba1ac0b8
+
+Read-only AGX probe
+  command: ssh agx 'uname -a; /usr/bin/python3 --version; python3 -c "import numpy,psutil; print(numpy.__version__,psutil.__version__)"'
+  result: Linux ubuntu 5.15.148-rt-tegra #1 SMP PREEMPT_RT Mon Oct 14 17:05:40 PDT 2024 aarch64
+  result: Python 3.10.12; numpy 1.21.5; psutil 5.9.0
+  result: live L4-5/ROS processes observed; no live/frozen source or service modified.
+
+Local corrected full matrix
+  command: GNC_EXECUTION_SOURCE_ARCHIVE_SHA256=ea9f8ea57b21fbfb29be923fec3bbd6b53cd92e11d35d1ff6ad3b2abc4d62942 GNC_EXECUTION_SOURCE_MANIFEST_SHA256=35acb8d2664938fbc4883fda24345b6f7798ad50816d0c1d6a178b01ba1ac0b8 GNC_EXECUTION_SOURCE_MANIFEST_PATH=/Users/marine/Code/.worktrees/Colav-Simulator/modular-gnc-stack/docs/superpowers/evidence/issue-54/execution-source-manifest.json .venv/bin/python -m tools.gnc_performance --output docs/superpowers/evidence/issue-54/local-results-final.json --source-commit 6372f961ff39c9048d27baf61cca926d11566a7a --source-archive-sha256 ea9f8ea57b21fbfb29be923fec3bbd6b53cd92e11d35d1ff6ad3b2abc4d62942 --source-manifest docs/superpowers/evidence/issue-54/execution-source-manifest.json
+  config: 1,5,20 ships x 8,32,128 harmonics; warmup=2.0s; measured=10.0s; repeats=3; dt=0.02s.
+
+AGX corrected full matrix
+  command: /usr/bin/python3 -m tools.gnc_performance --output /tmp/colav-gnc-issue54-H-6372f96/agx-results-final.json --source-commit 6372f961ff39c9048d27baf61cca926d11566a7a --source-archive-sha256 ea9f8ea57b21fbfb29be923fec3bbd6b53cd92e11d35d1ff6ad3b2abc4d62942 --source-manifest /tmp/colav-gnc-issue54-H-6372f96/execution-source-manifest.json
+  environment: AGX /usr/bin/python3 Python 3.10.12; numpy 1.21.5; psutil 5.9.0.
+  config: 1,5,20 ships x 8,32,128 harmonics; warmup=2.0s; measured=10.0s; repeats=3; dt=0.02s.
+  result_sha256=93f2e2c546773b9064b79e861c1eabc6be4ed7df9570238eca230c7c3223565a
+
+Verification
+  focused+modular tests: 144 passed
+  ruff check: All checks passed
+  final evidence source H binding: execution_source_dirty=false, archive and manifest hashes recorded in JSON.
+  no GO/NO-GO decision made; #55 not started and remains blocked.

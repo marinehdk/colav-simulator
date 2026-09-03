@@ -1,0 +1,13 @@
+{
+  "schema_version": "agx-l45-characterization-tests.v1",
+  "cases": [
+    "current_source_models",
+    "wind_source_models",
+    "wave_source_models"
+  ],
+  "assertions": [
+    "source output is valid JSON",
+    "source model values are finite or explicitly null",
+    "repeat run bytes are identical"
+  ]
+}

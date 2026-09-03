@@ -1,0 +1,6 @@
+{
+  "schema_version": "agx-l45-characterization-seeds.v1",
+  "master_seed": 20260824,
+  "randomness": "none",
+  "note": "Pure source-model probe has no stochastic branch; seed remains explicit for content-addressed run identity."
+}

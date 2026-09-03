@@ -1,0 +1,14 @@
+{
+  "schema_version": "agx-l45-characterization-dependencies.v1",
+  "build_mode": "standalone-pure-cpp-source-seam",
+  "cxx_standard": "c++17",
+  "runtime": {
+    "platform": "Linux aarch64 AGX",
+    "ros_distribution": "humble",
+    "python": "3.10.12",
+    "numpy": "1.21.5"
+  },
+  "source_packages": [
+    "env_engines"
+  ]
+}

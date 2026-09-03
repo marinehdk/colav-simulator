@@ -1,0 +1,5 @@
+{
+  "schema_version": "agx-l45-characterization-assets.v1",
+  "consumed_assets": [],
+  "note": "The probe exercises pure source model functions with literal characterization inputs; no vessel asset is treated as validated."
+}

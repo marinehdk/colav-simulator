@@ -801,6 +801,63 @@ function renderYamlContract(draft) {
   }));
 }
 
+// ── Ownship GNC stack catalog (Issue #60) ────────────────────────────────
+// The UI is a pure consumer: the backend enumerates and validates modular
+// stacks (normalize + stack assembly + supported_tasks); nothing here
+// re-implements validation, and only catalog entries become selectable.
+let gncStackCatalog = null;
+let gncStackSelectedId = null;
+
+function renderGncStackDetail(entry) {
+  const moduleRows = [];
+  const acceptanceRows = [];
+  for (const module of entry.modules) {
+    moduleRows.push([module.role, module.identity], [`${module.role} maturity`, module.interface_version]);
+    acceptanceRows.push([`${module.role} evidence`, module.acceptance_evidence]);
+  }
+  acceptanceRows.push(['Stack acceptance level', entry.acceptance_level]);
+  replaceDefinitionRows(document.getElementById('gncStackModules'), moduleRows);
+  replaceDefinitionRows(document.getElementById('gncStackFidelity'), [
+    ['Fidelity profile', entry.fidelity_profile],
+    ['Supported tasks', (entry.supported_tasks || []).join(', ')],
+    ['Config hash', entry.config_hash],
+  ]);
+  const trustRows = (entry.asset_trust || []).map((asset) => [asset.asset_id, asset.trust_level]);
+  replaceDefinitionRows(
+    document.getElementById('gncStackAssetTrust'),
+    trustRows.length > 0 ? trustRows : [['Bound assets', 'None (ideal actuator)']],
+  );
+  replaceDefinitionRows(document.getElementById('gncStackAcceptance'), acceptanceRows);
+}
+
+function renderGncStackPanel() {
+  const select = document.getElementById('gncStackSelect');
+  const unavailable = document.getElementById('gncStackUnavailable');
+  const ceiling = document.getElementById('gncStackCeilingNote');
+  const catalog = gncStackCatalog;
+  if (!catalog || !Array.isArray(catalog.stacks) || catalog.stacks.length === 0) {
+    unavailable.hidden = false;
+    select.replaceChildren();
+    select.disabled = true;
+    return;
+  }
+  unavailable.hidden = true;
+  if (!catalog.stacks.some((entry) => entry.stack_id === gncStackSelectedId)) {
+    gncStackSelectedId = catalog.default_stack_id || catalog.stacks[0].stack_id;
+  }
+  select.replaceChildren(...catalog.stacks.map((entry) => {
+    const option = document.createElement('option');
+    option.value = entry.stack_id;
+    option.textContent = `${entry.display_name} · ${entry.fidelity_profile}`;
+    option.selected = entry.stack_id === gncStackSelectedId;
+    return option;
+  }));
+  select.disabled = false;
+  ceiling.textContent = `Evidence ceiling: ${catalog.acceptance_ceiling.level} ${catalog.acceptance_ceiling.label} · ${catalog.acceptance_ceiling.note}`;
+  const selected = catalog.stacks.find((entry) => entry.stack_id === gncStackSelectedId);
+  if (selected) renderGncStackDetail(selected);
+}
+
 function createStatusText(snapshot) {
   const labels = {
     'active-running': 'Active Session RUNNING · pause before Create',
@@ -942,6 +999,10 @@ function bindControls() {
     edit('tracker_id', card.dataset.choiceId);
   });
   rebindNumberFields();
+  document.getElementById('gncStackSelect').addEventListener('change', (event) => {
+    gncStackSelectedId = event.target.value;
+    renderGncStackPanel();
+  });
   document.getElementById('validationDefault').addEventListener('click', () => {
     assembly.resetDefault();
     render();
@@ -1055,15 +1116,18 @@ async function bootConfig() {
   customElements.whenDefined('obc-number-input-field').then(() => {
     requestAnimationFrame(() => setTimeout(rebindNumberFields, 0));
   });
-  const [catalogResult, currentResult] = await Promise.allSettled([
+  const [catalogResult, currentResult, stackCatalogResult] = await Promise.allSettled([
     fetchJson('/api/capabilities', { cache: 'no-store' }),
     activeSessionRuntime.bootstrap(),
+    fetchJson('/api/gnc/stacks', { cache: 'no-store' }),
   ]);
   if (catalogResult.status === 'fulfilled') {
     assembly.replaceCatalog(catalogResult.value, { reason: 'initial-load' });
   } else {
     assembly.markCatalogFailure(catalogResult.reason);
   }
+  gncStackCatalog = stackCatalogResult.status === 'fulfilled' ? stackCatalogResult.value : null;
+  renderGncStackPanel();
   if (currentResult.status === 'fulfilled') {
     syncRuntimeAuthority(currentResult.value, 'initial-load');
   } else {

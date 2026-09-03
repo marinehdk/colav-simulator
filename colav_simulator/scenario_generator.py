@@ -540,9 +540,9 @@ class ScenarioGenerator:
                 and ((ship_cfg.waypoints.size > 0 and ship_cfg.speed_plan.size > 0) or ship_cfg.goal_csog_state.size > 0)
                 and ship_cfg.id >= 0
             ):
-                msg = "A fully specified ship config has an id, initial csog_state, " "waypoints + speed_plan or goal state."
+                msg = "A fully specified ship config has an id, initial csog_state, waypoints + speed_plan or goal state."
                 raise ValueError(msg)
-            ship_obj = ship.Ship(mmsi=ship_cfg.mmsi, identifier=ship_cfg.id, config=ship_cfg)
+            ship_obj = ship.build_ship(ship_cfg)
             ship_list.append(ship_obj)
 
         return ship_list, disturbance, config
@@ -753,7 +753,7 @@ class ScenarioGenerator:
             self._clear_disturbance_handles()
             self.enc.close_display()
         if self._config.verbose:
-            print(f"ScenarioGenerator: Number of accepted episodes: {self._episode_counter} " f"out of {n_episodes}.")
+            print(f"ScenarioGenerator: Number of accepted episodes: {self._episode_counter} out of {n_episodes}.")
 
         if self._episode_counter == 0:
             print(
@@ -782,7 +782,7 @@ class ScenarioGenerator:
                 ship_config = ship.Config()
                 ship_config.id = s
                 ship_config.mmsi = s + 1
-            ship_obj = ship.Ship(mmsi=ship_config.mmsi, identifier=ship_config.id, config=ship_config)
+            ship_obj = ship.build_ship(ship_config)
             ship_list.append(ship_obj)
             ship_config_list.append(ship_config)
         config.ship_list = ship_config_list
