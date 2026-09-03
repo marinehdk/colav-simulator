@@ -83,6 +83,8 @@ class MarinePIDConfig:
     reference_shaper_enable: bool = False
     heading_rate_limit_rad_s: float = 0.0
     heading_accel_limit_rad_s2: float = 0.0
+    yaw_rate_ff_gain: float = 0.0
+    yaw_accel_ff_gain: float = 0.0
     config_hash: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -125,6 +127,13 @@ class MarinePIDConfig:
                 f"heading_accel_limit_rad_s2 (got {rate_lim}, {accel_lim})"
             )
 
+        rate_ff = _finite_scalar("yaw_rate_ff_gain", self.yaw_rate_ff_gain)
+        accel_ff = _finite_scalar("yaw_accel_ff_gain", self.yaw_accel_ff_gain)
+        if rate_ff < 0.0:
+            raise ValueError(f"yaw_rate_ff_gain must be non-negative, got {rate_ff}")
+        if accel_ff < 0.0:
+            raise ValueError(f"yaw_accel_ff_gain must be non-negative, got {accel_ff}")
+
         object.__setattr__(self, "kp", kp_val)
         object.__setattr__(self, "ki", ki_val)
         object.__setattr__(self, "kd", kd_val)
@@ -136,6 +145,8 @@ class MarinePIDConfig:
         object.__setattr__(self, "integral_limit", int_lim_val)
         object.__setattr__(self, "heading_rate_limit_rad_s", rate_lim)
         object.__setattr__(self, "heading_accel_limit_rad_s2", accel_lim)
+        object.__setattr__(self, "yaw_rate_ff_gain", rate_ff)
+        object.__setattr__(self, "yaw_accel_ff_gain", accel_ff)
 
         # Content-addressed hash for reproducibility (TS-27)
         canonical = {
@@ -153,6 +164,8 @@ class MarinePIDConfig:
             "reference_shaper_enable": self.reference_shaper_enable,
             "heading_rate_limit_rad_s": rate_lim,
             "heading_accel_limit_rad_s2": accel_lim,
+            "yaw_rate_ff_gain": rate_ff,
+            "yaw_accel_ff_gain": accel_ff,
         }
         raw_json = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
         object.__setattr__(self, "config_hash", hashlib.sha256(raw_json.encode("utf-8")).hexdigest())
@@ -176,6 +189,8 @@ class MarinePIDConfig:
             "reference_shaper_enable",
             "heading_rate_limit_rad_s",
             "heading_accel_limit_rad_s2",
+            "yaw_rate_ff_gain",
+            "yaw_accel_ff_gain",
         ):
             if key in params:
                 kwargs[key] = params[key]
@@ -198,6 +213,8 @@ class MarinePIDConfig:
             "reference_shaper_enable": self.reference_shaper_enable,
             "heading_rate_limit_rad_s": self.heading_rate_limit_rad_s,
             "heading_accel_limit_rad_s2": self.heading_accel_limit_rad_s2,
+            "yaw_rate_ff_gain": self.yaw_rate_ff_gain,
+            "yaw_accel_ff_gain": self.yaw_accel_ff_gain,
             "config_hash": self.config_hash,
         }
 
@@ -452,6 +469,36 @@ class MarinePID:
             "(TS-20, VR-15, VR-19: no truth leakage without explicit ideal pass-through)"
         )
 
+    def _condition_reference(
+        self,
+        measurement: NavigationState,
+        reference: DirectReference,
+        dt: float,
+    ) -> tuple[DirectReference, dict[str, Any], float, float]:
+        """Apply pre-PID reference conditioning and report its trace details.
+
+        Currently one stage: the third-order heading reference shaper (when
+        enabled).  Returns the conditioned reference, trace details, and the
+        reference yaw rate/acceleration pair that feedforward stages consume
+        (shaper chain when enabled, otherwise DirectReference values[5]/[8]).
+        """
+        details: dict[str, Any] = {}
+        ff_r_d = float(reference.values[5])
+        ff_rdot_d = float(reference.values[8])
+        if self._config.reference_shaper_enable:
+            psi_d, r_d, rdot_d = self._shape_heading_reference(measurement, float(reference.values[2]), dt)
+            shaped_values = np.array(reference.values, dtype=np.float64)
+            shaped_values[2] = psi_d
+            reference = DirectReference(shaped_values, reference.latched_tick, reference.task)
+            ff_r_d = r_d
+            ff_rdot_d = rdot_d
+            details["reference_shaper"] = {
+                "psi_d_rad": psi_d,
+                "r_d_rad_s": r_d,
+                "rdot_d_rad_s2": rdot_d,
+            }
+        return reference, details, ff_r_d, ff_rdot_d
+
     def compute_control(
         self,
         measurement: NavigationState,
@@ -476,23 +523,29 @@ class MarinePID:
         tick_int = _non_bool_int("tick", tick)
         time_float = _finite_scalar("time_s", time_s)
 
-        details: dict[str, Any] = {}
-        if self._config.reference_shaper_enable:
-            psi_d, r_d, rdot_d = self._shape_heading_reference(measurement, float(reference.values[2]), dt)
-            shaped_values = np.array(reference.values, dtype=np.float64)
-            shaped_values[2] = psi_d
-            reference = DirectReference(shaped_values, reference.latched_tick, reference.task)
-            details["reference_shaper"] = {
-                "psi_d_rad": psi_d,
-                "r_d_rad_s": r_d,
-                "rdot_d_rad_s2": rdot_d,
-            }
+        reference, details, ff_r_d, ff_rdot_d = self._condition_reference(measurement, reference, dt)
 
         meas_vec, ref_vec, errors = self._extract_signals(measurement, reference)
         d_term = self._update_derivative(meas_vec, dt)
         p_term = np.array(self._config.kp, dtype=np.float64) * errors
+
         ref_ff = np.array([reference.values[6], reference.values[7], reference.values[8]], dtype=np.float64)
         ff_term = np.array(self._config.feedforward_gain, dtype=np.float64) * ref_ff
+
+        # Nomoto inverse feedforward (Issue #67 slice 3): the yaw moment the
+        # first-order Nomoto equivalent needs for the (shaped or raw) reference
+        # rate/acceleration, tau_FF = I_eff*rdot_d + d_eff*r_d.  It is folded
+        # into the yaw feedforward term so the DP-15 decomposition identity
+        # raw = p + i + d + feedforward keeps holding and saturation/anti-windup
+        # see one explainable chain.
+        if self._config.yaw_accel_ff_gain > 0.0 or self._config.yaw_rate_ff_gain > 0.0:
+            nomoto_ff_yaw = self._config.yaw_accel_ff_gain * ff_rdot_d + self._config.yaw_rate_ff_gain * ff_r_d
+            ff_term[2] += nomoto_ff_yaw
+            details["nomoto_feedforward"] = {
+                "yaw_nm": float(nomoto_ff_yaw),
+                "r_d_rad_s": ff_r_d,
+                "rdot_d_rad_s2": ff_rdot_d,
+            }
 
         i_term = self._integral.copy()
         raw_request = p_term + i_term + d_term + ff_term

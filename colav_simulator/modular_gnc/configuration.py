@@ -191,6 +191,8 @@ REGISTRY_V1 = MappingProxyType(
                 "reference_shaper_enable": {"type": "boolean"},
                 "heading_rate_limit_rad_s": {"type": "number"},
                 "heading_accel_limit_rad_s2": {"type": "number"},
+                "yaw_rate_ff_gain": {"type": "number"},
+                "yaw_accel_ff_gain": {"type": "number"},
             },
             available=True,
         ),
