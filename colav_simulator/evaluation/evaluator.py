@@ -37,6 +37,7 @@ from colav_simulator.evaluation.profiles import (
     load_evaluator_profile,
 )
 from colav_simulator.evaluation.scoring import MetricEvidence, score_pair
+from colav_simulator.evaluation.voyage import voyage_metrics_section
 
 EVALUATOR_ID = "behavior-compatible-evaluator-v2"
 EVALUATION_SCHEMA_VERSION = "2.0"
@@ -128,6 +129,7 @@ class EvaluatorResult:
     vessel_results: list[VesselEvaluation]
     aggregate: dict[str, float | int | None]
     warnings: list[str]
+    voyage: dict[str, Any] = field(default_factory=dict)
     schema_version: str = EVALUATION_SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
@@ -237,6 +239,7 @@ class Evaluator:
             pair_results=pair_results,
             vessel_results=vessel_results,
             aggregate=aggregate,
+            voyage=voyage_metrics_section(vessels, pair_results, context),
             warnings=warnings,
         )
         self._last_result = result

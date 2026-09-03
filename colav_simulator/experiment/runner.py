@@ -807,6 +807,7 @@ class ExperimentRunner:
                 "run_completed": True,
                 "solver": _solver_diagnostics(prepared.session.frames),
                 "stress_only": prepared.session.config.name.startswith("romsdal_busy_water_80_stress"),
+                "ownship_route_waypoints_ne": _ownship_route_rows(prepared.session.config),
             },
         )
         prepared.manifest.evaluator_id = evaluation.evaluator_id
@@ -941,6 +942,16 @@ class ExperimentRunner:
         prepared.manifest.fallback_used = fallback
         if fallback and prepared.spec.strict_no_fallback:
             raise RuntimeError("Fallback detected in strict run")
+
+
+def _ownship_route_rows(config: scenario_config.ScenarioConfig) -> list[list[float]] | None:
+    """Return the ownship mission route as [north, east] rows for the evaluator."""
+    if not config.ship_list:
+        return None
+    waypoints = np.asarray(config.ship_list[0].waypoints, dtype=float)
+    if waypoints.ndim != 2 or waypoints.shape[0] != 2 or waypoints.shape[1] < 2:
+        return None
+    return waypoints.T.tolist()
 
 
 def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: str) -> None:
