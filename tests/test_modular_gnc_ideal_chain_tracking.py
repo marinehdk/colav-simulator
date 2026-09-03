@@ -16,6 +16,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from colav_simulator.core import ship
+from colav_simulator.modular_gnc.adapter import ModularShipAdapter
 from colav_simulator.modular_gnc.catalog import list_stack_catalog
 from colav_simulator.modular_gnc.configuration import normalize_ship_modules
 from colav_simulator.modular_gnc.contracts import CommandInput, DirectReference, NavigationState
@@ -67,3 +69,70 @@ def test_ideal_chain_reports_current_output_as_achieved_load() -> None:
     assert achieved is not None
     assert achieved.source == "IDEAL_PASSTHROUGH"
     assert achieved.surge_n == pytest.approx(output.controller_trace.saturated_output[0])
+
+
+def _fcb45_adapter() -> ModularShipAdapter:
+    entry = next(item for item in list_stack_catalog()["stacks"] if item["stack_id"] == STACK_ID)
+    config = ship.Config.from_dict(
+        {
+            "id": 0,
+            "mmsi": 100,
+            "csog_state": [6957500.0, 39500.0, 7.0, 45.0],
+            "waypoints": [[6957500.0, 6961500.0], [39500.0, 43500.0]],
+            "speed_plan": [7.0, 7.0],
+            "guidance": {"los": {}},
+            "ship_modules": entry["config"],
+        }
+    )
+    stack = ModularShipStack.from_config(config.ship_modules, episode_seed=0, dt_s=0.5)
+    return ModularShipAdapter.from_legacy_config(config, stack)
+
+
+def test_fcb45_adapter_reports_fcb45_vessel_dimensions() -> None:
+    """The injected FCB45 ownship must identify as the 45 m workboat it is.
+
+    The scenario's legacy model params (viknes) stay the planner-side geometry
+    source; ship_info feeds evaluation (hull radii, goal-reach radius 7 x L).
+    """
+    adapter = _fcb45_adapter()
+    info = adapter.get_ship_info()
+
+    assert info["length"] == pytest.approx(44.1)
+    assert info["width"] == pytest.approx(8.0)
+    assert info["draft"] == pytest.approx(2.0)
+
+
+def test_legacy_equivalent_adapter_keeps_legacy_vessel_dimensions() -> None:
+    from colav_simulator.modular_gnc.factory import legacy_equivalent_profile  # noqa: PLC0415
+
+    config = ship.Config.from_dict(
+        {
+            "id": 4,
+            "mmsi": 44,
+            "csog_state": [10.0, 20.0, 3.0, 5.0],
+            "waypoints": [[10.0, 100.0], [20.0, 25.0]],
+            "speed_plan": [3.0, 3.0],
+            "guidance": {"los": {}},
+            "ship_modules": legacy_equivalent_profile(),
+        }
+    )
+    stack = ModularShipStack.from_config(config.ship_modules, episode_seed=0, dt_s=0.1)
+    adapter = ModularShipAdapter.from_legacy_config(config, stack)
+    legacy_info = ship.Ship(
+        mmsi=config.mmsi,
+        identifier=config.id,
+        config=ship.Config.from_dict(
+            {
+                "id": 4,
+                "mmsi": 44,
+                "csog_state": [10.0, 20.0, 3.0, 5.0],
+                "waypoints": [[10.0, 100.0], [20.0, 25.0]],
+                "speed_plan": [3.0, 3.0],
+                "guidance": {"los": {}},
+            }
+        ),
+    ).get_ship_info()
+
+    info = adapter.get_ship_info()
+    assert info["length"] == legacy_info["length"]
+    assert info["width"] == legacy_info["width"]

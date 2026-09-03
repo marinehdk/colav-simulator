@@ -106,6 +106,19 @@ _PARAMETER_PROVENANCE_BY_IDENTITY: Mapping[str, Mapping[str, object]] = MappingP
 
 _ROLE_ORDER: tuple[str, ...] = ("plant", "guidance", "controller", "environment", "load_model", "allocator", "actuator")
 
+# Physical vessel identity of preset plants (Lpp, beam, draft in m) from the
+# same vendor configuration the FCB45 hydrodynamic coefficients were
+# calibrated against (ship_config.yaml: Lpp 44.1 m, B 8.0 m, draft 2.0 m).
+# Issue #67 stack B: the adapter reports these as ship_info dimensions so the
+# evaluator and the goal-reach radius (7 x L) see the injected vessel instead
+# of the scenario's legacy model placeholder.
+PRESET_PLANT_VESSEL_DIMENSIONS_M: Mapping[str, tuple[float, float, float]] = MappingProxyType(
+    {
+        "fcb45_3dof_plant": (44.1, 8.0, 2.0),
+        "fcb45_roll_4dof_plant": (44.1, 8.0, 2.0),
+    }
+)
+
 _CANDIDATE_PLANT_IDENTITIES: tuple[str, ...] = (
     "pass_through_plant",
     "generic_3dof_plant",

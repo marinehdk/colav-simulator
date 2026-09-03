@@ -129,8 +129,8 @@ def min_encounter_center_distance(vessels: list[VesselData]) -> dict[str, float 
 
 def _pair_continuous_minimum(ownship: VesselData, target: VesselData) -> float | None:
     common, own_indices, target_indices = np.intersect1d(
-        ownship.timestamps,
-        target.timestamps,
+        np.asarray(ownship.timestamps, dtype=float),
+        np.asarray(target.timestamps, dtype=float),
         assume_unique=False,
         return_indices=True,
     )
@@ -170,8 +170,9 @@ def return_voyage_metrics(
         return None
     anchor = cpa_time_s if cpa_time_s is not None else float(ownship.timestamps[ownship.first_valid_idx])
     window_start = float(anchor + buffer_s)
-    valid = np.isfinite(ownship.timestamps) & np.all(np.isfinite(ownship.xy), axis=0)
-    in_window = valid & (ownship.timestamps >= window_start)
+    timestamps = np.asarray(ownship.timestamps, dtype=float)
+    valid = np.isfinite(timestamps) & np.all(np.isfinite(ownship.xy), axis=0)
+    in_window = valid & (timestamps >= window_start)
     sample_count = int(np.count_nonzero(in_window))
     document: dict[str, Any] = {
         "window_start_s": window_start,

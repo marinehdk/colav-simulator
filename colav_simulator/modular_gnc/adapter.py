@@ -19,6 +19,7 @@ import numpy as np
 
 from colav_simulator.core import stochasticity
 from colav_simulator.core.ship import Config, IShip, Ship
+from colav_simulator.modular_gnc.catalog import PRESET_PLANT_VESSEL_DIMENSIONS_M
 from colav_simulator.modular_gnc.contracts import (
     CommandInput,
     ControlTask,
@@ -243,7 +244,19 @@ class ModularShipAdapter(IShip):
         return self._legacy.get_sim_data(t, timestamp_0)
 
     def get_ship_info(self) -> dict:
-        return self._legacy.get_ship_info()
+        """Report the injected preset plant's physical identity when known (Issue #67).
+
+        The wrapped legacy services still answer every field from the scenario's
+        planner-side config; for catalog presets with a calibrated vessel
+        identity (FCB45) the hull dimensions are overridden so evaluation and
+        the goal-reach radius see the executed vessel instead of the legacy
+        model placeholder.
+        """
+        info = self._legacy.get_ship_info()
+        dimensions = PRESET_PLANT_VESSEL_DIMENSIONS_M.get(self._stack.config.modules["plant"].identity)
+        if dimensions is not None:
+            info["length"], info["width"], info["draft"] = dimensions
+        return info
 
     def get_do_track_information(self) -> tuple[list, list]:
         return self._legacy.get_do_track_information()
