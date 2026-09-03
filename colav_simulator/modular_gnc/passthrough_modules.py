@@ -251,13 +251,26 @@ class PassThroughModules:
                     self._held_guidance_trace = self._guidance.latest_trace
         effective_reference = reference if reference is not None else self._held_guidance_reference
         if phase == "controller" and self._controller is not None and effective_reference is not None:
+            # Achieved-load feedback is genuine information only when an
+            # allocator/actuator module produced it.  In the ideal direct
+            # chain (no allocator, no actuator) the held load would be this
+            # controller's own previous output: feeding it back as "achieved"
+            # injects a fictitious saturation error (previous output minus
+            # current request) into the anti-windup path and rails the
+            # integrator, so the ideal chain passes None and MarinePID falls
+            # back to its own current saturated output.
+            achieved_feedback = (
+                self._held_achieved_load
+                if (self._actuator is not None or self._allocator is not None)
+                else None
+            )
             vessel_load, trace = self._controller.compute_control(
                 measurement=self.navigation(),
                 reference=effective_reference,
                 dt_s=phase_dt_s,
                 tick=tick,
                 time_s=tick * dt_s,
-                achieved_load=self._held_achieved_load,
+                achieved_load=achieved_feedback,
             )
             self._held_control_load = vessel_load
             self._held_controller_trace = trace
