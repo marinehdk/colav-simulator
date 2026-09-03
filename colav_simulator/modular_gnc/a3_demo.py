@@ -419,7 +419,7 @@ def _catalog_proof(config: ShipModulesConfig, supported_tasks: frozenset) -> dic
     return {
         "listed": entry is not None,
         "stack_id": entry["stack_id"] if entry is not None else None,
-        "validity_rule_replayed": bool(tasks),
+        "validity_rule_replayed": ControlTask.TRANSIT.value in tasks,
         "supported_tasks": tasks,
         "fidelity_profile": config.fidelity_profile,
     }

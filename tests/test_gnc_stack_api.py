@@ -122,7 +122,7 @@ def test_evidence_document_assembles_stack_when_tasks_not_given() -> None:
     document = stack_evidence_document(config)
 
     assert document["supported_tasks"] == ["MANUAL_LOAD", "TRANSIT"]
-    assert any(entry["config_hash"] == config.config_hash for entry in list_stack_catalog()["stacks"])
+    assert all(entry["config_hash"] != config.config_hash for entry in list_stack_catalog()["stacks"])
 
 
 def _a_resolved_stack_id() -> str:

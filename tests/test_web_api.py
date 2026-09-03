@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -9,6 +10,7 @@ from shapely.geometry import box
 
 import gui_server.main as gui_main
 from colav_simulator.experiment import ExperimentRunner, RunSpec
+from colav_simulator.modular_gnc.catalog import list_stack_catalog
 from gui_server.main import _select_primary_encounter, app
 
 
@@ -866,7 +868,112 @@ def test_step_response_nulls_non_finite_cpa_without_encounters(monkeypatch) -> N
     assert stepped.json()["colregs"] is None
 
 
-def test_reset_while_running_replaces_session_without_pause() -> None:
+def test_session_create_rejects_unknown_evaluator_profile() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule14",
+                "scenario_id": "head_on",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "evaluator_profile_id": "ccta_2023_demo_v1",
+            },
+        )
+
+    assert response.status_code == 422
+    assert "Unknown evaluator profile 'ccta_2023_demo_v1'" in response.json()["detail"]["reason"]
+
+
+def test_tier0_default_duration_runs_past_thirty_seconds() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule14",
+                "scenario_id": "head_on",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "gnc_stack_id": "pass_through_plant+pass_through_guidance+pass_through_controller",
+            },
+        )
+        assert created.status_code == 200, created.json()
+        assert created.json()["spec"]["t_end"] is None
+        session_id = created.json()["session_id"]
+
+        telemetry = None
+        for _ in range(63):
+            telemetry = client.post(f"/api/sessions/{session_id}/step")
+            assert telemetry.status_code == 200, telemetry.json()
+
+    assert telemetry is not None
+    assert telemetry.json()["sim_time"] > 30.0
+    assert telemetry.json()["state"] not in {"FINISHED", "FAILED"}
+
+
+def test_vo_head_on_recommended_tier1_executes_safe_maneuver() -> None:
+    stack_id = list_stack_catalog()["recommended_stack_ids_by_plant"]["generic_3dof_plant"]
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule14",
+                "scenario_id": "head_on",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "gnc_stack_id": stack_id,
+                "t_end": 240.0,
+            },
+        )
+        assert created.status_code == 200, created.json()
+        session_id = created.json()["session_id"]
+        initial_heading = None
+        initial_speed = None
+        max_heading_change = 0.0
+        max_speed_change = 0.0
+        heading_change_at_126_s = None
+
+        telemetry = None
+        for _ in range(600):
+            telemetry = client.post(f"/api/sessions/{session_id}/step")
+            assert telemetry.status_code == 200, telemetry.json()
+            ownship = telemetry.json()["os"]
+            if initial_heading is None:
+                initial_heading = float(ownship["psi"])
+                initial_speed = float(ownship["sog"])
+            max_heading_change = max(
+                max_heading_change,
+                abs(
+                    math.atan2(
+                        math.sin(float(ownship["psi"]) - initial_heading),
+                        math.cos(float(ownship["psi"]) - initial_heading),
+                    )
+                ),
+            )
+            max_speed_change = max(max_speed_change, abs(float(ownship["sog"]) - initial_speed))
+            if telemetry.json()["sim_time"] >= 126.0 and heading_change_at_126_s is None:
+                heading_change_at_126_s = max_heading_change
+            if telemetry.json()["state"] in {"FINISHED", "FAILED"}:
+                break
+
+        assert telemetry is not None
+        assert telemetry.json()["state"] == "FINISHED"
+        result = client.get(f"/api/sessions/{session_id}/result")
+        assert result.status_code == 200, result.json()
+
+    clearance = next(
+        check
+        for check in result.json()["evaluation"]["hard_gate"]["checks"]
+        if check["check_id"] == "minimum_hull_clearance"
+    )
+    assert heading_change_at_126_s is not None
+    assert heading_change_at_126_s > math.radians(6.0)
+    assert max_heading_change > math.radians(2.0)
+    assert max_speed_change > 0.05
+    assert clearance["outcome"] == "PASS", clearance
+
+
+def test_reset_while_running_reuses_prepared_episode(monkeypatch: pytest.MonkeyPatch) -> None:
     with TestClient(app) as client:
         created = client.post(
             "/api/sessions",
@@ -885,13 +992,29 @@ def test_reset_while_running_replaces_session_without_pause() -> None:
         assert started.status_code == 200, started.json()
         assert started.json()["state"] == "RUNNING"
 
+        source_manifest = gui_main.manager.prepared.manifest
+
+        def reject_full_prepare(_spec: RunSpec) -> None:
+            raise AssertionError("Reset must not repeat full scenario and ENC preparation")
+
+        def reject_enc_render(_prepared: object) -> None:
+            raise AssertionError("Reset must reuse the prepared ENC image")
+
+        monkeypatch.setattr(gui_main.manager.runner, "prepare", reject_full_prepare)
+        monkeypatch.setattr(gui_main, "render_enc", reject_enc_render)
         reset = client.post(f"/api/sessions/{session_id}/reset")
         assert reset.status_code == 200, reset.text
         replacement_id = reset.json()["session_id"]
+        replacement_manifest = gui_main.manager.prepared.manifest
         with client.websocket_connect(f"/ws/sessions/{replacement_id}") as websocket:
             telemetry = websocket.receive_json()
 
     assert replacement_id != session_id
     assert reset.json()["state"] == "CREATED"
+    assert reset.json()["sim_time"] == 0.0
+    assert reset.json()["spec"] == created.json()["spec"]
+    assert replacement_manifest.spec_hash == source_manifest.spec_hash
+    assert replacement_manifest.episode_hash == source_manifest.episode_hash
+    assert replacement_manifest.enc_hash == source_manifest.enc_hash
     assert [event["type"] for event in telemetry["operational_events"]] == ["session_reset"]
     assert telemetry["operational_events"][0]["details"]["previous_session_id"] == session_id

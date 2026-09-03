@@ -252,14 +252,18 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
         "generic_roll_4dof_plant": MappingProxyType({"mass_kg": 1.6e7, "i_x_kgm2": 2.0e10, "i_z_kgm2": 3.0e10}),
         "marine_pid": MappingProxyType(
             {
-                "kp": (1000.0, 500.0, 2000.0),
-                "ki": (100.0, 50.0, 200.0),
-                "kd": (200.0, 100.0, 400.0),
+                # Closed-loop baseline scaled to the canonical synthetic plant
+                # mass/inertia above. These are simulation scaffolding values,
+                # not gains identified for a physical vessel.
+                "kp": (1.6e6, 1.6e6, 1.92e8),
+                "ki": (1.0e5, 1.0e5, 2.0e6),
+                "kd": (0.0, 0.0, 3.84e9),
                 "tau_d": (0.1, 0.1, 0.1),
                 "antiwindup_gain": (1.0, 1.0, 1.0),
-                "min_output": (-10000.0, -5000.0, -20000.0),
-                "max_output": (10000.0, 5000.0, 20000.0),
+                "min_output": (-5.0e6, -5.0e6, -6.0e8),
+                "max_output": (5.0e6, 5.0e6, 6.0e8),
                 "feedforward_gain": (0.0, 0.0, 0.0),
+                "integral_limit": (50.0, 50.0, 5.0),
                 "allow_ideal_passthrough": True,
             }
         ),
@@ -437,6 +441,18 @@ def _candidate_configs() -> Iterable[Mapping[str, Any]]:
                         yield candidate
 
 
+def _product_transit_compatible(config: ShipModulesConfig, supported_tasks: Iterable[ControlTask]) -> bool:
+    """Apply product-level command/load semantics on top of module assembly."""
+    if ControlTask.TRANSIT not in supported_tasks:
+        return False
+    plant = config.modules["plant"].identity
+    controller = config.modules["controller"].identity
+    return not (
+        plant in {"generic_3dof_plant", "generic_roll_4dof_plant"}
+        and controller == "pass_through_controller"
+    )
+
+
 @lru_cache(maxsize=1)
 def _cached_stack_catalog() -> tuple[dict[str, Any], ...]:
     """Validate every candidate through the assembly seam; keep only valid stacks."""
@@ -452,7 +468,7 @@ def _cached_stack_catalog() -> tuple[dict[str, Any], ...]:
             RuntimeError,
         ):  # UnsupportedModuleCombinationError / CapabilityMismatchError / DependencyUnavailableError
             continue
-        if not supported_tasks:
+        if not _product_transit_compatible(config, supported_tasks):
             continue
         entries.append(stack_evidence_document(config, supported_tasks=supported_tasks))
     return tuple(entries)
@@ -481,7 +497,10 @@ def list_stack_catalog() -> dict[str, Any]:
             "label": ACCEPTANCE_CEILING_LABEL,
             "note": "Entries carry only their accepted module evidence; higher acceptance levels are not claimed.",
         },
-        "validity_rule": "normalize_ship_modules + ModularShipStack.from_config assembly + non-empty supported_tasks",
+        "validity_rule": (
+            "normalize_ship_modules + ModularShipStack.from_config assembly + "
+            "TRANSIT support + control-semantics compatibility"
+        ),
         "default_stack_id": stacks[0]["stack_id"] if stacks else None,
         "recommended_stack_ids_by_plant": _recommended_stack_ids_by_plant(stacks),
         "module_axes": _module_axes(),

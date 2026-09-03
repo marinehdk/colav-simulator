@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import threading
 import time
 from collections import deque
@@ -533,35 +534,41 @@ class WebSessionManager:
             if self.prepared and self.prepared.session.state == SessionState.RUNNING:
                 raise RuntimeError("Pause the active session before replacing it")
             replacement = self.runner.prepare(spec)
-            replacement.session.enable_pickle_frames()
-            if self.prepared is not None:
-                self.prepared.artifact_sink.close(timeout_s=2.0)
-            self.prepared = replacement
-            self.result = None
-            self.replay_expected = None
-            self.previous_prediction_horizon = []
-            self.current_prediction_horizon = []
-            self.last_solve_id = None
-            self.latest_planner_solve = {}
-            self.active_planner_plan = {}
-            self.latest_planner_attempt = {}
-            self._telemetry_trails = {}
-            self._shadow_max_deviation_m = 0.0
-            self._last_shadow_ownship = None
-            self._last_shadow_comparison = None
-            self._telemetry_published_at = 0.0
-            self._latest_stream_document = ""
-            self._latest_compact_stream_document = ""
-            self._latest_compact_static_stream_document = ""
-            self.speed_multiplier = 1.0
-            self.speed_revision += 1
-            self.effective_speed_multiplier = None
-            self.scheduler_lag_ms = 0.0
-            self.realtime_limited = False
-            self.enc_navigation_area = self._enc_navigation_area()
+            return self._activate(replacement)
+
+    def _activate(self, replacement: PreparedRun, *, enc_image_source: Path | None = None) -> dict[str, Any]:
+        replacement.session.enable_pickle_frames()
+        if self.prepared is not None:
+            self.prepared.artifact_sink.close(timeout_s=2.0)
+        self.prepared = replacement
+        self.result = None
+        self.replay_expected = None
+        self.previous_prediction_horizon = []
+        self.current_prediction_horizon = []
+        self.last_solve_id = None
+        self.latest_planner_solve = {}
+        self.active_planner_plan = {}
+        self.latest_planner_attempt = {}
+        self._telemetry_trails = {}
+        self._shadow_max_deviation_m = 0.0
+        self._last_shadow_ownship = None
+        self._last_shadow_comparison = None
+        self._telemetry_published_at = 0.0
+        self._latest_stream_document = ""
+        self._latest_compact_stream_document = ""
+        self._latest_compact_static_stream_document = ""
+        self.speed_multiplier = 1.0
+        self.speed_revision += 1
+        self.effective_speed_multiplier = None
+        self.scheduler_lag_ms = 0.0
+        self.realtime_limited = False
+        self.enc_navigation_area = self._enc_navigation_area()
+        if enc_image_source is not None and enc_image_source.is_file():
+            shutil.copyfile(enc_image_source, self.prepared.run_dir / "enc.png")
+        else:
             render_enc(self.prepared)
-            self._publish_telemetry(None)
-            return self.describe()
+        self._publish_telemetry(None)
+        return self.describe()
 
     def describe(self) -> dict[str, Any]:
         if not self.prepared:
@@ -770,7 +777,9 @@ class WebSessionManager:
             if prepared.session.state == SessionState.RUNNING:
                 prepared.session.pause()
             previous_session_id = prepared.manifest.run_id
-            self.create(replace(prepared.spec))
+            replacement = self.runner.prepare_reset(prepared)
+            enc_image_source = None if prepared.spec.reload_enc else prepared.run_dir / "enc.png"
+            self._activate(replacement, enc_image_source=enc_image_source)
             self.prepared.session.record_event("session_reset", previous_session_id=previous_session_id)
             self._publish_telemetry(None)
             return self.describe()

@@ -92,7 +92,8 @@ class TestCatalogProof:
     def test_catalog_validity_rule_replays_on_demo_config(self, report) -> None:
         catalog = list_stack_catalog()
         assert catalog["validity_rule"] == (
-            "normalize_ship_modules + ModularShipStack.from_config assembly + non-empty supported_tasks"
+            "normalize_ship_modules + ModularShipStack.from_config assembly + "
+            "TRANSIT support + control-semantics compatibility"
         )
         for run in report.preset_runs:
             assert run.catalog_proof["validity_rule_replayed"] is True

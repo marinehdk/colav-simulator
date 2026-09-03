@@ -28,7 +28,7 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 from colav_simulator.core.colav.encounter_lifecycle import EncounterLifecycle
 from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
 from colav_simulator.core.models import KinematicCSOGParams
-from colav_simulator.evaluation import Evaluator, EvaluatorResult
+from colav_simulator.evaluation import Evaluator, EvaluatorResult, load_evaluator_profile
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import (
     InternalExecutionPurpose,
@@ -66,10 +66,27 @@ class PreparedRun:
     writer: EvidenceWriter
     episode_document: dict[str, Any]
     artifact_sink: BoundedArtifactSink
+    reset_template: PreparedRunTemplate
 
     @property
     def run_dir(self) -> Path:
         return self.writer.run_dir
+
+
+@dataclass(frozen=True)
+class PreparedRunTemplate:
+    """Pristine scenario inputs reused by Session Reset."""
+
+    capability_profile_id: str
+    scenario_document: dict[str, Any]
+    episode: dict[str, Any]
+    enc: Any
+    episode_document: dict[str, Any]
+    scenario_source: str
+    scenario_provenance: dict[str, Any]
+    executed_tracker: str
+    historical_request: HistoricalReplayRequest | None
+    counterfactual_mode: bool
 
 
 @dataclass
@@ -309,6 +326,7 @@ class ExperimentRunner:
 
     def prepare(self, spec: RunSpec) -> PreparedRun:
         """Prepare one product run through the published exact-tuple policy."""
+        self._validate_evaluator_profile(spec)
         self._validate_ownship_gnc_stack(spec)
         self.capabilities.policy.require_integrations(spec.algorithm_id, spec.tracker_id)
         self.capabilities.policy.validate_domain_profile(spec.algorithm_id, spec.domain_profile)
@@ -361,8 +379,16 @@ class ExperimentRunner:
         )
         return self._prepare(spec, capability_profile_id=capability_profile_id)
 
+    def prepare_reset(self, prepared: PreparedRun) -> PreparedRun:
+        """Create a fresh run from the source session's pristine prepared inputs."""
+        self._validate_evaluator_profile(prepared.spec)
+        if prepared.spec.reload_enc:
+            return self.prepare(prepared.spec)
+        return self._prepare_from_template(prepared.spec, prepared.reset_template)
+
     def prepare_internal(self, spec: RunSpec, *, purpose: InternalExecutionPurpose) -> PreparedRun:
         """Prepare one explicitly typed internal Replay or evaluator baseline run."""
+        self._validate_evaluator_profile(spec)
         self._validate_ownship_gnc_stack(spec)
         if not isinstance(purpose, InternalExecutionPurpose):
             raise ColavExecutionError(
@@ -557,11 +583,7 @@ class ExperimentRunner:
             if runtime_map_proof is not None:
                 episode_document["historical_runtime_map"] = runtime_map_proof.to_dict()
 
-        manifest = RunManifest.create(spec, self.registry.dependency_manifest())
-        manifest.scenario_hash = content_hash(scenario_document)
-        manifest.episode_hash = content_hash(episode_document)
-        manifest.enc_hash = _enc_hash(tuple(episode["config"].map_data_files))
-        manifest.scenario_provenance = (
+        scenario_provenance = (
             {
                 "source": "HistoricalAISScenarioCatalog",
                 "reconstructed": True,
@@ -572,20 +594,53 @@ class ExperimentRunner:
             if spec.historical_scenario_id is not None
             else self._scenario_provenance(spec.scenario_id)
         )
-        manifest.executed_tracker = self._executed_tracker_id(spec, config)
+        template = PreparedRunTemplate(
+            capability_profile_id=capability_profile_id,
+            scenario_document=copy.deepcopy(scenario_document),
+            episode=copy.deepcopy(episode),
+            enc=copy.deepcopy(enc),
+            episode_document=copy.deepcopy(episode_document),
+            scenario_source=(
+                "historical-runtime-template"
+                if spec.historical_scenario_id is not None
+                else self._scenario_source(scenario_path)  # type: ignore[arg-type]
+            ),
+            scenario_provenance=copy.deepcopy(scenario_provenance),
+            executed_tracker=self._executed_tracker_id(spec, config),
+            historical_request=historical_request,
+            counterfactual_mode=counterfactual_mode,
+        )
+        return self._prepare_from_template(spec, template)
+
+    def _prepare_from_template(  # noqa: PLR0915
+        self,
+        spec: RunSpec,
+        template: PreparedRunTemplate,
+    ) -> PreparedRun:
+        episode = copy.deepcopy(template.episode)
+        enc = copy.deepcopy(template.enc)
+        episode_document = copy.deepcopy(template.episode_document)
+        historical_request = template.historical_request
+
+        manifest = RunManifest.create(spec, self.registry.dependency_manifest())
+        manifest.scenario_hash = content_hash(template.scenario_document)
+        manifest.episode_hash = content_hash(episode_document)
+        manifest.enc_hash = _enc_hash(tuple(episode["config"].map_data_files))
+        manifest.scenario_provenance = copy.deepcopy(template.scenario_provenance)
+        manifest.executed_tracker = template.executed_tracker
         manifest.scenario_readiness_grade = self.capabilities._scenario_capability(
             spec.scenario_id,
             True,
         ).readiness_grade
         manifest.algorithm_readiness_grade = self.capabilities.grade("algorithm", spec.algorithm_id)
         manifest.tracker_readiness_grade = self.capabilities.grade("tracker", spec.tracker_id)
-        manifest.capability_profile_id = capability_profile_id
+        manifest.capability_profile_id = template.capability_profile_id
         if historical_request is not None:
             manifest.historical_replay_evidence = historical_request.evidence.to_dict()
             manifest.historical_execution_mode = historical_request.mode
             manifest.historical_case_digest = historical_request.case_digest
             manifest.historical_scenario_id = spec.historical_scenario_id
-            if not counterfactual_mode:
+            if not template.counterfactual_mode:
                 manifest.diagnostic_only = True
                 manifest.diagnostic_only_reasons = [
                     *manifest.diagnostic_only_reasons,
@@ -600,11 +655,7 @@ class ExperimentRunner:
             {
                 "schema_version": spec.schema_version,
                 "scenario_id": spec.scenario_id,
-                "source": (
-                    "historical-runtime-template"
-                    if spec.historical_scenario_id is not None
-                    else self._scenario_source(scenario_path)  # type: ignore[arg-type]
-                ),
+                "source": template.scenario_source,
                 "source_hash": manifest.scenario_hash,
                 "episode_hash": manifest.episode_hash,
                 "enc_hash": manifest.enc_hash,
@@ -676,7 +727,7 @@ class ExperimentRunner:
                 threat_management_coordinator=threat_management_coordinator,
             )
             manifest.executed_algorithm = self._executed_algorithm_id(session)
-            if counterfactual_mode:
+            if template.counterfactual_mode:
                 manifest.executed_algorithm = spec.algorithm_id
                 manifest.fallback_used = spec.algorithm_id != "nominal" and algorithm is None
             elif historical_request is not None:
@@ -694,7 +745,14 @@ class ExperimentRunner:
             artifact_sink.close(timeout_s=2.0)
             self.persist_failure(manifest, writer, exc, [])
             raise ExperimentRunError(manifest, writer.run_dir) from exc
-        return PreparedRun(spec, manifest, session, writer, episode_document, artifact_sink)
+        return PreparedRun(spec, manifest, session, writer, episode_document, artifact_sink, template)
+
+    @staticmethod
+    def _validate_evaluator_profile(spec: RunSpec) -> None:
+        try:
+            load_evaluator_profile(spec.evaluator_profile_id)
+        except ValueError as exc:
+            raise ColavExecutionError(PlanStatus.INVALID_INPUT, str(exc)) from exc
 
     @staticmethod
     def _executed_tracker_id(spec: RunSpec, config: scenario_config.ScenarioConfig) -> str:

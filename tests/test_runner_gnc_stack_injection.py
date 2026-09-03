@@ -83,6 +83,15 @@ def test_prepare_injects_selected_stack_into_ownship_ship_modules() -> None:
     )
     assert ownship.modular_stack_config.config_hash == expected.config_hash
 
+    replacement = runner.prepare_reset(prepared)
+    replacement_ownship = replacement.session.ship_list[0]
+    assert replacement.manifest.run_id != prepared.manifest.run_id
+    assert replacement.manifest.episode_hash == prepared.manifest.episode_hash
+    assert replacement.manifest.enc_hash == prepared.manifest.enc_hash
+    assert isinstance(replacement_ownship, ModularShipAdapter)
+    assert replacement_ownship is not ownship
+    assert replacement_ownship.modular_stack_config.config_hash == expected.config_hash
+
 
 def test_prepare_without_gnc_stack_keeps_legacy_ownship() -> None:
     runner = ExperimentRunner()
@@ -95,5 +104,7 @@ def test_prepare_without_gnc_stack_keeps_legacy_ownship() -> None:
     )
 
     prepared = runner.prepare(spec)
+    replacement = runner.prepare_reset(prepared)
 
     assert not isinstance(prepared.session.ship_list[0], ModularShipAdapter)
+    assert not isinstance(replacement.session.ship_list[0], ModularShipAdapter)

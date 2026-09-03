@@ -105,8 +105,8 @@ class TestStackCatalogDocument:
         recommendations = document["recommended_stack_ids_by_plant"]
         expected = {
             "pass_through_plant": "pass_through_plant+pass_through_guidance+pass_through_controller",
-            "generic_3dof_plant": "generic_3dof_plant+pass_through_guidance+pass_through_controller",
-            "generic_roll_4dof_plant": "generic_roll_4dof_plant+pass_through_guidance+pass_through_controller",
+            "generic_3dof_plant": "generic_3dof_plant+pass_through_guidance+marine_pid",
+            "generic_roll_4dof_plant": "generic_roll_4dof_plant+pass_through_guidance+marine_pid",
         }
 
         assert recommendations == expected
@@ -115,6 +115,14 @@ class TestStackCatalogDocument:
             for entry in document["stacks"]
             if entry["stack_id"] in recommendations.values()
         )
+
+    def test_transit_catalog_excludes_force_plants_with_pass_through_controller(self) -> None:
+        for entry in list_stack_catalog()["stacks"]:
+            identities = {module["role"]: module["identity"] for module in entry["modules"]}
+            assert not (
+                identities.get("plant") in {"generic_3dof_plant", "generic_roll_4dof_plant"}
+                and identities.get("controller") == "pass_through_controller"
+            )
 
     def test_capability_incompatible_tuple_is_not_listed(self) -> None:
         incompatible = _config_for(

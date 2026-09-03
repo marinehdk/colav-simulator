@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -276,8 +277,12 @@ class PassThroughModules:
                 self._state = PlantState(new_values, self._plant.capabilities, input_semantics=self._plant.input_semantics)
             elif effective_reference is not None:
                 values = self._state.values.copy()
-                values[2] = effective_reference.values[2]
-                values[3] = effective_reference.values[3]
+                heading = float(effective_reference.values[2])
+                speed = float(effective_reference.values[3])
+                values[0] += speed * math.cos(heading) * dt_s
+                values[1] += speed * math.sin(heading) * dt_s
+                values[2] = heading
+                values[3] = speed
                 self._state = PlantState(values, self._state.capabilities)
 
     def _run_actuator_phase(self, tick: int, dt_s: float) -> None:

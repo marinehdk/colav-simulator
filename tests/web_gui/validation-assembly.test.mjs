@@ -325,6 +325,33 @@ test('active Run Specification becomes the draft and Default clears all override
   assert.deepEqual(activeSession.spec.algorithm_config, { horizon: 21, nested: { weight: 4 } });
 });
 
+test('backend GNC stack identity stays authoritative and changing to Legacy requires Create', () => {
+  const stackId = 'pass_through_plant+pass_through_guidance+pass_through_controller';
+  const assembly = createValidationAssembly({ catalog });
+
+  assembly.syncActiveSession({
+    state: 'PAUSED',
+    spec: {
+      ...catalog.defaults,
+      ownship_gnc_stack_id: stackId,
+    },
+  }, { reason: 'session-reset' });
+
+  let snapshot = assembly.snapshot();
+  assert.equal(snapshot.draft.gnc_stack_id, stackId);
+  assert.equal(snapshot.activeSpec.gnc_stack_id, stackId);
+  assert.equal(Object.hasOwn(snapshot.activeSpec, 'ownship_gnc_stack_id'), false);
+  assert.equal(snapshot.matchesActive, true);
+
+  assert.equal(assembly.edit('gnc_stack_id', null), true);
+  snapshot = assembly.snapshot();
+  assert.equal(snapshot.draft.gnc_stack_id, null);
+  assert.equal(snapshot.activeSpec.gnc_stack_id, stackId);
+  assert.equal(snapshot.matchesActive, false);
+  assert.equal(snapshot.canCreate, true);
+  assert.equal(assembly.beginCreate().spec.gnc_stack_id, null);
+});
+
 test('rule selection repairs only its dependent scenario and keeps algorithm plus tracker', () => {
   const rankingCatalog = structuredClone(catalog);
   rankingCatalog.rules.push({ id: 'rule15', selectable: true });

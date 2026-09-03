@@ -219,6 +219,9 @@ function normalizeSpec(spec, catalog) {
     scenario_override: null,
     gnc_stack_id: null,
   };
+  if (Object.hasOwn(spec || {}, 'ownship_gnc_stack_id')) {
+    normalized.gnc_stack_id = clone(spec.ownship_gnc_stack_id);
+  }
   for (const field of CREATE_FIELDS) {
     if (Object.hasOwn(spec || {}, field)) normalized[field] = clone(spec[field]);
   }

@@ -209,6 +209,41 @@ def test_modular_ship_adapter_with_generic_plant() -> None:
     assert state[3] > 0.0
 
 
+def test_modular_ship_adapter_with_pass_through_plant_advances_kinematic_position() -> None:
+    ship_cfg = Config.from_dict(
+        {
+            "id": 1,
+            "mmsi": 123456789,
+            "csog_state": [2500.0, 2500.0, 7.0, 0.0],
+            "ship_modules": {
+                "preset": "legacy_equivalent",
+                "modules": {
+                    "plant": {"identity": "pass_through_plant", "parameters": {}},
+                    "guidance": {"identity": "pass_through_guidance", "parameters": {}},
+                    "controller": {"identity": "pass_through_controller", "parameters": {}},
+                },
+            },
+        }
+    )
+
+    adapter = build_modular_ship_adapter(ship_cfg)
+    adapter.reset(seed=42)
+    reference = np.zeros((9, 1))
+    reference[2, 0] = 0.5
+    reference[3, 0] = 7.1
+    adapter.set_references(reference)
+
+    state, _, _ = adapter.forward(dt=0.5)
+
+    np.testing.assert_allclose(
+        state[:2],
+        [2500.0 + 0.5 * 7.1 * math.cos(0.5), 2500.0 + 0.5 * 7.1 * math.sin(0.5)],
+        atol=1e-12,
+    )
+    assert state[2] == 0.5
+    assert state[3] == 7.1
+
+
 def test_generic_plant_accepts_period_1_and_rejects_period_greater_than_1() -> None:
     # 1. Period 1 is accepted
     valid_cfg = normalize_ship_modules(

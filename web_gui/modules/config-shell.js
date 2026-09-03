@@ -1,4 +1,4 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260903-gnc-step4-v7';
+import { createValidationAssembly } from './validation-assembly.js?v=20260903-gnc-step4-v9';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260901-static-once-v1';
 import { createSituationDisplay } from './situation-display.js?v=20260831-vessel-risk-label-v4';
 
@@ -845,9 +845,10 @@ function renderGncStackPanel(snapshot) {
   const unavailable = document.getElementById('gncStackUnavailable');
   const catalog = gncStackCatalog;
   const boundId = snapshot?.draft?.gnc_stack_id ?? null;
-  if (boundId !== gncBoundStackId) {
+  if (boundId !== gncBoundStackId && (boundId === null || gncStackCatalog)) {
     // The binding changed outside the ladder (session sync, Default): re-derive
-    // the shell-local selection from the bound stack entry.
+    // the shell-local selection from the bound stack entry. A non-null binding
+    // waits for the asynchronously loaded stack catalog before it is marked synced.
     gncBoundStackId = boundId;
     const boundEntry = gncStackById(boundId);
     gncSelection = boundEntry ? gncSelectionFromStack(boundEntry) : null;
