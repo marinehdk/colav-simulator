@@ -1,0 +1,38 @@
+# Issue #67 acceptance-only VO spacing profile (stack B).
+#
+# NOT a shipped default: the published VO behaviour stays VOParams() defaults;
+# this profile is injected as RunSpec.algorithm_config for the OT/HO/CS
+# acceptance matrix with the FCB45 ownship GNC stack.
+#
+# Acceptance gate: ownship-target minimum CENTRE distance >= 180 m
+# (4 x 44.1 m Lpp) with a nominal target of 190 m.
+#
+# Derivation (kuwata_vo.py, slice-2 source dig):
+# - The VO hard constraint excludes candidate velocities whose predicted
+#   relative path brings the CENTRE distance under
+#   combined_hull_radius + hard_hull_clearance_m (+0.25 m integration margin),
+#   combined_hull_radius = 0.5*hypot(len_os,width_os) +
+#   0.5*hypot(len_tgt,width_tgt) using the RUNTIME ship geometry the planner
+#   is fed (ship.py passes the legacy model params: viknes 8.45 x 2.71 m for
+#   both ownship and targets in this scenario family).
+# - With viknes-vs-viknes geometry the combined radius is 8.874 m, so
+#   hard_hull_clearance_m = 182.0 puts the hard floor at 191.1 m centre
+#   distance: 11.1 m above the 180 m gate, nominal >= 190 m.
+# - preferred_hull_clearance_m = 190.0 keeps the soft cost boundary
+#   (198.9 m centre distance) above the hard floor so the preferred domain
+#   adds margin instead of duplicating the hard boundary.
+# - d_min = 190.0 aligns CPA-based collision-course classification and the
+#   imminent-distance trigger with the acceptance distance instead of the
+#   100 m default.
+# - length_os/width_os = 44.1 x 8.0 give the FCB45 footprint identity. They
+#   only inflate the static-hazard ownship polygon
+#   (max(runtime, params)) and the pre-init fallback; the dynamic-obstacle
+#   geometry above is fed the legacy model params at runtime and is therefore
+#   sized through hard_hull_clearance_m, not through length_os.
+dependency_lock: ../uv.lock
+vo:
+  length_os: 44.1
+  width_os: 8.0
+  d_min: 190.0
+  hard_hull_clearance_m: 182.0
+  preferred_hull_clearance_m: 190.0
