@@ -346,13 +346,23 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
         #   GM 1.5 m -> restoring_k_phi = m*g*GM = 3.2373e6 N.m/rad.
         # - Added mass (SNAME signs; the plant subtracts, so effective
         #   m_11 = 2.42e5, m_22 = 3.8e5, m_33 = I_z + 9.5e6 = 3.65e7 kg.m^2):
-        #   X_u_dot -2.2e4, Y_v_dot -1.6e5, N_r_dot -9.5e6, Y_r/N_v +1e6 each.
+        #   X_u_dot -2.2e4, Y_v_dot -1.6e5, N_r_dot -9.5e6.
+        #   Mass couplings Y_r_dot = N_v_dot = -1e6 -> m_23 = m_32 = +1e6:
+        #   SNAME Y_r_dot/N_v_dot are negative at the CG origin, and the sign
+        #   is what keeps the forward-speed (v, r) linearization yaw-stable
+        #   (yaw row r-coefficient -m_23*u0 - d_r = -9.4e6 N.m.s at 7.8 m/s;
+        #   the opposite sign gives open-loop r growth ~0.21 1/s, which no
+        #   vendor ship exhibits).
         # - Damping (SNAME derivative -> repo convention d = -coefficient for
         #   the same physical term, keeping the coupled (v, r) block
         #   dissipative: [[d_v, (d_vr+d_rv)/2], [., d_r]] det > 0):
-        #   X_u -3500 -> d_u 3500; X_uu -280 -> d_uu 280; Y_v -5e4 -> d_v 5e4;
-        #   Y_vv -9e3 -> d_vv 9e3; Y_r +6e4 -> d_vr -6e4; N_r -1.6e6 -> d_r
-        #   1.6e6; N_rr -3e6 -> d_rr 3e6; N_v -6e5 -> d_rv +6e5.
+        #   X_u -3500 -> d_u 3500; X_uu -280 -> d_uu 280; Y_v -5e4 -> d_v
+        #   5e4*u0 = 3.9e5; Y_vv -9e3 -> d_vv 9e3*u0^2 = 5.4756e5 (sway
+        #   damping linearised at the 7.8 m/s service speed: hull lift scales
+        #   with u and u^2, and the un-scaled value leaves the (v, r)
+        #   linearization a saddle — deviation-ledgered); Y_r +6e4 -> d_vr
+        #   -6e4; N_r -1.6e6 -> d_r 1.6e6; N_rr -3e6 -> d_rr 3e6; N_v -6e5 ->
+        #   d_rv +6e5.
         # - Execution: Mz(u) = min(9.6e5, 3.6e5 + 2500*u^2) N.m; rudder slew
         #   0.1 rad/s and service speed ~7.8 m/s are recorded in the deviation
         #   ledger (slew not modelled in this slice).
@@ -365,12 +375,12 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
                 "x_dot_u_kg": -22000.0,
                 "y_dot_v_kg": -160000.0,
                 "n_dot_r_kgm2": -9.5e6,
-                "y_dot_r_kgm": 1.0e6,
-                "n_dot_v_kgm": 1.0e6,
+                "y_dot_r_kgm": -1.0e6,
+                "n_dot_v_kgm": -1.0e6,
                 "d_u": 3500.0,
                 "d_uu": 280.0,
-                "d_v": 50000.0,
-                "d_vv": 9000.0,
+                "d_v": 390000.0,
+                "d_vv": 547560.0,
                 "d_r": 1.6e6,
                 "d_rr": 3.0e6,
                 "d_vr": -60000.0,
@@ -385,12 +395,12 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
                 "x_dot_u_kg": -22000.0,
                 "y_dot_v_kg": -160000.0,
                 "n_dot_r_kgm2": -9.5e6,
-                "y_dot_r_kgm": 1.0e6,
-                "n_dot_v_kgm": 1.0e6,
+                "y_dot_r_kgm": -1.0e6,
+                "n_dot_v_kgm": -1.0e6,
                 "d_u": 3500.0,
                 "d_uu": 280.0,
-                "d_v": 50000.0,
-                "d_vv": 9000.0,
+                "d_v": 390000.0,
+                "d_vv": 547560.0,
                 "d_r": 1.6e6,
                 "d_rr": 3.0e6,
                 "d_vr": -60000.0,
@@ -404,18 +414,21 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
         # mirrored in tests/test_modular_gnc_fcb45_seed_gains.py):
         #
         # Yaw channel (moment-scale pole placement, Fossen Handbook 2nd ed.
-        # Alg-15.1 logic with an explicit third pole):
-        #   I_eff = I_z + N_r_dot = 3.65e7 kg.m^2, d_eff = d_r = 1.6e6 N.m.s
-        #   T = I_eff/d_eff = 22.8125 s, open-loop bandwidth 1/T = 0.0438 rad/s
-        #   zeta = 0.9, omega_n = 0.025 rad/s in [2/T/5, 2/T/3], third pole
-        #   a = 3*omega_n = 0.075 rad/s (non-dominant)
-        #   kd = I_eff*(2*zeta*omega_n + a) - d_eff = 2.78e6
-        #   kp = I_eff*(omega_n^2 + 2*zeta*omega_n*a)    = 1.46e5
-        #   ki = I_eff*omega_n^2*a                        = 1710.94
-        #   (Fossen's Ki~Kp/10 thumb needs omega_n >= 0.056 rad/s here to pass
-        #   Routh — 64% of 1/T, outside the band — so the placed ki (~kp/85)
-        #   stays deliberately below that ceiling.)
-        # Feedforward: Nomoto inverse tau_FF = I_eff*rdot_d + d_eff*r_d.
+        # Alg-15.1 logic with an explicit third pole), linearised at the
+        # service speed u0 = 7.8 m/s on the calibrated FCB45 plant:
+        #   I_eff = I_z + N_r_dot = 3.65e7 kg.m^2
+        #   d_eff(u0) = d_r + m_23*u0 = 1.6e6 + 1e6*7.8 = 9.4e6 N.m.s
+        #   T = I_eff/d_eff(u0) = 3.883 s, 2/T = 0.5148 rad/s
+        #   zeta = 0.9, omega_n = 0.11 rad/s in [2/T/5, 2/T/3], third pole
+        #   a = 3*omega_n = 0.33 rad/s (non-dominant)
+        #   kd = I_eff*(2*zeta*omega_n + a) - d_eff(u0) = 9.872e6
+        #   kp = I_eff*(omega_n^2 + 2*zeta*omega_n*a)    = 2.82656e6
+        #   ki = I_eff*omega_n^2*a                        = 1.457445e5
+        #   (ki ~ kp/19, below the Fossen Ki~Kp/10 ceiling; the Routh margin
+        #   (d_eff+kd)*kp / (I_eff*ki) is ~9x.)
+        # Feedforward: Nomoto inverse at the same linearisation,
+        # tau_FF = I_eff*rdot_d + d_eff(u0)*r_d (the m23*u0*r Coriolis term is
+        # part of the effective damping the steady turn must pay for).
         # Surge (1st-order P+I, pole 0.08 rad/s, damping linearised at the
         # 7.8 m/s service speed): kp = m_11*0.08 - (d_u + 2*d_uu*7.8) = 11492,
         # ki = kp/10.  Sway (pole 0.15 rad/s): kp = m_22*0.15 - d_v = 7000,
@@ -424,11 +437,15 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
         # vendor Mz(u) = min(9.6e5, 3.6e5 + 2500*u^2) N.m.
         "fcb45_marine_pid": MappingProxyType(
             {
-                "kp": (11492.0, 7000.0, 1.46e5),
-                "ki": (1149.2, 700.0, 1710.9375),
-                "kd": (0.0, 0.0, 2.78e6),
+                "kp": (11492.0, 7000.0, 2826560.0),
+                "ki": (1149.2, 700.0, 145744.5),
+                "kd": (0.0, 0.0, 9872000.0),
                 "tau_d": (0.1, 0.1, 0.1),
-                "antiwindup_gain": (1.0, 1.0, 1.0),
+                # Yaw tracking anti-windup back-calculation time constant
+                # 1/0.05 = 20 s ~ Ti = kp/ki: fast enough to un-wind the
+                # feedforward saturation deficit, slow enough not to whiplash
+                # the integral when the shaper ramps saturate the moment cap.
+                "antiwindup_gain": (1.0, 1.0, 0.05),
                 "min_output": (-2.0e5, -4.0e4, -9.6e5),
                 "max_output": (2.0e5, 4.0e4, 9.6e5),
                 "feedforward_gain": (0.0, 0.0, 0.0),
@@ -437,7 +454,7 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
                 "reference_shaper_enable": True,
                 "heading_rate_limit_rad_s": 0.05,
                 "heading_accel_limit_rad_s2": 0.02,
-                "yaw_rate_ff_gain": 1.6e6,
+                "yaw_rate_ff_gain": 9.4e6,
                 "yaw_accel_ff_gain": 3.65e7,
                 "yaw_limit_base_nm": 3.6e5,
                 "yaw_limit_speed_coeff": 2500.0,

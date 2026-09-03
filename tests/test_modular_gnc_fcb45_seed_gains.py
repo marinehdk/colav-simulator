@@ -3,23 +3,26 @@
 Derivation (independent of the implementation, Fossen Handbook 2nd ed. Alg-15.1
 logic lifted to moment scale with an explicit third pole):
 
-- Yaw channel linearisation: I_eff = I_z + N_r_dot = 2.7e7 + 9.5e6 = 3.65e7
-  kg.m^2 (the plant forms m_33 = i_z - n_dot_r with SNAME n_dot_r = -9.5e6),
-  d_eff = d_r = 1.6e6 N.m.s (d_rr*|r| dropped in linearisation).
-- Nomoto equivalents at moment scale: T = I_eff/d_eff = 22.8125 s, open-loop
-  bandwidth 1/T = 0.0438 rad/s.
+- Yaw channel linearisation at the service speed u0 = 7.8 m/s:
+  I_eff = I_z + N_r_dot = 2.7e7 + 9.5e6 = 3.65e7 kg.m^2 (the plant forms
+  m_33 = i_z - n_dot_r with SNAME n_dot_r = -9.5e6), and
+  d_eff(u0) = d_r + m_23*u0 = 1.6e6 + 1e6*7.8 = 9.4e6 N.m.s: the yaw row of
+  C(nu) contributes -m_23*u0*r, so the steady-turn damping the actuator must
+  pay is the Coriolis-inclusive value (d_rr*|r| dropped in linearisation).
+- Nomoto equivalents at moment scale: T = I_eff/d_eff(u0) = 3.883 s,
+  2/T = 0.5148 rad/s.
 - Closed loop: zeta = 0.9, omega_n inside the mandated band
-  [2/T/5, 2/T/3] = [0.01753, 0.02922] -> omega_n = 0.025 rad/s; third pole
+  [2/T/5, 2/T/3] = [0.10301, 0.17169] -> omega_n = 0.11 rad/s; third pole
   a = 3*omega_n (non-dominant).
 - Matching (s^2 + 2*zeta*omega_n*s + omega_n^2)(s + a) against
   I_eff*s^3 + (d_eff + kd)*s^2 + kp*s + ki gives
   kd = I_eff*(2*zeta*omega_n + a) - d_eff,
   kp = I_eff*(omega_n^2 + 2*zeta*omega_n*a),
   ki = I_eff*omega_n^2*a.
-- Ki ~ Kp/10 (Fossen thumb) would need omega_n >= 0.056 rad/s to pass Routh
-  here (2*zeta*omega_n > 0.1), i.e. 64% of the open-loop bandwidth, outside the
-  band; the placed ki (~kp/85) is therefore deliberately below that ceiling.
-- Feedforward: Nomoto inverse tau_FF = I_eff*rdot_d + d_eff*r_d.
+- The placed ki is ~kp/19, below the Fossen Ki~Kp/10 ceiling, with a ~10x
+  Routh margin (d_eff + kd)*kp / (I_eff*ki).
+- Feedforward: Nomoto inverse at the same linearisation,
+  tau_FF = I_eff*rdot_d + d_eff(u0)*r_d.
 - Surge/sway: first-order plants, P+I pole placement at 0.08 / 0.15 rad/s with
   surge damping linearised at the 7.8 m/s service speed.
 """
@@ -33,10 +36,12 @@ from colav_simulator.modular_gnc.catalog import list_stack_catalog
 I_Z = 2.7e7
 N_R_DOT = 9.5e6
 I_EFF = I_Z + N_R_DOT
-D_EFF = 1.6e6
+M_23 = 1.0e6  # m*x_g - y_dot_r with y_dot_r = -1e6 (SNAME CG-origin sign)
+SERVICE_SPEED = 7.8
+D_EFF = 1.6e6 + M_23 * SERVICE_SPEED  # d_r + m_23*u0
 T_NOMOTO = I_EFF / D_EFF
 ZETA = 0.9
-OMEGA_N = 0.025
+OMEGA_N = 0.11
 THIRD_POLE = 3.0 * OMEGA_N
 
 M_11 = 220000.0 + 22000.0  # m - X_u_dot

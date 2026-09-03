@@ -35,16 +35,20 @@ FCB45_3DOF_PLANT_PARAMS = {
     "x_dot_u_kg": -22000.0,
     "y_dot_v_kg": -160000.0,
     "n_dot_r_kgm2": -9.5e6,
-    "y_dot_r_kgm": 1.0e6,
-    "n_dot_v_kgm": 1.0e6,
+    # Y_r_dot = N_v_dot = -1e6 (SNAME, CG origin): m_23 = m_32 = +1e6 keeps
+    # the forward-speed (v, r) linearization yaw-stable.
+    "y_dot_r_kgm": -1.0e6,
+    "n_dot_v_kgm": -1.0e6,
     # SNAME derivatives -> repo plant damping convention: d = -coefficient for
     # the same physical term, chosen so the coupled damping block stays
     # dissipative (X_u -3500 -> d_u 3500, Y_r +6e4 -> d_vr -6e4, N_v -6e5 ->
     # d_rv +6e5; the (v,r) block determinant stays positive).
     "d_u": 3500.0,
     "d_uu": 280.0,
-    "d_v": 50000.0,
-    "d_vv": 9000.0,
+    # Sway damping linearised at the 7.8 m/s service speed (hull lift scales
+    # with u): 5e4*7.8 and 9e3*7.8^2 — deviation-ledgered.
+    "d_v": 390000.0,
+    "d_vv": 547560.0,
     "d_r": 1.6e6,
     "d_rr": 3.0e6,
     "d_vr": -60000.0,
