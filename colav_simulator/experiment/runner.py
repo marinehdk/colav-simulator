@@ -51,6 +51,8 @@ from colav_simulator.historical_replay import (
     HistoricalReplayRequest,
 )
 from colav_simulator.integrations import IntegrationRegistry
+from colav_simulator.modular_gnc.catalog import list_stack_catalog
+from colav_simulator.modular_gnc.configuration import normalize_ship_modules
 from colav_simulator.scenario_generator import ScenarioGenerator
 from colav_simulator.simulator import Config as SimulatorConfig
 from colav_simulator.simulator import Simulator
@@ -307,6 +309,7 @@ class ExperimentRunner:
 
     def prepare(self, spec: RunSpec) -> PreparedRun:
         """Prepare one product run through the published exact-tuple policy."""
+        self._validate_ownship_gnc_stack(spec)
         self.capabilities.policy.require_integrations(spec.algorithm_id, spec.tracker_id)
         self.capabilities.policy.validate_domain_profile(spec.algorithm_id, spec.domain_profile)
         historical_mode = str((spec.historical_replay or {}).get("mode", "")).upper()
@@ -360,6 +363,7 @@ class ExperimentRunner:
 
     def prepare_internal(self, spec: RunSpec, *, purpose: InternalExecutionPurpose) -> PreparedRun:
         """Prepare one explicitly typed internal Replay or evaluator baseline run."""
+        self._validate_ownship_gnc_stack(spec)
         if not isinstance(purpose, InternalExecutionPurpose):
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
@@ -387,6 +391,22 @@ class ExperimentRunner:
             purpose=purpose,
         )
         return self._prepare(spec, capability_profile_id=capability_profile_id)
+
+    def _validate_ownship_gnc_stack(self, spec: RunSpec) -> None:
+        """Reject unknown or historically-bound GNC stack ids instead of ignoring them."""
+        if spec.ownship_gnc_stack_id is None:
+            return
+        if spec.historical_replay is not None or spec.historical_scenario_id is not None:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                "GNC stack binding is not supported for Historical AIS scenarios",
+            )
+        stack_ids = {entry["stack_id"] for entry in list_stack_catalog()["stacks"]}
+        if spec.ownship_gnc_stack_id not in stack_ids:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT,
+                f"Unknown ownship GNC stack id: {spec.ownship_gnc_stack_id}",
+            )
 
     def _prepare(  # noqa: C901, PLR0912, PLR0915
         self,
@@ -444,6 +464,11 @@ class ExperimentRunner:
                 config.t_end = historical_request.t_end_s
         if spec.reload_enc:
             config.new_load_of_map_data = True
+        # Config step 04: bind the selected modular stack to the ownship after
+        # scenario loading and override merging so every downstream path
+        # (busy-water override included) sees the bound ship_modules.
+        if spec.ownship_gnc_stack_id is not None:
+            _inject_ownship_gnc_stack(config, spec.ownship_gnc_stack_id)
         if (
             historical_request is None
             and spec.algorithm_id == "nominal"
@@ -858,6 +883,25 @@ class ExperimentRunner:
         prepared.manifest.fallback_used = fallback
         if fallback and prepared.spec.strict_no_fallback:
             raise RuntimeError("Fallback detected in strict run")
+
+
+def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: str) -> None:
+    """Bind one catalog-validated stack config to the ownship entry (Config step 04)."""
+    entry = next(
+        (item for item in list_stack_catalog()["stacks"] if item["stack_id"] == stack_id),
+        None,
+    )
+    if entry is None:
+        raise ColavExecutionError(
+            PlanStatus.INVALID_INPUT,
+            f"Unknown ownship GNC stack id: {stack_id}",
+        )
+    if not config.ship_list:
+        raise ColavExecutionError(
+            PlanStatus.INVALID_INPUT,
+            "GNC stack binding requires a scenario ownship",
+        )
+    config.ship_list[0].ship_modules = normalize_ship_modules(entry["config"])
 
 
 def _historical_runtime_config(

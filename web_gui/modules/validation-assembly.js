@@ -13,6 +13,7 @@ const CREATE_FIELDS = [
   'tracker_config',
   'domain_profile',
   'scenario_override',
+  'gnc_stack_id',
 ];
 const TUPLE_FIELDS = [
   'validation_rule_id',
@@ -26,6 +27,7 @@ const EDITABLE_FIELDS = [
   'episode_index',
   'dt',
   't_end',
+  'gnc_stack_id',
 ];
 
 const PRODUCT_POLICY_MISSING = 'product-capability-policy-missing';
@@ -195,6 +197,7 @@ function defaultSpec(catalog) {
     tracker_config: {},
     domain_profile: null,
     scenario_override: null,
+    gnc_stack_id: null,
   };
 }
 
@@ -214,6 +217,7 @@ function normalizeSpec(spec, catalog) {
     tracker_config: {},
     domain_profile: null,
     scenario_override: null,
+    gnc_stack_id: null,
   };
   for (const field of CREATE_FIELDS) {
     if (Object.hasOwn(spec || {}, field)) normalized[field] = clone(spec[field]);

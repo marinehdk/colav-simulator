@@ -142,6 +142,11 @@ class ActuatorLayoutAsset:
     metadata: AssetMetadata
     actuators: tuple[ActuatorSpec, ...]
 
+    def __deepcopy__(self, memo: dict[int, Any]) -> ActuatorLayoutAsset:
+        """Reuse the immutable content-addressed asset during episode cloning."""
+        memo[id(self)] = self
+        return self
+
     def __post_init__(self) -> None:
         """Validate actuator uniqueness and precompute the geometry matrix."""
         if not isinstance(self.metadata, AssetMetadata):

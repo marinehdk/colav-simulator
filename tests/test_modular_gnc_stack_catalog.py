@@ -154,6 +154,75 @@ class TestStackCatalogDocument:
         assert list_stack_catalog() == list_stack_catalog()
 
 
+class TestModuleAxes:
+    """Config step 04: per-axis fidelity ladder document (array order = tier order)."""
+
+    def test_module_axes_present_with_required_fields(self) -> None:
+        axes = list_stack_catalog()["module_axes"]
+
+        for axis in ("plant", "guidance", "controller"):
+            entries = axes[axis]
+            assert entries, f"{axis} axis must list options"
+            for entry in entries:
+                assert entry["identity"]
+                assert entry["display_name"]
+                assert isinstance(entry["tier"], int)
+                assert entry["models"]
+                assert entry["expected_effect"]
+
+    def test_axis_arrays_are_non_decreasing_by_tier(self) -> None:
+        axes = list_stack_catalog()["module_axes"]
+
+        for axis in ("plant", "guidance", "controller"):
+            tiers = [entry["tier"] for entry in axes[axis]]
+            assert tiers == sorted(tiers), f"{axis} ladder must be ordered simple → fidelity"
+        actuation = axes["actuation"]
+        assert actuation["none"]["tier"] == 0
+        layout_tiers = [entry["tier"] for entry in actuation["layouts"]]
+        assert layout_tiers == sorted(layout_tiers)
+        assert actuation["none"]["tier"] < layout_tiers[0] < actuation["resolved"]["tier"]
+
+    def test_allocator_layouts_declare_drive_nature(self) -> None:
+        layouts = list_stack_catalog()["module_axes"]["actuation"]["layouts"]
+
+        natures = {entry["layout_asset_id"]: entry["drive_nature"] for entry in layouts}
+        assert natures == {
+            "main_only_actuator_layout_v1": "underactuated",
+            "default_triple_actuator_layout_v1": "fully actuated",
+            "quad_diagonal_actuator_layout_v1": "overactuated",
+        }
+        assert all(entry["identity"] == "data_driven_allocator" for entry in layouts)
+
+    def test_module_axes_cover_every_listed_stack_module(self) -> None:
+        axes = list_stack_catalog()["module_axes"]
+        plant_ids = {entry["identity"] for entry in axes["plant"]}
+        guidance_ids = {entry["identity"] for entry in axes["guidance"]}
+        controller_ids = {entry["identity"] for entry in axes["controller"]}
+        layout_ids = {entry["layout_asset_id"] for entry in axes["actuation"]["layouts"]}
+        resolved_identity = axes["actuation"]["resolved"]["identity"]
+
+        for entry in list_stack_catalog()["stacks"]:
+            by_role = {module["role"]: module["identity"] for module in entry["modules"]}
+            assert by_role["plant"] in plant_ids
+            assert by_role["guidance"] in guidance_ids
+            assert by_role["controller"] in controller_ids
+            if "allocator" in by_role:
+                bound = {asset["asset_id"] for asset in entry["asset_trust"]}
+                assert bound & layout_ids, "allocator layout must appear in the actuation axis"
+            assert ("actuator" in by_role) == (by_role.get("actuator") == resolved_identity)
+
+    def test_module_axes_make_no_claim_beyond_accepted_evidence(self) -> None:
+        forbidden = ["A4", "A5", "A6", "A7", "vessel-validated", "vessel_validated", "SIL", "sea-trial", "sea trial"]
+
+        rendered = json.dumps(list_stack_catalog()["module_axes"])
+        for token in forbidden:
+            assert token not in rendered
+
+    def test_catalog_schema_version_is_unchanged_by_module_axes(self) -> None:
+        # additive document key only; consumers key off the same schema string
+        assert list_stack_catalog()["schema_version"] == STACK_CATALOG_SCHEMA_VERSION
+
+
 class TestSeparatedEvidenceFields:
     """AC2: maturity, fidelity, asset trust, and acceptance stay separate fields."""
 

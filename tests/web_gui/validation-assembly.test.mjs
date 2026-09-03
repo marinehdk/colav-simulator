@@ -275,6 +275,7 @@ test('bootstrap without an active session uses complete catalog defaults', () =>
     tracker_config: {},
     domain_profile: null,
     scenario_override: null,
+    gnc_stack_id: null,
   });
   assert.equal(assembly.snapshot().dirty, false);
   assert.equal(assembly.snapshot().classification, 'verified');

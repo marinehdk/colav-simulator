@@ -208,6 +208,7 @@ class SessionCreateRequest(BaseModel):
     validation_rule_id: str | None = None
     algorithm_id: str = "vo"
     tracker_id: str = "god"
+    gnc_stack_id: str | None = None
     seed: int = Field(default=0, ge=0)
     episode_index: int = Field(default=0, ge=0)
     dt: float | None = Field(default=None, gt=0)
@@ -226,6 +227,7 @@ class SessionCreateRequest(BaseModel):
                 "Product session create requires an explicit validation_rule_id and exact capability tuple",
             )
         payload = self.model_dump()
+        payload["ownship_gnc_stack_id"] = payload.pop("gnc_stack_id")
         override = payload.get("scenario_override")
         if override is not None:
             if self.scenario_id not in BUSY_WATER_SCENARIOS:
@@ -252,6 +254,13 @@ def _historical_session_spec(request: SessionCreateRequest) -> RunSpec | None:
         raise ColavExecutionError(
             PlanStatus.INVALID_INPUT,
             "Product session create requires an explicit validation_rule_id and exact capability tuple",
+        )
+    if request.gnc_stack_id is not None:
+        # Historical scenes bind their own runtime actors; a stack binding must
+        # be rejected instead of silently ignored.
+        raise ColavExecutionError(
+            PlanStatus.INVALID_INPUT,
+            "GNC stack binding is not supported for Historical AIS scenarios",
         )
     if request.algorithm_id == "mid_mpc_ipopt":
         from colav_simulator.core.colav.mid_mpc.models import MidMpcConfig  # noqa: PLC0415

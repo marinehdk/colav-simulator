@@ -155,14 +155,19 @@ class Config:
         return config_dict
 
 
-def build_ship(config: Config) -> "IShip":
+def build_ship(
+    config: Config,
+    *,
+    dt_s: float | None = None,
+    episode_seed: int | None = None,
+) -> "IShip":
     """Build exact legacy Ship unless modular composition is explicitly selected."""
     if config.ship_modules is None:
         return Ship(mmsi=config.mmsi, identifier=config.id, config=config)
 
     from colav_simulator.modular_gnc.factory import build_modular_ship_adapter  # noqa: PLC0415
 
-    return build_modular_ship_adapter(config)
+    return build_modular_ship_adapter(config, dt_s=dt_s, episode_seed=episode_seed)
 
 
 class ShipBuilder:

@@ -25,10 +25,24 @@ def legacy_equivalent_profile() -> dict[str, Any]:
     }
 
 
-def build_modular_ship_adapter(config: Config) -> IShip:
-    """Construct an opt-in modular adapter using contracts-only pass-through modules."""
+def build_modular_ship_adapter(
+    config: Config,
+    *,
+    dt_s: float | None = None,
+    episode_seed: int | None = None,
+) -> IShip:
+    """Construct an opt-in modular adapter using contracts-only pass-through modules.
+
+    ``dt_s`` (the scenario ``dt_sim``) and ``episode_seed`` are forwarded to the
+    stack so environment/load modules are constructed on the simulation clock;
+    omitted values keep the historical from_config defaults.
+    """
     from colav_simulator.modular_gnc.adapter import ModularShipAdapter  # noqa: PLC0415
     from colav_simulator.modular_gnc.stack import ModularShipStack  # noqa: PLC0415
 
-    stack: Any = ModularShipStack.from_config(config.ship_modules)
+    stack: Any = ModularShipStack.from_config(
+        config.ship_modules,
+        episode_seed=0 if episode_seed is None else episode_seed,
+        dt_s=0.1 if dt_s is None else dt_s,
+    )
     return ModularShipAdapter.from_legacy_config(config, stack)

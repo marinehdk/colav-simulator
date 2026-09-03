@@ -205,8 +205,9 @@ class ScenarioGenerator:
         """Seeds the random number generator.
 
         Args:
-            seed (Optional[int]): Integer seed.
+            seed (int | None): Integer seed.
         """
+        self._seed = seed
         self.rng = np.random.default_rng(seed=seed)
         self.behavior_generator.seed(seed=seed)
 
@@ -542,7 +543,7 @@ class ScenarioGenerator:
             ):
                 msg = "A fully specified ship config has an id, initial csog_state, waypoints + speed_plan or goal state."
                 raise ValueError(msg)
-            ship_obj = ship.build_ship(ship_cfg)
+            ship_obj = ship.build_ship(ship_cfg, dt_s=config.dt_sim, episode_seed=self._seed)
             ship_list.append(ship_obj)
 
         return ship_list, disturbance, config
@@ -782,7 +783,7 @@ class ScenarioGenerator:
                 ship_config = ship.Config()
                 ship_config.id = s
                 ship_config.mmsi = s + 1
-            ship_obj = ship.build_ship(ship_config)
+            ship_obj = ship.build_ship(ship_config, dt_s=config.dt_sim, episode_seed=self._seed)
             ship_list.append(ship_obj)
             ship_config_list.append(ship_config)
         config.ship_list = ship_config_list

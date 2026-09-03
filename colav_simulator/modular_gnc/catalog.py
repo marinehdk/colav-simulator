@@ -84,6 +84,165 @@ _CANDIDATE_GUIDANCE_IDENTITIES: tuple[str, ...] = ("pass_through_guidance", "int
 _CANDIDATE_CONTROLLER_IDENTITIES: tuple[str, ...] = ("pass_through_controller", "marine_pid")
 _CANDIDATE_ALLOCATOR_LAYOUTS: tuple[str, ...] = tuple(sorted(KNOWN_ACTUATOR_LAYOUT_ASSET_IDS))
 
+# Config step 04: per-axis fidelity ladders.  Array order is the ladder order
+# (simpler first); ``tier`` is the machine-readable form of the same order.
+# Copy is backend-authored and honest: scaffold/mock assets are declared as
+# such and no fidelity beyond this phase is claimed.
+_MODULE_AXIS_COPY: Mapping[str, Mapping[str, str]] = MappingProxyType(
+    {
+        "pass_through_plant": MappingProxyType(
+            {
+                "models": (
+                    "Kinematic pass-through: reference heading and speed are written directly into the state, "
+                    "no dynamics."
+                ),
+                "expected_effect": "Zero dynamic lag; control commands act immediately. Serves as the algorithm baseline.",
+            }
+        ),
+        "generic_3dof_plant": MappingProxyType(
+            {
+                "models": (
+                    "3DOF hydrodynamics: mass plus added mass, Coriolis, damping, and restoration "
+                    "(catalog parameters are a synthetic scaffold with zero default damping)."
+                ),
+                "expected_effect": (
+                    "Maneuvers evolve with inertia and coupling; scaffold parameters are not a real vessel scale."
+                ),
+            }
+        ),
+        "generic_roll_4dof_plant": MappingProxyType(
+            {
+                "models": "3DOF plus roll restoration (the roll degree of freedom is uncontrolled).",
+                "expected_effect": "Roll participates in the response; allocator and actuator modules stay strictly 3DOF.",
+            }
+        ),
+        "pass_through_guidance": MappingProxyType(
+            {
+                "models": "Pass-through: adopts the planner reference directly.",
+                "expected_effect": "No additional guidance behavior; the reference is followed as given.",
+            }
+        ),
+        "integral_line_of_sight": MappingProxyType(
+            {
+                "models": "Integral LOS: cross-track-error-gated integral action, progress, and speed limiting.",
+                "expected_effect": "Smooths path following and bounds cross-track error on top of the planner reference.",
+            }
+        ),
+        "pass_through_controller": MappingProxyType(
+            {
+                "models": "Pass-through: forwards the guidance command unchanged.",
+                "expected_effect": "No control-loop dynamics between guidance and the plant.",
+            }
+        ),
+        "marine_pid": MappingProxyType(
+            {
+                "models": (
+                    "Transparent marine PID producing generalized forces "
+                    "(configurable only with a hydrodynamic plant)."
+                ),
+                "expected_effect": (
+                    "Closed-loop tracking of heading and speed references; requires plant dynamics to act on."
+                ),
+            }
+        ),
+        "resolved_actuator_dynamics": MappingProxyType(
+            {
+                "models": "Actuator rate limits and delay.",
+                "expected_effect": "During hard maneuvers actuators lag the command; response bandwidth is limited.",
+            }
+        ),
+    }
+)
+
+# Allocator layout assets are synthetic mock scaffolds; the drive nature is the
+# honest statement of what each layout can and cannot achieve.
+_ACTUATION_LAYOUT_TIER = 1
+_ACTUATION_LAYOUTS: tuple[Mapping[str, str], ...] = (
+    MappingProxyType(
+        {
+            "layout_asset_id": "default_triple_actuator_layout_v1",
+            "display_name": "Triple thruster layout",
+            "drive_nature": "fully actuated",
+            "expected_effect": (
+                "Requested surge, sway, and yaw generalized forces are achievable within actuator limits."
+            ),
+        }
+    ),
+    MappingProxyType(
+        {
+            "layout_asset_id": "quad_diagonal_actuator_layout_v1",
+            "display_name": "Quad diagonal layout",
+            "drive_nature": "overactuated",
+            "expected_effect": "More actuators than degrees of freedom; allocation carries redundancy margin.",
+        }
+    ),
+    MappingProxyType(
+        {
+            "layout_asset_id": "main_only_actuator_layout_v1",
+            "display_name": "Main thruster only",
+            "drive_nature": "underactuated",
+            "expected_effect": (
+                "Lateral force and yaw authority are limited; requested forces are only partially achievable."
+            ),
+        }
+    ),
+)
+_ALLOCATOR_MODELS_COPY = (
+    "Allocation of generalized forces to actuators by minimum norm; the layout asset is a synthetic mock asset."
+)
+
+
+def _axis_entry(identity: str, tier: int, display_name: str | None = None) -> dict[str, Any]:
+    copy = _MODULE_AXIS_COPY[identity]
+    return {
+        "identity": identity,
+        "display_name": display_name or _DISPLAY_NAMES[identity],
+        "tier": tier,
+        "models": copy["models"],
+        "expected_effect": copy["expected_effect"],
+    }
+
+
+def _module_axes() -> dict[str, Any]:
+    """Return the per-axis option ladders consumed by the Config step 04 UI."""
+    return {
+        "plant": [
+            _axis_entry("pass_through_plant", 0),
+            _axis_entry("generic_3dof_plant", 1),
+            _axis_entry("generic_roll_4dof_plant", 2),
+        ],
+        "guidance": [
+            _axis_entry("pass_through_guidance", 0),
+            _axis_entry("integral_line_of_sight", 1),
+        ],
+        "controller": [
+            _axis_entry("pass_through_controller", 0),
+            _axis_entry("marine_pid", 1),
+        ],
+        "actuation": {
+            "none": {
+                "identity": None,
+                "display_name": "No allocator (ideal generalized forces)",
+                "tier": 0,
+                "models": "No allocator module; generalized forces are applied as-is.",
+                "expected_effect": "No allocation or actuator limits; the same command chain as the scenario default.",
+            },
+            "layouts": [
+                {
+                    "identity": "data_driven_allocator",
+                    "layout_asset_id": layout["layout_asset_id"],
+                    "display_name": layout["display_name"],
+                    "drive_nature": layout["drive_nature"],
+                    "tier": _ACTUATION_LAYOUT_TIER,
+                    "models": _ALLOCATOR_MODELS_COPY,
+                    "expected_effect": layout["expected_effect"],
+                }
+                for layout in _ACTUATION_LAYOUTS
+            ],
+            "resolved": _axis_entry("resolved_actuator_dynamics", 2),
+        },
+    }
+
 # Synthetic scaffold parameters for identities whose registry schema requires
 # values.  Same synthetic values as the modular contract tests; they are demo
 # scaffolding, not measured vessel data.
@@ -311,5 +470,6 @@ def list_stack_catalog() -> dict[str, Any]:
         },
         "validity_rule": "normalize_ship_modules + ModularShipStack.from_config assembly + non-empty supported_tasks",
         "default_stack_id": stacks[0]["stack_id"] if stacks else None,
+        "module_axes": _module_axes(),
         "stacks": stacks,
     }

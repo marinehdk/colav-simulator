@@ -76,6 +76,11 @@ class ResolvedActuatorDynamicsConfig:
     delay_ticks: Mapping[str, int]
     config_hash: str = ""
 
+    def __deepcopy__(self, memo: dict[int, Any]) -> ResolvedActuatorDynamicsConfig:
+        """Reuse the immutable configuration during episode cloning."""
+        memo[id(self)] = self
+        return self
+
     def __post_init__(self) -> None:
         """Validate full-coverage declarations and compute the content hash."""
         if not isinstance(self.layout_asset_id, str) or not self.layout_asset_id:

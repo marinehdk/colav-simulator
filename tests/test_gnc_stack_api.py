@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from colav_simulator.core import ship
+from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.modular_gnc.adapter import ModularShipAdapter
 from colav_simulator.modular_gnc.catalog import (
     STACK_EVIDENCE_SCHEMA_VERSION,
@@ -16,7 +17,12 @@ from colav_simulator.modular_gnc.catalog import (
 from colav_simulator.modular_gnc.configuration import normalize_ship_modules
 from colav_simulator.modular_gnc.contracts import ControlTask
 from colav_simulator.modular_gnc.stack import ModularShipStack
-from gui_server.main import _modular_gnc_telemetry_metadata, app, manager
+from gui_server.main import (
+    SessionCreateRequest,
+    _modular_gnc_telemetry_metadata,
+    app,
+    manager,
+)
 
 
 def _ship_config_with_modules(ship_modules: dict) -> ship.Config:
@@ -117,3 +123,107 @@ def test_evidence_document_assembles_stack_when_tasks_not_given() -> None:
 
     assert document["supported_tasks"] == ["MANUAL_LOAD", "TRANSIT"]
     assert any(entry["config_hash"] == config.config_hash for entry in list_stack_catalog()["stacks"])
+
+
+def _a_resolved_stack_id() -> str:
+    return next(
+        entry["stack_id"] for entry in list_stack_catalog()["stacks"] if entry["fidelity_profile"] == "resolved"
+    )
+
+
+def test_create_request_maps_gnc_stack_id_into_run_spec() -> None:
+    request = SessionCreateRequest(validation_rule_id="rule14", gnc_stack_id="some-stack")
+
+    spec = request.to_spec()
+
+    assert spec.ownship_gnc_stack_id == "some-stack"
+    assert SessionCreateRequest(validation_rule_id="rule14").to_spec().ownship_gnc_stack_id is None
+
+
+def test_run_spec_serialization_round_trips_stack_id() -> None:
+    spec = RunSpec(scenario_id="head_on", validation_rule_id="rule14", ownship_gnc_stack_id="some-stack")
+
+    document = spec.to_dict()
+    assert document["ownship_gnc_stack_id"] == "some-stack"
+    assert RunSpec.from_dict(document).ownship_gnc_stack_id == "some-stack"
+    assert RunSpec(scenario_id="head_on").ownship_gnc_stack_id is None
+
+
+def test_create_session_with_gnc_stack_binds_modular_ownship() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": "paper_ccta2023_multiship",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 0.2,
+                "gnc_stack_id": _a_resolved_stack_id(),
+            },
+        )
+        assert created.status_code == 200
+        session_id = created.json()["session_id"]
+
+        stepped = client.post(f"/api/sessions/{session_id}/step")
+
+    assert stepped.status_code == 200
+    modular = stepped.json()["modular_gnc"]
+    assert modular is not None
+    assert modular["stack_id"] == _a_resolved_stack_id()
+    assert isinstance(manager.prepared.session.ship_list[0], ModularShipAdapter)
+
+
+def test_create_session_without_gnc_stack_keeps_legacy_ownship() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": "paper_ccta2023_multiship",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 0.2,
+            },
+        )
+        assert created.status_code == 200
+        session_id = created.json()["session_id"]
+
+        stepped = client.post(f"/api/sessions/{session_id}/step")
+
+    assert stepped.status_code == 200
+    assert stepped.json()["modular_gnc"] is None
+
+
+def test_create_session_with_unknown_gnc_stack_is_rejected_with_422() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": "paper_ccta2023_multiship",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "gnc_stack_id": "not-a-catalog-stack",
+            },
+        )
+
+    assert response.status_code == 422
+    assert "not-a-catalog-stack" in response.json()["detail"]["reason"]
+
+
+def test_create_historical_scene_with_gnc_stack_is_rejected_with_422() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "multiship",
+                "scenario_id": "hais_romsdal_20260701_120007_121007",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "gnc_stack_id": _a_resolved_stack_id(),
+            },
+        )
+
+    assert response.status_code == 422
+    assert "GNC stack" in response.json()["detail"]["reason"]

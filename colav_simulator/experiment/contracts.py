@@ -78,6 +78,7 @@ class RunSpec:
     validation_rule_id: str | None = None
     algorithm_id: str = "nominal"
     tracker_id: str = "scenario_default"
+    ownship_gnc_stack_id: str | None = None
     seed: int = 0
     episode_index: int = 0
     dt: float | None = None

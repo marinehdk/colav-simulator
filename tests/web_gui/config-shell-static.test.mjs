@@ -77,6 +77,13 @@ test('composition root wires the runtime into the projection singleton and expor
   assert.match(instance, /import \{ createTelemetryProjection \} from ['"]\.\/telemetry-projection\.js\?v=/);
 });
 
+test('Config static assets carry the GNC step-4 cache-bust tag', () => {
+  const tag = '20260903-gnc-step4-v1';
+  assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
+  assert.match(html, new RegExp(`/static/modules/config-shell\\.js\\?v=${tag}`));
+  assert.match(shell, new RegExp(`\\./validation-assembly\\.js\\?v=${tag}`));
+});
+
 test('Deployment consumes the projection and no longer interprets raw envelopes inline', () => {
   assert.match(legacy, /telemetryProjection\.subscribe\(renderProjection\)/);
   assert.doesNotMatch(legacy, /latest_planner_solve/);
@@ -175,20 +182,25 @@ test('Config-scope selectors consume tokens instead of hardcoded hex (gap #3 par
   assert.match(configCss, /\.config-obc-card \{[^}]*border: 1px solid color-mix\(in srgb, var\(--ob-text\) 26%, transparent\);[^}]*background: var\(--ob-work-bg\)/);
 });
 
-test('Stepper chrome shows circular numbers, completion dots, and 25%-per-ready-step progress (gap #19)', () => {
-  for (const step of ['rules', 'scenarios', 'algorithms', 'params']) {
+test('Stepper chrome shows circular numbers, completion dots, and 20%-per-ready-step progress (gap #19; 5 steps since GNC Stack)', () => {
+  for (const step of ['rules', 'scenarios', 'algorithms', 'gnc', 'params']) {
     assert.match(html, new RegExp(`data-config-step="${step}"[^>]*data-complete="(?:true|false)"`));
     assert.match(html, new RegExp(`data-config-step="${step}"[^>]*aria-pressed="(?:true|false)"`));
     assert.doesNotMatch(html, new RegExp(`data-config-step="${step}"[^>]*aria-selected`));
   }
   assert.match(html, /class="step-circle"/);
   assert.match(html, /class="step-state-dot"/);
-  assert.match(shell, /readyCount \* 25/);
-  assert.match(shell, /of 4 ready/);
+  assert.match(shell, /readyCount \* 20/);
+  assert.match(shell, /of 5 ready/);
   assert.match(shell, /dataset\.complete = String\(complete\)/);
   assert.match(configCss, /\.assembly-step\.active \{[^}]*box-shadow: inset 3px 0 0 var\(--ob-accent\)/);
   assert.match(configCss, /\.step-circle \{[^}]*border-radius: 50%/);
   assert.match(configCss, /\.assembly-step\[data-complete="true"\] \.step-state-dot \{[^}]*background: var\(--ob-accent\)/);
+  // Tablet tier lays the five steps out horizontally (the first 520px tier
+  // precedes the 820px tier, so slice from the 820px marker to the next one).
+  const tabletStart = styles.indexOf('@media (max-width: 820px)');
+  const tabletTier = styles.slice(tabletStart, styles.indexOf('@media (max-width: 520px)', tabletStart));
+  assert.match(tabletTier, /\.assembly-step-list \{ display: grid; grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
 });
 
 test('Stepper and Config Summary render tuple business labels instead of raw ids', () => {
