@@ -45,6 +45,14 @@ def _validate_3tuple_non_negative(name: str, values: Any) -> tuple[float, float,
     return (result[0], result[1], result[2])
 
 
+def _validate_non_negative_scalar(name: str, value: Any) -> float:
+    """Validate one finite non-negative scalar feature parameter."""
+    val = _finite_scalar(name, value)
+    if val < 0.0:
+        raise ValueError(f"{name} must be non-negative, got {val}")
+    return val
+
+
 def _validate_3tuple_finite(name: str, values: Any) -> tuple[float, float, float]:
     """Validate 3-element tuple of finite numbers without bool coercion."""
     if not isinstance(values, (tuple, list)) or len(values) != 3:
@@ -85,6 +93,9 @@ class MarinePIDConfig:
     heading_accel_limit_rad_s2: float = 0.0
     yaw_rate_ff_gain: float = 0.0
     yaw_accel_ff_gain: float = 0.0
+    yaw_limit_base_nm: float = 0.0
+    yaw_limit_speed_coeff: float = 0.0
+    yaw_limit_cap_nm: float = 0.0
     config_hash: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -115,24 +126,19 @@ class MarinePIDConfig:
                 f"reference_shaper_enable must be bool, got {type(self.reference_shaper_enable).__name__}"
             )
 
-        rate_lim = _finite_scalar("heading_rate_limit_rad_s", self.heading_rate_limit_rad_s)
-        accel_lim = _finite_scalar("heading_accel_limit_rad_s2", self.heading_accel_limit_rad_s2)
-        if rate_lim < 0.0:
-            raise ValueError(f"heading_rate_limit_rad_s must be non-negative, got {rate_lim}")
-        if accel_lim < 0.0:
-            raise ValueError(f"heading_accel_limit_rad_s2 must be non-negative, got {accel_lim}")
+        rate_lim = _validate_non_negative_scalar("heading_rate_limit_rad_s", self.heading_rate_limit_rad_s)
+        accel_lim = _validate_non_negative_scalar("heading_accel_limit_rad_s2", self.heading_accel_limit_rad_s2)
         if self.reference_shaper_enable and (rate_lim <= 0.0 or accel_lim <= 0.0):
             raise ValueError(
                 "reference_shaper_enable requires strictly positive heading_rate_limit_rad_s and "
                 f"heading_accel_limit_rad_s2 (got {rate_lim}, {accel_lim})"
             )
 
-        rate_ff = _finite_scalar("yaw_rate_ff_gain", self.yaw_rate_ff_gain)
-        accel_ff = _finite_scalar("yaw_accel_ff_gain", self.yaw_accel_ff_gain)
-        if rate_ff < 0.0:
-            raise ValueError(f"yaw_rate_ff_gain must be non-negative, got {rate_ff}")
-        if accel_ff < 0.0:
-            raise ValueError(f"yaw_accel_ff_gain must be non-negative, got {accel_ff}")
+        rate_ff = _validate_non_negative_scalar("yaw_rate_ff_gain", self.yaw_rate_ff_gain)
+        accel_ff = _validate_non_negative_scalar("yaw_accel_ff_gain", self.yaw_accel_ff_gain)
+        base_nm = _validate_non_negative_scalar("yaw_limit_base_nm", self.yaw_limit_base_nm)
+        coeff_nm = _validate_non_negative_scalar("yaw_limit_speed_coeff", self.yaw_limit_speed_coeff)
+        cap_nm = _validate_non_negative_scalar("yaw_limit_cap_nm", self.yaw_limit_cap_nm)
 
         object.__setattr__(self, "kp", kp_val)
         object.__setattr__(self, "ki", ki_val)
@@ -147,6 +153,9 @@ class MarinePIDConfig:
         object.__setattr__(self, "heading_accel_limit_rad_s2", accel_lim)
         object.__setattr__(self, "yaw_rate_ff_gain", rate_ff)
         object.__setattr__(self, "yaw_accel_ff_gain", accel_ff)
+        object.__setattr__(self, "yaw_limit_base_nm", base_nm)
+        object.__setattr__(self, "yaw_limit_speed_coeff", coeff_nm)
+        object.__setattr__(self, "yaw_limit_cap_nm", cap_nm)
 
         # Content-addressed hash for reproducibility (TS-27)
         canonical = {
@@ -166,6 +175,9 @@ class MarinePIDConfig:
             "heading_accel_limit_rad_s2": accel_lim,
             "yaw_rate_ff_gain": rate_ff,
             "yaw_accel_ff_gain": accel_ff,
+            "yaw_limit_base_nm": base_nm,
+            "yaw_limit_speed_coeff": coeff_nm,
+            "yaw_limit_cap_nm": cap_nm,
         }
         raw_json = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
         object.__setattr__(self, "config_hash", hashlib.sha256(raw_json.encode("utf-8")).hexdigest())
@@ -191,6 +203,9 @@ class MarinePIDConfig:
             "heading_accel_limit_rad_s2",
             "yaw_rate_ff_gain",
             "yaw_accel_ff_gain",
+            "yaw_limit_base_nm",
+            "yaw_limit_speed_coeff",
+            "yaw_limit_cap_nm",
         ):
             if key in params:
                 kwargs[key] = params[key]
@@ -215,6 +230,9 @@ class MarinePIDConfig:
             "heading_accel_limit_rad_s2": self.heading_accel_limit_rad_s2,
             "yaw_rate_ff_gain": self.yaw_rate_ff_gain,
             "yaw_accel_ff_gain": self.yaw_accel_ff_gain,
+            "yaw_limit_base_nm": self.yaw_limit_base_nm,
+            "yaw_limit_speed_coeff": self.yaw_limit_speed_coeff,
+            "yaw_limit_cap_nm": self.yaw_limit_cap_nm,
             "config_hash": self.config_hash,
         }
 
@@ -552,6 +570,21 @@ class MarinePID:
 
         min_out = np.array(self._config.min_output, dtype=np.float64)
         max_out = np.array(self._config.max_output, dtype=np.float64)
+        # Speed-adaptive yaw moment cap (Issue #67 slice 4): yaw authority grows
+        # with the square of the advance speed, max_N(u) = min(cap, base +
+        # coeff*u^2).  Active only when yaw_limit_cap_nm > 0; otherwise the
+        # static min/max_output limits govern the yaw channel unchanged.
+        if self._config.yaw_limit_cap_nm > 0.0:
+            adaptive_limit = min(
+                self._config.yaw_limit_cap_nm,
+                self._config.yaw_limit_base_nm + self._config.yaw_limit_speed_coeff * measurement.surge_mps**2,
+            )
+            min_out[2] = -adaptive_limit
+            max_out[2] = adaptive_limit
+            details["yaw_limit"] = {
+                "max_nm": float(adaptive_limit),
+                "surge_mps": float(measurement.surge_mps),
+            }
         sat_output = np.clip(raw_request, min_out, max_out)
 
         sat_flags = (
