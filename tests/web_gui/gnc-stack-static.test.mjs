@@ -18,27 +18,31 @@ test('GNC step panel is a stepper panel with five axis choice groups', () => {
   assert.match(html, /id="gncGuidanceChoices"[^>]*role="radiogroup"/);
   assert.match(html, /id="gncControllerChoices"[^>]*role="radiogroup"/);
   assert.match(html, /id="gncActuationChoices"[^>]*role="radiogroup"/);
-  assert.match(html, /id="gncResolvedToggle"/);
+  assert.doesNotMatch(html, /id="gncResolvedToggle"/);
+  for (const axis of ['Plant', 'Guidance', 'Controller', 'Actuation']) {
+    assert.match(html, new RegExp(`id="gnc${axis}Scrollbar"`));
+    assert.match(html, new RegExp(`id="gnc${axis}Controls"`));
+  }
 });
 
-test('Combination interpretation bar sits above the separated evidence groups', () => {
-  assert.match(html, /id="gncCombinationBar"/);
-  assert.match(html, /id="gncCombinationFacts"/);
-  assert.match(html, /id="gncCombinationMeta"/);
+test('Stack Evidence is the only detail surface below the axis choices', () => {
+  assert.doesNotMatch(html, /id="gncCombinationBar"/);
+  assert.doesNotMatch(shell, /function renderGncCombination/);
   // AC2: maturity, fidelity, asset trust, and acceptance live in separate fields.
   assert.match(html, /id="gncStackModules"/);
   assert.match(html, /id="gncStackFidelity"/);
   assert.match(html, /id="gncStackAssetTrust"/);
   assert.match(html, /id="gncStackAcceptance"/);
-  assert.match(html, /id="gncStackCeilingNote"/);
-  const comboAt = html.indexOf('gncCombinationBar');
+  assert.doesNotMatch(html, /id="gncStackCeilingNote"/);
   const evidenceAt = html.indexOf('gncStackModules');
-  assert.ok(comboAt >= 0 && comboAt < evidenceAt, 'combination bar renders above the evidence grid');
+  assert.ok(evidenceAt >= 0, 'Stack Evidence remains below the axis choices');
 });
 
 test('Config shell consumes the backend stack catalog endpoint and module_axes ladder', () => {
   assert.match(shell, /fetchJson\('\/api\/gnc\/stacks'/);
   assert.match(shell, /module_axes/);
+  assert.match(shell, /recommended_stack_ids_by_plant/);
+  assert.match(shell, /gncRecommendedStackForPlant/);
   assert.match(shell, /expected_effect/);
   assert.match(shell, /drive_nature/);
 });
@@ -110,9 +114,14 @@ test('GNC stack surface claims nothing beyond accepted evidence', () => {
   }
 });
 
-test('GNC stack panel has styles for axis ladders and the combination bar', () => {
+test('GNC stack panel has consistent horizontal axis-card styles', () => {
   assert.match(styles, /\.gnc-stack-layout/);
   assert.match(styles, /\.gnc-stack-detail-grid/);
   assert.match(styles, /\.gnc-axis \{/);
-  assert.match(styles, /\.gnc-combination-bar \{/);
+  assert.match(styles, /\.gnc-axis-grid \{[^}]*grid-auto-flow: column;[^}]*grid-auto-columns:/);
+  assert.match(styles, /\.gnc-axis-scrollbar \{/);
+  assert.match(styles, /\.gnc-axis-grid \.choice-description,[\s\S]*display: none/);
+  assert.match(styles, /\.gnc-axis-grid \.choice, \.gnc-axis-grid \.choice::part\(wrapper\) \{ height: 56px; min-height: 56px; \}/);
+  assert.match(styles, /\.gnc-stack-detail-grid \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.doesNotMatch(styles, /\.gnc-resolved-toggle/);
 });

@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260903-gnc-step4-v1" />
+  <link rel="stylesheet" href="/static/style.css?v=20260903-gnc-step4-v7" />
 </head>
 <body>
   <div class="app-container">
@@ -206,35 +206,62 @@
               <div class="config-card-title"><span class="step">04</span><span class="card-title-copy"><strong>Ownship GNC Stack</strong><span>Pick one module per axis · Legacy keeps the scenario default dynamics</span></span></div>
               <div class="config-card-content gnc-stack-content">
                 <div class="gnc-axis" data-gnc-axis="plant">
-                  <p class="subsection-label">Plant</p>
-                  <div class="choice-grid gnc-axis-grid" id="gncPlantChoices" role="radiogroup" aria-label="Plant fidelity"></div>
+                  <div class="scenario-section-heading gnc-axis-heading">
+                    <p class="subsection-label">Plant</p>
+                    <div class="scenario-carousel-controls gnc-axis-controls" id="gncPlantControls" hidden>
+                      <obc-icon-button id="previousGncPlantBtn" variant="flat" aria-label="查看前一组 Plant 模块" title="查看前一组 Plant 模块"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+                      <obc-icon-button id="nextGncPlantBtn" variant="flat" aria-label="查看后一组 Plant 模块" title="查看后一组 Plant 模块"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
+                    </div>
+                  </div>
+                  <obc-scrollbar class="scenario-scrollbar gnc-axis-scrollbar" id="gncPlantScrollbar">
+                    <div class="choice-grid gnc-axis-grid" id="gncPlantChoices" role="radiogroup" aria-label="Plant fidelity"></div>
+                  </obc-scrollbar>
                 </div>
                 <div class="gnc-axis" data-gnc-axis="guidance">
-                  <p class="subsection-label">Guidance</p>
-                  <div class="choice-grid gnc-axis-grid" id="gncGuidanceChoices" role="radiogroup" aria-label="Guidance module"></div>
+                  <div class="scenario-section-heading gnc-axis-heading">
+                    <p class="subsection-label">Guidance</p>
+                    <div class="scenario-carousel-controls gnc-axis-controls" id="gncGuidanceControls" hidden>
+                      <obc-icon-button id="previousGncGuidanceBtn" variant="flat" aria-label="查看前一组 Guidance 模块" title="查看前一组 Guidance 模块"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+                      <obc-icon-button id="nextGncGuidanceBtn" variant="flat" aria-label="查看后一组 Guidance 模块" title="查看后一组 Guidance 模块"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
+                    </div>
+                  </div>
+                  <obc-scrollbar class="scenario-scrollbar gnc-axis-scrollbar" id="gncGuidanceScrollbar">
+                    <div class="choice-grid gnc-axis-grid" id="gncGuidanceChoices" role="radiogroup" aria-label="Guidance module"></div>
+                  </obc-scrollbar>
                 </div>
                 <div class="gnc-axis" data-gnc-axis="controller">
-                  <p class="subsection-label">Controller</p>
-                  <div class="choice-grid gnc-axis-grid" id="gncControllerChoices" role="radiogroup" aria-label="Controller module"></div>
+                  <div class="scenario-section-heading gnc-axis-heading">
+                    <p class="subsection-label">Controller</p>
+                    <div class="scenario-carousel-controls gnc-axis-controls" id="gncControllerControls" hidden>
+                      <obc-icon-button id="previousGncControllerBtn" variant="flat" aria-label="查看前一组 Controller 模块" title="查看前一组 Controller 模块"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+                      <obc-icon-button id="nextGncControllerBtn" variant="flat" aria-label="查看后一组 Controller 模块" title="查看后一组 Controller 模块"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
+                    </div>
+                  </div>
+                  <obc-scrollbar class="scenario-scrollbar gnc-axis-scrollbar" id="gncControllerScrollbar">
+                    <div class="choice-grid gnc-axis-grid" id="gncControllerChoices" role="radiogroup" aria-label="Controller module"></div>
+                  </obc-scrollbar>
                 </div>
                 <div class="gnc-axis" data-gnc-axis="actuation">
-                  <p class="subsection-label">Actuation</p>
-                  <div class="choice-grid gnc-axis-grid" id="gncActuationChoices" role="radiogroup" aria-label="Actuation layout"></div>
-                  <button type="button" class="choice-card gnc-resolved-toggle" id="gncResolvedToggle" aria-pressed="false" disabled><strong>Resolved dynamics</strong><span>Add-on: actuator rate limits and delay</span></button>
+                  <div class="scenario-section-heading gnc-axis-heading">
+                    <p class="subsection-label">Actuation</p>
+                    <div class="scenario-carousel-controls gnc-axis-controls" id="gncActuationControls" hidden>
+                      <obc-icon-button id="previousGncActuationBtn" variant="flat" aria-label="查看前一组 Actuation 模块" title="查看前一组 Actuation 模块"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+                      <obc-icon-button id="nextGncActuationBtn" variant="flat" aria-label="查看后一组 Actuation 模块" title="查看后一组 Actuation 模块"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
+                    </div>
+                  </div>
+                  <obc-scrollbar class="scenario-scrollbar gnc-axis-scrollbar" id="gncActuationScrollbar">
+                    <div class="choice-grid gnc-axis-grid" id="gncActuationChoices" role="radiogroup" aria-label="Actuation layout"></div>
+                  </obc-scrollbar>
                 </div>
                 <div class="gnc-axis" data-gnc-axis="environment">
-                  <p class="subsection-label">Environment</p>
-                  <div class="choice-grid gnc-axis-grid" id="gncEnvironmentChoices" role="radiogroup" aria-label="Environment"></div>
+                  <div class="scenario-section-heading gnc-axis-heading"><p class="subsection-label">Environment</p></div>
+                  <obc-scrollbar class="scenario-scrollbar gnc-axis-scrollbar" id="gncEnvironmentScrollbar">
+                    <div class="choice-grid gnc-axis-grid" id="gncEnvironmentChoices" role="radiogroup" aria-label="Environment"></div>
+                  </obc-scrollbar>
                 </div>
-                <p class="gnc-stack-note" id="gncStackCeilingNote"></p>
-                <p class="gnc-stack-note">Selecting a full combination binds gnc_stack_id on Create; Legacy sends no stack binding.</p>
                 <div class="gnc-stack-unavailable" id="gncStackUnavailable" hidden>GNC stack catalog unavailable · backend authority unreachable.</div>
               </div>
             </section>
-            <div class="gnc-combination-bar" id="gncCombinationBar">
-              <dl class="gnc-combination-facts" id="gncCombinationFacts"></dl>
-              <p class="gnc-combination-meta" id="gncCombinationMeta"></p>
-            </div>
             <section class="config-obc-card gnc-stack-detail-card">
               <div class="config-card-title"><span class="card-title-copy"><strong>Stack Evidence</strong><span>Maturity, fidelity, asset trust, and acceptance stay separate fields</span></span></div>
               <div class="config-card-content">
@@ -793,8 +820,8 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260903-gnc-step4-v1"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260903-gnc-step4-v1"></script>
+  <script type="module" src="/static/app.js?v=20260903-gnc-step4-v7"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260903-gnc-step4-v7"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260824-canonical-presentation"></script>
 </body>
 </html>

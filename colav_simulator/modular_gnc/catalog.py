@@ -67,7 +67,7 @@ _DISPLAY_NAMES: Mapping[str, str] = MappingProxyType(
     {
         "pass_through_plant": "Kinematic pass-through plant",
         "generic_3dof_plant": "Generic 3DOF plant",
-        "generic_roll_4dof_plant": "Generic roll-4DOF plant",
+        "generic_roll_4dof_plant": "Generic 4DOF Plant",
         "pass_through_guidance": "Pass-through guidance",
         "integral_line_of_sight": "Integral LOS guidance",
         "pass_through_controller": "Pass-through controller",
@@ -458,6 +458,19 @@ def _cached_stack_catalog() -> tuple[dict[str, Any], ...]:
     return tuple(entries)
 
 
+def _recommended_stack_ids_by_plant(stacks: Iterable[Mapping[str, Any]]) -> dict[str, str]:
+    """Choose the first deterministic executable stack for each Plant option."""
+    recommendations: dict[str, str] = {}
+    for entry in stacks:
+        plant_id = next(
+            (module["identity"] for module in entry["modules"] if module["role"] == "plant"),
+            None,
+        )
+        if plant_id is not None:
+            recommendations.setdefault(plant_id, entry["stack_id"])
+    return recommendations
+
+
 def list_stack_catalog() -> dict[str, Any]:
     """Return the catalog document listing only backend-validated modular stacks."""
     stacks = list(_cached_stack_catalog())
@@ -470,6 +483,7 @@ def list_stack_catalog() -> dict[str, Any]:
         },
         "validity_rule": "normalize_ship_modules + ModularShipStack.from_config assembly + non-empty supported_tasks",
         "default_stack_id": stacks[0]["stack_id"] if stacks else None,
+        "recommended_stack_ids_by_plant": _recommended_stack_ids_by_plant(stacks),
         "module_axes": _module_axes(),
         "stacks": stacks,
     }

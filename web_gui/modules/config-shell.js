@@ -1,4 +1,4 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260903-gnc-step4-v1';
+import { createValidationAssembly } from './validation-assembly.js?v=20260903-gnc-step4-v7';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260901-static-once-v1';
 import { createSituationDisplay } from './situation-display.js?v=20260831-vessel-risk-label-v4';
 
@@ -142,24 +142,45 @@ const CAROUSEL_CONFIGS = {
   algorithm: { scrollbar: 'validationAlgorithmScrollbar', choices: 'validationAlgorithmChoices', controls: 'validationAlgorithmControls', previous: 'previousAlgorithmBtn', next: 'nextAlgorithmBtn' },
 };
 
+const GNC_CAROUSEL_CONFIGS = {
+  plant: { scrollbar: 'gncPlantScrollbar', choices: 'gncPlantChoices', controls: 'gncPlantControls', previous: 'previousGncPlantBtn', next: 'nextGncPlantBtn' },
+  guidance: { scrollbar: 'gncGuidanceScrollbar', choices: 'gncGuidanceChoices', controls: 'gncGuidanceControls', previous: 'previousGncGuidanceBtn', next: 'nextGncGuidanceBtn' },
+  controller: { scrollbar: 'gncControllerScrollbar', choices: 'gncControllerChoices', controls: 'gncControllerControls', previous: 'previousGncControllerBtn', next: 'nextGncControllerBtn' },
+  actuation: { scrollbar: 'gncActuationScrollbar', choices: 'gncActuationChoices', controls: 'gncActuationControls', previous: 'previousGncActuationBtn', next: 'nextGncActuationBtn' },
+};
+
+function carouselConfig(name) {
+  return CAROUSEL_CONFIGS[name] || GNC_CAROUSEL_CONFIGS[name];
+}
+
+function carouselNames() {
+  return [...Object.keys(CAROUSEL_CONFIGS), ...Object.keys(GNC_CAROUSEL_CONFIGS)];
+}
+
 function carouselViewport(name) {
-  const config = CAROUSEL_CONFIGS[name];
+  const config = carouselConfig(name);
   const scrollbar = document.getElementById(config.scrollbar);
   if (!scrollbar) return null;
   return scrollbar.shadowRoot?.querySelector('.wrapper') || scrollbar;
 }
 
 function updateCarouselControls(name) {
-  const config = CAROUSEL_CONFIGS[name];
+  const config = carouselConfig(name);
   const viewport = carouselViewport(name);
   if (!viewport) return;
   const tolerance = 2;
-  document.getElementById(config.previous).disabled = viewport.scrollLeft <= tolerance;
-  document.getElementById(config.next).disabled = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - tolerance;
+  const previous = document.getElementById(config.previous);
+  const next = document.getElementById(config.next);
+  const controls = document.getElementById(config.controls);
+  if (config === GNC_CAROUSEL_CONFIGS[name] && controls) {
+    controls.hidden = viewport.scrollWidth <= viewport.clientWidth + tolerance;
+  }
+  if (previous) previous.disabled = viewport.scrollLeft <= tolerance;
+  if (next) next.disabled = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - tolerance;
 }
 
 function moveCarousel(name, direction) {
-  const config = CAROUSEL_CONFIGS[name];
+  const config = carouselConfig(name);
   const viewport = carouselViewport(name);
   const choices = document.getElementById(config.choices);
   const card = choices?.querySelector('.choice, .choice-card');
@@ -193,12 +214,12 @@ function bindCarouselScroll(name) {
 }
 
 function rebindCarouselScrollers() {
-  for (const name of Object.keys(CAROUSEL_CONFIGS)) bindCarouselScroll(name);
-  for (const name of Object.keys(CAROUSEL_CONFIGS)) updateCarouselControls(name);
+  for (const name of carouselNames()) bindCarouselScroll(name);
+  for (const name of carouselNames()) updateCarouselControls(name);
 }
 
 function renderChoiceCarousel(name, items, selectedId, locked, labels) {
-  const config = CAROUSEL_CONFIGS[name];
+  const config = carouselConfig(name);
   const container = document.getElementById(config.choices);
   if (!container) return;
   container.replaceChildren(...items.map((item) => {
@@ -222,7 +243,7 @@ function renderChoiceCarousel(name, items, selectedId, locked, labels) {
 }
 
 function bindCarousel(name) {
-  const config = CAROUSEL_CONFIGS[name];
+  const config = carouselConfig(name);
   document.getElementById(config.previous).addEventListener('click', () => moveCarousel(name, -1));
   document.getElementById(config.next).addEventListener('click', () => moveCarousel(name, 1));
   bindCarouselScroll(name);
@@ -822,7 +843,6 @@ let gncBoundStackId = null;
 
 function renderGncStackPanel(snapshot) {
   const unavailable = document.getElementById('gncStackUnavailable');
-  const ceiling = document.getElementById('gncStackCeilingNote');
   const catalog = gncStackCatalog;
   const boundId = snapshot?.draft?.gnc_stack_id ?? null;
   if (boundId !== gncBoundStackId) {
@@ -834,15 +854,11 @@ function renderGncStackPanel(snapshot) {
   }
   if (!catalog || !Array.isArray(catalog.stacks) || catalog.stacks.length === 0 || !catalog.module_axes) {
     unavailable.hidden = false;
-    ceiling.textContent = '';
-    renderGncCombination(snapshot);
     renderGncStackDetail(null);
     return;
   }
   unavailable.hidden = true;
-  ceiling.textContent = `Evidence ceiling: ${catalog.acceptance_ceiling.level} ${catalog.acceptance_ceiling.label} · ${catalog.acceptance_ceiling.note}`;
   renderGncAxisChoices(snapshot);
-  renderGncCombination(snapshot);
   renderGncStackDetail(gncStackById(boundId));
 }
 
@@ -854,6 +870,14 @@ function gncStackById(stackId) {
 function gncStackDisplayLabel(snapshot) {
   const entry = gncStackById(snapshot?.draft?.gnc_stack_id ?? null);
   return entry ? entry.display_name : 'Legacy (scenario default)';
+}
+
+function gncRecommendedStackForPlant(plantId) {
+  if (!gncStackCatalog || !plantId) return null;
+  const recommendedId = gncStackCatalog.recommended_stack_ids_by_plant?.[plantId];
+  return gncStackById(recommendedId)
+    || gncStackCatalog.stacks.find((entry) => gncSelectionFromStack(entry).plant === plantId)
+    || null;
 }
 
 function gncStackLayoutAssetId(entry) {
@@ -911,6 +935,7 @@ function gncStackForSelection(selection) {
 // stack can still complete the combination with the other axes as chosen.
 function gncOptionEnabled(axis, value) {
   if (!gncStackCatalog) return false;
+  if (axis === 'plant') return Boolean(gncRecommendedStackForPlant(value));
   const probe = { ...(gncSelection || { plant: null, guidance: null, controller: null, layout: null, resolved: false }) };
   if (axis === 'resolved') {
     if (!probe.layout || probe.layout === GNC_NONE_LAYOUT_OPTION) return false;
@@ -932,6 +957,15 @@ function selectGncOption(axis, value) {
   if (axis === 'plant' && value === GNC_LEGACY_OPTION) {
     gncSelection = null;
     commitGncStackId(null);
+    return;
+  }
+  if (axis === 'plant') {
+    const stack = gncRecommendedStackForPlant(value);
+    if (!stack) return;
+    // Plant is the composition root: changing it starts from the catalog's
+    // recommended complete stack instead of carrying incompatible siblings.
+    gncSelection = gncSelectionFromStack(stack);
+    commitGncStackId(stack.stack_id);
     return;
   }
   const previous = gncSelection;
@@ -961,15 +995,6 @@ function selectGncOption(axis, value) {
     return;
   }
   commitGncStackId(null);
-}
-
-function selectGncResolved(enabled) {
-  if (!gncSelection || !gncSelection.layout || gncSelection.layout === GNC_NONE_LAYOUT_OPTION) return;
-  const probe = { ...gncSelection, resolved: Boolean(enabled) };
-  const stack = gncStackForSelection(probe);
-  if (!stack) return;
-  gncSelection = probe;
-  commitGncStackId(stack.stack_id);
 }
 
 function renderGncStackDetail(entry) {
@@ -1004,53 +1029,11 @@ function renderGncStackDetail(entry) {
   replaceDefinitionRows(document.getElementById('gncStackAcceptance'), acceptanceRows);
 }
 
-function renderGncCombination(snapshot) {
-  const facts = document.getElementById('gncCombinationFacts');
-  const meta = document.getElementById('gncCombinationMeta');
-  const entry = gncStackById(snapshot?.draft?.gnc_stack_id ?? null);
-  if (!entry) {
-    if (gncCompletedSelection(gncSelection)) {
-      // Defensive: a complete but unmatchable combo never holds the evidence.
-      replaceDefinitionRows(facts, [['Ownship stack', 'backend catalog does not provide this combination']]);
-      meta.textContent = 'The selection fell back to the last valid combination.';
-      return;
-    }
-    replaceDefinitionRows(facts, [['Ownship stack', 'scenario default dynamics · no modular stack']]);
-    meta.textContent = 'Pick one module per axis to bind a catalog stack, or stay on Legacy.';
-    return;
-  }
-  const axes = gncStackCatalog.module_axes;
-  const selection = gncSelectionFromStack(entry);
-  const chosen = [
-    axes.plant.find((option) => option.identity === selection.plant),
-    axes.guidance.find((option) => option.identity === selection.guidance),
-    axes.controller.find((option) => option.identity === selection.controller),
-    selection.layout === GNC_NONE_LAYOUT_OPTION
-      ? axes.actuation.none
-      : axes.actuation.layouts.find((option) => option.layout_asset_id === selection.layout),
-  ];
-  if (selection.resolved) chosen.push(axes.actuation.resolved);
-  const modelsParts = [];
-  const effectParts = [];
-  for (const option of chosen) {
-    if (!option) continue;
-    modelsParts.push(option.models);
-    effectParts.push(option.expected_effect);
-  }
-  replaceDefinitionRows(facts, [
-    ['What this combination models', modelsParts.join(' ')],
-    ['Expected effect', effectParts.join(' ')],
-  ]);
-  const assets = (entry.asset_trust || [])
-    .map((asset) => `${asset.asset_id} (${asset.trust_level})`)
-    .join(', ');
-  meta.textContent = `Fidelity: ${entry.fidelity_profile} · Acceptance: ${entry.acceptance_level} · Bound assets: ${assets || 'none (ideal actuation)'}`;
-}
-
-function gncRenderCards(gridId, cards) {
+function gncRenderCards(gridId, cards, carouselName) {
   const grid = document.getElementById(gridId);
   if (!grid) return;
   grid.replaceChildren(...cards.filter(Boolean));
+  if (carouselName) requestAnimationFrame(() => updateCarouselControls(carouselName));
 }
 
 function renderGncAxisChoices(snapshot) {
@@ -1063,7 +1046,7 @@ function renderGncAxisChoices(snapshot) {
     (() => {
       const card = makeChoiceCard({
         id: GNC_LEGACY_OPTION,
-        name: 'Legacy · scenario default dynamics',
+        name: 'Legacy default plant',
         desc: 'No modular stack bound; the ownship keeps the scenario ship configuration.',
         grade: 'Default',
       }, {
@@ -1088,7 +1071,7 @@ function renderGncAxisChoices(snapshot) {
       card.dataset.gncOptionId = option.identity;
       return card;
     }),
-  ]);
+  ], 'plant');
   gncRenderCards('gncGuidanceChoices', axes.guidance.map((option) => {
     const card = makeChoiceCard({
       id: option.identity,
@@ -1102,7 +1085,7 @@ function renderGncAxisChoices(snapshot) {
     card.dataset.gncAxis = 'guidance';
     card.dataset.gncOptionId = option.identity;
     return card;
-  }));
+  }), 'guidance');
   gncRenderCards('gncControllerChoices', axes.controller.map((option) => {
     const card = makeChoiceCard({
       id: option.identity,
@@ -1116,7 +1099,7 @@ function renderGncAxisChoices(snapshot) {
     card.dataset.gncAxis = 'controller';
     card.dataset.gncOptionId = option.identity;
     return card;
-  }));
+  }), 'controller');
   gncRenderCards('gncActuationChoices', [
     {
       option: {
@@ -1141,11 +1124,7 @@ function renderGncAxisChoices(snapshot) {
     card.dataset.gncAxis = 'layout';
     card.dataset.gncOptionId = option.layout_asset_id;
     return card;
-  }));
-  const resolvedToggle = document.getElementById('gncResolvedToggle');
-  const layoutChosen = modular && selection.layout && selection.layout !== GNC_NONE_LAYOUT_OPTION;
-  resolvedToggle.disabled = !layoutChosen || locked || !gncOptionEnabled('resolved', !selection?.resolved);
-  resolvedToggle.setAttribute('aria-pressed', String(Boolean(selection?.resolved)));
+  }), 'actuation');
   gncRenderCards('gncEnvironmentChoices', [makeChoiceCard({
     id: 'calm_water',
     name: 'Calm water (default)',
@@ -1280,6 +1259,7 @@ function bindControls() {
   bindCarousel('scenario');
   bindCarousel('enc');
   bindCarousel('algorithm');
+  for (const name of Object.keys(GNC_CAROUSEL_CONFIGS)) bindCarousel(name);
   document.getElementById('validationScenarioChoices').addEventListener('click', (event) => {
     const card = event.target.closest('[data-choice-id]');
     if (!card || card.disabled) return;
@@ -1308,11 +1288,6 @@ function bindControls() {
       selectGncOption(axis, card.dataset.gncOptionId);
     });
   }
-  document.getElementById('gncResolvedToggle').addEventListener('click', () => {
-    const toggle = document.getElementById('gncResolvedToggle');
-    if (toggle.disabled) return;
-    selectGncResolved(toggle.getAttribute('aria-pressed') !== 'true');
-  });
   document.getElementById('validationDefault').addEventListener('click', () => {
     assembly.resetDefault();
     render();

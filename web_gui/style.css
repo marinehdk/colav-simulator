@@ -478,24 +478,22 @@ obc-clock:not(:defined),
 .scenario-scrollbar::part(wrapper) { overflow-y: hidden !important; }
 #validationEncChoices .choice, #validationEncChoices .choice-card { pointer-events: none; }
 .scenario-choice-grid { width: 100%; min-width: 100%; display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc((100% - var(--s-2)) / 2); align-items: start; gap: var(--s-2); padding: 1px 1px 4px; scroll-snap-align: start; box-sizing: border-box; }
-/* Config step 04: ownship GNC stack — five axis ladders + combination bar. */
-.gnc-stack-layout { height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1.5fr) auto minmax(0, 1fr); gap: var(--s-3); }
+/* Config step 04: ownship GNC stack — five axis ladders + Stack Evidence. */
+.gnc-stack-layout { height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1.75fr) minmax(0, 1fr); gap: var(--s-3); }
 .gnc-stack-content { display: grid; gap: var(--s-3); align-content: start; overflow-y: auto; }
 .gnc-axis { min-width: 0; display: grid; gap: var(--s-2); }
-.gnc-axis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.gnc-axis-grid .choice, .gnc-axis-grid .choice::part(wrapper) { height: auto; min-height: 64px; }
-.gnc-axis-grid .choice-description { white-space: normal; }
-.gnc-resolved-toggle { min-height: 48px; }
-.gnc-resolved-toggle[aria-pressed="true"] { border: 2px solid var(--ob-accent-mid); background: var(--ob-accent-pale); }
-.gnc-combination-bar { display: grid; gap: var(--s-1); padding: var(--s-3); border: 1px dashed var(--ob-border); border-radius: var(--radius); background: var(--ob-topbar); }
-.gnc-combination-bar dl { margin: 0; display: grid; gap: 2px; }
-.gnc-combination-bar dl > div { display: grid; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr); gap: 12px; }
-.gnc-combination-bar dt { color: var(--ob-muted); font-size: 10px; font-weight: 600; }
-.gnc-combination-bar dd { min-width: 0; margin: 0; color: var(--ob-text); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
-.gnc-combination-meta { margin: 0; color: var(--ob-muted); font-size: 10px; overflow-wrap: anywhere; }
-.gnc-stack-note { margin: 0; color: var(--ob-muted); font-size: .74rem; overflow-wrap: anywhere; }
+.gnc-axis-grid { width: 100%; min-width: 100%; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc((100% - var(--s-2) - var(--s-2) - var(--s-2)) / 4); align-items: start; gap: var(--s-2); padding: 1px 1px 4px; scroll-snap-align: start; box-sizing: border-box; }
+.gnc-axis-scrollbar { display: block; width: 100%; height: 74px; min-height: 74px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; --obc-scrollbar-overflow-x: auto; --obc-scrollbar-overflow-y: hidden; }
+.gnc-axis-scrollbar::part(wrapper) { overflow-y: hidden !important; }
+.gnc-axis-grid .choice, .gnc-axis-grid .choice::part(wrapper) { height: 56px; min-height: 56px; }
+.gnc-axis-grid .choice-description,
+.gnc-axis-grid .choice-card > span { display: none; }
+.gnc-axis-grid .choice,
+.gnc-axis-grid .choice-card { width: 100%; box-sizing: border-box; scroll-snap-align: start; scroll-snap-stop: normal; }
+.gnc-axis-grid .choice-card { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); height: 56px; min-height: 56px; padding: 0 12px; }
+.gnc-axis-grid .choice-card strong { margin: 0; }
 .gnc-stack-unavailable { padding: var(--s-2); border: 1px dashed var(--ob-border); border-radius: 4px; color: var(--ob-muted); font-size: .78rem; }
-.gnc-stack-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-3); }
+.gnc-stack-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
 .gnc-stack-evidence-section { min-width: 0; }
 .gnc-stack-evidence-section h3 { margin: 0 0 var(--s-1); color: var(--ob-text); font-size: .82rem; }
 .gnc-stack-evidence-section dl > div { display: grid; grid-template-columns: minmax(100px, .42fr) minmax(0, 1fr); gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--ob-border); }
@@ -765,6 +763,7 @@ obc-clock:not(:defined),
   .form-grid { grid-template-columns: 1fr; }
   .scenario-selectors,
   .algorithm-detail-grid { grid-template-columns: 1fr; }
+  .gnc-axis-grid { grid-auto-columns: calc((100% - var(--s-2)) / 2); }
 }
 
 /* C5 #8 (P:1530-1557): 520 tier — single-column Config, horizontal scrollable
@@ -796,6 +795,8 @@ obc-clock:not(:defined),
   .assembly-step { min-height: 56px; scroll-snap-align: start; }
   .assembly-step small,
   .config-progress { display: none; }
+  .gnc-axis-grid { grid-auto-columns: 100%; }
+  .gnc-stack-detail-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ══════════════════════════════════════════════

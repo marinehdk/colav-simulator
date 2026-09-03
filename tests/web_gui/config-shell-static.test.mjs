@@ -78,7 +78,7 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config static assets carry the GNC step-4 cache-bust tag', () => {
-  const tag = '20260903-gnc-step4-v1';
+  const tag = '20260903-gnc-step4-v7';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
   assert.match(html, new RegExp(`/static/modules/config-shell\\.js\\?v=${tag}`));
   assert.match(shell, new RegExp(`\\./validation-assembly\\.js\\?v=${tag}`));

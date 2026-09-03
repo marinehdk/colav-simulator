@@ -100,6 +100,22 @@ class TestStackCatalogDocument:
         assert default["supported_tasks"] == ["TRANSIT"]
         assert default["asset_trust"] == []
 
+    def test_recommended_stack_is_exposed_for_each_plant_option(self) -> None:
+        document = list_stack_catalog()
+        recommendations = document["recommended_stack_ids_by_plant"]
+        expected = {
+            "pass_through_plant": "pass_through_plant+pass_through_guidance+pass_through_controller",
+            "generic_3dof_plant": "generic_3dof_plant+pass_through_guidance+pass_through_controller",
+            "generic_roll_4dof_plant": "generic_roll_4dof_plant+pass_through_guidance+pass_through_controller",
+        }
+
+        assert recommendations == expected
+        assert all(
+            not any(module["role"] == "allocator" for module in entry["modules"])
+            for entry in document["stacks"]
+            if entry["stack_id"] in recommendations.values()
+        )
+
     def test_capability_incompatible_tuple_is_not_listed(self) -> None:
         incompatible = _config_for(
             {
