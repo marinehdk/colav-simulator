@@ -12,11 +12,11 @@ Issue #67 slice 1. Two behaviours:
   crossings of the route line (hysteresis-banded sign changes of the signed
   XTE; dithering inside the band is not a crossing).
 
-The window buffer is sized for the acceptance scenario family: with a
-nominal speed of 7 m/s, a rate-of-turn at or below 3 deg/s, and avoidance
-offsets of order 200 m, re-acquiring the route corridor needs roughly
-90-110 s (turn + lateral closure at 7*sin(20 deg) ~ 2.4 m/s); 120 s gives
-margin without hiding late S-shaped wandering.
+The window buffer follows the Issue #67 stack B acceptance definition: the
+CPA time plus a 240 s recovery allowance (fallback when the planner's own
+avoidance-end state is not available), sized to cover the turn-back plus
+lateral closure of the acceptance scenario family without hiding late
+S-shaped wandering.
 """
 
 from __future__ import annotations
@@ -30,8 +30,8 @@ from colav_simulator.common.vessel_data import VesselData
 if TYPE_CHECKING:
     from colav_simulator.evaluation.evaluator import PairEvaluation
 
-RETURN_WINDOW_BUFFER_S = 120.0
-"""Default recovery buffer appended to the controlling CPA time."""
+RETURN_WINDOW_BUFFER_S = 240.0
+"""Default recovery buffer appended to the controlling CPA time (Issue #67)."""
 
 ROUTE_CROSSING_HYSTERESIS_M = 5.0
 """Band around the route line that sample dithering must not count as a crossing."""

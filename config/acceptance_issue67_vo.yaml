@@ -29,6 +29,16 @@
 #   (max(runtime, params)) and the pre-init fallback; the dynamic-obstacle
 #   geometry above is fed the legacy model params at runtime and is therefore
 #   sized through hard_hull_clearance_m, not through length_os.
+# - t_max = 60.0 s (default 120.0) bounds the closed-loop recovery after CPA.
+#   The dynamics-clearance domain masks candidates whose 120 s turn-rate-limited
+#   predicted path intersects the target's 120 s predicted track tube; with the
+#   passed target still inside that horizon the preferred route direction stays
+#   hard-masked for ~250 s after CPA and the executed reference spins the vessel
+#   into a full recovery loop (676 m off-track). At 60 s the tube halves, the
+#   route direction unmasks at CPA + ~40 s, recovery XTE drops to ~13 m, and the
+#   encounter clearance INCREASES (423 m vs 274 m minimum centre distance).
+#   t_max 40 s was evaluated and rejected: the avoidance shallows until the
+#   minimum centre distance (167.9 m) violates the 180 m gate.
 dependency_lock: ../uv.lock
 vo:
   length_os: 44.1
@@ -36,3 +46,4 @@ vo:
   d_min: 190.0
   hard_hull_clearance_m: 182.0
   preferred_hull_clearance_m: 190.0
+  t_max: 60.0

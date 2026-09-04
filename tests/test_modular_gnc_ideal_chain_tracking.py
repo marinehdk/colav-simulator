@@ -92,7 +92,9 @@ def test_fcb45_adapter_reports_fcb45_vessel_dimensions() -> None:
     """The injected FCB45 ownship must identify as the 45 m workboat it is.
 
     The scenario's legacy model params (viknes) stay the planner-side geometry
-    source; ship_info feeds evaluation (hull radii, goal-reach radius 7 x L).
+    source; ship_info and the physical identity properties feed evaluation
+    (hull radii) and the simulator's vessel-scale checks (goal-reach radius
+    7 x L, grounding buffer L / 2).
     """
     adapter = _fcb45_adapter()
     info = adapter.get_ship_info()
@@ -100,6 +102,10 @@ def test_fcb45_adapter_reports_fcb45_vessel_dimensions() -> None:
     assert info["length"] == pytest.approx(44.1)
     assert info["width"] == pytest.approx(8.0)
     assert info["draft"] == pytest.approx(2.0)
+
+    assert adapter.length == pytest.approx(44.1)
+    assert adapter.width == pytest.approx(8.0)
+    assert adapter.draft == pytest.approx(2.0)
 
 
 def test_legacy_equivalent_adapter_keeps_legacy_vessel_dimensions() -> None:
@@ -136,3 +142,5 @@ def test_legacy_equivalent_adapter_keeps_legacy_vessel_dimensions() -> None:
     info = adapter.get_ship_info()
     assert info["length"] == legacy_info["length"]
     assert info["width"] == legacy_info["width"]
+    assert adapter.length == pytest.approx(legacy_info["length"])
+    assert adapter.width == pytest.approx(legacy_info["width"])
