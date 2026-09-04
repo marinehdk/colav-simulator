@@ -53,7 +53,14 @@ def test_vo_acceptance_profile_changes_only_the_spacing_parameter_face() -> None
 
     changed = {
         name
-        for name in ("length_os", "width_os", "d_min", "hard_hull_clearance_m", "preferred_hull_clearance_m")
+        for name in (
+            "length_os",
+            "width_os",
+            "d_min",
+            "hard_hull_clearance_m",
+            "preferred_hull_clearance_m",
+            "t_max",
+        )
         if getattr(params, name) != getattr(defaults, name)
     }
     assert params.to_dict() == {**defaults.to_dict(), **{name: getattr(params, name) for name in changed}}
@@ -63,11 +70,15 @@ def test_vo_acceptance_profile_changes_only_the_spacing_parameter_face() -> None
         "d_min",
         "hard_hull_clearance_m",
         "preferred_hull_clearance_m",
+        "t_max",
     }
     # FCB45 footprint identity for static-hazard inflation.
     assert (params.length_os, params.width_os) == (44.1, 8.0)
     # CPA classification aligned with the acceptance distance.
     assert params.d_min == 190.0
+    # Recovery horizon (Issue #67 tuning record): the 120 s dynamics-clearance
+    # tubes kept the route direction masked ~250 s post-CPA; 60 s unmasks it.
+    assert params.t_max == 60.0
 
 
 def test_vo_acceptance_profile_builds_through_the_registry() -> None:
@@ -95,14 +106,21 @@ def test_fan_mpc_acceptance_profile_differs_from_shipped_only_in_collision_dista
 def test_mid_mpc_acceptance_profile_differs_from_shipped_only_in_cpa_safe() -> None:
     shipped = _load_algorithm_config(PROJECT_ROOT / "config/mid_mpc_ipopt.yaml")
 
-    assert MID_MPC_PROFILE["kwargs"]["cpa_safe_m"] == 190.0
+    # Tuning record (Issue #67): the soft cpa_safe cost is dominated by the
+    # route-tracking term (delivered 162.5 m at nominal 190-250 m, flat), so
+    # the hard CPA constraint is raised to the gate distance: cpa_hard 180.0
+    # forces the plan through a >= 180 m solution (delivered 197.9 m) while
+    # cpa_safe 200.0 keeps the soft target above it.
+    assert MID_MPC_PROFILE["kwargs"]["cpa_safe_m"] == 200.0
+    assert MID_MPC_PROFILE["kwargs"]["cpa_hard_m"] == 180.0
     assert shipped["kwargs"]["cpa_safe_m"] == 150.0
+    assert shipped["kwargs"]["cpa_hard_m"] == 50.0
     acceptance_diff = {
         key: value
         for key, value in MID_MPC_PROFILE["kwargs"].items()
         if shipped["kwargs"].get(key) != value
     }
-    assert acceptance_diff == {"cpa_safe_m": 190.0}
+    assert acceptance_diff == {"cpa_safe_m": 200.0, "cpa_hard_m": 180.0}
 
 
 def test_acceptance_profiles_keep_factory_and_lock_identity() -> None:

@@ -1,11 +1,20 @@
 # Issue #67 acceptance-only Mid-MPC spacing profile (stack B).
 #
 # NOT a shipped default: config/mid_mpc_ipopt.yaml keeps the published
-# cpa_safe_m = 150.0; this copy raises the CPA safety distance to 190.0 m so
-# the nominal centre distance clears the acceptance gate (>= 180 m centre
-# distance, 4 x 44.1 m Lpp, with 10 m margin). cpa_hard_m stays at the
-# published 50.0 m physical floor. Every other kwarg is byte-identical to the
-# shipped profile (pinned by tests/test_acceptance_spacing_profiles.py).
+# cpa_safe_m = 150.0; this copy raises the CPA safety distance so the
+# delivered centre distance clears the acceptance gate (>= 180 m centre
+# distance, 4 x 44.1 m Lpp). cpa_hard_m stays at the published 50.0 m
+# physical floor. Every other kwarg is byte-identical to the shipped profile
+# (pinned by tests/test_acceptance_spacing_profiles.py).
+#
+# Tuning record (spec 190 -> 200+ ladder, all candidates deterministic):
+# - cpa_safe_m 190 -> 200: crossing_give_way delivered 162.5 m (the soft cost
+#   is dominated by the route-tracking term; 250 m nominal was also flat).
+# - route_weight 0.5 / heading_window 60 / horizon 120 / decel 0.6 /
+#   solve period 5: delivered 161.5 - 162.8 m (insensitive).
+# - cpa_hard_m 50 -> 150 -> 180: delivered 173.2 m -> 197.9 m. The hard CPA
+#   constraint is the binding lever: 180.0 m (the gate itself) forces the
+#   plan through a >= 180 m solution with 17.9 m delivered margin.
 factory: colav_simulator.integrations.mid_mpc_ipopt:create
 dependency_lock: ../uv.lock
 kwargs:
@@ -16,8 +25,8 @@ kwargs:
   heading_window_deg: 45.0
   speed_min_mps: 0.0
   speed_max_mps: 8.0
-  cpa_safe_m: 190.0
-  cpa_hard_m: 50.0
+  cpa_safe_m: 200.0
+  cpa_hard_m: 180.0
   rot_max_deg_s: 3.0
   decel_max_mps2: 0.3
   route_lateral_scale_m: 1000.0
