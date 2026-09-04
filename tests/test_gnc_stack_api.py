@@ -140,6 +140,35 @@ def test_create_request_maps_gnc_stack_id_into_run_spec() -> None:
     assert SessionCreateRequest(validation_rule_id="rule14").to_spec().ownship_gnc_stack_id is None
 
 
+def test_create_request_injects_product_spacing_profile_by_default() -> None:
+    sentinels = {
+        "vo": ("vo", "t_max", 60.0),
+        "potocnik_colreg_fan_mpc": ("kwargs", "collision_distance_m", 190.0),
+        "mid_mpc_ipopt": ("kwargs", "cpa_hard_m", 180.0),
+    }
+    for algorithm_id, (section, key, expected) in sentinels.items():
+        spec = SessionCreateRequest(validation_rule_id="rule14", algorithm_id=algorithm_id).to_spec()
+
+        assert spec.algorithm_config[section][key] == expected, algorithm_id
+
+
+def test_create_request_preserves_explicit_algorithm_config() -> None:
+    explicit = {"vo": {"t_max": 90.0}}
+    spec = SessionCreateRequest(
+        validation_rule_id="rule14",
+        algorithm_id="vo",
+        algorithm_config=explicit,
+    ).to_spec()
+
+    assert spec.algorithm_config == explicit
+
+
+def test_create_request_without_product_profile_keeps_config_empty() -> None:
+    spec = SessionCreateRequest(validation_rule_id="rule14", algorithm_id="nominal").to_spec()
+
+    assert spec.algorithm_config == {}
+
+
 def test_run_spec_serialization_round_trips_stack_id() -> None:
     spec = RunSpec(scenario_id="head_on", validation_rule_id="rule14", ownship_gnc_stack_id="some-stack")
 

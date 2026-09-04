@@ -8,6 +8,7 @@ import matplotlib as mpl
 mpl.use("Agg")
 
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -19,6 +20,7 @@ from collections import deque
 from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
 from datetime import datetime, timedelta
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +33,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from shapely.geometry import Point
 
+from colav_simulator.cli import _load_algorithm_config
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.experiment.busy_water import (
@@ -62,6 +65,28 @@ THREAT_PROJECTION_SCHEMA = "colav.threat-management.projection@1"
 TELEMETRY_PUBLISH_INTERVAL_S = 0.1
 TELEMETRY_TRAIL_HISTORY_POINTS = 500
 TELEMETRY_MAX_TRAIL_POINTS = 120
+
+# Issue #67 validated COLAV spacing profiles, run by product (GUI) sessions
+# when the client sends no algorithm config. With the bare published defaults
+# the VO horizon masks the route direction for ~250 s after CPA and the FCB45
+# stacks execute a full recovery loop (607 m return-window XTE, reproduced
+# headless 2026-09-04); these profiles are the tuned fix pinned against the
+# published shipped values by tests/test_acceptance_spacing_profiles.py.
+# Research entry points (runner/CLI without a config file) keep the published
+# defaults unchanged.
+PRODUCT_SPACING_PROFILES = {
+    "vo": BASE_DIR / "config" / "acceptance_issue67_vo.yaml",
+    "potocnik_colreg_fan_mpc": BASE_DIR / "config" / "acceptance_issue67_fan_mpc.yaml",
+    "mid_mpc_ipopt": BASE_DIR / "config" / "acceptance_issue67_mid_mpc.yaml",
+}
+
+
+@cache
+def _product_spacing_profile(algorithm_id: str) -> dict[str, Any] | None:
+    path = PRODUCT_SPACING_PROFILES.get(algorithm_id)
+    if path is None:
+        return None
+    return _load_algorithm_config(path)
 
 
 def _sample_display_trail(trail: list[list[float]]) -> list[list[float]]:
@@ -229,6 +254,10 @@ class SessionCreateRequest(BaseModel):
             )
         payload = self.model_dump()
         payload["ownship_gnc_stack_id"] = payload.pop("gnc_stack_id")
+        if not payload["algorithm_config"]:
+            spacing_profile = _product_spacing_profile(self.algorithm_id)
+            if spacing_profile is not None:
+                payload["algorithm_config"] = copy.deepcopy(spacing_profile)
         override = payload.get("scenario_override")
         if override is not None:
             if self.scenario_id not in BUSY_WATER_SCENARIOS:
