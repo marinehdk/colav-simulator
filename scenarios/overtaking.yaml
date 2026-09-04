@@ -15,17 +15,6 @@ ship_list:
   - csog_state: [6957000.0, 39000.0, 8.0, 45.0]
     waypoints: [[6957000.0, 6961500.0], [39000.0, 43500.0]]
     speed_plan: [8.0, 8.0]
-    # Issue #67 stack B acceptance: the shipped route terminus lies inside the
-    # coastal grounding fringe (route-length 6364 m, fringe from ~5724 m along;
-    # the published 600 s product windows never reach it, but the acceptance
-    # gate requires goal_reached with zero grounding). The acceptance goal
-    # stays on the SAME route line at 4400 m from the start, outside the
-    # 1000 m static-hazard query radius (fringe 5724 m minus 1000 m = 4724 m).
-    # The legacy 59 m goal radius cannot be reached inside a 600 s product
-    # window without exceeding the plan speed, so those windows are
-    # unaffected; only the injected FCB45 stack (goal radius 7 x 44.1 m)
-    # completes the voyage.
-    goal_csog_state: [6960111.3, 42111.3, 8.0, 0.7853981633974483]
     id: 0
     mmsi: 100
     tracker:

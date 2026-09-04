@@ -18,6 +18,7 @@ scenario's 600 s default once avoidance detours are included.
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import pytest
@@ -49,6 +50,38 @@ ACCEPTANCE_SOLVE_PERIODS = {
 SCENARIO_IDS = ("overtaking", "head_on", "crossing_give_way")
 ALGORITHM_IDS = ("vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt")
 
+# Acceptance goal placement (RunSpec.scenario_override, shipped yamls untouched).
+#
+# The shipped head_on/overtaking route termini lie inside the coastal grounding
+# fringe (fringe from ~5015/5724 m along; the straight-route nominal collects
+# grounding events continuously until the terminus), so goal_reached with zero
+# grounding is geometrically impossible on the shipped route. The acceptance
+# scenarios re-place the ownship goal on the SAME route line before the fringe
+# and outside the VO's 1000 m static-hazard query radius; the encounter
+# geometry (first ~300 s) is untouched. crossing_give_way needs no change.
+import colav_simulator.common.file_utils as futils  # noqa: E402
+from colav_simulator.common import paths as _paths  # noqa: E402
+
+_ACCEPTANCE_GOAL_ALONG_M = {"head_on": 4000.0, "overtaking": 4400.0}
+ACCEPTANCE_SCENARIO_OVERRIDES: dict[str, dict] = {}
+for _sid in SCENARIO_IDS:
+    _doc = futils.read_yaml_into_dict(PROJECT_ROOT / "scenarios" / f"{_sid}.yaml")
+    _along = _ACCEPTANCE_GOAL_ALONG_M.get(_sid)
+    if _along is not None:
+        _own = _doc["ship_list"][0]
+        _n0, _e0 = _own["waypoints"][0][0], _own["waypoints"][1][0]
+        _dn, _de = _own["waypoints"][0][1] - _n0, _own["waypoints"][1][1] - _e0
+        _len = (_dn**2 + _de**2) ** 0.5
+        _own["goal_csog_state"] = [
+            _n0 + _dn / _len * _along,
+            _e0 + _de / _len * _along,
+            _own["speed_plan"][0],
+            math.atan2(_de, _dn),
+        ]
+    ACCEPTANCE_SCENARIO_OVERRIDES[_sid] = _doc
+assert len(ACCEPTANCE_SCENARIO_OVERRIDES) == 3
+assert _paths.scenario_schema  # schema module available for runner validation
+
 
 def run_acceptance_cell(
     harness: P1RunHarness,
@@ -63,6 +96,7 @@ def run_acceptance_cell(
         solve_period_s=ACCEPTANCE_SOLVE_PERIODS[algorithm_id],
         ownship_gnc_stack_id=ACCEPTANCE_STACK_ID,
         t_end=ACCEPTANCE_T_END_S,
+        scenario_override=ACCEPTANCE_SCENARIO_OVERRIDES[scenario_id],
     )
 
 

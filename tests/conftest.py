@@ -124,6 +124,7 @@ class P1RunHarness:
         solve_period_s: float | None = None,
         ownship_gnc_stack_id: str | None = None,
         t_end: float | None = None,
+        scenario_override: dict | None = None,
     ) -> RunResult:
         from colav_simulator.experiment.contracts import (  # noqa: PLC0415
             InternalExecutionPurpose,
@@ -140,6 +141,7 @@ class P1RunHarness:
             solve_period_s,
             ownship_gnc_stack_id,
             t_end,
+            json.dumps(scenario_override, sort_keys=True, default=str) if scenario_override else None,
         )
         if key in self._candidate:
             return self._candidate[key]
@@ -156,6 +158,7 @@ class P1RunHarness:
             domain_profile=self.mid_domain_profile if algorithm_id == "mid_mpc_ipopt" else None,
             ownship_gnc_stack_id=ownship_gnc_stack_id,
             t_end=t_end,
+            scenario_override=scenario_override,
             output_root=str(self.output_root / scenario_id / algorithm_id / tracker_id),
         )
         runner = ExperimentRunner(PROJECT_ROOT)

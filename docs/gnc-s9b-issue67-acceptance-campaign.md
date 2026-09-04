@@ -82,10 +82,12 @@
 - head_on/overtaking 航线终点位于海岸搁浅边缘内（沿航线 5015/5724 m 起为
   搁浅带，终点本身在搁浅距离内）：直线航迹 nominal 在 716.5/715.5 s 起连续
   grounding 直至终点。**goal_reached + 零搁浅在原航线上几何不可实现**。
-  修复：`scenarios/*.yaml` 本船增加同线 `goal_csog_state`（4000/4400 m 处，
-  静态危险查询半径 1000 m 之外）。legacy 59 m 半径在任何 600 s 产品窗口内
-  不可达 → 产品窗口行为零变化（test_kuwata_vo_closed_loop、
-  test_potocnik_colreg_g3_matrix[head_on/overtaking] 实测通过）。
+  修复：验收矩阵经 `RunSpec.scenario_override` 携带测试自有场景文档，本船
+  目标改为同线 4000/4400 m 处（静态危险查询半径 1000 m 之外）；
+  shipped `scenarios/*.yaml` 零改动（内容哈希守卫
+  test_historical_ais_scene_guard 保持原样）。legacy 59 m 半径在任何 600 s
+  产品窗口内不可达 → 产品窗口行为零变化（test_kuwata_vo_closed_loop、
+  test_potocnik_colreg_g3_matrix 全量实测通过）。
 - 注入栈以 7×44.1 m 的物理尺度参与 goal 判定：
   `ModularShipAdapter.length/width/draft` 属性按 catalog 预设身份覆写
   （legacy 等价栈保持 legacy 尺寸，测试钉住）。planner 侧几何
@@ -93,14 +95,11 @@
 
 ## 6. 回归结果
 
-- tests/test_kuwata_vo_closed_loop.py：6 passed（含 goal yaml 后）
-- test_potocnik_colreg_g3_matrix[head_on, overtaking]：2 passed
-- tests/test_runner_gnc_stack_injection.py：5 passed
-- tests/test_acceptance_spacing_profiles.py：6 passed
-- tests/test_modular_gnc_ideal_chain_tracking.py / tests/test_evaluator_voyage_metrics.py：全绿
-- ruff check（改动文件）：clean
-- full modular_gnc per-file + evaluation + legacy_g6 单独跑：见回归门记录
-  （slice 5 执行）。
+- 全套回归（slice 5，分文件/分块执行，a3_demo/legacy_g6/ros_adapter 单独跑）：
+  全部通过；仅 test_playback_speed.py 2 例（web 资源断言）与
+  test_historical_ais_scene_guard.py 1 例（hais mid-mpc experimental 元组）
+  在 s9a 基线（2b3022c）上同样失败，属既有失败，非本分支引入。
+- ruff check .：clean
 
 ## 7. Commit 列表（feat/gnc-s9b-acceptance）
 
@@ -114,11 +113,13 @@
 
 ## 8. 偏离 spec 的决策及理由
 
-1. **场景 yaml 增加 goal_csog_state（head_on 4000 m / overtaking 4400 m 同线
-   点）**：spec 未授权改场景，但原航线终点位于搁浅边缘内，"goal_reached +
-   零搁浅" 几何不可实现（nominal 直线航迹实测连续 grounding 84/73 s 至终
-   点）。同线截断是唯一满足验收门的数据级手段；会遇几何（前 300 s）与
-   600 s 产品窗口完全不变（§5 回归实测）。
+1. **验收场景经 RunSpec.scenario_override 携带 goal_csog_state（head_on
+   4000 m / overtaking 4400 m 同线点）**：原航线终点位于搁浅边缘内，
+   "goal_reached + 零搁浅" 几何不可实现（nominal 直线航迹实测连续
+   grounding 84/73 s 至终点）。场景文档由测试自有（shipped yaml 零改动，
+   内容哈希守卫不变）；会遇几何（前 300 s）与 600 s 产品窗口完全不变
+   （§5 回归实测）。spec 未预見 scenario_override 通道，但该通道完全在
+   RunSpec 契约内，是改动面最小的实现。
 2. **返航窗口空集判 vacuous PASS**：三格（VO/Fan/Mid 的 CS，VO/Fan/Mid 的
    OT）在 CPA+240 s 前已完成航线，返航段不存在；按空集判定并记录。
 3. **VO profile 增加 t_max=60**：spec 授权的 "VO 参数" 面；t_max 是恢复段
