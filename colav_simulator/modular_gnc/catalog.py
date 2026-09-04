@@ -231,8 +231,9 @@ _MODULE_AXIS_COPY: Mapping[str, Mapping[str, str]] = MappingProxyType(
     }
 )
 
-# Allocator layout assets are synthetic mock scaffolds; the drive nature is the
-# honest statement of what each layout can and cannot achieve.
+# The three scaffold layout assets are synthetic mocks; the FCB45 layout is
+# calibrated from the vendor ship_config.yaml and never vessel validated -- the
+# per-asset trust metadata is the honest statement of what each layout is.
 _ACTUATION_LAYOUT_TIER = 1
 _ACTUATION_LAYOUTS: tuple[Mapping[str, str], ...] = (
     MappingProxyType(
@@ -260,6 +261,17 @@ _ACTUATION_LAYOUTS: tuple[Mapping[str, str], ...] = (
             "drive_nature": "underactuated",
             "expected_effect": (
                 "Lateral force and yaw authority are limited; requested forces are only partially achievable."
+            ),
+        }
+    ),
+    MappingProxyType(
+        {
+            "layout_asset_id": "fcb45_actuator_layout_v1",
+            "display_name": "FCB45 vendor layout",
+            "drive_nature": "fully actuated",
+            "expected_effect": (
+                "Vendor 45 m FCB layout (3x 135 kN mains, 2x 20 kN bow tunnels): requested surge, sway, "
+                "and yaw generalized forces are achievable within actuator limits; calibrated, not vessel validated."
             ),
         }
     ),

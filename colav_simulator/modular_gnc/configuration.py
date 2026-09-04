@@ -493,6 +493,7 @@ KNOWN_ACTUATOR_LAYOUT_ASSET_IDS: frozenset[str] = frozenset(
         "default_triple_actuator_layout_v1",
         "quad_diagonal_actuator_layout_v1",
         "main_only_actuator_layout_v1",
+        "fcb45_actuator_layout_v1",
     }
 )
 

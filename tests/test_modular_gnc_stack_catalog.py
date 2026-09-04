@@ -219,6 +219,7 @@ class TestModuleAxes:
             "main_only_actuator_layout_v1": "underactuated",
             "default_triple_actuator_layout_v1": "fully actuated",
             "quad_diagonal_actuator_layout_v1": "overactuated",
+            "fcb45_actuator_layout_v1": "fully actuated",
         }
         assert all(entry["identity"] == "data_driven_allocator" for entry in layouts)
 
