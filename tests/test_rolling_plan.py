@@ -6,6 +6,7 @@ import pytest
 from colav_simulator.core.colav.rolling_plan import (
     PlanRevisionReason,
     RollingPlan,
+    RollingPlanAssessment,
     RollingPlanIdentity,
 )
 
@@ -21,7 +22,7 @@ def _identity(**changes: str) -> RollingPlanIdentity:
     return RollingPlanIdentity(**values)  # type: ignore[arg-type]
 
 
-def _commit(plan: RollingPlan) -> None:
+def _commit(plan: RollingPlan, recovery_at_s: float = 230.0) -> None:
     times = np.arange(81, dtype=float) * 5.0
     course = np.radians(40.0 + 0.05 * times)
     speed = np.full(81, 7.0)
@@ -34,7 +35,32 @@ def _commit(plan: RollingPlan) -> None:
         speed_mps=speed,
         identity=_identity(),
         passing_side="STARBOARD",
-        recovery_at_s=230.0,
+        recovery_at_s=recovery_at_s,
+    )
+
+
+def _assess_recovery(plan: RollingPlan, current_time_s: float, recovery_at_s: float) -> RollingPlanAssessment:
+    """Assess one smooth on-plan candidate whose recovery moment differs."""
+    reference = plan.reference(
+        current_time_s=current_time_s,
+        horizon_steps=80,
+        dt_s=5.0,
+        identity=_identity(),
+        prior_plan_safe=True,
+    )
+    state_times = current_time_s + np.arange(81, dtype=float) * 5.0
+    baseline_times = 10.0 + np.arange(81, dtype=float) * 5.0
+    north = np.interp(state_times, baseline_times, 7.0 * np.arange(81) * 5.0)
+    east = np.interp(state_times, baseline_times, 0.2 * np.arange(81) * 5.0)
+    course = np.interp(state_times, baseline_times, np.radians(40.0 + 0.25 * np.arange(81)))
+    return plan.assess(
+        reference,
+        north_m=north,
+        east_m=east,
+        course_rad=course,
+        passing_side="STARBOARD",
+        recovery_at_s=recovery_at_s,
+        prior_plan_safe=True,
     )
 
 
@@ -174,3 +200,60 @@ def test_invalidated_or_unsafe_baseline_authorizes_typed_revision(
     assert reference.active is False
     assert reference.revision_reason is reason
     assert set(reference.objective_weight) == {0.0}
+
+
+def test_sustained_recovery_disagreement_rebaselines_after_policy_strikes() -> None:
+    """L4-passing candidates that persistently disagree must not deadlock planning.
+
+    Regression for the 2026-09-04 overtaking symptom: one committed plan kept
+    rejecting every fresh candidate for 250 s because their (stable) recovery
+    moments sat outside the 5 s band, and only a lucky COLREG authority change
+    ended the freeze.
+    """
+    plan = RollingPlan()
+    _commit(plan, recovery_at_s=230.0)
+
+    for _ in range(2):
+        assessment = _assess_recovery(plan, current_time_s=15.0, recovery_at_s=250.0)
+        assert assessment.accepted is False
+        assert assessment.revision_reason is PlanRevisionReason.RECOVERY_TIME_CHANGED
+
+    rebaselined = _assess_recovery(plan, current_time_s=15.0, recovery_at_s=250.0)
+    assert rebaselined.accepted is True
+    assert rebaselined.revision_reason is PlanRevisionReason.CONTINUITY_REBASELINED
+    assert rebaselined.recovery_time_drift_s == 20.0
+    assert rebaselined.prefix.within_policy is True
+
+
+def test_single_recovery_disagreement_stays_rejected_and_acceptance_rearms_strikes() -> None:
+    plan = RollingPlan()
+    _commit(plan, recovery_at_s=230.0)
+
+    first = _assess_recovery(plan, current_time_s=15.0, recovery_at_s=250.0)
+    assert first.accepted is False
+    assert first.revision_reason is PlanRevisionReason.RECOVERY_TIME_CHANGED
+
+    consistent = _assess_recovery(plan, current_time_s=15.0, recovery_at_s=230.0)
+    assert consistent.accepted is True
+    assert consistent.revision_reason is PlanRevisionReason.CONTINUITY_PRESERVED
+
+    # The accepted assessment re-arms the strike counter: two fresh
+    # disagreements are rejected again before the breaker fires.
+    for _ in range(2):
+        rejected = _assess_recovery(plan, current_time_s=15.0, recovery_at_s=250.0)
+        assert rejected.accepted is False
+    third = _assess_recovery(plan, current_time_s=15.0, recovery_at_s=250.0)
+    assert third.accepted is True
+    assert third.revision_reason is PlanRevisionReason.CONTINUITY_REBASELINED
+
+
+def test_commit_rearms_the_strike_counter() -> None:
+    plan = RollingPlan()
+    _commit(plan, recovery_at_s=230.0)
+    for _ in range(2):
+        assert _assess_recovery(plan, current_time_s=15.0, recovery_at_s=250.0).accepted is False
+
+    _commit(plan, recovery_at_s=230.0)
+    rejected = _assess_recovery(plan, current_time_s=15.0, recovery_at_s=250.0)
+    assert rejected.accepted is False
+    assert rejected.revision_reason is PlanRevisionReason.RECOVERY_TIME_CHANGED

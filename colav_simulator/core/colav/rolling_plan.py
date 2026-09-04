@@ -23,6 +23,7 @@ class PlanRevisionReason(StrEnum):
     PREFIX_CONTINUITY_EXCEEDED = "PREFIX_CONTINUITY_EXCEEDED"
     PASSING_SIDE_CHANGED = "PASSING_SIDE_CHANGED"
     RECOVERY_TIME_CHANGED = "RECOVERY_TIME_CHANGED"
+    CONTINUITY_REBASELINED = "CONTINUITY_REBASELINED"
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class RollingPlanPolicy:
     advisory_heading_rms_deg: float = 5.0
     advisory_position_max_m: float = 150.0
     recovery_drift_max_s: float = 5.0
+    rebaseline_after_rejections: int = 3
     prefix_objective_weight: float = 200.0
     bounded_objective_weight: float = 120.0
     advisory_objective_weight: float = 100.0
@@ -113,6 +115,7 @@ class RollingPlan:
     def __init__(self, policy: RollingPlanPolicy | None = None) -> None:
         self._policy = policy or RollingPlanPolicy()
         self._accepted: _AcceptedRollingPlan | None = None
+        self._consecutive_rejections = 0
 
     @property
     def has_accepted_plan(self) -> bool:
@@ -120,6 +123,7 @@ class RollingPlan:
 
     def reset(self) -> None:
         self._accepted = None
+        self._consecutive_rejections = 0
 
     def reference(
         self,
@@ -184,6 +188,7 @@ class RollingPlan:
     ) -> RollingPlanAssessment:
         empty = ContinuityBandMetrics(0, 0.0, 0.0, 0.0, True)
         if not reference.active or self._accepted is None:
+            self._consecutive_rejections = 0
             return RollingPlanAssessment(
                 accepted=True,
                 revision_reason=reference.revision_reason,
@@ -242,26 +247,37 @@ class RollingPlan:
             position_limit=self._policy.advisory_position_max_m,
         )
         passing_side_consistent = passing_side == accepted.passing_side
-        recovery_drift = _optional_time_delta(recovery_at_s, accepted.recovery_at_s)
-        recovery_consistent = recovery_drift is not None and recovery_drift <= self._policy.recovery_drift_max_s
-        if recovery_at_s is None and accepted.recovery_at_s is None:
-            recovery_consistent = True
-            recovery_drift = None
-        elif accepted.recovery_at_s is not None and reference.current_time_s >= accepted.recovery_at_s - 1.0e-9:
-            recovery_complete = recovery_at_s is None or recovery_at_s <= reference.current_time_s + accepted.dt_s + 1.0e-9
-            if recovery_complete:
-                recovery_consistent = True
-                recovery_drift = 0.0
+        recovery_drift, recovery_consistent = _recovery_consistency(
+            recovery_at_s,
+            accepted_recovery_at_s=accepted.recovery_at_s,
+            current_time_s=reference.current_time_s,
+            dt_s=accepted.dt_s,
+            drift_max_s=self._policy.recovery_drift_max_s,
+        )
 
         reason = PlanRevisionReason.CONTINUITY_PRESERVED
-        if not passing_side_consistent:
-            reason = PlanRevisionReason.PASSING_SIDE_CHANGED
-        elif not recovery_consistent:
-            reason = PlanRevisionReason.RECOVERY_TIME_CHANGED
-        elif not prefix.within_policy:
-            reason = PlanRevisionReason.PREFIX_CONTINUITY_EXCEEDED
+        accepted = passing_side_consistent and recovery_consistent and prefix.within_policy
+        if accepted:
+            self._consecutive_rejections = 0
+        else:
+            if not passing_side_consistent:
+                reason = PlanRevisionReason.PASSING_SIDE_CHANGED
+            elif not recovery_consistent:
+                reason = PlanRevisionReason.RECOVERY_TIME_CHANGED
+            else:
+                reason = PlanRevisionReason.PREFIX_CONTINUITY_EXCEEDED
+            self._consecutive_rejections += 1
+            if self._consecutive_rejections >= max(1, self._policy.rebaseline_after_rejections):
+                # Deadlock breaker: a committed plan keeps its stored recovery
+                # moment until a candidate is accepted, so stable evidence the
+                # committed plan mispredicted would be rejected forever. After
+                # sustained disagreement, re-baseline onto the (already
+                # L4-accepted) candidate instead of freezing the stale plan.
+                accepted = True
+                reason = PlanRevisionReason.CONTINUITY_REBASELINED
+                self._consecutive_rejections = 0
         return RollingPlanAssessment(
-            accepted=(passing_side_consistent and recovery_consistent and prefix.within_policy),
+            accepted=accepted,
             revision_reason=reason,
             prior_plan_safe=prior_plan_safe,
             passing_side_consistent=passing_side_consistent,
@@ -302,6 +318,7 @@ class RollingPlan:
             passing_side=passing_side,
             recovery_at_s=recovery_at_s,
         )
+        self._consecutive_rejections = 0
 
     def _revision_reason(
         self,
@@ -351,6 +368,25 @@ class RollingPlan:
             position_max_m=position,
             within_policy=(rms <= heading_rms_limit and maximum <= heading_max_limit and position <= position_limit),
         )
+
+
+def _recovery_consistency(
+    recovery_at_s: float | None,
+    *,
+    accepted_recovery_at_s: float | None,
+    current_time_s: float,
+    dt_s: float,
+    drift_max_s: float,
+) -> tuple[float | None, bool]:
+    drift = _optional_time_delta(recovery_at_s, accepted_recovery_at_s)
+    consistent = drift is not None and drift <= drift_max_s
+    if recovery_at_s is None and accepted_recovery_at_s is None:
+        return None, True
+    if accepted_recovery_at_s is not None and current_time_s >= accepted_recovery_at_s - 1.0e-9:
+        recovery_complete = recovery_at_s is None or recovery_at_s <= current_time_s + dt_s + 1.0e-9
+        if recovery_complete:
+            return 0.0, True
+    return drift, consistent
 
 
 def _optional_time_delta(left: float | None, right: float | None) -> float | None:
