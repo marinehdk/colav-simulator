@@ -3,7 +3,7 @@
 Rudder/thruster yaw authority grows with the square of the advance speed, so a
 static moment cap is unphysically generous at low speed and the previously
 hard-coded +-6e8 N.m ceiling (Issue #67 root cause 4) was two orders of
-magnitude beyond a 45 m workboat.  When ``yaw_limit_cap_nm`` > 0 the yaw channel
+magnitude beyond a 45 m workboat.  When ``yaw_limit_cap_n_m`` > 0 the yaw channel
 limits become +-min(cap, base + coeff * u^2) with u the measured surge;
 otherwise the static min/max_output limits apply unchanged.
 
@@ -56,9 +56,9 @@ class TestAdaptiveCap:
     def test_service_speed_limit_is_base_plus_coeff_u2(self) -> None:
         """U = 7.8 m/s: max_N = 3.6e5 + 2500*7.8^2 = 512100 N.m."""
         config = _config(
-            yaw_limit_base_nm=BASE_NM,
+            yaw_limit_base_n_m=BASE_NM,
             yaw_limit_speed_coeff=COEFF_NM_PER_MPS2,
-            yaw_limit_cap_nm=CAP_NM,
+            yaw_limit_cap_n_m=CAP_NM,
         )
         yaw, details = _saturated_yaw(config, surge=7.8, heading_error=1.0)
         assert yaw == pytest.approx(3.6e5 + 2500.0 * 7.8**2, rel=1e-12)
@@ -67,9 +67,9 @@ class TestAdaptiveCap:
 
     def test_zero_speed_limit_is_the_base(self) -> None:
         config = _config(
-            yaw_limit_base_nm=BASE_NM,
+            yaw_limit_base_n_m=BASE_NM,
             yaw_limit_speed_coeff=COEFF_NM_PER_MPS2,
-            yaw_limit_cap_nm=CAP_NM,
+            yaw_limit_cap_n_m=CAP_NM,
         )
         yaw, details = _saturated_yaw(config, surge=0.0, heading_error=1.0)
         assert yaw == pytest.approx(BASE_NM, rel=1e-12)
@@ -82,9 +82,9 @@ class TestAdaptiveCap:
         the limit stays the cap.
         """
         config = _config(
-            yaw_limit_base_nm=BASE_NM,
+            yaw_limit_base_n_m=BASE_NM,
             yaw_limit_speed_coeff=COEFF_NM_PER_MPS2,
-            yaw_limit_cap_nm=CAP_NM,
+            yaw_limit_cap_n_m=CAP_NM,
         )
         boundary = ((CAP_NM - BASE_NM) / COEFF_NM_PER_MPS2) ** 0.5
 
@@ -97,9 +97,9 @@ class TestAdaptiveCap:
 
     def test_cap_applies_symmetrically_to_both_signs(self) -> None:
         config = _config(
-            yaw_limit_base_nm=BASE_NM,
+            yaw_limit_base_n_m=BASE_NM,
             yaw_limit_speed_coeff=COEFF_NM_PER_MPS2,
-            yaw_limit_cap_nm=CAP_NM,
+            yaw_limit_cap_n_m=CAP_NM,
         )
         yaw_positive, _ = _saturated_yaw(config, surge=7.8, heading_error=1.0)
         yaw_negative, _ = _saturated_yaw(config, surge=7.8, heading_error=-1.0)
@@ -116,7 +116,7 @@ class TestCapDisabled:
         assert "yaw_limit" not in details
 
     def test_zero_params_do_not_activate_the_cap(self) -> None:
-        config = _config(yaw_limit_base_nm=0.0, yaw_limit_speed_coeff=0.0, yaw_limit_cap_nm=0.0)
+        config = _config(yaw_limit_base_n_m=0.0, yaw_limit_speed_coeff=0.0, yaw_limit_cap_n_m=0.0)
         yaw, _ = _saturated_yaw(config, surge=7.8, heading_error=1.0)
         assert yaw == pytest.approx(KP_YAW, rel=1e-12)  # unlimited besides +-1e9 static
 
@@ -124,19 +124,19 @@ class TestCapDisabled:
 class TestCapValidation:
     def test_rejects_negative_and_nonfinite_cap_parameters(self) -> None:
         with pytest.raises(ValueError):
-            _config(yaw_limit_base_nm=-1.0, yaw_limit_speed_coeff=0.0, yaw_limit_cap_nm=1.0)
+            _config(yaw_limit_base_n_m=-1.0, yaw_limit_speed_coeff=0.0, yaw_limit_cap_n_m=1.0)
         with pytest.raises(ValueError):
-            _config(yaw_limit_base_nm=0.0, yaw_limit_speed_coeff=-1.0, yaw_limit_cap_nm=1.0)
+            _config(yaw_limit_base_n_m=0.0, yaw_limit_speed_coeff=-1.0, yaw_limit_cap_n_m=1.0)
         with pytest.raises(ValueError):
-            _config(yaw_limit_base_nm=0.0, yaw_limit_speed_coeff=0.0, yaw_limit_cap_nm=-1.0)
+            _config(yaw_limit_base_n_m=0.0, yaw_limit_speed_coeff=0.0, yaw_limit_cap_n_m=-1.0)
         with pytest.raises(ValueError):
-            _config(yaw_limit_cap_nm=float("nan"))
+            _config(yaw_limit_cap_n_m=float("nan"))
 
     def test_cap_parameters_roundtrip_through_dict_and_hash(self) -> None:
         config = _config(
-            yaw_limit_base_nm=BASE_NM,
+            yaw_limit_base_n_m=BASE_NM,
             yaw_limit_speed_coeff=COEFF_NM_PER_MPS2,
-            yaw_limit_cap_nm=CAP_NM,
+            yaw_limit_cap_n_m=CAP_NM,
         )
         rebuilt = MarinePIDConfig.from_params(config.to_dict())
         assert rebuilt.config_hash == config.config_hash

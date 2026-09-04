@@ -469,9 +469,9 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
                 "heading_accel_limit_rad_s2": 0.02,
                 "yaw_rate_ff_gain": 9.4e6,
                 "yaw_accel_ff_gain": 3.65e7,
-                "yaw_limit_base_nm": 3.6e5,
+                "yaw_limit_base_n_m": 3.6e5,
                 "yaw_limit_speed_coeff": 2500.0,
-                "yaw_limit_cap_nm": 9.6e5,
+                "yaw_limit_cap_n_m": 9.6e5,
             }
         ),
     }

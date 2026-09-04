@@ -93,9 +93,9 @@ class MarinePIDConfig:
     heading_accel_limit_rad_s2: float = 0.0
     yaw_rate_ff_gain: float = 0.0
     yaw_accel_ff_gain: float = 0.0
-    yaw_limit_base_nm: float = 0.0
+    yaw_limit_base_n_m: float = 0.0
     yaw_limit_speed_coeff: float = 0.0
-    yaw_limit_cap_nm: float = 0.0
+    yaw_limit_cap_n_m: float = 0.0
     config_hash: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -136,9 +136,9 @@ class MarinePIDConfig:
 
         rate_ff = _validate_non_negative_scalar("yaw_rate_ff_gain", self.yaw_rate_ff_gain)
         accel_ff = _validate_non_negative_scalar("yaw_accel_ff_gain", self.yaw_accel_ff_gain)
-        base_nm = _validate_non_negative_scalar("yaw_limit_base_nm", self.yaw_limit_base_nm)
+        base_nm = _validate_non_negative_scalar("yaw_limit_base_n_m", self.yaw_limit_base_n_m)
         coeff_nm = _validate_non_negative_scalar("yaw_limit_speed_coeff", self.yaw_limit_speed_coeff)
-        cap_nm = _validate_non_negative_scalar("yaw_limit_cap_nm", self.yaw_limit_cap_nm)
+        cap_nm = _validate_non_negative_scalar("yaw_limit_cap_n_m", self.yaw_limit_cap_n_m)
 
         object.__setattr__(self, "kp", kp_val)
         object.__setattr__(self, "ki", ki_val)
@@ -153,9 +153,9 @@ class MarinePIDConfig:
         object.__setattr__(self, "heading_accel_limit_rad_s2", accel_lim)
         object.__setattr__(self, "yaw_rate_ff_gain", rate_ff)
         object.__setattr__(self, "yaw_accel_ff_gain", accel_ff)
-        object.__setattr__(self, "yaw_limit_base_nm", base_nm)
+        object.__setattr__(self, "yaw_limit_base_n_m", base_nm)
         object.__setattr__(self, "yaw_limit_speed_coeff", coeff_nm)
-        object.__setattr__(self, "yaw_limit_cap_nm", cap_nm)
+        object.__setattr__(self, "yaw_limit_cap_n_m", cap_nm)
 
         # Content-addressed hash for reproducibility (TS-27)
         canonical = {
@@ -175,9 +175,9 @@ class MarinePIDConfig:
             "heading_accel_limit_rad_s2": accel_lim,
             "yaw_rate_ff_gain": rate_ff,
             "yaw_accel_ff_gain": accel_ff,
-            "yaw_limit_base_nm": base_nm,
+            "yaw_limit_base_n_m": base_nm,
             "yaw_limit_speed_coeff": coeff_nm,
-            "yaw_limit_cap_nm": cap_nm,
+            "yaw_limit_cap_n_m": cap_nm,
         }
         raw_json = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
         object.__setattr__(self, "config_hash", hashlib.sha256(raw_json.encode("utf-8")).hexdigest())
@@ -203,9 +203,9 @@ class MarinePIDConfig:
             "heading_accel_limit_rad_s2",
             "yaw_rate_ff_gain",
             "yaw_accel_ff_gain",
-            "yaw_limit_base_nm",
+            "yaw_limit_base_n_m",
             "yaw_limit_speed_coeff",
-            "yaw_limit_cap_nm",
+            "yaw_limit_cap_n_m",
         ):
             if key in params:
                 kwargs[key] = params[key]
@@ -230,9 +230,9 @@ class MarinePIDConfig:
             "heading_accel_limit_rad_s2": self.heading_accel_limit_rad_s2,
             "yaw_rate_ff_gain": self.yaw_rate_ff_gain,
             "yaw_accel_ff_gain": self.yaw_accel_ff_gain,
-            "yaw_limit_base_nm": self.yaw_limit_base_nm,
+            "yaw_limit_base_n_m": self.yaw_limit_base_n_m,
             "yaw_limit_speed_coeff": self.yaw_limit_speed_coeff,
-            "yaw_limit_cap_nm": self.yaw_limit_cap_nm,
+            "yaw_limit_cap_n_m": self.yaw_limit_cap_n_m,
             "config_hash": self.config_hash,
         }
 
@@ -572,12 +572,12 @@ class MarinePID:
         max_out = np.array(self._config.max_output, dtype=np.float64)
         # Speed-adaptive yaw moment cap (Issue #67 slice 4): yaw authority grows
         # with the square of the advance speed, max_N(u) = min(cap, base +
-        # coeff*u^2).  Active only when yaw_limit_cap_nm > 0; otherwise the
+        # coeff*u^2).  Active only when yaw_limit_cap_n_m > 0; otherwise the
         # static min/max_output limits govern the yaw channel unchanged.
-        if self._config.yaw_limit_cap_nm > 0.0:
+        if self._config.yaw_limit_cap_n_m > 0.0:
             adaptive_limit = min(
-                self._config.yaw_limit_cap_nm,
-                self._config.yaw_limit_base_nm + self._config.yaw_limit_speed_coeff * measurement.surge_mps**2,
+                self._config.yaw_limit_cap_n_m,
+                self._config.yaw_limit_base_n_m + self._config.yaw_limit_speed_coeff * measurement.surge_mps**2,
             )
             min_out[2] = -adaptive_limit
             max_out[2] = adaptive_limit

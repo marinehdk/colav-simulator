@@ -100,9 +100,9 @@ class TestFCB45ShaperAndCapEnablement:
 
     def test_speed_adaptive_moment_cap_uses_vendor_mz_curve(self) -> None:
         params = _preset_pid_params()
-        assert params["yaw_limit_base_nm"] == pytest.approx(3.6e5, rel=1e-12)
+        assert params["yaw_limit_base_n_m"] == pytest.approx(3.6e5, rel=1e-12)
         assert params["yaw_limit_speed_coeff"] == pytest.approx(2500.0, rel=1e-12)
-        assert params["yaw_limit_cap_nm"] == pytest.approx(9.6e5, rel=1e-12)
+        assert params["yaw_limit_cap_n_m"] == pytest.approx(9.6e5, rel=1e-12)
 
 
 class TestFCB45SurgeSwaySeedGains:
