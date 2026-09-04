@@ -1171,3 +1171,91 @@ def test_twenty_target_planning_reports_p50_p95_and_max_under_one_second() -> No
     assert float(np.percentile(timings, 50)) < 1.0
     assert float(np.percentile(timings, 95)) < 1.0
     assert max(timings) < 1.0
+
+
+# ---------------------------------------------------------------------------
+# CR_PS crossing completion: the stand-on side must release past-and-clear.
+# ---------------------------------------------------------------------------
+
+
+def test_receding_port_quarter_target_releases_crossing_stand_on() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    # Approach: target on the port bow, closing (tcpa > 0, dcpa 126 m so the
+    # current velocity cell stays feasible) -> stand-on hold.
+    approach = _track(1, (282.8, -282.8), (0.0, 10.0))
+    planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [approach])
+    debug = planner.get_debug_data()
+    assert debug["active_rules"] == {"1": ["CR_PS"]}
+    assert debug["stand_on_hold_active"]
+
+    # Past CPA: target abaft the own beam (bearing -100 deg, 450 m so the
+    # range opens against the approach tick), tcpa < 0, beyond the passed
+    # distance. The hold must end within crossing_confirmation_steps ticks
+    # instead of persisting.
+    passed = _track(1, (-78.1, -443.2), (-4.7, -1.7))
+    for step in (1.0, 2.0, 3.0):
+        planner.plan(step, np.array([5.0, 0.0]), _own_state(), [passed])
+        debug = planner.get_debug_data()
+    assert "CR_PS" not in debug["active_rules"].get("1", [])
+    assert not debug["stand_on_hold_active"]
+
+
+def test_approaching_port_crossing_target_never_completes_early() -> None:
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    still_closing = _track(1, (232.8, -262.8), (0.0, 10.0))
+    for step in range(4):
+        planner.plan(float(step), np.array([5.0, 0.0]), _own_state(), [still_closing])
+        debug = planner.get_debug_data()
+        assert debug["active_rules"] == {"1": ["CR_PS"]}
+        assert debug["stand_on_hold_active"]
+
+
+def test_crps_completion_fires_after_rule_hysteresis_expires() -> None:
+    # The real recovery-circle timeline: the ACTIVE CR_PS rule expires through
+    # the eligibility hysteresis right around CPA, while the geometry keeps
+    # matching CR_PS. Completion must key on the geometry match too, or the
+    # stand-on hold rides the matched rule for minutes past the encounter.
+    planner = VO(
+        VOParams(
+            speed_samples=8,
+            heading_samples=32,
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+        )
+    )
+    p_os = np.zeros(2)
+    v_os = np.array([5.0, 0.0])
+    p_do = np.array([-78.1, -443.2])
+    v_do = np.array([-4.7, -1.7])
+
+    geometry = planner._determine_colregs_rules(p_os, 0.0, v_os, p_do, v_do)
+    assert geometry == {VOCOLREGSSituation.CR_PS}
+
+    cpa = {"tcpa_s": -15.6, "center_distance_m": 450.0}
+    fired = False
+    for _ in range(3):
+        fired = planner._update_crossing_completion(
+            target_id=1,
+            previous_rules=set(),
+            geometry_matched_rules=geometry,
+            p_os=p_os,
+            v_os=v_os,
+            p_do=p_do,
+            v_do=v_do,
+            cpa=cpa,
+        )
+        if fired:
+            break
+    assert fired
+    assert 1 in planner._completed_crossing_targets

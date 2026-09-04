@@ -485,7 +485,9 @@ class VO:
             crossing_completed = self._update_crossing_completion(
                 target_id=id_do,
                 previous_rules=previous_rules,
+                geometry_matched_rules=geometry_matched_rules,
                 p_os=p_os,
+                v_os=v_os,
                 p_do=p_do,
                 v_do=v_do,
                 cpa=rule_cpa,
@@ -810,7 +812,9 @@ class VO:
         *,
         target_id: int,
         previous_rules: set[VOCOLREGSSituation],
+        geometry_matched_rules: set[VOCOLREGSSituation],
         p_os: np.ndarray,
+        v_os: np.ndarray,
         p_do: np.ndarray,
         v_do: np.ndarray,
         cpa: dict[str, float | None],
@@ -820,31 +824,54 @@ class VO:
         distance = float(cpa["center_distance_m"] or 0.0)
         previous_distance = self._crossing_previous_distances.get(target_id, distance)
         self._crossing_previous_distances[target_id] = distance
-        if VOCOLREGSSituation.CR_SS not in previous_rules:
-            self._crossing_completion_counts[target_id] = 0
-            return False
         speed = float(np.linalg.norm(v_do))
         if speed < self._params.colregs_min_target_speed_mps:
             self._crossing_completion_counts[target_id] = 0
             return False
+        tcpa = cpa["tcpa_s"]
         target_along = v_do / speed
         own_along_from_target = float((p_os - p_do) @ target_along)
-        tcpa = cpa["tcpa_s"]
-        passed_candidate = bool(
-            tcpa is not None
-            and tcpa <= 0.0
-            and own_along_from_target <= 0.0
-            and distance >= self._params.crossing_passed_distance_m
-            and distance >= previous_distance - 1e-9
-        )
+        if VOCOLREGSSituation.CR_SS in previous_rules:
+            passed_candidate = bool(
+                tcpa is not None
+                and tcpa <= 0.0
+                and own_along_from_target <= 0.0
+                and distance >= self._params.crossing_passed_distance_m
+                and distance >= previous_distance - 1e-9
+            )
+            completed_rule = VOCOLREGSSituation.CR_SS
+        elif (
+            VOCOLREGSSituation.CR_PS in previous_rules
+            or VOCOLREGSSituation.CR_PS in geometry_matched_rules
+        ):
+            # Stand-on side: past-and-clear means the target is abaft the own
+            # beam with the range opening. Without this release the Rule 17
+            # hold freezes the selection on the current velocity cell and the
+            # residual turn rate integrates into a recovery circle.
+            own_speed = float(np.linalg.norm(v_os))
+            target_abaft_own_beam = (
+                own_speed > 1e-9
+                and float((p_do - p_os) @ (v_os / own_speed)) <= 0.0
+            )
+            passed_candidate = bool(
+                tcpa is not None
+                and tcpa <= 0.0
+                and target_abaft_own_beam
+                and distance >= self._params.crossing_passed_distance_m
+                and distance >= previous_distance - 1e-9
+            )
+            completed_rule = VOCOLREGSSituation.CR_PS
+        else:
+            self._crossing_completion_counts[target_id] = 0
+            return False
         count = self._crossing_completion_counts.get(target_id, 0)
         count = count + 1 if passed_candidate else 0
         self._crossing_completion_counts[target_id] = count
         if count < self._params.crossing_confirmation_steps:
             return False
         self._completed_crossing_targets.add(target_id)
-        self._active_rules.get(target_id, set()).discard(VOCOLREGSSituation.CR_SS)
-        self._rule_memory.pop((target_id, VOCOLREGSSituation.CR_SS), None)
+        self._active_rules.get(target_id, set()).discard(completed_rule)
+        self._rule_memory.pop((target_id, completed_rule), None)
         return True
 
     def _target_priority(self, target_id: int) -> tuple[int, float, float, float, int]:

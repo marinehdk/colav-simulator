@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pytest
 from conftest import PROJECT_ROOT
 
 from colav_simulator.experiment.contracts import RunSpec
@@ -59,14 +58,12 @@ def test_gui_default_head_on_session_returns_to_route(tmp_path) -> None:
     assert return_voyage["route_crossings"] <= MAX_ROUTE_CROSSINGS, return_voyage
 
 
-@pytest.mark.xfail(
-    reason="VO recovery currently draws one full portward circle (~450 deg gross sweep, "
-    "identical under the acceptance profile): the route direction stays masked past "
-    "CPA and the selected candidate rotates. Known Issue #67 follow-up; this gate "
-    "goes green when the recovery tuning removes the circle.",
-    strict=False,
-)
 def test_gui_default_head_on_recovery_rotation_stays_below_one_circle(tmp_path) -> None:
+    # Regression for the CR_PS stand-on hold circle: with the crossing
+    # completion fix the post-CPA recovery is a plain turn-back (sweep well
+    # under one full circle); the hold previously froze the selection on the
+    # current velocity cell for ~130 s past CPA and the residual turn rate
+    # integrated into a 442 deg portward circle.
     spec = _gui_default_head_on_spec(tmp_path)
     result = ExperimentRunner(PROJECT_ROOT).run(spec)
 
