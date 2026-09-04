@@ -103,10 +103,15 @@ class TestStackCatalogDocument:
     def test_recommended_stack_is_exposed_for_each_plant_option(self) -> None:
         document = list_stack_catalog()
         recommendations = document["recommended_stack_ids_by_plant"]
+        # Issue #67 slice 5: dynamic-plant options recommend the FCB45 preset
+        # combination of their tier (the plain generic+marine_pid stacks are the
+        # reported broken combination); the kinematic scaffold keeps its own.
         expected = {
             "pass_through_plant": "pass_through_plant+pass_through_guidance+pass_through_controller",
-            "generic_3dof_plant": "generic_3dof_plant+pass_through_guidance+marine_pid",
-            "generic_roll_4dof_plant": "generic_roll_4dof_plant+pass_through_guidance+marine_pid",
+            "generic_3dof_plant": "fcb45_3dof_plant+pass_through_guidance+fcb45_marine_pid",
+            "generic_roll_4dof_plant": "fcb45_roll_4dof_plant+pass_through_guidance+fcb45_marine_pid",
+            "fcb45_3dof_plant": "fcb45_3dof_plant+pass_through_guidance+fcb45_marine_pid",
+            "fcb45_roll_4dof_plant": "fcb45_roll_4dof_plant+pass_through_guidance+fcb45_marine_pid",
         }
 
         assert recommendations == expected
@@ -214,6 +219,7 @@ class TestModuleAxes:
             "main_only_actuator_layout_v1": "underactuated",
             "default_triple_actuator_layout_v1": "fully actuated",
             "quad_diagonal_actuator_layout_v1": "overactuated",
+            "fcb45_actuator_layout_v1": "fully actuated",
         }
         assert all(entry["identity"] == "data_driven_allocator" for entry in layouts)
 

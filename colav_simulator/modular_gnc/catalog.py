@@ -51,6 +51,12 @@ ACCEPTANCE_EVIDENCE_BY_IDENTITY: Mapping[str, str] = MappingProxyType(
         "marine_pid": "controller_contract",
         "data_driven_allocator": "module_closed_loop_contract",
         "resolved_actuator_dynamics": "module_closed_loop_contract",
+        # FCB45 presets run the same implementations as their counterparts, so
+        # they claim the same interface/module evidence; vessel-parameter
+        # credibility is carried separately by parameter_provenance (DP-10).
+        "fcb45_3dof_plant": "candidate_a2_migration_parity",
+        "fcb45_roll_4dof_plant": "candidate_a2_migration_parity",
+        "fcb45_marine_pid": "controller_contract",
     }
 )
 
@@ -74,14 +80,55 @@ _DISPLAY_NAMES: Mapping[str, str] = MappingProxyType(
         "marine_pid": "Marine PID controller",
         "data_driven_allocator": "Data-driven allocator",
         "resolved_actuator_dynamics": "Resolved actuator dynamics",
+        "fcb45_3dof_plant": "FCB45 3DOF plant (45 m workboat)",
+        "fcb45_roll_4dof_plant": "FCB45 4DOF plant with roll (45 m workboat)",
+        "fcb45_marine_pid": "FCB45 marine PID (45 m workboat gains)",
+    }
+)
+
+# DP-10 parameter-asset provenance for identities whose parameters are vessel
+# data rather than synthetic scaffolds.  The FCB45 table was extracted from the
+# vendor ship_config.yaml by the colleague; it is calibrated-from-vendor-config
+# and never claims vessel validation.
+_PARAMETER_PROVENANCE_BY_IDENTITY: Mapping[str, Mapping[str, object]] = MappingProxyType(
+    {
+        identity: MappingProxyType(
+            {
+                "level": "calibrated_from_vendor_config",
+                "source": "ship_config.yaml (45 m FCB vendor configuration, colleague-extracted)",
+                "applicability": "45 m FCB workboat (Lpp 44.1 m, B 8.0 m, draft 2.0 m, 220 t)",
+                "validated_for_vessel": False,
+            }
+        )
+        for identity in ("fcb45_3dof_plant", "fcb45_roll_4dof_plant", "fcb45_marine_pid")
     }
 )
 
 _ROLE_ORDER: tuple[str, ...] = ("plant", "guidance", "controller", "environment", "load_model", "allocator", "actuator")
 
-_CANDIDATE_PLANT_IDENTITIES: tuple[str, ...] = ("pass_through_plant", "generic_3dof_plant", "generic_roll_4dof_plant")
+# Physical vessel identity of preset plants (Lpp, beam, draft in m) from the
+# same vendor configuration the FCB45 hydrodynamic coefficients were
+# calibrated against (ship_config.yaml: Lpp 44.1 m, B 8.0 m, draft 2.0 m).
+# Issue #67 stack B: the adapter reports these as ship_info dimensions so the
+# evaluator and the goal-reach radius (7 x L) see the injected vessel instead
+# of the scenario's legacy model placeholder.
+PRESET_PLANT_VESSEL_DIMENSIONS_M: Mapping[str, tuple[float, float, float]] = MappingProxyType(
+    {
+        "fcb45_3dof_plant": (44.1, 8.0, 2.0),
+        "fcb45_roll_4dof_plant": (44.1, 8.0, 2.0),
+    }
+)
+
+_CANDIDATE_PLANT_IDENTITIES: tuple[str, ...] = (
+    "pass_through_plant",
+    "generic_3dof_plant",
+    "generic_roll_4dof_plant",
+    "fcb45_3dof_plant",
+    "fcb45_roll_4dof_plant",
+)
 _CANDIDATE_GUIDANCE_IDENTITIES: tuple[str, ...] = ("pass_through_guidance", "integral_line_of_sight")
-_CANDIDATE_CONTROLLER_IDENTITIES: tuple[str, ...] = ("pass_through_controller", "marine_pid")
+_CANDIDATE_CONTROLLER_IDENTITIES: tuple[str, ...] = ("pass_through_controller", "marine_pid", "fcb45_marine_pid")
+_FCB45_PLANT_IDENTITIES: frozenset[str] = frozenset({"fcb45_3dof_plant", "fcb45_roll_4dof_plant"})
 _CANDIDATE_ALLOCATOR_LAYOUTS: tuple[str, ...] = tuple(sorted(KNOWN_ACTUATOR_LAYOUT_ASSET_IDS))
 
 # Config step 04: per-axis fidelity ladders.  Array order is the ladder order
@@ -151,11 +198,42 @@ _MODULE_AXIS_COPY: Mapping[str, Mapping[str, str]] = MappingProxyType(
                 "expected_effect": "During hard maneuvers actuators lag the command; response bandwidth is limited.",
             }
         ),
+        "fcb45_3dof_plant": MappingProxyType(
+            {
+                "models": (
+                    "3DOF maneuvering hydrodynamics with the 45 m FCB workboat parameter set "
+                    "(mass, added mass, and damping extracted from the vendor configuration)."
+                ),
+                "expected_effect": (
+                    "Workboat-scale inertia and damping: yaw responds within seconds, not the synthetic "
+                    "scaffold scale."
+                ),
+            }
+        ),
+        "fcb45_roll_4dof_plant": MappingProxyType(
+            {
+                "models": "3DOF FCB45 hydrodynamics plus GM-based roll restoring (roll is uncontrolled).",
+                "expected_effect": "Roll oscillates around the restoring equilibrium while yaw/surge stay controlled.",
+            }
+        ),
+        "fcb45_marine_pid": MappingProxyType(
+            {
+                "models": (
+                    "Marine PID with the FCB45 pole-placement gains, reference shaper, Nomoto feedforward, "
+                    "and speed-adaptive yaw moment cap."
+                ),
+                "expected_effect": (
+                    "Course changes follow an S-curve within the workboat rate/acceleration and yaw-moment "
+                    "authority; gains are derived, not vessel validated."
+                ),
+            }
+        ),
     }
 )
 
-# Allocator layout assets are synthetic mock scaffolds; the drive nature is the
-# honest statement of what each layout can and cannot achieve.
+# The three scaffold layout assets are synthetic mocks; the FCB45 layout is
+# calibrated from the vendor ship_config.yaml and never vessel validated -- the
+# per-asset trust metadata is the honest statement of what each layout is.
 _ACTUATION_LAYOUT_TIER = 1
 _ACTUATION_LAYOUTS: tuple[Mapping[str, str], ...] = (
     MappingProxyType(
@@ -186,6 +264,17 @@ _ACTUATION_LAYOUTS: tuple[Mapping[str, str], ...] = (
             ),
         }
     ),
+    MappingProxyType(
+        {
+            "layout_asset_id": "fcb45_actuator_layout_v1",
+            "display_name": "FCB45 vendor layout",
+            "drive_nature": "fully actuated",
+            "expected_effect": (
+                "Vendor 45 m FCB layout (3x 135 kN mains, 2x 20 kN bow tunnels): requested surge, sway, "
+                "and yaw generalized forces are achievable within actuator limits; calibrated, not vessel validated."
+            ),
+        }
+    ),
 )
 _ALLOCATOR_MODELS_COPY = (
     "Allocation of generalized forces to actuators by minimum norm; the layout asset is a synthetic mock asset."
@@ -194,13 +283,17 @@ _ALLOCATOR_MODELS_COPY = (
 
 def _axis_entry(identity: str, tier: int, display_name: str | None = None) -> dict[str, Any]:
     copy = _MODULE_AXIS_COPY[identity]
-    return {
+    entry = {
         "identity": identity,
         "display_name": display_name or _DISPLAY_NAMES[identity],
         "tier": tier,
         "models": copy["models"],
         "expected_effect": copy["expected_effect"],
     }
+    provenance = _PARAMETER_PROVENANCE_BY_IDENTITY.get(identity)
+    if provenance is not None:
+        entry["parameter_provenance"] = dict(provenance)
+    return entry
 
 
 def _module_axes() -> dict[str, Any]:
@@ -209,7 +302,9 @@ def _module_axes() -> dict[str, Any]:
         "plant": [
             _axis_entry("pass_through_plant", 0),
             _axis_entry("generic_3dof_plant", 1),
-            _axis_entry("generic_roll_4dof_plant", 2),
+            _axis_entry("fcb45_3dof_plant", 2),
+            _axis_entry("generic_roll_4dof_plant", 3),
+            _axis_entry("fcb45_roll_4dof_plant", 4),
         ],
         "guidance": [
             _axis_entry("pass_through_guidance", 0),
@@ -218,6 +313,7 @@ def _module_axes() -> dict[str, Any]:
         "controller": [
             _axis_entry("pass_through_controller", 0),
             _axis_entry("marine_pid", 1),
+            _axis_entry("fcb45_marine_pid", 2),
         ],
         "actuation": {
             "none": {
@@ -267,6 +363,129 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
                 "allow_ideal_passthrough": True,
             }
         ),
+        # FCB45 preset parameters (Issue #67 slices 5-6), provenance
+        # calibrated_from_vendor_config (see _PARAMETER_PROVENANCE_BY_IDENTITY).
+        #
+        # Source table (45 m FCB, Lpp 44.1 m, B 8.0 m, draft 2.0 m, 220 t):
+        # - Hull: mass 2.2e5 kg, I_z 2.7e7 kg.m^2; tier2 roll I_x 2.0e7 kg.m^2,
+        #   GM 1.5 m -> restoring_k_phi = m*g*GM = 3.2373e6 N.m/rad.
+        # - Added mass (SNAME signs; the plant subtracts, so effective
+        #   m_11 = 2.42e5, m_22 = 3.8e5, m_33 = I_z + 9.5e6 = 3.65e7 kg.m^2):
+        #   X_u_dot -2.2e4, Y_v_dot -1.6e5, N_r_dot -9.5e6.
+        #   Mass couplings Y_r_dot = N_v_dot = -1e6 -> m_23 = m_32 = +1e6:
+        #   SNAME Y_r_dot/N_v_dot are negative at the CG origin, and the sign
+        #   is what keeps the forward-speed (v, r) linearization yaw-stable
+        #   (yaw row r-coefficient -m_23*u0 - d_r = -9.4e6 N.m.s at 7.8 m/s;
+        #   the opposite sign gives open-loop r growth ~0.21 1/s, which no
+        #   vendor ship exhibits).
+        # - Damping (SNAME derivative -> repo convention d = -coefficient for
+        #   the same physical term, keeping the coupled (v, r) block
+        #   dissipative: [[d_v, (d_vr+d_rv)/2], [., d_r]] det > 0):
+        #   X_u -3500 -> d_u 3500; X_uu -280 -> d_uu 280; Y_v -5e4 -> d_v
+        #   5e4*u0 = 3.9e5; Y_vv -9e3 -> d_vv 9e3*u0^2 = 5.4756e5 (sway
+        #   damping linearised at the 7.8 m/s service speed: hull lift scales
+        #   with u and u^2, and the un-scaled value leaves the (v, r)
+        #   linearization a saddle — deviation-ledgered); Y_r +6e4 -> d_vr
+        #   -6e4; N_r -1.6e6 -> d_r 1.6e6; N_rr -3e6 -> d_rr 3e6; N_v -6e5 ->
+        #   d_rv +6e5.
+        # - Execution: Mz(u) = min(9.6e5, 3.6e5 + 2500*u^2) N.m; rudder slew
+        #   0.1 rad/s and service speed ~7.8 m/s are recorded in the deviation
+        #   ledger (slew not modelled in this slice).
+        # - Couplings beyond Generic3DOF support (none for this table; roll
+        #   damping is not vendor-specified and stays zero) are ledgered.
+        "fcb45_3dof_plant": MappingProxyType(
+            {
+                "mass_kg": 220000.0,
+                "i_z_kgm2": 2.7e7,
+                "x_dot_u_kg": -22000.0,
+                "y_dot_v_kg": -160000.0,
+                "n_dot_r_kgm2": -9.5e6,
+                "y_dot_r_kgm": -1.0e6,
+                "n_dot_v_kgm": -1.0e6,
+                "d_u": 3500.0,
+                "d_uu": 280.0,
+                "d_v": 390000.0,
+                "d_vv": 547560.0,
+                "d_r": 1.6e6,
+                "d_rr": 3.0e6,
+                "d_vr": -60000.0,
+                "d_rv": 600000.0,
+            }
+        ),
+        "fcb45_roll_4dof_plant": MappingProxyType(
+            {
+                "mass_kg": 220000.0,
+                "i_x_kgm2": 2.0e7,
+                "i_z_kgm2": 2.7e7,
+                "x_dot_u_kg": -22000.0,
+                "y_dot_v_kg": -160000.0,
+                "n_dot_r_kgm2": -9.5e6,
+                "y_dot_r_kgm": -1.0e6,
+                "n_dot_v_kgm": -1.0e6,
+                "d_u": 3500.0,
+                "d_uu": 280.0,
+                "d_v": 390000.0,
+                "d_vv": 547560.0,
+                "d_r": 1.6e6,
+                "d_rr": 3.0e6,
+                "d_vr": -60000.0,
+                "d_rv": 600000.0,
+                "restoring_k_phi": 220000.0 * 9.81 * 1.5,
+            }
+        ),
+        # fcb45_marine_pid seed gains (Issue #67 slice 6), provenance
+        # calibrated_from_vendor_config for the limits and derived-from-model
+        # for the gains (see _PARAMETER_PROVENANCE_BY_IDENTITY; derivation
+        # mirrored in tests/test_modular_gnc_fcb45_seed_gains.py):
+        #
+        # Yaw channel (moment-scale pole placement, Fossen Handbook 2nd ed.
+        # Alg-15.1 logic with an explicit third pole), linearised at the
+        # service speed u0 = 7.8 m/s on the calibrated FCB45 plant:
+        #   I_eff = I_z + N_r_dot = 3.65e7 kg.m^2
+        #   d_eff(u0) = d_r + m_23*u0 = 1.6e6 + 1e6*7.8 = 9.4e6 N.m.s
+        #   T = I_eff/d_eff(u0) = 3.883 s, 2/T = 0.5148 rad/s
+        #   zeta = 0.9, omega_n = 0.11 rad/s in [2/T/5, 2/T/3], third pole
+        #   a = 3*omega_n = 0.33 rad/s (non-dominant)
+        #   kd = I_eff*(2*zeta*omega_n + a) - d_eff(u0) = 9.872e6
+        #   kp = I_eff*(omega_n^2 + 2*zeta*omega_n*a)    = 2.82656e6
+        #   ki = I_eff*omega_n^2*a                        = 1.457445e5
+        #   (ki ~ kp/19, below the Fossen Ki~Kp/10 ceiling; the Routh margin
+        #   (d_eff+kd)*kp / (I_eff*ki) is ~9x.)
+        # Feedforward: Nomoto inverse at the same linearisation,
+        # tau_FF = I_eff*rdot_d + d_eff(u0)*r_d (the m23*u0*r Coriolis term is
+        # part of the effective damping the steady turn must pay for).
+        # Surge (1st-order P+I, pole 0.08 rad/s, damping linearised at the
+        # 7.8 m/s service speed): kp = m_11*0.08 - (d_u + 2*d_uu*7.8) = 11492,
+        # ki = kp/10.  Sway (pole 0.15 rad/s): kp = m_22*0.15 - d_v = 7000,
+        # ki = 700.
+        # Shaper limits: 0.05 rad/s (~2.9 deg/s ROT), 0.02 rad/s^2.  Moment cap:
+        # vendor Mz(u) = min(9.6e5, 3.6e5 + 2500*u^2) N.m.
+        "fcb45_marine_pid": MappingProxyType(
+            {
+                "kp": (11492.0, 7000.0, 2826560.0),
+                "ki": (1149.2, 700.0, 145744.5),
+                "kd": (0.0, 0.0, 9872000.0),
+                "tau_d": (0.1, 0.1, 0.1),
+                # Yaw tracking anti-windup back-calculation time constant
+                # 1/0.05 = 20 s ~ Ti = kp/ki: fast enough to un-wind the
+                # feedforward saturation deficit, slow enough not to whiplash
+                # the integral when the shaper ramps saturate the moment cap.
+                "antiwindup_gain": (1.0, 1.0, 0.05),
+                "min_output": (-2.0e5, -4.0e4, -9.6e5),
+                "max_output": (2.0e5, 4.0e4, 9.6e5),
+                "feedforward_gain": (0.0, 0.0, 0.0),
+                "integral_limit": (2.0e5, 4.0e4, 9.6e5),
+                "allow_ideal_passthrough": True,
+                "reference_shaper_enable": True,
+                "heading_rate_limit_rad_s": 0.05,
+                "heading_accel_limit_rad_s2": 0.02,
+                "yaw_rate_ff_gain": 9.4e6,
+                "yaw_accel_ff_gain": 3.65e7,
+                "yaw_limit_base_n_m": 3.6e5,
+                "yaw_limit_speed_coeff": 2500.0,
+                "yaw_limit_cap_n_m": 9.6e5,
+            }
+        ),
     }
 )
 
@@ -279,16 +498,18 @@ def _module_selections(config: ShipModulesConfig) -> list[dict[str, Any]]:
         if selection is None:
             continue
         entry = REGISTRY_V1[selection.identity]
-        records.append(
-            {
-                "role": role,
-                "identity": selection.identity,
-                "implementation_version": entry.implementation_version,
-                "interface_version": entry.interface_version,
-                "available": bool(entry.available),
-                "acceptance_evidence": ACCEPTANCE_EVIDENCE_BY_IDENTITY[selection.identity],
-            }
-        )
+        record = {
+            "role": role,
+            "identity": selection.identity,
+            "implementation_version": entry.implementation_version,
+            "interface_version": entry.interface_version,
+            "available": bool(entry.available),
+            "acceptance_evidence": ACCEPTANCE_EVIDENCE_BY_IDENTITY[selection.identity],
+        }
+        provenance = _PARAMETER_PROVENANCE_BY_IDENTITY.get(selection.identity)
+        if provenance is not None:
+            record["parameter_provenance"] = dict(provenance)
+        records.append(record)
     return records
 
 
@@ -447,10 +668,15 @@ def _product_transit_compatible(config: ShipModulesConfig, supported_tasks: Iter
         return False
     plant = config.modules["plant"].identity
     controller = config.modules["controller"].identity
-    return not (
-        plant in {"generic_3dof_plant", "generic_roll_4dof_plant"}
-        and controller == "pass_through_controller"
-    )
+    if plant in {"generic_3dof_plant", "generic_roll_4dof_plant"} and controller == "pass_through_controller":
+        return False
+    # FCB45 vessel-scale parameters only make sense on the FCB45 combination:
+    # the preset controller is tuned for the FCB45 plants, and the preset
+    # plants need the preset controller's moment scale (Issue #67 slice 5).
+    fcb45_plant = plant in _FCB45_PLANT_IDENTITIES
+    if fcb45_plant != (controller == "fcb45_marine_pid"):
+        return False
+    return True
 
 
 @lru_cache(maxsize=1)
@@ -475,7 +701,13 @@ def _cached_stack_catalog() -> tuple[dict[str, Any], ...]:
 
 
 def _recommended_stack_ids_by_plant(stacks: Iterable[Mapping[str, Any]]) -> dict[str, str]:
-    """Choose the first deterministic executable stack for each Plant option."""
+    """Choose the first deterministic executable stack for each Plant option.
+
+    Dynamic-plant options (generic and FCB45) recommend the FCB45 preset
+    combination of their tier: the previously recommended tier1/2 +
+    plain-marine_pid stacks are the combination reported broken in Issue #67,
+    so the FCB45-tuned stacks are the safe default (Issue #67 slice 5).
+    """
     recommendations: dict[str, str] = {}
     for entry in stacks:
         plant_id = next(
@@ -484,6 +716,14 @@ def _recommended_stack_ids_by_plant(stacks: Iterable[Mapping[str, Any]]) -> dict
         )
         if plant_id is not None:
             recommendations.setdefault(plant_id, entry["stack_id"])
+
+    for dynamic_plant, fcb45_plant in (
+        ("generic_3dof_plant", "fcb45_3dof_plant"),
+        ("generic_roll_4dof_plant", "fcb45_roll_4dof_plant"),
+    ):
+        fcb45_stack = recommendations.get(fcb45_plant)
+        if fcb45_stack is not None:
+            recommendations[dynamic_plant] = fcb45_stack
     return recommendations
 
 

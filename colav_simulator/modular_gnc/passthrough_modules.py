@@ -216,8 +216,22 @@ class PassThroughModules:
         reference: DirectReference | None,
         route: TrackedRoute | None,
         dt_s: float,
+        phase_dt_s: float | None = None,
     ) -> None:
-        """Record fixed phase order and consume due direct/route authority."""
+        """Record fixed phase order and consume due direct/route authority.
+
+        ``dt_s`` stays the single simulation-tick duration (used for time
+        stamping and for guidance phases, which derive their own elapsed time
+        from tick deltas).  ``phase_dt_s`` is the elapsed control time since
+        the previous due invocation of this phase (period x tick dt); discrete
+        controller, actuator, and plant integration advance by it so their
+        states advance once per scheduled period instead of once per tick
+        (Issue #67 slice 1).
+        """
+        if phase_dt_s is None:
+            phase_dt_s = dt_s
+        if not math.isfinite(phase_dt_s) or phase_dt_s <= 0.0:
+            raise ValueError(f"phase_dt_s must be positive and finite, got {phase_dt_s}")
         if phase == self._fail_phase and tick == self._fail_tick:
             raise RuntimeError(f"pass-through module failure in {phase}")
         self._phase_counts[phase] += 1
@@ -237,13 +251,26 @@ class PassThroughModules:
                     self._held_guidance_trace = self._guidance.latest_trace
         effective_reference = reference if reference is not None else self._held_guidance_reference
         if phase == "controller" and self._controller is not None and effective_reference is not None:
+            # Achieved-load feedback is genuine information only when an
+            # allocator/actuator module produced it.  In the ideal direct
+            # chain (no allocator, no actuator) the held load would be this
+            # controller's own previous output: feeding it back as "achieved"
+            # injects a fictitious saturation error (previous output minus
+            # current request) into the anti-windup path and rails the
+            # integrator, so the ideal chain passes None and MarinePID falls
+            # back to its own current saturated output.
+            achieved_feedback = (
+                self._held_achieved_load
+                if (self._actuator is not None or self._allocator is not None)
+                else None
+            )
             vessel_load, trace = self._controller.compute_control(
                 measurement=self.navigation(),
                 reference=effective_reference,
-                dt_s=dt_s,
+                dt_s=phase_dt_s,
                 tick=tick,
                 time_s=tick * dt_s,
-                achieved_load=self._held_achieved_load,
+                achieved_load=achieved_feedback,
             )
             self._held_control_load = vessel_load
             self._held_controller_trace = trace
@@ -261,29 +288,38 @@ class PassThroughModules:
             self._held_allocator_solution = solution
             self._held_achieved_load = solution.to_achieved_generalized_load()
         if phase == "actuator" and self._actuator is not None:
-            self._run_actuator_phase(tick, dt_s)
+            self._run_actuator_phase(tick, phase_dt_s)
         if phase == "plant":
-            if self._plant is not None:
-                ctrl_load = self._resolve_plant_control_load(effective_reference)
-                new_values = rk4_step(
-                    plant=self._plant,
-                    tick=tick,
-                    dt_s=dt_s,
-                    state=self._state.values,
-                    control_load=ctrl_load,
-                    environment_field=self._environment_field,
-                    load_model=self._load_model,
-                )
-                self._state = PlantState(new_values, self._plant.capabilities, input_semantics=self._plant.input_semantics)
-            elif effective_reference is not None:
-                values = self._state.values.copy()
-                heading = float(effective_reference.values[2])
-                speed = float(effective_reference.values[3])
-                values[0] += speed * math.cos(heading) * dt_s
-                values[1] += speed * math.sin(heading) * dt_s
-                values[2] = heading
-                values[3] = speed
-                self._state = PlantState(values, self._state.capabilities)
+            self._run_plant_phase(tick, phase_dt_s, effective_reference)
+
+    def _run_plant_phase(self, tick: int, phase_dt_s: float, reference: DirectReference | None) -> None:
+        """Advance the selected plant by one due plant phase.
+
+        Real plants integrate with RK4 over the phase-accumulated dt; the
+        kinematic pass-through scaffold writes the reference state directly and
+        integrates position over the same elapsed phase time.
+        """
+        if self._plant is not None:
+            ctrl_load = self._resolve_plant_control_load(reference)
+            new_values = rk4_step(
+                plant=self._plant,
+                tick=tick,
+                dt_s=phase_dt_s,
+                state=self._state.values,
+                control_load=ctrl_load,
+                environment_field=self._environment_field,
+                load_model=self._load_model,
+            )
+            self._state = PlantState(new_values, self._plant.capabilities, input_semantics=self._plant.input_semantics)
+        elif reference is not None:
+            values = self._state.values.copy()
+            heading = float(reference.values[2])
+            speed = float(reference.values[3])
+            values[0] += speed * math.cos(heading) * phase_dt_s
+            values[1] += speed * math.sin(heading) * phase_dt_s
+            values[2] = heading
+            values[3] = speed
+            self._state = PlantState(values, self._state.capabilities)
 
     def _run_actuator_phase(self, tick: int, dt_s: float) -> None:
         """Apply the resolved fidelity profile: one discrete-phase owner of rate and delay dynamics.

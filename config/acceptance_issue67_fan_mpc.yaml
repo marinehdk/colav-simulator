@@ -1,0 +1,35 @@
+# Issue #67 acceptance-only Fan-MPC spacing profile (stack B).
+#
+# NOT a shipped default: config/potocnik_colreg_fan_mpc.yaml keeps the
+# published collision_distance_m = 150.0; this copy raises the inter-vessel
+# clearance to 190.0 m so the nominal centre distance clears the acceptance
+# gate (>= 180 m centre distance, 4 x 44.1 m Lpp, with 10 m margin).
+# Every other kwarg is byte-identical to the shipped profile (pinned by
+# tests/test_acceptance_spacing_profiles.py).
+factory: colav_simulator.integrations.potocnik_colreg_mpc:create
+dependency_lock: ../uv.lock
+kwargs:
+  prediction_steps: 20
+  candidate_count: 45
+  horizon_dt_s: 5.0
+  solve_period_s: 5.0
+  deadline_s: 0.5
+  max_heading_increment_deg: 10.0
+  heading_increment_decay: 0.95
+  collision_distance_m: 190.0
+  colreg_zone_distance_m: 5556.0
+  continuity_weight: 4.0
+  clearance_weight: 4.0
+  reversal_weight: 2.0
+  max_command_change_deg: 5.0
+  minimum_colreg_turn_deg: 5.0
+  course_response_time_constant_s: 8.0
+  speed_response_time_constant_s: 10.0
+  max_yaw_rate_deg_s: 3.0
+  max_speed_rate_mps2: 0.3
+  speed_scales: [1.0, 0.75, 0.5, 0.25]
+  static_clearance_m: 20.0
+  static_influence_distance_m: 200.0
+  static_clearance_weight: 1.0
+  route_lookahead_m: 200.0
+  trajectory_continuity_weight: 2.0

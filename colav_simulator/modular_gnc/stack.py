@@ -68,10 +68,17 @@ class ModularShipStack:
 
     snapshot_schema_version = "modular-ship-stack.snapshot.v1"
 
+    _REAL_PLANT_IDENTITIES = (
+        "generic_3dof_plant",
+        "generic_roll_4dof_plant",
+        "fcb45_3dof_plant",
+        "fcb45_roll_4dof_plant",
+    )
+
     def __init__(self, config: ShipModulesConfig, modules: PassThroughModules) -> None:
         if (
             "plant" in config.modules
-            and config.modules["plant"].identity in ("generic_3dof_plant", "generic_roll_4dof_plant")
+            and config.modules["plant"].identity in self._REAL_PLANT_IDENTITIES
             and config.scheduler.get("plant_period_ticks") != 1
         ):
             plant_id = config.modules["plant"].identity
@@ -143,13 +150,21 @@ class ModularShipStack:
             elif plant_sel.identity == "generic_roll_4dof_plant":
                 plant_params_4dof = GenericRoll4DOFPlantParameters(**plant_sel.parameters)
                 plant = GenericRoll4DOFPlant(plant_params_4dof)
+            elif plant_sel.identity == "fcb45_3dof_plant":
+                # FCB45 preset binds vessel-scale parameters to the same
+                # implementation (Issue #67 slice 5).
+                plant_params = Generic3DOFPlantParameters(**plant_sel.parameters)
+                plant = Generic3DOFPlant(plant_params)
+            elif plant_sel.identity == "fcb45_roll_4dof_plant":
+                plant_params_4dof = GenericRoll4DOFPlantParameters(**plant_sel.parameters)
+                plant = GenericRoll4DOFPlant(plant_params_4dof)
             elif plant_sel.identity == "pass_through_plant":
                 plant = None
 
         controller = None
         if "controller" in cfg.modules:
             ctrl_sel = cfg.modules["controller"]
-            if ctrl_sel.identity == "marine_pid":
+            if ctrl_sel.identity in ("marine_pid", "fcb45_marine_pid"):
                 from colav_simulator.modular_gnc.controller import MarinePID, MarinePIDConfig  # noqa: PLC0415
 
                 ctrl_cfg = MarinePIDConfig.from_params(ctrl_sel.parameters)
@@ -262,6 +277,7 @@ class ModularShipStack:
                     latched.direct_reference,
                     latched.tracked_route,
                     dt_s,
+                    phase_dt_s=dt_s * self._phase_period_ticks(phase),
                 )
         except OutOfDomainError as exc:
             failure = FacadeFailure(
@@ -295,16 +311,21 @@ class ModularShipStack:
         self._tick += 1
         return output
 
+    _PHASE_PERIOD_KEYS: Mapping[str, str] = {
+        "guidance": "guidance_period_ticks",
+        "controller": "controller_period_ticks",
+        "allocator": "controller_period_ticks",
+        "actuator": "controller_period_ticks",
+        "environment": "plant_period_ticks",
+        "plant": "plant_period_ticks",
+    }
+
+    def _phase_period_ticks(self, phase: str) -> int:
+        """Return the scheduler period in ticks for one phase."""
+        return self._config.scheduler[self._PHASE_PERIOD_KEYS[phase]]
+
     def _phase_due(self, phase: str) -> bool:
-        period_key = {
-            "guidance": "guidance_period_ticks",
-            "controller": "controller_period_ticks",
-            "allocator": "controller_period_ticks",
-            "actuator": "controller_period_ticks",
-            "environment": "plant_period_ticks",
-            "plant": "plant_period_ticks",
-        }[phase]
-        return self._tick % self._config.scheduler[period_key] == 0
+        return self._tick % self._phase_period_ticks(phase) == 0
 
     @staticmethod
     def _command_task(command: CommandInput) -> ControlTask | None:

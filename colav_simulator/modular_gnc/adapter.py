@@ -19,6 +19,7 @@ import numpy as np
 
 from colav_simulator.core import stochasticity
 from colav_simulator.core.ship import Config, IShip, Ship
+from colav_simulator.modular_gnc.catalog import PRESET_PLANT_VESSEL_DIMENSIONS_M
 from colav_simulator.modular_gnc.contracts import (
     CommandInput,
     ControlTask,
@@ -243,7 +244,46 @@ class ModularShipAdapter(IShip):
         return self._legacy.get_sim_data(t, timestamp_0)
 
     def get_ship_info(self) -> dict:
-        return self._legacy.get_ship_info()
+        """Report the injected preset plant's physical identity when known (Issue #67).
+
+        The wrapped legacy services still answer every field from the scenario's
+        planner-side config; for catalog presets with a calibrated vessel
+        identity (FCB45) the hull dimensions are overridden so evaluation and
+        the goal-reach radius see the executed vessel instead of the legacy
+        model placeholder.
+        """
+        info = self._legacy.get_ship_info()
+        dimensions = PRESET_PLANT_VESSEL_DIMENSIONS_M.get(self._stack.config.modules["plant"].identity)
+        if dimensions is not None:
+            info["length"], info["width"], info["draft"] = dimensions
+        return info
+
+    def _preset_dimension(self, index: int) -> float | None:
+        dimensions = PRESET_PLANT_VESSEL_DIMENSIONS_M.get(self._stack.config.modules["plant"].identity)
+        return None if dimensions is None else float(dimensions[index])
+
+    @property
+    def length(self) -> float:
+        """Executed vessel length: preset identity when calibrated, legacy otherwise.
+
+        The simulator derives the goal-reach radius (7 x L) and the grounding
+        buffer (L / 2) from this attribute, so the injected FCB45 stack is
+        judged at its physical scale rather than the legacy model placeholder.
+        """
+        dimension = self._preset_dimension(0)
+        return self._legacy.length if dimension is None else dimension
+
+    @property
+    def width(self) -> float:
+        """Executed vessel beam: preset identity when calibrated, legacy otherwise."""
+        dimension = self._preset_dimension(1)
+        return self._legacy.width if dimension is None else dimension
+
+    @property
+    def draft(self) -> float:
+        """Executed vessel draft: preset identity when calibrated, legacy otherwise."""
+        dimension = self._preset_dimension(2)
+        return self._legacy.draft if dimension is None else dimension
 
     def get_do_track_information(self) -> tuple[list, list]:
         return self._legacy.get_do_track_information()

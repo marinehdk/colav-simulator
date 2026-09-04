@@ -470,19 +470,80 @@ _MAIN_ONLY_ACTUATORS: tuple[ActuatorSpec, ...] = (
     ),
 )
 
+# Vendor FCB45 actuator layout (s9c R3), extracted from the colleague's
+# ship_config.yaml: three 135 kN main thrusters on the x = -18.094 m frame at
+# y = -3/0/+3 m, and two 20 kN bow tunnel thrusters on the centerline at
+# x = +21.906/+23.406 m.  Trust is calibrated-from-vendor-config, never vessel
+# validated.  Roll stays unactuated: the allocator task space is strictly
+# [X, Y, N] and no roll row is derived (RA-12, VR-16).  Resolved actuator
+# dynamics declares per-actuator rate limits; the vendor-motivated values are
+# mains 200 kN/s and tunnel thrusters 50 kN/s.
+_FCB45_ACTUATORS: tuple[ActuatorSpec, ...] = (
+    ActuatorSpec(
+        actuator_id="main_thruster_port",
+        kind="main",
+        position_body_m=(-18.094, -3.0),
+        orientation_body_rad=0.0,
+        min_force_n=-135.0e3,
+        max_force_n=135.0e3,
+    ),
+    ActuatorSpec(
+        actuator_id="main_thruster_center",
+        kind="main",
+        position_body_m=(-18.094, 0.0),
+        orientation_body_rad=0.0,
+        min_force_n=-135.0e3,
+        max_force_n=135.0e3,
+    ),
+    ActuatorSpec(
+        actuator_id="main_thruster_starboard",
+        kind="main",
+        position_body_m=(-18.094, 3.0),
+        orientation_body_rad=0.0,
+        min_force_n=-135.0e3,
+        max_force_n=135.0e3,
+    ),
+    ActuatorSpec(
+        actuator_id="bow_tunnel_thruster_aft",
+        kind="tunnel_thruster",
+        position_body_m=(21.906, 0.0),
+        orientation_body_rad=0.5 * math.pi,
+        min_force_n=-20.0e3,
+        max_force_n=20.0e3,
+    ),
+    ActuatorSpec(
+        actuator_id="bow_tunnel_thruster_forward",
+        kind="tunnel_thruster",
+        position_body_m=(23.406, 0.0),
+        orientation_body_rad=0.5 * math.pi,
+        min_force_n=-20.0e3,
+        max_force_n=20.0e3,
+    ),
+)
 
-def _layout_asset(asset_id: str, actuators: tuple[ActuatorSpec, ...], basis: str) -> ActuatorLayoutAsset:
-    """Construct a mock-trust layout asset with content-derived integrity hash."""
+
+def _layout_asset(
+    asset_id: str,
+    actuators: tuple[ActuatorSpec, ...],
+    basis: str,
+    trust_level: AssetTrustLevel = AssetTrustLevel.MOCK,
+    source_type: str = "mock",
+    provenance: Mapping[str, Any] | None = None,
+) -> ActuatorLayoutAsset:
+    """Construct a content-addressed layout asset with declared trust and provenance."""
+    metadata_provenance: dict[str, Any] = {"standard_basis": basis, "created_by": "modular_gnc"}
+    if provenance is not None:
+        metadata_provenance.update(provenance)
     return ActuatorLayoutAsset(
         metadata=AssetMetadata(
             asset_id=asset_id,
             asset_type="actuator_layout",
-            trust_level=AssetTrustLevel.MOCK,
-            source_type="mock",
+            trust_level=trust_level,
+            source_type=source_type,
             sha256=actuator_layout_content_sha256(actuators),
             license="MIT",
             applicability_domain=ApplicabilityDomain(),
-            provenance={"standard_basis": basis, "created_by": "modular_gnc"},
+            provenance=metadata_provenance,
             uncertainty={},
         ),
         actuators=actuators,
@@ -504,11 +565,24 @@ MAIN_ONLY_ACTUATOR_LAYOUT_V1: ActuatorLayoutAsset = _layout_asset(
     _MAIN_ONLY_ACTUATORS,
     "Synthetic single main thruster underactuated layout scaffold",
 )
+FCB45_ACTUATOR_LAYOUT_V1: ActuatorLayoutAsset = _layout_asset(
+    "fcb45_actuator_layout_v1",
+    _FCB45_ACTUATORS,
+    "45 m FCB vendor ship_config.yaml actuator layout (3x 135 kN mains + 2x 20 kN bow tunnels)",
+    trust_level=AssetTrustLevel.CALIBRATED,
+    source_type="calibrated",
+    provenance={
+        "source": "ship_config.yaml (45 m FCB vendor configuration, colleague-extracted)",
+        "applicability": "45 m FCB workboat (Lpp 44.1 m, B 8.0 m, draft 2.0 m, 220 t)",
+        "validated_for_vessel": False,
+    },
+)
 
 KNOWN_ACTUATOR_LAYOUT_ASSETS: Mapping[str, ActuatorLayoutAsset] = MappingProxyType(
     {
         "default_triple_actuator_layout_v1": DEFAULT_TRIPLE_ACTUATOR_LAYOUT_V1,
         "quad_diagonal_actuator_layout_v1": QUAD_DIAGONAL_ACTUATOR_LAYOUT_V1,
         "main_only_actuator_layout_v1": MAIN_ONLY_ACTUATOR_LAYOUT_V1,
+        "fcb45_actuator_layout_v1": FCB45_ACTUATOR_LAYOUT_V1,
     }
 )

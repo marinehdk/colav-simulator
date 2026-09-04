@@ -188,6 +188,14 @@ REGISTRY_V1 = MappingProxyType(
                 "integral_limit": {"type": "array"},
                 "allow_ideal_passthrough": {"type": "boolean"},
                 "position_mode": {"type": "boolean"},
+                "reference_shaper_enable": {"type": "boolean"},
+                "heading_rate_limit_rad_s": {"type": "number"},
+                "heading_accel_limit_rad_s2": {"type": "number"},
+                "yaw_rate_ff_gain": {"type": "number"},
+                "yaw_accel_ff_gain": {"type": "number"},
+                "yaw_limit_base_n_m": {"type": "number"},
+                "yaw_limit_speed_coeff": {"type": "number"},
+                "yaw_limit_cap_n_m": {"type": "number"},
             },
             available=True,
         ),
@@ -293,6 +301,28 @@ REGISTRY_V1 = MappingProxyType(
         ),
     }
 )
+
+# FCB45 presets (Issue #67 slice 5): distinct module identities that bind the
+# 45 m FCB workboat parameter assets to the same generic implementations and
+# schemas as their counterparts.  Parameter provenance lives in the catalog
+# (DP-10); the registry only declares interface identity.
+_augmented_registry = dict(REGISTRY_V1)
+for _fcb45_id, _generic_id in (
+    ("fcb45_3dof_plant", "generic_3dof_plant"),
+    ("fcb45_roll_4dof_plant", "generic_roll_4dof_plant"),
+    ("fcb45_marine_pid", "marine_pid"),
+):
+    _generic = _augmented_registry[_generic_id]
+    _augmented_registry[_fcb45_id] = RegistryEntry(
+        _fcb45_id,
+        _generic.role,
+        _generic.implementation_version,
+        _generic.interface_version,
+        _generic.capabilities,
+        _generic.parameter_schema,
+        _generic.available,
+    )
+REGISTRY_V1 = MappingProxyType(_augmented_registry)
 
 _PRESETS: dict[str, dict[str, Any]] = {
     "legacy_equivalent": {
@@ -463,6 +493,7 @@ KNOWN_ACTUATOR_LAYOUT_ASSET_IDS: frozenset[str] = frozenset(
         "default_triple_actuator_layout_v1",
         "quad_diagonal_actuator_layout_v1",
         "main_only_actuator_layout_v1",
+        "fcb45_actuator_layout_v1",
     }
 )
 
@@ -691,13 +722,15 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
     _validate_allocator_layout_asset(modules)
     _validate_actuator_profile(modules, normalized["scheduler"])
 
-    if "controller" in modules and modules["controller"].identity == "marine_pid":
+    if "controller" in modules and modules["controller"].identity in ("marine_pid", "fcb45_marine_pid"):
         from colav_simulator.modular_gnc.controller import MarinePIDConfig  # noqa: PLC0415
 
         try:
             MarinePIDConfig.from_params(modules["controller"].parameters)
         except (ValueError, TypeError) as exc:
-            raise UnsupportedModuleCombinationError(f"invalid marine_pid parameters: {exc}") from exc
+            raise UnsupportedModuleCombinationError(
+                f"invalid {modules['controller'].identity} parameters: {exc}"
+            ) from exc
 
     scheduler = normalized["scheduler"]
     if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in scheduler.values()):
@@ -705,7 +738,8 @@ def normalize_ship_modules(config: Mapping[str, Any]) -> ShipModulesConfig:
 
     if (
         "plant" in modules
-        and modules["plant"].identity in ("generic_3dof_plant", "generic_roll_4dof_plant")
+        and modules["plant"].identity
+        in ("generic_3dof_plant", "generic_roll_4dof_plant", "fcb45_3dof_plant", "fcb45_roll_4dof_plant")
         and scheduler.get("plant_period_ticks") != 1
     ):
         plant_id = modules["plant"].identity
