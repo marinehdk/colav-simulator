@@ -14,8 +14,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
 from conftest import PROJECT_ROOT
 
+from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.runner import ExperimentRunner
 from gui_server.main import SessionCreateRequest
 
@@ -23,9 +25,12 @@ FCB45_STACK_ID = "fcb45_3dof_plant+pass_through_guidance+fcb45_marine_pid"
 MAX_RETURN_XTE_M = 50.0
 MAX_ROUTE_CROSSINGS = 2
 MIN_ENCOUNTER_CENTER_DISTANCE_M = 180.0
+# One full heading circle in the post-CPA recovery window is the circling
+# evidence threshold: a clean turn-back sweeps well under 180 degrees.
+FULL_CIRCLE_SWEEP_DEG = 360.0
 
 
-def test_gui_default_head_on_session_returns_to_route(tmp_path) -> None:
+def _gui_default_head_on_spec(tmp_path) -> RunSpec:
     spec = SessionCreateRequest(
         scenario_id="head_on",
         validation_rule_id="rule14",
@@ -33,7 +38,11 @@ def test_gui_default_head_on_session_returns_to_route(tmp_path) -> None:
         tracker_id="god",
         gnc_stack_id=FCB45_STACK_ID,
     ).to_spec()
-    spec = replace(spec, output_root=str(tmp_path / "runs"))
+    return replace(spec, output_root=str(tmp_path / "runs"))
+
+
+def test_gui_default_head_on_session_returns_to_route(tmp_path) -> None:
+    spec = _gui_default_head_on_spec(tmp_path)
     assert spec.t_end is None, "precondition: shipped scenario t_end must apply"
 
     result = ExperimentRunner(PROJECT_ROOT).run(spec)
@@ -48,3 +57,20 @@ def test_gui_default_head_on_session_returns_to_route(tmp_path) -> None:
     assert return_voyage["sample_count"] > 0, "600 s must cover CPA + 240 s return window"
     assert return_voyage["max_abs_xte_m"] <= MAX_RETURN_XTE_M, return_voyage
     assert return_voyage["route_crossings"] <= MAX_ROUTE_CROSSINGS, return_voyage
+
+
+@pytest.mark.xfail(
+    reason="VO recovery currently draws one full portward circle (~450 deg gross sweep, "
+    "identical under the acceptance profile): the route direction stays masked past "
+    "CPA and the selected candidate rotates. Known Issue #67 follow-up; this gate "
+    "goes green when the recovery tuning removes the circle.",
+    strict=False,
+)
+def test_gui_default_head_on_recovery_rotation_stays_below_one_circle(tmp_path) -> None:
+    spec = _gui_default_head_on_spec(tmp_path)
+    result = ExperimentRunner(PROJECT_ROOT).run(spec)
+
+    recovery = result.evaluation.voyage["recovery_voyage"]
+    assert recovery is not None
+    assert recovery["heading_gross_sweep_deg"] is not None
+    assert recovery["heading_gross_sweep_deg"] < FULL_CIRCLE_SWEEP_DEG, recovery

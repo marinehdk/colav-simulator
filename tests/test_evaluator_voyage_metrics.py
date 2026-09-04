@@ -13,6 +13,7 @@ import pytest
 from colav_simulator.common.vessel_data import VesselData
 from colav_simulator.evaluation import Evaluator
 from colav_simulator.evaluation.voyage import (
+    recovery_rotation_metrics,
     route_line_crossings,
     signed_cross_track_errors_m,
 )
@@ -42,6 +43,31 @@ def vessel(
         first_valid_idx=0,
         last_valid_idx=samples - 1,
         travel_dist=float(np.linalg.norm([east[-1] - east[0], north[-1] - north[0]])),
+    )
+
+
+def vessel_with_courses(
+    identifier: int,
+    east: np.ndarray,
+    north: np.ndarray,
+    courses_rad: np.ndarray,
+    *,
+    timestamps: np.ndarray | None = None,
+) -> VesselData:
+    samples = east.size
+    times = timestamps if timestamps is not None else np.arange(samples, dtype=float)
+    return VesselData(
+        id=identifier,
+        mmsi=100 + identifier,
+        length=20.0,
+        width=5.0,
+        draft=2.0,
+        xy=np.vstack((east, north)),
+        sog=np.ones(samples),
+        cog=courses_rad,
+        timestamps=times,
+        first_valid_idx=0,
+        last_valid_idx=samples - 1,
     )
 
 
@@ -99,6 +125,103 @@ def test_route_line_crossings_counts_full_sign_flips_with_hysteresis() -> None:
     assert route_line_crossings(np.array([30.0, 0.0, -30.0]), 5.0) == 1
     # Dither inside the hysteresis band: never a crossing.
     assert route_line_crossings(np.array([4.0, -4.0, 4.0, -4.0]), 5.0) == 0
+
+
+# ---------------------------------------------------------------------------
+# Recovery-window heading rotation (post-CPA circling evidence).
+# ---------------------------------------------------------------------------
+
+
+def test_recovery_rotation_counts_gross_sweep_and_net_rotation() -> None:
+    # Heading walks 0 -> 90 -> 180 -> 90 -> 0 degrees inside the window:
+    # gross sweep 360, net rotation 0 (out-and-back, no full circle committed).
+    times = np.arange(5.0) * 10.0
+    courses = np.deg2rad(np.array([0.0, 90.0, 180.0, 90.0, 0.0]))
+    ownship = vessel_with_courses(0, np.zeros(5), times * 10.0, courses, timestamps=times)
+
+    block = recovery_rotation_metrics(ownship, cpa_time_s=0.0, buffer_s=240.0)
+
+    assert block["heading_gross_sweep_deg"] == pytest.approx(360.0)
+    assert block["heading_net_rotation_deg"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_recovery_rotation_of_a_full_circle_is_gross_360_net_360() -> None:
+    courses = np.deg2rad(np.arange(0.0, 361.0, 45.0))
+    times = np.arange(courses.size) * 10.0
+    ownship = vessel_with_courses(0, np.zeros(courses.size), times * 10.0, courses, timestamps=times)
+
+    block = recovery_rotation_metrics(ownship, cpa_time_s=0.0, buffer_s=240.0)
+
+    assert block["heading_gross_sweep_deg"] == pytest.approx(360.0)
+    assert block["heading_net_rotation_deg"] == pytest.approx(360.0)
+
+
+def test_recovery_rotation_excludes_samples_outside_window() -> None:
+    # One 90-degree turn inside the CPA window, one outside (after the buffer):
+    # only the in-window turn counts.
+    times = np.array([0.0, 10.0, 250.0, 260.0])
+    courses = np.deg2rad(np.array([0.0, 90.0, 90.0, 180.0]))
+    ownship = vessel_with_courses(0, np.zeros(4), times * 10.0, courses, timestamps=times)
+
+    block = recovery_rotation_metrics(ownship, cpa_time_s=0.0, buffer_s=240.0)
+
+    assert block["heading_gross_sweep_deg"] == pytest.approx(90.0)
+    assert block["heading_net_rotation_deg"] == pytest.approx(90.0)
+
+
+def test_recovery_rotation_reports_window_xte_and_missing_cog() -> None:
+    route_ne = np.array([[0.0, 0.0], [800.0, 0.0]])
+    times = np.array([0.0, 10.0, 20.0])
+    east = np.array([0.0, 40.0, 10.0])
+    ownship = vessel_with_courses(0, east, times * 10.0, np.zeros(3), timestamps=times)
+
+    block = recovery_rotation_metrics(ownship, route_ne=route_ne, cpa_time_s=0.0, buffer_s=240.0)
+
+    assert block["max_abs_xte_m"] == pytest.approx(40.0, abs=1e-9)
+
+    empty = VesselData(id=1, timestamps=np.empty(0), cog=np.empty(0), xy=np.empty((2, 0)))
+    absent = recovery_rotation_metrics(empty, cpa_time_s=0.0, buffer_s=240.0)
+    assert absent["heading_gross_sweep_deg"] is None
+    assert absent["max_abs_xte_m"] is None
+
+
+def test_voyage_section_carries_recovery_block_alongside_return_block() -> None:
+    times = np.arange(5.0) * 10.0
+    courses = np.deg2rad(np.array([0.0, 45.0, 90.0, 45.0, 0.0]))
+    east = np.array([0.0, 30.0, 60.0, 30.0, 0.0])
+    ownship = vessel_with_courses(0, east, times * 10.0, courses, timestamps=times)
+    target = vessel(1, np.full(5, 310.0), np.full(5, 0.0), 0.0, 0.0, timestamps=times)
+    route_ne = np.array([[0.0, 0.0], [400.0, 0.0]])
+
+    result = Evaluator().evaluate(
+        [ownship, target],
+        execution_context={
+            "ownship_route_waypoints_ne": route_ne.tolist(),
+            "return_window_buffer_s": 20.0,
+        },
+    )
+
+    recovery = result.voyage["recovery_voyage"]
+    assert recovery is not None
+    # Sampled CPA against the fixed target is at t=10 s (closest of the five
+    # sample pairs), so the recovery window is [10, 30] s.
+    assert recovery["cpa_time_s"] == pytest.approx(10.0)
+    assert recovery["window_end_s"] == pytest.approx(30.0)
+    assert recovery["heading_gross_sweep_deg"] == pytest.approx(90.0)
+    assert recovery["max_abs_xte_m"] == pytest.approx(60.0, abs=1e-9)
+    assert result.voyage["return_voyage"] is not None
+    document = result.to_dict()
+    assert document["voyage"]["recovery_voyage"]["heading_gross_sweep_deg"] == pytest.approx(90.0)
+
+
+def test_voyage_section_recovery_block_absent_without_route_context() -> None:
+    times = np.arange(3.0)
+    ownship = vessel(0, np.zeros(3), times * 10.0, 10.0, 0.0, timestamps=times)
+    target = vessel(1, np.array([80.0, 80.0, 80.0]), times * 10.0, 10.0, np.pi / 2.0, timestamps=times)
+
+    result = Evaluator().evaluate([ownship, target])
+
+    assert result.voyage["recovery_voyage"] is None
 
 
 # ---------------------------------------------------------------------------

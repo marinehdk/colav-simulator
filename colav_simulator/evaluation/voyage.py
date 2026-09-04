@@ -191,6 +191,57 @@ def return_voyage_metrics(
     return document
 
 
+def recovery_rotation_metrics(
+    ownship: VesselData,
+    *,
+    route_ne: np.ndarray | None = None,
+    cpa_time_s: float | None = None,
+    buffer_s: float = RETURN_WINDOW_BUFFER_S,
+) -> dict[str, Any]:
+    """Return the post-CPA recovery-window heading-rotation block.
+
+    The recovery window tiles the gap the return window does not look at:
+    it spans CPA time to CPA time + ``buffer_s`` (where the return-voyage
+    window begins). Evidence captured here: cumulative (gross) heading
+    rotation and signed net rotation from the course-over-ground track, plus
+    the maximum |XTE| against the mission route inside the window. A clean
+    turn-back sweeps a few tens of degrees; a full recovery circle sweeps
+    ~360 degrees gross with ~0 net; the horizon-wrap mode sweeps multiples
+    of 360 degrees.
+    """
+    anchor = cpa_time_s if cpa_time_s is not None else float(ownship.timestamps[ownship.first_valid_idx])
+    window_start = float(anchor)
+    window_end = float(anchor + buffer_s)
+    document: dict[str, Any] = {
+        "cpa_time_s": float(cpa_time_s) if cpa_time_s is not None else None,
+        "window_start_s": window_start,
+        "window_end_s": window_end,
+        "heading_gross_sweep_deg": None,
+        "heading_net_rotation_deg": None,
+        "max_abs_xte_m": None,
+    }
+    timestamps = np.asarray(ownship.timestamps, dtype=float)
+    cog = np.asarray(ownship.cog, dtype=float)
+    if cog.size != timestamps.size:
+        return document
+    valid = np.isfinite(timestamps) & np.isfinite(cog)
+    in_window = valid & (timestamps >= window_start) & (timestamps <= window_end)
+    if np.count_nonzero(in_window) < 2:
+        return document
+    heading_rad = np.unwrap(cog[in_window])
+    deltas = np.diff(heading_rad)
+    document["heading_gross_sweep_deg"] = float(np.degrees(np.sum(np.abs(deltas))))
+    document["heading_net_rotation_deg"] = float(np.degrees(np.sum(deltas)))
+    if route_ne is not None:
+        route = np.atleast_2d(np.asarray(route_ne, dtype=float))
+        if route.shape[0] >= 2:
+            positions_ne = np.vstack((ownship.xy[1, in_window], ownship.xy[0, in_window])).T
+            signed = signed_cross_track_errors_m(positions_ne, route)
+            finite = np.isfinite(signed)
+            document["max_abs_xte_m"] = float(np.max(np.abs(signed[finite]))) if finite.any() else None
+    return document
+
+
 def voyage_metrics_section(
     vessels: list[VesselData],
     pair_results: list[PairEvaluation],
@@ -202,18 +253,25 @@ def voyage_metrics_section(
         result for result in pair_results if OWNSHIP_ID in {result.ownship_id, result.target_id}
     ]
     cpa_time_s = max((result.cpa_time_s for result in ownship_pairs), default=None)
+    recovery_voyage = None
     return_voyage = None
     route = _route_from_context(context.get("ownship_route_waypoints_ne"))
     if route is not None:
         ownship = next((vessel for vessel in vessels if vessel.id == OWNSHIP_ID), None)
         if ownship is not None:
+            recovery_voyage = recovery_rotation_metrics(
+                ownship,
+                route_ne=route,
+                cpa_time_s=cpa_time_s,
+                buffer_s=float(context.get("return_window_buffer_s", RETURN_WINDOW_BUFFER_S)),
+            )
             return_voyage = return_voyage_metrics(
                 ownship,
                 route,
                 cpa_time_s=cpa_time_s,
                 buffer_s=float(context.get("return_window_buffer_s", RETURN_WINDOW_BUFFER_S)),
             )
-    return {"encounter": encounter, "return_voyage": return_voyage}
+    return {"encounter": encounter, "recovery_voyage": recovery_voyage, "return_voyage": return_voyage}
 
 
 def _route_from_context(value: Any) -> np.ndarray | None:
