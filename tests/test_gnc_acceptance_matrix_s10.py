@@ -1,7 +1,7 @@
 """Issue #68 S10 FCB45 full-stack acceptance matrix: OT/HO/CS x VO/Fan-MPC/Mid-MPC.
 
 Each cell injects the FCB45 ownship GNC stack
-(fcb45_3dof_plant+pass_through_guidance+fcb45_marine_pid, ideal actuator)
+(4DOF plant + ILOS + FCB45 PID + resolved main/rudder actuators + environment)
 plus the acceptance spacing profile (config/acceptance_issue67_*.yaml) and
 must satisfy the Issue #67 gate with spec-sourced thresholds:
 
