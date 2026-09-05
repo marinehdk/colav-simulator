@@ -1,4 +1,4 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260903-gnc-step4-v9';
+import { createValidationAssembly } from './validation-assembly.js?v=20260905-gnc-s10-v1';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260901-static-once-v1';
 import { createSituationDisplay } from './situation-display.js?v=20260831-vessel-risk-label-v4';
 
@@ -834,6 +834,7 @@ function renderYamlContract(draft) {
 // parses stack_id strings, or hardcodes module identities.
 const GNC_LEGACY_OPTION = 'legacy';
 const GNC_NONE_LAYOUT_OPTION = 'none';
+const GNC_NONE_ENVIRONMENT_OPTION = 'none';
 let gncStackCatalog = null;
 // Shell-local ladder state while the operator composes one module per axis.
 // null means Legacy (no modular plant chosen); the authoritative binding is
@@ -896,6 +897,7 @@ function gncSelectionFromStack(entry) {
     controller: identityByRole.controller || null,
     layout: identityByRole.allocator ? (gncStackLayoutAssetId(entry) || GNC_NONE_LAYOUT_OPTION) : GNC_NONE_LAYOUT_OPTION,
     resolved: Boolean(identityByRole.actuator),
+    environment: identityByRole.environment || null,
   };
 }
 
@@ -907,6 +909,13 @@ function gncStackMatchesSelection(entry, selection) {
   if (selection.plant && identityByRole.plant !== selection.plant) return false;
   if (selection.guidance && identityByRole.guidance !== selection.guidance) return false;
   if (selection.controller && identityByRole.controller !== selection.controller) return false;
+  if (Object.prototype.hasOwnProperty.call(selection, 'environment')) {
+    if (selection.environment === null || selection.environment === GNC_NONE_ENVIRONMENT_OPTION) {
+      if (identityByRole.environment) return false;
+    } else if (identityByRole.environment !== selection.environment) {
+      return false;
+    }
+  }
   if (selection.layout === GNC_NONE_LAYOUT_OPTION) {
     if (identityByRole.allocator) return false;
     return true;
@@ -923,7 +932,8 @@ function gncCompletedSelection(selection) {
   return Boolean(
     selection
     && selection.plant && selection.guidance && selection.controller
-    && selection.layout,
+    && selection.layout
+    && Object.prototype.hasOwnProperty.call(selection, 'environment'),
   );
 }
 
@@ -937,7 +947,7 @@ function gncStackForSelection(selection) {
 function gncOptionEnabled(axis, value) {
   if (!gncStackCatalog) return false;
   if (axis === 'plant') return Boolean(gncRecommendedStackForPlant(value));
-  const probe = { ...(gncSelection || { plant: null, guidance: null, controller: null, layout: null, resolved: false }) };
+  const probe = { ...(gncSelection || { plant: null, guidance: null, controller: null, layout: null, resolved: false, environment: null }) };
   if (axis === 'resolved') {
     if (!probe.layout || probe.layout === GNC_NONE_LAYOUT_OPTION) return false;
     probe.resolved = value;
@@ -955,6 +965,7 @@ function commitGncStackId(stackId) {
 }
 
 function selectGncOption(axis, value) {
+  if (axis === 'environment' && value === GNC_NONE_ENVIRONMENT_OPTION) value = null;
   if (axis === 'plant' && value === GNC_LEGACY_OPTION) {
     gncSelection = null;
     commitGncStackId(null);
@@ -970,7 +981,7 @@ function selectGncOption(axis, value) {
     return;
   }
   const previous = gncSelection;
-  const next = { ...(gncSelection || { plant: null, guidance: null, controller: null, layout: null, resolved: false }) };
+  const next = { ...(gncSelection || { plant: null, guidance: null, controller: null, layout: null, resolved: false, environment: null }) };
   if (axis === 'layout') {
     // Re-clicking the same layout keeps the resolved add-on; switching drops it.
     next.resolved = next.layout === value ? Boolean(next.resolved) : false;
@@ -1126,12 +1137,21 @@ function renderGncAxisChoices(snapshot) {
     card.dataset.gncOptionId = option.layout_asset_id;
     return card;
   }), 'actuation');
-  gncRenderCards('gncEnvironmentChoices', [makeChoiceCard({
-    id: 'calm_water',
-    name: 'Calm water (default)',
-    desc: 'V2 adds wind, current, and waves; this axis stays reserved.',
-    grade: 'Locked',
-  }, { enabled: false, selected: true })]);
+  gncRenderCards('gncEnvironmentChoices', axes.environment.map((option) => {
+    const optionId = option.identity ?? GNC_NONE_ENVIRONMENT_OPTION;
+    const card = makeChoiceCard({
+      id: optionId,
+      name: option.display_name,
+      desc: option.models,
+      grade: option.tier === 0 ? 'Default' : `Tier ${option.tier}`,
+    }, {
+      enabled: modular && !locked && gncOptionEnabled('environment', optionId),
+      selected: Boolean(modular && selection.environment === option.identity),
+    });
+    card.dataset.gncAxis = 'environment';
+    card.dataset.gncOptionId = optionId;
+    return card;
+  }));
 }
 
 function createStatusText(snapshot) {

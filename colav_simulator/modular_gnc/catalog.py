@@ -51,6 +51,8 @@ ACCEPTANCE_EVIDENCE_BY_IDENTITY: Mapping[str, str] = MappingProxyType(
         "marine_pid": "controller_contract",
         "data_driven_allocator": "module_closed_loop_contract",
         "resolved_actuator_dynamics": "module_closed_loop_contract",
+        "analytic_environment_field": "module_closed_loop_contract",
+        "standard_environmental_load": "module_closed_loop_contract",
         # FCB45 presets run the same implementations as their counterparts, so
         # they claim the same interface/module evidence; vessel-parameter
         # credibility is carried separately by parameter_provenance (DP-10).
@@ -83,6 +85,8 @@ _DISPLAY_NAMES: Mapping[str, str] = MappingProxyType(
         "fcb45_3dof_plant": "FCB45 3DOF plant (45 m workboat)",
         "fcb45_roll_4dof_plant": "FCB45 4DOF plant with roll (45 m workboat)",
         "fcb45_marine_pid": "FCB45 marine PID (45 m workboat gains)",
+        "analytic_environment_field": "Analytic wind / current / waves",
+        "standard_environmental_load": "Standard environmental load model",
     }
 )
 
@@ -92,15 +96,40 @@ _DISPLAY_NAMES: Mapping[str, str] = MappingProxyType(
 # and never claims vessel validation.
 _PARAMETER_PROVENANCE_BY_IDENTITY: Mapping[str, Mapping[str, object]] = MappingProxyType(
     {
-        identity: MappingProxyType(
+        **{
+            identity: MappingProxyType(
+                {
+                    "level": "calibrated_from_vendor_config",
+                    "source": "ship_config.yaml (45 m FCB vendor configuration, colleague-extracted)",
+                    "applicability": "45 m FCB workboat (Lpp 44.1 m, B 8.0 m, draft 2.0 m, 220 t)",
+                    "validated_for_vessel": False,
+                }
+            )
+            for identity in ("fcb45_3dof_plant", "fcb45_roll_4dof_plant", "fcb45_marine_pid")
+        },
+        "analytic_environment_field": MappingProxyType(
             {
-                "level": "calibrated_from_vendor_config",
-                "source": "ship_config.yaml (45 m FCB vendor configuration, colleague-extracted)",
-                "applicability": "45 m FCB workboat (Lpp 44.1 m, B 8.0 m, draft 2.0 m, 220 t)",
+                "level": "scenario_assumption",
+                "source": "S10 FCB45 moderate operating-area scenario preset",
+                "applicability": (
+                    "OCIMF MEG4 wind table is applicable to double-hull tankers >=16000 DWT; "
+                    "not extrapolated as FCB45 vessel validation; Af/Al are C-grade assumptions."
+                ),
                 "validated_for_vessel": False,
             }
-        )
-        for identity in ("fcb45_3dof_plant", "fcb45_roll_4dof_plant", "fcb45_marine_pid")
+        ),
+        "standard_environmental_load": MappingProxyType(
+            {
+                "level": "calibrated_from_vendor_config",
+                "source": "ship_config.yaml geometry with S10 environmental-load scenario assumptions",
+                "applicability": (
+                    "OCIMF MEG4 wind table is applicable to double-hull tankers >=16000 DWT; "
+                    "not extrapolated as FCB45 vessel validation; Af/Al are C-grade assumptions; "
+                    "draft 2.0 m rather than colleague reference 1.55 m."
+                ),
+                "validated_for_vessel": False,
+            }
+        ),
     }
 )
 
@@ -216,6 +245,28 @@ _MODULE_AXIS_COPY: Mapping[str, Mapping[str, str]] = MappingProxyType(
                 "expected_effect": "Roll oscillates around the restoring equilibrium while yaw/surge stay controlled.",
             }
         ),
+        "analytic_environment_field": MappingProxyType(
+            {
+                "models": (
+                    "Analytic wind, current, and deterministic JONSWAP wave field with directional spread."
+                ),
+                "expected_effect": (
+                    "Injects repeatable wind/current/wave disturbances; paired with "
+                    "standard_environmental_load for body-frame loads."
+                ),
+            }
+        ),
+        "standard_environmental_load": MappingProxyType(
+            {
+                "models": (
+                    "Standard body-frame wind, external-current, first-order wave, and mean-drift vessel loads."
+                ),
+                "expected_effect": (
+                    "Applies environmental forces and moments to the plant; configured for external current "
+                    "and both wave load components."
+                ),
+            }
+        ),
         "fcb45_marine_pid": MappingProxyType(
             {
                 "models": (
@@ -275,6 +326,17 @@ _ACTUATION_LAYOUTS: tuple[Mapping[str, str], ...] = (
             ),
         }
     ),
+    MappingProxyType(
+        {
+            "layout_asset_id": "fcb45_main_rudder_actuator_layout_v1",
+            "display_name": "FCB45 main + rudder layout",
+            "drive_nature": "fully actuated",
+            "expected_effect": (
+                "Three 135 kN mains plus two independent force-bounded rudders provide surge, sway, and yaw "
+                "authority; rudders are statically linearised at service speed and are not vessel validated."
+            ),
+        }
+    ),
 )
 _ALLOCATOR_MODELS_COPY = (
     "Allocation of generalized forces to actuators by minimum norm; the layout asset is a synthetic mock asset."
@@ -299,6 +361,16 @@ def _axis_entry(identity: str, tier: int, display_name: str | None = None) -> di
 def _module_axes() -> dict[str, Any]:
     """Return the per-axis option ladders consumed by the Config step 04 UI."""
     return {
+        "environment": [
+            {
+                "identity": None,
+                "display_name": "Calm water (default)",
+                "tier": 0,
+                "models": "No environment modules; calm-water behavior is the catalog default.",
+                "expected_effect": "No environmental wind, current, or wave loads are applied.",
+            },
+            _axis_entry("analytic_environment_field", 1),
+        ],
         "plant": [
             _axis_entry("pass_through_plant", 0),
             _axis_entry("generic_3dof_plant", 1),
@@ -460,6 +532,34 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
         # ki = 700.
         # Shaper limits: 0.05 rad/s (~2.9 deg/s ROT), 0.02 rad/s^2.  Moment cap:
         # vendor Mz(u) = min(9.6e5, 3.6e5 + 2500*u^2) N.m.
+        "analytic_environment_field": MappingProxyType(
+            {
+                "wind_velocity_ne": (6.0, 2.0),
+                "wind_perturbation_std": (0.5, 0.5),
+                "current_velocity_ne": (0.4, -0.2),
+                "current_perturbation_std": (0.1, 0.1),
+                "wave_significant_height_m": 1.0,
+                "wave_peak_period_s": 7.0,
+                "wave_num_components": 24,
+                "wave_directional_spread_rad": 0.3,
+            }
+        ),
+        "standard_environmental_load": MappingProxyType(
+            {
+                "length_between_perpendiculars_m": 44.1,
+                "beam_m": 8.0,
+                "draft_m": 2.0,
+                "wind_frontal_area_m2": 45.0,
+                "wind_lateral_area_m2": 180.0,
+                "displacement_ton": 220.0,
+                "gm_t_m": 1.5,
+                "kg_m": 2.2,
+                "current_strategy": "external_current_load",
+                "wave_mode": "both",
+                "wave_first_order_asset_id": "default_inferred_wave_response_v1",
+                "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
+            }
+        ),
         "fcb45_marine_pid": MappingProxyType(
             {
                 "kp": (11492.0, 7000.0, 2826560.0),
@@ -632,34 +732,44 @@ def _candidate_configs() -> Iterable[Mapping[str, Any]]:
                     for with_actuator in (False, True):
                         if with_actuator and layout is None:
                             continue
-                        modules: dict[str, dict[str, Any]] = {
-                            "plant": {
-                                "identity": plant,
-                                "parameters": dict(_CANONICAL_MODULE_PARAMETERS.get(plant, {})),
-                            },
-                            "guidance": {
-                                "identity": guidance,
-                                "parameters": dict(_CANONICAL_MODULE_PARAMETERS.get(guidance, {})),
-                            },
-                            "controller": {
-                                "identity": controller,
-                                "parameters": dict(_CANONICAL_MODULE_PARAMETERS.get(controller, {})),
-                            },
-                        }
-                        candidate: dict[str, Any] = {"preset": "legacy_equivalent", "modules": modules}
-                        if layout is not None:
-                            modules["allocator"] = {
-                                "identity": "data_driven_allocator",
-                                "parameters": {"layout_asset_id": layout},
+                        for with_environment in (False, True):
+                            modules: dict[str, dict[str, Any]] = {
+                                "plant": {
+                                    "identity": plant,
+                                    "parameters": dict(_CANONICAL_MODULE_PARAMETERS.get(plant, {})),
+                                },
+                                "guidance": {
+                                    "identity": guidance,
+                                    "parameters": dict(_CANONICAL_MODULE_PARAMETERS.get(guidance, {})),
+                                },
+                                "controller": {
+                                    "identity": controller,
+                                    "parameters": dict(_CANONICAL_MODULE_PARAMETERS.get(controller, {})),
+                                },
                             }
-                            if with_actuator:
-                                modules["actuator"] = {
-                                    "identity": "resolved_actuator_dynamics",
-                                    "parameters": _resolved_actuator_parameters(layout),
+                            candidate: dict[str, Any] = {"preset": "legacy_equivalent", "modules": modules}
+                            if with_environment:
+                                modules["environment"] = {
+                                    "identity": "analytic_environment_field",
+                                    "parameters": dict(_CANONICAL_MODULE_PARAMETERS["analytic_environment_field"]),
                                 }
-                                # Resolved actuator dynamics is a discrete phase on the base clock.
-                                candidate["overrides"] = {"scheduler": {"controller_period_ticks": 1}}
-                        yield candidate
+                                modules["load_model"] = {
+                                    "identity": "standard_environmental_load",
+                                    "parameters": dict(_CANONICAL_MODULE_PARAMETERS["standard_environmental_load"]),
+                                }
+                            if layout is not None:
+                                modules["allocator"] = {
+                                    "identity": "data_driven_allocator",
+                                    "parameters": {"layout_asset_id": layout},
+                                }
+                                if with_actuator:
+                                    modules["actuator"] = {
+                                        "identity": "resolved_actuator_dynamics",
+                                        "parameters": _resolved_actuator_parameters(layout),
+                                    }
+                                    # Resolved actuator dynamics is a discrete phase on the base clock.
+                                    candidate["overrides"] = {"scheduler": {"controller_period_ticks": 1}}
+                            yield candidate
 
 
 def _product_transit_compatible(config: ShipModulesConfig, supported_tasks: Iterable[ControlTask]) -> bool:

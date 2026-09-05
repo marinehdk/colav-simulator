@@ -808,6 +808,29 @@ DEFAULT_INFERRED_CURRENT_ASSET = InferredCurrentAsset(
     )
 )
 
+DEFAULT_INFERRED_FCB45_CURRENT_ASSET = InferredCurrentAsset(
+    metadata=AssetMetadata(
+        asset_id="current_inferred_fcb45_v1",
+        asset_type="current_inferred_crossflow",
+        trust_level=AssetTrustLevel.INFERRED,
+        source_type="inferred",
+        sha256="fca4c77bda27a37668602b81ca77611a6b66e3ac04f5062ef144c867115e03f0",
+        license="MIT",
+        applicability_domain=ApplicabilityDomain(
+            heading_range_deg=(0.0, 360.0),
+            speed_range_mps=(0.0, 30.0),
+            draft_range_m=(1.5, 30.0),
+        ),
+        provenance={
+            "standard_basis": "Fossen relative cross-flow formulation",
+            "created_by": "modular_gnc",
+            "applicability_note": "S10 FCB45 service-speed scenario; inferred and not vessel validated.",
+        },
+        uncertainty={"crossflow_cd_std": 0.1},
+    )
+)
+
+
 DEFAULT_INFERRED_WAVE_RESPONSE_ASSET = InferredWaveResponseAsset(
     metadata=AssetMetadata(
         asset_id="default_inferred_wave_response_v1",
@@ -1899,6 +1922,11 @@ def _validate_load_model_wave_assets(
 class EnvironmentalLoadModel:
     """Plant-side environmental load model with explicit component summation and current de-duplication (VR-09, VR-10)."""
 
+    def __deepcopy__(self, memo: dict[int, Any]) -> EnvironmentalLoadModel:
+        """Reuse immutable load-model assets while cloning generated episodes."""
+        memo[id(self)] = self
+        return self
+
     def __init__(  # noqa: PLR0912, PLR0915
         self,
         vessel_params: VesselEnvironmentalParameters,
@@ -2866,9 +2894,17 @@ class EnvironmentalLoadModel:
             wave_mode=wave_mode,
             wind_asset=DEFAULT_OCIMF_WIND_ASSET if enable_wind else None,
             current_asset=(
-                DEFAULT_INFERRED_CURRENT_ASSET
-                if (enable_current and strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD)
-                else None
+                DEFAULT_INFERRED_FCB45_CURRENT_ASSET
+                if (
+                    enable_current
+                    and strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD
+                    and params.get("draft_m") == 2.0
+                )
+                else (
+                    DEFAULT_INFERRED_CURRENT_ASSET
+                    if (enable_current and strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD)
+                    else None
+                )
             ),
             wave_first_order_asset=wave_1st_asset,
             wave_mean_drift_asset=wave_drift_asset,

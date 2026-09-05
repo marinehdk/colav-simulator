@@ -521,6 +521,30 @@ _FCB45_ACTUATORS: tuple[ActuatorSpec, ...] = (
     ),
 )
 
+# Phase-one FCB45 main + rudder layout: rudders are force-bounded equivalent
+# lateral actuators linearised at service speed.  The two rudders remain
+# independent columns while the existing least-norm allocator supplies the
+# symmetric baseline command.
+_FCB45_MAIN_RUDDER_ACTUATORS: tuple[ActuatorSpec, ...] = (
+    *_FCB45_ACTUATORS[:3],
+    ActuatorSpec(
+        actuator_id="rudder_port",
+        kind="rudder",
+        position_body_m=(-19.594, -3.0),
+        orientation_body_rad=-0.5 * math.pi,
+        min_force_n=-180.0e3,
+        max_force_n=180.0e3,
+    ),
+    ActuatorSpec(
+        actuator_id="rudder_starboard",
+        kind="rudder",
+        position_body_m=(-19.594, 3.0),
+        orientation_body_rad=-0.5 * math.pi,
+        min_force_n=-180.0e3,
+        max_force_n=180.0e3,
+    ),
+)
+
 
 def _layout_asset(
     asset_id: str,
@@ -577,6 +601,37 @@ FCB45_ACTUATOR_LAYOUT_V1: ActuatorLayoutAsset = _layout_asset(
         "validated_for_vessel": False,
     },
 )
+FCB45_MAIN_RUDDER_ACTUATOR_LAYOUT_V1: ActuatorLayoutAsset = _layout_asset(
+    "fcb45_main_rudder_actuator_layout_v1",
+    _FCB45_MAIN_RUDDER_ACTUATORS,
+    "45 m FCB vendor ship_config.yaml actuator layout (3x 135 kN mains + 2x force-bounded rudders)",
+    trust_level=AssetTrustLevel.CALIBRATED,
+    source_type="calibrated",
+    provenance={
+        "source": "ship_config.yaml (45 m FCB vendor configuration, colleague-extracted)",
+        "applicability": "45 m FCB workboat (Lpp 44.1 m, B 8.0 m, draft 2.0 m, 220 t)",
+        "validated_for_vessel": False,
+        "rudder_sign_convention": "positive command produces a starboard turn",
+        "deviation_ledger": [
+            (
+                "Static service-speed rudder effectiveness: K_delta,0 = 0.5*rho*A_R*C_Lalpha*U0^2 "
+                "~= 306 kN/rad; +/-35 deg gives ~= 187 kN, capped at +/-180 kN."
+            ),
+            "No low-speed sigma(U), stall, inflow-angle derating, or propeller-wash inflow model.",
+            (
+                "Neutral actuator rate follows catalog scaffold; vendor 200 kN/s main and 0.1 rad/s rudder "
+                "(~30 kN/s force-equivalent) are recorded but not parameterized."
+            ),
+            "Bow tunnel thrusters are intentionally excluded from this 3-main + 2-rudder layout.",
+            "Independent port/starboard rudder columns are retained; symmetric least-norm allocation is the baseline.",
+            (
+                "OCIMF MEG4 wind coefficients apply to double-hull tankers >=16000 DWT and are not extrapolated "
+                "as FCB validation; Af/Al are C-grade assumptions."
+            ),
+            "Environmental draft is 2.0 m rather than colleague reference 1.55 m.",
+        ],
+    },
+)
 
 KNOWN_ACTUATOR_LAYOUT_ASSETS: Mapping[str, ActuatorLayoutAsset] = MappingProxyType(
     {
@@ -584,5 +639,6 @@ KNOWN_ACTUATOR_LAYOUT_ASSETS: Mapping[str, ActuatorLayoutAsset] = MappingProxyTy
         "quad_diagonal_actuator_layout_v1": QUAD_DIAGONAL_ACTUATOR_LAYOUT_V1,
         "main_only_actuator_layout_v1": MAIN_ONLY_ACTUATOR_LAYOUT_V1,
         "fcb45_actuator_layout_v1": FCB45_ACTUATOR_LAYOUT_V1,
+        "fcb45_main_rudder_actuator_layout_v1": FCB45_MAIN_RUDDER_ACTUATOR_LAYOUT_V1,
     }
 )

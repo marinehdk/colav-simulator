@@ -97,10 +97,11 @@ test('Summary and YAML contract expose the GNC stack binding with a Legacy defau
   assert.match(keysSlice, /'gnc_stack_id'/);
 });
 
-test('Environment axis stays a locked calm-water placeholder for V2', () => {
+test('Environment axis renders from backend module_axes and is selectable', () => {
   assert.match(html, /data-gnc-axis="environment"/);
-  assert.match(shell, /gncEnvironmentChoices/);
-  assert.match(shell, /Calm water \(default\)/);
+  assert.match(shell, /axes\.environment/);
+  assert.match(shell, /gncSelectionFromStack[\s\S]*environment/);
+  assert.doesNotMatch(shell, /grade: 'Locked'/);
 });
 
 test('GNC stack surface claims nothing beyond accepted evidence', () => {
