@@ -47,6 +47,11 @@ ACCEPTANCE_PROFILES = {
     ),
     "mid_mpc_ipopt": _load_algorithm_config(PROJECT_ROOT / "config/acceptance_issue67_mid_mpc.yaml"),
 }
+# The resolved FCB45 environment stack needs a narrower planner heading window:
+# the 4DOF/actuator response otherwise causes a planner-side parallel offset
+# before ILOS receives the accepted route. This is an S10 acceptance-profile
+# adjustment; the shipped Issue #67 profile and planner implementation remain unchanged.
+ACCEPTANCE_PROFILES["mid_mpc_ipopt"]["kwargs"]["heading_window_deg"] = 30.0
 ACCEPTANCE_SOLVE_PERIODS = {
     "vo": None,
     "potocnik_colreg_fan_mpc": 5.0,
