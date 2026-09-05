@@ -613,11 +613,15 @@ FCB45_MAIN_RUDDER_ACTUATOR_LAYOUT_V1: ActuatorLayoutAsset = _layout_asset(
         "validated_for_vessel": False,
         "rudder_sign_convention": "positive command produces a starboard turn",
         "deviation_ledger": [
+            "Static force linearization applies for the >=6 m/s operating window, with 7.8 m/s service-speed point.",
             (
                 "Static service-speed rudder effectiveness: K_delta,0 = 0.5*rho*A_R*C_Lalpha*U0^2 "
                 "~= 306 kN/rad; +/-35 deg gives ~= 187 kN, capped at +/-180 kN."
             ),
-            "No low-speed sigma(U), stall, inflow-angle derating, or propeller-wash inflow model.",
+            (
+                "Low-speed rudder authority is non-physical; no sigma(U), stall, inflow-angle derating, "
+                "or propeller-wash inflow model."
+            ),
             (
                 "Neutral actuator rate follows catalog scaffold; vendor 200 kN/s main and 0.1 rad/s rudder "
                 "(~30 kN/s force-equivalent) are recorded but not parameterized."

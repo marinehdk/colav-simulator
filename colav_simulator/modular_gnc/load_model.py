@@ -870,6 +870,11 @@ DEFAULT_INFERRED_WAVE_DRIFT_ASSET = InferredWaveDriftAsset(
     model_type=MeanDriftModel.DIAGONAL_AI2,
 )
 
+KNOWN_CURRENT_ASSETS: Mapping[str, CurrentCoeffTableAsset | InferredCurrentAsset] = {
+    "current_inferred_v1": DEFAULT_INFERRED_CURRENT_ASSET,
+    "current_inferred_fcb45_v1": DEFAULT_INFERRED_FCB45_CURRENT_ASSET,
+}
+
 KNOWN_WAVE_FIRST_ORDER_ASSETS: Mapping[str, InferredWaveResponseAsset | WaveRaoTableAsset] = {
     "default_inferred_wave_response_v1": DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
 }
@@ -1786,6 +1791,18 @@ class MeanDriftLoadModel:
         if isinstance(asset, WaveDriftTableAsset):
             return cls._calculate_tabular(wave, heading, asset)
         raise TypeError(f"Unsupported wave drift asset type: {type(asset).__name__}")
+
+
+def _resolve_current_asset(params: Mapping[str, Any]) -> CurrentCoeffTableAsset | InferredCurrentAsset:
+    """Resolve an explicit current asset id, retaining the historical default."""
+    asset_id = params.get("current_asset_id")
+    if asset_id is None:
+        return DEFAULT_INFERRED_CURRENT_ASSET
+    if not isinstance(asset_id, str) or asset_id not in KNOWN_CURRENT_ASSETS:
+        raise AssetMissingError(
+            f"Unknown current_asset_id: {asset_id} (known: {sorted(KNOWN_CURRENT_ASSETS)})"
+        )
+    return KNOWN_CURRENT_ASSETS[asset_id]
 
 
 def _resolve_current_strategy(params: dict[str, Any] | Mapping[str, Any]) -> CurrentStrategy:
@@ -2870,6 +2887,7 @@ class EnvironmentalLoadModel:
     def from_params(cls, params: dict[str, Any] | Mapping[str, Any]) -> EnvironmentalLoadModel:
         """Construct EnvironmentalLoadModel from normalized parameter dictionary."""
         strategy = _resolve_current_strategy(params)
+        current_asset = _resolve_current_asset(params)
 
         enable_wind = params.get("enable_wind", True)
         if not isinstance(enable_wind, bool):
@@ -2893,19 +2911,7 @@ class EnvironmentalLoadModel:
             current_strategy=strategy,
             wave_mode=wave_mode,
             wind_asset=DEFAULT_OCIMF_WIND_ASSET if enable_wind else None,
-            current_asset=(
-                DEFAULT_INFERRED_FCB45_CURRENT_ASSET
-                if (
-                    enable_current
-                    and strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD
-                    and params.get("draft_m") == 2.0
-                )
-                else (
-                    DEFAULT_INFERRED_CURRENT_ASSET
-                    if (enable_current and strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD)
-                    else None
-                )
-            ),
+            current_asset=(current_asset if enable_current and strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD else None),
             wave_first_order_asset=wave_1st_asset,
             wave_mean_drift_asset=wave_drift_asset,
             enable_wind=enable_wind,

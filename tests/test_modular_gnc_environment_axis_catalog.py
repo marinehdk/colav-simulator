@@ -40,6 +40,7 @@ def test_target_environment_stack_is_listed_with_explicit_external_current_and_b
     assert by_role["load_model"]["identity"] == "standard_environmental_load"
     load_params = stack["config"]["modules"]["load_model"]["parameters"]
     assert load_params["current_strategy"] == "external_current_load"
+    assert load_params["current_asset_id"] == "current_inferred_fcb45_v1"
     assert load_params["wave_mode"] == "both"
 
 

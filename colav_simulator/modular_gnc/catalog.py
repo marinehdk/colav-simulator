@@ -128,6 +128,17 @@ _PARAMETER_PROVENANCE_BY_IDENTITY: Mapping[str, Mapping[str, object]] = MappingP
                     "draft 2.0 m rather than colleague reference 1.55 m."
                 ),
                 "validated_for_vessel": False,
+                "deviation_ledger": (
+                    "Static force linearization applies in the >=6 m/s operating window, with 7.8 m/s service-speed point.",
+                    (
+                        "Low-speed rudder authority is non-physical; no sigma(U), stall, inflow-angle derating, "
+                        "or propeller-wash inflow."
+                    ),
+                    "Bow tunnel thrusters are excluded; independent rudder columns remain with synchronized baseline.",
+                    "Neutral actuator rates replace vendor 200 kN/s main and 0.1 rad/s rudder (~30 kN/s force equivalent).",
+                    "Environmental draft is 2.0 m versus colleague reference 1.55 m.",
+                    "OCIMF MEG4 wind table applies to double-hull tankers >=16000 DWT; not FCB45 validation.",
+                ),
             }
         ),
     }
@@ -343,6 +354,15 @@ _ALLOCATOR_MODELS_COPY = (
 )
 
 
+def _provenance_document(provenance: Mapping[str, object]) -> dict[str, object]:
+    """Return JSON-shaped provenance with ledger sequences exposed as lists."""
+    document = dict(provenance)
+    ledger = document.get("deviation_ledger")
+    if isinstance(ledger, tuple):
+        document["deviation_ledger"] = list(ledger)
+    return document
+
+
 def _axis_entry(identity: str, tier: int, display_name: str | None = None) -> dict[str, Any]:
     copy = _MODULE_AXIS_COPY[identity]
     entry = {
@@ -354,7 +374,7 @@ def _axis_entry(identity: str, tier: int, display_name: str | None = None) -> di
     }
     provenance = _PARAMETER_PROVENANCE_BY_IDENTITY.get(identity)
     if provenance is not None:
-        entry["parameter_provenance"] = dict(provenance)
+        entry["parameter_provenance"] = _provenance_document(provenance)
     return entry
 
 
@@ -555,6 +575,7 @@ _CANONICAL_MODULE_PARAMETERS: Mapping[str, Mapping[str, Any]] = MappingProxyType
                 "gm_t_m": 1.5,
                 "kg_m": 2.2,
                 "current_strategy": "external_current_load",
+                "current_asset_id": "current_inferred_fcb45_v1",
                 "wave_mode": "both",
                 "wave_first_order_asset_id": "default_inferred_wave_response_v1",
                 "wave_mean_drift_asset_id": "default_inferred_diagonal_drift_v1",
@@ -608,7 +629,7 @@ def _module_selections(config: ShipModulesConfig) -> list[dict[str, Any]]:
         }
         provenance = _PARAMETER_PROVENANCE_BY_IDENTITY.get(selection.identity)
         if provenance is not None:
-            record["parameter_provenance"] = dict(provenance)
+            record["parameter_provenance"] = _provenance_document(provenance)
         records.append(record)
     return records
 

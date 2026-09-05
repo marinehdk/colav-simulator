@@ -269,6 +269,7 @@ REGISTRY_V1 = MappingProxyType(
                 "enable_current": {"type": "boolean"},
                 "current_relative_damping": {"type": "boolean"},
                 "external_current_load": {"type": "boolean"},
+                "current_asset_id": {"type": "string"},
             },
         ),
         "pass_through_load_model": RegistryEntry(
