@@ -947,10 +947,23 @@ class ScenarioGenerator:
                 config.t_end - config.t_start,
             )
 
-        n_do = len(ship_list) - 1
+        # Targets spawning beyond this episode's horizon never participate in the
+        # run, so they are excluded from both the threat checks and the pruning
+        # count (an all-bad participating set keeps every ship, as below).
+        horizon_samples = os_simple_traj.shape[1]
+
+        def _participates(ship_obj: object) -> bool:
+            if ship_obj.id == 0:
+                return True
+            start_idx = int(np.floor(ship_obj.t_start / config.dt_sim))
+            return start_idx < horizon_samples
+
+        n_do = sum(1 for ship_obj in ship_list if _participates(ship_obj)) - 1
         bad_do_path_indices = []
         bad_episode = False
         for ship_obj in ship_list:
+            if not _participates(ship_obj):
+                continue
             in_safe_sea = mapf.point_in_polygon_list(
                 geometry.Point(ship_obj.csog_state[1], ship_obj.csog_state[0]),
                 self.safe_sea_cdt,
@@ -979,8 +992,8 @@ class ScenarioGenerator:
                 for wp_idx in range(1, ship_obj.waypoints.shape[1]):
                     do_path_crosses_hazards = mapf.check_if_segment_crosses_grounding_hazards(
                         enc=self.enc,
-                        p1=traj_do[:2, wp_idx - 1],
-                        p2=traj_do[:2, wp_idx],
+                        p1=ship_obj.waypoints[:, wp_idx - 1],
+                        p2=ship_obj.waypoints[:, wp_idx],
                         draft=ship_obj.draft,
                         hazards=self._sg_hazards,
                     )

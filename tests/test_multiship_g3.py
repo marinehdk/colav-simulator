@@ -22,7 +22,10 @@ def test_multiship_vo_keeps_fifty_metre_continuous_hull_clearance(
             result.session.frames[1:],
             strict=False,
         ):
-            if not first[target_key].get("active", True):
+            # Targets may enter/leave the scene mid-run (per-ship t_start/t_end):
+            # frames outside a target's active window carry no state at all, and a
+            # clearance segment is only defined while the target is present in both.
+            if not (first[target_key].get("active") and second[target_key].get("active")):
                 continue
             relative_start = (
                 np.asarray(first[target_key]["state"][:2])

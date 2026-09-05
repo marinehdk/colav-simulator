@@ -1,7 +1,7 @@
 name: "paper_ccta2023_multiship"
 save_scenario: false
 t_start: 0.0
-t_end: 500.0
+t_end: 1800.0
 dt_sim: 0.1
 utm_zone: 33
 map_size: [5000.0, 5000.0]
@@ -11,10 +11,19 @@ new_load_of_map_data: true
 type: MS
 n_episodes: 1
 n_random_ships: 3
+# C-shaped own route SW->N->NE across the Romsdal window with three staged
+# COLREG encounters: overtaking TS1 from t=0, crossing TS2 (~880 s), head-on
+# TS3 (~1140 s). All targets are on the chart and detectable from t=0, sail
+# constant-course constant-speed legs, and anchor (final leg speed 0) once
+# their leg is done instead of leaving the scene.
+# TS2 gets underway from t=0 north-east of the island, crosses the own
+# ship's northbound leg from starboard at ~880 s (own gives way astern),
+# and anchors south-west of the channel. TS3 is a slow vessel closing
+# head-on from the NE corner (~1140 s).
 ship_list:
-  - csog_state: [6957000.0, 41000.0, 6.0, 0.0]
-    waypoints: [[6957000.0, 6960200.0], [41000.0, 41000.0]]
-    speed_plan: [6.0, 6.0]
+  - csog_state: [6955700.0, 42950.0, 6.68222, 270.0]
+    waypoints: [[6955700.0, 6955700.0, 6958850.0, 6959350.0, 6960050.0], [42950.0, 40850.0, 40850.0, 41600.0, 42900.0]]
+    speed_plan: [6.68222, 4.63, 5.65889, 5.65889, 0.0]
     id: 0
     mmsi: 100
     tracker:
@@ -52,9 +61,9 @@ ship_list:
         r_max: 4.0
         U_min: 0.0
         U_max: 15.0
-  - csog_state: [6960000.0, 41000.0, 6.0, 180.0]
-    waypoints: [[6960000.0, 6956800.0], [41000.0, 41000.0]]
-    speed_plan: [6.0, 6.0]
+  - csog_state: [6955688.0, 42024.0, 2.57222, 269.0]
+    waypoints: [[6955688.0, 6955647.0], [42024.0, 39700.0]]
+    speed_plan: [2.57222, 0.0]
     id: 1
     mmsi: 101
     guidance:
@@ -62,9 +71,9 @@ ship_list:
     controller: {pass_through_cs: ""}
     model:
       csog: {draft: 3.0, length: 12.0, width: 4.0, T_chi: 3.0, T_U: 5.0, r_max: 4.0, U_min: 0.0, U_max: 15.0}
-  - csog_state: [6958500.0, 42500.0, 6.0, 270.0]
-    waypoints: [[6958500.0, 6958500.0], [42500.0, 39300.0]]
-    speed_plan: [6.0, 6.0]
+  - csog_state: [6959762.0, 42400.0, 3.08667, 220.0]
+    waypoints: [[6959762.0, 6957922.0, 6957616.0], [42400.0, 40850.0, 40593.0]]
+    speed_plan: [3.08667, 3.08667, 0.0]
     id: 2
     mmsi: 102
     guidance:
@@ -72,9 +81,9 @@ ship_list:
     controller: {pass_through_cs: ""}
     model:
       csog: {draft: 3.0, length: 12.0, width: 4.0, T_chi: 3.0, T_U: 5.0, r_max: 4.0, U_min: 0.0, U_max: 15.0}
-  - csog_state: [6958500.0, 39500.0, 6.0, 90.0]
-    waypoints: [[6958500.0, 6958500.0], [39500.0, 42700.0]]
-    speed_plan: [6.0, 6.0]
+  - csog_state: [6960150.0, 43300.0, 1.728, 243.6]
+    waypoints: [[6960150.0, 6958813.0], [43300.0, 40629.0]]
+    speed_plan: [1.728, 0.0]
     id: 3
     mmsi: 103
     guidance:
