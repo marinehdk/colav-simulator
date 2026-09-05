@@ -842,6 +842,17 @@ let gncStackCatalog = null;
 let gncSelection = null;
 let gncBoundStackId = null;
 
+function emptyGncSelection() {
+  return {
+    plant: null,
+    guidance: null,
+    controller: null,
+    layout: null,
+    resolved: false,
+    environment: null,
+  };
+}
+
 function renderGncStackPanel(snapshot) {
   const unavailable = document.getElementById('gncStackUnavailable');
   const catalog = gncStackCatalog;
@@ -947,7 +958,7 @@ function gncStackForSelection(selection) {
 function gncOptionEnabled(axis, value) {
   if (!gncStackCatalog) return false;
   if (axis === 'plant') return Boolean(gncRecommendedStackForPlant(value));
-  const probe = { ...(gncSelection || { plant: null, guidance: null, controller: null, layout: null, resolved: false, environment: null }) };
+  const probe = { ...(gncSelection || emptyGncSelection()) };
   if (axis === 'resolved') {
     if (!probe.layout || probe.layout === GNC_NONE_LAYOUT_OPTION) return false;
     probe.resolved = value;
@@ -981,7 +992,7 @@ function selectGncOption(axis, value) {
     return;
   }
   const previous = gncSelection;
-  const next = { ...(gncSelection || { plant: null, guidance: null, controller: null, layout: null, resolved: false, environment: null }) };
+  const next = { ...(gncSelection || emptyGncSelection()) };
   if (axis === 'layout') {
     // Re-clicking the same layout keeps the resolved add-on; switching drops it.
     next.resolved = next.layout === value ? Boolean(next.resolved) : false;
