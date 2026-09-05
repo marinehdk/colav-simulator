@@ -70,10 +70,13 @@ def test_hard_clearance_uses_hull_edge_distance() -> None:
     unsafe = VO(params)
     safe = VO(params)
 
+    # Own starts 5 m aft and 59/61 m off the target's beam: a beam-quarter
+    # geometry outside the Rule 13 stern sector, so the bare clearance masks
+    # are exercised without give-way engagement.
     unsafe.plan(
         0.0,
         np.array([5.0, 0.0]),
-        _own_state(),
+        _own_state(position=(95.0, 0.0)),
         [_track(1, (100.0, 59.0), (0.5, 0.0), width=10.0)],
         os_length=45.0,
         os_width=10.0,
@@ -81,7 +84,7 @@ def test_hard_clearance_uses_hull_edge_distance() -> None:
     safe.plan(
         0.0,
         np.array([5.0, 0.0]),
-        _own_state(),
+        _own_state(position=(95.0, 0.0)),
         [_track(1, (100.0, 61.0), (0.5, 0.0), width=10.0)],
         os_length=45.0,
         os_width=10.0,
@@ -165,7 +168,10 @@ def test_preferred_clearance_penalizes_but_does_not_forbid_safe_candidate() -> N
     planner.plan(
         0.0,
         np.array([5.0, 0.0]),
-        _own_state(),
+        # Beam-quarter own position: outside the Rule 13 stern sector so the
+        # bare preferred-clearance assertion is exercised without give-way
+        # engagement.
+        _own_state(position=(95.0, 0.0)),
         [_track(1, (100.0, 80.0), (0.5, 0.0), width=10.0)],
         os_length=45.0,
         os_width=10.0,
@@ -488,7 +494,14 @@ def test_give_way_commitment_survives_ownship_body_frame_corridor_exit(
         else -1e-12
     )
 
-    turned_state = _own_state(heading=np.deg2rad(7.0))
+    # The Rule 13 stern-sector match is target-centred, so the OT_ing case
+    # must also leave the stern cone for the raw geometry match to drop;
+    # the HO corridor match only needs the heading turn.
+    turned_state = (
+        _own_state(heading=np.deg2rad(7.0))
+        if rule is VOCOLREGSSituation.HO
+        else _own_state(heading=np.deg2rad(7.0), position=(100.0, 700.0))
+    )
     planner.plan(1.0, np.array([5.0, 0.0]), turned_state, [target])
     debug = planner.get_debug_data()
 
@@ -715,7 +728,14 @@ def test_overtaking_lock_releases_after_confirmed_safe_lateral_separation() -> N
 
 
 def test_overtaking_requires_three_confirmed_passed_solves_then_rearms() -> None:
-    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    planner = VO(
+        VOParams(
+            velocity_uncertainty_vertices_mps=[[0.0, 0.0]],
+            # Pinned so the state-machine unit geometry (100 m lead) stays
+            # valid regardless of the shipped default lead.
+            overtaking_passed_lead_m=50.0,
+        )
+    )
     target = _track(1, (707.0, 0.0), (5.0, 0.0))
     planner.plan(0.0, np.array([8.0, 0.0]), _own_state(speed=8.0), [target])
 

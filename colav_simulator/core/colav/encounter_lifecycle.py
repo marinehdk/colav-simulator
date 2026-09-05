@@ -904,6 +904,18 @@ def _classify(
     own_radius = 0.5 * math.hypot(cycle.ownship.length_m, cycle.ownship.width_m)
     target_radius = 0.5 * math.hypot(target.length_m, target.width_m)
     hull_clearance = geometry.dcpa_m - own_radius - target_radius
+    bearing = math.degrees(geometry.relative_bearing_rad)
+    contact_bearing = math.degrees(geometry.contact_bearing_rad)
+    # Rule 13: an overtaking situation exists from stern-sector geometry alone,
+    # even when the projected pass is comfortably wide — the give-way duty
+    # follows from coming up from abaft the beam, not from CPA. The CLEAR exit
+    # below must not swallow these pairs, or a planner that already gives way
+    # early (wide CPA) loses its threat display entirely.
+    if geometry.signed_tcpa_s > 0.0 and min(own_speed, target_speed) >= cycle.profile.cog_min_speed_mps:
+        if abs(contact_bearing) > 112.5 and abs(bearing) < 45.0 and own_speed > target_speed:
+            return EncounterKind.OVERTAKING, OwnshipRole.OVERTAKING
+        if abs(bearing) > 112.5 and abs(contact_bearing) < 45.0 and target_speed > own_speed:
+            return EncounterKind.OVERTAKING, OwnshipRole.OVERTAKEN
     # The CLEAR exit must be evaluated before the low-speed early return: COLREG
     # bearing geometry is meaningless below cog_min_speed_mps, but hull-clearance
     # separation is valid at any speed. A moored contact far from the corridor
@@ -913,15 +925,9 @@ def _classify(
     if min(own_speed, target_speed) < cycle.profile.cog_min_speed_mps:
         return EncounterKind.UNKNOWN, OwnshipRole.UNKNOWN
 
-    bearing = math.degrees(geometry.relative_bearing_rad)
-    contact_bearing = math.degrees(geometry.contact_bearing_rad)
     course_difference = math.degrees(geometry.course_difference_rad)
     if abs(bearing) <= 15.0 and abs(contact_bearing) <= 15.0 and course_difference >= 150.0:
         return EncounterKind.HEAD_ON, OwnshipRole.GIVE_WAY
-    if abs(contact_bearing) > 112.5 and abs(bearing) < 45.0 and own_speed > target_speed:
-        return EncounterKind.OVERTAKING, OwnshipRole.OVERTAKING
-    if abs(bearing) > 112.5 and abs(contact_bearing) < 45.0 and target_speed > own_speed:
-        return EncounterKind.OVERTAKING, OwnshipRole.OVERTAKEN
     if 0.0 < bearing <= 112.5 and -112.5 <= contact_bearing < 0.0:
         return EncounterKind.CROSSING, OwnshipRole.GIVE_WAY
     if -112.5 <= bearing < 0.0 and 0.0 < contact_bearing <= 112.5:

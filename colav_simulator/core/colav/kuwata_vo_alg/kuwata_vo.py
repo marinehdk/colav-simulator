@@ -87,7 +87,7 @@ class VOParams:
     overtaking_t_max_s: float = 240.0
     overtaking_min_starboard_rad: float = float(np.deg2rad(5.0))
     overtaking_speed_advantage_mps: float = 0.5
-    overtaking_passed_lead_m: float = 50.0
+    overtaking_passed_lead_m: float = 300.0
     overtaking_passed_distance_m: float = 100.0
     overtaking_confirmation_steps: int = 3
     overtaking_rearm_distance_m: float = 300.0
@@ -1512,6 +1512,18 @@ class VO:
         same_course = abs(heading_delta) <= p.rule_heading_tolerance_rad
         opposite_course = abs(abs(heading_delta) - np.pi) <= p.rule_heading_tolerance_rad
         in_track_corridor = abs(lateral) <= p.rule_cross_track_max_m
+        # Rule 13 sector: the overtaking vessel comes up from more than 22.5 deg
+        # abaft the target's beam, so the lateral gate is the target-centred
+        # stern cone and widens with range — a fixed corridor never matches at
+        # long range once the ownship weaves around its route line.
+        psi_do_unit = np.array([np.cos(psi_do), np.sin(psi_do)])
+        own_from_target_body = mf.Rmtrx2D(psi_do).T @ (p_os - p_do)
+        overtaking_stern_sector = bool(
+            own_from_target_body[0] < 0.0
+            and abs(own_from_target_body[1])
+            <= abs(own_from_target_body[0]) * np.tan(np.pi - p.rule_bearing_max_rad)
+            and float((v_os - v_do) @ psi_do_unit) > 0.0
+        )
         cpa = self._cpa_metrics(p_os, v_os, p_do, v_do)
         collision_course = bool(
             cpa["tcpa_s"] is not None
@@ -1524,7 +1536,7 @@ class VO:
             and longitudinal >= p.rule_along_track_min_m
         ):
             rules.add(VOCOLREGSSituation.HO)
-        if same_course and in_track_corridor:
+        if same_course and (in_track_corridor or overtaking_stern_sector):
             if longitudinal >= p.rule_along_track_min_m:
                 rules.add(VOCOLREGSSituation.OT_ing)
             elif longitudinal <= -p.rule_along_track_min_m:
