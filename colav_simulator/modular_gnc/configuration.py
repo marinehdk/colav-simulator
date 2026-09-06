@@ -269,6 +269,7 @@ REGISTRY_V1 = MappingProxyType(
                 "enable_current": {"type": "boolean"},
                 "current_relative_damping": {"type": "boolean"},
                 "external_current_load": {"type": "boolean"},
+                "current_asset_id": {"type": "string"},
             },
         ),
         "pass_through_load_model": RegistryEntry(
@@ -494,6 +495,7 @@ KNOWN_ACTUATOR_LAYOUT_ASSET_IDS: frozenset[str] = frozenset(
         "quad_diagonal_actuator_layout_v1",
         "main_only_actuator_layout_v1",
         "fcb45_actuator_layout_v1",
+        "fcb45_main_rudder_actuator_layout_v1",
     }
 )
 

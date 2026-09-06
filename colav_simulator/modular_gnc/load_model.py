@@ -808,6 +808,29 @@ DEFAULT_INFERRED_CURRENT_ASSET = InferredCurrentAsset(
     )
 )
 
+DEFAULT_INFERRED_FCB45_CURRENT_ASSET = InferredCurrentAsset(
+    metadata=AssetMetadata(
+        asset_id="current_inferred_fcb45_v1",
+        asset_type="current_inferred_crossflow",
+        trust_level=AssetTrustLevel.INFERRED,
+        source_type="inferred",
+        sha256="fca4c77bda27a37668602b81ca77611a6b66e3ac04f5062ef144c867115e03f0",
+        license="MIT",
+        applicability_domain=ApplicabilityDomain(
+            heading_range_deg=(0.0, 360.0),
+            speed_range_mps=(0.0, 30.0),
+            draft_range_m=(1.5, 30.0),
+        ),
+        provenance={
+            "standard_basis": "Fossen relative cross-flow formulation",
+            "created_by": "modular_gnc",
+            "applicability_note": "S10 FCB45 service-speed scenario; inferred and not vessel validated.",
+        },
+        uncertainty={"crossflow_cd_std": 0.1},
+    )
+)
+
+
 DEFAULT_INFERRED_WAVE_RESPONSE_ASSET = InferredWaveResponseAsset(
     metadata=AssetMetadata(
         asset_id="default_inferred_wave_response_v1",
@@ -846,6 +869,11 @@ DEFAULT_INFERRED_WAVE_DRIFT_ASSET = InferredWaveDriftAsset(
     ),
     model_type=MeanDriftModel.DIAGONAL_AI2,
 )
+
+KNOWN_CURRENT_ASSETS: Mapping[str, CurrentCoeffTableAsset | InferredCurrentAsset] = {
+    "current_inferred_v1": DEFAULT_INFERRED_CURRENT_ASSET,
+    "current_inferred_fcb45_v1": DEFAULT_INFERRED_FCB45_CURRENT_ASSET,
+}
 
 KNOWN_WAVE_FIRST_ORDER_ASSETS: Mapping[str, InferredWaveResponseAsset | WaveRaoTableAsset] = {
     "default_inferred_wave_response_v1": DEFAULT_INFERRED_WAVE_RESPONSE_ASSET,
@@ -1765,6 +1793,18 @@ class MeanDriftLoadModel:
         raise TypeError(f"Unsupported wave drift asset type: {type(asset).__name__}")
 
 
+def _resolve_current_asset(params: Mapping[str, Any]) -> CurrentCoeffTableAsset | InferredCurrentAsset:
+    """Resolve an explicit current asset id, retaining the historical default."""
+    asset_id = params.get("current_asset_id")
+    if asset_id is None:
+        return DEFAULT_INFERRED_CURRENT_ASSET
+    if not isinstance(asset_id, str) or asset_id not in KNOWN_CURRENT_ASSETS:
+        raise AssetMissingError(
+            f"Unknown current_asset_id: {asset_id} (known: {sorted(KNOWN_CURRENT_ASSETS)})"
+        )
+    return KNOWN_CURRENT_ASSETS[asset_id]
+
+
 def _resolve_current_strategy(params: dict[str, Any] | Mapping[str, Any]) -> CurrentStrategy:
     """Resolve and validate current strategy from normalized parameter mapping."""
     if "current_relative_damping" in params:
@@ -1898,6 +1938,11 @@ def _validate_load_model_wave_assets(
 
 class EnvironmentalLoadModel:
     """Plant-side environmental load model with explicit component summation and current de-duplication (VR-09, VR-10)."""
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> EnvironmentalLoadModel:
+        """Reuse immutable load-model assets while cloning generated episodes."""
+        memo[id(self)] = self
+        return self
 
     def __init__(  # noqa: PLR0912, PLR0915
         self,
@@ -2842,6 +2887,7 @@ class EnvironmentalLoadModel:
     def from_params(cls, params: dict[str, Any] | Mapping[str, Any]) -> EnvironmentalLoadModel:
         """Construct EnvironmentalLoadModel from normalized parameter dictionary."""
         strategy = _resolve_current_strategy(params)
+        current_asset = _resolve_current_asset(params)
 
         enable_wind = params.get("enable_wind", True)
         if not isinstance(enable_wind, bool):
@@ -2865,11 +2911,7 @@ class EnvironmentalLoadModel:
             current_strategy=strategy,
             wave_mode=wave_mode,
             wind_asset=DEFAULT_OCIMF_WIND_ASSET if enable_wind else None,
-            current_asset=(
-                DEFAULT_INFERRED_CURRENT_ASSET
-                if (enable_current and strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD)
-                else None
-            ),
+            current_asset=(current_asset if enable_current and strategy == CurrentStrategy.EXTERNAL_CURRENT_LOAD else None),
             wave_first_order_asset=wave_1st_asset,
             wave_mean_drift_asset=wave_drift_asset,
             enable_wind=enable_wind,
