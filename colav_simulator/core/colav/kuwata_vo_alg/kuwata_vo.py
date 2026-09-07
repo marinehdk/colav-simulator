@@ -1388,11 +1388,18 @@ class VO:
         current_index = self._nearest_velocity_index(self._current_velocity)
         reference_tracking_error = float(np.linalg.norm(self._current_velocity - v_ref))
         driving_metrics = self._track_metrics.get(self._driving_target_id, {})
-        driving_rules = set(driving_metrics.get("active_rules", ())) | set(
-            driving_metrics.get("effective_matched_rules", ())
-        )
+        active_driving_rules = set(driving_metrics.get("active_rules", ()))
+        driving_rules = active_driving_rules | set(driving_metrics.get("effective_matched_rules", ()))
+        # A safe return reference must not be frozen solely because a cleared
+        # target appears on the port side. Preserve active stand-on duties and
+        # the conservative hold when the requested velocity is still unsafe.
+        reference_index = self._nearest_velocity_index(v_ref)
         stand_on_responsibility = (
             VOCOLREGSSituation.CR_PS.name in driving_rules
+            and (
+                VOCOLREGSSituation.CR_PS.name in active_driving_rules
+                or self._hard_constraint_mask[reference_index]
+            )
             and (
                 self._target_count_current <= 1
                 or reference_tracking_error <= self._params.crossing_commitment_deadband_mps

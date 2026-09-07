@@ -12,12 +12,14 @@ end-to-end behaviour under the exact shipped-scenario conditions the UI runs
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 
 from conftest import PROJECT_ROOT
 
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.runner import ExperimentRunner
+from examples.validate_kuwata_vo import Acceptance, summarize
 from gui_server.main import SessionCreateRequest
 
 FCB45_STACK_ID = "fcb45_3dof_plant+pass_through_guidance+fcb45_marine_pid"
@@ -71,3 +73,35 @@ def test_gui_default_head_on_recovery_rotation_stays_below_one_circle(tmp_path) 
     assert recovery is not None
     assert recovery["heading_gross_sweep_deg"] is not None
     assert recovery["heading_gross_sweep_deg"] < FULL_CIRCLE_SWEEP_DEG, recovery
+
+
+def test_gui_default_overtaking_recovers_without_u_turn_or_repeated_weaving(tmp_path) -> None:
+    """Exercise the shipped OT route and GUI stack, including the whole return."""
+    spec = SessionCreateRequest(
+        scenario_id="overtaking",
+        validation_rule_id="rule13",
+        algorithm_id="vo",
+        tracker_id="god",
+        gnc_stack_id=FCB45_STACK_ID,
+    ).to_spec()
+    result = ExperimentRunner(PROJECT_ROOT).run(replace(spec, output_root=str(tmp_path / "runs")))
+    summary, rows = summarize(result, Acceptance())
+    assert rows[-1]["time_s"] >= 599.0, "the full 600 s scene must cover the settling window"
+    assert not summary["truth"]["ship0_vs_target"]["continuous_collision"]
+    assert not summary["truth"]["grounding"]["grounded"]
+    assert summary["solver"]["fallback_count"] == 0
+    # Preserve the prior OT repair's ~414 m return clearance with a 400 m floor.
+    assert result.evaluation.voyage["encounter"]["min_target_center_distance_m"] >= 400.0
+    xte = [(row["east_m"] - 39000.0 - (row["north_m"] - 6957000.0)) / math.sqrt(2.0) for row in rows]
+    assert min(xte) >= -50.0, "return must not overshoot to the opposite side in a U"
+    # Test settled motion as well as position: crossing the line once at 600 s
+    # is insufficient when heading still swings tens of degrees either side.
+    for row, error in zip(rows, xte, strict=True):
+        if row["time_s"] < 570.0:
+            continue
+        heading_error = math.atan2(
+            math.sin(row["actual_heading_rad"] - math.pi / 4.0),
+            math.cos(row["actual_heading_rad"] - math.pi / 4.0),
+        )
+        assert abs(error) <= 10.0
+        assert abs(heading_error) <= math.radians(5.0)

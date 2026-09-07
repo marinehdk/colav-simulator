@@ -1,8 +1,7 @@
-# Issue #67 acceptance-only VO spacing profile (stack B).
+# Issue #67 VO spacing and route-recovery profile (FCB45 stack B).
 #
-# NOT a shipped default: the published VO behaviour stays VOParams() defaults;
-# this profile is injected as RunSpec.algorithm_config for the OT/HO/CS
-# acceptance matrix with the FCB45 ownship GNC stack.
+# VOParams() defaults remain unchanged. This profile is injected into the
+# FCB45 acceptance matrix and product sessions with no explicit algorithm config.
 #
 # Acceptance gate: ownship-target minimum CENTRE distance >= 180 m
 # (4 x 44.1 m Lpp) with a nominal target of 190 m.
@@ -40,6 +39,15 @@
 #   t_max 40 s was evaluated and rejected: the avoidance shallows until the
 #   minimum centre distance (167.9 m) violates the 180 m gate.
 dependency_lock: ../uv.lock
+# The VO wrapper owns this nominal LOS upstream of pass-through guidance.
+# A 50 m lookahead (K_p=0.02) asks for turns faster than FCB45 can follow:
+# at 8 m/s its 0.05 rad/s heading-rate limit implies a ~160 m turn radius.
+# Use 200 m lookahead so the return course flattens before reaching the route.
+# Disable legacy integral accumulation for this calm-water profile: avoidance
+# and the return transient are not a persistent environmental disturbance.
+los:
+  K_p: 0.005
+  K_i: 0.0
 vo:
   length_os: 44.1
   width_os: 8.0

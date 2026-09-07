@@ -1279,3 +1279,42 @@ def test_crps_completion_fires_after_rule_hysteresis_expires() -> None:
             break
     assert fired
     assert 1 in planner._completed_crossing_targets
+
+
+@pytest.mark.parametrize("background", [False, True])
+def test_safe_port_crossing_geometry_does_not_block_route_recovery(background: bool) -> None:
+    """Minimized OT recovery at t=460: route lies right, passed target stays left."""
+    planner = VO(
+        VOParams(t_max=60.0, d_min=190.0, hard_hull_clearance_m=182.0, preferred_hull_clearance_m=190.0)
+    )
+    own = _own_state(speed=7.74329, heading=-0.722836)
+    target = _track(1, (-380.12, -315.73), (1.818836, 1.818836), length=8.45, width=2.71)
+    tracks = [target]
+    if background:
+        tracks.append(_track(2, (-2000.0, 1000.0), (0.0, 0.0)))
+    reference_heading = np.deg2rad(85.36)
+    reference = 8.0 * np.array([np.cos(reference_heading), np.sin(reference_heading)])
+    result = planner.plan(0.0, reference, own, tracks, os_length=8.45, os_width=2.71)
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["matched_rules"] == ["CR_PS"]
+    assert not debug["track_metrics"][1]["cpa_gate_eligible"]
+    assert debug["active_rules"] == {}
+    assert not debug["stand_on_hold_active"]
+    assert abs(result[2, 0] - reference_heading) < np.deg2rad(3.0)
+
+
+def test_inactive_crossing_geometry_keeps_safe_hold_when_requested_velocity_is_unsafe() -> None:
+    """Clearing the recovery lock must not force a newly unsafe route command."""
+    planner = VO(
+        VOParams(t_max=60.0, d_min=190.0, hard_hull_clearance_m=182.0, preferred_hull_clearance_m=190.0)
+    )
+    own = _own_state(speed=7.74329, heading=-0.722836)
+    target = _track(1, (-380.12, -315.73), (1.818836, 1.818836), length=8.45, width=2.71)
+    # Deliberately intercept the otherwise safe target in 45 seconds.
+    reference = np.array([-380.12, -315.73]) / 45.0 + np.array([1.818836, 1.818836])
+    planner.plan(0.0, reference, own, [target], os_length=8.45, os_width=2.71)
+    debug = planner.get_debug_data()
+    assert debug["active_rules"] == {}
+    assert debug["track_metrics"][1]["matched_rules"] == ["CR_PS"]
+    assert not debug["selected_in_base_vo"]
+    assert debug["stand_on_hold_active"]
