@@ -19,6 +19,7 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
     FactoryContext,
     MPCSolution,
     PlannerInput,
+    TrackedObstacle,
 )
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureSource, PlanStatus
 from colav_simulator.evaluation.encounter import classify_geometry
@@ -115,6 +116,9 @@ class PotocnikColregFanMPC:
         self._encounter_state: dict[int, str] = {}
         self._clear_solves = 0
         self._stand_on_course: float | None = None
+        self._give_way_course: float | None = None
+        self._give_way_target_ids: tuple[int, ...] = ()
+        self._route_segment = 0
         self._hazard_cache_key: tuple[int, float] | None = None
         self._hazard_geometry: BaseGeometry | None = None
         self._heading_increments = np.linspace(
@@ -134,19 +138,26 @@ class PotocnikColregFanMPC:
         self._encounter_state.clear()
         self._clear_solves = 0
         self._stand_on_course = None
+        self._give_way_course = None
+        self._give_way_target_ids = ()
+        self._route_segment = 0
         self._hazard_cache_key = None
         self._hazard_geometry = None
 
     def solve(self, planner_input: PlannerInput) -> MPCSolution:  # noqa: PLR0915
         self.solve_count += 1
         ownship = planner_input.ownship_state
+        policy = self._encounter_policy(planner_input)
         goal_ne, target_course, cross_track_error_m, route_target_index = _route_guidance(
             ownship[:2],
             planner_input.waypoints_enu_m,
             self.params.route_lookahead_m,
+            minimum_segment=self._route_segment,
+            recovery_course=float(ownship[2]) if not policy.give_way_targets else None,
         )
-        route_speed_mps = float(planner_input.speed_plan_mps[min(route_target_index, planner_input.speed_plan_mps.size - 1)])
-        policy = self._encounter_policy(planner_input)
+        self._route_segment = max(0, route_target_index - 1)
+        # Speeds belong to the departure waypoint, as in native LOS guidance.
+        route_speed_mps = float(planner_input.speed_plan_mps[self._route_segment])
         self._update_maneuver_phase(policy, cross_track_error_m, ownship[2], target_course)
 
         command_course_center = float(ownship[2]) if self._previous_command_course is None else self._previous_command_course
@@ -404,6 +415,13 @@ class PotocnikColregFanMPC:
     def _encounter_policy(self, planner_input: PlannerInput) -> _Policy:  # noqa: PLR0912
         ownship = planner_input.ownship_state
         own_velocity = _own_velocity_ne(ownship)
+        _, _, _, route_index = _route_guidance(
+            ownship[:2], planner_input.waypoints_enu_m, self.params.route_lookahead_m,
+            minimum_segment=self._route_segment,
+        )
+        route_vector = planner_input.waypoints_enu_m[:, route_index] - planner_input.waypoints_enu_m[:, route_index - 1]
+        route_velocity = (route_vector / max(float(np.linalg.norm(route_vector)), 1e-9)
+                          * planner_input.speed_plan_mps[route_index - 1])
         records = []
         give_way = []
         crossing_give_way = []
@@ -421,11 +439,16 @@ class PotocnikColregFanMPC:
                 planner_input.ownship_length_m,
                 track.length_m,
             )
+            geometric_kind = detected
             previous = self._encounter_state.get(track.target_id, "clear")
-            if detected != "clear":
-                encounter = detected
-            elif previous != "clear" and signed_tcpa > 0.0 and distance <= self.params.colreg_zone_distance_m:
+            if previous == "clear" and detected in _GIVE_WAY:
+                detected = self._new_give_way_encounter(
+                    planner_input, track, route_velocity, detected, dcpa, signed_tcpa,
+                )
+            if previous != "clear" and signed_tcpa > 0.0 and distance <= self.params.colreg_zone_distance_m:
                 encounter = previous
+            elif detected != "clear":
+                encounter = detected
             else:
                 encounter = "clear"
             if encounter == "clear":
@@ -442,7 +465,7 @@ class PotocnikColregFanMPC:
                 {
                     "target_id": track.target_id,
                     "encounter": encounter,
-                    "detected_geometry": detected,
+                    "detected_geometry": geometric_kind,
                     "distance_m": distance,
                     "dcpa_m": dcpa,
                     "tcpa_s": tcpa,
@@ -453,6 +476,18 @@ class PotocnikColregFanMPC:
         for target_id in set(self._encounter_state) - seen_ids:
             self._encounter_state.pop(target_id, None)
         active = {item["encounter"] for item in records}
+        if give_way:
+            if not set(give_way) & set(self._give_way_target_ids):
+                anticipated = any(
+                    item["encounter"] == "head_on" and item["detected_geometry"] != "head_on"
+                    for item in records if item["target_id"] in give_way
+                )
+                self._give_way_course = (float(np.arctan2(route_velocity[1], route_velocity[0]))
+                                        if anticipated else float(ownship[2]))
+            self._give_way_target_ids = tuple(give_way)
+        else:
+            self._give_way_course = None
+            self._give_way_target_ids = ()
         if stand_on:
             if self._stand_on_course is None:
                 self._stand_on_course = float(ownship[2])
@@ -465,6 +500,37 @@ class PotocnikColregFanMPC:
             stand_on_targets=tuple(stand_on),
             starboard_required=bool(active & {"head_on", "crossing_give_way", "overtaking"}),
         )
+
+    def _new_give_way_encounter(
+        self, planner_input: PlannerInput, track: TrackedObstacle,
+        route_velocity: np.ndarray, detected: str, dcpa: float, signed_tcpa: float,
+    ) -> str:
+        relative = track.state_enu[:2] - planner_input.ownship_state[:2]
+        relative_velocity = track.state_enu[2:4] - route_velocity
+        route_tcpa = max(0.0, -float(relative @ relative_velocity)
+                         / max(float(relative_velocity @ relative_velocity), 1e-9))
+        route_dcpa = float(np.linalg.norm(relative + route_tcpa * relative_velocity))
+        required = self.params.collision_distance_m + 0.5 * (
+            np.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m)
+            + np.hypot(track.length_m, track.width_m)
+        )
+        if route_dcpa <= required:
+            if dcpa > required:
+                # Use the same intended-motion basis that exposed this future
+                # conflict; a waypoint turn is not a crossing encounter.
+                nominal_kind = classify_geometry(
+                    planner_input.ownship_state[:2], route_velocity, track.state_enu[:2], track.state_enu[2:4],
+                    planner_input.ownship_length_m, track.length_m,
+                )[0]
+                if nominal_kind in _GIVE_WAY:
+                    return nominal_kind
+            return detected
+        # A temporary avoidance course must not commit a distant future target
+        # when normal leg continuation is clear. Keep every target in the hard
+        # trajectory checks; activate a current-motion conflict within horizon.
+        relative_speed = float(np.linalg.norm(track.state_enu[2:4] - _own_velocity_ne(planner_input.ownship_state)))
+        entry = signed_tcpa - np.sqrt(max(0.0, required ** 2 - dcpa ** 2)) / max(relative_speed, 1e-9)
+        return detected if dcpa <= required and entry <= self.params.prediction_steps * self.params.horizon_dt_s else "clear"
 
     def _dynamic_feasibility(
         self,
@@ -508,8 +574,22 @@ class PotocnikColregFanMPC:
             if speed <= 1e-6:
                 continue
             target_ne = np.vstack((target["north_m"], target["east_m"]))
-            closest_relative = _relative_position_at_continuous_cpa(candidates[:, :2], target_ne)
-            passes &= (closest_relative @ (velocity / speed)) <= 0.0
+            relative = candidates[:, :2] - target_ne[None, :, :]
+            unit = velocity / speed
+            longitudinal = relative[:, 0] * unit[0] + relative[:, 1] * unit[1]
+            lateral = relative[:, 1] * unit[0] - relative[:, 0] * unit[1]
+            change = np.diff(lateral, axis=1)
+            crossings = (lateral[:, :-1] * lateral[:, 1:] <= 0.0) & (np.abs(change) > 1e-9)
+            fraction = -lateral[:, :-1] / np.where(np.abs(change) > 1e-9, change, 1.0)
+            at_crossing = longitudinal[:, :-1] + fraction * np.diff(longitudinal, axis=1)
+            passes &= ~np.any(crossings & (at_crossing > 0.0), axis=1)
+            # If the crossing is beyond this rollout, continue its terminal
+            # motion. CPA can precede track crossing and is not a passing side.
+            terminal_change = change[:, -1]
+            extension = -lateral[:, -1] / np.where(np.abs(terminal_change) > 1e-9, terminal_change, 1.0)
+            future_crossing = (extension > 0.0) & (np.abs(terminal_change) > 1e-9)
+            future_along = longitudinal[:, -1] + extension * np.diff(longitudinal[:, -2:], axis=1)[:, 0]
+            passes &= ~(future_crossing & (future_along > 0.0))
         return passes
 
     def _static_feasibility(
@@ -581,7 +661,9 @@ class PotocnikColregFanMPC:
     ) -> _Selection:
         selection = feasible_indices.copy()
         relaxations = []
-        route_offsets = _wrap_angle(controls[:, 2, 0] - target_course)
+        approaching_action_course = False
+        action_course = target_course if self._give_way_course is None else self._give_way_course
+        route_offsets = _wrap_angle(controls[:, 2, 0] - action_course)
         substantial = np.abs(route_offsets) >= np.deg2rad(self.params.minimum_colreg_turn_deg) - 1e-12
         if policy.give_way_targets:
             if policy.starboard_required:
@@ -590,12 +672,34 @@ class PotocnikColregFanMPC:
                 compliant = selection[np.sign(route_offsets[selection]) == self._maneuver_sign]
             else:
                 compliant = selection[substantial[selection]]
-            if self._maneuver_course is None:
-                compliant = compliant[substantial[compliant]]
-            if compliant.size:
-                selection = compliant
+            compliant = compliant[substantial[compliant]]
+            if policy.crossing_give_way_targets and np.any(pass_astern[compliant]):
+                compliant = compliant[pass_astern[compliant]]
+            reference = ownship_course if self._previous_command_course is None else self._previous_command_course
+            within_rate = (np.abs(_wrap_angle(controls[:, 2, 0] - reference))
+                           <= np.deg2rad(self.params.max_command_change_deg) + 1e-12)
+            rate_compliant = compliant[within_rate[compliant]]
+            if rate_compliant.size:
+                selection = rate_compliant
             else:
-                relaxations.append("minimum_colreg_action")
+                # A route-bend action may take several bounded commands before
+                # reaching the intended-leg starboard course. Prefer feasible
+                # rightward progress before declaring a rate-limit emergency.
+                desired = action_course + np.deg2rad(self.params.minimum_colreg_turn_deg)
+                right = _wrap_angle(controls[selection, 2, 0] - ownship_course) > 0.0
+                error = np.abs(_wrap_angle(controls[selection, 2, 0] - desired))
+                nearer = error < abs(float(_wrap_angle(ownship_course - desired)))
+                progressing = (selection[right & nearer & within_rate[selection]]
+                               if policy.starboard_required else np.array([], dtype=int))
+                if policy.crossing_give_way_targets:
+                    progressing = progressing[pass_astern[progressing]]
+                if progressing.size:
+                    selection = progressing
+                    approaching_action_course = True
+                elif compliant.size:
+                    selection = compliant
+                else:
+                    relaxations.append("minimum_colreg_action")
             if policy.crossing_give_way_targets:
                 astern = selection[pass_astern[selection]]
                 if astern.size:
@@ -627,6 +731,9 @@ class PotocnikColregFanMPC:
         else:
             relaxations.append("command_rate_limit_emergency")
 
+        if approaching_action_course:
+            action_error = np.abs(_wrap_angle(controls[selection, 2, 0] - desired))
+            selection = selection[np.isclose(action_error, np.min(action_error))]
         if stand_on_emergency_active:
             stand_on_error = np.abs(_wrap_angle(controls[selection, 2, 0] - self._stand_on_course))
             selection = selection[np.isclose(stand_on_error, np.min(stand_on_error))]
@@ -947,6 +1054,9 @@ def _route_guidance(
     position_ne: np.ndarray,
     waypoints_ne: np.ndarray,
     lookahead_m: float,
+    *,
+    minimum_segment: int = 0,
+    recovery_course: float | None = None,
 ) -> tuple[np.ndarray, float, float, int]:
     if waypoints_ne.shape[1] < 2:
         goal = waypoints_ne[:, 0].copy()
@@ -961,7 +1071,25 @@ def _route_guidance(
     along = np.zeros(lengths.size)
     along[valid] = np.sum((position_ne - starts[valid]) * vectors[valid], axis=1) / lengths[valid] ** 2
     projections = starts + np.clip(along, 0.0, 1.0)[:, None] * vectors
-    segment = int(np.argmin(np.linalg.norm(projections - position_ne, axis=1)))
+    minimum_segment = min(minimum_segment, lengths.size - 1)
+    segment = minimum_segment + int(np.argmin(np.linalg.norm(projections[minimum_segment:] - position_ne, axis=1)))
+    if recovery_course is not None and segment + 1 < lengths.size and valid[segment:segment + 2].all():
+        incoming = vectors[segment] / lengths[segment]
+        outgoing = vectors[segment + 1] / lengths[segment + 1]
+        error = incoming[0] * (position_ne[1] - starts[segment, 1]) - incoming[1] * (position_ne[0] - starts[segment, 0])
+        turn = float(_wrap_angle(np.arctan2(outgoing[1], outgoing[0]) - np.arctan2(incoming[1], incoming[0])))
+        current_distance = min(lengths[segment], max(0.0, along[segment]) * lengths[segment] + lookahead_m)
+        current_goal = starts[segment] + current_distance * incoming
+        next_goal = projections[segment + 1] + min(lookahead_m, (1.0 - along[segment + 1]) * lengths[segment + 1]) * outgoing
+        current_delta = current_goal - position_ne
+        next_delta = next_goal - position_ne
+        current_turn = float(_wrap_angle(np.arctan2(current_delta[1], current_delta[0]) - recovery_course))
+        next_turn = float(_wrap_angle(np.arctan2(next_delta[1], next_delta[0]) - recovery_course))
+        if (abs(error) > lookahead_m and error * turn > 0.0
+                and 0.0 < along[segment + 1] < 1.0
+                and current_turn * turn < 0.0 and next_turn * turn >= 0.0
+                and abs(next_turn) < np.pi / 2):
+            segment += 1
     if not valid[segment]:
         goal = ends[segment].copy()
         delta = goal - position_ne
@@ -969,8 +1097,13 @@ def _route_guidance(
 
     unit = vectors[segment] / lengths[segment]
     projection_distance = float(np.clip(along[segment], 0.0, 1.0) * lengths[segment])
-    capture_distance = min(lengths[segment], projection_distance + lookahead_m)
-    goal = starts[segment] + capture_distance * unit
+    capture_distance = projection_distance + lookahead_m
+    goal_segment = segment
+    while goal_segment + 1 < lengths.size and capture_distance > lengths[goal_segment]:
+        capture_distance -= lengths[goal_segment]
+        goal_segment += 1
+    fraction = min(1.0, capture_distance / max(lengths[goal_segment], 1e-9))
+    goal = starts[goal_segment] + fraction * vectors[goal_segment]
     delta = goal - position_ne
     target_course = float(np.arctan2(delta[1], delta[0]))
     cross_track = float(unit[0] * (position_ne[1] - starts[segment, 1]) - unit[1] * (position_ne[0] - starts[segment, 0]))
