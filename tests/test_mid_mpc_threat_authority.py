@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
+import pytest
 
 from colav_simulator.core.colav.custom_mpc_adapter import DeadlineMode, FactoryContext
+from colav_simulator.core.colav.diagnostics import ColavExecutionError
 from colav_simulator.core.colav.encounter_lifecycle import (
     EncounterCycle,
     Maneuverability,
@@ -12,6 +16,7 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     RiskPhase,
     TargetObservation,
 )
+from colav_simulator.core.colav.mid_mpc import MidMpcStatus
 from colav_simulator.core.colav.threat_assessment import (
     ConflictEdgeType,
     OwnshipThreatPrediction,
@@ -307,8 +312,8 @@ def test_mid_mpc_runtime_publishes_plan_induced_conflict_from_next_cycle_receipt
     common_kwargs = {
         "dt": 1.0,
         "os_length": 15.0,
-        "os_model_name": "Viknes",
-        "os_controller_name": "FLSC",
+        "os_model_name": "KinematicCSOG",
+        "os_controller_name": "PassThroughCS",
         "os_max_turn_rate_radps": np.deg2rad(3.0),
     }
     adapter.plan(
@@ -365,3 +370,68 @@ def test_mid_mpc_runtime_publishes_plan_induced_conflict_from_next_cycle_receipt
     graph = coordinator.last_snapshot.conflict_graph
     assert graph.unavailable_reasons == (), tuple(reason.value for reason in graph.unavailable_reasons)
     assert any(edge.edge_type is ConflictEdgeType.PLAN_INDUCED_CONFLICT for edge in graph.edges), graph.to_dict()
+
+
+def test_failed_revision_cannot_keep_plan_with_obsolete_colreg_authority(monkeypatch) -> None:
+    coordinator = ThreatManagementCoordinator()
+    adapter = mid_mpc_ipopt.create(
+        context=FactoryContext(
+            requested_algorithm="mid_mpc_ipopt",
+            algorithm_seed=0,
+            scenario_id="historical-authority-change",
+            tracker_id="god",
+            deadline_mode=DeadlineMode.OFF,
+            threat_management_coordinator=coordinator,
+        ),
+        horizon_steps=4,
+        horizon_dt_s=5.0,
+        solve_period_s=10.0,
+        deadline_s=20.0,
+    )
+    solver = adapter._solve.__self__._solver
+    original = solver.solve
+    results = []
+
+    def capture(*args, **kwargs) -> mid_mpc_ipopt.MidMpcResult:
+        result = original(*args, **kwargs)
+        results.append(result)
+        return result
+
+    monkeypatch.setattr(solver, "solve", capture)
+
+    def plan(t, state) -> np.ndarray:
+        target = TrackSnapshot(
+            key=TrackKey(1, 1),
+            state=np.array([1000.0, 0.0, -7.0, 0.0]),
+            covariance=np.zeros((4, 4)),
+            length_m=30.0,
+            width_m=7.0,
+            observed_at_s=t,
+            generated_at_s=t,
+            status=TrackStatus.UPDATED,
+            source="god",
+        )
+        return adapter.plan(
+            t,
+            np.array([[0.0, 500.0], [0.0, 0.0]]),
+            np.array([7.0, 7.0]),
+            state,
+            [target],
+            dt=1.0,
+            os_length=15.0,
+            os_model_name="Viknes",
+            os_controller_name="FLSC",
+            os_max_turn_rate_radps=np.deg2rad(3.0),
+        )
+
+    coordinator.cycle(_historical_handoff_cycle(1, 61.0))
+    plan(61.0, np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0]))
+    coordinator.cycle(_historical_handoff_cycle(2, 67.0))
+    monkeypatch.setattr(
+        solver,
+        "solve",
+        lambda *args, **kwargs: replace(results[0], status=MidMpcStatus.INFEASIBLE, max_constraint_violation=1.0),
+    )
+    predicted = np.asarray(adapter.get_colav_data()["planner"]["predicted_trajectory"])
+    with pytest.raises(ColavExecutionError):
+        plan(67.0, predicted[:6, 1])

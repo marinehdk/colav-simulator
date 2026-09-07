@@ -111,3 +111,16 @@ def test_shared_transport_sends_current_planner_once_with_explicit_aliases(monke
     initial = json.loads(manager.stream_document(shared_planner=True, include_static=True))
     assert 'enc_navigation_area' in initial
     assert manager.latest['os']['colav']['planner'] is manager.latest['planner']
+
+
+def test_rejected_replan_keeps_plan_audit_but_projects_current_threat(monkeypatch) -> None:
+    manager, raw, _ = _manager(monkeypatch, 3)
+    frozen = {"sim_time_s": 0.0, "vectors": [{"display_class": "LOW", "avoidance_action_active": False}]}
+    current = {"sim_time_s": 70.0, "vectors": [{"display_class": "HIGH", "avoidance_action_active": True}]}
+    raw["colav"]["planner"]["algorithm_details"] = {"threat_management": frozen, "candidate_rejected": True}
+    manager.prepared.session.threat_management_coordinator = SimpleNamespace(
+        last_snapshot=SimpleNamespace(to_dict=lambda: current)
+    )
+    manager._publish_telemetry(None)
+    assert manager.latest["threat_management"]["vectors"][0]["display_class"] == "HIGH"
+    assert manager.latest["planner"]["algorithm_details"]["threat_management"] == frozen

@@ -730,10 +730,7 @@ def test_prewarm_capacity_serves_first_multiship_cycle_from_graph_cache() -> Non
     n = config.horizon_steps
     problem = replace(
         _rendezvous_problem(
-            tuple(
-                MidMpcTarget(x_m=1.0e6 + 100.0 * index, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0)
-                for index in range(3)
-            )
+            tuple(MidMpcTarget(x_m=1.0e6 + 100.0 * index, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0) for index in range(3))
         ),
         route_objective=MidMpcRouteObjective(
             mission_bearing_rad=0.0,
@@ -1165,3 +1162,27 @@ def test_prewarm_builds_strict_graph_outside_first_solve(
     )
     solver.solve(problem)
     assert build_calls == 1
+
+
+def test_starboard_correction_is_feasible_from_port_side_of_mission_route() -> None:
+    config = MidMpcConfig(horizon_steps=4, dt_s=5.0, strict_slack_bounds=True, max_wall_time_s=0.5)
+    source = _rendezvous_problem(())
+    problem = replace(
+        source,
+        lateral_active=True,
+        preferred_side=1,
+        min_alteration_rad=0.2,
+        route_frame=replace(source.route_frame, origin_m=(0.0, 77.0)),
+        row_schedule=MidMpcRowSchedule(terminal_rows_enabled=False),
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=0.0,
+            avoidance_corridor_bearing_rad=0.2,
+            heading_reference_rad=(0.2,) * 4,
+            lateral_reference_m=(-77.0,) * 4,
+            avoidance_active_until_k=4,
+        ),
+    )
+    result = MidMpcIpoptSolver(config).solve(problem)
+    assert result.status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL}
+    assert result.raw_x[0] >= 0.2 - 1e-6
+    assert result.max_constraint_violation <= 1e-6

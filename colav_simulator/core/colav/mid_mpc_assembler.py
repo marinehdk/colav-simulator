@@ -506,6 +506,7 @@ def _compile_semantic_problem(
     rolling_plan: RollingPlanReference | None,
 ) -> _SemanticAssembly:
     ownship = planner_input.ownship_state
+    own_speed = float(np.hypot(ownship[3], ownship[4])) if profile is AssemblyProfile.COLAV_STRICT else float(ownship[3])
     minimum_change = snapshot.directive.minimum_course_change_rad if policy.lateral_active else 0.0
     reachable_per_step = capability.rot_max_rad_s * config.horizon_dt_s
     min_alt_hard_from_k = max(0, math.ceil(minimum_change / reachable_per_step) - 1) if policy.lateral_active else 0
@@ -518,6 +519,7 @@ def _compile_semantic_problem(
         min_alt_hard_from_k,
         config,
         capability,
+        reachable_when_diverging=profile is AssemblyProfile.COLAV_STRICT,
     )
     starboard_asymmetry = policy.lateral_active and any(
         decision.passing_side is PassingSide.STARBOARD
@@ -606,11 +608,18 @@ def _compile_semantic_problem(
         heading_window_rad=capability.heading_window_rad,
         rolling_plan=rolling_plan,
     )
+    if route_objective is not None and not stand_on_hold:
+        # These references already obey the turn-rate ramp. A bound centered
+        # only on today's heading must not exclude later mission legs.
+        heading_bounds = (
+            min(heading_bounds[0], *route_objective.heading_reference_rad),
+            max(heading_bounds[1], *route_objective.heading_reference_rad),
+        )
     route_frame_bearing = (
         route.mission_leg_bearing_rad if route_objective is not None else policy.committed_route_bearing_rad
     )
     problem = MidMpcProblem(
-        own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=float(ownship[3])),
+        own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=own_speed),
         route_bearing_rad=policy.committed_route_bearing_rad,
         planned_speed_mps=0.0 if snapshot.directive.stop_required else route.planned_speed_mps,
         heading_bounds_rad=heading_bounds,
@@ -625,7 +634,7 @@ def _compile_semantic_problem(
         min_alteration_rad=minimum_change,
         prefix_active_k=1 if hold_first_interval else 0,
         prefix_psi_rad=(float(ownship[2]),) if hold_first_interval else (),
-        prefix_u_mps=(float(ownship[3]),) if hold_first_interval else (),
+        prefix_u_mps=(own_speed,) if hold_first_interval else (),
         route_frame=MidMpcRouteFrame(
             origin_m=(
                 route.anchor_ne_m[0] - float(ownship[0]),
@@ -819,7 +828,14 @@ def _staged_route_references(
     lateral_references: list[float] = []
     for phase in plan.phases[:-1]:
         absolute_position = np.asarray(ownship_position_ne_m, dtype=float) + position
-        mission, mission_anchor = _mission_route_projection(route, absolute_position)
+        mission, mission_anchor = _mission_route_projection(
+            route,
+            absolute_position,
+            recovery_heading_rad=(
+                previous_heading if phase in {HorizonEncounterPhase.MISSION, HorizonEncounterPhase.RECOVER} else None
+            ),
+            lookahead_m=max(speed / max(rot_max_rad_s, 1.0e-9), speed * dt_s),
+        )
         cross_track = float((position - route_origin) @ route_normal)
         lateral_references.append(cross_track)
         if phase in {HorizonEncounterPhase.ALTER, HorizonEncounterPhase.PASS}:
@@ -857,6 +873,9 @@ def _staged_route_references(
 def _mission_route_projection(
     route: RouteReference,
     position_ne_m: np.ndarray,
+    *,
+    recovery_heading_rad: float | None = None,
+    lookahead_m: float = 0.0,
 ) -> tuple[float, tuple[float, float] | None]:
     """Project one predicted stage onto the mission polyline and retain its tangent."""
     if not route.mission_waypoints_ne_m:
@@ -878,7 +897,34 @@ def _mission_route_projection(
     # At a shared waypoint both adjacent segments have the same projection;
     # prefer the later segment so the horizon turns instead of sticking to the
     # completed leg.
-    _, _, bearing, anchor = min(candidates, key=lambda candidate: (candidate[0], -candidate[1]))
+    _, index, bearing, anchor = min(candidates, key=lambda candidate: (candidate[0], -candidate[1]))
+    if recovery_heading_rad is not None and lookahead_m > 0.0 and index + 2 < len(points):
+        corner = points[index + 1]
+        outgoing = points[index + 2] - corner
+        length = float(np.linalg.norm(outgoing))
+        if length > 1.0e-9:
+            outgoing /= length
+            incoming = np.array((math.cos(bearing), math.sin(bearing)))
+            normal_in = np.array((-incoming[1], incoming[0]))
+            normal_out = np.array((-outgoing[1], outgoing[0]))
+            relative = position_ne_m - corner
+            error_in = float(relative @ normal_in)
+            error_out = float(relative @ normal_out)
+            progress_out = float(relative @ outgoing)
+            turn = float(incoming[0] * outgoing[1] - incoming[1] * outgoing[0])
+            course_in = bearing - math.atan2(error_in, lookahead_m)
+            course_out = math.atan2(outgoing[1], outgoing[0]) - math.atan2(error_out, lookahead_m)
+            delta_in = _wrap(course_in - recovery_heading_rad)
+            delta_out = _wrap(course_out - recovery_heading_rad)
+            if (
+                abs(error_in) > lookahead_m
+                and error_in * turn > 0.0
+                and 0.0 < progress_out < length
+                and delta_in * turn < 0.0 <= delta_out * turn
+                and abs(delta_out) < math.pi / 2.0
+            ):
+                bearing = math.atan2(outgoing[1], outgoing[0])
+                anchor = corner + progress_out * outgoing
     return bearing, (float(anchor[0]), float(anchor[1]))
 
 
@@ -1137,6 +1183,8 @@ def _activation_plan(
     min_alt_hard_from_k: int,
     config: MidMpcAssemblyConfig,
     capability: CapabilitySnapshot,
+    *,
+    reachable_when_diverging: bool = False,
 ) -> ConstraintActivationPlan:
     ownship = planner_input.ownship_state
     own_velocity = np.array(
@@ -1190,6 +1238,24 @@ def _activation_plan(
             strict=True,
         )
     )
+    if reachable_when_diverging:
+        updated = []
+        for activation, decision, track in zip(targets, decisions, tracks, strict=True):
+            next_activation = activation
+            stand_on = (
+                decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
+            )
+            if activation.cpa_hard_from_k == config.horizon_steps and not stand_on:
+                # Turning away eliminates current-motion CPA, not the contact's
+                # physical safety obligation during later predicted route turns.
+                seconds = _reachable_cpa_activation_time_s(track, ownship[:2], effective_cpa_hard_m, config)
+                next_activation = replace(
+                    activation,
+                    cpa_hard_from_s=seconds,
+                    cpa_hard_from_k=min(config.horizon_steps, math.floor(seconds / config.horizon_dt_s)),
+                )
+            updated.append(next_activation)
+        targets = tuple(updated)
     return ConstraintActivationPlan(
         targets=targets,
         global_cpa_hard_from_k=min(

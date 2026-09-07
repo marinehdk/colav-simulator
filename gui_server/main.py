@@ -1127,11 +1127,10 @@ class WebSessionManager:
             or planner.get("algorithm_details", {}).get("threat_management")
             or colav_data.get("threat_management")
         )
-        if not adapter_published_threat:
-            # Session-owned baseline cycle (ADR-0002): every session exposes the
-            # coordinator's canonical account, not only algorithm adapters that
-            # publish their own threat document.  A typed adapter UNAVAILABLE
-            # document is never masked by this fallback.
+        coordinator = getattr(session, "threat_management_coordinator", None)
+        if getattr(coordinator, "last_snapshot", None) is not None or not adapter_published_threat:
+            # Plan evidence stays frozen at acceptance. Cards use the current
+            # runtime authority even while a rejected revision retains that plan.
             threat_management = _session_threat_projection(session)
         # Legacy aliases remain present for old clients, but never carry a
         # browser/server-local risk interpretation.

@@ -973,9 +973,7 @@ def _ramped_offset_seed(seed: np.ndarray, problem: MidMpcProblem, config: MidMpc
     for k in range(start_k, n):
         target = float(np.clip(psi[k] + delta_rad, *problem.heading_bounds_rad))
         target_delta = math.atan2(math.sin(target - previous), math.cos(target - previous))
-        previous = float(
-            np.clip(previous + np.clip(target_delta, -heading_step, heading_step), *problem.heading_bounds_rad)
-        )
+        previous = float(np.clip(previous + np.clip(target_delta, -heading_step, heading_step), *problem.heading_bounds_rad))
         psi[k] = previous
     return x0
 
@@ -1294,6 +1292,17 @@ def _row_bounds(
         legacy_enabled=problem.lateral_active,
         horizon_steps=n,
     )
+    if config.strict_slack_bounds and problem.route_objective is not None:
+        # A recovery can leave ownship on either side of the mission line.
+        # Direction means improving toward the locked side, not requiring an
+        # instantaneous lateral teleport before the first optimized interval.
+        frame = problem.route_frame
+        initial_lateral = (problem.own_ship.x_m - frame.origin_m[0]) * frame.normal[0] + (
+            problem.own_ship.y_m - frame.origin_m[1]
+        ) * frame.normal[1]
+        floor = min(0.0, problem.preferred_side * initial_lateral)
+        direction_bounds = lbg[layout.direction.start : layout.direction.start + layout.direction.count]
+        direction_bounds[np.isfinite(direction_bounds)] = floor
     _apply_rule_bounds(
         lbg,
         ubg,

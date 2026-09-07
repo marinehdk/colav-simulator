@@ -958,3 +958,48 @@ def _request(planner_input: PlannerInput, snapshot: DecisionSnapshot) -> Assembl
         config=config,
         profile=AssemblyProfile.COLAV_STRICT,
     )
+
+
+def test_polyline_horizon_allows_reachable_next_leg_heading() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    snapshot = replace(
+        snapshot,
+        targets=(),
+        directive=replace(
+            snapshot.directive, required_targets=(), passing_side=PassingSide.NONE, minimum_course_change_rad=0.0
+        ),
+    )
+    planner_input = replace(planner_input, tracks=(), ownship_state=np.array([150.0, 300.0, 1.5 * math.pi, 7.0, 0.0, 0.0]))
+    request = replace(
+        _request(planner_input, snapshot),
+        route=RouteReference(
+            anchor_ne_m=(0.0, 300.0),
+            bearing_rad=1.5 * math.pi,
+            mission_leg_bearing_rad=-math.pi / 2,
+            planned_speed_mps=7.0,
+            mission_waypoints_ne_m=((0.0, 1000.0), (0.0, 0.0), (3000.0, 0.0)),
+        ),
+    )
+    outcome = MidMpcProblemAssembler().assemble(request)
+    assert isinstance(outcome, AssemblySuccess)
+    references = outcome.problem.route_objective.heading_reference_rad
+    assert abs(math.atan2(math.sin(references[-1]), math.cos(references[-1]))) < 0.01
+    assert references[0] >= planner_input.ownship_state[2]
+    assert max(references) <= outcome.problem.heading_bounds_rad[1] + 1e-9
+    assert min(references) >= outcome.problem.heading_bounds_rad[0] - 1e-9
+
+
+def test_active_target_safety_stays_enabled_when_current_motion_has_no_cpa() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    # The encounter duty persists after turning away; future course changes can
+    # still approach the contact even though current-motion CPA is outside range.
+    planner_input = replace(planner_input, ownship_state=np.array([0.0, 0.0, np.pi, 7.0, 0.0, 0.0]))
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.activation_plan.targets[0].cpa_hard_from_k < outcome.grid.control_intervals

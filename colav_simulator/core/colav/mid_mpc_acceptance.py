@@ -218,10 +218,15 @@ class ExecutionEvidence:
     tracker_id: str
     static_clearance_m: float | None = None
     static_context_required: bool = False
+    mission_waypoints_ne_m: tuple[tuple[float, float], ...] = ()
 
     def __post_init__(self) -> None:
         """Freeze execution targets."""
         object.__setattr__(self, "targets", tuple(self.targets))
+        points = tuple(tuple(float(value) for value in point) for point in self.mission_waypoints_ne_m)
+        if points and (len(points) < 2 or any(len(point) != 2 for point in points) or not np.isfinite(points).all()):
+            raise ValueError("mission route must contain finite NE waypoint pairs")
+        object.__setattr__(self, "mission_waypoints_ne_m", points)
 
 
 @dataclass(frozen=True)
@@ -766,7 +771,13 @@ class MidMpcPlanAcceptance:
                 elif phase_evidence is not None and phase_evidence.recovery_from_k is not None:
                     locked_deltas = deltas[: max(1, phase_evidence.recovery_from_k)]
                 signed = side_sign * locked_deltas
-                if not target.action_achieved and float(np.min(signed)) < -1.0e-3:
+                # Knot zero is observed vessel state, not an optimized action.
+                # A correcting plan may start off the locked side; its future
+                # knots must not worsen that deviation, and the absolute action
+                # deadlines below still require the prescribed side/alteration.
+                floor = min(0.0, float(side_sign * deltas[0]))
+                future_signed = signed[1:]
+                if not target.action_achieved and future_signed.size and float(np.min(future_signed)) < floor - 1.0e-3:
                     _fail(
                         findings,
                         AcceptanceLayer.COLREG,
@@ -1219,6 +1230,11 @@ class MidMpcPlanAcceptance:
                 )
             )
             cross_track_m = relative_positions @ mission_normal
+            if request.execution.mission_waypoints_ne_m:
+                mission_error, cross_track_m = _polyline_recovery_errors(request)
+                recovery_error = float(mission_error[recovery_from_k])
+                terminal_error = float(mission_error[-1])
+                post_cpa_error = float(np.max(mission_error[recovery_evidence_from_k:]))
             recovery_cross_track_m = abs(float(cross_track_m[recovery_from_k]))
             terminal_cross_track_m = abs(float(cross_track_m[-1]))
             post_cpa_cross_track_m = float(np.max(np.abs(cross_track_m[recovery_evidence_from_k:])))
@@ -1294,6 +1310,28 @@ class MidMpcPlanAcceptance:
                     True,
                 )
             )
+
+
+def _polyline_recovery_errors(request: AcceptanceRequest) -> tuple[np.ndarray, np.ndarray]:
+    """Measure recovery against the mission legs, independently of solver references."""
+    points = np.asarray(request.execution.mission_waypoints_ne_m)
+    starts = points[:-1]
+    legs = np.diff(points, axis=0)
+    lengths_squared = np.sum(legs * legs, axis=1)
+    valid = lengths_squared > 1.0e-18
+    if not np.any(valid):
+        raise ValueError("mission route has no nonzero leg")
+    starts, legs, lengths_squared = starts[valid], legs[valid], lengths_squared[valid]
+    positions = np.column_stack((request.candidate.north_m, request.candidate.east_m))
+    relative = positions[:, None, :] - starts[None, :, :]
+    fractions = np.clip(np.sum(relative * legs[None, :, :], axis=2) / lengths_squared, 0.0, 1.0)
+    offsets = relative - fractions[:, :, None] * legs[None, :, :]
+    distances = np.linalg.norm(offsets, axis=2)
+    # Shared vertices belong to the outgoing leg.
+    selected = distances.shape[1] - 1 - np.argmin(distances[:, ::-1], axis=1)
+    bearings = np.arctan2(legs[selected, 1], legs[selected, 0])
+    deltas = request.candidate.course_rad - bearings
+    return np.abs(np.arctan2(np.sin(deltas), np.cos(deltas))), distances[np.arange(len(positions)), selected]
 
 
 def _fail(

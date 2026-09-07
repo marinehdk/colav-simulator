@@ -1107,3 +1107,89 @@ def test_released_cpa_without_return_suffix_still_fails() -> None:
 
     assert result.accepted is False
     assert "QUALITY_RECOVERY_SUFFIX" in {finding.code for finding in result.findings}
+
+
+def test_recovery_quality_follows_mission_polyline_instead_of_departed_leg() -> None:
+    key = TrackKey(1, 1)
+    authority = AuthorityTarget(
+        key=key,
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="ACTIVE",
+        commitment="ACHIEVED",
+        passing_side="STARBOARD",
+        baseline_course_rad=-np.pi / 2,
+        required_course_change_rad=0.1,
+        action_achieved=True,
+        route_recovery_allowed=True,
+        reachability_verified=True,
+    )
+    phases = PredictionPhaseEvidence(
+        times_s=np.array([0.0, 15.0, 30.0]),
+        phases=("PASS", "RECOVER", "RECOVER"),
+        mission_bearing_rad=-np.pi / 2,
+        avoidance_corridor_bearing_rad=-1.0,
+        recovery_from_k=1,
+        target_keys=(EvidenceTrackKey(1, 1),),
+        solver_consumed=True,
+    )
+    target = ExecutionTarget(
+        key=key,
+        length_m=10.0,
+        width_m=4.0,
+        north_m=np.array([1000.0, 2000.0, 3000.0]),
+        east_m=np.full(3, 500.0),
+        uncertainty_m=np.zeros(3),
+    )
+    request = _request(
+        targets=(target,),
+        north=np.array([40.0, 100.0, 300.0]),
+        east=np.array([300.0, 100.0, 0.0]),
+        course=np.deg2rad([-90.0, -45.0, 0.0]),
+        authority_targets=(authority,),
+        phase_evidence=phases,
+    )
+    request = replace(
+        request, execution=replace(request.execution, mission_waypoints_ne_m=((0.0, 600.0), (0.0, 0.0), (600.0, 0.0)))
+    )
+    findings = []
+    MidMpcPlanAcceptance._quality(request, findings, ())
+    assert "QUALITY_RECOVERY_SUFFIX" not in {f.code for f in findings}
+    bad = replace(
+        request,
+        candidate=replace(
+            request.candidate,
+            north_m=np.array([40.0, 100.0, 300.0]),
+            east_m=np.array([300.0, 200.0, 400.0]),
+            course_rad=np.deg2rad([-90.0, 45.0, 90.0]),
+        ),
+    )
+    findings = []
+    MidMpcPlanAcceptance._quality(bad, findings, ())
+    assert "QUALITY_RECOVERY_SUFFIX" in {f.code for f in findings}
+
+
+def test_corrective_starboard_plan_is_not_rejected_for_observed_initial_course() -> None:
+    authority = AuthorityTarget(
+        key=TrackKey(1, 1),
+        encounter="CROSSING",
+        role="GIVE_WAY",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(8.0),
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=15.0,
+        actual_course_change_rad=np.deg2rad(-5.0),
+    )
+    request = _request(course=np.deg2rad([-5.0, 10.0, 15.0]), authority_targets=(authority,))
+    result = MidMpcPlanAcceptance().evaluate(request)
+    assert result.accepted, [f.code for f in result.findings if f.outcome is AcceptanceOutcome.FAIL]
+    wrong = replace(request, candidate=replace(request.candidate, course_rad=np.deg2rad([-5.0, -10.0, 15.0])))
+    result = MidMpcPlanAcceptance().evaluate(wrong)
+    assert "COLREG_LOCKED_SIDE" in {f.code for f in result.findings}

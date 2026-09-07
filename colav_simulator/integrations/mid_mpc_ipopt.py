@@ -400,6 +400,9 @@ class _MidMpcFacade:
             rolling_identity, rolling_reference, prior_plan_safe, prior_revalidation_codes = self._rolling_reference(
                 planner_input, snapshot, capability
             )
+            continuation_allowed = (
+                prior_plan_safe and rolling_reference.revision_reason is PlanRevisionReason.CONTINUITY_PRESERVED
+            )
             assembly = self._assembler.assemble(
                 AssemblyRequest(
                     planner_input=planner_input,
@@ -484,7 +487,7 @@ class _MidMpcFacade:
                     "failure_owner": "solver",
                     "ipopt_return_status": result.ipopt_return_status,
                     "max_constraint_violation": result.max_constraint_violation,
-                    "preserve_accepted_plan": True,
+                    "preserve_accepted_plan": continuation_allowed,
                     "revision_reason": "OPTIMIZER_UNRESOLVED",
                 },
             )
@@ -553,7 +556,8 @@ class _MidMpcFacade:
         replay_artifact["prediction_evidence_hash"] = prediction_evidence.semantic_hash
         if not acceptance_result.accepted:
             self._accepted_primal = None
-            self._accepted_request = None
+            if not continuation_allowed:
+                self._accepted_request = None
             failure_codes = [
                 finding.code
                 for finding in acceptance_result.findings
@@ -591,7 +595,7 @@ class _MidMpcFacade:
                     "failure_owner": "plan_acceptance",
                     "plan_acceptance": acceptance_inline,
                     "artifact": artifact_reference,
-                    "preserve_accepted_plan": True,
+                    "preserve_accepted_plan": continuation_allowed,
                     "revision_reason": "L4_PLAN_REJECTED",
                 },
                 evidence=EvidenceEnvelope(prediction_evidence),
@@ -619,7 +623,7 @@ class _MidMpcFacade:
                     "failure_code": "ROLLING_PLAN_REVISION_REJECTED",
                     "failure_owner": "rolling_plan",
                     "revision_reason": rolling_assessment.revision_reason.value,
-                    "preserve_accepted_plan": True,
+                    "preserve_accepted_plan": continuation_allowed,
                     "rolling_plan": replay_artifact["rolling_plan"],
                 },
                 evidence=EvidenceEnvelope(prediction_evidence),
@@ -1680,6 +1684,7 @@ def _acceptance_request(  # noqa: PLR0913
             targets=execution_targets,
             capability=capability,
             tracker_id=tracker_id,
+            mission_waypoints_ne_m=tuple(map(tuple, planner_input.waypoints_enu_m.T)),
         ),
         prior=PriorEvidence(mode=AcceptanceMode.FRESH_CANDIDATE),
         policy=PlanAcceptancePolicy(
