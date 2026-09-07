@@ -454,13 +454,13 @@ class VO:
                 )[0, 0]
             )
             self._track_metrics[id_do]["first_toc_s"] = first_toc if np.isfinite(first_toc) else None
-            preferred_domain_toc = float(
-                ray_polygon_ttc_grid(
-                    preferred_clearance_domain,
-                    p_os,
-                    (v_os - v_do).reshape(1, 1, 2),
-                )[0, 0]
+            preferred_tocs = ray_polygon_ttc_grid(
+                preferred_clearance_domain,
+                p_os,
+                np.stack((v_os - v_do, v_ref - v_do))[None, ...],
             )
+            preferred_domain_toc = float(preferred_tocs[0, 0])
+            reference_toc = float(preferred_tocs[0, 1])
             self._track_metrics[id_do]["current_hull_clearance_m"] = current_hull_clearance
             self._track_metrics[id_do]["hard_hull_clearance_m"] = (
                 self._params.hard_hull_clearance_m
@@ -473,6 +473,9 @@ class VO:
             )
             self._track_metrics[id_do]["preferred_domain_toc_s"] = (
                 preferred_domain_toc if np.isfinite(preferred_domain_toc) else None
+            )
+            self._track_metrics[id_do]["reference_preferred_domain_toc_s"] = (
+                reference_toc if np.isfinite(reference_toc) else None
             )
             geometry_matched_rules = self._determine_colregs_rules(
                 p_os,
@@ -1796,6 +1799,8 @@ class VO:
             "fallback_reason": None if self._feasible else "all_velocity_grid_candidates_inadmissible",
             "objective": self._objective,
             "selected_heading_rad": self._selected_heading,
+            "reference_velocity_ne_mps": self._reference_velocity.tolist(),
+            "planning_horizon_s": self._params.t_max,
             "selected_speed_mps": self._selected_speed,
             "dynamic_hazard_count": self._dynamic_hazard_count,
             "static_hazard_count": self._static_hazard_count,

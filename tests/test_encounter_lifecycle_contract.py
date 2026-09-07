@@ -321,6 +321,12 @@ def test_cooperative_give_way_action_keeps_stand_on_vessel_in_rule17_stand_on() 
     assert decision.rule17 is Rule17Stage.STAND_ON
     assert decision.rule17_basis == "TARGET_ACTION_ADEQUATE"
     assert decision.commitment is CommitmentPhase.NONE
+    for sequence, t in ((3, 15.0), (4, 25.0)):
+        cycle = _stand_on_cycle(sequence, t, range_scale=1.0)
+        passed = replace(cycle.targets[0], state_enu=np.array([-800.0, 800.0, 0.0, 7.0]))
+        decision = lifecycle.step(replace(cycle, targets=(passed,))).targets[0]
+    assert decision.risk is RiskPhase.RELEASED
+    assert not decision.action_started
 
 
 def test_overtaken_role_stays_locked_until_target_is_past_and_clear() -> None:

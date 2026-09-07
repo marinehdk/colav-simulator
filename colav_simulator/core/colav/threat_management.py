@@ -1012,7 +1012,7 @@ def _display_state(vector: Any, decision: Any | None) -> tuple[ThreatDisplayClas
     if decision is None or vector.claim_completeness is ThreatCompleteness.UNKNOWN:
         return ThreatDisplayClass.UNKNOWN, False
     avoidance_action_active = bool(
-        decision.risk is RiskPhase.ACTIVE and decision.action_achieved
+        decision.risk is RiskPhase.ACTIVE and decision.action_started
     )
     if avoidance_action_active:
         return ThreatDisplayClass.HIGH, True

@@ -34,7 +34,7 @@ from colav_simulator.core.colav.threat_assessment import (
     PredictionBasis,
     ThreatPrediction,
 )
-from colav_simulator.core.tracking.trackers import TrackSnapshot, TrackStatus
+from colav_simulator.core.tracking.trackers import TrackKey, TrackSnapshot, TrackStatus
 
 BASELINE_PROFILE = PlannerOddProfile()
 BASELINE_MANEUVERABILITY = Maneuverability(
@@ -82,15 +82,25 @@ def build_baseline_cycle_inputs(
     )
     tracks, _ = ownship_ship.get_do_track_information()
     targets = tuple(_target_observation(track) for track in tracks)
+    getter = getattr(ownship_ship, "get_colav_data", None)
+    vo = (getter() if callable(getter) else {}).get("vo")
+    route_course, planned_speed = course, speed
+    if isinstance(vo, dict) and "reference_velocity_ne_mps" in vo:
+        nominal = np.asarray(vo["reference_velocity_ne_mps"], dtype=float)
+        if nominal.shape != (2,) or not np.isfinite(nominal).all():
+            raise ValueError("VO nominal velocity must be a finite NE vector")
+        planned_speed = float(np.linalg.norm(nominal))
+        route_course = math.atan2(float(nominal[1]), float(nominal[0])) if planned_speed > 1e-9 else course
     cycle = EncounterCycle(
         epoch=BASELINE_EPOCH,
         sequence=sequence,
         sim_time_s=sim_time_s,
         ownship=ownship,
         targets=targets,
-        route_bearing_rad=course,
-        planned_speed_mps=speed,
+        route_bearing_rad=route_course,
+        planned_speed_mps=planned_speed,
         profile=BASELINE_PROFILE,
+        avoidance_intent_keys=_avoidance_intent_keys(vo, targets),
     )
     times = np.arange(BASELINE_PREDICTION_STEPS + 1, dtype=float) * BASELINE_PREDICTION_DT_S
     predictions = tuple(
@@ -120,6 +130,35 @@ def build_baseline_cycle_inputs(
         predictions=predictions,
         baseline_prediction=baseline_prediction,
     )
+
+
+def _avoidance_intent_keys(vo: dict | None, targets: tuple[TargetObservation, ...]) -> tuple[TrackKey, ...] | None:
+    """Bind VO action intent to observed targets, without deciding risk or release.
+
+    An explicit empty tuple prevents ordinary route turns from looking like
+    avoidance of distant contacts. Other integrations retain lifecycle-owned
+    action observation when they do not publish this execution evidence.
+    """
+    if not isinstance(vo, dict):
+        return None
+    metrics = vo.get("track_metrics", {})
+    keys = []
+    for target in targets:
+        target_id = target.key.target_id
+        facts = metrics.get(target_id, metrics.get(str(target_id), {}))
+        rules = set(facts.get("active_rules", ()))
+        passive_role = {"CR_PS", "OT_en"}.intersection(rules | set(facts.get("effective_matched_rules", ())))
+        reference_toc = facts.get("reference_preferred_domain_toc_s")
+        passive_maneuver = (
+            bool(passive_role)
+            and vo.get("driving_target_id") == target_id
+            and vo.get("reference_velocity_error_mps", 0.0) > BASELINE_PROFILE.own_action_speed_change_mps
+            and reference_toc is not None
+            and 0.0 <= reference_toc <= vo.get("planning_horizon_s", 0.0)
+        )
+        if rules.intersection({"HO", "OT_ing", "CR_SS"}) or facts.get("stand_on_emergency") or passive_maneuver:
+            keys.append(target.key)
+    return tuple(keys)
 
 
 def baseline_due(coordinator: Any, sim_time_s: float, dt_s: float) -> bool:

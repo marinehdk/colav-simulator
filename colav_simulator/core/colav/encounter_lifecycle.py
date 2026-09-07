@@ -124,6 +124,8 @@ class PlannerOddProfile:
     covariance_confidence: float = 0.99
     target_action_course_change_rad: float = math.radians(3.0)
     target_clearance_improvement_m: float = 10.0
+    own_action_course_change_rad: float = math.radians(3.0)
+    own_action_speed_change_mps: float = 0.25
     corridor_clearance_tie_m: float = 1.0
     max_targets: int = 16
     max_cycle_gap_s: float = 10.0
@@ -212,6 +214,8 @@ class EncounterCycle:
     profile: PlannerOddProfile
     physical_facts: tuple[PhysicalEncounterFacts, ...] = ()
     primary_priority_facts: tuple[PrimaryPriorityFact, ...] = ()
+    # None: no separate intent observation; (): execution reports no maneuver.
+    avoidance_intent_keys: tuple[TrackKey, ...] | None = None
 
     def __post_init__(self) -> None:
         """Validate one immutable lifecycle input cycle."""
@@ -237,6 +241,10 @@ class EncounterCycle:
             raise ValueError("primary priority fact keys must be unique")
         if any(key not in keys for key in priority_keys):
             raise ValueError("primary priority facts must reference a target")
+        if self.avoidance_intent_keys is not None:
+            object.__setattr__(self, "avoidance_intent_keys", tuple(self.avoidance_intent_keys))
+            if any(key not in keys for key in self.avoidance_intent_keys):
+                raise ValueError("avoidance intent must reference an observed target")
 
     @property
     def input_hash(self) -> str:
@@ -269,6 +277,10 @@ class EncounterCycle:
                 ],
                 "route_bearing_rad": self.route_bearing_rad,
                 "planned_speed_mps": self.planned_speed_mps,
+                "avoidance_intent_keys": (
+                    None if self.avoidance_intent_keys is None
+                    else [asdict(key) for key in self.avoidance_intent_keys]
+                ),
                 "profile": asdict(self.profile),
                 "physical_facts": [
                     {
@@ -338,6 +350,7 @@ class TargetDecision:
     action_start_deadline_s: float | None
     action_achievement_deadline_s: float | None
     actual_course_change_rad: float | None
+    action_started: bool = False
 
 
 @dataclass(frozen=True)
@@ -448,6 +461,9 @@ class _TargetState:
     rule17: Rule17Stage = Rule17Stage.NONE
     rule17_basis: str = "NOT_APPLICABLE"
     baseline_course_rad: float | None = None
+    baseline_speed_mps: float | None = None
+    action_observation_course_rad: float | None = None
+    action_observation_speed_mps: float | None = None
     required_course_change_rad: float = 0.0
     standon_since_s: float | None = None
     initial_target_course_rad: float | None = None
@@ -460,6 +476,7 @@ class _TargetState:
     recovery_started: bool = False
     passing_clear_achieved: bool = False
     action_achieved: bool = False
+    action_started: bool = False
     committed_at_s: float | None = None
     action_start_deadline_s: float | None = None
     action_achievement_deadline_s: float | None = None
@@ -716,6 +733,8 @@ class EncounterLifecycle:
             and state.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN}
         ):
             encounter, role = state.encounter, state.role
+            if _advance_release(state, cycle, target, geometry):
+                return _target_decision(target, state, geometry, effective_health)
         if state.risk is RiskPhase.RELEASED:
             if _recovery_guard_holds(state, cycle, target):
                 return _target_decision(target, state, geometry, effective_health)
@@ -742,13 +761,10 @@ class EncounterLifecycle:
             else:
                 return _target_decision(target, state, geometry, effective_health)
         if state.commitment is CommitmentPhase.COMMITTED:
-            side_sign = -1.0 if state.passing_side is PassingSide.PORT else 1.0
-            course_delta = _wrap(cycle.ownship.heading_rad - float(state.baseline_course_rad))
-            state.actual_course_change_rad = max(float(state.actual_course_change_rad or 0.0), abs(course_delta))
-            if side_sign * course_delta >= state.required_course_change_rad - 1.0e-9:
-                state.action_achieved = True
-            if state.action_achieved:
-                _advance_release(state, cycle, target, geometry)
+            _observe_own_action(state, cycle, target)
+            # Physical clearance is independent of whether the prescribed
+            # maneuver amplitude/direction was achieved (a quality fact).
+            _advance_release(state, cycle, target, geometry)
         newly_committed = False
         if state.commitment is CommitmentPhase.NONE:
             newly_committed = _advance_uncommitted(
@@ -972,6 +988,7 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
     if (state.encounter, state.role) != (encounter, role):
         state.candidate_since_s = None
         state.baseline_course_rad = None
+        state.baseline_speed_mps = None
         state.required_course_change_rad = 0.0
     state.encounter = encounter
     state.role = role
@@ -984,6 +1001,7 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
         if state.candidate_since_s is None:
             state.candidate_since_s = cycle.sim_time_s
             state.baseline_course_rad = cycle.ownship.heading_rad
+            state.baseline_speed_mps = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
             state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
         if (
             not _urgent_action_required(cycle, target, geometry)
@@ -1000,6 +1018,7 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
         state.rule17_basis = "MONITORING_TARGET_ACTION"
         if state.baseline_course_rad is None:
             state.baseline_course_rad = cycle.ownship.heading_rad
+            state.baseline_speed_mps = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
         if state.standon_since_s is None:
             state.standon_since_s = cycle.sim_time_s
             state.initial_target_course_rad = math.atan2(
@@ -1039,6 +1058,10 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
     state.initial_dcpa_m = None
     state.target_action_since_s = None
     state.baseline_course_rad = None
+    state.baseline_speed_mps = None
+    state.action_started = False
+    state.action_observation_course_rad = None
+    state.action_observation_speed_mps = None
     state.required_course_change_rad = 0.0
     state.passing_clear_achieved = False
     return False
@@ -1114,6 +1137,8 @@ def _commit(
     state.commitment = CommitmentPhase.COMMITTED
     if state.baseline_course_rad is None:
         state.baseline_course_rad = cycle.ownship.heading_rad
+    if state.baseline_speed_mps is None:
+        state.baseline_speed_mps = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
     if state.required_course_change_rad <= 0.0:
         state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
     state.route_recovery_allowed = False
@@ -1121,13 +1146,43 @@ def _commit(
     state.recovery_started = False
     state.passing_clear_achieved = False
     state.action_achieved = False
+    state.action_started = False
+    state.action_observation_course_rad = None
+    state.action_observation_speed_mps = None
     state.committed_at_s = cycle.sim_time_s
     state.action_start_deadline_s = cycle.sim_time_s + cycle.profile.action_start_window_s
     state.action_achievement_deadline_s = cycle.sim_time_s + cycle.profile.action_achievement_window_s
+    _observe_own_action(state, cycle, target)
+
+
+def _observe_own_action(state: _TargetState, cycle: EncounterCycle, target: TargetObservation) -> None:
+    """Latch observed maneuver onset separately from prescribed achievement."""
     course_delta = _wrap(cycle.ownship.heading_rad - float(state.baseline_course_rad))
-    state.actual_course_change_rad = abs(course_delta)
+    state.actual_course_change_rad = max(float(state.actual_course_change_rad or 0.0), abs(course_delta))
+    speed = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
+    action_delta = course_delta
+    speed_baseline = state.baseline_speed_mps
+    if cycle.avoidance_intent_keys is not None:
+        if target.key not in cycle.avoidance_intent_keys:
+            if not state.action_started:
+                state.action_observation_course_rad = None
+                state.action_observation_speed_mps = None
+            return
+        if state.action_observation_course_rad is None:
+            state.action_observation_course_rad = cycle.ownship.heading_rad
+            state.action_observation_speed_mps = speed
+        action_delta = _wrap(cycle.ownship.heading_rad - state.action_observation_course_rad)
+        speed_baseline = state.action_observation_speed_mps
+    speed_change = 0.0 if speed_baseline is None else abs(speed - speed_baseline)
+    onset_angle = min(cycle.profile.own_action_course_change_rad, state.required_course_change_rad)
+    if (
+        (onset_angle > 0.0 and abs(action_delta) >= onset_angle - 1e-9)
+        or (cycle.profile.own_action_speed_change_mps > 0.0 and speed_change >= cycle.profile.own_action_speed_change_mps)
+    ):
+        state.action_started = True
     side_sign = -1.0 if state.passing_side is PassingSide.PORT else 1.0
-    state.action_achieved = side_sign * course_delta >= state.required_course_change_rad - 1.0e-9
+    if side_sign * course_delta >= state.required_course_change_rad - 1.0e-9:
+        state.action_achieved = True
 
 
 def _substantial_course_change(
@@ -1237,6 +1292,7 @@ def _target_decision(
         action_start_deadline_s=state.action_start_deadline_s,
         action_achievement_deadline_s=state.action_achievement_deadline_s,
         actual_course_change_rad=state.actual_course_change_rad,
+        action_started=state.action_started,
     )
 
 
@@ -1285,7 +1341,7 @@ def _advance_release(
     clearance_reached = (
         state.passing_clear_achieved
         if state.role is OwnshipRole.OVERTAKING
-        else geometry.range_m >= _dynamic_clearance_margin(cycle, target)
+        else geometry.range_m >= recovery_guard_clearance
     )
     past_clear = (
         geometry.signed_tcpa_s <= 0.0
@@ -1368,10 +1424,9 @@ def _passing_geometry_clear(
     relative_own = cycle.ownship.position_ne_m - target.state_enu[:2]
     longitudinal_clearance = 0.5 * cycle.ownship.length_m + 0.5 * target.length_m + cycle.profile.hard_hull_clearance_m
     lateral_clearance = 0.5 * cycle.ownship.width_m + 0.5 * target.width_m + cycle.profile.hard_hull_clearance_m
-    side_sign = 1.0 if state.passing_side is PassingSide.STARBOARD else -1.0
     return (
         float(relative_own @ along) >= longitudinal_clearance
-        and side_sign * float(relative_own @ starboard) >= lateral_clearance
+        and abs(float(relative_own @ starboard)) >= lateral_clearance
     )
 
 

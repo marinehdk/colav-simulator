@@ -17,6 +17,8 @@ from dataclasses import replace
 
 from conftest import PROJECT_ROOT
 
+from colav_simulator.core.colav.threat_assessment import ThreatManagementSnapshot
+from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
 from colav_simulator.experiment.contracts import RunSpec
 from colav_simulator.experiment.runner import ExperimentRunner
 from examples.validate_kuwata_vo import Acceptance, summarize
@@ -75,8 +77,17 @@ def test_gui_default_head_on_recovery_rotation_stays_below_one_circle(tmp_path) 
     assert recovery["heading_gross_sweep_deg"] < FULL_CIRCLE_SWEEP_DEG, recovery
 
 
-def test_gui_default_overtaking_recovers_without_u_turn_or_repeated_weaving(tmp_path) -> None:
+def test_gui_default_overtaking_recovers_without_u_turn_or_repeated_weaving(tmp_path, monkeypatch) -> None:
     """Exercise the shipped OT route and GUI stack, including the whole return."""
+    colors = []
+    original_cycle = ThreatManagementCoordinator.cycle
+
+    def observe(coordinator, cycle, **kwargs) -> ThreatManagementSnapshot:
+        snapshot = original_cycle(coordinator, cycle, **kwargs)
+        colors.append((cycle.sim_time_s, snapshot.vectors[0].display_class))
+        return snapshot
+
+    monkeypatch.setattr(ThreatManagementCoordinator, "cycle", observe)
     spec = SessionCreateRequest(
         scenario_id="overtaking",
         validation_rule_id="rule13",
@@ -86,6 +97,10 @@ def test_gui_default_overtaking_recovers_without_u_turn_or_repeated_weaving(tmp_
     ).to_spec()
     result = ExperimentRunner(PROJECT_ROOT).run(replace(spec, output_root=str(tmp_path / "runs")))
     summary, rows = summarize(result, Acceptance())
+    transitions = [color for i, (_, color) in enumerate(colors) if i == 0 or color != colors[i - 1][1]]
+    assert transitions == ["LOW", "HIGH", "CLEAR"]
+    for t, expected in ((100.0, "HIGH"), (326.0, "CLEAR"), (545.0, "CLEAR")):
+        assert min(colors, key=lambda item: abs(item[0] - t))[1] == expected
     assert rows[-1]["time_s"] >= 599.0, "the full 600 s scene must cover the settling window"
     assert not summary["truth"]["ship0_vs_target"]["continuous_collision"]
     assert not summary["truth"]["grounding"]["grounded"]

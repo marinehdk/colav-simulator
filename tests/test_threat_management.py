@@ -983,3 +983,83 @@ def test_unaccepted_candidate_uses_context_vocabulary() -> None:
                 "candidate_hash": "not-accepted",
             }
         )
+
+
+@pytest.mark.parametrize("passing_sign", [1.0, -1.0])
+def test_overtaking_display_starts_on_motion_and_releases_after_either_safe_side(passing_sign: float) -> None:
+    coordinator = ThreatManagementCoordinator()
+    target = replace(_target(TrackKey(1, 1), 800.0), state_enu=np.array([800.0, 10.0 * passing_sign, 2.5, 0.0]))
+    profile = _domain_profile()
+    coordinator.cycle(_cycle(0, 0.0, (target,)), profile=profile)
+    committed = coordinator.cycle(
+        _cycle(1, 5.0, (replace(target, observed_at_s=5.0, generated_at_s=5.0),)), profile=profile,
+    )
+    assert committed.vectors[0].display_class == "LOW"
+    heading = passing_sign * math.radians(6.0)
+    moving = replace(_ownship(), heading_rad=heading,
+                     velocity_ne_mps=7.0 * np.array([math.cos(heading), math.sin(heading)]))
+    started = coordinator.cycle(
+        replace(_cycle(2, 10.0, (replace(target, observed_at_s=10.0, generated_at_s=10.0),)), ownship=moving),
+        profile=profile,
+    )
+    assert not started.lifecycle_snapshot.targets[0].action_achieved
+    assert started.vectors[0].display_class == "HIGH", "motion onset must not wait for the prescribed maneuver amplitude"
+    for sequence, t in enumerate((20.0, 30.0), start=3):
+        passed = replace(target, state_enu=np.array([1000.0, 10.0 * passing_sign, 2.5, 0.0]),
+                         observed_at_s=t, generated_at_s=t)
+        own = replace(_ownship(), position_ne_m=np.array([1500.0, 300.0 * passing_sign]))
+        released = coordinator.cycle(replace(_cycle(sequence, t, (passed,)), ownship=own), profile=profile)
+    assert released.lifecycle_snapshot.targets[0].risk is RiskPhase.RELEASED
+    assert released.vectors[0].display_class == "CLEAR"
+    assert not released.vectors[0].avoidance_action_active
+
+
+@pytest.mark.parametrize("motion", ["turn", "slow"])
+def test_action_onset_uses_execution_target_evidence_and_observed_motion(motion: str) -> None:
+    coordinator = ThreatManagementCoordinator()
+    target = _target(TrackKey(1, 1), 800.0)
+    profile = _domain_profile()
+    coordinator.cycle(replace(_cycle(0, 0.0, (target,)), avoidance_intent_keys=()), profile=profile)
+    coordinator.cycle(replace(_cycle(1, 5.0, (replace(target, observed_at_s=5.0, generated_at_s=5.0),)),
+                              avoidance_intent_keys=()), profile=profile)
+    angle = math.radians(6.0) if motion == "turn" else 0.0
+    speed = 7.0 if motion == "turn" else 6.0
+    own = replace(_ownship(), heading_rad=angle,
+                  velocity_ne_mps=speed * np.array([math.cos(angle), math.sin(angle)]))
+    cycle = replace(_cycle(2, 10.0, (replace(target, observed_at_s=10.0, generated_at_s=10.0),)),
+                    ownship=own, avoidance_intent_keys=())
+    ordinary = coordinator.cycle(cycle, profile=profile)
+    assert ordinary.vectors[0].display_class == "LOW"
+    assert not ordinary.lifecycle_snapshot.targets[0].action_started
+    intent = replace(cycle, sequence=3, sim_time_s=11.0, avoidance_intent_keys=(target.key,))
+    waiting = coordinator.cycle(intent, profile=profile)
+    assert waiting.vectors[0].display_class == "LOW", "intent alone is not observed action"
+    response_heading = angle + (math.radians(6.0) if motion == "turn" else 0.0)
+    response_speed = speed - (1.0 if motion == "slow" else 0.0)
+    response = replace(own, heading_rad=response_heading,
+                       velocity_ne_mps=response_speed * np.array([math.cos(response_heading), math.sin(response_heading)]))
+    action = coordinator.cycle(replace(intent, sequence=4, sim_time_s=12.0, ownship=response), profile=profile)
+    assert action.vectors[0].display_class == "HIGH"
+    assert action.lifecycle_snapshot.targets[0].action_started
+    assert not action.lifecycle_snapshot.targets[0].action_achieved
+
+
+def test_green_release_uses_the_same_clearance_as_its_confirmation() -> None:
+    coordinator = ThreatManagementCoordinator()
+    target = _target(TrackKey(1, 1), 800.0)
+    profile = _domain_profile()
+    coordinator.cycle(_cycle(0, 0.0, (target,)), profile=profile)
+    coordinator.cycle(_cycle(1, 5.0, (replace(target, observed_at_s=5.0, generated_at_s=5.0),)), profile=profile)
+    angle = math.radians(6.0)
+    own = replace(_ownship(), heading_rad=angle, velocity_ne_mps=7.0 * np.array([math.cos(angle), math.sin(angle)]))
+    coordinator.cycle(
+        replace(_cycle(2, 10.0, (replace(target, observed_at_s=10.0, generated_at_s=10.0),)), ownship=own),
+        profile=profile,
+    )
+    # Small relative speed makes the dynamic margin smaller than the comfort
+    # margin. Entering green here previously bounced back to red on the next cycle.
+    for sequence, t in enumerate((20.0, 25.0), start=3):
+        near = replace(target, state_enu=np.array([-130.0, 0.0, 6.0, 0.0]), observed_at_s=t, generated_at_s=t)
+        waiting = coordinator.cycle(_cycle(sequence, t, (near,)), profile=profile)
+        assert waiting.vectors[0].display_class == "HIGH"
+        assert waiting.lifecycle_snapshot.targets[0].risk is RiskPhase.ACTIVE

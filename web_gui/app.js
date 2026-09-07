@@ -1000,11 +1000,14 @@ function eventDisplayContent(event) {
   const contextLabel = (value) => String(value || '').replaceAll('_', ' ');
   const reasonLabel = (value) => String(value || '').replaceAll('_', ' ');
   const transitionLabel = (from, to) => [from, to].filter(Boolean).map(contextLabel).join(' → ');
-  const lifecycleStateLabel = (value) => {
+  const lifecycleStateLabel = (value, displayClass) => {
     const state = String(value || '');
-    if (state.includes('ACTIVE') || state.includes('COMMITTED')) return 'AVOIDING';
     if (state.includes('PAST_CLEAR')) return 'CLEARING';
     if (state.includes('RELEASED')) return 'RELEASED';
+    if (state.includes('ACTIVE') || state.includes('COMMITTED')) {
+      if (displayClass === 'HIGH') return 'AVOIDING';
+      return displayClass === 'LOW' ? 'MONITOR' : 'COMMITTED';
+    }
     if (state.includes('CANDIDATE') || state.includes('MONITORING')) return 'MONITOR';
     if (state.includes('CLEAR')) return 'SAFE';
     return contextLabel(state);
@@ -1108,8 +1111,8 @@ function eventDisplayContent(event) {
       });
     case 'target_transition': {
       const toState = String(details.to_state || '');
-      const fromSummary = lifecycleStateLabel(details.from_state);
-      const toSummary = lifecycleStateLabel(toState);
+      const fromSummary = lifecycleStateLabel(details.from_state, details.from_display_class);
+      const toSummary = lifecycleStateLabel(toState, details.display_class);
       const sameSummaryChanged = fromSummary && fromSummary === toSummary && details.from_state !== details.to_state;
       const stateTransition = sameSummaryChanged
         ? transitionLabel(

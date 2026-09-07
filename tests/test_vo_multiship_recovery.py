@@ -7,11 +7,23 @@ from dataclasses import replace
 import numpy as np
 from conftest import PROJECT_ROOT
 
+from colav_simulator.core.colav.threat_assessment import ThreatManagementSnapshot
+from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
 from colav_simulator.experiment.runner import ExperimentRunner
 from gui_server.main import SessionCreateRequest
 
 
-def test_three_target_vo_recovers_forward_and_keeps_head_on_duty(tmp_path) -> None:
+def test_three_target_vo_recovers_forward_and_keeps_head_on_duty(tmp_path, monkeypatch) -> None:  # noqa: PLR0915
+    colors = {1: [], 2: [], 3: []}
+    original_cycle = ThreatManagementCoordinator.cycle
+
+    def observe(coordinator, cycle, **kwargs) -> ThreatManagementSnapshot:
+        snapshot = original_cycle(coordinator, cycle, **kwargs)
+        for vector in snapshot.vectors:
+            colors[vector.key.target_id].append((cycle.sim_time_s, vector.display_class))
+        return snapshot
+
+    monkeypatch.setattr(ThreatManagementCoordinator, "cycle", observe)
     spec = SessionCreateRequest(
         scenario_id="paper_ccta2023_multiship",
         validation_rule_id="multiship",
@@ -20,6 +32,13 @@ def test_three_target_vo_recovers_forward_and_keeps_head_on_duty(tmp_path) -> No
         gnc_stack_id="fcb45_3dof_plant+pass_through_guidance+fcb45_marine_pid",
     ).to_spec()
     result = ExperimentRunner(PROJECT_ROOT).run(replace(spec, output_root=str(tmp_path / "runs")))
+    ot_colors = colors[1]
+    transitions = [color for i, (_, color) in enumerate(ot_colors) if i == 0 or color != ot_colors[i - 1][1]]
+    assert transitions == ["LOW", "HIGH", "CLEAR"]
+    assert next(t for t, color in ot_colors if color == "HIGH") < 100.0
+    assert min(ot_colors, key=lambda item: abs(item[0] - 400.0))[1] == "CLEAR"
+    assert all(color != "HIGH" for t, color in colors[2] if t < 600.0)
+    assert all(color != "HIGH" for t, color in colors[3] if t < 1000.0)
     events = result.session.events
     event_types = {event["type"] for event in events}
     assert "goal_reached" in event_types
