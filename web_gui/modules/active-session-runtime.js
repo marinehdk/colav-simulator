@@ -19,6 +19,32 @@ function clone(value) {
   return value === undefined ? undefined : structuredClone(value);
 }
 
+export function expandSharedPlannerEnvelope(envelope) {
+  const transport = envelope?.transport;
+  if (transport?.schema_version !== 'colav.telemetry.shared-planner@1') return envelope;
+  const aliases = transport.planner_aliases;
+  const shipAliases = transport.ship_planner_aliases;
+  if (!Array.isArray(aliases) || !Array.isArray(shipAliases) || !Array.isArray(envelope.truth)) return null;
+  if ((aliases.length || shipAliases.length) && (!envelope.planner || typeof envelope.planner !== 'object')) return null;
+  const expanded = { ...envelope, truth: [...envelope.truth] };
+  for (const name of aliases) {
+    if (!['latest_planner_solve', 'active_planner_plan', 'latest_planner_attempt'].includes(name)) return null;
+    expanded[name] = envelope.planner;
+  }
+  for (const index of shipAliases) {
+    if (!Number.isInteger(index) || index < 0 || index >= expanded.truth.length) return null;
+    const ship = expanded.truth[index];
+    if (!ship?.colav || typeof ship.colav !== 'object') return null;
+    expanded.truth[index] = { ...ship, colav: { ...ship.colav, planner: envelope.planner } };
+  }
+  if (transport.ownship_from_truth) {
+    if (!expanded.truth.length) return null;
+    expanded.os = expanded.truth[0];
+  }
+  if (transport.obstacles_from_truth) expanded.obstacles = expanded.truth.slice(1);
+  return expanded;
+}
+
 function initialState() {
   return {
     authority: { status: 'loading', error: null },
@@ -180,6 +206,7 @@ export function createActiveSessionRuntime({ http, wsFactory, scheduler, clock, 
   }
 
   function applyTelemetry(envelope, sessionId) {
+    envelope = expandSharedPlannerEnvelope(envelope);
     if (!validTelemetry(envelope, sessionId)) {
       state = {
         ...state,

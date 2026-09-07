@@ -65,6 +65,7 @@ THREAT_PROJECTION_SCHEMA = "colav.threat-management.projection@1"
 TELEMETRY_PUBLISH_INTERVAL_S = 0.1
 TELEMETRY_TRAIL_HISTORY_SECONDS = 300.0
 TELEMETRY_MAX_TRAIL_POINTS = 120
+TELEMETRY_EVIDENCE_RECENT_EVENTS = 32
 
 # Issue #67 validated COLAV spacing profiles, run by product (GUI) sessions
 # when the client sends no algorithm config. With the bare published defaults
@@ -94,6 +95,24 @@ def _sample_display_trail(trail: list[list[float]]) -> list[list[float]]:
         return list(trail)
     indices = np.linspace(0, len(trail) - 1, TELEMETRY_MAX_TRAIL_POINTS, dtype=int)
     return [trail[int(index)] for index in indices]
+
+
+def _telemetry_colav(colav: dict[str, Any]) -> dict[str, Any]:
+    """Project a bounded live timeline; raw frames retain the complete audit."""
+    planner = colav.get("planner", {})
+    timeline = planner.get("evidence_timeline") if isinstance(planner, dict) else None
+    if isinstance(timeline, dict) and isinstance(timeline.get("events"), list):
+        events = timeline["events"]
+        timeline = {
+            **timeline,
+            "events": events[-TELEMETRY_EVIDENCE_RECENT_EVENTS:],
+            "events_total": len(events),
+            "events_truncated": len(events) > TELEMETRY_EVIDENCE_RECENT_EVENTS,
+        }
+        colav = {**colav, "planner": {**planner, "evidence_timeline": timeline}}
+    # Normalize once, after bounding history. The detached result is reused by
+    # current-plan aliases rather than traversing the same evidence repeatedly.
+    return jsonable(colav)
 
 
 def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) -> dict[str, Any]:
@@ -133,6 +152,44 @@ def _static_once_stream_payload(payload: dict[str, Any], *, include_static: bool
     }
     if not include_static:
         streamed.pop("enc_navigation_area", None)
+    return streamed
+
+
+def _shared_planner_stream_payload(payload: dict[str, Any], *, include_static: bool) -> dict[str, Any]:
+    """Transmit identical planner aliases once; the client restores the envelope."""
+    streamed = _static_once_stream_payload(payload, include_static=include_static)
+    planner = payload.get("planner")
+    aliases = [name for name in ("latest_planner_solve", "active_planner_plan", "latest_planner_attempt")
+               if planner is not None and payload.get(name) is planner]
+    for name in aliases:
+        streamed.pop(name, None)
+    ships = payload.get("truth", [])
+    ship_aliases = []
+    streamed["truth"] = []
+    for index, ship in enumerate(ships):
+        projected_ship = ship
+        colav = ship.get("colav", {})
+        if planner is not None and colav.get("planner") is planner:
+            ship_aliases.append(index)
+            projected_ship = {**ship, "colav": {key: value for key, value in colav.items() if key != "planner"}}
+        streamed["truth"].append(projected_ship)
+    ownship_alias = bool(ships) and payload.get("os") is ships[0]
+    obstacles = payload.get("obstacles")
+    obstacle_alias = isinstance(obstacles, list) and len(obstacles) == max(0, len(ships) - 1) and all(
+        target is ship for target, ship in zip(obstacles, ships[1:], strict=False)
+    )
+    if ownship_alias:
+        streamed.pop("os", None)
+    if obstacle_alias:
+        streamed.pop("obstacles", None)
+    streamed["transport"] = {
+        "schema_version": "colav.telemetry.shared-planner@1",
+        "static_included": include_static,
+        "planner_aliases": aliases,
+        "ship_planner_aliases": ship_aliases,
+        "ownship_from_truth": ownship_alias,
+        "obstacles_from_truth": obstacle_alias,
+    }
     return streamed
 
 
@@ -548,6 +605,7 @@ class WebSessionManager:
         self._last_shadow_comparison: dict[str, Any] | None = None
         self._telemetry_published_at = 0.0
         self._latest_stream_document = ""
+        self._latest_shared_stream_documents: dict[bool, str] = {}
         self._latest_static_once_stream_document = ""
         self._latest_static_once_dynamic_stream_document = ""
         self._latest_compact_stream_document = ""
@@ -584,6 +642,7 @@ class WebSessionManager:
         self._last_shadow_comparison = None
         self._telemetry_published_at = 0.0
         self._latest_stream_document = ""
+        self._latest_shared_stream_documents: dict[bool, str] = {}
         self._latest_compact_stream_document = ""
         self._latest_compact_static_stream_document = ""
         self.speed_multiplier = 1.0
@@ -691,6 +750,7 @@ class WebSessionManager:
 
     def _invalidate_stream_documents(self) -> None:
         self._latest_stream_document = ""
+        self._latest_shared_stream_documents: dict[bool, str] = {}
         self._latest_static_once_stream_document = ""
         self._latest_static_once_dynamic_stream_document = ""
         self._latest_compact_stream_document = ""
@@ -708,11 +768,20 @@ class WebSessionManager:
         *,
         compact: bool = False,
         static_once: bool = False,
+        shared_planner: bool = False,
         include_static: bool = True,
     ) -> str:
         with self.lock:
             if not self.latest:
                 self.latest = self._telemetry(None)
+            if shared_planner:
+                documents = self._latest_shared_stream_documents
+                if include_static not in documents:
+                    documents[include_static] = json.dumps(
+                        jsonable(_shared_planner_stream_payload(self.latest, include_static=include_static)),
+                        ensure_ascii=False, separators=(",", ":"),
+                    )
+                return documents[include_static]
             if static_once:
                 attribute = (
                     "_latest_static_once_stream_document"
@@ -1019,7 +1088,7 @@ class WebSessionManager:
                     "dimensions_provenance": raw.get("historical_actor_dimensions", {}).get("provenance"),
                     "measurements": jsonable(raw.get("sensor_measurements")),
                     "tracks": self._local_tracks(raw, origin_n, origin_e),
-                    "colav": jsonable(raw.get("colav", {})),
+                    "colav": _telemetry_colav(raw.get("colav", {})),
                 }
             )
         own = ships[0] if ships else {"x": 0.0, "y": 0.0, "psi": 0.0, "u": 0.0, "v": 0.0, "r": 0.0, "trajectory": []}
@@ -1050,7 +1119,7 @@ class WebSessionManager:
             local_waypoints = np.vstack((waypoints[0] - origin_n, waypoints[1] - origin_e)).tolist()
         else:
             local_waypoints = [[], []]
-        colav_data = own_raw.get("colav", {}) if own_raw else {}
+        colav_data = ships[0]["colav"] if ships else {}
         planner = colav_data.get("planner", {})
         threat_management = _canonical_threat_projection(colav_data, planner)
         adapter_published_threat = bool(
@@ -1137,17 +1206,17 @@ class WebSessionManager:
             else:
                 self.previous_prediction_horizon = []
             if planner.get("solver_executed"):
-                self.latest_planner_solve = jsonable(planner)
+                self.latest_planner_solve = planner
                 self.last_solve_id = solve_id
-            self.active_planner_plan = jsonable(planner) if executable else {}
-            self.latest_planner_attempt = jsonable(planner)
+            self.active_planner_plan = planner if executable else {}
+            self.latest_planner_attempt = planner
             rejected_prediction_horizon = prediction_horizon if prediction_render.get("style") == "REJECTED" else []
         elif planner.get("solver_executed") and solve_id != self.last_solve_id:
             self.previous_prediction_horizon = self.current_prediction_horizon
             self.current_prediction_horizon = prediction_horizon
             self.last_solve_id = solve_id
-            self.latest_planner_solve = jsonable(planner)
-            self.active_planner_plan = jsonable(planner)
+            self.latest_planner_solve = planner
+            self.active_planner_plan = planner
         elif planner.get("algorithm_details", {}).get("failure_code") and not planner.get("algorithm_details", {}).get(
             "cached_plan_used", False
         ):
@@ -1163,7 +1232,7 @@ class WebSessionManager:
             or planner.get("algorithm_details", {}).get("hold_acceptance")
             or not self.latest_planner_attempt
         ):
-            self.latest_planner_attempt = jsonable(planner)
+            self.latest_planner_attempt = planner
         references = np.asarray(own_raw.get("references", np.zeros(9)), dtype=float)
         execution = {
             "solve_id": solve_id,
@@ -1313,7 +1382,7 @@ class WebSessionManager:
             "encounters": encounters,
             "primary_encounter": primary_encounter,
             "threat_management": threat_management,
-            "planner": jsonable(planner),
+            "planner": planner,
             "latest_planner_solve": self.latest_planner_solve,
             "active_planner_plan": self.active_planner_plan,
             "latest_planner_attempt": self.latest_planner_attempt,
@@ -1892,6 +1961,7 @@ async def _stream(
     *,
     compact: bool = False,
     static_once: bool = False,
+    shared_planner: bool = False,
 ) -> None:
     await websocket.accept()
     include_static = True
@@ -1905,6 +1975,7 @@ async def _stream(
                 manager.stream_document(
                     compact=compact,
                     static_once=static_once,
+                    shared_planner=shared_planner,
                     include_static=include_static,
                 )
             )
@@ -1939,6 +2010,7 @@ async def websocket_session(websocket: WebSocket, session_id: str) -> None:
         session_id,
         compact=transport == "compact-v1",
         static_once=transport == "static-once-v1",
+        shared_planner=transport == "shared-planner-v1",
     )
 
 

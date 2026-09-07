@@ -221,7 +221,7 @@ def test_browser_uses_shared_runtime_without_reinflating_telemetry() -> None:
 
     assert "?transport=compact-v1" not in script
     assert "inflateTelemetryPayload" not in script
-    assert "?transport=static-once-v1" in instance
+    assert "?transport=shared-planner-v1" in instance
     assert "telemetryProjection.project(runtimeSnapshot)" in instance
     assert "envelope = JSON.parse(event.data)" in runtime
 
