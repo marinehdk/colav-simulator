@@ -1318,3 +1318,95 @@ def test_inactive_crossing_geometry_keeps_safe_hold_when_requested_velocity_is_u
     assert debug["track_metrics"][1]["matched_rules"] == ["CR_PS"]
     assert not debug["selected_in_base_vo"]
     assert debug["stand_on_hold_active"]
+
+
+def test_head_on_domain_activation_locks_rule_before_cpa_enters_horizon() -> None:
+    planner = VO(VOParams(t_max=60.0, d_min=190.0, hard_hull_clearance_m=182.0,
+                          preferred_hull_clearance_m=190.0))
+    target = _track(1, (650.0, 0.0), (-2.0, 0.0), length=12.0, width=4.0)
+    planner.plan(0.0, np.array([6.0, 0.0]), _own_state(speed=6.0), [target],
+                 os_length=45.0, os_width=8.0)
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["rule_tcpa_s"] > 60.0
+    assert debug["active_rules"] == {"1": ["HO"]}
+    assert debug["give_way_rule_locks"] == {"1": "HO"}
+    # The avoidance turn changes instantaneous geometry; it is still the
+    # same head-on duty, not a newly acquired port-crossing stand-on role.
+    for tick in range(1, 5):
+        planner.plan(float(tick), np.array([6.0, 0.0]),
+                     _own_state(speed=6.0, heading=0.4), [target], os_length=45.0, os_width=8.0)
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][1]["matched_rules"] == ["CR_PS"]
+    assert debug["active_rules"] == {"1": ["HO"]}
+    assert not debug["stand_on_hold_active"]
+
+
+@pytest.mark.parametrize("rotation", [0.0, 1.2, -1.7])
+@pytest.mark.parametrize("mirror", [1.0, -1.0])
+def test_vo_recovery_joins_forward_leg_from_inside_corner(rotation: float, mirror: float) -> None:
+    planner = VOWrapper(Config(layer1=LayerConfig(vo=VOParams()),
+                               layer2=LayerConfig(los=LOSGuidanceParams(K_p=0.005, K_i=0.0))))
+    transform = np.array([[np.cos(rotation), -np.sin(rotation)],
+                          [np.sin(rotation), np.cos(rotation)]]) @ np.diag([1.0, mirror])
+    waypoints = transform @ np.array([[0.0, 0.0, 3150.0], [2100.0, 0.0, 0.0]])
+    own = _own_state(speed=6.1, heading=-np.pi / 2 * mirror + rotation,
+                     position=tuple(transform @ np.array([287.0, 616.0])))
+    result = planner.plan(0.0, waypoints, np.array([6.68, 4.63, 0.0]), own, [])
+    heading = mirror * np.arctan2(np.sin(result[2, 0] - rotation), np.cos(result[2, 0] - rotation))
+    assert planner._los._wp_counter == 1
+    assert -np.pi / 2 < heading < 0.0, "join the northbound leg instead of turning back south to WPT2"
+
+
+@pytest.mark.parametrize("north,east", [(0.0, 616.0), (-287.0, 616.0), (100.0, 616.0), (4000.0, 616.0)])
+def test_vo_corner_recovery_preserves_ordinary_or_nonforward_leg(north: float, east: float) -> None:
+    planner = VOWrapper(Config(layer1=LayerConfig(vo=VOParams()),
+                               layer2=LayerConfig(los=LOSGuidanceParams(K_p=0.005, K_i=0.0))))
+    waypoints = np.array([[0.0, 0.0, 3150.0], [2100.0, 0.0, 0.0]])
+    own = _own_state(speed=6.1, heading=-np.pi / 2, position=(north, east))
+    planner.plan(0.0, waypoints, np.array([6.68, 4.63, 0.0]), own, [])
+    assert planner._los._wp_counter == 0
+
+
+def test_vo_corner_recovery_does_not_advance_during_avoidance_commitment() -> None:
+    planner = VOWrapper(Config(layer1=LayerConfig(vo=VOParams()),
+                               layer2=LayerConfig(los=LOSGuidanceParams(K_p=0.005, K_i=0.0))))
+    waypoints = np.array([[0.0, 0.0, 3150.0], [2100.0, 0.0, 0.0]])
+    own = _own_state(speed=6.1, heading=-np.pi / 2, position=(287.0, 616.0))
+    planner._vo._give_way_commitment_active = True
+    planner.plan(0.0, waypoints, np.array([6.68, 4.63, 0.0]), own, [])
+    assert planner._los._wp_counter == 0
+
+
+def test_crossing_commitment_is_not_replaced_by_head_on_geometry_during_turn() -> None:
+    planner = VO(VOParams(t_max=60.0, d_min=190.0, hard_hull_clearance_m=182.0,
+                          preferred_hull_clearance_m=190.0))
+    planner.plan(0.0, np.array([5.0, 0.0]), _own_state(),
+                 [_track(2, (300.0, 300.0), (0.0, -5.0))])
+    assert planner.get_debug_data()["active_rules"] == {"2": ["CR_SS"]}
+    for tick in range(1, 5):
+        planner.plan(float(tick), np.array([5.0, 0.0]), _own_state(heading=np.pi / 2),
+                     [_track(2, (0.0, 400.0), (0.0, -5.0))])
+    debug = planner.get_debug_data()
+    assert debug["track_metrics"][2]["matched_rules"] == ["HO"]
+    assert debug["active_rules"] == {"2": ["CR_SS"]}
+    assert debug["give_way_rule_locks"] == {}
+
+
+def test_beyond_horizon_wvo_cost_does_not_turn_port_before_crossing_activation() -> None:
+    planner = VO(VOParams(t_max=60.0, d_min=190.0, hard_hull_clearance_m=182.0,
+                          preferred_hull_clearance_m=190.0))
+    own = np.array([0.0, 0.0, 0.053939, 4.516757, 0.02464, -0.007777])
+    reference_course = -np.arctan(0.005 * 1.474865)
+    reference = 4.63 * np.array([np.cos(reference_course), np.sin(reference_course)])
+    targets = [
+        _track(1, (-1887.648, -495.557), (-0.045372, -2.57182), length=12.0, width=4.0),
+        _track(2, (684.633, 258.700), (-2.360696, -1.98863), length=12.0, width=4.0),
+        _track(3, (2102.101, 1446.294), (-0.773479, -1.545223), length=12.0, width=4.0),
+    ]
+    result = planner.plan(0.0, reference, own, targets, os_length=45.0, os_width=8.0,
+                          os_course_time_constant_s=3.0, os_speed_time_constant_s=5.0,
+                          os_max_turn_rate_radps=np.deg2rad(4.0))
+    debug = planner.get_debug_data()
+    assert not debug["active_rules"]
+    assert debug["track_metrics"][2]["preferred_domain_toc_s"] > 60.0
+    assert abs(result[2, 0] - reference_course) < np.deg2rad(3.0)

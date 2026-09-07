@@ -308,7 +308,10 @@ class VOWrapper(ICOLAV):
             self._t_prev = t
             self._initialized = True
 
-        references = self._los.compute_references(waypoints, speed_plan, None, ownship_state, t - self._t_prev)
+        references = self._los.compute_references(
+            waypoints, speed_plan, None, ownship_state, t - self._t_prev,
+            recover_corner=not self._vo.give_way_commitment_active,
+        )
         self._t_prev = t
         course_ref = references[2, 0]
         speed_ref = references[3, 0]

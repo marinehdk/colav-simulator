@@ -84,7 +84,9 @@ def test_telemetry_refresh_is_wall_clock_limited_but_preserves_planner_and_termi
 
 def test_telemetry_trails_are_recorded_incrementally_in_local_coordinates() -> None:
     manager = WebSessionManager.__new__(WebSessionManager)
-    session = SimpleNamespace(enc=SimpleNamespace(origin=(100.0, 200.0)), ship_list=[object()])
+    session = SimpleNamespace(
+        enc=SimpleNamespace(origin=(100.0, 200.0)), ship_list=[object()], simulator=SimpleNamespace(dt=1.0)
+    )
     manager.prepared = SimpleNamespace(session=session)
     manager._telemetry_trails = {}
 
@@ -92,8 +94,8 @@ def test_telemetry_trails_are_recorded_incrementally_in_local_coordinates() -> N
         manager._record_telemetry_trails({"Ship0": {"state": [203.0 + index, 104.0 + index, 0.0, 0.0, 0.0, 0.0]}})
 
     trail = list(manager._telemetry_trails[0])
-    assert len(trail) == 500
-    assert trail[0] == [4.0, 5.0]
+    assert len(trail) == 301
+    assert trail[0] == [203.0, 204.0]
     assert trail[-1] == [503.0, 504.0]
 
 
@@ -222,3 +224,24 @@ def test_browser_uses_shared_runtime_without_reinflating_telemetry() -> None:
     assert "?transport=static-once-v1" in instance
     assert "telemetryProjection.project(runtimeSnapshot)" in instance
     assert "envelope = JSON.parse(event.data)" in runtime
+
+
+def test_all_vessels_keep_at_least_300_seconds_at_both_scenario_timesteps() -> None:
+    for dt in (0.1, 0.5):
+        manager = WebSessionManager.__new__(WebSessionManager)
+        session = SimpleNamespace(
+            enc=SimpleNamespace(origin=(0.0, 0.0)), ship_list=[object()] * 4,
+            simulator=SimpleNamespace(dt=dt),
+        )
+        manager.prepared = SimpleNamespace(session=session)
+        manager._telemetry_trails = {}
+        for index in range(round(400.0 / dt) + 1):
+            t = index * dt
+            manager._record_telemetry_trails({
+                f"Ship{ship}": {"state": [t, float(ship), 0.0, 0.0, 0.0, 0.0], "timestamp": t}
+                for ship in range(4)
+            })
+        for ship in range(4):
+            trail = _sample_display_trail(list(manager._telemetry_trails[ship]))
+            assert trail[-1][0] - trail[0][0] >= 300.0 - 1e-9, (dt, ship, trail[0], trail[-1])
+            assert len(trail) <= TELEMETRY_MAX_TRAIL_POINTS

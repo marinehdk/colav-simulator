@@ -535,6 +535,8 @@ class LOSGuidance(IGuidance):
         times: np.ndarray | None,  # noqa: ARG002
         xs: np.ndarray,
         dt: float,
+        *,
+        recover_corner: bool = False,
     ) -> np.ndarray:
         """Computes references in course and speed using the LOS guidance law.
 
@@ -546,11 +548,15 @@ class LOSGuidance(IGuidance):
             xs (np.ndarray): n x 1 dimensional state of the ship.
             dt (float): Time step between the previous and current run of this
                 function.
+            recover_corner (bool): Allow forward adjacent-leg recovery after
+                avoidance, while preserving ordinary waypoint passage.
 
         Returns:
             np.ndarray: 9 x 1 dimensional reference vector.
         """
         self._find_active_wp_segment(waypoints, xs)
+        if recover_corner:
+            self._advance_recovery_segment(waypoints, xs)
 
         n_sp_dim = speed_plan.ndim
         if n_sp_dim != 1:
@@ -588,6 +594,45 @@ class LOSGuidance(IGuidance):
         references = np.zeros((9, 1))
         references[:, 0] = np.array([0.0, 0.0, chi_d, U_d, 0.0, 0.0, 0.0, 0.0, 0.0])
         return references
+
+    def _advance_recovery_segment(self, waypoints: np.ndarray, xs: np.ndarray) -> None:
+        """Recover onto the adjacent forward leg instead of backtracking inside a turn.
+
+        Ordinary waypoint passage is unchanged. This applies only to a large
+        off-route recovery: the incoming LOS would turn away from the corner,
+        while the outgoing LOS can be intercepted by continuing the route turn.
+        The caller retains collision-avoidance authority over the reference.
+        """
+        index = self._wp_counter
+        if index + 2 >= waypoints.shape[1] or self._params.K_p <= 0.0:
+            return
+        corner = waypoints[:, index + 1]
+        incoming = corner - waypoints[:, index]
+        outgoing = waypoints[:, index + 2] - corner
+        lengths = np.linalg.norm(incoming), np.linalg.norm(outgoing)
+        if min(lengths) <= 1e-9:
+            return
+        incoming, outgoing = incoming / lengths[0], outgoing / lengths[1]
+        normal_in = np.array([-incoming[1], incoming[0]])
+        normal_out = np.array([-outgoing[1], outgoing[0]])
+        position = xs[:2] - corner
+        error_in = float(position @ normal_in)
+        progress_out = float(position @ outgoing)
+        turn = float(incoming[0] * outgoing[1] - incoming[1] * outgoing[0])
+        if (
+            abs(error_in) <= 1.0 / self._params.K_p
+            or error_in * turn <= 0.0
+            or not 0.0 < progress_out < lengths[1]
+        ):
+            return
+        error_out = float(position @ normal_out)
+        direction_in = incoming - self._params.K_p * error_in * normal_in
+        direction_out = outgoing - self._params.K_p * error_out * normal_out
+        delta_in = mf.wrap_angle_to_pmpi(np.arctan2(direction_in[1], direction_in[0]) - xs[2])
+        delta_out = mf.wrap_angle_to_pmpi(np.arctan2(direction_out[1], direction_out[0]) - xs[2])
+        if delta_in * turn < 0.0 <= delta_out * turn and abs(delta_out) < np.pi / 2.0:
+            self._wp_counter += 1
+            self._e_int = 0.0
 
     def _find_active_wp_segment(self, waypoints: np.ndarray, xs: np.ndarray) -> None:
         """Finds the active line segment between waypoints to follow.

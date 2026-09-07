@@ -280,6 +280,11 @@ class VO:
     def feasible(self) -> bool:
         return self._feasible
 
+    @property
+    def give_way_commitment_active(self) -> bool:
+        """Whether an avoidance commitment still owns the reference heading."""
+        return self._give_way_commitment_active
+
     def get_current_plan(self) -> np.ndarray:
         return self._references
 
@@ -495,7 +500,9 @@ class VO:
             if crossing_completed:
                 matched_rules.difference_update(crossing_rules)
             elif VOCOLREGSSituation.CR_SS in previous_rules:
-                matched_rules.difference_update(crossing_rules)
+                # The give-way turn can create apparent head-on geometry; it
+                # must not acquire a new HO lock during the same crossing.
+                matched_rules.difference_update(crossing_rules | {VOCOLREGSSituation.HO})
                 matched_rules.add(VOCOLREGSSituation.CR_SS)
             shape_risk_eligible = bool(
                 np.isfinite(preferred_domain_toc)
@@ -507,7 +514,14 @@ class VO:
             )
             give_way_lock_eligible = (
                 speed_do >= self._params.colregs_min_target_speed_mps
-                and self._precollision_check(p_os, v_os, p_do, v_do)
+                and (
+                    (
+                        shape_risk_eligible
+                        and rule_cpa["tcpa_s"] is not None
+                        and rule_cpa["tcpa_s"] >= 0.0
+                    )
+                    or self._precollision_check(p_os, v_os, p_do, v_do)
+                )
             )
             overtaking_state = self._update_overtaking_state(
                 target_id=id_do,
@@ -595,6 +609,12 @@ class VO:
                 candidate_velocities,
                 uncertainty,
                 rules,
+                anticipating_crossing=(
+                    VOCOLREGSSituation.CR_SS in matched_rules
+                    and not rules
+                    and not crossing_completed
+                    and id_do not in self._overtaking_states
+                ),
                 hard_clearance_domain=hard_clearance_domain,
                 preferred_clearance_domain=(
                     preferred_clearance_domain if shape_risk_eligible else None
@@ -797,7 +817,8 @@ class VO:
                 self._completed_give_way_targets.add(target_id)
                 self._give_way_rearm_counts[target_id] = 0
                 return matched_rules.difference(give_way_rules)
-            return matched_rules.difference(lockable) | {locked_rule}
+            # A maneuver changes bearing, not the established encounter duty.
+            return {locked_rule}
 
         if can_enter:
             locked_rule = next((rule for rule in lockable if rule in matched_rules), None)
@@ -1162,6 +1183,7 @@ class VO:
         uncertainty: np.ndarray,
         rules: set[VOCOLREGSSituation],
         *,
+        anticipating_crossing: bool = False,
         hard_clearance_domain: geometry.Polygon | None = None,
         preferred_clearance_domain: geometry.Polygon | None = None,
     ) -> None:
@@ -1204,6 +1226,11 @@ class VO:
                 ray_polygon_ttc_grid(expanded, p_os, relative_candidates),
                 axis=0,
             )
+            if anticipating_crossing:
+                # Do not initiate a port alteration from distant WVO costs
+                # before a crossing duty activates. Other targets, established
+                # encounters and static-hazard costs keep their full forecasts.
+                worst_ttc = np.where(worst_ttc <= self._params.t_max, worst_ttc, np.inf)
             self._wvo_mask |= wvo & ~self._hard_constraint_mask
             self._min_ttc = np.minimum(self._min_ttc, worst_ttc)
         if rules.intersection(

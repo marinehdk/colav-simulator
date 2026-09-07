@@ -63,7 +63,7 @@ DRAFT_DIR = BASE_DIR / "runs" / "scenario_drafts"
 BUSY_WATER_SCENARIOS = {ACCEPTANCE_SCENARIO_ID, STRESS_SCENARIO_ID}
 THREAT_PROJECTION_SCHEMA = "colav.threat-management.projection@1"
 TELEMETRY_PUBLISH_INTERVAL_S = 0.1
-TELEMETRY_TRAIL_HISTORY_POINTS = 500
+TELEMETRY_TRAIL_HISTORY_SECONDS = 300.0
 TELEMETRY_MAX_TRAIL_POINTS = 120
 
 # Issue #67 validated COLAV spacing profiles, run by product (GUI) sessions
@@ -759,6 +759,7 @@ class WebSessionManager:
         if not self.prepared:
             return
         origin_e, origin_n = self.prepared.session.enc.origin
+        history_points = int(np.ceil(TELEMETRY_TRAIL_HISTORY_SECONDS / self.prepared.session.simulator.dt)) + 1
         for index in range(len(self.prepared.session.ship_list)):
             raw = frame.get(f"Ship{index}", {})
             if not raw:
@@ -766,7 +767,7 @@ class WebSessionManager:
             state = np.asarray(raw["state"], dtype=float)
             trail = self._telemetry_trails.setdefault(
                 index,
-                deque(maxlen=TELEMETRY_TRAIL_HISTORY_POINTS),
+                deque(maxlen=history_points),
             )
             trail.append([float(state[0] - origin_n), float(state[1] - origin_e)])
 
