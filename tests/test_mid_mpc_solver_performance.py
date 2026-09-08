@@ -20,7 +20,7 @@ from colav_simulator.core.colav.mid_mpc.models import (
 )
 
 
-@pytest.mark.parametrize("case_index", [0, 1])
+@pytest.mark.parametrize("case_index", [0, 1, 2, 3])
 def test_captured_cs_problem_converges_without_restoration_stall(case_index: int) -> None:
     document = json.loads((Path(__file__).parent / "fixtures/mid_mpc_ipopt/slow_multiship.json").read_text())
     case = document["cases"][case_index]

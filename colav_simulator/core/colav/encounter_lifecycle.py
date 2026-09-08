@@ -216,6 +216,7 @@ class EncounterCycle:
     primary_priority_facts: tuple[PrimaryPriorityFact, ...] = ()
     # None: no separate intent observation; (): execution reports no maneuver.
     avoidance_intent_keys: tuple[TrackKey, ...] | None = None
+    anticipatory_planning: bool = False
 
     def __post_init__(self) -> None:
         """Validate one immutable lifecycle input cycle."""
@@ -277,9 +278,9 @@ class EncounterCycle:
                 ],
                 "route_bearing_rad": self.route_bearing_rad,
                 "planned_speed_mps": self.planned_speed_mps,
+                "anticipatory_planning": self.anticipatory_planning,
                 "avoidance_intent_keys": (
-                    None if self.avoidance_intent_keys is None
-                    else [asdict(key) for key in self.avoidance_intent_keys]
+                    None if self.avoidance_intent_keys is None else [asdict(key) for key in self.avoidance_intent_keys]
                 ),
                 "profile": asdict(self.profile),
                 "physical_facts": [
@@ -291,9 +292,7 @@ class EncounterCycle:
                             "range_m": fact.geometry.range_m,
                             "dcpa_m": fact.geometry.dcpa_m,
                             "signed_tcpa_s": (
-                                fact.geometry.signed_tcpa_s
-                                if math.isfinite(fact.geometry.signed_tcpa_s)
-                                else None
+                                fact.geometry.signed_tcpa_s if math.isfinite(fact.geometry.signed_tcpa_s) else None
                             ),
                             "relative_bearing_rad": fact.geometry.relative_bearing_rad,
                             "contact_bearing_rad": fact.geometry.contact_bearing_rad,
@@ -351,6 +350,7 @@ class TargetDecision:
     action_achievement_deadline_s: float | None
     actual_course_change_rad: float | None
     action_started: bool = False
+    planned_action_at_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -483,6 +483,7 @@ class _TargetState:
     actual_course_change_rad: float | None = None
     last_health: ObservationHealth | None = None
     reacquire_since_s: float | None = None
+    planned_action_at_s: float | None = None
 
 
 @dataclass
@@ -982,7 +983,9 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
     encounter: EncounterKind,
     role: OwnshipRole,
 ) -> bool:
-    if _candidate_action_confirms_commitment(state, cycle, geometry, encounter, role):
+    if (
+        state.planned_action_at_s is None or state.planned_action_at_s <= cycle.sim_time_s
+    ) and _candidate_action_confirms_commitment(state, cycle, geometry, encounter, role):
         _commit(state, cycle, target, geometry)
         return True
     if (state.encounter, state.role) != (encounter, role):
@@ -990,6 +993,7 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
         state.baseline_course_rad = None
         state.baseline_speed_mps = None
         state.required_course_change_rad = 0.0
+        state.planned_action_at_s = None
     state.encounter = encounter
     state.role = role
 
@@ -1003,6 +1007,8 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
             state.baseline_course_rad = cycle.ownship.heading_rad
             state.baseline_speed_mps = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
             state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
+        if not _scheduled_action_due(state, cycle, target, geometry):
+            return False
         if (
             not _urgent_action_required(cycle, target, geometry)
             and cycle.sim_time_s - state.candidate_since_s < cycle.profile.entry_confirmation_s
@@ -1063,8 +1069,42 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
     state.action_observation_course_rad = None
     state.action_observation_speed_mps = None
     state.required_course_change_rad = 0.0
+    state.planned_action_at_s = None
     state.passing_clear_achieved = False
     return False
+
+
+def _scheduled_action_due(
+    state: _TargetState, cycle: EncounterCycle, target: TargetObservation, geometry: PairwiseGeometry
+) -> bool:
+    """Schedule the maneuver lead needed to remove the predicted clearance deficit."""
+    if not cycle.anticipatory_planning:
+        return True
+    if _urgent_action_required(cycle, target, geometry):
+        state.planned_action_at_s = cycle.sim_time_s
+        return True
+    speed = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
+    clearance = (
+        cycle.profile.comfortable_hull_clearance_m
+        + 0.5 * math.hypot(cycle.ownship.length_m, cycle.ownship.width_m)
+        + 0.5 * math.hypot(target.length_m, target.width_m)
+        + _position_uncertainty_margin(cycle, target)
+    )
+    deficit = max(cycle.profile.target_clearance_improvement_m, clearance - geometry.dcpa_m)
+    lateral_speed = speed * math.sin(max(state.required_course_change_rad, math.radians(1.0)))
+    lead_s = (
+        state.required_course_change_rad / cycle.ownship.maneuverability.turn_rate_rad_s
+        + deficit / max(lateral_speed, 0.01)
+        + cycle.profile.action_achievement_window_s
+        + cycle.profile.entry_confirmation_s
+    )
+    planned = cycle.sim_time_s + max(0.0, geometry.signed_tcpa_s - lead_s)
+    state.planned_action_at_s = planned if state.planned_action_at_s is None else min(state.planned_action_at_s, planned)
+    if cycle.sim_time_s < state.planned_action_at_s:
+        state.baseline_course_rad = cycle.ownship.heading_rad
+        state.baseline_speed_mps = speed
+        return False
+    return True
 
 
 def _candidate_action_confirms_commitment(
@@ -1293,6 +1333,7 @@ def _target_decision(
         action_achievement_deadline_s=state.action_achievement_deadline_s,
         actual_course_change_rad=state.actual_course_change_rad,
         action_started=state.action_started,
+        planned_action_at_s=state.planned_action_at_s,
     )
 
 
@@ -1448,11 +1489,7 @@ def _advance_primary(
 ]:
     if current is not None and candidate is not None and candidate_since_s is not None:
         primary_candidates.setdefault((current, candidate), candidate_since_s)
-    eligible = tuple(
-        decision
-        for decision in decisions
-        if _primary_rank(decision) > 0 or _priority_is_eligible(priority_facts.get(decision.key))
-    )
+    eligible = tuple(decision for decision in decisions if _eligible_primary(decision, priority_facts.get(decision.key)))
     if not eligible:
         return None, None, None, {}, "PRIMARY_RELEASED" if current is not None else "NO_PRIMARY", False
     best = min(
@@ -1503,6 +1540,12 @@ def _primary_rank(decision: TargetDecision) -> int:
     if decision.risk is RiskPhase.PAST_CLEAR or decision.recovery_guard_active:
         return 1
     return 0
+
+
+def _eligible_primary(decision: TargetDecision, fact: PrimaryPriorityFact | None) -> bool:
+    if decision.risk is RiskPhase.CANDIDATE and decision.planned_action_at_s is not None:
+        return bool(fact is not None and fact.hard_emergency)
+    return _primary_rank(decision) > 0 or _priority_is_eligible(fact)
 
 
 def _priority_is_eligible(fact: PrimaryPriorityFact | None) -> bool:
@@ -1626,11 +1669,7 @@ def _primary_selection_evidence(
             switch_reason=switch_reason,
             preempted=preempted,
         )
-    eligible = tuple(
-        decision
-        for decision in decisions
-        if _primary_rank(decision) > 0 or _priority_is_eligible(priority_facts.get(decision.key))
-    )
+    eligible = tuple(decision for decision in decisions if _eligible_primary(decision, priority_facts.get(decision.key)))
     ordered = tuple(
         sorted(
             eligible,

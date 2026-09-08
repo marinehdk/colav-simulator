@@ -199,7 +199,17 @@ class MidMpcIpoptSolver:
         )
         quality_required_improvement = (
             _target_free_required_improvement(seed_objective_total)
-            if self._config.strict_slack_bounds and not problem.targets and problem.route_objective is not None
+            if self._config.strict_slack_bounds
+            and problem.route_objective is not None
+            and (
+                not problem.targets
+                or (
+                    seed_primal_feasible
+                    and seed_objective_total <= 0.03
+                    and problem.row_schedule.course_bounds_rad
+                    and problem.row_schedule.course_bounds_rad[0] == (None, None)
+                )
+            )
             else None
         )
         graph.iteration_callback.arm(
@@ -945,6 +955,7 @@ def _repair_infeasible_seed(
         magnitude = _SEED_REPAIR_STEP_RAD * step_index
         for sign in (-1.0, 1.0):
             candidate = _ramped_offset_seed(prepared.x0, problem, config, sign * magnitude)
+            candidate = np.clip(candidate, prepared.lbx, prepared.ubx)
             violation = _max_row_violation(graph, candidate, prepared)
             if violation <= 1.0e-9:
                 return _reseeded(prepared, candidate)
@@ -985,6 +996,19 @@ def _ramped_offset_seed(seed: np.ndarray, problem: MidMpcProblem, config: MidMpc
 def _max_row_violation(graph: _Graph, x0: np.ndarray, prepared: MidMpcPreparedProblem) -> float:
     values = _flat(graph.constraints(x0, prepared.p))
     return float(np.max(np.maximum(prepared.lbg - values, values - prepared.ubg)))
+
+
+def _apply_scheduled_course_bounds(problem: MidMpcProblem, n: int, x0: np.ndarray, lbx: np.ndarray, ubx: np.ndarray) -> None:
+    """Apply timed course limits before scoring or repairing the seed."""
+    if problem.row_schedule.course_bounds_rad:
+        if len(problem.row_schedule.course_bounds_rad) != n:
+            raise ValueError("scheduled course bounds must match the control horizon")
+        for k, (lower, upper) in enumerate(problem.row_schedule.course_bounds_rad):
+            if lower is not None:
+                lbx[k] = max(lbx[k], lower)
+            if upper is not None:
+                ubx[k] = min(ubx[k], upper)
+        x0[:n] = np.clip(x0[:n], lbx[:n], ubx[:n])
 
 
 def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayout) -> MidMpcPreparedProblem:
@@ -1071,6 +1095,7 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     lbx = np.empty(x_dimension)
     ubx = np.empty(x_dimension)
     lbx[:n], ubx[:n] = problem.heading_bounds_rad
+    _apply_scheduled_course_bounds(problem, n, x0, lbx, ubx)
     lbx[n : 2 * n], ubx[n : 2 * n] = problem.speed_bounds_mps
     lbx[2 * n :] = 0.0
     ubx[2 * n :] = np.inf

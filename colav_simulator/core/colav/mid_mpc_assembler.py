@@ -520,6 +520,7 @@ def _compile_semantic_problem(
         config,
         capability,
         reachable_when_diverging=profile is AssemblyProfile.COLAV_STRICT,
+        scheduled_motion=bool(horizon_encounter_plan.corridor_reference_rad),
     )
     starboard_asymmetry = policy.lateral_active and any(
         decision.passing_side is PassingSide.STARBOARD
@@ -551,7 +552,9 @@ def _compile_semantic_problem(
         )
     )
     candidate_hold = not lateral_active and any(
-        decision.risk is RiskPhase.CANDIDATE and decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
+        decision.risk is RiskPhase.CANDIDATE
+        and decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
+        and decision.planned_action_at_s is None
         for decision in binding.selected_decisions
     )
     hold_first_interval = stand_on_hold or candidate_hold
@@ -615,6 +618,32 @@ def _compile_semantic_problem(
             min(heading_bounds[0], *route_objective.heading_reference_rad),
             max(heading_bounds[1], *route_objective.heading_reference_rad),
         )
+    scheduled = bool(horizon_encounter_plan.corridor_reference_rad) and profile is AssemblyProfile.COLAV_STRICT
+    if scheduled:
+        bounds: list[tuple[float | None, float | None]] = []
+        for k in range(config.horizon_steps):
+            lower, upper = None, None
+            for window in horizon_encounter_plan.target_windows:
+                stop = config.horizon_steps if window.recovery_from_k is None else window.recovery_from_k
+                if not window.action_start_k <= k < stop or not window.passing_side:
+                    continue
+                corridor = float(ownship[2]) + _wrap(float(window.corridor_bearing_rad) - float(ownship[2]))
+                threshold = (
+                    corridor
+                    if k >= window.action_complete_k
+                    else corridor - window.passing_side * window.required_course_change_rad
+                )
+                if window.passing_side > 0:
+                    lower = threshold if lower is None else max(lower, threshold)
+                else:
+                    upper = threshold if upper is None else min(upper, threshold)
+            bounds.append((lower, upper))
+        row_schedule = replace(
+            row_schedule,
+            direction_hard_window=MidMpcHardWindow(0, 0),
+            min_alt_hard_window=MidMpcHardWindow(0, 0),
+            course_bounds_rad=tuple(bounds),
+        )
     route_frame_bearing = (
         route.mission_leg_bearing_rad if route_objective is not None else policy.committed_route_bearing_rad
     )
@@ -628,9 +657,9 @@ def _compile_semantic_problem(
         cpa_hard_m=effective_cpa_hard_m,
         rot_max_rad_s=capability.rot_max_rad_s,
         decel_max_mps2=capability.decel_max_mps2,
-        lateral_active=lateral_active,
+        lateral_active=lateral_active and not scheduled,
         preferred_side=preferred_side,
-        starboard_asymmetry_active=starboard_asymmetry,
+        starboard_asymmetry_active=starboard_asymmetry and not scheduled,
         min_alteration_rad=minimum_change,
         prefix_active_k=1 if hold_first_interval else 0,
         prefix_psi_rad=(float(ownship[2]),) if hold_first_interval else (),
@@ -660,7 +689,15 @@ def _compile_semantic_problem(
                 crossing_astern_required=(
                     decision.encounter is EncounterKind.CROSSING
                     and decision.role is OwnshipRole.GIVE_WAY
-                    and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
+                    and (
+                        decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
+                        or (
+                            decision.planned_action_at_s is not None
+                            and decision.planned_action_at_s
+                            < planner_input.sim_time_s + config.horizon_steps * config.horizon_dt_s
+                            and 0 < decision.geometry.signed_tcpa_s < config.horizon_steps * config.horizon_dt_s
+                        )
+                    )
                     and not decision.action_achieved
                 ),
                 crossing_astern_margin_m=0.0,
@@ -709,7 +746,7 @@ def _compile_row_schedule(
         start_k = 0 if route_recovery_conflict or decision.key in safety_conflict_keys else activation_start_k
         stop_k = (
             horizon_steps
-            if target_window is None or target_window.recovery_from_k is None
+            if horizon_plan.corridor_reference_rad or target_window is None or target_window.recovery_from_k is None
             else min(target_window.recovery_from_k, horizon_steps)
         )
         cpa_windows.append(MidMpcHardWindow(start_k, max(start_k, stop_k)))
@@ -826,7 +863,7 @@ def _staged_route_references(
     previous_heading = ownship_heading_rad
     headings: list[float] = []
     lateral_references: list[float] = []
-    for phase in plan.phases[:-1]:
+    for k, phase in enumerate(plan.phases[:-1]):
         absolute_position = np.asarray(ownship_position_ne_m, dtype=float) + position
         mission, mission_anchor = _mission_route_projection(
             route,
@@ -839,7 +876,7 @@ def _staged_route_references(
         cross_track = float((position - route_origin) @ route_normal)
         lateral_references.append(cross_track)
         if phase in {HorizonEncounterPhase.ALTER, HorizonEncounterPhase.PASS}:
-            desired_heading = corridor
+            desired_heading = plan.corridor_reference_rad[k] if plan.corridor_reference_rad else corridor
         elif speed > 1.0e-9 and maximum_recovery_delta > 1.0e-9:
             if mission_anchor is not None:
                 mission_normal = np.array((-math.sin(mission), math.cos(mission)), dtype=float)
@@ -987,7 +1024,51 @@ def _compile_horizon_encounter_plan(
         for decision in binding.selected_decisions
         if decision.key in binding.required_keys
         or (decision.commitment is CommitmentPhase.COMMITTED and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR})
+        or (decision.planned_action_at_s is not None and decision.risk is RiskPhase.CANDIDATE)
     )
+    scheduled = any(decision.planned_action_at_s is not None for decision in horizon_decisions)
+    nominal_headings: tuple[float, ...] = ()
+    nominal_positions = np.empty((0, 2))
+    if scheduled:
+        nominal_plan = HorizonEncounterPlan(
+            reference_time_s=planner_input.sim_time_s,
+            times_s=np.arange(config.horizon_steps + 1) * config.horizon_dt_s,
+            mission_route_bearing_rad=route.mission_leg_bearing_rad,
+            avoidance_corridor_bearing_rad=route.mission_leg_bearing_rad,
+            phases=(HorizonEncounterPhase.MISSION,) * (config.horizon_steps + 1),
+            target_windows=(),
+            recovery_from_k=0,
+        )
+        nominal_headings, _ = _staged_route_references(
+            nominal_plan,
+            route,
+            ownship_position_ne_m=tuple(planner_input.ownship_state[:2]),
+            ownship_heading_rad=float(planner_input.ownship_state[2]),
+            planned_speed_mps=route.planned_speed_mps,
+            dt_s=config.horizon_dt_s,
+            rot_max_rad_s=capability.rot_max_rad_s,
+            heading_window_rad=capability.heading_window_rad,
+        )
+
+        nominal_positions = planner_input.ownship_state[:2] + np.cumsum(
+            route.planned_speed_mps * config.horizon_dt_s
+            * np.column_stack((np.cos(nominal_headings), np.sin(nominal_headings))), axis=0,
+        )
+
+    def corridor_for(decision: TargetDecision) -> float | None:
+        if not scheduled:
+            return None
+        offset = max(0.0, (decision.planned_action_at_s or planner_input.sim_time_s) - planner_input.sim_time_s)
+        if decision.risk is RiskPhase.CANDIDATE and offset > 0.0:
+            index = min(config.horizon_steps - 1, max(0, math.ceil(offset / config.horizon_dt_s) - 1))
+            baseline, _ = _mission_route_projection(route, nominal_positions[index])
+        else:
+            baseline = (
+                decision.baseline_course_rad if decision.baseline_course_rad is not None else route.mission_leg_bearing_rad
+            )
+        sign = -1 if decision.passing_side is PassingSide.PORT else 1
+        return baseline + sign * decision.required_course_change_rad
+
     plan = compile_horizon_encounter_plan(
         HorizonEncounterPlanRequest(
             reference_time_s=planner_input.sim_time_s,
@@ -1016,6 +1097,17 @@ def _compile_horizon_encounter_plan(
                     action_achieved=decision.action_achieved,
                     route_recovery_allowed=decision.route_recovery_allowed,
                     prediction=prediction_by_key[decision.key],
+                    action_start_s=max(
+                        0.0, (decision.planned_action_at_s or planner_input.sim_time_s) - planner_input.sim_time_s
+                    )
+                    if decision.risk is RiskPhase.CANDIDATE
+                    else 0.0,
+                    corridor_bearing_rad=corridor_for(decision),
+                    passing_side=-1
+                    if decision.passing_side is PassingSide.PORT
+                    else 1
+                    if decision.passing_side is PassingSide.STARBOARD
+                    else 0,
                 )
                 for decision in horizon_decisions
             ),
@@ -1185,6 +1277,7 @@ def _activation_plan(
     capability: CapabilitySnapshot,
     *,
     reachable_when_diverging: bool = False,
+    scheduled_motion: bool = False,
 ) -> ConstraintActivationPlan:
     ownship = planner_input.ownship_state
     own_velocity = np.array(
@@ -1245,10 +1338,11 @@ def _activation_plan(
             stand_on = (
                 decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
             )
-            if activation.cpa_hard_from_k == config.horizon_steps and not stand_on:
+            if (scheduled_motion or activation.cpa_hard_from_k == config.horizon_steps) and not stand_on:
                 # Turning away eliminates current-motion CPA, not the contact's
                 # physical safety obligation during later predicted route turns.
                 seconds = _reachable_cpa_activation_time_s(track, ownship[:2], effective_cpa_hard_m, config)
+                seconds = min(seconds, activation.cpa_hard_from_s)
                 next_activation = replace(
                     activation,
                     cpa_hard_from_s=seconds,

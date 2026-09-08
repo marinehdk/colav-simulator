@@ -1,4 +1,4 @@
-import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260907-shared-planner-v1';
+import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-anticipatory-v1';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
 import {
   createSituationDisplay,
@@ -942,7 +942,7 @@ const PRIMARY_FACTOR_LABELS = {
   DCPA: 'DCPA LEAD',
   RANGE: 'RANGE LEAD',
   TRACK_IDENTITY: 'STABLE TIE-BREAK',
-  ONLY_ELIGIBLE_TARGET: 'ONLY TARGET',
+  ONLY_ELIGIBLE_TARGET: 'ONLY ELIGIBLE',
   HYSTERESIS_HOLD: 'HYSTERESIS HOLD',
 };
 
@@ -1575,6 +1575,7 @@ function updateMonitorTelemetry(proj) {
             <dl class="risk-target-facts">
               <div><dt>COLREGs Rule</dt><dd class="colreg-value">${colregLabel}</dd></div>
               <div><dt>Risk state</dt><dd>${riskState}</dd></div>
+              ${t.lifecycleRisk === 'CANDIDATE' && Number.isFinite(t.plannedActionAtS) ? `<div><dt>Planned maneuver</dt><dd>~T=${Math.round(t.plannedActionAtS)}s · provisional</dd></div>` : ''}
               <div><dt>Target range</dt><dd><button type="button" class="risk-distance-toggle" data-distance-m="${t.distanceM ?? ''}" data-unit="${riskDistanceUnit}" ${Number.isFinite(t.distanceM) ? '' : 'disabled'}>${formatRiskDistance(t.distanceM)}</button></dd></div>
               <div><dt>AIS state</dt><dd>${sampleKind}</dd></div>
               <div><dt>Hull dimensions</dt><dd>${dimensions}</dd></div>

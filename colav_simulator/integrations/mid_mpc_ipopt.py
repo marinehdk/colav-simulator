@@ -1037,6 +1037,7 @@ class _MidMpcFacade:
             route_bearing_rad=route_bearing_rad,
             planned_speed_mps=planned_speed_mps,
             profile=self._config.profile,
+            anticipatory_planning=len(planner_input.tracks) > 1,
         )
 
     def _canonical_snapshot_at(
@@ -1653,6 +1654,7 @@ def _acceptance_request(  # noqa: PLR0913
             action_achievement_deadline_s=decision.action_achievement_deadline_s,
             actual_course_change_rad=decision.actual_course_change_rad,
             rule17=decision.rule17.value,
+            planned_action_at_s=decision.planned_action_at_s,
         )
         for decision in snapshot.targets
     )
@@ -1713,6 +1715,12 @@ def _prediction_phase_evidence(assembly: AssemblySuccess) -> PredictionPhaseEvid
         recovery_from_k=plan.recovery_from_k if "RECOVER" in phases else None,
         target_keys=tuple(EvidenceTrackKey(window.key.target_id, window.key.generation) for window in plan.target_windows),
         solver_consumed=plan.solver_consumed,
+        target_action_windows=tuple(
+            (EvidenceTrackKey(w.key.target_id, w.key.generation), w.action_start_k, w.recovery_from_k)
+            for w in plan.target_windows
+        )
+        if plan.corridor_reference_rad
+        else (),
     )
 
 
@@ -1720,8 +1728,15 @@ def _shift_phase_evidence(evidence: PredictionPhaseEvidence, elapsed_s: float) -
     dt_s = float(evidence.times_s[1] - evidence.times_s[0])
     offset = min(int(math.floor(max(0.0, elapsed_s) / dt_s)), len(evidence.phases) - 1)
     phases = evidence.phases[offset:] + (evidence.phases[-1],) * offset
-    recovery_from_k = next((index for index, phase in enumerate(phases) if phase == "RECOVER"), None)
-    return replace(evidence, phases=phases, recovery_from_k=recovery_from_k)
+    recovery_from_k = next(
+        (index for index, phase in enumerate(phases) if phase == "RECOVER" and all(p == "RECOVER" for p in phases[index:])),
+        None,
+    )
+    windows = tuple(
+        (key, max(0, start - offset), None if stop is None else max(0, stop - offset))
+        for key, start, stop in evidence.target_action_windows
+    )
+    return replace(evidence, phases=phases, recovery_from_k=recovery_from_k, target_action_windows=windows)
 
 
 def _held_acceptance_request(
@@ -1921,6 +1936,7 @@ def _rolling_plan_identity(
                 "route_recovery_allowed": decision.route_recovery_allowed,
                 "action_achieved": decision.action_achieved,
                 "required_course_change_rad": decision.required_course_change_rad,
+                "planned_action_at_s": decision.planned_action_at_s,
             }
             for decision in snapshot.targets
         ],

@@ -431,7 +431,8 @@ class ThreatManagementCoordinator:
         )
         assessed = ThreatAssessment.evaluate(assessment_request)
         priority_facts = tuple(
-            _priority_fact(vector, cycle) for vector in assessed.vectors
+            _priority_fact(vector, cycle, next(fact for fact in facts if fact.key == vector.key))
+            for vector in assessed.vectors
         )
         lifecycle_targets = tuple(
             target
@@ -451,6 +452,7 @@ class ThreatManagementCoordinator:
             lifecycle_snapshot,
             predictions=tuple(predictions),
             sim_time_s=cycle.sim_time_s,
+            priority_facts=priority_facts if cycle.anticipatory_planning else (),
         )
         schedule = _build_schedule(
             vectors,
@@ -943,14 +945,25 @@ def _material_plan_worsening(
     }
 
 
-def _priority_fact(vector: Any, cycle: EncounterCycle) -> PrimaryPriorityFact:
+def _priority_fact(vector: Any, cycle: EncounterCycle, physical: PhysicalEncounterFacts) -> PrimaryPriorityFact:
     if vector.claim_completeness is ThreatCompleteness.UNKNOWN:
         return PrimaryPriorityFact(key=vector.key, reason="threat_evidence_unknown")
     current_violation = vector.current_domain.state is DomainState.INSIDE
     predicted_violation = vector.predicted_domain.state is DomainState.INSIDE
-    response_emergency = bool(
-        vector.hull_clearance_m is not None and vector.hull_clearance_m <= 0.0
-    ) or bool(
+    current_clearance = (
+        None
+        if physical.hull_clearance_m is None
+        else physical.hull_clearance_m + physical.geometry.range_m - physical.geometry.dcpa_m
+    )
+    collision_emergency = current_clearance is not None and (
+        current_clearance <= 0.0
+        or (
+            physical.hull_clearance_m <= 0.0 and 0.0 < physical.geometry.signed_tcpa_s <= cycle.profile.action_start_window_s
+        )
+    )
+    if not cycle.anticipatory_planning:
+        collision_emergency = vector.hull_clearance_m is not None and vector.hull_clearance_m <= 0.0
+    response_emergency = collision_emergency or bool(
         current_violation
         and vector.tcpa_forward_s is not None
         and vector.tcpa_forward_s <= cycle.profile.action_start_window_s
@@ -981,13 +994,18 @@ def _attach_lifecycle_and_priority(
     *,
     predictions: tuple[ThreatPrediction, ...],
     sim_time_s: float,
+    priority_facts: tuple[PrimaryPriorityFact, ...] = (),
 ) -> tuple[Any, ...]:
     decisions = {decision.key: decision for decision in lifecycle_snapshot.targets}
     prediction_by_key = {prediction.key: prediction for prediction in predictions}
     result = []
     for vector in vectors:
         decision = decisions.get(vector.key)
-        priority_class, reason, priority_key = _resolved_priority(vector, decision)
+        priority_class, reason, priority_key = _resolved_priority(
+            vector,
+            decision,
+            emergency=any(f.key == vector.key and f.hard_emergency for f in priority_facts) if priority_facts else None,
+        )
         window = _window(vector, prediction_by_key.get(vector.key), sim_time_s)
         display_class, avoidance_action_active = _display_state(vector, decision)
         result.append(
@@ -1021,11 +1039,15 @@ def _display_state(vector: Any, decision: Any | None) -> tuple[ThreatDisplayClas
     return ThreatDisplayClass.CLEAR, False
 
 
-def _resolved_priority(vector: Any, decision: Any) -> tuple[ThreatPriorityClass, str, tuple[float, ...]]:
+def _resolved_priority(
+    vector: Any, decision: Any, *, emergency: bool | None = None
+) -> tuple[ThreatPriorityClass, str, tuple[float, ...]]:
     if vector.observation_health is ObservationHealth.UNUSABLE or vector.claim_completeness is ThreatCompleteness.UNKNOWN:
         return ThreatPriorityClass.UNKNOWN, "observation_unusable", (7.0,)
-    if vector.hull_clearance_m is not None and vector.hull_clearance_m <= 0.0:
+    if emergency is True or (emergency is None and vector.hull_clearance_m is not None and vector.hull_clearance_m <= 0.0):
         return ThreatPriorityClass.RESPONSE_TIME_EMERGENCY, "response_time_emergency", (0.0,)
+    if decision is not None and decision.risk is RiskPhase.CANDIDATE and decision.planned_action_at_s is not None:
+        return ThreatPriorityClass.FUTURE_SEVERITY, "action_scheduled", (5.0, decision.planned_action_at_s)
     if decision is not None and decision.rule17 is Rule17Stage.MUST_ACT:
         return ThreatPriorityClass.RULE17_MUST_ACT, "rule17_must_act", (1.0,)
     if (
@@ -1098,6 +1120,8 @@ def _build_schedule(
             context = ThreatScheduleContext.CONCURRENT_REQUIRED
         elif decision is not None and decision.risk is RiskPhase.RELEASED:
             context = ThreatScheduleContext.RELEASED
+        elif decision is not None and decision.risk is RiskPhase.CANDIDATE and decision.planned_action_at_s is not None:
+            context = ThreatScheduleContext.NEXT
         elif vector.predicted_domain.state is DomainState.INSIDE or vector.current_domain.state is DomainState.INSIDE:
             context = ThreatScheduleContext.NEXT
         else:

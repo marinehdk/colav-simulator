@@ -251,6 +251,7 @@ function projectThreatVector(vector, lifecycleFact = null) {
     encounter: lifecycle?.encounter ?? vector?.encounter ?? null,
     role: lifecycle?.role ?? vector?.role ?? null,
     commitment: lifecycle?.commitment ?? vector?.commitment ?? null,
+    plannedActionAtS: finiteOrNull(lifecycle?.planned_action_at_s),
     observationHealth: vector?.observation_health ?? vector?.observationHealth ?? null,
     claimCompleteness: vector?.claim_completeness ?? vector?.claimCompleteness ?? null,
     predictionBasis: vector?.prediction_basis ?? vector?.predictionBasis ?? null,

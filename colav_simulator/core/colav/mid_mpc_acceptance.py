@@ -137,6 +137,7 @@ class AuthorityTarget:
     action_achievement_deadline_s: float | None = None
     actual_course_change_rad: float | None = None
     rule17: str = "NONE"
+    planned_action_at_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -723,6 +724,40 @@ class MidMpcPlanAcceptance:
             candidate_obligation = (
                 target.risk == "CANDIDATE" and target.commitment == "NONE" and target.role in {"GIVE_WAY", "OVERTAKING"}
             )
+            if candidate_obligation and target.planned_action_at_s is not None:
+                phase = candidate.phase_evidence
+                planned_keys = (
+                    set()
+                    if phase is None
+                    else {(key.target_id, key.generation) for key, _start, _stop in phase.target_action_windows}
+                )
+                if (
+                    not math.isfinite(target.planned_action_at_s)
+                    or target.planned_action_at_s < 0.0
+                    or phase is None
+                    or not phase.solver_consumed
+                    or (target.key.target_id, target.key.generation) not in planned_keys
+                ):
+                    _fail(
+                        findings,
+                        AcceptanceLayer.COLREG,
+                        "COLREG_FUTURE_PLAN_MISSING",
+                        "future action requires finite timing and solver-consumed target windows",
+                        target_key=target.key,
+                    )
+                    continue
+                findings.append(
+                    AcceptanceFinding(
+                        AcceptanceLayer.COLREG,
+                        AcceptanceOutcome.PASS,
+                        "COLREG_FUTURE_ACTION_SCHEDULED",
+                        "future action is compiled in time-indexed bounds; no immediate maneuver obligation",
+                        False,
+                        target_key=target.key,
+                        witness={"planned_action_at_s": target.planned_action_at_s},
+                    )
+                )
+                continue
             committed_obligation = target.commitment == "COMMITTED" and target.risk in {"ACTIVE", "PAST_CLEAR"}
             if not (candidate_obligation or committed_obligation):
                 continue

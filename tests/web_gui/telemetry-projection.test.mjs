@@ -841,3 +841,20 @@ test('first projection without any envelope emits the empty snapshot once', () =
   assert.equal(again, empty);
   assert.equal(calls.length, baseline + 1);
 });
+
+test('scheduled target retains backend action time without becoming current primary', () => {
+  const key = { target_id: 3, generation: 1 };
+  const projection = createTelemetryProjection();
+  const result = projection.project(runtimeSnapshot({ envelope: envelope({
+    threat_management: {
+      status: 'AVAILABLE',
+      snapshot: { lifecycle_snapshot: { targets: [{ key, risk: 'CANDIDATE', planned_action_at_s: 800 }] } },
+      vectors: [{ key, display_class: 'LOW', avoidance_action_active: false }],
+      schedule: { current_primary: null, next_threats: [key], entries: [{ key, context: 'NEXT' }] },
+    },
+  }) }));
+  assert.equal(result.risk.primary, null);
+  assert.equal(result.risk.targets[0].plannedActionAtS, 800);
+  assert.equal(result.risk.targets[0].scheduleClass, 'NEXT');
+  assert.equal(result.risk.targets[0].displayClass, 'LOW');
+});

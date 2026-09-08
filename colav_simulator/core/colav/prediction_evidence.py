@@ -288,6 +288,7 @@ class PredictionPhaseEvidence:
     recovery_from_k: int | None
     target_keys: tuple[EvidenceTrackKey, ...]
     solver_consumed: bool
+    target_action_windows: tuple[tuple[EvidenceTrackKey, int, int | None], ...] = ()
 
     def __post_init__(self) -> None:
         """Freeze phase evidence and reject ambiguous horizon semantics."""
@@ -301,7 +302,7 @@ class PredictionPhaseEvidence:
                 raise ValueError("recovery_from_k must fall inside the prediction grid")
             if any(value != "RECOVER" for value in phases[self.recovery_from_k :]):
                 raise ValueError("recovery_from_k must begin a RECOVER suffix")
-        elif "RECOVER" in phases:
+        elif "RECOVER" in phases and not self.target_action_windows:
             raise ValueError("RECOVER phases require recovery_from_k")
         if not np.isfinite((self.mission_bearing_rad, self.avoidance_corridor_bearing_rad)).all():
             raise ValueError("phase bearings must be finite")
@@ -311,6 +312,10 @@ class PredictionPhaseEvidence:
         object.__setattr__(self, "times_s", times)
         object.__setattr__(self, "phases", phases)
         object.__setattr__(self, "target_keys", keys)
+        windows = tuple(tuple(window) for window in self.target_action_windows)
+        if any(key not in keys or start < 0 or (stop is not None and stop < start) for key, start, stop in windows):
+            raise ValueError("target action windows must align with their identities and order")
+        object.__setattr__(self, "target_action_windows", windows)
 
 
 @dataclass(frozen=True)

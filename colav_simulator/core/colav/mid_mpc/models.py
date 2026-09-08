@@ -211,6 +211,7 @@ class MidMpcRowSchedule:
     cpa_hard_windows: tuple[MidMpcHardWindow, ...] = ()
     direction_hard_window: MidMpcHardWindow | None = None
     min_alt_hard_window: MidMpcHardWindow | None = None
+    course_bounds_rad: tuple[tuple[float | None, float | None], ...] = ()
 
     def __post_init__(self) -> None:
         """Validate non-negative activation indices."""
@@ -229,6 +230,12 @@ class MidMpcRowSchedule:
             if window is not None and not isinstance(window, MidMpcHardWindow):
                 raise TypeError(f"{name} must be MidMpcHardWindow or None")
         object.__setattr__(self, "cpa_hard_windows", windows)
+        bounds = tuple(tuple(bound) for bound in self.course_bounds_rad)
+        if any(
+            len(bound) != 2 or any(value is not None and not math.isfinite(value) for value in bound) for bound in bounds
+        ):
+            raise ValueError("scheduled course bounds must be finite or absent")
+        object.__setattr__(self, "course_bounds_rad", bounds)
 
 
 @dataclass(frozen=True)

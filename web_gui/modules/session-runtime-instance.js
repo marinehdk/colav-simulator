@@ -1,5 +1,5 @@
 import { createActiveSessionRuntime } from './active-session-runtime.js?v=20260907-shared-planner-v1';
-import { createTelemetryProjection } from './telemetry-projection.js?v=20260901-static-once-v1';
+import { createTelemetryProjection } from './telemetry-projection.js?v=20260908-anticipatory-v1';
 
 class SessionHttpError extends Error {
   constructor(response, detail) {

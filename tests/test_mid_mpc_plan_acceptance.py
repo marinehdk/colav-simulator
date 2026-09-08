@@ -1193,3 +1193,22 @@ def test_corrective_starboard_plan_is_not_rejected_for_observed_initial_course()
     wrong = replace(request, candidate=replace(request.candidate, course_rad=np.deg2rad([-5.0, -10.0, 15.0])))
     result = MidMpcPlanAcceptance().evaluate(wrong)
     assert "COLREG_LOCKED_SIDE" in {f.code for f in result.findings}
+
+
+def test_future_action_requires_solver_consumed_schedule_evidence() -> None:
+    target = AuthorityTarget(
+        key=TrackKey(1, 1),
+        encounter="CROSSING",
+        role="GIVE_WAY",
+        risk="CANDIDATE",
+        commitment="NONE",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=0.2,
+        action_achieved=False,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        planned_action_at_s=100.0,
+    )
+    result = MidMpcPlanAcceptance().evaluate(_request(authority_targets=(target,)))
+    assert "COLREG_FUTURE_PLAN_MISSING" in {finding.code for finding in result.findings}

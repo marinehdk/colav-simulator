@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
 import numpy as np
@@ -59,6 +59,9 @@ class HorizonTargetIntent:
     action_achieved: bool
     route_recovery_allowed: bool
     prediction: TargetPrediction
+    action_start_s: float = 0.0
+    corridor_bearing_rad: float | None = None
+    passing_side: int = 0
 
     def __post_init__(self) -> None:
         """Validate the lifecycle-to-prediction binding."""
@@ -68,6 +71,8 @@ class HorizonTargetIntent:
             raise ValueError("required course change must be finite and non-negative")
         if not math.isfinite(self.recovery_clearance_m) or self.recovery_clearance_m <= 0.0:
             raise ValueError("recovery clearance must be finite and positive")
+        if not math.isfinite(self.action_start_s) or self.action_start_s < 0.0:
+            raise ValueError("action start must be finite and non-negative")
 
 
 @dataclass(frozen=True)
@@ -135,6 +140,10 @@ class TargetHorizonWindow:
     route_recovery_allowed_at_start: bool
     recovery_clearance_m: float
     minimum_predicted_route_dcpa_m: float
+    action_start_k: int = 0
+    corridor_bearing_rad: float | None = None
+    passing_side: int = 0
+    required_course_change_rad: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -149,6 +158,7 @@ class HorizonEncounterPlan:
     target_windows: tuple[TargetHorizonWindow, ...]
     recovery_from_k: int | None
     solver_consumed: bool = False
+    corridor_reference_rad: tuple[float, ...] = ()
 
     def __post_init__(self) -> None:
         """Validate one phase per prediction state sample."""
@@ -170,6 +180,9 @@ def compile_horizon_encounter_plan(request: HorizonEncounterPlanRequest) -> Hori
     """Project current lifecycle commitments into avoid-pass-recover phases."""
     if not request.targets:
         return _plan(request, (HorizonEncounterPhase.MISSION,) * request.times_s.size, (), 0)
+
+    if any(target.corridor_bearing_rad is not None for target in request.targets):
+        return _compile_scheduled_plan(request)
 
     dt_s = float(request.times_s[1] - request.times_s[0])
     recovery_paths = _recovery_paths(
@@ -205,6 +218,73 @@ def compile_horizon_encounter_plan(request: HorizonEncounterPlanRequest) -> Hori
     return _plan(request, tuple(phases), windows, recovery_from_k)
 
 
+def _compile_scheduled_plan(request: HorizonEncounterPlanRequest) -> HorizonEncounterPlan:
+    """Combine target-specific action windows without applying future turns now."""
+    dt = float(request.times_s[1] - request.times_s[0])
+    n = request.times_s.size - 1
+    windows = []
+    for target in request.targets:
+        start = math.ceil(target.action_start_s / dt)
+        corridor = (
+            request.avoidance_corridor_bearing_rad
+            if target.corridor_bearing_rad is None
+            else float(target.corridor_bearing_rad)
+        )
+        paths = _recovery_paths(
+            request.times_s,
+            own_heading_rad=request.own_heading_rad,
+            own_speed_mps=request.own_speed_mps,
+            mission_bearing_rad=request.mission_route_bearing_rad,
+            corridor_bearing_rad=corridor,
+            route_origin_ne_m=tuple(np.asarray(request.mission_route_anchor_ne_m) - request.own_position_ne_m),
+            rot_max_rad_s=request.rot_max_rad_s,
+            heading_window_rad=request.heading_window_rad,
+            action_start_k=start,
+        )
+        window = _target_window(
+            target, paths, own_position_ne_m=request.own_position_ne_m, action_step_rad=request.rot_max_rad_s * dt
+        )
+        complete = start + (
+            0 if target.action_achieved else math.ceil(target.required_course_change_rad / (request.rot_max_rad_s * dt))
+        )
+        recovery = window.recovery_from_k
+        if recovery is not None and recovery < complete:
+            recovery = None
+        windows.append(
+            replace(
+                window,
+                action_start_k=start,
+                action_complete_k=complete,
+                recovery_from_k=recovery,
+                corridor_bearing_rad=corridor,
+                passing_side=target.passing_side,
+                required_course_change_rad=target.required_course_change_rad,
+            )
+        )
+    phases = []
+    corridors = []
+    for k in range(n + 1):
+        active = [w for w in windows if w.action_start_k <= k and (w.recovery_from_k is None or k < w.recovery_from_k)]
+        if active:
+            selected = max(
+                active, key=lambda w: abs(_wrap(float(w.corridor_bearing_rad) - request.mission_route_bearing_rad))
+            )
+            phases.append(
+                HorizonEncounterPhase.ALTER if any(k < w.action_complete_k for w in active) else HorizonEncounterPhase.PASS
+            )
+            corridors.append(float(selected.corridor_bearing_rad))
+        else:
+            recovered = any(w.recovery_from_k is not None and k >= w.recovery_from_k for w in windows)
+            phases.append(HorizonEncounterPhase.RECOVER if recovered else HorizonEncounterPhase.MISSION)
+            corridors.append(request.mission_route_bearing_rad)
+    pending = [w for w in windows if w.action_start_k <= n]
+    recovery = (
+        None if not pending or any(w.recovery_from_k is None for w in pending) else max(w.recovery_from_k for w in pending)
+    )
+    plan = _plan(request, tuple(phases), tuple(windows), recovery)
+    return replace(plan, corridor_reference_rad=tuple(corridors))
+
+
 def horizon_encounter_plan_document(plan: HorizonEncounterPlan) -> dict[str, object]:
     """Return JSON-safe evidence for hashing, replay, and diagnostics."""
     return {
@@ -216,10 +296,15 @@ def horizon_encounter_plan_document(plan: HorizonEncounterPlan) -> dict[str, obj
         "phases": [phase.value for phase in plan.phases],
         "recovery_from_k": plan.recovery_from_k,
         "solver_consumed": plan.solver_consumed,
+        "corridor_reference_rad": list(plan.corridor_reference_rad),
         "target_windows": [
             {
                 "key": {"target_id": window.key.target_id, "generation": window.key.generation},
                 "action_complete_k": window.action_complete_k,
+                "action_start_k": window.action_start_k,
+                "corridor_bearing_rad": window.corridor_bearing_rad,
+                "passing_side": window.passing_side,
+                "required_course_change_rad": window.required_course_change_rad,
                 "recovery_from_k": window.recovery_from_k,
                 "route_recovery_allowed_at_start": window.route_recovery_allowed_at_start,
                 "recovery_clearance_m": window.recovery_clearance_m,
@@ -241,6 +326,9 @@ def _target_window(
     action_complete_k = 0 if target.action_achieved else math.ceil(target.required_course_change_rad / action_step_rad)
     if target.route_recovery_allowed:
         action_complete_k = 0
+    action_complete_k += math.ceil(
+        target.action_start_s / float(target.prediction.times_s[1] - target.prediction.times_s[0])
+    )
     action_complete_k = min(action_complete_k, target.prediction.times_s.size)
     absolute_own_paths = recovery_paths + np.asarray(own_position_ne_m, dtype=float)[None, None, :]
     relative = target_positions[None, :, :] - absolute_own_paths
@@ -295,6 +383,7 @@ def _recovery_paths(
     route_origin_ne_m: tuple[float, float],
     rot_max_rad_s: float,
     heading_window_rad: float,
+    action_start_k: int = 0,
 ) -> np.ndarray:
     """Precompute one rate-limited corridor-to-mission path per recovery knot."""
     dt_s = float(times_s[1] - times_s[0])
@@ -308,7 +397,7 @@ def _recovery_paths(
     for k in range(step_count):
         cross_track = (paths[:, k, :] - np.asarray(route_origin_ne_m, dtype=float)) @ mission_normal
         desired_heading = np.full(times_s.size, corridor_bearing_rad, dtype=float)
-        recovering = k >= recovery_indices
+        recovering = (k >= recovery_indices) | (k < action_start_k)
         if own_speed_mps > 1.0e-9 and maximum_recovery_delta > 1.0e-9:
             lateral_velocity = np.clip(-cross_track / dt_s, -own_speed_mps, own_speed_mps)
             recovery_delta = np.clip(

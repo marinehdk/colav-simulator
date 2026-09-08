@@ -1,5 +1,5 @@
 import { createValidationAssembly } from './validation-assembly.js?v=20260905-gnc-s10-v1';
-import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260907-shared-planner-v1';
+import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260908-anticipatory-v1';
 import { createSituationDisplay } from './situation-display.js?v=20260831-vessel-risk-label-v4';
 
 const OPENBRIDGE_VERSION = '1.0.1';

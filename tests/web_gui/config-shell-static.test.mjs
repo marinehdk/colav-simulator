@@ -77,10 +77,10 @@ test('composition root wires the runtime into the projection singleton and expor
   assert.match(instance, /import \{ createTelemetryProjection \} from ['"]\.\/telemetry-projection\.js\?v=/);
 });
 
-test('Config static assets carry the GNC step-4 cache-bust tag', () => {
+test('Config assets retain GNC tags and load the updated runtime shell', () => {
   const tag = '20260905-gnc-s10-v1';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
-  assert.match(html, new RegExp(`/static/modules/config-shell\\.js\\?v=${tag}`));
+  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260908-anticipatory-v1/);
   assert.match(shell, new RegExp(`\\./validation-assembly\\.js\\?v=${tag}`));
 });
 
