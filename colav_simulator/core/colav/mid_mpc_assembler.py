@@ -40,6 +40,7 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcRowSchedule,
     MidMpcTarget,
 )
+from colav_simulator.core.colav.mid_mpc_static import compile_static_field, static_execution_context
 from colav_simulator.core.colav.rolling_plan import RollingPlanReference
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -679,6 +680,8 @@ def _compile_semantic_problem(
         ),
         route_objective=route_objective,
         row_schedule=row_schedule,
+        static_field=compile_static_field(planner_input) if profile is AssemblyProfile.COLAV_STRICT else None,
+        static_origin_ne_m=tuple(map(float, ownship[:2])),
         audit_row_count=len(binding.selected_tracks),
         targets=tuple(
             MidMpcTarget(
@@ -1051,8 +1054,10 @@ def _compile_horizon_encounter_plan(
         )
 
         nominal_positions = planner_input.ownship_state[:2] + np.cumsum(
-            route.planned_speed_mps * config.horizon_dt_s
-            * np.column_stack((np.cos(nominal_headings), np.sin(nominal_headings))), axis=0,
+            route.planned_speed_mps
+            * config.horizon_dt_s
+            * np.column_stack((np.cos(nominal_headings), np.sin(nominal_headings))),
+            axis=0,
         )
 
     def corridor_for(decision: TargetDecision) -> float | None:
@@ -1141,10 +1146,12 @@ def request_hash_document(
         "config": asdict(config),
         "rolling_plan": None if rolling_plan is None else asdict(rolling_plan),
         "profile": profile.value,
+        "static_context": static_execution_context(planner_input) if profile is AssemblyProfile.COLAV_STRICT else None,
         "ownship": {
             "state": planner_input.ownship_state.tolist(),
             "length_m": planner_input.ownship_length_m,
             "width_m": planner_input.ownship_width_m,
+            "draft_m": planner_input.ownship_draft_m,
         },
         "tracks": [
             _track_document(track)

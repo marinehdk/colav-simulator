@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+from conftest import empty_enc
 
 from colav_simulator.core.colav.custom_mpc_adapter import DeadlineMode, FactoryContext
 from colav_simulator.core.colav.diagnostics import ColavExecutionError
@@ -98,6 +99,7 @@ def test_mid_mpc_consumes_existing_active_handoff_snapshot_without_recycling_lif
         np.array([7.0, 7.0]),
         np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0]),
         [target],
+        enc=empty_enc(),
         dt=1.0,
         os_length=15.0,
         os_model_name="Viknes",
@@ -149,6 +151,7 @@ def test_mid_mpc_replans_immediately_when_canonical_colreg_authority_changes() -
         np.array([7.0, 7.0]),
         np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0]),
         [initial_target],
+        enc=empty_enc(),
         dt=1.0,
         os_length=15.0,
         os_model_name="Viknes",
@@ -176,6 +179,7 @@ def test_mid_mpc_replans_immediately_when_canonical_colreg_authority_changes() -
         np.array([7.0, 7.0]),
         predicted[:6, 1],
         [active_target],
+        enc=empty_enc(),
         dt=1.0,
         os_length=15.0,
         os_model_name="Viknes",
@@ -224,6 +228,7 @@ def test_mid_mpc_uses_injected_runtime_threat_coordinator_and_native_solver() ->
         np.array([4.0, 4.0]),
         np.array([0.0, 0.0, 0.0, 4.0, 0.0, 0.0]),
         [target],
+        enc=empty_enc(),
         dt=1.0,
         os_length=15.0,
         os_model_name="Viknes",
@@ -245,6 +250,7 @@ def test_mid_mpc_uses_injected_runtime_threat_coordinator_and_native_solver() ->
         np.array([4.0, 4.0]),
         np.array([0.0, 0.0, 0.0, 4.0, 0.0, 0.0]),
         [target],
+        enc=empty_enc(),
         dt=1.0,
         os_length=15.0,
         os_model_name="Viknes",
@@ -310,6 +316,7 @@ def test_mid_mpc_runtime_publishes_plan_induced_conflict_from_next_cycle_receipt
     speed_plan = np.array([4.0, 4.0])
     ownship = np.array([0.0, 0.0, 0.0, 4.0, 0.0, 0.0])
     common_kwargs = {
+        "enc": empty_enc(),
         "dt": 1.0,
         "os_length": 15.0,
         "os_model_name": "KinematicCSOG",
@@ -417,6 +424,7 @@ def test_failed_revision_cannot_keep_plan_with_obsolete_colreg_authority(monkeyp
             np.array([7.0, 7.0]),
             state,
             [target],
+            enc=empty_enc(),
             dt=1.0,
             os_length=15.0,
             os_model_name="Viknes",

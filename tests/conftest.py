@@ -5,11 +5,21 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import pytest
+from shapely.geometry import GeometryCollection, box
 
 os.environ["MPLBACKEND"] = "Agg"
+
+
+def empty_enc() -> SimpleNamespace:
+    """Explicit open-water chart for numerical integration fixtures."""
+    empty = SimpleNamespace(geometry=GeometryCollection())
+    water = SimpleNamespace(geometry=box(-1e7, -1e7, 1e7, 1e7))
+    return SimpleNamespace(land=empty, shore=empty, seabed={0: water, 5: water})
+
 
 if TYPE_CHECKING:
     from colav_simulator.core.colav.threat_assessment import ShipDomainProfile

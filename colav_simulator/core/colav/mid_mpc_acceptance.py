@@ -10,6 +10,8 @@ from enum import StrEnum
 from typing import Any
 
 import numpy as np
+import shapely
+from shapely.geometry import LineString
 
 from colav_simulator.core.colav.prediction_evidence import PredictionPhaseEvidence
 from colav_simulator.core.tracking.trackers import TrackKey
@@ -219,11 +221,20 @@ class ExecutionEvidence:
     tracker_id: str
     static_clearance_m: float | None = None
     static_context_required: bool = False
+    static_geometry_wkb_hex: str | None = None
+    static_start_ne_m: tuple[float, float] | None = None
+    static_layer_status: tuple[tuple[str, str], ...] = ()
     mission_waypoints_ne_m: tuple[tuple[float, float], ...] = ()
 
     def __post_init__(self) -> None:
         """Freeze execution targets."""
         object.__setattr__(self, "targets", tuple(self.targets))
+        object.__setattr__(self, "static_layer_status", tuple(tuple(item) for item in self.static_layer_status))
+        if self.static_start_ne_m is not None:
+            start = tuple(float(value) for value in self.static_start_ne_m)
+            if len(start) != 2 or not np.isfinite(start).all():
+                raise ValueError("static start must be a finite north/east pair")
+            object.__setattr__(self, "static_start_ne_m", start)
         points = tuple(tuple(float(value) for value in point) for point in self.mission_waypoints_ne_m)
         if points and (len(points) < 2 or any(len(point) != 2 for point in points) or not np.isfinite(points).all()):
             raise ValueError("mission route must contain finite NE waypoint pairs")
@@ -254,6 +265,7 @@ class PlanAcceptancePolicy:
     horizon_dt_s: float = 5.0
     stand_on_course_tolerance_rad: float = math.radians(5.0)
     hard_hull_clearance_m: float = 50.0
+    hard_static_clearance_m: float | None = None
     advisory_hull_clearance_m: float = 150.0
     max_relevant_targets: int = 16
     total_deadline_s: float = 20.0
@@ -281,6 +293,10 @@ class PlanAcceptancePolicy:
             raise ValueError("acceptance policy values must be finite and positive")
         if self.advisory_hull_clearance_m < self.hard_hull_clearance_m:
             raise ValueError("advisory clearance cannot be below hard clearance")
+        if self.hard_static_clearance_m is not None and (
+            not math.isfinite(self.hard_static_clearance_m) or self.hard_static_clearance_m < 0
+        ):
+            raise ValueError("static clearance must be finite and non-negative")
         if self.max_relevant_targets < 1 or self.inline_limit_bytes < 1:
             raise ValueError("acceptance limits must be positive")
         if not self.scenario_id or self.algorithm_seed < 0 or not self.tracker_id:
@@ -550,7 +566,7 @@ class MidMpcPlanAcceptance:
             )
 
     @staticmethod
-    def _safety(
+    def _safety(  # noqa: PLR0912, PLR0915 - independent dynamic and static physical gates
         request: AcceptanceRequest,
         findings: list[AcceptanceFinding],
     ) -> tuple[TargetSafetyWitness, ...]:
@@ -649,12 +665,34 @@ class MidMpcPlanAcceptance:
                     )
         if request.execution.static_context_required:
             static = request.execution.static_clearance_m
-            if static is None or not math.isfinite(static) or static < request.policy.hard_hull_clearance_m:
+            if request.execution.static_geometry_wkb_hex is not None:
+                static = _static_geometry_clearance(request)
+            required = request.policy.hard_static_clearance_m
+            if required is None:
+                required = request.policy.hard_hull_clearance_m
+            witness = {
+                "clearance_lower_bound_m": static,
+                "required_clearance_m": required,
+                "layer_status": request.execution.static_layer_status,
+            }
+            if static is None or not math.isfinite(static) or static < required:
                 _fail(
                     findings,
                     AcceptanceLayer.SAFETY,
                     "SAFETY_STATIC_CLEARANCE",
                     "required static-hazard clearance is missing or below the hard gate",
+                    witness=witness,
+                )
+            else:
+                findings.append(
+                    AcceptanceFinding(
+                        AcceptanceLayer.SAFETY,
+                        AcceptanceOutcome.PASS,
+                        "SAFETY_STATIC_VALID",
+                        "full swept circumscribed hull clears original ENC hazards",
+                        True,
+                        witness=witness,
+                    )
                 )
         if not any(item.layer is AcceptanceLayer.SAFETY and item.outcome is AcceptanceOutcome.FAIL for item in findings):
             findings.append(
@@ -1345,6 +1383,24 @@ class MidMpcPlanAcceptance:
                     True,
                 )
             )
+
+
+def _static_geometry_clearance(request: AcceptanceRequest) -> float | None:
+    """Independently test original geometry, not the optimizer's distance grid."""
+    try:
+        geometry = shapely.from_wkb(bytes.fromhex(request.execution.static_geometry_wkb_hex))
+        if not geometry.is_valid:
+            return None
+        if geometry.is_empty:
+            return 1.0e12
+        points = np.column_stack((request.candidate.east_m, request.candidate.north_m))
+        if request.execution.static_start_ne_m is not None:
+            north, east = request.execution.static_start_ne_m
+            points = np.vstack(((east, north), points))
+        radius = 0.5 * math.hypot(request.execution.ownship_length_m, request.execution.ownship_width_m)
+        return float(LineString(points).distance(geometry)) - radius
+    except (ValueError, TypeError, shapely.errors.GEOSException):
+        return None
 
 
 def _polyline_recovery_errors(request: AcceptanceRequest) -> tuple[np.ndarray, np.ndarray]:

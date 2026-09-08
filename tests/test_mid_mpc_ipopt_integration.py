@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+from conftest import empty_enc
 
 from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter, DeadlineMode, FactoryContext
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureSource, PlanStatus
@@ -122,6 +123,7 @@ def _plan(
         np.array([4.0, 4.0]),
         ownship if ownship is not None else np.array([0.0, 0.0, 0.0, 4.0, 0.0, 0.0]),
         snapshots,
+        enc=empty_enc(),
         dt=1.0,
         os_length=15.0,
         os_model_name=model_name,
@@ -148,6 +150,8 @@ def test_registry_exposes_published_mid_mpc_profile_and_truthful_descriptor() ->
     assert descriptor["descriptor"]["horizon_dt"] == 5.0
     assert descriptor["descriptor"]["execution_profile"]["solve_period_s"] == 10.0
     assert descriptor["fallback_policy"] == "forbidden"
+    assert descriptor["descriptor"]["execution_profile"]["requires_enc"] is True
+    assert "static_swept_hull_clearance" in descriptor["descriptor"]["constraint_terms"]
     assert descriptor["build_identity"]["config_sha256"] != "UNKNOWN"
     assert ALGORITHMS[ALGORITHM_ID].readiness_grade == "G3"
     assert {key[:2] for key in VERIFIED_COMBINATIONS if key[2:] == (ALGORITHM_ID, "god")} == {
@@ -178,6 +182,7 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
         np.array([4.0, 4.0]),
         np.array([0.0, 0.0, 0.0, 4.0, 0.0, 0.0]),
         [],
+        enc=empty_enc(),
         dt=1.0,
         os_length=15.0,
         os_model_name="Viknes",
@@ -270,6 +275,7 @@ def test_no_target_off_route_prediction_rejoins_straight_mission_leg() -> None:
         np.array([7.0, 7.0]),
         np.array([1_140.0, initial_cross_track_m, np.deg2rad(-63.386679), 7.0, 0.0, 0.0]),
         [],
+        enc=empty_enc(),
         dt=0.5,
         os_length=8.45,
         os_model_name="Viknes",
@@ -537,6 +543,7 @@ def test_legacy_track_without_tracker_generation_fails_before_solver() -> None:
             np.array([4.0, 4.0]),
             np.array([0.0, 0.0, 0.0, 4.0, 0.0, 0.0]),
             [legacy_target],
+            enc=empty_enc(),
             dt=1.0,
             os_length=15.0,
         )
@@ -572,6 +579,7 @@ def test_terminated_track_is_not_reinterpreted_as_fresh() -> None:
             np.array([4.0, 4.0]),
             np.array([0.0, 0.0, 0.0, 4.0, 0.0, 0.0]),
             [terminated],
+            enc=empty_enc(),
             dt=1.0,
             os_length=15.0,
         )

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from conftest import empty_enc
 
 from colav_simulator.core import ship
 from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter, DeadlineMode, FactoryContext
@@ -216,6 +217,7 @@ def _mid_mpc_plan(
         np.array([0.0, 0.0, 0.0, 4.0, 0.0, 0.0]) if ownship is None else ownship,
         [_head_on_snapshot(t, north_m=target_north_m)],
         dt=1.0,
+        enc=empty_enc(),
         os_length=15.0,
         os_model_name="Viknes",
         os_controller_name="FLSC",

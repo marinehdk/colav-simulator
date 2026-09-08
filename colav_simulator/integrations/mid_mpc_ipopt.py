@@ -74,6 +74,7 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     TargetPrediction,
     problem_hash_document,
 )
+from colav_simulator.core.colav.mid_mpc_static import STATIC_HULL_CLEARANCE_M, static_execution_context
 from colav_simulator.core.colav.prediction_evidence import (
     EvidenceEnvelope,
     EvidenceTrackKey,
@@ -323,6 +324,7 @@ class _MidMpcFacade:
         return reference.revision_reason
 
     def solve(self, planner_input: PlannerInput) -> MPCSolution:  # noqa: C901, PLR0912, PLR0915
+        solve_started_at = time.perf_counter()
         if len(planner_input.tracks) > self._config.assembly.max_targets:
             self._accepted_primal = None
             self._accepted_request = None
@@ -456,11 +458,15 @@ class _MidMpcFacade:
         warm_semantic_token = _warm_semantic_token(snapshot, assembly)
         warm_start = self._primal_warm_start(planner_input, capability, warm_semantic_token)
         try:
-            retry_budget_s = 2.0 if self._unresolved_streak >= 1 else None
+            cycle_budget_s = 2.0 if self._unresolved_streak >= 1 else self._config.total_deadline_s
+            solver_budget_s = max(
+                0.0,
+                cycle_budget_s - (time.perf_counter() - solve_started_at) - self._config.acceptance_reservation_s,
+            )
             result = self._solver.solve(
                 assembly.problem,
                 primal_warm_start=warm_start,
-                wall_time_s=retry_budget_s,
+                wall_time_s=solver_budget_s,
             )
         except Exception:
             self._accepted_primal = None
@@ -756,6 +762,9 @@ class _MidMpcFacade:
             "row_schedule": asdict(assembly.problem.row_schedule),
             "configured_hull_clearance_m": self._config.assembly.cpa_hard_m,
             "effective_node_cpa_hard_m": assembly.effective_cpa_hard_m,
+            "static_context_required": acceptance_request.execution.static_context_required,
+            "static_hull_clearance_m": STATIC_HULL_CLEARANCE_M,
+            "static_constraint_rows": result.row_layout.zone.count,
             "slack_bounds_mode": "fixed_zero",
             "slack_bounds": {
                 "cpa": [float(result.prepared.lbx[-2]), float(result.prepared.ubx[-2])],
@@ -1386,13 +1395,14 @@ def create(  # noqa: PLR0913
             "cpa_distance",
             "preferred_side",
             "minimum_alteration",
+            "static_swept_hull_clearance",
         ),
         solver="casadi-3.7.2-ipopt",
         seed_policy="deterministic_cold_start",
         execution_profile=ExecutionProfile(
             solve_period_s=solve_period_s,
             deadline_s=deadline_s,
-            requires_enc=False,
+            requires_enc=True,
         ),
     )
     return CustomMPCAdapter(
@@ -1687,6 +1697,7 @@ def _acceptance_request(  # noqa: PLR0913
             capability=capability,
             tracker_id=tracker_id,
             mission_waypoints_ne_m=tuple(map(tuple, planner_input.waypoints_enu_m.T)),
+            **static_execution_context(planner_input),
         ),
         prior=PriorEvidence(mode=AcceptanceMode.FRESH_CANDIDATE),
         policy=PlanAcceptancePolicy(
@@ -1694,6 +1705,7 @@ def _acceptance_request(  # noqa: PLR0913
             state_samples=grid.state_samples,
             horizon_dt_s=grid.dt_s,
             hard_hull_clearance_m=hard_hull_clearance_m,
+            hard_static_clearance_m=STATIC_HULL_CLEARANCE_M,
             stand_on_course_tolerance_rad=stand_on_course_tolerance_rad,
             advisory_hull_clearance_m=assembly.problem.cpa_safe_m,
             total_deadline_s=total_deadline_s,
@@ -1770,12 +1782,18 @@ def _held_acceptance_request(
     execution = replace(
         accepted.execution,
         sim_time_s=planner_input.sim_time_s,
+        ownship_length_m=planner_input.ownship_length_m,
+        ownship_width_m=planner_input.ownship_width_m,
         targets=tuple(
             _execution_target(track, accepted.policy.state_samples, accepted.policy.horizon_dt_s)
             for track in planner_input.tracks
         ),
         capability=capability,
         tracker_id=_tracker_identity(planner_input),
+        **{
+            **static_execution_context(planner_input),
+            "static_context_required": accepted.execution.static_context_required or planner_input.enc is not None,
+        },
     )
     return replace(
         accepted,

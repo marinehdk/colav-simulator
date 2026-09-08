@@ -25,6 +25,7 @@ from shapely.geometry import GeometryCollection, LineString, MultiLineString, Mu
 from shapely.geometry.base import BaseGeometry
 
 import colav_simulator.common.miscellaneous_helper_methods as mhm
+from colav_simulator.common.enc_point_hazards import chart_point_hazards
 from colav_simulator.core.collision import VesselPose, rectangular_footprint
 
 
@@ -605,6 +606,7 @@ def extract_typed_grounding_hazards(vessel_min_depth: int, enc: ENC) -> Groundin
         layers.append(GroundingHazardLayer("UNSARE", unsare_geometry, "AVAILABLE"))
     else:
         layers.append(GroundingHazardLayer("UNSARE", GeometryCollection(), "UNAVAILABLE_SOURCE"))
+    point_hazards = chart_point_hazards(enc, vessel_min_depth)
     for layer_id, attribute in (
         ("SOUNDG", "soundg"),
         ("OBSTRN", "obstrn"),
@@ -612,13 +614,19 @@ def extract_typed_grounding_hazards(vessel_min_depth: int, enc: ENC) -> Groundin
     ):
         source = getattr(enc, attribute, None)
         geometry = getattr(source, "geometry", None)
+        source_status = "AVAILABLE" if isinstance(geometry, BaseGeometry) else "UNAVAILABLE_SOURCE"
+        if not isinstance(geometry, BaseGeometry) and layer_id in point_hazards:
+            geometry, source_status = point_hazards[layer_id]
         layers.append(
             GroundingHazardLayer(
                 layer_id,
                 geometry if isinstance(geometry, BaseGeometry) else GeometryCollection(),
-                "AVAILABLE" if isinstance(geometry, BaseGeometry) else "UNAVAILABLE_SOURCE",
+                source_status,
             )
         )
+    if "SKJER" in point_hazards:
+        geometry, source_status = point_hazards["SKJER"]
+        layers.append(GroundingHazardLayer("SKJER", geometry, source_status))
     coverage_status = "AVAILABLE" if getattr(enc, "m_covr", None) is not None else "UNAVAILABLE_SOURCE"
     quality_status = "AVAILABLE" if getattr(enc, "m_qual", None) is not None else "UNAVAILABLE_SOURCE"
     return GroundingHazardSet(

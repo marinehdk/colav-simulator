@@ -74,7 +74,7 @@ class MidMpcIpoptSolver:
 
     def __init__(self, config: MidMpcConfig = MidMpcConfig()) -> None:
         self._config = config
-        self._graph_cache: dict[tuple[bool, int | None, float | None], _Graph] = {}
+        self._graph_cache: dict[tuple, _Graph] = {}
 
     def prewarm(self) -> None:
         """Build the capacity-one strict graph so the first tick pays no JIT stall."""
@@ -91,7 +91,7 @@ class MidMpcIpoptSolver:
         if not self._config.strict_slack_bounds:
             return
         capacity = max(1, min(int(target_capacity), self._config.max_targets))
-        graph_key = (True, None, None)
+        graph_key = (True, None, None, None)
         cached = self._graph_cache.get(graph_key)
         if cached is not None and cached.target_capacity >= capacity and cached.audit_capacity >= capacity:
             return
@@ -129,7 +129,7 @@ class MidMpcIpoptSolver:
         )
         self._graph_cache[graph_key] = _build_graph(self._config, shell)
 
-    def solve(  # noqa: PLR0915 - keeps one solver call and its evidence atomic
+    def solve(  # noqa: PLR0912, PLR0915 - keeps one solver call and its evidence atomic
         self,
         problem: MidMpcProblem,
         *,
@@ -143,6 +143,7 @@ class MidMpcIpoptSolver:
             problem.route_objective is not None,
             None if self._config.strict_slack_bounds else min(problem.prefix_active_k, self._config.horizon_steps),
             None if self._config.strict_slack_bounds else problem.cpa_hard_m,
+            None if problem.static_field is None else problem.static_field.graph_key,
         )
         graph = self._graph_cache.get(graph_key)
         graph_cache_hit = bool(
@@ -152,7 +153,17 @@ class MidMpcIpoptSolver:
         )
         if not graph_cache_hit:
             graph_build_started = time.perf_counter()
-            graph = _build_graph(self._config, problem)
+            capacity_hint = max((cached.target_capacity for cached in self._graph_cache.values()), default=1)
+            graph = (
+                _build_graph(self._config, problem, capacity_hint=capacity_hint)
+                if problem.static_field is not None
+                else _build_graph(self._config, problem)
+            )
+            # Bound retained chart variants after source or hull changes.
+            if problem.static_field is not None:
+                static_keys = [key for key in self._graph_cache if key[-1] is not None]
+                if len(static_keys) >= 4:
+                    del self._graph_cache[static_keys[0]]
             self._graph_cache[graph_key] = graph
             graph_build_elapsed_ms = (time.perf_counter() - graph_build_started) * 1_000.0
         else:
@@ -173,7 +184,7 @@ class MidMpcIpoptSolver:
                 self._config,
                 reuse_stop_k=reuse_stop_k,
             )
-        if self._config.strict_slack_bounds and problem.targets and primal_warm_start is None:
+        if self._config.strict_slack_bounds and (problem.targets or problem.static_field) and primal_warm_start is None:
             # Cold seeds only: a warm-started rolling projection that sits on
             # hard rows mid-encounter carries accepted plan geometry that a
             # uniform offset ramp would discard.
@@ -229,7 +240,10 @@ class MidMpcIpoptSolver:
         preparation_elapsed_ms = (time.perf_counter() - preparation_started) * 1_000.0
         callback_wall_limit = graph.iteration_callback._max_wall_time_s
         if wall_time_s is not None:
-            graph.iteration_callback._max_wall_time_s = min(callback_wall_limit, float(wall_time_s))
+            # The caller budgets the whole solver operation, including graph
+            # construction and numerical preparation, not just IPOPT iterations.
+            remaining_s = max(0.0, float(wall_time_s) - (time.perf_counter() - started_at))
+            graph.iteration_callback._max_wall_time_s = min(callback_wall_limit, remaining_s)
         try:
             ipopt_started = time.perf_counter()
             result = graph.solver(
@@ -492,12 +506,15 @@ class _IterationCallback(ca.Callback):
 
 
 def _build_graph(  # noqa: PLR0912, PLR0915
-    config: MidMpcConfig, problem: MidMpcProblem
+    config: MidMpcConfig,
+    problem: MidMpcProblem,
+    *,
+    capacity_hint: int = 1,
 ) -> _Graph:
     n = config.horizon_steps
     if config.strict_slack_bounds:
-        target_capacity = max(len(problem.targets), 1)
-        audit_capacity = max(problem.audit_row_count, 1)
+        target_capacity = max(len(problem.targets), capacity_hint, 1)
+        audit_capacity = max(problem.audit_row_count, capacity_hint, 1)
     else:
         target_capacity = len(problem.targets)
         audit_capacity = problem.audit_row_count
@@ -517,6 +534,9 @@ def _build_graph(  # noqa: PLR0912, PLR0915
     if config.strict_slack_bounds:
         rule_parameters_start = parameter_dim
         parameter_dim += 2 * config.max_targets
+    static_origin_start = parameter_dim
+    if problem.static_field is not None:
+        parameter_dim += 2
     dt = ca.DM(config.dt_s)
     psi = ca.MX.sym("psi", n)
     speed = ca.MX.sym("u", n)
@@ -566,6 +586,7 @@ def _build_graph(  # noqa: PLR0912, PLR0915
         p,
         config,
         avoidance_active_until=avoidance_active_until if staged_route_objective else None,
+        target_capacity=target_capacity if problem.static_field is not None else None,
     )
     asym_sum = ca.MX(0.0)
     for k in range(n):
@@ -652,6 +673,8 @@ def _build_graph(  # noqa: PLR0912, PLR0915
                 audit_capacity=audit_capacity,
             )
         )
+    if problem.static_field is not None:
+        rows.extend(_static_rows(psi, speed, p, config, problem, static_origin_start))
     g = ca.vertcat(*rows)
 
     options = {
@@ -670,7 +693,7 @@ def _build_graph(  # noqa: PLR0912, PLR0915
         "ipopt.acceptable_constr_viol_tol": 1.0e-2,
         "print_time": False,
     }
-    row_layout = _row_layout(config, target_capacity, audit_capacity)
+    row_layout = _row_layout(config, target_capacity, audit_capacity, static_rows=n if problem.static_field else 0)
     nlp = {"x": x, "p": p, "f": objective, "g": g}
     iteration_callback = _IterationCallback(
         int(x.numel()),
@@ -722,6 +745,42 @@ def _build_graph(  # noqa: PLR0912, PLR0915
         target_capacity,
         audit_capacity,
     )
+
+
+def _static_rows(
+    psi: ca.MX,
+    speed: ca.MX,
+    p: ca.MX,
+    config: MidMpcConfig,
+    problem: MidMpcProblem,
+    origin_start: int,
+) -> list[ca.MX]:
+    """Hard swept-hull rows; no slack or activation window can disable them."""
+    field = problem.static_field
+    north = field.north_min_m + np.arange(field.north_count) * field.spacing_m
+    east = field.east_min_m + np.arange(field.east_count) * field.spacing_m
+    distance = ca.interpolant("static_distance", "linear", [north, east], field.distance_m)
+    position = p[origin_start : origin_start + 2] + ca.vertcat(p[_P.X0], p[_P.Y0])
+    interpolation_error = field.spacing_m / math.sqrt(2.0)
+    required = field.hull_radius_m + field.clearance_m
+    step = config.dt_s * ca.vertcat((speed * ca.cos(psi)).T, (speed * ca.sin(psi)).T)
+    starts = ca.repmat(position, 1, config.horizon_steps) + ca.cumsum(step, 1) - step
+    points = starts + 0.5 * step
+    # Every segment point lies within half its length of its midpoint. This
+    # Lipschitz certificate covers the entire swept segment with one hard row.
+    margin = required + config.dt_s * ca.fabs(speed).T / 2.0
+    projected = ca.vertcat(
+        ca.fmin(ca.fmax(points[0, :], north[0]), north[-1]),
+        ca.fmin(ca.fmax(points[1, :], east[0]), east[-1]),
+    )
+    values = distance.map(config.horizon_steps)(projected) - interpolation_error
+    outside_squared = ca.sum1((points - projected) ** 2)
+    # All chart hazards lie inside the grid box. Orthogonal projection gives
+    # |p-h|² >= |p-q|² + |q-h|² for every hazard point h. Extend a conservative
+    # bound outside, never extrapolate the interpolant beyond its grid.
+    extended = ca.sqrt(outside_squared + ca.fmax(values, 0.0) ** 2 + 1.0e-20) - 1.0e-10
+    lower = ca.if_else(outside_squared > 0.0, extended, values)
+    return [(lower - margin).T]
 
 
 def _cross_track_all(psi: ca.MX, speed: ca.MX, p: ca.MX, dt_s: float) -> list[ca.MX]:
@@ -850,6 +909,7 @@ def _colreg_cost(
     config: MidMpcConfig,
     *,
     avoidance_active_until: ca.MX | None = None,
+    target_capacity: int | None = None,
 ) -> ca.MX:
     dt = ca.DM(config.dt_s)
     zeta = ca.DM(config.zeta)
@@ -863,7 +923,9 @@ def _colreg_cost(
     cost = ca.MX(0.0)
     prefix_capacity = max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
     target_start = int(_P.PREFIX_PSI) + 2 * prefix_capacity
-    for target_index in range(config.max_targets):
+    # Unallocated parameter slots have packed zero weights. A static graph may
+    # omit their identically-zero terms; retain frozen normalization below.
+    for target_index in range(config.max_targets if target_capacity is None else target_capacity):
         base = target_start + target_index * _TARGET_STRIDE
         target_dx = p[base + _T.SOG] * ca.cos(p[base + _T.COG])
         target_dy = p[base + _T.SOG] * ca.sin(p[base + _T.COG])
@@ -1175,7 +1237,7 @@ def _apply_primal_warm_start(
     )
 
 
-def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray:
+def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray:  # noqa: PLR0915
     prefix_capacity = max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
     prefix_u_start = int(_P.PREFIX_PSI) + prefix_capacity
     target_start = prefix_u_start + prefix_capacity
@@ -1191,7 +1253,12 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
     if config.strict_slack_bounds:
         rule_parameters_start = parameter_dim
         parameter_dim += 2 * config.max_targets
+    static_origin_start = parameter_dim
+    if problem.static_field is not None:
+        parameter_dim += 2
     p = np.zeros(parameter_dim)
+    if problem.static_field is not None:
+        p[static_origin_start : static_origin_start + 2] = problem.static_origin_ne_m
     p[_P.PSI0 : _P.Y0 + 1] = (
         problem.own_ship.psi_rad,
         problem.own_ship.u_mps,
@@ -1267,7 +1334,7 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
     return p
 
 
-def _row_layout(config: MidMpcConfig, target_capacity: int, audit_capacity: int) -> MidMpcRowLayout:
+def _row_layout(config: MidMpcConfig, target_capacity: int, audit_capacity: int, *, static_rows: int = 0) -> MidMpcRowLayout:
     n = config.horizon_steps
     target_rows = n * target_capacity
     rule_rows = audit_capacity
@@ -1280,7 +1347,7 @@ def _row_layout(config: MidMpcConfig, target_capacity: int, audit_capacity: int)
     min_alt = MidMpcRowSpan(direction.start + direction.count, n)
     terminal = MidMpcRowSpan(min_alt.start + min_alt.count, 3)
     rule = MidMpcRowSpan(terminal.start + terminal.count, rule_rows)
-    zone = MidMpcRowSpan(rule.start + rule.count, 0)
+    zone = MidMpcRowSpan(rule.start + rule.count, static_rows)
     return MidMpcRowLayout(
         rot=rot,
         speed_rate=speed_rate,
@@ -1300,7 +1367,7 @@ def _row_bounds(
     problem: MidMpcProblem,
     layout: MidMpcRowLayout,
 ) -> tuple[np.ndarray, np.ndarray, int]:
-    total = layout.zone.start
+    total = layout.zone.start + layout.zone.count
     lbg = np.zeros(total)
     ubg = np.full(total, np.inf)
     n = config.horizon_steps

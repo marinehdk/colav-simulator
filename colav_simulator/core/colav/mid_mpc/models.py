@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import math
 from dataclasses import dataclass
 from enum import StrEnum
@@ -239,6 +241,57 @@ class MidMpcRowSchedule:
 
 
 @dataclass(frozen=True)
+class MidMpcStaticField:
+    """Conservative signed-distance grid in absolute north/east metres.
+
+    Values use Fortran order (north varies fastest). Bilinear interpolation
+    overestimation is bounded by half the cell diagonal for a 1-Lipschitz
+    signed distance; the solver subtracts this bound before enforcing rows.
+    """
+
+    north_min_m: float
+    east_min_m: float
+    spacing_m: float
+    north_count: int
+    east_count: int
+    distance_f64le_b64: str
+    hull_radius_m: float
+    clearance_m: float
+    source_hash: str
+    layer_status: tuple[tuple[str, str], ...]
+
+    def __post_init__(self) -> None:
+        """Freeze a finite, dimensionally valid distance grid."""
+        _require_finite(self.north_min_m, self.east_min_m, self.spacing_m, self.hull_radius_m, self.clearance_m)
+        if self.spacing_m <= 0 or min(self.north_count, self.east_count) < 2:
+            raise ValueError("static grid requires positive spacing and at least two samples per axis")
+        values = self.distance_m
+        if len(values) != self.north_count * self.east_count or not np.isfinite(values).all():
+            raise ValueError("static distance grid dimensions or values are invalid")
+        if min(self.hull_radius_m, self.clearance_m) < 0:
+            raise ValueError("static hull radius and clearance must be non-negative")
+        object.__setattr__(self, "layer_status", tuple(tuple(item) for item in self.layer_status))
+
+    @property
+    def distance_m(self) -> np.ndarray:
+        """Decode immutable lossless values without recursive per-float audit copies."""
+        return np.frombuffer(base64.b64decode(self.distance_f64le_b64, validate=True), dtype="<f8")
+
+    @property
+    def graph_key(self) -> str:
+        metadata = (
+            self.north_min_m,
+            self.east_min_m,
+            self.spacing_m,
+            self.north_count,
+            self.east_count,
+            self.hull_radius_m,
+            self.clearance_m,
+        )
+        return hashlib.sha256(repr(metadata).encode() + self.distance_f64le_b64.encode()).hexdigest()
+
+
+@dataclass(frozen=True)
 class MidMpcProblem:
     own_ship: MidMpcOwnShip
     route_bearing_rad: float
@@ -261,6 +314,8 @@ class MidMpcProblem:
     prefix_psi_rad: tuple[float, ...] = ()
     prefix_u_mps: tuple[float, ...] = ()
     targets: tuple[MidMpcTarget, ...] = ()
+    static_field: MidMpcStaticField | None = None
+    static_origin_ne_m: tuple[float, float] = (0.0, 0.0)
 
     def __post_init__(self) -> None:
         """Normalize the pure optimizer input."""
@@ -272,6 +327,11 @@ class MidMpcProblem:
             raise TypeError("route_objective must be MidMpcRouteObjective or None")
         if not isinstance(self.row_schedule, MidMpcRowSchedule):
             raise TypeError("row_schedule must be MidMpcRowSchedule")
+        if self.static_field is not None and not isinstance(self.static_field, MidMpcStaticField):
+            raise TypeError("static_field must be MidMpcStaticField or None")
+        origin = _pair(self.static_origin_ne_m, "static_origin_ne_m")
+        _require_finite(*origin)
+        object.__setattr__(self, "static_origin_ne_m", origin)
         heading = _ordered_pair(self.heading_bounds_rad, "heading_bounds_rad")
         speed = _ordered_pair(self.speed_bounds_mps, "speed_bounds_mps")
         prefix_psi = tuple(float(value) for value in self.prefix_psi_rad)
