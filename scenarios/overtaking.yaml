@@ -1,7 +1,7 @@
 name: "overtaking"
 save_scenario: False
 t_start: 0.0
-t_end: 600.0
+t_end: 1200.0
 dt_sim: 0.5
 utm_zone: 33
 map_size: [6000.0, 6000.0]

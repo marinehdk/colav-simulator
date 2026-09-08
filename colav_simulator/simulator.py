@@ -568,6 +568,11 @@ class Simulator:
         if radius is not None:
             return d2goal <= radius
 
+        checker = getattr(self.ship_list[ship_idx], "goal_reached", None)
+        verdict = checker() if checker is not None else None
+        if verdict is not None:
+            return bool(verdict)
+
         scale_factor = 7.0
         return d2goal <= self.ship_list[ship_idx].length * scale_factor
 

@@ -197,7 +197,8 @@ def test_no_target_route_executes_ipopt_and_returns_native_plan() -> None:
     assert plan.shape == (9, 81)
     np.testing.assert_allclose(plan[:6, 0], [0.0, 0.0, 0.0, 4.0, 0.0, 0.0], atol=1e-9)
     assert np.linalg.norm(plan[:2, 1] - plan[:2, 0]) > 15.0
-    assert np.linalg.norm(plan[:2, -1] - plan[:2, 0]) > 1_000.0
+    assert np.linalg.norm(plan[:2, -1] - [500.0, 0.0]) <= 5.0
+    assert abs(plan[3, -1]) <= 0.1
     assert diagnostics.fallback_used is False
     assert diagnostics.details["solver_executed"] is True
     assert diagnostics.details["solver_backend"] == "ipopt"

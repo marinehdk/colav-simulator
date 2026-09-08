@@ -64,8 +64,9 @@ def test_single_target_product_run_remains_safe(tmp_path: Path, scenario: str, r
         assert minimum > 180.0
         assert prepared.manifest.fallback_used is False
         assert session.state.value == "FINISHED"
-        if scenario == "crossing_give_way":
-            assert session.simulator.determine_ship_goal_reached(0)
+        assert session.simulator.determine_ship_goal_reached(0)
+        assert float(np.linalg.norm(session.simulator.ownship.state[3:5])) <= 0.05
+        assert float(np.linalg.norm(session.simulator.ownship.state[:2] - session.simulator.ownship.waypoints[:, -1])) <= 5.0
         (tmp_path / "metrics.json").write_text(
             json.dumps(
                 {
@@ -73,6 +74,10 @@ def test_single_target_product_run_remains_safe(tmp_path: Path, scenario: str, r
                     "end_time": session.simulator.t,
                     "goal_reached": bool(session.simulator.determine_ship_goal_reached(0)),
                     "minimum_center_distance_m": minimum,
+                    "final_speed_mps": float(np.linalg.norm(session.simulator.ownship.state[3:5])),
+                    "final_goal_distance_m": float(
+                        np.linalg.norm(session.simulator.ownship.state[:2] - session.simulator.ownship.waypoints[:, -1])
+                    ),
                     "solve_times_ms": times,
                 },
                 indent=2,

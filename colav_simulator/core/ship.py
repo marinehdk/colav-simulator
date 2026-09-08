@@ -753,6 +753,11 @@ class Ship(IShip):
         self._tracker = tracker
         self._tracker.set_sensor_list(self._sensors)
 
+    def goal_reached(self) -> bool | None:
+        """Delegate an explicit planner arrival criterion, when supplied."""
+        checker = getattr(self._colav, "goal_reached", None)
+        return checker(self.state, self.waypoints) if checker is not None else None
+
     def set_controller(self, controller: controllers.IController) -> None:
         self._controller = controller
 

@@ -217,6 +217,7 @@ class EncounterCycle:
     # None: no separate intent observation; (): execution reports no maneuver.
     avoidance_intent_keys: tuple[TrackKey, ...] | None = None
     anticipatory_planning: bool = False
+    rearm_horizon_s: float | None = None
 
     def __post_init__(self) -> None:
         """Validate one immutable lifecycle input cycle."""
@@ -226,6 +227,8 @@ class EncounterCycle:
             raise ValueError("cycle sequence and time must be non-negative")
         if not math.isfinite(self.route_bearing_rad) or not math.isfinite(self.planned_speed_mps):
             raise ValueError("route reference must be finite")
+        if self.rearm_horizon_s is not None and (not math.isfinite(self.rearm_horizon_s) or self.rearm_horizon_s <= 0.0):
+            raise ValueError("rearm horizon must be finite and positive")
         object.__setattr__(self, "targets", tuple(self.targets))
         object.__setattr__(self, "physical_facts", tuple(self.physical_facts))
         object.__setattr__(self, "primary_priority_facts", tuple(self.primary_priority_facts))
@@ -279,6 +282,7 @@ class EncounterCycle:
                 "route_bearing_rad": self.route_bearing_rad,
                 "planned_speed_mps": self.planned_speed_mps,
                 "anticipatory_planning": self.anticipatory_planning,
+                "rearm_horizon_s": self.rearm_horizon_s,
                 "avoidance_intent_keys": (
                     None if self.avoidance_intent_keys is None else [asdict(key) for key in self.avoidance_intent_keys]
                 ),
@@ -760,7 +764,15 @@ class EncounterLifecycle:
             tombstone_elapsed = (
                 state.released_at_s is not None and cycle.sim_time_s - state.released_at_s >= cycle.profile.tombstone_s
             )
-            if actionable and tombstone_elapsed and geometry.signed_tcpa_s > 0.0 and geometry.dcpa_m < rearm_clearance:
+            within_rearm_horizon = (
+                cycle.rearm_horizon_s is None
+                or geometry.signed_tcpa_s <= cycle.rearm_horizon_s
+                or _urgent_action_required(cycle, target, geometry)
+            )
+            if (
+                actionable and tombstone_elapsed and within_rearm_horizon
+                and geometry.signed_tcpa_s > 0.0 and geometry.dcpa_m < rearm_clearance
+            ):
                 state = _TargetState(episode=state.episode + 1)
                 states[target.key] = state
             else:

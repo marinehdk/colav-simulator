@@ -172,6 +172,8 @@ class MidMpcIpoptSolver:
             raise RuntimeError("Mid-MPC graph cache resolution failed")
         preparation_started = time.perf_counter()
         prepared = _prepare(self._config, problem, graph.row_layout)
+        if problem.route_objective is not None and problem.route_objective.terminal_position_m is not None:
+            primal_warm_start = None
         if primal_warm_start is not None:
             reuse_stop_k = (
                 self._config.horizon_steps
@@ -505,7 +507,7 @@ class _IterationCallback(ca.Callback):
         return [ca.DM(float(elapsed_s > self._max_wall_time_s or self.quality_stop_requested))]
 
 
-def _build_graph(  # noqa: PLR0912, PLR0915
+def _build_graph(  # noqa: C901, PLR0912, PLR0915
     config: MidMpcConfig,
     problem: MidMpcProblem,
     *,
@@ -529,7 +531,7 @@ def _build_graph(  # noqa: PLR0912, PLR0915
     route_objective_start = parameter_dim
     staged_route_objective = problem.route_objective is not None
     if staged_route_objective:
-        parameter_dim += 5 * n + 1
+        parameter_dim += 6 * n + 4
     rule_parameters_start: int | None = None
     if config.strict_slack_bounds:
         rule_parameters_start = parameter_dim
@@ -562,7 +564,9 @@ def _build_graph(  # noqa: PLR0912, PLR0915
     continuity_weight = p[continuity_start + 2 * n : continuity_start + 3 * n] if staged_route_objective else ca.DM.zeros(n)
     planned_speed = p[_P.PLANNED_SPEED]
     distance_error = psi - route_reference
-    velocity_error = speed - ca.repmat(planned_speed, n, 1)
+    arrival_start = route_objective_start + 5 * n + 1
+    speed_reference = p[arrival_start : arrival_start + n] if staged_route_objective else ca.repmat(planned_speed, n, 1)
+    velocity_error = speed - speed_reference
     distance_cost = ca.dot(distance_error, distance_error)
     velocity_cost = ca.dot(velocity_error, velocity_error)
     route_cost = _route_cost(psi, speed, p, config.dt_s, lateral_reference)
@@ -601,6 +605,15 @@ def _build_graph(  # noqa: PLR0912, PLR0915
     heading_term = ca.DM(config.w_dist) * distance_cost
     speed_term = ca.DM(config.w_vel) * velocity_cost
     route_term = ca.DM(config.w_route) * route_cost
+    if staged_route_objective:
+        terminal_x = p[_P.X0] + dt * ca.dot(speed, ca.cos(psi))
+        terminal_y = p[_P.Y0] + dt * ca.dot(speed, ca.sin(psi))
+        goal_start = arrival_start + n
+        route_term += (
+            p[goal_start + 2]
+            * (ca.power(terminal_x - p[goal_start], 2) + ca.power(terminal_y - p[goal_start + 1], 2))
+            / 25.0
+        )
     continuity_heading_error = ca.atan2(
         ca.sin(psi - continuity_heading),
         ca.cos(psi - continuity_heading),
@@ -1157,6 +1170,8 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
         else:
             x0[n : 2 * n] = speed_target
         _apply_continuity_seed(x0, problem, config, heading_step)
+        if problem.route_objective is not None and problem.route_objective.speed_reference_mps:
+            x0[n : 2 * n] = problem.route_objective.speed_reference_mps
     prefix_k = min(problem.prefix_active_k, n)
     x0[:prefix_k] = problem.prefix_psi_rad[:prefix_k]
     x0[n : n + prefix_k] = problem.prefix_u_mps[:prefix_k]
@@ -1255,7 +1270,7 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
         parameter_dim += 1
     route_objective_start = parameter_dim
     if problem.route_objective is not None:
-        parameter_dim += 5 * config.horizon_steps + 1
+        parameter_dim += 6 * config.horizon_steps + 4
     rule_parameters_start: int | None = None
     if config.strict_slack_bounds:
         rule_parameters_start = parameter_dim
@@ -1338,6 +1353,15 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
         p[continuity_start + 2 * config.horizon_steps : continuity_start + 3 * config.horizon_steps] = (
             problem.route_objective.continuity_weight
         )
+        arrival_start = route_objective_start + 5 * config.horizon_steps + 1
+        p[arrival_start : arrival_start + config.horizon_steps] = (
+            problem.route_objective.speed_reference_mps or (problem.planned_speed_mps,) * config.horizon_steps
+        )
+        if problem.route_objective.terminal_position_m is not None:
+            p[arrival_start + config.horizon_steps : arrival_start + config.horizon_steps + 3] = (
+                *problem.route_objective.terminal_position_m,
+                problem.route_frame.weight,
+            )
     return p
 
 

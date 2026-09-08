@@ -62,6 +62,7 @@ from colav_simulator.core.colav.mid_mpc_acceptance import (
     PlantCapabilityEvidence,
     PriorEvidence,
 )
+from colav_simulator.core.colav.mid_mpc_arrival import goal_reached
 from colav_simulator.core.colav.mid_mpc_assembler import (
     AssemblyFailure,
     AssemblyProfile,
@@ -1047,6 +1048,7 @@ class _MidMpcFacade:
             planned_speed_mps=planned_speed_mps,
             profile=self._config.profile,
             anticipatory_planning=len(planner_input.tracks) > 1,
+            rearm_horizon_s=self._config.assembly.horizon_steps * self._config.assembly.horizon_dt_s,
         )
 
     def _canonical_snapshot_at(
@@ -1412,6 +1414,7 @@ def create(  # noqa: PLR0913
         validate_hold=facade.validate_hold,
         context=context,
         capture_evidence=True,
+        goal_reached=goal_reached,
     )
 
 

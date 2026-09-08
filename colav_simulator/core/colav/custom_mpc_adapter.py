@@ -411,7 +411,7 @@ class MPCSolution:
 class CustomMPCAdapter(ICOLAV):
     """Validate, schedule and expose one user MPC through ICOLAV."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0915 - initializes adapter state and optional execution callbacks
         self,
         *,
         descriptor: AlgorithmDescriptor,
@@ -420,6 +420,7 @@ class CustomMPCAdapter(ICOLAV):
         reset: Callable[[], None] | None = None,
         validate_hold: Callable[[PlannerInput, MPCSolution, float], Mapping[str, Any]] | None = None,
         capture_evidence: bool = False,
+        goal_reached: Callable[[np.ndarray, np.ndarray], bool | None] | None = None,
     ) -> None:
         if descriptor.algorithm_id != context.requested_algorithm:
             raise ColavExecutionError(
@@ -434,6 +435,8 @@ class CustomMPCAdapter(ICOLAV):
             raise TypeError("reset must be callable")
         if validate_hold is not None and not callable(validate_hold):
             raise TypeError("validate_hold must be callable")
+        if goal_reached is not None and not callable(goal_reached):
+            raise TypeError("goal_reached must be callable")
         if not isinstance(capture_evidence, bool):
             raise TypeError("capture_evidence must be bool")
         self.descriptor = descriptor
@@ -441,6 +444,7 @@ class CustomMPCAdapter(ICOLAV):
         self._solve = solve
         self._reset_solver = reset
         self._validate_held_solution = validate_hold
+        self._goal_reached = goal_reached
         self._capture_evidence = capture_evidence
         self._build_identity = BuildIdentity()
         self._solve_period_s = context.solve_period_override_s or descriptor.execution_profile.solve_period_s
@@ -482,6 +486,10 @@ class CustomMPCAdapter(ICOLAV):
     @property
     def solve_period_s(self) -> float:
         return self._solve_period_s
+
+    def goal_reached(self, state: np.ndarray, waypoints: np.ndarray) -> bool | None:
+        """Return the planner's optional measured terminal-state criterion."""
+        return None if self._goal_reached is None else self._goal_reached(state, waypoints)
 
     def attach_build_identity(self, identity: BuildIdentity) -> None:
         """Attach loader-computed identity exactly once before execution."""

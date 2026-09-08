@@ -751,7 +751,14 @@ def test_release_requires_dynamic_clearance_and_sustained_separation_then_rearms
     assert recovered.recovery_guard_active is False
     assert recovered_snapshot.directive.required_targets == ()
 
-    reappearing = lifecycle.step(_head_on_cycle(sequence=5, sim_time_s=40.0)).targets[0]
+    far_cycle = _head_on_cycle(sequence=5, sim_time_s=40.0)
+    far_target = replace(far_cycle.targets[0], state_enu=np.array([14000.0, 0.0, -7.0, 0.0]))
+    far = lifecycle.step(replace(far_cycle, targets=(far_target,), rearm_horizon_s=400.0)).targets[0]
+    assert far.risk is RiskPhase.RELEASED
+    assert far.episode == 1
+    reappearing = lifecycle.step(replace(
+        _head_on_cycle(sequence=6, sim_time_s=50.0), rearm_horizon_s=400.0
+    )).targets[0]
     assert recovered.risk is RiskPhase.RELEASED
     assert reappearing.episode == 2
     assert reappearing.risk is RiskPhase.CANDIDATE

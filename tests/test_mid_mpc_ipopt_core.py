@@ -267,7 +267,7 @@ def test_colav_strict_staged_route_objective_alters_then_returns_to_mission(
 
     headings = result.raw_x[: config.horizon_steps]
     assert result.prepared.p.size == (
-        len(fixture.output["prepared"]["p"]) + 5 * config.horizon_steps + 2 + 2 * config.max_targets
+        len(fixture.output["prepared"]["p"]) + 6 * config.horizon_steps + 5 + 2 * config.max_targets
     )
     assert np.mean(headings[:avoidance_until_k]) > np.mean(headings[avoidance_until_k:]) + 0.05
     assert headings[-1] == pytest.approx(mission, abs=0.02)
