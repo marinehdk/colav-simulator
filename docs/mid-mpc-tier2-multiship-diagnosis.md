@@ -1,4 +1,4 @@
-# Mid-MPC Tier2 三船问题诊断（待行为选择，未完成验收）
+# Mid-MPC Tier2 三船问题诊断（历史记录，完整验收未完成）
 
 2026-09-07。基线 `9c428cdf`，用户现场 session `67699d8f-16a0-42dc-8135-ace8621b1d23`。配置：`paper_ccta2023_multiship`、`mid_mpc_ipopt`、God tracker、FCB45 plant + pass-through guidance + FCB45 PID、ideal actuation、calm water、seed 0、80×5s 预测网格、10s 决策周期、20s 总 deadline、严格无 fallback。实际预测窗口为 400s。
 
@@ -6,7 +6,9 @@
 
 **三船完整验收未通过。用户要求先提交当前修改并重启 8010，观察现象后再决定窗口外威胁方案。** 单船闭环与专项回归通过不能替代三船验收。
 
-正在等待用户选择：对当前预测窗口之外的未来威胁，保持监控直到进入窗口再确认避让，还是允许提前锁定但延后动作。后者需要明确的分阶段动作调度；不能直接把所有未来接触都变成立即执行的转向义务。
+2026-09-08 用户已选择：提前规划、分阶段执行，持续考虑 TS2 与 TS3，对远期目标安排后续动作，不立即叠加转向。本轮优先处理求解耗时；提前规划的动作调度和搁浅预测不能被本轮性能结果视为已完成。
+
+下一步 TODO：将 ENC 陆地、不可航浅水、吃水及安全余量纳入候选轨迹可航性检查。用户明确将搁浅问题留到下一步。
 
 ## 已复现并修正的边界
 
@@ -52,4 +54,4 @@
 - Python Ruff 与 `git diff --check` 通过；新修改的算法与核心测试文件格式已检查。`gui_server/main.py` 和旧 `tests/test_web_evidence_transport.py` 在基线就不满足全文件 formatter，未顺手重排无关代码。
 - 前端 249/251 通过。两项失败均是未修改的静态 cache-bust 断言仍要求旧版本标签：`config-shell-static.test.mjs`、`shell-theme.test.mjs`。当前任务没有改动浏览器资源文件或这两项测试，不能称前端全绿。
 
-没有放宽硬安全门、强制 PASS、替换求解器或新增 fallback。完整三船验证仍待后续行为选择和修复。
+没有放宽硬安全门、强制 PASS、替换求解器或新增 fallback。完整三船验证仍待提前规划调度、可航性修复及重新验收。2026-09-08 求解性能进展见 [性能修复记录](mid-mpc-solver-performance-fix.md)。

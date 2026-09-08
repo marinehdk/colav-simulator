@@ -672,11 +672,15 @@ def _build_graph(  # noqa: PLR0912, PLR0915
     options["iteration_callback_step"] = 1
     options["iteration_callback_ignore_errors"] = True
     if config.strict_slack_bounds:
+        # Multi-target restoration benefits from adaptive barrier updates and
+        # expanded evaluations. Retain the calibrated single-target strategy.
         options.update(
             {
+                "expand": target_capacity > 1,
                 "ipopt.bound_relax_factor": 0.0,
                 "ipopt.honor_original_bounds": "yes",
-                "ipopt.mu_strategy": "monotone",
+                "ipopt.mu_strategy": "adaptive" if target_capacity > 1 else "monotone",
+                "ipopt.limited_memory_max_history": 6 if target_capacity > 1 else 50,
                 "ipopt.mu_init": 1.0e-3,
             }
         )
@@ -1322,6 +1326,12 @@ def _row_bounds(
     _soften_prefix(lbg, ubg, layout.rule, layout.rule.count)
     lbg[layout.rule.start : layout.rule.start + problem.audit_row_count] = 0.0
     ubg[layout.rule.start : layout.rule.start + problem.audit_row_count] = np.inf
+    if config.strict_slack_bounds and layout.rule.count > 1:
+        # Disabled audit predicates evaluate to zero for every decision. Their
+        # vacuous 0 >= 0 rows have no interior and can stall barrier restoration.
+        for index, target in enumerate(problem.targets[: problem.audit_row_count]):
+            if not target.crossing_astern_required:
+                lbg[layout.rule.start + index] = -np.inf
     return lbg, ubg, cpa_hard_from
 
 
@@ -1609,8 +1619,10 @@ def _strict_primal_tolerances(
     if config.dir_slack_enabled:
         x_tolerance[2 * config.horizon_steps + int(config.cpa_slack_enabled)] = 1.0e-7
     g_tolerance = np.full(prepared.lbg.size, 1.0e-6)
-    one_sided = np.isfinite(prepared.lbg) ^ np.isfinite(prepared.ubg)
-    g_tolerance[one_sided] = 1.0e-3
+    # Adaptive multi-target stops must also satisfy L4's speed-rate tolerance.
+    if row_layout.rule.count <= 1:
+        one_sided = np.isfinite(prepared.lbg) ^ np.isfinite(prepared.ubg)
+        g_tolerance[one_sided] = 1.0e-3
     cpa = slice(row_layout.cpa.start, row_layout.cpa.start + row_layout.cpa.count)
     g_tolerance[cpa] = np.maximum(g_tolerance[cpa], 1.0e-4)
     return x_tolerance, g_tolerance
