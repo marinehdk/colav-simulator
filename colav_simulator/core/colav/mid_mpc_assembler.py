@@ -40,7 +40,7 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcRowSchedule,
     MidMpcTarget,
 )
-from colav_simulator.core.colav.mid_mpc_arrival import arrival_references
+from colav_simulator.core.colav.mid_mpc_arrival import arrival_references, terminal_weight
 from colav_simulator.core.colav.mid_mpc_static import compile_static_field, static_execution_context
 from colav_simulator.core.colav.rolling_plan import RollingPlanReference
 from colav_simulator.core.tracking.trackers import TrackKey
@@ -494,7 +494,7 @@ def _resolve_policy(
     )
 
 
-def _compile_semantic_problem(  # noqa: PLR0912 - compile lifecycle and terminal arrival constraints
+def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and terminal arrival constraints
     planner_input: PlannerInput,
     snapshot: DecisionSnapshot,
     route: RouteReference,
@@ -615,23 +615,56 @@ def _compile_semantic_problem(  # noqa: PLR0912 - compile lifecycle and terminal
     )
     if route_objective is not None and not stand_on_hold:
         if all(d.route_recovery_allowed or d.risk in {RiskPhase.CLEAR, RiskPhase.RELEASED} for d in snapshot.targets):
+            arrival_cruise = min(
+                capability.speed_bounds_mps[1],
+                max(
+                    route.planned_speed_mps,
+                    float(planner_input.speed_plan_mps[-2]) if planner_input.speed_plan_mps.size >= 2 else 0.0,
+                ),
+            )
             arrival = arrival_references(
-                route.mission_waypoints_ne_m, tuple(map(float, ownship[:2])), float(ownship[2]),
-                float(np.linalg.norm(ownship[3:5])), route.planned_speed_mps, config.horizon_dt_s,
-                config.horizon_steps, config.decel_max_mps2, capability.rot_max_rad_s,
+                route.mission_waypoints_ne_m,
+                tuple(map(float, ownship[:2])),
+                float(ownship[2]),
+                float(np.linalg.norm(ownship[3:5])),
+                arrival_cruise,
+                config.horizon_dt_s,
+                config.horizon_steps,
+                config.decel_max_mps2,
+                capability.rot_max_rad_s,
                 max(
                     3.0 * config.decision_period_s + config.horizon_dt_s,
-                    config.decision_period_s + config.horizon_dt_s
+                    config.decision_period_s
+                    + config.horizon_dt_s
                     + 4.0 * float(planner_input.ownship_speed_time_constant_s or 0.0),
-                ), route.anchor_ne_m,
+                ),
+                route.anchor_ne_m,
                 horizon_encounter_plan.mission_route_bearing_rad,
             )
             if arrival is not None:
                 headings, lateral, speeds, terminal = arrival
                 route_objective = replace(
-                    route_objective, heading_reference_rad=headings, lateral_reference_m=lateral,
-                    speed_reference_mps=speeds, terminal_position_m=terminal,
-                    continuity_weight=(0.0,) * config.horizon_steps,
+                    route_objective,
+                    heading_reference_rad=headings,
+                    lateral_reference_m=lateral,
+                    speed_reference_mps=speeds,
+                    terminal_position_m=terminal,
+                    terminal_weight=terminal_weight(
+                        float(np.linalg.norm(np.asarray(route.mission_waypoints_ne_m[-1]) - ownship[:2])),
+                        arrival_cruise,
+                        config.horizon_steps * config.horizon_dt_s,
+                        3.0 * config.decision_period_s + config.horizon_dt_s,
+                        config.decel_max_mps2,
+                    ),
+                    continuity_speed_reference_mps=speeds,
+                    continuity_weight=tuple(
+                        weight
+                        * max(
+                            0.0, 1.0 - (k + 1) * config.horizon_dt_s / (3.0 * config.decision_period_s + config.horizon_dt_s)
+                        )
+                        * min(1.0, speeds[k] / max(arrival_cruise, 0.1)) ** 2
+                        for k, weight in enumerate(route_objective.continuity_weight)
+                    ),
                 )
         # These references already obey the turn-rate ramp. A bound centered
         # only on today's heading must not exclude later mission legs.
@@ -1173,6 +1206,7 @@ def request_hash_document(
             "width_m": planner_input.ownship_width_m,
             "draft_m": planner_input.ownship_draft_m,
             "speed_time_constant_s": planner_input.ownship_speed_time_constant_s,
+            "mission_speed_plan_mps": planner_input.speed_plan_mps.tolist(),
         },
         "tracks": [
             _track_document(track)

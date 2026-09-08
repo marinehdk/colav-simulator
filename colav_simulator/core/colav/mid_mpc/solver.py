@@ -172,7 +172,7 @@ class MidMpcIpoptSolver:
             raise RuntimeError("Mid-MPC graph cache resolution failed")
         preparation_started = time.perf_counter()
         prepared = _prepare(self._config, problem, graph.row_layout)
-        if problem.route_objective is not None and problem.route_objective.terminal_position_m is not None:
+        if problem.route_objective is not None and problem.route_objective.speed_reference_mps:
             primal_warm_start = None
         if primal_warm_start is not None:
             reuse_stop_k = (
@@ -1360,7 +1360,7 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
         if problem.route_objective.terminal_position_m is not None:
             p[arrival_start + config.horizon_steps : arrival_start + config.horizon_steps + 3] = (
                 *problem.route_objective.terminal_position_m,
-                problem.route_frame.weight,
+                problem.route_frame.weight * problem.route_objective.terminal_weight,
             )
     return p
 

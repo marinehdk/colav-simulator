@@ -20,7 +20,9 @@ from gui_server.main import SessionCreateRequest
 @pytest.mark.parametrize(
     ("scenario", "rule"), [("overtaking", "rule13"), ("head_on", "rule14"), ("crossing_give_way", "rule15")]
 )
-def test_single_target_product_run_remains_safe(tmp_path: Path, scenario: str, rule: str) -> None:
+def test_single_target_product_run_remains_safe(  # noqa: PLR0915 - one complete runtime evidence gate
+    tmp_path: Path, scenario: str, rule: str
+) -> None:
     root = Path(__file__).resolve().parents[1]
     config = _load_algorithm_config(root / "config/mid_mpc_ipopt.yaml")
     config["kwargs"].update(cpa_safe_m=200.0, cpa_hard_m=180.0)
@@ -47,6 +49,12 @@ def test_single_target_product_run_remains_safe(tmp_path: Path, scenario: str, r
     session.enable_pickle_frames()
     session.start()
     times = []
+    rejoined_at = None
+    saw_avoidance = False
+    route = session.simulator.ownship.waypoints
+    tangent = route[:, -1] - route[:, -2]
+    tangent = tangent / np.linalg.norm(tangent)
+    normal = np.array([-tangent[1], tangent[0]])
     minimum = np.inf
     try:
         while session.state.value == "RUNNING":
@@ -54,6 +62,20 @@ def test_single_target_product_run_remains_safe(tmp_path: Path, scenario: str, r
             own = frame["Ship0"]["state"]
             minimum = min(minimum, float(np.linalg.norm(own[:2] - frame["Ship1"]["state"][:2])))
             assert Point(own[1], own[0]).distance(hazards) > radius
+            decisions = session.threat_management_coordinator.last_snapshot.lifecycle_snapshot.targets
+            saw_avoidance |= any(d.risk.value == "ACTIVE" for d in decisions)
+            course_error = np.arctan2(
+                np.sin(own[2] - np.arctan2(tangent[1], tangent[0])), np.cos(own[2] - np.arctan2(tangent[1], tangent[0]))
+            )
+            if (
+                saw_avoidance
+                and rejoined_at is None
+                and all(d.route_recovery_allowed for d in decisions)
+                and abs(float((own[:2] - route[:, -2]) @ normal)) <= 20.0
+                and abs(course_error) <= np.deg2rad(8.0)
+                and np.linalg.norm(own[:2] - route[:, -1]) > 200.0
+            ):
+                rejoined_at = session.simulator.t
             planner = frame["Ship0"]["colav"]["planner"]
             assert planner["feasible"]
             if planner["solver_executed"]:
@@ -62,6 +84,7 @@ def test_single_target_product_run_remains_safe(tmp_path: Path, scenario: str, r
         assert session.failure_reason is None
         assert not {"collision", "grounding", "session_failed"} & {e["type"] for e in session.events}
         assert minimum > 180.0
+        assert rejoined_at is not None, "did not rejoin the mission leg before final approach"
         assert prepared.manifest.fallback_used is False
         assert session.state.value == "FINISHED"
         assert session.simulator.determine_ship_goal_reached(0)
@@ -74,6 +97,7 @@ def test_single_target_product_run_remains_safe(tmp_path: Path, scenario: str, r
                     "end_time": session.simulator.t,
                     "goal_reached": bool(session.simulator.determine_ship_goal_reached(0)),
                     "minimum_center_distance_m": minimum,
+                    "rejoined_at_s": rejoined_at,
                     "final_speed_mps": float(np.linalg.norm(session.simulator.ownship.state[3:5])),
                     "final_goal_distance_m": float(
                         np.linalg.norm(session.simulator.ownship.state[:2] - session.simulator.ownship.waypoints[:, -1])

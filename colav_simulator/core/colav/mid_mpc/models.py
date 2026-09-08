@@ -128,6 +128,7 @@ class MidMpcRouteObjective:
     continuity_weight: tuple[float, ...] = ()
     speed_reference_mps: tuple[float, ...] = ()
     terminal_position_m: tuple[float, float] | None = None
+    terminal_weight: float = 1.0
 
     def __post_init__(self) -> None:
         """Normalize and validate the staged route objective."""
@@ -167,6 +168,8 @@ class MidMpcRouteObjective:
         object.__setattr__(self, "continuity_speed_reference_mps", continuity_speeds)
         object.__setattr__(self, "continuity_weight", continuity_weights)
         speeds = tuple(float(value) for value in self.speed_reference_mps)
+        if not math.isfinite(self.terminal_weight) or not 0.0 <= self.terminal_weight <= 1.0:
+            raise ValueError("terminal weight must lie between zero and one")
         if speeds and (len(speeds) != len(references) or min(speeds) < 0.0):
             raise ValueError("arrival speed references must match the horizon and be non-negative")
         _require_finite(*speeds)

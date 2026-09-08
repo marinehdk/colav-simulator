@@ -133,11 +133,17 @@ class RollingPlan:
         dt_s: float,
         identity: RollingPlanIdentity,
         prior_plan_safe: bool,
+        allow_authority_transition_reference: bool = False,
     ) -> RollingPlanReference:
         reason = self._revision_reason(current_time_s, identity, prior_plan_safe)
         active = reason is PlanRevisionReason.CONTINUITY_PRESERVED
         zeros = (0.0,) * horizon_steps
-        if not active or self._accepted is None:
+        transition_reference = (
+            allow_authority_transition_reference
+            and prior_plan_safe
+            and reason is PlanRevisionReason.COLREG_AUTHORITY_CHANGED
+        )
+        if (not active and not transition_reference) or self._accepted is None:
             return RollingPlanReference(
                 active=False,
                 revision_reason=reason,
@@ -163,8 +169,10 @@ class RollingPlan:
             default=self._policy.advisory_objective_weight,
         )
         weights[~overlap] = 0.0
+        if transition_reference:
+            weights[relative_s > self._policy.prefix_until_s] = 0.0
         return RollingPlanReference(
-            active=True,
+            active=active,
             revision_reason=reason,
             accepted_at_s=accepted.accepted_at_s,
             current_time_s=current_time_s,

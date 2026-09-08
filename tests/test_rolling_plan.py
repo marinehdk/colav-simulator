@@ -257,3 +257,21 @@ def test_commit_rearms_the_strike_counter() -> None:
     rejected = _assess_recovery(plan, current_time_s=15.0, recovery_at_s=250.0)
     assert rejected.accepted is False
     assert rejected.revision_reason is PlanRevisionReason.RECOVERY_TIME_CHANGED
+
+
+@pytest.mark.parametrize("safe", [False, True])
+def test_recovery_transition_can_use_only_a_safe_soft_prefix(safe: bool) -> None:
+    plan = RollingPlan()
+    _commit(plan)
+    reference = plan.reference(
+        current_time_s=15.0,
+        horizon_steps=80,
+        dt_s=5.0,
+        identity=_identity(authority_hash="released"),
+        prior_plan_safe=safe,
+        allow_authority_transition_reference=True,
+    )
+    assert reference.active is False
+    assert reference.revision_reason is PlanRevisionReason.COLREG_AUTHORITY_CHANGED
+    assert bool(max(reference.objective_weight)) is safe
+    assert not any(reference.objective_weight[6:])

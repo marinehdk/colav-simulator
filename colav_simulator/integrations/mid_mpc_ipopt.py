@@ -62,7 +62,7 @@ from colav_simulator.core.colav.mid_mpc_acceptance import (
     PlantCapabilityEvidence,
     PriorEvidence,
 )
-from colav_simulator.core.colav.mid_mpc_arrival import goal_reached
+from colav_simulator.core.colav.mid_mpc_arrival import goal_reached, on_final_leg
 from colav_simulator.core.colav.mid_mpc_assembler import (
     AssemblyFailure,
     AssemblyProfile,
@@ -1009,6 +1009,10 @@ class _MidMpcFacade:
             dt_s=self._config.assembly.horizon_dt_s,
             identity=identity,
             prior_plan_safe=prior_plan_safe,
+            allow_authority_transition_reference=on_final_leg(
+                planner_input.waypoints_enu_m.T, planner_input.ownship_state[:2]
+            )
+            and all(d.route_recovery_allowed or d.risk in {RiskPhase.CLEAR, RiskPhase.RELEASED} for d in snapshot.targets),
         )
         return identity, reference, prior_plan_safe, failure_codes
 
