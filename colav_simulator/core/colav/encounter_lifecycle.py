@@ -484,6 +484,8 @@ class _TargetState:
     last_health: ObservationHealth | None = None
     reacquire_since_s: float | None = None
     planned_action_at_s: float | None = None
+    candidate_own_velocity: tuple[float, float] | None = None
+    candidate_target_velocity: tuple[float, float] | None = None
 
 
 @dataclass
@@ -728,6 +730,8 @@ class EncounterLifecycle:
             )
         )
         encounter, role = _classify(cycle, target, geometry)
+        if _scheduled_encounter_continues(state, cycle, target):
+            encounter, role = state.encounter, state.role
         if (
             state.commitment is CommitmentPhase.NONE
             and state.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
@@ -994,6 +998,8 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
         state.baseline_speed_mps = None
         state.required_course_change_rad = 0.0
         state.planned_action_at_s = None
+        state.candidate_own_velocity = None
+        state.candidate_target_velocity = None
     state.encounter = encounter
     state.role = role
 
@@ -1004,6 +1010,8 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
         state.passing_side = _passing_side(cycle, target, geometry, role)
         if state.candidate_since_s is None:
             state.candidate_since_s = cycle.sim_time_s
+            state.candidate_own_velocity = tuple(float(v) for v in cycle.ownship.velocity_ne_mps)
+            state.candidate_target_velocity = tuple(float(v) for v in target.state_enu[2:4])
             state.baseline_course_rad = cycle.ownship.heading_rad
             state.baseline_speed_mps = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
             state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
@@ -1074,16 +1082,44 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
     return False
 
 
+def _scheduled_encounter_continues(state: _TargetState, cycle: EncounterCycle, target: TargetObservation) -> bool:
+    """Own maneuvering must not erase a scheduled, still approaching encounter."""
+    if (
+        not cycle.anticipatory_planning
+        or state.risk is not RiskPhase.CANDIDATE
+        or state.planned_action_at_s is None
+        or state.candidate_own_velocity is None
+        or state.candidate_target_velocity is None
+    ):
+        return False
+    previous = np.asarray(state.candidate_target_velocity)
+    current = target.state_enu[2:4]
+    course_change = abs(_wrap(math.atan2(current[1], current[0]) - math.atan2(previous[1], previous[0])))
+    if (
+        course_change >= cycle.profile.target_action_course_change_rad
+        or abs(float(np.linalg.norm(current) - np.linalg.norm(previous))) >= cycle.profile.own_action_speed_change_mps
+    ):
+        return False
+    approach = pairwise_geometry(
+        cycle.ownship.position_ne_m, np.asarray(state.candidate_own_velocity), target.state_enu[:2], current
+    )
+    return approach.signed_tcpa_s > 0.0
+
+
 def _scheduled_action_due(
     state: _TargetState, cycle: EncounterCycle, target: TargetObservation, geometry: PairwiseGeometry
 ) -> bool:
     """Schedule the maneuver lead needed to remove the predicted clearance deficit."""
     if not cycle.anticipatory_planning:
         return True
+    # Pending maneuvers have no frozen action baseline yet. Freeze the current
+    # course when the action becomes due, not the previous cycle's route turn.
+    speed = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
+    state.baseline_course_rad = cycle.ownship.heading_rad
+    state.baseline_speed_mps = speed
     if _urgent_action_required(cycle, target, geometry):
         state.planned_action_at_s = cycle.sim_time_s
         return True
-    speed = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
     clearance = (
         cycle.profile.comfortable_hull_clearance_m
         + 0.5 * math.hypot(cycle.ownship.length_m, cycle.ownship.width_m)
@@ -1101,8 +1137,6 @@ def _scheduled_action_due(
     planned = cycle.sim_time_s + max(0.0, geometry.signed_tcpa_s - lead_s)
     state.planned_action_at_s = planned if state.planned_action_at_s is None else min(state.planned_action_at_s, planned)
     if cycle.sim_time_s < state.planned_action_at_s:
-        state.baseline_course_rad = cycle.ownship.heading_rad
-        state.baseline_speed_mps = speed
         return False
     return True
 

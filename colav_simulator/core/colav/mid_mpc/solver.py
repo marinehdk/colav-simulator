@@ -705,16 +705,23 @@ def _build_graph(  # noqa: PLR0912, PLR0915
     options["iteration_callback_step"] = 1
     options["iteration_callback_ignore_errors"] = True
     if config.strict_slack_bounds:
-        # Multi-target restoration benefits from adaptive barrier updates and
-        # expanded evaluations. Retain the calibrated single-target strategy.
+        # Chart restoration uses a short history. Charted multi-target seeds
+        # benefit from a small monotone barrier near hard rows; single-target
+        # restoration uses adaptive updates. Uncharted single-target calibration
+        # and all numerical acceptance gates remain unchanged.
+        charted_multi_target = problem.static_field is not None and target_capacity > 1
         options.update(
             {
                 "expand": target_capacity > 1,
                 "ipopt.bound_relax_factor": 0.0,
                 "ipopt.honor_original_bounds": "yes",
-                "ipopt.mu_strategy": "adaptive" if target_capacity > 1 else "monotone",
-                "ipopt.limited_memory_max_history": 6 if target_capacity > 1 else 50,
-                "ipopt.mu_init": 1.0e-3,
+                "ipopt.mu_strategy": (
+                    "adaptive"
+                    if (target_capacity > 1 or problem.static_field is not None) and not charted_multi_target
+                    else "monotone"
+                ),
+                "ipopt.limited_memory_max_history": 6 if target_capacity > 1 or problem.static_field is not None else 50,
+                "ipopt.mu_init": 1.0e-6 if charted_multi_target else 1.0e-3,
             }
         )
     solver = ca.nlpsol("mid_mpc_solver", "ipopt", nlp, options)

@@ -231,7 +231,7 @@ export function createActiveSessionRuntime({ http, wsFactory, scheduler, clock, 
       error: null,
     };
     publish();
-    if (envelope.state === 'FINISHED' || envelope.state === 'FAILED') {
+    if ((envelope.state === 'FINISHED' && envelope.result_ready !== false) || envelope.state === 'FAILED') {
       loadOutcome(sessionId, envelope.state);
     }
   }
@@ -388,7 +388,7 @@ export function createActiveSessionRuntime({ http, wsFactory, scheduler, clock, 
     if (session && !socket && canConnect()) connectSocket(false);
     if (
       session
-      && (session.state === 'FINISHED' || session.state === 'FAILED')
+      && ((session.state === 'FINISHED' && session.result_ready !== false) || session.state === 'FAILED')
       && state.outcome.status === 'error'
     ) {
       loadOutcome(session.session_id, session.state, { retry: true });

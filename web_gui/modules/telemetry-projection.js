@@ -551,6 +551,8 @@ function envelopeKey(envelope) {
   return [
     envelope.run_id ?? '',
     envelope.seq ?? '',
+    envelope.presentation?.render_time_s ?? '',
+    envelope.presentation?.buffering ?? '',
     envelope.state ?? '',
     playback.requested_multiplier ?? '',
     playback.effective_multiplier ?? '',

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 from pathlib import Path
 
@@ -12,19 +13,27 @@ from colav_simulator.core.colav.mid_mpc import MidMpcConfig, MidMpcIpoptSolver, 
 from colav_simulator.core.colav.mid_mpc.models import (
     MidMpcHardWindow,
     MidMpcOwnShip,
+    MidMpcPrimalWarmStart,
     MidMpcProblem,
     MidMpcRouteFrame,
     MidMpcRouteObjective,
     MidMpcRowSchedule,
+    MidMpcStaticField,
     MidMpcTarget,
 )
 
 
-@pytest.mark.parametrize("case_index", [0, 1, 2, 3])
+@pytest.mark.parametrize("case_index", [0, 1, 2, 3, 4, 5])
 def test_captured_cs_problem_converges_without_restoration_stall(case_index: int) -> None:
     document = json.loads((Path(__file__).parent / "fixtures/mid_mpc_ipopt/slow_multiship.json").read_text())
+    with gzip.open(Path(__file__).parent / "fixtures/mid_mpc_ipopt/chart_feasible_seed.json.gz", "rt") as stream:
+        document["cases"].append(json.load(stream))
+    with gzip.open(Path(__file__).parent / "fixtures/mid_mpc_ipopt/single_chart_warm_seed.json.gz", "rt") as stream:
+        document["cases"].append(json.load(stream))
     case = document["cases"][case_index]
     values = case["problem"]
+    if values.get("static_field") is not None:
+        values["static_field"] = MidMpcStaticField(**values["static_field"])
     schedule = values.pop("row_schedule")
     schedule["cpa_hard_windows"] = tuple(MidMpcHardWindow(**w) for w in schedule["cpa_hard_windows"])
     for field in ("direction_hard_window", "min_alt_hard_window"):
@@ -39,17 +48,23 @@ def test_captured_cs_problem_converges_without_restoration_stall(case_index: int
         row_schedule=MidMpcRowSchedule(**schedule),
     )
     solver = MidMpcIpoptSolver(MidMpcConfig(**case["config"]))
-    solver.prewarm_capacity(3)
-    result = solver.solve(problem)
+    solver.prewarm_capacity(case.get("target_capacity", 3))
+    warm_start = MidMpcPrimalWarmStart(**case["warm_start"]) if "warm_start" in case else None
+    result = solver.solve(problem, primal_warm_start=warm_start)
     assert result.status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL}
-    assert result.ipopt_iterations < 40
+    assert result.ipopt_iterations < (10 if problem.static_field is not None else 40)
     assert result.optimization_quality_passed
     assert result.max_constraint_violation < 1e-4
     assert result.max_decision_bound_violation < 1e-7
     assert result.raw_cpa_slack == 0.0
     assert result.raw_dir_slack == 0.0
     assert np.isfinite(result.raw_x).all()
-    assert result.graph_cache_hit
+    if problem.static_field is None:
+        assert result.graph_cache_hit
+    else:
+        repeated = solver.solve(problem, primal_warm_start=warm_start)
+        assert repeated.graph_cache_hit
+        assert repeated.ipopt_iterations < 10
     speed_rows = slice(
         result.row_layout.speed_rate.start, result.row_layout.speed_rate.start + result.row_layout.speed_rate.count
     )

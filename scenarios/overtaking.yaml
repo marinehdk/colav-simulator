@@ -13,7 +13,7 @@ type: OT_ing
 n_random_ships: 1
 ship_list:
   - csog_state: [6957000.0, 39000.0, 8.0, 45.0]
-    waypoints: [[6957000.0, 6961500.0], [39000.0, 43500.0]]
+    waypoints: [[6957000.0, 6960900.0], [39000.0, 42900.0]]
     speed_plan: [8.0, 8.0]
     id: 0
     mmsi: 100

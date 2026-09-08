@@ -16,7 +16,7 @@ from colav_simulator.experiment.runner import ExperimentRunner
 from gui_server.main import SessionCreateRequest
 
 
-def test_three_target_anticipatory_run_reaches_goal_and_sequences_actions(tmp_path: Path) -> None:  # noqa: PLR0915
+def test_three_target_anticipatory_run_reaches_goal_and_sequences_actions(tmp_path: Path) -> None:  # noqa: PLR0912, PLR0915
     root = Path(__file__).resolve().parents[1]
     config = _load_algorithm_config(root / "config/mid_mpc_ipopt.yaml")
     config["kwargs"].update(cpa_safe_m=200.0, cpa_hard_m=180.0)
@@ -35,6 +35,10 @@ def test_three_target_anticipatory_run_reaches_goal_and_sequences_actions(tmp_pa
     session.start()
     pending = set()
     active_order = []
+    target_phases = {}
+    target_cross_track = {}
+    stern_crossings = set()
+    transitions = []
     minimum_ranges = np.full(3, np.inf)
     maximum_solver_ms = 0.0
     slowest_solve = {}
@@ -55,6 +59,15 @@ def test_three_target_anticipatory_run_reaches_goal_and_sequences_actions(tmp_pa
             assert own[3] > 0.0, "ownship must not reverse"
             for i in range(1, 4):
                 minimum_ranges[i - 1] = min(minimum_ranges[i - 1], np.linalg.norm(own[:2] - frame[f"Ship{i}"]["state"][:2]))
+                if i in (2, 3):
+                    target = frame[f"Ship{i}"]["state"]
+                    relative = own[:2] - target[:2]
+                    direction = np.array([np.cos(target[2]), np.sin(target[2])])
+                    across = float(relative @ np.array([-direction[1], direction[0]]))
+                    if i in target_cross_track and across * target_cross_track[i] < 0.0:
+                        assert float(relative @ direction) < 0.0, f"crossed ahead of TS{i}"
+                        stern_crossings.add(i)
+                    target_cross_track[i] = across
             planner = frame["Ship0"]["colav"]["planner"]
             if planner["solver_executed"]:
                 assert planner["feasible"]
@@ -76,6 +89,14 @@ def test_three_target_anticipatory_run_reaches_goal_and_sequences_actions(tmp_pa
                 assert clearance >= 1.0
             snapshot = session.threat_management_coordinator.last_snapshot
             for d in snapshot.lifecycle_snapshot.targets:
+                previous_phase = target_phases.get(d.key.target_id, "CLEAR")
+                if previous_phase != "CLEAR":
+                    assert d.risk.value != "CLEAR", f"scheduled TS{d.key.target_id} lost its encounter"
+                if d.risk.value != previous_phase:
+                    transitions.append((snapshot.sim_time_s, d.key.target_id, d.risk.value, d.encounter.value))
+                target_phases[d.key.target_id] = d.risk.value
+                if d.key.target_id in (2, 3) and d.risk.value != "CLEAR":
+                    assert d.encounter.value == "CROSSING"
                 if (
                     d.risk.value == "CANDIDATE"
                     and d.planned_action_at_s is not None
@@ -92,6 +113,7 @@ def test_three_target_anticipatory_run_reaches_goal_and_sequences_actions(tmp_pa
         assert session.simulator.determine_ship_goal_reached(0)
         assert not {"collision", "grounding", "session_failed"} & {e["type"] for e in session.events}
         assert active_order == [1, 2, 3]
+        assert stern_crossings == {2, 3}
         assert pending >= {1, 2, 3}
         assert np.min(minimum_ranges) > 250.0
         assert all(d.risk.value == "RELEASED" for d in snapshot.lifecycle_snapshot.targets)
@@ -107,6 +129,7 @@ def test_three_target_anticipatory_run_reaches_goal_and_sequences_actions(tmp_pa
                     "slowest_solve": slowest_solve,
                     "planned_target_ids": sorted(pending),
                     "active_target_order": active_order,
+                    "target_transitions": transitions,
                     "final_target_risks": {d.key.target_id: d.risk.value for d in snapshot.lifecycle_snapshot.targets},
                     "fallback_used": prepared.manifest.fallback_used,
                 },

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from colav_simulator.core.colav.mid_mpc_acceptance import (
     AcceptanceMode,
@@ -634,7 +635,8 @@ def test_rule17_may_act_future_cpa_remains_advisory() -> None:
     assert "QUALITY_RULE17_CPA_PENDING" in {finding.code for finding in result.findings}
 
 
-def test_recovery_suffix_may_cross_locked_side_only_after_cpa() -> None:
+@pytest.mark.parametrize("later_action", [False, True])
+def test_recovery_suffix_may_cross_locked_side_only_after_cpa(later_action: bool) -> None:
     key = TrackKey(42, 1)
     authority = AuthorityTarget(
         key=key,
@@ -663,10 +665,11 @@ def test_recovery_suffix_may_cross_locked_side_only_after_cpa() -> None:
     )
     phase_evidence = PredictionPhaseEvidence(
         times_s=np.array([0.0, 15.0, 30.0]),
-        phases=("ALTER", "PASS", "RECOVER"),
+        phases=("ALTER", "PASS", "ALTER" if later_action else "RECOVER"),
         mission_bearing_rad=np.deg2rad(-1.0),
         avoidance_corridor_bearing_rad=np.deg2rad(6.0),
-        recovery_from_k=2,
+        recovery_from_k=None if later_action else 2,
+        target_action_windows=((EvidenceTrackKey(42, 1), 0, 2),) if later_action else (),
         target_keys=(EvidenceTrackKey(42, 1),),
         solver_consumed=True,
     )

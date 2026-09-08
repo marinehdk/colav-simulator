@@ -17,6 +17,7 @@ import shutil
 import threading
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
 from datetime import datetime, timedelta
@@ -585,6 +586,7 @@ class WebSessionManager:
         self.historical_spec_cache: dict[str, RunSpec] = {}
         self.prepared: PreparedRun | None = None
         self.result: RunResult | None = None
+        self._result_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="colav-results")
         self.latest: dict[str, Any] = {}
         self.replay_expected: tuple[str, str] | None = None
         self.speed_multiplier = 1.0
@@ -672,6 +674,7 @@ class WebSessionManager:
             "sequence": self.prepared.session.sequence,
             **runtime_time,
             "failure_reason": self.prepared.session.failure_reason,
+            "result_ready": self.result is not None,
             "playback": self._playback_status(),
         }
 
@@ -862,9 +865,9 @@ class WebSessionManager:
             try:
                 snapshot = prepared.session.step_once()
                 self._record_telemetry_trails(snapshot.payload)
-                if prepared.session.state == SessionState.FINISHED:
-                    self._finalize(prepared)
                 self._publish_telemetry(snapshot)
+                if prepared.session.state == SessionState.FINISHED:
+                    self._result_executor.submit(self._finalize, prepared, self.replay_expected)
                 return self.latest
             except Exception as exc:
                 self._persist_failure(prepared, exc)
@@ -890,10 +893,11 @@ class WebSessionManager:
             try:
                 snapshot = self.prepared.session.advance()
                 self._record_telemetry_trails(snapshot.payload)
-                if self.prepared.session.state == SessionState.FINISHED:
-                    self._finalize(self.prepared)
-                if self._telemetry_refresh_due(snapshot, now=time.monotonic()):
+                finished = self.prepared.session.state == SessionState.FINISHED
+                if finished or self._telemetry_refresh_due(snapshot, now=time.monotonic()):
                     self._publish_telemetry(snapshot)
+                if finished:
+                    self._result_executor.submit(self._finalize, self.prepared, self.replay_expected)
                 return float(self.prepared.session.simulator.t)
             except Exception as exc:
                 self._persist_failure(self.prepared, exc)
@@ -914,16 +918,29 @@ class WebSessionManager:
             self._publish_telemetry(None)
             return self.describe()
 
-    def _finalize(self, prepared: PreparedRun) -> None:
-        self.result = self.runner.finalize(prepared)
-        if self.replay_expected:
-            episode_hash, trajectory_hash = self.replay_expected
-            prepared.manifest.replay_verified = (
-                prepared.manifest.episode_hash == episode_hash and prepared.manifest.trajectory_hash == trajectory_hash
-            )
-            prepared.writer.write_manifest(prepared.manifest)
-            if not prepared.manifest.replay_verified:
-                raise RuntimeError("Web replay trajectory mismatch")
+    def _finalize(self, prepared: PreparedRun, replay_expected: tuple[str, str] | None = None) -> None:
+        # Physical execution is already FINISHED and published. Evaluation and
+        # artifact serialization must not hold the control/telemetry lock.
+        try:
+            result = self.runner.finalize(prepared)
+            if replay_expected:
+                episode_hash, trajectory_hash = replay_expected
+                prepared.manifest.replay_verified = (
+                    prepared.manifest.episode_hash == episode_hash and prepared.manifest.trajectory_hash == trajectory_hash
+                )
+                prepared.writer.write_manifest(prepared.manifest)
+                if not prepared.manifest.replay_verified:
+                    raise RuntimeError("Web replay trajectory mismatch")
+            with self.lock:
+                if self.prepared is prepared:
+                    self.result = result
+                    self._publish_telemetry(None)
+        except Exception as exc:
+            self._persist_failure(prepared, exc)
+            with self.lock:
+                if self.prepared is prepared:
+                    self._publish_telemetry(None)
+            log.exception("Simulation result generation failed")
 
     def _persist_failure(self, prepared: PreparedRun, exc: Exception) -> None:
         prepared.session.state = SessionState.FAILED
@@ -940,7 +957,7 @@ class WebSessionManager:
     def result_document(self, session_id: str) -> dict[str, Any]:
         self._require(session_id)
         if not self.result:
-            raise RuntimeError("Result is available only after the session finishes")
+            raise RuntimeError("Result is still being generated or the session has not finished")
         return {
             "manifest": self.result.manifest.to_dict(),
             "evaluation": self.result.evaluation.to_dict(),
@@ -1364,6 +1381,7 @@ class WebSessionManager:
             "seq": session.sequence,
             **runtime_time,
             "state": session.state.value,
+            "result_ready": self.result is not None,
             "truth": ships,
             "measurements": [ship["measurements"] for ship in ships],
             "tracks": [ship["tracks"] for ship in ships],
@@ -1971,7 +1989,8 @@ async def _stream(
                 await websocket.send_json({"error": "session_not_found"})
                 return
             await websocket.send_text(
-                manager.stream_document(
+                await asyncio.to_thread(
+                    manager.stream_document,
                     compact=compact,
                     static_once=static_once,
                     shared_planner=shared_planner,

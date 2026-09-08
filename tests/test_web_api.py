@@ -1,17 +1,31 @@
 from __future__ import annotations
 
 import math
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import Response
 from shapely.geometry import box
 
 import gui_server.main as gui_main
 from colav_simulator.experiment import ExperimentRunner, RunSpec
 from colav_simulator.modular_gnc.catalog import list_stack_catalog
 from gui_server.main import _select_primary_encounter, app
+
+
+def _await_result(client: TestClient, session_id: str) -> Response:
+    """Execution terminates before the background evaluation finishes."""
+    deadline = time.monotonic() + 60.0
+    while time.monotonic() < deadline:
+        response = client.get(f"/api/sessions/{session_id}/result")
+        if response.status_code == 200:
+            return response
+        assert response.status_code == 409, response.json()
+        time.sleep(0.05)
+    raise AssertionError("completed session did not publish its result")
 
 
 def _assert_baseline_threat_available(payload: dict) -> None:
@@ -423,7 +437,7 @@ def test_real_session_api_and_websocket() -> None:  # noqa: PLR0915
         assert "planner_solved" not in operational_types
         assert operational_types[-2:] == ["time_limit", "session_finished"]
 
-        result = client.get(f"/api/sessions/{session_id}/result")
+        result = _await_result(client, session_id)
         assert result.status_code == 200
         assert result.json()["manifest"]["reproduction_status"] == "behavior_compatible_reconstruction"
         assert result.json()["manifest"]["evaluator_profile_id"] == "ccta_2023_demo-v1"
@@ -832,7 +846,7 @@ def test_rule14_web_and_offline_product_episode_identity_matches(tmp_path: Path)
             telemetry = client.post(f"/api/sessions/{session_id}/step")
             assert telemetry.status_code == 200
         assert telemetry.json()["state"] == "FINISHED"
-        web_manifest = client.get(f"/api/sessions/{session_id}/result").json()["manifest"]
+        web_manifest = _await_result(client, session_id).json()["manifest"]
 
     offline = ExperimentRunner().run(RunSpec(**request, output_root=str(tmp_path / "offline")))
     assert web_manifest["episode_hash"] == offline.manifest.episode_hash
@@ -958,7 +972,7 @@ def test_vo_head_on_recommended_tier1_executes_safe_maneuver() -> None:
 
         assert telemetry is not None
         assert telemetry.json()["state"] == "FINISHED"
-        result = client.get(f"/api/sessions/{session_id}/result")
+        result = _await_result(client, session_id)
         assert result.status_code == 200, result.json()
 
     clearance = next(

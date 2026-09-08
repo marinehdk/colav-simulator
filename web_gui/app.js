@@ -1,4 +1,4 @@
-import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-anticipatory-v1';
+import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
 import {
   createSituationDisplay,
@@ -8,7 +8,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260831-vessel-risk-label-v4';
+} from './modules/situation-display.js?v=20260908-buffered-motion-v2';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
@@ -545,7 +545,14 @@ function updateUI(proj) {
   setText('val-sim-time', `${(navigation?.simTime ?? 0).toFixed(1)} s`);
   setText('val-run-state', proj.state || 'CREATED');
   setText('val-reproduction', proj.outcome.reproductionStatus || 'not evaluated');
-  syncPlaybackStatus(proj.raw?.playback, proj.state === 'RUNNING');
+  const presentation = proj.raw?.presentation;
+  const controlPlayback = activeSessionRuntime.snapshot().telemetry.envelope?.playback ?? proj.raw?.playback;
+  syncPlaybackStatus(presentation?.playback_rate > 0
+    ? { ...controlPlayback, effective_multiplier: presentation.playback_rate,
+      realtime_limited: presentation.playback_rate < controlPlayback.requested_multiplier * 0.9 }
+    : controlPlayback, proj.state === 'RUNNING');
+  setText('telemetryDelay', presentation?.buffered
+    ? (presentation.buffering ? '缓冲中' : `显示延后 ${presentation.delay_s.toFixed(1)}s`) : '');
 
   const primary = proj.risk.primary;
   setText('val-primary-target', primary?.targetLabel || '无目标');
@@ -2842,8 +2849,16 @@ function renderTimelineLog(proj) {
 function renderProjection(proj) {
   const data = proj.raw;
   if (!data) return;
+  const motionOnly = data.presentation?.buffered && data.state === 'RUNNING'
+    && currentData?.run_id === data.run_id && currentData?.seq === data.seq && currentData?.state === data.state
+    && currentData?.presentation?.buffering === data.presentation.buffering;
   currentData = data;
   if (data.os) {
+    if (motionOnly) {
+      setText('val-sim-time', `${data.sim_time.toFixed(1)} s`);
+      situationDisplay.render(data);
+      return;
+    }
     updateUI(proj);
     const targetThreatLevels = Object.fromEntries(
       (proj.risk?.targets || [])

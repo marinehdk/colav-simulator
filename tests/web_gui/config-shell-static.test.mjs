@@ -73,14 +73,15 @@ test('Config and Deployment import the same inert singleton and app is delivered
 
 test('composition root wires the runtime into the projection singleton and exports both', () => {
   assert.match(instance, /export const telemetryProjection = createTelemetryProjection\(\)/);
-  assert.match(instance, /activeSessionRuntime\.subscribe\(\(runtimeSnapshot\) => telemetryProjection\.project\(runtimeSnapshot\)\)/);
+  assert.match(instance, /activeSessionRuntime\.subscribe\(snapshot => telemetryPlayback\.push\(snapshot\)\)/);
+  assert.match(instance, /publish: snapshot => telemetryProjection\.project\(snapshot\)/);
   assert.match(instance, /import \{ createTelemetryProjection \} from ['"]\.\/telemetry-projection\.js\?v=/);
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
   const tag = '20260905-gnc-s10-v1';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
-  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260908-anticipatory-v1/);
+  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260908-buffered-motion-v2/);
   assert.match(shell, new RegExp(`\\./validation-assembly\\.js\\?v=${tag}`));
 });
 

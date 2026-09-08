@@ -43,7 +43,7 @@ class _SendClosedWebSocket:
         raise OSError("peer closed")
 
     async def receive(self) -> dict[str, str | int]:
-        raise AssertionError("send failure should terminate the stream first")
+        await asyncio.Future()  # Receive may start while serialization waits off-thread.
 
 
 class _RuntimeClosedWebSocket:
@@ -54,7 +54,7 @@ class _RuntimeClosedWebSocket:
         raise RuntimeError("Unexpected ASGI message 'websocket.send', after sending 'websocket.close'.")
 
     async def receive(self) -> dict[str, str | int]:
-        raise AssertionError("send failure should terminate the stream first")
+        await asyncio.Future()  # Receive may start while serialization waits off-thread.
 
 
 def test_display_trail_is_bounded_without_losing_endpoints() -> None:
@@ -222,7 +222,8 @@ def test_browser_uses_shared_runtime_without_reinflating_telemetry() -> None:
     assert "?transport=compact-v1" not in script
     assert "inflateTelemetryPayload" not in script
     assert "?transport=shared-planner-v1" in instance
-    assert "telemetryProjection.project(runtimeSnapshot)" in instance
+    assert "telemetryPlayback.push(snapshot)" in instance
+    assert "publish: snapshot => telemetryProjection.project(snapshot)" in instance
     assert "envelope = JSON.parse(event.data)" in runtime
 
 

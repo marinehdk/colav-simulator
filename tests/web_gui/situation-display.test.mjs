@@ -591,3 +591,17 @@ test('Historical AIS follows Ownship at 6NM span and draws comparison-only Shado
   assert.deepEqual(display.worldToCanvas(100, 200), { x: 400, y: 300 });
   assert.ok(display.getDrawSequence().includes('shadowOwnship'));
 });
+
+test('buffered ownship keeps rendering between frames with the same source sequence', async () => {
+  const { display } = await createDisplay();
+  const first = sampleSnapshot({ obstacles: [], presentation: { render_time_s: 10, interpolation_ms: 25 } });
+  display.render(first);
+  ctxStub.calls.length = 0;
+  const second = { ...first, sim_time: 10.1, os: { ...first.os, x: 101 },
+    presentation: { render_time_s: 10.1, interpolation_ms: 25 } };
+  display.render(second);
+  const expected = display.worldToCanvas(101, first.os.y);
+  assert.ok(ctxStub.calls.some(([name, args]) => name === 'translate'
+    && Math.abs(args[0] - expected.x) < 1e-8 && Math.abs(args[1] - expected.y) < 1e-8));
+  display.destroy();
+});

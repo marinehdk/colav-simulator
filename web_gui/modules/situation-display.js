@@ -189,6 +189,9 @@ export function interpolateTelemetry(from, to, amount) {
 }
 
 export function telemetryRenderDurationMs(from, to) {
+  if (Number.isFinite(to?.presentation?.interpolation_ms)) {
+    return Math.max(16, Math.min(1000, to.presentation.interpolation_ms));
+  }
   const simDelta = Number(to?.sim_time) - Number(from?.sim_time);
   const multiplier = Number(to?.playback?.requested_multiplier) || 1;
   if (!Number.isFinite(simDelta) || simDelta <= 0 || multiplier <= 0) return TELEMETRY_RENDER_MIN_MS;
@@ -823,7 +826,8 @@ export function createSituationDisplay(options) {
       renderFromData = data;
       renderToData = data;
       renderDurationMs = TELEMETRY_RENDER_MIN_MS;
-    } else if (Number.isFinite(data.seq) && data.seq === renderToData.seq) {
+    } else if (Number.isFinite(data.seq) && data.seq === renderToData.seq
+      && data.presentation?.render_time_s === renderToData.presentation?.render_time_s) {
       renderToData = data;
       if (data.state === 'RUNNING') return;
       renderFromData = data;

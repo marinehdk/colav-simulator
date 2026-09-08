@@ -826,3 +826,15 @@ test('ambiguous replacement network loss reconciles authority while light-contro
   await harness.runtime.refreshAuthority();
   assert.equal(harness.runtime.snapshot().session.session_id, 'run-2');
 });
+
+test('FINISHED controls publish immediately while result generation remains pending', async () => {
+  const harness = createHarness();
+  const boot = harness.runtime.bootstrap();
+  harness.requests[0].pending.resolve(session('run-1', 'RUNNING'));
+  await boot;
+  harness.sockets[0].message({ ...telemetry('run-1', 'FINISHED', 9), result_ready: false });
+  assert.equal(harness.runtime.snapshot().sessionState, 'FINISHED');
+  assert.equal(harness.requests.length, 1, 'do not fetch unfinished report');
+  harness.sockets[0].message({ ...telemetry('run-1', 'FINISHED', 9), result_ready: true });
+  assert.equal(harness.requests.length, 3, 'load result and artifacts once ready');
+});

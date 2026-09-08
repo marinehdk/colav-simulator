@@ -168,3 +168,66 @@ def test_imminent_contact_preempts_a_future_schedule() -> None:
     target = next(d for d in urgent.lifecycle_snapshot.targets if d.key.target_id == 2)
     assert target.risk is RiskPhase.ACTIVE
     assert target.planned_action_at_s <= 10.0
+
+
+def test_scheduled_crossing_survives_own_turn_without_changing_physical_cpa() -> None:
+    coordinator = ThreatManagementCoordinator()
+    facade = create(context=FactoryContext("mid_mpc_ipopt", 0))._solve.__self__
+    data = _input(0.0)
+    target = replace(data.tracks[0], state_enu=np.array([1800.0, 1800.0, 0.0, -6.0]))
+    data = replace(data, tracks=(target, data.tracks[1]))
+    first = coordinator.cycle(facade._encounter_cycle(data, route_bearing_rad=0.0, planned_speed_mps=6.0))
+    original = next(d for d in first.lifecycle_snapshot.targets if d.key.target_id == 1)
+    assert original.risk is RiskPhase.CANDIDATE
+    assert original.encounter.value == "CROSSING"
+    turned = replace(data, sim_time_s=10.0, ownship_state=np.array([60.0, 0.0, 0.8, 6.0, 0.0, 0.0]))
+    turned = replace(turned, tracks=tuple(replace(t, observed_at_s=10.0, generated_at_s=10.0) for t in turned.tracks))
+    cycle = replace(facade._encounter_cycle(turned, route_bearing_rad=0.0, planned_speed_mps=6.0), sequence=1)
+    after = coordinator.cycle(cycle)
+    decision = next(d for d in after.lifecycle_snapshot.targets if d.key.target_id == 1)
+    assert decision.geometry.dcpa_m > 500.0
+    assert decision.risk is RiskPhase.CANDIDATE
+    assert decision.encounter == original.encounter
+    assert decision.planned_action_at_s <= original.planned_action_at_s
+    # A changed target course is new evidence: a provisional encounter must
+    # remain cancellable rather than becoming an unconditional obligation.
+    away = replace(
+        turned,
+        sim_time_s=20.0,
+        tracks=tuple(
+            replace(
+                t,
+                observed_at_s=20.0,
+                generated_at_s=20.0,
+                state_enu=np.array([1800.0, 1800.0, 0.0, 6.0]) if t.target_id == 1 else t.state_enu,
+            )
+            for t in turned.tracks
+        ),
+    )
+    cleared = coordinator.cycle(
+        replace(facade._encounter_cycle(away, route_bearing_rad=0.0, planned_speed_mps=6.0), sequence=2)
+    )
+    decision = next(d for d in cleared.lifecycle_snapshot.targets if d.key.target_id == 1)
+    assert decision.risk is RiskPhase.CLEAR
+    assert decision.planned_action_at_s is None
+
+
+def test_due_action_freezes_current_course_after_route_turn() -> None:
+    coordinator = ThreatManagementCoordinator()
+    facade = create(context=FactoryContext("mid_mpc_ipopt", 0))._solve.__self__
+    data = _input(0.0)
+    data = replace(data, tracks=(replace(data.tracks[0], state_enu=np.array([3000.0, 0.0, -6.0, 0.0])), data.tracks[1]))
+    coordinator.cycle(facade._encounter_cycle(data, route_bearing_rad=0.0, planned_speed_mps=6.0))
+    data = _input(10.0)
+    data = replace(
+        data,
+        ownship_state=np.array([60.0, 0.0, -0.4, 6.0, 0.0, 0.0]),
+        tracks=(replace(data.tracks[0], state_enu=np.array([300.0, 0.0, -6.0, 0.0])), data.tracks[1]),
+    )
+    snapshot = coordinator.cycle(
+        replace(facade._encounter_cycle(data, route_bearing_rad=0.0, planned_speed_mps=6.0), sequence=1)
+    )
+    decision = next(d for d in snapshot.lifecycle_snapshot.targets if d.key.target_id == 1)
+    assert decision.risk is RiskPhase.ACTIVE
+    assert decision.baseline_course_rad == -0.4
+    assert not decision.action_started

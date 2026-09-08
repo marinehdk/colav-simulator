@@ -841,8 +841,17 @@ class MidMpcPlanAcceptance:
                         1 if request.prior.mode is AcceptanceMode.HELD_ACCEPTED_PLAN else min(2, deltas.size)
                     )
                     locked_deltas = deltas[:executable_samples]
-                elif phase_evidence is not None and phase_evidence.recovery_from_k is not None:
-                    locked_deltas = deltas[: max(1, phase_evidence.recovery_from_k)]
+                elif phase_evidence is not None:
+                    recovery_k = next(
+                        (
+                            stop
+                            for key, _start, stop in phase_evidence.target_action_windows
+                            if (key.target_id, key.generation) == (target.key.target_id, target.key.generation)
+                        ),
+                        phase_evidence.recovery_from_k,
+                    )
+                    if recovery_k is not None:
+                        locked_deltas = deltas[: max(1, recovery_k)]
                 signed = side_sign * locked_deltas
                 # Knot zero is observed vessel state, not an optimized action.
                 # A correcting plan may start off the locked side; its future

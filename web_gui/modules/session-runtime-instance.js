@@ -1,5 +1,6 @@
-import { createActiveSessionRuntime } from './active-session-runtime.js?v=20260907-shared-planner-v1';
-import { createTelemetryProjection } from './telemetry-projection.js?v=20260908-anticipatory-v1';
+import { createActiveSessionRuntime } from './active-session-runtime.js?v=20260908-buffered-motion-v2';
+import { createTelemetryProjection } from './telemetry-projection.js?v=20260908-buffered-motion-v2';
+import { createTelemetryPlayback } from './telemetry-playback.js?v=20260908-buffered-motion-v2';
 
 class SessionHttpError extends Error {
   constructor(response, detail) {
@@ -71,4 +72,13 @@ export const activeSessionRuntime = createActiveSessionRuntime({
 });
 
 export const telemetryProjection = createTelemetryProjection();
-activeSessionRuntime.subscribe((runtimeSnapshot) => telemetryProjection.project(runtimeSnapshot));
+const telemetryPlayback = createTelemetryPlayback({
+  publish: snapshot => telemetryProjection.project(snapshot),
+  clock: { now: () => performance.now() },
+  scheduler: {
+    setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+    clearTimeout: id => window.clearTimeout(id),
+  },
+});
+activeSessionRuntime.subscribe(snapshot => telemetryPlayback.push(snapshot));
+window.addEventListener('pagehide', () => telemetryPlayback.destroy(), { once: true });
