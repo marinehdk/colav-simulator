@@ -128,13 +128,14 @@ export function groupedConstraints(balance) {
     }
     if (!groups.size && rate) add('THRUST LIMITS', rateName, value(rate), [rate]);
   }
+  take('Bow derating starts');
   const bowRules = [
-    ['Bow derating starts', 'Derate ≥'], ['Bow lockout', 'Lock ≥'], ['Bow unlock below', 'Unlock <'],
+    ['Bow lockout', 'Lock ≥'], ['Bow unlock below', 'Unlock <'],
   ].map(([key, label]) => ({ row: take(key), label })).filter(item => item.row);
   if (bowRules.length) {
     const sameUnit = bowRules.every(item => item.row.unit === bowRules[0].row.unit);
     const display = bowRules.map(({ row, label }) => `${label}${number(row.value)}${sameUnit ? '' : ` ${row.unit}`}`).join(' · ');
-    add('BOW SPEED RULES', 'STW', `${display}${sameUnit ? ` ${bowRules[0].row.unit.replace(' STW', '')}` : ''}`, bowRules.map(item => item.row));
+    add('BOW SPEED RULES', '', `${display}${sameUnit ? ` ${bowRules[0].row.unit.replace(' STW', '')}` : ''}`, bowRules.map(item => item.row));
   }
   for (const row of limits.values()) add('OTHER', row.label, value(row), [row]);
   return rows;
@@ -196,7 +197,7 @@ function buildPropulsion(balance) {
       group = row.group;
     }
     const line = document.createElement('div');
-    line.className = 'balance-limit';
+    line.className = row.label ? 'balance-limit' : 'balance-limit balance-limit-single';
     line.title = row.source;
     const label = document.createElement('span');
     label.textContent = row.label;
@@ -260,16 +261,15 @@ export function renderBalance(envelope) {
     const instrument = cell.querySelector('.balance-actuator-instrument');
     const rudder = item.kind === 'rudder';
     const actual = rudder ? item.angle_deg : finite(item.actual_n) ? item.actual_n / 1000 : null;
-    const command = rudder ? item.command_angle_deg : finite(item.command_n) ? item.command_n / 1000 : null;
     instrument.hidden = !finite(actual);
     if (finite(actual)) {
-      if (rudder) Object.assign(instrument, { angle: actual, setpoint: command ?? undefined });
+      if (rudder) Object.assign(instrument, { angle: actual, setpoint: undefined });
       else Object.assign(instrument, {
         thrust: thrustPercent(item.actual_n, item.min_force_n, item.max_force_n),
-        setpoint: thrustPercent(item.command_n, item.min_force_n, item.max_force_n) ?? undefined,
+        setpoint: undefined,
       });
     }
-    cell.querySelector('.balance-actuator-value').textContent = `${number(actual)} / ${number(command)}`;
+    cell.querySelector('.balance-actuator-value').textContent = number(actual);
     const status = !finite(actual) ? 'Waiting'
       : item.health === 0 ? 'Unavailable'
         : item.kind === 'tunnel_thruster' && balance.bow_authority === 0 ? 'Speed lockout'

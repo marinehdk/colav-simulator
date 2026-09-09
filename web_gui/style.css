@@ -3618,7 +3618,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .balance-propulsion-cell { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .balance-propulsion-cell > strong { font-size: 10px; font-weight: 500; }
 .balance-actuator-instrument { display: block; width: 100%; height: 92px; pointer-events: none; }
-.balance-actuator-value { font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.balance-actuator-value { font-size: 20px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .balance-actuator-status { font-size: 9px; color: var(--ob-subtle); }
 .balance-constraints { margin: 0 8px; }
 .balance-limit { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; border: 1px solid var(--ob-border); border-radius: 4px; padding: 6px; margin-top: 4px; font-size: 10px; background: var(--ob-surface); }
@@ -3636,3 +3636,6 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .balance-env-number > small { color: var(--ob-subtle); font-size: 10px; }
 .balance-env-number obc-automation-button-readout-stack { --global-typography-instrument-value-large-font-size: 20px; }
 .balance-env-forecast .balance-env-number > span { font-size: 20px; line-height: 34px; }
+
+.balance-limit-single { flex-wrap: nowrap; }
+.balance-limit-single strong { width: 100%; text-align: center; white-space: nowrap; }

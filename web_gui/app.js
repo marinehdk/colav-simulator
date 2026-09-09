@@ -1,4 +1,4 @@
-import { renderBalance, resetBalance } from './modules/gnc-balance.js?v=20260909-balance-v6';
+import { renderBalance, resetBalance } from './modules/gnc-balance.js?v=20260909-balance-v7';
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
 import {

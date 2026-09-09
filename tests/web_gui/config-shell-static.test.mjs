@@ -79,9 +79,9 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
-  const tag = '20260909-balance-v6';
+  const tag = '20260909-balance-v7';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
-  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260909-balance-v6/);
+  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260909-balance-v7/);
   assert.match(shell, /validation-assembly\.js\?v=20260909-gnc-presets-v1/);
 });
 
