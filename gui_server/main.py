@@ -53,6 +53,7 @@ from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunn
 from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssembler
 from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCatalog
 from colav_simulator.modular_gnc.catalog import list_stack_catalog
+from gui_server.gnc_balance import balance_telemetry
 from gui_server.historical_api import router as historical_api_router
 
 log = logging.getLogger("gui_server")
@@ -1430,6 +1431,7 @@ class WebSessionManager:
             "selected_rule": self.prepared.spec.validation_rule_id,
             "selected_scenario": self.prepared.spec.scenario_id,
             "modular_gnc": _modular_gnc_telemetry_metadata(session),
+            "gnc_balance": balance_telemetry(session),
             "step_time_ms": step_ms,
             "playback": self._playback_status(),
             "failure_reason": session.failure_reason,

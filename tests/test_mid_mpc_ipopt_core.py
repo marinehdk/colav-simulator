@@ -273,6 +273,26 @@ def test_colav_strict_staged_route_objective_alters_then_returns_to_mission(
     assert headings[-1] == pytest.approx(mission, abs=0.02)
 
 
+def test_single_target_rate_feasibility_uses_l4_precision(parity_corpus: dict[str, MidMpcParityFixture]) -> None:
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    problem = replace(
+        source,
+        own_ship=replace(source.own_ship, u_mps=5.0),
+        planned_speed_mps=7.0,
+        speed_bounds_mps=(0.0, 8.0),
+        decel_max_mps2=0.3,
+    )
+    graph = solver_module._build_graph(config, problem)
+    prepared = _prepare(config, problem, graph.row_layout)
+    candidate = prepared.x0.copy()
+    candidate[config.horizon_steps] = 5.0 + 0.3 * config.dt_s + 3e-6
+    values = solver_module._flat(graph.constraints(candidate, prepared.p))
+    tolerances = solver_module._strict_primal_tolerances(config, graph.row_layout, prepared)
+    assert not solver_module._prepared_primal_feasible(candidate, values, prepared, tolerances=tolerances)
+
+
 def test_staged_route_recovery_masks_legacy_give_way_objective(
     parity_corpus: dict[str, MidMpcParityFixture],
 ) -> None:
@@ -922,6 +942,38 @@ def test_iteration_callback_stops_at_first_feasible_iterate_from_infeasible_seed
     assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([-1.0])])[0]) == 0.0
     assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([1.0])])[0]) == 1.0
     assert callback.quality_stop_requested is True
+
+
+def test_iteration_filter_requires_behavioral_progress_before_controlled_stop() -> None:
+    callback = _IterationCallback(1, 1, 1, max_wall_time_s=20.0)
+    callback.arm(
+        quality_seed_objective=10.0,
+        quality_stop_on_feasible=True,
+        quality_lbx=np.array([0.0]),
+        quality_ubx=np.array([2.0]),
+        quality_lbg=np.array([0.0]),
+        quality_ubg=np.array([2.0]),
+        iterate_filter=lambda values: values[0] > 1.5,
+    )
+    callback.eval([np.array([1.0]), np.array([20.0]), np.array([-1.0])])
+    assert float(callback.eval([np.array([1.0]), np.array([20.0]), np.array([1.0])])[0]) == 0.0
+    assert float(callback.eval([np.array([1.75]), np.array([20.0]), np.array([1.0])])[0]) == 1.0
+
+
+def test_best_iterate_cannot_select_lower_cost_rejected_by_the_filter() -> None:
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    prepared = SimpleNamespace(
+        lbx=np.array([0.0]), ubx=np.array([2.0]), lbg=np.array([0.0]), ubg=np.array([2.0]), p=np.array([])
+    )
+    graph = SimpleNamespace(constraints=lambda values, parameters: np.array([1.0]))
+    best = solver_module._best_feasible_iteration(
+        [(1, np.array([1.0]), 1.0), (2, np.array([1.75]), 2.0)],
+        graph,
+        prepared,
+        iterate_filter=lambda values: values[0] > 1.5,
+    )
+    assert best is not None and best[0] == 2
 
 
 def test_iteration_callback_uses_acceptance_tolerance_for_controlled_exit() -> None:

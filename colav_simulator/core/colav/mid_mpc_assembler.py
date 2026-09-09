@@ -333,7 +333,9 @@ def _assemble_problem(
     profile: AssemblyProfile,
 ) -> AssemblySuccess:
     """Map one immutable decision snapshot without retaining business state."""
-    binding = _bind_targets(planner_input, snapshot, route, config)
+    binding = _bind_targets(
+        planner_input, snapshot, route, config, consider_terminal_stop=profile is AssemblyProfile.COLAV_STRICT
+    )
     policy = _resolve_policy(planner_input, snapshot, route, capability, binding)
     target_predictions = _target_predictions(
         tuple(sorted(binding.track_by_key, key=lambda key: (key.target_id, key.generation))),
@@ -416,9 +418,18 @@ def _bind_targets(
     snapshot: DecisionSnapshot,
     route: RouteReference,
     config: MidMpcAssemblyConfig,
+    *,
+    consider_terminal_stop: bool = False,
 ) -> _TargetBinding:
     track_by_key = {TrackKey(track.target_id, track.generation or 1): track for track in planner_input.tracks}
-    safety_conflict_keys = _mission_route_conflict_keys(planner_input, route, snapshot, track_by_key, config)
+    safety_conflict_keys = _mission_route_conflict_keys(
+        planner_input,
+        route,
+        snapshot,
+        track_by_key,
+        config,
+        consider_terminal_stop=consider_terminal_stop,
+    )
     required_keys, selected_keys = _admit_target_keys(
         snapshot,
         track_by_key,
@@ -688,8 +699,16 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                     else corridor - window.passing_side * window.required_course_change_rad
                 )
                 if window.passing_side > 0:
+                    # The observed heading can leave an already-achieved
+                    # corridor under GNC dynamics/disturbances. Require a
+                    # rate-limited return, not an impossible first-knot jump.
+                    # The original hard corridor remains once it is reachable.
+                    reachable = float(ownship[2]) + (k + 1) * capability.rot_max_rad_s * config.horizon_dt_s
+                    threshold = min(threshold, reachable)
                     lower = threshold if lower is None else max(lower, threshold)
                 else:
+                    reachable = float(ownship[2]) - (k + 1) * capability.rot_max_rad_s * config.horizon_dt_s
+                    threshold = max(threshold, reachable)
                     upper = threshold if upper is None else min(upper, threshold)
             bounds.append((lower, upper))
         row_schedule = replace(
@@ -1550,6 +1569,8 @@ def _mission_route_conflict_keys(
     snapshot: DecisionSnapshot,
     track_by_key: dict[TrackKey, TrackedObstacle],
     config: MidMpcAssemblyConfig,
+    *,
+    consider_terminal_stop: bool = False,
 ) -> frozenset[TrackKey]:
     """Retain non-obligated tracks whose constant-velocity mission route enters the safety domain."""
     own_position = np.asarray(planner_input.ownship_state[:2], dtype=float)
@@ -1566,6 +1587,20 @@ def _mission_route_conflict_keys(
         track = track_by_key.get(decision.key)
         if track is None:
             continue
+        if consider_terminal_stop and route.mission_waypoints_ne_m:
+            goal = np.asarray(route.mission_waypoints_ne_m[-1])
+            earliest_arrival = float(np.linalg.norm(goal - own_position)) / config.speed_bounds_mps[1]
+            if earliest_arrival < horizon_s:
+                start = track.state_enu[:2] + track.state_enu[2:4] * earliest_arrival
+                travel = track.state_enu[2:4] * (horizon_s - earliest_arrival)
+                fraction = float(np.clip((goal - start) @ travel / max(float(travel @ travel), 1e-12), 0.0, 1.0))
+                clearance = _effective_node_clearance(planner_input, (track,), config)
+                if np.linalg.norm(goal - start - fraction * travel) < clearance:
+                    # A released overtaking contact can catch a stopped ownship.
+                    # Keep it as a numerical safety obstacle; do not reclassify
+                    # the completed COLREG encounter or discard tail safety.
+                    conflicts.add(decision.key)
+                    continue
         relative_position = np.asarray(track.state_enu[:2], dtype=float) - own_position
         relative_velocity = np.asarray(track.state_enu[2:4], dtype=float) - own_velocity
         relative_speed_sq = float(relative_velocity @ relative_velocity)

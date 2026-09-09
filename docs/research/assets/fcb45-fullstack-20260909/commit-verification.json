@@ -1,0 +1,60 @@
+{
+  "date": "2026-09-09",
+  "scope": "FCB45 physical stack, product presets and BALANCE/PROPULSION monitoring",
+  "backend_passed": 914,
+  "backend_skipped": 1,
+  "frontend_passed": 255,
+  "frontend_command": "node --test tests/web_gui/*.test.mjs",
+  "backend_groups": [
+    {
+      "log": "tmp/gnc_commit_20260909/group-0.log",
+      "passed": 179,
+      "skipped": 0
+    },
+    {
+      "log": "tmp/gnc_commit_20260909/group-1.log",
+      "passed": 81,
+      "skipped": 0
+    },
+    {
+      "log": "tmp/gnc_commit_20260909/group-2.log",
+      "passed": 77,
+      "skipped": 0
+    },
+    {
+      "log": "tmp/gnc_commit_20260909/group-3.log",
+      "passed": 165,
+      "skipped": 0
+    },
+    {
+      "log": "tmp/gnc_commit_20260909/group-4.log",
+      "passed": 110,
+      "skipped": 1
+    },
+    {
+      "log": "tmp/gnc_commit_20260909/group-5.log",
+      "passed": 46,
+      "skipped": 0
+    },
+    {
+      "log": "tmp/gnc_commit_20260909/group-6.log",
+      "passed": 103,
+      "skipped": 0
+    },
+    {
+      "log": "tmp/gnc_commit_20260909/group-7-recheck.log",
+      "passed": 49,
+      "skipped": 0
+    },
+    {
+      "log": "tmp/gnc_commit_20260909/mid-parity.log",
+      "passed": 104,
+      "skipped": 0
+    }
+  ],
+  "ruff_check": "passed",
+  "new_python_file_format": "11 passed",
+  "staged_diff_check": "passed",
+  "test_isolation_fix": "Explicitly clear manager.prepared with monkeypatch for the unprepared telemetry assertion; combined 49-test group rerun passed.",
+  "scenario_acceptance": "Previous frozen fullstack campaign remains 10/12; Mid OT and multiship precise stop unresolved. No full closed-loop campaign rerun in this commit pass."
+}

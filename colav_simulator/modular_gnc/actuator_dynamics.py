@@ -226,6 +226,10 @@ class ResolvedActuatorDynamics:
     @classmethod
     def from_params(cls, params: Mapping[str, Any]) -> ResolvedActuatorDynamics:
         """Construct a ResolvedActuatorDynamics from normalized module parameters."""
+        if params.get("layout_asset_id") == "fcb45_main_rudder_bow_actuator_layout_v2":
+            from colav_simulator.modular_gnc.fcb45_actuation import FCB45ActuatorDynamics  # noqa: PLC0415
+
+            return FCB45ActuatorDynamics(params.get("fcb45_parameters", {}))
         return cls(ResolvedActuatorDynamicsConfig.from_params(params))
 
     def reset(self) -> None:

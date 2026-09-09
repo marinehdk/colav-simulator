@@ -61,6 +61,8 @@ from colav_simulator.core.colav.mid_mpc_acceptance import (
     PlanAcceptancePolicy,
     PlantCapabilityEvidence,
     PriorEvidence,
+    polyline_recovery_errors,
+    recovery_progress,
 )
 from colav_simulator.core.colav.mid_mpc_arrival import goal_reached, on_final_leg
 from colav_simulator.core.colav.mid_mpc_assembler import (
@@ -423,10 +425,13 @@ class _MidMpcFacade:
                         ),
                     ),
                     capability=CapabilitySnapshot(
-                        heading_window_rad=self._config.assembly.heading_window_rad,
-                        speed_bounds_mps=self._config.assembly.speed_bounds_mps,
-                        rot_max_rad_s=self._config.assembly.rot_max_rad_s,
-                        decel_max_mps2=self._config.assembly.decel_max_mps2,
+                        heading_window_rad=capability.heading_window_rad,
+                        speed_bounds_mps=capability.speed_bounds_mps,
+                        rot_max_rad_s=capability.rot_max_rad_s,
+                        decel_max_mps2=capability.decel_max_mps2,
+                        plant_source=capability.plant,
+                        gnc_source=capability.controller,
+                        limitations=("COMMAND_ENVELOPE_NOT_A_FULL_GNC_ROLLOUT",),
                     ),
                     config=self._config.assembly,
                     rolling_plan=rolling_reference,
@@ -458,6 +463,7 @@ class _MidMpcFacade:
             )
         warm_semantic_token = _warm_semantic_token(snapshot, assembly)
         warm_start = self._primal_warm_start(planner_input, capability, warm_semantic_token)
+        iterate_filter = _recovery_iterate_filter(planner_input, assembly)
         try:
             cycle_budget_s = 2.0 if self._unresolved_streak >= 1 else self._config.total_deadline_s
             solver_budget_s = max(
@@ -468,6 +474,7 @@ class _MidMpcFacade:
                 assembly.problem,
                 primal_warm_start=warm_start,
                 wall_time_s=solver_budget_s,
+                **({"iterate_filter": iterate_filter} if iterate_filter is not None else {}),
             )
         except Exception:
             self._accepted_primal = None
@@ -500,6 +507,7 @@ class _MidMpcFacade:
             )
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
         replay_artifact = _replay_artifact_document(assembly, result)
+        replay_artifact["solver"]["iterate_filter"] = "l4_recovery_progress" if iterate_filter is not None else "none"
         if _document_hash(replay_artifact["problem_stage"]) != assembly.problem_hash:
             raise RuntimeError("Mid-MPC problem evidence does not match assembled problem hash")
         prepared_stage = {
@@ -522,6 +530,7 @@ class _MidMpcFacade:
             predicted=predicted,
             capability=capability,
             hard_hull_clearance_m=self._config.assembly.cpa_hard_m,
+            advisory_hull_clearance_m=self._config.assembly.cpa_safe_m,
             stand_on_course_tolerance_rad=self._config.assembly.stand_on_course_tolerance_rad,
             prepared_hash=prepared_hash,
             solver_hash=solver_hash,
@@ -1575,6 +1584,41 @@ def _replay_artifact_document(
     )
 
 
+def _recovery_iterate_filter(
+    planner_input: PlannerInput,
+    assembly: AssemblySuccess,
+) -> Callable[[np.ndarray], bool] | None:
+    """Do not stop at first numerical feasibility while a declared recovery fails.
+
+    This uses the same geometric progress predicate as L4. It only filters
+    eligible IPOPT iterates; the full independent L4 gate still runs afterwards.
+    Arrival has its own finite-endpoint gate and is not filtered here.
+    """
+    objective = assembly.problem.route_objective
+    start = assembly.horizon_encounter_plan.recovery_from_k
+    n, dt = assembly.grid.control_intervals, assembly.grid.dt_s
+    if (
+        objective is None
+        or objective.terminal_position_m is not None
+        or start is None
+        or start >= n
+        or not assembly.horizon_encounter_plan.target_windows
+    ):
+        return None
+    origin = np.asarray(planner_input.ownship_state[:2])
+    mission = tuple(map(tuple, planner_input.waypoints_enu_m.T))
+    initial_course = float(planner_input.ownship_state[2])
+
+    def acceptable(values: np.ndarray) -> bool:
+        course, speed = values[:n], values[n : 2 * n]
+        north = np.r_[origin[0], origin[0] + np.cumsum(speed * np.cos(course) * dt)]
+        east = np.r_[origin[1], origin[1] + np.cumsum(speed * np.sin(course) * dt)]
+        errors, xte = polyline_recovery_errors(north, east, np.r_[initial_course, course], mission)
+        return recovery_progress(errors, xte, start)
+
+    return acceptable
+
+
 def _active_capability(
     planner_input: PlannerInput,
     facade_config: _FacadeConfig,
@@ -1590,6 +1634,8 @@ def _active_capability(
             limitations = ("SINGLE_ENCOUNTER_TARGET_COUNT_EXCEEDED",)
     elif identity == ("kinematiccsog", "passthroughcs"):
         exact_tuple = "multiship:kinematic_csog:pass_through_cs"
+    elif identity in {("fcb453dofplant", "fcb45marinepid"), ("fcb45roll4dofplant", "fcb45marinepid")}:
+        exact_tuple = "fcb45:3dof:marine_pid" if identity[0] == "fcb453dofplant" else "fcb45:roll4dof:marine_pid"
     else:
         exact_tuple = f"unsupported:{identity[0]}:{identity[1]}"
         limitations = ("UNSUPPORTED_ACTIVE_TUPLE",)
@@ -1599,7 +1645,7 @@ def _active_capability(
         valid_at_s=planner_input.sim_time_s,
         heading_window_rad=config.heading_window_rad,
         speed_bounds_mps=config.speed_bounds_mps,
-        rot_max_rad_s=planner_input.ownship_max_turn_rate_rad_s or config.rot_max_rad_s,
+        rot_max_rad_s=min(planner_input.ownship_max_turn_rate_rad_s or config.rot_max_rad_s, config.rot_max_rad_s),
         accel_max_mps2=config.decel_max_mps2,
         decel_max_mps2=config.decel_max_mps2,
         exact_tuple=exact_tuple,
@@ -1620,6 +1666,7 @@ def _acceptance_request(  # noqa: PLR0913
     predicted: np.ndarray,
     capability: PlantCapabilityEvidence,
     hard_hull_clearance_m: float,
+    advisory_hull_clearance_m: float,
     stand_on_course_tolerance_rad: float,
     prepared_hash: str,
     solver_hash: str,
@@ -1714,7 +1761,10 @@ def _acceptance_request(  # noqa: PLR0913
             hard_hull_clearance_m=hard_hull_clearance_m,
             hard_static_clearance_m=STATIC_HULL_CLEARANCE_M,
             stand_on_course_tolerance_rad=stand_on_course_tolerance_rad,
-            advisory_hull_clearance_m=assembly.problem.cpa_safe_m,
+            # The NLP node bound includes both hull radii and a between-knot
+            # motion allowance. It is a center-distance bound, not a second
+            # hull-clearance requirement to apply after subtracting footprints.
+            advisory_hull_clearance_m=advisory_hull_clearance_m,
             total_deadline_s=total_deadline_s,
             scenario_id=scenario_id,
             algorithm_seed=algorithm_seed,

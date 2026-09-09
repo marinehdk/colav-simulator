@@ -1,0 +1,540 @@
+[
+  {
+    "algorithm": "vo",
+    "scenario": "overtaking",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "36c7d75144c78ade6fe7d921f8f55accc43094a41ece29749f57db5f9fe54a34",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 739.5,
+    "minimum_center_distances_m": [
+      514.732446974807
+    ],
+    "min_static_hull_clearance_m": 166.15619381563351,
+    "final_goal_distance_m": 306.74948570457605,
+    "final_speed_mps": 5.801290658695127,
+    "final_mission_cross_track_m": 33.57048586046016,
+    "max_mission_cross_track_m": 725.0993653786464,
+    "max_roll_deg": 3.355716178234695,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 1479,
+    "solver_calls": 740,
+    "max_solver_ms": 77.96329190023243,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6957000.0,
+        39000.0
+      ],
+      [
+        6960900.0,
+        42900.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_vo_overtaking/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_vo_overtaking/trace.jsonl",
+    "closest_goal_distance_m": 306.74948570457605,
+    "closest_goal_time_s": 739.5,
+    "speed_at_closest_goal_mps": 5.801290658695127,
+    "trace_sha256": "e77eb625bf014df8cf54914c92923f69a6a9c49948b431f92ddf8c5023862024"
+  },
+  {
+    "algorithm": "vo",
+    "scenario": "head_on",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 681.0,
+    "minimum_center_distances_m": [
+      220.15352291207978
+    ],
+    "min_static_hull_clearance_m": 483.2992793495609,
+    "final_goal_distance_m": 307.1609844322346,
+    "final_speed_mps": 5.216045696496014,
+    "final_mission_cross_track_m": 22.32062424160495,
+    "max_mission_cross_track_m": 248.6718780529,
+    "max_roll_deg": 3.653559584952796,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 1362,
+    "solver_calls": 681,
+    "max_solver_ms": 56.2030419241637,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6957500.0,
+        39500.0
+      ],
+      [
+        6960900.0,
+        42900.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_vo_head_on/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_vo_head_on/trace.jsonl",
+    "closest_goal_distance_m": 307.1609844322346,
+    "closest_goal_time_s": 681.0,
+    "speed_at_closest_goal_mps": 5.216045696496014,
+    "trace_sha256": "50fdd96d475d837d89ca7177fa1bb08f740755e864593e12964e1a450c627da7"
+  },
+  {
+    "algorithm": "vo",
+    "scenario": "crossing_give_way",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 273.0,
+    "minimum_center_distances_m": [
+      254.8104424470696
+    ],
+    "min_static_hull_clearance_m": 300.58204118312506,
+    "final_goal_distance_m": 307.9450654184122,
+    "final_speed_mps": 6.781353656736572,
+    "final_mission_cross_track_m": 4.959289860446006,
+    "max_mission_cross_track_m": 296.60285922756884,
+    "max_roll_deg": 2.7271656604523766,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 546,
+    "solver_calls": 273,
+    "max_solver_ms": 34.14775012061,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6958000.0,
+        40500.0
+      ],
+      [
+        6960000.0,
+        40500.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_vo_crossing_give_way/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_vo_crossing_give_way/trace.jsonl",
+    "closest_goal_distance_m": 307.9450654184122,
+    "closest_goal_time_s": 273.0,
+    "speed_at_closest_goal_mps": 6.781353656736572,
+    "trace_sha256": "62a1cd97733e59186868fce49a1b1ca08414dd38acbcd197d1df94c1b1256a6f"
+  },
+  {
+    "algorithm": "vo",
+    "scenario": "paper_ccta2023_multiship",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 1376.3999999998437,
+    "minimum_center_distances_m": [
+      318.82034589524034,
+      223.50001332518232,
+      215.15125246001384
+    ],
+    "min_static_hull_clearance_m": 234.77674007814574,
+    "final_goal_distance_m": 308.67618806960667,
+    "final_speed_mps": 5.8714569347900945,
+    "final_mission_cross_track_m": 3.4312522264030396,
+    "max_mission_cross_track_m": 395.8569802618658,
+    "max_roll_deg": 1.9028219245181694,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 13764,
+    "solver_calls": 1326,
+    "max_solver_ms": 167.48091694898903,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6955700.0,
+        42950.0
+      ],
+      [
+        6955700.0,
+        40850.0
+      ],
+      [
+        6958850.0,
+        40850.0
+      ],
+      [
+        6959350.0,
+        41600.0
+      ],
+      [
+        6960050.0,
+        42900.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_vo_paper_ccta2023_multiship/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_vo_paper_ccta2023_multiship/trace.jsonl",
+    "closest_goal_distance_m": 308.67618806960667,
+    "closest_goal_time_s": 1376.3999999998437,
+    "speed_at_closest_goal_mps": 5.8714569347900945,
+    "trace_sha256": "b769fd572735f3788895982fbdd70c8a2cf9904ff8f4da0c47c8cfbf637cf6c6"
+  },
+  {
+    "algorithm": "potocnik_colreg_fan_mpc",
+    "scenario": "overtaking",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 712.5,
+    "minimum_center_distances_m": [
+      363.1806521346118
+    ],
+    "min_static_hull_clearance_m": 342.90853194146246,
+    "final_goal_distance_m": 308.5972391023838,
+    "final_speed_mps": 3.0176653720263635,
+    "final_mission_cross_track_m": 10.7868889781912,
+    "max_mission_cross_track_m": 380.63396358844363,
+    "max_roll_deg": 3.6600589599025692,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 1425,
+    "solver_calls": 143,
+    "max_solver_ms": 69.9031250551343,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6957000.0,
+        39000.0
+      ],
+      [
+        6960900.0,
+        42900.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_potocnik_colreg_fan_mpc_overtaking/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_potocnik_colreg_fan_mpc_overtaking/trace.jsonl",
+    "closest_goal_distance_m": 308.5972391023838,
+    "closest_goal_time_s": 712.5,
+    "speed_at_closest_goal_mps": 3.0176653720263635,
+    "trace_sha256": "a93999656843f6cfcd2d89f632da3590b5d859f9de68d82c51a8a3e2263bf34f"
+  },
+  {
+    "algorithm": "potocnik_colreg_fan_mpc",
+    "scenario": "head_on",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 709.0,
+    "minimum_center_distances_m": [
+      365.9340673668005
+    ],
+    "min_static_hull_clearance_m": 432.41370992100366,
+    "final_goal_distance_m": 308.6270905732503,
+    "final_speed_mps": 2.941218489910671,
+    "final_mission_cross_track_m": 6.44403821226053,
+    "max_mission_cross_track_m": 428.1885641771242,
+    "max_roll_deg": 2.853258984270025,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 1418,
+    "solver_calls": 142,
+    "max_solver_ms": 74.99887491576374,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6957500.0,
+        39500.0
+      ],
+      [
+        6960900.0,
+        42900.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_potocnik_colreg_fan_mpc_head_on/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_potocnik_colreg_fan_mpc_head_on/trace.jsonl",
+    "closest_goal_distance_m": 308.6270905732503,
+    "closest_goal_time_s": 709.0,
+    "speed_at_closest_goal_mps": 2.941218489910671,
+    "trace_sha256": "142b30190b9bebab17a6df5e1ac54434a4d8ef88c15d287049430a5e33042725"
+  },
+  {
+    "algorithm": "potocnik_colreg_fan_mpc",
+    "scenario": "crossing_give_way",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 315.0,
+    "minimum_center_distances_m": [
+      370.40366980167545
+    ],
+    "min_static_hull_clearance_m": 300.58204118312506,
+    "final_goal_distance_m": 307.21934191128696,
+    "final_speed_mps": 3.231668201299751,
+    "final_mission_cross_track_m": 23.1405688243467,
+    "max_mission_cross_track_m": 448.6454929775209,
+    "max_roll_deg": 2.233589064412258,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 630,
+    "solver_calls": 63,
+    "max_solver_ms": 45.10895791463554,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6958000.0,
+        40500.0
+      ],
+      [
+        6960000.0,
+        40500.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_potocnik_colreg_fan_mpc_crossing_give_way/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_potocnik_colreg_fan_mpc_crossing_give_way/trace.jsonl",
+    "closest_goal_distance_m": 307.21934191128696,
+    "closest_goal_time_s": 315.0,
+    "speed_at_closest_goal_mps": 3.231668201299751,
+    "trace_sha256": "825599f7bd5e00ce9f7b897fa9c68a1f7fbf0cce9e965769ea1a7c29b77aff12"
+  },
+  {
+    "algorithm": "potocnik_colreg_fan_mpc",
+    "scenario": "paper_ccta2023_multiship",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 1369.2999999998501,
+    "minimum_center_distances_m": [
+      383.88444265204464,
+      316.6429465430888,
+      358.4355200516183
+    ],
+    "min_static_hull_clearance_m": 196.5812829698408,
+    "final_goal_distance_m": 308.43253781541785,
+    "final_speed_mps": 3.079947027251096,
+    "final_mission_cross_track_m": 15.543896891940626,
+    "max_mission_cross_track_m": 463.6688607950564,
+    "max_roll_deg": 1.9889271680751313,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 13693,
+    "solver_calls": 1481,
+    "max_solver_ms": 64.37691696919501,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6955700.0,
+        42950.0
+      ],
+      [
+        6955700.0,
+        40850.0
+      ],
+      [
+        6958850.0,
+        40850.0
+      ],
+      [
+        6959350.0,
+        41600.0
+      ],
+      [
+        6960050.0,
+        42900.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_potocnik_colreg_fan_mpc_paper_ccta2023_multiship/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_potocnik_colreg_fan_mpc_paper_ccta2023_multiship/trace.jsonl",
+    "closest_goal_distance_m": 308.43253781541785,
+    "closest_goal_time_s": 1369.2999999998501,
+    "speed_at_closest_goal_mps": 3.079947027251096,
+    "trace_sha256": "04fc63695623799a121e809c0dbf45ac933db449bc6cb2029d44f86edbfd2ea5"
+  },
+  {
+    "algorithm": "mid_mpc_ipopt",
+    "scenario": "overtaking",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": false,
+    "failures": [
+      "mission goal not reached"
+    ],
+    "end_time_s": 1200.0,
+    "minimum_center_distances_m": [
+      475.6259343028353
+    ],
+    "min_static_hull_clearance_m": 182.63404921390367,
+    "final_goal_distance_m": 158.13227061854445,
+    "final_speed_mps": 3.583191173797298,
+    "final_mission_cross_track_m": 105.03249347007322,
+    "max_mission_cross_track_m": 661.484365504004,
+    "max_roll_deg": 3.6740478845125595,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 2400,
+    "solver_calls": 120,
+    "max_solver_ms": 2070.529165910557,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6957000.0,
+        39000.0
+      ],
+      [
+        6960900.0,
+        42900.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_mid_mpc_ipopt_overtaking_retry/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_mid_mpc_ipopt_overtaking_retry/trace.jsonl",
+    "closest_goal_distance_m": 1.4468231639293072,
+    "closest_goal_time_s": 1140.5,
+    "speed_at_closest_goal_mps": 0.4984548759492927,
+    "trace_sha256": "73d299ecb4b7d0f22419e6c4e04649678f6869a1611947379ba22749e8cdb222"
+  },
+  {
+    "algorithm": "mid_mpc_ipopt",
+    "scenario": "head_on",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "36c7d75144c78ade6fe7d921f8f55accc43094a41ece29749f57db5f9fe54a34",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 986.5,
+    "minimum_center_distances_m": [
+      254.71480041472387
+    ],
+    "min_static_hull_clearance_m": 184.27912156743315,
+    "final_goal_distance_m": 4.865452903772739,
+    "final_speed_mps": 0.04897537634053903,
+    "final_mission_cross_track_m": 4.865452903772739,
+    "max_mission_cross_track_m": 291.2659338167577,
+    "max_roll_deg": 3.1088715553469526,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 1973,
+    "solver_calls": 99,
+    "max_solver_ms": 1892.8389169741422,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6957500.0,
+        39500.0
+      ],
+      [
+        6960900.0,
+        42900.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_mid_mpc_ipopt_head_on/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_mid_mpc_ipopt_head_on/trace.jsonl",
+    "closest_goal_distance_m": 4.865452903772739,
+    "closest_goal_time_s": 986.5,
+    "speed_at_closest_goal_mps": 0.04897537634053903,
+    "trace_sha256": "cf822192f5209d2c12ff513e72a4aa3574b19e25c56bf6cd40648d8436e00c9e"
+  },
+  {
+    "algorithm": "mid_mpc_ipopt",
+    "scenario": "crossing_give_way",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": true,
+    "failures": [],
+    "end_time_s": 761.0,
+    "minimum_center_distances_m": [
+      266.2152047308652
+    ],
+    "min_static_hull_clearance_m": 192.99925116219322,
+    "final_goal_distance_m": 4.945863716330192,
+    "final_speed_mps": 0.02832309777028696,
+    "final_mission_cross_track_m": 4.945863716330192,
+    "max_mission_cross_track_m": 371.1132741886322,
+    "max_roll_deg": 1.6942743608071464,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 1522,
+    "solver_calls": 77,
+    "max_solver_ms": 1550.9067089296877,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6958000.0,
+        40500.0
+      ],
+      [
+        6960000.0,
+        40500.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_mid_mpc_ipopt_crossing_give_way/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_mid_mpc_ipopt_crossing_give_way/trace.jsonl",
+    "closest_goal_distance_m": 4.945863716330192,
+    "closest_goal_time_s": 761.0,
+    "speed_at_closest_goal_mps": 0.02832309777028696,
+    "trace_sha256": "9c6bafe99f6db32b543f857206d65d53fc31f1c6a5fab431fccf6dbc92963ee0"
+  },
+  {
+    "algorithm": "mid_mpc_ipopt",
+    "scenario": "paper_ccta2023_multiship",
+    "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+    "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+    "source_head": "7e493768c8021a5acb7147957b4ac57072fef7c3",
+    "source_fingerprint_hash": "df877cc6cacf09a67b57779241ca2d542b512fc85a610c39e5b8a383fe9bdcbf",
+    "goal_reached": false,
+    "failures": [
+      "mission goal not reached"
+    ],
+    "end_time_s": 1800.0999999994583,
+    "minimum_center_distances_m": [
+      402.50433471248044,
+      457.5303560000683,
+      337.51233355882346
+    ],
+    "min_static_hull_clearance_m": 36.52391116236334,
+    "final_goal_distance_m": 21.444239960625016,
+    "final_speed_mps": 0.5640308384008172,
+    "final_mission_cross_track_m": 17.2274270526096,
+    "max_mission_cross_track_m": 604.903067312458,
+    "max_roll_deg": 3.0289841428273365,
+    "max_bow_force_at_cruise_n": 0.0,
+    "guidance_calls": 18001,
+    "solver_calls": 878,
+    "max_solver_ms": 14175.779625074938,
+    "fallback_used": false,
+    "mission_waypoints_ne_m": [
+      [
+        6955700.0,
+        42950.0
+      ],
+      [
+        6955700.0,
+        40850.0
+      ],
+      [
+        6958850.0,
+        40850.0
+      ],
+      [
+        6959350.0,
+        41600.0
+      ],
+      [
+        6960050.0,
+        42900.0
+      ]
+    ],
+    "metrics_path": "tmp/fullstack_review_20260908/verified_mid_mpc_ipopt_paper_ccta2023_multiship/metrics.json",
+    "trace_path": "tmp/fullstack_review_20260908/verified_mid_mpc_ipopt_paper_ccta2023_multiship/trace.jsonl",
+    "closest_goal_distance_m": 0.21364536061037648,
+    "closest_goal_time_s": 1678.399999999569,
+    "speed_at_closest_goal_mps": 0.3757407599678015,
+    "trace_sha256": "a19c5db2a0a9fb9a99b9c3a063865a08a8e2d21deeb8a6d1ea0cd443de9ce772"
+  }
+]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
 from colav_simulator.core import ship
 from colav_simulator.experiment.contracts import RunSpec
@@ -72,7 +73,8 @@ def test_gnc_stacks_endpoint_serves_catalog() -> None:
     assert document["default_stack_id"] in {entry["stack_id"] for entry in document["stacks"]}
 
 
-def test_unprepared_telemetry_payload_carries_modular_gnc_key() -> None:
+def test_unprepared_telemetry_payload_carries_modular_gnc_key(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(manager, "prepared", None)
     payload = manager._telemetry(None)
 
     assert payload["schema_version"] == "1.0"

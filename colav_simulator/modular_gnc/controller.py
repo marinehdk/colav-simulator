@@ -88,6 +88,7 @@ class MarinePIDConfig:
     integral_limit: tuple[float, float, float] | None = None
     allow_ideal_passthrough: bool = True
     position_mode: bool = False
+    align_previous_actuator_feedback: bool = False
     reference_shaper_enable: bool = False
     heading_rate_limit_rad_s: float = 0.0
     heading_accel_limit_rad_s2: float = 0.0
@@ -98,7 +99,7 @@ class MarinePIDConfig:
     yaw_limit_cap_n_m: float = 0.0
     config_hash: str = field(init=False)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: PLR0915 - validate the complete PID parameter contract together
         """Validate parameter types, ranges, limits consistency, and compute SHA-256 hash."""
         kp_val = _validate_3tuple_non_negative("kp", self.kp)
         ki_val = _validate_3tuple_non_negative("ki", self.ki)
@@ -119,6 +120,8 @@ class MarinePIDConfig:
 
         if not isinstance(self.allow_ideal_passthrough, bool):
             raise TypeError(f"allow_ideal_passthrough must be bool, got {type(self.allow_ideal_passthrough).__name__}")
+        if not isinstance(self.align_previous_actuator_feedback, bool):
+            raise TypeError("align_previous_actuator_feedback must be bool")
         if not isinstance(self.position_mode, bool):
             raise TypeError(f"position_mode must be bool, got {type(self.position_mode).__name__}")
         if not isinstance(self.reference_shaper_enable, bool):
@@ -179,6 +182,8 @@ class MarinePIDConfig:
             "yaw_limit_speed_coeff": coeff_nm,
             "yaw_limit_cap_n_m": cap_nm,
         }
+        if self.align_previous_actuator_feedback:
+            canonical["align_previous_actuator_feedback"] = True
         raw_json = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
         object.__setattr__(self, "config_hash", hashlib.sha256(raw_json.encode("utf-8")).hexdigest())
 
@@ -196,6 +201,7 @@ class MarinePIDConfig:
             "max_output",
             "feedforward_gain",
             "integral_limit",
+            "align_previous_actuator_feedback",
             "allow_ideal_passthrough",
             "position_mode",
             "reference_shaper_enable",
@@ -233,6 +239,7 @@ class MarinePIDConfig:
             "yaw_limit_base_n_m": self.yaw_limit_base_n_m,
             "yaw_limit_speed_coeff": self.yaw_limit_speed_coeff,
             "yaw_limit_cap_n_m": self.yaw_limit_cap_n_m,
+            **({"align_previous_actuator_feedback": True} if self.align_previous_actuator_feedback else {}),
             "config_hash": self.config_hash,
         }
 
@@ -594,9 +601,21 @@ class MarinePID:
         )
 
         achieved_out = self._resolve_achieved_load(achieved_load, sat_output)
-        aw_gain = np.array(self._config.antiwindup_gain, dtype=np.float64)
         e_sat = achieved_out - raw_request
-        aw_correction = aw_gain * e_sat
+        if (
+            self._config.align_previous_actuator_feedback
+            and achieved_load is not None
+            and self._latest_trace is not None
+            and achieved_load.status == AchievedLoadStatus.AVAILABLE
+            and achieved_load.tick == self._latest_trace.tick < tick_int
+        ):
+            # Sequential GNC phases return the preceding tick's delivered
+            # force. Match it to that tick's requested output, not the new
+            # reference. Current controller clipping remains a separate term.
+            previous_command = np.asarray(self._latest_trace.saturated_output)
+            e_sat = (sat_output - raw_request) + (achieved_out - previous_command)
+            details["achieved_feedback_command_tick"] = self._latest_trace.tick
+        aw_correction = np.array(self._config.antiwindup_gain, dtype=np.float64) * e_sat
 
         ki = np.array(self._config.ki, dtype=np.float64)
         delta_i = dt * (ki * errors + aw_correction)

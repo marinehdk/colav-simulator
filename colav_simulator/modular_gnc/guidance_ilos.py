@@ -9,8 +9,8 @@ stack through the EnvironmentField and load-model seams, never through guidance.
 
 Conventions: NE world frame, SI units, right-positive angles (TS-03..TS-05). The
 signed cross-track error is positive when the vessel is to the right of the route
-direction of travel. The course reference is a course-over-ground angle chi_d in
-[-pi, pi], matching the legacy kinematic reference channel (values[2]).
+direction of travel. The reference is a heading angle psi_d in [-pi, pi], as
+consumed by MarinePID. It equals course only in the kinematic, zero-sideslip case.
 
 Route lifecycle semantics: the module consumes accepted TrackedRoute contracts
 whose validity interval is enforced upstream by the command latch. A change in
@@ -50,9 +50,11 @@ class ILOSConfig:
         lookahead_distance_m: Lookahead distance Delta > 0; proportional ILOS gain
             is K_p = 1 / Delta.
         integral_gain: Integral gain K_i >= 0 applied to the integrated signed
-            cross-track error.
+            cross-track error. Units are 1/(m*s) for legacy_pi and 1/s for
+            borhaug2008, where kappa = Delta*K_i has units m/s.
         max_integral_cross_track_error_m: Symmetric saturation bound (> 0) on the
-            integrated cross-track error (explicit, traced clamp).
+            integral state (legacy parameter name): m*s for legacy_pi, seconds
+            for borhaug2008. The trace declares the actual state unit.
         integral_error_threshold_m: Leak-through threshold (>= 0): the integral
             only accumulates while |cross-track error| is within this bound.
         max_speed_mps: Explicit speed ceiling (> 0) applied to the route speed.
@@ -63,6 +65,7 @@ class ILOSConfig:
     max_integral_cross_track_error_m: float = 1000.0
     integral_error_threshold_m: float = 50.0
     max_speed_mps: float = 10.0
+    integral_law: str = "legacy_pi"
 
     def __post_init__(self) -> None:
         """Validate parameter presence, finiteness, and sign bounds."""
@@ -81,6 +84,8 @@ class ILOSConfig:
         max_speed = _finite_scalar("max_speed_mps", self.max_speed_mps)
         if max_speed <= 0.0:
             raise ValueError(f"max_speed_mps must be positive, got {max_speed}")
+        if self.integral_law not in {"legacy_pi", "borhaug2008"}:
+            raise ValueError("integral_law must be legacy_pi or borhaug2008")
 
     @classmethod
     def from_params(cls, params: Mapping[str, Any]) -> ILOSConfig:
@@ -92,6 +97,7 @@ class ILOSConfig:
             "max_integral_cross_track_error_m",
             "integral_error_threshold_m",
             "max_speed_mps",
+            "integral_law",
         ):
             if key in params:
                 kwargs[key] = params[key]
@@ -118,9 +124,23 @@ class ILOSGuidanceTrace:
     speed_ceiling_mps: float
     speed_reference_mps: float
     speed_ceiling_applied: bool
+    integral_state_unit: str = "m*s"
+    ground_course_reference_rad: float = 0.0
+
+    @property
+    def heading_reference_rad(self) -> float:
+        """Heading PID reference; course_reference_rad is the legacy wire name."""
+        return self.course_reference_rad
+
+    @property
+    def integral_state(self) -> float:
+        """Integral value in integral_state_unit; the old field name is a wire alias."""
+        return self.integral_cross_track_error_m
 
     def __post_init__(self) -> None:
         """Validate tick, dt bounds, revision, booleans, and freeze scalars."""
+        if self.integral_state_unit not in {"m*s", "s"}:
+            raise ValueError("unsupported ILOS integral state unit")
         object.__setattr__(self, "tick", _non_bool_int("tick", self.tick))
         dt = _finite_scalar("dt_s", self.dt_s)
         if dt <= 0.0:
@@ -137,6 +157,7 @@ class ILOSGuidanceTrace:
             "cross_track_error_m",
             "integral_cross_track_error_m",
             "course_reference_rad",
+            "ground_course_reference_rad",
             "route_speed_mps",
             "speed_ceiling_mps",
             "speed_reference_mps",
@@ -159,6 +180,7 @@ class ILOSGuidanceSnapshot:
     last_revision: int | None
     last_update_tick: int | None
     latest_trace: ILOSGuidanceTrace | None
+    last_geometry: bytes | None = None
 
     def __post_init__(self) -> None:
         """Validate snapshot schema version and frozen scalars."""
@@ -221,6 +243,7 @@ class IntegralLineOfSightGuidance:
             last_revision=self._last_revision,
             last_update_tick=self._last_update_tick,
             latest_trace=self._latest_trace,
+            last_geometry=self._last_geometry,
         )
 
     def restore(self, snapshot: ILOSGuidanceSnapshot) -> None:
@@ -233,6 +256,7 @@ class IntegralLineOfSightGuidance:
         self._last_revision = snapshot.last_revision
         self._last_update_tick = snapshot.last_update_tick
         self._latest_trace = snapshot.latest_trace
+        self._last_geometry = snapshot.last_geometry
 
     def compute_reference(
         self,
@@ -251,20 +275,46 @@ class IntegralLineOfSightGuidance:
             raise ValueError(f"dt_s must be positive, got {dt}")
         tick_int = _non_bool_int("tick", tick)
 
+        route_state_reset = self._reject_route_discontinuity(route)
+        geometry = route.waypoints_ne_m.tobytes()
+        if geometry != self._last_geometry:
+            # Rolling windows can preserve route identity while shifting knot
+            # indices. Their old integer cursor cannot index the new geometry.
+            # Preserve the disturbance integral; reproject the current position.
+            self._active_segment = 0
+        self._last_geometry = geometry
         segment_index, progress_m, cross_track_error, alpha = self._project(route, navigation)
 
-        route_state_reset = self._reject_route_discontinuity(route)
         integration_dt = self._elapsed_seconds(tick_int, dt)
-        integral_updated = abs(cross_track_error) <= self._config.integral_error_threshold_m and integration_dt > 0.0
+        normalized = self._config.integral_law == "borhaug2008"
+        if normalized and self._last_update_tick is None:
+            integration_dt = dt
+        before_integral = self._integral
+        integral_updated = integration_dt > 0.0 and (
+            normalized or abs(cross_track_error) <= self._config.integral_error_threshold_m
+        )
         if integral_updated:
-            self._integral += cross_track_error * integration_dt
+            if normalized:
+                # MSS ILOSpsi / Borhaug et al. 2008: kappa = Delta * Ki.
+                # The normalized integral state has units of seconds. Its rate
+                # is bounded by the geometry; no threshold or fixed crab angle.
+                delta = self._config.lookahead_distance_m
+                corrected_error = cross_track_error + delta * self._config.integral_gain * self._integral
+                rate = delta * cross_track_error / (delta**2 + corrected_error**2)
+            else:
+                rate = cross_track_error
+            self._integral += rate * integration_dt
             self._integral = math.copysign(
                 min(abs(self._integral), self._config.max_integral_cross_track_error_m), self._integral
             )
 
         proportional = cross_track_error / self._config.lookahead_distance_m
-        chi_r = math.atan2(-(proportional + self._config.integral_gain * self._integral), 1.0)
+        # Source discretization emits the current reference before updating its
+        # integral for the following call. Legacy PI ordering remains unchanged.
+        reference_integral = before_integral if normalized else self._integral
+        chi_r = math.atan2(-(proportional + self._config.integral_gain * reference_integral), 1.0)
         course_reference = wrap_to_pi(alpha + chi_r)
+        ground_course = wrap_to_pi(alpha - math.atan(proportional))
 
         route_speed = float(route.speed_mps[segment_index])
         speed_reference = min(route_speed, self._config.max_speed_mps)
@@ -292,6 +342,8 @@ class IntegralLineOfSightGuidance:
             speed_ceiling_mps=self._config.max_speed_mps,
             speed_reference_mps=speed_reference,
             speed_ceiling_applied=speed_ceiling_applied,
+            integral_state_unit="s" if normalized else "m*s",
+            ground_course_reference_rad=ground_course,
         )
         self._last_update_tick = tick_int
         return reference
@@ -304,6 +356,7 @@ class IntegralLineOfSightGuidance:
         self._last_revision: int | None = None
         self._last_update_tick: int | None = None
         self._latest_trace: ILOSGuidanceTrace | None = None
+        self._last_geometry: bytes | None = None
 
     def _reject_route_discontinuity(self, route: TrackedRoute) -> bool:
         """Zero integral state on route identity change; return whether a reset fired."""
@@ -337,10 +390,10 @@ class IntegralLineOfSightGuidance:
 
         Returns (segment_index, progress_m, signed cross-track error, segment
         course angle alpha). The projection is the nearest point over the
-        candidate segments with clamped segment parameter (first segment wins
-        exact ties). The active segment cursor starts at the first segment and
+        current/next nonzero segments with clamped segment parameter (first
+        segment wins exact ties). The active segment cursor starts at the first segment and
         advances monotonically: it moves past a segment whose end projection is
-        reached (t >= 1) or to a strictly nearer later segment. This is the
+        reached (t >= 1) or to the strictly nearer next segment. This is the
         threshold-free analogue of waypoint-segment switching and prevents the
         corner stagnation where both segments project onto the shared waypoint.
         The cursor never moves backward within one route identity and resets on
@@ -359,6 +412,7 @@ class IntegralLineOfSightGuidance:
             best_index = -1
             best_dist_sq = math.inf
             best_t = 0.0
+            candidates_seen = 0
             for index in range(cursor, n_segments):
                 start_n = float(waypoints[0, index])
                 start_e = float(waypoints[1, index])
@@ -367,6 +421,7 @@ class IntegralLineOfSightGuidance:
                 length_sq = delta_n * delta_n + delta_e * delta_e
                 if length_sq <= 0.0:
                     continue
+                candidates_seen += 1
                 t = ((x_n - start_n) * delta_n + (x_e - start_e) * delta_e) / length_sq
                 t = min(1.0, max(0.0, t))
                 proj_n = start_n + t * delta_n
@@ -376,10 +431,15 @@ class IntegralLineOfSightGuidance:
                     best_index = index
                     best_dist_sq = dist_sq
                     best_t = t
+                if candidates_seen == 2:
+                    # A rolling plan can fold back beside ownship much later
+                    # in its horizon. Global nearest projection would skip the
+                    # accepted maneuver and execute that future leg immediately.
+                    break
             if best_index < 0:
                 raise ValueError("route has no segment with positive length to project onto")
-            if best_index == cursor and best_t >= 1.0 and cursor < n_segments - 1:
-                cursor += 1
+            if best_t >= 1.0 and best_index < n_segments - 1:
+                cursor = best_index + 1
                 continue
             break
 

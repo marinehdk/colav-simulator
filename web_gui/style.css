@@ -479,19 +479,29 @@ obc-clock:not(:defined),
 #validationEncChoices .choice, #validationEncChoices .choice-card { pointer-events: none; }
 .scenario-choice-grid { width: 100%; min-width: 100%; display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc((100% - var(--s-2)) / 2); align-items: start; gap: var(--s-2); padding: 1px 1px 4px; scroll-snap-align: start; box-sizing: border-box; }
 /* Config step 04: ownship GNC stack — five axis ladders + Stack Evidence. */
-.gnc-stack-layout { height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1.75fr) minmax(0, 1fr); gap: var(--s-3); }
-.gnc-stack-content { display: grid; gap: var(--s-3); align-content: start; overflow-y: auto; }
-.gnc-axis { min-width: 0; display: grid; gap: var(--s-2); }
-.gnc-axis-grid { width: 100%; min-width: 100%; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc((100% - var(--s-2) - var(--s-2) - var(--s-2)) / 4); align-items: start; gap: var(--s-2); padding: 1px 1px 4px; scroll-snap-align: start; box-sizing: border-box; }
-.gnc-axis-scrollbar { display: block; width: 100%; height: 74px; min-height: 74px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; --obc-scrollbar-overflow-x: auto; --obc-scrollbar-overflow-y: hidden; }
-.gnc-axis-scrollbar::part(wrapper) { overflow-y: hidden !important; }
-.gnc-axis-grid .choice, .gnc-axis-grid .choice::part(wrapper) { height: 56px; min-height: 56px; }
-.gnc-axis-grid .choice-description,
-.gnc-axis-grid .choice-card > span { display: none; }
-.gnc-axis-grid .choice,
-.gnc-axis-grid .choice-card { width: 100%; box-sizing: border-box; scroll-snap-align: start; scroll-snap-stop: normal; }
-.gnc-axis-grid .choice-card { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); height: 56px; min-height: 56px; padding: 0 12px; }
-.gnc-axis-grid .choice-card strong { margin: 0; }
+.gnc-stack-layout { height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr); }
+.gnc-stack-content { min-width: 0; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--s-3); align-content: start; overflow-y: auto; }
+.gnc-preset-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2); }
+.gnc-preset-grid .choice { min-width: 0; height: 56px; }
+.gnc-preset-grid .choice-grade { display: none; }
+.gnc-environment-control { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; padding: var(--s-2) 0; }
+.gnc-environment-control label { font-weight: 600; }
+.gnc-environment-control input { appearance: none; width: 40px; height: 24px; min-height: 24px; padding: 0; flex-shrink: 0; border-radius: 12px; border: 1px solid var(--ob-border); background: var(--ob-muted); cursor: pointer; position: relative; }
+.gnc-environment-control input::before { content: ''; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px; border-radius: 50%; background: var(--ob-surface); }
+.gnc-environment-control input:checked { background: var(--ob-accent); }
+.gnc-environment-control input:checked::before { transform: translateX(16px); }
+.gnc-environment-control input:disabled { opacity: .45; cursor: not-allowed; }
+.gnc-environment-control input:focus-visible { outline: 2px solid var(--ob-accent); outline-offset: 3px; }
+#gncEnvironmentHelp { color: var(--ob-muted); font-size: .8rem; flex-basis: 100%; }
+.gnc-table-scroll { min-width: 0; overflow-x: auto; }
+.gnc-preset-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .8rem; }
+.gnc-preset-table th, .gnc-preset-table td { border-bottom: 1px solid var(--ob-border); padding: 10px; vertical-align: top; }
+.gnc-preset-table th { font-weight: 600; }
+.gnc-preset-table thead { background: var(--ob-surface); }
+.gnc-preset-comparison table { min-width: 760px; }
+.gnc-parameters { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .75rem; margin-top: var(--s-3); }
+.gnc-preset-note { margin: 0; color: var(--ob-muted); font-size: .78rem; }
+.gnc-technical-details summary, .gnc-preset-comparison summary { cursor: pointer; padding: var(--s-2) 0; font-weight: 600; }
 .gnc-stack-unavailable { padding: var(--s-2); border: 1px dashed var(--ob-border); border-radius: 4px; color: var(--ob-muted); font-size: .78rem; }
 .gnc-stack-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
 .gnc-stack-evidence-section { min-width: 0; }
@@ -1378,7 +1388,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   width: 72px;
   min-width: 72px;
   height: 3px;
-  background: white;
+  background: var(--ob-surface);
   border: 1px solid white;
   border-radius: 2px;
 }
@@ -2794,7 +2804,6 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .ownship-sensor-page > [data-od-id="live-speed-card"] { height: 282px; flex: 0 0 282px; }
 .ownship-sensor-page > [data-od-id="live-radar-card"] { height: 282px; flex: 0 0 282px; }
 .ownship-sensor-page > [data-od-id="live-depth-actual-card"] { height: 282px; }
-.ownship-sensor-page > [data-od-id="live-pitch-roll-card"] { height: 282px; }
 
 .ownship-sensor-page .live-compass-mode {
   --ui-components-button-touch-target-size: 26px;
@@ -2937,33 +2946,6 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.ownship-sensor-page .live-pitch-roll-content {
-  width: 100%;
-  height: 244px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--s-2);
-  padding: 0 var(--s-2) var(--s-2);
-}
-
-/* obc-pitch-roll has no intrinsic height (its container is 100%/100%), so the
-   wrapper must provide one or the instrument collapses to 0px. */
-.ownship-sensor-page .live-pitch-roll-wrapper {
-  width: 100%;
-  height: 180px;
-  flex: 0 0 180px;
-}
-.ownship-sensor-page .live-pitch-roll-wrapper obc-pitch-roll { display: block; width: 100%; height: 100%; }
-
-.live-attitude-readouts {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-1);
 }
 
 .navigation-info-section {
@@ -3606,3 +3588,51 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
     height: 58vh;
   }
 }
+
+/* GNC balance: the same OpenBridge surfaces and instruments as SENSOR. */
+.ownship-balance-page, .ownship-propulsion-page { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
+.ownship-balance-page[hidden], .ownship-propulsion-page[hidden] { display: none; }
+.ownship-balance-page .balance-card, .ownship-propulsion-page .balance-card { flex: 0 0 auto; min-width: 0; overflow: hidden; padding-bottom: 8px; }
+.balance-card .live-detail-title { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 12px 8px 8px; }
+.balance-card .live-detail-title strong { font-size: 13px; letter-spacing: 1.4px; }
+.balance-note { margin: 6px 10px; color: var(--ob-subtle); font-size: 10px; line-height: 1.45; }
+.balance-roll-body { display: flex; flex-direction: column; align-items: center; padding: 0 10px; }
+.balance-roll-instrument { position: relative; width: 200px; height: 200px; display: grid; place-items: center; }
+.balance-roll-instrument obc-roll { display: block; width: 200px; height: 200px; }
+.balance-roll-instrument span { color: var(--ob-subtle); font-size: 12px; }
+.balance-roll-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; width: 100%; padding: 4px 0 8px; }
+.balance-roll-reading { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.balance-roll-reading obc-automation-button-readout-stack { --global-typography-instrument-value-large-font-size: 20px; }
+.balance-roll-reading > span { order: -1; color: var(--ob-subtle); font-size: 11px; }
+.balance-card obc-automation-button-readout-stack { --automation-components-button-readout-stack-vertical-padding: 0px; }
+.balance-environment-row { margin: 0 10px; padding: 10px 0 6px; border-bottom: 1px solid var(--ob-border); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-items: center; }
+.balance-env-label strong { display: block; font-size: 10px; }
+.balance-env-label small, .balance-env-reading > small, .balance-env-forecast small { display: block; font-size: 10px; color: var(--ob-subtle); }
+.balance-env-reading, .balance-env-forecast { text-align: center; }
+.balance-env-reading obc-automation-button-readout-stack { display: block; }
+.balance-env-forecast span { font-size: 24px; line-height: 40px; color: var(--ob-subtle); }
+.balance-env-detail { font-size: 10px; color: var(--ob-subtle); padding-top: 4px; white-space: nowrap; }
+.balance-propulsion-group { margin: 0 8px; padding: 8px 0; border-bottom: 1px solid var(--ob-border); }
+.balance-propulsion-group h4 { margin: 0 0 8px; font-size: 10px; letter-spacing: .7px; color: var(--ob-subtle); }
+.balance-propulsion-grid { display: flex; justify-content: space-around; gap: 4px; }
+.balance-propulsion-cell { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.balance-propulsion-cell > strong { font-size: 10px; font-weight: 500; }
+.balance-actuator-instrument { display: block; width: 100%; height: 92px; pointer-events: none; }
+.balance-actuator-value { font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.balance-actuator-status { font-size: 9px; color: var(--ob-subtle); }
+.balance-constraints { margin: 0 8px; }
+.balance-limit { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; border: 1px solid var(--ob-border); border-radius: 4px; padding: 6px; margin-top: 4px; font-size: 10px; background: var(--ob-surface); }
+.balance-limit strong { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.balance-card [hidden] { display: none !important; }
+
+.balance-constraints h4 { margin: 12px 0 5px; font-size: 10px; letter-spacing: .7px; color: var(--ob-subtle); }
+.balance-limit strong { text-align: right; }
+
+.balance-weather-dial { display: grid; place-items: center; height: 200px; color: var(--ob-subtle); font-size: 12px; }
+.balance-weather-dial obc-watch { display: block; width: 200px; height: 200px; }
+.balance-weather-card .balance-environment-row { border-bottom: 0; padding-top: 4px; }
+
+.balance-env-number { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 34px; }
+.balance-env-number > small { color: var(--ob-subtle); font-size: 10px; }
+.balance-env-number obc-automation-button-readout-stack { --global-typography-instrument-value-large-font-size: 20px; }
+.balance-env-forecast .balance-env-number > span { font-size: 20px; line-height: 34px; }

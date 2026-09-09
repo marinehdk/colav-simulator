@@ -43,3 +43,8 @@ import '@oicl/openbridge-webcomponents/dist/icons/icon-vessel-type-cargo-filled.
 import '@oicl/openbridge-webcomponents/dist/navigation-instruments/speed-gauge/speed-gauge.js';
 import '@oicl/openbridge-webcomponents/dist/ar/chart-object-vessel-button/chart-object-vessel-button.js';
 import '@oicl/openbridge-webcomponents/dist/ar/poi-card/poi-card.js';
+
+import '@oicl/openbridge-webcomponents/dist/navigation-instruments/roll/roll.js';
+import '@oicl/openbridge-webcomponents/dist/navigation-instruments/rudder/rudder.js';
+import '@oicl/openbridge-webcomponents/dist/navigation-instruments/thruster/thruster.js';
+import '@oicl/openbridge-webcomponents/dist/navigation-instruments/graph-mini/graph-mini.js';

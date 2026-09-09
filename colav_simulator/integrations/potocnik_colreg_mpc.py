@@ -158,6 +158,24 @@ class PotocnikColregFanMPC:
         self._route_segment = max(0, route_target_index - 1)
         # Speeds belong to the departure waypoint, as in native LOS guidance.
         route_speed_mps = float(planner_input.speed_plan_mps[self._route_segment])
+        capture_speed_cap_mps = route_speed_mps
+        if (
+            self._route_segment == planner_input.waypoints_enu_m.shape[1] - 2
+            and not policy.give_way_targets
+            and not policy.stand_on_targets
+        ):
+            # At a finite endpoint, a held-speed pursuit can orbit outside the
+            # arrival radius when heading commands are rate-limited. The
+            # maximum pursuit curvature is 2/d; require U*2/d <= available ROT.
+            # Apply the cap before candidate prediction and all safety checks.
+            goal_distance = float(np.linalg.norm(planner_input.waypoints_enu_m[:, -1] - ownship[:2]))
+            capture_rot = min(
+                np.deg2rad(self.params.max_yaw_rate_deg_s),
+                np.deg2rad(self.params.max_command_change_deg) / self.params.solve_period_s,
+                planner_input.ownship_max_turn_rate_rad_s or np.inf,
+            )
+            capture_speed_cap_mps = 0.5 * goal_distance * capture_rot
+            route_speed_mps = min(route_speed_mps, capture_speed_cap_mps)
         self._update_maneuver_phase(policy, cross_track_error_m, ownship[2], target_course)
 
         command_course_center = float(ownship[2]) if self._previous_command_course is None else self._previous_command_course
@@ -303,6 +321,7 @@ class PotocnikColregFanMPC:
             "selected_speed_scale": selected_scale,
             "selection_score": selection.score,
             "route_score": selection.route_score,
+            "terminal_capture_speed_cap_mps": capture_speed_cap_mps,
             "continuity_score": selection.continuity_score,
             "trajectory_continuity_score": selection.trajectory_continuity_score,
             "clearance_score": selection.clearance_score,

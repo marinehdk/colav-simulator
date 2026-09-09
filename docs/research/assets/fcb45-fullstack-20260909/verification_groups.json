@@ -1,0 +1,120 @@
+[
+  {
+    "group": 0,
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_modular_gnc_a3_demo.py",
+      "tests/test_modular_gnc_actuator_dynamics.py",
+      "tests/test_modular_gnc_allocator.py",
+      "tests/test_modular_gnc_attribution.py",
+      "tests/test_modular_gnc_characterization_report.py",
+      "tests/test_modular_gnc_command_latching.py",
+      "tests/test_modular_gnc_configuration.py",
+      "tests/test_modular_gnc_contracts.py"
+    ],
+    "returncode": 0
+  },
+  {
+    "group": 1,
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_modular_gnc_control_tasks.py",
+      "tests/test_modular_gnc_environment_axis_catalog.py",
+      "tests/test_modular_gnc_environment_contracts.py",
+      "tests/test_modular_gnc_environment_field.py",
+      "tests/test_modular_gnc_environment_integration.py",
+      "tests/test_modular_gnc_factory.py",
+      "tests/test_modular_gnc_fcb45_actuator_layout.py",
+      "tests/test_modular_gnc_fcb45_catalog.py"
+    ],
+    "returncode": 0
+  },
+  {
+    "group": 2,
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_modular_gnc_fcb45_environment_physics.py",
+      "tests/test_modular_gnc_fcb45_fullstack_anchors.py",
+      "tests/test_modular_gnc_fcb45_main_rudder_layout.py",
+      "tests/test_modular_gnc_fcb45_maneuvering_anchors.py",
+      "tests/test_modular_gnc_fcb45_physical_actuation.py",
+      "tests/test_modular_gnc_fcb45_seed_gains.py",
+      "tests/test_modular_gnc_fcb45_straight_xte.py",
+      "tests/test_modular_gnc_guidance_ilos.py"
+    ],
+    "returncode": 0
+  },
+  {
+    "group": 3,
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_modular_gnc_ideal_chain_tracking.py",
+      "tests/test_modular_gnc_ilos_route_replacement.py",
+      "tests/test_modular_gnc_integrator.py",
+      "tests/test_modular_gnc_loads.py",
+      "tests/test_modular_gnc_marine_pid.py",
+      "tests/test_modular_gnc_mid_mpc_routes.py",
+      "tests/test_modular_gnc_nomoto_feedforward.py",
+      "tests/test_modular_gnc_performance_remediation.py"
+    ],
+    "returncode": 0
+  },
+  {
+    "group": 4,
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_modular_gnc_phase_dt_semantics.py",
+      "tests/test_modular_gnc_pid_feedback_timing.py",
+      "tests/test_modular_gnc_plant.py",
+      "tests/test_modular_gnc_plant_integration.py",
+      "tests/test_modular_gnc_product_route_wiring.py",
+      "tests/test_modular_gnc_reference_shaper.py",
+      "tests/test_modular_gnc_ros_adapter.py",
+      "tests/test_modular_gnc_route_bridge.py"
+    ],
+    "returncode": 0
+  },
+  {
+    "group": 5,
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_modular_gnc_s10_repair.py",
+      "tests/test_modular_gnc_stack.py",
+      "tests/test_modular_gnc_stack_catalog.py",
+      "tests/test_modular_gnc_yaw_limit.py"
+    ],
+    "returncode": 0
+  },
+  {
+    "group": 6,
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_mid_mpc_ipopt_core.py",
+      "tests/test_mid_mpc_problem_assembler.py",
+      "tests/test_mid_mpc_threat_authority.py",
+      "tests/test_fan_mpc_recovery.py"
+    ],
+    "returncode": 0
+  }
+]

@@ -1,0 +1,102 @@
+[
+  {
+    "name": "baseline",
+    "speed_reference_mps": 7.8,
+    "max_abs_xte_m": 14.998717671553369,
+    "last_100s_rms_xte_m": 0.7124539128667057,
+    "max_roll_deg": 0.9873308539907701,
+    "mean_surge_last100s": 7.758361557351474,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 6.432375250151381
+  },
+  {
+    "name": "wind_area_70",
+    "speed_reference_mps": 7.8,
+    "max_abs_xte_m": 14.99871522250573,
+    "last_100s_rms_xte_m": 0.7140535939689872,
+    "max_roll_deg": 1.0007448345961938,
+    "mean_surge_last100s": 7.758639563500369,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 6.425825082929805
+  },
+  {
+    "name": "wind_area_130",
+    "speed_reference_mps": 7.8,
+    "max_abs_xte_m": 14.998720120525583,
+    "last_100s_rms_xte_m": 0.7108551701038954,
+    "max_roll_deg": 0.9938761891472293,
+    "mean_surge_last100s": 7.7581255096501485,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 6.413572167046368
+  },
+  {
+    "name": "reflection_0",
+    "speed_reference_mps": 7.8,
+    "max_abs_xte_m": 14.998720039856057,
+    "last_100s_rms_xte_m": 0.681305265972752,
+    "max_roll_deg": 1.0484251662993112,
+    "mean_surge_last100s": 7.783010107368708,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 6.427145041991025
+  },
+  {
+    "name": "reflection_50",
+    "speed_reference_mps": 7.8,
+    "max_abs_xte_m": 14.998718855705564,
+    "last_100s_rms_xte_m": 0.7072841269426863,
+    "max_roll_deg": 1.0614517827401253,
+    "mean_surge_last100s": 7.765071380465473,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 6.451026082970202
+  },
+  {
+    "name": "low_speed",
+    "speed_reference_mps": 1.0,
+    "max_abs_xte_m": 14.998815069964897,
+    "last_100s_rms_xte_m": 5.360956181339025,
+    "max_roll_deg": 0.2861897152111459,
+    "mean_surge_last100s": 1.000954245940959,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 8.069278084207326
+  },
+  {
+    "name": "transition_speed",
+    "speed_reference_mps": 3.2,
+    "max_abs_xte_m": 14.998793648264643,
+    "last_100s_rms_xte_m": 0.3308679888501087,
+    "max_roll_deg": 0.3401505608166296,
+    "mean_surge_last100s": 3.1952480738220537,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 8.109280416974798
+  },
+  {
+    "name": "waves_off",
+    "speed_reference_mps": 7.8,
+    "max_abs_xte_m": 14.998596659798386,
+    "last_100s_rms_xte_m": 0.26062518529602086,
+    "max_roll_deg": 0.07531609866965976,
+    "mean_surge_last100s": 7.800042069043437,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 3.231379915960133
+  },
+  {
+    "name": "waves_150",
+    "speed_reference_mps": 7.8,
+    "max_abs_xte_m": 14.998776395938153,
+    "last_100s_rms_xte_m": 0.7210022926672488,
+    "max_roll_deg": 1.4476976655696983,
+    "mean_surge_last100s": 7.741792664270377,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 6.773780333809555
+  },
+  {
+    "name": "beam_waves",
+    "speed_reference_mps": 7.8,
+    "max_abs_xte_m": 14.9996241572734,
+    "last_100s_rms_xte_m": 0.2321198617445005,
+    "max_roll_deg": 0.9586831342800811,
+    "mean_surge_last100s": 7.800500333602825,
+    "max_cruise_bow_n": 0.0,
+    "wall_time_s": 6.889029874932021
+  }
+]

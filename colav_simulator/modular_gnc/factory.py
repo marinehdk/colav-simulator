@@ -45,4 +45,4 @@ def build_modular_ship_adapter(
         episode_seed=0 if episode_seed is None else episode_seed,
         dt_s=0.1 if dt_s is None else dt_s,
     )
-    return ModularShipAdapter.from_legacy_config(config, stack)
+    return ModularShipAdapter.from_legacy_config(config, stack, dt_s=0.1 if dt_s is None else dt_s)

@@ -649,6 +649,34 @@ class CustomMPCAdapter(ICOLAV):
             self._colav_data_cache_time = trace_time
         return self._colav_data_cache
 
+    def get_route_authority(self) -> dict[str, Any]:
+        """Return current control authority without the UI telemetry cache.
+
+        A renewed continuation can retain solve_id while extending a validated
+        hold window. Serving the 0.5 s display cache to guidance would therefore
+        execute a stale receipt/window exactly at the next control boundary.
+        """
+        trace = self._planner_trace
+        details = trace.algorithm_details
+        return {
+            "planner": {
+                "algorithm_id": trace.algorithm_id,
+                "solve_id": trace.solve_id,
+                "sim_time": trace.sim_time,
+                "feasible": trace.feasible,
+                "selected_command": dict(trace.selected_command),
+                "algorithm_details": {
+                    key: details[key]
+                    for key in (
+                        "accepted_plan_receipt",
+                        "hold_acceptance",
+                        "rolling_plan",
+                    )
+                    if key in details
+                },
+            }
+        }
+
     def plot_results(self, ax_map: plt.Axes, enc: senc.ENC, plt_handles: dict, **kwargs: Any) -> dict:  # noqa: ARG002
         return plt_handles
 
@@ -777,6 +805,8 @@ class CustomMPCAdapter(ICOLAV):
                 self._hold_acceptance = {
                     "accepted": True,
                     "mode": "ROLLING_PLAN_CONTINUATION",
+                    "checked_at_s": planner_input.sim_time_s,
+                    "valid_until_s": self._preserved_plan_until_s,
                     "candidate_rejected": True,
                     "revision_reason": exc.details.get("revision_reason"),
                     "rolling_plan": exc.details.get("rolling_plan"),

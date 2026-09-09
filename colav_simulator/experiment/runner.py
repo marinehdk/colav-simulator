@@ -51,7 +51,7 @@ from colav_simulator.historical_replay import (
     HistoricalReplayRequest,
 )
 from colav_simulator.integrations import IntegrationRegistry
-from colav_simulator.modular_gnc.catalog import list_stack_catalog
+from colav_simulator.modular_gnc.catalog import LEGACY_WITHOUT_MODULES, list_stack_catalog
 from colav_simulator.modular_gnc.configuration import normalize_ship_modules
 from colav_simulator.scenario_generator import ScenarioGenerator
 from colav_simulator.simulator import Config as SimulatorConfig
@@ -428,7 +428,7 @@ class ExperimentRunner:
                 "GNC stack binding is not supported for Historical AIS scenarios",
             )
         stack_ids = {entry["stack_id"] for entry in list_stack_catalog()["stacks"]}
-        if spec.ownship_gnc_stack_id not in stack_ids:
+        if spec.ownship_gnc_stack_id not in stack_ids | {LEGACY_WITHOUT_MODULES}:
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
                 f"Unknown ownship GNC stack id: {spec.ownship_gnc_stack_id}",
@@ -956,8 +956,15 @@ def _ownship_route_rows(config: scenario_config.ScenarioConfig) -> list[list[flo
 
 def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: str) -> None:
     """Bind one catalog-validated stack config to the ownship entry (Config step 04)."""
+    if stack_id == LEGACY_WITHOUT_MODULES:
+        if not config.ship_list:
+            raise ColavExecutionError(PlanStatus.INVALID_INPUT, "GNC preset requires an ownship")
+        config.ship_list[0].ship_modules = None
+        config.stochasticity = None
+        return
+    catalog = list_stack_catalog()
     entry = next(
-        (item for item in list_stack_catalog()["stacks"] if item["stack_id"] == stack_id),
+        (item for item in catalog["stacks"] if item["stack_id"] == stack_id),
         None,
     )
     if entry is None:
@@ -971,6 +978,10 @@ def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: 
             "GNC stack binding requires a scenario ownship",
         )
     config.ship_list[0].ship_modules = normalize_ship_modules(entry["config"])
+    if any(stack_id in preset["variants"].values() for preset in catalog["product_presets"]):
+        # Product weather has exactly one authority: the selected modular field.
+        # OFF must also suppress any legacy scenario disturbance generator.
+        config.stochasticity = None
 
 
 def _historical_runtime_config(

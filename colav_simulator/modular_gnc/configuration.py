@@ -160,6 +160,7 @@ REGISTRY_V1 = MappingProxyType(
                 "max_integral_cross_track_error_m": {"type": "number"},
                 "integral_error_threshold_m": {"type": "number"},
                 "max_speed_mps": {"type": "number"},
+                "integral_law": {"type": "string"},
             },
         ),
         "pass_through_controller": RegistryEntry(
@@ -182,6 +183,7 @@ REGISTRY_V1 = MappingProxyType(
                 "kd": {"type": "array"},
                 "tau_d": {"type": "array"},
                 "antiwindup_gain": {"type": "array"},
+                "align_previous_actuator_feedback": {"type": "boolean"},
                 "min_output": {"type": "array"},
                 "max_output": {"type": "array"},
                 "feedforward_gain": {"type": "array"},
@@ -226,6 +228,7 @@ REGISTRY_V1 = MappingProxyType(
                 "wave_direction_to_rad": {"type": "number"},
                 "wave_num_components": {"type": "integer"},
                 "wave_directional_spread_rad": {"type": "number"},
+                "normalize_wave_energy": {"type": "boolean"},
                 "available": {"type": "boolean"},
             },
         ),
@@ -272,6 +275,22 @@ REGISTRY_V1 = MappingProxyType(
                 "current_asset_id": {"type": "string"},
             },
         ),
+        "fcb45_environmental_load": RegistryEntry(
+            "fcb45_environmental_load",
+            "load_model",
+            "1.0.0",
+            "load_model.v1",
+            frozenset({"WIND_LOAD", "CURRENT_LOAD", "WAVE_FIRST_ORDER_LOAD", "WAVE_MEAN_DRIFT_LOAD"}),
+            {
+                "wind_parameters": {"type": "object"},
+                "wave_geometry": {"type": "object"},
+                "drift_proxy_parameters": {"type": "object"},
+                "current_strategy": {"type": "string"},
+                "wave_mode": {"type": "string"},
+                "enable_wind": {"type": "boolean"},
+                "enable_current": {"type": "boolean"},
+            },
+        ),
         "pass_through_load_model": RegistryEntry(
             "pass_through_load_model",
             "load_model",
@@ -286,7 +305,7 @@ REGISTRY_V1 = MappingProxyType(
             "1.0.0",
             "allocator.v1",
             frozenset({"GENERALIZED_FORCE", "ALLOCATOR_DIAGNOSTICS", "ACTUATOR_HEALTH"}),
-            {"layout_asset_id": {"type": "string"}},
+            {"layout_asset_id": {"type": "string"}, "fcb45_parameters": {"type": "object"}},
         ),
         "resolved_actuator_dynamics": RegistryEntry(
             "resolved_actuator_dynamics",
@@ -298,6 +317,7 @@ REGISTRY_V1 = MappingProxyType(
                 "layout_asset_id": {"type": "string"},
                 "rate_limit_n_per_s": {"type": "object"},
                 "delay_ticks": {"type": "object"},
+                "fcb45_parameters": {"type": "object"},
             },
         ),
     }
@@ -496,6 +516,7 @@ KNOWN_ACTUATOR_LAYOUT_ASSET_IDS: frozenset[str] = frozenset(
         "main_only_actuator_layout_v1",
         "fcb45_actuator_layout_v1",
         "fcb45_main_rudder_actuator_layout_v1",
+        "fcb45_main_rudder_bow_actuator_layout_v2",
     }
 )
 
@@ -512,6 +533,11 @@ def _validate_allocator_layout_asset(modules: Mapping[str, ModuleSelection]) -> 
         raise UnsupportedModuleCombinationError(
             f"unknown actuator layout asset id: {layout_id} (known: {sorted(KNOWN_ACTUATOR_LAYOUT_ASSET_IDS)})"
         )
+    if layout_id == "fcb45_main_rudder_bow_actuator_layout_v2":
+        if "actuator" not in modules or modules["actuator"].parameters.get("layout_asset_id") != layout_id:
+            raise UnsupportedModuleCombinationError("FCB45 V2 requires its physical actuator dynamics")
+    elif "fcb45_parameters" in alloc_params:
+        raise UnsupportedModuleCombinationError("fcb45_parameters only apply to the physical FCB45 V2 layout")
 
 
 def _validate_actuator_profile(
@@ -553,6 +579,16 @@ def _validate_actuator_profile(
             "resolved_actuator_dynamics is a discrete dynamics phase and requires "
             f"controller_period_ticks == 1 (base-clock cadence only; got {scheduler.get('controller_period_ticks')})"
         )
+
+    if actuator_layout == "fcb45_main_rudder_bow_actuator_layout_v2":
+        from colav_simulator.modular_gnc.fcb45_actuation import FCB45ActuationParameters  # noqa: PLC0415
+
+        if set(selection.parameters) != {"layout_asset_id", "fcb45_parameters"}:
+            raise UnsupportedModuleCombinationError("FCB45 V2 requires explicit physical actuator parameters")
+        if allocator.parameters.get("fcb45_parameters") != selection.parameters["fcb45_parameters"]:
+            raise UnsupportedModuleCombinationError("FCB45 allocator and actuator physical parameters must match")
+        FCB45ActuationParameters(**selection.parameters["fcb45_parameters"])
+        return
 
     from colav_simulator.modular_gnc.actuator_dynamics import ResolvedActuatorDynamicsConfig  # noqa: PLC0415
 
@@ -653,6 +689,17 @@ def _validate_wave_mode(modules: Mapping[str, ModuleSelection]) -> None:
     if wave_mode_raw.lower() not in valid_modes:
         raise UnsupportedModuleCombinationError(f"unknown wave_mode: {wave_mode_raw} (must be one of {sorted(valid_modes)})")
     wave_mode = WaveLoadMode(wave_mode_raw.lower())
+    if modules["load_model"].identity == "fcb45_environmental_load":
+        if modules["plant"].identity != "fcb45_roll_4dof_plant":
+            raise UnsupportedModuleCombinationError("FCB45 physical environment requires FCB45 4DOF plant")
+        environment = modules.get("environment")
+        if environment is None or environment.identity != "analytic_environment_field":
+            raise UnsupportedModuleCombinationError("FCB45 physical environment requires analytic field")
+        if any(environment.parameters.get("current_perturbation_std", (0.0, 0.0))):
+            raise UnsupportedModuleCombinationError(
+                "relative-water model requires steady NED current; no white-noise current"
+            )
+        return
 
     w1_id = lm_params.get("wave_first_order_asset_id")
     wmd_id = lm_params.get("wave_mean_drift_asset_id")

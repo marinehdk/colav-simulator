@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from colav_simulator.core import stochasticity
+from colav_simulator.core.colav.diagnostics import validate_plan
 from colav_simulator.core.ship import Config, IShip, Ship
 from colav_simulator.modular_gnc.catalog import PRESET_PLANT_VESSEL_DIMENSIONS_M
 from colav_simulator.modular_gnc.contracts import (
@@ -28,7 +29,7 @@ from colav_simulator.modular_gnc.contracts import (
     FailureCode,
     NavigationState,
 )
-from colav_simulator.modular_gnc.route_bridge import MidMpcRouteBridge
+from colav_simulator.modular_gnc.route_bridge import MidMpcRouteBridge, ProductRouteBridge
 from colav_simulator.modular_gnc.stack import ModularShipStack
 
 if TYPE_CHECKING:
@@ -71,7 +72,7 @@ class ModularShipAdapter(IShip):
         legacy_services: Ship,
         stack: ModularShipStack,
         failure_policy: FailurePolicy | None = None,
-        route_source: MidMpcRouteBridge | None = None,
+        route_source: MidMpcRouteBridge | ProductRouteBridge | None = None,
     ) -> None:
         self._legacy = legacy_services
         self._stack = stack
@@ -86,7 +87,8 @@ class ModularShipAdapter(IShip):
         cls,
         config: Config,
         stack: ModularShipStack,
-        route_source: MidMpcRouteBridge | None = None,
+        route_source: MidMpcRouteBridge | ProductRouteBridge | None = None,
+        dt_s: float = 0.1,
     ) -> ModularShipAdapter:
         """Build legacy planner/tracker/telemetry services without subclassing Ship."""
         legacy_config = copy.copy(config)
@@ -94,6 +96,11 @@ class ModularShipAdapter(IShip):
         legacy_services = Ship(mmsi=config.mmsi, identifier=config.id, config=legacy_config)
         if legacy_services._references.size == 0:
             legacy_services._references = np.zeros((9, 1), dtype=np.float64)
+        guidance = stack.config.modules.get("guidance")
+        if route_source is None and guidance is not None and guidance.identity == "integral_line_of_sight":
+            route_source = ProductRouteBridge(
+                legacy_services, dt_s, float(guidance.parameters.get("lookahead_distance_m", 50.0))
+            )
         return cls(legacy_services, stack, route_source=route_source)
 
     @property
@@ -148,9 +155,11 @@ class ModularShipAdapter(IShip):
 
     def _forward_tracked_route(self, dt: float) -> None:
         """Advance one tick under the accepted-route authority (Issue #63)."""
+        authority_reader = getattr(self._legacy._colav, "get_route_authority", None)
+        planner_data = authority_reader() if callable(authority_reader) else self._legacy.get_colav_data()
         decision = self._route_source.current_route(
             tick=self._next_tick,
-            planner_data=self._legacy.get_colav_data(),
+            planner_data=planner_data,
         )
         if decision.failure is not None or decision.route is None:
             self._abort(
@@ -177,6 +186,41 @@ class ModularShipAdapter(IShip):
 
     def plan(self, t: float, dt: float, do_list: list, enc: Any = None, w: Any = None) -> np.ndarray:
         """Delegate existing guidance/COLAV authority outside facade."""
+        plant = self._stack.config.modules["plant"].identity
+        controller = self._stack.config.modules["controller"].identity
+        if (
+            plant in PRESET_PLANT_VESSEL_DIMENSIONS_M
+            and self._legacy._colav is not None
+            and self._legacy._trajectory.size == 0
+        ):
+            # The legacy object owns planner services, not the executing plant.
+            # Its scenario placeholder dimensions/model must not leak into CPA,
+            # chart footprint or active-capability evidence.
+            parameters = self._stack.config.modules["controller"].parameters
+            self._legacy._references = validate_plan(
+                self._legacy._colav.plan(
+                    t,
+                    self._legacy.waypoints,
+                    self._legacy._speed_plan,
+                    self._legacy.state,
+                    do_list,
+                    enc,
+                    self._legacy._goal_state,
+                    w,
+                    os_length=self.length,
+                    os_width=self.width,
+                    os_draft=self.draft,
+                    os_model_name=plant,
+                    os_controller_name=controller,
+                    # Engineering response constants from the FCB45 PID pole-placement
+                    # design (omega_heading=.11, omega_speed=.08), not the old Viknes model.
+                    os_course_time_constant_s=1.0 / 0.11,
+                    os_speed_time_constant_s=1.0 / 0.08,
+                    os_max_turn_rate_radps=parameters.get("heading_rate_limit_rad_s"),
+                    dt=dt,
+                )
+            )
+            return self._legacy._references
         return self._legacy.plan(t, dt, do_list, enc, w)
 
     def reset(self, seed: int | None) -> None:

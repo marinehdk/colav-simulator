@@ -240,7 +240,7 @@ class PassThroughModules:
             self._held_truth = self._environment_field.sample_at(tick, 0.0, pos)
             self._held_observation = self._environment_field.sample_observation(tick, 0.0, pos)
             if self._load_model is not None and self._held_truth is not None:
-                self._held_loads = self._load_model.compute_loads(self._held_truth, self.navigation())
+                self._held_loads = self._load_model.compute_loads(self._held_truth, self.plant_state())
         if phase == "guidance":
             if route is not None:
                 self._route_consumptions.append((tick, route.route_id, route.revision))
@@ -283,14 +283,25 @@ class PassThroughModules:
                 time_s=tick * dt_s,
             )
         if phase == "allocator" and self._allocator is not None:
-            requested = self._resolve_requested_control_load(effective_reference)
-            solution = self._allocator.allocate(requested, tick=tick, time_s=tick * dt_s)
-            self._held_allocator_solution = solution
-            self._held_achieved_load = solution.to_achieved_generalized_load()
+            self._run_allocator_phase(tick, dt_s, effective_reference)
         if phase == "actuator" and self._actuator is not None:
             self._run_actuator_phase(tick, phase_dt_s)
         if phase == "plant":
             self._run_plant_phase(tick, phase_dt_s, effective_reference)
+
+    def _run_allocator_phase(self, tick: int, dt_s: float, reference: DirectReference | None) -> None:
+        """Allocate coupled propulsion and rudder commands against observed inflow."""
+        from colav_simulator.modular_gnc.fcb45_actuation import FCB45Allocator  # noqa: PLC0415
+
+        requested = self._resolve_requested_control_load(reference)
+        if isinstance(self._allocator, FCB45Allocator):
+            current_ne = (0.0, 0.0)
+            if self._held_observation is not None and self._held_observation.current is not None:
+                current_ne = self._held_observation.current.velocity_ne
+            self._allocator.set_operating_point(self.navigation(), current_ne)
+        solution = self._allocator.allocate(requested, tick=tick, time_s=tick * dt_s)
+        self._held_allocator_solution = solution
+        self._held_achieved_load = solution.to_achieved_generalized_load()
 
     def _run_plant_phase(self, tick: int, phase_dt_s: float, reference: DirectReference | None) -> None:
         """Advance the selected plant by one due plant phase.
@@ -331,12 +342,26 @@ class PassThroughModules:
             raise RuntimeError(
                 "resolved actuator dynamics requires an allocator solution earlier in the same tick"
             )
+        from colav_simulator.modular_gnc.fcb45_actuation import FCB45ActuatorDynamics  # noqa: PLC0415
+
+        operating = {}
+        if isinstance(self._actuator, FCB45ActuatorDynamics):
+            current_ne = (0.0, 0.0)
+            if self._held_truth is not None and self._held_truth.current is not None:
+                current_ne = self._held_truth.current.velocity_ne
+            operating = {
+                "navigation": self.navigation(),
+                "current_ne": current_ne,
+                "bow_authority": self._allocator.bow_authority,
+                "rudder_angles_rad": self._held_allocator_solution.rudder_angles_rad,
+            }
         trace = self._actuator.apply(
             self._held_allocator_solution.actuator_commands_n,
             self._held_allocator_solution.actuator_health,
             tick=tick,
             time_s=tick * dt_s,
             dt_s=dt_s,
+            **operating,
         )
         self._held_actuator_trace = trace
         self._held_actuator_load = trace.achieved_vessel_load()

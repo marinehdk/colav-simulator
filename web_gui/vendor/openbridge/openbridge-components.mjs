@@ -1,5 +1,5 @@
-var dr=globalThis;var pr=dr.ShadowRoot&&(void 0===dr.ShadyCSS||dr.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype;var No=Symbol();var Li=new WeakMap;var Nt=class{constructor(t,i,o){if(this._$cssResult$=true,o!==No)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=i}get styleSheet(){let t=this.o;const i=this.t;if(pr&&void 0===t){const o=void 0!==i&&1===i.length;o&&(t=Li.get(i)),void 0===t&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),o&&Li.set(i,t))}return t}toString(){return this.cssText}};var C=e=>new Nt("string"==typeof e?e:e+"",void 0,No);var h=(e,...t)=>{const i=1===e.length?e[0]:t.reduce((o,r,a)=>o+(n=>{if(true===n._$cssResult$)return n.cssText;if("number"==typeof n)return n;throw Error("Value passed to 'css' function must be a 'css' function result: "+n+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(r)+e[a+1],e[0]);return new Nt(i,e,No)};var ki=(e,t)=>{if(pr)e.adoptedStyleSheets=t.map(i=>i instanceof CSSStyleSheet?i:i.styleSheet);else for(const i of t){const o=document.createElement("style"),r=dr.litNonce;void 0!==r&&o.setAttribute("nonce",r),o.textContent=i.cssText,e.appendChild(o)}};var Fo=pr?e=>e:e=>e instanceof CSSStyleSheet?(t=>{let i="";for(const o of t.cssRules)i+=o.cssText;return C(i)})(e):e;var{is:Y1,defineProperty:K1,getOwnPropertyDescriptor:J1,getOwnPropertyNames:Q1,getOwnPropertySymbols:el,getPrototypeOf:tl}=Object;var hr=globalThis;var xi=hr.trustedTypes;var rl=xi?xi.emptyScript:"";var ol=hr.reactiveElementPolyfillSupport;var Ft=(e,t)=>e;var Ut={toAttribute(e,t){switch(t){case Boolean:e=e?rl:null;break;case Object:case Array:e=null==e?e:JSON.stringify(e)}return e},fromAttribute(e,t){let i=e;switch(t){case Boolean:i=null!==e;break;case Number:i=null===e?null:Number(e);break;case Object:case Array:try{i=JSON.parse(e)}catch(o){i=null}}return i}};var ur=(e,t)=>!Y1(e,t);var Mi={attribute:true,type:String,converter:Ut,reflect:false,useDefault:false,hasChanged:ur};Symbol.metadata??=Symbol("metadata"),hr.litPropertyMetadata??=new WeakMap;var Xe=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,i=Mi){if(i.state&&(i.attribute=false),this._$Ei(),this.prototype.hasOwnProperty(t)&&((i=Object.create(i)).wrapped=true),this.elementProperties.set(t,i),!i.noAccessor){const o=Symbol(),r=this.getPropertyDescriptor(t,o,i);void 0!==r&&K1(this.prototype,t,r)}}static getPropertyDescriptor(t,i,o){const{get:r,set:a}=J1(this.prototype,t)??{get(){return this[i]},set(n){this[i]=n}};return{get:r,set(n){const g=r?.call(this);a?.call(this,n),this.requestUpdate(t,g,o)},configurable:true,enumerable:true}}static getPropertyOptions(t){return this.elementProperties.get(t)??Mi}static _$Ei(){if(this.hasOwnProperty(Ft("elementProperties")))return;const t=tl(this);t.finalize(),void 0!==t.l&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(Ft("finalized")))return;if(this.finalized=true,this._$Ei(),this.hasOwnProperty(Ft("properties"))){const i=this.properties,o=[...Q1(i),...el(i)];for(const r of o)this.createProperty(r,i[r])}const t=this[Symbol.metadata];if(null!==t){const i=litPropertyMetadata.get(t);if(void 0!==i)for(const[o,r]of i)this.elementProperties.set(o,r)}this._$Eh=new Map;for(const[i,o]of this.elementProperties){const r=this._$Eu(i,o);void 0!==r&&this._$Eh.set(r,i)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){const i=[];if(Array.isArray(t)){const o=new Set(t.flat(1/0).reverse());for(const r of o)i.unshift(Fo(r))}else void 0!==t&&i.push(Fo(t));return i}static _$Eu(t,i){const o=i.attribute;return false===o?void 0:"string"==typeof o?o:"string"==typeof t?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=false,this.hasUpdated=false,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),void 0!==this.renderRoot&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){const t=new Map,i=this.constructor.elementProperties;for(const o of i.keys())this.hasOwnProperty(o)&&(t.set(o,this[o]),delete this[o]);t.size>0&&(this._$Ep=t)}createRenderRoot(){const t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return ki(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(true),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,i,o){this._$AK(t,o)}_$ET(t,i){const o=this.constructor.elementProperties.get(t),r=this.constructor._$Eu(t,o);if(void 0!==r&&true===o.reflect){const a=(void 0!==o.converter?.toAttribute?o.converter:Ut).toAttribute(i,o.type);this._$Em=t,null==a?this.removeAttribute(r):this.setAttribute(r,a),this._$Em=null}}_$AK(t,i){const o=this.constructor,r=o._$Eh.get(t);if(void 0!==r&&this._$Em!==r){const a=o.getPropertyOptions(r),n="function"==typeof a.converter?{fromAttribute:a.converter}:void 0!==a.converter?.fromAttribute?a.converter:Ut;this._$Em=r;const g=n.fromAttribute(i,a.type);this[r]=g??this._$Ej?.get(r)??g,this._$Em=null}}requestUpdate(t,i,o,r=false,a){if(void 0!==t){const n=this.constructor;if(false===r&&(a=this[t]),o??=n.getPropertyOptions(t),!((o.hasChanged??ur)(a,i)||o.useDefault&&o.reflect&&a===this._$Ej?.get(t)&&!this.hasAttribute(n._$Eu(t,o))))return;this.C(t,i,o)}false===this.isUpdatePending&&(this._$ES=this._$EP())}C(t,i,{useDefault:o,reflect:r,wrapped:a},n){o&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,n??i??this[t]),true!==a||void 0!==n)||(this._$AL.has(t)||(this.hasUpdated||o||(i=void 0),this._$AL.set(t,i)),true===r&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=true;try{await this._$ES}catch(i){Promise.reject(i)}const t=this.scheduleUpdate();return null!=t&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[r,a]of this._$Ep)this[r]=a;this._$Ep=void 0}const o=this.constructor.elementProperties;if(o.size>0)for(const[r,a]of o){const{wrapped:n}=a,g=this[r];true!==n||this._$AL.has(r)||void 0===g||this.C(r,void 0,a,g)}}let t=false;const i=this._$AL;try{t=this.shouldUpdate(i),t?(this.willUpdate(i),this._$EO?.forEach(o=>o.hostUpdate?.()),this.update(i)):this._$EM()}catch(o){throw t=false,this._$EM(),o}t&&this._$AE(i)}willUpdate(t){}_$AE(t){this._$EO?.forEach(i=>i.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=true,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=false}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return true}update(t){this._$Eq&&=this._$Eq.forEach(i=>this._$ET(i,this[i])),this._$EM()}updated(t){}firstUpdated(t){}};Xe.elementStyles=[],Xe.shadowRootOptions={mode:"open"},Xe[Ft("elementProperties")]=new Map,Xe[Ft("finalized")]=new Map,ol?.({ReactiveElement:Xe}),(hr.reactiveElementVersions??=[]).push("2.1.2");var Wo=globalThis;var Hi=e=>e;var vr=Wo.trustedTypes;var $i=vr?vr.createPolicy("lit-html",{createHTML:e=>e}):void 0;var qo="$lit$";var Ye=`lit$${Math.random().toFixed(9).slice(2)}$`;var Go="?"+Ye;var il=`<${Go}>`;var mt=document;var qt=()=>mt.createComment("");var Gt=e=>null===e||"object"!=typeof e&&"function"!=typeof e;var Xo=Array.isArray;var zi=e=>Xo(e)||"function"==typeof e?.[Symbol.iterator];var Uo="[ 	\n\f\r]";var Wt=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;var _i=/-->/g;var Vi=/>/g;var vt=RegExp(`>|${Uo}(?:([^\\s"'>=/]+)(${Uo}*=${Uo}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`,"g");var Si=/'/g;var Zi=/"/g;var Pi=/^(?:script|style|textarea|title)$/i;var Yo=e=>(t,...i)=>({_$litType$:e,strings:t,values:i});var c=Yo(1);var s=Yo(2);var Oi=Yo(3);var be=Symbol.for("lit-noChange");var p=Symbol.for("lit-nothing");var Ai=new WeakMap;var gt=mt.createTreeWalker(mt,129);function Bi(e,t){if(!Xo(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==$i?$i.createHTML(t):t}var Ti=(e,t)=>{const i=e.length-1,o=[];let r,a=2===t?"<svg>":3===t?"<math>":"",n=Wt;for(let g=0;g<i;g++){const v=e[g];let f,y,m=-1,b=0;for(;b<v.length&&(n.lastIndex=b,y=n.exec(v),null!==y);)b=n.lastIndex,n===Wt?"!--"===y[1]?n=_i:void 0!==y[1]?n=Vi:void 0!==y[2]?(Pi.test(y[2])&&(r=RegExp("</"+y[2],"g")),n=vt):void 0!==y[3]&&(n=vt):n===vt?">"===y[0]?(n=r??Wt,m=-1):void 0===y[1]?m=-2:(m=n.lastIndex-y[2].length,f=y[1],n=void 0===y[3]?vt:'"'===y[3]?Zi:Si):n===Zi||n===Si?n=vt:n===_i||n===Vi?n=Wt:(n=vt,r=void 0);const w=n===vt&&e[g+1].startsWith("/>")?" ":"";a+=n===Wt?v+il:m>=0?(o.push(f),v.slice(0,m)+qo+v.slice(m)+Ye+w):v+Ye+(-2===m?g:w)}return[Bi(e,a+(e[i]||"<?>")+(2===t?"</svg>":3===t?"</math>":"")),o]};var Xt=class e{constructor({strings:t,_$litType$:i},o){let r;this.parts=[];let a=0,n=0;const g=t.length-1,v=this.parts,[f,y]=Ti(t,i);if(this.el=e.createElement(f,o),gt.currentNode=this.el.content,2===i||3===i){const m=this.el.content.firstChild;m.replaceWith(...m.childNodes)}for(;null!==(r=gt.nextNode())&&v.length<g;){if(1===r.nodeType){if(r.hasAttributes())for(const m of r.getAttributeNames())if(m.endsWith(qo)){const b=y[n++],w=r.getAttribute(m).split(Ye),k=/([.?@])?(.*)/.exec(b);v.push({type:1,index:a,name:k[2],strings:w,ctor:"."===k[1]?mr:"?"===k[1]?fr:"@"===k[1]?br:bt}),r.removeAttribute(m)}else m.startsWith(Ye)&&(v.push({type:6,index:a}),r.removeAttribute(m));if(Pi.test(r.tagName)){const m=r.textContent.split(Ye),b=m.length-1;if(b>0){r.textContent=vr?vr.emptyScript:"";for(let w=0;w<b;w++)r.append(m[w],qt()),gt.nextNode(),v.push({type:2,index:++a});r.append(m[b],qt())}}}else if(8===r.nodeType)if(r.data===Go)v.push({type:2,index:a});else{let m=-1;for(;-1!==(m=r.data.indexOf(Ye,m+1));)v.push({type:7,index:a}),m+=Ye.length-1}a++}}static createElement(t,i){const o=mt.createElement("template");return o.innerHTML=t,o}};function ft(e,t,i=e,o){if(t===be)return t;let r=void 0!==o?i._$Co?.[o]:i._$Cl;const a=Gt(t)?void 0:t._$litDirective$;return r?.constructor!==a&&(r?._$AO?.(false),void 0===a?r=void 0:(r=new a(e),r._$AT(e,i,o)),void 0!==o?(i._$Co??=[])[o]=r:i._$Cl=r),void 0!==r&&(t=ft(e,r._$AS(e,t.values),r,o)),t}var gr=class{constructor(t,i){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=i}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){const{el:{content:i},parts:o}=this._$AD,r=(t?.creationScope??mt).importNode(i,true);gt.currentNode=r;let a=gt.nextNode(),n=0,g=0,v=o[0];for(;void 0!==v;){if(n===v.index){let f;2===v.type?f=new St(a,a.nextSibling,this,t):1===v.type?f=new v.ctor(a,v.name,v.strings,this,t):6===v.type&&(f=new yr(a,this,t)),this._$AV.push(f),v=o[++g]}n!==v?.index&&(a=gt.nextNode(),n++)}return gt.currentNode=mt,r}p(t){let i=0;for(const o of this._$AV)void 0!==o&&(void 0!==o.strings?(o._$AI(t,o,i),i+=o.strings.length-2):o._$AI(t[i])),i++}};var St=class e{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,i,o,r){this.type=2,this._$AH=p,this._$AN=void 0,this._$AA=t,this._$AB=i,this._$AM=o,this.options=r,this._$Cv=r?.isConnected??true}get parentNode(){let t=this._$AA.parentNode;const i=this._$AM;return void 0!==i&&11===t?.nodeType&&(t=i.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,i=this){t=ft(this,t,i),Gt(t)?t===p||null==t||""===t?(this._$AH!==p&&this._$AR(),this._$AH=p):t!==this._$AH&&t!==be&&this._(t):void 0!==t._$litType$?this.$(t):void 0!==t.nodeType?this.T(t):zi(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==p&&Gt(this._$AH)?this._$AA.nextSibling.data=t:this.T(mt.createTextNode(t)),this._$AH=t}$(t){const{values:i,_$litType$:o}=t,r="number"==typeof o?this._$AC(t):(void 0===o.el&&(o.el=Xt.createElement(Bi(o.h,o.h[0]),this.options)),o);if(this._$AH?._$AD===r)this._$AH.p(i);else{const a=new gr(r,this),n=a.u(this.options);a.p(i),this.T(n),this._$AH=a}}_$AC(t){let i=Ai.get(t.strings);return void 0===i&&Ai.set(t.strings,i=new Xt(t)),i}k(t){Xo(this._$AH)||(this._$AH=[],this._$AR());const i=this._$AH;let o,r=0;for(const a of t)r===i.length?i.push(o=new e(this.O(qt()),this.O(qt()),this,this.options)):o=i[r],o._$AI(a),r++;r<i.length&&(this._$AR(o&&o._$AB.nextSibling,r),i.length=r)}_$AR(t=this._$AA.nextSibling,i){for(this._$AP?.(false,true,i);t!==this._$AB;){const o=Hi(t).nextSibling;Hi(t).remove(),t=o}}setConnected(t){void 0===this._$AM&&(this._$Cv=t,this._$AP?.(t))}};var bt=class{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,i,o,r,a){this.type=1,this._$AH=p,this._$AN=void 0,this.element=t,this.name=i,this._$AM=r,this.options=a,o.length>2||""!==o[0]||""!==o[1]?(this._$AH=Array(o.length-1).fill(new String),this.strings=o):this._$AH=p}_$AI(t,i=this,o,r){const a=this.strings;let n=false;if(void 0===a)t=ft(this,t,i,0),n=!Gt(t)||t!==this._$AH&&t!==be,n&&(this._$AH=t);else{const g=t;let v,f;for(t=a[0],v=0;v<a.length-1;v++)f=ft(this,g[o+v],i,v),f===be&&(f=this._$AH[v]),n||=!Gt(f)||f!==this._$AH[v],f===p?t=p:t!==p&&(t+=(f??"")+a[v+1]),this._$AH[v]=f}n&&!r&&this.j(t)}j(t){t===p?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}};var mr=class extends bt{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===p?void 0:t}};var fr=class extends bt{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==p)}};var br=class extends bt{constructor(t,i,o,r,a){super(t,i,o,r,a),this.type=5}_$AI(t,i=this){if((t=ft(this,t,i,0)??p)===be)return;const o=this._$AH,r=t===p&&o!==p||t.capture!==o.capture||t.once!==o.once||t.passive!==o.passive,a=t!==p&&(o===p||r);r&&this.element.removeEventListener(this.name,this,o),a&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}};var yr=class{constructor(t,i,o){this.element=t,this.type=6,this._$AN=void 0,this._$AM=i,this.options=o}get _$AU(){return this._$AM._$AU}_$AI(t){ft(this,t)}};var Ei={M:qo,P:Ye,A:Go,C:1,L:Ti,R:gr,D:zi,V:ft,I:St,H:bt,N:fr,U:br,B:mr,F:yr};var al=Wo.litHtmlPolyfillSupport;al?.(Xt,St),(Wo.litHtmlVersions??=[]).push("3.3.3");var Di=(e,t,i)=>{const o=i?.renderBefore??t;let r=o._$litPart$;if(void 0===r){const a=i?.renderBefore??null;o._$litPart$=r=new St(t.insertBefore(qt(),a),a,void 0,i??{})}return r._$AI(e),r};var Ko=globalThis;var d=class extends Xe{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){const i=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=Di(i,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(true)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(false)}render(){return be}};d._$litElement$=true,d["finalized"]=true,Ko.litElementHydrateSupport?.({LitElement:d});var nl=Ko.litElementPolyfillSupport;nl?.({LitElement:d});(Ko.litElementVersions??=[]).push("4.2.2");var Ii=false;var ll={attribute:true,type:String,converter:Ut,reflect:false,hasChanged:ur};var sl=(e=ll,t,i)=>{const{kind:o,metadata:r}=i;let a=globalThis.litPropertyMetadata.get(r);if(void 0===a&&globalThis.litPropertyMetadata.set(r,a=new Map),"setter"===o&&((e=Object.create(e)).wrapped=true),a.set(i.name,e),"accessor"===o){const{name:n}=i;return{set(g){const v=t.get.call(this);t.set.call(this,g),this.requestUpdate(n,v,e,true,g)},init(g){return void 0!==g&&this.C(n,void 0,e,g),g}}}if("setter"===o){const{name:n}=i;return function(g){const v=this[n];t.call(this,g),this.requestUpdate(n,v,e,true,g)}}throw Error("Unsupported decorator location: "+o)};function l(e){return(t,i)=>"object"==typeof i?sl(e,t,i):((o,r,a)=>{const n=r.hasOwnProperty(a);return r.constructor.createProperty(a,o),n?Object.getOwnPropertyDescriptor(r,a):void 0})(e,t,i)}function j(e){return l({...e,state:true,attribute:false})}var at=(e,t,i)=>(i.configurable=true,i.enumerable=true,Reflect.decorate&&"object"!=typeof t&&Object.defineProperty(e,t,i),i);function wr(e,t){return(i,o,r)=>{const a=n=>n.renderRoot?.querySelector(e)??null;if(t){const{get:n,set:g}="object"==typeof o?i:r??(()=>{const v=Symbol();return{get(){return this[v]},set(f){this[v]=f}}})();return at(i,o,{get(){let v=n.call(this);return void 0===v&&(v=a(this),(null!==v||this.hasUpdated)&&g.call(this,v)),v}})}return at(i,o,{get(){return a(this)}})}}function ji(e){return(t,i)=>{const{slot:o,selector:r}=e??{},a="slot"+(o?`[name=${o}]`:":not([name])");return at(t,i,{get(){const n=this.renderRoot?.querySelector(a),g=n?.assignedElements(e)??[];return void 0===r?g:g.filter(v=>v.matches(r))}})}}var nt={ATTRIBUTE:1,CHILD:2,PROPERTY:3,BOOLEAN_ATTRIBUTE:4,EVENT:5,ELEMENT:6};var Ke=e=>(...t)=>({_$litDirective$:e,values:t});var Be=class{constructor(t){}get _$AU(){return this._$AM._$AU}_$AT(t,i,o){this._$Ct=t,this._$AM=i,this._$Ci=o}_$AS(t,i){return this.update(t,i)}update(t,i){return this.render(...i)}};var L=Ke(class extends Be{constructor(e){if(super(e),e.type!==nt.ATTRIBUTE||"class"!==e.name||e.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(e){return" "+Object.keys(e).filter(t=>e[t]).join(" ")+" "}update(e,[t]){if(void 0===this.st){this.st=new Set,void 0!==e.strings&&(this.nt=new Set(e.strings.join(" ").split(/\s/).filter(o=>""!==o)));for(const o in t)t[o]&&!this.nt?.has(o)&&this.st.add(o);return this.render(t)}const i=e.element.classList;for(const o of this.st)o in t||(i.remove(o),this.st.delete(o));for(const o in t){const r=!!t[o];r===this.st.has(o)||this.nt?.has(o)||(r?(i.add(o),this.st.add(o)):(i.remove(o),this.st.delete(o)))}return be}});var Ri=h`
+var rn=globalThis;var on=rn.ShadowRoot&&(void 0===rn.ShadyCSS||rn.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype;var bs=Symbol();var ec=new WeakMap;var ma=class{constructor(t,i,o){if(this._$cssResult$=true,o!==bs)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=i}get styleSheet(){let t=this.o;const i=this.t;if(on&&void 0===t){const o=void 0!==i&&1===i.length;o&&(t=ec.get(i)),void 0===t&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),o&&ec.set(i,t))}return t}toString(){return this.cssText}};var I=e=>new ma("string"==typeof e?e:e+"",void 0,bs);var L=(e,...t)=>{const i=1===e.length?e[0]:t.reduce((o,r,a)=>o+(n=>{if(true===n._$cssResult$)return n.cssText;if("number"==typeof n)return n;throw Error("Value passed to 'css' function must be a 'css' function result: "+n+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(r)+e[a+1],e[0]);return new ma(i,e,bs)};var tc=(e,t)=>{if(on)e.adoptedStyleSheets=t.map(i=>i instanceof CSSStyleSheet?i:i.styleSheet);else for(const i of t){const o=document.createElement("style"),r=rn.litNonce;void 0!==r&&o.setAttribute("nonce",r),o.textContent=i.cssText,e.appendChild(o)}};var ys=on?e=>e:e=>e instanceof CSSStyleSheet?(t=>{let i="";for(const o of t.cssRules)i+=o.cssText;return I(i)})(e):e;var{is:P5,defineProperty:T5,getOwnPropertyDescriptor:z5,getOwnPropertyNames:O5,getOwnPropertySymbols:E5,getPrototypeOf:D5}=Object;var an=globalThis;var rc=an.trustedTypes;var B5=rc?rc.emptyScript:"";var I5=an.reactiveElementPolyfillSupport;var ga=(e,t)=>e;var ba={toAttribute(e,t){switch(t){case Boolean:e=e?B5:null;break;case Object:case Array:e=null==e?e:JSON.stringify(e)}return e},fromAttribute(e,t){let i=e;switch(t){case Boolean:i=null!==e;break;case Number:i=null===e?null:Number(e);break;case Object:case Array:try{i=JSON.parse(e)}catch(o){i=null}}return i}};var nn=(e,t)=>!P5(e,t);var oc={attribute:true,type:String,converter:ba,reflect:false,useDefault:false,hasChanged:nn};Symbol.metadata??=Symbol("metadata"),an.litPropertyMetadata??=new WeakMap;var ao=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,i=oc){if(i.state&&(i.attribute=false),this._$Ei(),this.prototype.hasOwnProperty(t)&&((i=Object.create(i)).wrapped=true),this.elementProperties.set(t,i),!i.noAccessor){const o=Symbol(),r=this.getPropertyDescriptor(t,o,i);void 0!==r&&T5(this.prototype,t,r)}}static getPropertyDescriptor(t,i,o){const{get:r,set:a}=z5(this.prototype,t)??{get(){return this[i]},set(n){this[i]=n}};return{get:r,set(n){const h=r?.call(this);a?.call(this,n),this.requestUpdate(t,h,o)},configurable:true,enumerable:true}}static getPropertyOptions(t){return this.elementProperties.get(t)??oc}static _$Ei(){if(this.hasOwnProperty(ga("elementProperties")))return;const t=D5(this);t.finalize(),void 0!==t.l&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(ga("finalized")))return;if(this.finalized=true,this._$Ei(),this.hasOwnProperty(ga("properties"))){const i=this.properties,o=[...O5(i),...E5(i)];for(const r of o)this.createProperty(r,i[r])}const t=this[Symbol.metadata];if(null!==t){const i=litPropertyMetadata.get(t);if(void 0!==i)for(const[o,r]of i)this.elementProperties.set(o,r)}this._$Eh=new Map;for(const[i,o]of this.elementProperties){const r=this._$Eu(i,o);void 0!==r&&this._$Eh.set(r,i)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){const i=[];if(Array.isArray(t)){const o=new Set(t.flat(1/0).reverse());for(const r of o)i.unshift(ys(r))}else void 0!==t&&i.push(ys(t));return i}static _$Eu(t,i){const o=i.attribute;return false===o?void 0:"string"==typeof o?o:"string"==typeof t?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=false,this.hasUpdated=false,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),void 0!==this.renderRoot&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){const t=new Map,i=this.constructor.elementProperties;for(const o of i.keys())this.hasOwnProperty(o)&&(t.set(o,this[o]),delete this[o]);t.size>0&&(this._$Ep=t)}createRenderRoot(){const t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return tc(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(true),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,i,o){this._$AK(t,o)}_$ET(t,i){const o=this.constructor.elementProperties.get(t),r=this.constructor._$Eu(t,o);if(void 0!==r&&true===o.reflect){const a=(void 0!==o.converter?.toAttribute?o.converter:ba).toAttribute(i,o.type);this._$Em=t,null==a?this.removeAttribute(r):this.setAttribute(r,a),this._$Em=null}}_$AK(t,i){const o=this.constructor,r=o._$Eh.get(t);if(void 0!==r&&this._$Em!==r){const a=o.getPropertyOptions(r),n="function"==typeof a.converter?{fromAttribute:a.converter}:void 0!==a.converter?.fromAttribute?a.converter:ba;this._$Em=r;const h=n.fromAttribute(i,a.type);this[r]=h??this._$Ej?.get(r)??h,this._$Em=null}}requestUpdate(t,i,o,r=false,a){if(void 0!==t){const n=this.constructor;if(false===r&&(a=this[t]),o??=n.getPropertyOptions(t),!((o.hasChanged??nn)(a,i)||o.useDefault&&o.reflect&&a===this._$Ej?.get(t)&&!this.hasAttribute(n._$Eu(t,o))))return;this.C(t,i,o)}false===this.isUpdatePending&&(this._$ES=this._$EP())}C(t,i,{useDefault:o,reflect:r,wrapped:a},n){o&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,n??i??this[t]),true!==a||void 0!==n)||(this._$AL.has(t)||(this.hasUpdated||o||(i=void 0),this._$AL.set(t,i)),true===r&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=true;try{await this._$ES}catch(i){Promise.reject(i)}const t=this.scheduleUpdate();return null!=t&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(const[r,a]of this._$Ep)this[r]=a;this._$Ep=void 0}const o=this.constructor.elementProperties;if(o.size>0)for(const[r,a]of o){const{wrapped:n}=a,h=this[r];true!==n||this._$AL.has(r)||void 0===h||this.C(r,void 0,a,h)}}let t=false;const i=this._$AL;try{t=this.shouldUpdate(i),t?(this.willUpdate(i),this._$EO?.forEach(o=>o.hostUpdate?.()),this.update(i)):this._$EM()}catch(o){throw t=false,this._$EM(),o}t&&this._$AE(i)}willUpdate(t){}_$AE(t){this._$EO?.forEach(i=>i.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=true,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=false}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return true}update(t){this._$Eq&&=this._$Eq.forEach(i=>this._$ET(i,this[i])),this._$EM()}updated(t){}firstUpdated(t){}};ao.elementStyles=[],ao.shadowRootOptions={mode:"open"},ao[ga("elementProperties")]=new Map,ao[ga("finalized")]=new Map,I5?.({ReactiveElement:ao}),(an.reactiveElementVersions??=[]).push("2.1.2");var Cs=globalThis;var ic=e=>e;var ln=Cs.trustedTypes;var ac=ln?ln.createPolicy("lit-html",{createHTML:e=>e}):void 0;var Ls="$lit$";var no=`lit$${Math.random().toFixed(9).slice(2)}$`;var ks="?"+no;var R5=`<${ks}>`;var qo=document;var wa=()=>qo.createComment("");var Ca=e=>null===e||"object"!=typeof e&&"function"!=typeof e;var xs=Array.isArray;var dc=e=>xs(e)||"function"==typeof e?.[Symbol.iterator];var ws="[ 	\n\f\r]";var ya=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;var nc=/-->/g;var lc=/>/g;var Wo=RegExp(`>|${ws}(?:([^\\s"'>=/]+)(${ws}*=${ws}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`,"g");var sc=/'/g;var cc=/"/g;var hc=/^(?:script|style|textarea|title)$/i;var Ms=e=>(t,...i)=>({_$litType$:e,strings:t,values:i});var u=Ms(1);var c=Ms(2);var uc=Ms(3);var Yt=Symbol.for("lit-noChange");var k=Symbol.for("lit-nothing");var pc=new WeakMap;var Go=qo.createTreeWalker(qo,129);function fc(e,t){if(!xs(e)||!e.hasOwnProperty("raw"))throw Error("invalid template strings array");return void 0!==ac?ac.createHTML(t):t}var vc=(e,t)=>{const i=e.length-1,o=[];let r,a=2===t?"<svg>":3===t?"<math>":"",n=ya;for(let h=0;h<i;h++){const d=e[h];let f,y,v=-1,b=0;for(;b<d.length&&(n.lastIndex=b,y=n.exec(d),null!==y);)b=n.lastIndex,n===ya?"!--"===y[1]?n=nc:void 0!==y[1]?n=lc:void 0!==y[2]?(hc.test(y[2])&&(r=RegExp("</"+y[2],"g")),n=Wo):void 0!==y[3]&&(n=Wo):n===Wo?">"===y[0]?(n=r??ya,v=-1):void 0===y[1]?v=-2:(v=n.lastIndex-y[2].length,f=y[1],n=void 0===y[3]?Wo:'"'===y[3]?cc:sc):n===cc||n===sc?n=Wo:n===nc||n===lc?n=ya:(n=Wo,r=void 0);const M=n===Wo&&e[h+1].startsWith("/>")?" ":"";a+=n===ya?d+R5:v>=0?(o.push(f),d.slice(0,v)+Ls+d.slice(v)+no+M):d+no+(-2===v?h:M)}return[fc(e,a+(e[i]||"<?>")+(2===t?"</svg>":3===t?"</math>":"")),o]};var La=class e{constructor({strings:t,_$litType$:i},o){let r;this.parts=[];let a=0,n=0;const h=t.length-1,d=this.parts,[f,y]=vc(t,i);if(this.el=e.createElement(f,o),Go.currentNode=this.el.content,2===i||3===i){const v=this.el.content.firstChild;v.replaceWith(...v.childNodes)}for(;null!==(r=Go.nextNode())&&d.length<h;){if(1===r.nodeType){if(r.hasAttributes())for(const v of r.getAttributeNames())if(v.endsWith(Ls)){const b=y[n++],M=r.getAttribute(v).split(no),H=/([.?@])?(.*)/.exec(b);d.push({type:1,index:a,name:H[2],strings:M,ctor:"."===H[1]?cn:"?"===H[1]?pn:"@"===H[1]?dn:Ko}),r.removeAttribute(v)}else v.startsWith(no)&&(d.push({type:6,index:a}),r.removeAttribute(v));if(hc.test(r.tagName)){const v=r.textContent.split(no),b=v.length-1;if(b>0){r.textContent=ln?ln.emptyScript:"";for(let M=0;M<b;M++)r.append(v[M],wa()),Go.nextNode(),d.push({type:2,index:++a});r.append(v[b],wa())}}}else if(8===r.nodeType)if(r.data===ks)d.push({type:2,index:a});else{let v=-1;for(;-1!==(v=r.data.indexOf(no,v+1));)d.push({type:7,index:a}),v+=no.length-1}a++}}static createElement(t,i){const o=qo.createElement("template");return o.innerHTML=t,o}};function Yo(e,t,i=e,o){if(t===Yt)return t;let r=void 0!==o?i._$Co?.[o]:i._$Cl;const a=Ca(t)?void 0:t._$litDirective$;return r?.constructor!==a&&(r?._$AO?.(false),void 0===a?r=void 0:(r=new a(e),r._$AT(e,i,o)),void 0!==o?(i._$Co??=[])[o]=r:i._$Cl=r),void 0!==r&&(t=Yo(e,r._$AS(e,t.values),r,o)),t}var sn=class{constructor(t,i){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=i}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){const{el:{content:i},parts:o}=this._$AD,r=(t?.creationScope??qo).importNode(i,true);Go.currentNode=r;let a=Go.nextNode(),n=0,h=0,d=o[0];for(;void 0!==d;){if(n===d.index){let f;2===d.type?f=new zi(a,a.nextSibling,this,t):1===d.type?f=new d.ctor(a,d.name,d.strings,this,t):6===d.type&&(f=new hn(a,this,t)),this._$AV.push(f),d=o[++h]}n!==d?.index&&(a=Go.nextNode(),n++)}return Go.currentNode=qo,r}p(t){let i=0;for(const o of this._$AV)void 0!==o&&(void 0!==o.strings?(o._$AI(t,o,i),i+=o.strings.length-2):o._$AI(t[i])),i++}};var zi=class e{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,i,o,r){this.type=2,this._$AH=k,this._$AN=void 0,this._$AA=t,this._$AB=i,this._$AM=o,this.options=r,this._$Cv=r?.isConnected??true}get parentNode(){let t=this._$AA.parentNode;const i=this._$AM;return void 0!==i&&11===t?.nodeType&&(t=i.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,i=this){t=Yo(this,t,i),Ca(t)?t===k||null==t||""===t?(this._$AH!==k&&this._$AR(),this._$AH=k):t!==this._$AH&&t!==Yt&&this._(t):void 0!==t._$litType$?this.$(t):void 0!==t.nodeType?this.T(t):dc(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==k&&Ca(this._$AH)?this._$AA.nextSibling.data=t:this.T(qo.createTextNode(t)),this._$AH=t}$(t){const{values:i,_$litType$:o}=t,r="number"==typeof o?this._$AC(t):(void 0===o.el&&(o.el=La.createElement(fc(o.h,o.h[0]),this.options)),o);if(this._$AH?._$AD===r)this._$AH.p(i);else{const a=new sn(r,this),n=a.u(this.options);a.p(i),this.T(n),this._$AH=a}}_$AC(t){let i=pc.get(t.strings);return void 0===i&&pc.set(t.strings,i=new La(t)),i}k(t){xs(this._$AH)||(this._$AH=[],this._$AR());const i=this._$AH;let o,r=0;for(const a of t)r===i.length?i.push(o=new e(this.O(wa()),this.O(wa()),this,this.options)):o=i[r],o._$AI(a),r++;r<i.length&&(this._$AR(o&&o._$AB.nextSibling,r),i.length=r)}_$AR(t=this._$AA.nextSibling,i){for(this._$AP?.(false,true,i);t!==this._$AB;){const o=ic(t).nextSibling;ic(t).remove(),t=o}}setConnected(t){void 0===this._$AM&&(this._$Cv=t,this._$AP?.(t))}};var Ko=class{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,i,o,r,a){this.type=1,this._$AH=k,this._$AN=void 0,this.element=t,this.name=i,this._$AM=r,this.options=a,o.length>2||""!==o[0]||""!==o[1]?(this._$AH=Array(o.length-1).fill(new String),this.strings=o):this._$AH=k}_$AI(t,i=this,o,r){const a=this.strings;let n=false;if(void 0===a)t=Yo(this,t,i,0),n=!Ca(t)||t!==this._$AH&&t!==Yt,n&&(this._$AH=t);else{const h=t;let d,f;for(t=a[0],d=0;d<a.length-1;d++)f=Yo(this,h[o+d],i,d),f===Yt&&(f=this._$AH[d]),n||=!Ca(f)||f!==this._$AH[d],f===k?t=k:t!==k&&(t+=(f??"")+a[d+1]),this._$AH[d]=f}n&&!r&&this.j(t)}j(t){t===k?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}};var cn=class extends Ko{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===k?void 0:t}};var pn=class extends Ko{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==k)}};var dn=class extends Ko{constructor(t,i,o,r,a){super(t,i,o,r,a),this.type=5}_$AI(t,i=this){if((t=Yo(this,t,i,0)??k)===Yt)return;const o=this._$AH,r=t===k&&o!==k||t.capture!==o.capture||t.once!==o.once||t.passive!==o.passive,a=t!==k&&(o===k||r);r&&this.element.removeEventListener(this.name,this,o),a&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){"function"==typeof this._$AH?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}};var hn=class{constructor(t,i,o){this.element=t,this.type=6,this._$AN=void 0,this._$AM=i,this.options=o}get _$AU(){return this._$AM._$AU}_$AI(t){Yo(this,t)}};var mc={M:Ls,P:no,A:ks,C:1,L:vc,R:sn,D:dc,V:Yo,I:zi,H:Ko,N:pn,U:dn,B:cn,F:hn};var N5=Cs.litHtmlPolyfillSupport;N5?.(La,zi),(Cs.litHtmlVersions??=[]).push("3.3.3");var gc=(e,t,i)=>{const o=i?.renderBefore??t;let r=o._$litPart$;if(void 0===r){const a=i?.renderBefore??null;o._$litPart$=r=new zi(t.insertBefore(wa(),a),a,void 0,i??{})}return r._$AI(e),r};var $s=globalThis;var C=class extends ao{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){const t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){const i=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=gc(i,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(true)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(false)}render(){return Yt}};C._$litElement$=true,C["finalized"]=true,$s.litElementHydrateSupport?.({LitElement:C});var j5=$s.litElementPolyfillSupport;j5?.({LitElement:C});($s.litElementVersions??=[]).push("4.2.2");var bc=false;var F5={attribute:true,type:String,converter:ba,reflect:false,hasChanged:nn};var U5=(e=F5,t,i)=>{const{kind:o,metadata:r}=i;let a=globalThis.litPropertyMetadata.get(r);if(void 0===a&&globalThis.litPropertyMetadata.set(r,a=new Map),"setter"===o&&((e=Object.create(e)).wrapped=true),a.set(i.name,e),"accessor"===o){const{name:n}=i;return{set(h){const d=t.get.call(this);t.set.call(this,h),this.requestUpdate(n,d,e,true,h)},init(h){return void 0!==h&&this.C(n,void 0,e,h),h}}}if("setter"===o){const{name:n}=i;return function(h){const d=this[n];t.call(this,h),this.requestUpdate(n,d,e,true,h)}}throw Error("Unsupported decorator location: "+o)};function l(e){return(t,i)=>"object"==typeof i?U5(e,t,i):((o,r,a)=>{const n=r.hasOwnProperty(a);return r.constructor.createProperty(a,o),n?Object.getOwnPropertyDescriptor(r,a):void 0})(e,t,i)}function Ee(e){return l({...e,state:true,attribute:false})}var ko=(e,t,i)=>(i.configurable=true,i.enumerable=true,Reflect.decorate&&"object"!=typeof t&&Object.defineProperty(e,t,i),i);function Oi(e,t){return(i,o,r)=>{const a=n=>n.renderRoot?.querySelector(e)??null;if(t){const{get:n,set:h}="object"==typeof o?i:r??(()=>{const d=Symbol();return{get(){return this[d]},set(f){this[d]=f}}})();return ko(i,o,{get(){let d=n.call(this);return void 0===d&&(d=a(this),(null!==d||this.hasUpdated)&&h.call(this,d)),d}})}return ko(i,o,{get(){return a(this)}})}}function yc(e){return(t,i)=>{const{slot:o,selector:r}=e??{},a="slot"+(o?`[name=${o}]`:":not([name])");return ko(t,i,{get(){const n=this.renderRoot?.querySelector(a),h=n?.assignedElements(e)??[];return void 0===r?h:h.filter(d=>d.matches(r))}})}}var xo={ATTRIBUTE:1,CHILD:2,PROPERTY:3,BOOLEAN_ATTRIBUTE:4,EVENT:5,ELEMENT:6};var lo=e=>(...t)=>({_$litDirective$:e,values:t});var Fr=class{constructor(t){}get _$AU(){return this._$AM._$AU}_$AT(t,i,o){this._$Ct=t,this._$AM=i,this._$Ci=o}_$AS(t,i){return this.update(t,i)}update(t,i){return this.render(...i)}};var Y=lo(class extends Fr{constructor(e){if(super(e),e.type!==xo.ATTRIBUTE||"class"!==e.name||e.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(e){return" "+Object.keys(e).filter(t=>e[t]).join(" ")+" "}update(e,[t]){if(void 0===this.st){this.st=new Set,void 0!==e.strings&&(this.nt=new Set(e.strings.join(" ").split(/\s/).filter(o=>""!==o)));for(const o in t)t[o]&&!this.nt?.has(o)&&this.st.add(o);return this.render(t)}const i=e.element.classList;for(const o of this.st)o in t||(i.remove(o),this.st.delete(o));for(const o in t){const r=!!t[o];r===this.st.has(o)||this.nt?.has(o)||(r?(i.add(o),this.st.add(o)):(i.remove(o),this.st.delete(o)))}return Yt}});var wc=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -110,7 +110,7 @@ var dr=globalThis;var pr=dr.ShadowRoot&&(void 0===dr.ShadyCSS||dr.ShadyCSS.nativ
   height: var(--ui-components-divider-height-small);
   background: var(--border-divider-color);
 }
-`;var Ni=h`
+`;var Cc=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -522,7 +522,7 @@ var dr=globalThis;var pr=dr.ShadowRoot&&(void 0===dr.ShadyCSS||dr.ShadyCSS.nativ
 .wrapper.variant-integration .visible-wrapper {
       border: 0;
     }
-`;var u=e=>(t,i)=>{if(i!==void 0){i.addInitializer(()=>{if(customElements.get(e)){if(true){console.error(`Element ${e} is already registered`)}return}customElements.define(e,t)})}else{if(customElements.get(e)){if(true){console.error(`Element ${e} is already registered`)}return}customElements.define(e,t)}};var cl=Object.defineProperty;var dl=Object.getOwnPropertyDescriptor;var Te=(e,t,i,o)=>{var r=o>1?void 0:o?dl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)cl(t,i,r);return r};var Ce=class extends d{constructor(){super(...arguments);this.variant="normal";this.activated=false;this.cornerLeft=false;this.cornerRight=false;this.activeColor=false;this.wide=false;this.disabled=false;this.progress=void 0;this.hasLabel=false}get progressSpinner(){if(this.progress===void 0){return p}if(this.progress===100){return c`<div class="progress-spinner">
+`;var x=e=>(t,i)=>{if(i!==void 0){i.addInitializer(()=>{if(customElements.get(e)){if(true){console.error(`Element ${e} is already registered`)}return}customElements.define(e,t)})}else{if(customElements.get(e)){if(true){console.error(`Element ${e} is already registered`)}return}customElements.define(e,t)}};var W5=Object.defineProperty;var G5=Object.getOwnPropertyDescriptor;var Ur=(e,t,i,o)=>{var r=o>1?void 0:o?G5(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)W5(t,i,r);return r};var cr=class extends C{constructor(){super(...arguments);this.variant="normal";this.activated=false;this.cornerLeft=false;this.cornerRight=false;this.activeColor=false;this.wide=false;this.disabled=false;this.progress=void 0;this.hasLabel=false}get progressSpinner(){if(this.progress===void 0){return k}if(this.progress===100){return u`<div class="progress-spinner">
         <svg
           width="40"
           height="40"
@@ -539,7 +539,7 @@ var dr=globalThis;var pr=dr.ShadowRoot&&(void 0===dr.ShadyCSS||dr.ShadyCSS.nativ
             fill="none"
           />
         </svg>
-      </div>`}const e=this.progress*.95*3.6*Math.PI/180;const t=20+18*Math.sin(e);const i=20-18*Math.cos(e);const o=e>Math.PI?1:0;return c`<div class="progress-spinner">
+      </div>`}const e=this.progress*.95*3.6*Math.PI/180;const t=20+18*Math.sin(e);const i=20-18*Math.cos(e);const o=e>Math.PI?1:0;return u`<div class="progress-spinner">
       <svg
         width="40"
         height="40"
@@ -562,23 +562,23 @@ var dr=globalThis;var pr=dr.ShadowRoot&&(void 0===dr.ShadyCSS||dr.ShadyCSS.nativ
           stroke-linecap="round"
         />
       </svg>
-    </div>`}render(){return c`
+    </div>`}render(){return u`
       <button
-        class=${L({wrapper:true,["variant-"+this.variant]:true,activated:this.activated,"corner-left":this.cornerLeft,"corner-right":this.cornerRight,"active-color":this.activeColor,"has-label":this.hasLabel,wide:this.wide,progress:this.progress!==void 0})}
+        class=${Y({wrapper:true,["variant-"+this.variant]:true,activated:this.activated,"corner-left":this.cornerLeft,"corner-right":this.cornerRight,"active-color":this.activeColor,"has-label":this.hasLabel,wide:this.wide,progress:this.progress!==void 0})}
         ?disabled=${this.disabled}
         part="wrapper"
       >
-        ${this.progress!==void 0?this.progressSpinner:p}
+        ${this.progress!==void 0?this.progressSpinner:k}
         <div class="visible-wrapper" part="visible-wrapper">
           <div class="icon" part="icon">
             <slot></slot>
           </div>
         </div>
-        ${this.hasLabel?c`<div class="label" part="label">
+        ${this.hasLabel?u`<div class="label" part="label">
               <slot name="label"></slot>
-            </div>`:p}
+            </div>`:k}
       </button>
-    `}};Ce.styles=C(Ni);Te([l({type:String})],Ce.prototype,"variant",2);Te([l({type:Boolean})],Ce.prototype,"activated",2);Te([l({type:Boolean})],Ce.prototype,"cornerLeft",2);Te([l({type:Boolean})],Ce.prototype,"cornerRight",2);Te([l({type:Boolean})],Ce.prototype,"activeColor",2);Te([l({type:Boolean})],Ce.prototype,"wide",2);Te([l({type:Boolean})],Ce.prototype,"disabled",2);Te([l({type:Number})],Ce.prototype,"progress",2);Te([l({type:Boolean})],Ce.prototype,"hasLabel",2);Ce=Te([u("obc-icon-button")],Ce);var Fi=h`
+    `}};cr.styles=I(Cc);Ur([l({type:String})],cr.prototype,"variant",2);Ur([l({type:Boolean})],cr.prototype,"activated",2);Ur([l({type:Boolean})],cr.prototype,"cornerLeft",2);Ur([l({type:Boolean})],cr.prototype,"cornerRight",2);Ur([l({type:Boolean})],cr.prototype,"activeColor",2);Ur([l({type:Boolean})],cr.prototype,"wide",2);Ur([l({type:Boolean})],cr.prototype,"disabled",2);Ur([l({type:Number})],cr.prototype,"progress",2);Ur([l({type:Boolean})],cr.prototype,"hasLabel",2);cr=Ur([x("obc-icon-button")],cr);var Lc=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -895,14 +895,14 @@ var dr=globalThis;var pr=dr.ShadowRoot&&(void 0===dr.ShadyCSS||dr.ShadyCSS.nativ
   justify-content: center;
   gap: var(--app-components-clock-label-spacing);
 }
-`;var Wi=Symbol.for("");var pl=e=>{if(e?.r===Wi)return e?._$litStatic$};var R=(e,...t)=>({_$litStatic$:t.reduce((i,o,r)=>i+(a=>{if(void 0!==a._$litStatic$)return a._$litStatic$;throw Error(`Value passed to 'literal' function must be a 'literal' result: ${a}. Use 'unsafeStatic' to pass non-literal values, but
-            take care to ensure page security.`)})(o)+e[r+1],e[0]),r:Wi});var Ui=new Map;var Jo=e=>(t,...i)=>{const o=i.length;let r,a;const n=[],g=[];let v,f=0,y=false;for(;f<o;){for(v=t[f];f<o&&void 0!==(a=i[f],r=pl(a));)v+=r+t[++f],y=true;f!==o&&g.push(a),n.push(v),f++}if(f===o&&n.push(t[o]),y){const m=n.join("$$lit$$");void 0===(t=Ui.get(m))&&(n.raw=n,Ui.set(m,t=n)),i=g}return e(t,...i)};var _=Jo(c);var Cr=Jo(s);var C5=Jo(Oi);var hl=Object.defineProperty;var ul=Object.getOwnPropertyDescriptor;var ie=(e,t,i,o)=>{var r=o>1?void 0:o?ul(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)hl(t,i,r);return r};var J=class extends d{constructor(){super(...arguments);this.showSeconds=false;this.showDate=false;this.showTimezone=false;this.timeZoneOffsetHours=0;this.isClickable=true;this.showYear=false;this.showWeekday=false;this.locale="en-GB";this.hour12=false;this.selected=false;this.double=false;this.activated=false;this.integrationBarMode=false;this.blinkOnlyBreakpointPx=0}get timezoneString(){if(this.timeZoneOffsetHours===0){return"UTC"}return this.timeZoneOffsetHours>0?`UTC+${this.timeZoneOffsetHours}`:`UTC-${-this.timeZoneOffsetHours}`}_dateString(e){const t={month:"short",day:"numeric",weekday:this.showWeekday?"short":void 0,year:this.showYear?"numeric":void 0,timeZone:"UTC"};return e.toLocaleDateString(this.locale,t).replace(/,/g,"").replace(/\./g,"")}_ampm(e){if(this.hour12){return e<12?" AM":" PM"}return""}render(){const e=new Date(this.date);e.setUTCHours(e.getUTCHours()+this.timeZoneOffsetHours);const t=e.getUTCHours();const i=e.getUTCMinutes();const o=this.hour12?t%12:t;const r=o<10?`0${o}`:`${o}`;const a=i<10?`0${i}`:`${i}`;const n=e.getUTCSeconds();const g=n<10?`0${n}`:`${n}`;const v=this._ampm(t);const f=this._dateString(e);const y=!this.isClickable?R`div`:R`button`;const m=_`<div class="ticks ${this.showSeconds?"":"animate"}">
+`;var xc=Symbol.for("");var q5=e=>{if(e?.r===xc)return e?._$litStatic$};var Ue=(e,...t)=>({_$litStatic$:t.reduce((i,o,r)=>i+(a=>{if(void 0!==a._$litStatic$)return a._$litStatic$;throw Error(`Value passed to 'literal' function must be a 'literal' result: ${a}. Use 'unsafeStatic' to pass non-literal values, but
+            take care to ensure page security.`)})(o)+e[r+1],e[0]),r:xc});var kc=new Map;var Hs=e=>(t,...i)=>{const o=i.length;let r,a;const n=[],h=[];let d,f=0,y=false;for(;f<o;){for(d=t[f];f<o&&void 0!==(a=i[f],r=q5(a));)d+=r+t[++f],y=true;f!==o&&h.push(a),n.push(d),f++}if(f===o&&n.push(t[o]),y){const v=n.join("$$lit$$");void 0===(t=kc.get(v))&&(n.raw=n,kc.set(v,t=n)),i=h}return e(t,...i)};var ae=Hs(u);var un=Hs(c);var mu=Hs(uc);var Y5=Object.defineProperty;var K5=Object.getOwnPropertyDescriptor;var kt=(e,t,i,o)=>{var r=o>1?void 0:o?K5(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Y5(t,i,r);return r};var ht=class extends C{constructor(){super(...arguments);this.showSeconds=false;this.showDate=false;this.showTimezone=false;this.timeZoneOffsetHours=0;this.isClickable=true;this.showYear=false;this.showWeekday=false;this.locale="en-GB";this.hour12=false;this.selected=false;this.double=false;this.activated=false;this.integrationBarMode=false;this.blinkOnlyBreakpointPx=0}get timezoneString(){if(this.timeZoneOffsetHours===0){return"UTC"}return this.timeZoneOffsetHours>0?`UTC+${this.timeZoneOffsetHours}`:`UTC-${-this.timeZoneOffsetHours}`}_dateString(e){const t={month:"short",day:"numeric",weekday:this.showWeekday?"short":void 0,year:this.showYear?"numeric":void 0,timeZone:"UTC"};return e.toLocaleDateString(this.locale,t).replace(/,/g,"").replace(/\./g,"")}_ampm(e){if(this.hour12){return e<12?" AM":" PM"}return""}render(){const e=new Date(this.date);e.setUTCHours(e.getUTCHours()+this.timeZoneOffsetHours);const t=e.getUTCHours();const i=e.getUTCMinutes();const o=this.hour12?t%12:t;const r=o<10?`0${o}`:`${o}`;const a=i<10?`0${i}`:`${i}`;const n=e.getUTCSeconds();const h=n<10?`0${n}`:`${n}`;const d=this._ampm(t);const f=this._dateString(e);const y=!this.isClickable?Ue`div`:Ue`button`;const v=ae`<div class="ticks ${this.showSeconds?"":"animate"}">
       <span class="tick"></span><span class="tick"></span>
-    </div>`;const b=`@media (max-width: ${this.blinkOnlyBreakpointPx}px )`;const w=_`<div class="clock">
-        ${r}${m}${a}${this.showSeconds?_`${m}${g}`:""}${v}
+    </div>`;const b=`@media (max-width: ${this.blinkOnlyBreakpointPx}px )`;const M=ae`<div class="clock">
+        ${r}${v}${a}${this.showSeconds?ae`${v}${h}`:""}${d}
       </div>
 
-      ${this.showTimezone?_`<div class="timezone">${this.timezoneString}</div>`:null}`;return _`
+      ${this.showTimezone?ae`<div class="timezone">${this.timezoneString}</div>`:null}`;return ae`
       <style>
         ${b} {
           .wrapper {
@@ -914,18 +914,18 @@ var dr=globalThis;var pr=dr.ShadowRoot&&(void 0===dr.ShadyCSS||dr.ShadyCSS.nativ
         }
       </style>
       <${y} 
-        class=${L({wrapper:true,"no-click":!this.isClickable,selected:this.selected,double:this.double,"integration-bar-mode":this.integrationBarMode,activated:this.activated})}>
+        class=${Y({wrapper:true,"no-click":!this.isClickable,selected:this.selected,double:this.double,"integration-bar-mode":this.integrationBarMode,activated:this.activated})}>
         <div class="visible-wrapper">
-          ${this.double?_`<div class="row">${w}</div>`:w}
-        ${this.showDate?_` <div class="divider"></div>
-                <div class="date">${f}</div>`:p}
-        ${this.double?_`</div>`:p}
+          ${this.double?ae`<div class="row">${M}</div>`:M}
+        ${this.showDate?ae` <div class="divider"></div>
+                <div class="date">${f}</div>`:k}
+        ${this.double?ae`</div>`:k}
         </div>
       </${y}>
-      <div class=${L({"blink-wrapper":true,clock:true,blink:true,"integration-bar-mode":this.integrationBarMode})}>
+      <div class=${Y({"blink-wrapper":true,clock:true,blink:true,"integration-bar-mode":this.integrationBarMode})}>
         <div class="ticks animate"><div class="tick"></div><div class="tick"></div></div>
       </div>
-    `}};J.styles=C(Fi);ie([l({type:String})],J.prototype,"date",2);ie([l({type:Boolean})],J.prototype,"showSeconds",2);ie([l({type:Boolean})],J.prototype,"showDate",2);ie([l({type:Boolean})],J.prototype,"showTimezone",2);ie([l({type:Number})],J.prototype,"timeZoneOffsetHours",2);ie([l({type:Boolean,attribute:false})],J.prototype,"isClickable",2);ie([l({type:Boolean})],J.prototype,"showYear",2);ie([l({type:Boolean})],J.prototype,"showWeekday",2);ie([l({type:String})],J.prototype,"locale",2);ie([l({type:Boolean})],J.prototype,"hour12",2);ie([l({type:Boolean})],J.prototype,"selected",2);ie([l({type:Boolean})],J.prototype,"double",2);ie([l({type:Boolean})],J.prototype,"activated",2);ie([l({type:Boolean})],J.prototype,"integrationBarMode",2);ie([l({type:Number})],J.prototype,"blinkOnlyBreakpointPx",2);J=ie([u("obc-clock")],J);var qi=h`
+    `}};ht.styles=I(Lc);kt([l({type:String})],ht.prototype,"date",2);kt([l({type:Boolean})],ht.prototype,"showSeconds",2);kt([l({type:Boolean})],ht.prototype,"showDate",2);kt([l({type:Boolean})],ht.prototype,"showTimezone",2);kt([l({type:Number})],ht.prototype,"timeZoneOffsetHours",2);kt([l({type:Boolean,attribute:false})],ht.prototype,"isClickable",2);kt([l({type:Boolean})],ht.prototype,"showYear",2);kt([l({type:Boolean})],ht.prototype,"showWeekday",2);kt([l({type:String})],ht.prototype,"locale",2);kt([l({type:Boolean})],ht.prototype,"hour12",2);kt([l({type:Boolean})],ht.prototype,"selected",2);kt([l({type:Boolean})],ht.prototype,"double",2);kt([l({type:Boolean})],ht.prototype,"activated",2);kt([l({type:Boolean})],ht.prototype,"integrationBarMode",2);kt([l({type:Number})],ht.prototype,"blinkOnlyBreakpointPx",2);ht=kt([x("obc-clock")],ht);var Mc=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -936,7 +936,7 @@ var dr=globalThis;var pr=dr.ShadowRoot&&(void 0===dr.ShadyCSS||dr.ShadyCSS.nativ
   border-radius: 1px;
   background: var(--border-divider-color, rgba(0, 0, 0, 0.08));
 }
-`;var vl=Object.getOwnPropertyDescriptor;var gl=(e,t,i,o)=>{var r=o>1?void 0:o?vl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=n(r)||r;return r};var Qo=class extends d{render(){return c``}};Qo.styles=C(qi);Qo=gl([u("obc-divider")],Qo);var Gi=h`
+`;var J5=Object.getOwnPropertyDescriptor;var X5=(e,t,i,o)=>{var r=o>1?void 0:o?J5(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=n(r)||r;return r};var _s=class extends C{render(){return u``}};_s.styles=I(Mc);_s=X5([x("obc-divider")],_s);var $c=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -1077,15 +1077,15 @@ li .active {
     height: var(--app-components-breadcrumb-item-icon-size);
     flex-shrink: 0;
   }
-`;var ml=Object.defineProperty;var fl=Object.getOwnPropertyDescriptor;var Xi=(e,t,i,o)=>{var r=o>1?void 0:o?fl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)ml(t,i,r);return r};var Lr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+`;var Q5=Object.defineProperty;var e4=Object.getOwnPropertyDescriptor;var Hc=(e,t,i,o)=>{var r=o>1?void 0:o?e4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Q5(t,i,r);return r};var fn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M8.59009 7.41L10.0001 6L16.0001 12L10.0001 18L8.59009 16.59L13.1701 12L8.59009 7.41Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M8.59009 7.41L10.0001 6L16.0001 12L10.0001 18L8.59009 16.59L13.1701 12L8.59009 7.41Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Lr.styles=h`
+    `}};fn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1095,47 +1095,47 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;Xi([l({type:Boolean})],Lr.prototype,"useCssColor",2);Lr=Xi([u("obi-chevron-right-google")],Lr);var bl=Object.defineProperty;var yl=Object.getOwnPropertyDescriptor;var ei=(e,t,i,o)=>{var r=o>1?void 0:o?yl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)bl(t,i,r);return r};var Yt=class extends d{constructor(){super(...arguments);this.items=[];this.iconOnly=false}render(){return c`
+  `;Hc([l({type:Boolean})],fn.prototype,"useCssColor",2);fn=Hc([x("obi-chevron-right-google")],fn);var t4=Object.defineProperty;var r4=Object.getOwnPropertyDescriptor;var Ss=(e,t,i,o)=>{var r=o>1?void 0:o?r4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)t4(t,i,r);return r};var ka=class extends C{constructor(){super(...arguments);this.items=[];this.iconOnly=false}render(){return u`
       <nav aria-label="Breadcrumb" class="breadcrumb">
         <ol>
-          ${this.items.map((e,t)=>{const i=t===this.items.length-1;return c`
+          ${this.items.map((e,t)=>{const i=t===this.items.length-1;return u`
               <li>
-                ${t>0?c`<span class="divider">
+                ${t>0?u`<span class="divider">
                       <obi-chevron-right-google class="icon">
                       </obi-chevron-right-google>
-                    </span>`:p}
-                ${i?c` <div class="label-wrapper active">
+                    </span>`:k}
+                ${i?u` <div class="label-wrapper active">
                       <div class="visible-wrapper">
-                        ${e.icon?e.icon():p}
-                        ${this.iconOnly&&!i?p:c`<span class="label">${e.label}</span>`}
+                        ${e.icon?e.icon():k}
+                        ${this.iconOnly&&!i?k:u`<span class="label">${e.label}</span>`}
                       </div>
-                    </div>`:c` <button
+                    </div>`:u` <button
                       role="link"
                       @click=${()=>this.handleClick(e)}
                       class="label-wrapper"
                     >
                       <div class="visible-wrapper">
-                        ${e.icon?e.icon():p}
-                        ${this.iconOnly&&!i?p:c`<span class="label">${e.label}</span>`}
+                        ${e.icon?e.icon():k}
+                        ${this.iconOnly&&!i?k:u`<span class="label">${e.label}</span>`}
                       </div>
                     </button>`}
               </li>
             `})}
         </ol>
       </nav>
-    `}handleClick(e){this.dispatchEvent(new CustomEvent("breadcrumb-click",{detail:e}))}};Yt.styles=C(Gi);ei([l({attribute:false})],Yt.prototype,"items",2);ei([l({attribute:false})],Yt.prototype,"iconOnly",2);Yt=ei([u("obc-breadcrumb")],Yt);var wl=Object.defineProperty;var Cl=Object.getOwnPropertyDescriptor;var Yi=(e,t,i,o)=>{var r=o>1?void 0:o?Cl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)wl(t,i,r);return r};var kr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    `}handleClick(e){this.dispatchEvent(new CustomEvent("breadcrumb-click",{detail:e}))}};ka.styles=I($c);Ss([l({attribute:false})],ka.prototype,"items",2);Ss([l({attribute:false})],ka.prototype,"iconOnly",2);ka=Ss([x("obc-breadcrumb")],ka);var o4=Object.defineProperty;var i4=Object.getOwnPropertyDescriptor;var _c=(e,t,i,o)=>{var r=o>1?void 0:o?i4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)o4(t,i,r);return r};var vn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M3 13H21V11H3V13Z" fill="currentColor"/>
 <path d="M3 18H21V16H3V18Z" fill="currentColor"/>
 <path d="M3 6V8H21V6H3Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M3 13H21V11H3V13Z" style="fill: var(--element-active-color)"/>
 <path d="M3 18H21V16H3V18Z" style="fill: var(--element-active-color)"/>
 <path d="M3 6V8H21V6H3Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};kr.styles=h`
+    `}};vn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1145,15 +1145,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;Yi([l({type:Boolean})],kr.prototype,"useCssColor",2);kr=Yi([u("obi-menu-iec")],kr);var Ll=Object.defineProperty;var kl=Object.getOwnPropertyDescriptor;var Ki=(e,t,i,o)=>{var r=o>1?void 0:o?kl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Ll(t,i,r);return r};var xr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;_c([l({type:Boolean})],vn.prototype,"useCssColor",2);vn=_c([x("obi-menu-iec")],vn);var a4=Object.defineProperty;var n4=Object.getOwnPropertyDescriptor;var Sc=(e,t,i,o)=>{var r=o>1?void 0:o?n4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)a4(t,i,r);return r};var mn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M6 19H9V13H15V19H18V10L12 5.5L6 10V19ZM4 21V9L12 3L20 9V21H13V15H11V21H4Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M6 19H9V13H15V19H18V10L12 5.5L6 10V19ZM4 21V9L12 3L20 9V21H13V15H11V21H4Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};xr.styles=h`
+    `}};mn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1163,15 +1163,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;Ki([l({type:Boolean})],xr.prototype,"useCssColor",2);xr=Ki([u("obi-home")],xr);var xl=Object.defineProperty;var Ml=Object.getOwnPropertyDescriptor;var Ji=(e,t,i,o)=>{var r=o>1?void 0:o?Ml(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)xl(t,i,r);return r};var Mr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Sc([l({type:Boolean})],mn.prototype,"useCssColor",2);mn=Sc([x("obi-home")],mn);var l4=Object.defineProperty;var s4=Object.getOwnPropertyDescriptor;var Vc=(e,t,i,o)=>{var r=o>1?void 0:o?s4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)l4(t,i,r);return r};var gn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Mr.styles=h`
+    `}};gn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1181,15 +1181,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;Ji([l({type:Boolean})],Mr.prototype,"useCssColor",2);Mr=Ji([u("obi-close-google")],Mr);var Hl=Object.defineProperty;var $l=Object.getOwnPropertyDescriptor;var Qi=(e,t,i,o)=>{var r=o>1?void 0:o?$l(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Hl(t,i,r);return r};var Hr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Vc([l({type:Boolean})],gn.prototype,"useCssColor",2);gn=Vc([x("obi-close-google")],gn);var c4=Object.defineProperty;var p4=Object.getOwnPropertyDescriptor;var Zc=(e,t,i,o)=>{var r=o>1?void 0:o?p4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)c4(t,i,r);return r};var bn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M7.83 11H20V13H7.83L13.41 18.59L12 20L4 12L12 4L13.42 5.41L7.83 11Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M7.83 11H20V13H7.83L13.41 18.59L12 20L4 12L12 4L13.42 5.41L7.83 11Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Hr.styles=h`
+    `}};bn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1199,15 +1199,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;Qi([l({type:Boolean})],Hr.prototype,"useCssColor",2);Hr=Qi([u("obi-arrow-left-google")],Hr);var _l=Object.defineProperty;var Vl=Object.getOwnPropertyDescriptor;var ea=(e,t,i,o)=>{var r=o>1?void 0:o?Vl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)_l(t,i,r);return r};var $r=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Zc([l({type:Boolean})],bn.prototype,"useCssColor",2);bn=Zc([x("obi-arrow-left-google")],bn);var d4=Object.defineProperty;var h4=Object.getOwnPropertyDescriptor;var Ac=(e,t,i,o)=>{var r=o>1?void 0:o?h4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)d4(t,i,r);return r};var yn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 4L10.59 5.41L16.17 11H4V13H16.17L10.59 18.59L12 20L20 12L12 4Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 4L10.59 5.41L16.17 11H4V13H16.17L10.59 18.59L12 20L20 12L12 4Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};$r.styles=h`
+    `}};yn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1217,7 +1217,7 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ea([l({type:Boolean})],$r.prototype,"useCssColor",2);$r=ea([u("obi-arrow-right-google")],$r);var Sl=Object.defineProperty;var Zl=Object.getOwnPropertyDescriptor;var ta=(e,t,i,o)=>{var r=o>1?void 0:o?Zl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Sl(t,i,r);return r};var _r=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Ac([l({type:Boolean})],yn.prototype,"useCssColor",2);yn=Ac([x("obi-arrow-right-google")],yn);var u4=Object.defineProperty;var f4=Object.getOwnPropertyDescriptor;var Pc=(e,t,i,o)=>{var r=o>1?void 0:o?f4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)u4(t,i,r);return r};var wn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.99976 11.9999C6.99976 10.6738 7.52654 9.40202 8.46422 8.46434C9.4019 7.52666 10.6737 6.99988 11.9998 6.99988C13.3258 6.99988 14.5976 7.52666 15.5353 8.46434L16.2424 9.17145L9.17133 16.2425L8.46422 15.5354C7.52654 14.5977 6.99976 13.326 6.99976 11.9999ZM9.87843 9.87856C9.31583 10.4412 8.99976 11.2042 8.99976 11.9999C8.99976 12.4516 9.10163 12.8928 9.29265 13.2928L13.2926 9.29277C12.8927 9.10175 12.4515 8.99988 11.9998 8.99988C11.2041 8.99988 10.441 9.31595 9.87843 9.87856Z" fill="currentColor"/>
 <path d="M3.51447 19.0709L6.3429 16.2425L7.75711 17.6567L4.92869 20.4852L3.51447 19.0709Z" fill="currentColor"/>
 <path d="M0.999756 10.9999H4.99976V12.9999H0.999756V10.9999Z" fill="currentColor"/>
@@ -1226,7 +1226,7 @@ li .active {
 <path d="M20.4851 4.92878L17.6567 7.75721L16.2425 6.343L19.0709 3.51457L20.4851 4.92878Z" fill="currentColor"/>
 <path d="M20.1539 11C20.8 11 21.4154 11.088 22 11.253C19.5016 11.9515 17.6924 14.036 17.6924 16.5C17.6924 18.964 19.5016 21.0485 22 21.747C21.4154 21.912 20.8 22 20.1539 22C16.757 22 14 19.536 14 16.5C14 13.464 16.757 11 20.1539 11Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.99976 11.9999C6.99976 10.6738 7.52654 9.40202 8.46422 8.46434C9.4019 7.52666 10.6737 6.99988 11.9998 6.99988C13.3258 6.99988 14.5976 7.52666 15.5353 8.46434L16.2424 9.17145L9.17133 16.2425L8.46422 15.5354C7.52654 14.5977 6.99976 13.326 6.99976 11.9999ZM9.87843 9.87856C9.31583 10.4412 8.99976 11.2042 8.99976 11.9999C8.99976 12.4516 9.10163 12.8928 9.29265 13.2928L13.2926 9.29277C12.8927 9.10175 12.4515 8.99988 11.9998 8.99988C11.2041 8.99988 10.441 9.31595 9.87843 9.87856Z" style="fill: var(--element-active-color)"/>
 <path d="M3.51447 19.0709L6.3429 16.2425L7.75711 17.6567L4.92869 20.4852L3.51447 19.0709Z" style="fill: var(--element-active-color)"/>
 <path d="M0.999756 10.9999H4.99976V12.9999H0.999756V10.9999Z" style="fill: var(--element-active-color)"/>
@@ -1235,9 +1235,9 @@ li .active {
 <path d="M20.4851 4.92878L17.6567 7.75721L16.2425 6.343L19.0709 3.51457L20.4851 4.92878Z" style="fill: var(--element-active-color)"/>
 <path d="M20.1539 11C20.8 11 21.4154 11.088 22 11.253C19.5016 11.9515 17.6924 14.036 17.6924 16.5C17.6924 18.964 19.5016 21.0485 22 21.747C21.4154 21.912 20.8 22 20.1539 22C16.757 22 14 19.536 14 16.5C14 13.464 16.757 11 20.1539 11Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};_r.styles=h`
+    `}};wn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1247,15 +1247,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ta([l({type:Boolean})],_r.prototype,"useCssColor",2);_r=ta([u("obi-palette-day-night-iec")],_r);var Al=Object.defineProperty;var zl=Object.getOwnPropertyDescriptor;var ra=(e,t,i,o)=>{var r=o>1?void 0:o?zl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Al(t,i,r);return r};var Vr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Pc([l({type:Boolean})],wn.prototype,"useCssColor",2);wn=Pc([x("obi-palette-day-night-iec")],wn);var v4=Object.defineProperty;var m4=Object.getOwnPropertyDescriptor;var Tc=(e,t,i,o)=>{var r=o>1?void 0:o?m4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)v4(t,i,r);return r};var Cn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M4 8H8V4H4V8ZM10 20H14V16H10V20ZM4 20H8V16H4V20ZM4 14H8V10H4V14ZM10 14H14V10H10V14ZM16 4V8H20V4H16ZM10 8H14V4H10V8ZM16 14H20V10H16V14ZM16 20H20V16H16V20Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M4 8H8V4H4V8ZM10 20H14V16H10V20ZM4 20H8V16H4V20ZM4 14H8V10H4V14ZM10 14H14V10H10V14ZM16 4V8H20V4H16ZM10 8H14V4H10V8ZM16 14H20V10H16V14ZM16 20H20V16H16V20Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Vr.styles=h`
+    `}};Cn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1265,19 +1265,19 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ra([l({type:Boolean})],Vr.prototype,"useCssColor",2);Vr=ra([u("obi-applications")],Vr);var Pl=Object.defineProperty;var Ol=Object.getOwnPropertyDescriptor;var oa=(e,t,i,o)=>{var r=o>1?void 0:o?Ol(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Pl(t,i,r);return r};var Sr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Tc([l({type:Boolean})],Cn.prototype,"useCssColor",2);Cn=Tc([x("obi-applications")],Cn);var g4=Object.defineProperty;var b4=Object.getOwnPropertyDescriptor;var zc=(e,t,i,o)=>{var r=o>1?void 0:o?b4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)g4(t,i,r);return r};var Ln=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8C13.1 8 14 7.1 14 6Z" fill="currentColor"/>
 <path d="M14 12C14 10.9 13.1 10 12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12Z" fill="currentColor"/>
 <path d="M14 18C14 16.9 13.1 16 12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8C13.1 8 14 7.1 14 6Z" style="fill: var(--element-active-color)"/>
 <path d="M14 12C14 10.9 13.1 10 12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12Z" style="fill: var(--element-active-color)"/>
 <path d="M14 18C14 16.9 13.1 16 12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Sr.styles=h`
+    `}};Ln.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1287,15 +1287,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;oa([l({type:Boolean})],Sr.prototype,"useCssColor",2);Sr=oa([u("obi-more-vertical-google")],Sr);var Bl=Object.defineProperty;var Tl=Object.getOwnPropertyDescriptor;var ia=(e,t,i,o)=>{var r=o>1?void 0:o?Tl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Bl(t,i,r);return r};var Zr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;zc([l({type:Boolean})],Ln.prototype,"useCssColor",2);Ln=zc([x("obi-more-vertical-google")],Ln);var y4=Object.defineProperty;var w4=Object.getOwnPropertyDescriptor;var Oc=(e,t,i,o)=>{var r=o>1?void 0:o?w4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)y4(t,i,r);return r};var kn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M5.85 17.1C6.7 16.45 7.65 15.9375 8.7 15.5625C9.75 15.1875 10.85 15 12 15C13.15 15 14.25 15.1875 15.3 15.5625C16.35 15.9375 17.3 16.45 18.15 17.1C18.7333 16.4167 19.1875 15.6417 19.5125 14.775C19.8375 13.9083 20 12.9833 20 12C20 9.78333 19.2208 7.89583 17.6625 6.3375C16.1042 4.77917 14.2167 4 12 4C9.78333 4 7.89583 4.77917 6.3375 6.3375C4.77917 7.89583 4 9.78333 4 12C4 12.9833 4.1625 13.9083 4.4875 14.775C4.8125 15.6417 5.26667 16.4167 5.85 17.1ZM12 13C11.0167 13 10.1875 12.6625 9.5125 11.9875C8.8375 11.3125 8.5 10.4833 8.5 9.5C8.5 8.51667 8.8375 7.6875 9.5125 7.0125C10.1875 6.3375 11.0167 6 12 6C12.9833 6 13.8125 6.3375 14.4875 7.0125C15.1625 7.6875 15.5 8.51667 15.5 9.5C15.5 10.4833 15.1625 11.3125 14.4875 11.9875C13.8125 12.6625 12.9833 13 12 13ZM12 22C10.6167 22 9.31667 21.7375 8.1 21.2125C6.88333 20.6875 5.825 19.975 4.925 19.075C4.025 18.175 3.3125 17.1167 2.7875 15.9C2.2625 14.6833 2 13.3833 2 12C2 10.6167 2.2625 9.31667 2.7875 8.1C3.3125 6.88333 4.025 5.825 4.925 4.925C5.825 4.025 6.88333 3.3125 8.1 2.7875C9.31667 2.2625 10.6167 2 12 2C13.3833 2 14.6833 2.2625 15.9 2.7875C17.1167 3.3125 18.175 4.025 19.075 4.925C19.975 5.825 20.6875 6.88333 21.2125 8.1C21.7375 9.31667 22 10.6167 22 12C22 13.3833 21.7375 14.6833 21.2125 15.9C20.6875 17.1167 19.975 18.175 19.075 19.075C18.175 19.975 17.1167 20.6875 15.9 21.2125C14.6833 21.7375 13.3833 22 12 22Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M5.85 17.1C6.7 16.45 7.65 15.9375 8.7 15.5625C9.75 15.1875 10.85 15 12 15C13.15 15 14.25 15.1875 15.3 15.5625C16.35 15.9375 17.3 16.45 18.15 17.1C18.7333 16.4167 19.1875 15.6417 19.5125 14.775C19.8375 13.9083 20 12.9833 20 12C20 9.78333 19.2208 7.89583 17.6625 6.3375C16.1042 4.77917 14.2167 4 12 4C9.78333 4 7.89583 4.77917 6.3375 6.3375C4.77917 7.89583 4 9.78333 4 12C4 12.9833 4.1625 13.9083 4.4875 14.775C4.8125 15.6417 5.26667 16.4167 5.85 17.1ZM12 13C11.0167 13 10.1875 12.6625 9.5125 11.9875C8.8375 11.3125 8.5 10.4833 8.5 9.5C8.5 8.51667 8.8375 7.6875 9.5125 7.0125C10.1875 6.3375 11.0167 6 12 6C12.9833 6 13.8125 6.3375 14.4875 7.0125C15.1625 7.6875 15.5 8.51667 15.5 9.5C15.5 10.4833 15.1625 11.3125 14.4875 11.9875C13.8125 12.6625 12.9833 13 12 13ZM12 22C10.6167 22 9.31667 21.7375 8.1 21.2125C6.88333 20.6875 5.825 19.975 4.925 19.075C4.025 18.175 3.3125 17.1167 2.7875 15.9C2.2625 14.6833 2 13.3833 2 12C2 10.6167 2.2625 9.31667 2.7875 8.1C3.3125 6.88333 4.025 5.825 4.925 4.925C5.825 4.025 6.88333 3.3125 8.1 2.7875C9.31667 2.2625 10.6167 2 12 2C13.3833 2 14.6833 2.2625 15.9 2.7875C17.1167 3.3125 18.175 4.025 19.075 4.925C19.975 5.825 20.6875 6.88333 21.2125 8.1C21.7375 9.31667 22 10.6167 22 12C22 13.3833 21.7375 14.6833 21.2125 15.9C20.6875 17.1167 19.975 18.175 19.075 19.075C18.175 19.975 17.1167 20.6875 15.9 21.2125C14.6833 21.7375 13.3833 22 12 22Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Zr.styles=h`
+    `}};kn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -1305,7 +1305,7 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ia([l({type:Boolean})],Zr.prototype,"useCssColor",2);Zr=ia([u("obi-user")],Zr);var El=Object.defineProperty;var Dl=Object.getOwnPropertyDescriptor;var D=(e,t,i,o)=>{var r=o>1?void 0:o?Dl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)El(t,i,r);return r};var E=class extends d{constructor(){super(...arguments);this.appTitle="App";this.pageName="Page";this.menuButtonIcon="menu";this.menuButtonActivated=false;this.dimmingButtonActivated=false;this.appsButtonActivated=false;this.leftMoreButtonActivated=false;this.userButtonActivated=false;this.userButtonDisabled=false;this.tall=false;this.wideMenuButton=false;this.showAppsButton=false;this.showDimmingButton=false;this.showUserButton=false;this.showClock=false;this.showDate=false;this.showAppIcon=false;this.inactive=false;this.appButtonBreakpointPx=500;this.dimmingButtonBreakpointPx=500;this.appTitleBreakpointPx=500;this.userButtonBreakpointPx=500;this.appIconBreakpointPx=500;this.settings=false;this.breadcrumbItems=[];this.leftButtonEvent=null;this.leftButtonTimeout=null;this.isLeftButtonDown=false;this.isEmergencyBrightness=false}dimmingButtonClicked(){this.dispatchEvent(new CustomEvent("dimming-button-clicked"))}appsButtonClicked(){this.dispatchEvent(new CustomEvent("apps-button-clicked"))}leftMoreButtonClicked(){this.dispatchEvent(new CustomEvent("left-more-button-clicked"))}userButtonClicked(){this.dispatchEvent(new CustomEvent("user-button-clicked"))}leftButtonDown(e){this.leftButtonEvent=e;this.isLeftButtonDown=true;this.leftButtonTimeout=setTimeout(()=>{this.leftButtonEvent=null;this.dispatchEvent(new CustomEvent("emergency-brightness-start"));this.isEmergencyBrightness=true},500)}leftButtonUp(){if(this.leftButtonEvent){this.dispatchEvent(this.leftButtonEvent);this.leftButtonEvent=null}if(this.leftButtonTimeout){clearTimeout(this.leftButtonTimeout);this.leftButtonTimeout=null}if(this.isEmergencyBrightness){this.dispatchEvent(new CustomEvent("emergency-brightness-stop"));this.isEmergencyBrightness=false}this.isLeftButtonDown=false}leftButtonLeave(){if(!this.isLeftButtonDown)return;if(this.leftButtonTimeout){clearInterval(this.leftButtonTimeout);this.leftButtonTimeout=null}if(this.isEmergencyBrightness){this.dispatchEvent(new CustomEvent("emergency-brightness-stop"));this.isEmergencyBrightness=false}this.isLeftButtonDown=false}render(){const e=[];if(this.settings){e.push(c`<div class="menu-button">
+  `;Oc([l({type:Boolean})],kn.prototype,"useCssColor",2);kn=Oc([x("obi-user")],kn);var C4=Object.defineProperty;var L4=Object.getOwnPropertyDescriptor;var De=(e,t,i,o)=>{var r=o>1?void 0:o?L4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)C4(t,i,r);return r};var Ae=class extends C{constructor(){super(...arguments);this.appTitle="App";this.pageName="Page";this.menuButtonIcon="menu";this.menuButtonActivated=false;this.dimmingButtonActivated=false;this.appsButtonActivated=false;this.leftMoreButtonActivated=false;this.userButtonActivated=false;this.userButtonDisabled=false;this.tall=false;this.wideMenuButton=false;this.showAppsButton=false;this.showDimmingButton=false;this.showUserButton=false;this.showClock=false;this.showDate=false;this.showAppIcon=false;this.inactive=false;this.appButtonBreakpointPx=500;this.dimmingButtonBreakpointPx=500;this.appTitleBreakpointPx=500;this.userButtonBreakpointPx=500;this.appIconBreakpointPx=500;this.settings=false;this.breadcrumbItems=[];this.leftButtonEvent=null;this.leftButtonTimeout=null;this.isLeftButtonDown=false;this.isEmergencyBrightness=false}dimmingButtonClicked(){this.dispatchEvent(new CustomEvent("dimming-button-clicked"))}appsButtonClicked(){this.dispatchEvent(new CustomEvent("apps-button-clicked"))}leftMoreButtonClicked(){this.dispatchEvent(new CustomEvent("left-more-button-clicked"))}userButtonClicked(){this.dispatchEvent(new CustomEvent("user-button-clicked"))}leftButtonDown(e){this.leftButtonEvent=e;this.isLeftButtonDown=true;this.leftButtonTimeout=setTimeout(()=>{this.leftButtonEvent=null;this.dispatchEvent(new CustomEvent("emergency-brightness-start"));this.isEmergencyBrightness=true},500)}leftButtonUp(){if(this.leftButtonEvent){this.dispatchEvent(this.leftButtonEvent);this.leftButtonEvent=null}if(this.leftButtonTimeout){clearTimeout(this.leftButtonTimeout);this.leftButtonTimeout=null}if(this.isEmergencyBrightness){this.dispatchEvent(new CustomEvent("emergency-brightness-stop"));this.isEmergencyBrightness=false}this.isLeftButtonDown=false}leftButtonLeave(){if(!this.isLeftButtonDown)return;if(this.leftButtonTimeout){clearInterval(this.leftButtonTimeout);this.leftButtonTimeout=null}if(this.isEmergencyBrightness){this.dispatchEvent(new CustomEvent("emergency-brightness-stop"));this.isEmergencyBrightness=false}this.isLeftButtonDown=false}render(){const e=[];if(this.settings){e.push(u`<div class="menu-button">
           <obc-icon-button
             variant="flat"
             @pointerdown=${()=>this.leftButtonDown(new CustomEvent("close"))}
@@ -1314,15 +1314,15 @@ li .active {
           >
             <obi-close-google></obi-close-google>
           </obc-icon-button>
-        </div>`);e.push(c`<div class="divider"></div>`);e.push(c`<obc-icon-button
+        </div>`);e.push(u`<div class="divider"></div>`);e.push(u`<obc-icon-button
           variant="flat"
           @click=${()=>this.dispatchEvent(new CustomEvent("back"))}
         >
           <obi-arrow-left-google></obi-arrow-left-google>
-        </obc-icon-button>`);e.push(c`<div class="title">${this.appTitle}</div>`);e.push(c`<obc-breadcrumb
+        </obc-icon-button>`);e.push(u`<div class="title">${this.appTitle}</div>`);e.push(u`<obc-breadcrumb
           .items=${this.breadcrumbItems}
           @breadcrumb-click=${i=>this.dispatchEvent(new CustomEvent("breadcrumb-click",{detail:i.detail}))}
-        ></obc-breadcrumb>`)}else{if(!this.inactive){e.push(c`<div class="menu-button ${this.wideMenuButton?"wide":null}">
+        ></obc-breadcrumb>`)}else{if(!this.inactive){e.push(u`<div class="menu-button ${this.wideMenuButton?"wide":null}">
             <obc-icon-button
               variant="flat"
               @pointerdown=${()=>this.leftButtonDown(new CustomEvent("menu-button-clicked"))}
@@ -1330,9 +1330,9 @@ li .active {
               @pointerleave=${()=>this.leftButtonLeave()}
               ?activated=${this.menuButtonActivated}
             >
-              ${this.menuButtonIcon==="menu"?c`<obi-menu-iec></obi-menu-iec>`:c`<obi-home></obi-home>`}
+              ${this.menuButtonIcon==="menu"?u`<obi-menu-iec></obi-menu-iec>`:u`<obi-home></obi-home>`}
             </obc-icon-button>
-          </div>`)}if(this.showAppIcon){e.push(c`<div class="app-icon"><slot name="app-icon"></slot></div>`)}e.push(c`<div class="title">${this.appTitle}</div>`);e.push(c`<div class="page-name">${this.pageName}</div>`);e.push(c`<slot name="command-button"></slot>`)}const t=Math.max(this.appButtonBreakpointPx,this.dimmingButtonBreakpointPx);return c`
+          </div>`)}if(this.showAppIcon){e.push(u`<div class="app-icon"><slot name="app-icon"></slot></div>`)}e.push(u`<div class="title">${this.appTitle}</div>`);e.push(u`<div class="page-name">${this.pageName}</div>`);e.push(u`<slot name="command-button"></slot>`)}const t=Math.max(this.appButtonBreakpointPx,this.dimmingButtonBreakpointPx);return u`
       <style>
                 @media (max-width: ${t}px) {
                   .left-more-button {
@@ -1377,7 +1377,7 @@ li .active {
                 }
       </style>
       <nav
-        class=${L({wrapper:true,inactive:this.inactive,settings:this.settings,tall:this.tall})}
+        class=${Y({wrapper:true,inactive:this.inactive,settings:this.settings,tall:this.tall})}
         role="menubar"
       >
         <div class="left group">${e}</div>
@@ -1385,7 +1385,7 @@ li .active {
           <div class="alert-container">
             <slot name="alerts"></slot>
           </div>
-          ${this.showDimmingButton&&!this.inactive?c`<obc-icon-button
+          ${this.showDimmingButton&&!this.inactive?u`<obc-icon-button
                 class="dimming-button"
                 part="dimming-button"
                 variant="flat"
@@ -1394,7 +1394,7 @@ li .active {
               >
                 <obi-palette-day-night-iec></obi-palette-day-night-iec>
               </obc-icon-button>`:null}
-          ${this.showUserButton&&!this.inactive?c`<obc-icon-button
+          ${this.showUserButton&&!this.inactive?u`<obc-icon-button
                 class="user-button"
                 variant="flat"
                 part="user-button"
@@ -1404,7 +1404,7 @@ li .active {
               >
                 <obi-user></obi-user>
               </obc-icon-button>`:null}
-          ${this.showAppsButton&&!this.inactive?c`<obc-icon-button
+          ${this.showAppsButton&&!this.inactive?u`<obc-icon-button
                 class="apps-button"
                 variant="flat"
                 part="apps-button"
@@ -1413,8 +1413,8 @@ li .active {
               >
                 <obi-applications></obi-applications>
               </obc-icon-button>`:null}
-          ${this.showClock?c`<slot name="clock"></slot>`:null}
-          ${!this.inactive?c`<obc-icon-button
+          ${this.showClock?u`<slot name="clock"></slot>`:null}
+          ${!this.inactive?u`<obc-icon-button
                 class="left-more-button"
                 part="left-more-button"
                 variant="flat"
@@ -1425,7 +1425,7 @@ li .active {
               </obc-icon-button>`:null}
         </div>
       </nav>
-    `}};E.styles=C(Ri);D([l({type:String})],E.prototype,"appTitle",2);D([l({type:String})],E.prototype,"pageName",2);D([l({type:String})],E.prototype,"menuButtonIcon",2);D([l({type:Boolean})],E.prototype,"menuButtonActivated",2);D([l({type:Boolean})],E.prototype,"dimmingButtonActivated",2);D([l({type:Boolean})],E.prototype,"appsButtonActivated",2);D([l({type:Boolean})],E.prototype,"leftMoreButtonActivated",2);D([l({type:Boolean})],E.prototype,"userButtonActivated",2);D([l({type:Boolean})],E.prototype,"userButtonDisabled",2);D([l({type:Boolean})],E.prototype,"tall",2);D([l({type:Boolean})],E.prototype,"wideMenuButton",2);D([l({type:Boolean})],E.prototype,"showAppsButton",2);D([l({type:Boolean})],E.prototype,"showDimmingButton",2);D([l({type:Boolean})],E.prototype,"showUserButton",2);D([l({type:Boolean})],E.prototype,"showClock",2);D([l({type:Boolean})],E.prototype,"showDate",2);D([l({type:Boolean})],E.prototype,"showAppIcon",2);D([l({type:Boolean})],E.prototype,"inactive",2);D([l({type:Number})],E.prototype,"appButtonBreakpointPx",2);D([l({type:Number})],E.prototype,"dimmingButtonBreakpointPx",2);D([l({type:Number})],E.prototype,"appTitleBreakpointPx",2);D([l({type:Number})],E.prototype,"userButtonBreakpointPx",2);D([l({type:Number})],E.prototype,"appIconBreakpointPx",2);D([l({type:Boolean})],E.prototype,"settings",2);D([l({type:Array})],E.prototype,"breadcrumbItems",2);E=D([u("obc-top-bar")],E);var aa=h`
+    `}};Ae.styles=I(wc);De([l({type:String})],Ae.prototype,"appTitle",2);De([l({type:String})],Ae.prototype,"pageName",2);De([l({type:String})],Ae.prototype,"menuButtonIcon",2);De([l({type:Boolean})],Ae.prototype,"menuButtonActivated",2);De([l({type:Boolean})],Ae.prototype,"dimmingButtonActivated",2);De([l({type:Boolean})],Ae.prototype,"appsButtonActivated",2);De([l({type:Boolean})],Ae.prototype,"leftMoreButtonActivated",2);De([l({type:Boolean})],Ae.prototype,"userButtonActivated",2);De([l({type:Boolean})],Ae.prototype,"userButtonDisabled",2);De([l({type:Boolean})],Ae.prototype,"tall",2);De([l({type:Boolean})],Ae.prototype,"wideMenuButton",2);De([l({type:Boolean})],Ae.prototype,"showAppsButton",2);De([l({type:Boolean})],Ae.prototype,"showDimmingButton",2);De([l({type:Boolean})],Ae.prototype,"showUserButton",2);De([l({type:Boolean})],Ae.prototype,"showClock",2);De([l({type:Boolean})],Ae.prototype,"showDate",2);De([l({type:Boolean})],Ae.prototype,"showAppIcon",2);De([l({type:Boolean})],Ae.prototype,"inactive",2);De([l({type:Number})],Ae.prototype,"appButtonBreakpointPx",2);De([l({type:Number})],Ae.prototype,"dimmingButtonBreakpointPx",2);De([l({type:Number})],Ae.prototype,"appTitleBreakpointPx",2);De([l({type:Number})],Ae.prototype,"userButtonBreakpointPx",2);De([l({type:Number})],Ae.prototype,"appIconBreakpointPx",2);De([l({type:Boolean})],Ae.prototype,"settings",2);De([l({type:Array})],Ae.prototype,"breadcrumbItems",2);Ae=De([x("obc-top-bar")],Ae);var Ec=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -1648,24 +1648,24 @@ li .active {
 .dialog-wrapper::backdrop {
   background-color: transparent;
 }
-`;var Il=Object.defineProperty;var jl=Object.getOwnPropertyDescriptor;var lt=(e,t,i,o)=>{var r=o>1?void 0:o?jl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Il(t,i,r);return r};var Ee=class extends d{constructor(){super(...arguments);this.showTitle=true;this.hasDialog=false;this.dialogTimeOutSeconds=2e4;this.dialogVisibleTimerSeconds=1e4;this.countdownSeconds=0;this.showCountdown=false}render(){const e=this.hasDialog?R`button`:R`section`;return _`
-      <${e} class=${L({wrapper:true,"has-dialog":this.hasDialog})} @click=${this.openDialog}>
-        ${!this.showTitle?p:_`<div class="header">
+`;var k4=Object.defineProperty;var x4=Object.getOwnPropertyDescriptor;var Mo=(e,t,i,o)=>{var r=o>1?void 0:o?x4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)k4(t,i,r);return r};var Wr=class extends C{constructor(){super(...arguments);this.showTitle=true;this.hasDialog=false;this.dialogTimeOutSeconds=2e4;this.dialogVisibleTimerSeconds=1e4;this.countdownSeconds=0;this.showCountdown=false}render(){const e=this.hasDialog?Ue`button`:Ue`section`;return ae`
+      <${e} class=${Y({wrapper:true,"has-dialog":this.hasDialog})} @click=${this.openDialog}>
+        ${!this.showTitle?k:ae`<div class="header">
                 <div></div>
                 <div class="title">
                   <slot name="title"></slot>
                 </div>
-                ${this.hasDialog?_`
+                ${this.hasDialog?ae`
                       <obi-chevron-right-google
                         class="icon"
                       ></obi-chevron-right-google>
-                    `:_`<div></div>`}
+                    `:ae`<div></div>`}
               </div>`}
         <div class="content">
           <slot></slot>
         </div>
       </${e}>
-      ${this.hasDialog?_`
+      ${this.hasDialog?ae`
               <dialog class="dialog-wrapper" closedby="any" popover>
                 <div class="header">
                   <div></div>
@@ -1688,7 +1688,7 @@ li .active {
                 </div>
               </dialog>
             `:""}
-    `}closeDialog(e){e.stopPropagation();this.clearAllTimers();this.removeUserActivityListeners();this.dialog.close()}openDialog(){if(!this.dialog)return;this.dialog.showModal();this.startDialogTimer();this.addUserActivityListeners()}startDialogTimer(){this.clearAllTimers();const e=this.dialogTimeOutSeconds-this.dialogVisibleTimerSeconds;this.countdownStartTimer=window.setTimeout(()=>{this.startCountdown()},e);this.dialogTimer=window.setTimeout(()=>{this.dialog.close();this.clearAllTimers()},this.dialogTimeOutSeconds)}startCountdown(){this.showCountdown=true;const e=performance.now();const t=this.dialogVisibleTimerSeconds;const i=o=>{const r=o-e;const a=Math.max(0,t-r);this.countdownSeconds=a/1e3;if(a<=0){this.clearAllTimers();return}this.countdownTimer=requestAnimationFrame(i)};this.countdownTimer=requestAnimationFrame(i)}clearAllTimers(){if(this.dialogTimer){clearTimeout(this.dialogTimer);this.dialogTimer=void 0}if(this.countdownTimer){cancelAnimationFrame(this.countdownTimer);this.countdownTimer=void 0}if(this.countdownStartTimer){clearTimeout(this.countdownStartTimer);this.countdownStartTimer=void 0}this.showCountdown=false;this.countdownSeconds=0}getProgressPercentage(){const e=this.dialogVisibleTimerSeconds/1e3;const t=this.countdownSeconds/e*100;return Math.max(0,t)}addUserActivityListeners(){this.userActivityHandler=()=>{this.resetDialogTimer()};window.addEventListener("mousemove",this.userActivityHandler);window.addEventListener("touchstart",this.userActivityHandler);window.addEventListener("touchmove",this.userActivityHandler);window.addEventListener("keydown",this.userActivityHandler)}removeUserActivityListeners(){if(this.userActivityHandler){window.removeEventListener("mousemove",this.userActivityHandler);window.removeEventListener("touchstart",this.userActivityHandler);window.removeEventListener("touchmove",this.userActivityHandler);window.removeEventListener("keydown",this.userActivityHandler);this.userActivityHandler=void 0}}resetDialogTimer(){this.clearAllTimers();this.startDialogTimer()}disconnectedCallback(){super.disconnectedCallback();this.clearAllTimers();this.removeUserActivityListeners()}};Ee.styles=C(aa);lt([l({type:Boolean,attribute:false})],Ee.prototype,"showTitle",2);lt([l({type:Boolean})],Ee.prototype,"hasDialog",2);lt([l({type:Number})],Ee.prototype,"dialogTimeOutSeconds",2);lt([l({type:Number})],Ee.prototype,"dialogVisibleTimerSeconds",2);lt([wr("dialog")],Ee.prototype,"dialog",2);lt([j()],Ee.prototype,"countdownSeconds",2);lt([j()],Ee.prototype,"showCountdown",2);Ee=lt([u("obc-card")],Ee);var na=h`
+    `}closeDialog(e){e.stopPropagation();this.clearAllTimers();this.removeUserActivityListeners();this.dialog.close()}openDialog(){if(!this.dialog)return;this.dialog.showModal();this.startDialogTimer();this.addUserActivityListeners()}startDialogTimer(){this.clearAllTimers();const e=this.dialogTimeOutSeconds-this.dialogVisibleTimerSeconds;this.countdownStartTimer=window.setTimeout(()=>{this.startCountdown()},e);this.dialogTimer=window.setTimeout(()=>{this.dialog.close();this.clearAllTimers()},this.dialogTimeOutSeconds)}startCountdown(){this.showCountdown=true;const e=performance.now();const t=this.dialogVisibleTimerSeconds;const i=o=>{const r=o-e;const a=Math.max(0,t-r);this.countdownSeconds=a/1e3;if(a<=0){this.clearAllTimers();return}this.countdownTimer=requestAnimationFrame(i)};this.countdownTimer=requestAnimationFrame(i)}clearAllTimers(){if(this.dialogTimer){clearTimeout(this.dialogTimer);this.dialogTimer=void 0}if(this.countdownTimer){cancelAnimationFrame(this.countdownTimer);this.countdownTimer=void 0}if(this.countdownStartTimer){clearTimeout(this.countdownStartTimer);this.countdownStartTimer=void 0}this.showCountdown=false;this.countdownSeconds=0}getProgressPercentage(){const e=this.dialogVisibleTimerSeconds/1e3;const t=this.countdownSeconds/e*100;return Math.max(0,t)}addUserActivityListeners(){this.userActivityHandler=()=>{this.resetDialogTimer()};window.addEventListener("mousemove",this.userActivityHandler);window.addEventListener("touchstart",this.userActivityHandler);window.addEventListener("touchmove",this.userActivityHandler);window.addEventListener("keydown",this.userActivityHandler)}removeUserActivityListeners(){if(this.userActivityHandler){window.removeEventListener("mousemove",this.userActivityHandler);window.removeEventListener("touchstart",this.userActivityHandler);window.removeEventListener("touchmove",this.userActivityHandler);window.removeEventListener("keydown",this.userActivityHandler);this.userActivityHandler=void 0}}resetDialogTimer(){this.clearAllTimers();this.startDialogTimer()}disconnectedCallback(){super.disconnectedCallback();this.clearAllTimers();this.removeUserActivityListeners()}};Wr.styles=I(Ec);Mo([l({type:Boolean,attribute:false})],Wr.prototype,"showTitle",2);Mo([l({type:Boolean})],Wr.prototype,"hasDialog",2);Mo([l({type:Number})],Wr.prototype,"dialogTimeOutSeconds",2);Mo([l({type:Number})],Wr.prototype,"dialogVisibleTimerSeconds",2);Mo([Oi("dialog")],Wr.prototype,"dialog",2);Mo([Ee()],Wr.prototype,"countdownSeconds",2);Mo([Ee()],Wr.prototype,"showCountdown",2);Wr=Mo([x("obc-card")],Wr);var Dc=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -1947,7 +1947,7 @@ li .active {
   box-shadow: var(--shadow-flat);
   overflow: hidden;
 }
-`;var de=e=>e??p;var la=h`
+`;var Zt=e=>e??k;var Bc=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -2282,20 +2282,20 @@ li .active {
 :host:has(.segment-position-end) {
   margin-left: -0.5px;
 }
-`;var Rl=Object.defineProperty;var Nl=Object.getOwnPropertyDescriptor;var Je=(e,t,i,o)=>{var r=o>1?void 0:o?Nl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Rl(t,i,r);return r};var Se=class extends d{constructor(){super(...arguments);this.variant="normal";this.fullWidth=false;this.disabled=false;this.showLeadingIcon=false;this.showTrailingIcon=false;this.href=void 0;this.target=void 0;this.segmentPosition="single"}renderLeadingIcon(){if(this.showLeadingIcon){return _`
+`;var M4=Object.defineProperty;var $4=Object.getOwnPropertyDescriptor;var so=(e,t,i,o)=>{var r=o>1?void 0:o?$4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)M4(t,i,r);return r};var Mr=class extends C{constructor(){super(...arguments);this.variant="normal";this.fullWidth=false;this.disabled=false;this.showLeadingIcon=false;this.showTrailingIcon=false;this.href=void 0;this.target=void 0;this.segmentPosition="single"}renderLeadingIcon(){if(this.showLeadingIcon){return ae`
         <span class="icon leading" part="icon leading">
           <slot name="leading-icon"></slot>
         </span>
-      `}return _``}renderTrailingIcon(){if(this.showTrailingIcon){return _`
+      `}return ae``}renderTrailingIcon(){if(this.showTrailingIcon){return ae`
         <span class="icon trailing" part="icon trailing">
           <slot name="trailing-icon"></slot>
         </span>
-      `}return _``}render(){const e=this.href?R`a`:R`button`;return _`
+      `}return ae``}render(){const e=this.href?Ue`a`:Ue`button`;return ae`
       <${e}
-        class=${L({wrapper:true,["variant-"+this.variant]:true,hasIconLeading:this.showLeadingIcon,hasIconTrailing:this.showTrailingIcon,"full-width":this.fullWidth,["segment-position-"+this.segmentPosition]:true})}
+        class=${Y({wrapper:true,["variant-"+this.variant]:true,hasIconLeading:this.showLeadingIcon,hasIconTrailing:this.showTrailingIcon,"full-width":this.fullWidth,["segment-position-"+this.segmentPosition]:true})}
         ?disabled=${this.disabled}
-        href=${de(this.href)}
-        target=${de(this.target)}
+        href=${Zt(this.href)}
+        target=${Zt(this.target)}
         part="wrapper"
       >
         <div class="visible-wrapper" part="visible-wrapper">
@@ -2306,39 +2306,39 @@ li .active {
           ${this.renderTrailingIcon()}
         </div>
       </${e}>
-    `}};Se.styles=C(la);Je([l({type:String})],Se.prototype,"variant",2);Je([l({type:Boolean,reflect:true})],Se.prototype,"fullWidth",2);Je([l({type:Boolean})],Se.prototype,"disabled",2);Je([l({type:Boolean})],Se.prototype,"showLeadingIcon",2);Je([l({type:Boolean})],Se.prototype,"showTrailingIcon",2);Je([l({type:String})],Se.prototype,"href",2);Je([l({type:String})],Se.prototype,"target",2);Je([l({type:String})],Se.prototype,"segmentPosition",2);Se=Je([u("obc-button")],Se);var Fl=Object.defineProperty;var Ul=Object.getOwnPropertyDescriptor;var re=(e,t,i,o)=>{var r=o>1?void 0:o?Ul(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Fl(t,i,r);return r};var X=class extends d{constructor(){super(...arguments);this.position="regular";this.size="single-line";this.isClickable=true;this.info=false;this.graphicBorder=false;this.border=false;this.hasAction=false;this.hasLeadingIcon=false;this.hasTrailingIcon=false;this.hasGraphic=false;this.hasStatus=false;this.compact=false;this.directAction=false}render(){let e=this.href?R`a`:R`button`;e=!this.isClickable?R`article`:e;if(this.overrideTag!==void 0){switch(this.overrideTag){case"a":e=R`a`;break;case"button":e=R`button`;break;case"article":e=R`article`;break;case"div":e=R`div`;break;default:throw new Error("Invalid tag")}}if(this.hasAction){e=R`article`;this.isClickable=false}return _`
+    `}};Mr.styles=I(Bc);so([l({type:String})],Mr.prototype,"variant",2);so([l({type:Boolean,reflect:true})],Mr.prototype,"fullWidth",2);so([l({type:Boolean})],Mr.prototype,"disabled",2);so([l({type:Boolean})],Mr.prototype,"showLeadingIcon",2);so([l({type:Boolean})],Mr.prototype,"showTrailingIcon",2);so([l({type:String})],Mr.prototype,"href",2);so([l({type:String})],Mr.prototype,"target",2);so([l({type:String})],Mr.prototype,"segmentPosition",2);Mr=so([x("obc-button")],Mr);var H4=Object.defineProperty;var _4=Object.getOwnPropertyDescriptor;var gt=(e,t,i,o)=>{var r=o>1?void 0:o?_4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)H4(t,i,r);return r};var tt=class extends C{constructor(){super(...arguments);this.position="regular";this.size="single-line";this.isClickable=true;this.info=false;this.graphicBorder=false;this.border=false;this.hasAction=false;this.hasLeadingIcon=false;this.hasTrailingIcon=false;this.hasGraphic=false;this.hasStatus=false;this.compact=false;this.directAction=false}render(){let e=this.href?Ue`a`:Ue`button`;e=!this.isClickable?Ue`article`:e;if(this.overrideTag!==void 0){switch(this.overrideTag){case"a":e=Ue`a`;break;case"button":e=Ue`button`;break;case"article":e=Ue`article`;break;case"div":e=Ue`div`;break;default:throw new Error("Invalid tag")}}if(this.hasAction){e=Ue`article`;this.isClickable=false}return ae`
     <div class="wrapper ${this.position}">
-        <${e} class=${L({button:true,[this.position]:true,[this.size]:true,"graphic-border":this.graphicBorder,info:this.info,border:this.border,"has-leading-icon":this.hasLeadingIcon,"has-trailing-icon":this.hasTrailingIcon,"has-graphic":this.hasGraphic,"has-status":this.hasStatus,"not-clickable":!this.isClickable,"has-action":this.hasAction,compact:this.compact,"direct-action":this.directAction})}
-        part="wrapper" href=${de(this.href)} target=${de(this.target)}>
-          ${this.hasGraphic?_`<div class="graphic"><slot name="graphic"></slot></div>`:p}
+        <${e} class=${Y({button:true,[this.position]:true,[this.size]:true,"graphic-border":this.graphicBorder,info:this.info,border:this.border,"has-leading-icon":this.hasLeadingIcon,"has-trailing-icon":this.hasTrailingIcon,"has-graphic":this.hasGraphic,"has-status":this.hasStatus,"not-clickable":!this.isClickable,"has-action":this.hasAction,compact:this.compact,"direct-action":this.directAction})}
+        part="wrapper" href=${Zt(this.href)} target=${Zt(this.target)}>
+          ${this.hasGraphic?ae`<div class="graphic"><slot name="graphic"></slot></div>`:k}
           <div class="content-container" part="content-container">
             <div class="container-content">
-              ${this.hasLeadingIcon?_`<div class="leading-icon" part="leading-icon">
+              ${this.hasLeadingIcon?ae`<div class="leading-icon" part="leading-icon">
                       <slot name="leading-icon"></slot>
-                    </div>`:p}
+                    </div>`:k}
               <div class="content" part="label">
                 <slot name="label"></slot>
-                ${this.size==="single-line"?p:_`<slot name="description"></slot>`}
+                ${this.size==="single-line"?k:ae`<slot name="description"></slot>`}
               </div>
             </div>
-            ${this.hasStatus?_`<div class="status" part="status">
+            ${this.hasStatus?ae`<div class="status" part="status">
                     <slot name="status"></slot>
-                  </div>`:p}
-            ${this.hasAction?_`<obc-button
+                  </div>`:k}
+            ${this.hasAction?ae`<obc-button
                     variant="normal"
                     class="action"
                     part="action"
                     @click=${()=>{this.dispatchEvent(new CustomEvent("action-click"))}}
                   >
                     <slot name="action"></slot>
-                  </obc-button>`:p}
-            ${this.hasTrailingIcon?_`<div class="trailing-icon" part="trailing-icon">
+                  </obc-button>`:k}
+            ${this.hasTrailingIcon?ae`<div class="trailing-icon" part="trailing-icon">
                     <slot name="trailing-icon"></slot>
-                  </div>`:p}
+                  </div>`:k}
           </div>
         </${e}>
         </div>
-    `}};X.styles=C(na);re([l({type:String})],X.prototype,"position",2);re([l({type:String})],X.prototype,"size",2);re([l({type:String})],X.prototype,"overrideTag",2);re([l({type:Boolean,attribute:false})],X.prototype,"isClickable",2);re([l({type:Boolean})],X.prototype,"info",2);re([l({type:Boolean})],X.prototype,"graphicBorder",2);re([l({type:Boolean})],X.prototype,"border",2);re([l({type:Boolean})],X.prototype,"hasAction",2);re([l({type:Boolean})],X.prototype,"hasLeadingIcon",2);re([l({type:Boolean})],X.prototype,"hasTrailingIcon",2);re([l({type:Boolean})],X.prototype,"hasGraphic",2);re([l({type:Boolean})],X.prototype,"hasStatus",2);re([l({type:Boolean})],X.prototype,"compact",2);re([l({type:Boolean})],X.prototype,"directAction",2);re([l({type:String})],X.prototype,"href",2);re([l({type:String})],X.prototype,"target",2);X=re([u("obc-elevated-card")],X);var sa=h`
+    `}};tt.styles=I(Dc);gt([l({type:String})],tt.prototype,"position",2);gt([l({type:String})],tt.prototype,"size",2);gt([l({type:String})],tt.prototype,"overrideTag",2);gt([l({type:Boolean,attribute:false})],tt.prototype,"isClickable",2);gt([l({type:Boolean})],tt.prototype,"info",2);gt([l({type:Boolean})],tt.prototype,"graphicBorder",2);gt([l({type:Boolean})],tt.prototype,"border",2);gt([l({type:Boolean})],tt.prototype,"hasAction",2);gt([l({type:Boolean})],tt.prototype,"hasLeadingIcon",2);gt([l({type:Boolean})],tt.prototype,"hasTrailingIcon",2);gt([l({type:Boolean})],tt.prototype,"hasGraphic",2);gt([l({type:Boolean})],tt.prototype,"hasStatus",2);gt([l({type:Boolean})],tt.prototype,"compact",2);gt([l({type:Boolean})],tt.prototype,"directAction",2);gt([l({type:String})],tt.prototype,"href",2);gt([l({type:String})],tt.prototype,"target",2);tt=gt([x("obc-elevated-card")],tt);var Ic=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -2760,31 +2760,31 @@ li .active {
 .wrapper.align-right-unit-outside .label-container {
   justify-content: flex-end;
 }
-`;var Wl=Object.defineProperty;var ql=Object.getOwnPropertyDescriptor;var O=(e,t,i,o)=>{var r=o>1?void 0:o?ql(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Wl(t,i,r);return r};var A=class extends d{constructor(){super(...arguments);this.value="";this.unit="";this.placeholder="";this.textAlign="right";this.disabled=false;this.readonly=false;this.error=false;this.errorText="";this.rejectUpdatesOnFocus=false;this.rejectUpdates=false;this.rejectDuplicateUpdates=false;this.name="";this.size="regular";this.hasLeadingIcon=false;this.helperText="";this.label="";this.required=false;this.hasLabelIcon=false;this.labelPlacement="left";this.hasHelperIcon=false;this.helperPlacement="left";this.squared=false;this.hasFocus=false;this.previousValue="";this.previousInputElementValue=""}onInput(e){this.value=e.target.value;this.previousInputElementValue=this.value}onFocus(){this.hasFocus=true}onBlur(){this.hasFocus=false}get shouldUpdateValue(){if(this.rejectUpdates)return false;if(this.rejectUpdatesOnFocus&&this.hasFocus)return false;if(this.rejectDuplicateUpdates&&this.value===this.previousValue){return false}return true}willUpdate(e){if(e.has("value")&&!this.shouldUpdateValue&&this.inputElement){this.value=this.inputElement.value}}updated(){if(this.rejectDuplicateUpdates&&this.value!==this.previousValue&&(this.previousInputElementValue!==this.value||!this.hasFocus)){this.previousValue=this.value}}renderFooterText(e,t){if(!e)return p;return c`<div
+`;var S4=Object.defineProperty;var V4=Object.getOwnPropertyDescriptor;var Se=(e,t,i,o)=>{var r=o>1?void 0:o?V4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)S4(t,i,r);return r};var Ce=class extends C{constructor(){super(...arguments);this.value="";this.unit="";this.placeholder="";this.textAlign="right";this.disabled=false;this.readonly=false;this.error=false;this.errorText="";this.rejectUpdatesOnFocus=false;this.rejectUpdates=false;this.rejectDuplicateUpdates=false;this.name="";this.size="regular";this.hasLeadingIcon=false;this.helperText="";this.label="";this.required=false;this.hasLabelIcon=false;this.labelPlacement="left";this.hasHelperIcon=false;this.helperPlacement="left";this.squared=false;this.hasFocus=false;this.previousValue="";this.previousInputElementValue=""}onInput(e){this.value=e.target.value;this.previousInputElementValue=this.value}onFocus(){this.hasFocus=true}onBlur(){this.hasFocus=false}get shouldUpdateValue(){if(this.rejectUpdates)return false;if(this.rejectUpdatesOnFocus&&this.hasFocus)return false;if(this.rejectDuplicateUpdates&&this.value===this.previousValue){return false}return true}willUpdate(e){if(e.has("value")&&!this.shouldUpdateValue&&this.inputElement){this.value=this.inputElement.value}}updated(){if(this.rejectDuplicateUpdates&&this.value!==this.previousValue&&(this.previousInputElementValue!==this.value||!this.hasFocus)){this.previousValue=this.value}}renderFooterText(e,t){if(!e)return k;return u`<div
       id="helper-text"
-      class=${L({[t?"error-text":"helper-text"]:true,[`helper-placement-${this.helperPlacement}`]:true})}
+      class=${Y({[t?"error-text":"helper-text"]:true,[`helper-placement-${this.helperPlacement}`]:true})}
     >
-      ${this.hasHelperIcon?c`<div class="helper-icon"><slot name="helper-icon"></slot></div>`:p}
+      ${this.hasHelperIcon?u`<div class="helper-icon"><slot name="helper-icon"></slot></div>`:k}
       ${e}
-    </div>`}render(){const e=Boolean(this.helperText)||Boolean(this.error&&this.errorText);const t=this.unit&&this.textAlign!=="right-unit-outside";const i=this.unit&&this.textAlign==="right-unit-outside";let o=this.value;if(!this.shouldUpdateValue&&this.inputElement){o=this.inputElement.value}return c`
+    </div>`}render(){const e=Boolean(this.helperText)||Boolean(this.error&&this.errorText);const t=this.unit&&this.textAlign!=="right-unit-outside";const i=this.unit&&this.textAlign==="right-unit-outside";let o=this.value;if(!this.shouldUpdateValue&&this.inputElement){o=this.inputElement.value}return u`
       <label
-        class=${L({wrapper:true,[`align-${this.textAlign}`]:true,[`size-${this.size}`]:true,error:this.error,disabled:this.disabled,helpertext:e,haslabel:Boolean(this.label),squared:this.squared})}
+        class=${Y({wrapper:true,[`align-${this.textAlign}`]:true,[`size-${this.size}`]:true,error:this.error,disabled:this.disabled,helpertext:e,haslabel:Boolean(this.label),squared:this.squared})}
       >
-        ${this.label?c`<div
-              class=${L({"label-text-container":true,[`label-placement-${this.labelPlacement}`]:true})}
+        ${this.label?u`<div
+              class=${Y({"label-text-container":true,[`label-placement-${this.labelPlacement}`]:true})}
             >
-              ${this.hasLabelIcon?c`<div class="label-icon">
+              ${this.hasLabelIcon?u`<div class="label-icon">
                     <slot name="label-icon"></slot>
-                  </div>`:p}
+                  </div>`:k}
               <span class="label-text">${this.label}</span>
-              ${this.required?c`<div class="required-indicator"></div>`:p}
-            </div>`:p}
+              ${this.required?u`<div class="required-indicator"></div>`:k}
+            </div>`:k}
 
         <div class="horizontal-container">
           <div class="input-field-container">
-            ${this.hasLeadingIcon?c`<div class="leading-icon">
+            ${this.hasLeadingIcon?u`<div class="leading-icon">
                   <slot name="leading-icon"></slot>
-                </div>`:p}
+                </div>`:k}
             <div class="label-container">
               <input
                 type="text"
@@ -2794,26 +2794,26 @@ li .active {
                 @focus=${this.onFocus}
                 @blur=${this.onBlur}
                 .placeholder=${this.placeholder}
-                name=${de(this.name||void 0)}
+                name=${Zt(this.name||void 0)}
                 ?disabled=${this.disabled}
                 ?readonly=${this.readonly}
                 ?required=${this.required}
-                maxlength=${de(this.maxlength)}
-                minlength=${de(this.minlength)}
+                maxlength=${Zt(this.maxlength)}
+                minlength=${Zt(this.minlength)}
                 aria-invalid=${this.error?"true":"false"}
-                aria-describedby=${de(e?"helper-text":void 0)}
+                aria-describedby=${Zt(e?"helper-text":void 0)}
                 autocomplete="off"
                 @input=${this.onInput}
               />
-              ${t?c`<span class="unit-text">${this.unit}</span>`:p}
+              ${t?u`<span class="unit-text">${this.unit}</span>`:k}
             </div>
           </div>
-          ${i?c`<span class="unit-text external">${this.unit}</span>`:p}
+          ${i?u`<span class="unit-text external">${this.unit}</span>`:k}
         </div>
 
         ${this.error&&this.errorText?this.renderFooterText(this.errorText,true):this.renderFooterText(this.helperText,false)}
       </label>
-    `}};A.styles=C(sa);O([l({type:String})],A.prototype,"value",2);O([l({type:String})],A.prototype,"unit",2);O([l({type:String})],A.prototype,"placeholder",2);O([l({type:String})],A.prototype,"textAlign",2);O([l({type:Boolean,reflect:true})],A.prototype,"disabled",2);O([l({type:Boolean,reflect:true})],A.prototype,"readonly",2);O([l({type:Boolean,reflect:true})],A.prototype,"error",2);O([l({type:String})],A.prototype,"errorText",2);O([l({type:Boolean})],A.prototype,"rejectUpdatesOnFocus",2);O([l({type:Boolean})],A.prototype,"rejectUpdates",2);O([l({type:Boolean})],A.prototype,"rejectDuplicateUpdates",2);O([l({type:String})],A.prototype,"name",2);O([l({type:Number})],A.prototype,"maxlength",2);O([l({type:Number})],A.prototype,"minlength",2);O([l({type:String})],A.prototype,"size",2);O([l({type:Boolean})],A.prototype,"hasLeadingIcon",2);O([l({type:String})],A.prototype,"helperText",2);O([l({type:String})],A.prototype,"label",2);O([l({type:Boolean})],A.prototype,"required",2);O([l({type:Boolean})],A.prototype,"hasLabelIcon",2);O([l({type:String})],A.prototype,"labelPlacement",2);O([l({type:Boolean})],A.prototype,"hasHelperIcon",2);O([l({type:String})],A.prototype,"helperPlacement",2);O([l({type:Boolean})],A.prototype,"squared",2);O([j()],A.prototype,"hasFocus",2);O([j()],A.prototype,"previousValue",2);O([j()],A.prototype,"previousInputElementValue",2);O([wr(".value-input")],A.prototype,"inputElement",2);A=O([u("obc-number-input-field")],A);var ca=h`
+    `}};Ce.styles=I(Ic);Se([l({type:String})],Ce.prototype,"value",2);Se([l({type:String})],Ce.prototype,"unit",2);Se([l({type:String})],Ce.prototype,"placeholder",2);Se([l({type:String})],Ce.prototype,"textAlign",2);Se([l({type:Boolean,reflect:true})],Ce.prototype,"disabled",2);Se([l({type:Boolean,reflect:true})],Ce.prototype,"readonly",2);Se([l({type:Boolean,reflect:true})],Ce.prototype,"error",2);Se([l({type:String})],Ce.prototype,"errorText",2);Se([l({type:Boolean})],Ce.prototype,"rejectUpdatesOnFocus",2);Se([l({type:Boolean})],Ce.prototype,"rejectUpdates",2);Se([l({type:Boolean})],Ce.prototype,"rejectDuplicateUpdates",2);Se([l({type:String})],Ce.prototype,"name",2);Se([l({type:Number})],Ce.prototype,"maxlength",2);Se([l({type:Number})],Ce.prototype,"minlength",2);Se([l({type:String})],Ce.prototype,"size",2);Se([l({type:Boolean})],Ce.prototype,"hasLeadingIcon",2);Se([l({type:String})],Ce.prototype,"helperText",2);Se([l({type:String})],Ce.prototype,"label",2);Se([l({type:Boolean})],Ce.prototype,"required",2);Se([l({type:Boolean})],Ce.prototype,"hasLabelIcon",2);Se([l({type:String})],Ce.prototype,"labelPlacement",2);Se([l({type:Boolean})],Ce.prototype,"hasHelperIcon",2);Se([l({type:String})],Ce.prototype,"helperPlacement",2);Se([l({type:Boolean})],Ce.prototype,"squared",2);Se([Ee()],Ce.prototype,"hasFocus",2);Se([Ee()],Ce.prototype,"previousValue",2);Se([Ee()],Ce.prototype,"previousInputElementValue",2);Se([Oi(".value-input")],Ce.prototype,"inputElement",2);Ce=Se([x("obc-number-input-field")],Ce);var Rc=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -2969,19 +2969,19 @@ li .active {
 ::-webkit-scrollbar-button:vertical:end:increment {
   background-image: var(--icon-02-chevron-down);
 }
-`;var Gl=Object.defineProperty;var Xl=Object.getOwnPropertyDescriptor;var Kt=(e,t,i,o)=>{var r=o>1?void 0:o?Xl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Gl(t,i,r);return r};var yt=class extends d{constructor(){super(...arguments);this.transparentTrack=false;this._thumbTop=0;this._thumbHeight=0;this._showOverlayThumb=false;this._resizeObserver=null;this._scrollHandler=null;this._wrapper=null}render(){return c`
+`;var Z4=Object.defineProperty;var A4=Object.getOwnPropertyDescriptor;var xa=(e,t,i,o)=>{var r=o>1?void 0:o?A4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Z4(t,i,r);return r};var Jo=class extends C{constructor(){super(...arguments);this.transparentTrack=false;this._thumbTop=0;this._thumbHeight=0;this._showOverlayThumb=false;this._resizeObserver=null;this._scrollHandler=null;this._wrapper=null}render(){return u`
       <div
-        class=${L({wrapper:true,"transparent-track":this.transparentTrack})}
+        class=${Y({wrapper:true,"transparent-track":this.transparentTrack})}
       >
         <slot></slot>
       </div>
-      ${this.transparentTrack&&this._showOverlayThumb?c`<div class="overlay-track">
+      ${this.transparentTrack&&this._showOverlayThumb?u`<div class="overlay-track">
             <div
               class="overlay-thumb"
               style="top:${this._thumbTop}%;height:${this._thumbHeight}%"
             ></div>
-          </div>`:p}
-    `}firstUpdated(){this._wrapper=this.shadowRoot?.querySelector(".wrapper")??null;if(this._wrapper){this._resizeObserver=new ResizeObserver(()=>{this._checkOverflow();this._updateOverlayThumb()});this._resizeObserver.observe(this._wrapper);const e=this._wrapper.querySelector("slot");e?.addEventListener("slotchange",()=>{this._checkOverflow();this._updateOverlayThumb()});if(this.transparentTrack){this._scrollHandler=()=>this._updateOverlayThumb();this._wrapper.addEventListener("scroll",this._scrollHandler,{passive:true})}}}disconnectedCallback(){super.disconnectedCallback();this._resizeObserver?.disconnect();this._resizeObserver=null;if(this._scrollHandler&&this._wrapper){this._wrapper.removeEventListener("scroll",this._scrollHandler);this._scrollHandler=null}this._wrapper=null}_updateOverlayThumb(){if(!this.transparentTrack)return;if(!this._wrapper)return;const{scrollHeight:e,clientHeight:t,scrollTop:i}=this._wrapper;if(e<=t){this._showOverlayThumb=false;return}this._showOverlayThumb=true;const o=t;const r=parseFloat(getComputedStyle(this._wrapper).getPropertyValue("--menu-navigation-components-scroll-bar-padding"))||4;const a=o-r*2;const n=t/e*a;const g=r+i/e*a;this._thumbTop=g/o*100;this._thumbHeight=n/o*100}_checkOverflow(){if(!this._wrapper)return;const e=this._wrapper.scrollHeight>this._wrapper.clientHeight;this.toggleAttribute("overflowing",e)}scrollToBottom(){if(!this._wrapper){throw new Error("Wrapper not found")}this._wrapper.scrollTop=this._wrapper.scrollHeight}};yt.styles=C(ca);Kt([l({type:Boolean,attribute:"transparent-track"})],yt.prototype,"transparentTrack",2);Kt([j()],yt.prototype,"_thumbTop",2);Kt([j()],yt.prototype,"_thumbHeight",2);Kt([j()],yt.prototype,"_showOverlayThumb",2);yt=Kt([u("obc-scrollbar")],yt);var da=h`
+          </div>`:k}
+    `}firstUpdated(){this._wrapper=this.shadowRoot?.querySelector(".wrapper")??null;if(this._wrapper){this._resizeObserver=new ResizeObserver(()=>{this._checkOverflow();this._updateOverlayThumb()});this._resizeObserver.observe(this._wrapper);const e=this._wrapper.querySelector("slot");e?.addEventListener("slotchange",()=>{this._checkOverflow();this._updateOverlayThumb()});if(this.transparentTrack){this._scrollHandler=()=>this._updateOverlayThumb();this._wrapper.addEventListener("scroll",this._scrollHandler,{passive:true})}}}disconnectedCallback(){super.disconnectedCallback();this._resizeObserver?.disconnect();this._resizeObserver=null;if(this._scrollHandler&&this._wrapper){this._wrapper.removeEventListener("scroll",this._scrollHandler);this._scrollHandler=null}this._wrapper=null}_updateOverlayThumb(){if(!this.transparentTrack)return;if(!this._wrapper)return;const{scrollHeight:e,clientHeight:t,scrollTop:i}=this._wrapper;if(e<=t){this._showOverlayThumb=false;return}this._showOverlayThumb=true;const o=t;const r=parseFloat(getComputedStyle(this._wrapper).getPropertyValue("--menu-navigation-components-scroll-bar-padding"))||4;const a=o-r*2;const n=t/e*a;const h=r+i/e*a;this._thumbTop=h/o*100;this._thumbHeight=n/o*100}_checkOverflow(){if(!this._wrapper)return;const e=this._wrapper.scrollHeight>this._wrapper.clientHeight;this.toggleAttribute("overflowing",e)}scrollToBottom(){if(!this._wrapper){throw new Error("Wrapper not found")}this._wrapper.scrollTop=this._wrapper.scrollHeight}};Jo.styles=I(Rc);xa([l({type:Boolean,attribute:"transparent-track"})],Jo.prototype,"transparentTrack",2);xa([Ee()],Jo.prototype,"_thumbTop",2);xa([Ee()],Jo.prototype,"_thumbHeight",2);xa([Ee()],Jo.prototype,"_showOverlayThumb",2);Jo=xa([x("obc-scrollbar")],Jo);var Nc=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -3190,15 +3190,15 @@ li .active {
 .label-top .readout-stack,.label-bottom .readout-stack {
     padding-right: 0;
   }
-`;var Yl=Object.defineProperty;var Kl=Object.getOwnPropertyDescriptor;var pa=(e,t,i,o)=>{var r=o>1?void 0:o?Kl(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Yl(t,i,r);return r};var Ar=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+`;var P4=Object.defineProperty;var T4=Object.getOwnPropertyDescriptor;var jc=(e,t,i,o)=>{var r=o>1?void 0:o?T4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)P4(t,i,r);return r};var xn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M13 20L13 7.83L18.59 13.42L20 12L12 4L4 12L5.41 13.41L11 7.83L11 20L13 20Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M13 20L13 7.83L18.59 13.42L20 12L12 4L4 12L5.41 13.41L11 7.83L11 20L13 20Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Ar.styles=h`
+    `}};xn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3208,15 +3208,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;pa([l({type:Boolean})],Ar.prototype,"useCssColor",2);Ar=pa([u("obi-arrow-up-google")],Ar);var Jl=Object.defineProperty;var Ql=Object.getOwnPropertyDescriptor;var ha=(e,t,i,o)=>{var r=o>1?void 0:o?Ql(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Jl(t,i,r);return r};var zr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;jc([l({type:Boolean})],xn.prototype,"useCssColor",2);xn=jc([x("obi-arrow-up-google")],xn);var z4=Object.defineProperty;var O4=Object.getOwnPropertyDescriptor;var Fc=(e,t,i,o)=>{var r=o>1?void 0:o?O4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)z4(t,i,r);return r};var Mn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11 4L11 16.17L5.41 10.58L4 12L12 20L20 12L18.59 10.59L13 16.17L13 4L11 4Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11 4L11 16.17L5.41 10.58L4 12L12 20L20 12L18.59 10.59L13 16.17L13 4L11 4Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};zr.styles=h`
+    `}};Mn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3226,17 +3226,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ha([l({type:Boolean})],zr.prototype,"useCssColor",2);zr=ha([u("obi-arrow-down-google")],zr);var es=Object.defineProperty;var ts=Object.getOwnPropertyDescriptor;var ua=(e,t,i,o)=>{var r=o>1?void 0:o?ts(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)es(t,i,r);return r};var Pr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Fc([l({type:Boolean})],Mn.prototype,"useCssColor",2);Mn=Fc([x("obi-arrow-down-google")],Mn);var E4=Object.defineProperty;var D4=Object.getOwnPropertyDescriptor;var Uc=(e,t,i,o)=>{var r=o>1?void 0:o?D4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)E4(t,i,r);return r};var $n=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M7.11508 18.7051L5.70508 17.2951L11.7051 11.2951L17.7051 17.2951L16.2951 18.7051L11.7051 14.1251L7.11508 18.7051Z" fill="currentColor"/>
 <path d="M7.11508 12.7052L5.70508 11.2952L11.7051 5.29517L17.7051 11.2952L16.2951 12.7052L11.7051 8.12517L7.11508 12.7052Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M7.11508 18.7051L5.70508 17.2951L11.7051 11.2951L17.7051 17.2951L16.2951 18.7051L11.7051 14.1251L7.11508 18.7051Z" style="fill: var(--element-active-color)"/>
 <path d="M7.11508 12.7052L5.70508 11.2952L11.7051 5.29517L17.7051 11.2952L16.2951 12.7052L11.7051 8.12517L7.11508 12.7052Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Pr.styles=h`
+    `}};$n.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3246,17 +3246,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ua([l({type:Boolean})],Pr.prototype,"useCssColor",2);Pr=ua([u("obi-chevron-double-up-google")],Pr);var rs=Object.defineProperty;var os=Object.getOwnPropertyDescriptor;var va=(e,t,i,o)=>{var r=o>1?void 0:o?os(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)rs(t,i,r);return r};var Or=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Uc([l({type:Boolean})],$n.prototype,"useCssColor",2);$n=Uc([x("obi-chevron-double-up-google")],$n);var B4=Object.defineProperty;var I4=Object.getOwnPropertyDescriptor;var Wc=(e,t,i,o)=>{var r=o>1?void 0:o?I4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)B4(t,i,r);return r};var Hn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M16.2948 5.29487L17.7048 6.70487L11.7048 12.7049L5.70483 6.70487L7.11483 5.29487L11.7048 9.87487L16.2948 5.29487Z" fill="currentColor"/>
 <path d="M16.2948 11.2948L17.7048 12.7048L11.7048 18.7048L5.70483 12.7048L7.11483 11.2948L11.7048 15.8748L16.2948 11.2948Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M16.2948 5.29487L17.7048 6.70487L11.7048 12.7049L5.70483 6.70487L7.11483 5.29487L11.7048 9.87487L16.2948 5.29487Z" style="fill: var(--element-active-color)"/>
 <path d="M16.2948 11.2948L17.7048 12.7048L11.7048 18.7048L5.70483 12.7048L7.11483 11.2948L11.7048 15.8748L16.2948 11.2948Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Or.styles=h`
+    `}};Hn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3266,17 +3266,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;va([l({type:Boolean})],Or.prototype,"useCssColor",2);Or=va([u("obi-chevron-double-down-google")],Or);var is=Object.defineProperty;var as=Object.getOwnPropertyDescriptor;var ga=(e,t,i,o)=>{var r=o>1?void 0:o?as(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)is(t,i,r);return r};var Br=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Wc([l({type:Boolean})],Hn.prototype,"useCssColor",2);Hn=Wc([x("obi-chevron-double-down-google")],Hn);var R4=Object.defineProperty;var N4=Object.getOwnPropertyDescriptor;var Gc=(e,t,i,o)=>{var r=o>1?void 0:o?N4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)R4(t,i,r);return r};var _n=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M18.41 16.59L17 18L11 12L17 6L18.41 7.41L13.83 12L18.41 16.59Z" fill="currentColor"/>
 <path d="M12.41 16.59L11 18L5 12L11 6L12.41 7.41L7.83 12L12.41 16.59Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M18.41 16.59L17 18L11 12L17 6L18.41 7.41L13.83 12L18.41 16.59Z" style="fill: var(--element-active-color)"/>
 <path d="M12.41 16.59L11 18L5 12L11 6L12.41 7.41L7.83 12L12.41 16.59Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Br.styles=h`
+    `}};_n.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3286,17 +3286,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ga([l({type:Boolean})],Br.prototype,"useCssColor",2);Br=ga([u("obi-chevron-double-left-google")],Br);var ns=Object.defineProperty;var ls=Object.getOwnPropertyDescriptor;var ma=(e,t,i,o)=>{var r=o>1?void 0:o?ls(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)ns(t,i,r);return r};var Tr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Gc([l({type:Boolean})],_n.prototype,"useCssColor",2);_n=Gc([x("obi-chevron-double-left-google")],_n);var j4=Object.defineProperty;var F4=Object.getOwnPropertyDescriptor;var qc=(e,t,i,o)=>{var r=o>1?void 0:o?F4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)j4(t,i,r);return r};var Sn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M5 7.41L6.41 6L12.41 12L6.41 18L5 16.59L9.58 12L5 7.41Z" fill="currentColor"/>
 <path d="M11 7.41L12.41 6L18.41 12L12.41 18L11 16.59L15.58 12L11 7.41Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M5 7.41L6.41 6L12.41 12L6.41 18L5 16.59L9.58 12L5 7.41Z" style="fill: var(--element-active-color)"/>
 <path d="M11 7.41L12.41 6L18.41 12L12.41 18L11 16.59L15.58 12L11 7.41Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Tr.styles=h`
+    `}};Sn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3306,17 +3306,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ma([l({type:Boolean})],Tr.prototype,"useCssColor",2);Tr=ma([u("obi-chevron-double-right-google")],Tr);var ss=Object.defineProperty;var cs=Object.getOwnPropertyDescriptor;var fa=(e,t,i,o)=>{var r=o>1?void 0:o?cs(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)ss(t,i,r);return r};var Er=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;qc([l({type:Boolean})],Sn.prototype,"useCssColor",2);Sn=qc([x("obi-chevron-double-right-google")],Sn);var U4=Object.defineProperty;var W4=Object.getOwnPropertyDescriptor;var Yc=(e,t,i,o)=>{var r=o>1?void 0:o?W4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)U4(t,i,r);return r};var Vn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z" fill="currentColor"/>
 <path d="M8 11C7.44772 11 7 11.4477 7 12C7 12.5523 7.44772 13 8 13H16C16.5523 13 17 12.5523 17 12C17 11.4477 16.5523 11 16 11H8Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z" style="fill: var(--element-active-color)"/>
 <path d="M8 11C7.44772 11 7 11.4477 7 12C7 12.5523 7.44772 13 8 13H16C16.5523 13 17 12.5523 17 12C17 11.4477 16.5523 11 16 11H8Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Er.styles=h`
+    `}};Vn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3326,17 +3326,17 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;fa([l({type:Boolean})],Er.prototype,"useCssColor",2);Er=fa([u("obi-off")],Er);var ds=Object.defineProperty;var ps=Object.getOwnPropertyDescriptor;var ba=(e,t,i,o)=>{var r=o>1?void 0:o?ps(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)ds(t,i,r);return r};var Dr=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Yc([l({type:Boolean})],Vn.prototype,"useCssColor",2);Vn=Yc([x("obi-off")],Vn);var G4=Object.defineProperty;var q4=Object.getOwnPropertyDescriptor;var Kc=(e,t,i,o)=>{var r=o>1?void 0:o?q4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)G4(t,i,r);return r};var Zn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2ZM12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4Z" fill="currentColor"/>
 <path d="M12 6C13.1046 6 14 6.89543 14 8L14 16C14 17.1046 13.1046 18 12 18C10.8954 18 10 17.1046 10 16L10 8C10 6.89543 10.8954 6 12 6Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2ZM12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4Z" style="fill: var(--element-active-color)"/>
 <path d="M12 6C13.1046 6 14 6.89543 14 8L14 16C14 17.1046 13.1046 18 12 18C10.8954 18 10 17.1046 10 16L10 8C10 6.89543 10.8954 6 12 6Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Dr.styles=h`
+    `}};Zn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3346,15 +3346,15 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ba([l({type:Boolean})],Dr.prototype,"useCssColor",2);Dr=ba([u("obi-on")],Dr);var hs=Object.defineProperty;var us=Object.getOwnPropertyDescriptor;var ya=(e,t,i,o)=>{var r=o>1?void 0:o?us(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)hs(t,i,r);return r};var Ir=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Kc([l({type:Boolean})],Zn.prototype,"useCssColor",2);Zn=Kc([x("obi-on")],Zn);var Y4=Object.defineProperty;var K4=Object.getOwnPropertyDescriptor;var Jc=(e,t,i,o)=>{var r=o>1?void 0:o?K4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Y4(t,i,r);return r};var An=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 2C13.733 2 15.1492 3.35645 15.2449 5.06546L15.25 5.24987L15.251 13.202L15.331 13.2709C16.2565 14.0975 16.8482 15.2418 16.9746 16.4939L16.9936 16.7457L17 17C17 19.7614 14.7614 22 12 22C9.23858 22 7 19.7614 7 17C7 15.6373 7.5496 14.3655 8.48922 13.4396L8.66993 13.2701L8.749 13.202L8.75 5.25C8.75 3.57886 10.0113 2.20232 11.6339 2.0204L11.8156 2.00514L12 2ZM12 3.5C11.0818 3.5 10.3288 4.20711 10.2558 5.10651L10.25 5.25004L10.2495 13.9445L9.94128 14.1691C9.04185 14.8246 8.5 15.8664 8.5 17C8.5 18.933 10.067 20.5 12 20.5C13.933 20.5 15.5 18.933 15.5 17C15.5 15.9376 15.0241 14.9558 14.2239 14.2971L14.0595 14.1697L13.7515 13.9451L13.75 5.25C13.75 4.2835 12.9665 3.5 12 3.5ZM12 7C12.4142 7 12.75 7.33579 12.75 7.75L12.7506 14.6146C13.7646 14.9334 14.5 15.8808 14.5 17C14.5 18.3807 13.3807 19.5 12 19.5C10.6193 19.5 9.5 18.3807 9.5 17C9.5 15.8804 10.2359 14.9328 11.2504 14.6143L11.25 7.75C11.25 7.33579 11.5858 7 12 7Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 2C13.733 2 15.1492 3.35645 15.2449 5.06546L15.25 5.24987L15.251 13.202L15.331 13.2709C16.2565 14.0975 16.8482 15.2418 16.9746 16.4939L16.9936 16.7457L17 17C17 19.7614 14.7614 22 12 22C9.23858 22 7 19.7614 7 17C7 15.6373 7.5496 14.3655 8.48922 13.4396L8.66993 13.2701L8.749 13.202L8.75 5.25C8.75 3.57886 10.0113 2.20232 11.6339 2.0204L11.8156 2.00514L12 2ZM12 3.5C11.0818 3.5 10.3288 4.20711 10.2558 5.10651L10.25 5.25004L10.2495 13.9445L9.94128 14.1691C9.04185 14.8246 8.5 15.8664 8.5 17C8.5 18.933 10.067 20.5 12 20.5C13.933 20.5 15.5 18.933 15.5 17C15.5 15.9376 15.0241 14.9558 14.2239 14.2971L14.0595 14.1697L13.7515 13.9451L13.75 5.25C13.75 4.2835 12.9665 3.5 12 3.5ZM12 7C12.4142 7 12.75 7.33579 12.75 7.75L12.7506 14.6146C13.7646 14.9334 14.5 15.8808 14.5 17C14.5 18.3807 13.3807 19.5 12 19.5C10.6193 19.5 9.5 18.3807 9.5 17C9.5 15.8804 10.2359 14.9328 11.2504 14.6143L11.25 7.75C11.25 7.33579 11.5858 7 12 7Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Ir.styles=h`
+    `}};An.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -3364,50 +3364,50 @@ li .active {
       height: 100%;
       width: 100%;
     }
-  `;ya([l({type:Boolean})],Ir.prototype,"useCssColor",2);Ir=ya([u("obi-temperature-air")],Ir);var vs=Object.defineProperty;var gs=Object.getOwnPropertyDescriptor;var Zt=(e,t,i,o)=>{var r=o>1?void 0:o?gs(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)vs(t,i,r);return r};var st=class extends d{constructor(){super(...arguments);this.readouts=[];this.tag=null;this.size="regular";this.idTagOrientation="top";this.hasIdTag=false}renderTag(){if(!this.hasIdTag||!this.tag)return c``;const e=this.tag.value.toString().padStart(4,"0");return c`<div class="tag">#${e}</div>`}renderValueContainer(e,t,i){return c`<div class="readout-item ${e}">
+  `;Jc([l({type:Boolean})],An.prototype,"useCssColor",2);An=Jc([x("obi-temperature-air")],An);var J4=Object.defineProperty;var X4=Object.getOwnPropertyDescriptor;var Ei=(e,t,i,o)=>{var r=o>1?void 0:o?X4(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)J4(t,i,r);return r};var $o=class extends C{constructor(){super(...arguments);this.readouts=[];this.tag=null;this.size="regular";this.idTagOrientation="top";this.hasIdTag=false}renderTag(){if(!this.hasIdTag||!this.tag)return u``;const e=this.tag.value.toString().padStart(4,"0");return u`<div class="tag">#${e}</div>`}renderValueContainer(e,t,i){return u`<div class="readout-item ${e}">
       ${t}
       <div class="value-container">
         <div class="label-container">${i}</div>
       </div>
-    </div>`}renderValueText(e){return c`<span class="value-text">${e}</span>`}renderValue(e){const t=e.value.toFixed(0);const i=t.length<e.nDigits?"0".repeat(e.nDigits-t.length):"";const o=i+t;let r=p;if(e.icon=="arrow"){if(e.direction=="up"){r=c`<obi-arrow-up-google
+    </div>`}renderValueText(e){return u`<span class="value-text">${e}</span>`}renderValue(e){const t=e.value.toFixed(0);const i=t.length<e.nDigits?"0".repeat(e.nDigits-t.length):"";const o=i+t;let r=k;if(e.icon=="arrow"){if(e.direction=="up"){r=u`<obi-arrow-up-google
           class="icon"
           useCssColor
-        ></obi-arrow-up-google>`}else if(e.direction=="down"){r=c`<obi-arrow-down-google
+        ></obi-arrow-up-google>`}else if(e.direction=="down"){r=u`<obi-arrow-down-google
           class="icon"
           useCssColor
-        ></obi-arrow-down-google>`}else if(e.direction=="left"){r=c`<obi-arrow-left-google
+        ></obi-arrow-down-google>`}else if(e.direction=="left"){r=u`<obi-arrow-left-google
           class="icon"
           useCssColor
-        ></obi-arrow-left-google>`}else if(e.direction=="right"){r=c`<obi-arrow-right-google
+        ></obi-arrow-left-google>`}else if(e.direction=="right"){r=u`<obi-arrow-right-google
           class="icon"
           useCssColor
-        ></obi-arrow-right-google>`}}else if(e.icon=="chevron"){if(e.direction=="up"){r=c`<obi-chevron-double-up-google
+        ></obi-arrow-right-google>`}}else if(e.icon=="chevron"){if(e.direction=="up"){r=u`<obi-chevron-double-up-google
           class="icon"
           useCssColor
-        ></obi-chevron-double-up-google>`}else if(e.direction=="down"){r=c`<obi-chevron-double-down-google
+        ></obi-chevron-double-up-google>`}else if(e.direction=="down"){r=u`<obi-chevron-double-down-google
           class="icon"
           useCssColor
-        ></obi-chevron-double-down-google>`}else if(e.direction=="left"){r=c`<obi-chevron-double-left-google
+        ></obi-chevron-double-down-google>`}else if(e.direction=="left"){r=u`<obi-chevron-double-left-google
           class="icon"
           useCssColor
-        ></obi-chevron-double-left-google>`}else if(e.direction=="right"){r=c`<obi-chevron-double-right-google
+        ></obi-chevron-double-left-google>`}else if(e.direction=="right"){r=u`<obi-chevron-double-right-google
           class="icon"
           useCssColor
-        ></obi-chevron-double-right-google>`}}const a=c`
+        ></obi-chevron-double-right-google>`}}const a=u`
       ${this.renderValueText(o)}
       <span class="unit">${e.unit}</span>
-    `;return this.renderValueContainer("value",r,a)}renderStateOff(e){let t=c``;if(e.hasIcon){t=c`<obi-off class="icon" useCssColor></obi-off>`}const i=this.renderValueText(e.value);return this.renderValueContainer("state-off",t,i)}renderStateOn(e){let t=c``;if(e.hasIcon){t=c`<obi-on class="icon" useCssColor></obi-on>`}const i=this.renderValueText(e.value);return this.renderValueContainer("state-on",t,i)}renderButton(e){const t=e.value.toFixed(1);let i=c``;if(e.hasIcon){i=c`<obi-temperature-air
+    `;return this.renderValueContainer("value",r,a)}renderStateOff(e){let t=u``;if(e.hasIcon){t=u`<obi-off class="icon" useCssColor></obi-off>`}const i=this.renderValueText(e.value);return this.renderValueContainer("state-off",t,i)}renderStateOn(e){let t=u``;if(e.hasIcon){t=u`<obi-on class="icon" useCssColor></obi-on>`}const i=this.renderValueText(e.value);return this.renderValueContainer("state-on",t,i)}renderButton(e){const t=e.value.toFixed(1);let i=u``;if(e.hasIcon){i=u`<obi-temperature-air
         class="icon"
         useCssColor
-      ></obi-temperature-air>`}const o=c`
+      ></obi-temperature-air>`}const o=u`
       ${this.renderValueText(t)}
       <span class="unit">${e.unit}</span>
-    `;return c`<obc-button class="readout-button" part="readout-button">
+    `;return u`<obc-button class="readout-button" part="readout-button">
       ${this.renderValueContainer("button",i,o)}
-    </obc-button>`}renderReadout(e){if(e.type==="value"){return this.renderValue(e)}else if(e.type==="state-on"){return this.renderStateOn(e)}else if(e.type==="state-off"){return this.renderStateOff(e)}else if(e.type==="button"){return this.renderButton(e)}else{throw new Error("Invalid readout type")}}render(){const e=this.readouts.filter(r=>r.type==="value"||r.type==="state-off"||r.type==="state-on"||r.type==="button");const t=e.map(r=>this.renderReadout(r));const i=this.renderTag();const o=[];if(this.idTagOrientation==="top"){if(this.hasIdTag)o.push(i);o.push(...t)}else{o.push(...t);if(this.hasIdTag)o.push(i)}return c`<div class="readout-stack ${this.size}">${o}</div>`}};st.styles=C(da);Zt([l({attribute:false})],st.prototype,"readouts",2);Zt([l({attribute:false})],st.prototype,"tag",2);Zt([l()],st.prototype,"size",2);Zt([l()],st.prototype,"idTagOrientation",2);Zt([l({type:Boolean})],st.prototype,"hasIdTag",2);st=Zt([u("obc-automation-button-readout-stack")],st);function jr(e,t){if(t.strokePosition==="center"){return s`<circle id=${e} cx="0" cy="0" 
+    </obc-button>`}renderReadout(e){if(e.type==="value"){return this.renderValue(e)}else if(e.type==="state-on"){return this.renderStateOn(e)}else if(e.type==="state-off"){return this.renderStateOff(e)}else if(e.type==="button"){return this.renderButton(e)}else{throw new Error("Invalid readout type")}}render(){const e=this.readouts.filter(r=>r.type==="value"||r.type==="state-off"||r.type==="state-on"||r.type==="button");const t=e.map(r=>this.renderReadout(r));const i=this.renderTag();const o=[];if(this.idTagOrientation==="top"){if(this.hasIdTag)o.push(i);o.push(...t)}else{o.push(...t);if(this.hasIdTag)o.push(i)}return u`<div class="readout-stack ${this.size}">${o}</div>`}};$o.styles=I(Nc);Ei([l({attribute:false})],$o.prototype,"readouts",2);Ei([l({attribute:false})],$o.prototype,"tag",2);Ei([l()],$o.prototype,"size",2);Ei([l()],$o.prototype,"idTagOrientation",2);Ei([l({type:Boolean})],$o.prototype,"hasIdTag",2);$o=Ei([x("obc-automation-button-readout-stack")],$o);function Pn(e,t){if(t.strokePosition==="center"){return c`<circle id=${e} cx="0" cy="0" 
       r=${t.radius} vector-effect="non-scaling-stroke" 
       stroke=${t.strokeColor}  stroke-width=${t.strokeWidth} 
-      fill=${t.fillColor}>`}else if(t.strokePosition==="inside"){return s`
+      fill=${t.fillColor}>`}else if(t.strokePosition==="inside"){return c`
 		<defs>
 			<clipPath id="clip${e}">
 				<circle id=${e} cx="0" cy="0" r=${t.radius} vector-effect="non-scaling-stroke" />
@@ -3416,16 +3416,16 @@ li .active {
 		<g>
 			<circle id=${e} cx="0" cy="0" r=${t.radius} vector-effect="non-scaling-stroke" stroke=${t.strokeColor}  stroke-width=${t.strokeWidth*2} fill=${t.fillColor} clip-path="url(#clip${e})"/>
 		</g>
-  `}else{return s`
+  `}else{return c`
 		<circle id=${e} cx="0" cy="0" r=${t.radius} vector-effect="non-scaling-stroke" stroke=${t.strokeColor} stroke-width=${t.strokeWidth*2} fill=${t.fillColor}/>
-		  `}}var Ze=(e=>{e["active"]="active";e["loading"]="loading";e["off"]="off";return e})(Ze||{});var B=(e=>{e["regular"]="regular";e["enhanced"]="enhanced";return e})(B||{});var Nr=(e=>{e["notEqual"]="notEqual";e["equal"]="equal";e["equalZero"]="equalZero";e["focus"]="focus";return e})(Nr||{});var ms="M22.5918 0.5C25.014 0.50013 26.3186 3.34437 24.917 5.29199L15.0244 19.0371C14.0268 20.423 11.9635 20.423 10.9658 19.0371L1.07326 5.29199C-0.328328 3.34437 0.97623 0.500124 3.39845 0.5L22.5918 0.5Z";var fs=13;var bs=21;var ys=.8;var ws=4;var Cs=8;var Rr=300;var Jt="--setpoint-animation-duration";var Fr="300ms";function Ur(e){const t=getComputedStyle(e).getPropertyValue(Jt).trim();if(!t)return Rr;const i=parseFloat(t);if(Number.isNaN(i))return Rr;if(t.endsWith("s")&&!t.endsWith("ms"))return i*1e3;return i}function wa(e,t){const i=(t%360+360)%360;const o=(e%360+360)%360;let r=i-o;if(r>180)r-=360;if(r<-180)r+=360;return e+r}function Ls(e,t,i=false){if(i){return"var(--instrument-frame-tertiary-color)"}if(e==="focus"){if(t==="enhanced"){return"var(--base-blue-100)"}else{return"var(--instrument-regular-tertiary-color)"}}if(t==="enhanced"){return"var(--instrument-enhanced-primary-color)"}else{return"var(--instrument-regular-primary-color)"}}function ks(e,t){if(e==="focus"){if(t==="enhanced"){return"var(--element-neutral-enhanced-color)"}else{return"var(--instrument-regular-secondary-color)"}}return"var(--border-silhouette-color)"}function xs(e){return ms}function Ms(e){switch(e){case"equal":case"equalZero":return ys;default:return 1}}function ti(e){switch(e){case"equalZero":return Cs;case"notEqual":case"focus":return ws;default:return 0}}function ri(e){const{visualState:t,colorMode:i,disabled:o=false,id:r}=e;const a=Ls(t,i,o);const n=ks(t,i);const g=xs();const v=Ms(t);const f=`${r}-marker`;const y=`${r}-mask`;const m=-fs;const b=-bs;const w=`scale(${v})`;const k=t==="focus";return s`
+		  `}}var $e=(e=>{e["active"]="active";e["loading"]="loading";e["off"]="off";return e})($e||{});var de=(e=>{e["regular"]="regular";e["enhanced"]="enhanced";return e})(de||{});var Dt=(e=>{e["notEqual"]="notEqual";e["equal"]="equal";e["equalZero"]="equalZero";e["focus"]="focus";return e})(Dt||{});var zn=(e=>{e["enhanced"]="enhanced";e["regular"]="regular";return e})(zn||{});var Q4="M22.5918 0.5C25.014 0.50013 26.3186 3.34437 24.917 5.29199L15.0244 19.0371C14.0268 20.423 11.9635 20.423 10.9658 19.0371L1.07326 5.29199C-0.328328 3.34437 0.97623 0.500124 3.39845 0.5L22.5918 0.5Z";var e9=13;var t9=21;var r9=.8;var o9=4;var i9=8;var Tn=300;var Ho="--setpoint-animation-duration";var Xo="300ms";function On(e){const t=getComputedStyle(e).getPropertyValue(Ho).trim();if(!t)return Tn;const i=parseFloat(t);if(Number.isNaN(i))return Tn;if(t.endsWith("s")&&!t.endsWith("ms"))return i*1e3;return i}function Xc(e,t){const i=(t%360+360)%360;const o=(e%360+360)%360;let r=i-o;if(r>180)r-=360;if(r<-180)r+=360;return e+r}function a9(e,t,i=false){if(i){return"var(--instrument-frame-tertiary-color)"}if(e==="focus"){if(t==="enhanced"){return"var(--base-blue-100)"}else{return"var(--instrument-regular-tertiary-color)"}}if(t==="enhanced"){return"var(--instrument-enhanced-primary-color)"}else{return"var(--instrument-regular-primary-color)"}}function n9(e,t){if(e==="focus"){if(t==="enhanced"){return"var(--element-neutral-enhanced-color)"}else{return"var(--instrument-regular-secondary-color)"}}return"var(--border-silhouette-color)"}function l9(e){return Q4}function s9(e){switch(e){case"equal":case"equalZero":return r9;default:return 1}}function Di(e){switch(e){case"equalZero":return i9;case"notEqual":case"focus":return o9;default:return 0}}function Gr(e){const{visualState:t,colorMode:i,disabled:o=false,id:r}=e;const a=a9(t,i,o);const n=n9(t,i);const h=l9();const d=s9(t);const f=`${r}-marker`;const y=`${r}-mask`;const v=-e9;const b=-t9;const M=`scale(${d})`;const H=t==="focus";return c`
     <defs>
       <g id="${f}">
         <path
           fill-rule="evenodd"
           clip-rule="evenodd"
-          transform="translate(${m}, ${b})"
-          d="${g}"
+          transform="translate(${v}, ${b})"
+          d="${h}"
           vector-effect="non-scaling-stroke"
         />
       </g>
@@ -3434,9 +3434,9 @@ li .active {
         <use href="#${f}" fill="black" />
       </mask>
     </defs>
-    <g transform="${w}" style="transition: transform 200ms ease-in-out;">
+    <g transform="${M}" style="transition: transform 200ms ease-in-out;">
       <use href="#${f}" fill="${a}" stroke="none" />
-      ${k?s`
+      ${H?c`
           <!-- Focus state: 1px silhouette (outer) + 2px colored border (inner) -->
           <!-- First: masked silhouette stroke for outer 1px edge -->
           <use
@@ -3457,7 +3457,7 @@ li .active {
             stroke-linejoin="round"
             vector-effect="non-scaling-stroke"
           />
-        `:s`
+        `:c`
           <use
             href="#${f}"
             mask="url(#${y})"
@@ -3469,7 +3469,7 @@ li .active {
           />
         `}
     </g>
-  `}function Ca(e){const{state:t,priority:i,atSetpoint:o,angleSetpoint:r,setpointAtZeroDeadband:a=.5,newAngleSetpoint:n,touching:g=false,setpointOverride:v=false}=e;const f=n!==void 0;const y=i===B.enhanced?"enhanced":"regular";if(t===Ze.loading||t===Ze.off){return{visualState:"notEqual",colorMode:y,disabled:!v,hasNewSetpoint:f}}if(g&&!f){return{visualState:"focus",colorMode:y,disabled:false,hasNewSetpoint:f}}const m=r!==void 0&&Math.abs(r)<a;if(o&&m){return{visualState:"equalZero",colorMode:y,disabled:false,hasNewSetpoint:f}}if(o){return{visualState:"equal",colorMode:y,disabled:false,hasNewSetpoint:f}}return{visualState:"notEqual",colorMode:y,disabled:false,hasNewSetpoint:f}}var oi=168;function Wr(e){const{value:t,setpoint:i,touching:o,auto:r,deadband:a,atSetpointManual:n,angularWraparound:g=false}=e;if(t===void 0||i===void 0)return false;if(o)return false;if(r){let v=Math.abs(t-i);if(g&&v>180){v=360-v}const f=Number.isFinite(a)?a:0;return v<=f}return n}function Qt({startAngle:e,endAngle:t,r:i,R:o,roundOutsideCut:r,roundInsideCut:a}){const n=e*Math.PI/180;const g=t*Math.PI/180;const v=Math.sin(n)*o;const f=-Math.cos(n)*o;const y=Math.sin(n)*i;const m=-Math.cos(n)*i;const b=Math.sin(g)*o;const w=-Math.cos(g)*o;const k=Math.sin(g)*i;const S=-Math.cos(g)*i;const M=8;let x="";if(r){const V=Math.asin(M/o);const T=g-V-(n+V)<=Math.PI?0:1;const te=Math.sin(n)*(o-M);const q=-Math.cos(n)*(o-M);const G=Math.sin(n+V)*o;const P=-Math.cos(n+V)*o;const F=Math.sin(g)*(o-M);const se=-Math.cos(g)*(o-M);const qe=Math.sin(g-V)*o;const Vt=-Math.cos(g-V)*o;x+=`M ${te} ${q} A ${M} ${M} 1 0 1 ${G} ${P}`;x+=`A ${o} ${o} 1 ${T} 1 ${qe} ${Vt}`;x+=`A ${M} ${M} 1 0 1 ${F} ${se}`}else{const V=Math.abs(g-n)<=Math.PI?0:1;x+=`M ${v} ${f} A ${o} ${o} 1 ${V} 1 ${b} ${w}`}if(a){const V=Math.asin(M/i);const T=g-V-(n+V)<=Math.PI?0:1;const te=Math.sin(n)*(i+M);const q=-Math.cos(n)*(i+M);const G=Math.sin(n+V)*i;const P=-Math.cos(n+V)*i;const F=Math.sin(g)*(i+M);const se=-Math.cos(g)*(i+M);const qe=Math.sin(g-V)*i;const Vt=-Math.cos(g-V)*i;x+=`L ${F} ${se} A ${M} ${M} 1 0 1 ${qe} ${Vt}`;x+=`A ${i} ${i} 1 ${T} 0 ${G} ${P}`;x+=`A ${M} ${M} 1 0 1 ${te} ${q}`}else{const V=g-n<=Math.PI?0:1;x+=`L ${k} ${S} A ${i} ${i} 1 ${V} 0 ${y} ${m}`}x+=`Z`;return x}var La=h`
+  `}function Qc(e){const{state:t,priority:i,atSetpoint:o,angleSetpoint:r,setpointAtZeroDeadband:a=.5,newAngleSetpoint:n,touching:h=false,setpointOverride:d=false}=e;const f=n!==void 0;const y=i===de.enhanced?"enhanced":"regular";if(t===$e.loading||t===$e.off){return{visualState:"notEqual",colorMode:y,disabled:!d,hasNewSetpoint:f}}if(h&&!f){return{visualState:"focus",colorMode:y,disabled:false,hasNewSetpoint:f}}const v=r!==void 0&&Math.abs(r)<a;if(o&&v){return{visualState:"equalZero",colorMode:y,disabled:false,hasNewSetpoint:f}}if(o){return{visualState:"equal",colorMode:y,disabled:false,hasNewSetpoint:f}}return{visualState:"notEqual",colorMode:y,disabled:false,hasNewSetpoint:f}}var Vs=168;function En(e){const{value:t,setpoint:i,touching:o,auto:r,deadband:a,atSetpointManual:n,angularWraparound:h=false}=e;if(t===void 0||i===void 0)return false;if(o)return false;if(r){let d=Math.abs(t-i);if(h&&d>180){d=360-d}const f=Number.isFinite(a)?a:0;return d<=f}return n}function Ma({startAngle:e,endAngle:t,r:i,R:o,roundOutsideCut:r,roundInsideCut:a}){const n=e*Math.PI/180;const h=t*Math.PI/180;const d=Math.sin(n)*o;const f=-Math.cos(n)*o;const y=Math.sin(n)*i;const v=-Math.cos(n)*i;const b=Math.sin(h)*o;const M=-Math.cos(h)*o;const H=Math.sin(h)*i;const P=-Math.cos(h)*i;const S=8;let Z="";if(r){const _=Math.asin(S/o);const E=h-_-(n+_)<=Math.PI?0:1;const A=Math.sin(n)*(o-S);const G=-Math.cos(n)*(o-S);const z=Math.sin(n+_)*o;const B=-Math.cos(n+_)*o;const U=Math.sin(h)*(o-S);const K=-Math.cos(h)*(o-S);const Q=Math.sin(h-_)*o;const D=-Math.cos(h-_)*o;Z+=`M ${A} ${G} A ${S} ${S} 1 0 1 ${z} ${B}`;Z+=`A ${o} ${o} 1 ${E} 1 ${Q} ${D}`;Z+=`A ${S} ${S} 1 0 1 ${U} ${K}`}else{const _=Math.abs(h-n)<=Math.PI?0:1;Z+=`M ${d} ${f} A ${o} ${o} 1 ${_} 1 ${b} ${M}`}if(a){const _=Math.asin(S/i);const E=h-_-(n+_)<=Math.PI?0:1;const A=Math.sin(n)*(i+S);const G=-Math.cos(n)*(i+S);const z=Math.sin(n+_)*i;const B=-Math.cos(n+_)*i;const U=Math.sin(h)*(i+S);const K=-Math.cos(h)*(i+S);const Q=Math.sin(h-_)*i;const D=-Math.cos(h-_)*i;Z+=`L ${U} ${K} A ${S} ${S} 1 0 1 ${Q} ${D}`;Z+=`A ${i} ${i} 1 ${E} 0 ${z} ${B}`;Z+=`A ${S} ${S} 1 0 1 ${A} ${G}`}else{const _=h-n<=Math.PI?0:1;Z+=`L ${H} ${P} A ${i} ${i} 1 ${_} 0 ${y} ${v}`}Z+=`Z`;return Z}var e2=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -3508,65 +3508,65 @@ li .active {
 .label.inside.right {
     text-anchor: end;
   }
-`;var{I:Hs}=Ei;var ka=e=>e;var Ma=e=>void 0===e.strings;var xa=()=>document.createComment("");var At=(e,t,i)=>{const o=e._$AA.parentNode,r=void 0===t?e._$AB:t._$AA;if(void 0===i){const a=o.insertBefore(xa(),r),n=o.insertBefore(xa(),r);i=new Hs(a,n,e,e.options)}else{const a=i._$AB.nextSibling,n=i._$AM,g=n!==e;if(g){let v;i._$AQ?.(e),i._$AM=e,void 0!==i._$AP&&(v=e._$AU)!==n._$AU&&i._$AP(v)}if(a!==r||g){let v=i._$AA;for(;v!==a;){const f=ka(v).nextSibling;ka(o).insertBefore(v,r),v=f}}}return i};var ct=(e,t,i=e)=>(e._$AI(t,i),e);var $s={};var Ha=(e,t=$s)=>e._$AH=t;var $a=e=>e._$AH;var qr=e=>{e._$AR(),e._$AA.remove()};var er=(e,t)=>{const i=e._$AN;if(void 0===i)return false;for(const o of i)o._$AO?.(t,false),er(o,t);return true};var Gr=e=>{let t,i;do{if(void 0===(t=e._$AM))break;i=t._$AN,i.delete(e),e=t}while(0===i?.size)};var _a=e=>{for(let t;t=e._$AM;e=t){let i=t._$AN;if(void 0===i)t._$AN=i=new Set;else if(i.has(e))break;i.add(e),Ss(t)}};function _s(e){void 0!==this._$AN?(Gr(this),this._$AM=e,_a(this)):this._$AM=e}function Vs(e,t=false,i=0){const o=this._$AH,r=this._$AN;if(void 0!==r&&0!==r.size)if(t)if(Array.isArray(o))for(let a=i;a<o.length;a++)er(o[a],false),Gr(o[a]);else null!=o&&(er(o,false),Gr(o));else er(this,e)}var Ss=e=>{e.type==nt.CHILD&&(e._$AP??=Vs,e._$AQ??=_s)};var Xr=class extends Be{constructor(){super(...arguments),this._$AN=void 0}_$AT(t,i,o){super._$AT(t,i,o),_a(this),this.isConnected=t._$AU}_$AO(t,i=true){t!==this.isConnected&&(this.isConnected=t,t?this.reconnected?.():this.disconnected?.()),i&&(er(this,t),Gr(this))}setValue(t){if(Ma(this._$Ct))this._$Ct._$AI(t,this);else{const i=[...this._$Ct._$AH];i[this._$Ci]=t,this._$Ct._$AI(i,this,0)}}disconnected(){}reconnected(){}};var zt=class{constructor(t,{target:i,config:o,callback:r,skipInitial:a}){this.t=new Set,this.o=false,this.i=false,this.h=t,null!==i&&this.t.add(i??t),this.l=o,this.o=a??this.o,this.callback=r,Ii||(window.ResizeObserver?(this.u=new ResizeObserver(n=>{this.handleChanges(n),this.h.requestUpdate()}),t.addController(this)):console.warn("ResizeController error: browser does not support ResizeObserver."))}handleChanges(t){this.value=this.callback?.(t,this.u)}hostConnected(){for(const t of this.t)this.observe(t)}hostDisconnected(){this.disconnect()}async hostUpdated(){!this.o&&this.i&&this.handleChanges([]),this.i=false}observe(t){this.t.add(t),this.u.observe(t,this.l),this.i=true,this.h.requestUpdate()}unobserve(t){this.t.delete(t),this.u.unobserve(t)}disconnect(){this.u.disconnect()}target(t){return Zs(this,t)}};var Zs=Ke(class extends Xr{constructor(){super(...arguments),this.observing=false}render(e,t){}update(e,[t,i]){this.controller=t,this.part=e,this.observe=i,false===i?(t.unobserve(e.element),this.observing=false):false===this.observing&&(t.observe(e.element),this.observing=true)}disconnected(){this.controller?.unobserve(this.part.element),this.observing=false}reconnected(){false!==this.observe&&false===this.observing&&(this.controller?.observe(this.part.element),this.observing=true)}});var N=(e=>{e["zeroLineThick"]="zeroLineThick";e["zeroLine"]="zeroLine";e["main"]="main";e["primary"]="primary";e["secondary"]="secondary";e["tertiary"]="tertiary";e["textOnly"]="textOnly";return e})(N||{});var Y=(e=>{e["regular"]="regular";e["enhanced"]="enhanced";return e})(Y||{});function ii(e,t){if(e==="regular"){return"var(--instrument-tick-mark-tertiary-color)"}else{if(t==="tertiary"){return"var(--instrument-tick-mark-secondary-color)"}return"var(--instrument-tick-mark-primary-color)"}}function wt(e,{size:t,style:i,scale:o,text:r,inside:a,textRadius:n,rotation:g,maxDigits:v,color:f,radiusOffset:y=0}){if(o===Infinity||o<0){throw new Error("Tick scale is not valid")}const m=y;let b;let w;n=n+(3/o+3)*(a?-1:1);const k=e*Math.PI/180;if(t==="primary"){b=328/2+m;w=368/2+m}else if(t==="secondary"){b=328/2+m;w=344/2+m}else if(t==="main"||t==="zeroLine"){b=320/2+m;w=368/2+m}else if(t==="zeroLineThick"){b=224/2+m;w=368/2+m}else if(t==="tertiary"){b=328/2+m;w=336/2+m}else{return[Va(r??"",e,a,o,n)]}if(a){const G=368/2+m;const P=320/2+m;const F=w-b;const se=Math.max(0,b-P);w=G-se;b=w-F}const S=f??ii(i,t);const M=Math.sin(k)*b;const x=-Math.cos(k)*b;const V=Math.sin(k)*w;const T=-Math.cos(k)*w;const te=t==="zeroLine"||t==="zeroLineThick"?4:1;const q=s`<line x1=${M} y1=${x} x2=${V} y2=${T} stroke=${S} stroke-width=${te} vector-effect="non-scaling-stroke"/>`;if(r){if(g===void 0){return[q,Va(r,e,a,o,n)]}else{const G=n+(4/o+5)*(a?-1:1)*v/2;const P=Math.sin(k)*G;const F=-Math.cos(k)*G;return[q,s`<text x=${P} y=${F} class="label rotate ${a?"inside":""}" transform="rotate(${-g})" transform-origin="${P} ${F}">${r}</text>`]}}return q}function Va(e,t,i,o,r){let a;if(t===0){a="top"}else if(t<180&&t>0){a="right"}else if(t===180){a="bottom"}else{a="left"}const n=t*Math.PI/180;const g=i?-1:1;const v=7/o*g;const f=6/o*g;let y=Math.sin(n)*(r+f);if(t>180){y+=4/o*g}else if(t<180&&t>0){y-=4/o*g}const m=-Math.cos(n)*(r+v);return s`<text x=${y} y=${m} class="label ${a} ${i?"inside":""}">${e}</text>`}var Le=(e=>{e["advice"]="advice";e["caution"]="caution";return e})(Le||{});var I=(e=>{e["regular"]="regular";e["hinted"]="hinted";e["triggered"]="triggered";return e})(I||{});var As=(344-328)/2+8;var ai=Math.atan2(As,(344+328)/2);function Pt(e,t,i,o,r=0){const a=((t-e)%360+360)%360;const n=a*Math.PI/180;if(n<=ai*2)return p;const g=e*Math.PI/180+ai;const v=t*Math.PI/180-ai;const f=328/2+r;const y=344/2+r;const m=(y-f)/2;const b=Math.sin(g)*f;const w=-Math.cos(g)*f;const k=Math.sin(g)*y;const S=-Math.cos(g)*y;const M=Math.sin(v)*f;const x=-Math.cos(v)*f;const V=Math.sin(v)*y;const T=-Math.cos(v)*y;const te=`M ${b} ${w} 
-                    A ${f} ${f} 0 0 1 ${M} ${x}
-                    A ${m} ${m} 0 0 0 ${V} ${T}
-                    A ${y} ${y} 0 0 0 ${k} ${S}
-                    A ${m} ${m} 0 0 0 ${b} ${w}
-                    Z`;return s`<path d=${te} fill=${i} stroke=${o} stroke-width="1" vector-effect="non-scaling-stroke" />`}function Sa(e,t=0){if(e.type==="caution"){let i;let o=null;if(e.state==="hinted"){i="var(--instrument-frame-tertiary-color)"}else if(e.state==="regular"){i="var(--instrument-tick-mark-tertiary-color)"}else{i="var(--on-caution-active-color)";o="var(--alert-caution-color)"}const r=[];if(t>0){const b=328/2+t;const w=344/2+t;const k=(b+w)/2;const S=2*Math.PI*168/90;const M=Math.round(2*Math.PI*k/S);const x=.705;const V=b-12;const T=w+12;const te=Math.tan(x)*(T-V)/(2*k);for(let q=0;q<M;q++){const G=q*2*Math.PI/M;const P=V*Math.sin(G-te);const F=-V*Math.cos(G-te);const se=T*Math.sin(G+te);const qe=-T*Math.cos(G+te);r.push(s`<line x1=${P} y1=${F} x2=${se} y2=${qe} stroke=${i} stroke-width="4"/>`)}}else{for(let b=0;b<180;b+=4){r.push(s`<g transform="rotate(${b}) translate(-256 -256) ">
+`;var{I:c9}=mc;var t2=e=>e;var o2=e=>void 0===e.strings;var r2=()=>document.createComment("");var Bi=(e,t,i)=>{const o=e._$AA.parentNode,r=void 0===t?e._$AB:t._$AA;if(void 0===i){const a=o.insertBefore(r2(),r),n=o.insertBefore(r2(),r);i=new c9(a,n,e,e.options)}else{const a=i._$AB.nextSibling,n=i._$AM,h=n!==e;if(h){let d;i._$AQ?.(e),i._$AM=e,void 0!==i._$AP&&(d=e._$AU)!==n._$AU&&i._$AP(d)}if(a!==r||h){let d=i._$AA;for(;d!==a;){const f=t2(d).nextSibling;t2(o).insertBefore(d,r),d=f}}}return i};var _o=(e,t,i=e)=>(e._$AI(t,i),e);var p9={};var i2=(e,t=p9)=>e._$AH=t;var a2=e=>e._$AH;var Dn=e=>{e._$AR(),e._$AA.remove()};var $a=(e,t)=>{const i=e._$AN;if(void 0===i)return false;for(const o of i)o._$AO?.(t,false),$a(o,t);return true};var Bn=e=>{let t,i;do{if(void 0===(t=e._$AM))break;i=t._$AN,i.delete(e),e=t}while(0===i?.size)};var n2=e=>{for(let t;t=e._$AM;e=t){let i=t._$AN;if(void 0===i)t._$AN=i=new Set;else if(i.has(e))break;i.add(e),u9(t)}};function d9(e){void 0!==this._$AN?(Bn(this),this._$AM=e,n2(this)):this._$AM=e}function h9(e,t=false,i=0){const o=this._$AH,r=this._$AN;if(void 0!==r&&0!==r.size)if(t)if(Array.isArray(o))for(let a=i;a<o.length;a++)$a(o[a],false),Bn(o[a]);else null!=o&&($a(o,false),Bn(o));else $a(this,e)}var u9=e=>{e.type==xo.CHILD&&(e._$AP??=h9,e._$AQ??=d9)};var In=class extends Fr{constructor(){super(...arguments),this._$AN=void 0}_$AT(t,i,o){super._$AT(t,i,o),n2(this),this.isConnected=t._$AU}_$AO(t,i=true){t!==this.isConnected&&(this.isConnected=t,t?this.reconnected?.():this.disconnected?.()),i&&($a(this,t),Bn(this))}setValue(t){if(o2(this._$Ct))this._$Ct._$AI(t,this);else{const i=[...this._$Ct._$AH];i[this._$Ci]=t,this._$Ct._$AI(i,this,0)}}disconnected(){}reconnected(){}};var Ii=class{constructor(t,{target:i,config:o,callback:r,skipInitial:a}){this.t=new Set,this.o=false,this.i=false,this.h=t,null!==i&&this.t.add(i??t),this.l=o,this.o=a??this.o,this.callback=r,bc||(window.ResizeObserver?(this.u=new ResizeObserver(n=>{this.handleChanges(n),this.h.requestUpdate()}),t.addController(this)):console.warn("ResizeController error: browser does not support ResizeObserver."))}handleChanges(t){this.value=this.callback?.(t,this.u)}hostConnected(){for(const t of this.t)this.observe(t)}hostDisconnected(){this.disconnect()}async hostUpdated(){!this.o&&this.i&&this.handleChanges([]),this.i=false}observe(t){this.t.add(t),this.u.observe(t,this.l),this.i=true,this.h.requestUpdate()}unobserve(t){this.t.delete(t),this.u.unobserve(t)}disconnect(){this.u.disconnect()}target(t){return f9(this,t)}};var f9=lo(class extends In{constructor(){super(...arguments),this.observing=false}render(e,t){}update(e,[t,i]){this.controller=t,this.part=e,this.observe=i,false===i?(t.unobserve(e.element),this.observing=false):false===this.observing&&(t.observe(e.element),this.observing=true)}disconnected(){this.controller?.unobserve(this.part.element),this.observing=false}reconnected(){false!==this.observe&&false===this.observing&&(this.controller?.observe(this.part.element),this.observing=true)}});var be=(e=>{e["zeroLineThick"]="zeroLineThick";e["zeroLine"]="zeroLine";e["main"]="main";e["primary"]="primary";e["secondary"]="secondary";e["tertiary"]="tertiary";e["textOnly"]="textOnly";return e})(be||{});var He=(e=>{e["regular"]="regular";e["enhanced"]="enhanced";return e})(He||{});function Ha(e,t){if(e==="regular"){return"var(--instrument-tick-mark-tertiary-color)"}else{if(t==="tertiary"){return"var(--instrument-tick-mark-secondary-color)"}return"var(--instrument-tick-mark-primary-color)"}}function Qo(e,{size:t,style:i,scale:o,text:r,inside:a,textRadius:n,rotation:h,maxDigits:d,color:f,radiusOffset:y=0}){if(o===Infinity||o<0){throw new Error("Tick scale is not valid")}const v=y;let b;let M;n=n+(3/o+3)*(a?-1:1);const H=e*Math.PI/180;if(t==="primary"){b=328/2+v;M=368/2+v}else if(t==="secondary"){b=328/2+v;M=344/2+v}else if(t==="main"||t==="zeroLine"){b=320/2+v;M=368/2+v}else if(t==="zeroLineThick"){b=224/2+v;M=368/2+v}else if(t==="tertiary"){b=328/2+v;M=336/2+v}else{return[l2(r??"",e,a,o,n)]}if(a){const z=368/2+v;const B=320/2+v;const U=M-b;const K=Math.max(0,b-B);M=z-K;b=M-U}const P=f??Ha(i,t);const S=Math.sin(H)*b;const Z=-Math.cos(H)*b;const _=Math.sin(H)*M;const E=-Math.cos(H)*M;const A=t==="zeroLine"||t==="zeroLineThick"?4:1;const G=c`<line x1=${S} y1=${Z} x2=${_} y2=${E} stroke=${P} stroke-width=${A} vector-effect="non-scaling-stroke"/>`;if(r){if(h===void 0){return[G,l2(r,e,a,o,n)]}else{const z=n+(4/o+5)*(a?-1:1)*d/2;const B=Math.sin(H)*z;const U=-Math.cos(H)*z;return[G,c`<text x=${B} y=${U} class="label rotate ${a?"inside":""}" transform="rotate(${-h})" transform-origin="${B} ${U}">${r}</text>`]}}return G}function l2(e,t,i,o,r){let a;if(t===0){a="top"}else if(t<180&&t>0){a="right"}else if(t===180){a="bottom"}else{a="left"}const n=t*Math.PI/180;const h=i?-1:1;const d=7/o*h;const f=6/o*h;let y=Math.sin(n)*(r+f);if(t>180){y+=4/o*h}else if(t<180&&t>0){y-=4/o*h}const v=-Math.cos(n)*(r+d);return c`<text x=${y} y=${v} class="label ${a} ${i?"inside":""}">${e}</text>`}var bt=(e=>{e["advice"]="advice";e["caution"]="caution";return e})(bt||{});var se=(e=>{e["regular"]="regular";e["hinted"]="hinted";e["triggered"]="triggered";return e})(se||{});var v9=(344-328)/2+8;var Zs=Math.atan2(v9,(344+328)/2);function Ri(e,t,i,o,r=0){const a=((t-e)%360+360)%360;const n=a*Math.PI/180;if(n<=Zs*2)return k;const h=e*Math.PI/180+Zs;const d=t*Math.PI/180-Zs;const f=328/2+r;const y=344/2+r;const v=(y-f)/2;const b=Math.sin(h)*f;const M=-Math.cos(h)*f;const H=Math.sin(h)*y;const P=-Math.cos(h)*y;const S=Math.sin(d)*f;const Z=-Math.cos(d)*f;const _=Math.sin(d)*y;const E=-Math.cos(d)*y;const A=`M ${b} ${M} 
+                    A ${f} ${f} 0 0 1 ${S} ${Z}
+                    A ${v} ${v} 0 0 0 ${_} ${E}
+                    A ${y} ${y} 0 0 0 ${H} ${P}
+                    A ${v} ${v} 0 0 0 ${b} ${M}
+                    Z`;return c`<path d=${A} fill=${i} stroke=${o} stroke-width="1" vector-effect="non-scaling-stroke" />`}function s2(e,t=0){if(e.type==="caution"){let i;let o=null;if(e.state==="hinted"){i="var(--instrument-frame-tertiary-color)"}else if(e.state==="regular"){i="var(--instrument-tick-mark-tertiary-color)"}else{i="var(--on-caution-active-color)";o="var(--alert-caution-color)"}const r=[];if(t>0){const b=328/2+t;const M=344/2+t;const H=(b+M)/2;const P=2*Math.PI*168/90;const S=Math.round(2*Math.PI*H/P);const Z=.705;const _=b-12;const E=M+12;const A=Math.tan(Z)*(E-_)/(2*H);for(let G=0;G<S;G++){const z=G*2*Math.PI/S;const B=_*Math.sin(z-A);const U=-_*Math.cos(z-A);const K=E*Math.sin(z+A);const Q=-E*Math.cos(z+A);r.push(c`<line x1=${B} y1=${U} x2=${K} y2=${Q} stroke=${i} stroke-width="4"/>`)}}else{for(let b=0;b<180;b+=4){r.push(c`<g transform="rotate(${b}) translate(-256 -256) ">
             <path d="M369.167 64.7317L144 194.732L142 191.268L367.167 61.2676L369.167 64.7317ZM369.167 320.732L144 450.732L142 447.267L367.167 317.267L369.167 320.732Z" fill=${i}/>
             </g>
-            `)}}const a=`adviceMask-${e.minAngle}-${e.maxAngle}`;let n=Y.regular;if(e.state==="regular"){n=Y.regular}else if(e.state==="triggered"){n=Y.enhanced}const g=t>0?"none":"black";const v=Pt(e.minAngle,e.maxAngle,"white",g,t);const f=Pt(e.minAngle,e.maxAngle,"none",i,t);let y;let m;if(t>0){const b=344/2+t+32;y=s`<mask id=${a} maskUnits="userSpaceOnUse" x="${-b}" y="${-b}" width="${b*2}" height="${b*2}">${v}</mask>`;m=o?s`<rect x="${-b}" y="${-b}" width="${b*2}" height="${b*2}" fill="${o}"/>`:p}else{y=s`<mask id=${a}>${v}</mask>`;m=o?s`<rect x="-256" y="-256" width="512" height="512" fill="${o}"/>`:p}return s`
+            `)}}const a=`adviceMask-${e.minAngle}-${e.maxAngle}`;let n=He.regular;if(e.state==="regular"){n=He.regular}else if(e.state==="triggered"){n=He.enhanced}const h=t>0?"none":"black";const d=Ri(e.minAngle,e.maxAngle,"white",h,t);const f=Ri(e.minAngle,e.maxAngle,"none",i,t);let y;let v;if(t>0){const b=344/2+t+32;y=c`<mask id=${a} maskUnits="userSpaceOnUse" x="${-b}" y="${-b}" width="${b*2}" height="${b*2}">${d}</mask>`;v=o?c`<rect x="${-b}" y="${-b}" width="${b*2}" height="${b*2}" fill="${o}"/>`:k}else{y=c`<mask id=${a}>${d}</mask>`;v=o?c`<rect x="-256" y="-256" width="512" height="512" fill="${o}"/>`:k}return c`
             ${y}
             <g mask="url(#${a})">
-                ${m}
+                ${v}
                 ${r}
             </g>
             ${f}
-            ${e.hideMinTickmark?p:wt(e.minAngle,{size:N.primary,style:n,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:t})}
-            ${e.hideMaxTickmark?p:wt(e.maxAngle,{size:N.primary,style:n,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:t})}
-        `}else{let i;let o;if(e.state==="hinted"){i="var(--instrument-frame-tertiary-color)";o=Y.regular}else if(e.state==="regular"){i="var(--instrument-regular-secondary-color)";o=Y.regular}else{i="var(--instrument-enhanced-secondary-color)";o=Y.regular}return s`
-            ${Pt(e.minAngle,e.maxAngle,e.state==="triggered"?i:"none",i,t)}
-            ${wt(e.minAngle,{size:N.primary,style:o,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:t})}
-            ${wt(e.maxAngle,{size:N.primary,style:o,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:t})}
-        `}}var Ot=(e=>{e["dots"]="dots";e["bar"]="bar";return e})(Ot||{});var tr=(e=>{e["scale"]="scale";e["innerCircle"]="innerCircle";return e})(tr||{});var ni=5;var Za=Array.from({length:ni},(e,t)=>360/ni*t);var zs=172;var Ps=100;var ke=8;var Os=ke;var Bs=ke*.75-ke*.25;var rr=.05;function or(e,t=0){const i=e==="scale"?zs:Ps;return i+t}function Aa(e,t){const i=e*Math.PI/180;return{cx:Math.sin(i)*t,cy:-Math.cos(i)*t}}function za(e,t,i=0){const o=or(t,i);return s`${Za.map(r=>{const{cx:a,cy:n}=Aa(r,o);return s`<circle cx="${a}" cy="${n}" r="${Os}" fill="${e}" />`})}`}function Ts(e,t,i){const o=i+ke;const r=i-ke;const a=e*Math.PI/180;const n=t*Math.PI/180;const g=Math.sin(a)*o;const v=-Math.cos(a)*o;const f=Math.sin(a)*r;const y=-Math.cos(a)*r;const m=Math.sin(n)*o;const b=-Math.cos(n)*o;const w=Math.sin(n)*r;const k=-Math.cos(n)*r;const S=((n-a)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);let M;let x;if(S<=Math.PI){M=1;x=0}else{M=0;x=1}return[`M ${g} ${v}`,`A ${o} ${o} 0 0 ${M} ${m} ${b}`,`A ${ke} ${ke} 0 0 ${M} ${w} ${k}`,`A ${r} ${r} 0 0 ${x} ${f} ${y}`,`Z`].join(" ")}function li(e,t){const i=((t-e)%360+360)%360;return i<=180?i:360-i}function si(e,t=0){const i=or(e,t);return ke/i*(180/Math.PI)}function Pa(e,t,i,o=0){const r=or(i,o);const a=ke;const n=ke*2;const g=ke/2;return s`
+            ${e.hideMinTickmark?k:Qo(e.minAngle,{size:be.primary,style:n,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:t})}
+            ${e.hideMaxTickmark?k:Qo(e.maxAngle,{size:be.primary,style:n,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:t})}
+        `}else{let i;let o;if(e.state==="hinted"){i="var(--instrument-frame-tertiary-color)";o=He.regular}else if(e.state==="regular"){i="var(--instrument-regular-secondary-color)";o=He.regular}else{i="var(--instrument-enhanced-secondary-color)";o=He.regular}return c`
+            ${Ri(e.minAngle,e.maxAngle,e.state==="triggered"?i:"none",i,t)}
+            ${Qo(e.minAngle,{size:be.primary,style:o,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:t})}
+            ${Qo(e.maxAngle,{size:be.primary,style:o,scale:1,inside:false,textRadius:0,maxDigits:0,radiusOffset:t})}
+        `}}var Ni=(e=>{e["dots"]="dots";e["bar"]="bar";return e})(Ni||{});var _a=(e=>{e["scale"]="scale";e["innerCircle"]="innerCircle";return e})(_a||{});var As=5;var c2=Array.from({length:As},(e,t)=>360/As*t);var m9=172;var g9=100;var pr=8;var b9=pr;var y9=pr*.75-pr*.25;var Sa=.05;function Va(e,t=0){const i=e==="scale"?m9:g9;return i+t}function p2(e,t){const i=e*Math.PI/180;return{cx:Math.sin(i)*t,cy:-Math.cos(i)*t}}function d2(e,t,i=0){const o=Va(t,i);return c`${c2.map(r=>{const{cx:a,cy:n}=p2(r,o);return c`<circle cx="${a}" cy="${n}" r="${b9}" fill="${e}" />`})}`}function w9(e,t,i){const o=i+pr;const r=i-pr;const a=e*Math.PI/180;const n=t*Math.PI/180;const h=Math.sin(a)*o;const d=-Math.cos(a)*o;const f=Math.sin(a)*r;const y=-Math.cos(a)*r;const v=Math.sin(n)*o;const b=-Math.cos(n)*o;const M=Math.sin(n)*r;const H=-Math.cos(n)*r;const P=((n-a)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);let S;let Z;if(P<=Math.PI){S=1;Z=0}else{S=0;Z=1}return[`M ${h} ${d}`,`A ${o} ${o} 0 0 ${S} ${v} ${b}`,`A ${pr} ${pr} 0 0 ${S} ${M} ${H}`,`A ${r} ${r} 0 0 ${Z} ${f} ${y}`,`Z`].join(" ")}function Ps(e,t){const i=((t-e)%360+360)%360;return i<=180?i:360-i}function Ts(e,t=0){const i=Va(e,t);return pr/i*(180/Math.PI)}function h2(e,t,i,o=0){const r=Va(i,o);const a=pr;const n=pr*2;const h=pr/2;return c`
     <g transform="rotate(${t})">
       <rect
         x="${-a/2}"
         y="${-r-n/2}"
         width="${a}"
         height="${n}"
-        rx="${g}"
+        rx="${h}"
         fill="${e}"
       />
     </g>
-  `}function Oa(e){const{startAngle:t,endAngle:i,barColor:o,position:r,maskId:a="rot-bar-mask",radiusOffset:n=0}=e;if(li(t,i)<si(r,n)){return s``}const g=or(r,n);const v=Ts(t,i,g);return s`
+  `}function u2(e){const{startAngle:t,endAngle:i,barColor:o,position:r,maskId:a="rot-bar-mask",radiusOffset:n=0}=e;if(Ps(t,i)<Ts(r,n)){return c``}const h=Va(r,n);const d=w9(t,i,h);return c`
     <defs>
       <clipPath id="${a}">
-        <path d="${v}" />
+        <path d="${d}" />
       </clipPath>
     </defs>
-    <path d="${v}" fill="${o}" />
-  `}function Ba(e,t,i=0){const o=or(t,i);return s`
-    ${Za.map(r=>{const{cx:a,cy:n}=Aa(r,o);return s`<circle cx="${a}" cy="${n}" r="${Bs}" fill="${e}" />`})}
-  `}var e9=360/ni;var t9=ke/2;var Yr=class{constructor(t,i,o=1,r=0){this._rotationsPerMinute=1;this._cyclePx=0;this.host=t;this.el=i;this._rotationsPerMinute=o;this._cyclePx=r;this.host.addController(this)}set rotationsPerMinute(t){if(this._rotationsPerMinute!==t){this._rotationsPerMinute=t;this.updateAnimation()}}get rotationsPerMinute(){return this._rotationsPerMinute}set cyclePx(t){if(this._cyclePx!==t){this._cyclePx=t;this.updateAnimation()}}get cyclePx(){return this._cyclePx}get isTranslateMode(){return this._cyclePx>0}getKeyframes(){if(this.isTranslateMode){return[{transform:"translateX(0px)"},{transform:`translateX(${this._cyclePx}px)`}]}return[{transform:"rotate(0deg)"},{transform:"rotate(360deg)"}]}hostConnected(){this.startAnimation()}startAnimation(){const t=Math.abs(this._rotationsPerMinute);const i=t===0?1:1e3*60/t;this.animation=this.el.animate(this.getKeyframes(),{duration:i,iterations:Infinity,direction:this._rotationsPerMinute>=0?"normal":"reverse"});if(this._rotationsPerMinute===0){this.animation.pause()}}updateAnimation(){if(!this.animation)return;const t=this.animation.effect.getComputedTiming();const i=t.duration;const o=this.animation.currentTime??0;const r=t.direction;const a=o%i/i;this.animation.cancel();const n=Math.abs(this._rotationsPerMinute);const g=n===0?1:1e3*60/n;const v=this._rotationsPerMinute>=0?"normal":"reverse";const f=r!==v?1-a:a;this.animation=this.el.animate(this.getKeyframes(),{duration:g,iterations:Infinity,direction:v});this.animation.currentTime=f*g;if(this._rotationsPerMinute===0){this.animation.pause()}}destroy(){this.animation?.cancel();this.animation=void 0}hostDisconnected(){this.destroy()}};function Kr(e,t){if(t){t.destroy();e.removeController(t)}return void 0}function ci(e){const{scale:t,inside:i,innerRadius:o,includeNorth:r}=e;const a=16;const n=8;const g=368/2;const v=m=>m*(i?o-n/t-a/2:g+n/t+a/2);const f=[{label:"E",x:v(1),y:0},{label:"S",x:0,y:v(1)},{label:"W",x:v(-1),y:0}];const y=t<.58;if(r||y||i){f.push({label:"N",x:0,y:v(-1)})}return f}function Ta(e,t){let i;let o;let r;let a;let n;if(typeof e==="number"){i=e;o=t;r=false;a=368/2}else{i=e.scale;o=e.rotation;r=e.inside??false;a=e.innerRadius??368/2;n=e.includeNorth}const g=ci({scale:i,inside:r,innerRadius:a,includeNorth:n});return s`
-    ${g.map(v=>s`
+    <path d="${d}" fill="${o}" />
+  `}function f2(e,t,i=0){const o=Va(t,i);return c`
+    ${c2.map(r=>{const{cx:a,cy:n}=p2(r,o);return c`<circle cx="${a}" cy="${n}" r="${y9}" fill="${e}" />`})}
+  `}var Kg=360/As;var Jg=pr/2;var Rn=class{constructor(t,i,o=1,r=0){this._rotationsPerMinute=1;this._cyclePx=0;this.host=t;this.el=i;this._rotationsPerMinute=o;this._cyclePx=r;this.host.addController(this)}set rotationsPerMinute(t){if(this._rotationsPerMinute!==t){this._rotationsPerMinute=t;this.updateAnimation()}}get rotationsPerMinute(){return this._rotationsPerMinute}set cyclePx(t){if(this._cyclePx!==t){this._cyclePx=t;this.updateAnimation()}}get cyclePx(){return this._cyclePx}get isTranslateMode(){return this._cyclePx>0}getKeyframes(){if(this.isTranslateMode){return[{transform:"translateX(0px)"},{transform:`translateX(${this._cyclePx}px)`}]}return[{transform:"rotate(0deg)"},{transform:"rotate(360deg)"}]}hostConnected(){this.startAnimation()}startAnimation(){const t=Math.abs(this._rotationsPerMinute);const i=t===0?1:1e3*60/t;this.animation=this.el.animate(this.getKeyframes(),{duration:i,iterations:Infinity,direction:this._rotationsPerMinute>=0?"normal":"reverse"});if(this._rotationsPerMinute===0){this.animation.pause()}}updateAnimation(){if(!this.animation)return;const t=this.animation.effect.getComputedTiming();const i=t.duration;const o=this.animation.currentTime??0;const r=t.direction;const a=o%i/i;this.animation.cancel();const n=Math.abs(this._rotationsPerMinute);const h=n===0?1:1e3*60/n;const d=this._rotationsPerMinute>=0?"normal":"reverse";const f=r!==d?1-a:a;this.animation=this.el.animate(this.getKeyframes(),{duration:h,iterations:Infinity,direction:d});this.animation.currentTime=f*h;if(this._rotationsPerMinute===0){this.animation.pause()}}destroy(){this.animation?.cancel();this.animation=void 0}hostDisconnected(){this.destroy()}};function Nn(e,t){if(t){t.destroy();e.removeController(t)}return void 0}function zs(e){const{scale:t,inside:i,innerRadius:o,includeNorth:r}=e;const a=16;const n=8;const h=368/2;const d=v=>v*(i?o-n/t-a/2:h+n/t+a/2);const f=[{label:"E",x:d(1),y:0},{label:"S",x:0,y:d(1)},{label:"W",x:d(-1),y:0}];const y=t<.58;if(r||y||i){f.push({label:"N",x:0,y:d(-1)})}return f}function v2(e,t){let i;let o;let r;let a;let n;if(typeof e==="number"){i=e;o=t;r=false;a=368/2}else{i=e.scale;o=e.rotation;r=e.inside??false;a=e.innerRadius??368/2;n=e.includeNorth}const h=zs({scale:i,inside:r,innerRadius:a,includeNorth:n});return c`
+    ${h.map(d=>c`
         <text
-          x="${v.x}"
-          y="${v.y}"
+          x="${d.x}"
+          y="${d.y}"
           class="label"
           transform="rotate(${-(o??0)})"
-          transform-origin="${v.x} ${v.y}"
+          transform-origin="${d.x} ${d.y}"
         >
-          ${v.label}
+          ${d.label}
         </text>
       `)}
-  `}function Ea(e){const{scale:t,rotation:i,inside:o=false}=e;const r=368/2;const a=t<.58;if(a){if(o){return s`
+  `}function m2(e){const{scale:t,rotation:i,inside:o=false}=e;const r=368/2;const a=t<.58;if(a){if(o){return c`
         <g transform="translate(0, ${-r})">
           <path fill-rule="evenodd" clip-rule="evenodd"
             d="M-17.8457 24.984 0 0 17.8458 24.984C11.9868 24.3338 6.0324 24 0 24-6.0323 24-11.9867 24.3338-17.8457 24.984Z"
             fill="var(--instrument-frame-tertiary-color)"/>
-        </g>`}else{return s`
+        </g>`}else{return c`
         <defs>
           <mask id="circleMask">
             <rect x="-${r}" y="-${r}" width="${r*2}" height="${r*2}" fill="black"/>
@@ -3577,11 +3577,11 @@ li .active {
           <path fill-rule="evenodd" clip-rule="evenodd"
             d="M-17.8457 24.984 0 0 17.8458 24.984C11.9868 24.3338 6.0324 24 0 24-6.0323 24-11.9867 24.3338-17.8457 24.984Z"
             fill="var(--instrument-frame-tertiary-color)"/>
-        </g>`}}if(o){return s`
+        </g>`}}if(o){return c`
       <path transform="translate(-256, -256)" fill-rule="evenodd" clip-rule="evenodd"
         d="M238.152 96.9842L255.998 72L273.844 96.9839C267.985 96.3338 262.031 96 256 96C249.967 96 244.012 96.3339 238.152 96.9842Z"
         fill="var(--instrument-frame-tertiary-color)"/>
-    `}return s`
+    `}return c`
     <g transform="translate(0, ${(1/t-1)*188}) scale(${1/t})">
       <path transform="translate(-192, -224)"
         d="M 221.521 35.425 C 222.388 36.4644 222.821 36.9841 222.809 37.3627 C 222.8 37.6941 222.632 37.9916 222.354 38.1721 C 222.037 38.3783 221.361 38.2774 220.011 38.0756 A ${188*t} ${188*t} 0 0 0 163.989 38.0756 C 162.639 38.2774 161.964 38.3783 161.646 38.1721 C 161.368 37.9916 161.201 37.6941 161.191 37.3627 C 161.18 36.9841 161.613 36.4644 162.479 35.425 L 190.771 1.475 C 191.193 0.9685 191.404 0.7153 191.657 0.6229 C 191.879 0.5419 192.122 0.5419 192.343 0.6229 C 192.596 0.7153 192.807 0.9685 193.229 1.475 L 221.521 35.425 Z"
@@ -3597,20 +3597,20 @@ li .active {
     <g mask="url(#circleMask)" transform="translate(0, ${-(r+10/t+30)}) scale(${.75/t}, ${.75/t}) rotate(${-(i??0)})" transform-origin="0 25">
       <path d="M5.003 29H2.091L-3.013 20.264H-3.077C-3.066 20.52-3.056 20.7813-3.045 21.048-3.034 21.3147-3.024 21.5867-3.013 21.864-2.992 22.1307-2.976 22.4027-2.965 22.68-2.954 22.9573-2.944 23.2347-2.933 23.512V29H-4.997V17.576H-2.101L2.987 26.232H3.035C3.024 25.9867 3.014 25.736 3.003 25.48 2.992 25.2133 2.982 24.952 2.971 24.696 2.971 24.4293 2.966 24.1627 2.955 23.896 2.944 23.6293 2.934 23.3627 2.923 23.096V17.576H5.003V29Z" fill="var(--element-active-inverted-color)"/>
     </g>
-  `}var Da=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  `}var g2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M92 66.6364H83.7941L83.1324 65.4385L84.2794 62.1943H85.2941L82.4265 60.9964H82.0735L81.8057 59.7842C81.7044 59.3261 81.2984 59 80.8292 59H79.1708C78.7016 59 78.2956 59.3261 78.1943 59.7842L77.9265 60.9964H77.5735L74.7059 62.1943H75.7206L76.8676 65.4385L76.2059 66.6364H68V67.0856H69.3235V70.2299H68V79.3137V80.0624L68.5089 82.024C68.9278 83.639 70.1096 84.8535 71.5707 85.1706L80 87L88.4293 85.1706C89.8904 84.8535 91.0722 83.639 91.4911 82.024L92 80.0624V79.3137V70.2299V66.6364ZM86.3529 71.9657V79.3137H70.081V71.9657H86.3529Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M92 80.0624L91.4911 82.024C91.0722 83.639 89.8904 84.8535 88.4293 85.1706L80 87L71.5707 85.1706C70.1096 84.8535 68.9278 83.639 68.5089 82.024L68 80.0624M92 80.0624H68M92 80.0624V79.3137M83.7941 66.6364H92V70.2299M83.7941 66.6364L83.1324 65.4385M83.7941 66.6364H76.2059M83.1324 65.4385L84.2794 62.1943M83.1324 65.4385H76.8676M84.2794 62.1943H85.2941L82.4265 60.9964H82.0735M84.2794 62.1943H75.7206M68 80.0624V79.3137M76.2059 66.6364H68V67.0856H69.3235V70.2299M76.2059 66.6364L76.8676 65.4385M76.8676 65.4385L75.7206 62.1943M75.7206 62.1943H74.7059L77.5735 60.9964H77.9265M68 79.3137H70.081M68 79.3137V70.2299H69.3235M92 79.3137H86.3529M92 79.3137V70.2299M86.3529 79.3137V71.9657H70.081V79.3137M86.3529 79.3137H70.081M69.3235 70.2299H92M82.0735 60.9964H81.7206H78.2794H77.9265M82.0735 60.9964L81.8057 59.7842C81.7044 59.3261 81.2984 59 80.8292 59H79.1708C78.7016 59 78.2956 59.3261 78.1943 59.7842L77.9265 60.9964" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Ia=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var b2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 74.9115L13.0001 73.5L48.0001 73L52.8784 68.1352H75.4774L76.1648 65.6631L75.0908 62.3099H74.3605L76.6374 60H83.3628L85.6396 62.3099H84.9093L83.8353 65.6631L84.5227 68.1352H107.122L112 73L147 73.5L150 74.9115L150 80.16L147 81.8885L146.846 83.4086C146.791 83.95 146.452 84.3687 146.031 84.4377C145.96 84.4493 145.89 84.4476 145.818 84.4479C144.806 84.451 136.713 84.4895 128.544 84.9172C124.018 85.1541 118.577 85.6275 113.488 86.1336C102.356 87.2408 91.1872 88 80.0001 88C68.813 88 57.6441 87.2408 46.5119 86.1336C41.4228 85.6275 35.9817 85.1541 31.456 84.9172C23.2869 84.4895 15.194 84.451 14.182 84.4479C14.1104 84.4476 14.0397 84.4493 13.969 84.4377C13.5479 84.3687 13.2092 83.95 13.1543 83.4086L13.0001 81.8885L10.0001 80.16L10 74.9115Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M48.0001 73L13.0001 73.5L10 74.9115L10.0001 80.16M48.0001 73L52.8784 68.1352H75.4774M48.0001 73H112M75.4774 68.1352L76.1648 65.6631M75.4774 68.1352H84.5227M76.1648 65.6631L75.0908 62.3099M76.1648 65.6631H83.8353M75.0908 62.3099H74.3605L76.6374 60H83.3628L85.6396 62.3099H84.9093M75.0908 62.3099H84.9093M10.0001 80.16L13.0001 81.8885L13.1543 83.4086C13.2092 83.95 13.5479 84.3687 13.969 84.4377C14.0397 84.4493 14.1104 84.4476 14.182 84.4479C15.194 84.451 23.2869 84.4895 31.456 84.9172C35.9817 85.1541 41.4228 85.6275 46.5119 86.1336C57.6441 87.2408 68.813 88 80.0001 88C91.1872 88 102.356 87.2408 113.488 86.1336C118.577 85.6275 124.018 85.1541 128.544 84.9172C136.713 84.4895 144.806 84.451 145.818 84.4479C145.89 84.4476 145.96 84.4493 146.031 84.4377C146.452 84.3687 146.791 83.95 146.846 83.4086L147 81.8885L150 80.16M10.0001 80.16H150M112 73L147 73.5L150 74.9115L150 80.16M112 73L107.122 68.1352H84.5227M84.5227 68.1352L83.8353 65.6631M83.8353 65.6631L84.9093 62.3099" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var ja=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var y2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M80.0007 151.999C73.373 152 68 146.627 68 139.999L68 128.776L68 104.642L68 56.7557L68 19.9992C68 13.3717 73.3726 7.99916 80 7.99916C86.6274 7.99916 92 13.3717 92 19.9992L92 23.108L92 56.7557L92 108.092L92 137.357L92 139.999C92 146.626 86.6278 151.999 80.0007 151.999Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M85.8387 85.9422L73.9677 85.9422L73.9677 74.336L85.8387 74.336L85.8387 85.9422Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M92 108.092L86.2419 108.092M92 108.092L92 56.7557M92 108.092L92 137.357M86.2419 108.092L84.4516 104.642L72.9355 104.642L68 104.642M86.2419 108.092L86.2419 137.357L92 137.357M68 104.642L68 128.776L68 139.999C68 146.627 73.373 152 80.0007 151.999V151.999C86.6278 151.999 92 146.626 92 139.999L92 137.357M68 104.642L68 56.7557M68 56.7557L68 19.9992C68 13.3717 73.3726 7.99916 80 7.99916V7.99916V7.99916C86.6274 7.99916 92 13.3717 92 19.9992L92 23.108M68 56.7557L86.2419 56.7557M92 56.7557L86.2419 56.7557M92 56.7557L92 23.108M86.2419 56.7557L86.2419 23.108L92 23.108M73.9677 85.9422L85.8387 85.9422M73.9677 85.9422L73.9677 74.336M73.9677 85.9422L76.5806 83.424M85.8387 85.9422L85.8387 74.336M85.8387 85.9422L83.2258 83.424M85.8387 74.336L73.9677 74.336M85.8387 74.336L83.2258 76.8541M73.9677 74.336L76.5806 76.8541M76.5806 83.424L83.2258 83.424M76.5806 83.424L76.5806 76.8541M83.2258 83.424L83.2258 76.8541M83.2258 76.8541L76.5806 76.8541" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Ra=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var w2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <rect x="60" y="52" width="40" height="3" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M80.0036 77.9545V87C80.0036 87 83.7476 81.9921 82.7622 80C82.1928 78.8489 80.0036 77.9545 80.0036 77.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80.0036 87V77.9545C80.0036 77.9545 77.8718 78.8255 77.2684 79.9545C77.2603 79.9697 77.2525 79.9848 77.245 80C76.2596 81.9921 80.0036 87 80.0036 87Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3634,16 +3634,16 @@ li .active {
 <path d="M96 55L91 60" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M64 55L69 60" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Na=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var C2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M140.366 87.1181H21.3855V83.0385L12.4844 80V71H18.4844V63L22 44H26V63H32.4844V53.5604V50.1099L31 48.9973L32 48.1429H37.4294L37.2747 38.5H39.5L41.88 48.1429H45.8152C48.7962 48.1429 51.7388 48.8152 54.4239 50.1099H52.5695L50.3443 53.5604V71H117.416L124.833 64.1236H148C148 64.1236 146.5 67 144.5 71C143.302 73.3966 143.5 75.6209 143.5 75.6209C145.701 75.6209 147.484 77.4047 147.484 79.6053V80C147.484 83.9312 144.297 87.1181 140.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80H147.484M12.4844 80L21.3855 83.0385V87.1181H140.366C144.297 87.1181 147.484 83.9312 147.484 80V80M12.4844 80V71H18.4844M147.484 80V79.6053C147.484 77.4047 145.701 75.6209 143.5 75.6209V75.6209C143.5 75.6209 143.302 73.3966 144.5 71C146.5 67 148 64.1236 148 64.1236H124.833L117.416 71H50.3443M18.4844 71H50.3443M18.4844 71V63L22 44H26V63H32.4844V53.5604M32.4844 53.5604H50.3443M32.4844 53.5604V50.1099M50.3443 53.5604L52.5695 50.1099H32.4844M50.3443 53.5604V71M32.4844 50.1099H54.4239V50.1099C51.7388 48.8152 48.7962 48.1429 45.8152 48.1429H41.88M32.4844 50.1099L31 48.9973L32 48.1429H37.4294M41.88 48.1429L39.5 38.5H37.2747L37.4294 48.1429M41.88 48.1429H37.4294" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="136" cy="70" r="2" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Fa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var L2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 146.75L66.5 32.1402C66.5 11.5 80 9.25 80 9.25C80 9.25 93.5 11.5 93.5 32.1402L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M74 122L64 122L64 118L72 118L75 114L85 114L88 118L96 118L96 122L86 122L86 138.75L74 138.75L74 122Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Ua=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var k2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M80 77.9545V87C80 87 83.744 81.9921 82.7586 80C82.1892 78.8489 80 77.9545 80 77.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 87V77.9545C80 77.9545 77.8682 78.8255 77.2648 79.9545C77.2567 79.9697 77.2489 79.9848 77.2414 80C76.256 81.9921 80 87 80 87Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 87H90.7692C92.9784 87 94.7692 85.2091 94.7692 83V80H82.7586C83.744 81.9921 80 87 80 87Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3665,7 +3665,7 @@ li .active {
 <path d="M94.7728 64H92.3113H80.0036L80.0036 77.9545C80.0036 77.9545 82.1928 78.8489 82.7622 80H94.7728V79.9545V74V64Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M65.2344 79.9545V83C65.2344 85.2091 67.0252 87 69.2344 87H80.0036M65.2344 79.9545V74V64H67.6959H80.0036M65.2344 79.9545H77.2684M80.0036 64H92.3113H94.7728V74V79.9545V80M80.0036 64L80.0036 77.9545M80.0036 87H90.7728C92.982 87 94.7728 85.2091 94.7728 83V80M80.0036 87V77.9545M80.0036 87C80.0036 87 83.7476 81.9921 82.7622 80M80.0036 87C80.0036 87 76.2596 81.9921 77.245 80C77.2525 79.9848 77.2603 79.9697 77.2684 79.9545M80.0036 77.9545C80.0036 77.9545 82.1928 78.8489 82.7622 80M80.0036 77.9545C80.0036 77.9545 77.8718 78.8255 77.2684 79.9545M82.7622 80H94.7728M75.5898 72L75.0381 71H71.7277L72.2795 72H75.5898ZM83.8657 72L84.4174 71H87.7277L87.176 72H83.8657Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Wa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var x2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M119.273 71V66.7333H112V65.1818H112.727V56.6485V39.1939V20.1879V8.16364H112V7H128V8.16364V65.1818V66.7333H125.455V71H119.273Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M112.727 65.1818H112V66.7333H119.273V71H125.455V66.7333H128V65.1818M112.727 65.1818H128M112.727 65.1818V56.6485M112.727 8.16364H112V7H128V8.16364M112.727 8.16364H128M112.727 8.16364V20.1879M128 65.1818V8.16364M112.727 20.1879H122.545M112.727 20.1879V39.1939M112.727 39.1939H122.545M112.727 39.1939V56.6485M112.727 56.6485H122.545" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M140.366 87.1181H21.3855V83.0385L12.4844 80V71V58.5604V54.1099L11 52.9973L12 51.1429H17.4294L17.2747 41.5H19.5L21.88 51.1429H25.2998C28.5783 51.1429 31.7725 52.1816 34.4239 54.1099H32.5695L30.3443 58.5604V71H117.416L124.833 64.1236H146.743C146.743 64.1236 143.808 67.7438 142.292 70.614C141.041 72.9834 139.325 77.1044 139.325 77.1044L143.176 76.4042C145.419 75.9963 147.484 77.7198 147.484 80C147.484 83.9312 144.297 87.1181 140.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3677,7 +3677,7 @@ li .active {
 <path d="M47.2727 71V66.7333H40V65.1818H40.7273V56.6485V39.1939V20.1879V8.16364H40V7H56V8.16364V65.1818V66.7333H53.4545V71H47.2727Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M40.7273 65.1818H40V66.7333H47.2727V71H53.4545V66.7333H56V65.1818M40.7273 65.1818H56M40.7273 65.1818V56.6485M40.7273 8.16364H40V7H56V8.16364M40.7273 8.16364H56M40.7273 8.16364V20.1879M56 65.1818V8.16364M40.7273 20.1879H50.5455M40.7273 20.1879V39.1939M40.7273 39.1939H50.5455M40.7273 39.1939V56.6485M40.7273 56.6485H50.5455" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var qa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var M2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 146.75L66.5 32.1402C66.5 11.5 80 9.25 80 9.25C80 9.25 93.5 11.5 93.5 32.1402L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M74 140L64 140L64 128L72 128L75 124L85 124L88 128L96 128L96 140L86 140L86 148.75L74 148.75L74 140Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M76.3472 21.6677C78.2643 22.1593 79.8323 23.5259 80.5811 25.3486L80.7239 25.7307L83.565 34.1692L77.6776 27.4895C76.2735 25.8965 75.7779 23.7047 76.3472 21.6677Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -3685,11 +3685,11 @@ li .active {
 <path d="M76.3472 69.6667C78.2643 70.1584 79.8323 71.5249 80.5811 73.3476L80.7239 73.7297L83.565 82.1682L77.6776 75.4885C76.2735 73.8955 75.7779 71.7037 76.3472 69.6667Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M76.3472 93.6667C78.2643 94.1584 79.8323 95.5249 80.5811 97.3476L80.7239 97.7297L83.565 106.168L77.6776 99.4885C76.2735 97.8955 75.7779 95.7037 76.3472 93.6667Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Ga=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var $2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M132.366 87.1181H29.3855V83.0385L20.4844 80V71.5412H24V68.7912H20.4844V66.0412H24V51.1429H31.5L36 66.0412H48L51.5 71.5412H54.4157L55.575 61.5604L54.0915 57.1099H52.608L54.4157 54.1429H57.4294L54.4624 44.5H56.6877L61.88 54.1429C65.3312 54.1429 68.772 54.5206 72.1409 55.2692L80.4239 57.1099H78.5695L76.3443 61.5604L88.5 71.0827C102.374 69.3897 109.424 63.1236 109.424 63.1236H118L115.5 51.1429H118L122 63.1236H140.743C132 69.5 130.325 77.1044 130.325 77.1044L135.162 76.321C137.428 75.9539 139.484 77.7039 139.484 80C139.484 83.9312 136.297 87.1181 132.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M20.4844 80H139.484M20.4844 80L29.3855 83.0385V87.1181H132.366C136.297 87.1181 139.484 83.9312 139.484 80V80M20.4844 80V71.5412H24V68.7912H20.4844V66.0412H24M139.484 80V80C139.484 77.7039 137.428 75.9539 135.162 76.321L130.325 77.1044C130.325 77.1044 132 69.5 140.743 63.1236H122M54.4157 71.5412C54.4157 71.5412 75.9997 71.5 81.5 71.5C100 71.5 109.424 63.1236 109.424 63.1236H118M54.4157 71.5412L55.575 61.5604M54.4157 71.5412H51.5L48 66.0412H36M55.575 61.5604H76.3443M55.575 61.5604L54.0915 57.1099H78.5695L76.3443 61.5604M76.3443 61.5604L88.5 71.0827M61.88 54.1429V54.1429C65.3312 54.1429 68.772 54.5206 72.1409 55.2692L80.4239 57.1099H52.608L54.4157 54.1429H57.4294M61.88 54.1429L56.6877 44.5H54.4624L57.4294 54.1429M61.88 54.1429H57.4294M24 66.0412V51.1429H31.5L36 66.0412M24 66.0412H36M122 63.1236L118 51.1429H115.5L118 63.1236M122 63.1236H118" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Xa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var H2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M80 18.25C80 18.25 93.5 18.25 93.5 51.1402L93.5 94.2378L93.5 122L93.5 128L93.5 135L93.5 139.75C93.5 140.855 92.6046 141.75 91.5 141.75L90.125 141.75L69.875 141.75L68.5 141.75C67.3954 141.75 66.5 140.855 66.5 139.75L66.5 135L66.5 128L66.5 122L66.5 51.1402C66.5 18.25 80 18.25 80 18.25Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M66.5 135L66.5 139.75C66.5 140.855 67.3954 141.75 68.5 141.75L69.875 141.75L90.125 141.75L91.5 141.75C92.6046 141.75 93.5 140.855 93.5 139.75L93.5 135M66.5 135L93.5 135M66.5 135L66.5 128M93.5 135L93.5 128M93.5 122L93.5 94.2378L93.5 51.1402C93.5 18.25 80 18.25 80 18.25C80 18.25 66.5 18.25 66.5 51.1402L66.5 122M93.5 122L93.5 128M93.5 122L88 122L88 128M93.5 128L88 128M66.5 128L66.5 122M66.5 128L72 128M88 128L72 128M66.5 122L72 122L72 128M82 34L81.5 42.5L78.5 42.5L78 34L82 34Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M71 103.375L64.25 103.375L64.25 94.375C64.25 94.375 67.4029 89.009 69.5 86C71.7705 82.7422 75.5 78.625 75.5 78.625L84.5 78.625C84.5 78.625 87.8347 82.9839 90 86C92.2512 89.1357 95.75 94.375 95.75 94.375L95.75 103.375L89 103.375L85.625 103.5L74.375 103.5L71 103.375Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3697,25 +3697,25 @@ li .active {
 <path d="M85.625 97.625L85.625 103.25L83.375 104.375L76.625 104.375L74.375 103.25L74.375 97.625L76.625 101L83.375 101L85.625 97.625Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M83.375 101L85.625 97.625L85.625 103.25L83.375 104.375M83.375 101L76.625 101M83.375 101L83.375 104.375M76.625 101L74.375 97.625L74.375 103.25L76.625 104.375M76.625 101L76.625 104.375M76.625 104.375L83.375 104.375" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Ya=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var _2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M68 66.6364H76.2059L76.8676 65.4385L75.7206 62.1943H74.7059L77.5735 60.9964H77.9265L78.1943 59.7842C78.2956 59.3261 78.7016 59 79.1708 59H80.8292C81.2984 59 81.7044 59.3261 81.8057 59.7842L82.0735 60.9964H82.4265L85.2941 62.1943H84.2794L83.1324 65.4385L83.7941 66.6364H92V67.0856H90.6765V70.2299H92V79.3137V80.0624L91.4911 82.024C91.0722 83.639 89.8904 84.8535 88.4293 85.1706L80 87L71.5707 85.1706C70.1096 84.8535 68.9278 83.639 68.5089 82.024L68 80.0624V79.3137V70.2299V66.6364ZM73.6471 71.9657V79.3137H89.919V71.9657H73.6471Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M68 80.0624L68.5089 82.024C68.9278 83.639 70.1096 84.8535 71.5707 85.1706L80 87L88.4293 85.1706C89.8904 84.8535 91.0722 83.639 91.4911 82.024L92 80.0624M68 80.0624H92M68 80.0624V79.3137M76.2059 66.6364H68V70.2299M76.2059 66.6364L76.8676 65.4385M76.2059 66.6364H83.7941M76.8676 65.4385L75.7206 62.1943M76.8676 65.4385H83.1324M75.7206 62.1943H74.7059L77.5735 60.9964H77.9265M75.7206 62.1943H84.2794M92 80.0624V79.3137M83.7941 66.6364H92V67.0856H90.6765V70.2299M83.7941 66.6364L83.1324 65.4385M83.1324 65.4385L84.2794 62.1943M84.2794 62.1943H85.2941L82.4265 60.9964H82.0735M92 79.3137H89.919M92 79.3137V70.2299H90.6765M68 79.3137H73.6471M68 79.3137V70.2299M73.6471 79.3137V71.9657H89.919V79.3137M73.6471 79.3137H89.919M90.6765 70.2299H68M77.9265 60.9964H78.2794H81.7206H82.0735M77.9265 60.9964L78.1943 59.7842C78.2956 59.3261 78.7016 59 79.1708 59H80.8292C81.2984 59 81.7044 59.3261 81.8057 59.7842L82.0735 60.9964" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Ka=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var S2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <mask id="path-1-inside-1_208_29995" fill="white">
 <path d="M125.032 93.6077C139.926 93.6077 152 81.5337 152 66.6396L11.7453 66.6396L11.7453 93.6076L125.032 93.6077Z"/>
 </mask>
 <path d="M125.032 93.6077C139.926 93.6077 152 81.5337 152 66.6396L11.7453 66.6396L11.7453 93.6076L125.032 93.6077Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M152 66.6396L154 66.6396L154 64.6396L152 64.6396L152 66.6396ZM11.7453 66.6396L11.7453 64.6396L9.74529 64.6396L9.74529 66.6396L11.7453 66.6396ZM11.7453 93.6076L9.74528 93.6076L9.74528 95.6076L11.7453 95.6076L11.7453 93.6076ZM125.032 95.6077C141.031 95.6077 154 82.6382 154 66.6396L150 66.6396C150 80.4291 138.821 91.6077 125.032 91.6077L125.032 95.6077ZM152 64.6396L11.7453 64.6396L11.7453 68.6396L152 68.6396L152 64.6396ZM9.74529 66.6396L9.74528 93.6076L13.7453 93.6076L13.7453 66.6396L9.74529 66.6396ZM11.7453 95.6076L125.032 95.6077L125.032 91.6077L11.7453 91.6076L11.7453 95.6076Z" fill="var(--instrument-tick-mark-secondary-color)" mask="url(#path-1-inside-1_208_29995)"/>
 </svg>
-`;var Ja=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var V2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <mask id="path-1-inside-1_208_29982" fill="white">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M80 9.18359C71.6308 14.0249 66 23.0737 66 33.4377L66 151.06L94 151.06L94 33.4377C94 23.0737 88.3692 14.0249 80 9.18359Z"/>
 </mask>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M80 9.18359C71.6308 14.0249 66 23.0737 66 33.4377L66 151.06L94 151.06L94 33.4377C94 23.0737 88.3692 14.0249 80 9.18359Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 9.18359L81.0014 7.45238L80 6.87307L78.9985 7.45238L80 9.18359ZM66 151.06L64 151.06L64 153.06L66 153.06L66 151.06ZM94 151.06L94 153.06L96 153.06L96 151.06L94 151.06ZM68 33.4377C68 23.8165 73.2248 15.4133 81.0014 10.9148L78.9985 7.45238C70.0367 12.6365 64 22.3309 64 33.4377L68 33.4377ZM64 33.4377L64 151.06L68 151.06L68 33.4377L64 33.4377ZM66 153.06L94 153.06L94 149.06L66 149.06L66 153.06ZM96 151.06L96 33.4377L92 33.4377L92 151.06L96 151.06ZM96 33.4377C96 22.3309 89.9633 12.6365 81.0014 7.45238L78.9985 10.9148C86.7752 15.4133 92 23.8165 92 33.4377L96 33.4377Z" fill="var(--instrument-tick-mark-secondary-color)" mask="url(#path-1-inside-1_208_29982)"/>
 </svg>
-`;var Qa=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Z2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M67.1154 52.6364H93.8846H95L91.6538 49.2273H85.9615H75.0385H69.3462L66 52.6364H67.1154Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M67.1154 79.9545H93.8846V74H91.6538H69.3462H67.1154V79.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M67.1154 83C67.1154 85.2091 68.9062 87 71.1154 87H89.8846C92.0938 87 93.8846 85.2091 93.8846 83V79.9545H67.1154V83Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3726,7 +3726,7 @@ li .active {
 <path d="M82.7308 41H78.2692L75.0385 49.2273H76.7115L79.3846 42.4205H81.6154L84.2885 49.2273H85.9615L82.7308 41Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M91.6538 64H93.8846V74M91.6538 64V57.75M91.6538 64V74M91.6538 57.75L93.8846 52.6364M91.6538 57.75H69.3462M93.8846 52.6364H67.1154M93.8846 52.6364H95L91.6538 49.2273H85.9615M67.1154 52.6364L69.3462 57.75M67.1154 52.6364H66L69.3462 49.2273H75.0385M69.3462 57.75V64M69.3462 64H67.1154V74M69.3462 64V74M75.0385 49.2273H85.9615M75.0385 49.2273L78.2692 41H82.7308L85.9615 49.2273M75.0385 49.2273H76.7115L79.3846 42.4205H81.6154L84.2885 49.2273H85.9615M93.8846 79.9545V83C93.8846 85.2091 92.0938 87 89.8846 87H71.1154C68.9062 87 67.1154 85.2091 67.1154 83V79.9545M93.8846 79.9545H67.1154M93.8846 79.9545V74M67.1154 79.9545V74M67.1154 74H69.3462M93.8846 74H91.6538M91.6538 74H69.3462" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var en=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var A2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M80 77.9545V87C80 87 83.744 81.9921 82.7586 80C82.1892 78.8489 80 77.9545 80 77.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 87V77.9545C80 77.9545 77.8682 78.8255 77.2648 79.9545C77.2567 79.9697 77.2489 79.9848 77.2414 80C76.256 81.9921 80 87 80 87Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80 87H90.7692C92.9784 87 94.7692 85.2091 94.7692 83V80H82.7586C83.744 81.9921 80 87 80 87Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3739,11 +3739,11 @@ li .active {
 <path d="M82.4615 41H77.5385L73.9735 49.2273H75.8196L78.7692 42.4205H81.2308L84.1804 49.2273H86.0265L82.4615 41Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M92.3077 64H94.7692V74V79.9545V80M92.3077 64V57.75M92.3077 64H80M92.3077 57.75L94.7692 52.6364M92.3077 57.75H67.6923M94.7692 52.6364H65.2308M94.7692 52.6364H96L92.3077 49.2273H86.0265M65.2308 52.6364L67.6923 57.75M65.2308 52.6364H64L67.6923 49.2273H73.9735M67.6923 57.75V64M67.6923 64H65.2308V74V79.9545M67.6923 64H80M73.9735 49.2273H86.0265M73.9735 49.2273L77.5385 41H82.4615L86.0265 49.2273M73.9735 49.2273H75.8196M86.0265 49.2273H84.1804M65.2308 79.9545V83C65.2308 85.2091 67.0216 87 69.2308 87H80M65.2308 79.9545H77.2648M75.8196 49.2273L78.7692 42.4205H81.2308L84.1804 49.2273M75.8196 49.2273H84.1804M80 64L80 77.9545M80 87H90.7692C92.9784 87 94.7692 85.2091 94.7692 83V80M80 87V77.9545M80 87C80 87 83.744 81.9921 82.7586 80M80 87C80 87 76.256 81.9921 77.2414 80C77.2489 79.9848 77.2567 79.9697 77.2648 79.9545M80 77.9545C80 77.9545 82.1892 78.8489 82.7586 80M80 77.9545C80 77.9545 77.8682 78.8255 77.2648 79.9545M82.7586 80H94.7692M75.5862 72L75.0345 71H71.7241L72.2759 72H75.5862ZM83.8621 72L84.4138 71H87.7241L87.1724 72H83.8621Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var tn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var P2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M140.366 87.1181H21.3855V83.0385L12.4844 80V71.5412H92.5943L105.575 58.5604L104.092 54.1099H102.608L104.092 52.9973H106.688V51.1429H107.429L104.462 41.5H106.688L111.88 51.1429C115.331 51.1429 118.772 51.5206 122.141 52.2692L130.424 54.1099H128.57L126.344 58.5604L131.907 64.1236H146.743C146.743 64.1236 143.808 67.7438 142.292 70.614C141.041 72.9834 139.325 77.1044 139.325 77.1044L143.176 76.4042C145.419 75.9963 147.484 77.7198 147.484 80C147.484 83.9312 144.297 87.1181 140.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80H147.484M12.4844 80L21.3855 83.0385V87.1181H140.366C144.297 87.1181 147.484 83.9312 147.484 80V80M12.4844 80V71.5412H92.5943M147.484 80V80C147.484 77.7198 145.419 75.9963 143.176 76.4042L139.325 77.1044C139.325 77.1044 141.041 72.9834 142.292 70.614C143.808 67.7438 146.743 64.1236 146.743 64.1236H131.907M92.5943 71.5412H97.4157L104.833 64.1236H131.907M92.5943 71.5412L105.575 58.5604M105.575 58.5604H126.344M105.575 58.5604L104.092 54.1099H128.57L126.344 58.5604M126.344 58.5604L131.907 64.1236M111.88 51.1429V51.1429C115.331 51.1429 118.772 51.5206 122.141 52.2692L130.424 54.1099H102.608L104.092 52.9973H106.688V51.1429H107.429M111.88 51.1429L106.688 41.5H104.462L107.429 51.1429M111.88 51.1429H107.429" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var rn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var T2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 74.4634L66.5 42.1402C66.5 9.25 80 9.25 80 9.25C80 9.25 93.5 9.25 93.5 42.1402L93.5 85.2378L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75L66.5 74.4634Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M66.5 74.4634L71 67.6585L71 61.9878L89.5625 61.9878L89.5625 81.2683L93.5 85.2378M93.5 85.2378L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75L66.5 42.1402C66.5 9.25 80 9.25 80 9.25C80 9.25 93.5 9.25 93.5 42.1402L93.5 85.2378Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M71 55.375L64.25 55.375L64.25 46.375L71 41.875L75.5 30.625L84.5 30.625L89 41.875L95.75 46.375L95.75 55.375L89 55.375L85.625 58.75L74.375 58.75L71 55.375Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3751,11 +3751,11 @@ li .active {
 <path d="M85.625 49.625L85.625 55.25L83.375 56.375L76.625 56.375L74.375 55.25L74.375 49.625L76.625 53L83.375 53L85.625 49.625Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M83.375 53L85.625 49.625L85.625 55.25L83.375 56.375M83.375 53L76.625 53M83.375 53L83.375 56.375M76.625 53L74.375 49.625L74.375 55.25L76.625 56.375M76.625 53L76.625 56.375M76.625 56.375L83.375 56.375" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var on=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var z2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M21.3861 87.1181H140.367C144.298 87.1181 147.485 83.9312 147.485 80C147.485 77.3161 145.721 75.4558 143.354 74.1896C142.097 73.5171 141.313 72.47 142.293 70.614C143.809 67.7438 147.485 61 147.485 61C139.641 59.2601 125.9 58.5457 110.345 58.2682V55.5604L112.57 51.1099H114.425L106.142 49.2692C102.773 48.5206 99.3318 48.1429 95.8807 48.1429L94.7268 46H102.001L104.834 43H93.0345L90.6883 38.5H88.4631L90.2323 43H74.5007V26H64.0007V71.5412H8.48505C8.48505 71.5412 7.50138 78 12.485 80L21.3861 83.0385V87.1181ZM75.8339 58.1236L74.5007 60.5354V48.1429V46H90.7708L91.4301 48.1429H89.6883L86.6883 49.9973H77.0922L75.6087 51.1099H77.0922L78.5757 55.5604V58.1199C77.6695 58.1223 76.7557 58.1236 75.8339 58.1236Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.485 80C65.2058 80 147.485 80 147.485 80M12.485 80C15.9611 81.1866 21.3861 83.0385 21.3861 83.0385M12.485 80C7.50138 78 8.48505 71.5412 8.48505 71.5412H64.0007M12.485 80L21.3861 83.0385M147.485 80V80C147.485 83.9312 144.298 87.1181 140.367 87.1181V87.1181M147.485 80V80C147.485 77.3161 145.721 75.4557 143.354 74.1896V74.1896M147.485 80C147.485 77.3161 145.721 75.4558 143.354 74.1896M147.485 80C147.485 83.9312 144.298 87.1181 140.367 87.1181M21.3861 83.0385V87.1181H140.367M147.485 61C147.485 61 143.809 67.7438 142.293 70.614C141.313 72.47 142.097 73.5171 143.354 74.1896M147.485 61C134.501 58.1199 105.36 58.0499 78.5757 58.1199M147.485 61C139.641 59.2601 125.9 58.5457 110.345 58.2682V55.5604M78.5757 55.5604H110.345M78.5757 55.5604L77.0922 51.1099M78.5757 55.5604V58.1199M110.345 55.5604L112.57 51.1099M112.57 51.1099H77.0922M112.57 51.1099H114.425M77.0922 51.1099H75.6087M75.6087 51.1099H114.425M75.6087 51.1099L77.0922 49.9973H86.6883L89.6883 48.1429H91.4301M114.425 51.1099L106.142 49.2692M95.8807 48.1429V48.1429C99.3318 48.1429 102.773 48.5206 106.142 49.2692V49.2692M95.8807 48.1429H91.4301M95.8807 48.1429L94.7268 46M95.8807 48.1429C99.3318 48.1429 102.773 48.5206 106.142 49.2692M91.4301 48.1429L90.7708 46M64.0007 71.5412V26H74.5007V43M64.0007 71.5412H68.4164L74.5007 60.5354M74.5007 46V48.1429V60.5354M74.5007 46V43M74.5007 46H90.7708M74.5007 43H90.2323M93.0345 43H104.834L102.001 46H94.7268M93.0345 43L90.6883 38.5H88.4631L90.2323 43M93.0345 43H90.2323M90.7708 46H94.7268M74.5007 60.842V60.5354M78.5757 58.1199C77.6695 58.1223 76.7557 58.1236 75.8339 58.1236L74.5007 60.5354" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var an=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var O2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 81L66.5 42.1402C66.5 9.25 80 9.25 80 9.25C80 9.25 93.5 9.25 93.5 42.1402L93.5 81L93.5 135.25C93.5 142.706 87.4558 148.75 80 148.75C72.5442 148.75 66.5 142.706 66.5 135.25L66.5 81Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M66.5 81L73 81L73 77.9878L87 77.9878L87 81L93.5 81M93.5 81L93.5 135.25C93.5 142.706 87.4558 148.75 80 148.75V148.75C72.5442 148.75 66.5 142.706 66.5 135.25L66.5 42.1402C66.5 9.25 80 9.25 80 9.25C80 9.25 93.5 9.25 93.5 42.1402L93.5 81Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M74.375 80.125L71.5 84L67 84L64 80L64 65L71 59.25L75.5 46L84.5 46L89 59.25L96 65L96 80.125L93 84L88.5 84L85.625 80.125L85.625 76L74.375 76L74.375 80.125Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3765,7 +3765,7 @@ li .active {
 <rect x="82.4185" y="91.8209" width="5" height="31" transform="rotate(-150 82.4185 91.8209)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="79.9992" cy="91.0031" r="5.5" transform="rotate(-150 79.9992 91.0031)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var nn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var E2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <rect x="60" y="52" width="40" height="3" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M80.0036 77.9545V87C80.0036 87 83.7476 81.9921 82.7622 80C82.1928 78.8489 80.0036 77.9545 80.0036 77.9545Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M80.0036 87V77.9545C80.0036 77.9545 77.8718 78.8255 77.2684 79.9545C77.2603 79.9697 77.2525 79.9848 77.245 80C76.2596 81.9921 80.0036 87 80.0036 87Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3791,29 +3791,29 @@ li .active {
 <path d="M96 55L91 60" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M64 55L69 60" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var ln=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var D2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M53.0312 72H80.9609C80.4482 64.7347 74.3918 59 66.9961 59C59.6003 59 53.544 64.7347 53.0312 72ZM139.961 72C139.448 64.7347 133.392 59 125.996 59C118.6 59 112.544 64.7347 112.031 72H139.961ZM110.961 72C110.448 64.7347 104.392 59 96.9961 59C89.6003 59 83.544 64.7347 83.0312 72H110.961Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M53.0312 72L52.5325 71.9648L52.4947 72.5H53.0312V72ZM80.9609 72V72.5H81.4975L81.4597 71.9648L80.9609 72ZM139.961 72V72.5H140.497L140.46 71.9648L139.961 72ZM112.031 72L111.532 71.9648L111.495 72.5H112.031V72ZM110.961 72V72.5H111.497L111.46 71.9648L110.961 72ZM83.0312 72L82.5325 71.9648L82.4947 72.5H83.0312V72ZM53.0312 72.5H80.9609V71.5H53.0312V72.5ZM81.4597 71.9648C80.9286 64.4396 74.6562 58.5 66.9961 58.5V59.5C74.1275 59.5 79.9678 65.0299 80.4622 72.0352L81.4597 71.9648ZM66.9961 58.5C59.336 58.5 53.0636 64.4396 52.5325 71.9648L53.53 72.0352C54.0244 65.0299 59.8647 59.5 66.9961 59.5V58.5ZM140.46 71.9648C139.929 64.4396 133.656 58.5 125.996 58.5V59.5C133.127 59.5 138.968 65.0299 139.462 72.0352L140.46 71.9648ZM125.996 58.5C118.336 58.5 112.064 64.4396 111.532 71.9648L112.53 72.0352C113.024 65.0299 118.865 59.5 125.996 59.5V58.5ZM112.031 72.5H139.961V71.5H112.031V72.5ZM111.46 71.9648C110.929 64.4396 104.656 58.5 96.9961 58.5V59.5C104.127 59.5 109.968 65.0299 110.462 72.0352L111.46 71.9648ZM96.9961 58.5C89.336 58.5 83.0636 64.4396 82.5325 71.9648L83.53 72.0352C84.0244 65.0299 89.8647 59.5 96.9961 59.5V58.5ZM83.0312 72.5H110.961V71.5H83.0312V72.5Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M140.366 87.1181H21.3855V83.0385L12.4844 80V71H18.4844V63L22 44H26V63H32.4844V53.5604V50.1099L31 48.9973L32 48.1429H37.4294L37.2747 38.5H39.5L41.88 48.1429H45.8152C48.7962 48.1429 51.7388 48.8152 54.4239 50.1099H52.5695L50.3443 53.5604V71H117.416L124.833 64.1236H148C148 64.1236 148 68.5 145.5 71C143.605 72.8947 143.5 75.6209 143.5 75.6209C145.701 75.6209 147.484 77.4047 147.484 79.6053V80C147.484 83.9312 144.297 87.1181 140.366 87.1181Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80H147.484M12.4844 80L21.3855 83.0385V87.1181H140.366C144.297 87.1181 147.484 83.9312 147.484 80V80M12.4844 80V71H18.4844M147.484 80V79.6053C147.484 77.4047 145.701 75.6209 143.5 75.6209V75.6209C143.5 75.6209 143.605 72.8947 145.5 71C148 68.5 148 64.1236 148 64.1236H124.833L117.416 71H50.3443M18.4844 71H50.3443M18.4844 71V63L22 44H26V63H32.4844V53.5604M32.4844 53.5604H50.3443M32.4844 53.5604V50.1099M50.3443 53.5604L52.5695 50.1099H32.4844M50.3443 53.5604V71M32.4844 50.1099H54.4239V50.1099C51.7388 48.8152 48.7962 48.1429 45.8152 48.1429H41.88M32.4844 50.1099L31 48.9973L32 48.1429H37.4294M41.88 48.1429L39.5 38.5H37.2747L37.4294 48.1429M41.88 48.1429H37.4294" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="136" cy="70" r="2" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var sn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var B2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.5 146.75L66.5 32.1402C66.5 11.5 80 9.25 80 9.25C80 9.25 93.5 11.5 93.5 32.1402L93.5 146.75C93.5 147.855 92.6046 148.75 91.5 148.75L90.125 148.75L69.875 148.75L68.5 148.75C67.3954 148.75 66.5 147.855 66.5 146.75Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M74 122L64 122L64 118L72 118L75 114L85 114L88 118L96 118L96 122L86 122L86 138.75L74 138.75L74 122Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="80" cy="44" r="11.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="80" cy="70" r="11.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="80" cy="96" r="11.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var cn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var I2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M140.366 87.1182H21.3855V83.0386L12.4844 80.0001C12.4844 77.5441 14.487 75.5592 16.943 75.5812L21.3855 75.621L84.5943 75.5413L96.8333 64.1237H100.012V49.5H101H103H105.575L106.76 54.5605H115.281C122.13 54.5605 128.463 58.203 131.907 64.1237H138C141.233 66.387 144.251 70.5308 145.98 73.1767C147.01 74.7539 147.484 76.6105 147.484 78.4946V80.0001C147.484 83.9313 144.297 87.1182 140.366 87.1182Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80.0001H147.484M12.4844 80.0001L21.3855 83.0386V87.1182H140.366C144.297 87.1182 147.484 83.9313 147.484 80.0001V80.0001M12.4844 80.0001V80.0001C12.4844 77.5441 14.487 75.5592 16.943 75.5812L21.3855 75.621L84.5943 75.5413L96.8333 64.1237H100.012M147.484 80.0001V78.4946C147.484 76.6105 147.01 74.7539 145.98 73.1767C144.251 70.5308 141.233 66.387 138 64.1237H131.907M106.76 54.5605H115.281C122.13 54.5605 128.463 58.203 131.907 64.1237V64.1237M131.907 64.1237H109M100.012 64.1237V49.5H101M100.012 64.1237H109M109 64.1237L105.575 49.5H103M101 49.5V45M101 49.5H103M103 49.5V47" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var dn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var R2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M147.484 80.0001L146.814 81.5981C145.412 84.9422 142.14 87.1182 138.514 87.1182H21.3855V83.0386L12.4844 80.0001C12.4844 77.5376 14.4806 75.5413 16.9432 75.5413H21L30.5 56.5H32H34.5H36.5L33.5 75.5413H36.5943L48.8333 64.1237H100.012H127.5L145.461 66.8188C147.93 67.1894 149.587 69.5517 149.094 72L147.484 80.0001Z" fill="var(--instrument-frame-primary-color)"/>
 <path d="M12.4844 80.0001L21.3855 83.0386V87.1182H138.514C142.14 87.1182 145.412 84.9422 146.814 81.5981L147.484 80.0001L149.094 72M12.4844 80.0001V80.0001C12.4844 77.5376 14.4806 75.5413 16.9432 75.5413H21M12.4844 80.0001H107.04C116.302 80.0001 125.519 78.7134 134.427 76.1768L149.094 72M21 75.5413L30.5 56.5H32M21 75.5413H33.5M33.5 75.5413H36.5943L48.8333 64.1237H100.012H127.5L145.461 66.8188C147.93 67.1894 149.587 69.5517 149.094 72V72M33.5 75.5413L36.5 56.5H34.5M34.5 56.5V48.5M34.5 56.5H32M32 56.5V53" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var pn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var N2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M121.033 100.2L101 80H96L118.289 99.8667C118.741 100.27 119 100.846 119 101.452V102.835C119 103.478 119.522 104 120.165 104C120.809 104 121.33 103.478 121.33 102.835V100.922C121.33 100.652 121.223 100.392 121.033 100.2Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M39.2975 100.2L59.3301 80H64.3301L42.0407 99.8667C41.5887 100.27 41.3301 100.846 41.3301 101.452V102.835C41.3301 103.478 40.8085 104 40.1651 104C39.5216 104 39 103.478 39 102.835V100.922C39 100.652 39.1069 100.392 39.2975 100.2Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M121.033 100.2L101 80H96L118.289 99.8667C118.741 100.27 119 100.846 119 101.452V102.835C119 103.478 119.522 104 120.165 104C120.809 104 121.33 103.478 121.33 102.835V100.922C121.33 100.652 121.223 100.392 121.033 100.2Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -3833,7 +3833,7 @@ li .active {
 <ellipse cx="80" cy="79" rx="4" ry="4" transform="rotate(90 80 79)" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <ellipse cx="81" cy="78" rx="2" ry="2" transform="rotate(90 81 78)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var hn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var j2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M131 75C133.209 75 135 76.7909 135 79C135 81.2091 133.209 83 131 83V75Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M132 84V74C132 73.4477 131.552 73 131 73H89L98.7002 84.6402C98.8901 84.8682 99.1716 85 99.4684 85H131C131.552 85 132 84.5523 132 84Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M129.736 73.4611L122.576 85.9923C122.22 86.6154 121.557 87 120.839 87H69.8301C69.2805 87 68.7346 86.9094 68.2144 86.7317L28 73V68.0879L29.1795 65.9233C30.0014 64.415 31.5399 63.4342 33.2542 63.3257L70 61H90L124.906 65.3632C125.627 65.4533 126.319 65.6995 126.935 66.0846L129.925 67.9534C129.972 67.9824 130 68.0332 130 68.0879V72.4689C130 72.8169 129.909 73.159 129.736 73.4611Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3851,7 +3851,7 @@ li .active {
 <rect x="12.5" y="57.5" width="51" height="7" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="96.5" y="57.5" width="51" height="7" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var un=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var F2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <ellipse cx="80" cy="25" rx="4" ry="4" transform="rotate(90 80 25)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M87.5 26L87.5 50C87.5 50.8284 86.8284 51.5 86 51.5L74 51.5C73.1716 51.5 72.5 50.8284 72.5 50L72.5 26C72.5 25.1716 73.1716 24.5 74 24.5L86 24.5C86.8284 24.5 87.5 25.1716 87.5 26Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <g clip-path="url(#clip0_25406_62468)">
@@ -3880,7 +3880,7 @@ li .active {
 </clipPath>
 </defs>
 </svg>
-`;var vn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var U2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M44 66.5C44 65.6716 44.6716 65 45.5 65C46.3284 65 47 65.6716 47 66.5V73H44V66.5Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M53.4165 67.8786L68.1048 66.6196C68.2285 66.609 68.226 66.4272 68.102 66.4201L52.9506 65.5543C52.3191 65.5182 51.6855 65.5572 51.0632 65.6703L46.5 66.5L50.6284 67.6259C51.5357 67.8734 52.4795 67.9589 53.4165 67.8786Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M37.0835 67.8786L22.3952 66.6196C22.2715 66.609 22.2741 66.4272 22.398 66.4201L37.5494 65.5543C38.1809 65.5182 38.8145 65.5572 39.4368 65.6703L44 66.5L39.8716 67.6259C38.9643 67.8734 38.0205 67.9589 37.0835 67.8786Z" fill="var(--instrument-tick-mark-secondary-color)"/>
@@ -3898,7 +3898,7 @@ li .active {
 <ellipse cx="80" cy="82" rx="4" ry="4" transform="rotate(90 80 82)" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <ellipse cx="81" cy="81" rx="2" ry="2" transform="rotate(90 81 81)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var gn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var W2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M99 78C101.209 78 103 79.7909 103 82C103 84.2091 101.209 86 99 86V78Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M99 87V78L56 77L65.7024 87.6727C65.892 87.8811 66.1606 88 66.4424 88H98C98.5523 88 99 87.5523 99 87Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M44 66.5C44 65.6716 44.6716 65 45.5 65C46.3284 65 47 65.6716 47 66.5V73H44V66.5Z" fill="var(--instrument-tick-mark-secondary-color)"/>
@@ -3915,7 +3915,7 @@ li .active {
 <path d="M100.817 86.0114L92 80H88L99.3611 86.0863C100.986 86.9567 102 88.6505 102 90.4937V95.5C102 95.7761 102.224 96 102.5 96C102.776 96 103 95.7761 103 95.5V90.1425C103 88.4892 102.183 86.9428 100.817 86.0114Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M58 90.0902V95.5C58 95.7761 57.7761 96 57.5 96C57.2239 96 57 95.7761 57 95.5V89.7447C57 88.0352 57.8734 86.4442 59.3156 85.5264L66.7716 80.7817C67.5739 80.2712 68.5051 80 69.456 80H72L60.7639 85.618C59.07 86.465 58 88.1963 58 90.0902Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var mn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var G2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <ellipse cx="80" cy="61" rx="4" ry="4" transform="rotate(90 80 61)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M86 60C87.1046 60 88 60.8954 88 62L88 86C88 87.1046 87.1046 88 86 88L74 88C72.8954 88 72 87.1046 72 86L72 62C72 60.8954 72.8954 60 74 60L86 60Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M113.61 46.5204C113.678 46.429 113.565 46.3127 113.472 46.3788L92.0296 61.7523C89.9911 63.2139 87.5458 63.9999 85.0374 63.9999H73.9992C71.4028 63.9999 68.8764 63.1578 66.7993 61.6L46.5198 46.3906C46.4283 46.3221 46.3126 46.4353 46.3791 46.5283L61.7526 67.9705C63.2142 70.0091 64.0002 72.4544 64.0002 74.9627V85.0371C64.0002 87.5455 63.2142 89.9908 61.7526 92.0293L46.3791 113.472C46.3125 113.565 46.4283 113.679 46.5198 113.61L66.8002 98.3999C68.8774 96.8421 71.4038 95.9999 74.0002 95.9999H85.0373C87.5457 95.9999 89.9911 96.786 92.0297 98.2477L113.472 113.622C113.565 113.688 113.678 113.572 113.61 113.48L98.4002 93.2009C96.8423 91.1237 96.0002 88.5974 96.0002 86.001V73.999C96.0002 71.4025 96.8424 68.8761 98.4003 66.7989L113.61 46.5204Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -3924,7 +3924,7 @@ li .active {
 <path fill-rule="evenodd" clip-rule="evenodd" d="M96.6179 32.8858C95.9071 32.5923 95.0906 32.7324 94.5183 33.2461L93.7409 33.9444C93.2354 34.3986 93.3203 35.2148 93.9089 35.5547L109.257 44.4151C108.517 46.6231 109.405 49.1196 111.5 50.3291C112.445 50.8748 113.494 51.0755 114.503 50.9727L114.672 51.4717C114.857 52.0166 115.269 52.455 115.801 52.6748L131.382 59.1114C132.092 59.405 132.909 59.2648 133.481 58.751L134.26 58.0528C134.764 57.5984 134.679 56.7843 134.091 56.4444L118.743 47.583C119.483 45.375 118.594 42.8785 116.5 41.669C115.555 41.1238 114.507 40.9221 113.499 41.0244L113.328 40.5254C113.142 39.981 112.731 39.5431 112.199 39.3233L96.6179 32.8858ZM112.001 46C112.002 46.6902 112.359 47.3615 113 47.7315C113.149 47.8175 113.305 47.8796 113.464 47.9239L114.17 49.9942C113.435 50.026 112.683 49.8576 112 49.4629C110.386 48.531 109.666 46.6438 110.144 44.9278L112.001 46ZM113.833 42.003C114.566 41.9716 115.317 42.141 116 42.5352C117.614 43.4671 118.332 45.3543 117.854 47.0703L115.998 45.9981C115.997 45.3079 115.64 44.6366 115 44.2666C114.851 44.1808 114.695 44.1185 114.537 44.0743L113.833 42.003Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M134.569 102.481C134.429 101.816 133.68 101.482 133.091 101.822L117.743 110.683C116.201 108.938 113.595 108.459 111.5 109.668C110.555 110.214 109.856 111.022 109.441 111.947L108.925 111.844C108.36 111.732 107.774 111.87 107.318 112.221L93.9533 122.495C93.3435 122.964 93.0562 123.741 93.215 124.494L93.4308 125.516C93.5715 126.181 94.3207 126.515 94.9093 126.176L110.257 117.314C111.799 119.059 114.405 119.537 116.5 118.328C117.444 117.783 118.143 116.976 118.559 116.052L119.076 116.153C119.641 116.265 120.226 116.127 120.682 115.776L134.047 105.503C134.657 105.034 134.944 104.255 134.785 103.503L134.569 102.481ZM117.544 115.851C117.205 116.502 116.683 117.069 116 117.463C114.386 118.395 112.392 118.074 111.145 116.802L113.001 115.729C113.599 116.074 114.359 116.1 115 115.73C115.149 115.644 115.281 115.54 115.399 115.426L117.544 115.851ZM112 110.534C113.614 109.602 115.608 109.923 116.856 111.195L114.999 112.267C114.401 111.923 113.641 111.897 113 112.266C112.851 112.353 112.719 112.457 112.602 112.572L110.455 112.147C110.795 111.496 111.317 110.929 112 110.534Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var fn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var q2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M121.033 100.2L101 80H96L118.289 99.8667C118.741 100.27 119 100.846 119 101.452V102.835C119 103.478 119.522 104 120.165 104C120.809 104 121.33 103.478 121.33 102.835V100.922C121.33 100.652 121.223 100.392 121.033 100.2Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M39.2975 100.2L59.3301 80H64.3301L42.0407 99.8667C41.5887 100.27 41.3301 100.846 41.3301 101.452V102.835C41.3301 103.478 40.8085 104 40.1651 104C39.5216 104 39 103.478 39 102.835V100.922C39 100.652 39.1069 100.392 39.2975 100.2Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M121.033 100.2L101 80H96L118.289 99.8667C118.741 100.27 119 100.846 119 101.452V102.835C119 103.478 119.522 104 120.165 104C120.809 104 121.33 103.478 121.33 102.835V100.922C121.33 100.652 121.223 100.392 121.033 100.2Z" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -3940,7 +3940,7 @@ li .active {
 <ellipse cx="80" cy="79" rx="4" ry="4" transform="rotate(90 80 79)" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <ellipse cx="81" cy="78" rx="2" ry="2" transform="rotate(90 81 78)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var bn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Y2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M131 75C133.209 75 135 76.7909 135 79C135 81.2091 133.209 83 131 83V75Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M132 84V74C132 73.4477 131.552 73 131 73H89L98.7002 84.6402C98.8901 84.8682 99.1716 85 99.4684 85H131C131.552 85 132 84.5523 132 84Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M129.736 73.4611L122.576 85.9923C122.22 86.6154 121.557 87 120.839 87H69.8301C69.2805 87 68.7346 86.9094 68.2144 86.7317L28 73V68.0879L29.1795 65.9233C30.0014 64.415 31.5399 63.4342 33.2542 63.3257L70 61H90L124.906 65.3632C125.627 65.4533 126.319 65.6995 126.935 66.0846L129.925 67.9534C129.972 67.9824 130 68.0332 130 68.0879V72.4689C130 72.8169 129.909 73.159 129.736 73.4611Z" fill="var(--instrument-frame-primary-color)"/>
@@ -3956,7 +3956,7 @@ li .active {
 <rect x="12.5" y="57.5" width="51" height="7" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="96.5" y="57.5" width="51" height="7" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var yn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var K2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <ellipse cx="80" cy="25" rx="4" ry="4" transform="rotate(90 80 25)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M87.5 26L87.5 50C87.5 50.8284 86.8284 51.5 86 51.5L74 51.5C73.1716 51.5 72.5 50.8284 72.5 50L72.5 26C72.5 25.1716 73.1716 24.5 74 24.5L86 24.5C86.8284 24.5 87.5 25.1716 87.5 26Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <g clip-path="url(#clip0_30829_50593)">
@@ -3992,7 +3992,7 @@ li .active {
 </clipPath>
 </defs>
 </svg>
-`;var wn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var J2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M114.2 36.8008C118.177 36.8008 121.4 40.0243 121.4 44.0008V119.601C121.4 119.747 121.39 119.89 121.373 120.031C121.348 120.242 121.305 120.446 121.245 120.644C121.239 120.665 121.233 120.685 121.226 120.706C121.179 120.852 121.123 120.994 121.058 121.132C121.05 121.149 121.042 121.166 121.034 121.183C121.016 121.218 120.998 121.253 120.98 121.288C120.971 121.305 120.962 121.322 120.953 121.338C120.934 121.373 120.913 121.407 120.893 121.441C120.886 121.453 120.88 121.465 120.873 121.476C120.82 121.562 120.764 121.644 120.705 121.725C120.695 121.739 120.685 121.753 120.674 121.767C120.472 122.035 120.234 122.273 119.967 122.475C119.953 122.485 119.938 122.495 119.924 122.506C119.844 122.565 119.761 122.621 119.676 122.673C119.664 122.68 119.652 122.687 119.641 122.694C119.606 122.714 119.572 122.734 119.538 122.753C119.521 122.763 119.504 122.772 119.488 122.781C119.453 122.799 119.418 122.817 119.382 122.834C119.365 122.843 119.348 122.851 119.331 122.859C119.294 122.876 119.256 122.893 119.219 122.909C119.209 122.913 119.2 122.917 119.191 122.921C119.097 122.96 119.002 122.995 118.905 123.027C118.884 123.033 118.864 123.04 118.843 123.046C118.807 123.057 118.77 123.068 118.733 123.078C118.719 123.081 118.705 123.086 118.691 123.089C118.639 123.102 118.586 123.114 118.533 123.125C118.53 123.126 118.526 123.127 118.523 123.128C118.472 123.138 118.42 123.147 118.369 123.155C118.36 123.156 118.352 123.158 118.343 123.159C118.306 123.165 118.268 123.169 118.231 123.174C118.21 123.176 118.189 123.18 118.168 123.182L117.986 123.196L117.8 123.201H42.2001L42.0146 123.196C41.9318 123.192 41.8499 123.183 41.7686 123.174C41.7309 123.169 41.6933 123.165 41.6561 123.159C41.6475 123.158 41.6391 123.156 41.6306 123.155C41.5789 123.147 41.5276 123.138 41.4768 123.128C41.4732 123.127 41.4698 123.126 41.4662 123.125C41.4131 123.114 41.3603 123.102 41.308 123.089C41.2942 123.086 41.2805 123.081 41.2667 123.078C41.2295 123.068 41.1926 123.057 41.156 123.046C41.1354 123.04 41.1149 123.033 41.0944 123.027C40.9974 122.995 40.9021 122.96 40.8088 122.921C40.7993 122.917 40.7901 122.913 40.7807 122.909C40.7429 122.893 40.7053 122.876 40.6682 122.859C40.6511 122.851 40.6341 122.843 40.6172 122.834C40.5817 122.817 40.5465 122.799 40.5117 122.781C40.4949 122.772 40.4783 122.763 40.4616 122.753C40.4269 122.734 40.3928 122.714 40.3588 122.694C40.3472 122.687 40.3352 122.68 40.3236 122.673C40.2381 122.621 40.1555 122.565 40.0749 122.506C40.0609 122.495 40.0466 122.485 40.0327 122.475C39.7654 122.273 39.5271 122.035 39.3252 121.767C39.3147 121.753 39.3047 121.739 39.2944 121.725C39.2354 121.644 39.1789 121.562 39.1266 121.476C39.1195 121.465 39.1133 121.453 39.1063 121.441C39.0861 121.407 39.0658 121.373 39.0466 121.338C39.0374 121.322 39.0283 121.305 39.0193 121.288C39.0008 121.253 38.9831 121.218 38.9657 121.183C38.9574 121.166 38.9492 121.149 38.9411 121.132C38.8764 120.994 38.8204 120.852 38.7732 120.706C38.7667 120.685 38.7601 120.665 38.7539 120.644C38.6942 120.446 38.6515 120.242 38.6265 120.031C38.6096 119.89 38.6001 119.747 38.6001 119.601V44.0008C38.6001 40.0243 41.8236 36.8008 45.8001 36.8008H114.2ZM45.8001 40.4008C43.8741 40.4008 42.301 41.9133 42.2045 43.8153L42.2001 44.0008V116.001H117.8V44.0008C117.8 42.0126 116.188 40.4008 114.2 40.4008H45.8001Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="46.2998" y="81.4004" width="11.6" height="38.6" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="102.1" y="81.4004" width="11.6" height="38.6" rx="1.5" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -4016,7 +4016,7 @@ li .active {
 <path d="M74.6001 20.5992C74.6001 17.6169 77.0178 15.1992 80.0001 15.1992C82.9824 15.1992 85.4001 17.6169 85.4001 20.5992V36.7992H74.6001V20.5992Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="76.3999" y="17" width="7.2" height="14.4" rx="3.6" fill="var(--instrument-frame-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Cn=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var X2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M120 115.55C120 108.343 114.157 102.5 106.95 102.5C99.7427 102.5 93.9 108.343 93.9 115.55V121.4H120V115.55Z" fill="var(--instrument-tick-mark-secondary-color)"/>
 <circle cx="5.4" cy="5.4" r="5.4" transform="matrix(-1 0 0 1 135.3 58.4004)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M129.7 55.3008H108.5C107.672 55.3009 107 55.9724 107 56.8008V70.8008C107 71.6291 107.672 72.3007 108.5 72.3008H129.7C130.529 72.3008 131.2 71.6292 131.2 70.8008V56.8008C131.2 55.9724 130.529 55.3008 129.7 55.3008Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -4038,7 +4038,7 @@ li .active {
 <path d="M91.2002 51.1992V50.1992H91.2002L91.2002 51.1992ZM84.002 57.3906H83.002V57.18L83.0869 56.9873L84.002 57.3906ZM84.002 57.5V58.5H83.002V57.5H84.002ZM98.4023 57.5H99.4023V58.5H98.4023V57.5ZM98.4023 57.3994L99.3176 56.9965L99.4023 57.189V57.3994H98.4023ZM91.2002 51.1992V52.1992C88.5179 52.1992 86.4709 54.2685 84.917 57.794L84.002 57.3906L83.0869 56.9873C84.7181 53.2864 87.2618 50.1992 91.2002 50.1992V51.1992ZM84.002 57.3906H85.002V57.5H84.002H83.002V57.3906H84.002ZM84.002 57.5V56.5H98.4023V57.5V58.5H84.002V57.5ZM98.4023 57.5H97.4023V57.3994H98.4023H99.4023V57.5H98.4023ZM98.4023 57.3994L97.4871 57.8023C95.9329 54.272 93.8846 52.1993 91.2002 52.1992L91.2002 51.1992L91.2002 50.1992C95.1417 50.1993 97.6864 53.2913 99.3176 56.9965L98.4023 57.3994Z" fill="var(--instrument-tick-mark-secondary-color)" mask="url(#path-15-inside-1_25406_62344)"/>
 <path d="M91.1997 56.1992C89.2401 56.1992 87.4828 56.3987 86.23 56.7119C85.5997 56.8695 85.1248 57.0492 84.8198 57.2295C84.5739 57.3749 84.5174 57.4716 84.5044 57.499C84.5171 57.526 84.5728 57.6235 84.8198 57.7695C85.1248 57.9498 85.5997 58.1295 86.23 58.2871C87.4828 58.6003 89.2401 58.7988 91.1997 58.7988C93.1592 58.7988 94.9166 58.6003 96.1694 58.2871C96.7997 58.1296 97.2746 57.9498 97.5796 57.7695C97.8287 57.6223 97.8848 57.5251 97.897 57.499C97.8845 57.4724 97.8276 57.3761 97.5796 57.2295C97.2746 57.0492 96.7997 56.8695 96.1694 56.7119C94.9166 56.3987 93.1592 56.1992 91.1997 56.1992Z" fill="var(--instrument-tick-mark-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Ln=s`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;var Q2=c`<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
 <circle cx="79.9999" cy="26.4996" r="5.4" transform="rotate(90 79.9999 26.4996)" fill="var(--instrument-tick-mark-secondary-color)"/>
 <path d="M88.5 26.6992L88.5 47.8994C88.4999 48.7278 87.8284 49.3994 87 49.3994L73 49.3994C72.1716 49.3994 71.5001 48.7277 71.5 47.8994L71.5 26.6992C71.5 25.8708 72.1716 25.1992 73 25.1992L87 25.1992C87.8284 25.1992 88.5 25.8708 88.5 26.6992Z" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="36.7998" y="29.1992" width="86.4" height="111.6" rx="8" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
@@ -4065,70 +4065,70 @@ li .active {
 <rect x="74.6001" y="76" width="10.8" height="28.8" rx="5.4" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 <rect x="76.3999" y="77.8008" width="7.2" height="14.4" rx="3.6" fill="var(--instrument-frame-secondary-color)" vector-effect="non-scaling-stroke" stroke="var(--instrument-tick-mark-secondary-color)"/>
 </svg>
-`;var Qe=(e=>{e["none"]="none";e["small"]="small";e["medium"]="medium";e["large"]="large";return e})(Qe||{});var et=(e=>{e["carFerryAft"]="car-ferry-aft";e["carFerrySide"]="car-ferry-side";e["carFerryTop"]="car-ferry-top";e["cargoFore"]="cargo-fore";e["cargoSide"]="cargo-side";e["cargoTop"]="cargo-top";e["cargoWindFore"]="cargo-wind-fore";e["cargoWindSide"]="cargo-wind-side";e["cargoWindTop"]="cargo-wind-top";e["fishingVesselSide"]="fishing-vessel-side";e["fishingVesselTop"]="fishing-vessel-top";e["foreFore"]="fore-fore";e["genericSide"]="generic-side";e["genericTop"]="generic-top";e["psvAft"]="psv-aft";e["psvFore"]="psv-fore";e["psvSide"]="psv-side";e["psvTop"]="psv-top";e["sovSide"]="sov-side";e["sovTop"]="sov-top";e["tankerFore"]="tanker-fore";e["tankerSide"]="tanker-side";e["tankerTop"]="tanker-top";e["usvLargeSide"]="usv-large-side";e["usvSmallSide"]="usv-small-side";e["droneMediumFront"]="drone-medium-front";e["droneMediumStbdSide"]="drone-medium-stbd-side";e["droneMediumTop"]="drone-medium-top";e["droneSmallFront"]="drone-small-front";e["droneSmallStbdSide"]="drone-small-stbd-side";e["droneSmallTop"]="drone-small-top";e["droneGenericFront"]="drone-generic-front";e["droneGenericSide"]="drone-generic-side";e["droneGenericTop"]="drone-generic-top";e["rovFront"]="rov-front";e["rovSide"]="rov-side";e["rovTop"]="rov-top";return e})(et||{});var Bt={["car-ferry-aft"]:Da,["car-ferry-side"]:Ia,["car-ferry-top"]:ja,["cargo-fore"]:Ra,["cargo-side"]:Na,["cargo-top"]:Fa,["cargo-wind-fore"]:Ua,["cargo-wind-side"]:Wa,["cargo-wind-top"]:qa,["fishing-vessel-side"]:Ga,["fishing-vessel-top"]:Xa,["fore-fore"]:Ya,["generic-side"]:Ka,["generic-top"]:Ja,["psv-aft"]:Qa,["psv-fore"]:en,["psv-side"]:tn,["psv-top"]:rn,["sov-side"]:on,["sov-top"]:an,["tanker-fore"]:nn,["tanker-side"]:ln,["tanker-top"]:sn,["usv-large-side"]:cn,["usv-small-side"]:dn,["drone-medium-front"]:pn,["drone-medium-stbd-side"]:hn,["drone-medium-top"]:un,["drone-small-front"]:vn,["drone-small-stbd-side"]:gn,["drone-small-top"]:mn,["drone-generic-front"]:fn,["drone-generic-side"]:bn,["drone-generic-top"]:yn,["rov-front"]:wn,["rov-side"]:Cn,["rov-top"]:Ln};var kn="important";var Es=" !"+kn;var Tt=Ke(class extends Be{constructor(e){if(super(e),e.type!==nt.ATTRIBUTE||"style"!==e.name||e.strings?.length>2)throw Error("The `styleMap` directive must be used in the `style` attribute and must be the only part in the attribute.")}render(e){return Object.keys(e).reduce((t,i)=>{const o=e[i];return null==o?t:t+`${i=i.includes("-")?i:i.replace(/(?:^(webkit|moz|ms|o)|)(?=[A-Z])/g,"-$&").toLowerCase()}:${o};`},"")}update(e,[t]){const{style:i}=e.element;if(void 0===this.ft)return this.ft=new Set(Object.keys(t)),this.render(t);for(const o of this.ft)null==t[o]&&(this.ft.delete(o),o.includes("-")?i.removeProperty(o):i[o]=null);for(const o in t){const r=t[o];if(null!=r){this.ft.add(o);const a="string"==typeof r&&r.endsWith(Es);o.includes("-")||a?i.setProperty(o,a?r.slice(0,-11):r,a?kn:""):i[o]=r}}return be}});function xn(e){return Hn({filename:`wind-${e.wind+1}.svg`,fromDirectionDeg:e.fromDirectionDeg,radius:e.radius,color:e.color})}function Mn(e){return Hn({filename:`current-${e.current}.svg`,fromDirectionDeg:e.fromDirectionDeg,radius:e.radius,color:e.color})}function Hn(e){const{filename:t,fromDirectionDeg:i,radius:o,color:r}=e;const a=(i-180)*Math.PI/180;const n=Ds[t];const g=r?{"--instrument-regular-secondary-color":r}:{};return s`<g style=${Tt(g)} transform="translate(${-Math.sin(a)*o} ${Math.cos(a)*o}) rotate(${180+i}) translate(-24, 0) scale(2)">
+`;var $r=(e=>{e["none"]="none";e["small"]="small";e["medium"]="medium";e["large"]="large";return e})($r||{});var Hr=(e=>{e["carFerryAft"]="car-ferry-aft";e["carFerrySide"]="car-ferry-side";e["carFerryTop"]="car-ferry-top";e["cargoFore"]="cargo-fore";e["cargoSide"]="cargo-side";e["cargoTop"]="cargo-top";e["cargoWindFore"]="cargo-wind-fore";e["cargoWindSide"]="cargo-wind-side";e["cargoWindTop"]="cargo-wind-top";e["fishingVesselSide"]="fishing-vessel-side";e["fishingVesselTop"]="fishing-vessel-top";e["foreFore"]="fore-fore";e["genericSide"]="generic-side";e["genericTop"]="generic-top";e["psvAft"]="psv-aft";e["psvFore"]="psv-fore";e["psvSide"]="psv-side";e["psvTop"]="psv-top";e["sovSide"]="sov-side";e["sovTop"]="sov-top";e["tankerFore"]="tanker-fore";e["tankerSide"]="tanker-side";e["tankerTop"]="tanker-top";e["usvLargeSide"]="usv-large-side";e["usvSmallSide"]="usv-small-side";e["droneMediumFront"]="drone-medium-front";e["droneMediumStbdSide"]="drone-medium-stbd-side";e["droneMediumTop"]="drone-medium-top";e["droneSmallFront"]="drone-small-front";e["droneSmallStbdSide"]="drone-small-stbd-side";e["droneSmallTop"]="drone-small-top";e["droneGenericFront"]="drone-generic-front";e["droneGenericSide"]="drone-generic-side";e["droneGenericTop"]="drone-generic-top";e["rovFront"]="rov-front";e["rovSide"]="rov-side";e["rovTop"]="rov-top";return e})(Hr||{});var ji={["car-ferry-aft"]:g2,["car-ferry-side"]:b2,["car-ferry-top"]:y2,["cargo-fore"]:w2,["cargo-side"]:C2,["cargo-top"]:L2,["cargo-wind-fore"]:k2,["cargo-wind-side"]:x2,["cargo-wind-top"]:M2,["fishing-vessel-side"]:$2,["fishing-vessel-top"]:H2,["fore-fore"]:_2,["generic-side"]:S2,["generic-top"]:V2,["psv-aft"]:Z2,["psv-fore"]:A2,["psv-side"]:P2,["psv-top"]:T2,["sov-side"]:z2,["sov-top"]:O2,["tanker-fore"]:E2,["tanker-side"]:D2,["tanker-top"]:B2,["usv-large-side"]:I2,["usv-small-side"]:R2,["drone-medium-front"]:N2,["drone-medium-stbd-side"]:j2,["drone-medium-top"]:F2,["drone-small-front"]:U2,["drone-small-stbd-side"]:W2,["drone-small-top"]:G2,["drone-generic-front"]:q2,["drone-generic-side"]:Y2,["drone-generic-top"]:K2,["rov-front"]:J2,["rov-side"]:X2,["rov-top"]:Q2};var e0="important";var C9=" !"+e0;var Fi=lo(class extends Fr{constructor(e){if(super(e),e.type!==xo.ATTRIBUTE||"style"!==e.name||e.strings?.length>2)throw Error("The `styleMap` directive must be used in the `style` attribute and must be the only part in the attribute.")}render(e){return Object.keys(e).reduce((t,i)=>{const o=e[i];return null==o?t:t+`${i=i.includes("-")?i:i.replace(/(?:^(webkit|moz|ms|o)|)(?=[A-Z])/g,"-$&").toLowerCase()}:${o};`},"")}update(e,[t]){const{style:i}=e.element;if(void 0===this.ft)return this.ft=new Set(Object.keys(t)),this.render(t);for(const o of this.ft)null==t[o]&&(this.ft.delete(o),o.includes("-")?i.removeProperty(o):i[o]=null);for(const o in t){const r=t[o];if(null!=r){this.ft.add(o);const a="string"==typeof r&&r.endsWith(C9);o.includes("-")||a?i.setProperty(o,a?r.slice(0,-11):r,a?e0:""):i[o]=r}}return Yt}});function t0(e){return o0({filename:`wind-${e.wind+1}.svg`,fromDirectionDeg:e.fromDirectionDeg,radius:e.radius,color:e.color})}function r0(e){return o0({filename:`current-${e.current}.svg`,fromDirectionDeg:e.fromDirectionDeg,radius:e.radius,color:e.color})}function o0(e){const{filename:t,fromDirectionDeg:i,radius:o,color:r}=e;const a=(i-180)*Math.PI/180;const n=L9[t];const h=r?{"--instrument-regular-secondary-color":r}:{};return c`<g style=${Fi(h)} transform="translate(${-Math.sin(a)*o} ${Math.cos(a)*o}) rotate(${180+i}) translate(-24, 0) scale(2)">
     ${n}
-  </g>`}var Ds={"current-0.svg":s`<path d="M11 2V22H13V2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
-<path d="M11 2V22H13V2Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-1.svg":s`<path d="M11 7.00002L11 24L13 24L13 7.00005L11 7.00002Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+  </g>`}var L9={"current-0.svg":c`<path d="M11 2V22H13V2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M11 2V22H13V2Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-1.svg":c`<path d="M11 7.00002L11 24L13 24L13 7.00005L11 7.00002Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79309 5.20723L12.0002 0.00012207L17.2073 5.20723L15.7931 6.62144L12.0002 2.82855L8.2073 6.62144L6.79309 5.20723Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 7.00002L11 24L13 24L13 7.00005L11 7.00002Z" fill="var(--instrument-regular-secondary-color)"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M6.79309 5.20723L12.0002 0.00012207L17.2073 5.20723L15.7931 6.62144L12.0002 2.82855L8.2073 6.62144L6.79309 5.20723Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-2.svg":s`<path d="M10.9742 12.0003L10.9742 24.0049L12.9999 24.005L12.9999 12.0004L10.9742 12.0003Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M6.79309 5.20723L12.0002 0.00012207L17.2073 5.20723L15.7931 6.62144L12.0002 2.82855L8.2073 6.62144L6.79309 5.20723Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-2.svg":c`<path d="M10.9742 12.0003L10.9742 24.0049L12.9999 24.005L12.9999 12.0004L10.9742 12.0003Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79285 5.20747L12 0.000366211L17.2071 5.20747L15.7928 6.62169L12 2.82879L8.20706 6.62169L6.79285 5.20747Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.99988 10.5861L12.207 5.37903L17.4141 10.5861L15.9999 12.0003L12.207 8.20745L8.41409 12.0003L6.99988 10.5861Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M10.9742 12.0003L10.9742 24.0049L12.9999 24.005L12.9999 12.0004L10.9742 12.0003Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79285 5.20747L12 0.000366211L17.2071 5.20747L15.7928 6.62169L12 2.82879L8.20706 6.62169L6.79285 5.20747Z" fill="var(--instrument-regular-secondary-color)"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M6.99988 10.5861L12.207 5.37903L17.4141 10.5861L15.9999 12.0003L12.207 8.20745L8.41409 12.0003L6.99988 10.5861Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-3.svg":s`<path d="M11 18L11 24L13 24L13 18L11 18Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M6.99988 10.5861L12.207 5.37903L17.4141 10.5861L15.9999 12.0003L12.207 8.20745L8.41409 12.0003L6.99988 10.5861Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-3.svg":c`<path d="M11 18L11 24L13 24L13 18L11 18Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 10.5858L12.2071 5.37866L17.4142 10.5858L16 12L12.2071 8.20709L8.41421 12L7 10.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 18L11 24L13 24L13 18L11 18Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 10.5858L12.2071 5.37866L17.4142 10.5858L16 12L12.2071 8.20709L8.41421 12L7 10.5858Z" fill="var(--instrument-regular-secondary-color)"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-4.svg":s`<path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" fill="var(--instrument-regular-secondary-color)"/>`,"current-4.svg":c`<path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 10.5858L12.2071 5.37866L17.4142 10.5858L16 12L12.2071 8.20709L8.41421 12L7 10.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 22.5858L12.2071 17.3787L17.4142 22.5858L16 24L12.2071 20.2071L8.41421 24L7 22.5858Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.79297 5.20711L12.0001 0L17.2072 5.20711L15.793 6.62132L12.0001 2.82843L8.20718 6.62132L6.79297 5.20711Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 10.5858L12.2071 5.37866L17.4142 10.5858L16 12L12.2071 8.20709L8.41421 12L7 10.5858Z" fill="var(--instrument-regular-secondary-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 16.5858L12.2071 11.3787L17.4142 16.5858L16 18L12.2071 14.2071L8.41421 18L7 16.5858Z" fill="var(--instrument-regular-secondary-color)"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M7 22.5858L12.2071 17.3787L17.4142 22.5858L16 24L12.2071 20.2071L8.41421 24L7 22.5858Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-1.svg":s`<path d="M12 2C6.47715 2 2 6.47715 2 12H3.90476C3.90476 7.52912 7.52912 3.90476 12 3.90476V2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7 22.5858L12.2071 17.3787L17.4142 22.5858L16 24L12.2071 20.2071L8.41421 24L7 22.5858Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-1.svg":c`<path d="M12 2C6.47715 2 2 6.47715 2 12H3.90476C3.90476 7.52912 7.52912 3.90476 12 3.90476V2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M22 12C22 6.47715 17.5228 2 12 2V3.90476C16.4709 3.90476 20.0952 7.52912 20.0952 12H22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M12 22C17.5228 22 22 17.5228 22 12H20.0952C20.0952 16.4709 16.4709 20.0952 12 20.0952V22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M2 12C2 17.5228 6.47715 22 12 22V20.0952C7.52912 20.0952 3.90476 16.4709 3.90476 12H2Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M12 2C6.47715 2 2 6.47715 2 12H3.90476C3.90476 7.52912 7.52912 3.90476 12 3.90476V2Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M22 12C22 6.47715 17.5228 2 12 2V3.90476C16.4709 3.90476 20.0952 7.52912 20.0952 12H22Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M12 22C17.5228 22 22 17.5228 22 12H20.0952C20.0952 16.4709 16.4709 20.0952 12 20.0952V22Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M2 12C2 17.5228 6.47715 22 12 22V20.0952C7.52912 20.0952 3.90476 16.4709 3.90476 12H2Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-2.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
-<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-3.svg":s`<path d="M11 24L13 24L13 7L15 7L12 -1.74846e-07L9 7L11 7L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M2 12C2 17.5228 6.47715 22 12 22V20.0952C7.52912 20.0952 3.90476 16.4709 3.90476 12H2Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-2.svg":c`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-3.svg":c`<path d="M11 24L13 24L13 7L15 7L12 -1.74846e-07L9 7L11 7L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M8 21L8 19L11 19L11 21L8 21Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24L13 24L13 7L15 7L12 -1.74846e-07L9 7L11 7L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 21L8 19L11 19L11 21L8 21Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-4.svg":s`<path d="M11 24L13 24L13 7L15 7L12 -2.62268e-07L9 7L11 7L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 21L8 19L11 19L11 21L8 21Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-4.svg":c`<path d="M11 24L13 24L13 7L15 7L12 -2.62268e-07L9 7L11 7L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M6 24L6 22L11 22L11 24L6 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24L13 24L13 7L15 7L12 -2.62268e-07L9 7L11 7L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M6 24L6 22L11 22L11 24L6 24Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-5.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M6 24L6 22L11 22L11 24L6 24Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-5.svg":c`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M8 21L8 19H12V21H8Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 21L8 19H12V21H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-6.svg":s`<path d="M11 24H13L13 7L15 7L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 21L8 19H12V21H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-6.svg":c`<path d="M11 24H13L13 7L15 7L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24H13L13 7L15 7L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-7.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-7.svg":c`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M8 18L8 16H12V18H8Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 18L8 16H12V18H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-8.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 18L8 16H12V18H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-8.svg":c`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-9.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-9.svg":c`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
@@ -4137,7 +4137,7 @@ li .active {
 <path d="M5 24L5 22H12V24H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 15L8 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-10.svg":s`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 15L8 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-10.svg":c`<path d="M11 24H13L13 7H15L12 0L9 7H11L11 24Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 24L5 22H12V24H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 21L5 19H12V21H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
@@ -4148,16 +4148,16 @@ li .active {
 <path d="M5 21L5 19H12V21H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 15L5 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M8 12L8 10H12V12H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-11.svg":s`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 20L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
-<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 20L5 22Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-12.svg":s`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M8 12L8 10H12V12H8Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-11.svg":c`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 20L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 20L5 22Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-12.svg":c`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-13.svg":s`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
+<path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>`,"wind-13.svg":c`<path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 18L5 16H12V18H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 15L5 13H12V15H5Z" stroke="var(--border-silhouette-color)" stroke-width="2"/>
 <path d="M5 22L13 24L13 7H15L12 0L9 7H11L11 19L5 22Z" fill="var(--instrument-regular-secondary-color)"/>
 <path d="M5 18L5 16H12V18H5Z" fill="var(--instrument-regular-secondary-color)"/>
-<path d="M5 15L5 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>`};function _n(e){const{areas:t,outerRadius:i,innerRadius:o,extension:r,targetSize:a,margin:n=.06}=e;if(t.length===0){const P=a;return{radiusOffset:0,x:-P/2,y:-P/2,width:P,height:P,viewBox:`${-P/2} ${-P/2} ${P} ${P}`}}const g=a*(1-2*n);const v=P=>{const F=$n(t,i+P,o+P,r);return Math.max(F.xMax-F.xMin,F.yMax-F.yMin)};let f=0;let y=a;for(let P=0;P<16&&v(y)<g;P++){y*=2}for(let P=0;P<50;P++){const F=(f+y)/2;const se=v(F);if(se<g){f=F}else{y=F}}const m=Math.max(0,f);const b=$n(t,i+m,o+m,r);const w=b.xMax-b.xMin;const k=b.yMax-b.yMin;const S=Math.max(w,k);const M=S*(1+n*2);const x=(b.xMin+b.xMax)/2;const V=(b.yMin+b.yMax)/2;const T=Jr(x-M/2);const te=Jr(V-M/2);const q=Jr(M);const G=Jr(M);return{radiusOffset:m,x:T,y:te,width:q,height:G,viewBox:`${T} ${te} ${q} ${G}`}}function $n(e,t,i,o){const r=t+o;const a=i;let n=Infinity;let g=-Infinity;let v=Infinity;let f=-Infinity;const y=(m,b)=>{if(m<n)n=m;if(m>g)g=m;if(b<v)v=b;if(b>f)f=b};for(const m of e){const b=m.startAngle*Math.PI/180;const w=m.endAngle*Math.PI/180;for(const x of[r,a]){y(x*Math.sin(b),-x*Math.cos(b));y(x*Math.sin(w),-x*Math.cos(w))}const k=(m.startAngle%360+360)%360;const S=(m.endAngle%360+360)%360;const M=[0,90,180,270];for(const x of M){if(Is(k,S,x)){const V=x*Math.PI/180;for(const T of[r,a]){y(T*Math.sin(V),-T*Math.cos(V))}}}}if(n===Infinity){return{xMin:0,xMax:0,yMin:0,yMax:0}}return{xMin:n,xMax:g,yMin:v,yMax:f}}function Is(e,t,i){const o=(e%360+360)%360;const r=(t%360+360)%360;const a=(i%360+360)%360;if(o<=r){return a>=o&&a<=r}return a>=o||a<=r}function Jr(e){return Math.round(e*1e4)/1e4}var js=Object.defineProperty;var Rs=Object.getOwnPropertyDescriptor;var $=(e,t,i,o)=>{var r=o>1?void 0:o?Rs(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)js(t,i,r);return r};var Ct=(e=>{e["single"]="single";e["double"]="double";e["doubleThin"]="doubleThin";e["triple"]="triple";return e})(Ct||{});var De=368/2;var ir=320/2;var Qr=224/2;var Sn=272/2;var Zn=176/2;function Ns(e){switch(e){case"single":return ir;case"double":return Qr;case"doubleThin":return Sn;case"triple":return Zn;default:throw new Error(`Unknown WatchCircleType: ${e}`)}}var Vn=4;var H=class extends d{constructor(){super(...arguments);this._setpointId=`watch-setpoint-${Math.random().toString(36).slice(2,9)}`;this._newSetpointId=`watch-new-setpoint-${Math.random().toString(36).slice(2,9)}`;this.state=Ze.active;this.priority=B.regular;this.watchCircleType="single";this.northArrow=false;this.atAngleSetpoint=false;this.angleSetpointAtZeroDeadband=.5;this.setpointOverride=false;this.touching=false;this.animateSetpoint=false;this._setpointCssAngle=0;this._setpointCssAngleInit=false;this.areas=[];this.barAreas=[];this.needles=[];this.tickmarks=[];this.tickmarksInside=false;this.tickmarkStyle=Y.regular;this.advices=[];this.crosshairEnabled=false;this.showLabels=false;this.vessels=[];this.wind=null;this.windFromDirectionDeg=null;this.windSymbolRadius=null;this.current=null;this.currentFromDirectionDeg=null;this.currentSymbolRadius=null;this.starboardPortIndicator=false;this.clipTop=0;this.clipBottom=0;this.scaleWindIcon=1;this.zoomToFitArc=false;this.tickFadeAngle=0;this.rotPosition=tr.innerCircle;this.rotStartAngle=0;this.rotEndAngle=0;this.rotPortStarboard=false;this.rotAtZeroDeadband=rr;this._rotationsPerMinute=0;this._resizeController=new zt(this,{});this._rOff=0}set rotationsPerMinute(e){this._rotationsPerMinute=e;if(this._rotController){this._rotController.rotationsPerMinute=e}}get rotationsPerMinute(){return this._rotationsPerMinute}willUpdate(e){super.willUpdate(e);if(e.has("newAngleSetpoint")&&this.animateSetpoint){const t=e.get("newAngleSetpoint");if(t!==void 0&&this.newAngleSetpoint===void 0){this._departingNewAngleSetpoint=t;clearTimeout(this._animationTimer);const i=Ur(this);this._animationTimer=setTimeout(()=>{this._departingNewAngleSetpoint=void 0},i)}}}disconnectedCallback(){super.disconnectedCallback();clearTimeout(this._animationTimer);this._rotController=Kr(this,this._rotController)}updated(e){super.updated(e);const t=this.rotType?this.renderRoot.querySelector("#rot-spinner"):null;if(!t){this._rotController=Kr(this,this._rotController);return}if(!this._rotController||this._rotController.el!==t){this._rotController=Kr(this,this._rotController);this._rotController=new Yr(this,t,this._rotationsPerMinute)}}get innerRingRadius(){return Ns(this.watchCircleType)}watchCircle(){const e=[];if(this.state!==Ze.off){e.push(s`
+<path d="M5 15L5 13H12V15H5Z" fill="var(--instrument-regular-secondary-color)"/>`};function Fn(e){const{areas:t,outerRadius:i,innerRadius:o,extension:r,targetSize:a,margin:n=.06}=e;if(t.length===0){const B=a;return{radiusOffset:0,x:-B/2,y:-B/2,width:B,height:B,viewBox:`${-B/2} ${-B/2} ${B} ${B}`}}const h=a*(1-2*n);const d=B=>{const U=i0(t,i+B,o+B,r);return Math.max(U.xMax-U.xMin,U.yMax-U.yMin)};let f=0;let y=a;for(let B=0;B<16&&d(y)<h;B++){y*=2}for(let B=0;B<50;B++){const U=(f+y)/2;const K=d(U);if(K<h){f=U}else{y=U}}const v=Math.max(0,f);const b=i0(t,i+v,o+v,r);const M=b.xMax-b.xMin;const H=b.yMax-b.yMin;const P=Math.max(M,H);const S=P*(1+n*2);const Z=(b.xMin+b.xMax)/2;const _=(b.yMin+b.yMax)/2;const E=jn(Z-S/2);const A=jn(_-S/2);const G=jn(S);const z=jn(S);return{radiusOffset:v,x:E,y:A,width:G,height:z,viewBox:`${E} ${A} ${G} ${z}`}}function i0(e,t,i,o){const r=t+o;const a=i;let n=Infinity;let h=-Infinity;let d=Infinity;let f=-Infinity;const y=(v,b)=>{if(v<n)n=v;if(v>h)h=v;if(b<d)d=b;if(b>f)f=b};for(const v of e){const b=v.startAngle*Math.PI/180;const M=v.endAngle*Math.PI/180;for(const Z of[r,a]){y(Z*Math.sin(b),-Z*Math.cos(b));y(Z*Math.sin(M),-Z*Math.cos(M))}const H=(v.startAngle%360+360)%360;const P=(v.endAngle%360+360)%360;const S=[0,90,180,270];for(const Z of S){if(k9(H,P,Z)){const _=Z*Math.PI/180;for(const E of[r,a]){y(E*Math.sin(_),-E*Math.cos(_))}}}}if(n===Infinity){return{xMin:0,xMax:0,yMin:0,yMax:0}}return{xMin:n,xMax:h,yMin:d,yMax:f}}function k9(e,t,i){const o=(e%360+360)%360;const r=(t%360+360)%360;const a=(i%360+360)%360;if(o<=r){return a>=o&&a<=r}return a>=o||a<=r}function jn(e){return Math.round(e*1e4)/1e4}var x9=Object.defineProperty;var M9=Object.getOwnPropertyDescriptor;var oe=(e,t,i,o)=>{var r=o>1?void 0:o?M9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)x9(t,i,r);return r};var dr=(e=>{e["single"]="single";e["double"]="double";e["doubleThin"]="doubleThin";e["triple"]="triple";return e})(dr||{});var Bt=368/2;var Za=320/2;var Un=224/2;var n0=272/2;var l0=176/2;function Os(e){switch(e){case"single":return Za;case"double":return Un;case"doubleThin":return n0;case"triple":return l0;default:throw new Error(`Unknown WatchCircleType: ${e}`)}}var a0=4;var te=class extends C{constructor(){super(...arguments);this._setpointId=`watch-setpoint-${Math.random().toString(36).slice(2,9)}`;this._newSetpointId=`watch-new-setpoint-${Math.random().toString(36).slice(2,9)}`;this.state=$e.active;this.priority=de.regular;this.watchCircleType="single";this.northArrow=false;this.atAngleSetpoint=false;this.angleSetpointAtZeroDeadband=.5;this.setpointOverride=false;this.touching=false;this.animateSetpoint=false;this._setpointCssAngle=0;this._setpointCssAngleInit=false;this.areas=[];this.barAreas=[];this.needles=[];this.tickmarks=[];this.tickmarksInside=false;this.tickmarkStyle=He.regular;this.advices=[];this.crosshairEnabled=false;this.showLabels=false;this.vessels=[];this.wind=null;this.windFromDirectionDeg=null;this.windSymbolRadius=null;this.current=null;this.currentFromDirectionDeg=null;this.currentSymbolRadius=null;this.starboardPortIndicator=false;this.clipTop=0;this.clipBottom=0;this.scaleWindIcon=1;this.zoomToFitArc=false;this.tickFadeAngle=0;this.rotPosition=_a.innerCircle;this.rotStartAngle=0;this.rotEndAngle=0;this.rotPortStarboard=false;this.rotAtZeroDeadband=Sa;this._rotationsPerMinute=0;this._resizeController=new Ii(this,{});this._rOff=0}set rotationsPerMinute(e){this._rotationsPerMinute=e;if(this._rotController){this._rotController.rotationsPerMinute=e}}get rotationsPerMinute(){return this._rotationsPerMinute}willUpdate(e){super.willUpdate(e);if(e.has("newAngleSetpoint")&&this.animateSetpoint){const t=e.get("newAngleSetpoint");if(t!==void 0&&this.newAngleSetpoint===void 0){this._departingNewAngleSetpoint=t;clearTimeout(this._animationTimer);const i=On(this);this._animationTimer=setTimeout(()=>{this._departingNewAngleSetpoint=void 0},i)}}}disconnectedCallback(){super.disconnectedCallback();clearTimeout(this._animationTimer);this._rotController=Nn(this,this._rotController)}updated(e){super.updated(e);const t=this.rotType?this.renderRoot.querySelector("#rot-spinner"):null;if(!t){this._rotController=Nn(this,this._rotController);return}if(!this._rotController||this._rotController.el!==t){this._rotController=Nn(this,this._rotController);this._rotController=new Rn(this,t,this._rotationsPerMinute)}}get innerRingRadius(){return Os(this.watchCircleType)}watchCircle(){const e=[];if(this.state!==$e.off){e.push(c`
         <circle
           cx="0"
           cy="0"
@@ -4165,28 +4165,28 @@ li .active {
           stroke="var(--instrument-frame-primary-color)"
           fill="none"
           stroke-width="24"
-        />`);if(this.watchCircleType!=="single"){const o=ir+this._rOff;const r=(this.watchCircleType==="doubleThin"?Sn:Qr)+this._rOff;const a=(o+r)/2;const n=o-r;e.push(s`
+        />`);if(this.watchCircleType!=="single"){const o=Za+this._rOff;const r=(this.watchCircleType==="doubleThin"?n0:Un)+this._rOff;const a=(o+r)/2;const n=o-r;e.push(c`
             <circle cx="0" cy="0" r=${a} stroke="var(--instrument-frame-secondary-color)" stroke-width=${n} fill="none" />
             <circle cx="0" cy="0" r=${o} stroke="var(--instrument-frame-secondary-color)" stroke-width="1" fill="none" vector-effect="non-scaling-stroke" />
             <circle cx="0" cy="0" r=${r} stroke="var(--instrument-frame-secondary-color)" stroke-width="1" fill="none" vector-effect="non-scaling-stroke" />
-        `)}if(this.watchCircleType==="triple"){const o=Qr+this._rOff;const r=Zn+this._rOff;const a=(o+r)/2;const n=o-r;e.push(s`<circle cx="0" cy="0" r=${a} stroke="var(--instrument-frame-primary-color)" stroke-width=${n} fill="none" />`)}}const t=Math.max(200,De+this._rOff+50);let i=e;if(this.areas.length>0){const o=this.areas.map(n=>{const g=Qt({startAngle:n.startAngle,endAngle:n.endAngle,R:De+this._rOff,r:this.innerRingRadius+this._rOff,roundOutsideCut:n.roundOutsideCut,roundInsideCut:n.roundInsideCut});return g});const r=s`<mask id="cutMask">
+        `)}if(this.watchCircleType==="triple"){const o=Un+this._rOff;const r=l0+this._rOff;const a=(o+r)/2;const n=o-r;e.push(c`<circle cx="0" cy="0" r=${a} stroke="var(--instrument-frame-primary-color)" stroke-width=${n} fill="none" />`)}}const t=Math.max(200,Bt+this._rOff+50);let i=e;if(this.areas.length>0){const o=this.areas.map(n=>{const h=Ma({startAngle:n.startAngle,endAngle:n.endAngle,R:Bt+this._rOff,r:this.innerRingRadius+this._rOff,roundOutsideCut:n.roundOutsideCut,roundInsideCut:n.roundInsideCut});return h});const r=c`<mask id="cutMask">
         <rect x="${-t}" y="${-t}" width="${t*2}" height="${t*2}" fill="black" />
-        ${o.map(n=>s`<path d=${n} fill="white" vector-effect="non-scaling-stroke" stroke="white" stroke-width="1"/>`)}
-      </mask>`;const a=s`<clipPath id="rot-arc-clip">${this.areas.map(n=>s`<path d=${Qt({startAngle:n.startAngle,endAngle:n.endAngle,R:De+this._rOff+20,r:0,roundOutsideCut:n.roundOutsideCut,roundInsideCut:n.roundInsideCut})} />`)}</clipPath>`;i=[r,a,s`<g mask="url(#cutMask)">${e}</g>`];o.forEach(n=>{i.push(s`<path d=${n} fill="none" stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>`)})}else{if(this.state!==Ze.off){i.push(jr("outerRing",{radius:De+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"}));i.push(s`
-          ${jr("innerRing",{radius:this.innerRingRadius+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"})}
-        `)}else{i.push(s`
-          ${jr("innerRing",{radius:De+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"})}
-        `)}}return i}_renderTickFadeDefs(){if(this.tickFadeAngle<=0||this.areas.length===0)return p;const e=this.areas[0];const t=e.endAngle-e.startAngle;const i=Math.min(this.tickFadeAngle,t/4);if(i<.5)return p;const{startAngle:o,endAngle:r}=e;const a=De+this._rOff+200;const n=w=>w*Math.PI/180;const g=w=>a*Math.sin(n(w));const v=w=>-a*Math.cos(n(w));const f=(w,k)=>{const S=g(w),M=v(w);const x=g(k),V=v(k);const T=k-w>180?1:0;return`M 0 0 L ${S} ${M} A ${a} ${a} 0 ${T} 1 ${x} ${V} Z`};const y=(De+this.innerRingRadius)/2+this._rOff;const m=w=>y*Math.sin(n(w));const b=w=>-y*Math.cos(n(w));return s`
+        ${o.map(n=>c`<path d=${n} fill="white" vector-effect="non-scaling-stroke" stroke="white" stroke-width="1"/>`)}
+      </mask>`;const a=c`<clipPath id="rot-arc-clip">${this.areas.map(n=>c`<path d=${Ma({startAngle:n.startAngle,endAngle:n.endAngle,R:Bt+this._rOff+20,r:0,roundOutsideCut:n.roundOutsideCut,roundInsideCut:n.roundInsideCut})} />`)}</clipPath>`;i=[r,a,c`<g mask="url(#cutMask)">${e}</g>`];o.forEach(n=>{i.push(c`<path d=${n} fill="none" stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>`)})}else{if(this.state!==$e.off){i.push(Pn("outerRing",{radius:Bt+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"}));i.push(c`
+          ${Pn("innerRing",{radius:this.innerRingRadius+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"})}
+        `)}else{i.push(c`
+          ${Pn("innerRing",{radius:Bt+this._rOff,strokeWidth:1,strokeColor:"var(--instrument-frame-tertiary-color)",strokePosition:"center",fillColor:"none"})}
+        `)}}return i}_renderTickFadeDefs(){if(this.tickFadeAngle<=0||this.areas.length===0)return k;const e=this.areas[0];const t=e.endAngle-e.startAngle;const i=Math.min(this.tickFadeAngle,t/4);if(i<.5)return k;const{startAngle:o,endAngle:r}=e;const a=Bt+this._rOff+200;const n=M=>M*Math.PI/180;const h=M=>a*Math.sin(n(M));const d=M=>-a*Math.cos(n(M));const f=(M,H)=>{const P=h(M),S=d(M);const Z=h(H),_=d(H);const E=H-M>180?1:0;return`M 0 0 L ${P} ${S} A ${a} ${a} 0 ${E} 1 ${Z} ${_} Z`};const y=(Bt+this.innerRingRadius)/2+this._rOff;const v=M=>y*Math.sin(n(M));const b=M=>-y*Math.cos(n(M));return c`
       <defs>
         <linearGradient id="tickFadeL" gradientUnits="userSpaceOnUse"
-          x1="${m(o)}" y1="${b(o)}"
-          x2="${m(o+i)}" y2="${b(o+i)}">
+          x1="${v(o)}" y1="${b(o)}"
+          x2="${v(o+i)}" y2="${b(o+i)}">
           <stop offset="0" stop-color="black" />
           <stop offset="1" stop-color="white" />
         </linearGradient>
         <linearGradient id="tickFadeR" gradientUnits="userSpaceOnUse"
-          x1="${m(r-i)}" y1="${b(r-i)}"
-          x2="${m(r)}" y2="${b(r)}">
+          x1="${v(r-i)}" y1="${b(r-i)}"
+          x2="${v(r)}" y2="${b(r)}">
           <stop offset="0" stop-color="white" />
           <stop offset="1" stop-color="black" />
         </linearGradient>
@@ -4197,8 +4197,8 @@ li .active {
           <path d="${f(r-i,r)}" fill="url(#tickFadeR)" />
         </mask>
       </defs>
-    `}renderCrosshair(e,t){const i=t&&t.positions.length>0;const o=i?Math.max(...t.positions.map(a=>Math.abs(a.x!==0?a.x:a.y))):0;const r=i?3/t.scale:0;return s`
-      ${i?s`
+    `}renderCrosshair(e,t){const i=t&&t.positions.length>0;const o=i?Math.max(...t.positions.map(a=>Math.abs(a.x!==0?a.x:a.y))):0;const r=i?3/t.scale:0;return c`
+      ${i?c`
         <defs>
           <mask
             id="crosshair-label-mask"
@@ -4211,18 +4211,18 @@ li .active {
             <circle cx="0" cy="0" r="${t.innerRingRadius}" fill="black"/>
             <circle cx="0" cy="0" r="${o-r}" fill="white"/>
             <!-- Per-label rectangular knockouts -->
-            ${t.positions.map(a=>{const n=12/t.scale;const g=3/t.scale;const v=n+g*2;return s`
+            ${t.positions.map(a=>{const n=12/t.scale;const h=3/t.scale;const d=n+h*2;return c`
                 <rect
-                  x="${a.x-v/2}" y="${a.y-v/2}"
-                  width="${v}" height="${v}"
+                  x="${a.x-d/2}" y="${a.y-d/2}"
+                  width="${d}" height="${d}"
                   fill="black"
                   transform="rotate(${-(t.rotation??0)})"
                   transform-origin="${a.x} ${a.y}"
                 />
               `})}
           </mask>
-        </defs>`:p}
-      <g mask=${i?"url(#crosshair-label-mask)":p}>
+        </defs>`:k}
+      <g mask=${i?"url(#crosshair-label-mask)":k}>
         <line
           x1="-${e}"
           y1="0"
@@ -4242,10 +4242,10 @@ li .active {
           vector-effect="non-scaling-stroke"
         />
       </g>
-    `}renderBars(){if(this.barAreas.length===0){return p}return this.barAreas.map((e,t)=>{const i=Math.min(e.startAngle,e.endAngle);const o=Math.max(e.startAngle,e.endAngle);const r=Qt({r:Qr+this._rOff,R:ir+this._rOff,startAngle:i,endAngle:o,roundInsideCut:false,roundOutsideCut:false});const a=ir+this._rOff+40;const n=s`<mask id="barMask-${t}">
+    `}renderBars(){if(this.barAreas.length===0){return k}return this.barAreas.map((e,t)=>{const i=Math.min(e.startAngle,e.endAngle);const o=Math.max(e.startAngle,e.endAngle);const r=Ma({r:Un+this._rOff,R:Za+this._rOff,startAngle:i,endAngle:o,roundInsideCut:false,roundOutsideCut:false});const a=Za+this._rOff+40;const n=c`<mask id="barMask-${t}">
         <rect x="${-a}" y="${-a}" width="${a*2}" height="${a*2}" fill="black" />
-        <path d=${Qt({r:1,R:a,startAngle:i,endAngle:o,roundInsideCut:false,roundOutsideCut:false})} fill="white" />
-      </mask>`;return s`
+        <path d=${Ma({r:1,R:a,startAngle:i,endAngle:o,roundInsideCut:false,roundOutsideCut:false})} fill="white" />
+      </mask>`;return c`
         ${n}
         <g mask="url(#cutMask)">
         <path 
@@ -4257,17 +4257,17 @@ li .active {
           mask="url(#barMask-${t})" 
           />
           </g>
-          `})}renderNeedles(){if(this.needles.length===0){return p}return this.needles.map(e=>{return s`
+          `})}renderNeedles(){if(this.needles.length===0){return k}return this.needles.map(e=>{return c`
         <rect 
           transform="rotate(${e.angle})" 
-          x="-4" y="${-(ir+this._rOff)}" width="8" height="48" rx="4" 
+          x="-4" y="${-(Za+this._rOff)}" width="8" height="48" rx="4" 
           fill=${e.fillColor} 
           stroke=${e.strokeColor}
           stroke-width="1"
           vector-effect="non-scaling-stroke"
           paint-order="stroke fill"
         />
-      `})}getScale({width:e,height:t}){let i=this.clientWidth;let o=this.clientHeight;if(i===0||o===0){const a=this.parentElement?.getBoundingClientRect();if(a){i=a.width;o=a.height}}const r=Math.min(i/e,o/t);if(r===Infinity||r<0){throw new Error("Watch scale is not valid")}return r}getPadding(){if(this.padding!==void 0){return this.padding}const e=this.tickmarks.length>0&&this.tickmarks.some(t=>t.text!==void 0);if(e&&!this.tickmarksInside){return 24*2.5}return 24}render(){let e;let t;let i;if(this.arcFrame){this._rOff=this.arcFrame.radiusOffset;e=this.arcFrame.width;t=this.arcFrame.height;i=this.arcFrame.viewBox}else if(this.zoomToFitArc&&this.areas.length>0){const x=this.getPadding();const V=(176+x)*2;const T=_n({areas:this.areas,outerRadius:De,innerRadius:this.innerRingRadius,extension:x,targetSize:V});this._rOff=T.radiusOffset;e=T.width;t=T.height;i=T.viewBox}else{this._rOff=0;e=(176+this.getPadding())*2;t=e*(1-this.clipTop/100-this.clipBottom/100);const x=-e/2+e*this.clipTop/100;i=`-${e/2} ${x} ${e} ${t}`}const o=this._rOff;const r=this.getScale({width:e,height:t});const a=this.renderSetpoint();const n=(this.tickmarksInside?this.innerRingRadius:De)+o;const g=Math.max(...this.tickmarks.map(x=>x.text?.length??0));const v=this.tickmarks.map(x=>wt(x.angle,{size:x.type,style:this.tickmarkStyle,scale:r,text:this.showLabels?void 0:x.text,inside:this.tickmarksInside,textRadius:n,rotation:this.rotation,maxDigits:g,color:x.color,radiusOffset:o}));const f=this.advices?this.advices.map(x=>Sa(x,o)):p;const y=this.tickmarksInside&&this.showLabels;const m=!this.northArrow;const b=this.showLabels?ci({scale:r,inside:this.tickmarksInside,innerRadius:this.innerRingRadius+o,includeNorth:m}):void 0;const w=b?Ta({scale:r,rotation:this.rotation,inside:this.tickmarksInside,innerRadius:this.innerRingRadius+o,includeNorth:m}):p;const k=this.northArrow?Ea({scale:r,rotation:this.rotation,inside:this.northArrowInside??this.tickmarksInside}):p;const S=this.wind!=null&&this.windFromDirectionDeg!=null?s`<g transform="scale(${this.scaleWindIcon})">${xn({wind:this.wind,fromDirectionDeg:this.windFromDirectionDeg,radius:this.windSymbolRadius??192,color:this.windColor})}</g>`:p;const M=this.current!=null&&this.currentFromDirectionDeg!=null?Mn({current:this.current,fromDirectionDeg:this.currentFromDirectionDeg,radius:this.currentSymbolRadius??192,color:this.currentColor}):p;return c`
+      `})}getScale({width:e,height:t}){let i=this.clientWidth;let o=this.clientHeight;if(i===0||o===0){const a=this.parentElement?.getBoundingClientRect();if(a){i=a.width;o=a.height}}const r=Math.min(i/e,o/t);if(r===Infinity||r<0){throw new Error("Watch scale is not valid")}return r}getPadding(){if(this.padding!==void 0){return this.padding}const e=this.tickmarks.length>0&&this.tickmarks.some(t=>t.text!==void 0);if(e&&!this.tickmarksInside){return 24*2.5}return 24}render(){let e;let t;let i;if(this.arcFrame){this._rOff=this.arcFrame.radiusOffset;e=this.arcFrame.width;t=this.arcFrame.height;i=this.arcFrame.viewBox}else if(this.zoomToFitArc&&this.areas.length>0){const Z=this.getPadding();const _=(176+Z)*2;const E=Fn({areas:this.areas,outerRadius:Bt,innerRadius:this.innerRingRadius,extension:Z,targetSize:_});this._rOff=E.radiusOffset;e=E.width;t=E.height;i=E.viewBox}else{this._rOff=0;e=(176+this.getPadding())*2;t=e*(1-this.clipTop/100-this.clipBottom/100);const Z=-e/2+e*this.clipTop/100;i=`-${e/2} ${Z} ${e} ${t}`}const o=this._rOff;const r=this.getScale({width:e,height:t});const a=this.renderSetpoint();const n=(this.tickmarksInside?this.innerRingRadius:Bt)+o;const h=Math.max(...this.tickmarks.map(Z=>Z.text?.length??0));const d=this.tickmarks.map(Z=>Qo(Z.angle,{size:Z.type,style:this.tickmarkStyle,scale:r,text:this.showLabels?void 0:Z.text,inside:this.tickmarksInside,textRadius:n,rotation:this.rotation,maxDigits:h,color:Z.color,radiusOffset:o}));const f=this.advices?this.advices.map(Z=>s2(Z,o)):k;const y=this.tickmarksInside&&this.showLabels;const v=!this.northArrow;const b=this.showLabels?zs({scale:r,inside:this.tickmarksInside,innerRadius:this.innerRingRadius+o,includeNorth:v}):void 0;const M=b?v2({scale:r,rotation:this.rotation,inside:this.tickmarksInside,innerRadius:this.innerRingRadius+o,includeNorth:v}):k;const H=this.northArrow?m2({scale:r,rotation:this.rotation,inside:this.northArrowInside??this.tickmarksInside}):k;const P=this.wind!=null&&this.windFromDirectionDeg!=null?c`<g transform="scale(${this.scaleWindIcon})">${t0({wind:this.wind,fromDirectionDeg:this.windFromDirectionDeg,radius:this.windSymbolRadius??192,color:this.windColor})}</g>`:k;const S=this.current!=null&&this.currentFromDirectionDeg!=null?r0({current:this.current,fromDirectionDeg:this.currentFromDirectionDeg,radius:this.currentSymbolRadius??192,color:this.currentColor}):k;return u`
       <svg
         width="100%"
         height="100%"
@@ -4276,51 +4276,51 @@ li .active {
         transform="rotate(${this.rotation??0})"
       >
         ${this.watchCircle()} ${this.renderBars()}
-        ${this.crosshairEnabled?this.renderCrosshair(De+o,y&&b?{positions:b,rotation:this.rotation,scale:r,innerRingRadius:this.innerRingRadius+o}:void 0):p}
-        ${k} ${this.renderStarboardPortIndicator()} ${M}
-        ${this._renderTickFadeDefs()} ${S}
-        ${this.tickFadeAngle>0&&this.areas.length>0?s`<g mask="url(#tickFadeMask)">${v}</g>`:v}
-        ${this.areas.length>0?s`<g clip-path="url(#rot-arc-clip)">${this.renderRot()}</g>`:this.renderRot()}
+        ${this.crosshairEnabled?this.renderCrosshair(Bt+o,y&&b?{positions:b,rotation:this.rotation,scale:r,innerRingRadius:this.innerRingRadius+o}:void 0):k}
+        ${H} ${this.renderStarboardPortIndicator()} ${S}
+        ${this._renderTickFadeDefs()} ${P}
+        ${this.tickFadeAngle>0&&this.areas.length>0?c`<g mask="url(#tickFadeMask)">${d}</g>`:d}
+        ${this.areas.length>0?c`<g clip-path="url(#rot-arc-clip)">${this.renderRot()}</g>`:this.renderRot()}
         ${f} ${a}
-        ${this.tickFadeAngle>0&&this.areas.length>0?s`<g mask="url(#tickFadeMask)">${w}</g>`:w}
+        ${this.tickFadeAngle>0&&this.areas.length>0?c`<g mask="url(#tickFadeMask)">${M}</g>`:M}
         ${this.renderVesselImage()} ${this.renderNeedles()}
       </svg>
-    `}getRotColors(){const e=this.rotPriority??this.priority;const t=e===B.enhanced;if(this.rotPortStarboard){let i;if(this.rotType===Ot.bar){const o=((this.rotEndAngle-this.rotStartAngle)%360+360)%360;i=o<=180?o:o-360}else{i=this._rotationsPerMinute}if(i>0){return{dotColor:"var(--instrument-starboard-secondary-color)",barBgColor:"var(--instrument-starboard-primary-color)"}}if(i<0){return{dotColor:"var(--instrument-port-secondary-color)",barBgColor:"var(--instrument-port-primary-color)"}}}return{dotColor:t?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)",barBgColor:t?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}}renderRot(){if(!this.rotType)return p;const{dotColor:e,barBgColor:t}=this.getRotColors();const i=this._rOff;if(this.rotType===Ot.bar){const n=li(this.rotStartAngle,this.rotEndAngle);const g=si(this.rotPosition,i);const v=Number.isFinite(this.rotAtZeroDeadband)?this.rotAtZeroDeadband:rr;if(n<Math.max(v,g)){return Pa(t,this.rotStartAngle,this.rotPosition,i)}return s`
-        ${Oa({startAngle:this.rotStartAngle,endAngle:this.rotEndAngle,barColor:t,position:this.rotPosition,maskId:"rot-bar-mask",radiusOffset:i})}
-        ${s`<g clip-path="url(#rot-bar-mask)">
+    `}getRotColors(){const e=this.rotPriority??this.priority;const t=e===de.enhanced;if(this.rotPortStarboard){let i;if(this.rotType===Ni.bar){const o=((this.rotEndAngle-this.rotStartAngle)%360+360)%360;i=o<=180?o:o-360}else{i=this._rotationsPerMinute}if(i>0){return{dotColor:"var(--instrument-starboard-secondary-color)",barBgColor:"var(--instrument-starboard-primary-color)"}}if(i<0){return{dotColor:"var(--instrument-port-secondary-color)",barBgColor:"var(--instrument-port-primary-color)"}}}return{dotColor:t?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)",barBgColor:t?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}}renderRot(){if(!this.rotType)return k;const{dotColor:e,barBgColor:t}=this.getRotColors();const i=this._rOff;if(this.rotType===Ni.bar){const n=Ps(this.rotStartAngle,this.rotEndAngle);const h=Ts(this.rotPosition,i);const d=Number.isFinite(this.rotAtZeroDeadband)?this.rotAtZeroDeadband:Sa;if(n<Math.max(d,h)){return h2(t,this.rotStartAngle,this.rotPosition,i)}return c`
+        ${u2({startAngle:this.rotStartAngle,endAngle:this.rotEndAngle,barColor:t,position:this.rotPosition,maskId:"rot-bar-mask",radiusOffset:i})}
+        ${c`<g clip-path="url(#rot-bar-mask)">
             <g id="rot-spinner">
-              ${Ba(e,this.rotPosition,i)}
+              ${f2(e,this.rotPosition,i)}
             </g>
           </g>`}
-      `}const o=this.rotPriority??this.priority;const r=o===B.enhanced;let a=r?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";if(this.rotPortStarboard){if(this._rotationsPerMinute>0){a="var(--instrument-starboard-secondary-color)"}else if(this._rotationsPerMinute<0){a="var(--instrument-port-secondary-color)"}}return s`
+      `}const o=this.rotPriority??this.priority;const r=o===de.enhanced;let a=r?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";if(this.rotPortStarboard){if(this._rotationsPerMinute>0){a="var(--instrument-starboard-secondary-color)"}else if(this._rotationsPerMinute<0){a="var(--instrument-port-secondary-color)"}}return c`
       <g id="rot-spinner">
-        ${za(a,this.rotPosition,i)}
+        ${d2(a,this.rotPosition,i)}
       </g>
-    `}renderSetpoint(){if(this.angleSetpoint===void 0){return p}const e=Ca({state:this.state,priority:this.priority,atSetpoint:this.atAngleSetpoint,angleSetpoint:this.angleSetpoint,setpointAtZeroDeadband:this.angleSetpointAtZeroDeadband,newAngleSetpoint:this.newAngleSetpoint,touching:this.touching,setpointOverride:this.setpointOverride});const{visualState:t,colorMode:i,disabled:o,hasNewSetpoint:r}=e;const a=ti(t);const n=oi+this._rOff+a-Vn;const g=r?.75:1;const v=ri({visualState:t,colorMode:i,disabled:o,id:this._setpointId});const f=this.animateSetpoint;const y=this._departingNewAngleSetpoint!==void 0;const m=this.angleSetpoint+90;if(!this._setpointCssAngleInit){this._setpointCssAngle=m;this._setpointCssAngleInit=true}else{this._setpointCssAngle=wa(this._setpointCssAngle,m)}const b=f?s`
-        <g style="transform: rotate(${this._setpointCssAngle}deg) translateX(${-n}px) rotate(270deg); opacity: ${g}; transition: transform var(${Jt}, ${Fr}) ease-out, opacity var(${Jt}, ${Fr}) ease-out;">
-          ${v}
+    `}renderSetpoint(){if(this.angleSetpoint===void 0){return k}const e=Qc({state:this.state,priority:this.priority,atSetpoint:this.atAngleSetpoint,angleSetpoint:this.angleSetpoint,setpointAtZeroDeadband:this.angleSetpointAtZeroDeadband,newAngleSetpoint:this.newAngleSetpoint,touching:this.touching,setpointOverride:this.setpointOverride});const{visualState:t,colorMode:i,disabled:o,hasNewSetpoint:r}=e;const a=Di(t);const n=Vs+this._rOff+a-a0;const h=r?.75:1;const d=Gr({visualState:t,colorMode:i,disabled:o,id:this._setpointId});const f=this.animateSetpoint;const y=this._departingNewAngleSetpoint!==void 0;const v=this.angleSetpoint+90;if(!this._setpointCssAngleInit){this._setpointCssAngle=v;this._setpointCssAngleInit=true}else{this._setpointCssAngle=Xc(this._setpointCssAngle,v)}const b=f?c`
+        <g style="transform: rotate(${this._setpointCssAngle}deg) translateX(${-n}px) rotate(270deg); opacity: ${h}; transition: transform var(${Ho}, ${Xo}) ease-out, opacity var(${Ho}, ${Xo}) ease-out;">
+          ${d}
         </g>
-      `:s`
-        <g transform="rotate(${this.angleSetpoint+90}) translate(${-n}, 0) rotate(270)" opacity="${g}">
-          ${v}
+      `:c`
+        <g transform="rotate(${this.angleSetpoint+90}) translate(${-n}, 0) rotate(270)" opacity="${h}">
+          ${d}
         </g>
-      `;if(r||y){const w=r;const k=w?this.newAngleSetpoint:this._departingNewAngleSetpoint;const S=w?1:0;const M=ti(Nr.focus);const x=oi+this._rOff+M-Vn;const V=ri({visualState:Nr.focus,colorMode:i,disabled:false,id:this._newSetpointId});if(f){const T=`var(${Jt}, ${Fr})`;return s`
+      `;if(r||y){const M=r;const H=M?this.newAngleSetpoint:this._departingNewAngleSetpoint;const P=M?1:0;const S=Di(Dt.focus);const Z=Vs+this._rOff+S-a0;const _=Gr({visualState:Dt.focus,colorMode:i,disabled:false,id:this._newSetpointId});if(f){const E=`var(${Ho}, ${Xo})`;return c`
           ${b}
-          <g style="transform: rotate(${k+90}deg) translateX(${-x}px) rotate(270deg); opacity: ${S}; transition: opacity ${T} ease-out;">
-            ${V}
+          <g style="transform: rotate(${H+90}deg) translateX(${-Z}px) rotate(270deg); opacity: ${P}; transition: opacity ${E} ease-out;">
+            ${_}
           </g>
-        `}return s`
+        `}return c`
         ${b}
-        <g transform="rotate(${k+90}) translate(${-x}, 0) rotate(270)" opacity="${S}">
-          ${V}
+        <g transform="rotate(${H+90}) translate(${-Z}, 0) rotate(270)" opacity="${P}">
+          ${_}
         </g>
-      `}return b}renderVesselImage(){if(this.vessels.length===0){return p}return this.vessels.map(e=>{let t;switch(e.size){case Qe.large:t=224;break;case Qe.medium:t=160;break;default:t=100}const i=t/160;return s`<g style="transform: ${e.transform} scale(${i}) translate(-80px, -80px) ">${Bt[e.vesselImage]}</g>`})}renderStarboardPortIndicator(){if(!this.starboardPortIndicator){return p}return[Pt(0,180,"var(--instrument-starboard-secondary-color)","var(--instrument-starboard-secondary-color)"),Pt(180,360,"var(--instrument-port-secondary-color)","var(--instrument-port-secondary-color)")]}};H.styles=C(La);$([l({type:String})],H.prototype,"state",2);$([l({type:String})],H.prototype,"priority",2);$([l({type:String})],H.prototype,"watchCircleType",2);$([l({type:Boolean})],H.prototype,"northArrow",2);$([l({type:Boolean})],H.prototype,"northArrowInside",2);$([l({type:Number})],H.prototype,"angleSetpoint",2);$([l({type:Number})],H.prototype,"newAngleSetpoint",2);$([l({type:Boolean})],H.prototype,"atAngleSetpoint",2);$([l({type:Number})],H.prototype,"angleSetpointAtZeroDeadband",2);$([l({type:Boolean})],H.prototype,"setpointOverride",2);$([l({type:Boolean})],H.prototype,"touching",2);$([l({type:Boolean})],H.prototype,"animateSetpoint",2);$([j()],H.prototype,"_departingNewAngleSetpoint",2);$([l({type:Number})],H.prototype,"padding",2);$([l({type:Array,attribute:false})],H.prototype,"areas",2);$([l({type:Array,attribute:false})],H.prototype,"barAreas",2);$([l({type:Array,attribute:false})],H.prototype,"needles",2);$([l({type:Array,attribute:false})],H.prototype,"tickmarks",2);$([l({type:Boolean})],H.prototype,"tickmarksInside",2);$([l({type:String})],H.prototype,"tickmarkStyle",2);$([l({type:Array,attribute:false})],H.prototype,"advices",2);$([l({type:Boolean})],H.prototype,"crosshairEnabled",2);$([l({type:Boolean})],H.prototype,"showLabels",2);$([l({type:Array,attribute:false})],H.prototype,"vessels",2);$([l({type:Number})],H.prototype,"wind",2);$([l({type:Number})],H.prototype,"windFromDirectionDeg",2);$([l({type:Number})],H.prototype,"windSymbolRadius",2);$([l({type:String})],H.prototype,"windColor",2);$([l({type:Number})],H.prototype,"current",2);$([l({type:Number})],H.prototype,"currentFromDirectionDeg",2);$([l({type:Number})],H.prototype,"currentSymbolRadius",2);$([l({type:String})],H.prototype,"currentColor",2);$([l({type:Boolean})],H.prototype,"starboardPortIndicator",2);$([l({type:Number})],H.prototype,"clipTop",2);$([l({type:Number})],H.prototype,"clipBottom",2);$([l({type:Number})],H.prototype,"scaleWindIcon",2);$([l({type:Number})],H.prototype,"rotation",2);$([l({type:Boolean})],H.prototype,"zoomToFitArc",2);$([l({attribute:false})],H.prototype,"arcFrame",2);$([l({type:Number})],H.prototype,"tickFadeAngle",2);$([l({type:String})],H.prototype,"rotType",2);$([l({type:String})],H.prototype,"rotPosition",2);$([l({type:Number})],H.prototype,"rotStartAngle",2);$([l({type:Number})],H.prototype,"rotEndAngle",2);$([l({type:String})],H.prototype,"rotPriority",2);$([l({type:Boolean})],H.prototype,"rotPortStarboard",2);$([l({type:Number})],H.prototype,"rotAtZeroDeadband",2);$([l({type:Number})],H.prototype,"rotationsPerMinute",1);H=$([u("obc-watch")],H);var eo=(e=>{e["HDG"]="HDG";e["COG"]="COG";return e})(eo||{});function di(e,t,i=B.regular,o=0){const r=i===B.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";if(e==="HDG"){return s`
+      `}return b}renderVesselImage(){if(this.vessels.length===0){return k}return this.vessels.map(e=>{let t;switch(e.size){case $r.large:t=224;break;case $r.medium:t=160;break;default:t=100}const i=t/160;return c`<g style="transform: ${e.transform} scale(${i}) translate(-80px, -80px) ">${ji[e.vesselImage]}</g>`})}renderStarboardPortIndicator(){if(!this.starboardPortIndicator){return k}return[Ri(0,180,"var(--instrument-starboard-secondary-color)","var(--instrument-starboard-secondary-color)"),Ri(180,360,"var(--instrument-port-secondary-color)","var(--instrument-port-secondary-color)")]}};te.styles=I(e2);oe([l({type:String})],te.prototype,"state",2);oe([l({type:String})],te.prototype,"priority",2);oe([l({type:String})],te.prototype,"watchCircleType",2);oe([l({type:Boolean})],te.prototype,"northArrow",2);oe([l({type:Boolean})],te.prototype,"northArrowInside",2);oe([l({type:Number})],te.prototype,"angleSetpoint",2);oe([l({type:Number})],te.prototype,"newAngleSetpoint",2);oe([l({type:Boolean})],te.prototype,"atAngleSetpoint",2);oe([l({type:Number})],te.prototype,"angleSetpointAtZeroDeadband",2);oe([l({type:Boolean})],te.prototype,"setpointOverride",2);oe([l({type:Boolean})],te.prototype,"touching",2);oe([l({type:Boolean})],te.prototype,"animateSetpoint",2);oe([Ee()],te.prototype,"_departingNewAngleSetpoint",2);oe([l({type:Number})],te.prototype,"padding",2);oe([l({type:Array,attribute:false})],te.prototype,"areas",2);oe([l({type:Array,attribute:false})],te.prototype,"barAreas",2);oe([l({type:Array,attribute:false})],te.prototype,"needles",2);oe([l({type:Array,attribute:false})],te.prototype,"tickmarks",2);oe([l({type:Boolean})],te.prototype,"tickmarksInside",2);oe([l({type:String})],te.prototype,"tickmarkStyle",2);oe([l({type:Array,attribute:false})],te.prototype,"advices",2);oe([l({type:Boolean})],te.prototype,"crosshairEnabled",2);oe([l({type:Boolean})],te.prototype,"showLabels",2);oe([l({type:Array,attribute:false})],te.prototype,"vessels",2);oe([l({type:Number})],te.prototype,"wind",2);oe([l({type:Number})],te.prototype,"windFromDirectionDeg",2);oe([l({type:Number})],te.prototype,"windSymbolRadius",2);oe([l({type:String})],te.prototype,"windColor",2);oe([l({type:Number})],te.prototype,"current",2);oe([l({type:Number})],te.prototype,"currentFromDirectionDeg",2);oe([l({type:Number})],te.prototype,"currentSymbolRadius",2);oe([l({type:String})],te.prototype,"currentColor",2);oe([l({type:Boolean})],te.prototype,"starboardPortIndicator",2);oe([l({type:Number})],te.prototype,"clipTop",2);oe([l({type:Number})],te.prototype,"clipBottom",2);oe([l({type:Number})],te.prototype,"scaleWindIcon",2);oe([l({type:Number})],te.prototype,"rotation",2);oe([l({type:Boolean})],te.prototype,"zoomToFitArc",2);oe([l({attribute:false})],te.prototype,"arcFrame",2);oe([l({type:Number})],te.prototype,"tickFadeAngle",2);oe([l({type:String})],te.prototype,"rotType",2);oe([l({type:String})],te.prototype,"rotPosition",2);oe([l({type:Number})],te.prototype,"rotStartAngle",2);oe([l({type:Number})],te.prototype,"rotEndAngle",2);oe([l({type:String})],te.prototype,"rotPriority",2);oe([l({type:Boolean})],te.prototype,"rotPortStarboard",2);oe([l({type:Number})],te.prototype,"rotAtZeroDeadband",2);oe([l({type:Number})],te.prototype,"rotationsPerMinute",1);te=oe([x("obc-watch")],te);var Wn=(e=>{e["HDG"]="HDG";e["COG"]="COG";return e})(Wn||{});function Es(e,t,i=de.regular,o=0){const r=i===de.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";if(e==="HDG"){return c`
       <g transform="rotate(${t}) translate(-256, ${-256-o})">
 
 <path d="M254.654 100.32C255.219 99.1903 256.906 99.2277 257.396 100.433L272.312 137.092L272.388 137.301C273.067 139.455 270.647 141.314 268.676 140.13V140.129L256 132.582L243.323 140.129L243.324 140.13C241.289 141.352 238.777 139.332 239.688 137.092L254.604 100.433L254.654 100.32Z"
  fill=${r} stroke="var(--border-silhouette-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>
       </g>
-    `}else if(e==="COG"){return s`
+    `}else if(e==="COG"){return c`
       <g transform="rotate(${t}) translate(-256, ${-256-o})">
 <mask id="path-1-outside-1_133_32856" maskUnits="userSpaceOnUse" x="238" y="99" width="36" height="42" fill="black">
 <rect fill="white" x="238" y="99" width="36" height="42"/>
@@ -4332,7 +4332,7 @@ li .active {
 fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="url(#path-1-outside-1_133_32856)"/>
 
       </g>
-    `}else{return[]}}var to=class{constructor(t){this.atSetpoint=false;this.touching=false;this.autoAtSetpoint=true;this.setpointOverride=false;this.animateSetpoint=false;this.autoAtSetpointDeadband=t?.defaultDeadband??2;this.setpointAtZeroDeadband=t?.defaultZeroDeadband??.5;this._angularWraparound=t?.angularWraparound??false;this._onAnimationEnd=t?.onAnimationEnd}sync(t){const i=this.newSetpoint;if(t.setpoint!==void 0||"setpoint"in t)this.setpoint=t.setpoint;if(t.newSetpoint!==void 0||"newSetpoint"in t)this.newSetpoint=t.newSetpoint;if(t.atSetpoint!==void 0)this.atSetpoint=t.atSetpoint;if(t.touching!==void 0)this.touching=t.touching;if(t.autoAtSetpoint!==void 0)this.autoAtSetpoint=t.autoAtSetpoint;if(t.autoAtSetpointDeadband!==void 0)this.autoAtSetpointDeadband=t.autoAtSetpointDeadband;if(t.setpointAtZeroDeadband!==void 0)this.setpointAtZeroDeadband=t.setpointAtZeroDeadband;if(t.setpointOverride!==void 0)this.setpointOverride=t.setpointOverride;if(t.animateSetpoint!==void 0)this.animateSetpoint=t.animateSetpoint;if(i!==void 0&&this.newSetpoint===void 0&&this.animateSetpoint){this.departingNewSetpoint=i;clearTimeout(this._animationTimer);this._animationTimer=setTimeout(()=>{this.departingNewSetpoint=void 0;this._onAnimationEnd?.()},Rr)}}dispose(){clearTimeout(this._animationTimer)}computeAtSetpoint(t){return Wr({value:t,setpoint:this.setpoint,touching:this.touching,auto:this.autoAtSetpoint,deadband:this.autoAtSetpointDeadband,atSetpointManual:this.atSetpoint,angularWraparound:this._angularWraparound})}};var Fs=Object.defineProperty;var Us=Object.getOwnPropertyDescriptor;var z=(e,t,i,o)=>{var r=o>1?void 0:o?Us(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Fs(t,i,r);return r};var Z=class extends d{constructor(){super(...arguments);this.heading=0;this.courseOverGround=0;this.headingSetpoint=null;this.atHeadingSetpoint=false;this.headingSetpointAtZeroDeadband=.5;this.headingSetpointOverride=false;this.autoAtHeadingSetpoint=true;this.autoAtHeadingSetpointDeadband=2;this.animateSetpoint=false;this.touching=false;this.headingAdvices=[];this.windSpeed=null;this.windFromDirection=null;this.currentSpeed=null;this.currentFromDirection=null;this.vesselImage=et.genericTop;this.rotationsPerMinute=1;this.rotType=Ot.dots;this.rotPosition=tr.innerCircle;this.rotMaxValue=10;this.rotArcExtent=60;this.rotPortStarboard=false;this.rotAtZeroDeadband=rr;this.direction="northUp";this.state=Ze.active;this.priority=B.regular;this.priorityElements=["hdg"];this.showLabels=false;this.tickmarksInside=false;this._headingSp=new to({angularWraparound:true,onAnimationEnd:()=>this.requestUpdate()});this._resizeController=new zt(this,{})}willUpdate(e){super.willUpdate(e);this._headingSp.sync({setpoint:this.headingSetpoint??void 0,newSetpoint:this.newHeadingSetpoint,atSetpoint:this.atHeadingSetpoint,touching:this.touching,autoAtSetpoint:this.autoAtHeadingSetpoint,autoAtSetpointDeadband:this.autoAtHeadingSetpointDeadband,setpointAtZeroDeadband:this.headingSetpointAtZeroDeadband,setpointOverride:this.headingSetpointOverride,animateSetpoint:this.animateSetpoint})}disconnectedCallback(){super.disconnectedCallback();this._headingSp.dispose()}getPadding(){const e=Math.min(this.clientHeight,this.clientWidth);const t=512-e;const i=t/128;let o;if(t>0){o=i*48}else{o=i*6}return 72+o}get angleAdviceRaw(){return this.headingAdvices.map(({minAngle:e,maxAngle:t,hinted:i,type:o})=>{const r=this.heading>=e&&this.heading<=t?I.triggered:i?I.hinted:I.regular;return{minAngle:e,maxAngle:t,type:o,state:r}})}priorityFor(e){const t=Array.isArray(this.priorityElements)?this.priorityElements:[];return t.includes(e)?this.priority:B.regular}colorFor(e){return this.priorityFor(e)===B.enhanced?"var(--instrument-enhanced-secondary-color)":void 0}getRotation(){if(this.direction==="northUp"){return void 0}else if(this.direction==="headingUp"){return-this.heading}else if(this.direction==="courseUp"){return-this.courseOverGround}return void 0}render(){const e=[{angle:0,type:N.main},{angle:90,type:N.main},{angle:180,type:N.main},{angle:270,type:N.main}];const t=this.getPadding();const i=(176+t)*2;const o=`-${i/2} -${i/2} ${i} ${i}`;return c`
+    `}else{return[]}}var Gn=class{constructor(t){this.atSetpoint=false;this.touching=false;this.autoAtSetpoint=true;this.setpointOverride=false;this.animateSetpoint=false;this.autoAtSetpointDeadband=t?.defaultDeadband??2;this.setpointAtZeroDeadband=t?.defaultZeroDeadband??.5;this._angularWraparound=t?.angularWraparound??false;this._onAnimationEnd=t?.onAnimationEnd}sync(t){const i=this.newSetpoint;if(t.setpoint!==void 0||"setpoint"in t)this.setpoint=t.setpoint;if(t.newSetpoint!==void 0||"newSetpoint"in t)this.newSetpoint=t.newSetpoint;if(t.atSetpoint!==void 0)this.atSetpoint=t.atSetpoint;if(t.touching!==void 0)this.touching=t.touching;if(t.autoAtSetpoint!==void 0)this.autoAtSetpoint=t.autoAtSetpoint;if(t.autoAtSetpointDeadband!==void 0)this.autoAtSetpointDeadband=t.autoAtSetpointDeadband;if(t.setpointAtZeroDeadband!==void 0)this.setpointAtZeroDeadband=t.setpointAtZeroDeadband;if(t.setpointOverride!==void 0)this.setpointOverride=t.setpointOverride;if(t.animateSetpoint!==void 0)this.animateSetpoint=t.animateSetpoint;if(i!==void 0&&this.newSetpoint===void 0&&this.animateSetpoint){this.departingNewSetpoint=i;clearTimeout(this._animationTimer);this._animationTimer=setTimeout(()=>{this.departingNewSetpoint=void 0;this._onAnimationEnd?.()},Tn)}}dispose(){clearTimeout(this._animationTimer)}computeAtSetpoint(t){return En({value:t,setpoint:this.setpoint,touching:this.touching,auto:this.autoAtSetpoint,deadband:this.autoAtSetpointDeadband,atSetpointManual:this.atSetpoint,angularWraparound:this._angularWraparound})}};var $9=Object.defineProperty;var H9=Object.getOwnPropertyDescriptor;var Le=(e,t,i,o)=>{var r=o>1?void 0:o?H9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)$9(t,i,r);return r};var me=class extends C{constructor(){super(...arguments);this.heading=0;this.courseOverGround=0;this.headingSetpoint=null;this.atHeadingSetpoint=false;this.headingSetpointAtZeroDeadband=.5;this.headingSetpointOverride=false;this.autoAtHeadingSetpoint=true;this.autoAtHeadingSetpointDeadband=2;this.animateSetpoint=false;this.touching=false;this.headingAdvices=[];this.windSpeed=null;this.windFromDirection=null;this.currentSpeed=null;this.currentFromDirection=null;this.vesselImage=Hr.genericTop;this.rotationsPerMinute=1;this.rotType=Ni.dots;this.rotPosition=_a.innerCircle;this.rotMaxValue=10;this.rotArcExtent=60;this.rotPortStarboard=false;this.rotAtZeroDeadband=Sa;this.direction="northUp";this.state=$e.active;this.priority=de.regular;this.priorityElements=["hdg"];this.showLabels=false;this.tickmarksInside=false;this._headingSp=new Gn({angularWraparound:true,onAnimationEnd:()=>this.requestUpdate()});this._resizeController=new Ii(this,{})}willUpdate(e){super.willUpdate(e);this._headingSp.sync({setpoint:this.headingSetpoint??void 0,newSetpoint:this.newHeadingSetpoint,atSetpoint:this.atHeadingSetpoint,touching:this.touching,autoAtSetpoint:this.autoAtHeadingSetpoint,autoAtSetpointDeadband:this.autoAtHeadingSetpointDeadband,setpointAtZeroDeadband:this.headingSetpointAtZeroDeadband,setpointOverride:this.headingSetpointOverride,animateSetpoint:this.animateSetpoint})}disconnectedCallback(){super.disconnectedCallback();this._headingSp.dispose()}getPadding(){const e=Math.min(this.clientHeight,this.clientWidth);const t=512-e;const i=t/128;let o;if(t>0){o=i*48}else{o=i*6}return 72+o}get angleAdviceRaw(){return this.headingAdvices.map(({minAngle:e,maxAngle:t,hinted:i,type:o})=>{const r=this.heading>=e&&this.heading<=t?se.triggered:i?se.hinted:se.regular;return{minAngle:e,maxAngle:t,type:o,state:r}})}priorityFor(e){const t=Array.isArray(this.priorityElements)?this.priorityElements:[];return t.includes(e)?this.priority:de.regular}colorFor(e){return this.priorityFor(e)===de.enhanced?"var(--instrument-enhanced-secondary-color)":void 0}getRotation(){if(this.direction==="northUp"){return void 0}else if(this.direction==="headingUp"){return-this.heading}else if(this.direction==="courseUp"){return-this.courseOverGround}return void 0}render(){const e=[{angle:0,type:be.main},{angle:90,type:be.main},{angle:180,type:be.main},{angle:270,type:be.main}];const t=this.getPadding();const i=(176+t)*2;const o=`-${i/2} -${i/2} ${i} ${i}`;return u`
       <div class="container">
         <obc-watch
           .touching=${this.touching}
@@ -4340,7 +4340,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
           .advices=${this.angleAdviceRaw}
           .tickmarks=${e}
           .state=${this.state}
-          .watchCircleType=${Ct.triple}
+          .watchCircleType=${dr.triple}
           .showLabels=${this.showLabels}
           .tickmarksInside=${this.tickmarksInside}
           .crosshairEnabled=${true}
@@ -4352,7 +4352,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
           .setpointOverride=${this.headingSetpointOverride}
           .priority=${this.priority}
           .animateSetpoint=${this.animateSetpoint}
-          .vessels=${[{size:Qe.medium,vesselImage:this.vesselImage,transform:`rotate(${this.heading}deg)`}]}
+          .vessels=${[{size:$r.medium,vesselImage:this.vesselImage,transform:`rotate(${this.heading}deg)`}]}
           .wind=${this.windSpeed}
           .windFromDirectionDeg=${this.windFromDirection}
           .windColor=${this.colorFor("wind")}
@@ -4371,11 +4371,11 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
         >
         </obc-watch>
         <svg viewBox="${o}">
-          ${di(eo.HDG,this.heading+(this.getRotation()??0),this.priorityFor("hdg"))}
-          ${di(eo.COG,this.courseOverGround+(this.getRotation()??0),this.priorityFor("cog"))}
+          ${Es(Wn.HDG,this.heading+(this.getRotation()??0),this.priorityFor("hdg"))}
+          ${Es(Wn.COG,this.courseOverGround+(this.getRotation()??0),this.priorityFor("cog"))}
         </svg>
       </div>
-    `}};Z.styles=h`
+    `}};me.styles=L`
     * {
       box-sizing: border-box;
     }
@@ -4399,58 +4399,58 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
       width: 100%;
       height: 100%;
     }
-  `;z([l({type:Number})],Z.prototype,"heading",2);z([l({type:Number})],Z.prototype,"courseOverGround",2);z([l({type:Number})],Z.prototype,"headingSetpoint",2);z([l({type:Number})],Z.prototype,"newHeadingSetpoint",2);z([l({type:Boolean})],Z.prototype,"atHeadingSetpoint",2);z([l({type:Number})],Z.prototype,"headingSetpointAtZeroDeadband",2);z([l({type:Boolean})],Z.prototype,"headingSetpointOverride",2);z([l({type:Boolean,attribute:false})],Z.prototype,"autoAtHeadingSetpoint",2);z([l({type:Number})],Z.prototype,"autoAtHeadingSetpointDeadband",2);z([l({type:Boolean})],Z.prototype,"animateSetpoint",2);z([l({type:Boolean})],Z.prototype,"touching",2);z([l({type:Array,attribute:false})],Z.prototype,"headingAdvices",2);z([l({type:Number})],Z.prototype,"windSpeed",2);z([l({type:Number})],Z.prototype,"windFromDirection",2);z([l({type:Number})],Z.prototype,"currentSpeed",2);z([l({type:Number})],Z.prototype,"currentFromDirection",2);z([l({type:String})],Z.prototype,"vesselImage",2);z([l({type:Number})],Z.prototype,"rotationsPerMinute",2);z([l({type:String})],Z.prototype,"rotType",2);z([l({type:String})],Z.prototype,"rotPosition",2);z([l({type:Number})],Z.prototype,"rotMaxValue",2);z([l({type:Number})],Z.prototype,"rotArcExtent",2);z([l({type:Boolean})],Z.prototype,"rotPortStarboard",2);z([l({type:Number})],Z.prototype,"rotAtZeroDeadband",2);z([l({type:String})],Z.prototype,"direction",2);z([l({type:String})],Z.prototype,"state",2);z([l({type:String})],Z.prototype,"priority",2);z([l({type:Array,attribute:false})],Z.prototype,"priorityElements",2);z([l({type:Boolean})],Z.prototype,"showLabels",2);z([l({type:Boolean})],Z.prototype,"tickmarksInside",2);Z=z([u("obc-compass")],Z);function pi({height:e,minValue:t,maxValue:i,min:o,max:r,fill:a,stroke:n,x1:g}){const v=8;const f=4;const y=g+v+f;const m=v/2;const b=xe(o,t,i,e)-2*m;const w=xe(r,t,i,e)+2*m;const k=`M ${g+f} ${b} 
-                    A ${m} ${m} 0 0 0 ${y} ${b}
-                    V ${w}
-                    A ${m} ${m} 0 0 0 ${g+f} ${w}
-                    Z`;return s`<path d=${k} fill=${a} stroke=${n} stroke-width="1" vector-effect="non-scaling-stroke" />`}function ro({height:e,scaleWidth:t,minValue:i,maxValue:o,value:r,style:a,x1:n}){if(r>=o||r<=i){return null}const g=ii(a);const v=xe(r,i,o,e);return s`<line x1=${n-2} x2=${n+t} y1=${v}  y2=${v} stroke=${g} stroke-width="1" vector-effect="non-scaling-stroke"/>`}function An(e,t,i,o,r,a){const n=o/2-r;const g=-o/2;const v=o/2-r;const f=[];if(a.min>t){const y=xe(a.min,t,i,e);f.push(s`<line x1=${g} x2=${v} y1=${y} y2=${y} 
+  `;Le([l({type:Number})],me.prototype,"heading",2);Le([l({type:Number})],me.prototype,"courseOverGround",2);Le([l({type:Number})],me.prototype,"headingSetpoint",2);Le([l({type:Number})],me.prototype,"newHeadingSetpoint",2);Le([l({type:Boolean})],me.prototype,"atHeadingSetpoint",2);Le([l({type:Number})],me.prototype,"headingSetpointAtZeroDeadband",2);Le([l({type:Boolean})],me.prototype,"headingSetpointOverride",2);Le([l({type:Boolean,attribute:false})],me.prototype,"autoAtHeadingSetpoint",2);Le([l({type:Number})],me.prototype,"autoAtHeadingSetpointDeadband",2);Le([l({type:Boolean})],me.prototype,"animateSetpoint",2);Le([l({type:Boolean})],me.prototype,"touching",2);Le([l({type:Array,attribute:false})],me.prototype,"headingAdvices",2);Le([l({type:Number})],me.prototype,"windSpeed",2);Le([l({type:Number})],me.prototype,"windFromDirection",2);Le([l({type:Number})],me.prototype,"currentSpeed",2);Le([l({type:Number})],me.prototype,"currentFromDirection",2);Le([l({type:String})],me.prototype,"vesselImage",2);Le([l({type:Number})],me.prototype,"rotationsPerMinute",2);Le([l({type:String})],me.prototype,"rotType",2);Le([l({type:String})],me.prototype,"rotPosition",2);Le([l({type:Number})],me.prototype,"rotMaxValue",2);Le([l({type:Number})],me.prototype,"rotArcExtent",2);Le([l({type:Boolean})],me.prototype,"rotPortStarboard",2);Le([l({type:Number})],me.prototype,"rotAtZeroDeadband",2);Le([l({type:String})],me.prototype,"direction",2);Le([l({type:String})],me.prototype,"state",2);Le([l({type:String})],me.prototype,"priority",2);Le([l({type:Array,attribute:false})],me.prototype,"priorityElements",2);Le([l({type:Boolean})],me.prototype,"showLabels",2);Le([l({type:Boolean})],me.prototype,"tickmarksInside",2);me=Le([x("obc-compass")],me);function Ds({height:e,minValue:t,maxValue:i,min:o,max:r,fill:a,stroke:n,x1:h}){const d=8;const f=4;const y=h+d+f;const v=d/2;const b=hr(o,t,i,e)-2*v;const M=hr(r,t,i,e)+2*v;const H=`M ${h+f} ${b} 
+                    A ${v} ${v} 0 0 0 ${y} ${b}
+                    V ${M}
+                    A ${v} ${v} 0 0 0 ${h+f} ${M}
+                    Z`;return c`<path d=${H} fill=${a} stroke=${n} stroke-width="1" vector-effect="non-scaling-stroke" />`}function qn({height:e,scaleWidth:t,minValue:i,maxValue:o,value:r,style:a,x1:n}){if(r>=o||r<=i){return null}const h=Ha(a);const d=hr(r,i,o,e);return c`<line x1=${n-2} x2=${n+t} y1=${d}  y2=${d} stroke=${h} stroke-width="1" vector-effect="non-scaling-stroke"/>`}function s0(e,t,i,o,r,a){const n=o/2-r;const h=-o/2;const d=o/2-r;const f=[];if(a.min>t){const y=hr(a.min,t,i,e);f.push(c`<line x1=${h} x2=${d} y1=${y} y2=${y} 
                     stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke" 
-                    stroke-dasharray="4 4"/>`)}if(a.max<i){const y=xe(a.max,t,i,e);f.push(s`<line x1=${g} x2=${v} y1=${y} y2=${y} 
+                    stroke-dasharray="4 4"/>`)}if(a.max<i){const y=hr(a.max,t,i,e);f.push(c`<line x1=${h} x2=${d} y1=${y} y2=${y} 
                     stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke" 
-                    stroke-dasharray="4 4"/>`)}if(a.type===Le.caution){let y;let m="var(--instrument-frame-primary-color)";if(a.state===I.hinted){y="var(--instrument-frame-tertiary-color)"}else if(a.state===I.regular){y="var(--instrument-tick-mark-tertiary-color)"}else{y="var(--on-caution-active-color)";m="var(--alert-caution-color)"}const b=[];const w=50;for(let M=-16*8;M<16*14;M+=16){b.push(s`<g transform="translate(0 ${-M}) ">
-            <path d="M 50 0 L 0 ${w}" stroke=${y} stroke-width="6"/>
+                    stroke-dasharray="4 4"/>`)}if(a.type===bt.caution){let y;let v="var(--instrument-frame-primary-color)";if(a.state===se.hinted){y="var(--instrument-frame-tertiary-color)"}else if(a.state===se.regular){y="var(--instrument-tick-mark-tertiary-color)"}else{y="var(--on-caution-active-color)";v="var(--alert-caution-color)"}const b=[];const M=50;for(let S=-16*8;S<16*14;S+=16){b.push(c`<g transform="translate(0 ${-S}) ">
+            <path d="M 50 0 L 0 ${M}" stroke=${y} stroke-width="6"/>
             </g>
-            `)}const k=`adviceMask-${a.min}-${a.max}`;let S=Y.regular;if(a.state===I.regular){S=Y.regular}else if(a.state===I.triggered){S=Y.enhanced}return s`
-            <mask id=${k}>
-                ${pi({height:e,minValue:t,maxValue:i,min:a.min,max:a.max,fill:"white",stroke:"black",x1:n})}
+            `)}const H=`adviceMask-${a.min}-${a.max}`;let P=He.regular;if(a.state===se.regular){P=He.regular}else if(a.state===se.triggered){P=He.enhanced}return c`
+            <mask id=${H}>
+                ${Ds({height:e,minValue:t,maxValue:i,min:a.min,max:a.max,fill:"white",stroke:"black",x1:n})}
             </mask>
-            <g mask="url(#${k})">
-                ${m?s`<rect x="-256" y="-512" width="512" height="1024" fill="${m}"/>`:p}
+            <g mask="url(#${H})">
+                ${v?c`<rect x="-256" y="-512" width="512" height="1024" fill="${v}"/>`:k}
                 ${b}
             </g>
-            ${pi({height:e,minValue:t,maxValue:i,min:a.min,max:a.max,fill:"none",stroke:y,x1:n})}
-            ${ro({height:e,scaleWidth:r,minValue:t,maxValue:i,value:a.min,style:S,x1:n})}
-            ${ro({height:e,scaleWidth:r,minValue:t,maxValue:i,value:a.max,style:S,x1:n})}
+            ${Ds({height:e,minValue:t,maxValue:i,min:a.min,max:a.max,fill:"none",stroke:y,x1:n})}
+            ${qn({height:e,scaleWidth:r,minValue:t,maxValue:i,value:a.min,style:P,x1:n})}
+            ${qn({height:e,scaleWidth:r,minValue:t,maxValue:i,value:a.max,style:P,x1:n})}
             ${f}
-        `}else{let y;let m;let b;if(a.state===I.hinted){y="var(--instrument-frame-tertiary-color)";b="var(--instrument-frame-primary-color)";m=Y.regular}else if(a.state===I.regular){y="var(--instrument-regular-secondary-color)";b="var(--instrument-frame-primary-color)";m=Y.regular}else{y="var(--instrument-enhanced-secondary-color)";b=y;m=Y.regular}return s`
-            ${pi({height:e,minValue:t,maxValue:i,min:a.min,max:a.max,fill:b,stroke:y,x1:n})}
-            ${ro({height:e,scaleWidth:r,minValue:t,maxValue:i,value:a.min,style:m,x1:n})}
-            ${ro({height:e,scaleWidth:r,minValue:t,maxValue:i,value:a.max,style:m,x1:n})}
+        `}else{let y;let v;let b;if(a.state===se.hinted){y="var(--instrument-frame-tertiary-color)";b="var(--instrument-frame-primary-color)";v=He.regular}else if(a.state===se.regular){y="var(--instrument-regular-secondary-color)";b="var(--instrument-frame-primary-color)";v=He.regular}else{y="var(--instrument-enhanced-secondary-color)";b=y;v=He.regular}return c`
+            ${Ds({height:e,minValue:t,maxValue:i,min:a.min,max:a.max,fill:b,stroke:y,x1:n})}
+            ${qn({height:e,scaleWidth:r,minValue:t,maxValue:i,value:a.min,style:v,x1:n})}
+            ${qn({height:e,scaleWidth:r,minValue:t,maxValue:i,value:a.max,style:v,x1:n})}
             ${f}
-        `}}function Pn({height:e,width:t,scaleWidth:i,minValue:o,maxValue:r},a,n,g,v,f,y){const m=8;const b=`M -${t/2} 0  V -${e/2-8}  a 8 8 0 0 1 8 -8 h ${t-m*2} a 8 8 0 0 1 8 8 V ${e/2-m} a 8 8 0 0 1 -8 8 h -${t-2*m} a 8 8 0 0 1 -8 -8 Z`;const w=s`
+        `}}function p0({height:e,width:t,scaleWidth:i,minValue:o,maxValue:r},a,n,h,d,f,y){const v=8;const b=`M -${t/2} 0  V -${e/2-8}  a 8 8 0 0 1 8 -8 h ${t-v*2} a 8 8 0 0 1 8 8 V ${e/2-v} a 8 8 0 0 1 -8 8 h -${t-2*v} a 8 8 0 0 1 -8 -8 Z`;const M=c`
       <path d=${b} 
-       fill=${g.container}
+       fill=${h.container}
        />
-  `;const k=t-i-m;let S=s`
-      <path d="M -${t/2} 0  V -${e/2-m}  a 8 8 0 0 1 8 -8 h ${k} V ${e/2} h -${k} a 8 8 0 0 1 -8 -8 Z" 
+  `;const H=t-i-v;let P=c`
+      <path d="M -${t/2} 0  V -${e/2-v}  a 8 8 0 0 1 8 -8 h ${H} V ${e/2} h -${H} a 8 8 0 0 1 -8 -8 Z" 
        stroke="var(--instrument-frame-secondary-color)"
        fill="var(--instrument-frame-secondary-color)"
        vector-effect="non-scaling-stroke"
        />
-  `;const M=s`
+  `;const S=c`
       <path d=${b} 
       stroke="var(--instrument-frame-tertiary-color)" 
       fill="none" 
       vector-effect="non-scaling-stroke"/>
-  `;if(v.off){S=p}const{boxFill:x,boxStroke:V,barFill:T,barStroke:te}=Ws(v.priority===B.enhanced);const q=[];const G="boxMask";const P=v.hideContainer?p:s`
+  `;if(d.off){P=k}const{boxFill:Z,boxStroke:_,barFill:E,barStroke:A}=_9(d.priority===de.enhanced);const G=[];const z="boxMask";const B=d.hideContainer?k:c`
   <defs>
-  <mask id=${G}>
+  <mask id=${z}>
   <path d=${b} fill="white" stroke="white" vector-effect="non-scaling-stroke"/>
-  </defs>`;const F=v.hideContainer?void 0:`url(#${G})`;const se=[];if(f.mainTickmarks){for(const ce of f.mainTickmarks){if(ce<o||ce>r)continue;const Ge=xe(ce,o,r,e);q.push(s`<line x1=${-t/2} x2=${t/2} y1=${Ge} y2=${Ge} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`);se.push(ce)}}const qe=t/2-i+4;if(f.primaryTickmarkInterval!==void 0&&f.primaryTickmarkInterval>0&&Number.isFinite(f.primaryTickmarkInterval)){const{svgs:ce,values:Ge}=zn({height:e,interval:f.primaryTickmarkInterval,minValue:o,maxValue:r,tickmarksX:qe,tickmarksWidth:t/2-qe,skipValues:se});q.push(...ce);se.push(...Ge)}if(f.secondaryTickmarkInterval!==void 0&&f.secondaryTickmarkInterval>0&&Number.isFinite(f.secondaryTickmarkInterval)){const{svgs:ce,values:Ge}=zn({height:e,interval:f.secondaryTickmarkInterval,minValue:o,maxValue:r,tickmarksX:qe,tickmarksWidth:8,skipValues:se});q.push(...ce);se.push(...Ge)}const Vt=-t/2;const yi=t-i;const U1=a.map(ce=>{const Ge=xe(ce.min,o,r,e);const Ci=xe(ce.max,o,r,e);const G1=Math.min(Ge,Ci);const X1=Math.abs(Ci-Ge);return s`<rect width=${yi} height=${X1} x=${Vt} y=${G1} fill=${ce.fill??x} stroke=${ce.fill??V} vector-effect="non-scaling-stroke"/>`});const W1=y.map(ce=>An(e,o,r,t,i,ce));const q1=n?s`
-<rect x=${Vt} y=${xe(n.value,o,r,e)-4} width=${yi} height="8" rx="4" fill=${T} stroke=${te} vector-effect="non-scaling-stroke"/>
-`:p;const wi=[P,M,s`<g mask=${F}>${q}${U1} </g>`,W1,q1];if(!v.hideContainer){wi.splice(0,0,[w,S])}return wi}function xe(e,t,i,o){const r=i-t;return(-e+t)*o/r+o/2}function zn({height:e,interval:t,tickmarksX:i,tickmarksWidth:o,minValue:r,maxValue:a,skipValues:n}){const g=[];const v=[];for(let f=0;f<a;f+=t){if(n.includes(f)){continue}const y=xe(f,r,a,e);v.push(f);g.push(s`<line x1=${i} x2=${i+o} y1=${y} y2=${y} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`)}for(let f=-t;f>r;f-=t){if(n.includes(f)){continue}const y=xe(f,r,a,e);v.push(f);g.push(s`<line x1=${i} x2=${i+o} y1=${y} y2=${y} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`)}return{svgs:g,values:v}}function Ws(e){if(e){return{boxFill:"var(--instrument-enhanced-tertiary-color)",boxStroke:"var(--instrument-enhanced-tertiary-color)",barFill:"var(--instrument-enhanced-secondary-color)",barStroke:"var(--instrument-enhanced-tertiary-color)"}}else{return{boxFill:"var(--instrument-regular-tertiary-color)",boxStroke:"var(--instrument-regular-tertiary-color)",barFill:"var(--instrument-regular-secondary-color)",barStroke:"var(--instrument-regular-tertiary-color)"}}}var qs=Object.defineProperty;var Gs=Object.getOwnPropertyDescriptor;var Ie=(e,t,i,o)=>{var r=o>1?void 0:o?Gs(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)qs(t,i,r);return r};var Me=class extends d{constructor(){super(...arguments);this.depth=0;this.draft=0;this.advice=[];this.vesselScale=1;this.instrumentRange=10;this.primaryTickmarkInterval=50;this.secondaryTickmarkInterval=10;this.vesselImage=et.psvFore;this.priority=B.regular;this._boxWidth=336;this._gaugeWidth=72;this._scaleWidth=24}_toValue(e){return-e}_toTranslatedValue(e){return e*(this._boxWidth/2)/this.instrumentRange}_getAdvice(){return this.advice.map(e=>{const t=this.depth>=e.min&&this.depth<=e.max;const i=t?I.triggered:e.hinted?I.hinted:I.regular;return{...e,min:this._toValue(e.max),max:this._toValue(e.min),state:i}})}render(){const e=this._boxWidth/2-this._gaugeWidth/2;const t=8;const i=s`
+  </defs>`;const U=d.hideContainer?void 0:`url(#${z})`;const K=[];if(f.mainTickmarks){for(const N of f.mainTickmarks){if(N<o||N>r)continue;const Oe=hr(N,o,r,e);G.push(c`<line x1=${-t/2} x2=${t/2} y1=${Oe} y2=${Oe} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`);K.push(N)}}const Q=t/2-i+4;if(f.primaryTickmarkInterval!==void 0&&f.primaryTickmarkInterval>0&&Number.isFinite(f.primaryTickmarkInterval)){const{svgs:N,values:Oe}=c0({height:e,interval:f.primaryTickmarkInterval,minValue:o,maxValue:r,tickmarksX:Q,tickmarksWidth:t/2-Q,skipValues:K});G.push(...N);K.push(...Oe)}if(f.secondaryTickmarkInterval!==void 0&&f.secondaryTickmarkInterval>0&&Number.isFinite(f.secondaryTickmarkInterval)){const{svgs:N,values:Oe}=c0({height:e,interval:f.secondaryTickmarkInterval,minValue:o,maxValue:r,tickmarksX:Q,tickmarksWidth:8,skipValues:K});G.push(...N);K.push(...Oe)}const D=-t/2;const le=t-i;const q=a.map(N=>{const Oe=hr(N.min,o,r,e);const Ve=hr(N.max,o,r,e);const ve=Math.min(Oe,Ve);const xe=Math.abs(Ve-Oe);return c`<rect width=${le} height=${xe} x=${D} y=${ve} fill=${N.fill??Z} stroke=${N.fill??_} vector-effect="non-scaling-stroke"/>`});const ie=y.map(N=>s0(e,o,r,t,i,N));const ee=n?c`
+<rect x=${D} y=${hr(n.value,o,r,e)-4} width=${le} height="8" rx="4" fill=${E} stroke=${A} vector-effect="non-scaling-stroke"/>
+`:k;const he=[B,S,c`<g mask=${U}>${G}${q} </g>`,ie,ee];if(!d.hideContainer){he.splice(0,0,[M,P])}return he}function hr(e,t,i,o){const r=i-t;return(-e+t)*o/r+o/2}function c0({height:e,interval:t,tickmarksX:i,tickmarksWidth:o,minValue:r,maxValue:a,skipValues:n}){const h=[];const d=[];for(let f=0;f<a;f+=t){if(n.includes(f)){continue}const y=hr(f,r,a,e);d.push(f);h.push(c`<line x1=${i} x2=${i+o} y1=${y} y2=${y} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`)}for(let f=-t;f>r;f-=t){if(n.includes(f)){continue}const y=hr(f,r,a,e);d.push(f);h.push(c`<line x1=${i} x2=${i+o} y1=${y} y2=${y} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`)}return{svgs:h,values:d}}function _9(e){if(e){return{boxFill:"var(--instrument-enhanced-tertiary-color)",boxStroke:"var(--instrument-enhanced-tertiary-color)",barFill:"var(--instrument-enhanced-secondary-color)",barStroke:"var(--instrument-enhanced-tertiary-color)"}}else{return{boxFill:"var(--instrument-regular-tertiary-color)",boxStroke:"var(--instrument-regular-tertiary-color)",barFill:"var(--instrument-regular-secondary-color)",barStroke:"var(--instrument-regular-tertiary-color)"}}}var S9=Object.defineProperty;var V9=Object.getOwnPropertyDescriptor;var qr=(e,t,i,o)=>{var r=o>1?void 0:o?V9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)S9(t,i,r);return r};var ur=class extends C{constructor(){super(...arguments);this.depth=0;this.draft=0;this.advice=[];this.vesselScale=1;this.instrumentRange=10;this.primaryTickmarkInterval=50;this.secondaryTickmarkInterval=10;this.vesselImage=Hr.psvFore;this.priority=de.regular;this._boxWidth=336;this._gaugeWidth=72;this._scaleWidth=24}_toValue(e){return-e}_toTranslatedValue(e){return e*(this._boxWidth/2)/this.instrumentRange}_getAdvice(){return this.advice.map(e=>{const t=this.depth>=e.min&&this.depth<=e.max;const i=t?se.triggered:e.hinted?se.hinted:se.regular;return{...e,min:this._toValue(e.max),max:this._toValue(e.min),state:i}})}render(){const e=this._boxWidth/2-this._gaugeWidth/2;const t=8;const i=c`
     <rect fill="url(#seabedPattern)" y=${this._toTranslatedValue(this.depth)} x=${-this._boxWidth/2} width=${this._boxWidth-this._gaugeWidth} height=${this._toTranslatedValue(this.instrumentRange-this.depth)} fill="red" />
-    `;const o=this.priority===B.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";const r=this.vesselScale*50/this.instrumentRange;return c`
+    `;const o=this.priority===de.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";const r=this.vesselScale*50/this.instrumentRange;return u`
       <div class="container">
         <svg viewbox="-200 -200 400 400">
           <rect
@@ -4463,7 +4463,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
           />
 
           <g transform="translate(${e}, ${this._boxWidth/4})">
-            ${Pn({height:this._boxWidth/2,minValue:this._toValue(this.instrumentRange),maxValue:this._toValue(0),width:this._gaugeWidth,scaleWidth:this._scaleWidth},[{min:this._toValue(this.depth),max:this._toValue(0)},{min:this._toValue(this.draft),max:this._toValue(0),fill:o}],{value:this._toValue(this.depth)},{container:"var(--instrument-frame-primary-color)"},{hideContainer:false,off:false,priority:this.priority},{primaryTickmarkInterval:this.primaryTickmarkInterval,secondaryTickmarkInterval:this.secondaryTickmarkInterval},this._getAdvice())}
+            ${p0({height:this._boxWidth/2,minValue:this._toValue(this.instrumentRange),maxValue:this._toValue(0),width:this._gaugeWidth,scaleWidth:this._scaleWidth},[{min:this._toValue(this.depth),max:this._toValue(0)},{min:this._toValue(this.draft),max:this._toValue(0),fill:o}],{value:this._toValue(this.depth)},{container:"var(--instrument-frame-primary-color)"},{hideContainer:false,off:false,priority:this.priority},{primaryTickmarkInterval:this.primaryTickmarkInterval,secondaryTickmarkInterval:this.secondaryTickmarkInterval},this._getAdvice())}
           </g>
           <defs>
             <mask id="hearlineMask">
@@ -4539,7 +4539,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
             scale(${r*3} )"
               transform-origin="80 80"
             >
-              ${this.vesselImage?Bt[this.vesselImage]:p}
+              ${this.vesselImage?ji[this.vesselImage]:k}
             </g>
             ${i}
           </g>
@@ -4579,7 +4579,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
           />
         </svg>
       </div>
-    `}};Me.styles=h`
+    `}};ur.styles=L`
     * {
       box-sizing: border-box;
     }
@@ -4597,7 +4597,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
       width: 100%;
       height: 100%;
     }
-  `;Ie([l({type:Number})],Me.prototype,"depth",2);Ie([l({type:Number})],Me.prototype,"draft",2);Ie([l({type:Array})],Me.prototype,"advice",2);Ie([l({type:Number})],Me.prototype,"vesselScale",2);Ie([l({type:Number})],Me.prototype,"instrumentRange",2);Ie([l({type:Number})],Me.prototype,"primaryTickmarkInterval",2);Ie([l({type:Number})],Me.prototype,"secondaryTickmarkInterval",2);Ie([l({type:String})],Me.prototype,"vesselImage",2);Ie([l({type:String})],Me.prototype,"priority",2);Me=Ie([u("obc-depth-actual")],Me);var Xs=Object.defineProperty;var Ys=Object.getOwnPropertyDescriptor;var pe=(e,t,i,o)=>{var r=o>1?void 0:o?Ys(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Xs(t,i,r);return r};var oe=class extends d{constructor(){super(...arguments);this.pitch=0;this.roll=0;this.minAvgPitch=0;this.maxAvgPitch=0;this.minAvgRoll=0;this.maxAvgRoll=0;this.vesselImageFore=et.psvFore;this.vesselImageSide=et.psvSide;this.maxPitchAdvice=void 0;this.maxRollAdvice=void 0;this.triggerPitchAdvice=false;this.triggerRollAdvice=false;this.priority=B.regular;this.priorityElements=["pitch","roll"]}priorityFor(e){const t=Array.isArray(this.priorityElements)?this.priorityElements:[];return t.includes(e)?this.priority:B.regular}needleColor(e){return this.priorityFor(e)===B.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}barColor(e){return this.priorityFor(e)===B.enhanced?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)"}render(){return c`
+  `;qr([l({type:Number})],ur.prototype,"depth",2);qr([l({type:Number})],ur.prototype,"draft",2);qr([l({type:Array})],ur.prototype,"advice",2);qr([l({type:Number})],ur.prototype,"vesselScale",2);qr([l({type:Number})],ur.prototype,"instrumentRange",2);qr([l({type:Number})],ur.prototype,"primaryTickmarkInterval",2);qr([l({type:Number})],ur.prototype,"secondaryTickmarkInterval",2);qr([l({type:String})],ur.prototype,"vesselImage",2);qr([l({type:String})],ur.prototype,"priority",2);ur=qr([x("obc-depth-actual")],ur);var Z9=Object.defineProperty;var A9=Object.getOwnPropertyDescriptor;var At=(e,t,i,o)=>{var r=o>1?void 0:o?A9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Z9(t,i,r);return r};var yt=class extends C{constructor(){super(...arguments);this.pitch=0;this.roll=0;this.minAvgPitch=0;this.maxAvgPitch=0;this.minAvgRoll=0;this.maxAvgRoll=0;this.vesselImageFore=Hr.psvFore;this.vesselImageSide=Hr.psvSide;this.maxPitchAdvice=void 0;this.maxRollAdvice=void 0;this.triggerPitchAdvice=false;this.triggerRollAdvice=false;this.priority=de.regular;this.priorityElements=["pitch","roll"]}priorityFor(e){const t=Array.isArray(this.priorityElements)?this.priorityElements:[];return t.includes(e)?this.priority:de.regular}needleColor(e){return this.priorityFor(e)===de.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}barColor(e){return this.priorityFor(e)===de.enhanced?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)"}render(){return u`
       <div class="container">
         <svg viewBox="-200 -200 400 400">
           <line
@@ -4609,16 +4609,16 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
           />
         </svg>
         <obc-watch
-          .watchCircleType=${Ct.double}
+          .watchCircleType=${dr.double}
           .areas=${[{startAngle:60,endAngle:120,roundOutsideCut:true,roundInsideCut:true},{startAngle:240,endAngle:300,roundOutsideCut:true,roundInsideCut:true},{startAngle:315,endAngle:45,roundOutsideCut:true,roundInsideCut:true},{startAngle:135,endAngle:225,roundOutsideCut:true,roundInsideCut:true}]}
           .barAreas=${[{startAngle:this.minAvgRoll,endAngle:this.maxAvgRoll,fillColor:this.barColor("roll")},{startAngle:180+this.minAvgRoll,endAngle:180+this.maxAvgRoll,fillColor:this.barColor("roll")},{startAngle:90+this.minAvgPitch,endAngle:90+this.maxAvgPitch,fillColor:this.barColor("pitch")},{startAngle:270+this.minAvgPitch,endAngle:270+this.maxAvgPitch,fillColor:this.barColor("pitch")}]}
           .needles=${[{angle:this.roll,fillColor:this.needleColor("roll"),strokeColor:"var(--border-silhouette-color)"},{angle:180+this.roll,fillColor:this.needleColor("roll"),strokeColor:"var(--border-silhouette-color)"},{angle:90+this.pitch,fillColor:this.needleColor("pitch"),strokeColor:"var(--border-silhouette-color)"},{angle:270+this.pitch,fillColor:this.needleColor("pitch"),strokeColor:"var(--border-silhouette-color)"}]}
-          .vessels=${[{size:Qe.large,vesselImage:this.vesselImageSide,transform:`rotate(${this.pitch}deg)`},{size:Qe.large,vesselImage:this.vesselImageFore,transform:`rotate(${this.roll}deg)`}]}
-          .tickmarks=${[{angle:0,type:N.main},{angle:90,type:N.main},{angle:180,type:N.main},{angle:270,type:N.main}]}
+          .vessels=${[{size:$r.large,vesselImage:this.vesselImageSide,transform:`rotate(${this.pitch}deg)`},{size:$r.large,vesselImage:this.vesselImageFore,transform:`rotate(${this.roll}deg)`}]}
+          .tickmarks=${[{angle:0,type:be.main},{angle:90,type:be.main},{angle:180,type:be.main},{angle:270,type:be.main}]}
           .advices=${this.advices}
         ></obc-watch>
       </div>
-    `}get advices(){const e=[];if(this.maxPitchAdvice!==void 0){const t=this.triggerPitchAdvice?I.triggered:I.regular;e.push({minAngle:60,maxAngle:90-this.maxPitchAdvice,type:Le.caution,state:t,hideMinTickmark:true});e.push({minAngle:90+this.maxPitchAdvice,maxAngle:120,type:Le.caution,state:t,hideMaxTickmark:true});e.push({minAngle:240,maxAngle:270-this.maxPitchAdvice,type:Le.caution,state:t,hideMinTickmark:true});e.push({minAngle:270+this.maxPitchAdvice,maxAngle:300,type:Le.caution,state:t,hideMaxTickmark:true})}if(this.maxRollAdvice!==void 0){const t=this.triggerRollAdvice?I.triggered:I.regular;e.push({minAngle:-45,maxAngle:-this.maxRollAdvice,type:Le.caution,state:t,hideMinTickmark:true});e.push({minAngle:this.maxRollAdvice,maxAngle:45,type:Le.caution,state:t,hideMaxTickmark:true});e.push({minAngle:135,maxAngle:180-this.maxRollAdvice,type:Le.caution,state:t,hideMinTickmark:true});e.push({minAngle:180+this.maxRollAdvice,maxAngle:225,type:Le.caution,state:t,hideMaxTickmark:true})}return e}};oe.styles=h`
+    `}get advices(){const e=[];if(this.maxPitchAdvice!==void 0){const t=this.triggerPitchAdvice?se.triggered:se.regular;e.push({minAngle:60,maxAngle:90-this.maxPitchAdvice,type:bt.caution,state:t,hideMinTickmark:true});e.push({minAngle:90+this.maxPitchAdvice,maxAngle:120,type:bt.caution,state:t,hideMaxTickmark:true});e.push({minAngle:240,maxAngle:270-this.maxPitchAdvice,type:bt.caution,state:t,hideMinTickmark:true});e.push({minAngle:270+this.maxPitchAdvice,maxAngle:300,type:bt.caution,state:t,hideMaxTickmark:true})}if(this.maxRollAdvice!==void 0){const t=this.triggerRollAdvice?se.triggered:se.regular;e.push({minAngle:-45,maxAngle:-this.maxRollAdvice,type:bt.caution,state:t,hideMinTickmark:true});e.push({minAngle:this.maxRollAdvice,maxAngle:45,type:bt.caution,state:t,hideMaxTickmark:true});e.push({minAngle:135,maxAngle:180-this.maxRollAdvice,type:bt.caution,state:t,hideMinTickmark:true});e.push({minAngle:180+this.maxRollAdvice,maxAngle:225,type:bt.caution,state:t,hideMaxTickmark:true})}return e}};yt.styles=L`
     * {
       box-sizing: border-box;
     }
@@ -4636,7 +4636,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
       width: 100%;
       height: 100%;
     }
-  `;pe([l({type:Number})],oe.prototype,"pitch",2);pe([l({type:Number})],oe.prototype,"roll",2);pe([l({type:Number})],oe.prototype,"minAvgPitch",2);pe([l({type:Number})],oe.prototype,"maxAvgPitch",2);pe([l({type:Number})],oe.prototype,"minAvgRoll",2);pe([l({type:Number})],oe.prototype,"maxAvgRoll",2);pe([l({type:String})],oe.prototype,"vesselImageFore",2);pe([l({type:String})],oe.prototype,"vesselImageSide",2);pe([l({type:Number})],oe.prototype,"maxPitchAdvice",2);pe([l({type:Number})],oe.prototype,"maxRollAdvice",2);pe([l({type:Boolean})],oe.prototype,"triggerPitchAdvice",2);pe([l({type:Boolean})],oe.prototype,"triggerRollAdvice",2);pe([l({type:String})],oe.prototype,"priority",2);pe([l({type:Array,attribute:false})],oe.prototype,"priorityElements",2);oe=pe([u("obc-pitch-roll")],oe);var On=h`
+  `;At([l({type:Number})],yt.prototype,"pitch",2);At([l({type:Number})],yt.prototype,"roll",2);At([l({type:Number})],yt.prototype,"minAvgPitch",2);At([l({type:Number})],yt.prototype,"maxAvgPitch",2);At([l({type:Number})],yt.prototype,"minAvgRoll",2);At([l({type:Number})],yt.prototype,"maxAvgRoll",2);At([l({type:String})],yt.prototype,"vesselImageFore",2);At([l({type:String})],yt.prototype,"vesselImageSide",2);At([l({type:Number})],yt.prototype,"maxPitchAdvice",2);At([l({type:Number})],yt.prototype,"maxRollAdvice",2);At([l({type:Boolean})],yt.prototype,"triggerPitchAdvice",2);At([l({type:Boolean})],yt.prototype,"triggerRollAdvice",2);At([l({type:String})],yt.prototype,"priority",2);At([l({type:Array,attribute:false})],yt.prototype,"priorityElements",2);yt=At([x("obc-pitch-roll")],yt);var d0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -5140,23 +5140,23 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
 .wrapper.disabled .icon,.wrapper.disabled .label,.wrapper.disabled.inline-label .label,.wrapper.disabled.icon-text-under .label {
     color: var(--on-flat-disabled-color);
   }
-`;var Ks=Object.defineProperty;var Js=Object.getOwnPropertyDescriptor;var je=(e,t,i,o)=>{var r=o>1?void 0:o?Js(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Ks(t,i,r);return r};var Et=(e=>{e["icon"]="icon";e["text"]="text";e["iconTextUnder"]="icon-text-under";e["iconText"]="text-icon";return e})(Et||{});var Lt=(e=>{e["flat"]="flat";e["regular"]="regular";e["normal"]="normal";return e})(Lt||{});var He=class extends d{constructor(){super(...arguments);this.value="value";this.selected=false;this.activated=false;this.type="text";this.variant="regular";this.hugText=false;this.showDivider=true;this.disabled=false;this.large=false}onClick(e){if(this.disabled){e.preventDefault();return}if(!this.selected){this.dispatchEvent(new CustomEvent("selected",{detail:{value:this.value}}))}}render(){const e=this.type==="text"||this.type==="text-icon";const t=this.type!=="text";const i=this.type!=="icon";const o=this.type==="icon-text-under";return c`
+`;var P9=Object.defineProperty;var T9=Object.getOwnPropertyDescriptor;var Yr=(e,t,i,o)=>{var r=o>1?void 0:o?T9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)P9(t,i,r);return r};var Ui=(e=>{e["icon"]="icon";e["text"]="text";e["iconTextUnder"]="icon-text-under";e["iconText"]="text-icon";return e})(Ui||{});var ei=(e=>{e["flat"]="flat";e["regular"]="regular";e["normal"]="normal";return e})(ei||{});var fr=class extends C{constructor(){super(...arguments);this.value="value";this.selected=false;this.activated=false;this.type="text";this.variant="regular";this.hugText=false;this.showDivider=true;this.disabled=false;this.large=false}onClick(e){if(this.disabled){e.preventDefault();return}if(!this.selected){this.dispatchEvent(new CustomEvent("selected",{detail:{value:this.value}}))}}render(){const e=this.type==="text"||this.type==="text-icon";const t=this.type!=="text";const i=this.type!=="icon";const o=this.type==="icon-text-under";return u`
       <button
-        class=${L({wrapper:true,selected:this.selected,"inline-label":e,"type-flat":this.variant==="flat","type-regular":this.variant==="regular","type-normal":this.variant==="normal","icon-text-under":o,"hug-text":this.hugText,disabled:this.disabled,activated:this.activated,large:this.large})}
+        class=${Y({wrapper:true,selected:this.selected,"inline-label":e,"type-flat":this.variant==="flat","type-regular":this.variant==="regular","type-normal":this.variant==="normal","icon-text-under":o,"hug-text":this.hugText,disabled:this.disabled,activated:this.activated,large:this.large})}
         ?disabled=${this.disabled}
         @click=${this.onClick}
       >
         <div class="visible-wrapper" part="visible-wrapper">
-          ${t?c`<div class="icon" part="icon">
+          ${t?u`<div class="icon" part="icon">
                 <slot name="icon"></slot>
               </div>`:""}
-          ${i&&!o?c`<div class="label"><slot></slot></div>`:""}
+          ${i&&!o?u`<div class="label"><slot></slot></div>`:""}
         </div>
-        ${i&&o?c`<div class="label-container">
+        ${i&&o?u`<div class="label-container">
               <div class="label"><slot></slot></div>
             </div>`:""}
       </button>
-    `}};He.styles=C(On);je([l({type:String})],He.prototype,"value",2);je([l({type:Boolean,reflect:true})],He.prototype,"selected",2);je([l({type:Boolean,reflect:true})],He.prototype,"activated",2);je([l({type:String})],He.prototype,"type",2);je([l({type:String})],He.prototype,"variant",2);je([l({type:Boolean})],He.prototype,"hugText",2);je([l({type:Boolean,reflect:true})],He.prototype,"showDivider",2);je([l({type:Boolean,reflect:true})],He.prototype,"disabled",2);je([l({type:Boolean,reflect:true})],He.prototype,"large",2);He=je([u("obc-toggle-button-option")],He);var Bn=h`
+    `}};fr.styles=I(d0);Yr([l({type:String})],fr.prototype,"value",2);Yr([l({type:Boolean,reflect:true})],fr.prototype,"selected",2);Yr([l({type:Boolean,reflect:true})],fr.prototype,"activated",2);Yr([l({type:String})],fr.prototype,"type",2);Yr([l({type:String})],fr.prototype,"variant",2);Yr([l({type:Boolean})],fr.prototype,"hugText",2);Yr([l({type:Boolean,reflect:true})],fr.prototype,"showDivider",2);Yr([l({type:Boolean,reflect:true})],fr.prototype,"disabled",2);Yr([l({type:Boolean,reflect:true})],fr.prototype,"large",2);fr=Yr([x("obc-toggle-button-option")],fr);var h0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -5241,13 +5241,13 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
 .wrapper ::slotted(*) {
   flex: 1;
 }
-`;var Qs=Object.defineProperty;var ec=Object.getOwnPropertyDescriptor;var Re=(e,t,i,o)=>{var r=o>1?void 0:o?ec(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Qs(t,i,r);return r};var $e=class extends d{constructor(){super(...arguments);this.value="";this.type=Et.text;this.variant=Lt.regular;this.hugText=false;this.externalControl=false;this.disabled=false;this.large=false;this._originalDisabledStates=new Map}hasAnyEnabledOption(){if(this.disabled)return false;return Array.from(this.options).some(e=>!e.disabled)}canSelectOption(e){if(this.disabled)return false;const t=this.getOptionByValue(e);return t!==null&&!t.disabled}getOptionByValue(e){return Array.from(this.options).find(t=>t.value===e)||null}getFirstSelectableOption(){if(this.disabled)return null;return Array.from(this.options).find(e=>!e.disabled)||null}updateSelection(e,t=true){const i=this.value;if(!this.hasAnyEnabledOption()){this.options.forEach(o=>{o.selected=o.value===this.value});this.setNoDivider();return}if(!this.canSelectOption(e)){if(this.value&&this.getOptionByValue(this.value)){this.options.forEach(r=>{r.selected=r.value===this.value});this.setNoDivider();return}const o=this.getFirstSelectableOption();e=o?.value||""}this.value=e;this.options.forEach(o=>{o.selected=o.value===e});this.setNoDivider();if(t&&i!==e){this.dispatchEvent(new CustomEvent("value",{detail:{value:e,previousValue:i}}))}}updateActivated(e){if(e){this.options.forEach(t=>{t.activated=t.value===e})}else{this.options.forEach(t=>{t.activated=false})}}setNoDivider(){const e=Array.from(this.options).findIndex(i=>i.selected);this.options.forEach(i=>{i.showDivider=true});if(e===-1){return}const t=this.options[e+1];if(t){t.showDivider=false}}firstUpdated(e){super.firstUpdated(e);const t=Array.from(this.options).map(o=>o.value);const i=new Set(t);if(t.length!==i.size){console.warn("Toggle button group has duplicate values. This may cause unexpected behavior.")}this.options.forEach(o=>{this._originalDisabledStates.set(o,o.hasAttribute("disabled"));o.addEventListener("selected",a=>this.handleOptionClick(a));const r=new MutationObserver(a=>{a.forEach(n=>{if(n.attributeName==="disabled"&&!o.hasAttribute("data-group-disabled")){this._originalDisabledStates.set(o,o.hasAttribute("disabled"));this.handleOptionDisabledChange()}})});r.observe(o,{attributes:true,attributeFilter:["disabled"]});o.type=this.type;o.variant=this.variant;o.hugText=this.hugText;o.large=this.large;if(this.disabled){o.setAttribute("data-group-disabled","true");o.disabled=true}});if(!this.value||!this.getOptionByValue(this.value)){const o=this.getFirstSelectableOption();if(o){this.updateSelection(o.value,false)}}else{this.updateSelection(this.value,false)}if(this.activated){this.updateActivated(this.activated)}}handleOptionDisabledChange(){const e=this.getOptionByValue(this.value);if(e?.disabled&&this.hasAnyEnabledOption()){const t=this.getFirstSelectableOption();if(t){this.updateSelection(t.value)}}}handleOptionClick(e){const{value:t}=e.detail;if(this.externalControl){this.dispatchEvent(new CustomEvent("value",{detail:{value:t,previousValue:this.value}}))}else{this.updateSelection(t)}}willUpdate(e){if(e.has("value")){this.updateSelection(this.value)}if(e.has("activated")){this.updateActivated(this.activated)}if(e.has("type")||e.has("variant")||e.has("hugText")||e.has("large")){this.options.forEach(t=>{t.type=this.type;t.variant=this.variant;t.hugText=this.hugText;t.large=this.large})}if(e.has("disabled")){this.options.forEach(t=>{if(this.disabled){t.setAttribute("data-group-disabled","true");t.disabled=true}else{t.removeAttribute("data-group-disabled");const i=this._originalDisabledStates.get(t)||false;t.disabled=i}})}}updated(e){super.updated(e);const t=this.getOptionByValue(this.value);if(t?.disabled&&this.hasAnyEnabledOption()){const i=this.getFirstSelectableOption();if(i){this.updateSelection(i.value)}}}render(){const e={"outer-wrapper":true,flat:this.variant===Lt.flat,regular:this.variant===Lt.regular,"hug-text":this.hugText,"icon-text-under":this.type===Et.iconTextUnder,disabled:this.disabled,large:this.large};return c`
-      <div class=${L(e)}>
+`;var z9=Object.defineProperty;var O9=Object.getOwnPropertyDescriptor;var Kr=(e,t,i,o)=>{var r=o>1?void 0:o?O9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)z9(t,i,r);return r};var vr=class extends C{constructor(){super(...arguments);this.value="";this.type=Ui.text;this.variant=ei.regular;this.hugText=false;this.externalControl=false;this.disabled=false;this.large=false;this._originalDisabledStates=new Map}hasAnyEnabledOption(){if(this.disabled)return false;return Array.from(this.options).some(e=>!e.disabled)}canSelectOption(e){if(this.disabled)return false;const t=this.getOptionByValue(e);return t!==null&&!t.disabled}getOptionByValue(e){return Array.from(this.options).find(t=>t.value===e)||null}getFirstSelectableOption(){if(this.disabled)return null;return Array.from(this.options).find(e=>!e.disabled)||null}updateSelection(e,t=true){const i=this.value;if(!this.hasAnyEnabledOption()){this.options.forEach(o=>{o.selected=o.value===this.value});this.setNoDivider();return}if(!this.canSelectOption(e)){if(this.value&&this.getOptionByValue(this.value)){this.options.forEach(r=>{r.selected=r.value===this.value});this.setNoDivider();return}const o=this.getFirstSelectableOption();e=o?.value||""}this.value=e;this.options.forEach(o=>{o.selected=o.value===e});this.setNoDivider();if(t&&i!==e){this.dispatchEvent(new CustomEvent("value",{detail:{value:e,previousValue:i}}))}}updateActivated(e){if(e){this.options.forEach(t=>{t.activated=t.value===e})}else{this.options.forEach(t=>{t.activated=false})}}setNoDivider(){const e=Array.from(this.options).findIndex(i=>i.selected);this.options.forEach(i=>{i.showDivider=true});if(e===-1){return}const t=this.options[e+1];if(t){t.showDivider=false}}firstUpdated(e){super.firstUpdated(e);const t=Array.from(this.options).map(o=>o.value);const i=new Set(t);if(t.length!==i.size){console.warn("Toggle button group has duplicate values. This may cause unexpected behavior.")}this.options.forEach(o=>{this._originalDisabledStates.set(o,o.hasAttribute("disabled"));o.addEventListener("selected",a=>this.handleOptionClick(a));const r=new MutationObserver(a=>{a.forEach(n=>{if(n.attributeName==="disabled"&&!o.hasAttribute("data-group-disabled")){this._originalDisabledStates.set(o,o.hasAttribute("disabled"));this.handleOptionDisabledChange()}})});r.observe(o,{attributes:true,attributeFilter:["disabled"]});o.type=this.type;o.variant=this.variant;o.hugText=this.hugText;o.large=this.large;if(this.disabled){o.setAttribute("data-group-disabled","true");o.disabled=true}});if(!this.value||!this.getOptionByValue(this.value)){const o=this.getFirstSelectableOption();if(o){this.updateSelection(o.value,false)}}else{this.updateSelection(this.value,false)}if(this.activated){this.updateActivated(this.activated)}}handleOptionDisabledChange(){const e=this.getOptionByValue(this.value);if(e?.disabled&&this.hasAnyEnabledOption()){const t=this.getFirstSelectableOption();if(t){this.updateSelection(t.value)}}}handleOptionClick(e){const{value:t}=e.detail;if(this.externalControl){this.dispatchEvent(new CustomEvent("value",{detail:{value:t,previousValue:this.value}}))}else{this.updateSelection(t)}}willUpdate(e){if(e.has("value")){this.updateSelection(this.value)}if(e.has("activated")){this.updateActivated(this.activated)}if(e.has("type")||e.has("variant")||e.has("hugText")||e.has("large")){this.options.forEach(t=>{t.type=this.type;t.variant=this.variant;t.hugText=this.hugText;t.large=this.large})}if(e.has("disabled")){this.options.forEach(t=>{if(this.disabled){t.setAttribute("data-group-disabled","true");t.disabled=true}else{t.removeAttribute("data-group-disabled");const i=this._originalDisabledStates.get(t)||false;t.disabled=i}})}}updated(e){super.updated(e);const t=this.getOptionByValue(this.value);if(t?.disabled&&this.hasAnyEnabledOption()){const i=this.getFirstSelectableOption();if(i){this.updateSelection(i.value)}}}render(){const e={"outer-wrapper":true,flat:this.variant===ei.flat,regular:this.variant===ei.regular,"hug-text":this.hugText,"icon-text-under":this.type===Ui.iconTextUnder,disabled:this.disabled,large:this.large};return u`
+      <div class=${Y(e)}>
         <div class="wrapper">
           <slot></slot>
         </div>
       </div>
-    `}};$e.styles=C(Bn);Re([l({type:String})],$e.prototype,"value",2);Re([l({type:String})],$e.prototype,"activated",2);Re([l({type:String})],$e.prototype,"type",2);Re([l({type:String})],$e.prototype,"variant",2);Re([l({type:Boolean})],$e.prototype,"hugText",2);Re([l({type:Boolean})],$e.prototype,"externalControl",2);Re([l({type:Boolean,reflect:true})],$e.prototype,"disabled",2);Re([l({type:Boolean,reflect:true})],$e.prototype,"large",2);Re([ji({selector:"obc-toggle-button-option"})],$e.prototype,"options",2);$e=Re([u("obc-toggle-button-group")],$e);var Tn=h`
+    `}};vr.styles=I(h0);Kr([l({type:String})],vr.prototype,"value",2);Kr([l({type:String})],vr.prototype,"activated",2);Kr([l({type:String})],vr.prototype,"type",2);Kr([l({type:String})],vr.prototype,"variant",2);Kr([l({type:Boolean})],vr.prototype,"hugText",2);Kr([l({type:Boolean})],vr.prototype,"externalControl",2);Kr([l({type:Boolean,reflect:true})],vr.prototype,"disabled",2);Kr([l({type:Boolean,reflect:true})],vr.prototype,"large",2);Kr([yc({selector:"obc-toggle-button-option"})],vr.prototype,"options",2);vr=Kr([x("obc-toggle-button-group")],vr);var u0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -5422,7 +5422,7 @@ fill="var(--border-silhouette-color)" vector-effect="non-scaling-stroke" mask="u
     height: auto;
     width: auto;
   }
-`;var En=h`
+`;var f0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -5751,8 +5751,8 @@ input:active ~ .thumb {
   border-color: var(--selected-pressed-background-color);
   background: var(--container-background-color);
 }
-`;var tc=Object.defineProperty;var rc=Object.getOwnPropertyDescriptor;var _e=(e,t,i,o)=>{var r=o>1?void 0:o?rc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)tc(t,i,r);return r};var ar=(e=>{e["Normal"]="normal";e["Enhanced"]="enhanced";e["NoInput"]="no-input";return e})(ar||{});var ve=class extends d{constructor(){super(...arguments);this.value=50;this.min=0;this.max=100;this.stepClick=10;this.variant="normal";this.hasLeftIcon=false;this.hasRightIcon=false;this.allowSeeking=false;this.seekingSpeed=1/3;this.disabled=false;this.animationFrame=null;this.isMouseDown=false;this.isTouchActive=false;this.targetValue=0;this.isDragging=false;this.animationStartTime=null;this.animationStartValue=0;this.onWindowMouseMove=e=>{this.onMouseMove(e)};this.onWindowMouseUp=()=>{this.onMouseUp()};this.onWindowTouchMove=e=>{this.onTouchMove(e)};this.onWindowTouchEnd=()=>{this.onTouchEnd()}}get ratio(){const e=this.max-this.min;if(!Number.isFinite(e)||e<=0)return 0;const t=(this.value-this.min)/e;if(!Number.isFinite(t))return 0;return Math.max(0,Math.min(1,t))}onInput(e){this.value=e;this.dispatchEvent(new CustomEvent("value",{detail:this.value}))}onReduceClick(){if(this.disabled)return;this.onInput(Math.max(this.value-this.stepClick,this.min))}onIncreaseClick(){if(this.disabled)return;this.onInput(Math.min(this.value+this.stepClick,this.max))}get slider(){return this.renderRoot.querySelector('input[type="range"]')}isClickingThumb(e){const t=this.slider.getBoundingClientRect();const i=t.left+24;const o=t.width-48;const r=48;const a=this.ratio;const n=i+o*a;let g;if("touches"in e){g=e.touches[0].clientX}else{g=e.clientX}const v=Math.abs(g-n)<=r/2;return v}onMouseDown(e){if(this.variant==="no-input"||this.disabled)return;if(this.isClickingThumb(e))return;this.isMouseDown=true;this.updateTargetValue(e);e.preventDefault();window.addEventListener("mousemove",this.onWindowMouseMove);window.addEventListener("mouseup",this.onWindowMouseUp);this.startAnimation()}onTouchStart(e){if(this.variant==="no-input"||this.disabled)return;if(this.isClickingThumb(e))return;this.isTouchActive=true;this.updateTargetValue(e);e.preventDefault();window.addEventListener("touchmove",this.onWindowTouchMove,{passive:false});window.addEventListener("touchend",this.onWindowTouchEnd);this.startAnimation()}onMouseMove(e){if(this.isMouseDown){this.updateTargetValue(e)}}onTouchMove(e){if(this.isTouchActive){this.updateTargetValue(e)}}onMouseUp(){this.isMouseDown=false;window.removeEventListener("mousemove",this.onWindowMouseMove);window.removeEventListener("mouseup",this.onWindowMouseUp);this.stopAnimation()}onTouchEnd(){this.isTouchActive=false;window.removeEventListener("touchmove",this.onWindowTouchMove);window.removeEventListener("touchend",this.onWindowTouchEnd);this.stopAnimation()}updateTargetValue(e){const t=this.slider.getBoundingClientRect();const i=t.left+24;const o=t.width-48;const r=e instanceof MouseEvent?e.clientX:e.touches[0].clientX;const a=(r-i)/o;const n=parseFloat(this.slider.min);const g=parseFloat(this.slider.max);const v=n+(g-n)*a;if(this.step){this.targetValue=Math.round(v/this.step)*this.step}else{this.targetValue=v}}startAnimation(){this.isDragging=this.allowSeeking;this.animationStartTime=performance.now();this.animationStartValue=parseFloat(this.slider.value);const e=parseFloat(this.slider.min);const t=parseFloat(this.slider.max);const i=this.step;const o=1/this.seekingSpeed*1e3;const r=this.targetValue>this.animationStartValue?1:-1;const a=()=>{let n=this.targetValue;if(!this.isDragging){const g=performance.now();const v=g-(this.animationStartTime??g);const f=Math.abs(t-e);const y=Math.min(v/o,1);const m=this.animationStartValue+r*f*y;if(r>0){n=i===void 0?m:Math.ceil((m-e)/i)*i+e;n=Math.min(this.targetValue,n)}else{n=i===void 0?m:Math.floor((m-e)/i)*i+e;n=Math.max(this.targetValue,n)}}if(parseFloat(this.slider.value)!==n){this.slider.value=String(n);this.slider.dispatchEvent(new Event("input"))}if(r>0&&n<this.targetValue||r<0&&n>this.targetValue){this.animationFrame=requestAnimationFrame(a)}else if(this.isMouseDown||this.isTouchActive){this.animationStartTime=performance.now();this.animationStartValue=parseFloat(this.slider.value);this.animationFrame=requestAnimationFrame(a);this.isDragging=true}};this.animationFrame=requestAnimationFrame(a)}stopAnimation(){if(this.animationFrame!==null){cancelAnimationFrame(this.animationFrame);this.animationFrame=null}}render(){return c`
-      ${this.hasLeftIcon?c` <obc-icon-button
+`;var E9=Object.defineProperty;var D9=Object.getOwnPropertyDescriptor;var mr=(e,t,i,o)=>{var r=o>1?void 0:o?D9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)E9(t,i,r);return r};var Aa=(e=>{e["Normal"]="normal";e["Enhanced"]="enhanced";e["NoInput"]="no-input";return e})(Aa||{});var It=class extends C{constructor(){super(...arguments);this.value=50;this.min=0;this.max=100;this.stepClick=10;this.variant="normal";this.hasLeftIcon=false;this.hasRightIcon=false;this.allowSeeking=false;this.seekingSpeed=1/3;this.disabled=false;this.animationFrame=null;this.isMouseDown=false;this.isTouchActive=false;this.targetValue=0;this.isDragging=false;this.animationStartTime=null;this.animationStartValue=0;this.onWindowMouseMove=e=>{this.onMouseMove(e)};this.onWindowMouseUp=()=>{this.onMouseUp()};this.onWindowTouchMove=e=>{this.onTouchMove(e)};this.onWindowTouchEnd=()=>{this.onTouchEnd()}}get ratio(){const e=this.max-this.min;if(!Number.isFinite(e)||e<=0)return 0;const t=(this.value-this.min)/e;if(!Number.isFinite(t))return 0;return Math.max(0,Math.min(1,t))}onInput(e){this.value=e;this.dispatchEvent(new CustomEvent("value",{detail:this.value}))}onReduceClick(){if(this.disabled)return;this.onInput(Math.max(this.value-this.stepClick,this.min))}onIncreaseClick(){if(this.disabled)return;this.onInput(Math.min(this.value+this.stepClick,this.max))}get slider(){return this.renderRoot.querySelector('input[type="range"]')}isClickingThumb(e){const t=this.slider.getBoundingClientRect();const i=t.left+24;const o=t.width-48;const r=48;const a=this.ratio;const n=i+o*a;let h;if("touches"in e){h=e.touches[0].clientX}else{h=e.clientX}const d=Math.abs(h-n)<=r/2;return d}onMouseDown(e){if(this.variant==="no-input"||this.disabled)return;if(this.isClickingThumb(e))return;this.isMouseDown=true;this.updateTargetValue(e);e.preventDefault();window.addEventListener("mousemove",this.onWindowMouseMove);window.addEventListener("mouseup",this.onWindowMouseUp);this.startAnimation()}onTouchStart(e){if(this.variant==="no-input"||this.disabled)return;if(this.isClickingThumb(e))return;this.isTouchActive=true;this.updateTargetValue(e);e.preventDefault();window.addEventListener("touchmove",this.onWindowTouchMove,{passive:false});window.addEventListener("touchend",this.onWindowTouchEnd);this.startAnimation()}onMouseMove(e){if(this.isMouseDown){this.updateTargetValue(e)}}onTouchMove(e){if(this.isTouchActive){this.updateTargetValue(e)}}onMouseUp(){this.isMouseDown=false;window.removeEventListener("mousemove",this.onWindowMouseMove);window.removeEventListener("mouseup",this.onWindowMouseUp);this.stopAnimation()}onTouchEnd(){this.isTouchActive=false;window.removeEventListener("touchmove",this.onWindowTouchMove);window.removeEventListener("touchend",this.onWindowTouchEnd);this.stopAnimation()}updateTargetValue(e){const t=this.slider.getBoundingClientRect();const i=t.left+24;const o=t.width-48;const r=e instanceof MouseEvent?e.clientX:e.touches[0].clientX;const a=(r-i)/o;const n=parseFloat(this.slider.min);const h=parseFloat(this.slider.max);const d=n+(h-n)*a;if(this.step){this.targetValue=Math.round(d/this.step)*this.step}else{this.targetValue=d}}startAnimation(){this.isDragging=this.allowSeeking;this.animationStartTime=performance.now();this.animationStartValue=parseFloat(this.slider.value);const e=parseFloat(this.slider.min);const t=parseFloat(this.slider.max);const i=this.step;const o=1/this.seekingSpeed*1e3;const r=this.targetValue>this.animationStartValue?1:-1;const a=()=>{let n=this.targetValue;if(!this.isDragging){const h=performance.now();const d=h-(this.animationStartTime??h);const f=Math.abs(t-e);const y=Math.min(d/o,1);const v=this.animationStartValue+r*f*y;if(r>0){n=i===void 0?v:Math.ceil((v-e)/i)*i+e;n=Math.min(this.targetValue,n)}else{n=i===void 0?v:Math.floor((v-e)/i)*i+e;n=Math.max(this.targetValue,n)}}if(parseFloat(this.slider.value)!==n){this.slider.value=String(n);this.slider.dispatchEvent(new Event("input"))}if(r>0&&n<this.targetValue||r<0&&n>this.targetValue){this.animationFrame=requestAnimationFrame(a)}else if(this.isMouseDown||this.isTouchActive){this.animationStartTime=performance.now();this.animationStartValue=parseFloat(this.slider.value);this.animationFrame=requestAnimationFrame(a);this.isDragging=true}};this.animationFrame=requestAnimationFrame(a)}stopAnimation(){if(this.animationFrame!==null){cancelAnimationFrame(this.animationFrame);this.animationFrame=null}}render(){return u`
+      ${this.hasLeftIcon?u` <obc-icon-button
             ?disabled=${this.disabled}
             @click=${this.onReduceClick}
             variant="normal"
@@ -5760,15 +5760,15 @@ input:active ~ .thumb {
             <slot name="icon-left"></slot>
           </obc-icon-button>`:null}
       <div
-        class=${L({wrapper:true,[this.variant]:true,disabled:this.disabled})}
-        style=${Tt({"--_ratio":String(this.ratio)})}
+        class=${Y({wrapper:true,[this.variant]:true,disabled:this.disabled})}
+        style=${Fi({"--_ratio":String(this.ratio)})}
       >
         <div class="track"></div>
         <input
           type="range"
           min=${this.min}
           max=${this.max}
-          step=${de(this.step)}
+          step=${Zt(this.step)}
           .value=${this.value.toString()}
           ?disabled=${this.variant==="no-input"||this.disabled}
           class="slider"
@@ -5801,14 +5801,14 @@ input:active ~ .thumb {
         <div class="interactive-track"></div>
         <div class="thumb"></div>
       </div>
-      ${this.hasRightIcon?c`<obc-icon-button
+      ${this.hasRightIcon?u`<obc-icon-button
             ?disabled=${this.disabled}
             @click=${this.onIncreaseClick}
             variant="normal"
           >
             <slot name="icon-right"></slot>
           </obc-icon-button>`:null}
-    `}};ve.styles=C(En);_e([l({type:Number})],ve.prototype,"value",2);_e([l({type:Number})],ve.prototype,"min",2);_e([l({type:Number})],ve.prototype,"max",2);_e([l({type:Number})],ve.prototype,"step",2);_e([l({type:Number})],ve.prototype,"stepClick",2);_e([l({type:String})],ve.prototype,"variant",2);_e([l({type:Boolean})],ve.prototype,"hasLeftIcon",2);_e([l({type:Boolean})],ve.prototype,"hasRightIcon",2);_e([l({type:Boolean})],ve.prototype,"allowSeeking",2);_e([l({type:Number})],ve.prototype,"seekingSpeed",2);_e([l({type:Boolean})],ve.prototype,"disabled",2);ve=_e([u("obc-slider")],ve);var Dn=h`
+    `}};It.styles=I(f0);mr([l({type:Number})],It.prototype,"value",2);mr([l({type:Number})],It.prototype,"min",2);mr([l({type:Number})],It.prototype,"max",2);mr([l({type:Number})],It.prototype,"step",2);mr([l({type:Number})],It.prototype,"stepClick",2);mr([l({type:String})],It.prototype,"variant",2);mr([l({type:Boolean})],It.prototype,"hasLeftIcon",2);mr([l({type:Boolean})],It.prototype,"hasRightIcon",2);mr([l({type:Boolean})],It.prototype,"allowSeeking",2);mr([l({type:Number})],It.prototype,"seekingSpeed",2);mr([l({type:Boolean})],It.prototype,"disabled",2);It=mr([x("obc-slider")],It);var v0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -6142,19 +6142,19 @@ input {
   border-radius: 1px;
   background: var(--border-divider-color);
 }
-`;var oc=Object.defineProperty;var ic=Object.getOwnPropertyDescriptor;var tt=(e,t,i,o)=>{var r=o>1?void 0:o?ic(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)oc(t,i,r);return r};var Ae=class extends d{constructor(){super(...arguments);this.label="Label";this.checked=false;this.disabled=false;this.hasDescription=false;this.description="";this.hasBottomDivider=false;this.hasIcon=false;this.externalControl=false}_tryChange(e){if(this.disabled){e.preventDefault();return}const t=!this.checked;if(!this.externalControl){this.checked=t}e.stopPropagation();this.dispatchEvent(new CustomEvent("input",{detail:{checked:t}}));if(this.externalControl){e.target.checked=this.checked}}render(){return c`
+`;var B9=Object.defineProperty;var I9=Object.getOwnPropertyDescriptor;var co=(e,t,i,o)=>{var r=o>1?void 0:o?I9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)B9(t,i,r);return r};var _r=class extends C{constructor(){super(...arguments);this.label="Label";this.checked=false;this.disabled=false;this.hasDescription=false;this.description="";this.hasBottomDivider=false;this.hasIcon=false;this.externalControl=false}_tryChange(e){if(this.disabled){e.preventDefault();return}const t=!this.checked;if(!this.externalControl){this.checked=t}e.stopPropagation();this.dispatchEvent(new CustomEvent("input",{detail:{checked:t}}));if(this.externalControl){e.target.checked=this.checked}}render(){return u`
       <label
-        class=${L({checked:this.checked,disabled:this.disabled,"has-description":this.hasDescription})}
+        class=${Y({checked:this.checked,disabled:this.disabled,"has-description":this.hasDescription})}
       >
         <div class="icon-label-container">
-          ${this.hasIcon?c`<div class="icon-container"><slot name="icon"></slot></div>`:p}
+          ${this.hasIcon?u`<div class="icon-container"><slot name="icon"></slot></div>`:k}
           <div class="label-container">
             <span class="label">${this.label}</span>
-            ${this.hasDescription?c`<span class="description">${this.description}</span>`:p}
+            ${this.hasDescription?u`<span class="description">${this.description}</span>`:k}
           </div>
         </div>
         <div class="switch">
-          <div class="presenter ${L({checked:this.checked})}">
+          <div class="presenter ${Y({checked:this.checked})}">
             <div class="knob"></div>
             <input
               type="checkbox"
@@ -6164,9 +6164,9 @@ input {
             />
           </div>
         </div>
-        ${this.hasBottomDivider?c`<div class="bottom-divider"></div>`:p}
+        ${this.hasBottomDivider?u`<div class="bottom-divider"></div>`:k}
       </label>
-    `}};Ae.styles=C(Dn);tt([l({type:String})],Ae.prototype,"label",2);tt([l({type:Boolean})],Ae.prototype,"checked",2);tt([l({type:Boolean})],Ae.prototype,"disabled",2);tt([l({type:Boolean})],Ae.prototype,"hasDescription",2);tt([l({type:String})],Ae.prototype,"description",2);tt([l({type:Boolean})],Ae.prototype,"hasBottomDivider",2);tt([l({type:Boolean})],Ae.prototype,"hasIcon",2);tt([l({type:Boolean})],Ae.prototype,"externalControl",2);Ae=tt([u("obc-toggle-switch")],Ae);var ac=Object.defineProperty;var nc=Object.getOwnPropertyDescriptor;var In=(e,t,i,o)=>{var r=o>1?void 0:o?nc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)ac(t,i,r);return r};var oo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    `}};_r.styles=I(v0);co([l({type:String})],_r.prototype,"label",2);co([l({type:Boolean})],_r.prototype,"checked",2);co([l({type:Boolean})],_r.prototype,"disabled",2);co([l({type:Boolean})],_r.prototype,"hasDescription",2);co([l({type:String})],_r.prototype,"description",2);co([l({type:Boolean})],_r.prototype,"hasBottomDivider",2);co([l({type:Boolean})],_r.prototype,"hasIcon",2);co([l({type:Boolean})],_r.prototype,"externalControl",2);_r=co([x("obc-toggle-switch")],_r);var R9=Object.defineProperty;var N9=Object.getOwnPropertyDescriptor;var m0=(e,t,i,o)=>{var r=o>1?void 0:o?N9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)R9(t,i,r);return r};var Yn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M16.9498 15.5355L15.5355 16.9497L16.9498 18.364L18.364 16.9497L16.9498 15.5355Z" fill="currentColor"/>
 <path d="M13 18V20H11V18H13Z" fill="currentColor"/>
 <path d="M8.46447 16.9498L7.05025 15.5355L5.63604 16.9498L7.05025 18.364L8.46447 16.9498Z" fill="currentColor"/>
@@ -6177,7 +6177,7 @@ input {
 <path d="M18 11H20V13H18V11Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 13C12.5523 13 13 12.5523 13 12C13 11.4477 12.5523 11 12 11C11.4477 11 11 11.4477 11 12C11 12.5523 11.4477 13 12 13ZM12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M16.9498 15.5355L15.5355 16.9497L16.9498 18.364L18.364 16.9497L16.9498 15.5355Z" style="fill: var(--element-active-color)"/>
 <path d="M13 18V20H11V18H13Z" style="fill: var(--element-active-color)"/>
 <path d="M8.46447 16.9498L7.05025 15.5355L5.63604 16.9498L7.05025 18.364L8.46447 16.9498Z" style="fill: var(--element-active-color)"/>
@@ -6188,9 +6188,9 @@ input {
 <path d="M18 11H20V13H18V11Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 13C12.5523 13 13 12.5523 13 12C13 11.4477 12.5523 11 12 11C11.4477 11 11 11.4477 11 12C11 12.5523 11.4477 13 12 13ZM12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};oo.styles=h`
+    `}};Yn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6200,15 +6200,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;In([l({type:Boolean})],oo.prototype,"useCssColor",2);oo=In([u("obi-display-brilliance-low")],oo);var lc=Object.defineProperty;var sc=Object.getOwnPropertyDescriptor;var jn=(e,t,i,o)=>{var r=o>1?void 0:o?sc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)lc(t,i,r);return r};var io=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;m0([l({type:Boolean})],Yn.prototype,"useCssColor",2);Yn=m0([x("obi-display-brilliance-low")],Yn);var j9=Object.defineProperty;var F9=Object.getOwnPropertyDescriptor;var g0=(e,t,i,o)=>{var r=o>1?void 0:o?F9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)j9(t,i,r);return r};var Kn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.8331 9.17621C14.83 9.17312 14.8269 9.17002 14.8238 9.16694C14.1003 8.4458 13.1022 8 12 8C10.8978 8 9.89964 8.44583 9.17615 9.167C9.1731 9.17005 9.17005 9.1731 9.167 9.17615C8.44583 9.89964 8 10.8978 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 10.8978 15.5542 9.8997 14.8331 9.17621ZM12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14ZM18.364 4.22182L19.7782 5.63604L16.9497 8.46447L16.237 7.75175L15.5355 7.05025L18.364 4.22182ZM4.22183 5.63604L5.63605 4.22183L8.46447 7.05025L7.76316 7.75157L7.75175 7.76298L7.05026 8.46447L4.22183 5.63604ZM7.05025 15.5355L8.46446 16.9498L5.63603 19.7782L4.22182 18.364L7.05025 15.5355ZM16.9498 15.5355L19.7782 18.364L18.364 19.7782L15.5355 16.9497L16.9498 15.5355ZM11 2H13V6H11V2ZM2 13V11H6V13H2ZM13 22H11V18H13V22ZM22 11V13H18V11H22Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.8331 9.17621C14.83 9.17312 14.8269 9.17002 14.8238 9.16694C14.1003 8.4458 13.1022 8 12 8C10.8978 8 9.89964 8.44583 9.17615 9.167C9.1731 9.17005 9.17005 9.1731 9.167 9.17615C8.44583 9.89964 8 10.8978 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 10.8978 15.5542 9.8997 14.8331 9.17621ZM12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14ZM18.364 4.22182L19.7782 5.63604L16.9497 8.46447L16.237 7.75175L15.5355 7.05025L18.364 4.22182ZM4.22183 5.63604L5.63605 4.22183L8.46447 7.05025L7.76316 7.75157L7.75175 7.76298L7.05026 8.46447L4.22183 5.63604ZM7.05025 15.5355L8.46446 16.9498L5.63603 19.7782L4.22182 18.364L7.05025 15.5355ZM16.9498 15.5355L19.7782 18.364L18.364 19.7782L15.5355 16.9497L16.9498 15.5355ZM11 2H13V6H11V2ZM2 13V11H6V13H2ZM13 22H11V18H13V22ZM22 11V13H18V11H22Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};io.styles=h`
+    `}};Kn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6218,15 +6218,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;jn([l({type:Boolean})],io.prototype,"useCssColor",2);io=jn([u("obi-display-brilliance-proposal")],io);var cc=Object.defineProperty;var dc=Object.getOwnPropertyDescriptor;var Rn=(e,t,i,o)=>{var r=o>1?void 0:o?dc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)cc(t,i,r);return r};var ao=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;g0([l({type:Boolean})],Kn.prototype,"useCssColor",2);Kn=g0([x("obi-display-brilliance-proposal")],Kn);var U9=Object.defineProperty;var W9=Object.getOwnPropertyDescriptor;var b0=(e,t,i,o)=>{var r=o>1?void 0:o?W9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)U9(t,i,r);return r};var Jn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 21C9.5 21 7.375 20.125 5.625 18.375C3.875 16.625 3 14.5 3 12C3 9.5 3.875 7.375 5.625 5.625C7.375 3.875 9.5 3 12 3C12.2333 3 12.4625 3.00833 12.6875 3.025C12.9125 3.04167 13.1333 3.06667 13.35 3.1C12.6667 3.58333 12.1208 4.2125 11.7125 4.9875C11.3042 5.7625 11.1 6.6 11.1 7.5C11.1 9 11.625 10.275 12.675 11.325C13.725 12.375 15 12.9 16.5 12.9C17.4167 12.9 18.2583 12.6958 19.025 12.2875C19.7917 11.8792 20.4167 11.3333 20.9 10.65C20.9333 10.8667 20.9583 11.0875 20.975 11.3125C20.9917 11.5375 21 11.7667 21 12C21 14.5 20.125 16.625 18.375 18.375C16.625 20.125 14.5 21 12 21ZM12 19C13.4667 19 14.7833 18.5958 15.95 17.7875C17.1167 16.9792 17.9667 15.925 18.5 14.625C18.1667 14.7083 17.8333 14.775 17.5 14.825C17.1667 14.875 16.8333 14.9 16.5 14.9C14.45 14.9 12.7042 14.1792 11.2625 12.7375C9.82083 11.2958 9.1 9.55 9.1 7.5C9.1 7.16667 9.125 6.83333 9.175 6.5C9.225 6.16667 9.29167 5.83333 9.375 5.5C8.075 6.03333 7.02083 6.88333 6.2125 8.05C5.40417 9.21667 5 10.5333 5 12C5 13.9333 5.68333 15.5833 7.05 16.95C8.41667 18.3167 10.0667 19 12 19Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 21C9.5 21 7.375 20.125 5.625 18.375C3.875 16.625 3 14.5 3 12C3 9.5 3.875 7.375 5.625 5.625C7.375 3.875 9.5 3 12 3C12.2333 3 12.4625 3.00833 12.6875 3.025C12.9125 3.04167 13.1333 3.06667 13.35 3.1C12.6667 3.58333 12.1208 4.2125 11.7125 4.9875C11.3042 5.7625 11.1 6.6 11.1 7.5C11.1 9 11.625 10.275 12.675 11.325C13.725 12.375 15 12.9 16.5 12.9C17.4167 12.9 18.2583 12.6958 19.025 12.2875C19.7917 11.8792 20.4167 11.3333 20.9 10.65C20.9333 10.8667 20.9583 11.0875 20.975 11.3125C20.9917 11.5375 21 11.7667 21 12C21 14.5 20.125 16.625 18.375 18.375C16.625 20.125 14.5 21 12 21ZM12 19C13.4667 19 14.7833 18.5958 15.95 17.7875C17.1167 16.9792 17.9667 15.925 18.5 14.625C18.1667 14.7083 17.8333 14.775 17.5 14.825C17.1667 14.875 16.8333 14.9 16.5 14.9C14.45 14.9 12.7042 14.1792 11.2625 12.7375C9.82083 11.2958 9.1 9.55 9.1 7.5C9.1 7.16667 9.125 6.83333 9.175 6.5C9.225 6.16667 9.29167 5.83333 9.375 5.5C8.075 6.03333 7.02083 6.88333 6.2125 8.05C5.40417 9.21667 5 10.5333 5 12C5 13.9333 5.68333 15.5833 7.05 16.95C8.41667 18.3167 10.0667 19 12 19Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};ao.styles=h`
+    `}};Jn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6236,19 +6236,19 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Rn([l({type:Boolean})],ao.prototype,"useCssColor",2);ao=Rn([u("obi-palette-night")],ao);var pc=Object.defineProperty;var hc=Object.getOwnPropertyDescriptor;var Nn=(e,t,i,o)=>{var r=o>1?void 0:o?hc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)pc(t,i,r);return r};var no=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;b0([l({type:Boolean})],Jn.prototype,"useCssColor",2);Jn=b0([x("obi-palette-night")],Jn);var G9=Object.defineProperty;var q9=Object.getOwnPropertyDescriptor;var y0=(e,t,i,o)=>{var r=o>1?void 0:o?q9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)G9(t,i,r);return r};var Xn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11.5529 3.75275C11.7695 3.24908 12.4805 3.24908 12.6971 3.75276L13.8662 6.47216C14.0151 6.81843 14.4328 6.95476 14.7559 6.76251L17.2931 5.2527C17.763 4.97306 18.3383 5.39286 18.2187 5.92818L17.5732 8.81846C17.491 9.18649 17.7491 9.5434 18.123 9.57861L21.0592 9.85509C21.603 9.9063 21.8228 10.5855 21.4128 10.948L19.1991 12.9052C19.1278 12.9683 19.0745 13.0436 19.0393 13.125H21C21.4142 13.125 21.75 13.4608 21.75 13.875C21.75 14.2892 21.4142 14.625 21 14.625H3C2.58579 14.625 2.25 14.2892 2.25 13.875C2.25 13.4608 2.58579 13.125 3 13.125H5.21069C5.17546 13.0436 5.12219 12.9683 5.05087 12.9052L2.83724 10.948C2.42724 10.5855 2.64697 9.9063 3.1908 9.85509L6.12699 9.57861C6.50087 9.5434 6.75903 9.18649 6.67683 8.81846L6.0313 5.92818C5.91173 5.39286 6.48698 4.97306 6.95691 5.2527L9.49414 6.76251C9.81722 6.95476 10.2349 6.81843 10.3838 6.47216L11.5529 3.75275ZM7.13114 13.125H17.1189C16.9886 10.4797 14.8026 8.375 12.125 8.375C9.44741 8.375 7.2614 10.4797 7.13114 13.125Z" fill="currentColor"/>
 <path d="M7.5 15.75C7.08579 15.75 6.75 16.0858 6.75 16.5C6.75 16.9142 7.08579 17.25 7.5 17.25H16.5C16.9142 17.25 17.25 16.9142 17.25 16.5C17.25 16.0858 16.9142 15.75 16.5 15.75H7.5Z" fill="currentColor"/>
 <path d="M13.875 19.25C13.875 19.6642 13.5392 20 13.125 20H12H10.875C10.4608 20 10.125 19.6642 10.125 19.25C10.125 18.8358 10.4608 18.5 10.875 18.5H12H13.125C13.5392 18.5 13.875 18.8358 13.875 19.25Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11.5529 3.75275C11.7695 3.24908 12.4805 3.24908 12.6971 3.75276L13.8662 6.47216C14.0151 6.81843 14.4328 6.95476 14.7559 6.76251L17.2931 5.2527C17.763 4.97306 18.3383 5.39286 18.2187 5.92818L17.5732 8.81846C17.491 9.18649 17.7491 9.5434 18.123 9.57861L21.0592 9.85509C21.603 9.9063 21.8228 10.5855 21.4128 10.948L19.1991 12.9052C19.1278 12.9683 19.0745 13.0436 19.0393 13.125H21C21.4142 13.125 21.75 13.4608 21.75 13.875C21.75 14.2892 21.4142 14.625 21 14.625H3C2.58579 14.625 2.25 14.2892 2.25 13.875C2.25 13.4608 2.58579 13.125 3 13.125H5.21069C5.17546 13.0436 5.12219 12.9683 5.05087 12.9052L2.83724 10.948C2.42724 10.5855 2.64697 9.9063 3.1908 9.85509L6.12699 9.57861C6.50087 9.5434 6.75903 9.18649 6.67683 8.81846L6.0313 5.92818C5.91173 5.39286 6.48698 4.97306 6.95691 5.2527L9.49414 6.76251C9.81722 6.95476 10.2349 6.81843 10.3838 6.47216L11.5529 3.75275ZM7.13114 13.125H17.1189C16.9886 10.4797 14.8026 8.375 12.125 8.375C9.44741 8.375 7.2614 10.4797 7.13114 13.125Z" style="fill: var(--element-active-color)"/>
 <path d="M7.5 15.75C7.08579 15.75 6.75 16.0858 6.75 16.5C6.75 16.9142 7.08579 17.25 7.5 17.25H16.5C16.9142 17.25 17.25 16.9142 17.25 16.5C17.25 16.0858 16.9142 15.75 16.5 15.75H7.5Z" style="fill: var(--element-active-color)"/>
 <path d="M13.875 19.25C13.875 19.6642 13.5392 20 13.125 20H12H10.875C10.4608 20 10.125 19.6642 10.125 19.25C10.125 18.8358 10.4608 18.5 10.875 18.5H12H13.125C13.5392 18.5 13.875 18.8358 13.875 19.25Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};no.styles=h`
+    `}};Xn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6258,15 +6258,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Nn([l({type:Boolean})],no.prototype,"useCssColor",2);no=Nn([u("obi-palette-dusk")],no);var uc=Object.defineProperty;var vc=Object.getOwnPropertyDescriptor;var Fn=(e,t,i,o)=>{var r=o>1?void 0:o?vc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)uc(t,i,r);return r};var lo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;y0([l({type:Boolean})],Xn.prototype,"useCssColor",2);Xn=y0([x("obi-palette-dusk")],Xn);var Y9=Object.defineProperty;var K9=Object.getOwnPropertyDescriptor;var w0=(e,t,i,o)=>{var r=o>1?void 0:o?K9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Y9(t,i,r);return r};var Qn=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.4178 2.66892C14.7789 2.25636 15.4554 2.47526 15.5064 3.02113L15.7816 5.96838C15.8166 6.34367 16.1721 6.60197 16.5386 6.51851L19.4174 5.8631C19.9506 5.74171 20.3687 6.3182 20.0902 6.79072L18.5862 9.34191C18.3947 9.66677 18.5305 10.0858 18.8753 10.2344L21.5838 11.4014C22.0855 11.6175 22.0854 12.3314 21.5838 12.5501L19.2437 13.5701C19.9738 14.2507 20.5123 15.1503 20.7626 16.1622C21.9582 16.6967 22.7499 17.9449 22.7499 19.3243C22.7499 21.1817 21.3013 22.75 19.4588 22.75H9.62935C8.73882 22.75 7.89257 22.3876 7.27532 21.7385C6.61858 21.085 6.27173 20.2054 6.25014 19.2667L6.24994 19.2581V19.212C6.24994 18.6736 6.37017 18.152 6.59526 17.6786L4.5824 18.1369C4.04921 18.2582 3.63113 17.6818 3.90968 17.2092L5.41363 14.658C5.60514 14.3332 5.46938 13.9141 5.12449 13.7655L2.41601 12.5986C1.91436 12.3825 1.9144 11.6686 2.41608 11.4499L5.12472 10.2692C5.46962 10.1189 5.60543 9.69915 5.41397 9.37526L3.91034 6.83168C3.63185 6.36057 4.05 5.78196 4.58318 5.90066L7.4619 6.54149C7.82846 6.62309 8.18396 6.36299 8.21905 5.98753L8.49462 3.03888C8.54566 2.49275 9.2222 2.27043 9.58323 2.68116L11.5324 4.89872C11.7807 5.18109 12.2201 5.17998 12.4683 4.89635L14.4178 2.66892ZM8.77567 15.8232C9.0014 15.7627 9.23504 15.7262 9.47374 15.7151C9.91656 15.02 10.6813 14.5702 11.5529 14.5702C11.6374 14.5702 11.7229 14.5744 11.8091 14.5835C12.7056 13.1529 14.2426 12.25 15.947 12.25C16.3039 12.25 16.652 12.29 16.9877 12.3658C17.1542 10.1198 15.7772 7.96694 13.5391 7.2428C10.9118 6.39271 8.09283 7.83343 7.24274 10.4608C6.59862 12.4515 7.26972 14.5523 8.77567 15.8232ZM12.8665 15.771C13.4558 14.5213 14.6481 13.75 15.947 13.75C17.6096 13.75 19.0881 15.057 19.371 16.8409L19.4468 17.3191L19.9138 17.4469C20.6575 17.6504 21.2499 18.4014 21.2499 19.3243C21.2499 20.4233 20.4045 21.25 19.4588 21.25H9.62935C9.14786 21.25 8.69223 21.0546 8.35732 20.6995L8.34813 20.6898L8.3386 20.6804C7.9796 20.326 7.7653 19.8279 7.74994 19.2403V19.212C7.74994 18.6904 7.94322 18.1961 8.2958 17.8083C8.65036 17.419 9.1208 17.2115 9.62936 17.2115C9.73976 17.2115 9.76618 17.213 9.79884 17.2188L10.4228 17.329L10.6357 16.7323C10.7806 16.3265 11.1414 16.0702 11.5529 16.0702C11.6726 16.0702 11.7795 16.0905 11.8851 16.1372L12.5544 16.4329L12.8665 15.771Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.4178 2.66892C14.7789 2.25636 15.4554 2.47526 15.5064 3.02113L15.7816 5.96838C15.8166 6.34367 16.1721 6.60197 16.5386 6.51851L19.4174 5.8631C19.9506 5.74171 20.3687 6.3182 20.0902 6.79072L18.5862 9.34191C18.3947 9.66677 18.5305 10.0858 18.8753 10.2344L21.5838 11.4014C22.0855 11.6175 22.0854 12.3314 21.5838 12.5501L19.2437 13.5701C19.9738 14.2507 20.5123 15.1503 20.7626 16.1622C21.9582 16.6967 22.7499 17.9449 22.7499 19.3243C22.7499 21.1817 21.3013 22.75 19.4588 22.75H9.62935C8.73882 22.75 7.89257 22.3876 7.27532 21.7385C6.61858 21.085 6.27173 20.2054 6.25014 19.2667L6.24994 19.2581V19.212C6.24994 18.6736 6.37017 18.152 6.59526 17.6786L4.5824 18.1369C4.04921 18.2582 3.63113 17.6818 3.90968 17.2092L5.41363 14.658C5.60514 14.3332 5.46938 13.9141 5.12449 13.7655L2.41601 12.5986C1.91436 12.3825 1.9144 11.6686 2.41608 11.4499L5.12472 10.2692C5.46962 10.1189 5.60543 9.69915 5.41397 9.37526L3.91034 6.83168C3.63185 6.36057 4.05 5.78196 4.58318 5.90066L7.4619 6.54149C7.82846 6.62309 8.18396 6.36299 8.21905 5.98753L8.49462 3.03888C8.54566 2.49275 9.2222 2.27043 9.58323 2.68116L11.5324 4.89872C11.7807 5.18109 12.2201 5.17998 12.4683 4.89635L14.4178 2.66892ZM8.77567 15.8232C9.0014 15.7627 9.23504 15.7262 9.47374 15.7151C9.91656 15.02 10.6813 14.5702 11.5529 14.5702C11.6374 14.5702 11.7229 14.5744 11.8091 14.5835C12.7056 13.1529 14.2426 12.25 15.947 12.25C16.3039 12.25 16.652 12.29 16.9877 12.3658C17.1542 10.1198 15.7772 7.96694 13.5391 7.2428C10.9118 6.39271 8.09283 7.83343 7.24274 10.4608C6.59862 12.4515 7.26972 14.5523 8.77567 15.8232ZM12.8665 15.771C13.4558 14.5213 14.6481 13.75 15.947 13.75C17.6096 13.75 19.0881 15.057 19.371 16.8409L19.4468 17.3191L19.9138 17.4469C20.6575 17.6504 21.2499 18.4014 21.2499 19.3243C21.2499 20.4233 20.4045 21.25 19.4588 21.25H9.62935C9.14786 21.25 8.69223 21.0546 8.35732 20.6995L8.34813 20.6898L8.3386 20.6804C7.9796 20.326 7.7653 19.8279 7.74994 19.2403V19.212C7.74994 18.6904 7.94322 18.1961 8.2958 17.8083C8.65036 17.419 9.1208 17.2115 9.62936 17.2115C9.73976 17.2115 9.76618 17.213 9.79884 17.2188L10.4228 17.329L10.6357 16.7323C10.7806 16.3265 11.1414 16.0702 11.5529 16.0702C11.6726 16.0702 11.7795 16.0905 11.8851 16.1372L12.5544 16.4329L12.8665 15.771Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};lo.styles=h`
+    `}};Qn.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6276,15 +6276,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Fn([l({type:Boolean})],lo.prototype,"useCssColor",2);lo=Fn([u("obi-palette-day")],lo);var gc=Object.defineProperty;var mc=Object.getOwnPropertyDescriptor;var Un=(e,t,i,o)=>{var r=o>1?void 0:o?mc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)gc(t,i,r);return r};var so=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;w0([l({type:Boolean})],Qn.prototype,"useCssColor",2);Qn=w0([x("obi-palette-day")],Qn);var J9=Object.defineProperty;var X9=Object.getOwnPropertyDescriptor;var C0=(e,t,i,o)=>{var r=o>1?void 0:o?X9(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)J9(t,i,r);return r};var el=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11.4279 2.37775C11.6445 1.87408 12.3555 1.87408 12.5721 2.37776L13.7412 5.09716C13.8901 5.44343 14.3078 5.57976 14.6309 5.38751L17.1681 3.8777C17.638 3.59806 18.2133 4.01786 18.0937 4.55318L17.4482 7.44346C17.366 7.81149 17.6241 8.1684 17.998 8.20361L20.9342 8.48009C21.478 8.5313 21.6978 9.21054 21.2878 9.57303L19.0741 11.5302C18.7923 11.7794 18.7923 12.2206 19.0741 12.4698L21.2878 14.427C21.6978 14.7895 21.478 15.4687 20.9342 15.5199L17.998 15.7964C17.6241 15.8316 17.366 16.1885 17.4482 16.5565L18.0937 19.4468C18.2133 19.9821 17.638 20.4019 17.1681 20.1223L14.6309 18.6125C14.3078 18.4202 13.8901 18.5566 13.7412 18.9028L12.5721 21.6222C12.3555 22.1259 11.6445 22.1259 11.4279 21.6222L10.2588 18.9028C10.1099 18.5566 9.69222 18.4202 9.36914 18.6125L6.83191 20.1223C6.36198 20.4019 5.78673 19.9821 5.9063 19.4468L6.55183 16.5565C6.63403 16.1885 6.37587 15.8316 6.00199 15.7964L3.06579 15.5199C2.52197 15.4687 2.30224 14.7895 2.71224 14.427L4.92587 12.4698C5.20775 12.2206 5.20774 11.7794 4.92587 11.5302L2.71224 9.57303C2.30224 9.21054 2.52197 8.5313 3.0658 8.48009L6.00199 8.20361C6.37587 8.1684 6.63403 7.81149 6.55183 7.44346L5.9063 4.55318C5.78673 4.01786 6.36198 3.59806 6.83191 3.8777L9.36914 5.38751C9.69222 5.57976 10.1099 5.44343 10.2588 5.09716L11.4279 2.37775ZM17 12C17 14.7614 14.7614 17 12 17C9.23858 17 7 14.7614 7 12C7 9.23858 9.23858 7 12 7C14.7614 7 17 9.23858 17 12Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M11.4279 2.37775C11.6445 1.87408 12.3555 1.87408 12.5721 2.37776L13.7412 5.09716C13.8901 5.44343 14.3078 5.57976 14.6309 5.38751L17.1681 3.8777C17.638 3.59806 18.2133 4.01786 18.0937 4.55318L17.4482 7.44346C17.366 7.81149 17.6241 8.1684 17.998 8.20361L20.9342 8.48009C21.478 8.5313 21.6978 9.21054 21.2878 9.57303L19.0741 11.5302C18.7923 11.7794 18.7923 12.2206 19.0741 12.4698L21.2878 14.427C21.6978 14.7895 21.478 15.4687 20.9342 15.5199L17.998 15.7964C17.6241 15.8316 17.366 16.1885 17.4482 16.5565L18.0937 19.4468C18.2133 19.9821 17.638 20.4019 17.1681 20.1223L14.6309 18.6125C14.3078 18.4202 13.8901 18.5566 13.7412 18.9028L12.5721 21.6222C12.3555 22.1259 11.6445 22.1259 11.4279 21.6222L10.2588 18.9028C10.1099 18.5566 9.69222 18.4202 9.36914 18.6125L6.83191 20.1223C6.36198 20.4019 5.78673 19.9821 5.9063 19.4468L6.55183 16.5565C6.63403 16.1885 6.37587 15.8316 6.00199 15.7964L3.06579 15.5199C2.52197 15.4687 2.30224 14.7895 2.71224 14.427L4.92587 12.4698C5.20775 12.2206 5.20774 11.7794 4.92587 11.5302L2.71224 9.57303C2.30224 9.21054 2.52197 8.5313 3.0658 8.48009L6.00199 8.20361C6.37587 8.1684 6.63403 7.81149 6.55183 7.44346L5.9063 4.55318C5.78673 4.01786 6.36198 3.59806 6.83191 3.8777L9.36914 5.38751C9.69222 5.57976 10.1099 5.44343 10.2588 5.09716L11.4279 2.37775ZM17 12C17 14.7614 14.7614 17 12 17C9.23858 17 7 14.7614 7 12C7 9.23858 9.23858 7 12 7C14.7614 7 17 9.23858 17 12Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};so.styles=h`
+    `}};el.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6294,19 +6294,19 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Un([l({type:Boolean})],so.prototype,"useCssColor",2);so=Un([u("obi-palette-day-bright")],so);var fc=Object.defineProperty;var bc=Object.getOwnPropertyDescriptor;var Wn=(e,t,i,o)=>{var r=o>1?void 0:o?bc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)fc(t,i,r);return r};var co=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;C0([l({type:Boolean})],el.prototype,"useCssColor",2);el=C0([x("obi-palette-day-bright")],el);var Q9=Object.defineProperty;var e7=Object.getOwnPropertyDescriptor;var L0=(e,t,i,o)=>{var r=o>1?void 0:o?e7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Q9(t,i,r);return r};var tl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M7 15H11V17H7C4.24 17 2 14.76 2 12C2 9.24 4.24 7 7 7H11V9H7C5.35 9 4 10.35 4 12C4 13.65 5.35 15 7 15Z" fill="currentColor"/>
 <path d="M13 7H17C19.76 7 22 9.24 22 12C22 14.76 19.76 17 17 17H13V15H17C18.65 15 20 13.65 20 12C20 10.35 18.65 9 17 9H13V7Z" fill="currentColor"/>
 <path d="M16 11H8V13H16V11Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M7 15H11V17H7C4.24 17 2 14.76 2 12C2 9.24 4.24 7 7 7H11V9H7C5.35 9 4 10.35 4 12C4 13.65 5.35 15 7 15Z" style="fill: var(--element-active-color)"/>
 <path d="M13 7H17C19.76 7 22 9.24 22 12C22 14.76 19.76 17 17 17H13V15H17C18.65 15 20 13.65 20 12C20 10.35 18.65 9 17 9H13V7Z" style="fill: var(--element-active-color)"/>
 <path d="M16 11H8V13H16V11Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};co.styles=h`
+    `}};tl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6316,15 +6316,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Wn([l({type:Boolean})],co.prototype,"useCssColor",2);co=Wn([u("obi-link")],co);var yc=Object.defineProperty;var wc=Object.getOwnPropertyDescriptor;var qn=(e,t,i,o)=>{var r=o>1?void 0:o?wc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)yc(t,i,r);return r};var po=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;L0([l({type:Boolean})],tl.prototype,"useCssColor",2);tl=L0([x("obi-link")],tl);var t7=Object.defineProperty;var r7=Object.getOwnPropertyDescriptor;var k0=(e,t,i,o)=>{var r=o>1?void 0:o?r7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)t7(t,i,r);return r};var rl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M13.9999 18L15.4099 16.59L10.8299 12L15.4099 7.41L13.9999 6L7.99991 12L13.9999 18Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M13.9999 18L15.4099 16.59L10.8299 12L15.4099 7.41L13.9999 6L7.99991 12L13.9999 18Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};po.styles=h`
+    `}};rl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6334,15 +6334,15 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;qn([l({type:Boolean})],po.prototype,"useCssColor",2);po=qn([u("obi-chevron-left-google")],po);var Cc=Object.defineProperty;var Lc=Object.getOwnPropertyDescriptor;var Gn=(e,t,i,o)=>{var r=o>1?void 0:o?Lc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Cc(t,i,r);return r};var ho=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;k0([l({type:Boolean})],rl.prototype,"useCssColor",2);rl=k0([x("obi-chevron-left-google")],rl);var o7=Object.defineProperty;var i7=Object.getOwnPropertyDescriptor;var x0=(e,t,i,o)=>{var r=o>1?void 0:o?i7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)o7(t,i,r);return r};var ol=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M20 3H4C2.9 3 2 3.9 2 5V15C2 16.1 2.9 17 4 17H10V19H8V21H16V19H14V17H20C21.1 17 22 16.1 22 15V5C22 3.9 21.1 3 20 3ZM4 15H20V5H4V15Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M20 3H4C2.9 3 2 3.9 2 5V15C2 16.1 2.9 17 4 17H10V19H8V21H16V19H14V17H20C21.1 17 22 16.1 22 15V5C22 3.9 21.1 3 20 3ZM4 15H20V5H4V15Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};ho.styles=h`
+    `}};ol.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6352,7 +6352,7 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;Gn([l({type:Boolean})],ho.prototype,"useCssColor",2);ho=Gn([u("obi-screen-desk")],ho);var uo="lit-localize-status";var Xn=e=>typeof e!=="string"&&"strTag"in e;var hi=(e,t,i)=>{let o=e[0];for(let r=1;r<e.length;r++){o+=t[i?i[r-1]:r-1];o+=e[r]}return o};var vo=(e=>Xn(e)?hi(e.strings,e.values):e);var he=vo;var ui=class{constructor(t){this.__litLocalizeEventHandler=i=>{if(i.detail.status==="ready"){this.host.requestUpdate()}};this.host=t}hostConnected(){window.addEventListener(uo,this.__litLocalizeEventHandler)}hostDisconnected(){window.removeEventListener(uo,this.__litLocalizeEventHandler)}};var kc=e=>e.addController(new ui(e));var Yn=kc;var Kn=()=>(e,t)=>{e.addInitializer(Yn);return e};var go=class{constructor(){this.settled=false;this.promise=new Promise((t,i)=>{this._resolve=t;this._reject=i})}resolve(t){this.settled=true;this._resolve(t)}reject(t){this.settled=true;this._reject(t)}};var xc=[];for(let e=0;e<256;e++){xc[e]=(e>>4&15).toString(16)+(e&15).toString(16)}var Hc=new go;Hc.resolve();var Jn=h`
+  `;x0([l({type:Boolean})],ol.prototype,"useCssColor",2);ol=x0([x("obi-screen-desk")],ol);var il="lit-localize-status";var M0=e=>typeof e!=="string"&&"strTag"in e;var Bs=(e,t,i)=>{let o=e[0];for(let r=1;r<e.length;r++){o+=t[i?i[r-1]:r-1];o+=e[r]}return o};var al=(e=>M0(e)?Bs(e.strings,e.values):e);var Pt=al;var Is=class{constructor(t){this.__litLocalizeEventHandler=i=>{if(i.detail.status==="ready"){this.host.requestUpdate()}};this.host=t}hostConnected(){window.addEventListener(il,this.__litLocalizeEventHandler)}hostDisconnected(){window.removeEventListener(il,this.__litLocalizeEventHandler)}};var a7=e=>e.addController(new Is(e));var $0=a7;var H0=()=>(e,t)=>{e.addInitializer($0);return e};var nl=class{constructor(){this.settled=false;this.promise=new Promise((t,i)=>{this._resolve=t;this._reject=i})}resolve(t){this.settled=true;this._resolve(t)}reject(t){this.settled=true;this._reject(t)}};var n7=[];for(let e=0;e<256;e++){n7[e]=(e>>4&15).toString(16)+(e&15).toString(16)}var s7=new nl;s7.resolve();var _0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -6392,17 +6392,17 @@ input {
     background-color: var(--instrument-enhanced-secondary-color);
     fill: var(--instrument-enhanced-secondary-color);
   }
-`;var $c=Object.defineProperty;var _c=Object.getOwnPropertyDescriptor;var mo=(e,t,i,o)=>{var r=o>1?void 0:o?_c(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)$c(t,i,r);return r};var Dt=class extends d{constructor(){super(...arguments);this.totalSteps=5;this.currentStep=1;this.fullwidth=false}get validCurrentStep(){return Math.max(1,Math.min(this.currentStep,this.totalSteps))}get validTotalSteps(){return Math.max(1,this.totalSteps)}renderDots(){const e=[];for(let t=0;t<this.validTotalSteps;t++){e.push(c`
+`;var c7=Object.defineProperty;var p7=Object.getOwnPropertyDescriptor;var ll=(e,t,i,o)=>{var r=o>1?void 0:o?p7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)c7(t,i,r);return r};var Wi=class extends C{constructor(){super(...arguments);this.totalSteps=5;this.currentStep=1;this.fullwidth=false}get validCurrentStep(){return Math.max(1,Math.min(this.currentStep,this.totalSteps))}get validTotalSteps(){return Math.max(1,this.totalSteps)}renderDots(){const e=[];for(let t=0;t<this.validTotalSteps;t++){e.push(u`
         <div
-          class=${L({dot:true,"state-active":t===this.validCurrentStep-1,"state-inactive":t!==this.validCurrentStep-1})}
+          class=${Y({dot:true,"state-active":t===this.validCurrentStep-1,"state-inactive":t!==this.validCurrentStep-1})}
         ></div>
-      `)}return e}render(){return c`
+      `)}return e}render(){return u`
       <div
-        class=${L({wrapper:true,"style-fullwidth":this.fullwidth,"style-compact":!this.fullwidth})}
+        class=${Y({wrapper:true,"style-fullwidth":this.fullwidth,"style-compact":!this.fullwidth})}
       >
         <div class="content-container">${this.renderDots()}</div>
       </div>
-    `}};Dt.styles=C(Jn);mo([l({type:Number})],Dt.prototype,"totalSteps",2);mo([l({type:Number})],Dt.prototype,"currentStep",2);mo([l({type:Boolean})],Dt.prototype,"fullwidth",2);Dt=mo([u("obc-progress-indicator-dots")],Dt);var Qn=h`
+    `}};Wi.styles=I(_0);ll([l({type:Number})],Wi.prototype,"totalSteps",2);ll([l({type:Number})],Wi.prototype,"currentStep",2);ll([l({type:Boolean})],Wi.prototype,"fullwidth",2);Wi=ll([x("obc-progress-indicator-dots")],Wi);var S0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -6766,15 +6766,15 @@ input {
     white-space: nowrap;
     min-width: 0;
   }
-`;var Vc=Object.defineProperty;var Sc=Object.getOwnPropertyDescriptor;var e1=(e,t,i,o)=>{var r=o>1?void 0:o?Sc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Vc(t,i,r);return r};var fo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+`;var d7=Object.defineProperty;var h7=Object.getOwnPropertyDescriptor;var V0=(e,t,i,o)=>{var r=o>1?void 0:o?h7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)d7(t,i,r);return r};var sl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M9.5 15.0687C9.5 15.6745 9.5 15.9774 9.6198 16.1177C9.72374 16.2394 9.87967 16.304 10.0392 16.2914C10.2231 16.2769 10.4373 16.0627 10.8657 15.6344L13.9343 12.5657C14.1323 12.3677 14.2313 12.2687 14.2684 12.1546C14.3011 12.0541 14.3011 11.946 14.2684 11.8455C14.2313 11.7314 14.1323 11.6324 13.9343 11.4344L10.8657 8.36573C10.4373 7.93736 10.2231 7.72317 10.0392 7.7087C9.87967 7.69614 9.72374 7.76073 9.6198 7.88243C9.5 8.0227 9.5 8.3256 9.5 8.93142L9.5 15.0687Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M9.5 15.0687C9.5 15.6745 9.5 15.9774 9.6198 16.1177C9.72374 16.2394 9.87967 16.304 10.0392 16.2914C10.2231 16.2769 10.4373 16.0627 10.8657 15.6344L13.9343 12.5657C14.1323 12.3677 14.2313 12.2687 14.2684 12.1546C14.3011 12.0541 14.3011 11.946 14.2684 11.8455C14.2313 11.7314 14.1323 11.6324 13.9343 11.4344L10.8657 8.36573C10.4373 7.93736 10.2231 7.72317 10.0392 7.7087C9.87967 7.69614 9.72374 7.76073 9.6198 7.88243C9.5 8.0227 9.5 8.3256 9.5 8.93142L9.5 15.0687Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};fo.styles=h`
+    `}};sl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -6784,7 +6784,7 @@ input {
       height: 100%;
       width: 100%;
     }
-  `;e1([l({type:Boolean})],fo.prototype,"useCssColor",2);fo=e1([u("obi-arrow-flyout-google")],fo);var t1=h`
+  `;V0([l({type:Boolean})],sl.prototype,"useCssColor",2);sl=V0([x("obi-arrow-flyout-google")],sl);var Z0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -6883,7 +6883,7 @@ ol {
   margin: 0;
   padding: 0;
 }
-`;var Zc=Object.defineProperty;var Ac=Object.getOwnPropertyDescriptor;var nr=(e,t,i,o)=>{var r=o>1?void 0:o?Ac(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Zc(t,i,r);return r};var xt=(e=>{e["Full"]="full";e["IconOnly"]="icon-only";e["IconOnlyLarge"]="icon-only-large";e["Compact"]="compact";return e})(xt||{});var kt=class extends d{constructor(){super(...arguments);this.variant="full";this.flyoutVariant="full";this.smallScreen=false;this.slotObservers=[];this.hasFooter=false}findAllElements(e,t,{slot:i,stopTag:o}={}){const r=[];for(const a of e.children){if(a.tagName.toLowerCase()===t){if(i&&a.getAttribute("slot")!==i){continue}r.push(a)}else if(o&&a.tagName.toLowerCase()===o){continue}else{if(i&&a.getAttribute("slot")!==i){continue}r.push(...this.findAllElements(a,t,{stopTag:o}))}}return r}findAllGroups(e){return this.findAllElements(e,"obc-navigation-item-group")}findRootItems(e){return this.findAllElements(e,"obc-navigation-item",{stopTag:"obc-navigation-item-group"})}findAllItems(e,t){return this.findAllElements(e,"obc-navigation-item",{slot:t})}closeAllGroups(){const e=this.findAllGroups(this);e.forEach(t=>{t.close()})}registerGroup(e){e.forEach(t=>{t.addEventListener("open",()=>{e.forEach(o=>{if(o!==t){o.close()}})});const i=this.findAllGroups(t);this.registerGroup(i)})}cleanupSlotObservers(){this.slotObservers.forEach(e=>e.disconnect());this.slotObservers=[]}setupSlotObservers(){this.cleanupSlotObservers();const e=this.shadowRoot?.querySelector('slot[name="main"]');const t=this.shadowRoot?.querySelector('slot[name="footer"]');this.hasFooter=t?.assignedElements().length>0;[e,t].forEach(i=>{if(i){const o=i.assignedElements();o.forEach(r=>{const a=new MutationObserver(()=>{this.setupItems()});a.observe(r,{childList:true,subtree:true});this.slotObservers.push(a)})}})}firstUpdated(e){super.firstUpdated(e);const t=this.findAllGroups(this);this.registerGroup(t)}updated(e){super.updated(e);if(e.has("variant")||e.has("flyoutVariant")){this.setupItems()}}setVariantToFlyoutItems(e){const t=this.findAllElements(e,"obc-navigation-item");t.forEach(o=>{o.variant="full"});const i=this.findAllGroups(e);i.forEach(o=>{o.variant="full";this.setVariantToFlyoutItems(o)})}disconnectedCallback(){super.disconnectedCallback();this.cleanupSlotObservers()}handleSlotChange(){this.setupItems();this.setupSlotObservers()}setupItems(){const e=this.variant!=="full"||this.flyoutVariant==="compact";this.setHugToGroups(this,e);const t=this.findAllGroups(this);t.forEach(o=>{o.variant=this.variant;this.setVariantToFlyoutItems(o)});this.findRootItems(this).forEach(o=>{o.variant=this.variant});const i=this.smallScreen&&this.variant==="full"?"compact":this.variant;this.findAllItems(this,"footer").forEach(o=>{o.variant=i});this.findAllItems(this,"logo").forEach(o=>{o.variant=i});this.findAllItems(this).forEach(o=>{o.addEventListener("click",()=>{this.closeAllGroups()})})}setHugToGroups(e,t){const i=this.findAllGroups(e);i.forEach(o=>{o.hug=t;this.setHugToGroups(o,t)})}render(){return c`
+`;var u7=Object.defineProperty;var f7=Object.getOwnPropertyDescriptor;var Pa=(e,t,i,o)=>{var r=o>1?void 0:o?f7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)u7(t,i,r);return r};var ri=(e=>{e["Full"]="full";e["IconOnly"]="icon-only";e["IconOnlyLarge"]="icon-only-large";e["Compact"]="compact";return e})(ri||{});var ti=class extends C{constructor(){super(...arguments);this.variant="full";this.flyoutVariant="full";this.smallScreen=false;this.slotObservers=[];this.hasFooter=false}findAllElements(e,t,{slot:i,stopTag:o}={}){const r=[];for(const a of e.children){if(a.tagName.toLowerCase()===t){if(i&&a.getAttribute("slot")!==i){continue}r.push(a)}else if(o&&a.tagName.toLowerCase()===o){continue}else{if(i&&a.getAttribute("slot")!==i){continue}r.push(...this.findAllElements(a,t,{stopTag:o}))}}return r}findAllGroups(e){return this.findAllElements(e,"obc-navigation-item-group")}findRootItems(e){return this.findAllElements(e,"obc-navigation-item",{stopTag:"obc-navigation-item-group"})}findAllItems(e,t){return this.findAllElements(e,"obc-navigation-item",{slot:t})}closeAllGroups(){const e=this.findAllGroups(this);e.forEach(t=>{t.close()})}registerGroup(e){e.forEach(t=>{t.addEventListener("open",()=>{e.forEach(o=>{if(o!==t){o.close()}})});const i=this.findAllGroups(t);this.registerGroup(i)})}cleanupSlotObservers(){this.slotObservers.forEach(e=>e.disconnect());this.slotObservers=[]}setupSlotObservers(){this.cleanupSlotObservers();const e=this.shadowRoot?.querySelector('slot[name="main"]');const t=this.shadowRoot?.querySelector('slot[name="footer"]');this.hasFooter=t?.assignedElements().length>0;[e,t].forEach(i=>{if(i){const o=i.assignedElements();o.forEach(r=>{const a=new MutationObserver(()=>{this.setupItems()});a.observe(r,{childList:true,subtree:true});this.slotObservers.push(a)})}})}firstUpdated(e){super.firstUpdated(e);const t=this.findAllGroups(this);this.registerGroup(t)}updated(e){super.updated(e);if(e.has("variant")||e.has("flyoutVariant")){this.setupItems()}}setVariantToFlyoutItems(e){const t=this.findAllElements(e,"obc-navigation-item");t.forEach(o=>{o.variant="full"});const i=this.findAllGroups(e);i.forEach(o=>{o.variant="full";this.setVariantToFlyoutItems(o)})}disconnectedCallback(){super.disconnectedCallback();this.cleanupSlotObservers()}handleSlotChange(){this.setupItems();this.setupSlotObservers()}setupItems(){const e=this.variant!=="full"||this.flyoutVariant==="compact";this.setHugToGroups(this,e);const t=this.findAllGroups(this);t.forEach(o=>{o.variant=this.variant;this.setVariantToFlyoutItems(o)});this.findRootItems(this).forEach(o=>{o.variant=this.variant});const i=this.smallScreen&&this.variant==="full"?"compact":this.variant;this.findAllItems(this,"footer").forEach(o=>{o.variant=i});this.findAllItems(this,"logo").forEach(o=>{o.variant=i});this.findAllItems(this).forEach(o=>{o.addEventListener("click",()=>{this.closeAllGroups()})})}setHugToGroups(e,t){const i=this.findAllGroups(e);i.forEach(o=>{o.hug=t;this.setHugToGroups(o,t)})}render(){return u`
       <div
         class="wrapper ${this.variant} ${this.smallScreen?"small-screen":""}"
       >
@@ -6896,43 +6896,43 @@ ol {
           <nav>
             <ol>
               <slot name="footer" @slotchange=${this.handleSlotChange}></slot>
-              ${this.smallScreen?c` <slot name="logo"></slot> `:p}
+              ${this.smallScreen?u` <slot name="logo"></slot> `:k}
             </ol>
           </nav>
-          ${this.smallScreen?p:c`
+          ${this.smallScreen?k:u`
                 <div class="logo">
                   <slot name="logo"></slot>
                 </div>
               `}
         </div>
       </div>
-    `}};kt.styles=C(t1);nr([l({type:String})],kt.prototype,"variant",2);nr([l({type:String})],kt.prototype,"flyoutVariant",2);nr([l({type:Boolean})],kt.prototype,"smallScreen",2);nr([j()],kt.prototype,"hasFooter",2);kt=nr([u("obc-navigation-menu")],kt);var zc=Object.defineProperty;var Pc=Object.getOwnPropertyDescriptor;var rt=(e,t,i,o)=>{var r=o>1?void 0:o?Pc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)zc(t,i,r);return r};var ze=class extends d{constructor(){super(...arguments);this.label="Label";this.checked=false;this.variant=xt.Full;this.group=false;this.groupSelected=false;this.hasIcon=false;this.hasTrailingIcon=false}onClick(){dispatchEvent(new CustomEvent("click"))}render(){const e=this.group&&this.variant!==xt.IconOnly;const t=this.variant===xt.Compact;return c`
+    `}};ti.styles=I(Z0);Pa([l({type:String})],ti.prototype,"variant",2);Pa([l({type:String})],ti.prototype,"flyoutVariant",2);Pa([l({type:Boolean})],ti.prototype,"smallScreen",2);Pa([Ee()],ti.prototype,"hasFooter",2);ti=Pa([x("obc-navigation-menu")],ti);var v7=Object.defineProperty;var m7=Object.getOwnPropertyDescriptor;var po=(e,t,i,o)=>{var r=o>1?void 0:o?m7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)v7(t,i,r);return r};var Sr=class extends C{constructor(){super(...arguments);this.label="Label";this.checked=false;this.variant=ri.Full;this.group=false;this.groupSelected=false;this.hasIcon=false;this.hasTrailingIcon=false}onClick(){dispatchEvent(new CustomEvent("click"))}render(){const e=this.group&&this.variant!==ri.IconOnly;const t=this.variant===ri.Compact;return u`
       <a
-        class="${L({wrapper:true,checked:this.checked,"group-selected":this.groupSelected&&this.group,"has-icon":this.hasIcon,[this.variant]:true})}"
-        href=${de(this.href)}
+        class="${Y({wrapper:true,checked:this.checked,"group-selected":this.groupSelected&&this.group,"has-icon":this.hasIcon,[this.variant]:true})}"
+        href=${Zt(this.href)}
         @click=${this.onClick}
       >
         <div class="visible-wrapper">
-          ${this.hasIcon?c`<slot name="icon" class="icon leading"></slot>`:p}
-          ${![xt.IconOnly,xt.IconOnlyLarge].includes(this.variant)?c`
+          ${this.hasIcon?u`<slot name="icon" class="icon leading"></slot>`:k}
+          ${![ri.IconOnly,ri.IconOnlyLarge].includes(this.variant)?u`
                 <span
                   part="label"
-                  class=${L({label:true,"label-flyout":e&&!t})}
+                  class=${Y({label:true,"label-flyout":e&&!t})}
                 >
                   ${this.label}
                 </span>
-              `:p}
-          ${e?c`
+              `:k}
+          ${e?u`
                 <div class="flyout-wrapper">
                   <obi-arrow-flyout-google
                     class="icon trailing"
                   ></obi-arrow-flyout-google>
                 </div>
-              `:p}
-          ${this.hasTrailingIcon&&!e?c`<slot name="trailing-icon" class="icon trailing"></slot>`:p}
+              `:k}
+          ${this.hasTrailingIcon&&!e?u`<slot name="trailing-icon" class="icon trailing"></slot>`:k}
         </div>
       </a>
-    `}};ze.styles=C(Qn);rt([l({type:String})],ze.prototype,"label",2);rt([l({type:String})],ze.prototype,"href",2);rt([l({type:Boolean})],ze.prototype,"checked",2);rt([l({type:String})],ze.prototype,"variant",2);rt([l({type:Boolean})],ze.prototype,"group",2);rt([l({type:Boolean})],ze.prototype,"groupSelected",2);rt([l({type:Boolean,reflect:true})],ze.prototype,"hasIcon",2);rt([l({type:Boolean})],ze.prototype,"hasTrailingIcon",2);ze=rt([u("obc-navigation-item")],ze);var r1=h`
+    `}};Sr.styles=I(S0);po([l({type:String})],Sr.prototype,"label",2);po([l({type:String})],Sr.prototype,"href",2);po([l({type:Boolean})],Sr.prototype,"checked",2);po([l({type:String})],Sr.prototype,"variant",2);po([l({type:Boolean})],Sr.prototype,"group",2);po([l({type:Boolean})],Sr.prototype,"groupSelected",2);po([l({type:Boolean,reflect:true})],Sr.prototype,"hasIcon",2);po([l({type:Boolean})],Sr.prototype,"hasTrailingIcon",2);Sr=po([x("obc-navigation-item")],Sr);var A0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -7259,8 +7259,8 @@ ol {
 .wrapper.integration.disabled .label {
       color: var(--element-disabled-color);
     }
-`;var Oc=Object.defineProperty;var Bc=Object.getOwnPropertyDescriptor;var Mt=(e,t,i,o)=>{var r=o>1?void 0:o?Bc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Oc(t,i,r);return r};var ot=class extends d{constructor(){super(...arguments);this.label="Button";this.checked=false;this.showLabel=true;this.integration=false;this.size="normal";this.disabled=false}render(){return c` <button
-      class="${L({wrapper:true,checked:this.checked,small:this.size==="small",integration:this.integration,disabled:this.disabled})}"
+`;var g7=Object.defineProperty;var b7=Object.getOwnPropertyDescriptor;var oi=(e,t,i,o)=>{var r=o>1?void 0:o?b7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)g7(t,i,r);return r};var ho=class extends C{constructor(){super(...arguments);this.label="Button";this.checked=false;this.showLabel=true;this.integration=false;this.size="normal";this.disabled=false}render(){return u` <button
+      class="${Y({wrapper:true,checked:this.checked,small:this.size==="small",integration:this.integration,disabled:this.disabled})}"
       ?disabled=${this.disabled}
     >
       <div class="icon-wrapper">
@@ -7268,8 +7268,8 @@ ol {
           <slot name="icon"></slot>
         </span>
       </div>
-      ${this.showLabel?c`<div class="label">${this.label}</div>`:p}
-    </button>`}};ot.styles=C(r1);Mt([l({type:String})],ot.prototype,"label",2);Mt([l({type:Boolean})],ot.prototype,"checked",2);Mt([l({type:Boolean,attribute:false})],ot.prototype,"showLabel",2);Mt([l({type:Boolean})],ot.prototype,"integration",2);Mt([l({type:String})],ot.prototype,"size",2);Mt([l({type:Boolean})],ot.prototype,"disabled",2);ot=Mt([u("obc-app-button")],ot);var o1=h`
+      ${this.showLabel?u`<div class="label">${this.label}</div>`:k}
+    </button>`}};ho.styles=I(A0);oi([l({type:String})],ho.prototype,"label",2);oi([l({type:Boolean})],ho.prototype,"checked",2);oi([l({type:Boolean,attribute:false})],ho.prototype,"showLabel",2);oi([l({type:Boolean})],ho.prototype,"integration",2);oi([l({type:String})],ho.prototype,"size",2);oi([l({type:Boolean})],ho.prototype,"disabled",2);ho=oi([x("obc-app-button")],ho);var P0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -7662,22 +7662,22 @@ ol {
   height: 100%;
   flex-shrink: 0;
 }
-`;var Tc=Object.defineProperty;var Ec=Object.getOwnPropertyDescriptor;var dt=(e,t,i,o)=>{var r=o>1?void 0:o?Ec(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Tc(t,i,r);return r};var Ne=class extends d{constructor(){super(...arguments);this.variant="icon";this.size="regular";this.styleType="flat";this.static=false;this.disabled=false;this.initials=""}get formattedInitials(){if(!this.initials)return"";const e=this.initials.replace(/\s+/g,"").toUpperCase();const t=this.size==="large"?3:2;if(e.length>t){console.warn(`Initials "${this.initials}" are longer than ${t} characters.`);return e.slice(0,t)}return e}get shouldShowIcon(){return this.variant==="icon"}render(){const e=this.size==="large"&&this.styleType==="flat"?"normal":this.styleType;const t={wrapper:true,"wrapper-static":this.static,[`style-${e}`]:true,"mode-icon":this.shouldShowIcon,"mode-initials":!this.shouldShowIcon,"state-static":this.static,[`size-${this.size}`]:true};const i=this.static?R`div`:R`button`;const o=this.label&&!this.static?_`<span class="user-label" part="label">${this.label}</span>`:p;return _`
+`;var y7=Object.defineProperty;var w7=Object.getOwnPropertyDescriptor;var So=(e,t,i,o)=>{var r=o>1?void 0:o?w7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)y7(t,i,r);return r};var Jr=class extends C{constructor(){super(...arguments);this.variant="icon";this.size="regular";this.styleType="flat";this.static=false;this.disabled=false;this.initials=""}get formattedInitials(){if(!this.initials)return"";const e=this.initials.replace(/\s+/g,"").toUpperCase();const t=this.size==="large"?3:2;if(e.length>t){console.warn(`Initials "${this.initials}" are longer than ${t} characters.`);return e.slice(0,t)}return e}get shouldShowIcon(){return this.variant==="icon"}render(){const e=this.size==="large"&&this.styleType==="flat"?"normal":this.styleType;const t={wrapper:true,"wrapper-static":this.static,[`style-${e}`]:true,"mode-icon":this.shouldShowIcon,"mode-initials":!this.shouldShowIcon,"state-static":this.static,[`size-${this.size}`]:true};const i=this.static?Ue`div`:Ue`button`;const o=this.label&&!this.static?ae`<span class="user-label" part="label">${this.label}</span>`:k;return ae`
         <${i}
-          class=${L(t)}
+          class=${Y(t)}
           ?disabled=${this.disabled}
           aria-label=${this.initials||"User button"}
         >
         <div class="content-container" part="content-container">
           <div class="user-button-circle">
-            ${this.shouldShowIcon?_`
+            ${this.shouldShowIcon?ae`
                     <div class="icon-container">
                       <slot name="icon">
                         <!-- Fallback to default icon if no slot content -->
                         <obi-user></obi-user>
                       </slot>
                     </div>
-                  `:_`
+                  `:ae`
                     <span class="user-initials">
                       ${this.formattedInitials}
                     </span>
@@ -7686,7 +7686,7 @@ ol {
           ${o}
         </div>
         </${i}>
-      `}};Ne.styles=C(o1);dt([l({type:String})],Ne.prototype,"variant",2);dt([l({type:String})],Ne.prototype,"size",2);dt([l({type:String})],Ne.prototype,"styleType",2);dt([l({type:Boolean})],Ne.prototype,"static",2);dt([l({type:Boolean})],Ne.prototype,"disabled",2);dt([l({type:String})],Ne.prototype,"initials",2);dt([l({type:String})],Ne.prototype,"label",2);Ne=dt([u("obc-user-button")],Ne);var i1=h`
+      `}};Jr.styles=I(P0);So([l({type:String})],Jr.prototype,"variant",2);So([l({type:String})],Jr.prototype,"size",2);So([l({type:String})],Jr.prototype,"styleType",2);So([l({type:Boolean})],Jr.prototype,"static",2);So([l({type:Boolean})],Jr.prototype,"disabled",2);So([l({type:String})],Jr.prototype,"initials",2);So([l({type:String})],Jr.prototype,"label",2);Jr=So([x("obc-user-button")],Jr);var T0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -7936,9 +7936,9 @@ div[role="tabpanel"] {
   border-bottom-right-radius: var(--app-components-alert-menu-border-radius);
   overflow: hidden;
 }
-`;var Dc=Object.defineProperty;var Ic=Object.getOwnPropertyDescriptor;var lr=(e,t,i,o)=>{var r=o>1?void 0:o?Ic(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Dc(t,i,r);return r};var Ht=class extends d{constructor(){super(...arguments);this.nTabs=1;this.selectedTab=0;this.hasDefaultSlotOnly=false;this.hasTabIcons=false}_handleKeyDown(e){const t=e.target;if(!t.classList.contains("tab-button"))return;const i=this.selectedTab;switch(e.key){case"ArrowRight":this.setSelectedTab((i+1)%this.nTabs);break;case"ArrowLeft":this.setSelectedTab((i-1+this.nTabs)%this.nTabs);break;case"Home":this.setSelectedTab(0);break;case"End":this.setSelectedTab(this.nTabs-1);break;default:return}e.preventDefault();this._focusTab(this.selectedTab)}setSelectedTab(e){this.selectedTab=e;this.dispatchEvent(new CustomEvent("tab-change",{detail:{tab:e}}))}_focusTab(e){const t=this.shadowRoot?.querySelector(`button[data-index="${e}"]`);t?.focus()}_generateTabHeaders(){return[...Array(this.nTabs)].map((e,t)=>{const i=t!==this.nTabs-1&&this.selectedTab!==t&&t+1!==this.selectedTab;const o=this.hasTabIcons?c`<span class="tab-icon">
+`;var C7=Object.defineProperty;var L7=Object.getOwnPropertyDescriptor;var Ta=(e,t,i,o)=>{var r=o>1?void 0:o?L7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)C7(t,i,r);return r};var ii=class extends C{constructor(){super(...arguments);this.nTabs=1;this.selectedTab=0;this.hasDefaultSlotOnly=false;this.hasTabIcons=false}_handleKeyDown(e){const t=e.target;if(!t.classList.contains("tab-button"))return;const i=this.selectedTab;switch(e.key){case"ArrowRight":this.setSelectedTab((i+1)%this.nTabs);break;case"ArrowLeft":this.setSelectedTab((i-1+this.nTabs)%this.nTabs);break;case"Home":this.setSelectedTab(0);break;case"End":this.setSelectedTab(this.nTabs-1);break;default:return}e.preventDefault();this._focusTab(this.selectedTab)}setSelectedTab(e){this.selectedTab=e;this.dispatchEvent(new CustomEvent("tab-change",{detail:{tab:e}}))}_focusTab(e){const t=this.shadowRoot?.querySelector(`button[data-index="${e}"]`);t?.focus()}_generateTabHeaders(){return[...Array(this.nTabs)].map((e,t)=>{const i=t!==this.nTabs-1&&this.selectedTab!==t&&t+1!==this.selectedTab;const o=this.hasTabIcons?u`<span class="tab-icon">
             <slot name="tab-icon-${t}"></slot>
-          </span>`:p;return c`
+          </span>`:k;return u`
         <button
           class="tab-button ${i?"has-divider":""}"
           role="tab"
@@ -7957,7 +7957,7 @@ div[role="tabpanel"] {
             >
           </div>
         </button>
-      `})}_generateTabPanels(){if(this.hasDefaultSlotOnly){return c`<div
+      `})}_generateTabPanels(){if(this.hasDefaultSlotOnly){return u`<div
         role="tabpanel"
         class="tab-content"
         id="panel-${this.selectedTab}"
@@ -7965,7 +7965,7 @@ div[role="tabpanel"] {
         tabindex="0"
       >
         <slot></slot>
-      </div>`}return[...Array(this.nTabs)].map((e,t)=>c`
+      </div>`}return[...Array(this.nTabs)].map((e,t)=>u`
         <div
           role="tabpanel"
           id="panel-${t}"
@@ -7975,14 +7975,14 @@ div[role="tabpanel"] {
         >
           <slot name="tab-content-${t}"></slot>
         </div>
-      `)}render(){return c`
+      `)}render(){return u`
       <div class="tab-container" @keydown="${this._handleKeyDown}">
         <div class="tab-header" role="tablist" aria-label="Tab List">
           ${this._generateTabHeaders()}
         </div>
         <div class="tab-panels">${this._generateTabPanels()}</div>
       </div>
-    `}};Ht.styles=C(i1);lr([l({type:Number})],Ht.prototype,"nTabs",2);lr([l({type:Number})],Ht.prototype,"selectedTab",2);lr([l({type:Boolean})],Ht.prototype,"hasDefaultSlotOnly",2);lr([l({type:Boolean})],Ht.prototype,"hasTabIcons",2);Ht=lr([u("obc-tabbed-card")],Ht);var jc=Object.defineProperty;var Rc=Object.getOwnPropertyDescriptor;var a1=(e,t,i,o)=>{var r=o>1?void 0:o?Rc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)jc(t,i,r);return r};var bo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    `}};ii.styles=I(T0);Ta([l({type:Number})],ii.prototype,"nTabs",2);Ta([l({type:Number})],ii.prototype,"selectedTab",2);Ta([l({type:Boolean})],ii.prototype,"hasDefaultSlotOnly",2);Ta([l({type:Boolean})],ii.prototype,"hasTabIcons",2);ii=Ta([x("obc-tabbed-card")],ii);var k7=Object.defineProperty;var x7=Object.getOwnPropertyDescriptor;var z0=(e,t,i,o)=>{var r=o>1?void 0:o?x7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)k7(t,i,r);return r};var cl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 20.5C16.6944 20.5 20.5 16.6944 20.5 12C20.5 7.30558 16.6944 3.5 12 3.5C7.30558 3.5 3.5 7.30558 3.5 12C3.5 16.6944 7.30558 20.5 12 20.5ZM12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5ZM12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="currentColor"/>
 <path d="M11.25 5H12.75V7.5H11.25V5Z" fill="currentColor"/>
@@ -7994,7 +7994,7 @@ div[role="tabpanel"] {
 <path d="M15.7129 9.34839L14.6522 8.28773L16.42 6.51996L17.4807 7.58062L15.7129 9.34839Z" fill="currentColor"/>
 <path d="M14.6523 15.7122L15.713 14.6515L17.4808 16.4193L16.4201 17.4799L14.6523 15.7122Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 20.5C16.6944 20.5 20.5 16.6944 20.5 12C20.5 7.30558 16.6944 3.5 12 3.5C7.30558 3.5 3.5 7.30558 3.5 12C3.5 16.6944 7.30558 20.5 12 20.5ZM12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 13.5C12.8284 13.5 13.5 12.8284 13.5 12C13.5 11.1716 12.8284 10.5 12 10.5C11.1716 10.5 10.5 11.1716 10.5 12C10.5 12.8284 11.1716 13.5 12 13.5ZM12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" style="fill: var(--element-active-color)"/>
 <path d="M11.25 5H12.75V7.5H11.25V5Z" style="fill: var(--element-active-color)"/>
@@ -8006,9 +8006,9 @@ div[role="tabpanel"] {
 <path d="M15.7129 9.34839L14.6522 8.28773L16.42 6.51996L17.4807 7.58062L15.7129 9.34839Z" style="fill: var(--element-active-color)"/>
 <path d="M14.6523 15.7122L15.713 14.6515L17.4808 16.4193L16.4201 17.4799L14.6523 15.7122Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};bo.styles=h`
+    `}};cl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8018,16 +8018,16 @@ div[role="tabpanel"] {
       height: 100%;
       width: 100%;
     }
-  `;a1([l({type:Boolean})],bo.prototype,"useCssColor",2);bo=a1([u("obi-display-brilliance-iec")],bo);var Nc=Object.defineProperty;var Fc=Object.getOwnPropertyDescriptor;var Q=(e,t,i,o)=>{var r=o>1?void 0:o?Fc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Nc(t,i,r);return r};var W=class extends d{constructor(){super(...arguments);this.palette="day";this.brightness=50;this.showLinkBrightness=false;this.showLinkPalette=false;this.showBrightness=true;this.showPalette=true;this.showNightPalette=true;this.showDuskPalette=true;this.showDayPalette=true;this.showBrightPalette=true;this.variant="normal";this.brightnessUnit="%";this.brightnessMax=100;this.brightnessMinorStep=5;this.brightnessMajorStep=25;this.brightnessInputVariant="buttons";this.showScreenControlLink=false}willUpdate(e){if(this.showPalette){const t=this.availablePalettes;if(t.length>0&&!t.includes(this.palette)){this.palette=t[0];this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}}onPaletteChanged(e){this.palette=e.detail.value;this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:e.detail.value}}))}handleBrightnessChanged(e){this.brightness=e.detail;this.dispatchEvent(new CustomEvent("brightness-changed",{detail:{value:e.detail}}))}increaseBrightness(e){this.brightness=Math.max(0,Math.min(this.brightness+e,this.brightnessMax));this.dispatchEvent(new CustomEvent("brightness-changed",{detail:{value:this.brightness}}))}get canIncreaseBrightness(){return this.brightness<this.brightnessMax}get canDecreaseBrightness(){return this.brightness>0}onLinkPaletteChanged(e){this.dispatchEvent(new CustomEvent("link-palette-changed",{detail:{value:e.target.checked}}))}onLinkBrightnessChanged(e){this.dispatchEvent(new CustomEvent("link-brightness-changed",{detail:{value:e.target.checked}}))}get availablePalettes(){const e=[];if(this.showNightPalette)e.push("night");if(this.showDuskPalette)e.push("dusk");if(this.showDayPalette)e.push("day");if(this.showBrightPalette)e.push("bright");return e}get canIncreasePalette(){const e=this.availablePalettes;const t=e.indexOf(this.palette);return t>=0&&t<e.length-1}get canDecreasePalette(){const e=this.availablePalettes;const t=e.indexOf(this.palette);return t>0}nextPalette(){if(this.canIncreasePalette){const e=this.availablePalettes;const t=e.indexOf(this.palette);this.palette=e[t+1];this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}previousPalette(){if(this.canDecreasePalette){const e=this.availablePalettes;const t=e.indexOf(this.palette);this.palette=e[t-1];this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}renderBrightness(){const e=this.variant==="tabbed"?p:c`<div class="title-container">
-            <h3>${he("Brilliance")}</h3>
-          </div>`;const t=this.brightness.toString().length+.5*this.brightnessUnit.length;return c`${e}
+  `;z0([l({type:Boolean})],cl.prototype,"useCssColor",2);cl=z0([x("obi-display-brilliance-iec")],cl);var M7=Object.defineProperty;var $7=Object.getOwnPropertyDescriptor;var ut=(e,t,i,o)=>{var r=o>1?void 0:o?$7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)M7(t,i,r);return r};var Je=class extends C{constructor(){super(...arguments);this.palette="day";this.brightness=50;this.showLinkBrightness=false;this.showLinkPalette=false;this.showBrightness=true;this.showPalette=true;this.showNightPalette=true;this.showDuskPalette=true;this.showDayPalette=true;this.showBrightPalette=true;this.variant="normal";this.brightnessUnit="%";this.brightnessMax=100;this.brightnessMinorStep=5;this.brightnessMajorStep=25;this.brightnessInputVariant="buttons";this.showScreenControlLink=false}willUpdate(e){if(this.showPalette){const t=this.availablePalettes;if(t.length>0&&!t.includes(this.palette)){this.palette=t[0];this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}}onPaletteChanged(e){this.palette=e.detail.value;this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:e.detail.value}}))}handleBrightnessChanged(e){this.brightness=e.detail;this.dispatchEvent(new CustomEvent("brightness-changed",{detail:{value:e.detail}}))}increaseBrightness(e){this.brightness=Math.max(0,Math.min(this.brightness+e,this.brightnessMax));this.dispatchEvent(new CustomEvent("brightness-changed",{detail:{value:this.brightness}}))}get canIncreaseBrightness(){return this.brightness<this.brightnessMax}get canDecreaseBrightness(){return this.brightness>0}onLinkPaletteChanged(e){this.dispatchEvent(new CustomEvent("link-palette-changed",{detail:{value:e.target.checked}}))}onLinkBrightnessChanged(e){this.dispatchEvent(new CustomEvent("link-brightness-changed",{detail:{value:e.target.checked}}))}get availablePalettes(){const e=[];if(this.showNightPalette)e.push("night");if(this.showDuskPalette)e.push("dusk");if(this.showDayPalette)e.push("day");if(this.showBrightPalette)e.push("bright");return e}get canIncreasePalette(){const e=this.availablePalettes;const t=e.indexOf(this.palette);return t>=0&&t<e.length-1}get canDecreasePalette(){const e=this.availablePalettes;const t=e.indexOf(this.palette);return t>0}nextPalette(){if(this.canIncreasePalette){const e=this.availablePalettes;const t=e.indexOf(this.palette);this.palette=e[t+1];this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}previousPalette(){if(this.canDecreasePalette){const e=this.availablePalettes;const t=e.indexOf(this.palette);this.palette=e[t-1];this.dispatchEvent(new CustomEvent("palette-changed",{detail:{value:this.palette}}))}}renderBrightness(){const e=this.variant==="tabbed"?k:u`<div class="title-container">
+            <h3>${Pt("Brilliance")}</h3>
+          </div>`;const t=this.brightness.toString().length+.5*this.brightnessUnit.length;return u`${e}
       <div class="content-container brilliance">
-        ${this.variant==="compact"?c` <obc-slider
+        ${this.variant==="compact"?u` <obc-slider
               value=${this.brightness}
               @value=${this.handleBrightnessChanged}
               min="0"
               max=${this.brightnessMax}
-              variant=${ar.Normal}
+              variant=${Aa.Normal}
               haslefticon
               hasrighticon
             >
@@ -8037,7 +8037,7 @@ div[role="tabpanel"] {
               <obi-display-brilliance-proposal
                 slot="icon-right"
               ></obi-display-brilliance-proposal>
-            </obc-slider>`:c`
+            </obc-slider>`:u`
               <div class="value-container">
                 <div class="value-label-container">
                   <obi-display-brilliance-proposal
@@ -8049,17 +8049,17 @@ div[role="tabpanel"] {
                   </div>
                 </div>
                 <div class="value-slider-container">
-                  ${this.brightnessInputVariant==="buttons"?c`
+                  ${this.brightnessInputVariant==="buttons"?u`
                         <obc-slider
                           value=${this.brightness}
-                          variant=${ar.NoInput}
+                          variant=${Aa.NoInput}
                           min="0"
                           max=${this.brightnessMax}
                         ></obc-slider>
-                      `:c`
+                      `:u`
                         <obc-slider
                           value=${this.brightness}
-                          variant=${ar.Enhanced}
+                          variant=${Aa.Enhanced}
                           @value=${this.handleBrightnessChanged}
                           min="0"
                           max=${this.brightnessMax}
@@ -8067,7 +8067,7 @@ div[role="tabpanel"] {
                       `}
                 </div>
               </div>
-              ${this.brightnessInputVariant==="buttons"?c`
+              ${this.brightnessInputVariant==="buttons"?u`
                     <div class="icon-button-container">
                       <obc-button
                         segmentPosition="start"
@@ -8114,42 +8114,42 @@ div[role="tabpanel"] {
                         ></obi-chevron-double-right-google>
                       </obc-button>
                     </div>
-                  `:p}
+                  `:k}
             `}
-        ${this.showLinkBrightness?c`<obc-toggle-switch
-              .label="${he("Link")}"
+        ${this.showLinkBrightness?u`<obc-toggle-switch
+              .label="${Pt("Link")}"
               hasicon
               @input=${this.onLinkBrightnessChanged}
             >
               <obi-link slot="icon"></obi-link>
-            </obc-toggle-switch>`:p}
-      </div>`}get effectivePalette(){const e=this.availablePalettes;return e.includes(this.palette)?this.palette:e[0]}get paletteIcon(){if(this.effectivePalette==="night"){return c`<obi-palette-night class="icon"></obi-palette-night>`}else if(this.effectivePalette==="dusk"){return c`<obi-palette-dusk class="icon"></obi-palette-dusk>`}else if(this.effectivePalette==="day"){return c`<obi-palette-day class="icon"></obi-palette-day>`}else if(this.effectivePalette==="bright"){return c`<obi-palette-day-bright
+            </obc-toggle-switch>`:k}
+      </div>`}get effectivePalette(){const e=this.availablePalettes;return e.includes(this.palette)?this.palette:e[0]}get paletteIcon(){if(this.effectivePalette==="night"){return u`<obi-palette-night class="icon"></obi-palette-night>`}else if(this.effectivePalette==="dusk"){return u`<obi-palette-dusk class="icon"></obi-palette-dusk>`}else if(this.effectivePalette==="day"){return u`<obi-palette-day class="icon"></obi-palette-day>`}else if(this.effectivePalette==="bright"){return u`<obi-palette-day-bright
         class="icon"
-      ></obi-palette-day-bright>`}else{return p}}paletteOptions(){const e=[];if(this.showNightPalette)e.push(c`<obc-toggle-button-option value="night" type="icon">
+      ></obi-palette-day-bright>`}else{return k}}paletteOptions(){const e=[];if(this.showNightPalette)e.push(u`<obc-toggle-button-option value="night" type="icon">
           <obi-palette-night slot="icon"></obi-palette-night>
-        </obc-toggle-button-option>`);if(this.showDuskPalette)e.push(c`<obc-toggle-button-option value="dusk" type="icon">
+        </obc-toggle-button-option>`);if(this.showDuskPalette)e.push(u`<obc-toggle-button-option value="dusk" type="icon">
           <obi-palette-dusk slot="icon"></obi-palette-dusk>
-        </obc-toggle-button-option>`);if(this.showDayPalette)e.push(c`<obc-toggle-button-option value="day" type="icon">
+        </obc-toggle-button-option>`);if(this.showDayPalette)e.push(u`<obc-toggle-button-option value="day" type="icon">
           <obi-palette-day slot="icon"></obi-palette-day>
-        </obc-toggle-button-option>`);if(this.showBrightPalette)e.push(c`<obc-toggle-button-option value="bright" type="icon">
+        </obc-toggle-button-option>`);if(this.showBrightPalette)e.push(u`<obc-toggle-button-option value="bright" type="icon">
           <obi-palette-day-bright slot="icon"></obi-palette-day-bright>
-        </obc-toggle-button-option>`);return e}renderPalette(){const e=this.availablePalettes;if(e.length===0)return p;const t={["night"]:he("Night"),["dusk"]:he("Dusk"),["day"]:he("Day"),["bright"]:he("Bright")};const i=t[this.effectivePalette];const o=i.length;const r=e.indexOf(this.effectivePalette);const a=Math.min(r+1,e.length-1);const n=Math.max(r-1,0);const g=t[e[a]];const v=t[e[n]];return c`
-      ${this.variant==="tabbed"?p:c`
+        </obc-toggle-button-option>`);return e}renderPalette(){const e=this.availablePalettes;if(e.length===0)return k;const t={["night"]:Pt("Night"),["dusk"]:Pt("Dusk"),["day"]:Pt("Day"),["bright"]:Pt("Bright")};const i=t[this.effectivePalette];const o=i.length;const r=e.indexOf(this.effectivePalette);const a=Math.min(r+1,e.length-1);const n=Math.max(r-1,0);const h=t[e[a]];const d=t[e[n]];return u`
+      ${this.variant==="tabbed"?k:u`
             <div class="title-container">
-              <h3>${he("Day")}/${he("Night")}</h3>
+              <h3>${Pt("Day")}/${Pt("Night")}</h3>
             </div>
           `}
       <div
         class="content-container palette ${this.showLinkPalette?"with-link":"without-link"}"
       >
-        ${this.variant==="compact"?c` <obc-toggle-button-group
+        ${this.variant==="compact"?u` <obc-toggle-button-group
               value=${this.effectivePalette}
               @value=${this.onPaletteChanged}
-              variant=${Lt.regular}
-              type=${Et.icon}
+              variant=${ei.regular}
+              type=${Ui.icon}
             >
               ${this.paletteOptions()}
-            </obc-toggle-button-group>`:c`
+            </obc-toggle-button-group>`:u`
               <div class="value-container">
                 <div class="value-label-container">
                   ${this.paletteIcon}
@@ -8171,7 +8171,7 @@ div[role="tabpanel"] {
                   class=${this.canDecreasePalette?"":"disabled"}
                   @click=${()=>this.previousPalette()}
                 >
-                  ${v}
+                  ${d}
                   <obi-chevron-left-google
                     slot="leading-icon"
                   ></obi-chevron-left-google>
@@ -8185,25 +8185,25 @@ div[role="tabpanel"] {
                   class=${this.canIncreasePalette?"":"disabled"}
                   @click=${()=>this.nextPalette()}
                 >
-                  ${g}
+                  ${h}
                   <obi-chevron-right-google
                     slot="trailing-icon"
                   ></obi-chevron-right-google>
                 </obc-button>
               </div>
             `}
-        ${this.showLinkPalette?c`<obc-toggle-switch
-              .label="${he("Link")}"
+        ${this.showLinkPalette?u`<obc-toggle-switch
+              .label="${Pt("Link")}"
               hasicon
               @input=${this.onLinkPaletteChanged}
             >
               <obi-link slot="icon"></obi-link>
-            </obc-toggle-switch>`:p}
+            </obc-toggle-switch>`:k}
       </div>
-    `}renderScreenControlLink(){if(!this.showScreenControlLink){return p}return c`
+    `}renderScreenControlLink(){if(!this.showScreenControlLink){return k}return u`
       <div class="footer">
         <obc-navigation-item
-          .label="${he("Screen Control")}"
+          .label="${Pt("Screen Control")}"
           @click=${()=>this.handleScreenControlLinkClicked()}
           hasicon
         >
@@ -8212,12 +8212,12 @@ div[role="tabpanel"] {
           </obc-user-button>
         </obc-navigation-item>
       </div>
-    `}render(){if(this.variant==="tabbed"){return c`<obc-tabbed-card class="card" nTabs=${2} hasTabIcons>
-        <span slot="tab-title-0">${he("Brilliance")}</span>
+    `}render(){if(this.variant==="tabbed"){return u`<obc-tabbed-card class="card" nTabs=${2} hasTabIcons>
+        <span slot="tab-title-0">${Pt("Brilliance")}</span>
         <obi-display-brilliance-iec
           slot="tab-icon-0"
         ></obi-display-brilliance-iec>
-        <span slot="tab-title-1">${he("Day")}/${he("Night")}</span>
+        <span slot="tab-title-1">${Pt("Day")}/${Pt("Night")}</span>
         <obi-palette-day-night-iec
           slot="tab-icon-1"
         ></obi-palette-day-night-iec>
@@ -8227,14 +8227,14 @@ div[role="tabpanel"] {
         <div slot="tab-content-1">
           ${this.renderPalette()} ${this.renderScreenControlLink()}
         </div>
-      </obc-tabbed-card>`}else{return c`
+      </obc-tabbed-card>`}else{return u`
         <div class="card ${this.variant}">
-          ${this.showBrightness?this.renderBrightness():p}
-          ${this.showBrightness&&this.showPalette?c`<div class="divider"></div>`:p}
-          ${this.showPalette?this.renderPalette():p}
+          ${this.showBrightness?this.renderBrightness():k}
+          ${this.showBrightness&&this.showPalette?u`<div class="divider"></div>`:k}
+          ${this.showPalette?this.renderPalette():k}
           ${this.renderScreenControlLink()}
         </div>
-      `}}handleScreenControlLinkClicked(){this.dispatchEvent(new CustomEvent("screen-control-link-clicked"))}};W.styles=C(Tn);Q([l({type:String})],W.prototype,"palette",2);Q([l({type:Number})],W.prototype,"brightness",2);Q([l({type:Boolean})],W.prototype,"showLinkBrightness",2);Q([l({type:Boolean})],W.prototype,"showLinkPalette",2);Q([l({type:Boolean,attribute:false})],W.prototype,"showBrightness",2);Q([l({type:Boolean,attribute:false})],W.prototype,"showPalette",2);Q([l({type:Boolean,attribute:false})],W.prototype,"showNightPalette",2);Q([l({type:Boolean,attribute:false})],W.prototype,"showDuskPalette",2);Q([l({type:Boolean,attribute:false})],W.prototype,"showDayPalette",2);Q([l({type:Boolean,attribute:false})],W.prototype,"showBrightPalette",2);Q([l({type:String})],W.prototype,"variant",2);Q([l({type:String})],W.prototype,"brightnessUnit",2);Q([l({type:Number})],W.prototype,"brightnessMax",2);Q([l({type:Number})],W.prototype,"brightnessMinorStep",2);Q([l({type:Number})],W.prototype,"brightnessMajorStep",2);Q([l({type:String})],W.prototype,"brightnessInputVariant",2);Q([l({type:Boolean})],W.prototype,"showScreenControlLink",2);W=Q([Kn(),u("obc-brilliance-menu")],W);var n1=h`
+      `}}handleScreenControlLinkClicked(){this.dispatchEvent(new CustomEvent("screen-control-link-clicked"))}};Je.styles=I(u0);ut([l({type:String})],Je.prototype,"palette",2);ut([l({type:Number})],Je.prototype,"brightness",2);ut([l({type:Boolean})],Je.prototype,"showLinkBrightness",2);ut([l({type:Boolean})],Je.prototype,"showLinkPalette",2);ut([l({type:Boolean,attribute:false})],Je.prototype,"showBrightness",2);ut([l({type:Boolean,attribute:false})],Je.prototype,"showPalette",2);ut([l({type:Boolean,attribute:false})],Je.prototype,"showNightPalette",2);ut([l({type:Boolean,attribute:false})],Je.prototype,"showDuskPalette",2);ut([l({type:Boolean,attribute:false})],Je.prototype,"showDayPalette",2);ut([l({type:Boolean,attribute:false})],Je.prototype,"showBrightPalette",2);ut([l({type:String})],Je.prototype,"variant",2);ut([l({type:String})],Je.prototype,"brightnessUnit",2);ut([l({type:Number})],Je.prototype,"brightnessMax",2);ut([l({type:Number})],Je.prototype,"brightnessMinorStep",2);ut([l({type:Number})],Je.prototype,"brightnessMajorStep",2);ut([l({type:String})],Je.prototype,"brightnessInputVariant",2);ut([l({type:Boolean})],Je.prototype,"showScreenControlLink",2);Je=ut([H0(),x("obc-brilliance-menu")],Je);var O0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -8720,15 +8720,15 @@ option::checkmark {
     box-sizing: border-box;
     height: 40px;
   }
-`;var Uc=Object.defineProperty;var Wc=Object.getOwnPropertyDescriptor;var l1=(e,t,i,o)=>{var r=o>1?void 0:o?Wc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Uc(t,i,r);return r};var yo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+`;var H7=Object.defineProperty;var _7=Object.getOwnPropertyDescriptor;var E0=(e,t,i,o)=>{var r=o>1?void 0:o?_7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)H7(t,i,r);return r};var pl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M8.9313 10C8.32548 10 8.02257 10 7.88231 10.1198C7.76061 10.2237 7.69602 10.3797 7.70858 10.5392C7.72305 10.7231 7.93724 10.9373 8.36561 11.3657L11.4342 14.4343C11.6323 14.6323 11.7313 14.7313 11.8454 14.7684C11.9458 14.8011 12.054 14.8011 12.1544 14.7684C12.2686 14.7313 12.3676 14.6323 12.5656 14.4343L15.6342 11.3657C16.0626 10.9373 16.2768 10.7231 16.2913 10.5392C16.3038 10.3797 16.2392 10.2237 16.1175 10.1198C15.9773 10 15.6744 10 15.0686 10H8.9313Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M8.9313 10C8.32548 10 8.02257 10 7.88231 10.1198C7.76061 10.2237 7.69602 10.3797 7.70858 10.5392C7.72305 10.7231 7.93724 10.9373 8.36561 11.3657L11.4342 14.4343C11.6323 14.6323 11.7313 14.7313 11.8454 14.7684C11.9458 14.8011 12.054 14.8011 12.1544 14.7684C12.2686 14.7313 12.3676 14.6323 12.5656 14.4343L15.6342 11.3657C16.0626 10.9373 16.2768 10.7231 16.2913 10.5392C16.3038 10.3797 16.2392 10.2237 16.1175 10.1198C15.9773 10 15.6744 10 15.0686 10H8.9313Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};yo.styles=h`
+    `}};pl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -8738,19 +8738,19 @@ option::checkmark {
       height: 100%;
       width: 100%;
     }
-  `;l1([l({type:Boolean})],yo.prototype,"useCssColor",2);yo=l1([u("obi-drop-down-google")],yo);var qc=Object.defineProperty;var Gc=Object.getOwnPropertyDescriptor;var Pe=(e,t,i,o)=>{var r=o>1?void 0:o?Gc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)qc(t,i,r);return r};var ye=class extends d{constructor(){super(...arguments);this.options=[];this.disabled=false;this.fullWidth=false;this.type="label";this.openTop=false;this.integration=false;this.flat=false;this.selectedValue="";this.selectedLabel=""}connectedCallback(){super.connectedCallback();this.updateSelectedValues()}willUpdate(e){if(e.has("value")||e.has("options")){this.updateSelectedValues()}}updateSelectedValues(){if(this.options.length===0){this.selectedValue="";this.selectedLabel="";return}this.selectedValue=this.value||this.options[0].value;this.selectedLabel=this.value?this.options.find(e=>e.value===this.value)?.label||"":this.options[0].label}render(){return c`
+  `;E0([l({type:Boolean})],pl.prototype,"useCssColor",2);pl=E0([x("obi-drop-down-google")],pl);var S7=Object.defineProperty;var V7=Object.getOwnPropertyDescriptor;var Vr=(e,t,i,o)=>{var r=o>1?void 0:o?V7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)S7(t,i,r);return r};var Kt=class extends C{constructor(){super(...arguments);this.options=[];this.disabled=false;this.fullWidth=false;this.type="label";this.openTop=false;this.integration=false;this.flat=false;this.selectedValue="";this.selectedLabel=""}connectedCallback(){super.connectedCallback();this.updateSelectedValues()}willUpdate(e){if(e.has("value")||e.has("options")){this.updateSelectedValues()}}updateSelectedValues(){if(this.options.length===0){this.selectedValue="";this.selectedLabel="";return}this.selectedValue=this.value||this.options[0].value;this.selectedLabel=this.value?this.options.find(e=>e.value===this.value)?.label||"":this.options[0].label}render(){return u`
       <div
-        class=${L({wrapper:true,"full-width":this.fullWidth,"open-top":this.openTop,integration:this.integration,flat:this.flat&&!this.integration,disabled:this.disabled})}
+        class=${Y({wrapper:true,"full-width":this.fullWidth,"open-top":this.openTop,integration:this.integration,flat:this.flat&&!this.integration,disabled:this.disabled})}
       >
         <div class="visible-wrapper">
-          ${this.type!=="label"?c`<div class="icon-container"><slot name="icon"></slot></div>`:p}
-          ${this.type!=="icon"?c`<div class="label">${this.selectedLabel}</div>`:p}
+          ${this.type!=="label"?u`<div class="icon-container"><slot name="icon"></slot></div>`:k}
+          ${this.type!=="icon"?u`<div class="label">${this.selectedLabel}</div>`:k}
           <div class="icon">
             <obi-drop-down-google></obi-drop-down-google>
           </div>
         </div>
         <select @change=${this.changeHandler} ?disabled=${this.disabled}>
-          ${this.options.map(e=>{const t=e.level?(e.level-1)*2:0;const i=[];for(let o=0;o<t;o++){i.push(c`&nbsp;`)}return c`<option
+          ${this.options.map(e=>{const t=e.level?(e.level-1)*2:0;const i=[];for(let o=0;o<t;o++){i.push(u`&nbsp;`)}return u`<option
               value=${e.value}
               ?selected=${e.value===this.selectedValue}
             >
@@ -8758,7 +8758,7 @@ option::checkmark {
             </option>`})}
         </select>
       </div>
-    `}changeHandler(e){const t=e.target;this.selectedValue=t.value;this.selectedLabel=this.options.find(i=>i.value===this.selectedValue).label.trim();this.dispatchEvent(new CustomEvent("dropdown-change",{detail:{value:this.selectedValue,label:this.selectedLabel}}));this.dispatchEvent(new CustomEvent("change",{detail:{value:this.selectedValue,label:this.selectedLabel}}))}};ye.styles=C(n1);Pe([l({type:Array})],ye.prototype,"options",2);Pe([l({type:String})],ye.prototype,"value",2);Pe([l({type:Boolean})],ye.prototype,"disabled",2);Pe([l({type:Boolean})],ye.prototype,"fullWidth",2);Pe([l({type:String})],ye.prototype,"type",2);Pe([l({type:Boolean})],ye.prototype,"openTop",2);Pe([l({type:Boolean})],ye.prototype,"integration",2);Pe([l({type:Boolean})],ye.prototype,"flat",2);Pe([j()],ye.prototype,"selectedValue",2);Pe([j()],ye.prototype,"selectedLabel",2);ye=Pe([u("obc-dropdown-button")],ye);var s1=h`
+    `}changeHandler(e){const t=e.target;this.selectedValue=t.value;this.selectedLabel=this.options.find(i=>i.value===this.selectedValue).label.trim();this.dispatchEvent(new CustomEvent("dropdown-change",{detail:{value:this.selectedValue,label:this.selectedLabel}}));this.dispatchEvent(new CustomEvent("change",{detail:{value:this.selectedValue,label:this.selectedLabel}}))}};Kt.styles=I(O0);Vr([l({type:Array})],Kt.prototype,"options",2);Vr([l({type:String})],Kt.prototype,"value",2);Vr([l({type:Boolean})],Kt.prototype,"disabled",2);Vr([l({type:Boolean})],Kt.prototype,"fullWidth",2);Vr([l({type:String})],Kt.prototype,"type",2);Vr([l({type:Boolean})],Kt.prototype,"openTop",2);Vr([l({type:Boolean})],Kt.prototype,"integration",2);Vr([l({type:Boolean})],Kt.prototype,"flat",2);Vr([Ee()],Kt.prototype,"selectedValue",2);Vr([Ee()],Kt.prototype,"selectedLabel",2);Kt=Vr([x("obc-dropdown-button")],Kt);var D0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -8849,7 +8849,7 @@ option::checkmark {
   padding: 4px;
   box-sizing: border-box;
 }
-`;var c1=(e,t,i)=>{const o=new Map;for(let r=t;r<=i;r++)o.set(e[r],r);return o};var d1=Ke(class extends Be{constructor(e){if(super(e),e.type!==nt.CHILD)throw Error("repeat() can only be used in text expressions")}dt(e,t,i){let o;void 0===i?i=t:void 0!==t&&(o=t);const r=[],a=[];let n=0;for(const g of e)r[n]=o?o(g,n):n,a[n]=i(g,n),n++;return{values:a,keys:r}}render(e,t,i){return this.dt(e,t,i).values}update(e,[t,i,o]){const r=$a(e),{values:a,keys:n}=this.dt(t,i,o);if(!Array.isArray(r))return this.ut=n,a;const g=this.ut??=[],v=[];let f,y,m=0,b=r.length-1,w=0,k=a.length-1;for(;m<=b&&w<=k;)if(null===r[m])m++;else if(null===r[b])b--;else if(g[m]===n[w])v[w]=ct(r[m],a[w]),m++,w++;else if(g[b]===n[k])v[k]=ct(r[b],a[k]),b--,k--;else if(g[m]===n[k])v[k]=ct(r[m],a[k]),At(e,v[k+1],r[m]),m++,k--;else if(g[b]===n[w])v[w]=ct(r[b],a[w]),At(e,r[m],r[b]),b--,w++;else if(void 0===f&&(f=c1(n,w,k),y=c1(g,m,b)),f.has(g[m]))if(f.has(g[b])){const S=y.get(n[w]),M=void 0!==S?r[S]:null;if(null===M){const x=At(e,r[m]);ct(x,a[w]),v[w]=x}else v[w]=ct(M,a[w]),At(e,r[m],M),r[S]=null;w++}else qr(r[b]),b--;else qr(r[m]),m++;for(;w<=k;){const S=At(e,v[k+1]);ct(S,a[w]),v[w++]=S}for(;m<=b;){const S=r[m++];null!==S&&qr(S)}return this.ut=n,Ha(e,v),be}});var p1=h`
+`;var B0=(e,t,i)=>{const o=new Map;for(let r=t;r<=i;r++)o.set(e[r],r);return o};var I0=lo(class extends Fr{constructor(e){if(super(e),e.type!==xo.CHILD)throw Error("repeat() can only be used in text expressions")}dt(e,t,i){let o;void 0===i?i=t:void 0!==t&&(o=t);const r=[],a=[];let n=0;for(const h of e)r[n]=o?o(h,n):n,a[n]=i(h,n),n++;return{values:a,keys:r}}render(e,t,i){return this.dt(e,t,i).values}update(e,[t,i,o]){const r=a2(e),{values:a,keys:n}=this.dt(t,i,o);if(!Array.isArray(r))return this.ut=n,a;const h=this.ut??=[],d=[];let f,y,v=0,b=r.length-1,M=0,H=a.length-1;for(;v<=b&&M<=H;)if(null===r[v])v++;else if(null===r[b])b--;else if(h[v]===n[M])d[M]=_o(r[v],a[M]),v++,M++;else if(h[b]===n[H])d[H]=_o(r[b],a[H]),b--,H--;else if(h[v]===n[H])d[H]=_o(r[v],a[H]),Bi(e,d[H+1],r[v]),v++,H--;else if(h[b]===n[M])d[M]=_o(r[b],a[M]),Bi(e,r[v],r[b]),b--,M++;else if(void 0===f&&(f=B0(n,M,H),y=B0(h,v,b)),f.has(h[v]))if(f.has(h[b])){const P=y.get(n[M]),S=void 0!==P?r[P]:null;if(null===S){const Z=Bi(e,r[v]);_o(Z,a[M]),d[M]=Z}else d[M]=_o(S,a[M]),Bi(e,r[v],S),r[P]=null;M++}else Dn(r[b]),b--;else Dn(r[v]),v++;for(;M<=H;){const P=Bi(e,d[H+1]);_o(P,a[M]),d[M++]=P}for(;v<=b;){const P=r[v++];null!==P&&Dn(P)}return this.ut=n,i2(e,d),Yt}});var R0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -9091,46 +9091,46 @@ option::checkmark {
   flex-shrink: 0;
   color: var(--on-flat-neutral-color);
 }
-`;var Xc=Object.defineProperty;var Yc=Object.getOwnPropertyDescriptor;var we=(e,t,i,o)=>{var r=o>1?void 0:o?Yc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Xc(t,i,r);return r};var vi=(e=>{e["SingleLine"]="singleLine";e["DoubleLine"]="doubleLine";e["Aggregated"]="aggregated";return e})(vi||{});var ue=class extends d{constructor(){super(...arguments);this.title="";this.description="";this.startTime="";this.endTime="";this.eventItemType="singleLine";this.hasArrow=false;this.hasTime=false;this.hasEndTime=false;this.aggregatedCount=0;this.colorCoded=false;this.disabled=false;this._pressing=false}_handleClick(e){e.stopPropagation();this.dispatchEvent(new CustomEvent("event-click",{bubbles:true,composed:true,detail:{title:this.title,startTime:this.startTime,endTime:this.endTime}}))}_getAggregatedText(){const e=this.aggregatedCount??0;return e===1?"1 more event":`${e} more events`}_handleKeyDown(e){if(e.key==="Enter"||e.key===" "){e.stopPropagation();this._pressing=true;setTimeout(()=>{this._pressing=false},150)}}render(){const e=this.eventItemType==="aggregated";const t=this.eventItemType==="doubleLine";const i=this.colorCoded;return c`
+`;var Z7=Object.defineProperty;var A7=Object.getOwnPropertyDescriptor;var Jt=(e,t,i,o)=>{var r=o>1?void 0:o?A7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Z7(t,i,r);return r};var Rs=(e=>{e["SingleLine"]="singleLine";e["DoubleLine"]="doubleLine";e["Aggregated"]="aggregated";return e})(Rs||{});var Tt=class extends C{constructor(){super(...arguments);this.title="";this.description="";this.startTime="";this.endTime="";this.eventItemType="singleLine";this.hasArrow=false;this.hasTime=false;this.hasEndTime=false;this.aggregatedCount=0;this.colorCoded=false;this.disabled=false;this._pressing=false}_handleClick(e){e.stopPropagation();this.dispatchEvent(new CustomEvent("event-click",{bubbles:true,composed:true,detail:{title:this.title,startTime:this.startTime,endTime:this.endTime}}))}_getAggregatedText(){const e=this.aggregatedCount??0;return e===1?"1 more event":`${e} more events`}_handleKeyDown(e){if(e.key==="Enter"||e.key===" "){e.stopPropagation();this._pressing=true;setTimeout(()=>{this._pressing=false},150)}}render(){const e=this.eventItemType==="aggregated";const t=this.eventItemType==="doubleLine";const i=this.colorCoded;return u`
       <button
         type="button"
         @click=${this._handleClick}
         @keydown=${this._handleKeyDown}
-        class=${L({wrapper:true,"type-aggregated":e,"type-double-line":t,"type-color-coded":i,disabled:this.disabled,pressing:this._pressing})}
+        class=${Y({wrapper:true,"type-aggregated":e,"type-double-line":t,"type-color-coded":i,disabled:this.disabled,pressing:this._pressing})}
         ?disabled=${this.disabled}
       >
         <div class="visible-wrapper">
           <div class="event-content">
-            ${this.hasTime&&this.startTime?c`
+            ${this.hasTime&&this.startTime?u`
                   <div class="time-container">
                     <span class="time">${this.startTime}</span>
-                    ${this.hasEndTime&&this.endTime?c`
+                    ${this.hasEndTime&&this.endTime?u`
                           <span class="time-separator">–</span>
                           <span class="time">${this.endTime}</span>
-                        `:p}
+                        `:k}
                   </div>
-                `:p}
+                `:k}
             <div class="label-container">
               <div class="title-container">
                 <p class="title">
                   ${e?this._getAggregatedText():this.title}
                 </p>
               </div>
-              ${t&&this.description?c`
+              ${t&&this.description?u`
                     <div class="description-container">
                       <p class="description">${this.description}</p>
                     </div>
-                  `:p}
+                  `:k}
             </div>
           </div>
-          ${this.hasArrow?c`<div class="arrow">
+          ${this.hasArrow?u`<div class="arrow">
                 <obi-arrow-flyout-google></obi-arrow-flyout-google>
-              </div>`:p}
+              </div>`:k}
         </div>
       </button>
-    `}};ue.styles=C(p1);we([l({type:String})],ue.prototype,"title",2);we([l({type:String})],ue.prototype,"description",2);we([l({type:String})],ue.prototype,"startTime",2);we([l({type:String})],ue.prototype,"endTime",2);we([l({type:String})],ue.prototype,"eventItemType",2);we([l({type:Boolean})],ue.prototype,"hasArrow",2);we([l({type:Boolean})],ue.prototype,"hasTime",2);we([l({type:Boolean})],ue.prototype,"hasEndTime",2);we([l({type:Number})],ue.prototype,"aggregatedCount",2);we([l({type:Boolean})],ue.prototype,"colorCoded",2);we([l({type:Boolean})],ue.prototype,"disabled",2);we([j()],ue.prototype,"_pressing",2);ue=we([u("obc-event-item")],ue);var Kc=Object.defineProperty;var Jc=Object.getOwnPropertyDescriptor;var sr=(e,t,i,o)=>{var r=o>1?void 0:o?Jc(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Kc(t,i,r);return r};var $t=class extends d{constructor(){super(...arguments);this.showHeader=true;this.date=new Date;this.events=[]}get _normalizedDate(){if(this.date instanceof Date){return this.date}return new Date(this.date)}get _dayName(){return this._normalizedDate.toLocaleDateString(this.locale,{weekday:"long"})}get _monthName(){return this._normalizedDate.toLocaleDateString(this.locale,{month:"short"})}get _dateNumber(){return this._normalizedDate.getDate().toString()}get _year(){return this._normalizedDate.getFullYear().toString()}render(){return c`
+    `}};Tt.styles=I(R0);Jt([l({type:String})],Tt.prototype,"title",2);Jt([l({type:String})],Tt.prototype,"description",2);Jt([l({type:String})],Tt.prototype,"startTime",2);Jt([l({type:String})],Tt.prototype,"endTime",2);Jt([l({type:String})],Tt.prototype,"eventItemType",2);Jt([l({type:Boolean})],Tt.prototype,"hasArrow",2);Jt([l({type:Boolean})],Tt.prototype,"hasTime",2);Jt([l({type:Boolean})],Tt.prototype,"hasEndTime",2);Jt([l({type:Number})],Tt.prototype,"aggregatedCount",2);Jt([l({type:Boolean})],Tt.prototype,"colorCoded",2);Jt([l({type:Boolean})],Tt.prototype,"disabled",2);Jt([Ee()],Tt.prototype,"_pressing",2);Tt=Jt([x("obc-event-item")],Tt);var P7=Object.defineProperty;var T7=Object.getOwnPropertyDescriptor;var za=(e,t,i,o)=>{var r=o>1?void 0:o?T7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)P7(t,i,r);return r};var ai=class extends C{constructor(){super(...arguments);this.showHeader=true;this.date=new Date;this.events=[]}get _normalizedDate(){if(this.date instanceof Date){return this.date}return new Date(this.date)}get _dayName(){return this._normalizedDate.toLocaleDateString(this.locale,{weekday:"long"})}get _monthName(){return this._normalizedDate.toLocaleDateString(this.locale,{month:"short"})}get _dateNumber(){return this._normalizedDate.getDate().toString()}get _year(){return this._normalizedDate.getFullYear().toString()}render(){return u`
       <div class="wrapper">
-        ${this.showHeader?c`
+        ${this.showHeader?u`
               <div class="title-container">
                 <div class="label-container">
                   <div class="label">
@@ -9146,17 +9146,17 @@ option::checkmark {
                   </div>
                 </div>
               </div>
-            `:p}
+            `:k}
         <div class="content-container">
           <div class="event-container" role="list" aria-label="Events">
-            ${d1(this.events,(e,t)=>`${e.title}-${e.startTime}-${e.endTime}-${t}`,e=>c`
+            ${I0(this.events,(e,t)=>`${e.title}-${e.startTime}-${e.endTime}-${t}`,e=>u`
                 <obc-event-item
                   role="listitem"
                   .title=${e.title}
                   .description=${e.description??""}
                   .startTime=${e.startTime}
                   .endTime=${e.endTime}
-                  .eventItemType=${e.eventItemType??vi.SingleLine}
+                  .eventItemType=${e.eventItemType??Rs.SingleLine}
                   .hasArrow=${e.hasArrow??false}
                   .hasTime=${e.hasTime??false}
                   .hasEndTime=${e.hasEndTime??false}
@@ -9168,7 +9168,7 @@ option::checkmark {
           </div>
         </div>
       </div>
-    `}};$t.styles=C(s1);sr([l({type:Boolean,attribute:false})],$t.prototype,"showHeader",2);sr([l({attribute:false})],$t.prototype,"date",2);sr([l({attribute:false})],$t.prototype,"events",2);sr([l({type:String})],$t.prototype,"locale",2);$t=sr([u("obc-event-list")],$t);var h1=h`
+    `}};ai.styles=I(D0);za([l({type:Boolean,attribute:false})],ai.prototype,"showHeader",2);za([l({attribute:false})],ai.prototype,"date",2);za([l({attribute:false})],ai.prototype,"events",2);za([l({type:String})],ai.prototype,"locale",2);ai=za([x("obc-event-list")],ai);var N0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -9523,15 +9523,15 @@ obi-notification-filled {
     transition: none;
   }
 }
-`;var Qc=Object.defineProperty;var e2=Object.getOwnPropertyDescriptor;var u1=(e,t,i,o)=>{var r=o>1?void 0:o?e2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Qc(t,i,r);return r};var wo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+`;var z7=Object.defineProperty;var O7=Object.getOwnPropertyDescriptor;var j0=(e,t,i,o)=>{var r=o>1?void 0:o?O7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)z7(t,i,r);return r};var dl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.1716 17H20V5H4V17H9.82843L12 19.1716L14.1716 17ZM12 22L9 19H5.2C4.0799 19 3.51984 19 3.09202 18.782C2.71569 18.5903 2.40973 18.2843 2.21799 17.908C2 17.4802 2 16.9201 2 15.8V6.2C2 5.0799 2 4.51984 2.21799 4.09202C2.40973 3.71569 2.71569 3.40973 3.09202 3.21799C3.51984 3 4.07989 3 5.2 3H18.8C19.9201 3 20.4802 3 20.908 3.21799C21.2843 3.40973 21.5903 3.71569 21.782 4.09202C22 4.51984 22 5.08008 22 6.20055V15.7994C22 16.9199 22 17.4802 21.782 17.908C21.5903 18.2843 21.2843 18.5903 20.908 18.782C20.4802 19 19.9201 19 18.8 19H15L12 22Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M14.1716 17H20V5H4V17H9.82843L12 19.1716L14.1716 17ZM12 22L9 19H5.2C4.0799 19 3.51984 19 3.09202 18.782C2.71569 18.5903 2.40973 18.2843 2.21799 17.908C2 17.4802 2 16.9201 2 15.8V6.2C2 5.0799 2 4.51984 2.21799 4.09202C2.40973 3.71569 2.71569 3.40973 3.09202 3.21799C3.51984 3 4.07989 3 5.2 3H18.8C19.9201 3 20.4802 3 20.908 3.21799C21.2843 3.40973 21.5903 3.71569 21.782 4.09202C22 4.51984 22 5.08008 22 6.20055V15.7994C22 16.9199 22 17.4802 21.782 17.908C21.5903 18.2843 21.2843 18.5903 20.908 18.782C20.4802 19 19.9201 19 18.8 19H15L12 22Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};wo.styles=h`
+    `}};dl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -9541,15 +9541,15 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;u1([l({type:Boolean})],wo.prototype,"useCssColor",2);wo=u1([u("obi-notification")],wo);var t2=Object.defineProperty;var r2=Object.getOwnPropertyDescriptor;var v1=(e,t,i,o)=>{var r=o>1?void 0:o?r2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)t2(t,i,r);return r};var Co=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;j0([l({type:Boolean})],dl.prototype,"useCssColor",2);dl=j0([x("obi-notification")],dl);var E7=Object.defineProperty;var D7=Object.getOwnPropertyDescriptor;var F0=(e,t,i,o)=>{var r=o>1?void 0:o?D7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)E7(t,i,r);return r};var hl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M5 4C3.89543 4 3 4.89543 3 6V16C3 17.1046 3.89543 18 5 18H9L12 21L15 18H19C20.1046 18 21 17.1046 21 16V6C21 4.89543 20.1046 4 19 4H5Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M5 4C3.89543 4 3 4.89543 3 6V16C3 17.1046 3.89543 18 5 18H9L12 21L15 18H19C20.1046 18 21 17.1046 21 16V6C21 4.89543 20.1046 4 19 4H5Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Co.styles=h`
+    `}};hl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -9559,30 +9559,30 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;v1([l({type:Boolean})],Co.prototype,"useCssColor",2);Co=v1([u("obi-notification-filled")],Co);var o2=Object.defineProperty;var i2=Object.getOwnPropertyDescriptor;var It=(e,t,i,o)=>{var r=o>1?void 0:o?i2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)o2(t,i,r);return r};var pt=class extends d{constructor(){super(...arguments);this.buttonStyle="flat";this.count=0;this.showCount=false;this.isActive=false;this.ariaLabel="Notifications"}render(){const e=this.isActive&&this.buttonStyle==="normal";const t=this.isActive&&this.buttonStyle==="enhanced";const i=this.buttonStyle==="flat"||!e&&!t;const o=(e||t)&&this.showCount;const r={wrapper:true,"is-active":this.isActive,"has-counter":o,flat:i,normal:e,enhanced:t};const a={"visible-wrapper":true};return c`
+  `;F0([l({type:Boolean})],hl.prototype,"useCssColor",2);hl=F0([x("obi-notification-filled")],hl);var B7=Object.defineProperty;var I7=Object.getOwnPropertyDescriptor;var Gi=(e,t,i,o)=>{var r=o>1?void 0:o?I7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)B7(t,i,r);return r};var Vo=class extends C{constructor(){super(...arguments);this.buttonStyle="flat";this.count=0;this.showCount=false;this.isActive=false;this.ariaLabel="Notifications"}render(){const e=this.isActive&&this.buttonStyle==="normal";const t=this.isActive&&this.buttonStyle==="enhanced";const i=this.buttonStyle==="flat"||!e&&!t;const o=(e||t)&&this.showCount;const r={wrapper:true,"is-active":this.isActive,"has-counter":o,flat:i,normal:e,enhanced:t};const a={"visible-wrapper":true};return u`
       <button
-        class="${L(r)}"
+        class="${Y(r)}"
         @click="${this.handleClick}"
         aria-label="${this.ariaLabel}${o?`, ${this.count} new`:""}"
         aria-pressed="${this.isActive}"
         role="button"
         type="button"
       >
-        <div class="${L(a)}">
+        <div class="${Y(a)}">
           <div class="icon-container">
             <slot name="icon"> ${this.renderDefaultIcon()} </slot>
           </div>
-          ${o?c` <span class="count-label">${this.count}</span> `:p}
+          ${o?u` <span class="count-label">${this.count}</span> `:k}
         </div>
       </button>
-    `}renderDefaultIcon(){if(this.isActive){return c`<obi-notification-filled></obi-notification-filled>`}return c`<obi-notification></obi-notification>`}handleClick(){const e=new CustomEvent("obc-click",{detail:{count:this.count,isActive:!this.isActive},composed:true,bubbles:true});this.dispatchEvent(e)}};pt.styles=C(h1);It([l({type:String})],pt.prototype,"buttonStyle",2);It([l({type:Number})],pt.prototype,"count",2);It([l({type:Boolean})],pt.prototype,"showCount",2);It([l({type:Boolean})],pt.prototype,"isActive",2);It([l({type:String})],pt.prototype,"ariaLabel",2);pt=It([u("obc-notification-button")],pt);var g1=h`
+    `}renderDefaultIcon(){if(this.isActive){return u`<obi-notification-filled></obi-notification-filled>`}return u`<obi-notification></obi-notification>`}handleClick(){const e=new CustomEvent("obc-click",{detail:{count:this.count,isActive:!this.isActive},composed:true,bubbles:true});this.dispatchEvent(e)}};Vo.styles=I(N0);Gi([l({type:String})],Vo.prototype,"buttonStyle",2);Gi([l({type:Number})],Vo.prototype,"count",2);Gi([l({type:Boolean})],Vo.prototype,"showCount",2);Gi([l({type:Boolean})],Vo.prototype,"isActive",2);Gi([l({type:String})],Vo.prototype,"ariaLabel",2);Vo=Gi([x("obc-notification-button")],Vo);var U0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
 obi-notification-filled {
   color: var(--notification-enabled-background-color);
 }
-`;var m1=h`
+`;var W0=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -10031,56 +10031,56 @@ obi-notification-filled {
 .large .empty-message {
     height: 100%;
   }
-`;var a2=Object.defineProperty;var n2=Object.getOwnPropertyDescriptor;var ht=(e,t,i,o)=>{var r=o>1?void 0:o?n2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)a2(t,i,r);return r};var _t=(e=>{e["Simple"]="simple";e["WithButton"]="with-button";e["WithIconButton"]="with-icon-button";e["Inactive"]="inactive";return e})(_t||{});var cr=(e=>{e["Regular"]="regular";e["Tall"]="tall";return e})(cr||{});var Fe=class extends d{constructor(){super(...arguments);this.type="with-button";this.size="regular";this.showTitle=true;this.showDescription=true;this.showTimestamp=true;this.hasTimestamp2=false;this.hasSecondaryIcon=false}onMessageClick(){this.dispatchEvent(new CustomEvent("message-click"))}onActionClick(){this.dispatchEvent(new CustomEvent("action-click"))}render(){const e=this.type==="inactive";const t=this.size==="tall";return c`
+`;var R7=Object.defineProperty;var N7=Object.getOwnPropertyDescriptor;var Zo=(e,t,i,o)=>{var r=o>1?void 0:o?N7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)R7(t,i,r);return r};var ni=(e=>{e["Simple"]="simple";e["WithButton"]="with-button";e["WithIconButton"]="with-icon-button";e["Inactive"]="inactive";return e})(ni||{});var Oa=(e=>{e["Regular"]="regular";e["Tall"]="tall";return e})(Oa||{});var Xr=class extends C{constructor(){super(...arguments);this.type="with-button";this.size="regular";this.showTitle=true;this.showDescription=true;this.showTimestamp=true;this.hasTimestamp2=false;this.hasSecondaryIcon=false}onMessageClick(){this.dispatchEvent(new CustomEvent("message-click"))}onActionClick(){this.dispatchEvent(new CustomEvent("action-click"))}render(){const e=this.type==="inactive";const t=this.size==="tall";return u`
       <div
-        class=${L({wrapper:true,empty:e,large:t,[`type-${this.type}`]:true})}
+        class=${Y({wrapper:true,empty:e,large:t,[`type-${this.type}`]:true})}
       >
-        ${e?c`<div class="empty-message">
+        ${e?u`<div class="empty-message">
               <slot name="empty">No active messages</slot>
-            </div>`:c`
+            </div>`:u`
               <button class="message-item-touch" @click=${this.onMessageClick}>
                 <div class="message-item">
                   <div class="icon primary">
                     <slot name="primary-icon"></slot>
                   </div>
                   <div class="content-container">
-                    ${this.hasSecondaryIcon?c`<div class="icon secondary">
+                    ${this.hasSecondaryIcon?u`<div class="icon secondary">
                           <slot name="secondary-icon"></slot>
-                        </div>`:p}
+                        </div>`:k}
                     <div class="message-container ${t?"large":""}">
                       <div class="title-container">
-                        ${this.showTitle?c`<div class="title">
+                        ${this.showTitle?u`<div class="title">
                               <slot name="title"></slot>
-                            </div>`:p}
-                        ${t?c`
+                            </div>`:k}
+                        ${t?u`
                               <div class="timestamp-container">
-                                ${this.showTimestamp?c`<div class="time">
+                                ${this.showTimestamp?u`<div class="time">
                                       <slot name="time"></slot>
-                                    </div>`:p}
-                                ${this.hasTimestamp2?c`<div class="time">
+                                    </div>`:k}
+                                ${this.hasTimestamp2?u`<div class="time">
                                       <slot name="time-secondary"></slot>
-                                    </div>`:p}
+                                    </div>`:k}
                               </div>
-                            `:p}
+                            `:k}
                       </div>
-                      ${this.showDescription?c`<div class="description">
+                      ${this.showDescription?u`<div class="description">
                             <slot name="description"></slot>
-                          </div>`:p}
+                          </div>`:k}
                     </div>
                   </div>
-                  ${!t?c`
+                  ${!t?u`
                         <div class="timestamp-container">
-                          ${this.showTimestamp?c`<div class="time">
+                          ${this.showTimestamp?u`<div class="time">
                                 <slot name="time"></slot>
-                              </div>`:p}
-                          ${this.hasTimestamp2?c`<div class="time secondary">
+                              </div>`:k}
+                          ${this.hasTimestamp2?u`<div class="time secondary">
                                 <slot name="time-secondary"></slot>
-                              </div>`:p}
+                              </div>`:k}
                         </div>
-                      `:p}
+                      `:k}
                 </div>
               </button>
-              ${this.type==="with-button"?c`
+              ${this.type==="with-button"?u`
                     <button
                       class="action-wrapper action-text-button"
                       @click=${this.onActionClick}
@@ -10089,7 +10089,7 @@ obi-notification-filled {
                         <slot name="action-text"></slot>
                       </div>
                     </button>
-                  `:this.type==="with-icon-button"?c`
+                  `:this.type==="with-icon-button"?u`
                       <button
                         class="action-wrapper action-icon-button"
                         @click=${this.onActionClick}
@@ -10098,10 +10098,10 @@ obi-notification-filled {
                           <slot name="action-icon"></slot>
                         </div>
                       </button>
-                    `:p}
+                    `:k}
             `}
       </div>
-    `}};Fe.styles=C(m1);ht([l({type:String})],Fe.prototype,"type",2);ht([l({type:String})],Fe.prototype,"size",2);ht([l({type:Boolean,attribute:false})],Fe.prototype,"showTitle",2);ht([l({type:Boolean,attribute:false})],Fe.prototype,"showDescription",2);ht([l({type:Boolean,attribute:false})],Fe.prototype,"showTimestamp",2);ht([l({type:Boolean})],Fe.prototype,"hasTimestamp2",2);ht([l({type:Boolean})],Fe.prototype,"hasSecondaryIcon",2);Fe=ht([u("obc-topbar-message-item")],Fe);var l2=Object.defineProperty;var s2=Object.getOwnPropertyDescriptor;var ae=(e,t,i,o)=>{var r=o>1?void 0:o?s2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)l2(t,i,r);return r};var ee=class extends d{constructor(){super(...arguments);this.title="";this.description="";this.time="";this.timeSecondary="";this.actionLabel="View";this.type="simple";this.size="regular";this.showTitle=true;this.showDescription=true;this.showTimestamp=true;this.hasTimestamp2=false;this.hasSecondaryIcon=false;this.large=false;this.empty=false;this.emptyText="No active notification"}get mappedType(){if(this.empty||this.type==="inactive"){return _t.Inactive}switch(this.type){case"with-button":return _t.WithButton;case"with-icon-button":return _t.WithIconButton;case"simple":return _t.Simple;default:return _t.Simple}}get mappedSize(){if(this.large){return cr.Tall}return this.size==="tall"?cr.Tall:cr.Regular}handleMessageClick(){this.dispatchEvent(new CustomEvent("message-click"))}handleActionClick(){this.dispatchEvent(new CustomEvent("action-click"))}render(){return c`
+    `}};Xr.styles=I(W0);Zo([l({type:String})],Xr.prototype,"type",2);Zo([l({type:String})],Xr.prototype,"size",2);Zo([l({type:Boolean,attribute:false})],Xr.prototype,"showTitle",2);Zo([l({type:Boolean,attribute:false})],Xr.prototype,"showDescription",2);Zo([l({type:Boolean,attribute:false})],Xr.prototype,"showTimestamp",2);Zo([l({type:Boolean})],Xr.prototype,"hasTimestamp2",2);Zo([l({type:Boolean})],Xr.prototype,"hasSecondaryIcon",2);Xr=Zo([x("obc-topbar-message-item")],Xr);var j7=Object.defineProperty;var F7=Object.getOwnPropertyDescriptor;var xt=(e,t,i,o)=>{var r=o>1?void 0:o?F7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)j7(t,i,r);return r};var ft=class extends C{constructor(){super(...arguments);this.title="";this.description="";this.time="";this.timeSecondary="";this.actionLabel="View";this.type="simple";this.size="regular";this.showTitle=true;this.showDescription=true;this.showTimestamp=true;this.hasTimestamp2=false;this.hasSecondaryIcon=false;this.large=false;this.empty=false;this.emptyText="No active notification"}get mappedType(){if(this.empty||this.type==="inactive"){return ni.Inactive}switch(this.type){case"with-button":return ni.WithButton;case"with-icon-button":return ni.WithIconButton;case"simple":return ni.Simple;default:return ni.Simple}}get mappedSize(){if(this.large){return Oa.Tall}return this.size==="tall"?Oa.Tall:Oa.Regular}handleMessageClick(){this.dispatchEvent(new CustomEvent("message-click"))}handleActionClick(){this.dispatchEvent(new CustomEvent("action-click"))}render(){return u`
       <obc-topbar-message-item
         .type=${this.mappedType}
         .size=${this.mappedSize}
@@ -10115,24 +10115,24 @@ obi-notification-filled {
       >
         <obi-notification-filled slot="primary-icon"></obi-notification-filled>
 
-        ${this.hasSecondaryIcon?c`<slot name="secondary-icon" slot="secondary-icon"></slot>`:p}
-        ${this.title&&this.showTitle?c`<span slot="title">${this.title}</span>`:p}
-        ${this.description&&this.showDescription?c`<span slot="description">${this.description}</span>`:p}
-        ${this.time&&this.showTimestamp?c`<span slot="time">${this.time}</span>`:p}
-        ${this.timeSecondary&&this.hasTimestamp2?c`<span slot="time-secondary">${this.timeSecondary}</span>`:p}
-        ${this.type==="with-button"?c`<span slot="action-text">${this.actionLabel}</span>`:this.type==="with-icon-button"?c`<obi-close-google slot="action-icon"></obi-close-google>`:p}
+        ${this.hasSecondaryIcon?u`<slot name="secondary-icon" slot="secondary-icon"></slot>`:k}
+        ${this.title&&this.showTitle?u`<span slot="title">${this.title}</span>`:k}
+        ${this.description&&this.showDescription?u`<span slot="description">${this.description}</span>`:k}
+        ${this.time&&this.showTimestamp?u`<span slot="time">${this.time}</span>`:k}
+        ${this.timeSecondary&&this.hasTimestamp2?u`<span slot="time-secondary">${this.timeSecondary}</span>`:k}
+        ${this.type==="with-button"?u`<span slot="action-text">${this.actionLabel}</span>`:this.type==="with-icon-button"?u`<obi-close-google slot="action-icon"></obi-close-google>`:k}
 
         <span slot="empty">${this.emptyText}</span>
       </obc-topbar-message-item>
-    `}};ee.styles=C(g1);ae([l({type:String})],ee.prototype,"title",2);ae([l({type:String})],ee.prototype,"description",2);ae([l({type:String})],ee.prototype,"time",2);ae([l({type:String})],ee.prototype,"timeSecondary",2);ae([l({type:String})],ee.prototype,"actionLabel",2);ae([l({type:String})],ee.prototype,"type",2);ae([l({type:String})],ee.prototype,"size",2);ae([l({type:Boolean,attribute:false})],ee.prototype,"showTitle",2);ae([l({type:Boolean,attribute:false})],ee.prototype,"showDescription",2);ae([l({type:Boolean,attribute:false})],ee.prototype,"showTimestamp",2);ae([l({type:Boolean})],ee.prototype,"hasTimestamp2",2);ae([l({type:Boolean})],ee.prototype,"hasSecondaryIcon",2);ae([l({type:Boolean})],ee.prototype,"large",2);ae([l({type:Boolean})],ee.prototype,"empty",2);ae([l({type:String})],ee.prototype,"emptyText",2);ee=ae([u("obc-notification-message-item")],ee);var c2=Object.defineProperty;var d2=Object.getOwnPropertyDescriptor;var f1=(e,t,i,o)=>{var r=o>1?void 0:o?d2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)c2(t,i,r);return r};var Lo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    `}};ft.styles=I(U0);xt([l({type:String})],ft.prototype,"title",2);xt([l({type:String})],ft.prototype,"description",2);xt([l({type:String})],ft.prototype,"time",2);xt([l({type:String})],ft.prototype,"timeSecondary",2);xt([l({type:String})],ft.prototype,"actionLabel",2);xt([l({type:String})],ft.prototype,"type",2);xt([l({type:String})],ft.prototype,"size",2);xt([l({type:Boolean,attribute:false})],ft.prototype,"showTitle",2);xt([l({type:Boolean,attribute:false})],ft.prototype,"showDescription",2);xt([l({type:Boolean,attribute:false})],ft.prototype,"showTimestamp",2);xt([l({type:Boolean})],ft.prototype,"hasTimestamp2",2);xt([l({type:Boolean})],ft.prototype,"hasSecondaryIcon",2);xt([l({type:Boolean})],ft.prototype,"large",2);xt([l({type:Boolean})],ft.prototype,"empty",2);xt([l({type:String})],ft.prototype,"emptyText",2);ft=xt([x("obc-notification-message-item")],ft);var U7=Object.defineProperty;var W7=Object.getOwnPropertyDescriptor;var G0=(e,t,i,o)=>{var r=o>1?void 0:o?W7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)U7(t,i,r);return r};var ul=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M4 19V17H6V10C6 8.61667 6.41667 7.3875 7.25 6.3125C8.08333 5.2375 9.16667 4.53333 10.5 4.2V3.5C10.5 3.08333 10.6458 2.72917 10.9375 2.4375C11.2292 2.14583 11.5833 2 12 2C12.4167 2 12.7708 2.14583 13.0625 2.4375C13.3542 2.72917 13.5 3.08333 13.5 3.5V4.2C14.8333 4.53333 15.9167 5.2375 16.75 6.3125C17.5833 7.3875 18 8.61667 18 10V17H20V19H4ZM12 22C11.45 22 10.9792 21.8042 10.5875 21.4125C10.1958 21.0208 10 20.55 10 20H14C14 20.55 13.8042 21.0208 13.4125 21.4125C13.0208 21.8042 12.55 22 12 22ZM8 17H16V10C16 8.9 15.6083 7.95833 14.825 7.175C14.0417 6.39167 13.1 6 12 6C10.9 6 9.95833 6.39167 9.175 7.175C8.39167 7.95833 8 8.9 8 10V17Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M4 19V17H6V10C6 8.61667 6.41667 7.3875 7.25 6.3125C8.08333 5.2375 9.16667 4.53333 10.5 4.2V3.5C10.5 3.08333 10.6458 2.72917 10.9375 2.4375C11.2292 2.14583 11.5833 2 12 2C12.4167 2 12.7708 2.14583 13.0625 2.4375C13.3542 2.72917 13.5 3.08333 13.5 3.5V4.2C14.8333 4.53333 15.9167 5.2375 16.75 6.3125C17.5833 7.3875 18 8.61667 18 10V17H20V19H4ZM12 22C11.45 22 10.9792 21.8042 10.5875 21.4125C10.1958 21.0208 10 20.55 10 20H14C14 20.55 13.8042 21.0208 13.4125 21.4125C13.0208 21.8042 12.55 22 12 22ZM8 17H16V10C16 8.9 15.6083 7.95833 14.825 7.175C14.0417 6.39167 13.1 6 12 6C10.9 6 9.95833 6.39167 9.175 7.175C8.39167 7.95833 8 8.9 8 10V17Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Lo.styles=h`
+    `}};ul.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10142,19 +10142,19 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;f1([l({type:Boolean})],Lo.prototype,"useCssColor",2);Lo=f1([u("obi-alerts")],Lo);var p2=Object.defineProperty;var h2=Object.getOwnPropertyDescriptor;var b1=(e,t,i,o)=>{var r=o>1?void 0:o?h2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)p2(t,i,r);return r};var ko=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;G0([l({type:Boolean})],ul.prototype,"useCssColor",2);ul=G0([x("obi-alerts")],ul);var G7=Object.defineProperty;var q7=Object.getOwnPropertyDescriptor;var q0=(e,t,i,o)=>{var r=o>1?void 0:o?q7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)G7(t,i,r);return r};var fl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M1.80718 1.3938L0.393188 2.80779L5.5855 8.0001H5.19963C4.07953 8.0001 3.51948 8.0001 3.09165 8.21809C2.71533 8.40983 2.40937 8.71579 2.21762 9.09212C1.99963 9.51994 1.99963 10.08 1.99963 11.2001V12.8001C1.99963 13.9202 1.99963 14.4803 2.21762 14.9081C2.40937 15.2844 2.71533 15.5904 3.09165 15.7821C3.51948 16.0001 4.07953 16.0001 5.19963 16.0001H7.99963L11.2683 19.2687C12.125 20.1255 12.5534 20.5539 12.9212 20.5828C13.2403 20.6079 13.5521 20.4787 13.76 20.2353C13.9996 19.9548 13.9996 19.349 13.9996 18.1374V16.4142L20.1922 22.6068L21.6064 21.1926L13.9996 13.586V5.86284C13.9996 4.65121 13.9996 4.04539 13.76 3.76486C13.5521 3.52145 13.2403 3.39228 12.9212 3.41739C12.5534 3.44634 12.125 3.87472 11.2683 4.73147L8.20663 7.7931L1.80718 1.3938ZM7.5855 10.0001H3.99963C3.99963 10.0001 3.99963 12.438 3.99963 14.0001H8.82806L11.9996 17.1717V14.4142L7.5855 10.0001ZM11.9996 11.586L9.62086 9.2073L11.9996 6.82853V11.586Z" fill="currentColor"/>
 <path d="M20.3852 17.1434C20.7544 16.6132 21.0663 16.0436 21.3147 15.444C21.767 14.352 21.9998 13.1817 21.9998 11.9998C21.9998 10.8179 21.767 9.64758 21.3147 8.55565C20.8624 7.46372 20.1995 6.47157 19.3637 5.63584C18.528 4.80011 17.5359 4.13718 16.4439 3.68489C16.2972 3.62413 16.1491 3.56733 15.9998 3.51452V5.67525C16.7228 6.0182 17.3825 6.48298 17.9495 7.05006C18.5995 7.70007 19.1152 8.47174 19.4669 9.32102C19.8187 10.1703 19.9998 11.0805 19.9998 11.9998C19.9998 12.9191 19.8187 13.8293 19.4669 14.6786C19.3198 15.0337 19.1441 15.3753 18.9419 15.7L20.3852 17.1434Z" fill="currentColor"/>
 <path d="M17.3801 14.1383L15.9998 12.758V8.5357C16.3019 8.71011 16.5805 8.92366 16.8282 9.17138C17.1996 9.54281 17.4943 9.98377 17.6953 10.4691C17.8963 10.9544 17.9998 11.4745 17.9998 11.9998C17.9998 12.5251 17.8963 13.0452 17.6953 13.5305C17.6076 13.7423 17.5021 13.9456 17.3801 14.1383Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M1.80718 1.3938L0.393188 2.80779L5.5855 8.0001H5.19963C4.07953 8.0001 3.51948 8.0001 3.09165 8.21809C2.71533 8.40983 2.40937 8.71579 2.21762 9.09212C1.99963 9.51994 1.99963 10.08 1.99963 11.2001V12.8001C1.99963 13.9202 1.99963 14.4803 2.21762 14.9081C2.40937 15.2844 2.71533 15.5904 3.09165 15.7821C3.51948 16.0001 4.07953 16.0001 5.19963 16.0001H7.99963L11.2683 19.2687C12.125 20.1255 12.5534 20.5539 12.9212 20.5828C13.2403 20.6079 13.5521 20.4787 13.76 20.2353C13.9996 19.9548 13.9996 19.349 13.9996 18.1374V16.4142L20.1922 22.6068L21.6064 21.1926L13.9996 13.586V5.86284C13.9996 4.65121 13.9996 4.04539 13.76 3.76486C13.5521 3.52145 13.2403 3.39228 12.9212 3.41739C12.5534 3.44634 12.125 3.87472 11.2683 4.73147L8.20663 7.7931L1.80718 1.3938ZM7.5855 10.0001H3.99963C3.99963 10.0001 3.99963 12.438 3.99963 14.0001H8.82806L11.9996 17.1717V14.4142L7.5855 10.0001ZM11.9996 11.586L9.62086 9.2073L11.9996 6.82853V11.586Z" style="fill: var(--element-active-color)"/>
 <path d="M20.3852 17.1434C20.7544 16.6132 21.0663 16.0436 21.3147 15.444C21.767 14.352 21.9998 13.1817 21.9998 11.9998C21.9998 10.8179 21.767 9.64758 21.3147 8.55565C20.8624 7.46372 20.1995 6.47157 19.3637 5.63584C18.528 4.80011 17.5359 4.13718 16.4439 3.68489C16.2972 3.62413 16.1491 3.56733 15.9998 3.51452V5.67525C16.7228 6.0182 17.3825 6.48298 17.9495 7.05006C18.5995 7.70007 19.1152 8.47174 19.4669 9.32102C19.8187 10.1703 19.9998 11.0805 19.9998 11.9998C19.9998 12.9191 19.8187 13.8293 19.4669 14.6786C19.3198 15.0337 19.1441 15.3753 18.9419 15.7L20.3852 17.1434Z" style="fill: var(--element-active-color)"/>
 <path d="M17.3801 14.1383L15.9998 12.758V8.5357C16.3019 8.71011 16.5805 8.92366 16.8282 9.17138C17.1996 9.54281 17.4943 9.98377 17.6953 10.4691C17.8963 10.9544 17.9998 11.4745 17.9998 11.9998C17.9998 12.5251 17.8963 13.0452 17.6953 13.5305C17.6076 13.7423 17.5021 13.9456 17.3801 14.1383Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};ko.styles=h`
+    `}};fl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10164,15 +10164,15 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;b1([l({type:Boolean})],ko.prototype,"useCssColor",2);ko=b1([u("obi-sound-muted")],ko);var u2=Object.defineProperty;var v2=Object.getOwnPropertyDescriptor;var y1=(e,t,i,o)=>{var r=o>1?void 0:o?v2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)u2(t,i,r);return r};var xo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;q0([l({type:Boolean})],fl.prototype,"useCssColor",2);fl=q0([x("obi-sound-muted")],fl);var Y7=Object.defineProperty;var K7=Object.getOwnPropertyDescriptor;var Y0=(e,t,i,o)=>{var r=o>1?void 0:o?K7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Y7(t,i,r);return r};var vl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 12C8.9 12 7.95833 11.6083 7.175 10.825C6.39167 10.0417 6 9.1 6 8C6 6.9 6.39167 5.95833 7.175 5.175C7.95833 4.39167 8.9 4 10 4C11.1 4 12.0417 4.39167 12.825 5.175C13.6083 5.95833 14 6.9 14 8C14 9.1 13.6083 10.0417 12.825 10.825C12.0417 11.6083 11.1 12 10 12ZM2 20V17.2C2 16.65 2.14167 16.1333 2.425 15.65C2.70833 15.1667 3.1 14.8 3.6 14.55C4.45 14.1167 5.40833 13.75 6.475 13.45C7.54167 13.15 8.71667 13 10 13H10.35C10.45 13 10.55 13.0167 10.65 13.05C10.5167 13.35 10.4042 13.6625 10.3125 13.9875C10.2208 14.3125 10.15 14.65 10.1 15H10C8.81667 15 7.75417 15.15 6.8125 15.45C5.87083 15.75 5.1 16.05 4.5 16.35C4.35 16.4333 4.22917 16.55 4.1375 16.7C4.04583 16.85 4 17.0167 4 17.2V18H10.3C10.4 18.35 10.5333 18.6958 10.7 19.0375C10.8667 19.3792 11.05 19.7 11.25 20H2ZM16 21L15.7 19.5C15.5 19.4167 15.3125 19.3292 15.1375 19.2375C14.9625 19.1458 14.7833 19.0333 14.6 18.9L13.15 19.35L12.15 17.65L13.3 16.65C13.2667 16.4167 13.25 16.2 13.25 16C13.25 15.8 13.2667 15.5833 13.3 15.35L12.15 14.35L13.15 12.65L14.6 13.1C14.7833 12.9667 14.9625 12.8542 15.1375 12.7625C15.3125 12.6708 15.5 12.5833 15.7 12.5L16 11H18L18.3 12.5C18.5 12.5833 18.6875 12.675 18.8625 12.775C19.0375 12.875 19.2167 13 19.4 13.15L20.85 12.65L21.85 14.4L20.7 15.4C20.7333 15.6 20.75 15.8083 20.75 16.025C20.75 16.2417 20.7333 16.45 20.7 16.65L21.85 17.65L20.85 19.35L19.4 18.9C19.2167 19.0333 19.0375 19.1458 18.8625 19.2375C18.6875 19.3292 18.5 19.4167 18.3 19.5L18 21H16ZM17 18C17.55 18 18.0208 17.8042 18.4125 17.4125C18.8042 17.0208 19 16.55 19 16C19 15.45 18.8042 14.9792 18.4125 14.5875C18.0208 14.1958 17.55 14 17 14C16.45 14 15.9792 14.1958 15.5875 14.5875C15.1958 14.9792 15 15.45 15 16C15 16.55 15.1958 17.0208 15.5875 17.4125C15.9792 17.8042 16.45 18 17 18ZM10 10C10.55 10 11.0208 9.80417 11.4125 9.4125C11.8042 9.02083 12 8.55 12 8C12 7.45 11.8042 6.97917 11.4125 6.5875C11.0208 6.19583 10.55 6 10 6C9.45 6 8.97917 6.19583 8.5875 6.5875C8.19583 6.97917 8 7.45 8 8C8 8.55 8.19583 9.02083 8.5875 9.4125C8.97917 9.80417 9.45 10 10 10Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 12C8.9 12 7.95833 11.6083 7.175 10.825C6.39167 10.0417 6 9.1 6 8C6 6.9 6.39167 5.95833 7.175 5.175C7.95833 4.39167 8.9 4 10 4C11.1 4 12.0417 4.39167 12.825 5.175C13.6083 5.95833 14 6.9 14 8C14 9.1 13.6083 10.0417 12.825 10.825C12.0417 11.6083 11.1 12 10 12ZM2 20V17.2C2 16.65 2.14167 16.1333 2.425 15.65C2.70833 15.1667 3.1 14.8 3.6 14.55C4.45 14.1167 5.40833 13.75 6.475 13.45C7.54167 13.15 8.71667 13 10 13H10.35C10.45 13 10.55 13.0167 10.65 13.05C10.5167 13.35 10.4042 13.6625 10.3125 13.9875C10.2208 14.3125 10.15 14.65 10.1 15H10C8.81667 15 7.75417 15.15 6.8125 15.45C5.87083 15.75 5.1 16.05 4.5 16.35C4.35 16.4333 4.22917 16.55 4.1375 16.7C4.04583 16.85 4 17.0167 4 17.2V18H10.3C10.4 18.35 10.5333 18.6958 10.7 19.0375C10.8667 19.3792 11.05 19.7 11.25 20H2ZM16 21L15.7 19.5C15.5 19.4167 15.3125 19.3292 15.1375 19.2375C14.9625 19.1458 14.7833 19.0333 14.6 18.9L13.15 19.35L12.15 17.65L13.3 16.65C13.2667 16.4167 13.25 16.2 13.25 16C13.25 15.8 13.2667 15.5833 13.3 15.35L12.15 14.35L13.15 12.65L14.6 13.1C14.7833 12.9667 14.9625 12.8542 15.1375 12.7625C15.3125 12.6708 15.5 12.5833 15.7 12.5L16 11H18L18.3 12.5C18.5 12.5833 18.6875 12.675 18.8625 12.775C19.0375 12.875 19.2167 13 19.4 13.15L20.85 12.65L21.85 14.4L20.7 15.4C20.7333 15.6 20.75 15.8083 20.75 16.025C20.75 16.2417 20.7333 16.45 20.7 16.65L21.85 17.65L20.85 19.35L19.4 18.9C19.2167 19.0333 19.0375 19.1458 18.8625 19.2375C18.6875 19.3292 18.5 19.4167 18.3 19.5L18 21H16ZM17 18C17.55 18 18.0208 17.8042 18.4125 17.4125C18.8042 17.0208 19 16.55 19 16C19 15.45 18.8042 14.9792 18.4125 14.5875C18.0208 14.1958 17.55 14 17 14C16.45 14 15.9792 14.1958 15.5875 14.5875C15.1958 14.9792 15 15.45 15 16C15 16.55 15.1958 17.0208 15.5875 17.4125C15.9792 17.8042 16.45 18 17 18ZM10 10C10.55 10 11.0208 9.80417 11.4125 9.4125C11.8042 9.02083 12 8.55 12 8C12 7.45 11.8042 6.97917 11.4125 6.5875C11.0208 6.19583 10.55 6 10 6C9.45 6 8.97917 6.19583 8.5875 6.5875C8.19583 6.97917 8 7.45 8 8C8 8.55 8.19583 9.02083 8.5875 9.4125C8.97917 9.80417 9.45 10 10 10Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};xo.styles=h`
+    `}};vl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10182,21 +10182,21 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;y1([l({type:Boolean})],xo.prototype,"useCssColor",2);xo=y1([u("obi-settings-user-proposal")],xo);var g2=Object.defineProperty;var m2=Object.getOwnPropertyDescriptor;var w1=(e,t,i,o)=>{var r=o>1?void 0:o?m2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)g2(t,i,r);return r};var Mo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Y0([l({type:Boolean})],vl.prototype,"useCssColor",2);vl=Y0([x("obi-settings-user-proposal")],vl);var J7=Object.defineProperty;var X7=Object.getOwnPropertyDescriptor;var K0=(e,t,i,o)=>{var r=o>1?void 0:o?X7(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)J7(t,i,r);return r};var ml=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 13L16 17H13V22H11V17H8L12 13Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 11.5607L15.5303 8.03033L14.4697 6.96967L12 9.43934L9.53033 6.96967L8.46967 8.03033L12 11.5607Z" fill="currentColor"/>
 <path d="M13 5.5C13 6.05228 12.5523 6.5 12 6.5C11.4477 6.5 11 6.05228 11 5.5C11 4.94772 11.4477 4.5 12 4.5C12.5523 4.5 13 4.94772 13 5.5Z" fill="currentColor"/>
 <path d="M13 2C13 2.55228 12.5523 3 12 3C11.4477 3 11 2.55228 11 2C11 1.44772 11.4477 1 12 1C12.5523 1 13 1.44772 13 2Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 13L16 17H13V22H11V17H8L12 13Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 11.5607L15.5303 8.03033L14.4697 6.96967L12 9.43934L9.53033 6.96967L8.46967 8.03033L12 11.5607Z" style="fill: var(--element-active-color)"/>
 <path d="M13 5.5C13 6.05228 12.5523 6.5 12 6.5C11.4477 6.5 11 6.05228 11 5.5C11 4.94772 11.4477 4.5 12 4.5C12.5523 4.5 13 4.94772 13 5.5Z" style="fill: var(--element-active-color)"/>
 <path d="M13 2C13 2.55228 12.5523 3 12 3C11.4477 3 11 2.55228 11 2C11 1.44772 11.4477 1 12 1C12.5523 1 13 1.44772 13 2Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Mo.styles=h`
+    `}};ml.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10206,15 +10206,15 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;w1([l({type:Boolean})],Mo.prototype,"useCssColor",2);Mo=w1([u("obi-collision-avoidance-head-on")],Mo);var f2=Object.defineProperty;var b2=Object.getOwnPropertyDescriptor;var C1=(e,t,i,o)=>{var r=o>1?void 0:o?b2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)f2(t,i,r);return r};var Ho=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;K0([l({type:Boolean})],ml.prototype,"useCssColor",2);ml=K0([x("obi-collision-avoidance-head-on")],ml);var Q7=Object.defineProperty;var e8=Object.getOwnPropertyDescriptor;var J0=(e,t,i,o)=>{var r=o>1?void 0:o?e8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Q7(t,i,r);return r};var gl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M8 19.5V4.5L20 12L8 19.5Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M8 19.5V4.5L20 12L8 19.5Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Ho.styles=h`
+    `}};gl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10224,17 +10224,17 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;C1([l({type:Boolean})],Ho.prototype,"useCssColor",2);Ho=C1([u("obi-media-play")],Ho);var y2=Object.defineProperty;var w2=Object.getOwnPropertyDescriptor;var L1=(e,t,i,o)=>{var r=o>1?void 0:o?w2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)y2(t,i,r);return r};var $o=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;J0([l({type:Boolean})],gl.prototype,"useCssColor",2);gl=J0([x("obi-media-play")],gl);var t8=Object.defineProperty;var r8=Object.getOwnPropertyDescriptor;var X0=(e,t,i,o)=>{var r=o>1?void 0:o?r8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)t8(t,i,r);return r};var bl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 5H6V19H10V5Z" fill="currentColor"/>
 <path d="M18 5H13.9967V19H18V5Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M10 5H6V19H10V5Z" style="fill: var(--element-active-color)"/>
 <path d="M18 5H13.9967V19H18V5Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};$o.styles=h`
+    `}};bl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10244,17 +10244,17 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;L1([l({type:Boolean})],$o.prototype,"useCssColor",2);$o=L1([u("obi-media-pause")],$o);var C2=Object.defineProperty;var L2=Object.getOwnPropertyDescriptor;var k1=(e,t,i,o)=>{var r=o>1?void 0:o?L2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)C2(t,i,r);return r};var _o=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;X0([l({type:Boolean})],bl.prototype,"useCssColor",2);bl=X0([x("obi-media-pause")],bl);var o8=Object.defineProperty;var i8=Object.getOwnPropertyDescriptor;var Q0=(e,t,i,o)=>{var r=o>1?void 0:o?i8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)o8(t,i,r);return r};var yl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M17 5V19H20V5H17Z" fill="currentColor"/>
 <path d="M4 5V19L15 12L4 5Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M17 5V19H20V5H17Z" style="fill: var(--element-active-color)"/>
 <path d="M4 5V19L15 12L4 5Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};_o.styles=h`
+    `}};yl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10264,15 +10264,15 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;k1([l({type:Boolean})],_o.prototype,"useCssColor",2);_o=k1([u("obi-media-skip-next")],_o);var k2=Object.defineProperty;var x2=Object.getOwnPropertyDescriptor;var x1=(e,t,i,o)=>{var r=o>1?void 0:o?x2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)k2(t,i,r);return r};var Vo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;Q0([l({type:Boolean})],yl.prototype,"useCssColor",2);yl=Q0([x("obi-media-skip-next")],yl);var a8=Object.defineProperty;var n8=Object.getOwnPropertyDescriptor;var ep=(e,t,i,o)=>{var r=o>1?void 0:o?n8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)a8(t,i,r);return r};var wl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 5C15.866 5 19 8.13401 19 12C19 15.866 15.866 19 12 19C10.067 19 8.317 18.2165 7.05025 16.9497L5.63604 18.364C7.26472 19.9926 9.51472 21 12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C9.17273 3 6.64996 4.30367 5 6.34267V3H3V10H10V8H6.25469C7.51964 6.18652 9.62125 5 12 5Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 5C15.866 5 19 8.13401 19 12C19 15.866 15.866 19 12 19C10.067 19 8.317 18.2165 7.05025 16.9497L5.63604 18.364C7.26472 19.9926 9.51472 21 12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C9.17273 3 6.64996 4.30367 5 6.34267V3H3V10H10V8H6.25469C7.51964 6.18652 9.62125 5 12 5Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Vo.styles=h`
+    `}};wl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10282,15 +10282,15 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;x1([l({type:Boolean})],Vo.prototype,"useCssColor",2);Vo=x1([u("obi-reset")],Vo);var M2=Object.defineProperty;var H2=Object.getOwnPropertyDescriptor;var M1=(e,t,i,o)=>{var r=o>1?void 0:o?H2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)M2(t,i,r);return r};var So=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;ep([l({type:Boolean})],wl.prototype,"useCssColor",2);wl=ep([x("obi-reset")],wl);var l8=Object.defineProperty;var s8=Object.getOwnPropertyDescriptor;var tp=(e,t,i,o)=>{var r=o>1?void 0:o?s8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)l8(t,i,r);return r};var Cl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M5 19V5V16.35V14.225V19ZM5 21C4.45 21 3.97917 20.8042 3.5875 20.4125C3.19583 20.0208 3 19.55 3 19V5C3 4.45 3.19583 3.97917 3.5875 3.5875C3.97917 3.19583 4.45 3 5 3H19C19.55 3 20.0208 3.19583 20.4125 3.5875C20.8042 3.97917 21 4.45 21 5V13H19V5H5V19H12V21H5ZM17.35 22L13.8 18.45L15.225 17.05L17.35 19.175L21.6 14.925L23 16.35L17.35 22ZM8 13C8.28333 13 8.52083 12.9042 8.7125 12.7125C8.90417 12.5208 9 12.2833 9 12C9 11.7167 8.90417 11.4792 8.7125 11.2875C8.52083 11.0958 8.28333 11 8 11C7.71667 11 7.47917 11.0958 7.2875 11.2875C7.09583 11.4792 7 11.7167 7 12C7 12.2833 7.09583 12.5208 7.2875 12.7125C7.47917 12.9042 7.71667 13 8 13ZM8 9C8.28333 9 8.52083 8.90417 8.7125 8.7125C8.90417 8.52083 9 8.28333 9 8C9 7.71667 8.90417 7.47917 8.7125 7.2875C8.52083 7.09583 8.28333 7 8 7C7.71667 7 7.47917 7.09583 7.2875 7.2875C7.09583 7.47917 7 7.71667 7 8C7 8.28333 7.09583 8.52083 7.2875 8.7125C7.47917 8.90417 7.71667 9 8 9ZM11 13H17V11H11V13ZM11 9H17V7H11V9Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M5 19V5V16.35V14.225V19ZM5 21C4.45 21 3.97917 20.8042 3.5875 20.4125C3.19583 20.0208 3 19.55 3 19V5C3 4.45 3.19583 3.97917 3.5875 3.5875C3.97917 3.19583 4.45 3 5 3H19C19.55 3 20.0208 3.19583 20.4125 3.5875C20.8042 3.97917 21 4.45 21 5V13H19V5H5V19H12V21H5ZM17.35 22L13.8 18.45L15.225 17.05L17.35 19.175L21.6 14.925L23 16.35L17.35 22ZM8 13C8.28333 13 8.52083 12.9042 8.7125 12.7125C8.90417 12.5208 9 12.2833 9 12C9 11.7167 8.90417 11.4792 8.7125 11.2875C8.52083 11.0958 8.28333 11 8 11C7.71667 11 7.47917 11.0958 7.2875 11.2875C7.09583 11.4792 7 11.7167 7 12C7 12.2833 7.09583 12.5208 7.2875 12.7125C7.47917 12.9042 7.71667 13 8 13ZM8 9C8.28333 9 8.52083 8.90417 8.7125 8.7125C8.90417 8.52083 9 8.28333 9 8C9 7.71667 8.90417 7.47917 8.7125 7.2875C8.52083 7.09583 8.28333 7 8 7C7.71667 7 7.47917 7.09583 7.2875 7.2875C7.09583 7.47917 7 7.71667 7 8C7 8.28333 7.09583 8.52083 7.2875 8.7125C7.47917 8.90417 7.71667 9 8 9ZM11 13H17V11H11V13ZM11 9H17V7H11V9Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};So.styles=h`
+    `}};Cl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10300,23 +10300,23 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;M1([l({type:Boolean})],So.prototype,"useCssColor",2);So=M1([u("obi-list-alt-check-google")],So);var $2=Object.defineProperty;var _2=Object.getOwnPropertyDescriptor;var H1=(e,t,i,o)=>{var r=o>1?void 0:o?_2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)$2(t,i,r);return r};var Zo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;tp([l({type:Boolean})],Cl.prototype,"useCssColor",2);Cl=tp([x("obi-list-alt-check-google")],Cl);var c8=Object.defineProperty;var p8=Object.getOwnPropertyDescriptor;var rp=(e,t,i,o)=>{var r=o>1?void 0:o?p8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)c8(t,i,r);return r};var Ll=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="currentColor"/>
 <path d="M15.0623 7.5L12.0311 4.5L9 7.5H11.0311V10.5H13.0311V7.5H15.0623Z" fill="currentColor"/>
 <path d="M16 8.93782L13 11.9689L16 15V12.9689H19V10.9689H16V8.93782Z" fill="currentColor"/>
 <path d="M8 15.0622L11 12.0311L8 9V11.0311H5V13.0311H8V15.0622Z" fill="currentColor"/>
 <path d="M9.00012 16.5L12.0312 19.5L15.0623 16.5H13.0312V13.5H11.0312V16.5H9.00012Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" style="fill: var(--element-active-color)"/>
 <path d="M15.0623 7.5L12.0311 4.5L9 7.5H11.0311V10.5H13.0311V7.5H15.0623Z" style="fill: var(--element-active-color)"/>
 <path d="M16 8.93782L13 11.9689L16 15V12.9689H19V10.9689H16V8.93782Z" style="fill: var(--element-active-color)"/>
 <path d="M8 15.0622L11 12.0311L8 9V11.0311H5V13.0311H8V15.0622Z" style="fill: var(--element-active-color)"/>
 <path d="M9.00012 16.5L12.0312 19.5L15.0623 16.5H13.0312V13.5H11.0312V16.5H9.00012Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Zo.styles=h`
+    `}};Ll.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10326,15 +10326,15 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;H1([l({type:Boolean})],Zo.prototype,"useCssColor",2);Zo=H1([u("obi-router-component")],Zo);var V2=Object.defineProperty;var S2=Object.getOwnPropertyDescriptor;var $1=(e,t,i,o)=>{var r=o>1?void 0:o?S2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)V2(t,i,r);return r};var Ao=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;rp([l({type:Boolean})],Ll.prototype,"useCssColor",2);Ll=rp([x("obi-router-component")],Ll);var d8=Object.defineProperty;var h8=Object.getOwnPropertyDescriptor;var op=(e,t,i,o)=>{var r=o>1?void 0:o?h8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)d8(t,i,r);return r};var kl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M15.8506 12.4062C17.4207 10.8362 19.6451 10.3174 21.6465 10.8516L21.6475 10.8525C22.182 12.8542 21.6641 15.079 20.0938 16.6494L14.5254 22.2178L10.2822 17.9746L15.8506 12.4062ZM19.8428 12.6562C18.9025 12.7148 17.9811 13.1039 17.2646 13.8203L13.1104 17.9746L14.5244 19.3887L18.6787 15.2354C19.3954 14.5187 19.7844 13.5968 19.8428 12.6562ZM9 14H7V10H9V14ZM6 9H2V7H6V9ZM14 9H10V7H14V9ZM9 2V6H7V2H9Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M15.8506 12.4062C17.4207 10.8362 19.6451 10.3174 21.6465 10.8516L21.6475 10.8525C22.182 12.8542 21.6641 15.079 20.0938 16.6494L14.5254 22.2178L10.2822 17.9746L15.8506 12.4062ZM19.8428 12.6562C18.9025 12.7148 17.9811 13.1039 17.2646 13.8203L13.1104 17.9746L14.5244 19.3887L18.6787 15.2354C19.3954 14.5187 19.7844 13.5968 19.8428 12.6562ZM9 14H7V10H9V14ZM6 9H2V7H6V9ZM14 9H10V7H14V9ZM9 2V6H7V2H9Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Ao.styles=h`
+    `}};kl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10344,19 +10344,19 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;$1([l({type:Boolean})],Ao.prototype,"useCssColor",2);Ao=$1([u("obi-center-off-iec")],Ao);var Z2=Object.defineProperty;var A2=Object.getOwnPropertyDescriptor;var _1=(e,t,i,o)=>{var r=o>1?void 0:o?A2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Z2(t,i,r);return r};var zo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;op([l({type:Boolean})],kl.prototype,"useCssColor",2);kl=op([x("obi-center-off-iec")],kl);var u8=Object.defineProperty;var f8=Object.getOwnPropertyDescriptor;var ip=(e,t,i,o)=>{var r=o>1?void 0:o?f8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)u8(t,i,r);return r};var xl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M10.2036 5.55373C11.774 3.98336 13.9983 3.46545 16 4C16.5346 6.0017 16.0166 8.226 14.4463 9.79637L7.93843 16.3042L3.69579 12.0616L10.2036 5.55373ZM11.2643 6.61439C12.2058 5.67289 13.4612 5.23456 14.6969 5.30313C14.7654 6.53876 14.3271 7.79421 13.3856 8.73571L7.93843 14.1829L5.81711 12.0616L11.2643 6.61439Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M18.9564 16.9999C20.6132 16.9999 21.9564 15.6568 21.9564 13.9999C21.9564 12.343 20.6132 10.9999 18.9564 10.9999C17.2995 10.9999 15.9564 12.343 15.9564 13.9999C15.9564 15.6568 17.2995 16.9999 18.9564 16.9999Z" fill="currentColor"/>
 <path d="M14.2736 20.0002L15.6878 18.586L14.2736 17.1717L12.8594 18.586L11.4452 17.1717L10.7381 22.1215L15.6878 21.4144L14.2736 20.0002Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M10.2036 5.55373C11.774 3.98336 13.9983 3.46545 16 4C16.5346 6.0017 16.0166 8.226 14.4463 9.79637L7.93843 16.3042L3.69579 12.0616L10.2036 5.55373ZM11.2643 6.61439C12.2058 5.67289 13.4612 5.23456 14.6969 5.30313C14.7654 6.53876 14.3271 7.79421 13.3856 8.73571L7.93843 14.1829L5.81711 12.0616L11.2643 6.61439Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M18.9564 16.9999C20.6132 16.9999 21.9564 15.6568 21.9564 13.9999C21.9564 12.343 20.6132 10.9999 18.9564 10.9999C17.2995 10.9999 15.9564 12.343 15.9564 13.9999C15.9564 15.6568 17.2995 16.9999 18.9564 16.9999Z" style="fill: var(--element-active-color)"/>
 <path d="M14.2736 20.0002L15.6878 18.586L14.2736 17.1717L12.8594 18.586L11.4452 17.1717L10.7381 22.1215L15.6878 21.4144L14.2736 20.0002Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};zo.styles=h`
+    `}};xl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10366,19 +10366,19 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;_1([l({type:Boolean})],zo.prototype,"useCssColor",2);zo=_1([u("obi-motion-relative-proposal")],zo);var z2=Object.defineProperty;var P2=Object.getOwnPropertyDescriptor;var V1=(e,t,i,o)=>{var r=o>1?void 0:o?P2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)z2(t,i,r);return r};var Po=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;ip([l({type:Boolean})],xl.prototype,"useCssColor",2);xl=ip([x("obi-motion-relative-proposal")],xl);var v8=Object.defineProperty;var m8=Object.getOwnPropertyDescriptor;var ap=(e,t,i,o)=>{var r=o>1?void 0:o?m8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)v8(t,i,r);return r};var Ml=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M6.66517 5.99945C5.44261 7.222 4.79212 8.78595 4.6814 10.3822H1.35974L5.51182 14.5343L9.66389 10.3822L6.32378 10.3822C6.42988 9.20577 6.91891 8.05242 7.81852 7.1528C9.45628 5.51504 11.906 5.19671 13.8621 6.18398L14.591 4.73537C12.0213 3.439 8.81041 3.85421 6.66517 5.99945Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M8.82261 14.5019C10.1312 13.1934 11.9847 12.7618 13.6528 13.2073C14.0982 14.8754 13.6667 16.7289 12.3581 18.0375L7.64234 22.7533L4.10681 19.2177L8.82261 14.5019ZM12.3225 14.5376C11.4371 14.5464 10.5568 14.889 9.88327 15.5626L6.22813 19.2177L7.64234 20.6319L11.2975 16.9768C11.9711 16.3032 12.3137 15.4229 12.3225 14.5376Z" fill="currentColor"/>
 <path d="M22.8451 4.01494C21.1771 3.56944 19.3236 4.00097 18.015 5.30955L13.2992 10.0253L16.8347 13.5609L21.5505 8.84508C22.8591 7.53651 23.2906 5.68299 22.8451 4.01494Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M6.66517 5.99945C5.44261 7.222 4.79212 8.78595 4.6814 10.3822H1.35974L5.51182 14.5343L9.66389 10.3822L6.32378 10.3822C6.42988 9.20577 6.91891 8.05242 7.81852 7.1528C9.45628 5.51504 11.906 5.19671 13.8621 6.18398L14.591 4.73537C12.0213 3.439 8.81041 3.85421 6.66517 5.99945Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M8.82261 14.5019C10.1312 13.1934 11.9847 12.7618 13.6528 13.2073C14.0982 14.8754 13.6667 16.7289 12.3581 18.0375L7.64234 22.7533L4.10681 19.2177L8.82261 14.5019ZM12.3225 14.5376C11.4371 14.5464 10.5568 14.889 9.88327 15.5626L6.22813 19.2177L7.64234 20.6319L11.2975 16.9768C11.9711 16.3032 12.3137 15.4229 12.3225 14.5376Z" style="fill: var(--element-active-color)"/>
 <path d="M22.8451 4.01494C21.1771 3.56944 19.3236 4.00097 18.015 5.30955L13.2992 10.0253L16.8347 13.5609L21.5505 8.84508C22.8591 7.53651 23.2906 5.68299 22.8451 4.01494Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Po.styles=h`
+    `}};Ml.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10388,15 +10388,15 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;V1([l({type:Boolean})],Po.prototype,"useCssColor",2);Po=V1([u("obi-motion-tm-reset-proposal-2")],Po);var O2=Object.defineProperty;var B2=Object.getOwnPropertyDescriptor;var S1=(e,t,i,o)=>{var r=o>1?void 0:o?B2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)O2(t,i,r);return r};var Oo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;ap([l({type:Boolean})],Ml.prototype,"useCssColor",2);Ml=ap([x("obi-motion-tm-reset-proposal-2")],Ml);var g8=Object.defineProperty;var b8=Object.getOwnPropertyDescriptor;var np=(e,t,i,o)=>{var r=o>1?void 0:o?b8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)g8(t,i,r);return r};var $l=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 21.05L3 14.05L4.65 12.8L12 18.5L19.35 12.8L21 14.05L12 21.05ZM12 16L3 9L12 2L21 9L12 16ZM12 13.45L17.75 9L12 4.55L6.25 9L12 13.45Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 21.05L3 14.05L4.65 12.8L12 18.5L19.35 12.8L21 14.05L12 21.05ZM12 16L3 9L12 2L21 9L12 16ZM12 13.45L17.75 9L12 4.55L6.25 9L12 13.45Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Oo.styles=h`
+    `}};$l.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10406,21 +10406,21 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;S1([l({type:Boolean})],Oo.prototype,"useCssColor",2);Oo=S1([u("obi-chart-layers")],Oo);var T2=Object.defineProperty;var E2=Object.getOwnPropertyDescriptor;var Z1=(e,t,i,o)=>{var r=o>1?void 0:o?E2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)T2(t,i,r);return r};var Bo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;np([l({type:Boolean})],$l.prototype,"useCssColor",2);$l=np([x("obi-chart-layers")],$l);var y8=Object.defineProperty;var w8=Object.getOwnPropertyDescriptor;var lp=(e,t,i,o)=>{var r=o>1?void 0:o?w8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)y8(t,i,r);return r};var Hl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M4 8V4H8V2H4C2.89543 2 2 2.89543 2 4V8H4Z" fill="currentColor"/>
 <path d="M4 16H2V20C2 21.1046 2.89543 22 4 22H8V20H4V16Z" fill="currentColor"/>
 <path d="M16 20V22H20C21.1046 22 22 21.1046 22 20V16H20V20H16Z" fill="currentColor"/>
 <path d="M20 8H22V4.00002C22 2.89546 21.1046 2.00003 20 2.00002L16 2V4H20V8Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M4 8V4H8V2H4C2.89543 2 2 2.89543 2 4V8H4Z" style="fill: var(--element-active-color)"/>
 <path d="M4 16H2V20C2 21.1046 2.89543 22 4 22H8V20H4V16Z" style="fill: var(--element-active-color)"/>
 <path d="M16 20V22H20C21.1046 22 22 21.1046 22 20V16H20V20H16Z" style="fill: var(--element-active-color)"/>
 <path d="M20 8H22V4.00002C22 2.89546 21.1046 2.00003 20 2.00002L16 2V4H20V8Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Bo.styles=h`
+    `}};Hl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10430,7 +10430,7 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;Z1([l({type:Boolean})],Bo.prototype,"useCssColor",2);Bo=Z1([u("obi-target-select-iec")],Bo);var D2=Object.defineProperty;var I2=Object.getOwnPropertyDescriptor;var A1=(e,t,i,o)=>{var r=o>1?void 0:o?I2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)D2(t,i,r);return r};var To=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;lp([l({type:Boolean})],Hl.prototype,"useCssColor",2);Hl=lp([x("obi-target-select-iec")],Hl);var C8=Object.defineProperty;var L8=Object.getOwnPropertyDescriptor;var sp=(e,t,i,o)=>{var r=o>1?void 0:o?L8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)C8(t,i,r);return r};var _l=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M7 19.4989C7 20.8797 5.88071 21.9989 4.5 21.9989C3.11929 21.9989 2 20.8797 2 19.4989C2 18.1182 3.11929 16.9989 4.5 16.9989C5.88071 16.9989 7 18.1182 7 19.4989Z" fill="currentColor"/>
 <path d="M15.9602 6.62457L17.3744 5.21036L18.7886 6.62457L17.3744 8.03879L15.9602 6.62457Z" fill="currentColor"/>
 <path d="M18.7886 3.79615L20.2028 2.38193L21.617 3.79615L20.2028 5.21036L18.7886 3.79615Z" fill="currentColor"/>
@@ -10444,7 +10444,7 @@ obi-notification-filled {
 <path d="M7.67474 3.78642L8.19238 1.85456L10.1242 2.3722L9.60659 4.30405L7.67474 3.78642Z" fill="currentColor"/>
 <path d="M3.49967 3.5L3.49967 1.5L5.49967 1.5V3.5H3.49967Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M7 19.4989C7 20.8797 5.88071 21.9989 4.5 21.9989C3.11929 21.9989 2 20.8797 2 19.4989C2 18.1182 3.11929 16.9989 4.5 16.9989C5.88071 16.9989 7 18.1182 7 19.4989Z" style="fill: var(--element-active-color)"/>
 <path d="M15.9602 6.62457L17.3744 5.21036L18.7886 6.62457L17.3744 8.03879L15.9602 6.62457Z" style="fill: var(--element-active-color)"/>
 <path d="M18.7886 3.79615L20.2028 2.38193L21.617 3.79615L20.2028 5.21036L18.7886 3.79615Z" style="fill: var(--element-active-color)"/>
@@ -10458,9 +10458,9 @@ obi-notification-filled {
 <path d="M7.67474 3.78642L8.19238 1.85456L10.1242 2.3722L9.60659 4.30405L7.67474 3.78642Z" style="fill: var(--element-active-color)"/>
 <path d="M3.49967 3.5L3.49967 1.5L5.49967 1.5V3.5H3.49967Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};To.styles=h`
+    `}};_l.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10470,7 +10470,7 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;A1([l({type:Boolean})],To.prototype,"useCssColor",2);To=A1([u("obi-radar-electronic-range-and-bearing-proposal")],To);var j2=Object.defineProperty;var R2=Object.getOwnPropertyDescriptor;var z1=(e,t,i,o)=>{var r=o>1?void 0:o?R2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)j2(t,i,r);return r};var Eo=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;sp([l({type:Boolean})],_l.prototype,"useCssColor",2);_l=sp([x("obi-radar-electronic-range-and-bearing-proposal")],_l);var k8=Object.defineProperty;var x8=Object.getOwnPropertyDescriptor;var cp=(e,t,i,o)=>{var r=o>1?void 0:o?x8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)k8(t,i,r);return r};var Sl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M9.6645 14C9.13165 14 8.86523 14 8.72839 14.1092C8.60938 14.2042 8.54015 14.3483 8.54031 14.5005C8.5405 14.6756 8.70694 14.8837 9.03981 15.2998L12 19L14.9602 15.2998C15.2931 14.8837 15.4595 14.6756 15.4597 14.5005C15.4599 14.3483 15.3906 14.2042 15.2716 14.1092C15.1348 14 14.8684 14 14.3355 14H9.6645Z" fill="currentColor"/>
 <path d="M2 22H5V20H2V22Z" fill="currentColor"/>
 <path d="M7 22H11V20H7V22Z" fill="currentColor"/>
@@ -10479,7 +10479,7 @@ obi-notification-filled {
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.97034 6.60754C6.8857 6.72976 6.84338 6.79087 6.82134 6.88005C6.80444 6.94847 6.80444 7.05153 6.82134 7.11995C6.84338 7.20913 6.8857 7.27024 6.97034 7.39246C8.05424 8.95767 9.89402 10 12 10C14.106 10 15.9458 8.95766 17.0297 7.39246C17.1143 7.27024 17.1566 7.20913 17.1787 7.11995C17.1956 7.05153 17.1956 6.94847 17.1787 6.88004C17.1566 6.79086 17.1143 6.72975 17.0297 6.60753C15.9458 5.04233 14.106 4 12 4C9.89402 4 8.05424 5.04233 6.97034 6.60754ZM19.3733 7.29651C19.4182 7.19726 19.4406 7.14764 19.4514 7.08452C19.4601 7.03407 19.4601 6.96593 19.4514 6.91548C19.4406 6.85236 19.4182 6.80274 19.3733 6.70349C18.1212 3.93428 15.2928 2 12 2C8.70721 2 5.87877 3.93428 4.62672 6.70349C4.58185 6.80274 4.55941 6.85236 4.54859 6.91548C4.53993 6.96593 4.53993 7.03407 4.54859 7.08452C4.55941 7.14764 4.58185 7.19726 4.62672 7.29651C5.87877 10.0657 8.70721 12 12 12C15.2928 12 18.1212 10.0657 19.3733 7.29651Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 9C10.896 9 10 8.104 10 7C10 5.896 10.896 5 12 5C13.104 5 14 5.896 14 7C14 8.104 13.104 9 12 9Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M9.6645 14C9.13165 14 8.86523 14 8.72839 14.1092C8.60938 14.2042 8.54015 14.3483 8.54031 14.5005C8.5405 14.6756 8.70694 14.8837 9.03981 15.2998L12 19L14.9602 15.2998C15.2931 14.8837 15.4595 14.6756 15.4597 14.5005C15.4599 14.3483 15.3906 14.2042 15.2716 14.1092C15.1348 14 14.8684 14 14.3355 14H9.6645Z" style="fill: var(--element-active-color)"/>
 <path d="M2 22H5V20H2V22Z" style="fill: var(--element-active-color)"/>
 <path d="M7 22H11V20H7V22Z" style="fill: var(--element-active-color)"/>
@@ -10488,9 +10488,9 @@ obi-notification-filled {
 <path fill-rule="evenodd" clip-rule="evenodd" d="M6.97034 6.60754C6.8857 6.72976 6.84338 6.79087 6.82134 6.88005C6.80444 6.94847 6.80444 7.05153 6.82134 7.11995C6.84338 7.20913 6.8857 7.27024 6.97034 7.39246C8.05424 8.95767 9.89402 10 12 10C14.106 10 15.9458 8.95766 17.0297 7.39246C17.1143 7.27024 17.1566 7.20913 17.1787 7.11995C17.1956 7.05153 17.1956 6.94847 17.1787 6.88004C17.1566 6.79086 17.1143 6.72975 17.0297 6.60753C15.9458 5.04233 14.106 4 12 4C9.89402 4 8.05424 5.04233 6.97034 6.60754ZM19.3733 7.29651C19.4182 7.19726 19.4406 7.14764 19.4514 7.08452C19.4601 7.03407 19.4601 6.96593 19.4514 6.91548C19.4406 6.85236 19.4182 6.80274 19.3733 6.70349C18.1212 3.93428 15.2928 2 12 2C8.70721 2 5.87877 3.93428 4.62672 6.70349C4.58185 6.80274 4.55941 6.85236 4.54859 6.91548C4.53993 6.96593 4.53993 7.03407 4.54859 7.08452C4.55941 7.14764 4.58185 7.19726 4.62672 7.29651C5.87877 10.0657 8.70721 12 12 12C15.2928 12 18.1212 10.0657 19.3733 7.29651Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 9C10.896 9 10 8.104 10 7C10 5.896 10.896 5 12 5C13.104 5 14 5.896 14 7C14 8.104 13.104 9 12 9Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Eo.styles=h`
+    `}};Sl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10500,19 +10500,19 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;z1([l({type:Boolean})],Eo.prototype,"useCssColor",2);Eo=z1([u("obi-monitoring-route")],Eo);var N2=Object.defineProperty;var F2=Object.getOwnPropertyDescriptor;var P1=(e,t,i,o)=>{var r=o>1?void 0:o?F2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)N2(t,i,r);return r};var Do=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;cp([l({type:Boolean})],Sl.prototype,"useCssColor",2);Sl=cp([x("obi-monitoring-route")],Sl);var M8=Object.defineProperty;var $8=Object.getOwnPropertyDescriptor;var pp=(e,t,i,o)=>{var r=o>1?void 0:o?$8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)M8(t,i,r);return r};var Vl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <circle cx="12" cy="12" r="10" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z" fill="currentColor"/>
 <path d="M7.03865 16.2869L11.4846 5.33535C11.6661 4.88821 12.3339 4.88822 12.5154 5.33536L16.9613 16.2869C17.1482 16.7473 16.6205 17.1744 16.1697 16.9277L12.2763 14.7964C12.1053 14.7029 11.8947 14.7029 11.7237 14.7964L7.8303 16.9277C7.37952 17.1744 6.85176 16.7473 7.03865 16.2869Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <circle cx="12" cy="12" r="10" style="fill: var(--element-active-inverted-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z" style="fill: var(--element-active-color)"/>
 <path d="M7.03865 16.2869L11.4846 5.33535C11.6661 4.88821 12.3339 4.88822 12.5154 5.33536L16.9613 16.2869C17.1482 16.7473 16.6205 17.1744 16.1697 16.9277L12.2763 14.7964C12.1053 14.7029 11.8947 14.7029 11.7237 14.7964L7.8303 16.9277C7.37952 17.1744 6.85176 16.7473 7.03865 16.2869Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Do.styles=h`
+    `}};Vl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10522,7 +10522,7 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;P1([l({type:Boolean})],Do.prototype,"useCssColor",2);Do=P1([u("obi-own-ship-alternative-filled")],Do);var U2=Object.defineProperty;var W2=Object.getOwnPropertyDescriptor;var O1=(e,t,i,o)=>{var r=o>1?void 0:o?W2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)U2(t,i,r);return r};var Io=class extends d{constructor(){super(...arguments);this.useCssColor=false;this.icon=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  `;pp([l({type:Boolean})],Vl.prototype,"useCssColor",2);Vl=pp([x("obi-own-ship-alternative-filled")],Vl);var H8=Object.defineProperty;var _8=Object.getOwnPropertyDescriptor;var dp=(e,t,i,o)=>{var r=o>1?void 0:o?_8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)H8(t,i,r);return r};var Zl=class extends C{constructor(){super(...arguments);this.useCssColor=false;this.icon=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
 <path d="M11 13C10.4477 13 10 13.4477 10 14C10 14.5523 10.4477 15 11 15H13C13.5523 15 14 14.5523 14 14C14 13.4477 13.5523 13 13 13H11Z" fill="currentColor"/>
 <path d="M10 10.5C10 9.94771 10.4477 9.5 11 9.5H13C13.5523 9.5 14 9.94771 14 10.5C14 11.0523 13.5523 11.5 13 11.5H11C10.4477 11.5 10 11.0523 10 10.5Z" fill="currentColor"/>
 <path d="M11 6C10.4477 6 10 6.44772 10 7C10 7.55228 10.4477 8 11 8H13C13.5523 8 14 7.55228 14 7C14 6.44772 13.5523 6 13 6H11Z" fill="currentColor"/>
@@ -10534,7 +10534,7 @@ obi-notification-filled {
 <path d="M11 6C10.4477 6 10 6.44772 10 7C10 7.55228 10.4477 8 11 8H13C13.5523 8 14 7.55228 14 7C14 6.44772 13.5523 6 13 6H11Z" fill="currentColor"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 18H5.75C5.33579 18 5 18.3358 5 18.75C5 19.1642 5.33579 19.5 5.75 19.5H7V22H17V19.5H18.25C18.6642 19.5 19 19.1642 19 18.75C19 18.3358 18.6642 18 18.25 18H17V8.13589C17 4.52847 15.1638 2.32578 12.4415 1.18502L12 1L11.5585 1.18502C8.8362 2.32578 7 4.52847 7 8.13589V18ZM8.5 8.13589C8.5 6.59736 8.88734 5.45436 9.48804 4.5945C10.0693 3.76246 10.9128 3.10684 12 2.62785C13.0872 3.10684 13.9307 3.76246 14.512 4.5945C15.1127 5.45436 15.5 6.59736 15.5 8.13589V18H14C14 17.1716 13.3284 16.5 12.5 16.5H11.5C10.6716 16.5 10 17.1716 10 18H8.5V8.13589ZM8.5 20.5V19.5H15.5V20.5H8.5Z" fill="currentColor"/>
 </svg>
-`;this.iconCss=s`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+`;this.iconCss=c`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M11 13C10.4477 13 10 13.4477 10 14C10 14.5523 10.4477 15 11 15H13C13.5523 15 14 14.5523 14 14C14 13.4477 13.5523 13 13 13H11Z" style="fill: var(--element-active-inverted-color)"/>
 <path d="M10 10.5C10 9.94771 10.4477 9.5 11 9.5H13C13.5523 9.5 14 9.94771 14 10.5C14 11.0523 13.5523 11.5 13 11.5H11C10.4477 11.5 10 11.0523 10 10.5Z" style="fill: var(--element-active-inverted-color)"/>
 <path d="M11 6C10.4477 6 10 6.44772 10 7C10 7.55228 10.4477 8 11 8H13C13.5523 8 14 7.55228 14 7C14 6.44772 13.5523 6 13 6H11Z" style="fill: var(--element-active-inverted-color)"/>
@@ -10546,9 +10546,9 @@ obi-notification-filled {
 <path d="M11 6C10.4477 6 10 6.44772 10 7C10 7.55228 10.4477 8 11 8H13C13.5523 8 14 7.55228 14 7C14 6.44772 13.5523 6 13 6H11Z" style="fill: var(--element-active-color)"/>
 <path fill-rule="evenodd" clip-rule="evenodd" d="M7 18H5.75C5.33579 18 5 18.3358 5 18.75C5 19.1642 5.33579 19.5 5.75 19.5H7V22H17V19.5H18.25C18.6642 19.5 19 19.1642 19 18.75C19 18.3358 18.6642 18 18.25 18H17V8.13589C17 4.52847 15.1638 2.32578 12.4415 1.18502L12 1L11.5585 1.18502C8.8362 2.32578 7 4.52847 7 8.13589V18ZM8.5 8.13589C8.5 6.59736 8.88734 5.45436 9.48804 4.5945C10.0693 3.76246 10.9128 3.10684 12 2.62785C13.0872 3.10684 13.9307 3.76246 14.512 4.5945C15.1127 5.45436 15.5 6.59736 15.5 8.13589V18H14C14 17.1716 13.3284 16.5 12.5 16.5H11.5C10.6716 16.5 10 17.1716 10 18H8.5V8.13589ZM8.5 20.5V19.5H15.5V20.5H8.5Z" style="fill: var(--element-active-color)"/>
 </svg>
-`}render(){return c`
+`}render(){return u`
       <div class="wrapper">${this.useCssColor?this.iconCss:this.icon}</div>
-    `}};Io.styles=h`
+    `}};Zl.styles=L`
     .wrapper {
       height: 100%;
       width: 100%;
@@ -10558,7 +10558,7 @@ obi-notification-filled {
       height: 100%;
       width: 100%;
     }
-  `;O1([l({type:Boolean})],Io.prototype,"useCssColor",2);Io=O1([u("obi-vessel-type-cargo-filled")],Io);var B1=h`
+  `;dp([l({type:Boolean})],Zl.prototype,"useCssColor",2);Zl=dp([x("obi-vessel-type-cargo-filled")],Zl);var hp=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -10821,14 +10821,14 @@ obi-notification-filled {
   top: calc(anchor(bottom) - 8px);
   left: anchor(left);
 }
-`;var q2=Object.defineProperty;var G2=Object.getOwnPropertyDescriptor;var K=(e,t,i,o)=>{var r=o>1?void 0:o?G2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)q2(t,i,r);return r};var gi=(e=>{e["regular"]="regular";e["enhanced"]="enhanced";return e})(gi||{});var U=class extends d{constructor(){super(...arguments);this.size="regular";this.hasSetpoint=false;this.hasSrc=false;this.maxDigits=1;this.showZeroPadding=false;this.fractionDigits=0;this.tag="";this.unit="";this.src="";this.neutralColor=false;this.horizontal=false;this.center=false;this.labelOnly=false;this.off=false;this.autoHideSetpoint=false;this.autoHideDeadband=0}dashedGenerator(){const e=this.showZeroPadding?Math.max(this.maxDigits,1):1;if(this.fractionDigits<1){return"-".repeat(e)}else{const t=e-this.fractionDigits;return"-".repeat(Math.max(t,1))+"."+"-".repeat(this.fractionDigits)}}render(){const e=this.hasSetpoint&&this.autoHideSetpoint&&this.setpoint!==void 0&&this.value!==void 0&&Math.abs(this.setpoint-this.value)<=this.autoHideDeadband;return c`
+`;var S8=Object.defineProperty;var V8=Object.getOwnPropertyDescriptor;var rt=(e,t,i,o)=>{var r=o>1?void 0:o?V8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)S8(t,i,r);return r};var Ns=(e=>{e["regular"]="regular";e["enhanced"]="enhanced";return e})(Ns||{});var Ye=class extends C{constructor(){super(...arguments);this.size="regular";this.hasSetpoint=false;this.hasSrc=false;this.maxDigits=1;this.showZeroPadding=false;this.fractionDigits=0;this.tag="";this.unit="";this.src="";this.neutralColor=false;this.horizontal=false;this.center=false;this.labelOnly=false;this.off=false;this.autoHideSetpoint=false;this.autoHideDeadband=0}dashedGenerator(){const e=this.showZeroPadding?Math.max(this.maxDigits,1):1;if(this.fractionDigits<1){return"-".repeat(e)}else{const t=e-this.fractionDigits;return"-".repeat(Math.max(t,1))+"."+"-".repeat(this.fractionDigits)}}render(){const e=this.hasSetpoint&&this.autoHideSetpoint&&this.setpoint!==void 0&&this.value!==void 0&&Math.abs(this.setpoint-this.value)<=this.autoHideDeadband;return u`
       <div
-        class=${L({wrapper:true,[this.size]:true,"neutral-color":this.neutralColor,off:this.off,horizontal:this.horizontal,center:this.center,"left-aligned":this.labelOnly||this.horizontal&&!this.hasSetpoint,"hide-setpoint":e,"show-zero-padding":this.showZeroPadding})}
+        class=${Y({wrapper:true,[this.size]:true,"neutral-color":this.neutralColor,off:this.off,horizontal:this.horizontal,center:this.center,"left-aligned":this.labelOnly||this.horizontal&&!this.hasSetpoint,"hide-setpoint":e,"show-zero-padding":this.showZeroPadding})}
       >
-        ${this.horizontal&&this.size==="regular"?c`<div class="label">
+        ${this.horizontal&&this.size==="regular"?u`<div class="label">
               <div class="tag" part="tag">${this.tag}</div>
-            </div>`:p}
-        ${this.hasSetpoint?c`<div class="setpoint">
+            </div>`:k}
+        ${this.hasSetpoint?u`<div class="setpoint">
               <svg
                 class="setpoint-arrow"
                 width="16"
@@ -10844,22 +10844,22 @@ obi-notification-filled {
                 />
               </svg>
               <div class="setpoint-value">${this.setpointValueBlueNumbers}</div>
-            </div>`:p}
-        ${this.horizontal&&!this.labelOnly&&this.hasSetpoint?c`<div class="divider"></div>`:p}
-        ${!this.labelOnly?c` <div class="value">
-              ${this.off?c`<div class="value-blue">
+            </div>`:k}
+        ${this.horizontal&&!this.labelOnly&&this.hasSetpoint?u`<div class="divider"></div>`:k}
+        ${!this.labelOnly?u` <div class="value">
+              ${this.off?u`<div class="value-blue">
                     <slot name="off-value">OFF</slot>
-                  </div>`:c` <div class="value-hint-zero">${this.hintZeros}</div>
+                  </div>`:u` <div class="value-hint-zero">${this.hintZeros}</div>
                     <div class="value-blue">${this.valueBlueNumbers}</div>`}
-            </div>`:p}
+            </div>`:k}
         <div class="label" part="label">
-          ${this.horizontal&&this.size==="regular"?p:c`<div class="tag" part="tag">${this.tag}</div>`}
+          ${this.horizontal&&this.size==="regular"?k:u`<div class="tag" part="tag">${this.tag}</div>`}
           <div class="unit">${this.unit}</div>
         </div>
-        ${this.hasSrc&&this.horizontal?c`<div class="divider src-divider"></div>`:p}
-        ${this.hasSrc?c`<div class="src">${this.src}</div>`:p}
+        ${this.hasSrc&&this.horizontal?u`<div class="divider src-divider"></div>`:k}
+        ${this.hasSrc?u`<div class="src">${this.src}</div>`:k}
       </div>
-    `}get setpointValueBlueNumbers(){if(this.setpoint===void 0){return this.dashedGenerator()}return this.setpoint.toFixed(this.fractionDigits)}get valueBlueNumbers(){if(this.value===void 0){return this.dashedGenerator()}return this.value.toFixed(this.fractionDigits)}get hintZeros(){if(this.value===void 0||this.value<0){return""}const e=this.valueBlueNumbers.length;const t=this.maxDigits-e;if(t>0){return"0".repeat(t)}return""}};U.styles=C(B1);K([l({type:String})],U.prototype,"size",2);K([l({type:Number})],U.prototype,"setpoint",2);K([l({type:Boolean})],U.prototype,"hasSetpoint",2);K([l({type:Boolean})],U.prototype,"hasSrc",2);K([l({type:Number})],U.prototype,"value",2);K([l({type:Number})],U.prototype,"maxDigits",2);K([l({type:Boolean})],U.prototype,"showZeroPadding",2);K([l({type:Number})],U.prototype,"fractionDigits",2);K([l({type:String})],U.prototype,"tag",2);K([l({type:String})],U.prototype,"unit",2);K([l({type:String})],U.prototype,"src",2);K([l({type:Boolean})],U.prototype,"neutralColor",2);K([l({type:Boolean})],U.prototype,"horizontal",2);K([l({type:Boolean})],U.prototype,"center",2);K([l({type:Boolean})],U.prototype,"labelOnly",2);K([l({type:Boolean})],U.prototype,"off",2);K([l({type:Boolean})],U.prototype,"autoHideSetpoint",2);K([l({type:Number})],U.prototype,"autoHideDeadband",2);U=K([u("obc-instrument-field")],U);var X2=Object.defineProperty;var Ue=(e,t,i,o)=>{var r=void 0;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=n(t,i,r)||r;if(r)X2(t,i,r);return r};function T1(e,t){const{defaultDeadband:i=2,defaultZeroDeadband:o=.5,angularWraparound:r=false}=t??{};class a extends e{constructor(){super(...arguments);this.atSetpoint=false;this.touching=false;this.autoAtSetpoint=true;this.autoAtSetpointDeadband=i;this.setpointAtZeroDeadband=o;this.setpointOverride=false;this.animateSetpoint=false}get departingNewSetpoint(){return this._departingNewSetpoint}computeAtSetpoint(g){return Wr({value:g,setpoint:this.setpoint,touching:this.touching,auto:this.autoAtSetpoint,deadband:this.autoAtSetpointDeadband,atSetpointManual:this.atSetpoint,angularWraparound:r})}willUpdate(g){super.willUpdate(g);if(g.has("newSetpoint")&&this.animateSetpoint){const v=g.get("newSetpoint");if(v!==void 0&&this.newSetpoint===void 0){this._departingNewSetpoint=v;clearTimeout(this._animationTimer);const f=Ur(this);this._animationTimer=setTimeout(()=>{this._departingNewSetpoint=void 0},f)}}}disconnectedCallback(){super.disconnectedCallback();clearTimeout(this._animationTimer)}}Ue([l({type:Number})],a.prototype,"setpoint");Ue([l({type:Number})],a.prototype,"newSetpoint");Ue([l({type:Boolean,attribute:false})],a.prototype,"atSetpoint");Ue([l({type:Boolean})],a.prototype,"touching");Ue([l({type:Boolean,attribute:false})],a.prototype,"autoAtSetpoint");Ue([l({type:Number})],a.prototype,"autoAtSetpointDeadband");Ue([l({type:Number})],a.prototype,"setpointAtZeroDeadband");Ue([l({type:Boolean})],a.prototype,"setpointOverride");Ue([l({type:Boolean})],a.prototype,"animateSetpoint");Ue([j()],a.prototype,"_departingNewSetpoint");return a}var Y2=Object.defineProperty;var K2=Object.getOwnPropertyDescriptor;var Ve=(e,t,i,o)=>{var r=o>1?void 0:o?K2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)Y2(t,i,r);return r};var ge=class extends T1(d){constructor(){super(...arguments);this.speed=0;this.maxSpeed=100;this.minSpeed=0;this.showLabels=false;this.tickmarksInside=false;this.tickmarkInterval=20;this.priority=B.regular;this.needleType="full";this.speedAdvices=[];this.tickmarkStyle=Y.regular;this.showReadout=false;this.maxAngle=180-45}getAngle(e){return e/this.maxSpeed*(180+45)-90}get minAngle(){return this.getAngle(this.minSpeed)-360}render(){const e=this.priority===B.enhanced?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)";const t=this.setpoint!==void 0?this.getAngle(this.setpoint):void 0;const i=this.maxSpeed.toFixed(1).length;return c`
+    `}get setpointValueBlueNumbers(){if(this.setpoint===void 0){return this.dashedGenerator()}return this.setpoint.toFixed(this.fractionDigits)}get valueBlueNumbers(){if(this.value===void 0){return this.dashedGenerator()}return this.value.toFixed(this.fractionDigits)}get hintZeros(){if(this.value===void 0||this.value<0){return""}const e=this.valueBlueNumbers.length;const t=this.maxDigits-e;if(t>0){return"0".repeat(t)}return""}};Ye.styles=I(hp);rt([l({type:String})],Ye.prototype,"size",2);rt([l({type:Number})],Ye.prototype,"setpoint",2);rt([l({type:Boolean})],Ye.prototype,"hasSetpoint",2);rt([l({type:Boolean})],Ye.prototype,"hasSrc",2);rt([l({type:Number})],Ye.prototype,"value",2);rt([l({type:Number})],Ye.prototype,"maxDigits",2);rt([l({type:Boolean})],Ye.prototype,"showZeroPadding",2);rt([l({type:Number})],Ye.prototype,"fractionDigits",2);rt([l({type:String})],Ye.prototype,"tag",2);rt([l({type:String})],Ye.prototype,"unit",2);rt([l({type:String})],Ye.prototype,"src",2);rt([l({type:Boolean})],Ye.prototype,"neutralColor",2);rt([l({type:Boolean})],Ye.prototype,"horizontal",2);rt([l({type:Boolean})],Ye.prototype,"center",2);rt([l({type:Boolean})],Ye.prototype,"labelOnly",2);rt([l({type:Boolean})],Ye.prototype,"off",2);rt([l({type:Boolean})],Ye.prototype,"autoHideSetpoint",2);rt([l({type:Number})],Ye.prototype,"autoHideDeadband",2);Ye=rt([x("obc-instrument-field")],Ye);var Z8=Object.defineProperty;var Qr=(e,t,i,o)=>{var r=void 0;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=n(t,i,r)||r;if(r)Z8(t,i,r);return r};function qi(e,t){const{defaultDeadband:i=2,defaultZeroDeadband:o=.5,angularWraparound:r=false}=t??{};class a extends e{constructor(){super(...arguments);this.atSetpoint=false;this.touching=false;this.autoAtSetpoint=true;this.autoAtSetpointDeadband=i;this.setpointAtZeroDeadband=o;this.setpointOverride=false;this.animateSetpoint=false}get departingNewSetpoint(){return this._departingNewSetpoint}computeAtSetpoint(h){return En({value:h,setpoint:this.setpoint,touching:this.touching,auto:this.autoAtSetpoint,deadband:this.autoAtSetpointDeadband,atSetpointManual:this.atSetpoint,angularWraparound:r})}willUpdate(h){super.willUpdate(h);if(h.has("newSetpoint")&&this.animateSetpoint){const d=h.get("newSetpoint");if(d!==void 0&&this.newSetpoint===void 0){this._departingNewSetpoint=d;clearTimeout(this._animationTimer);const f=On(this);this._animationTimer=setTimeout(()=>{this._departingNewSetpoint=void 0},f)}}}disconnectedCallback(){super.disconnectedCallback();clearTimeout(this._animationTimer)}}Qr([l({type:Number})],a.prototype,"setpoint");Qr([l({type:Number})],a.prototype,"newSetpoint");Qr([l({type:Boolean,attribute:false})],a.prototype,"atSetpoint");Qr([l({type:Boolean})],a.prototype,"touching");Qr([l({type:Boolean,attribute:false})],a.prototype,"autoAtSetpoint");Qr([l({type:Number})],a.prototype,"autoAtSetpointDeadband");Qr([l({type:Number})],a.prototype,"setpointAtZeroDeadband");Qr([l({type:Boolean})],a.prototype,"setpointOverride");Qr([l({type:Boolean})],a.prototype,"animateSetpoint");Qr([Ee()],a.prototype,"_departingNewSetpoint");return a}var A8=Object.defineProperty;var P8=Object.getOwnPropertyDescriptor;var gr=(e,t,i,o)=>{var r=o>1?void 0:o?P8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)A8(t,i,r);return r};var Rt=class extends qi(C){constructor(){super(...arguments);this.speed=0;this.maxSpeed=100;this.minSpeed=0;this.showLabels=false;this.tickmarksInside=false;this.tickmarkInterval=20;this.priority=de.regular;this.needleType="full";this.speedAdvices=[];this.tickmarkStyle=He.regular;this.showReadout=false;this.maxAngle=180-45}getAngle(e){return e/this.maxSpeed*(180+45)-90}get minAngle(){return this.getAngle(this.minSpeed)-360}render(){const e=this.priority===de.enhanced?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)";const t=this.setpoint!==void 0?this.getAngle(this.setpoint):void 0;const i=this.maxSpeed.toFixed(1).length;return u`
       <div class="container">
         <obc-watch
           .touching=${this.touching}
@@ -10875,15 +10875,15 @@ obi-notification-filled {
           .tickmarkStyle=${this.tickmarkStyle}
           .advices=${this._advices}
           .areas=${[{startAngle:this.minAngle,endAngle:this.maxAngle,roundInsideCut:true,roundOutsideCut:true}]}
-          .watchCircleType=${Ct.double}
+          .watchCircleType=${dr.double}
           .barAreas=${[{startAngle:this.getAngle(0),endAngle:this.getAngle(this.speed),fillColor:e}]}
         ></obc-watch>
         <svg class="rudder" viewBox="-224 -224 448 448">${this.needle}</svg>
-        ${this.showReadout?c`
+        ${this.showReadout?u`
               <obc-instrument-field
                 class="speed-gauge-value"
-                .size=${gi.enhanced}
-                .neutralColor=${this.priority!==B.enhanced}
+                .size=${Ns.enhanced}
+                .neutralColor=${this.priority!==de.enhanced}
                 .value=${this.speed}
                 horizontal
                 unit="KN"
@@ -10891,17 +10891,17 @@ obi-notification-filled {
                 .fractionDigits=${1}
                 .maxDigits=${i}
               ></obc-instrument-field>
-            `:p}
+            `:k}
       </div>
-    `}get needle(){const e=this.priority===B.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";if(this.needleType==="full"){return s`<g transform="rotate(${this.getAngle(this.speed)}) translate(-256, -256)">
+    `}get needle(){const e=this.priority===de.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";if(this.needleType==="full"){return c`<g transform="rotate(${this.getAngle(this.speed)}) translate(-256, -256)">
       <circle cx="256" cy="256" r="14" fill=${e}/>
       <rect x="250" y="96" width="12" height="192" rx="6" fill=${e}/>
       <rect x="252" y="98" width="8" height="188" rx="4" stroke=${e} fill=${e} stroke-width="4"/>
       </svg> 
-`}else{return s`<g transform="rotate(${this.getAngle(this.speed)}) translate(-256, -256)">
+`}else{return c`<g transform="rotate(${this.getAngle(this.speed)}) translate(-256, -256)">
 <rect x="252" y="96" width="8" height="48" rx="4" fill=${e} stroke="var(--border-silhouette-color)"/>
 </svg>
-      `}}get tickmarks(){const e=[];const t=this.tickmarkInterval;if(t!==void 0&&t>0&&Number.isFinite(t)){for(let i=t;i<this.maxSpeed;i+=t){e.push({angle:this.getAngle(i),type:N.primary,text:this.showLabels?i.toString():void 0})}if(this.showLabels&&this.maxSpeed%t===0){e.push({angle:this.getAngle(this.maxSpeed),type:N.textOnly,text:this.showLabels?this.maxSpeed.toString():void 0})}for(let i=-t;i>this.minSpeed;i-=t){e.push({angle:this.getAngle(i),type:N.main,text:this.showLabels?i.toString():void 0})}if(this.showLabels&&this.minSpeed%t===0){e.push({angle:this.getAngle(this.minSpeed),type:N.textOnly,text:this.showLabels?this.minSpeed.toString():void 0})}}e.push({angle:this.getAngle(0),type:this.minSpeed<0?N.main:N.textOnly,text:this.showLabels?"0":void 0});return e}get _advices(){return this.speedAdvices.map(e=>{const t=this.getAngle(e.minSpeed);const i=this.getAngle(e.maxSpeed);let o=e.hinted?I.hinted:I.regular;if(this.speed>=e.minSpeed&&this.speed<=e.maxSpeed){o=I.triggered}return{minAngle:t,maxAngle:i,type:e.type,state:o,hideMinTickmark:e.minSpeed===this.minSpeed,hideMaxTickmark:e.maxSpeed===this.maxSpeed}})}};ge.styles=h`
+      `}}get tickmarks(){const e=[];const t=this.tickmarkInterval;if(t!==void 0&&t>0&&Number.isFinite(t)){for(let i=t;i<this.maxSpeed;i+=t){e.push({angle:this.getAngle(i),type:be.primary,text:this.showLabels?i.toString():void 0})}if(this.showLabels&&this.maxSpeed%t===0){e.push({angle:this.getAngle(this.maxSpeed),type:be.textOnly,text:this.showLabels?this.maxSpeed.toString():void 0})}for(let i=-t;i>this.minSpeed;i-=t){e.push({angle:this.getAngle(i),type:be.main,text:this.showLabels?i.toString():void 0})}if(this.showLabels&&this.minSpeed%t===0){e.push({angle:this.getAngle(this.minSpeed),type:be.textOnly,text:this.showLabels?this.minSpeed.toString():void 0})}}e.push({angle:this.getAngle(0),type:this.minSpeed<0?be.main:be.textOnly,text:this.showLabels?"0":void 0});return e}get _advices(){return this.speedAdvices.map(e=>{const t=this.getAngle(e.minSpeed);const i=this.getAngle(e.maxSpeed);let o=e.hinted?se.hinted:se.regular;if(this.speed>=e.minSpeed&&this.speed<=e.maxSpeed){o=se.triggered}return{minAngle:t,maxAngle:i,type:e.type,state:o,hideMinTickmark:e.minSpeed===this.minSpeed,hideMaxTickmark:e.maxSpeed===this.maxSpeed}})}};Rt.styles=L`
     * {
       box-sizing: border-box;
     }
@@ -10936,7 +10936,7 @@ obi-notification-filled {
       width: fit-content;
       height: fit-content;
     }
-  `;Ve([l({type:Number})],ge.prototype,"speed",2);Ve([l({type:Number})],ge.prototype,"maxSpeed",2);Ve([l({type:Number})],ge.prototype,"minSpeed",2);Ve([l({type:Boolean})],ge.prototype,"showLabels",2);Ve([l({type:Boolean})],ge.prototype,"tickmarksInside",2);Ve([l({type:Number})],ge.prototype,"tickmarkInterval",2);Ve([l({type:String})],ge.prototype,"priority",2);Ve([l({type:String})],ge.prototype,"needleType",2);Ve([l({type:Array,attribute:false})],ge.prototype,"speedAdvices",2);Ve([l({type:String})],ge.prototype,"tickmarkStyle",2);Ve([l({type:Boolean})],ge.prototype,"showReadout",2);ge=Ve([u("obc-speed-gauge")],ge);var E1=h`
+  `;gr([l({type:Number})],Rt.prototype,"speed",2);gr([l({type:Number})],Rt.prototype,"maxSpeed",2);gr([l({type:Number})],Rt.prototype,"minSpeed",2);gr([l({type:Boolean})],Rt.prototype,"showLabels",2);gr([l({type:Boolean})],Rt.prototype,"tickmarksInside",2);gr([l({type:Number})],Rt.prototype,"tickmarkInterval",2);gr([l({type:String})],Rt.prototype,"priority",2);gr([l({type:String})],Rt.prototype,"needleType",2);gr([l({type:Array,attribute:false})],Rt.prototype,"speedAdvices",2);gr([l({type:String})],Rt.prototype,"tickmarkStyle",2);gr([l({type:Boolean})],Rt.prototype,"showReadout",2);Rt=gr([x("obc-speed-gauge")],Rt);var up=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -11332,9 +11332,9 @@ obi-notification-filled {
     width: calc(var(--image-size) * 160 / 136.87);
     height: calc(var(--image-size) * 160 / 136.87);
   }
-`;var J2=Object.defineProperty;var Q2=Object.getOwnPropertyDescriptor;var me=(e,t,i,o)=>{var r=o>1?void 0:o?Q2(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)J2(t,i,r);return r};var ne=class extends d{constructor(){super(...arguments);this.heading=0;this.course=0;this.speedIndicator="two";this.turnRate=0;this.number=void 0;this.name=void 0;this.state="enabled";this.type="flat";this.selected=false;this.courseArrowPx=void 0;this.ownShipIndicator=false;this.vesselImage=null;this.vesselImageSize=80}render(){const e=["button","large","button-speed-rot"].includes(this.type);const t=e?R`button`:R`div`;const i=["alarm","warning","caution"].includes(this.state);return _`
+`;var T8=Object.defineProperty;var z8=Object.getOwnPropertyDescriptor;var Nt=(e,t,i,o)=>{var r=o>1?void 0:o?z8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)T8(t,i,r);return r};var Mt=class extends C{constructor(){super(...arguments);this.heading=0;this.course=0;this.speedIndicator="two";this.turnRate=0;this.number=void 0;this.name=void 0;this.state="enabled";this.type="flat";this.selected=false;this.courseArrowPx=void 0;this.ownShipIndicator=false;this.vesselImage=null;this.vesselImageSize=80}render(){const e=["button","large","button-speed-rot"].includes(this.type);const t=e?Ue`button`:Ue`div`;const i=["alarm","warning","caution"].includes(this.state);return ae`
       <${t}
-        class=${L({wrapper:true,[`state-${this.state}`]:true,[`type-${this.type}`]:true,"has-alert":i,selected:this.selected})}
+        class=${Y({wrapper:true,[`state-${this.state}`]:true,[`type-${this.type}`]:true,"has-alert":i,selected:this.selected})}
         style="--heading: ${this.heading}deg;"
       >
       ${this.getVesselImageIcon()}
@@ -11354,24 +11354,24 @@ obi-notification-filled {
 
           </div>
           ${this.getSpeedIndicatorIcon()}
-          ${i?_`<div class="alert-ring"></div>`:p}
+          ${i?ae`<div class="alert-ring"></div>`:k}
         </div>
-        ${this.selected?_`<div class="selection-frame"></div>`:p}
-        ${this.number?_`<div class="number-wrapper">
+        ${this.selected?ae`<div class="selection-frame"></div>`:k}
+        ${this.number?ae`<div class="number-wrapper">
                 <slot name="number">${this.number}</slot>
-              </div>`:p}
-        ${this.name?_`<div class="name-wrapper">
+              </div>`:k}
+        ${this.name?ae`<div class="name-wrapper">
                 <slot name="name">${this.name}</slot>
-              </div>`:p}
+              </div>`:k}
         
       </${t}>
-    `}getSpeedIndicatorIcon(){const e=["button-speed-rot","flat-speed-rot"].includes(this.type);if(!e){return p}let t=[];switch(this.speedIndicator){case"one":t=[0];break;case"two":t=[-2,2];break;case"three":t=[-4,0,4];break}let i=void 0;if(this.speedIndicator==="stopped"){i=Cr`
+    `}getSpeedIndicatorIcon(){const e=["button-speed-rot","flat-speed-rot"].includes(this.type);if(!e){return k}let t=[];switch(this.speedIndicator){case"one":t=[0];break;case"two":t=[-2,2];break;case"three":t=[-4,0,4];break}let i=void 0;if(this.speedIndicator==="stopped"){i=un`
         <circle cx="0" cy="0" r="4" fill="none" stroke="currentColor" stroke-width="1.5" />
-      `}else if(this.speedIndicator==="anchored"){return Cr`
+      `}else if(this.speedIndicator==="anchored"){return un`
       <svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M8.75 3.25H10.75V4.75H8.75V8.38379C8.81975 8.36184 8.88925 8.33765 8.95703 8.30957C9.26022 8.18394 9.53551 7.99964 9.76758 7.76758C9.99964 7.53551 10.1839 7.26022 10.3096 6.95703C10.4352 6.65372 10.5 6.3283 10.5 6H12C12 6.52517 11.8962 7.04506 11.6953 7.53027C11.4943 8.01558 11.1996 8.45669 10.8281 8.82812C10.4567 9.19956 10.0156 9.49429 9.53027 9.69531C9.04506 9.89624 8.52517 10 8 10C7.47483 10 6.95494 9.89624 6.46973 9.69531C5.98442 9.49429 5.54331 9.19956 5.17188 8.82812C4.80044 8.45669 4.50571 8.01558 4.30469 7.53027C4.10376 7.04506 4 6.52517 4 6H5.5C5.5 6.3283 5.56479 6.65372 5.69043 6.95703C5.81606 7.26022 6.00036 7.53551 6.23242 7.76758C6.46449 7.99964 6.73978 8.18394 7.04297 8.30957C7.11075 8.33765 7.18025 8.36184 7.25 8.38379V4.75H5.25V3.25H7.25V1.25H8.75V3.25Z" fill="currentColor" />
       </svg>
-      `}return _`
+      `}return ae`
       <svg
         width="16"
         height="12"
@@ -11379,7 +11379,7 @@ obi-notification-filled {
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
-        ${t.map(o=>Cr`
+        ${t.map(o=>un`
           <line
             x1="${o}"
             y1="-3"
@@ -11392,7 +11392,7 @@ obi-notification-filled {
         `)}
         ${i}
       </svg>
-    `}getTurnRateIcon(){const e=["button-speed-rot","flat-speed-rot"].includes(this.type);if(!e){return p}const t=this.turnRate/100*12;const i=24;const o=-i*Math.cos(t*Math.PI/180)+i+3;const r=i*Math.sin(t*Math.PI/180)+8;return _`
+    `}getTurnRateIcon(){const e=["button-speed-rot","flat-speed-rot"].includes(this.type);if(!e){return k}const t=this.turnRate/100*12;const i=24;const o=-i*Math.cos(t*Math.PI/180)+i+3;const r=i*Math.sin(t*Math.PI/180)+8;return ae`
       <svg
         width="16"
         height="12"
@@ -11408,7 +11408,7 @@ obi-notification-filled {
           stroke-linejoin="round"
         />
       </svg>
-    `}getCourseArrowIcon(){if(this.courseArrowPx===void 0){return p}const e=this.courseArrowPx;let t="var(--element-active-color)";if(this.state==="alarm"){t="var(--alert-alarm-color)"}return _`
+    `}getCourseArrowIcon(){if(this.courseArrowPx===void 0){return k}const e=this.courseArrowPx;let t="var(--element-active-color)";if(this.state==="alarm"){t="var(--alert-alarm-color)"}return ae`
       <svg
         width="256"
         height=${e}
@@ -11449,7 +11449,7 @@ obi-notification-filled {
           />
         </g>
       </svg>
-    `}getOwnShipIndicatorIcon(){if(!this.ownShipIndicator){return p}return _`
+    `}getOwnShipIndicatorIcon(){if(!this.ownShipIndicator){return k}return ae`
       <svg
         width="64"
         height="256"
@@ -11502,19 +11502,19 @@ obi-notification-filled {
           stroke-dasharray="1 2"
         />
       </svg>
-    `}getVesselImageIcon(){if(!this.vesselImage){return _`<div
+    `}getVesselImageIcon(){if(!this.vesselImage){return ae`<div
         class="vessel-image-wrapper"
         style="--image-size: ${this.vesselImageSize}px;"
         part="vessel-image-wrapper"
       >
         <slot name="vessel-image"></slot>
-      </div>`}return _`<div
+      </div>`}return ae`<div
       class="vessel-image-wrapper"
       style="--image-size: ${this.vesselImageSize}px;"
       part="vessel-image-wrapper"
     >
-      ${Bt[this.vesselImage]}
-    </div>`}};ne.styles=C(E1);me([l({type:Number})],ne.prototype,"heading",2);me([l({type:Number})],ne.prototype,"course",2);me([l({type:String})],ne.prototype,"speedIndicator",2);me([l({type:Number})],ne.prototype,"turnRate",2);me([l({type:Number})],ne.prototype,"number",2);me([l({type:String})],ne.prototype,"name",2);me([l({type:String})],ne.prototype,"state",2);me([l({type:String})],ne.prototype,"type",2);me([l({type:Boolean})],ne.prototype,"selected",2);me([l({type:Number})],ne.prototype,"courseArrowPx",2);me([l({type:Boolean})],ne.prototype,"ownShipIndicator",2);me([l({type:String})],ne.prototype,"vesselImage",2);me([l({type:Number})],ne.prototype,"vesselImageSize",2);ne=me([u("obc-chart-object-vessel-button")],ne);var D1=h`
+      ${ji[this.vesselImage]}
+    </div>`}};Mt.styles=I(up);Nt([l({type:Number})],Mt.prototype,"heading",2);Nt([l({type:Number})],Mt.prototype,"course",2);Nt([l({type:String})],Mt.prototype,"speedIndicator",2);Nt([l({type:Number})],Mt.prototype,"turnRate",2);Nt([l({type:Number})],Mt.prototype,"number",2);Nt([l({type:String})],Mt.prototype,"name",2);Nt([l({type:String})],Mt.prototype,"state",2);Nt([l({type:String})],Mt.prototype,"type",2);Nt([l({type:Boolean})],Mt.prototype,"selected",2);Nt([l({type:Number})],Mt.prototype,"courseArrowPx",2);Nt([l({type:Boolean})],Mt.prototype,"ownShipIndicator",2);Nt([l({type:String})],Mt.prototype,"vesselImage",2);Nt([l({type:Number})],Mt.prototype,"vesselImageSize",2);Mt=Nt([x("obc-chart-object-vessel-button")],Mt);var fp=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -11664,7 +11664,7 @@ obc-poi-card-header::part(wrapper) {
   border: 1px solid var(--alert-caution-outline-color);
   border-radius: 5px;
 }
-`;var I1=h`
+`;var vp=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -11939,7 +11939,7 @@ obc-poi-card-header::part(wrapper) {
 .close-button {
   flex-shrink: 0;
 }
-`;var j1=h`
+`;var mp=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -12324,39 +12324,39 @@ obc-poi-card-header::part(wrapper) {
   outline: 2px solid var(--element-active-color);
   outline-offset: 2px;
 }
-`;var e0=Object.defineProperty;var t0=Object.getOwnPropertyDescriptor;var jt=(e,t,i,o)=>{var r=o>1?void 0:o?t0(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)e0(t,i,r);return r};var We=(e=>{e["Indicator"]="indicator";e["Regular"]="regular";e["Large"]="large";e["NUp"]="n-up";e["NUpLarge"]="n-up-large";return e})(We||{});var jo=(e=>{e["Regular"]="regular";e["Categorical"]="categorical";e["Enhanced"]="enhanced";return e})(jo||{});var mi=(e=>{e["Unchecked"]="unchecked";e["Checked"]="checked";e["StaticUnchecked"]="static-unchecked";e["StaticChecked"]="static-checked";e["Activated"]="activated";e["Overlapped"]="overlapped";e["Caution"]="caution";e["Warning"]="warning";e["Alarm"]="alarm";return e})(mi||{});var ut=class extends d{constructor(){super(...arguments);this.type="regular";this.objectStyle="regular";this.state="unchecked";this.interactive=false;this.hasPlaceholderIcon=false}applyHostSize(){if(this.isLargeSize){this.style.width="var(--maneuvering-components-poi-button-large-touch-target, 64px)";this.style.height="var(--maneuvering-components-poi-button-large-touch-target, 64px)"}else{this.style.width="var(--maneuvering-components-poi-button-touch-target, 48px)";this.style.height="var(--maneuvering-components-poi-button-touch-target, 48px)"}}updated(e){if(e.has("type")){this.applyHostSize()}}connectedCallback(){super.connectedCallback();this.applyHostSize()}get isChecked(){return this.state==="checked"||this.state==="static-checked"}get isStatic(){return this.state==="static-unchecked"||this.state==="static-checked"}get isActivated(){return this.state==="activated"}get isOverlapped(){return this.state==="overlapped"}get isInteractive(){return this.interactive&&!this.isOverlapped}get isSquare(){return this.type==="n-up"||this.type==="n-up-large"}get isLargeSize(){return this.type==="large"||this.type==="n-up-large"}get isIndicator(){return this.type==="indicator"}handleKeyDown(e){if(!this.isInteractive)return;if(e.target!==e.currentTarget)return;if(e.key===" "){e.preventDefault()}else if(e.key==="Enter"&&!e.repeat){e.preventDefault();this.click()}}handleKeyUp(e){if(!this.isInteractive)return;if(e.target!==e.currentTarget)return;if(e.key===" "){e.preventDefault();this.click()}}handleSlotChange(e){const t=e.target;const i=t.assignedElements({flatten:true}).some(o=>o.tagName.toLowerCase()==="obi-placeholder");if(i!==this.hasPlaceholderIcon){this.hasPlaceholderIcon=i}}render(){const e={wrapper:true,[`type-${this.type}`]:true,[`style-${this.objectStyle}`]:true,[`state-${this.state}`]:true,"is-static":this.isStatic,"is-checked":this.isChecked,"is-activated":this.isActivated,"is-overlapped":this.isOverlapped,"is-square":this.isSquare,"is-large":this.isLargeSize,"is-indicator":this.isIndicator,"has-placeholder-icon":this.hasPlaceholderIcon,interactive:this.isInteractive};return c`
+`;var O8=Object.defineProperty;var E8=Object.getOwnPropertyDescriptor;var Yi=(e,t,i,o)=>{var r=o>1?void 0:o?E8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)O8(t,i,r);return r};var eo=(e=>{e["Indicator"]="indicator";e["Regular"]="regular";e["Large"]="large";e["NUp"]="n-up";e["NUpLarge"]="n-up-large";return e})(eo||{});var Al=(e=>{e["Regular"]="regular";e["Categorical"]="categorical";e["Enhanced"]="enhanced";return e})(Al||{});var js=(e=>{e["Unchecked"]="unchecked";e["Checked"]="checked";e["StaticUnchecked"]="static-unchecked";e["StaticChecked"]="static-checked";e["Activated"]="activated";e["Overlapped"]="overlapped";e["Caution"]="caution";e["Warning"]="warning";e["Alarm"]="alarm";return e})(js||{});var Ao=class extends C{constructor(){super(...arguments);this.type="regular";this.objectStyle="regular";this.state="unchecked";this.interactive=false;this.hasPlaceholderIcon=false}applyHostSize(){if(this.isLargeSize){this.style.width="var(--maneuvering-components-poi-button-large-touch-target, 64px)";this.style.height="var(--maneuvering-components-poi-button-large-touch-target, 64px)"}else{this.style.width="var(--maneuvering-components-poi-button-touch-target, 48px)";this.style.height="var(--maneuvering-components-poi-button-touch-target, 48px)"}}updated(e){if(e.has("type")){this.applyHostSize()}}connectedCallback(){super.connectedCallback();this.applyHostSize()}get isChecked(){return this.state==="checked"||this.state==="static-checked"}get isStatic(){return this.state==="static-unchecked"||this.state==="static-checked"}get isActivated(){return this.state==="activated"}get isOverlapped(){return this.state==="overlapped"}get isInteractive(){return this.interactive&&!this.isOverlapped}get isSquare(){return this.type==="n-up"||this.type==="n-up-large"}get isLargeSize(){return this.type==="large"||this.type==="n-up-large"}get isIndicator(){return this.type==="indicator"}handleKeyDown(e){if(!this.isInteractive)return;if(e.target!==e.currentTarget)return;if(e.key===" "){e.preventDefault()}else if(e.key==="Enter"&&!e.repeat){e.preventDefault();this.click()}}handleKeyUp(e){if(!this.isInteractive)return;if(e.target!==e.currentTarget)return;if(e.key===" "){e.preventDefault();this.click()}}handleSlotChange(e){const t=e.target;const i=t.assignedElements({flatten:true}).some(o=>o.tagName.toLowerCase()==="obi-placeholder");if(i!==this.hasPlaceholderIcon){this.hasPlaceholderIcon=i}}render(){const e={wrapper:true,[`type-${this.type}`]:true,[`style-${this.objectStyle}`]:true,[`state-${this.state}`]:true,"is-static":this.isStatic,"is-checked":this.isChecked,"is-activated":this.isActivated,"is-overlapped":this.isOverlapped,"is-square":this.isSquare,"is-large":this.isLargeSize,"is-indicator":this.isIndicator,"has-placeholder-icon":this.hasPlaceholderIcon,interactive:this.isInteractive};return u`
       <div
-        class=${L(e)}
-        role=${this.isInteractive?"button":p}
-        tabindex=${this.isInteractive?"0":p}
+        class=${Y(e)}
+        role=${this.isInteractive?"button":k}
+        tabindex=${this.isInteractive?"0":k}
         @keydown=${this.handleKeyDown}
         @keyup=${this.handleKeyUp}
       >
-        ${this.isActivated?c`<div class="activated-frame" part="activated-frame"></div>`:p}
-        ${!this.isIndicator||this.isOverlapped||this.isInteractive?c`<div class="background-frame" part="background-frame"></div>`:p}
+        ${this.isActivated?u`<div class="activated-frame" part="activated-frame"></div>`:k}
+        ${!this.isIndicator||this.isOverlapped||this.isInteractive?u`<div class="background-frame" part="background-frame"></div>`:k}
 
         <div class="icon-container" part="icon-container">
-          ${this.isIndicator&&this.hasPlaceholderIcon?c`<svg
+          ${this.isIndicator&&this.hasPlaceholderIcon?u`<svg
                 class="indicator-placeholder-fill"
                 viewBox="0 0 24 24"
                 aria-hidden="true"
                 focusable="false"
               >
                 <path d="M12 3L3 12L12 21L21 12L12 3Z"></path>
-              </svg>`:p}
+              </svg>`:k}
           <slot @slotchange=${this.handleSlotChange}></slot>
         </div>
       </div>
-    `}};ut.styles=C(j1);jt([l({type:String})],ut.prototype,"type",2);jt([l({type:String})],ut.prototype,"objectStyle",2);jt([l({type:String})],ut.prototype,"state",2);jt([l({type:Boolean})],ut.prototype,"interactive",2);jt([j()],ut.prototype,"hasPlaceholderIcon",2);ut=jt([u("obc-poi-object")],ut);var r0=Object.defineProperty;var fi=(e,t,i,o)=>{var r=void 0;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=n(t,i,r)||r;if(r)r0(t,i,r);return r};var o0={"--overlay-container-background-color":"var(--base-blue-100)","--overlay-border-outline-color":"var(--base-blue-200)","--normal-enabled-background-color":"var(--base-blue-100)","--normal-enabled-border-color":"var(--base-blue-200)","--flat-enabled-background-color":"var(--base-blue-100)","--flat-enabled-border-color":"var(--base-blue-200)","--flat-hover-background-color":"color-mix(in srgb, var(--base-blue-100) 85%, white)","--flat-pressed-background-color":"color-mix(in srgb, var(--base-blue-100) 75%, white)"};var R1=class nw extends d{constructor(){super(...arguments);this.objectStyle=jo.Regular;this.state=mi.Unchecked;this.interactive=false}get icon(){return c`<slot></slot>`}get baseType(){return We.Regular}get colorStyleVars(){if(this.objectStyle===jo.Categorical){return o0}return{}}render(){return c`<obc-poi-object
+    `}};Ao.styles=I(mp);Yi([l({type:String})],Ao.prototype,"type",2);Yi([l({type:String})],Ao.prototype,"objectStyle",2);Yi([l({type:String})],Ao.prototype,"state",2);Yi([l({type:Boolean})],Ao.prototype,"interactive",2);Yi([Ee()],Ao.prototype,"hasPlaceholderIcon",2);Ao=Yi([x("obc-poi-object")],Ao);var D8=Object.defineProperty;var Fs=(e,t,i,o)=>{var r=void 0;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=n(t,i,r)||r;if(r)D8(t,i,r);return r};var B8={"--overlay-container-background-color":"var(--base-blue-100)","--overlay-border-outline-color":"var(--base-blue-200)","--normal-enabled-background-color":"var(--base-blue-100)","--normal-enabled-border-color":"var(--base-blue-200)","--flat-enabled-background-color":"var(--base-blue-100)","--flat-enabled-border-color":"var(--base-blue-200)","--flat-hover-background-color":"color-mix(in srgb, var(--base-blue-100) 85%, white)","--flat-pressed-background-color":"color-mix(in srgb, var(--base-blue-100) 75%, white)"};var gp=class tV extends C{constructor(){super(...arguments);this.objectStyle=Al.Regular;this.state=js.Unchecked;this.interactive=false}get icon(){return u`<slot></slot>`}get baseType(){return eo.Regular}get colorStyleVars(){if(this.objectStyle===Al.Categorical){return B8}return{}}render(){return u`<obc-poi-object
       exportparts="background-frame"
-      style=${Tt(this.colorStyleVars)}
+      style=${Fi(this.colorStyleVars)}
       .type=${this.baseType}
       .objectStyle=${this.objectStyle}
       .state=${this.state}
       ?interactive=${this.interactive}
     >
       ${this.icon}
-    </obc-poi-object>`}};R1.styles=[h`
+    </obc-poi-object>`}};gp.styles=[L`
       :host {
         display: contents;
       }
@@ -12368,7 +12368,7 @@ obc-poi-card-header::part(wrapper) {
         align-items: center;
         justify-content: center;
       }
-    `];var Rt=R1;fi([l({type:String})],Rt.prototype,"objectStyle");fi([l({type:String})],Rt.prototype,"state");fi([l({type:Boolean})],Rt.prototype,"interactive");var N1=h`
+    `];var Ki=gp;Fs([l({type:String})],Ki.prototype,"objectStyle");Fs([l({type:String})],Ki.prototype,"state");Fs([l({type:Boolean})],Ki.prototype,"interactive");var bp=L`
           * {
             -webkit-tap-highlight-color: transparent;
           }
@@ -12412,7 +12412,7 @@ obc-poi-card-header::part(wrapper) {
   height: 100%;
   color: inherit;
 }
-`;var i0=Object.defineProperty;var a0=Object.getOwnPropertyDescriptor;var F1=(e,t,i,o)=>{var r=o>1?void 0:o?a0(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)i0(t,i,r);return r};var Ro=class extends Rt{constructor(){super(...arguments);this.type="regular"}get isSpeedRot(){return this.type==="speed-rot"}get baseType(){switch(this.type){case"indicator":return We.Indicator;case"regular":return We.Regular;case"large":case"speed-rot":return We.Large;case"n-up":return We.NUp;case"n-up-large":return We.NUpLarge;default:return We.Regular}}get icon(){if(this.isSpeedRot){return c`
+`;var I8=Object.defineProperty;var R8=Object.getOwnPropertyDescriptor;var yp=(e,t,i,o)=>{var r=o>1?void 0:o?R8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)I8(t,i,r);return r};var Pl=class extends Ki{constructor(){super(...arguments);this.type="regular"}get isSpeedRot(){return this.type==="speed-rot"}get baseType(){switch(this.type){case"indicator":return eo.Indicator;case"regular":return eo.Regular;case"large":case"speed-rot":return eo.Large;case"n-up":return eo.NUp;case"n-up-large":return eo.NUpLarge;default:return eo.Regular}}get icon(){if(this.isSpeedRot){return u`
         <div class="speed-rot-wrapper">
           <div class="turn-indicator">
             <slot name="turn-indicator"></slot>
@@ -12424,30 +12424,30 @@ obc-poi-card-header::part(wrapper) {
             <slot name="speed-indicator"></slot>
           </div>
         </div>
-      `}return c`<slot></slot>`}};Ro.styles=[...Rt.styles,C(N1)];F1([l({type:String})],Ro.prototype,"type",2);Ro=F1([u("obc-poi-object-vessel")],Ro);var n0=Object.defineProperty;var l0=Object.getOwnPropertyDescriptor;var it=(e,t,i,o)=>{var r=o>1?void 0:o?l0(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)n0(t,i,r);return r};var bi=(e=>{e["Tag"]="tag";e["Condensed"]="condensed";e["Regular"]="regular";e["Detailed"]="detailed";return e})(bi||{});var Oe=class extends d{constructor(){super(...arguments);this.variant="regular";this.index="1";this.cardTitle="";this.description="";this.source="";this.timestamp="";this.hasLeadingIcon=false;this.hasCloseButton=false}get hasSource(){return this.source!==""}handleCloseClick(e){e.stopPropagation();this.dispatchEvent(new CustomEvent("close-click",{bubbles:true,composed:true}))}renderIndexBadge(){const e=this.variant==="tag";return c`
-      <div class=${L({"index-badge":true,"tag-style":e})}>
+      `}return u`<slot></slot>`}};Pl.styles=[...Ki.styles,I(bp)];yp([l({type:String})],Pl.prototype,"type",2);Pl=yp([x("obc-poi-object-vessel")],Pl);var N8=Object.defineProperty;var j8=Object.getOwnPropertyDescriptor;var uo=(e,t,i,o)=>{var r=o>1?void 0:o?j8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)N8(t,i,r);return r};var Us=(e=>{e["Tag"]="tag";e["Condensed"]="condensed";e["Regular"]="regular";e["Detailed"]="detailed";return e})(Us||{});var Zr=class extends C{constructor(){super(...arguments);this.variant="regular";this.index="1";this.cardTitle="";this.description="";this.source="";this.timestamp="";this.hasLeadingIcon=false;this.hasCloseButton=false}get hasSource(){return this.source!==""}handleCloseClick(e){e.stopPropagation();this.dispatchEvent(new CustomEvent("close-click",{bubbles:true,composed:true}))}renderIndexBadge(){const e=this.variant==="tag";return u`
+      <div class=${Y({"index-badge":true,"tag-style":e})}>
         <span class="index-text">${this.index}</span>
       </div>
-    `}renderSourceBadge(){if(!this.hasSource)return p;return c`
+    `}renderSourceBadge(){if(!this.hasSource)return k;return u`
       <div class="source-badge">
         <span class="source-text">${this.source}</span>
       </div>
-    `}renderTagVariant(){return c` <div class="tag-container">${this.renderIndexBadge()}</div> `}renderCondensedVariant(){return c`
+    `}renderTagVariant(){return u` <div class="tag-container">${this.renderIndexBadge()}</div> `}renderCondensedVariant(){return u`
       <div class="id-container">${this.renderIndexBadge()}</div>
       <div class="header-container">
         <span class="title condensed-title">${this.cardTitle}</span>
       </div>
       ${this.renderSourceBadge()}
-    `}renderRegularVariant(){return c`
+    `}renderRegularVariant(){return u`
       <div class="id-container">${this.renderIndexBadge()}</div>
       <div class="header-container">
-        ${this.hasLeadingIcon?c`<div class="icon-container">
+        ${this.hasLeadingIcon?u`<div class="icon-container">
               <slot class="leading-icon" name="leading-icon"></slot>
-            </div>`:p}
+            </div>`:k}
         <span class="title">${this.cardTitle}</span>
       </div>
       ${this.renderSourceBadge()}
-    `}renderDetailedVariant(){return c`
+    `}renderDetailedVariant(){return u`
       <div class="id-container">${this.renderIndexBadge()}</div>
       <div class="detailed-content">
         <div class="poi-container">
@@ -12465,24 +12465,24 @@ obc-poi-card-header::part(wrapper) {
         </div>
         <div class="meta-container">
           ${this.renderSourceBadge()}
-          ${this.timestamp?c`<span class="timestamp">${this.timestamp}</span>`:p}
+          ${this.timestamp?u`<span class="timestamp">${this.timestamp}</span>`:k}
         </div>
       </div>
-      ${this.hasCloseButton?c`<obc-icon-button
+      ${this.hasCloseButton?u`<obc-icon-button
             variant="flat"
             class="close-button"
             @click=${this.handleCloseClick}
           >
             <obi-close-google></obi-close-google>
-          </obc-icon-button>`:p}
-    `}render(){return c`
+          </obc-icon-button>`:k}
+    `}render(){return u`
       <div
         part="wrapper"
-        class=${L({wrapper:true,[`variant-${this.variant}`]:true})}
+        class=${Y({wrapper:true,[`variant-${this.variant}`]:true})}
       >
         ${this.variant==="tag"?this.renderTagVariant():this.variant==="condensed"?this.renderCondensedVariant():this.variant==="regular"?this.renderRegularVariant():this.renderDetailedVariant()}
       </div>
-    `}};Oe.styles=C(I1);it([l({type:String})],Oe.prototype,"variant",2);it([l({type:String})],Oe.prototype,"index",2);it([l({type:String})],Oe.prototype,"cardTitle",2);it([l({type:String})],Oe.prototype,"description",2);it([l({type:String})],Oe.prototype,"source",2);it([l({type:String})],Oe.prototype,"timestamp",2);it([l({type:Boolean})],Oe.prototype,"hasLeadingIcon",2);it([l({type:Boolean})],Oe.prototype,"hasCloseButton",2);Oe=it([u("obc-poi-card-header")],Oe);var s0=Object.defineProperty;var c0=Object.getOwnPropertyDescriptor;var fe=(e,t,i,o)=>{var r=o>1?void 0:o?c0(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)s0(t,i,r);return r};var le=class extends d{constructor(){super(...arguments);this.pointerDirection="none";this.fixedSize=false;this.showHeader=true;this.headerVariant=bi.Condensed;this.index="1";this.cardTitle="";this.description="";this.source="";this.timestamp="";this.hasLeadingIcon=false;this.hasCloseButton=false;this.interactive=false;this.hasAlert=false}handleCardClick(){if(!this.interactive)return;this.dispatchEvent(new CustomEvent("card-click",{detail:{index:this.index},bubbles:true,composed:true}))}handleKeyDown(e){if(!this.interactive)return;if(e.target!==e.currentTarget)return;if(e.key===" "){e.preventDefault()}else if(e.key==="Enter"&&!e.repeat){e.preventDefault();this.handleCardClick()}}handleKeyUp(e){if(!this.interactive)return;if(e.target!==e.currentTarget)return;if(e.key===" "){e.preventDefault();this.handleCardClick()}}renderPointerSvg(e){const t={top:"M6 0L12 6H0L6 0Z",bottom:"M6 6L0 0H12L6 6Z",left:"M0 6L6 0V12L0 6Z",right:"M6 6L0 0V12L6 6Z"};const i=e==="top"||e==="bottom";const o=i?12:6;const r=i?6:12;return c`
+    `}};Zr.styles=I(vp);uo([l({type:String})],Zr.prototype,"variant",2);uo([l({type:String})],Zr.prototype,"index",2);uo([l({type:String})],Zr.prototype,"cardTitle",2);uo([l({type:String})],Zr.prototype,"description",2);uo([l({type:String})],Zr.prototype,"source",2);uo([l({type:String})],Zr.prototype,"timestamp",2);uo([l({type:Boolean})],Zr.prototype,"hasLeadingIcon",2);uo([l({type:Boolean})],Zr.prototype,"hasCloseButton",2);Zr=uo([x("obc-poi-card-header")],Zr);var F8=Object.defineProperty;var U8=Object.getOwnPropertyDescriptor;var jt=(e,t,i,o)=>{var r=o>1?void 0:o?U8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)F8(t,i,r);return r};var $t=class extends C{constructor(){super(...arguments);this.pointerDirection="none";this.fixedSize=false;this.showHeader=true;this.headerVariant=Us.Condensed;this.index="1";this.cardTitle="";this.description="";this.source="";this.timestamp="";this.hasLeadingIcon=false;this.hasCloseButton=false;this.interactive=false;this.hasAlert=false}handleCardClick(){if(!this.interactive)return;this.dispatchEvent(new CustomEvent("card-click",{detail:{index:this.index},bubbles:true,composed:true}))}handleKeyDown(e){if(!this.interactive)return;if(e.target!==e.currentTarget)return;if(e.key===" "){e.preventDefault()}else if(e.key==="Enter"&&!e.repeat){e.preventDefault();this.handleCardClick()}}handleKeyUp(e){if(!this.interactive)return;if(e.target!==e.currentTarget)return;if(e.key===" "){e.preventDefault();this.handleCardClick()}}renderPointerSvg(e){const t={top:"M6 0L12 6H0L6 0Z",bottom:"M6 6L0 0H12L6 6Z",left:"M0 6L6 0V12L0 6Z",right:"M6 6L0 0V12L6 6Z"};const i=e==="top"||e==="bottom";const o=i?12:6;const r=i?6:12;return u`
       <svg
         width="${o}"
         height="${r}"
@@ -12495,19 +12495,19 @@ obc-poi-card-header::part(wrapper) {
           fill="var(--overlay-border-outline-color)"
         />
       </svg>
-    `}renderTopPointer(){if(this.pointerDirection!=="top")return p;return c`
+    `}renderTopPointer(){if(this.pointerDirection!=="top")return k;return u`
       <div class="pointer-container top">${this.renderPointerSvg("top")}</div>
-    `}renderBottomPointer(){if(this.pointerDirection!=="bottom")return p;return c`
+    `}renderBottomPointer(){if(this.pointerDirection!=="bottom")return k;return u`
       <div class="pointer-container bottom">
         ${this.renderPointerSvg("bottom")}
       </div>
-    `}renderLeftPointer(){if(this.pointerDirection!=="left")return p;return c`
+    `}renderLeftPointer(){if(this.pointerDirection!=="left")return k;return u`
       <div class="pointer-container left">${this.renderPointerSvg("left")}</div>
-    `}renderRightPointer(){if(this.pointerDirection!=="right")return p;return c`
+    `}renderRightPointer(){if(this.pointerDirection!=="right")return k;return u`
       <div class="pointer-container right">
         ${this.renderPointerSvg("right")}
       </div>
-    `}renderHeader(){if(!this.showHeader)return p;return c`
+    `}renderHeader(){if(!this.showHeader)return k;return u`
       <obc-poi-card-header
         variant=${this.headerVariant}
         index=${this.index}
@@ -12521,24 +12521,24 @@ obc-poi-card-header::part(wrapper) {
         <slot name="leading-icon" slot="leading-icon"></slot>
         <slot name="poi-icon" slot="poi-icon"></slot>
       </obc-poi-card-header>
-    `}renderAlertLayer(){if(!this.interactive||!this.hasAlert)return p;return c`
+    `}renderAlertLayer(){if(!this.interactive||!this.hasAlert)return k;return u`
       <div class="alert-layer">
         <div class="ring-outer"></div>
         <div class="ring-middle alert"></div>
         <div class="ring-inner"></div>
       </div>
-    `}render(){return c`
+    `}render(){return u`
       <div
-        class=${L({wrapper:true,"hug-content":!this.fixedSize,"fixed-size":this.fixedSize,interactive:this.interactive})}
+        class=${Y({wrapper:true,"hug-content":!this.fixedSize,"fixed-size":this.fixedSize,interactive:this.interactive})}
       >
         ${this.renderTopPointer()}
         <div class="center">
           ${this.renderLeftPointer()}
           <div
             class="content-box"
-            role=${this.interactive?"button":p}
-            tabindex=${this.interactive?"0":p}
-            aria-disabled=${this.interactive?"false":p}
+            role=${this.interactive?"button":k}
+            tabindex=${this.interactive?"0":k}
+            aria-disabled=${this.interactive?"false":k}
             @click=${this.handleCardClick}
             @keydown=${this.handleKeyDown}
             @keyup=${this.handleKeyUp}
@@ -12553,7 +12553,264 @@ obc-poi-card-header::part(wrapper) {
         </div>
         ${this.renderBottomPointer()}
       </div>
-    `}};le.styles=C(D1);fe([l({type:String})],le.prototype,"pointerDirection",2);fe([l({type:Boolean})],le.prototype,"fixedSize",2);fe([l({type:Boolean,attribute:false})],le.prototype,"showHeader",2);fe([l({type:String})],le.prototype,"headerVariant",2);fe([l({type:String})],le.prototype,"index",2);fe([l({type:String})],le.prototype,"cardTitle",2);fe([l({type:String})],le.prototype,"description",2);fe([l({type:String})],le.prototype,"source",2);fe([l({type:String})],le.prototype,"timestamp",2);fe([l({type:Boolean})],le.prototype,"hasLeadingIcon",2);fe([l({type:Boolean})],le.prototype,"hasCloseButton",2);fe([l({type:Boolean})],le.prototype,"interactive",2);fe([l({type:Boolean})],le.prototype,"hasAlert",2);le=fe([u("obc-poi-card")],le);
+    `}};$t.styles=I(fp);jt([l({type:String})],$t.prototype,"pointerDirection",2);jt([l({type:Boolean})],$t.prototype,"fixedSize",2);jt([l({type:Boolean,attribute:false})],$t.prototype,"showHeader",2);jt([l({type:String})],$t.prototype,"headerVariant",2);jt([l({type:String})],$t.prototype,"index",2);jt([l({type:String})],$t.prototype,"cardTitle",2);jt([l({type:String})],$t.prototype,"description",2);jt([l({type:String})],$t.prototype,"source",2);jt([l({type:String})],$t.prototype,"timestamp",2);jt([l({type:Boolean})],$t.prototype,"hasLeadingIcon",2);jt([l({type:Boolean})],$t.prototype,"hasCloseButton",2);jt([l({type:Boolean})],$t.prototype,"interactive",2);jt([l({type:Boolean})],$t.prototype,"hasAlert",2);$t=jt([x("obc-poi-card")],$t);var W8=Object.defineProperty;var G8=Object.getOwnPropertyDescriptor;var si=(e,t,i,o)=>{var r=o>1?void 0:o?G8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)W8(t,i,r);return r};var Lp=180-45;var li=Bt;var wp=li*Math.cos(Lp*Math.PI/180);var Cp=li*Math.sin(Lp*Math.PI/180);var fo=class extends C{constructor(){super(...arguments);this.roll=0;this.minAvgRoll=0;this.maxAvgRoll=0;this.vesselImageFore=Hr.psvFore;this.maxRollAdvice=void 0;this.triggerRollAdvice=false}render(){return u`
+      <div class="container">
+        <svg viewBox="-200 -200 400 400">
+          <line
+            x1="-${li}"
+            y1="0"
+            x2="${li}"
+            y2="0"
+            stroke="var(--instrument-frame-tertiary-color)"
+          />
+          <line
+            x1="0"
+            y1="0"
+            y2="${li-10}"
+            x2="0"
+            stroke="var(--instrument-enhanced-secondary-color)"
+            transform="rotate(${this.roll} 0 0)"
+          />
+          <path
+            d="M ${wp} ${Cp} A ${li} ${li} 0 1 1 ${-wp} ${Cp}"
+            fill="none"
+            stroke="var(--instrument-frame-tertiary-color)"
+          />
+        </svg>
+        <obc-watch
+          .watchCircleType=${dr.double}
+          tickmarksInside
+          .areas=${[{startAngle:135,endAngle:225,roundOutsideCut:true,roundInsideCut:true}]}
+          .barAreas=${[{startAngle:180+this.minAvgRoll,endAngle:180+this.maxAvgRoll,fillColor:"var(--instrument-enhanced-tertiary-color)"}]}
+          .needles=${[{angle:180+this.roll,fillColor:"var(--instrument-enhanced-secondary-color)",strokeColor:"var(--border-silhouette-color)"}]}
+          .vessels=${[{size:$r.large,vesselImage:this.vesselImageFore,transform:`rotate(${this.roll}deg)`}]}
+          .tickmarks=${[{angle:180,type:be.main}]}
+          .advices=${this.advices}
+        ></obc-watch>
+      </div>
+    `}get advices(){const e=[];if(this.maxRollAdvice!==void 0){const t=this.triggerRollAdvice?se.triggered:se.regular;e.push({minAngle:135,maxAngle:180-this.maxRollAdvice,type:bt.caution,state:t,hideMinTickmark:true});e.push({minAngle:180+this.maxRollAdvice,maxAngle:225,type:bt.caution,state:t,hideMaxTickmark:true})}return e}};fo.styles=L`
+    * {
+      box-sizing: border-box;
+    }
+
+    .container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .container > * {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+  `;si([l({type:Number})],fo.prototype,"roll",2);si([l({type:Number})],fo.prototype,"minAvgRoll",2);si([l({type:Number})],fo.prototype,"maxAvgRoll",2);si([l({type:String})],fo.prototype,"vesselImageFore",2);si([l({type:Number})],fo.prototype,"maxRollAdvice",2);si([l({type:Boolean})],fo.prototype,"triggerRollAdvice",2);fo=si([x("obc-roll")],fo);var q8=Object.defineProperty;var Y8=Object.getOwnPropertyDescriptor;var Ar=(e,t,i,o)=>{var r=o>1?void 0:o?Y8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)q8(t,i,r);return r};var Xt=class extends qi(C){constructor(){super(...arguments);this.angle=0;this.variant="bar";this.maxAngle=90;this.showLabels=false;this.tickmarksInside=false;this.state=$e.active;this.priority=de.regular;this.tickmarkStyle=He.regular;this.advices=[];this.zoomToFitArc=false;this._radiusOffset=0}get _needleTransform(){const e=this._radiusOffset;if(e>0){return`translate(-256, -256) rotate(${-this.angle} 256 256) translate(0, ${e})`}return`translate(-256, -256) rotate(${-this.angle} 256 256)`}getAngle(e){return 180-e}get barColor(){if(this.variant==="needle"){if(this.state===$e.loading||this.state===$e.off){return"var(--instrument-frame-tertiary-color)"}return this.priority===de.enhanced?"var(--instrument-enhanced-tertiary-color)":"var(--instrument-regular-tertiary-color)"}else{if(this.state===$e.loading||this.state===$e.off){return"var(--instrument-frame-tertiary-color)"}return this.priority===de.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}}renderNeedle(){if(this.variant==="bar"){return k}let e;if(this.state===$e.loading||this.state===$e.off){e="var(--instrument-frame-tertiary-color)"}else{e=this.priority===de.enhanced?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)"}return c`
+      <path
+        transform="${this._needleTransform}"
+        d="M260.462 411.447C259.81 416.73 251.933 416.645 251.514 411.191L239.826 259.24C239.618 258.192 239.508 257.109 239.508 256C239.508 255.764 239.514 255.528 239.524 255.294L239.503 255.039L239.462 254.5H239.576C240.334 246.09 247.401 239.5 256.008 239.5C264.615 239.5 271.681 246.09 272.439 254.5H272.542L272.5 255.039L272.488 255.196C272.501 255.462 272.508 255.731 272.508 256C272.508 257.144 272.391 258.261 272.169 259.339L260.487 411.191L260.462 411.447Z"
+        fill="${e}"
+        stroke="var(--border-silhouette-color)"
+      />
+    `}render(){const e=Math.max(2,this.maxAngle);const t=[{startAngle:180-e,endAngle:180+e,roundInsideCut:true,roundOutsideCut:true}];const i=[{startAngle:this.getAngle(0),endAngle:this.getAngle(this.angle),fillColor:this.barColor}];const o=this.setpoint!==void 0?180-this.setpoint:void 0;const r=[{angle:180,type:be.primary,text:this.showLabels?"0":void 0},{angle:180,type:be.zeroLineThick,color:this.barColor},{angle:180-e,type:be.secondary,text:this.showLabels?e.toFixed(0):void 0},{angle:180+e,type:be.secondary,text:this.showLabels?(-e).toFixed(0):void 0}];let a=null;if(e>70){a=45}else if(e>50){a=30}else if(e>40){a=22.5}if(a!==null){r.push({angle:180-a,type:be.primary});r.push({angle:180+a,type:be.primary})}const n=this.advices.map(d=>{const f=180-d.maxAngle;const y=180-d.minAngle;const v=this.setpoint!==void 0&&this.setpoint>=d.minAngle&&this.setpoint<=d.maxAngle;let b;if(v){b=se.triggered}else if(d.hinted){b=se.hinted}else{b=se.regular}return{minAngle:f,maxAngle:y,type:d.type,state:b}});let h;if(this.zoomToFitArc){const d=48;const f=(176+d)*2;const y=Fn({areas:t,outerRadius:Bt,innerRadius:Os(dr.double),extension:d,targetSize:f});h=y.viewBox;this._radiusOffset=y.radiusOffset;this._arcFrame=y}else{h="-224 -44.8 448 268.8";this._radiusOffset=0;this._arcFrame=void 0}return u`
+      <div class="container">
+        <obc-watch
+          .touching=${this.touching}
+          .clipTop=${this.zoomToFitArc?0:40}
+          .zoomToFitArc=${this.zoomToFitArc}
+          .arcFrame=${this._arcFrame}
+          .areas=${t}
+          .angleSetpoint=${o}
+          .newAngleSetpoint=${this.newSetpoint!==void 0?180-this.newSetpoint:void 0}
+          .atAngleSetpoint=${this.computeAtSetpoint(this.angle)}
+          .angleSetpointAtZeroDeadband=${this.setpointAtZeroDeadband}
+          .setpointOverride=${this.setpointOverride}
+          .animateSetpoint=${this.animateSetpoint}
+          .padding=${48}
+          .tickmarks=${r}
+          .tickmarksInside=${this.tickmarksInside}
+          .tickmarkStyle=${this.tickmarkStyle}
+          .watchCircleType=${dr.double}
+          .barAreas=${i}
+          .state=${this.state}
+          .priority=${this.priority}
+          .advices=${n}
+        ></obc-watch>
+        <svg viewBox="${h}">${this.renderNeedle()}</svg>
+      </div>
+    `}};Xt.styles=L`
+    * {
+      box-sizing: border-box;
+    }
+
+    .container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .container > * {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+  `;Ar([l({type:Number})],Xt.prototype,"angle",2);Ar([l({type:String})],Xt.prototype,"variant",2);Ar([l({type:Number})],Xt.prototype,"maxAngle",2);Ar([l({type:Boolean})],Xt.prototype,"showLabels",2);Ar([l({type:Boolean})],Xt.prototype,"tickmarksInside",2);Ar([l({type:String})],Xt.prototype,"state",2);Ar([l({type:String})],Xt.prototype,"priority",2);Ar([l({type:String})],Xt.prototype,"tickmarkStyle",2);Ar([l({type:Array,attribute:false})],Xt.prototype,"advices",2);Ar([l({type:Boolean})],Xt.prototype,"zoomToFitArc",2);Xt=Ar([x("obc-rudder")],Xt);function ci(e,t,i){if(t>=100){return null}const o=Ha(i);const r=-t*e/100-2;return c`<line x1="12" x2="32" y1=${r}  y2=${r} stroke=${o} stroke-width="1" vector-effect="non-scaling-stroke"/>`}function Ws(e,t,i,o,r){const a=8;const n=12;const h=n+a;const d=a/2;const f=-t*e/100-2*d-2;const y=-i*e/100+2*d-2;const v=`M ${n} ${f} 
+                    A ${d} ${d} 0 0 0 ${h} ${f}
+                    V ${y}
+                    A ${d} ${d} 0 0 0 ${n} ${y}
+                    Z`;return c`<path d=${v} fill=${o} stroke=${r} stroke-width="1" vector-effect="non-scaling-stroke" />`}function kp(e,t,i){if(t.type===bt.caution){let o;let r=null;if(t.state===se.hinted){o="var(--instrument-frame-tertiary-color)"}else if(t.state===se.regular){o="var(--instrument-tick-mark-tertiary-color)"}else{o="var(--on-caution-active-color)";r="var(--alert-caution-color)"}const a=[];const n=i?50:-50;for(let f=-100;f<300;f+=16){a.push(c`<g transform="translate(0 ${-f}) ">
+            <path d="M 50 0 L 0 ${n}" stroke=${o} stroke-width="6"/>
+            </g>
+            `)}const h=`adviceMask-${t.min}-${t.max}`;let d=He.regular;if(t.state===se.regular){d=He.regular}else if(t.state===se.triggered){d=He.enhanced}return c`
+            <mask id=${h}>
+                ${Ws(e,t.min,t.max,"white","black")}
+            </mask>
+            <g mask="url(#${h})">
+                ${r?c`<rect x="-256" y="-512" width="512" height="1024" fill="${r}"/>`:k}
+                ${a}
+            </g>
+            ${Ws(e,t.min,t.max,"none",o)}
+            ${ci(e,t.min,d)}
+            ${ci(e,t.max,d)}
+        `}else{let o;let r;let a;if(t.state===se.hinted){o="var(--instrument-frame-tertiary-color)";a="none";r=He.regular}else if(t.state===se.regular){o="var(--instrument-regular-secondary-color)";a="none";r=He.regular}else{o="var(--instrument-enhanced-secondary-color)";a=o;r=He.regular}return c`
+            ${Ws(e,t.min,t.max,a,o)}
+            ${ci(e,t.min,r)}
+            ${ci(e,t.max,r)}
+        `}}var Ea=(e=>{e["none"]="none";e["cap"]="cap";e["single"]="single";return e})(Ea||{});function K8(e,t){const i=-e-22;return c`
+  <path transform="translate(-15 ${i})" d="M0.707007 14.2929L14.9999 0L29.2928 14.2929C29.9228 14.9229 29.4766 16 28.5857 16H1.41412C0.523211 16 0.0770419 14.9229 0.707007 14.2929Z" fill=${t}/>`}function xp(e,t,i){if(i==="none"){return K8(e,t)}else if(i==="cap"){const o=-e-50-1;return c`
+        <g transform="translate(-80 ${o})">
+        <path d="M60.0016 49L60.001 37.0005C60.0004 25.9547 68.9547 17 80.0005 17C91.0459 17 100 25.9541 100 36.9995V49H60.0016Z" stroke="var(--instrument-frame-tertiary-color)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke"/>
+        <path d="M90.3784 10.889L79.9991 1.00391L69.6198 10.889C68.3125 12.1341 69.1937 14.3372 70.9991 14.3372H88.9991C90.8046 14.3372 91.6858 12.1341 90.3784 10.889Z" fill=${t} stroke-linecap="square"/>
+        </g>`}else if(i==="single"){const o=-e-50-1;return c`
+        <g transform="translate(-80 ${o})">
+<path d="M60.0016 49L60.0016 23C60.0007 19.6866 62.6865 17 66 17L94 17C97.3137 17 100 19.6863 100 23L100 49L60.0016 49Z" fill="var(--instrument-frame-primary-color)" stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>
+<path d="M9 33.2643C9.00007 42.0397 60.2667 45 60.2667 45C60.2667 37.2905 62.8316 29.87 67.4405 24.2456L70.1 21C56.8343 21 8.99993 24.489 9 33.2643Z" fill="var(--instrument-frame-primary-color)"  stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>
+<path d="M151 32.7357C151 23.9604 99.7333 21 99.7333 21C99.7333 28.7095 97.1684 36.1301 92.5595 41.7544L89.9 45C103.166 45 151 41.511 151 32.7357Z" stroke="var(--instrument-frame-tertiary-color)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke"/>
+<path d="M90.3784 10.889L79.9991 1.00391L69.6198 10.889C68.3125 12.1341 69.1937 14.3372 70.9991 14.3372H88.9991C90.8046 14.3372 91.6858 12.1341 90.3784 10.889Z" fill=${t} stroke-linecap="square" vector-effect="non-scaling-stroke"/>
+</g>
+`}else{return null}}function Mp(e,t){if(t==="none"){return null}else if(t==="cap"){const i=e+1;return c`
+        <g transform="translate(-80 ${i})">
+<path d="M60.0016 1C60.0006 17.7823 67.4013 33.9132 80 45C92.5988 33.9131 100 17.7824 100 1L60.0016 1Z" stroke="var(--instrument-frame-tertiary-color)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke"/>
+</g>`}else if(t==="single"){const i=e+1;return c`
+        <g transform="translate(-80 ${i})">
+        <svg width="160" height="49" viewBox="0 0 160 49" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M60.0016 1C60.0006 17.7823 67.4013 33.9132 80 45C92.5988 33.9131 100 17.7824 100 1L60.0016 1Z" stroke="var(--instrument-frame-tertiary-color)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" />
+<path d="M151 16.7357C151 7.96035 99.7333 5 99.7333 5C98.5 13.5 92 24 81.9 29C95.1657 29 151 25.511 151 16.7357Z" stroke="var(--instrument-frame-tertiary-color)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" />
+<path d="M9 17.2643C9.00007 26.0397 67.2667 29 67.2667 29C63.5 22 69.5 8.5 82.1 5C68.8343 5 8.99993 8.48898 9 17.2643Z" stroke="var(--instrument-frame-tertiary-color)" fill="var(--instrument-frame-primary-color)" vector-effect="non-scaling-stroke" />
+</g>`}else{return null}}var J8=Object.defineProperty;var X8=Object.getOwnPropertyDescriptor;var Pr=(e,t,i,o)=>{var r=o>1?void 0:o?X8(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)J8(t,i,r);return r};var Qt=class extends qi(C,{defaultDeadband:1}){constructor(){super(...arguments);this._setpointId=`thruster-sp-${Math.random().toString(36).slice(2,9)}`;this.thrust=0;this.state=$e.active;this.priority=de.regular;this.tunnel=false;this.singleSided=false;this.singleDirection=false;this.singleDirectionHalfSize=false;this.advices=[];this.topPropeller=Ea.none;this.bottomPropeller=Ea.none}render(){return u`<div class="container">
+      ${a3(this.thrust,this.setpoint,this.state,this.priority,{atSetpoint:this.atSetpoint,tunnel:this.tunnel,setpointAtZeroDeadband:this.setpointAtZeroDeadband,autoAtSetpoint:this.autoAtSetpoint,autoAtSetpointDeadband:this.autoAtSetpointDeadband,touching:this.touching,singleSided:this.singleSided,advices:this.advices,singleDirection:this.singleDirection,singleDirectionHalfSize:this.singleDirectionHalfSize,topPropeller:this.topPropeller,bottomPropeller:this.bottomPropeller,narrow:!this.tunnel,newSetpoint:this.newSetpoint,setpointId:this._setpointId})}
+    </div>`}};Qt.styles=L`
+    .container {
+      height: 100%;
+      width: 100%;
+    }
+
+    .container > svg {
+      height: 100%;
+      width: 100%;
+    }
+  `;Pr([l({type:Number})],Qt.prototype,"thrust",2);Pr([l({type:String})],Qt.prototype,"state",2);Pr([l({type:String})],Qt.prototype,"priority",2);Pr([l({type:Boolean})],Qt.prototype,"tunnel",2);Pr([l({type:Boolean})],Qt.prototype,"singleSided",2);Pr([l({type:Boolean})],Qt.prototype,"singleDirection",2);Pr([l({type:Boolean})],Qt.prototype,"singleDirectionHalfSize",2);Pr([l({type:Array})],Qt.prototype,"advices",2);Pr([l({type:String})],Qt.prototype,"topPropeller",2);Pr([l({type:String})],Qt.prototype,"bottomPropeller",2);Qt=Pr([x("obc-thruster")],Qt);function _p(e,t,i,o){const r=c`
+      <path transform="translate(0 -2)" d="M -44 0  v -${e-8}  a 8 8 0 0 1 8 -8 h 72 a 8 8 0 0 1 8 8 V 0 Z" fill=${i.container} stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>
+  `;const a=o.off?null:c`<rect width="40" height=${e} x="-20" y=${-2-e} fill="var(--instrument-frame-secondary-color)" stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>`;const n=[];const h=2;const d=e/h;if(!o.hideTicks){for(let b=1;b<h;b++){n.push(c`<line x1="-24" x2="-44" y1=${-b*d-2}  y2=${-b*d-2} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`);n.push(c`<line  x1="24"  x2="44" y1=${-b*d-2}  y2=${-b*d-2} stroke="var(--instrument-frame-tertiary-color)" stroke-width="1" vector-effect="non-scaling-stroke"/>`)}}const f=e*t/100;const y=-2-f;const v=c`<rect width="40" height=${f} x="-20" y=${y} fill=${i.box} stroke=${i.box} vector-effect="non-scaling-stroke"/>`;if(o.hideContainer){return[a,n,v]}else{return[r,a,n,v]}}function Sp(e,t,i,o,r){const a=o.narrow?c`
+      <path transform="translate(0 -2)" d="M -32 0  v -${e-8}  a 8 8 0 0 1 8 -8 h 48 a 8 8 0 0 1 8 8 V 0 Z" fill=${i.container} stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>
+  `:c`
+      <path transform="translate(0 -2)" d="M -40 0  v -${e-8}  a 8 8 0 0 1 8 -8 h 56 a 8 8 0 0 1 8 8 V 0 Z" fill=${i.container} stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>
+  `;let n=o.narrow?c`
+      <path transform="translate(0 -2)" d="M -32 0  v -${e-8}  a 8 8 0 0 1 8 -8 h 32 V 0 Z" fill="var(--instrument-frame-secondary-color)" stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>
+  `:c`
+      <path transform="translate(0 -2)" d="M -40 0  v -${e-8}  a 8 8 0 0 1 8 -8 h 40 V 0 Z" fill="var(--instrument-frame-secondary-color)" stroke="var(--instrument-frame-tertiary-color)" vector-effect="non-scaling-stroke"/>
+  `;if(o.off){n=null}const h=o.hideTicks?[]:[ci(e,50,He.regular)];const d=e*t/100;const f=o.narrow?40:48;const y=o.narrow?-32:-40;const v=-2-d;const b=o.flipAdicePattern?"thrusterBarMask1":"thrusterBarMask2";const M=o.hideContainer?k:c`
+  <defs>
+  <mask id=${b}>
+  <path transform="translate(0 -2)" d="M ${y} 0  v -${e-8}  a 8 8 0 0 1 8 -8 h ${f} V 0 Z" fill="white" stroke="white" vector-effect="non-scaling-stroke"/>
+  </defs>`;const H=o.hideContainer?void 0:`url(#${b})`;const P=c`
+    ${M}
+    <rect mask=${H} width=${f} height=${d} x=${y} y=${v} fill=${i.box} stroke=${i.box} vector-effect="non-scaling-stroke"/>`;const S=r.map(_=>kp(e,_,o.flipAdicePattern));const Z=[h,P,S];if(!o.hideContainer){Z.splice(0,0,[a,n])}if(!o.narrow){return c`<g transform="translate(4 0)">${Z}</g>`}else{return Z}}function Q8(e,t,i,o){const r=c`
+      <g transform="rotate(180)">
+        ${_p(e,t,i,o)}
+      </g>
+  `;return r}function e3(e,t,i,o,r){const a=c`
+      <g transform="rotate(180) scale(-1,1)">
+        ${Sp(e,t,i,{hideTicks:o.hideTicks,flipAdicePattern:o.flipAdicePattern,hideContainer:o.hideContainer,narrow:o.narrow,off:o.off},r)}
+      </g>
+  `;return a}var $p=4;function Hp(e,t,i){return-(i?0:Math.sign(t)*(e*Math.abs(t)/100+2))}function t3(e){const t=e.state===$e.loading||e.state===$e.off;const i=t&&!e.setpointOverride;const o=e.priority===de.enhanced?zn.enhanced:zn.regular;if(t){return{visualState:Dt.notEqual,colorMode:o,disabled:i}}if(e.touching&&!e.hasNewSetpoint){return{visualState:Dt.focus,colorMode:o,disabled:false}}if(e.atSetpoint&&e.setpointAtZero){return{visualState:Dt.equalZero,colorMode:o,disabled:false}}if(e.atSetpoint){return{visualState:Dt.equal,colorMode:o,disabled:false}}return{visualState:Dt.notEqual,colorMode:o,disabled:false}}function r3(e,t,i){const o=Math.abs(t)<i.setpointAtZeroDeadband;const r=i.newSetpoint!==void 0;const a=i.departingNewSetpoint!==void 0;const n=i.animateSetpoint===true;const{visualState:h,colorMode:d,disabled:f}=t3({state:i.state,priority:i.priority,atSetpoint:i.atSetpoint,touching:i.touching,setpointAtZero:o,hasNewSetpoint:r,setpointOverride:i.setpointOverride});const y=Hp(e,t,o);const v=28+(i.singleSided?-12:0)+(i.narrow?0:4);const b=Di(h);const M=v+b-$p;const H=r?.75:1;const P=Gr({visualState:h,colorMode:d,disabled:f,id:`${i.id}-r`});const S=[];if(n){const Z=`var(${Ho}, ${Xo})`;S.push(c`<g style="transform: translate(${M}px, ${y}px) rotate(90deg); opacity: ${H}; transition: transform ${Z} ease-out, opacity ${Z} ease-out;">${P}</g>`);if(!i.singleSided){const _=Gr({visualState:h,colorMode:d,disabled:f,id:`${i.id}-l`});S.push(c`<g style="transform: translate(${-M}px, ${y}px) rotate(-90deg); opacity: ${H}; transition: transform ${Z} ease-out, opacity ${Z} ease-out;">${_}</g>`)}}else{S.push(c`<g transform="translate(${M}, ${y}) rotate(90)" opacity="${H}">${P}</g>`);if(!i.singleSided){const Z=Gr({visualState:h,colorMode:d,disabled:f,id:`${i.id}-l`});S.push(c`<g transform="translate(${-M}, ${y}) rotate(-90)" opacity="${H}">${Z}</g>`)}}if(r||a){const Z=r;const _=Z?i.newSetpoint:i.departingNewSetpoint;const E=Math.abs(_)<i.setpointAtZeroDeadband;const A=Hp(e,_,E);const G=Di(Dt.focus);const z=v+G-$p;const B=Z?1:0;const U=Gr({visualState:Dt.focus,colorMode:d,disabled:false,id:`${i.id}-nr`});if(n){const K=`var(${Ho}, ${Xo})`;S.push(c`<g style="transform: translate(${z}px, ${A}px) rotate(90deg); opacity: ${B}; transition: opacity ${K} ease-out;">${U}</g>`);if(!i.singleSided){const Q=Gr({visualState:Dt.focus,colorMode:d,disabled:false,id:`${i.id}-nl`});S.push(c`<g style="transform: translate(${-z}px, ${A}px) rotate(-90deg); opacity: ${B}; transition: opacity ${K} ease-out;">${Q}</g>`)}}else{S.push(c`<g transform="translate(${z}, ${A}) rotate(90)" opacity="${B}">${U}</g>`);if(!i.singleSided){const K=Gr({visualState:Dt.focus,colorMode:d,disabled:false,id:`${i.id}-nl`});S.push(c`<g transform="translate(${-z}, ${A}) rotate(-90)" opacity="${B}">${K}</g>`)}}}return c`${S}`}function o3(e,t,i,o,r){const a=-(i?0:Math.sign(t)*(e*Math.abs(t)/100+2));const n=(r.singleSided?-12:0)+(r.narrow?0:4);let h;if(r.filled){h="M23.5119 8C24.6981 6.35191 23.5696 4 21.5926 4L2.39959 4C0.422598 4 -0.705911 6.35191 0.480283 8L11.9961 24L23.5119 8Z"}else{h="M18.5836 8L5.4086 8L11.9961 17.1526L18.5836 8ZM23.5119 8C24.6981 6.35191 23.5696 4 21.5926 4L2.39959 4C0.422598 4 -0.705911 6.35191 0.480283 8L11.9961 24L23.5119 8Z"}return c`
+    <defs>
+      <g id="thrusterSetpoint">
+        <path fill-rule="evenodd" clip-rule="evenodd" transform="translate(24 -12) rotate(90)" d=${h} vector-effect="non-scaling-stroke"/>
+      </g>
+      <mask id="thrusterSetpointMask">
+        <rect x="-20" y="-20" width="50" height="50" fill="white" />
+        <use href="#thrusterSetpoint" fill="black" />
+      </mask>
+    </defs>
+  <g transform="translate(0 ${a})">
+    <use href="#thrusterSetpoint" fill=${o.fill} stroke="none" transform="translate(${28+n} 0)"/>
+    <use href="#thrusterSetpoint" mask="url(#thrusterSetpointMask)" transform="translate(${28+n} 0)" fill="none" stroke=${o.stroke} stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    ${r.singleSided?null:c`
+    <use href="#thrusterSetpoint" transform="rotate(180) translate(28 0)" fill=${o.fill} stroke="none"/>
+    <use href="#thrusterSetpoint" transform="rotate(180) translate(28 0)" mask="url(#thrusterSetpointMask)" fill="none" stroke=${o.stroke} stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      `}
+  </g>
+  `}function i3(e,t,i){if(i.touching){return false}if(i.autoAtSetpoint&&t!==void 0){return Math.abs(e-t)<i.autoAtSetpointDeadband}return i.atSetpoint}function a3(e,t,i,o,r){if(r.tunnel){e=-e;t=t===void 0?void 0:-t}if(!r.singleSided&&r.advices.length>0){throw new Error("Double sided thruster does not support advice")}r.atSetpoint=i3(e,t,r);const a=l3(r,i,o);let n=c`
+    <rect x="-44" y="-2" width="88" height="4" stroke-width="1" fill=${a.zeroLineColor} stroke=${a.zeroLineColor} vector-effect="non-scaling-stroke"/>
+  `;if(r.singleSided){const M=r.narrow?64:72;const H=r.narrow?-32:-36;n=c`<rect x=${H} y="-2" width=${M} height="4" stroke-width="1" fill=${a.zeroLineColor} stroke=${a.zeroLineColor} vector-effect="non-scaling-stroke"/>`}const h=Math.abs(t||0)<r.setpointAtZeroDeadband;const{topAdvices:d,bottomAdvices:f}=n3(r.advices,t);const y=[];const v=r.topPropeller===Ea.none?134:106;const b=r.singleDirection?v*2:v;if(r.singleSided){y.push(Sp(b,Math.max(e,0),{box:a.boxColor,container:a.containerBackgroundColor},{hideTicks:a.hideTicks,flipAdicePattern:false,hideContainer:false,narrow:r.narrow,off:i===$e.off},d));if(!(r.singleDirection||r.singleDirectionHalfSize)){y.push(e3(b,Math.max(-e,0),{box:a.boxColor,container:a.containerBackgroundColor},{hideTicks:a.hideTicks,flipAdicePattern:true,hideContainer:false,narrow:r.narrow,off:i===$e.off},f))}y.push(n)}else{y.push(_p(b,Math.max(e,0),{box:a.boxColor,container:a.containerBackgroundColor},{hideTicks:a.hideTicks,hideContainer:false,off:i===$e.off}));if(!r.singleDirection){y.push(Q8(b,Math.max(-e,0),{box:a.boxColor,container:a.containerBackgroundColor},{hideTicks:a.hideTicks,hideContainer:false,off:i===$e.off}))}y.push(n)}if(t!==void 0){if(r.setpointId){y.push(r3(b,t,{state:i,priority:o,atSetpoint:r.atSetpoint,touching:r.touching,setpointAtZeroDeadband:r.setpointAtZeroDeadband,singleSided:r.singleSided,narrow:r.narrow,newSetpoint:r.newSetpoint,id:r.setpointId,animateSetpoint:r.animateSetpoint,departingNewSetpoint:r.departingNewSetpoint,setpointOverride:r.setpointOverride}))}else{y.push(o3(b,t,h,{fill:a.setPointColor,stroke:"var(--border-silhouette-color)"},{filled:o===de.enhanced||i===$e.off,singleSided:r.singleSided,narrow:r.narrow}))}}if(r.tunnel){return c`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="-160 -64  320 128" x="-160" y="-64">
+        <g transform="rotate(-90)">
+          ${y}
+        </g>
+      </svg>`}else{let M="-80 -160 160 320";let H=-160;if(r.singleDirection){M="-80 -300 160 320";H=-320}const P=xp(b,a.arrowColor,r.topPropeller);const S=Mp(r.singleDirectionHalfSize?.5:b,r.bottomPropeller);return c`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox=${M} x="-80" y=${H} width="160" height="320">
+      ${P}
+      ${S}
+      ${y}
+    </svg>
+  `}}function n3(e,t){const i=e.map(a=>{const n=t!==void 0&&t>=a.min&&t<=a.max;let h;if(n){h=se.triggered}else if(a.hinted){h=se.hinted}else{h=se.regular}return{min:a.min,max:a.max,type:a.type,state:h,hinted:a.hinted}});const o=i.filter(a=>a.min>=0);const r=i.filter(a=>a.max<=0).map(a=>({...a,min:-a.max,max:-a.min}));return{topAdvices:o,bottomAdvices:r}}function l3(e,t,i){const o=i===de.enhanced;let r=o?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";let a=o?"var(--instrument-enhanced-primary-color)":"var(--instrument-regular-primary-color)";let n="var(--instrument-regular-secondary-color)";let h="var(--instrument-frame-primary-color)";let d=o?"var(--instrument-enhanced-secondary-color)":"var(--instrument-regular-secondary-color)";let f=false;if(e.atSetpoint){a=r}if(t===$e.loading){r="transparent";a="var(--instrument-frame-tertiary-color)";d="var(--instrument-frame-tertiary-color)";n="var(--instrument-regular-secondary-color)";f=true}else if(t===$e.off){r="transparent";a="var(--instrument-frame-tertiary-color)";n="var(--instrument-frame-tertiary-color)";d="var(--instrument-frame-tertiary-color)";f=true;h="transparent"}return{zeroLineColor:d,boxColor:r,containerBackgroundColor:h,hideTicks:f,setPointColor:a,arrowColor:n}}var Vp=L`
+          * {
+            -webkit-tap-highlight-color: transparent;
+          }
+
+.chart-container {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#chart {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  background: var(--instrument-frame-primary-color);
+  border-radius: 4px;
+  border: 1px solid var(--instrument-frame-tertiary-color);
+}
+
+#chart canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+#dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  right: -3px;
+  border-radius: 50%;
+  background: var(--element-neutral-color);
+  border: 1px solid var(--border-silhouette-color);
+}
+`;var s3=true;var at="u-";var c3="uplot";var p3=at+"hz";var d3=at+"vt";var h3=at+"title";var u3=at+"wrap";var f3=at+"under";var v3=at+"over";var m3=at+"axis";var hi=at+"off";var g3=at+"select";var b3=at+"cursor-x";var y3=at+"cursor-y";var w3=at+"cursor-pt";var C3=at+"legend";var L3=at+"live";var k3=at+"inline";var x3=at+"series";var M3=at+"marker";var Zp=at+"label";var $3=at+"value";var Ia="width";var Ra="height";var Da="top";var Ap="bottom";var Ji="left";var Gs="right";var p1="#000";var Pp=p1+"0";var qs="mousemove";var Tp="mousedown";var Ys="mouseup";var zp="mouseenter";var Op="mouseleave";var Ep="dblclick";var H3="resize";var _3="scroll";var Dp="change";var Dl="dppxchange";var d1="--";var ia=typeof window!="undefined";var e1=ia?document:null;var Qi=ia?window:null;var S3=ia?navigator:null;var ke;var Tl;function t1(){let e=devicePixelRatio;if(ke!=e){ke=e;Tl&&o1(Dp,Tl,t1);Tl=matchMedia(`(min-resolution: ${ke-.001}dppx) and (max-resolution: ${ke+.001}dppx)`);ui(Dp,Tl,t1);Qi.dispatchEvent(new CustomEvent(Dl))}}function er(e,t){if(t!=null){let i=e.classList;!i.contains(t)&&i.add(t)}}function r1(e,t){let i=e.classList;i.contains(t)&&i.remove(t)}function Ne(e,t,i){e.style[t]=i+"px"}function Tr(e,t,i,o){let r=e1.createElement(e);if(t!=null)er(r,t);if(i!=null)i.insertBefore(r,o);return r}function br(e,t){return Tr("div",e,t)}var Bp=new WeakMap;function to(e,t,i,o,r){let a="translate("+t+"px,"+i+"px)";let n=Bp.get(e);if(a!=n){e.style.transform=a;Bp.set(e,a);if(t<0||i<0||t>o||i>r)er(e,hi);else r1(e,hi)}}var Ip=new WeakMap;function Rp(e,t,i){let o=t+i;let r=Ip.get(e);if(o!=r){Ip.set(e,o);e.style.background=t;e.style.borderColor=i}}var Np=new WeakMap;function jp(e,t,i,o){let r=t+""+i;let a=Np.get(e);if(r!=a){Np.set(e,r);e.style.height=i+"px";e.style.width=t+"px";e.style.marginLeft=o?-t/2+"px":0;e.style.marginTop=o?-i/2+"px":0}}var h1={passive:true};var V3={...h1,capture:true};function ui(e,t,i,o){t.addEventListener(e,i,o?V3:h1)}function o1(e,t,i,o){t.removeEventListener(e,i,h1)}ia&&t1();function zr(e,t,i,o){let r;i=i||0;o=o||t.length-1;let a=o<=2147483647;while(o-i>1){r=a?i+o>>1:tr((i+o)/2);if(t[r]<e)i=r;else o=r}if(e-t[i]<=t[o]-e)return i;return o}function gd(e){let t=(i,o,r)=>{let a=-1;let n=-1;for(let h=o;h<=r;h++){if(e(i[h])){a=h;break}}for(let h=r;h>=o;h--){if(e(i[h])){n=h;break}}return[a,n]};return t}var bd=e=>e!=null;var yd=e=>e!=null&&e>0;var Rl=gd(bd);var Z3=gd(yd);function A3(e,t,i,o=0,r=false){let a=r?Z3:Rl;let n=r?yd:bd;[t,i]=a(e,t,i);let h=e[t];let d=e[t];if(t>-1){if(o==1){h=e[t];d=e[i]}else if(o==-1){h=e[i];d=e[t]}else{for(let f=t;f<=i;f++){let y=e[f];if(n(y)){if(y<h)h=y;else if(y>d)d=y}}}}return[h??Te,d??-Te]}function Nl(e,t,i,o){let r=Wp(e);let a=Wp(t);if(e==t){if(r==-1){e*=i;t/=i}else{e/=i;t*=i}}let n=i==10?vo:wd;let h=r==1?tr:yr;let d=a==1?yr:tr;let f=h(n(it(e)));let y=d(n(it(t)));let v=ea(i,f);let b=ea(i,y);if(i==10){if(f<0)v=ze(v,-f);if(y<0)b=ze(b,-y)}if(o||i==2){e=v*r;t=b*a}else{e=xd(e,v);t=jl(t,b)}return[e,t]}function u1(e,t,i,o){let r=Nl(e,t,i,o);if(e==0)r[0]=0;if(t==0)r[1]=0;return r}var f1=.1;var Fp={mode:3,pad:f1};var ja={pad:0,soft:null,mode:0};var P3={min:ja,max:ja};function Bl(e,t,i,o){if(Fl(i))return Up(e,t,i);ja.pad=i;ja.soft=o?0:null;ja.mode=o?3:0;return Up(e,t,P3)}function ye(e,t){return e==null?t:e}function T3(e,t,i){t=ye(t,0);i=ye(i,e.length-1);while(t<=i){if(e[t]!=null)return true;t++}return false}function Up(e,t,i){let o=i.min;let r=i.max;let a=ye(o.pad,0);let n=ye(r.pad,0);let h=ye(o.hard,-Te);let d=ye(r.hard,Te);let f=ye(o.soft,Te);let y=ye(r.soft,-Te);let v=ye(o.mode,0);let b=ye(r.mode,0);let M=t-e;let H=vo(M);let P=zt(it(e),it(t));let S=vo(P);let Z=it(S-H);if(M<1e-24||Z>10){M=0;if(e==0||t==0){M=1e-24;if(v==2&&f!=Te)a=0;if(b==2&&y!=-Te)n=0}}let _=M||P||1e3;let E=vo(_);let A=ea(10,tr(E));let G=_*(M==0?e==0?.1:1:a);let z=ze(xd(e-G,A/10),24);let B=e>=f&&(v==1||v==3&&z<=f||v==2&&z>=f)?f:Te;let U=zt(h,z<B&&e>=B?B:Or(B,z));let K=_*(M==0?t==0?.1:1:n);let Q=ze(jl(t+K,A/10),24);let D=t<=y&&(b==1||b==3&&Q>=y||b==2&&Q<=y)?y:-Te;let le=Or(d,Q>D&&t<=D?D:zt(D,Q));if(U==le&&U==0)le=100;return[U,le]}var z3=new Intl.NumberFormat(ia?S3.language:"en-US");var v1=e=>z3.format(e);var rr=Math;var El=rr.PI;var it=rr.abs;var tr=rr.floor;var ot=rr.round;var yr=rr.ceil;var Or=rr.min;var zt=rr.max;var ea=rr.pow;var Wp=rr.sign;var vo=rr.log10;var wd=rr.log2;var O3=(e,t=1)=>rr.sinh(e)*t;var Ks=(e,t=1)=>rr.asinh(e/t);var Te=Infinity;function Gp(e){return(vo((e^e>>31)-(e>>31))|0)+1}function i1(e,t,i){return Or(zt(e,t),i)}function Cd(e){return typeof e=="function"}function fe(e){return Cd(e)?e:()=>e}var E3=()=>{};var Ld=e=>e;var kd=(e,t)=>t;var D3=e=>null;var qp=e=>true;var Yp=(e,t)=>e==t;var B3=/\.\d*?(?=9{6,}|0{6,})/gm;var fi=e=>{if($d(e)||To.has(e))return e;const t=`${e}`;const i=t.match(B3);if(i==null)return e;let o=i[0].length-1;if(t.indexOf("e-")!=-1){let[r,a]=t.split("e");return+`${fi(r)}e${a}`}return ze(e,o)};function pi(e,t){return fi(ze(fi(e/t))*t)}function jl(e,t){return fi(yr(fi(e/t))*t)}function xd(e,t){return fi(tr(fi(e/t))*t)}function ze(e,t=0){if($d(e))return e;let i=10**t;let o=e*i*(1+Number.EPSILON);return ot(o)/i}var To=new Map;function Md(e){return((""+e).split(".")[1]||"").length}function Ua(e,t,i,o){let r=[];let a=o.map(Md);for(let n=t;n<i;n++){let h=it(n);let d=ze(ea(e,n),h);for(let f=0;f<o.length;f++){let y=e==10?+`${o[f]}e${n}`:o[f]*d;let v=(n>=0?0:h)+(n>=a[f]?0:a[f]);let b=e==10?y:ze(y,v);r.push(b);To.set(b,v)}}return r}var Fa={};var m1=[];var ta=[null,null];var Po=Array.isArray;var $d=Number.isInteger;var I3=e=>e===void 0;function Kp(e){return typeof e=="string"}function Fl(e){let t=false;if(e!=null){let i=e.constructor;t=i==null||i==Object}return t}function R3(e){return e!=null&&typeof e=="object"}var N3=Object.getPrototypeOf(Uint8Array);var Hd="__proto__";function ra(e,t=Fl){let i;if(Po(e)){let o=e.find(r=>r!=null);if(Po(o)||t(o)){i=Array(e.length);for(let r=0;r<e.length;r++)i[r]=ra(e[r],t)}else i=e.slice()}else if(e instanceof N3)i=e.slice();else if(t(e)){i={};for(let o in e){if(o!=Hd)i[o]=ra(e[o],t)}}else i=e;return i}function Xe(e){let t=arguments;for(let i=1;i<t.length;i++){let o=t[i];for(let r in o){if(r!=Hd){if(Fl(e[r]))Xe(e[r],ra(o[r]));else e[r]=ra(o[r])}}}return e}var j3=0;var F3=1;var U3=2;function W3(e,t,i){for(let o=0,r,a=-1;o<t.length;o++){let n=t[o];if(n>a){r=n-1;while(r>=0&&e[r]==null)e[r--]=null;r=n+1;while(r<i&&e[r]==null)e[a=r++]=null}}}function G3(e,t){if(K3(e)){let n=e[0].slice();for(let h=1;h<e.length;h++)n.push(...e[h].slice(1));if(!J3(n[0]))n=Y3(n);return n}let i=new Set;for(let n=0;n<e.length;n++){let h=e[n];let d=h[0];let f=d.length;for(let y=0;y<f;y++)i.add(d[y])}let o=[Array.from(i).sort((n,h)=>n-h)];let r=o[0].length;let a=new Map;for(let n=0;n<r;n++)a.set(o[0][n],n);for(let n=0;n<e.length;n++){let h=e[n];let d=h[0];for(let f=1;f<h.length;f++){let y=h[f];let v=Array(r).fill(void 0);let b=t?t[n][f]:F3;let M=[];for(let H=0;H<y.length;H++){let P=y[H];let S=a.get(d[H]);if(P===null){if(b!=j3){v[S]=P;if(b==U3)M.push(S)}}else v[S]=P}W3(v,M,r);o.push(v)}}return o}var q3=typeof queueMicrotask=="undefined"?e=>Promise.resolve().then(e):queueMicrotask;function Y3(e){let t=e[0];let i=t.length;let o=Array(i);for(let a=0;a<o.length;a++)o[a]=a;o.sort((a,n)=>t[a]-t[n]);let r=[];for(let a=0;a<e.length;a++){let n=e[a];let h=Array(i);for(let d=0;d<i;d++)h[d]=n[o[d]];r.push(h)}return r}function K3(e){let t=e[0][0];let i=t.length;for(let o=1;o<e.length;o++){let r=e[o][0];if(r.length!=i)return false;if(r!=t){for(let a=0;a<i;a++){if(r[a]!=t[a])return false}}}return true}function J3(e,t=100){const i=e.length;if(i<=1)return true;let o=0;let r=i-1;while(o<=r&&e[o]==null)o++;while(r>=o&&e[r]==null)r--;if(r<=o)return true;const a=zt(1,tr((r-o+1)/t));for(let n=e[o],h=o+a;h<=r;h+=a){const d=e[h];if(d!=null){if(d<=n)return false;n=d}}return true}var _d=["January","February","March","April","May","June","July","August","September","October","November","December"];var Sd=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];function Vd(e){return e.slice(0,3)}var X3=Sd.map(Vd);var Q3=_d.map(Vd);var e6={MMMM:_d,MMM:Q3,WWWW:Sd,WWW:X3};function Ba(e){return(e<10?"0":"")+e}function t6(e){return(e<10?"00":e<100?"0":"")+e}var r6={YYYY:e=>e.getFullYear(),YY:e=>(e.getFullYear()+"").slice(2),MMMM:(e,t)=>t.MMMM[e.getMonth()],MMM:(e,t)=>t.MMM[e.getMonth()],MM:e=>Ba(e.getMonth()+1),M:e=>e.getMonth()+1,DD:e=>Ba(e.getDate()),D:e=>e.getDate(),WWWW:(e,t)=>t.WWWW[e.getDay()],WWW:(e,t)=>t.WWW[e.getDay()],HH:e=>Ba(e.getHours()),H:e=>e.getHours(),h:e=>{let t=e.getHours();return t==0?12:t>12?t-12:t},AA:e=>e.getHours()>=12?"PM":"AM",aa:e=>e.getHours()>=12?"pm":"am",a:e=>e.getHours()>=12?"p":"a",mm:e=>Ba(e.getMinutes()),m:e=>e.getMinutes(),ss:e=>Ba(e.getSeconds()),s:e=>e.getSeconds(),fff:e=>t6(e.getMilliseconds())};function g1(e,t){t=t||e6;let i=[];let o=/\{([a-z]+)\}|[^{]+/gi,r;while(r=o.exec(e))i.push(r[0][0]=="{"?r6[r[1]]:r[0]);return a=>{let n="";for(let h=0;h<i.length;h++)n+=typeof i[h]=="string"?i[h]:i[h](a,t);return n}}var o6=new Intl.DateTimeFormat().resolvedOptions().timeZone;function i6(e,t){let i;if(t=="UTC"||t=="Etc/UTC")i=new Date(+e+e.getTimezoneOffset()*6e4);else if(t==o6)i=e;else{i=new Date(e.toLocaleString("en-US",{timeZone:t}));i.setMilliseconds(e.getMilliseconds())}return i}var Zd=e=>e%1==0;var Il=[1,2,2.5,5];var a6=Ua(10,-32,0,Il);var Ad=Ua(10,0,32,Il);var n6=Ad.filter(Zd);var di=a6.concat(Ad);var b1="\n";var Pd="{YYYY}";var Jp=b1+Pd;var Td="{M}/{D}";var Na=b1+Td;var zl=Na+"/{YY}";var zd="{aa}";var l6="{h}:{mm}";var Xi=l6+zd;var Xp=b1+Xi;var Qp=":{ss}";var _e=null;function Od(e){let t=e*1e3,i=t*60,o=i*60,r=o*24,a=r*30,n=r*365;let h=e==1?Ua(10,0,3,Il).filter(Zd):Ua(10,-3,0,Il);let d=h.concat([t,t*5,t*10,t*15,t*30,i,i*5,i*10,i*15,i*30,o,o*2,o*3,o*4,o*6,o*8,o*12,r,r*2,r*3,r*4,r*5,r*6,r*7,r*8,r*9,r*10,r*15,a,a*2,a*3,a*4,a*6,n,n*2,n*5,n*10,n*25,n*50,n*100]);const f=[[n,Pd,_e,_e,_e,_e,_e,_e,1],[r*28,"{MMM}",Jp,_e,_e,_e,_e,_e,1],[r,Td,Jp,_e,_e,_e,_e,_e,1],[o,"{h}"+zd,zl,_e,Na,_e,_e,_e,1],[i,Xi,zl,_e,Na,_e,_e,_e,1],[t,Qp,zl+" "+Xi,_e,Na+" "+Xi,_e,Xp,_e,1],[e,Qp+".{fff}",zl+" "+Xi,_e,Na+" "+Xi,_e,Xp,_e,1]];function y(v){return(b,M,H,P,S,Z)=>{let _=[];let E=S>=n;let A=S>=a&&S<n;let G=v(H);let z=ze(G*e,3);let B=Js(G.getFullYear(),E?0:G.getMonth(),A||E?1:G.getDate());let U=ze(B*e,3);if(A||E){let K=A?S/a:0;let Q=E?S/n:0;let D=z==U?z:ze(Js(B.getFullYear()+Q,B.getMonth()+K,1)*e,3);let le=new Date(ot(D/e));let q=le.getFullYear();let ie=le.getMonth();for(let ee=0;D<=P;ee++){let he=Js(q+Q*ee,ie+K*ee,1);let N=he-v(ze(he*e,3));D=ze((+he+N)*e,3);if(D<=P)_.push(D)}}else{let K=S>=r?r:S;let Q=tr(H)-tr(z);let D=U+Q+jl(z-U,K);_.push(D);let le=v(D);let q=le.getHours()+le.getMinutes()/i+le.getSeconds()/o;let ie=S/o;let ee=b.axes[M]._space;let he=Z/ee;while(1){D=ze(D+S,e==1?0:3);if(D>P)break;if(ie>1){let N=tr(ze(q+ie,6))%24;let Oe=v(D);let Ve=Oe.getHours();let ve=Ve-N;if(ve>1)ve=-1;D-=ve*o;q=(q+ie)%24;let xe=_[_.length-1];let pe=ze((D-xe)/S,3);if(pe*he>=.7)_.push(D)}else _.push(D)}}return _}}return[d,f,y]}var[s6,c6,p6]=Od(1);var[d6,h6,u6]=Od(.001);Ua(2,-53,53,[1]);function ed(e,t){return e.map(i=>i.map((o,r)=>r==0||r==8||o==null?o:t(r==1||i[8]==0?o:i[1]+o)))}function td(e,t){return(i,o,r,a,n)=>{let h=t.find(H=>n>=H[0])||t[t.length-1];let d;let f;let y;let v;let b;let M;return o.map(H=>{let P=e(H);let S=P.getFullYear();let Z=P.getMonth();let _=P.getDate();let E=P.getHours();let A=P.getMinutes();let G=P.getSeconds();let z=S!=d&&h[2]||Z!=f&&h[3]||_!=y&&h[4]||E!=v&&h[5]||A!=b&&h[6]||G!=M&&h[7]||h[1];d=S;f=Z;y=_;v=E;b=A;M=G;return z(P)})}}function f6(e,t){let i=g1(t);return(o,r,a,n,h)=>r.map(d=>i(e(d)))}function Js(e,t,i){return new Date(e,t,i)}function rd(e,t){return t(e)}var v6="{YYYY}-{MM}-{DD} {h}:{mm}{aa}";function od(e,t){return(i,o,r,a)=>a==null?d1:t(e(o))}function m6(e,t){let i=e.series[t];return i.width?i.stroke(e,t):i.points.width?i.points.stroke(e,t):null}function g6(e,t){return e.series[t].fill(e,t)}var b6={show:true,live:true,isolate:false,mount:E3,markers:{show:true,width:2,stroke:m6,fill:g6,dash:"solid"},idx:null,idxs:null,values:[]};function y6(e,t){let i=e.cursor.points;let o=br();let r=i.size(e,t);Ne(o,Ia,r);Ne(o,Ra,r);let a=r/-2;Ne(o,"marginLeft",a);Ne(o,"marginTop",a);let n=i.width(e,t,r);n&&Ne(o,"borderWidth",n);return o}function w6(e,t){let i=e.series[t].points;return i._fill||i._stroke}function C6(e,t){let i=e.series[t].points;return i._stroke||i._fill}function L6(e,t){let i=e.series[t].points;return i.size}var Xs=[0,0];function k6(e,t,i){Xs[0]=t;Xs[1]=i;return Xs}function Ol(e,t,i,o=true){return r=>{r.button==0&&(!o||r.target==t)&&i(r)}}function Qs(e,t,i,o=true){return r=>{(!o||r.target==t)&&i(r)}}var x6={show:true,x:true,y:true,lock:false,move:k6,points:{one:false,show:y6,size:L6,width:0,stroke:C6,fill:w6},bind:{mousedown:Ol,mouseup:Ol,click:Ol,dblclick:Ol,mousemove:Qs,mouseleave:Qs,mouseenter:Qs},drag:{setScale:true,x:true,y:false,dist:0,uni:null,click:(e,t)=>{t.stopPropagation();t.stopImmediatePropagation()},_x:false,_y:false},focus:{dist:(e,t,i,o,r)=>o-r,prox:-1,bias:0},hover:{skip:[void 0],prox:null,bias:0},left:-10,top:-10,idx:null,dataIdx:null,idxs:null,event:null};var Ed={show:true,stroke:"rgba(0,0,0,0.07)",width:2};var y1=Xe({},Ed,{filter:kd});var Dd=Xe({},y1,{size:10});var Bd=Xe({},Ed,{show:false});var w1='12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"';var Id="bold "+w1;var Rd=1.5;var id={show:true,scale:"x",stroke:p1,space:50,gap:5,alignTo:1,size:50,labelGap:0,labelSize:30,labelFont:Id,side:2,grid:y1,ticks:Dd,border:Bd,font:w1,lineGap:Rd,rotate:0};var M6="Value";var $6="Time";var ad={show:true,scale:"x",auto:false,sorted:1,min:Te,max:-Te,idxs:[]};function H6(e,t,i,o,r){return t.map(a=>a==null?"":v1(a))}function _6(e,t,i,o,r,a,n){let h=[];let d=To.get(r)||0;i=n?i:ze(jl(i,r),d);for(let f=i;f<=o;f=ze(f+r,d))h.push(Object.is(f,-0)?0:f);return h}function a1(e,t,i,o,r,a,n){const h=[];const d=e.scales[e.axes[t].scale].log;const f=d==10?vo:wd;const y=tr(f(i));r=ea(d,y);if(d==10)r=di[zr(r,di)];let v=i;let b=r*d;if(d==10)b=di[zr(b,di)];do{h.push(v);v=v+r;if(d==10&&!To.has(v))v=ze(v,To.get(r));if(v>=b){r=v;b=r*d;if(d==10)b=di[zr(b,di)]}}while(v<=o);return h}function S6(e,t,i,o,r,a,n){let h=e.scales[e.axes[t].scale];let d=h.asinh;let f=o>d?a1(e,t,zt(d,i),o,r):[d];let y=o>=0&&i<=0?[0]:[];let v=i<-d?a1(e,t,zt(d,-o),-i,r):[d];return v.reverse().map(b=>-b).concat(y,f)}var Nd=/./;var V6=/[12357]/;var Z6=/[125]/;var nd=/1/;var n1=(e,t,i,o)=>e.map((r,a)=>t==4&&r==0||a%o==0&&i.test(r.toExponential()[r<0?1:0])?r:null);function A6(e,t,i,o,r){let a=e.axes[i];let n=a.scale;let h=e.scales[n];let d=e.valToPos;let f=a._space;let y=d(10,n);let v=d(9,n)-y>=f?Nd:d(7,n)-y>=f?V6:d(5,n)-y>=f?Z6:nd;if(v==nd){let b=it(d(1,n)-y);if(b<f)return n1(t.slice().reverse(),h.distr,v,yr(f/b)).reverse()}return n1(t,h.distr,v,1)}function P6(e,t,i,o,r){let a=e.axes[i];let n=a.scale;let h=a._space;let d=e.valToPos;let f=it(d(1,n)-d(2,n));if(f<h)return n1(t.slice().reverse(),3,Nd,yr(h/f)).reverse();return t}function T6(e,t,i,o){return o==null?d1:t==null?"":v1(t)}var ld={show:true,scale:"y",stroke:p1,space:30,gap:5,alignTo:1,size:50,labelGap:0,labelSize:30,labelFont:Id,side:3,grid:y1,ticks:Dd,border:Bd,font:w1,lineGap:Rd,rotate:0};function z6(e,t){let i=3+(e||1)*2;return ze(i*t,3)}function O6(e,t){let{scale:i,idxs:o}=e.series[0];let r=e._data[0];let a=e.valToPos(r[o[0]],i,true);let n=e.valToPos(r[o[1]],i,true);let h=it(n-a);let d=e.series[t];let f=h/(d.points.space*ke);return o[1]-o[0]<=f}var sd={scale:null,auto:true,sorted:0,min:Te,max:-Te};var jd=(e,t,i,o,r)=>r;var cd={show:true,auto:true,sorted:0,gaps:jd,alpha:1,facets:[Xe({},sd,{scale:"x"}),Xe({},sd,{scale:"y"})]};var pd={scale:"y",auto:true,sorted:0,show:true,spanGaps:false,gaps:jd,alpha:1,points:{show:O6,filter:null},values:null,min:Te,max:-Te,idxs:[],path:null,clip:null};function E6(e,t,i,o,r){return i/10}var Fd={time:s3,auto:true,distr:1,log:10,asinh:1,min:null,max:null,dir:1,ori:0};var D6=Xe({},Fd,{time:false,ori:1});var dd={};function Ud(e,t){let i=dd[e];if(!i){i={key:e,plots:[],sub(o){i.plots.push(o)},unsub(o){i.plots=i.plots.filter(r=>r!=o)},pub(o,r,a,n,h,d,f){for(let y=0;y<i.plots.length;y++)i.plots[y]!=r&&i.plots[y].pub(o,r,a,n,h,d,f)}};if(e!=null)dd[e]=i}return i}var oa=1<<0;var l1=1<<1;function vi(e,t,i){const o=e.mode;const r=e.series[t];const a=o==2?e._data[t]:e._data;const n=e.scales;const h=e.bbox;let d=a[0],f=o==2?a[1]:a[t],y=o==2?n[r.facets[0].scale]:n[e.series[0].scale],v=o==2?n[r.facets[1].scale]:n[r.scale],b=h.left,M=h.top,H=h.width,P=h.height,S=e.valToPosH,Z=e.valToPosV;return y.ori==0?i(r,d,f,y,v,S,Z,b,M,H,P,Wl,aa,ql,Gd,Yd):i(r,d,f,y,v,Z,S,M,b,P,H,Gl,na,k1,qd,Kd)}function C1(e,t){let i=0;let o=0;let r=ye(e.bands,m1);for(let a=0;a<r.length;a++){let n=r[a];if(n.series[0]==t)i=n.dir;else if(n.series[1]==t){if(n.dir==1)o|=1;else o|=2}}return[i,o==1?-1:o==2?1:o==3?2:0]}function B6(e,t,i,o,r){let a=e.mode;let n=e.series[t];let h=a==2?n.facets[1].scale:n.scale;let d=e.scales[h];return r==-1?d.min:r==1?d.max:d.distr==3?d.dir==1?d.min:d.max:0}function mo(e,t,i,o,r,a){return vi(e,t,(n,h,d,f,y,v,b,M,H,P,S)=>{let Z=n.pxRound;const _=f.dir*(f.ori==0?1:-1);const E=f.ori==0?aa:na;let A,G;if(_==1){A=i;G=o}else{A=o;G=i}let z=Z(v(h[A],f,P,M));let B=Z(b(d[A],y,S,H));let U=Z(v(h[G],f,P,M));let K=Z(b(a==1?y.max:y.min,y,S,H));let Q=new Path2D(r);E(Q,U,K);E(Q,z,K);E(Q,z,B);return Q})}function Ul(e,t,i,o,r,a){let n=null;if(e.length>0){n=new Path2D;const h=t==0?ql:k1;let d=i;for(let v=0;v<e.length;v++){let b=e[v];if(b[1]>b[0]){let M=b[0]-d;M>0&&h(n,d,o,M,o+a);d=b[1]}}let f=i+r-d;let y=10;f>0&&h(n,d,o-y/2,f,o+a+y)}return n}function I6(e,t,i){let o=e[e.length-1];if(o&&o[0]==t)o[1]=i;else e.push([t,i])}function L1(e,t,i,o,r,a,n){let h=[];let d=e.length;for(let f=r==1?i:o;f>=i&&f<=o;f+=r){let y=t[f];if(y===null){let v=f,b=f;if(r==1){while(++f<=o&&t[f]===null)b=f}else{while(--f>=i&&t[f]===null)b=f}let M=a(e[v]);let H=b==v?M:a(e[b]);let P=v-r;let S=n<=0&&P>=0&&P<d?a(e[P]):M;M=S;let Z=b+r;let _=n>=0&&Z>=0&&Z<d?a(e[Z]):H;H=_;if(H>=M)h.push([M,H])}}return h}function hd(e){return e==0?Ld:e==1?ot:t=>pi(t,e)}function Wd(e){let t=e==0?Wl:Gl;let i=e==0?(r,a,n,h,d,f)=>{r.arcTo(a,n,h,d,f)}:(r,a,n,h,d,f)=>{r.arcTo(n,a,d,h,f)};let o=e==0?(r,a,n,h,d)=>{r.rect(a,n,h,d)}:(r,a,n,h,d)=>{r.rect(n,a,d,h)};return(r,a,n,h,d,f=0,y=0)=>{if(f==0&&y==0)o(r,a,n,h,d);else{f=Or(f,h/2,d/2);y=Or(y,h/2,d/2);t(r,a+f,n);i(r,a+h,n,a+h,n+d,f);i(r,a+h,n+d,a,n+d,y);i(r,a,n+d,a,n,y);i(r,a,n,a+h,n,f);r.closePath()}}}var Wl=(e,t,i)=>{e.moveTo(t,i)};var Gl=(e,t,i)=>{e.moveTo(i,t)};var aa=(e,t,i)=>{e.lineTo(t,i)};var na=(e,t,i)=>{e.lineTo(i,t)};var ql=Wd(0);var k1=Wd(1);var Gd=(e,t,i,o,r,a)=>{e.arc(t,i,o,r,a)};var qd=(e,t,i,o,r,a)=>{e.arc(i,t,o,r,a)};var Yd=(e,t,i,o,r,a,n)=>{e.bezierCurveTo(t,i,o,r,a,n)};var Kd=(e,t,i,o,r,a,n)=>{e.bezierCurveTo(i,t,r,o,n,a)};function Jd(e){return(t,i,o,r,a)=>{return vi(t,i,(n,h,d,f,y,v,b,M,H,P,S)=>{let{pxRound:Z,points:_}=n;let E,A;if(f.ori==0){E=Wl;A=Gd}else{E=Gl;A=qd}const G=ze(_.width*ke,3);let z=(_.size-_.width)/2*ke;let B=ze(z*2,3);let U=new Path2D;let K=new Path2D;let{left:Q,top:D,width:le,height:q}=t.bbox;ql(K,Q-B,D-B,le+B*2,q+B*2);const ie=ee=>{if(d[ee]!=null){let he=Z(v(h[ee],f,P,M));let N=Z(b(d[ee],y,S,H));E(U,he+z,N);A(U,he,N,z,0,El*2)}};if(a)a.forEach(ie);else{for(let ee=o;ee<=r;ee++)ie(ee)}return{stroke:G>0?U:null,fill:U,clip:K,flags:oa|l1}})}}function Xd(e){return(t,i,o,r,a,n)=>{if(o!=r){if(a!=o&&n!=o)e(t,i,o);if(a!=r&&n!=r)e(t,i,r);e(t,i,n)}}}var R6=Xd(aa);var N6=Xd(na);function Qd(e){const t=ye(e?.alignGaps,0);return(i,o,r,a)=>{return vi(i,o,(n,h,d,f,y,v,b,M,H,P,S)=>{[r,a]=Rl(d,r,a);let Z=n.pxRound;let _=q=>Z(v(q,f,P,M));let E=q=>Z(b(q,y,S,H));let A,G;if(f.ori==0){A=aa;G=R6}else{A=na;G=N6}const z=f.dir*(f.ori==0?1:-1);const B={stroke:new Path2D,fill:null,clip:null,band:null,gaps:null,flags:oa};const U=B.stroke;let K=false;const Q=a-r>=P*4;if(Q){let q=J=>i.posToVal(J,f.key,true);let ie=null,ee=null,he,N,Oe;let Ve=_(h[z==1?r:a]);let ve=_(h[r]);let xe=_(h[a]);let pe=q(z==1?ve+1:xe-1);for(let J=z==1?r:a;J>=r&&J<=a;J+=z){let Qe=h[J];let Ct=z==1?Qe<pe:Qe>pe;let je=Ct?Ve:_(Qe);let Me=d[J];if(je==Ve){if(Me!=null){N=Me;if(ie==null){A(U,je,E(N));he=ie=ee=N}else{if(N<ie)ie=N;else if(N>ee)ee=N}}else{if(Me===null)K=true}}else{if(ie!=null)G(U,Ve,E(ie),E(ee),E(he),E(N));if(Me!=null){N=Me;A(U,je,E(N));ie=ee=he=N}else{ie=ee=null;if(Me===null)K=true}Ve=je;pe=q(Ve+z)}}if(ie!=null&&ie!=ee&&Oe!=Ve)G(U,Ve,E(ie),E(ee),E(he),E(N))}else{for(let q=z==1?r:a;q>=r&&q<=a;q+=z){let ie=d[q];if(ie===null)K=true;else if(ie!=null)A(U,_(h[q]),E(ie))}}let[D,le]=C1(i,o);if(n.fill!=null||D!=0){let q=B.fill=new Path2D(U);let ie=n.fillTo(i,o,n.min,n.max,D);let ee=E(ie);let he=_(h[r]);let N=_(h[a]);if(z==-1)[N,he]=[he,N];A(q,N,ee);A(q,he,ee)}if(!n.spanGaps){let q=[];K&&q.push(...L1(h,d,r,a,z,_,t));B.gaps=q=n.gaps(i,o,r,a,q);B.clip=Ul(q,f.ori,M,H,P,S)}if(le!=0){B.band=le==2?[mo(i,o,r,a,U,-1),mo(i,o,r,a,U,1)]:mo(i,o,r,a,U,le)}return B})}}function j6(e){const t=ye(e.align,1);const i=ye(e.ascDesc,false);const o=ye(e.alignGaps,0);const r=ye(e.extend,false);return(a,n,h,d)=>{return vi(a,n,(f,y,v,b,M,H,P,S,Z,_,E)=>{[h,d]=Rl(v,h,d);let A=f.pxRound;let{left:G,width:z}=a.bbox;let B=ve=>A(H(ve,b,_,S));let U=ve=>A(P(ve,M,E,Z));let K=b.ori==0?aa:na;const Q={stroke:new Path2D,fill:null,clip:null,band:null,gaps:null,flags:oa};const D=Q.stroke;const le=b.dir*(b.ori==0?1:-1);let q=U(v[le==1?h:d]);let ie=B(y[le==1?h:d]);let ee=ie;let he=ie;if(r&&t==-1){he=G;K(D,he,q)}K(D,ie,q);for(let ve=le==1?h:d;ve>=h&&ve<=d;ve+=le){let xe=v[ve];if(xe==null)continue;let pe=B(y[ve]);let J=U(xe);if(t==1)K(D,pe,q);else K(D,ee,J);K(D,pe,J);q=J;ee=pe}let N=ee;if(r&&t==1){N=G+z;K(D,N,q)}let[Oe,Ve]=C1(a,n);if(f.fill!=null||Oe!=0){let ve=Q.fill=new Path2D(D);let xe=f.fillTo(a,n,f.min,f.max,Oe);let pe=U(xe);K(ve,N,pe);K(ve,he,pe)}if(!f.spanGaps){let ve=[];ve.push(...L1(y,v,h,d,le,B,o));let xe=f.width*ke/2;let pe=i||t==1?xe:-xe;let J=i||t==-1?-xe:xe;ve.forEach(Qe=>{Qe[0]+=pe;Qe[1]+=J});Q.gaps=ve=f.gaps(a,n,h,d,ve);Q.clip=Ul(ve,b.ori,S,Z,_,E)}if(Ve!=0){Q.band=Ve==2?[mo(a,n,h,d,D,-1),mo(a,n,h,d,D,1)]:mo(a,n,h,d,D,Ve)}return Q})}}function ud(e,t,i,o,r,a,n=Te){if(e.length>1){let h=null;for(let d=0,f=Infinity;d<e.length;d++){if(t[d]!==void 0){if(h!=null){let y=it(e[d]-e[h]);if(y<f){f=y;n=it(i(e[d],o,r,a)-i(e[h],o,r,a))}}h=d}}}return n}function F6(e){e=e||Fa;const t=ye(e.size,[.6,Te,1]);const i=e.align||0;const o=e.gap||0;let r=e.radius;r=r==null?[0,0]:typeof r=="number"?[r,0]:r;const a=fe(r);const n=1-t[0];const h=ye(t[1],Te);const d=ye(t[2],1);const f=ye(e.disp,Fa);const y=ye(e.each,M=>{});const{fill:v,stroke:b}=f;return(M,H,P,S)=>{return vi(M,H,(Z,_,E,A,G,z,B,U,K,Q,D)=>{let le=Z.pxRound;let q=i;let ie=o*ke;let ee=h*ke;let he=d*ke;let N,Oe;if(A.ori==0)[N,Oe]=a(M,H);else[Oe,N]=a(M,H);const Ve=A.dir*(A.ori==0?1:-1);let ve=A.ori==0?ql:k1;let xe=A.ori==0?y:(F,Pe,et,yi,Do,Dr,Bo)=>{y(F,Pe,et,Do,yi,Bo,Dr)};let pe=ye(M.bands,m1).find(F=>F.series[0]==H);let J=pe!=null?pe.dir:0;let Qe=Z.fillTo(M,H,Z.min,Z.max,J);let Ct=le(B(Qe,G,D,K));let je,Me,wr,Ft=Q;let We=le(Z.width*ke);let Er=false;let ro=null;let or=null;let go=null;let mi=null;if(v!=null&&(We==0||b!=null)){Er=true;ro=v.values(M,H,P,S);or=new Map;new Set(ro).forEach(F=>{if(F!=null)or.set(F,new Path2D)});if(We>0){go=b.values(M,H,P,S);mi=new Map;new Set(go).forEach(F=>{if(F!=null)mi.set(F,new Path2D)})}}let{x0:gi,size:sa}=f;if(gi!=null&&sa!=null){q=1;_=gi.values(M,H,P,S);if(gi.unit==2)_=_.map(et=>M.posToVal(U+et*Q,A.key,true));let F=sa.values(M,H,P,S);if(sa.unit==2)Me=F[0]*Q;else Me=z(F[0],A,Q,U)-z(0,A,Q,U);Ft=ud(_,E,z,A,Q,U,Ft);let Pe=Ft-Me;wr=Pe+ie}else{Ft=ud(_,E,z,A,Q,U,Ft);let F=Ft*n;wr=F+ie;Me=Ft-wr}if(wr<1)wr=0;if(We>=Me/2)We=0;if(wr<5)le=Ld;let Wa=wr>0;let Oo=Ft-wr-(Wa?We:0);Me=le(i1(Oo,he,ee));je=(q==0?Me/2:q==Ve?0:Me)-q*Ve*((q==0?ie/2:0)+(Wa?We/2:0));const Ht={stroke:null,fill:null,clip:null,band:null,gaps:null,flags:0};const bi=Er?null:new Path2D;let oo=null;if(pe!=null)oo=M.data[pe.series[1]];else{let{y0:F,y1:Pe}=f;if(F!=null&&Pe!=null){E=Pe.values(M,H,P,S);oo=F.values(M,H,P,S)}}let Eo=N*Me;let ce=Oe*Me;for(let F=Ve==1?P:S;F>=P&&F<=S;F+=Ve){let Pe=E[F];if(Pe==null)continue;if(oo!=null){let Ot=oo[F]??0;if(Pe-Ot==0)continue;Ct=B(Ot,G,D,K)}let et=A.distr!=2||f!=null?_[F]:F;let yi=z(et,A,Q,U);let Do=B(ye(Pe,Qe),G,D,K);let Dr=le(yi-je);let Bo=le(zt(Do,Ct));let Ut=le(Or(Do,Ct));let ir=Bo-Ut;if(Pe!=null){let Ot=Pe<0?ce:Eo;let Cr=Pe<0?Eo:ce;if(Er){if(We>0&&go[F]!=null)ve(mi.get(go[F]),Dr,Ut+tr(We/2),Me,zt(0,ir-We),Ot,Cr);if(ro[F]!=null)ve(or.get(ro[F]),Dr,Ut+tr(We/2),Me,zt(0,ir-We),Ot,Cr)}else ve(bi,Dr,Ut+tr(We/2),Me,zt(0,ir-We),Ot,Cr);xe(M,H,F,Dr-We/2,Ut,Me+We,ir)}}if(We>0)Ht.stroke=Er?mi:bi;else if(!Er){Ht._fill=Z.width==0?Z._fill:Z._stroke??Z._fill;Ht.width=0}Ht.fill=Er?or:bi;return Ht})}}function U6(e,t){const i=ye(t?.alignGaps,0);return(o,r,a,n)=>{return vi(o,r,(h,d,f,y,v,b,M,H,P,S,Z)=>{[a,n]=Rl(f,a,n);let _=h.pxRound;let E=N=>_(b(N,y,S,H));let A=N=>_(M(N,v,Z,P));let G,z,B;if(y.ori==0){G=Wl;B=aa;z=Yd}else{G=Gl;B=na;z=Kd}const U=y.dir*(y.ori==0?1:-1);let K=E(d[U==1?a:n]);let Q=K;let D=[];let le=[];for(let N=U==1?a:n;N>=a&&N<=n;N+=U){let Oe=f[N];if(Oe!=null){let Ve=d[N];let ve=E(Ve);D.push(Q=ve);le.push(A(f[N]))}}const q={stroke:e(D,le,G,B,z,_),fill:null,clip:null,band:null,gaps:null,flags:oa};const ie=q.stroke;let[ee,he]=C1(o,r);if(h.fill!=null||ee!=0){let N=q.fill=new Path2D(ie);let Oe=h.fillTo(o,r,h.min,h.max,ee);let Ve=A(Oe);B(N,Q,Ve);B(N,K,Ve)}if(!h.spanGaps){let N=[];N.push(...L1(d,f,a,n,U,E,i));q.gaps=N=h.gaps(o,r,a,n,N);q.clip=Ul(N,y.ori,H,P,S,Z)}if(he!=0){q.band=he==2?[mo(o,r,a,n,ie,-1),mo(o,r,a,n,ie,1)]:mo(o,r,a,n,ie,he)}return q})}}function W6(e){return U6(G6,e)}function G6(e,t,i,o,r,a){const n=e.length;if(n<2)return null;const h=new Path2D;i(h,e[0],t[0]);if(n==2)o(h,e[1],t[1]);else{let d=Array(n),f=Array(n-1),y=Array(n-1),v=Array(n-1);for(let b=0;b<n-1;b++){y[b]=t[b+1]-t[b];v[b]=e[b+1]-e[b];f[b]=y[b]/v[b]}d[0]=f[0];for(let b=1;b<n-1;b++){if(f[b]===0||f[b-1]===0||f[b-1]>0!==f[b]>0)d[b]=0;else{d[b]=3*(v[b-1]+v[b])/((2*v[b]+v[b-1])/f[b-1]+(v[b]+2*v[b-1])/f[b]);if(!isFinite(d[b]))d[b]=0}}d[n-1]=f[n-2];for(let b=0;b<n-1;b++){r(h,e[b]+v[b]/3,t[b]+d[b]*v[b]/3,e[b+1]-v[b]/3,t[b+1]-d[b+1]*v[b]/3,e[b+1],t[b+1])}}return h}var s1=new Set;function fd(){for(let e of s1)e.syncRect(true)}if(ia){ui(H3,Qi,fd);ui(_3,Qi,fd,true);ui(Dl,Qi,()=>{wt.pxRatio=ke})}var q6=Qd();var Y6=Jd();function vd(e,t,i,o){let r=o?[e[0],e[1]].concat(e.slice(2)):[e[0]].concat(e.slice(1));return r.map((a,n)=>c1(a,n,t,i))}function K6(e,t){return e.map((i,o)=>o==0?{}:Xe({},t,i))}function c1(e,t,i,o){return Xe({},t==0?i:o,e)}function e5(e,t,i){return t==null?ta:[t,i]}var J6=e5;function X6(e,t,i){return t==null?ta:Bl(t,i,f1,true)}function t5(e,t,i,o){return t==null?ta:Nl(t,i,e.scales[o].log,false)}var Q6=t5;function r5(e,t,i,o){return t==null?ta:u1(t,i,e.scales[o].log,false)}var eh=r5;function th(e,t,i,o,r){let a=zt(Gp(e),Gp(t));let n=t-e;let h=zr(r/o*n,i);do{let d=i[h];let f=o*d/n;if(f>=r&&a+(d<5?To.get(d):0)<=17)return[d,f]}while(++h<i.length);return[0,0]}function md(e){let t,i;e=e.replace(/(\d+)px/,(o,r)=>(t=ot((i=+r)*ke))+"px");return[e,t,i]}function rh(e){if(e.show){[e.font,e.labelFont].forEach(t=>{let i=ze(t[2]*ke,1);t[0]=t[0].replace(/[0-9.]+px/,i+"px");t[1]=i})}}function wt(e,t,i){const o={mode:ye(e.mode,1)};const r=o.mode;function a(s,p,m,g){let w=p.valToPct(s);return g+m*(p.dir==-1?1-w:w)}function n(s,p,m,g){let w=p.valToPct(s);return g+m*(p.dir==-1?w:1-w)}function h(s,p,m,g){return p.ori==0?a(s,p,m,g):n(s,p,m,g)}o.valToPosH=a;o.valToPosV=n;let d=false;o.status=0;const f=o.root=br(c3);if(e.id!=null)f.id=e.id;er(f,e.class);if(e.title){let s=br(h3,f);s.textContent=e.title}const y=Tr("canvas");const v=o.ctx=y.getContext("2d");const b=br(u3,f);ui("click",b,s=>{if(s.target===H){let p=Be!=Vi||Fe!=Zi;p&&mt.click(o,s)}},true);const M=o.under=br(f3,b);b.appendChild(y);const H=o.over=br(v3,b);e=ra(e);const P=+ye(e.pxAlign,1);const S=hd(P);(e.plugins||[]).forEach(s=>{if(s.opts)e=s.opts(o,e)||e});const Z=e.ms||.001;const _=o.series=r==1?vd(e.series||[],ad,pd,false):K6(e.series||[null],cd);const E=o.axes=vd(e.axes||[],id,ld,true);const A=o.scales={};const G=o.bands=e.bands||[];G.forEach(s=>{s.fill=fe(s.fill||null);s.dir=ye(s.dir,-1)});const z=r==2?_[1].facets[0].scale:_[0].scale;const B={axes:b5,series:u5};const U=(e.drawOrder||["axes","series"]).map(s=>B[s]);function K(s){const p=s.distr==3?m=>vo(m>0?m:s.clamp(o,m,s.min,s.max,s.key)):s.distr==4?m=>Ks(m,s.asinh):s.distr==100?m=>s.fwd(m):m=>m;return m=>{let g=p(m);let{_min:w,_max:$}=s;let V=$-w;return(g-w)/V}}function Q(s){let p=A[s];if(p==null){let m=(e.scales||Fa)[s]||Fa;if(m.from!=null){Q(m.from);let g=Xe({},A[m.from],m,{key:s});g.valToPct=K(g);A[s]=g}else{p=A[s]=Xe({},s==z?Fd:D6,m);p.key=s;let g=p.time;let w=p.range;let $=Po(w);if(s!=z||r==2&&!g){if($&&(w[0]==null||w[1]==null)){w={min:w[0]==null?Fp:{mode:1,hard:w[0],soft:w[0]},max:w[1]==null?Fp:{mode:1,hard:w[1],soft:w[1]}};$=false}if(!$&&Fl(w)){let V=w;w=(T,O,R)=>O==null?ta:Bl(O,R,V)}}p.range=fe(w||(g?J6:s==z?p.distr==3?Q6:p.distr==4?eh:e5:p.distr==3?t5:p.distr==4?r5:X6));p.auto=fe($?false:p.auto);p.clamp=fe(p.clamp||E6);p._min=p._max=null;p.valToPct=K(p)}}}Q("x");Q("y");if(r==1){_.forEach(s=>{Q(s.scale)})}E.forEach(s=>{Q(s.scale)});for(let s in e.scales)Q(s);const D=A[z];const le=D.distr;let q,ie;if(D.ori==0){er(f,p3);q=a;ie=n}else{er(f,d3);q=n;ie=a}const ee={};for(let s in A){let p=A[s];if(p.min!=null||p.max!=null){ee[s]={min:p.min,max:p.max};p.min=p.max=null}}const he=e.tzDate||(s=>new Date(ot(s/Z)));const N=e.fmtDate||g1;const Oe=Z==1?p6(he):u6(he);const Ve=td(he,ed(Z==1?c6:h6,N));const ve=od(he,rd(v6,N));const xe=[];const pe=o.legend=Xe({},b6,e.legend);const J=o.cursor=Xe({},x6,{drag:{y:r==2}},e.cursor);const Qe=pe.show;const Ct=J.show;const je=pe.markers;{pe.idxs=xe;je.width=fe(je.width);je.dash=fe(je.dash);je.stroke=fe(je.stroke);je.fill=fe(je.fill)}let Me;let wr;let Ft;let We=[];let Er=[];let ro;let or=false;let go={};if(pe.live){const s=_[1]?_[1].values:null;or=s!=null;ro=or?s(o,1,0):{_:0};for(let p in ro)go[p]=d1}if(Qe){Me=Tr("table",C3,f);Ft=Tr("tbody",null,Me);pe.mount(o,Me);if(or){wr=Tr("thead",null,Me,Ft);let s=Tr("tr",null,wr);Tr("th",null,s);for(var mi in ro)Tr("th",Zp,s).textContent=mi}else{er(Me,k3);pe.live&&er(Me,L3)}}const gi={show:true};const sa={show:false};function Wa(s,p){if(p==0&&(or||!pe.live||r==2))return ta;let m=[];let g=Tr("tr",x3,Ft,Ft.childNodes[p]);er(g,s.class);if(!s.show)er(g,hi);let w=Tr("th",null,g);if(je.show){let T=br(M3,w);if(p>0){let O=je.width(o,p);if(O)T.style.border=O+"px "+je.dash(o,p)+" "+je.stroke(o,p);T.style.background=je.fill(o,p)}}let $=br(Zp,w);if(s.label instanceof HTMLElement)$.appendChild(s.label);else $.textContent=s.label;if(p>0){if(!je.show)$.style.color=s.width>0?je.stroke(o,p):je.fill(o,p);Ht("click",w,T=>{if(J._lock)return;Ro(T);let O=_.indexOf(s);if((T.ctrlKey||T.metaKey)!=pe.isolate){let R=_.some((j,W)=>W>0&&W!=O&&j.show);_.forEach((j,W)=>{W>0&&Ir(W,R?W==O?gi:sa:gi,true,Ke.setSeries)})}else Ir(O,{show:!s.show},true,Ke.setSeries)},false);if(Ci){Ht(zp,w,T=>{if(J._lock)return;Ro(T);Ir(_.indexOf(s),Pi,true,Ke.setSeries)},false)}}for(var V in ro){let T=Tr("td",$3,g);T.textContent="--";m.push(T)}return[g,m]}const Oo=new Map;function Ht(s,p,m,g=true){const w=Oo.get(p)||{};const $=J.bind[s](o,p,m,g);if($){ui(s,p,w[s]=$);Oo.set(p,w)}}function bi(s,p,m){const g=Oo.get(p)||{};for(let w in g){if(s==null||w==s){o1(w,p,g[w]);delete g[w]}}if(s==null)Oo.delete(p)}let oo=0;let Eo=0;let ce=0;let F=0;let Pe=0;let et=0;let yi=Pe;let Do=et;let Dr=ce;let Bo=F;let Ut=0;let ir=0;let Ot=0;let Cr=0;o.bbox={};let Yl=false;let Ga=false;let wi=false;let Io=false;let qa=false;let ar=false;function Kl(s,p,m){if(m||(s!=o.width||p!=o.height))x1(s,p);$i(false);wi=true;Ga=true;Hi()}function x1(s,p){o.width=oo=ce=s;o.height=Eo=F=p;Pe=et=0;n5();l5();let m=o.bbox;Ut=m.left=pi(Pe*ke,.5);ir=m.top=pi(et*ke,.5);Ot=m.width=pi(ce*ke,.5);Cr=m.height=pi(F*ke,.5)}const o5=3;function i5(){let s=false;let p=0;while(!s){p++;let m=m5(p);let g=g5(p);s=p==o5||m&&g;if(!s){x1(o.width,o.height);Ga=true}}}function a5({width:s,height:p}){Kl(s,p)}o.setSize=a5;function n5(){let s=false;let p=false;let m=false;let g=false;E.forEach((w,$)=>{if(w.show&&w._show){let{side:V,_size:T}=w;let O=V%2;let R=w.label!=null?w.labelSize:0;let j=T+R;if(j>0){if(O){ce-=j;if(V==3){Pe+=j;g=true}else m=true}else{F-=j;if(V==0){et+=j;s=true}else p=true}}}});No[0]=s;No[1]=m;No[2]=p;No[3]=g;ce-=bo[1]+bo[3];Pe+=bo[3];F-=bo[2]+bo[0];et+=bo[0]}function l5(){let s=Pe+ce;let p=et+F;let m=Pe;let g=et;function w($,V){switch($){case 1:s+=V;return s-V;case 2:p+=V;return p-V;case 3:m-=V;return m+V;case 0:g-=V;return g+V}}E.forEach(($,V)=>{if($.show&&$._show){let T=$.side;$._pos=w(T,$._size);if($.label!=null)$._lpos=w(T,$.labelSize)}})}if(J.dataIdx==null){let s=J.hover;let p=s.skip=new Set(s.skip??[]);p.add(void 0);let m=s.prox=fe(s.prox);let g=s.bias??=0;J.dataIdx=(w,$,V,T)=>{if($==0)return V;let O=V;let R=m(w,$,V,T)??Te;let j=R>=0&&R<Te;let W=D.ori==0?ce:F;let ne=J.left;let we=t[0];let ge=t[$];if(p.has(ge[V])){O=null;let ue=null,re=null,X;if(g==0||g==-1){X=V;while(ue==null&&X-- >0){if(!p.has(ge[X]))ue=X}}if(g==0||g==1){X=V;while(re==null&&X++<ge.length){if(!p.has(ge[X]))re=X}}if(ue!=null||re!=null){if(j){let Re=ue==null?-Infinity:q(we[ue],D,W,0);let Ge=re==null?Infinity:q(we[re],D,W,0);let dt=ne-Re;let Ze=Ge-ne;if(dt<=Ze){if(dt<=R)O=ue}else{if(Ze<=R)O=re}}else{O=re==null?ue:ue==null?re:V-ue<=re-V?ue:re}}}else if(j){let ue=it(ne-q(we[V],D,W,0));if(ue>R)O=null}return O}}const Ro=s=>{J.event=s};J.idxs=xe;J._lock=false;let Lt=J.points;Lt.show=fe(Lt.show);Lt.size=fe(Lt.size);Lt.stroke=fe(Lt.stroke);Lt.width=fe(Lt.width);Lt.fill=fe(Lt.fill);const Br=o.focus=Xe({},e.focus||{alpha:.3},J.focus);const Ci=Br.prox>=0;const Li=Ci&&Lt.one;let nr=[];let ki=[];let xi=[];function M1(s,p){let m=Lt.show(o,p);if(m instanceof HTMLElement){er(m,w3);er(m,s.class);to(m,-10,-10,ce,F);H.insertBefore(m,nr[p]);return m}}function $1(s,p){if(r==1||p>0){let m=r==1&&A[s.scale].time;let g=s.value;s.value=m?Kp(g)?od(he,rd(g,N)):g||ve:g||T6;s.label=s.label||(m?$6:M6)}if(Li||p>0){s.width=s.width==null?1:s.width;s.paths=s.paths||q6||D3;s.fillTo=fe(s.fillTo||B6);s.pxAlign=+ye(s.pxAlign,P);s.pxRound=hd(s.pxAlign);s.stroke=fe(s.stroke||null);s.fill=fe(s.fill||null);s._stroke=s._fill=s._paths=s._focus=null;let m=z6(zt(1,s.width),1);let g=s.points=Xe({},{size:m,width:zt(1,m*.2),stroke:s.stroke,space:m*2,paths:Y6,_stroke:null,_fill:null},s.points);g.show=fe(g.show);g.filter=fe(g.filter);g.fill=fe(g.fill);g.stroke=fe(g.stroke);g.paths=fe(g.paths);g.pxAlign=s.pxAlign}if(Qe){let m=Wa(s,p);We.splice(p,0,m[0]);Er.splice(p,0,m[1]);pe.values.push(null)}if(Ct){xe.splice(p,0,null);let m=null;if(Li){if(p==0)m=M1(s,p)}else if(p>0)m=M1(s,p);nr.splice(p,0,m);ki.splice(p,0,0);xi.splice(p,0,0)}pt("addSeries",p)}function s5(s,p){p=p==null?_.length:p;s=r==1?c1(s,p,ad,pd):c1(s,p,{},cd);_.splice(p,0,s);$1(_[p],p)}o.addSeries=s5;function c5(s){_.splice(s,1);if(Qe){pe.values.splice(s,1);Er.splice(s,1);let p=We.splice(s,1)[0];bi(null,p.firstChild);p.remove()}if(Ct){xe.splice(s,1);nr.splice(s,1)[0].remove();ki.splice(s,1);xi.splice(s,1)}pt("delSeries",s)}o.delSeries=c5;const No=[false,false,false,false];function p5(s,p){s._show=s.show;if(s.show){let m=s.side%2;let g=A[s.scale];if(g==null){s.scale=m?_[1].scale:z;g=A[s.scale]}let w=g.time;s.size=fe(s.size);s.space=fe(s.space);s.rotate=fe(s.rotate);if(Po(s.incrs)){s.incrs.forEach(V=>{!To.has(V)&&To.set(V,Md(V))})}s.incrs=fe(s.incrs||(g.distr==2?n6:w?Z==1?s6:d6:di));s.splits=fe(s.splits||(w&&g.distr==1?Oe:g.distr==3?a1:g.distr==4?S6:_6));s.stroke=fe(s.stroke);s.grid.stroke=fe(s.grid.stroke);s.ticks.stroke=fe(s.ticks.stroke);s.border.stroke=fe(s.border.stroke);let $=s.values;s.values=Po($)&&!Po($[0])?fe($):w?Po($)?td(he,ed($,N)):Kp($)?f6(he,$):$||Ve:$||H6;s.filter=fe(s.filter||(g.distr>=3&&g.log==10?A6:g.distr==3&&g.log==2?P6:kd));s.font=md(s.font);s.labelFont=md(s.labelFont);s._size=s.size(o,null,p,0);s._space=s._rotate=s._incrs=s._found=s._splits=s._values=null;if(s._size>0){No[p]=true;s._el=br(m3,b)}}}function ca(s,p,m,g){let[w,$,V,T]=m;let O=p%2;let R=0;if(O==0&&(T||$))R=p==0&&!w||p==2&&!V?ot(id.size/3):0;if(O==1&&(w||V))R=p==1&&!$||p==3&&!T?ot(ld.size/2):0;return R}const H1=o.padding=(e.padding||[ca,ca,ca,ca]).map(s=>fe(ye(s,ca)));const bo=o._padding=H1.map((s,p)=>s(o,p,No,0));let vt;let nt=null;let lt=null;const Ya=r==1?_[0].idxs:null;let Lr=null;let pa=false;function _1(s,p){t=s==null?[]:s;o.data=o._data=t;if(r==2){vt=0;for(let m=1;m<_.length;m++)vt+=t[m][0].length}else{if(t.length==0)o.data=o._data=t=[[]];Lr=t[0];vt=Lr.length;let m=t;if(le==2){m=t.slice();let g=m[0]=Array(vt);for(let w=0;w<vt;w++)g[w]=w}o._data=t=m}$i(true);pt("setData");if(le==2){wi=true}if(p!==false){let m=D;if(m.auto(o,pa))Jl();else wo(z,m.min,m.max);Io=Io||J.left>=0;ar=true;Hi()}}o.setData=_1;function Jl(){pa=true;let s,p;if(r==1){if(vt>0){nt=Ya[0]=0;lt=Ya[1]=vt-1;s=t[0][nt];p=t[0][lt];if(le==2){s=nt;p=lt}else if(s==p){if(le==3)[s,p]=Nl(s,s,D.log,false);else if(le==4)[s,p]=u1(s,s,D.log,false);else if(D.time)p=s+ot(86400/Z);else[s,p]=Bl(s,p,f1,true)}}else{nt=Ya[0]=s=null;lt=Ya[1]=p=null}}wo(z,s,p)}let Ka,Mi,Xl,Ql,es,ts,rs,os,is;let Et;function S1(s,p,m,g,w,$){s??=Pp;m??=m1;g??="butt";w??=Pp;$??="round";if(s!=Ka)v.strokeStyle=Ka=s;if(w!=Mi)v.fillStyle=Mi=w;if(p!=Xl)v.lineWidth=Xl=p;if($!=es)v.lineJoin=es=$;if(g!=ts)v.lineCap=ts=g;if(m!=Ql)v.setLineDash(Ql=m)}function V1(s,p,m,g){if(p!=Mi)v.fillStyle=Mi=p;if(s!=rs)v.font=rs=s;if(m!=os)v.textAlign=os=m;if(g!=is)v.textBaseline=is=g}function as(s,p,m,g,w=0){if(g.length>0&&s.auto(o,pa)&&(p==null||p.min==null)){let $=ye(nt,0);let V=ye(lt,g.length-1);let T=m.min==null?A3(g,$,V,w,s.distr==3):[m.min,m.max];s.min=Or(s.min,m.min=T[0]);s.max=zt(s.max,m.max=T[1])}}const Z1={min:null,max:null};function d5(){for(let g in A){let w=A[g];if(ee[g]==null&&(w.min==null||ee[z]!=null&&w.auto(o,pa))){ee[g]=Z1}}for(let g in A){let w=A[g];if(ee[g]==null&&w.from!=null&&ee[w.from]!=null)ee[g]=Z1}if(ee[z]!=null)$i(true);let s={};for(let g in ee){let w=ee[g];if(w!=null){let $=s[g]=ra(A[g],R3);if(w.min!=null)Xe($,w);else if(g!=z||r==2){if(vt==0&&$.from==null){let V=$.range(o,null,null,g);$.min=V[0];$.max=V[1]}else{$.min=Te;$.max=-Te}}}}if(vt>0){_.forEach((g,w)=>{if(r==1){let $=g.scale;let V=ee[$];if(V==null)return;let T=s[$];if(w==0){let O=T.range(o,T.min,T.max,$);T.min=O[0];T.max=O[1];nt=zr(T.min,t[0]);lt=zr(T.max,t[0]);if(lt-nt>1){if(t[0][nt]<T.min)nt++;if(t[0][lt]>T.max)lt--}g.min=Lr[nt];g.max=Lr[lt]}else if(g.show&&g.auto)as(T,V,g,t[w],g.sorted);g.idxs[0]=nt;g.idxs[1]=lt}else{if(w>0){if(g.show&&g.auto){let[$,V]=g.facets;let T=$.scale;let O=V.scale;let[R,j]=t[w];let W=s[T];let ne=s[O];W!=null&&as(W,ee[T],$,R,$.sorted);ne!=null&&as(ne,ee[O],V,j,V.sorted);g.min=V.min;g.max=V.max}}}});for(let g in s){let w=s[g];let $=ee[g];if(w.from==null&&($==null||$.min==null)){let V=w.range(o,w.min==Te?null:w.min,w.max==-Te?null:w.max,g);w.min=V[0];w.max=V[1]}}}for(let g in s){let w=s[g];if(w.from!=null){let $=s[w.from];if($.min==null)w.min=w.max=null;else{let V=w.range(o,$.min,$.max,g);w.min=V[0];w.max=V[1]}}}let p={};let m=false;for(let g in s){let w=s[g];let $=A[g];if($.min!=w.min||$.max!=w.max){$.min=w.min;$.max=w.max;let V=$.distr;$._min=V==3?vo($.min):V==4?Ks($.min,$.asinh):V==100?$.fwd($.min):$.min;$._max=V==3?vo($.max):V==4?Ks($.max,$.asinh):V==100?$.fwd($.max):$.max;p[g]=m=true}}if(m){_.forEach((g,w)=>{if(r==2){if(w>0&&p.y)g._paths=null}else{if(p[g.scale])g._paths=null}});for(let g in p){wi=true;pt("setScale",g)}if(Ct&&J.left>=0)Io=ar=true}for(let g in ee)ee[g]=null}function h5(s){let p=i1(nt-1,0,vt-1);let m=i1(lt+1,0,vt-1);while(s[p]==null&&p>0)p--;while(s[m]==null&&m<vt-1)m++;return[p,m]}function u5(){if(vt>0){let s=_.some(p=>p._focus)&&Et!=Br.alpha;if(s)v.globalAlpha=Et=Br.alpha;_.forEach((p,m)=>{if(m>0&&p.show){A1(m,false);A1(m,true);if(p._paths==null){let g=Et;if(Et!=p.alpha)v.globalAlpha=Et=p.alpha;let w=r==2?[0,t[m][0].length-1]:h5(t[m]);p._paths=p.paths(o,m,w[0],w[1]);if(Et!=g)v.globalAlpha=Et=g}}});_.forEach((p,m)=>{if(m>0&&p.show){let g=Et;if(Et!=p.alpha)v.globalAlpha=Et=p.alpha;p._paths!=null&&P1(m,false);{let w=p._paths!=null?p._paths.gaps:null;let $=p.points.show(o,m,nt,lt,w);let V=p.points.filter(o,m,$,w);if($||V){p.points._paths=p.points.paths(o,m,nt,lt,V);P1(m,true)}}if(Et!=g)v.globalAlpha=Et=g;pt("drawSeries",m)}});if(s)v.globalAlpha=Et=1}}function A1(s,p){let m=p?_[s].points:_[s];m._stroke=m.stroke(o,s);m._fill=m.fill(o,s)}function P1(s,p){let m=p?_[s].points:_[s];let{stroke:g,fill:w,clip:$,flags:V,_stroke:T=m._stroke,_fill:O=m._fill,_width:R=m.width}=m._paths;R=ze(R*ke,3);let j=null;let W=R%2/2;if(p&&O==null)O=R>0?"#fff":T;let ne=m.pxAlign==1&&W>0;ne&&v.translate(W,W);if(!p){let we=Ut-R/2,ge=ir-R/2,ue=Ot+R,re=Cr+R;j=new Path2D;j.rect(we,ge,ue,re)}if(p)ns(T,R,m.dash,m.cap,O,g,w,V,$);else f5(s,T,R,m.dash,m.cap,O,g,w,V,j,$);ne&&v.translate(-W,-W)}function f5(s,p,m,g,w,$,V,T,O,R,j){let W=false;O!=0&&G.forEach((ne,we)=>{if(ne.series[0]==s){let ge=_[ne.series[1]];let ue=t[ne.series[1]];let re=(ge._paths||Fa).band;if(Po(re))re=ne.dir==1?re[0]:re[1];let X;let Re=null;if(ge.show&&re&&T3(ue,nt,lt)){Re=ne.fill(o,we)||$;X=ge._paths.clip}else re=null;ns(p,m,g,w,Re,V,T,O,R,j,X,re);W=true}});if(!W)ns(p,m,g,w,$,V,T,O,R,j)}const T1=oa|l1;function ns(s,p,m,g,w,$,V,T,O,R,j,W){S1(s,p,m,g,w);if(O||R||W){v.save();O&&v.clip(O);R&&v.clip(R)}if(W){if((T&T1)==T1){v.clip(W);j&&v.clip(j);Xa(w,V);Ja(s,$,p)}else if(T&l1){Xa(w,V);v.clip(W);Ja(s,$,p)}else if(T&oa){v.save();v.clip(W);j&&v.clip(j);Xa(w,V);v.restore();Ja(s,$,p)}}else{Xa(w,V);Ja(s,$,p)}if(O||R||W)v.restore()}function Ja(s,p,m){if(m>0){if(p instanceof Map){p.forEach((g,w)=>{v.strokeStyle=Ka=w;v.stroke(g)})}else p!=null&&s&&v.stroke(p)}}function Xa(s,p){if(p instanceof Map){p.forEach((m,g)=>{v.fillStyle=Mi=g;v.fill(m)})}else p!=null&&s&&v.fill(p)}function v5(s,p,m,g){let w=E[s];let $;if(g<=0)$=[0,0];else{let V=w._space=w.space(o,s,p,m,g);let T=w._incrs=w.incrs(o,s,p,m,g,V);$=th(p,m,T,g,V)}return w._found=$}function ls(s,p,m,g,w,$,V,T,O,R){let j=V%2/2;P==1&&v.translate(j,j);S1(T,V,O,R,T);v.beginPath();let W,ne,we,ge,ue=w+(g==0||g==3?-$:$);if(m==0){ne=w;ge=ue}else{W=w;we=ue}for(let re=0;re<s.length;re++){if(p[re]!=null){if(m==0)W=we=s[re];else ne=ge=s[re];v.moveTo(W,ne);v.lineTo(we,ge)}}v.stroke();P==1&&v.translate(-j,-j)}function m5(s){let p=true;E.forEach((m,g)=>{if(!m.show)return;let w=A[m.scale];if(w.min==null){if(m._show){p=false;m._show=false;$i(false)}return}else{if(!m._show){p=false;m._show=true;$i(false)}}let $=m.side;let V=$%2;let{min:T,max:O}=w;let[R,j]=v5(g,T,O,V==0?ce:F);if(j==0)return;let W=w.distr==2;let ne=m._splits=m.splits(o,g,T,O,R,j,W);let we=w.distr==2?ne.map(X=>Lr[X]):ne;let ge=w.distr==2?Lr[ne[1]]-Lr[ne[0]]:R;let ue=m._values=m.values(o,m.filter(o,we,g,j,ge),g,j,ge);m._rotate=$==2?m.rotate(o,ue,g,j):0;let re=m._size;m._size=yr(m.size(o,ue,g,s));if(re!=null&&m._size!=re)p=false});return p}function g5(s){let p=true;H1.forEach((m,g)=>{let w=m(o,g,No,s);if(w!=bo[g])p=false;bo[g]=w});return p}function b5(){for(let s=0;s<E.length;s++){let p=E[s];if(!p.show||!p._show)continue;let m=p.side;let g=m%2;let w,$;let V=p.stroke(o,s);let T=m==0||m==3?-1:1;let[O,R]=p._found;if(p.label!=null){let St=p.labelGap*T;let qt=ot((p._lpos+St)*ke);V1(p.labelFont[0],V,"center",m==2?Da:Ap);v.save();if(g==1){w=$=0;v.translate(qt,ot(ir+Cr/2));v.rotate((m==3?-El:El)/2)}else{w=ot(Ut+Ot/2);$=qt}let Uo=Cd(p.label)?p.label(o,s,O,R):p.label;v.fillText(Uo,w,$);v.restore()}if(R==0)continue;let j=A[p.scale];let W=g==0?Ot:Cr;let ne=g==0?Ut:ir;let we=p._splits;let ge=j.distr==2?we.map(St=>Lr[St]):we;let ue=j.distr==2?Lr[we[1]]-Lr[we[0]]:O;let re=p.ticks;let X=p.border;let Re=re.show?re.size:0;let Ge=ot(Re*ke);let dt=ot((p.alignTo==2?p._size-Re-p.gap:p.gap)*ke);let Ze=p._rotate*-El/180;let qe=S(p._pos*ke);let Wt=(Ge+dt)*T;let _t=qe+Wt;$=g==0?_t:0;w=g==1?_t:0;let lr=p.font[0];let kr=p.align==1?Ji:p.align==2?Gs:Ze>0?Ji:Ze<0?Gs:g==0?"center":m==3?Gs:Ji;let Nr=Ze||g==1?"middle":m==2?Da:Ap;V1(lr,V,kr,Nr);let Gt=p.font[1]*p.lineGap;let sr=we.map(St=>S(h(St,j,W,ne)));let xr=p._values;for(let St=0;St<xr.length;St++){let qt=xr[St];if(qt!=null){if(g==0)w=sr[St];else $=sr[St];qt=""+qt;let Uo=qt.indexOf("\n")==-1?[qt]:qt.split(/\n/gm);for(let Vt=0;Vt<Uo.length;Vt++){let Q1=Uo[Vt];if(Ze){v.save();v.translate(w,$+Vt*Gt);v.rotate(Ze);v.fillText(Q1,0,0);v.restore()}else v.fillText(Q1,w,$+Vt*Gt)}}}if(re.show){ls(sr,re.filter(o,ge,s,R,ue),g,m,qe,Ge,ze(re.width*ke,3),re.stroke(o,s),re.dash,re.cap)}let jr=p.grid;if(jr.show){ls(sr,jr.filter(o,ge,s,R,ue),g,g==0?2:1,g==0?ir:Ut,g==0?Cr:Ot,ze(jr.width*ke,3),jr.stroke(o,s),jr.dash,jr.cap)}if(X.show){ls([qe],[1],g==0?1:0,g==0?1:2,g==1?ir:Ut,g==1?Cr:Ot,ze(X.width*ke,3),X.stroke(o,s),X.dash,X.cap)}}pt("drawAxes")}function $i(s){_.forEach((p,m)=>{if(m>0){p._paths=null;if(s){if(r==1){p.min=null;p.max=null}else{p.facets.forEach(g=>{g.min=null;g.max=null})}}}})}let Qa=false;let ss=false;let da=[];function y5(){ss=false;for(let s=0;s<da.length;s++)pt(...da[s]);da.length=0}function Hi(){if(!Qa){q3(z1);Qa=true}}function w5(s,p=false){Qa=true;ss=p;s(o);z1();if(p&&da.length>0)queueMicrotask(y5)}o.batch=w5;function z1(){if(Yl){d5();Yl=false}if(wi){i5();wi=false}if(Ga){Ne(M,Ji,Pe);Ne(M,Da,et);Ne(M,Ia,ce);Ne(M,Ra,F);Ne(H,Ji,Pe);Ne(H,Da,et);Ne(H,Ia,ce);Ne(H,Ra,F);Ne(b,Ia,oo);Ne(b,Ra,Eo);y.width=ot(oo*ke);y.height=ot(Eo*ke);E.forEach(({_el:s,_show:p,_size:m,_pos:g,side:w})=>{if(s!=null){if(p){let $=w===3||w===0?m:0;let V=w%2==1;Ne(s,V?"left":"top",g-$);Ne(s,V?"width":"height",m);Ne(s,V?"top":"left",V?et:Pe);Ne(s,V?"height":"width",V?F:ce);r1(s,hi)}else er(s,hi)}});Ka=Mi=Xl=es=ts=rs=os=is=Ql=null;Et=1;fa(true);if(Pe!=yi||et!=Do||ce!=Dr||F!=Bo){$i(false);let s=ce/Dr;let p=F/Bo;if(Ct&&!Io&&J.left>=0){J.left*=s;J.top*=p;_i&&to(_i,ot(J.left),0,ce,F);Si&&to(Si,0,ot(J.top),ce,F);for(let m=0;m<nr.length;m++){let g=nr[m];if(g!=null){ki[m]*=s;xi[m]*=p;to(g,yr(ki[m]),yr(xi[m]),ce,F)}}}if(Ie.show&&!qa&&Ie.left>=0&&Ie.width>0){Ie.left*=s;Ie.width*=s;Ie.top*=p;Ie.height*=p;for(let m in fs)Ne(Ai,m,Ie[m])}yi=Pe;Do=et;Dr=ce;Bo=F}pt("setSize");Ga=false}if(oo>0&&Eo>0){v.clearRect(0,0,y.width,y.height);pt("drawClear");U.forEach(s=>s());pt("draw")}if(Ie.show&&qa){en(Ie);qa=false}if(Ct&&Io){Fo(null,true,false);Io=false}if(pe.show&&pe.live&&ar){hs();ar=false}if(!d){d=true;o.status=1;pt("ready")}pa=false;Qa=false}o.redraw=(s,p)=>{wi=p||false;if(s!==false)wo(z,D.min,D.max);else Hi()};function cs(s,p){let m=A[s];if(m.from==null){if(vt==0){let g=m.range(o,p.min,p.max,s);p.min=g[0];p.max=g[1]}if(p.min>p.max){let g=p.min;p.min=p.max;p.max=g}if(vt>1&&p.min!=null&&p.max!=null&&p.max-p.min<1e-16)return;if(s==z){if(m.distr==2&&vt>0){p.min=zr(p.min,t[0]);p.max=zr(p.max,t[0]);if(p.min==p.max)p.max++}}ee[s]=p;Yl=true;Hi()}}o.setScale=cs;let ps;let ds;let _i;let Si;let O1;let E1;let Vi;let Zi;let D1;let B1;let Be;let Fe;let yo=false;const mt=J.drag;let st=mt.x;let ct=mt.y;if(Ct){if(J.x)ps=br(b3,H);if(J.y)ds=br(y3,H);if(D.ori==0){_i=ps;Si=ds}else{_i=ds;Si=ps}Be=J.left;Fe=J.top}const Ie=o.select=Xe({show:true,over:true,left:0,width:0,top:0,height:0},e.select);const Ai=Ie.show?br(g3,Ie.over?H:M):null;function en(s,p){if(Ie.show){for(let m in s){Ie[m]=s[m];if(m in fs)Ne(Ai,m,s[m])}p!==false&&pt("setSelect")}}o.setSelect=en;function C5(s){let p=_[s];if(p.show)Qe&&r1(We[s],hi);else{Qe&&er(We[s],hi);if(Ct){let m=Li?nr[0]:nr[s];m!=null&&to(m,-10,-10,ce,F)}}}function wo(s,p,m){cs(s,{min:p,max:m})}function Ir(s,p,m,g){if(p.focus!=null)$5(s);if(p.show!=null){_.forEach((w,$)=>{if($>0&&(s==$||s==null)){w.show=p.show;C5($);if(r==2){wo(w.facets[0].scale,null,null);wo(w.facets[1].scale,null,null)}else wo(w.scale,null,null);Hi()}})}m!==false&&pt("setSeries",s,p);g&&va("setSeries",o,s,p)}o.setSeries=Ir;function L5(s,p){Xe(G[s],p)}function k5(s,p){s.fill=fe(s.fill||null);s.dir=ye(s.dir,-1);p=p==null?G.length:p;G.splice(p,0,s)}function x5(s){if(s==null)G.length=0;else G.splice(s,1)}o.addBand=k5;o.setBand=L5;o.delBand=x5;function M5(s,p){_[s].alpha=p;if(Ct&&nr[s]!=null)nr[s].style.opacity=p;if(Qe&&We[s])We[s].style.opacity=p}let io;let Co;let jo;const Pi={focus:true};function $5(s){if(s!=jo){let p=s==null;let m=Br.alpha!=1;_.forEach((g,w)=>{if(r==1||w>0){let $=p||w==0||w==s;g._focus=p?null:$;m&&M5(w,$?1:Br.alpha)}});jo=s;m&&Hi()}}if(Qe&&Ci){Ht(Op,Me,s=>{if(J._lock)return;Ro(s);if(jo!=null)Ir(null,Pi,true,Ke.setSeries)})}function Rr(s,p,m){let g=A[p];if(m)s=s/ke-(g.ori==1?et:Pe);let w=ce;if(g.ori==1){w=F;s=w-s}if(g.dir==-1)s=w-s;let $=g._min,V=g._max,T=s/w;let O=$+(V-$)*T;let R=g.distr;return R==3?ea(10,O):R==4?O3(O,g.asinh):R==100?g.bwd(O):O}function H5(s,p){let m=Rr(s,z,p);return zr(m,t[0],nt,lt)}o.valToIdx=s=>zr(s,t[0]);o.posToIdx=H5;o.posToVal=Rr;o.valToPos=(s,p,m)=>A[p].ori==0?a(s,A[p],m?Ot:ce,m?Ut:0):n(s,A[p],m?Cr:F,m?ir:0);o.setCursor=(s,p,m)=>{Be=s.left;Fe=s.top;Fo(null,p,m)};function I1(s,p){Ne(Ai,Ji,Ie.left=s);Ne(Ai,Ia,Ie.width=p)}function R1(s,p){Ne(Ai,Da,Ie.top=s);Ne(Ai,Ra,Ie.height=p)}let ha=D.ori==0?I1:R1;let ua=D.ori==1?I1:R1;function _5(){if(Qe&&pe.live){for(let s=r==2?1:0;s<_.length;s++){if(s==0&&or)continue;let p=pe.values[s];let m=0;for(let g in p)Er[s][m++].firstChild.nodeValue=p[g]}}}function hs(s,p){if(s!=null){if(s.idxs){s.idxs.forEach((m,g)=>{xe[g]=m})}else if(!I3(s.idx))xe.fill(s.idx);pe.idx=xe[0]}if(Qe&&pe.live){for(let m=0;m<_.length;m++){if(m>0||r==1&&!or)S5(m,xe[m])}_5()}ar=false;p!==false&&pt("setLegend")}o.setLegend=hs;function S5(s,p){let m=_[s];let g=s==0&&le==2?Lr:t[s];let w;if(or)w=m.values(o,s,p)??go;else{w=m.value(o,p==null?null:g[p],s,p);w=w==null?go:{_:w}}pe.values[s]=w}function Fo(s,p,m){D1=Be;B1=Fe;[Be,Fe]=J.move(o,Be,Fe);J.left=Be;J.top=Fe;if(Ct){_i&&to(_i,ot(Be),0,ce,F);Si&&to(Si,0,ot(Fe),ce,F)}let g;let w=nt>lt;io=Te;Co=null;let $=D.ori==0?ce:F;let V=D.ori==1?ce:F;if(Be<0||vt==0||w){g=J.idx=null;for(let T=0;T<_.length;T++){let O=nr[T];O!=null&&to(O,-10,-10,ce,F)}if(Ci)Ir(null,Pi,true,s==null&&Ke.setSeries);if(pe.live){xe.fill(g);ar=true}}else{let T,O,R;if(r==1){T=D.ori==0?Be:Fe;O=Rr(T,z);g=J.idx=zr(O,t[0],nt,lt);R=q(t[0][g],D,$,0)}let j=-10;let W=-10;let ne=0;let we=0;let ge=true;let ue="";let re="";for(let X=r==2?1:0;X<_.length;X++){let Re=_[X];let Ge=xe[X];let dt=Ge==null?null:r==1?t[X][Ge]:t[X][1][Ge];let Ze=J.dataIdx(o,X,g,O);let qe=Ze==null?null:r==1?t[X][Ze]:t[X][1][Ze];ar=ar||qe!=dt||Ze!=Ge;xe[X]=Ze;if(X>0&&Re.show){let Wt=Ze==null?-10:Ze==g?R:q(r==1?t[0][Ze]:t[X][0][Ze],D,$,0);let _t=qe==null?-10:ie(qe,r==1?A[Re.scale]:A[Re.facets[1].scale],V,0);if(Ci&&qe!=null){let lr=D.ori==1?Be:Fe;let kr=it(Br.dist(o,X,Ze,_t,lr));if(kr<io){let Nr=Br.bias;if(Nr!=0){let Gt=Rr(lr,Re.scale);let sr=qe>=0?1:-1;let xr=Gt>=0?1:-1;if(xr==sr&&(xr==1?Nr==1?qe>=Gt:qe<=Gt:Nr==1?qe<=Gt:qe>=Gt)){io=kr;Co=X}}else{io=kr;Co=X}}}if(ar||Li){let lr,kr;if(D.ori==0){lr=Wt;kr=_t}else{lr=_t;kr=Wt}let Nr,Gt,sr,xr,jr,St,qt=true,Uo=Lt.bbox;if(Uo!=null){qt=false;let Vt=Uo(o,X);sr=Vt.left;xr=Vt.top;Nr=Vt.width;Gt=Vt.height}else{sr=lr;xr=kr;Nr=Gt=Lt.size(o,X)}St=Lt.fill(o,X);jr=Lt.stroke(o,X);if(Li){if(X==Co&&io<=Br.prox){j=sr;W=xr;ne=Nr;we=Gt;ge=qt;ue=St;re=jr}}else{let Vt=nr[X];if(Vt!=null){ki[X]=sr;xi[X]=xr;jp(Vt,Nr,Gt,qt);Rp(Vt,St,jr);to(Vt,yr(sr),yr(xr),ce,F)}}}}}if(Li){let X=Br.prox;let Re=jo==null?io<=X:io>X||Co!=jo;if(ar||Re){let Ge=nr[0];if(Ge!=null){ki[0]=j;xi[0]=W;jp(Ge,ne,we,ge);Rp(Ge,ue,re);to(Ge,yr(j),yr(W),ce,F)}}}}if(Ie.show&&yo){if(s!=null){let[T,O]=Ke.scales;let[R,j]=Ke.match;let[W,ne]=s.cursor.sync.scales;let we=s.cursor.drag;st=we._x;ct=we._y;if(st||ct){let{left:ge,top:ue,width:re,height:X}=s.select;let Re=s.scales[W].ori;let Ge=s.posToVal;let dt,Ze,qe,Wt,_t;let lr=T!=null&&R(T,W);let kr=O!=null&&j(O,ne);if(lr&&st){if(Re==0){dt=ge;Ze=re}else{dt=ue;Ze=X}qe=A[T];Wt=q(Ge(dt,W),qe,$,0);_t=q(Ge(dt+Ze,W),qe,$,0);ha(Or(Wt,_t),it(_t-Wt))}else ha(0,$);if(kr&&ct){if(Re==1){dt=ge;Ze=re}else{dt=ue;Ze=X}qe=A[O];Wt=ie(Ge(dt,ne),qe,V,0);_t=ie(Ge(dt+Ze,ne),qe,V,0);ua(Or(Wt,_t),it(_t-Wt))}else ua(0,V)}else vs()}else{let T=it(D1-O1);let O=it(B1-E1);if(D.ori==1){let ne=T;T=O;O=ne}st=mt.x&&T>=mt.dist;ct=mt.y&&O>=mt.dist;let R=mt.uni;if(R!=null){if(st&&ct){st=T>=R;ct=O>=R;if(!st&&!ct){if(O>T)ct=true;else st=true}}}else if(mt.x&&mt.y&&(st||ct))st=ct=true;let j,W;if(st){if(D.ori==0){j=Vi;W=Be}else{j=Zi;W=Fe}ha(Or(j,W),it(W-j));if(!ct)ua(0,V)}if(ct){if(D.ori==1){j=Vi;W=Be}else{j=Zi;W=Fe}ua(Or(j,W),it(W-j));if(!st)ha(0,$)}if(!st&&!ct){ha(0,0);ua(0,0)}}}mt._x=st;mt._y=ct;if(s==null){if(m){if(X1!=null){let[T,O]=Ke.scales;Ke.values[0]=T!=null?Rr(D.ori==0?Be:Fe,T):null;Ke.values[1]=O!=null?Rr(D.ori==1?Be:Fe,O):null}va(qs,o,Be,Fe,ce,F,g)}if(Ci){let T=m&&Ke.setSeries;let O=Br.prox;if(jo==null){if(io<=O)Ir(Co,Pi,true,T)}else{if(io>O)Ir(null,Pi,true,T);else if(Co!=jo)Ir(Co,Pi,true,T)}}}if(ar){pe.idx=g;hs()}p!==false&&pt("setCursor")}let Lo=null;Object.defineProperty(o,"rect",{get(){if(Lo==null)fa(false);return Lo}});function fa(s=false){if(s)Lo=null;else{Lo=H.getBoundingClientRect();pt("syncRect",Lo)}}function N1(s,p,m,g,w,$,V){if(J._lock)return;if(yo&&s!=null&&s.movementX==0&&s.movementY==0)return;us(s,p,m,g,w,$,V,false,s!=null);if(s!=null)Fo(null,true,true);else Fo(p,true,false)}function us(s,p,m,g,w,$,V,T,O){if(Lo==null)fa(false);Ro(s);if(s!=null){m=s.clientX-Lo.left;g=s.clientY-Lo.top}else{if(m<0||g<0){Be=-10;Fe=-10;return}let[R,j]=Ke.scales;let W=p.cursor.sync;let[ne,we]=W.values;let[ge,ue]=W.scales;let[re,X]=Ke.match;let Re=p.axes[0].side%2==1;let Ge=D.ori==0?ce:F,dt=D.ori==1?ce:F,Ze=Re?$:w,qe=Re?w:$,Wt=Re?g:m,_t=Re?m:g;if(ge!=null)m=re(R,ge)?h(ne,A[R],Ge,0):-10;else m=Ge*(Wt/Ze);if(ue!=null)g=X(j,ue)?h(we,A[j],dt,0):-10;else g=dt*(_t/qe);if(D.ori==1){let lr=m;m=g;g=lr}}if(O&&(p==null||p.cursor.event.type==qs)){if(m<=1||m>=ce-1)m=pi(m,ce);if(g<=1||g>=F-1)g=pi(g,F)}if(T){O1=m;E1=g;[Vi,Zi]=J.move(o,m,g)}else{Be=m;Fe=g}}const fs={width:0,height:0,left:0,top:0};function vs(){en(fs,false)}let j1;let F1;let U1;let W1;function G1(s,p,m,g,w,$,V){yo=true;st=ct=mt._x=mt._y=false;us(s,p,m,g,w,$,V,true,false);if(s!=null){Ht(Ys,e1,q1,false);va(Tp,o,Vi,Zi,ce,F,null)}let{left:T,top:O,width:R,height:j}=Ie;j1=T;F1=O;U1=R;W1=j}function q1(s,p,m,g,w,$,V){yo=mt._x=mt._y=false;us(s,p,m,g,w,$,V,false,true);let{left:T,top:O,width:R,height:j}=Ie;let W=R>0||j>0;let ne=j1!=T||F1!=O||U1!=R||W1!=j;W&&ne&&en(Ie);if(mt.setScale&&W&&ne){let we=T,ge=R,ue=O,re=j;if(D.ori==1){we=O,ge=j,ue=T,re=R}if(st){wo(z,Rr(we,z),Rr(we+ge,z))}if(ct){for(let X in A){let Re=A[X];if(X!=z&&Re.from==null&&Re.min!=Te){wo(X,Rr(ue+re,X),Rr(ue,X))}}}vs()}else if(J.lock){J._lock=!J._lock;Fo(p,true,s!=null)}if(s!=null){bi(Ys,e1);va(Ys,o,Be,Fe,ce,F,null)}}function V5(s,p,m,g,w,$,V){if(J._lock)return;Ro(s);let T=yo;if(yo){let O=true;let R=true;let j=10;let W,ne;if(D.ori==0){W=st;ne=ct}else{W=ct;ne=st}if(W&&ne){O=Be<=j||Be>=ce-j;R=Fe<=j||Fe>=F-j}if(W&&O)Be=Be<Vi?0:ce;if(ne&&R)Fe=Fe<Zi?0:F;Fo(null,true,true);yo=false}Be=-10;Fe=-10;xe.fill(null);Fo(null,true,true);if(T)yo=T}function Y1(s,p,m,g,w,$,V){if(J._lock)return;Ro(s);Jl();vs();if(s!=null)va(Ep,o,Be,Fe,ce,F,null)}function K1(){E.forEach(rh);Kl(o.width,o.height,true)}ui(Dl,Qi,K1);const Ti={};Ti.mousedown=G1;Ti.mousemove=N1;Ti.mouseup=q1;Ti.dblclick=Y1;Ti["setSeries"]=(s,p,m,g)=>{let w=Ke.match[2];m=w(o,p,m);m!=-1&&Ir(m,g,true,false)};if(Ct){Ht(Tp,H,G1);Ht(qs,H,N1);Ht(zp,H,s=>{Ro(s);fa(false)});Ht(Op,H,V5);Ht(Ep,H,Y1);s1.add(o);o.syncRect=fa}const tn=o.hooks=e.hooks||{};function pt(s,p,m){if(ss)da.push([s,p,m]);else{if(s in tn){tn[s].forEach(g=>{g.call(null,o,p,m)})}}}(e.plugins||[]).forEach(s=>{for(let p in s.hooks)tn[p]=(tn[p]||[]).concat(s.hooks[p])});const J1=(s,p,m)=>m;const Ke=Xe({key:null,setSeries:false,filters:{pub:qp,sub:qp},scales:[z,_[1]?_[1].scale:null],match:[Yp,Yp,J1],values:[null,null]},J.sync);if(Ke.match.length==2)Ke.match.push(J1);J.sync=Ke;const X1=Ke.key;const ms=Ud(X1);function va(s,p,m,g,w,$,V){if(Ke.filters.pub(s,p,m,g,w,$,V))ms.pub(s,p,m,g,w,$,V)}ms.sub(o);function Z5(s,p,m,g,w,$,V){if(Ke.filters.sub(s,p,m,g,w,$,V))Ti[s](null,p,m,g,w,$,V)}o.pub=Z5;function A5(){ms.unsub(o);s1.delete(o);Oo.clear();o1(Dl,Qi,K1);f.remove();Me?.remove();pt("destroy")}o.destroy=A5;function gs(){pt("init",e,t);_1(t||e.data,false);if(ee[z])cs(z,ee[z]);else Jl();qa=Ie.show&&(Ie.width>0||Ie.height>0);Io=ar=true;Kl(e.width,e.height)}_.forEach($1);E.forEach(p5);if(i){if(i instanceof HTMLElement){i.appendChild(f);gs()}else i(o,gs)}else gs();return o}wt.assign=Xe;wt.fmtNum=v1;wt.rangeNum=Bl;wt.rangeLog=Nl;wt.rangeAsinh=u1;wt.orient=vi;wt.pxRatio=ke;{wt.join=G3}{wt.fmtDate=g1;wt.tzDate=i6}wt.sync=Ud;{wt.addGap=I6;wt.clipGaps=Ul;let e=wt.paths={points:Jd};e.linear=Qd;e.stepped=j6;e.bars=F6;e.spline=W6}var oh=Object.defineProperty;var ih=Object.getOwnPropertyDescriptor;var la=(e,t,i,o)=>{var r=o>1?void 0:o?ih(t,i):t;for(var a=e.length-1,n;a>=0;a--)if(n=e[a])r=(o?n(t,i,r):n(r))||r;if(o&&r)oh(t,i,r);return r};var zo=class extends C{constructor(){super(...arguments);this.data=[[],[]];this.y=24;this.uplot=null}getCssColor(e){const t=getComputedStyle(this).getPropertyValue(e).trim();return t}firstUpdated(){const e={width:48,height:48,scales:{x:{time:false,show:false},y:{auto:true,show:false,range:(t,i,o,r)=>{const a=this.maxY??o-(this.minY??i);return[this.minY??i-a*.1,this.maxY??o+a*.1]}}},series:[{},{stroke:this.getCssColor("--element-neutral-color"),width:2,points:{show:false}}],axes:[{show:false},{ticks:{show:false},show:false,grid:{show:false}}],legend:{show:false},cursor:{show:false}};this.uplot=new wt(e,this.data,this.chart);requestAnimationFrame(()=>this.updateY())}updatePalette(){if(!this.uplot){return}const e=this.getCssColor("--element-neutral-color");this.uplot.setSeries(1,{stroke:e,width:2,points:{show:false}})}updateY(){if(!this.uplot){return}const e=this.data[1][this.data[1].length-1];const t=this.uplot.scales.y.valToPct(e);this.y=t*32-3}updated(e){if(e.has("data")){this.updatePalette();this.uplot?.setData(this.data);requestAnimationFrame(()=>this.updateY())}}render(){return u`
+      <div class="chart-container">
+        <div id="chart"><div id="dot" style="bottom: ${this.y}px; "></div></div>
+      </div>
+    `}};zo.styles=I(Vp);la([l({type:Array})],zo.prototype,"data",2);la([l({type:Number})],zo.prototype,"minY",2);la([l({type:Number})],zo.prototype,"maxY",2);la([Oi("#chart")],zo.prototype,"chart",2);la([Ee()],zo.prototype,"y",2);zo=la([x("obc-graph-mini")],zo);
 /*! Bundled license information:
 
 @lit/reactive-element/css-tag.js:

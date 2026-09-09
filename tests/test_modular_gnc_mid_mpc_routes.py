@@ -225,6 +225,21 @@ def _mid_mpc_plan(
     )
 
 
+def test_advisory_hull_clearance_does_not_reuse_inflated_node_center_distance() -> None:
+    adapter = IntegrationRegistry().build_algorithm(
+        ALGORITHM_ID,
+        {
+            "factory": "colav_simulator.integrations.mid_mpc_ipopt:create",
+            "kwargs": {**_MID_MPC_KWARGS, "cpa_safe_m": 200.0, "cpa_hard_m": 180.0},
+        },
+        factory_context=FactoryContext(
+            ALGORITHM_ID, 0, scenario_id="clearance_units", tracker_id="god", deadline_mode=DeadlineMode.OFF
+        ),
+    )
+    _mid_mpc_plan(adapter, 0.0)
+    assert adapter._solve.__self__._accepted_request.policy.advisory_hull_clearance_m == 200.0
+
+
 def test_accepted_mid_mpc_routes_drive_ilos_across_solve_boundary(mid_mpc: CustomMPCAdapter) -> None:
     bridge = MidMpcRouteBridge(dt_s=1.0)
     _mid_mpc_plan(mid_mpc, 0.0)

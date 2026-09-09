@@ -29,6 +29,8 @@ from colav_simulator.modular_gnc.configuration import (
 from colav_simulator.modular_gnc.contracts import ControlTask
 from colav_simulator.modular_gnc.stack import ModularShipStack
 
+LEGACY_WITHOUT_MODULES = "legacy_without_modules"
+
 STACK_CATALOG_SCHEMA_VERSION = "modular-gnc.stack-catalog.v1"
 STACK_EVIDENCE_SCHEMA_VERSION = "modular-gnc.stack-evidence.v1"
 
@@ -53,6 +55,7 @@ ACCEPTANCE_EVIDENCE_BY_IDENTITY: Mapping[str, str] = MappingProxyType(
         "resolved_actuator_dynamics": "module_closed_loop_contract",
         "analytic_environment_field": "module_closed_loop_contract",
         "standard_environmental_load": "module_closed_loop_contract",
+        "fcb45_environmental_load": "module_closed_loop_contract",
         # FCB45 presets run the same implementations as their counterparts, so
         # they claim the same interface/module evidence; vessel-parameter
         # credibility is carried separately by parameter_provenance (DP-10).
@@ -87,6 +90,7 @@ _DISPLAY_NAMES: Mapping[str, str] = MappingProxyType(
         "fcb45_marine_pid": "FCB45 marine PID (45 m workboat gains)",
         "analytic_environment_field": "Analytic wind / current / waves",
         "standard_environmental_load": "Standard environmental load model",
+        "fcb45_environmental_load": "FCB45 relative-current / Blendermann / FK wave model",
     }
 )
 
@@ -138,6 +142,22 @@ _PARAMETER_PROVENANCE_BY_IDENTITY: Mapping[str, Mapping[str, object]] = MappingP
                     "Neutral actuator rates replace vendor 200 kN/s main and 0.1 rad/s rudder (~30 kN/s force equivalent).",
                     "Environmental draft is 2.0 m versus colleague reference 1.55 m.",
                     "OCIMF MEG4 wind table applies to double-hull tankers >=16000 DWT; not FCB45 validation.",
+                ),
+            }
+        ),
+        "fcb45_environmental_load": MappingProxyType(
+            {
+                "level": "engineering_assumption",
+                "source": "Fossen relative-motion equations, MSS Blendermann 1994, Airy/Froude-Krylov pressure integration",
+                "validated_for_vessel": False,
+                "deviation_ledger": (
+                    "Steady uniform NED current; exact algebraic correction to the selected plant CA/D/MA terms.",
+                    "Blendermann speed-boat coefficients are a type prior; "
+                    "FCB45 projected areas and wind center are estimates.",
+                    "Wave hull is generalized Wigley with design L/B/T and displacement; no as-built hull lines available.",
+                    "First-order FK: no diffraction, radiation-memory, wave-current refraction or slamming.",
+                    "Mean drift uses an explicit diagonal reflecting-wall momentum-flux proxy, not a vessel QTF.",
+                    "Absolute earth-frame wave phase; no motion RAO, fixed crab angle or force-amplitude tuning multiplier.",
                 ),
             }
         ),
@@ -303,9 +323,7 @@ _ACTUATION_LAYOUTS: tuple[Mapping[str, str], ...] = (
             "layout_asset_id": "default_triple_actuator_layout_v1",
             "display_name": "Triple thruster layout",
             "drive_nature": "fully actuated",
-            "expected_effect": (
-                "Requested surge, sway, and yaw generalized forces are achievable within actuator limits."
-            ),
+            "expected_effect": ("Requested surge, sway, and yaw generalized forces are achievable within actuator limits."),
         }
     ),
     MappingProxyType(
@@ -345,6 +363,17 @@ _ACTUATION_LAYOUTS: tuple[Mapping[str, str], ...] = (
             "expected_effect": (
                 "Three 135 kN mains plus two independent force-bounded rudders provide surge, sway, and yaw "
                 "authority; rudders are statically linearised at service speed and are not vessel validated."
+            ),
+        }
+    ),
+    MappingProxyType(
+        {
+            "layout_asset_id": "fcb45_main_rudder_bow_actuator_layout_v2",
+            "display_name": "FCB45 physical rudders + low-speed bow tunnels",
+            "drive_nature": "underactuated in transit",
+            "expected_effect": (
+                "Three mains, two flow-dependent rate-limited rudders, two low-speed-only bow tunnels. "
+                "FCB45 4DOF + ILOS + PID engineering simulation using unvalidated design parameters."
             ),
         }
     ),
@@ -422,7 +451,11 @@ def _module_axes() -> dict[str, Any]:
                     "display_name": layout["display_name"],
                     "drive_nature": layout["drive_nature"],
                     "tier": _ACTUATION_LAYOUT_TIER,
-                    "models": _ALLOCATOR_MODELS_COPY,
+                    "models": (
+                        "Bounded allocation with rudder inflow, physical angle rates and bow-speed lockout."
+                        if layout["layout_asset_id"] == "fcb45_main_rudder_bow_actuator_layout_v2"
+                        else _ALLOCATOR_MODELS_COPY
+                    ),
                     "expected_effect": layout["expected_effect"],
                 }
                 for layout in _ACTUATION_LAYOUTS
@@ -681,9 +714,18 @@ def _stack_id(config: ShipModulesConfig) -> str:
         if selection is None:
             continue
         layout = selection.parameters.get("layout_asset_id")
-        parts.append(
-            f"{selection.identity}[{layout}]" if layout is not None else selection.identity
-        )
+        parts.append(f"{selection.identity}[{layout}]" if layout is not None else selection.identity)
+    # The ideal V2 preset has no actuator layout to carry its parameter-version
+    # identity. Keep its calibrated roll/controller configuration distinct from
+    # the existing same-module scaffold stack, including in replay evidence.
+    plant = config.modules.get("plant")
+    if (
+        plant is not None
+        and plant.identity == "fcb45_roll_4dof_plant"
+        and plant.parameters.get("k_dot_p_kgm2") == -1.0e7
+        and "allocator" not in config.modules
+    ):
+        parts.append("physical-v2")
     return "+".join(parts)
 
 
@@ -736,6 +778,12 @@ def _resolved_actuator_parameters(layout: str) -> dict[str, Any]:
     assumption is hidden (no silent fallback, TS-22); the values are the same
     neutral scaffold used by the actuator-dynamics contract tests.
     """
+    if layout == "fcb45_main_rudder_bow_actuator_layout_v2":
+        from dataclasses import asdict  # noqa: PLC0415
+
+        from colav_simulator.modular_gnc.fcb45_actuation import FCB45ActuationParameters  # noqa: PLC0415
+
+        return {"layout_asset_id": layout, "fcb45_parameters": asdict(FCB45ActuationParameters())}
     actuator_ids = KNOWN_ACTUATOR_LAYOUT_ASSETS[layout].actuator_ids()
     return {
         "layout_asset_id": layout,
@@ -744,12 +792,138 @@ def _resolved_actuator_parameters(layout: str) -> dict[str, Any]:
     }
 
 
-def _candidate_configs() -> Iterable[Mapping[str, Any]]:
+def _physical_fcb45_candidate(with_environment: bool) -> dict[str, Any]:
+    """Build the one design-parameter FCB45 physical stack, with optional weather."""
+    from dataclasses import asdict  # noqa: PLC0415
+
+    from colav_simulator.modular_gnc.fcb45_environment import (  # noqa: PLC0415
+        BlendermannWindParameters,
+        FCB45WaveGeometry,
+        WaveDriftProxyParameters,
+    )
+
+    layout = "fcb45_main_rudder_bow_actuator_layout_v2"
+    modules = {
+        role: {"identity": identity, "parameters": dict(_CANONICAL_MODULE_PARAMETERS.get(identity, {}))}
+        for role, identity in (
+            ("plant", "fcb45_roll_4dof_plant"),
+            ("guidance", "integral_line_of_sight"),
+            ("controller", "fcb45_marine_pid"),
+        )
+    }
+    modules["plant"]["parameters"].update({"k_dot_p_kgm2": -1.0e7, "d_p": 1.0e7, "d_pp": 5.0e7})
+    modules["guidance"]["parameters"].update(
+        {
+            "integral_law": "borhaug2008",
+            "integral_gain": 0.01,
+            "lookahead_distance_m": 50.0,
+        }
+    )
+    modules["controller"]["parameters"]["align_previous_actuator_feedback"] = True
+    # Colleague ship_control.max_force_y is 60 kN. The old 40 kN preset
+    # represented bow tunnels alone; V2 also allocates physical rudder loads.
+    for key, sign in (("min_output", -1.0), ("max_output", 1.0), ("integral_limit", 1.0)):
+        values = list(modules["controller"]["parameters"][key])
+        values[1] = sign * 60000.0
+        modules["controller"]["parameters"][key] = values
+    modules["allocator"] = {"identity": "data_driven_allocator", "parameters": _resolved_actuator_parameters(layout)}
+    modules["actuator"] = {"identity": "resolved_actuator_dynamics", "parameters": _resolved_actuator_parameters(layout)}
+    if with_environment:
+        modules["environment"] = {
+            "identity": "analytic_environment_field",
+            "parameters": {
+                **_CANONICAL_MODULE_PARAMETERS["analytic_environment_field"],
+                "wind_perturbation_std": (0.0, 0.0),
+                "current_perturbation_std": (0.0, 0.0),
+                "normalize_wave_energy": True,
+            },
+        }
+        modules["load_model"] = {
+            "identity": "fcb45_environmental_load",
+            "parameters": {
+                "wind_parameters": asdict(BlendermannWindParameters()),
+                "wave_geometry": asdict(FCB45WaveGeometry()),
+                "drift_proxy_parameters": asdict(WaveDriftProxyParameters()),
+                "current_strategy": "current_relative_damping",
+                "wave_mode": "both",
+            },
+        }
+    return {
+        "preset": "legacy_equivalent",
+        "modules": modules,
+        "overrides": {"scheduler": {"controller_period_ticks": 1, "guidance_period_ticks": 1}},
+    }
+
+
+def _fcb45_preset_candidate(preset: str, with_environment: bool) -> dict[str, Any]:
+    """Vary only guidance and actuation around the common physical FCB45 plant."""
+    candidate = _physical_fcb45_candidate(with_environment)
+    modules = candidate["modules"]
+    if preset in {"ideal", "without_guidance"}:
+        modules["guidance"] = {"identity": "pass_through_guidance", "parameters": {}}
+    if preset == "ideal":
+        del modules["allocator"]
+        del modules["actuator"]
+    return candidate
+
+
+def _product_presets(stacks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Four UI choices, each bound to exact backend-validated ON/OFF variants."""
+    by_hash = {entry["config_hash"]: entry["stack_id"] for entry in stacks}
+    presets = [
+        {
+            "id": "legacy",
+            "display_name": "Legacy Without Modules",
+            "description": "Original scene chain; no modules.",
+            "input": "Scenario interface",
+            "variants": {"off": LEGACY_WITHOUT_MODULES},
+            "fields": {
+                "Plant": "Scenario model",
+                "Guidance": "Scenario guidance",
+                "Controller": "Scenario controller",
+                "Actuation": "Scenario execution chain",
+            },
+        }
+    ]
+    for preset, name, description in (
+        ("ideal", "FCB 4DOF Ideal Actuation", "4DOF + PID; ideal forces."),
+        ("without_guidance", "FCB Without Guidance", "Heading / speed; physical actuators."),
+        ("full", "FCB Full Stack", "Path / speed plan; ILOS + actuators."),
+    ):
+        variants = {}
+        for enabled, key in ((False, "off"), (True, "on")):
+            config = normalize_ship_modules(_fcb45_preset_candidate(preset, enabled))
+            variants[key] = by_hash[config.config_hash]
+        presets.append(
+            {
+                "id": preset,
+                "display_name": name,
+                "description": description,
+                "input": "Path + speed plan" if preset == "full" else "Heading + speed reference",
+                "variants": variants,
+                "fields": {
+                    "Plant": "FCB45 4DOF · surge / sway / roll / yaw · 44.1 × 8 × 2 m",
+                    "Guidance": "ILOS · lookahead 50 m" if preset == "full" else "Pass-through",
+                    "Controller": "FCB45 PID · heading / speed → X/Y/N",
+                    "Actuation": (
+                        "Ideal generalized forces · PID output limits retained"
+                        if preset == "ideal"
+                        else "FCB45 V2 · 3 mains + 2 rudders + 2 bow thrusters · rate / angle limits"
+                    ),
+                },
+            }
+        )
+    return presets
+
+
+def _candidate_configs() -> Iterable[Mapping[str, Any]]:  # noqa: PLR0912 - enumerate legacy and product stacks
     """Yield the deterministic candidate configuration space for enumeration."""
     for plant in _CANDIDATE_PLANT_IDENTITIES:
         for guidance in _CANDIDATE_GUIDANCE_IDENTITIES:
             for controller in _CANDIDATE_CONTROLLER_IDENTITIES:
                 for layout in (None, *_CANDIDATE_ALLOCATOR_LAYOUTS):
+                    if layout == "fcb45_main_rudder_bow_actuator_layout_v2":
+                        continue
                     for with_actuator in (False, True):
                         if with_actuator and layout is None:
                             continue
@@ -791,6 +965,9 @@ def _candidate_configs() -> Iterable[Mapping[str, Any]]:
                                     # Resolved actuator dynamics is a discrete phase on the base clock.
                                     candidate["overrides"] = {"scheduler": {"controller_period_ticks": 1}}
                             yield candidate
+    for with_environment in (False, True):
+        for preset in ("ideal", "without_guidance", "full"):
+            yield _fcb45_preset_candidate(preset, with_environment)
 
 
 def _product_transit_compatible(config: ShipModulesConfig, supported_tasks: Iterable[ControlTask]) -> bool:
@@ -874,6 +1051,8 @@ def list_stack_catalog() -> dict[str, Any]:
         ),
         "default_stack_id": stacks[0]["stack_id"] if stacks else None,
         "recommended_stack_ids_by_plant": _recommended_stack_ids_by_plant(stacks),
+        "product_presets": _product_presets(stacks),
+        "environment_description": "Wind NE (6, 2) m/s · current NE (0.4, −0.2) m/s · Hs 1 m · Tp 7 s; reproducible seed.",
         "module_axes": _module_axes(),
         "stacks": stacks,
     }

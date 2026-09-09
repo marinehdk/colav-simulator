@@ -57,7 +57,6 @@ test('sensor instruments use comparable drawing-region sizes without compass con
   assert.match(styles, /\.live-compass-dial \{[^}]*width: 210px;[^}]*height: 210px;[^}]*overflow: hidden;/s);
   assert.match(styles, /\.live-compass-dial obc-compass \{[^}]*transform: scale\(0\.408\)/s);
   assert.match(styles, /\.live-depth-wrapper \{[^}]*height: 180px;/s);
-  assert.match(styles, /\.live-pitch-roll-wrapper \{[^}]*height: 180px;/s);
 });
 
 test('position readouts align right and depth vessel size stays independent of range', () => {
@@ -334,16 +333,16 @@ test('three Workfaces occupy three equal centered columns', () => {
   assert.match(styles, /@media \(max-width: 520px\)[\s\S]*\.workface-tabs \{[^}]*grid-template-columns: repeat\(3, minmax\(88px, 1fr\)\)/);
 });
 
-test('AIS comparison is the third left information page, not a monitor panel', () => {
+test('AIS comparison is the fifth left information page, not a monitor panel', () => {
   assert.match(
     html,
-    /class="ownship-info-page ownship-ais-page"[^>]*data-ownship-card-page="2"[^>]*aria-label="AIS"[\s\S]*?id="shadowComparisonPanel"/,
+    /class="ownship-info-page ownship-ais-page"[^>]*data-ownship-card-page="4"[^>]*aria-label="AIS"[\s\S]*?id="shadowComparisonPanel"/,
   );
   assert.match(html, /id="shadow-comparison-heading">AIS<\/strong>/);
   assert.match(html, /id="shadowComparisonValues"[^>]*hidden[\s\S]*?class="algorithm-data-list"/);
   assert.match(html, /id="shadowComparisonEmpty"/);
   assert.match(html, /class="algorithm-data-row"[\s\S]*?id="shadowDeviation"[\s\S]*?<small>m<\/small>/);
-  assert.match(html, /id="ownshipCardPosition" aria-label="第 1 张，共 3 张"[\s\S]*?aria-label="AIS"/);
+  assert.match(html, /id="ownshipCardPosition" aria-label="第 1 张，共 5 张"[\s\S]*?aria-label="AIS"/);
   const monitorPage = html.match(/data-operations-card-page="0"[\s\S]*?<!-- Page 1: ALGO -->/)?.[0] || '';
   assert.doesNotMatch(monitorPage, /id="shadowComparisonPanel"/);
   assert.match(app, /shadowPanel\.hidden = false/);

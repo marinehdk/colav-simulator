@@ -32,6 +32,16 @@ def test_final_leg_keeps_departure_speed_until_destination() -> None:
     assert solver.solve(inp).control_reference[3, 0] == 7.0
 
 
+def test_finite_endpoint_capture_respects_command_turn_radius() -> None:
+    solver = PotocnikColregFanMPC(PotocnikColregParams(max_command_change_deg=5.0, solve_period_s=5.0))
+    inp = replace(planner_input(), waypoints_enu_m=np.array([[0.0, 500.0], [0.0, 0.0]]))
+    solution = solver.solve(inp)
+    # A pursuit arc can require curvature 2/d. Its speed must fit the
+    # command's own turn rate, otherwise a fixed-speed orbit can miss the goal.
+    bound = 0.5 * 500.0 * np.deg2rad(5.0) / 5.0
+    assert solution.control_reference[3, 0] <= bound
+
+
 def test_crossing_action_uses_encounter_course_while_recapturing_route() -> None:
     solver = PotocnikColregFanMPC(PotocnikColregParams(collision_distance_m=190.))
     solver._maneuver_phase = "RETURN"

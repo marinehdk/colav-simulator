@@ -419,6 +419,7 @@ class TestActuatorFidelityConfiguration:
             "layout_asset_id": {"type": "string"},
             "rate_limit_n_per_s": {"type": "object"},
             "delay_ticks": {"type": "object"},
+            "fcb45_parameters": {"type": "object"},
         }
 
     def test_normalize_accepts_resolved_actuator_profile(self) -> None:

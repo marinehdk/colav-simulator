@@ -334,6 +334,10 @@ class DataDrivenAllocator:
     def from_params(cls, params: Mapping[str, Any]) -> DataDrivenAllocator:
         """Construct a DataDrivenAllocator from normalized module parameters."""
         layout_id = params.get("layout_asset_id")
+        if layout_id == "fcb45_main_rudder_bow_actuator_layout_v2":
+            from colav_simulator.modular_gnc.fcb45_actuation import FCB45Allocator  # noqa: PLC0415
+
+            return FCB45Allocator(params.get("fcb45_parameters", {}))
         if not isinstance(layout_id, str) or not layout_id:
             raise ValueError("layout_asset_id is required for data_driven_allocator")
         if layout_id not in KNOWN_ACTUATOR_LAYOUT_ASSETS:
@@ -637,6 +641,23 @@ FCB45_MAIN_RUDDER_ACTUATOR_LAYOUT_V1: ActuatorLayoutAsset = _layout_asset(
     },
 )
 
+FCB45_MAIN_RUDDER_BOW_ACTUATOR_LAYOUT_V2: ActuatorLayoutAsset = _layout_asset(
+    "fcb45_main_rudder_bow_actuator_layout_v2",
+    (*_FCB45_MAIN_RUDDER_ACTUATORS, *_FCB45_ACTUATORS[3:]),
+    "FCB45 engineering model: three mains, two flow-dependent rudders and two low-speed bow tunnels.",
+    trust_level=AssetTrustLevel.INFERRED,
+    source_type="inferred",
+    provenance={
+        "source": "L4-5_source_only_20260824_v2/src/platform/ship_bringup/config/ship_config.yaml",
+        "validated_for_vessel": False,
+        "deviation_ledger": (
+            "Geometry and force limits are colleague design estimates, not sea-trial measurements.",
+            "Rudder angle, inflow, propeller wash, rate limits and bow lockout are evaluated at runtime.",
+            "Transit allocation prioritizes surge and yaw without bow authority; sway residual is reported.",
+        ),
+    },
+)
+
 KNOWN_ACTUATOR_LAYOUT_ASSETS: Mapping[str, ActuatorLayoutAsset] = MappingProxyType(
     {
         "default_triple_actuator_layout_v1": DEFAULT_TRIPLE_ACTUATOR_LAYOUT_V1,
@@ -644,5 +665,6 @@ KNOWN_ACTUATOR_LAYOUT_ASSETS: Mapping[str, ActuatorLayoutAsset] = MappingProxyTy
         "main_only_actuator_layout_v1": MAIN_ONLY_ACTUATOR_LAYOUT_V1,
         "fcb45_actuator_layout_v1": FCB45_ACTUATOR_LAYOUT_V1,
         "fcb45_main_rudder_actuator_layout_v1": FCB45_MAIN_RUDDER_ACTUATOR_LAYOUT_V1,
+        "fcb45_main_rudder_bow_actuator_layout_v2": FCB45_MAIN_RUDDER_BOW_ACTUATOR_LAYOUT_V2,
     }
 )

@@ -1,3 +1,4 @@
+import { renderBalance, resetBalance } from './modules/gnc-balance.js?v=20260909-balance-v6';
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
 import {
@@ -375,7 +376,7 @@ customElements.whenDefined('obc-top-bar').then(syncDeploymentSidebarControls);
 // Brilliance-menu ships inside the same locally-bundled module config-shell.js
 // loads (vendor/openbridge/entry-source.mjs); re-import is a cache no-op and
 // failure degrades like every other best-effort OpenBridge piece.
-import('/static/vendor/openbridge/openbridge-components.mjs?v=20260827-vessel-placard-v1').catch(() => {});
+import('/static/vendor/openbridge/openbridge-components.mjs?v=20260909-balance-v1').catch(() => {});
 
 function applyPalette(palette, persist = true) {
   const nextPalette = PALETTE_NAMES[palette] ? palette : 'day';
@@ -871,14 +872,7 @@ function updateOwnshipTelemetry(proj) {
       : `船位 ENC 水深分层下限 ${floorDepth} 米`);
   }
 
-  const livePitchRoll = document.getElementById('livePitchRoll');
-  if (livePitchRoll) {
-    Object.assign(livePitchRoll, { pitch: 0, roll: 0, priority: 'enhanced' });
-  }
-  const livePitch = document.getElementById('livePitchReadout');
-  if (livePitch) livePitch.readouts = [{ type: 'value', value: 0, nDigits: 1, unit: '°' }];
-  const liveRoll = document.getElementById('liveRollReadout');
-  if (liveRoll) liveRoll.readouts = [{ type: 'value', value: 0, nDigits: 2, unit: '°' }];
+
 }
 
 let riskDistanceUnit = 'nmi';
@@ -2849,6 +2843,7 @@ function renderTimelineLog(proj) {
 function renderProjection(proj) {
   const data = proj.raw;
   if (!data) return;
+  renderBalance(data);
   const motionOnly = data.presentation?.buffered && data.state === 'RUNNING'
     && currentData?.run_id === data.run_id && currentData?.seq === data.seq && currentData?.state === data.state
     && currentData?.presentation?.buffering === data.presentation.buffering;
@@ -2897,6 +2892,7 @@ function setSessionConnectionState(state, logEvent = false) {
 }
 
 function resetDeploymentForSession(data) {
+  resetBalance();
   situationDisplay.setPlannerSurfaceAttached(false);
   if (voDecisionSpaceController) voDecisionSpaceController.abort();
   if (voDecisionSpaceRetryTimer !== null) window.clearTimeout(voDecisionSpaceRetryTimer);

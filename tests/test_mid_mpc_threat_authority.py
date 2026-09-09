@@ -13,9 +13,13 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     Maneuverability,
     ObservationHealth,
     OwnshipObservation,
+    OwnshipRole,
+    PassingSide,
     PlannerOddProfile,
     RiskPhase,
     TargetObservation,
+    _passing_side,
+    pairwise_geometry,
 )
 from colav_simulator.core.colav.mid_mpc import MidMpcStatus
 from colav_simulator.core.colav.threat_assessment import (
@@ -27,6 +31,29 @@ from colav_simulator.core.colav.threat_assessment import (
 from colav_simulator.core.colav.threat_management import AcceptedPlanReceipt, ThreatManagementCoordinator
 from colav_simulator.core.tracking.trackers import TrackKey, TrackSnapshot, TrackStatus
 from colav_simulator.integrations import mid_mpc_ipopt
+
+
+def test_overtaking_side_does_not_change_with_crab_angle_at_fixed_ground_velocity() -> None:
+    velocity = np.array([0.43, -5.69])
+    target_velocity = np.array([-0.044, -2.571])
+    target = TargetObservation(
+        TrackKey(1, 1),
+        np.r_[[-16.0, -886.0], target_velocity],
+        np.zeros((4, 4)),
+        8.45,
+        3.0,
+        0.0,
+        0.0,
+        ObservationHealth.UPDATED,
+        "god",
+    )
+    choices = []
+    for heading in (np.deg2rad(268.9), np.arctan2(velocity[1], velocity[0])):
+        own = OwnshipObservation(np.zeros(2), velocity, heading, 44.1, 8.0, Maneuverability(0.05, 0.3, (0.0, 8.0)))
+        cycle = EncounterCycle("crab", 0, 0.0, own, (target,), np.deg2rad(270.0), 6.68, PlannerOddProfile())
+        geometry = pairwise_geometry(own.position_ne_m, velocity, target.state_enu[:2], target_velocity)
+        choices.append(_passing_side(cycle, target, geometry, OwnshipRole.OVERTAKING))
+    assert choices == [PassingSide.STARBOARD, PassingSide.STARBOARD]
 
 
 def _historical_handoff_cycle(sequence: int, sim_time_s: float) -> EncounterCycle:

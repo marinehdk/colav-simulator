@@ -79,10 +79,10 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
-  const tag = '20260905-gnc-s10-v1';
+  const tag = '20260909-balance-v6';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
-  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260908-buffered-motion-v2/);
-  assert.match(shell, new RegExp(`\\./validation-assembly\\.js\\?v=${tag}`));
+  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260909-balance-v6/);
+  assert.match(shell, /validation-assembly\.js\?v=20260909-gnc-presets-v1/);
 });
 
 test('Deployment consumes the projection and no longer interprets raw envelopes inline', () => {

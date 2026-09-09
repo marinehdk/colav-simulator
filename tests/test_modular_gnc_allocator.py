@@ -433,7 +433,10 @@ class TestAllocatorConfiguration:
         assert entry.role == "allocator"
         assert entry.available is True
         assert "GENERALIZED_FORCE" in entry.capabilities
-        assert entry.parameter_schema == {"layout_asset_id": {"type": "string"}}
+        assert entry.parameter_schema == {
+            "layout_asset_id": {"type": "string"},
+            "fcb45_parameters": {"type": "object"},
+        }
 
     def test_normalize_accepts_allocator_module(self) -> None:
         config = normalize_ship_modules(_config_with_allocator())

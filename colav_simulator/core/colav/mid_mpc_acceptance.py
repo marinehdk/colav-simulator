@@ -276,6 +276,8 @@ class PlanAcceptancePolicy:
     allowed_capability_tuples: tuple[str, ...] = (
         "single-encounter:viknes:flsc",
         "multiship:kinematic_csog:pass_through_cs",
+        "fcb45:3dof:marine_pid",
+        "fcb45:roll4dof:marine_pid",
     )
 
     def __post_init__(self) -> None:
@@ -1326,9 +1328,7 @@ class MidMpcPlanAcceptance:
             witness["recovery_start_cross_track_m"] = recovery_cross_track_m
             witness["post_cpa_max_cross_track_m"] = post_cpa_cross_track_m
             witness["terminal_cross_track_m"] = terminal_cross_track_m
-            heading_recovery = terminal_error <= math.radians(1.0) or terminal_error + math.radians(0.25) < post_cpa_error
-            lateral_recovery = post_cpa_cross_track_m > 1.0 and terminal_cross_track_m + 1.0 < post_cpa_cross_track_m
-            recovery_complete = heading_recovery or lateral_recovery
+            recovery_complete = recovery_progress(mission_error, cross_track_m, recovery_evidence_from_k)
             recovery_suffix_knots = len(mission_error) - 1 - recovery_evidence_from_k
             if recovery_suffix_knots < 1:
                 findings.append(
@@ -1414,7 +1414,32 @@ def _static_geometry_clearance(request: AcceptanceRequest) -> float | None:
 
 def _polyline_recovery_errors(request: AcceptanceRequest) -> tuple[np.ndarray, np.ndarray]:
     """Measure recovery against the mission legs, independently of solver references."""
-    points = np.asarray(request.execution.mission_waypoints_ne_m)
+    return polyline_recovery_errors(
+        request.candidate.north_m,
+        request.candidate.east_m,
+        request.candidate.course_rad,
+        request.execution.mission_waypoints_ne_m,
+    )
+
+
+def recovery_progress(mission_error: np.ndarray, cross_track_m: np.ndarray, from_k: int) -> bool:
+    """Apply the unchanged L4 heading/lateral return criterion to a suffix."""
+    heading = mission_error[-1] <= math.radians(1.0) or mission_error[-1] + math.radians(0.25) < np.max(
+        mission_error[from_k:]
+    )
+    maximum_xte = float(np.max(np.abs(cross_track_m[from_k:])))
+    lateral = maximum_xte > 1.0 and abs(cross_track_m[-1]) + 1.0 < maximum_xte
+    return bool(heading or lateral)
+
+
+def polyline_recovery_errors(
+    north_m: np.ndarray,
+    east_m: np.ndarray,
+    course_rad: np.ndarray,
+    mission_waypoints_ne_m: tuple[tuple[float, float], ...],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Measure course error and distance to the actual mission polyline."""
+    points = np.asarray(mission_waypoints_ne_m)
     starts = points[:-1]
     legs = np.diff(points, axis=0)
     lengths_squared = np.sum(legs * legs, axis=1)
@@ -1422,7 +1447,7 @@ def _polyline_recovery_errors(request: AcceptanceRequest) -> tuple[np.ndarray, n
     if not np.any(valid):
         raise ValueError("mission route has no nonzero leg")
     starts, legs, lengths_squared = starts[valid], legs[valid], lengths_squared[valid]
-    positions = np.column_stack((request.candidate.north_m, request.candidate.east_m))
+    positions = np.column_stack((north_m, east_m))
     relative = positions[:, None, :] - starts[None, :, :]
     fractions = np.clip(np.sum(relative * legs[None, :, :], axis=2) / lengths_squared, 0.0, 1.0)
     offsets = relative - fractions[:, :, None] * legs[None, :, :]
@@ -1430,7 +1455,7 @@ def _polyline_recovery_errors(request: AcceptanceRequest) -> tuple[np.ndarray, n
     # Shared vertices belong to the outgoing leg.
     selected = distances.shape[1] - 1 - np.argmin(distances[:, ::-1], axis=1)
     bearings = np.arctan2(legs[selected, 1], legs[selected, 0])
-    deltas = request.candidate.course_rad - bearings
+    deltas = course_rad - bearings
     return np.abs(np.arctan2(np.sin(deltas), np.cos(deltas))), distances[np.arange(len(positions)), selected]
 
 

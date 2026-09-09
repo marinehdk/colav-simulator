@@ -197,7 +197,7 @@ function defaultSpec(catalog) {
     tracker_config: {},
     domain_profile: null,
     scenario_override: null,
-    gnc_stack_id: null,
+    gnc_stack_id: 'legacy_without_modules',
   };
 }
 
@@ -219,6 +219,7 @@ function normalizeSpec(spec, catalog) {
     scenario_override: null,
     gnc_stack_id: null,
   };
+  normalized.gnc_stack_id = null;
   if (Object.hasOwn(spec || {}, 'ownship_gnc_stack_id')) {
     normalized.gnc_stack_id = clone(spec.ownship_gnc_stack_id);
   }

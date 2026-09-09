@@ -64,6 +64,7 @@ def _generate_wave_components(
     num_components: int,
     directional_spread_rad: float,
     field_seed: int,
+    normalize_energy: bool = False,
 ) -> tuple[WaveComponent, ...]:
     """Generate pre-computed harmonic wave components deterministically at construction time."""
     if num_components <= 0 or significant_height_m <= 0.0:
@@ -106,6 +107,13 @@ def _generate_wave_components(
                 direction_to_rad=direction,
             )
         )
+    if normalize_energy:
+        # Hm0 = 4 sqrt(m0), m0 = sum(a_i²)/2, including finite-grid truncation.
+        variance = sum(comp.amplitude_m**2 for comp in components) / 2.0
+        scale = significant_height_m / (4.0 * math.sqrt(variance))
+        components = [
+            WaveComponent(c.amplitude_m * scale, c.omega_radps, c.phase_rad, c.direction_to_rad) for c in components
+        ]
     return tuple(components)
 
 
@@ -172,6 +180,7 @@ class AnalyticEnvironmentField:
         wave_directional_spread_rad: float = 0.0,
         available: bool = True,
         components: Sequence[WaveComponent] = (),
+        normalize_wave_energy: bool = False,
     ) -> None:
         if isinstance(dt_s, bool) or not math.isfinite(dt_s) or dt_s <= 0.0:
             raise ValueError("dt_s must be positive and finite float")
@@ -202,6 +211,8 @@ class AnalyticEnvironmentField:
         if not isinstance(available, bool):
             raise TypeError(f"available must be bool, got {type(available).__name__}")
         self._available = available
+        if not isinstance(normalize_wave_energy, bool):
+            raise TypeError("normalize_wave_energy must be bool")
 
         if components:
             if not isinstance(components, (list, tuple)):
@@ -218,6 +229,7 @@ class AnalyticEnvironmentField:
                 num_comp,
                 self._wave_spread,
                 self._field_seed,
+                normalize_wave_energy,
             )
         self._cached_component_arrays = build_wave_component_arrays(self._wave_components)
 
@@ -265,6 +277,7 @@ class AnalyticEnvironmentField:
             wave_num_components=params.get("wave_num_components", 0),
             wave_directional_spread_rad=params.get("wave_directional_spread_rad", 0.0),
             available=params.get("available", True),
+            normalize_wave_energy=params.get("normalize_wave_energy", False),
         )
 
     @property

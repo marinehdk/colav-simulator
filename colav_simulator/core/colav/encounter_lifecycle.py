@@ -1301,9 +1301,16 @@ def _passing_side(
         return PassingSide.NONE
     required_change = _substantial_course_change(cycle, target, geometry)
     own_speed = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
+    motion_course = (
+        math.atan2(float(cycle.ownship.velocity_ne_mps[1]), float(cycle.ownship.velocity_ne_mps[0]))
+        if own_speed > 1.0e-9
+        else cycle.ownship.heading_rad
+    )
     candidates = []
     for side, sign in ((PassingSide.PORT, -1.0), (PassingSide.STARBOARD, 1.0)):
-        course = cycle.ownship.heading_rad + sign * required_change
+        # CPA candidate velocities are over ground. A physical crab angle
+        # must not reverse passing-side selection while ground motion is fixed.
+        course = motion_course + sign * required_change
         candidate_velocity = own_speed * np.array([math.cos(course), math.sin(course)])
         candidate_geometry = pairwise_geometry(
             cycle.ownship.position_ne_m,

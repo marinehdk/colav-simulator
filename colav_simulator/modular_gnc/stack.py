@@ -133,14 +133,6 @@ class ModularShipStack:
             elif env_sel.identity == "pass_through_environment":
                 env_field = PassThroughEnvironmentField(dt_s=dt_s)
 
-        load_model = None
-        if "load_model" in cfg.modules:
-            lm_sel = cfg.modules["load_model"]
-            if lm_sel.identity == "standard_environmental_load":
-                load_model = EnvironmentalLoadModel.from_params(lm_sel.parameters)
-            elif lm_sel.identity == "pass_through_load_model":
-                load_model = None
-
         plant = None
         if "plant" in cfg.modules:
             plant_sel = cfg.modules["plant"]
@@ -160,6 +152,16 @@ class ModularShipStack:
                 plant = GenericRoll4DOFPlant(plant_params_4dof)
             elif plant_sel.identity == "pass_through_plant":
                 plant = None
+
+        load_model = None
+        if "load_model" in cfg.modules:
+            lm_sel = cfg.modules["load_model"]
+            if lm_sel.identity == "standard_environmental_load":
+                load_model = EnvironmentalLoadModel.from_params(lm_sel.parameters)
+            elif lm_sel.identity == "fcb45_environmental_load":
+                from colav_simulator.modular_gnc.fcb45_environment import FCB45EnvironmentalLoadModel  # noqa: PLC0415
+
+                load_model = FCB45EnvironmentalLoadModel(plant, lm_sel.parameters)
 
         controller = None
         if "controller" in cfg.modules:

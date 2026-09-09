@@ -21,7 +21,11 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     Rule17Stage,
     TargetObservation,
 )
-from colav_simulator.core.colav.horizon_encounter_plan import HorizonEncounterPhase, HorizonEncounterPlan
+from colav_simulator.core.colav.horizon_encounter_plan import (
+    HorizonEncounterPhase,
+    HorizonEncounterPlan,
+    TargetHorizonWindow,
+)
 from colav_simulator.core.colav.mid_mpc_assembler import (
     AssemblyFailure,
     AssemblyFailureCode,
@@ -37,6 +41,38 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
 )
 from colav_simulator.core.colav.rolling_plan import PlanRevisionReason, RollingPlanReference
 from colav_simulator.core.tracking.trackers import TrackKey
+
+
+def test_scheduled_corridor_can_be_reentered_at_the_declared_turn_rate(monkeypatch) -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    request = _request(planner_input, snapshot)
+    n = request.config.horizon_steps
+    corridor = 0.7
+    plan = HorizonEncounterPlan(
+        reference_time_s=5.0,
+        times_s=np.arange(n + 1) * request.config.horizon_dt_s,
+        mission_route_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=corridor,
+        phases=(HorizonEncounterPhase.PASS,) * (n + 1),
+        recovery_from_k=None,
+        target_windows=(
+            TargetHorizonWindow(TrackKey(1, 1), 0, None, False, 200.0, 0.0, corridor_bearing_rad=corridor, passing_side=1),
+        ),
+        corridor_reference_rad=(corridor,) * (n + 1),
+    )
+    monkeypatch.setattr(
+        "colav_simulator.core.colav.mid_mpc_assembler._compile_horizon_encounter_plan", lambda *args, **kwargs: plan
+    )
+    outcome = MidMpcProblemAssembler().assemble(request)
+    assert isinstance(outcome, AssemblySuccess)
+    bounds = outcome.problem.row_schedule.course_bounds_rad
+    step = request.capability.rot_max_rad_s * request.config.horizon_dt_s
+    assert bounds[0][0] <= step
+    assert bounds[1][0] <= 2.0 * step
+    assert bounds[2][0] == pytest.approx(corridor)
 
 
 def test_assembler_returns_atomic_typed_failure_for_cycle_mismatch() -> None:
@@ -246,6 +282,30 @@ def test_assembler_releases_safe_completed_target_from_optimizer_graph() -> None
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.selected_target_keys == ()
     assert outcome.problem.targets == ()
+
+
+def test_released_contact_remains_an_obstacle_for_a_reachable_terminal_stop() -> None:
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    released = replace(
+        snapshot.targets[0], risk=RiskPhase.RELEASED, route_recovery_allowed=True, recovery_guard_active=False
+    )
+    snapshot = replace(snapshot, targets=(released,), directive=replace(snapshot.directive, required_targets=()))
+    data = replace(
+        planner_input,
+        tracks=(replace(planner_input.tracks[0], state_enu=np.array([-800.0, 0.0, 2.0, 0.0])),),
+        ownship_state=np.array([0.0, 0.0, 0.0, 0.1, 0.0, 0.0]),
+        waypoints_enu_m=np.array([[0.0, 100.0], [0.0, 0.0]]),
+    )
+    request = _request(data, snapshot)
+    request = replace(request, route=replace(request.route, mission_waypoints_ne_m=((0.0, 0.0), (100.0, 0.0))))
+    outcome = MidMpcProblemAssembler().assemble(request)
+    assert isinstance(outcome, AssemblySuccess)
+    assert outcome.selected_target_keys == (released.key,)
+    assert outcome.problem.row_schedule.cpa_hard_windows[0].start_k < request.config.horizon_steps
+    assert snapshot.targets[0].risk is RiskPhase.RELEASED
 
 
 @pytest.mark.parametrize("risk", [RiskPhase.CLEAR, RiskPhase.RELEASED])

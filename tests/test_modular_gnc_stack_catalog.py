@@ -216,6 +216,7 @@ class TestModuleAxes:
 
         natures = {entry["layout_asset_id"]: entry["drive_nature"] for entry in layouts}
         assert natures == {
+            "fcb45_main_rudder_bow_actuator_layout_v2": "underactuated in transit",
             "main_only_actuator_layout_v1": "underactuated",
             "default_triple_actuator_layout_v1": "fully actuated",
             "quad_diagonal_actuator_layout_v1": "overactuated",

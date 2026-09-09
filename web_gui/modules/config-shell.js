@@ -1,4 +1,5 @@
-import { createValidationAssembly } from './validation-assembly.js?v=20260905-gnc-s10-v1';
+import { presetBinding, presetStackId } from './gnc-presets.js?v=20260909-gnc-presets-v1';
+import { createValidationAssembly } from './validation-assembly.js?v=20260909-gnc-presets-v1';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import { createSituationDisplay } from './situation-display.js?v=20260908-buffered-motion-v2';
 
@@ -57,7 +58,7 @@ async function loadOpenBridge() {
   try {
     // Single locally-bundled module: components + icons + lit, pinned to
     // @oicl/openbridge-webcomponents@1.0.1. See vendor/openbridge/entry-source.mjs.
-    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260827-vessel-placard-v1');
+    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260909-balance-v1');
     await Promise.all([
       customElements.whenDefined('obc-top-bar'),
       customElements.whenDefined('obc-card'),
@@ -142,19 +143,13 @@ const CAROUSEL_CONFIGS = {
   algorithm: { scrollbar: 'validationAlgorithmScrollbar', choices: 'validationAlgorithmChoices', controls: 'validationAlgorithmControls', previous: 'previousAlgorithmBtn', next: 'nextAlgorithmBtn' },
 };
 
-const GNC_CAROUSEL_CONFIGS = {
-  plant: { scrollbar: 'gncPlantScrollbar', choices: 'gncPlantChoices', controls: 'gncPlantControls', previous: 'previousGncPlantBtn', next: 'nextGncPlantBtn' },
-  guidance: { scrollbar: 'gncGuidanceScrollbar', choices: 'gncGuidanceChoices', controls: 'gncGuidanceControls', previous: 'previousGncGuidanceBtn', next: 'nextGncGuidanceBtn' },
-  controller: { scrollbar: 'gncControllerScrollbar', choices: 'gncControllerChoices', controls: 'gncControllerControls', previous: 'previousGncControllerBtn', next: 'nextGncControllerBtn' },
-  actuation: { scrollbar: 'gncActuationScrollbar', choices: 'gncActuationChoices', controls: 'gncActuationControls', previous: 'previousGncActuationBtn', next: 'nextGncActuationBtn' },
-};
 
 function carouselConfig(name) {
-  return CAROUSEL_CONFIGS[name] || GNC_CAROUSEL_CONFIGS[name];
+  return CAROUSEL_CONFIGS[name];
 }
 
 function carouselNames() {
-  return [...Object.keys(CAROUSEL_CONFIGS), ...Object.keys(GNC_CAROUSEL_CONFIGS)];
+  return Object.keys(CAROUSEL_CONFIGS);
 }
 
 function carouselViewport(name) {
@@ -172,9 +167,7 @@ function updateCarouselControls(name) {
   const previous = document.getElementById(config.previous);
   const next = document.getElementById(config.next);
   const controls = document.getElementById(config.controls);
-  if (config === GNC_CAROUSEL_CONFIGS[name] && controls) {
-    controls.hidden = viewport.scrollWidth <= viewport.clientWidth + tolerance;
-  }
+  if (controls) controls.hidden = viewport.scrollWidth <= viewport.clientWidth + tolerance;
   if (previous) previous.disabled = viewport.scrollLeft <= tolerance;
   if (next) next.disabled = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - tolerance;
 }
@@ -828,196 +821,86 @@ function renderYamlContract(draft) {
 }
 
 // ── Ownship GNC stack (Config step 04) ───────────────────────────────────
-// Pure backend-catalog consumer: the option ladders come from module_axes and
-// the chosen combination is matched against catalog stacks through their module
-// roles and bound layout assets. Nothing here re-implements stack validation,
-// parses stack_id strings, or hardcodes module identities.
-const GNC_LEGACY_OPTION = 'legacy';
-const GNC_NONE_LAYOUT_OPTION = 'none';
-const GNC_NONE_ENVIRONMENT_OPTION = 'none';
+// Product presets retain their exact backend stack identity in the draft.
 let gncStackCatalog = null;
-// Shell-local ladder state while the operator composes one module per axis.
-// null means Legacy (no modular plant chosen); the authoritative binding is
-// always the draft's gnc_stack_id.
-let gncSelection = null;
-let gncBoundStackId = null;
-
-function emptyGncSelection() {
-  return {
-    plant: null,
-    guidance: null,
-    controller: null,
-    layout: null,
-    resolved: false,
-    environment: null,
-  };
-}
-
-function renderGncStackPanel(snapshot) {
-  const unavailable = document.getElementById('gncStackUnavailable');
-  const catalog = gncStackCatalog;
-  const boundId = snapshot?.draft?.gnc_stack_id ?? null;
-  if (boundId !== gncBoundStackId && (boundId === null || gncStackCatalog)) {
-    // The binding changed outside the ladder (session sync, Default): re-derive
-    // the shell-local selection from the bound stack entry. A non-null binding
-    // waits for the asynchronously loaded stack catalog before it is marked synced.
-    gncBoundStackId = boundId;
-    const boundEntry = gncStackById(boundId);
-    gncSelection = boundEntry ? gncSelectionFromStack(boundEntry) : null;
-  }
-  if (!catalog || !Array.isArray(catalog.stacks) || catalog.stacks.length === 0 || !catalog.module_axes) {
-    unavailable.hidden = false;
-    renderGncStackDetail(null);
-    return;
-  }
-  unavailable.hidden = true;
-  renderGncAxisChoices(snapshot);
-  renderGncStackDetail(gncStackById(boundId));
-}
 
 function gncStackById(stackId) {
-  if (!gncStackCatalog || !stackId) return null;
-  return gncStackCatalog.stacks.find((entry) => entry.stack_id === stackId) || null;
+  return gncStackCatalog?.stacks?.find((entry) => entry.stack_id === stackId) || null;
 }
 
 function gncStackDisplayLabel(snapshot) {
-  const entry = gncStackById(snapshot?.draft?.gnc_stack_id ?? null);
-  return entry ? entry.display_name : 'Legacy (scenario default)';
-}
-
-function gncRecommendedStackForPlant(plantId) {
-  if (!gncStackCatalog || !plantId) return null;
-  const recommendedId = gncStackCatalog.recommended_stack_ids_by_plant?.[plantId];
-  return gncStackById(recommendedId)
-    || gncStackCatalog.stacks.find((entry) => gncSelectionFromStack(entry).plant === plantId)
-    || null;
-}
-
-function gncStackLayoutAssetId(entry) {
-  if (!entry.modules.some((module) => module.role === 'allocator')) return null;
-  const asset = (entry.asset_trust || []).find((item) => item.asset_type === 'actuator_layout');
-  return asset ? asset.asset_id : null;
-}
-
-function gncSelectionFromStack(entry) {
-  const identityByRole = {};
-  for (const module of entry.modules) identityByRole[module.role] = module.identity;
-  return {
-    plant: identityByRole.plant || null,
-    guidance: identityByRole.guidance || null,
-    controller: identityByRole.controller || null,
-    layout: identityByRole.allocator ? (gncStackLayoutAssetId(entry) || GNC_NONE_LAYOUT_OPTION) : GNC_NONE_LAYOUT_OPTION,
-    resolved: Boolean(identityByRole.actuator),
-    environment: identityByRole.environment || null,
-  };
-}
-
-// Wildcard semantics: null axis = not chosen yet; layout 'none' excludes
-// allocator-bearing stacks; resolved only applies once a layout id is chosen.
-function gncStackMatchesSelection(entry, selection) {
-  const identityByRole = {};
-  for (const module of entry.modules) identityByRole[module.role] = module.identity;
-  if (selection.plant && identityByRole.plant !== selection.plant) return false;
-  if (selection.guidance && identityByRole.guidance !== selection.guidance) return false;
-  if (selection.controller && identityByRole.controller !== selection.controller) return false;
-  if (Object.prototype.hasOwnProperty.call(selection, 'environment')) {
-    if (selection.environment === null || selection.environment === GNC_NONE_ENVIRONMENT_OPTION) {
-      if (identityByRole.environment) return false;
-    } else if (identityByRole.environment !== selection.environment) {
-      return false;
-    }
-  }
-  if (selection.layout === GNC_NONE_LAYOUT_OPTION) {
-    if (identityByRole.allocator) return false;
-    return true;
-  }
-  if (typeof selection.layout === 'string') {
-    if (gncStackLayoutAssetId(entry) !== selection.layout) return false;
-    if (selection.resolved !== null && selection.resolved !== undefined
-      && selection.resolved !== Boolean(identityByRole.actuator)) return false;
-  }
-  return true;
-}
-
-function gncCompletedSelection(selection) {
-  return Boolean(
-    selection
-    && selection.plant && selection.guidance && selection.controller
-    && selection.layout
-    && Object.prototype.hasOwnProperty.call(selection, 'environment'),
-  );
-}
-
-function gncStackForSelection(selection) {
-  if (!gncStackCatalog || !gncCompletedSelection(selection)) return null;
-  return gncStackCatalog.stacks.find((entry) => gncStackMatchesSelection(entry, selection)) || null;
-}
-
-// Forward validity: the option stays selectable when at least one backend
-// stack can still complete the combination with the other axes as chosen.
-function gncOptionEnabled(axis, value) {
-  if (!gncStackCatalog) return false;
-  if (axis === 'plant') return Boolean(gncRecommendedStackForPlant(value));
-  const probe = { ...(gncSelection || emptyGncSelection()) };
-  if (axis === 'resolved') {
-    if (!probe.layout || probe.layout === GNC_NONE_LAYOUT_OPTION) return false;
-    probe.resolved = value;
-  } else {
-    probe[axis] = value;
-    // Module/layout changes stay available regardless of the resolved toggle;
-    // the exact stack is resolved at commit time.
-    probe.resolved = null;
-  }
-  return gncStackCatalog.stacks.some((entry) => gncStackMatchesSelection(entry, probe));
+  const id = snapshot?.draft?.gnc_stack_id ?? null;
+  const binding = presetBinding(gncStackCatalog, id);
+  if (binding) return `${binding.preset.display_name} · Environment ${binding.environment.toUpperCase()}`;
+  return gncStackById(id)?.display_name || 'Legacy (scenario default)';
 }
 
 function commitGncStackId(stackId) {
   edit('gnc_stack_id', stackId);
 }
 
-function selectGncOption(axis, value) {
-  if (axis === 'environment' && value === GNC_NONE_ENVIRONMENT_OPTION) value = null;
-  if (axis === 'plant' && value === GNC_LEGACY_OPTION) {
-    gncSelection = null;
-    commitGncStackId(null);
-    return;
-  }
-  if (axis === 'plant') {
-    const stack = gncRecommendedStackForPlant(value);
-    if (!stack) return;
-    // Plant is the composition root: changing it starts from the catalog's
-    // recommended complete stack instead of carrying incompatible siblings.
-    gncSelection = gncSelectionFromStack(stack);
-    commitGncStackId(stack.stack_id);
-    return;
-  }
-  const previous = gncSelection;
-  const next = { ...(gncSelection || emptyGncSelection()) };
-  if (axis === 'layout') {
-    // Re-clicking the same layout keeps the resolved add-on; switching drops it.
-    next.resolved = next.layout === value ? Boolean(next.resolved) : false;
-    next.layout = value;
-  } else {
-    next[axis] = value;
-  }
-  gncSelection = next;
-  if (gncCompletedSelection(gncSelection)) {
-    let stack = gncStackForSelection(gncSelection);
-    if (!stack && gncSelection.resolved) {
-      const relaxed = { ...gncSelection, resolved: false };
-      stack = gncStackForSelection(relaxed);
-      if (stack) gncSelection = relaxed;
+function renderGncTable(bodyId, rows) {
+  const body = document.getElementById(bodyId);
+  body.replaceChildren(...rows.map((values) => {
+    const row = document.createElement('tr');
+    for (const [index, value] of values.entries()) {
+      const cell = document.createElement(index === 0 ? 'th' : 'td');
+      if (index === 0) cell.scope = 'row';
+      cell.textContent = value;
+      row.append(cell);
     }
-    if (!stack) {
-      // Backend catalog provides no such combination: fall back to the last
-      // valid selection instead of holding an unmatchable combo.
-      gncSelection = previous;
-      return;
-    }
-    commitGncStackId(stack.stack_id);
-    return;
-  }
-  commitGncStackId(null);
+    return row;
+  }));
+}
+
+function renderGncStackPanel(snapshot) {
+  const catalog = gncStackCatalog;
+  const ready = Array.isArray(catalog?.product_presets) && catalog.product_presets.length === 4;
+  const locked = snapshot.readOnly || snapshot.creating || !ready;
+  const boundId = snapshot?.draft?.gnc_stack_id ?? null;
+  const binding = presetBinding(catalog, boundId);
+  const unavailable = document.getElementById('gncStackUnavailable');
+  unavailable.hidden = ready;
+  const choices = document.getElementById('gncPresetChoices');
+  choices.replaceChildren(...(ready ? catalog.product_presets : []).map((preset) => {
+    const card = makeChoiceCard({
+      id: preset.id, name: preset.display_name, desc: preset.description,
+      grade: preset.input,
+    }, { enabled: !locked, selected: binding?.preset.id === preset.id });
+    card.hasStatus = false;
+    card.title = `${preset.display_name} — ${preset.description} ${preset.input}`;
+    card.dataset.gncPresetId = preset.id;
+    return card;
+  }));
+  const toggle = document.getElementById('gncEnvironmentToggle');
+  toggle.checked = binding?.environment === 'on';
+  toggle.disabled = locked || !binding?.preset.variants.on;
+  document.getElementById('gncEnvironmentState').textContent = toggle.checked ? 'ON' : 'OFF';
+  document.getElementById('gncEnvironmentHelp').textContent = !binding
+    ? 'Existing scenario/custom binding retained. Select a preset to use its environment switch.'
+    : !binding.preset.variants.on
+      ? 'Legacy keeps the original execution chain; unified wind / wave / current loads are unavailable.'
+      : toggle.checked ? catalog.environment_description : 'Calm water · no wind, wave or current loads.';
+  const custom = document.getElementById('gncCustomBinding');
+  custom.hidden = Boolean(binding) || !ready;
+  custom.textContent = 'Current scenario/custom binding is preserved. Choose one of the four presets to replace it.';
+  const roles = ['Plant', 'Guidance', 'Controller', 'Actuation'];
+  const entry = gncStackById(boundId);
+  const fields = binding?.preset.fields;
+  renderGncTable('gncFieldRows', [
+    ...roles.map((role) => [role, fields?.[role] || 'Existing scenario/custom configuration']),
+    ['Environment', binding ? (toggle.checked ? catalog.environment_description : 'OFF · no wind / waves / current') : 'Existing scenario configuration'],
+  ]);
+  renderGncTable('gncPresetRows', (ready ? catalog.product_presets : []).map((preset) => [
+    preset.display_name, ...roles.map((role) => preset.fields[role]),
+    preset.variants.on ? 'OFF / ON' : 'OFF',
+  ]));
+  document.getElementById('gncPresetNote').textContent = binding?.preset.variants.on
+    ? '4DOF: surge, sway, roll, yaw; roll is uncontrolled. Design / engineering parameters, no vessel validation. Closed-loop acceptance depends on algorithm and scenario.'
+    : 'Legacy preserves the scenario model, guidance and controller. Selecting this preset disables scenario wind / wave / current disturbances.';
+  renderGncStackDetail(entry);
+  document.getElementById('gncStackParameters').textContent = entry
+    ? JSON.stringify(entry.config, null, 2) : 'No modular parameters.';
 }
 
 function renderGncStackDetail(entry) {
@@ -1050,119 +933,6 @@ function renderGncStackDetail(entry) {
     trustRows.length > 0 ? trustRows : [['Bound assets', 'None (ideal actuator)']],
   );
   replaceDefinitionRows(document.getElementById('gncStackAcceptance'), acceptanceRows);
-}
-
-function gncRenderCards(gridId, cards, carouselName) {
-  const grid = document.getElementById(gridId);
-  if (!grid) return;
-  grid.replaceChildren(...cards.filter(Boolean));
-  if (carouselName) requestAnimationFrame(() => updateCarouselControls(carouselName));
-}
-
-function renderGncAxisChoices(snapshot) {
-  const axes = gncStackCatalog.module_axes;
-  const locked = snapshot.readOnly || snapshot.creating;
-  const selection = gncSelection;
-  const modular = Boolean(selection);
-
-  gncRenderCards('gncPlantChoices', [
-    (() => {
-      const card = makeChoiceCard({
-        id: GNC_LEGACY_OPTION,
-        name: 'Legacy default plant',
-        desc: 'No modular stack bound; the ownship keeps the scenario ship configuration.',
-        grade: 'Default',
-      }, {
-        enabled: !locked,
-        selected: !modular || selection.plant === null || selection.plant === undefined,
-      });
-      card.dataset.gncAxis = 'plant';
-      card.dataset.gncOptionId = GNC_LEGACY_OPTION;
-      return card;
-    })(),
-    ...axes.plant.map((option) => {
-      const card = makeChoiceCard({
-        id: option.identity,
-        name: option.display_name,
-        desc: option.models,
-        grade: `Tier ${option.tier}`,
-      }, {
-        enabled: !locked && gncOptionEnabled('plant', option.identity),
-        selected: Boolean(modular && selection.plant === option.identity),
-      });
-      card.dataset.gncAxis = 'plant';
-      card.dataset.gncOptionId = option.identity;
-      return card;
-    }),
-  ], 'plant');
-  gncRenderCards('gncGuidanceChoices', axes.guidance.map((option) => {
-    const card = makeChoiceCard({
-      id: option.identity,
-      name: option.display_name,
-      desc: option.models,
-      grade: `Tier ${option.tier}`,
-    }, {
-      enabled: modular && !locked && gncOptionEnabled('guidance', option.identity),
-      selected: Boolean(modular && selection.guidance === option.identity),
-    });
-    card.dataset.gncAxis = 'guidance';
-    card.dataset.gncOptionId = option.identity;
-    return card;
-  }), 'guidance');
-  gncRenderCards('gncControllerChoices', axes.controller.map((option) => {
-    const card = makeChoiceCard({
-      id: option.identity,
-      name: option.display_name,
-      desc: option.models,
-      grade: `Tier ${option.tier}`,
-    }, {
-      enabled: modular && !locked && gncOptionEnabled('controller', option.identity),
-      selected: Boolean(modular && selection.controller === option.identity),
-    });
-    card.dataset.gncAxis = 'controller';
-    card.dataset.gncOptionId = option.identity;
-    return card;
-  }), 'controller');
-  gncRenderCards('gncActuationChoices', [
-    {
-      option: {
-        display_name: 'None (ideal generalized forces)',
-        models: axes.actuation.none.models,
-        expected_effect: axes.actuation.none.expected_effect,
-        layout_asset_id: GNC_NONE_LAYOUT_OPTION,
-      },
-      grade: 'Ideal',
-    },
-    ...axes.actuation.layouts.map((option) => ({ option, grade: option.drive_nature })),
-  ].map(({ option, grade }) => {
-    const card = makeChoiceCard({
-      id: option.layout_asset_id,
-      name: option.display_name,
-      desc: option.models,
-      grade,
-    }, {
-      enabled: modular && !locked && gncOptionEnabled('layout', option.layout_asset_id),
-      selected: Boolean(modular && selection.layout === option.layout_asset_id),
-    });
-    card.dataset.gncAxis = 'layout';
-    card.dataset.gncOptionId = option.layout_asset_id;
-    return card;
-  }), 'actuation');
-  gncRenderCards('gncEnvironmentChoices', axes.environment.map((option) => {
-    const optionId = option.identity ?? GNC_NONE_ENVIRONMENT_OPTION;
-    const card = makeChoiceCard({
-      id: optionId,
-      name: option.display_name,
-      desc: option.models,
-      grade: option.tier === 0 ? 'Default' : `Tier ${option.tier}`,
-    }, {
-      enabled: modular && !locked && gncOptionEnabled('environment', optionId),
-      selected: Boolean(modular && selection.environment === option.identity),
-    });
-    card.dataset.gncAxis = 'environment';
-    card.dataset.gncOptionId = optionId;
-    return card;
-  }));
 }
 
 function createStatusText(snapshot) {
@@ -1291,7 +1061,6 @@ function bindControls() {
   bindCarousel('scenario');
   bindCarousel('enc');
   bindCarousel('algorithm');
-  for (const name of Object.keys(GNC_CAROUSEL_CONFIGS)) bindCarousel(name);
   document.getElementById('validationScenarioChoices').addEventListener('click', (event) => {
     const card = event.target.closest('[data-choice-id]');
     if (!card || card.disabled) return;
@@ -1308,18 +1077,24 @@ function bindControls() {
     edit('tracker_id', card.dataset.choiceId);
   });
   rebindNumberFields();
-  for (const [gridId, axis] of [
-    ['gncPlantChoices', 'plant'],
-    ['gncGuidanceChoices', 'guidance'],
-    ['gncControllerChoices', 'controller'],
-    ['gncActuationChoices', 'layout'],
-  ]) {
-    document.getElementById(gridId).addEventListener('click', (event) => {
-      const card = event.target.closest('[data-gnc-option-id]');
-      if (!card || card.disabled) return;
-      selectGncOption(axis, card.dataset.gncOptionId);
-    });
-  }
+  document.getElementById('gncPresetChoices').addEventListener('click', (event) => {
+    const card = event.target.closest('[data-gnc-preset-id]');
+    const snapshot = assembly.snapshot();
+    if (!card || card.disabled || snapshot.readOnly || snapshot.creating) return;
+    const current = presetBinding(gncStackCatalog, snapshot.draft?.gnc_stack_id);
+    const preset = gncStackCatalog.product_presets.find((item) => item.id === card.dataset.gncPresetId);
+    const environment = current?.environment === 'on' && preset.variants.on ? 'on' : 'off';
+    const id = presetStackId(gncStackCatalog, preset.id, environment);
+    if (id !== null) commitGncStackId(id);
+  });
+  document.getElementById('gncEnvironmentToggle').addEventListener('change', (event) => {
+    const snapshot = assembly.snapshot();
+    if (snapshot.readOnly || snapshot.creating) return;
+    const current = presetBinding(gncStackCatalog, snapshot.draft?.gnc_stack_id);
+    if (!current) return;
+    const id = presetStackId(gncStackCatalog, current.preset.id, event.target.checked ? 'on' : 'off');
+    if (id !== null) commitGncStackId(id);
+  });
   document.getElementById('validationDefault').addEventListener('click', () => {
     assembly.resetDefault();
     render();

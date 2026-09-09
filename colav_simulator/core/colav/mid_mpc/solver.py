@@ -135,6 +135,7 @@ class MidMpcIpoptSolver:
         *,
         primal_warm_start: MidMpcPrimalWarmStart | None = None,
         wall_time_s: float | None = None,
+        iterate_filter: Callable[[np.ndarray], bool] | None = None,
     ) -> MidMpcResult:
         _validate_target_capacity(problem, self._config.max_targets)
         _validate_route_objective(problem, self._config.horizon_steps)
@@ -238,6 +239,7 @@ class MidMpcIpoptSolver:
             quality_lbg=prepared.lbg,
             quality_ubg=prepared.ubg,
             quality_tolerances=strict_tolerances,
+            iterate_filter=iterate_filter,
         )
         preparation_elapsed_ms = (time.perf_counter() - preparation_started) * 1_000.0
         callback_wall_limit = graph.iteration_callback._max_wall_time_s
@@ -278,6 +280,7 @@ class MidMpcIpoptSolver:
                 graph,
                 prepared,
                 tolerances=strict_tolerances,
+                iterate_filter=iterate_filter,
             )
             if incumbent is not None:
                 accepted_iteration, raw_x, raw_f, raw_g = incumbent
@@ -441,6 +444,7 @@ class _IterationCallback(ca.Callback):
         quality_lbg: np.ndarray | None = None,
         quality_ubg: np.ndarray | None = None,
         quality_tolerances: tuple[np.ndarray, np.ndarray] | None = None,
+        iterate_filter: Callable[[np.ndarray], bool] | None = None,
     ) -> None:
         self._started_at = self._clock()
         self._callback_count = 0
@@ -454,6 +458,7 @@ class _IterationCallback(ca.Callback):
             else cast(tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], bounds)
         )
         self._quality_tolerances = quality_tolerances
+        self._iterate_filter = iterate_filter
         self.quality_stop_requested = False
         self.iterates = []
 
@@ -502,6 +507,7 @@ class _IterationCallback(ca.Callback):
                 and (self._quality_stop_on_feasible or self._quality_seed_objective - objective >= required_improvement)
                 and _primal_feasible(values, lbx, ubx, tolerance=x_tolerance)
                 and _primal_feasible(constraints, lbg, ubg, tolerance=g_tolerance)
+                and (self._iterate_filter is None or self._iterate_filter(values))
             )
         elapsed_s = 0.0 if self._started_at is None else self._clock() - self._started_at
         return [ca.DM(float(elapsed_s > self._max_wall_time_s or self.quality_stop_requested))]
@@ -727,6 +733,9 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
             {
                 "expand": target_capacity > 1,
                 "ipopt.bound_relax_factor": 0.0,
+                # L4 checks speed increments to 1e-6 m/s. Do not declare a
+                # numerically acceptable candidate that violates that contract.
+                "ipopt.constr_viol_tol": 1.0e-7,
                 "ipopt.honor_original_bounds": "yes",
                 "ipopt.mu_strategy": (
                     "adaptive"
@@ -1687,6 +1696,7 @@ def _best_feasible_iteration(
     prepared: MidMpcPreparedProblem,
     *,
     tolerances: tuple[np.ndarray, np.ndarray] | None = None,
+    iterate_filter: Callable[[np.ndarray], bool] | None = None,
 ) -> tuple[int, np.ndarray, float, np.ndarray] | None:
     x_tolerance, g_tolerance = tolerances if tolerances is not None else (1.0e-3, 1.0e-3)
     feasible: list[tuple[int, np.ndarray, float, np.ndarray]] = []
@@ -1697,6 +1707,8 @@ def _best_feasible_iteration(
             prepared.ubx,
             tolerance=x_tolerance,
         ):
+            continue
+        if iterate_filter is not None and not iterate_filter(values):
             continue
         constraints = _flat(graph.constraints(values, prepared.p))
         if _primal_feasible(
@@ -1746,6 +1758,8 @@ def _strict_primal_tolerances(
     if row_layout.rule.count <= 1:
         one_sided = np.isfinite(prepared.lbg) ^ np.isfinite(prepared.ubg)
         g_tolerance[one_sided] = 1.0e-3
+    speed_rate = slice(row_layout.speed_rate.start, row_layout.speed_rate.start + row_layout.speed_rate.count)
+    g_tolerance[speed_rate] = 1.0e-7
     cpa = slice(row_layout.cpa.start, row_layout.cpa.start + row_layout.cpa.count)
     g_tolerance[cpa] = np.maximum(g_tolerance[cpa], 1.0e-4)
     return x_tolerance, g_tolerance
