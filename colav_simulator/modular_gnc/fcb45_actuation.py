@@ -10,13 +10,14 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, replace
+from itertools import product
 from types import MappingProxyType
 from typing import Any
 
 import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import OptimizeResult, least_squares, lsq_linear
 
 from colav_simulator.modular_gnc.actuator_dynamics import ResolvedActuatorDynamics
 from colav_simulator.modular_gnc.allocator import (
@@ -139,6 +140,7 @@ class FCB45AllocatorSolution(AllocatorSolution):
     rudder_angles_rad: Mapping[str, float]
     allocation_evaluations: int
     allocation_optimality: float
+    allocation_method: str = "dogbox"
 
     def __post_init__(self) -> None:
         """Freeze force and mechanical-angle commands together."""
@@ -235,34 +237,27 @@ class FCB45Allocator(DataDrivenAllocator):
                 achieved += contribution * self._health[key]
             return achieved, forces, angles
 
-        def residual_for(free_values: np.ndarray) -> np.ndarray:
-            z = fixed_values.copy()
-            z[free] = free_values
-            # Regularize command increments, not absolute power. This keeps
-            # redundant propeller/rudder solutions continuous through zero
-            # inflow instead of chasing a different wash allocation each tick.
-            return np.r_[(loads(z)[0] - tau) * weights, 1e-3 * (z - seed)]
-
         seed = np.clip(self._optimization_seed, low, high)
-        solved = least_squares(
-            residual_for,
-            seed[free],
-            bounds=(low[free], high[free]),
-            method="dogbox",
-            ftol=1e-8,
-            xtol=1e-8,
-            gtol=self.parameters.allocator_gradient_tolerance,
-            max_nfev=self.parameters.allocator_max_evaluations,
-        )
+        solved = self._solve_coherent_domains(loads, tau, weights, seed, low, high, free)
         if not solved.success or not np.isfinite(solved.x).all():
             raise RuntimeError(f"FCB45 coupled allocation failed: {solved.message}")
         z = fixed_values.copy()
         z[free] = solved.x
+        for i, spec in enumerate(self._asset.actuators):
+            if spec.kind == "main":
+                low[i], high[i] = (-1.0, 0.0) if solved.astern else (0.0, 1.0)
         self._optimization_seed = z
         achieved, commands, angles = loads(z)
         for i, key in enumerate(self._ids):
             if free[i] and min(abs(z[i] - low[i]), abs(z[i] - high[i])) < 1e-6:
-                constraints.append((key, "physical_command_bound"))
+                constraints.append(
+                    (
+                        key,
+                        "main_direction_bound"
+                        if self._asset.actuators[i].kind == "main" and abs(z[i]) < 1e-6
+                        else "physical_command_bound",
+                    )
+                )
         residual = tau - achieved
         degraded = tuple(key for key in self._ids if self._health[key] < 1.0)
         return FCB45AllocatorSolution(
@@ -281,7 +276,177 @@ class FCB45Allocator(DataDrivenAllocator):
             angles,
             int(solved.nfev),
             float(solved.optimality),
+            str(solved.get("allocation_method", "dogbox")),
         )
+
+    def _solve_coherent_domains(
+        self,
+        loads: Callable[[np.ndarray], tuple[np.ndarray, dict[str, float], dict[str, float]]],
+        tau: np.ndarray,
+        weights: np.ndarray,
+        seed: np.ndarray,
+        low: np.ndarray,
+        high: np.ndarray,
+        free: np.ndarray,
+    ) -> OptimizeResult:
+        """Search both common directions: net surge includes rudder drag, not just thrust."""
+        result = None
+        evaluations = 0
+        main_seed = sum(seed[i] for i, spec in enumerate(self._asset.actuators) if spec.kind == "main")
+        first_astern = main_seed < 0.0 if main_seed != 0.0 else tau[0] < 0.0
+        for astern in (first_astern, not first_astern):
+            lower, upper = low.copy(), high.copy()
+            for i, spec in enumerate(self._asset.actuators):
+                if spec.kind == "main":
+                    lower[i], upper[i] = (-1.0, 0.0) if astern else (0.0, 1.0)
+            initial = np.clip(seed, lower, upper)
+            # Even a perfect force fit must pay this distance to the shared
+            # previous command. Prune only when it cannot beat a solved mode.
+            lower_cost = 0.5e-6 * float((initial - seed) @ (initial - seed))
+            if result is not None and result.success and result.cost <= lower_cost:
+                continue
+            budget = self.parameters.allocator_max_evaluations // 2
+            if budget < 1:
+                raise RuntimeError("FCB45 allocation budget cannot cover both main directions")
+
+            def residual_for(values: np.ndarray, lower: np.ndarray = lower) -> np.ndarray:
+                z = lower.copy()
+                z[free] = values
+                # Both domains compare the same previous-command objective.
+                return np.r_[(loads(z)[0] - tau) * weights, 1e-3 * (z - seed)]
+
+            candidate = (
+                self._projected_astern_solve(loads, tau, weights, seed, lower, upper, free, budget)
+                if astern and self.bow_authority > 0.0
+                else least_squares(
+                    residual_for,
+                    initial[free],
+                    bounds=(lower[free], upper[free]),
+                    method="dogbox",
+                    ftol=1e-8,
+                    xtol=1e-8,
+                    gtol=self.parameters.allocator_gradient_tolerance,
+                    max_nfev=budget,
+                )
+            )
+            candidate.astern = bool(astern)
+            evaluations += candidate.nfev
+            if result is None or (candidate.success, -candidate.cost) > (result.success, -result.cost):
+                result = candidate
+        result.nfev = evaluations
+        return result
+
+    def _projected_astern_solve(
+        self,
+        loads: Callable[[np.ndarray], tuple[np.ndarray, dict[str, float], dict[str, float]]],
+        tau: np.ndarray,
+        weights: np.ndarray,
+        seed: np.ndarray,
+        low: np.ndarray,
+        high: np.ndarray,
+        free: np.ndarray,
+        max_evaluations: int,
+    ) -> OptimizeResult:
+        """Eliminate linear thrust variables in the low-speed astern domain.
+
+        All mains are nonpositive here, so the shared model's positive-only
+        propeller wash is zero. For fixed rudder angles, the remaining forces
+        form a bounded linear least-squares problem. The unchanged full cost
+        is minimized over two angles, removing correlated linear-force
+        directions from the nonlinear Jacobian.
+        """
+        specs = self._asset.actuators
+        linear = np.array([i for i, spec in enumerate(specs) if spec.kind != "rudder" and free[i]])
+        angular = np.array([i for i, spec in enumerate(specs) if spec.kind == "rudder"])
+        effectiveness = self._matrix[:, linear] * self._max_limits[linear]
+        effectiveness *= np.array([self._health[self._ids[i]] for i in linear])
+        matrix = np.vstack((weights[:, None] * effectiveness, 1e-3 * np.eye(len(linear))))
+
+        def project(angles: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+            z = low.copy()
+            z[linear] = 0.0
+            z[angular] = angles
+            rhs = np.r_[weights * (tau - loads(z)[0]), 1e-3 * seed[linear]]
+            thrust = lsq_linear(
+                matrix,
+                rhs,
+                bounds=(low[linear], high[linear]),
+                method="bvls",
+                tol=self.parameters.allocator_gradient_tolerance,
+            )
+            if not thrust.success:
+                raise RuntimeError(f"FCB45 linear thrust projection failed: {thrust.message}")
+            violation = np.maximum(low[linear] - thrust.x, thrust.x - high[linear])
+            if np.max(violation) > 32 * np.finfo(float).eps:
+                raise RuntimeError("FCB45 linear projection returned infeasible thrust")
+            # BVLS active-set arithmetic may leave a few ulps outside a bound.
+            # Return the exact original box, not a widened physical envelope.
+            z[linear] = np.clip(thrust.x, low[linear], high[linear])
+            residual = np.r_[weights * (loads(z)[0] - tau), 1e-3 * (z - seed)]
+            return residual, z
+
+        regions = self._astern_rudder_regions(angular, low, high)
+        regions.sort(key=lambda bounds: float(np.linalg.norm(seed[angular] - np.clip(seed[angular], *bounds))))
+        result = None
+        evaluations = 0
+        for index, bounds in enumerate(regions):
+            if evaluations >= max_evaluations:
+                break
+            budget = (max_evaluations - evaluations) // (len(regions) - index)
+            candidate = least_squares(
+                lambda angles: project(angles)[0],
+                np.clip(seed[angular], *bounds),
+                method="dogbox",
+                jac="3-point",
+                bounds=bounds,
+                max_nfev=max(1, budget),
+                ftol=1e-8,
+                xtol=1e-8,
+                gtol=self.parameters.allocator_gradient_tolerance,
+            )
+            evaluations += candidate.nfev
+            if result is None or (candidate.success, -candidate.cost) > (result.success, -result.cost):
+                result = candidate
+        if result is None:
+            raise RuntimeError("FCB45 rudder search has no evaluated region")
+        _, values = project(result.x)
+        result.x = values[free]
+        result.nfev = evaluations
+        result.allocation_method = "piecewise_linear_projection_dogbox"
+        return result
+
+    def _astern_rudder_regions(
+        self,
+        angular: np.ndarray,
+        low: np.ndarray,
+        high: np.ndarray,
+    ) -> list[tuple[np.ndarray, np.ndarray]]:
+        """Partition at existing stall/force clips; their union is the original box."""
+        nav = self._navigation
+        current = world_ne_to_body_velocity(self._current_ne, nav.heading_rad)
+        ranges = []
+        params = self.parameters
+        for index in angular:
+            spec = self._asset.actuators[index]
+            slope, beta = rudder_inflow(
+                params,
+                nav.surge_mps - current[0],
+                nav.sway_mps - current[1],
+                nav.yaw_rate_radps,
+                spec.position_body_m[0],
+                0.0,
+            )
+            incidences = [-params.rudder_stall_angle_rad, params.rudder_stall_angle_rad]
+            if slope > 0.0:
+                incidences.extend(
+                    math.asin(force / slope) for force in (spec.min_force_n, spec.max_force_n) if abs(force) < slope
+                )
+            cuts = {(angle - beta) / params.rudder_angle_limit_rad for angle in incidences}
+            points = [low[index], *sorted(point for point in cuts if low[index] < point < high[index]), high[index]]
+            ranges.append(list(zip(points[:-1], points[1:], strict=True)))
+        return [
+            (np.array([piece[0] for piece in cell]), np.array([piece[1] for piece in cell])) for cell in product(*ranges)
+        ]
 
 
 @dataclass(frozen=True)
@@ -355,6 +520,17 @@ class FCB45ActuatorDynamics:
     def latest_trace(self) -> FCB45ActuatorTrace | None:
         return self._latest_trace
 
+    def _main_reversal_pending(self, commands_n: Mapping[str, float]) -> bool:
+        """Require a common direction and a zero-force transition before reversing."""
+        main_ids = tuple(spec.actuator_id for spec in self._asset.actuators if spec.kind == "main")
+        main_commands = [commands_n[key] for key in main_ids]
+        if min(main_commands) < 0.0 < max(main_commands):
+            raise ValueError("main propellers must share an ahead or astern direction")
+        if min(self._forces[key] for key in main_ids) < 0.0 < max(self._forces[key] for key in main_ids):
+            raise ValueError("stored main propeller forces have inconsistent direction")
+        direction = 1 if max(main_commands) > 0.0 else -1 if min(main_commands) < 0.0 else 0
+        return direction != 0 and any(self._forces[key] * direction < 0.0 for key in main_ids)
+
     def apply(
         self,
         commands_n: Mapping[str, float],
@@ -380,6 +556,10 @@ class FCB45ActuatorDynamics:
             not math.isfinite(angle) or abs(angle) > params.rudder_angle_limit_rad for angle in rudder_angles_rad.values()
         ):
             raise ValueError("rudder commands must cover both physical angles within their limits")
+        # Rate limiting independent sign changes would briefly put some mains
+        # ahead and others astern. First ramp ALL mains to zero, then admit the
+        # opposite direction on a later tick. This adds no invented gearbox lag.
+        reversing = self._main_reversal_pending(commands_n)
         current = world_ne_to_body_velocity(current_ne, navigation.heading_rad)
         u, v = navigation.surge_mps - current[0], navigation.sway_mps - current[1]
         # The physical execution guard uses actual through-water speed too.
@@ -393,7 +573,8 @@ class FCB45ActuatorDynamics:
                 continue
             key = spec.actuator_id
             rate = params.main_rate_n_s if spec.kind == "main" else params.bow_rate_n_s
-            value = self._forces[key] + float(np.clip(commands_n[key] - self._forces[key], -rate * dt_s, rate * dt_s))
+            target = 0.0 if spec.kind == "main" and reversing else commands_n[key]
+            value = self._forces[key] + float(np.clip(target - self._forces[key], -rate * dt_s, rate * dt_s))
             if spec.kind == "tunnel_thruster":
                 value = float(np.clip(value, spec.min_force_n * bow_authority, spec.max_force_n * bow_authority))
             if abs(value - commands_n[key]) > 1e-8:

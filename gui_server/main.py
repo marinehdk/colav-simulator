@@ -872,6 +872,7 @@ class WebSessionManager:
                 return self.latest
             except Exception as exc:
                 self._persist_failure(prepared, exc)
+                self._publish_telemetry(None)
                 raise
 
     def reset(self, session_id: str) -> dict[str, Any]:
@@ -944,16 +945,23 @@ class WebSessionManager:
             log.exception("Simulation result generation failed")
 
     def _persist_failure(self, prepared: PreparedRun, exc: Exception) -> None:
+        """Publish failure state immediately; archive frozen evidence off the control path."""
         prepared.session.state = SessionState.FAILED
         prepared.session.failure_reason = str(exc)
-        prepared.artifact_sink.close(timeout_s=2.0)
-        self.runner.persist_failure(
-            prepared.manifest,
-            prepared.writer,
-            exc,
-            prepared.session.frames,
-            prepared.session.events,
-        )
+        self._result_executor.submit(self._write_failure_evidence, prepared, exc)
+
+    def _write_failure_evidence(self, prepared: PreparedRun, exc: Exception) -> None:
+        try:
+            prepared.artifact_sink.close(timeout_s=2.0)
+            self.runner.persist_failure(
+                prepared.manifest,
+                prepared.writer,
+                exc,
+                prepared.session.frames,
+                prepared.session.events,
+            )
+        except Exception:
+            log.exception("Failed to archive simulation failure evidence")
 
     def result_document(self, session_id: str) -> dict[str, Any]:
         self._require(session_id)

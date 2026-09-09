@@ -1,0 +1,62 @@
+{
+  "snapshot": {
+    "health": {
+      "main_thruster_port": 1.0,
+      "main_thruster_center": 1.0,
+      "main_thruster_starboard": 1.0,
+      "rudder_port": 1.0,
+      "rudder_starboard": 1.0,
+      "bow_tunnel_thruster_aft": 1.0,
+      "bow_tunnel_thruster_forward": 1.0
+    },
+    "bow_enabled": true,
+    "optimization_seed": [
+      -0.07563751591166737,
+      0.0,
+      0.0,
+      -0.5791500551143108,
+      -0.5791482815160818,
+      0.043205692546648584,
+      -0.0676077107083772
+    ]
+  },
+  "navigation": {
+    "north_m": 6959974.093800044,
+    "east_m": 42705.33317981887,
+    "heading_rad": 7.491232851851942,
+    "surge_mps": 1.676476863509815,
+    "sway_mps": -0.5143059000613887,
+    "yaw_rate_radps": 0.019555396566355562,
+    "source": "TRUTH_PROJECTION"
+  },
+  "current_ne": [
+    0.4,
+    -0.2
+  ],
+  "parameters": {
+    "water_density_kg_m3": 1025.0,
+    "rudder_area_m2": 3.5,
+    "rudder_lift_slope_per_rad": 2.8,
+    "rudder_angle_limit_rad": 0.6109,
+    "rudder_rate_rad_s": 0.1,
+    "rudder_stall_angle_rad": 0.6108652381980153,
+    "propeller_diameter_m": 1.8,
+    "propeller_wash_fraction": 0.55,
+    "main_rate_n_s": 200000.0,
+    "bow_rate_n_s": 50000.0,
+    "bow_derate_start_mps": 1.5,
+    "bow_unlock_mps": 2.7,
+    "bow_lockout_mps": 3.2,
+    "allocator_max_evaluations": 700,
+    "allocator_gradient_tolerance": 1e-06
+  },
+  "requested": {
+    "surge_n": -14159.10745641195,
+    "sway_n": 15133.643800913844,
+    "yaw_nm": -367026.4366847093,
+    "roll_nm": 0.0
+  },
+  "tick": 11746,
+  "time_s": 1174.6000000000001,
+  "reference_exhausted_cost": 1.0147715842646064e-05
+}

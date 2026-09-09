@@ -1,0 +1,28 @@
+{
+  "metrics": {
+    "state": "FINISHED",
+    "end_time_s": 1800.0999999994583,
+    "goal_reached": false,
+    "failures": [
+      "mission goal not reached"
+    ],
+    "final_goal_distance_m": 36.44252675001847,
+    "final_speed_mps": 0.8372325874918828,
+    "minimum_center_distances_m": [
+      414.3426908941345,
+      343.1286537206713,
+      251.55332635229036
+    ],
+    "min_static_hull_clearance_m": 47.34693089292723,
+    "fallback_used": false,
+    "max_bow_force_at_cruise_n": 0.0
+  },
+  "steps": 18001,
+  "mixed_main_steps": 0,
+  "maximum_allocator_evaluations": 385,
+  "minimum_surge_mps": -2.2292645420292403,
+  "pid_replay_max_difference_before_fix": 0.0,
+  "focused_tests": "66 passed in 2.63s",
+  "before_source_sha256": "6be708117360fd9b874a9e861d03153978e9a4be73f09e218606d9cb2bd35fea",
+  "after_source_sha256": "5abde80f135ecec02a1a5b2db756d4e50022e6ff66b228ec7e812cfaddd5a915"
+}

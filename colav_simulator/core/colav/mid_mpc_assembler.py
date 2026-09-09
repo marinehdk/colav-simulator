@@ -711,6 +711,14 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                     threshold = max(threshold, reachable)
                     upper = threshold if upper is None else min(upper, threshold)
             bounds.append((lower, upper))
+        # The horizon search envelope must contain mandatory future corridors,
+        # not just today's heading and the rate-ramped soft reference. The
+        # per-knot hard corridors and physical turn-rate rows stay unchanged.
+        scheduled_headings = tuple(value for bound in bounds for value in bound if value is not None)
+        heading_bounds = (
+            min((heading_bounds[0], *scheduled_headings)),
+            max((heading_bounds[1], *scheduled_headings)),
+        )
         row_schedule = replace(
             row_schedule,
             direction_hard_window=MidMpcHardWindow(0, 0),

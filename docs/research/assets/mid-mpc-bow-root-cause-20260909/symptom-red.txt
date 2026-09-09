@@ -1,0 +1,110 @@
+{
+  "fixture_provenance": "Synthetic fuzz trial 994 at captured navigation; NOT original failed actuator command",
+  "relative_water_velocity_mps": [
+    -0.09820227467833387,
+    0.0059922570266964514
+  ],
+  "bow_authority": 1.0,
+  "requested": {
+    "surge_n": -50616.66811019201,
+    "sway_n": 2905.9232244286222,
+    "yaw_nm": -357506.0840706674,
+    "roll_nm": 0.0
+  },
+  "commands_n": {
+    "main_thruster_port": -64629.19206815584,
+    "main_thruster_center": 0.0,
+    "main_thruster_starboard": 0.0,
+    "bow_tunnel_thruster_aft": 18812.99792133222,
+    "bow_tunnel_thruster_forward": -20000.0,
+    "rudder_port": -0.0,
+    "rudder_starboard": -0.0
+  },
+  "achieved": {
+    "surge_n": -64629.19206815584,
+    "sway_n": -1187.0020786677815,
+    "yaw_nm": -249890.04373976396,
+    "roll_nm": 0.0
+  },
+  "residual": {
+    "surge_n": 14012.52395796383,
+    "sway_n": 4092.9253030964037,
+    "yaw_nm": -107616.04033090343,
+    "roll_nm": 0.0
+  },
+  "cold_commands_n": {
+    "main_thruster_port": -64629.159147113256,
+    "main_thruster_center": 0.0,
+    "main_thruster_starboard": 0.0,
+    "bow_tunnel_thruster_aft": 18813.038159463467,
+    "bow_tunnel_thruster_forward": -20000.0,
+    "rudder_port": 0.0,
+    "rudder_starboard": 0.0
+  },
+  "zero_yaw_warm_commands_n": {
+    "main_thruster_port": -40917.67620970503,
+    "main_thruster_center": 0.0,
+    "main_thruster_starboard": -9699.163136432673,
+    "bow_tunnel_thruster_aft": -17094.11526681774,
+    "bow_tunnel_thruster_forward": 20000.0,
+    "rudder_port": -0.0,
+    "rudder_starboard": -0.0
+  },
+  "zero_yaw_cold_commands_n": {
+    "main_thruster_port": -27829.865217086994,
+    "main_thruster_center": -16872.210359759574,
+    "main_thruster_starboard": -5914.555502431059,
+    "bow_tunnel_thruster_aft": 1513.0793803218655,
+    "bow_tunnel_thruster_forward": 1392.8307673462582,
+    "rudder_port": 0.0,
+    "rudder_starboard": 0.0
+  },
+  "mild_yaw_commands_n": {
+    "main_thruster_port": -50628.253365876284,
+    "main_thruster_center": 0.0,
+    "main_thruster_starboard": 0.0,
+    "bow_tunnel_thruster_aft": 10640.672960729138,
+    "bow_tunnel_thruster_forward": -7738.23919858453,
+    "rudder_port": -0.0,
+    "rudder_starboard": -0.0
+  },
+  "exact_load_feasible": false,
+  "feasible_yaw_at_exact_surge_sway_nm": [
+    -113833.96533959976,
+    245507.1584849094
+  ],
+  "independent_trf_max_force_difference_n": 2.5000002068509275e-08,
+  "per_actuator_load": {
+    "main_thruster_port": [
+      -64629.19206815584,
+      -0.0,
+      -193887.5762044675
+    ],
+    "main_thruster_center": [
+      0.0,
+      0.0,
+      -0.0
+    ],
+    "main_thruster_starboard": [
+      0.0,
+      0.0,
+      -0.0
+    ],
+    "bow_tunnel_thruster_aft": [
+      1.1519638843362655e-12,
+      18812.99792133222,
+      412117.53246470354
+    ],
+    "bow_tunnel_thruster_forward": [
+      -1.2246467991473533e-12,
+      -20000.0,
+      -468120.0
+    ]
+  },
+  "checks": "PASS: deterministic replay, zero rudder model authority, infeasible requested wrench, independently confirmed optimum, cold seed saturated, reduced yaw unsaturated; zero yaw warm remains saturated but cold does not"
+}
+Traceback (most recent call last):
+  File "/Users/marine/Code/Colav-Simulator/docs/research/assets/mid-mpc-bow-root-cause-20260909/diagnose.py", line 82, in <module>
+    assert abs(r.actuator_commands_n['bow_tunnel_thruster_forward']) < 19999, 'RED: -20 kN remains; saturation alone is not a correctness violation'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RED: -20 kN remains; saturation alone is not a correctness violation

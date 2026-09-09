@@ -1,0 +1,1473 @@
+{
+  "source_name": "45m HYBRID FAST CREW BOAT \u87ba\u65cb\u6868\u63a8\u529b\u66f2\u7ebf.doc",
+  "source_sha256": "5df3796eae07a8798db4c14d355249f1912a97012aa8966cfb47cb3b3dcac462",
+  "status": "research_transcription_not_runtime_calibration",
+  "definitions": {
+    "P": "absorbed engine power; gearbox/shaft mechanical losses already considered",
+    "T": "single propeller effective thrust behind hull; hull influence already considered",
+    "N": "main engine rpm per source definition"
+  },
+  "limitations": [
+    "Forward tables only; no astern mapping",
+    "No valid extrapolation beyond tabulated speed/RPM/power domain established",
+    "Engine torque envelope and power levels above 1007kW require reconciliation"
+  ],
+  "curves": [
+    {
+      "propeller": "side",
+      "vessel_speed_kn": 0.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 36.8,
+          "engine_rpm": 951.6
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 40.8,
+          "engine_rpm": 1001.8
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 44.6,
+          "engine_rpm": 1047.4
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 48.2,
+          "engine_rpm": 1089.3
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 51.7,
+          "engine_rpm": 1128.3
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 55.1,
+          "engine_rpm": 1164.7
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 58.4,
+          "engine_rpm": 1199.0
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 61.6,
+          "engine_rpm": 1231.4
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 64.7,
+          "engine_rpm": 1262.2
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 67.8,
+          "engine_rpm": 1291.6
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 70.8,
+          "engine_rpm": 1319.6
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 73.7,
+          "engine_rpm": 1346.6
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 76.6,
+          "engine_rpm": 1372.5
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 79.4,
+          "engine_rpm": 1397.4
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 82.5,
+          "engine_rpm": 1424.8
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 84.8,
+          "engine_rpm": 1444.8
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 87.5,
+          "engine_rpm": 1467.4
+        }
+      ]
+    },
+    {
+      "propeller": "side",
+      "vessel_speed_kn": 2.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 35.3,
+          "engine_rpm": 982.5
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 39.2,
+          "engine_rpm": 1032.6
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 43.0,
+          "engine_rpm": 1078.1
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 46.5,
+          "engine_rpm": 1120.0
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 50.0,
+          "engine_rpm": 1158.9
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 53.3,
+          "engine_rpm": 1195.3
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 56.6,
+          "engine_rpm": 1229.6
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 59.7,
+          "engine_rpm": 1261.9
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 62.8,
+          "engine_rpm": 1292.7
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 65.8,
+          "engine_rpm": 1322.1
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 68.7,
+          "engine_rpm": 1350.1
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 71.6,
+          "engine_rpm": 1377.0
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 74.4,
+          "engine_rpm": 1402.9
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 77.2,
+          "engine_rpm": 1427.9
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 80.3,
+          "engine_rpm": 1455.3
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 82.6,
+          "engine_rpm": 1475.2
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 85.3,
+          "engine_rpm": 1497.8
+        }
+      ]
+    },
+    {
+      "propeller": "side",
+      "vessel_speed_kn": 4.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 33.8,
+          "engine_rpm": 1016.2
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 37.7,
+          "engine_rpm": 1066.0
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 41.3,
+          "engine_rpm": 1111.4
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 44.8,
+          "engine_rpm": 1153.1
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 48.2,
+          "engine_rpm": 1191.9
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 51.5,
+          "engine_rpm": 1228.2
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 54.7,
+          "engine_rpm": 1262.3
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 57.8,
+          "engine_rpm": 1294.6
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 60.8,
+          "engine_rpm": 1325.3
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 63.8,
+          "engine_rpm": 1354.6
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 66.7,
+          "engine_rpm": 1382.6
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 69.5,
+          "engine_rpm": 1409.4
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 72.3,
+          "engine_rpm": 1435.3
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 75.0,
+          "engine_rpm": 1460.2
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 78.1,
+          "engine_rpm": 1487.5
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 80.4,
+          "engine_rpm": 1507.4
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 83.0,
+          "engine_rpm": 1530.0
+        }
+      ]
+    },
+    {
+      "propeller": "side",
+      "vessel_speed_kn": 6.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 32.3,
+          "engine_rpm": 1053.0
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 36.0,
+          "engine_rpm": 1102.4
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 39.6,
+          "engine_rpm": 1147.5
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 43.1,
+          "engine_rpm": 1188.9
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 46.4,
+          "engine_rpm": 1227.5
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 49.6,
+          "engine_rpm": 1263.5
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 52.8,
+          "engine_rpm": 1297.5
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 55.8,
+          "engine_rpm": 1329.6
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 58.8,
+          "engine_rpm": 1360.2
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 61.7,
+          "engine_rpm": 1389.3
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 64.6,
+          "engine_rpm": 1417.2
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 67.4,
+          "engine_rpm": 1443.9
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 70.1,
+          "engine_rpm": 1469.6
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 72.8,
+          "engine_rpm": 1494.4
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 75.8,
+          "engine_rpm": 1521.7
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 78.1,
+          "engine_rpm": 1541.5
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 80.6,
+          "engine_rpm": 1564.0
+        }
+      ]
+    },
+    {
+      "propeller": "side",
+      "vessel_speed_kn": 8.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 30.6,
+          "engine_rpm": 1093.2
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 34.3,
+          "engine_rpm": 1142.0
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 37.8,
+          "engine_rpm": 1186.5
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 41.2,
+          "engine_rpm": 1227.6
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 44.5,
+          "engine_rpm": 1265.8
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 47.7,
+          "engine_rpm": 1301.5
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 50.8,
+          "engine_rpm": 1335.2
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 53.8,
+          "engine_rpm": 1367.1
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 56.7,
+          "engine_rpm": 1397.4
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 59.6,
+          "engine_rpm": 1426.3
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 62.4,
+          "engine_rpm": 1454.0
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 65.1,
+          "engine_rpm": 1480.6
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 67.8,
+          "engine_rpm": 1506.2
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 70.5,
+          "engine_rpm": 1530.9
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 73.5,
+          "engine_rpm": 1557.9
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 75.7,
+          "engine_rpm": 1577.7
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 78.2,
+          "engine_rpm": 1600.0
+        }
+      ]
+    },
+    {
+      "propeller": "side",
+      "vessel_speed_kn": 10.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 28.9,
+          "engine_rpm": 1137.0
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 32.6,
+          "engine_rpm": 1185.0
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 36.0,
+          "engine_rpm": 1228.9
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 39.3,
+          "engine_rpm": 1269.3
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 42.6,
+          "engine_rpm": 1307.0
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 45.7,
+          "engine_rpm": 1342.3
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 48.7,
+          "engine_rpm": 1375.6
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 51.7,
+          "engine_rpm": 1407.2
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 54.6,
+          "engine_rpm": 1437.2
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 57.4,
+          "engine_rpm": 1465.9
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 60.2,
+          "engine_rpm": 1493.3
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 62.9,
+          "engine_rpm": 1519.7
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 65.5,
+          "engine_rpm": 1545.1
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 68.2,
+          "engine_rpm": 1569.5
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 71.1,
+          "engine_rpm": 1596.4
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 73.3,
+          "engine_rpm": 1616.0
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 75.8,
+          "engine_rpm": 1638.2
+        }
+      ]
+    },
+    {
+      "propeller": "side",
+      "vessel_speed_kn": 12.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 27.2,
+          "engine_rpm": 1184.7
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 30.7,
+          "engine_rpm": 1231.7
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 34.1,
+          "engine_rpm": 1274.6
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 37.4,
+          "engine_rpm": 1314.4
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 40.5,
+          "engine_rpm": 1351.4
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 43.6,
+          "engine_rpm": 1386.2
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 46.6,
+          "engine_rpm": 1419.0
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 49.5,
+          "engine_rpm": 1450.1
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 52.3,
+          "engine_rpm": 1479.8
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 55.1,
+          "engine_rpm": 1508.1
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 57.9,
+          "engine_rpm": 1535.2
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 60.5,
+          "engine_rpm": 1561.3
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 63.2,
+          "engine_rpm": 1586.4
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 65.8,
+          "engine_rpm": 1610.6
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 68.6,
+          "engine_rpm": 1637.2
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 70.8,
+          "engine_rpm": 1656.7
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 73.3,
+          "engine_rpm": 1678.7
+        }
+      ]
+    },
+    {
+      "propeller": "side",
+      "vessel_speed_kn": 14.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 25.4,
+          "engine_rpm": 1236.5
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 28.8,
+          "engine_rpm": 1282.1
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 32.2,
+          "engine_rpm": 1324.0
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 35.4,
+          "engine_rpm": 1362.8
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 38.5,
+          "engine_rpm": 1399.0
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 41.5,
+          "engine_rpm": 1433.1
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 44.4,
+          "engine_rpm": 1465.4
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 47.3,
+          "engine_rpm": 1496.0
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 50.1,
+          "engine_rpm": 1525.2
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 52.8,
+          "engine_rpm": 1553.0
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 55.5,
+          "engine_rpm": 1579.8
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 58.1,
+          "engine_rpm": 1605.5
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 60.7,
+          "engine_rpm": 1630.3
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 63.3,
+          "engine_rpm": 1654.2
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 66.1,
+          "engine_rpm": 1680.5
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 68.3,
+          "engine_rpm": 1699.7
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 70.7,
+          "engine_rpm": 1721.5
+        }
+      ]
+    },
+    {
+      "propeller": "centre",
+      "vessel_speed_kn": 0.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 35.4,
+          "engine_rpm": 966.7
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 39.2,
+          "engine_rpm": 1017.6
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 42.9,
+          "engine_rpm": 1064.0
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 46.4,
+          "engine_rpm": 1106.6
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 49.8,
+          "engine_rpm": 1146.1
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 53.0,
+          "engine_rpm": 1183.1
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 56.2,
+          "engine_rpm": 1217.9
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 59.3,
+          "engine_rpm": 1250.9
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 62.3,
+          "engine_rpm": 1282.1
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 65.2,
+          "engine_rpm": 1312.0
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 68.1,
+          "engine_rpm": 1340.5
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 70.9,
+          "engine_rpm": 1367.9
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 73.6,
+          "engine_rpm": 1394.2
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 76.4,
+          "engine_rpm": 1419.5
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 79.4,
+          "engine_rpm": 1447.4
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 81.6,
+          "engine_rpm": 1467.7
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 84.2,
+          "engine_rpm": 1490.6
+        }
+      ]
+    },
+    {
+      "propeller": "centre",
+      "vessel_speed_kn": 2.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 34.1,
+          "engine_rpm": 996.8
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 37.8,
+          "engine_rpm": 1047.7
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 41.4,
+          "engine_rpm": 1093.9
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 44.9,
+          "engine_rpm": 1136.5
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 48.2,
+          "engine_rpm": 1176.0
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 51.4,
+          "engine_rpm": 1213.0
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 54.5,
+          "engine_rpm": 1247.8
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 57.6,
+          "engine_rpm": 1280.7
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 60.5,
+          "engine_rpm": 1311.9
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 63.4,
+          "engine_rpm": 1341.7
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 66.3,
+          "engine_rpm": 1370.3
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 69.0,
+          "engine_rpm": 1397.6
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 71.7,
+          "engine_rpm": 1423.9
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 74.4,
+          "engine_rpm": 1449.2
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 77.4,
+          "engine_rpm": 1477.1
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 79.6,
+          "engine_rpm": 1497.4
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 82.2,
+          "engine_rpm": 1520.3
+        }
+      ]
+    },
+    {
+      "propeller": "centre",
+      "vessel_speed_kn": 4.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 32.7,
+          "engine_rpm": 1029.4
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 36.4,
+          "engine_rpm": 1080.1
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 39.9,
+          "engine_rpm": 1126.2
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 43.3,
+          "engine_rpm": 1168.6
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 46.6,
+          "engine_rpm": 1208.0
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 49.7,
+          "engine_rpm": 1244.9
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 52.8,
+          "engine_rpm": 1279.6
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 55.8,
+          "engine_rpm": 1312.4
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 58.7,
+          "engine_rpm": 1343.6
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 61.6,
+          "engine_rpm": 1373.3
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 64.4,
+          "engine_rpm": 1401.8
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 67.1,
+          "engine_rpm": 1429.1
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 69.8,
+          "engine_rpm": 1455.3
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 72.4,
+          "engine_rpm": 1480.6
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 75.4,
+          "engine_rpm": 1508.4
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 77.6,
+          "engine_rpm": 1528.6
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 80.1,
+          "engine_rpm": 1551.5
+        }
+      ]
+    },
+    {
+      "propeller": "centre",
+      "vessel_speed_kn": 6.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 31.2,
+          "engine_rpm": 1064.8
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 34.9,
+          "engine_rpm": 1115.1
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 38.3,
+          "engine_rpm": 1160.9
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 41.7,
+          "engine_rpm": 1203.1
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 44.9,
+          "engine_rpm": 1242.3
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 48.0,
+          "engine_rpm": 1279.0
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 51.0,
+          "engine_rpm": 1313.5
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 54.0,
+          "engine_rpm": 1346.2
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 56.9,
+          "engine_rpm": 1377.2
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 59.7,
+          "engine_rpm": 1406.8
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 62.4,
+          "engine_rpm": 1435.2
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 65.1,
+          "engine_rpm": 1462.4
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 67.8,
+          "engine_rpm": 1488.5
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 70.4,
+          "engine_rpm": 1513.7
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 73.3,
+          "engine_rpm": 1541.4
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 75.4,
+          "engine_rpm": 1561.6
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 77.9,
+          "engine_rpm": 1584.4
+        }
+      ]
+    },
+    {
+      "propeller": "centre",
+      "vessel_speed_kn": 8.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 29.7,
+          "engine_rpm": 1103.3
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 33.3,
+          "engine_rpm": 1153.1
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 36.7,
+          "engine_rpm": 1198.4
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 40.0,
+          "engine_rpm": 1240.2
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 43.1,
+          "engine_rpm": 1279.1
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 46.2,
+          "engine_rpm": 1315.5
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 49.2,
+          "engine_rpm": 1349.7
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 52.1,
+          "engine_rpm": 1382.2
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 54.9,
+          "engine_rpm": 1413.1
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 57.7,
+          "engine_rpm": 1442.5
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 60.4,
+          "engine_rpm": 1470.7
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 63.1,
+          "engine_rpm": 1497.7
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 65.7,
+          "engine_rpm": 1523.7
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 68.3,
+          "engine_rpm": 1548.8
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 71.1,
+          "engine_rpm": 1576.4
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 73.3,
+          "engine_rpm": 1596.5
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 75.7,
+          "engine_rpm": 1619.2
+        }
+      ]
+    },
+    {
+      "propeller": "centre",
+      "vessel_speed_kn": 10.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 28.2,
+          "engine_rpm": 1145.3
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 31.7,
+          "engine_rpm": 1194.3
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 35.0,
+          "engine_rpm": 1239.0
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 38.2,
+          "engine_rpm": 1280.2
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 41.3,
+          "engine_rpm": 1318.6
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 44.3,
+          "engine_rpm": 1354.6
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 47.3,
+          "engine_rpm": 1388.5
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 50.1,
+          "engine_rpm": 1420.7
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 52.9,
+          "engine_rpm": 1451.3
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 55.7,
+          "engine_rpm": 1480.5
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 58.3,
+          "engine_rpm": 1508.4
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 61.0,
+          "engine_rpm": 1535.2
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 63.5,
+          "engine_rpm": 1561.1
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 66.1,
+          "engine_rpm": 1586.0
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 68.9,
+          "engine_rpm": 1613.3
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 71.0,
+          "engine_rpm": 1633.3
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 73.4,
+          "engine_rpm": 1655.9
+        }
+      ]
+    },
+    {
+      "propeller": "centre",
+      "vessel_speed_kn": 12.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 26.5,
+          "engine_rpm": 1190.8
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 30.0,
+          "engine_rpm": 1238.8
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 33.2,
+          "engine_rpm": 1282.7
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 36.4,
+          "engine_rpm": 1323.2
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 39.5,
+          "engine_rpm": 1361.0
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 42.4,
+          "engine_rpm": 1396.5
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 45.3,
+          "engine_rpm": 1430.0
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 48.1,
+          "engine_rpm": 1461.7
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 50.9,
+          "engine_rpm": 1492.0
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 53.6,
+          "engine_rpm": 1520.8
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 56.2,
+          "engine_rpm": 1548.5
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 58.8,
+          "engine_rpm": 1575.1
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 61.3,
+          "engine_rpm": 1600.6
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 63.8,
+          "engine_rpm": 1625.3
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 66.6,
+          "engine_rpm": 1652.5
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 68.7,
+          "engine_rpm": 1672.3
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 71.1,
+          "engine_rpm": 1694.7
+        }
+      ]
+    },
+    {
+      "propeller": "centre",
+      "vessel_speed_kn": 14.0,
+      "points": [
+        {
+          "absorbed_engine_power_kw": 300.0,
+          "effective_thrust_kn": 24.8,
+          "engine_rpm": 1240.1
+        },
+        {
+          "absorbed_engine_power_kw": 350.0,
+          "effective_thrust_kn": 28.2,
+          "engine_rpm": 1286.9
+        },
+        {
+          "absorbed_engine_power_kw": 400.0,
+          "effective_thrust_kn": 31.4,
+          "engine_rpm": 1329.7
+        },
+        {
+          "absorbed_engine_power_kw": 450.0,
+          "effective_thrust_kn": 34.5,
+          "engine_rpm": 1369.4
+        },
+        {
+          "absorbed_engine_power_kw": 500.0,
+          "effective_thrust_kn": 37.5,
+          "engine_rpm": 1406.5
+        },
+        {
+          "absorbed_engine_power_kw": 550.0,
+          "effective_thrust_kn": 40.4,
+          "engine_rpm": 1441.4
+        },
+        {
+          "absorbed_engine_power_kw": 600.0,
+          "effective_thrust_kn": 43.3,
+          "engine_rpm": 1474.3
+        },
+        {
+          "absorbed_engine_power_kw": 650.0,
+          "effective_thrust_kn": 46.0,
+          "engine_rpm": 1505.5
+        },
+        {
+          "absorbed_engine_power_kw": 700.0,
+          "effective_thrust_kn": 48.8,
+          "engine_rpm": 1535.3
+        },
+        {
+          "absorbed_engine_power_kw": 750.0,
+          "effective_thrust_kn": 51.4,
+          "engine_rpm": 1563.8
+        },
+        {
+          "absorbed_engine_power_kw": 800.0,
+          "effective_thrust_kn": 54.0,
+          "engine_rpm": 1591.1
+        },
+        {
+          "absorbed_engine_power_kw": 850.0,
+          "effective_thrust_kn": 56.6,
+          "engine_rpm": 1617.3
+        },
+        {
+          "absorbed_engine_power_kw": 900.0,
+          "effective_thrust_kn": 59.1,
+          "engine_rpm": 1642.6
+        },
+        {
+          "absorbed_engine_power_kw": 950.0,
+          "effective_thrust_kn": 61.5,
+          "engine_rpm": 1667.0
+        },
+        {
+          "absorbed_engine_power_kw": 1007.0,
+          "effective_thrust_kn": 64.3,
+          "engine_rpm": 1693.8
+        },
+        {
+          "absorbed_engine_power_kw": 1050.0,
+          "effective_thrust_kn": 66.4,
+          "engine_rpm": 1713.4
+        },
+        {
+          "absorbed_engine_power_kw": 1100.0,
+          "effective_thrust_kn": 68.7,
+          "engine_rpm": 1735.6
+        }
+      ]
+    }
+  ]
+}

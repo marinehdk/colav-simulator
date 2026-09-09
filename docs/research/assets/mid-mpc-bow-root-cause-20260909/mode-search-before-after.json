@@ -1,0 +1,38 @@
+{
+  "before": {
+    "commands": {
+      "main_thruster_port": -4831.84210780396,
+      "main_thruster_center": 0.0,
+      "main_thruster_starboard": 0.0,
+      "bow_tunnel_thruster_aft": 16664.227668681353,
+      "bow_tunnel_thruster_forward": -20000.0,
+      "rudder_port": -5901.452742451728,
+      "rudder_starboard": -5901.452742451728
+    },
+    "residual": {
+      "surge_n": 6044.714265725821,
+      "sway_n": 1765.5389386599072,
+      "yaw_nm": -46423.40303903847,
+      "roll_nm": 0.0
+    },
+    "evaluations": 8
+  },
+  "after": {
+    "commands": {
+      "main_thruster_port": 502.31937239595925,
+      "main_thruster_center": 0.0,
+      "main_thruster_starboard": 2044.4824802091828,
+      "bow_tunnel_thruster_aft": 16077.78467990724,
+      "bow_tunnel_thruster_forward": -20000.0,
+      "rudder_port": -6413.709839797834,
+      "rudder_starboard": -8092.896472729736
+    },
+    "residual": {
+      "surge_n": -0.5794322441761324,
+      "sway_n": 0.004673169800298638,
+      "yaw_nm": -0.2359200656064786,
+      "roll_nm": 0.0
+    },
+    "evaluations": 32
+  }
+}

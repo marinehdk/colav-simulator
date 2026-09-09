@@ -1,0 +1,314 @@
+{
+  "baseline_commit": "792533629aa25eb9c377014e8ae0684fb5b58357",
+  "implementation_hashes": {
+    "colav_simulator/modular_gnc/fcb45_actuation.py": "d5caefec975a0b5f4af727b4f0273d2b0d1d853281cf9d33a60877db3b44a257",
+    "tools/gnc_characterization/run_fcb45_fullstack_campaign.py": "6cc92a60b264bd6bb4114b78f345d8add1a314229078e0ad48b89cd6580e72f4"
+  },
+  "minimal_before": {
+    "source_session": "a73256fd-5bc7-4859-ae57-e6f9390a86d4",
+    "source_time_s": 401.0,
+    "cases": [
+      {
+        "initialization": "cold",
+        "main_thrust_kn": [
+          6.6666617995196775,
+          6.666661791204582,
+          6.666661782889508
+        ],
+        "total_absolute_main_kn": 19.999985373613768,
+        "achieved_surge_n": 19999.985373613767,
+        "achieved_yaw_nm": -3.8383539827335565e-06
+      },
+      {
+        "initialization": "captured_previous_allocation",
+        "main_thrust_kn": [
+          50.37376060439562,
+          -64.84371509888399,
+          38.830387456971664
+        ],
+        "total_absolute_main_kn": 154.04786316025127,
+        "achieved_surge_n": 20000.018086219454,
+        "achieved_yaw_nm": -0.012948902091011405
+      }
+    ]
+  },
+  "minimal_after": {
+    "source_session": "a73256fd-5bc7-4859-ae57-e6f9390a86d4",
+    "source_time_s": 401.0,
+    "cases": [
+      {
+        "initialization": "cold",
+        "main_thrust_kn": [
+          6.6666617995196775,
+          6.666661791204582,
+          6.666661782889508
+        ],
+        "total_absolute_main_kn": 19.999985373613768,
+        "achieved_surge_n": 19999.985373613767,
+        "achieved_yaw_nm": -3.8383539827335565e-06
+      },
+      {
+        "initialization": "captured_previous_allocation",
+        "main_thrust_kn": [
+          19.017575383616958,
+          0.0,
+          7.271250990280931
+        ],
+        "total_absolute_main_kn": 26.28882637389789,
+        "achieved_surge_n": 19999.978268799274,
+        "achieved_yaw_nm": -0.24730193091090769
+      }
+    ]
+  },
+  "same_load_feasibility": {
+    "source_session": "a73256fd-5bc7-4859-ae57-e6f9390a86d4",
+    "source_time_s": 401.0,
+    "target": [
+      46584.974494545524,
+      -23671.383494297184,
+      506827.58935854945
+    ],
+    "cases": [
+      {
+        "case": "captured_commands_at_captured_navigation",
+        "main_kn": [
+          59.464009140134166,
+          -55.583245590319166,
+          47.996814162559694
+        ],
+        "sum_abs_main_kn": 163.04406889301302,
+        "rudder_deg": {
+          "rudder_port": -3.7218661224513307,
+          "rudder_starboard": 5.511491090112787
+        },
+        "load_N_N_Nm": [
+          46584.974494545524,
+          -23671.383494297184,
+          506827.58935854945
+        ],
+        "error_N_N_Nm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "case": "production_cold",
+        "main_kn": [
+          16.470818118090214,
+          15.539998769243065,
+          15.129023936730054
+        ],
+        "sum_abs_main_kn": 47.13984082406333,
+        "rudder_deg": {
+          "rudder_port": 1.2311972871129795,
+          "rudder_starboard": 1.2464290266075844
+        },
+        "load_N_N_Nm": [
+          46584.93936975795,
+          -25660.515960051383,
+          506827.52743405884
+        ],
+        "error_N_N_Nm": [
+          -0.03512478757329518,
+          -1989.132465754199,
+          -0.06192449061200023
+        ]
+      },
+      {
+        "case": "production_warm",
+        "main_kn": [
+          59.464009140134166,
+          -55.583245590319166,
+          47.996814162559694
+        ],
+        "sum_abs_main_kn": 163.04406889301302,
+        "rudder_deg": {
+          "rudder_port": -3.7218661224513307,
+          "rudder_starboard": 5.511491090112787
+        },
+        "load_N_N_Nm": [
+          46584.974494545524,
+          -23671.383494297184,
+          506827.58935854945
+        ],
+        "error_N_N_Nm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "case": "ahead_only_same_three_loads_witness",
+        "main_kn": [
+          31.38485752176866,
+          0.0073290042540375445,
+          16.0913148678652
+        ],
+        "sum_abs_main_kn": 47.4835013938879,
+        "rudder_deg": {
+          "rudder_port": 2.498270796102613,
+          "rudder_starboard": -0.6913761686300749
+        },
+        "load_N_N_Nm": [
+          46584.97449467266,
+          -23671.383494419304,
+          506827.58935494826
+        ],
+        "error_N_N_Nm": [
+          1.27132807392627e-07,
+          -1.2211967259645462e-07,
+          -3.6011915653944016e-06
+        ],
+        "optimizer_success": true
+      }
+    ]
+  },
+  "straight_before": [
+    {
+      "environment": "off",
+      "first_opposing_s": 9.1,
+      "opposing_tick_count": 2665,
+      "minimum_center_kn": -3.013841525468132,
+      "final": {
+        "time_s": 300.0,
+        "main_kn": [
+          13.879544251525306,
+          -1.8251839142635717,
+          19.0348545932563
+        ],
+        "yaw_nm": -2430.737360733722,
+        "surge_n": 31080.05518484062,
+        "sway_n": -663.1467166420895,
+        "u": 6.000038590066935,
+        "v": -0.0016923859042260866,
+        "heading_deg": 0.026415149181659443,
+        "cross_track_m": -0.09751329432151368
+      },
+      "elapsed_s": 2.4583749168086797
+    },
+    {
+      "environment": "on",
+      "first_opposing_s": 7.6000000000000005,
+      "opposing_tick_count": 2925,
+      "minimum_center_kn": -10.125041359757153,
+      "final": {
+        "time_s": 300.0,
+        "main_kn": [
+          9.892594069630368,
+          -8.25919074770561,
+          21.7264387921269
+        ],
+        "yaw_nm": -16722.174937466607,
+        "surge_n": 23348.548630764108,
+        "sway_n": 1408.438846510778,
+        "u": 6.382813589537967,
+        "v": -0.21787740901605823,
+        "heading_deg": 3.0697369410874735,
+        "cross_track_m": 0.11113555797827963
+      },
+      "elapsed_s": 7.783879749942571
+    }
+  ],
+  "straight_after": [
+    {
+      "environment": "off",
+      "first_opposing_s": null,
+      "opposing_tick_count": 0,
+      "minimum_center_kn": 0.0,
+      "final": {
+        "time_s": 300.0,
+        "main_kn": [
+          18.464985346224235,
+          1.0030957603600161,
+          11.62832831087773
+        ],
+        "yaw_nm": 3222.823394794585,
+        "surge_n": 31080.068908427922,
+        "sway_n": 882.4527382923256,
+        "u": 6.000039248210471,
+        "v": 0.0022663271462142875,
+        "heading_deg": -0.011724141948485978,
+        "cross_track_m": -0.09431061117348517
+      },
+      "elapsed_s": 2.681442500092089
+    },
+    {
+      "environment": "on",
+      "first_opposing_s": null,
+      "opposing_tick_count": 0,
+      "minimum_center_kn": 0.0,
+      "final": {
+        "time_s": 300.0,
+        "main_kn": [
+          9.698510489716222,
+          1.528181906543718,
+          11.916668448590721
+        ],
+        "yaw_nm": -444.93641531819594,
+        "surge_n": 23064.422323589708,
+        "sway_n": 2070.4937810698334,
+        "u": 6.380974160742977,
+        "v": -0.2133083601909186,
+        "heading_deg": 2.9143601882356056,
+        "cross_track_m": 0.11028040822075863
+      },
+      "elapsed_s": 8.497944333124906
+    }
+  ],
+  "focused_tests": {
+    "passed": 113,
+    "new_policy_tests_included": 13,
+    "original_four_tests_failed_before_fix": true,
+    "snapshot_replay_recheck_passed": true
+  },
+  "closed_loop": [
+    {
+      "scenario": "head_on",
+      "algorithm": "vo",
+      "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+      "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+      "state": "FINISHED",
+      "end_time_s": 681.0,
+      "goal_reached": true,
+      "failures": [],
+      "minimum_center_distances_m": [
+        220.03135915999948
+      ],
+      "final_goal_distance_m": 306.4229558671392,
+      "final_speed_mps": 5.1322814692484355,
+      "fallback_used": false,
+      "source_fingerprint_hash": "3734d9259bd90bfb94212c3a73110485dc168469540f2c961c4d9bda2fd5b43c",
+      "steps": 1362,
+      "mixed_direction_steps": 0
+    },
+    {
+      "scenario": "paper_ccta2023_multiship",
+      "algorithm": "vo",
+      "stack_id": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+      "config_hash": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a",
+      "state": "FINISHED",
+      "end_time_s": 1396.0999999998257,
+      "goal_reached": true,
+      "failures": [],
+      "minimum_center_distances_m": [
+        319.40272659272887,
+        216.6100427540559,
+        221.75418576439486
+      ],
+      "final_goal_distance_m": 308.5141521390267,
+      "final_speed_mps": 5.818201572063327,
+      "fallback_used": false,
+      "source_fingerprint_hash": "3734d9259bd90bfb94212c3a73110485dc168469540f2c961c4d9bda2fd5b43c",
+      "steps": 13961,
+      "mixed_direction_steps": 0
+    }
+  ],
+  "limits": [
+    "No manufacturer propulsion maps installed by this fix",
+    "Sum of absolute thrust is not shaft power",
+    "Ahead-only witness is static feasibility, not a rate-feasible one-tick transition",
+    "VO native arrival criterion, not Mid precise stopping or full COLREG quality evaluation",
+    "First campaign attempt selected ideal stack by ambiguous substring and was excluded; campaign selection now uses full ON product preset"
+  ]
+}

@@ -491,11 +491,12 @@ def _semantic_trajectory_value(value: Any, key: str | None = None) -> Any:
     if any(part in key_lower for part in _VOLATILE_TRAJECTORY_KEY_PARTS):
         return None
     if isinstance(value, dict):
-        return {
-            str(child_key): _semantic_trajectory_value(child_value, str(child_key))
-            for child_key, child_value in value.items()
-            if _semantic_trajectory_value(child_value, str(child_key)) is not None
-        }
+        normalized = {}
+        for child_key, child_value in value.items():
+            child = _semantic_trajectory_value(child_value, str(child_key))
+            if child is not None:
+                normalized[str(child_key)] = child
+        return normalized
     if isinstance(value, (list, tuple)):
         return [_semantic_trajectory_value(child) for child in value]
     return jsonable(value)

@@ -26,6 +26,8 @@ from colav_simulator.core.colav.horizon_encounter_plan import (
     HorizonEncounterPlan,
     TargetHorizonWindow,
 )
+from colav_simulator.core.colav.mid_mpc import MidMpcConfig
+from colav_simulator.core.colav.mid_mpc.solver import _prepare, _row_layout
 from colav_simulator.core.colav.mid_mpc_assembler import (
     AssemblyFailure,
     AssemblyFailureCode,
@@ -73,6 +75,56 @@ def test_scheduled_corridor_can_be_reentered_at_the_declared_turn_rate(monkeypat
     assert bounds[0][0] <= step
     assert bounds[1][0] <= 2.0 * step
     assert bounds[2][0] == pytest.approx(corridor)
+
+
+@pytest.mark.parametrize("side", [-1, 1])
+@pytest.mark.parametrize("turns", [0, 1])
+def test_late_hard_corridor_is_inside_solver_heading_envelope(monkeypatch, side: int, turns: int) -> None:
+    planner_input = _planner_input()
+    state = planner_input.ownship_state.copy()
+    state[2] = turns * 2.0 * math.pi
+    planner_input = replace(planner_input, ownship_state=state)
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    request = _request(planner_input, snapshot)
+    n = request.config.horizon_steps
+    corridor = side * 1.2
+    plan = HorizonEncounterPlan(
+        reference_time_s=5.0,
+        times_s=np.arange(n + 1) * request.config.horizon_dt_s,
+        mission_route_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=0.0,
+        phases=(HorizonEncounterPhase.MISSION,) * (n - 1) + (HorizonEncounterPhase.ALTER,) * 2,
+        recovery_from_k=None,
+        target_windows=(
+            TargetHorizonWindow(
+                TrackKey(1, 1),
+                n - 1,
+                None,
+                False,
+                200.0,
+                0.2,
+                action_start_k=n - 2,
+                corridor_bearing_rad=corridor,
+                passing_side=side,
+            ),
+        ),
+        corridor_reference_rad=(0.0,) * (n - 1) + (corridor,) * 2,
+    )
+    monkeypatch.setattr(
+        "colav_simulator.core.colav.mid_mpc_assembler._compile_horizon_encounter_plan", lambda *args, **kwargs: plan
+    )
+    outcome = MidMpcProblemAssembler().assemble(request)
+    assert isinstance(outcome, AssemblySuccess)
+    config = MidMpcConfig(horizon_steps=n, dt_s=request.config.horizon_dt_s, strict_slack_bounds=True)
+    prepared = _prepare(
+        config, outcome.problem, _row_layout(config, len(outcome.problem.targets), outcome.problem.audit_row_count)
+    )
+    assert np.all(prepared.lbx <= prepared.ubx)
+    scheduled = outcome.problem.row_schedule.course_bounds_rad[-1]
+    assert scheduled[0 if side > 0 else 1] == pytest.approx(state[2] + corridor)
+    assert outcome.problem.rot_max_rad_s == request.capability.rot_max_rad_s
 
 
 def test_assembler_returns_atomic_typed_failure_for_cycle_mismatch() -> None:

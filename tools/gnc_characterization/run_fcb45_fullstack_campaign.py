@@ -53,7 +53,9 @@ def run_cell(root: Path, output: Path, scenario: str, algorithm: str) -> dict:  
     )
     fingerprint = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
     (output / "source_fingerprint.json").write_text(json.dumps(fingerprint, indent=2))
-    stack_entry = next(x for x in list_stack_catalog()["stacks"] if "fcb45_environmental_load" in x["stack_id"])
+    catalog = list_stack_catalog()
+    full_stack = next(p for p in catalog["product_presets"] if p["id"] == "full")
+    stack_entry = next(x for x in catalog["stacks"] if x["stack_id"] == full_stack["variants"]["on"])
     config = {}
     domain = None
     if algorithm == "mid_mpc_ipopt":
@@ -174,6 +176,21 @@ def run_cell(root: Path, output: Path, scenario: str, algorithm: str) -> dict:  
                     "speed_reference_mps": guidance.speed_reference_mps,
                     "controller_reference": list(stack.modules.controller_trace().reference),
                     "controller_request": list(stack.modules.controller_trace().raw_request),
+                    "controller_saturated_request": list(stack.modules.controller_trace().saturated_output),
+                    "controller_terms": {
+                        key: list(getattr(stack.modules.controller_trace(), key))
+                        for key in ("p_term", "i_term", "d_term", "feedforward")
+                    },
+                    "allocator_achieved": [
+                        allocation.achieved.surge_n,
+                        allocation.achieved.sway_n,
+                        allocation.achieved.yaw_nm,
+                    ],
+                    "allocator_residual": [
+                        allocation.residual.surge_n,
+                        allocation.residual.sway_n,
+                        allocation.residual.yaw_nm,
+                    ],
                     "controller_achieved": list(actuator.achieved_load),
                     "planner_mode": {
                         key: planner.get("algorithm_details", {}).get(key)
