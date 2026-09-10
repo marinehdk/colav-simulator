@@ -115,7 +115,7 @@ test('ROUTE and COMPASS ROT normalize rounded zero and retain the last valid val
   assert.match(app, /const rotDegSec = lastDisplayedRotDegSec/);
   assert.doesNotMatch(app, /liveRouteRot[^\n]*---/);
   assert.doesNotMatch(app, /liveRot\.readouts = rotDegSec === null/);
-  assert.match(app, /nDigits: 2, nDecimals: 1, unit: '°\/s'/);
+  assert.match(app, /nDigits: 1, nDecimals: 1, unit: '°\/s'/);
   assert.match(app, /本船转向率 \$\{rotDegSec\.toFixed\(1\)\} 度每秒/);
   assert.match(app, /const yawRate = Math\.abs\(rotDegSec\) \* Math\.PI \/ 180/);
   assert.match(app, /routeRadius = formatRouteRadius\(turnRadiusM\)/);

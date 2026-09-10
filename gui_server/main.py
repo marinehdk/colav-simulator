@@ -16,7 +16,7 @@ import re
 import shutil
 import threading
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
@@ -68,6 +68,7 @@ TELEMETRY_PUBLISH_INTERVAL_S = 0.1
 TELEMETRY_TRAIL_HISTORY_SECONDS = 300.0
 TELEMETRY_MAX_TRAIL_POINTS = 120
 TELEMETRY_EVIDENCE_RECENT_EVENTS = 32
+VO_DECISION_HISTORY_LIMIT = 64
 
 # Issue #67 validated COLAV spacing profiles, run by product (GUI) sessions
 # when the client sends no algorithm config. With the bare published defaults
@@ -599,6 +600,7 @@ class WebSessionManager:
         self.current_prediction_horizon: list[list[float]] = []
         self.last_solve_id: int | None = None
         self.latest_planner_solve: dict[str, Any] = {}
+        self._vo_decision_history: OrderedDict[int, dict[str, Any]] = OrderedDict()
         self.active_planner_plan: dict[str, Any] = {}
         self.latest_planner_attempt: dict[str, Any] = {}
         self.enc_navigation_area: dict[str, Any] = {}
@@ -637,6 +639,7 @@ class WebSessionManager:
         self.current_prediction_horizon = []
         self.last_solve_id = None
         self.latest_planner_solve = {}
+        self._vo_decision_history.clear()
         self.active_planner_plan = {}
         self.latest_planner_attempt = {}
         self._telemetry_trails = {}
@@ -818,6 +821,7 @@ class WebSessionManager:
 
     def _publish_telemetry(self, snapshot: Any) -> None:
         self.latest = self._telemetry(snapshot)
+        self._remember_vo_decision_space()
         self._telemetry_published_at = time.monotonic()
         self._invalidate_stream_documents()
 
@@ -1007,9 +1011,26 @@ class WebSessionManager:
         self._require(session_id)
         return self.enc_navigation_area
 
+    def _remember_vo_decision_space(self) -> None:
+        """Retain published solves for delayed presentation without bloating telemetry."""
+        planner = self.latest.get("latest_planner_solve") or self.latest.get("planner") or {}
+        solve_id = planner.get("solve_id")
+        if planner.get("algorithm_id") != "vo" or not solve_id or solve_id in self._vo_decision_history:
+            return
+        if self.prepared is None or not self.prepared.session.ship_list:
+            return
+        snapshot = self.prepared.session.ship_list[0].get_colav_decision_space()
+        if snapshot is None or snapshot.get("solve_id") != solve_id:
+            return
+        self._vo_decision_history[solve_id] = jsonable(snapshot)
+        while len(self._vo_decision_history) > VO_DECISION_HISTORY_LIMIT:
+            self._vo_decision_history.popitem(last=False)
+
     def planner_decision_space(self, session_id: str, solve_id: int) -> dict[str, Any] | None:
         with self.lock:
             prepared = self._require(session_id)
+            if solve_id in self._vo_decision_history:
+                return self._vo_decision_history[solve_id]
             if not prepared.session.ship_list:
                 return None
             snapshot = prepared.session.ship_list[0].get_colav_decision_space()

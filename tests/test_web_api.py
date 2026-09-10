@@ -1032,3 +1032,71 @@ def test_reset_while_running_reuses_prepared_episode(monkeypatch: pytest.MonkeyP
     assert replacement_manifest.enc_hash == source_manifest.enc_hash
     assert [event["type"] for event in telemetry["operational_events"]] == ["session_reset"]
     assert telemetry["operational_events"][0]["details"]["previous_session_id"] == session_id
+
+
+def test_vo_buffered_display_can_fetch_an_earlier_published_solve() -> None:
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/sessions",
+            json={
+                "validation_rule_id": "rule14",
+                "scenario_id": "head_on",
+                "algorithm_id": "vo",
+                "tracker_id": "god",
+                "t_end": 20.0,
+            },
+        )
+        assert created.status_code == 200
+        session_id = created.json()["session_id"]
+        first = client.post(f"/api/sessions/{session_id}/step").json()
+        solve_id = first["latest_planner_solve"]["solve_id"]
+        for _ in range(8):
+            latest = client.post(f"/api/sessions/{session_id}/step").json()
+        assert latest["latest_planner_solve"]["solve_id"] > solve_id
+        # No earlier decision-space GET: capture must happen at publication,
+        # before the delayed browser first asks for this solve.
+        response = client.get(f"/api/sessions/{session_id}/planner/decision-space", params={"solve_id": solve_id})
+        assert response.status_code == 200, response.text
+        assert response.json()["solve_id"] == solve_id
+        assert "candidate_state_bits" not in latest["latest_planner_solve"]["algorithm_details"]
+        reset = client.post(f"/api/sessions/{session_id}/reset")
+        assert reset.status_code == 200
+        new_id = reset.json()["session_id"]
+        assert new_id != session_id
+        assert client.get(f"/api/sessions/{new_id}/planner/decision-space", params={"solve_id": solve_id}).status_code == 204
+        assert (
+            client.get(f"/api/sessions/{session_id}/planner/decision-space", params={"solve_id": solve_id}).status_code
+            == 404
+        )
+
+
+def test_vo_decision_history_is_bounded_and_captures_each_solve_once(monkeypatch) -> None:
+    service = gui_main.WebSessionManager()
+    current = {}
+    reads = []
+
+    def decision_space() -> dict:
+        reads.append(current["solve_id"])
+        return current
+
+    service.prepared = SimpleNamespace(
+        manifest=SimpleNamespace(run_id="history-run"),
+        session=SimpleNamespace(ship_list=[SimpleNamespace(get_colav_decision_space=decision_space)]),
+    )
+    monkeypatch.setattr(
+        service,
+        "_telemetry",
+        lambda _: {
+            "latest_planner_solve": {"algorithm_id": "vo", "solve_id": current["solve_id"]},
+        },
+    )
+    for solve_id in range(1, gui_main.VO_DECISION_HISTORY_LIMIT + 2):
+        current = {"solve_id": solve_id, "candidate_state_bits": [solve_id]}
+        service._publish_telemetry(None)
+        service._publish_telemetry(None)  # HOLD does not copy the dense matrix again.
+        current["candidate_state_bits"][0] = -1
+    assert len(reads) == gui_main.VO_DECISION_HISTORY_LIMIT + 1
+    assert len(service._vo_decision_history) == gui_main.VO_DECISION_HISTORY_LIMIT
+    assert service.planner_decision_space("history-run", 2)["candidate_state_bits"] == [2]
+    with pytest.raises(RuntimeError, match="stale"):
+        service.planner_decision_space("history-run", 1)

@@ -605,3 +605,28 @@ test('buffered ownship keeps rendering between frames with the same source seque
     && Math.abs(args[0] - expected.x) < 1e-8 && Math.abs(args[1] - expected.y) < 1e-8));
   display.destroy();
 });
+
+for (const multiplier of [1, 5]) {
+  test(`attached VO circle follows buffered ownship at ${multiplier}x without pointer events`, async () => {
+    const surface = { type: 'vo', vo: {
+      shape: [1, 4], speed_candidates_mps: [8], heading_candidates_rad: [0, 1, 2, 3],
+      candidate_state_bits: [0, 0, 0, 0], total_costs: [1, 2, 3, 4], ownship_heading_rad: 0,
+    } };
+    const { display } = await createDisplay({ getPlannerSurface: () => surface });
+    display.setPlannerSurfaceAttached(true);
+    const first = sampleSnapshot({ obstacles: [], presentation: { render_time_s: 10, interpolation_ms: 25 },
+      playback: { requested_multiplier: multiplier } });
+    display.render(first);
+    ctxStub.calls.length = 0;
+    const second = { ...first, os: { ...first.os, x: first.os.x + multiplier * 2 },
+      presentation: { render_time_s: 10.1, interpolation_ms: 25 } };
+    display.render(second);
+    const expected = display.worldToCanvas(second.os.x, second.os.y);
+    const circles = ctxStub.calls.filter(([name, args]) => name === 'arc' && args[2] === 110);
+    assert.ok(circles.length > 0);
+    const [, finalCircle] = circles.at(-1);
+    assert.ok(Math.abs(finalCircle[0] - expected.x) < 1e-8);
+    assert.ok(Math.abs(finalCircle[1] - expected.y) < 1e-8);
+    display.destroy();
+  });
+}

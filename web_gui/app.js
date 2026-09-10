@@ -288,7 +288,7 @@ function showVesselPlacard(target, context = {}) {
   placardMetric('vesselPlacardRange', Number.isFinite(rangeM) ? (rangeM / METERS_PER_NAUTICAL_MILE).toFixed(1) : '---');
   placardMetric('vesselPlacardDcpa', Number.isFinite(dcpaNm) ? dcpaNm.toFixed(dcpaNm < 0.1 ? 3 : 2) : '---');
   placardMetric('vesselPlacardTcpa', Number.isFinite(tcpaMin) ? tcpaMin.toFixed(1) : '---');
-  placardMetric('vesselPlacardHeading', Number.isFinite(headingDeg) ? Math.round(headingDeg).toString().padStart(3, '0') : '---');
+  placardMetric('vesselPlacardHeading', Number.isFinite(headingDeg) ? Math.round(headingDeg).toString() : '---');
   placardMetric('vesselPlacardSpeed', Number.isFinite(speedKnots) ? speedKnots.toFixed(1) : '---');
   const symbol = document.getElementById('vesselPlacardSymbol');
   if (symbol) Object.assign(symbol, {
@@ -643,7 +643,7 @@ function updateRouteCard(proj) {
   if (nextLegSection) nextLegSection.hidden = next === null;
   const legCourseDeg = ((Math.atan2(progress.leg.to.e - progress.leg.from.e, progress.leg.to.n - progress.leg.from.n)
     * 180 / Math.PI) % 360 + 360) % 360;
-  setText('liveLegCourse', `${Math.round(legCourseDeg).toString().padStart(3, '0')}°`);
+  setText('liveLegCourse', `${Math.round(legCourseDeg).toString()}°`);
   setHtml('liveLegDistance', `${(progress.remaining / METERS_PER_NAUTICAL_MILE).toFixed(1)}<small> NM</small>`);
   const sog = proj.navigation?.sog;
   const legTimeS = Number.isFinite(sog) && sog > 0.05 ? progress.remaining / sog : null;
@@ -652,7 +652,7 @@ function updateRouteCard(proj) {
     const nextCourseDeg = ((Math.atan2(next.to.e - next.from.e, next.to.n - next.from.n)
       * 180 / Math.PI) % 360 + 360) % 360;
     const nextLength = Math.hypot(next.to.n - next.from.n, next.to.e - next.from.e);
-    setText('liveNextLegCourse', `${Math.round(nextCourseDeg).toString().padStart(3, '0')}°`);
+    setText('liveNextLegCourse', `${Math.round(nextCourseDeg).toString()}°`);
     setHtml('liveNextLegDistance', `${(nextLength / METERS_PER_NAUTICAL_MILE).toFixed(1)}<small> NM</small>`);
     setText('liveNextLegTime', formatDuration(Number.isFinite(sog) && sog > 0.05 ? nextLength / sog : null));
   }
@@ -755,9 +755,9 @@ function updateOwnshipTelemetry(proj) {
 
   // 1. Page 0: OWN SHIP Card Readouts
   const sbHdg = document.getElementById('sidebarHdgReadout');
-  if (sbHdg) sbHdg.readouts = [{ type: 'value', value: Math.round(headingDeg), nDigits: 3, unit: '°' }];
+  if (sbHdg) sbHdg.readouts = [{ type: 'value', value: Math.round(headingDeg), nDigits: 1, unit: '°' }];
   const sbCog = document.getElementById('sidebarCogReadout');
-  if (sbCog) sbCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 3, unit: '°' }];
+  if (sbCog) sbCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 1, unit: '°' }];
   const sbStw = document.getElementById('sidebarStwReadout');
   if (sbStw) sbStw.readouts = [{ type: 'value', value: Number(sogKnots.toFixed(1)), nDigits: 2, nDecimals: 1, unit: 'kn' }];
   const sbDepth = document.getElementById('sidebarDepthReadout');
@@ -778,7 +778,7 @@ function updateOwnshipTelemetry(proj) {
   }
 
   // 2. Page 0: ROUTE Card
-  setText('liveRouteCourse', `${Math.round(headingDeg).toString().padStart(3, '0')}°`);
+  setText('liveRouteCourse', `${Math.round(headingDeg).toString()}°`);
   const rawRotDegSec = Number.isFinite(os?.r) ? os.r * 180 / Math.PI : null;
   if (rawRotDegSec !== null) {
     const normalizedRotDegSec = Math.abs(rawRotDegSec) < 0.05 ? 0 : rawRotDegSec;
@@ -809,12 +809,12 @@ function updateOwnshipTelemetry(proj) {
     });
   }
   const liveHeading = document.getElementById('liveHeadingReadout');
-  if (liveHeading) liveHeading.readouts = [{ type: 'value', value: Math.round(headingDeg), nDigits: 3, unit: '°' }];
+  if (liveHeading) liveHeading.readouts = [{ type: 'value', value: Math.round(headingDeg), nDigits: 1, unit: '°' }];
   const liveCog = document.getElementById('liveCogReadout');
-  if (liveCog) liveCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 3, unit: '°' }];
+  if (liveCog) liveCog.readouts = [{ type: 'value', value: Math.round(cogDeg), nDigits: 1, unit: '°' }];
   const liveRot = document.getElementById('liveRotReadout');
   if (liveRot) {
-    liveRot.readouts = [{ type: 'value', value: Number(rotDegSec.toFixed(1)), nDigits: 2, nDecimals: 1, unit: '°/s' }];
+    liveRot.readouts = [{ type: 'value', value: Number(rotDegSec.toFixed(1)), nDigits: 1, nDecimals: 1, unit: '°/s' }];
     liveRot.setAttribute('aria-label', `本船转向率 ${rotDegSec.toFixed(1)} 度每秒`);
   }
 
