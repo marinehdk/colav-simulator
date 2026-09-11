@@ -217,14 +217,10 @@ class MidMpcIpoptSolver:
                     lbg=prepared.lbg,
                     ubg=prepared.ubg,
                 )
-        if self._config.strict_slack_bounds and (problem.targets or problem.static_field):
-            # The repair is conservative either way: it only commits a variant
-            # that clears every hard row (or at least halves the violation),
-            # and it re-ramps inside the rot envelope, bounds, and active
-            # prefix. A warm projection that sits on newly activated hard rows
-            # mid-encounter is exactly as unfit to seed from as a cold seed,
-            # and leaving it row-infeasible denies the ship the honest
-            # fallback candidate when the deadline budget yields no iterate.
+        if self._config.strict_slack_bounds and (problem.targets or problem.static_field) and primal_warm_start is None:
+            # Cold seeds only: a warm-started rolling projection that sits on
+            # hard rows mid-encounter carries accepted plan geometry that a
+            # uniform offset ramp would discard.
             repaired = _repair_infeasible_seed(graph, prepared, problem, self._config)
             if repaired is not None:
                 prepared = repaired
@@ -308,6 +304,7 @@ class MidMpcIpoptSolver:
         return_status = str(stats.get("return_status", ""))
         ipopt_iterations = int(stats.get("iter_count", 0))
         native_status = _strict_status(return_status)
+        accepted_seed = False
         if native_status is MidMpcStatus.TIMEOUT:
             incumbent = _best_feasible_iteration(
                 graph.iteration_callback.iterates,
@@ -330,6 +327,11 @@ class MidMpcIpoptSolver:
                     raw_g = seed_g
                     accepted_candidate_source = "PRIMAL_SEED"
                     accepted_iteration = None
+                    accepted_seed = True
+                else:
+                    accepted_seed = False
+            else:
+                accepted_seed = False
         status = native_status
         objective_improvement = seed_objective_total - raw_f
         decision_change_norm = float(np.linalg.norm(raw_x - prepared.x0))
@@ -351,13 +353,16 @@ class MidMpcIpoptSolver:
             controlled_quality_stop=graph.iteration_callback.quality_stop_requested,
             accepted_iteration=accepted_iteration,
             required_improvement=quality_required_improvement,
+            accepted_seed=accepted_seed,
         )
         accepted_by_quality_gate = (
             native_status is MidMpcStatus.TIMEOUT
-            and graph.iteration_callback.quality_stop_requested
             and raw_primal_feasible
             and optimization_quality_passed
-            and accepted_candidate_source == "IPOPT_BEST_FEASIBLE_ITERATE"
+            and (
+                (accepted_candidate_source == "IPOPT_BEST_FEASIBLE_ITERATE" and graph.iteration_callback.quality_stop_requested)
+                or accepted_candidate_source == "PRIMAL_SEED"
+            )
         )
         if accepted_by_quality_gate:
             status = MidMpcStatus.FEASIBLE_NONOPTIMAL
@@ -1852,9 +1857,16 @@ def _optimization_quality_passed(
     controlled_quality_stop: bool,
     accepted_iteration: int | None,
     required_improvement: float | None = None,
+    accepted_seed: bool = False,
 ) -> bool:
     if not strict:
         return True
+    if accepted_seed:
+        # A primal-feasible prepared seed that dominates every feasible
+        # iterate is the honest shipped candidate of a deadline-truncated
+        # solve: it carries the row-set of this cycle (it cleared the repair
+        # and the strict primal gates) and no iterate improved on it.
+        return bool(final_primal_feasible and final_objective <= seed_objective + 1.0e-9)
     if not math.isfinite(seed_objective) or not math.isfinite(final_objective):
         return False
     if return_status == "Solve_Succeeded":

@@ -1440,28 +1440,3 @@ def test_recovery_envelope_barrier_penalizes_post_release_wandering(
     fully_bound = float(solver_module._flat(graph.objective_components(wanderer, tightened))[route_index])
     assert fully_bound > with_barrier
 
-
-def test_colav_strict_warm_seed_on_new_hard_rows_is_repaired() -> None:
-    """A warm projection that newly activated hard rows invalidate is repaired.
-
-    The rolling projection flies straight through a target that activated
-    hard CPA rows since the plan was accepted; leaving the warm seed
-    row-infeasible denied the deadline-truncated solve any honest fallback
-    candidate (late-mission seam, HO-E0/E4 335 s failures).
-    """
-    config = MidMpcConfig(strict_slack_bounds=True)
-    problem = _rendezvous_problem((MidMpcTarget(x_m=300.0, y_m=60.0, cog_rad=0.0, sog_mps=0.0),))
-    n = config.horizon_steps
-    warm = MidMpcPrimalWarmStart(
-        accepted_at_s=0.0,
-        current_time_s=config.dt_s / 2.0,
-        dt_s=config.dt_s,
-        course_rad=np.full(n, problem.own_ship.psi_rad),
-        speed_mps=np.full(n, problem.planned_speed_mps),
-    )
-
-    result = MidMpcIpoptSolver(config).solve(problem, primal_warm_start=warm)
-
-    assert result.seed_max_constraint_violation <= 1.0e-6
-    ladder = np.abs(np.diff(np.r_[problem.own_ship.psi_rad, result.prepared.x0[:n]]))
-    assert float(np.max(ladder)) <= problem.rot_max_rad_s * config.dt_s + 1.0e-9
