@@ -79,7 +79,12 @@ REPLAY_REASON_CAPTURE_FINALIZE_FAILED = "CAPTURE_FINALIZE_FAILED"
 REPLAY_REASON_SESSION_REPLACED = "SESSION_REPLACED"
 REPLAY_REASON_EXECUTION_FAILED = "EXECUTION_FAILED"
 CAPTURE_BUDGET_ENV = "COLAV_REPLAY_CAPTURE_BUDGET_BYTES"
-DEFAULT_CAPTURE_BUDGET_BYTES = 512 * 1024**2
+# Measured on #70 (head_on/rule14 product runs through this capture path,
+# 16 ticks): VO admits ~13 KB/tick raw, Mid-MPC ~148 KB/tick raw; stored
+# (gzipped) frames are ~0.7 KB/tick (VO) and ~35 KB/tick (Mid-MPC). A 600 s
+# 10 Hz Mid-MPC run therefore admits well under 1 GiB raw. The budget counts
+# admitted uncompressed record bytes (an upper bound on disk use).
+DEFAULT_CAPTURE_BUDGET_BYTES = 2 * 1024**3
 
 
 def capture_budget_policy() -> TraceSinkPolicy:
@@ -89,7 +94,10 @@ def capture_budget_policy() -> TraceSinkPolicy:
     if raw:
         with suppress(ValueError):
             max_bytes = max(max_bytes, int(raw))
-    return TraceSinkPolicy(max_total_bytes=max_bytes)
+    # Measured on #70: the raw events.jsonl journal dominates the stored trace
+    # for VO runs (31 KB events vs 10.6 KB gz frames), so the product path
+    # stores the journal gzipped; TraceBundle reads both forms additively.
+    return TraceSinkPolicy(max_total_bytes=max_bytes, events_gzip=True)
 
 # Issue #67 validated COLAV spacing profiles, run by product (GUI) sessions
 # when the client sends no algorithm config. With the bare published defaults

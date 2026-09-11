@@ -33,8 +33,11 @@ DESCRIPTOR_SCHEMA = "colav.run-replay.descriptor@1"
 RUNS_ROOT_ENV = "COLAV_RUNS_ROOT"
 RETENTION_BUDGET_ENV = "COLAV_REPLAY_RETENTION_BUDGET_BYTES"
 
-# Provisional default pinned pending the #70 bytes/tick measurement; the
-# measured numbers recorded on the ticket justify the final value.
+# Pinned from the #70 measurement (product runs through the new capture path):
+# head_on/rule14 VO stores ~2.6 KB/tick and Mid-MPC ~40 KB/tick of decision/
+# artifacts; a worst-case ~74 KB/tick multiship trace (measured reference in
+# Technical Design section 5.4) at 600 s / 10 Hz stays near 450 MB, so a 4 GiB
+# budget holds roughly nine such traces. Override with RETENTION_BUDGET_ENV.
 DEFAULT_RETENTION_BUDGET_BYTES = 4 * 1024**3
 
 MAX_LIST_RUNS = 200

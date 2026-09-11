@@ -237,7 +237,10 @@ def test_product_run_records_full_trace_without_any_browser(finished_vo_run: dic
     run_dir: Path = finished_vo_run["run_dir"]
     trace_dir = run_dir / "decision"
     assert (trace_dir / "frames.jsonl.gz").is_file()
-    assert (trace_dir / "events.jsonl").is_file()
+    # Product policy stores the event journal gzipped (measured: it dominates
+    # the stored trace for VO); TraceBundle reads both forms additively.
+    journal = trace_dir / "events.jsonl.gz"
+    assert journal.is_file() and not (trace_dir / "events.jsonl").exists()
     index = read_index(run_dir)
     assert index["trace_schema"] == "colav.decision-replay.v1"
     assert index["tick_count"] > 0
