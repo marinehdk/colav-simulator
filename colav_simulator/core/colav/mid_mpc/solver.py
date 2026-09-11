@@ -217,10 +217,14 @@ class MidMpcIpoptSolver:
                     lbg=prepared.lbg,
                     ubg=prepared.ubg,
                 )
-        if self._config.strict_slack_bounds and (problem.targets or problem.static_field) and primal_warm_start is None:
-            # Cold seeds only: a warm-started rolling projection that sits on
-            # hard rows mid-encounter carries accepted plan geometry that a
-            # uniform offset ramp would discard.
+        if self._config.strict_slack_bounds and (problem.targets or problem.static_field):
+            # The repair is conservative either way: it only commits a variant
+            # that clears every hard row (or at least halves the violation),
+            # and it re-ramps inside the rot envelope, bounds, and active
+            # prefix. A warm projection that sits on newly activated hard rows
+            # mid-encounter is exactly as unfit to seed from as a cold seed,
+            # and leaving it row-infeasible denies the ship the honest
+            # fallback candidate when the deadline budget yields no iterate.
             repaired = _repair_infeasible_seed(graph, prepared, problem, self._config)
             if repaired is not None:
                 prepared = repaired
@@ -315,6 +319,17 @@ class MidMpcIpoptSolver:
             if incumbent is not None:
                 accepted_iteration, raw_x, raw_f, raw_g = incumbent
                 accepted_candidate_source = "IPOPT_BEST_FEASIBLE_ITERATE"
+                # Ship the (repaired) seed when it is primal feasible and
+                # dominates every feasible iterate: a deadline-truncated run
+                # must not replace a safe returning plan with a worse
+                # wandering iterate (crossing-E0 shipped candidates up to
+                # 1297 objective-worse than the returning seed).
+                if seed_primal_feasible and seed_objective_total < raw_f:
+                    raw_x = prepared.x0
+                    raw_f = seed_objective_total
+                    raw_g = seed_g
+                    accepted_candidate_source = "PRIMAL_SEED"
+                    accepted_iteration = None
         status = native_status
         objective_improvement = seed_objective_total - raw_f
         decision_change_norm = float(np.linalg.norm(raw_x - prepared.x0))
