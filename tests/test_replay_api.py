@@ -8,6 +8,7 @@ path confinement, bounded discovery and budget-driven retention.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -16,11 +17,17 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import gui_server.replay as replay_module
 from colav_simulator.decision_replay.sink import TraceSink
 from gui_server.replay import (
+    DEFAULT_RETENTION_BUDGET_BYTES,
+    RETENTION_BUDGET_ENV,
+    RUNS_ROOT_ENV,
     RunReplayError,
     RunReplayStore,
     build_replay_router,
+    replay_retention_budget_bytes,
+    runs_root,
 )
 
 RUN_READY = "11111111-1111-4111-8111-111111111111"
@@ -291,6 +298,52 @@ def test_list_runs_bounded_and_empty_safe(store: RunReplayStore, tmp_path: Path)
 
 
 # ---------------------------------------------------------------------------
+# Runs-root resolution (writer/discovery must never diverge)
+# ---------------------------------------------------------------------------
+
+
+def test_runs_root_env_override_is_honored(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    override = tmp_path / "override-runs"
+    monkeypatch.setenv(RUNS_ROOT_ENV, str(override))
+    assert runs_root() == override.resolve()
+
+
+def test_runs_root_is_project_anchored_not_cwd_relative(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv(RUNS_ROOT_ENV, raising=False)
+    cwd_a = tmp_path / "cwd-a"
+    cwd_b = tmp_path / "cwd-b"
+    cwd_a.mkdir()
+    cwd_b.mkdir()
+
+    monkeypatch.chdir(cwd_a)
+    anchored = runs_root()
+    monkeypatch.chdir(cwd_b)
+
+    assert runs_root() == anchored, "the runs root must not depend on the process cwd"
+    assert anchored != cwd_a / "runs"
+
+
+def test_store_from_runs_root_discovers_run_written_under_project_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The writer resolves RunSpec.output_root="runs" against the project root;
+    # simulate exactly that layout, then discover it from an unrelated cwd.
+    runs = tmp_path / "runs"
+    make_run(runs, RUN_READY, created_at="2026-09-11T10:00:00Z")
+    elsewhere = tmp_path / "cwd"
+    elsewhere.mkdir()
+    monkeypatch.delenv(RUNS_ROOT_ENV, raising=False)
+    monkeypatch.setattr(replay_module, "PROJECT_ROOT", tmp_path)
+    monkeypatch.chdir(elsewhere)
+
+    store = RunReplayStore(runs_root())
+
+    assert [entry["run_id"] for entry in store.list_runs()] == [RUN_READY]
+    descriptor = store.descriptor(RUN_READY)
+    assert descriptor["replay"]["state"] == "READY"
+
+
+# ---------------------------------------------------------------------------
 # Retention pruning (LRU over decision/ only)
 # ---------------------------------------------------------------------------
 
@@ -342,6 +395,25 @@ def test_prune_noop_within_budget_or_disabled(store: RunReplayStore, tmp_path: P
     assert store.prune_traces(budget_bytes=0) == []
     assert store.prune_traces(budget_bytes=10**9) == []
     assert (root / RUN_OLD / "decision" / "index.json").is_file()
+
+
+def test_retention_budget_env_override_is_honored(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(RETENTION_BUDGET_ENV, "123456789")
+    assert replay_retention_budget_bytes() == 123456789
+
+
+def test_retention_budget_env_garbage_never_disables_retention(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    for raw in ["garbage", "0", "-1", "4 GiB"]:
+        monkeypatch.setenv(RETENTION_BUDGET_ENV, raw)
+        with caplog.at_level(logging.WARNING, logger="gui_server.replay"):
+            budget = replay_retention_budget_bytes()
+        assert budget == DEFAULT_RETENTION_BUDGET_BYTES, "a garbage value must never disable retention"
+        assert any(RETENTION_BUDGET_ENV in record.getMessage() for record in caplog.records), raw
+
+    monkeypatch.delenv(RETENTION_BUDGET_ENV, raising=False)
+    assert replay_retention_budget_bytes() == DEFAULT_RETENTION_BUDGET_BYTES
 
 
 # ---------------------------------------------------------------------------

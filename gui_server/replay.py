@@ -17,6 +17,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import logging
 import os
 import shutil
 import uuid
@@ -33,6 +34,12 @@ DESCRIPTOR_SCHEMA = "colav.run-replay.descriptor@1"
 RUNS_ROOT_ENV = "COLAV_RUNS_ROOT"
 RETENTION_BUDGET_ENV = "COLAV_REPLAY_RETENTION_BUDGET_BYTES"
 
+# The replay reader is project-root anchored exactly like the writer: the
+# runner resolves a relative ``RunSpec.output_root`` against the project root
+# (colav_simulator/experiment/runner.py), so discovery must never follow the
+# process cwd or it would read a different directory than runs are written to.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 # Pinned from the #70 measurement (product runs through the new capture path):
 # head_on/rule14 VO stores ~2.6 KB/tick and Mid-MPC ~40 KB/tick of decision/
 # artifacts; a worst-case ~74 KB/tick multiship trace (measured reference in
@@ -42,6 +49,8 @@ DEFAULT_RETENTION_BUDGET_BYTES = 4 * 1024**3
 
 MAX_LIST_RUNS = 200
 MAX_SCAN_DIRS = 5000
+
+log = logging.getLogger(__name__)
 
 
 class ReplayEvidenceState(StrEnum):
@@ -78,19 +87,41 @@ class RunReplayError(Exception):
 
 
 def replay_retention_budget_bytes() -> int:
-    """Configurable global budget for decision/ trace directories."""
+    """Configurable global budget for decision/ trace directories.
+
+    A valid positive ``RETENTION_BUDGET_ENV`` sets the budget; anything else
+    (unparsable, zero, negative) falls back to the documented default so a
+    garbage value can never silently disable retention.
+    """
     raw = os.environ.get(RETENTION_BUDGET_ENV, "").strip()
-    if raw:
-        try:
-            return int(raw)
-        except ValueError:
-            return 0
-    return DEFAULT_RETENTION_BUDGET_BYTES
+    if not raw:
+        return DEFAULT_RETENTION_BUDGET_BYTES
+    try:
+        budget = int(raw)
+    except ValueError:
+        budget = 0
+    if budget <= 0:
+        log.warning(
+            "Ignoring invalid %s=%r; using the %d-byte default retention budget",
+            RETENTION_BUDGET_ENV,
+            raw,
+            DEFAULT_RETENTION_BUDGET_BYTES,
+        )
+        return DEFAULT_RETENTION_BUDGET_BYTES
+    return budget
 
 
 def runs_root() -> Path:
-    """Configured Run repository root (overridable for tests/deployments)."""
-    return Path(os.environ.get(RUNS_ROOT_ENV, "runs")).resolve()
+    """Configured Run repository root; anchored like the writer (not the cwd).
+
+    Defaults to the project-root ``runs/`` directory the runner writes into
+    (matching its relative ``output_root`` resolution); ``RUNS_ROOT_ENV``
+    overrides for tests/deployments.
+    """
+    override = os.environ.get(RUNS_ROOT_ENV, "").strip()
+    if override:
+        return Path(override).resolve()
+    return (PROJECT_ROOT / "runs").resolve()
 
 
 def _iter_frames(path: Path) -> list[dict[str, Any]]:

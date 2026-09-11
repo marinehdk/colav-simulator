@@ -56,7 +56,7 @@ from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCat
 from colav_simulator.modular_gnc.catalog import list_stack_catalog
 from gui_server.gnc_balance import balance_telemetry
 from gui_server.historical_api import router as historical_api_router
-from gui_server.replay import RunReplayStore, build_replay_router, replay_retention_budget_bytes
+from gui_server.replay import RunReplayStore, build_replay_router, replay_retention_budget_bytes, runs_root
 
 log = logging.getLogger("gui_server")
 logging.basicConfig(level=logging.INFO)
@@ -89,11 +89,22 @@ DEFAULT_CAPTURE_BUDGET_BYTES = 2 * 1024**3
 
 def capture_budget_policy() -> TraceSinkPolicy:
     """Per-Run capture byte budget; exceeding it is a typed INCOMPLETE reason."""
-    raw = os.environ.get(CAPTURE_BUDGET_ENV, "").strip()
     max_bytes = DEFAULT_CAPTURE_BUDGET_BYTES
+    raw = os.environ.get(CAPTURE_BUDGET_ENV, "").strip()
     if raw:
-        with suppress(ValueError):
-            max_bytes = max(max_bytes, int(raw))
+        try:
+            override = int(raw)
+        except ValueError:
+            override = 0
+        if override > 0:
+            max_bytes = override
+        else:
+            log.warning(
+                "Ignoring invalid %s=%r; using the %d-byte default capture budget",
+                CAPTURE_BUDGET_ENV,
+                raw,
+                DEFAULT_CAPTURE_BUDGET_BYTES,
+            )
     # Measured on #70: the raw events.jsonl journal dominates the stored trace
     # for VO runs (31 KB events vs 10.6 KB gz frames), so the product path
     # stores the journal gzipped; TraceBundle reads both forms additively.
@@ -1740,8 +1751,10 @@ async def lifespan(_: FastAPI):
 manager = WebSessionManager()
 app = FastAPI(title="COLAV Simulator Research Control", version="1.0", lifespan=lifespan)
 app.include_router(historical_api_router)
-# Read-only Sealed Run Replay discovery + descriptor (ticket #70).
-replay_store = RunReplayStore(BASE_DIR / "runs")
+# Read-only Sealed Run Replay discovery + descriptor (ticket #70). The store
+# root resolves exactly like the writer (project-root anchored runs/), so
+# discovery can never diverge from where runs are written.
+replay_store = RunReplayStore(runs_root())
 app.include_router(build_replay_router(replay_store, active_replay_status=manager.replay_status_for))
 if GUI_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(GUI_DIR)), name="static")

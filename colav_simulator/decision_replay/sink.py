@@ -219,7 +219,14 @@ class TraceSink:
             index["state"] = self._state
             self._finalized = True
             self._index = index
-        self._dir.joinpath("index.json").write_text(json.dumps(index, indent=2), encoding="utf-8")
+        try:
+            self._dir.joinpath("index.json").write_text(json.dumps(index, indent=2), encoding="utf-8")
+        except OSError:
+            # Sealing failed: the trace stays truthful — no durable index, typed
+            # INCOMPLETE — and close() still never raises.
+            with self._lock:
+                self._enter_failure_locked(REASON_TRACE_WRITE_FAILED)
+                self._index = {}
 
     def _write_final_artifacts(self, events: list[dict[str, Any]] | None) -> dict[str, Any]:
         self._handle.close()

@@ -10,6 +10,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import logging
 import threading
 import time
 from dataclasses import dataclass, field
@@ -182,6 +183,24 @@ def test_sink_byte_budget_is_typed_incomplete(tmp_path: Path) -> None:
     assert index["truncated"] is True
     assert index["incomplete_reason"] == "TRACE_BUDGET_EXCEEDED"
     assert index["tick_count"] < 3
+
+
+def test_sink_index_seal_failure_is_typed_incomplete_and_never_raises(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run-index-seal-fail"
+    sink = TraceSink.open(run_dir)
+    sink.append(FakeSnapshot(sequence=1, sim_time=0.1, payload={"t": 1}))
+    # Filesystem-level seal block: index.json cannot be written, no mocks.
+    (run_dir / "decision" / "index.json").mkdir()
+
+    index = sink.close()  # must not raise
+
+    assert sink.state == "INCOMPLETE"
+    assert sink.reason == "TRACE_WRITE_FAILED"
+    assert sink.finalized is True
+    assert index == {}
+    trace_dir = run_dir / "decision"
+    assert (trace_dir / "frames.jsonl.gz").is_file(), "frame evidence survives a failed seal"
+    assert not (trace_dir / "frames.jsonl").exists()
 
 
 def test_sink_fail_records_typed_reason_and_keeps_prefix(tmp_path: Path) -> None:
@@ -423,3 +442,33 @@ def test_failed_execution_closes_trace_truthfully(manager: Any, tmp_path: Path, 
     assert index["truncated"] is True
     assert index["incomplete_reason"] == "EXECUTION_FAILED"
     assert manager.describe()["replay_status"] == "INCOMPLETE"
+
+
+# ---------------------------------------------------------------------------
+# Per-Run capture budget env policy (ticket #70)
+# ---------------------------------------------------------------------------
+
+
+def test_capture_budget_env_sets_budget_in_both_directions(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(gui_main.CAPTURE_BUDGET_ENV, "1234")
+    assert gui_main.capture_budget_policy().max_total_bytes == 1234, "env may lower the budget"
+
+    raised = gui_main.DEFAULT_CAPTURE_BUDGET_BYTES * 2
+    monkeypatch.setenv(gui_main.CAPTURE_BUDGET_ENV, str(raised))
+    policy = gui_main.capture_budget_policy()
+    assert policy.max_total_bytes == raised, "env may raise the budget"
+    assert policy.events_gzip is True
+
+
+def test_capture_budget_env_invalid_falls_back_to_default_with_warning(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    for raw in ["not-a-number", "0", "-512", "2 GiB"]:
+        monkeypatch.setenv(gui_main.CAPTURE_BUDGET_ENV, raw)
+        with caplog.at_level(logging.WARNING, logger="gui_server"):
+            policy = gui_main.capture_budget_policy()
+        assert policy.max_total_bytes == gui_main.DEFAULT_CAPTURE_BUDGET_BYTES, raw
+        assert any(gui_main.CAPTURE_BUDGET_ENV in record.getMessage() for record in caplog.records), raw
+
+    monkeypatch.delenv(gui_main.CAPTURE_BUDGET_ENV, raising=False)
+    assert gui_main.capture_budget_policy().max_total_bytes == gui_main.DEFAULT_CAPTURE_BUDGET_BYTES
