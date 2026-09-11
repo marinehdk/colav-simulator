@@ -130,6 +130,73 @@ def test_merge_and_fillet_helpers():
     assert gaps.min() >= 30.0
 
 
+def _assert_gate_clean(candidate: dict, reference: ReferencePath, ship: np.ndarray) -> None:
+    points = candidate["points"]
+    assert has_reverse_segment(points) is False
+    gaps = np.linalg.norm(np.diff(points, axis=1), axis=0)
+    assert gaps.min() >= 30.0
+    ahead = first_change_distance_ahead(points, reference.points, ship)
+    assert not np.isfinite(ahead) or ahead >= FIRST_CHANGE_GATE_M
+    assert candidate["min_interior_turn_deg"] < 150.0
+
+
+def test_splice_trims_start_junction_reversal_seen_in_admission_smoke():
+    """Replay of the vo-paper_ccta2023_multiship-E0 held-intent-36 reverse reject.
+
+    The mirror was the accepted held-intent-34 route; the held intent line
+    starts 105 m off the ship and its first deviation point sits north-east of
+    the reference splice waypoint while the route travels south, so the
+    ref[k-1] junction measured 153.1 deg and the frozen transform rejected the
+    publication with "reverse segment detected" (99 resubmissions).
+    """
+    reference = ReferencePath(
+        points=np.array(
+            [
+                [308.168, 308.384, 336.744, 353.196, 356.487, 359.778, 363.068, 366.359, 382.812, 3150.0, 3650.0, 4350.0],
+                [-1472.552, -1633.463, -1606.669, -1773.717, -1807.127, -1840.537, -1873.947, -1907.356, -2074.405, -2100.0, -1350.0, -50.0],
+            ]
+        ),
+        speeds=[7.8] * 12,
+        modes=["cruise"] * 12,
+    )
+    deviation = np.array(
+        [
+            [330.72, 346.729, 349.931, 353.133, 356.335, 359.537, 362.739],
+            [-1589.348, -1751.895, -1784.405, -1816.914, -1849.423, -1881.933, -1914.442],
+        ]
+    )
+    ship = np.array([320.43, -1484.85])
+    candidate = build_avoidance_route(reference, ship, deviation, [7.8] * deviation.shape[1])
+    _assert_gate_clean(candidate, reference, ship)
+    # Trimmed deviation columns stay on the held intent line.
+    submitted = candidate["points"][:, candidate["prefix_length"] : candidate["points"].shape[1] - (reference.points.shape[1] - candidate["rejoin_index"])]
+    ray = deviation[:, 1] - deviation[:, 0]
+    ray = ray / np.linalg.norm(ray)
+    offsets = submitted - deviation[:, 0][:, None]
+    perpendicular = np.abs(offsets[0] * ray[1] - offsets[1] * ray[0])
+    assert perpendicular.max() <= 1.0
+
+
+def test_splice_trims_reverse_closing_leg_into_rejoin():
+    """A deviation end that closes onto the rejoin in reverse must be trimmed.
+
+    Fan-MPC cells produced 155-173 deg turns at the last deviation vertex when
+    the intent ray ran past the reference end and the closing leg pointed back
+    at the rejoin waypoint; the frozen transform answers with "reverse segment
+    detected".
+    """
+    reference = _line_reference(400.0, 6)
+    ship = np.array([60.0, 0.0])
+    deviation = np.array(
+        [
+            [80.0, 95.0, 105.0, 115.0, 125.0],
+            [500.0, 900.0, 1300.0, 1700.0, 2400.0],
+        ]
+    )
+    candidate = build_avoidance_route(reference, ship, deviation, [7.8] * deviation.shape[1])
+    _assert_gate_clean(candidate, reference, ship)
+
+
 def test_mirror_rotates_on_accepted_routes_including_internal_returns():
     frame = RouteFrame(1000.0, 2000.0)
     events: list[dict] = []

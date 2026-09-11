@@ -371,21 +371,49 @@ def build_avoidance_route(
                 dev_speeds[int(np.argmin(np.linalg.norm(deviation - point[:, None], axis=0)))] for point in filleted.T
             ]
             deviation = filleted
-    end_along = along_track_progress(deviation[:, -1], ref)
-    j = next(
-        (
-            index
-            for index in range(k, count)
-            if along_track_progress(ref[:, index], ref) >= end_along - 1e-9
-            and np.linalg.norm(deviation[:, -1] - ref[:, index]) >= SEGMENT_FLOOR_M
-        ),
-        None,
-    )
-    if j is None:
+
+    def rejoin_index(deviation: np.ndarray) -> int:
+        end_along = along_track_progress(deviation[:, -1], ref)
         j = next(
-            (index for index in range(k, count) if along_track_progress(ref[:, index], ref) >= end_along - 1e-9),
-            count - 1,
+            (
+                index
+                for index in range(k, count)
+                if along_track_progress(ref[:, index], ref) >= end_along - 1e-9
+                and np.linalg.norm(deviation[:, -1] - ref[:, index]) >= SEGMENT_FLOOR_M
+            ),
+            None,
         )
+        if j is None:
+            j = next(
+                (index for index in range(k, count) if along_track_progress(ref[:, index], ref) >= end_along - 1e-9),
+                count - 1,
+            )
+        return j
+
+    j = rejoin_index(deviation)
+    # Junction trim guard: the splice's own junctions can measure interior turns
+    # sharper than the frozen 150 deg reverse-segment gate (smoke vo-36: 153 deg
+    # at ref[k-1], fan cells: 155-173 deg on the closing leg into the rejoin),
+    # and a rejected candidate is resubmitted until the generation changes.
+    # Trim deviation waypoints from the sharp end until every splice-introduced
+    # turn clears the gate; reference prefix/tail waypoints are never moved and
+    # trimmed columns stay exactly on the held intent line.
+    for _ in range(16):
+        points = np.hstack((ref[:, :k], deviation, ref[:, j:]))
+        sharp = [index for index in range(1, points.shape[1] - 1) if _turn_angle(points, index) > MAX_TURN_RAD]
+        if not sharp or deviation.shape[1] < 2:
+            break
+        if sharp[0] <= k:
+            # Start junction: ref[k-1] or dev[0] vertex - advance the deviation start.
+            deviation, dev_speeds = deviation[:, 1:], dev_speeds[1:]
+            while deviation.shape[1] > 1 and np.linalg.norm(deviation[:, 0] - ref[:, k - 1]) < SEGMENT_FLOOR_M:
+                deviation, dev_speeds = deviation[:, 1:], dev_speeds[1:]
+        elif sharp[0] >= k + deviation.shape[1] - 1:
+            # Closing leg or rejoin vertex: retreat the deviation end.
+            deviation, dev_speeds = deviation[:, :-1], dev_speeds[:-1]
+            j = rejoin_index(deviation)
+        else:
+            break  # interior deviation vertex: the fillet pass already handled those
     points = np.hstack((ref[:, :k], deviation, ref[:, j:]))
     speeds = [*reference.speeds[:k], *dev_speeds, *reference.speeds[j:]]
     modes = [*reference.modes[:k], *([AVOIDANCE_MODE] * deviation.shape[1]), *reference.modes[j:]]
