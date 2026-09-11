@@ -281,7 +281,8 @@ def test_mid_receipt_becomes_route_contract_with_segments_and_speeds(original_sh
 def test_mid_receipt_schema_sequence_key_is_read_tolerantly(original_ship):
     """colav.mid_mpc.receipt@1 names the authority cycle "sequence"; the canonical
     accepted-plan-receipt schema names it "accepted_sequence". The bridge must
-    accept both, as threat management already does."""
+    accept both, as threat management already does.
+    """
     ship = original_ship
     ship.stack.advance(11)
     ship._sync_state()
@@ -298,3 +299,41 @@ def test_mid_receipt_schema_sequence_key_is_read_tolerantly(original_ship):
     assert request["plan_id"] == "mid-mpc-" + "a" * 24
     coordinate = _coordinate_feedback(bridge)
     assert coordinate["accepted"] is True
+
+
+def test_mid_route_short_of_splice_margin_holds_instead_of_raising(original_ship):
+    """Hold the active route when the plan stays short of the splice margin.
+
+    An accepted Mid plan whose geometry never reaches the 160 m splice margin
+    (give-way standby or flee geometry) cannot become a new avoidance route;
+    the frozen manager would reject it as a sub-margin dynamic update. The
+    bridge must hold the active route for that tick instead of aborting the
+    run (seam-01 crossing_give_way died raising at t=51 s).
+    """
+    ship = original_ship
+    ship.stack.advance(11)
+    ship._sync_state()
+    data = _mid_planner_data(1, "a" * 64)
+    bridge = _mount(ship, data)
+    origin = np.array([[1086.0], [2000.0]])
+    raw = np.hstack([origin + np.array([[20.0 * i], [3.0 * i]]) for i in range(40)])
+    decision = _mid_decision(110, raw, np.full(raw.shape[1], 6.0), 400)
+    bridge._mid = SimpleNamespace(current_route=lambda tick, planner_data: decision)
+    bridge.submit(11)
+    # Sideways stub: along-track progress on the reference never gains 160 m.
+    perpendicular = np.array([[3.0], [2.0]])
+    perpendicular = perpendicular / np.linalg.norm(perpendicular)
+    stub = np.hstack([origin + 5.0 * i * perpendicular for i in range(40)])
+    held = _mid_decision(110, stub, np.full(stub.shape[1], 6.0), 400)
+    bridge._mid = SimpleNamespace(current_route=lambda tick, planner_data: held)
+    submissions = len(ship.requested_plans)
+    bridge.submit(11.5)
+    assert len(ship.requested_plans) == submissions  # held: no submission, no rejection storm
+    # The hold is recoverable: a route that reaches the margin admits.
+    revised = _mid_decision(112, raw, np.full(raw.shape[1], 6.0), 402, revision=1)
+    bridge._mid = SimpleNamespace(current_route=lambda tick, planner_data: revised)
+    data["planner"]["algorithm_details"]["accepted_plan_receipt"]["receipt_hash"] = "c" * 64
+    bridge.submit(12.0)
+    request = ship.requested_plans[-1]["message"]
+    assert request["plan_id"] == "mid-mpc-" + "c" * 24
+    assert _coordinate_feedback(bridge)["accepted"] is True

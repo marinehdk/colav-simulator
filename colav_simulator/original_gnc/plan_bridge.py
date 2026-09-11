@@ -344,13 +344,22 @@ class OriginalPlanBridge:
             self._lateral_blend = min(1.0, self._lateral_blend + 0.5)
         return blend_deviation_toward_reference(deviation, reference.points, self._lateral_blend)
 
-    def _mid_deviation(self, path: np.ndarray, reference: ReferencePath) -> tuple[np.ndarray, list[int]]:
+    def _mid_deviation(self, path: np.ndarray, reference: ReferencePath) -> tuple[np.ndarray, list[int]] | None:
+        """Deviation columns from the first waypoint at the splice margin.
+
+        Returns None when no accepted-plan waypoint reaches FIRST_CHANGE_MARGIN_M
+        ahead of the ship along the reference (give-way standby or standoff
+        geometry). The frozen manager answers such an update with a
+        first-changed-waypoint rejection and keeps executing the active route,
+        so the bridge holds the active route for this tick instead of raising;
+        manager-owned expiry still governs the admitted route's lifecycle.
+        """
         ref = reference.points
         ship_along = along_track_progress(self.ship.state[:2], ref)
         ahead = [along_track_progress(path[:, index], ref) - ship_along for index in range(path.shape[1])]
         first = next((index for index, value in enumerate(ahead) if value >= FIRST_CHANGE_MARGIN_M), None)
         if first is None:
-            raise OriginalGncError("Accepted Mid path never reaches the reference splice margin")
+            return None
         filtered = path[:, first:]
         merged, keep = merge_short_segments(filtered)
         return merged, [first + index for index in keep]
@@ -439,7 +448,10 @@ class OriginalPlanBridge:
                 self._lateral_blend = 1.0
             plan_id = self._mid_plan_id
             raw = np.asarray(route.waypoints_ne_m, dtype=float)
-            geometry, source_indices = self._mid_deviation(raw, reference)
+            deviation = self._mid_deviation(raw, reference)
+            if deviation is None:
+                return  # accepted plan never reaches the splice margin: hold the active route this tick
+            geometry, source_indices = deviation
             speeds = np.asarray(route.speed_mps, dtype=float)[source_indices]
             geometry = self._split_lateral_offset(geometry, reference, fresh_geometry)
             deviation_speeds = [float(value) for value in speeds]
