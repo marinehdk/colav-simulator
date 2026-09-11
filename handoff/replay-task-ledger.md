@@ -15,8 +15,8 @@
 ## Ticket states
 
 ```text
-#70 READY → DISPATCHED 2026-09-11 (implementer worktree replay-70, branch agent/replay-70-full-evidence)
-#71 blocked by #70
+#70 INTEGRATED+CLOSED 2026-09-12 — merge 664a927c (8721bcff..82cb5979), verifier ACCEPT, evidence issuecomment-5640790063
+#71 DISPATCHED 2026-09-12 (implementer worktree replay-71, branch agent/replay-71-seek, from 664a927c)
 #72 blocked by #71
 #73 blocked by #72
 #74 blocked by #73
@@ -36,8 +36,14 @@
 
 | Time (local) | Ticket | Agent/role | Worktree | Branch | Result |
 |---|---|---|---|---|---|
-| 2026-09-11 | #70 | implementer (bg) | replay-70 | agent/replay-70-full-evidence | pending |
+| 2026-09-11 | #70 | implementer (bg) | replay-70 | agent/replay-70-full-evidence | ACCEPT-candidate: 4 commits 8721bcff..b757738c, +1987/−73, all ACs claimed green, 32 full-suite failures reproduced byte-identical on baseline af51ee35; evidence comment issuecomment-5640183591 |
+| 2026-09-12 | #70 | verifier (bg) | reads replay-70 | agent/replay-70-full-evidence @ b757738c | ACCEPT — all ACs+amendments verified at public seams; defects 2-5 minor → repair; defect 1 = load flake |
+| 2026-09-12 | #70 | repair (bg) | replay-70 | agent/replay-70-full-evidence | DONE: 82cb5979 — 4 defects fixed, 8 new tests red→green, orchestrator re-ran 56 pass/62s |
+| 2026-09-12 | #70 | orchestrator | sealed-run-replay | feature/sealed-run-replay | merge 664a927c, pushed marine; #70 closed w/ evidence issuecomment-5640790063 |
+| 2026-09-12 | #71 | implementer (bg) | replay-71 | agent/replay-71-seek | pending |
 
 ## Verifier verdicts
 
-(none yet)
+- **#70 (2026-09-12): ACCEPT.** Independently confirmed: backend capture w/o browser, digest re-verification, session-replacement trace closure, old v1 + new gz traces both CLI-readable, GET-only confinement, retention LRU truthfulness, opt-out honored, cwd note. Pre-existing failures validated by subset equivalence (14 under load + 6 solo, baseline-identical) instead of full 68-min suite.
+- **Flake registry:** `test_historical_api.py::test_historical_api_uses_normal_session_and_publishes_final_evidence` is flaky under heavy parallel load (passed solo ×2 on branch and baseline; capture-free unchanged path). Future verifiers: do not misread as regression without solo reproduction.
+- Known-accepted nits (post-repair state to be re-checked): opt-out run after session replacement classifies REDUCED not UNAVAILABLE·TRACE_CAPTURE_DISABLED (truthful per §4.5; reason granularity only in live describe).
