@@ -325,6 +325,9 @@ class OriginalGncShipAdapter(IShip):
             "route_plan_status": copy.deepcopy(self._stack.latest.get("/route_planning/route_plan_status")),
         }
         data["original_gnc"]["bridge_outcome"] = copy.deepcopy(self._plan_bridge.last_outcome) if self._plan_bridge else None
+        data["original_gnc"]["bridge_admission"] = (
+            copy.deepcopy(self._plan_bridge.admission_metrics) if self._plan_bridge else None
+        )
         return data
 
     def original_gnc_evidence(self) -> dict:

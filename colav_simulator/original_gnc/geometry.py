@@ -38,6 +38,16 @@ class RouteFrame:
         """Remove the fixed frame origin only at initialization or input conversion."""
         return north_m - self.north_m, east_m - self.east_m
 
+    def northeast(self, latitudes: list, longitudes: list) -> np.ndarray:
+        """Inverse of geographic(): map-frame north/east for route-contract coordinates."""
+        points = np.empty((2, len(latitudes)), dtype=float)
+        for index, (latitude, longitude) in enumerate(zip(latitudes, longitudes, strict=True)):
+            inverse = Geodesic.WGS84.Inverse(self.latitude_deg, self.longitude_deg, float(latitude), float(longitude))
+            azimuth = math.radians(inverse["azi1"])
+            points[0, index] = self.north_m + inverse["s12"] * math.cos(azimuth)
+            points[1, index] = self.east_m + inverse["s12"] * math.sin(azimuth)
+        return points
+
 
 def stamp(time_ns: int) -> dict:
     """Build exact integer seconds/nanoseconds without float epoch arithmetic."""
