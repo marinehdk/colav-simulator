@@ -1,0 +1,36 @@
+{
+  "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R11-E4",
+  "modules": {
+    "ship_dynamics_node": {
+      "file": "ship_dynamics_node.jsonl.gz",
+      "calls": 692462,
+      "sha256": "d1fcc9826cbb5706c0f209b6160a9d4c2d7b632f5a414ca1f18a97d86650165f"
+    },
+    "ship_control_node": {
+      "file": "ship_control_node.jsonl.gz",
+      "calls": 478503,
+      "sha256": "6312ea82ad74b60e3a4b580e1f33bb07303626df852d401081a6706a161c6484"
+    },
+    "ship_guidance_node": {
+      "file": "ship_guidance_node.jsonl.gz",
+      "calls": 768057,
+      "sha256": "5af350fe562934dfdd4fb35884db3bcea1736c5b44ee10fe5cd77a3e80b171f4"
+    },
+    "thrust_allocation_node": {
+      "file": "thrust_allocation_node.jsonl.gz",
+      "calls": 797800,
+      "sha256": "e7fb37d9592de102ef45a784ce129595df0e1f81100801249ecd1126b25b27a4"
+    },
+    "coordinate_transform_node": {
+      "file": "coordinate_transform_node.jsonl.gz",
+      "calls": 339933,
+      "sha256": "678f11f6501134eb149fb0843b6727091ddf6f662dc810bf8978f1fb531cd51a"
+    },
+    "active_route_manager_node": {
+      "file": "active_route_manager_node.jsonl.gz",
+      "calls": 327330,
+      "sha256": "f2d0b78d86e4e48691787222eae39662b484e30635a3e9f4d9dd3a637ca51216"
+    }
+  },
+  "scope": "Disjoint module partition of one canonical R11-E4 export; canonical manifest reconciliation required"
+}

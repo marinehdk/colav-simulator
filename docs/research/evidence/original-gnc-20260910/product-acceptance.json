@@ -1,0 +1,1473 @@
+{
+  "schema": "original-gnc.product-acceptance-summary.v1",
+  "case_count": 24,
+  "execution_completed": 3,
+  "execution_failed": 21,
+  "hard_gate_passed": 2,
+  "goal_and_hard_gate_passed": 0,
+  "fallback_used_count": 0,
+  "scope": "Completed runs, physical safety, COLREG scores, original route admission and goal arrival are separate claims",
+  "cases": [
+    {
+      "case_id": "vo-head_on-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/vo-head_on-E0/66445ec7-007e-4261-a5a3-f21e32e7a9bd",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "An infeasible planner result cannot become an original GNC plan",
+      "simulation_time_s": 191.0,
+      "wall_s": 23.87870891694911,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 139,
+      "unique_avoidance_ids": 30,
+      "manager_forwarded_ids": 28,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "first changed waypoint is too close to current ship position": 118,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 9,
+        "route update too frequent": 10
+      },
+      "manager_status_reasons": {
+        "feasible": 137,
+        "first changed waypoint is too close to current ship position": 118,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 9,
+        "speed_exceeds_vessel_limit": 2,
+        "route update too frequent": 10
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": true,
+      "fan_candidate_count": null,
+      "vo_grid_shape": [
+        32,
+        128
+      ],
+      "vo_infeasible_candidate_fallback_label": "stop_nonpaper_wrapper",
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 191,
+        "maximum_ms": 54.93508302606642,
+        "median_ms": 35.151374991983175,
+        "p95_ms": 43.81168796680868,
+        "terminal_call_ms": 42.343624867498875,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "b29bbf567ef0992da1ee7029fb2cd5360634bf0f18b846133fafeb79a22a9f85",
+        "original-gnc.json": "b040a016136ae3960b73f9a091be56d120ac2af878e06b6d7a12547029f5c42b",
+        "evaluation.json": "2f0513d2048d38658a3626de5119ccaccda402bef8aead6272b3a6f652bfb791",
+        "events.jsonl": "d6410ce182cf78ff2e47127e5be15da29f472068698fa4fddc405e91e14b47d4",
+        "trajectory.parquet": "a3c95f89782a07a39a614ec4590df32e03c1573cd46330a2cc9b53979c81cd97"
+      }
+    },
+    {
+      "case_id": "vo-crossing_give_way-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/vo-crossing_give_way-E0/3185a447-61bb-4d2a-b559-7bf074d14d0d",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "An infeasible planner result cannot become an original GNC plan",
+      "simulation_time_s": 122.0,
+      "wall_s": 13.60880395793356,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 122,
+      "unique_avoidance_ids": 30,
+      "manager_forwarded_ids": 30,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 10,
+        "first changed waypoint is too close to current ship position": 88,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 24
+      },
+      "manager_status_reasons": {
+        "feasible": 122,
+        "route update too frequent": 10,
+        "first changed waypoint is too close to current ship position": 88,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 24
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": true,
+      "fan_candidate_count": null,
+      "vo_grid_shape": [
+        32,
+        128
+      ],
+      "vo_infeasible_candidate_fallback_label": "stop_nonpaper_wrapper",
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 122,
+        "maximum_ms": 52.013040985912085,
+        "median_ms": 35.63729161396623,
+        "p95_ms": 42.947770562022924,
+        "terminal_call_ms": 28.56041700579226,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "b1ad5f9f7e4074b527bd4c0371a8b4b5a152f0889055ad34d2b29246f206e6cc",
+        "original-gnc.json": "23df5417343603907c8063d31f2e39de98f3574ed125798089dc855e7474d72d",
+        "evaluation.json": "2f0513d2048d38658a3626de5119ccaccda402bef8aead6272b3a6f652bfb791",
+        "events.jsonl": "daab5a7bc6d7f69e5d9a0940f15eb6b0ae3a8baab615c0e1bdc0962904ece44c",
+        "trajectory.parquet": "1e7a22eb9d66083d1bd5c96d67b709ed72c9713af92ee8053154b15b3d5cc184"
+      }
+    },
+    {
+      "case_id": "vo-overtaking-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/vo-overtaking-E0/1e667399-a141-45a1-92c7-de91ba35f35e",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "An infeasible planner result cannot become an original GNC plan",
+      "simulation_time_s": 247.0,
+      "wall_s": 27.221979333087802,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 214,
+      "unique_avoidance_ids": 15,
+      "manager_forwarded_ids": 15,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "first changed waypoint is too close to current ship position": 208,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 6
+      },
+      "manager_status_reasons": {
+        "feasible": 214,
+        "first changed waypoint is too close to current ship position": 208,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 6
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": true,
+      "fan_candidate_count": null,
+      "vo_grid_shape": [
+        32,
+        128
+      ],
+      "vo_infeasible_candidate_fallback_label": "stop_nonpaper_wrapper",
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 247,
+        "maximum_ms": 115.02649984322488,
+        "median_ms": 36.5580830257386,
+        "p95_ms": 44.47138367686421,
+        "terminal_call_ms": 28.71587499976158,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "6144104d6e185de50395bb99cea23da903f7a111c99143077626932ff55923bd",
+        "original-gnc.json": "c833f1f1e378f8b8b7734a2d81b2bb6d98ee83291a3c92b444c2b0eb87c29330",
+        "evaluation.json": "2f0513d2048d38658a3626de5119ccaccda402bef8aead6272b3a6f652bfb791",
+        "events.jsonl": "dc2f2caae8a1b10bec32d2db68a5675fe4975dc1f5fab55a5c86c2a9beabcae8",
+        "trajectory.parquet": "bbfb3ceb6833b3f43b16b05539bca16b94c5be31c56491ab2dfe50c2ab38662f"
+      }
+    },
+    {
+      "case_id": "vo-paper_ccta2023_multiship-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/vo-paper_ccta2023_multiship-E0/4f2c4ad0-4496-4682-ab3f-b4a24be1f979",
+      "execution_outcome": "COMPLETED",
+      "state": "FINISHED",
+      "fallback_used": false,
+      "failure": null,
+      "simulation_time_s": 1800.1,
+      "wall_s": 445.89370304206386,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 1711,
+      "unique_avoidance_ids": 2,
+      "manager_forwarded_ids": 2,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 905,
+        "first changed waypoint is too close to current ship position": 806
+      },
+      "manager_status_reasons": {
+        "feasible": 1711,
+        "route update too frequent": 905,
+        "first changed waypoint is too close to current ship position": 806
+      },
+      "evaluation_status": "COMPLETE",
+      "hard_gate": "PASS",
+      "minimum_hull_clearance_m": 655.8242040096563,
+      "goal_reached": false,
+      "aggregate": {
+        "P_ahead13": 0.0,
+        "P_ahead15": 0.5,
+        "P_course_non_apparent": 0.5,
+        "P_delay": 0.00870990867911484,
+        "P_pt": 0.0,
+        "P_speed_non_apparent": 0.25,
+        "P_stage2": 0.25,
+        "P_stage3": 0.0,
+        "S13": 0.7412900913208852,
+        "S15": 0.5,
+        "S16": 0.6162900913208852,
+        "S17": 0.75,
+        "S8": 0.6162900913208852,
+        "S_apparent": 0.625,
+        "S_r": 1.0,
+        "S_safety": 1.0,
+        "S_theta": 0.4827596908243424,
+        "collision_count": 0,
+        "global_collision_count": 0,
+        "global_grounding_count": 0,
+        "global_grounding_not_evaluated_count": 0,
+        "grounding_clearance_score": 1.0,
+        "grounding_count": 0,
+        "grounding_not_evaluated_count": 0,
+        "minimum_distance_m": 684.5586343854235,
+        "ownship_collision_count": 0,
+        "ownship_grounding_count": 0,
+        "pair_count": 6
+      },
+      "voyage": {
+        "encounter": {
+          "controlling_target_id": 1,
+          "min_target_center_distance_m": 684.5586343854235
+        },
+        "recovery_voyage": {
+          "cpa_time_s": 1799.9999999994584,
+          "heading_gross_sweep_deg": null,
+          "heading_net_rotation_deg": null,
+          "max_abs_xte_m": null,
+          "window_end_s": 2039.9999999994584,
+          "window_start_s": 1799.9999999994584
+        },
+        "return_voyage": {
+          "buffer_s": 240.0,
+          "cpa_time_s": 1799.9999999994584,
+          "max_abs_xte_m": null,
+          "route_crossings": null,
+          "sample_count": 0,
+          "window_start_s": 2039.9999999994584
+        }
+      },
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": [
+        32,
+        128
+      ],
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 1711,
+        "maximum_ms": 254.31912508793175,
+        "median_ms": 88.44054094515741,
+        "p95_ms": 101.98108351323754,
+        "terminal_call_ms": 0.07145805284380913,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "89254904194298624d79790e73e4343c9067f82b66980dc048ff1bafc7fe74ac",
+        "original-gnc.json": "3b92029722d781ab8e0a33cf0383747c43a86f4f6890c8b8375700e536af54f3",
+        "evaluation.json": "adad3a43aeed2e8b167532e6c72eb9341b13d569573d3095228ee14b60af3507",
+        "events.jsonl": "12efc4b8ed66f6b8765dd4f970237e1e3a14c3c0d4511dcbbc7f2337f0b2c016",
+        "trajectory.parquet": "84207af43b6605495eea3947ca89fc3165f9a8f09bfcdecaba506446df86e3a8"
+      }
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-head_on-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/potocnik_colreg_fan_mpc-head_on-E0/a11c4c34-cd8e-4566-a54f-0024e787255f",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Poto\u010dnik COLREG fan MPC found no continuously footprint-safe trajectory",
+      "simulation_time_s": 195.0,
+      "wall_s": 15.123304707929492,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 149,
+      "unique_avoidance_ids": 67,
+      "manager_forwarded_ids": 67,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 8,
+        "first changed waypoint is too close to current ship position": 122,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 19
+      },
+      "manager_status_reasons": {
+        "feasible": 149,
+        "route update too frequent": 8,
+        "first changed waypoint is too close to current ship position": 122,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 19
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": 180,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 39,
+        "maximum_ms": 88.56683294288814,
+        "median_ms": 22.60412508621812,
+        "p95_ms": 27.333183330483735,
+        "terminal_call_ms": 19.547291798517108,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "7bf88dc9bc0d0b20b3df811c7e10f9198c5c91ba094739ff4fa59b836b43d44c",
+        "original-gnc.json": "b3d8aac2cb46e9fdb1bfbfdd2fc9d04f1a4d9383fa7fed280366a91eba1bf0ea",
+        "evaluation.json": "7cba54792e58b23fef8a3905910c01c501ee49a121521fdbd8ffb13f89617d6f",
+        "events.jsonl": "705fa6216dfbf93627f12aafda2e6726a2f8cd3f2a2aec14417ffbf7dd4e05a6",
+        "trajectory.parquet": "cdebd3f38d658bca33c66667cca07bf028e523ebe3935ef0c23047a6098a128c"
+      }
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-crossing_give_way-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/potocnik_colreg_fan_mpc-crossing_give_way-E0/b14316bb-9f31-4b1b-ab45-1f86ee3e2417",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Poto\u010dnik COLREG fan MPC found no continuously footprint-safe trajectory",
+      "simulation_time_s": 145.0,
+      "wall_s": 9.126295499969274,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 114,
+      "unique_avoidance_ids": 58,
+      "manager_forwarded_ids": 58,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 8,
+        "first changed waypoint is too close to current ship position": 60,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 46
+      },
+      "manager_status_reasons": {
+        "feasible": 114,
+        "route update too frequent": 8,
+        "first changed waypoint is too close to current ship position": 60,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 46
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": 180,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 29,
+        "maximum_ms": 49.18091697618365,
+        "median_ms": 12.18166621401906,
+        "p95_ms": 18.95434157922864,
+        "terminal_call_ms": 12.058291817083955,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "c93b4c75be3b62cb6d0df499b109c6b4a6b95f955f037248e689ba839bd0820a",
+        "original-gnc.json": "76da10b09c875a4e879253e66cecbf2a7129cc6a327fe597b30577ce04af210b",
+        "evaluation.json": "7cba54792e58b23fef8a3905910c01c501ee49a121521fdbd8ffb13f89617d6f",
+        "events.jsonl": "2ddb78daf8893df11306081a50e3e11daff6b7ac54790d89d8dd34464d2a2035",
+        "trajectory.parquet": "c6751761125c80cc91a460e9803e24b8de8fb492fa4f5077336c4801aafbbeb6"
+      }
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-overtaking-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/potocnik_colreg_fan_mpc-overtaking-E0/97766dd3-7697-4434-8abe-2a8a9d18ec16",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Poto\u010dnik COLREG fan MPC found no continuously footprint-safe trajectory",
+      "simulation_time_s": 265.0,
+      "wall_s": 18.221733084181324,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 94,
+      "unique_avoidance_ids": 92,
+      "manager_forwarded_ids": 92,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 4,
+        "first changed waypoint is too close to current ship position": 90
+      },
+      "manager_status_reasons": {
+        "feasible": 94,
+        "route update too frequent": 4,
+        "first changed waypoint is too close to current ship position": 90
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": 180,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 53,
+        "maximum_ms": 77.30304193682969,
+        "median_ms": 18.547957995906472,
+        "p95_ms": 22.402158472687006,
+        "terminal_call_ms": 22.088374942541122,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "cbf57ac069ea8517d5c3cdd7cbaea41b84a5207e8151dd7b7b9917bb8b1d2b83",
+        "original-gnc.json": "98be0fc089c6d50a52d986db1fb3c5c0b6a1f2239104cb952dd56e5b25edf6cc",
+        "evaluation.json": "7cba54792e58b23fef8a3905910c01c501ee49a121521fdbd8ffb13f89617d6f",
+        "events.jsonl": "e2e8d5d5865ec30f5bd54fd2d7c3ad3ff0197f543abded943bf90d40d6febd51",
+        "trajectory.parquet": "4ff8d9df59e20b4274fbfad34c54b6080f70c2faf822fd2bdb8e5730e1f35aca"
+      }
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-paper_ccta2023_multiship-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/potocnik_colreg_fan_mpc-paper_ccta2023_multiship-E0/37ea82b7-faa1-4e57-a51e-11d4dbdeab63",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Poto\u010dnik COLREG fan MPC found no continuously footprint-safe trajectory",
+      "simulation_time_s": 1455.0,
+      "wall_s": 225.83282324997708,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 4066,
+      "unique_avoidance_ids": 466,
+      "manager_forwarded_ids": 466,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 54,
+        "first changed waypoint is too close to current ship position": 4012
+      },
+      "manager_status_reasons": {
+        "feasible": 4066,
+        "route update too frequent": 54,
+        "first changed waypoint is too close to current ship position": 4012
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": 180,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 291,
+        "maximum_ms": 69.21829096972942,
+        "median_ms": 26.659458177164197,
+        "p95_ms": 35.83587449975312,
+        "terminal_call_ms": 24.11979204043746,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "08559c9785dc9cdbc7d71b519a3d5d9383c9858b0399bea4c13d3f70ee9547b4",
+        "original-gnc.json": "1566fcdcc5d2fef87bd27f6d031e39877a9675239a4947e83bda03af25de3c33",
+        "evaluation.json": "7cba54792e58b23fef8a3905910c01c501ee49a121521fdbd8ffb13f89617d6f",
+        "events.jsonl": "5a0ad20d1d628f0a7e6386f9972795edc944a0d1b0a5b562ec0bd8e4529d681c",
+        "trajectory.parquet": "719508fc5e99dbeae8725b81b977e62c8ab7b08d8b841c996fe90e281e4cfea4"
+      }
+    },
+    {
+      "case_id": "mid_mpc_ipopt-head_on-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-head_on-E0/87d9b9a2-2117-4509-881b-8376c262785c",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Mid-MPC L4 plan acceptance rejected the candidate: TRACKABILITY_CAPABILITY_TUPLE, TRACKABILITY_CAPABILITY_INCOMPLETE",
+      "simulation_time_s": 0.0,
+      "wall_s": 8.236552208894864,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 0,
+      "unique_avoidance_ids": 0,
+      "manager_forwarded_ids": 0,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {},
+      "manager_status_reasons": {},
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [
+        {
+          "path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-head_on-E0/87d9b9a2-2117-4509-881b-8376c262785c/artifacts/mid_mpc/b48fa77f79fc0701aee88e70d6353ad6b8358f39ad28bb1b2368dcbcbe97703b.json.gz",
+          "sha256": "b48fa77f79fc0701aee88e70d6353ad6b8358f39ad28bb1b2368dcbcbe97703b",
+          "solver": {
+            "iterations": 21,
+            "accepted_iteration": 21,
+            "ipopt_return_status": "User_Requested_Stop",
+            "native_status": "Timeout",
+            "status": "FeasibleNonOptimal",
+            "accepted_candidate_source": "IPOPT_BEST_FEASIBLE_ITERATE",
+            "max_constraint_violation": 0.0,
+            "optimization_quality_passed": true
+          },
+          "l4_accepted": false
+        }
+      ],
+      "planner_call_timing": {
+        "successful_call_samples": 0,
+        "maximum_ms": null,
+        "median_ms": null,
+        "p95_ms": null,
+        "terminal_call_ms": 2266.346000134945,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "60b1b39a526211e2b4caaf04dbe6167acdf453c6155b789481e6d7f8496ad3d2",
+        "original-gnc.json": "842d6d328d7e74ccae43dfd6800848a8a49c509a799fc5ea5ebe4d5ddb57d2cf",
+        "evaluation.json": "2a87d681252e69da285c24663d47313da9661f03f01a71280e706e54ddc07365",
+        "events.jsonl": "4e8655155a02bcb566c2c4d65af1a6f6d606ceb59c6107924c89e814e002016f",
+        "trajectory.parquet": "b718c24e282006c050df977a8990c2278f4a6f6b11ed95e0ff56dc73f9090bd5"
+      }
+    },
+    {
+      "case_id": "mid_mpc_ipopt-crossing_give_way-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-crossing_give_way-E0/392b76dc-30e3-4a9f-bbb3-b904f89227bf",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Mid-MPC L4 plan acceptance rejected the candidate: TRACKABILITY_CAPABILITY_TUPLE, TRACKABILITY_CAPABILITY_INCOMPLETE",
+      "simulation_time_s": 0.0,
+      "wall_s": 4.784625625004992,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 0,
+      "unique_avoidance_ids": 0,
+      "manager_forwarded_ids": 0,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {},
+      "manager_status_reasons": {},
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [
+        {
+          "path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-crossing_give_way-E0/392b76dc-30e3-4a9f-bbb3-b904f89227bf/artifacts/mid_mpc/07147c48da9da3d3534cb45b72df752cf925f840087e5a1017f51b37b5a94024.json.gz",
+          "sha256": "07147c48da9da3d3534cb45b72df752cf925f840087e5a1017f51b37b5a94024",
+          "solver": {
+            "iterations": 1,
+            "accepted_iteration": 1,
+            "ipopt_return_status": "User_Requested_Stop",
+            "native_status": "Timeout",
+            "status": "FeasibleNonOptimal",
+            "accepted_candidate_source": "IPOPT_BEST_FEASIBLE_ITERATE",
+            "max_constraint_violation": 0.0,
+            "optimization_quality_passed": true
+          },
+          "l4_accepted": false
+        }
+      ],
+      "planner_call_timing": {
+        "successful_call_samples": 0,
+        "maximum_ms": null,
+        "median_ms": null,
+        "p95_ms": null,
+        "terminal_call_ms": 1544.7795002255589,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "8215cbcbbb858054b74171decebd79fc3e2892a1efb275b91c007804790cc824",
+        "original-gnc.json": "edae795f39a065d8698c6697f47e572102b2bcd420103d8635089f87477f7f30",
+        "evaluation.json": "2a87d681252e69da285c24663d47313da9661f03f01a71280e706e54ddc07365",
+        "events.jsonl": "4e8655155a02bcb566c2c4d65af1a6f6d606ceb59c6107924c89e814e002016f",
+        "trajectory.parquet": "b718c24e282006c050df977a8990c2278f4a6f6b11ed95e0ff56dc73f9090bd5"
+      }
+    },
+    {
+      "case_id": "mid_mpc_ipopt-overtaking-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-overtaking-E0/d501c498-b965-4b3b-875a-9ba37e7314a0",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Mid-MPC L4 plan acceptance rejected the candidate: TRACKABILITY_CAPABILITY_TUPLE, TRACKABILITY_CAPABILITY_INCOMPLETE",
+      "simulation_time_s": 0.0,
+      "wall_s": 6.534728999948129,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 0,
+      "unique_avoidance_ids": 0,
+      "manager_forwarded_ids": 0,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {},
+      "manager_status_reasons": {},
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [
+        {
+          "path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-overtaking-E0/d501c498-b965-4b3b-875a-9ba37e7314a0/artifacts/mid_mpc/35a150520c908abe0ec51f4a8e234c45e4c11c6fc80f2843d6366ae942f7bca2.json.gz",
+          "sha256": "35a150520c908abe0ec51f4a8e234c45e4c11c6fc80f2843d6366ae942f7bca2",
+          "solver": {
+            "iterations": 2,
+            "accepted_iteration": 2,
+            "ipopt_return_status": "User_Requested_Stop",
+            "native_status": "Timeout",
+            "status": "FeasibleNonOptimal",
+            "accepted_candidate_source": "IPOPT_BEST_FEASIBLE_ITERATE",
+            "max_constraint_violation": 8.000000040198074e-08,
+            "optimization_quality_passed": true
+          },
+          "l4_accepted": false
+        }
+      ],
+      "planner_call_timing": {
+        "successful_call_samples": 0,
+        "maximum_ms": null,
+        "median_ms": null,
+        "p95_ms": null,
+        "terminal_call_ms": 1728.206249885261,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "3318677a12adf16dcf9a1d61b633dc8c87de4d6b59f0948cb78323a3eba7c3fb",
+        "original-gnc.json": "d5c4d5aed4a45a9d71833a46bb78311be8d81253ba2d93a9a4a654110e239aee",
+        "evaluation.json": "2a87d681252e69da285c24663d47313da9661f03f01a71280e706e54ddc07365",
+        "events.jsonl": "4e8655155a02bcb566c2c4d65af1a6f6d606ceb59c6107924c89e814e002016f",
+        "trajectory.parquet": "b718c24e282006c050df977a8990c2278f4a6f6b11ed95e0ff56dc73f9090bd5"
+      }
+    },
+    {
+      "case_id": "mid_mpc_ipopt-paper_ccta2023_multiship-E0",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-paper_ccta2023_multiship-E0/7e1824eb-83fe-4bc4-b668-ca43fef06715",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Mid-MPC L4 plan acceptance rejected the candidate: TRACKABILITY_CAPABILITY_TUPLE, TRACKABILITY_CAPABILITY_INCOMPLETE",
+      "simulation_time_s": 0.0,
+      "wall_s": 4.844090375117958,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 0,
+      "unique_avoidance_ids": 0,
+      "manager_forwarded_ids": 0,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {},
+      "manager_status_reasons": {},
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [
+        {
+          "path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-paper_ccta2023_multiship-E0/7e1824eb-83fe-4bc4-b668-ca43fef06715/artifacts/mid_mpc/8020733436dfe267c10380c1f23971051a3c7ca5972dd7c75850ec9d5fbea08f.json.gz",
+          "sha256": "8020733436dfe267c10380c1f23971051a3c7ca5972dd7c75850ec9d5fbea08f",
+          "solver": {
+            "iterations": 8,
+            "accepted_iteration": null,
+            "ipopt_return_status": "Solve_Succeeded",
+            "native_status": "Converged",
+            "status": "Converged",
+            "accepted_candidate_source": "IPOPT_TERMINAL",
+            "max_constraint_violation": 0.0,
+            "optimization_quality_passed": true
+          },
+          "l4_accepted": false
+        }
+      ],
+      "planner_call_timing": {
+        "successful_call_samples": 0,
+        "maximum_ms": null,
+        "median_ms": null,
+        "p95_ms": null,
+        "terminal_call_ms": 1444.8408330790699,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "69e60440cae166682c6cf1497a64060de4710370746d24fe9c18f778534c47b9",
+        "original-gnc.json": "fd029f46b48c1e252479b75d066f08300b5545eaa2a123757ad86a2d2a3ab029",
+        "evaluation.json": "2a87d681252e69da285c24663d47313da9661f03f01a71280e706e54ddc07365",
+        "events.jsonl": "4e8655155a02bcb566c2c4d65af1a6f6d606ceb59c6107924c89e814e002016f",
+        "trajectory.parquet": "b718c24e282006c050df977a8990c2278f4a6f6b11ed95e0ff56dc73f9090bd5"
+      }
+    },
+    {
+      "case_id": "vo-head_on-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/vo-head_on-E4/3d7606df-f6f6-4163-bc9a-f7e5ec0d5380",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "An infeasible planner result cannot become an original GNC plan",
+      "simulation_time_s": 174.0,
+      "wall_s": 28.152878457913175,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 121,
+      "unique_avoidance_ids": 30,
+      "manager_forwarded_ids": 28,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "first changed waypoint is too close to current ship position": 105,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 12
+      },
+      "manager_status_reasons": {
+        "feasible": 117,
+        "first changed waypoint is too close to current ship position": 105,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 12,
+        "speed_exceeds_vessel_limit": 4
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": true,
+      "fan_candidate_count": null,
+      "vo_grid_shape": [
+        32,
+        128
+      ],
+      "vo_infeasible_candidate_fallback_label": "stop_nonpaper_wrapper",
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 174,
+        "maximum_ms": 56.092957966029644,
+        "median_ms": 32.042645500041544,
+        "p95_ms": 38.28682095045224,
+        "terminal_call_ms": 29.09229090437293,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "67845fd0adecbf386c3b17bf35818b26ef6d197c4a9bb1b56d4dfa6656843d31",
+        "original-gnc.json": "c5200c9b4200da2385075c9e1524a41b2255eb9b20454342519521a221ca8c05",
+        "evaluation.json": "2f0513d2048d38658a3626de5119ccaccda402bef8aead6272b3a6f652bfb791",
+        "events.jsonl": "b5e0e25c1ab511cd5df5922d480478dd964fc3d49e6e7e290869f0052a9a1f6f",
+        "trajectory.parquet": "be088fa76f5af8e746557b6cab957a0dbbb18f87d95382bd1f3acf5b82ff43e9"
+      }
+    },
+    {
+      "case_id": "vo-crossing_give_way-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/vo-crossing_give_way-E4/33f0720d-5857-4d7b-8c59-33311b0102ba",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "An infeasible planner result cannot become an original GNC plan",
+      "simulation_time_s": 130.0,
+      "wall_s": 19.80202304199338,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 130,
+      "unique_avoidance_ids": 24,
+      "manager_forwarded_ids": 24,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 10,
+        "first changed waypoint is too close to current ship position": 109,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 11
+      },
+      "manager_status_reasons": {
+        "feasible": 130,
+        "route update too frequent": 10,
+        "first changed waypoint is too close to current ship position": 109,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 11
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": true,
+      "fan_candidate_count": null,
+      "vo_grid_shape": [
+        32,
+        128
+      ],
+      "vo_infeasible_candidate_fallback_label": "stop_nonpaper_wrapper",
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 130,
+        "maximum_ms": 49.22266700305045,
+        "median_ms": 32.4657914461568,
+        "p95_ms": 39.63918760418892,
+        "terminal_call_ms": 37.43675001896918,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "00108dcfb02012242c0da19f91c71cc45767fd9ff49e1126c41536d680e8500a",
+        "original-gnc.json": "ea694c26450c5e0548e12db2a3b3188ef57ac66c53b108f9223258b2f3d87b2a",
+        "evaluation.json": "2f0513d2048d38658a3626de5119ccaccda402bef8aead6272b3a6f652bfb791",
+        "events.jsonl": "dc1ed96b7085e10763de62f8a349862195803c21137a879ea3a1294d4382816f",
+        "trajectory.parquet": "e4cbdd67dc8e0ae921c641abc3273ac6e166a3664cd1533e3e444fb5abd2ec84"
+      }
+    },
+    {
+      "case_id": "vo-overtaking-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/vo-overtaking-E4/97565a05-48fe-4df1-bca2-44ff8e1b457b",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "An infeasible planner result cannot become an original GNC plan",
+      "simulation_time_s": 380.0,
+      "wall_s": 57.98184191691689,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 267,
+      "unique_avoidance_ids": 22,
+      "manager_forwarded_ids": 22,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "first changed waypoint is too close to current ship position": 235,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 3
+      },
+      "manager_status_reasons": {
+        "speed_exceeds_vessel_limit": 29,
+        "feasible": 238,
+        "first changed waypoint is too close to current ship position": 235,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 3
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": true,
+      "fan_candidate_count": null,
+      "vo_grid_shape": [
+        32,
+        128
+      ],
+      "vo_infeasible_candidate_fallback_label": "stop_nonpaper_wrapper",
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 380,
+        "maximum_ms": 85.16879193484783,
+        "median_ms": 31.904687522910535,
+        "p95_ms": 38.63550806418061,
+        "terminal_call_ms": 32.16579183936119,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "fa6c4373518b635b058443eda7b3481c31ad8728ade76a98c2a50b0ba6ccd763",
+        "original-gnc.json": "32947dda4bee1fbca8d90fcb74dfcd940fd0d919ee47ecd6e4014878563ede16",
+        "evaluation.json": "2f0513d2048d38658a3626de5119ccaccda402bef8aead6272b3a6f652bfb791",
+        "events.jsonl": "b38a51f27b414cbd3a902a56a33b5097d3fd5c75edd87b410a0c2c4c880b133c",
+        "trajectory.parquet": "6feaa7dbded92dc11fee90733d1738ca714577111be573c5ea55c4062e7f316b"
+      }
+    },
+    {
+      "case_id": "vo-paper_ccta2023_multiship-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/vo-paper_ccta2023_multiship-E4/10c914aa-27e2-4814-93c4-2363e149e35c",
+      "execution_outcome": "COMPLETED",
+      "state": "FINISHED",
+      "fallback_used": false,
+      "failure": null,
+      "simulation_time_s": 1800.1,
+      "wall_s": 544.7175490420777,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 1711,
+      "unique_avoidance_ids": 200,
+      "manager_forwarded_ids": 200,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 905,
+        "first changed waypoint is too close to current ship position": 736,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 70
+      },
+      "manager_status_reasons": {
+        "feasible": 1711,
+        "route update too frequent": 905,
+        "first changed waypoint is too close to current ship position": 736,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 70
+      },
+      "evaluation_status": "COMPLETE",
+      "hard_gate": "PASS",
+      "minimum_hull_clearance_m": 677.8112248002861,
+      "goal_reached": false,
+      "aggregate": {
+        "P_ahead13": 0.0,
+        "P_ahead15": 0.3333333333333333,
+        "P_course_non_apparent": 0.4,
+        "P_delay": 0.007782387258727393,
+        "P_pt": 0.0,
+        "P_speed_non_apparent": 0.2,
+        "P_stage2": 0.3,
+        "P_stage3": 0.0,
+        "S13": 0.7402720159265908,
+        "S15": 0.5833333333333334,
+        "S16": 0.6922176127412726,
+        "S17": 0.7,
+        "S8": 0.6922176127412726,
+        "S_apparent": 0.7,
+        "S_r": 1.0,
+        "S_safety": 1.0,
+        "S_theta": 0.6390526076523612,
+        "collision_count": 0,
+        "global_collision_count": 0,
+        "global_grounding_count": 0,
+        "global_grounding_not_evaluated_count": 0,
+        "grounding_clearance_score": 1.0,
+        "grounding_count": 0,
+        "grounding_not_evaluated_count": 0,
+        "minimum_distance_m": 706.5456551760533,
+        "ownship_collision_count": 0,
+        "ownship_grounding_count": 0,
+        "pair_count": 6
+      },
+      "voyage": {
+        "encounter": {
+          "controlling_target_id": 1,
+          "min_target_center_distance_m": 706.5456551760533
+        },
+        "recovery_voyage": {
+          "cpa_time_s": 1742.3999999995108,
+          "heading_gross_sweep_deg": 324.1318419261186,
+          "heading_net_rotation_deg": 279.48552880570355,
+          "max_abs_xte_m": 38.860049695962516,
+          "window_end_s": 1982.3999999995108,
+          "window_start_s": 1742.3999999995108
+        },
+        "return_voyage": {
+          "buffer_s": 240.0,
+          "cpa_time_s": 1742.3999999995108,
+          "max_abs_xte_m": null,
+          "route_crossings": null,
+          "sample_count": 0,
+          "window_start_s": 1982.3999999995108
+        }
+      },
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": [
+        32,
+        128
+      ],
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 1711,
+        "maximum_ms": 1984.9187498912215,
+        "median_ms": 86.6915830411017,
+        "p95_ms": 100.8238330250606,
+        "terminal_call_ms": 0.07491698488593102,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "9b37297966977ae91739f39229f50d903e7474879578044cef6b91118d37917d",
+        "original-gnc.json": "d5b8b2d9fb02f9d9c7ac0151c6bb438467720556480315dee078f0533710ad21",
+        "evaluation.json": "79562fde0a704c5cf5a8a5fe5ff7e60e618e8f1f4207e0f2ad35d3e9201f6117",
+        "events.jsonl": "53c3cbdb100071697a5063b4328d8f381f2e7afbefd29b7f43ef6e76d147c7e5",
+        "trajectory.parquet": "3d6fe054ecd69db343715576f8d6186545ac133727c4b4c34fc8fc60182655d8"
+      }
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-head_on-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/potocnik_colreg_fan_mpc-head_on-E4/2b2dc320-3d81-45e3-962e-e94eb23ce3a8",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Poto\u010dnik COLREG fan MPC found no continuously footprint-safe trajectory",
+      "simulation_time_s": 195.0,
+      "wall_s": 24.924380499869585,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 155,
+      "unique_avoidance_ids": 77,
+      "manager_forwarded_ids": 77,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 8,
+        "first changed waypoint is too close to current ship position": 147
+      },
+      "manager_status_reasons": {
+        "feasible": 155,
+        "route update too frequent": 8,
+        "first changed waypoint is too close to current ship position": 147
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": 180,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 39,
+        "maximum_ms": 95.29675007797778,
+        "median_ms": 20.83091693930328,
+        "p95_ms": 21.916695684194565,
+        "terminal_call_ms": 19.244875060394406,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "9865c9ea7e7d185f129822f5dff8f48fb53b237d82ada05a221900cd5aef08b0",
+        "original-gnc.json": "f929c23466498de5fbb0f08261dab8d6b255718a3c4b890784c167eee311b817",
+        "evaluation.json": "7cba54792e58b23fef8a3905910c01c501ee49a121521fdbd8ffb13f89617d6f",
+        "events.jsonl": "0e8e06b752a8ea5b519a0e9a317e440f03fb3322ff69b7f3428f019a8627ac47",
+        "trajectory.parquet": "93e7e776882c4fcb0eaa8fb4d38481f157cf92117eba5aabd80e7628f507d2c8"
+      }
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-crossing_give_way-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/potocnik_colreg_fan_mpc-crossing_give_way-E4/00429c75-31f5-4d73-aba1-b2ee17d5b225",
+      "execution_outcome": "COMPLETED",
+      "state": "FINISHED",
+      "fallback_used": false,
+      "failure": null,
+      "simulation_time_s": 271.5,
+      "wall_s": 32.72714166715741,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 205,
+      "unique_avoidance_ids": 108,
+      "manager_forwarded_ids": 108,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 8,
+        "first changed waypoint is too close to current ship position": 146,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 51
+      },
+      "manager_status_reasons": {
+        "feasible": 205,
+        "route update too frequent": 8,
+        "first changed waypoint is too close to current ship position": 146,
+        "dynamic route lateral offset exceeds limit; split the avoidance maneuver": 51
+      },
+      "evaluation_status": "COMPLETE",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": 15.921180151481451,
+      "goal_reached": true,
+      "aggregate": {
+        "P_ahead15": 0.0,
+        "P_course_non_apparent": 0.9710194587594246,
+        "P_delay": 0.2546852539596084,
+        "P_pt": 0.0,
+        "P_speed_non_apparent": 1.0,
+        "P_stage2": 0.0,
+        "P_stage3": 0.0,
+        "S15": 0.44807795324120325,
+        "S16": 0.007201982027346386,
+        "S17": 0.8889539244550602,
+        "S8": 0.01079981236741622,
+        "S_apparent": 0.014490270620287626,
+        "S_r": 0.32058844435625833,
+        "S_safety": 0.7779078489101202,
+        "S_theta": 0.6731110190207941,
+        "collision_count": 0,
+        "global_collision_count": 0,
+        "global_grounding_count": 0,
+        "global_grounding_not_evaluated_count": 0,
+        "grounding_clearance_score": 1.0,
+        "grounding_count": 0,
+        "grounding_not_evaluated_count": 0,
+        "minimum_distance_m": 42.82353777425033,
+        "ownship_collision_count": 0,
+        "ownship_grounding_count": 0,
+        "pair_count": 1
+      },
+      "voyage": {
+        "encounter": {
+          "controlling_target_id": 1,
+          "min_target_center_distance_m": 42.76801925905377
+        },
+        "recovery_voyage": {
+          "cpa_time_s": 147.5,
+          "heading_gross_sweep_deg": 14.0482388241008,
+          "heading_net_rotation_deg": 1.8065212446463028,
+          "max_abs_xte_m": 9.39390541134344,
+          "window_end_s": 387.5,
+          "window_start_s": 147.5
+        },
+        "return_voyage": {
+          "buffer_s": 240.0,
+          "cpa_time_s": 147.5,
+          "max_abs_xte_m": null,
+          "route_crossings": null,
+          "sample_count": 0,
+          "window_start_s": 387.5
+        }
+      },
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": 180,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 55,
+        "maximum_ms": 76.2775419279933,
+        "median_ms": 12.069459073245525,
+        "p95_ms": 17.23428291734308,
+        "terminal_call_ms": 0.0,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "ec12df99488e3dbb0cfab4ad4b506586f87d3076c53d8b5b2e4b2d37d14a7750",
+        "original-gnc.json": "0dcbca351e92f80bbce0b333cfee4b7c16692504e7c343eea76a8b1a85f1ebf4",
+        "evaluation.json": "ad6e71d216681283cbec9adca8b1aaad2a269a05112ece404cb42ea681d77b9b",
+        "events.jsonl": "50315dba4c569a44233d9417d88e6f0ef4487d49c94dffaa91dbb881b2bb867d",
+        "trajectory.parquet": "f0ee8f20b49a37ef3e8d968703ae1e4fa6e206114219a80f36fe847e099e7916"
+      }
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-overtaking-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/potocnik_colreg_fan_mpc-overtaking-E4/5f60d43a-962c-4522-a3d4-fc5f4c0d8648",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Poto\u010dnik COLREG fan MPC found no continuously footprint-safe trajectory",
+      "simulation_time_s": 335.0,
+      "wall_s": 39.16086791688576,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 134,
+      "unique_avoidance_ids": 131,
+      "manager_forwarded_ids": 131,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 4,
+        "first changed waypoint is too close to current ship position": 130
+      },
+      "manager_status_reasons": {
+        "feasible": 134,
+        "route update too frequent": 4,
+        "first changed waypoint is too close to current ship position": 130
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": 180,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 67,
+        "maximum_ms": 72.6253748871386,
+        "median_ms": 17.066999804228544,
+        "p95_ms": 18.10792034957558,
+        "terminal_call_ms": 15.856666956096888,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "4ca7d89c077233d4e35fe15237d201ff104f76492292942858123a19cb35f7ae",
+        "original-gnc.json": "263034d6d4100f4000812fd1fdfb64438fadeacf3c136e7f2f026277e550583b",
+        "evaluation.json": "7cba54792e58b23fef8a3905910c01c501ee49a121521fdbd8ffb13f89617d6f",
+        "events.jsonl": "4abef5f824c41542781120c745d4e8c85468ba297de74cfa58af83715e6b1ec6",
+        "trajectory.parquet": "8395c19c17fb20fa351a06f834952430ed54700df2f344533a48b52c3b8b0ff9"
+      }
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-paper_ccta2023_multiship-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/potocnik_colreg_fan_mpc-paper_ccta2023_multiship-E4/2798bf65-f64c-4470-831f-a667396a6be3",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Poto\u010dnik COLREG fan MPC found no continuously footprint-safe trajectory",
+      "simulation_time_s": 1415.0,
+      "wall_s": 282.80433158390224,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 3990,
+      "unique_avoidance_ids": 491,
+      "manager_forwarded_ids": 491,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {
+        "route update too frequent": 54,
+        "first changed waypoint is too close to current ship position": 3936
+      },
+      "manager_status_reasons": {
+        "feasible": 3990,
+        "route update too frequent": 54,
+        "first changed waypoint is too close to current ship position": 3936
+      },
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": 180,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [],
+      "planner_call_timing": {
+        "successful_call_samples": 283,
+        "maximum_ms": 142.36241718754172,
+        "median_ms": 26.26729104667902,
+        "p95_ms": 29.34040450491011,
+        "terminal_call_ms": 24.850750109180808,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "dc01e31837459d1581aba3e1628bbc5ad0f464cf6c991328d2f97f621e9bda32",
+        "original-gnc.json": "8ebc0a8a410821a82454a0c2012cc51dc5c62a23da1696d92afe63b7aa2ab337",
+        "evaluation.json": "7cba54792e58b23fef8a3905910c01c501ee49a121521fdbd8ffb13f89617d6f",
+        "events.jsonl": "db8e99ce19f2aec4f653d62c78c8022cf000bf75de841fe86b026f9ffbf8444e",
+        "trajectory.parquet": "19d4ddca8fd2640ee35f7aa94dbad84ec960d7ba10b95f90ecb052ace30f8cd7"
+      }
+    },
+    {
+      "case_id": "mid_mpc_ipopt-head_on-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-head_on-E4/e343d98b-d1a8-444f-9aae-0fff6610d411",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Mid-MPC L4 plan acceptance rejected the candidate: TRACKABILITY_CAPABILITY_TUPLE, TRACKABILITY_CAPABILITY_INCOMPLETE",
+      "simulation_time_s": 0.0,
+      "wall_s": 7.198504542000592,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 0,
+      "unique_avoidance_ids": 0,
+      "manager_forwarded_ids": 0,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {},
+      "manager_status_reasons": {},
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [
+        {
+          "path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-head_on-E4/e343d98b-d1a8-444f-9aae-0fff6610d411/artifacts/mid_mpc/13b53e81b91c433e5dfb1b0ef3eee0b9292f370f29a26526f3dadbb4612c3b15.json.gz",
+          "sha256": "13b53e81b91c433e5dfb1b0ef3eee0b9292f370f29a26526f3dadbb4612c3b15",
+          "solver": {
+            "iterations": 21,
+            "accepted_iteration": 21,
+            "ipopt_return_status": "User_Requested_Stop",
+            "native_status": "Timeout",
+            "status": "FeasibleNonOptimal",
+            "accepted_candidate_source": "IPOPT_BEST_FEASIBLE_ITERATE",
+            "max_constraint_violation": 0.0,
+            "optimization_quality_passed": true
+          },
+          "l4_accepted": false
+        }
+      ],
+      "planner_call_timing": {
+        "successful_call_samples": 0,
+        "maximum_ms": null,
+        "median_ms": null,
+        "p95_ms": null,
+        "terminal_call_ms": 1428.3326668664813,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "51fe46ba987fc68a0cb386f2e51fc70b4a1cef880ae284d2bd9557acf1079652",
+        "original-gnc.json": "cc823f2aa8ad322c3055216389beb788f9ff11755c33cda6225b5062a8fb3465",
+        "evaluation.json": "2a87d681252e69da285c24663d47313da9661f03f01a71280e706e54ddc07365",
+        "events.jsonl": "4e8655155a02bcb566c2c4d65af1a6f6d606ceb59c6107924c89e814e002016f",
+        "trajectory.parquet": "b718c24e282006c050df977a8990c2278f4a6f6b11ed95e0ff56dc73f9090bd5"
+      }
+    },
+    {
+      "case_id": "mid_mpc_ipopt-crossing_give_way-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-crossing_give_way-E4/86179352-bb2a-4f0c-bbf2-15a4df8fa8cc",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Mid-MPC L4 plan acceptance rejected the candidate: TRACKABILITY_CAPABILITY_TUPLE, TRACKABILITY_CAPABILITY_INCOMPLETE",
+      "simulation_time_s": 0.0,
+      "wall_s": 4.567152375122532,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 0,
+      "unique_avoidance_ids": 0,
+      "manager_forwarded_ids": 0,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {},
+      "manager_status_reasons": {},
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [
+        {
+          "path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-crossing_give_way-E4/86179352-bb2a-4f0c-bbf2-15a4df8fa8cc/artifacts/mid_mpc/652c57e40fda3d3064dd630001bf9727fcce8501bf78bee19652548e55158028.json.gz",
+          "sha256": "652c57e40fda3d3064dd630001bf9727fcce8501bf78bee19652548e55158028",
+          "solver": {
+            "iterations": 1,
+            "accepted_iteration": 1,
+            "ipopt_return_status": "User_Requested_Stop",
+            "native_status": "Timeout",
+            "status": "FeasibleNonOptimal",
+            "accepted_candidate_source": "IPOPT_BEST_FEASIBLE_ITERATE",
+            "max_constraint_violation": 0.0,
+            "optimization_quality_passed": true
+          },
+          "l4_accepted": false
+        }
+      ],
+      "planner_call_timing": {
+        "successful_call_samples": 0,
+        "maximum_ms": null,
+        "median_ms": null,
+        "p95_ms": null,
+        "terminal_call_ms": 1006.4887080807239,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "f048668c10e6dddf37a7fedffd59633eb7ce2957fbf8b0f18a208036818dade5",
+        "original-gnc.json": "ef2a5de7f9ccb31eeba60f4a22032033b0919cef810747a76378bcf0d532ac43",
+        "evaluation.json": "2a87d681252e69da285c24663d47313da9661f03f01a71280e706e54ddc07365",
+        "events.jsonl": "4e8655155a02bcb566c2c4d65af1a6f6d606ceb59c6107924c89e814e002016f",
+        "trajectory.parquet": "b718c24e282006c050df977a8990c2278f4a6f6b11ed95e0ff56dc73f9090bd5"
+      }
+    },
+    {
+      "case_id": "mid_mpc_ipopt-overtaking-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-overtaking-E4/49234568-fb4a-4324-a78a-25637f0def38",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Mid-MPC L4 plan acceptance rejected the candidate: TRACKABILITY_CAPABILITY_TUPLE, TRACKABILITY_CAPABILITY_INCOMPLETE",
+      "simulation_time_s": 0.0,
+      "wall_s": 6.085178249981254,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 0,
+      "unique_avoidance_ids": 0,
+      "manager_forwarded_ids": 0,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {},
+      "manager_status_reasons": {},
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [
+        {
+          "path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-overtaking-E4/49234568-fb4a-4324-a78a-25637f0def38/artifacts/mid_mpc/2b9bccfe7cbd72c0b44a936a5200b5ea7e62b49495cc45f32f933c89617dd827.json.gz",
+          "sha256": "2b9bccfe7cbd72c0b44a936a5200b5ea7e62b49495cc45f32f933c89617dd827",
+          "solver": {
+            "iterations": 2,
+            "accepted_iteration": 2,
+            "ipopt_return_status": "User_Requested_Stop",
+            "native_status": "Timeout",
+            "status": "FeasibleNonOptimal",
+            "accepted_candidate_source": "IPOPT_BEST_FEASIBLE_ITERATE",
+            "max_constraint_violation": 8.000000040198074e-08,
+            "optimization_quality_passed": true
+          },
+          "l4_accepted": false
+        }
+      ],
+      "planner_call_timing": {
+        "successful_call_samples": 0,
+        "maximum_ms": null,
+        "median_ms": null,
+        "p95_ms": null,
+        "terminal_call_ms": 1092.1330831479281,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "54bf8d93040bffee7b0b1ba8e4309f7dc5bb642f9f0f651b8154f9ac2b92ede9",
+        "original-gnc.json": "5234bcacbe4df9f12182d927c2825c7741f9493239ed27f899776b04c49306b1",
+        "evaluation.json": "2a87d681252e69da285c24663d47313da9661f03f01a71280e706e54ddc07365",
+        "events.jsonl": "4e8655155a02bcb566c2c4d65af1a6f6d606ceb59c6107924c89e814e002016f",
+        "trajectory.parquet": "b718c24e282006c050df977a8990c2278f4a6f6b11ed95e0ff56dc73f9090bd5"
+      }
+    },
+    {
+      "case_id": "mid_mpc_ipopt-paper_ccta2023_multiship-E4",
+      "run_directory": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-paper_ccta2023_multiship-E4/fd34f994-fe82-4023-b50c-91849a750d5f",
+      "execution_outcome": "FAILED",
+      "state": "FAILED",
+      "fallback_used": false,
+      "failure": "Mid-MPC L4 plan acceptance rejected the candidate: TRACKABILITY_CAPABILITY_TUPLE, TRACKABILITY_CAPABILITY_INCOMPLETE",
+      "simulation_time_s": 0.0,
+      "wall_s": 4.6740135829895735,
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "avoidance_publications": 0,
+      "unique_avoidance_ids": 0,
+      "manager_forwarded_ids": 0,
+      "coordinate_accepted_ids": 0,
+      "coordinate_status_reasons": {},
+      "manager_status_reasons": {},
+      "evaluation_status": "NOT_EVALUATED",
+      "hard_gate": "FAIL",
+      "minimum_hull_clearance_m": null,
+      "goal_reached": false,
+      "aggregate": null,
+      "voyage": null,
+      "planner_summary_solver_executed": false,
+      "fan_candidate_count": null,
+      "vo_grid_shape": null,
+      "vo_infeasible_candidate_fallback_label": null,
+      "mid_solver_artifacts": [
+        {
+          "path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-campaign-final-05/mid_mpc_ipopt-paper_ccta2023_multiship-E4/fd34f994-fe82-4023-b50c-91849a750d5f/artifacts/mid_mpc/a83f43d6d71e889cf1adb9200b8af570243fc4c42890033d6a7e9246d504a4f8.json.gz",
+          "sha256": "a83f43d6d71e889cf1adb9200b8af570243fc4c42890033d6a7e9246d504a4f8",
+          "solver": {
+            "iterations": 8,
+            "accepted_iteration": null,
+            "ipopt_return_status": "Solve_Succeeded",
+            "native_status": "Converged",
+            "status": "Converged",
+            "accepted_candidate_source": "IPOPT_TERMINAL",
+            "max_constraint_violation": 0.0,
+            "optimization_quality_passed": true
+          },
+          "l4_accepted": false
+        }
+      ],
+      "planner_call_timing": {
+        "successful_call_samples": 0,
+        "maximum_ms": null,
+        "median_ms": null,
+        "p95_ms": null,
+        "terminal_call_ms": 1175.0624577980489,
+        "scope": "Planner API wall time, deduplicated by actual solve ID; includes algorithm/acceptance overhead, not only optimizer time"
+      },
+      "artifact_sha256": {
+        "manifest.json": "4fbc6d5ba5168c14520cb67cb64be025fa808dc4365071ba89d7866d23bd8cf7",
+        "original-gnc.json": "4a9dcd0d32aab1fa85bc71018b13402296873857c2cf8ccbd418848ced6aab68",
+        "evaluation.json": "2a87d681252e69da285c24663d47313da9661f03f01a71280e706e54ddc07365",
+        "events.jsonl": "4e8655155a02bcb566c2c4d65af1a6f6d606ceb59c6107924c89e814e002016f",
+        "trajectory.parquet": "b718c24e282006c050df977a8990c2278f4a6f6b11ed95e0ff56dc73f9090bd5"
+      }
+    }
+  ]
+}

@@ -1,0 +1,915 @@
+{
+  "selected/R03-plus-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-plus-E2",
+    "metadata_sha256": {
+      "case.json": "9fd7708680db1a5faffd526377aef400b9cc84408b53dc0fa20edb25af06932f",
+      "summary.json": "b9bcd83059723eecb90361eb2e476b47199cc822070e7375422be396af249f68",
+      "manifest.json": "439eaa2790c6cb20ba8db0557e7dea089374455120b7cca5454012b22307e31f",
+      "effective-parameters.json": "2a00abf196d9b9b654811b35ce8891a18f4e692efa0c3109c1983f7c808bd81d",
+      "campaign-result.json": "e45e27be992b6113666f0c2fed77b139d82634fa576bca494f6ed5d88d63f566",
+      "compressed-evidence.json": "227739cdf2abbaf8a8bc9db71bae45d5f7741c5412ce69e42c0cf4fa89967f72"
+    }
+  },
+  "selected/R03-plus-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-plus-E1",
+    "metadata_sha256": {
+      "case.json": "8b4e4fff5ca9480375ae8e0cde252ae4d0be8b7884f5802f5bf75543df6de38f",
+      "summary.json": "6e19ec3f7e4ab7c22698a7aa42d27059c1d37529fccb304b4b62dafa3b8b3f4c",
+      "manifest.json": "efe52ae28f3dae78dad7bc0e8ed9921c8cb9f7685fafd772c3b49921f0edc44a",
+      "effective-parameters.json": "37c8c37fa440069ddfb2c3e63a5a6048da88204cb76707e1036097dffd828867",
+      "campaign-result.json": "31bca6699a9d11e0f44a79634983ddbbfbe90cf33dab4c0620ed04d60dcfbfa5",
+      "compressed-evidence.json": "d8581ec352ce2fde5457320ef5360d117498455fbd1828bf8f1b2c292f8d48d5"
+    }
+  },
+  "selected/R03-minus-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-minus-E2",
+    "metadata_sha256": {
+      "case.json": "e2567cd1d5cfc55baac1cb5e036403dadfb8b7225b86b3d44833c650ac6770a8",
+      "summary.json": "5b7af17b17e149a1a5a0642592bd2e3e3d3999397af632d83181272be26fc496",
+      "manifest.json": "bb2b15bffad357a521ef7eeef004cd0123ab99146ae100fcb08be09fe92b9f17",
+      "effective-parameters.json": "b033c98401df67b887c0ea04de475e18be5e629a60ccc26d0c6bd9766276869e",
+      "campaign-result.json": "a31cd6dde91c24d65fbc8c07d09c7dc6657dda9c1405968653fe704807f33140",
+      "compressed-evidence.json": "c31570aa4a83684a6afa22ccf023c1884f90f6c9305aaec79b5980b08826cc9c"
+    }
+  },
+  "selected/R02-minus-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-minus-E4",
+    "metadata_sha256": {
+      "case.json": "cde03c3b467a6469ac2a25690278d5c122f928a2938258b3c68cebb093a3b318",
+      "summary.json": "32f511d576123561fa590288b3989405b41f956273a0b3c4d2ff1b9110a99265",
+      "manifest.json": "61fcac5c8d2009cfbcb71ab63fa339e39e514a9579505bdb9f701bd048f3ff76",
+      "effective-parameters.json": "c4845c7a6be5766032ef00ad6bc564ea691e3fa67013026be8336eec4d8e753a",
+      "campaign-result.json": "118bc480878cb1ff6be00516109014a08d0f62998f1bcecbb37610d3d45710ac",
+      "compressed-evidence.json": "8af0c97195f36f3b2b707ec11a78eb0bfb4fa7ec36c3577bdc5247472d2ca80a"
+    }
+  },
+  "selected/R07-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R07-E0",
+    "metadata_sha256": {
+      "case.json": "ceca4f05a8b521d3ac2a8f2678718860b489a0fd111f8e94149fb71f0f34e6fc",
+      "summary.json": "dbcf3f4bdeebb6fa5055d9796262904e6aca1bb7a50ada2ae664ac8e573e0444",
+      "manifest.json": "d00793d0fccbb3fc730460264add68f72202d811aa5eb0e8421a68b580f2b5b2",
+      "effective-parameters.json": "35aafe9ded9f488be9adeaf0a77634843b92264f1634996aac29cc225436030a",
+      "campaign-result.json": "f593348debf6251305fccf83e4bf93ae47f70bdb8ed0faeca8ba99c1ab938edb",
+      "compressed-evidence.json": "dbce8c84b7ba7f2c059d376c08219ea7f54f5f571c79f38e2b1506f7d071a208"
+    }
+  },
+  "selected/R12-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R12-E0",
+    "metadata_sha256": {
+      "case.json": "39a7b2ac072bd89e35e615bc0fefa849919fb5fd9923f7096984fe5d1ae75a0b",
+      "summary.json": "62b2be784de16285f91c57e3ecc2d9d14aae2c6f335ee16a7941b2302aea9702",
+      "manifest.json": "538b73d99cf6bcf345a911619f67ed7df292f9b9188d87842c5d891427c9b303",
+      "effective-parameters.json": "1cd4dba403a3266ec16febcc08ffff64459a4e03ea6b9b59f738cbc942e8d6a8",
+      "campaign-result.json": "79cc7f4bfe8bba25a54d001a2195a8218823aec11ce34a1ebf62b3944cdebe02",
+      "compressed-evidence.json": "6621c97301f96ced209276b60eb99d04cc089320b1ada4529f651639ebdd393e"
+    }
+  },
+  "selected/R03-plus-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-plus-E0",
+    "metadata_sha256": {
+      "case.json": "0f79763ee736404e14f2e2ab733d52bcc69d5b556636bc0548f216c22347ae40",
+      "summary.json": "0bf3432d61be5521994b3481191553000f233c8729088117bae6e575de212e48",
+      "manifest.json": "7cbc305064eace37a3d93936f387615eec5219763399fadaccd72822456bf1fb",
+      "effective-parameters.json": "18af0eb030bec493b477ea8ddaf84cb4c13c8d236c92215bf0c7a44bde13ad45",
+      "campaign-result.json": "877364028d358f0189af27ce25fa37ce6e4edd5c1970b4806926b2969287f40d",
+      "compressed-evidence.json": "c4802100de1a4f0ee58e8ecb294d9c75e9a9becad37bf5b225e347a2da413b3e"
+    }
+  },
+  "selected/R03-plus-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-plus-E4",
+    "metadata_sha256": {
+      "case.json": "1abac2d151a153ab3bec1537f07c82004257c5b53d7ac21c17495a6645ef61e6",
+      "summary.json": "dad89ca495e4c749c01d54fe971a31ee853be95df8819cb42fa783369b73851f",
+      "manifest.json": "b0c8df022b09a32aa884e2e022fab81811d01935c5b0f70407369cc6afeebb86",
+      "effective-parameters.json": "1805c460098735dba1b641acb8f5d81a50b500e12df3a4f103fed6a37a30ac61",
+      "campaign-result.json": "11477717ca25d22847946a8115260fae2ea64b44d5efc4846a847c49bd651721",
+      "compressed-evidence.json": "d086ae2ac5d7e6e3f45fe0ccd773907d26b463d1554b389fafcf481f8f787a21"
+    }
+  },
+  "selected/R11-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R11-E0",
+    "metadata_sha256": {
+      "case.json": "f60b5a7e2c3eae02d000d23c5aee31d27daed3b86c15f17e73bb6fc3480cabdc",
+      "summary.json": "012b1bf70a94f33dd79996f1e302262b5ba2f14e97bbd04157ba5b77c7861ba3",
+      "manifest.json": "7c8befb5440b7db74419564654605bc80becbbb0a8457f2f450be7438e1c1942",
+      "effective-parameters.json": "2e4aaf0e417405b5243ac89c83fec0a6e4a3f5467dea0c74ff250df963b71de6",
+      "campaign-result.json": "ac22503f86bf60fd346ec713a329458ac21d2f529fb474e88c92a949245074b8",
+      "compressed-evidence.json": "3a1955bd3a4aebe77749c605d245b6af264e7ffa2e85ef17198ccc358c1f8db3"
+    }
+  },
+  "selected/R08-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R08-E0",
+    "metadata_sha256": {
+      "case.json": "f604a5501de7b9a0f34db80b25a4b8398cfedfe3467f3a519c5ea2d773abf7ad",
+      "summary.json": "b2a29da43f2237f5367a9825dc7fda035b970598ee1260de7c9307222bde553a",
+      "manifest.json": "0448a0f0abae9ae18a28439a2024738c9df713fe8a162d6a43de22985154190d",
+      "effective-parameters.json": "92bccf67e3b54f91222bb9f1d7ead0c0745f6cfcd5daf2ef41275ed6ab7c65ce",
+      "campaign-result.json": "073a413c260d86899428e9beb6e2f14fccc41877671b3fc4488cbdeeb4d2360b",
+      "compressed-evidence.json": "e49b5b0b654833021d3cad40708107e5360f5d016efee0beeb0dfab4a831d123"
+    }
+  },
+  "selected/R01-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R01-E1",
+    "metadata_sha256": {
+      "case.json": "884a24fe3370df774abcb765570ff4f64772772eea4c0f46c8f8483d31326434",
+      "summary.json": "e3abc86d538cd4c5f2d3d4d88f71bafc3905d5cfe23b1c99c6702d619497c0d6",
+      "manifest.json": "2712a29bf40e9199e532f9efe24a9a6bc95d9237c10f09f0c1abdeb4e66654cf",
+      "effective-parameters.json": "c5696d46d4b02be5237ab03e763f95f0e189574e8e9277124abb956ca24f4a5f",
+      "campaign-result.json": "00666b5f3a5f3f3e110ff5bf98fdde8671888a2955190517384b883c52507491",
+      "compressed-evidence.json": "f0f8801aa81878152faec6f58421f2f2d7bf1364e13d36b4ca948122e9adc880"
+    }
+  },
+  "selected/R02-minus-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-minus-E3",
+    "metadata_sha256": {
+      "case.json": "937e8a7993bf7c1b215f0a61146622e2fab674fe239b5564b8132b3d57e2e1a2",
+      "summary.json": "7868248619a0509c4384d7b1c67520e77263e52bdc24798c688beb6b0fd676b5",
+      "manifest.json": "77facc336e225878b4645fab9995dc0ea1233ef9da495f2ae0154e4eff9ef1e2",
+      "effective-parameters.json": "fa45de1b9ba9e530f965900149f8db404d609ae33ea47d2e98199f8620f69e29",
+      "campaign-result.json": "73eb4bec8ea1808535d8f927549800e2b7451871bead9dd1a4e6530ec0824ef5",
+      "compressed-evidence.json": "a2d4a0658bfce7b1ab43828ca80304eb8ce8bbf6d7ed3f3e948beba1c1756668"
+    }
+  },
+  "selected/R01-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R01-E0",
+    "metadata_sha256": {
+      "case.json": "76e26faea203abe717e36b7aca44eef001c38555c381c6f96f47492de3867ca1",
+      "summary.json": "11e152b16308ee59ddd84236ea6ca340f7dcf6b084ae1eb4810b79fccfda50b0",
+      "manifest.json": "37d16d40d372ba76274f92c956fffd3064bb534cd21c320be957ba63d5fec7a4",
+      "effective-parameters.json": "ef5871a956fa2ee2769b0dae067c8e9ce4f4f4a16ec637d3e0ac3dc5b821437b",
+      "campaign-result.json": "45b1a2cf9f7153be5df6a9405baf6658a4a6421ad36a4ba3d125fedd3ef21c40",
+      "compressed-evidence.json": "eeddd5b51d824d8d0c488a388263de88124216a4ac6d37aba75ba25060f06e05"
+    }
+  },
+  "selected/R04-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R04-E0",
+    "metadata_sha256": {
+      "case.json": "711fd56f9e58a2ca016ab0f509343e9cb83bc7eeb4a7fa2f9807bf08ce4657f4",
+      "summary.json": "3acbcdf4a8ba678564a289c53195cc22c6ef1b8d7624a6a036eab2e6bb9248fb",
+      "manifest.json": "357c2dfce3419c73e4a09792597276e6f85c3e2b1a6a8bbfbd6449b8841d6f99",
+      "effective-parameters.json": "8e2e0b6c4a15989123866572f4b20e50cc82b66f1557751f7cd5354773dadac7",
+      "campaign-result.json": "5bd83acea7adb7a4f7db2948103cc1d6241c1cfd732c861967e75f47276038c0",
+      "compressed-evidence.json": "29b6d6c3cf640b8ef67a5420a82087be00175c09878470c137bd08ad16222365"
+    }
+  },
+  "selected/R02-plus-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-plus-E3",
+    "metadata_sha256": {
+      "case.json": "052a60b75b18edbfad1f662ba00b9c34b4d376b14ab6806b203c8749be951288",
+      "summary.json": "cb8bf4af9f0be5726de791f436b157e4b79975766b971e7a0bb5cbc80361a7d5",
+      "manifest.json": "baac107ba21d0ef8aa0b1ce65eb933488b33e376cee24e831d989f8443399166",
+      "effective-parameters.json": "2cb4200c453a2b67374e37c6d5cf85cbd21a0ca64258cf981877fbab9b8ac234",
+      "campaign-result.json": "59fe32273d003fac7813dd9a4e0a269a4b95f2b122b896c864c2a33bced44a0b",
+      "compressed-evidence.json": "5c56b7ae5c8b15c72d88d1b2774dcec72de5a251559f2544b0002868965fcdf9"
+    }
+  },
+  "selected/R10-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R10-E0",
+    "metadata_sha256": {
+      "case.json": "c13f4fcbb88a093df33cb29b3dab15330bee26bd6a96ce5227b58aa011395cc9",
+      "summary.json": "4a2a2a7182b96a7136b8641692b1b6c3147c98c63cbb19a8f33f8a9b1672aa28",
+      "manifest.json": "93ee7e06493690cdd073c94142bbdeb0a4f89b55279d3a664deb3f594ceae6a4",
+      "effective-parameters.json": "b7a3bd958685d8ef2a4ccac8a2fa4f0eb663776f35aea7e661e10d4b66c0c999",
+      "campaign-result.json": "a44ae4849191fb2e418ea3161902fcbff8990f44c8dce1b13386fc634d0369a5",
+      "compressed-evidence.json": "b1e4cf47d299da15d62e200fb883994c85a5526eac552b096e71b6be94bf5467"
+    }
+  },
+  "selected/R02-minus-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-minus-E2",
+    "metadata_sha256": {
+      "case.json": "bd67abc2a502c6e2c28f043aaa3fdbd2332c9c3db08ee2da31c83c93a4aa4bc3",
+      "summary.json": "0ca817672579d52fc0beac50b439fed2648cc0ecd31aaf00ccb516eece11496d",
+      "manifest.json": "582ebf85c830ea6df1d22c24fbf79a73eeb0bd19cb8f0d05be5775dbda1fbe65",
+      "effective-parameters.json": "f5176e5fcef0ec6c56dac5263caec14f26b17cec02103c569d95b55aa9c41ba6",
+      "campaign-result.json": "d3e771eb4e58c940bac6f64cdb4823a415a90c0567193a9fed566c69da907f26",
+      "compressed-evidence.json": "2dfda4ec5f1e76d20dd3694312bc1a0f3d94ed3ffe97f2a907228e1f097a4626"
+    }
+  },
+  "selected/R02-minus-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-minus-E1",
+    "metadata_sha256": {
+      "case.json": "146e74f26b168dfbfb81502762e24c484bce1fa35b236f5d603c05659796fe6c",
+      "summary.json": "f35d1db8c23fae810afc7a19b3a0e5560c9aa6743366fa160bec5ed1966df705",
+      "manifest.json": "60d8463184c3d95b7a2c7aaa2b982ea2f35983d2f3c5e54cc600f4ec65f27ad4",
+      "effective-parameters.json": "468c41ff46bdacb1804a039644fe49ea753f0d0702868b4928e28faeaaf721e6",
+      "campaign-result.json": "777c4b4e4316dddcd19dd6963a6fa2894cba1620abe88d8150e08b85307fda3e",
+      "compressed-evidence.json": "967cb5b2e15af8eeffd69378d9fc56c54f4f5a9edcb14c5529bdcd645dd5ec71"
+    }
+  },
+  "selected/R01-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R01-E4",
+    "metadata_sha256": {
+      "case.json": "e093a94a5fc7c798867a4a76885474ae9a8566108ba368d81e9bccc590652cbd",
+      "summary.json": "3b57ade2b02ce17381faa2b1d02c71c13b00bc381986d750d861221692cbfd04",
+      "manifest.json": "a36f18f388eaa31faa7dd1c6c41064927a9fd67cb1cbd6fbcc0d2310fd9315d4",
+      "effective-parameters.json": "2bddd442f55a4eb799383a987ec37b0dd3a31bcf587da515919b3b56b64eefd3",
+      "campaign-result.json": "9bb3c97db7d7cd000fffebd787d87fdd278673038810ea4a61fc8317c3f2b08a",
+      "compressed-evidence.json": "86685fd76bae4fd73c239339a10cdbf11b5bc475343267e2b88cab643f746b0a"
+    }
+  },
+  "selected/R05-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R05-E0",
+    "metadata_sha256": {
+      "case.json": "f9d6cb8e4ea5620594260a1309d2332171a276e5280916758596f1e17d084f86",
+      "summary.json": "44d287e791d5722fbb9570880e34a5bf2d21440e6764074fdfa4ca0c9e88638a",
+      "manifest.json": "2511cdde10170e38e76bedd967921e11987a90b225fc07a2fc10ae8652d243fd",
+      "effective-parameters.json": "3baa6b746aeedf1f521a5f793631203fe26a44e300640744962898122c2d68b8",
+      "campaign-result.json": "99cef39dadc52af981202c9360475c052d5d6f9b4fc5ee55bc17505ef3cd9d16",
+      "compressed-evidence.json": "09326fedc642a8d4c373b4db17f7946fa56f45b2afca6c1b6251aea39a2ee8d3"
+    }
+  },
+  "selected/R01-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R01-E2",
+    "metadata_sha256": {
+      "case.json": "276f38eab942ffa2d7721eda768486ed0b15d3d97ab56b5f883c3d7109dc6976",
+      "summary.json": "0c162947ee3a18bf87d7f4b7706961376d959e9fd165f7231e7d6772c763d909",
+      "manifest.json": "a73ddf24b051ff24a9563dec5f3252f2088f78e434f5231f969be840fd9f6e63",
+      "effective-parameters.json": "b7ced7bc58ed6d47de812e1ab0db0d6166877e20ce379b57fb609d11144f6add",
+      "campaign-result.json": "2000d88f9abb74013c4935a3de0a3f5654391cc51f77c4a35cec6fc09dfbd7af",
+      "compressed-evidence.json": "1a465519abaf590973b181cae9887eaa56e3498917b6eeb2002bd2b383b6a20e"
+    }
+  },
+  "selected/R02-plus-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-plus-E4",
+    "metadata_sha256": {
+      "case.json": "3c72dcd370a5e4d8e2642543409d9a7b2e08c74adf80ec9d8b7752c9e2791874",
+      "summary.json": "49a97ad0ec58ff4e3f67cf2639382c9df6fd65e813b594c0699913ad69e46b43",
+      "manifest.json": "9602a59a73068c409793841b1ed1c1cec4e4f2fd00e9bfa63c74f67d88f17e04",
+      "effective-parameters.json": "9550f5902ae9591c4a02530e1257fbbc41aa44d09310ecdf29e90b50436883b6",
+      "campaign-result.json": "41458dbb77ba95ce5257c1056a40e75ddc5b9723d9c2cc0efc56314ec303eee1",
+      "compressed-evidence.json": "a4e73d4f3c0a83fe6c9b6b7aaa10eb9ba953bac2ece080d85e6e6ee5ef16d418"
+    }
+  },
+  "selected/R02-plus-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-plus-E2",
+    "metadata_sha256": {
+      "case.json": "4aa055b62a65f55162de652aebeb810fdbc8fb2f2a26d3af28f3cff77360c233",
+      "summary.json": "87fb2e0c7b0cd9190f8306b99c8fba6caba48fb82aaf7b6902ce7900ec0c9e4d",
+      "manifest.json": "61141b2341864ff4ca32e2f4958480968fde9b1b854432507b778f854090d15b",
+      "effective-parameters.json": "bbc6b7b101c37707eea9457c5f720e6ca335d91b48218107a77d6b781821f60a",
+      "campaign-result.json": "ebbe77b23b3b2f5488b853738d0204a24c8ef9ce6f80f137d287f191e3ef2525",
+      "compressed-evidence.json": "4ff40b6537c3412a4c9fd5cd3ce17f5e6efee8e0db4595d3f4ad903adc86a95b"
+    }
+  },
+  "selected/R09-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R09-E0",
+    "metadata_sha256": {
+      "case.json": "87bb65a6f48225e26c9306103ca5a02bc831f4b9268540990ce43fd272cfdac6",
+      "summary.json": "4d40dcb4f0fbaedaefe484d5a339d2ef9968e295a9391b9290f32f695e0ad671",
+      "manifest.json": "96b592358c814924b92bb626619cf898fb7cb9164fd1457f60b0ee0eea01bbc5",
+      "effective-parameters.json": "45de5b3ad38fbaacfdb5c7338047457f92bb7090e7bf02c45c5daadb27a12db4",
+      "campaign-result.json": "f0fbd4209d78c48336775756422d0c46467649cbbfccedf432308e0d6c47fcd7",
+      "compressed-evidence.json": "9fb3419ff96f4a7ca2d1dc5927bcad43f8b6354eabbc2af789367b7fdb88032e"
+    }
+  },
+  "selected/R03-plus-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-plus-E3",
+    "metadata_sha256": {
+      "case.json": "b0ccb16a3f4f463b6f71117f357b11efbfede6c9f6c793d7b09c20ff96d4146e",
+      "summary.json": "40faa71795028be9c20311f17b5624b891a5e234cc4603fe548ffe0dcce9872b",
+      "manifest.json": "bdc31c3f6c2f35ad538182ce944e9e4269e1ee571211a47d36e3fee6aaccdf53",
+      "effective-parameters.json": "9c0bfcdc35a8ec1e5421fb7578e2cf5100115e74c2c223e7683cee3752ddc968",
+      "campaign-result.json": "a004220a46e0ebbbb2ac82393ab6b1d3d01f4cc365d93dd531cca0156868ea5b",
+      "compressed-evidence.json": "b19e0c4a9b08ade74f7d767070d639f85bfea083b9a4af93481bdb4a75ded04c"
+    }
+  },
+  "selected/R03-minus-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-minus-E3",
+    "metadata_sha256": {
+      "case.json": "9b9cb23ed271f5678ed0dba0ad8e57a904c61f86d76780642fbb8c81527ab26a",
+      "summary.json": "1ca63d2aeb56b23df2b7e419b9872a5b376fc9c2f93f0841c84aea6245bbd189",
+      "manifest.json": "909e2326987e244f5c51a1bd5baef8a8a5d3d28929885b360064de4f0f87ffae",
+      "effective-parameters.json": "e330992890d91075e5fe75643f5c8bd41dba4d7beddaac36b111b2b81d8bdd01",
+      "campaign-result.json": "4639241a3753c62254980ea1dfc60259a6c50e2e556a37706c7efb804b0092e7",
+      "compressed-evidence.json": "c8e37d870cc68812a0e01933cad4789c10599ba130bde59455acfe7d0aad0e7f"
+    }
+  },
+  "selected/R02-plus-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-plus-E1",
+    "metadata_sha256": {
+      "case.json": "d4fceee689150305633c67571e2727ab44ae10381a5fcf412ad28f91bead88f1",
+      "summary.json": "eea9816acba204dd2588610db58c7611c3c8d57e4e6acf0021e177d5a529ba78",
+      "manifest.json": "6f2a28fe2473e2e66a2c69c2eb04303d3d2fbb6109295d1942d45793f7dbd978",
+      "effective-parameters.json": "d150c4e989fee570cdb9dbc282dfe0cc410085ce2dab40b2573eddb488e9681a",
+      "campaign-result.json": "41cd6154ec1745ed862bdc6761c56f8bab46a7be8d214cc4ab8302593de2d6ad",
+      "compressed-evidence.json": "e4778d9021aacd031d169563db102011b0fa691342ea8ebf8fb02f9730396434"
+    }
+  },
+  "selected/R02-plus-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-plus-E0",
+    "metadata_sha256": {
+      "case.json": "a09ad5d7c13fa1f77750817f9f48159c5ddb719946952372c7cbcfe8d29abd5b",
+      "summary.json": "3883d0a78ea0c4260a565c69a13e4be75db24ecfd8ffdbc3cb1ad1d8522bbca3",
+      "manifest.json": "0509fd9ee16bc7d7f857154ec772d54577d5c957291b199bfd4fe2194592f911",
+      "effective-parameters.json": "cd12c738a1002f1d24f0f763c0ac4c4708483c2ccb09a5f41f397e4464ae2743",
+      "campaign-result.json": "155c53b582e37c98831f1738bf88449de219edacbf3e64817f1f39b965b49f82",
+      "compressed-evidence.json": "14343f4bb958bd1f9fedbd7fb4d54c3547e71da3268b6b6589edff02ae4f397b"
+    }
+  },
+  "selected/R06-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R06-E0",
+    "metadata_sha256": {
+      "case.json": "0a45b03cfb0a48ef51c4dffd5c61028869bd521abe2d4d17b604fb9703a3e654",
+      "summary.json": "af7202ccec44d23dc81d1a83fc32749b0cad927c9981214172b844cc7138dc1c",
+      "manifest.json": "80db21a34d702b8511047f3f45d2e0f1f6fcd61dc3d04d75032720fce346317b",
+      "effective-parameters.json": "f0e780c47ab3d6c2dd8e7ba2a417525ee3136030f0cb8bf48695dc871ce09434",
+      "campaign-result.json": "9eec21731e6af11dd955f46bad0827515aed161c1d3804d4a4a06b9818c25182",
+      "compressed-evidence.json": "7707d0932209f4cd82ae2fc898b0c03c607521e2ee1884b25802d436526dc55d"
+    }
+  },
+  "selected/R03-minus-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-minus-E1",
+    "metadata_sha256": {
+      "case.json": "96f2f4b1f69a3e4030a52a7b2585f421ed386e9590bcfc0173ccbaee6d6cde9a",
+      "summary.json": "6a60a2957d0eeff7bf81b886466a03c11846270371900837b569db25f40e2f86",
+      "manifest.json": "847b778fa437191c68fa9a3b8f47d529bdf43ba04125d4fc1e2c0652a40a8f74",
+      "effective-parameters.json": "5e2b3f0c7932798452c940e74311e36376a1bf1931479a3e5b3a023cdc690be4",
+      "campaign-result.json": "94992f5f07ba9a16bdcb11216972f3849dbcceaedace8837ec213678a8cfe1e1",
+      "compressed-evidence.json": "029eddbf85af5978f5d1d74515144993a4619aa724a824e58755bd3853c80b56"
+    }
+  },
+  "selected/R01-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R01-E3",
+    "metadata_sha256": {
+      "case.json": "195f4c14144f08059ee79a37f778e1166283bbc29dccec819fe2a4f410167245",
+      "summary.json": "e731a3ee7f5b3cef70e7d8699a4b9750c5bb0340347f38c964840a15a1b47608",
+      "manifest.json": "878fac434f6204ac4a20ce21a8bd9ed1f7bd7b8ee7fc2f0350c1c598c3ab1cc0",
+      "effective-parameters.json": "a590f3674214f833211577e48f53f7eabab0f8e85188e210ff74302e257696c7",
+      "campaign-result.json": "a460e973d4cd04e52dba7e5804aa571f2d0bf38159ae1c23fdf54352a731943f",
+      "compressed-evidence.json": "44699a581eae689cf23bd01cb99ef28fb8f5aae2ded455c152070f8d754d2dda"
+    }
+  },
+  "selected/R03-minus-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-minus-E4",
+    "metadata_sha256": {
+      "case.json": "49b24ee000a95d7d4c88b18842c92be2a39bc3fd894852752b15bde96735f7bb",
+      "summary.json": "7b0f37b621ebf00e8f1b92db334b9f59bc2add8a8cdfa2d2b99dbcc8270abe35",
+      "manifest.json": "e3bae60de6ba9fa1004c128650fd2362f5569e5d6af1b188deaae469d45bb6db",
+      "effective-parameters.json": "1a7bef1991d873be28a63ce5271881db4b8bb28a07e74e38520925cda48f4cd1",
+      "campaign-result.json": "0ce45842e04e58b8d602fb68bfdf44969b6866228fc0416e8a841e3c43fc07d6",
+      "compressed-evidence.json": "d0218a36f4813b03869e71f086ace1aef714dff0599a9c0382a647260283d9fc"
+    }
+  },
+  "selected/R02-minus-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R02-minus-E0",
+    "metadata_sha256": {
+      "case.json": "fda6868e4dba2873072b8c24b69287976c7de1f1406ebbfe21cae5972b5eb399",
+      "summary.json": "6ec2dd3217cdc104e5750d0711f04332b96fb7018c9fc871dea0994ee62585f1",
+      "manifest.json": "aeffb9715bb15083b18233a49ae1ba333a18cd14b2ad0ea7756237919950e862",
+      "effective-parameters.json": "e3fc71cf302a661af12120b053e9be9a6f038454ef54339b8d07169b93cad5bd",
+      "campaign-result.json": "4f71493efe800b09af5430103bffce6fcee6386b77995b8c08582f9a36123d1b",
+      "compressed-evidence.json": "c65161930157e8c68145d4057cd49fbac5bbd1df953ad61a2d140844268b34f8"
+    }
+  },
+  "selected/R03-minus-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-campaign/R03-minus-E0",
+    "metadata_sha256": {
+      "case.json": "b0854175a4022fcc26bbf1309402bf373d7a2b81652913c70933843535805773",
+      "summary.json": "f371724d362ef02cd4d82996d7ac7d77eea3427283eb74b13053205eceb9a3b3",
+      "manifest.json": "b6389396ab5369a84f0f86a1bb3c466d1dd27957331462f9fab80ec3d7f8e308",
+      "effective-parameters.json": "d4e2c2de54d0c7605baefdd6d2b5336f7cd61e32fd9a5d4cddf9f29dacb7527a",
+      "campaign-result.json": "4954545702b7e930800d1bf59a1e9c0246e5f77a4d95aae60fa72623edfc7658",
+      "compressed-evidence.json": "1bb3519436b56fc50cbe3ce2d788b643969b54255680cccbb84cae9fc5157747"
+    }
+  },
+  "selected/R07-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R07-E4",
+    "metadata_sha256": {
+      "case.json": "2fd667c0beaf3f1a211f291bce530b9a43370cf212c9bdd2bbb44611f233661f",
+      "summary.json": "3a5a88658f5c499fa31cb762dd85eabf1ff4f03b98cfddd98713eb9968804456",
+      "manifest.json": "a3b164a3896d522b6a1ad03b4e451b871b9c22ea389728bdebb8b0f1d5a10a59",
+      "effective-parameters.json": "dd0f46df0ba9370b67ab28eaa0a2fd08c35068c8a5012c1ae401cce1670b67ef",
+      "campaign-result.json": "8e73b55cd892a804e94c9329b1d0f0e65166f780abe841a095d6f2c77be6dfc3",
+      "compressed-evidence.json": "e6fa47bf2e68da024501371fb0381c0dad5cff46cd39bb16dea03c9b3c9932d4"
+    }
+  },
+  "selected/R09-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R09-E3",
+    "metadata_sha256": {
+      "case.json": "252e8466ce4210e29bd257407457d843350ec507bb72abe99042441e67f6468d",
+      "summary.json": "0880397ad4dcb56f1e1db18a29e97030bf6fab248043b5fe2baf7f93a9e91609",
+      "manifest.json": "6f4706e221d4329ddcb87fa42afbda62fbb0c8b97801707405e10ec3b3f9b47e",
+      "effective-parameters.json": "4d2878b13e9050950d17855c5a996a0ac45be5d9a9041c5e0565f1534ec087fa",
+      "campaign-result.json": "791ad966e610acbb6a3feab0f87179f241d15cdad0e45beceacbd6bd7cbff17d",
+      "compressed-evidence.json": "06b99f4682656bc6df631ac14b9e1495427f20ef8a2afc6507584a65131bc4a8"
+    }
+  },
+  "selected/R11-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R11-E2",
+    "metadata_sha256": {
+      "case.json": "b932f2222dfedc09657ba14c205abe28907c4f0777fee921ad0efa824abfd1cc",
+      "summary.json": "e44ca5a92e26ae6534b10a82d732e786120eab64b3e78b6533f4ca2c2f48798f",
+      "manifest.json": "3b80cc7839a856557dbf1cf3ec8f16d64d9b6fb01ed4439b0732d412b232ead7",
+      "effective-parameters.json": "91daf259c8f7607612deceb05cd5a9206713ca2135d3158a6dbb5004bb4a092b",
+      "campaign-result.json": "e1101fda94d7f4d1624e8577923b8dfa27f41c78011c176cc97351827c969f18",
+      "compressed-evidence.json": "deb110d469e9b3495d8f8f4b8cedbc1223ed0b8367377af2ce0fe08b2fd49b6b"
+    }
+  },
+  "selected/R09-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R09-E4",
+    "metadata_sha256": {
+      "case.json": "3b92ef7898a44f943294067cd6b3e19440843988f1be7ac97ce3f5a2655765d3",
+      "summary.json": "4a6c1c1a8b64b0b8ef8c38bf02b064aa496c4c2a7999051c03ec174060a7cdb4",
+      "manifest.json": "9b7e1b1df7e2ea345aa5abe8284517c24dac50bf9f2bacb2e853d04ae5f58f6e",
+      "effective-parameters.json": "69075a125348f82c84122f708347df380c06ec724d1d9d37878eaaa377a36909",
+      "campaign-result.json": "512c8934c1707179a3c9cf47e80b8ff78e20b34aacbec9f3b11f106f6302059c",
+      "compressed-evidence.json": "a0fb89ad1c63cf232ee064cdce9bc548055434352abe459233876372b33b9a60"
+    }
+  },
+  "selected/R11-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R11-E3",
+    "metadata_sha256": {
+      "case.json": "cb5cbf2082358a112ee8e1a9fffe826463f7c1bf885eeb35210a3b431af15767",
+      "summary.json": "53b6c9a6a8b2274b017bcc448597ab93247dfaa5c749c702df7183dc897f8ca9",
+      "manifest.json": "4b0e0ad72dfb5aeef245b1b75909048c1939f5d33450854bb477e7d98df31138",
+      "effective-parameters.json": "4c7d93b7a1b6e6b1bc3871b78210887bf25668acf5f7c5c2a4ce41521983cf6e",
+      "campaign-result.json": "68271d8ce6e8add4ca4d5a967435490043fe9cf671b8e2958632900272bbcfdc",
+      "compressed-evidence.json": "4c76fa5204dfb9569285aba14faf673359fbb3a6d6cd000ce5adc654e77c8db3"
+    }
+  },
+  "selected/R04-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R04-E1",
+    "metadata_sha256": {
+      "case.json": "a374bfcff1f57aa06924ed25f1b99643516b49c71cc1bb1021005872855c616e",
+      "summary.json": "24bcb2c80bfd1d00bca18b91e8eced616d4ee295157510eca70f497e23fda396",
+      "manifest.json": "412c3090f4864f6211b42789e2a8326f18379ed625785491d1369895ba868146",
+      "effective-parameters.json": "e52d2239084602e3c4d8e1dc29462706d9b1dac8547891269a7e6be154ae89d1",
+      "campaign-result.json": "0704e77460383a5afdb2388e8ef182316e76e1f4d52d023f23c0a4564bccfb7a",
+      "compressed-evidence.json": "ae11f4d04f604b82f6065998a2e957482cdc546350fa68cd9c17c3252460b05b"
+    }
+  },
+  "selected/R07-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R07-E2",
+    "metadata_sha256": {
+      "case.json": "45ada41196effa4e1650d7ab2e610cac6744e7f5cf0f5f61155942397bded5ce",
+      "summary.json": "2609e2b0620354e3cf6b367e73514cf9ed2332a243ee90ea53d88e39b73e2f47",
+      "manifest.json": "1f347ec298fb93bef1673b225b4989ef7faa6970237860e177f7231c106535ed",
+      "effective-parameters.json": "32441724ebb14d3a7e7b6ed511714a01bac404de94600893845b6d82450d1b67",
+      "campaign-result.json": "8755e3f2aea7a1e377a72df6ec4a48385ebc009306bca793f0d2b75e745b5943",
+      "compressed-evidence.json": "b990e210c14542103318f36b463a3a79084617c32be2726c2633054a7dc31bc5"
+    }
+  },
+  "selected/R04-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R04-E2",
+    "metadata_sha256": {
+      "case.json": "24e40d0a11fc6e50cdf7d5375152af9cc021322a7b476577e2bcf6aad17dfd06",
+      "summary.json": "bf2f1ecb3818ff6c20fd110b4d266565030024187bf4e95c2abdc98a50c84227",
+      "manifest.json": "0f422fc1623f7c9dbdded9c9922724edd1e0b0b61f7d711fc2a448fbdf4b962e",
+      "effective-parameters.json": "d5e7e5e5804013da5adb31f75039b6e003037b3b1fab0ed32516aab3e6bf368a",
+      "campaign-result.json": "894029fbb3f41d4ab0a476664715ce70079e5184425c478696440a0b06e9915d",
+      "compressed-evidence.json": "1be7888d2758ab7f29d494a8671a93ca2ef8f7a7b4cb2be8215e4bfb7b99f2a0"
+    }
+  },
+  "selected/R11-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R11-E1",
+    "metadata_sha256": {
+      "case.json": "c1a4b0a0a2c50f088b8b4955eb1d8c5a1ea51d68f7ad69be2f6d2cc59c95ad7b",
+      "summary.json": "01848e8a902abe402bacb5cc2cf04b2cc8d0ffddaeb2043640bf7854ef4d40ab",
+      "manifest.json": "5a927d0cc21d41599db5796c482e68c1508d2d9f7a0900e77cd2fb8dd2020124",
+      "effective-parameters.json": "5a1414341394b56f3456f19ea55893d7494cb0e7e69403c860d7c9e694666498",
+      "campaign-result.json": "8d3ea011e121c1aa38f021642d53283c24abbb4f2f8c0f9739f7f23025864f02",
+      "compressed-evidence.json": "04220ded2c62d77cf1c6daaad04dea657fcf55eaf357e4d73645db4266ff5ba9"
+    }
+  },
+  "selected/R04-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R04-E4",
+    "metadata_sha256": {
+      "case.json": "fb338f812c4c5549b2789ac26ff3b492efaf3411e4ab724fa68ccdb052c45390",
+      "summary.json": "61b3da0a3252f03b80729683dfe23cc3e13bc95d9483c18fcd660d1bf50d57fd",
+      "manifest.json": "cd859ebce22c3c494cc58b49430661820ac0058242efb4f60187b46f08a6d9e8",
+      "effective-parameters.json": "a15d1f5b727a2f93f9745d2d3a9de1665c4faf4e2ddb2ce689ca9489d3e65ccf",
+      "campaign-result.json": "355d899e458336d020a8b9ff0ae0c4124c11fc2aa0d517b950aec3e3f93d3a84",
+      "compressed-evidence.json": "1c6ded839e506e2d0563b6c1d6776c8deb8c058b0954e29f2b455daf117a1ac4"
+    }
+  },
+  "selected/R09-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R09-E1",
+    "metadata_sha256": {
+      "case.json": "1acc913d593feb69e7b1b2b28d617da3d326f732773e42924762ec7867eb61b8",
+      "summary.json": "6b7810022bdd02c4b7c7553fe6605a18af4636b5e2cb22d142892a7c5f5f43f7",
+      "manifest.json": "5863f6e151f5501f394a234a4dafc6800477068794c4bc6069caa2de3dac7fde",
+      "effective-parameters.json": "53f6789a4f406330959ef884c0d2068810042cec25d13723c809f3f2cf739acf",
+      "campaign-result.json": "c63ba4982eb3dbc2b7526981c0732617adb1916eb183d457d583024d60fd609d",
+      "compressed-evidence.json": "8446b1b7a020af7e2d07f4aafc2a58b798ca89db54c4299c91cfc46cb111a298"
+    }
+  },
+  "selected/R09-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R09-E2",
+    "metadata_sha256": {
+      "case.json": "1897c34606b9da56a3ee12441ac71957832c503201a8c1a316da9cc98c853aa9",
+      "summary.json": "477179d3f1005ad7f4c5c143f4869af1e60ed96b63373149b33207a7e77e5860",
+      "manifest.json": "0a9e3204d294368e727f1158a0283c0a8f36f72c9fe4eaf3cd366df222d383b1",
+      "effective-parameters.json": "d3f0a52250fdcc409add17626b279cca8a24b43518c26156138087020192cf2b",
+      "campaign-result.json": "d878af7d0cac363d21a7b2ac6a651c40e34a753d0401c506672f955f643a7af1",
+      "compressed-evidence.json": "c96732d7da495824bfddc60b29413f23b98085a5c3bb79878ae98510b0ef4d03"
+    }
+  },
+  "selected/R11-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R11-E4",
+    "metadata_sha256": {
+      "case.json": "eb23772302dbe8375f7b90fab686715fe1e2eb404bcfdb7980fd591b145d7ba2",
+      "summary.json": "06fc273f7711e6caafa9111559ac455e4de9efc97fa821777f150943e43a262c",
+      "manifest.json": "c697e1b1678dbc6ca3d900226445d25a6729445231a46fa6ac724a72abce1caa",
+      "effective-parameters.json": "e34979a6a291f94aca7918a1aa1dc6bec55be305a81d1e49600036683f617105",
+      "campaign-result.json": "d2ce35f94b4ab7659fe91fc8859a4cce12e6bab8b8d4640c8a533fcab2e8afdb",
+      "compressed-evidence.json": "76c42d21c6d1a73dc577268d8ef95b88f2bbf110ec8ac1f7bc10bb84ba42f8db"
+    }
+  },
+  "selected/R07-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R07-E3",
+    "metadata_sha256": {
+      "case.json": "6a92b8e652c64699e783dd230a777be0738a52135e4f1cb1520f7a26507e5cf6",
+      "summary.json": "6dc36c30bb330b4e1a0c5baa35290e25a2728fb7d2a4931377581748fbc7a501",
+      "manifest.json": "4a14e422af336563c9aba3890dc2b2fc23c0d66ffa2ecd861af6f4ebebbb2efd",
+      "effective-parameters.json": "9222608c0de6b65993da4fab527ac0185a902ca5bcaa76c755fc831444873b5a",
+      "campaign-result.json": "73a9727ddd9a7872af5ad696b0967516819d3168e4ef8b02886bdb57ad0928e3",
+      "compressed-evidence.json": "254e27eda928aa097543b96702e527e356f18aaee75aa330c1cb0690588f04e6"
+    }
+  },
+  "selected/R04-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R04-E3",
+    "metadata_sha256": {
+      "case.json": "c45c77867f4a5a536353d90415c17461a830ee913a80569a5c3955f04a50b5ad",
+      "summary.json": "39abf8ea4517b3d78068d02b58d41112da7a59933a0a919ccc8580080760ba71",
+      "manifest.json": "fad0ad43a6025cdc3cb35866167de6bcdcf6828223d38f93e834a9d5445249bb",
+      "effective-parameters.json": "b6df1eb7f365f6849c4fcc219f225264546c34496412fa9c4a35486d562c3ff7",
+      "campaign-result.json": "1702fe4394ec7c921b220005b346a2803a8b1e3298a92a264d6036ce5300ba35",
+      "compressed-evidence.json": "16f5deb7af6bb2d13b2f3b6c3d5950bbff9a5458bf75cdc305621d821a7ff5ed"
+    }
+  },
+  "selected/R07-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R07-E1",
+    "metadata_sha256": {
+      "case.json": "ab7ace5907d1c8fa047f9b93dca6a89b2d136277afcf0118dfeb14121492fe4d",
+      "summary.json": "c4e1d4352037353cae1da832e5a4a786cf313df158182019b31ffcbc5d78fb39",
+      "manifest.json": "5c876d53e3f6fbb495dd7cd29b2796a72bc982387a5d9c2216e109f0b46e43d5",
+      "effective-parameters.json": "be87231ad0bb7bd6460535462b32aadd297ead09255c2c269c75e8bb38c02a90",
+      "campaign-result.json": "c3b569e5d46a92beff8817cbf89be4ca1a56097a27c38176981a8d5afe705d93",
+      "compressed-evidence.json": "5d1d9c9ba57e6a200c6f71983799cd3bde3367304272e42998fc2ca3cc96c129"
+    }
+  },
+  "selected/R10-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-tail/R10-E1",
+    "metadata_sha256": {
+      "case.json": "f3dd05be670563c5073fa413b58a0a4a0c443f585b96d0506b632a41024ee849",
+      "summary.json": "99e4d45c41d3b4f9a9d41c46036d8ae8445a90d2b30b6393d3b4f99307177422",
+      "manifest.json": "84856c90b9d0033bcbb5e62cb69458df46a8fa11650826382c6fce95357f15de",
+      "effective-parameters.json": "aa5560a8dee7338492354ff2053ee162981571151913b2f3a8abeba014e8d1af",
+      "campaign-result.json": "7f3158efdfc6f01ed88b5be4fb1cd0e17bd69f5294cc0d53c56555d5b8380651",
+      "compressed-evidence.json": "1c0f506e09ed7c6884d275fc556d2de28bea455355b5f9cdd10afe56b649727a"
+    }
+  },
+  "selected/R12-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-tail/R12-E4",
+    "metadata_sha256": {
+      "case.json": "0b39c0aa0f9ef0151d0f1da346194ef0c7e8588461653ec60e9b4230a94f9b83",
+      "summary.json": "c64bf1d493bf386a5ea00d6803808db6304c41dc7d61c9aa02d8740da886c438",
+      "manifest.json": "d32dcfd60805fd0f828d3cf19dbc0c5d0ec0d3771883caa6cae12db4957180c2",
+      "effective-parameters.json": "d5fe15e40150da70ac558df43719b2c31aa0949b0cd7febdc66e32a8cf1f299d",
+      "campaign-result.json": "7654a394bf51d726c0f7354087c9dafbc14ae4fb768acbaa76a6fce139ba051e",
+      "compressed-evidence.json": "fcaecd8c979052d45130a3d801f8d86e6c2b532504717e3be001dc133c1e50ab"
+    }
+  },
+  "selected/R12-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-tail/R12-E1",
+    "metadata_sha256": {
+      "case.json": "cecc0b106795e729196986fb2644cd14091469e2532d4a866c74df7a173c310d",
+      "summary.json": "6293d98e031d204d25f307fb7f2c5ab1ec5b090fad24f55ecfe3e37f4426c731",
+      "manifest.json": "38a267aded17e1eae32c937df4a84a97f8b512b0d26cfce9d4c25c46c7e73168",
+      "effective-parameters.json": "593fdf0b484fa40b375c39f1676d1a384784322f798e16448b9c4a8811f3d67b",
+      "campaign-result.json": "b4b673c43d3110220354aa9aab88c771435228b5cee33fd87a079252026035f1",
+      "compressed-evidence.json": "2667534d1af8c8826897fd0d417b8ccb08cc481d4c4a739ee909a042d2728d78"
+    }
+  },
+  "selected/R10-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-tail/R10-E3",
+    "metadata_sha256": {
+      "case.json": "d3027ca86a23ab8635def4387cd6f2c5ed1cbf7f4c7ed18f2a9982a36de0c787",
+      "summary.json": "934121225c12f4ae3156d0b2e6bdf0395d5f6f8a7333bf0b208e2766ac07640b",
+      "manifest.json": "7b145783981be9edbc90559e77ea29f33b4e637aa04f20381e5b4ab4ede6954e",
+      "effective-parameters.json": "0f68ba248bcc818dc183d921c4b5875543441016e33b450f6b6f20eb6adbeb78",
+      "campaign-result.json": "c0d78167ec8f302b74ace297ee85ff1320b5db8162589adbe318a3454249a96b",
+      "compressed-evidence.json": "ddb832898c31ca96c064410607d8deb9c870a52df83ee052d77bf9e9e2d93c40"
+    }
+  },
+  "selected/R12-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-tail/R12-E2",
+    "metadata_sha256": {
+      "case.json": "af4245454670e90312c6674f51bb28ecb78f67295bd7e9d212da4dd8bd7cdb15",
+      "summary.json": "53be183c6180e32269e148c724bda87ca076261e4257b915ae9298e27c4a0ed1",
+      "manifest.json": "754192a85eee76713133514f0a7d2a59345a75630b3eb85ecf31ba5a28cc8ece",
+      "effective-parameters.json": "6cf068ac145eb7bf4ec14034164892591c2c3b4e92b58d32959ca1a599a00005",
+      "campaign-result.json": "992995ae5ce3fb896d81257a96453f54cb0308e56820847388b6c981b9ebd962",
+      "compressed-evidence.json": "68b4a0bd6cfdb2ca3b104fb934ad42ebd62ffdc20faa4dbd3fc9b17b007c8e7e"
+    }
+  },
+  "selected/R12-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-tail/R12-E3",
+    "metadata_sha256": {
+      "case.json": "8d96586a28f410a034be04848bedbd4049a4e500cf21951430cb9550965e780d",
+      "summary.json": "0efa79ed96deddcf55915902b0cd024b83177fd41650a0ef4e51d0651d658ffc",
+      "manifest.json": "567c893a930cedf28e4b0d45a30c00aeef5672f96bafab1d86c621d51332354d",
+      "effective-parameters.json": "ae1ea34524a43ea604bdad10ad78c25d58e5cf0fe886c5589d269b7288e934d7",
+      "campaign-result.json": "4754cd721681bcfc5b401cb9849bf59a6ff79be7bc0017a2fd6f08526c0b334a",
+      "compressed-evidence.json": "bbebc95b37a49a74fb04ae0c1f08a2511e02af064b89461caa3b9e91a097d69c"
+    }
+  },
+  "selected/R10-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-tail/R10-E2",
+    "metadata_sha256": {
+      "case.json": "9eca785f94eb0b8fdfd0c269d4ed65e0b2eb4410eb34c789ae83509af61580a4",
+      "summary.json": "80e95d8eb636d491b96de52ebd5ae495113d9d63cc3e4889f990890c93327286",
+      "manifest.json": "929506411ef04d3ef9ae4852f668d545366efb25f38f558d838b5fa277b4c162",
+      "effective-parameters.json": "d07919ca8b297293eb4dc7798c2a8fe4d99611bb61b803a73f7ac4037af8d68b",
+      "campaign-result.json": "9d5a244d61173014a073280b5e142bff41ba560ac41b965b8dad3ed5fa47dcfd",
+      "compressed-evidence.json": "5e89a14ee61cd7ea963ee2df73543f8980fc7669f2c4a02505ee0648de891ad8"
+    }
+  },
+  "selected/R10-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-tail/R10-E4",
+    "metadata_sha256": {
+      "case.json": "51fd508042aff0417dbca83e92384fba8926831e39ba26ae2c0b18950439f758",
+      "summary.json": "8ff1b8c96d07e63ea33f129d21c1e82c30d7a8a42d212ef4c895f756c8ce0d77",
+      "manifest.json": "b0070eb951ddf951221f74be0c2972514c35b8e4ce5b65a50781877887bb7671",
+      "effective-parameters.json": "6d415559e5a6fb468ba302eb84b56cc47c8e7b1cc1c4ddc76e9c3a8eb7db0c93",
+      "campaign-result.json": "c3ef658d148c2198373751be9a60491bffe52a4ec979a1a89f04acae47876c80",
+      "compressed-evidence.json": "d947d8e3020c532699dbdff4c0a01f00a95dafe16f363e613f156f61a00afd37"
+    }
+  },
+  "selected/R06-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-middle/R06-E1",
+    "metadata_sha256": {
+      "case.json": "efed63c2b3db8c2984ee4a7f5cf9d2034a72964176e4614b680fac5c76806713",
+      "summary.json": "b48a079c5c5e146bb317ccae33204fd0d84f530b5450d75f29888fa22dccf14e",
+      "manifest.json": "21b6e6b6af5f26dd640df32dc7fb4f1c31e58d2ef8a47b28e3d5ce1b3706e2a3",
+      "effective-parameters.json": "a82943cb11a3a791d82acceb3683e8633b9187550baf56eeed861af33305cd82",
+      "campaign-result.json": "105054b25f81b04523d7d02e7aea3ad0a977b6a8ee28c9afc6c97156e6c671d9",
+      "compressed-evidence.json": "ee9cf40544d27ff6933b14b097011eca9c87ce1046f67c27a3fb877d122d96a4"
+    }
+  },
+  "selected/R05-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-middle/R05-E2",
+    "metadata_sha256": {
+      "case.json": "6fe41cfd9d5678e65b30fd18fc983f6db554b0c5cdb4a1a527a7ae4f070ea5cf",
+      "summary.json": "1c2f77f576d614b65fda0df79b97b4c39ae4df040dfa871aa9a3e918d8604fe9",
+      "manifest.json": "a3966da14308130bafb4674a66dfe89609e0fdaf4df78227aff9f4a697b06c46",
+      "effective-parameters.json": "2ff06dc9a112810cf3c7a37f3728d606a83c5744687afd731b3fd899115e648f",
+      "campaign-result.json": "935de1f4742ea274c9f1cb43f4fae1249b45b06ceb20f3aedea1098d81d27f9c",
+      "compressed-evidence.json": "f4be02c967f1cc9d1056e80f488160831bec1824fe5d7d485b662792336a3412"
+    }
+  },
+  "selected/R05-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-middle/R05-E4",
+    "metadata_sha256": {
+      "case.json": "cd2ccab144ade5b0edffe6c8f6c92b2263d6bc828095e9d41dd26418085972b7",
+      "summary.json": "d8773ea221d3ece8a31b8d819c886a40639ca2908c6d48730c06bbe451ae00fb",
+      "manifest.json": "2ae4a888b26e0d05b1cd901f345bb0bac1f8a4eefded4f0d7b27c158f83c6de9",
+      "effective-parameters.json": "2342be6f412ef050667ad1c3a824160c383ab53e110644674e31ac330cf603d3",
+      "campaign-result.json": "b44958bbf5e290c879c11534b471fad1492edae8129e66cecab4811f8826f849",
+      "compressed-evidence.json": "fc08dfed2abd9558996f49b3a2b5a5e423f377cc54405a5296e38006b554c0e1"
+    }
+  },
+  "selected/R05-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-middle/R05-E1",
+    "metadata_sha256": {
+      "case.json": "d5f157c5c192b3e1ec8bbcbc6ad4f4b9e69347748752dba08a4947ae26587dfb",
+      "summary.json": "641d78ebf877f1aae0090c88f0f4bc31e0d24abc9523b76edd3ca2420fa7f76d",
+      "manifest.json": "70a1830ff6d8f3d734b99e7f326b893750cc1b03437388e53353c61b52520dcc",
+      "effective-parameters.json": "87b0da689cb2a2f300e801f968c55b72b603b6bbef49c19c84fd6e5d0a293cb4",
+      "campaign-result.json": "0f462b27042632bf39216c4706c6d6d0fcff3af9c3b113b6660dd4c536873305",
+      "compressed-evidence.json": "35b4af42691812a6d7f79d6bbc3909799e0b9e59fc1e48ecc79dade9e6f34cf3"
+    }
+  },
+  "selected/R06-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-middle/R06-E2",
+    "metadata_sha256": {
+      "case.json": "80a6724b565bff94aa9877ea3df756754f1c77285efeef6f63862d68185e0dfc",
+      "summary.json": "195c409552a084e1ae464a94727ad37d1292db306569b1fb046a4795d8e376d8",
+      "manifest.json": "ec20be540d93fd65c1b9e1b829620c338b3e58a9126820969e7a54b17afa1738",
+      "effective-parameters.json": "44105caec1acbb1648e390ac8f70d9e00ed7015605ea70de531571241ac0ffab",
+      "campaign-result.json": "df4dda78a42c95db85415f3c6fa14749b9dc29226a2d3488a0b211cd05c332b6",
+      "compressed-evidence.json": "aa8805afb01062a3ac67b131b670fd35269581c6e2fcc5a260d36c98f92440d6"
+    }
+  },
+  "selected/R05-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-middle/R05-E3",
+    "metadata_sha256": {
+      "case.json": "53826e68a73fc749cab363c2959b80471bc88ab9d7dcdebb6248066b49fb5441",
+      "summary.json": "5bd327da0da69bd3c820507288f545c382fa7995922af3f12f3fe0422939b024",
+      "manifest.json": "9e2de393653f7b88d3536b94f0766070591ac0d6928537c1ebb86ba30a5a0a6a",
+      "effective-parameters.json": "d5b8a3221aebc4eb74e8b9a6b36e1e16b12acd16a3e9474a0c57330c336510ee",
+      "campaign-result.json": "493671d7163f5f35cbea252bef044574dfa9e4cff3a7169d099c38bbfb92cc3c",
+      "compressed-evidence.json": "b305b20f23497398a3e2b370b044052c08ee2c07538a2595af5e239b565909ff"
+    }
+  },
+  "selected/R06-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-middle/R06-E3",
+    "metadata_sha256": {
+      "case.json": "5d39feb061e982df1604aa37167874f3bd35f620ab24cf16db9686a1a3f3635c",
+      "summary.json": "28f80998e975309d41dd371cfce92ee45674e4bd8b43f1a47cdc099983f51d7c",
+      "manifest.json": "97f4c225de96a1bfcfdf22300684c2b615f0f3a93712c8a3d44acbd9a97fa00e",
+      "effective-parameters.json": "6ac9c7959a6300cf2ecd0a78b4f5164436b793983f13e371eb326ec400dee861",
+      "campaign-result.json": "9b5fd02a4f02eb5bed1910834587cbd04f14ce13be636dc61211601a5f550d00",
+      "compressed-evidence.json": "bfba8fb1f64718fd6c73b123593df0427f9f572c9b22cafd752ea40912b8d805"
+    }
+  },
+  "selected/R08-E3": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-last/R08-E3",
+    "metadata_sha256": {
+      "case.json": "b286b8bd18059aee94bdfcad0ca37244adc7ef5c0aac40525143944f1eefc7dc",
+      "summary.json": "4c51ff92d2cee24a912f7f5c49f0d53996ab3ced5e688ffadf418f10a754da45",
+      "manifest.json": "02f54677140f23bb94e08d4c78d272b4076af2bdafdb66b8b9579cced1c6058a",
+      "effective-parameters.json": "5c24741f390d29cce164641feca3bc61cd70837da637225bffc15a13c489442f",
+      "campaign-result.json": "e0cc22efe8fdd102bb2cba7f14bd573adee875f0a54162da20e4096536f89718",
+      "compressed-evidence.json": "50ff85515d29b1267fc517b8f6a53589fb64d8044bf319c32311bb629be32171"
+    }
+  },
+  "selected/R08-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-last/R08-E4",
+    "metadata_sha256": {
+      "case.json": "6c6db6b6eb6d6d64ded0e9a316d5cc98edb3a855ae9e9ef0d51821382105fb75",
+      "summary.json": "7b2da21ea98dcde8c06a8d8fcb71191f1c46d768dbd9f8e0bd98f84a68ebe2e9",
+      "manifest.json": "7b25b1c97dde92ca7120cda8cc5e07751ede6e6c849b7e837fbd5d6a4fed8a7f",
+      "effective-parameters.json": "36425ede86b5ae050a94e4a4d12fcad5f9528e6974b7e69aa758fdc08e7f4c85",
+      "campaign-result.json": "d55ec0c54eabf01800edc96f174f9fbd53845a21a9600b76dc51dbaaf670e949",
+      "compressed-evidence.json": "3c78968958eb6bb74434882fe59a54fd177e40e5afab1d106e9416ad4850bf16"
+    }
+  },
+  "selected/R08-E2": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-last/R08-E2",
+    "metadata_sha256": {
+      "case.json": "fd799301f08357f78c44f3b21c49f8728e09193e5d581a29ae33d450a1096fbd",
+      "summary.json": "b7df1d21c4809dd044a3d2bf18eb9a798ffafa417e3cbfe63285e06ab495ae00",
+      "manifest.json": "47a57e2243d285edb4b5b3d28737494000baacb935f2625d2bd1377f5435efd0",
+      "effective-parameters.json": "ba7ce74ecb25c1188319cd67360773547fb9e06d1850c7781fc286e9a2c5bad2",
+      "campaign-result.json": "1aacbe4783f1024ad26ca187987ee3f6ad4e94f5a4ccf554b5334454aa64f42d",
+      "compressed-evidence.json": "578da23b4f948dfbea9f8e23d9d2b4a0abb75d8aac86e8256d75ea45f7d9ee34"
+    }
+  },
+  "selected/R08-E1": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-last/R08-E1",
+    "metadata_sha256": {
+      "case.json": "a0d217867e7be53ba377226e79e7e05cd946a36ee2a9f6b0541c86a449a0b3c0",
+      "summary.json": "e9247214853e214fc77f57a2a2a7f26d7d764de85c3099acf96d2ad3d6f74673",
+      "manifest.json": "d7a5706d717df541de62502fdc6c6cd7c7065a4e83a682504cfc31e49f573b24",
+      "effective-parameters.json": "3bf2132648c3b1f3efa74346b871f76fd310993b0b97e0329cd1278b2be89d4d",
+      "campaign-result.json": "77c11349584beaa84820c56754f30dc1ee8bcf4b303d5cac5678f20cdace952b",
+      "compressed-evidence.json": "ba49b451b3c1afeea23b921954fbd80d2a4ead5399f1b0e636997ac398715d29"
+    }
+  },
+  "selected/R06-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat02/R06-E4",
+    "metadata_sha256": {
+      "case.json": "62e034a5683d24ece23662e03532e4f401db121b239e82c2f2970f0f0e9c84c2",
+      "summary.json": "c561dc7061e022ae676ef0c832d05d77e9023787a4b2bc58adcf1b4cce338365",
+      "manifest.json": "fd94a6b7ad16be7ac73e19b21e015f3aa5355b1f698da0b637cc6dca66138fdc",
+      "effective-parameters.json": "783aa7aa70da99342251a475a227216282caa4865ad3a9288b401defa5771b76",
+      "campaign-result.json": "35038823b812067432b4d038d792de7885f22031c7f9379f27e53e53ba25667f",
+      "compressed-evidence.json": "1a447dddb42d356ca29287c7a5cd88e5f56719bb6e5a6f29c07f655f69036bf9"
+    }
+  },
+  "reference-repeat02/R07-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat02/R07-E0",
+    "metadata_sha256": {
+      "case.json": "ceca4f05a8b521d3ac2a8f2678718860b489a0fd111f8e94149fb71f0f34e6fc",
+      "summary.json": "f8850c2ff1924ad474716b3d2c9ca2eb468ca8000d95b25a4822d1231af3083d",
+      "manifest.json": "4604279ca9773f0bead20a982972d3925f9c98c3e103f2460d9b4d83456da3ce",
+      "effective-parameters.json": "42628410b47989c7f89488a0726a5f79dafb05a1cabd1249d7bd611cf0523496",
+      "campaign-result.json": "c1f0ccd577c031bc1a93b8abca83cb5d2d29fea299b5294b5b8a8a1a77f56299",
+      "compressed-evidence.json": "42b7c3ecd7615437e535d63564060f8e4b7ef682f0831e42d7653b24a1e12d70"
+    }
+  },
+  "reference-repeat02/R12-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat02/R12-E0",
+    "metadata_sha256": {
+      "case.json": "39a7b2ac072bd89e35e615bc0fefa849919fb5fd9923f7096984fe5d1ae75a0b",
+      "summary.json": "a8d947b8eae70fcb48f3c8482af0caaa8f0e48cede68dd87031755df82ebf954",
+      "manifest.json": "2f084fe0aa49d9d5949459d73e296d6034697c2143305b38b5f3cb37f3156bc3",
+      "effective-parameters.json": "1d89a029f3cd00311d9479aab90448cb302b079660145a6b8e027c27bc8eeea5",
+      "campaign-result.json": "184855e20cfc5155800378090ff406c071ea92ef6bd87a7927e64111bf8b94c9",
+      "compressed-evidence.json": "48629bf52c8829aae5aff3c3b36c4234738b51d5ae15a2198e0a29f41dc4edb7"
+    }
+  },
+  "reference-repeat02/R05-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat02/R05-E0",
+    "metadata_sha256": {
+      "case.json": "f9d6cb8e4ea5620594260a1309d2332171a276e5280916758596f1e17d084f86",
+      "summary.json": "b6a64a25f9f5fbefdb998c67d25a8be194091ddf24b13dfa75e6462b9115effe",
+      "manifest.json": "eae6c5a6a2e20d324848781a1d3fd8582a08748e91db6da25de1bffc6da94105",
+      "effective-parameters.json": "fc7145530a23d3afc29f60a43400d64b00a2cd03adfb791bde0def13179c5d94",
+      "campaign-result.json": "9f61612554c68404a8a3942c71af2b9a69998a20de72994e1b1697ebd54b0267",
+      "compressed-evidence.json": "8b21cad010dc47cd6e17563ee8efd2ae6cfe25212290dbb3f390f91c20032392"
+    }
+  },
+  "reference-repeat02/R06-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat02/R06-E4",
+    "metadata_sha256": {
+      "case.json": "62e034a5683d24ece23662e03532e4f401db121b239e82c2f2970f0f0e9c84c2",
+      "summary.json": "c561dc7061e022ae676ef0c832d05d77e9023787a4b2bc58adcf1b4cce338365",
+      "manifest.json": "fd94a6b7ad16be7ac73e19b21e015f3aa5355b1f698da0b637cc6dca66138fdc",
+      "effective-parameters.json": "783aa7aa70da99342251a475a227216282caa4865ad3a9288b401defa5771b76",
+      "campaign-result.json": "35038823b812067432b4d038d792de7885f22031c7f9379f27e53e53ba25667f",
+      "compressed-evidence.json": "1a447dddb42d356ca29287c7a5cd88e5f56719bb6e5a6f29c07f655f69036bf9"
+    }
+  },
+  "reference-repeat02/R02-plus-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat02/R02-plus-E0",
+    "metadata_sha256": {
+      "case.json": "a09ad5d7c13fa1f77750817f9f48159c5ddb719946952372c7cbcfe8d29abd5b",
+      "summary.json": "2a21841bd8525c2c01cadb46edfc50d5369bdd7a189eb519d78c539de0e1949d",
+      "manifest.json": "2f578130ffd2e25c95752a337146e301fb0a300a99a90adca9eaca60aad39374",
+      "effective-parameters.json": "05a5ecda8371dc39f83d99adaaace8d29a0408322fe8214f6c1a6e7aea13403d",
+      "campaign-result.json": "53b6c56046ba48eb40e11740138e72c87ad70b390c4a54d206c91c49f20a7748",
+      "compressed-evidence.json": "7845f0a9302d4b3c48b579ef5e2d13d5ef6c4b655f6fd229d4f1e616d3785f0e"
+    }
+  },
+  "reference-repeat02/R06-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat02/R06-E0",
+    "metadata_sha256": {
+      "case.json": "0a45b03cfb0a48ef51c4dffd5c61028869bd521abe2d4d17b604fb9703a3e654",
+      "summary.json": "f2a69da6a4e2cfd86bb7462a9dfd9bb364cb005682e24e1e931e70f84b3407ed",
+      "manifest.json": "3319c894484da62dcce913a39eb9cd5ca1e6cd0ba01be03e7eadcf5e4b2c3bd7",
+      "effective-parameters.json": "44ca98e90b11c79e493cb1fbb6c22ad93b1e2f38d59d3d10c456a035fb5448a8",
+      "campaign-result.json": "1b545ced63c76a54f05f282dd17c69bf5403a61af2a2206e943b9d36b2fcd6f7",
+      "compressed-evidence.json": "3ca6bd89c4d88358f35a6941f80849cb5dc2e54495d50d7fb30917eb2172760c"
+    }
+  },
+  "reference-repeat03/R07-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat03/R07-E0",
+    "metadata_sha256": {
+      "case.json": "ceca4f05a8b521d3ac2a8f2678718860b489a0fd111f8e94149fb71f0f34e6fc",
+      "summary.json": "a3d74bbd99533a969a1e8114d2419a1e69924b327343bbaf26aa5e266483bfed",
+      "manifest.json": "eb86b82f55f822d0a21257a5e0f4a0a155997910b1aaf656df423678eddf9f77",
+      "effective-parameters.json": "ca77bac8dddf45165fc72aebc3d2f267d2b7e664d71588b190c7a4658ca09026",
+      "campaign-result.json": "9eb16346a003e71b53916506b829119621b6610e0bd8b0fb437667e32d98595d",
+      "compressed-evidence.json": "0f9ade72196f39e029f9c297bc1667a651f5481e90f1d5001415b0d75debe28e"
+    }
+  },
+  "reference-repeat03/R12-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat03/R12-E0",
+    "metadata_sha256": {
+      "case.json": "39a7b2ac072bd89e35e615bc0fefa849919fb5fd9923f7096984fe5d1ae75a0b",
+      "summary.json": "50d6dd42145514e694034322b2145f034486240f2fdc6e2fdca4f7944aaf4310",
+      "manifest.json": "76d3e7c4874e08d79640e88c5d988b02e0d773bad6c09f9bbd24ad3395d50eeb",
+      "effective-parameters.json": "09c52c4d35913c3e7069f4d38d2ffdb5aa36670a86910c91eb4526103af87ad3",
+      "campaign-result.json": "c657a2da73dfb7db353cfa544272e86ce29f7b57451bcdbdfc1d6ad85844d0f8",
+      "compressed-evidence.json": "bae733be181a68851cf09e0d46795329a01497e7e20e32ca502e9b0e84d88f93"
+    }
+  },
+  "reference-repeat03/R05-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat03/R05-E0",
+    "metadata_sha256": {
+      "case.json": "f9d6cb8e4ea5620594260a1309d2332171a276e5280916758596f1e17d084f86",
+      "summary.json": "305c3472166019e27bb31fbcdd568168a84f643d531982bfbfba1d1aa649f861",
+      "manifest.json": "410ad60631b499c2b4bad2548bb02f400f997b18859c9ad19c40b68288d3e1fd",
+      "effective-parameters.json": "18364b22509a6f65317844ba0766ccb79d15b4b7b0e1bbdf906be824200c458c",
+      "campaign-result.json": "cf9afab768081bb9269eb77e3397f0718d81b3ee25c62266feb38bd74aa61c36",
+      "compressed-evidence.json": "637fc32ed64d80c19907dfe123052cbf09fb752ebae65af15e57b472a52d4a9b"
+    }
+  },
+  "reference-repeat03/R06-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat03/R06-E4",
+    "metadata_sha256": {
+      "case.json": "62e034a5683d24ece23662e03532e4f401db121b239e82c2f2970f0f0e9c84c2",
+      "summary.json": "ea4382a36c7a787f13d9f7c7a1d1e8a743f728b8234341b6d9c14c1f764b32c5",
+      "manifest.json": "b6eed64164a4e00113a0b075f3199dd1bccbd507bbc7c8b18b2c16ad0cbdaa61",
+      "effective-parameters.json": "8333e1d1d41da2ce4614c98a77a1f78f075116e0e1f6c420c405044d2768d6f6",
+      "campaign-result.json": "2c2a81a5766718563ff4d77c7236317e25943f30e855903f83d7f47dbd158752",
+      "compressed-evidence.json": "a0b4691b163ebe7a03b0fa577ea853a589debb11e17ffeda071439c47175ee88"
+    }
+  },
+  "reference-repeat03/R02-plus-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat03/R02-plus-E0",
+    "metadata_sha256": {
+      "case.json": "a09ad5d7c13fa1f77750817f9f48159c5ddb719946952372c7cbcfe8d29abd5b",
+      "summary.json": "0f7ed84869161c0fd1dc116f4d35484fb2f2022c3891152cf528e73704f613be",
+      "manifest.json": "1e8cd0ffd209b55c28dc8e6cefeda0644937f8cf66aa7a1575332fef73a1d64e",
+      "effective-parameters.json": "a0122ce34c6ec2378bf6fb662ee1047bc9ebc6c7c900cbf992f113b1116d1ff1",
+      "campaign-result.json": "238b86bf0cc7a1195c76b1fe4a1fa0bb686f9064470f9830202207dc7b037761",
+      "compressed-evidence.json": "52d6f91a42cdb23271b899623f3cec877cbe65975774d885dec200a294b1e4e5"
+    }
+  },
+  "reference-repeat03/R06-E0": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat03/R06-E0",
+    "metadata_sha256": {
+      "case.json": "0a45b03cfb0a48ef51c4dffd5c61028869bd521abe2d4d17b604fb9703a3e654",
+      "summary.json": "6bd005d1fbd30316ede4c67d5c17055cb7a8f493c923a62327d58486af14c6df",
+      "manifest.json": "8c2a13f6a817fec1ac0f537d5f0301c9c79c1066d27b8fe72a5710917a5ffb65",
+      "effective-parameters.json": "538db1ba8078cb8a9cc93710e500f94d9215600f3fda58d64d6816f5f6f02082",
+      "campaign-result.json": "d0cbbf6fd6402a04351400473d2558d08baee2c341cbc1a66658147850797469",
+      "compressed-evidence.json": "4480cb49b2085ce7572e9df0d221c31de95de388c7ff8bb0eb8d4a80dde5c2b9"
+    }
+  },
+  "reference-repeat04/R06-E4": {
+    "original_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-repeat04/R06-E4",
+    "metadata_sha256": {
+      "case.json": "62e034a5683d24ece23662e03532e4f401db121b239e82c2f2970f0f0e9c84c2",
+      "summary.json": "377add60d3a4dfd20f9cb41bcb54ee43a3660fbfc9018671c433ec728a0d94ff",
+      "manifest.json": "043adffb29291cb140153ee0f90636f68ba17bd34406713cb2f9ac45f2fb8d56",
+      "effective-parameters.json": "bdd491be401974395f73b3c93c10f911c832ce429ac6589d30a1e47968246fd6",
+      "campaign-result.json": "86eb68c99e87b7ab69a6a47155302ed956231a0ee594425bb62d300929070675",
+      "compressed-evidence.json": "38ffea753e3eb6ecd6b83edd66e4f00a4ecb2de7ca42233f40a253cd445fae17"
+    }
+  }
+}

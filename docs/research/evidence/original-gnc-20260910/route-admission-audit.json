@@ -1,0 +1,252 @@
+{
+  "scope": "Audit all preserved coordinate status events without matching request IDs; source capture is an unbounded list, and full sequence 0..N-1 verified. Bridge-result records counted separately from topic events.",
+  "case_count": 24,
+  "zero_accepted_avoidance_routes": true,
+  "cases": [
+    {
+      "case_id": "vo-head_on-E0",
+      "coordinate_status_events": 140,
+      "accepted_by_route_type": {
+        "nominal": 1,
+        "internal_return_to_route": 2
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 704,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "vo-crossing_give_way-E0",
+      "coordinate_status_events": 123,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 615,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "vo-overtaking-E0",
+      "coordinate_status_events": 215,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 1075,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "vo-paper_ccta2023_multiship-E0",
+      "coordinate_status_events": 1898,
+      "accepted_by_route_type": {
+        "nominal": 1,
+        "internal_return_to_route": 186
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 9490,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-head_on-E0",
+      "coordinate_status_events": 150,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 750,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-crossing_give_way-E0",
+      "coordinate_status_events": 115,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 575,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-overtaking-E0",
+      "coordinate_status_events": 95,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 475,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-paper_ccta2023_multiship-E0",
+      "coordinate_status_events": 4067,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 20335,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "mid_mpc_ipopt-head_on-E0",
+      "coordinate_status_events": 1,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 4,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "mid_mpc_ipopt-crossing_give_way-E0",
+      "coordinate_status_events": 1,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 4,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "mid_mpc_ipopt-overtaking-E0",
+      "coordinate_status_events": 1,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 4,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "mid_mpc_ipopt-paper_ccta2023_multiship-E0",
+      "coordinate_status_events": 1,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 4,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "vo-head_on-E4",
+      "coordinate_status_events": 119,
+      "accepted_by_route_type": {
+        "nominal": 1,
+        "internal_return_to_route": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 603,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "vo-crossing_give_way-E4",
+      "coordinate_status_events": 131,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 655,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "vo-overtaking-E4",
+      "coordinate_status_events": 240,
+      "accepted_by_route_type": {
+        "nominal": 1,
+        "internal_return_to_route": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 1258,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "vo-paper_ccta2023_multiship-E4",
+      "coordinate_status_events": 1898,
+      "accepted_by_route_type": {
+        "nominal": 1,
+        "internal_return_to_route": 186
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 9490,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-head_on-E4",
+      "coordinate_status_events": 156,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 780,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-crossing_give_way-E4",
+      "coordinate_status_events": 206,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 1030,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-overtaking-E4",
+      "coordinate_status_events": 135,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 675,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "potocnik_colreg_fan_mpc-paper_ccta2023_multiship-E4",
+      "coordinate_status_events": 3991,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 19955,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "mid_mpc_ipopt-head_on-E4",
+      "coordinate_status_events": 1,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 4,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "mid_mpc_ipopt-crossing_give_way-E4",
+      "coordinate_status_events": 1,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 4,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "mid_mpc_ipopt-overtaking-E4",
+      "coordinate_status_events": 1,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 4,
+      "event_sequence_zero_to_end_verified": true
+    },
+    {
+      "case_id": "mid_mpc_ipopt-paper_ccta2023_multiship-E4",
+      "coordinate_status_events": 1,
+      "accepted_by_route_type": {
+        "nominal": 1
+      },
+      "accepted_avoidance_regardless_of_id": [],
+      "stored_event_count": 4,
+      "event_sequence_zero_to_end_verified": true
+    }
+  ]
+}

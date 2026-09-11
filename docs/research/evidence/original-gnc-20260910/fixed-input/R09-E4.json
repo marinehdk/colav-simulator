@@ -1,0 +1,225 @@
+{
+  "schema": "original-gnc.native-vector-validation.v1",
+  "passed": true,
+  "comparison_sources_sha256": {
+    "validate_native_vectors.py": "4aa46b158d83584e4da3ac86c16ff25f650c134e47d95ed727dff90568f7252a",
+    "validation.py": "c2bf880bf19f5ae350d5195bd18120338998481a5c8f56785d1f4df02a776cfc",
+    "output_comparison.py": "551fd8bdf88a7f46ed4c5d42bbe13f96d92983df6e244869a2297911a258a9a9",
+    "state_comparison.py": "7a6915256bcb0ff5570d4a8082c1ef8622fcee8da34ef4ca0f02b292eceb5d2d"
+  },
+  "modules": {
+    "ship_dynamics_node": {
+      "passed": true,
+      "calls_total": 303421,
+      "calls_checked": 303421,
+      "outputs_checked": 288870,
+      "fields_checked": 12516078,
+      "parameters_checked": 176,
+      "max_error_by_unit": {
+        "m": 0.0,
+        "quaternion": 0.0,
+        "exact": 0.0,
+        "m/s": 0.0,
+        "rad/s": 0.0,
+        "deg": 0.0
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "9bf1d44887e16e3887e5d1fbe3dafadc073a82e6da06daa611377798d4b1570b",
+      "internal_state_verified": true,
+      "original_periods_ns": {
+        "update_dynamics": 20000000
+      }
+    },
+    "ship_control_node": {
+      "passed": true,
+      "calls_total": 209664,
+      "calls_checked": 209664,
+      "outputs_checked": 27596,
+      "fields_checked": 248364,
+      "parameters_checked": 103,
+      "max_error_by_unit": {
+        "N": 0.0,
+        "N.m": 0.0
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "3af64811a7121d9a54ab8d56f78daf0e8cc7e8b8934c162d1330f1e7a7de94e1",
+      "internal_state_verified": true,
+      "original_periods_ns": {
+        "control_loop": 100000000
+      }
+    },
+    "ship_guidance_node": {
+      "passed": true,
+      "calls_total": 336546,
+      "calls_checked": 336546,
+      "outputs_checked": 24960,
+      "fields_checked": 74830,
+      "parameters_checked": 339,
+      "max_error_by_unit": {
+        "m/s": 0.0,
+        "m": 0.0,
+        "quaternion": 0.0,
+        "rad": 0.0,
+        "deg": 0.0,
+        "exact": 0.0
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "cc72758d0ad8e8107e70c0792dffe2fa44d1c968890dcfbaa4e1f96aed5d2a97",
+      "internal_state_verified": true,
+      "original_periods_ns": {
+        "control_loop": 500000000
+      }
+    },
+    "thrust_allocation_node": {
+      "passed": true,
+      "calls_total": 349583,
+      "calls_checked": 349583,
+      "outputs_checked": 140592,
+      "fields_checked": 1990776,
+      "parameters_checked": 191,
+      "max_error_by_unit": {
+        "m/s": 0.0,
+        "deg": 0.0,
+        "rad": 0.0,
+        "1": 0.0,
+        "kN/rad": 0.0,
+        "kN": 0.0,
+        "kN.m": 0.0,
+        "exact": 0.0,
+        "N": 0.0,
+        "N.m": 0.0,
+        "1 (six-decimal display)": 0.0
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "c8ca15602320eefc09a04207dbc17fe9c926c0b0f4d62c7abfc349ff0f4e1a46",
+      "internal_state_verified": true,
+      "original_periods_ns": {}
+    },
+    "coordinate_transform_node": {
+      "passed": true,
+      "calls_total": 148951,
+      "calls_checked": 148951,
+      "outputs_checked": 137907,
+      "fields_checked": 3861357,
+      "parameters_checked": 38,
+      "max_error_by_unit": {
+        "exact": 0.0,
+        "geographic degrees": 0.0,
+        "deg": 0.0,
+        "rad/s": 0.0,
+        "deg/s": 0.0,
+        "m/s": 0.0,
+        "m": 0.0,
+        "rad": 0.0
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "815a4815d4e6c6112e8c1681b4b9ea4a39f5a3fff27cd0f2b1fc2764b340a33a",
+      "internal_state_verified": true,
+      "original_periods_ns": {}
+    },
+    "active_route_manager_node": {
+      "passed": true,
+      "calls_total": 143427,
+      "calls_checked": 143427,
+      "outputs_checked": 3,
+      "fields_checked": 96,
+      "parameters_checked": 29,
+      "max_error_by_unit": {
+        "exact": 0.0,
+        "m/s": 0.0,
+        "geographic degrees": 0.0,
+        "deg": 0.0,
+        "m": 0.0
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "602158f044676c85975108f3336a688afc9590515c1ff60e3da7bef0bea9e9f5",
+      "internal_state_verified": true,
+      "original_periods_ns": {
+        "maintenance_callback": 500000000
+      }
+    },
+    "wind_engine_node": {
+      "passed": true,
+      "calls_total": 303419,
+      "calls_checked": 303419,
+      "outputs_checked": 110420,
+      "fields_checked": 772940,
+      "parameters_checked": 24,
+      "max_error_by_unit": {
+        "N": 0.0,
+        "N.m": 0.0
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "8c73a2f1843015f6488bd09adaece64be6896e0c3363d88b8229f150cf55f7ff",
+      "internal_state_verified": true,
+      "original_periods_ns": {
+        "calculate_step": 100000000
+      }
+    },
+    "current_engine_node": {
+      "passed": true,
+      "calls_total": 303413,
+      "calls_checked": 303413,
+      "outputs_checked": 110412,
+      "fields_checked": 1131723,
+      "parameters_checked": 39,
+      "max_error_by_unit": {
+        "m/s": 1.7763568394002505e-15,
+        "deg": 5.684341886080802e-14,
+        "m": 0.0,
+        "m^2/s^2": 0.0,
+        "deg^2": 0.0,
+        "s": 0.0,
+        "exact": 0.0,
+        "N": 1.3642420526593924e-10,
+        "N.m": 4.656612873077393e-10
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "c70b9cca612d69d0623a6bd5a0b8fb487475e5959ab9e6f45f4002fc72c09f8a",
+      "internal_state_verified": true,
+      "original_periods_ns": {
+        "main_calc_loop": 100000000
+      }
+    },
+    "wave_engine_node": {
+      "passed": true,
+      "calls_total": 303409,
+      "calls_checked": 303409,
+      "outputs_checked": 82806,
+      "fields_checked": 524438,
+      "parameters_checked": 61,
+      "max_error_by_unit": {
+        "N": 6.639311322942376e-11,
+        "N.m": 2.2992026060819626e-09
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "33e41d8484332491868e4c884afb6c1ecff988c434289be767a33ab17c547a1d",
+      "internal_state_verified": true,
+      "original_periods_ns": {
+        "main_calc_loop": 100000000
+      }
+    },
+    "force_aggregator_node": {
+      "passed": true,
+      "calls_total": 303539,
+      "calls_checked": 303539,
+      "outputs_checked": 275837,
+      "fields_checked": 1379181,
+      "parameters_checked": 34,
+      "max_error_by_unit": {
+        "N": 0.0,
+        "N.m": 0.0
+      },
+      "first_difference": null,
+      "reference_vector_sha256": "cc6f5f3e4be29c735ccdf0fc3cba65dd483540aec59e6a12497d799be19bfd25",
+      "internal_state_verified": true,
+      "original_periods_ns": {
+        "publish_total_load": 20000000
+      }
+    }
+  },
+  "scope": "per-callback output/parameter parity; not full closed-loop acceptance",
+  "native_library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+  "full_report_sha256": "3f24d410eafa832bea8366caa5d3a35d223f234aa8f6acc03d3656e6f6eb6f0a",
+  "full_report_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R09-E4/comparison.json"
+}

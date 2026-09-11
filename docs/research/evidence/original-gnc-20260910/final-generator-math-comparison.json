@@ -1,0 +1,88 @@
+{
+  "passed": true,
+  "probe_count": 936,
+  "scalar_fields_checked": 90792,
+  "max_error_by_unit": {
+    "N": 0.0,
+    "N.m": 0.0,
+    "kg/s": 0.0,
+    "kg.m/s": 0.0,
+    "kg.m^2/s": 0.0,
+    "acceleration": 0.0,
+    "velocity": 0.0,
+    "kg": 0.0,
+    "kg.m": 0.0,
+    "kg.m^2": 0.0,
+    "acceleration residual": 0.0,
+    "inverse-mass": 0.0
+  },
+  "first_difference": null,
+  "difference_count": 0,
+  "input_sha256": "134e40ace7055ee0819cdb21a8d84932fb197d34c5a70a295d07c35a6504276b",
+  "reference_sha256": "3a345911eb6dfb3c1d8481e3c07d3a8d5c566ba268337d2c3cbfd45ed464d0b3",
+  "native_sha256": "3a345911eb6dfb3c1d8481e3c07d3a8d5c566ba268337d2c3cbfd45ed464d0b3",
+  "comparison_rules": {
+    "M": {
+      "absolute_by_angular_indices": [
+        1e-06,
+        1e-05,
+        0.0001
+      ],
+      "relative": 1e-10,
+      "units": [
+        "kg",
+        "kg.m",
+        "kg.m^2"
+      ]
+    },
+    "M_inverse": {
+      "absolute": 1e-15,
+      "relative": 1e-10
+    },
+    "C": {
+      "absolute_by_angular_indices": [
+        0.001,
+        0.001,
+        0.01
+      ],
+      "relative": 1e-10,
+      "units": [
+        "kg/s",
+        "kg.m/s",
+        "kg.m^2/s"
+      ]
+    },
+    "forces": {
+      "absolute": [
+        0.001,
+        0.001,
+        0.01,
+        0.01
+      ],
+      "relative": 1e-08
+    },
+    "acceleration": {
+      "absolute": [
+        1e-08,
+        1e-08,
+        1e-09,
+        1e-09
+      ],
+      "relative": 1e-09
+    },
+    "velocity": {
+      "absolute": [
+        1e-08,
+        1e-08,
+        1e-09,
+        1e-09
+      ],
+      "relative": 1e-09
+    },
+    "decomposition_residual": {
+      "absolute": 1e-10,
+      "relative": 0.0
+    }
+  },
+  "scope": "M read from actual instances; C/D expression decomposition checked against actual RHS; native RHS/RK call the packaged shared library"
+}

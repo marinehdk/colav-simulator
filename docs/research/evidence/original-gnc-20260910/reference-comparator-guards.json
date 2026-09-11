@@ -1,0 +1,76 @@
+{
+  "passed": true,
+  "checks": {
+    "identical_valid": {
+      "reference_events": 3,
+      "replay_events": 3,
+      "publications_checked": 1,
+      "calls_checked": 1,
+      "wire_identical_messages": 1,
+      "passed": true,
+      "first_difference": null
+    },
+    "changed_force": {
+      "reference_events": 3,
+      "replay_events": 3,
+      "publications_checked": 1,
+      "calls_checked": 1,
+      "wire_identical_messages": 0,
+      "passed": false,
+      "first_difference": {
+        "event_index": 1,
+        "path": ".message.fields.wrench.force.x",
+        "reference": 1.0,
+        "replay": 2.0
+      }
+    },
+    "boolean_not_integer": {
+      "reference_events": 3,
+      "replay_events": 3,
+      "publications_checked": 1,
+      "calls_checked": 1,
+      "wire_identical_messages": 1,
+      "passed": false,
+      "first_difference": {
+        "event_index": 0,
+        "path": ".ordinal",
+        "reference": "1",
+        "replay": "True"
+      }
+    },
+    "missing_event": {
+      "reference_events": 3,
+      "replay_events": 2,
+      "publications_checked": 1,
+      "calls_checked": 1,
+      "wire_identical_messages": 1,
+      "passed": false,
+      "first_difference": {
+        "kind": "record_count",
+        "event_index": 2
+      }
+    },
+    "empty": {
+      "reference_events": 0,
+      "replay_events": 0,
+      "publications_checked": 0,
+      "calls_checked": 0,
+      "wire_identical_messages": 0,
+      "passed": false,
+      "first_difference": null
+    },
+    "different_padding_same_fields": {
+      "reference_events": 3,
+      "replay_events": 3,
+      "publications_checked": 1,
+      "calls_checked": 1,
+      "wire_identical_messages": 0,
+      "passed": true,
+      "first_difference": null
+    },
+    "malformed_identical": {
+      "decoding_rejected": true,
+      "error": "RMWError"
+    }
+  }
+}

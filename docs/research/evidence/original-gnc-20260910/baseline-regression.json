@@ -1,0 +1,94 @@
+{
+  "current": [
+    {
+      "test": "test_acceptance_matrix_cell[mid_mpc_ipopt-overtaking]",
+      "errors": [
+        "E       assert 53.55069974906205 <= 50.0"
+      ]
+    },
+    {
+      "test": "test_smoke_vo_head_on_acceptance_cell",
+      "errors": [
+        "E       assert 5 <= 2"
+      ]
+    },
+    {
+      "test": "test_acceptance_matrix_cell[vo-overtaking]",
+      "errors": [
+        "E       assert 3 <= 2"
+      ]
+    },
+    {
+      "test": "test_acceptance_matrix_cell[vo-head_on]",
+      "errors": [
+        "E       assert 5 <= 2"
+      ]
+    },
+    {
+      "test": "test_acceptance_matrix_cell[mid_mpc_ipopt-overtaking]",
+      "errors": [
+        "E           colav_simulator.core.colav.diagnostics.ColavExecutionError: Mid-MPC L4 plan acceptance rejected the candidate: QUALITY_RECOVERY_SUFFIX",
+        "E           colav_simulator.experiment.runner.ExperimentRunError: Mid-MPC L4 plan acceptance rejected the candidate: QUALITY_RECOVERY_SUFFIX"
+      ]
+    },
+    {
+      "test": "test_acceptance_matrix_cell[mid_mpc_ipopt-head_on]",
+      "errors": [
+        "E           colav_simulator.core.colav.diagnostics.ColavExecutionError: Mid-MPC L4 plan acceptance rejected the candidate: SAFETY_SWEPT_CLEARANCE",
+        "E           colav_simulator.experiment.runner.ExperimentRunError: Mid-MPC L4 plan acceptance rejected the candidate: SAFETY_SWEPT_CLEARANCE"
+      ]
+    },
+    {
+      "test": "test_mid_mpc_preserves_accepted_plan_when_candidate_is_rejected",
+      "errors": [
+        "E           colav_simulator.core.colav.diagnostics.ColavExecutionError: Mid-MPC optimizer returned INFEASIBLE without a feasible candidate"
+      ]
+    }
+  ],
+  "baseline": [
+    {
+      "test": "test_acceptance_matrix_cell[mid_mpc_ipopt-overtaking]",
+      "errors": [
+        "E       assert 53.55069974906205 <= 50.0"
+      ]
+    },
+    {
+      "test": "test_smoke_vo_head_on_acceptance_cell",
+      "errors": [
+        "E       assert 5 <= 2"
+      ]
+    },
+    {
+      "test": "test_acceptance_matrix_cell[vo-overtaking]",
+      "errors": [
+        "E       assert 3 <= 2"
+      ]
+    },
+    {
+      "test": "test_acceptance_matrix_cell[vo-head_on]",
+      "errors": [
+        "E       assert 5 <= 2"
+      ]
+    },
+    {
+      "test": "test_acceptance_matrix_cell[mid_mpc_ipopt-overtaking]",
+      "errors": [
+        "E           colav_simulator.core.colav.diagnostics.ColavExecutionError: Mid-MPC L4 plan acceptance rejected the candidate: QUALITY_RECOVERY_SUFFIX",
+        "E           colav_simulator.experiment.runner.ExperimentRunError: Mid-MPC L4 plan acceptance rejected the candidate: QUALITY_RECOVERY_SUFFIX"
+      ]
+    },
+    {
+      "test": "test_acceptance_matrix_cell[mid_mpc_ipopt-head_on]",
+      "errors": [
+        "E           colav_simulator.core.colav.diagnostics.ColavExecutionError: Mid-MPC L4 plan acceptance rejected the candidate: SAFETY_SWEPT_CLEARANCE",
+        "E           colav_simulator.experiment.runner.ExperimentRunError: Mid-MPC L4 plan acceptance rejected the candidate: SAFETY_SWEPT_CLEARANCE"
+      ]
+    },
+    {
+      "test": "test_mid_mpc_preserves_accepted_plan_when_candidate_is_rejected",
+      "errors": [
+        "E           colav_simulator.core.colav.diagnostics.ColavExecutionError: Mid-MPC optimizer returned INFEASIBLE without a feasible candidate"
+      ]
+    }
+  ]
+}

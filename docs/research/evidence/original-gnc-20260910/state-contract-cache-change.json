@@ -1,0 +1,12 @@
+{
+  "old_sha256": "7a6915256bcb0ff5570d4a8082c1ef8622fcee8da34ef4ca0f02b292eceb5d2d",
+  "new_sha256": "26b875e5d0ec701530e0eea51ffb45ad7f773c6bbefd75727fb8ed7e001a7ebe",
+  "old_source": "build/comparison-source-archive/7a6915256bcb0ff5570d4a8082c1ef8622fcee8da34ef4ca0f02b292eceb5d2d/state_comparison.py",
+  "scope": "Only immutable metadata caching; unit rules and every value comparison unchanged",
+  "inflight_old_state_comparators": [
+    60612,
+    61100,
+    61911
+  ],
+  "wall_time": 1789049188.1864178
+}
