@@ -4,6 +4,10 @@ Same RunSpec as ``run_product_campaign.py`` (seed 0, strict_no_fallback,
 5 s solve period, ENFORCE deadline, P1 engineering domain for Mid-MPC only);
 only the planner set is selectable so a planner-track fix can be re-evaluated
 without re-executing the other planners' cells.
+
+The summary reads Parquet through Arrow, whose filesystem registry conflicts
+with the GDAL build the simulator loads; the simulator imports are therefore
+kept inside ``run`` and the summary runs in a clean interpreter.
 """
 
 from __future__ import annotations
@@ -11,16 +15,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
+import sys
 import time
 from collections import Counter
 from pathlib import Path
 
-from colav_simulator.cli import _load_algorithm_config
-from colav_simulator.core.colav.threat_assessment import DomainQualification, ShipDomainProfile
-from colav_simulator.experiment.contracts import RunSpec
-from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner
-from colav_simulator.original_gnc.adapter import RUNTIME_SOURCE_FINGERPRINTS
-from colav_simulator.original_gnc.configuration import ORIGINAL_OFF, ORIGINAL_ON
 from tools.original_gnc.summarize_product_campaign import file_sha256, planner_timing
 
 SCENARIOS = ("head_on", "crossing_give_way", "overtaking", "paper_ccta2023_multiship")
@@ -30,6 +30,13 @@ RULES = dict(zip(SCENARIOS, ("rule14", "rule15", "rule13", "multiship"), strict=
 
 def run(output: Path, algorithms: tuple[str, ...]) -> dict:
     """Persist every attempt; execution, admission and safety remain separate."""
+    from colav_simulator.cli import _load_algorithm_config  # noqa: PLC0415
+    from colav_simulator.core.colav.threat_assessment import DomainQualification, ShipDomainProfile  # noqa: PLC0415
+    from colav_simulator.experiment.contracts import RunSpec  # noqa: PLC0415
+    from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner  # noqa: PLC0415
+    from colav_simulator.original_gnc.adapter import RUNTIME_SOURCE_FINGERPRINTS  # noqa: PLC0415
+    from colav_simulator.original_gnc.configuration import ORIGINAL_OFF, ORIGINAL_ON  # noqa: PLC0415
+
     if output.exists():
         raise FileExistsError(output)
     unknown = sorted(set(algorithms) - set(ALGORITHMS))
@@ -242,8 +249,27 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--algorithms", default="vo,potocnik_colreg_fan_mpc")
     parser.add_argument("--summary", type=Path, default=None, help="Summary JSON path (default: <output>/summary.json)")
+    parser.add_argument("--summarize-only", action="store_true", help="Summarize an existing campaign directory")
     args = parser.parse_args()
+    summary_path = args.summary or args.output / "summary.json"
+    if args.summarize_only:
+        summary = summarize(args.output, summary_path)
+        print(json.dumps({key: value for key, value in summary.items() if key != "cases"}, indent=2))
+        sys.exit(0)
     algorithms = tuple(item.strip() for item in args.algorithms.split(",") if item.strip())
     run(args.output, algorithms)
-    summary = summarize(args.output, args.summary or args.output / "summary.json")
-    print(json.dumps({key: value for key, value in summary.items() if key != "cases"}, indent=2))
+    # Arrow's filesystem registry is already claimed by GDAL in this interpreter.
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "tools.original_gnc.run_product_campaign_subset",
+            "--output",
+            str(args.output),
+            "--summary",
+            str(summary_path),
+            "--summarize-only",
+        ],
+        check=True,
+        cwd=Path(__file__).resolve().parents[2],
+    )
