@@ -19,7 +19,11 @@ from colav_simulator.core.colav.mid_mpc.solver import _P, _colreg_cost, _pack_pa
 from colav_simulator.core.colav.mid_mpc_acceptance import MidMpcPlanAcceptance, _static_geometry_clearance
 from colav_simulator.core.colav.mid_mpc_static import compile_static_field, static_execution_context, static_hazards
 from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
-from colav_simulator.integrations.mid_mpc_ipopt import _MidMpcFacade, create
+from colav_simulator.integrations.mid_mpc_ipopt import (
+    _SOLVER_RESERVATION_FLOOR_S,
+    _MidMpcFacade,
+    create,
+)
 
 
 def _enc(hazard, layer="land") -> SimpleNamespace:
@@ -241,6 +245,51 @@ def test_retry_budget_includes_preparation_and_reserves_l4_time(monkeypatch) -> 
     monkeypatch.setattr(facade._solver, "solve", record_budget)
     assert facade.solve(_input(None)).feasible
     assert 0.0 < observed[0] <= 2.0 - 0.05 - facade._config.acceptance_reservation_s
+
+
+def test_retry_reserves_solver_floor_when_upstream_overruns_downgraded_budget(monkeypatch) -> None:
+    """R8: a streak-downgraded cycle must not starve IPOPT below its measured need.
+
+    Late-mission upstream work alone (measured ~4.9 s in the p4 HO cells) exceeds
+    the whole 2 s downgraded budget; the solver slice must be floored so a retry
+    can actually clear the streak instead of locking into starvation.
+    """
+    facade = _facade()
+    facade._unresolved_streak = 1
+    original_assemble = facade._assembler.assemble
+    original_solve = facade._solver.solve
+    observed = []
+
+    def late_mission_upstream(*args, **kwargs) -> object:
+        time.sleep(1.9)
+        return original_assemble(*args, **kwargs)
+
+    def record_budget(*args, **kwargs) -> object:
+        observed.append(kwargs["wall_time_s"])
+        return original_solve(*args, **kwargs)
+
+    monkeypatch.setattr(facade._assembler, "assemble", late_mission_upstream)
+    monkeypatch.setattr(facade._solver, "solve", record_budget)
+    assert facade.solve(_input(None)).feasible
+    assert observed[0] >= _SOLVER_RESERVATION_FLOOR_S
+    # The downgraded cycle still bounds the solver allocation from above.
+    assert observed[0] <= 2.0 - facade._config.acceptance_reservation_s
+
+
+def test_solver_floor_never_extends_healthy_cycles(monkeypatch) -> None:
+    """Full-budget (streak reset) cycles keep their total-deadline accounting."""
+    facade = _facade()
+    original_solve = facade._solver.solve
+    observed = []
+
+    def record_budget(*args, **kwargs) -> object:
+        observed.append(kwargs["wall_time_s"])
+        return original_solve(*args, **kwargs)
+
+    monkeypatch.setattr(facade._solver, "solve", record_budget)
+    assert facade.solve(_input(None)).feasible
+    assert observed[0] >= _SOLVER_RESERVATION_FLOOR_S
+    assert observed[0] <= 20.0 - facade._config.acceptance_reservation_s
 
 
 def test_hard_row_rejects_crossing_with_midpoint_outside_grid() -> None:

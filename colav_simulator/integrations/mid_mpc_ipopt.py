@@ -115,6 +115,18 @@ from colav_simulator.original_gnc import qualification as original_response_qual
 __version__ = "2.0.0"
 _TOTAL_DEADLINE_S = 20.0
 _ACCEPTANCE_RESERVATION_S = 0.25
+# R8: the unresolved-streak downgrade squeezes a retry cycle into 2 s, but
+# measured late-mission upstream work (threat cycle, held-authority
+# re-validation, static context, artifact hashing) alone reaches ~4.9 s, which
+# left IPOPT a ~0 s slice it could never clear — and because the streak only
+# resets after an accepted solve, one downgrade locked every later retry into
+# solver starvation (User_Requested_Stop / Restoration_Failed -> INFEASIBLE).
+# The solver slice is therefore floored at ~4x its measured late-mission need
+# (accepted HO cycles: 99-207 ms, 4-12 iterations). Bound: a downgraded cycle
+# lasts at most upstream_elapsed + floor + reservation; healthy cycles keep
+# the total-deadline accounting (floor + reservation is far below 20 s), and
+# ENFORCE post-hoc accounting in the runtime is untouched.
+_SOLVER_RESERVATION_FLOOR_S = 1.0
 _WARM_START_ELIGIBLE_TUPLES = frozenset({"single-encounter:viknes:flsc"})
 _ACCEPTANCE_P99_MS = 35.046
 _ACCEPTANCE_CALIBRATION_ID = "m3-macos26-python3.11-20260812-1000x-0-1-16"
@@ -467,8 +479,10 @@ class _MidMpcFacade:
         iterate_filter = _recovery_iterate_filter(planner_input, assembly)
         try:
             cycle_budget_s = 2.0 if self._unresolved_streak >= 1 else self._config.total_deadline_s
+            # R8: the solver slice is floored so a downgraded retry cannot be
+            # starved into an unavoidable failure (see _SOLVER_RESERVATION_FLOOR_S).
             solver_budget_s = max(
-                0.0,
+                _SOLVER_RESERVATION_FLOOR_S,
                 cycle_budget_s - (time.perf_counter() - solve_started_at) - self._config.acceptance_reservation_s,
             )
             result = self._solver.solve(
@@ -804,6 +818,7 @@ class _MidMpcFacade:
             "strict_total_deadline": True,
             "solver_cutoff_s": self._config.total_deadline_s - self._config.acceptance_reservation_s,
             "acceptance_reservation_s": self._config.acceptance_reservation_s,
+            "solver_reservation_floor_s": _SOLVER_RESERVATION_FLOOR_S,
             "acceptance_elapsed_ms": acceptance_elapsed_ms,
             "acceptance_calibration_id": _ACCEPTANCE_CALIBRATION_ID,
             "acceptance_calibrated_p99_ms": _ACCEPTANCE_P99_MS,
