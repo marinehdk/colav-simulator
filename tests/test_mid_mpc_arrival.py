@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 from conftest import empty_enc
 
@@ -155,3 +157,61 @@ def test_zero_speed_endpoint_keeps_terminal_position_correction() -> None:
     assert solution.feasible
     assert np.linalg.norm(solution.predicted_trajectory[:2, -1] - [300.0, 0.0]) < 5.0
     assert solution.control_reference[3, 0] > 0.01
+
+
+def test_terminal_reference_recovers_an_executable_command_near_the_goal() -> None:
+    """A stalled approach must be commanded back into the executed band.
+
+    crossing-E4 stalled 13.5 m short at 0.01 m/s under a 0.13 m/s reference:
+    the padded approach reserve decays like remaining/response_s and drops
+    below the hull's executed command band tens of metres out. With the
+    speed-loop lag modelled, the tail must keep commanding a speed whose
+    modelled stop still fits inside the goal tolerance.
+    """
+    lag_s = 24.75
+    refs = arrival_references(
+        ((0.0, 0.0), (300.0, 0.0)),
+        (286.5, 0.0),
+        0.0,
+        0.01,
+        4.0,
+        5.0,
+        80,
+        0.3,
+        0.05,
+        110.0,
+        (0.0, 0.0),
+        0.0,
+        lag_s,
+    )
+    assert refs is not None
+    _, _, speeds, _ = refs
+    assert speeds[0] >= 0.3
+
+
+def test_terminal_reference_stops_inside_goal_tolerance() -> None:
+    """The propagated braking suffix stops within tolerance of the goal."""
+    lag_s = 24.75
+    refs = arrival_references(
+        ((0.0, 0.0), (300.0, 0.0)),
+        (240.0, 0.0),
+        0.0,
+        1.5,
+        4.0,
+        5.0,
+        80,
+        0.3,
+        0.05,
+        110.0,
+        (0.0, 0.0),
+        0.0,
+        lag_s,
+    )
+    assert refs is not None
+    headings, _, speeds, terminal = refs
+    assert terminal is not None
+    location = np.array([240.0, 0.0])
+    for heading, speed in zip(headings, speeds, strict=True):
+        location = location + speed * 5.0 * np.array([math.cos(heading), math.sin(heading)])
+    assert np.linalg.norm(location - [300.0, 0.0]) <= 5.0
+    np.testing.assert_allclose(terminal, [60.0, 0.0], atol=0.5)
