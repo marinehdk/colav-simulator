@@ -95,6 +95,9 @@ class Maneuverability:
     turn_rate_rad_s: float
     deceleration_mps2: float
     speed_bounds_mps: tuple[float, float]
+    # Qualified closed-loop course-response time constant. None keeps the
+    # rate-only timing envelope (plants without a qualified first-order lag).
+    course_time_constant_s: float | None = None
 
     def __post_init__(self) -> None:
         """Validate physical maneuverability bounds."""
@@ -105,6 +108,10 @@ class Maneuverability:
             raise ValueError("turn rate and deceleration must be positive")
         if not 0.0 <= self.speed_bounds_mps[0] < self.speed_bounds_mps[1]:
             raise ValueError("speed bounds must satisfy 0 <= lower < upper")
+        if self.course_time_constant_s is not None and (
+            not math.isfinite(self.course_time_constant_s) or self.course_time_constant_s <= 0.0
+        ):
+            raise ValueError("course time constant must be positive when provided")
 
 
 @dataclass(frozen=True)
@@ -1140,10 +1147,11 @@ def _scheduled_action_due(
     )
     deficit = max(cycle.profile.target_clearance_improvement_m, clearance - geometry.dcpa_m)
     lateral_speed = speed * math.sin(max(state.required_course_change_rad, math.radians(1.0)))
+    _, achievement_window_s = _action_deadline_windows_s(state, cycle)
     lead_s = (
         state.required_course_change_rad / cycle.ownship.maneuverability.turn_rate_rad_s
         + deficit / max(lateral_speed, 0.01)
-        + cycle.profile.action_achievement_window_s
+        + achievement_window_s
         + cycle.profile.entry_confirmation_s
     )
     planned = cycle.sim_time_s + max(0.0, geometry.signed_tcpa_s - lead_s)
@@ -1213,6 +1221,38 @@ def _target_action_adequate(
     return cycle.sim_time_s - state.target_action_since_s >= cycle.profile.entry_confirmation_s
 
 
+def _action_deadline_windows_s(state: _TargetState, cycle: EncounterCycle) -> tuple[float, float]:
+    """Stage (start, achievement) action-deadline windows on the plant response.
+
+    The fixed profile windows assume a rate-responsive plant. Under a
+    qualified first-order course lag (original backend: tau = 86.78 s) the
+    executed course only chases the commanded alteration, so windows staged
+    from the raw profile expire before any executable candidate can show the
+    maneuver; every candidate then fails COLREG_ACTION_DEADLINE and the
+    episode dies at the first post-deadline rejection (multiship-E0/E4).
+
+    The envelope integrates the same qualified first-order response used by
+    the recovery staging: a commanded alteration responds as
+    ``required * (1 - exp(-t / tau))``, so onset (one action-observation grace
+    short of nothing) takes ``-tau * ln(1 - onset / required)`` and reaching
+    the alteration within one observation grace takes ``tau * ln(required /
+    onset)``. Windows only ever extend the profile floors: L4 COLREG timing
+    is never shortened.
+    """
+    profile = cycle.profile
+    tau_s = cycle.ownship.maneuverability.course_time_constant_s
+    required = float(state.required_course_change_rad)
+    onset = profile.own_action_course_change_rad
+    if not tau_s or tau_s <= 0.0 or required <= onset:
+        return profile.action_start_window_s, profile.action_achievement_window_s
+    start_window_s = -tau_s * math.log(1.0 - onset / required)
+    achievement_window_s = tau_s * math.log(required / onset)
+    return (
+        max(profile.action_start_window_s, start_window_s),
+        max(profile.action_achievement_window_s, achievement_window_s),
+    )
+
+
 def _commit(
     state: _TargetState,
     cycle: EncounterCycle,
@@ -1236,8 +1276,9 @@ def _commit(
     state.action_observation_course_rad = None
     state.action_observation_speed_mps = None
     state.committed_at_s = cycle.sim_time_s
-    state.action_start_deadline_s = cycle.sim_time_s + cycle.profile.action_start_window_s
-    state.action_achievement_deadline_s = cycle.sim_time_s + cycle.profile.action_achievement_window_s
+    start_window_s, achievement_window_s = _action_deadline_windows_s(state, cycle)
+    state.action_start_deadline_s = cycle.sim_time_s + start_window_s
+    state.action_achievement_deadline_s = cycle.sim_time_s + achievement_window_s
     _observe_own_action(state, cycle, target)
 
 

@@ -212,6 +212,75 @@ def test_head_on_candidate_clears_when_target_resolves_risk_before_commitment() 
     assert decision.commitment is CommitmentPhase.NONE
 
 
+def _committed_deadlines(maneuverability: Maneuverability) -> tuple[float, float, float, float]:
+    """Drive one head-on encounter to commitment and return (commit time,
+    staged start deadline, staged achievement deadline, required change)."""
+    lifecycle = EncounterLifecycle()
+
+    def cycle(sequence: int, sim_time_s: float) -> EncounterCycle:
+        base = _head_on_cycle(sequence=sequence, sim_time_s=sim_time_s)
+        return replace(base, ownship=replace(base.ownship, maneuverability=maneuverability))
+
+    lifecycle.step(cycle(sequence=0, sim_time_s=0.0))
+    committed = lifecycle.step(cycle(sequence=1, sim_time_s=5.0)).targets[0]
+    assert committed.commitment is CommitmentPhase.COMMITTED
+    return (
+        5.0,
+        committed.action_start_deadline_s,
+        committed.action_achievement_deadline_s,
+        committed.required_course_change_rad,
+    )
+
+
+def test_response_aware_commit_extends_achievement_deadline_to_qualified_lag() -> None:
+    """With the qualified first-order course lag (original backend tau=86.78 s)
+    the fixed 30 s achievement window is physically unreachable; the staged
+    deadline must reflect the response envelope instead."""
+    tau_s = 86.78
+    profile = PlannerOddProfile()
+    commit_s, start_deadline_s, achievement_deadline_s, required = _committed_deadlines(
+        Maneuverability(math.radians(3.0), 0.3, (0.0, 8.0), course_time_constant_s=tau_s)
+    )
+    onset = profile.own_action_course_change_rad
+
+    expected_start = commit_s + max(
+        profile.action_start_window_s,
+        -tau_s * math.log(1.0 - onset / required),
+    )
+    expected_achievement = commit_s + max(
+        profile.action_achievement_window_s,
+        -tau_s * math.log(onset / required),
+    )
+
+    assert required > onset
+    assert start_deadline_s == pytest.approx(expected_start)
+    assert achievement_deadline_s == pytest.approx(expected_achievement)
+    assert achievement_deadline_s > commit_s + profile.action_achievement_window_s
+
+
+def test_response_aware_commit_keeps_legacy_windows_without_time_constant() -> None:
+    profile = PlannerOddProfile()
+    commit_s, start_deadline_s, achievement_deadline_s, _ = _committed_deadlines(
+        Maneuverability(math.radians(3.0), 0.3, (0.0, 8.0))
+    )
+
+    assert start_deadline_s == pytest.approx(commit_s + profile.action_start_window_s)
+    assert achievement_deadline_s == pytest.approx(commit_s + profile.action_achievement_window_s)
+
+
+def test_response_aware_deadlines_only_extend_never_shorten() -> None:
+    """A small required alteration must keep the profile windows; deadlines
+    may only grow so L4 COLREG timing is never weakened."""
+    profile = PlannerOddProfile()
+    tau_s = 86.78
+    commit_s, start_deadline_s, achievement_deadline_s, _ = _committed_deadlines(
+        Maneuverability(math.radians(3.0), 0.3, (0.0, 8.0), course_time_constant_s=tau_s)
+    )
+
+    assert start_deadline_s >= commit_s + profile.action_start_window_s
+    assert achievement_deadline_s >= commit_s + profile.action_achievement_window_s
+
+
 def test_committed_action_achievement_is_cumulative_after_course_recovers() -> None:
     lifecycle = EncounterLifecycle()
     lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
