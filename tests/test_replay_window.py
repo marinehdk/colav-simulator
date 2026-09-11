@@ -367,6 +367,25 @@ def test_events_are_bounded_by_limit_and_report_truncation(api_client: TestClien
     assert document["truncated"] is True
 
 
+def test_events_read_the_gzipped_product_journal(api_client: TestClient, runs_root: Path) -> None:
+    """Product capture stores events.jsonl.gz (#70); the endpoint reads it unmodified."""
+    gz_run = runs_root / "61616161-6161-4616-8161-616161616161"
+    gz_run.mkdir()
+    write_manifest(gz_run)
+    sink = TraceSink.open(gz_run, policy=TraceSinkPolicy(max_queue_records=32, worker=False, events_gzip=True))
+    for sequence in range(1, 6):
+        append_frame(sink, sequence)
+    sink.close(events=[{"type": "session_started", "sim_time": 0.1, "details": {}}])
+    assert (gz_run / "decision" / "events.jsonl.gz").is_file()
+
+    app = FastAPI()
+    app.include_router(build_replay_router(RunReplayStore(runs_root)))
+    client = TestClient(app)
+    document = client.get(f"/api/runs/{gz_run.name}/replay/events").json()
+    assert document["count"] == 1
+    assert document["events"][0]["type"] == "session_started"
+
+
 def test_events_reject_unknown_run_and_non_seekable_evidence(api_client: TestClient, runs_root: Path) -> None:
     assert api_client.get(f"/api/runs/{RUN_UNKNOWN}/replay/events").status_code == 404
     reduced = runs_root / RUN_REDUCED
