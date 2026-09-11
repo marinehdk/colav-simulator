@@ -10,6 +10,7 @@ import pytest
 from colav_simulator.core.ship import Config, build_ship
 from colav_simulator.modular_gnc.contracts import ControlTask, TrackedRoute
 from colav_simulator.modular_gnc.route_bridge import RouteDecision
+from colav_simulator.original_gnc import plan_bridge as plan_bridge_module
 from colav_simulator.original_gnc.configuration import OriginalGncConfig
 from colav_simulator.original_gnc.plan_bridge import OriginalPlanBridge
 
@@ -172,6 +173,38 @@ def test_internal_return_rotates_reference_for_next_splice(original_ship):
     assert "avoidance" in request["navigation_mode"]
     coordinate = _coordinate_feedback(bridge)
     assert coordinate["accepted"] is True
+
+
+def test_unadmittable_splices_are_held_not_published(original_ship, monkeypatch):
+    """Splices that would fail the frozen gates are never published or latched."""
+    ship = original_ship
+    ship.stack.advance(11)
+    ship._sync_state()
+    data = _vo_intent()
+    bridge = _mount(ship, data)
+    real_build = plan_bridge_module.build_avoidance_route
+
+    def unadmittable_build(*args: object, **kwargs: object) -> dict:
+        return {**real_build(*args, **kwargs), "gate_clean": False}
+
+    monkeypatch.setattr(plan_bridge_module, "build_avoidance_route", unadmittable_build)
+    bridge.submit(11)  # first build unadmittable: nothing is published or latched
+    assert not [row for row in ship.requested_plans if row["kind"] == "avoidance"]
+    assert bridge.admission_metrics["submitted"] == 0
+
+    monkeypatch.setattr(plan_bridge_module, "build_avoidance_route", real_build)
+    bridge.submit(11)
+    held_id = ship.requested_plans[-1]["message"]["plan_id"]
+    assert _coordinate_feedback(bridge)["accepted"] is True
+
+    monkeypatch.setattr(plan_bridge_module, "build_avoidance_route", unadmittable_build)
+    data["planner"]["selected_command"]["course_rad"] = 0.5
+    data["planner"]["solve_id"] = 2
+    ship.stack.advance(0.1)
+    ship._sync_state()
+    bridge.submit(11.2)  # unadmittable rebuild: the held splice keeps flying
+    assert ship.requested_plans[-1]["message"]["plan_id"] == held_id
+    assert bridge.admission_metrics["rejected_addressable"] == 0
 
 
 def _mid_planner_data(sequence: int, receipt_hash: str) -> dict:

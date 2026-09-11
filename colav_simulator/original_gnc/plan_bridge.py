@@ -179,6 +179,7 @@ class OriginalPlanBridge:
         self._geometry = None
         self._line_diagnostics: dict | None = None
         self._candidate: dict | None = None
+        self._candidate_generation = 0
         self._algorithm = None
         self._intent_generation = 0
         self._lateral_blend = 1.0
@@ -292,6 +293,7 @@ class OriginalPlanBridge:
         self._geometry = None
         self._line_diagnostics = None
         self._candidate = None
+        self._candidate_generation = 0
         self._lateral_blend = 1.0
         self._last_submission = None
         self._last_submission_time = None
@@ -381,18 +383,16 @@ class OriginalPlanBridge:
             valid_until_s = self._last_solve_time + max(period, _MIN_VALIDITY_S)
             geometry, fresh_geometry = self._intent_deviation(algorithm, heading, reference)
             deviation_speeds = np.full(geometry.shape[1], speed)
-            plan_id = f"{algorithm}-held-intent-{self._intent_generation}"
             # Hold the admitted splice for a held intent: rebuilding it against
             # the mirror (which this very route rotated) is not idempotent.
             # A mirror that no longer matches the held candidate means something
             # else rotated the accepted route (manager validity-expiry internal
             # return, nominal update), so the splice is rebuilt against it.
             rotated = self._candidate is not None and self._mirror.path.latitudes != self._candidate["latitudes"]
-            if fresh_geometry or rotated or self._candidate is None or self._lateral_blend < 1.0:
-                candidate = self._build_candidate(reference, geometry, deviation_speeds)
-                self._candidate = candidate
-            else:
-                candidate = self._candidate
+            candidate = self._held_candidate(reference, geometry, deviation_speeds, fresh_geometry, rotated)
+            if candidate is None:
+                return
+            plan_id = f"{algorithm}-held-intent-{self._candidate_generation}"
             identity = {
                 "algorithm": algorithm,
                 "solve_id": planner.get("solve_id"),
@@ -403,7 +403,7 @@ class OriginalPlanBridge:
                 "source_speed_semantics": "original_route_speed_limit",
                 "source_heading_field_semantics": "omitted_route_geometry_is_authority",
                 "splice": {
-                    "generation": self._intent_generation,
+                    "generation": self._candidate_generation,
                     "line": copy.deepcopy(self._line_diagnostics),
                     "lateral_blend_fraction": self._lateral_blend,
                 },
@@ -428,6 +428,8 @@ class OriginalPlanBridge:
             geometry = self._split_lateral_offset(geometry, reference, fresh_geometry)
             deviation_speeds = [float(value) for value in speeds]
             candidate = self._build_candidate(reference, geometry, deviation_speeds)
+            if not candidate["gate_clean"]:
+                return  # unadmittable splice: hold the current route this tick
             # Accepted prediction geometry is a route. It is not a sequence of
             # body-heading commands, so retain only its geometric authority.
             valid_until_s = route.valid_until_tick * self.dt_s
@@ -481,6 +483,29 @@ class OriginalPlanBridge:
         self._deliver(request, identity)
         self._last_submission = signature
         self._last_submission_time = t
+
+    def _held_candidate(
+        self,
+        reference: ReferencePath,
+        geometry: np.ndarray,
+        deviation_speeds: np.ndarray,
+        fresh_geometry: bool,
+        rotated: bool,
+    ) -> dict | None:
+        """Rebuild the latched splice only when the rebuild stays admittable.
+
+        A splice the frozen chain would reject (reverse segment, short leg)
+        must never be published or latched: rejections do not rotate the
+        mirror, so resubmitting rejected geometry only storms the gate. Hold
+        the previous route this tick instead; the next solve re-evaluates, and
+        manager expiry still owns the avoidance lifecycle.
+        """
+        if fresh_geometry or rotated or self._candidate is None or self._lateral_blend < 1.0:
+            built = self._build_candidate(reference, geometry, deviation_speeds)
+            if built["gate_clean"]:
+                self._candidate = built
+                self._candidate_generation = self._intent_generation
+        return self._candidate
 
     def _build_candidate(self, reference: ReferencePath, geometry: np.ndarray, deviation_speeds: list) -> dict:
         """Splice the deviation into the reference and attach the route contract arrays."""

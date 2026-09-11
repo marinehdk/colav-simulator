@@ -419,6 +419,13 @@ def build_avoidance_route(
     modes = [*reference.modes[:k], *([AVOIDANCE_MODE] * deviation.shape[1]), *reference.modes[j:]]
     deviation_end = k + deviation.shape[1]
     interior_turns = [math.degrees(_turn_angle(points, index)) for index in range(1, points.shape[1] - 1)]
+    # Admission contract of the frozen chain: coordinate_transform rejects any
+    # interior turn sharper than 150 deg before every other gate, and
+    # active_route_manager rejects any leg below 30 m (including legs inherited
+    # from internal-return or nominal references, which bypass their own gate).
+    # False means the splice cannot be admitted this tick and must not be
+    # published or latched; the caller then holds its previous route instead.
+    gaps = np.linalg.norm(np.diff(points, axis=1), axis=0)
     diagnostics = {
         "first_change_ahead_m": first_change_distance_ahead(points, ref, position),
         "max_lateral_delta_m": max_lateral_delta(points, ref),
@@ -430,5 +437,6 @@ def build_avoidance_route(
         "prefix_length": k,
         "rejoin_index": j,
         "short_reference": k == count - 1,
+        "gate_clean": bool(not has_reverse_segment(points) and (gaps.size == 0 or float(gaps.min()) >= MIN_SEGMENT_M)),
     }
     return {"points": points, "speeds": speeds, "modes": modes, **diagnostics}

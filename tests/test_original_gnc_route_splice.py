@@ -138,6 +138,7 @@ def _assert_gate_clean(candidate: dict, reference: ReferencePath, ship: np.ndarr
     ahead = first_change_distance_ahead(points, reference.points, ship)
     assert not np.isfinite(ahead) or ahead >= FIRST_CHANGE_GATE_M
     assert candidate["min_interior_turn_deg"] < 150.0
+    assert candidate["gate_clean"] is True
 
 
 def test_splice_trims_start_junction_reversal_seen_in_admission_smoke():
