@@ -252,6 +252,19 @@ The exact chunk policy must be versioned and chosen from measurement. Existing v
 
 Do not make a new format a prerequisite without evidence.
 
+### 5.4 Capture policy, retention, and disk budget (2026-09-11 orchestrator amendment)
+
+Measured machine reality (2026-09-11): `runs/` already holds 6.1 GB across 2 689 run dirs; the development disk is near capacity; an existing 120-tick multiship trace occupies 8.9 MB `frames.jsonl.gz` plus an uncompressed 9.4 MB `decision/events.jsonl`. Default-on FULL capture without a budget would grow disk unboundedly.
+
+Decisions:
+
+1. **Capture default ON for normal product Active Sessions**, with an explicit opt-out (session-create/API/config level). Default-on is required by the product goal ("a normal product Run is replay-ready"); the opt-out covers disk-constrained or performance-sensitive use.
+2. **Budgeted retention for Decision Traces.** The backend enforces a configurable total budget for `decision/` trace directories (default single-digit GiB, pinned by #70 measurement). On trace finalization, oldest-finalized traces beyond the budget are pruned LRU; pruning only ever removes replay evidence directories, never manifests, trajectories, reports, or artifacts. A pruned Run must be reported by the Replay Descriptor as its truthful degraded state (`REDUCED` or `UNAVAILABLE`), never `INCOMPLETE-with-truncated-claim`. Pruning is recorded as a lifecycle event.
+3. **Event journal size control.** The per-tick frame records already carry `events`; the close-time `decision/events.jsonl` journal may be gzip-compressed (`events.jsonl.gz`) when measurement shows it dominates trace size. `TraceBundle`/Replay readers must accept both forms (the existing reader already falls back to the run-level journal). Frame content is unchanged.
+4. **Per-run capture budget.** The bounded capture queue (#4.3) must also have a bounded total-bytes budget per Run; exceeding it is a typed `INCOMPLETE` failure reason, not silent truncation.
+
+Nothing in this section weakens evidence immutability: retention is an explicit, logged, budget-driven deletion policy applied only to replay evidence directories, and the descriptor always tells the truth afterwards.
+
 ## 6. Backend replay domain model
 
 ### 6.1 ReplayEvidenceState
