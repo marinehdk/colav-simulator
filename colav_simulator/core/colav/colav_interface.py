@@ -327,6 +327,8 @@ class VOWrapper(ICOLAV):
             os_course_time_constant_s=kwargs.get("os_course_time_constant_s"),
             os_speed_time_constant_s=kwargs.get("os_speed_time_constant_s"),
             os_max_turn_rate_radps=kwargs.get("os_max_turn_rate_radps"),
+            os_avoidance_speed_cap_mps=kwargs.get("os_avoidance_speed_cap_mps"),
+            os_min_steerage_speed_mps=kwargs.get("os_min_steerage_speed_mps"),
         )
         solver_executed = self._vo.plan_executed
         if solver_executed:
@@ -362,6 +364,11 @@ class VOWrapper(ICOLAV):
                 "wvo_only_count": debug["wvo_only_count"],
                 "preferred_clearance_count": debug["preferred_clearance_count"],
                 "feasible_candidate_count": debug["feasible_candidate_count"],
+                "reachable_candidate_count": debug["reachable_candidate_count"],
+                "envelope_excluded_count": debug["envelope_excluded_count"],
+                "ownship_envelope": debug["ownship_envelope"],
+                "planning_horizon_s": debug["planning_horizon_s"],
+                "selection_held": debug["selection_held"],
                 "selected_in_base_vo": debug["selected_in_base_vo"],
                 "selected_in_colregs_v1": debug["selected_in_colregs_v1"],
                 "current_in_base_vo": debug["current_in_base_vo"],

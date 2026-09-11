@@ -50,6 +50,77 @@ _DYNAMICS_PREDICTION_STEP_S = 1.0
 _DYNAMICS_INTEGRATION_MARGIN_M = 0.25
 
 
+@dataclass(frozen=True)
+class OwnshipEnvelope:
+    """Backend-reported actuation limits that bound the velocity grid.
+
+    Reported by the executing GNC stack alongside the response time constants.
+    Avoidance legs run between the steerage floor and the backend avoidance
+    speed cap, so grid speeds outside that window cannot be executed once an
+    avoidance plan is live. The planning horizon grows by the course time
+    constant because a first-order course loop needs that lead to complete a
+    maneuver inside the original hazard horizon.
+    """
+
+    course_time_constant_s: float
+    speed_time_constant_s: float
+    max_turn_rate_radps: float
+    avoidance_speed_cap_mps: float
+    min_steerage_speed_mps: float
+
+    def __post_init__(self) -> None:
+        """Reject a non-physical envelope before it can shape the grid."""
+        values = (
+            self.course_time_constant_s,
+            self.speed_time_constant_s,
+            self.max_turn_rate_radps,
+            self.avoidance_speed_cap_mps,
+            self.min_steerage_speed_mps,
+        )
+        if not np.isfinite(values).all() or min(values) <= 0.0:
+            raise ValueError("Ownship envelope values must be finite and positive")
+
+    def horizon_s(self, base_horizon_s: float) -> float:
+        """Risk horizon extended by the course-loop lead the vessel needs."""
+        return base_horizon_s + self.course_time_constant_s
+
+    def speed_exclusion_mask(self, speed_set: np.ndarray) -> np.ndarray:
+        """True where a grid speed cannot be executed on an avoidance leg.
+
+        The half-step tolerance keeps the nearest interior sample to each
+        bound so the window never empties on a coarse grid. Zero speed is
+        always excluded: a non-positive route speed limit is read as "use
+        maximum command speed" by the original route manager.
+        """
+        if speed_set.size < 2:
+            raise ValueError("Speed grid requires at least two samples")
+        step = float(np.max(np.diff(speed_set)))
+        mask = (
+            (speed_set > self.avoidance_speed_cap_mps + 1e-9)
+            | (speed_set < self.min_steerage_speed_mps - 0.5 * step - 1e-9)
+            | (speed_set <= 0.0)
+        )
+        if mask.all():
+            nearest = int(np.argmin(np.abs(speed_set - self.avoidance_speed_cap_mps)))
+            mask = np.ones_like(mask)
+            mask[nearest] = False
+        return mask
+
+    def course_exclusion_mask(
+        self,
+        heading_set: np.ndarray,
+        ownship_heading_rad: float,
+        horizon_s: float,
+    ) -> np.ndarray:
+        """True where a grid heading exceeds the rate-limited reachable arc."""
+        reach = self.max_turn_rate_radps * horizon_s
+        error = np.arctan2(
+            np.sin(heading_set - ownship_heading_rad),
+            np.cos(heading_set - ownship_heading_rad),
+        )
+        return np.abs(error) > reach
+
+
 @dataclass
 class VOParams:
     """Parameters for the 2011 Kuwata VO behavior reconstruction."""
@@ -103,6 +174,12 @@ class VOParams:
     static_hazard_layers: tuple[str, ...] = ("LAND", "SHORE", "OBSTRN", "UWTROC")
     static_query_range_m: float = 1000.0
 
+    # Relative cost margin within which the previously selected velocity is
+    # held when an ownship envelope is active. Every published course change is
+    # a new route splice for a slow-responding backend, so grid-quantization
+    # chatter between near-equal candidates must not reach the route contract.
+    envelope_selection_hysteresis: float = 0.25
+
     reconstruction_label: str = "kuwata_2011_behavior_compatible_reconstruction"
 
     def __post_init__(self) -> None:  # noqa: C901, PLR0912, PLR0915
@@ -151,6 +228,8 @@ class VOParams:
             raise ValueError("overtaking_confirmation_steps must be positive")
         if self.overtaking_rearm_distance_m < 0.0:
             raise ValueError("overtaking_rearm_distance_m must be non-negative")
+        if not np.isfinite(self.envelope_selection_hysteresis) or self.envelope_selection_hysteresis < 0.0:
+            raise ValueError("envelope_selection_hysteresis must be non-negative")
         vertices = np.asarray(self.velocity_uncertainty_vertices_mps, dtype=float)
         if vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) == 0:
             raise ValueError("velocity_uncertainty_vertices_mps must contain 2-D vertices")
@@ -271,6 +350,11 @@ class VO:
         self._ownship_length_m = self._params.length_os
         self._ownship_width_m = self._params.width_os
         self._dynamics_prediction_active = False
+        self._envelope: OwnshipEnvelope | None = None
+        self._horizon_s = self._params.t_max
+        self._envelope_mask = np.zeros(shape, dtype=bool)
+        self._previous_selection_index: tuple[int, int] | None = None
+        self._selection_held = False
 
     @property
     def plan_executed(self) -> bool:
@@ -332,6 +416,10 @@ class VO:
         self._expired_target_ids_last_solve = []
         self._target_count_current = 0
         self._dynamics_prediction_active = False
+        self._envelope = None
+        self._horizon_s = self._params.t_max
+        self._previous_selection_index = None
+        self._selection_held = False
         self._reset_grid()
 
     def _reset_grid(self) -> None:
@@ -341,6 +429,7 @@ class VO:
         self._crossing_commitment_mask.fill(False)
         self._wvo_mask.fill(False)
         self._preferred_clearance_mask.fill(False)
+        self._envelope_mask.fill(False)
         self._min_ttc.fill(np.inf)
         self._preferred_clearance_ttc.fill(np.inf)
         self._violation_costs.fill(0.0)
@@ -359,6 +448,8 @@ class VO:
         os_course_time_constant_s: float | None = None,
         os_speed_time_constant_s: float | None = None,
         os_max_turn_rate_radps: float | None = None,
+        os_avoidance_speed_cap_mps: float | None = None,
+        os_min_steerage_speed_mps: float | None = None,
     ) -> np.ndarray:
         if self._initialized and t - self._t_prev < 1.0 / self._params.planning_frequency:
             self._plan_executed = False
@@ -383,6 +474,14 @@ class VO:
         )
         if self._ownship_length_m <= 0.0 or self._ownship_width_m <= 0.0:
             raise ValueError("Ownship length and width must be positive")
+        self._configure_envelope(
+            psi_os,
+            course_time_constant_s=os_course_time_constant_s,
+            speed_time_constant_s=os_speed_time_constant_s,
+            max_turn_rate_radps=os_max_turn_rate_radps,
+            avoidance_speed_cap_mps=os_avoidance_speed_cap_mps,
+            min_steerage_speed_mps=os_min_steerage_speed_mps,
+        )
         poly_os = geometry.box(
             -self._ownship_length_m / 2.0,
             -self._ownship_width_m / 2.0,
@@ -509,7 +608,7 @@ class VO:
                 matched_rules.add(VOCOLREGSSituation.CR_SS)
             shape_risk_eligible = bool(
                 np.isfinite(preferred_domain_toc)
-                and 0.0 <= preferred_domain_toc <= self._params.t_max
+                and 0.0 <= preferred_domain_toc <= self._horizon_s
             )
             cpa_gate_eligible = (
                 speed_do >= self._params.colregs_min_target_speed_mps
@@ -654,6 +753,46 @@ class VO:
         self._references[3, 0] = speed
         return self._references
 
+    def _configure_envelope(
+        self,
+        psi_os: float,
+        *,
+        course_time_constant_s: float | None,
+        speed_time_constant_s: float | None,
+        max_turn_rate_radps: float | None,
+        avoidance_speed_cap_mps: float | None,
+        min_steerage_speed_mps: float | None,
+    ) -> None:
+        """Bind the reported backend envelope to this solve's grid and horizon.
+
+        The response constants alone keep the paper grid and horizon and only
+        drive the lagged-trajectory clearance check (existing behavior). The
+        full envelope, which the original backend reports with its avoidance
+        speed cap and steerage floor, additionally excludes unexecutable grid
+        cells and extends the risk horizon by the course time constant.
+        """
+        speed_bounds = (avoidance_speed_cap_mps, min_steerage_speed_mps)
+        if any(value is not None for value in speed_bounds) and any(value is None for value in speed_bounds):
+            raise ValueError("Ownship speed envelope requires both the avoidance cap and the steerage floor")
+        self._envelope = None
+        self._horizon_s = self._params.t_max
+        self._envelope_mask.fill(False)
+        if avoidance_speed_cap_mps is None:
+            return
+        if any(value is None for value in (course_time_constant_s, speed_time_constant_s, max_turn_rate_radps)):
+            raise ValueError("Ownship speed envelope requires the full response model")
+        self._envelope = OwnshipEnvelope(
+            course_time_constant_s=float(course_time_constant_s),
+            speed_time_constant_s=float(speed_time_constant_s),
+            max_turn_rate_radps=float(max_turn_rate_radps),
+            avoidance_speed_cap_mps=float(avoidance_speed_cap_mps),
+            min_steerage_speed_mps=float(min_steerage_speed_mps),
+        )
+        self._horizon_s = self._envelope.horizon_s(self._params.t_max)
+        speed_excluded = self._envelope.speed_exclusion_mask(self._speed_set)
+        course_excluded = self._envelope.course_exclusion_mask(self._heading_set, psi_os, self._horizon_s)
+        self._envelope_mask = speed_excluded[:, None] | course_excluded[None, :]
+
     def _predict_candidate_positions(
         self,
         p_os: np.ndarray,
@@ -676,7 +815,7 @@ class VO:
             raise ValueError("Ownship dynamics values must all be positive")
 
         prediction_step_s = _DYNAMICS_PREDICTION_STEP_S
-        step_count = int(np.ceil(self._params.t_max / prediction_step_s))
+        step_count = int(np.ceil(self._horizon_s / prediction_step_s))
         positions = np.empty((step_count + 1, *candidates.shape[:2], 2))
         positions[0] = p_os
         headings = np.full(candidates.shape[:2], psi_os)
@@ -715,7 +854,7 @@ class VO:
         target_length_m: float,
         target_width_m: float,
     ) -> None:
-        prediction_step_s = self._params.t_max / (candidate_positions.shape[0] - 1)
+        prediction_step_s = self._horizon_s / (candidate_positions.shape[0] - 1)
         times = prediction_step_s * np.arange(candidate_positions.shape[0])
         target_positions = p_do + times[:, None] * v_do
         relative_positions = candidate_positions - target_positions[:, None, None, :]
@@ -769,6 +908,7 @@ class VO:
         self._crossing_commitment_mask = np.zeros(shape, dtype=bool)
         self._wvo_mask = np.zeros(shape, dtype=bool)
         self._preferred_clearance_mask = np.zeros(shape, dtype=bool)
+        self._envelope_mask = np.zeros(shape, dtype=bool)
         self._min_ttc = np.full(shape, np.inf)
         self._preferred_clearance_ttc = np.full(shape, np.inf)
         self._violation_costs = np.zeros(shape)
@@ -1130,13 +1270,14 @@ class VO:
                 )
                 previous_progress = _wrap_angle(self._selected_heading - commitment_frame)
                 commitment |= candidate_progress[None, :] < previous_progress - 1e-12
-        admissible_before_commitment = ~self._hard_constraint_mask
+        hard_before_commitment = self._hard_constraint_mask.copy()
+        executable = ~self._envelope_mask
         self._crossing_commitment_mask = commitment
         self._hard_constraint_mask |= commitment
-        if np.any(~self._hard_constraint_mask) or not np.any(admissible_before_commitment):
+        if np.any(~self._hard_constraint_mask & executable) or not np.any(~hard_before_commitment & executable):
             return
 
-        self._hard_constraint_mask = ~admissible_before_commitment
+        self._hard_constraint_mask = hard_before_commitment
         self._crossing_commitment_mask.fill(False)
         self._emergency_rule_relaxation = True
 
@@ -1233,7 +1374,7 @@ class VO:
                 # Do not initiate a port alteration from distant WVO costs
                 # before a crossing duty activates. Other targets, established
                 # encounters and static-hazard costs keep their full forecasts.
-                worst_ttc = np.where(worst_ttc <= self._params.t_max, worst_ttc, np.inf)
+                worst_ttc = np.where(worst_ttc <= self._horizon_s, worst_ttc, np.inf)
             self._wvo_mask |= wvo & ~self._hard_constraint_mask
             self._min_ttc = np.minimum(self._min_ttc, worst_ttc)
         if rules.intersection(
@@ -1266,7 +1407,7 @@ class VO:
             nominal_ttc[nominal_hard] = 0.0
         else:
             nominal_hard = np.isfinite(nominal_ttc) & (
-                nominal_ttc <= self._params.t_max
+                nominal_ttc <= self._horizon_s
             )
             nominal_ttc = np.where(nominal_hard, nominal_ttc, np.inf)
         self._base_vo_mask |= nominal_hard
@@ -1289,7 +1430,7 @@ class VO:
                 candidates - v_do,
             )
             preferred = np.isfinite(preferred_ttc) & (
-                preferred_ttc <= self._params.t_max
+                preferred_ttc <= self._horizon_s
             )
             preferred_ttc = np.where(preferred, preferred_ttc, np.inf)
         self._preferred_clearance_mask |= preferred
@@ -1402,6 +1543,9 @@ class VO:
             + preferred_clearance_cost
         )
         self._total_costs[self._hard_constraint_mask] = np.inf
+        # Unexecutable cells are unavailable, not unsafe: they leave every
+        # hard-constraint count (and the bridge's avoidance evidence) untouched.
+        self._total_costs[self._envelope_mask] = np.inf
         self._overtaking_progress_relaxed = False
         if target_id is not None and self._overtaking_commitment_active:
             projected_speeds = candidates @ target_along
@@ -1449,13 +1593,28 @@ class VO:
         )
         minimum = float(self._total_costs.flat[flat_index])
         self._feasible = bool(np.isfinite(minimum))
+        self._selection_held = False
         if not self._feasible:
             self._selected_heading = float(psi_os)
             self._selected_speed = 0.0
             self._objective = None
             self._reference_velocity_error_mps = float(np.linalg.norm(v_ref))
             return self._selected_heading, self._selected_speed
-        if self._give_way_commitment_active:
+        if (
+            self._envelope is not None
+            and self._previous_selection_index is not None
+            and not self._stand_on_hold_active
+        ):
+            # Grid-quantization chatter between near-equal cells would publish a
+            # new course intent every solve; hold the previous cell while it stays
+            # admissible and within the relative cost margin of the optimum.
+            previous_cost = float(self._total_costs[self._previous_selection_index])
+            margin = self._params.envelope_selection_hysteresis * abs(minimum) + 1e-9
+            if np.isfinite(previous_cost) and previous_cost <= minimum + margin:
+                flat_index = int(np.ravel_multi_index(self._previous_selection_index, self._total_costs.shape))
+                minimum = previous_cost
+                self._selection_held = True
+        if self._give_way_commitment_active and not self._selection_held:
             tied = np.flatnonzero(np.isclose(self._total_costs, minimum, rtol=1e-9, atol=1e-9))
             if tied.size > 1:
                 headings = self._heading_set[np.unravel_index(tied, self._total_costs.shape)[1]]
@@ -1470,6 +1629,7 @@ class VO:
         self._selected_heading = float(self._heading_set[i_heading])
         self._selected_speed = float(self._speed_set[i_speed])
         self._objective = minimum
+        self._previous_selection_index = (int(i_speed), int(i_heading))
         selected_velocity = self._selected_speed * np.array(
             [np.cos(self._selected_heading), np.sin(self._selected_heading)]
         )
@@ -1501,7 +1661,7 @@ class VO:
         else:
             t_cpa = -float(relative_position @ relative_velocity) / speed_squared
             d_cpa = float(np.linalg.norm(relative_position + t_cpa * relative_velocity))
-        return 0.0 <= t_cpa <= self._params.t_max and d_cpa <= self._params.d_min
+        return 0.0 <= t_cpa <= self._horizon_s and d_cpa <= self._params.d_min
 
     @staticmethod
     def _cpa_metrics(
@@ -1800,7 +1960,13 @@ class VO:
             "objective": self._objective,
             "selected_heading_rad": self._selected_heading,
             "reference_velocity_ne_mps": self._reference_velocity.tolist(),
-            "planning_horizon_s": self._params.t_max,
+            "planning_horizon_s": self._horizon_s,
+            "ownship_envelope": asdict(self._envelope) if self._envelope is not None else None,
+            "envelope_excluded_count": int(np.count_nonzero(self._envelope_mask)),
+            "reachable_candidate_count": int(
+                np.count_nonzero(~self._hard_constraint_mask & ~self._envelope_mask)
+            ),
+            "selection_held": self._selection_held,
             "selected_speed_mps": self._selected_speed,
             "dynamic_hazard_count": self._dynamic_hazard_count,
             "static_hazard_count": self._static_hazard_count,
