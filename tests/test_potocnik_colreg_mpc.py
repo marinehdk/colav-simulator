@@ -64,7 +64,8 @@ def test_head_on_commands_substantial_starboard_action() -> None:
     solution = solver().solve(planner_input(track(position_ne=(1000.0, 0.0), velocity_ne=(-7.0, 0.0))))
 
     assert solution.algorithm_details["active_encounters"] == ["head_on"]
-    assert np.rad2deg(solution.control_reference[2, 0]) >= 5.0
+    # Published course references are fixed points of the adapter's modulo wrap (1-ULP tolerance).
+    assert np.rad2deg(solution.control_reference[2, 0]) >= 5.0 - 1e-9
     assert solution.control_trajectory is not None
     assert solution.control_trajectory[2, 0] == pytest.approx(solution.control_reference[2, 0])
     assert solution.constraints["colreg_policy"]["starboard_required"] is True
@@ -75,7 +76,8 @@ def test_overtaking_commands_substantial_starboard_action() -> None:
     solution = solver().solve(planner_input(track(position_ne=(1000.0, 0.0), velocity_ne=(5.0, 0.0))))
 
     assert solution.algorithm_details["active_encounters"] == ["overtaking"]
-    assert np.rad2deg(solution.control_reference[2, 0]) >= 5.0
+    # Published course references are fixed points of the adapter's modulo wrap (1-ULP tolerance).
+    assert np.rad2deg(solution.control_reference[2, 0]) >= 5.0 - 1e-9
     assert solution.constraints["colreg_policy"]["starboard_required"] is True
     assert solution.constraints["colreg_policy"]["relaxations"] == []
 
@@ -92,7 +94,7 @@ def test_replan_holds_starboard_command_instead_of_accumulating_turn() -> None:
     second = colreg_solver.solve(second_input)
 
     assert np.rad2deg(first.control_reference[2, 0]) == pytest.approx(5.0)
-    assert 5.0 <= np.rad2deg(second.control_reference[2, 0]) <= 5.5
+    assert 5.0 - 1e-9 <= np.rad2deg(second.control_reference[2, 0]) <= 5.5
 
 
 def test_replan_keeps_early_selected_path_close_to_shifted_previous_plan() -> None:
@@ -159,7 +161,8 @@ def test_crossing_give_way_turns_starboard_and_passes_astern() -> None:
 
     policy = solution.constraints["colreg_policy"]
     assert solution.algorithm_details["active_encounters"] == ["crossing_give_way"]
-    assert np.rad2deg(solution.control_reference[2, 0]) >= 5.0
+    # Published course references are fixed points of the adapter's modulo wrap (1-ULP tolerance).
+    assert np.rad2deg(solution.control_reference[2, 0]) >= 5.0 - 1e-9
     assert policy["selected_passes_astern"] is True
     assert policy["relaxations"] == []
 

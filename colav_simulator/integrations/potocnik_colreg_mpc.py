@@ -101,6 +101,25 @@ class _Selection:
     relaxations: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class _OwnshipResponse:
+    """Course/speed response used for candidate rollouts this solve."""
+
+    course_time_constant_s: float
+    speed_time_constant_s: float
+    max_yaw_rate_deg_s: float
+    source: str
+
+    def to_dict(self) -> dict:
+        return {
+            "course_time_constant_s": self.course_time_constant_s,
+            "speed_time_constant_s": self.speed_time_constant_s,
+            "max_yaw_rate_deg_s": self.max_yaw_rate_deg_s,
+            "source": self.source,
+            "semantics": "profile_floor_never_nimbler_than_reported_backend",
+        }
+
+
 class PotocnikColregFanMPC:
     """Fan rollout with executable controls, continuous safety, and COLREG policy."""
 
@@ -183,11 +202,13 @@ class PotocnikColregFanMPC:
             np.asarray(self.params.speed_scales),
             self.params.candidate_count,
         )
+        response = self._ownship_response(planner_input)
         candidates, controls = self._generate_candidate_bundle(
             ownship,
             route_speed_mps * np.asarray(self.params.speed_scales),
             planner_input.dt_sim_s,
             command_course_center=command_course_center,
+            response=response,
         )
         increments = np.tile(self._heading_increments, len(self.params.speed_scales))
 
@@ -343,6 +364,7 @@ class PotocnikColregFanMPC:
             "continuous_collision_check": True,
             "static_constraint_active": static_active,
             "dynamic_safety_buffer_recovery": dynamic_buffer_recovery,
+            "ownship_response_model": response.to_dict(),
         }
         return MPCSolution(
             control_reference=command.reshape(9, 1),
@@ -357,6 +379,39 @@ class PotocnikColregFanMPC:
             algorithm_details=details,
         )
 
+    def _ownship_response(self, planner_input: PlannerInput) -> _OwnshipResponse:
+        """Never predict a nimbler vessel than the executing stack reports.
+
+        The profile constants are the planner's tuned floor; a backend whose
+        course or speed loop is slower, or whose yaw rate is capped lower, must
+        shape the candidate rollouts or the continuous clearance check runs on
+        trajectories the vessel cannot fly.
+        """
+        reported_course = planner_input.ownship_course_time_constant_s
+        reported_speed = planner_input.ownship_speed_time_constant_s
+        reported_rate = planner_input.ownship_max_turn_rate_rad_s
+        course_tau = max(self.params.course_response_time_constant_s, reported_course or 0.0)
+        speed_tau = max(self.params.speed_response_time_constant_s, reported_speed or 0.0)
+        yaw_rate_deg_s = min(
+            self.params.max_yaw_rate_deg_s,
+            float(np.rad2deg(reported_rate)) if reported_rate is not None else np.inf,
+        )
+        return _OwnshipResponse(
+            course_time_constant_s=float(course_tau),
+            speed_time_constant_s=float(speed_tau),
+            max_yaw_rate_deg_s=float(yaw_rate_deg_s),
+            source=(
+                "planner_input"
+                if (course_tau, speed_tau, yaw_rate_deg_s)
+                != (
+                    self.params.course_response_time_constant_s,
+                    self.params.speed_response_time_constant_s,
+                    self.params.max_yaw_rate_deg_s,
+                )
+                else "profile"
+            ),
+        )
+
     def _generate_candidate_bundle(  # noqa: PLR0915
         self,
         ownship: np.ndarray,
@@ -364,7 +419,15 @@ class PotocnikColregFanMPC:
         dt_sim_s: float,
         *,
         command_course_center: float | None = None,
+        response: _OwnshipResponse | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
+        if response is None:
+            response = _OwnshipResponse(
+                course_time_constant_s=self.params.course_response_time_constant_s,
+                speed_time_constant_s=self.params.speed_response_time_constant_s,
+                max_yaw_rate_deg_s=self.params.max_yaw_rate_deg_s,
+                source="profile",
+            )
         horizon = self.params.prediction_steps + 1
         command_speeds = np.atleast_1d(np.asarray(command_speed_mps, dtype=float))
         count = self.params.candidate_count * command_speeds.size
@@ -392,10 +455,10 @@ class PotocnikColregFanMPC:
 
         integration_steps = max(1, int(np.ceil(self.params.horizon_dt_s / dt_sim_s)))
         integration_dt_s = self.params.horizon_dt_s / integration_steps
-        yaw_limit = np.deg2rad(self.params.max_yaw_rate_deg_s) * integration_dt_s
+        yaw_limit = np.deg2rad(response.max_yaw_rate_deg_s) * integration_dt_s
         speed_limit = self.params.max_speed_rate_mps2 * integration_dt_s
-        course_response = 1.0 - np.exp(-integration_dt_s / self.params.course_response_time_constant_s)
-        speed_response = 1.0 - np.exp(-integration_dt_s / self.params.speed_response_time_constant_s)
+        course_response = 1.0 - np.exp(-integration_dt_s / response.course_time_constant_s)
+        speed_response = 1.0 - np.exp(-integration_dt_s / response.speed_time_constant_s)
         for step in range(1, horizon):
             yaw_rates = np.zeros(count)
             speed_rates = np.zeros(count)
@@ -429,6 +492,10 @@ class PotocnikColregFanMPC:
             candidates[:, 7, step] = speed_rates * np.sin(headings)
             candidates[:, 8, step] = yaw_rates
         controls[:, 0:2, :] = candidates[:, 0:2, :]
+        # Published course references must survive the adapter's modulo wrap
+        # bit-for-bit: a held sample that differs from the solve value by one
+        # ULP reads as a new course intent downstream and re-splices the route.
+        controls[:, 2, :] = _route_contract_wrap(controls[:, 2, :])
         return candidates, controls
 
     def _encounter_policy(self, planner_input: PlannerInput) -> _Policy:  # noqa: PLR0912
@@ -1135,3 +1202,8 @@ def _finite_list(values: np.ndarray) -> list[float | None]:
 
 def _wrap_angle(value: float | np.ndarray) -> float | np.ndarray:
     return np.arctan2(np.sin(value), np.cos(value))
+
+
+def _route_contract_wrap(value: float | np.ndarray) -> float | np.ndarray:
+    """Modulo wrap identical to the adapter's held-sample wrap; idempotent after one pass."""
+    return (value + np.pi) % (2.0 * np.pi) - np.pi

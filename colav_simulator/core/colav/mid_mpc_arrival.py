@@ -51,6 +51,7 @@ def arrival_references(
     response_s: float,
     route_anchor: tuple[float, float],
     route_bearing: float,
+    lag_s: float = 0.0,
 ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], tuple[float, float] | None] | None:
     """Build a reachable braking reference on the final mission leg."""
     if len(waypoints) < 2 or cruise <= 0.0:
@@ -66,6 +67,30 @@ def arrival_references(
     normal = np.array([-math.sin(route_bearing), math.cos(route_bearing)])
     brake = max(0.5 * deceleration, 1e-3)
     reaction = brake * response_s
+    # The approach reserve above intentionally over-brakes from far out, but
+    # its tail decays like remaining/response_s: with the padded response
+    # reserve (~4 * speed-loop lag) that asymptote drops below the executed
+    # command band tens of metres out and the hull stalls short of the goal
+    # (crossing-E4: stopped 13.5 m short at 0.01 m/s under a 0.13 m/s
+    # reference). Model the terminal stop with the first-order speed-loop lag
+    # instead: a commanded speed v still covers v * lag + v^2 / (2 * brake)
+    # before it dies, so that coast distance - not the padded reserve - is
+    # what must fit inside the goal tolerance.
+    lag = max(float(lag_s), dt)
+
+    def coast_distance(commanded: float) -> float:
+        return commanded * lag + commanded * commanded / (2.0 * brake)
+
+    def coast_inverse(distance: float) -> float:
+        if distance <= 0.0:
+            return 0.0
+        return -brake * lag + math.sqrt((brake * lag) ** 2 + 2.0 * brake * distance)
+
+    # Hold the approach at the slowest clearly-executed command whose model
+    # stop fits inside twice the goal tolerance, and cap the tail by the
+    # command whose stop lands half a tolerance short of the goal.
+    hold_speed = coast_inverse(2.0 * GOAL_POSITION_TOLERANCE_M)
+    tail_cap_limit = GOAL_POSITION_TOLERANCE_M
     tangent = legs[-1] / max(float(np.linalg.norm(legs[-1])), 1e-9)
     leg_normal = np.array([-tangent[1], tangent[0]])
     leg_bearing = math.atan2(tangent[1], tangent[0])
@@ -81,6 +106,9 @@ def arrival_references(
         position_epsilon = 0.05 * GOAL_POSITION_TOLERANCE_M
         remaining = max(0.0, distance - position_epsilon)
         requested_speed = min(cruise, math.sqrt(reaction * reaction + 2.0 * brake * remaining) - reaction)
+        if remaining > tail_cap_limit:
+            executable = min(hold_speed, coast_inverse(remaining - 0.5 * GOAL_POSITION_TOLERANCE_M))
+            requested_speed = min(cruise, max(requested_speed, executable))
         speed = float(np.clip(requested_speed, max(0.0, speed - deceleration * dt), speed + deceleration * dt))
         desired = math.atan2(error[1], error[0]) if distance > position_epsilon else heading
         if join_weight > 0.0 and distance > GOAL_POSITION_TOLERANCE_M:

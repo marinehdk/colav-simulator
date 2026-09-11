@@ -279,3 +279,154 @@ def test_rejection_classification_splits_addressable_from_dynamic():
         assert classified["class"] == "DYNAMIC", reason
     assert classify_rejection({"topic": "/gnc/route_execution_status", "reason": "mystery"})["class"] == "DYNAMIC"
     assert classify_rejection({"topic": "/route_planning/route_plan_status", "reason": "mystery"})["class"] == "ADDRESSABLE"
+
+
+def _nominal_line(spacing: float, count: int, speed: float = 7.8) -> ReferencePath:
+    """Mission route along east with mission speeds, mirroring a forwarded nominal."""
+    points = np.vstack((np.zeros(count), np.arange(count) * spacing))
+    return ReferencePath(points=points, speeds=[speed] * count, modes=["cruise"] * count)
+
+
+def test_rejoin_against_nominal_reference_decompounds_splice():
+    """Rejoin and tail must come from the mission route, not the rotated splice.
+
+    A second splice built against the previous splice inherits its deviation
+    geometry: the closing leg hooks onto the previous rejoin and old deviation
+    vertices persist kilometres behind the ship, where the frozen manager still
+    degrades the whole route speed for them. Computing the rejoin against the
+    nominal mission reference keeps every generation's tail verbatim nominal.
+    """
+    nominal = _nominal_line(500.0, 10)
+    kinked = np.array(
+        [
+            [0.0, 90.0, 95.0],
+            [600.0, 604.0, 640.0],
+        ]
+    )  # previous deviation remnant with a sharp 84 deg vertex near the route
+    reference = ReferencePath(
+        points=np.hstack((nominal.points[:, :1], kinked, nominal.points[:, 3:])),
+        speeds=[*nominal.speeds[:1], *([2.0] * 3), *nominal.speeds[3:]],
+        modes=["cruise", "avoidance", "avoidance", "avoidance", *(["cruise"] * 7)],
+    )
+    ship = np.array([40.0, 0.0])
+    course = math.radians(45.0)
+    deviation, _ = intent_line_deviation(ship, course, reference)
+    candidate = build_avoidance_route(reference, ship, deviation, [6.5] * deviation.shape[1], rejoin_reference=nominal)
+    j = candidate["rejoin_index"]
+    tail_start = candidate["points"].shape[1] - (nominal.points.shape[1] - j)
+    tail = candidate["points"][:, tail_start:]
+    for column in range(tail.shape[1]):  # every tail waypoint is a nominal mission waypoint
+        assert np.linalg.norm(tail[:, column] - nominal.points[:, j + column]) == pytest.approx(0.0, abs=1e-6)
+    assert candidate["modes"][tail_start:] == nominal.modes[j:]
+    assert candidate["speeds"][tail_start:] == nominal.speeds[j:]
+    assert set(candidate["modes"][candidate["prefix_length"] : tail_start]) == {"avoidance"}
+    _assert_gate_clean(candidate, reference, ship)
+
+
+def test_deviation_mode_policy_can_limit_cap_exposure_to_the_entry_leg():
+    """Static-hazard-only deviations carry code-6 on the first deviation waypoint.
+
+    The frozen guidance caps avoidance-tagged legs to 3.2 m/s (leg-scoped on the
+    tracked target), while coordinate_transform's relaxed update tier needs one
+    code-6 waypoint anywhere in the route. Tagging only the deviation entry
+    keeps admission and preserves raw geometry (whole-route smoothing bypass)
+    while the remaining deviation legs transit at the planner-commanded speed.
+    """
+    reference = _line_reference(500.0, 10)
+    ship = np.array([40.0, 0.0])
+    deviation, _ = intent_line_deviation(ship, math.radians(45.0), reference)
+    policy = lambda count: ["avoidance"] + ["cruise"] * (count - 1)  # noqa: E731 - static-only tagging
+    candidate = build_avoidance_route(
+        reference,
+        ship,
+        deviation,
+        [6.5] * deviation.shape[1],
+        deviation_mode_policy=policy,
+    )
+    k = candidate["prefix_length"]
+    tail = reference.points.shape[1] - candidate["rejoin_index"]
+    modes = candidate["modes"][k : candidate["points"].shape[1] - tail]
+    assert modes[0] == "avoidance"
+    assert set(modes[1:]) == {"cruise"}
+    _assert_gate_clean(candidate, reference, ship)
+
+
+def test_mirror_sanitizes_sub_floor_legs_but_keeps_frozen_geometry():
+    """Internal-return references are re-anchored past their sub-floor head leg.
+
+    The frozen manager's internal return route starts with a waypoint 1.5-5.5 m
+    from its head; the manager then rejects every later splice that inherits
+    that leg (segment_too_short, 30 m floor) and the bridge drops all further
+    intents. The splice reference therefore merges sub-floor legs, while the
+    verbatim accepted geometry stays available for the frozen first-changed
+    admission math.
+    """
+    frame = RouteFrame(1000.0, 2000.0)
+    events: list[dict] = []
+    ship = SimpleNamespace(_events=events, frame=frame)
+    mirror = ReferenceMirror(ship)
+    internal = _route_plan(
+        "original-gnc-mission-0:return:1",
+        np.array([[0.0, 5.5, 300.0, 2500.0], [0.0, 0.0, 0.0, 0.0]]),
+        ["cruise"] * 4,
+        "internal_return_to_route",
+    )
+    events.append(_publish("/gnc/active_route", internal))
+    events.append(
+        _publish("/route_planning/route_plan_status", {"route_id": "original-gnc-mission-0:return:1", "status": "ACCEPTED"})
+    )
+    mirror.refresh()
+    points = mirror.path.points
+    gaps = np.linalg.norm(np.diff(points, axis=1), axis=0)
+    assert gaps.min() >= 30.0
+    assert points.shape[1] == 3  # 5.5 m leg re-anchored onto the first >=30 m waypoint
+    assert mirror.frozen_points.shape[1] == 4  # verbatim geometry stays for admission math
+
+
+def test_mirror_keeps_planner_speeds_when_manager_degrades():
+    """Manager-degraded executed speeds never enter the reference mirror.
+
+    apply_speed_degradation clamps every published speed_limit_mps (turn radius,
+    yaw rate); absorbing the clamped array made each next splice inherit the cap
+    and ratcheted route speeds down to 0.59 m/s. Degradation is execution-time
+    only: the reference keeps the speeds the bridge submitted.
+    """
+    frame = RouteFrame(1000.0, 2000.0)
+    events: list[dict] = []
+    ship = SimpleNamespace(_events=events, frame=frame, _requested_plans=[])
+    mirror = ReferenceMirror(ship)
+    route = _route_plan("vo-held-intent-1", np.array([[0.0, 200.0, 400.0], [0.0, 0.0, 0.0]]), ["avoidance"] * 3)
+    route["speed_limit_mps"] = [0.59, 0.59, 0.59]
+    ship._requested_plans.append(
+        {
+            "kind": "avoidance",
+            "time_ns": 0,
+            "identity": {},
+            "message": {"plan_id": "vo-held-intent-1", "command_speed_mps": [7.8, 2.9, 2.9]},
+        }
+    )
+    events.append(_publish("/gnc/active_route", route))
+    events.append(
+        _publish(
+            "/gnc/route_execution_status",
+            {"plan_id": "vo-held-intent-1", "accepted": True, "degraded": True, "reason": "yaw_rate_limited"},
+        )
+    )
+    events.append(
+        _publish("/route_planning/route_plan_status", {"route_id": "vo-held-intent-1", "status": "ACCEPTED"})
+    )
+    mirror.refresh()
+    assert [round(value, 6) for value in mirror.path.speeds] == [7.8, 2.9, 2.9]
+    mirror_healthy = ReferenceMirror(ship)
+    events.append(_publish("/gnc/active_route", {**route, "speed_limit_mps": [7.8, 2.9, 2.9]}))
+    events.append(
+        _publish(
+            "/gnc/route_execution_status",
+            {"plan_id": "vo-held-intent-1", "accepted": True, "degraded": False, "reason": "feasible"},
+        )
+    )
+    events.append(
+        _publish("/route_planning/route_plan_status", {"route_id": "vo-held-intent-1", "status": "ACCEPTED"})
+    )
+    mirror_healthy.refresh()
+    assert mirror_healthy.path.speeds == [7.8, 2.9, 2.9]

@@ -219,6 +219,8 @@ class OriginalGncShipAdapter(IShip):
                 os_course_time_constant_s=self._response_approximation["course"]["time_constant_s"],
                 os_speed_time_constant_s=self._response_approximation["speed"]["time_constant_s"],
                 os_max_turn_rate_radps=self.max_turn_rate,
+                os_avoidance_speed_cap_mps=self.avoidance_speed_cap,
+                os_min_steerage_speed_mps=self.min_steerage_speed,
                 dt=dt,
             )
         )
@@ -433,6 +435,15 @@ class OriginalGncShipAdapter(IShip):
     @property
     def max_turn_rate(self) -> float:
         return math.radians(self._parameters["active_route_manager_node"]["max_yaw_rate_deg_s"]["value"])
+
+    @property
+    def avoidance_speed_cap(self) -> float:
+        """Frozen guidance surge cap on avoidance-tagged legs (ship_guidance_node.cpp ~5970)."""
+        return float(self._parameters["ship_guidance_node"]["emergency_avoidance_speed_cap_mps"]["value"])
+
+    @property
+    def min_steerage_speed(self) -> float:
+        return float(self._parameters["ship_guidance_node"]["minimum_steerage_speed"]["value"])
 
     @property
     def speed(self) -> float:

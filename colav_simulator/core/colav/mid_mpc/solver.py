@@ -34,6 +34,11 @@ _FROZEN_PREFIX_CAPACITY = 18
 # IPOPT's first target-free interior iterate may temporarily raise the tiny mission objective.
 _TARGET_FREE_OBJECTIVE_CEILING = 0.03
 _TARGET_FREE_RELATIVE_REGRESSION = 0.05
+# Post-release cross-track envelope charge. The bound is the avoidance-phase
+# lateral reference envelope; 100x the route weight makes a wandering
+# timeout iterate (843 m post-CPA) dominate its heading/speed reference
+# error, so the shipped candidate returns instead of fleeing.
+_RECOVERY_ENVELOPE_WEIGHT = 100.0
 
 
 class _P(IntEnum):
@@ -187,6 +192,31 @@ class MidMpcIpoptSolver:
                 self._config,
                 reuse_stop_k=reuse_stop_k,
             )
+            if problem.route_objective is not None:
+                # The prior accepted plan is legitimate history: widen the
+                # recovery envelope to cover its executed excursion so the
+                # barrier bounds new wandering, not the plan being continued.
+                envelope_index = _recovery_envelope_index(self._config, True, self._config.max_targets)
+                widened = max(
+                    prepared.p[envelope_index],
+                    _reference_path_envelope_m(
+                        tuple(primal_warm_start.course_rad),
+                        tuple(primal_warm_start.speed_mps),
+                        problem,
+                        self._config,
+                        self._config.horizon_steps,
+                    ),
+                )
+                p = np.array(prepared.p, copy=True)
+                p[envelope_index] = widened
+                prepared = MidMpcPreparedProblem(
+                    p=p,
+                    x0=prepared.x0,
+                    lbx=prepared.lbx,
+                    ubx=prepared.ubx,
+                    lbg=prepared.lbg,
+                    ubg=prepared.ubg,
+                )
         if self._config.strict_slack_bounds and (problem.targets or problem.static_field) and primal_warm_start is None:
             # Cold seeds only: a warm-started rolling projection that sits on
             # hard rows mid-encounter carries accepted plan geometry that a
@@ -274,6 +304,7 @@ class MidMpcIpoptSolver:
         return_status = str(stats.get("return_status", ""))
         ipopt_iterations = int(stats.get("iter_count", 0))
         native_status = _strict_status(return_status)
+        accepted_seed = False
         if native_status is MidMpcStatus.TIMEOUT:
             incumbent = _best_feasible_iteration(
                 graph.iteration_callback.iterates,
@@ -285,6 +316,22 @@ class MidMpcIpoptSolver:
             if incumbent is not None:
                 accepted_iteration, raw_x, raw_f, raw_g = incumbent
                 accepted_candidate_source = "IPOPT_BEST_FEASIBLE_ITERATE"
+                # Ship the (repaired) seed when it is primal feasible and
+                # dominates every feasible iterate: a deadline-truncated run
+                # must not replace a safe returning plan with a worse
+                # wandering iterate (crossing-E0 shipped candidates up to
+                # 1297 objective-worse than the returning seed).
+                if seed_primal_feasible and seed_objective_total < raw_f:
+                    raw_x = prepared.x0
+                    raw_f = seed_objective_total
+                    raw_g = seed_g
+                    accepted_candidate_source = "PRIMAL_SEED"
+                    accepted_iteration = None
+                    accepted_seed = True
+                else:
+                    accepted_seed = False
+            else:
+                accepted_seed = False
         status = native_status
         objective_improvement = seed_objective_total - raw_f
         decision_change_norm = float(np.linalg.norm(raw_x - prepared.x0))
@@ -306,13 +353,16 @@ class MidMpcIpoptSolver:
             controlled_quality_stop=graph.iteration_callback.quality_stop_requested,
             accepted_iteration=accepted_iteration,
             required_improvement=quality_required_improvement,
+            accepted_seed=accepted_seed,
         )
         accepted_by_quality_gate = (
             native_status is MidMpcStatus.TIMEOUT
-            and graph.iteration_callback.quality_stop_requested
             and raw_primal_feasible
             and optimization_quality_passed
-            and accepted_candidate_source == "IPOPT_BEST_FEASIBLE_ITERATE"
+            and (
+                (accepted_candidate_source == "IPOPT_BEST_FEASIBLE_ITERATE" and graph.iteration_callback.quality_stop_requested)
+                or accepted_candidate_source == "PRIMAL_SEED"
+            )
         )
         if accepted_by_quality_gate:
             status = MidMpcStatus.FEASIBLE_NONOPTIMAL
@@ -537,7 +587,10 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
     route_objective_start = parameter_dim
     staged_route_objective = problem.route_objective is not None
     if staged_route_objective:
-        parameter_dim += 6 * n + 4
+        # 6n + 5: heading/lateral/continuity/arrival references plus the
+        # avoidance phase knot, terminal pose/weight, and the recovery
+        # cross-track envelope bound.
+        parameter_dim += 6 * n + 5
     rule_parameters_start: int | None = None
     if config.strict_slack_bounds:
         rule_parameters_start = parameter_dim
@@ -564,6 +617,7 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
     )
     lateral_reference = p[route_objective_start + n : route_objective_start + 2 * n] if staged_route_objective else None
     avoidance_active_until = p[route_objective_start + 2 * n] if staged_route_objective else ca.DM(n)
+    recovery_xte_bound = p[route_objective_start + 6 * n + 4] if staged_route_objective else ca.DM(0.0)
     continuity_start = route_objective_start + 2 * n + 1
     continuity_heading = p[continuity_start : continuity_start + n] if staged_route_objective else ca.DM.zeros(n)
     continuity_speed = p[continuity_start + n : continuity_start + 2 * n] if staged_route_objective else ca.DM.zeros(n)
@@ -619,6 +673,20 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
             p[goal_start + 2]
             * (ca.power(terminal_x - p[goal_start], 2) + ca.power(terminal_y - p[goal_start + 1], 2))
             / 25.0
+        )
+        # Align the recovery-suffix objective with the L4 recovery criterion:
+        # once the encounter releases (RECOVER), the candidate must turn back
+        # inside the cross-track envelope the avoidance phase legitimately
+        # used instead of wandering past it (crossing-E0 flee-then-wander
+        # candidate rejected at 843.8 m post-CPA cross-track). The envelope
+        # is a soft bound: avoidance-phase maneuvering stays free.
+        route_term += ca.DM(_RECOVERY_ENVELOPE_WEIGHT) * _recovery_envelope_cost(
+            psi,
+            speed,
+            p,
+            config.dt_s,
+            avoidance_active_until=avoidance_active_until,
+            bound=recovery_xte_bound,
         )
     continuity_heading_error = ca.atan2(
         ca.sin(psi - continuity_heading),
@@ -895,6 +963,41 @@ def _crossing_astern_rows(
     return rows
 
 
+def _recovery_envelope_cost(
+    psi: ca.MX,
+    speed: ca.MX,
+    p: ca.MX,
+    dt_s: float,
+    *,
+    avoidance_active_until: ca.DM,
+    bound: ca.DM,
+) -> ca.MX:
+    """Penalize post-release cross-track excursions beyond the avoidance envelope.
+
+    L4 measures recovery as a returning cross-track suffix; a timeout iterate
+    that keeps growing past the envelope the avoidance phase legitimately used
+    is honestly rejected (QUALITY_RECOVERY_SUFFIX). Charging that excursion in
+    the objective keeps short-iteration candidates inside the acceptable shape
+    instead of relying on L4 to discard them.
+    """
+    dt = ca.DM(dt_s)
+    cx = p[_P.X0]
+    cy = p[_P.Y0]
+    cost = ca.MX(0.0)
+    for k in range(psi.numel()):
+        cross_track = (cx - p[_P.ROUTE_ORIGIN_X]) * p[_P.ROUTE_NORMAL_X] + (cy - p[_P.ROUTE_ORIGIN_Y]) * p[_P.ROUTE_NORMAL_Y]
+        gate = ca.if_else(ca.DM(k) >= avoidance_active_until, ca.DM(1.0), ca.DM(0.0))
+        excess_positive = cross_track - bound
+        excess_negative = -cross_track - bound
+        hinge_positive = 0.5 * (excess_positive + ca.sqrt(excess_positive * excess_positive + ca.DM(1.0)))
+        hinge_negative = 0.5 * (excess_negative + ca.sqrt(excess_negative * excess_negative + ca.DM(1.0)))
+        scaled = (hinge_positive + hinge_negative) / p[_P.LATERAL_SCALE]
+        cost = cost + gate * scaled * scaled
+        cx = cx + speed[k] * dt * ca.cos(psi[k])
+        cy = cy + speed[k] * dt * ca.sin(psi[k])
+    return cost
+
+
 def _route_cost(
     psi: ca.MX,
     speed: ca.MX,
@@ -1089,8 +1192,11 @@ def _max_row_violation(graph: _Graph, x0: np.ndarray, prepared: MidMpcPreparedPr
     return float(np.max(np.maximum(prepared.lbg - values, values - prepared.ubg)))
 
 
-def _apply_scheduled_course_bounds(problem: MidMpcProblem, n: int, x0: np.ndarray, lbx: np.ndarray, ubx: np.ndarray) -> None:
+def _apply_scheduled_course_bounds(
+    problem: MidMpcProblem, config: MidMpcConfig, x0: np.ndarray, lbx: np.ndarray, ubx: np.ndarray
+) -> None:
     """Apply timed course limits before scoring or repairing the seed."""
+    n = config.horizon_steps
     if problem.row_schedule.course_bounds_rad:
         if len(problem.row_schedule.course_bounds_rad) != n:
             raise ValueError("scheduled course bounds must match the control horizon")
@@ -1100,6 +1206,45 @@ def _apply_scheduled_course_bounds(problem: MidMpcProblem, n: int, x0: np.ndarra
             if upper is not None:
                 ubx[k] = min(ubx[k], upper)
         x0[:n] = np.clip(x0[:n], lbx[:n], ubx[:n])
+        # Clipping a straight-route seed into a corridor can leave rate cliffs
+        # where the bounds release (multiship seam: rot rows violated at the
+        # release knots and an interior-point start sitting on a corner).
+        # Re-establish seed rate continuity from the measured heading; the
+        # bounds themselves stay unchanged, so a bound that demands more than
+        # one rot step still saturates there.
+        previous = problem.own_ship.psi_rad
+        heading_step = problem.rot_max_rad_s * config.dt_s
+        start_k = min(problem.prefix_active_k, n)
+        for k in range(start_k, n):
+            previous = float(
+                np.clip(previous + np.clip(x0[k] - previous, -heading_step, heading_step), lbx[k], ubx[k])
+            )
+            x0[k] = previous
+
+
+def _stage_speed_bounds(problem: MidMpcProblem, config: MidMpcConfig, lbx: np.ndarray, ubx: np.ndarray) -> None:
+    """Stage the speed bounds to the rate-reachable corridor of the measured speed.
+
+    Envelope-consistent: the strict symmetric rate row bounds the reachable
+    speed corridor at knot k to |u[k] - previous| <= decel_max*dt. A policy
+    floor above (or cap below) that corridor is unreachable and made the
+    overtaking/multiship seam-01 NLPs infeasible (speed_rate[0] violated at
+    every restoration point). The floor or cap still binds in full once the
+    hull can physically reach it.
+    """
+    n = config.horizon_steps
+    rate = problem.decel_max_mps2 * config.dt_s
+    measured = problem.own_ship.u_mps
+    reachable_lower = measured + rate * np.arange(1, n + 1)
+    reachable_upper = measured - rate * np.arange(1, n + 1)
+    if config.strict_slack_bounds:
+        lbx[n : 2 * n] = np.minimum(lbx[n : 2 * n], reachable_lower)
+        ubx[n : 2 * n] = np.maximum(ubx[n : 2 * n], reachable_upper)
+    else:
+        # Non-strict profiles limit only deceleration; the cap must still be
+        # staged, while a floor is reachable immediately (acceleration is
+        # unconstrained there).
+        ubx[n : 2 * n] = np.maximum(ubx[n : 2 * n], reachable_upper)
 
 
 def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayout) -> MidMpcPreparedProblem:
@@ -1188,8 +1333,9 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     lbx = np.empty(x_dimension)
     ubx = np.empty(x_dimension)
     lbx[:n], ubx[:n] = problem.heading_bounds_rad
-    _apply_scheduled_course_bounds(problem, n, x0, lbx, ubx)
+    _apply_scheduled_course_bounds(problem, config, x0, lbx, ubx)
     lbx[n : 2 * n], ubx[n : 2 * n] = problem.speed_bounds_mps
+    _stage_speed_bounds(problem, config, lbx, ubx)
     lbx[2 * n :] = 0.0
     ubx[2 * n :] = np.inf
     if config.strict_slack_bounds and not problem.targets and prefix_k:
@@ -1268,6 +1414,38 @@ def _apply_primal_warm_start(
     )
 
 
+def _reference_path_envelope_m(
+    headings: tuple[float, ...],
+    speeds: tuple[float, ...],
+    problem: MidMpcProblem,
+    config: MidMpcConfig,
+    knots: int,
+) -> float:
+    """Cross-track excursion a reference flight implies in the route frame."""
+    origin_x, origin_y = problem.route_frame.origin_m
+    normal_x, normal_y = problem.route_frame.normal
+    x = problem.own_ship.x_m
+    y = problem.own_ship.y_m
+    envelope = abs((x - origin_x) * normal_x + (y - origin_y) * normal_y)
+    for index in range(min(knots, len(headings), len(speeds))):
+        x += speeds[index] * config.dt_s * math.cos(headings[index])
+        y += speeds[index] * config.dt_s * math.sin(headings[index])
+        envelope = max(envelope, abs((x - origin_x) * normal_x + (y - origin_y) * normal_y))
+    return envelope
+
+
+def _recovery_envelope_index(config: MidMpcConfig, strict: bool, max_targets: int) -> int:
+    """Parameter slot of the recovery cross-track envelope bound."""
+    prefix_capacity = max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
+    route_start = (
+        int(_P.PREFIX_PSI)
+        + 2 * prefix_capacity
+        + max_targets * _TARGET_STRIDE
+        + (1 if strict else 0)
+    )
+    return route_start + 6 * config.horizon_steps + 4
+
+
 def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray:  # noqa: PLR0915
     prefix_capacity = max(config.horizon_steps, _FROZEN_PREFIX_CAPACITY)
     prefix_u_start = int(_P.PREFIX_PSI) + prefix_capacity
@@ -1279,7 +1457,7 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
         parameter_dim += 1
     route_objective_start = parameter_dim
     if problem.route_objective is not None:
-        parameter_dim += 6 * config.horizon_steps + 4
+        parameter_dim += 6 * config.horizon_steps + 5
     rule_parameters_start: int | None = None
     if config.strict_slack_bounds:
         rule_parameters_start = parameter_dim
@@ -1371,6 +1549,41 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
                 *problem.route_objective.terminal_position_m,
                 problem.route_frame.weight * problem.route_objective.terminal_weight,
             )
+        # Recovery-suffix cross-track envelope: the widest cross-track the
+        # avoidance phase legitimately used. Post-release knots must turn
+        # back inside it (objective barrier), mirroring the L4 recovery
+        # criterion instead of relying on L4 to discard wanderers. The
+        # envelope is the larger of the staged lateral references and the
+        # excursion the heading/speed references actually imply, so staged
+        # corridors register even when the lateral reference is flat.
+        avoidance_until = min(problem.route_objective.avoidance_active_until_k, config.horizon_steps)
+        implied_envelope = _reference_path_envelope_m(
+            problem.route_objective.heading_reference_rad,
+            problem.route_objective.speed_reference_mps
+            if problem.route_objective.speed_reference_mps
+            else (problem.planned_speed_mps,) * config.horizon_steps,
+            problem,
+            config,
+            avoidance_until,
+        )
+        # The continuity references carry the prior accepted plan; its
+        # executed excursion is legitimate history, so the envelope covers it
+        # too and the barrier only bites beyond what the encounter used.
+        implied_envelope = max(
+            implied_envelope,
+            _reference_path_envelope_m(
+                problem.route_objective.continuity_heading_reference_rad,
+                problem.route_objective.continuity_speed_reference_mps,
+                problem,
+                config,
+                config.horizon_steps,
+            ),
+        )
+        reference_envelope = max(
+            (abs(reference) for reference in problem.route_objective.lateral_reference_m[:avoidance_until]),
+            default=0.0,
+        )
+        p[route_objective_start + 6 * config.horizon_steps + 4] = max(implied_envelope, reference_envelope)
     return p
 
 
@@ -1644,9 +1857,16 @@ def _optimization_quality_passed(
     controlled_quality_stop: bool,
     accepted_iteration: int | None,
     required_improvement: float | None = None,
+    accepted_seed: bool = False,
 ) -> bool:
     if not strict:
         return True
+    if accepted_seed:
+        # A primal-feasible prepared seed that dominates every feasible
+        # iterate is the honest shipped candidate of a deadline-truncated
+        # solve: it carries the row-set of this cycle (it cleared the repair
+        # and the strict primal gates) and no iterate improved on it.
+        return bool(final_primal_feasible and final_objective <= seed_objective + 1.0e-9)
     if not math.isfinite(seed_objective) or not math.isfinite(final_objective):
         return False
     if return_status == "Solve_Succeeded":

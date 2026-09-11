@@ -22,6 +22,7 @@ sources) that decide admission after active_route_manager forwards a plan:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -331,31 +332,113 @@ def blend_deviation_toward_reference(deviation: np.ndarray, reference: np.ndarra
     return blended
 
 
+def _first_margin_index(points: np.ndarray, ship_along: float) -> int:
+    """First waypoint at least FIRST_CHANGE_MARGIN_M ahead of the ship along-track."""
+    return next(
+        (
+            index
+            for index in range(points.shape[1])
+            if along_track_progress(points[:, index], points) - ship_along >= FIRST_CHANGE_MARGIN_M
+        ),
+        points.shape[1] - 1,
+    )
+
+
+def _rejoin_point_index(deviation: np.ndarray, rejoin_points: np.ndarray, k_rejoin: int) -> int:
+    """First rejoin-reference waypoint at or beyond the deviation end, off its tail leg."""
+    rejoin_count = rejoin_points.shape[1]
+    end_along = along_track_progress(deviation[:, -1], rejoin_points)
+    j = next(
+        (
+            index
+            for index in range(k_rejoin, rejoin_count)
+            if along_track_progress(rejoin_points[:, index], rejoin_points) >= end_along - 1e-9
+            and np.linalg.norm(deviation[:, -1] - rejoin_points[:, index]) >= SEGMENT_FLOOR_M
+        ),
+        None,
+    )
+    if j is None:
+        j = next(
+            (
+                index
+                for index in range(k_rejoin, rejoin_count)
+                if along_track_progress(rejoin_points[:, index], rejoin_points) >= end_along - 1e-9
+            ),
+            rejoin_count - 1,
+        )
+    return j
+
+
+def _trim_junctions_to_gate(
+    ref: np.ndarray,
+    deviation: np.ndarray,
+    dev_speeds: list[float],
+    rejoin_points: np.ndarray,
+    k: int,
+    k_rejoin: int,
+) -> tuple[np.ndarray, list[float], int]:
+    """Trim deviation ends until every splice-introduced junction turn clears the gate.
+
+    Junction trim guard: the splice's own junctions can measure interior turns
+    sharper than the frozen 150 deg reverse-segment gate (smoke vo-36: 153 deg
+    at ref[k-1], fan cells: 155-173 deg on the closing leg into the rejoin),
+    and a rejected candidate is resubmitted until the generation changes.
+    Reference prefix/tail waypoints are never moved and trimmed columns stay
+    exactly on the held intent line.
+    """
+    j = _rejoin_point_index(deviation, rejoin_points, k_rejoin)
+    for _ in range(16):
+        points = np.hstack((ref[:, :k], deviation, rejoin_points[:, j:]))
+        sharp = [index for index in range(1, points.shape[1] - 1) if _turn_angle(points, index) > MAX_TURN_RAD]
+        if not sharp or deviation.shape[1] < 2:
+            break
+        if sharp[0] <= k:
+            # Start junction: ref[k-1] or dev[0] vertex - advance the deviation start.
+            deviation, dev_speeds = deviation[:, 1:], dev_speeds[1:]
+            while deviation.shape[1] > 1 and np.linalg.norm(deviation[:, 0] - ref[:, k - 1]) < SEGMENT_FLOOR_M:
+                deviation, dev_speeds = deviation[:, 1:], dev_speeds[1:]
+        elif sharp[0] >= k + deviation.shape[1] - 1:
+            # Closing leg or rejoin vertex: retreat the deviation end.
+            deviation, dev_speeds = deviation[:, :-1], dev_speeds[:-1]
+            j = _rejoin_point_index(deviation, rejoin_points, k_rejoin)
+        else:
+            break  # interior deviation vertex: the fillet pass already handled those
+    return deviation, dev_speeds, j
+
+
 def build_avoidance_route(
     reference: ReferencePath,
     position: np.ndarray,
     deviation: np.ndarray,
     deviation_speeds: list[float] | np.ndarray,
+    rejoin_reference: ReferencePath | None = None,
+    deviation_mode_policy: Callable[[int], list[str]] | None = None,
 ) -> dict:
-    """Splice reference[0:k] ++ deviation ++ reference[j:] with mixed navigation modes.
+    """Splice reference[0:k] ++ deviation ++ rejoin[j:] with mixed navigation modes.
 
     k is the first reference waypoint at least FIRST_CHANGE_MARGIN_M ahead of
     the ship along-track, so the first changed waypoint clears the frozen
-    150 m gate. The rejoin lands exactly on reference waypoint j. Only the
-    deviation waypoints carry the "avoidance" mode: the frozen surge cap is
-    leg-scoped (ship_guidance_node.cpp ~2536-2543, ~5970-5976), so tagging
-    the reference prefix, rejoin landing and tail keeps cap exposure minimal.
+    150 m gate. The rejoin lands exactly on a waypoint of ``rejoin_reference``
+    (the nominal mission route when the caller passes it, so a second splice
+    rejoins the mission track instead of hooking onto the previous splice's
+    deviation remnants). Only deviation waypoints carry the "avoidance" tag
+    (or the caller's ``deviation_mode_policy(count)`` choice): the frozen surge
+    cap is leg-scoped (ship_guidance_node.cpp ~2536-2543, ~5970-5976), so
+    tagging the reference prefix, rejoin landing and tail keeps cap exposure
+    minimal.
     """
+    rejoin_reference = rejoin_reference if rejoin_reference is not None else reference
+    if deviation_mode_policy is None:
+        deviation_mode_policy = lambda count: [AVOIDANCE_MODE] * count  # noqa: E731 - default keeps historic tagging
     ref = reference.points
-    count = ref.shape[1]
+    rejoin_points = rejoin_reference.points
     position = np.asarray(position, dtype=float)
     deviation = np.asarray(deviation, dtype=float)
     dev_speeds = [float(value) for value in deviation_speeds]
     ship_along = along_track_progress(position, ref)
-    k = next(
-        (index for index in range(count) if along_track_progress(ref[:, index], ref) - ship_along >= FIRST_CHANGE_MARGIN_M),
-        count - 1,
-    )
+    k = _first_margin_index(ref, ship_along)
+    ship_along_rejoin = along_track_progress(position, rejoin_points)
+    k_rejoin = _first_margin_index(rejoin_points, ship_along_rejoin)
     deviation, keep = merge_short_segments(deviation, min_segment_m=SEGMENT_FLOOR_M)
     dev_speeds = [dev_speeds[index] for index in keep]
     while deviation.shape[1] > 1 and np.linalg.norm(deviation[:, 0] - ref[:, k - 1]) < SEGMENT_FLOOR_M:
@@ -372,51 +455,10 @@ def build_avoidance_route(
             ]
             deviation = filleted
 
-    def rejoin_index(deviation: np.ndarray) -> int:
-        end_along = along_track_progress(deviation[:, -1], ref)
-        j = next(
-            (
-                index
-                for index in range(k, count)
-                if along_track_progress(ref[:, index], ref) >= end_along - 1e-9
-                and np.linalg.norm(deviation[:, -1] - ref[:, index]) >= SEGMENT_FLOOR_M
-            ),
-            None,
-        )
-        if j is None:
-            j = next(
-                (index for index in range(k, count) if along_track_progress(ref[:, index], ref) >= end_along - 1e-9),
-                count - 1,
-            )
-        return j
-
-    j = rejoin_index(deviation)
-    # Junction trim guard: the splice's own junctions can measure interior turns
-    # sharper than the frozen 150 deg reverse-segment gate (smoke vo-36: 153 deg
-    # at ref[k-1], fan cells: 155-173 deg on the closing leg into the rejoin),
-    # and a rejected candidate is resubmitted until the generation changes.
-    # Trim deviation waypoints from the sharp end until every splice-introduced
-    # turn clears the gate; reference prefix/tail waypoints are never moved and
-    # trimmed columns stay exactly on the held intent line.
-    for _ in range(16):
-        points = np.hstack((ref[:, :k], deviation, ref[:, j:]))
-        sharp = [index for index in range(1, points.shape[1] - 1) if _turn_angle(points, index) > MAX_TURN_RAD]
-        if not sharp or deviation.shape[1] < 2:
-            break
-        if sharp[0] <= k:
-            # Start junction: ref[k-1] or dev[0] vertex - advance the deviation start.
-            deviation, dev_speeds = deviation[:, 1:], dev_speeds[1:]
-            while deviation.shape[1] > 1 and np.linalg.norm(deviation[:, 0] - ref[:, k - 1]) < SEGMENT_FLOOR_M:
-                deviation, dev_speeds = deviation[:, 1:], dev_speeds[1:]
-        elif sharp[0] >= k + deviation.shape[1] - 1:
-            # Closing leg or rejoin vertex: retreat the deviation end.
-            deviation, dev_speeds = deviation[:, :-1], dev_speeds[:-1]
-            j = rejoin_index(deviation)
-        else:
-            break  # interior deviation vertex: the fillet pass already handled those
-    points = np.hstack((ref[:, :k], deviation, ref[:, j:]))
-    speeds = [*reference.speeds[:k], *dev_speeds, *reference.speeds[j:]]
-    modes = [*reference.modes[:k], *([AVOIDANCE_MODE] * deviation.shape[1]), *reference.modes[j:]]
+    deviation, dev_speeds, j = _trim_junctions_to_gate(ref, deviation, dev_speeds, rejoin_points, k, k_rejoin)
+    points = np.hstack((ref[:, :k], deviation, rejoin_points[:, j:]))
+    speeds = [*reference.speeds[:k], *dev_speeds, *rejoin_reference.speeds[j:]]
+    modes = [*reference.modes[:k], *deviation_mode_policy(deviation.shape[1]), *rejoin_reference.modes[j:]]
     deviation_end = k + deviation.shape[1]
     interior_turns = [math.degrees(_turn_angle(points, index)) for index in range(1, points.shape[1] - 1)]
     # Admission contract of the frozen chain: coordinate_transform rejects any
@@ -436,7 +478,7 @@ def build_avoidance_route(
         ),
         "prefix_length": k,
         "rejoin_index": j,
-        "short_reference": k == count - 1,
+        "short_reference": k == ref.shape[1] - 1,
         # First-order leg floor on the map-frame geometry. The manager gates
         # behavior_mode "avoidance" as non-emergency at 30 m and measures the
         # submitted coordinates with its own equirectangular projection, which

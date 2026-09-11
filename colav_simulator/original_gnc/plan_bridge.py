@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import math
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -14,13 +15,17 @@ from colav_simulator.modular_gnc.route_bridge import ProductRouteBridge
 from colav_simulator.original_gnc.geometry import stamp
 from colav_simulator.original_gnc.native import OriginalGncError
 from colav_simulator.original_gnc.route_splice import (
+    AVOIDANCE_MODE,
+    FIRST_CHANGE_GATE_M,
     FIRST_CHANGE_MARGIN_M,
     LATERAL_ENVELOPE_M,
     MIN_SEGMENT_M,
+    SEGMENT_FLOOR_M,
     ReferencePath,
     along_track_progress,
     blend_deviation_toward_reference,
     build_avoidance_route,
+    first_change_distance_ahead,
     intent_line_deviation,
     max_lateral_delta,
     merge_short_segments,
@@ -32,6 +37,14 @@ from colav_simulator.original_gnc.route_splice import (
 # (Fan-MPC) on their own period while giving every plan one live admission window.
 _MIN_VALIDITY_S = 5.0
 _RESUBMIT_INTERVAL_S = 10.0
+# Held-tick command sampling differs from the solve tick by wrap-around noise at
+# floating-point ULP scale (course remainder wrap). Exact-equality comparison
+# declared a "new intent" every tick and rebuilt the splice against the freshly
+# rotated mirror each time (fan-HO-E4: 22 splice generations in 50 s, 96.5 deg
+# rejoin hooks). A held intent is only genuinely new when course or speed
+# actually moved beyond these defensible thresholds.
+INTENT_COURSE_TOLERANCE_RAD = math.radians(0.5)
+INTENT_SPEED_TOLERANCE_MPS = 0.05
 
 _ADDRESSABLE_PREFIXES = (
     "route update too frequent",
@@ -91,6 +104,42 @@ def avoidance_constraints_active(algorithm: str, details: dict) -> bool:
     raise OriginalGncError(f"No held-intent contract for {algorithm}")
 
 
+def dynamic_encounter_active(algorithm: str, details: dict) -> bool:
+    """Classify the planner evidence that shows a live DYNAMIC encounter.
+
+    Static-hazard grid cells alone are not an encounter: they keep avoidance
+    authority active (a deviation around the hazard is still executed) but must
+    not tag long deviation stretches for the frozen 3.2 m/s guidance cap, which
+    is leg-scoped on "avoidance" navigation modes (ship_guidance_node.cpp
+    is_emergency_avoidance_mode). Only COLREG rule engagement, give-way/stand-on
+    commitments (VO) or active encounters (Fan-MPC) count as dynamic.
+    """
+    if algorithm == "vo":
+        return bool(
+            details.get("active_rules") or details.get("give_way_commitment_active") or details.get("stand_on_hold_active")
+        )
+    if algorithm == "potocnik_colreg_fan_mpc":
+        return bool(details.get("active_encounters"))
+    raise OriginalGncError(f"No held-intent contract for {algorithm}")
+
+
+def deviation_mode_policy(algorithm: str, details: dict) -> Callable[[int], list[str]]:
+    """Tagging policy for deviation waypoints of one splice generation.
+
+    Dynamic encounter generations keep the historic all-"avoidance" tagging.
+    Static-hazard-only deviations tag only the entry leg: coordinate_transform's
+    relaxed update tier needs one code-6 waypoint anywhere in the route
+    (coordinate_transform_node.cpp navigation_mode_code==6), the whole-route
+    turn-arc smoothing bypass keys off the same predicate, and the manager's
+    non-emergency tier (behavior_mode "avoidance", active_route_manager_node.cpp
+    873-875) is unaffected - while the leg-scoped 3.2 m/s cap then applies only
+    at the deviation entry instead of the whole deviation stretch.
+    """
+    if dynamic_encounter_active(algorithm, details):
+        return lambda count: [AVOIDANCE_MODE] * count
+    return lambda count: [AVOIDANCE_MODE] + ["cruise"] * (count - 1) if count else []
+
+
 def classify_rejection(feedback: dict) -> dict:
     """Split frozen rejections into bridge-addressable geometry vs dynamic contract causes."""
     reason = str(feedback.get("reason", ""))
@@ -136,12 +185,28 @@ class ReferenceMirror:
     (coordinate_transform_node.cpp ~977-981) including the manager's
     internal_return_to_route publications, and ignores duplicates and
     rejections. Rejections and IGNORED_DUPLICATE never rotate the reference.
+
+    Two invariants beyond verbatim rotation:
+
+    - The splice reference (``path``) merges sub-floor legs: the manager's
+      internal return routes open with a 1.5-5.5 m head leg, and a splice that
+      inherits it is rejected segment_too_short forever (vo-OT-E0 t=273). The
+      verbatim geometry stays in ``frozen_points`` for the frozen
+      first-changed admission math, which coordinate_transform evaluates
+      against the unmerged path it actually holds.
+    - Speeds of bridge-submitted plans are kept as submitted: the manager's
+      apply_speed_degradation clamps the published speed_limit_mps (turn
+      radius, yaw rate), and absorbing the clamp ratcheted route speeds down
+      to 0.59 m/s across generations. Degradation is execution-time only.
     """
 
-    def __init__(self, ship: Any):
+    def __init__(self, ship: Any, nominal_only: bool = False):
         self.ship = ship
         self.path: ReferencePath | None = None
+        self.frozen_points: np.ndarray | None = None
         self.route_type: str | None = None
+        self.route_id: str | None = None
+        self._nominal_only = nominal_only
         self._cursor = 0
         self._pending: dict[str, dict] = {}
 
@@ -165,22 +230,40 @@ class ReferenceMirror:
         self._cursor = len(events)
 
     def _absorb(self, route: dict) -> None:
+        if self._nominal_only and route.get("route_type") != "nominal":
+            return
         latitudes = list(route.get("latitude") or [])
         longitudes = list(route.get("longitude") or [])
         if len(latitudes) < 2 or len(latitudes) != len(longitudes):
             return
-        speeds = [float(value) for value in (route.get("speed_limit_mps") or [])]
+        points = self.ship.frame.northeast(latitudes, longitudes)
+        speeds = self._reference_speeds(route, len(latitudes))
         modes = [str(value) for value in (route.get("navigation_mode") or [])]
         speeds += [0.0] * (len(latitudes) - len(speeds))
         modes += ["cruise"] * (len(latitudes) - len(modes))
+        merged, keep = merge_short_segments(points, min_segment_m=SEGMENT_FLOOR_M)
+        self.frozen_points = points
         self.path = ReferencePath(
-            points=self.ship.frame.northeast(latitudes, longitudes),
-            speeds=speeds,
-            modes=modes,
-            latitudes=latitudes,
-            longitudes=longitudes,
+            points=merged,
+            speeds=[speeds[index] for index in keep],
+            modes=[modes[index] for index in keep],
+            latitudes=[latitudes[index] for index in keep],
+            longitudes=[longitudes[index] for index in keep],
         )
         self.route_type = route.get("route_type")
+        self.route_id = route.get("route_id")
+
+    def _reference_speeds(self, route: dict, count: int) -> list[float]:
+        """Published limits, except bridge-submitted plans keep their own speeds."""
+        plan_id = route.get("route_id")
+        for row in reversed(getattr(self.ship, "_requested_plans", []) or []):
+            message = row.get("message") or {}
+            if row.get("kind") == "avoidance" and message.get("plan_id") == plan_id:
+                submitted = [float(value) for value in (message.get("command_speed_mps") or [])]
+                if len(submitted) == count:
+                    return submitted
+                break
+        return [float(value) for value in (route.get("speed_limit_mps") or [])]
 
 
 class OriginalPlanBridge:
@@ -191,7 +274,9 @@ class OriginalPlanBridge:
         self.dt_s = dt_s
         self._mid = ProductRouteBridge(ship._legacy, dt_s)
         self._mirror = ReferenceMirror(ship)
+        self._nominal = ReferenceMirror(ship, nominal_only=True)
         self._heading = None
+        self._speed = None
         self._geometry = None
         self._line_diagnostics: dict | None = None
         self._candidate: dict | None = None
@@ -214,6 +299,7 @@ class OriginalPlanBridge:
             "rejected_addressable": 0,
             "rejected_dynamic": 0,
             "ignored_duplicate": 0,
+            "holds": 0,
         }
 
     def _base(self, algorithm: str, plan_id: str, valid_until_ns: int) -> dict:
@@ -306,6 +392,7 @@ class OriginalPlanBridge:
             request["behavior_mode"] = "return_to_route"
             self._deliver(request, {"authority": "original_nominal_guidance", "reason": "planner_constraints_clear"})
         self._heading = None
+        self._speed = None
         self._geometry = None
         self._line_diagnostics = None
         self._candidate = None
@@ -314,23 +401,79 @@ class OriginalPlanBridge:
         self._last_submission = None
         self._last_submission_time = None
 
+    def _record_hold(self, reason: str, detail: dict | None = None) -> None:
+        """Telemeter every intent the bridge cannot admit; silent drops are forbidden.
+
+        vo-OT-E0 after t=273 dropped every VO intent without a trace while the
+        ship ran an unadmitted route into a closing target until the planner
+        went infeasible.
+        """
+        metrics = self.admission_metrics
+        metrics["holds"] = metrics.get("holds", 0) + 1
+        reasons = metrics.setdefault("hold_reasons", {})
+        reasons[reason] = reasons.get(reason, 0) + 1
+        event = {
+            "sequence": len(self.ship._events),
+            "event": "bridge_hold",
+            "time_ns": self.ship.stack.time_ns,
+            "reason": reason,
+        }
+        if detail:
+            event.update(copy.deepcopy(detail))
+        self.ship._events.append(event)
+
     def _reference(self) -> ReferencePath:
         self._mirror.refresh()
         if self._mirror.path is None:
             raise OriginalGncError("No accepted reference route is available for the avoidance splice")
         return self._mirror.path
 
-    def _intent_deviation(self, algorithm: str, heading: float, reference: ReferencePath) -> tuple[np.ndarray, bool]:
-        """Hold the same physical intent line while course and authority are held."""
-        new_generation = self._heading != heading or self._algorithm != algorithm or self._geometry is None
+    def _nominal_reference(self) -> ReferencePath:
+        """The mission route reference; deviation rejoins land on it, never on a splice."""
+        self._nominal.refresh()
+        if self._nominal.path is not None:
+            return self._nominal.path
+        return self._reference()
+
+    def _mirror_holds_own_route(self) -> bool:
+        """True when the last rotated reference is one of this bridge's own plans.
+
+        Our own accepted submissions rotate the frozen reference by definition;
+        that is not an external rotation, so the latched splice stays valid.
+        Internal returns, nominal updates and any third-party acceptance do
+        invalidate it.
+        """
+        own = {
+            row.get("message", {}).get("plan_id")
+            for row in getattr(self.ship, "_requested_plans", [])
+            if row.get("kind") == "avoidance"
+        }
+        return self._mirror.route_id in own
+
+    def _intent_deviation(
+        self, algorithm: str, heading: float, speed: float, reference: ReferencePath
+    ) -> tuple[np.ndarray, bool, bool]:
+        """Hold the same physical intent line while course and authority are held.
+
+        A held intent is only new when the course moved beyond
+        INTENT_COURSE_TOLERANCE_RAD (wrap-aware) or the authority changed;
+        sampling noise no longer spawns a generation. Commanded speed changes
+        ride the latched splice (they never move the line) and are reported so
+        the submitted speeds can be refreshed in place.
+        """
+        course_moved = (
+            self._heading is None or abs(math.remainder(heading - self._heading, 2 * math.pi)) > INTENT_COURSE_TOLERANCE_RAD
+        )
+        speed_moved = self._speed is None or abs(speed - self._speed) > INTENT_SPEED_TOLERANCE_MPS
+        new_generation = course_moved or self._algorithm != algorithm or self._geometry is None
         if new_generation:
             self._intent_generation += 1
             self._lateral_blend = 1.0
             deviation, diagnostics = intent_line_deviation(self.ship.state[:2], heading, reference)
             self._geometry = deviation
             self._line_diagnostics = diagnostics
-        self._heading, self._algorithm = heading, algorithm
-        return self._geometry, new_generation
+        self._heading, self._algorithm, self._speed = heading, algorithm, speed
+        return self._geometry, new_generation, speed_moved
 
     def _split_lateral_offset(self, deviation: np.ndarray, reference: ReferencePath, fresh: bool) -> np.ndarray:
         """Split lateral offsets beyond the frozen 500 m gate across successive updates."""
@@ -344,13 +487,22 @@ class OriginalPlanBridge:
             self._lateral_blend = min(1.0, self._lateral_blend + 0.5)
         return blend_deviation_toward_reference(deviation, reference.points, self._lateral_blend)
 
-    def _mid_deviation(self, path: np.ndarray, reference: ReferencePath) -> tuple[np.ndarray, list[int]]:
+    def _mid_deviation(self, path: np.ndarray, reference: ReferencePath) -> tuple[np.ndarray, list[int]] | None:
+        """Deviation columns from the first waypoint at the splice margin.
+
+        Returns None when no accepted-plan waypoint reaches FIRST_CHANGE_MARGIN_M
+        ahead of the ship along the reference (give-way standby or standoff
+        geometry). The frozen manager answers such an update with a
+        first-changed-waypoint rejection and keeps executing the active route,
+        so the bridge holds the active route for this tick instead of raising;
+        manager-owned expiry still governs the admitted route's lifecycle.
+        """
         ref = reference.points
         ship_along = along_track_progress(self.ship.state[:2], ref)
         ahead = [along_track_progress(path[:, index], ref) - ship_along for index in range(path.shape[1])]
         first = next((index for index, value in enumerate(ahead) if value >= FIRST_CHANGE_MARGIN_M), None)
         if first is None:
-            raise OriginalGncError("Accepted Mid path never reaches the reference splice margin")
+            return None
         filtered = path[:, first:]
         merged, keep = merge_short_segments(filtered)
         return merged, [first + index for index in keep]
@@ -397,16 +549,32 @@ class OriginalPlanBridge:
             # live admission window at the manager; never extended past the last
             # verified solve (design P1.5).
             valid_until_s = self._last_solve_time + max(period, _MIN_VALIDITY_S)
-            geometry, fresh_geometry = self._intent_deviation(algorithm, heading, reference)
+            nominal = self._nominal_reference()
+            geometry, fresh_geometry, speed_moved = self._intent_deviation(algorithm, heading, speed, reference)
             deviation_speeds = np.full(geometry.shape[1], speed)
             # Hold the admitted splice for a held intent: rebuilding it against
             # the mirror (which this very route rotated) is not idempotent.
             # A mirror that no longer matches the held candidate means something
             # else rotated the accepted route (manager validity-expiry internal
             # return, nominal update), so the splice is rebuilt against it.
-            rotated = self._candidate is not None and self._mirror.path.latitudes != self._candidate["latitudes"]
-            candidate = self._held_candidate(reference, geometry, deviation_speeds, fresh_geometry, rotated)
+            rotated = (
+                self._candidate is not None
+                and self._mirror.path.latitudes != self._candidate["reference_latitudes"]
+                and not self._mirror_holds_own_route()
+            )
+            policy = deviation_mode_policy(algorithm, details)
+            candidate, hold = self._held_candidate(
+                reference, nominal, geometry, deviation_speeds, speed, fresh_geometry, rotated, speed_moved, policy
+            )
             if candidate is None:
+                self._record_hold(
+                    hold or "no_candidate",
+                    {
+                        "algorithm": algorithm,
+                        "generation": self._intent_generation,
+                        "line": copy.deepcopy(self._line_diagnostics),
+                    },
+                )
                 return
             plan_id = f"{algorithm}-held-intent-{self._candidate_generation}"
             identity = {
@@ -439,12 +607,19 @@ class OriginalPlanBridge:
                 self._lateral_blend = 1.0
             plan_id = self._mid_plan_id
             raw = np.asarray(route.waypoints_ne_m, dtype=float)
-            geometry, source_indices = self._mid_deviation(raw, reference)
+            deviation = self._mid_deviation(raw, reference)
+            if deviation is None:
+                self._record_hold("short_of_splice_margin", {"algorithm": algorithm, "continuity_revision": route.revision})
+                return  # accepted plan never reaches the splice margin: hold the active route this tick
+            geometry, source_indices = deviation
             speeds = np.asarray(route.speed_mps, dtype=float)[source_indices]
             geometry = self._split_lateral_offset(geometry, reference, fresh_geometry)
             deviation_speeds = [float(value) for value in speeds]
-            candidate = self._build_candidate(reference, geometry, deviation_speeds)
+            # Mid routes roll continuously inside one continuity revision: rebuild
+            # every tick, never latch (the held-intent latch is VO/Fan-only).
+            candidate = self._build_candidate(reference, reference, geometry, deviation_speeds, None)
             if not candidate["gate_clean"]:
+                self._record_hold("unadmittable_splice", {"algorithm": algorithm, "continuity_revision": route.revision})
                 return  # unadmittable splice: hold the current route this tick
             # Accepted prediction geometry is a route. It is not a sequence of
             # body-heading commands, so retain only its geometric authority.
@@ -489,11 +664,13 @@ class OriginalPlanBridge:
         identity["splice"] = {
             **identity.get("splice", {}),
             "first_change_ahead_m": candidate["first_change_ahead_m"],
+            "first_change_ahead_frozen_m": candidate.get("first_change_ahead_frozen_m"),
             "max_lateral_delta_m": candidate["max_lateral_delta_m"],
             "min_interior_turn_deg": candidate["min_interior_turn_deg"],
             "min_new_segment_m": candidate["min_new_segment_m"],
             "prefix_length": candidate["prefix_length"],
             "rejoin_index": candidate["rejoin_index"],
+            "rejoin_reference": "nominal_mission",
             "intent_deviation_m": candidate["intent_deviation_m"],
         }
         self._deliver(request, identity)
@@ -503,38 +680,75 @@ class OriginalPlanBridge:
     def _held_candidate(
         self,
         reference: ReferencePath,
+        nominal: ReferencePath,
         geometry: np.ndarray,
         deviation_speeds: np.ndarray,
+        speed: float | None,
         fresh_geometry: bool,
         rotated: bool,
-    ) -> dict | None:
+        speed_moved: bool,
+        mode_policy: Callable[[int], list[str]] | None,
+    ) -> tuple[dict | None, str | None]:
         """Rebuild the latched splice only when the rebuild stays admittable.
 
-        A splice the frozen chain would reject (reverse segment, short leg)
-        must never be published or latched: rejections do not rotate the
-        mirror, so resubmitting rejected geometry only storms the gate. Hold
-        the previous route this tick instead; the next solve re-evaluates, and
-        manager expiry still owns the avoidance lifecycle.
+        A splice the frozen chain would reject (reverse segment, short leg,
+        first changed waypoint inside the 150 m gate) must never be published
+        or latched: rejections do not rotate the mirror, so resubmitting
+        rejected geometry only storms the gate. Hold the previous route this
+        tick instead (and telemeter the hold); the next solve re-evaluates, and
+        manager expiry still owns the avoidance lifecycle. Commanded speed
+        changes ride the latched splice without moving its geometry.
         """
+        hold = None
         if fresh_geometry or rotated or self._candidate is None or self._lateral_blend < 1.0:
-            built = self._build_candidate(reference, geometry, deviation_speeds)
+            built = self._build_candidate(reference, nominal, geometry, deviation_speeds, mode_policy)
             if built["gate_clean"]:
                 self._candidate = built
                 self._candidate_generation = self._intent_generation
-        return self._candidate
+            else:
+                hold = "unadmittable_splice"
+        elif speed_moved and self._candidate is not None and speed is not None:
+            self._apply_deviation_speed(self._candidate, speed)
+        return self._candidate, hold
 
-    def _build_candidate(self, reference: ReferencePath, geometry: np.ndarray, deviation_speeds: list) -> dict:
+    def _apply_deviation_speed(self, candidate: dict, speed: float) -> None:
+        """Refresh the deviation legs' commanded speed in place; geometry is untouched."""
+        start, stop = candidate.get("deviation_slice", (0, 0))
+        candidate["speeds"][start:stop] = [speed] * (stop - start)
+
+    def _build_candidate(
+        self,
+        reference: ReferencePath,
+        nominal: ReferencePath,
+        geometry: np.ndarray,
+        deviation_speeds: list,
+        mode_policy: Callable[[int], list[str]] | None,
+    ) -> dict:
         """Splice the deviation into the reference and attach the route contract arrays."""
-        candidate = build_avoidance_route(reference, self.ship.state[:2], geometry, deviation_speeds)
-        deviation_length = (
-            candidate["points"].shape[1]
-            - candidate["prefix_length"]
-            - (reference.points.shape[1] - candidate["rejoin_index"])
+        candidate = build_avoidance_route(
+            reference,
+            self.ship.state[:2],
+            geometry,
+            deviation_speeds,
+            rejoin_reference=nominal,
+            deviation_mode_policy=mode_policy,
         )
-        candidate["intent_deviation_m"] = _intent_deviation_m(
-            candidate["points"], geometry, candidate["prefix_length"], deviation_length
-        )
-        candidate["latitudes"], candidate["longitudes"] = self._compose_coordinates(reference, candidate)
+        k = candidate["prefix_length"]
+        j = candidate["rejoin_index"]
+        tail_start = candidate["points"].shape[1] - (nominal.points.shape[1] - j)
+        candidate["deviation_slice"] = (k, tail_start)
+        candidate["intent_deviation_m"] = _intent_deviation_m(candidate["points"], geometry, k, tail_start - k)
+        candidate["latitudes"], candidate["longitudes"] = self._compose_coordinates(reference, nominal, candidate)
+        candidate["reference_latitudes"] = list(reference.latitudes) if reference.latitudes is not None else None
+        # The frozen node compares submissions against its own unmerged
+        # last_feedback_path_; a re-anchored (sanitized) reference shifts the
+        # candidate indices, so verify the first changed waypoint on the exact
+        # frozen geometry before admitting.
+        if self._mirror.frozen_points is not None:
+            ahead = first_change_distance_ahead(candidate["points"], self._mirror.frozen_points, self.ship.state[:2])
+            candidate["first_change_ahead_frozen_m"] = ahead
+            if math.isfinite(ahead) and ahead < FIRST_CHANGE_GATE_M:
+                candidate["gate_clean"] = False
         # The manager measures legs with its own equirectangular projection over
         # the route's first waypoint (111320 m/deg, cos(lat0) easting), and
         # behavior_mode "avoidance" is its NON-emergency tier (30 m gate), so a
@@ -546,17 +760,17 @@ class OriginalPlanBridge:
         )
         return candidate
 
-    def _compose_coordinates(self, reference: ReferencePath, candidate: dict) -> tuple[list, list]:
-        """Prefix and tail verbatim from the accepted reference; deviation projected fresh."""
+    def _compose_coordinates(self, reference: ReferencePath, nominal: ReferencePath, candidate: dict) -> tuple[list, list]:
+        """Prefix verbatim from the accepted reference, tail from the mission route."""
         k = candidate["prefix_length"]
         j = candidate["rejoin_index"]
-        tail_start = candidate["points"].shape[1] - (reference.points.shape[1] - j)
+        tail_start = candidate["points"].shape[1] - (nominal.points.shape[1] - j)
         deviation = candidate["points"][:, k:tail_start]
         latitudes, longitudes = self.ship.frame.geographic(deviation)
-        if reference.latitudes is None:
+        if reference.latitudes is None or nominal.latitudes is None:
             all_latitudes, all_longitudes = self.ship.frame.geographic(candidate["points"])
             return all_latitudes, all_longitudes
         return (
-            [*reference.latitudes[:k], *latitudes, *reference.latitudes[j:]],
-            [*reference.longitudes[:k], *longitudes, *reference.longitudes[j:]],
+            [*reference.latitudes[:k], *latitudes, *nominal.latitudes[j:]],
+            [*reference.longitudes[:k], *longitudes, *nominal.longitudes[j:]],
         )

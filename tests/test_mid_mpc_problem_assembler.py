@@ -39,6 +39,7 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     MidMpcAssemblyConfig,
     MidMpcProblemAssembler,
     RouteReference,
+    _scheduled_corridor_threshold,
     _staged_route_references,
 )
 from colav_simulator.core.colav.rolling_plan import PlanRevisionReason, RollingPlanReference
@@ -411,9 +412,14 @@ def test_assembler_compiles_required_cpa_activation_from_physical_time() -> None
 
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.activation_plan.targets[0].key == TrackKey(1, 1)
-    assert outcome.activation_plan.targets[0].cpa_hard_from_s == pytest.approx(61.4285714286)
-    assert outcome.activation_plan.targets[0].cpa_hard_from_k == 12
-    assert outcome.problem.row_schedule.cpa_hard_from_k == 12
+    # Activation is the earlier of the linear TCPA staging and the knot where
+    # a clearance violation becomes physically possible (P2 mid fix: a
+    # maneuvering ownship can create the encounter before the current-velocity
+    # TCPA; seam-01 head_on staged the hard window at k=51 while the candidate
+    # closed to 42 m at k=34).
+    assert outcome.activation_plan.targets[0].cpa_hard_from_s == pytest.approx(55.0)
+    assert outcome.activation_plan.targets[0].cpa_hard_from_k == 11
+    assert outcome.problem.row_schedule.cpa_hard_from_k == 11
 
 
 def test_strict_assembler_compiles_finite_hard_windows_from_horizon_phases() -> None:
@@ -427,17 +433,28 @@ def test_strict_assembler_compiles_finite_hard_windows_from_horizon_phases() -> 
     assert isinstance(outcome, AssemblySuccess)
     schedule = outcome.problem.row_schedule
     target_window = outcome.horizon_encounter_plan.target_windows[0]
+    # Hard CPA coverage is inclusive of the first recovery knot: the recovery
+    # prediction was already breached exactly at its stop knot (overtaking-E0
+    # witness at k=59), so the window keeps one knot of executed evidence.
     expected_stop = (
-        outcome.grid.control_intervals if target_window.recovery_from_k is None else target_window.recovery_from_k
+        outcome.grid.control_intervals
+        if target_window.recovery_from_k is None
+        else target_window.recovery_from_k + 1
     )
     expected_start = outcome.activation_plan.targets[0].cpa_hard_from_k
     assert tuple((window.start_k, window.stop_k) for window in schedule.cpa_hard_windows) == (
-        (expected_start, max(expected_start, expected_stop)),
+        (expected_start, min(expected_stop, outcome.grid.control_intervals)),
     )
     assert schedule.direction_hard_window is not None
     assert schedule.direction_hard_window.stop_k == outcome.grid.control_intervals
     assert schedule.min_alt_hard_window is not None
-    assert schedule.min_alt_hard_window.stop_k == expected_stop
+    # Heading-authority windows release at the recovery knot itself; only the
+    # CPA clearance coverage gains the inclusive recovery knot.
+    assert schedule.min_alt_hard_window.stop_k == (
+        outcome.grid.control_intervals
+        if target_window.recovery_from_k is None
+        else target_window.recovery_from_k
+    )
 
 
 def test_strict_assembler_keeps_clear_bystander_inside_physical_safety_domain() -> None:
@@ -1115,3 +1132,193 @@ def test_active_target_safety_stays_enabled_when_current_motion_has_no_cpa() -> 
     outcome = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.activation_plan.targets[0].cpa_hard_from_k < outcome.grid.control_intervals
+
+
+def _head_on_plan_with_recovery(monkeypatch, recovery_from_k: int | None) -> tuple[AssemblyRequest, object]:
+    """Assemble the default head-on fixture under a pinned horizon plan."""
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    request = _request(planner_input, snapshot)
+    n = request.config.horizon_steps
+    plan = HorizonEncounterPlan(
+        reference_time_s=5.0,
+        times_s=np.arange(n + 1) * request.config.horizon_dt_s,
+        mission_route_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=0.0,
+        phases=(HorizonEncounterPhase.PASS,) * (n + 1),
+        recovery_from_k=recovery_from_k,
+        target_windows=(
+            TargetHorizonWindow(
+                TrackKey(1, 1),
+                n - 1,
+                recovery_from_k,
+                False,
+                200.0,
+                0.0,
+            ),
+        ),
+        corridor_reference_rad=(),
+    )
+    monkeypatch.setattr(
+        "colav_simulator.core.colav.mid_mpc_assembler._compile_horizon_encounter_plan", lambda *args, **kwargs: plan
+    )
+    return request, MidMpcProblemAssembler().assemble(request)
+
+
+def test_cpa_hard_window_starts_when_a_violation_becomes_physically_possible(monkeypatch) -> None:
+    """Cover the maneuver-controllable encounter with the hard CPA window.
+
+    Not only the current-velocity TCPA (head_on seam-01: staged at k=51 while
+    the accepted candidate closed to 42 m at k=34).
+    """
+    request, outcome = _head_on_plan_with_recovery(monkeypatch, recovery_from_k=None)
+
+    assert isinstance(outcome, AssemblySuccess)
+    windows = outcome.problem.row_schedule.cpa_hard_windows
+    assert len(windows) == 1
+    target = request.planner_input.tracks[0]
+    closing_radps = 7.0 + 7.0
+    effective_hard = outcome.problem.cpa_hard_m
+    gap = float(np.linalg.norm(target.state_enu[:2])) - effective_hard
+    violation_possible_s = gap / closing_radps
+    assert windows[0].start_k <= math.ceil(violation_possible_s / request.config.horizon_dt_s)
+    assert windows[0].start_k < windows[0].stop_k
+
+
+def test_inverted_cpa_window_falls_back_to_hard_until_horizon(monkeypatch) -> None:
+    """Never emit an empty window from an inverted recovery prediction.
+
+    A recovery prediction earlier than the activation staging must not produce
+    an empty (start_k == stop_k) window: safety must not evaporate in the
+    disagreement; rows beyond true clearance stay trivially satisfied.
+    """
+    request, outcome = _head_on_plan_with_recovery(monkeypatch, recovery_from_k=1)
+
+    assert isinstance(outcome, AssemblySuccess)
+    windows = outcome.problem.row_schedule.cpa_hard_windows
+    assert len(windows) == 1
+    n = request.config.horizon_steps
+    assert windows[0].start_k < windows[0].stop_k, "empty hard window would leave the encounter unconstrained"
+    assert windows[0].stop_k == n
+
+
+def test_hard_cpa_window_covers_the_first_recovery_knot(monkeypatch) -> None:
+    """The recovery prediction was breached exactly at its stop knot (OT-E0).
+
+    Hard CPA coverage must include the first recovery knot: the exclusive
+    window released the clearance row one knot before the executed closest
+    approach and the candidate rode the gap to a negative hull clearance.
+    Hard coverage may only grow, so this is +1 over the predicted stop.
+    """
+    request, outcome = _head_on_plan_with_recovery(monkeypatch, recovery_from_k=30)
+
+    assert isinstance(outcome, AssemblySuccess)
+    windows = outcome.problem.row_schedule.cpa_hard_windows
+    assert len(windows) == 1
+    assert windows[0].start_k < 30
+    assert windows[0].stop_k == 31
+
+
+def test_degenerate_recovery_prediction_keeps_full_horizon_fallback(monkeypatch) -> None:
+    """A recovery prediction at or before activation keeps the hard fallback.
+
+    The inclusive stop must not weaken the seam-01 guard: when the recovery
+    prediction precedes the activation knot the prediction is nonsense and
+    the window stays hard until the horizon end.
+    """
+    request, outcome = _head_on_plan_with_recovery(monkeypatch, recovery_from_k=11)
+
+    assert isinstance(outcome, AssemblySuccess)
+    activation_start = outcome.activation_plan.targets[0].cpa_hard_from_k
+    windows = outcome.problem.row_schedule.cpa_hard_windows
+    assert activation_start == 11
+    assert len(windows) == 1
+    assert windows[0].stop_k == request.config.horizon_steps
+
+
+def test_scheduled_corridor_reentry_clamp_is_symmetric_across_sides() -> None:
+    """Port and starboard re-entry share one rate-aware construction.
+
+    The multiship seam NLP went Infeasible_Problem_Detected because the
+    corridor re-entry clamp was rate-aware on the starboard side only; the
+    mirrored port corridor demanded a heading the rot envelope did not allow
+    while the measured heading sat outside the corridor.
+    """
+    own_psi = 0.0
+    step = 0.05 * 5.0
+    for side, bound_tightens in ((1, min), (-1, max)):
+        corridor = side * 0.7  # unreachable inside one rot step from psi=0
+        thresholds = [
+            _scheduled_corridor_threshold(
+                own_psi_rad=own_psi,
+                corridor_bearing_rad=corridor,
+                passing_side=side,
+                required_course_change_rad=0.05,
+                action_complete_k=1,
+                knot=k,
+                prefix_hold_k=0,
+                rot_max_rad_s=0.05,
+                horizon_dt_s=5.0,
+            )
+            for k in range(4)
+        ]
+        # Rate-limited return: never demand more than the envelope allows.
+        assert thresholds[0] == pytest.approx(side * step)
+        assert thresholds[1] == pytest.approx(side * 2.0 * step)
+        # The original hard corridor remains once it is reachable.
+        assert thresholds[2] == pytest.approx(corridor)
+        assert thresholds[3] == pytest.approx(corridor)
+        # Mirror symmetry across sides.
+        mirrored = [
+            _scheduled_corridor_threshold(
+                own_psi_rad=own_psi,
+                corridor_bearing_rad=-corridor,
+                passing_side=-side,
+                required_course_change_rad=0.05,
+                action_complete_k=1,
+                knot=k,
+                prefix_hold_k=0,
+                rot_max_rad_s=0.05,
+                horizon_dt_s=5.0,
+            )
+            for k in range(4)
+        ]
+        assert mirrored == [-value for value in thresholds]
+
+
+def test_prefix_hold_keeps_first_knot_rotation_budget_at_zero() -> None:
+    """A prefix hold pins knot 0 on the measured heading: zero rotation budget.
+
+    With hold_first_interval the first knot is fixed on the measured heading,
+    so a corridor bound at knot 0 must admit it on both sides; the previous
+    (k + 1) envelope allowed one full step at knot 0 and made the pinned NLP
+    infeasible whenever the corridor sat further than zero rotation away.
+    """
+    own_psi = 0.3
+    for side in (1, -1):
+        threshold = _scheduled_corridor_threshold(
+            own_psi_rad=own_psi,
+            corridor_bearing_rad=own_psi + side * 0.7,
+            passing_side=side,
+            required_course_change_rad=0.05,
+            action_complete_k=1,
+            knot=0,
+            prefix_hold_k=1,
+            rot_max_rad_s=0.05,
+            horizon_dt_s=5.0,
+        )
+        assert threshold == pytest.approx(own_psi)
+        first_free = _scheduled_corridor_threshold(
+            own_psi_rad=own_psi,
+            corridor_bearing_rad=own_psi + side * 0.7,
+            passing_side=side,
+            required_course_change_rad=0.05,
+            action_complete_k=1,
+            knot=1,
+            prefix_hold_k=1,
+            rot_max_rad_s=0.05,
+            horizon_dt_s=5.0,
+        )
+        assert first_free == pytest.approx(own_psi + side * 0.05 * 5.0)
