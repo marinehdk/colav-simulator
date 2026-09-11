@@ -1,0 +1,13 @@
+{
+  "native_run": "runs/route-boundary-reference-01",
+  "modules": {
+    "coordinate_transform_node": {
+      "calls": 16,
+      "sha256": "b01f817b3b6ba58fd62968940325bf10cf61a71afbf93c2c849f16bb5a2eea36"
+    },
+    "active_route_manager_node": {
+      "calls": 16,
+      "sha256": "98f08884fecd8de4ccbe13a92e416f5aefdd9855682d1d45d600cdad47d979cb"
+    }
+  }
+}

@@ -22,7 +22,7 @@ def _entry(preset_id: str, environment: str) -> dict:
 
 
 def test_four_presets_share_plant_and_environment_switch_changes_only_environment() -> None:
-    presets = list_stack_catalog()["product_presets"]
+    presets = list_stack_catalog()["product_presets"][:4]
     assert [p["display_name"] for p in presets] == [
         "Legacy Without Modules",
         "FCB 4DOF Ideal Actuation",

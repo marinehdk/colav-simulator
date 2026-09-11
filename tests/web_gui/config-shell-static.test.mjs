@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const shell = await readFile(new URL('../../web_gui/modules/config-shell.js', import.meta.url), 'utf8');
@@ -522,4 +523,36 @@ test('C5 pull-forward: workface tabs carry icons and pressed-pill chrome (gap #2
   }
   assert.match(styles, /\.workface-tab \{[^}]*min-height: 40px/);
   assert.match(styles, /\.workface-tab > obi-\[a-z-\] \{[^}]*width: 18px/);
+});
+
+
+test('authority refresh defers results when Create begins during its requests', async () => {
+  const source = shell.match(/async function refreshValidationAuthority\(\) \{[\s\S]*?^\}/m)?.[0];
+  assert.ok(source, 'exercise the actual refresh function');
+  let creating = false;
+  let resolveCatalog;
+  let resolveCurrent;
+  let rendered = 0;
+  const context = {
+    validationAuthorityRefreshPending: false,
+    assembly: {
+      snapshot: () => ({ creating }),
+      replaceCatalog: () => { throw new Error('must not replace during Create'); },
+      markCatalogFailure: () => { throw new Error('must not mutate pending Create'); },
+    },
+    fetchJson: () => new Promise((resolve) => { resolveCatalog = resolve; }),
+    activeSessionRuntime: {
+      refreshAuthority: () => new Promise((resolve) => { resolveCurrent = resolve; }),
+    },
+    syncRuntimeAuthority: () => { throw new Error('deferred while Create owns the snapshot'); },
+    render: () => { rendered += 1; },
+  };
+  const refresh = runInNewContext(`(${source})`, context);
+  const pending = refresh();
+  creating = true;
+  resolveCatalog({ schema_version: 1 });
+  resolveCurrent({ authority: { status: 'known' } });
+  await pending;
+  assert.equal(context.validationAuthorityRefreshPending, false);
+  assert.equal(rendered, 1);
 });

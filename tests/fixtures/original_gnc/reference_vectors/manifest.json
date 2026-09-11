@@ -1,0 +1,29 @@
+{
+  "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E0-instrumented-smoke",
+  "modules": {
+    "ship_dynamics_node": {
+      "calls": 1765,
+      "sha256": "78bb14a548910573b5454c30c4b4a9185cb43acef94bcf01a40f89799225d5a7"
+    },
+    "ship_control_node": {
+      "calls": 1939,
+      "sha256": "0e82afc79e0b3eeeb32e286f6a9d4966c88af37bbde342040e612c6abc220070"
+    },
+    "ship_guidance_node": {
+      "calls": 1530,
+      "sha256": "9c3092fbaf92b0f0f7153694c2165a8634c66226c93751b38086d03a795ffe7b"
+    },
+    "thrust_allocation_node": {
+      "calls": 1960,
+      "sha256": "4382076ebac4d8c42f52361807a7b4932c8b3be905b3d441d87258db2fa45dc4"
+    },
+    "coordinate_transform_node": {
+      "calls": 1590,
+      "sha256": "2028b6eee0ed48ccc866536e13b3fecd338040b40957ce8fd911ba9c3cc0d538"
+    },
+    "active_route_manager_node": {
+      "calls": 1531,
+      "sha256": "3434e948e990f549a8d908386afce7335c0dd8aa1847496d34fc1f84dcffb22f"
+    }
+  }
+}
