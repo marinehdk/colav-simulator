@@ -48,6 +48,9 @@ _REMOVED_CONFIG_KEYS = {
 }
 _DYNAMICS_PREDICTION_STEP_S = 1.0
 _DYNAMICS_INTEGRATION_MARGIN_M = 0.25
+# Anchored rows spanning [steerage, cap] so the avoidance window always holds
+# an executable, adequately resolved speed set on the shared grid.
+AVOIDANCE_WINDOW_ROWS = 7
 
 
 @dataclass(frozen=True)
@@ -119,6 +122,17 @@ class OwnshipEnvelope:
             np.cos(heading_set - ownship_heading_rad),
         )
         return np.abs(error) > reach
+
+    def speed_window_mask(self, speed_set: np.ndarray) -> np.ndarray:
+        """True where a speed lies outside the executable avoidance window.
+
+        Unlike :meth:`speed_exclusion_mask` this assumes the grid carries
+        anchored rows across [steerage, cap], so the exact bounds apply and no
+        sub-steerage tolerance sample is needed to keep the window non-empty.
+        """
+        return (speed_set > self.avoidance_speed_cap_mps + 1e-9) | (
+            speed_set < self.min_steerage_speed_mps - 1e-9
+        )
 
 
 @dataclass
@@ -353,6 +367,9 @@ class VO:
         self._envelope: OwnshipEnvelope | None = None
         self._horizon_s = self._params.t_max
         self._envelope_mask = np.zeros(shape, dtype=bool)
+        self._speed_window_mask = np.zeros(shape, dtype=bool)
+        self._course_reach_mask = np.zeros(shape[1:], dtype=bool)
+        self._avoidance_speed_window_active = False
         self._previous_selection_index: tuple[int, int] | None = None
         self._selection_held = False
 
@@ -418,6 +435,7 @@ class VO:
         self._dynamics_prediction_active = False
         self._envelope = None
         self._horizon_s = self._params.t_max
+        self._avoidance_speed_window_active = False
         self._previous_selection_index = None
         self._selection_held = False
         self._reset_grid()
@@ -746,6 +764,7 @@ class VO:
                 uncertainty=None,
             )
 
+        self._update_avoidance_speed_window(float(np.linalg.norm(v_ref)))
         self._apply_give_way_commitment(candidate_velocities, psi_os)
         heading, speed = self._compute_optimal_controls(np.asarray(v_ref, dtype=float), psi_os)
         self._references.fill(0.0)
@@ -768,8 +787,11 @@ class VO:
         The response constants alone keep the paper grid and horizon and only
         drive the lagged-trajectory clearance check (existing behavior). The
         full envelope, which the original backend reports with its avoidance
-        speed cap and steerage floor, additionally excludes unexecutable grid
-        cells and extends the risk horizon by the course time constant.
+        speed cap and steerage floor, anchors extra grid rows across the
+        executable avoidance window, excludes unexecutable grid cells and
+        extends the risk horizon by the course time constant. The avoidance
+        speed window itself is encounter-scoped: see
+        :meth:`_update_avoidance_speed_window`.
         """
         speed_bounds = (avoidance_speed_cap_mps, min_steerage_speed_mps)
         if any(value is not None for value in speed_bounds) and any(value is None for value in speed_bounds):
@@ -777,6 +799,9 @@ class VO:
         self._envelope = None
         self._horizon_s = self._params.t_max
         self._envelope_mask.fill(False)
+        self._speed_window_mask.fill(False)
+        self._course_reach_mask.fill(False)
+        self._avoidance_speed_window_active = False
         if avoidance_speed_cap_mps is None:
             return
         if any(value is None for value in (course_time_constant_s, speed_time_constant_s, max_turn_rate_radps)):
@@ -789,9 +814,67 @@ class VO:
             min_steerage_speed_mps=float(min_steerage_speed_mps),
         )
         self._horizon_s = self._envelope.horizon_s(self._params.t_max)
-        speed_excluded = self._envelope.speed_exclusion_mask(self._speed_set)
-        course_excluded = self._envelope.course_exclusion_mask(self._heading_set, psi_os, self._horizon_s)
-        self._envelope_mask = speed_excluded[:, None] | course_excluded[None, :]
+        self._augment_speed_grid_with_avoidance_window()
+        self._speed_window_mask = self._envelope.speed_window_mask(self._speed_set)[:, None]
+        self._course_reach_mask = self._envelope.course_exclusion_mask(self._heading_set, psi_os, self._horizon_s)
+        # Until the encounter gate runs, keep only the always-invalid cells.
+        self._envelope_mask = (self._speed_set <= 0.0)[:, None] | self._course_reach_mask[None, :]
+
+    def _augment_speed_grid_with_avoidance_window(self) -> None:
+        """Anchor enough grid rows across [steerage, cap] to resolve the window.
+
+        The published default grid (32 samples over the full speed range)
+        quantizes the 0.2 m/s avoidance window down to a single executable
+        sample, so every avoidance command collapses onto one near-minimum
+        speed. The anchored rows give the window search real resolution.
+        """
+        window_rows = np.linspace(
+            self._envelope.min_steerage_speed_mps,
+            self._envelope.avoidance_speed_cap_mps,
+            AVOIDANCE_WINDOW_ROWS,
+        )
+        merged = np.union1d(self._speed_set, window_rows)
+        if merged.size == self._speed_set.size:
+            return
+        self._speed_set = merged
+        self._ensure_grid_shape()
+
+    def _update_avoidance_speed_window(self, reference_speed_mps: float) -> None:
+        """Scope the backend avoidance-speed window to the live encounter state.
+
+        The executing backend caps deviation ("avoidance") legs at the reported
+        cap and cruises un-deviated route legs at the mission speed. Mirror
+        that split: while COLREG rules, a give-way lock, an overtaking
+        commitment or a stand-on hold owns the solve, candidates stay inside
+        [steerage, cap]; the moment that evidence clears, the nominal transit
+        band reopens so post-encounter speed restoration is immediate.
+        Reopened transit candidates never exceed the mission reference speed -
+        commands above it are not honest transit requests.
+        """
+        if self._envelope is None:
+            return
+        overtaking_committed = bool(
+            self._overtaking_active_target_id is not None
+            and self._overtaking_states.get(self._overtaking_active_target_id) is OvertakingState.COMMITTED
+        )
+        encounter_active = bool(
+            self._active_rules
+            or self._give_way_rule_locks
+            or overtaking_committed
+            or self._stand_on_hold_active
+        )
+        self._avoidance_speed_window_active = encounter_active
+        if encounter_active:
+            speed_excluded = self._speed_window_mask[:, 0]
+        else:
+            base_step = (
+                self._params.speed_set_limits[1] - self._params.speed_set_limits[0]
+            ) / (self._params.speed_samples - 1)
+            transit_bound = max(float(reference_speed_mps), self._envelope.avoidance_speed_cap_mps)
+            speed_excluded = self._speed_set > transit_bound + 0.5 * base_step + 1e-9
+        self._envelope_mask = (
+            (self._speed_set <= 0.0)[:, None] | speed_excluded[:, None] | self._course_reach_mask[None, :]
+        )
 
     def _predict_candidate_positions(
         self,
@@ -909,10 +992,13 @@ class VO:
         self._wvo_mask = np.zeros(shape, dtype=bool)
         self._preferred_clearance_mask = np.zeros(shape, dtype=bool)
         self._envelope_mask = np.zeros(shape, dtype=bool)
+        self._speed_window_mask = np.zeros(shape, dtype=bool)
+        self._course_reach_mask = np.zeros(shape[1:], dtype=bool)
         self._min_ttc = np.full(shape, np.inf)
         self._preferred_clearance_ttc = np.full(shape, np.inf)
         self._violation_costs = np.zeros(shape)
         self._total_costs = np.full(shape, np.inf)
+        self._previous_selection_index = None
 
     def _apply_give_way_rule_lock(
         self,
@@ -1606,10 +1692,17 @@ class VO:
             and not self._stand_on_hold_active
         ):
             # Grid-quantization chatter between near-equal cells would publish a
-            # new course intent every solve; hold the previous cell while it stays
-            # admissible and within the relative cost margin of the optimum.
+            # new course intent every solve; hold the previous cell while it
+            # stays admissible and within the cost margin of the optimum. The
+            # margin anchors to the velocity cost of one grid cell at the held
+            # speed: a purely optimum-relative margin degenerates on nominal
+            # transit, where the optimum cost is near zero.
             previous_cost = float(self._total_costs[self._previous_selection_index])
-            margin = self._params.envelope_selection_hysteresis * abs(minimum) + 1e-9
+            held_speed = float(self._speed_set[self._previous_selection_index[0]])
+            cell_lateral = held_speed * 2.0 * np.pi / self._heading_set.size
+            cell_speed = float(np.min(np.abs(np.diff(self._speed_set))))
+            one_cell_cost = self._params.w_velocity * max(cell_lateral, cell_speed) ** 2
+            margin = self._params.envelope_selection_hysteresis * (abs(minimum) + one_cell_cost) + 1e-9
             if np.isfinite(previous_cost) and previous_cost <= minimum + margin:
                 flat_index = int(np.ravel_multi_index(self._previous_selection_index, self._total_costs.shape))
                 minimum = previous_cost
@@ -1962,6 +2055,12 @@ class VO:
             "reference_velocity_ne_mps": self._reference_velocity.tolist(),
             "planning_horizon_s": self._horizon_s,
             "ownship_envelope": asdict(self._envelope) if self._envelope is not None else None,
+            "avoidance_speed_window_active": self._avoidance_speed_window_active,
+            "avoidance_speed_window_rows": (
+                int(np.count_nonzero(~self._speed_window_mask[:, 0] & (self._speed_set > 0.0)))
+                if self._envelope is not None
+                else 0
+            ),
             "envelope_excluded_count": int(np.count_nonzero(self._envelope_mask)),
             "reachable_candidate_count": int(
                 np.count_nonzero(~self._hard_constraint_mask & ~self._envelope_mask)

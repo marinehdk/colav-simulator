@@ -98,6 +98,7 @@ def test_envelope_rejects_incomplete_or_non_positive_values() -> None:
 
 
 def test_envelope_bounds_selection_without_touching_hard_constraint_evidence() -> None:
+    """Without an active encounter the nominal transit band stays executable."""
     vo = VO(VOParams())
     state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
 
@@ -105,12 +106,91 @@ def test_envelope_bounds_selection_without_touching_hard_constraint_evidence() -
     debug = vo.get_debug_data()
 
     assert vo.feasible
-    assert debug["selected_speed_mps"] == pytest.approx(10.0 * 9 / 31)
+    assert debug["selected_speed_mps"] == pytest.approx(10.0 * 22 / 31)  # nearest grid row to the 7 m/s route speed
     assert debug["hard_constraint_count"] == 0, "envelope exclusions must not read as avoidance constraints"
-    assert debug["envelope_excluded_count"] == 31 * 128
-    assert debug["reachable_candidate_count"] == 128
+    assert debug["avoidance_speed_window_active"] is False
+    assert debug["envelope_excluded_count"] == 10 * 128, (
+        "zero-speed sentinel plus the 9 transit rows above the mission speed"
+    )
+    assert debug["reachable_candidate_count"] == 29 * 128
     assert debug["planning_horizon_s"] == pytest.approx(120.0 + ORIGINAL["os_course_time_constant_s"])
     assert debug["ownship_envelope"]["avoidance_speed_cap_mps"] == 3.2
+
+
+def test_avoidance_window_grid_gains_anchored_executable_rows() -> None:
+    """The [steerage, cap] window must carry anchored rows, not one coarse sample."""
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [], **ORIGINAL)
+    debug = vo.get_debug_data()
+
+    assert debug["avoidance_speed_window_rows"] >= 5
+    window_rows = vo._speed_set[(vo._speed_set >= 3.0 - 1e-9) & (vo._speed_set <= 3.2 + 1e-9)]
+    assert window_rows.size >= 5
+    assert window_rows.min() == pytest.approx(3.0)
+    assert window_rows.max() == pytest.approx(3.2)
+
+
+def test_active_encounter_selects_inside_the_capped_avoidance_window() -> None:
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+    target = head_on_target(14.0 * 160.0)
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [target], **ORIGINAL)
+    debug = vo.get_debug_data()
+
+    assert debug["avoidance_speed_window_active"] is True
+    assert 3.0 - 1e-9 <= debug["selected_speed_mps"] <= 3.2 + 1e-9
+
+
+def test_window_releases_and_transit_speed_restores_when_encounter_clears() -> None:
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+    target = head_on_target(14.0 * 160.0)
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [target], **ORIGINAL)
+    assert vo.get_debug_data()["avoidance_speed_window_active"] is True
+
+    vo.plan(1.0, np.array([7.0, 0.0]), state, [], **ORIGINAL)
+    debug = vo.get_debug_data()
+    assert debug["avoidance_speed_window_active"] is False
+    assert debug["selected_speed_mps"] == pytest.approx(10.0 * 22 / 31)
+
+
+def test_transit_band_never_exceeds_the_mission_speed() -> None:
+    """Reopened transit candidates stop at the reference speed, not at the grid top."""
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([5.0, 0.0]), state, [], **ORIGINAL)
+    assert vo.get_debug_data()["selected_speed_mps"] <= 5.0 + 0.5 * (10.0 / 31) + 1e-9
+
+
+def test_planner_input_carries_backend_speed_envelope() -> None:
+    """PlannerInput must be able to carry the backend avoidance cap and steerage floor."""
+    enriched = fan_input(
+        ownship_avoidance_speed_cap_mps=3.2,
+        ownship_min_steerage_speed_mps=3.0,
+    )
+    assert enriched.ownship_avoidance_speed_cap_mps == 3.2
+    assert enriched.ownship_min_steerage_speed_mps == 3.0
+    assert fan_input().ownship_avoidance_speed_cap_mps is None
+
+    with pytest.raises(ValueError, match="speed envelope"):
+        PlannerInput(
+            sim_time_s=0.0,
+            dt_sim_s=0.5,
+            waypoints_enu_m=np.array([[0.0, 10000.0], [0.0, 0.0]]),
+            speed_plan_mps=np.array([7.0, 7.0]),
+            ownship_state=np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0]),
+            tracks=(),
+            enc=None,
+            goal_state=None,
+            disturbance=None,
+            algorithm_seed=0,
+            ownship_avoidance_speed_cap_mps=0.0,
+        )
 
 
 def test_envelope_horizon_activates_head_on_avoidance_earlier() -> None:
@@ -136,7 +216,7 @@ def test_selection_hysteresis_holds_near_equal_cells_and_releases_large_changes(
     first = vo.get_debug_data()["selected_heading_rad"]
     assert vo.get_debug_data()["selection_held"] is False
 
-    nudged = 7.0 * np.array([np.cos(np.deg2rad(2.0)), np.sin(np.deg2rad(2.0))])  # under one grid step
+    nudged = 7.0 * np.array([np.cos(np.deg2rad(0.5)), np.sin(np.deg2rad(0.5))])  # under half a heading cell
     vo.plan(1.0, nudged, state, [], **ORIGINAL)
     assert vo.get_debug_data()["selection_held"] is True
     assert vo.get_debug_data()["selected_heading_rad"] == first

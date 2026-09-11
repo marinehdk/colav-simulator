@@ -505,3 +505,41 @@ def test_registry_loads_enhanced_profile_under_separate_identity() -> None:
     assert adapter.descriptor.predictor_model == "bounded_course_speed_response_fan"
     assert adapter.build_identity.complete is True
     assert Path("config/potocnik_colreg_fan_mpc.yaml").is_file()
+
+
+def test_give_way_legs_request_the_backend_avoidance_speed_cap() -> None:
+    """Deviation legs are executed under the frozen 3.2 m/s cap: request what is executable."""
+    cap_input = replace(
+        planner_input(track(position_ne=(1000.0, 0.0), velocity_ne=(-7.0, 0.0))),
+        ownship_avoidance_speed_cap_mps=3.2,
+        ownship_min_steerage_speed_mps=3.0,
+    )
+    solution = solver().solve(cap_input)
+    details = solution.algorithm_details
+
+    assert details["avoidance_leg_speed_capped"] is True
+    assert details["requested_speed_mps"] == pytest.approx(3.2)
+    assert float(solution.control_reference[3, 0]) <= 3.2 + 1e-9
+
+
+def test_fan_restores_route_speed_when_no_give_way_remains() -> None:
+    """Post-encounter the request returns to the route speed immediately."""
+    clear_input = replace(
+        planner_input(),
+        ownship_avoidance_speed_cap_mps=3.2,
+        ownship_min_steerage_speed_mps=3.0,
+    )
+    solution = solver().solve(clear_input)
+    details = solution.algorithm_details
+
+    assert details["avoidance_leg_speed_capped"] is False
+    assert details["requested_speed_mps"] == pytest.approx(7.0)
+
+
+def test_fan_speed_request_is_inert_without_backend_cap_fields() -> None:
+    """Stacks that do not report an avoidance cap keep the plain route-speed request."""
+    solution = solver().solve(planner_input(track(position_ne=(600.0, 600.0), velocity_ne=(-7.0, -7.0))))
+    details = solution.algorithm_details
+
+    assert details["requested_speed_mps"] == pytest.approx(7.0)
+    assert details["avoidance_leg_speed_capped"] is False

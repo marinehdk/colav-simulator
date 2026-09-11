@@ -177,6 +177,14 @@ class PotocnikColregFanMPC:
         self._route_segment = max(0, route_target_index - 1)
         # Speeds belong to the departure waypoint, as in native LOS guidance.
         route_speed_mps = float(planner_input.speed_plan_mps[self._route_segment])
+        # Deviation legs execute under the backend's leg-scoped avoidance speed
+        # cap, so request what that leg scope can actually fly; nominal legs
+        # keep the route speed so post-encounter restoration is immediate.
+        avoidance_cap_mps = planner_input.ownship_avoidance_speed_cap_mps
+        avoidance_leg_speed_capped = bool(avoidance_cap_mps is not None and policy.give_way_targets)
+        requested_speed_mps = route_speed_mps
+        if avoidance_leg_speed_capped:
+            requested_speed_mps = min(route_speed_mps, float(avoidance_cap_mps))
         capture_speed_cap_mps = route_speed_mps
         if (
             self._route_segment == planner_input.waypoints_enu_m.shape[1] - 2
@@ -195,6 +203,7 @@ class PotocnikColregFanMPC:
             )
             capture_speed_cap_mps = 0.5 * goal_distance * capture_rot
             route_speed_mps = min(route_speed_mps, capture_speed_cap_mps)
+            requested_speed_mps = min(requested_speed_mps, capture_speed_cap_mps)
         self._update_maneuver_phase(policy, cross_track_error_m, ownship[2], target_course)
 
         command_course_center = float(ownship[2]) if self._previous_command_course is None else self._previous_command_course
@@ -205,7 +214,7 @@ class PotocnikColregFanMPC:
         response = self._ownship_response(planner_input)
         candidates, controls = self._generate_candidate_bundle(
             ownship,
-            route_speed_mps * np.asarray(self.params.speed_scales),
+            requested_speed_mps * np.asarray(self.params.speed_scales),
             planner_input.dt_sim_s,
             command_course_center=command_course_center,
             response=response,
@@ -340,6 +349,10 @@ class PotocnikColregFanMPC:
             "selected_candidate_index": selected_index,
             "selected_heading_increment_rad": selected_increment,
             "selected_speed_scale": selected_scale,
+            "requested_speed_mps": requested_speed_mps,
+            "avoidance_speed_cap_mps": avoidance_cap_mps,
+            "avoidance_leg_speed_capped": avoidance_leg_speed_capped,
+            "route_speed_mps": route_speed_mps,
             "selection_score": selection.score,
             "route_score": selection.route_score,
             "terminal_capture_speed_cap_mps": capture_speed_cap_mps,
