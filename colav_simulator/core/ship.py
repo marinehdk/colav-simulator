@@ -47,6 +47,7 @@ class Config:
     waypoints: np.ndarray | None = None
     speed_plan: np.ndarray | None = None
     ship_modules: Any | None = None
+    original_gnc: Any | None = None
 
     @classmethod
     def from_dict(cls, config_dict: dict) -> "Config":  # noqa: C901, PLR0912, D102
@@ -102,12 +103,18 @@ class Config:
             from colav_simulator.modular_gnc.configuration import normalize_ship_modules  # noqa: PLC0415
 
             config.ship_modules = normalize_ship_modules(config_dict["ship_modules"])
+        if "original_gnc" in config_dict:
+            from colav_simulator.original_gnc.configuration import OriginalGncConfig  # noqa: PLC0415
+
+            config.original_gnc = OriginalGncConfig.from_dict(config_dict["original_gnc"])
+            if config.ship_modules is not None:
+                raise ValueError("A ship cannot select both modular and original GNC execution")
 
         # COLAV take priority over guidance, if both are specified.
         if config.colav and config.guidance:
             config.guidance = None
 
-        if config.colav is None and config.guidance is None:
+        if config.colav is None and config.guidance is None and config.original_gnc is None:
             msg = "Ship must have either a guidance or a colav system."
             raise ValueError(msg)
 
@@ -151,6 +158,8 @@ class Config:
 
         if self.ship_modules is not None:
             config_dict["ship_modules"] = self.ship_modules.to_dict()
+        if self.original_gnc is not None:
+            config_dict["original_gnc"] = self.original_gnc.to_dict()
 
         return config_dict
 
@@ -162,6 +171,12 @@ def build_ship(
     episode_seed: int | None = None,
 ) -> "IShip":
     """Build exact legacy Ship unless modular composition is explicitly selected."""
+    if config.original_gnc is not None:
+        if config.ship_modules is not None:
+            raise ValueError("A ship cannot select both modular and original GNC execution")
+        from colav_simulator.original_gnc.adapter import OriginalGncShipAdapter  # noqa: PLC0415
+
+        return OriginalGncShipAdapter.from_config(config, dt_s=0.1 if dt_s is None else dt_s)
     if config.ship_modules is None:
         return Ship(mmsi=config.mmsi, identifier=config.id, config=config)
 

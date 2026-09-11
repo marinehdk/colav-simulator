@@ -260,6 +260,7 @@ class RunManifest:
     diagnostic_only_reasons: list[str] = field(default_factory=list)
     algorithm_descriptor: dict[str, Any] | None = None
     algorithm_build_identity: dict[str, Any] | None = None
+    original_gnc: dict[str, Any] | None = None
     collision_oracle_id: str = "footprint-adaptive-v1"
     ccd_step_tolerance_m: float = 0.25
     state: SessionState = SessionState.CREATED
@@ -321,6 +322,8 @@ class RunManifest:
         output = asdict(self)
         output["state"] = self.state.value
         output["execution_outcome"] = self.execution_outcome.value if self.execution_outcome else None
+        if self.original_gnc is None:
+            output.pop("original_gnc")
         return output
 
 

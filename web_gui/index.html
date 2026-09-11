@@ -217,8 +217,8 @@
                 <div class="gnc-table-scroll"><table class="gnc-preset-table" aria-label="Selected stack fields"><thead><tr><th>Field</th><th>Selected configuration</th></tr></thead><tbody id="gncFieldRows"></tbody></table></div>
                 <p id="gncPresetNote" class="gnc-preset-note"></p>
                 <details class="gnc-preset-comparison" open>
-                  <summary>Compare the four presets</summary>
-                  <div class="gnc-table-scroll"><table class="gnc-preset-table" aria-label="Four preset stacks"><thead><tr><th>GNC Stack</th><th>Plant</th><th>Guidance</th><th>Controller</th><th>Actuation</th><th>Environment</th></tr></thead><tbody id="gncPresetRows"></tbody></table></div>
+                  <summary>Compare stack presets</summary>
+                  <div class="gnc-table-scroll"><table class="gnc-preset-table" aria-label="Preset stacks"><thead><tr><th>GNC Stack</th><th>Plant</th><th>Guidance</th><th>Controller</th><th>Actuation</th><th>Environment</th></tr></thead><tbody id="gncPresetRows"></tbody></table></div>
                 </details>
                 <details class="gnc-technical-details">
                   <summary>Technical details · modules, parameters and evidence</summary>
@@ -431,6 +431,11 @@
 
           <!-- Page 3: PROPULSION -->
           <div class="ownship-info-page ownship-propulsion-page" id="ownshipPropulsionPage" data-ownship-card-page="3" aria-label="GNC propulsion instruments" hidden>
+            <section class="config-obc-card balance-card" id="originalRouteAdmission" aria-label="Last original GNC route request" hidden>
+              <div class="live-detail-title"><strong>LAST ROUTE REQUEST</strong></div>
+              <p class="balance-note"><strong id="originalRouteAdmissionStatus"></strong></p>
+              <p class="balance-note" id="originalRouteAdmissionReason"></p>
+            </section>
             <section class="config-obc-card balance-card" aria-label="Propulsion">
               <div class="live-detail-title"><strong>PROPULSION</strong></div>
               <div id="balancePropulsionRows"></div>
