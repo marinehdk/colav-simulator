@@ -505,6 +505,39 @@ def _resolve_policy(
     )
 
 
+def _scheduled_corridor_threshold(
+    *,
+    own_psi_rad: float,
+    corridor_bearing_rad: float,
+    passing_side: int,
+    required_course_change_rad: float,
+    action_complete_k: int,
+    knot: int,
+    prefix_hold_k: int,
+    rot_max_rad_s: float,
+    horizon_dt_s: float,
+) -> float:
+    """Rate-aware hard corridor bound for one knot, symmetric across sides.
+
+    The observed heading can leave an already-achieved corridor under GNC
+    dynamics or disturbances, so the bound demands a rate-limited return, not
+    an impossible first-knot jump. A prefix hold pins the first knot on the
+    measured heading, so its rotation budget is zero: the (k + 1 - hold)
+    envelope never demands rotation the prefix forbids. Both sides share the
+    same construction and the original hard corridor remains once reachable
+    (multiship seam: the starboard-only clamp left port corridors demanding
+    prefix-impossible rotation and Infeasible_Problem_Detected NLPs).
+    """
+    corridor = own_psi_rad + _wrap(corridor_bearing_rad - own_psi_rad)
+    threshold = (
+        corridor
+        if knot >= action_complete_k
+        else corridor - passing_side * required_course_change_rad
+    )
+    reachable = own_psi_rad + passing_side * max(knot + 1 - prefix_hold_k, 0) * rot_max_rad_s * horizon_dt_s
+    return min(threshold, reachable) if passing_side > 0 else max(threshold, reachable)
+
+
 def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and terminal arrival constraints
     planner_input: PlannerInput,
     snapshot: DecisionSnapshot,
@@ -651,6 +684,10 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                 ),
                 route.anchor_ne_m,
                 horizon_encounter_plan.mission_route_bearing_rad,
+                # First-order speed-loop lag: the terminal braking tail is
+                # modelled against the executed command band, not the padded
+                # approach reserve (crossing-E4 13.5 m terminal undershoot).
+                float(planner_input.ownship_speed_time_constant_s or 0.0),
             )
             if arrival is not None:
                 headings, lateral, speeds, terminal = arrival
@@ -685,6 +722,13 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
         )
     scheduled = bool(horizon_encounter_plan.corridor_reference_rad) and profile is AssemblyProfile.COLAV_STRICT
     if scheduled:
+        # A prefix hold pins the first knot on the measured heading, so its
+        # rotation budget is zero. Both corridor sides must stage re-entry
+        # with the same rate-aware, prefix-aware construction: the observed
+        # heading can leave an already-achieved corridor under GNC dynamics
+        # or disturbances, and demanding more rotation than the envelope
+        # allows (or than the prefix permits) makes the NLP infeasible.
+        prefix_hold_k = 1 if hold_first_interval else 0
         bounds: list[tuple[float | None, float | None]] = []
         for k in range(config.horizon_steps):
             lower, upper = None, None
@@ -692,23 +736,20 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                 stop = config.horizon_steps if window.recovery_from_k is None else window.recovery_from_k
                 if not window.action_start_k <= k < stop or not window.passing_side:
                     continue
-                corridor = float(ownship[2]) + _wrap(float(window.corridor_bearing_rad) - float(ownship[2]))
-                threshold = (
-                    corridor
-                    if k >= window.action_complete_k
-                    else corridor - window.passing_side * window.required_course_change_rad
+                threshold = _scheduled_corridor_threshold(
+                    own_psi_rad=float(ownship[2]),
+                    corridor_bearing_rad=float(window.corridor_bearing_rad),
+                    passing_side=int(window.passing_side),
+                    required_course_change_rad=float(window.required_course_change_rad),
+                    action_complete_k=window.action_complete_k,
+                    knot=k,
+                    prefix_hold_k=prefix_hold_k,
+                    rot_max_rad_s=capability.rot_max_rad_s,
+                    horizon_dt_s=config.horizon_dt_s,
                 )
                 if window.passing_side > 0:
-                    # The observed heading can leave an already-achieved
-                    # corridor under GNC dynamics/disturbances. Require a
-                    # rate-limited return, not an impossible first-knot jump.
-                    # The original hard corridor remains once it is reachable.
-                    reachable = float(ownship[2]) + (k + 1) * capability.rot_max_rad_s * config.horizon_dt_s
-                    threshold = min(threshold, reachable)
                     lower = threshold if lower is None else max(lower, threshold)
                 else:
-                    reachable = float(ownship[2]) - (k + 1) * capability.rot_max_rad_s * config.horizon_dt_s
-                    threshold = max(threshold, reachable)
                     upper = threshold if upper is None else min(upper, threshold)
             bounds.append((lower, upper))
         # The horizon search envelope must contain mandatory future corridors,
@@ -827,18 +868,26 @@ def _compile_row_schedule(
             and target_window.minimum_predicted_route_dcpa_m < target_window.recovery_clearance_m
         )
         start_k = 0 if route_recovery_conflict or decision.key in safety_conflict_keys else activation_start_k
-        stop_k = (
-            horizon_steps
+        # Hard coverage may only grow: the recovery prediction has already been
+        # wrong at the stop knot itself (overtaking-E0 breach exactly at
+        # recovery_from_k), so the first recovery knot stays covered until the
+        # prediction carries one knot of executed evidence. The degenerate
+        # prediction (recovery at or before the activation knot) keeps the
+        # full-horizon fallback below unchanged.
+        predicted_stop = (
+            None
             if horizon_plan.corridor_reference_rad or target_window is None or target_window.recovery_from_k is None
-            else min(target_window.recovery_from_k, horizon_steps)
+            else target_window.recovery_from_k
         )
-        if start_k >= stop_k:
+        if predicted_stop is None or start_k >= predicted_stop:
             # Inverted staging (head_on seam-01: window [51, 51)): the recovery
             # prediction precedes the activation knot, which would emit an
             # empty window and leave the encounter with no hard clearance row.
             # Safety must not evaporate in that disagreement; rows beyond true
             # clearance remain trivially satisfied.
             stop_k = horizon_steps
+        else:
+            stop_k = min(predicted_stop + 1, horizon_steps)
         cpa_windows.append(MidMpcHardWindow(start_k, stop_k))
     if not horizon_plan.target_windows:
         recovery_stop_k = 0
