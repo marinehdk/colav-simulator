@@ -10,8 +10,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from colav_simulator.cli import _load_algorithm_config
 from colav_simulator.core.colav.threat_assessment import DomainQualification, ShipDomainProfile
