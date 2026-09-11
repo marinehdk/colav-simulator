@@ -10,6 +10,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+TRACE_SCHEMA = "colav.decision-replay.v1"
+
 
 class TraceBundle:
     """Read-only view over ``runs/<run_id>``; no simulator imports needed.
@@ -117,15 +119,21 @@ class TraceBundle:
         return [self._frame_at(self._offsets[i]) for i in range(start, max(start, stop))]
 
     def events(self) -> list[dict[str, Any]]:
-        """Merged event journal: recorded mirror first, legacy run events as fallback."""
+        """Merged event journal: recorded mirror first (plain or gz), legacy run events as fallback."""
         if self._events_cache is not None:
             return self._events_cache
-        for candidate in (self.trace_dir / "events.jsonl", self.run_dir / "events.jsonl"):
+        for candidate in (
+            self.trace_dir / "events.jsonl",
+            self.trace_dir / "events.jsonl.gz",
+            self.run_dir / "events.jsonl",
+        ):
             if candidate.is_file():
+                opener = gzip.open if candidate.suffix == ".gz" else open
                 rows = []
-                for line in candidate.read_text(encoding="utf-8").splitlines():
-                    if line.strip():
-                        rows.append(json.loads(line))
+                with opener(candidate, "rt", encoding="utf-8") as stream:  # type: ignore[operator]
+                    for line in stream:
+                        if line.strip():
+                            rows.append(json.loads(line))
                 self._events_cache = rows
                 return rows
         self._events_cache = []
