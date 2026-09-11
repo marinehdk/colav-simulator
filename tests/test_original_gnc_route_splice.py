@@ -153,7 +153,20 @@ def test_splice_trims_start_junction_reversal_seen_in_admission_smoke():
         points=np.array(
             [
                 [308.168, 308.384, 336.744, 353.196, 356.487, 359.778, 363.068, 366.359, 382.812, 3150.0, 3650.0, 4350.0],
-                [-1472.552, -1633.463, -1606.669, -1773.717, -1807.127, -1840.537, -1873.947, -1907.356, -2074.405, -2100.0, -1350.0, -50.0],
+                [
+                    -1472.552,
+                    -1633.463,
+                    -1606.669,
+                    -1773.717,
+                    -1807.127,
+                    -1840.537,
+                    -1873.947,
+                    -1907.356,
+                    -2074.405,
+                    -2100.0,
+                    -1350.0,
+                    -50.0,
+                ],
             ]
         ),
         speeds=[7.8] * 12,
@@ -169,7 +182,8 @@ def test_splice_trims_start_junction_reversal_seen_in_admission_smoke():
     candidate = build_avoidance_route(reference, ship, deviation, [7.8] * deviation.shape[1])
     _assert_gate_clean(candidate, reference, ship)
     # Trimmed deviation columns stay on the held intent line.
-    submitted = candidate["points"][:, candidate["prefix_length"] : candidate["points"].shape[1] - (reference.points.shape[1] - candidate["rejoin_index"])]
+    tail = reference.points.shape[1] - candidate["rejoin_index"]
+    submitted = candidate["points"][:, candidate["prefix_length"] : candidate["points"].shape[1] - tail]
     ray = deviation[:, 1] - deviation[:, 0]
     ray = ray / np.linalg.norm(ray)
     offsets = submitted - deviation[:, 0][:, None]
