@@ -141,7 +141,7 @@ def _intent() -> Any:
     }
 
 
-def test_approved_held_intent_preserves_geometry_expiry_and_original_rejection(original_ship):
+def test_approved_held_intent_becomes_admitted_original_route(original_ship):
     original_ship.stack.advance(11)
     original_ship._sync_state()
     original_ship._planner_time_origin = 0
@@ -150,17 +150,20 @@ def test_approved_held_intent_preserves_geometry_expiry_and_original_rejection(o
     bridge = OriginalPlanBridge(original_ship, 0.1)
     bridge.submit(11)
     request = original_ship.requested_plans[-1]
-    assert request["identity"]["length_m"] == pytest.approx(120)
-    assert request["message"]["command_speed_mps"] == [7.8, 7.8]
-    assert request["message"]["valid_until"] == {"sec": 2_000_000_012, "nanosec": 0}
-    assert request["message"]["require_exact_speed"] is True
-    assert request["message"]["allow_degraded_execution"] is False
-    assert bridge.last_outcome["rejected"] is True
+    assert request["identity"]["authority"] == "held_course_speed_intent"
+    assert request["message"]["command_speed_mps"][0] == pytest.approx(7.8)
+    assert request["message"]["valid_until"] == {"sec": 2_000_000_016, "nanosec": 0}  # solve 11 s + max(1, 5) widening
+    assert request["message"]["require_exact_speed"] is False
+    assert request["message"]["allow_degraded_execution"] is True
+    assert "avoidance" in request["message"]["navigation_mode"]
     original_ship._plan_bridge = bridge
+    coordinate = next(
+        f for f in bridge.last_outcome["feedback"] if f.get("topic") == "/route_planning/route_plan_status"
+    )
+    assert coordinate["accepted"] is True
+    assert bridge.last_outcome["rejected"] is False
     admission = original_ship.original_balance_telemetry()["route_admission"]
-    assert admission["status"] == "Rejected"
-    assert "first changed waypoint" in admission["reason"]
-    assert any("first changed waypoint" in item.get("reason", "") for item in bridge.last_outcome["feedback"])
+    assert admission["status"] in {"Accepted", "Limited"}
     count = len(original_ship.requested_plans)
     data["planner"]["solver_executed"] = False
     original_ship.stack.advance(0.1)
@@ -168,10 +171,10 @@ def test_approved_held_intent_preserves_geometry_expiry_and_original_rejection(o
     bridge.submit(11.1)
     assert len(original_ship.requested_plans) == count
     assert original_ship.requested_plans[-1] == request
-    original_ship.stack.advance(1.0)
+    original_ship.stack.advance(5.0)
     original_ship._sync_state()
     with pytest.raises(OriginalGncError, match="expired"):
-        bridge.submit(12.1)
+        bridge.submit(16.1)
 
 
 def test_cleared_constraints_return_original_nominal_authority(original_ship):

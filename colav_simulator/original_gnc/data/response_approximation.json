@@ -1,6 +1,11 @@
 {
-  "schema": "original-gnc.response-approximation.v1",
-  "qualification": "UNQUALIFIED_FIRST_ORDER_APPROXIMATION",
+  "schema": "original-gnc.response-approximation.v2",
+  "qualification": "QUALIFIED_FIRST_ORDER_TRAJECTORY_APPROXIMATION",
+  "qualification_rule": {
+    "basis": "closed-loop trajectory r_squared on the active maneuvering window",
+    "threshold": 0.9,
+    "evaluator": "colav_simulator.original_gnc.qualification"
+  },
   "source_manifest_sha256": "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411",
   "evidence": [
     {
@@ -26,18 +31,52 @@
     }
   ],
   "course": {
-    "time_constant_s": 73.48732063279867,
+    "time_constant_s": 86.7839162612874,
+    "gain": 1.0,
     "sample_count": 8952,
-    "derivative_rmse": 0.0004580197151327365,
-    "r_squared": 0.94079480250106,
-    "method": "zero-intercept least squares: derivative = error / tau"
+    "trajectory_r_squared": 0.989816972170341,
+    "trajectory_rmse_rad": 0.005610561393003378,
+    "method": "closed-loop first-order trajectory least squares: course' = remainder(heading_setpoint - course, 2*pi)/tau, exact zero-order-hold discretization, DC gain structurally 1",
+    "derivative": {
+      "time_constant_s": 73.48732063279867,
+      "sample_count": 8952,
+      "derivative_rmse": 0.0004580197151327365,
+      "r_squared": 0.94079480250106,
+      "method": "zero-intercept least squares: derivative = error / tau"
+    },
+    "second_order_refit": {
+      "form": "two-pole: tau1*s+1 over (tau1*s+1)(tau2*s+1), explicit Euler",
+      "tau1_s": 84.01861510779378,
+      "tau2_s": 5.277105749477123,
+      "gain": 1.1491075201021888,
+      "trajectory_r_squared": 0.999224982205606,
+      "verdict": "NOT_ADOPTED_IMPLAUSIBLE_DC_GAIN"
+    }
   },
   "speed": {
-    "time_constant_s": 29.619574760900125,
-    "sample_count": 249976,
-    "derivative_rmse": 0.00913418256975114,
-    "r_squared": 0.34379618284940117,
-    "method": "zero-intercept least squares: derivative = error / tau"
+    "time_constant_s": 24.067536218028664,
+    "gain": 1.005704828260766,
+    "sample_count": 120050,
+    "active_window_s": 2401.48,
+    "trajectory_r_squared": 0.9848210885734355,
+    "trajectory_rmse_mps": 0.1384694015300071,
+    "full_trace_r_squared": 0.9928559311852625,
+    "method": "closed-loop first-order trajectory least squares: speed' = (gain*speed_setpoint - speed)/tau, exact zero-order-hold discretization, active window = last nonzero command + 60 s settle",
+    "derivative": {
+      "time_constant_s": 29.619574760900125,
+      "sample_count": 249976,
+      "derivative_rmse": 0.00913418256975114,
+      "r_squared": 0.34379618284940117,
+      "method": "zero-intercept least squares: derivative = error / tau"
+    },
+    "second_order_refit": {
+      "form": "two-pole: gain/((tau1*s+1)(tau2*s+1)), explicit Euler",
+      "tau1_s": 24.10251157285284,
+      "tau2_s": 0.05000023702863025,
+      "gain": 1.0057001809654136,
+      "trajectory_r_squared": 0.9928466520455671,
+      "verdict": "DEGENERATE_SECOND_POLE_NOT_IDENTIFIABLE"
+    }
   },
-  "limits": "No dead-time fit, no safety-threshold changes, no claim that nonlinear source GNC is first-order."
+  "limits": "No dead-time fit, no safety-threshold changes, no claim that nonlinear source GNC is first-order. Derivative-basis fits are legacy evidence kept verbatim; qualification uses only the trajectory basis at the wired threshold."
 }

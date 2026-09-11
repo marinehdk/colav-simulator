@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import math
 from typing import Any
 
@@ -12,6 +13,53 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 from colav_simulator.modular_gnc.route_bridge import ProductRouteBridge
 from colav_simulator.original_gnc.geometry import stamp
 from colav_simulator.original_gnc.native import OriginalGncError
+from colav_simulator.original_gnc.route_splice import (
+    FIRST_CHANGE_MARGIN_M,
+    LATERAL_ENVELOPE_M,
+    MIN_SEGMENT_M,
+    ReferencePath,
+    along_track_progress,
+    blend_deviation_toward_reference,
+    build_avoidance_route,
+    intent_line_deviation,
+    max_lateral_delta,
+    merge_short_segments,
+)
+
+# The VO solver re-solves internally every second; the frozen manager expires an
+# avoidance plan whose valid_until has passed (active_route_manager maintenance)
+# and answers expired arrivals with plan_expired. max() keeps slower planners
+# (Fan-MPC) on their own period while giving every plan one live admission window.
+_MIN_VALIDITY_S = 5.0
+_RESUBMIT_INTERVAL_S = 10.0
+
+_ADDRESSABLE_PREFIXES = (
+    "route update too frequent",
+    "first changed waypoint",
+    "dynamic route lateral offset exceeds limit",
+    "reverse segment",
+)
+# Reject reasons emitted by the frozen active_route_manager's dynamic contract
+# (kinematics, arbitration and plan lifecycle), coordinate_transform gates are
+# geometry-addressable and classified below by topic and reason prefix.
+_DYNAMIC_REASONS = frozenset(
+    {
+        "segment_too_short",
+        "speed_exceeds_vessel_limit",
+        "turn_radius_too_small",
+        "yaw_rate_too_high",
+        "decel_distance_not_enough",
+        "heading_path_conflict",
+        "avoidance_parent_route_version_mismatch",
+        "plan_expired",
+        "plan_valid_until_required",
+        "invalid_avoidance_route",
+        "heading_length_mismatch",
+        "speed_length_mismatch",
+        "invalid_command_heading",
+        "projection_failed",
+    }
+)
 
 
 def avoidance_constraints_active(algorithm: str, details: dict) -> bool:
@@ -43,20 +91,130 @@ def avoidance_constraints_active(algorithm: str, details: dict) -> bool:
     raise OriginalGncError(f"No held-intent contract for {algorithm}")
 
 
+def classify_rejection(feedback: dict) -> dict:
+    """Split frozen rejections into bridge-addressable geometry vs dynamic contract causes."""
+    reason = str(feedback.get("reason", ""))
+    topic = feedback.get("topic", "")
+    if reason in _DYNAMIC_REASONS:
+        classification = "DYNAMIC"
+    elif topic == "/route_planning/route_plan_status" or reason.startswith(_ADDRESSABLE_PREFIXES):
+        classification = "ADDRESSABLE"
+    else:
+        classification = "DYNAMIC"
+    return {"class": classification, "reason": reason, "topic": topic}
+
+
+def _intent_deviation_m(points: np.ndarray, intent: np.ndarray, start: int, length: int) -> float:
+    """Max distance between submitted deviation waypoints and the planner intent path."""
+    if length < 1 or intent.size == 0:
+        return 0.0
+    submitted = points[:, start : start + length]
+    if submitted.shape[1] == intent.shape[1]:
+        return float(np.max(np.linalg.norm(submitted - intent, axis=0)))
+    return float(max(min(np.linalg.norm(intent - point[:, None], axis=0)) for point in submitted.T))
+
+
+def _manager_min_leg_m(latitudes: list, longitudes: list) -> float:
+    """Mirror active_route_manager's leg metric (equirectangular, route-origin)."""
+    if len(latitudes) < 2:
+        return math.inf
+    lat0, lon0 = float(latitudes[0]), float(longitudes[0])
+    meters_per_deg_lat = 111320.0
+    meters_per_deg_lon = meters_per_deg_lat * math.cos(math.radians(lat0))
+    norths = [(float(latitude) - lat0) * meters_per_deg_lat for latitude in latitudes]
+    easts = [(float(longitude) - lon0) * meters_per_deg_lon for longitude in longitudes]
+    return min(
+        math.hypot(norths[index + 1] - norths[index], easts[index + 1] - easts[index])
+        for index in range(len(norths) - 1)
+    )
+
+
+class ReferenceMirror:
+    """Adapter-side mirror of coordinate_transform's last accepted feedback path.
+
+    The frozen node rotates ``last_feedback_path_`` on every accepted RoutePlan
+    (coordinate_transform_node.cpp ~977-981) including the manager's
+    internal_return_to_route publications, and ignores duplicates and
+    rejections. Rejections and IGNORED_DUPLICATE never rotate the reference.
+    """
+
+    def __init__(self, ship: Any):
+        self.ship = ship
+        self.path: ReferencePath | None = None
+        self.route_type: str | None = None
+        self._cursor = 0
+        self._pending: dict[str, dict] = {}
+
+    def refresh(self) -> None:
+        events = self.ship._events
+        for event in events[self._cursor :]:
+            if event.get("event") != "publish":
+                continue
+            fields = (event.get("message") or {}).get("fields") or {}
+            topic = event.get("topic")
+            if topic == "/gnc/active_route":
+                if fields.get("route_id"):
+                    self._pending[fields["route_id"]] = fields
+            elif topic == "/route_planning/route_plan_status" and fields.get("status") in {
+                "ACCEPTED",
+                "ACCEPTED_WITH_WARNINGS",
+            }:
+                route = self._pending.get(fields.get("route_id"))
+                if route is not None:
+                    self._absorb(route)
+        self._cursor = len(events)
+
+    def _absorb(self, route: dict) -> None:
+        latitudes = list(route.get("latitude") or [])
+        longitudes = list(route.get("longitude") or [])
+        if len(latitudes) < 2 or len(latitudes) != len(longitudes):
+            return
+        speeds = [float(value) for value in (route.get("speed_limit_mps") or [])]
+        modes = [str(value) for value in (route.get("navigation_mode") or [])]
+        speeds += [0.0] * (len(latitudes) - len(speeds))
+        modes += ["cruise"] * (len(latitudes) - len(modes))
+        self.path = ReferencePath(
+            points=self.ship.frame.northeast(latitudes, longitudes),
+            speeds=speeds,
+            modes=modes,
+            latitudes=latitudes,
+            longitudes=longitudes,
+        )
+        self.route_type = route.get("route_type")
+
+
 class OriginalPlanBridge:
-    """Keep accepted Mid routes and approved 120 m VO/Fan intent lines distinct."""
+    """Translate accepted planner authority into admitted original GNC routes."""
 
     def __init__(self, ship: Any, dt_s: float):
         self.ship = ship
         self.dt_s = dt_s
         self._mid = ProductRouteBridge(ship._legacy, dt_s)
+        self._mirror = ReferenceMirror(ship)
         self._heading = None
         self._geometry = None
+        self._line_diagnostics: dict | None = None
+        self._candidate: dict | None = None
+        self._candidate_generation = 0
         self._algorithm = None
         self._intent_generation = 0
+        self._lateral_blend = 1.0
         self._last_solve_time = None
         self._last_submission = None
+        self._last_submission_time = None
+        self._mid_plan_id = None
+        self._mid_revision = None
         self.last_outcome = None
+        self.admission_metrics = {
+            "submitted": 0,
+            "coordinate_accepted": 0,
+            "accepted": 0,
+            "degraded": 0,
+            "rejected": 0,
+            "rejected_addressable": 0,
+            "rejected_dynamic": 0,
+            "ignored_duplicate": 0,
+        }
 
     def _base(self, algorithm: str, plan_id: str, valid_until_ns: int) -> dict:
         return {
@@ -72,9 +230,9 @@ class OriginalPlanBridge:
             "command_heading_deg": [],
             "navigation_mode": [],
             "valid_until": stamp(valid_until_ns),
-            "require_exact_heading": True,
-            "require_exact_speed": True,
-            "allow_degraded_execution": False,
+            "require_exact_heading": False,
+            "require_exact_speed": False,
+            "allow_degraded_execution": True,
             "has_return_to_route_point": False,
             "return_latitude": 0.0,
             "return_longitude": 0.0,
@@ -91,20 +249,51 @@ class OriginalPlanBridge:
             }
         )
         self.ship.stack.publish("/colav/avoidance_plan", "ship_interfaces/msg/AvoidancePlan", request)
-        feedback = [
-            e["message"]["fields"]
-            for e in self.ship._events[before:]
-            if e.get("topic") in {"/gnc/route_execution_status", "/route_planning/route_plan_status"}
-        ]
+        feedback = []
+        for event in self.ship._events[before:]:
+            if event.get("event") == "publish" and event.get("topic") in {
+                "/gnc/route_execution_status",
+                "/route_planning/route_plan_status",
+            }:
+                item = copy.deepcopy(event["message"]["fields"])
+                item["topic"] = event["topic"]
+                feedback.append(item)
         rejected = any(f.get("rejected") is True or f.get("accepted") is False for f in feedback)
         degraded = any(f.get("degraded") is True for f in feedback)
+        ignored = any(f.get("status") == "IGNORED_DUPLICATE" for f in feedback)
+        coordinate_accepted = any(
+            f.get("topic") == "/route_planning/route_plan_status" and f.get("accepted") is True for f in feedback
+        )
+        classifications = [
+            classify_rejection(f) for f in feedback if f.get("rejected") is True or f.get("accepted") is False
+        ]
+        if rejected:
+            outcome = f"REJECTED_{classifications[0]['class']}" if classifications else "REJECTED"
+        elif degraded:
+            outcome = "EXECUTING_WITH_LIMIT"
+        elif feedback:
+            outcome = "ADMITTED_DUPLICATE" if ignored else "ADMITTED"
+        else:
+            outcome = "NO_FEEDBACK"
+        metrics = self.admission_metrics
+        metrics["submitted"] += 1
+        metrics["rejected"] += int(rejected)
+        metrics["degraded"] += int(degraded and not rejected)
+        metrics["ignored_duplicate"] += int(ignored)
+        metrics["accepted"] += int(feedback and not rejected)
+        metrics["coordinate_accepted"] += int(coordinate_accepted)
+        metrics["rejected_addressable"] += sum(c["class"] == "ADDRESSABLE" for c in classifications)
+        metrics["rejected_dynamic"] += sum(c["class"] == "DYNAMIC" for c in classifications)
         self.last_outcome = {
             "plan_id": request["plan_id"],
             "time_ns": self.ship.stack.time_ns,
             "accepted": bool(feedback) and not rejected and not degraded,
             "rejected": rejected,
             "degraded": degraded,
-            "feedback": copy.deepcopy(feedback),
+            "outcome": outcome,
+            "classification": classifications,
+            "metrics": copy.deepcopy(metrics),
+            "feedback": feedback,
         }
         self.ship._events.append(
             {"sequence": len(self.ship._events), "event": "bridge_result", **copy.deepcopy(self.last_outcome)}
@@ -118,10 +307,56 @@ class OriginalPlanBridge:
             self._deliver(request, {"authority": "original_nominal_guidance", "reason": "planner_constraints_clear"})
         self._heading = None
         self._geometry = None
+        self._line_diagnostics = None
+        self._candidate = None
+        self._candidate_generation = 0
+        self._lateral_blend = 1.0
         self._last_submission = None
+        self._last_submission_time = None
+
+    def _reference(self) -> ReferencePath:
+        self._mirror.refresh()
+        if self._mirror.path is None:
+            raise OriginalGncError("No accepted reference route is available for the avoidance splice")
+        return self._mirror.path
+
+    def _intent_deviation(self, algorithm: str, heading: float, reference: ReferencePath) -> tuple[np.ndarray, bool]:
+        """Hold the same physical intent line while course and authority are held."""
+        new_generation = self._heading != heading or self._algorithm != algorithm or self._geometry is None
+        if new_generation:
+            self._intent_generation += 1
+            self._lateral_blend = 1.0
+            deviation, diagnostics = intent_line_deviation(self.ship.state[:2], heading, reference)
+            self._geometry = deviation
+            self._line_diagnostics = diagnostics
+        self._heading, self._algorithm = heading, algorithm
+        return self._geometry, new_generation
+
+    def _split_lateral_offset(self, deviation: np.ndarray, reference: ReferencePath, fresh: bool) -> np.ndarray:
+        """Split lateral offsets beyond the frozen 500 m gate across successive updates."""
+        lateral = max_lateral_delta(deviation, reference.points)
+        if not math.isfinite(lateral) or lateral <= LATERAL_ENVELOPE_M:
+            self._lateral_blend = 1.0
+            return deviation
+        if fresh or self._lateral_blend >= 1.0:
+            self._lateral_blend = min(1.0, 0.9 * LATERAL_ENVELOPE_M / lateral)
+        else:
+            self._lateral_blend = min(1.0, self._lateral_blend + 0.5)
+        return blend_deviation_toward_reference(deviation, reference.points, self._lateral_blend)
+
+    def _mid_deviation(self, path: np.ndarray, reference: ReferencePath) -> tuple[np.ndarray, list[int]]:
+        ref = reference.points
+        ship_along = along_track_progress(self.ship.state[:2], ref)
+        ahead = [along_track_progress(path[:, index], ref) - ship_along for index in range(path.shape[1])]
+        first = next((index for index, value in enumerate(ahead) if value >= FIRST_CHANGE_MARGIN_M), None)
+        if first is None:
+            raise OriginalGncError("Accepted Mid path never reaches the reference splice margin")
+        filtered = path[:, first:]
+        merged, keep = merge_short_segments(filtered)
+        return merged, [first + index for index in keep]
 
     # Keep source contract branches together for audit against the frozen implementation.
-    def submit(self, t: float) -> None:  # noqa: PLR0915
+    def submit(self, t: float) -> None:  # noqa: PLR0912, PLR0915
         """Translate the current accepted authority without extending its validity."""
         reader = getattr(self.ship._legacy._colav, "get_route_authority", None)
         data = reader() if callable(reader) else self.ship._legacy.get_colav_data()
@@ -141,6 +376,8 @@ class OriginalPlanBridge:
             or speed < 0
         ):
             raise OriginalGncError("Accepted planner command requires finite course and nonnegative speed")
+        reference = self._reference()
+        candidate = None
         if algorithm in {"vo", "potocnik_colreg_fan_mpc"}:
             if planner.get("solver_executed") is True:
                 self._last_solve_time = t
@@ -156,28 +393,36 @@ class OriginalPlanBridge:
                 or self._last_solve_time is None
             ):
                 raise OriginalGncError("Held intent has no verified solve time/period")
-            valid_until_s = self._last_solve_time + period
-            if self._heading != heading or self._algorithm != algorithm:
-                origin = self.ship.state[:2].copy()
-                length = 2.0 * self.ship._parameters["ship_guidance_node"]["lookahead_distance"]["value"]
-                self._geometry = np.column_stack(
-                    (origin, origin + length * np.array([math.cos(heading), math.sin(heading)]))
-                )
-                self._intent_generation += 1
-            self._heading, self._algorithm = heading, algorithm
-            geometry = self._geometry
-            plan_id = f"{algorithm}-held-intent-{self._intent_generation}"
-            speeds = np.full(2, speed)
-            headings = [math.degrees(heading) % 360.0] * 2
+            # Widened from the VO internal 1 s window so each held intent keeps one
+            # live admission window at the manager; never extended past the last
+            # verified solve (design P1.5).
+            valid_until_s = self._last_solve_time + max(period, _MIN_VALIDITY_S)
+            geometry, fresh_geometry = self._intent_deviation(algorithm, heading, reference)
+            deviation_speeds = np.full(geometry.shape[1], speed)
+            # Hold the admitted splice for a held intent: rebuilding it against
+            # the mirror (which this very route rotated) is not idempotent.
+            # A mirror that no longer matches the held candidate means something
+            # else rotated the accepted route (manager validity-expiry internal
+            # return, nominal update), so the splice is rebuilt against it.
+            rotated = self._candidate is not None and self._mirror.path.latitudes != self._candidate["latitudes"]
+            candidate = self._held_candidate(reference, geometry, deviation_speeds, fresh_geometry, rotated)
+            if candidate is None:
+                return
+            plan_id = f"{algorithm}-held-intent-{self._candidate_generation}"
             identity = {
                 "algorithm": algorithm,
                 "solve_id": planner.get("solve_id"),
                 "authority": "held_course_speed_intent",
-                "geometry": "fixed_anchor_2x_source_lookahead",
-                "length_m": float(np.linalg.norm(geometry[:, 1] - geometry[:, 0])),
+                "geometry": "reference_splice_intent_line",
+                "length_m": float(np.linalg.norm(geometry[:, -1] - geometry[:, 0])),
                 "planner_speed_semantics": "SOG",
                 "source_speed_semantics": "original_route_speed_limit",
-                "source_heading_field_semantics": "original_route_bearing_consistency_gate",
+                "source_heading_field_semantics": "omitted_route_geometry_is_authority",
+                "splice": {
+                    "generation": self._candidate_generation,
+                    "line": copy.deepcopy(self._line_diagnostics),
+                    "lateral_blend_fraction": self._lateral_blend,
+                },
             }
         elif algorithm == "mid_mpc_ipopt":
             decision = self._mid.current_route(tick=round(t / self.dt_s), planner_data=data)
@@ -185,34 +430,133 @@ class OriginalPlanBridge:
                 raise OriginalGncError(f"Mid-MPC accepted route unavailable: {decision.failure}")
             route = decision.route
             receipt = details["accepted_plan_receipt"]
-            plan_id = "mid-mpc-" + receipt["receipt_hash"][:24]
-            geometry = route.waypoints_ne_m
-            speeds = route.speed_mps
+            # CONTINUITY_PRESERVED rolls keep the plan identity; a revision change
+            # (reference discontinuity) starts a new generation.
+            fresh_geometry = self._mid_plan_id is None or route.revision != self._mid_revision
+            if fresh_geometry:
+                self._mid_plan_id = "mid-mpc-" + receipt["receipt_hash"][:24]
+                self._mid_revision = route.revision
+                self._lateral_blend = 1.0
+            plan_id = self._mid_plan_id
+            raw = np.asarray(route.waypoints_ne_m, dtype=float)
+            geometry, source_indices = self._mid_deviation(raw, reference)
+            speeds = np.asarray(route.speed_mps, dtype=float)[source_indices]
+            geometry = self._split_lateral_offset(geometry, reference, fresh_geometry)
+            deviation_speeds = [float(value) for value in speeds]
+            candidate = self._build_candidate(reference, geometry, deviation_speeds)
+            if not candidate["gate_clean"]:
+                return  # unadmittable splice: hold the current route this tick
             # Accepted prediction geometry is a route. It is not a sequence of
             # body-heading commands, so retain only its geometric authority.
-            headings = []
             valid_until_s = route.valid_until_tick * self.dt_s
             identity = {
                 "algorithm": algorithm,
                 "authority": "accepted_mid_mpc_receipt",
                 "receipt_hash": receipt["receipt_hash"],
-                "accepted_sequence": receipt["accepted_sequence"],
+                # colav.mid_mpc.receipt@1 calls the authority cycle "sequence";
+                # the canonical accepted-plan-receipt schema calls it
+                # "accepted_sequence" (same tolerant read as threat management).
+                "accepted_sequence": receipt.get("accepted_sequence", receipt.get("sequence")),
+                "continuity_revision": route.revision,
                 "planner_speed_semantics": "accepted_command_speed",
                 "source_speed_semantics": "original_route_speed_limit",
+                "splice": {"lateral_blend_fraction": self._lateral_blend},
             }
         else:
             raise OriginalGncError(f"Planner not supported by the original GNC bridge: {algorithm}")
         if valid_until_s <= t:
             raise OriginalGncError("Accepted planner authority has expired; it cannot be extended by the bridge")
-        signature = (plan_id, float(speed), valid_until_s)
-        if signature == self._last_submission:
+        signature_payload = (
+            np.ascontiguousarray(candidate["points"], dtype=float).tobytes()
+            + np.asarray(candidate["speeds"], dtype=float).tobytes()
+            + ",".join(candidate["modes"]).encode()
+        )
+        signature = (plan_id, hashlib.sha256(signature_payload).hexdigest(), valid_until_s)
+        if signature == self._last_submission and (
+            self._last_submission_time is None or t - self._last_submission_time < _RESUBMIT_INTERVAL_S
+        ):
             return
         deadline_ns = self.ship.stack.epoch_ns + round((valid_until_s - self.ship._planner_time_origin) * 1e9)
         request = self._base(algorithm, plan_id, deadline_ns)
-        request["latitude"], request["longitude"] = self.ship.frame.geographic(geometry)
-        request["command_speed_mps"] = np.asarray(speeds, dtype=float).tolist()
-        request["command_heading_deg"] = headings
-        request["require_exact_heading"] = bool(headings)
-        request["navigation_mode"] = ["cruise"] * geometry.shape[1]
+        request["latitude"] = candidate["latitudes"]
+        request["longitude"] = candidate["longitudes"]
+        request["command_speed_mps"] = [float(value) for value in candidate["speeds"]]
+        # Route geometry is the sole heading authority: the frozen 20 deg
+        # per-segment heading gate cannot hold across a mixed reference splice.
+        request["command_heading_deg"] = []
+        request["require_exact_heading"] = False
+        request["navigation_mode"] = list(candidate["modes"])
+        identity["splice"] = {
+            **identity.get("splice", {}),
+            "first_change_ahead_m": candidate["first_change_ahead_m"],
+            "max_lateral_delta_m": candidate["max_lateral_delta_m"],
+            "min_interior_turn_deg": candidate["min_interior_turn_deg"],
+            "min_new_segment_m": candidate["min_new_segment_m"],
+            "prefix_length": candidate["prefix_length"],
+            "rejoin_index": candidate["rejoin_index"],
+            "intent_deviation_m": candidate["intent_deviation_m"],
+        }
         self._deliver(request, identity)
         self._last_submission = signature
+        self._last_submission_time = t
+
+    def _held_candidate(
+        self,
+        reference: ReferencePath,
+        geometry: np.ndarray,
+        deviation_speeds: np.ndarray,
+        fresh_geometry: bool,
+        rotated: bool,
+    ) -> dict | None:
+        """Rebuild the latched splice only when the rebuild stays admittable.
+
+        A splice the frozen chain would reject (reverse segment, short leg)
+        must never be published or latched: rejections do not rotate the
+        mirror, so resubmitting rejected geometry only storms the gate. Hold
+        the previous route this tick instead; the next solve re-evaluates, and
+        manager expiry still owns the avoidance lifecycle.
+        """
+        if fresh_geometry or rotated or self._candidate is None or self._lateral_blend < 1.0:
+            built = self._build_candidate(reference, geometry, deviation_speeds)
+            if built["gate_clean"]:
+                self._candidate = built
+                self._candidate_generation = self._intent_generation
+        return self._candidate
+
+    def _build_candidate(self, reference: ReferencePath, geometry: np.ndarray, deviation_speeds: list) -> dict:
+        """Splice the deviation into the reference and attach the route contract arrays."""
+        candidate = build_avoidance_route(reference, self.ship.state[:2], geometry, deviation_speeds)
+        deviation_length = (
+            candidate["points"].shape[1]
+            - candidate["prefix_length"]
+            - (reference.points.shape[1] - candidate["rejoin_index"])
+        )
+        candidate["intent_deviation_m"] = _intent_deviation_m(
+            candidate["points"], geometry, candidate["prefix_length"], deviation_length
+        )
+        candidate["latitudes"], candidate["longitudes"] = self._compose_coordinates(reference, candidate)
+        # The manager measures legs with its own equirectangular projection over
+        # the route's first waypoint (111320 m/deg, cos(lat0) easting), and
+        # behavior_mode "avoidance" is its NON-emergency tier (30 m gate), so a
+        # 30.0 m geodesic leg can measure 29.97 there and be rejected. Re-check
+        # the exact frozen metric on the coordinates actually submitted.
+        candidate["gate_clean"] = bool(
+            candidate["gate_clean"]
+            and _manager_min_leg_m(candidate["latitudes"], candidate["longitudes"]) >= MIN_SEGMENT_M
+        )
+        return candidate
+
+    def _compose_coordinates(self, reference: ReferencePath, candidate: dict) -> tuple[list, list]:
+        """Prefix and tail verbatim from the accepted reference; deviation projected fresh."""
+        k = candidate["prefix_length"]
+        j = candidate["rejoin_index"]
+        tail_start = candidate["points"].shape[1] - (reference.points.shape[1] - j)
+        deviation = candidate["points"][:, k:tail_start]
+        latitudes, longitudes = self.ship.frame.geographic(deviation)
+        if reference.latitudes is None:
+            all_latitudes, all_longitudes = self.ship.frame.geographic(candidate["points"])
+            return all_latitudes, all_longitudes
+        return (
+            [*reference.latitudes[:k], *latitudes, *reference.latitudes[j:]],
+            [*reference.longitudes[:k], *longitudes, *reference.longitudes[j:]],
+        )

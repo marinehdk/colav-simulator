@@ -278,6 +278,11 @@ class PlanAcceptancePolicy:
         "multiship:kinematic_csog:pass_through_cs",
         "fcb45:3dof:marine_pid",
         "fcb45:roll4dof:marine_pid",
+        # Documented policy extension (D-ladder admission evidence): the
+        # original backend claims this tuple only while the packaged measured
+        # response approximation qualifies both channels at the wired
+        # trajectory-basis threshold (colav_simulator.original_gnc.qualification).
+        "original-gnc:first_order_lag:source_control",
     )
 
     def __post_init__(self) -> None:

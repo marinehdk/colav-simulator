@@ -110,6 +110,7 @@ from colav_simulator.core.colav.threat_management import (
 )
 from colav_simulator.core.guidances import LOSGuidance
 from colav_simulator.core.tracking.trackers import TrackKey
+from colav_simulator.original_gnc import qualification as original_response_qualification
 
 __version__ = "2.0.0"
 _TOTAL_DEADLINE_S = 20.0
@@ -1636,6 +1637,18 @@ def _active_capability(
         exact_tuple = "multiship:kinematic_csog:pass_through_cs"
     elif identity in {("fcb453dofplant", "fcb45marinepid"), ("fcb45roll4dofplant", "fcb45marinepid")}:
         exact_tuple = "fcb45:3dof:marine_pid" if identity[0] == "fcb453dofplant" else "fcb45:roll4dof:marine_pid"
+    elif identity == (_identity_token("original_gnc_20260824_v2"), _identity_token("original_ship_control_20260824_v2")):
+        # Qualified only by the measured, wired trajectory-basis gate: the
+        # packaged response approximation must qualify both channels at
+        # TRAJECTORY_R_SQUARED_THRESHOLD, otherwise the identity stays
+        # unsupported. Honest naming: the identified predictor form is a
+        # first-order lag (the second-order refit degenerated; see
+        # response_approximation.json second_order_refit verdicts).
+        exact_tuple = "original-gnc:first_order_lag:source_control"
+        qualified, _ = original_response_qualification.evaluate(original_response_qualification.load_document())
+        if not qualified:
+            exact_tuple = f"unsupported:{identity[0]}:{identity[1]}"
+            limitations = ("UNSUPPORTED_ACTIVE_TUPLE",)
     else:
         exact_tuple = f"unsupported:{identity[0]}:{identity[1]}"
         limitations = ("UNSUPPORTED_ACTIVE_TUPLE",)
