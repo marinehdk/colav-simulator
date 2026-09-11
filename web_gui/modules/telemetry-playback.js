@@ -1,4 +1,6 @@
 /** Pace received real frames behind execution; never extrapolate vessel motion. */
+import { interpolateVesselKinematics } from './kinematics.js';
+
 export function createTelemetryPlayback({ publish, clock, scheduler, delayMs = 3000 }) {
   let queue = [];
   let latest = null;
@@ -160,16 +162,10 @@ export function createTelemetryPlayback({ publish, clock, scheduler, delayMs = 3
 
 function interpolateVessel(from, to, amount) {
   if (!from || !to) return from;
-  const value = { ...from };
-  for (const key of ['x', 'y', 'north', 'east', 'latitude', 'longitude', 'sog', 'u', 'v']) {
-    if (Number.isFinite(from[key]) && Number.isFinite(to[key])) value[key] = from[key] + (to[key] - from[key]) * amount;
-  }
-  for (const key of ['psi', 'cog']) {
-    if (Number.isFinite(from[key]) && Number.isFinite(to[key])) {
-      value[key] = from[key] + Math.atan2(Math.sin(to[key] - from[key]), Math.cos(to[key] - from[key])) * amount;
-    }
-  }
-  return value;
+  // Kinematic math is shared (decision D5); the live buffer's semantics —
+  // spread of the LOWER frame, keep `from` when the upper frame lacks the
+  // vessel — stay here.
+  return { ...from, ...interpolateVesselKinematics(from, to, amount) };
 }
 
 function interpolateVessels(from, to, amount) {
