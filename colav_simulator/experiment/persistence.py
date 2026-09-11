@@ -86,6 +86,10 @@ class EvidenceWriter:
     def write_manifest(self, manifest: RunManifest) -> Path:
         return self._write_json("manifest.json", manifest.to_dict())
 
+    def write_original_gnc_bundle(self, document: dict[str, Any]) -> Path:
+        """Write source build, parameters, requested plans and admission evidence."""
+        return self._write_json("original-gnc.json", document)
+
     def write_episode(self, episode: dict[str, Any]) -> Path:
         return self._write_json("episode.json", episode)
 

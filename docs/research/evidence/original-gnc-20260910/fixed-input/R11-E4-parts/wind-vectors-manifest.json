@@ -1,0 +1,11 @@
+{
+  "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R11-E4",
+  "modules": {
+    "wind_engine_node": {
+      "file": "wind_engine_node.jsonl.gz",
+      "calls": 692451,
+      "sha256": "b5ccc89f0262c56e4cd6b21fe787df99e4563ce75bc37a0cdf34c4a7db42f14d"
+    }
+  },
+  "scope": "Disjoint module partition of one canonical R11-E4 export; canonical manifest reconciliation required"
+}

@@ -1,0 +1,2 @@
+#define USE_FMAX_BUILTIN 0
+#define USE_FMIN_BUILTIN 0

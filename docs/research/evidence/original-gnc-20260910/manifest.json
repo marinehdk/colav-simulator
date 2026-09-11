@@ -1,0 +1,1275 @@
+{
+  "schema": "original-gnc.delivery-evidence.v1",
+  "native_library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+  "raw_reference_host": "a4000",
+  "raw_reference_root": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2",
+  "fixed_input_cases": [
+    {
+      "case_id": "R01-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R01-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R02-minus-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R02-minus-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R02-plus-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R02-plus-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R03-minus-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R03-minus-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R03-plus-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R03-plus-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R04-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R04-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R05-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R05-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R06-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R06-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R07-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R07-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R08-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R08-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R09-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R09-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R10-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R10-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R11-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R11-E4",
+      "passed": true
+    },
+    {
+      "case_id": "R12-E0",
+      "passed": true
+    },
+    {
+      "case_id": "R12-E4",
+      "passed": true
+    }
+  ],
+  "fixed_input_complete": true,
+  "source_route_case_count": 70,
+  "product_case_count": 24,
+  "files": {
+    "free-closure/R01-E0.json": {
+      "sha256": "4d59acf124e6aaefdd9eb1ca1a5b84324e4560ab0b15ad19a06afd4ee2e0bc49",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E0/comparison.json",
+      "bytes": 17679
+    },
+    "free-closure/R01-E0.png": {
+      "sha256": "d01254d5427659157f9ee10f6279a3636355779b4c8ce0aeecae1aaaaec33f9b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E0/comparison.png",
+      "bytes": 166336
+    },
+    "free-closure/R01-E1.json": {
+      "sha256": "4e433e85a5c6340760bf98b2c2eb875c67007312041f7d69285691926831ae72",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E1/comparison.json",
+      "bytes": 17952
+    },
+    "free-closure/R01-E1.png": {
+      "sha256": "a99018f6c3e0bcc911aad8a04c466dab15dad89107f6a36b4935a5ed5555922a",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E1/comparison.png",
+      "bytes": 211953
+    },
+    "free-closure/R01-E2.json": {
+      "sha256": "679379a3bafe54f704a0696a6ae31973038ab20eac00bc94bc1fd87b17f5ee4c",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E2/comparison.json",
+      "bytes": 17956
+    },
+    "free-closure/R01-E2.png": {
+      "sha256": "f74fc116004596d67c773f11a18437ed468b2f6bbb6895f31bc09fd458794946",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E2/comparison.png",
+      "bytes": 204039
+    },
+    "free-closure/R01-E3.json": {
+      "sha256": "6f5d558abf874cd04de31600ddcd0c00ef79f85991e2802ff305cbdc16ed1677",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E3/comparison.json",
+      "bytes": 17896
+    },
+    "free-closure/R01-E3.png": {
+      "sha256": "649e5a1e48a6f13329f154586dc86711d12e83ac4d13cfda067692572e7fcee7",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E3/comparison.png",
+      "bytes": 189037
+    },
+    "free-closure/R01-E4.json": {
+      "sha256": "afd9c1276eb422f0a55202b5428889fc59a88c08e778e7ad2b5b3abe258dcdf1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E4/comparison.json",
+      "bytes": 18239
+    },
+    "free-closure/R01-E4.png": {
+      "sha256": "070352c7c5eda3a9639ed872a3632d2ff4d551ed1b873b5bf43aa8ca64280fe6",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R01-E4/comparison.png",
+      "bytes": 200092
+    },
+    "free-closure/R02-minus-E0.json": {
+      "sha256": "b9574a1ef4cde19ece045397b84aaa33e736065369ed0e44c2a1fbee2d5e2a63",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E0/comparison.json",
+      "bytes": 17998
+    },
+    "free-closure/R02-minus-E0.png": {
+      "sha256": "9e9c81520749f39be841b9af4f60f3c0610181144661c30d0f9a2c5ae50c4db1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E0/comparison.png",
+      "bytes": 173044
+    },
+    "free-closure/R02-minus-E1.json": {
+      "sha256": "720e5734306da75cd38a02818097b7f9cc94687e6cdbfbb322fd76edad5b2376",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E1/comparison.json",
+      "bytes": 18263
+    },
+    "free-closure/R02-minus-E1.png": {
+      "sha256": "bd984be35380499e50905e0b5f00a716805b9342aec88eeb6badcfbb22ad6a6a",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E1/comparison.png",
+      "bytes": 174419
+    },
+    "free-closure/R02-minus-E2.json": {
+      "sha256": "0ec52ac0a1b9827fd2964984cd448c80b0926a1539f6792ca04ead9352998993",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E2/comparison.json",
+      "bytes": 18297
+    },
+    "free-closure/R02-minus-E2.png": {
+      "sha256": "ff2952879113e0a310fa887a6ca121afe982d881c128d7510842bc6f5857db9f",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E2/comparison.png",
+      "bytes": 166513
+    },
+    "free-closure/R02-minus-E3.json": {
+      "sha256": "c7bc3d2781eaa9602b5464e900e471dfb9e6de35dd3fa490f19592a3bbe7131c",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E3/comparison.json",
+      "bytes": 18269
+    },
+    "free-closure/R02-minus-E3.png": {
+      "sha256": "e51616bb9ababa027107b00242b22c94b8a0e5628e6c04782a256dc7f68ee176",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E3/comparison.png",
+      "bytes": 161799
+    },
+    "free-closure/R02-minus-E4.json": {
+      "sha256": "8c970b0d416f0a73b5d2b37b79e7e3d28c0d65fc818a857a1d3056127dd2c3be",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E4/comparison.json",
+      "bytes": 18548
+    },
+    "free-closure/R02-minus-E4.png": {
+      "sha256": "a07fad918c175f1e8e5461c72ea7c9c2822d55ec59648b477321c38170915f24",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-minus-E4/comparison.png",
+      "bytes": 154731
+    },
+    "free-closure/R02-plus-E0.json": {
+      "sha256": "88b6d795e770f2c7bbff25152784ad26caa63aa7c38a8cdbc1a6600202f3dd98",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E0/comparison.json",
+      "bytes": 17994
+    },
+    "free-closure/R02-plus-E0.png": {
+      "sha256": "4c79329046209ffbba815c575f6c480c06e2b8fe27048a701dbb01772154b85d",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E0/comparison.png",
+      "bytes": 162860
+    },
+    "free-closure/R02-plus-E1.json": {
+      "sha256": "f5dcaee5b5241dbc8bc692809941c2939a3f843a2376bc94d4020b2e246622fc",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E1/comparison.json",
+      "bytes": 18216
+    },
+    "free-closure/R02-plus-E1.png": {
+      "sha256": "c8fa83ad948f514a48d9085b97e0d9ed0d1abe5126fcfcb549be70490e275801",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E1/comparison.png",
+      "bytes": 173379
+    },
+    "free-closure/R02-plus-E2.json": {
+      "sha256": "95d23c5396d1578ed6d3c78f1734384c0adc1e9cde0b9e6a50f3ecfeb4a2934d",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E2/comparison.json",
+      "bytes": 18307
+    },
+    "free-closure/R02-plus-E2.png": {
+      "sha256": "8cc0d64086ea2b6267bab991706e10525e29296333bcc88fa286104cef01fe06",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E2/comparison.png",
+      "bytes": 158217
+    },
+    "free-closure/R02-plus-E3.json": {
+      "sha256": "b623a3de7db3e70b3bb0252b5864670f55c076119f16ce557be32ab732cbda0f",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E3/comparison.json",
+      "bytes": 18159
+    },
+    "free-closure/R02-plus-E3.png": {
+      "sha256": "5fa3b602c949fbe0923786d38820d68db2d5f699fe8a7f1af29b372534c83206",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E3/comparison.png",
+      "bytes": 161964
+    },
+    "free-closure/R02-plus-E4.json": {
+      "sha256": "06f90173c44370f27d2b87074922ba821823c605c127af9b78f2f04a5ffe64b5",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E4/comparison.json",
+      "bytes": 18665
+    },
+    "free-closure/R02-plus-E4.png": {
+      "sha256": "3ca368c012fc486f89a69288daa4752afdab4eda7dbd9aaf942369172caf34cf",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R02-plus-E4/comparison.png",
+      "bytes": 168284
+    },
+    "free-closure/R03-minus-E0.json": {
+      "sha256": "fb8a27655dc6342c2ed0296f8628ffcf93dd51691fbf88237ba79c91a9cead68",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E0/comparison.json",
+      "bytes": 18020
+    },
+    "free-closure/R03-minus-E0.png": {
+      "sha256": "10167eacfa3dd6efc3702565860bb54fe8e87d5a889f71ba195ea8b8ef62850b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E0/comparison.png",
+      "bytes": 159859
+    },
+    "free-closure/R03-minus-E1.json": {
+      "sha256": "b1999f87912dd06dce80740f7ea9ad32401f3e605dbcededfce1cac7397a81bf",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E1/comparison.json",
+      "bytes": 18311
+    },
+    "free-closure/R03-minus-E1.png": {
+      "sha256": "a55b33ed5e8efdc6dd29ca663a2503fc43ea0dc73ef15149f3bac50826811b7d",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E1/comparison.png",
+      "bytes": 164152
+    },
+    "free-closure/R03-minus-E2.json": {
+      "sha256": "d6a101e600f50a65a9ded5ca74c78d365f852cffecadc92c8ee8083e92d17825",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E2/comparison.json",
+      "bytes": 18363
+    },
+    "free-closure/R03-minus-E2.png": {
+      "sha256": "71599667dd75a28040ec1fbb10f9bcbc60cc228bf85bf2cd594df8416d522f8b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E2/comparison.png",
+      "bytes": 172441
+    },
+    "free-closure/R03-minus-E3.json": {
+      "sha256": "25e6fe6c36347389d0cbb2dc36dea6a7343a8ed806ca714c3208c76b58fa8c6c",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E3/comparison.json",
+      "bytes": 18216
+    },
+    "free-closure/R03-minus-E3.png": {
+      "sha256": "7250c1c68bf4f51981d9c932de2f16c3b2a906c6ecf4f7f1e4c01b876cb9e532",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E3/comparison.png",
+      "bytes": 151768
+    },
+    "free-closure/R03-minus-E4.json": {
+      "sha256": "0ff7eee9c5d10ea26780219a319fae495ff44a83dcb1acf86099d761a10e3394",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E4/comparison.json",
+      "bytes": 18643
+    },
+    "free-closure/R03-minus-E4.png": {
+      "sha256": "cdad33e69bd580be29b0d899e64a134fd462b18bcdecaf6ef0cdc7b887a696be",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-minus-E4/comparison.png",
+      "bytes": 172139
+    },
+    "free-closure/R03-plus-E0.json": {
+      "sha256": "534da5564ab20cfb336ec1442bd6fce464bef68623d2c10598ad1f75b9a20394",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E0/comparison.json",
+      "bytes": 17986
+    },
+    "free-closure/R03-plus-E0.png": {
+      "sha256": "6d7ef3ed75cd698a4d7bc03f3b68b16fabef53d90e54664b12555443d1d7ae4e",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E0/comparison.png",
+      "bytes": 152863
+    },
+    "free-closure/R03-plus-E1.json": {
+      "sha256": "81f88fa27f00d3d62a0987d9d541cfd89e2e0326ccc2d32a974b1761924e2c3f",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E1/comparison.json",
+      "bytes": 18410
+    },
+    "free-closure/R03-plus-E1.png": {
+      "sha256": "8f4624476894f62777f328c14677cff3cbd2cd23910e4aa756c398de7f410067",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E1/comparison.png",
+      "bytes": 164712
+    },
+    "free-closure/R03-plus-E2.json": {
+      "sha256": "327f0c9552f34fc5db0016479b81c7f9d55a0a67abf4c407a07d1633d2ce66ca",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E2/comparison.json",
+      "bytes": 18394
+    },
+    "free-closure/R03-plus-E2.png": {
+      "sha256": "1e284ba4af059f1ca60c723b768641bd722b751d721bffd22dc7e21ed952d38f",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E2/comparison.png",
+      "bytes": 162057
+    },
+    "free-closure/R03-plus-E3.json": {
+      "sha256": "07fc7b7bc1f906a357240e09007ff970191b3361a48e4e795190ebdae64b6d50",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E3/comparison.json",
+      "bytes": 18297
+    },
+    "free-closure/R03-plus-E3.png": {
+      "sha256": "dddb3d26eae05168012f807f1e4a7ab5e0aca9ca657e3d1147f5dbcfa8d8322e",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E3/comparison.png",
+      "bytes": 143884
+    },
+    "free-closure/R03-plus-E4.json": {
+      "sha256": "d83d71b8ab421b5859ce4e8aaf14543c8577ee4cb0607f1a3bf62ae3677e8fa0",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E4/comparison.json",
+      "bytes": 18533
+    },
+    "free-closure/R03-plus-E4.png": {
+      "sha256": "2bf8333a17f82b49f6e92dd565110d2a2f33a265a414b9186fa56ceca4c8877a",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R03-plus-E4/comparison.png",
+      "bytes": 170838
+    },
+    "free-closure/R04-E0.json": {
+      "sha256": "3fee59dc32d62da93172d72b4d45c0c366e5ef6b02f62d4b646bee2bf708d6a7",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E0/comparison.json",
+      "bytes": 17917
+    },
+    "free-closure/R04-E0.png": {
+      "sha256": "b2f8e0543dddd23b54ebf2f8ef3538f216c41d987d843c7a8d79e55a5b113257",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E0/comparison.png",
+      "bytes": 170854
+    },
+    "free-closure/R04-E1.json": {
+      "sha256": "8663d528b81ead64b8e78f2dc70167d84c607c75dc2ed8fb4e2a80c369128b4c",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E1/comparison.json",
+      "bytes": 18205
+    },
+    "free-closure/R04-E1.png": {
+      "sha256": "620189f6c6d389cc7ccc16529edf495a5225a417522ffdc03dd5a7df334929d4",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E1/comparison.png",
+      "bytes": 172894
+    },
+    "free-closure/R04-E2.json": {
+      "sha256": "e07923fb6ebce1dec007e9dcb7ad64015d42ac24e19acc2a003f84e3afd46a16",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E2/comparison.json",
+      "bytes": 18176
+    },
+    "free-closure/R04-E2.png": {
+      "sha256": "cd60368741381901c813c51e94479aa769a9c4da8fd20c9ce4f38b7c6e55e8ac",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E2/comparison.png",
+      "bytes": 162595
+    },
+    "free-closure/R04-E3.json": {
+      "sha256": "8f31931cd8b759d1a35e2c9e44ea300183c5529088923ae047064696f4cc8ab0",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E3/comparison.json",
+      "bytes": 18144
+    },
+    "free-closure/R04-E3.png": {
+      "sha256": "ea44c338c6b6885b832050c1b3d766121db4250e49aee3c4e57416ed4f60f1f6",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E3/comparison.png",
+      "bytes": 171289
+    },
+    "free-closure/R04-E4.json": {
+      "sha256": "5fec67c085d9de42cfaabfe5d6c999285ed4d6a6f87ba319d1b4b09444ca05a1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E4/comparison.json",
+      "bytes": 18504
+    },
+    "free-closure/R04-E4.png": {
+      "sha256": "3fbd2bad2641a63848bf288fddc3c62b9929351608102653f64205afa07386e8",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R04-E4/comparison.png",
+      "bytes": 172541
+    },
+    "free-closure/R05-E0.json": {
+      "sha256": "ede7a4c0603b321d7cdb39c9997608c9298693b620b3524c82f95d32a789c665",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E0/comparison.json",
+      "bytes": 17923
+    },
+    "free-closure/R05-E0.png": {
+      "sha256": "4642db2c654fc0d89aba461381866997dcf1b5f2c2129657057c5d17d5d137f1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E0/comparison.png",
+      "bytes": 167645
+    },
+    "free-closure/R05-E1.json": {
+      "sha256": "28374b02029a5d47ce5e51f7bb4488abe475520965deceb57a24548f0bfebbb9",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E1/comparison.json",
+      "bytes": 18178
+    },
+    "free-closure/R05-E1.png": {
+      "sha256": "35f688426a57e667bb63e6ae4ed4ca22479e00324c4e60e67586ef467ce316f0",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E1/comparison.png",
+      "bytes": 170842
+    },
+    "free-closure/R05-E2.json": {
+      "sha256": "d8a4485196ce85be54ad41d1b2f0863fec1391a85acc49b46b84a99051fa4ee8",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E2/comparison.json",
+      "bytes": 18197
+    },
+    "free-closure/R05-E2.png": {
+      "sha256": "5ef38a8df197b51f39c6536298f03576cc2374c1a1e107be804081a17c2148a4",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E2/comparison.png",
+      "bytes": 198329
+    },
+    "free-closure/R05-E3.json": {
+      "sha256": "78f2d92d426dcfb1ae36bf1ed4bee2100a199891b3fa526a02c09d5cdd03b87a",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E3/comparison.json",
+      "bytes": 18190
+    },
+    "free-closure/R05-E3.png": {
+      "sha256": "599340455233315b23b0eeb9dcb96837d91dc2dbf76001bc7eaf6afdeeaa2ba8",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E3/comparison.png",
+      "bytes": 174761
+    },
+    "free-closure/R05-E4.json": {
+      "sha256": "24959dd99b6717a9caebcf70e2d5540590c57a548da99d4a6a51816d4bbab04b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E4/comparison.json",
+      "bytes": 18495
+    },
+    "free-closure/R05-E4.png": {
+      "sha256": "a3542daefbc1d6d8783f43fb2b2093bf5686ac18fe2ed8229e7bfbd76d0801e6",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R05-E4/comparison.png",
+      "bytes": 197821
+    },
+    "free-closure/R06-E0.json": {
+      "sha256": "c7633afa620a165445a8700a3243d30bf93d0f0e029484597361ae6ad0945e00",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E0/comparison.json",
+      "bytes": 17891
+    },
+    "free-closure/R06-E0.png": {
+      "sha256": "3b99948b087a160095f762f9b74578a460b20f0e7f9cc7f0ff6bd64668780c0e",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E0/comparison.png",
+      "bytes": 168887
+    },
+    "free-closure/R06-E1.json": {
+      "sha256": "c0e9710c81848e45da112e42239921c40fd2efb9afe1dd9abf66f6b5b1f370c8",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E1/comparison.json",
+      "bytes": 18224
+    },
+    "free-closure/R06-E1.png": {
+      "sha256": "492d02542feb8f2faa69c5d293148b8d6b6301a284ade32d9c6d88fe9e3c41aa",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E1/comparison.png",
+      "bytes": 178401
+    },
+    "free-closure/R06-E2.json": {
+      "sha256": "5816b413c2e95662e2bee86ebb7d771fd7edbd7eba7093db7f28471a7f300251",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E2/comparison.json",
+      "bytes": 18175
+    },
+    "free-closure/R06-E2.png": {
+      "sha256": "4b27732e569d70aa6f23f0aa4147badad4c891aaa5fef95f2af09cd45fbcbe04",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E2/comparison.png",
+      "bytes": 193214
+    },
+    "free-closure/R06-E3.json": {
+      "sha256": "09f4353444a5b23778025350fb067d4209dd3516fc4660c693133a730455bb41",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E3/comparison.json",
+      "bytes": 18097
+    },
+    "free-closure/R06-E3.png": {
+      "sha256": "6b3aa7945fa7c37280cc26c3ee8c4a3924ce6b363544c83e6c15dc36d7f12f95",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E3/comparison.png",
+      "bytes": 178212
+    },
+    "free-closure/R06-E4.json": {
+      "sha256": "9e56c5a3337658f0ea100dd603f248a1efa2e90ae7d96fe22c93d6b1bb0b7548",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E4/comparison.json",
+      "bytes": 18454
+    },
+    "free-closure/R06-E4.png": {
+      "sha256": "1171c216d4fe4b864f78439c58ebc827236028aa80b411d0a9a163d16dd3cdc7",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R06-E4/comparison.png",
+      "bytes": 199238
+    },
+    "free-closure/R07-E0.json": {
+      "sha256": "ebad7021be66d4fa4a9af02776f52b71a94cd7a79f2ad8ea76358347c1ad1ac5",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E0/comparison.json",
+      "bytes": 17947
+    },
+    "free-closure/R07-E0.png": {
+      "sha256": "1b5b26512d5c206a21aae8faf3e741483d888cfc642711c53d7fbd28e086df1a",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E0/comparison.png",
+      "bytes": 170951
+    },
+    "free-closure/R07-E1.json": {
+      "sha256": "ed83d24a9f23348eccfe698a3148f41ebf2b5f47f174fbc8e5ee9f477221cb36",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E1/comparison.json",
+      "bytes": 18229
+    },
+    "free-closure/R07-E1.png": {
+      "sha256": "bb9f436dcc9c8a4b4f5eedf550285d343a1c271772235916d2c984e49e73af5d",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E1/comparison.png",
+      "bytes": 176737
+    },
+    "free-closure/R07-E2.json": {
+      "sha256": "7a7c200043de4626c5d98caab3e4c77dc65c599e03ee58b9bb6f39a9df455f25",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E2/comparison.json",
+      "bytes": 18199
+    },
+    "free-closure/R07-E2.png": {
+      "sha256": "35fd1f78af7e3510d4e8432bbdf7ec7b25bdd5293590a3dc8bfe92c186f2cd86",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E2/comparison.png",
+      "bytes": 193814
+    },
+    "free-closure/R07-E3.json": {
+      "sha256": "0e2d4d530cbd30888a81fe3cc03779ee78118132d15e465eb47077206766f1a0",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E3/comparison.json",
+      "bytes": 18162
+    },
+    "free-closure/R07-E3.png": {
+      "sha256": "2aebf584b57151cdc9c48521d0993bd01cfc017887ac62ac681bb2efdfeb13f4",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E3/comparison.png",
+      "bytes": 177568
+    },
+    "free-closure/R07-E4.json": {
+      "sha256": "cc149b514181563813ae341796d984978d374c30e92152966c80e1d64715956f",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E4/comparison.json",
+      "bytes": 18472
+    },
+    "free-closure/R07-E4.png": {
+      "sha256": "c7672892649fe5218f25c40e601312831b72b9d82f48db0e2b6b4284cdc7bf18",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R07-E4/comparison.png",
+      "bytes": 181138
+    },
+    "free-closure/R08-E0.json": {
+      "sha256": "242796fc7e155b8456743cf8f3131bfdbdda3ce2e94685f1a5016d435e2deaa6",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E0/comparison.json",
+      "bytes": 17954
+    },
+    "free-closure/R08-E0.png": {
+      "sha256": "e929d348e1c8a0a3376acd6ffffd1bde35bd81bbde7400b1a8cff59647b79c19",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E0/comparison.png",
+      "bytes": 194650
+    },
+    "free-closure/R08-E1.json": {
+      "sha256": "8da2566e20852e57ca2dce443dbfb390fcc6db5984f4f89ac997b67a70dc5561",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E1/comparison.json",
+      "bytes": 18165
+    },
+    "free-closure/R08-E1.png": {
+      "sha256": "fceebf2e44f9ba9941d84c9c7e08e0fca969e1f78a5e3a04f1217d1ad16b2607",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E1/comparison.png",
+      "bytes": 216733
+    },
+    "free-closure/R08-E2.json": {
+      "sha256": "a70433ecb079944585b97c35ae3c5bbd8a3a42c3e4b926428a57c7b9949b27e8",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E2/comparison.json",
+      "bytes": 18185
+    },
+    "free-closure/R08-E2.png": {
+      "sha256": "9dac997037abff86e267a9af464e010467cf08c95abb99d096a94790b603e953",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E2/comparison.png",
+      "bytes": 177222
+    },
+    "free-closure/R08-E3.json": {
+      "sha256": "d1b80a1b317e286de5aef47ea379e83d6c64f86f49064d13fd7d5802bfdd0cae",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E3/comparison.json",
+      "bytes": 18106
+    },
+    "free-closure/R08-E3.png": {
+      "sha256": "ccb9a3701d40e07dfc46d4cfd6d77c9a44d7e3516aba21dc3564746025310be1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E3/comparison.png",
+      "bytes": 200022
+    },
+    "free-closure/R08-E4.json": {
+      "sha256": "c9af9c3f0c6b9ac35c0daa5ac755217f6ba6c0d4f40c5abdf00e1c62d676c4dd",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E4/comparison.json",
+      "bytes": 18511
+    },
+    "free-closure/R08-E4.png": {
+      "sha256": "14a54f393b1051c23461c10b36d3606fdac1a48a5df7d319932ec05b84a0e8c6",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R08-E4/comparison.png",
+      "bytes": 205344
+    },
+    "free-closure/R09-E0.json": {
+      "sha256": "14f35c9d9f25aad25784953fbbe7d8e1bcfc490ba1cec191c19b12d20b5389d5",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E0/comparison.json",
+      "bytes": 17926
+    },
+    "free-closure/R09-E0.png": {
+      "sha256": "7d22b65a863008c8aa7463d683069906c06dd48a9c883e1fe2143a838f049765",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E0/comparison.png",
+      "bytes": 213843
+    },
+    "free-closure/R09-E1.json": {
+      "sha256": "9b3f1bff0f89b8da260e87c1dcc022e8932ce29c3df6390373534cadeb0abd2b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E1/comparison.json",
+      "bytes": 18188
+    },
+    "free-closure/R09-E1.png": {
+      "sha256": "7e55d6bc804d0ef8bea7abd2d05530de83ac057bd2511ba39961965918bd6394",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E1/comparison.png",
+      "bytes": 204825
+    },
+    "free-closure/R09-E2.json": {
+      "sha256": "a113847d4879cec2ee713443c85efac2312ac22b8b47c03dee9862e897002199",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E2/comparison.json",
+      "bytes": 18222
+    },
+    "free-closure/R09-E2.png": {
+      "sha256": "8fdf5f9f8bb227e40e7bdbc67798173c9e43a9828182604524cd5663ecdc527d",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E2/comparison.png",
+      "bytes": 231935
+    },
+    "free-closure/R09-E3.json": {
+      "sha256": "bebb96e0e569e48fa5cb063e4d116a2b6766ce91b67fa8eb9730e0da65ee8e1a",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E3/comparison.json",
+      "bytes": 18139
+    },
+    "free-closure/R09-E3.png": {
+      "sha256": "060ca5badbe73146e67b0221c492d1e61ed909c279ce6ad921a53378ea04f491",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E3/comparison.png",
+      "bytes": 199687
+    },
+    "free-closure/R09-E4.json": {
+      "sha256": "9a2d98140f2d74f6b4951021287f3a3a0355fb55410d5119ef11f4f9455c6c23",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E4/comparison.json",
+      "bytes": 18581
+    },
+    "free-closure/R09-E4.png": {
+      "sha256": "dbc36dded235a5e97dff8b290bd2ee1701a17a3410d7a0461e517c74418cbe09",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R09-E4/comparison.png",
+      "bytes": 233552
+    },
+    "free-closure/R10-E0.json": {
+      "sha256": "60a5c723090a3d5c21af458d1a39717d3f092cbce82b95512b0506f9b791b39a",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E0/comparison.json",
+      "bytes": 17923
+    },
+    "free-closure/R10-E0.png": {
+      "sha256": "61ba2cc610c11c5275dcf59813ef0457d53e809a278e7fd951e5266588929106",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E0/comparison.png",
+      "bytes": 184532
+    },
+    "free-closure/R10-E1.json": {
+      "sha256": "e23dfc15c4ea5e0fb721391e9f294b8ccf6a5e55acd106cfca45db236f192c1b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E1/comparison.json",
+      "bytes": 18163
+    },
+    "free-closure/R10-E1.png": {
+      "sha256": "d2a2fa898f03917e52db5300b91e2bbbf8539d088744cea04eaca432066c8cfd",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E1/comparison.png",
+      "bytes": 171419
+    },
+    "free-closure/R10-E2.json": {
+      "sha256": "10ffe3f565780ef75bf474242a43af45a1d933ac76bbfacb619450175c2b5263",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E2/comparison.json",
+      "bytes": 18215
+    },
+    "free-closure/R10-E2.png": {
+      "sha256": "d2af4f6b987f1e8ff8dbcde0a8766773e7f1fe63ae840eb50ec999a0fa042023",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E2/comparison.png",
+      "bytes": 185645
+    },
+    "free-closure/R10-E3.json": {
+      "sha256": "53d900c5ecc23aafe4c40d15626af5ca835f2435cdf6422757174a03cd62e8fa",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E3/comparison.json",
+      "bytes": 18107
+    },
+    "free-closure/R10-E3.png": {
+      "sha256": "dd0f41c73ed432841427d8e25da537b57e3c0ddbfa4877973b21d3039433ff09",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E3/comparison.png",
+      "bytes": 170423
+    },
+    "free-closure/R10-E4.json": {
+      "sha256": "f21adb59dd83cfb5b7e4cce74dbebe2bddfebcfd29fb0dd8443d3fb9c1637b55",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E4/comparison.json",
+      "bytes": 18467
+    },
+    "free-closure/R10-E4.png": {
+      "sha256": "a27b4336be573f25e238ac11027b55217da048f7a3fa6351bc2df9764fb90879",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R10-E4/comparison.png",
+      "bytes": 178217
+    },
+    "free-closure/R11-E0.json": {
+      "sha256": "94b7f167a018f8b199c1521bc45c15d20123d99c05d0685c31eda934aaaccaf1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E0/comparison.json",
+      "bytes": 17966
+    },
+    "free-closure/R11-E0.png": {
+      "sha256": "444cdc3101d314957470f1311a93f35b5396aeac8213f36f368183a7c8b2d321",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E0/comparison.png",
+      "bytes": 189446
+    },
+    "free-closure/R11-E1.json": {
+      "sha256": "f4d9a91d47e53ac7bd684618e67e6995f6d4eb76413aafd4bea5265889867ee5",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E1/comparison.json",
+      "bytes": 16605
+    },
+    "free-closure/R11-E1.png": {
+      "sha256": "147e57d6b08bf2309bbc7555bbc88f48e6c0b18a73161a31343a2dc2dabcdf05",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E1/comparison.png",
+      "bytes": 171344
+    },
+    "free-closure/R11-E2.json": {
+      "sha256": "4b4031ad47351c28f0572d7f5fcf2ee061113020ee7faa5f03fcbe5aa96eff77",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E2/comparison.json",
+      "bytes": 18269
+    },
+    "free-closure/R11-E2.png": {
+      "sha256": "9d77db908f9b6867b6c759c2e0544e1d9e2770da178dec29e9a05f3edcd21bed",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E2/comparison.png",
+      "bytes": 166160
+    },
+    "free-closure/R11-E3.json": {
+      "sha256": "992364f7b17a4d647a5198305db6debaa813e66cea26ff1a899bd3d2e8d1c3f0",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E3/comparison.json",
+      "bytes": 18174
+    },
+    "free-closure/R11-E3.png": {
+      "sha256": "a48423d259024daaf6bbea3e3130d44a155e5dec6e493a134c3e806a1d118c20",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E3/comparison.png",
+      "bytes": 155025
+    },
+    "free-closure/R11-E4.json": {
+      "sha256": "5005cccc235783a599cb71eca3ae2da9df57e95a57f5a3c9022a551282099593",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E4/comparison.json",
+      "bytes": 18530
+    },
+    "free-closure/R11-E4.png": {
+      "sha256": "c97a8782b2ff968735a4ccb82c55705f51f1716b3c2be500e54d0ea2bdef340b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R11-E4/comparison.png",
+      "bytes": 155550
+    },
+    "free-closure/R12-E0.json": {
+      "sha256": "fd4b65517fd9575b12a1b5a62086a968822e146158634787ef520d70733ee81e",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E0/comparison.json",
+      "bytes": 16325
+    },
+    "free-closure/R12-E0.png": {
+      "sha256": "609acedbe33f743a2488ceb3deda5088f65df427c103c25177e372da7e2ee444",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E0/comparison.png",
+      "bytes": 165387
+    },
+    "free-closure/R12-E1.json": {
+      "sha256": "b91ad94723c024a7ba6f13bd4effa7d466471f58fca888833739235adcefb20e",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E1/comparison.json",
+      "bytes": 18168
+    },
+    "free-closure/R12-E1.png": {
+      "sha256": "c1bdd72ae279f26a5b4f001f92371612f58acc8d8a8febe21ec7019430d6fb2e",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E1/comparison.png",
+      "bytes": 170186
+    },
+    "free-closure/R12-E2.json": {
+      "sha256": "3c5f83d415485185464528a5d09fdfc05ed3900d34cfce0fee96326d202c5613",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E2/comparison.json",
+      "bytes": 18220
+    },
+    "free-closure/R12-E2.png": {
+      "sha256": "25eebc34b6f5532d96b43ccd4e59d61e95c2d3847aa5d37b5633e9b4f38442c3",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E2/comparison.png",
+      "bytes": 163790
+    },
+    "free-closure/R12-E3.json": {
+      "sha256": "51311510b236af58a11afd21a74722083a9635aacb96bb5a44779e767ed82f0c",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E3/comparison.json",
+      "bytes": 18104
+    },
+    "free-closure/R12-E3.png": {
+      "sha256": "6436fa7cce47344eef6319720fb0459bc7b9793af97a51cc208d607619727cc9",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E3/comparison.png",
+      "bytes": 162091
+    },
+    "free-closure/R12-E4.json": {
+      "sha256": "6bea96497a198314bf06ac3b31618136ad65c8daccebc43aaa17fa0feba77ba4",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E4/comparison.json",
+      "bytes": 18452
+    },
+    "free-closure/R12-E4.png": {
+      "sha256": "7c294e4159611aa177b96023af0f538d2d5fbb18eb646d3438f1f43716606f47",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/navigation-comparison-final-02/comparisons/R12-E4/comparison.png",
+      "bytes": 173332
+    },
+    "native-build-manifest.json": {
+      "sha256": "7bcc9c02b18bfcb158946a41e52295a52691dcc3f4b3e7ac22c1bc3a0a4f8653",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/build-manifest.json",
+      "bytes": 168988
+    },
+    "extraction.json": {
+      "sha256": "3ce0f7adab65b392ff26e4e87797983e64e960419b22256279312f1df7f7c465",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/extraction.json",
+      "bytes": 1536988
+    },
+    "product-acceptance.json": {
+      "sha256": "2baf1107f7a67056946a479417af37e41a16909509f33b1f38f48a7e878591a8",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/product-acceptance-summary-v2.json",
+      "bytes": 69367
+    },
+    "source-verification.json": {
+      "sha256": "368eae2f020253da5278eaa7742fd627d68803e349a0fc046346f667e5000e35",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-final-source-verification.json",
+      "bytes": 211
+    },
+    "original-reference-index.json": {
+      "sha256": "3216e0ea4b9fb3b393021068a4a562ef573500fba09202c5f02764d251f9b619",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-reference-index-final.json",
+      "bytes": 6670
+    },
+    "reference-metadata-index.json": {
+      "sha256": "71013065da8fff60fea30c8fcb933268dacf9892ad5a6f5c01ccb0054f5ec65b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-reference-metadata-final/index.json",
+      "bytes": 61398
+    },
+    "reference-repeat-spread.json": {
+      "sha256": "6ddf482b9f33155c89fadbd0022bf55255ddabcdeed4483085edc267916620f1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-reference-repeat-spread-v3.json",
+      "bytes": 21416
+    },
+    "baseline-regression.json": {
+      "sha256": "cbe22fff8e6ae766c3f89cacbbd3a7022d299eddc13b3e6f160415a7c0f875d3",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-baseline-regression-comparison.json",
+      "bytes": 3337
+    },
+    "reference-log-clock-manifest.json": {
+      "sha256": "19acb5fcc92b55d078336214191b5b58063d882db4d7c71a12a7dc6adff07fd0",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/reference-log-clock-v3-manifest.json",
+      "bytes": 1553
+    },
+    "reference-replay-drivers.json": {
+      "sha256": "a8ba3ac7a08aaebf3dab62a78c223d78bd57ae233e376330838018fc70fb7edc",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/reference-final-replay-driver-manifest.json",
+      "bytes": 2485
+    },
+    "streaming-export-validation.json": {
+      "sha256": "5620bc3cea52878660faec2404a2ab5f4a2f500b2ea7854c6476166874372199",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/reference-streaming-export-validation.json",
+      "bytes": 374
+    },
+    "reference-comparator-guards.json": {
+      "sha256": "840f37b8044ed268bc2fa40a974fa756d621a94fd7e7db45fa820f13d28b8ab1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/reference-comparator-guard-results.json",
+      "bytes": 1852
+    },
+    "rule-serialization-validation.json": {
+      "sha256": "af8b63af2b9c9a9a04195d0b49fc5c5cff872a5e4025dd89d0445ff8e76e5225",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-rule-serialization-validation.json",
+      "bytes": 295
+    },
+    "comparison-serialization-change.json": {
+      "sha256": "2fd8953d172850a9750305b1316ff3517b40bbe6efe34f5967e9c3a1cf184281",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-comparison-serialization-change.json",
+      "bytes": 570
+    },
+    "service-proof.json": {
+      "sha256": "0b7616bbca66b14225d0263eb95ceec4628013a1fabb6e4f71969a0d32f1ca90",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-final-service-proof.json",
+      "bytes": 2790
+    },
+    "math-comparison.json": {
+      "sha256": "01e117c49e280c2fabed5fda11551df90d8c3f230594764f58ad5dda923c30bd",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-math-native-probe-glibc-v8/comparison.json",
+      "bytes": 1832
+    },
+    "reference-process-audit.json": {
+      "sha256": "8771a3e39455724d547e03c6d58c949641657f219a9973cad9bb7490cc97863c",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-reference-process-audit.json",
+      "bytes": 422391
+    },
+    "reference-runtime-coverage.json": {
+      "sha256": "b5dc56e5547207759e77d9b0b9c65900ca56095e66efd1ea8f00ab168b293482",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-reference-runtime-coverage.json",
+      "bytes": 46682
+    },
+    "state-contract-cache-validation.json": {
+      "sha256": "9938b905c90da9413902890a8c91d59b9df711311f1fba751f4ffd3213dd5195",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-state-contract-cache-validation.json",
+      "bytes": 330
+    },
+    "state-contract-cache-change.json": {
+      "sha256": "bd040249dec525fa9ca712e90ca04092841cb5b4e3017888ef13be72487f3bfb",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-state-contract-cache-change.json",
+      "bytes": 511
+    },
+    "final-harness-tests.log": {
+      "sha256": "936391ef2958f870fd5fcce810c9a062a82401f2152b0d2416be6c3779237f19",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-final-harness-tests-03.log",
+      "bytes": 99
+    },
+    "comparison-sources/551fd8bdf88a7f46ed4c5d42bbe13f96d92983df6e244869a2297911a258a9a9/output_comparison.py": {
+      "sha256": "551fd8bdf88a7f46ed4c5d42bbe13f96d92983df6e244869a2297911a258a9a9",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/comparison-source-archive/551fd8bdf88a7f46ed4c5d42bbe13f96d92983df6e244869a2297911a258a9a9/output_comparison.py",
+      "bytes": 10723
+    },
+    "comparison-sources/1cc85d276a239850fda0a191d417e07cb9335dc4d05f1161f9ce3ccddfac3ff1/validation.py": {
+      "sha256": "1cc85d276a239850fda0a191d417e07cb9335dc4d05f1161f9ce3ccddfac3ff1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/comparison-source-archive/1cc85d276a239850fda0a191d417e07cb9335dc4d05f1161f9ce3ccddfac3ff1/validation.py",
+      "bytes": 6231
+    },
+    "comparison-sources/93c3548fedb260167260d1c011ac7a30a654344e4ea6fa78ea409a6ff8f835e3/validate_native_vectors.py": {
+      "sha256": "93c3548fedb260167260d1c011ac7a30a654344e4ea6fa78ea409a6ff8f835e3",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/comparison-source-archive/93c3548fedb260167260d1c011ac7a30a654344e4ea6fa78ea409a6ff8f835e3/validate_native_vectors.py",
+      "bytes": 9353
+    },
+    "comparison-sources/26b875e5d0ec701530e0eea51ffb45ad7f773c6bbefd75727fb8ed7e001a7ebe/state_comparison.py": {
+      "sha256": "26b875e5d0ec701530e0eea51ffb45ad7f773c6bbefd75727fb8ed7e001a7ebe",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/comparison-source-archive/26b875e5d0ec701530e0eea51ffb45ad7f773c6bbefd75727fb8ed7e001a7ebe/state_comparison.py",
+      "bytes": 5623
+    },
+    "comparison-sources/4aa46b158d83584e4da3ac86c16ff25f650c134e47d95ed727dff90568f7252a/validate_native_vectors.py": {
+      "sha256": "4aa46b158d83584e4da3ac86c16ff25f650c134e47d95ed727dff90568f7252a",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/comparison-source-archive/4aa46b158d83584e4da3ac86c16ff25f650c134e47d95ed727dff90568f7252a/validate_native_vectors.py",
+      "bytes": 9515
+    },
+    "comparison-sources/c2bf880bf19f5ae350d5195bd18120338998481a5c8f56785d1f4df02a776cfc/validation.py": {
+      "sha256": "c2bf880bf19f5ae350d5195bd18120338998481a5c8f56785d1f4df02a776cfc",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/comparison-source-archive/c2bf880bf19f5ae350d5195bd18120338998481a5c8f56785d1f4df02a776cfc/validation.py",
+      "bytes": 5995
+    },
+    "comparison-sources/7a6915256bcb0ff5570d4a8082c1ef8622fcee8da34ef4ca0f02b292eceb5d2d/state_comparison.py": {
+      "sha256": "7a6915256bcb0ff5570d4a8082c1ef8622fcee8da34ef4ca0f02b292eceb5d2d",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/comparison-source-archive/7a6915256bcb0ff5570d4a8082c1ef8622fcee8da34ef4ca0f02b292eceb5d2d/state_comparison.py",
+      "bytes": 5248
+    },
+    "route-admission-audit.json": {
+      "sha256": "95392528ac335685854800f760c109b612b773d0aa6f4e94e1ff3cc69c2aad5b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-final-route-admission-audit.json",
+      "bytes": 7685
+    },
+    "final-generator-math-comparison.json": {
+      "sha256": "a8ed1bda2968a89ebe8f56992cae552c1e9ebfd1c82409b329aec7c90eed0def",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-math-native-probe-final-generator/comparison.json",
+      "bytes": 1832
+    },
+    "final-generator-math-manifest.json": {
+      "sha256": "f7d2968f963d8aca0cf96fc03548bcd9349bd2183894d1018ad7b52f4a3cea66",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-math-native-probe-final-generator/manifest.json",
+      "bytes": 1599
+    },
+    "validation-chain-index.json": {
+      "sha256": "0abca8378f34b643404a8f0305f1120cc1ba8e9bea05975603ff938541e46f63",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-final-validation-chain-index.json",
+      "bytes": 368301
+    },
+    "common-R06-E4.json": {
+      "sha256": "c2b9c5e01a2b25a63587e80ee80f0a754c7ef8eabde80c9e2672f059eeea6b1c",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/common-schedule-navigation-v8/R06-E4/comparison/comparison.json",
+      "bytes": 19477
+    },
+    "common-R06-E4.png": {
+      "sha256": "7145f767b4cda9b88d46ff0b3d1e649c7e688f3caee8025485c73796be8a2840",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/common-schedule-navigation-v8/R06-E4/comparison/comparison.png",
+      "bytes": 184538
+    },
+    "step-sensitivity.json": {
+      "sha256": "1b0eb132b466ddb797996a01f0fb57de7f244f06acb678c329d87bad34295f59",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/sensitivity-analysis/comparison.json",
+      "bytes": 1167
+    },
+    "step-sensitivity.png": {
+      "sha256": "43211c78bdfbbb231e088e9d14f153f5b711ac4586221bfa36ae2dcbb75b0fcf",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/sensitivity-analysis/comparison.png",
+      "bytes": 134999
+    },
+    "ui/environment-on.png": {
+      "sha256": "b58ff3653f13be0762cd87239846b7602ec7ddc811d0afa09811a275769404d0",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/ui-evidence/environment-on.png",
+      "bytes": 163882
+    },
+    "ui/environment-off.png": {
+      "sha256": "93f7a0c92a8f0bd84c36c6ea2ab9a89b15975bb10a81c625fdb77983c546fa29",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/ui-evidence/environment-off.png",
+      "bytes": 145730
+    },
+    "ui/on-session.json": {
+      "sha256": "2266aa37ea557c35c2324fe5714385cc1a98fe5946a0f9d42b7b7434dbb69a2f",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/ui-evidence/on-session.json",
+      "bytes": 1792
+    },
+    "ui/off-session.json": {
+      "sha256": "33bd428461216ab116d65f22efb388aff045211006fdbf049427ed3608d53add",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/ui-evidence/off-session.json",
+      "bytes": 1766
+    },
+    "ui/creation-race-fixed-console.json": {
+      "sha256": "3b5bac35240c8bfb402df5bcf3e339b7bbb1312bf48c65783c3e9fba0423d726",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/ui-evidence/creation-race-fixed-console.json",
+      "bytes": 8136
+    },
+    "ui/creation-race-fixed-session.json": {
+      "sha256": "df7a88e8247344a0ca4a451d209759e188215e545e2f9dc57e279b77b6f3b633",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/ui-evidence/creation-race-fixed-session.json",
+      "bytes": 1765
+    },
+    "fixed-input/R01-E0.json": {
+      "sha256": "be4e32b0ae7c5d34bbe2927977e5cf9aed5f9058bd76b9452945ebab084a06d7",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R01-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R01-E4.json": {
+      "sha256": "7f2093e7493b7525837f0dc3294e0ff33b8843dcf55f5ec98a5ca4aec381cf21",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R01-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R02-minus-E0.json": {
+      "sha256": "b496149614b6fd8c96ee845bb2c033df4ffe833c7813a377c1ef6c465c04c727",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R02-minus-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R02-minus-E4.json": {
+      "sha256": "5171064b352c957912fac45686020220c4b993dad56c2059c9da555682e898eb",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R02-minus-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R02-plus-E0.json": {
+      "sha256": "5196f479dda69e8facccc4cb274f3557e3f9467355ae799f81e81e4e67ddeef1",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R02-plus-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R02-plus-E4.json": {
+      "sha256": "4bc4702e8395cd4ed35081d54bb626bcf16e3f07e38a5b45b5a590db203f0b4c",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R02-plus-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R03-minus-E0.json": {
+      "sha256": "2167767740c72ab9bd9c114d7f590466f200d7fb82032299a3fa56b6fd869697",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R03-minus-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R03-minus-E4.json": {
+      "sha256": "be17b4b2b8604f3b6bf8a511ffbfc1d17d27568341ec9ec1b6c669aee64d9fb6",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R03-minus-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R03-plus-E0.json": {
+      "sha256": "4b32f749bf79d520bbe17723a0f53aa40ac07d556b284a5e6e16f65a47b2f4ec",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R03-plus-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R03-plus-E4.json": {
+      "sha256": "151c97c43973734ca8abeac81703f5f0eaa7d485e4cad8c92c316c9d63ae3045",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R03-plus-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R04-E0.json": {
+      "sha256": "d642a655b51c58e8be34616dc57da984059a3e85049d55558ebed7249349d57f",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R04-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R04-E4.json": {
+      "sha256": "894de83808523a33de3a373009efebf31ab51d7cae4df2e31ab0cf0080789191",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R04-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R05-E0.json": {
+      "sha256": "2614d7fc2683bcdc106a5f89cb3f1aba2dd0d0b9c4b73ad4b47da86814797f2e",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R05-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R05-E4.json": {
+      "sha256": "c41ea8ec405a7ef545869b6080fe542e5ca27ea576aa6d277b359e569b52717b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R05-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R06-E0.json": {
+      "sha256": "1c4e74f49e240f8a735f64806b0a796a1e7cdb438e1e6941fc2a989bf961bd4d",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R06-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R06-E4.json": {
+      "sha256": "063eb306f29e41c42756fdcfe34584eb623e46746beaa3733811c1b633ab52cc",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R06-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R07-E0.json": {
+      "sha256": "952f86245175765d446c28b2e0257a224b01a5e20a1c9d51fd7c44c063b8eb99",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R07-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R07-E4.json": {
+      "sha256": "8fb6ca04a42282bb8e4b71f8a8549353d67b4b1dd4ffd3749180b9fa4c6b62b7",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R07-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R08-E0.json": {
+      "sha256": "5f5bacc3058f11663fb7c0fe7a4b8a150287af772ce03f1a1c57d30cdd50fe7f",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R08-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R08-E4.json": {
+      "sha256": "d10be23cfa22dd80c5602afcc964d1467638366b13b683cde5206126006a52a4",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R08-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R09-E0.json": {
+      "sha256": "36ca638e822e262d7d8e82c8e73d74b25c7e3a1f301c838036a40996585489b2",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R09-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R09-E4.json": {
+      "sha256": "dc5b0bbadd4188b8890b62fe665c4b8b9714737aa36453b62c791df7ed3cc762",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R09-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R10-E0.json": {
+      "sha256": "947255320cabd1204812b0d2c434f7d386c3c334315a012b4c02f2c2453576e0",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R10-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R10-E4.json": {
+      "sha256": "9d567d06240de163c2843b5661befdc0b91f6d1742509a11712daa244082dce5",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R10-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R11-E0.json": {
+      "sha256": "e5165b5891c8d2876a0fdf0405ff8bf00d0c2df84d77d3aeb3aeca4b4bf50483",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R11-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R11-E4.json": {
+      "sha256": "97ced6f18949d338d964bfd55a0c0d986eb36b3b6530bfb9d5fe62b911343dfa",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R11-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R12-E0.json": {
+      "sha256": "ed5bd90181a49537e9ca53c6b1dbee011993bcd006663780f5d37be3947355d3",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R12-E0/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R12-E4.json": {
+      "sha256": "fcd8e19ae8844129cd73dd3680ab504316cbeca7a84df0f2ccac82e34226abff",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/full-vector-validation-01/R12-E4/comparison.json",
+      "scope": "Native build metadata factored into native-build-manifest.json; all comparison fields preserved"
+    },
+    "fixed-input/R11-E4-parts/core.json": {
+      "sha256": "1e1a9640b6b0f7901491440ab2e65deb0daea003877f752ce868bf92fd31ed9b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/results/core/comparison.json",
+      "bytes": 175662
+    },
+    "fixed-input/R11-E4-parts/aggregate.json": {
+      "sha256": "60b572485f142ef472f285dbc2ee73fe3e0721e287cf075eeb1dcb6bfe6baf58",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/results/aggregate/comparison.json",
+      "bytes": 172457
+    },
+    "fixed-input/R11-E4-parts/wind.json": {
+      "sha256": "335f53989cde538526a99b76125a68d413c058821be24019c9abf30b5d791dc9",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/results/wind/comparison.json",
+      "bytes": 172449
+    },
+    "fixed-input/R11-E4-parts/current.json": {
+      "sha256": "2822e930408f00b85f4cf5d8997ad390bfe43058cea9d55e2f4836b87bf88f83",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/results/current/comparison.json",
+      "bytes": 172669
+    },
+    "fixed-input/R11-E4-parts/wave.json": {
+      "sha256": "4a85490989f3033b6eb0abbe59d6b86848ca23465ef47bdc619bb94b1de752c2",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/results/wave/comparison.json",
+      "bytes": 172484
+    },
+    "fixed-input/R11-E4-parts/core-vectors-manifest.json": {
+      "sha256": "126dd96ae50ffa4573dbb2557bd5ea31158fb04721805ab2557cb10d6c1dd814",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/vectors/core/manifest.json",
+      "bytes": 1383
+    },
+    "fixed-input/R11-E4-parts/aggregate-vectors-manifest.json": {
+      "sha256": "63d777d1d87711a2706a1dc29865a1d88e7e6d43cb1b854a5dec0af968228664",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/vectors/aggregate/manifest.json",
+      "bytes": 386
+    },
+    "fixed-input/R11-E4-parts/wind-vectors-manifest.json": {
+      "sha256": "3ad6d9e1ed7a359194449b90c0c908600503ab475bd28155fd7d910cf7d38ed3",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/vectors/wind/manifest.json",
+      "bytes": 415
+    },
+    "fixed-input/R11-E4-parts/current-vectors-manifest.json": {
+      "sha256": "3d2adb3c9ef8f3d1f2b4b0d2ccfef3da07f7ee7dd18f29265f1fb4a1c179d637",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/vectors/current/manifest.json",
+      "bytes": 382
+    },
+    "fixed-input/R11-E4-parts/wave-vectors-manifest.json": {
+      "sha256": "88ee8f90c9ce374a7e67d2384adaf9fc0b975961f1fcf8ecd9ecf7f654010217",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-r11-pipeline-v1/vectors/wave/manifest.json",
+      "bytes": 376
+    },
+    "validation-orchestration/pipeline-r11-native-validation.py": {
+      "sha256": "e75d8d568384d5ba3cfc502d33e9c7735479b63285df1c5ce83d2292adc6e58b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/pipeline-r11-native-validation.py",
+      "bytes": 4997
+    },
+    "validation-orchestration/parallel-r11-native-validation.py": {
+      "sha256": "14c2b672ba44bfdc5dbf9d60860111bea427e7a54906c597c76012e74d19fae6",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/parallel-r11-native-validation.py",
+      "bytes": 4452
+    },
+    "validation-orchestration/finalize-r11-pipeline-02.py": {
+      "sha256": "4255cd46174cc39864ef56d9a579fde24825cc22a737b6dae1b61d372b2fa53f",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/finalize-r11-pipeline-02.py",
+      "bytes": 2804
+    },
+    "seed-campaign.json": {
+      "sha256": "736f14ed74ce904812413fe43350ce604da54334efdb1d17ecc749ff73115d82",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/seed-comparison-01/campaign.json",
+      "bytes": 68834
+    },
+    "seeds/R06-E4-seed20240619.json": {
+      "sha256": "83e85a7ba43854c711102dfd2970b7adf0f117cf8f8cd01e79e5942221a8c877",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/seed-comparison-01/R06-E4-seed20240619/comparison/comparison.json",
+      "bytes": 20363
+    },
+    "seeds/R06-E4-seed20240619.png": {
+      "sha256": "26b34eb627d21be7599bae12a1b3e35ef4ceead909abdc1f1a367e33e116058a",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/seed-comparison-01/R06-E4-seed20240619/comparison/comparison.png",
+      "bytes": 201517
+    },
+    "seeds/R06-E4-seed20240620.json": {
+      "sha256": "c54858bebeaa16cde4da138a99d66b88d01ea891e60b74b4ccf53f5f75b89f33",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/seed-comparison-01/R06-E4-seed20240620/comparison/comparison.json",
+      "bytes": 20357
+    },
+    "seeds/R06-E4-seed20240620.png": {
+      "sha256": "e6d3d0efaf757f6b809ed15960f230aaf6ed6191116cd83dd965a3635475a457",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/seed-comparison-01/R06-E4-seed20240620/comparison/comparison.png",
+      "bytes": 200573
+    },
+    "seeds/R06-E4-seed20240621.json": {
+      "sha256": "70d8c356b17bcc4bdb0577afda90da23b06e6c70d16ba279fa61540b08175c55",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/seed-comparison-01/R06-E4-seed20240621/comparison/comparison.json",
+      "bytes": 20357
+    },
+    "seeds/R06-E4-seed20240621.png": {
+      "sha256": "3f58517f81c62111fde83d85954a38af8c96ceca48b2c2e77bf99a9bd6aa419b",
+      "original_path": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/seed-comparison-01/R06-E4-seed20240621/comparison/comparison.png",
+      "bytes": 198722
+    }
+  }
+}

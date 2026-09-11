@@ -664,6 +664,9 @@ class CustomMPCAdapter(ICOLAV):
                 "solve_id": trace.solve_id,
                 "sim_time": trace.sim_time,
                 "feasible": trace.feasible,
+                "solver_executed": trace.solver_executed,
+                "status": trace.status.value,
+                "reason": trace.reason,
                 "selected_command": dict(trace.selected_command),
                 "algorithm_details": {
                     key: details[key]
@@ -671,6 +674,10 @@ class CustomMPCAdapter(ICOLAV):
                         "accepted_plan_receipt",
                         "hold_acceptance",
                         "rolling_plan",
+                        "active_encounters",
+                        "static_constraint_active",
+                        "dynamic_safety_buffer_recovery",
+                        "solve_period_s",
                     )
                     if key in details
                 },

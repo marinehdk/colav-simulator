@@ -427,7 +427,8 @@ class ExperimentRunner:
                 PlanStatus.INVALID_INPUT,
                 "GNC stack binding is not supported for Historical AIS scenarios",
             )
-        stack_ids = {entry["stack_id"] for entry in list_stack_catalog()["stacks"]}
+        catalog = list_stack_catalog()
+        stack_ids = {entry["stack_id"] for entry in [*catalog["stacks"], *catalog.get("original_gnc_stacks", [])]}
         if spec.ownship_gnc_stack_id not in stack_ids | {LEGACY_WITHOUT_MODULES}:
             raise ColavExecutionError(
                 PlanStatus.INVALID_INPUT,
@@ -740,6 +741,12 @@ class ExperimentRunner:
                     PlanStatus.INVALID_INPUT,
                     f"Requested algorithm {manifest.requested_algorithm} resolved to {manifest.executed_algorithm}",
                 )
+            original_reader = getattr(session.ship_list[0], "original_gnc_evidence", None) if session.ship_list else None
+            if callable(original_reader):
+                manifest.original_gnc = original_reader()
+                manifest.diagnostic_only = True
+                manifest.diagnostic_only_reasons.append("original_gnc_response_unqualified")
+                writer.write_original_gnc_bundle(session.ship_list[0].original_gnc_bundle())
             writer.write_manifest(manifest)
         except Exception as exc:
             artifact_sink.close(timeout_s=2.0)
@@ -792,6 +799,7 @@ class ExperimentRunner:
         prepared.manifest.state = prepared.session.state
         prepared.manifest.execution_outcome = RunOutcome.COMPLETED
         self._enforce_no_fallback(prepared)
+        self.persist_original_gnc(prepared)
         evaluator = (
             self.evaluator
             if self.evaluator.profile.profile_id == prepared.spec.evaluator_profile_id
@@ -851,6 +859,7 @@ class ExperimentRunner:
             return self.finalize(prepared)
         except Exception as exc:
             prepared.artifact_sink.close(timeout_s=2.0)
+            self.persist_original_gnc(prepared)
             self.persist_failure(
                 prepared.manifest,
                 prepared.writer,
@@ -859,6 +868,14 @@ class ExperimentRunner:
                 prepared.session.events,
             )
             raise ExperimentRunError(prepared.manifest, prepared.run_dir) from exc
+
+    @staticmethod
+    def persist_original_gnc(prepared: PreparedRun) -> None:
+        """Retain original admission failures as well as successful source execution."""
+        ships = prepared.session.ship_list
+        reader = getattr(ships[0], "original_gnc_bundle", None) if ships else None
+        if callable(reader):
+            prepared.writer.write_original_gnc_bundle(reader())
 
     def replay(self, source_run_dir: Path, output_root: Path | None = None) -> RunResult:
         """Re-execute a recorded RunSpec and verify episode and trajectory hashes."""
@@ -960,11 +977,12 @@ def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: 
         if not config.ship_list:
             raise ColavExecutionError(PlanStatus.INVALID_INPUT, "GNC preset requires an ownship")
         config.ship_list[0].ship_modules = None
+        config.ship_list[0].original_gnc = None
         config.stochasticity = None
         return
     catalog = list_stack_catalog()
     entry = next(
-        (item for item in catalog["stacks"] if item["stack_id"] == stack_id),
+        (item for item in [*catalog["stacks"], *catalog.get("original_gnc_stacks", [])] if item["stack_id"] == stack_id),
         None,
     )
     if entry is None:
@@ -977,6 +995,16 @@ def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: 
             PlanStatus.INVALID_INPUT,
             "GNC stack binding requires a scenario ownship",
         )
+    if entry.get("backend_kind") == "original_gnc":
+        from colav_simulator.original_gnc.configuration import OriginalGncConfig  # noqa: PLC0415
+
+        if not entry["available"]:
+            raise ColavExecutionError(PlanStatus.DEPENDENCY_UNAVAILABLE, entry["unavailable_reason"])
+        config.ship_list[0].ship_modules = None
+        config.ship_list[0].original_gnc = OriginalGncConfig.from_dict({"environment": entry["config"]["environment"]})
+        config.stochasticity = None
+        return
+    config.ship_list[0].original_gnc = None
     config.ship_list[0].ship_modules = normalize_ship_modules(entry["config"])
     if any(stack_id in preset["variants"].values() for preset in catalog["product_presets"]):
         # Product weather has exactly one authority: the selected modular field.

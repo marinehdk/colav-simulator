@@ -9,7 +9,8 @@ from colav_simulator.modular_gnc.allocator import KNOWN_ACTUATOR_LAYOUT_ASSETS
 from colav_simulator.modular_gnc.fcb45_actuation import LAYOUT_ID, FCB45ActuationParameters
 
 
-def balance_telemetry(session: Any) -> dict[str, Any] | None:
+# Preserve the existing modular projection while dispatching original-backend telemetry.
+def balance_telemetry(session: Any) -> dict[str, Any] | None:  # noqa: C901, PLR0912
     """Expose measured simulation state, delivered actuation and active limits.
 
     No forecast provider or weather operating envelope exists in the stack.
@@ -17,7 +18,12 @@ def balance_telemetry(session: Any) -> dict[str, Any] | None:
     ideal-force stack. Sampling here never advances the model or its RNG.
     """
     ships = getattr(session, "ship_list", ())
-    if not ships or getattr(ships[0], "modular_stack_config", None) is None:
+    if not ships:
+        return None
+    original_reader = getattr(ships[0], "original_balance_telemetry", None)
+    if callable(original_reader):
+        return original_reader()
+    if getattr(ships[0], "modular_stack_config", None) is None:
         return None
     stack = ships[0].stack
     config = stack.config

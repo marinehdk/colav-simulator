@@ -1,0 +1,11 @@
+{
+  "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R11-E4",
+  "modules": {
+    "force_aggregator_node": {
+      "calls": 692709,
+      "file": "force_aggregator_node.jsonl.gz",
+      "sha256": "5ac278e808be08d020d7c9e2ef899ae8fb15440bea9fb72c836fa032d22e93d9"
+    }
+  },
+  "scope": "One disjoint module from the complete canonical R11-E4 export"
+}

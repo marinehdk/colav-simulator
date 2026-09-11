@@ -1,0 +1,20 @@
+{
+  "scope": "Three pre-run fixed additional seeds; R06-E4 geometry and gates unchanged",
+  "cases": [
+    {
+      "case_id": "R06-E4-seed20240619",
+      "file": "R06-E4-seed20240619.json",
+      "sha256": "1d0982c39f172c70119f5f3283565a7fb574df9d18cbda8fa202ea1d2984c7e1"
+    },
+    {
+      "case_id": "R06-E4-seed20240620",
+      "file": "R06-E4-seed20240620.json",
+      "sha256": "9852eb52bcabb42d54216b77f7aa8fb9bba6cd459bd0bab57ce7b2ad966b2db2"
+    },
+    {
+      "case_id": "R06-E4-seed20240621",
+      "file": "R06-E4-seed20240621.json",
+      "sha256": "37c091949f75ae839abbc061b91156339f4cc404594fe5d2bb257ce052e6f6a9"
+    }
+  ]
+}

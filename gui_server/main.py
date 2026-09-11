@@ -218,6 +218,13 @@ def _modular_gnc_telemetry_metadata(session: Any) -> dict[str, Any] | None:
     )
 
 
+def _original_gnc_telemetry_metadata(session: Any) -> dict[str, Any] | None:
+    """Keep original-source runtime identity separate from modular qualifications."""
+    ships = getattr(session, "ship_list", ()) or ()
+    reader = getattr(ships[0], "original_gnc_evidence", None) if ships else None
+    return reader() if callable(reader) else None
+
+
 def _select_primary_encounter(_encounters: list[dict[str, Any]]) -> None:
     """Deprecated compatibility symbol; Primary belongs to canonical backend facts."""
     return None
@@ -957,6 +964,7 @@ class WebSessionManager:
     def _write_failure_evidence(self, prepared: PreparedRun, exc: Exception) -> None:
         try:
             prepared.artifact_sink.close(timeout_s=2.0)
+            self.runner.persist_original_gnc(prepared)
             self.runner.persist_failure(
                 prepared.manifest,
                 prepared.writer,
@@ -1460,6 +1468,7 @@ class WebSessionManager:
             "selected_rule": self.prepared.spec.validation_rule_id,
             "selected_scenario": self.prepared.spec.scenario_id,
             "modular_gnc": _modular_gnc_telemetry_metadata(session),
+            "original_gnc": _original_gnc_telemetry_metadata(session),
             "gnc_balance": balance_telemetry(session),
             "step_time_ms": step_ms,
             "playback": self._playback_status(),

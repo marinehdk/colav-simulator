@@ -1,0 +1,13 @@
+{
+  "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/route-contract-v2-01",
+  "modules": {
+    "coordinate_transform_node": {
+      "calls": 1935,
+      "sha256": "07d9d13ef294062f8138cb4de4f6213dc4d7608aa0879b24166a62088abce131"
+    },
+    "active_route_manager_node": {
+      "calls": 1868,
+      "sha256": "0112e42a8de0c6feacb1a35840c697a92afff8ea466833171d2492fc37bb58c8"
+    }
+  }
+}

@@ -1,0 +1,4456 @@
+{
+  "schema": "original-gnc.observed-baseline.v1",
+  "source_manifest_sha256": "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411",
+  "parameters": {
+    "ship_dynamics_node": {
+      "auto_initial_yaw_from_route": {
+        "type": 1,
+        "value": true
+      },
+      "auto_initial_yaw_max_position_offset_m": {
+        "type": 3,
+        "value": 5.0
+      },
+      "auto_initial_yaw_max_speed_mps": {
+        "type": 3,
+        "value": 0.05
+      },
+      "auto_initial_yaw_min_segment_m": {
+        "type": 3,
+        "value": 20.0
+      },
+      "env_force_timeout_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "initial_position.x": {
+        "type": 3,
+        "value": 0.0
+      },
+      "initial_position.y": {
+        "type": 3,
+        "value": 15.0
+      },
+      "initial_position.yaw": {
+        "type": 3,
+        "value": 0.0
+      },
+      "initial_velocity.r": {
+        "type": 3,
+        "value": 0.0
+      },
+      "initial_velocity.u": {
+        "type": 3,
+        "value": 7.8
+      },
+      "initial_velocity.v": {
+        "type": 3,
+        "value": 0.0
+      },
+      "log_dir": {
+        "type": 4,
+        "value": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E0-instrumented-smoke/plant-csv"
+      },
+      "model_contracts.coriolis_skew_tolerance": {
+        "type": 3,
+        "value": 1e-09
+      },
+      "model_contracts.damping_eigenvalue_tolerance": {
+        "type": 3,
+        "value": 1e-09
+      },
+      "model_contracts.enabled": {
+        "type": 1,
+        "value": true
+      },
+      "model_contracts.mass_symmetry_tolerance": {
+        "type": 3,
+        "value": 1e-06
+      },
+      "model_contracts.min_mass_eigenvalue": {
+        "type": 3,
+        "value": 1.0
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "qos_overrides./tf.publisher.depth": {
+        "type": 2,
+        "value": 100
+      },
+      "qos_overrides./tf.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./tf.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./tf.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "rudder_model.full_effect_beta_deg": {
+        "type": 3,
+        "value": 25.0
+      },
+      "rudder_model.max_effective_inflow_mps": {
+        "type": 3,
+        "value": 8.0
+      },
+      "rudder_model.max_normal_force_n": {
+        "type": 3,
+        "value": 180000.0
+      },
+      "rudder_model.zero_effect_beta_deg": {
+        "type": 3,
+        "value": 70.0
+      },
+      "thrusters.num": {
+        "type": 2,
+        "value": 7
+      },
+      "thrusters.r1.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.r1.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.r1.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.r1.angle_rate_limit": {
+        "type": 3,
+        "value": 0.1
+      },
+      "thrusters.r1.efficiency": {
+        "type": 3,
+        "value": 1.0
+      },
+      "thrusters.r1.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.r1.thrust_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.r1.x": {
+        "type": 3,
+        "value": -19.594
+      },
+      "thrusters.r1.y": {
+        "type": 3,
+        "value": -3.0
+      },
+      "thrusters.r2.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.r2.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.r2.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.r2.angle_rate_limit": {
+        "type": 3,
+        "value": 0.1
+      },
+      "thrusters.r2.efficiency": {
+        "type": 3,
+        "value": 1.0
+      },
+      "thrusters.r2.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.r2.thrust_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.r2.x": {
+        "type": 3,
+        "value": -19.594
+      },
+      "thrusters.r2.y": {
+        "type": 3,
+        "value": 3.0
+      },
+      "thrusters.t0.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t0.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t0.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t0.angle_rate_limit": {
+        "type": 3,
+        "value": 0.5
+      },
+      "thrusters.t0.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t0.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "thrusters.t0.x": {
+        "type": 3,
+        "value": -70.0
+      },
+      "thrusters.t0.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t1.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t1.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t1.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t1.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t1.efficiency": {
+        "type": 3,
+        "value": 1.0
+      },
+      "thrusters.t1.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t1.thrust_rate_limit": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "thrusters.t1.x": {
+        "type": 3,
+        "value": -18.094
+      },
+      "thrusters.t1.y": {
+        "type": 3,
+        "value": -3.0
+      },
+      "thrusters.t2.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t2.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t2.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t2.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t2.efficiency": {
+        "type": 3,
+        "value": 1.0
+      },
+      "thrusters.t2.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t2.thrust_rate_limit": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "thrusters.t2.x": {
+        "type": 3,
+        "value": -18.094
+      },
+      "thrusters.t2.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t3.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t3.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t3.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t3.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t3.efficiency": {
+        "type": 3,
+        "value": 1.0
+      },
+      "thrusters.t3.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t3.thrust_rate_limit": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "thrusters.t3.x": {
+        "type": 3,
+        "value": -18.094
+      },
+      "thrusters.t3.y": {
+        "type": 3,
+        "value": 3.0
+      },
+      "thrusters.t4.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t4.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t4.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t4.angle_rate_limit": {
+        "type": 3,
+        "value": 0.5
+      },
+      "thrusters.t4.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t4.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "thrusters.t4.x": {
+        "type": 3,
+        "value": -30.0
+      },
+      "thrusters.t4.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t5.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t5.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t5.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t5.angle_rate_limit": {
+        "type": 3,
+        "value": 0.5
+      },
+      "thrusters.t5.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t5.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "thrusters.t5.x": {
+        "type": 3,
+        "value": -20.0
+      },
+      "thrusters.t5.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t6.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t6.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t6.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t6.angle_rate_limit": {
+        "type": 3,
+        "value": 0.5
+      },
+      "thrusters.t6.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t6.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "thrusters.t6.x": {
+        "type": 3,
+        "value": -10.0
+      },
+      "thrusters.t6.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t7.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t7.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t7.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t7.angle_rate_limit": {
+        "type": 3,
+        "value": 0.5
+      },
+      "thrusters.t7.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t7.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "thrusters.t7.x": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t7.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t8.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t8.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t8.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t8.angle_rate_limit": {
+        "type": 3,
+        "value": 0.5
+      },
+      "thrusters.t8.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t8.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "thrusters.t8.x": {
+        "type": 3,
+        "value": 10.0
+      },
+      "thrusters.t8.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t9.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.t9.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.t9.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.t9.angle_rate_limit": {
+        "type": 3,
+        "value": 0.5
+      },
+      "thrusters.t9.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.t9.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "thrusters.t9.x": {
+        "type": 3,
+        "value": 20.0
+      },
+      "thrusters.t9.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.tb1.angle_default": {
+        "type": 3,
+        "value": 1.5708
+      },
+      "thrusters.tb1.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.tb1.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.tb1.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.tb1.efficiency": {
+        "type": 3,
+        "value": 1.0
+      },
+      "thrusters.tb1.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.tb1.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "thrusters.tb1.x": {
+        "type": 3,
+        "value": 21.906
+      },
+      "thrusters.tb1.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.tb2.angle_default": {
+        "type": 3,
+        "value": 1.5708
+      },
+      "thrusters.tb2.angle_max": {
+        "type": 3,
+        "value": 3.141592653589793
+      },
+      "thrusters.tb2.angle_min": {
+        "type": 3,
+        "value": -3.141592653589793
+      },
+      "thrusters.tb2.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.tb2.efficiency": {
+        "type": 3,
+        "value": 1.0
+      },
+      "thrusters.tb2.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "thrusters.tb2.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "thrusters.tb2.x": {
+        "type": 3,
+        "value": 23.406
+      },
+      "thrusters.tb2.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thrusters.thruster_names": {
+        "type": 9,
+        "value": [
+          "t1",
+          "t2",
+          "t3",
+          "tb1",
+          "tb2",
+          "r1",
+          "r2"
+        ]
+      },
+      "time_scale": {
+        "type": 3,
+        "value": 1.0
+      },
+      "update_rate": {
+        "type": 3,
+        "value": 50.0
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      },
+      "vessel.B": {
+        "type": 3,
+        "value": 8.0
+      },
+      "vessel.GM": {
+        "type": 3,
+        "value": 1.5
+      },
+      "vessel.Lpp": {
+        "type": 3,
+        "value": 44.1
+      },
+      "vessel.added_mass.K_dot_p": {
+        "type": 3,
+        "value": 10000000.0
+      },
+      "vessel.added_mass.N_dot_r": {
+        "type": 3,
+        "value": 9500000.0
+      },
+      "vessel.added_mass.N_dot_v": {
+        "type": 3,
+        "value": 1000000.0
+      },
+      "vessel.added_mass.X_dot_u": {
+        "type": 3,
+        "value": 22000.0
+      },
+      "vessel.added_mass.Y_dot_r": {
+        "type": 3,
+        "value": 1000000.0
+      },
+      "vessel.added_mass.Y_dot_v": {
+        "type": 3,
+        "value": 160000.0
+      },
+      "vessel.d": {
+        "type": 3,
+        "value": 2.0
+      },
+      "vessel.gravity": {
+        "type": 3,
+        "value": 9.80665
+      },
+      "vessel.hydrodynamic.K_p": {
+        "type": 3,
+        "value": -10000000.0
+      },
+      "vessel.hydrodynamic.K_pp": {
+        "type": 3,
+        "value": -50000000.0
+      },
+      "vessel.hydrodynamic.N_r": {
+        "type": 3,
+        "value": -1600000.0
+      },
+      "vessel.hydrodynamic.N_rr": {
+        "type": 3,
+        "value": -3000000.0
+      },
+      "vessel.hydrodynamic.N_v": {
+        "type": 3,
+        "value": -600000.0
+      },
+      "vessel.hydrodynamic.X_u": {
+        "type": 3,
+        "value": -3500.0
+      },
+      "vessel.hydrodynamic.X_uu": {
+        "type": 3,
+        "value": -280.0
+      },
+      "vessel.hydrodynamic.Y_r": {
+        "type": 3,
+        "value": 60000.0
+      },
+      "vessel.hydrodynamic.Y_v": {
+        "type": 3,
+        "value": -50000.0
+      },
+      "vessel.hydrodynamic.Y_vv": {
+        "type": 3,
+        "value": -9000.0
+      },
+      "vessel.limits.abnormal_reset_r": {
+        "type": 3,
+        "value": 2.0
+      },
+      "vessel.limits.abnormal_reset_u": {
+        "type": 3,
+        "value": 25.0
+      },
+      "vessel.limits.hard_yaw_rate_limit": {
+        "type": 3,
+        "value": 1.0
+      },
+      "vessel.limits.max_r": {
+        "type": 3,
+        "value": 0.5
+      },
+      "vessel.limits.max_u": {
+        "type": 3,
+        "value": 20.0
+      },
+      "vessel.limits.soft_yaw_rate_limit": {
+        "type": 3,
+        "value": 0.3
+      },
+      "vessel.limits.soft_yaw_stiffness": {
+        "type": 3,
+        "value": 20000000.0
+      },
+      "vessel.mass": {
+        "type": 3,
+        "value": 220000.0
+      },
+      "vessel.moment_of_inertia.Ixx": {
+        "type": 3,
+        "value": 20000000.0
+      },
+      "vessel.moment_of_inertia.Izz": {
+        "type": 3,
+        "value": 27000000.0
+      },
+      "water_depth": {
+        "type": 3,
+        "value": 20.0
+      }
+    },
+    "ship_control_node": {
+      "autopilot_quiet_zone.enable": {
+        "type": 1,
+        "value": true
+      },
+      "autopilot_quiet_zone.heading_error_enter_deg": {
+        "type": 3,
+        "value": 0.3
+      },
+      "autopilot_quiet_zone.heading_error_exit_deg": {
+        "type": 3,
+        "value": 0.8
+      },
+      "autopilot_quiet_zone.yaw_rate_deadband_deg_s": {
+        "type": 3,
+        "value": 0.05
+      },
+      "behavior.current_yaw_ff_command_deadband_nm": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "behavior.dp_position_deadband_enter_m": {
+        "type": 3,
+        "value": 20.0
+      },
+      "behavior.dp_position_deadband_exit_m": {
+        "type": 3,
+        "value": 30.0
+      },
+      "behavior.dp_yaw_release_radius_m": {
+        "type": 3,
+        "value": 2.0
+      },
+      "behavior.dp_yaw_release_speed_mps": {
+        "type": 3,
+        "value": 0.05
+      },
+      "behavior.integral_output_safety_factor": {
+        "type": 3,
+        "value": 2.0
+      },
+      "behavior.integral_overspeed_decay": {
+        "type": 3,
+        "value": 0.7
+      },
+      "behavior.nomoto_gain_scale_max": {
+        "type": 3,
+        "value": 2.0
+      },
+      "behavior.nomoto_gain_scale_min": {
+        "type": 3,
+        "value": 0.2
+      },
+      "behavior.nomoto_reference_speed_mps": {
+        "type": 3,
+        "value": 5.0
+      },
+      "behavior.speed_safety_cap_mps": {
+        "type": 3,
+        "value": 8.0
+      },
+      "behavior.speed_safety_tolerance_min_mps": {
+        "type": 3,
+        "value": 1.5
+      },
+      "behavior.speed_safety_tolerance_ratio": {
+        "type": 3,
+        "value": 0.25
+      },
+      "behavior.starting_thrust_boost_n": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "behavior.turn_brake_heading_error_deg": {
+        "type": 3,
+        "value": 30.0
+      },
+      "behavior.turn_brake_max_reverse_force_n": {
+        "type": 3,
+        "value": -20000.0
+      },
+      "behavior.yaw_integral_separation_deg": {
+        "type": 3,
+        "value": 20.0
+      },
+      "control_period": {
+        "type": 3,
+        "value": 0.1
+      },
+      "coordinate_conventions.yaw_torque_sign": {
+        "type": 3,
+        "value": 1.0
+      },
+      "coordinate_conventions.yaw_torque_sign_cruise": {
+        "type": 3,
+        "value": 1.0
+      },
+      "coordinate_conventions.yaw_torque_sign_dp": {
+        "type": 3,
+        "value": 1.0
+      },
+      "cruise_speed": {
+        "type": 3,
+        "value": 8.0
+      },
+      "current_yaw_feedforward.enable": {
+        "type": 1,
+        "value": true
+      },
+      "current_yaw_feedforward.max_nm": {
+        "type": 3,
+        "value": 80000.0
+      },
+      "current_yaw_feedforward.min_speed_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "current_yaw_feedforward.sign": {
+        "type": 3,
+        "value": -1.0
+      },
+      "current_yaw_feedforward.stale_timeout_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "current_yaw_feedforward.weight": {
+        "type": 3,
+        "value": 0.45
+      },
+      "deadzone_radius": {
+        "type": 3,
+        "value": 2.0
+      },
+      "derivative_cutoff_freq": {
+        "type": 3,
+        "value": 5.0
+      },
+      "gains.speed.k_robust": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "gains.speed.kd": {
+        "type": 3,
+        "value": 0.0
+      },
+      "gains.speed.ki": {
+        "type": 3,
+        "value": 0.0
+      },
+      "gains.speed.kp": {
+        "type": 3,
+        "value": 40000.0
+      },
+      "gains.speed.phi": {
+        "type": 3,
+        "value": 1.0
+      },
+      "gains.speed_dp.k_robust": {
+        "type": 3,
+        "value": 5000.0
+      },
+      "gains.speed_dp.kd": {
+        "type": 3,
+        "value": 0.0
+      },
+      "gains.speed_dp.ki": {
+        "type": 3,
+        "value": 500.0
+      },
+      "gains.speed_dp.kp": {
+        "type": 3,
+        "value": 20000.0
+      },
+      "gains.speed_dp.phi": {
+        "type": 3,
+        "value": 1.0
+      },
+      "gains.surge.k_robust": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "gains.surge.kd": {
+        "type": 3,
+        "value": 100000.0
+      },
+      "gains.surge.ki": {
+        "type": 3,
+        "value": 0.0
+      },
+      "gains.surge.kp": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "gains.surge.phi": {
+        "type": 3,
+        "value": 1.0
+      },
+      "gains.surge_dp.k_robust": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "gains.surge_dp.kd": {
+        "type": 3,
+        "value": 70000.0
+      },
+      "gains.surge_dp.ki": {
+        "type": 3,
+        "value": 0.0
+      },
+      "gains.surge_dp.kp": {
+        "type": 3,
+        "value": 3000.0
+      },
+      "gains.surge_dp.phi": {
+        "type": 3,
+        "value": 1.0
+      },
+      "gains.sway.k_robust": {
+        "type": 3,
+        "value": 10000.0
+      },
+      "gains.sway.kd": {
+        "type": 3,
+        "value": 15000.0
+      },
+      "gains.sway.ki": {
+        "type": 3,
+        "value": 500.0
+      },
+      "gains.sway.kp": {
+        "type": 3,
+        "value": 30000.0
+      },
+      "gains.sway.phi": {
+        "type": 3,
+        "value": 1.0
+      },
+      "gains.sway_dp.k_robust": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "gains.sway_dp.kd": {
+        "type": 3,
+        "value": 15000.0
+      },
+      "gains.sway_dp.ki": {
+        "type": 3,
+        "value": 0.0
+      },
+      "gains.sway_dp.kp": {
+        "type": 3,
+        "value": 800.0
+      },
+      "gains.sway_dp.phi": {
+        "type": 3,
+        "value": 1.0
+      },
+      "gains.yaw.k_robust": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "gains.yaw.kd": {
+        "type": 3,
+        "value": 4500000.0
+      },
+      "gains.yaw.ki": {
+        "type": 3,
+        "value": 0.0
+      },
+      "gains.yaw.kp": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "gains.yaw.phi": {
+        "type": 3,
+        "value": 0.5
+      },
+      "gains.yaw_dp.k_robust": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "gains.yaw_dp.kd": {
+        "type": 3,
+        "value": 5500000.0
+      },
+      "gains.yaw_dp.ki": {
+        "type": 3,
+        "value": 0.0
+      },
+      "gains.yaw_dp.kp": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "gains.yaw_dp.phi": {
+        "type": 3,
+        "value": 0.5
+      },
+      "integral_limit": {
+        "type": 3,
+        "value": 50.0
+      },
+      "lpf_alpha": {
+        "type": 3,
+        "value": 0.4
+      },
+      "max_force_x": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "max_force_y": {
+        "type": 3,
+        "value": 60000.0
+      },
+      "max_reverse_surge": {
+        "type": 3,
+        "value": 60000.0
+      },
+      "max_thrust_surge": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "max_torque_z": {
+        "type": 3,
+        "value": 960000.0
+      },
+      "max_torque_z_dp": {
+        "type": 3,
+        "value": 400000.0
+      },
+      "min_yaw_moment_cruise": {
+        "type": 3,
+        "value": 400000.0
+      },
+      "min_yaw_moment_error_deg": {
+        "type": 3,
+        "value": 8.0
+      },
+      "min_yaw_moment_full_error_deg": {
+        "type": 3,
+        "value": 90.0
+      },
+      "min_yaw_moment_yaw_rate_suppress_deg_s": {
+        "type": 3,
+        "value": 1.5
+      },
+      "ndo.damping_x": {
+        "type": 3,
+        "value": 3500.0
+      },
+      "ndo.damping_y": {
+        "type": 3,
+        "value": 18000.0
+      },
+      "ndo.damping_yaw": {
+        "type": 3,
+        "value": 420000.0
+      },
+      "ndo.enable": {
+        "type": 1,
+        "value": false
+      },
+      "ndo.gain_x": {
+        "type": 3,
+        "value": 0.5
+      },
+      "ndo.gain_y": {
+        "type": 3,
+        "value": 0.5
+      },
+      "ndo.gain_yaw": {
+        "type": 3,
+        "value": 0.2
+      },
+      "ndo.mass_x": {
+        "type": 3,
+        "value": 242000.0
+      },
+      "ndo.mass_y": {
+        "type": 3,
+        "value": 380000.0
+      },
+      "ndo.mass_yaw": {
+        "type": 3,
+        "value": 36500000.0
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "speed_deadzone": {
+        "type": 3,
+        "value": 0.2
+      },
+      "speed_drag_feedforward.enable": {
+        "type": 1,
+        "value": true
+      },
+      "speed_drag_feedforward.linear_N_per_mps": {
+        "type": 3,
+        "value": 3500.0
+      },
+      "speed_drag_feedforward.quadratic_N_per_mps2": {
+        "type": 3,
+        "value": 280.0
+      },
+      "target.x": {
+        "type": 3,
+        "value": 100.0
+      },
+      "target.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "target.yaw": {
+        "type": 3,
+        "value": 0.785398
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      }
+    },
+    "ship_guidance_node": {
+      "Lpp": {
+        "type": 3,
+        "value": 45.0
+      },
+      "capture_radius": {
+        "type": 3,
+        "value": 60.0
+      },
+      "corridor_beta_decay": {
+        "type": 3,
+        "value": 0.9
+      },
+      "corridor_guidance_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "corridor_half_width_m": {
+        "type": 3,
+        "value": 2.0
+      },
+      "corridor_integral_decay": {
+        "type": 3,
+        "value": 0.8
+      },
+      "corridor_reacquire_width_m": {
+        "type": 3,
+        "value": 30.0
+      },
+      "corridor_soft_width_m": {
+        "type": 3,
+        "value": 15.0
+      },
+      "cruise_base_speed_mps": {
+        "type": 3,
+        "value": 6.0
+      },
+      "cruise_envelope_normal_max_outward_rate_mps": {
+        "type": 3,
+        "value": 0.25
+      },
+      "cruise_envelope_normal_predicted_xte_m": {
+        "type": 3,
+        "value": 12.0
+      },
+      "cruise_envelope_normal_stable_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "cruise_envelope_normal_xte_m": {
+        "type": 3,
+        "value": 10.0
+      },
+      "cruise_envelope_prediction_horizon_s": {
+        "type": 3,
+        "value": 10.0
+      },
+      "cruise_envelope_rejoin_predicted_xte_m": {
+        "type": 3,
+        "value": 18.0
+      },
+      "cruise_envelope_rejoin_xte_m": {
+        "type": 3,
+        "value": 15.0
+      },
+      "cruise_envelope_watch_speed_cap_mps": {
+        "type": 3,
+        "value": 6.0
+      },
+      "cruise_fallback_xte_dot_mps": {
+        "type": 3,
+        "value": 0.4
+      },
+      "cruise_fallback_xte_m": {
+        "type": 3,
+        "value": 45.0
+      },
+      "cruise_fallback_yaw_rate_deg_s": {
+        "type": 3,
+        "value": 1.2
+      },
+      "cruise_min_speed_mps": {
+        "type": 3,
+        "value": 3.8
+      },
+      "cruise_recovery_max_xte_dot_mps": {
+        "type": 3,
+        "value": 0.35
+      },
+      "cruise_recovery_max_xte_m": {
+        "type": 3,
+        "value": 10.0
+      },
+      "cruise_recovery_max_yaw_rate_deg_s": {
+        "type": 3,
+        "value": 0.8
+      },
+      "cruise_recovery_ramp_mps2": {
+        "type": 3,
+        "value": 0.2
+      },
+      "cruise_recovery_required_stable_s": {
+        "type": 3,
+        "value": 8.0
+      },
+      "cruise_recovery_target_speed_mps": {
+        "type": 3,
+        "value": 8.0
+      },
+      "cruise_speed_recovery_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "current_cog_rejoin_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "current_cog_rejoin_kp": {
+        "type": 3,
+        "value": 0.5
+      },
+      "current_cog_rejoin_max_angle_deg": {
+        "type": 3,
+        "value": 6.5
+      },
+      "current_cog_rejoin_min_speed_mps": {
+        "type": 3,
+        "value": 2.0
+      },
+      "current_crab_base_scale": {
+        "type": 3,
+        "value": 0.85
+      },
+      "current_crab_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "current_crab_feedback_max_angle_deg": {
+        "type": 3,
+        "value": 8.5
+      },
+      "current_crab_filter_tau_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "current_crab_force_ref_n": {
+        "type": 3,
+        "value": 12000.0
+      },
+      "current_crab_max_angle_deg": {
+        "type": 3,
+        "value": 11.0
+      },
+      "current_crab_min_force_n": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "current_crab_min_speed_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "current_crab_rate_limit_deg_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "current_crab_smoothing_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "current_crab_xte_kp_deg_per_m": {
+        "type": 3,
+        "value": 0.12
+      },
+      "current_crab_xte_rate_kd_deg_per_mps": {
+        "type": 3,
+        "value": 2.6
+      },
+      "current_force_ff_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "current_force_ff_force_ref_n": {
+        "type": 3,
+        "value": 25000.0
+      },
+      "current_force_ff_max_angle_deg": {
+        "type": 3,
+        "value": 2.5
+      },
+      "current_force_ff_min_speed_mps": {
+        "type": 3,
+        "value": 2.0
+      },
+      "current_load_filter_tau_s": {
+        "type": 3,
+        "value": 1.5
+      },
+      "current_rejoin_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "current_rejoin_far_threshold_m": {
+        "type": 3,
+        "value": 30.0
+      },
+      "current_rejoin_force_ref_n": {
+        "type": 3,
+        "value": 12000.0
+      },
+      "current_rejoin_lookahead_gain": {
+        "type": 3,
+        "value": 1.4
+      },
+      "current_rejoin_max_approach_angle_deg": {
+        "type": 3,
+        "value": 14.0
+      },
+      "current_rejoin_max_factor": {
+        "type": 3,
+        "value": 1.8
+      },
+      "current_rejoin_min_lookahead_m": {
+        "type": 3,
+        "value": 80.0
+      },
+      "current_rejoin_min_outward_force_n": {
+        "type": 3,
+        "value": 800.0
+      },
+      "current_rejoin_raw_threshold_m": {
+        "type": 3,
+        "value": 30.0
+      },
+      "current_rejoin_release_m": {
+        "type": 3,
+        "value": 25.0
+      },
+      "current_rejoin_speed_cap_mps": {
+        "type": 3,
+        "value": 7.2
+      },
+      "current_rejoin_stale_timeout_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "current_vector_combined_crab_max_angle_deg": {
+        "type": 3,
+        "value": 18.0
+      },
+      "current_vector_crab_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "current_vector_crab_feedback_max_angle_deg": {
+        "type": 3,
+        "value": 8.5
+      },
+      "current_vector_crab_filter_tau_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "current_vector_crab_gain": {
+        "type": 3,
+        "value": 1.15
+      },
+      "current_vector_crab_max_angle_deg": {
+        "type": 3,
+        "value": 15.0
+      },
+      "current_vector_crab_max_current_speed_mps": {
+        "type": 3,
+        "value": 1.2
+      },
+      "current_vector_crab_min_speed_mps": {
+        "type": 3,
+        "value": 2.0
+      },
+      "current_vector_crab_rate_limit_deg_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "current_vector_crab_smoothing_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "current_vector_crab_stale_timeout_s": {
+        "type": 3,
+        "value": 120.0
+      },
+      "current_vector_crab_target_offset_enabled": {
+        "type": 1,
+        "value": false
+      },
+      "current_vector_crab_target_offset_m": {
+        "type": 3,
+        "value": 0.0
+      },
+      "current_vector_crab_turn_xte_rate_kd_scale": {
+        "type": 3,
+        "value": 0.65
+      },
+      "current_vector_crab_xte_kp_deg_per_m": {
+        "type": 3,
+        "value": 0.13
+      },
+      "current_vector_crab_xte_rate_kd_deg_per_mps": {
+        "type": 3,
+        "value": 4.0
+      },
+      "current_vector_direction_is_from": {
+        "type": 1,
+        "value": true
+      },
+      "current_vector_residual_decay_when_recovering": {
+        "type": 1,
+        "value": true
+      },
+      "current_vector_residual_env_enabled": {
+        "type": 1,
+        "value": false
+      },
+      "current_vector_residual_env_engage_force_n": {
+        "type": 3,
+        "value": 800.0
+      },
+      "current_vector_residual_env_filter_tau_s": {
+        "type": 3,
+        "value": 4.0
+      },
+      "current_vector_residual_env_rate_limit_deg_s": {
+        "type": 3,
+        "value": 0.6
+      },
+      "current_vector_residual_env_release_force_n": {
+        "type": 3,
+        "value": 400.0
+      },
+      "current_vector_residual_env_scale": {
+        "type": 3,
+        "value": 1.0
+      },
+      "current_vector_residual_max_tracking_error_deg": {
+        "type": 3,
+        "value": 6.0
+      },
+      "current_vector_residual_min_speed_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "current_vector_residual_recovery_scale": {
+        "type": 3,
+        "value": 0.35
+      },
+      "current_vector_residual_xte_feedback_scale": {
+        "type": 3,
+        "value": 0.0
+      },
+      "delta_min_coeff": {
+        "type": 3,
+        "value": 1.5
+      },
+      "dense_turn_cluster_chaikin_iterations": {
+        "type": 2,
+        "value": 2
+      },
+      "dense_turn_cluster_max_segment_m": {
+        "type": 3,
+        "value": 500.0
+      },
+      "dense_turn_cluster_min_angle_deg": {
+        "type": 3,
+        "value": 12.0
+      },
+      "dense_turn_cluster_min_turns": {
+        "type": 2,
+        "value": 2
+      },
+      "dense_turn_cluster_sample_spacing_m": {
+        "type": 3,
+        "value": 60.0
+      },
+      "dense_turn_cluster_smoothing_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "dense_turn_cluster_speed_mps": {
+        "type": 3,
+        "value": 3.8
+      },
+      "dp_weathervane_handoff_max_cross_track_m": {
+        "type": 3,
+        "value": 35.0
+      },
+      "dp_weathervane_handoff_speed_mps": {
+        "type": 3,
+        "value": 0.9
+      },
+      "dp_weathervane_heading_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "dp_weathervane_min_env_force_n": {
+        "type": 3,
+        "value": 500.0
+      },
+      "dp_weathervane_stale_timeout_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "dp_weathervane_strict_handoff_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "dynamic_path_attach_current_position_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "dynamic_path_attach_min_distance_m": {
+        "type": 3,
+        "value": 20.0
+      },
+      "emergency_avoidance_speed_cap_mps": {
+        "type": 3,
+        "value": 3.2
+      },
+      "emergency_avoidance_switch_max_xte_m": {
+        "type": 3,
+        "value": 90.0
+      },
+      "emergency_avoidance_wheel_over_distance_m": {
+        "type": 3,
+        "value": 120.0
+      },
+      "external_route_turn_centerline_distance_m": {
+        "type": 3,
+        "value": 600.0
+      },
+      "external_route_turn_centerline_release_xte_m": {
+        "type": 3,
+        "value": 18.0
+      },
+      "external_route_turn_heading_preview_distance_m": {
+        "type": 3,
+        "value": 900.0
+      },
+      "external_route_turn_hold_distance_m": {
+        "type": 3,
+        "value": 4500.0
+      },
+      "external_route_turn_min_cumulative_angle_deg": {
+        "type": 3,
+        "value": 12.0
+      },
+      "external_route_turn_preview_distance_m": {
+        "type": 3,
+        "value": 2600.0
+      },
+      "external_route_turn_preview_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "external_route_turn_speed_cap_mps": {
+        "type": 3,
+        "value": 4.2
+      },
+      "far_xte_rejoin_hard_speed_cap_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "far_xte_rejoin_lookahead_m": {
+        "type": 3,
+        "value": 120.0
+      },
+      "far_xte_rejoin_max_approach_angle_deg": {
+        "type": 3,
+        "value": 25.0
+      },
+      "far_xte_rejoin_override_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "far_xte_rejoin_release_m": {
+        "type": 3,
+        "value": 25.0
+      },
+      "far_xte_rejoin_speed_cap_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "far_xte_rejoin_threshold_m": {
+        "type": 3,
+        "value": 65.0
+      },
+      "final_approach_lookahead_m": {
+        "type": 3,
+        "value": 80.0
+      },
+      "final_approach_max_heading_correction_deg": {
+        "type": 3,
+        "value": 5.0
+      },
+      "final_approach_use_adaptive_los": {
+        "type": 1,
+        "value": false
+      },
+      "final_capture_max_cross_track_m": {
+        "type": 3,
+        "value": 50.0
+      },
+      "final_capture_radius": {
+        "type": 3,
+        "value": 100.0
+      },
+      "final_capture_speed": {
+        "type": 3,
+        "value": 0.8
+      },
+      "final_dp_brake_radius": {
+        "type": 3,
+        "value": 270.0
+      },
+      "final_dp_brake_speed": {
+        "type": 3,
+        "value": 0.25
+      },
+      "final_dp_hold_waypoint_enabled": {
+        "type": 1,
+        "value": false
+      },
+      "final_dp_min_closing_speed_mps": {
+        "type": 3,
+        "value": 0.55
+      },
+      "final_dp_slow_down_dist": {
+        "type": 3,
+        "value": 420.0
+      },
+      "final_dp_stop_decel_mps2": {
+        "type": 3,
+        "value": 0.04
+      },
+      "final_dp_stop_margin_lpp": {
+        "type": 3,
+        "value": 1.0
+      },
+      "final_dp_stop_max_lpp": {
+        "type": 3,
+        "value": 20.0
+      },
+      "final_dp_stop_min_lpp": {
+        "type": 3,
+        "value": 8.0
+      },
+      "final_dp_stop_response_delay_s": {
+        "type": 3,
+        "value": 8.0
+      },
+      "final_handoff_position_margin_m": {
+        "type": 3,
+        "value": 10.0
+      },
+      "final_handoff_speed": {
+        "type": 3,
+        "value": 0.6
+      },
+      "final_reacquire_cross_track_m": {
+        "type": 3,
+        "value": 10.0
+      },
+      "final_reacquire_min_speed_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "final_stop_radius": {
+        "type": 3,
+        "value": 30.0
+      },
+      "gamma_alos": {
+        "type": 3,
+        "value": 0.02
+      },
+      "gamma_lookahead": {
+        "type": 3,
+        "value": 1.0
+      },
+      "guidance_period_s": {
+        "type": 3,
+        "value": 0.5
+      },
+      "heading_align_enter_deg": {
+        "type": 3,
+        "value": 30.0
+      },
+      "heading_align_exit_deg": {
+        "type": 3,
+        "value": 8.0
+      },
+      "heading_align_max_speed_mps": {
+        "type": 3,
+        "value": 2.0
+      },
+      "heading_align_rejoin_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "heading_align_reset_xte_m": {
+        "type": 3,
+        "value": 45.0
+      },
+      "heading_align_speed_mps": {
+        "type": 3,
+        "value": 0.6
+      },
+      "heading_cmd_rate_limit_deg_s": {
+        "type": 3,
+        "value": 360.0
+      },
+      "homing_lookahead_m": {
+        "type": 3,
+        "value": 150.0
+      },
+      "homing_max_approach_angle_deg": {
+        "type": 3,
+        "value": 20.0
+      },
+      "homing_threshold_m": {
+        "type": 3,
+        "value": 80.0
+      },
+      "ilos_diagnostics_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "ilos_integral_max_heading_effect_deg": {
+        "type": 3,
+        "value": 5.5
+      },
+      "ilos_turn_integral_fade_start_m": {
+        "type": 3,
+        "value": 1800.0
+      },
+      "ilos_turn_integral_hold_m": {
+        "type": 3,
+        "value": 800.0
+      },
+      "ilos_turn_integral_schedule_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "ilos_turn_integral_zero_distance_m": {
+        "type": 3,
+        "value": 1200.0
+      },
+      "ilos_turn_kappa_hold_m": {
+        "type": 3,
+        "value": 800.0
+      },
+      "ilos_turn_kappa_min_angle_deg": {
+        "type": 3,
+        "value": 10.0
+      },
+      "ilos_turn_kappa_preview_m": {
+        "type": 3,
+        "value": 2600.0
+      },
+      "ilos_turn_kappa_scale": {
+        "type": 3,
+        "value": 0.7692307692307692
+      },
+      "ilos_turn_kappa_schedule_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "intermediate_capture_radius": {
+        "type": 3,
+        "value": 15.0
+      },
+      "intermediate_overrun_radius": {
+        "type": 3,
+        "value": 150.0
+      },
+      "kappa_ilos": {
+        "type": 3,
+        "value": 0.65
+      },
+      "lookahead_distance": {
+        "type": 3,
+        "value": 60.0
+      },
+      "max_transit_speed": {
+        "type": 3,
+        "value": 8.0
+      },
+      "minimum_steerage_speed": {
+        "type": 3,
+        "value": 3.0
+      },
+      "model_turn_max_lateral_accel_mps2": {
+        "type": 3,
+        "value": 0.25
+      },
+      "model_turn_max_yaw_rate_deg_s": {
+        "type": 3,
+        "value": 1.2
+      },
+      "model_turn_min_effective_angle_deg": {
+        "type": 3,
+        "value": 12.0
+      },
+      "model_turn_min_radius_m": {
+        "type": 3,
+        "value": 80.0
+      },
+      "model_turn_reference_radius_m": {
+        "type": 3,
+        "value": 450.0
+      },
+      "model_turn_speed_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "model_turn_speed_safety_factor": {
+        "type": 3,
+        "value": 0.85
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "raw_route_rejoin_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "raw_route_rejoin_release_m": {
+        "type": 3,
+        "value": 25.0
+      },
+      "raw_route_rejoin_threshold_m": {
+        "type": 3,
+        "value": 60.0
+      },
+      "raw_route_soft_rejoin_enter_m": {
+        "type": 3,
+        "value": -1.0
+      },
+      "rejoin_cross_track_m": {
+        "type": 3,
+        "value": 60.0
+      },
+      "rejoin_heading_error_deg": {
+        "type": 3,
+        "value": 15.0
+      },
+      "rejoin_severe_heading_error_deg": {
+        "type": 3,
+        "value": 30.0
+      },
+      "rejoin_severe_speed_cap_mps": {
+        "type": 3,
+        "value": 1.5
+      },
+      "rejoin_speed_cap_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "rejoin_speed_gate_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "reset_sideslip_on_waypoint_switch": {
+        "type": 1,
+        "value": true
+      },
+      "roll_guard_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "roll_guard_limit_deg": {
+        "type": 3,
+        "value": 10.0
+      },
+      "roll_guard_release_deg": {
+        "type": 3,
+        "value": 7.0
+      },
+      "roll_guard_speed_cap_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "slow_down_dist": {
+        "type": 3,
+        "value": 180.0
+      },
+      "terminal_decel_use_position_error": {
+        "type": 1,
+        "value": true
+      },
+      "turn_arc_auto_flyby_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "turn_arc_external_route_max_tangent_m": {
+        "type": 3,
+        "value": 120.0
+      },
+      "turn_arc_external_route_min_angle_deg": {
+        "type": 3,
+        "value": 20.0
+      },
+      "turn_arc_external_route_min_points": {
+        "type": 2,
+        "value": 40
+      },
+      "turn_arc_external_route_min_segment_m": {
+        "type": 3,
+        "value": 600.0
+      },
+      "turn_arc_external_route_radius_m": {
+        "type": 3,
+        "value": 380.0
+      },
+      "turn_arc_external_route_smoothing_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "turn_arc_max_tangent_m": {
+        "type": 3,
+        "value": 120.0
+      },
+      "turn_arc_min_angle_deg": {
+        "type": 3,
+        "value": 15.0
+      },
+      "turn_arc_pre_decel_dist_m": {
+        "type": 3,
+        "value": 180.0
+      },
+      "turn_arc_radius_m": {
+        "type": 3,
+        "value": 450.0
+      },
+      "turn_arc_sample_spacing_m": {
+        "type": 3,
+        "value": 80.0
+      },
+      "turn_arc_shallow_angle_deg": {
+        "type": 3,
+        "value": 35.0
+      },
+      "turn_arc_shallow_radius_m": {
+        "type": 3,
+        "value": 450.0
+      },
+      "turn_arc_smoothing_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "turn_arc_speed_mps": {
+        "type": 3,
+        "value": 5.0
+      },
+      "turn_arc_wheel_over_distance_m": {
+        "type": 3,
+        "value": 260.0
+      },
+      "turn_arc_wheel_over_max_segment_ratio": {
+        "type": 3,
+        "value": 0.7
+      },
+      "turn_cog_predict_kd_deg_per_mps": {
+        "type": 3,
+        "value": 1.2
+      },
+      "turn_cog_predict_kp_deg_per_m": {
+        "type": 3,
+        "value": 0.08
+      },
+      "turn_cog_predict_max_angle_deg": {
+        "type": 3,
+        "value": 4.0
+      },
+      "turn_cog_predict_min_outward_rate_mps": {
+        "type": 3,
+        "value": 0.05
+      },
+      "turn_cog_predict_min_xte_m": {
+        "type": 3,
+        "value": 8.0
+      },
+      "turn_cog_predict_time_s": {
+        "type": 3,
+        "value": 5.0
+      },
+      "turn_cog_predictive_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "turn_entry_centerline_distance_m": {
+        "type": 3,
+        "value": 180.0
+      },
+      "turn_entry_centerline_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "turn_entry_centerline_min_angle_deg": {
+        "type": 3,
+        "value": 10.0
+      },
+      "turn_entry_centerline_release_xte_m": {
+        "type": 3,
+        "value": 15.0
+      },
+      "turn_entry_los_correction_45deg": {
+        "type": 3,
+        "value": 12.0
+      },
+      "turn_entry_max_los_correction_deg": {
+        "type": 3,
+        "value": 8.0
+      },
+      "turn_feasibility_min_cumulative_angle_deg": {
+        "type": 3,
+        "value": 10.0
+      },
+      "turn_feasibility_preview_distance_m": {
+        "type": 3,
+        "value": 1200.0
+      },
+      "turn_feasibility_preview_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "turn_feasibility_response_margin_m": {
+        "type": 3,
+        "value": 180.0
+      },
+      "turn_no_slowdown_angle_deg": {
+        "type": 3,
+        "value": 10.0
+      },
+      "turn_recovery_gate_enabled": {
+        "type": 1,
+        "value": false
+      },
+      "turn_recovery_max_cross_track_rate_mps": {
+        "type": 3,
+        "value": 0.3
+      },
+      "turn_recovery_max_heading_error_deg": {
+        "type": 3,
+        "value": 8.0
+      },
+      "turn_recovery_max_xte_m": {
+        "type": 3,
+        "value": 35.0
+      },
+      "turn_recovery_max_yaw_rate_deg_s": {
+        "type": 3,
+        "value": 0.5
+      },
+      "turn_recovery_require_cruise_mode": {
+        "type": 1,
+        "value": true
+      },
+      "turn_recovery_speed_margin_mps": {
+        "type": 3,
+        "value": 0.5
+      },
+      "turn_recovery_speed_ramp_mps2": {
+        "type": 3,
+        "value": 0.3
+      },
+      "turn_segment_los_correction_45deg": {
+        "type": 3,
+        "value": 7.0
+      },
+      "turn_segment_max_los_correction_deg": {
+        "type": 3,
+        "value": 4.0
+      },
+      "turn_segment_release_cross_track_rate_mps": {
+        "type": 3,
+        "value": 0.4
+      },
+      "turn_segment_release_heading_error_deg": {
+        "type": 3,
+        "value": 6.0
+      },
+      "turn_segment_release_xte_m": {
+        "type": 3,
+        "value": 35.0
+      },
+      "turn_segment_release_yaw_rate_deg_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "turn_segment_speed_cap_mps": {
+        "type": 3,
+        "value": 4.2
+      },
+      "turn_segment_speed_gate_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "turn_slow_down_dist_15deg": {
+        "type": 3,
+        "value": 180.0
+      },
+      "turn_slow_down_dist_180deg": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "turn_slow_down_dist_45deg": {
+        "type": 3,
+        "value": 450.0
+      },
+      "turn_slow_down_dist_90deg": {
+        "type": 3,
+        "value": 700.0
+      },
+      "turn_speed_15deg": {
+        "type": 3,
+        "value": 7.5
+      },
+      "turn_speed_180deg": {
+        "type": 3,
+        "value": 2.5
+      },
+      "turn_speed_45deg": {
+        "type": 3,
+        "value": 4.2
+      },
+      "turn_speed_90deg": {
+        "type": 3,
+        "value": 3.5
+      },
+      "turn_two_point_d_gain_deg_per_mps": {
+        "type": 3,
+        "value": 1.1
+      },
+      "turn_two_point_d_max_angle_deg": {
+        "type": 3,
+        "value": 2.0
+      },
+      "turn_two_point_env_d_boost": {
+        "type": 3,
+        "value": 0.8
+      },
+      "turn_two_point_env_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "turn_two_point_env_feedforward_max_deg": {
+        "type": 3,
+        "value": 2.0
+      },
+      "turn_two_point_env_max_extra_angle_deg": {
+        "type": 3,
+        "value": 2.0
+      },
+      "turn_two_point_env_min_force_n": {
+        "type": 3,
+        "value": 800.0
+      },
+      "turn_two_point_env_p_boost": {
+        "type": 3,
+        "value": 0.35
+      },
+      "turn_two_point_env_ref_force_n": {
+        "type": 3,
+        "value": 6000.0
+      },
+      "turn_two_point_full_angle_deg": {
+        "type": 3,
+        "value": 35.0
+      },
+      "turn_two_point_full_offset_m": {
+        "type": 3,
+        "value": 120.0
+      },
+      "turn_two_point_fuzzy_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "turn_two_point_max_correction_deg": {
+        "type": 3,
+        "value": 4.0
+      },
+      "turn_two_point_min_angle_deg": {
+        "type": 3,
+        "value": 8.0
+      },
+      "turn_two_point_min_offset_m": {
+        "type": 3,
+        "value": 8.0
+      },
+      "turn_two_point_p_gain": {
+        "type": 3,
+        "value": 0.65
+      },
+      "turn_two_point_preview_distance_m": {
+        "type": 3,
+        "value": 1100.0
+      },
+      "use_adaptive_los": {
+        "type": 1,
+        "value": true
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      },
+      "wait_for_route_plan": {
+        "type": 1,
+        "value": true
+      },
+      "wind_crab_base_scale": {
+        "type": 3,
+        "value": 0.35
+      },
+      "wind_crab_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "wind_crab_engage_force_n": {
+        "type": 3,
+        "value": 500.0
+      },
+      "wind_crab_feedback_max_angle_deg": {
+        "type": 3,
+        "value": 5.0
+      },
+      "wind_crab_filter_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "wind_crab_filter_tau_s": {
+        "type": 3,
+        "value": 8.0
+      },
+      "wind_crab_force_ref_n": {
+        "type": 3,
+        "value": 6000.0
+      },
+      "wind_crab_max_angle_deg": {
+        "type": 3,
+        "value": 6.0
+      },
+      "wind_crab_min_force_n": {
+        "type": 3,
+        "value": 500.0
+      },
+      "wind_crab_min_speed_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "wind_crab_release_force_n": {
+        "type": 3,
+        "value": 300.0
+      },
+      "wind_crab_target_offset_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "wind_crab_target_offset_force_ref_n": {
+        "type": 3,
+        "value": 6000.0
+      },
+      "wind_crab_target_offset_max_m": {
+        "type": 3,
+        "value": 12.0
+      },
+      "wind_crab_target_offset_min_m": {
+        "type": 3,
+        "value": 3.0
+      },
+      "wind_crab_xte_kp_deg_per_m": {
+        "type": 3,
+        "value": 0.12
+      },
+      "wind_crab_xte_rate_kd_deg_per_mps": {
+        "type": 3,
+        "value": 1.5
+      },
+      "wind_cruise_full_outward_xte_dot_mps": {
+        "type": 3,
+        "value": 0.01
+      },
+      "wind_cruise_full_stable_s": {
+        "type": 3,
+        "value": 12.0
+      },
+      "wind_cruise_full_xte_dot_mps": {
+        "type": 3,
+        "value": 0.25
+      },
+      "wind_cruise_full_xte_m": {
+        "type": 3,
+        "value": 18.0
+      },
+      "wind_cruise_mid_outward_xte_dot_mps": {
+        "type": 3,
+        "value": 0.35
+      },
+      "wind_cruise_mid_speed_mps": {
+        "type": 3,
+        "value": 7.2
+      },
+      "wind_cruise_mid_xte_dot_mps": {
+        "type": 3,
+        "value": 0.35
+      },
+      "wind_cruise_mid_xte_m": {
+        "type": 3,
+        "value": 28.0
+      },
+      "wind_cruise_mid_yaw_rate_deg_s": {
+        "type": 3,
+        "value": 0.8
+      },
+      "wind_cruise_relax_min_cross_force_n": {
+        "type": 3,
+        "value": 800.0
+      },
+      "wind_cruise_speed_relax_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "wind_ilos_bias_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "wind_ilos_bias_gain_per_s": {
+        "type": 3,
+        "value": 0.04
+      },
+      "wind_ilos_bias_leak_tau_s": {
+        "type": 3,
+        "value": 15.0
+      },
+      "wind_ilos_bias_max_effect_m": {
+        "type": 3,
+        "value": 18.0
+      },
+      "wind_ilos_bias_min_speed_mps": {
+        "type": 3,
+        "value": 3.0
+      },
+      "wind_ilos_bias_target_centerline": {
+        "type": 1,
+        "value": false
+      },
+      "wind_rejoin_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "wind_rejoin_far_threshold_m": {
+        "type": 3,
+        "value": 30.0
+      },
+      "wind_rejoin_force_ref_n": {
+        "type": 3,
+        "value": 3000.0
+      },
+      "wind_rejoin_lookahead_gain": {
+        "type": 3,
+        "value": 1.0
+      },
+      "wind_rejoin_max_factor": {
+        "type": 3,
+        "value": 2.5
+      },
+      "wind_rejoin_min_lookahead_m": {
+        "type": 3,
+        "value": 45.0
+      },
+      "wind_rejoin_min_outward_force_n": {
+        "type": 3,
+        "value": 500.0
+      },
+      "wind_rejoin_raw_threshold_m": {
+        "type": 3,
+        "value": 30.0
+      },
+      "wind_rejoin_release_m": {
+        "type": 3,
+        "value": 25.0
+      },
+      "wind_rejoin_speed_cap_mps": {
+        "type": 3,
+        "value": 4.5
+      },
+      "wind_rejoin_stale_timeout_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "wp_gate_blocked_speed_mps": {
+        "type": 8,
+        "value": []
+      },
+      "wp_lookahead_m": {
+        "type": 8,
+        "value": []
+      },
+      "wp_missed_after_distance_m": {
+        "type": 8,
+        "value": []
+      },
+      "wp_navigation_modes": {
+        "type": 9,
+        "value": []
+      },
+      "wp_rejoin_cross_track_m": {
+        "type": 8,
+        "value": []
+      },
+      "wp_speed_limit_mps": {
+        "type": 8,
+        "value": []
+      },
+      "wp_switch_max_heading_error_deg": {
+        "type": 8,
+        "value": []
+      },
+      "wp_switch_max_speed_mps": {
+        "type": 8,
+        "value": []
+      },
+      "wp_switch_max_xte_m": {
+        "type": 8,
+        "value": []
+      },
+      "wp_switch_modes": {
+        "type": 9,
+        "value": []
+      },
+      "wp_switch_radius_m": {
+        "type": 8,
+        "value": []
+      },
+      "wp_wheel_over_distance_m": {
+        "type": 8,
+        "value": []
+      },
+      "wp_x": {
+        "type": 8,
+        "value": [
+          0.0,
+          500.0
+        ]
+      },
+      "wp_y": {
+        "type": 8,
+        "value": [
+          0.0,
+          0.0
+        ]
+      },
+      "xte_hard_limit_m": {
+        "type": 3,
+        "value": 100.0
+      },
+      "xte_rejoin_release_guard_max_correction_deg": {
+        "type": 3,
+        "value": 6.0
+      },
+      "xte_rejoin_release_guard_s": {
+        "type": 3,
+        "value": 5.0
+      }
+    },
+    "thrust_allocation_node": {
+      "allocation.degradation_level2_sway_scale": {
+        "type": 3,
+        "value": 0.01
+      },
+      "allocation.force_weight": {
+        "type": 3,
+        "value": 10000.0
+      },
+      "allocation.moment_weight": {
+        "type": 3,
+        "value": 200.0
+      },
+      "allocation.saturation_threshold": {
+        "type": 3,
+        "value": 0.3
+      },
+      "allocation.sway_weight": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "center_prop_wash.min_thrust_N": {
+        "type": 3,
+        "value": 8000.0
+      },
+      "control_mode": {
+        "type": 4,
+        "value": "auto"
+      },
+      "cruise_main_symmetry_speed_mps": {
+        "type": 3,
+        "value": 3.8
+      },
+      "cruise_rudder_floor.angle_deg": {
+        "type": 3,
+        "value": 2.0
+      },
+      "cruise_rudder_floor.moment_kNm": {
+        "type": 3,
+        "value": 20.0
+      },
+      "cruise_rudder_floor.speed_mps": {
+        "type": 3,
+        "value": 3.8
+      },
+      "enable_relative_current_diagnostics": {
+        "type": 1,
+        "value": true
+      },
+      "enable_rudder_effectiveness_diagnostics": {
+        "type": 1,
+        "value": true
+      },
+      "enable_straight_cruise_main_equalization": {
+        "type": 1,
+        "value": true
+      },
+      "enforce_cruise_main_symmetry": {
+        "type": 1,
+        "value": false
+      },
+      "env_feedforward_weight": {
+        "type": 3,
+        "value": 0.0
+      },
+      "main_equalization_lateral_deadband_kN": {
+        "type": 3,
+        "value": 0.5
+      },
+      "main_equalization_yaw_deadband_kNm": {
+        "type": 3,
+        "value": 30.0
+      },
+      "maneuver.enter_speed_mps": {
+        "type": 3,
+        "value": 0.3
+      },
+      "maneuver.exit_speed_mps": {
+        "type": 3,
+        "value": 1.5
+      },
+      "munk_lockout.reverse_force_kN": {
+        "type": 3,
+        "value": -50.0
+      },
+      "munk_lockout.yaw_moment_kNm": {
+        "type": 3,
+        "value": 100.0
+      },
+      "propeller_curve_shadow.csv_path": {
+        "type": 4,
+        "value": ""
+      },
+      "propeller_curve_shadow.enable": {
+        "type": 1,
+        "value": true
+      },
+      "propeller_curve_shadow.gear_ratio": {
+        "type": 3,
+        "value": 3.048
+      },
+      "propeller_curve_shadow.mcr_power_kW": {
+        "type": 3,
+        "value": 1007.0
+      },
+      "propeller_curve_shadow.publish_period_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "propulsion_constraints_stale_timeout_s": {
+        "type": 3,
+        "value": 3.0
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "r1.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "r1.angle_max": {
+        "type": 3,
+        "value": 0.6109
+      },
+      "r1.angle_min": {
+        "type": 3,
+        "value": -0.6109
+      },
+      "r1.angle_rate_limit": {
+        "type": 3,
+        "value": 0.1
+      },
+      "r1.diameter": {
+        "type": 3,
+        "value": 2.0
+      },
+      "r1.eta1": {
+        "type": 3,
+        "value": 800.0
+      },
+      "r1.eta2": {
+        "type": 3,
+        "value": 1.0
+      },
+      "r1.eta_m": {
+        "type": 3,
+        "value": 0.93
+      },
+      "r1.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "r1.is_rudder": {
+        "type": 1,
+        "value": true
+      },
+      "r1.max_angle": {
+        "type": 3,
+        "value": 0.61
+      },
+      "r1.max_power_kW": {
+        "type": 3,
+        "value": 100.0
+      },
+      "r1.max_thrust_kN": {
+        "type": 3,
+        "value": 10.0
+      },
+      "r1.rudder_area_m2": {
+        "type": 3,
+        "value": 3.5
+      },
+      "r1.rudder_lift_slope_per_rad": {
+        "type": 3,
+        "value": 2.8
+      },
+      "r1.thrust_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "r1.weight": {
+        "type": 3,
+        "value": 1.0
+      },
+      "r1.weight_delta": {
+        "type": 3,
+        "value": 1.0
+      },
+      "r1.x": {
+        "type": 3,
+        "value": -19.594
+      },
+      "r1.y": {
+        "type": 3,
+        "value": -3.0
+      },
+      "r2.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "r2.angle_max": {
+        "type": 3,
+        "value": 0.6109
+      },
+      "r2.angle_min": {
+        "type": 3,
+        "value": -0.6109
+      },
+      "r2.angle_rate_limit": {
+        "type": 3,
+        "value": 0.1
+      },
+      "r2.diameter": {
+        "type": 3,
+        "value": 2.0
+      },
+      "r2.eta1": {
+        "type": 3,
+        "value": 800.0
+      },
+      "r2.eta2": {
+        "type": 3,
+        "value": 1.0
+      },
+      "r2.eta_m": {
+        "type": 3,
+        "value": 0.93
+      },
+      "r2.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "r2.is_rudder": {
+        "type": 1,
+        "value": true
+      },
+      "r2.max_angle": {
+        "type": 3,
+        "value": 0.61
+      },
+      "r2.max_power_kW": {
+        "type": 3,
+        "value": 100.0
+      },
+      "r2.max_thrust_kN": {
+        "type": 3,
+        "value": 10.0
+      },
+      "r2.rudder_area_m2": {
+        "type": 3,
+        "value": 3.5
+      },
+      "r2.rudder_lift_slope_per_rad": {
+        "type": 3,
+        "value": 2.8
+      },
+      "r2.thrust_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "r2.weight": {
+        "type": 3,
+        "value": 1.0
+      },
+      "r2.weight_delta": {
+        "type": 3,
+        "value": 1.0
+      },
+      "r2.x": {
+        "type": 3,
+        "value": -19.594
+      },
+      "r2.y": {
+        "type": 3,
+        "value": 3.0
+      },
+      "rudder_effectiveness_log_period_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "rudder_effectiveness_reference_speed_mps": {
+        "type": 3,
+        "value": 4.0
+      },
+      "rudder_model.active_weight": {
+        "type": 3,
+        "value": 0.1
+      },
+      "rudder_model.enable_speed_mps": {
+        "type": 3,
+        "value": 1.0
+      },
+      "rudder_model.full_speed_mps": {
+        "type": 3,
+        "value": 2.0
+      },
+      "rudder_model.inactive_weight": {
+        "type": 3,
+        "value": 10000.0
+      },
+      "rudder_model.max_effective_speed_mps": {
+        "type": 3,
+        "value": 8.0
+      },
+      "rudder_model.sigma_gain": {
+        "type": 3,
+        "value": 5.0
+      },
+      "rudder_model.sigma_transition_speed_mps": {
+        "type": 3,
+        "value": 1.0
+      },
+      "rudder_model.water_density_kg_m3": {
+        "type": 3,
+        "value": 1025.0
+      },
+      "rudder_model.weight_sigmoid_gain": {
+        "type": 3,
+        "value": 8.0
+      },
+      "side_thruster_available_weight": {
+        "type": 3,
+        "value": 0.5
+      },
+      "side_thruster_derate_decay_per_mps": {
+        "type": 3,
+        "value": 0.7
+      },
+      "side_thruster_derate_start_speed_mps": {
+        "type": 3,
+        "value": 1.5
+      },
+      "side_thruster_emergency_unlock_max_speed_mps": {
+        "type": 3,
+        "value": 3.2
+      },
+      "side_thruster_lateral_deadband_kN": {
+        "type": 3,
+        "value": 0.5
+      },
+      "side_thruster_locked_weight": {
+        "type": 3,
+        "value": 1000.0
+      },
+      "side_thruster_lockout_speed_mps": {
+        "type": 3,
+        "value": 3.2
+      },
+      "side_thruster_speed_filter_tau_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "side_thruster_unlock_speed_mps": {
+        "type": 3,
+        "value": 2.7
+      },
+      "side_thruster_yaw_emergency_kNm": {
+        "type": 3,
+        "value": 200.0
+      },
+      "t1.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t1.angle_max": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t1.angle_min": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t1.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t1.diameter": {
+        "type": 3,
+        "value": 1.8
+      },
+      "t1.eta1": {
+        "type": 3,
+        "value": 1.2346
+      },
+      "t1.eta2": {
+        "type": 3,
+        "value": 1.0
+      },
+      "t1.eta_m": {
+        "type": 3,
+        "value": 0.93
+      },
+      "t1.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "t1.is_rudder": {
+        "type": 1,
+        "value": false
+      },
+      "t1.max_angle": {
+        "type": 3,
+        "value": 0.61
+      },
+      "t1.max_power_kW": {
+        "type": 3,
+        "value": 800.0
+      },
+      "t1.max_thrust_kN": {
+        "type": 3,
+        "value": 135.0
+      },
+      "t1.rudder_area_m2": {
+        "type": 3,
+        "value": 3.5
+      },
+      "t1.rudder_lift_slope_per_rad": {
+        "type": 3,
+        "value": 2.8
+      },
+      "t1.thrust_rate_limit": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "t1.weight": {
+        "type": 3,
+        "value": 1.0
+      },
+      "t1.weight_delta": {
+        "type": 3,
+        "value": 5.0
+      },
+      "t1.x": {
+        "type": 3,
+        "value": -18.094
+      },
+      "t1.y": {
+        "type": 3,
+        "value": -3.0
+      },
+      "t2.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t2.angle_max": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t2.angle_min": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t2.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t2.diameter": {
+        "type": 3,
+        "value": 1.8
+      },
+      "t2.eta1": {
+        "type": 3,
+        "value": 1.2346
+      },
+      "t2.eta2": {
+        "type": 3,
+        "value": 1.0
+      },
+      "t2.eta_m": {
+        "type": 3,
+        "value": 0.93
+      },
+      "t2.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "t2.is_rudder": {
+        "type": 1,
+        "value": false
+      },
+      "t2.max_angle": {
+        "type": 3,
+        "value": 0.61
+      },
+      "t2.max_power_kW": {
+        "type": 3,
+        "value": 800.0
+      },
+      "t2.max_thrust_kN": {
+        "type": 3,
+        "value": 135.0
+      },
+      "t2.rudder_area_m2": {
+        "type": 3,
+        "value": 3.5
+      },
+      "t2.rudder_lift_slope_per_rad": {
+        "type": 3,
+        "value": 2.8
+      },
+      "t2.thrust_rate_limit": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "t2.weight": {
+        "type": 3,
+        "value": 1.0
+      },
+      "t2.weight_delta": {
+        "type": 3,
+        "value": 5.0
+      },
+      "t2.x": {
+        "type": 3,
+        "value": -18.094
+      },
+      "t2.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t3.angle_default": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t3.angle_max": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t3.angle_min": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t3.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "t3.diameter": {
+        "type": 3,
+        "value": 1.8
+      },
+      "t3.eta1": {
+        "type": 3,
+        "value": 1.2346
+      },
+      "t3.eta2": {
+        "type": 3,
+        "value": 1.0
+      },
+      "t3.eta_m": {
+        "type": 3,
+        "value": 0.93
+      },
+      "t3.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "t3.is_rudder": {
+        "type": 1,
+        "value": false
+      },
+      "t3.max_angle": {
+        "type": 3,
+        "value": 0.61
+      },
+      "t3.max_power_kW": {
+        "type": 3,
+        "value": 800.0
+      },
+      "t3.max_thrust_kN": {
+        "type": 3,
+        "value": 135.0
+      },
+      "t3.rudder_area_m2": {
+        "type": 3,
+        "value": 3.5
+      },
+      "t3.rudder_lift_slope_per_rad": {
+        "type": 3,
+        "value": 2.8
+      },
+      "t3.thrust_rate_limit": {
+        "type": 3,
+        "value": 200000.0
+      },
+      "t3.weight": {
+        "type": 3,
+        "value": 1.0
+      },
+      "t3.weight_delta": {
+        "type": 3,
+        "value": 5.0
+      },
+      "t3.x": {
+        "type": 3,
+        "value": -18.094
+      },
+      "t3.y": {
+        "type": 3,
+        "value": 3.0
+      },
+      "tb1.angle_default": {
+        "type": 3,
+        "value": 1.5708
+      },
+      "tb1.angle_max": {
+        "type": 3,
+        "value": 1.5708
+      },
+      "tb1.angle_min": {
+        "type": 3,
+        "value": 1.5708
+      },
+      "tb1.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "tb1.diameter": {
+        "type": 3,
+        "value": 0.8
+      },
+      "tb1.eta1": {
+        "type": 3,
+        "value": 0.4296
+      },
+      "tb1.eta2": {
+        "type": 3,
+        "value": 1.0
+      },
+      "tb1.eta_m": {
+        "type": 3,
+        "value": 0.93
+      },
+      "tb1.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "tb1.is_rudder": {
+        "type": 1,
+        "value": false
+      },
+      "tb1.max_angle": {
+        "type": 3,
+        "value": 0.61
+      },
+      "tb1.max_power_kW": {
+        "type": 3,
+        "value": 500.0
+      },
+      "tb1.max_thrust_kN": {
+        "type": 3,
+        "value": 20.0
+      },
+      "tb1.rudder_area_m2": {
+        "type": 3,
+        "value": 3.5
+      },
+      "tb1.rudder_lift_slope_per_rad": {
+        "type": 3,
+        "value": 2.8
+      },
+      "tb1.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "tb1.weight": {
+        "type": 3,
+        "value": 1.0
+      },
+      "tb1.weight_delta": {
+        "type": 3,
+        "value": 1.0
+      },
+      "tb1.x": {
+        "type": 3,
+        "value": 21.906
+      },
+      "tb1.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "tb2.angle_default": {
+        "type": 3,
+        "value": 1.5708
+      },
+      "tb2.angle_max": {
+        "type": 3,
+        "value": 1.5708
+      },
+      "tb2.angle_min": {
+        "type": 3,
+        "value": 1.5708
+      },
+      "tb2.angle_rate_limit": {
+        "type": 3,
+        "value": 0.0
+      },
+      "tb2.diameter": {
+        "type": 3,
+        "value": 0.8
+      },
+      "tb2.eta1": {
+        "type": 3,
+        "value": 0.4296
+      },
+      "tb2.eta2": {
+        "type": 3,
+        "value": 1.0
+      },
+      "tb2.eta_m": {
+        "type": 3,
+        "value": 0.93
+      },
+      "tb2.is_azimuth": {
+        "type": 1,
+        "value": false
+      },
+      "tb2.is_rudder": {
+        "type": 1,
+        "value": false
+      },
+      "tb2.max_angle": {
+        "type": 3,
+        "value": 0.61
+      },
+      "tb2.max_power_kW": {
+        "type": 3,
+        "value": 500.0
+      },
+      "tb2.max_thrust_kN": {
+        "type": 3,
+        "value": 20.0
+      },
+      "tb2.rudder_area_m2": {
+        "type": 3,
+        "value": 3.5
+      },
+      "tb2.rudder_lift_slope_per_rad": {
+        "type": 3,
+        "value": 2.8
+      },
+      "tb2.thrust_rate_limit": {
+        "type": 3,
+        "value": 50000.0
+      },
+      "tb2.weight": {
+        "type": 3,
+        "value": 1.0
+      },
+      "tb2.weight_delta": {
+        "type": 3,
+        "value": 1.0
+      },
+      "tb2.x": {
+        "type": 3,
+        "value": 23.406
+      },
+      "tb2.y": {
+        "type": 3,
+        "value": 0.0
+      },
+      "thruster_names": {
+        "type": 9,
+        "value": [
+          "t1",
+          "t2",
+          "t3",
+          "tb1",
+          "tb2",
+          "r1",
+          "r2"
+        ]
+      },
+      "update_rate": {
+        "type": 3,
+        "value": 50.0
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      }
+    },
+    "coordinate_transform_node": {
+      "arc_radius_m": {
+        "type": 3,
+        "value": 700.0
+      },
+      "arc_sample_spacing_m": {
+        "type": 3,
+        "value": 80.0
+      },
+      "arc_smoothing_external_route_min_points": {
+        "type": 2,
+        "value": 40
+      },
+      "arc_smoothing_max_lateral_delta_m": {
+        "type": 3,
+        "value": 120.0
+      },
+      "arc_speed_mps": {
+        "type": 3,
+        "value": 5.0
+      },
+      "dp_state_timeout_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "earth_first_eccentricity_sq": {
+        "type": 3,
+        "value": 0.00669437999014
+      },
+      "earth_semi_major_axis": {
+        "type": 3,
+        "value": 6378137.0
+      },
+      "emergency_avoidance_max_dynamic_lateral_delta_m": {
+        "type": 3,
+        "value": 500.0
+      },
+      "emergency_avoidance_min_future_update_distance_m": {
+        "type": 3,
+        "value": 150.0
+      },
+      "emergency_avoidance_relax_update_guard": {
+        "type": 1,
+        "value": true
+      },
+      "enable_arc_smoothing": {
+        "type": 1,
+        "value": false
+      },
+      "enable_fap": {
+        "type": 1,
+        "value": false
+      },
+      "enable_route_update_guard": {
+        "type": 1,
+        "value": true
+      },
+      "fap_distance_m": {
+        "type": 3,
+        "value": 120.0
+      },
+      "fap_speed_mps": {
+        "type": 3,
+        "value": 1.0
+      },
+      "feedback_log_dir": {
+        "type": 4,
+        "value": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E0-instrumented-smoke/feedback-csv"
+      },
+      "feedback_log_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "feedback_log_period_s": {
+        "type": 3,
+        "value": 0.5
+      },
+      "gate_initial_waypoint_publish": {
+        "type": 1,
+        "value": true
+      },
+      "initial_waypoint_after_yaw_delay_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "initial_waypoint_timeout_s": {
+        "type": 3,
+        "value": 3.0
+      },
+      "input_topic": {
+        "type": 4,
+        "value": "/gnc/active_route"
+      },
+      "max_dynamic_lateral_delta_m": {
+        "type": 3,
+        "value": 100.0
+      },
+      "min_future_update_distance_m": {
+        "type": 3,
+        "value": 500.0
+      },
+      "min_route_update_interval_s": {
+        "type": 3,
+        "value": 10.0
+      },
+      "min_turn_angle_deg": {
+        "type": 3,
+        "value": 15.0
+      },
+      "nominal_origin_topic": {
+        "type": 4,
+        "value": "/route_planning/route_plan"
+      },
+      "origin_topic": {
+        "type": 4,
+        "value": "/route_planning/origin_latlon"
+      },
+      "output_topic": {
+        "type": 4,
+        "value": "/gnc/internal_waypoints"
+      },
+      "planner_meters_per_degree": {
+        "type": 3,
+        "value": 111320.0
+      },
+      "pre_arc_decel_dist_m": {
+        "type": 3,
+        "value": 180.0
+      },
+      "projection_mode": {
+        "type": 4,
+        "value": "geod_inverse"
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "reject_reverse_segments": {
+        "type": 1,
+        "value": true
+      },
+      "roll_limit_deg": {
+        "type": 3,
+        "value": 10.0
+      },
+      "shallow_arc_angle_deg": {
+        "type": 3,
+        "value": 35.0
+      },
+      "shallow_arc_radius_m": {
+        "type": 3,
+        "value": 700.0
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      },
+      "xte_reference_mismatch_warn_m": {
+        "type": 3,
+        "value": 80.0
+      }
+    },
+    "active_route_manager_node": {
+      "active_route_topic": {
+        "type": 4,
+        "value": "/gnc/active_route"
+      },
+      "avoidance_plan_topic": {
+        "type": 4,
+        "value": "/colav/avoidance_plan"
+      },
+      "berthing_candidate_route_topic": {
+        "type": 4,
+        "value": "/mission/berthing_task/candidate_route"
+      },
+      "berthing_candidate_timeout_s": {
+        "type": 3,
+        "value": 10.0
+      },
+      "berthing_handover_entry_speed_mps": {
+        "type": 3,
+        "value": 0.8
+      },
+      "berthing_handover_max_intercept_angle_deg": {
+        "type": 3,
+        "value": 15.0
+      },
+      "berthing_handover_min_lookahead_m": {
+        "type": 3,
+        "value": 45.0
+      },
+      "berthing_handover_ramp_accel_mps2": {
+        "type": 3,
+        "value": 0.02
+      },
+      "berthing_handover_ramp_spacing_m": {
+        "type": 3,
+        "value": 45.0
+      },
+      "berthing_state_topic": {
+        "type": 4,
+        "value": "/mission/berthing_task/state"
+      },
+      "default_avoidance_hold_s": {
+        "type": 3,
+        "value": 60.0
+      },
+      "emergency_max_yaw_rate_deg_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "emergency_min_segment_length_m": {
+        "type": 3,
+        "value": 15.0
+      },
+      "emergency_min_turn_radius_m": {
+        "type": 3,
+        "value": 45.0
+      },
+      "enable_berthing_arbitration": {
+        "type": 1,
+        "value": false
+      },
+      "enable_berthing_arbitration_launch_override": {
+        "type": 1,
+        "value": false
+      },
+      "execution_status_topic": {
+        "type": 4,
+        "value": "/gnc/route_execution_status"
+      },
+      "max_berthing_speed_mps": {
+        "type": 3,
+        "value": 2.0
+      },
+      "max_command_speed_mps": {
+        "type": 3,
+        "value": 8.0
+      },
+      "max_decel_mps2": {
+        "type": 3,
+        "value": 0.08
+      },
+      "max_heading_path_error_deg": {
+        "type": 3,
+        "value": 20.0
+      },
+      "max_lateral_accel_mps2": {
+        "type": 3,
+        "value": 0.25
+      },
+      "max_yaw_rate_deg_s": {
+        "type": 3,
+        "value": 1.2
+      },
+      "min_segment_length_m": {
+        "type": 3,
+        "value": 30.0
+      },
+      "min_turn_radius_m": {
+        "type": 3,
+        "value": 80.0
+      },
+      "nominal_route_topic": {
+        "type": 4,
+        "value": "/route_planning/route_plan"
+      },
+      "publish_nominal_status": {
+        "type": 1,
+        "value": true
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "route_plan_status_topic": {
+        "type": 4,
+        "value": "/route_planning/route_plan_status"
+      },
+      "ship_state_topic": {
+        "type": 4,
+        "value": "/ship/geo_position"
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      }
+    },
+    "wind_engine_node": {
+      "Af": {
+        "type": 3,
+        "value": 45.0
+      },
+      "Al": {
+        "type": 3,
+        "value": 180.0
+      },
+      "Lpp": {
+        "type": 3,
+        "value": 44.1
+      },
+      "air_density": {
+        "type": 3,
+        "value": 1.225
+      },
+      "anemometer_height": {
+        "type": 3,
+        "value": 10.0
+      },
+      "asset_manifest_path": {
+        "type": 4,
+        "value": ""
+      },
+      "operational_profile": {
+        "type": 4,
+        "value": "simulation"
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "u10": {
+        "type": 3,
+        "value": 6.0
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      },
+      "vessel_state_timeout_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "wind_direction": {
+        "type": 3,
+        "value": 45.0
+      },
+      "wind_direction_correlation_time_s": {
+        "type": 3,
+        "value": 60.0
+      },
+      "wind_direction_fluctuation_enable": {
+        "type": 1,
+        "value": false
+      },
+      "wind_direction_is_from": {
+        "type": 1,
+        "value": true
+      },
+      "wind_direction_rate_limit_deg_s": {
+        "type": 3,
+        "value": 20.0
+      },
+      "wind_direction_sigma_deg": {
+        "type": 3,
+        "value": 3.0
+      },
+      "wind_input_filter_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "wind_input_timeout_s": {
+        "type": 3,
+        "value": 3.0
+      },
+      "wind_random_seed_enable": {
+        "type": 1,
+        "value": false
+      },
+      "wind_roll_moment_arm": {
+        "type": 3,
+        "value": -1.0
+      },
+      "wind_seed": {
+        "type": 2,
+        "value": 20240618
+      },
+      "wind_source_mode": {
+        "type": 4,
+        "value": "auto"
+      },
+      "wind_speed_filter_tau_s": {
+        "type": 3,
+        "value": 6.0
+      },
+      "wind_speed_rate_limit_mps_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "z_center": {
+        "type": 3,
+        "value": 15.0
+      }
+    },
+    "current_engine_node": {
+      "B": {
+        "type": 3,
+        "value": 8.0
+      },
+      "Lpp": {
+        "type": 3,
+        "value": 44.1
+      },
+      "T": {
+        "type": 3,
+        "value": 1.55
+      },
+      "asset_manifest_path": {
+        "type": 4,
+        "value": ""
+      },
+      "coeffs_csv_path": {
+        "type": 4,
+        "value": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/trace-workspace/install/env_engines/share/env_engines/data/current_coeffs.csv"
+      },
+      "current_coeff_model": {
+        "type": 4,
+        "value": "auto"
+      },
+      "current_correlation_time_s": {
+        "type": 3,
+        "value": 120.0
+      },
+      "current_depth_correction_enable": {
+        "type": 1,
+        "value": true
+      },
+      "current_diagnostics_enable": {
+        "type": 1,
+        "value": true
+      },
+      "current_direction_is_from": {
+        "type": 1,
+        "value": true
+      },
+      "current_direction_rate_limit_deg_s": {
+        "type": 3,
+        "value": 15.0
+      },
+      "current_fluctuation_enable": {
+        "type": 1,
+        "value": true
+      },
+      "current_input_filter_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "current_input_timeout_s": {
+        "type": 3,
+        "value": 900.0
+      },
+      "current_max_fluctuation_mps": {
+        "type": 3,
+        "value": 0.2
+      },
+      "current_profile_exponent": {
+        "type": 3,
+        "value": 0.142857142857
+      },
+      "current_random_seed_enable": {
+        "type": 1,
+        "value": false
+      },
+      "current_relative_velocity_enable": {
+        "type": 1,
+        "value": true
+      },
+      "current_roll_moment_arm": {
+        "type": 3,
+        "value": -1.0
+      },
+      "current_seed": {
+        "type": 2,
+        "value": 20240618
+      },
+      "current_source_mode": {
+        "type": 4,
+        "value": "auto"
+      },
+      "current_speed_filter_tau_s": {
+        "type": 3,
+        "value": 10.0
+      },
+      "current_speed_rate_limit_mps_s": {
+        "type": 3,
+        "value": 0.5
+      },
+      "current_turbulence_intensity": {
+        "type": 3,
+        "value": 0.05
+      },
+      "d": {
+        "type": 3,
+        "value": 20.0
+      },
+      "dir_circ": {
+        "type": 3,
+        "value": 120.0
+      },
+      "dir_tide": {
+        "type": 3,
+        "value": 90.0
+      },
+      "dir_wind": {
+        "type": 3,
+        "value": 180.0
+      },
+      "operational_profile": {
+        "type": 4,
+        "value": "simulation"
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "subtract_calm_water_damping": {
+        "type": 1,
+        "value": true
+      },
+      "total_current_direction": {
+        "type": 3,
+        "value": 0.0
+      },
+      "total_current_measurement_depth": {
+        "type": 3,
+        "value": 0.0
+      },
+      "total_current_speed": {
+        "type": 3,
+        "value": 0.0
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      },
+      "v_circ_surf": {
+        "type": 3,
+        "value": 0.0
+      },
+      "v_tide_surf": {
+        "type": 3,
+        "value": 0.3
+      },
+      "v_wind_surf": {
+        "type": 3,
+        "value": 0.0
+      },
+      "vessel.KG": {
+        "type": 3,
+        "value": 3.9000000000000004
+      },
+      "vessel_state_timeout_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "water_density": {
+        "type": 3,
+        "value": 1025.0
+      }
+    },
+    "wave_engine_node": {
+      "B": {
+        "type": 3,
+        "value": 8.0
+      },
+      "C_WL_aft": {
+        "type": 3,
+        "value": 0.95
+      },
+      "Hs": {
+        "type": 3,
+        "value": 0.5
+      },
+      "Los": {
+        "type": 3,
+        "value": 45.0
+      },
+      "Lpp": {
+        "type": 3,
+        "value": 44.1
+      },
+      "T": {
+        "type": 3,
+        "value": 1.55
+      },
+      "Tz": {
+        "type": 3,
+        "value": 6.0
+      },
+      "asset_manifest_path": {
+        "type": 4,
+        "value": ""
+      },
+      "bow_angle_rad": {
+        "type": 3,
+        "value": 0.6
+      },
+      "direction_components": {
+        "type": 2,
+        "value": 9
+      },
+      "direction_rad": {
+        "type": 3,
+        "value": 1.5707963267948966
+      },
+      "drift.inferred_roll_lever_scale": {
+        "type": 3,
+        "value": 0.45
+      },
+      "drift.inferred_surge_scale": {
+        "type": 3,
+        "value": 0.75
+      },
+      "drift.inferred_sway_scale": {
+        "type": 3,
+        "value": 0.35
+      },
+      "drift.inferred_yaw_lever_scale": {
+        "type": 3,
+        "value": 0.12
+      },
+      "drift.limit_enable": {
+        "type": 1,
+        "value": true
+      },
+      "drift.max_force_n": {
+        "type": 3,
+        "value": 2000000.0
+      },
+      "drift.max_moment_nm": {
+        "type": 3,
+        "value": 50000000.0
+      },
+      "drift.model": {
+        "type": 4,
+        "value": "inferred"
+      },
+      "fixed_heading": {
+        "type": 3,
+        "value": 0.0
+      },
+      "fk_scale_factor": {
+        "type": 3,
+        "value": 0.1
+      },
+      "gravity": {
+        "type": 3,
+        "value": 9.81
+      },
+      "jonswap_gamma": {
+        "type": 3,
+        "value": 3.3
+      },
+      "num_wave_components": {
+        "type": 2,
+        "value": 50
+      },
+      "operational_profile": {
+        "type": 4,
+        "value": "simulation"
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "qtf_csv_path": {
+        "type": 4,
+        "value": ""
+      },
+      "rao.cutoff_freq_surge": {
+        "type": 3,
+        "value": 0.25
+      },
+      "rao.cutoff_freq_sway": {
+        "type": 3,
+        "value": 0.3
+      },
+      "rao.cutoff_freq_yaw": {
+        "type": 3,
+        "value": 0.2
+      },
+      "rao.damping_ratio_heave": {
+        "type": 3,
+        "value": 0.1
+      },
+      "rao.damping_ratio_roll": {
+        "type": 3,
+        "value": 0.15
+      },
+      "rao.roll_scale": {
+        "type": 3,
+        "value": 1.0
+      },
+      "rao.scale_max": {
+        "type": 3,
+        "value": 3.0
+      },
+      "rao.scale_max_roll": {
+        "type": 3,
+        "value": 5.0
+      },
+      "rao.surge_scale": {
+        "type": 3,
+        "value": 1.0
+      },
+      "rao.sway_scale": {
+        "type": 3,
+        "value": 1.0
+      },
+      "rao.yaw_scale": {
+        "type": 3,
+        "value": 1.0
+      },
+      "spreading_factor": {
+        "type": 3,
+        "value": 0.5
+      },
+      "use_fixed_heading": {
+        "type": 1,
+        "value": false
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      },
+      "vessel.GM_T": {
+        "type": 3,
+        "value": 1.5
+      },
+      "vessel.KG": {
+        "type": 3,
+        "value": 3.9
+      },
+      "vessel.displacement_ton": {
+        "type": 3,
+        "value": 220.0
+      },
+      "vessel_state_timeout_s": {
+        "type": 3,
+        "value": 2.0
+      },
+      "water_density": {
+        "type": 3,
+        "value": 1025.0
+      },
+      "water_depth": {
+        "type": 3,
+        "value": 20.0
+      },
+      "wave.reject_nonfinite_output": {
+        "type": 1,
+        "value": true
+      },
+      "wave_direction_filter_tau_s": {
+        "type": 3,
+        "value": 5.0
+      },
+      "wave_direction_is_from": {
+        "type": 1,
+        "value": true
+      },
+      "wave_direction_rate_limit_deg_s": {
+        "type": 3,
+        "value": 15.0
+      },
+      "wave_height_filter_tau_s": {
+        "type": 3,
+        "value": 5.0
+      },
+      "wave_height_rate_limit_mps": {
+        "type": 3,
+        "value": 0.5
+      },
+      "wave_input_filter_enabled": {
+        "type": 1,
+        "value": true
+      },
+      "wave_input_timeout_s": {
+        "type": 3,
+        "value": 3.0
+      },
+      "wave_period_filter_tau_s": {
+        "type": 3,
+        "value": 5.0
+      },
+      "wave_period_rate_limit_sps": {
+        "type": 3,
+        "value": 0.5
+      },
+      "wave_qtf_manifest_path": {
+        "type": 4,
+        "value": ""
+      },
+      "wave_random_seed_enable": {
+        "type": 1,
+        "value": false
+      },
+      "wave_rao_manifest_path": {
+        "type": 4,
+        "value": ""
+      },
+      "wave_seed": {
+        "type": 2,
+        "value": 20240618
+      },
+      "wave_source_mode": {
+        "type": 4,
+        "value": "auto"
+      },
+      "xLos": {
+        "type": 3,
+        "value": 22.05
+      }
+    },
+    "force_aggregator_node": {
+      "current.coefficient_source": {
+        "type": 4,
+        "value": "env_engines/data/current_coeffs.csv_or_inferred"
+      },
+      "current.coefficient_version": {
+        "type": 4,
+        "value": "C_mock_current_coeffs_v1"
+      },
+      "current.confidence": {
+        "type": 4,
+        "value": "C"
+      },
+      "current.health_topic": {
+        "type": 4,
+        "value": "/env/current/health"
+      },
+      "current.input_source": {
+        "type": 4,
+        "value": "current_engine_node"
+      },
+      "current.model": {
+        "type": 4,
+        "value": "relative_current_crossflow_drag"
+      },
+      "data_timeout_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "exclude_degraded_sources": {
+        "type": 1,
+        "value": true
+      },
+      "health_schema": {
+        "type": 4,
+        "value": "env_load_health.v2"
+      },
+      "max_future_stamp_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "parameter_confidence": {
+        "type": 4,
+        "value": "C"
+      },
+      "parameter_source": {
+        "type": 4,
+        "value": "ship_config.yaml"
+      },
+      "qos_overrides./parameter_events.publisher.depth": {
+        "type": 2,
+        "value": 1000
+      },
+      "qos_overrides./parameter_events.publisher.durability": {
+        "type": 4,
+        "value": "volatile"
+      },
+      "qos_overrides./parameter_events.publisher.history": {
+        "type": 4,
+        "value": "keep_last"
+      },
+      "qos_overrides./parameter_events.publisher.reliability": {
+        "type": 4,
+        "value": "reliable"
+      },
+      "reject_out_of_order_loads": {
+        "type": 1,
+        "value": true
+      },
+      "require_current_load": {
+        "type": 1,
+        "value": true
+      },
+      "require_source_health": {
+        "type": 1,
+        "value": true
+      },
+      "require_wave_load": {
+        "type": 1,
+        "value": true
+      },
+      "require_wind_load": {
+        "type": 1,
+        "value": true
+      },
+      "source_health_timeout_s": {
+        "type": 3,
+        "value": 1.0
+      },
+      "update_rate": {
+        "type": 3,
+        "value": 50.0
+      },
+      "use_sim_time": {
+        "type": 1,
+        "value": false
+      },
+      "wave.coefficient_source": {
+        "type": 4,
+        "value": "env_engines/data/wave_drift_qtfs.csv_or_inferred"
+      },
+      "wave.coefficient_version": {
+        "type": 4,
+        "value": "C_mock_wave_drift_qtfs_v1"
+      },
+      "wave.confidence": {
+        "type": 4,
+        "value": "C"
+      },
+      "wave.health_topic": {
+        "type": 4,
+        "value": "/env/wave/health"
+      },
+      "wave.input_source": {
+        "type": 4,
+        "value": "wave_engine_node"
+      },
+      "wave.model": {
+        "type": 4,
+        "value": "jonswap_fk_plus_second_order_drift"
+      },
+      "wave_load_topic": {
+        "type": 4,
+        "value": "/env/wave/drift_load"
+      },
+      "weather_health_timeout_s": {
+        "type": 3,
+        "value": 900.0
+      },
+      "weather_health_topic": {
+        "type": 4,
+        "value": "/env/weather_health"
+      },
+      "wind.coefficient_source": {
+        "type": 4,
+        "value": "embedded_ocimf_mock_table"
+      },
+      "wind.coefficient_version": {
+        "type": 4,
+        "value": "C_mock_45m_crewboat_wind_v1"
+      },
+      "wind.confidence": {
+        "type": 4,
+        "value": "C"
+      },
+      "wind.health_topic": {
+        "type": 4,
+        "value": "/env/wind/health"
+      },
+      "wind.input_source": {
+        "type": 4,
+        "value": "wind_engine_node"
+      },
+      "wind.model": {
+        "type": 4,
+        "value": "OCIMF_wind_load_coefficients"
+      }
+    }
+  },
+  "assets": {
+    "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/trace-workspace/install/thrust_allocation/share/thrust_allocation/config/propeller_curve_45m_fcb.csv": "68cabcc504212c329bcbdc47a6798e6447cb521225d0bf7ab0d66954d26be961",
+    "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/trace-workspace/install/env_engines/share/env_engines/data/current_coeffs.csv": "4fd7d6fd7acf089f6cfd932708d7ae88b58cee371d87f05f670fd8c38b30a26b"
+  },
+  "evidence": {
+    "ship_dynamics_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E0-instrumented-smoke",
+      "vector_sha256": "78bb14a548910573b5454c30c4b4a9185cb43acef94bcf01a40f89799225d5a7",
+      "source_trace_sha256": "f3f43867fbb9a803210a2a223182d45239a145ae24025c528abaa73ae44a0a0c"
+    },
+    "ship_control_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E0-instrumented-smoke",
+      "vector_sha256": "0e82afc79e0b3eeeb32e286f6a9d4966c88af37bbde342040e612c6abc220070",
+      "source_trace_sha256": "1ccdb1dca0f29c791a9ba08da28a1f8f95f599c287d5bd6b3e35eb8e7beb22e8"
+    },
+    "ship_guidance_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E0-instrumented-smoke",
+      "vector_sha256": "9c3092fbaf92b0f0f7153694c2165a8634c66226c93751b38086d03a795ffe7b",
+      "source_trace_sha256": "f162d53578b2a76f7fc65773faad25468a08ff6c8a6c9d972b5dd996076cde27"
+    },
+    "thrust_allocation_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E0-instrumented-smoke",
+      "vector_sha256": "4382076ebac4d8c42f52361807a7b4932c8b3be905b3d441d87258db2fa45dc4",
+      "source_trace_sha256": "6072fde4d0e90617a74ea5a96c0258546306e903edc7f3fcf45fce391a88c3a4"
+    },
+    "coordinate_transform_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E0-instrumented-smoke",
+      "vector_sha256": "2028b6eee0ed48ccc866536e13b3fecd338040b40957ce8fd911ba9c3cc0d538",
+      "source_trace_sha256": "8b3374fae0ed7083975c402ca227c6a778b827426d999e0fc9dd0ed58039768b"
+    },
+    "active_route_manager_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E0-instrumented-smoke",
+      "vector_sha256": "3434e948e990f549a8d908386afce7335c0dd8aa1847496d34fc1f84dcffb22f",
+      "source_trace_sha256": "305b9dd861eddc8465a72e09d136395772bb63c7a30ab969a54f33c453bd74b4"
+    },
+    "wind_engine_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E4-instrumented-smoke",
+      "vector_sha256": "f9eeb6194f1cfbb477cfb51713f56322773eff48e2b8bee0930e5550eb76432e",
+      "source_trace_sha256": "c8dead97b955fcb218d5a068007b05003b2bbe7c55217893f4fbe22c69c59f0f"
+    },
+    "current_engine_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E4-instrumented-smoke",
+      "vector_sha256": "3ccc76dd3a9064c4ccafb759ebe7d014d1120185a047a87fc1d92feb8839315b",
+      "source_trace_sha256": "576f2376351b14612b32c15d8e06595f05a0d8198b41016a35ed590aac91b551"
+    },
+    "wave_engine_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E4-instrumented-smoke",
+      "vector_sha256": "0802dddf4597b13a046dfbcfa535f3796b87d3f837c35a4eb0fd75a7c5a4741c",
+      "source_trace_sha256": "3a51fadc204b8171c88990c78afa338c8d7a92fbda0aaa890e8ebfc44dda33f3"
+    },
+    "force_aggregator_node": {
+      "native_run": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/runs/R02-plus-E4-instrumented-smoke",
+      "vector_sha256": "e5326c93588a6086cd4befbff81f80f03d68b960491eccc611b3c0ee2ab109cf",
+      "source_trace_sha256": "aa1001f2efba94bd9a776a226488b8defc76e383e4e40d93754c78e57c1f595e"
+    }
+  }
+}

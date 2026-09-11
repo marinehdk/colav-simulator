@@ -1,0 +1,43 @@
+{
+  "schema": "original-gnc.response-approximation.v1",
+  "qualification": "UNQUALIFIED_FIRST_ORDER_APPROXIMATION",
+  "source_manifest_sha256": "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411",
+  "evidence": [
+    {
+      "case": "R03-plus-E0",
+      "window_s": 90.0,
+      "case_sha256": "0f79763ee736404e14f2e2ab733d52bcc69d5b556636bc0548f216c22347ae40",
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "trace_sha256": "5912bfe08ae132b27a05b45e0e9e8c4d171118059c6be238e74f3dbf61790f20"
+    },
+    {
+      "case": "R03-minus-E0",
+      "window_s": 90.0,
+      "case_sha256": "b0854175a4022fcc26bbf1309402bf373d7a2b81652913c70933843535805773",
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "trace_sha256": "4066e119d3cc437f11b054d2ebc5d82f944d5f24c86dfe4716ceccf8c1639ddc"
+    },
+    {
+      "case": "R11-E0",
+      "window_s": 5000.0,
+      "case_sha256": "f60b5a7e2c3eae02d000d23c5aee31d27daed3b86c15f17e73bb6fc3480cabdc",
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+      "trace_sha256": "010984b097d46627353e041115899782a9eb6f5b5809861a4a85ec2eafa09ea7"
+    }
+  ],
+  "course": {
+    "time_constant_s": 73.48732063279867,
+    "sample_count": 8952,
+    "derivative_rmse": 0.0004580197151327365,
+    "r_squared": 0.94079480250106,
+    "method": "zero-intercept least squares: derivative = error / tau"
+  },
+  "speed": {
+    "time_constant_s": 29.619574760900125,
+    "sample_count": 249976,
+    "derivative_rmse": 0.00913418256975114,
+    "r_squared": 0.34379618284940117,
+    "method": "zero-intercept least squares: derivative = error / tau"
+  },
+  "limits": "No dead-time fit, no safety-threshold changes, no claim that nonlinear source GNC is first-order."
+}

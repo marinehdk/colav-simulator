@@ -1,0 +1,6 @@
+{
+  "original_jsonl_sha256": "3a345911eb6dfb3c1d8481e3c07d3a8d5c566ba268337d2c3cbfd45ed464d0b3",
+  "gzip_sha256": "c33f64b8a153380562e93ace1e6037e88c58fff4619c75ec019eddb409b198a5",
+  "reference_source": "a4000:/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-math-probe-01",
+  "native_proof": "build/original-math-native-probe-03/comparison.json"
+}

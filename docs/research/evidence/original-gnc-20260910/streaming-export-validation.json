@@ -1,0 +1,9 @@
+{
+  "wind_callbacks_equal": 32282,
+  "route_boundary_callbacks_equal": 43,
+  "metadata_preserved": true,
+  "missing_state_rejected_before_manifest": true,
+  "incremental_archive_reference": "runs/route-boundary-reference-replay-04-archived/comparison.json",
+  "old_wind_vectors": "reference-full-replay-v1/R01-E4-vectors-v3",
+  "new_wind_vectors": "vectors/wind-direct-v3"
+}

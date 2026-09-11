@@ -1,0 +1,60 @@
+{
+  "active": true,
+  "session_id": "1d2c31b1-0218-4822-a6e2-bf6fcf8a7f16",
+  "state": "FINISHED",
+  "spec": {
+    "scenario_id": "head_on",
+    "validation_rule_id": "rule14",
+    "algorithm_id": "vo",
+    "tracker_id": "god",
+    "ownship_gnc_stack_id": "original-gnc-20260824-v2-env-on",
+    "seed": 0,
+    "episode_index": 0,
+    "dt": 0.1,
+    "t_end": 20.0,
+    "reload_enc": false,
+    "terminate_on_collision_or_grounding": true,
+    "strict_no_fallback": true,
+    "solve_period_s": null,
+    "deadline_mode": "ENFORCE",
+    "evaluator_profile_id": "ccta_2023_demo-v1",
+    "reproduction_level": "functional_reproduction",
+    "algorithm_config": {
+      "dependency_lock": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/uv.lock",
+      "los": {
+        "K_p": 0.005,
+        "K_i": 0
+      },
+      "vo": {
+        "length_os": 44.1,
+        "width_os": 8,
+        "d_min": 190,
+        "hard_hull_clearance_m": 182,
+        "preferred_hull_clearance_m": 190,
+        "t_max": 60
+      }
+    },
+    "tracker_config": {},
+    "domain_profile": null,
+    "scenario_override": null,
+    "output_root": "runs",
+    "replay_of_run_id": null,
+    "historical_replay": null,
+    "historical_scenario_id": null,
+    "algorithm_capability_evidence": null,
+    "schema_version": "1.0"
+  },
+  "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/runs/1d2c31b1-0218-4822-a6e2-bf6fcf8a7f16",
+  "sequence": 200,
+  "sim_time": 20.000000000000014,
+  "source_time_s": 20.000000000000014,
+  "ais_utc": null,
+  "failure_reason": null,
+  "result_ready": true,
+  "playback": {
+    "requested_multiplier": 5.0,
+    "effective_multiplier": 5.000732993957341,
+    "realtime_limited": false,
+    "scheduler_lag_ms": 0.0
+  }
+}

@@ -223,6 +223,12 @@ export function renderBalance(envelope) {
     return;
   }
   const balance = envelope.gnc_balance;
+  const admission = document.getElementById('originalRouteAdmission');
+  if (admission) {
+    admission.hidden = balance?.backend_kind !== 'original_gnc';
+    text('originalRouteAdmissionStatus', balance?.route_admission?.status || 'Awaiting feedback');
+    text('originalRouteAdmissionReason', balance?.route_admission?.reason || '');
+  }
   const key = `${envelope.session_id ?? envelope.run_id ?? ''}:${balance?.config_hash ?? ''}`;
   const renderKey = `${key}:${balance?.tick ?? 'none'}:${envelope.state ?? ''}`;
   // Buffered map animation repeats an authoritative physics tick; keep instrument

@@ -1,0 +1,42 @@
+{
+  "wind_engine_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-env-state-v2/build/wind_engine_node_replay",
+    "sha256": "6687a16933b2f97bfd1faf09ac45bc08dba7432761bca82e18be63f742337854"
+  },
+  "active_route_manager_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-routing/build/active_route_manager_node_replay",
+    "sha256": "20b36f73ecd652f63a5727e79c8e4b59b4da03703b231509f9fc80dad9be5121"
+  },
+  "coordinate_transform_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-routing/build/coordinate_transform_node_replay",
+    "sha256": "0884be89da07a300520533f679041e15990274f3e883762790555ef9d405c627"
+  },
+  "wave_engine_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-env-state-v2/build/wave_engine_node_replay",
+    "sha256": "a795506aeb0e1ce29ad8bf4b0350ed93befe5c92dce8deacd0796caaa1d4eef2"
+  },
+  "thrust_allocation_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-state/build/thrust_allocation_node_replay",
+    "sha256": "e478b66db0e9afb60a106e3f3d1228eaa84b6bb869761a197b91aaa4340590bb"
+  },
+  "current_engine_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-env-state-v2/build/current_engine_node_replay",
+    "sha256": "621e3d213e3255538592df990d3a62a938ec0c467eac7a0123dac5223a6d4ed6"
+  },
+  "ship_dynamics_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-state/build/ship_dynamics_node_replay",
+    "sha256": "f7baf82a49ccbba54ab797b169c6614a39c0aceb23ba8e6757eb402ea7c386c0"
+  },
+  "ship_guidance_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-log-clock-v3/build/ship_guidance_node_replay",
+    "sha256": "0961339f380f479582093aa3cbc73bb4511e9f9a3eae595129d3406cbff94809"
+  },
+  "force_aggregator_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-env-state-v2/build/force_aggregator_node_replay",
+    "sha256": "ca723e9ba4e760ed6482f1478d93cba7714e07d1e03833b3d1d14dbf15967d4e"
+  },
+  "ship_control_node_replay": {
+    "path": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-state/build/ship_control_node_replay",
+    "sha256": "51ae2f370400efcc1eb8beba89489d1cd53b7e0af81b487441a2a3a00c0d7cd3"
+  }
+}

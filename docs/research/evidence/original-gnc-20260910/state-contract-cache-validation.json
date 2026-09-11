@@ -1,0 +1,9 @@
+{
+  "real_wind_reports_equal": 300,
+  "cross_module_fixture_reports_equal": 198,
+  "boundary_reports_equal": 8,
+  "old_wall_s": 0.7280878329183906,
+  "new_wall_s": 0.36754620797000825,
+  "speedup": 1.9809423063828822,
+  "scope": "Cache field path/name and immutable fixed unit rule only; no value caching or skipped comparisons"
+}

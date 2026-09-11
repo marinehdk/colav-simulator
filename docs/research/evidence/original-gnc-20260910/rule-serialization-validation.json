@@ -1,0 +1,8 @@
+{
+  "sampled_real_state_reports_equal": 300,
+  "negative_and_boundary_reports_equal": 10,
+  "old_wall_s": 1.3453234999906272,
+  "new_wall_s": 0.7347191250883043,
+  "speedup": 1.8310718396352288,
+  "scope": "Only immutable FieldRule serialization replaced; every comparison statement unchanged"
+}

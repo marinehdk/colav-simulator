@@ -1,0 +1,21 @@
+{
+  "native_run": "runs/boundary-reference-02",
+  "modules": {
+    "ship_dynamics_node": {
+      "calls": 131,
+      "sha256": "851d41dde0f1b8e82d38b07a3aaff7255ac61edd2285da98436465726414aab9"
+    },
+    "ship_control_node": {
+      "calls": 910,
+      "sha256": "7de29ad69cbca211603a344191b8e730d265c9d75f7218d797389550eed9caaa"
+    },
+    "ship_guidance_node": {
+      "calls": 366,
+      "sha256": "3bec5ec8b4ac07056416acf7843ff135a4c8d20bde9ac8e21568e3ec75193bc8"
+    },
+    "thrust_allocation_node": {
+      "calls": 201,
+      "sha256": "87d8a05b21701cb5b49aa1ac2810dc51d56bd779f56a5ab6f16fd29d4f858c21"
+    }
+  }
+}

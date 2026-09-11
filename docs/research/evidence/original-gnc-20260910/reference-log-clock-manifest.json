@@ -1,0 +1,15 @@
+{
+  "source": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/trace-workspace/src/gnc/ship_guidance/src/ship_guidance_node.cpp",
+  "source_sha256": "dbd1b7c1677797a9fbd9eba1beec98741209fafd0403051d26793caf8b1e1d49",
+  "base_driver": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-replay-state/ship_guidance_node_replay.cpp",
+  "base_driver_sha256": "d20ef89ac08d7bb020a885b827ce4ea39f5ae80572c625d24cc168e2f9e3599f",
+  "source_outside_display_call_sha256": "93000ddb167d6b7c37ea317a3e6b8b9cc60fa22a4bf0efac07ee0d21872edbfe",
+  "display_clock_sites": [
+    "ship_guidance_node.cpp:4570"
+  ],
+  "original_display_call": "RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,\n                    \"[XTE RELEASE GUARD] cap psi correction %.1f->%.1fdeg xte=%.1fm path=%.1fdeg guard_left=%.1fs\",\n                    raw_correction * 180.0 / M_PI,\n                    capped_correction * 180.0 / M_PI,\n                    e,\n                    command_path_heading * 180.0 / M_PI,\n                    xte_rejoin_release_guard_until_sec_ - original_reference_trace::now(this, \"ship_guidance_node.cpp:4570\").seconds());",
+  "replay_source_sha256": "42269fc399bb31fad8c4ccc075d06e9e92412402fa4a8105994531402f54a00d",
+  "header_sha256": "642c3f23438d7630d07dab2dcb73aacf7464119d42d50301f478f6ae83638207",
+  "binary_sha256": "0961339f380f479582093aa3cbc73bb4511e9f9a3eae595129d3406cbff94809",
+  "scope": "Only replay-time logging/clock presentation; all source business statements and strict event comparisons retained"
+}

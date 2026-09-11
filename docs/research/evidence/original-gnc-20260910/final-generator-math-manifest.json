@@ -1,0 +1,27 @@
+{
+  "native_library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+  "native_build": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8",
+  "command": [
+    "c++",
+    "-std=c++17",
+    "-O2",
+    "-g",
+    "-ffp-contract=off",
+    "-fno-access-control",
+    "-include",
+    "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/reference_arithmetic.hpp",
+    "-I",
+    "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/include",
+    "-isystem",
+    "/Users/marine/Code/external_sources/original_gnc_build_deps/eigen3",
+    "-isystem",
+    "/Users/marine/Code/external_sources/original_gnc_build_deps",
+    "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-math-native-probe-final-generator/math_probe.cpp",
+    "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/liboriginal_gnc-0be0028f097d440abb34242feac84040.dylib",
+    "-o",
+    "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original-math-native-probe-final-generator/math_probe"
+  ],
+  "source_sha256": "a4756096ace439a2451985542f3bf1245b69b8da1b06c1133a3526fb6c6401d1",
+  "probe_sha256": "762d1d35a0f3b0204cedd5dc1f0f652a50018965fcbe6aa6e794b6cd72d34f57",
+  "components": "M read directly; C/D/local force expressions observed via verbatim source expressions and checked against actual RHS; RHS and all RK stages call the executing implementation"
+}

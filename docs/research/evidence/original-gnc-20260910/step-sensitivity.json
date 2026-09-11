@@ -1,0 +1,31 @@
+{
+  "scope": "Embedded v8 50 Hz versus 100 Hz plant-step sensitivity; both original kernels, not source-versus-port parity",
+  "case_id": "R03-plus-E0",
+  "alignment": "Known explicit epoch; common samples only; no fitted lag or spatial shift",
+  "baseline_50hz": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/route-campaign-final-02/R03-plus-E0",
+  "variant_100hz": "/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration/build/original_gnc-glibc-v8/sensitivity-100hz-R03-plus-E0",
+  "omitted_baseline_samples": 0,
+  "metrics": {
+    "position_m": {
+      "count": 63100,
+      "maximum": 2.793353791894909,
+      "rmse": 1.919961234779175,
+      "p95": 2.792239733947272,
+      "last": 2.7931546701994505
+    },
+    "heading_deg": {
+      "count": 63100,
+      "maximum": 0.6127808611163642,
+      "rmse": 0.39969031647189895,
+      "p95": 0.6084410338026551,
+      "last": 0.5358559678388853
+    },
+    "speed_mps": {
+      "count": 63100,
+      "maximum": 0.219655005711687,
+      "rmse": 0.01933040152846519,
+      "p95": 0.027375385512291642,
+      "last": 1.2150729578695415e-05
+    }
+  }
+}

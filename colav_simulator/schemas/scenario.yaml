@@ -383,6 +383,20 @@ ship_list:
         schema:
           type: float
 
+      original_gnc:
+        required: False
+        type: dict
+        schema:
+          source_root:
+            required: False
+            type: string
+          build_directory:
+            required: False
+            type: string
+          environment:
+            required: False
+            type: boolean
+
       ship_modules:
         required: False
         type: dict

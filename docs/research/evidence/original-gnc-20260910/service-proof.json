@@ -1,0 +1,54 @@
+{
+  "8010": {
+    "pid": 94702,
+    "cwd_lsof": "p94702\nfcwd\nn/Users/marine/Code/Colav-Simulator\n",
+    "full_presets": [
+      {
+        "id": "full",
+        "display_name": "FCB Full Stack",
+        "description": "Path / speed plan; ILOS + actuators.",
+        "input": "Path + speed plan",
+        "variants": {
+          "off": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+          "on": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]"
+        },
+        "fields": {
+          "Plant": "FCB45 4DOF \u00b7 surge / sway / roll / yaw \u00b7 44.1 \u00d7 8 \u00d7 2 m",
+          "Guidance": "ILOS \u00b7 lookahead 50 m",
+          "Controller": "FCB45 PID \u00b7 heading / speed \u2192 X/Y/N",
+          "Actuation": "FCB45 V2 \u00b7 3 mains + 2 rudders + 2 bow thrusters \u00b7 rate / angle limits"
+        }
+      }
+    ],
+    "stack_hashes": {
+      "off": "a61684f1ab619ce856f227be78b04c8a6a65e5e599199f00630d1169424a2ac6",
+      "on": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a"
+    }
+  },
+  "8014": {
+    "pid": 51120,
+    "cwd_lsof": "p51120\nfcwd\nn/Users/marine/Code/.worktrees/Colav-Simulator/original-gnc-integration\n",
+    "full_presets": [
+      {
+        "id": "full",
+        "display_name": "FCB Full Stack",
+        "description": "Path / speed plan; ILOS + actuators.",
+        "input": "Path + speed plan",
+        "variants": {
+          "off": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+          "on": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]"
+        },
+        "fields": {
+          "Plant": "FCB45 4DOF \u00b7 surge / sway / roll / yaw \u00b7 44.1 \u00d7 8 \u00d7 2 m",
+          "Guidance": "ILOS \u00b7 lookahead 50 m",
+          "Controller": "FCB45 PID \u00b7 heading / speed \u2192 X/Y/N",
+          "Actuation": "FCB45 V2 \u00b7 3 mains + 2 rudders + 2 bow thrusters \u00b7 rate / angle limits"
+        }
+      }
+    ],
+    "stack_hashes": {
+      "off": "a61684f1ab619ce856f227be78b04c8a6a65e5e599199f00630d1169424a2ac6",
+      "on": "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a"
+    }
+  }
+}

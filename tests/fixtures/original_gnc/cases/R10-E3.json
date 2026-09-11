@@ -1,0 +1,118 @@
+{
+  "auto_initial_yaw_from_route": true,
+  "case_id": "R10-E3",
+  "environment_id": "E3",
+  "initial": {
+    "east_m": 0.0,
+    "heading_rad": 0.0,
+    "north_m": 0.0,
+    "roll_rad": 0.0,
+    "roll_rate_radps": 0.0,
+    "surge_mps": 7.8,
+    "sway_mps": 0.0,
+    "yaw_rate_radps": 0.0
+  },
+  "max_duration_s": 1179,
+  "navigation_mode": [
+    "cruise",
+    "cruise",
+    "cruise",
+    "cruise",
+    "cruise",
+    "cruise",
+    "cruise",
+    "cruise",
+    "cruise",
+    "cruise",
+    "cruise"
+  ],
+  "observation": {
+    "hold_window_s": 0.0,
+    "through_distance_m": null
+  },
+  "origin_wgs84": {
+    "latitude_deg": 58.0,
+    "longitude_deg": 6.0
+  },
+  "original_launch_environment": {
+    "current_direction": 90.0,
+    "current_direction_is_from": true,
+    "current_random_seed_enable": false,
+    "current_seed": 20240618,
+    "current_speed": 0.0,
+    "enable_current": false,
+    "enable_wave": true,
+    "enable_wind": false,
+    "wave_Hs": 0.5,
+    "wave_Tz": 6.0,
+    "wave_direction": 90.0,
+    "wave_direction_is_from": true,
+    "wave_random_seed_enable": false,
+    "wave_seed": 20240618,
+    "wind_direction": 90.0,
+    "wind_direction_is_from": true,
+    "wind_u10": 0.0
+  },
+  "route_case_id": "R10",
+  "schema": "original-gnc.route-case.v1",
+  "speed_limit_mps": [
+    7.8,
+    7.8,
+    7.8,
+    7.8,
+    7.8,
+    7.8,
+    7.8,
+    7.8,
+    7.8,
+    7.8,
+    7.8
+  ],
+  "water_depth_m": 20.0,
+  "waypoints": [
+    {
+      "east_m": 0.0,
+      "north_m": 0.0
+    },
+    {
+      "east_m": 7.596123493895989,
+      "north_m": 86.82408883346517
+    },
+    {
+      "east_m": 30.153689607045784,
+      "north_m": 171.01007166283435
+    },
+    {
+      "east_m": 66.98729810778065,
+      "north_m": 249.99999999999997
+    },
+    {
+      "east_m": 116.97777844051099,
+      "north_m": 321.3938048432696
+    },
+    {
+      "east_m": 178.6061951567303,
+      "north_m": 383.022221559489
+    },
+    {
+      "east_m": 249.99999999999994,
+      "north_m": 433.0127018922193
+    },
+    {
+      "east_m": 328.98992833716557,
+      "north_m": 469.84631039295414
+    },
+    {
+      "east_m": 413.1759111665348,
+      "north_m": 492.403876506104
+    },
+    {
+      "east_m": 499.99999999999994,
+      "north_m": 500.0
+    },
+    {
+      "east_m": 2000.0,
+      "north_m": 500.0
+    }
+  ]
+}

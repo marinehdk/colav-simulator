@@ -1,0 +1,50 @@
+{
+  "source_parameters_sha256": "d5dd857db45af468744ffbff6c2768838987da54bc99d4297974900c9b7b27ae",
+  "parameters": {
+    "navigation_mode_observer_node": {
+      "use_sim_time": false,
+      "config_file": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/trace-workspace/install/mission_supervisor/share/mission_supervisor/config/navigation_mode_policy.yaml",
+      "shadow_mode": true,
+      "publish_rate_hz": 5.0,
+      "geo_position_topic": "/ship/geo_position",
+      "path_topic": "/ship/waypoints",
+      "active_route_topic": "/gnc/active_route",
+      "execution_status_topic": "/gnc/route_execution_status",
+      "heading_setpoint_topic": "/control/heading_setpoint",
+      "safety_status_topic": "/safety/status"
+    },
+    "operational_risk_observer_node": {
+      "use_sim_time": false,
+      "config_file": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/trace-workspace/install/safety_supervisor/share/safety_supervisor/config/operational_risk_policy.yaml",
+      "shadow_mode": true,
+      "publish_rate_hz": 5.0
+    },
+    "operator_command_interpreter": {
+      "use_sim_time": false,
+      "thruster_names": [
+        "t1",
+        "t2",
+        "t3",
+        "tb1",
+        "tb2",
+        "r1",
+        "r2"
+      ],
+      "rudder_positive_is_starboard": true,
+      "rudder_deadband_deg": 0.05,
+      "thrust_deadband_percent": 2.0,
+      "rudder_split_warning_deg": 3.0,
+      "display_filter_tau_s": 0.4,
+      "display_change_threshold_deg": 0.1,
+      "direction_confirm_s": 0.5,
+      "intent_heading_deadband_deg": 0.3,
+      "publish_rate_hz": 2.0,
+      "command_timeout_s": 1.0,
+      "max_thrust_n.t1": 135000.0,
+      "max_thrust_n.t2": 135000.0,
+      "max_thrust_n.t3": 135000.0,
+      "max_thrust_n.tb1": 20000.0,
+      "max_thrust_n.tb2": 20000.0
+    }
+  }
+}

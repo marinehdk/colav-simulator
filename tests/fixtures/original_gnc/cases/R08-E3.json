@@ -1,0 +1,76 @@
+{
+  "auto_initial_yaw_from_route": true,
+  "case_id": "R08-E3",
+  "environment_id": "E3",
+  "initial": {
+    "east_m": 0.0,
+    "heading_rad": 0.0,
+    "north_m": 0.0,
+    "roll_rad": 0.0,
+    "roll_rate_radps": 0.0,
+    "surge_mps": 7.8,
+    "sway_mps": 0.0,
+    "yaw_rate_radps": 0.0
+  },
+  "max_duration_s": 1993,
+  "navigation_mode": [
+    "cruise",
+    "cruise",
+    "cruise",
+    "cruise"
+  ],
+  "observation": {
+    "hold_window_s": 0.0,
+    "through_distance_m": null
+  },
+  "origin_wgs84": {
+    "latitude_deg": 58.0,
+    "longitude_deg": 6.0
+  },
+  "original_launch_environment": {
+    "current_direction": 90.0,
+    "current_direction_is_from": true,
+    "current_random_seed_enable": false,
+    "current_seed": 20240618,
+    "current_speed": 0.0,
+    "enable_current": false,
+    "enable_wave": true,
+    "enable_wind": false,
+    "wave_Hs": 0.5,
+    "wave_Tz": 6.0,
+    "wave_direction": 90.0,
+    "wave_direction_is_from": true,
+    "wave_random_seed_enable": false,
+    "wave_seed": 20240618,
+    "wind_direction": 90.0,
+    "wind_direction_is_from": true,
+    "wind_u10": 0.0
+  },
+  "route_case_id": "R08",
+  "schema": "original-gnc.route-case.v1",
+  "speed_limit_mps": [
+    7.8,
+    7.8,
+    7.8,
+    7.8
+  ],
+  "water_depth_m": 20.0,
+  "waypoints": [
+    {
+      "east_m": 0.0,
+      "north_m": 0.0
+    },
+    {
+      "east_m": 0.0,
+      "north_m": 1600.0
+    },
+    {
+      "east_m": 1200.0,
+      "north_m": 1600.0
+    },
+    {
+      "east_m": 1200.0,
+      "north_m": 0.0
+    }
+  ]
+}

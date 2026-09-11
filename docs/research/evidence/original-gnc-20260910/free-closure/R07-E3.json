@@ -1,0 +1,565 @@
+{
+  "case_id": "R07-E3",
+  "reference": {
+    "source_directory": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/reference-parallel/R07-E3",
+    "kind": "native_ros",
+    "integration_epoch": {
+      "epoch_ns": 1789038667879177757,
+      "source": "original last_time_ construction clock",
+      "clock_record": {
+        "kind": "clock",
+        "nanoseconds": 1789038667879177757,
+        "node": "ship_dynamics_node",
+        "ordinal": 0,
+        "site": "ship_dynamics_node.cpp:120"
+      }
+    },
+    "case_id": "R07-E3",
+    "topic_trace_uncompressed_sha256": "8f1ec4156384b3a9398c5eb087bce653e2a3f8e8af801eb8597303c605dbc924",
+    "topic_counts": {
+      "/guidance/dp_hold_active": 5069,
+      "/ship/odometry": 126608,
+      "/env/total_load": 126603,
+      "/gnc/route_execution_status": 2,
+      "/gnc/active_route": 1,
+      "/route_planning/route_plan_status": 1,
+      "/ship/geo_position": 126608,
+      "/thruster/health_status": 11958,
+      "/allocation/achieved_tau": 25336,
+      "/allocation/residual_tau": 25336,
+      "/allocation/status": 25336,
+      "/thruster/commands": 25336,
+      "/cmd_tau": 25335,
+      "/control/speed_setpoint": 5067,
+      "/control/heading_setpoint": 5067,
+      "/target_pose": 5067,
+      "/propulsion/policy": 5067,
+      "/propulsion/constraints": 5067,
+      "/gnc/internal_waypoints": 1,
+      "/gnc/smoothed_waypoints": 1
+    },
+    "columns": {
+      "navigation": [
+        "north_m",
+        "east_m",
+        "heading_rad",
+        "surge_mps",
+        "sway_mps",
+        "yaw_rate_radps",
+        "roll_rad"
+      ],
+      "allocation": [
+        "degradation_level",
+        "normalized_error",
+        "allocation_saturated"
+      ],
+      "guidance": [
+        "waypoint_index",
+        "active_segment_xte_m",
+        "path_heading_deg"
+      ]
+    },
+    "time_basis": "message header where present, otherwise native receipt or embedded publication timestamp",
+    "samples_sha256": "c90990b7f4b69117f832b4a1c525615e1c820e9ae9ff4ea0017ab2b0c9f77243",
+    "route_events": [
+      {
+        "time_ns": 1789038668037296154,
+        "topic": "/gnc/route_execution_status",
+        "message": {
+          "header": {
+            "stamp": {
+              "sec": 1789038668,
+              "nanosec": 37296154
+            },
+            "frame_id": "map"
+          },
+          "plan_id": "original-R07-E3",
+          "active_route_id": "original-R07-E3",
+          "active_route_revision": 1,
+          "command_source": "route_planner",
+          "accepted": true,
+          "executing": false,
+          "degraded": false,
+          "rejected": false,
+          "execution_state": "FORWARDED_FOR_VALIDATION",
+          "reason": "route_contract_normalized",
+          "suggested_action": "none",
+          "requested_speed_mps": 0.0,
+          "applied_speed_mps": 0.0,
+          "requested_heading_deg": NaN,
+          "applied_heading_deg": NaN,
+          "current_latitude": 0.0,
+          "current_longitude": 0.0,
+          "current_heading_deg": 0.0,
+          "current_course_deg": 0.0,
+          "current_speed_mps": 0.0,
+          "cross_track_error_m": 0.0,
+          "stage_snapshot_valid": false,
+          "current_segment_index": 0,
+          "current_target_waypoint_index": 0,
+          "current_navigation_mode": "",
+          "current_speed_limit_mps": 0.0,
+          "required_turn_radius_m": 0.0,
+          "estimated_available_turn_radius_m": Infinity,
+          "required_decel_distance_m": 0.0,
+          "available_decel_distance_m": Infinity,
+          "suggested_max_speed_mps": 0.0,
+          "suggested_min_distance_m": 0.0
+        }
+      },
+      {
+        "time_ns": 1789038668038373976,
+        "topic": "/gnc/route_execution_status",
+        "message": {
+          "header": {
+            "stamp": {
+              "sec": 1789038668,
+              "nanosec": 38373976
+            },
+            "frame_id": "map"
+          },
+          "plan_id": "original-R07-E3",
+          "active_route_id": "original-R07-E3",
+          "active_route_revision": 1,
+          "command_source": "route_planner",
+          "accepted": true,
+          "executing": true,
+          "degraded": false,
+          "rejected": false,
+          "execution_state": "ACCEPTED",
+          "reason": "route accepted; first waypoint publication gated for startup yaw ordering",
+          "suggested_action": "none",
+          "requested_speed_mps": 0.0,
+          "applied_speed_mps": 0.0,
+          "requested_heading_deg": NaN,
+          "applied_heading_deg": NaN,
+          "current_latitude": 0.0,
+          "current_longitude": 0.0,
+          "current_heading_deg": 0.0,
+          "current_course_deg": 0.0,
+          "current_speed_mps": 0.0,
+          "cross_track_error_m": 0.0,
+          "stage_snapshot_valid": false,
+          "current_segment_index": 0,
+          "current_target_waypoint_index": 0,
+          "current_navigation_mode": "",
+          "current_speed_limit_mps": 0.0,
+          "required_turn_radius_m": 0.0,
+          "estimated_available_turn_radius_m": Infinity,
+          "required_decel_distance_m": 0.0,
+          "available_decel_distance_m": Infinity,
+          "suggested_max_speed_mps": 0.0,
+          "suggested_min_distance_m": 0.0
+        }
+      },
+      {
+        "time_ns": 1789038668037690076,
+        "topic": "/route_planning/route_plan_status",
+        "message": {
+          "header": {
+            "stamp": {
+              "sec": 1789038668,
+              "nanosec": 37690076
+            },
+            "frame_id": "route_plan_status"
+          },
+          "route_id": "original-R07-E3",
+          "route_type": "nominal",
+          "accepted": true,
+          "status": "ACCEPTED",
+          "reason": "route accepted; first waypoint publication gated for startup yaw ordering",
+          "waypoint_count": 5,
+          "internal_waypoint_count": 5,
+          "total_distance_m": 5809.641583900442,
+          "speed_limit_valid": true,
+          "navigation_mode_valid": true,
+          "current_along_track_m": NaN,
+          "first_changed_distance_ahead_m": NaN,
+          "max_lateral_delta_m": NaN
+        }
+      }
+    ]
+  },
+  "embedded": {
+    "source_directory": "build/original_gnc-glibc-v8/route-campaign-final-02/R07-E3",
+    "kind": "embedded",
+    "integration_epoch": {
+      "epoch_ns": 2000000000000000000,
+      "source": "common scheduler explicit construction epoch"
+    },
+    "case_id": "R07-E3",
+    "topic_trace_uncompressed_sha256": "5b7432702586acbdc9fa9d378126d3ef751400c2fdbf0aefff3c2856fc45f1e1",
+    "topic_counts": {
+      "/guidance/dp_hold_active": 5072,
+      "/route_planning/route_plan": 1,
+      "/gnc/active_route": 1,
+      "/gnc/route_execution_status": 2,
+      "/route_planning/origin_latlon": 1,
+      "/gnc/active_route_initial_yaw": 1,
+      "/route_planning/route_plan_status": 1,
+      "/env/load_health": 126750,
+      "/ship/odometry": 126750,
+      "/ship/heading": 126750,
+      "/ship/geo_position": 126750,
+      "/env/wave/raw_load": 25350,
+      "/env/wave/drift_load": 25350,
+      "/env/wave/health": 25350,
+      "/env/total_load": 126746,
+      "/navigation/mode_status": 12675,
+      "/navigation/mode": 12675,
+      "/navigation/mode_status_json": 12675,
+      "/safety/risk_status": 12675,
+      "/safety/risk_status_json": 12675,
+      "/safety/risk_alert": 12675,
+      "/cmd_tau": 25349,
+      "/diagnostics/rudder_effectiveness": 25349,
+      "/thruster/commands": 25349,
+      "/diagnostics/propeller_curve_shadow": 2535,
+      "/allocation/achieved_tau": 25349,
+      "/allocation/residual_tau": 25349,
+      "/allocation/status": 25349,
+      "/thruster/health_status": 12675,
+      "/control/speed_setpoint": 5070,
+      "/target_pose": 5070,
+      "/control/heading_setpoint": 5070,
+      "/propulsion/policy": 5070,
+      "/propulsion/constraints": 5070,
+      "/operator/maneuver_command": 5070,
+      "/operator/maneuver_text": 5070,
+      "/gnc/internal_waypoints": 1,
+      "/gnc/smoothed_waypoints": 1,
+      "/diagnostics/ilos_guidance": 2500
+    },
+    "columns": {
+      "navigation": [
+        "north_m",
+        "east_m",
+        "heading_rad",
+        "surge_mps",
+        "sway_mps",
+        "yaw_rate_radps",
+        "roll_rad"
+      ],
+      "allocation": [
+        "degradation_level",
+        "normalized_error",
+        "allocation_saturated"
+      ],
+      "guidance": [
+        "waypoint_index",
+        "active_segment_xte_m",
+        "path_heading_deg"
+      ]
+    },
+    "time_basis": "message header where present, otherwise native receipt or embedded publication timestamp",
+    "samples_sha256": "ec467b7fb2dd0e7726ee32e12499f730dd964915d2e283b8eb683d5d5c08f436",
+    "route_events": [
+      {
+        "time_ns": 2000000000000000000,
+        "topic": "/gnc/route_execution_status",
+        "message": {
+          "accepted": true,
+          "active_route_id": "original-R07-E3",
+          "active_route_revision": 1,
+          "applied_heading_deg": {
+            "$nonfinite": "nan"
+          },
+          "applied_speed_mps": 0.0,
+          "available_decel_distance_m": {
+            "$nonfinite": "+inf"
+          },
+          "command_source": "route_planner",
+          "cross_track_error_m": 0.0,
+          "current_course_deg": 0.0,
+          "current_heading_deg": 0.0,
+          "current_latitude": 0.0,
+          "current_longitude": 0.0,
+          "current_navigation_mode": "",
+          "current_segment_index": 0,
+          "current_speed_limit_mps": 0.0,
+          "current_speed_mps": 0.0,
+          "current_target_waypoint_index": 0,
+          "degraded": false,
+          "estimated_available_turn_radius_m": {
+            "$nonfinite": "+inf"
+          },
+          "executing": false,
+          "execution_state": "FORWARDED_FOR_VALIDATION",
+          "header": {
+            "frame_id": "map",
+            "stamp": {
+              "nanosec": 0,
+              "sec": 2000000000
+            }
+          },
+          "plan_id": "original-R07-E3",
+          "reason": "route_contract_normalized",
+          "rejected": false,
+          "requested_heading_deg": {
+            "$nonfinite": "nan"
+          },
+          "requested_speed_mps": 0.0,
+          "required_decel_distance_m": 0.0,
+          "required_turn_radius_m": 0.0,
+          "stage_snapshot_valid": false,
+          "suggested_action": "none",
+          "suggested_max_speed_mps": 0.0,
+          "suggested_min_distance_m": 0.0
+        }
+      },
+      {
+        "time_ns": 2000000000000000000,
+        "topic": "/route_planning/route_plan_status",
+        "message": {
+          "accepted": true,
+          "current_along_track_m": {
+            "$nonfinite": "nan"
+          },
+          "first_changed_distance_ahead_m": {
+            "$nonfinite": "nan"
+          },
+          "header": {
+            "frame_id": "route_plan_status",
+            "stamp": {
+              "nanosec": 0,
+              "sec": 2000000000
+            }
+          },
+          "internal_waypoint_count": 5,
+          "max_lateral_delta_m": {
+            "$nonfinite": "nan"
+          },
+          "navigation_mode_valid": true,
+          "reason": "route accepted; first waypoint publication gated for startup yaw ordering",
+          "route_id": "original-R07-E3",
+          "route_type": "nominal",
+          "speed_limit_valid": true,
+          "status": "ACCEPTED",
+          "total_distance_m": 5809.641583900442,
+          "waypoint_count": 5
+        }
+      },
+      {
+        "time_ns": 2000000000000000000,
+        "topic": "/gnc/route_execution_status",
+        "message": {
+          "accepted": true,
+          "active_route_id": "original-R07-E3",
+          "active_route_revision": 1,
+          "applied_heading_deg": {
+            "$nonfinite": "nan"
+          },
+          "applied_speed_mps": 0.0,
+          "available_decel_distance_m": {
+            "$nonfinite": "+inf"
+          },
+          "command_source": "route_planner",
+          "cross_track_error_m": 0.0,
+          "current_course_deg": 0.0,
+          "current_heading_deg": 0.0,
+          "current_latitude": 0.0,
+          "current_longitude": 0.0,
+          "current_navigation_mode": "",
+          "current_segment_index": 0,
+          "current_speed_limit_mps": 0.0,
+          "current_speed_mps": 0.0,
+          "current_target_waypoint_index": 0,
+          "degraded": false,
+          "estimated_available_turn_radius_m": {
+            "$nonfinite": "+inf"
+          },
+          "executing": true,
+          "execution_state": "ACCEPTED",
+          "header": {
+            "frame_id": "map",
+            "stamp": {
+              "nanosec": 0,
+              "sec": 2000000000
+            }
+          },
+          "plan_id": "original-R07-E3",
+          "reason": "route accepted; first waypoint publication gated for startup yaw ordering",
+          "rejected": false,
+          "requested_heading_deg": {
+            "$nonfinite": "nan"
+          },
+          "requested_speed_mps": 0.0,
+          "required_decel_distance_m": 0.0,
+          "required_turn_radius_m": 0.0,
+          "stage_snapshot_valid": false,
+          "suggested_action": "none",
+          "suggested_max_speed_mps": 0.0,
+          "suggested_min_distance_m": 0.0
+        }
+      }
+    ]
+  },
+  "scope": "free closed-loop descriptive comparison; asynchronous ROS variation is not strict replay parity",
+  "alignment": "recorded plant last_time_ construction clock versus explicit embedded epoch; no fitted lag or spatial transform",
+  "startup_uncertainty": "clock origin is observed; ROS startup ordering and subsequent jitter remain part of the comparison",
+  "interpolation": "linear on common native odometry times; angles unwrapped before interpolation",
+  "reference_samples_outside_common_time": 0,
+  "position_error_m": {
+    "sample_count": 126608,
+    "missing_count": 0,
+    "maximum": 13.210522986538875,
+    "rmse": 3.0515419353067705,
+    "p95": 6.104650512209621,
+    "last": 0.020860299861675983
+  },
+  "speed_error_mps": {
+    "sample_count": 126608,
+    "missing_count": 0,
+    "maximum": 1.0781210593104493,
+    "rmse": 0.06624778215718938,
+    "p95": 0.07529873440872427,
+    "last": 9.161747045526936e-06
+  },
+  "heading_error_rad": {
+    "sample_count": 126608,
+    "missing_count": 0,
+    "maximum": 0.04677663721987832,
+    "rmse": 0.006072295635611083,
+    "p95": 0.01409565750280923,
+    "last": 1.1976667757096495e-05
+  },
+  "nominal_polyline_distance_difference_m": {
+    "sample_count": 126608,
+    "missing_count": 0,
+    "maximum": 3.1434251557977233,
+    "rmse": 0.5744286390062621,
+    "p95": 1.370254121051649,
+    "last": -0.020856842943497433
+  },
+  "reference_performance": {
+    "duration_s": 2534.494605755,
+    "allocation_observed_span_s": 2534.143672213,
+    "allocation_last_sample_minus_navigation_last_s": -0.023111266999876534,
+    "navigation_samples": 126608,
+    "nominal_polyline_distance_m": {
+      "sample_count": 126608,
+      "missing_count": 0,
+      "maximum": 30.976083584539854,
+      "rmse": 11.569940511475291,
+      "p95": 24.91627696807992,
+      "last": 7.768394253389791
+    },
+    "active_segment_xte": "unavailable in shared R0 topic capture",
+    "end_position_m": [
+      4385.66052194873,
+      -0.22320409797437626
+    ],
+    "end_goal_distance_m": 14.341215110729076,
+    "end_speed_mps": 0.001488848330425495,
+    "joint_position15m_speed0_3mps_observed_s": 442.6349364450002,
+    "joint_criterion_scope": "uniform observation criterion, not a replacement for original arrival semantics",
+    "allocation_level2_fraction": 0.15798202493246297,
+    "allocation_level3_fraction": 0.03524549558944297,
+    "allocation_saturated_fraction": 0.6023020281964143,
+    "command_total_variation_force_n": [
+      9286905.26468316,
+      11095798.631682932,
+      14767417.31209132,
+      36080.3026674918,
+      52869.0132995731,
+      0.0,
+      0.0
+    ],
+    "command_total_variation_angle_rad": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      3.5071930748377076,
+      3.5071930748377076
+    ],
+    "dp_hold_transitions": [
+      {
+        "time_s": 0.037147676,
+        "active": false
+      },
+      {
+        "time_s": 0.543136343,
+        "active": true
+      },
+      {
+        "time_s": 3.160556854,
+        "active": false
+      },
+      {
+        "time_s": 1333.048710701,
+        "active": true
+      }
+    ]
+  },
+  "embedded_performance": {
+    "duration_s": 2535.0,
+    "allocation_observed_span_s": 2534.8,
+    "allocation_last_sample_minus_navigation_last_s": 0.0,
+    "navigation_samples": 126750,
+    "nominal_polyline_distance_m": {
+      "sample_count": 126750,
+      "missing_count": 0,
+      "maximum": 30.579306300871696,
+      "rmse": 11.604022207043503,
+      "p95": 25.147462549029523,
+      "last": 7.747116054279877
+    },
+    "active_segment_xte": {
+      "sample_count": 2500,
+      "missing_count": 0,
+      "maximum": 34.399389,
+      "rmse": 13.022981639294512,
+      "p95": 25.77901209999998,
+      "last": -1.023793
+    },
+    "end_position_m": [
+      4385.6725269491135,
+      -0.24077397703206965
+    ],
+    "end_goal_distance_m": 14.329496018070387,
+    "end_speed_mps": 0.0014875102202325837,
+    "joint_position15m_speed0_3mps_observed_s": 450.84000000000015,
+    "joint_criterion_scope": "uniform observation criterion, not a replacement for original arrival semantics",
+    "allocation_level2_fraction": 0.16944137604544887,
+    "allocation_level3_fraction": 0.03558466151175749,
+    "allocation_saturated_fraction": 0.6011519646520445,
+    "command_total_variation_force_n": [
+      9299062.580338188,
+      11097412.094762823,
+      15058645.95031685,
+      31882.398057078135,
+      48695.67094875489,
+      0.0,
+      0.0
+    ],
+    "command_total_variation_angle_rad": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      3.4548675641482567,
+      3.4548675641482567
+    ],
+    "dp_hold_transitions": [
+      {
+        "time_s": 0.0,
+        "active": false
+      },
+      {
+        "time_s": 0.5,
+        "active": true
+      },
+      {
+        "time_s": 3.0,
+        "active": false
+      },
+      {
+        "time_s": 1332.5,
+        "active": true
+      }
+    ]
+  }
+}

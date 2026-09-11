@@ -825,7 +825,8 @@ function renderYamlContract(draft) {
 let gncStackCatalog = null;
 
 function gncStackById(stackId) {
-  return gncStackCatalog?.stacks?.find((entry) => entry.stack_id === stackId) || null;
+  return [...(gncStackCatalog?.stacks || []), ...(gncStackCatalog?.original_gnc_stacks || [])]
+    .find((entry) => entry.stack_id === stackId) || null;
 }
 
 function gncStackDisplayLabel(snapshot) {
@@ -855,7 +856,7 @@ function renderGncTable(bodyId, rows) {
 
 function renderGncStackPanel(snapshot) {
   const catalog = gncStackCatalog;
-  const ready = Array.isArray(catalog?.product_presets) && catalog.product_presets.length === 4;
+  const ready = Array.isArray(catalog?.product_presets) && catalog.product_presets.length > 0;
   const locked = snapshot.readOnly || snapshot.creating || !ready;
   const boundId = snapshot?.draft?.gnc_stack_id ?? null;
   const binding = presetBinding(catalog, boundId);
@@ -866,9 +867,9 @@ function renderGncStackPanel(snapshot) {
     const card = makeChoiceCard({
       id: preset.id, name: preset.display_name, desc: preset.description,
       grade: preset.input,
-    }, { enabled: !locked, selected: binding?.preset.id === preset.id });
+    }, { enabled: !locked && preset.available !== false, selected: binding?.preset.id === preset.id });
     card.hasStatus = false;
-    card.title = `${preset.display_name} — ${preset.description} ${preset.input}`;
+    card.title = `${preset.display_name} — ${preset.description} ${preset.input} ${preset.unavailable_reason || ''}`;
     card.dataset.gncPresetId = preset.id;
     return card;
   }));
@@ -876,28 +877,29 @@ function renderGncStackPanel(snapshot) {
   toggle.checked = binding?.environment === 'on';
   toggle.disabled = locked || !binding?.preset.variants.on;
   document.getElementById('gncEnvironmentState').textContent = toggle.checked ? 'ON' : 'OFF';
+  const environmentDescription = binding?.preset.environment_description || catalog?.environment_description;
   document.getElementById('gncEnvironmentHelp').textContent = !binding
     ? 'Existing scenario/custom binding retained. Select a preset to use its environment switch.'
     : !binding.preset.variants.on
       ? 'Legacy keeps the original execution chain; unified wind / wave / current loads are unavailable.'
-      : toggle.checked ? catalog.environment_description : 'Calm water · no wind, wave or current loads.';
+      : toggle.checked ? environmentDescription : 'Calm water · no wind, wave or current loads.';
   const custom = document.getElementById('gncCustomBinding');
   custom.hidden = Boolean(binding) || !ready;
-  custom.textContent = 'Current scenario/custom binding is preserved. Choose one of the four presets to replace it.';
+  custom.textContent = 'Current scenario/custom binding is preserved. Choose an available preset to replace it.';
   const roles = ['Plant', 'Guidance', 'Controller', 'Actuation'];
   const entry = gncStackById(boundId);
   const fields = binding?.preset.fields;
   renderGncTable('gncFieldRows', [
     ...roles.map((role) => [role, fields?.[role] || 'Existing scenario/custom configuration']),
-    ['Environment', binding ? (toggle.checked ? catalog.environment_description : 'OFF · no wind / waves / current') : 'Existing scenario configuration'],
+    ['Environment', binding ? (toggle.checked ? environmentDescription : 'OFF · no wind / waves / current') : 'Existing scenario configuration'],
   ]);
   renderGncTable('gncPresetRows', (ready ? catalog.product_presets : []).map((preset) => [
     preset.display_name, ...roles.map((role) => preset.fields[role]),
     preset.variants.on ? 'OFF / ON' : 'OFF',
   ]));
-  document.getElementById('gncPresetNote').textContent = binding?.preset.variants.on
+  document.getElementById('gncPresetNote').textContent = binding?.preset.note || (binding?.preset.variants.on
     ? '4DOF: surge, sway, roll, yaw; roll is uncontrolled. Design / engineering parameters, no vessel validation. Closed-loop acceptance depends on algorithm and scenario.'
-    : 'Legacy preserves the scenario model, guidance and controller. Selecting this preset disables scenario wind / wave / current disturbances.';
+    : 'Legacy preserves the scenario model, guidance and controller. Selecting this preset disables scenario wind / wave / current disturbances.');
   renderGncStackDetail(entry);
   document.getElementById('gncStackParameters').textContent = entry
     ? JSON.stringify(entry.config, null, 2) : 'No modular parameters.';
@@ -1139,6 +1141,8 @@ async function refreshValidationAuthority() {
       fetchJson('/api/capabilities', { cache: 'no-store' }),
       activeSessionRuntime.refreshAuthority(),
     ]);
+    // Create may begin while these authority requests are in flight.
+    if (assembly.snapshot().creating) return;
     if (catalogResult.status === 'fulfilled') {
       assembly.replaceCatalog(catalogResult.value, { reason: 'authority-refresh' });
     } else {

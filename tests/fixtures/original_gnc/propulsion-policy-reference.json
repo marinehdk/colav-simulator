@@ -1,0 +1,4502 @@
+{
+  "schema": "original-gnc.policy-reference.v1",
+  "scope": "independent source single-module vectors",
+  "source_sha256": "1905fd1a332a4a31675ef367a7c3d116be1e309b6e8d2e90ed3782e82bae3f2c",
+  "config_sha256": "a3f5138310f4e1a4535eb080a8c2de745319b1d984bf7d92c306ab2b48852013",
+  "config": {
+    "schema_version": "propulsion_policy.v1",
+    "mode": "shadow",
+    "data_policy": {
+      "parameter_source": "mock_data",
+      "parameter_confidence": "C",
+      "real_data_transition": "Replace policy thresholds with vessel trial, propulsion OEM, maneuvering booklet, and operator-approved limits without changing the PropulsionPolicy interfaces."
+    },
+    "publish_rate_hz": 2.0,
+    "initial_observation_grace_s": 3.0,
+    "stale_timeout_s": {
+      "mission_status": 5.0,
+      "captain_decision": 5.0,
+      "odometry": 5.0,
+      "cmd_tau": 5.0,
+      "actuator_capability": 5.0
+    },
+    "speed_regions_mps": {
+      "low_speed_max": 1.5,
+      "maneuvering_max": 3.0,
+      "cruise_min": 5.0
+    },
+    "turn_detection": {
+      "yaw_moment_nm": 120000.0,
+      "sway_force_n": 20000.0
+    },
+    "side_thruster": {
+      "allow_below_speed_mps": 2.7,
+      "derate_start_speed_mps": 1.5,
+      "unlock_speed_mps": 2.7,
+      "lockout_speed_mps": 3.2,
+      "emergency_unlock_max_speed_mps": 3.2,
+      "speed_filter_tau_s": 1.0,
+      "max_fraction_low_speed": 1.0,
+      "max_fraction_transit": 0.0,
+      "fraction_enforcement_regions": [
+        "cruise_efficiency"
+      ],
+      "fraction_enforcement_min_speed_mps": 1.5,
+      "rudder_preferred_cap_min_speed_mps": 3.0,
+      "rudder_preferred_max_fraction": 0.07,
+      "rudder_preferred_cap_regions": [
+        "cruise_efficiency"
+      ],
+      "emergency_actions": [
+        "hold_or_manual_handover",
+        "abort_escape_recommended"
+      ],
+      "allowed_phases": [
+        "BERTHED",
+        "BOW_OUT",
+        "CLEAR_AHEAD",
+        "APPROACH",
+        "STANDBY",
+        "BERTH_OR_WORK",
+        "ABORT_ESCAPE"
+      ]
+    },
+    "main_propulsion": {
+      "require_symmetry_in_cruise": true,
+      "symmetry_yaw_deadband_nm": 120000.0,
+      "symmetry_lateral_deadband_n": 20000.0,
+      "symmetry_min_speed_mps": 3.0,
+      "symmetry_max_asymmetry_abs_n": 2500.0,
+      "symmetry_max_asymmetry_ratio": 0.15,
+      "symmetry_policy": {
+        "enabled": true,
+        "mode": "shadow",
+        "enforcement": "advisory_only",
+        "required_regions": [
+          "cruise_efficiency"
+        ],
+        "release_regions": [
+          "turn_or_rejoin",
+          "low_speed_maneuvering",
+          "degraded_hold",
+          "emergency_abort",
+          "initial_observation"
+        ],
+        "min_speed_mps": 3.0,
+        "yaw_deadband_nm": 120000.0,
+        "lateral_deadband_n": 20000.0,
+        "max_asymmetry_abs_n": 2500.0,
+        "max_asymmetry_ratio": 0.15
+      },
+      "allow_differential_actions": [
+        "rejoin_corridor",
+        "hold_or_manual_handover",
+        "abort_escape_recommended"
+      ]
+    },
+    "rudder": {
+      "effective_min_speed_mps": 1.0,
+      "preferred_above_speed_mps": 3.0,
+      "preferred_phases": [
+        "JOIN_ROUTE",
+        "CRUISE",
+        "DECEL",
+        "REPORT",
+        "APPROACH"
+      ]
+    },
+    "reverse": {
+      "allowed_below_speed_mps": 0.8,
+      "controlled_braking_max_speed_mps": 8.5,
+      "controlled_braking_surge_request_n": -1000.0,
+      "controlled_braking_phases": [
+        "DECEL",
+        "REPORT",
+        "APPROACH",
+        "STANDBY"
+      ],
+      "allowed_phases": [
+        "STANDBY",
+        "BERTH_OR_WORK",
+        "COMPLETE"
+      ],
+      "allowed_actions": [
+        "hold_or_manual_handover",
+        "request_human_confirmation"
+      ],
+      "dp_hold_braking_enabled": true,
+      "dp_hold_braking_max_speed_mps": 1.2,
+      "dp_hold_braking_surge_request_n": -1000.0
+    },
+    "environment": {
+      "caution_force_n": 120000.0,
+      "hold_force_n": 220000.0
+    },
+    "policy_priority": [
+      "emergency_abort",
+      "degraded_hold",
+      "low_speed_maneuvering",
+      "turn_or_rejoin",
+      "cruise_efficiency"
+    ]
+  },
+  "config_file": "/home/marine.huang/colav-gnc-oracle/l45-20260824-v2/frozen/src/mission/mission_supervisor/config/propulsion_policy.yaml",
+  "scenario_file": "",
+  "scenario": {},
+  "shadow_mode": true,
+  "publish_rate_hz": 2.0,
+  "initial_clock_ns": 1789013632218510967,
+  "calls": [
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013632238510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013632238510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.0,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013632258510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013632258510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.0,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013632758510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013632758510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.0,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013632778510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013632778510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.0,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013632798510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013632798510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.0,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013632818510967,
+      "input": {
+        "data": true
+      },
+      "clock_reads": [
+        1789013632818510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.0,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013632838510967,
+      "input": null,
+      "clock_reads": [
+        1789013632838510967,
+        1789013632838510967,
+        1789013632838510967,
+        1789013632838510967,
+        1789013632838510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": true, \"rudder_preferred\": false, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 1.0}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"low_speed_maneuvering\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 0.0, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"low_speed_maneuvering\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"low_speed_or_station_keeping_phase\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"reverse_allowed_dp_hold_braking\", \"rudder_below_effective_speed\", \"side_thruster_low_speed_available\", \"side_thruster_speed_hysteresis_transition\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 0.0, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              1.0,
+              0.0,
+              1.0,
+              0.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 0.0,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013632858510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013632858510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.0,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013632878510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013632878510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.0,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013633378510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 1.499,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013633378510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.5736913580246914,
+        "raw_speed_mps": 1.499,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013633398510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013633398510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.5736913580246914,
+        "raw_speed_mps": 1.499,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013633418510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013633418510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.5736913580246914,
+        "raw_speed_mps": 1.499,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013633438510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013633438510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.5736913580246914,
+        "raw_speed_mps": 1.499,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013633458510967,
+      "input": null,
+      "clock_reads": [
+        1789013633458510967,
+        1789013633458510967,
+        1789013633458510967,
+        1789013633458510967,
+        1789013633458510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": false, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 1.0}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"low_speed_maneuvering\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 0.5736913580246914, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"low_speed_maneuvering\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"low_speed_or_station_keeping_phase\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"reverse_locked_without_low_speed_intent\", \"rudder_below_effective_speed\", \"side_thruster_low_speed_available\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 0.5736913580246914, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              1.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 0.5736913580246914,
+        "raw_speed_mps": 1.499,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013633478510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013633478510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.5736913580246914,
+        "raw_speed_mps": 1.499,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013633498510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013633498510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.5736913580246914,
+        "raw_speed_mps": 1.499,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013633998510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 1.5,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013633998510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.9282045419905502,
+        "raw_speed_mps": 1.5,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013634018510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013634018510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.9282045419905502,
+        "raw_speed_mps": 1.5,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013634038510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013634038510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.9282045419905502,
+        "raw_speed_mps": 1.5,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013634058510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013634058510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.9282045419905502,
+        "raw_speed_mps": 1.5,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013634078510967,
+      "input": null,
+      "clock_reads": [
+        1789013634078510967,
+        1789013634078510967,
+        1789013634078510967,
+        1789013634078510967,
+        1789013634078510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": false, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 1.0}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"low_speed_maneuvering\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 0.9282045419905502, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"low_speed_maneuvering\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"low_speed_or_station_keeping_phase\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"reverse_locked_without_low_speed_intent\", \"rudder_below_effective_speed\", \"side_thruster_low_speed_available\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 0.9282045419905502, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              1.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 0.9282045419905502,
+        "raw_speed_mps": 1.5,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013634098510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013634098510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.9282045419905502,
+        "raw_speed_mps": 1.5,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013634118510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013634118510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 0.9282045419905502,
+        "raw_speed_mps": 1.5,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013634618510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 1.501,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013634618510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.1474225567842902,
+        "raw_speed_mps": 1.501,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013634638510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013634638510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.1474225567842902,
+        "raw_speed_mps": 1.501,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013634658510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013634658510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.1474225567842902,
+        "raw_speed_mps": 1.501,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013634678510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013634678510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.1474225567842902,
+        "raw_speed_mps": 1.501,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013634698510967,
+      "input": null,
+      "clock_reads": [
+        1789013634698510967,
+        1789013634698510967,
+        1789013634698510967,
+        1789013634698510967,
+        1789013634698510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 1.0}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"low_speed_maneuvering\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 1.1474225567842902, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"low_speed_maneuvering\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"low_speed_or_station_keeping_phase\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_low_speed_available\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 1.1474225567842902, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              1.0,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 1.1474225567842902,
+        "raw_speed_mps": 1.501,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013634718510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013634718510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.1474225567842902,
+        "raw_speed_mps": 1.501,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013634738510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013634738510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.1474225567842902,
+        "raw_speed_mps": 1.501,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013635238510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 2.699,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013635238510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.741236146163142,
+        "raw_speed_mps": 2.699,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013635258510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013635258510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.741236146163142,
+        "raw_speed_mps": 2.699,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013635278510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013635278510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.741236146163142,
+        "raw_speed_mps": 2.699,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013635298510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013635298510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.741236146163142,
+        "raw_speed_mps": 2.699,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013635318510967,
+      "input": null,
+      "clock_reads": [
+        1789013635318510967,
+        1789013635318510967,
+        1789013635318510967,
+        1789013635318510967,
+        1789013635318510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 0.9453050147353068}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 1.741236146163142, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_derated_by_speed\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 1.741236146163142, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              0.9453050147353068,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 1.741236146163142,
+        "raw_speed_mps": 2.699,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013635338510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013635338510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.741236146163142,
+        "raw_speed_mps": 2.699,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013635358510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013635358510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.741236146163142,
+        "raw_speed_mps": 2.699,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013635858510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 2.7,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013635858510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.108170460594532,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013635878510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013635878510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.108170460594532,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013635898510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013635898510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.108170460594532,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013635918510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013635918510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.108170460594532,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013635938510967,
+      "input": null,
+      "clock_reads": [
+        1789013635938510967,
+        1789013635938510967,
+        1789013635938510967,
+        1789013635938510967,
+        1789013635938510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 0.7076218058757713}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 2.108170460594532, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_derated_by_speed\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 2.108170460594532, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              0.7076218058757713,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 2.108170460594532,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013635958510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013635958510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.108170460594532,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013635978510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013635978510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.108170460594532,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013636478510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 2.701,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013636478510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.335055839873168,
+        "raw_speed_mps": 2.701,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013636498510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013636498510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.335055839873168,
+        "raw_speed_mps": 2.701,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013636518510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013636518510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.335055839873168,
+        "raw_speed_mps": 2.701,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013636538510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013636538510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.335055839873168,
+        "raw_speed_mps": 2.701,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013636558510967,
+      "input": null,
+      "clock_reads": [
+        1789013636558510967,
+        1789013636558510967,
+        1789013636558510967,
+        1789013636558510967,
+        1789013636558510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 0.5131846650220568}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 2.335055839873168, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_derated_by_speed\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 2.335055839873168, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              0.5131846650220568,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 2.335055839873168,
+        "raw_speed_mps": 2.701,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013636578510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013636578510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.335055839873168,
+        "raw_speed_mps": 2.701,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013636598510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013636598510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.335055839873168,
+        "raw_speed_mps": 2.701,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013637098510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 3.199,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013637098510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.6657011357241776,
+        "raw_speed_mps": 3.199,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013637118510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013637118510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.6657011357241776,
+        "raw_speed_mps": 3.199,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013637138510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013637138510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.6657011357241776,
+        "raw_speed_mps": 3.199,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013637158510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013637158510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.6657011357241776,
+        "raw_speed_mps": 3.199,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013637178510967,
+      "input": null,
+      "clock_reads": [
+        1789013637178510967,
+        1789013637178510967,
+        1789013637178510967,
+        1789013637178510967,
+        1789013637178510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 0.23424906932342526}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 2.6657011357241776, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_derated_by_speed\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 2.6657011357241776, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              0.23424906932342526,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 2.6657011357241776,
+        "raw_speed_mps": 3.199,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013637198510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013637198510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.6657011357241776,
+        "raw_speed_mps": 3.199,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013637218510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013637218510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.6657011357241776,
+        "raw_speed_mps": 3.199,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013637718510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 3.2,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013637718510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.8701858862494922,
+        "raw_speed_mps": 3.2,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013637738510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013637738510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.8701858862494922,
+        "raw_speed_mps": 3.2,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013637758510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013637758510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.8701858862494922,
+        "raw_speed_mps": 3.2,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013637778510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013637778510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.8701858862494922,
+        "raw_speed_mps": 3.2,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013637798510967,
+      "input": null,
+      "clock_reads": [
+        1789013637798510967,
+        1789013637798510967,
+        1789013637798510967,
+        1789013637798510967,
+        1789013637798510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 0.098313021123552}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 2.8701858862494922, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_derated_by_speed\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 2.8701858862494922, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              0.098313021123552,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 2.8701858862494922,
+        "raw_speed_mps": 3.2,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013637818510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013637818510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.8701858862494922,
+        "raw_speed_mps": 3.2,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013637838510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013637838510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.8701858862494922,
+        "raw_speed_mps": 3.2,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013638338510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 3.201,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013638338510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.996793756944131,
+        "raw_speed_mps": 3.201,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013638358510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013638358510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.996793756944131,
+        "raw_speed_mps": 3.201,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013638378510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013638378510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.996793756944131,
+        "raw_speed_mps": 3.201,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013638398510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013638398510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.996793756944131,
+        "raw_speed_mps": 3.201,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013638418510967,
+      "input": null,
+      "clock_reads": [
+        1789013638418510967,
+        1789013638418510967,
+        1789013638418510967,
+        1789013638418510967,
+        1789013638418510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 0.039448659385084794}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 2.996793756944131, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_derated_by_speed\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 2.996793756944131, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              0.039448659385084794,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 2.996793756944131,
+        "raw_speed_mps": 3.201,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013638438510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013638438510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.996793756944131,
+        "raw_speed_mps": 3.201,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013638458510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013638458510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.996793756944131,
+        "raw_speed_mps": 3.201,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013638958510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 5.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013638958510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.7634529363852662,
+        "raw_speed_mps": 5.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013638978510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013638978510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.7634529363852662,
+        "raw_speed_mps": 5.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013638998510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013638998510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.7634529363852662,
+        "raw_speed_mps": 5.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013639018510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013639018510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.7634529363852662,
+        "raw_speed_mps": 5.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013639038510967,
+      "input": null,
+      "clock_reads": [
+        1789013639038510967,
+        1789013639038510967,
+        1789013639038510967,
+        1789013639038510967,
+        1789013639038510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": false, \"main_propulsion_symmetry_required\": true, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": false, \"side_thruster_max_fraction\": 0.0}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": false, \"enforcement\": \"advisory_only\", \"intent\": \"symmetric_main_thrust\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 3.7634529363852662, \"sway_demand_n\": 0.0, \"symmetry_required\": true, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_required\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_high_speed_lockout\", \"side_thruster_speed_hysteresis_transition\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 3.7634529363852662, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 3.7634529363852662,
+        "raw_speed_mps": 5.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013639058510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013639058510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.7634529363852662,
+        "raw_speed_mps": 5.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013639078510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013639078510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.7634529363852662,
+        "raw_speed_mps": 5.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013639578510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 2.8,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013639578510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.3947240348057197,
+        "raw_speed_mps": 2.8,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013639598510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013639598510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.3947240348057197,
+        "raw_speed_mps": 2.8,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013639618510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013639618510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.3947240348057197,
+        "raw_speed_mps": 2.8,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013639638510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013639638510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.3947240348057197,
+        "raw_speed_mps": 2.8,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013639658510967,
+      "input": null,
+      "clock_reads": [
+        1789013639658510967,
+        1789013639658510967,
+        1789013639658510967,
+        1789013639658510967,
+        1789013639658510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": false, \"main_propulsion_symmetry_required\": true, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": false, \"side_thruster_max_fraction\": 0.0}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": false, \"enforcement\": \"advisory_only\", \"intent\": \"symmetric_main_thrust\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 3.3947240348057197, \"sway_demand_n\": 0.0, \"symmetry_required\": true, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_required\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_high_speed_lockout\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 3.3947240348057197, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 3.3947240348057197,
+        "raw_speed_mps": 2.8,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013639678510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013639678510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.3947240348057197,
+        "raw_speed_mps": 2.8,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013639698510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013639698510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.3947240348057197,
+        "raw_speed_mps": 2.8,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013640198510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 2.7,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013640198510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.1288419967936543,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013640218510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013640218510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.1288419967936543,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013640238510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013640238510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.1288419967936543,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013640258510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013640258510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.1288419967936543,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013640278510967,
+      "input": null,
+      "clock_reads": [
+        1789013640278510967,
+        1789013640278510967,
+        1789013640278510967,
+        1789013640278510967,
+        1789013640278510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": false, \"main_propulsion_symmetry_required\": true, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": false, \"side_thruster_max_fraction\": 0.0}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": false, \"enforcement\": \"advisory_only\", \"intent\": \"symmetric_main_thrust\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 3.1288419967936543, \"sway_demand_n\": 0.0, \"symmetry_required\": true, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_required\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_high_speed_lockout\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 3.1288419967936543, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 3.1288419967936543,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013640298510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013640298510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.1288419967936543,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013640318510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013640318510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 3.1288419967936543,
+        "raw_speed_mps": 2.7,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013640818510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 2.6,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013640818510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.92644567703312,
+        "raw_speed_mps": 2.6,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013640838510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013640838510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.92644567703312,
+        "raw_speed_mps": 2.6,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013640858510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013640858510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.92644567703312,
+        "raw_speed_mps": 2.6,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013640878510967,
+      "input": {
+        "data": false
+      },
+      "clock_reads": [
+        1789013640878510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.92644567703312,
+        "raw_speed_mps": 2.6,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013640898510967,
+      "input": null,
+      "clock_reads": [
+        1789013640898510967,
+        1789013640898510967,
+        1789013640898510967,
+        1789013640898510967,
+        1789013640898510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": false, \"side_thruster_max_fraction\": 0.0}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 2.92644567703312, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_high_speed_lockout\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 2.92644567703312, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 2.92644567703312,
+        "raw_speed_mps": 2.6,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_mission_status",
+      "time_ns": 1789013640918510967,
+      "input": {
+        "data": "{\"phase\": \"CRUISE\"}"
+      },
+      "clock_reads": [
+        1789013640918510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.92644567703312,
+        "raw_speed_mps": 2.6,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013640938510967,
+      "input": {
+        "data": "{\"action\": \"continue\"}"
+      },
+      "clock_reads": [
+        1789013640938510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 2.92644567703312,
+        "raw_speed_mps": 2.6,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_odometry",
+      "time_ns": 1789013641438510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "child_frame_id": "",
+        "pose": {
+          "pose": {
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "orientation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "twist": {
+          "twist": {
+            "linear": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "angular": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          },
+          "covariance": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "clock_reads": [
+        1789013641438510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_cmd_tau",
+      "time_ns": 1789013641458510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": -2000.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013641458510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013641478510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          3.0,
+          3.0,
+          0.0
+        ]
+      },
+      "clock_reads": [
+        1789013641478510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_on_dp_hold_active",
+      "time_ns": 1789013641498510967,
+      "input": {
+        "data": true
+      },
+      "clock_reads": [
+        1789013641498510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": false
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013641518510967,
+      "input": null,
+      "clock_reads": [
+        1789013641518510967,
+        1789013641518510967,
+        1789013641518510967,
+        1789013641518510967,
+        1789013641518510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 0.91423051175988}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 1.8064479487858767, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"cruise_efficiency\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"cruise_efficiency_region\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_derated_by_speed\", \"side_thruster_speed_hysteresis_transition\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 1.8064479487858767, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": false, \"mission_status\": false, \"odometry\": false}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              0.91423051175988,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013647518510967,
+      "input": null,
+      "clock_reads": [
+        1789013647518510967,
+        1789013647518510967,
+        1789013647518510967,
+        1789013647518510967,
+        1789013647518510967,
+        1789013647518510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"continue\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 1.0, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 0.91423051175988}, \"environment_force_n\": 0.0, \"environment_level\": \"nominal\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"degraded_hold\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 1.8064479487858767, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"degraded_hold\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"actuator_capability_stale\", \"captain_decision_stale\", \"cmd_tau_stale\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"mission_status_stale\", \"odometry_stale\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_derated_by_speed\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 1.8064479487858767, \"stale\": {\"actuator_capability\": true, \"captain_decision\": true, \"cmd_tau\": true, \"mission_status\": true, \"odometry\": true}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              0.91423051175988,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              1.0
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_actuator_capability",
+      "time_ns": 1789013647538510967,
+      "input": {
+        "layout": {
+          "dim": [],
+          "data_offset": 0
+        },
+        "data": [
+          2.0,
+          3.0,
+          1.0
+        ]
+      },
+      "clock_reads": [
+        1789013647538510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_environment_load",
+      "time_ns": 1789013647558510967,
+      "input": {
+        "header": {
+          "stamp": {
+            "sec": 0,
+            "nanosec": 0
+          },
+          "frame_id": ""
+        },
+        "wrench": {
+          "force": {
+            "x": 1000000.0,
+            "y": 200000.0,
+            "z": 0.0
+          },
+          "torque": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "clock_reads": [
+        1789013647558510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_on_captain_decision",
+      "time_ns": 1789013647578510967,
+      "input": {
+        "data": "{\"action\": \"abort_escape_recommended\"}"
+      },
+      "clock_reads": [
+        1789013647578510967
+      ],
+      "outputs": [],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": true
+      }
+    },
+    {
+      "callback": "_tick",
+      "time_ns": 1789013647598510967,
+      "input": null,
+      "clock_reads": [
+        1789013647598510967,
+        1789013647598510967,
+        1789013647598510967,
+        1789013647598510967,
+        1789013647598510967,
+        1789013647598510967
+      ],
+      "outputs": [
+        {
+          "topic": "/propulsion/policy",
+          "type": "std_msgs/msg/String",
+          "fields": {
+            "data": "{\"captain_action\": \"abort_escape_recommended\", \"cmd_tau\": {\"surge_n\": -2000.0, \"sway_n\": 0.0, \"yaw_nm\": 0.0}, \"constraints\": {\"actuator_available_ratio\": 0.6666666666666666, \"differential_main_thrust_allowed\": true, \"main_propulsion_symmetry_required\": false, \"reverse_allowed\": false, \"rudder_preferred\": true, \"side_thruster_allowed\": true, \"side_thruster_max_fraction\": 1.0}, \"environment_force_n\": 1019803.9027185569, \"environment_level\": \"hold\", \"main_propulsion_policy\": {\"differential_allowed\": true, \"enforcement\": \"advisory_only\", \"intent\": \"differential_main_thrust_available\", \"mode\": \"shadow\", \"operating_region\": \"degraded_hold\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"release_reasons\": [\"main_symmetry_region_not_required\", \"main_symmetry_released_for_maneuvering\", \"main_symmetry_released_by_captain_action\", \"main_symmetry_below_min_speed\"], \"schema_version\": \"main_propulsion_symmetry_policy.v1\", \"speed_mps\": 1.8064479487858767, \"sway_demand_n\": 0.0, \"symmetry_required\": false, \"thresholds\": {\"lateral_deadband_n\": 20000.0, \"max_asymmetry_abs_n\": 2500.0, \"max_asymmetry_ratio\": 0.15, \"min_speed_mps\": 3.0, \"release_regions\": [\"degraded_hold\", \"emergency_abort\", \"initial_observation\", \"low_speed_maneuvering\", \"turn_or_rejoin\"], \"required_regions\": [\"cruise_efficiency\"], \"yaw_deadband_nm\": 120000.0}, \"yaw_demand_nm\": 0.0}, \"mode\": \"shadow\", \"operating_region\": \"degraded_hold\", \"parameter_confidence\": \"C\", \"parameter_source\": \"mock_data\", \"phase\": \"CRUISE\", \"reasons\": [\"actuator_fault_detected\", \"cmd_tau_stale\", \"environment_hold\", \"main_propulsion_symmetry_policy_released\", \"main_symmetry_below_min_speed\", \"main_symmetry_region_not_required\", \"main_symmetry_released_by_captain_action\", \"main_symmetry_released_for_maneuvering\", \"mission_status_stale\", \"odometry_stale\", \"reverse_locked_without_low_speed_intent\", \"rudder_preferred_for_transit_control\", \"side_thruster_emergency_unlock\", \"side_thruster_fraction_unrestricted_for_maneuvering_region\"], \"schema_version\": \"propulsion_policy.v1\", \"speed_mps\": 1.8064479487858767, \"stale\": {\"actuator_capability\": false, \"captain_decision\": false, \"cmd_tau\": true, \"mission_status\": true, \"odometry\": true}}"
+          }
+        },
+        {
+          "topic": "/propulsion/constraints",
+          "type": "std_msgs/msg/Float64MultiArray",
+          "fields": {
+            "layout": {
+              "dim": [],
+              "data_offset": 0
+            },
+            "data": [
+              1.0,
+              1.0,
+              0.0,
+              1.0,
+              1.0,
+              0.0,
+              0.6666666666666666
+            ]
+          }
+        }
+      ],
+      "state": {
+        "speed_mps": 1.8064479487858767,
+        "raw_speed_mps": 0.0,
+        "side_thruster_speed_allowed": true
+      }
+    }
+  ]
+}
