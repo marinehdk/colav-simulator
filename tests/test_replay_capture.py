@@ -270,6 +270,23 @@ def test_product_run_records_full_trace_without_any_browser(finished_vo_run: dic
     assert bundle.tick_count == index["tick_count"]
 
 
+def test_product_run_persists_static_replay_context(finished_vo_run: dict[str, Any]) -> None:
+    """The capture side freezes the chart context the replay read path needs (#71 §7.2)."""
+    run_dir: Path = finished_vo_run["run_dir"]
+    document = json.loads((run_dir / "static_context.json").read_text(encoding="utf-8"))
+    assert document["schema_version"] == "colav.run-replay.static-context@1"
+    assert document["scenario_id"] == "head_on"
+    enc = document["enc"]
+    assert enc["origin_north_m"] > 0 and enc["origin_east_m"] > 0
+    assert enc["width_m"] > 0 and enc["height_m"] > 0
+    assert isinstance(enc["utm_zone"], int)
+    assert document["enc_navigation_area"]["coordinate_frame"] == "local_north_east_m"
+    assert document["enc_navigation_area"]["safe_water"]["type"] == "MultiPolygon"
+    ships = document["ships"]
+    assert ships[0]["id"] == 0
+    assert ships[0]["length_m"] > 0 and ships[0]["width_m"] > 0
+
+
 def test_product_trace_is_readable_by_existing_probes(finished_vo_run: dict[str, Any]) -> None:
     bundle = TraceBundle(finished_vo_run["run_dir"])
     report = probes.startup_timeline(bundle, seconds=30.0)
