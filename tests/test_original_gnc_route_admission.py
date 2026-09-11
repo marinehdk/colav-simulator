@@ -243,3 +243,25 @@ def test_mid_receipt_becomes_route_contract_with_segments_and_speeds(original_sh
     data["planner"]["algorithm_details"]["accepted_plan_receipt"]["receipt_hash"] = "b" * 64
     bridge.submit(11.2)
     assert ship.requested_plans[-1]["message"]["plan_id"] == "mid-mpc-" + "b" * 24
+
+
+def test_mid_receipt_schema_sequence_key_is_read_tolerantly(original_ship):
+    """colav.mid_mpc.receipt@1 names the authority cycle "sequence"; the canonical
+    accepted-plan-receipt schema names it "accepted_sequence". The bridge must
+    accept both, as threat management already does."""
+    ship = original_ship
+    ship.stack.advance(11)
+    ship._sync_state()
+    data = _mid_planner_data(1, "a" * 64)
+    receipt = data["planner"]["algorithm_details"]["accepted_plan_receipt"]
+    receipt["sequence"] = receipt.pop("accepted_sequence")
+    bridge = _mount(ship, data)
+    origin = np.array([[1086.0], [2000.0]])
+    raw = np.hstack([origin + np.array([[20.0 * i], [3.0 * i]]) for i in range(40)])  # 20 m spacing
+    decision = _mid_decision(110, raw, np.full(raw.shape[1], 6.0), 400)
+    bridge._mid = SimpleNamespace(current_route=lambda tick, planner_data: decision)
+    bridge.submit(11)
+    request = ship.requested_plans[-1]["message"]
+    assert request["plan_id"] == "mid-mpc-" + "a" * 24
+    coordinate = _coordinate_feedback(bridge)
+    assert coordinate["accepted"] is True

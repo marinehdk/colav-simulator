@@ -435,7 +435,10 @@ class OriginalPlanBridge:
                 "algorithm": algorithm,
                 "authority": "accepted_mid_mpc_receipt",
                 "receipt_hash": receipt["receipt_hash"],
-                "accepted_sequence": receipt["accepted_sequence"],
+                # colav.mid_mpc.receipt@1 calls the authority cycle "sequence";
+                # the canonical accepted-plan-receipt schema calls it
+                # "accepted_sequence" (same tolerant read as threat management).
+                "accepted_sequence": receipt.get("accepted_sequence", receipt.get("sequence")),
                 "continuity_revision": route.revision,
                 "planner_speed_semantics": "accepted_command_speed",
                 "source_speed_semantics": "original_route_speed_limit",
