@@ -280,9 +280,11 @@ def test_mid_receipt_becomes_route_contract_with_segments_and_speeds(original_sh
 
 
 def test_mid_receipt_schema_sequence_key_is_read_tolerantly(original_ship):
-    """colav.mid_mpc.receipt@1 names the authority cycle "sequence"; the canonical
-    accepted-plan-receipt schema names it "accepted_sequence". The bridge must
-    accept both, as threat management already does.
+    """The bridge reads the mid receipt authority cycle tolerantly.
+
+    colav.mid_mpc.receipt@1 names the authority cycle "sequence"; the
+    canonical accepted-plan-receipt schema names it "accepted_sequence". The
+    bridge must accept both, as threat management already does.
     """
     ship = original_ship
     ship.stack.advance(11)
