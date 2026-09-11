@@ -3639,3 +3639,14 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 
 .balance-limit-single { flex-wrap: nowrap; }
 .balance-limit-single strong { width: 100%; text-align: center; white-space: nowrap; }
+
+/* Evaluation > Sealed Run Replay run catalog (ticket #70) */
+.replay-runs-card { background: var(--ob-surface); border: 1px solid var(--ob-border); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+.replay-runs-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 10px; }
+.replay-runs-header h1 { font-size: 16px; font-weight: 600; margin: 2px 0; }
+.replay-runs-header p { margin: 0; font-size: 10px; color: var(--ob-subtle); }
+.replay-runs-table-wrap { overflow-x: auto; }
+.replay-runs-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.replay-runs-table th { text-align: left; padding: 5px 8px; font-weight: 500; letter-spacing: .5px; color: var(--ob-subtle); border-bottom: 1px solid var(--ob-border); white-space: nowrap; }
+.replay-runs-table td { padding: 5px 8px; border-bottom: 1px solid var(--ob-border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.replay-runs-table td.replay-runs-state { font-weight: 600; letter-spacing: .4px; color: var(--ob-accent); }

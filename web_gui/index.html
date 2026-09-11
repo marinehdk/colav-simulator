@@ -733,6 +733,27 @@
     </section>
 
     <section class="workface historical-ais-scenario-workface" data-workface-panel="evaluation" hidden>
+      <div class="replay-runs-card" id="replayRunsPanel" aria-label="Sealed Run Replay runs">
+        <header class="replay-runs-header">
+          <div>
+            <p class="historical-ais-eyebrow">EVALUATION / REPLAY</p>
+            <h1>Sealed Run Replay</h1>
+            <p>SEALED · HISTORICAL — recorded evidence inspection only. Seek and playback arrive with the replay timeline.</p>
+          </div>
+          <div class="historical-ais-header-status">
+            <span class="historical-ais-status-pill" id="replayRunsStatus">LOADING</span>
+            <obc-button id="replayRunsRefreshBtn" variant="flat">Refresh</obc-button>
+          </div>
+        </header>
+        <div class="replay-runs-table-wrap">
+          <table class="replay-runs-table">
+            <thead>
+              <tr><th>Run</th><th>Scenario</th><th>Algorithm</th><th>Tracker</th><th>Frames</th><th>Sim time (s)</th><th>Replay evidence</th><th>Created</th></tr>
+            </thead>
+            <tbody id="replayRunsBody"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="historical-ais-workbench" id="historicalAISBenchmark" aria-label="Historical AIS Benchmark">
         <header class="historical-ais-workbench-header">
           <div>
@@ -813,5 +834,6 @@
   <script type="module" src="/static/app.js?v=20260910-vo-display-v1"></script>
   <script type="module" src="/static/modules/config-shell.js?v=20260910-vo-display-v1"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260824-canonical-presentation"></script>
+  <script type="module" src="/static/modules/replay-runs.js?v=20260911-replay-runs-v1"></script>
 </body>
 </html>

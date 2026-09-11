@@ -37,6 +37,7 @@ from shapely.geometry import Point
 from colav_simulator.cli import _load_algorithm_config
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.decision_replay.sink import STATE_CAPTURING, STATE_INCOMPLETE, TraceSink, TraceSinkPolicy
 from colav_simulator.experiment.busy_water import (
     ACCEPTANCE_SCENARIO_ID,
     DEFAULT_SEED,
@@ -55,6 +56,7 @@ from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCat
 from colav_simulator.modular_gnc.catalog import list_stack_catalog
 from gui_server.gnc_balance import balance_telemetry
 from gui_server.historical_api import router as historical_api_router
+from gui_server.replay import RunReplayStore, build_replay_router, replay_retention_budget_bytes, runs_root
 
 log = logging.getLogger("gui_server")
 logging.basicConfig(level=logging.INFO)
@@ -69,6 +71,44 @@ TELEMETRY_TRAIL_HISTORY_SECONDS = 300.0
 TELEMETRY_MAX_TRAIL_POINTS = 120
 TELEMETRY_EVIDENCE_RECENT_EVENTS = 32
 VO_DECISION_HISTORY_LIMIT = 64
+
+REPLAY_STATE_UNAVAILABLE = "UNAVAILABLE"
+REPLAY_REASON_TRACE_CAPTURE_DISABLED = "TRACE_CAPTURE_DISABLED"
+REPLAY_REASON_CAPTURE_OPEN_FAILED = "CAPTURE_OPEN_FAILED"
+REPLAY_REASON_CAPTURE_FINALIZE_FAILED = "CAPTURE_FINALIZE_FAILED"
+REPLAY_REASON_SESSION_REPLACED = "SESSION_REPLACED"
+REPLAY_REASON_EXECUTION_FAILED = "EXECUTION_FAILED"
+CAPTURE_BUDGET_ENV = "COLAV_REPLAY_CAPTURE_BUDGET_BYTES"
+# Measured on #70 (head_on/rule14 product runs through this capture path,
+# 16 ticks): VO admits ~13 KB/tick raw, Mid-MPC ~148 KB/tick raw; stored
+# (gzipped) frames are ~0.7 KB/tick (VO) and ~35 KB/tick (Mid-MPC). A 600 s
+# 10 Hz Mid-MPC run therefore admits well under 1 GiB raw. The budget counts
+# admitted uncompressed record bytes (an upper bound on disk use).
+DEFAULT_CAPTURE_BUDGET_BYTES = 2 * 1024**3
+
+
+def capture_budget_policy() -> TraceSinkPolicy:
+    """Per-Run capture byte budget; exceeding it is a typed INCOMPLETE reason."""
+    max_bytes = DEFAULT_CAPTURE_BUDGET_BYTES
+    raw = os.environ.get(CAPTURE_BUDGET_ENV, "").strip()
+    if raw:
+        try:
+            override = int(raw)
+        except ValueError:
+            override = 0
+        if override > 0:
+            max_bytes = override
+        else:
+            log.warning(
+                "Ignoring invalid %s=%r; using the %d-byte default capture budget",
+                CAPTURE_BUDGET_ENV,
+                raw,
+                DEFAULT_CAPTURE_BUDGET_BYTES,
+            )
+    # Measured on #70: the raw events.jsonl journal dominates the stored trace
+    # for VO runs (31 KB events vs 10.6 KB gz frames), so the product path
+    # stores the journal gzipped; TraceBundle reads both forms additively.
+    return TraceSinkPolicy(max_total_bytes=max_bytes, events_gzip=True)
 
 # Issue #67 validated COLAV spacing profiles, run by product (GUI) sessions
 # when the client sends no algorithm config. With the bare published defaults
@@ -312,6 +352,7 @@ class SessionCreateRequest(BaseModel):
     tracker_config: dict[str, Any] = Field(default_factory=dict)
     domain_profile: Any | None = None
     scenario_override: dict[str, Any] | None = None
+    record_replay_trace: bool = True
 
     def to_spec(self) -> RunSpec:
         if self.validation_rule_id is None:
@@ -320,6 +361,7 @@ class SessionCreateRequest(BaseModel):
                 "Product session create requires an explicit validation_rule_id and exact capability tuple",
             )
         payload = self.model_dump()
+        payload.pop("record_replay_trace", None)  # capture policy lives outside the RunSpec identity
         payload["ownship_gnc_stack_id"] = payload.pop("gnc_stack_id")
         if not payload["algorithm_config"]:
             spacing_profile = _product_spacing_profile(self.algorithm_id)
@@ -622,23 +664,41 @@ class WebSessionManager:
         self._latest_static_once_dynamic_stream_document = ""
         self._latest_compact_stream_document = ""
         self._latest_compact_static_stream_document = ""
+        self._trace_captures: dict[str, TraceSink] = {}
+        self._capture_finalize_errors: dict[str, str] = {}
+        self._record_replay_trace = True
         self.lock = threading.RLock()
 
     @property
     def session_id(self) -> str | None:
         return self.prepared.manifest.run_id if self.prepared else None
 
-    def create(self, spec: RunSpec) -> dict[str, Any]:
+    def create(self, spec: RunSpec, *, record_replay_trace: bool | None = None) -> dict[str, Any]:
         with self.lock:
             if self.prepared and self.prepared.session.state == SessionState.RUNNING:
                 raise RuntimeError("Pause the active session before replacing it")
             replacement = self.runner.prepare(spec)
-            return self._activate(replacement)
+            return self._activate(replacement, record_replay_trace=record_replay_trace)
 
-    def _activate(self, replacement: PreparedRun, *, enc_image_source: Path | None = None) -> dict[str, Any]:
+    def _activate(
+        self,
+        replacement: PreparedRun,
+        *,
+        enc_image_source: Path | None = None,
+        record_replay_trace: bool | None = None,
+    ) -> dict[str, Any]:
+        if record_replay_trace is not None:
+            self._record_replay_trace = record_replay_trace
+        previous = self.prepared
+        previous_capture: TraceSink | None = None
+        if previous is not None:
+            previous.artifact_sink.close(timeout_s=2.0)
+            previous_capture = self._trace_captures.pop(previous.manifest.run_id, None)
+            self._capture_finalize_errors.pop(previous.manifest.run_id, None)
+            if previous_capture is not None and not previous_capture.finalized:
+                if previous_capture.state == STATE_CAPTURING:
+                    previous_capture.fail(REPLAY_REASON_SESSION_REPLACED)
         replacement.session.enable_pickle_frames()
-        if self.prepared is not None:
-            self.prepared.artifact_sink.close(timeout_s=2.0)
         self.prepared = replacement
         self.result = None
         self.replay_expected = None
@@ -668,14 +728,104 @@ class WebSessionManager:
             shutil.copyfile(enc_image_source, self.prepared.run_dir / "enc.png")
         else:
             render_enc(self.prepared)
+        if previous_capture is not None and not previous_capture.finalized:
+            self._result_executor.submit(self._finalize_replaced_capture, previous_capture, previous.session.events)
+        self._open_trace_capture(replacement)
         self._publish_telemetry(None)
         return self.describe()
+
+    # -- full Decision Trace capture (ticket #70) ---------------------------
+
+    def _open_trace_capture(self, prepared: PreparedRun) -> None:
+        if not self._record_replay_trace:
+            return
+        try:
+            self._trace_captures[prepared.manifest.run_id] = TraceSink.open(prepared.run_dir, policy=capture_budget_policy())
+        except OSError:
+            log.exception("Replay trace capture could not be opened for run %s", prepared.manifest.run_id)
+            self._capture_finalize_errors[prepared.manifest.run_id] = REPLAY_REASON_CAPTURE_OPEN_FAILED
+
+    def _capture_for(self, prepared: Any) -> TraceSink | None:
+        """Tolerant capture lookup: result publication must never depend on it."""
+        manifest = getattr(prepared, "manifest", None)
+        run_id = getattr(manifest, "run_id", None)
+        return self._trace_captures.get(run_id) if run_id else None
+
+    def _append_trace_capture(self, snapshot: Any) -> None:
+        if not self._trace_captures or self.prepared is None:
+            return
+        capture = self._capture_for(self.prepared)
+        if capture is not None:
+            capture.append(snapshot)
+
+    def replay_status_for(self, run_id: str | None) -> dict[str, Any] | None:
+        """Replay evidence state for one Run ID owned by this manager."""
+        with self.lock:
+            if run_id is None:
+                return None
+            finalize_error = self._capture_finalize_errors.get(run_id)
+            if finalize_error is not None:
+                return {"state": STATE_INCOMPLETE, "reason": finalize_error}
+            capture = self._trace_captures.get(run_id)
+            if capture is None:
+                return None
+            return {"state": capture.state, "reason": capture.reason, "frame_count": capture.tick_count}
+
+    def _active_replay_status(self) -> dict[str, Any]:
+        status = self.replay_status_for(self.session_id)
+        if status is not None:
+            return status
+        reason = None if self._record_replay_trace else REPLAY_REASON_TRACE_CAPTURE_DISABLED
+        return {"state": REPLAY_STATE_UNAVAILABLE, "reason": reason}
+
+    def _finalize_replay_capture(self, prepared: PreparedRun) -> None:
+        """Publish replay readiness before expensive evaluation work (§4.4)."""
+        capture = self._capture_for(prepared)
+        if capture is None:
+            return
+        try:
+            capture.close(events=prepared.session.events)
+        except Exception:
+            log.exception("Replay trace finalization failed for run %s", prepared.manifest.run_id)
+            self._capture_finalize_errors[prepared.manifest.run_id] = REPLAY_REASON_CAPTURE_FINALIZE_FAILED
+            return
+        self._enforce_replay_retention(prepared)
+
+    @staticmethod
+    def _finalize_replaced_capture(capture: TraceSink, events: list[dict[str, Any]]) -> None:
+        try:
+            capture.close(events=events)
+        except Exception:
+            log.exception("Replaced session trace finalization failed")
+
+    def _enforce_replay_retention(self, prepared: PreparedRun) -> None:
+        budget = replay_retention_budget_bytes()
+        if budget <= 0:
+            return
+        try:
+            store = RunReplayStore(prepared.run_dir.parent)
+            store.prune_traces(
+                budget_bytes=budget,
+                keep_run_ids=frozenset({prepared.manifest.run_id}),
+                log_event=self._append_retention_event,
+            )
+        except Exception:
+            log.exception("Replay trace retention pruning failed")
+
+    @staticmethod
+    def _append_retention_event(run_dir: Path, document: dict[str, Any]) -> None:
+        try:
+            with (run_dir / "lifecycle_events.jsonl").open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(document) + "\n")
+        except OSError:
+            log.warning("Could not record replay retention event for %s", run_dir)
 
     def describe(self) -> dict[str, Any]:
         if not self.prepared:
             return {"active": False}
         source_time = float(self.prepared.session.simulator.t)
         runtime_time = self._runtime_time_document(source_time)
+        replay_status = self._active_replay_status()
         return {
             "active": True,
             "session_id": self.session_id,
@@ -686,6 +836,8 @@ class WebSessionManager:
             **runtime_time,
             "failure_reason": self.prepared.session.failure_reason,
             "result_ready": self.result is not None,
+            "replay_status": replay_status["state"],
+            "replay_reason": replay_status["reason"],
             "playback": self._playback_status(),
         }
 
@@ -877,6 +1029,7 @@ class WebSessionManager:
             try:
                 snapshot = prepared.session.step_once()
                 self._record_telemetry_trails(snapshot.payload)
+                self._append_trace_capture(snapshot)
                 self._publish_telemetry(snapshot)
                 if prepared.session.state == SessionState.FINISHED:
                     self._result_executor.submit(self._finalize, prepared, self.replay_expected)
@@ -906,6 +1059,7 @@ class WebSessionManager:
             try:
                 snapshot = self.prepared.session.advance()
                 self._record_telemetry_trails(snapshot.payload)
+                self._append_trace_capture(snapshot)
                 finished = self.prepared.session.state == SessionState.FINISHED
                 if finished or self._telemetry_refresh_due(snapshot, now=time.monotonic()):
                     self._publish_telemetry(snapshot)
@@ -932,9 +1086,11 @@ class WebSessionManager:
             return self.describe()
 
     def _finalize(self, prepared: PreparedRun, replay_expected: tuple[str, str] | None = None) -> None:
-        # Physical execution is already FINISHED and published. Evaluation and
+        # Physical execution is already FINISHED and published. Trace
+        # finalization publishes replay readiness first; Evaluation and
         # artifact serialization must not hold the control/telemetry lock.
         try:
+            self._finalize_replay_capture(prepared)
             result = self.runner.finalize(prepared)
             if replay_expected:
                 episode_hash, trajectory_hash = replay_expected
@@ -964,6 +1120,10 @@ class WebSessionManager:
     def _write_failure_evidence(self, prepared: PreparedRun, exc: Exception) -> None:
         try:
             prepared.artifact_sink.close(timeout_s=2.0)
+            capture = self._capture_for(prepared)
+            if capture is not None and not capture.finalized:
+                capture.fail(REPLAY_REASON_EXECUTION_FAILED)
+                capture.close(events=prepared.session.events)
             self.runner.persist_original_gnc(prepared)
             self.runner.persist_failure(
                 prepared.manifest,
@@ -1591,6 +1751,11 @@ async def lifespan(_: FastAPI):
 manager = WebSessionManager()
 app = FastAPI(title="COLAV Simulator Research Control", version="1.0", lifespan=lifespan)
 app.include_router(historical_api_router)
+# Read-only Sealed Run Replay discovery + descriptor (ticket #70). The store
+# root resolves exactly like the writer (project-root anchored runs/), so
+# discovery can never diverge from where runs are written.
+replay_store = RunReplayStore(runs_root())
+app.include_router(build_replay_router(replay_store, active_replay_status=manager.replay_status_for))
 if GUI_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(GUI_DIR)), name="static")
 
@@ -1744,7 +1909,7 @@ def api_save_busy_water_draft(request: BusyWaterDraftRequest) -> dict[str, Any]:
 def api_create_session(request: SessionCreateRequest) -> dict[str, Any]:
     try:
         spec = _historical_session_spec(request) or request.to_spec()
-        return manager.create(spec)
+        return manager.create(spec, record_replay_trace=request.record_replay_trace)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
 
