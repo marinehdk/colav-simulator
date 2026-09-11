@@ -267,7 +267,15 @@ def test_colav_strict_staged_route_objective_alters_then_returns_to_mission(
 
     headings = result.raw_x[: config.horizon_steps]
     assert result.prepared.p.size == (
-        len(fixture.output["prepared"]["p"]) + 6 * config.horizon_steps + 5 + 2 * config.max_targets
+        # Fixture parameter block plus the staged route objective block
+        # (6n + 5: heading/lateral/continuity/arrival references, the
+        # avoidance phase knot, terminal pose/weight, and the recovery
+        # cross-track envelope bound) plus the strict CPA bound slot and the
+        # frozen target stride capacity.
+        len(fixture.output["prepared"]["p"])
+        + 6 * config.horizon_steps
+        + 6
+        + 2 * config.max_targets
     )
     assert np.mean(headings[:avoidance_until_k]) > np.mean(headings[avoidance_until_k:]) + 0.05
     assert headings[-1] == pytest.approx(mission, abs=0.02)
@@ -1316,3 +1324,118 @@ def test_measured_speed_inside_bounds_keeps_frozen_bounds() -> None:
     n = config.horizon_steps
     np.testing.assert_allclose(prepared.lbx[n : 2 * n], np.zeros(n))
     np.testing.assert_allclose(prepared.ubx[n : 2 * n], np.full(n, 8.0))
+
+
+def test_recovery_envelope_bound_is_packed_from_the_avoidance_references(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    """The recovery barrier bound is the avoidance-phase lateral envelope.
+
+    The bound must measure what the avoidance phase legitimately used, not
+    the recovering tail: crossing-E0 rejected a candidate whose post-CPA
+    cross-track grew to 843.8 m after a 398.6 m avoidance envelope.
+    """
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    mission = source.route_bearing_rad
+    corridor = mission + 0.2
+    avoidance_until_k = max(2, n // 2)
+    references = (corridor,) * avoidance_until_k + (mission,) * (n - avoidance_until_k)
+    lateral = (
+        (0.0,) * 2
+        + (200.0,) * max(avoidance_until_k - 2, 1)
+        + (0.0,) * (n - avoidance_until_k)
+    )
+    problem = replace(
+        source,
+        route_bearing_rad=corridor,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=mission,
+            avoidance_corridor_bearing_rad=corridor,
+            heading_reference_rad=references,
+            lateral_reference_m=lateral,
+            avoidance_active_until_k=avoidance_until_k,
+        ),
+    )
+
+    prepared = _prepare(
+        config, problem, _row_layout(config, max(len(problem.targets), 1), max(len(problem.targets), 1))
+    )
+
+    prefix_capacity = max(n, solver_module._FROZEN_PREFIX_CAPACITY)
+    route_start = (
+        prefix_capacity * 2
+        + int(solver_module._P.PREFIX_PSI)
+        + config.max_targets * solver_module._TARGET_STRIDE
+        + 1
+    )
+    bound_index = route_start + 6 * n + 4
+    assert prepared.p.size == bound_index + 1 + 2 * config.max_targets
+    # The envelope covers both the staged lateral references and the
+    # excursion the corridor heading reference implies at the planned speed.
+    speeds = problem.route_objective.speed_reference_mps or (problem.planned_speed_mps,) * n
+    implied = 0.0
+    position = np.zeros(2)
+    normal = np.array(problem.route_frame.normal)
+    for index in range(avoidance_until_k):
+        position = position + [
+            speeds[index] * config.dt_s * math.cos(references[index]),
+            speeds[index] * config.dt_s * math.sin(references[index]),
+        ]
+        implied = max(implied, abs(lateral[index]), abs(float(position @ normal)))
+    assert prepared.p[bound_index] == pytest.approx(max(implied, 200.0))
+
+
+def test_recovery_envelope_barrier_penalizes_post_release_wandering(
+    parity_corpus: dict[str, MidMpcParityFixture],
+) -> None:
+    """The barrier charges post-release cross-track beyond the envelope.
+
+    Sweep the packed envelope bound over one candidate whose recovery tail
+    sits outside the avoidance excursion: tightening the bound must raise the
+    route objective component. That is the objective-side alignment with the
+    L4 recovery criterion that rejected the flee-then-wander candidate.
+    """
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    source = _problem(fixture)
+    n = config.horizon_steps
+    mission = source.route_bearing_rad
+    corridor = mission + 0.2
+    avoidance_until_k = max(2, n // 2)
+    references = (corridor,) * avoidance_until_k + (mission,) * (n - avoidance_until_k)
+    problem = replace(
+        source,
+        route_bearing_rad=corridor,
+        route_objective=MidMpcRouteObjective(
+            mission_bearing_rad=mission,
+            avoidance_corridor_bearing_rad=corridor,
+            heading_reference_rad=references,
+            lateral_reference_m=(0.0,) * n,
+            avoidance_active_until_k=avoidance_until_k,
+        ),
+    )
+    graph = solver_module._build_graph(config, problem)
+    prepared = _prepare(config, problem, graph.row_layout)
+
+    # One candidate that keeps crabbing off-route through the recovery tail.
+    wanderer = prepared.x0.copy()
+    speed = float(np.clip(wanderer[n], 1.0, 8.0))
+    wanderer[n : 2 * n] = speed
+    wanderer[avoidance_until_k:] = mission + math.asin(min(0.9, 60.0 / (speed * config.dt_s)))
+
+    envelope_index = solver_module._recovery_envelope_index(config, True, config.max_targets)
+    route_index = 3
+    with_barrier = float(
+        solver_module._flat(graph.objective_components(wanderer, prepared.p))[route_index]
+    )
+    opened = np.array(prepared.p, copy=True)
+    opened[envelope_index] = 1.0e9
+    without_barrier = float(solver_module._flat(graph.objective_components(wanderer, opened))[route_index])
+    assert with_barrier > without_barrier
+    tightened = np.array(prepared.p, copy=True)
+    tightened[envelope_index] = 0.0
+    fully_bound = float(solver_module._flat(graph.objective_components(wanderer, tightened))[route_index])
+    assert fully_bound > with_barrier
