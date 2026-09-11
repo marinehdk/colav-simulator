@@ -1070,6 +1070,7 @@ class _MidMpcFacade:
                     turn_rate_rad_s=self._config.assembly.rot_max_rad_s,
                     deceleration_mps2=self._config.assembly.decel_max_mps2,
                     speed_bounds_mps=self._config.assembly.speed_bounds_mps,
+                    course_time_constant_s=planner_input.ownship_course_time_constant_s,
                 ),
             ),
             targets=targets,
