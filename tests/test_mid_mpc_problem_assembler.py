@@ -580,6 +580,44 @@ def test_route_recovery_wait_holds_current_course_until_rejoin_is_safe() -> None
     assert outcome.horizon_encounter_plan.avoidance_corridor_bearing_rad == pytest.approx(current_heading)
 
 
+def test_assembler_stages_recovery_on_qualified_course_lag() -> None:
+    """The assembler must feed the qualified course time constant into the
+    horizon staging envelope: recovery staging is response-sensitive and the
+    request hash covers the lag like the speed channel (direction semantics
+    are pinned by the horizon-encounter-plan unit tests)."""
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    recovery_target = replace(
+        snapshot.targets[0],
+        risk=RiskPhase.PAST_CLEAR,
+        route_recovery_allowed=True,
+        recovery_guard_active=True,
+        action_achieved=True,
+    )
+    recovery_snapshot = replace(snapshot, targets=(recovery_target,))
+    current_heading = math.radians(30.0)
+    off_route_input = replace(
+        planner_input,
+        ownship_state=np.array([0.0, 200.0, current_heading, 7.0, 0.0, 0.0]),
+    )
+
+    baseline = MidMpcProblemAssembler().assemble(_request(off_route_input, recovery_snapshot))
+    lagged = MidMpcProblemAssembler().assemble(
+        _request(replace(off_route_input, ownship_course_time_constant_s=86.78), recovery_snapshot)
+    )
+
+    assert isinstance(baseline, AssemblySuccess)
+    assert isinstance(lagged, AssemblySuccess)
+    baseline_recovery = baseline.horizon_encounter_plan.recovery_from_k
+    lagged_recovery = lagged.horizon_encounter_plan.recovery_from_k
+    assert baseline_recovery is not None
+    assert lagged_recovery is not None
+    assert lagged_recovery != baseline_recovery
+    assert baseline.request_hash != lagged.request_hash
+
+
 def test_rolling_plan_authority_does_not_alter_recovery_timing() -> None:
     """Rolling plans are continuity authority only: swept-path evidence owns recovery timing.
 

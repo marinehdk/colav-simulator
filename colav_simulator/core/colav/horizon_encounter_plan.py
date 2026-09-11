@@ -90,6 +90,11 @@ class HorizonEncounterPlanRequest:
     rot_max_rad_s: float
     heading_window_rad: float
     targets: tuple[HorizonTargetIntent, ...]
+    # Qualified closed-loop course-response time constant of the own plant
+    # (0.0 = rate-only envelope for plants without a qualified lag). The
+    # recovery turn-back envelope must respect the executed response, or the
+    # staged RECOVER knot precedes the actually executed CPA.
+    course_time_constant_s: float = 0.0
 
     def __post_init__(self) -> None:
         """Normalize and validate the fixed state grid."""
@@ -116,6 +121,8 @@ class HorizonEncounterPlanRequest:
             raise ValueError("horizon encounter request values must be finite")
         if self.own_speed_mps < 0.0 or self.rot_max_rad_s <= 0.0 or self.heading_window_rad <= 0.0:
             raise ValueError("speed and turn rate must be physically valid")
+        if not math.isfinite(self.course_time_constant_s) or self.course_time_constant_s < 0.0:
+            raise ValueError("course time constant must be finite and non-negative")
         targets = tuple(self.targets)
         if len({target.key for target in targets}) != len(targets):
             raise ValueError("horizon target intents must have unique keys")
@@ -197,6 +204,7 @@ def compile_horizon_encounter_plan(request: HorizonEncounterPlanRequest) -> Hori
         ),
         rot_max_rad_s=request.rot_max_rad_s,
         heading_window_rad=request.heading_window_rad,
+        course_time_constant_s=request.course_time_constant_s,
     )
 
     windows = tuple(
@@ -240,6 +248,7 @@ def _compile_scheduled_plan(request: HorizonEncounterPlanRequest) -> HorizonEnco
             rot_max_rad_s=request.rot_max_rad_s,
             heading_window_rad=request.heading_window_rad,
             action_start_k=start,
+            course_time_constant_s=request.course_time_constant_s,
         )
         window = _target_window(
             target, paths, own_position_ne_m=request.own_position_ne_m, action_step_rad=request.rot_max_rad_s * dt
@@ -384,8 +393,17 @@ def _recovery_paths(
     rot_max_rad_s: float,
     heading_window_rad: float,
     action_start_k: int = 0,
+    course_time_constant_s: float = 0.0,
 ) -> np.ndarray:
-    """Precompute one rate-limited corridor-to-mission path per recovery knot."""
+    """Precompute one response-limited corridor-to-mission path per recovery knot.
+
+    The envelope integrates the qualified closed-loop course response when a
+    course time constant is provided (first-order lag toward the commanded
+    heading, still bounded by the turn rate), and falls back to the raw
+    rate-limited envelope otherwise. Staging recovery on a max-rate envelope
+    alone put the RECOVER knot ahead of the executed CPA (overtaking-E0 staged
+    recovery 9 knots before the candidate's closest approach).
+    """
     dt_s = float(times_s[1] - times_s[0])
     step_count = times_s.size - 1
     paths = np.zeros((times_s.size, times_s.size, 2), dtype=float)
@@ -418,7 +436,17 @@ def _recovery_paths(
             heading_window_rad,
         )
         heading_delta = np.arctan2(np.sin(desired_heading - heading), np.cos(desired_heading - heading))
-        heading += np.clip(heading_delta, -maximum_heading_step, maximum_heading_step)
+        if course_time_constant_s > 0.0:
+            # Qualified first-order closed-loop course response: the executed
+            # heading chases the command through the plant lag, so the
+            # turn-back envelope is slower than the raw turn-rate bound.
+            heading += np.clip(
+                heading_delta * dt_s / course_time_constant_s,
+                -maximum_heading_step,
+                maximum_heading_step,
+            )
+        else:
+            heading += np.clip(heading_delta, -maximum_heading_step, maximum_heading_step)
         paths[:, k + 1, 0] = paths[:, k, 0] + own_speed_mps * dt_s * np.cos(heading)
         paths[:, k + 1, 1] = paths[:, k, 1] + own_speed_mps * dt_s * np.sin(heading)
     return paths

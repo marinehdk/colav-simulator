@@ -1222,6 +1222,10 @@ def _compile_horizon_encounter_plan(
             avoidance_corridor_bearing_rad=policy.committed_route_bearing_rad,
             rot_max_rad_s=capability.rot_max_rad_s,
             heading_window_rad=capability.heading_window_rad,
+            # Stage the recovery turn-back on the qualified course response, so
+            # advisory RECOVER knots stay executable by the lagged plant
+            # (advisory release preceded the executed CPA by ~9 knots).
+            course_time_constant_s=float(planner_input.ownship_course_time_constant_s or 0.0),
             targets=tuple(
                 HorizonTargetIntent(
                     key=decision.key,
@@ -1289,6 +1293,9 @@ def request_hash_document(
             "width_m": planner_input.ownship_width_m,
             "draft_m": planner_input.ownship_draft_m,
             "speed_time_constant_s": planner_input.ownship_speed_time_constant_s,
+            # The qualified course lag changes the recovery staging envelope,
+            # so the request hash must cover it like the speed channel.
+            "course_time_constant_s": planner_input.ownship_course_time_constant_s,
             "mission_speed_plan_mps": planner_input.speed_plan_mps.tolist(),
         },
         "tracks": [
