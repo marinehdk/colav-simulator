@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from types import SimpleNamespace
 
 import numpy as np
@@ -336,4 +337,161 @@ def test_mid_route_short_of_splice_margin_holds_instead_of_raising(original_ship
     bridge.submit(12.0)
     request = ship.requested_plans[-1]["message"]
     assert request["plan_id"] == "mid-mpc-" + "c" * 24
+    assert _coordinate_feedback(bridge)["accepted"] is True
+
+
+def _vo_static_only_intent(
+    course_rad: float = 0.2, speed: float = 7.8, solve_period: float = 1.0, solve_id: int = 1
+) -> dict:
+    """Constraint evidence with no dynamic encounter: static hazard grid only."""
+    intent = _vo_intent(course_rad, speed, solve_period, solve_id)
+    intent["planner"]["algorithm_details"].update(
+        hard_constraint_count=3,
+        active_rules={},
+        give_way_commitment_active=False,
+        stand_on_hold_active=False,
+        static_hazard_count=2,
+    )
+    return intent
+
+
+def _avoidance_requests(ship) -> list[dict]:
+    return [row for row in ship.requested_plans if row["kind"] == "avoidance"]
+
+
+def test_held_intent_sampling_noise_does_not_spawn_generations(original_ship):
+    """Held-tick course sampling differs from the solve by ULP-level wrap noise.
+
+    Exact-equality intent comparison declared a new intent every tick
+    (fan-HO-E4: 22 splice generations in 50 s, 49 in one cell). Held intents
+    must keep one geometry generation across wrap-stable sampling noise.
+    """
+    ship = original_ship
+    ship.stack.advance(11)
+    ship._sync_state()
+    data = _vo_intent()
+    bridge = _mount(ship, data)
+    bridge.submit(11)
+    first = _avoidance_requests(ship)[-1]["message"]
+    data["planner"]["solver_executed"] = False  # held ticks: no fresh solve, validity untouched
+    for index, offset in enumerate((1e-9, -1e-9, 2 * math.pi - 1e-12)):
+        data["planner"]["selected_command"]["course_rad"] = 0.2 + offset
+        ship.stack.advance(0.1)
+        ship._sync_state()
+        bridge.submit(11.2 + index * 0.1)
+    assert bridge._candidate_generation == 1
+    assert bridge._intent_generation == 1
+    assert _avoidance_requests(ship)[-1]["message"]["plan_id"] == first["plan_id"] == "vo-held-intent-1"
+    assert len(_avoidance_requests(ship)) == 1
+
+
+def test_speed_command_updates_reach_the_route_without_new_geometry(original_ship):
+    """Planner speed changes ride the latched splice; geometry generations do not.
+
+    With sampling noise eliminated, exact geometry rebuilds no longer carry
+    speed updates by accident: a held line with a new commanded speed must be
+    republished with the new deviation speeds under the same generation.
+    """
+    ship = original_ship
+    ship.stack.advance(11)
+    ship._sync_state()
+    data = _vo_intent()
+    bridge = _mount(ship, data)
+    bridge.submit(11)
+    data["planner"]["selected_command"]["speed_mps"] = 6.0
+    data["planner"]["solve_id"] = 2
+    ship.stack.advance(0.1)
+    ship._sync_state()
+    bridge.submit(11.2)
+    request = _avoidance_requests(ship)[-1]["message"]
+    assert bridge._candidate_generation == 1
+    modes = request["navigation_mode"]
+    first_avoidance = modes.index("avoidance")
+    last_avoidance = len(modes) - 1 - modes[::-1].index("avoidance")
+    deviation_speeds = [round(value, 6) for value in request["command_speed_mps"][first_avoidance : last_avoidance + 1]]
+    assert set(deviation_speeds) == {6.0}
+    assert _coordinate_feedback(bridge)["accepted"] is True
+
+
+def test_internal_return_reference_is_sanitized_and_recovery_is_admitted(original_ship):
+    """After an internal return, later intents must splice past the sub-floor leg.
+
+    vo-OT-E0 t=273: the manager's internal return route opened with a 5.5 m leg;
+    every later splice inherited it, gate_clean stayed False and every further
+    VO intent was dropped silently until the planner went infeasible.
+    """
+    ship = original_ship
+    ship.stack.advance(11)
+    ship._sync_state()
+    data = _vo_intent()
+    bridge = _mount(ship, data)
+    bridge.submit(11)
+    data["planner"]["algorithm_details"].update(hard_constraint_count=0, active_rules={}, give_way_commitment_active=False)
+    ship.stack.advance(0.1)
+    ship._sync_state()
+    bridge.submit(11.2)  # constraints clear: return_to_route; manager publishes its internal return
+    assert ship.stack.states["active_route_manager_node"]["active_avoidance"] is False
+    internal = [
+        event["message"]["fields"]
+        for event in ship._events
+        if event.get("event") == "publish"
+        and event.get("topic") == "/gnc/active_route"
+        and event["message"]["fields"].get("route_type") == "internal_return_to_route"
+    ]
+    assert internal
+    data["planner"]["algorithm_details"].update(
+        hard_constraint_count=1, active_rules={"1": ["HO"]}, give_way_commitment_active=True
+    )
+    data["planner"]["solver_executed"] = True
+    data["planner"]["solve_id"] = 2
+    ship.stack.advance(0.1)
+    ship._sync_state()
+    bridge.submit(11.3)
+    request = _avoidance_requests(ship)[-1]["message"]
+    points = ship.frame.northeast(request["latitude"], request["longitude"])
+    gaps = np.linalg.norm(np.diff(points, axis=1), axis=0)
+    assert gaps.min() >= 30.0  # the 5.5 m internal-return head leg never reaches a submission
+    assert _coordinate_feedback(bridge)["accepted"] is True
+    assert bridge.admission_metrics["holds"] == 0
+
+
+def test_unadmittable_intents_are_telemetered_not_dropped_silently(original_ship, monkeypatch):
+    """Every held intent the bridge cannot admit leaves a hold record with a reason."""
+    ship = original_ship
+    ship.stack.advance(11)
+    ship._sync_state()
+    data = _vo_intent()
+    bridge = _mount(ship, data)
+    real_build = plan_bridge_module.build_avoidance_route
+
+    def unadmittable_build(*args: object, **kwargs: object) -> dict:
+        return {**real_build(*args, **kwargs), "gate_clean": False}
+
+    monkeypatch.setattr(plan_bridge_module, "build_avoidance_route", unadmittable_build)
+    bridge.submit(11)
+    assert not _avoidance_requests(ship)
+    assert bridge.admission_metrics["holds"] == 1
+    holds = [event for event in ship._events if event.get("event") == "bridge_hold"]
+    assert len(holds) == 1 and holds[0]["reason"]
+
+
+def test_static_only_evidence_keeps_nominal_cruise_on_deviation_legs(original_ship):
+    """Static-hazard-only deviations tag only the entry leg avoidance.
+
+    vo-HO-E0 t=296-924: static hazard grid cells kept the deviation tagged
+    avoidance with no dynamic target risk, so the frozen 3.2 m/s guidance cap
+    applied for 600 s of pure transit and the goal was missed at the time limit.
+    """
+    ship = original_ship
+    ship.stack.advance(11)
+    ship._sync_state()
+    data = _vo_static_only_intent()
+    bridge = _mount(ship, data)
+    bridge.submit(11)
+    request = _avoidance_requests(ship)[-1]["message"]
+    modes = request["navigation_mode"]
+    first_avoidance = modes.index("avoidance")
+    assert modes[0] == "cruise" and modes[-1] == "dp_hold"
+    assert modes.count("avoidance") == 1  # entry leg only: admission tier, no cap exposure
+    assert first_avoidance == bridge._candidate["prefix_length"]  # the tag is the deviation entry waypoint
     assert _coordinate_feedback(bridge)["accepted"] is True
