@@ -437,6 +437,13 @@ def build_avoidance_route(
         "prefix_length": k,
         "rejoin_index": j,
         "short_reference": k == count - 1,
-        "gate_clean": bool(not has_reverse_segment(points) and (gaps.size == 0 or float(gaps.min()) >= MIN_SEGMENT_M)),
+        # First-order leg floor on the map-frame geometry. The manager gates
+        # behavior_mode "avoidance" as non-emergency at 30 m and measures the
+        # submitted coordinates with its own equirectangular projection, which
+        # can shave a fraction of a percent off a leg; the bridge re-checks
+        # the exact frozen metric on the composed lat/lon before publishing.
+        "gate_clean": bool(
+            not has_reverse_segment(points) and (gaps.size == 0 or float(gaps.min()) >= MIN_SEGMENT_M)
+        ),
     }
     return {"points": points, "speeds": speeds, "modes": modes, **diagnostics}

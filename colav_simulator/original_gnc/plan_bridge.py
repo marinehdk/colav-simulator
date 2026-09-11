@@ -16,6 +16,7 @@ from colav_simulator.original_gnc.native import OriginalGncError
 from colav_simulator.original_gnc.route_splice import (
     FIRST_CHANGE_MARGIN_M,
     LATERAL_ENVELOPE_M,
+    MIN_SEGMENT_M,
     ReferencePath,
     along_track_progress,
     blend_deviation_toward_reference,
@@ -111,6 +112,21 @@ def _intent_deviation_m(points: np.ndarray, intent: np.ndarray, start: int, leng
     if submitted.shape[1] == intent.shape[1]:
         return float(np.max(np.linalg.norm(submitted - intent, axis=0)))
     return float(max(min(np.linalg.norm(intent - point[:, None], axis=0)) for point in submitted.T))
+
+
+def _manager_min_leg_m(latitudes: list, longitudes: list) -> float:
+    """Mirror active_route_manager's leg metric (equirectangular, route-origin)."""
+    if len(latitudes) < 2:
+        return math.inf
+    lat0, lon0 = float(latitudes[0]), float(longitudes[0])
+    meters_per_deg_lat = 111320.0
+    meters_per_deg_lon = meters_per_deg_lat * math.cos(math.radians(lat0))
+    norths = [(float(latitude) - lat0) * meters_per_deg_lat for latitude in latitudes]
+    easts = [(float(longitude) - lon0) * meters_per_deg_lon for longitude in longitudes]
+    return min(
+        math.hypot(norths[index + 1] - norths[index], easts[index + 1] - easts[index])
+        for index in range(len(norths) - 1)
+    )
 
 
 class ReferenceMirror:
@@ -519,6 +535,15 @@ class OriginalPlanBridge:
             candidate["points"], geometry, candidate["prefix_length"], deviation_length
         )
         candidate["latitudes"], candidate["longitudes"] = self._compose_coordinates(reference, candidate)
+        # The manager measures legs with its own equirectangular projection over
+        # the route's first waypoint (111320 m/deg, cos(lat0) easting), and
+        # behavior_mode "avoidance" is its NON-emergency tier (30 m gate), so a
+        # 30.0 m geodesic leg can measure 29.97 there and be rejected. Re-check
+        # the exact frozen metric on the coordinates actually submitted.
+        candidate["gate_clean"] = bool(
+            candidate["gate_clean"]
+            and _manager_min_leg_m(candidate["latitudes"], candidate["longitudes"]) >= MIN_SEGMENT_M
+        )
         return candidate
 
     def _compose_coordinates(self, reference: ReferencePath, candidate: dict) -> tuple[list, list]:
