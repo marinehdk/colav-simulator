@@ -748,12 +748,44 @@
         <div class="replay-runs-table-wrap">
           <table class="replay-runs-table">
             <thead>
-              <tr><th>Run</th><th>Scenario</th><th>Algorithm</th><th>Tracker</th><th>Frames</th><th>Sim time (s)</th><th>Replay evidence</th><th>Created</th></tr>
+              <tr><th>Run</th><th>Scenario</th><th>Algorithm</th><th>Tracker</th><th>Frames</th><th>Sim time (s)</th><th>Replay evidence</th><th>Created</th><th><span class="sr-only">Open replay</span></th></tr>
             </thead>
             <tbody id="replayRunsBody"></tbody>
           </table>
         </div>
       </div>
+      <section class="replay-viewer" id="evaluationReplayPanel" aria-label="Sealed Run Replay viewer" hidden>
+        <header class="replay-viewer-header">
+          <div>
+            <p class="historical-ais-eyebrow" id="replayRunTitle">EVALUATION / REPLAY</p>
+            <p>Paused historical inspection of sealed recorded evidence — the Simulator is never executed.</p>
+          </div>
+          <div class="historical-ais-header-status">
+            <span class="historical-ais-status-pill" id="replaySealedBadge">SEALED · HISTORICAL</span>
+            <span class="historical-ais-status-pill" id="replayEvidenceBadge">LOADING</span>
+            <obc-button id="replayCloseBtn" variant="flat">Close</obc-button>
+          </div>
+        </header>
+        <div class="replay-viewer-main">
+          <div class="replay-canvas-wrapper" id="replayCanvasWrapper">
+            <canvas id="replayCanvas" aria-label="Historical situation chart"></canvas>
+          </div>
+          <aside class="replay-inspection" id="replayInspection" aria-label="Replay inspection context"></aside>
+        </div>
+        <footer class="replay-timeline-bar">
+          <div class="replay-timeline-times">
+            <span id="replayTimeCurrent">— s</span>
+            <input id="replayTimeline" type="range" min="0" max="0" step="0.1" value="0" aria-label="Replay timeline: recorded simulation time" />
+            <span id="replayTimeTotal">— s</span>
+          </div>
+          <div class="replay-timeline-controls">
+            <obc-button id="replayStartBtn" variant="flat">|◀ Start</obc-button>
+            <obc-button id="replayEndBtn" variant="flat">End ▶|</obc-button>
+            <span class="replay-source-frame" id="replaySourceFrame">source frame —</span>
+            <span class="historical-ais-status-pill" id="replayStatusLine">PAUSED · HISTORICAL INSPECTION</span>
+          </div>
+        </footer>
+      </section>
       <div class="historical-ais-workbench" id="historicalAISBenchmark" aria-label="Historical AIS Benchmark">
         <header class="historical-ais-workbench-header">
           <div>
@@ -834,6 +866,7 @@
   <script type="module" src="/static/app.js?v=20260910-vo-display-v1"></script>
   <script type="module" src="/static/modules/config-shell.js?v=20260910-vo-display-v1"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260824-canonical-presentation"></script>
-  <script type="module" src="/static/modules/replay-runs.js?v=20260911-replay-runs-v1"></script>
+  <script type="module" src="/static/modules/replay-runs.js?v=20260911-replay-runs-v2"></script>
+  <script type="module" src="/static/modules/evaluation-replay.js?v=20260911-replay-seek-v1"></script>
 </body>
 </html>

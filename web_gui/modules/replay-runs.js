@@ -16,6 +16,15 @@ const REPLAY_STATE_LABELS = {
   UNAVAILABLE: 'UNAVAILABLE',
 };
 
+// Set by the Evaluation replay host (evaluation-replay.js): row actions open
+// the recorded Run for inspection. Inspection navigation only — never an
+// execution action, never an Active Session call.
+let replayRunOpener = null;
+
+export function setReplayRunOpener(opener) {
+  replayRunOpener = typeof opener === 'function' ? opener : null;
+}
+
 export function replayStateLabel(entry) {
   const replay = entry?.replay ?? {};
   const state = String(replay.state ?? 'UNAVAILABLE').toUpperCase();
@@ -72,6 +81,18 @@ export function renderReplayRuns(documentRef, rows) {
       cell(documentRef, row.label, 'replay-runs-state'),
       cell(documentRef, row.createdAt),
     );
+    if (replayRunOpener !== null) {
+      const action = documentRef.createElement('button');
+      action.type = 'button';
+      action.className = 'ob-button ob-button--flat replay-runs-open';
+      action.textContent = 'Open replay';
+      action.setAttribute('aria-label', `Open replay for run ${row.runId.slice(0, 8)}`);
+      action.addEventListener('click', event => {
+        event.stopPropagation();
+        replayRunOpener(row.runId);
+      });
+      tr.append(action);
+    }
     return tr;
   });
   body.replaceChildren(...tableRows);
