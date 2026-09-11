@@ -1,0 +1,11 @@
+{
+  "url": "https://raw.githubusercontent.com/ARM-software/optimized-routines/v21.02/",
+  "tag": "v21.02",
+  "files": {
+    "math/exp.c": "dc0b440313229470618732d0a9efd32a7fd71de2bff36fb2551f9673831aab05",
+    "math/exp_data.c": "92185082a353fbc465835c985473de458876f689a090f1de650cd0fc59718167",
+    "math/math_config.h": "a56b7d00bbc06bff09be4c015462ce5bf7acf6b154fed54cec2157df916c284d",
+    "math/math_err.c": "d19d2814c80a2e1d169f0c13695b092813ffa9ca6e12d7096fd8619810d8c192",
+    "LICENSE": "decaa9a8c5474b7234118bf8cc83968d6fcfff049c3e498f9674fda09be417dc"
+  }
+}
