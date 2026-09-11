@@ -1102,6 +1102,31 @@ def _apply_scheduled_course_bounds(problem: MidMpcProblem, n: int, x0: np.ndarra
         x0[:n] = np.clip(x0[:n], lbx[:n], ubx[:n])
 
 
+def _stage_speed_bounds(problem: MidMpcProblem, config: MidMpcConfig, lbx: np.ndarray, ubx: np.ndarray) -> None:
+    """Stage the speed bounds to the rate-reachable corridor of the measured speed.
+
+    Envelope-consistent: the strict symmetric rate row bounds the reachable
+    speed corridor at knot k to |u[k] - previous| <= decel_max*dt. A policy
+    floor above (or cap below) that corridor is unreachable and made the
+    overtaking/multiship seam-01 NLPs infeasible (speed_rate[0] violated at
+    every restoration point). The floor or cap still binds in full once the
+    hull can physically reach it.
+    """
+    n = config.horizon_steps
+    rate = problem.decel_max_mps2 * config.dt_s
+    measured = problem.own_ship.u_mps
+    reachable_lower = measured + rate * np.arange(1, n + 1)
+    reachable_upper = measured - rate * np.arange(1, n + 1)
+    if config.strict_slack_bounds:
+        lbx[n : 2 * n] = np.minimum(lbx[n : 2 * n], reachable_lower)
+        ubx[n : 2 * n] = np.maximum(ubx[n : 2 * n], reachable_upper)
+    else:
+        # Non-strict profiles limit only deceleration; the cap must still be
+        # staged, while a floor is reachable immediately (acceleration is
+        # unconstrained there).
+        ubx[n : 2 * n] = np.maximum(ubx[n : 2 * n], reachable_upper)
+
+
 def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayout) -> MidMpcPreparedProblem:
     p = _pack_parameters(config, problem)
     n = config.horizon_steps
@@ -1190,6 +1215,7 @@ def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayo
     lbx[:n], ubx[:n] = problem.heading_bounds_rad
     _apply_scheduled_course_bounds(problem, n, x0, lbx, ubx)
     lbx[n : 2 * n], ubx[n : 2 * n] = problem.speed_bounds_mps
+    _stage_speed_bounds(problem, config, lbx, ubx)
     lbx[2 * n :] = 0.0
     ubx[2 * n :] = np.inf
     if config.strict_slack_bounds and not problem.targets and prefix_k:

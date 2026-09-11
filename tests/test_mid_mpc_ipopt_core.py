@@ -1238,3 +1238,81 @@ def test_starboard_correction_is_feasible_from_port_side_of_mission_route() -> N
     assert result.status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL}
     assert result.raw_x[0] >= 0.2 - 1e-6
     assert result.max_constraint_violation <= 1e-6
+
+
+def _slow_hull_problem(speed_bounds: tuple[float, float], u_mps: float) -> MidMpcProblem:
+    """A hull slowed below the directive floor by yaw-limited turning (OT/MS seam-01)."""
+    return MidMpcProblem(
+        own_ship=MidMpcOwnShip(psi_rad=0.0, u_mps=u_mps),
+        route_bearing_rad=0.0,
+        planned_speed_mps=7.0,
+        heading_bounds_rad=(-math.pi / 4, math.pi / 4),
+        speed_bounds_mps=speed_bounds,
+        cpa_safe_m=150.0,
+        cpa_hard_m=100.0,
+        rot_max_rad_s=math.radians(3.0),
+        decel_max_mps2=0.08,
+        lateral_active=False,
+        preferred_side=0,
+        starboard_asymmetry_active=False,
+        min_alteration_rad=0.0,
+        route_frame=MidMpcRouteFrame(
+            origin_m=(0.0, 0.0),
+            normal=(0.0, 1.0),
+            bearing_rad=0.0,
+            lateral_scale_m=1000.0,
+            weight=1.0,
+        ),
+        targets=(MidMpcTarget(x_m=1.0e6, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0),),
+    )
+
+
+def test_speed_floor_is_staged_to_the_rate_reachable_corridor() -> None:
+    """Stage the directive speed floor to the rate-reachable corridor.
+
+    The floor binds only once the strict symmetric |du| <= decel_max*dt row
+    can reach it: a hard floor below the measured-speed reachable set made the
+    OT/MS seam-01 NLPs infeasible (speed_rate[0] violated at every
+    restoration point).
+    """
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _slow_hull_problem(speed_bounds=(6.4, 8.0), u_mps=4.88)
+
+    prepared = _prepare(config, problem, _row_layout(config, 1, 0))
+
+    n = config.horizon_steps
+    rate = problem.decel_max_mps2 * config.dt_s
+    expected_lower = np.minimum(6.4, 4.88 + rate * (np.arange(n) + 1))
+    np.testing.assert_allclose(prepared.lbx[n : 2 * n], expected_lower)
+    np.testing.assert_allclose(prepared.ubx[n : 2 * n], np.full(n, 8.0))
+    assert prepared.lbx[n] < 6.4  # first knots no longer contradict speed_rate[0]
+    assert prepared.lbx[2 * n - 1] == pytest.approx(6.4)  # floor binds once reachable
+
+
+def test_speed_cap_is_staged_when_the_measured_speed_exceeds_it() -> None:
+    """Stage the cap when the measured speed exceeds it.
+
+    Mirrored staging: a cap below the measured speed must not demand more
+    braking in one step than decel_max allows.
+    """
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _slow_hull_problem(speed_bounds=(0.0, 3.0), u_mps=4.88)
+
+    prepared = _prepare(config, problem, _row_layout(config, 1, 0))
+
+    n = config.horizon_steps
+    rate = problem.decel_max_mps2 * config.dt_s
+    expected_upper = np.maximum(3.0, 4.88 - rate * (np.arange(n) + 1))
+    np.testing.assert_allclose(prepared.ubx[n : 2 * n], expected_upper)
+    np.testing.assert_allclose(prepared.lbx[n : 2 * n], np.zeros(n))
+
+
+def test_measured_speed_inside_bounds_keeps_frozen_bounds() -> None:
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _slow_hull_problem(speed_bounds=(0.0, 8.0), u_mps=6.0)
+
+    prepared = _prepare(config, problem, _row_layout(config, 1, 0))
+
+    n = config.horizon_steps
+    np.testing.assert_allclose(prepared.lbx[n : 2 * n], np.zeros(n))
+    np.testing.assert_allclose(prepared.ubx[n : 2 * n], np.full(n, 8.0))
