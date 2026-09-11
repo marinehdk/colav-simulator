@@ -411,9 +411,14 @@ def test_assembler_compiles_required_cpa_activation_from_physical_time() -> None
 
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.activation_plan.targets[0].key == TrackKey(1, 1)
-    assert outcome.activation_plan.targets[0].cpa_hard_from_s == pytest.approx(61.4285714286)
-    assert outcome.activation_plan.targets[0].cpa_hard_from_k == 12
-    assert outcome.problem.row_schedule.cpa_hard_from_k == 12
+    # Activation is the earlier of the linear TCPA staging and the knot where
+    # a clearance violation becomes physically possible (P2 mid fix: a
+    # maneuvering ownship can create the encounter before the current-velocity
+    # TCPA; seam-01 head_on staged the hard window at k=51 while the candidate
+    # closed to 42 m at k=34).
+    assert outcome.activation_plan.targets[0].cpa_hard_from_s == pytest.approx(55.0)
+    assert outcome.activation_plan.targets[0].cpa_hard_from_k == 11
+    assert outcome.problem.row_schedule.cpa_hard_from_k == 11
 
 
 def test_strict_assembler_compiles_finite_hard_windows_from_horizon_phases() -> None:
@@ -1115,3 +1120,73 @@ def test_active_target_safety_stays_enabled_when_current_motion_has_no_cpa() -> 
     outcome = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
     assert isinstance(outcome, AssemblySuccess)
     assert outcome.activation_plan.targets[0].cpa_hard_from_k < outcome.grid.control_intervals
+
+
+def _head_on_plan_with_recovery(monkeypatch, recovery_from_k: int | None) -> tuple[AssemblyRequest, object]:
+    """Assemble the default head-on fixture under a pinned horizon plan."""
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    request = _request(planner_input, snapshot)
+    n = request.config.horizon_steps
+    plan = HorizonEncounterPlan(
+        reference_time_s=5.0,
+        times_s=np.arange(n + 1) * request.config.horizon_dt_s,
+        mission_route_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=0.0,
+        phases=(HorizonEncounterPhase.PASS,) * (n + 1),
+        recovery_from_k=recovery_from_k,
+        target_windows=(
+            TargetHorizonWindow(
+                TrackKey(1, 1),
+                n - 1,
+                recovery_from_k,
+                False,
+                200.0,
+                0.0,
+            ),
+        ),
+        corridor_reference_rad=(),
+    )
+    monkeypatch.setattr(
+        "colav_simulator.core.colav.mid_mpc_assembler._compile_horizon_encounter_plan", lambda *args, **kwargs: plan
+    )
+    return request, MidMpcProblemAssembler().assemble(request)
+
+
+def test_cpa_hard_window_starts_when_a_violation_becomes_physically_possible(monkeypatch) -> None:
+    """Cover the maneuver-controllable encounter with the hard CPA window.
+
+    Not only the current-velocity TCPA (head_on seam-01: staged at k=51 while
+    the accepted candidate closed to 42 m at k=34).
+    """
+    request, outcome = _head_on_plan_with_recovery(monkeypatch, recovery_from_k=None)
+
+    assert isinstance(outcome, AssemblySuccess)
+    windows = outcome.problem.row_schedule.cpa_hard_windows
+    assert len(windows) == 1
+    target = request.planner_input.tracks[0]
+    closing_radps = 7.0 + 7.0
+    effective_hard = outcome.problem.cpa_hard_m
+    gap = float(np.linalg.norm(target.state_enu[:2])) - effective_hard
+    violation_possible_s = gap / closing_radps
+    assert windows[0].start_k <= math.ceil(violation_possible_s / request.config.horizon_dt_s)
+    assert windows[0].start_k < windows[0].stop_k
+
+
+def test_inverted_cpa_window_falls_back_to_hard_until_horizon(monkeypatch) -> None:
+    """Never emit an empty window from an inverted recovery prediction.
+
+    A recovery prediction earlier than the activation staging must not produce
+    an empty (start_k == stop_k) window: safety must not evaporate in the
+    disagreement; rows beyond true clearance stay trivially satisfied.
+    """
+    request, outcome = _head_on_plan_with_recovery(monkeypatch, recovery_from_k=1)
+
+    assert isinstance(outcome, AssemblySuccess)
+    windows = outcome.problem.row_schedule.cpa_hard_windows
+    assert len(windows) == 1
+    n = request.config.horizon_steps
+    assert windows[0].start_k < windows[0].stop_k, "empty hard window would leave the encounter unconstrained"
+    assert windows[0].stop_k == n

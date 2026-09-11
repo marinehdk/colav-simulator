@@ -832,7 +832,14 @@ def _compile_row_schedule(
             if horizon_plan.corridor_reference_rad or target_window is None or target_window.recovery_from_k is None
             else min(target_window.recovery_from_k, horizon_steps)
         )
-        cpa_windows.append(MidMpcHardWindow(start_k, max(start_k, stop_k)))
+        if start_k >= stop_k:
+            # Inverted staging (head_on seam-01: window [51, 51)): the recovery
+            # prediction precedes the activation knot, which would emit an
+            # empty window and leave the encounter with no hard clearance row.
+            # Safety must not evaporate in that disagreement; rows beyond true
+            # clearance remain trivially satisfied.
+            stop_k = horizon_steps
+        cpa_windows.append(MidMpcHardWindow(start_k, stop_k))
     if not horizon_plan.target_windows:
         recovery_stop_k = 0
     elif horizon_plan.recovery_from_k is None:
@@ -1406,13 +1413,29 @@ def _activation_plan(
                         config,
                     )
                     if decision.role is OwnshipRole.NONE and decision.risk is RiskPhase.CLEAR
-                    else _cpa_activation_time_s(
-                        track,
-                        ownship[:2],
-                        own_velocity,
-                        effective_cpa_hard_m,
-                        lead_time_s,
-                        config,
+                    else min(
+                        _cpa_activation_time_s(
+                            track,
+                            ownship[:2],
+                            own_velocity,
+                            effective_cpa_hard_m,
+                            lead_time_s,
+                            config,
+                        ),
+                        # The linear TCPA staging assumes current velocities.
+                        # A maneuvering ownship can create an encounter earlier
+                        # (head_on seam-01: TCPA staged the hard window at k=51
+                        # while the candidate closed to 42 m at k=34), so the
+                        # hard window also starts once a violation becomes
+                        # physically possible. Knots before that point are
+                        # trivially satisfied by every motion, so the earlier
+                        # start adds enforcement without infeasibility risk.
+                        _reachable_cpa_activation_time_s(
+                            track,
+                            ownship[:2],
+                            effective_cpa_hard_m,
+                            config,
+                        ),
                     )
                 )
                 for decision, track in zip(decisions, tracks, strict=True)
