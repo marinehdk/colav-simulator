@@ -384,7 +384,11 @@ class OriginalPlanBridge:
             plan_id = f"{algorithm}-held-intent-{self._intent_generation}"
             # Hold the admitted splice for a held intent: rebuilding it against
             # the mirror (which this very route rotated) is not idempotent.
-            if fresh_geometry or self._candidate is None or self._lateral_blend < 1.0:
+            # A mirror that no longer matches the held candidate means something
+            # else rotated the accepted route (manager validity-expiry internal
+            # return, nominal update), so the splice is rebuilt against it.
+            rotated = self._candidate is not None and self._mirror.path.latitudes != self._candidate["latitudes"]
+            if fresh_geometry or rotated or self._candidate is None or self._lateral_blend < 1.0:
                 candidate = self._build_candidate(reference, geometry, deviation_speeds)
                 self._candidate = candidate
             else:
