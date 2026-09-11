@@ -18,6 +18,7 @@ from colav_simulator.original_gnc.configuration import SOURCE_MANIFEST_SHA256, O
 from colav_simulator.original_gnc.geometry import RouteFrame, nominal_route
 from colav_simulator.original_gnc.native import OriginalGncError
 from colav_simulator.original_gnc.plan_bridge import OriginalPlanBridge
+from colav_simulator.original_gnc import qualification as response_qualification_rule
 from colav_simulator.original_gnc.stack import NativeStack
 from colav_simulator.original_gnc.telemetry import balance
 
@@ -341,7 +342,7 @@ class OriginalGncShipAdapter(IShip):
             "python_runtime_sha256": _RUNTIME_SHA256,
             "parameter_sha256": self._parameter_hash,
             "acceptance_level": "EXPERIMENTAL_ORIGINAL_SOURCE",
-            "response_qualification": self._response_approximation["qualification"],
+            "response_qualification": response_qualification_rule.verdict_string(self._response_approximation),
             "response_approximation_sha256": self._response_approximation["artifact_sha256"],
             "environment_enabled": self.configuration.environment,
             "scenario_acceptance": "separately_evaluated",
