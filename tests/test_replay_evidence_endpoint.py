@@ -79,10 +79,6 @@ def test_evidence_reports_reduced_truthfully_with_result_facts(
     }
     (run_dir / "evaluation.json").write_text(json.dumps(evaluation), encoding="utf-8")
 
-    from fastapi import FastAPI
-
-    from gui_server.replay import RunReplayStore, build_replay_router
-
     app = FastAPI()
     app.include_router(build_replay_router(RunReplayStore(runs_root)))
     client = TestClient(app)
