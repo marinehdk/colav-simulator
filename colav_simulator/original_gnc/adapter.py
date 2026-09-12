@@ -14,11 +14,11 @@ import numpy as np
 from colav_simulator.common import miscellaneous_helper_methods as mhm
 from colav_simulator.core.colav.diagnostics import validate_plan
 from colav_simulator.core.ship import Config, IShip, Ship
+from colav_simulator.original_gnc import qualification as response_qualification_rule
 from colav_simulator.original_gnc.configuration import SOURCE_MANIFEST_SHA256, OriginalGncConfig
 from colav_simulator.original_gnc.geometry import RouteFrame, nominal_route
 from colav_simulator.original_gnc.native import OriginalGncError
 from colav_simulator.original_gnc.plan_bridge import OriginalPlanBridge
-from colav_simulator.original_gnc import qualification as response_qualification_rule
 from colav_simulator.original_gnc.stack import NativeStack
 from colav_simulator.original_gnc.telemetry import balance
 
@@ -221,6 +221,7 @@ class OriginalGncShipAdapter(IShip):
                 os_max_turn_rate_radps=self.max_turn_rate,
                 os_avoidance_speed_cap_mps=self.avoidance_speed_cap,
                 os_min_steerage_speed_mps=self.min_steerage_speed,
+                os_max_speed_mps=self.max_speed,
                 dt=dt,
             )
         )
