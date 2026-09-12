@@ -8,7 +8,7 @@ import math
 from collections import deque
 from collections.abc import Callable
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -137,6 +137,12 @@ class PlannerOddProfile:
     max_targets: int = 16
     max_cycle_gap_s: float = 10.0
     primary_switch_confirmation_s: float = 10.0
+    # R12 realized-risk guard: a release must not rest on instantaneous
+    # separation alone while the realized range trend still closes
+    # (fan-MS-E0 released t2 at 936 s; the realized CPA arrived at 1517 s
+    # at 324 m). The trend must persist over half the window to veto.
+    release_trend_window_s: float = 30.0
+    release_closing_rate_mps: float = 0.5
 
     def __post_init__(self) -> None:
         """Validate one published Planner ODD profile."""
@@ -497,6 +503,8 @@ class _TargetState:
     planned_action_at_s: float | None = None
     candidate_own_velocity: tuple[float, float] | None = None
     candidate_target_velocity: tuple[float, float] | None = None
+    # Realized (sampled) range trend for the R12 release guard.
+    range_history: list[tuple[float, float]] = field(default_factory=list)
 
 
 @dataclass
@@ -1431,12 +1439,65 @@ def _target_decision(
     )
 
 
+# A realized range change no physical pair of vessels in this domain can
+# produce (two 9 m/s hulls close at most 18 m/s): treat it as a state
+# discontinuity (tracker re-association, synthetic replay jump) and rebuild
+# the trend evidence instead of trusting it.
+_MAX_CREDIBLE_RANGE_RATE_MPS = 18.0
+
+
+def _record_realized_range(
+    state: _TargetState,
+    cycle: EncounterCycle,
+    geometry: PairwiseGeometry,
+) -> None:
+    """Sample the realized center-to-center range for the release trend guard."""
+    window_s = cycle.profile.release_trend_window_s
+    history = state.range_history
+    if history:
+        last_time_s, last_range_m = history[-1]
+        delta_t_s = cycle.sim_time_s - last_time_s
+        if delta_t_s <= 0.0:
+            history[-1] = (cycle.sim_time_s, geometry.range_m)
+            return
+        if abs(geometry.range_m - last_range_m) / delta_t_s > _MAX_CREDIBLE_RANGE_RATE_MPS:
+            state.range_history = [(cycle.sim_time_s, geometry.range_m)]
+            return
+    history.append((cycle.sim_time_s, geometry.range_m))
+    cutoff_s = cycle.sim_time_s - window_s
+    while history and history[0][0] < cutoff_s:
+        history.pop(0)
+
+
+def _realized_range_closing(state: _TargetState, cycle: EncounterCycle) -> bool:
+    """True when the realized range keeps shrinking over the sustained trend window.
+
+    Instantaneous separation (TCPA past, opening relative velocity) can lie
+    while a lagging own course or a maneuvering target keeps the realized
+    geometry closing; release must wait until the realized range actually
+    stops shrinking through the clearance threshold.
+    """
+    history = state.range_history
+    if not history:
+        return False
+    newest_time_s, newest_range_m = history[-1]
+    reference_time_s = newest_time_s - 0.5 * cycle.profile.release_trend_window_s
+    reference = next((sample for sample in reversed(history[:-1]) if sample[0] <= reference_time_s), None)
+    if reference is None:
+        return False
+    span_s = newest_time_s - reference[0]
+    closing_rate_mps = (reference[1] - newest_range_m) / span_s
+    return closing_rate_mps > cycle.profile.release_closing_rate_mps
+
+
 def _advance_release(
     state: _TargetState,
     cycle: EncounterCycle,
     target: TargetObservation,
     geometry: PairwiseGeometry,
 ) -> bool:
+    _record_realized_range(state, cycle, geometry)
+    realized_closing = _realized_range_closing(state, cycle)
     passing_clear = _passing_geometry_clear(state, cycle, target)
     if state.role is OwnshipRole.OVERTAKING and passing_clear:
         state.passing_clear_achieved = True
@@ -1453,7 +1514,11 @@ def _advance_release(
             if state.role is OwnshipRole.OVERTAKING
             else geometry.range_m >= recovery_guard_clearance
         )
-        guard_clear = clearance_confirmed and _recovery_route_clear(cycle, target)
+        guard_clear = (
+            clearance_confirmed
+            and not realized_closing
+            and _recovery_route_clear(cycle, target)
+        )
         if not guard_clear:
             state.risk = RiskPhase.ACTIVE
             state.release_since_s = None
@@ -1482,6 +1547,7 @@ def _advance_release(
         geometry.signed_tcpa_s <= 0.0
         and separating
         and clearance_reached
+        and not realized_closing
         and _recovery_route_clear(cycle, target)
     )
     if not past_clear:

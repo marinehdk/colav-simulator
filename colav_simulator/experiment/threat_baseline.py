@@ -16,7 +16,8 @@ epoch) permanently exempt.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -54,6 +55,35 @@ class BaselineCycleInputs:
     baseline_prediction: OwnshipThreatPrediction
 
 
+def _qualified_course_time_constant_s(ownship_ship: Any) -> float | None:
+    """Read the qualified closed-loop course lag off an original GNC ownship, if any.
+
+    Deadlines staged by the monitor-grade lifecycle must follow the same plant
+    response the planner-side lifecycle uses (commit 1d738296): backends
+    without a qualified approximation keep the rate-only timing envelope.
+    """
+    configuration = getattr(ownship_ship, "configuration", None)
+    reader = getattr(configuration, "response_approximation", None)
+    if not callable(reader):
+        return None
+    try:
+        approximation = reader()
+    except Exception:  # noqa: BLE001 - monitor-grade facts must never fail a run
+        return None
+    if not isinstance(approximation, Mapping):
+        return None
+    course = approximation.get("course")
+    if not isinstance(course, Mapping):
+        return None
+    tau = course.get("time_constant_s")
+    if isinstance(tau, bool) or not isinstance(tau, (int, float)):
+        return None
+    tau_f = float(tau)
+    if not math.isfinite(tau_f) or tau_f <= 0.0:
+        return None
+    return tau_f
+
+
 def build_baseline_cycle_inputs(
     ship_list: list[Any],
     *,
@@ -72,13 +102,19 @@ def build_baseline_cycle_inputs(
     )
     speed = float(np.hypot(velocity_ne[0], velocity_ne[1]))
     course = math.atan2(velocity_ne[1], velocity_ne[0]) if speed > 1.0e-9 else heading
+    course_tau_s = _qualified_course_time_constant_s(ownship_ship)
+    maneuverability = (
+        replace(BASELINE_MANEUVERABILITY, course_time_constant_s=course_tau_s)
+        if course_tau_s is not None
+        else BASELINE_MANEUVERABILITY
+    )
     ownship = OwnshipObservation(
         position_ne_m=state[:2].copy(),
         velocity_ne_mps=velocity_ne,
         heading_rad=heading,
         length_m=float(ownship_ship.length),
         width_m=float(ownship_ship.width),
-        maneuverability=BASELINE_MANEUVERABILITY,
+        maneuverability=maneuverability,
     )
     tracks, _ = ownship_ship.get_do_track_information()
     targets = tuple(_target_observation(track) for track in tracks)

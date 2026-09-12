@@ -834,6 +834,92 @@ def test_release_requires_dynamic_clearance_and_sustained_separation_then_rearms
     assert reappearing.commitment is CommitmentPhase.NONE
 
 
+def _closing_release_cycle(
+    sequence: int,
+    sim_time_s: float,
+    north_m: float,
+    *,
+    target_southbound: bool,
+) -> EncounterCycle:
+    """Ownship north of a target parked 300 m west of the route line.
+
+    With ``target_southbound`` the instantaneous relative velocity claims
+    separation (TCPA in the past, opening), while the ownship position frames
+    feed a realized range that is still shrinking — the tracker-lag /
+    target-maneuver divergence behind R12 (fan-MS-E0 released t2 at 936 s while
+    the realized CPA arrived at 1517 s at 324 m).
+    """
+    cycle = _head_on_cycle(sequence=sequence, sim_time_s=sim_time_s)
+    target_vy = -7.0 if target_southbound else 7.0
+    return replace(
+        cycle,
+        ownship=replace(
+            cycle.ownship,
+            position_ne_m=np.array([north_m, 0.0]),
+            velocity_ne_mps=np.array([0.0, 7.0]),
+            heading_rad=math.pi / 2.0,
+        ),
+        targets=(
+            replace(
+                cycle.targets[0],
+                state_enu=np.array([0.0, -300.0, 0.0, target_vy]),
+                observed_at_s=sim_time_s,
+                generated_at_s=sim_time_s,
+            ),
+        ),
+    )
+
+
+def test_release_holds_while_realized_range_is_still_closing() -> None:
+    """Instantaneous separation must not release a target the realized trajectory still closes on."""
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+    committed = lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=5.0)).targets[0]
+    assert committed.commitment is CommitmentPhase.COMMITTED
+
+    # Realized range shrinks 854 m -> 783 m while the tracked velocity claims a
+    # steady opening; the trend window needs sustained evidence before it can
+    # veto a release. From t=25 the instantaneous geometry fully qualifies for
+    # past-clear (separating, TCPA past, range above the guard clearance) —
+    # only the realized closing trend may hold the release.
+    for index, (sim_time_s, north_m) in enumerate(
+        [(10.0, 800.0), (15.0, 780.0), (20.0, 760.0), (25.0, 740.0), (30.0, 720.0)]
+    ):
+        snapshot = lifecycle.step(
+            _closing_release_cycle(2 + index, sim_time_s, north_m, target_southbound=sim_time_s >= 25.0)
+        )
+        assert snapshot.targets[0].risk is RiskPhase.ACTIVE, f"release must hold while closing at t={sim_time_s}"
+        assert snapshot.targets[0].route_recovery_allowed is False
+
+    # Realized range genuinely opens: past-clear is confirmed, then released.
+    past_clear = lifecycle.step(_closing_release_cycle(7, 35.0, 810.0, target_southbound=True)).targets[0]
+    assert past_clear.risk is RiskPhase.PAST_CLEAR
+    released = lifecycle.step(_closing_release_cycle(8, 45.0, 940.0, target_southbound=True)).targets[0]
+    assert released.risk is RiskPhase.RELEASED
+    assert released.commitment is CommitmentPhase.ACHIEVED
+
+
+def test_reclosing_target_reverts_past_clear_to_active_before_release() -> None:
+    """A target maneuver that re-closes the realized range reactivates the engagement."""
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+    lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=5.0))
+    for index, (sim_time_s, north_m) in enumerate(
+        [(10.0, 800.0), (15.0, 780.0), (20.0, 760.0), (25.0, 740.0), (30.0, 720.0)]
+    ):
+        lifecycle.step(_closing_release_cycle(2 + index, sim_time_s, north_m, target_southbound=sim_time_s >= 25.0))
+    past_clear = lifecycle.step(_closing_release_cycle(7, 35.0, 810.0, target_southbound=True)).targets[0]
+    assert past_clear.risk is RiskPhase.PAST_CLEAR
+
+    # Target turns back toward the ownship's line of advance: realized range
+    # starts shrinking again before the release confirmation elapses.
+    snapshot = lifecycle.step(_closing_release_cycle(8, 45.0, 700.0, target_southbound=True))
+    reverted = snapshot.targets[0]
+    assert reverted.risk is RiskPhase.ACTIVE
+    assert reverted.route_recovery_allowed is False
+    assert reverted.commitment is CommitmentPhase.COMMITTED
+
+
 def test_lifecycle_events_are_versioned_bounded_and_incrementally_persisted() -> None:
     persisted: list[LifecycleEvent] = []
     lifecycle = EncounterLifecycle(event_capacity=2, event_sink=persisted.append)

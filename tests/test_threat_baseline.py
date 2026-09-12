@@ -87,3 +87,34 @@ def test_recovery_guard_uses_nominal_route_reference_not_current_avoidance_motio
     assert cycle.route_bearing_rad == np.pi / 2.0
     assert cycle.planned_speed_mps == 4.0
     np.testing.assert_array_equal(cycle.ownship.velocity_ne_mps, [5.0, 0.0])
+
+
+def test_baseline_cycle_feeds_the_qualified_course_lag_into_maneuverability() -> None:
+    """The monitor-grade lifecycle must stage deadlines on the plant response (1d738296)."""
+    qualified = SimpleNamespace(
+        state=np.array([0.0, 0.0, 0.0, 5.0, 0.0, 0.0]),
+        length=45.0,
+        width=8.0,
+        get_do_track_information=lambda: ([], []),
+        configuration=SimpleNamespace(response_approximation=lambda: {"course": {"time_constant_s": 86.7839162612874}}),
+    )
+    cycle = build_baseline_cycle_inputs([qualified], sim_time_s=0.0, sequence=0).cycle
+    assert cycle.ownship.maneuverability.course_time_constant_s == 86.7839162612874
+
+    unqualified = SimpleNamespace(
+        state=np.array([0.0, 0.0, 0.0, 5.0, 0.0, 0.0]),
+        length=45.0,
+        width=8.0,
+        get_do_track_information=lambda: ([], []),
+    )
+    fallback = build_baseline_cycle_inputs([unqualified], sim_time_s=0.0, sequence=0).cycle
+    assert fallback.ownship.maneuverability.course_time_constant_s is None
+
+    broken = SimpleNamespace(
+        state=np.array([0.0, 0.0, 0.0, 5.0, 0.0, 0.0]),
+        length=45.0,
+        width=8.0,
+        get_do_track_information=lambda: ([], []),
+        configuration=SimpleNamespace(response_approximation=lambda: {"course": {"time_constant_s": 0.0}}),
+    )
+    assert build_baseline_cycle_inputs([broken], sim_time_s=0.0, sequence=0).cycle.ownship.maneuverability.course_time_constant_s is None
