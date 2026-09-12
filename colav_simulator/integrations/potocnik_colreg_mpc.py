@@ -703,7 +703,7 @@ class PotocnikColregFanMPC:
             return feasible, minimum, False
         hazard = self._grounding_hazard(planner_input)
         if hazard is None or hazard.is_empty:
-            return feasible, minimum, True
+            return feasible, minimum, False
         radius = 0.5 * float(np.hypot(planner_input.ownship_length_m, planner_input.ownship_width_m))
         east = candidates[:, 1, :]
         north = candidates[:, 0, :]
@@ -716,7 +716,12 @@ class PotocnikColregFanMPC:
         )
         local_hazard = hazard.intersection(local_box)
         if local_hazard.is_empty:
-            return feasible, minimum, True
+            # A charted hazard far from every candidate constrains nothing this
+            # solve. Reporting it active would pin the original GNC bridge on
+            # held-intent authority forever (fan-HO collapse: static flag never
+            # cleared after release, so the nominal route never returned and a
+            # corner-degraded route speed stuck the ownship at ~0.9 m/s).
+            return feasible, minimum, False
         exclusion = local_hazard.buffer(margin)
         centerlines = linestrings(np.stack((east, north), axis=-1))
         minimum = np.maximum(0.0, geometry_distance(centerlines, local_hazard) - radius)

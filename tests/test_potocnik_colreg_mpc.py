@@ -494,6 +494,49 @@ def test_enc_hazard_filters_continuous_centerline(monkeypatch: pytest.MonkeyPatc
     assert clearance[nominal] == pytest.approx(0.0)
 
 
+def test_static_constraint_inactive_when_hazard_lies_off_candidate_corridor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A charted hazard far from every candidate must not report an active constraint.
+
+    The original GNC bridge treats ``static_constraint_active`` as held-intent
+    evidence: a permanently true flag blocks the nominal-route return after the
+    encounter releases, which is how fan-HO collapsed to the corner-degraded
+    route speed.
+    """
+    colreg_solver = solver()
+    candidates, _ = colreg_solver._generate_candidate_bundle(
+        planner_input().ownship_state,
+        7.0,
+        0.5,
+    )
+    monkeypatch.setattr(colreg_solver, "_grounding_hazard", lambda _input: box(50000.0, 50000.0, 50100.0, 50100.0))
+
+    feasible, clearance, active = colreg_solver._static_feasibility(
+        candidates,
+        planner_input(enc=object()),
+    )
+
+    assert active is False
+    assert feasible.all()
+    assert np.isinf(clearance).all()
+
+
+def test_static_constraint_inactive_without_charted_hazard(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ENC coverage with no grounding hazard at all is not an active constraint."""
+    colreg_solver = solver()
+    candidates, _ = colreg_solver._generate_candidate_bundle(
+        planner_input().ownship_state,
+        7.0,
+        0.5,
+    )
+    monkeypatch.setattr(colreg_solver, "_grounding_hazard", lambda _input: None)
+
+    _, _, active = colreg_solver._static_feasibility(candidates, planner_input(enc=object()))
+
+    assert active is False
+
+
 def test_registry_loads_enhanced_profile_under_separate_identity() -> None:
     adapter = IntegrationRegistry().build_algorithm(
         "potocnik_colreg_fan_mpc",
