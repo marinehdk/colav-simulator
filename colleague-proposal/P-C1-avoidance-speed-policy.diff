@@ -1,0 +1,126 @@
+// Colleague proposal P-C1 - avoidance speed-policy differentiation
+// Branch: codex/colleague-proposal-s1  |  Register: R3 (proposed-to-colleague)
+// Date: 2026-09-12
+//
+// Files touched (2): src/gnc/ship_guidance/src/coordinate_transform_node.cpp
+//                    src/gnc/ship_guidance/src/ship_guidance_node.cpp
+//
+// Path mapping: this diff applies to the colleague source tree directly.
+//   colleague path : external_sources/L4-5_source_only_20260824_v2/<file>
+//   vendored twins : build/original_gnc-glibc-v8/{coordinate_transform_node,ship_guidance_node}.cpp
+//     (mechanical extraction, ledger build/original_gnc-glibc-v8/extraction.json;
+//      identical logic - clock reads made explicit, log lines blanked - so only
+//      line numbers shift by a few lines)
+// Reference build compiled from this proposal: build/original_gnc-proposal-s1
+// (its build-manifest.json records "colleague_proposal": {"id": "P-C1", ...}).
+//
+// Why 2 files: the avoidance tag travels to ship_guidance through the path
+// protocol (coordinate_transform -> /gnc/internal_waypoints -> guidance
+// path_callback). coordinate_transform collapses ALL avoidance-family strings
+// onto protocol code 6 and guidance decodes code 6 as "emergency_avoidance",
+// so a guidance-only change can never see the tier difference. The proposal
+// therefore gives the non-emergency tier its own code (10) end to end.
+//
+// How to read: lines starting with "//" (this header and the annotation blocks
+// 问题/证据/更改/预期效果/验证方法 above each hunk) are informational. To apply
+// mechanically: strip them with `grep -v '^//'` or apply the six hunks by hand.
+// Reference implementation: tools/original_gnc/proposal_patches.py on the
+// proposal branch.
+
+--- a/external_sources/L4-5_source_only_20260824_v2/src/gnc/ship_guidance/src/coordinate_transform_node.cpp
++++ b/external_sources/L4-5_source_only_20260824_v2/src/gnc/ship_guidance/src/coordinate_transform_node.cpp
+ct1@@ -80,10 +80,14 @@
+     if (mode == "harbor") return 3;
+     if (mode == "approach") return 4;
+     if (mode == "dp_hold" || mode == "dp" || mode == "station_keeping") return 5;
++    // Colleague-proposal-s1 (P-C1): keep the emergency-tier distinction
++    // alive across the path protocol. Genuine emergency tags stay code 6;
++    // non-emergency avoidance tags ("collision_avoidance", "avoidance")
++    // become code 10 so ship_guidance can decode the true tier.
+     if (mode == "emergency_avoidance" ||
+-        mode == "emergency_avoid" ||
+-        mode == "collision_avoidance" ||
+-        mode == "avoidance") return 6;
++        mode == "emergency_avoid") return 6;
++    if (mode == "collision_avoidance" ||
++        mode == "avoidance") return 10;
+     if (mode == "berth_departure" || mode == "departure" || mode == "undocking") return 7;
+     if (mode == "join_route" || mode == "route_join") return 8;
+     if (mode == "berthing" || mode == "docking" || mode == "berth_approach") return 9;
+ct2@@ -783,7 +787,12 @@
+     }
+     const bool has_emergency_avoidance = std::any_of(
+         raw_pts.begin(), raw_pts.end(),
+-        [](const NedPoint& pt) { return pt.navigation_mode_code == 6; });
++        // Colleague-proposal-s1 (P-C1): code 10 is the non-emergency
++        // avoidance tier; guard relaxation and FAP handling keep covering
++        // every avoidance-tagged route exactly as before.
++        [](const NedPoint& pt) {
++            return pt.navigation_mode_code == 6 || pt.navigation_mode_code == 10;
++        });
+     const double active_min_future_update_distance =
+         (has_emergency_avoidance && emergency_avoidance_relax_update_guard_)
+             ? emergency_avoidance_min_future_update_distance_m_
+
+--- a/external_sources/L4-5_source_only_20260824_v2/src/gnc/ship_guidance/src/ship_guidance_node.cpp
++++ b/external_sources/L4-5_source_only_20260824_v2/src/gnc/ship_guidance/src/ship_guidance_node.cpp
+gd1@@ -57,6 +57,9 @@
+         case 4: return "approach";
+         case 5: return "dp_hold";
+         case 6: return "emergency_avoidance";
++        // Colleague-proposal-s1 (P-C1): non-emergency avoidance tier
++        // (coordinate_transform code 10) decodes to its real tag.
++        case 10: return "avoidance";
+         case 7: return "berth_departure";
+         case 8: return "join_route";
+         case 9: return "berthing";
+gd2@@ -79,6 +82,18 @@
+            normalized == "emergency_avoid" ||
+            normalized == "collision_avoidance" ||
+            normalized == "avoidance";
++}
++
++// Colleague-proposal-s1 (P-C1): emergency-tier scope for the avoidance surge
++// cap. Mirrors the existing route_arbitration_policy.hpp emergency_behavior()
++// definition: only genuine emergency tags qualify. Non-emergency avoidance
++// tags ("avoidance", "collision_avoidance") stay covered by
++// is_emergency_avoidance_mode for every other interlock.
++static bool is_emergency_avoidance_speed_cap_mode(const std::string& mode)
++{
++    const std::string normalized = normalize_navigation_mode(mode);
++    return normalized == "emergency_avoidance" ||
++           normalized == "emergency_avoid";
+ }
+ 
+ static double compute_cross_track_error(double x, double y,
+gd3@@ -2541,6 +2556,11 @@
+         is_emergency_avoidance_mode(previous_navigation_mode);
+     const bool emergency_avoidance_active =
+         target_is_emergency_avoidance || previous_is_emergency_avoidance;
++    // Colleague-proposal-s1 (P-C1): cap-scoped predicate; see the surge-cap
++    // gate below for the policy rationale.
++    const bool emergency_avoidance_speed_cap_active =
++        is_emergency_avoidance_speed_cap_mode(target_navigation_mode) ||
++        is_emergency_avoidance_speed_cap_mode(previous_navigation_mode);
+     const bool final_waypoint_requires_dp =
+         !waypoints_.empty() &&
+         is_dp_navigation_mode(waypoint_navigation_mode(static_cast<int>(waypoints_.size()) - 1));
+gd4@@ -5967,7 +5987,17 @@
+             far_terminal_dp_alignment ? 1 : 0, old_u_cmd);
+     }
+ 
+-    if (emergency_avoidance_active && !dp_mode_active_ && !final_speed_coupling_blocked) {
++    // Colleague-proposal-s1 (P-C1) avoidance speed policy: the emergency
++    // surge cap engages ONLY when the target or predecessor waypoint carries
++    // a genuine emergency tag ("emergency_avoidance"/"emergency_avoid").
++    // Non-emergency "avoidance" legs follow the commanded/route speed so a
++    // deviation segment transits at cruise pace instead of the 3.2 m/s cap.
++    // Safety interlocks are untouched: every other emergency_avoidance_active
++    // check (wheel-over, switch radius, cruise floor, corridor, manager
++    // gates) keeps the original any-avoidance leg scope, and emergency
++    // behavior is byte-identical because an emergency tag still satisfies
++    // both predicates.
++    if (emergency_avoidance_speed_cap_active && !dp_mode_active_ && !final_speed_coupling_blocked) {
+         const double emergency_cap = std::clamp(
+             emergency_avoidance_speed_cap_mps_,
+             0.5,

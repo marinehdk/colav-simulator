@@ -13,6 +13,7 @@ import uuid
 from pathlib import Path
 
 from extract_native import MESSAGE_PACKAGES, extract
+from proposal_patches import PROPOSALS, apply_proposal
 from state_fields import SNAPSHOTS
 
 
@@ -91,7 +92,9 @@ inline std::unique_ptr<KernelBase> make_kernel(const std::string& name, const Js
     return sources
 
 
-def build(source: Path, dependencies: Path, output: Path, compiler: str, eigen: Path) -> dict:  # noqa: PLR0915
+def build(
+    source: Path, dependencies: Path, output: Path, compiler: str, eigen: Path, proposal: str | None = None
+) -> dict:  # noqa: PLR0915
     """Verify, extract and compile a separately identifiable native library."""
     if (output / "build-manifest.json").exists():
         raise FileExistsError("Use a new build directory to preserve existing validation evidence")
@@ -115,6 +118,10 @@ def build(source: Path, dependencies: Path, output: Path, compiler: str, eigen: 
     ):
         raise ValueError("Original GNC requires the reference Eigen 3.4.0 headers")
     manifest = extract(source, dependencies, output, support)
+    if proposal:
+        # Colleague-proposal reference builds compile the reviewed semantic
+        # change on top of the mechanical extraction; the ledger records it.
+        manifest["colleague_proposal"] = apply_proposal(proposal, source, output)
     sources = write_bindings(manifest, output)
     shutil.copytree(support / "reference_math", output / "reference_math", dirs_exist_ok=True)
     sources.append(output / "reference_math/reference_exp.cpp")
@@ -210,6 +217,7 @@ def build(source: Path, dependencies: Path, output: Path, compiler: str, eigen: 
         "library_sha256": hashlib.sha256(library.read_bytes()).hexdigest(),
         "extraction_sha256": hashlib.sha256((output / "extraction.json").read_bytes()).hexdigest(),
         "ros_runtime_dependency": False,
+        "colleague_proposal": manifest.get("colleague_proposal"),
         "linked_libraries": linked,
         "exported_symbols": exports,
         "floating_point_profile": "eigen-3.4.0-simd-separate-multiply-add",
@@ -243,7 +251,14 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--compiler", default="c++")
     parser.add_argument("--eigen", type=Path)
+    parser.add_argument(
+        "--proposal",
+        choices=sorted(PROPOSALS),
+        help="Apply a reviewed colleague-proposal reference patch after extraction",
+    )
     args = parser.parse_args()
     eigen = args.eigen.resolve() if args.eigen else args.dependencies.resolve() / "eigen3"
-    report = build(args.source.resolve(), args.dependencies.resolve(), args.output.resolve(), args.compiler, eigen)
+    report = build(
+        args.source.resolve(), args.dependencies.resolve(), args.output.resolve(), args.compiler, eigen, args.proposal
+    )
     print(json.dumps({"library": report["library"], "sha256": report["library_sha256"]}))
