@@ -293,8 +293,7 @@ def _head_on_intent(
 
 
 def _crossing_give_way_intent() -> HorizonTargetIntent:
-    """Southbound crossing target relative to own at the p5 crossing_give_way-E4
-    failure (sim_time 39.0 s), in own-centred mission frame."""
+    """Southbound crossing target relative to own at the p5 crossing_give_way-E4 failure."""
     times = np.arange(81, dtype=float) * 5.0
     key = TrackKey(1, 1)
     return HorizonTargetIntent(
@@ -316,8 +315,7 @@ def _crossing_give_way_intent() -> HorizonTargetIntent:
 
 
 def _crossing_give_way_request(intent: HorizonTargetIntent | None = None) -> HorizonEncounterPlanRequest:
-    """Own state, route, and avoidance corridor from the p5 crossing_give_way-E4
-    failure cycle (qualified first-order lag, rot from the capability gate)."""
+    """Own state, route, and avoidance corridor of the p5 crossing_give_way-E4 failure."""
     return HorizonEncounterPlanRequest(
         reference_time_s=39.0,
         times_s=np.arange(81, dtype=float) * 5.0,

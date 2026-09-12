@@ -1166,9 +1166,12 @@ def _filter_stand_in(
 
 
 def _corridor_hugger_values() -> np.ndarray:
-    """CS-E4-shaped candidate: presses the corridor, eases off the avoidance
-    course right after the staged release, then holds a flat ~8.7 deg offset to
-    the horizon end (no measurable mission-course return after its own CPA)."""
+    """CS-E4-shaped candidate pressing the corridor with a flat off-mission tail.
+
+    It eases off the avoidance course right after the staged release, then
+    holds a flat ~8.7 deg offset to the horizon end (no measurable
+    mission-course return after its own CPA).
+    """
     n = 80
     course = np.empty(n)
     course[:18] = 0.23384220361258054
@@ -1178,12 +1181,13 @@ def _corridor_hugger_values() -> np.ndarray:
 
 
 def test_recovery_filter_measures_progress_from_the_candidate_cpa_evidence() -> None:
-    """The filter must slice the L4 predicate from the candidate's own
-    closest-approach evidence, not from the staged release knot: a candidate
-    still pressing the avoidance course at release reaches its CPA later, and
-    the release-knot slice sanctions iterates the independent gate rejects
-    (crossing_give_way-E4 at 39.0 s: shipped iterate passed the filter at knot
-    18 and died at L4 measured from its CPA at knot 20)."""
+    """The filter must slice the L4 predicate from the candidate's CPA evidence.
+
+    A candidate still pressing the avoidance course at release reaches its CPA
+    later, and the release-knot slice sanctions iterates the independent gate
+    rejects (crossing_give_way-E4 at 39.0 s: shipped iterate passed the filter
+    at knot 18 and died at L4 measured from its CPA at knot 20).
+    """
     track = SimpleNamespace(state_enu=np.array([1411.0, 162.0, 6.81, 1.62]), target_id=1, generation=1)
     planner_input, assembly = _filter_stand_in(18, (track,))
 
@@ -1207,10 +1211,12 @@ def test_recovery_filter_measures_progress_from_the_candidate_cpa_evidence() -> 
 
 
 def test_recovery_filter_keeps_the_l4_recovery_pending_escape() -> None:
-    """A candidate whose closest-approach evidence reaches the prediction end
-    has no return suffix to show yet; L4 downgrades that to a pending warning
-    and the filter must not demand progress either (multiship-E4 staged
-    recovery at knot 78 of 80 and died in the solver instead)."""
+    """A candidate whose closest-approach evidence reaches the prediction end is pending.
+
+    There is no return suffix to show yet; L4 downgrades that to a pending
+    warning and the filter must not demand progress either (multiship-E4
+    staged recovery at knot 78 of 80 and died in the solver instead).
+    """
     track = SimpleNamespace(state_enu=np.array([1411.0, 162.0, 6.81, 1.62]), target_id=1, generation=1)
     planner_input, assembly = _filter_stand_in(78, (track,))
 
