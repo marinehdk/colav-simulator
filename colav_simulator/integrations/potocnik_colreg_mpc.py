@@ -185,6 +185,12 @@ class PotocnikColregFanMPC:
         requested_speed_mps = route_speed_mps
         if avoidance_leg_speed_capped:
             requested_speed_mps = min(route_speed_mps, float(avoidance_cap_mps))
+        # The executed chain's nominal cruise ceiling bounds every leg: a request
+        # above it either cannot be flown or invites a route-manager degradation,
+        # so keep the published command inside the honest executable envelope.
+        max_service_speed_mps = planner_input.ownship_max_speed_mps
+        if max_service_speed_mps is not None:
+            requested_speed_mps = min(requested_speed_mps, float(max_service_speed_mps))
         capture_speed_cap_mps = route_speed_mps
         if (
             self._route_segment == planner_input.waypoints_enu_m.shape[1] - 2
@@ -352,6 +358,7 @@ class PotocnikColregFanMPC:
             "requested_speed_mps": requested_speed_mps,
             "avoidance_speed_cap_mps": avoidance_cap_mps,
             "avoidance_leg_speed_capped": avoidance_leg_speed_capped,
+            "max_service_speed_mps": max_service_speed_mps,
             "route_speed_mps": route_speed_mps,
             "selection_score": selection.score,
             "route_score": selection.route_score,

@@ -307,6 +307,7 @@ class PlannerInput:
     ownship_max_turn_rate_rad_s: float | None = None
     ownship_avoidance_speed_cap_mps: float | None = None
     ownship_min_steerage_speed_mps: float | None = None
+    ownship_max_speed_mps: float | None = None
 
     def __post_init__(self) -> None:
         """Copy and validate all planner inputs."""
@@ -345,7 +346,11 @@ class PlannerInput:
         )
         if any(value is not None and (not np.isfinite(value) or value <= 0.0) for value in dynamics):
             raise ValueError("ownship dynamics metadata must be finite and positive when present")
-        speed_envelope = (self.ownship_avoidance_speed_cap_mps, self.ownship_min_steerage_speed_mps)
+        speed_envelope = (
+            self.ownship_avoidance_speed_cap_mps,
+            self.ownship_min_steerage_speed_mps,
+            self.ownship_max_speed_mps,
+        )
         if any(value is not None and (not np.isfinite(value) or value <= 0.0) for value in speed_envelope):
             raise ValueError("ownship speed envelope values must be finite and positive when present")
         if (self.coordinate_frame, self.linear_unit, self.angle_unit) != ("ENU", "SI", "rad"):
@@ -763,6 +768,7 @@ class CustomMPCAdapter(ICOLAV):
                 ownship_max_turn_rate_rad_s=_optional_positive(kwargs.get("os_max_turn_rate_radps")),
                 ownship_avoidance_speed_cap_mps=_optional_positive(kwargs.get("os_avoidance_speed_cap_mps")),
                 ownship_min_steerage_speed_mps=_optional_positive(kwargs.get("os_min_steerage_speed_mps")),
+                ownship_max_speed_mps=_optional_positive(kwargs.get("os_max_speed_mps")),
             )
             if self.descriptor.execution_profile.requires_enc and planner_input.enc is None:
                 raise ValueError("algorithm execution profile requires ENC")

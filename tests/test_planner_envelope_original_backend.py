@@ -6,6 +6,8 @@ cap 1.2 deg/s, guidance avoidance surge cap 3.2 m/s, steerage floor 3.0 m/s.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -303,6 +305,58 @@ def test_planner_input_carries_backend_speed_envelope() -> None:
             algorithm_seed=0,
             ownship_avoidance_speed_cap_mps=0.0,
         )
+
+
+def test_planner_input_carries_backend_max_service_speed() -> None:
+    """The executed nominal cruise ceiling belongs to the speed envelope too."""
+    enriched = fan_input(ownship_max_speed_mps=6.0)
+    assert enriched.ownship_max_speed_mps == 6.0
+    assert fan_input().ownship_max_speed_mps is None
+
+    for bad in (0.0, -1.0, float("nan")):
+        with pytest.raises(ValueError, match="speed envelope"):
+            fan_input(ownship_max_speed_mps=bad)
+
+
+def test_fan_nominal_speed_request_respects_the_executed_envelope() -> None:
+    """Nominal legs request only what the executing chain can sustain."""
+    fan = PotocnikColregFanMPC(PotocnikColregParams())
+    solution = fan.solve(fan_input(ownship_max_speed_mps=6.0))
+    details = solution.algorithm_details
+
+    assert details["requested_speed_mps"] == pytest.approx(6.0)
+    assert float(solution.control_reference[3, 0]) <= 6.0 + 1e-9
+    assert details["requested_speed_mps"] == pytest.approx(min(7.0, 6.0))
+
+
+def test_fan_envelope_request_inert_without_a_reported_ceiling() -> None:
+    """Backends that do not report a cruise ceiling keep the plain route speed."""
+    fan = PotocnikColregFanMPC(PotocnikColregParams())
+    solution = fan.solve(fan_input())
+    details = solution.algorithm_details
+
+    assert details["requested_speed_mps"] == pytest.approx(7.0)
+
+
+def test_fan_avoidance_and_service_caps_compose() -> None:
+    """On give-way legs the request is the tighter of the cap and the ceiling."""
+    fan = PotocnikColregFanMPC(PotocnikColregParams())
+    base = fan_input(
+        ownship_max_speed_mps=6.0,
+        ownship_avoidance_speed_cap_mps=3.2,
+        ownship_min_steerage_speed_mps=3.0,
+    )
+    engaged = replace(
+        base,
+        # Eastbound ownship against a westbound target: head-on give-way geometry.
+        ownship_state=np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0]),
+        tracks=(replace(base.tracks[0], state_enu=np.array([2000.0, 0.0, -7.0, 0.0])),),
+    )
+    solution = fan.solve(engaged)
+    details = solution.algorithm_details
+
+    assert details["avoidance_leg_speed_capped"] is True
+    assert details["requested_speed_mps"] == pytest.approx(3.2)
 
 
 def test_envelope_horizon_activates_head_on_avoidance_earlier() -> None:
