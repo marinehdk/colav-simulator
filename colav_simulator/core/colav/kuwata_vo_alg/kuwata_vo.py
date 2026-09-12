@@ -198,11 +198,17 @@ class VOParams:
     # chatter between near-equal candidates must not reach the route contract.
     envelope_selection_hysteresis: float = 0.25
 
-    # Deterministic give-way action-family policy (F6b). Standard give-way
-    # practice is to alter course to starboard while keeping way; a bare speed
-    # reduction is the fallback when no course alteration is admissible. Without
-    # a preference, near-equal candidate costs let environment noise flip the
-    # maneuver family between episodes (P4 vo-crossing E0 vs E4 COLREG anomaly).
+    # Deterministic give-way action-family and direction policy (F6b/F6c).
+    # Standard give-way practice is to alter course to starboard while keeping
+    # way; a bare speed reduction is the fallback when no starboard course
+    # alteration is admissible. During give-way commitment the course-alteration
+    # candidates are restricted to the starboard semicircle relative to the
+    # requested course (a deadband around zero stays admissible for straight),
+    # so a cheaper port-side optimum is never followed. Without the family and
+    # direction preference, near-equal candidate costs let environment noise
+    # flip both the maneuver family and the alteration side between episodes
+    # (p6 vo-crossing_give_way-E0 COLREG anomaly). Port stays available outside
+    # give-way commitment: overtaken Rule 17, stand-on primaries, in-extremis.
     give_way_course_family_preference: float = 0.1
     give_way_course_family_min_rad: float = float(np.deg2rad(10.0))
 
@@ -1720,6 +1726,31 @@ class VO:
             and not self._base_vo_mask[current_index]
             and not self._hard_constraint_mask[current_index]
         )
+        # Give-way direction policy (F6c): while the ownship is the give-way
+        # vessel, course alterations are restricted to the starboard semicircle
+        # relative to the requested course (Rule 14/15 practice). Port-side
+        # alterations become unavailable — not unsafe: hard-constraint evidence
+        # is untouched, exactly like the envelope exclusions. Port stays
+        # available when this is not a give-way stance: stand-on hold, a
+        # stand-on (CR_PS) or overtaken (OT_en) driving target, overtaking
+        # commitment, and the in-extremis case below where no non-port cell
+        # remains executable.
+        give_way_starboard_gate = (
+            self._give_way_commitment_active
+            and not self._overtaking_commitment_active
+            and not self._stand_on_hold_active
+            and VOCOLREGSSituation.CR_PS.name not in driving_rules
+            and VOCOLREGSSituation.OT_en.name not in driving_rules
+        )
+        if give_way_starboard_gate:
+            reference_heading = float(np.arctan2(v_ref[1], v_ref[0]))
+            port_alterations = (
+                _wrap_angle_array(self._heading_set - reference_heading)
+                <= -self._params.give_way_course_family_min_rad
+            )
+            port_mask = port_alterations[None, :] & np.isfinite(self._total_costs)
+            if np.any(np.isfinite(self._total_costs) & ~port_mask):
+                self._total_costs[port_mask] = np.inf
         flat_index = (
             int(np.ravel_multi_index(current_index, self._total_costs.shape))
             if self._stand_on_hold_active
@@ -1735,11 +1766,7 @@ class VO:
             self._reference_velocity_error_mps = float(np.linalg.norm(v_ref))
             return self._selected_heading, self._selected_speed
         family_index = None
-        if (
-            self._give_way_commitment_active
-            and not self._overtaking_commitment_active
-            and not self._stand_on_hold_active
-        ):
+        if give_way_starboard_gate:
             family_index = self._give_way_family_selection(minimum, v_ref)
         if family_index is not None:
             # The family policy decides ahead of the hold: latching a previous
@@ -1806,18 +1833,24 @@ class VO:
         return speed_index, heading_index
 
     def _give_way_family_selection(self, minimum: float, v_ref: np.ndarray) -> int | None:
-        """Deterministic give-way action-family preference (F6b policy).
+        """Deterministic give-way action-family and direction policy (F6b/F6c).
 
         Policy: prefer the course-alteration family whenever an admissible
-        course-altered candidate sits within the family preference margin of the
-        cost optimum; keep the speed-reduction fallback when no such candidate
-        exists. Course alteration while keeping way is the standard give-way
-        action, and fixing the family removes the episode-to-episode flip
-        between "slow down" and "turn" that near-equal candidate costs
-        otherwise leave to environment noise. The margin is relative to the
-        requested speed's velocity cost, so it scales with the scenario and
-        never overrides decisively safer candidates. Returns the flattened grid
-        index of the family selection, or None to keep the plain optimum.
+        starboard course-altered candidate sits within the family preference
+        margin of the cost optimum; keep the speed-reduction fallback when no
+        such candidate exists. Standard give-way practice (Rules 14/15) is to
+        alter course to starboard while keeping way, so the course-altered pool
+        is restricted to the starboard semicircle relative to the requested
+        course — positive offsets in this frame — and fixing both family and
+        direction removes the episode-to-episode flip between "slow down" and
+        "turn" that near-equal candidate costs otherwise leave to environment
+        noise. The margin is relative to the requested speed's velocity cost,
+        so it scales with the scenario and never overrides decisively safer
+        candidates. Port alterations stay available outside this give-way
+        stance (overtaken Rule 17, stand-on primaries, in-extremis relaxation):
+        the caller gate in _compute_optimal_controls excludes those contexts.
+        Returns the flattened grid index of the family selection, or None to
+        keep the plain optimum (the speed-reduction fallback).
         """
         reference_speed = float(np.linalg.norm(v_ref))
         preference = self._params.give_way_course_family_preference
@@ -1825,12 +1858,17 @@ class VO:
             return None
         bias = preference * self._params.w_velocity * reference_speed**2
         reference_heading = float(np.arctan2(v_ref[1], v_ref[0]))
+        heading_offsets = _wrap_angle_array(self._heading_set - reference_heading)
         course_altered = (
-            np.abs(_wrap_angle_array(self._heading_set - reference_heading))
-            >= self._params.give_way_course_family_min_rad
+            np.abs(heading_offsets) >= self._params.give_way_course_family_min_rad
         )
         finite = np.isfinite(self._total_costs)
-        pool = finite & (self._total_costs <= minimum + bias) & course_altered[None, :]
+        pool = (
+            finite
+            & (self._total_costs <= minimum + bias)
+            & course_altered[None, :]
+            & (heading_offsets > 0.0)[None, :]
+        )
         candidates = np.flatnonzero(pool)
         if candidates.size == 0:
             return None
@@ -1839,9 +1877,10 @@ class VO:
         i_speed, i_heading = np.unravel_index(best, self._total_costs.shape)
         deltas = _wrap_angle_array(self._heading_set[i_heading] - self._selected_heading)
         # Deterministic order: smallest course change from the current command,
-        # then the starboard side, then the lower speed row.
+        # then the starboard side (positive offsets in this frame), then the
+        # lower speed row.
         order = np.lexsort(
-            (self._speed_set[i_speed], np.where(deltas < 0.0, 0, 1), np.abs(deltas))
+            (self._speed_set[i_speed], np.where(deltas > 0.0, 0, 1), np.abs(deltas))
         )
         self._give_way_family_selected = "course"
         return int(best[order[0]])

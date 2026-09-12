@@ -264,6 +264,87 @@ def test_give_way_prefers_the_course_alteration_family() -> None:
     assert heading_delta >= vo._params.give_way_course_family_min_rad
 
 
+def crossing_give_way_target() -> tuple:
+    """Rule 15 geometry: target on the starboard bow crossing our track."""
+    return tracked_target(1200.0, 500.0, -8.0, -5.0)
+
+
+def test_give_way_course_family_selects_starboard_even_when_port_is_cheaper() -> None:
+    """Rule 14/15 direction policy: the give-way course family is starboard-only.
+
+    p6 COLREG scoring v2 flagged vo-crossing_give_way-E0 with "give-way
+    alteration to port". The family pool admitted both semicircles and its
+    tie-break even sorted port offsets first, so a cheaper or tied port cell
+    won the family selection. Starboard is the standard give-way direction:
+    the family pool must be restricted to the starboard semicircle relative
+    to the requested course.
+    """
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [crossing_give_way_target()], **ORIGINAL)
+    offsets = _wrap_angle_array(vo._heading_set)
+    vo._total_costs[:, offsets < 0.0] = 0.0
+    vo._total_costs[:, offsets >= vo._params.give_way_course_family_min_rad] = 1.0
+
+    minimum = float(np.min(vo._total_costs))
+    index = vo._give_way_family_selection(minimum, np.array([7.0, 0.0]))
+
+    assert index is not None
+    _i_speed, i_heading = np.unravel_index(index, vo._total_costs.shape)
+    assert vo._give_way_family_selected == "course"
+    assert offsets[i_heading] >= vo._params.give_way_course_family_min_rad, (
+        "give-way course family must not select a port alteration"
+    )
+
+
+def test_give_way_falls_back_to_speed_reduction_when_starboard_is_infeasible() -> None:
+    """Starboard-infeasible give-way must slow down, never follow a port optimum.
+
+    With every starboard alteration infeasible, the cheap admissible candidate
+    is a port alteration kept at cruise (the vo-crossing_give_way-E0 shape).
+    The direction policy must make port inadmissible and let the selection fall
+    back to the speed-reduction family on the requested course.
+    """
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [crossing_give_way_target()], **ORIGINAL)
+    offsets = _wrap_angle_array(vo._heading_set)
+    vo._hard_constraint_mask[:, offsets >= vo._params.give_way_course_family_min_rad] = True
+    vo._hard_constraint_mask[:, offsets <= -vo._params.give_way_course_family_min_rad] = False
+    # Port must undercut every admissible alternative: reopen the cruise rows on
+    # the port columns so "port alteration at cruise" is the cheapest cell.
+    vo._envelope_mask[:, offsets <= -vo._params.give_way_course_family_min_rad] = False
+    straight = np.abs(offsets) < vo._params.give_way_course_family_min_rad
+    vo._hard_constraint_mask[:, straight] = (
+        vo._speed_set[:, None] > ORIGINAL["os_avoidance_speed_cap_mps"]
+    )
+
+    heading, speed = vo._compute_optimal_controls(np.array([7.0, 0.0]), 0.0)
+
+    heading_offset = float(_wrap_angle_array(np.asarray([heading]))[0])
+    assert heading_offset > -vo._params.give_way_course_family_min_rad, (
+        "speed-reduction fallback must not follow a port alteration"
+    )
+    assert speed <= ORIGINAL["os_avoidance_speed_cap_mps"] + 1e-9
+
+
+def test_port_alteration_stays_available_outside_give_way_commitment() -> None:
+    """Rule 17: outside give-way commitment the port semicircle stays selectable."""
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+    overtaken = tracked_target(-400.0, 100.0, 9.0, 0.0)
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [overtaken], **ORIGINAL)
+    debug = vo.get_debug_data()
+
+    assert vo._give_way_commitment_active is False
+    port_finite = np.isfinite(vo._total_costs[:, _wrap_angle_array(vo._heading_set) < 0.0]).any()
+    assert port_finite, "port semicircle must stay admissible when not give-way"
+    assert debug["selected_heading_rad"] < 0.0
+
+
 def test_give_way_keeps_speed_reduction_when_course_family_infeasible() -> None:
     """F6b policy fallback: no admissible course alteration means keep-way slowdown."""
     vo = VO(VOParams())
