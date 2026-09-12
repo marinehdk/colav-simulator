@@ -26,12 +26,15 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA, TraceBundle
+
+if TYPE_CHECKING:  # annotation-only: keeps the sealed read path import-clean
+    from colav_simulator.decision_replay.sink import TraceSinkPolicy
 from gui_server.canonical_threat import canonical_threat_projection
 
 DESCRIPTOR_SCHEMA = "colav.run-replay.descriptor@1"
