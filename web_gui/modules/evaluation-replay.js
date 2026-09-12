@@ -572,6 +572,106 @@ export function createEvaluationReplayController({
     });
   }
   el('replayCloseBtn')?.addEventListener('click', close);
+
+  // ── #74 Evaluation local views: Replay | Results | Evidence | Historical AIS ──
+  // Switching a local view changes Inspection Context only — it never
+  // creates, replaces or mutates the Active Session.
+  const evaluationViews = ['replay', 'results', 'evidence', 'hais'];
+  let selectedEvaluationView = 'replay';
+
+  function renderFacts(targetId, facts) {
+    const container = el(targetId);
+    if (!container) return;
+    container.replaceChildren(...facts.map(([label, value]) => {
+      const row = documentRef.createElement('div');
+      const dt = documentRef.createElement('dt');
+      dt.textContent = label;
+      const dd = documentRef.createElement('dd');
+      dd.textContent = value === null || value === undefined || value === '' ? '—' : String(value);
+      row.append(dt, dd);
+      return row;
+    }));
+  }
+
+  async function loadRunDocument() {
+    if (!runId) return null;
+    try {
+      return await fetchJson(`/api/runs/${runId}/replay/evidence`);
+    } catch {
+      return null;
+    }
+  }
+
+  async function renderResultsView() {
+    const status = el('replayResultsStatus');
+    const document_ = await loadRunDocument();
+    if (!document_) {
+      if (status) status.textContent = 'UNAVAILABLE';
+      return;
+    }
+    if (status) status.textContent = document_.result?.result_ready ? 'RESULT READY' : 'RESULT PENDING';
+    const result = document_.result ?? {};
+    const run = document_.run ?? {};
+    renderFacts('replayResultsFacts', [
+      ['Run', document_.run_id?.slice(0, 8)],
+      ['Scenario', run.scenario_id],
+      ['Executed algorithm', run.executed_algorithm],
+      ['Execution state', run.execution_state],
+      ['Result ready', document_.result?.result_ready ? 'YES' : 'NO — result pending (replay readiness is independent)'],
+      ['Evaluation status', result.evaluation_status],
+      ['Hard gate', result.hard_gate === null || result.hard_gate === undefined ? null : JSON.stringify(result.hard_gate)],
+      ['Reproduction status', result.reproduction_status],
+      ['Failure', run.failure_status ? `${run.failure_status}${run.failure_reason ? ` · ${run.failure_reason}` : ''}` : null],
+      ['Limitations', (document_.limitations ?? []).join(', ') || null],
+    ]);
+  }
+
+  async function renderEvidenceView() {
+    const status = el('replayEvidenceFactsStatus');
+    const document_ = await loadRunDocument();
+    if (!document_) {
+      if (status) status.textContent = 'UNAVAILABLE';
+      return;
+    }
+    if (status) status.textContent = String(document_.evidence?.replay?.state ?? '—');
+    const replay = document_.evidence?.replay ?? {};
+    const digests = document_.evidence?.digests ?? {};
+    renderFacts('replayEvidenceFacts', [
+      ['Run', document_.run_id],
+      ['Replay state', replay.state],
+      ['Evidence level', replay.evidence_level],
+      ['Reason', replay.reason],
+      ['Trace schema', replay.trace_schema],
+      ['Frames', replay.frame_count],
+      ['Trusted range', replay.t_start !== null && replay.t_start !== undefined ? `${formatTime(replay.t_start)} – ${formatTime(replay.trusted_t_end ?? replay.t_end)} s` : null],
+      ['Frames digest', replay.frames_sha256 ? String(replay.frames_sha256).slice(0, 16) + '…' : null],
+      ['Trajectory (reduced)', document_.evidence?.trajectory_present ? 'present' : 'absent'],
+      ['ENC raster', document_.evidence?.enc_present ? 'present' : 'absent'],
+      ['Mid-MPC solver artifacts', document_.evidence?.mid_mpc_artifact_count],
+      ['Event journal entries', document_.evidence?.event_count],
+      ['Digests', Object.entries(digests).map(([key, value]) => `${key}:${String(value).slice(0, 12)}…`).join(' ') || null],
+      ['Limitations', (document_.limitations ?? []).join(', ') || null],
+    ]);
+  }
+
+  function switchEvaluationView(next) {
+    if (!evaluationViews.includes(next)) return;
+    selectedEvaluationView = next;
+    for (const view of evaluationViews) {
+      const section = el(`evalView${view === 'hais' ? 'HistoricalAIS' : view.charAt(0).toUpperCase() + view.slice(1)}`);
+      if (section) section.hidden = view !== next;
+      const tab = el(`evalViewTab${view === 'hais' ? 'HistoricalAIS' : view.charAt(0).toUpperCase() + view.slice(1)}`);
+      if (tab) tab.setAttribute('aria-pressed', String(view === next));
+    }
+    if (next === 'results') void renderResultsView();
+    if (next === 'evidence') void renderEvidenceView();
+  }
+
+  for (const view of evaluationViews) {
+    el(`evalViewTab${view === 'hais' ? 'HistoricalAIS' : view.charAt(0).toUpperCase() + view.slice(1)}`)?.addEventListener('click', () => {
+      switchEvaluationView(view);
+    });
+  }
   el('replayPrevEventBtn')?.addEventListener('click', () => stepEvent(-1));
   el('replayNextEventBtn')?.addEventListener('click', () => stepEvent(1));
   el('replayEventFilter')?.addEventListener('change', event => {
@@ -585,6 +685,7 @@ export function createEvaluationReplayController({
     close,
     playPause,
     setRate,
+    switchEvaluationView,
     get state() {
       return {
         runId,
@@ -604,9 +705,25 @@ export function createEvaluationReplayController({
   };
 }
 
+/**
+ * Open a Run in the SHARED Evaluation > Replay player and switch the local
+ * view (#74). Historical AIS uses this for its explicit `Open Replay`
+ * inspection action — no second player is instantiated anywhere. Safe no-op
+ * (returns false) when the player host is absent (tests, other pages).
+ */
+export function openReplayForRun(runId) {
+  if (typeof document === 'undefined' || !document.getElementById('evaluationReplayPanel')) {
+    return false;
+  }
+  replayController?.switchEvaluationView('replay');
+  void replayController?.open(runId);
+  return true;
+}
+
+let replayController = null;
 if (typeof document !== 'undefined' && document.getElementById('evaluationReplayPanel')) {
-  const controller = createEvaluationReplayController();
+  replayController = createEvaluationReplayController();
   setReplayRunOpener(runId => {
-    controller.open(runId);
+    replayController.open(runId);
   });
 }

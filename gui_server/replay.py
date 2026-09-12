@@ -32,6 +32,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA, TraceBundle
+from colav_simulator.decision_replay.sink import TraceSinkPolicy
 from gui_server.canonical_threat import canonical_threat_projection
 
 DESCRIPTOR_SCHEMA = "colav.run-replay.descriptor@1"
@@ -49,6 +50,37 @@ MAX_WINDOW_SPAN_S = 120.0
 MAX_WINDOW_FRAMES = 1000
 DEFAULT_EVENTS_LIMIT = 2000
 MAX_EVENTS_LIMIT = 20000
+
+
+# Shared capture policy (#70, shared here in #74 so the Historical AIS
+# workflow path and the product WebSessionManager path use ONE budget).
+DEFAULT_CAPTURE_BUDGET_BYTES = 2 * 1024**3
+CAPTURE_BUDGET_ENV = "COLAV_REPLAY_CAPTURE_BUDGET_BYTES"
+
+_log = logging.getLogger(__name__)
+
+
+def replay_capture_budget_policy() -> TraceSinkPolicy:
+    """Per-Run capture byte budget; exceeding it is a typed INCOMPLETE reason."""
+    max_bytes = DEFAULT_CAPTURE_BUDGET_BYTES
+    raw = os.environ.get(CAPTURE_BUDGET_ENV, "").strip()
+    if raw:
+        try:
+            override = int(raw)
+        except ValueError:
+            override = 0
+        if override > 0:
+            max_bytes = override
+        else:
+            _log.warning(
+                "Ignoring invalid %s=%r; using the %d-byte default capture budget",
+                CAPTURE_BUDGET_ENV,
+                raw,
+                DEFAULT_CAPTURE_BUDGET_BYTES,
+            )
+    # Measured on #70: the raw events.jsonl journal dominates the stored trace
+    # for VO runs, so the journal is stored gzipped; readers accept both forms.
+    return TraceSinkPolicy(max_total_bytes=max_bytes, events_gzip=True)
 
 
 class EventCategories:
@@ -336,6 +368,90 @@ class RunReplayStore:
             "truncated": len(rows) > capped,
             "categories": present,
             "events": events,
+        }
+
+    def run_evidence(self, run_id: str) -> dict[str, Any]:
+        """Versioned Evidence/Results document for one recorded Run (#74).
+
+        Backend-owned projection over manifest.json / evaluation.json / the
+        replay classification — the browser never parses raw artifacts.
+        Original Evaluation facts are surfaced read-only, never rewritten.
+        """
+        run_dir = self.run_dir(run_id)
+        manifest = self._read_json(run_dir / "manifest.json") or {}
+        spec = manifest.get("spec") or {}
+        descriptor = self.descriptor(run_id)
+        evaluation = self._read_json(run_dir / "evaluation.json")
+        trajectory_present = (run_dir / "trajectory.parquet").is_file()
+        enc_present = (run_dir / "enc.png").is_file()
+        artifact_dir = run_dir / "artifacts" / "mid_mpc"
+        artifact_count = (
+            sum(1 for path in artifact_dir.iterdir() if path.is_file()) if artifact_dir.is_dir() else 0
+        )
+        events_journal = run_dir / "events.jsonl"
+        event_count = (
+            sum(1 for _ in events_journal.open(encoding="utf-8")) if events_journal.is_file() else 0
+        )
+        limitations = []
+        replay_state = str(descriptor.get("replay", {}).get("state", "UNAVAILABLE"))
+        if replay_state == "REDUCED":
+            limitations.append("REDUCED_TRAJECTORY_ONLY")
+        if replay_state == "INCOMPLETE":
+            limitations.append("TRACE_INCOMPLETE")
+        if evaluation is None:
+            limitations.append("RESULT_PENDING")
+        if manifest.get("failure_status"):
+            limitations.append("EXECUTION_FAILURE_RECORDED")
+        return {
+            "schema_version": "colav.run-replay.evidence@1",
+            "run_id": run_dir.name,
+            "run": {
+                "execution_state": manifest.get("state"),
+                "execution_outcome": manifest.get("execution_outcome"),
+                "scenario_id": spec.get("scenario_id"),
+                "validation_rule_id": manifest.get("validation_rule_id") or spec.get("validation_rule_id"),
+                "requested_algorithm": manifest.get("requested_algorithm"),
+                "executed_algorithm": manifest.get("executed_algorithm"),
+                "requested_tracker": manifest.get("requested_tracker"),
+                "executed_tracker": manifest.get("executed_tracker"),
+                "created_at_utc": manifest.get("created_at_utc"),
+                "capability_profile_id": manifest.get("capability_profile_id"),
+                "fallback_used": manifest.get("fallback_used"),
+                "replay_of_run_id": manifest.get("replay_of_run_id"),
+                "replay_verified": manifest.get("replay_verified"),
+                "historical_scenario_id": manifest.get("historical_scenario_id"),
+                "failure_status": manifest.get("failure_status"),
+                "failure_reason": manifest.get("failure_reason"),
+            },
+            "result": {
+                "result_ready": evaluation is not None,
+                "evaluation_status": (evaluation or {}).get("evaluation_status"),
+                "hard_gate": (evaluation or {}).get("hard_gate"),
+                "evaluator_id": (evaluation or {}).get("evaluator_id") or manifest.get("evaluator_id"),
+                "reproduction_status": (evaluation or {}).get("reproduction_status")
+                or manifest.get("reproduction_status"),
+            },
+            "evidence": {
+                "replay": descriptor.get("replay"),
+                "trajectory_present": trajectory_present,
+                "enc_present": enc_present,
+                "mid_mpc_artifact_count": artifact_count,
+                "event_count": event_count,
+                "digests": {
+                    key: manifest.get(key)
+                    for key in (
+                        "spec_hash",
+                        "episode_hash",
+                        "scenario_hash",
+                        "enc_hash",
+                        "trajectory_hash",
+                        "trajectory_semantic_hash",
+                        "trajectory_artifact_hash",
+                    )
+                    if manifest.get(key) is not None
+                },
+            },
+            "limitations": limitations,
         }
 
     def static_context(self, run_id: str) -> dict[str, Any]:
@@ -732,6 +848,8 @@ def build_replay_router(
 
     router = APIRouter(prefix="/api")
 
+    router = APIRouter(prefix="/api")
+
     @router.get("/runs")
     def list_runs(
         replayable: bool | None = Query(default=None),
@@ -760,6 +878,11 @@ def build_replay_router(
     ) -> dict[str, Any]:
         with typed_errors():
             return store.replay_events(run_id, limit)
+
+    @router.get("/runs/{run_id}/replay/evidence")
+    def evidence(run_id: str) -> dict[str, Any]:
+        with typed_errors():
+            return store.run_evidence(run_id)
 
     @router.get("/runs/{run_id}/replay/context")
     def static_context(run_id: str) -> dict[str, Any]:

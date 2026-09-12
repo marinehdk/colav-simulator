@@ -693,3 +693,103 @@ test('event markers and navigation controls are keyboard-operable buttons', asyn
   assert.match(html, /id="replayPrevEventBtn"[^>]*aria-label="Previous recorded event"/);
   assert.match(html, /id="replayNextEventBtn"[^>]*aria-label="Next recorded event"/);
 });
+
+/* ── #74: Evaluation local views (Replay | Results | Evidence | Historical AIS) ── */
+
+const EVIDENCE_DOC = {
+  schema_version: 'colav.run-replay.evidence@1',
+  run_id: RUN_ID,
+  run: { execution_state: 'FINISHED', scenario_id: 'head_on', executed_algorithm: 'vo', executed_tracker: 'god', created_at_utc: '2026-09-12T00:00:00Z', validation_rule_id: 'rule14' },
+  result: { result_ready: true, evaluation_status: 'COMPLETED', hard_gate: { verdict: 'PASS' }, evaluator_id: 'ccta_2023_demo-v1', reproduction_status: 'NOT_RUN' },
+  evidence: {
+    replay: { state: 'READY', evidence_level: 'full', trace_schema: 'colav.decision-replay.v1', frame_count: 400, t_start: 0.1, t_end: 40.0, trusted_t_end: 40.0, frames_sha256: 'a'.repeat(64), truncated: false },
+    trajectory_present: true,
+    enc_present: true,
+    mid_mpc_artifact_count: 0,
+    event_count: 3,
+    digests: { spec_hash: 'b'.repeat(64) },
+  },
+  limitations: [],
+};
+
+function factTexts(documentRef, containerId) {
+  const container = documentRef.getElementById(containerId);
+  return (container?.children ?? []).map(row => row.children.map(child => child.textContent).join(' '));
+}
+
+test('Evaluation exposes Replay | Results | Evidence | Historical AIS local views; switching changes Inspection Context only', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, documentRef } = parts;
+
+  assert.equal(html.includes('id="evalViewTabResults"'), true);
+  assert.equal(html.includes('id="evalViewTabHistoricalAIS"'), true);
+
+  documentRef.getElementById('evalViewTabHistoricalAIS').click();
+  assert.equal(documentRef.getElementById('evalViewReplay').hidden, true);
+  assert.equal(documentRef.getElementById('evalViewHistoricalAIS').hidden, false);
+
+  documentRef.getElementById('evalViewTabResults').click();
+  await network.respondNext(EVIDENCE_DOC);
+  assert.equal(documentRef.getElementById('evalViewResults').hidden, false);
+  assert.equal(documentRef.getElementById('evalViewHistoricalAIS').hidden, true);
+
+  const sessionCalls = network.calls.filter(call => /\/api\/sessions/.test(call.url));
+  assert.equal(sessionCalls.length, 0, 'view switching never mutates the Active Session');
+});
+
+test('Results view surfaces Original Evaluation read-only; result pending stays distinct from replay ready', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, documentRef } = parts;
+
+  controller.switchEvaluationView('results');
+  await network.respondNext({
+    ...EVIDENCE_DOC,
+    result: { ...EVIDENCE_DOC.result, result_ready: false, evaluation_status: null, hard_gate: null },
+    limitations: ['RESULT_PENDING'],
+  });
+
+  const facts = factTexts(documentRef, 'replayResultsFacts').join('\n');
+  assert.match(facts, /Original|Result ready/);
+  assert.match(facts, /RESULT PENDING/i);
+  assert.match(documentRef.getElementById('replayResultsStatus').textContent, /RESULT PENDING/);
+});
+
+test('Evidence view renders identities, digests, replay state and limitations from the backend document', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, documentRef } = parts;
+
+  controller.switchEvaluationView('evidence');
+  await network.respondNext(EVIDENCE_DOC);
+
+  const facts = factTexts(documentRef, 'replayEvidenceFacts').join('\n');
+  assert.match(facts, /colav\.decision-replay\.v1/);
+  assert.match(facts, /READY/);
+  assert.match(facts, /aaaaaaaaaaaaaaaa/); // truncated frames digest, backend-owned
+  assert.equal(documentRef.getElementById('replayEvidenceFactsStatus').textContent, 'READY');
+});
+
+test('Simulation Rate / Replay Speed terminology is frozen in the UI copy', () => {
+  assert.match(html, /SIMULATION RATE/);
+  assert.match(html, /aria-label="Simulation Rate 仿真倍率"/);
+  const rateGroupLabel = html.match(/<span class="replay-rate-group"[^>]*>(?:[^<]|<(?!\/span>))*<\/span>/)?.[0] ?? '';
+  // The Evaluation rate group keeps the Replay Speed label from #72.
+  const evaluationModule = moduleSource;
+  assert.ok(
+    html.includes('aria-label="Replay Speed (presentation only)"'),
+    'Evaluation speed control is labeled Replay Speed',
+  );
+});
+
+test('Historical AIS Open Replay routes through the shared player without a second player', async () => {
+  const workbenchSource = await readFile(new URL('../../web_gui/modules/historical-ais-workbench.js', import.meta.url), 'utf8');
+  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js'/);
+  assert.match(workbenchSource, /replayable = state === 'READY' \|\| state === 'INCOMPLETE'/);
+  assert.match(html, /id="historicalAISOpenReplay"/);
+
+  // Outside the mounted product page the shared opener is a safe no-op.
+  const mod = await import('../../web_gui/modules/evaluation-replay.js');
+  assert.equal(typeof mod.openReplayForRun, 'function');
+});

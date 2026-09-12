@@ -604,14 +604,15 @@
                   </div>
                 </section>
               </div>
-              <div class="deployment-tool-zone deployment-tool-zone--simulation" data-od-id="live-playback-controls" aria-label="仿真控制与时间">
+              <div class="deployment-tool-zone deployment-tool-zone--simulation" data-od-id="live-playback-controls" aria-label="Simulation Rate 仿真控制与时间">
                 <div class="deployment-time-readout" aria-label="仿真时间"><span>SIM TIME</span><strong id="liveSimulationTime">--:--:--</strong><small id="liveAisUtc"></small></div>
                 <obc-icon-button variant="normal" id="startValidationBtn" aria-label="开始验证" title="开始验证"><obi-media-play></obi-media-play></obc-icon-button>
                 <obc-icon-button variant="flat" id="pauseValidationBtn" aria-label="暂停验证" title="暂停验证"><obi-media-pause></obi-media-pause></obc-icon-button>
                 <obc-icon-button variant="flat" id="stepValidationBtn" aria-label="单步执行" title="单步执行"><obi-media-skip-next></obi-media-skip-next></obc-icon-button>
                 <obc-icon-button variant="flat" id="resetValidationBtn" aria-label="重置仿真" title="重置仿真"><obi-reset></obi-reset></obc-icon-button>
                 <span class="deployment-control-state" id="liveControlState">NOT CREATED</span>
-                <obc-toggle-button-group class="deployment-rate-compact" id="livePlaybackRate" value="1" variant="regular" type="text" aria-label="仿真倍速">
+                <span class="deployment-rate-label">SIMULATION RATE</span>
+                <obc-toggle-button-group class="deployment-rate-compact" id="livePlaybackRate" value="1" variant="regular" type="text" aria-label="Simulation Rate 仿真倍率">
                   <obc-toggle-button-option value="1">1×</obc-toggle-button-option>
                   <obc-toggle-button-option value="2">2×</obc-toggle-button-option>
                   <obc-toggle-button-option value="5">5×</obc-toggle-button-option>
@@ -733,6 +734,13 @@
     </section>
 
     <section class="workface historical-ais-scenario-workface" data-workface-panel="evaluation" hidden>
+      <nav class="evaluation-view-tabs" aria-label="Evaluation local views">
+        <obc-button class="evaluation-view-tab" id="evalViewTabReplay" data-eval-view="replay" variant="flat" aria-pressed="true">Replay</obc-button>
+        <obc-button class="evaluation-view-tab" id="evalViewTabResults" data-eval-view="results" variant="flat" aria-pressed="false">Results</obc-button>
+        <obc-button class="evaluation-view-tab" id="evalViewTabEvidence" data-eval-view="evidence" variant="flat" aria-pressed="false">Evidence</obc-button>
+        <obc-button class="evaluation-view-tab" id="evalViewTabHistoricalAIS" data-eval-view="hais" variant="flat" aria-pressed="false">Historical AIS</obc-button>
+      </nav>
+      <section class="evaluation-view" id="evalViewReplay" aria-label="Replay local view">
       <div class="replay-runs-card" id="replayRunsPanel" aria-label="Sealed Run Replay runs">
         <header class="replay-runs-header">
           <div>
@@ -803,6 +811,28 @@
           </div>
         </footer>
       </section>
+      </section>
+      <section class="evaluation-view" id="evalViewResults" aria-label="Results local view" hidden>
+        <div class="replay-runs-card">
+          <header class="replay-runs-header"><div>
+            <p class="historical-ais-eyebrow">EVALUATION / RESULTS</p>
+            <h1>Original Evaluation</h1>
+            <p>Read-only Original Verdict and result readiness for the selected Run — never rewritten by Replay.</p>
+          </div><span class="historical-ais-status-pill" id="replayResultsStatus">SELECT A RUN</span></header>
+          <dl class="historical-ais-facts" id="replayResultsFacts"></dl>
+        </div>
+      </section>
+      <section class="evaluation-view" id="evalViewEvidence" aria-label="Evidence local view" hidden>
+        <div class="replay-runs-card">
+          <header class="replay-runs-header"><div>
+            <p class="historical-ais-eyebrow">EVALUATION / EVIDENCE</p>
+            <h1>Run Evidence</h1>
+            <p>Backend-owned identities, digests, evidence state and limitations for the selected Run.</p>
+          </div><span class="historical-ais-status-pill" id="replayEvidenceFactsStatus">SELECT A RUN</span></header>
+          <dl class="historical-ais-facts" id="replayEvidenceFacts"></dl>
+        </div>
+      </section>
+      <section class="evaluation-view" id="evalViewHistoricalAIS" aria-label="Historical AIS local view" hidden>
       <div class="historical-ais-workbench" id="historicalAISBenchmark" aria-label="Historical AIS Benchmark">
         <header class="historical-ais-workbench-header">
           <div>
@@ -836,7 +866,9 @@
             <obc-button id="historicalAISRun" variant="normal" disabled>Run Historical Workflow</obc-button>
             <p class="historical-ais-run-boundary">Source must be bound and qualified before Run. Benchmark workflows stay headless and are not benchmark-replaceable by interactive sessions.</p>
             <obc-button id="historicalAISDeploy" variant="flat" disabled>Open in Deployment</obc-button>
+            <obc-button id="historicalAISOpenReplay" variant="flat" disabled>Open Replay</obc-button>
             <p class="historical-ais-run-boundary" id="historicalAISDeployStatus">Interactive Counterfactual session on the AIS scene — the bound algorithm takes over ownship at T0. Full tuple choice lives in Config.</p>
+            <p class="historical-ais-run-boundary" id="historicalAISOpenReplayStatus" hidden></p>
           </section>
 
           <section class="historical-ais-card historical-ais-evidence-card" aria-labelledby="historicalAISEvidenceHeading">
@@ -869,6 +901,7 @@
           </section>
         </div>
       </div>
+      </section>
     </section>
     <section class="notification-popover" id="notificationPanel" aria-labelledby="notificationPanelHeading" hidden>
       <header><strong id="notificationPanelHeading">Notifications</strong><span id="notificationPanelCount">0</span></header>
@@ -884,6 +917,6 @@
   <script type="module" src="/static/modules/config-shell.js?v=20260910-vo-display-v1"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260824-canonical-presentation"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260911-replay-runs-v2"></script>
-  <script type="module" src="/static/modules/evaluation-replay.js?v=20260911-replay-seek-v1"></script>
+  <script type="module" src="/static/modules/evaluation-replay.js?v=20260912-eval-ia-v1"></script>
 </body>
 </html>
