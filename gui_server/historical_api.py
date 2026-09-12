@@ -14,9 +14,42 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, WebSocket
 from pydantic import BaseModel, Field
 
-from colav_simulator.experiment.contracts import InternalExecutionPurpose, RunSpec
+from colav_simulator.decision_replay.sink import TraceSink
+from colav_simulator.experiment.contracts import InternalExecutionPurpose, RunSpec, SessionState
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunner, PreparedRun
+from gui_server.replay import RunReplayStore, replay_capture_budget_policy, replay_retention_budget_bytes
+
+
+def _open_workflow_trace_capture(prepared: PreparedRun) -> TraceSink | None:
+    """Browser-independent full-trace capture for the workflow path (#74).
+
+    The Historical AIS workflow shares the product TraceSink so a completed
+    Run opens in the same Sealed Run Replay player. Capture failure is typed
+    evidence loss (UNAVAILABLE/INCOMPLETE), never a workflow failure.
+    """
+    try:
+        return TraceSink.open(prepared.run_dir, policy=replay_capture_budget_policy())
+    except Exception:  # noqa: BLE001 - capture must never break the workflow
+        return None
+
+
+def _seal_workflow_trace_capture(prepared: PreparedRun, capture: TraceSink | None) -> None:
+    """Seal the capture and enforce the shared retention budget (#74)."""
+    if capture is not None:
+        try:
+            capture.close(events=jsonable(prepared.session.events))
+        except Exception:  # noqa: BLE001
+            capture.fail("CAPTURE_FINALIZE_FAILED")
+    try:
+        budget = replay_retention_budget_bytes()
+        if budget > 0:
+            RunReplayStore(prepared.run_dir.parent).prune_traces(
+                budget_bytes=budget,
+                keep_run_ids=frozenset({prepared.manifest.run_id}),
+            )
+    except Exception:  # noqa: BLE001 - retention never breaks the workflow
+        pass
 from colav_simulator.historical_acceptance import (
     HistoricalAcceptanceStatus,
     HistoricalAISAcceptanceHarness,
@@ -780,8 +813,14 @@ class HistoricalWorkflowManager:
                 prepared = workflow.prepared_run
                 if prepared is None or workflow.experiment_runner is None:
                     raise RuntimeError("Historical workflow has no prepared single-run session")
-                prepared.session.run_to_completion()
+                capture = _open_workflow_trace_capture(prepared)
+                prepared.session.start()
+                while prepared.session.state == SessionState.RUNNING:
+                    snapshot = prepared.session.advance()
+                    if capture is not None:
+                        capture.append(snapshot)
                 result = workflow.experiment_runner.finalize(prepared)
+                _seal_workflow_trace_capture(prepared, capture)
                 if workflow.human_reference is not None:
                     result.manifest.historical_reference_artifact_digest = workflow.human_reference.trajectory_digest
                 result.writer.write_manifest(result.manifest)

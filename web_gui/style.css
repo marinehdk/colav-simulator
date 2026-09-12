@@ -3674,3 +3674,6 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .replay-event-marker { position: absolute; top: 0; transform: translateX(-50%); pointer-events: auto; min-width: 16px; height: 16px; padding: 0; border: 1px solid var(--ob-subtle); border-radius: 3px; background: var(--ob-bg, #10202c); color: var(--ob-subtle); font-size: 9px; line-height: 14px; cursor: pointer; }
 .replay-event-marker:focus-visible { outline: 2px solid var(--ob-accent); }
 #replayEventFilter { background: transparent; color: inherit; border: 1px solid var(--ob-subtle); font-size: 10px; }
+.evaluation-view-tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.evaluation-view-tab[aria-pressed="true"] { outline: 1px solid var(--ob-accent); }
+.deployment-rate-label { font-size: 10px; letter-spacing: .8px; color: var(--ob-subtle); }

@@ -62,6 +62,7 @@ from gui_server.replay import (
     STATIC_CONTEXT_SCHEMA,
     RunReplayStore,
     build_replay_router,
+    replay_capture_budget_policy,
     replay_retention_budget_bytes,
     runs_root,
 )
@@ -96,27 +97,9 @@ DEFAULT_CAPTURE_BUDGET_BYTES = 2 * 1024**3
 
 
 def capture_budget_policy() -> TraceSinkPolicy:
-    """Per-Run capture byte budget; exceeding it is a typed INCOMPLETE reason."""
-    max_bytes = DEFAULT_CAPTURE_BUDGET_BYTES
-    raw = os.environ.get(CAPTURE_BUDGET_ENV, "").strip()
-    if raw:
-        try:
-            override = int(raw)
-        except ValueError:
-            override = 0
-        if override > 0:
-            max_bytes = override
-        else:
-            log.warning(
-                "Ignoring invalid %s=%r; using the %d-byte default capture budget",
-                CAPTURE_BUDGET_ENV,
-                raw,
-                DEFAULT_CAPTURE_BUDGET_BYTES,
-            )
-    # Measured on #70: the raw events.jsonl journal dominates the stored trace
-    # for VO runs (31 KB events vs 10.6 KB gz frames), so the product path
-    # stores the journal gzipped; TraceBundle reads both forms additively.
-    return TraceSinkPolicy(max_total_bytes=max_bytes, events_gzip=True)
+    """Shared per-Run capture byte budget (see gui_server.replay, #74)."""
+    return replay_capture_budget_policy()
+
 
 # Issue #67 validated COLAV spacing profiles, run by product (GUI) sessions
 # when the client sends no algorithm config. With the bare published defaults
