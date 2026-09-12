@@ -1,0 +1,193 @@
+// Colleague proposal P-C3 - decel-check executed-speed awareness
+// Branch: codex/colleague-proposal-s1  |  Register: R14 (proposed-to-colleague)
+// Date: 2026-09-12
+//
+// File touched (1): src/gnc/ship_guidance/src/active_route_manager_node.cpp
+//
+// Path mapping: this diff applies to the colleague source tree directly.
+//   colleague path : external_sources/L4-5_source_only_20260824_v2/<file>
+//   vendored twin  : build/original_gnc-proposal-full/active_route_manager_node.cpp
+//     (mechanical extraction, ledger build/original_gnc-proposal-full/extraction.json;
+//      identical logic - clock reads made explicit, log lines blanked - so only
+//      line numbers shift by a few lines)
+// Reference build compiled from these proposals: build/original_gnc-proposal-full
+// (its build-manifest.json records "colleague_proposal": {"proposals": ["P-C1", "P-C2", "P-C3"]};
+//  build with tools/original_gnc/build_native.py --proposal P-C1 --proposal P-C2 --proposal P-C3).
+// Base: applies AFTER P-C2 (rn3/rn4 anchor on helpers and members P-C2 adds;
+// hunk line numbers are relative to the P-C2-applied tree).
+//
+
+// How to read: lines starting with "//" (this header and the annotation blocks
+// 问题/证据/更改/预期效果/验证方法 above each hunk) are informational. To apply
+// mechanically: strip them with `grep -v '^//'` or apply the hunks by hand.
+// Reference implementation: tools/original_gnc/proposal_patches.py on the
+// proposal branch (PROPOSALS["P-C3"]).
+//
+// 问题: 减速判据需要记忆“最近一次 flag 的航线版本”做 hysteresis，const 成员函数无法落状态。
+// 更改: evaluate_avoidance_plan 去掉 const（仅本函数，调用点唯一）。
+// 预期效果: hysteresis 状态可写。
+// 验证方法: 探针 C —— 同一 plan 重复提交第二次不再 flag。
+
+rn1@@ -858,9 +858,11 @@
+         return route;
+     }
+ 
++    // Colleague-proposal-s1 (P-C3): no longer const — the decel check below
++    // latches the last flagged route revision for hysteresis.
+     FeasibilityResult evaluate_avoidance_plan(
+         const ship_interfaces::msg::AvoidancePlan& plan,
+-        const ship_interfaces::msg::RoutePlan& route) const
++        const ship_interfaces::msg::RoutePlan& route)
+     {
+         if (!basic_route_valid(route)) {
+             return rejected_result("invalid_avoidance_route", "fix_route_plan");
+
+// 问题: 减速判据用计划剖面 (v0²−v1²)/(2·0.08) 对全段长比较：船静止（executed 0.0）也要求
+//   减速距离（诊断样本: current_speed 0.0 时要求 242 m > 165 m 段长），末段反复
+//   EXECUTING_WITH_LIMIT/decel_distance_tight，applied 速度被压平（p6 vo-CS-E0 平坦 0.3208，
+//   末端 SOG 0.399 vs 参考 3.2；register R14）。
+// 更改: (a) v0 取 EXECUTED 速度（status GeoPosition speed_mps，isfinite 且 ≥0 时；否则回落
+//   请求速度）—— 静止船不再产生减速需求；(b) 预算对“到速度步的剩余距离”（船投影到入段，
+//   clamp [0,1]；无船位=全段长，与原行为一致）；(c) 已过的速度步跳过（复用 P-C2 启发式）；
+//   (d) decel 下限 mode-aware：dp_hold/berthing 族保持配置 0.08（参数本身不动），
+//   cruise/avoidance 过渡用 max(0.08, 0.2)；(e) hysteresis：route_revision 未变不重复软 flag
+//   （硬拒绝分支不受 hysteresis 抑制）。
+// 预期效果: 静止/已过段不再触发；过渡段按真实执行速度与 0.2 m/s² 评估；同一版本不刷屏。
+// 验证方法: 探针 B1（静止 0.0 → 无 flag；修复前同几何 flag）/ B2（执行速度 7.8 → flag）/
+//   C（重复提交抑制）/ D（dp_hold 380.2 m=0.08 下限 vs cruise 142.1 m=0.2 下限）。
+
+rn2@@ -1020,30 +1022,52 @@
+             }
+         }
+ 
++        // Colleague-proposal-s1 (P-C3) decel-check executed-speed awareness:
++        // the braking budget starts from the EXECUTED speed (status
++        // GeoPosition speed when the manager has ship state, else the
++        // requested speed at the segment start), runs to the step target over
++        // the distance REMAINING to the speed step, skips steps behind the
++        // vessel, uses a mode-aware decel floor, and hysteresis-suppresses
++        // the soft flag while the route revision is unchanged. A stationary
++        // vessel can no longer fire decel_distance_tight on a fresh plan.
++        const double decel_floor = decel_floor_for(route);
+         for (size_t i = 0; i + 1 < points.size(); ++i) {
+-            const double v0 = requested_speed_at(route, i);
++            double v0 = requested_speed_at(route, i);
+             const double v1 = requested_speed_at(route, i + 1);
++            if (has_ship_state_ && std::isfinite(latest_ship_state_.speed_mps) &&
++                latest_ship_state_.speed_mps >= 0.0) {
++                v0 = latest_ship_state_.speed_mps;  // 0.0 (stationary) counts
++            }
+             if (v0 <= v1) {
+                 continue;
+             }
+-            const double required_decel = (v0 * v0 - v1 * v1) / (2.0 * max_decel_mps2_);
+-            const double available = distance(points[i], points[i + 1]);
++            if (ship_passed_vertex(route, points, i + 1)) {
++                continue;  // the speed step is behind the vessel
++            }
++            const double remaining = remaining_distance_to_vertex(route, points, i + 1);
++            const double required_decel = (v0 * v0 - v1 * v1) / (2.0 * decel_floor);
+             result.required_decel_distance_m =
+                 std::max(result.required_decel_distance_m, required_decel);
+             result.available_decel_distance_m =
+-                std::min(result.available_decel_distance_m, available);
+-            if (available + 1e-6 < required_decel) {
++                std::min(result.available_decel_distance_m, remaining);
++            if (remaining + 1e-6 < required_decel) {
+                 if (plan.require_exact_speed || !plan.allow_degraded_execution) {
+                     auto rejected = rejected_result("decel_distance_not_enough", "send_points_earlier");
+                     rejected.required_decel_distance_m = required_decel;
+-                    rejected.available_decel_distance_m = available;
++                    rejected.available_decel_distance_m = remaining;
+                     rejected.suggested_min_distance_m = required_decel;
+                     return rejected;
++                }
++                if (has_decel_flag_revision_ &&
++                    route.route_revision == last_decel_flag_revision_) {
++                    continue;  // hysteresis: this revision was already flagged
+                 }
+                 result.degraded = true;
+                 result.state = "EXECUTING_WITH_LIMIT";
+                 result.reason = "decel_distance_tight";
+                 result.suggested_action = "send_points_earlier";
++                last_decel_flag_revision_ = route.route_revision;
++                has_decel_flag_revision_ = true;
+             }
+         }
+ 
+
+// 更改: 新增 remaining_distance_to_vertex（投影剩余距离）与 decel_floor_for（mode-aware
+//   decel 下限，读 plan/route 的 navigation_mode 与 route_type）。
+// 预期效果: 预算随执行推进收敛；终端低速场景保持温和减速。
+// 验证方法: 探针 D 两个 required_decel_distance_m 数值。
+
+rn3@@ -1110,6 +1134,53 @@
+             return false;
+         }
+         return distance(ship, points[vertex + 1]) < distance(ship, points[vertex]);
++    }
++
++    // Colleague-proposal-s1 (P-C3): distance still to run before the speed
++    // step at `vertex`. The vessel is projected onto the incoming segment
++    // (ratio clamped to [0, 1]); with no ship state the full segment length
++    // is used, matching the original check.
++    double remaining_distance_to_vertex(
++        const ship_interfaces::msg::RoutePlan& route,
++        const std::vector<LocalPoint>& points,
++        size_t vertex) const
++    {
++        const double full = distance(points[vertex - 1], points[vertex]);
++        LocalPoint ship{0.0, 0.0};
++        if (!ship_local_point(route, ship) || vertex - 1 >= points.size()) {
++            return full;
++        }
++        const LocalPoint& start = points[vertex - 1];
++        const double dx = points[vertex].x - start.x;
++        const double dy = points[vertex].y - start.y;
++        const double length_sq = dx * dx + dy * dy;
++        double ratio = 0.0;
++        if (length_sq > 1e-9) {
++            ratio = std::clamp(
++                ((ship.x - start.x) * dx + (ship.y - start.y) * dy) / length_sq,
++                0.0, 1.0);
++        }
++        return (1.0 - ratio) * full;
++    }
++
++    // Colleague-proposal-s1 (P-C3): mode-aware decel floor. Terminal
++    // low-speed contexts (dp hold, berthing family) keep the configured
++    // max_decel_mps2; transit contexts (cruise/avoidance) may brake with at
++    // least 0.2 m/s^2. The max_decel_mps2 parameter itself is unchanged.
++    double decel_floor_for(const ship_interfaces::msg::RoutePlan& route) const
++    {
++        for (const std::string& mode : route.navigation_mode) {
++            const std::string normalized = normalize_mode(mode);
++            if (normalized == "dp_hold" || normalized == "dp" ||
++                normalized == "station_keeping" || normalized == "berthing" ||
++                normalized == "docking" || normalized == "berth_approach") {
++                return max_decel_mps2_;
++            }
++        }
++        if (normalize_mode(route.route_type) == "berthing") {
++            return max_decel_mps2_;
++        }
++        return std::max(max_decel_mps2_, 0.2);
+     }
+ 
+     static double distance(const LocalPoint& a, const LocalPoint& b)
+
+// 更改: 新增 hysteresis 成员 last_decel_flag_revision_ / has_decel_flag_revision_。
+// 预期效果: 同一 route revision 只 flag 一次。
+// 验证方法: 探针 C。
+
+rn4@@ -1373,6 +1444,10 @@
+     double emergency_max_yaw_rate_deg_s_{2.0};
+     double max_decel_mps2_{0.08};
+     double minimum_steerage_speed_{2.5};
++    // Colleague-proposal-s1 (P-C3): last route revision that raised the soft
++    // decel_distance_tight flag (hysteresis against re-flag storms).
++    uint32_t last_decel_flag_revision_{0};
++    bool has_decel_flag_revision_{false};
+     double default_avoidance_hold_s_{60.0};
+     double max_heading_path_error_deg_{20.0};
+     bool publish_nominal_status_{true};

@@ -421,6 +421,185 @@ _PC2_MANAGER_EDITS = (
     },
 )
 
+# P-C3 (register R14): decel-check executed-speed awareness.
+#
+# The decel loop compared a PLANNED-profile braking distance
+# (v0^2 - v1^2) / (2 * 0.08) against the FULL segment length: it fired while
+# the vessel was stationary (executed speed 0.0 still demanded 242 m inside a
+# 165 m segment; p6 vo-CS-E0 flat 0.3208 m/s command array, final SOG
+# 0.399 m/s vs 3.2 reference; R14). The proposal makes the check aware of
+# execution:
+#   - v0 is the EXECUTED speed (status GeoPosition speed_mps) when the manager
+#     has ship state, falling back to the requested speed at the segment
+#     start; a stationary vessel can no longer demand a braking distance,
+#   - the budget is measured over the distance REMAINING to the speed step
+#     (vessel projected onto the incoming segment, clamped), and steps behind
+#     the vessel are skipped (P-C2 passed-vertex heuristic),
+#   - the decel floor is mode-aware: dp_hold/berthing keep the configured
+#     max_decel_mps2 (0.08, param unchanged), cruise/avoidance transits brake
+#     with at least max(max_decel_mps2_, 0.2),
+#   - soft hysteresis: EXECUTING_WITH_LIMIT/decel_distance_tight is not
+#     re-flagged while the route revision is unchanged since the last flag
+#     (the hard reject path stays unconditional).
+# Depends on P-C2 (reuses ship_local_point / ship_passed_vertex).
+_PC3_MANAGER_EDITS = (
+    {
+        "anchor": '''    FeasibilityResult evaluate_avoidance_plan(
+        const original_gnc::messages::ship_interfaces::AvoidancePlan& plan,
+        const original_gnc::messages::ship_interfaces::RoutePlan& route) const
+''',
+        "replacement": '''    // Colleague-proposal-s1 (P-C3): no longer const — the decel check below
+    // latches the last flagged route revision for hysteresis.
+    FeasibilityResult evaluate_avoidance_plan(
+        const original_gnc::messages::ship_interfaces::AvoidancePlan& plan,
+        const original_gnc::messages::ship_interfaces::RoutePlan& route)
+''',
+    },
+    {
+        "anchor": '''        for (size_t i = 0; i + 1 < points.size(); ++i) {
+            const double v0 = requested_speed_at(route, i);
+            const double v1 = requested_speed_at(route, i + 1);
+            if (v0 <= v1) {
+                continue;
+            }
+            const double required_decel = (v0 * v0 - v1 * v1) / (2.0 * max_decel_mps2_);
+            const double available = distance(points[i], points[i + 1]);
+            result.required_decel_distance_m =
+                std::max(result.required_decel_distance_m, required_decel);
+            result.available_decel_distance_m =
+                std::min(result.available_decel_distance_m, available);
+            if (available + 1e-6 < required_decel) {
+                if (plan.require_exact_speed || !plan.allow_degraded_execution) {
+                    auto rejected = rejected_result("decel_distance_not_enough", "send_points_earlier");
+                    rejected.required_decel_distance_m = required_decel;
+                    rejected.available_decel_distance_m = available;
+                    rejected.suggested_min_distance_m = required_decel;
+                    return rejected;
+                }
+                result.degraded = true;
+                result.state = "EXECUTING_WITH_LIMIT";
+                result.reason = "decel_distance_tight";
+                result.suggested_action = "send_points_earlier";
+            }
+        }
+''',
+        "replacement": '''        // Colleague-proposal-s1 (P-C3) decel-check executed-speed awareness:
+        // the braking budget starts from the EXECUTED speed (status
+        // GeoPosition speed when the manager has ship state, else the
+        // requested speed at the segment start), runs to the step target over
+        // the distance REMAINING to the speed step, skips steps behind the
+        // vessel, uses a mode-aware decel floor, and hysteresis-suppresses
+        // the soft flag while the route revision is unchanged. A stationary
+        // vessel can no longer fire decel_distance_tight on a fresh plan.
+        const double decel_floor = decel_floor_for(route);
+        for (size_t i = 0; i + 1 < points.size(); ++i) {
+            double v0 = requested_speed_at(route, i);
+            const double v1 = requested_speed_at(route, i + 1);
+            if (has_ship_state_ && std::isfinite(latest_ship_state_.speed_mps) &&
+                latest_ship_state_.speed_mps >= 0.0) {
+                v0 = latest_ship_state_.speed_mps;  // 0.0 (stationary) counts
+            }
+            if (v0 <= v1) {
+                continue;
+            }
+            if (ship_passed_vertex(route, points, i + 1)) {
+                continue;  // the speed step is behind the vessel
+            }
+            const double remaining = remaining_distance_to_vertex(route, points, i + 1);
+            const double required_decel = (v0 * v0 - v1 * v1) / (2.0 * decel_floor);
+            result.required_decel_distance_m =
+                std::max(result.required_decel_distance_m, required_decel);
+            result.available_decel_distance_m =
+                std::min(result.available_decel_distance_m, remaining);
+            if (remaining + 1e-6 < required_decel) {
+                if (plan.require_exact_speed || !plan.allow_degraded_execution) {
+                    auto rejected = rejected_result("decel_distance_not_enough", "send_points_earlier");
+                    rejected.required_decel_distance_m = required_decel;
+                    rejected.available_decel_distance_m = remaining;
+                    rejected.suggested_min_distance_m = required_decel;
+                    return rejected;
+                }
+                if (has_decel_flag_revision_ &&
+                    route.route_revision == last_decel_flag_revision_) {
+                    continue;  // hysteresis: this revision was already flagged
+                }
+                result.degraded = true;
+                result.state = "EXECUTING_WITH_LIMIT";
+                result.reason = "decel_distance_tight";
+                result.suggested_action = "send_points_earlier";
+                last_decel_flag_revision_ = route.route_revision;
+                has_decel_flag_revision_ = true;
+            }
+        }
+''',
+    },
+    {
+        "anchor": '''        return distance(ship, points[vertex + 1]) < distance(ship, points[vertex]);
+    }
+''',
+        "replacement": '''        return distance(ship, points[vertex + 1]) < distance(ship, points[vertex]);
+    }
+
+    // Colleague-proposal-s1 (P-C3): distance still to run before the speed
+    // step at `vertex`. The vessel is projected onto the incoming segment
+    // (ratio clamped to [0, 1]); with no ship state the full segment length
+    // is used, matching the original check.
+    double remaining_distance_to_vertex(
+        const original_gnc::messages::ship_interfaces::RoutePlan& route,
+        const std::vector<LocalPoint>& points,
+        size_t vertex) const
+    {
+        const double full = distance(points[vertex - 1], points[vertex]);
+        LocalPoint ship{0.0, 0.0};
+        if (!ship_local_point(route, ship) || vertex - 1 >= points.size()) {
+            return full;
+        }
+        const LocalPoint& start = points[vertex - 1];
+        const double dx = points[vertex].x - start.x;
+        const double dy = points[vertex].y - start.y;
+        const double length_sq = dx * dx + dy * dy;
+        double ratio = 0.0;
+        if (length_sq > 1e-9) {
+            ratio = std::clamp(
+                ((ship.x - start.x) * dx + (ship.y - start.y) * dy) / length_sq,
+                0.0, 1.0);
+        }
+        return (1.0 - ratio) * full;
+    }
+
+    // Colleague-proposal-s1 (P-C3): mode-aware decel floor. Terminal
+    // low-speed contexts (dp hold, berthing family) keep the configured
+    // max_decel_mps2; transit contexts (cruise/avoidance) may brake with at
+    // least 0.2 m/s^2. The max_decel_mps2 parameter itself is unchanged.
+    double decel_floor_for(const original_gnc::messages::ship_interfaces::RoutePlan& route) const
+    {
+        for (const std::string& mode : route.navigation_mode) {
+            const std::string normalized = normalize_mode(mode);
+            if (normalized == "dp_hold" || normalized == "dp" ||
+                normalized == "station_keeping" || normalized == "berthing" ||
+                normalized == "docking" || normalized == "berth_approach") {
+                return max_decel_mps2_;
+            }
+        }
+        if (normalize_mode(route.route_type) == "berthing") {
+            return max_decel_mps2_;
+        }
+        return std::max(max_decel_mps2_, 0.2);
+    }
+''',
+    },
+    {
+        "anchor": '''    double minimum_steerage_speed_{2.5};
+''',
+        "replacement": '''    double minimum_steerage_speed_{2.5};
+    // Colleague-proposal-s1 (P-C3): last route revision that raised the soft
+    // decel_distance_tight flag (hysteresis against re-flag storms).
+    uint32_t last_decel_flag_revision_{0};
+    bool has_decel_flag_revision_{false};
+''',
+    },
+)
+
 PROPOSALS = {
     "P-C1": {
         "id": "P-C1",
@@ -448,6 +627,19 @@ PROPOSALS = {
             "active_route_manager_node.cpp": {
                 "source_relative_path": "src/gnc/ship_guidance/src/active_route_manager_node.cpp",
                 "edits": _PC2_MANAGER_EDITS,
+            },
+        },
+    },
+    "P-C3": {
+        "id": "P-C3",
+        "title": "decel-check executed-speed awareness",
+        "register": "R14",
+        "branch": "codex/colleague-proposal-s1",
+        "depends_on": ["P-C2"],
+        "files": {
+            "active_route_manager_node.cpp": {
+                "source_relative_path": "src/gnc/ship_guidance/src/active_route_manager_node.cpp",
+                "edits": _PC3_MANAGER_EDITS,
             },
         },
     },
