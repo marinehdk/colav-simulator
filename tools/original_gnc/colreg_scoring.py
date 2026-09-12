@@ -372,9 +372,7 @@ def command_course_signal(ownship: Track, events: list[dict]) -> np.ndarray | No
     seeded with the route reference before the first solve.
     """
     reference = ownship.course_ref_rad
-    if reference is not None and float(np.max(reference) - np.min(reference)) > 1.0e-9:
-        return reference
-    commands: list[tuple[float, float]] = []
+    planner_commands: list[tuple[float, float]] = []
     for event in events:
         if event.get("type") != "planner_solved":
             continue
@@ -383,7 +381,18 @@ def command_course_signal(ownship: Track, events: list[dict]) -> np.ndarray | No
         selected = (planner or {}).get("selected_command") or {}
         course = selected.get("course_rad")
         if course is not None:
-            commands.append((float(event.get("sim_time", 0.0)), float(course)))
+            planner_commands.append((float(event.get("sim_time", 0.0)), float(course)))
+    if planner_commands:
+        # A command stream from the planner always wins: the applied reference
+        # can carry the initial route-alignment ramp (vo) while the planner
+        # command is already the avoidance course from its first solve, so a
+        # reference-varying shortcut would score the alignment as an
+        # alteration (p6c artifact).
+        commands = planner_commands
+    elif reference is not None and float(np.max(reference) - np.min(reference)) > 1.0e-9:
+        return reference
+    else:
+        commands = []
     if not commands:
         return reference if reference is not None else ownship.psi_rad
     commands.sort()
@@ -407,7 +416,6 @@ def first_alteration(
     thresholds: ScoringThresholds,
     signal: np.ndarray | None = None,
     baseline_mode: str = "post_detect",
-    baseline_signal: np.ndarray | None = None,
 ) -> dict:
     """First sustained course alteration after detection.
 
@@ -415,20 +423,36 @@ def first_alteration(
     course held before the encounter): an avoidance command issued at detection
     time must be visible. When the planner answers detection from its first
     solve (vo emits the avoidance command at t=0), the command stream is
-    already post-step inside the baseline window, so the baseline falls back to
-    the route reference (``baseline_signal``). v1 (and the fallback when no
-    command signal exists) reads psi/heading with the post-detection window.
+    already post-step inside the baseline window, so the baseline window reads the pre-encounter
+    heading (psi). v1 reads psi/heading with the post-detection window.
     """
     if signal is None:
         signal = ownship.psi_rad
     n = len(ownship.times_s)
     baseline_span = max(1, int(round(thresholds.alteration_baseline_s / _median_dt(ownship))))
     if baseline_mode == "pre_detect":
+        # The alteration is measured from the ship's HEADING before the
+        # encounter: Rules 14/15 direction is relative to the course the ship
+        # was keeping (an initial route alignment from psi 0 to the route
+        # heading is starboard by that measure, not a port maneuver). The
+        # command signal still drives change detection (R11 #1), but the
+        # baseline window reads the pre-encounter heading — psi when the
+        # command channel has no pre-detection history (vo answers detection
+        # from its first solve), the command channel itself otherwise (the
+        # command was already steady, so wobble filtering still applies).
         baseline_hi = index_detect
         baseline_lo = max(0, index_detect - baseline_span)
         if baseline_hi <= baseline_lo:
             baseline_hi = min(n, baseline_lo + 1)
-        window = (baseline_signal if baseline_signal is not None else signal)[baseline_lo:baseline_hi]
+        # v2 measures against the pre-encounter HEADING (psi): Rules 14/15
+        # direction is relative to the course the ship was keeping, and an
+        # initial route alignment is starboard by that measure. The command
+        # signal still drives change detection (R11 #1) — only the baseline
+        # reads psi, so reference ramps and command latching cannot fabricate
+        # or hide an alteration (p6c artifact).
+        window = ownship.psi_rad[baseline_lo:baseline_hi]
+        if len(window) == 0:
+            window = ownship.psi_rad[:1]
     else:
         baseline_lo = index_detect
         baseline_hi = min(n, index_detect + baseline_span)
@@ -639,14 +663,12 @@ def score_encounter(
     is_v2 = scorer_version == SCORER_V2
     command_signal = alteration_signal if is_v2 else None
     baseline_mode = "pre_detect" if is_v2 else "post_detect"
-    baseline_signal = ownship.course_ref_rad if is_v2 else None
     alteration = first_alteration(
         ownship,
         index_detect,
         thresholds,
         signal=command_signal,
         baseline_mode=baseline_mode,
-        baseline_signal=baseline_signal,
     )
     attribution_note = _charge_alteration(alteration, scorer_version, timeline, target, single_target)
     magnitude_index_end = min(

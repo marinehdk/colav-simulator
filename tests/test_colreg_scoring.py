@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
 from tools.original_gnc.colreg_scoring import (
     CROSSING_GIVE_WAY,
@@ -747,3 +748,39 @@ def test_vo_style_pinned_reference_with_immediate_command_scores_starboard():
     record = result["encounters"][0]
     assert record.first_alteration_direction == "starboard"
     assert record.verdict == "COMPLIANT"
+
+
+
+def test_first_alteration_at_series_start_uses_first_command_as_baseline() -> None:
+    """Detection at t=0.5 with no command history must not score alignment.
+
+    p6c: vo-crossing_give_way cells emit the (starboard) avoidance command from
+    the first solve while the applied reference still carries the route ramp,
+    so the pre-detection command window was a single route-reference sample and
+    the initial route alignment read as a 104 deg port alteration. With no
+    pre-detection command history the baseline must fall back to the first
+    commanded value instead of the route reference.
+    """
+    command = np.array([0.8836 if t == 0.0 else 0.1963 for t in np.arange(0.0, 3.5, DT)])
+    track = _commanded(
+        (0.0, 0.0),
+        3.0,
+        lambda _t: 7.0,
+        lambda _t: 0.0,
+        course_ref_fn=lambda t: 0.8836 if t == 0.0 else 0.1963,
+    )
+
+    result = first_alteration(
+        track,
+        index_detect=1,
+        thresholds=ScoringThresholds(),
+        signal=command,
+        baseline_mode="pre_detect",
+    )
+
+    # Relative to the pre-encounter heading (psi 0), the starboard command is
+    # a starboard alteration — NOT the 104 deg port artifact the route-referenced
+    # baseline produced.
+    assert result["sustained"] is True
+    assert result["direction"] == "starboard"
+    assert result["baseline_rad"] == pytest.approx(0.0, abs=1e-6)
