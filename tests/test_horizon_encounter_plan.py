@@ -1,4 +1,5 @@
 import math
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -143,6 +144,54 @@ def test_response_lag_stages_recovery_on_the_executed_turn_back_envelope() -> No
     assert lagged.target_windows[0].recovery_from_k == lagged.recovery_from_k
 
 
+def test_recovery_release_waits_for_the_avoidance_course_cpa() -> None:
+    """RECOVER must not stage before the closest approach of the avoidance
+    course itself.
+
+    Regression from crossing_give_way-E4 at 39.0 s (p5): the qualified lag
+    envelope drifts off the corridor gently, so the turn-back path's own
+    closest approach lay knots ahead of the CPA of the corridor course the
+    executed candidate keeps flying until release (staged RECOVER at knot 18
+    against a corridor CPA at knot 20); the L4 suffix measured from the
+    executed CPA then found no measurable mission-course return. The staged
+    release knot must respect the later of both closest approaches plus the
+    execution guard.
+    """
+    request = _crossing_give_way_request()
+
+    plan = compile_horizon_encounter_plan(request)
+
+    target = request.targets[0].prediction
+    corridor_bearing = request.avoidance_corridor_bearing_rad
+    press_north = request.own_speed_mps * math.cos(corridor_bearing) * request.times_s
+    press_east = request.own_speed_mps * math.sin(corridor_bearing) * request.times_s
+    press_distance = np.hypot(target.north_m - press_north, target.east_m - press_east)
+    corridor_cpa_k = int(np.argmin(press_distance))
+    guard = max(1, math.ceil(15.0 / 5.0)) + 1
+
+    assert plan.recovery_from_k is not None
+    assert plan.recovery_from_k >= corridor_cpa_k + guard
+
+
+def test_scheduled_release_waits_for_the_per_target_corridor_cpa() -> None:
+    intent = replace(_crossing_give_way_intent(), corridor_bearing_rad=-0.23384220361258054, action_start_s=10.0)
+    request = _crossing_give_way_request(intent)
+
+    plan = compile_horizon_encounter_plan(request)
+
+    target = request.targets[0].prediction
+    corridor_bearing = intent.corridor_bearing_rad
+    press_north = request.own_speed_mps * math.cos(corridor_bearing) * request.times_s
+    press_east = request.own_speed_mps * math.sin(corridor_bearing) * request.times_s
+    press_distance = np.hypot(target.north_m - press_north, target.east_m - press_east)
+    corridor_cpa_k = int(np.argmin(press_distance))
+    guard = max(1, math.ceil(15.0 / 5.0)) + 1
+
+    window = plan.target_windows[0]
+    assert window.recovery_from_k is not None
+    assert window.recovery_from_k >= corridor_cpa_k + guard
+
+
 def test_unset_course_time_constant_keeps_legacy_rate_only_staging() -> None:
     intent = _head_on_intent()
 
@@ -240,4 +289,46 @@ def _head_on_intent(
             east_m=np.zeros_like(times),
             position_uncertainty_m=np.zeros_like(times),
         ),
+    )
+
+
+def _crossing_give_way_intent() -> HorizonTargetIntent:
+    """Southbound crossing target relative to own at the p5 crossing_give_way-E4
+    failure (sim_time 39.0 s), in own-centred mission frame."""
+    times = np.arange(81, dtype=float) * 5.0
+    key = TrackKey(1, 1)
+    return HorizonTargetIntent(
+        key=key,
+        required_course_change_rad=0.0,
+        recovery_clearance_m=176.8468391075723,
+        action_achieved=True,
+        route_recovery_allowed=False,
+        prediction=TargetPrediction(
+            key=key,
+            reference_time_s=39.0,
+            velocity_ne_mps=(4.286263797015736e-16, -7.0),
+            times_s=times,
+            north_m=830.29006032801 + 4.286263797015736e-16 * times,
+            east_m=719.96755552699 - 7.0 * times,
+            position_uncertainty_m=np.zeros_like(times),
+        ),
+    )
+
+
+def _crossing_give_way_request(intent: HorizonTargetIntent | None = None) -> HorizonEncounterPlanRequest:
+    """Own state, route, and avoidance corridor from the p5 crossing_give_way-E4
+    failure cycle (qualified first-order lag, rot from the capability gate)."""
+    return HorizonEncounterPlanRequest(
+        reference_time_s=39.0,
+        times_s=np.arange(81, dtype=float) * 5.0,
+        own_position_ne_m=(0.0, 0.0),
+        mission_route_anchor_ne_m=(0.0, -7.03244447301),
+        own_heading_rad=1.3864622469419678,
+        own_speed_mps=7.0,
+        mission_route_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=0.23384220361258054,
+        rot_max_rad_s=0.020943951023931952,
+        heading_window_rad=0.7853981633974483,
+        course_time_constant_s=86.7839162612874,
+        targets=(intent if intent is not None else _crossing_give_way_intent(),),
     )

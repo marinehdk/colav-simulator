@@ -213,6 +213,12 @@ def compile_horizon_encounter_plan(request: HorizonEncounterPlanRequest) -> Hori
             recovery_paths,
             own_position_ne_m=request.own_position_ne_m,
             action_step_rad=request.rot_max_rad_s * dt_s,
+            corridor_press_distance_m=_corridor_press_distance_m(
+                target,
+                own_position_ne_m=request.own_position_ne_m,
+                own_speed_mps=request.own_speed_mps,
+                corridor_bearing_rad=request.avoidance_corridor_bearing_rad,
+            ),
         )
         for target in request.targets
     )
@@ -251,7 +257,16 @@ def _compile_scheduled_plan(request: HorizonEncounterPlanRequest) -> HorizonEnco
             course_time_constant_s=request.course_time_constant_s,
         )
         window = _target_window(
-            target, paths, own_position_ne_m=request.own_position_ne_m, action_step_rad=request.rot_max_rad_s * dt
+            target,
+            paths,
+            own_position_ne_m=request.own_position_ne_m,
+            action_step_rad=request.rot_max_rad_s * dt,
+            corridor_press_distance_m=_corridor_press_distance_m(
+                target,
+                own_position_ne_m=request.own_position_ne_m,
+                own_speed_mps=request.own_speed_mps,
+                corridor_bearing_rad=corridor,
+            ),
         )
         complete = start + (
             0 if target.action_achieved else math.ceil(target.required_course_change_rad / (request.rot_max_rad_s * dt))
@@ -330,6 +345,7 @@ def _target_window(
     *,
     own_position_ne_m: tuple[float, float],
     action_step_rad: float,
+    corridor_press_distance_m: np.ndarray | None = None,
 ) -> TargetHorizonWindow:
     target_positions = np.column_stack((target.prediction.north_m, target.prediction.east_m))
     action_complete_k = 0 if target.action_achieved else math.ceil(target.required_course_change_rad / action_step_rad)
@@ -360,6 +376,15 @@ def _target_window(
     for recovery_k in range(action_complete_k, recovery_paths.shape[0]):
         if not target.route_recovery_allowed:
             route_cpa_k = int(np.argmin(node_distance_m[recovery_k]))
+            if corridor_press_distance_m is not None:
+                # The response-lagged envelope drifts off the corridor gently,
+                # so its own closest approach can lie knots ahead of the CPA of
+                # the avoidance course the executed candidate keeps flying
+                # until release (crossing_give_way-E4 staged RECOVER at knot 18
+                # against a corridor CPA at knot 20, and the L4 suffix measured
+                # from the executed CPA found no measurable return). Release
+                # must wait for the later of both closest approaches.
+                route_cpa_k = max(route_cpa_k, int(np.argmin(corridor_press_distance_m)))
             # Preserve 15 seconds plus one synchronization interval after nominal
             # CPA so reduced-order tracking cannot release before actual CPA.
             # A lifecycle recovery clearance already carries that guarantee
@@ -380,6 +405,26 @@ def _target_window(
         recovery_clearance_m=target.recovery_clearance_m,
         minimum_predicted_route_dcpa_m=float(np.min(node_distance_m)),
     )
+
+
+def _corridor_press_distance_m(
+    target: HorizonTargetIntent,
+    *,
+    own_position_ne_m: tuple[float, float],
+    own_speed_mps: float,
+    corridor_bearing_rad: float,
+) -> np.ndarray:
+    """Distance from the target prediction to the straight avoidance-course line.
+
+    The corridor course the executed candidate keeps flying until the staged
+    release (the NLP reference holds the corridor through the avoidance phases)
+    approaches the target later than the response-lagged turn-back envelope
+    drifting home; the release guard takes the later of both closest approaches.
+    """
+    times_s = target.prediction.times_s
+    press_north_m = own_position_ne_m[0] + own_speed_mps * math.cos(corridor_bearing_rad) * times_s
+    press_east_m = own_position_ne_m[1] + own_speed_mps * math.sin(corridor_bearing_rad) * times_s
+    return np.hypot(target.prediction.north_m - press_north_m, target.prediction.east_m - press_east_m)
 
 
 def _recovery_paths(
