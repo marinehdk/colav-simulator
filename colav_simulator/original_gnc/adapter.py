@@ -219,7 +219,7 @@ class OriginalGncShipAdapter(IShip):
                 os_course_time_constant_s=self._response_approximation["course"]["time_constant_s"],
                 os_speed_time_constant_s=self._response_approximation["speed"]["time_constant_s"],
                 os_max_turn_rate_radps=self.max_turn_rate,
-                os_avoidance_speed_cap_mps=self.planner_avoidance_speed_cap,
+                os_avoidance_speed_cap_mps=self.avoidance_speed_cap,
                 os_min_steerage_speed_mps=self.min_steerage_speed,
                 os_max_speed_mps=self.max_speed,
                 dt=dt,
@@ -441,26 +441,6 @@ class OriginalGncShipAdapter(IShip):
     def avoidance_speed_cap(self) -> float:
         """Frozen guidance surge cap on avoidance-tagged legs (ship_guidance_node.cpp ~5970)."""
         return float(self._parameters["ship_guidance_node"]["emergency_avoidance_speed_cap_mps"]["value"])
-
-    @property
-    def planner_avoidance_speed_cap(self) -> float:
-        """Executable avoidance-leg speed bound for the planner envelope.
-
-        The baseline policy caps every avoidance-tagged leg at 3.2 m/s, so the
-        planner's reachable envelope must not exceed the cap. With the P-C1
-        proposal build, plain avoidance legs execute at the requested speed and
-        only emergency_avoidance stays capped — an envelope frozen at the cap
-        starves the velocity grid once execution is uncapped (p7 vo-OT-E0
-        planner INFEASIBLE). The envelope therefore follows the policy of the
-        loaded build, read from its colleague-proposal manifest.
-        """
-        proposals = [
-            item.get("id") if isinstance(item, dict) else item
-            for item in ((self._build_identity or {}).get("colleague_proposal") or {}).get("proposals") or []
-        ]
-        if "P-C1" in proposals:
-            return self.max_speed
-        return self.avoidance_speed_cap
 
     @property
     def min_steerage_speed(self) -> float:
