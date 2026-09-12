@@ -59,7 +59,7 @@ CAPTURE_BUDGET_ENV = "COLAV_REPLAY_CAPTURE_BUDGET_BYTES"
 _log = logging.getLogger(__name__)
 
 
-def replay_capture_budget_policy() -> "TraceSinkPolicy":
+def replay_capture_budget_policy() -> TraceSinkPolicy:
     """Per-Run capture byte budget; exceeding it is a typed INCOMPLETE reason.
 
     The TraceSinkPolicy import is deliberately function-local: gui_server.replay
