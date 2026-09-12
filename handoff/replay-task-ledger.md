@@ -23,8 +23,14 @@
 #72 DISPATCHED 2026-09-12 (implementer worktree replay-72, branch agent/replay-72-clock, from 994720ec; dispatch channel recovered)
 #73 INTEGRATED+CLOSED 2026-09-12 — merge cdcd87c3 (event categories + timeline + Prev/Next), orchestrator-implemented+verified
 #74 INTEGRATED+CLOSED 2026-09-12 — merge 0984f4da (IA views + evidence endpoint + HAIS capture + Open Replay + Simulation Rate), orchestrator-implemented+verified
-#75 ACCEPTANCE IN PROGRESS 2026-09-12 (orchestrator-executed; subagent channel down all session)
-    Lane B: real Mid-MPC run rule13/overtaking/mid_mpc_ipopt/god via product API on :8022, session e5f68ad4, one execution
+#75 INTEGRATED+CLOSED 2026-09-13 — ACCEPT (orchestrator-executed all lanes)
+    Lane B: real Mid-MPC run e5f68ad4 (rule13/overtaking/god) executed ONCE → FINISHED@910.5s → READY FULL 1821 ticks
+    direct seeks 13-14ms; 20 random seeks median 7.9ms/P95 9.6 (after measured cap fix 256→512MiB, was 642ms);
+    solver counter 74→74; CLI rc=0; report docs/research/2026-09-13-sealed-run-replay-acceptance.md @ 8280645e
+    Lane D: full pytest 1883/33/33 — 32 pre-existing + 1 replay probe regression (caught+fixed e0e87961)
+    Lane C residual: HAIS live shared-player run not executed in-cycle (precise reason in report §6)
+#69 CLOSED 2026-09-13 — parent spec complete
+REMAINING: implementation PR feature/sealed-run-replay -> main (deferred per D2 until GNC track releases marine/main); PR #76 (spec) same deferral
 ```
 
 ## Orchestrator decisions (2026-09-11 review)
