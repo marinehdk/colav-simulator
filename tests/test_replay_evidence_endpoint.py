@@ -14,8 +14,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from gui_server.replay import RunReplayStore, build_replay_router
 from test_replay_window import RUN_REDUCED, RUN_WINDOW, api_client, make_window_run, runs_root  # noqa: F401
+
+from gui_server.replay import RunReplayStore, build_replay_router
 
 
 def _make_legacy_run_with_result(root: Path, name: str) -> Path:
