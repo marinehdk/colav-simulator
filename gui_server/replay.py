@@ -32,7 +32,6 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA, TraceBundle
-from colav_simulator.decision_replay.sink import TraceSinkPolicy
 from gui_server.canonical_threat import canonical_threat_projection
 
 DESCRIPTOR_SCHEMA = "colav.run-replay.descriptor@1"
@@ -60,8 +59,16 @@ CAPTURE_BUDGET_ENV = "COLAV_REPLAY_CAPTURE_BUDGET_BYTES"
 _log = logging.getLogger(__name__)
 
 
-def replay_capture_budget_policy() -> TraceSinkPolicy:
-    """Per-Run capture byte budget; exceeding it is a typed INCOMPLETE reason."""
+def replay_capture_budget_policy() -> "TraceSinkPolicy":
+    """Per-Run capture byte budget; exceeding it is a typed INCOMPLETE reason.
+
+    The TraceSinkPolicy import is deliberately function-local: gui_server.replay
+    is the SEALED READ PATH and must stay free of anything that transitively
+    imports simulator/planner runtime (sink -> experiment.contracts ->
+    core.colav). Only the capture (write) side calls this (#75 probe-tested).
+    """
+    from colav_simulator.decision_replay.sink import TraceSinkPolicy  # noqa: PLC0415
+
     max_bytes = DEFAULT_CAPTURE_BUDGET_BYTES
     raw = os.environ.get(CAPTURE_BUDGET_ENV, "").strip()
     if raw:
