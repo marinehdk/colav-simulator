@@ -57,6 +57,20 @@ function frame(sequence, simTime) {
   };
 }
 
+
+const EVENTS = {
+  schema_version: 'colav.run-replay.events@1',
+  run_id: RUN_ID,
+  count: 3,
+  truncated: false,
+  categories: ['RUNTIME', 'RISK_LIFECYCLE', 'SAFETY_FAILURE'],
+  events: [
+    { sequence: 1, type: 'session_started', sim_time: 0.1, details: {}, category: 'RUNTIME' },
+    { sequence: 2, type: 'threat_schedule_update', sim_time: 5.0, details: { target_id: 1 }, category: 'RISK_LIFECYCLE' },
+    { sequence: 3, type: 'collision', sim_time: 39.0, details: {}, category: 'SAFETY_FAILURE' },
+  ],
+};
+
 function windowDoc(fromS, toS) {
   const frames = [];
   for (let time = fromS; time <= toS + 1e-9; time += 0.5) {
@@ -86,6 +100,7 @@ class FakeElement {
   append(...children) { this.children.push(...children); }
   replaceChildren(...children) { this.children = children; }
   setAttribute(name, value) { this.attributes[name] = String(value); }
+  getAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null; }
   removeAttribute(name) { delete this.attributes[name]; }
   addEventListener(type, listener) { this.listeners[type] = listener; }
   click() { this.listeners.click?.({ stopPropagation() {} }); }
@@ -133,9 +148,10 @@ function makeFetchRef() {
       respond(body);
       await tick();
     },
-    async open(network, descriptorBody = DESCRIPTOR, contextBody = CONTEXT, firstWindow = windowDoc(0.1, 8.1)) {
+    async open(network, descriptorBody = DESCRIPTOR, contextBody = CONTEXT, firstWindow = windowDoc(0.1, 8.1), eventsBody = EVENTS) {
       await network.respondNext(descriptorBody);
       await network.respondNext(contextBody);
+      await network.respondNext(eventsBody);
       await network.respondNext(firstWindow);
     },
   };
@@ -207,13 +223,14 @@ test('open loads descriptor, context and initial window; reads are run-scoped GE
 
   const sessionCalls = network.calls.filter(call => /\/api\/sessions/.test(call.url));
   assert.deepEqual(sessionCalls, [], 'no Active Session endpoint is ever touched');
-  assert.deepEqual(network.calls.map(call => call.method), ['GET', 'GET', 'GET']);
+  assert.deepEqual(network.calls.map(call => call.method), ['GET', 'GET', 'GET', 'GET']);
   for (const call of network.calls) {
     assert.match(call.url, /^\/api\/runs\//);
   }
   assert.match(network.calls[0].url, /replay$/);
   assert.match(network.calls[1].url, /replay\/context$/);
-  assert.match(network.calls[2].url, /replay\/window\?from=0\.1&to=8\.1$/);
+  assert.match(network.calls[2].url, /replay\/events$/);
+  assert.match(network.calls[3].url, /replay\/window\?from=0\.1&to=8\.1$/);
   assert.equal(documentRef.getElementById('replaySealedBadge').textContent, 'SEALED · HISTORICAL');
   assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /REPLAY READY · FULL EVIDENCE/);
   const timeline = documentRef.getElementById('replayTimeline');
@@ -236,7 +253,7 @@ test('direct late seek lands on the recorded bracket without any intermediate ti
   await network.respondNext(windowDoc(38.1, 40.0));
   await seekPromise;
 
-  assert.equal(network.calls.length, 4, 'one window request for the late seek');
+  assert.equal(network.calls.length, 5, 'one window request for the late seek');
   assert.match(network.calls.at(-1).url, /replay\/window\?from=38&to=39$/);
   assert.equal(controller.state.playhead, 38.5);
   assert.equal(controller.state.sourceSequence, 381);
@@ -544,4 +561,135 @@ test('solver-execution evidence is untouched by replay reads (backend counter te
   assert.ok(html2.includes('replayPlayPauseBtn'), 'play/pause control present');
   const adapterSource2 = adapterSource;
   assert.doesNotMatch(adapterSource2, /api\/sessions/, 'replay source adapter never targets session endpoints');
+});
+
+/* ── #73: canonical event timeline, Prev/Next navigation, inspection focus ── */
+
+async function openWithEvents(parts, eventsBody = EVENTS) {
+  const openPromise = parts.controller.open(RUN_ID);
+  await parts.network.respondNext(DESCRIPTOR);
+  await parts.network.respondNext(CONTEXT);
+  await parts.network.respondNext(eventsBody);
+  await parts.network.respondNext(windowDoc(0.1, 8.1));
+  await openPromise;
+}
+
+function eventMarkers(documentRef) {
+  const strip = documentRef.getElementById('replayEventMarkers');
+  return strip ? strip.children.filter(child => child.className === 'replay-event-marker') : [];
+}
+
+test('timeline renders typed markers from recorded events at recorded times', async () => {
+  const parts = await makePlaybackController();
+  await openWithEvents(parts);
+  const { documentRef } = parts;
+
+  const markers = eventMarkers(documentRef);
+  assert.equal(markers.length, 3); // sparse events — no clustering at these times
+  // threat_schedule_update @ 5.0 s over trusted [0.1, 40.0] ≈ 12.28% → bucket 12.5%
+  const risk = markers[1];
+  assert.equal(risk.dataset.positionPct, '12.5');
+  assert.equal(risk.textContent, '▲'); // shape/text semantics, not color-only
+  assert.match(risk.getAttribute('aria-label'), /RISK_LIFECYCLE threat_schedule_update at 5\.0 s/);
+  const collision = markers[2];
+  assert.equal(collision.textContent, '✕');
+  assert.match(collision.getAttribute('aria-label'), /SAFETY_FAILURE collision at 39\.0 s/);
+});
+
+test('Previous/Next Event seeks the correct recorded event after manual seek and rate change', async () => {
+  const parts = await makePlaybackController();
+  await openWithEvents(parts);
+  const { controller, network, documentRef } = parts;
+
+  const seekPromise = controller.seek(6.0);
+  await drainWindowResponses(network, windowDoc(5.5, 6.5));
+  await seekPromise;
+
+  documentRef.getElementById('replayNextEventBtn').click();
+  await drainWindowResponses(network, windowDoc(38.5, 39.5));
+  assert.equal(controller.state.playhead, 39.0); // landed on the collision event
+  assert.equal(controller.state.selectedEventId, '3');
+
+  documentRef.getElementById('replayPrevEventBtn').click();
+  await drainWindowResponses(network, windowDoc(4.5, 5.5));
+  assert.equal(controller.state.playhead, 5.0);
+
+  controller.setRate(20); // rate change must not alter event navigation
+  documentRef.getElementById('replayPrevEventBtn').click();
+  await drainWindowResponses(network, windowDoc(0.0, 0.6));
+  assert.equal(controller.state.playhead, 0.1); // first event
+  documentRef.getElementById('replayPrevEventBtn').click();
+  await drainWindowResponses(network, windowDoc(0.0, 0.6));
+  assert.equal(controller.state.playhead, 0.1); // deterministic boundary: stays, no wraparound
+
+  const lastSeek = controller.seek(39.0);
+  await drainWindowResponses(network, windowDoc(38.5, 39.5));
+  await lastSeek;
+  documentRef.getElementById('replayNextEventBtn').click();
+  await drainWindowResponses(network, windowDoc(38.5, 39.5));
+  assert.equal(controller.state.playhead, 39.0); // last event: stays
+  const sessionCalls = network.calls.filter(call => /\/api\/sessions/.test(call.url));
+  assert.equal(sessionCalls.length, 0);
+});
+
+test('event filtering is presentation-only; the complete journal stays unchanged', async () => {
+  const parts = await makePlaybackController();
+  await openWithEvents(parts);
+  const { controller, documentRef } = parts;
+
+  assert.equal(controller.state.eventCount, 3);
+  documentRef.getElementById('replayEventFilter').listeners.change({ target: { value: 'SAFETY_FAILURE' } });
+  assert.equal(controller.state.eventFilter, 'SAFETY_FAILURE');
+  assert.equal(controller.state.eventCount, 3); // journal untouched
+  const markers = eventMarkers(documentRef);
+  assert.equal(markers.length, 1);
+  assert.match(markers[0].getAttribute('aria-label'), /SAFETY_FAILURE/);
+});
+
+test('dense recorded events cluster visually; opening the cluster exposes every underlying event in order', async () => {
+  const dense = JSON.parse(JSON.stringify(EVENTS));
+  dense.events = [
+    { sequence: 1, type: 'threat_schedule_update', sim_time: 5.0, details: {}, category: 'RISK_LIFECYCLE' },
+    { sequence: 2, type: 'planner_solved', sim_time: 5.05, details: {}, category: 'PLANNER' },
+    { sequence: 3, type: 'collision', sim_time: 5.1, details: {}, category: 'SAFETY_FAILURE' },
+  ];
+  dense.categories = ['RISK_LIFECYCLE', 'PLANNER', 'SAFETY_FAILURE'];
+  const parts = await makePlaybackController();
+  await openWithEvents(parts, dense);
+  const { documentRef } = parts;
+
+  const markers = eventMarkers(documentRef);
+  assert.equal(markers.length, 1); // all within one 0.5% bucket
+  assert.equal(markers[0].dataset.cluster, '3');
+  assert.equal(markers[0].textContent, '≡');
+  markers[0].click();
+  const focus = documentRef.getElementById('replayEventFocus');
+  assert.equal(focus.children.length, 3);
+  assert.match(focus.children[0].textContent, /threat_schedule_update @ 5\.0 s/);
+  assert.match(focus.children[2].textContent, /collision @ 5\.1 s/); // recorded order preserved
+});
+
+test('zero recorded events renders an explicit empty state and navigation is a safe no-op', async () => {
+  const empty = { ...EVENTS, count: 0, truncated: false, categories: [], events: [] };
+  const parts = await makePlaybackController();
+  await openWithEvents(parts, empty);
+  const { controller, documentRef } = parts;
+
+  const strip = documentRef.getElementById('replayEventMarkers');
+  assert.equal(strip.textContent, 'NO RECORDED EVENTS');
+  assert.equal(eventMarkers(documentRef).length, 0);
+  documentRef.getElementById('replayNextEventBtn').click(); // no events → no-op, no crash
+  assert.equal(controller.state.playhead, 0.1);
+});
+
+test('event markers and navigation controls are keyboard-operable buttons', async () => {
+  const parts = await makePlaybackController();
+  await openWithEvents(parts);
+  const { documentRef } = parts;
+  for (const marker of eventMarkers(documentRef)) {
+    assert.equal(marker.type, 'button');
+    assert.ok(marker.getAttribute('aria-label'), 'marker needs an accessible name');
+  }
+  assert.match(html, /id="replayPrevEventBtn"[^>]*aria-label="Previous recorded event"/);
+  assert.match(html, /id="replayNextEventBtn"[^>]*aria-label="Next recorded event"/);
 });
