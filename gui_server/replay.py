@@ -118,10 +118,14 @@ EVENT_CATEGORIES = EventCategories()
 
 # Derived read cache (#71 measurement, Tech Design §5.3): decoded trace buffers
 # are derived, rebuildable, in-memory only, and never replace the v1 evidence.
-# Two cached Runs bound worst-case memory (~2x 256 MB decoded) for a local
-# single-inspector server while still covering the common compare workflow.
+# Two cached Runs bound worst-case memory for a local single-inspector
+# server. #75 measured the real full Mid-MPC trace (83 MB gz / ~344 MB raw):
+# a 256 MB cap DISABLED the buffer and pushed warm random seeks back to
+# ~640 ms median (full gzip re-decompression per seek), so the cap is sized
+# to hold the representative full trace (512 MB) — worst case 2x512 MB,
+# bounded and LRU-evicted, falling back to streaming beyond that.
 MAX_CACHED_BUNDLES = 2
-MAX_DECODED_TRACE_BYTES = 256 * 1024 * 1024
+MAX_DECODED_TRACE_BYTES = 512 * 1024 * 1024
 
 # The replay reader is project-root anchored exactly like the writer: the
 # runner resolves a relative ``RunSpec.output_root`` against the project root
