@@ -51,6 +51,10 @@ _DYNAMICS_INTEGRATION_MARGIN_M = 0.25
 # Anchored rows spanning [steerage, cap] so the avoidance window always holds
 # an executable, adequately resolved speed set on the shared grid.
 AVOIDANCE_WINDOW_ROWS = 7
+# Anchored transit rows between the avoidance cap and the mission reference speed,
+# geometrically denser toward cruise so post-encounter restoration resolves the
+# approach to the mission speed instead of falling to the coarse base lattice.
+AVOIDANCE_CRUISE_BAND_ROWS = 6
 
 
 @dataclass(frozen=True)
@@ -194,6 +198,14 @@ class VOParams:
     # chatter between near-equal candidates must not reach the route contract.
     envelope_selection_hysteresis: float = 0.25
 
+    # Deterministic give-way action-family policy (F6b). Standard give-way
+    # practice is to alter course to starboard while keeping way; a bare speed
+    # reduction is the fallback when no course alteration is admissible. Without
+    # a preference, near-equal candidate costs let environment noise flip the
+    # maneuver family between episodes (P4 vo-crossing E0 vs E4 COLREG anomaly).
+    give_way_course_family_preference: float = 0.1
+    give_way_course_family_min_rad: float = float(np.deg2rad(10.0))
+
     reconstruction_label: str = "kuwata_2011_behavior_compatible_reconstruction"
 
     def __post_init__(self) -> None:  # noqa: C901, PLR0912, PLR0915
@@ -244,6 +256,10 @@ class VOParams:
             raise ValueError("overtaking_rearm_distance_m must be non-negative")
         if not np.isfinite(self.envelope_selection_hysteresis) or self.envelope_selection_hysteresis < 0.0:
             raise ValueError("envelope_selection_hysteresis must be non-negative")
+        if not np.isfinite(self.give_way_course_family_preference) or self.give_way_course_family_preference < 0.0:
+            raise ValueError("give_way_course_family_preference must be non-negative")
+        if not np.isfinite(self.give_way_course_family_min_rad) or self.give_way_course_family_min_rad < 0.0:
+            raise ValueError("give_way_course_family_min_rad must be non-negative")
         vertices = np.asarray(self.velocity_uncertainty_vertices_mps, dtype=float)
         if vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) == 0:
             raise ValueError("velocity_uncertainty_vertices_mps must contain 2-D vertices")
@@ -355,6 +371,7 @@ class VO:
         self._crossing_commitment_frame_heading: float | None = None
         self._give_way_commitment_active = False
         self._give_way_commitment_rules: set[VOCOLREGSSituation] = set()
+        self._give_way_family_selected: str | None = None
         self._emergency_rule_relaxation = False
         self._stand_on_hold_active = False
         self._stand_on_emergency_active = False
@@ -371,6 +388,7 @@ class VO:
         self._course_reach_mask = np.zeros(shape[1:], dtype=bool)
         self._avoidance_speed_window_active = False
         self._previous_selection_index: tuple[int, int] | None = None
+        self._previous_selection_velocity: np.ndarray | None = None
         self._selection_held = False
 
     @property
@@ -425,6 +443,7 @@ class VO:
         self._crossing_commitment_frame_heading = None
         self._give_way_commitment_active = False
         self._give_way_commitment_rules.clear()
+        self._give_way_family_selected = None
         self._emergency_rule_relaxation = False
         self._stand_on_hold_active = False
         self._stand_on_emergency_active = False
@@ -437,6 +456,7 @@ class VO:
         self._horizon_s = self._params.t_max
         self._avoidance_speed_window_active = False
         self._previous_selection_index = None
+        self._previous_selection_velocity = None
         self._selection_held = False
         self._reset_grid()
 
@@ -494,6 +514,7 @@ class VO:
             raise ValueError("Ownship length and width must be positive")
         self._configure_envelope(
             psi_os,
+            reference_speed_mps=float(np.linalg.norm(v_ref)),
             course_time_constant_s=os_course_time_constant_s,
             speed_time_constant_s=os_speed_time_constant_s,
             max_turn_rate_radps=os_max_turn_rate_radps,
@@ -776,6 +797,7 @@ class VO:
         self,
         psi_os: float,
         *,
+        reference_speed_mps: float,
         course_time_constant_s: float | None,
         speed_time_constant_s: float | None,
         max_turn_rate_radps: float | None,
@@ -814,26 +836,47 @@ class VO:
             min_steerage_speed_mps=float(min_steerage_speed_mps),
         )
         self._horizon_s = self._envelope.horizon_s(self._params.t_max)
-        self._augment_speed_grid_with_avoidance_window()
+        self._augment_speed_grid_with_avoidance_window(float(reference_speed_mps))
         self._speed_window_mask = self._envelope.speed_window_mask(self._speed_set)[:, None]
         self._course_reach_mask = self._envelope.course_exclusion_mask(self._heading_set, psi_os, self._horizon_s)
         # Until the encounter gate runs, keep only the always-invalid cells.
         self._envelope_mask = (self._speed_set <= 0.0)[:, None] | self._course_reach_mask[None, :]
 
-    def _augment_speed_grid_with_avoidance_window(self) -> None:
-        """Anchor enough grid rows across [steerage, cap] to resolve the window.
+    def _augment_speed_grid_with_avoidance_window(self, reference_speed_mps: float) -> None:
+        """Anchor grid rows across the avoidance window and the cruise band.
 
         The published default grid (32 samples over the full speed range)
         quantizes the 0.2 m/s avoidance window down to a single executable
         sample, so every avoidance command collapses onto one near-minimum
-        speed. The anchored rows give the window search real resolution.
+        speed, and it leaves post-encounter transit to a 0.32 m/s lattice that
+        cannot represent the mission speed. The anchored rows give the window
+        search real resolution (>= AVOIDANCE_WINDOW_ROWS executable rows across
+        [steerage, cap]) and add transit rows between the cap and the mission
+        reference that tighten toward cruise, including the exact mission-speed
+        row. Anchored rows above the cap stay masked while an encounter owns
+        the solve, so this never widens the avoidance envelope.
         """
-        window_rows = np.linspace(
+        rows = np.linspace(
             self._envelope.min_steerage_speed_mps,
             self._envelope.avoidance_speed_cap_mps,
             AVOIDANCE_WINDOW_ROWS,
         )
-        merged = np.union1d(self._speed_set, window_rows)
+        # Quantize the cruise anchor so per-solve float dust in the reference
+        # speed cannot spawn near-duplicate rows (union1d dedupes exact values
+        # only). A 0.1 m/s quantum keeps the anchored mission-speed row within
+        # 0.05 m/s of the honest request and bounds grid growth.
+        cruise = float(
+            np.round(
+                np.clip(reference_speed_mps, self._envelope.avoidance_speed_cap_mps, self._params.speed_set_limits[1]),
+                1,
+            )
+        )
+        if cruise > self._envelope.avoidance_speed_cap_mps + 0.05:
+            span = cruise - self._envelope.avoidance_speed_cap_mps
+            # fractions 1/2, 3/4, 7/8, ...: spacing halves toward cruise
+            fractions = 1.0 - 0.5 ** np.arange(1, max(AVOIDANCE_CRUISE_BAND_ROWS - 1, 2))
+            rows = np.concatenate((rows, self._envelope.avoidance_speed_cap_mps + span * fractions, [cruise]))
+        merged = np.union1d(self._speed_set, rows)
         if merged.size == self._speed_set.size:
             return
         self._speed_set = merged
@@ -857,8 +900,12 @@ class VO:
             self._overtaking_active_target_id is not None
             and self._overtaking_states.get(self._overtaking_active_target_id) is OvertakingState.COMMITTED
         )
+        # _update_colregs_rules keeps the per-target key with an EMPTY set once its
+        # rules hysteresis-clear, so dict truthiness would latch the window for the
+        # whole episode (P5 vo-CS regression: 3.2 m/s crawl long after CPA). Gate on
+        # live rule evidence instead.
         encounter_active = bool(
-            self._active_rules
+            any(self._active_rules.values())
             or self._give_way_rule_locks
             or overtaking_committed
             or self._stand_on_hold_active
@@ -999,6 +1046,7 @@ class VO:
         self._violation_costs = np.zeros(shape)
         self._total_costs = np.full(shape, np.inf)
         self._previous_selection_index = None
+        self._previous_selection_velocity = None
 
     def _apply_give_way_rule_lock(
         self,
@@ -1686,9 +1734,22 @@ class VO:
             self._objective = None
             self._reference_velocity_error_mps = float(np.linalg.norm(v_ref))
             return self._selected_heading, self._selected_speed
+        family_index = None
         if (
+            self._give_way_commitment_active
+            and not self._overtaking_commitment_active
+            and not self._stand_on_hold_active
+        ):
+            family_index = self._give_way_family_selection(minimum, v_ref)
+        if family_index is not None:
+            # The family policy decides ahead of the hold: latching a previous
+            # speed-reduction selection would keep the maneuver family
+            # noise-dependent instead of deterministic.
+            flat_index = family_index
+            minimum = float(self._total_costs.flat[flat_index])
+        elif (
             self._envelope is not None
-            and self._previous_selection_index is not None
+            and self._previous_selection_velocity is not None
             and not self._stand_on_hold_active
         ):
             # Grid-quantization chatter between near-equal cells would publish a
@@ -1696,18 +1757,21 @@ class VO:
             # stays admissible and within the cost margin of the optimum. The
             # margin anchors to the velocity cost of one grid cell at the held
             # speed: a purely optimum-relative margin degenerates on nominal
-            # transit, where the optimum cost is near zero.
-            previous_cost = float(self._total_costs[self._previous_selection_index])
-            held_speed = float(self._speed_set[self._previous_selection_index[0]])
+            # transit, where the optimum cost is near zero. The held cell is
+            # re-resolved from the stored velocity because anchored grid rows
+            # shift speed indices between solves.
+            previous_index = self._nearest_velocity_index(self._previous_selection_velocity)
+            previous_cost = float(self._total_costs[previous_index])
+            held_speed = float(self._speed_set[previous_index[0]])
             cell_lateral = held_speed * 2.0 * np.pi / self._heading_set.size
             cell_speed = float(np.min(np.abs(np.diff(self._speed_set))))
             one_cell_cost = self._params.w_velocity * max(cell_lateral, cell_speed) ** 2
             margin = self._params.envelope_selection_hysteresis * (abs(minimum) + one_cell_cost) + 1e-9
             if np.isfinite(previous_cost) and previous_cost <= minimum + margin:
-                flat_index = int(np.ravel_multi_index(self._previous_selection_index, self._total_costs.shape))
+                flat_index = int(np.ravel_multi_index(previous_index, self._total_costs.shape))
                 minimum = previous_cost
                 self._selection_held = True
-        if self._give_way_commitment_active and not self._selection_held:
+        if family_index is None and self._give_way_commitment_active and not self._selection_held:
             tied = np.flatnonzero(np.isclose(self._total_costs, minimum, rtol=1e-9, atol=1e-9))
             if tied.size > 1:
                 headings = self._heading_set[np.unravel_index(tied, self._total_costs.shape)[1]]
@@ -1723,6 +1787,9 @@ class VO:
         self._selected_speed = float(self._speed_set[i_speed])
         self._objective = minimum
         self._previous_selection_index = (int(i_speed), int(i_heading))
+        self._previous_selection_velocity = self._selected_speed * np.array(
+            [np.cos(self._selected_heading), np.sin(self._selected_heading)]
+        )
         selected_velocity = self._selected_speed * np.array(
             [np.cos(self._selected_heading), np.sin(self._selected_heading)]
         )
@@ -1737,6 +1804,47 @@ class VO:
             np.argmin(abs(_wrap_angle_array(self._heading_set - heading)))
         )
         return speed_index, heading_index
+
+    def _give_way_family_selection(self, minimum: float, v_ref: np.ndarray) -> int | None:
+        """Deterministic give-way action-family preference (F6b policy).
+
+        Policy: prefer the course-alteration family whenever an admissible
+        course-altered candidate sits within the family preference margin of the
+        cost optimum; keep the speed-reduction fallback when no such candidate
+        exists. Course alteration while keeping way is the standard give-way
+        action, and fixing the family removes the episode-to-episode flip
+        between "slow down" and "turn" that near-equal candidate costs
+        otherwise leave to environment noise. The margin is relative to the
+        requested speed's velocity cost, so it scales with the scenario and
+        never overrides decisively safer candidates. Returns the flattened grid
+        index of the family selection, or None to keep the plain optimum.
+        """
+        reference_speed = float(np.linalg.norm(v_ref))
+        preference = self._params.give_way_course_family_preference
+        if reference_speed <= 1e-9 or preference <= 0.0:
+            return None
+        bias = preference * self._params.w_velocity * reference_speed**2
+        reference_heading = float(np.arctan2(v_ref[1], v_ref[0]))
+        course_altered = (
+            np.abs(_wrap_angle_array(self._heading_set - reference_heading))
+            >= self._params.give_way_course_family_min_rad
+        )
+        finite = np.isfinite(self._total_costs)
+        pool = finite & (self._total_costs <= minimum + bias) & course_altered[None, :]
+        candidates = np.flatnonzero(pool)
+        if candidates.size == 0:
+            return None
+        costs = self._total_costs.ravel()[candidates]
+        best = candidates[costs <= costs.min() + 1e-9]
+        i_speed, i_heading = np.unravel_index(best, self._total_costs.shape)
+        deltas = _wrap_angle_array(self._heading_set[i_heading] - self._selected_heading)
+        # Deterministic order: smallest course change from the current command,
+        # then the starboard side, then the lower speed row.
+        order = np.lexsort(
+            (self._speed_set[i_speed], np.where(deltas < 0.0, 0, 1), np.abs(deltas))
+        )
+        self._give_way_family_selected = "course"
+        return int(best[order[0]])
 
     def _precollision_check(
         self,
@@ -2067,6 +2175,7 @@ class VO:
             ),
             "selection_held": self._selection_held,
             "selected_speed_mps": self._selected_speed,
+            "give_way_family_selected": self._give_way_family_selected,
             "dynamic_hazard_count": self._dynamic_hazard_count,
             "static_hazard_count": self._static_hazard_count,
             "active_rules": active_rules,

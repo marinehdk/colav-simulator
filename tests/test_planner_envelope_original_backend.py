@@ -15,7 +15,12 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
     _sample_trajectory,
 )
 from colav_simulator.core.colav.custom_mpc_adapter import _wrap_angle as adapter_wrap
-from colav_simulator.core.colav.kuwata_vo_alg.kuwata_vo import VO, OwnshipEnvelope, VOParams
+from colav_simulator.core.colav.kuwata_vo_alg.kuwata_vo import (
+    VO,
+    OwnshipEnvelope,
+    VOParams,
+    _wrap_angle_array,
+)
 from colav_simulator.integrations.potocnik_colreg_mpc import (
     PotocnikColregFanMPC,
     PotocnikColregParams,
@@ -43,6 +48,15 @@ def original_envelope() -> OwnshipEnvelope:
 
 def head_on_target(range_m: float, *, target_id: int = 1) -> tuple:
     return (target_id, np.array([range_m, 0.0, -7.0, 0.0]), np.zeros((4, 4)), 45.0, 8.0)
+
+
+def tracked_target(x: float, y: float, vx: float, vy: float, *, target_id: int = 1) -> tuple:
+    return (target_id, np.array([x, y, vx, vy]), np.zeros((4, 4)), 45.0, 8.0)
+
+
+def cleared_target(*, target_id: int = 1) -> tuple:
+    """Abaft, diverging geometry: no COLREG geometry matches, CPA is in the past."""
+    return tracked_target(-600.0, -800.0, 2.0, -4.0, target_id=target_id)
 
 
 # --- VO envelope math -----------------------------------------------------------------
@@ -106,13 +120,13 @@ def test_envelope_bounds_selection_without_touching_hard_constraint_evidence() -
     debug = vo.get_debug_data()
 
     assert vo.feasible
-    assert debug["selected_speed_mps"] == pytest.approx(10.0 * 22 / 31)  # nearest grid row to the 7 m/s route speed
+    assert debug["selected_speed_mps"] == pytest.approx(7.0)  # anchored exact mission-speed row
     assert debug["hard_constraint_count"] == 0, "envelope exclusions must not read as avoidance constraints"
     assert debug["avoidance_speed_window_active"] is False
     assert debug["envelope_excluded_count"] == 10 * 128, (
         "zero-speed sentinel plus the 9 transit rows above the mission speed"
     )
-    assert debug["reachable_candidate_count"] == 29 * 128
+    assert debug["reachable_candidate_count"] == (vo._speed_set.size - 10) * 128
     assert debug["planning_horizon_s"] == pytest.approx(120.0 + ORIGINAL["os_course_time_constant_s"])
     assert debug["ownship_envelope"]["avoidance_speed_cap_mps"] == 3.2
 
@@ -155,7 +169,33 @@ def test_window_releases_and_transit_speed_restores_when_encounter_clears() -> N
     vo.plan(1.0, np.array([7.0, 0.0]), state, [], **ORIGINAL)
     debug = vo.get_debug_data()
     assert debug["avoidance_speed_window_active"] is False
-    assert debug["selected_speed_mps"] == pytest.approx(10.0 * 22 / 31)
+    assert debug["selected_speed_mps"] == pytest.approx(7.0)
+
+
+def test_window_releases_while_a_cleared_target_stays_tracked() -> None:
+    """P5 campaign regression: an empty per-target rule set must not gate the window.
+
+    After 2862e6ff the gate read dict truthiness, and _update_colregs_rules keeps
+    the target key with an EMPTY set once its rules hysteresis-clear, so the
+    [steerage, cap] window stayed active for the whole episode (vo-CS cells
+    crawled at the 3.2 m/s cap long after CPA and missed the goal radius).
+    """
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [head_on_target(14.0 * 160.0)], **ORIGINAL)
+    assert vo.get_debug_data()["avoidance_speed_window_active"] is True
+
+    for step in range(1, 6):
+        vo.plan(float(step), np.array([7.0, 0.0]), state, [cleared_target()], **ORIGINAL)
+    debug = vo.get_debug_data()
+
+    assert vo._active_rules.keys() == {1}, "target must stay tracked with its rules cleared"
+    assert not any(vo._active_rules.values())
+    assert debug["avoidance_speed_window_active"] is False, (
+        "cleared rule evidence must reopen the nominal transit band"
+    )
+    assert debug["selected_speed_mps"] > 5.0, "transit speed must restore past the avoidance cap"
 
 
 def test_transit_band_never_exceeds_the_mission_speed() -> None:
@@ -165,6 +205,78 @@ def test_transit_band_never_exceeds_the_mission_speed() -> None:
 
     vo.plan(0.0, np.array([5.0, 0.0]), state, [], **ORIGINAL)
     assert vo.get_debug_data()["selected_speed_mps"] <= 5.0 + 0.5 * (10.0 / 31) + 1e-9
+
+
+def test_cruise_rows_are_anchored_denser_near_the_mission_speed() -> None:
+    """F5a: the transit band must resolve the mission speed, not a 0.32 m/s lattice.
+
+    The coarse 32-sample grid forced post-encounter transit onto 7.097 m/s for a
+    7.0 m/s mission reference (or 2.903 m/s commands that guidance executes at
+    steerage). Anchored cruise rows give the selection an exact mission-speed row
+    and a band that tightens toward cruise.
+    """
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [], **ORIGINAL)
+
+    band = vo._speed_set[(vo._speed_set > ORIGINAL["os_avoidance_speed_cap_mps"] + 1e-9)]
+    base_step = 10.0 / 31
+    anchored = band[(band > 3.2 + 0.5 * base_step - 1e-9) & (band < 7.0 - 1e-9)]
+    assert anchored.size >= 3, "cruise band must carry anchored rows, not base-grid samples only"
+    assert vo._speed_set.max() >= 7.0
+    assert np.any(np.isclose(vo._speed_set, 7.0, atol=1e-9)), "exact mission-speed row must exist"
+    rows = np.sort(band[band <= 7.0 + 1e-9])
+    assert rows[-1] == pytest.approx(7.0)
+    assert np.min(np.diff(rows)) < 0.5 * base_step, "rows must tighten toward cruise"
+
+
+def test_transit_selection_lands_on_the_exact_mission_speed_row() -> None:
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [], **ORIGINAL)
+
+    assert vo.get_debug_data()["selected_speed_mps"] == pytest.approx(7.0)
+
+
+def test_give_way_prefers_the_course_alteration_family() -> None:
+    """F6b policy: an active give-way must resolve to the course-alteration family.
+
+    Crossing episodes flipped between "big speed reduction, near-nominal course"
+    and "starboard turn" across seed variants because near-equal candidate costs
+    fell to environment noise. Standard give-way practice is to alter course to
+    starboard while keeping way, so the selection must express that preference
+    deterministically whenever an admissible course-alteration candidate sits
+    within the family preference margin of the cost optimum.
+    """
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [head_on_target(14.0 * 160.0)], **ORIGINAL)
+    debug = vo.get_debug_data()
+
+    assert debug["avoidance_speed_window_active"] is True
+    assert debug["give_way_family_selected"] == "course"
+    heading_delta = abs(adapter_wrap(debug["selected_heading_rad"] - 0.0))
+    assert heading_delta >= vo._params.give_way_course_family_min_rad
+
+
+def test_give_way_keeps_speed_reduction_when_course_family_infeasible() -> None:
+    """F6b policy fallback: no admissible course alteration means keep-way slowdown."""
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [head_on_target(14.0 * 160.0)], **ORIGINAL)
+    vo._total_costs[
+        :, np.abs(_wrap_angle_array(vo._heading_set)) >= vo._params.give_way_course_family_min_rad
+    ] = np.inf
+
+    minimum = float(np.min(vo._total_costs))
+    assert vo._give_way_family_selection(minimum, np.array([7.0, 0.0])) is None
+    i_speed, _i_heading = np.unravel_index(int(np.argmin(vo._total_costs)), vo._total_costs.shape)
+
+    assert vo._speed_set[i_speed] <= 3.2 + 1e-9, "fallback must be a speed reduction below cruise"
 
 
 def test_planner_input_carries_backend_speed_envelope() -> None:
