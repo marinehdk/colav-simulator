@@ -1735,13 +1735,7 @@ class VO:
         # stand-on (CR_PS) or overtaken (OT_en) driving target, overtaking
         # commitment, and the in-extremis case below where no non-port cell
         # remains executable.
-        give_way_starboard_gate = (
-            self._give_way_commitment_active
-            and not self._overtaking_commitment_active
-            and not self._stand_on_hold_active
-            and VOCOLREGSSituation.CR_PS.name not in driving_rules
-            and VOCOLREGSSituation.OT_en.name not in driving_rules
-        )
+        give_way_starboard_gate = self._starboard_prior_active(driving_rules)
         if give_way_starboard_gate:
             reference_heading = float(np.arctan2(v_ref[1], v_ref[0]))
             port_alterations = (
@@ -1831,6 +1825,30 @@ class VO:
             np.argmin(abs(_wrap_angle_array(self._heading_set - heading)))
         )
         return speed_index, heading_index
+
+    def _starboard_prior_active(self, driving_rules: set[str]) -> bool:
+        """Whether substantial port candidates must be masked this solve.
+
+        Rules 14/15 both expect starboard alterations for targets ahead, so the
+        prior holds during give-way commitment AND over the one-tick
+        classification lag after a fresh detection (the first solve after
+        detection can still carry an empty rule set; without the prior a port
+        optimum slips through before CR_SS classification engages). Stand-on
+        holds, overtaking commitments and classified CR_PS/OT_en driving
+        contexts are exempt, and the in-extremis path in the caller keeps port
+        executable when no non-port cell remains.
+        """
+        unclassified_detections = any(
+            not (set(m.get("active_rules", ())) | set(m.get("effective_matched_rules", ())))
+            for m in self._track_metrics.values()
+        )
+        return (
+            (self._give_way_commitment_active or unclassified_detections)
+            and not self._overtaking_commitment_active
+            and not self._stand_on_hold_active
+            and VOCOLREGSSituation.CR_PS.name not in driving_rules
+            and VOCOLREGSSituation.OT_en.name not in driving_rules
+        )
 
     def _give_way_family_selection(self, minimum: float, v_ref: np.ndarray) -> int | None:
         """Deterministic give-way action-family and direction policy (F6b/F6c).

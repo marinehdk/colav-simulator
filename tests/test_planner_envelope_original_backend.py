@@ -331,16 +331,29 @@ def test_give_way_falls_back_to_speed_reduction_when_starboard_is_infeasible() -
 
 
 def test_port_alteration_stays_available_outside_give_way_commitment() -> None:
-    """Rule 17: outside give-way commitment the port semicircle stays selectable."""
+    """Rule 17: outside give-way commitment the port semicircle stays selectable.
+
+    The starboard prior covers only the one-tick classification lag after a
+    fresh detection; once the rule set settles (second solve), a classified
+    non-give-way context (overtaken, Rule 17) selects port freely again.
+    """
     vo = VO(VOParams())
     state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
     overtaken = tracked_target(-400.0, 100.0, 9.0, 0.0)
 
     vo.plan(0.0, np.array([7.0, 0.0]), state, [overtaken], **ORIGINAL)
+    first_tick = vo.get_debug_data()["selected_heading_rad"]
+    offsets = _wrap_angle_array(vo._heading_set)
+    first_i = int(np.argmin(np.abs(offsets - first_tick)))
+    assert offsets[first_i] > -vo._params.give_way_course_family_min_rad, (
+        "first tick after detection is governed by the starboard prior"
+    )
+
+    vo.plan(8.0, np.array([7.0, 0.0]), state, [tracked_target(-328.0, 99.84, 9.0, 0.0)], **ORIGINAL)
     debug = vo.get_debug_data()
 
     assert vo._give_way_commitment_active is False
-    port_finite = np.isfinite(vo._total_costs[:, _wrap_angle_array(vo._heading_set) < 0.0]).any()
+    port_finite = np.isfinite(vo._total_costs[:, offsets < 0.0]).any()
     assert port_finite, "port semicircle must stay admissible when not give-way"
     assert debug["selected_heading_rad"] < 0.0
 
@@ -585,3 +598,27 @@ def test_held_course_samples_are_bit_identical_to_the_solve_command() -> None:
     assert np.all(nominal[2] == nominal[2, 0])
     for elapsed_s in (0.5, 1.0, 2.5, 4.5, 7.5):
         assert float(_sample_trajectory(nominal, params.horizon_dt_s, elapsed_s)[2, 0]) == float(nominal[2, 0])
+
+
+def test_unclassified_fresh_detection_masks_port_until_rules_settle() -> None:
+    """Starboard prior covers the one-tick classification lag after detection.
+
+    p6b COLREG scoring: the first solve after detection (t=0.5 s) still had an
+    empty rule set, so the starboard gate was off for exactly that tick and a
+    120.9 deg port optimum slipped through before CR_SS classification held
+    it. Rules 14/15 both expect starboard for targets ahead, so a tracked but
+    unclassified target must mask port candidates until the rule set settles.
+    """
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+    target = crossing_give_way_target()
+
+    vo.plan(0.5, np.array([7.0, 0.0]), state, [target], **ORIGINAL)
+    heading = vo.get_debug_data()["selected_heading_rad"]
+
+    offsets = _wrap_angle_array(vo._heading_set)
+    i_heading = int(np.argmin(np.abs(offsets - heading)))
+    assert vo._track_metrics, "target must be tracked for the prior to engage"
+    assert offsets[i_heading] > -vo._params.give_way_course_family_min_rad, (
+        "unclassified fresh detection must not select a substantial port offset"
+    )
