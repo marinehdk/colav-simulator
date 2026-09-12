@@ -5,12 +5,21 @@ from __future__ import annotations
 import bisect
 import gzip
 import json
+import re
 from bisect import bisect_right
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 TRACE_SCHEMA = "colav.decision-replay.v1"
+
+# Derived read index (Technical Design §5.3, ticket #71): a rebuildable,
+# in-memory decoded buffer so frequent UI scrubbing does not re-decompress the
+# gzip from the start for every random frame seek. It is a cache only — the
+# v1 artifacts remain the sole evidence and every code path falls back to the
+# streaming reader when the buffer is unavailable or the trace is huge.
+MAX_DECODED_TRACE_BYTES = 256 * 1024 * 1024
+_SIM_TIME_PATTERN = re.compile(rb'"sim_time":\s*(-?[0-9][0-9.eE+-]*)')
 
 
 class TraceBundle:
@@ -31,6 +40,8 @@ class TraceBundle:
         self._times: list[float] = []
         self._scanned = False
         self._events_cache: list[dict[str, Any]] | None = None
+        self._decoded: bytes | None = None
+        self._decoded_unavailable = False
 
     @property
     def evidence_level(self) -> str:
@@ -52,8 +63,37 @@ class TraceBundle:
         path = self.trace_dir / "index.json"
         return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
+    def _decoded_bytes(self) -> bytes | None:
+        """One-shot decompression cache; None when unsupported (huge trace)."""
+        if self._decoded is not None or self._decoded_unavailable:
+            return self._decoded
+        if not self._frames_path.is_file():
+            self._decoded_unavailable = True
+            return None
+        opener = gzip.open if self._frames_path.suffix == ".gz" else open
+        try:
+            with opener(self._frames_path, "rb") as stream:  # type: ignore[operator]
+                data = stream.read()
+        except (OSError, EOFError):
+            self._decoded_unavailable = True
+            return None
+        if len(data) > MAX_DECODED_TRACE_BYTES:
+            self._decoded_unavailable = True
+            return None
+        self._decoded = data
+        return data
+
     def _scan(self) -> None:
         if self._scanned:
+            return
+        decoded = self._decoded_bytes()
+        if decoded is not None:
+            offset = 0
+            for line in decoded.splitlines():
+                if line.strip():
+                    self._offsets.append(offset)
+                offset += len(line) + 1
+            self._scanned = True
             return
         if not self._frames_path.is_file():
             self._scanned = True
@@ -70,6 +110,14 @@ class TraceBundle:
     def _load_times(self) -> None:
         self._scan()
         if self._times or not self._offsets:
+            return
+        decoded = self._decoded_bytes()
+        if decoded is not None:
+            for offset in self._offsets:
+                end = decoded.find(b"\n", offset)
+                line = decoded[offset:] if end == -1 else decoded[offset:end]
+                match = _SIM_TIME_PATTERN.search(line)
+                self._times.append(float(match.group(1)) if match else 0.0)
             return
         for record in self.frames():
             self._times.append(float(record.get("sim_time", 0.0)))
@@ -98,6 +146,11 @@ class TraceBundle:
         return self._frame_at(self._offsets[position])
 
     def _frame_at(self, offset: int) -> dict[str, Any]:
+        decoded = self._decoded_bytes()
+        if decoded is not None:
+            end = decoded.find(b"\n", offset)
+            line = decoded[offset:] if end == -1 else decoded[offset:end]
+            return json.loads(line)
         opener = gzip.open if self._frames_path.suffix == ".gz" else open
         with opener(self._frames_path, "rt", encoding="utf-8") as stream:  # type: ignore[operator]
             stream.seek(offset)

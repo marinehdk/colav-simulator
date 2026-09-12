@@ -18,21 +18,44 @@ import gzip
 import hashlib
 import json
 import logging
+import math
 import os
 import shutil
 import uuid
 from collections.abc import Callable
+from contextlib import contextmanager
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA, TraceBundle
+from gui_server.canonical_threat import canonical_threat_projection
 
 DESCRIPTOR_SCHEMA = "colav.run-replay.descriptor@1"
+WINDOW_SCHEMA = "colav.run-replay.window@1"
+EVENTS_SCHEMA = "colav.run-replay.events@1"
+CONTEXT_SCHEMA = "colav.run-replay.context@1"
+STATIC_CONTEXT_SCHEMA = "colav.run-replay.static-context@1"
+STATIC_CONTEXT_FILENAME = "static_context.json"
 RUNS_ROOT_ENV = "COLAV_RUNS_ROOT"
 RETENTION_BUDGET_ENV = "COLAV_REPLAY_RETENTION_BUDGET_BYTES"
+
+# Window/request bounds (#71 §7.1): replay reads are bounded; exceeding a bound
+# is a typed rejection, never an unbounded transfer or a silent clamp.
+MAX_WINDOW_SPAN_S = 120.0
+MAX_WINDOW_FRAMES = 1000
+DEFAULT_EVENTS_LIMIT = 2000
+MAX_EVENTS_LIMIT = 20000
+
+# Derived read cache (#71 measurement, Tech Design §5.3): decoded trace buffers
+# are derived, rebuildable, in-memory only, and never replace the v1 evidence.
+# Two cached Runs bound worst-case memory (~2x 256 MB decoded) for a local
+# single-inspector server while still covering the common compare workflow.
+MAX_CACHED_BUNDLES = 2
+MAX_DECODED_TRACE_BYTES = 256 * 1024 * 1024
 
 # The replay reader is project-root anchored exactly like the writer: the
 # runner resolves a relative ``RunSpec.output_root`` against the project root
@@ -143,6 +166,10 @@ class RunReplayStore:
     def __init__(self, root: Path) -> None:
         self.root = Path(root).resolve()
         self._integrity_cache: dict[tuple[str, int, int], dict[str, Any]] = {}
+        # Derived, stat-keyed reader cache: keeps TraceBundle instances (and
+        # their decoded buffers) alive across requests so random seeks do not
+        # re-decompress the whole gzip per frame. Never authoritative.
+        self._bundles: dict[str, tuple[tuple[int, int], TraceBundle]] = {}
 
     # -- identity / confinement -------------------------------------------
 
@@ -166,6 +193,162 @@ class RunReplayStore:
         if not (candidate / "manifest.json").is_file():
             raise RunReplayError(404, ReplayEvidenceReason.RUN_NOT_FOUND, f"run {normalized} not found")
         return candidate
+
+    # -- seekable evidence (ticket #71) --------------------------------------
+
+    def _bundle(self, run_dir: Path) -> TraceBundle:
+        frames_path = run_dir / "decision" / "frames.jsonl.gz"
+        if not frames_path.is_file():
+            frames_path = run_dir / "decision" / "frames.jsonl"
+        stat = frames_path.stat()
+        key = (stat.st_mtime_ns, stat.st_size)
+        cached = self._bundles.get(run_dir.name)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        bundle = TraceBundle(run_dir)
+        if len(self._bundles) >= MAX_CACHED_BUNDLES:
+            self._bundles.clear()
+        self._bundles[run_dir.name] = (key, bundle)
+        return bundle
+
+    def _seekable_run(self, run_id: str) -> tuple[Path, TraceBundle]:
+        """Run directory plus reader, gated to truthfully READY evidence."""
+        run_dir = self.run_dir(run_id)
+        facts = self.classify(run_dir)
+        if facts.get("state") != ReplayEvidenceState.READY.value:
+            reason = str(facts.get("reason") or ReplayEvidenceReason.TRACE_MISSING)
+            raise RunReplayError(409, reason, f"run {run_dir.name} has no seekable replay evidence")
+        return run_dir, self._bundle(run_dir)
+
+    @staticmethod
+    def _validate_window_range(from_s: float, to_s: float) -> None:
+        for name, value in (("from", from_s), ("to", to_s)):
+            if not math.isfinite(value):
+                raise RunReplayError(422, "REPLAY_RANGE_INVALID", f"replay window {name} must be a finite time")
+        if from_s < 0.0:
+            raise RunReplayError(422, "REPLAY_RANGE_INVALID", "replay window from must not be negative")
+        if to_s < from_s:
+            raise RunReplayError(422, "REPLAY_RANGE_INVALID", "replay window to must not precede from")
+        if to_s - from_s > MAX_WINDOW_SPAN_S:
+            raise RunReplayError(
+                422,
+                "REPLAY_WINDOW_TOO_LARGE",
+                f"replay window span exceeds the frozen {MAX_WINDOW_SPAN_S} s bound",
+            )
+
+    def window(self, run_id: str, from_s: float, to_s: float) -> dict[str, Any]:
+        """Bounded recorded frame window with explicit predecessor/successor."""
+        self._validate_window_range(from_s, to_s)
+        run_dir, bundle = self._seekable_run(run_id)
+        frames = bundle.window(from_s, to_s)
+        if len(frames) > MAX_WINDOW_FRAMES:
+            raise RunReplayError(
+                422,
+                "REPLAY_WINDOW_TOO_LARGE",
+                f"replay window exceeds the frozen {MAX_WINDOW_FRAMES}-frame bound",
+            )
+
+        def bracket(sequence: int | None) -> dict[str, Any] | None:
+            if sequence is None or sequence < 1:
+                return None
+            candidate = bundle.frame(sequence)
+            if candidate.get("sequence") != sequence:
+                return None
+            return candidate
+
+        if frames:
+            before = bracket(int(frames[0]["sequence"]) - 1)
+            after_sequence = bundle.seq_at_time(math.nextafter(to_s, math.inf)) + 1
+        else:
+            last_at_or_before = bundle.seq_at_time(from_s)
+            candidate_at_or_before = bracket(last_at_or_before)
+            if candidate_at_or_before is not None and float(candidate_at_or_before.get("sim_time", 0.0)) > from_s:
+                candidate_at_or_before = None
+            before = candidate_at_or_before
+            after_sequence = bundle.seq_at_time(math.nextafter(to_s, math.inf)) + 1
+        after = bracket(after_sequence)
+        if after is not None and float(after.get("sim_time", 0.0)) <= to_s:
+            after = None
+        return {
+            "schema_version": WINDOW_SCHEMA,
+            "run_id": run_dir.name,
+            "requested": {"from_s": from_s, "to_s": to_s},
+            "frames": frames,
+            "before": before,
+            "after": after,
+        }
+
+    def replay_events(self, run_id: str, limit: int) -> dict[str, Any]:
+        """Canonical recorded event journal; order/identity/time are evidence."""
+        _, bundle = self._seekable_run(run_id)
+        rows = bundle.events()
+        capped = max(1, min(int(limit), MAX_EVENTS_LIMIT))
+        return {
+            "schema_version": EVENTS_SCHEMA,
+            "run_id": run_id,
+            "count": len(rows),
+            "truncated": len(rows) > capped,
+            "events": rows[:capped],
+        }
+
+    def static_context(self, run_id: str) -> dict[str, Any]:
+        """Immutable chart context the Situation Display needs beyond frames."""
+        run_dir = self.run_dir(run_id)
+        manifest = self._read_json(run_dir / "manifest.json") or {}
+        spec = manifest.get("spec") or {}
+        enc_image = run_dir / "enc.png"
+        image_url = f"/api/runs/{run_dir.name}/replay/enc.png" if enc_image.is_file() else None
+        persisted = self._read_json(run_dir / STATIC_CONTEXT_FILENAME)
+        if isinstance(persisted, dict) and persisted.get("schema_version") == STATIC_CONTEXT_SCHEMA:
+            enc = persisted.get("enc") or {}
+            return {
+                "schema_version": CONTEXT_SCHEMA,
+                "run_id": run_dir.name,
+                "scenario_id": persisted.get("scenario_id") or spec.get("scenario_id"),
+                "enc": {
+                    "origin_east_m": enc.get("origin_east_m"),
+                    "origin_north_m": enc.get("origin_north_m"),
+                    "width_m": enc.get("width_m"),
+                    "height_m": enc.get("height_m"),
+                    "utm_zone": enc.get("utm_zone"),
+                    "image_url": image_url,
+                },
+                "enc_navigation_area": persisted.get("enc_navigation_area"),
+                "ships": persisted.get("ships"),
+            }
+        # Legacy Runs: degrade to episode-derived static facts; anything the
+        # episode does not record stays null rather than being inferred.
+        episode = self._read_json(run_dir / "episode.json") or {}
+        config = episode.get("config") or {}
+        origin = config.get("map_origin_enu") or [None, None]
+        size = config.get("map_size") or [None, None]
+        ships = [
+            {"id": ship.get("id"), "mmsi": ship.get("mmsi"), "length_m": None, "width_m": None}
+            for ship in config.get("ship_list") or []
+            if isinstance(ship, dict)
+        ]
+        return {
+            "schema_version": CONTEXT_SCHEMA,
+            "run_id": run_dir.name,
+            "scenario_id": spec.get("scenario_id"),
+            "enc": {
+                "origin_east_m": origin[0],
+                "origin_north_m": origin[1],
+                "width_m": size[0],
+                "height_m": size[1],
+                "utm_zone": config.get("utm_zone"),
+                "image_url": image_url,
+            },
+            "enc_navigation_area": None,
+            "ships": ships,
+        }
+
+    def enc_image(self, run_id: str) -> Path:
+        run_dir = self.run_dir(run_id)
+        path = run_dir / "enc.png"
+        if not path.is_file():
+            raise RunReplayError(404, "ENC_IMAGE_MISSING", f"run {run_dir.name} has no persisted ENC raster")
+        return path
 
     # -- classification -----------------------------------------------------
 
@@ -447,6 +630,33 @@ class RunReplayStore:
             return None
 
 
+def project_window_threat_documents(document: dict[str, Any]) -> dict[str, Any]:
+    """Attach the canonical per-frame threat projection to a window document.
+
+    Same canonical function the live telemetry path applies to the
+    adapter-published threat document (one function, no second truth). Window
+    frames are request-local JSON, so normalization is identity.
+    """
+
+    def project(frame: dict[str, Any] | None) -> dict[str, Any] | None:
+        if frame is None:
+            return None
+        ownship = (frame.get("payload") or {}).get("Ship0") or {}
+        colav = ownship.get("colav") or {}
+        frame["threat_management"] = canonical_threat_projection(
+            colav,
+            colav.get("planner") or {},
+            normalize=lambda value: value,
+        )
+        return frame
+
+    for frame in document["frames"]:
+        project(frame)
+    project(document["before"])
+    project(document["after"])
+    return document
+
+
 def build_replay_router(
     store: RunReplayStore,
     *,
@@ -454,6 +664,16 @@ def build_replay_router(
     default_limit: int = 50,
 ) -> APIRouter:
     """Read-only Run Replay routes; replay state is never mutated over HTTP."""
+
+    @contextmanager
+    def typed_errors():
+        try:
+            yield
+        except RunReplayError as exc:
+            raise HTTPException(
+                status_code=exc.status,
+                detail={"reason": str(exc.reason), "message": str(exc)},
+            ) from exc
 
     def _active(run_id: str) -> dict[str, Any] | None:
         if active_replay_status is None:
@@ -474,12 +694,34 @@ def build_replay_router(
 
     @router.get("/runs/{run_id}/replay")
     def descriptor(run_id: str) -> dict[str, Any]:
-        try:
+        with typed_errors():
             return store.descriptor(run_id, active=_active(run_id))
-        except RunReplayError as exc:
-            raise HTTPException(
-                status_code=exc.status,
-                detail={"reason": str(exc.reason), "message": str(exc)},
-            ) from exc
+
+    @router.get("/runs/{run_id}/replay/window")
+    def window(
+        run_id: str,
+        from_s: float = Query(..., alias="from"),
+        to_s: float = Query(..., alias="to"),
+    ) -> dict[str, Any]:
+        with typed_errors():
+            return project_window_threat_documents(store.window(run_id, from_s, to_s))
+
+    @router.get("/runs/{run_id}/replay/events")
+    def replay_events(
+        run_id: str,
+        limit: int = Query(default=DEFAULT_EVENTS_LIMIT, ge=1, le=MAX_EVENTS_LIMIT),
+    ) -> dict[str, Any]:
+        with typed_errors():
+            return store.replay_events(run_id, limit)
+
+    @router.get("/runs/{run_id}/replay/context")
+    def static_context(run_id: str) -> dict[str, Any]:
+        with typed_errors():
+            return store.static_context(run_id)
+
+    @router.get("/runs/{run_id}/replay/enc.png")
+    def enc_image(run_id: str) -> FileResponse:
+        with typed_errors():
+            return FileResponse(store.enc_image(run_id), media_type="image/png")
 
     return router

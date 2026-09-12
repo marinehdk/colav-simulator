@@ -54,9 +54,17 @@ from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunn
 from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssembler
 from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCatalog
 from colav_simulator.modular_gnc.catalog import list_stack_catalog
+from gui_server import canonical_threat as _canonical_threat
 from gui_server.gnc_balance import balance_telemetry
 from gui_server.historical_api import router as historical_api_router
-from gui_server.replay import RunReplayStore, build_replay_router, replay_retention_budget_bytes, runs_root
+from gui_server.replay import (
+    STATIC_CONTEXT_FILENAME,
+    STATIC_CONTEXT_SCHEMA,
+    RunReplayStore,
+    build_replay_router,
+    replay_retention_budget_bytes,
+    runs_root,
+)
 
 log = logging.getLogger("gui_server")
 logging.basicConfig(level=logging.INFO)
@@ -271,49 +279,17 @@ def _select_primary_encounter(_encounters: list[dict[str, Any]]) -> None:
 
 
 def _canonical_threat_projection(colav_data: dict[str, Any], planner: dict[str, Any]) -> dict[str, Any]:
-    """Project only a canonical backend threat document for REST/WS consumers."""
-    candidate = (
-        planner.get("threat_management")
-        or planner.get("algorithm_details", {}).get("threat_management")
-        or colav_data.get("threat_management")
-    )
-    if not isinstance(candidate, dict):
-        return _threat_unavailable()
-    snapshot = candidate.get("snapshot")
-    if snapshot is None and "vectors" in candidate:
-        snapshot = candidate
-    vectors = snapshot.get("vectors", []) if isinstance(snapshot, dict) else []
-    schedule = candidate.get("schedule")
-    if schedule is None and isinstance(snapshot, dict):
-        schedule = snapshot.get("schedule")
-    conflicts = candidate.get("conflicts", candidate.get("conflict_graph"))
-    if conflicts is None and isinstance(snapshot, dict):
-        conflicts = snapshot.get("conflicts", snapshot.get("conflict_graph"))
-    available = candidate.get("status") == "AVAILABLE" or isinstance(snapshot, dict)
-    graph = jsonable(conflicts) if isinstance(conflicts, (dict, list)) else None
-    return {
-        "schema_version": THREAT_PROJECTION_SCHEMA,
-        "status": "AVAILABLE" if available else "UNAVAILABLE",
-        "snapshot": jsonable(snapshot) if isinstance(snapshot, dict) else None,
-        "vectors": jsonable(vectors) if isinstance(vectors, list) else [],
-        "schedule": jsonable(schedule) if isinstance(schedule, dict) else None,
-        "conflicts": graph,
-        "conflict_graph": graph,
-        "unavailable_reason": None if available else candidate.get("unavailable_reason", "THREAT_SNAPSHOT_UNAVAILABLE"),
-    }
+    """Project only a canonical backend threat document for REST/WS consumers.
+
+    Live telemetry and the sealed replay read path share ONE canonical
+    projection (gui_server.canonical_threat, ticket #71); the live path keeps
+    its jsonable detachment of runtime dataclasses via the normalize hook.
+    """
+    return _canonical_threat.canonical_threat_projection(colav_data, planner, normalize=jsonable)
 
 
 def _threat_unavailable(reason: str = "THREAT_SNAPSHOT_UNAVAILABLE") -> dict[str, Any]:
-    return {
-        "schema_version": THREAT_PROJECTION_SCHEMA,
-        "status": "UNAVAILABLE",
-        "snapshot": None,
-        "vectors": [],
-        "schedule": None,
-        "conflicts": None,
-        "conflict_graph": None,
-        "unavailable_reason": reason,
-    }
+    return _canonical_threat.threat_unavailable(reason, normalize=jsonable)
 
 
 def _session_threat_projection(session: Any) -> dict[str, Any]:
@@ -731,6 +707,7 @@ class WebSessionManager:
         if previous_capture is not None and not previous_capture.finalized:
             self._result_executor.submit(self._finalize_replaced_capture, previous_capture, previous.session.events)
         self._open_trace_capture(replacement)
+        self._persist_static_context(replacement)
         self._publish_telemetry(None)
         return self.describe()
 
@@ -744,6 +721,46 @@ class WebSessionManager:
         except OSError:
             log.exception("Replay trace capture could not be opened for run %s", prepared.manifest.run_id)
             self._capture_finalize_errors[prepared.manifest.run_id] = REPLAY_REASON_CAPTURE_OPEN_FAILED
+
+    def _persist_static_context(self, prepared: PreparedRun) -> None:
+        """Persist immutable chart context for the sealed replay read path (#71 §7.2).
+
+        ENC navigation area, chart extent and ship dimensions exist only in the
+        live session; the replay read path must never import simulator runtime,
+        so the capture side freezes them once per Run. Best-effort: a failure
+        must never affect execution, and the context endpoint degrades to
+        episode-derived facts for Runs without the file.
+        """
+        try:
+            enc = prepared.session.enc
+            origin_e, origin_n = enc.origin
+            document = {
+                "schema_version": STATIC_CONTEXT_SCHEMA,
+                "scenario_id": prepared.spec.scenario_id,
+                "enc": {
+                    "origin_east_m": float(origin_e),
+                    "origin_north_m": float(origin_n),
+                    "width_m": float(enc.size[0]),
+                    "height_m": float(enc.size[1]),
+                    "utm_zone": int(enc.utm_zone),
+                },
+                "enc_navigation_area": jsonable(self.enc_navigation_area) or None,
+                "ships": [
+                    {
+                        "id": int(ship.id),
+                        "mmsi": int(ship.mmsi),
+                        "length_m": float(ship.length),
+                        "width_m": float(ship.width),
+                    }
+                    for ship in prepared.session.ship_list
+                ],
+            }
+            (prepared.run_dir / STATIC_CONTEXT_FILENAME).write_text(
+                json.dumps(document),
+                encoding="utf-8",
+            )
+        except (OSError, TypeError, ValueError, AttributeError):
+            log.exception("Could not persist static replay context for run %s", prepared.manifest.run_id)
 
     def _capture_for(self, prepared: Any) -> TraceSink | None:
         """Tolerant capture lookup: result publication must never depend on it."""

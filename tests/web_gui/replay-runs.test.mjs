@@ -6,7 +6,7 @@ const html = await readFile(new URL('../../web_gui/index.html', import.meta.url)
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
 const moduleSource = await readFile(new URL('../../web_gui/modules/replay-runs.js', import.meta.url), 'utf8');
 
-const { createReplayRunsClient, projectReplayRunRows, replayStateLabel, renderReplayRuns } = await import(
+const { createReplayRunsClient, projectReplayRunRows, replayStateLabel, renderReplayRuns, setReplayRunOpener } = await import(
   '../../web_gui/modules/replay-runs.js'
 );
 
@@ -34,11 +34,12 @@ class FakeElement {
     this.children = [];
     this.hidden = false;
     this.disabled = false;
+    this.listeners = {};
   }
   append(...children) { this.children.push(...children); }
   replaceChildren(...children) { this.children = children; }
   setAttribute(name, value) { this.attributes[name] = value; }
-  addEventListener() {}
+  addEventListener(type, listener) { this.listeners[type] = listener; }
 }
 
 function makeDocumentRef() {
@@ -109,6 +110,21 @@ test('render writes textual state pills (non-color-only readiness) and facts int
 
   const status = documentRef.getElementById('replayRunsStatus');
   assert.equal(status.textContent, '1 RUNS');
+});
+
+test('run rows offer an Open replay inspection action wired to the registered opener', () => {
+  const documentRef = makeDocumentRef();
+  const opened = [];
+  renderReplayRuns(documentRef, projectReplayRunRows([sampleEntry]));
+  assert.equal(documentRef.getElementById('replayRunsBody').children[0].children.length, 8, 'no action cell until a replay host registers');
+
+  setReplayRunOpener(runId => opened.push(runId));
+  renderReplayRuns(documentRef, projectReplayRunRows([sampleEntry]));
+  const action = documentRef.getElementById('replayRunsBody').children[0].children.at(-1);
+  assert.equal(action.textContent, 'Open replay');
+  action.listeners.click({ stopPropagation() {} });
+  assert.deepEqual(opened, ['11111111-1111-4111-8111-111111111111']);
+  setReplayRunOpener(null);
 });
 
 test('replay client reads the backend catalog with GET only and never touches session endpoints', () => {
