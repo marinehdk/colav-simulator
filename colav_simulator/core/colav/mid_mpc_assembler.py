@@ -752,6 +752,31 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                 else:
                     upper = threshold if upper is None else min(upper, threshold)
             bounds.append((lower, upper))
+        # Overlapping corridor windows can hand over with a heading step far
+        # beyond the rot envelope (multiship seam: the give-way hold corridor
+        # still binds one knot before the next encounter window demands its
+        # own corridor, a ~12 rot-step jump between adjacent knots). IPOPT
+        # then dies on the seam rot rows (persisted multiship-E4 NLPs:
+        # Infeasible_Problem_Detected / timeout restorations with the iterate
+        # riding the jump). Ramp the staged bounds across the seam at the rot
+        # envelope: a demand that tightens faster than one rot step per knot
+        # is eased to the reachable corridor; one that eases or is already
+        # reachable stays untouched. Bounds never leave their staged
+        # interval, and each window's deadline demand survives wherever the
+        # hull can reach it.
+        rot_step_rad = capability.rot_max_rad_s * config.horizon_dt_s
+        ramped: list[tuple[float | None, float | None]] = []
+        previous_lower: float | None = None
+        previous_upper: float | None = None
+        for lower, upper in bounds:
+            if lower is not None and previous_lower is not None:
+                lower = min(lower, previous_lower + rot_step_rad)
+            if upper is not None and previous_upper is not None:
+                upper = max(upper, previous_upper - rot_step_rad)
+            ramped.append((lower, upper))
+            previous_lower = lower
+            previous_upper = upper
+        bounds = ramped
         # The horizon search envelope must contain mandatory future corridors,
         # not just today's heading and the rate-ramped soft reference. The
         # per-knot hard corridors and physical turn-rate rows stay unchanged.

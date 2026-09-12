@@ -78,6 +78,47 @@ def test_scheduled_corridor_can_be_reentered_at_the_declared_turn_rate(monkeypat
     assert bounds[2][0] == pytest.approx(corridor)
 
 
+def test_overlapping_corridor_windows_stage_a_rate_reachable_handover(monkeypatch) -> None:
+    """The multiship seam: a hold corridor hands over to the next encounter
+    corridor ~12 rot-steps above it in one knot; the staged bounds must ramp
+    at the rot envelope instead of flipping (persisted multiship-E4 NLPs died
+    Infeasible_Problem_Detected with the iterate riding the seam rot rows)."""
+    planner_input = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    request = _request(planner_input, snapshot)
+    n = request.config.horizon_steps
+    step = request.capability.rot_max_rad_s * request.config.horizon_dt_s
+    plan = HorizonEncounterPlan(
+        reference_time_s=5.0,
+        times_s=np.arange(n + 1) * request.config.horizon_dt_s,
+        mission_route_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=-1.2508,
+        phases=(HorizonEncounterPhase.PASS,) * (n + 1),
+        recovery_from_k=None,
+        target_windows=(
+            TargetHorizonWindow(
+                TrackKey(1, 1), 0, 57, False, 200.0, 0.0, corridor_bearing_rad=-1.2508, passing_side=1
+            ),
+            TargetHorizonWindow(
+                TrackKey(2, 1), 34, None, False, 200.0, 0.0, action_start_k=31, corridor_bearing_rad=0.2618, passing_side=1, required_course_change_rad=0.2618
+            ),
+        ),
+        corridor_reference_rad=(-1.2508,) * (n + 1),
+    )
+    monkeypatch.setattr(
+        "colav_simulator.core.colav.mid_mpc_assembler._compile_horizon_encounter_plan", lambda *args, **kwargs: plan
+    )
+    outcome = MidMpcProblemAssembler().assemble(request)
+    assert isinstance(outcome, AssemblySuccess)
+    bounds = outcome.problem.row_schedule.course_bounds_rad
+    active = [(k, lower) for k, (lower, _) in enumerate(bounds) if lower is not None]
+    for (k0, lower0), (k1, lower1) in zip(active, active[1:]):
+        if k1 == k0 + 1:
+            assert lower1 - lower0 <= step + 1.0e-9
+
+
 @pytest.mark.parametrize("side", [-1, 1])
 @pytest.mark.parametrize("turns", [0, 1])
 def test_late_hard_corridor_is_inside_solver_heading_envelope(monkeypatch, side: int, turns: int) -> None:
