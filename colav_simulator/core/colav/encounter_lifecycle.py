@@ -797,6 +797,7 @@ class EncounterLifecycle:
             # Physical clearance is independent of whether the prescribed
             # maneuver amplitude/direction was achieved (a quality fact).
             _advance_release(state, cycle, target, geometry)
+            _escalate_speed_bleed(state, cycle, target, geometry)
         newly_committed = False
         if state.commitment is CommitmentPhase.NONE:
             newly_committed = _advance_uncommitted(
@@ -1288,6 +1289,44 @@ def _commit(
     state.action_start_deadline_s = cycle.sim_time_s + start_window_s
     state.action_achievement_deadline_s = cycle.sim_time_s + achievement_window_s
     _observe_own_action(state, cycle, target)
+
+
+_KEEP_WAY_SPEED_FRACTION = 0.3
+_SPEED_BLEED_BASIS = "SPEED_BLEED_KEEP_WAY"
+
+
+def _escalate_speed_bleed(
+    state: _TargetState,
+    cycle: EncounterCycle,
+    target: TargetObservation,
+    geometry: PairwiseGeometry,
+) -> None:
+    """Escalate a give-way commitment that is decaying into a crawl-to-stop hold.
+
+    While the commitment stays active against a still-approaching target, the
+    course-only achievement latch can hold a maneuver that the plant no longer
+    executes: sustained speed decay leaves a dead-slow ownship drifting into
+    the give-way geometry it was supposed to open. Below the keep-way floor
+    (minimum steerage, or the committed baseline speed's keep-way fraction)
+    the risk assessment must escalate to a Rule-17 must-act state instead of
+    tolerating the bleed; the escalation drops again once way is recovered.
+    """
+    if state.role not in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING} or state.risk is not RiskPhase.ACTIVE:
+        return
+    escalated = state.rule17 is Rule17Stage.MUST_ACT and state.rule17_basis == _SPEED_BLEED_BASIS
+    own_speed = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
+    baseline = state.baseline_speed_mps
+    keep_way_floor = max(
+        cycle.profile.cog_min_speed_mps,
+        0.0 if baseline is None else _KEEP_WAY_SPEED_FRACTION * baseline,
+    )
+    if own_speed >= keep_way_floor or geometry.signed_tcpa_s <= 0.0:
+        if escalated:
+            state.rule17 = Rule17Stage.NONE
+            state.rule17_basis = "NOT_APPLICABLE"
+        return
+    state.rule17 = Rule17Stage.MUST_ACT
+    state.rule17_basis = _SPEED_BLEED_BASIS
 
 
 def _observe_own_action(state: _TargetState, cycle: EncounterCycle, target: TargetObservation) -> None:

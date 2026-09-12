@@ -305,6 +305,53 @@ def test_committed_action_achievement_is_cumulative_after_course_recovers() -> N
     assert recovered.actual_course_change_rad == pytest.approx(achieved.actual_course_change_rad)
 
 
+def test_committed_give_way_escalates_when_speed_bleeds_below_keep_way() -> None:
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+    lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=5.0))
+    bled_cycle = _head_on_cycle(sequence=2, sim_time_s=10.0)
+    bled = lifecycle.step(
+        replace(
+            bled_cycle,
+            ownship=replace(bled_cycle.ownship, velocity_ne_mps=np.array([0.1, 0.0])),
+            targets=(replace(bled_cycle.targets[0], state_enu=np.array([400.0, 0.0, -7.0, 0.0])),),
+        )
+    ).targets[0]
+
+    assert bled.commitment is CommitmentPhase.COMMITTED
+    assert bled.risk is RiskPhase.ACTIVE
+    assert bled.rule17 is Rule17Stage.MUST_ACT
+    assert bled.rule17_basis == "SPEED_BLEED_KEEP_WAY"
+
+
+def test_committed_give_way_drops_speed_bleed_escalation_once_speed_recovers() -> None:
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+    lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=5.0))
+    bled_cycle = _head_on_cycle(sequence=2, sim_time_s=10.0)
+    bled = lifecycle.step(
+        replace(
+            bled_cycle,
+            ownship=replace(bled_cycle.ownship, velocity_ne_mps=np.array([0.1, 0.0])),
+            targets=(replace(bled_cycle.targets[0], state_enu=np.array([400.0, 0.0, -7.0, 0.0])),),
+        )
+    ).targets[0]
+    assert bled.rule17 is Rule17Stage.MUST_ACT
+    assert bled.rule17_basis == "SPEED_BLEED_KEEP_WAY"
+
+    recovered_cycle = _head_on_cycle(sequence=3, sim_time_s=15.0)
+    recovered = lifecycle.step(
+        replace(
+            recovered_cycle,
+            targets=(replace(recovered_cycle.targets[0], state_enu=np.array([400.0, 0.0, -7.0, 0.0])),),
+        )
+    ).targets[0]
+
+    assert recovered.commitment is CommitmentPhase.COMMITTED
+    assert recovered.rule17 is Rule17Stage.NONE
+    assert recovered.rule17_basis == "NOT_APPLICABLE"
+
+
 def test_urgent_head_on_bypasses_entry_confirmation() -> None:
     lifecycle = EncounterLifecycle()
     cycle = _head_on_cycle(sequence=0, sim_time_s=0.0)
