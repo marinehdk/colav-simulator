@@ -50,6 +50,40 @@ MAX_WINDOW_FRAMES = 1000
 DEFAULT_EVENTS_LIMIT = 2000
 MAX_EVENTS_LIMIT = 20000
 
+
+class EventCategories:
+    """Backend-owned marker categories for the #73 replay timeline.
+
+    Deterministic mapping from the RECORDED event type to one presentation
+    category. This is a labeling projection for markers — never a second
+    event stream, and recorded identity/order/details are returned untouched.
+    """
+
+    RISK_LIFECYCLE = "RISK_LIFECYCLE"
+    PLANNER = "PLANNER"
+    SAFETY_FAILURE = "SAFETY_FAILURE"
+    MISSION = "MISSION"
+    HANDOFF = "HANDOFF"
+    RUNTIME = "RUNTIME"
+
+    _PATTERNS: tuple[tuple[tuple[str, ...], str], ...] = (
+        (("collision", "grounding", "failure", "failed"), SAFETY_FAILURE),
+        (("planner", "solve", "mpc", "vo_", "fallback"), PLANNER),
+        (("threat", "risk", "encounter", "lifecycle", "avoidance", "primary"), RISK_LIFECYCLE),
+        (("goal", "time_limit", "recovery", "mission"), MISSION),
+        (("handoff", "algorithm"), HANDOFF),
+    )
+
+    def categorize(self, event_type: str) -> str:
+        lowered = event_type.lower()
+        for patterns, category in self._PATTERNS:
+            if any(pattern in lowered for pattern in patterns):
+                return category
+        return self.RUNTIME
+
+
+EVENT_CATEGORIES = EventCategories()
+
 # Derived read cache (#71 measurement, Tech Design §5.3): decoded trace buffers
 # are derived, rebuildable, in-memory only, and never replace the v1 evidence.
 # Two cached Runs bound worst-case memory (~2x 256 MB decoded) for a local
@@ -279,16 +313,29 @@ class RunReplayStore:
         }
 
     def replay_events(self, run_id: str, limit: int) -> dict[str, Any]:
-        """Canonical recorded event journal; order/identity/time are evidence."""
+        """Canonical recorded event journal; order/identity/time are evidence.
+
+        ``category`` is a backend-owned presentation label derived
+        deterministically from the recorded event type (#73 timeline markers).
+        It is additive metadata — identity, sim time, order and details are
+        the recorded rows, never rewritten.
+        """
         _, bundle = self._seekable_run(run_id)
         rows = bundle.events()
         capped = max(1, min(int(limit), MAX_EVENTS_LIMIT))
+        events = []
+        for row in rows[:capped]:
+            labeled = dict(row)
+            labeled["category"] = EVENT_CATEGORIES.categorize(str(row.get("type", "")))
+            events.append(labeled)
+        present = sorted({event["category"] for event in events})
         return {
             "schema_version": EVENTS_SCHEMA,
             "run_id": run_id,
             "count": len(rows),
             "truncated": len(rows) > capped,
-            "events": rows[:capped],
+            "categories": present,
+            "events": events,
         }
 
     def static_context(self, run_id: str) -> dict[str, Any]:

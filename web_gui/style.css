@@ -3669,3 +3669,8 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .replay-runs-open { white-space: nowrap; }
 .replay-rate-group { display: inline-flex; align-items: center; gap: 4px; }
 .replay-rate-group obc-button[aria-pressed="true"] { outline: 1px solid var(--ob-accent); }
+.replay-timeline-track { position: relative; flex: 1; display: flex; align-items: center; }
+.replay-event-markers { position: absolute; inset: -8px 0 auto 0; height: 20px; pointer-events: none; }
+.replay-event-marker { position: absolute; top: 0; transform: translateX(-50%); pointer-events: auto; min-width: 16px; height: 16px; padding: 0; border: 1px solid var(--ob-subtle); border-radius: 3px; background: var(--ob-bg, #10202c); color: var(--ob-subtle); font-size: 9px; line-height: 14px; cursor: pointer; }
+.replay-event-marker:focus-visible { outline: 2px solid var(--ob-accent); }
+#replayEventFilter { background: transparent; color: inherit; border: 1px solid var(--ob-subtle); font-size: 10px; }

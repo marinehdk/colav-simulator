@@ -771,15 +771,22 @@
             <canvas id="replayCanvas" aria-label="Historical situation chart"></canvas>
           </div>
           <aside class="replay-inspection" id="replayInspection" aria-label="Replay inspection context"></aside>
+          <div class="replay-inspection" id="replayEventFocus" aria-label="Selected recorded event focus"></div>
         </div>
         <footer class="replay-timeline-bar">
           <div class="replay-timeline-times">
             <span id="replayTimeCurrent">— s</span>
-            <input id="replayTimeline" type="range" min="0" max="0" step="0.1" value="0" aria-label="Replay timeline: recorded simulation time" />
+            <div class="replay-timeline-track">
+              <input id="replayTimeline" type="range" min="0" max="0" step="0.1" value="0" aria-label="Replay timeline: recorded simulation time" />
+              <div class="replay-event-markers" id="replayEventMarkers" aria-label="Recorded event markers"></div>
+            </div>
             <span id="replayTimeTotal">— s</span>
           </div>
           <div class="replay-timeline-controls">
             <obc-button id="replayPlayPauseBtn" variant="flat" aria-pressed="false">PLAY ▶</obc-button>
+            <obc-button id="replayPrevEventBtn" variant="flat" aria-label="Previous recorded event">|◀ Event</obc-button>
+            <obc-button id="replayNextEventBtn" variant="flat" aria-label="Next recorded event">Event ▶|</obc-button>
+            <select id="replayEventFilter" aria-label="Filter event markers (presentation only)"><option value="ALL">ALL EVENTS</option></select>
             <obc-button id="replayStartBtn" variant="flat">|◀ Start</obc-button>
             <obc-button id="replayEndBtn" variant="flat">End ▶|</obc-button>
             <span class="replay-rate-group" role="group" aria-label="Replay Speed (presentation only)">

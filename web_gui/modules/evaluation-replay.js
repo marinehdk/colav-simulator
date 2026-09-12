@@ -62,9 +62,124 @@ export function createEvaluationReplayController({
   let clock = null;
   let timerId = null;
   let prefetchInFlight = false;
+  // #73 event journal: recorded evidence, loaded once per open. Filtering is
+  // presentation state; recorded identity/time/order are never rewritten.
+  let eventJournal = null;
+  let eventFilter = 'ALL';
+  let selectedEventId = null;
 
   function setStatus(next) {
     status = next;
+  }
+
+  const EVENT_GLYPHS = {
+    PLANNER: 'P',
+    RISK_LIFECYCLE: '▲',
+    SAFETY_FAILURE: '✕',
+    MISSION: '◎',
+    HANDOFF: '⇄',
+    RUNTIME: '•',
+  };
+  const CLUSTER_GLYPH = '≡';
+  const CLUSTER_MIN_EVENTS = 3;
+  const CLUSTER_BUCKET_PCT = 0.5;
+
+  function visibleEvents() {
+    if (!eventJournal) return [];
+    const rows = eventJournal.events ?? [];
+    if (eventFilter === 'ALL') return rows;
+    return rows.filter(event => event.category === eventFilter);
+  }
+
+  function markerPct(simTime) {
+    const start = Number(descriptor?.replay?.t_start) || 0.0;
+    const end = trustedEnd();
+    const span = Math.max(end - start, 1e-6);
+    return Math.max(0, Math.min(100, ((Number(simTime) - start) / span) * 100));
+  }
+
+  function renderEventMarkers() {
+    const strip = el('replayEventMarkers');
+    if (!strip) return;
+    const rows = visibleEvents();
+    if (!rows.length) {
+      strip.replaceChildren();
+      strip.textContent = eventJournal && (eventJournal.events ?? []).length
+        ? 'NO EVENTS IN THIS FILTER'
+        : 'NO RECORDED EVENTS';
+      return;
+    }
+    strip.textContent = '';
+    // Visual aggregation only: dense recorded events share one cluster
+    // marker; clicking it exposes every underlying event in recorded order.
+    const buckets = new Map();
+    for (const event of rows) {
+      const bucket = Math.round(markerPct(event.sim_time) / CLUSTER_BUCKET_PCT);
+      if (!buckets.has(bucket)) buckets.set(bucket, []);
+      buckets.get(bucket).push(event);
+    }
+    const markers = [];
+    for (const [bucket, members] of [...buckets.entries()].sort((a, b) => a[0] - b[0])) {
+      const button = documentRef.createElement('button');
+      button.type = 'button';
+      button.className = 'replay-event-marker';
+      button.dataset.positionPct = String(bucket * CLUSTER_BUCKET_PCT);
+      const first = members[0];
+      if (members.length >= CLUSTER_MIN_EVENTS) {
+        button.textContent = CLUSTER_GLYPH;
+        button.setAttribute('aria-label', `${members.length} recorded events near ${formatTime(first.sim_time)} s — open to list`);
+        button.dataset.cluster = String(members.length);
+      } else {
+        const category = first.category ?? 'RUNTIME';
+        button.textContent = EVENT_GLYPHS[category] ?? EVENT_GLYPHS.RUNTIME;
+        button.setAttribute('aria-label', `${category} ${first.type} at ${formatTime(first.sim_time)} s`);
+      }
+      button.addEventListener('click', () => {
+        inspectEvent(members);
+      });
+      markers.push(button);
+    }
+    strip.replaceChildren(...markers);
+  }
+
+  function inspectEvent(members) {
+    selectedEventId = String(members[0].sequence ?? `${members[0].type}@${members[0].sim_time}`);
+    renderEventInspection(members);
+  }
+
+  function renderEventInspection(members) {
+    const rail = el('replayEventFocus');
+    if (!rail) return;
+    rail.replaceChildren(...members.map(event => {
+      const row = documentRef.createElement('p');
+      row.textContent = `${event.category ?? 'RUNTIME'} · ${event.type} @ ${formatTime(event.sim_time)} s · seq ${event.sequence ?? '—'}${event.details ? ` · ${JSON.stringify(event.details)}` : ''}`;
+      return row;
+    }));
+  }
+
+  /** Frozen navigation semantics: Previous/Next move over the FILTERED
+   * recorded set in recorded order; at the first/last event they stay put
+   * (no wraparound) and re-select that boundary event. */
+  function stepEvent(direction) {
+    const rows = visibleEvents();
+    if (!rows.length || playhead === null) return;
+    const eps = 1e-6;
+    let target = null;
+    if (direction > 0) {
+      target = rows.find(event => Number(event.sim_time) > Number(playhead) + eps) ?? rows[rows.length - 1];
+    } else {
+      for (const event of rows) {
+        if (Number(event.sim_time) < Number(playhead) - eps) target = event;
+      }
+      target = target ?? rows[0];
+    }
+    inspectEvent([target]);
+    void seek(Number(target.sim_time));
+  }
+
+  function setEventFilter(next) {
+    eventFilter = String(next ?? 'ALL');
+    renderEventMarkers(); // presentation only — the journal is untouched
   }
 
   function statusLineFor(clockState) {
@@ -125,6 +240,7 @@ export function createEvaluationReplayController({
         target.rangeM !== null && target.rangeM !== undefined ? `range ${Number(target.rangeM).toFixed(0)} m` : null,
       ].filter(Boolean).join(' · ') : (selectedTargetId === null ? null : 'no recorded threat vector for this target'),
       lastSourceSequence === null ? null : `evidence: source frame #${lastSourceSequence} @ ${formatTime(lastSourceSimTime)} s`,
+      selectedEventId === null ? null : `event focus: ${selectedEventId}`,
       'selection changes Inspection Context only',
     ];
     inspection.replaceChildren(...lines.filter(Boolean).map(line => {
@@ -309,6 +425,9 @@ export function createEvaluationReplayController({
     lastSourceSequence = null;
     lastSourceSimTime = null;
     selectedTargetId = null;
+    eventJournal = null;
+    eventFilter = 'ALL';
+    selectedEventId = null;
     setStatus('LOADING');
     const panel = el('evaluationReplayPanel');
     if (panel) panel.hidden = false;
@@ -322,6 +441,26 @@ export function createEvaluationReplayController({
     if (gen !== generation) return;
     context = await fetchJson(`/api/runs/${runId}/replay/context`);
     if (gen !== generation) return;
+    // The recorded event journal loads with the run; navigation and markers
+    // use it as-is (recorded identity/time/order), independent of paint
+    // sampling during high-speed playback.
+    eventJournal = await fetchJson(`/api/runs/${runId}/replay/events`).catch(() => null);
+    if (gen !== generation) return;
+    renderEventMarkers();
+    const filter = el('replayEventFilter');
+    if (filter) {
+      filter.replaceChildren();
+      const allOption = documentRef.createElement('option');
+      allOption.value = 'ALL';
+      allOption.textContent = 'ALL EVENTS';
+      filter.append(allOption);
+      for (const category of eventJournal?.categories ?? []) {
+        const option = documentRef.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        filter.append(option);
+      }
+    }
 
     el('replayRunTitle').textContent = `EVALUATION / REPLAY · ${descriptor.run_id.slice(0, 8)} · ${descriptor.run?.scenario_id ?? ''} · ${descriptor.run?.executed_algorithm ?? ''}`;
     el('replayEvidenceBadge').textContent = evidenceLabel(descriptor.replay);
@@ -433,6 +572,11 @@ export function createEvaluationReplayController({
     });
   }
   el('replayCloseBtn')?.addEventListener('click', close);
+  el('replayPrevEventBtn')?.addEventListener('click', () => stepEvent(-1));
+  el('replayNextEventBtn')?.addEventListener('click', () => stepEvent(1));
+  el('replayEventFilter')?.addEventListener('change', event => {
+    setEventFilter(event?.target?.value ?? 'ALL');
+  });
 
   return {
     open,
@@ -452,6 +596,9 @@ export function createEvaluationReplayController({
         selectedTargetId,
         clockState: clock?.state ?? null,
         rate: clock?.rate ?? null,
+        eventCount: eventJournal ? (eventJournal.events ?? []).length : null,
+        eventFilter,
+        selectedEventId,
       };
     },
   };
