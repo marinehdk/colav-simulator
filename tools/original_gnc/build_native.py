@@ -13,7 +13,7 @@ import uuid
 from pathlib import Path
 
 from extract_native import MESSAGE_PACKAGES, extract
-from proposal_patches import PROPOSALS, apply_proposal
+from proposal_patches import PROPOSALS, apply_proposals
 from state_fields import SNAPSHOTS
 
 
@@ -93,7 +93,7 @@ inline std::unique_ptr<KernelBase> make_kernel(const std::string& name, const Js
 
 
 def build(
-    source: Path, dependencies: Path, output: Path, compiler: str, eigen: Path, proposal: str | None = None
+    source: Path, dependencies: Path, output: Path, compiler: str, eigen: Path, proposals: list[str] | None = None
 ) -> dict:  # noqa: PLR0915
     """Verify, extract and compile a separately identifiable native library."""
     if (output / "build-manifest.json").exists():
@@ -118,10 +118,11 @@ def build(
     ):
         raise ValueError("Original GNC requires the reference Eigen 3.4.0 headers")
     manifest = extract(source, dependencies, output, support)
-    if proposal:
+    if proposals:
         # Colleague-proposal reference builds compile the reviewed semantic
-        # change on top of the mechanical extraction; the ledger records it.
-        manifest["colleague_proposal"] = apply_proposal(proposal, source, output)
+        # changes on top of the mechanical extraction; the ledger records
+        # them (dependencies apply first, composition is explicit).
+        manifest["colleague_proposal"] = apply_proposals(proposals, source, output)
     sources = write_bindings(manifest, output)
     shutil.copytree(support / "reference_math", output / "reference_math", dirs_exist_ok=True)
     sources.append(output / "reference_math/reference_exp.cpp")
@@ -253,12 +254,18 @@ if __name__ == "__main__":
     parser.add_argument("--eigen", type=Path)
     parser.add_argument(
         "--proposal",
+        action="append",
         choices=sorted(PROPOSALS),
-        help="Apply a reviewed colleague-proposal reference patch after extraction",
+        help="Apply reviewed colleague-proposal reference patches after extraction (repeatable, composed)",
     )
     args = parser.parse_args()
     eigen = args.eigen.resolve() if args.eigen else args.dependencies.resolve() / "eigen3"
     report = build(
-        args.source.resolve(), args.dependencies.resolve(), args.output.resolve(), args.compiler, eigen, args.proposal
+        args.source.resolve(),
+        args.dependencies.resolve(),
+        args.output.resolve(),
+        args.compiler,
+        eigen,
+        args.proposal,
     )
     print(json.dumps({"library": report["library"], "sha256": report["library_sha256"]}))

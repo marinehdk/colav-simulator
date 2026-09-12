@@ -136,6 +136,291 @@ static bool is_emergency_avoidance_speed_cap_mode(const std::string& mode)
     },
 )
 
+# P-C2 (register R13): corner-degradation per-segment scoping.
+#
+# evaluate_avoidance_plan's corner loop min-accumulated a route-GLOBAL speed
+# cap from EVERY interior vertex and apply_speed_degradation overwrote the
+# whole speed_limit_mps array with it: one sharp kink degraded the entire
+# avoidance route to the corner speed (p5 fan-HO ratchet 7.0 -> 0.89215 m/s,
+# 42.597 m kink; R13). The proposal scopes the degradation per segment:
+#   - a kink vertex caps only its two ADJACENT segments (i-1 and i); other
+#     segments keep the requested speed (per-segment caps ride on
+#     FeasibilityResult and apply_speed_degradation applies them one by one),
+#   - vertices behind the vessel are skipped (passed-vertex heuristic: the
+#     vessel is closer to vertex k+1 than to k), so a plan recovers once the
+#     kink is behind the ship,
+#   - safe speeds are floored at minimum_steerage_speed (the guidance
+#     parameter name; declared with guidance's own 2.5 default so the bringup
+#     yaml value, 3.0, applies unchanged once the key is added for this node).
+# Param sanity note carried for the colleague, NOT changed here: the 1.2 deg/s
+# default max_yaw_rate_deg_s dominates the corner cap on gentle kinks
+# (required radius v/omega = 372 m at 7.8 m/s) and is worth a tuning pass.
+_PC2_MANAGER_EDITS = (
+    {
+        "anchor": '''    double suggested_max_speed_mps{0.0};
+    double suggested_min_distance_m{0.0};
+};
+''',
+        "replacement": '''    double suggested_max_speed_mps{0.0};
+    double suggested_min_distance_m{0.0};
+    // Colleague-proposal-s1 (P-C2): per-vertex speed caps aligned with
+    // speed_limit_mps; infinity means "keep the requested speed". Only
+    // vertices bounding a segment adjacent to a tight kink carry a cap.
+    std::vector<double> segment_speed_limit_mps{};
+};
+''',
+    },
+    {
+        "anchor": '''        parameters_.declare_value("max_decel_mps2", 0.08);
+''',
+        "replacement": '''        parameters_.declare_value("max_decel_mps2", 0.08);
+        // Colleague-proposal-s1 (P-C2): same key as ship_guidance; declared
+        // with guidance's own default so the bringup yaml (3.0 for
+        // ship_guidance_node) governs once the key is shared for this node.
+        parameters_.declare_value("minimum_steerage_speed", 2.5);
+''',
+    },
+    {
+        "anchor": '''        max_decel_mps2_ = std::max(0.01, parameters_.get("max_decel_mps2").as_double());
+''',
+        "replacement": '''        max_decel_mps2_ = std::max(0.01, parameters_.get("max_decel_mps2").as_double());
+        minimum_steerage_speed_ = std::max(0.1, parameters_.get("minimum_steerage_speed").as_double());
+''',
+    },
+    {
+        "anchor": '''        apply_speed_degradation(route, result.suggested_max_speed_mps);
+''',
+        "replacement": '''        // Colleague-proposal-s1 (P-C2): degradation is per segment now.
+        apply_speed_degradation(route, result);
+''',
+    },
+    {
+        "anchor": '''        for (size_t i = 1; i + 1 < points.size(); ++i) {
+            const double available_radius = available_turn_radius(points[i - 1], points[i], points[i + 1]);
+            const double speed = requested_speed_at(route, i);
+            const double dynamic_required_radius = speed * speed / max_lateral_accel_mps2_;
+            const double yaw_required_radius =
+                yaw_rate_limit_rad_s > 1e-6 ? speed / yaw_rate_limit_rad_s : std::numeric_limits<double>::infinity();
+            const double required_radius =
+                std::max({static_min_turn_radius, dynamic_required_radius, yaw_required_radius});
+
+            result.estimated_available_turn_radius_m =
+                std::min(result.estimated_available_turn_radius_m, available_radius);
+            result.required_turn_radius_m =
+                std::max(result.required_turn_radius_m, required_radius);
+
+            if (available_radius + 1e-6 < required_radius) {
+                const double safe_speed_by_lateral_accel =
+                    std::sqrt(std::max(0.0, available_radius * max_lateral_accel_mps2_));
+                const double safe_speed_by_yaw_rate =
+                    std::max(0.0, available_radius * yaw_rate_limit_rad_s);
+                const double safe_speed =
+                    std::min(safe_speed_by_lateral_accel, safe_speed_by_yaw_rate);
+                const bool yaw_rate_is_dominant =
+                    yaw_required_radius >= dynamic_required_radius &&
+                    yaw_required_radius >= static_min_turn_radius;
+                result.suggested_max_speed_mps =
+                    std::min(result.suggested_max_speed_mps, safe_speed);
+                if (plan.require_exact_speed || !plan.allow_degraded_execution) {
+                    auto rejected = rejected_result(
+                        yaw_rate_is_dominant ? "yaw_rate_too_high" : "turn_radius_too_small",
+                        yaw_rate_is_dominant ? "slow_down_or_smooth_turn" : "slow_down_or_enlarge_turn_radius");
+                    rejected.requested_speed_mps = speed;
+                    rejected.suggested_max_speed_mps = safe_speed;
+                    rejected.required_turn_radius_m = required_radius;
+                    rejected.estimated_available_turn_radius_m = available_radius;
+                    return rejected;
+                }
+                result.degraded = true;
+                result.state = "EXECUTING_WITH_LIMIT";
+                result.reason = yaw_rate_is_dominant ? "yaw_rate_limited" : "turn_speed_limited";
+                result.suggested_action = yaw_rate_is_dominant ? "slow_down_or_smooth_turn" : "slow_down";
+            }
+        }
+''',
+        "replacement": '''        // Colleague-proposal-s1 (P-C2) corner-degradation scoping: a tight
+        // kink degrades ONLY the two segments adjacent to the offending
+        // vertex (segments i-1 and i, i.e. the vertex entries bounding them:
+        // i-1, i, i+1); every other entry keeps the requested speed instead
+        // of inheriting a route-global cap. Vertices behind the vessel are
+        // skipped (passed-vertex test), so the plan recovers once the vessel
+        // moves past the kink, and safe speeds are floored at
+        // minimum_steerage_speed so degradation never commands below
+        // steerage way. suggested_max_speed_mps keeps reporting the
+        // tightest upcoming cap for the status telemetry.
+        // Tuning note for the colleague (unchanged here): the 1.2 deg/s
+        // max_yaw_rate_deg_s default dominates the required radius on gentle
+        // kinks (v/omega = 372 m at 7.8 m/s) and is worth a tuning pass.
+        result.segment_speed_limit_mps.assign(
+            points.size(), std::numeric_limits<double>::infinity());
+        for (size_t i = 1; i + 1 < points.size(); ++i) {
+            if (ship_passed_vertex(route, points, i)) {
+                continue;  // recovery: the kink is behind the vessel
+            }
+            const double available_radius = available_turn_radius(points[i - 1], points[i], points[i + 1]);
+            const double speed = requested_speed_at(route, i);
+            const double dynamic_required_radius = speed * speed / max_lateral_accel_mps2_;
+            const double yaw_required_radius =
+                yaw_rate_limit_rad_s > 1e-6 ? speed / yaw_rate_limit_rad_s : std::numeric_limits<double>::infinity();
+            const double required_radius =
+                std::max({static_min_turn_radius, dynamic_required_radius, yaw_required_radius});
+
+            result.estimated_available_turn_radius_m =
+                std::min(result.estimated_available_turn_radius_m, available_radius);
+            result.required_turn_radius_m =
+                std::max(result.required_turn_radius_m, required_radius);
+
+            if (available_radius + 1e-6 < required_radius) {
+                const double safe_speed_by_lateral_accel =
+                    std::sqrt(std::max(0.0, available_radius * max_lateral_accel_mps2_));
+                const double safe_speed_by_yaw_rate =
+                    std::max(0.0, available_radius * yaw_rate_limit_rad_s);
+                // P-C2 floor: never degrade below the steerage floor.
+                const double safe_speed =
+                    std::max(
+                        minimum_steerage_speed_,
+                        std::min(safe_speed_by_lateral_accel, safe_speed_by_yaw_rate));
+                const bool yaw_rate_is_dominant =
+                    yaw_required_radius >= dynamic_required_radius &&
+                    yaw_required_radius >= static_min_turn_radius;
+                for (size_t vertex = i - 1; vertex <= i + 1; ++vertex) {
+                    result.segment_speed_limit_mps[vertex] =
+                        std::min(result.segment_speed_limit_mps[vertex], safe_speed);
+                }
+                result.suggested_max_speed_mps =
+                    std::min(result.suggested_max_speed_mps, safe_speed);
+                if (plan.require_exact_speed || !plan.allow_degraded_execution) {
+                    auto rejected = rejected_result(
+                        yaw_rate_is_dominant ? "yaw_rate_too_high" : "turn_radius_too_small",
+                        yaw_rate_is_dominant ? "slow_down_or_smooth_turn" : "slow_down_or_enlarge_turn_radius");
+                    rejected.requested_speed_mps = speed;
+                    rejected.suggested_max_speed_mps = safe_speed;
+                    rejected.required_turn_radius_m = required_radius;
+                    rejected.estimated_available_turn_radius_m = available_radius;
+                    return rejected;
+                }
+                result.degraded = true;
+                result.state = "EXECUTING_WITH_LIMIT";
+                result.reason = yaw_rate_is_dominant ? "yaw_rate_limited" : "turn_speed_limited";
+                result.suggested_action = yaw_rate_is_dominant ? "slow_down_or_smooth_turn" : "slow_down";
+            }
+        }
+''',
+    },
+    {
+        "anchor": '''        return points;
+    }
+
+    static double distance(const LocalPoint& a, const LocalPoint& b)
+    {
+        return std::hypot(b.x - a.x, b.y - a.y);
+    }
+''',
+        "replacement": '''        return points;
+    }
+
+    bool ship_local_point(
+        const original_gnc::messages::ship_interfaces::RoutePlan& route,
+        LocalPoint& ship) const
+    {
+        if (!has_ship_state_ || route.latitude.empty()) {
+            return false;
+        }
+        const double meters_per_deg_lat = 111320.0;
+        const double meters_per_deg_lon =
+            111320.0 * std::cos(route.latitude.front() * kDegToRad);
+        ship = LocalPoint{
+            (latest_ship_state_.latitude - route.latitude.front()) * meters_per_deg_lat,
+            (latest_ship_state_.longitude - route.latitude.front()) * meters_per_deg_lon};
+        return true;
+    }
+
+    // Colleague-proposal-s1 (P-C2): passed-vertex heuristic. The manager has
+    // no clean along-track state, so "vertex k is behind the vessel" is
+    // approximated by: the vessel is closer to vertex k+1 than to k. Without
+    // ship state nothing is skipped (conservative).
+    bool ship_passed_vertex(
+        const original_gnc::messages::ship_interfaces::RoutePlan& route,
+        const std::vector<LocalPoint>& points,
+        size_t vertex) const
+    {
+        LocalPoint ship{0.0, 0.0};
+        if (!ship_local_point(route, ship) || vertex + 1 >= points.size()) {
+            return false;
+        }
+        return distance(ship, points[vertex + 1]) < distance(ship, points[vertex]);
+    }
+
+    static double distance(const LocalPoint& a, const LocalPoint& b)
+    {
+        return std::hypot(b.x - a.x, b.y - a.y);
+    }
+''',
+    },
+    {
+        "anchor": '''    void apply_speed_degradation(
+        original_gnc::messages::ship_interfaces::RoutePlan& route,
+        double suggested_max_speed_mps) const
+    {
+        if (!std::isfinite(suggested_max_speed_mps) || suggested_max_speed_mps <= 0.0) {
+            return;
+        }
+        const double cap = std::min(suggested_max_speed_mps, max_command_speed_mps_);
+        if (route.speed_limit_mps.empty()) {
+            route.speed_limit_mps.assign(route.latitude.size(), cap);
+            return;
+        }
+        for (double& speed : route.speed_limit_mps) {
+            if (!std::isfinite(speed) || speed <= 0.0) {
+                speed = cap;
+            } else {
+                speed = std::min(speed, cap);
+            }
+        }
+    }
+''',
+        "replacement": '''    // Colleague-proposal-s1 (P-C2): per-vertex degradation. Vertices whose
+    // cap is infinity keep the requested speed (clamped by the command limit
+    // exactly as before); only the vertices bounding the segments adjacent
+    // to a tight kink take the corner cap. An unscoped result (cap vector
+    // absent or size-mismatched) degrades exactly like the original.
+    void apply_speed_degradation(
+        original_gnc::messages::ship_interfaces::RoutePlan& route,
+        const FeasibilityResult& result) const
+    {
+        if (!std::isfinite(result.suggested_max_speed_mps) || result.suggested_max_speed_mps <= 0.0) {
+            return;
+        }
+        if (route.speed_limit_mps.empty()) {
+            route.speed_limit_mps.assign(route.latitude.size(), max_command_speed_mps_);
+        }
+        const bool scoped =
+            result.segment_speed_limit_mps.size() == route.speed_limit_mps.size();
+        for (size_t i = 0; i < route.speed_limit_mps.size(); ++i) {
+            double& speed = route.speed_limit_mps[i];
+            double segment_cap = max_command_speed_mps_;
+            if (scoped && std::isfinite(result.segment_speed_limit_mps[i])) {
+                segment_cap =
+                    std::min(result.segment_speed_limit_mps[i], max_command_speed_mps_);
+            }
+            if (!std::isfinite(speed) || speed <= 0.0) {
+                speed = segment_cap;
+            } else {
+                speed = std::min(speed, segment_cap);
+            }
+        }
+    }
+''',
+    },
+    {
+        "anchor": '''    double max_decel_mps2_{0.08};
+''',
+        "replacement": '''    double max_decel_mps2_{0.08};
+    double minimum_steerage_speed_{2.5};
+''',
+    },
+)
+
 PROPOSALS = {
     "P-C1": {
         "id": "P-C1",
@@ -153,7 +438,47 @@ PROPOSALS = {
             },
         },
     },
+    "P-C2": {
+        "id": "P-C2",
+        "title": "corner-degradation per-segment scoping",
+        "register": "R13",
+        "branch": "codex/colleague-proposal-s1",
+        "depends_on": [],
+        "files": {
+            "active_route_manager_node.cpp": {
+                "source_relative_path": "src/gnc/ship_guidance/src/active_route_manager_node.cpp",
+                "edits": _PC2_MANAGER_EDITS,
+            },
+        },
+    },
 }
+
+
+def _expand_proposals(proposal_ids: list[str]) -> list[str]:
+    """Order proposals so dependencies apply first, without duplicates."""
+    ordered: list[str] = []
+    for proposal_id in proposal_ids:
+        if proposal_id not in PROPOSALS:
+            raise KeyError(f"Unknown colleague proposal: {proposal_id}")
+        for dependency in _expand_proposals(PROPOSALS[proposal_id].get("depends_on", [])):
+            if dependency not in ordered:
+                ordered.append(dependency)
+        if proposal_id not in ordered:
+            ordered.append(proposal_id)
+    return ordered
+
+
+def apply_proposals(proposal_ids: list[str], source: Path, output: Path) -> dict:
+    """Apply composed colleague proposals (dependencies first) to one build."""
+    applied = [
+        apply_proposal(proposal_id, source, output) for proposal_id in _expand_proposals(proposal_ids)
+    ]
+    composed = {"proposals": applied}
+    extraction_path = output / "extraction.json"
+    extraction = json.loads(extraction_path.read_text())
+    extraction["colleague_proposal"] = composed
+    extraction_path.write_text(json.dumps(extraction, indent=2))
+    return composed
 
 
 def apply_proposal(proposal_id: str, source: Path, output: Path) -> dict:

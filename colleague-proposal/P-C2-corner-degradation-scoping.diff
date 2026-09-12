@@ -1,0 +1,266 @@
+// Colleague proposal P-C2 - corner-degradation per-segment scoping
+// Branch: codex/colleague-proposal-s1  |  Register: R13 (proposed-to-colleague)
+// Date: 2026-09-12
+//
+// File touched (1): src/gnc/ship_guidance/src/active_route_manager_node.cpp
+//
+// Path mapping: this diff applies to the colleague source tree directly.
+//   colleague path : external_sources/L4-5_source_only_20260824_v2/<file>
+//   vendored twin  : build/original_gnc-proposal-full/active_route_manager_node.cpp
+//     (mechanical extraction, ledger build/original_gnc-proposal-full/extraction.json;
+//      identical logic - clock reads made explicit, log lines blanked - so only
+//      line numbers shift by a few lines)
+// Reference build compiled from these proposals: build/original_gnc-proposal-full
+// (its build-manifest.json records "colleague_proposal": {"proposals": ["P-C1", "P-C2", "P-C3"]};
+//  build with tools/original_gnc/build_native.py --proposal P-C1 --proposal P-C2 --proposal P-C3).
+// Applies to the colleague tree as-is.
+//
+
+// How to read: lines starting with "//" (this header and the annotation blocks
+// 问题/证据/更改/预期效果/验证方法 above each hunk) are informational. To apply
+// mechanically: strip them with `grep -v '^//'` or apply the hunks by hand.
+// Reference implementation: tools/original_gnc/proposal_patches.py on the
+// proposal branch (PROPOSALS["P-C2"]).
+//
+// 问题: FeasibilityResult 只携带一个全局 suggested_max_speed_mps，corner 循环对每个内点
+//   min-累加，apply_speed_degradation 再用该全局值覆写整条 speed_limit_mps 数组 ——
+//   一个折点即压垮整条避碰航线（R13）。
+// 更改: 新增 per-vertex 限速向量 segment_speed_limit_mps（与 speed_limit_mps 对齐，
+//   infinity = 保持请求速度）。只有紧邻折点的顶点会被写入有限限速。
+// 预期效果: 折点降速的作用域可按段表达，状态/执行两层解耦。
+// 验证方法: proposal-full 探针 A —— 4 顶点航线（折点 r≈70.2 m）提交后速度数组非均匀。
+
+rm1@@ -78,6 +78,10 @@
+     double available_decel_distance_m{std::numeric_limits<double>::infinity()};
+     double suggested_max_speed_mps{0.0};
+     double suggested_min_distance_m{0.0};
++    // Colleague-proposal-s1 (P-C2): per-vertex speed caps aligned with
++    // speed_limit_mps; infinity means "keep the requested speed". Only
++    // vertices bounding a segment adjacent to a tight kink carry a cap.
++    std::vector<double> segment_speed_limit_mps{};
+ };
+ 
+ }  // namespace
+
+// 问题: manager 没有最低可操舵速度参数，降速可以压到任意低（p5 观测 0.892 m/s 平台）。
+// 更改: 声明 minimum_steerage_speed，键名与 ship_guidance 一致；默认 2.5 与 guidance
+//   声明默认一致，bringup yaml 的 3.0 一旦为本节点共享即自动生效。
+// 预期效果: 降速永远不低于 steerage 下限（c）。
+// 验证方法: describe() 参数清单出现 minimum_steerage_speed；探针 A 折点段速度 = 2.5。
+
+rm2@@ -103,6 +107,10 @@
+         declare_parameter("max_yaw_rate_deg_s", 1.2);
+         declare_parameter("emergency_max_yaw_rate_deg_s", 2.0);
+         declare_parameter("max_decel_mps2", 0.08);
++        // Colleague-proposal-s1 (P-C2): same key as ship_guidance; declared
++        // with guidance's own default so the bringup yaml (3.0 for
++        // ship_guidance_node) governs once the key is shared for this node.
++        declare_parameter("minimum_steerage_speed", 2.5);
+         declare_parameter("default_avoidance_hold_s", 60.0);
+         declare_parameter("max_heading_path_error_deg", 20.0);
+         declare_parameter("publish_nominal_status", true);
+
+// 更改: 读取并下限保护（0.1）minimum_steerage_speed，与其它参数同风格。
+// 预期效果: 同上。
+// 验证方法: 同上。
+
+rm3@@ -134,6 +142,7 @@
+         emergency_max_yaw_rate_deg_s_ = std::max(
+             max_yaw_rate_deg_s_, get_parameter("emergency_max_yaw_rate_deg_s").as_double());
+         max_decel_mps2_ = std::max(0.01, get_parameter("max_decel_mps2").as_double());
++        minimum_steerage_speed_ = std::max(0.1, get_parameter("minimum_steerage_speed").as_double());
+         default_avoidance_hold_s_ = std::max(1.0, get_parameter("default_avoidance_hold_s").as_double());
+         max_heading_path_error_deg_ = std::clamp(
+             get_parameter("max_heading_path_error_deg").as_double(), 0.1, 180.0);
+
+// 更改: apply_speed_degradation 改为接收整个 FeasibilityResult，逐条目应用 per-vertex 限速。
+// 预期效果: 航线速度数组按段降速；未标记段保持请求速度。
+// 验证方法: 探针 A 数组 [2.5, 2.5, 2.5, 7.8]（修复前 [1.4694]*4 整线塌缩）。
+
+rm4@@ -360,7 +369,8 @@
+             return;
+         }
+ 
+-        apply_speed_degradation(route, result.suggested_max_speed_mps);
++        // Colleague-proposal-s1 (P-C2): degradation is per segment now.
++        apply_speed_degradation(route, result);
+         set_active_route_context(route, command_source, result);
+         active_route_pub_->publish(route);
+         mark_avoidance_active(*msg);
+
+// 问题: corner 循环对每个内点无差别评估并 min-累加全局 cap；船已驶过的折点仍参与降速，
+//   计划无法恢复（p5 ratchet 7.0→0.89215 m/s，折点 42.597 m）。
+// 证据: register R13；p5 fan-HO 遥测；p7 遭遇段速度带。
+// 更改: (a) 循环前初始化 per-vertex 限速为 infinity；(b) 已过顶点跳过 —— 无干净沿轨
+//   状态时用 passed-vertex 启发式（船距 k+1 顶点 < 距 k 顶点即视为已过），无船位时保守不跳；
+//   (c) 附注（未改参数）: max_yaw_rate_deg_s 默认 1.2 deg/s 在缓折角处主导 required radius
+//   （7.8 m/s 时 v/ω≈372 m），建议同事做一轮调参复核。
+// 预期效果: 折点只影响其紧邻两段；船过折点后计划自动恢复。
+// 验证方法: 探针 A（起点在顶点 0，折点参与降速）；同航线将船位置移过折点后数组恢复请求速度。
+
+rm5@@ -942,7 +952,25 @@
+             }
+         }
+ 
++        // Colleague-proposal-s1 (P-C2) corner-degradation scoping: a tight
++        // kink degrades ONLY the two segments adjacent to the offending
++        // vertex (segments i-1 and i, i.e. the vertex entries bounding them:
++        // i-1, i, i+1); every other entry keeps the requested speed instead
++        // of inheriting a route-global cap. Vertices behind the vessel are
++        // skipped (passed-vertex test), so the plan recovers once the vessel
++        // moves past the kink, and safe speeds are floored at
++        // minimum_steerage_speed so degradation never commands below
++        // steerage way. suggested_max_speed_mps keeps reporting the
++        // tightest upcoming cap for the status telemetry.
++        // Tuning note for the colleague (unchanged here): the 1.2 deg/s
++        // max_yaw_rate_deg_s default dominates the required radius on gentle
++        // kinks (v/omega = 372 m at 7.8 m/s) and is worth a tuning pass.
++        result.segment_speed_limit_mps.assign(
++            points.size(), std::numeric_limits<double>::infinity());
+         for (size_t i = 1; i + 1 < points.size(); ++i) {
++            if (ship_passed_vertex(route, points, i)) {
++                continue;  // recovery: the kink is behind the vessel
++            }
+             const double available_radius = available_turn_radius(points[i - 1], points[i], points[i + 1]);
+             const double speed = requested_speed_at(route, i);
+             const double dynamic_required_radius = speed * speed / max_lateral_accel_mps2_;
+
+// 更改: safe_speed 施加 minimum_steerage_speed 下限（c），并写入相邻顶点条目
+//   i-1 / i / i+1（即紧邻段 i-1 与 i 的边界顶点）；状态层 suggested_max_speed_mps
+//   继续报告最紧 cap，硬拒绝分支逐字保留。
+// 预期效果: 降速≥steerage 下限且不外溢到非相邻段；REJECTED 判据不变。
+// 验证方法: 探针 A reason=yaw_rate_limited、cap=2.5≥2.5；route_admission 套件 14 passed。
+
+rm6@@ -961,11 +989,18 @@
+                     std::sqrt(std::max(0.0, available_radius * max_lateral_accel_mps2_));
+                 const double safe_speed_by_yaw_rate =
+                     std::max(0.0, available_radius * yaw_rate_limit_rad_s);
++                // P-C2 floor: never degrade below the steerage floor.
+                 const double safe_speed =
+-                    std::min(safe_speed_by_lateral_accel, safe_speed_by_yaw_rate);
++                    std::max(
++                        minimum_steerage_speed_,
++                        std::min(safe_speed_by_lateral_accel, safe_speed_by_yaw_rate));
+                 const bool yaw_rate_is_dominant =
+                     yaw_required_radius >= dynamic_required_radius &&
+                     yaw_required_radius >= static_min_turn_radius;
++                for (size_t vertex = i - 1; vertex <= i + 1; ++vertex) {
++                    result.segment_speed_limit_mps[vertex] =
++                        std::min(result.segment_speed_limit_mps[vertex], safe_speed);
++                }
+                 result.suggested_max_speed_mps =
+                     std::min(result.suggested_max_speed_mps, safe_speed);
+                 if (plan.require_exact_speed || !plan.allow_degraded_execution) {
+
+// 更改: 新增 ship_local_point（投影常量与 fill_route_stage_snapshot 一致）与
+//   ship_passed_vertex（passed-vertex 启发式，供 P-C2/P-C3 共用）。
+// 预期效果: 顶点前后判别可复用，无需引入沿轨弧长状态。
+// 验证方法: 探针 A/B/C 全部断言通过。
+
+rm7@@ -1045,6 +1080,38 @@
+         return points;
+     }
+ 
++    bool ship_local_point(
++        const ship_interfaces::msg::RoutePlan& route,
++        LocalPoint& ship) const
++    {
++        if (!has_ship_state_ || route.latitude.empty()) {
++            return false;
++        }
++        const double meters_per_deg_lat = 111320.0;
++        const double meters_per_deg_lon =
++            111320.0 * std::cos(route.latitude.front() * kDegToRad);
++        ship = LocalPoint{
++            (latest_ship_state_.latitude - route.latitude.front()) * meters_per_deg_lat,
++            (latest_ship_state_.longitude - route.latitude.front()) * meters_per_deg_lon};
++        return true;
++    }
++
++    // Colleague-proposal-s1 (P-C2): passed-vertex heuristic. The manager has
++    // no clean along-track state, so "vertex k is behind the vessel" is
++    // approximated by: the vessel is closer to vertex k+1 than to k. Without
++    // ship state nothing is skipped (conservative).
++    bool ship_passed_vertex(
++        const ship_interfaces::msg::RoutePlan& route,
++        const std::vector<LocalPoint>& points,
++        size_t vertex) const
++    {
++        LocalPoint ship{0.0, 0.0};
++        if (!ship_local_point(route, ship) || vertex + 1 >= points.size()) {
++            return false;
++        }
++        return distance(ship, points[vertex + 1]) < distance(ship, points[vertex]);
++    }
++
+     static double distance(const LocalPoint& a, const LocalPoint& b)
+     {
+         return std::hypot(b.x - a.x, b.y - a.y);
+
+// 问题: 原实现把全局 suggested_max_speed_mps 覆写到整条 speed_limit_mps。
+// 更改: 逐顶点应用：infinity 条目保持请求速度（仍受 max_command_speed_mps_ 钳制，
+//   speed_limited_by_vessel 行为不变）；cap 向量缺失或长度不齐时退回原全局行为。
+// 预期效果: 按段降速落地；空速度数组/未作用域化结果与原行为一致。
+// 验证方法: 探针 A；test_original_gnc_route_admission / route_splice / native_stack /
+//   validation / vector_stream / response_qualification / product 全绿。
+
+rm8@@ -1099,23 +1166,34 @@
+         return max_speed;
+     }
+ 
++    // Colleague-proposal-s1 (P-C2): per-vertex degradation. Vertices whose
++    // cap is infinity keep the requested speed (clamped by the command limit
++    // exactly as before); only the vertices bounding the segments adjacent
++    // to a tight kink take the corner cap. An unscoped result (cap vector
++    // absent or size-mismatched) degrades exactly like the original.
+     void apply_speed_degradation(
+         ship_interfaces::msg::RoutePlan& route,
+-        double suggested_max_speed_mps) const
+-    {
+-        if (!std::isfinite(suggested_max_speed_mps) || suggested_max_speed_mps <= 0.0) {
+-            return;
+-        }
+-        const double cap = std::min(suggested_max_speed_mps, max_command_speed_mps_);
++        const FeasibilityResult& result) const
++    {
++        if (!std::isfinite(result.suggested_max_speed_mps) || result.suggested_max_speed_mps <= 0.0) {
++            return;
++        }
+         if (route.speed_limit_mps.empty()) {
+-            route.speed_limit_mps.assign(route.latitude.size(), cap);
+-            return;
+-        }
+-        for (double& speed : route.speed_limit_mps) {
++            route.speed_limit_mps.assign(route.latitude.size(), max_command_speed_mps_);
++        }
++        const bool scoped =
++            result.segment_speed_limit_mps.size() == route.speed_limit_mps.size();
++        for (size_t i = 0; i < route.speed_limit_mps.size(); ++i) {
++            double& speed = route.speed_limit_mps[i];
++            double segment_cap = max_command_speed_mps_;
++            if (scoped && std::isfinite(result.segment_speed_limit_mps[i])) {
++                segment_cap =
++                    std::min(result.segment_speed_limit_mps[i], max_command_speed_mps_);
++            }
+             if (!std::isfinite(speed) || speed <= 0.0) {
+-                speed = cap;
++                speed = segment_cap;
+             } else {
+-                speed = std::min(speed, cap);
++                speed = std::min(speed, segment_cap);
+             }
+         }
+     }
+
+// 更改: 新增成员 minimum_steerage_speed_{2.5}（默认与 guidance 声明默认一致）。
+// 预期效果: 同 rm2。
+// 验证方法: 同 rm2。
+
+rm9@@ -1294,6 +1372,7 @@
+     double max_yaw_rate_deg_s_{1.2};
+     double emergency_max_yaw_rate_deg_s_{2.0};
+     double max_decel_mps2_{0.08};
++    double minimum_steerage_speed_{2.5};
+     double default_avoidance_hold_s_{60.0};
+     double max_heading_path_error_deg_{20.0};
+     bool publish_nominal_status_{true};
