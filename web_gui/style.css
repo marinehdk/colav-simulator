@@ -3667,3 +3667,5 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .replay-timeline-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .replay-source-frame { font-size: 10px; color: var(--ob-subtle); font-variant-numeric: tabular-nums; letter-spacing: .3px; }
 .replay-runs-open { white-space: nowrap; }
+.replay-rate-group { display: inline-flex; align-items: center; gap: 4px; }
+.replay-rate-group obc-button[aria-pressed="true"] { outline: 1px solid var(--ob-accent); }

@@ -779,8 +779,18 @@
             <span id="replayTimeTotal">— s</span>
           </div>
           <div class="replay-timeline-controls">
+            <obc-button id="replayPlayPauseBtn" variant="flat" aria-pressed="false">PLAY ▶</obc-button>
             <obc-button id="replayStartBtn" variant="flat">|◀ Start</obc-button>
             <obc-button id="replayEndBtn" variant="flat">End ▶|</obc-button>
+            <span class="replay-rate-group" role="group" aria-label="Replay Speed (presentation only)">
+              <obc-button id="replayRate025" variant="flat" aria-pressed="false">0.25×</obc-button>
+              <obc-button id="replayRate05" variant="flat" aria-pressed="false">0.5×</obc-button>
+              <obc-button id="replayRate1" variant="flat" aria-pressed="true">1×</obc-button>
+              <obc-button id="replayRate2" variant="flat" aria-pressed="false">2×</obc-button>
+              <obc-button id="replayRate5" variant="flat" aria-pressed="false">5×</obc-button>
+              <obc-button id="replayRate10" variant="flat" aria-pressed="false">10×</obc-button>
+              <obc-button id="replayRate20" variant="flat" aria-pressed="false">20×</obc-button>
+            </span>
             <span class="replay-source-frame" id="replaySourceFrame">source frame —</span>
             <span class="historical-ais-status-pill" id="replayStatusLine">PAUSED · HISTORICAL INSPECTION</span>
           </div>

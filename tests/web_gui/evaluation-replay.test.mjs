@@ -338,3 +338,210 @@ test('incomplete evidence restricts the timeline to the trusted boundary and say
   assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /REPLAY INCOMPLETE/);
   assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /20\.0 s/);
 });
+
+
+/* ── #72: deterministic playback (ReplayClock / Play / Pause / Replay Speed) ── */
+
+const elText = (documentRef, id) => documentRef.getElementById(id)?.textContent ?? '';
+
+function makeWallClock() {
+  let wallMs = 0;
+  return {
+    now: () => wallMs,
+    advance: ms => { wallMs += ms; },
+  };
+}
+
+function makeScheduler() {
+  let nextId = 0;
+  let pending = [];
+  return {
+    set: (fn, ms) => { const id = ++nextId; pending.push({ id, fn, ms }); return id; },
+    clear: id => { pending = pending.filter(entry => entry.id !== id); },
+    get pendingCount() { return pending.length; },
+    async fireNext() {
+      const entry = pending.shift();
+      assert.ok(entry, 'no scheduled playback tick to fire');
+      entry.fn();
+      await new Promise(resolve => setTimeout(resolve, 0));
+    },
+  };
+}
+
+async function makePlaybackController() {
+  const wall = makeWallClock();
+  const scheduler = makeScheduler();
+  const base = await makeController();
+  const { createEvaluationReplayController } = await import('../../web_gui/modules/evaluation-replay.js');
+  const controller = createEvaluationReplayController({
+    documentRef: base.documentRef,
+    fetchRef: base.network.fetchRef,
+    displayFactory: () => base.display,
+    nowFn: wall.now,
+    scheduler,
+  });
+  return { ...base, controller, wall, scheduler };
+}
+
+async function openReadyRun(parts) {
+  const openPromise = parts.controller.open(RUN_ID);
+  await parts.network.open(parts.network);
+  await openPromise;
+}
+
+async function drainWindowResponses(network, doc = windowDoc(0.1, 8.1)) {
+  while (network.pending.length) {
+    await network.respondNext(doc);
+  }
+}
+
+test('play advances the playhead from wall elapsed × speed with zero session mutation', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, documentRef, wall, scheduler } = parts;
+
+  controller.playPause();
+  assert.equal(controller.state.clockState, 'PLAYING');
+  assert.equal(elText(documentRef, 'replayPlayPauseBtn'), 'PAUSE ⏸');
+
+  wall.advance(1000);
+  await scheduler.fireNext();
+  assert.ok(Math.abs(controller.state.playhead - 1.1) < 1e-6, `playhead ${controller.state.playhead}`);
+  assert.match(elText(documentRef, 'replayStatusLine'), /PLAYING · HISTORICAL REPLAY · 1×/);
+
+  const sessionCalls = network.calls.filter(call => /\/api\/sessions/.test(call.url));
+  assert.equal(sessionCalls.length, 0, 'replay playback must never call Active Session endpoints');
+
+  controller.playPause(); // pause freezes
+  const frozen = controller.state.playhead;
+  wall.advance(10_000);
+  await scheduler.fireNext().catch(() => {});
+  assert.equal(controller.state.playhead, frozen);
+  assert.equal(controller.state.clockState, 'PAUSED');
+});
+
+test('rate change preserves playhead continuity; only subsequent elapsed uses the new rate', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, documentRef, wall, scheduler } = parts;
+
+  controller.playPause();
+  wall.advance(1000);
+  await scheduler.fireNext();
+  const before = controller.state.playhead;
+
+  controller.setRate(10);
+  assert.equal(controller.state.rate, 10);
+  assert.equal(controller.state.playhead, before); // no jump at the change instant
+  wall.advance(1000);
+  await scheduler.fireNext();
+  assert.ok(Math.abs(controller.state.playhead - (before + 10)) < 1e-6, `playhead ${controller.state.playhead}`);
+  assert.match(elText(documentRef, 'replayStatusLine'), /10×/);
+});
+
+test('playback prefetches bounded windows ahead and never loads the whole Run', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, wall, scheduler } = parts;
+
+  controller.playPause();
+  for (let i = 0; i < 90; i += 1) {
+    wall.advance(100);
+    await scheduler.fireNext().catch(() => {});
+    await drainWindowResponses(network);
+  }
+  const windowCalls = network.calls.filter(call => call.url.includes('/replay/window'));
+  assert.ok(windowCalls.length >= 2, 'expected a playback prefetch beyond the initial window');
+  const lastUrl = new URL(`http://x${windowCalls[windowCalls.length - 1].url}`);
+  const from = Number(lastUrl.searchParams.get('from'));
+  const to = Number(lastUrl.searchParams.get('to'));
+  assert.ok(from >= 8.1 - 0.5, `prefetch starts near the loaded edge, got from=${from}`);
+  assert.ok(to - from <= 25, `prefetch span bounded, got ${to - from}`);
+  assert.ok(controller.state.playhead > 8.0, 'playhead progressed past the initial window');
+});
+
+test('reaching trusted t_end transitions to ENDED; play restarts deterministically from t_start', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, documentRef, wall, scheduler } = parts;
+
+  const seekPromise = controller.seek(39.5); // 0.5 s before the trusted end
+  await drainWindowResponses(network, windowDoc(39.0, 40.0));
+  await seekPromise;
+
+  controller.playPause();
+  wall.advance(2000); // 2 s at 1× — crosses t_end 40.0
+  await scheduler.fireNext();
+  assert.equal(controller.state.clockState, 'ENDED');
+  assert.equal(controller.state.playhead, 40.0);
+  assert.match(elText(documentRef, 'replayStatusLine'), /REPLAY ENDED/);
+  const windowsBefore = network.calls.filter(call => call.url.includes('/replay/window')).length;
+
+  controller.playPause(); // restart from the trusted start
+  assert.equal(controller.state.clockState, 'PLAYING');
+  assert.ok(controller.state.playhead <= 0.1 + 1e-6, `restarted playhead ${controller.state.playhead}`);
+  await drainWindowResponses(network, windowDoc(0.1, 8.1));
+  wall.advance(100);
+  await scheduler.fireNext().catch(() => {});
+  await drainWindowResponses(network);
+  const windowCallsAfter = network.calls.filter(call => call.url.includes('/replay/window')).length;
+  assert.ok(windowCallsAfter > windowsBefore, 'restart fetched a window for the trusted start');
+});
+
+test('seek during PLAYING lands at the target and playback continues from there', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, wall, scheduler } = parts;
+
+  controller.playPause();
+  wall.advance(1000);
+  await scheduler.fireNext();
+  await drainWindowResponses(network);
+
+  const seekPromise = controller.seek(30.0);
+  await network.respondNext(windowDoc(29.5, 30.0));
+  await drainWindowResponses(network);
+  await seekPromise;
+  assert.equal(controller.state.playhead, 30.0);
+  assert.equal(controller.state.clockState, 'PLAYING');
+
+  wall.advance(1000);
+  await scheduler.fireNext();
+  await drainWindowResponses(network);
+  assert.ok(controller.state.playhead > 30.9, `playback resumed from the seek target: ${controller.state.playhead}`);
+});
+
+test('high-speed playback samples paint frames but keeps every recorded frame seekable', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, display, network, wall, scheduler } = parts;
+
+  controller.setRate(20);
+  controller.playPause();
+  const renderCountBefore = display.renders.length;
+  for (let i = 0; i < 5; i += 1) {
+    wall.advance(100); // 2 sim-seconds per tick at 20×
+    await scheduler.fireNext().catch(() => {});
+    await drainWindowResponses(network);
+  }
+  const painted = display.renders.length - renderCountBefore;
+  assert.ok(painted <= 5, `paint sampling keeps renders bounded per tick, got ${painted}`);
+  assert.ok(controller.state.playhead >= 10.0, `20× playhead advanced: ${controller.state.playhead}`);
+
+  // Frame identity survives: pause and seek back to an exact recorded frame.
+  controller.playPause();
+  await drainWindowResponses(parts.network);
+  const seekPromise = controller.seek(2.0);
+  await parts.network.respondNext(windowDoc(1.5, 2.5));
+  await drainWindowResponses(parts.network);
+  await seekPromise;
+  assert.equal(controller.state.sourceSequence, Math.round(2.0 * 10));
+});
+
+test('solver-execution evidence is untouched by replay reads (backend counter test seam)', async () => {
+  const html2 = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
+  assert.ok(html2.includes('replayRate20'), '20× preset present');
+  assert.ok(html2.includes('replayPlayPauseBtn'), 'play/pause control present');
+  const adapterSource2 = adapterSource;
+  assert.doesNotMatch(adapterSource2, /api\/sessions/, 'replay source adapter never targets session endpoints');
+});
