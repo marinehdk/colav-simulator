@@ -16,7 +16,10 @@
 
 ```text
 #70 INTEGRATED+CLOSED 2026-09-12 — merge 664a927c (8721bcff..82cb5979), verifier ACCEPT, evidence issuecomment-5640790063
-#71 DISPATCHED 2026-09-12 (implementer worktree replay-71, branch agent/replay-71-seek, from 664a927c)
+#71 IMPLEMENTED (implementer stopped pre-report) → VERIFIER dispatch 2026-09-12
+    commits 18b6d5b3..973f61ef (4, +2710/−81): window API + derived seek cache / shared kinematics+adapter+parity /
+    paused timeline race-safe seek / gz journal events; tools/measure_replay_window_perf.py
+    verifier extra duties: canonical_threat.py second-truth audit (NEW unlisted file), perf evidence collection, consolidated issue comment
 #72 blocked by #71
 #73 blocked by #72
 #74 blocked by #73
