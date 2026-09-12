@@ -15,15 +15,16 @@
 ## Ticket states
 
 ```text
-#70 INTEGRATED+CLOSED 2026-09-12 — merge 664a927c (8721bcff..82cb5979), verifier ACCEPT, evidence issuecomment-5640790063
-#71 IMPLEMENTED (implementer stopped pre-report) → VERIFIER dispatch 2026-09-12
-    commits 18b6d5b3..973f61ef (4, +2710/−81): window API + derived seek cache / shared kinematics+adapter+parity /
-    paused timeline race-safe seek / gz journal events; tools/measure_replay_window_perf.py
-    verifier extra duties: canonical_threat.py second-truth audit (NEW unlisted file), perf evidence collection, consolidated issue comment
-#72 blocked by #71
-#73 blocked by #72
-#74 blocked by #73
-#75 blocked by #74
+#70 INTEGRATED+CLOSED 2026-09-12 — merge 664a927c, verifier ACCEPT
+#71 INTEGRATED+CLOSED 2026-09-12 — merge 994720ec (18b6d5b3..973f61ef, +2710/−81)
+    implementer stopped pre-report; verification executed BY ORCHESTRATOR (subagent dispatch outage: model provider unconfigured, 3 failed spawns incl. Explore)
+    verdict ACCEPT — audits: canonical_threat.py pure projection PASS; seek cache = in-memory decoded buffer ≤256MB + LRU-2 reuse, measured 304ms cold → 45ms median warm (justified §5.3); kinematics.js single source PASS
+    tests: 78 pytest (56+22 new), 283/1 frontend, ruff/diff clean; evidence issuecomment-5646613896
+#72 DISPATCHED 2026-09-12 (implementer worktree replay-72, branch agent/replay-72-clock, from 994720ec; dispatch channel recovered)
+#73 INTEGRATED+CLOSED 2026-09-12 — merge cdcd87c3 (event categories + timeline + Prev/Next), orchestrator-implemented+verified
+#74 INTEGRATED+CLOSED 2026-09-12 — merge 0984f4da (IA views + evidence endpoint + HAIS capture + Open Replay + Simulation Rate), orchestrator-implemented+verified
+#75 ACCEPTANCE IN PROGRESS 2026-09-12 (orchestrator-executed; subagent channel down all session)
+    Lane B: real Mid-MPC run rule13/overtaking/mid_mpc_ipopt/god via product API on :8022, session e5f68ad4, one execution
 ```
 
 ## Orchestrator decisions (2026-09-11 review)
