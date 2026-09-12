@@ -35,4 +35,4 @@ fan 静态约束标志绑定化（94c1ae58，避免远距 ENC 危害锁死意图
 
 ## 五、验证基线（交付时状态）
 
-p6（starboard 约束重跑前的 24 格）：COMPLETED 18、硬安全评估格全 PASS、goal 3、COLREG v2 12/9/1/4、Mid TRACKABILITY 0 拒、addressable 拒因 ~15。p6b（VO 右转修复后）见补记。复现命令见各评估档。
+p6 终态（24 格，seed 0，含全部本轮修复）：COMPLETED 18/24、硬安全评估格全 PASS、Mid TRACKABILITY 0 拒；**COLREG v2 终评 17 COMPLIANT / 7 PARTIAL / 0 NON_COMPLIANT**（基线 4 NC→0）；goal 3/24（主缺口=速度帽 S1）。复现：`tools/original_gnc/run_product_campaign_subset.py`、`run_mid_product_campaign.py`、中断续跑 `resume_product_campaign_subset.py`、评分 `colreg_scoring.py`（env：PYTHONPATH=<repo>、COLAV_ORIGINAL_GNC_BUILD=<build>）。
