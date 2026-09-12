@@ -31,9 +31,18 @@
 
 planner包络假设与执行策略联动：我方VO包络窗口此前按"avoidance段执行≤3.2"设定（[steerage, cap]）。P-C1后普通avoidance段不再限速，我方将把包络上限同步为巡航速（emergency语义保留3.2参考）。**p7单P-C1实测出现过1格planner INFEASIBLE回归（vo-OT-E0，非碰撞、桥诚实拒绝）**，即此联动未做时的结果——同事采纳P-C1时请预留我方PR联调窗口。
 
-## 验证结果（闭环）
+## 验证结果（闭环，24 格产品矩阵 seed 0）
 
-<!-- P7_P8_RESULTS -->
+| 轮 | 构建 | COMPLETED | 硬安全 | goal | 备注 |
+|---|---|---|---|---|---|
+| p6 基线 | 未打补丁 | 16/16 (VO/Fan) | 全 PASS | 2 | 主分支现状 |
+| p7 | P-C1 | 15/16 | 全 PASS | 2 | vo-OT-E0 planner INFEASIBLE（包络-执行失配） |
+| p8 | P-C1+P-C2+P-C3 | 15/16 | 全 PASS | **3** | fan-HO-E4 新达标；vo-OT-E4 INFEASIBLE（同类换格） |
+| p8b | + 包络耦合（已回退） | 15/16 | PASS 但 VO-HO 净距 453→79/90 m | 0 | 耦合摊薄安全余量、无 goal 增益 → 回退，保持保守包络 |
+
+要点：(1) P-C2/P-C3 落地后 vo-OT-E0 从 p7 回归中恢复（COMPLETED+PASS 1061 m）——manager 速度数组修复直接改善 planner 可行性；(2) 唯一开放格 vo-OT-E4 为 planner 侧包络-几何失配（诚实拒绝、无安全事件），与同事补丁解耦，我方 planner track 继续跟进；(3) goal 提升受 VO 末端与遭遇几何共同限制，增速使净距变薄——**安全余量优先于任务速度**，未采用激进包络。
+
+## PLR/回归说明
 
 ## 给同事的实施说明
 
