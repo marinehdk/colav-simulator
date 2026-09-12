@@ -13,11 +13,19 @@
 import { createSituationDisplay } from './situation-display.js';
 import { createTelemetryProjection } from './telemetry-projection.js';
 import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js';
+import { createReplayClock, REPLAY_RATES, ReplayPlayState } from './replay-clock.js';
 import { setReplayRunOpener } from './replay-runs.js';
 
 // Scrub windows stay small and bounded; the backend enforces the frozen caps.
 const SEEK_WINDOW_HALF_SPAN_S = 0.5;
 const INITIAL_WINDOW_SPAN_S = 8.0;
+
+// Playback prefetch: bounded frame-count windows ahead of the playhead. The
+// span adapts to Replay Speed (so high rates do not refetch every 100 ms) but
+// is capped by a frozen frame budget — the whole Run is never loaded.
+const PLAYBACK_TICK_MS = 100;
+const PREFETCH_FRAME_BUDGET = 240;
+const PREFETCH_MIN_SPAN_S = 8.0;
 
 const THREAT_LEVELS = { HIGH: 'danger', LOW: 'warn', CLEAR: 'safe' };
 
@@ -30,7 +38,13 @@ export function createEvaluationReplayController({
   documentRef = globalThis.document,
   fetchRef = globalThis.fetch,
   displayFactory = null,
+  nowFn = () => Date.now(),
+  scheduler = null,
 } = {}) {
+  const schedule = scheduler ?? {
+    set: (fn, ms) => setTimeout(fn, ms),
+    clear: id => clearTimeout(id),
+  };
   const el = id => documentRef.getElementById(id);
   const projection = createTelemetryProjection();
 
@@ -45,9 +59,22 @@ export function createEvaluationReplayController({
   let lastSourceSequence = null;
   let lastSourceSimTime = null;
   let display = null;
+  let clock = null;
+  let timerId = null;
+  let prefetchInFlight = false;
 
   function setStatus(next) {
     status = next;
+  }
+
+  function statusLineFor(clockState) {
+    if (clockState === ReplayPlayState.PLAYING) {
+      return `PLAYING · HISTORICAL REPLAY · ${clock.rate}×`;
+    }
+    if (clockState === ReplayPlayState.ENDED) {
+      return 'REPLAY ENDED · SEEK BACKWARD OR PRESS PLAY TO RESTART';
+    }
+    return 'PAUSED · HISTORICAL INSPECTION';
   }
 
   function evidenceLabel(facts) {
@@ -138,10 +165,125 @@ export function createEvaluationReplayController({
     }
     display?.setTargetThreatLevels?.(levels);
     setStatus('READY');
-    el('replayStatusLine').textContent = 'PAUSED · HISTORICAL INSPECTION';
+    el('replayStatusLine').textContent = statusLineFor(clock?.state ?? ReplayPlayState.PAUSED);
     readouts();
     renderInspection();
     return true;
+  }
+
+  /** Bounded prefetch span: adapts to rate, capped by a frozen frame budget. */
+  function prefetchSpanS() {
+    const start = Number(descriptor?.replay?.t_start) || 0.0;
+    const end = trustedEnd();
+    const density = (Number(descriptor?.replay?.frame_count) || 0) / Math.max(end - start, 1e-6);
+    const spanByRate = Math.max(PREFETCH_MIN_SPAN_S, PREFETCH_MIN_SPAN_S * (clock?.rate ?? 1));
+    const spanByFrames = density > 0 ? PREFETCH_FRAME_BUDGET / density : spanByRate;
+    return Math.min(spanByRate, spanByFrames);
+  }
+
+  async function prefetchAhead(fromS, gen) {
+    prefetchInFlight = true;
+    const toS = Math.min(trustedEnd(), fromS + prefetchSpanS());
+    try {
+      const document_ = await fetchJson(
+        `/api/runs/${runId}/replay/window?from=${fromS}&to=${toS}`,
+      );
+      if (gen !== generation) return; // a newer seek/cursor owns the Inspection Cursor
+      windowDoc = document_;
+      clock?.resume();
+      renderCurrent();
+    } catch {
+      if (gen === generation) {
+        if (clock?.state === ReplayPlayState.PLAYING) {
+          clock.pause();
+          stopPlaybackTimer();
+          el('replayPlayPauseBtn').textContent = 'PLAY ▶';
+        }
+        setStatus('ERROR');
+        el('replayStatusLine').textContent = 'RECORDED DATA UNAVAILABLE · RETRY FROM THE TIMELINE';
+      }
+    } finally {
+      prefetchInFlight = false;
+    }
+  }
+
+  function stopPlaybackTimer() {
+    if (timerId !== null) {
+      schedule.clear(timerId);
+      timerId = null;
+    }
+  }
+
+  /** One deterministic playback step: advance the clock, prefetch when the
+   * recorded bracket runs out (holding progression — never extrapolating),
+   * otherwise paint the sealed frame at the playhead. */
+  function playbackTick() {
+    if (!clock || clock.state !== ReplayPlayState.PLAYING) return;
+    const ticked = clock.tick();
+    playhead = ticked.playhead;
+    if (ticked.state === ReplayPlayState.ENDED) {
+      stopPlaybackTimer();
+      renderCurrent();
+      return;
+    }
+    const start = Number(descriptor.replay.t_start) || 0.0;
+    const end = trustedEnd();
+    const from = windowDoc ? Number(windowDoc.requested?.from_s) : Number.NaN;
+    const to = windowDoc ? Number(windowDoc.requested?.to_s) : Number.NaN;
+    const covered = Number.isFinite(from) && Number.isFinite(to)
+      && playhead >= from - 1e-6 && playhead <= to + 1e-6;
+    if (!covered) {
+      if (!prefetchInFlight) {
+        clock.hold(); // stop playhead progression until trustworthy data exists
+        void prefetchAhead(Math.min(end, Math.max(start, playhead)), generation);
+      }
+      readouts();
+      return;
+    }
+    renderCurrent();
+  }
+
+  function startPlaybackLoop() {
+    stopPlaybackTimer();
+    const step = () => {
+      timerId = null;
+      playbackTick();
+      if (clock?.state === ReplayPlayState.PLAYING && timerId === null) {
+        timerId = schedule.set(step, PLAYBACK_TICK_MS);
+      }
+    };
+    timerId = schedule.set(step, PLAYBACK_TICK_MS);
+  }
+
+  function playPause() {
+    if (!descriptor || !['READY', 'INCOMPLETE'].includes(String(descriptor.replay.state).toUpperCase())) return;
+    if (clock.state === ReplayPlayState.PLAYING) {
+      clock.pause();
+      stopPlaybackTimer();
+      renderCurrent();
+      el('replayPlayPauseBtn').textContent = 'PLAY ▶';
+      return;
+    }
+    if (clock.state === ReplayPlayState.ENDED) {
+      generation += 1; // obsolete windows/prefetches for the restarted cursor
+      windowDoc = null;
+    }
+    clock.play();
+    el('replayPlayPauseBtn').textContent = 'PAUSE ⏸';
+    playbackTick();
+    if (clock.state === ReplayPlayState.PLAYING) startPlaybackLoop();
+  }
+
+  function setRate(rateValue) {
+    if (!clock) return;
+    clock.setRate(Number(rateValue));
+    for (const rate of REPLAY_RATES) {
+      const button = el(`replayRate${String(rate).replace('.', '')}`);
+      if (button) button.setAttribute('aria-pressed', String(rate === clock.rate));
+    }
+    if (clock.state === ReplayPlayState.PLAYING) {
+      el('replayStatusLine').textContent = statusLineFor(clock.state);
+    }
   }
 
   async function loadWindow(fromS, toS, gen) {
@@ -157,6 +299,9 @@ export function createEvaluationReplayController({
     runId = String(nextRunId);
     generation += 1;
     const gen = generation;
+    stopPlaybackTimer();
+    clock = null;
+    prefetchInFlight = false;
     descriptor = null;
     context = null;
     windowDoc = null;
@@ -197,6 +342,7 @@ export function createEvaluationReplayController({
     }
 
     playhead = start;
+    clock = createReplayClock({ now: nowFn, tStart: start, tEnd: end });
     ensureDisplay();
     display?.beginSession?.(runId);
     readouts();
@@ -228,18 +374,31 @@ export function createEvaluationReplayController({
     const start = Number(descriptor.replay.t_start) || 0.0;
     const end = trustedEnd();
     const target = Math.max(start, Math.min(end, Number(simTime)));
+    const wasPlaying = clock?.state === ReplayPlayState.PLAYING;
+    clock?.seek(target); // valid from PLAYING/PAUSED/BUFFERING/ENDED
     playhead = target;
     generation += 1;
     const gen = generation;
     setStatus('LOADING');
     el('replayStatusLine').textContent = 'LOADING RECORDED EVIDENCE';
     readouts();
+    if (wasPlaying) clock.hold(); // stop progression while the target window loads
     // Direct historical seek: fetch the recorded neighborhood of the target
     // time only — never sequential frames from zero, never simulation.
     const from = Math.max(start, target - SEEK_WINDOW_HALF_SPAN_S);
     const to = Math.min(end, target + SEEK_WINDOW_HALF_SPAN_S);
-    return loadWindow(from, to, gen).catch(() => {
+    return loadWindow(from, to, gen).then(() => {
+      if (gen !== generation || !wasPlaying || !clock) return;
+      clock.resume();
+      playbackTick();
+      if (clock.state === ReplayPlayState.PLAYING) startPlaybackLoop();
+    }).catch(() => {
       if (gen !== generation) return;
+      if (wasPlaying) {
+        clock?.pause();
+        stopPlaybackTimer();
+        el('replayPlayPauseBtn').textContent = 'PLAY ▶';
+      }
       setStatus('ERROR');
       el('replayStatusLine').textContent = 'RECORDED DATA UNAVAILABLE · RETRY FROM THE TIMELINE';
     });
@@ -252,6 +411,8 @@ export function createEvaluationReplayController({
 
   function close() {
     generation += 1;
+    stopPlaybackTimer();
+    clock?.pause();
     const panel = el('evaluationReplayPanel');
     if (panel) panel.hidden = true;
   }
@@ -265,6 +426,12 @@ export function createEvaluationReplayController({
   el('replayEndBtn')?.addEventListener('click', () => {
     seek(trustedEnd());
   });
+  el('replayPlayPauseBtn')?.addEventListener('click', playPause);
+  for (const rate of REPLAY_RATES) {
+    el(`replayRate${String(rate).replace('.', '')}`)?.addEventListener('click', () => {
+      setRate(rate);
+    });
+  }
   el('replayCloseBtn')?.addEventListener('click', close);
 
   return {
@@ -272,6 +439,8 @@ export function createEvaluationReplayController({
     seek,
     selectTarget,
     close,
+    playPause,
+    setRate,
     get state() {
       return {
         runId,
@@ -281,6 +450,8 @@ export function createEvaluationReplayController({
         sourceSimTime: lastSourceSimTime,
         presentationMode: REPLAY_PRESENTATION_MODE,
         selectedTargetId,
+        clockState: clock?.state ?? null,
+        rate: clock?.rate ?? null,
       };
     },
   };
