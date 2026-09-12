@@ -18,7 +18,11 @@ TRACE_SCHEMA = "colav.decision-replay.v1"
 # gzip from the start for every random frame seek. It is a cache only — the
 # v1 artifacts remain the sole evidence and every code path falls back to the
 # streaming reader when the buffer is unavailable or the trace is huge.
-MAX_DECODED_TRACE_BYTES = 256 * 1024 * 1024
+# #75 measured the real full Mid-MPC trace at 309 MB raw (83 MB gz): a 256 MiB
+# cap silently disabled the buffer and degraded warm random seeks to ~650 ms
+# median (full re-decompression per seek). 512 MiB holds the representative
+# full trace; larger traces still fall back to streaming.
+MAX_DECODED_TRACE_BYTES = 512 * 1024 * 1024
 _SIM_TIME_PATTERN = re.compile(rb'"sim_time":\s*(-?[0-9][0-9.eE+-]*)')
 
 
