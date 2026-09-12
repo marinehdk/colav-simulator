@@ -92,3 +92,28 @@ Woerner 2019 把合规量化为三族：**碰撞避免成功**（安全裕度）
 - `tools/original_gnc/colreg_scoring.py` + `tests/test_colreg_scoring.py`：`feat(original-gnc): ...`（SHA 见提交记录）
 - 本报告：`docs(research): score COLREG compliance on P4 bundles (Woerner-style)`（SHA 见提交记录）
 - 原始打分证据（不入库，build/）：`build/original_gnc-glibc-v8/colreg-scoring-p4/`
+
+## v2 rescore (attribution corrections)
+
+日期：2026-09-12。依据 [R11 归因报告](2026-09-12-original-gnc-r11-attribution.md) §4 落实 4 项修正并版本化打分器。**输出 JSON/MD 带 `version` 字段（`colreg-scoring-v2`，默认；`--scorer v1` 完整保留旧账本，已逐条验证与本文 §2 的 v1 结果一致）**。复现：`python3 tools/original_gnc/colreg_scoring.py build/original_gnc-glibc-v8/product-campaign-p4-{bridge,mid} --out build/original_gnc-glibc-v8/colreg-scoring-p4-v2`。产物：`build/original_gnc-glibc-v8/colreg-scoring-p4-v2/`（不入库）。
+
+修正内容（各带单元测试，测试 15→28 项）：
+
+1. **改向检测迁移到指令层**：信号取 `trajectory.parquet.applied_course_ref_rad`；参考恒定（vo 后端把参考钉在航线航向）时改由 `events.jsonl → planner_solved.selected_command.course_rad` 重建指令阶跃信号（首解前以航线参考播种）。v2 基线取**检测前**窗口（航线参考）：检测即刻即出避让指令的动作（vo 首解 t=0）不再被基线吞掉。闭环艏向摆动/滞后不再构成"改向"。
+2. **事件链归属**：改向只记到 `avoidance_action_started / primary_switched` primary 时间线在改向时刻指向的目标（primary-target projection）；多目标格无事件链证据不记账；单目标格不受影响。
+3. **锚泊目标重分类**：CPA 前 60 s 窗口内目标 SOG 中位 < 0.5 m/s → `STATIC_HAZARD`，只计净距（≥50 m 判 COMPLIANT），不套 Rule 14/15 方向义务，并豁免"CPA 未收敛→PARTIAL"降级（未收敛证据保留在 `incomplete` 字段）。
+4. **航向否决移除**：psi 左转读数不再否决合规降速（v1 对 vo-CS 的误判机制）；指令层真实 port 改向仍按 Rule 15 拒绝。
+
+**24 格 28 遭遇合计：COMPLIANT 10→12 · PARTIAL 8→8 · NOT_EVALUABLE 6→6 · NON_COMPLIANT 4→2。安全分 24/24 格保持 1.0。**其余 19 格判定与三分项不变。变化的 5 格：
+
+| 格 | 变化 | v1→v2 composite |
+|---|---|---|
+| fan-MS-E0 | t2/t3 NON→COMPLIANT（STATIC_HAZARD，324/542 m；改向均不成立：cref 恒定/斜坡记到 t1 名下） | 0.5→0.667 |
+| fan-MS-E4 | t2 NON→COMPLIANT（STATIC_HAZARD，990 m，窗口末端未收敛仍记 COMPLIANT） | 0.667→0.833 |
+| vo-MS-E4 | t2 NON→COMPLIANT（STATIC_HAZARD，699 m；降速 57% 并列在案） | 0.5→0.833 |
+| vo-CS-E0 | COMPLIANT→**NON**（见下） | 0.833→0.5 |
+| vo-CS-E4 | COMPLIANT→**NON**（见下） | 0.833→0.5 |
+
+**v2 下仍 NON_COMPLIANT 的 2 例 = vo-CS-E0/E4，且是新暴露的真实发现**：vo 规划器对让路交叉的解算从首解（t=0，先于 threat_entered 0.5 s）即持续指令 **port 偏航 59.1°/78.7°（相对航线参考）**——指令层为 Rule 15 的 "avoid crossing ahead"（左转抢越）方向，同时伴随 87%/97% 降速。v1 的艏向滞后恰好把这笔 port 改向的"检出"推迟到 CPA（168.5 s）之后而误记为恢复段——与 R11 同族的账本错位、方向相反：v1 对 fan 伪造左转、对 vo 隐瞒左转。按修正 #4 保留指令层方向拒绝；降速证据并列在 `speed_reduction_fraction` 字段。
+
+局限：vo 指令层重建假设 `selected_command.course_rad` 与参考同角约定（佐证：vo-HO cmd 81.6° 与 psi 45°→99° 右转响应相符；run 末端 cmd 与 ref 重合于 45.0°）；即期动作场景的检测前基线窗近空，依赖航线参考播种。fan-MS-E4/vo-MS-E4 的 t2 min 距在窗口末端未收敛，v2 仍记 COMPLIANT 系 R11 §4 预期的直接落实（锚泊目标无方向义务），净距未收敛的事实由 `incomplete=true` 携带。测试：`tests/test_colreg_scoring.py` 28 项（15 项 v1 合成遭遇 + 13 项 v2/R11，含 4 个 R11 案例降维 fixture，均断言 v2 COMPLIANT/no-action、v1 维持原 NON 判定）。

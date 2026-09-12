@@ -54,6 +54,11 @@ class ScoringThresholds:
     path_ratio_good: float = 1.10
     path_ratio_partial: float = 1.25
     final_xte_good_m: float = 50.0
+    # v2: anchored-target reclassification. A target whose SOG stays below
+    # anchored_sog_mps over anchored_window_s ending at CPA is a static hazard
+    # (Rule 15 give-way obligations presuppose both vessels underway).
+    anchored_sog_mps: float = 0.5
+    anchored_window_s: float = 60.0
 
 
 HEAD_ON = "HEAD_ON"
@@ -79,11 +84,15 @@ SCENARIO_CLASSES = {
     "crossing_give_way": CROSSING_GIVE_WAY,
     "overtaking": OVERTAKING,
 }
+# An encounter reclassified in v2 when the target is anchored (SOG ~0) at CPA:
+# clearance-only scoring, no Rule 14/15 direction obligation.
+STATIC_HAZARD = "STATIC_HAZARD"
 RULE_IDS = {
     HEAD_ON: "rule14",
     CROSSING_GIVE_WAY: "rule15+16",
     CROSSING_STAND_ON: "rule17",
     OVERTAKING: "rule13+16",
+    STATIC_HAZARD: "static_hazard_clearance",
 }
 # Deterministic tie-break order for modal classification.
 CLASS_PRIORITY = (HEAD_ON, CROSSING_GIVE_WAY, CROSSING_STAND_ON, OVERTAKING)
@@ -92,6 +101,14 @@ VERDICT_COMPLIANT = "COMPLIANT"
 VERDICT_PARTIAL = "PARTIAL"
 VERDICT_NON_COMPLIANT = "NON_COMPLIANT"
 VERDICT_NOT_EVALUABLE = "NOT_EVALUABLE"
+
+# Scorer versions. v1 is the original heading-based ledger (kept behind
+# --scorer v1 for evidence comparability); v2 carries the R11 attribution
+# corrections (course-reference alteration detection, event-chain target
+# attribution, anchored-target reclassification). See
+# docs/research/2026-09-12-original-gnc-r11-attribution.md.
+SCORER_V1 = "colreg-scoring-v1"
+SCORER_V2 = "colreg-scoring-v2"
 
 
 def wrap_angle(angle_rad: float) -> float:
@@ -115,6 +132,7 @@ class Track:
     north_m: np.ndarray
     sog_mps: np.ndarray
     psi_rad: np.ndarray
+    course_ref_rad: np.ndarray | None = None  # applied_course_ref_rad, v2 signal
 
 
 def _track_from_rows(ship_id: int, rows: list[dict]) -> Track:
@@ -126,12 +144,20 @@ def _track_from_rows(ship_id: int, rows: list[dict]) -> Track:
         north_m=np.array([row["north_m"] for row in rows], dtype=float),
         sog_mps=np.array([row["sog_mps"] for row in rows], dtype=float),
         psi_rad=np.array([row["psi_rad"] for row in rows], dtype=float),
+        course_ref_rad=(
+            np.array([row["applied_course_ref_rad"] for row in rows], dtype=float)
+            if rows and "applied_course_ref_rad" in rows[0]
+            else None
+        ),
     )
 
 
 def load_tracks(run_dir: Path) -> tuple[Track, dict[int, Track], str | None]:
     """Load ownship and target tracks from trajectory.parquet."""
     columns = ["ship_id", "sim_time", "east_m", "north_m", "sog_mps", "psi_rad"]
+    schema_names = set(pq.read_schema(run_dir / "trajectory.parquet").names)
+    if "applied_course_ref_rad" in schema_names:
+        columns.append("applied_course_ref_rad")
     table = pq.read_table(run_dir / "trajectory.parquet", columns=columns)
     grouped: dict[int, list[dict]] = {}
     for row in table.to_pylist():
@@ -333,20 +359,88 @@ def range_series(ownship: Track, target: Track) -> np.ndarray:
     return np.hypot(ownship.east_m - target.east_m, ownship.north_m - target.north_m)
 
 
-def first_alteration(ownship: Track, index_detect: int, thresholds: ScoringThresholds) -> dict:
-    """First sustained course alteration after detection (heading baseline)."""
+def command_course_signal(ownship: Track, events: list[dict]) -> np.ndarray | None:
+    """Ownship course-command series on the trajectory time base (v2 signal).
+
+    R11 correction #1 reads alterations from the applied/planner course
+    COMMAND, not psi: closed-loop heading wobble around a steady command must
+    not be scored as an alteration. The command layer is
+    ``applied_course_ref_rad`` where the reference itself carries the maneuver
+    (fan-MPC, mid-MPC). Backends that keep the reference pinned to the route
+    while the planner commands course offsets (vo: reference constant at the
+    route heading) are read from ``planner_solved.selected_command.course_rad``,
+    seeded with the route reference before the first solve.
+    """
+    reference = ownship.course_ref_rad
+    if reference is not None and float(np.max(reference) - np.min(reference)) > 1.0e-9:
+        return reference
+    commands: list[tuple[float, float]] = []
+    for event in events:
+        if event.get("type") != "planner_solved":
+            continue
+        planner = event.get("details") or {}
+        planner = planner.get("planner") if isinstance(planner, dict) else {}
+        selected = (planner or {}).get("selected_command") or {}
+        course = selected.get("course_rad")
+        if course is not None:
+            commands.append((float(event.get("sim_time", 0.0)), float(course)))
+    if not commands:
+        return reference if reference is not None else ownship.psi_rad
+    commands.sort()
+    seed = reference if reference is not None else None
+    signal = np.empty_like(ownship.times_s)
+    index = 0
+    for position, time_s in enumerate(ownship.times_s):
+        while index < len(commands) and commands[index][0] <= time_s:
+            index += 1
+        if index == 0:
+            # Before the first solve the commanded course is the route reference.
+            signal[position] = seed[position] if seed is not None else commands[0][1]
+        else:
+            signal[position] = commands[index - 1][1]
+    return signal
+
+
+def first_alteration(
+    ownship: Track,
+    index_detect: int,
+    thresholds: ScoringThresholds,
+    signal: np.ndarray | None = None,
+    baseline_mode: str = "post_detect",
+    baseline_signal: np.ndarray | None = None,
+) -> dict:
+    """First sustained course alteration after detection.
+
+    v2 reads the command-course signal with a PRE-detection baseline (the
+    course held before the encounter): an avoidance command issued at detection
+    time must be visible. When the planner answers detection from its first
+    solve (vo emits the avoidance command at t=0), the command stream is
+    already post-step inside the baseline window, so the baseline falls back to
+    the route reference (``baseline_signal``). v1 (and the fallback when no
+    command signal exists) reads psi/heading with the post-detection window.
+    """
+    if signal is None:
+        signal = ownship.psi_rad
     n = len(ownship.times_s)
-    baseline_end = min(n, index_detect + max(1, int(round(thresholds.alteration_baseline_s / _median_dt(ownship)))))
-    baseline_lo = max(0, index_detect)
-    window = ownship.psi_rad[baseline_lo:baseline_end]
+    baseline_span = max(1, int(round(thresholds.alteration_baseline_s / _median_dt(ownship))))
+    if baseline_mode == "pre_detect":
+        baseline_hi = index_detect
+        baseline_lo = max(0, index_detect - baseline_span)
+        if baseline_hi <= baseline_lo:
+            baseline_hi = min(n, baseline_lo + 1)
+        window = (baseline_signal if baseline_signal is not None else signal)[baseline_lo:baseline_hi]
+    else:
+        baseline_lo = index_detect
+        baseline_hi = min(n, index_detect + baseline_span)
+        window = signal[baseline_lo:baseline_hi]
     # Circular mean: headings live on the circle and may straddle +/-pi.
     baseline = float(math.atan2(float(np.sin(window).mean()), float(np.cos(window).mean())))
     sustain = thresholds.alteration_sustain_samples
     for index in range(index_detect, n - sustain + 1):
-        deviation = wrap_angle(ownship.psi_rad[index] - baseline)
+        deviation = wrap_angle(float(signal[index]) - baseline)
         if abs(deviation) < thresholds.alteration_threshold_rad:
             continue
-        window = ownship.psi_rad[index : index + sustain]
+        window = signal[index : index + sustain]
         if np.all(np.abs(_wrap_array(window - baseline)) >= thresholds.alteration_threshold_rad * 0.5):
             direction = "starboard" if deviation > 0.0 else "port"
             return {
@@ -357,7 +451,7 @@ def first_alteration(ownship: Track, index_detect: int, thresholds: ScoringThres
                 "baseline_rad": baseline,
                 "sustained": True,
             }
-    final_deviation = wrap_angle(float(ownship.psi_rad[-1]) - baseline)
+    final_deviation = wrap_angle(float(signal[-1]) - baseline)
     return {
         "index": None,
         "time_s": None,
@@ -377,6 +471,50 @@ def _median_dt(track: Track) -> float:
     if len(track.times_s) < 2:
         return 1.0
     return float(np.median(np.diff(track.times_s)))
+
+
+def primary_timeline(events: list[dict]) -> list[tuple[float, int]]:
+    """(time, target_id) chain from avoidance_action_started / primary_switched.
+
+    This is the event-chain evidence a course alteration must be charged
+    against: the maneuver is attributed to the target the planner was acting
+    on at alteration time (primary-target projection), not to whichever
+    target happens to be nearest at CPA.
+    """
+    timeline: list[tuple[float, int]] = []
+    for event in events:
+        if event.get("type") not in ("avoidance_action_started", "primary_switched"):
+            continue
+        details = event.get("details") or {}
+        target_id = details.get("target_id")
+        if target_id is None:
+            continue
+        timeline.append((float(event.get("sim_time", 0.0)), int(target_id)))
+    return sorted(timeline)
+
+
+def primary_target_at(timeline: list[tuple[float, int]], time_s: float) -> int | None:
+    """Target the planner was acting on at time_s (None = no evidence yet).
+
+    Before the first primary_switched, the avoidance-action opener is the
+    de-facto primary.
+    """
+    current: int | None = None
+    for event_time, target_id in timeline:
+        if event_time > time_s:
+            break
+        current = target_id
+    return current
+
+
+def target_anchored(target: Track, cpa_index: int, thresholds: ScoringThresholds) -> bool:
+    """True when target SOG is ~0 sustained over a window ending at CPA."""
+    dt = _median_dt(target)
+    lo = max(0, cpa_index - int(round(thresholds.anchored_window_s / max(dt, 1.0e-6))))
+    window = target.sog_mps[lo : cpa_index + 1]
+    if window.size == 0:
+        return False
+    return bool(float(np.median(window)) < thresholds.anchored_sog_mps)
 
 
 # ---------------------------------------------------------------------------
@@ -430,6 +568,33 @@ def _role_for(encounter_class: str, geometry_role: str | None = None) -> str:
     return "give_way"
 
 
+def _charge_alteration(
+    alteration: dict,
+    scorer_version: str,
+    timeline: list[tuple[float, int]] | None,
+    target: Track,
+    single_target: bool,
+) -> str:
+    """R11 #2: blank the alteration unless the event chain charges it here.
+
+    Multi-target encounters book an alteration only when the planner's primary
+    timeline links it to this target; without evidence it stays unbooked.
+    Mutates ``alteration`` in place and returns an evidence note ("" if kept).
+    """
+    if scorer_version != SCORER_V2 or alteration["index"] is None or single_target:
+        return ""
+    charged_to = primary_target_at(timeline or [], float(alteration["time_s"]))
+    if charged_to == int(target.ship_id):
+        return ""
+    note = (
+        f"course alteration at t={alteration['time_s']:.1f}s attributed to target "
+        f"{charged_to if charged_to is not None else 'none (no event-chain evidence)'}"
+        f", not {target.ship_id};"
+    )
+    alteration.update({"index": None, "time_s": None, "direction": None, "deviation_rad": 0.0, "sustained": False})
+    return note
+
+
 def score_encounter(
     ownship: Track,
     target: Track,
@@ -438,6 +603,11 @@ def score_encounter(
     detection_time_s: float | None,
     release_time_s: float | None,
     thresholds: ScoringThresholds,
+    *,
+    scorer_version: str = SCORER_V2,
+    timeline: list[tuple[float, int]] | None = None,
+    single_target: bool = True,
+    alteration_signal: np.ndarray | None = None,
 ) -> EncounterScore:
     """Score one ownship-target encounter from raw tracks."""
     ranges = range_series(ownship, target)
@@ -463,42 +633,35 @@ def score_encounter(
     dcpa_detect, tcpa_detect = cpa_estimate(ownship, target, index_detect)
     incomplete = min_distance_index >= len(ownship.times_s) - 1
 
-    alteration = first_alteration(ownship, index_detect, thresholds)
+    # v2 alteration detection reads the course-command signal with a
+    # pre-detection baseline; heading wobble around a steady command is not an
+    # alteration, and a command issued at detection time must be visible.
+    is_v2 = scorer_version == SCORER_V2
+    command_signal = alteration_signal if is_v2 else None
+    baseline_mode = "pre_detect" if is_v2 else "post_detect"
+    baseline_signal = ownship.course_ref_rad if is_v2 else None
+    alteration = first_alteration(
+        ownship,
+        index_detect,
+        thresholds,
+        signal=command_signal,
+        baseline_mode=baseline_mode,
+        baseline_signal=baseline_signal,
+    )
+    attribution_note = _charge_alteration(alteration, scorer_version, timeline, target, single_target)
     magnitude_index_end = min(
         len(ownship.times_s) - 1,
         min_distance_index + int(round(thresholds.magnitude_window_after_cpa_s / _median_dt(ownship))),
     )
     magnitude_deg, first_alteration_direction, first_alteration_time_s, first_alteration_index = _alteration_summary(
-        ownship, alteration, magnitude_index_end
+        ownship, alteration, magnitude_index_end, signal=command_signal
     )
 
-    relative_bearing_at_cpa = wrap_angle(
-        float(
-            math.atan2(
-                target.east_m[min_distance_index] - ownship.east_m[min_distance_index],
-                target.north_m[min_distance_index] - ownship.north_m[min_distance_index],
-            )
-            - float(ownship.psi_rad[min_distance_index])
-        )
-    )
-    astern_pass = bool(abs(relative_bearing_at_cpa) <= math.pi / 2.0)
+    astern_pass, pass_completed = _pass_geometry(ownship, target, encounter_class, min_distance_index)
 
     cruise_speed_mps, min_speed_mps, speed_reduction_fraction, reversed_speed = _speed_profile(
         ownship, index_detect, index_release, thresholds
     )
-
-    pass_completed = None
-    if encounter_class == OVERTAKING:
-        final_bearing = wrap_angle(
-            float(
-                math.atan2(
-                    target.east_m[-1] - ownship.east_m[-1],
-                    target.north_m[-1] - ownship.north_m[-1],
-                )
-                - float(ownship.psi_rad[-1])
-            )
-        )
-        pass_completed = bool(abs(final_bearing) > math.pi / 2.0)
 
     collision_avoidance_ok = min_distance_m >= thresholds.collision_threshold_m
     role = _role_for(encounter_class) if encounter_class else "unknown"
@@ -508,6 +671,8 @@ def score_encounter(
         f"dcpa_detect={dcpa_detect:.1f}m/tcpa={tcpa_detect:.1f}s; "
         f"alt(idx {first_alteration_index if first_alteration_index is not None else 'none'})"
     )
+    if attribution_note:
+        evidence += f"; {attribution_note}"
     if release_before_cpa:
         evidence += f"; lifecycle release t={release_time_observed_s:.1f}s before CPA"
     if first_alteration_index is not None and first_alteration_index > min_distance_index:
@@ -515,6 +680,10 @@ def score_encounter(
     if encounter_class is None:
         encounter_class = classify_geometry(ownship, target, index_detect)
         classification_source = "geometry"
+    if scorer_version == SCORER_V2 and encounter_class == CROSSING_GIVE_WAY:
+        encounter_class, evidence = _maybe_reclassify_static_hazard(
+            encounter_class, target, min_distance_index, thresholds, evidence
+        )
 
     verdict, reason, role = _rule_verdict(
         encounter_class=encounter_class,
@@ -537,7 +706,7 @@ def score_encounter(
         evidence=evidence,
         astern_pass=astern_pass,
     )
-    if verdict == VERDICT_COMPLIANT and incomplete and encounter_class != OVERTAKING:
+    if verdict == VERDICT_COMPLIANT and incomplete and encounter_class not in (OVERTAKING, STATIC_HAZARD):
         verdict = VERDICT_PARTIAL
         reason += "; encounter unresolved: min distance at run end"
     return EncounterScore(
@@ -573,12 +742,14 @@ def score_encounter(
 
 
 def _alteration_summary(
-    ownship: Track, alteration: dict, magnitude_index_end: int
+    ownship: Track, alteration: dict, magnitude_index_end: int, signal: np.ndarray | None = None
 ) -> tuple[float | None, str | None, float | None, int | None]:
     """Observed first-alteration magnitude/direction, or all-None when absent."""
     if alteration["index"] is None:
         return None, None, None, None
-    window = ownship.psi_rad[alteration["index"] : magnitude_index_end + 1]
+    if signal is None:
+        signal = ownship.psi_rad
+    window = signal[alteration["index"] : magnitude_index_end + 1]
     deviations = np.abs(_wrap_array(window - alteration["baseline_rad"]))
     magnitude_deg = math.degrees(float(deviations.max()))
     return magnitude_deg, alteration["direction"], alteration["time_s"], alteration["index"]
@@ -596,6 +767,56 @@ def _speed_profile(
     reduction = max(0.0, 1.0 - min_speed_mps / cruise_speed_mps) if cruise_speed_mps > 0.1 else 0.0
     reversed_speed = bool((encounter_speeds < 0.0).any()) if encounter_speeds.size else False
     return cruise_speed_mps, min_speed_mps, reduction, reversed_speed
+
+
+def _pass_geometry(
+    ownship: Track, target: Track, encounter_class: str | None, min_distance_index: int
+) -> tuple[bool, bool | None]:
+    """Astern-pass flag at CPA and overtaking pass-completion flag."""
+    relative_bearing_at_cpa = wrap_angle(
+        float(
+            math.atan2(
+                target.east_m[min_distance_index] - ownship.east_m[min_distance_index],
+                target.north_m[min_distance_index] - ownship.north_m[min_distance_index],
+            )
+            - float(ownship.psi_rad[min_distance_index])
+        )
+    )
+    astern_pass = bool(abs(relative_bearing_at_cpa) <= math.pi / 2.0)
+    pass_completed = None
+    if encounter_class == OVERTAKING:
+        final_bearing = wrap_angle(
+            float(
+                math.atan2(
+                    target.east_m[-1] - ownship.east_m[-1],
+                    target.north_m[-1] - ownship.north_m[-1],
+                )
+                - float(ownship.psi_rad[-1])
+            )
+        )
+        pass_completed = bool(abs(final_bearing) > math.pi / 2.0)
+    return astern_pass, pass_completed
+
+
+def _maybe_reclassify_static_hazard(
+    encounter_class: str,
+    target: Track,
+    cpa_index: int,
+    thresholds: ScoringThresholds,
+    evidence: str,
+) -> tuple[str, str]:
+    """R11 #3: reclassify an anchored give-way target as a static hazard.
+
+    Rule 15 presupposes both vessels underway; SOG ~0 sustained through the
+    window ending at CPA downgrades the encounter to clearance-only scoring.
+    """
+    if not target_anchored(target, cpa_index, thresholds):
+        return encounter_class, evidence
+    note = (
+        "target SOG ~0 at CPA: reclassified static hazard"
+        f" (SOG<{thresholds.anchored_sog_mps}m/s over {thresholds.anchored_window_s:.0f}s window);"
+    )
+    return STATIC_HAZARD, f"{evidence}; {note}"
 
 
 def _rule_verdict(
@@ -660,6 +881,12 @@ def _rule_verdict(
             alteration_index=alteration_index,
             alteration=alteration,
             collision_avoidance_ok=collision_avoidance_ok,
+            thresholds=thresholds,
+            evidence=evidence,
+        )
+    if encounter_class == STATIC_HAZARD:
+        return _verdict_static_hazard(
+            min_distance_m=min_distance_m,
             thresholds=thresholds,
             evidence=evidence,
         )
@@ -825,6 +1052,33 @@ def _verdict_overtaking(
     return VERDICT_COMPLIANT, f"overtaking completed with clearance ({alter}); {evidence}", "give_way"
 
 
+def _verdict_static_hazard(
+    *,
+    min_distance_m: float,
+    thresholds: ScoringThresholds,
+    evidence: str,
+) -> tuple[str, str, str]:
+    """Anchored target: no Rule 14/15 direction obligation, clearance only.
+
+    COLREG crossing/head-on obligations presuppose vessels underway; a target
+    with SOG ~0 at CPA is a static hazard, so the encounter is scored on
+    clearance alone (R11 correction #3).
+    """
+    if min_distance_m >= thresholds.collision_threshold_m:
+        return (
+            VERDICT_COMPLIANT,
+            f"static-hazard (anchored) target passed with {min_distance_m:.1f}m clearance,"
+            f" no direction obligation; {evidence}",
+            "static_hazard",
+        )
+    return (
+        VERDICT_NON_COMPLIANT,
+        f"static-hazard (anchored) target passed at {min_distance_m:.1f}m"
+        f" < {thresholds.collision_threshold_m:.0f}m clearance; {evidence}",
+        "static_hazard",
+    )
+
+
 def _in_extremis_index(
     ownship: Track, target: Track, index_detect: int, index_release: int, thresholds: ScoringThresholds
 ) -> int | None:
@@ -854,6 +1108,7 @@ def score_cell(
     waypoints_json: str | None = None,
     release_times_s: dict[int, float] | None = None,
     thresholds: ScoringThresholds | None = None,
+    scorer_version: str = SCORER_V2,
 ) -> dict:
     """Pure per-cell scoring: classification, per-encounter records, summary."""
     thresholds = thresholds or ScoringThresholds()
@@ -861,6 +1116,8 @@ def score_cell(
     event_classes, detection_times = classify_from_events(events or [])
     scenario_expected = expected_class_from_scenario(scenario_id, validation_rule_id)
     multi_target = len(targets) > 1
+    timeline = primary_timeline(events or []) if scorer_version == SCORER_V2 else []
+    command_signal = command_course_signal(ownship, events or []) if scorer_version == SCORER_V2 else None
 
     encounters: list[EncounterScore] = []
     for target_id, target in targets.items():
@@ -887,6 +1144,10 @@ def score_cell(
                 detection_time_s,
                 release_times_s.get(target_id),
                 thresholds,
+                scorer_version=scorer_version,
+                timeline=timeline,
+                single_target=not multi_target,
+                alteration_signal=command_signal,
             )
         )
 
@@ -988,7 +1249,9 @@ def load_lifecycle_releases(run_dir: Path) -> dict[int, float]:
     return releases
 
 
-def score_run_dir(run_dir: Path, case_meta: dict, thresholds: ScoringThresholds | None = None) -> dict:
+def score_run_dir(
+    run_dir: Path, case_meta: dict, thresholds: ScoringThresholds | None = None, scorer_version: str = SCORER_V2
+) -> dict:
     """Score one cell run directory into the JSON-serializable record."""
     run_dir = Path(run_dir)
     manifest_path = run_dir / "manifest.json"
@@ -1008,6 +1271,7 @@ def score_run_dir(run_dir: Path, case_meta: dict, thresholds: ScoringThresholds 
         waypoints_json=waypoints_json,
         release_times_s=releases,
         thresholds=thresholds,
+        scorer_version=scorer_version,
     )
     evaluation_path = run_dir / "evaluation.json"
     evaluation_min_distance = None
@@ -1019,6 +1283,7 @@ def score_run_dir(run_dir: Path, case_meta: dict, thresholds: ScoringThresholds 
 
     record = {
         "case_id": case_meta.get("case_id") or run_dir.parent.name,
+        "scorer_version": scorer_version,
         "algorithm_id": spec.get("algorithm_id") or case_meta.get("algorithm_id"),
         "scenario_id": scenario_id,
         "validation_rule_id": validation_rule_id,
@@ -1051,10 +1316,11 @@ def discover_cells(bundle_dir: Path) -> list[dict]:
     return cells
 
 
-def score_bundle(bundle_dir: Path, thresholds: ScoringThresholds | None = None) -> dict:
+def score_bundle(bundle_dir: Path, thresholds: ScoringThresholds | None = None, scorer_version: str = SCORER_V2) -> dict:
     """Score every cell of one campaign bundle."""
-    cells = [score_run_dir(cell["run_dir"], cell, thresholds) for cell in discover_cells(bundle_dir)]
+    cells = [score_run_dir(cell["run_dir"], cell, thresholds, scorer_version) for cell in discover_cells(bundle_dir)]
     return {
+        "version": scorer_version,
         "bundle": str(bundle_dir),
         "cell_count": len(cells),
         "cells": cells,
@@ -1121,6 +1387,7 @@ def render_bundle_markdown(bundle: dict) -> str:
     lines = [
         f"# COLREG compliance scoring - {Path(bundle['bundle']).name}",
         "",
+        f"Scorer version: {bundle.get('version', 'unknown')}.",
         "Woerner-style per-encounter scoring (safety / rule / mission, composite = mean).",
         "",
         "| cell | alg | scenario | ep | state | gate | enc | classes | min_dist | verdicts "
@@ -1168,11 +1435,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("bundles", nargs="+", type=Path, help="campaign bundle directories")
     parser.add_argument("--out", type=Path, required=True, help="output directory for JSON + markdown")
+    parser.add_argument(
+        "--scorer",
+        choices=(SCORER_V1, SCORER_V2),
+        default=SCORER_V2,
+        help="scorer version: v2 (default) carries the R11 attribution corrections; "
+        "v1 reproduces the original heading-based ledger for evidence comparability",
+    )
     args = parser.parse_args(argv)
     out_dir = args.out
     out_dir.mkdir(parents=True, exist_ok=True)
     for bundle in args.bundles:
-        scored = score_bundle(bundle)
+        scored = score_bundle(bundle, scorer_version=args.scorer)
         stem = Path(bundle).name
         json_path = out_dir / f"{stem}.json"
         md_path = out_dir / f"{stem}.md"
