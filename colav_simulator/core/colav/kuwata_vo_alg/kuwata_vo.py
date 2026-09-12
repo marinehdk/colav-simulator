@@ -1745,11 +1745,11 @@ class VO:
             port_mask = port_alterations[None, :] & np.isfinite(self._total_costs)
             if np.any(np.isfinite(self._total_costs) & ~port_mask):
                 self._total_costs[port_mask] = np.inf
-        flat_index = (
-            int(np.ravel_multi_index(current_index, self._total_costs.shape))
-            if self._stand_on_hold_active
-            else int(np.argmin(self._total_costs))
-        )
+        if self._stand_on_hold_active:
+            hold_index = self._executable_hold_index(current_index)
+            flat_index = int(np.ravel_multi_index(hold_index, self._total_costs.shape))
+        else:
+            flat_index = int(np.argmin(self._total_costs))
         minimum = float(self._total_costs.flat[flat_index])
         self._feasible = bool(np.isfinite(minimum))
         self._selection_held = False
@@ -1816,6 +1816,27 @@ class VO:
         )
         self._reference_velocity_error_mps = float(np.linalg.norm(selected_velocity - v_ref))
         return self._selected_heading, self._selected_speed
+
+    def _executable_hold_index(self, current_index: tuple[int, int]) -> tuple[int, int]:
+        """Keep the stand-on hold executable inside the envelope it activates.
+
+        The hold latches the current-velocity cell. When the hull has crawled
+        below the steerage floor, that cell lies outside the very
+        [steerage, cap] window the hold opens through the encounter gate, so
+        latching it selects an envelope-masked cell and the solve falls back to
+        stop (p8 vo-overtaking-E4 t=172 INFEASIBLE, bridge refusal). The honest
+        stand-on hold for a vessel without steerage way keeps the held course
+        and commands the nearest executable speed row.
+        """
+        if self._envelope is None or bool(np.isfinite(self._total_costs[current_index])):
+            return current_index
+        executable = ~self._envelope_mask[:, current_index[1]]
+        if not executable.any():
+            return current_index
+        rows = np.flatnonzero(executable)
+        held_speed = float(np.linalg.norm(self._current_velocity))
+        nearest = int(rows[np.argmin(np.abs(self._speed_set[rows] - held_speed))])
+        return (nearest, current_index[1])
 
     def _nearest_velocity_index(self, velocity: np.ndarray) -> tuple[int, int]:
         speed = float(np.linalg.norm(velocity))

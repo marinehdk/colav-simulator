@@ -622,3 +622,71 @@ def test_unclassified_fresh_detection_masks_port_until_rules_settle() -> None:
     assert offsets[i_heading] > -vo._params.give_way_course_family_min_rad, (
         "unclassified fresh detection must not select a substantial port offset"
     )
+
+
+# --- stand-on hold vs the avoidance speed window (p8 vo-overtaking-E4) ----------------
+
+
+def below_steerage_stand_on_state() -> tuple:
+    """The p8 vo-OT-E4 t=172 geometry, verbatim.
+
+    The hull crawled to 2.805 m/s (below the 3.0 steerage floor) on course
+    1.4127 rad while the slow 2.572 m/s target sat dead ahead at 1177 m; the
+    8.0 m/s LOS reference points straight at it, so the reference cell enters
+    the hard clearance domain inside the course-extended horizon and the
+    stand-on hold engages.
+    """
+    state = np.array([0.0, 0.0, 1.4127, 2.8048, 0.0, 0.0])
+    target_speed = 2.5722
+    target = (
+        1,
+        np.array(
+            [
+                835.4,
+                828.7,
+                target_speed * np.cos(np.deg2rad(45.0)),
+                target_speed * np.sin(np.deg2rad(45.0)),
+            ]
+        ),
+        np.zeros((4, 4)),
+        44.1,
+        8.0,
+    )
+    reference = np.array([5.6096, 5.7038])
+    return state, target, reference
+
+
+def test_stand_on_hold_stays_executable_when_the_hull_has_lost_steerage_way() -> None:
+    """A below-steerage hold must clamp to the window floor, not go INFEASIBLE.
+
+    p8 vo-overtaking-E4 died at t=172: the stand-on hold engaged at t=171 while
+    the avoidance window still reflected the previous solve (one-solve lag), so
+    t=172 activated the [steerage, cap] window around a hold latched on the
+    2.903 m/s grid row -- a row the window itself excludes. The hold selected an
+    envelope-masked cell, the solve fell back to stop_nonpaper_wrapper, and the
+    bridge refused the INFEASIBLE plan ("An infeasible planner result cannot
+    become an original GNC plan"). Holding course at the nearest executable
+    speed is the honest stand-on hold for a vessel without steerage way.
+    """
+    vo = VO(VOParams())
+    state, target, reference = below_steerage_stand_on_state()
+
+    vo.plan(0.0, reference, state, [target], **ORIGINAL)
+    first = vo.get_debug_data()
+    assert first["stand_on_hold_active"] is True, "fixture must reproduce the p8 hold engagement"
+    assert vo.feasible, "the engagement solve itself stayed feasible in p8 (window lag)"
+
+    vo.plan(1.0, reference, state, [target], **ORIGINAL)
+    debug = vo.get_debug_data()
+
+    assert vo.feasible, "the window closing around the hold must not empty the selection"
+    assert debug["fallback"] is None
+    assert debug["stand_on_hold_active"] is True
+    assert debug["avoidance_speed_window_active"] is True
+    held_speed = debug["selected_speed_mps"]
+    assert ORIGINAL["os_min_steerage_speed_mps"] - 1e-9 <= held_speed, (
+        "held speed must be executable: at or above the steerage floor"
+    )
+    assert held_speed <= ORIGINAL["os_avoidance_speed_cap_mps"] + 1e-9
+    held_course_delta = abs(_wrap_angle_array(np.array([debug["selected_heading_rad"] - state[2]]))[0])
+    assert held_course_delta <= np.deg2rad(2.0), "the hold keeps the vessel's course"
