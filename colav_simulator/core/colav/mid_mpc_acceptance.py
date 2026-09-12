@@ -1254,17 +1254,7 @@ class MidMpcPlanAcceptance:
                     execution_target.north_m - request.candidate.north_m,
                     execution_target.east_m - request.candidate.east_m,
                 )
-                distance_steps = np.diff(distances)
-                local_minima = list(np.flatnonzero((distance_steps[:-1] <= 0.0) & (distance_steps[1:] >= 0.0)) + 1)
-                if distance_steps.size and distance_steps[0] >= 0.0:
-                    local_minima.insert(0, 0)
-                released_minima = tuple(
-                    int(index)
-                    for index in local_minima
-                    if index <= recovery_from_k
-                    and float(np.max(distances[index : recovery_from_k + 1])) >= float(distances[index]) + 1.0
-                )
-                cpa_k = released_minima[0] if released_minima else int(np.argmin(distances))
+                cpa_k = target_cpa_k(distances, recovery_from_k)
                 recovery_evidence_from_k = max(recovery_evidence_from_k, cpa_k)
                 witness[f"target_{target.key.target_id}_cpa_k"] = cpa_k
                 safety_witness = safety_by_key.get(target.key)
@@ -1435,6 +1425,45 @@ def recovery_progress(mission_error: np.ndarray, cross_track_m: np.ndarray, from
     maximum_xte = float(np.max(np.abs(cross_track_m[from_k:])))
     lateral = maximum_xte > 1.0 and abs(cross_track_m[-1]) + 1.0 < maximum_xte
     return bool(heading or lateral)
+
+
+def target_cpa_k(distances: np.ndarray, staged_recovery_from_k: int) -> int:
+    """Closest-approach knot of one candidate-to-target distance profile.
+
+    The first released local minimum at or before the staged recovery knot
+    counts; without one the global minimum is the relevant closest approach.
+    This is the knot the L4 recovery suffix is measured from.
+    """
+    distance_steps = np.diff(distances)
+    local_minima = list(np.flatnonzero((distance_steps[:-1] <= 0.0) & (distance_steps[1:] >= 0.0)) + 1)
+    if distance_steps.size and distance_steps[0] >= 0.0:
+        local_minima.insert(0, 0)
+    released_minima = tuple(
+        int(index)
+        for index in local_minima
+        if index <= staged_recovery_from_k
+        and float(np.max(distances[index : staged_recovery_from_k + 1])) >= float(distances[index]) + 1.0
+    )
+    return released_minima[0] if released_minima else int(np.argmin(distances))
+
+
+def recovery_evidence_from_k(
+    candidate_north_m: np.ndarray,
+    candidate_east_m: np.ndarray,
+    target_tracks: tuple[tuple[np.ndarray, np.ndarray], ...],
+    staged_recovery_from_k: int,
+) -> int:
+    """Closest-approach knot the L4 quality layer measures recovery from.
+
+    Mirrors the per-target CPA evidence of the QUALITY layer (maximum over the
+    maneuvered targets) so the solver-side recovery iterate filter slices the
+    recovery-progress predicate from the same knot the independent gate uses.
+    """
+    evidence = 0
+    for target_north_m, target_east_m in target_tracks:
+        distances = np.hypot(target_north_m - candidate_north_m, target_east_m - candidate_east_m)
+        evidence = max(evidence, target_cpa_k(distances, staged_recovery_from_k))
+    return evidence
 
 
 def polyline_recovery_errors(

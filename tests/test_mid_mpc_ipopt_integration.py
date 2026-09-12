@@ -1142,3 +1142,87 @@ def test_sway_speed_is_included_in_first_deceleration_constraint() -> None:
     predicted = np.asarray(trace["predicted_trajectory"])
     speeds = np.hypot(predicted[3], predicted[4])
     assert np.max(-np.diff(speeds)) <= 0.3 * trace["horizon_dt_s"] + 1e-6
+
+
+def _filter_stand_in(
+    recovery_from_k: int | None,
+    tracks: tuple[object, ...],
+) -> tuple[object, object]:
+    """Minimal planner-input/assembly stand-ins for the recovery iterate filter."""
+    planner_input = SimpleNamespace(
+        ownship_state=np.array([0.0, 0.0, 0.0, 7.0, 0.0]),
+        waypoints_enu_m=np.array([[0.0, 0.0], [0.0, 20000.0]]),
+        tracks=tracks,
+    )
+    assembly = SimpleNamespace(
+        problem=SimpleNamespace(route_objective=SimpleNamespace(terminal_position_m=None)),
+        horizon_encounter_plan=SimpleNamespace(
+            recovery_from_k=recovery_from_k,
+            target_windows=(SimpleNamespace(key=TrackKey(1, 1)),),
+        ),
+        grid=SimpleNamespace(control_intervals=80, dt_s=5.0),
+    )
+    return planner_input, assembly
+
+
+def _corridor_hugger_values() -> np.ndarray:
+    """CS-E4-shaped candidate: presses the corridor, eases off the avoidance
+    course right after the staged release, then holds a flat ~8.7 deg offset to
+    the horizon end (no measurable mission-course return after its own CPA)."""
+    n = 80
+    course = np.empty(n)
+    course[:18] = 0.23384220361258054
+    course[18] = 0.181
+    course[19:] = 0.15202335102324382
+    return np.r_[course, np.full(n, 7.0)]
+
+
+def test_recovery_filter_measures_progress_from_the_candidate_cpa_evidence() -> None:
+    """The filter must slice the L4 predicate from the candidate's own
+    closest-approach evidence, not from the staged release knot: a candidate
+    still pressing the avoidance course at release reaches its CPA later, and
+    the release-knot slice sanctions iterates the independent gate rejects
+    (crossing_give_way-E4 at 39.0 s: shipped iterate passed the filter at knot
+    18 and died at L4 measured from its CPA at knot 20)."""
+    track = SimpleNamespace(state_enu=np.array([1411.0, 162.0, 6.81, 1.62]), target_id=1, generation=1)
+    planner_input, assembly = _filter_stand_in(18, (track,))
+
+    acceptable = mid_mpc_module._recovery_iterate_filter(planner_input, assembly)
+
+    assert acceptable is not None
+    values = _corridor_hugger_values()
+    evidence_k = mid_mpc_module.recovery_evidence_from_k(
+        np.r_[0.0, np.cumsum(values[80:] * np.cos(values[:80]) * 5.0)],
+        np.r_[0.0, np.cumsum(values[80:] * np.sin(values[:80]) * 5.0)],
+        (
+            (
+                1411.0 + 6.81 * np.arange(81) * 5.0,
+                162.0 + 1.62 * np.arange(81) * 5.0,
+            ),
+        ),
+        18,
+    )
+    assert 18 < evidence_k < 80
+    assert acceptable(values) is False
+
+
+def test_recovery_filter_keeps_the_l4_recovery_pending_escape() -> None:
+    """A candidate whose closest-approach evidence reaches the prediction end
+    has no return suffix to show yet; L4 downgrades that to a pending warning
+    and the filter must not demand progress either (multiship-E4 staged
+    recovery at knot 78 of 80 and died in the solver instead)."""
+    track = SimpleNamespace(state_enu=np.array([1411.0, 162.0, 6.81, 1.62]), target_id=1, generation=1)
+    planner_input, assembly = _filter_stand_in(78, (track,))
+
+    acceptable = mid_mpc_module._recovery_iterate_filter(planner_input, assembly)
+
+    assert acceptable is not None
+    approaching = np.r_[np.full(80, 0.23384220361258054), np.full(80, 7.0)]
+    assert acceptable(approaching) is True
+
+
+def test_recovery_filter_returns_none_without_staged_recovery() -> None:
+    track = SimpleNamespace(state_enu=np.array([1411.0, 162.0, 6.81, 1.62]), target_id=1, generation=1)
+    planner_input, assembly = _filter_stand_in(None, (track,))
+
+    assert mid_mpc_module._recovery_iterate_filter(planner_input, assembly) is None

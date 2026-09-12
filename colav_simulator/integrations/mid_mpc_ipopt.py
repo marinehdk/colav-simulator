@@ -62,6 +62,7 @@ from colav_simulator.core.colav.mid_mpc_acceptance import (
     PlantCapabilityEvidence,
     PriorEvidence,
     polyline_recovery_errors,
+    recovery_evidence_from_k,
     recovery_progress,
 )
 from colav_simulator.core.colav.mid_mpc_arrival import goal_reached, on_final_leg
@@ -507,6 +508,19 @@ class _MidMpcFacade:
             else:
                 self._unresolved_streak = 1
                 self._unresolved_streak_token = warm_semantic_token
+            artifact_reference: object = {"status": "NOT_CONFIGURED"}
+            try:
+                # Persist the unresolved NLP evidence (problem, preparation,
+                # solver tail) so a late NUMERICAL_FAILURE/INFEASIBLE can be
+                # diagnosed offline instead of dying without an artifact.
+                unresolved_artifact = _replay_artifact_document(assembly, result)
+                unresolved_artifact["solver"]["iterate_filter"] = (
+                    "l4_recovery_progress" if iterate_filter is not None else "none"
+                )
+                if self._artifact_sink is not None:
+                    artifact_reference = self._artifact_sink(unresolved_artifact)
+            except Exception as exc:  # evidence failure must not alter control authority
+                artifact_reference = {"status": "INCOMPLETE", "error_type": type(exc).__name__}
             raise ColavExecutionError(
                 status,
                 f"Mid-MPC optimizer returned {status.value} without a feasible candidate",
@@ -518,6 +532,7 @@ class _MidMpcFacade:
                     "max_constraint_violation": result.max_constraint_violation,
                     "preserve_accepted_plan": continuation_allowed,
                     "revision_reason": "OPTIMIZER_UNRESOLVED",
+                    "artifact": artifact_reference,
                 },
             )
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
@@ -1607,9 +1622,14 @@ def _recovery_iterate_filter(
 ) -> Callable[[np.ndarray], bool] | None:
     """Do not stop at first numerical feasibility while a declared recovery fails.
 
-    This uses the same geometric progress predicate as L4. It only filters
-    eligible IPOPT iterates; the full independent L4 gate still runs afterwards.
-    Arrival has its own finite-endpoint gate and is not filtered here.
+    This uses the same geometric progress predicate and the same
+    closest-approach slice as the independent L4 gate: the predicate is
+    measured from the candidate's own CPA evidence knot (not the staged
+    release knot — a candidate still pressing the avoidance course at release
+    reaches its CPA later, and measuring from the release knot would sanction
+    iterates the gate rejects), with L4's recovery-pending escape for suffixes
+    too short to demonstrate a return. Arrival has its own finite-endpoint
+    gate and is not filtered here.
     """
     objective = assembly.problem.route_objective
     start = assembly.horizon_encounter_plan.recovery_from_k
@@ -1622,16 +1642,30 @@ def _recovery_iterate_filter(
         or not assembly.horizon_encounter_plan.target_windows
     ):
         return None
+    staged_keys = {window.key for window in assembly.horizon_encounter_plan.target_windows}
     origin = np.asarray(planner_input.ownship_state[:2])
     mission = tuple(map(tuple, planner_input.waypoints_enu_m.T))
     initial_course = float(planner_input.ownship_state[2])
+    target_tracks = tuple(
+        (
+            np.asarray(track.state_enu[0], dtype=float) + np.arange(n + 1, dtype=float) * dt * float(track.state_enu[2]),
+            np.asarray(track.state_enu[1], dtype=float) + np.arange(n + 1, dtype=float) * dt * float(track.state_enu[3]),
+        )
+        for track in planner_input.tracks
+        if TrackKey(track.target_id, track.generation or 1) in staged_keys
+    )
 
     def acceptable(values: np.ndarray) -> bool:
         course, speed = values[:n], values[n : 2 * n]
         north = np.r_[origin[0], origin[0] + np.cumsum(speed * np.cos(course) * dt)]
         east = np.r_[origin[1], origin[1] + np.cumsum(speed * np.sin(course) * dt)]
         errors, xte = polyline_recovery_errors(north, east, np.r_[initial_course, course], mission)
-        return recovery_progress(errors, xte, start)
+        evidence_k = recovery_evidence_from_k(north, east, target_tracks, start)
+        if evidence_k >= n:
+            # L4 recovery-pending: the closest-approach evidence reaches the
+            # prediction end and the return must be shown next cycle.
+            return True
+        return recovery_progress(errors, xte, evidence_k)
 
     return acceptable
 
