@@ -61,6 +61,11 @@ def cleared_target(*, target_id: int = 1) -> tuple:
     return tracked_target(-600.0, -800.0, 2.0, -4.0, target_id=target_id)
 
 
+def inbound_head_on(tcpa_s: float, *, target_id: int = 1) -> tuple:
+    """Head-on fixture whose realized TCPA equals tcpa_s (14 m/s combined closing)."""
+    return head_on_target(14.0 * tcpa_s, target_id=target_id)
+
+
 # --- VO envelope math -----------------------------------------------------------------
 
 
@@ -151,7 +156,7 @@ def test_avoidance_window_grid_gains_anchored_executable_rows() -> None:
 def test_active_encounter_selects_inside_the_capped_avoidance_window() -> None:
     vo = VO(VOParams())
     state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
-    target = head_on_target(14.0 * 160.0)
+    target = inbound_head_on(100.0)  # realized TCPA 100 s: inside the transit gate
 
     vo.plan(0.0, np.array([7.0, 0.0]), state, [target], **ORIGINAL)
     debug = vo.get_debug_data()
@@ -163,7 +168,7 @@ def test_active_encounter_selects_inside_the_capped_avoidance_window() -> None:
 def test_window_releases_and_transit_speed_restores_when_encounter_clears() -> None:
     vo = VO(VOParams())
     state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
-    target = head_on_target(14.0 * 160.0)
+    target = inbound_head_on(100.0)  # realized TCPA 100 s: inside the transit gate
 
     vo.plan(0.0, np.array([7.0, 0.0]), state, [target], **ORIGINAL)
     assert vo.get_debug_data()["avoidance_speed_window_active"] is True
@@ -185,7 +190,7 @@ def test_window_releases_while_a_cleared_target_stays_tracked() -> None:
     vo = VO(VOParams())
     state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
 
-    vo.plan(0.0, np.array([7.0, 0.0]), state, [head_on_target(14.0 * 160.0)], **ORIGINAL)
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [inbound_head_on(100.0)], **ORIGINAL)
     assert vo.get_debug_data()["avoidance_speed_window_active"] is True
 
     for step in range(1, 6):
@@ -198,6 +203,115 @@ def test_window_releases_while_a_cleared_target_stays_tracked() -> None:
         "cleared rule evidence must reopen the nominal transit band"
     )
     assert debug["selected_speed_mps"] > 5.0, "transit speed must restore past the avoidance cap"
+
+
+# --- TCPA-gated avoidance speed window (p8b lesson) ------------------------------------
+
+
+def test_tcpa_gate_closed_matches_the_always_closed_window_byte_for_byte() -> None:
+    """Inside the gate the window behavior is the exact pre-gate encounter behavior.
+
+    The p8b revert showed the window must stay conservative during the
+    encounter-critical phase: VO picking fast rows mid-encounter thinned VO-HO
+    hull clearances 453 -> 79/90 m. A closed gate (realized TCPA under the
+    threshold) must therefore reproduce the unconditional window solve
+    byte-for-byte, not merely stay inside the window.
+    """
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+    gated = VO(VOParams())
+    ungated = VO(replace(VOParams(), transit_gate_tcpa_s=float("inf")))
+    for step in range(4):
+        target = inbound_head_on(110.0 - 3.0 * step)
+        gated_plan = gated.plan(float(step), np.array([7.0, 0.0]), state, [target], **ORIGINAL)
+        ungated_plan = ungated.plan(float(step), np.array([7.0, 0.0]), state, [target], **ORIGINAL)
+        debug = gated.get_debug_data()
+        assert debug["avoidance_speed_window_active"] is True
+        assert debug["transit_gate_open"] is False
+        assert np.array_equal(gated_plan, ungated_plan)
+        assert 3.0 - 1e-9 <= debug["selected_speed_mps"] <= 3.2 + 1e-9
+
+
+def test_tcpa_gate_open_unlocks_transit_while_the_encounter_lock_is_live() -> None:
+    """Comfortable phase (TCPA far above gate + hysteresis) cruises at the mission speed.
+
+    p9 evidence: VO-HO cells transited at 3.2-3.7 m/s throughout while cruise
+    is 7-8 m/s, because the window stayed closed whenever rule evidence was
+    latched. The TCPA gate must reopen the transit band while the encounter
+    lock is still live but every live target is still comfortably far.
+    """
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+    for step in range(3):
+        target = inbound_head_on(180.0 - 2.0 * step)  # TCPA 180..176 s >= gate + hysteresis
+        vo.plan(float(step), np.array([7.0, 0.0]), state, [target], **ORIGINAL)
+    debug = vo.get_debug_data()
+
+    assert vo._give_way_rule_locks, "fixture must keep the head-on give-way lock live"
+    assert debug["transit_gate_open"] is True
+    assert debug["avoidance_speed_window_active"] is False
+    assert debug["selected_speed_mps"] == pytest.approx(7.0)
+
+
+def test_tcpa_gate_hysteresis_holds_through_boundary_noise() -> None:
+    """The gate latch may transition only at its margins, never on band noise.
+
+    Swinging the realized TCPA across [120, 150) every tick must not chatter
+    the window: a symmetric gate would flip on every solve, the latch may
+    close only under 120 s and reopen only at or above 150 s.
+    """
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+    sequence = [110.0, 130.0, 140.0, 160.0, 130.0, 110.0, 145.0, 155.0]
+    gate_states = []
+    window_states = []
+    for step, tcpa in enumerate(sequence):
+        vo.plan(float(step), np.array([7.0, 0.0]), state, [inbound_head_on(tcpa)], **ORIGINAL)
+        debug = vo.get_debug_data()
+        gate_states.append(debug["transit_gate_open"])
+        window_states.append(debug["avoidance_speed_window_active"])
+
+    assert gate_states == [False, False, False, True, True, False, False, True]
+    transitions = sum(a != b for a, b in zip(gate_states, gate_states[1:]))
+    assert transitions == 3
+    assert window_states == [not gate for gate in gate_states], (
+        "with the head-on lock live the window tracks the gate exactly"
+    )
+
+
+def test_tcpa_gate_reopens_only_after_cpa_passes_by_the_hysteresis_margin() -> None:
+    """Separation comfort needs the CPA passed by the hysteresis margin.
+
+    Right at CPA the TCPA sign is noise-conditioned (range rate vanishes), so
+    the gate must stay closed until the CPA is behind by
+    transit_gate_hysteresis_s and must not re-close on jitter inside the
+    separating band.
+    """
+    vo = VO(VOParams())
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [inbound_head_on(100.0)], **ORIGINAL)
+    assert vo.get_debug_data()["transit_gate_open"] is False
+
+    vo.plan(1.0, np.array([7.0, 0.0]), state, [head_on_target(-14.0 * 14.0)], **ORIGINAL)
+    assert vo.get_debug_data()["transit_gate_open"] is False, "TCPA -14 s is inside the margin"
+
+    vo.plan(2.0, np.array([7.0, 0.0]), state, [head_on_target(-35.0 * 14.0)], **ORIGINAL)
+    assert vo.get_debug_data()["transit_gate_open"] is True
+
+    vo.plan(3.0, np.array([7.0, 0.0]), state, [head_on_target(-15.0 * 14.0)], **ORIGINAL)
+    assert vo.get_debug_data()["transit_gate_open"] is True, (
+        "an open gate never re-closes on separating jitter"
+    )
+
+
+def test_transit_gate_parameters_validate() -> None:
+    with pytest.raises(ValueError):
+        VOParams(transit_gate_tcpa_s=-1.0)
+    with pytest.raises(ValueError):
+        VOParams(transit_gate_tcpa_s=float("nan"))
+    with pytest.raises(ValueError):
+        VOParams(transit_gate_hysteresis_s=-1.0)
+    assert VOParams(transit_gate_tcpa_s=float("inf")).transit_gate_tcpa_s == float("inf")
 
 
 def test_transit_band_never_exceeds_the_mission_speed() -> None:
@@ -255,7 +369,7 @@ def test_give_way_prefers_the_course_alteration_family() -> None:
     vo = VO(VOParams())
     state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
 
-    vo.plan(0.0, np.array([7.0, 0.0]), state, [head_on_target(14.0 * 160.0)], **ORIGINAL)
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [inbound_head_on(100.0)], **ORIGINAL)
     debug = vo.get_debug_data()
 
     assert debug["avoidance_speed_window_active"] is True
@@ -363,7 +477,7 @@ def test_give_way_keeps_speed_reduction_when_course_family_infeasible() -> None:
     vo = VO(VOParams())
     state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
 
-    vo.plan(0.0, np.array([7.0, 0.0]), state, [head_on_target(14.0 * 160.0)], **ORIGINAL)
+    vo.plan(0.0, np.array([7.0, 0.0]), state, [inbound_head_on(100.0)], **ORIGINAL)
     vo._total_costs[
         :, np.abs(_wrap_angle_array(vo._heading_set)) >= vo._params.give_way_course_family_min_rad
     ] = np.inf

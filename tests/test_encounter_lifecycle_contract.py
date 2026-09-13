@@ -352,6 +352,48 @@ def test_committed_give_way_drops_speed_bleed_escalation_once_speed_recovers() -
     assert recovered.rule17_basis == "NOT_APPLICABLE"
 
 
+def test_speed_bleed_escalation_stages_keep_way_floor_in_directive() -> None:
+    """An active speed-bleed escalation must couple into the aggregate speed
+    directive: the planner corridor may not keep decaying below the keep-way
+    floor (steerage, or the keep-way fraction of the committed baseline) while
+    the lifecycle demands way be recovered."""
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+    lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=5.0))
+    bled_cycle = _head_on_cycle(sequence=2, sim_time_s=10.0)
+    snapshot = lifecycle.step(
+        replace(
+            bled_cycle,
+            ownship=replace(bled_cycle.ownship, velocity_ne_mps=np.array([0.1, 0.0])),
+            targets=(replace(bled_cycle.targets[0], state_enu=np.array([400.0, 0.0, -7.0, 0.0])),),
+        )
+    )
+    assert snapshot.targets[0].rule17_basis == "SPEED_BLEED_KEEP_WAY"
+    # baseline 7.0 m/s x keep-way fraction 0.3 -> 2.1 m/s floor above steerage.
+    assert snapshot.directive.speed_bounds_mps[0] == pytest.approx(2.1)
+    assert snapshot.directive.speed_bounds_mps[1] == pytest.approx(8.0)
+
+    recovered_cycle = _head_on_cycle(sequence=3, sim_time_s=15.0)
+    recovered = lifecycle.step(
+        replace(
+            recovered_cycle,
+            targets=(replace(recovered_cycle.targets[0], state_enu=np.array([400.0, 0.0, -7.0, 0.0])),),
+        )
+    )
+    assert recovered.targets[0].rule17_basis == "NOT_APPLICABLE"
+    assert recovered.directive.speed_bounds_mps[0] == pytest.approx(0.0)
+
+
+def test_directive_speed_floor_stays_uncoupled_without_speed_bleed_escalation() -> None:
+    """Rule 16 permits speed reduction: without an active speed-bleed
+    escalation the directive lower bound must stay at the capability floor."""
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_head_on_cycle(sequence=0, sim_time_s=0.0))
+    committed = lifecycle.step(_head_on_cycle(sequence=1, sim_time_s=5.0))
+    assert committed.targets[0].commitment is CommitmentPhase.COMMITTED
+    assert committed.directive.speed_bounds_mps[0] == pytest.approx(0.0)
+
+
 def test_urgent_head_on_bypasses_entry_confirmation() -> None:
     lifecycle = EncounterLifecycle()
     cycle = _head_on_cycle(sequence=0, sim_time_s=0.0)

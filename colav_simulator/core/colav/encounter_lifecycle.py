@@ -355,6 +355,7 @@ class TargetDecision:
     rule17_basis: str
     geometry: PairwiseGeometry
     baseline_course_rad: float | None
+    baseline_speed_mps: float | None
     required_course_change_rad: float
     newly_committed: bool
     health: ObservationHealth
@@ -1462,6 +1463,7 @@ def _target_decision(
         rule17_basis=state.rule17_basis,
         geometry=geometry,
         baseline_course_rad=state.baseline_course_rad,
+        baseline_speed_mps=state.baseline_speed_mps,
         required_course_change_rad=state.required_course_change_rad,
         newly_committed=newly_committed,
         health=health,
@@ -1938,6 +1940,28 @@ def _aggregate(cycle: EncounterCycle, decisions: tuple[TargetDecision, ...]) -> 
             max(speed_bounds[0], 0.8 * cycle.planned_speed_mps, target_speed_floor),
         )
         speed_bounds = (lower, speed_bounds[1])
+    # Keep-way floor coupling: while a give-way/overtaking commitment is
+    # escalated for speed bleed (Rule-17 must act, basis SPEED_BLEED_KEEP_WAY)
+    # the planner corridor must not keep commanding less way than the
+    # escalation demands recovered. Rule 16 still permits slowing, so the
+    # floor is the same keep-way bound the escalation triggers at — steerage,
+    # or the keep-way fraction of the committed baseline speed — not the
+    # baseline itself.
+    speed_bleed_floor = max(
+        (
+            max(
+                cycle.profile.cog_min_speed_mps,
+                _KEEP_WAY_SPEED_FRACTION * decision.baseline_speed_mps,
+            )
+            for decision in required
+            if decision.rule17 is Rule17Stage.MUST_ACT
+            and decision.rule17_basis == _SPEED_BLEED_BASIS
+            and decision.baseline_speed_mps is not None
+        ),
+        default=0.0,
+    )
+    if speed_bleed_floor > speed_bounds[0]:
+        speed_bounds = (min(speed_bleed_floor, speed_bounds[1]), speed_bounds[1])
     return AggregateDirective(
         required_targets=tuple(decision.key for decision in required),
         passing_side=side,

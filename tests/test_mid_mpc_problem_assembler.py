@@ -1,8 +1,10 @@
 import math
 from dataclasses import replace
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from shapely.geometry import GeometryCollection, box
 
 from colav_simulator.core.colav.custom_mpc_adapter import PlannerInput, TrackedObstacle
 from colav_simulator.core.colav.encounter_lifecycle import (
@@ -348,6 +350,57 @@ def test_assembler_compiles_full_horizon_stand_on_course_authority() -> None:
     assert outcome.problem.row_schedule.cpa_hard_from_k == 80
     assert outcome.problem.row_schedule.cpa_hard_windows[0].start_k == 80
     assert outcome.problem.row_schedule.cpa_hard_windows[0].stop_k == 80
+
+
+def test_stand_on_hold_yields_when_the_baseline_runs_into_a_charted_hazard() -> None:
+    """A course hold may only pin the corridor while holding is executable.
+
+    The p10 crossing re-acquisition pinned the whole horizon to the
+    post-encounter baseline ±5 deg; that corridor ran into a charted island at
+    directive speed, so the static zone rows had no safe completion and IPOPT
+    died (CS-E0 NUMERICAL_FAILURE / CS-E4 INFEASIBLE). When the held baseline
+    grounds within the horizon the assembler must keep the staged COLAV window
+    instead of the pin.
+    """
+    island = box(-100.0, 900.0, 100.0, 1100.0)
+    empty = GeometryCollection()
+    water = box(-10000.0, -10000.0, 10000.0, 10000.0)
+    enc = SimpleNamespace(
+        land=SimpleNamespace(geometry=island),
+        shore=SimpleNamespace(geometry=empty),
+        seabed={0: SimpleNamespace(geometry=water), 5: SimpleNamespace(geometry=water)},
+    )
+    planner_input = replace(_planner_input(), enc=enc)
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    stand_on_decision = replace(
+        snapshot.targets[0],
+        role=OwnshipRole.STAND_ON,
+        risk=RiskPhase.ACTIVE,
+        commitment=CommitmentPhase.NONE,
+        passing_side=PassingSide.NONE,
+        rule17=Rule17Stage.STAND_ON,
+        baseline_course_rad=0.0,
+        required_course_change_rad=0.0,
+    )
+    stand_on_snapshot = replace(
+        snapshot,
+        targets=(stand_on_decision,),
+        directive=replace(
+            snapshot.directive,
+            required_targets=(),
+            passing_side=PassingSide.NONE,
+            minimum_course_change_rad=0.0,
+        ),
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, stand_on_snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    lower, upper = outcome.problem.heading_bounds_rad
+    assert upper - lower > math.radians(10.0)
+    assert outcome.problem.prefix_active_k == 0
 
 
 def test_assembler_releases_safe_completed_target_from_optimizer_graph() -> None:

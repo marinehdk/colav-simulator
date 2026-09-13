@@ -198,6 +198,24 @@ class VOParams:
     # chatter between near-equal candidates must not reach the route contract.
     envelope_selection_hysteresis: float = 0.25
 
+    # Realized-TCPA gate for the encounter-scoped avoidance speed window. The
+    # window stays closed only while the encounter is critical: at least one
+    # live CPA-eligible target whose realized (current-velocity) TCPA is
+    # inbound and below transit_gate_tcpa_s, or an active risk phase (stand-on
+    # hold / stand-on emergency). Once closed it reopens only when every
+    # CPA-eligible target is either still transit-far (TCPA at or above
+    # transit_gate_tcpa_s + transit_gate_hysteresis_s) or has passed CPA by at
+    # least transit_gate_hysteresis_s -- at CPA the TCPA sign is
+    # noise-conditioned, so an unlatched gate would chatter the speed band
+    # exactly at the worst moment. Rationale: an unconditional widening (p8b)
+    # let VO pick fast rows during encounters and thinned VO-HO hull
+    # clearances 453 -> 79/90 m, while the unlatched encounter-scoped window
+    # (p9) transited post-encounter legs at the 3.2 m/s cap against a 7-8 m/s
+    # cruise. transit_gate_tcpa_s=inf disables the gate (pre-gate behavior:
+    # any live rule evidence closes the window for the whole episode).
+    transit_gate_tcpa_s: float = 120.0
+    transit_gate_hysteresis_s: float = 30.0
+
     # Deterministic give-way action-family and direction policy (F6b/F6c).
     # Standard give-way practice is to alter course to starboard while keeping
     # way; a bare speed reduction is the fallback when no starboard course
@@ -262,6 +280,10 @@ class VOParams:
             raise ValueError("overtaking_rearm_distance_m must be non-negative")
         if not np.isfinite(self.envelope_selection_hysteresis) or self.envelope_selection_hysteresis < 0.0:
             raise ValueError("envelope_selection_hysteresis must be non-negative")
+        for name in ("transit_gate_tcpa_s", "transit_gate_hysteresis_s"):
+            value = getattr(self, name)
+            if np.isnan(value) or value < 0.0:
+                raise ValueError(f"{name} must be non-negative (inf disables the gate)")
         if not np.isfinite(self.give_way_course_family_preference) or self.give_way_course_family_preference < 0.0:
             raise ValueError("give_way_course_family_preference must be non-negative")
         if not np.isfinite(self.give_way_course_family_min_rad) or self.give_way_course_family_min_rad < 0.0:
@@ -393,6 +415,7 @@ class VO:
         self._speed_window_mask = np.zeros(shape, dtype=bool)
         self._course_reach_mask = np.zeros(shape[1:], dtype=bool)
         self._avoidance_speed_window_active = False
+        self._transit_gate_open = True
         self._previous_selection_index: tuple[int, int] | None = None
         self._previous_selection_velocity: np.ndarray | None = None
         self._selection_held = False
@@ -461,6 +484,7 @@ class VO:
         self._envelope = None
         self._horizon_s = self._params.t_max
         self._avoidance_speed_window_active = False
+        self._transit_gate_open = True
         self._previous_selection_index = None
         self._previous_selection_velocity = None
         self._selection_held = False
@@ -889,16 +913,22 @@ class VO:
         self._ensure_grid_shape()
 
     def _update_avoidance_speed_window(self, reference_speed_mps: float) -> None:
-        """Scope the backend avoidance-speed window to the live encounter state.
+        """Scope the backend avoidance-speed window to the encounter-critical phase.
 
         The executing backend caps deviation ("avoidance") legs at the reported
         cap and cruises un-deviated route legs at the mission speed. Mirror
-        that split: while COLREG rules, a give-way lock, an overtaking
-        commitment or a stand-on hold owns the solve, candidates stay inside
-        [steerage, cap]; the moment that evidence clears, the nominal transit
-        band reopens so post-encounter speed restoration is immediate.
+        that split: while the solve is encounter-critical, candidates stay
+        inside [steerage, cap]; the moment the phase clears, the nominal
+        transit band reopens so post-encounter speed restoration is immediate.
         Reopened transit candidates never exceed the mission reference speed -
         commands above it are not honest transit requests.
+
+        Encounter-critical means live COLREG/duty evidence (rules, give-way
+        lock, overtaking commitment, stand-on hold) AND a closed realized-TCPA
+        gate (:meth:`_transit_gate_comfortable`). Rule evidence alone is not
+        enough: it decays through release hysteresis long after CPA, and p9
+        showed VO-HO cells transiting at 3.2-3.7 m/s throughout because the
+        window rode that decay instead of the actual encounter phase.
         """
         if self._envelope is None:
             return
@@ -916,8 +946,9 @@ class VO:
             or overtaking_committed
             or self._stand_on_hold_active
         )
-        self._avoidance_speed_window_active = encounter_active
-        if encounter_active:
+        self._transit_gate_open = self._transit_gate_comfortable()
+        self._avoidance_speed_window_active = encounter_active and not self._transit_gate_open
+        if self._avoidance_speed_window_active:
             speed_excluded = self._speed_window_mask[:, 0]
         else:
             base_step = (
@@ -928,6 +959,46 @@ class VO:
         self._envelope_mask = (
             (self._speed_set <= 0.0)[:, None] | speed_excluded[:, None] | self._course_reach_mask[None, :]
         )
+
+    def _transit_gate_comfortable(self) -> bool:
+        """Realized-TCPA latch deciding whether transit may run at cruise.
+
+        Comfortable (gate open) means the solve holds no risk phase (stand-on
+        hold or stand-on emergency) and no live target keeps the encounter
+        critical: every live target is either outside CPA eligibility (dcpa
+        beyond d_min), still transit-far inbound (TCPA at or above the gate
+        plus hysteresis), or separating with the CPA passed by at least the
+        hysteresis. The latch is evaluated from the realized
+        (current-velocity) TCPA of this solve's tracks. A matched-speed lock
+        inside CPA range (no finite TCPA) blocks comfort: closing stays
+        conservative, opening demands positive evidence. See
+        :attr:`VOParams.transit_gate_tcpa_s` for the thresholds.
+        """
+        if self._stand_on_hold_active or any(
+            bool(metrics.get("stand_on_emergency")) for metrics in self._track_metrics.values()
+        ):
+            return False
+        if self._transit_gate_open:
+            for metrics in self._track_metrics.values():
+                tcpa = metrics.get("rule_tcpa_s")
+                dcpa = metrics.get("rule_dcpa_m")
+                if tcpa is None or dcpa is None:
+                    continue
+                if dcpa <= self._params.d_min and 0.0 <= tcpa < self._params.transit_gate_tcpa_s:
+                    return False
+            return True
+        for metrics in self._track_metrics.values():
+            tcpa = metrics.get("rule_tcpa_s")
+            dcpa = metrics.get("rule_dcpa_m")
+            if dcpa is not None and dcpa > self._params.d_min:
+                continue
+            if tcpa is None:
+                return False
+            if -self._params.transit_gate_hysteresis_s < tcpa < (
+                self._params.transit_gate_tcpa_s + self._params.transit_gate_hysteresis_s
+            ):
+                return False
+        return True
 
     def _predict_candidate_positions(
         self,
@@ -2242,6 +2313,7 @@ class VO:
             "planning_horizon_s": self._horizon_s,
             "ownship_envelope": asdict(self._envelope) if self._envelope is not None else None,
             "avoidance_speed_window_active": self._avoidance_speed_window_active,
+            "transit_gate_open": self._transit_gate_open,
             "avoidance_speed_window_rows": (
                 int(np.count_nonzero(~self._speed_window_mask[:, 0] & (self._speed_set > 0.0)))
                 if self._envelope is not None
