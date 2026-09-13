@@ -41,7 +41,11 @@ from colav_simulator.core.colav.mid_mpc import (
     MidMpcTarget,
 )
 from colav_simulator.core.colav.mid_mpc_arrival import arrival_references, terminal_weight
-from colav_simulator.core.colav.mid_mpc_static import compile_static_field, static_execution_context
+from colav_simulator.core.colav.mid_mpc_static import (
+    compile_static_field,
+    held_course_clears_static_hazards,
+    static_execution_context,
+)
 from colav_simulator.core.colav.rolling_plan import RollingPlanReference
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -595,6 +599,22 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
         and any(
             decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
             for decision in binding.selected_decisions
+        )
+        and all(
+            held_course_clears_static_hazards(
+                planner_input,
+                own_position_ne_m=(float(ownship[0]), float(ownship[1])),
+                # A stand-on decision without a frozen baseline cannot be
+                # checked here; it fails the baseline requirement below.
+                baseline_course_rad=float(ownship[2])
+                if decision.baseline_course_rad is None
+                else float(decision.baseline_course_rad),
+                max_speed_mps=policy.speed_bounds_mps[1],
+                horizon_steps=config.horizon_steps,
+                dt_s=config.horizon_dt_s,
+            )
+            for decision in binding.selected_decisions
+            if decision.role in {OwnshipRole.STAND_ON, OwnshipRole.OVERTAKEN} and decision.rule17 is Rule17Stage.STAND_ON
         )
     )
     candidate_hold = not lateral_active and any(

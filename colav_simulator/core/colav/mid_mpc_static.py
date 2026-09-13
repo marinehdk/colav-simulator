@@ -115,6 +115,49 @@ def _distance_field(
     )
 
 
+def held_course_clears_static_hazards(
+    planner_input: PlannerInput,
+    *,
+    own_position_ne_m: tuple[float, float],
+    baseline_course_rad: float,
+    max_speed_mps: float,
+    horizon_steps: int,
+    dt_s: float,
+) -> bool:
+    """A course hold may only pin the corridor where holding is executable.
+
+    Propagate the baseline course across the horizon at the directive speed
+    ceiling and require every knot to keep the same charted-hazard clearance
+    the static zone rows enforce (hull radius plus static clearance). When the
+    held course grounds within the horizon, the caller must keep the staged
+    COLAV window instead of the pin: the hold demand cannot be executed and
+    composing it with the zone rows leaves the optimizer no safe completion
+    (p10 crossing re-acquisition: CS-E0 NUMERICAL_FAILURE / CS-E4 INFEASIBLE).
+    """
+    static_field = compile_static_field(planner_input)
+    if static_field is None:
+        return True
+    distances = np.frombuffer(base64.b64decode(static_field.distance_f64le_b64), dtype="<f8")
+    grid = distances.reshape(static_field.north_count, static_field.east_count)
+    required = static_field.clearance_m + static_field.hull_radius_m
+    along_m = np.arange(1, horizon_steps + 1, dtype=np.float64) * (dt_s * max_speed_mps)
+    north = own_position_ne_m[0] + along_m * math.cos(baseline_course_rad)
+    east = own_position_ne_m[1] + along_m * math.sin(baseline_course_rad)
+    field_i = (north - static_field.north_min_m) / static_field.spacing_m
+    field_j = (east - static_field.east_min_m) / static_field.spacing_m
+    i0 = np.clip(np.floor(field_i).astype(np.int64), 0, static_field.north_count - 2)
+    j0 = np.clip(np.floor(field_j).astype(np.int64), 0, static_field.east_count - 2)
+    di = np.clip(field_i - i0, 0.0, 1.0)
+    dj = np.clip(field_j - j0, 0.0, 1.0)
+    sampled = (
+        grid[i0, j0] * (1.0 - di) * (1.0 - dj)
+        + grid[i0 + 1, j0] * di * (1.0 - dj)
+        + grid[i0, j0 + 1] * (1.0 - di) * dj
+        + grid[i0 + 1, j0 + 1] * di * dj
+    )
+    return bool(np.all(sampled >= required))
+
+
 def _distance_primitives(geometry: BaseGeometry) -> list[BaseGeometry]:
     """Boundary segments and isolated features of an already-unioned hazard."""
     if geometry.geom_type == "Polygon":
