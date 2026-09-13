@@ -1245,6 +1245,18 @@ def _stage_speed_bounds(problem: MidMpcProblem, config: MidMpcConfig, lbx: np.nd
         # staged, while a floor is reachable immediately (acceleration is
         # unconstrained there).
         ubx[n : 2 * n] = np.maximum(ubx[n : 2 * n], reachable_upper)
+    # Slot-critical braking authority: inside the hard CPA windows the
+    # keep-way floor yields to full braking. Rule 16 makes speed reduction the
+    # correct give-way action at slot entry, and a floor that forbids slowing
+    # below the executed band can render an otherwise-keepable slot
+    # infeasible (head_on-E0: own at 1.87 m/s under a 2.1 m/s floor, hard
+    # window [0, 7), braking saturated → Infeasible_Problem_Detected). The
+    # standoff floor still binds everywhere outside the windows, so the
+    # speed-bleed protection is untouched where it belongs.
+    for window in problem.row_schedule.cpa_hard_windows:
+        start = max(0, min(window.start_k, n))
+        stop = max(start, min(window.stop_k, n))
+        lbx[n + start : n + stop] = np.minimum(lbx[n + start : n + stop], 0.0)
 
 
 def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayout) -> MidMpcPreparedProblem:
