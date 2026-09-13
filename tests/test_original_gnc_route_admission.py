@@ -497,3 +497,74 @@ def test_static_only_evidence_keeps_nominal_cruise_on_deviation_legs(original_sh
     assert modes.count("avoidance") == 1  # entry leg only: admission tier, no cap exposure
     assert first_avoidance == bridge._candidate["prefix_length"]  # the tag is the deviation entry waypoint
     assert _coordinate_feedback(bridge)["accepted"] is True
+
+
+def _deviation_speeds(request: dict) -> list[float]:
+    """Published speeds of the avoidance-tagged deviation slice of one plan."""
+    modes = request["navigation_mode"]
+    first = modes.index("avoidance")
+    last = len(modes) - 1 - modes[::-1].index("avoidance")
+    return request["command_speed_mps"][first : last + 1]
+
+
+def test_published_deviation_speeds_equal_commanded_speed_above_the_guidance_cap(original_ship):
+    """(A) guard: the bridge publishes planner-commanded speeds on deviation legs.
+
+    Execution speed policy belongs to the loaded build's guidance (baseline
+    caps avoidance-tagged legs by navigation tag regardless of the published
+    route speeds; P-C1 caps only emergency_avoidance). The publish chain must
+    carry the commanded speed verbatim - no duplicate 3.2 m/s clamp and no
+    re-entry of manager-degraded or absorbed speeds - so planner intent stays
+    readable straight off the route contract.
+    """
+    ship = original_ship
+    commanded = round(ship.avoidance_speed_cap + 3.0, 3)  # cruise request above the frozen guidance cap
+    ship.stack.advance(11)
+    ship._sync_state()
+    data = _vo_intent(speed=commanded)
+    bridge = _mount(ship, data)
+    bridge.submit(11)
+    request = _avoidance_requests(ship)[-1]["message"]
+    speeds = _deviation_speeds(request)
+    assert len(speeds) > 0
+    assert speeds == [pytest.approx(commanded)] * len(speeds)
+    assert _coordinate_feedback(bridge)["accepted"] is True
+    # Second generation spliced against the mirror of our own accepted plan:
+    # neither the guidance cap nor manager speed degradation may re-enter the
+    # published deviation speeds through the absorbed reference (R-B1).
+    data["planner"]["solve_id"] = 2
+    ship.stack.advance(2.0)
+    ship._sync_state()
+    bridge.submit(13.1)
+    speeds = _deviation_speeds(_avoidance_requests(ship)[-1]["message"])
+    assert speeds == [pytest.approx(commanded)] * len(speeds)
+
+
+def test_planner_envelope_speed_cap_follows_colleague_proposal_manifest(original_ship):
+    """(B) guard: the planner envelope follows the loaded build's speed policy.
+
+    Baseline builds keep the capped envelope (every avoidance leg executes at
+    the frozen guidance cap); P-C1 proposal builds widen the planner envelope
+    to the transit ceiling because plain avoidance legs execute uncapped. The
+    widening is only safe together with the VO's realized-TCPA window gate
+    (4a0208e2), which keeps encounter-phase speed rows conservative.
+    """
+    ship = original_ship
+    frozen_cap = float(ship._parameters["ship_guidance_node"]["emergency_avoidance_speed_cap_mps"]["value"])
+    transit_ceiling = ship.max_speed
+    assert ship.avoidance_speed_cap == pytest.approx(frozen_cap)
+    assert frozen_cap < transit_ceiling
+    # No proposal manifest (baseline build): capped envelope.
+    assert ship.planner_avoidance_speed_cap == pytest.approx(frozen_cap)
+    # P-C1 manifest (dict-form proposal rows, as the build manifest ships them).
+    ship._build_identity = {**(ship._build_identity or {}), "colleague_proposal": {"proposals": [{"id": "P-C1"}]}}
+    assert ship.planner_avoidance_speed_cap == pytest.approx(transit_ceiling)
+    # Other proposal ids must not widen the envelope.
+    ship._build_identity = {**(ship._build_identity or {}), "colleague_proposal": {"proposals": [{"id": "P-C2"}]}}
+    assert ship.planner_avoidance_speed_cap == pytest.approx(frozen_cap)
+    # Plain-string proposal rows stay readable.
+    ship._build_identity = {**(ship._build_identity or {}), "colleague_proposal": {"proposals": ["P-C1"]}}
+    assert ship.planner_avoidance_speed_cap == pytest.approx(transit_ceiling)
+    # Missing identity degrades to the capped envelope instead of raising.
+    ship._build_identity = None
+    assert ship.planner_avoidance_speed_cap == pytest.approx(frozen_cap)
