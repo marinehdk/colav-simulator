@@ -1440,3 +1440,32 @@ def test_recovery_envelope_barrier_penalizes_post_release_wandering(
     fully_bound = float(solver_module._flat(graph.objective_components(wanderer, tightened))[route_index])
     assert fully_bound > with_barrier
 
+
+
+def test_speed_floor_yields_inside_hard_cpa_windows() -> None:
+    """Slot-critical braking authority: the keep-way floor yields in the window.
+
+    head_on-E0 (p10b): own at 1.87 m/s under a 2.1 m/s keep-way floor with a
+    hard CPA window [0, 7) and braking saturated — demanding way-keeping at
+    the slot made the otherwise-keepable geometry Infeasible. Rule 16 speed
+    reduction is the correct give-way action at slot entry, so the staged
+    lower bound must open to full braking inside the window while the floor
+    still binds outside it (speed-bleed standoff protection untouched).
+    """
+    config = MidMpcConfig(strict_slack_bounds=True)
+    problem = _slow_hull_problem(speed_bounds=(2.1, 8.0), u_mps=1.87)
+    problem = replace(
+        problem,
+        row_schedule=MidMpcRowSchedule(
+            cpa_hard_windows=(MidMpcHardWindow(0, 7),),
+        ),
+    )
+
+    prepared = _prepare(config, problem, _row_layout(config, 1, 0))
+
+    n = config.horizon_steps
+    rate = problem.decel_max_mps2 * config.dt_s
+    reachable_lower = 1.87 + rate * (np.arange(n) + 1)
+    assert np.all(prepared.lbx[n : n + 7] <= 0.0), "window knots must open to full braking"
+    outside = prepared.lbx[n + 7 : 2 * n]
+    np.testing.assert_allclose(outside, np.minimum(2.1, reachable_lower[7:]))
