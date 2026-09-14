@@ -254,3 +254,9 @@ Continue from branch `codex/colav-backend-algorithms` at HEAD `22b045d`
 - **接力指示 (Hand-off Context)**:
   - 静态测试 `node --test` 全绿（135/135）。
   - 冻结模块清单保持零 diff。
+
+## 2026-09-13 — Sealed Run Replay 交付（#69–#75）
+- feature/sealed-run-replay 合并进本地 main @ 65e15958（零冲突，48 文件 GNC advance 零交集）；未 push（PR 等 GNC track 收口）
+- 8010 launchd 重启验证：/api/runs 列表 READY、验收 run e5f68ad4 READY·full·1821 frames
+- 验收报告 docs/research/2026-09-13-sealed-run-replay-acceptance.md；台账 handoff/replay-task-ledger.md
+- 下一会话验证 handoff：/tmp/handoff-20260913-sealed-run-replay-verification.md
