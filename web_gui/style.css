@@ -3639,3 +3639,41 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 
 .balance-limit-single { flex-wrap: nowrap; }
 .balance-limit-single strong { width: 100%; text-align: center; white-space: nowrap; }
+
+/* Evaluation > Sealed Run Replay run catalog (ticket #70) */
+.replay-runs-card { background: var(--ob-surface); border: 1px solid var(--ob-border); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+.replay-runs-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 10px; }
+.replay-runs-header h1 { font-size: 16px; font-weight: 600; margin: 2px 0; }
+.replay-runs-header p { margin: 0; font-size: 10px; color: var(--ob-subtle); }
+.replay-runs-table-wrap { overflow-x: auto; }
+.replay-runs-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.replay-runs-table th { text-align: left; padding: 5px 8px; font-weight: 500; letter-spacing: .5px; color: var(--ob-subtle); border-bottom: 1px solid var(--ob-border); white-space: nowrap; }
+.replay-runs-table td { padding: 5px 8px; border-bottom: 1px solid var(--ob-border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.replay-runs-table td.replay-runs-state { font-weight: 600; letter-spacing: .4px; color: var(--ob-accent); }
+
+/* Evaluation > Sealed Run Replay viewer (ticket #71) — paused historical
+   inspection on the shared Situation Display; subordinate to the chart. */
+.replay-viewer { background: var(--ob-surface); border: 1px solid var(--ob-border); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px; }
+.replay-viewer-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px 16px; }
+.replay-viewer-header p { margin: 0; font-size: 10px; color: var(--ob-subtle); }
+.replay-viewer-main { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 10px; min-height: 420px; }
+.replay-canvas-wrapper { position: relative; overflow: hidden; border: 1px solid var(--ob-border); border-radius: 6px; min-height: 420px; }
+.replay-canvas-wrapper canvas { width: 100%; height: 100%; display: block; }
+.replay-inspection { border: 1px solid var(--ob-border); border-radius: 6px; padding: 10px; font-size: 10px; color: var(--ob-subtle); overflow-y: auto; max-height: 520px; }
+.replay-inspection p { margin: 0 0 6px; letter-spacing: .3px; }
+.replay-timeline-bar { display: flex; flex-direction: column; gap: 6px; }
+.replay-timeline-times { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; font-size: 11px; }
+.replay-timeline-times input[type="range"] { flex: 1; accent-color: var(--ob-accent); }
+.replay-timeline-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.replay-source-frame { font-size: 10px; color: var(--ob-subtle); font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+.replay-runs-open { white-space: nowrap; }
+.replay-rate-group { display: inline-flex; align-items: center; gap: 4px; }
+.replay-rate-group obc-button[aria-pressed="true"] { outline: 1px solid var(--ob-accent); }
+.replay-timeline-track { position: relative; flex: 1; display: flex; align-items: center; }
+.replay-event-markers { position: absolute; inset: -8px 0 auto 0; height: 20px; pointer-events: none; }
+.replay-event-marker { position: absolute; top: 0; transform: translateX(-50%); pointer-events: auto; min-width: 16px; height: 16px; padding: 0; border: 1px solid var(--ob-subtle); border-radius: 3px; background: var(--ob-bg, #10202c); color: var(--ob-subtle); font-size: 9px; line-height: 14px; cursor: pointer; }
+.replay-event-marker:focus-visible { outline: 2px solid var(--ob-accent); }
+#replayEventFilter { background: transparent; color: inherit; border: 1px solid var(--ob-subtle); font-size: 10px; }
+.evaluation-view-tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.evaluation-view-tab[aria-pressed="true"] { outline: 1px solid var(--ob-accent); }
+.deployment-rate-label { font-size: 10px; letter-spacing: .8px; color: var(--ob-subtle); }

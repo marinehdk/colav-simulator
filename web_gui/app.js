@@ -1705,14 +1705,19 @@ function syncPlaybackStatus(playback, running = false) {
   const status = document.getElementById('speedStatus');
   if (!status) return;
   status.classList.toggle('limited', Boolean(playback.realtime_limited));
+  // #74 terminology: this is the SIMULATION RATE of the Active Session
+  // (requested vs effective compute-limited) — not a Replay Speed.
+  const requestedText = Number.isFinite(requested) ? `${requested.toFixed(1)}×` : '--';
   if (!running) {
-    status.textContent = Number.isFinite(effective) ? `最近 ${effective.toFixed(1)}×` : '实际 --';
+    status.textContent = Number.isFinite(effective)
+      ? `SIMULATION RATE 最近 ${effective.toFixed(1)}× / 请求 ${requestedText}`
+      : `SIMULATION RATE 实际 -- / 请求 ${requestedText}`;
   } else if (!Number.isFinite(effective)) {
-    status.textContent = '测量中';
+    status.textContent = `SIMULATION RATE 测量中 / 请求 ${requestedText}`;
+  } else if (playback.realtime_limited) {
+    status.textContent = `SIMULATION RATE 受限 ${effective.toFixed(1)}× / 请求 ${requestedText}`;
   } else {
-    status.textContent = playback.realtime_limited
-      ? `受限 ${effective.toFixed(1)}×`
-      : `实际 ${effective.toFixed(1)}×`;
+    status.textContent = `SIMULATION RATE ${effective.toFixed(1)}×`;
   }
 }
 

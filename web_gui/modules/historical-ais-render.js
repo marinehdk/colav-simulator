@@ -112,6 +112,8 @@ function renderBenchmark(documentRef, state) {
     run.textContent = state.busy ? 'RUNNING' : 'Run Historical Workflow';
     run.title = scenario?.readiness.canRun ? '' : 'Canonical source readiness is not READY';
   }
+  const openReplay = documentRef.getElementById('historicalAISOpenReplay');
+  if (openReplay) openReplay.disabled = !state.workflow?.runId || state.busy;
   const deploy = documentRef.getElementById('historicalAISDeploy');
   if (deploy) {
     deploy.disabled = !scenario?.readiness.canRun || state.busy || state.deploying;

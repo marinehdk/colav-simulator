@@ -184,5 +184,9 @@ export function projectHistoricalAISWorkflow(value) {
     lifecycle: value.status ?? null,
     stages: object(value.stages),
     presentation,
+    // Backend-recorded Run identity (#74): enables the explicit `Open Replay`
+    // inspection action in the SHARED Evaluation > Replay player. Replayability
+    // itself is decided by the backend descriptor, never assumed here.
+    runId: object(value.evidence).run?.run_id ?? null,
   };
 }

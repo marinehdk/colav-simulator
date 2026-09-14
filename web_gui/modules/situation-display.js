@@ -12,12 +12,15 @@
  *   (c) layer visibility flags via setLayerVisible / getLayerState,
  *   (d) internally-owned view state.
  * It never imports the runtime/projection modules; telemetry-projection.js
- * stays decoupled (zero imports either way).
+ * stays decoupled (zero imports either way). The only import is the shared
+ * pure kinematic math module (decision D5), which imports nothing.
  *
  * Render-order contract (ruling 8): LAYER_ORDER below is the single ordered
  * layer table. Every draw pass records the ids it actually drew; the sequence
  * is exposed via getDrawSequence() for deterministic regression tests.
  */
+
+import { interpolateAngle as sharedInterpolateAngle, interpolateVesselKinematics } from './kinematics.js';
 
 export const TELEMETRY_RENDER_MIN_MS = 100;
 export const TELEMETRY_RENDER_MAX_MS = 1000;
@@ -157,19 +160,17 @@ export function updateFrozenRoute(store, data) {
 }
 
 export function interpolateAngle(from, to, amount) {
-  if (!Number.isFinite(from) || !Number.isFinite(to)) return to;
-  const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from));
-  return from + delta * amount;
+  return sharedInterpolateAngle(from, to, amount);
 }
 
 export function interpolateVessel(from, to, amount) {
   if (!from || !to) return to;
+  // Kinematic math is shared (decision D5); the display's semantics — spread
+  // of the UPPER frame, interpolate only draw geometry (x, y, psi, cog) —
+  // stay here.
   return {
     ...to,
-    x: Number.isFinite(from.x) && Number.isFinite(to.x) ? from.x + (to.x - from.x) * amount : to.x,
-    y: Number.isFinite(from.y) && Number.isFinite(to.y) ? from.y + (to.y - from.y) * amount : to.y,
-    psi: interpolateAngle(from.psi, to.psi, amount),
-    cog: interpolateAngle(from.cog, to.cog, amount),
+    ...interpolateVesselKinematics(from, to, amount, ['x', 'y', 'psi', 'cog']),
   };
 }
 
