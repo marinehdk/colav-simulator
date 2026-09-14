@@ -16,10 +16,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from shapely.geometry import GeometryCollection, box
 
 import gui_server.main as gui_main
 from colav_simulator.decision_replay import probes
@@ -27,6 +29,7 @@ from colav_simulator.decision_replay.bundle import TraceBundle
 from colav_simulator.decision_replay.sink import TraceSink, TraceSinkPolicy
 from colav_simulator.experiment.contracts import RunSpec, SessionState
 from gui_server.main import WebSessionManager
+from gui_server.replay_artifacts import render_enc
 
 TICK_LIMIT = 400
 FINALIZE_TIMEOUT_S = 120.0
@@ -318,6 +321,26 @@ def test_product_run_persists_static_replay_context(finished_vo_run: dict[str, A
     ships = document["ships"]
     assert ships[0]["id"] == 0
     assert ships[0]["length_m"] > 0 and ships[0]["width_m"] > 0
+
+
+def test_enc_render_uses_explicit_agg_canvas_in_worker(tmp_path: Path) -> None:
+    """ENC PNG rendering must not create a GUI backend in a worker thread."""
+    water = SimpleNamespace(geometry=box(0.0, 0.0, 10.0, 10.0))
+    empty = SimpleNamespace(geometry=GeometryCollection())
+    enc = SimpleNamespace(
+        size=(10.0, 10.0),
+        seabed={0: water},
+        shore=empty,
+        land=empty,
+        bbox=(0.0, 0.0, 10.0, 10.0),
+    )
+    prepared = SimpleNamespace(session=SimpleNamespace(enc=enc), run_dir=tmp_path)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        path = executor.submit(render_enc, prepared).result(timeout=5.0)
+
+    assert path == tmp_path / "enc.png"
+    assert path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 
 def test_product_trace_is_readable_by_existing_probes(finished_vo_run: dict[str, Any]) -> None:

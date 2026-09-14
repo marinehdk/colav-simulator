@@ -213,8 +213,8 @@ test('replay frontend reuses the canonical projection/display and never parses r
   assert.doesNotMatch(moduleSource, /method\s*:\s*['"](POST|PUT|PATCH|DELETE)['"]/);
   assert.doesNotMatch(moduleSource, /parquet|pzip|DecompressionStream|gzip/i);
   assert.doesNotMatch(adapterSource, /parquet|pzip|DecompressionStream|gzip/i);
-  assert.match(moduleSource, /replay-runs\.js\?v=20260911-replay-runs-v2/);
-  assert.match(html, /replay-runs\.js\?v=20260911-replay-runs-v2/);
+  assert.match(moduleSource, /replay-runs\.js\?v=20260914-gnc-replay-v3/);
+  assert.match(html, /replay-runs\.js\?v=20260914-gnc-replay-v3/);
 });
 
 /* ── Open / seek behavior ── */
@@ -1019,7 +1019,7 @@ test('Simulation Rate / Replay Speed terminology is frozen in the UI copy', () =
 
 test('Historical AIS Open Replay routes through the shared player without a second player', async () => {
   const workbenchSource = await readFile(new URL('../../web_gui/modules/historical-ais-workbench.js', import.meta.url), 'utf8');
-  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js\?v=20260912-eval-ia-v1'/);
+  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js\?v=20260914-gnc-replay-v3'/);
   assert.match(workbenchSource, /replayable = state === 'READY' \|\| state === 'INCOMPLETE'/);
   assert.match(html, /id="historicalAISOpenReplay"/);
 

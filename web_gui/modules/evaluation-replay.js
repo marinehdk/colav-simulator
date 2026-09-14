@@ -17,7 +17,7 @@ import { createReplayClock, REPLAY_RATES, ReplayPlayState } from './replay-clock
 // Keep the URL identical to the shell's standalone module tag. Native ESM
 // treats query-string variants as different module instances; without this
 // pin the catalog and replay host would own different opener registries.
-import { setReplayRunOpener } from './replay-runs.js?v=20260911-replay-runs-v2';
+import { setReplayRunOpener } from './replay-runs.js?v=20260914-gnc-replay-v3';
 
 // Scrub windows stay small and bounded; the backend enforces the frozen caps.
 const SEEK_WINDOW_HALF_SPAN_S = 0.5;

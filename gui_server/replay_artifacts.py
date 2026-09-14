@@ -7,12 +7,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import matplotlib as mpl
-
-mpl.use("Agg")
-
-import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.experiment.persistence import jsonable
@@ -25,7 +22,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def _draw_geometry(ax: plt.Axes, geometry: Any, color: str, alpha: float = 1.0) -> None:
+def _draw_geometry(ax: Any, geometry: Any, color: str, alpha: float = 1.0) -> None:
     if geometry is None or geometry.is_empty:
         return
     polygons = geometry.geoms if hasattr(geometry, "geoms") else [geometry]
@@ -65,7 +62,9 @@ def render_enc(prepared: PreparedRun) -> Path:
     width, height = enc.size
     figure_width = 8.0
     figure_height = max(3.0, figure_width * height / max(width, 1.0))
-    figure, axis = plt.subplots(figsize=(figure_width, figure_height), dpi=128)
+    figure = Figure(figsize=(figure_width, figure_height), dpi=128)
+    FigureCanvasAgg(figure)
+    axis = figure.add_subplot(111)
     axis.set_facecolor("#9fc7cf")
     palette = {
         0: "#8ebbc5",
@@ -87,7 +86,6 @@ def render_enc(prepared: PreparedRun) -> Path:
     figure.subplots_adjust(0, 0, 1, 1)
     path = prepared.run_dir / "enc.png"
     figure.savefig(path, transparent=False, pad_inches=0)
-    plt.close(figure)
     return path
 
 

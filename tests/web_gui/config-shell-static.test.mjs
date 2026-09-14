@@ -81,10 +81,10 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
-  const tag = '20260909-balance-v7';
+  const tag = '20260914-gnc-replay-v3';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
-  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260910-vo-display-v1/);
-  assert.match(shell, /validation-assembly\.js\?v=20260909-gnc-presets-v1/);
+  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260914-gnc-replay-v3/);
+  assert.match(shell, /validation-assembly\.js\?v=20260914-gnc-replay-v3/);
 });
 
 test('Deployment consumes the projection and no longer interprets raw envelopes inline', () => {
@@ -429,6 +429,64 @@ test('Params use obc-number-input-field with inline field errors and retained no
   assert.match(shell, /\['validationSolvePeriod', 'solve_period_s', true\]/);
 });
 
+test('clearing an OBC number field clears both host and shadow input values', () => {
+  const source = shell.match(/function setNumberFieldValue\(id, value\) \{[\s\S]*?^\}/m)?.[0];
+  assert.ok(source, 'exercise the actual parameter setter');
+  const input = { value: '5' };
+  const field = {
+    tagName: 'OBC-NUMBER-INPUT-FIELD',
+    value: '5',
+    shadowRoot: { querySelector: () => input },
+    setAttribute() {},
+  };
+  const context = { document: { getElementById: () => field } };
+
+  runInNewContext(`(${source})`, context)('validationSolvePeriod', '');
+
+  assert.equal(field.value, '');
+  assert.equal(input.value, '');
+});
+
+test('parameter commit captures a cleared shadow value before the OBC bubble handler restores it', () => {
+  const source = shell.slice(shell.indexOf('const NUMERIC_PARAMS'), shell.indexOf('function renderExecutionPlan'));
+  const edits = [];
+  const listeners = [];
+  const addListener = (owner) => (type, handler, options = {}) => {
+    listeners.push({ owner, type, handler, capture: options.capture === true });
+  };
+  const input = {
+    value: '',
+    addEventListener: addListener('input'),
+  };
+  const host = { shadowRoot: null, addEventListener: addListener('host') };
+  const context = {
+    document: { getElementById: () => host },
+    edit: (field, value) => edits.push([field, value]),
+  };
+  // Vendor handler is registered first and represents the observed OBC
+  // restoration before a normal bubble listener reads event.target.value.
+  input.addEventListener('input', () => { input.value = '5'; });
+  const bind = runInNewContext(`(() => { ${source}; return bindNumberField; })()`, context);
+  bind('validationSolvePeriod', 'solve_period_s', true);
+  host.shadowRoot = { querySelector: () => input };
+  bind('validationSolvePeriod', 'solve_period_s', true);
+
+  const event = { target: input, composedPath: () => [input, host] };
+  for (const owner of ['host', 'input']) {
+    for (const listener of listeners.filter((item) => item.owner === owner && item.capture)) listener.handler(event);
+  }
+  for (const listener of listeners.filter((item) => item.owner === 'input' && !item.capture)) listener.handler(event);
+
+  const change = { target: input, type: 'change', composedPath: () => [input, host] };
+  for (const owner of ['host', 'input']) {
+    for (const listener of listeners.filter((item) => item.owner === owner && item.type === 'change' && item.capture)) {
+      listener.handler(change);
+    }
+  }
+
+  assert.deepEqual(edits, [['solve_period_s', null]]);
+});
+
 test('Execution plan has metric strip, session clock timeline, seed root, and READY/INVALID footer (gap #16)', () => {
   assert.match(html, /id="validationSessionClock"/);
   assert.match(html, /id="validationTimelineStart"/);
@@ -451,7 +509,10 @@ test('Review fixes F1/F2: params bind directly to inner inputs; carousel scrolle
   assert.match(shell, /whenDefined\('obc-number-input-field'\)[\s\S]{0,120}requestAnimationFrame\(\(\) => setTimeout\(rebindNumberFields, 0\)\)/);
   assert.match(shell, /function renderParamErrors\(snapshot\) \{\s*\/\/ Lazy-rebind[\s\S]{0,320}rebindNumberFields\(\);/);
   assert.match(shell, /function rebindNumberFields\(/);
-  assert.match(shell, /event\.target\.value \?\? ''/);
+  assert.match(shell, /function eventInput\(event\)/);
+  assert.match(shell, /eventInput\(event\)\?\.value \?\? ''/);
+  assert.match(shell, /capture: true/);
+  assert.match(shell, /handledParamEvents/);
   assert.match(shell, /lastParamCommit/);
   assert.doesNotMatch(shell, /validationParamsFields'\)\.addEventListener/);
   assert.match(shell, /customElements\.whenDefined\('obc-scrollbar'\)\.then\(rebindCarouselScrollers\)/);

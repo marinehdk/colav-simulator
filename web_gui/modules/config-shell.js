@@ -1,5 +1,5 @@
-import { presetBinding, presetStackId } from './gnc-presets.js?v=20260909-gnc-presets-v1';
-import { createValidationAssembly } from './validation-assembly.js?v=20260909-gnc-presets-v1';
+import { presetBinding, presetStackId } from './gnc-presets.js?v=20260914-gnc-replay-v3';
+import { createValidationAssembly } from './validation-assembly.js?v=20260914-gnc-replay-v3';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import { createSituationDisplay } from './situation-display.js?v=20260908-buffered-motion-v2';
 
@@ -599,6 +599,11 @@ function setNumberFieldValue(id, value) {
   const text = value ?? '';
   if (field.tagName === 'INPUT' || 'value' in field) field.value = String(text);
   else field.setAttribute('value', String(text));
+  // OBC keeps the editable input in shadow DOM and may retain its focused
+  // value while the host property updates. Keep both surfaces synchronized so
+  // clearing a nullable parameter cannot visually restore the old value.
+  const input = field.shadowRoot?.querySelector('input');
+  if (input) input.value = String(text);
 }
 
 function renderParamErrors(snapshot) {
@@ -652,11 +657,18 @@ const NUMERIC_PARAMS = [
 ];
 const lastParamCommit = new Map();
 const boundNumberTargets = new WeakSet();
+const inputEventsSinceChange = new Map();
+const handledParamEvents = new WeakSet();
+
+function eventInput(event) {
+  const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+  return path.find((item) => item?.tagName === 'INPUT') || event.target;
+}
 
 function commitParamEdit(field, nullable, event) {
   // Read from the event target itself: the host element's value property can be
   // stale when the keystroke happened inside the component's shadow input.
-  const value = String(event.target.value ?? '');
+  const value = String(eventInput(event)?.value ?? '');
   const committed = nullable && value === '' ? null : Number(value);
   if (lastParamCommit.get(field) === String(committed)) return;
   lastParamCommit.set(field, String(committed));
@@ -675,8 +687,18 @@ function bindNumberField(id, field, nullable) {
   const target = element.shadowRoot?.querySelector('input') || element;
   if (boundNumberTargets.has(target)) return;
   boundNumberTargets.add(target);
-  target.addEventListener('input', (event) => commitParamEdit(field, nullable, event));
-  target.addEventListener('change', (event) => commitParamEdit(field, nullable, event));
+  target.addEventListener('input', (event) => {
+    if (handledParamEvents.has(event)) return;
+    handledParamEvents.add(event);
+    inputEventsSinceChange.set(field, true);
+    commitParamEdit(field, nullable, event);
+  }, { capture: true });
+  target.addEventListener('change', (event) => {
+    if (handledParamEvents.has(event)) return;
+    handledParamEvents.add(event);
+    if (inputEventsSinceChange.delete(field)) return;
+    commitParamEdit(field, nullable, event);
+  }, { capture: true });
 }
 
 function rebindNumberFields() {
