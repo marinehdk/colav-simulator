@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: signed thrust uses its own ahead/astern capacity and keeps missing data unavailable
+ok 1 - signed thrust uses its own ahead/astern capacity and keeps missing data unavailable
+  ---
+  duration_ms: 1.057875
+  type: 'test'
+  ...
+# Subtest: SENSOR retains four instruments; BALANCE precedes AIS and uses native OpenBridge instruments
+ok 2 - SENSOR retains four instruments; BALANCE precedes AIS and uses native OpenBridge instruments
+  ---
+  duration_ms: 3.165875
+  type: 'test'
+  ...
+# Subtest: constraint aggregation preserves asymmetric PID and distinct actuator limits
+ok 3 - constraint aggregation preserves asymmetric PID and distinct actuator limits
+  ---
+  duration_ms: 0.420709
+  type: 'test'
+  ...
+# Subtest: five-page layout keeps environmental cards separate from propulsion
+ok 4 - five-page layout keeps environmental cards separate from propulsion
+  ---
+  duration_ms: 1.629417
+  type: 'test'
+  ...
+# Subtest: environment dials use To bearings consistently, converting wind From by 180 degrees
+ok 5 - environment dials use To bearings consistently, converting wind From by 180 degrees
+  ---
+  duration_ms: 0.342833
+  type: 'test'
+  ...
+# Subtest: speed contract keeps missing, zero and different execution stages distinct
+ok 6 - speed contract keeps missing, zero and different execution stages distinct
+  ---
+  duration_ms: 0.194708
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 60.960917

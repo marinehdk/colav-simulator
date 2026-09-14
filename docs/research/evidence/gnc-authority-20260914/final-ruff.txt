@@ -1,0 +1,6 @@
+colav_simulator/core/colav/kuwata_vo_alg/kuwata_vo.py:
+   439:9 PLR0915 Too many statements (52 > 50)
+  1749:9 PLR0912 Too many branches (18 > 12)
+  1749:9 C901 `_compute_optimal_controls` is too complex (17 > 15)
+
+Found 3 errors.
