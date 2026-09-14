@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
@@ -163,6 +165,24 @@ def test_create_request_preserves_explicit_algorithm_config() -> None:
     ).to_spec()
 
     assert spec.algorithm_config == explicit
+
+
+def test_create_request_maps_explicit_solve_period() -> None:
+    spec = SessionCreateRequest(
+        validation_rule_id="rule15",
+        scenario_id="crossing_give_way",
+        algorithm_id="mid_mpc_ipopt",
+        solve_period_s=5.0,
+    ).to_spec()
+
+    assert spec.solve_period_s == 5.0
+    assert SessionCreateRequest(validation_rule_id="rule15").to_spec().solve_period_s is None
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.inf, math.nan])
+def test_create_request_rejects_invalid_solve_period(value: float) -> None:
+    with pytest.raises(ValueError, match="solve_period_s"):
+        SessionCreateRequest(validation_rule_id="rule15", solve_period_s=value)
 
 
 def test_create_request_without_product_profile_keeps_config_empty() -> None:

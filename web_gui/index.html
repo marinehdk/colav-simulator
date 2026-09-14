@@ -166,6 +166,7 @@
                   <div class="parameter-fields">
                     <obc-number-input-field id="validationDt" name="dt" label="dt" unit="s" helpertext="Blank = scenario default" disabled></obc-number-input-field>
                     <obc-number-input-field id="validationTEnd" name="t_end" label="t_end" unit="s" helpertext="Blank = scenario default" disabled></obc-number-input-field>
+                    <obc-number-input-field id="validationSolvePeriod" name="solve_period_s" label="Solve period" unit="s" helpertext="Blank = algorithm default" disabled></obc-number-input-field>
                   </div>
                 </section>
               </div>
@@ -746,7 +747,7 @@
           <div>
             <p class="historical-ais-eyebrow">EVALUATION / REPLAY</p>
             <h1>Sealed Run Replay</h1>
-            <p>SEALED · HISTORICAL — recorded evidence inspection only. Seek and playback arrive with the replay timeline.</p>
+            <p>SEALED · HISTORICAL — open a recorded Run to seek, play and inspect its original results.</p>
           </div>
           <div class="historical-ais-header-status">
             <span class="historical-ais-status-pill" id="replayRunsStatus">LOADING</span>

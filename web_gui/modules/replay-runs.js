@@ -20,9 +20,16 @@ const REPLAY_STATE_LABELS = {
 // the recorded Run for inspection. Inspection navigation only — never an
 // execution action, never an Active Session call.
 let replayRunOpener = null;
+let lastRenderedCatalog = null;
 
 export function setReplayRunOpener(opener) {
   replayRunOpener = typeof opener === 'function' ? opener : null;
+  // replay-runs.js boots before evaluation-replay.js in the product shell.
+  // Re-render the last catalog when the shared opener registers so an initial
+  // refresh cannot permanently lose the Open replay action.
+  if (lastRenderedCatalog) {
+    renderReplayRuns(lastRenderedCatalog.documentRef, lastRenderedCatalog.rows);
+  }
 }
 
 export function replayStateLabel(entry) {
@@ -65,6 +72,7 @@ function cell(documentRef, text, className = '') {
 export function renderReplayRuns(documentRef, rows) {
   const body = documentRef.getElementById('replayRunsBody');
   if (!body) return;
+  lastRenderedCatalog = { documentRef, rows };
   const tableRows = rows.map(row => {
     const tr = documentRef.createElement('tr');
     tr.setAttribute('data-replay-state', row.replayState);
@@ -91,7 +99,9 @@ export function renderReplayRuns(documentRef, rows) {
         event.stopPropagation();
         replayRunOpener(row.runId);
       });
-      tr.append(action);
+      const actionCell = documentRef.createElement('td');
+      actionCell.append(action);
+      tr.append(actionCell);
     }
     return tr;
   });

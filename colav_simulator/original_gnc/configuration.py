@@ -12,9 +12,9 @@ from pathlib import Path
 
 import yaml
 
-from colav_simulator.original_gnc.native import OriginalGncError
+from colav_simulator.original_gnc.native import APPROVED_SOURCE_MANIFEST_SHA256, OriginalGncError
 
-SOURCE_MANIFEST_SHA256 = "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411"
+SOURCE_MANIFEST_SHA256 = APPROVED_SOURCE_MANIFEST_SHA256
 ORIGINAL_OFF = "original-gnc-20260824-v2-env-off"
 ORIGINAL_ON = "original-gnc-20260824-v2-env-on"
 BASELINE = Path(__file__).with_name("data") / "baseline.json"

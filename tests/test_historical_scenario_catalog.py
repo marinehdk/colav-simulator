@@ -232,7 +232,9 @@ def test_replay_binding_succeeds_without_encounter_or_intent_while_counterfactua
         "all_positions_contained": True,
     }
     assert enc_calls["count"] == 1
-    assert replay.replay_workflow_payload()["mode"] == "HISTORICAL_REPLAY"
+    replay_payload = replay.replay_workflow_payload()
+    assert replay_payload["mode"] == "HISTORICAL_REPLAY"
+    assert replay_payload["replay"]["runtime_mmsi"] == [257252000, 258764000, 259189000]
     with pytest.raises(HistoricalAISScenarioError) as raised:
         assembler.bind_counterfactual(descriptor, environ=environ)
     assert raised.value.status is HistoricalAISScenarioReadiness.CASE_BUILD_FAILED

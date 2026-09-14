@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from collections import Counter
 
 import pytest
 
 from colav_simulator.original_gnc.configuration import OriginalGncConfig
-from colav_simulator.original_gnc.native import OriginalGncError, verify_build
+from colav_simulator.original_gnc.native import APPROVED_SOURCE_MANIFEST_SHA256, OriginalGncError, verify_build
 from colav_simulator.original_gnc.stack import NativeStack
 
 
@@ -79,8 +80,30 @@ def test_closed_native_stack_cannot_run_or_publish(original_config):
 
 def test_changed_extraction_is_rejected_before_dynamic_loading(tmp_path):
     (tmp_path / "extraction.json").write_text("{}")
-    (tmp_path / "build-manifest.json").write_text(json.dumps({"extraction_sha256": "wrong"}))
+    (tmp_path / "build-manifest.json").write_text(
+        json.dumps({"source_manifest_sha256": APPROVED_SOURCE_MANIFEST_SHA256, "extraction_sha256": "wrong"})
+    )
     with pytest.raises(OriginalGncError, match="extraction changed"):
+        verify_build(tmp_path)
+
+
+def test_unapproved_source_manifest_is_rejected_before_dynamic_loading(tmp_path):
+    extraction = tmp_path / "extraction.json"
+    extraction.write_text("{}")
+    library = tmp_path / "liboriginal_gnc.dylib"
+    library.write_bytes(b"native-library")
+    (tmp_path / "build-manifest.json").write_text(
+        json.dumps(
+            {
+                "source_manifest_sha256": "unapproved-source",
+                "extraction_sha256": hashlib.sha256(extraction.read_bytes()).hexdigest(),
+                "source_fingerprints": {},
+                "library": str(library),
+                "library_sha256": hashlib.sha256(library.read_bytes()).hexdigest(),
+            }
+        )
+    )
+    with pytest.raises(OriginalGncError, match="approved source manifest"):
         verify_build(tmp_path)
 
 

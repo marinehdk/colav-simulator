@@ -590,6 +590,7 @@ const PARAM_FIELD_IDS = {
   episode_index: 'validationEpisode',
   dt: 'validationDt',
   t_end: 'validationTEnd',
+  solve_period_s: 'validationSolvePeriod',
 };
 
 function setNumberFieldValue(id, value) {
@@ -647,6 +648,7 @@ const NUMERIC_PARAMS = [
   ['validationEpisode', 'episode_index', false],
   ['validationDt', 'dt', true],
   ['validationTEnd', 't_end', true],
+  ['validationSolvePeriod', 'solve_period_s', true],
 ];
 const lastParamCommit = new Map();
 const boundNumberTargets = new WeakSet();
@@ -722,6 +724,7 @@ function renderExecutionPlan(snapshot) {
     ['Evaluator', draft.evaluator_profile_id],
     ['Fallback', draft.strict_no_fallback ? 'Strict no-fallback' : 'Invalid policy'],
     ['Scenario override', draft.scenario_override ? 'Explicitly attached' : 'None'],
+    ['Solve period', draft.solve_period_s == null ? 'Algorithm default' : `${draft.solve_period_s} s`],
     ['Capability expectation', snapshot.classification],
     ['Algorithm config', Object.keys(draft.algorithm_config).length ? 'Opaque config preserved' : 'Empty'],
     ['Tracker config', Object.keys(draft.tracker_config).length ? 'Opaque config preserved' : 'Empty'],
@@ -800,7 +803,7 @@ function renderYamlContract(draft) {
   const keys = [
     'validation_rule_id', 'scenario_id', 'algorithm_id', 'tracker_id',
     'seed', 'episode_index', 'dt', 't_end', 'strict_no_fallback', 'evaluator_profile_id',
-    'gnc_stack_id',
+    'solve_period_s', 'gnc_stack_id',
   ];
   contract.replaceChildren(...keys.map((key) => {
     const row = document.createElement('div');
@@ -971,6 +974,7 @@ function render() {
     setNumberFieldValue('validationEpisode', draft.episode_index);
     setNumberFieldValue('validationDt', draft.dt ?? '');
     setNumberFieldValue('validationTEnd', draft.t_end ?? '');
+    setNumberFieldValue('validationSolvePeriod', draft.solve_period_s ?? '');
     renderScenarioDetail(snapshot);
     renderAlgorithmDetail(snapshot);
     renderExecutionPlan(snapshot);

@@ -259,7 +259,7 @@ class HistoricalAISSceneAssembler:
         replay = self.bind_replay(descriptor, environ=environ)
         profile = HistoricalAISReconstructionProfile()
         actors = HistoricalAISReconstructor().reconstruct(replay.dataset, profile)
-        actors = _runtime_actor_subset(
+        actors = runtime_actor_subset(
             actors,
             tuple(int(value) for value in descriptor.current_window["runtime_mmsi"]),
         )
@@ -537,7 +537,7 @@ def _reference_first_actor_set(actor_set: HistoricalActorSet, reference_mmsi: in
     )
 
 
-def _runtime_actor_subset(actor_set: HistoricalActorSet, runtime_mmsi: tuple[int, ...]) -> HistoricalActorSet:
+def runtime_actor_subset(actor_set: HistoricalActorSet, runtime_mmsi: tuple[int, ...]) -> HistoricalActorSet:
     """Seal the user-accepted local moving-traffic set before runtime assembly."""
     allowed = tuple(dict.fromkeys(int(value) for value in runtime_mmsi))
     available = {actor.mmsi: actor for actor in actor_set.actors}
@@ -598,6 +598,7 @@ def _replay_document(context: BoundHistoricalAISReplayContext) -> dict[str, Any]
     playback_origin_s = float(window.get("lookback_s", 0.0))
     return {
         "reference_mmsi": int(context.descriptor.current_window["reference_mmsi"]),
+        "runtime_mmsi": [int(value) for value in context.descriptor.current_window["runtime_mmsi"]],
         "reconstruction_profile": {
             "profile_id": "historical-actor-reconstruction.v1",
             "time_step_s": 1.0,
@@ -648,4 +649,5 @@ __all__ = [
     "BoundHistoricalAISReplayContext",
     "BoundHistoricalAISSceneContext",
     "HistoricalAISSceneAssembler",
+    "runtime_actor_subset",
 ]

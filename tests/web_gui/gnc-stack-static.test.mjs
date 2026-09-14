@@ -32,7 +32,7 @@ test('GNC page offers complete presets and accessible environment switch with tw
   assert.match(html, /id="gncPresetChoices"[^>]*role="radiogroup"/);
   assert.match(html, /role="switch" id="gncEnvironmentToggle"/);
   assert.match(html, /aria-label="Selected stack fields"/);
-  assert.match(html, /aria-label="Four preset stacks"/);
+  assert.match(html, /aria-label="Preset stacks"/);
   for (const field of ['Plant', 'Guidance', 'Controller', 'Actuation', 'Environment']) {
     assert.ok(html.includes(`<th>${field}</th>`));
   }

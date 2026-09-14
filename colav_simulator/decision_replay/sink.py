@@ -43,7 +43,12 @@ WORKER_POLL_S = 0.05
 
 @dataclass(frozen=True)
 class TraceSinkPolicy:
-    """Bounded capture policy; exceeding any bound is a typed failure."""
+    """Bounded capture policy; exceeding any bound is a typed failure.
+
+    ``max_total_bytes`` counts serialized, uncompressed frame and event
+    journal bytes. Compression changes storage size but cannot bypass the
+    admission budget.
+    """
 
     max_queue_records: int = 128
     max_total_bytes: int = 512 * 1024 * 1024
@@ -207,7 +212,7 @@ class TraceSink:
     def _finalize(self, events: list[dict[str, Any]] | None) -> None:
         try:
             index = self._write_final_artifacts(events)
-        except OSError:
+        except (OSError, TypeError, ValueError):
             with self._lock:
                 self._enter_failure_locked(REASON_TRACE_WRITE_FAILED)
                 self._finalized = True
@@ -229,21 +234,38 @@ class TraceSink:
                 self._index = {}
 
     def _write_final_artifacts(self, events: list[dict[str, Any]] | None) -> dict[str, Any]:
+        encoded_events: bytes | None = None
+        events_bytes = 0
+        events_persisted = False
+        if events is not None:
+            try:
+                encoded_events = b"".join(
+                    json.dumps(jsonable(event), allow_nan=False).encode("utf-8") + b"\n" for event in events
+                )
+                events_bytes = len(encoded_events)
+            except (TypeError, ValueError):
+                with self._lock:
+                    self._enter_failure_locked(REASON_TRACE_SERIALIZE_FAILED)
+                encoded_events = None
+            else:
+                with self._lock:
+                    if self._produced_bytes + events_bytes > self._policy.max_total_bytes:
+                        self._enter_failure_locked(REASON_TRACE_BUDGET_EXCEEDED)
+                    else:
+                        events_persisted = True
+
         self._handle.close()
         data = self._frames_path.read_bytes()
         digest = hashlib.sha256(data).hexdigest()
         with gzip.GzipFile(str(self._dir / "frames.jsonl.gz"), "wb", mtime=0) as gz:
             gz.write(data)
         self._frames_path.unlink()
-        if events is not None:
-            encoded = b"".join(
-                json.dumps(jsonable(event), allow_nan=False).encode("utf-8") + b"\n" for event in events
-            )
+        if events_persisted and encoded_events is not None:
             if self._policy.events_gzip:
                 with gzip.GzipFile(str(self._dir / "events.jsonl.gz"), "wb", mtime=0) as gz:
-                    gz.write(encoded)
+                    gz.write(encoded_events)
             else:
-                (self._dir / "events.jsonl").write_bytes(encoded)
+                (self._dir / "events.jsonl").write_bytes(encoded_events)
         with self._lock:
             truncated = self._state == STATE_INCOMPLETE
             index = {
@@ -253,6 +275,9 @@ class TraceSink:
                 "t_end": self._t_end,
                 "frames_sha256": digest,
                 "truncated": truncated,
+                "capture_bytes": self._produced_bytes + (events_bytes if events_persisted else 0),
+                "events_bytes": events_bytes,
+                "events_persisted": events_persisted,
             }
             if truncated and self._reason is not None:
                 index["incomplete_reason"] = self._reason

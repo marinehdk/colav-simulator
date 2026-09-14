@@ -19,6 +19,7 @@ from colav_simulator.experiment.contracts import InternalExecutionPurpose, RunSp
 from colav_simulator.experiment.persistence import jsonable
 from colav_simulator.experiment.runner import ExperimentRunner, PreparedRun
 from gui_server.replay import RunReplayStore, replay_capture_budget_policy, replay_retention_budget_bytes
+from gui_server.replay_artifacts import build_enc_navigation_area, persist_static_context, render_enc
 
 
 def _open_workflow_trace_capture(prepared: PreparedRun) -> TraceSink | None:
@@ -104,6 +105,7 @@ from colav_simulator.historical_scenario_assembly import (
     BoundHistoricalAISReplayContext,
     BoundHistoricalAISSceneContext,
     HistoricalAISSceneAssembler,
+    runtime_actor_subset,
 )
 from colav_simulator.historical_scenario_catalog import (
     HistoricalAISScenarioCatalog,
@@ -1033,6 +1035,7 @@ def _build_historical_replay_request(
     registry: HistoricalAISDimensionRegistry,
     effective_at: Any,
 ) -> HistoricalReplayRequest:
+    actor_mmsi = {actor.mmsi for actor in actor_set.actors}
     try:
         request = HistoricalReplayRequest(
             actor_set=actor_set,
@@ -1049,7 +1052,11 @@ def _build_historical_replay_request(
             enc_preflight_evidence=enc_evidence,
             dimension_registry_digest=registry.digest,
             dimension_effective_at_utc=str(effective_at),
-            dimension_record_digests=tuple((record.mmsi, record.source_digest) for record in registry.records),
+            dimension_record_digests=tuple(
+                (record.mmsi, record.source_digest)
+                for record in registry.records
+                if record.mmsi in actor_mmsi
+            ),
         )
     except ENCPreflightEvidenceError as exc:
         raise HistoricalWorkflowError(exc.code.value, str(exc)) from exc
@@ -1077,6 +1084,14 @@ def _prepare_replay_workflow(
     try:
         profile = HistoricalAISReconstructionProfile(**replay_document.pop("reconstruction_profile", {}))
         actor_set = HistoricalAISReconstructor().reconstruct(dataset, profile)
+        runtime_mmsi = replay_document.pop("runtime_mmsi", None)
+        if runtime_mmsi is not None:
+            if isinstance(runtime_mmsi, (str, bytes)):
+                raise HistoricalWorkflowError("INVALID_REQUEST", "Historical Replay runtime_mmsi must be a sequence")
+            try:
+                actor_set = runtime_actor_subset(actor_set, tuple(int(value) for value in runtime_mmsi))
+            except (TypeError, ValueError) as exc:
+                raise HistoricalWorkflowError("INVALID_REQUEST", "Historical Replay runtime_mmsi is invalid") from exc
         registry_document = replay_document.pop("dimension_registry", None)
         effective_at = replay_document.pop("dimension_effective_at_utc", None)
         if not isinstance(registry_document, dict):
@@ -1127,6 +1142,8 @@ def _prepare_replay_workflow(
             terminate_on_collision_or_grounding=replay_spec.terminate_on_collision_or_grounding,
         )
         prepared_run.session = replay_preparation.session
+        render_enc(prepared_run)
+        persist_static_context(prepared_run, build_enc_navigation_area(prepared_run))
     except HistoricalWorkflowError:
         raise
     except Exception as exc:

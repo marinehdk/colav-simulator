@@ -2469,6 +2469,30 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
     bottom: 64px;
   }
 
+  /* Keep the center Simulation Rate group inside its grid track at the
+     1440px desktop breakpoint; otherwise its label and the right chart tools
+     can overlap when both sidebars are visible. */
+  .deployment-display-bar {
+    height: auto;
+    min-height: 56px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr) minmax(0, 1fr);
+    gap: var(--s-2);
+    padding: var(--s-2) var(--s-3);
+  }
+
+  .deployment-tool-zone--simulation {
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: var(--s-1);
+  }
+
+  .deployment-rate-label,
+  .deployment-control-state,
+  .speed-status {
+    white-space: nowrap;
+  }
+
 }
 
 @media (max-width: 900px) {
@@ -3670,10 +3694,39 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .replay-rate-group { display: inline-flex; align-items: center; gap: 4px; }
 .replay-rate-group obc-button[aria-pressed="true"] { outline: 1px solid var(--ob-accent); }
 .replay-timeline-track { position: relative; flex: 1; display: flex; align-items: center; }
-.replay-event-markers { position: absolute; inset: -8px 0 auto 0; height: 20px; pointer-events: none; }
+.replay-event-markers { position: absolute; inset: -18px 0 auto 0; height: 16px; pointer-events: none; }
 .replay-event-marker { position: absolute; top: 0; transform: translateX(-50%); pointer-events: auto; min-width: 16px; height: 16px; padding: 0; border: 1px solid var(--ob-subtle); border-radius: 3px; background: var(--ob-bg, #10202c); color: var(--ob-subtle); font-size: 9px; line-height: 14px; cursor: pointer; }
 .replay-event-marker:focus-visible { outline: 2px solid var(--ob-accent); }
 #replayEventFilter { background: transparent; color: inherit; border: 1px solid var(--ob-subtle); font-size: 10px; }
 .evaluation-view-tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .evaluation-view-tab[aria-pressed="true"] { outline: 1px solid var(--ob-accent); }
 .deployment-rate-label { font-size: 10px; letter-spacing: .8px; color: var(--ob-subtle); }
+
+@media (max-width: 1500px) and (min-width: 901px) {
+  /* The Evaluation player shares the 900px desktop viewport with the shell
+     chrome. Keep the chart height bounded so timeline and playback controls
+     remain visible without scrolling after a Run is opened. */
+  .replay-viewer {
+    gap: var(--s-1);
+    padding: var(--s-2) var(--s-3);
+  }
+
+  .replay-viewer-main {
+    height: clamp(280px, 38vh, 380px);
+    min-height: 0;
+  }
+
+  .replay-canvas-wrapper {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .replay-inspection {
+    height: 100%;
+    max-height: none;
+  }
+
+  .replay-timeline-controls {
+    gap: var(--s-1);
+  }
+}

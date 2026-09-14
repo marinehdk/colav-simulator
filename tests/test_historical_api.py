@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import zlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -134,6 +136,15 @@ def _request(tmp_path: Path, profile: ENCRegionProfile) -> dict[str, object]:
             "source": "HUMAN_REFERENCE_FIXTURE",
         },
     }
+
+
+def _assert_persisted_static_context(workflow_id: str) -> None:
+    workflow = historical_api.historical_workflows._require(workflow_id)
+    assert workflow.prepared_run is not None
+    assert (workflow.prepared_run.run_dir / "enc.png").is_file()
+    static_context = json.loads((workflow.prepared_run.run_dir / "static_context.json").read_text(encoding="utf-8"))
+    assert static_context["schema_version"] == "colav.run-replay.static-context@1"
+    assert static_context["enc_navigation_area"]["coordinate_frame"] == "local_north_east_m"
 
 
 def test_historical_api_uses_normal_session_and_publishes_final_evidence(
@@ -297,6 +308,7 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
         prepared = client.post("/api/historical/workflows", json=request)
         assert prepared.status_code == 200, prepared.json()
         workflow_id = prepared.json()["workflow_id"]
+        _assert_persisted_static_context(workflow_id)
         executed = client.post(f"/api/historical/workflows/{workflow_id}/run")
         assert executed.status_code == 200, executed.json()
         document = executed.json()
@@ -345,6 +357,35 @@ def test_historical_replay_api_uses_replay_factory_without_counterfactual_claims
     assert len(replay["manifest_digest"]) == 64
     assert replay["dimension_registry_digest"]
     assert len(replay["dimension_source_digest"]) == 64
+
+
+def test_bound_hais_replay_uses_catalog_runtime_actor_set() -> None:
+    """Bound Replay must scope actors to the catalog runtime set, not the bbox."""
+    archive = os.environ.get("COLAV_HAIS_ARCHIVE_PATH", "").strip()
+    if not archive or not Path(archive).is_file():
+        pytest.skip("real HAIS archive not bound")
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/historical/scenarios/hais_romsdal_20260701_120007_121007/workflows",
+            json={"mode": "HISTORICAL_REPLAY"},
+        )
+    assert response.status_code == 200, response.text
+    document = response.json()
+    workflow_id = document["workflow_id"]
+    try:
+        _assert_persisted_static_context(workflow_id)
+        workflow = historical_api.historical_workflows._require(workflow_id)
+        assert [actor.mmsi for actor in workflow.replay_request.actor_set.actors] == [
+            259189000,
+            257252000,
+            258764000,
+            259257000,
+        ]
+        assert len(document["evidence"]["historical_replay"]["actor_digests"]) == 4
+        assert len(document["evidence"]["historical_replay"]["dimension_record_digests"]) == 4
+    finally:
+        historical_api.historical_workflows._workflows.pop(workflow_id, None)
 
 
 @pytest.mark.parametrize(

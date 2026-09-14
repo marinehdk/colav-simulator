@@ -8,6 +8,7 @@ const moduleSource = await readFile(new URL('../../web_gui/modules/evaluation-re
 const adapterSource = await readFile(new URL('../../web_gui/modules/replay-source.js', import.meta.url), 'utf8');
 
 const RUN_ID = 'cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd';
+const OTHER_RUN_ID = 'efefefef-efef-4efe-8fef-efefefefefef';
 
 const DESCRIPTOR = {
   schema_version: 'colav.run-replay.descriptor@1',
@@ -15,7 +16,7 @@ const DESCRIPTOR = {
   run: { execution_state: 'FINISHED', scenario_id: 'head_on', executed_algorithm: 'vo', executed_tracker: 'god', result_ready: true },
   replay: { state: 'READY', evidence_level: 'full', trace_schema: 'colav.decision-replay.v1', frame_count: 400, t_start: 0.1, t_end: 40.0, trusted_t_end: 40.0, truncated: false },
   events: { count: 3, categories: ['planner_solved'] },
-  capabilities: { full_frame: true, planner_detail: true, risk_detail: true, continuous_interpolation: true },
+  capabilities: { seekable: true, full_frame: true, planner_detail: true, risk_detail: true, continuous_interpolation: true },
 };
 
 const CONTEXT = {
@@ -87,6 +88,7 @@ class FakeElement {
     this.textContent = '';
     this.dataset = {};
     this.className = '';
+    this.style = {};
     this.attributes = {};
     this.children = [];
     this.hidden = false;
@@ -172,7 +174,7 @@ function makeDisplay() {
   };
 }
 
-async function makeController() {
+async function makeController(displayFactory = null) {
   const { createEvaluationReplayController } = await import('../../web_gui/modules/evaluation-replay.js');
   const documentRef = makeDocumentRef();
   const network = makeFetchRef();
@@ -180,7 +182,7 @@ async function makeController() {
   const controller = createEvaluationReplayController({
     documentRef,
     fetchRef: network.fetchRef,
-    displayFactory: () => display,
+    displayFactory: displayFactory ?? (() => display),
   });
   return { controller, documentRef, network, display };
 }
@@ -211,6 +213,8 @@ test('replay frontend reuses the canonical projection/display and never parses r
   assert.doesNotMatch(moduleSource, /method\s*:\s*['"](POST|PUT|PATCH|DELETE)['"]/);
   assert.doesNotMatch(moduleSource, /parquet|pzip|DecompressionStream|gzip/i);
   assert.doesNotMatch(adapterSource, /parquet|pzip|DecompressionStream|gzip/i);
+  assert.match(moduleSource, /replay-runs\.js\?v=20260911-replay-runs-v2/);
+  assert.match(html, /replay-runs\.js\?v=20260911-replay-runs-v2/);
 });
 
 /* ── Open / seek behavior ── */
@@ -240,6 +244,71 @@ test('open loads descriptor, context and initial window; reads are run-scoped GE
   assert.equal(controller.state.status, 'READY');
   assert.equal(controller.state.playhead, 0.1);
   assert.equal(documentRef.getElementById('replayStatusLine').textContent, 'PAUSED · HISTORICAL INSPECTION');
+});
+
+test('Replay adapts persisted ENC context to the Situation Display contract before rendering', async () => {
+  let displayOptions = null;
+  let releaseBeginSession;
+  const beginSession = new Promise(resolve => { releaseBeginSession = resolve; });
+  const display = makeDisplay();
+  display.beginSession = () => beginSession;
+  const controllerParts = await makeController(options => {
+    displayOptions = options;
+    return display;
+  });
+  const { controller, network } = controllerParts;
+  const opened = controller.open(RUN_ID);
+  await network.respondNext(DESCRIPTOR);
+  await network.respondNext(CONTEXT);
+  await network.respondNext(EVENTS);
+  assert.equal(network.pending.length, 0, 'initial window waits for ENC/session initialization');
+  releaseBeginSession();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await network.respondNext(windowDoc(0.1, 8.1));
+  await opened;
+
+  assert.ok(displayOptions);
+  assert.deepEqual(await displayOptions.fetchInfo(), {
+    ready: true,
+    run_id: RUN_ID,
+    origin_e: 1000,
+    origin_n: 2000,
+    width: 4000,
+    height: 6000,
+    utm_zone: 32,
+  });
+  assert.equal(displayOptions.fetchTile(), CONTEXT.enc.image_url);
+});
+
+test('Replay fits recorded traffic after its first frame so a short viewport does not clip both vessels', async () => {
+  const display = makeDisplay();
+  let trafficFits = 0;
+  display.fitTraffic = () => {
+    assert.ok(display.renders.length > 0, 'traffic fitting needs the recorded vessel positions');
+    trafficFits += 1;
+  };
+  const { controller, network } = await makeController(() => display);
+  const opened = controller.open(RUN_ID);
+  await network.open(network);
+  await opened;
+  assert.equal(trafficFits, 1);
+});
+
+test('replay controls stay disabled until the initial recorded window is ready', async () => {
+  const { controller, network, documentRef } = await makeController();
+  const opened = controller.open(RUN_ID);
+  await network.respondNext(DESCRIPTOR);
+  await network.respondNext(CONTEXT);
+  await network.respondNext(EVENTS);
+
+  assert.equal(network.pending.length, 1, 'initial window remains in flight');
+  assert.equal(documentRef.getElementById('replayTimeline').disabled, true);
+  controller.playPause();
+  assert.equal(network.pending.length, 1, 'play cannot race the initial window with another request');
+
+  await network.respondNext(windowDoc(0.1, 8.1));
+  await opened;
+  assert.equal(documentRef.getElementById('replayTimeline').disabled, false);
 });
 
 test('direct late seek lands on the recorded bracket without any intermediate time steps', async () => {
@@ -332,12 +401,14 @@ test('start and end controls seek the recorded bounds; close hides the viewer', 
   const endSeek = controller.seek(40.0);
   await network.respondNext(windowDoc(39.6, 40.0));
   await endSeek;
+  assert.equal(documentRef.getElementById('replayRunsPanel').hidden, true);
   documentRef.getElementById('replayStartBtn').click();
   assert.equal(controller.state.playhead, 0.1);
   documentRef.getElementById('replayEndBtn').click();
   assert.equal(controller.state.playhead, 40);
   documentRef.getElementById('replayCloseBtn').click();
   assert.equal(documentRef.getElementById('evaluationReplayPanel').hidden, true);
+  assert.equal(documentRef.getElementById('replayRunsPanel').hidden, false);
 });
 
 test('incomplete evidence restricts the timeline to the trusted boundary and says so', async () => {
@@ -354,6 +425,82 @@ test('incomplete evidence restricts the timeline to the trusted boundary and say
   assert.equal(timeline.max, '20');
   assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /REPLAY INCOMPLETE/);
   assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /20\.0 s/);
+  assert.equal(controller.state.replayPlayable, true);
+  assert.equal(documentRef.getElementById('replayTimeline').disabled, false);
+});
+
+test('incomplete evidence without a trusted boundary is unavailable and cannot issue replay reads', async () => {
+  const { controller, network, documentRef } = await makeController();
+  const corrupted = {
+    ...DESCRIPTOR,
+    replay: {
+      ...DESCRIPTOR.replay,
+      state: 'INCOMPLETE',
+      reason: 'TRACE_DIGEST_MISMATCH',
+      trusted_t_end: null,
+      truncated: true,
+    },
+    capabilities: { ...DESCRIPTOR.capabilities, seekable: false },
+  };
+  const opened = controller.open(RUN_ID);
+  await network.respondNext(corrupted);
+  await opened;
+
+  assert.equal(network.calls.length, 1, 'no context/events/window request without a trusted prefix');
+  assert.equal(controller.state.status, 'UNAVAILABLE');
+  assert.equal(controller.state.replayPlayable, false);
+  assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /TRACE_DIGEST_MISMATCH/);
+  assert.match(documentRef.getElementById('replayStatusLine').textContent, /PLAYBACK DISABLED/);
+  assert.equal(documentRef.getElementById('replayTimeline').disabled, true);
+  assert.equal(documentRef.getElementById('replayTimeCurrent').textContent, '— s');
+
+  await controller.seek(10.0);
+  controller.playPause();
+  assert.equal(network.calls.length, 1, 'disabled replay controls remain read-only');
+});
+
+test('reduced trajectory evidence stays explicit and cannot enter the full replay player', async () => {
+  const { controller, network, documentRef } = await makeController();
+  const reduced = {
+    ...DESCRIPTOR,
+    replay: {
+      ...DESCRIPTOR.replay,
+      state: 'REDUCED',
+      evidence_level: 'reduced',
+      reason: 'REDUCED_TRAJECTORY_ONLY',
+      t_start: null,
+      t_end: null,
+      trusted_t_end: null,
+    },
+    capabilities: { full_frame: false, planner_detail: false, risk_detail: false, continuous_interpolation: false, seekable: false },
+  };
+  const opened = controller.open(RUN_ID);
+  await network.respondNext(reduced);
+  await opened;
+
+  assert.equal(network.calls.length, 1, 'reduced evidence needs no full replay reads');
+  assert.equal(controller.state.status, 'UNAVAILABLE');
+  assert.equal(controller.state.replayPlayable, false);
+  assert.equal(documentRef.getElementById('replayTimeline').disabled, true);
+  assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /TRAJECTORY ONLY/);
+  assert.match(documentRef.getElementById('replayStatusLine').textContent, /PLAYBACK DISABLED/);
+  assert.match(documentRef.getElementById('replayStatusLine').textContent, /REDUCED_TRAJECTORY_ONLY/);
+});
+
+test('failed incomplete runs retain failure identity beside the historical replay state', async () => {
+  const { controller, network, documentRef } = await makeController();
+  const failed = {
+    ...DESCRIPTOR,
+    run: { ...DESCRIPTOR.run, execution_state: 'FAILED' },
+    replay: { ...DESCRIPTOR.replay, state: 'INCOMPLETE', trusted_t_end: 20.0, truncated: true },
+  };
+  const opened = controller.open(RUN_ID);
+  await network.open(network, failed);
+  await opened;
+
+  assert.equal(documentRef.getElementById('replaySealedBadge').textContent, 'FAILED · SEALED · HISTORICAL');
+  assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /REPLAY INCOMPLETE/);
+  assert.equal(controller.state.replayPlayable, true);
 });
 
 
@@ -492,6 +639,7 @@ test('reaching trusted t_end transitions to ENDED; play restarts deterministical
   assert.equal(controller.state.clockState, 'ENDED');
   assert.equal(controller.state.playhead, 40.0);
   assert.match(elText(documentRef, 'replayStatusLine'), /REPLAY ENDED/);
+  assert.equal(elText(documentRef, 'replayPlayPauseBtn'), 'PLAY ▶');
   const windowsBefore = network.calls.filter(call => call.url.includes('/replay/window')).length;
 
   controller.playPause(); // restart from the trusted start
@@ -589,6 +737,7 @@ test('timeline renders typed markers from recorded events at recorded times', as
   // threat_schedule_update @ 5.0 s over trusted [0.1, 40.0] ≈ 12.28% → bucket 12.5%
   const risk = markers[1];
   assert.equal(risk.dataset.positionPct, '12.5');
+  assert.equal(risk.style.left, '12.5%');
   assert.equal(risk.textContent, '▲'); // shape/text semantics, not color-only
   assert.match(risk.getAttribute('aria-label'), /RISK_LIFECYCLE threat_schedule_update at 5\.0 s/);
   const collision = markers[2];
@@ -609,6 +758,7 @@ test('Previous/Next Event seeks the correct recorded event after manual seek and
   await drainWindowResponses(network, windowDoc(38.5, 39.5));
   assert.equal(controller.state.playhead, 39.0); // landed on the collision event
   assert.equal(controller.state.selectedEventId, '3');
+  assert.equal(elText(documentRef, 'replayPlayPauseBtn'), 'PLAY ▶');
 
   documentRef.getElementById('replayPrevEventBtn').click();
   await drainWindowResponses(network, windowDoc(4.5, 5.5));
@@ -712,6 +862,29 @@ const EVIDENCE_DOC = {
   limitations: [],
 };
 
+const GNC_EVIDENCE_DOC = {
+  ...EVIDENCE_DOC,
+  run: {
+    ...EVIDENCE_DOC.run,
+    diagnostic_only: true,
+    diagnostic_only_reasons: ['original_gnc_response_unqualified'],
+    original_gnc: {
+      stack_id: 'original-gnc-20260824-v2-env-off',
+      library_sha256: '6da7998cf7ec55dedb4a8fe493478b40522e6c7e272a3706297ac84fc5c5069f',
+    },
+  },
+  result: {
+    ...EVIDENCE_DOC.result,
+    hard_gate: {
+      outcome: 'PASS',
+      checks: [
+        { check_id: 'physical_collision', outcome: 'PASS', evidence: { scope: 'ship0_vs_target' } },
+        { check_id: 'physical_grounding', outcome: 'PASS', evidence: { scope: 'ship0' } },
+      ],
+    },
+  },
+};
+
 function factTexts(documentRef, containerId) {
   const container = documentRef.getElementById(containerId);
   return (container?.children ?? []).map(row => row.children.map(child => child.textContent).join(' '));
@@ -771,6 +944,67 @@ test('Evidence view renders identities, digests, replay state and limitations fr
   assert.equal(documentRef.getElementById('replayEvidenceFactsStatus').textContent, 'READY');
 });
 
+test('a stale Results response cannot overwrite the newly opened Run', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, documentRef } = parts;
+
+  controller.switchEvaluationView('results');
+  assert.equal(network.pending.length, 1, 'old Run evidence request is in flight');
+
+  const descriptorB = {
+    ...DESCRIPTOR,
+    run_id: OTHER_RUN_ID,
+    run: { ...DESCRIPTOR.run, scenario_id: 'crossing_give_way' },
+  };
+  const openB = controller.open(OTHER_RUN_ID);
+  await network.respondLast(descriptorB);
+  await network.respondLast({ ...CONTEXT, run_id: OTHER_RUN_ID, scenario_id: 'crossing_give_way' });
+  await network.respondLast({ ...EVENTS, run_id: OTHER_RUN_ID });
+  await network.respondLast({ ...windowDoc(0.1, 8.1), run_id: OTHER_RUN_ID });
+  await openB;
+
+  // The old response resolves after the new Run is already active. It must
+  // be ignored rather than painting the old Results facts.
+  await network.respondNext(EVIDENCE_DOC);
+  assert.equal(factTexts(documentRef, 'replayResultsFacts').length, 0);
+
+  controller.switchEvaluationView('results');
+  await network.respondNext({
+    ...EVIDENCE_DOC,
+    run_id: OTHER_RUN_ID,
+    run: { ...EVIDENCE_DOC.run, scenario_id: 'crossing_give_way' },
+  });
+  const facts = factTexts(documentRef, 'replayResultsFacts').join('\n');
+  assert.match(facts, /efefefef/);
+  assert.match(facts, /crossing_give_way/);
+});
+
+test('Results and Evidence expose Original GNC identity and diagnostic-only scope as recorded facts', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, documentRef } = parts;
+
+  controller.switchEvaluationView('results');
+  await network.respondNext(GNC_EVIDENCE_DOC);
+  const results = factTexts(documentRef, 'replayResultsFacts').join('\n');
+  assert.match(results, /DIAGNOSTIC ONLY/);
+  assert.match(results, /original_gnc_response_unqualified/);
+  assert.match(results, /original-gnc-20260824-v2-env-off/);
+  assert.match(results, /6da7998cf7ec55/);
+  assert.match(results, /Hard gate outcome PASS/);
+  assert.match(results, /physical_collision: PASS \(ship0_vs_target\)/);
+  assert.doesNotMatch(results, /\[object Object\]/);
+
+  controller.switchEvaluationView('evidence');
+  await network.respondNext(GNC_EVIDENCE_DOC);
+  const evidence = factTexts(documentRef, 'replayEvidenceFacts').join('\n');
+  assert.match(evidence, /DIAGNOSTIC ONLY/);
+  assert.match(evidence, /original_gnc_response_unqualified/);
+  assert.match(evidence, /original-gnc-20260824-v2-env-off/);
+  assert.match(evidence, /6da7998cf7ec55/);
+});
+
 test('Simulation Rate / Replay Speed terminology is frozen in the UI copy', () => {
   assert.match(html, /SIMULATION RATE/);
   assert.match(html, /aria-label="Simulation Rate 仿真倍率"/);
@@ -785,7 +1019,7 @@ test('Simulation Rate / Replay Speed terminology is frozen in the UI copy', () =
 
 test('Historical AIS Open Replay routes through the shared player without a second player', async () => {
   const workbenchSource = await readFile(new URL('../../web_gui/modules/historical-ais-workbench.js', import.meta.url), 'utf8');
-  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js'/);
+  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js\?v=20260912-eval-ia-v1'/);
   assert.match(workbenchSource, /replayable = state === 'READY' \|\| state === 'INCOMPLETE'/);
   assert.match(html, /id="historicalAISOpenReplay"/);
 

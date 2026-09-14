@@ -13,6 +13,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+APPROVED_SOURCE_MANIFEST_SHA256 = "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411"
+
 
 class OriginalGncError(RuntimeError):
     """A source, dependency, input, or native execution failure."""
@@ -24,6 +26,8 @@ def verify_build(build_directory: Path) -> dict:
     if not manifest_path.is_file():
         raise OriginalGncError(f"Original GNC is not built: {manifest_path}")
     manifest = json.loads(manifest_path.read_text())
+    if manifest.get("source_manifest_sha256") != APPROVED_SOURCE_MANIFEST_SHA256:
+        raise OriginalGncError("Original GNC build is not bound to the approved source manifest")
     extraction = build_directory / "extraction.json"
     if not extraction.is_file() or hashlib.sha256(extraction.read_bytes()).hexdigest() != manifest["extraction_sha256"]:
         raise OriginalGncError("Original GNC extraction changed after compilation")

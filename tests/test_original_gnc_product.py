@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
@@ -52,6 +53,35 @@ def test_source_dependency_failure_does_not_select_full(tmp_path, monkeypatch):
     catalog = list_stack_catalog()
     assert all(not entry["available"] for entry in catalog["original_gnc_stacks"])
     assert next(p for p in catalog["product_presets"] if p["id"] == "full")["variants"]["off"]
+
+
+def test_original_catalog_reports_loaded_build_identity():
+    configuration = OriginalGncConfig.from_dict({})
+    manifest_path = configuration.build_directory / "build-manifest.json"
+    if not manifest_path.is_file():
+        pytest.skip("Optional original GNC is not built")
+    manifest = json.loads(manifest_path.read_text())
+    proposals = (manifest.get("colleague_proposal") or {}).get("proposals") or []
+    proposal_ids = [item.get("id") if isinstance(item, dict) else item for item in proposals]
+    expected = {
+        "execution_lane": "candidate" if proposal_ids else "baseline",
+        "candidate": "colleague_proposal" if proposal_ids else None,
+        "proposal_ids": proposal_ids,
+        "source_manifest_sha256": manifest["source_manifest_sha256"],
+        "library_sha256": manifest["library_sha256"],
+    }
+    catalog = list_stack_catalog()
+    assert all(entry["build_identity"] == expected for entry in catalog["original_gnc_stacks"])
+    preset = next(p for p in catalog["product_presets"] if p["id"] == "original_gnc")
+    assert preset["build_identity"] == expected
+    if proposal_ids:
+        assert preset["description"] == (
+            "Original GNC candidate · " + ", ".join(proposal_ids) + " · independent local C++ backend"
+        )
+        assert "Baseline fidelity evidence does not automatically cover this candidate" in preset["note"]
+    else:
+        assert preset["description"] == "Frozen colleague GNC · independent local C++ backend"
+    assert "Original GNC acceptance remains diagnostic" in preset["note"]
 
 
 def test_original_config_roundtrip_and_exclusive_execution():

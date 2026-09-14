@@ -119,9 +119,10 @@ test('run rows offer an Open replay inspection action wired to the registered op
   assert.equal(documentRef.getElementById('replayRunsBody').children[0].children.length, 8, 'no action cell until a replay host registers');
 
   setReplayRunOpener(runId => opened.push(runId));
-  renderReplayRuns(documentRef, projectReplayRunRows([sampleEntry]));
-  const action = documentRef.getElementById('replayRunsBody').children[0].children.at(-1);
-  assert.equal(action.textContent, 'Open replay');
+  const actionCell = documentRef.getElementById('replayRunsBody').children[0].children.at(-1);
+  const action = actionCell.children[0];
+  assert.equal(actionCell.tag, 'td');
+  assert.equal(action.textContent, 'Open replay', 'late opener registration re-renders the initial catalog');
   action.listeners.click({ stopPropagation() {} });
   assert.deepEqual(opened, ['11111111-1111-4111-8111-111111111111']);
   setReplayRunOpener(null);

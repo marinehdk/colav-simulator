@@ -38,6 +38,7 @@ test('Config starts disabled and boot establishes assembly before binding contro
     'validationEpisode',
     'validationDt',
     'validationTEnd',
+    'validationSolvePeriod',
     'validationDefault',
     'validationCreate',
   ]) {
@@ -412,18 +413,20 @@ test('Algorithm detail chrome: role eyebrow, grade pill, 20px heading, binding f
 });
 
 test('Params use obc-number-input-field with inline field errors and retained notices (gap #15)', () => {
-  for (const id of ['validationSeed', 'validationEpisode', 'validationDt', 'validationTEnd']) {
+  for (const id of ['validationSeed', 'validationEpisode', 'validationDt', 'validationTEnd', 'validationSolvePeriod']) {
     assert.match(html, new RegExp(`<obc-number-input-field id="${id}"`));
   }
   assert.match(shell, /field\.error = invalid/);
   assert.match(shell, /field\.errorText = invalid \? message : ''/);
   assert.match(shell, /ensureNumberFields/);
+  assert.match(shell, /nullable && value === '' \? null : Number\(value\)/);
   // User ruling 2026-08-19: only *-error notices render in the inspector rail;
   // informational notices (repair/config-cleared/catalog-refreshed) stay silent.
   assert.match(shell, /notices[\s\S]{0,120}filter\(\(notice\) => typeof notice\.kind === 'string' && notice\.kind\.endsWith\('-error'\)\)/);
   assert.match(shell, /\.map\(\(notice\) => notice\.message\)/);
   assert.doesNotMatch(shell, /Object\.entries\(snapshot\.validationErrors\)\.map/);
   assert.match(html, /id="validationNotices"/);
+  assert.match(shell, /\['validationSolvePeriod', 'solve_period_s', true\]/);
 });
 
 test('Execution plan has metric strip, session clock timeline, seed root, and READY/INVALID footer (gap #16)', () => {

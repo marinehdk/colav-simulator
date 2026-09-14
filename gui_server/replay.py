@@ -22,6 +22,7 @@ import math
 import os
 import shutil
 import uuid
+import zlib
 from collections.abc import Callable
 from contextlib import contextmanager
 from enum import StrEnum
@@ -178,6 +179,14 @@ class ReplayEvidenceReason(StrEnum):
     TRACE_BUDGET_EXCEEDED = "TRACE_BUDGET_EXCEEDED"
     TRACE_WRITE_FAILED = "TRACE_WRITE_FAILED"
     TRACE_SERIALIZE_FAILED = "TRACE_SERIALIZE_FAILED"
+    TRACE_FRAME_INVALID = "TRACE_FRAME_INVALID"
+    TRACE_FRAME_READ_FAILED = "TRACE_FRAME_READ_FAILED"
+    TRACE_SEQUENCE_INVALID = "TRACE_SEQUENCE_INVALID"
+    TRACE_SEQUENCE_GAP = "TRACE_SEQUENCE_GAP"
+    TRACE_TIME_INVALID = "TRACE_TIME_INVALID"
+    TRACE_TIME_REGRESSION = "TRACE_TIME_REGRESSION"
+    TRACE_INDEX_MISMATCH = "TRACE_INDEX_MISMATCH"
+    REPLAY_TRUSTED_PREFIX_EXCEEDED = "REPLAY_TRUSTED_PREFIX_EXCEEDED"
 
 
 class RunReplayError(Exception):
@@ -291,14 +300,40 @@ class RunReplayStore:
         self._bundles[run_dir.name] = (key, bundle)
         return bundle
 
-    def _seekable_run(self, run_id: str) -> tuple[Path, TraceBundle]:
-        """Run directory plus reader, gated to truthfully READY evidence."""
+    def _seekable_run(self, run_id: str) -> tuple[Path, TraceBundle, dict[str, Any]]:
+        """Run directory, reader and facts for READY or a trusted prefix.
+
+        An INCOMPLETE trace is seekable only when its reader established a
+        finite non-empty prefix and a trusted end within the observed bounds.
+        A digest failure has no trusted boundary and therefore stays blocked.
+        """
         run_dir = self.run_dir(run_id)
         facts = self.classify(run_dir)
-        if facts.get("state") != ReplayEvidenceState.READY.value:
+        state = facts.get("state")
+        prefix_seekable = self._trusted_prefix_is_seekable(facts)
+        if state != ReplayEvidenceState.READY.value and not prefix_seekable:
             reason = str(facts.get("reason") or ReplayEvidenceReason.TRACE_MISSING)
             raise RunReplayError(409, reason, f"run {run_dir.name} has no seekable replay evidence")
-        return run_dir, self._bundle(run_dir)
+        return run_dir, self._bundle(run_dir), facts
+
+    @staticmethod
+    def _trusted_prefix_is_seekable(facts: dict[str, Any]) -> bool:
+        trusted_count = facts.get("trusted_frame_count", 0)
+        trusted_end = facts.get("trusted_t_end")
+        t_end = facts.get("t_end")
+        return (
+            facts.get("state") == ReplayEvidenceState.INCOMPLETE.value
+            and isinstance(trusted_count, int)
+            and not isinstance(trusted_count, bool)
+            and trusted_count > 0
+            and isinstance(trusted_end, (int, float))
+            and not isinstance(trusted_end, bool)
+            and math.isfinite(float(trusted_end))
+            and isinstance(t_end, (int, float))
+            and not isinstance(t_end, bool)
+            and math.isfinite(float(t_end))
+            and float(trusted_end) <= float(t_end)
+        )
 
     @staticmethod
     def _validate_window_range(from_s: float, to_s: float) -> None:
@@ -316,11 +351,32 @@ class RunReplayStore:
                 f"replay window span exceeds the frozen {MAX_WINDOW_SPAN_S} s bound",
             )
 
+    @staticmethod
+    def _valid_index_bound(value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False
+        try:
+            numeric = float(value)
+        except (OverflowError, TypeError, ValueError):
+            return False
+        return math.isfinite(numeric) and numeric >= 0.0
+
     def window(self, run_id: str, from_s: float, to_s: float) -> dict[str, Any]:
         """Bounded recorded frame window with explicit predecessor/successor."""
         self._validate_window_range(from_s, to_s)
-        run_dir, bundle = self._seekable_run(run_id)
-        frames = bundle.window(from_s, to_s)
+        run_dir, bundle, facts = self._seekable_run(run_id)
+        incomplete = facts.get("state") == ReplayEvidenceState.INCOMPLETE.value
+        trusted_count = int(facts.get("trusted_frame_count") or 0) if incomplete else None
+        trusted_end = facts.get("trusted_t_end") if incomplete else None
+        if incomplete and to_s > float(trusted_end):
+            raise RunReplayError(
+                409,
+                ReplayEvidenceReason.REPLAY_TRUSTED_PREFIX_EXCEEDED,
+                f"replay window exceeds trusted prefix ending at {trusted_end}",
+            )
+        frames = bundle.window(from_s, to_s, max_sequence=trusted_count)
         if len(frames) > MAX_WINDOW_FRAMES:
             raise RunReplayError(
                 422,
@@ -329,7 +385,7 @@ class RunReplayStore:
             )
 
         def bracket(sequence: int | None) -> dict[str, Any] | None:
-            if sequence is None or sequence < 1:
+            if sequence is None or sequence < 1 or (trusted_count is not None and sequence > trusted_count):
                 return None
             candidate = bundle.frame(sequence)
             if candidate.get("sequence") != sequence:
@@ -338,14 +394,14 @@ class RunReplayStore:
 
         if frames:
             before = bracket(int(frames[0]["sequence"]) - 1)
-            after_sequence = bundle.seq_at_time(math.nextafter(to_s, math.inf)) + 1
+            after_sequence = bundle.seq_at_time(math.nextafter(to_s, math.inf), max_sequence=trusted_count) + 1
         else:
-            last_at_or_before = bundle.seq_at_time(from_s)
+            last_at_or_before = bundle.seq_at_time(from_s, max_sequence=trusted_count)
             candidate_at_or_before = bracket(last_at_or_before)
             if candidate_at_or_before is not None and float(candidate_at_or_before.get("sim_time", 0.0)) > from_s:
                 candidate_at_or_before = None
             before = candidate_at_or_before
-            after_sequence = bundle.seq_at_time(math.nextafter(to_s, math.inf)) + 1
+            after_sequence = bundle.seq_at_time(math.nextafter(to_s, math.inf), max_sequence=trusted_count) + 1
         after = bracket(after_sequence)
         if after is not None and float(after.get("sim_time", 0.0)) <= to_s:
             after = None
@@ -353,6 +409,9 @@ class RunReplayStore:
             "schema_version": WINDOW_SCHEMA,
             "run_id": run_dir.name,
             "requested": {"from_s": from_s, "to_s": to_s},
+            "state": facts.get("state"),
+            "trusted_t_end": facts.get("trusted_t_end"),
+            "truncated": facts.get("truncated"),
             "frames": frames,
             "before": before,
             "after": after,
@@ -366,8 +425,10 @@ class RunReplayStore:
         It is additive metadata — identity, sim time, order and details are
         the recorded rows, never rewritten.
         """
-        _, bundle = self._seekable_run(run_id)
-        rows = bundle.events()
+        _, bundle, facts = self._seekable_run(run_id)
+        all_rows = bundle.events()
+        rows = self._trusted_events(all_rows, facts)
+        trusted_end = facts.get("trusted_t_end") if facts.get("state") == ReplayEvidenceState.INCOMPLETE.value else None
         capped = max(1, min(int(limit), MAX_EVENTS_LIMIT))
         events = []
         for row in rows[:capped]:
@@ -379,10 +440,34 @@ class RunReplayStore:
             "schema_version": EVENTS_SCHEMA,
             "run_id": run_id,
             "count": len(rows),
+            "total_count": len(all_rows),
+            "trusted_count": len(rows),
             "truncated": len(rows) > capped,
+            "trusted_t_end": trusted_end,
             "categories": present,
             "events": events,
         }
+
+    @classmethod
+    def _trusted_events(cls, rows: list[dict[str, Any]], facts: dict[str, Any]) -> list[dict[str, Any]]:
+        """Return only event rows inside the replayable evidence boundary."""
+        state = facts.get("state")
+        if state != ReplayEvidenceState.INCOMPLETE.value:
+            return rows
+        if not cls._trusted_prefix_is_seekable(facts):
+            return []
+        trusted_end = float(facts["trusted_t_end"])
+        filtered: list[dict[str, Any]] = []
+        for row in rows:
+            raw_time = row.get("sim_time")
+            if isinstance(raw_time, (int, float)) and not isinstance(raw_time, bool):
+                try:
+                    if math.isfinite(float(raw_time)) and float(raw_time) > trusted_end:
+                        continue
+                except (OverflowError, TypeError, ValueError):
+                    pass
+            filtered.append(row)
+        return filtered
 
     def run_evidence(self, run_id: str) -> dict[str, Any]:
         """Versioned Evidence/Results document for one recorded Run (#74).
@@ -402,16 +487,20 @@ class RunReplayStore:
         artifact_count = (
             sum(1 for path in artifact_dir.iterdir() if path.is_file()) if artifact_dir.is_dir() else 0
         )
-        events_journal = run_dir / "events.jsonl"
-        event_count = (
-            sum(1 for _ in events_journal.open(encoding="utf-8")) if events_journal.is_file() else 0
-        )
+        event_count = int((descriptor.get("events") or {}).get("count") or 0)
         limitations = []
         replay_state = str(descriptor.get("replay", {}).get("state", "UNAVAILABLE"))
         if replay_state == "REDUCED":
             limitations.append("REDUCED_TRAJECTORY_ONLY")
         if replay_state == "INCOMPLETE":
             limitations.append("TRACE_INCOMPLETE")
+        if manifest.get("diagnostic_only") is True:
+            reasons = manifest.get("diagnostic_only_reasons")
+            if isinstance(reasons, list) and reasons:
+                detail = ", ".join(str(reason) for reason in reasons)
+                limitations.append(f"DIAGNOSTIC_ONLY ({detail})")
+            else:
+                limitations.append("DIAGNOSTIC_ONLY")
         if evaluation is None:
             limitations.append("RESULT_PENDING")
         if manifest.get("failure_status"):
@@ -429,6 +518,9 @@ class RunReplayStore:
                 "requested_tracker": manifest.get("requested_tracker"),
                 "executed_tracker": manifest.get("executed_tracker"),
                 "created_at_utc": manifest.get("created_at_utc"),
+                "diagnostic_only": manifest.get("diagnostic_only"),
+                "diagnostic_only_reasons": manifest.get("diagnostic_only_reasons"),
+                "original_gnc": manifest.get("original_gnc"),
                 "capability_profile_id": manifest.get("capability_profile_id"),
                 "fallback_used": manifest.get("fallback_used"),
                 "replay_of_run_id": manifest.get("replay_of_run_id"),
@@ -542,6 +634,7 @@ class RunReplayStore:
             "reason": ReplayEvidenceReason.TRACE_MISSING,
             "trace_schema": None,
             "frame_count": 0,
+            "trusted_frame_count": 0,
             "t_start": None,
             "t_end": None,
             "trusted_t_end": None,
@@ -552,18 +645,19 @@ class RunReplayStore:
         if gz.is_file() and index_path.is_file():
             return self._classify_finalized(run_dir, gz, index_path, verify=verify_integrity, base=base)
         if plain.is_file() or (gz.is_file() and not index_path.is_file()):
-            path = plain if plain.is_file() else gz
-            frames = _iter_frames(path)
-            times = [float(frame.get("sim_time", 0.0)) for frame in frames]
+            bundle = self._bundle(run_dir)
+            validation = bundle.validate()
+            reason = validation.get("reason") or ReplayEvidenceReason.TRACE_TRUNCATED
             base.update(
                 state=ReplayEvidenceState.INCOMPLETE,
                 evidence_level="full",
-                reason=ReplayEvidenceReason.TRACE_TRUNCATED,
+                reason=reason,
                 trace_schema=TRACE_SCHEMA,
-                frame_count=len(frames),
-                t_start=times[0] if times else None,
-                t_end=times[-1] if times else None,
-                trusted_t_end=times[-1] if times else None,
+                frame_count=validation.get("frame_count", 0),
+                trusted_frame_count=validation.get("trusted_frame_count", 0),
+                t_start=validation.get("t_start"),
+                t_end=validation.get("t_end"),
+                trusted_t_end=validation.get("trusted_t_end"),
                 truncated=True,
             )
             return base
@@ -589,7 +683,9 @@ class RunReplayStore:
     ) -> dict[str, Any]:
         try:
             index = json.loads(index_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            if not isinstance(index, dict):
+                raise ValueError("Trace index must be an object")
+        except (OSError, ValueError):
             base.update(
                 state=ReplayEvidenceState.INCOMPLETE,
                 evidence_level="full",
@@ -599,33 +695,68 @@ class RunReplayStore:
             )
             return base
         schema = index.get("trace_schema")
-        base.update(
-            trace_schema=schema,
-            frame_count=int(index.get("tick_count") or 0),
-            t_start=index.get("t_start"),
-            t_end=index.get("t_end"),
-            trusted_t_end=index.get("t_end"),
-            frames_sha256=index.get("frames_sha256"),
-            truncated=bool(index.get("truncated")),
-            evidence_level="full",
-        )
+        base.update(trace_schema=schema, frames_sha256=index.get("frames_sha256"), evidence_level="full")
         if schema != TRACE_SCHEMA:
             base.update(state=ReplayEvidenceState.UNAVAILABLE, reason=ReplayEvidenceReason.TRACE_SCHEMA_UNSUPPORTED)
             return base
-        if index.get("truncated"):
-            base.update(
-                state=ReplayEvidenceState.INCOMPLETE,
-                reason=index.get("incomplete_reason", ReplayEvidenceReason.TRACE_TRUNCATED),
-            )
-            return base
+
+        # Verify the digest before deriving a trusted prefix. A malformed or
+        # tampered artifact may still parse, but its prefix is no longer
+        # evidence from the sealed bytes named by the index.
         if verify and not self._integrity_ok(run_dir.name, gz, index):
             base.update(
                 state=ReplayEvidenceState.INCOMPLETE,
                 reason=ReplayEvidenceReason.TRACE_DIGEST_MISMATCH,
                 trusted_t_end=None,
+                trusted_frame_count=0,
             )
             return base
-        base.update(state=ReplayEvidenceState.READY, reason=None)
+
+        index_count = index.get("tick_count")
+        index_truncated = index.get("truncated")
+        index_bounds = (index.get("t_start"), index.get("t_end"))
+        valid_count = isinstance(index_count, int) and not isinstance(index_count, bool) and index_count >= 0
+        valid_truncated = isinstance(index_truncated, bool)
+        valid_bounds = all(self._valid_index_bound(value) for value in index_bounds)
+        if valid_count and index_count > 0 and any(value is None for value in index_bounds):
+            valid_bounds = False
+        if not (valid_count and valid_truncated and valid_bounds):
+            base.update(
+                state=ReplayEvidenceState.INCOMPLETE,
+                reason=ReplayEvidenceReason.TRACE_INDEX_CORRUPT,
+            )
+            return base
+
+        bundle = self._bundle(run_dir)
+        validation = bundle.validate(
+            expected_count=index_count,
+            expected_t_start=index_bounds[0],
+            expected_t_end=index_bounds[1],
+        )
+        base.update(
+            frame_count=validation.get("frame_count", 0),
+            trusted_frame_count=validation.get("trusted_frame_count", 0),
+            t_start=validation.get("t_start"),
+            t_end=validation.get("t_end"),
+            trusted_t_end=validation.get("trusted_t_end"),
+            truncated=bool(index_truncated),
+        )
+        reason = validation.get("reason")
+        if reason is not None:
+            base.update(state=ReplayEvidenceState.INCOMPLETE, reason=reason, truncated=True)
+        elif index_truncated:
+            base.update(
+                state=ReplayEvidenceState.INCOMPLETE,
+                reason=index.get("incomplete_reason", ReplayEvidenceReason.TRACE_TRUNCATED),
+            )
+        elif not validation.get("frame_count"):
+            base.update(
+                state=ReplayEvidenceState.INCOMPLETE,
+                reason=ReplayEvidenceReason.TRACE_INDEX_CORRUPT,
+                truncated=True,
+            )
+        else:
+            base.update(state=ReplayEvidenceState.READY, reason=None)
         return base
 
     def _integrity_ok(self, run_id: str, gz: Path, index: dict[str, Any]) -> bool:
@@ -635,7 +766,7 @@ class RunReplayStore:
         if cached is None:
             try:
                 digest = hashlib.sha256(gzip.decompress(gz.read_bytes())).hexdigest()
-            except (OSError, EOFError):
+            except (OSError, EOFError, zlib.error):
                 return False
             cached = {"digest": digest}
             self._integrity_cache[cache_key] = cached
@@ -661,13 +792,30 @@ class RunReplayStore:
                 "frame_count": active.get("frame_count", facts.get("frame_count", 0)),
                 "trace_schema": TRACE_SCHEMA,
             }
-        elif active is not None:
-            facts = {**facts, **{key: value for key, value in active.items() if value is not None}}
+        elif (
+            active is not None
+            and active.get("state") == ReplayEvidenceState.INCOMPLETE.value
+            and facts.get("state") == ReplayEvidenceState.READY.value
+        ):
+            # Capture failures may downgrade a sealed trace, but a remembered
+            # READY state must never override the current integrity verdict.
+            facts = {**facts, "state": ReplayEvidenceState.INCOMPLETE, "reason": active.get("reason")}
         state = ReplayEvidenceState(facts["state"]) if facts.get("state") else ReplayEvidenceState.UNAVAILABLE
         full = state is ReplayEvidenceState.READY
         capturing = state is ReplayEvidenceState.CAPTURING
-        bundle = TraceBundle(run_dir)
-        events = bundle.events()
+        trusted_prefix = self._trusted_prefix_is_seekable(facts)
+        seekable = bool(full or trusted_prefix)
+        try:
+            bundle = self._bundle(run_dir)
+        except FileNotFoundError:
+            # REDUCED/UNAVAILABLE runs have no decision frames; their legacy
+            # run-level event journal is still safe to describe.
+            bundle = TraceBundle(run_dir)
+        try:
+            all_events = bundle.events()
+        except (OSError, EOFError, UnicodeDecodeError, json.JSONDecodeError, zlib.error):
+            all_events = []
+        events = self._trusted_events(all_events, facts)
         categories = sorted({str(event.get("type", "?")) for event in events})
         return {
             "schema_version": DESCRIPTOR_SCHEMA,
@@ -681,6 +829,9 @@ class RunReplayStore:
                 "executed_tracker": manifest.get("executed_tracker"),
                 "validation_rule_id": manifest.get("validation_rule_id"),
                 "created_at_utc": manifest.get("created_at_utc"),
+                "diagnostic_only": manifest.get("diagnostic_only"),
+                "diagnostic_only_reasons": manifest.get("diagnostic_only_reasons"),
+                "original_gnc": manifest.get("original_gnc"),
                 "result_ready": (run_dir / "evaluation.json").is_file(),
             },
             "replay": {
@@ -689,6 +840,7 @@ class RunReplayStore:
                 "reason": facts.get("reason"),
                 "trace_schema": facts.get("trace_schema"),
                 "frame_count": facts.get("frame_count", 0),
+                "trusted_frame_count": facts.get("trusted_frame_count", 0),
                 "t_start": facts.get("t_start"),
                 "t_end": facts.get("t_end"),
                 "trusted_t_end": facts.get("trusted_t_end"),
@@ -697,13 +849,22 @@ class RunReplayStore:
             },
             "events": {
                 "count": len(events),
+                "total_count": len(all_events),
+                "trusted_count": len(events),
                 "categories": categories,
             },
             "capabilities": {
+                # ``full_frame`` remains true for CAPTURING for compatibility
+                # with the live session descriptor. ``seekable`` is the
+                # authoritative read/play capability for the Replay UI.
                 "full_frame": bool(full or capturing),
+                "trusted_prefix": trusted_prefix,
+                "seekable": seekable,
+                "event_journal": bool(events and seekable),
+                "event_navigation": bool(events and seekable),
                 "planner_detail": bool(full),
                 "risk_detail": bool(full),
-                "continuous_interpolation": bool(full),
+                "continuous_interpolation": bool(seekable),
             },
         }
 
@@ -724,7 +885,10 @@ class RunReplayStore:
                 continue
             manifest = self._read_json(manifest_path) or {}
             spec = manifest.get("spec") or {}
-            facts = self.classify(child, verify_integrity=False)
+            # Run discovery is itself a user-visible trust claim: never show a
+            # stale digest-backed READY row that the descriptor would reject.
+            facts = self.classify(child, verify_integrity=True)
+            trusted_prefix = self._trusted_prefix_is_seekable(facts)
             entries.append(
                 {
                     "run_id": child.name,
@@ -739,14 +903,20 @@ class RunReplayStore:
                         "evidence_level": facts["evidence_level"],
                         "reason": facts["reason"],
                         "frame_count": facts["frame_count"],
+                        "trusted_frame_count": facts.get("trusted_frame_count", 0),
                         "t_start": facts["t_start"],
                         "t_end": facts["t_end"],
+                        "trusted_t_end": facts.get("trusted_t_end"),
+                    },
+                    "capabilities": {
+                        "seekable": facts["state"] == ReplayEvidenceState.READY.value or trusted_prefix,
+                        "trusted_prefix": trusted_prefix,
                     },
                 }
             )
         entries.sort(key=lambda entry: entry.get("created_at_utc") or "", reverse=True)
         if replayable:
-            entries = [entry for entry in entries if entry["replay"]["state"] == ReplayEvidenceState.READY.value]
+            entries = [entry for entry in entries if entry["capabilities"]["seekable"]]
         return entries[:limit]
 
     # -- retention -----------------------------------------------------------
@@ -860,7 +1030,10 @@ def build_replay_router(
         except Exception:  # noqa: BLE001 - the descriptor must stay read-only even if the hook fails
             return None
 
-    router = APIRouter(prefix="/api")
+    def require_sealed_capture(run_id: str) -> None:
+        active = _active(run_id)
+        if active is not None and active.get("state") == ReplayEvidenceState.CAPTURING.value:
+            raise RunReplayError(409, "TRACE_CAPTURING", "Replay is unavailable while capture is active")
 
     router = APIRouter(prefix="/api")
 
@@ -883,6 +1056,7 @@ def build_replay_router(
         to_s: float = Query(..., alias="to"),
     ) -> dict[str, Any]:
         with typed_errors():
+            require_sealed_capture(run_id)
             return project_window_threat_documents(store.window(run_id, from_s, to_s))
 
     @router.get("/runs/{run_id}/replay/events")
@@ -891,6 +1065,7 @@ def build_replay_router(
         limit: int = Query(default=DEFAULT_EVENTS_LIMIT, ge=1, le=MAX_EVENTS_LIMIT),
     ) -> dict[str, Any]:
         with typed_errors():
+            require_sealed_capture(run_id)
             return store.replay_events(run_id, limit)
 
     @router.get("/runs/{run_id}/replay/evidence")

@@ -34,6 +34,9 @@ def _make_legacy_run_with_result(root: Path, name: str) -> Path:
         "spec": {"scenario_id": "head_on", "validation_rule_id": "rule14"},
         "spec_hash": "deadbeef" * 8,
         "scenario_hash": "cafe1111" * 8,
+        "diagnostic_only": True,
+        "diagnostic_only_reasons": ["original_gnc_response_unqualified"],
+        "original_gnc": {"stack_id": "original-gnc-test", "library_sha256": "abc123"},
     }
     (run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (run_dir / "trajectory.parquet").write_bytes(b"parquet-bytes")
@@ -70,6 +73,9 @@ def test_evidence_reports_reduced_truthfully_with_result_facts(
         "spec": {"scenario_id": "head_on", "validation_rule_id": "rule14"},
         "spec_hash": "deadbeef" * 8,
         "scenario_hash": "cafe1111" * 8,
+        "diagnostic_only": True,
+        "diagnostic_only_reasons": ["original_gnc_response_unqualified"],
+        "original_gnc": {"stack_id": "original-gnc-test", "library_sha256": "abc123"},
     }
     (run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     evaluation = {
@@ -96,6 +102,10 @@ def test_evidence_reports_reduced_truthfully_with_result_facts(
     assert document["result"]["hard_gate"] == {"verdict": "FAIL"}
     assert document["evidence"]["trajectory_present"] is True
     assert document["run"]["scenario_id"] == "head_on"
+    assert document["run"]["diagnostic_only"] is True
+    assert document["run"]["diagnostic_only_reasons"] == ["original_gnc_response_unqualified"]
+    assert document["run"]["original_gnc"] == {"stack_id": "original-gnc-test", "library_sha256": "abc123"}
+    assert "DIAGNOSTIC_ONLY (original_gnc_response_unqualified)" in document["limitations"]
     assert document["evidence"]["digests"]["spec_hash"] == "deadbeef" * 8
 
 
@@ -110,6 +120,8 @@ def test_evidence_reports_ready_replay_and_pending_result(
     assert "RESULT_PENDING" in document["limitations"]
     assert document["result"]["result_ready"] is False
     assert document["run"]["executed_algorithm"] == "vo"
+    assert document["run"]["diagnostic_only"] is None
+    assert document["run"]["original_gnc"] is None
 
 
 def test_evidence_rejects_unknown_and_malformed_run_ids(

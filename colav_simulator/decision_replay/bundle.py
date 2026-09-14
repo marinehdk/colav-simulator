@@ -5,7 +5,9 @@ from __future__ import annotations
 import bisect
 import gzip
 import json
+import math
 import re
+import zlib
 from bisect import bisect_right
 from collections.abc import Iterator
 from pathlib import Path
@@ -46,6 +48,7 @@ class TraceBundle:
         self._events_cache: list[dict[str, Any]] | None = None
         self._decoded: bytes | None = None
         self._decoded_unavailable = False
+        self._validation: tuple[tuple[Any, ...], dict[str, Any]] | None = None
 
     @property
     def evidence_level(self) -> str:
@@ -78,7 +81,7 @@ class TraceBundle:
         try:
             with opener(self._frames_path, "rb") as stream:  # type: ignore[operator]
                 data = stream.read()
-        except (OSError, EOFError):
+        except (OSError, EOFError, zlib.error):
             self._decoded_unavailable = True
             return None
         if len(data) > MAX_DECODED_TRACE_BYTES:
@@ -103,12 +106,18 @@ class TraceBundle:
             self._scanned = True
             return
         opener = gzip.open if self._frames_path.suffix == ".gz" else open
-        with opener(self._frames_path, "rt", encoding="utf-8") as stream:  # type: ignore[operator]
-            offset = 0
-            for line in stream:
-                if line.strip():
-                    self._offsets.append(offset)
-                offset += len(line.encode("utf-8"))
+        try:
+            with opener(self._frames_path, "rt", encoding="utf-8") as stream:  # type: ignore[operator]
+                offset = 0
+                for line in stream:
+                    if line.strip():
+                        self._offsets.append(offset)
+                    offset += len(line.encode("utf-8"))
+        except (OSError, EOFError, UnicodeDecodeError, zlib.error):
+            # A controlled crash or torn gzip trailer may still leave a
+            # readable prefix. Validation determines its trusted boundary;
+            # indexing stops at the bytes the stream could actually read.
+            pass
         self._scanned = True
 
     def _load_times(self) -> None:
@@ -141,6 +150,173 @@ class TraceBundle:
                 if line.strip():
                     yield json.loads(line)
 
+    def validate(
+        self,
+        *,
+        expected_count: int | None = None,
+        expected_t_start: float | None = None,
+        expected_t_end: float | None = None,
+    ) -> dict[str, Any]:
+        """Validate the recorded prefix and optional finalized index facts.
+
+        The trace is a seek index only when frame sequence starts at one and
+        remains contiguous, simulation time is finite and strictly increasing,
+        and the supplied index count/bounds agree with the records.  A caller
+        may still use ``trusted_frame_count`` and ``trusted_t_end`` when the
+        first invalid record leaves a verifiable prefix.  This method does not
+        validate the digest; the replay store owns that artifact-level check.
+        """
+        validation_key = (expected_count, expected_t_start, expected_t_end)
+        if self._validation is not None and self._validation[0] == validation_key:
+            return self._validation[1]
+
+        parsed_count = 0
+        trusted_count = 0
+        first_time: float | None = None
+        last_time: float | None = None
+        trusted_end: float | None = None
+        reason: str | None = None
+        expected_sequence = 1
+        populate_times = not self._times
+
+        if not self._frames_path.is_file():
+            result = {
+                "valid": False,
+                "reason": "TRACE_MISSING",
+                "frame_count": 0,
+                "trusted_frame_count": 0,
+                "t_start": None,
+                "t_end": None,
+                "trusted_t_end": None,
+            }
+            self._validation = (validation_key, result)
+            return result
+
+        opener = gzip.open if self._frames_path.suffix == ".gz" else open
+        try:
+            with opener(self._frames_path, "rt", encoding="utf-8") as stream:  # type: ignore[operator]
+                for line in stream:
+                    if not line.strip():
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except (TypeError, ValueError):
+                        reason = reason or "TRACE_FRAME_INVALID"
+                        break
+                    parsed_count += 1
+                    sim_time = self._finite_sim_time(record)
+                    if populate_times:
+                        self._times.append(sim_time if sim_time is not None else math.nan)
+                    if sim_time is not None:
+                        if first_time is None:
+                            first_time = sim_time
+                        last_time = sim_time
+                    if reason is not None:
+                        continue
+                    frame_reason, validated_time = self._validate_frame(
+                        record,
+                        expected_sequence=expected_sequence,
+                        previous_time=trusted_end,
+                    )
+                    if frame_reason is not None:
+                        reason = frame_reason
+                        continue
+                    trusted_count += 1
+                    expected_sequence += 1
+                    trusted_end = validated_time
+        except (OSError, EOFError, UnicodeDecodeError, zlib.error):
+            reason = reason or "TRACE_FRAME_READ_FAILED"
+
+        # Index metadata is only meaningful after the records themselves are
+        # structurally sound. A mismatching summary downgrades readiness, but
+        # the parsed frame prefix remains independently verifiable.
+        if reason is None:
+            reason = self._index_mismatch(
+                expected_count=expected_count,
+                expected_t_start=expected_t_start,
+                expected_t_end=expected_t_end,
+                frame_count=parsed_count,
+                t_start=first_time,
+                t_end=last_time,
+            )
+
+        result = {
+            "valid": reason is None,
+            "reason": reason,
+            "frame_count": parsed_count,
+            "trusted_frame_count": trusted_count,
+            "t_start": first_time,
+            "t_end": last_time,
+            "trusted_t_end": trusted_end,
+        }
+        self._validation = (validation_key, result)
+        return result
+
+    @staticmethod
+    def _finite_sim_time(record: Any) -> float | None:
+        if not isinstance(record, dict):
+            return None
+        raw_time = record.get("sim_time")
+        if isinstance(raw_time, bool) or not isinstance(raw_time, (int, float)):
+            return None
+        try:
+            value = float(raw_time)
+        except (OverflowError, TypeError, ValueError):
+            return None
+        return value if math.isfinite(value) else None
+
+    @staticmethod
+    def _validate_frame(
+        record: Any,
+        *,
+        expected_sequence: int,
+        previous_time: float | None,
+    ) -> tuple[str | None, float | None]:
+        if not isinstance(record, dict):
+            return "TRACE_FRAME_INVALID", None
+        sequence = record.get("sequence")
+        if isinstance(sequence, bool) or not isinstance(sequence, int):
+            return "TRACE_SEQUENCE_INVALID", None
+        if sequence != expected_sequence:
+            return "TRACE_SEQUENCE_GAP", None
+        raw_time = record.get("sim_time")
+        if isinstance(raw_time, bool) or not isinstance(raw_time, (int, float)):
+            return "TRACE_TIME_INVALID", None
+        try:
+            sim_time = float(raw_time)
+        except (OverflowError, TypeError, ValueError):
+            return "TRACE_TIME_INVALID", None
+        if not math.isfinite(sim_time) or sim_time < 0.0:
+            return "TRACE_TIME_INVALID", None
+        if previous_time is not None and sim_time <= previous_time:
+            return "TRACE_TIME_REGRESSION", None
+        return None, sim_time
+
+    @staticmethod
+    def _index_mismatch(
+        *,
+        expected_count: int | None,
+        expected_t_start: float | None,
+        expected_t_end: float | None,
+        frame_count: int,
+        t_start: float | None,
+        t_end: float | None,
+    ) -> str | None:
+        if expected_count is not None and expected_count != frame_count:
+            return "TRACE_INDEX_MISMATCH"
+        try:
+            start_finite = expected_t_start is None or math.isfinite(float(expected_t_start))
+            end_finite = expected_t_end is None or math.isfinite(float(expected_t_end))
+        except (OverflowError, TypeError, ValueError):
+            return "TRACE_INDEX_MISMATCH"
+        if not start_finite or not end_finite:
+            return "TRACE_INDEX_MISMATCH"
+        if expected_t_start is not None and (t_start is None or expected_t_start != t_start):
+            return "TRACE_INDEX_MISMATCH"
+        if expected_t_end is not None and (t_end is None or expected_t_end != t_end):
+            return "TRACE_INDEX_MISMATCH"
+        return None
+
     def frame(self, sequence: int) -> dict[str, Any]:
         """One tick record by 1-based frame sequence (the recorder's first tick is 1)."""
         self._scan()
@@ -160,19 +336,22 @@ class TraceBundle:
             stream.seek(offset)
             return json.loads(stream.readline())
 
-    def seq_at_time(self, sim_time: float) -> int:
+    def seq_at_time(self, sim_time: float, *, max_sequence: int | None = None) -> int:
         """Frame sequence at or before ``sim_time`` (1-based; 0 when before start)."""
         self._load_times()
-        if not self._times:
+        limit = len(self._times) if max_sequence is None else max(0, min(max_sequence, len(self._times)))
+        if limit == 0:
             return 0
-        return max(1, bisect_right(self._times, sim_time))
+        return max(1, min(limit, bisect_right(self._times[:limit], sim_time)))
 
-    def window(self, t0: float, t1: float) -> list[dict[str, Any]]:
+    def window(self, t0: float, t1: float, *, max_sequence: int | None = None) -> list[dict[str, Any]]:
         self._load_times()
-        if not self._times:
+        limit = len(self._times) if max_sequence is None else max(0, min(max_sequence, len(self._times)))
+        if limit == 0:
             return []
-        start = bisect.bisect_left(self._times, t0)
-        stop = bisect.bisect_right(self._times, t1)
+        times = self._times[:limit]
+        start = bisect.bisect_left(times, t0)
+        stop = bisect.bisect_right(times, t1)
         return [self._frame_at(self._offsets[i]) for i in range(start, max(start, stop))]
 
     def events(self) -> list[dict[str, Any]]:

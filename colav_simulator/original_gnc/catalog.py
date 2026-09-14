@@ -13,10 +13,50 @@ ENVIRONMENT_DESCRIPTION = (
 )
 
 
+def _build_identity(manifest: dict) -> dict:
+    """Expose the loaded native build lane without changing stack semantics."""
+    proposal_rows = (manifest.get("colleague_proposal") or {}).get("proposals") or []
+    proposal_ids = [
+        item.get("id") if isinstance(item, dict) else item
+        for item in proposal_rows
+        if (item.get("id") if isinstance(item, dict) else item)
+    ]
+    return {
+        "execution_lane": "candidate" if proposal_ids else "baseline",
+        "candidate": "colleague_proposal" if proposal_ids else None,
+        "proposal_ids": proposal_ids,
+        "source_manifest_sha256": manifest["source_manifest_sha256"],
+        "library_sha256": manifest["library_sha256"],
+    }
+
+
+def _build_note(identity: dict | None) -> str:
+    """Render build provenance in the existing Original preset note."""
+    if identity is None:
+        return "Loaded native build identity is unavailable until the approved Original GNC build is installed."
+    lane = identity["execution_lane"]
+    candidate = (
+        f"candidate {identity['candidate']} ({', '.join(identity['proposal_ids'])})"
+        if identity["candidate"]
+        else "baseline"
+    )
+    qualification = (
+        "Baseline fidelity evidence does not automatically cover this candidate; "
+        "scenario safety is separate and Original GNC acceptance remains diagnostic."
+        if identity["execution_lane"] == "candidate"
+        else "Scenario safety is separate and Original GNC acceptance remains diagnostic."
+    )
+    return (
+        f"Loaded execution {lane}: {candidate}; native library SHA-256 {identity['library_sha256']}; "
+        f"approved source manifest SHA-256 {identity['source_manifest_sha256']}. {qualification}"
+    )
+
+
 def original_catalog() -> tuple[list[dict], dict]:
     """Expose dependency availability separately from unaccepted scenario compatibility."""
     available = True
     reason = None
+    build_identity = None
     try:
         config = OriginalGncConfig.from_dict({})
         roots, assets, _ = config.source_assets()
@@ -25,8 +65,8 @@ def original_catalog() -> tuple[list[dict], dict]:
             "ship_dynamics_node",
             config.parameters()["ship_dynamics_node"],
             {"time_ns": 2_000_000_000_000_000_000, "package_roots": roots, "asset_paths": assets},
-        ):
-            pass
+        ) as module:
+            build_identity = _build_identity(module.manifest)
         extraction = json.loads((config.build_directory / "extraction.json").read_text())
         if (
             not {"navigation_mode_observer_node", "operational_risk_observer_node", "operator_command_interpreter"}
@@ -36,6 +76,13 @@ def original_catalog() -> tuple[list[dict], dict]:
     except (OSError, ValueError, KeyError, RuntimeError) as error:
         available = False
         reason = str(error)
+    preset_description = "Frozen colleague GNC · independent local C++ backend"
+    if build_identity and build_identity["execution_lane"] == "candidate":
+        preset_description = (
+            "Original GNC candidate · "
+            + ", ".join(build_identity["proposal_ids"])
+            + " · independent local C++ backend"
+        )
     entries = []
     for enabled in (False, True):
         selection = OriginalGncConfig.from_dict({"environment": enabled})
@@ -80,13 +127,14 @@ def original_catalog() -> tuple[list[dict], dict]:
                 "acceptance_level": "EXPERIMENTAL_ORIGINAL_SOURCE",
                 "available": available,
                 "unavailable_reason": reason,
+                "build_identity": build_identity,
                 "config": identity,
             }
         )
     preset = {
         "id": "original_gnc",
         "display_name": "Original GNC · 2026-08-24",
-        "description": "Frozen colleague GNC · independent local C++ backend",
+        "description": preset_description,
         "input": "Original route / avoidance contract",
         "available": available,
         "unavailable_reason": reason,
@@ -94,8 +142,10 @@ def original_catalog() -> tuple[list[dict], dict]:
         "environment_description": ENVIRONMENT_DESCRIPTION,
         "note": (
             "Original guards and PGD degradation retained. Ordinary route updates require 500 m lookahead; "
-            "short avoidance intents can be rejected. Source equivalence and scenario safety are separate results."
+            "short avoidance intents can be rejected. Source equivalence and scenario safety are separate results. "
+            + _build_note(build_identity)
         ),
+        "build_identity": build_identity,
         "fields": {
             "Plant": "Original 4DOF · 44.1 × 8 × 2 m",
             "Guidance": "Original ILOS/ALOS · route guards · terminal DP",

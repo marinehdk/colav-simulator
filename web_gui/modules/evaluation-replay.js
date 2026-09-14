@@ -14,7 +14,10 @@ import { createSituationDisplay } from './situation-display.js';
 import { createTelemetryProjection } from './telemetry-projection.js';
 import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js';
 import { createReplayClock, REPLAY_RATES, ReplayPlayState } from './replay-clock.js';
-import { setReplayRunOpener } from './replay-runs.js';
+// Keep the URL identical to the shell's standalone module tag. Native ESM
+// treats query-string variants as different module instances; without this
+// pin the catalog and replay host would own different opener registries.
+import { setReplayRunOpener } from './replay-runs.js?v=20260911-replay-runs-v2';
 
 // Scrub windows stay small and bounded; the backend enforces the frozen caps.
 const SEEK_WINDOW_HALF_SPAN_S = 0.5;
@@ -30,6 +33,7 @@ const PREFETCH_MIN_SPAN_S = 8.0;
 const THREAT_LEVELS = { HIGH: 'danger', LOW: 'warn', CLEAR: 'safe' };
 
 function formatTime(value) {
+  if (value === null || value === undefined || value === '') return '—';
   const number = Number(value);
   return Number.isFinite(number) ? number.toFixed(1) : '—';
 }
@@ -56,6 +60,7 @@ export function createEvaluationReplayController({
   let selectedTargetId = null;
   let generation = 0;
   let status = 'EMPTY';
+  let replayControlsEnabled = false;
   let lastSourceSequence = null;
   let lastSourceSimTime = null;
   let display = null;
@@ -123,7 +128,9 @@ export function createEvaluationReplayController({
       const button = documentRef.createElement('button');
       button.type = 'button';
       button.className = 'replay-event-marker';
-      button.dataset.positionPct = String(bucket * CLUSTER_BUCKET_PCT);
+      const positionPct = bucket * CLUSTER_BUCKET_PCT;
+      button.dataset.positionPct = String(positionPct);
+      button.style.left = `${positionPct}%`;
       const first = members[0];
       if (members.length >= CLUSTER_MIN_EVENTS) {
         button.textContent = CLUSTER_GLYPH;
@@ -195,18 +202,84 @@ export function createEvaluationReplayController({
   function evidenceLabel(facts) {
     const state = String(facts?.state ?? 'UNAVAILABLE').toUpperCase();
     if (state === 'READY') return 'REPLAY READY · FULL EVIDENCE';
-    if (state === 'INCOMPLETE') return `REPLAY INCOMPLETE · TRUSTED THROUGH ${formatTime(facts?.trusted_t_end)} s`;
-    if (state === 'REDUCED') return 'REDUCED EVIDENCE';
+    if (state === 'INCOMPLETE') {
+      const trusted = Number(facts?.trusted_t_end);
+      return facts?.trusted_t_end !== null && facts?.trusted_t_end !== undefined && Number.isFinite(trusted)
+        ? `REPLAY INCOMPLETE · TRUSTED THROUGH ${formatTime(trusted)} s`
+        : `REPLAY INCOMPLETE · ${String(facts?.reason ?? 'TRUSTED_PREFIX_UNAVAILABLE')}`;
+    }
+    if (state === 'REDUCED') return 'REDUCED EVIDENCE · TRAJECTORY ONLY';
     if (state === 'CAPTURING') return 'CAPTURING';
-    return 'REPLAY UNAVAILABLE';
+    return facts?.reason ? `REPLAY UNAVAILABLE · ${String(facts.reason)}` : 'REPLAY UNAVAILABLE';
+  }
+
+  function replayRange(facts = descriptor?.replay) {
+    const state = String(facts?.state ?? 'UNAVAILABLE').toUpperCase();
+    const rawStart = facts?.t_start;
+    const rawEnd = state === 'INCOMPLETE' ? facts?.trusted_t_end : facts?.t_end;
+    if (rawStart === null || rawStart === undefined || rawEnd === null || rawEnd === undefined) return null;
+    const start = Number(rawStart);
+    const end = Number(rawEnd);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+    if (state === 'INCOMPLETE') {
+      const completeEnd = Number(facts?.t_end);
+      if (Number.isFinite(completeEnd) && end > completeEnd) return null;
+    }
+    return { start, end };
   }
 
   function trustedEnd() {
+    return replayRange()?.end ?? Number.NaN;
+  }
+
+  function replayCanPlay() {
     const facts = descriptor?.replay ?? {};
-    if (String(facts.state).toUpperCase() === 'INCOMPLETE' && Number.isFinite(Number(facts.trusted_t_end))) {
-      return Number(facts.trusted_t_end);
+    const state = String(facts.state ?? 'UNAVAILABLE').toUpperCase();
+    const range = replayRange(facts);
+    if (!range) return false;
+    if (state === 'READY') return descriptor?.capabilities?.seekable !== false;
+    return state === 'INCOMPLETE' && descriptor?.capabilities?.seekable === true;
+  }
+
+  function replayUnavailableMessage() {
+    const facts = descriptor?.replay ?? {};
+    const state = String(facts.state ?? 'UNAVAILABLE').toUpperCase();
+    if (state === 'REDUCED') {
+      return `REDUCED EVIDENCE · TRAJECTORY ONLY · PLAYBACK DISABLED${facts.reason ? ` · ${facts.reason}` : ''}`;
     }
-    return Number(facts.t_end);
+    if (state === 'INCOMPLETE') {
+      return `REPLAY INCOMPLETE · PLAYBACK DISABLED · ${String(facts.reason ?? 'TRUSTED_PREFIX_UNAVAILABLE')}`;
+    }
+    if (state === 'CAPTURING') return 'REPLAY PREPARING · RECORDED EVIDENCE IS STILL CAPTURING';
+    return `REPLAY UNAVAILABLE${facts.reason ? ` · ${facts.reason}` : ''}`;
+  }
+
+  function syncPlayButton() {
+    const button = el('replayPlayPauseBtn');
+    if (!button) return;
+    button.textContent = clock?.state === ReplayPlayState.PLAYING ? 'PAUSE ⏸' : 'PLAY ▶';
+  }
+
+  function setReplayControlsEnabled(enabled) {
+    replayControlsEnabled = enabled;
+    for (const id of [
+      'replayTimeline',
+      'replayPlayPauseBtn',
+      'replayPrevEventBtn',
+      'replayNextEventBtn',
+      'replayStartBtn',
+      'replayEndBtn',
+      'replayRate025',
+      'replayRate05',
+      'replayRate1',
+      'replayRate2',
+      'replayRate5',
+      'replayRate10',
+      'replayRate20',
+    ]) {
+      const control = el(id);
+      if (control) control.disabled = !enabled;
+    }
   }
 
   async function fetchJson(url) {
@@ -222,7 +295,9 @@ export function createEvaluationReplayController({
       ? 'source frame —'
       : `source frame #${lastSourceSequence} @ ${formatTime(lastSourceSimTime)} s`;
     const timeline = el('replayTimeline');
-    if (timeline) timeline.value = String(playhead);
+    if (timeline) timeline.value = playhead === null || playhead === undefined || !Number.isFinite(Number(playhead))
+      ? ''
+      : String(playhead);
   }
 
   function renderInspection() {
@@ -323,6 +398,14 @@ export function createEvaluationReplayController({
     }
   }
 
+  function historicalBadge(run) {
+    const executionState = String(run?.execution_state ?? '').toUpperCase();
+    if (['FAILED', 'CRASHED', 'ABORTED', 'ERROR'].includes(executionState)) {
+      return `${executionState} · SEALED · HISTORICAL`;
+    }
+    return 'SEALED · HISTORICAL';
+  }
+
   function stopPlaybackTimer() {
     if (timerId !== null) {
       schedule.clear(timerId);
@@ -339,6 +422,7 @@ export function createEvaluationReplayController({
     playhead = ticked.playhead;
     if (ticked.state === ReplayPlayState.ENDED) {
       stopPlaybackTimer();
+      syncPlayButton();
       renderCurrent();
       return;
     }
@@ -372,12 +456,12 @@ export function createEvaluationReplayController({
   }
 
   function playPause() {
-    if (!descriptor || !['READY', 'INCOMPLETE'].includes(String(descriptor.replay.state).toUpperCase())) return;
+    if (!descriptor || !replayControlsEnabled || !replayCanPlay()) return;
     if (clock.state === ReplayPlayState.PLAYING) {
       clock.pause();
       stopPlaybackTimer();
       renderCurrent();
-      el('replayPlayPauseBtn').textContent = 'PLAY ▶';
+      syncPlayButton();
       return;
     }
     if (clock.state === ReplayPlayState.ENDED) {
@@ -385,13 +469,13 @@ export function createEvaluationReplayController({
       windowDoc = null;
     }
     clock.play();
-    el('replayPlayPauseBtn').textContent = 'PAUSE ⏸';
+    syncPlayButton();
     playbackTick();
     if (clock.state === ReplayPlayState.PLAYING) startPlaybackLoop();
   }
 
   function setRate(rateValue) {
-    if (!clock) return;
+    if (!clock || !replayControlsEnabled || !replayCanPlay()) return;
     clock.setRate(Number(rateValue));
     for (const rate of REPLAY_RATES) {
       const button = el(`replayRate${String(rate).replace('.', '')}`);
@@ -417,6 +501,8 @@ export function createEvaluationReplayController({
     const gen = generation;
     stopPlaybackTimer();
     clock = null;
+    syncPlayButton();
+    display?.clearSession?.();
     prefetchInFlight = false;
     descriptor = null;
     context = null;
@@ -428,9 +514,34 @@ export function createEvaluationReplayController({
     eventJournal = null;
     eventFilter = 'ALL';
     selectedEventId = null;
+    el('replayInspection')?.replaceChildren();
+    el('replayEventFocus')?.replaceChildren();
+    const eventMarkers = el('replayEventMarkers');
+    if (eventMarkers) {
+      eventMarkers.replaceChildren();
+      eventMarkers.textContent = 'LOADING RECORDED EVENTS';
+    }
+    const eventFilterControl = el('replayEventFilter');
+    if (eventFilterControl) eventFilterControl.replaceChildren();
+    const timelineReset = el('replayTimeline');
+    if (timelineReset) {
+      timelineReset.min = '0';
+      timelineReset.max = '0';
+      timelineReset.value = '';
+    }
+    for (const id of ['replayResultsFacts', 'replayEvidenceFacts']) {
+      el(id)?.replaceChildren();
+    }
+    for (const id of ['replayResultsStatus', 'replayEvidenceFactsStatus']) {
+      const statusPill = el(id);
+      if (statusPill) statusPill.textContent = 'LOADING';
+    }
     setStatus('LOADING');
+    setReplayControlsEnabled(false);
     const panel = el('evaluationReplayPanel');
     if (panel) panel.hidden = false;
+    const runsPanel = el('replayRunsPanel');
+    if (runsPanel) runsPanel.hidden = true;
     // Persistent, non-color-only historical state. Replay never presents a
     // recorded frame as LIVE, whatever the evidence state degrades to.
     el('replaySealedBadge').textContent = 'SEALED · HISTORICAL';
@@ -439,6 +550,25 @@ export function createEvaluationReplayController({
 
     descriptor = await fetchJson(`/api/runs/${runId}/replay`);
     if (gen !== generation) return;
+
+    el('replayRunTitle').textContent = `EVALUATION / REPLAY · ${descriptor.run_id.slice(0, 8)} · ${descriptor.run?.scenario_id ?? ''} · ${descriptor.run?.executed_algorithm ?? ''}`;
+    el('replaySealedBadge').textContent = historicalBadge(descriptor.run);
+    el('replayEvidenceBadge').textContent = evidenceLabel(descriptor.replay);
+    const timeline = el('replayTimeline');
+    const range = replayRange(descriptor.replay);
+    if (timeline && range && replayCanPlay()) {
+      timeline.min = String(range.start);
+      timeline.max = String(range.end);
+      timeline.step = '0.1';
+      timeline.value = String(range.start);
+    }
+    if (!replayCanPlay()) {
+      setStatus('UNAVAILABLE');
+      el('replayStatusLine').textContent = replayUnavailableMessage();
+      readouts();
+      return;
+    }
+
     context = await fetchJson(`/api/runs/${runId}/replay/context`);
     if (gen !== generation) return;
     // The recorded event journal loads with the run; navigation and markers
@@ -462,44 +592,55 @@ export function createEvaluationReplayController({
       }
     }
 
-    el('replayRunTitle').textContent = `EVALUATION / REPLAY · ${descriptor.run_id.slice(0, 8)} · ${descriptor.run?.scenario_id ?? ''} · ${descriptor.run?.executed_algorithm ?? ''}`;
-    el('replayEvidenceBadge').textContent = evidenceLabel(descriptor.replay);
-    const timeline = el('replayTimeline');
-    const start = Number(descriptor.replay.t_start) || 0.0;
-    const end = trustedEnd();
-    if (timeline) {
-      timeline.min = String(start);
-      timeline.max = String(end);
-      timeline.step = '0.1';
-      timeline.value = String(start);
-    }
-    if (!['READY', 'INCOMPLETE'].includes(String(descriptor.replay.state).toUpperCase())) {
-      setStatus('UNAVAILABLE');
-      el('replayStatusLine').textContent = `REPLAY ${evidenceLabel(descriptor.replay)}`;
-      readouts();
-      return;
-    }
-
+    const start = range.start;
+    const end = range.end;
     playhead = start;
     clock = createReplayClock({ now: nowFn, tStart: start, tEnd: end });
     ensureDisplay();
-    display?.beginSession?.(runId);
+    await display?.beginSession?.(runId);
     readouts();
     await loadWindow(start, Math.min(end, start + INITIAL_WINDOW_SPAN_S), gen);
+    if (gen === generation) {
+      display?.fitTraffic?.();
+      setReplayControlsEnabled(true);
+    }
   }
 
   function ensureDisplay() {
     if (display) return display;
     const canvas = el('replayCanvas');
     const wrapper = el('replayCanvasWrapper');
+    const displayOptions = {
+      canvas,
+      wrapper,
+      context,
+      runId,
+      fetchInfo: async () => {
+        const enc = context?.enc ?? {};
+        const ready = [
+          enc.origin_east_m,
+          enc.origin_north_m,
+          enc.width_m,
+          enc.height_m,
+          enc.utm_zone,
+        ].every(value => Number.isFinite(Number(value))) && Boolean(enc.image_url);
+        return {
+          ready,
+          run_id: runId,
+          origin_e: Number(enc.origin_east_m),
+          origin_n: Number(enc.origin_north_m),
+          width: Number(enc.width_m),
+          height: Number(enc.height_m),
+          utm_zone: enc.utm_zone,
+        };
+      },
+      fetchTile: () => context?.enc?.image_url ?? '',
+    };
     if (displayFactory) {
-      display = displayFactory({ canvas, wrapper, context, runId });
+      display = displayFactory(displayOptions);
     } else if (canvas && wrapper) {
       display = createSituationDisplay({
-        canvas,
-        wrapper,
-        fetchInfo: async () => context?.enc ?? {},
-        fetchTile: () => context?.enc?.image_url ?? '',
+        ...displayOptions,
         getScenarioId: () => context?.scenario_id ?? null,
         getResponseRange: () => null,
         getPlannerSurface: () => null,
@@ -509,9 +650,11 @@ export function createEvaluationReplayController({
   }
 
   function seek(simTime) {
-    if (!descriptor || !Number.isFinite(Number(simTime))) return Promise.resolve();
-    const start = Number(descriptor.replay.t_start) || 0.0;
-    const end = trustedEnd();
+    if (!descriptor || !replayControlsEnabled || !replayCanPlay() || !Number.isFinite(Number(simTime))) return Promise.resolve();
+    const range = replayRange(descriptor.replay);
+    if (!range) return Promise.resolve();
+    const start = range.start;
+    const end = range.end;
     const target = Math.max(start, Math.min(end, Number(simTime)));
     const wasPlaying = clock?.state === ReplayPlayState.PLAYING;
     clock?.seek(target); // valid from PLAYING/PAUSED/BUFFERING/ENDED
@@ -527,8 +670,12 @@ export function createEvaluationReplayController({
     const from = Math.max(start, target - SEEK_WINDOW_HALF_SPAN_S);
     const to = Math.min(end, target + SEEK_WINDOW_HALF_SPAN_S);
     return loadWindow(from, to, gen).then(() => {
-      if (gen !== generation || !wasPlaying || !clock) return;
+      if (gen !== generation || !wasPlaying || !clock) {
+        syncPlayButton();
+        return;
+      }
       clock.resume();
+      syncPlayButton();
       playbackTick();
       if (clock.state === ReplayPlayState.PLAYING) startPlaybackLoop();
     }).catch(() => {
@@ -536,8 +683,8 @@ export function createEvaluationReplayController({
       if (wasPlaying) {
         clock?.pause();
         stopPlaybackTimer();
-        el('replayPlayPauseBtn').textContent = 'PLAY ▶';
       }
+      syncPlayButton();
       setStatus('ERROR');
       el('replayStatusLine').textContent = 'RECORDED DATA UNAVAILABLE · RETRY FROM THE TIMELINE';
     });
@@ -552,8 +699,12 @@ export function createEvaluationReplayController({
     generation += 1;
     stopPlaybackTimer();
     clock?.pause();
+    syncPlayButton();
+    setReplayControlsEnabled(false);
     const panel = el('evaluationReplayPanel');
     if (panel) panel.hidden = true;
+    const runsPanel = el('replayRunsPanel');
+    if (runsPanel) runsPanel.hidden = false;
   }
 
   el('replayTimeline')?.addEventListener('input', event => {
@@ -577,6 +728,7 @@ export function createEvaluationReplayController({
   // Switching a local view changes Inspection Context only — it never
   // creates, replaces or mutates the Active Session.
   const evaluationViews = ['replay', 'results', 'evidence', 'hais'];
+  const STALE_RUN_DOCUMENT = Symbol('STALE_RUN_DOCUMENT');
   let selectedEvaluationView = 'replay';
 
   function renderFacts(targetId, facts) {
@@ -593,11 +745,49 @@ export function createEvaluationReplayController({
     }));
   }
 
+  function diagnosticLabel(run) {
+    if (run?.diagnostic_only === true) return 'DIAGNOSTIC ONLY';
+    if (run?.diagnostic_only === false) return 'STANDARD RUN';
+    return null;
+  }
+
+  function diagnosticReasons(run) {
+    const reasons = run?.diagnostic_only_reasons;
+    if (Array.isArray(reasons)) return reasons.join(', ') || null;
+    return reasons ?? null;
+  }
+
+  function originalGnc(run) {
+    const gnc = run?.original_gnc;
+    if (!gnc || typeof gnc !== 'object') return {};
+    return {
+      stack: gnc.stack_id ?? null,
+      library: gnc.library_sha256 ?? null,
+    };
+  }
+
+  function hardGateChecks(gate) {
+    if (!Array.isArray(gate?.checks)) return null;
+    const checks = gate.checks.map(check => {
+      if (!check || typeof check !== 'object') return null;
+      const id = check.check_id ?? 'check';
+      const outcome = check.outcome ?? '—';
+      const scope = check.evidence?.scope;
+      return `${id}: ${outcome}${scope ? ` (${scope})` : ''}`;
+    }).filter(Boolean);
+    return checks.length ? checks.join(' · ') : null;
+  }
+
   async function loadRunDocument() {
     if (!runId) return null;
+    const requestedRunId = runId;
+    const requestedGeneration = generation;
     try {
-      return await fetchJson(`/api/runs/${runId}/replay/evidence`);
+      const document_ = await fetchJson(`/api/runs/${requestedRunId}/replay/evidence`);
+      if (requestedRunId !== runId || requestedGeneration !== generation) return STALE_RUN_DOCUMENT;
+      return document_;
     } catch {
+      if (requestedRunId !== runId || requestedGeneration !== generation) return STALE_RUN_DOCUMENT;
       return null;
     }
   }
@@ -605,6 +795,7 @@ export function createEvaluationReplayController({
   async function renderResultsView() {
     const status = el('replayResultsStatus');
     const document_ = await loadRunDocument();
+    if (document_ === STALE_RUN_DOCUMENT) return;
     if (!document_) {
       if (status) status.textContent = 'UNAVAILABLE';
       return;
@@ -612,14 +803,20 @@ export function createEvaluationReplayController({
     if (status) status.textContent = document_.result?.result_ready ? 'RESULT READY' : 'RESULT PENDING';
     const result = document_.result ?? {};
     const run = document_.run ?? {};
+    const gnc = originalGnc(run);
     renderFacts('replayResultsFacts', [
       ['Run', document_.run_id?.slice(0, 8)],
       ['Scenario', run.scenario_id],
       ['Executed algorithm', run.executed_algorithm],
       ['Execution state', run.execution_state],
+      ['Assurance scope', diagnosticLabel(run)],
+      ['Diagnostic reasons', diagnosticReasons(run)],
+      ['Original GNC stack', gnc.stack],
+      ['Original GNC library SHA256', gnc.library],
       ['Result ready', document_.result?.result_ready ? 'YES' : 'NO — result pending (replay readiness is independent)'],
       ['Evaluation status', result.evaluation_status],
-      ['Hard gate', result.hard_gate === null || result.hard_gate === undefined ? null : JSON.stringify(result.hard_gate)],
+      ['Hard gate outcome', result.hard_gate?.outcome],
+      ['Hard gate checks', hardGateChecks(result.hard_gate)],
       ['Reproduction status', result.reproduction_status],
       ['Failure', run.failure_status ? `${run.failure_status}${run.failure_reason ? ` · ${run.failure_reason}` : ''}` : null],
       ['Limitations', (document_.limitations ?? []).join(', ') || null],
@@ -629,15 +826,22 @@ export function createEvaluationReplayController({
   async function renderEvidenceView() {
     const status = el('replayEvidenceFactsStatus');
     const document_ = await loadRunDocument();
+    if (document_ === STALE_RUN_DOCUMENT) return;
     if (!document_) {
       if (status) status.textContent = 'UNAVAILABLE';
       return;
     }
     if (status) status.textContent = String(document_.evidence?.replay?.state ?? '—');
     const replay = document_.evidence?.replay ?? {};
+    const run = document_.run ?? {};
+    const gnc = originalGnc(run);
     const digests = document_.evidence?.digests ?? {};
     renderFacts('replayEvidenceFacts', [
       ['Run', document_.run_id],
+      ['Assurance scope', diagnosticLabel(run)],
+      ['Diagnostic reasons', diagnosticReasons(run)],
+      ['Original GNC stack', gnc.stack],
+      ['Original GNC library SHA256', gnc.library],
       ['Replay state', replay.state],
       ['Evidence level', replay.evidence_level],
       ['Reason', replay.reason],
@@ -700,6 +904,8 @@ export function createEvaluationReplayController({
         eventCount: eventJournal ? (eventJournal.events ?? []).length : null,
         eventFilter,
         selectedEventId,
+        evidenceState: descriptor?.replay?.state ?? null,
+        replayPlayable: replayCanPlay(),
       };
     },
   };

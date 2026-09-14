@@ -7,6 +7,8 @@ path confinement, bounded discovery and budget-driven retention.
 
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
@@ -17,6 +19,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import colav_simulator.decision_replay.bundle as bundle_module
 import gui_server.replay as replay_module
 from colav_simulator.decision_replay.sink import TraceSink
 from gui_server.replay import (
@@ -40,6 +43,8 @@ RUN_LIVE = "77777777-7777-4777-8777-777777777777"
 RUN_OLD = "88888888-8888-4888-8888-888888888888"
 RUN_MID = "99999999-9999-4999-8999-999999999999"
 RUN_NEW = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+RUN_BAD_GZIP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+RUN_GAP = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 RUN_UNKNOWN = "00000000-0000-0000-0000-000000000000"
 
 
@@ -84,6 +89,33 @@ def record_trace(run_dir: Path, *, ticks: int = 3, events: list[dict[str, Any]] 
         if events is not None
         else [{"type": "session_started", "sim_time": 0.1}, {"type": "collision", "sim_time": 0.2}]
     )
+
+
+def rewrite_frames(run_dir: Path, frames: list[dict[str, Any]], *, index_updates: dict[str, Any] | None = None) -> None:
+    """Rewrite a sealed fixture while keeping its frame digest self-consistent."""
+    raw = b"".join(json.dumps(frame, allow_nan=False).encode("utf-8") + b"\n" for frame in frames)
+    trace_dir = run_dir / "decision"
+    with gzip.GzipFile(str(trace_dir / "frames.jsonl.gz"), "wb", mtime=0) as stream:
+        stream.write(raw)
+    index_path = trace_dir / "index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index.update(
+        {
+            "tick_count": len(frames),
+            "t_start": frames[0]["sim_time"] if frames else None,
+            "t_end": frames[-1]["sim_time"] if frames else None,
+            "frames_sha256": hashlib.sha256(raw).hexdigest(),
+            **(index_updates or {}),
+        }
+    )
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+
+
+def read_frames(run_dir: Path) -> list[dict[str, Any]]:
+    return [
+        json.loads(line)
+        for line in gzip.decompress((run_dir / "decision" / "frames.jsonl.gz").read_bytes()).splitlines()
+    ]
 
 
 def make_run(
@@ -139,6 +171,213 @@ def test_digest_mismatch_classifies_incomplete(store: RunReplayStore, tmp_path: 
     facts = store.classify(run_dir)
     assert facts["state"] == "INCOMPLETE"
     assert facts["reason"] == "TRACE_DIGEST_MISMATCH"
+    assert facts["trusted_t_end"] is None
+    capabilities = store.descriptor(run_dir.name)["capabilities"]
+    assert capabilities["seekable"] is False
+    assert capabilities["trusted_prefix"] is False
+
+
+def test_malformed_gzip_classifies_typed_incomplete(store: RunReplayStore, tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / RUN_BAD_GZIP
+    (run_dir / "decision").mkdir(parents=True)
+    write_manifest(run_dir, created_at="2026-09-11T10:00:00Z")
+    (run_dir / "decision" / "frames.jsonl.gz").write_bytes(b"\x1f\x8b\x08\x00" + b"X" * 100)
+
+    facts = store.classify(run_dir)
+
+    assert facts["state"] == "INCOMPLETE"
+    assert facts["reason"] == "TRACE_FRAME_READ_FAILED"
+    assert facts["trusted_t_end"] is None
+
+
+def test_malformed_finalized_gzip_disables_replay_with_typed_digest_failure(
+    store: RunReplayStore, tmp_path: Path
+) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_BAD_GZIP, created_at="2026-09-11T10:00:00Z")
+    (run_dir / "decision" / "frames.jsonl.gz").write_bytes(b"\x1f\x8b\x08\x00" + b"X" * 100)
+
+    facts = store.classify(run_dir)
+
+    assert facts["state"] == "INCOMPLETE"
+    assert facts["reason"] == "TRACE_DIGEST_MISMATCH"
+    assert facts["trusted_t_end"] is None
+
+
+def test_sequence_gap_with_valid_digest_exposes_only_trusted_prefix(
+    store: RunReplayStore, tmp_path: Path
+) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_TAMPER, created_at="2026-09-11T10:00:00Z")
+    frames = read_frames(run_dir)
+    frames[1]["sequence"], frames[2]["sequence"] = 3, 2
+    rewrite_frames(run_dir, frames)
+
+    facts = store.classify(run_dir)
+
+    assert facts["state"] == "INCOMPLETE"
+    assert facts["reason"] == "TRACE_SEQUENCE_GAP"
+    assert facts["frame_count"] == 3
+    assert facts["trusted_frame_count"] == 1
+    assert facts["t_end"] == pytest.approx(0.3)
+    assert facts["trusted_t_end"] == pytest.approx(0.1)
+
+    descriptor = store.descriptor(run_dir.name)
+    assert descriptor["capabilities"]["seekable"] is True
+    assert descriptor["capabilities"]["trusted_prefix"] is True
+    assert descriptor["capabilities"]["full_frame"] is False
+
+
+def test_time_regression_with_valid_digest_exposes_only_trusted_prefix(
+    store: RunReplayStore, tmp_path: Path
+) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_TAMPER, created_at="2026-09-11T10:00:00Z")
+    frames = read_frames(run_dir)
+    frames[1]["sim_time"] = 0.05
+    rewrite_frames(run_dir, frames)
+
+    facts = store.classify(run_dir)
+
+    assert facts["state"] == "INCOMPLETE"
+    assert facts["reason"] == "TRACE_TIME_REGRESSION"
+    assert facts["trusted_frame_count"] == 1
+    assert facts["trusted_t_end"] == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("sequence", 1.0, "TRACE_SEQUENCE_INVALID"),
+        ("sim_time", True, "TRACE_TIME_INVALID"),
+        ("sim_time", "0.2", "TRACE_TIME_INVALID"),
+        ("sim_time", -0.1, "TRACE_TIME_INVALID"),
+    ],
+)
+def test_noncanonical_sequence_or_time_is_incomplete(
+    store: RunReplayStore, tmp_path: Path, field: str, value: Any, reason: str
+) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_TAMPER, created_at="2026-09-11T10:00:00Z")
+    frames = read_frames(run_dir)
+    frames[1][field] = value
+    rewrite_frames(run_dir, frames)
+
+    facts = store.classify(run_dir)
+
+    assert facts["state"] == "INCOMPLETE"
+    assert facts["reason"] == reason
+    assert facts["trusted_frame_count"] == 1
+
+
+def test_index_count_or_bounds_mismatch_is_incomplete_but_frames_are_seekable(
+    store: RunReplayStore, tmp_path: Path
+) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_TAMPER, created_at="2026-09-11T10:00:00Z")
+    rewrite_frames(run_dir, read_frames(run_dir), index_updates={"tick_count": 99, "t_end": 9.9})
+
+    facts = store.classify(run_dir)
+
+    assert facts["state"] == "INCOMPLETE"
+    assert facts["reason"] == "TRACE_INDEX_MISMATCH"
+    assert facts["trusted_frame_count"] == 3
+    assert facts["trusted_t_end"] == pytest.approx(0.3)
+
+
+def test_incomplete_prefix_window_is_readable_only_inside_trusted_boundary(
+    store: RunReplayStore, tmp_path: Path
+) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_TAMPER, created_at="2026-09-11T10:00:00Z")
+    frames = read_frames(run_dir)
+    frames[1]["sequence"], frames[2]["sequence"] = 3, 2
+    rewrite_frames(run_dir, frames)
+
+    app = FastAPI()
+    app.include_router(build_replay_router(store))
+    client = TestClient(app)
+
+    prefix = client.get(
+        f"/api/runs/{RUN_TAMPER}/replay/window", params={"from": 0.0, "to": 0.1}
+    )
+    assert prefix.status_code == 200
+    document = prefix.json()
+    assert document["trusted_t_end"] == pytest.approx(0.1)
+    assert [frame["sequence"] for frame in document["frames"]] == [1]
+    assert document["before"] is None
+    assert document["after"] is None
+
+    beyond = client.get(
+        f"/api/runs/{RUN_TAMPER}/replay/window", params={"from": 0.0, "to": 0.2}
+    )
+    assert beyond.status_code == 409
+    assert beyond.json()["detail"]["reason"] == "REPLAY_TRUSTED_PREFIX_EXCEEDED"
+
+
+def test_incomplete_prefix_events_stop_at_trusted_boundary(
+    store: RunReplayStore, tmp_path: Path
+) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_TAMPER, created_at="2026-09-11T10:00:00Z")
+    frames = read_frames(run_dir)
+    frames[1]["sequence"], frames[2]["sequence"] = 3, 2
+    rewrite_frames(run_dir, frames)
+
+    document = store.replay_events(RUN_TAMPER, limit=20)
+    descriptor = store.descriptor(RUN_TAMPER)
+
+    assert document["trusted_t_end"] == pytest.approx(0.1)
+    assert document["count"] == 1
+    assert document["total_count"] == 2
+    assert descriptor["events"]["count"] == 1
+    assert descriptor["events"]["total_count"] == 2
+    assert [event["sim_time"] for event in document["events"]] == [pytest.approx(0.1)]
+
+
+def test_trusted_prefix_works_when_decoded_trace_cache_is_unavailable(
+    store: RunReplayStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_TAMPER, created_at="2026-09-11T10:00:00Z")
+    frames = read_frames(run_dir)
+    frames[1]["sequence"], frames[2]["sequence"] = 3, 2
+    rewrite_frames(run_dir, frames)
+    monkeypatch.setattr(bundle_module, "MAX_DECODED_TRACE_BYTES", 1)
+
+    document = store.window(RUN_TAMPER, 0.0, 0.1)
+
+    assert [frame["sequence"] for frame in document["frames"]] == [1]
+    assert document["trusted_t_end"] == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize("index_value", [None, [], 7])
+def test_non_object_index_is_typed_incomplete(store: RunReplayStore, tmp_path: Path, index_value: Any) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_SCHEMA, created_at="2026-09-11T10:00:00Z")
+    (run_dir / "decision" / "index.json").write_text(json.dumps(index_value), encoding="utf-8")
+    descriptor = store.descriptor(RUN_SCHEMA)
+    assert descriptor["replay"]["state"] == "INCOMPLETE"
+    assert descriptor["replay"]["reason"] == "TRACE_INDEX_CORRUPT"
+    assert descriptor["capabilities"]["seekable"] is False
+
+
+@pytest.mark.parametrize("suffix", ["window?from=0.1&to=0.2", "events"])
+def test_active_capture_cannot_be_read_as_a_sealed_prefix(
+    store: RunReplayStore, tmp_path: Path, suffix: str
+) -> None:
+    make_run(tmp_path / "runs", RUN_LIVE, created_at="2026-09-11T10:00:00Z")
+    app = FastAPI()
+    app.include_router(build_replay_router(store, active_replay_status=lambda _: {"state": "CAPTURING"}))
+    with TestClient(app) as client:
+        descriptor = client.get(f"/api/runs/{RUN_LIVE}/replay").json()
+        assert descriptor["replay"]["state"] == "CAPTURING"
+        response = client.get(f"/api/runs/{RUN_LIVE}/replay/{suffix}")
+    assert response.status_code == 409
+    assert response.json()["detail"]["reason"] == "TRACE_CAPTURING"
+
+
+def test_capture_registry_cannot_upgrade_corrupt_sealed_evidence(store: RunReplayStore, tmp_path: Path) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_TAMPER, created_at="2026-09-11T10:00:00Z")
+    index_path = run_dir / "decision" / "index.json"
+    index = json.loads(index_path.read_text())
+    index["frames_sha256"] = "wrong"
+    index_path.write_text(json.dumps(index))
+    descriptor = store.descriptor(RUN_TAMPER, active={"state": "READY", "frame_count": 3})
+    assert descriptor["replay"]["state"] == "INCOMPLETE"
+    assert descriptor["replay"]["reason"] == "TRACE_DIGEST_MISMATCH"
+    assert descriptor["capabilities"]["seekable"] is False
 
 
 def test_unsupported_schema_fails_closed(store: RunReplayStore, tmp_path: Path) -> None:
@@ -272,18 +511,25 @@ def test_list_runs_sorted_and_filterable(store: RunReplayStore, tmp_path: Path) 
     root = tmp_path / "runs"
     make_run(root, RUN_OLD, created_at="2026-09-11T08:00:00Z", finalized=False)
     ready = make_run(root, RUN_NEW, created_at="2026-09-11T10:00:00Z")
+    gap = make_run(root, RUN_GAP, created_at="2026-09-11T09:30:00Z")
+    gap_frames = read_frames(gap)
+    gap_frames[1]["sequence"], gap_frames[2]["sequence"] = 3, 2
+    rewrite_frames(gap, gap_frames)
     make_run(root, RUN_LEGACY, created_at="2026-09-11T09:00:00Z", trace=False)
 
     entries = store.list_runs()
-    assert [entry["run_id"] for entry in entries] == [RUN_NEW, RUN_LEGACY, RUN_OLD]
+    assert [entry["run_id"] for entry in entries] == [RUN_NEW, RUN_GAP, RUN_LEGACY, RUN_OLD]
     states = {entry["run_id"]: entry["replay"]["state"] for entry in entries}
     assert states[RUN_NEW] == "READY"
     assert states[RUN_LEGACY] == "REDUCED"
     assert states[RUN_OLD] == "INCOMPLETE"
 
     replayable = store.list_runs(replayable=True)
-    assert [entry["run_id"] for entry in replayable] == [ready.name]
+    assert [entry["run_id"] for entry in replayable] == [ready.name, RUN_GAP, RUN_OLD]
     assert replayable[0]["scenario_id"] == "head_on"
+    assert replayable[1]["replay"]["state"] == "INCOMPLETE"
+    assert replayable[1]["replay"]["trusted_t_end"] == pytest.approx(0.1)
+    assert replayable[1]["capabilities"] == {"seekable": True, "trusted_prefix": True}
 
     limited = store.list_runs(limit=1)
     assert len(limited) == 1
@@ -295,6 +541,19 @@ def test_list_runs_bounded_and_empty_safe(store: RunReplayStore, tmp_path: Path)
     root.mkdir()
     (root / "not-a-run.txt").write_text("x", encoding="utf-8")
     assert store.list_runs() == []
+
+
+def test_run_listing_never_advertises_digest_corruption_as_ready(
+    store: RunReplayStore, tmp_path: Path
+) -> None:
+    run_dir = make_run(tmp_path / "runs", RUN_TAMPER, created_at="2026-09-11T10:00:00Z")
+    frames_path = run_dir / "decision" / "frames.jsonl.gz"
+    frames_path.write_bytes(frames_path.read_bytes()[:-1] + b"x")
+
+    entries = store.list_runs()
+    assert entries[0]["replay"]["state"] == "INCOMPLETE"
+    assert entries[0]["replay"]["reason"] == "TRACE_DIGEST_MISMATCH"
+    assert store.list_runs(replayable=True) == []
 
 
 # ---------------------------------------------------------------------------

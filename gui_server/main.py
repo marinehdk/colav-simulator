@@ -25,7 +25,6 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -58,14 +57,13 @@ from gui_server import canonical_threat as _canonical_threat
 from gui_server.gnc_balance import balance_telemetry
 from gui_server.historical_api import router as historical_api_router
 from gui_server.replay import (
-    STATIC_CONTEXT_FILENAME,
-    STATIC_CONTEXT_SCHEMA,
     RunReplayStore,
     build_replay_router,
     replay_capture_budget_policy,
     replay_retention_budget_bytes,
     runs_root,
 )
+from gui_server.replay_artifacts import build_enc_navigation_area, persist_static_context, render_enc
 
 log = logging.getLogger("gui_server")
 logging.basicConfig(level=logging.INFO)
@@ -305,6 +303,7 @@ class SessionCreateRequest(BaseModel):
     episode_index: int = Field(default=0, ge=0)
     dt: float | None = Field(default=None, gt=0)
     t_end: float | None = Field(default=None, gt=0)
+    solve_period_s: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     strict_no_fallback: bool = True
     evaluator_profile_id: str = "ccta_2023_demo-v1"
     algorithm_config: dict[str, Any] = Field(default_factory=dict)
@@ -381,6 +380,7 @@ def _historical_session_spec(request: SessionCreateRequest) -> RunSpec | None:
         cached is not None
         and request.dt is None
         and request.t_end is None
+        and request.solve_period_s is None
         and request.domain_profile is None
     ):
         capability = dict(cached.algorithm_capability_evidence or {})
@@ -426,6 +426,7 @@ def _historical_session_spec(request: SessionCreateRequest) -> RunSpec | None:
         validation_rule_id=request.validation_rule_id,
         seed=request.seed,
         strict_no_fallback=request.strict_no_fallback,
+        solve_period_s=request.solve_period_s,
     )
 
 
@@ -521,31 +522,6 @@ def list_busy_water_drafts() -> list[dict[str, Any]]:
     return output
 
 
-def _draw_geometry(ax: plt.Axes, geometry: Any, color: str, alpha: float = 1.0) -> None:
-    if geometry is None or geometry.is_empty:
-        return
-    polygons = geometry.geoms if hasattr(geometry, "geoms") else [geometry]
-    for polygon in polygons:
-        if not hasattr(polygon, "exterior"):
-            continue
-        xy = np.asarray(polygon.exterior.coords)
-        ax.fill(xy[:, 0], xy[:, 1], color=color, alpha=alpha, linewidth=0)
-
-
-def _local_polygon_coordinates(geometry: Any, origin_e: float, origin_n: float) -> list[list[list[list[float]]]]:
-    """Serialize ENC polygons as local [north, east] rings for the Web canvas."""
-    if geometry is None or geometry.is_empty:
-        return []
-    polygons = geometry.geoms if hasattr(geometry, "geoms") else [geometry]
-    output = []
-    for polygon in polygons:
-        if not hasattr(polygon, "exterior"):
-            continue
-        rings = [polygon.exterior, *polygon.interiors]
-        output.append([[[float(north - origin_n), float(east - origin_e)] for east, north in ring.coords] for ring in rings])
-    return output
-
-
 def _enc_depth_bin_at(enc: Any, *, east: float, north: float) -> float | None:
     """Return the deepest charted minimum-depth bin covering a UTM position."""
     point = Point(float(east), float(north))
@@ -554,38 +530,6 @@ def _enc_depth_bin_at(enc: Any, *, east: float, north: float) -> float | None:
         if geometry is not None and not geometry.is_empty and geometry.covers(point):
             return float(depth)
     return None
-
-
-def render_enc(prepared: PreparedRun) -> Path:
-    """Render the exact ENC object used by the active simulation."""
-    enc = prepared.session.enc
-    width, height = enc.size
-    figure_width = 8.0
-    figure_height = max(3.0, figure_width * height / max(width, 1.0))
-    figure, axis = plt.subplots(figsize=(figure_width, figure_height), dpi=128)
-    axis.set_facecolor("#9fc7cf")
-    palette = {
-        0: "#8ebbc5",
-        1: "#99c5cb",
-        2: "#a6cfd2",
-        5: "#b6d9d7",
-        10: "#c6e0da",
-        20: "#d7e8df",
-    }
-    for depth in sorted(enc.seabed.keys(), reverse=True):
-        _draw_geometry(axis, enc.seabed[depth].geometry, palette.get(depth, "#dceae3"))
-    _draw_geometry(axis, enc.shore.geometry, "#9ca68a")
-    _draw_geometry(axis, enc.land.geometry, "#69745f")
-    e_min, n_min, e_max, n_max = enc.bbox
-    axis.set_xlim(e_min, e_max)
-    axis.set_ylim(n_min, n_max)
-    axis.set_aspect("equal", adjustable="box")
-    axis.axis("off")
-    figure.subplots_adjust(0, 0, 1, 1)
-    path = prepared.run_dir / "enc.png"
-    figure.savefig(path, transparent=False, pad_inches=0)
-    plt.close(figure)
-    return path
 
 
 class WebSessionManager:
@@ -714,36 +658,7 @@ class WebSessionManager:
         must never affect execution, and the context endpoint degrades to
         episode-derived facts for Runs without the file.
         """
-        try:
-            enc = prepared.session.enc
-            origin_e, origin_n = enc.origin
-            document = {
-                "schema_version": STATIC_CONTEXT_SCHEMA,
-                "scenario_id": prepared.spec.scenario_id,
-                "enc": {
-                    "origin_east_m": float(origin_e),
-                    "origin_north_m": float(origin_n),
-                    "width_m": float(enc.size[0]),
-                    "height_m": float(enc.size[1]),
-                    "utm_zone": int(enc.utm_zone),
-                },
-                "enc_navigation_area": jsonable(self.enc_navigation_area) or None,
-                "ships": [
-                    {
-                        "id": int(ship.id),
-                        "mmsi": int(ship.mmsi),
-                        "length_m": float(ship.length),
-                        "width_m": float(ship.width),
-                    }
-                    for ship in prepared.session.ship_list
-                ],
-            }
-            (prepared.run_dir / STATIC_CONTEXT_FILENAME).write_text(
-                json.dumps(document),
-                encoding="utf-8",
-            )
-        except (OSError, TypeError, ValueError, AttributeError):
-            log.exception("Could not persist static replay context for run %s", prepared.manifest.run_id)
+        persist_static_context(prepared, self.enc_navigation_area)
 
     def _capture_for(self, prepared: Any) -> TraceSink | None:
         """Tolerant capture lookup: result publication must never depend on it."""
@@ -759,17 +674,21 @@ class WebSessionManager:
             capture.append(snapshot)
 
     def replay_status_for(self, run_id: str | None) -> dict[str, Any] | None:
-        """Replay evidence state for one Run ID owned by this manager."""
-        with self.lock:
-            if run_id is None:
-                return None
-            finalize_error = self._capture_finalize_errors.get(run_id)
-            if finalize_error is not None:
-                return {"state": STATE_INCOMPLETE, "reason": finalize_error}
-            capture = self._trace_captures.get(run_id)
-            if capture is None:
-                return None
-            return {"state": capture.state, "reason": capture.reason, "frame_count": capture.tick_count}
+        """Read capture state without waiting for an unrelated active solver.
+
+        Capture references are published atomically in the registry, and each
+        TraceSink property owns its lock. The session lock must not couple
+        historical reads to the duration of the current simulation step.
+        """
+        if run_id is None:
+            return None
+        finalize_error = self._capture_finalize_errors.get(run_id)
+        if finalize_error is not None:
+            return {"state": STATE_INCOMPLETE, "reason": finalize_error}
+        capture = self._trace_captures.get(run_id)
+        if capture is None:
+            return None
+        return {"state": capture.state, "reason": capture.reason, "frame_count": capture.tick_count}
 
     def _active_replay_status(self) -> dict[str, Any]:
         status = self.replay_status_for(self.session_id)
@@ -1210,30 +1129,7 @@ class WebSessionManager:
             return jsonable(snapshot)
 
     def _enc_navigation_area(self) -> dict[str, Any]:
-        if not self.prepared or not self.prepared.session.ship_list:
-            return {}
-        session = self.prepared.session
-        enc = session.enc
-        origin_e, origin_n = enc.origin
-        draft = float(session.ship_list[0].draft)
-        minimum_depth = mapf.find_minimum_depth(draft, enc)
-        safe_water = mapf.extract_safe_sea_area(
-            minimum_depth,
-            mapf.bbox_to_polygon(enc.bbox),
-            enc,
-            show_plots=False,
-        )
-        return {
-            "schema_version": "1.0",
-            "coordinate_frame": "local_north_east_m",
-            "utm_zone": int(enc.utm_zone),
-            "vessel_draft_m": draft,
-            "minimum_depth_m": float(minimum_depth),
-            "safe_water": {
-                "type": "MultiPolygon",
-                "polygons": _local_polygon_coordinates(safe_water, float(origin_e), float(origin_n)),
-            },
-        }
+        return build_enc_navigation_area(self.prepared)
 
     def _require(self, session_id: str) -> PreparedRun:
         if not self.prepared or session_id != self.session_id:

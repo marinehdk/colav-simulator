@@ -554,8 +554,15 @@ def test_planner_envelope_speed_cap_follows_colleague_proposal_manifest(original
     transit_ceiling = ship.max_speed
     assert ship.avoidance_speed_cap == pytest.approx(frozen_cap)
     assert frozen_cap < transit_ceiling
-    # No proposal manifest (baseline build): capped envelope.
-    assert ship.planner_avoidance_speed_cap == pytest.approx(frozen_cap)
+    loaded_proposals = [
+        item.get("id") if isinstance(item, dict) else item
+        for item in ((ship._build_identity or {}).get("colleague_proposal") or {}).get("proposals") or []
+    ]
+    # The expected envelope follows the actual build under test: current keeps
+    # the cap, while proposal-full carries P-C1 and executes plain avoidance at
+    # the transit ceiling.
+    expected_loaded_cap = transit_ceiling if "P-C1" in loaded_proposals else frozen_cap
+    assert ship.planner_avoidance_speed_cap == pytest.approx(expected_loaded_cap)
     # P-C1 manifest (dict-form proposal rows, as the build manifest ships them).
     ship._build_identity = {**(ship._build_identity or {}), "colleague_proposal": {"proposals": [{"id": "P-C1"}]}}
     assert ship.planner_avoidance_speed_cap == pytest.approx(transit_ceiling)

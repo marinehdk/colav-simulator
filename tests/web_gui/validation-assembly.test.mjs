@@ -269,6 +269,7 @@ test('bootstrap without an active session uses complete catalog defaults', () =>
     episode_index: 0,
     dt: null,
     t_end: null,
+    solve_period_s: null,
     strict_no_fallback: true,
     evaluator_profile_id: 'ccta_2023_demo-v1',
     algorithm_config: {},
@@ -491,7 +492,7 @@ test('strict no-fallback is immutable through the public draft interface', () =>
   assert.equal(assembly.snapshot().draft.strict_no_fallback, true);
 });
 
-test('public edit accepts only tuple fields and four user-editable parameters', () => {
+test('public edit accepts only tuple fields and five user-editable parameters', () => {
   const assembly = createValidationAssembly({ catalog });
   for (const field of ['algorithm_config', 'tracker_config', 'scenario_override', 'evaluator_profile_id', 'strict_no_fallback']) {
     assert.throws(() => assembly.edit(field, {}), /not user-editable/i);
@@ -506,6 +507,7 @@ test('public edit accepts only tuple fields and four user-editable parameters', 
     ['episode_index', 1],
     ['dt', 0.2],
     ['t_end', 400],
+    ['solve_period_s', 5],
   ]) {
     assert.doesNotThrow(() => assembly.edit(field, value));
   }
@@ -568,6 +570,20 @@ test('snapshot exposes catalog-backed disabled options and scenario-default cloc
   snapshot = assembly.snapshot();
   assert.deepEqual(snapshot.executionPlan.dt, { source: 'explicit-override', requested: 0.5, effective: 0.5 });
   assert.deepEqual(snapshot.executionPlan.t_end, { source: 'explicit-override', requested: 120, effective: 120 });
+});
+
+test('solve period is an optional finite positive editable Run Specification field', () => {
+  const assembly = createValidationAssembly({ catalog });
+
+  assert.equal(assembly.edit('solve_period_s', 5), true);
+  assert.equal(assembly.snapshot().draft.solve_period_s, 5);
+  assert.equal(assembly.snapshot().validationErrors.solve_period_s, undefined);
+  assert.equal(assembly.beginCreate().spec.solve_period_s, 5);
+
+  const invalid = createValidationAssembly({ catalog });
+  invalid.edit('solve_period_s', 0);
+  assert.equal(invalid.snapshot().validationErrors.solve_period_s, 'solve_period_s must be null or greater than zero.');
+  assert.equal(invalid.snapshot().valid, false);
 });
 
 test('invalid editable params remain visible but cannot produce a create snapshot', () => {

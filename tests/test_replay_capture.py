@@ -13,6 +13,7 @@ import json
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,18 @@ from gui_server.main import WebSessionManager
 
 TICK_LIMIT = 400
 FINALIZE_TIMEOUT_S = 120.0
+
+
+def test_sealed_capture_status_does_not_wait_for_the_active_solver_lock(manager: Any, tmp_path: Path) -> None:
+    capture = TraceSink.open(tmp_path / "sealed", policy=TraceSinkPolicy(worker=False))
+    capture.close(events=[])
+    manager._trace_captures["sealed"] = capture
+    # The session lock is held for the duration of an active solver step.
+    # Inspecting a different sealed Run must remain independent of that step.
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with manager.lock:
+            future = executor.submit(manager.replay_status_for, "sealed")
+            assert future.result(timeout=0.5)["state"] == "READY"
 
 
 @dataclass
@@ -183,6 +196,26 @@ def test_sink_byte_budget_is_typed_incomplete(tmp_path: Path) -> None:
     assert index["truncated"] is True
     assert index["incomplete_reason"] == "TRACE_BUDGET_EXCEEDED"
     assert index["tick_count"] < 3
+
+
+def test_sink_event_journal_counts_against_same_capture_budget(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run-event-budget"
+    sink = TraceSink.open(
+        run_dir,
+        policy=TraceSinkPolicy(max_total_bytes=1024, worker=False, events_gzip=True),
+    )
+    sink.append(FakeSnapshot(sequence=1, sim_time=0.1, payload={"t": 1}))
+    sink.close(events=[{"type": "event", "details": {"blob": "x" * 2048}}])
+
+    assert sink.state == "INCOMPLETE"
+    assert sink.reason == "TRACE_BUDGET_EXCEEDED"
+    index = json.loads((run_dir / "decision" / "index.json").read_text(encoding="utf-8"))
+    assert index["truncated"] is True
+    assert index["incomplete_reason"] == "TRACE_BUDGET_EXCEEDED"
+    assert index["capture_bytes"] <= 1024
+    assert index["events_bytes"] > 0
+    assert index["events_persisted"] is False
+    assert not (run_dir / "decision" / "events.jsonl.gz").exists()
 
 
 def test_sink_index_seal_failure_is_typed_incomplete_and_never_raises(tmp_path: Path) -> None:

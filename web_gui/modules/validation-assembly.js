@@ -7,6 +7,7 @@ const CREATE_FIELDS = [
   'episode_index',
   'dt',
   't_end',
+  'solve_period_s',
   'strict_no_fallback',
   'evaluator_profile_id',
   'algorithm_config',
@@ -27,6 +28,7 @@ const EDITABLE_FIELDS = [
   'episode_index',
   'dt',
   't_end',
+  'solve_period_s',
   'gnc_stack_id',
 ];
 
@@ -191,6 +193,7 @@ function defaultSpec(catalog) {
     episode_index: 0,
     dt: null,
     t_end: null,
+    solve_period_s: null,
     strict_no_fallback: true,
     evaluator_profile_id: 'ccta_2023_demo-v1',
     algorithm_config: {},
@@ -211,6 +214,7 @@ function normalizeSpec(spec, catalog) {
     episode_index: 0,
     dt: null,
     t_end: null,
+    solve_period_s: null,
     strict_no_fallback: true,
     evaluator_profile_id: 'ccta_2023_demo-v1',
     algorithm_config: {},
@@ -317,6 +321,9 @@ function validationErrors(draft) {
   }
   if (draft?.t_end !== null && (!(draft.t_end > 0) || !Number.isFinite(draft.t_end))) {
     errors.t_end = 't_end must be null or greater than zero.';
+  }
+  if (draft?.solve_period_s !== null && (!(draft.solve_period_s > 0) || !Number.isFinite(draft.solve_period_s))) {
+    errors.solve_period_s = 'solve_period_s must be null or greater than zero.';
   }
   return errors;
 }
