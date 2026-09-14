@@ -17,6 +17,8 @@ return {{"has_nominal_route",node.has_nominal_route_}, {"active_avoidance",node.
         {"active_avoidance_plan_id",node.active_avoidance_plan_id_}, {"active_route_id",node.active_route_id_},
         {"active_command_source",node.active_command_source_}, {"generated_route_sequence",node.generated_route_sequence_},
         {"active_avoidance_until_ns",node.active_avoidance_until_.nanoseconds()},
+        {"active_velocity_intent",node.has_active_velocity_intent_},
+        {"velocity_expiry_reported",node.velocity_expiry_reported_},
         {"nominal_route_id",node.latest_nominal_route_.route_id},
         {"nominal_route_revision",node.latest_nominal_route_.route_revision}};
 """,
@@ -43,7 +45,14 @@ return {{"integrals", {node.integral_surge_,node.integral_sway_,node.integral_ya
     "ship_guidance_node": """
 return {{"integral_e",node.integral_e_}, {"previous_e",node.prev_e_}, {"previous_heading",node.psi_cmd_prev_},
         {"segment_index",node.current_wp_idx_}, {"dp_mode",node.dp_mode_active_},
-        {"final_dp_latched",node.final_dp_latched_}, {"last_time_ns",node.last_time_.nanoseconds()}};
+        {"final_dp_latched",node.final_dp_latched_}, {"last_time_ns",node.last_time_.nanoseconds()},
+        {"velocity_active",node.velocity_intent_active_},
+        {"velocity_hold_initialized",node.velocity_hold_initialized_},
+        {"velocity_last_publish_ns",node.velocity_last_publish_.nanoseconds()},
+        {"velocity_intent_id",node.velocity_intent_.intent_id},
+        {"velocity_mode",node.velocity_intent_.behavior_mode},
+        {"speed_policy", {{"ordinary_cap_mps",node.ordinary_avoidance_speed_cap()},
+                           {"emergency_cap_mps",node.emergency_avoidance_speed_cap()}}}};
 """,
     "thrust_allocation_node": """
 Json result = {{"previous_tau",std::vector<double>(node.tau_des_prev_.data(),node.tau_des_prev_.data()+3)},

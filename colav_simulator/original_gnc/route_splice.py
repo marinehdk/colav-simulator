@@ -406,6 +406,57 @@ def _trim_junctions_to_gate(
     return deviation, dev_speeds, j
 
 
+def build_forward_intent_route(
+    reference: ReferencePath,
+    position: np.ndarray,
+    deviation: np.ndarray,
+    deviation_speeds: list[float] | np.ndarray,
+    rejoin_reference: ReferencePath,
+    deviation_mode_policy: Callable[[int], list[str]],
+) -> dict:
+    """Submit the held course line ahead of the ship, then the mission tail.
+
+    A course/speed intent has no historical waypoint prefix. Copying the last
+    accepted splice into each new intent accumulates short zigzags which the
+    unchanged manager evaluates as route-global low-speed corners. Endpoints
+    describe the same straight intent exactly; the frozen first-change and
+    lateral gates still decide whether this forward route can be admitted.
+    """
+    indices = [0, deviation.shape[1] - 1]
+    # Preserve the existing entry-only mode transition for static-only intents.
+    # With only two endpoints that transition would move to the far endpoint.
+    if deviation.shape[1] > 2 and len(set(deviation_mode_policy(deviation.shape[1]))) > 1:
+        indices.insert(1, 1)
+    deviation = np.asarray(deviation, dtype=float)[:, indices]
+    nominal = rejoin_reference.points
+    k_rejoin = _first_margin_index(nominal, along_track_progress(position, nominal))
+    j = _rejoin_point_index(deviation, nominal, k_rejoin)
+    points = np.hstack((deviation, nominal[:, j:]))
+    gaps = np.linalg.norm(np.diff(points, axis=1), axis=0)
+    turns = [math.degrees(_turn_angle(points, i)) for i in range(1, points.shape[1] - 1)]
+    ahead = first_change_distance_ahead(points, reference.points, position)
+    lateral = max_lateral_delta(points, reference.points)
+    return {
+        "points": points,
+        "speeds": [*[float(deviation_speeds[i]) for i in indices], *rejoin_reference.speeds[j:]],
+        "modes": [*deviation_mode_policy(len(indices)), *rejoin_reference.modes[j:]],
+        "prefix_length": 0,
+        "rejoin_index": j,
+        "first_change_ahead_m": ahead,
+        "max_lateral_delta_m": lateral,
+        "min_interior_turn_deg": min(turns) if turns else 180.0,
+        "min_new_segment_m": float(gaps.min()),
+        "gate_clean": bool(
+            math.isfinite(ahead)
+            and ahead >= FIRST_CHANGE_GATE_M
+            and math.isfinite(lateral)
+            and lateral <= MAX_LATERAL_M
+            and not has_reverse_segment(points)
+            and float(gaps.min()) >= SEGMENT_FLOOR_M
+        ),
+    }
+
+
 def build_avoidance_route(
     reference: ReferencePath,
     position: np.ndarray,

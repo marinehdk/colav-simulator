@@ -1,0 +1,34 @@
+{
+  "schema": "original-gnc.response-approximation.v2",
+  "source_manifest_sha256": "bf5de3f2b5717b62bf2755aa71e261e0cc7b30c952ea89dd5e166f8aa6b16059",
+  "input_kind": "velocity_intent",
+  "course": {
+    "time_constant_s": 39.42557115667648,
+    "gain": 1.0,
+    "sample_count": 3600,
+    "trajectory_r_squared": 0.9743194279950651,
+    "trajectory_rmse_rad": 0.02144306031307854,
+    "method": "closed-loop first-order trajectory least squares: course' = remainder(heading_setpoint - course, 2*pi)/tau, exact zero-order-hold discretization, DC gain structurally 1"
+  },
+  "speed": {
+    "time_constant_s": 12.505448902388483,
+    "gain": 1.031806121317279,
+    "sample_count": 3400,
+    "active_window_s": 400.00000000000006,
+    "trajectory_r_squared": 0.9409880636415849,
+    "trajectory_rmse_mps": 0.44020551357019716,
+    "full_trace_r_squared": 0.9409880636415849,
+    "method": "closed-loop first-order trajectory least squares: speed' = (gain*speed_setpoint - speed)/tau, exact zero-order-hold discretization, active window = last nonzero command + 60 s settle"
+  },
+  "evidence": {
+    "library_sha256": "c5541abb4917bd94064c4b8a1944fc4c945fda16380ea43f5132cd54034388ce",
+    "rows_sha256": "b4f01dcbf8c9fe605cdd4cfe12f81b626daec45bbbad0a0e6957873ca3fcceff",
+    "cases": [
+      "plus10deg",
+      "minus10deg",
+      "speed4-8-3.2-8"
+    ]
+  },
+  "limits": "Measured velocity-input profile; no route-input qualification or general vessel certification.",
+  "qualification": "QUALIFIED_FIRST_ORDER_TRAJECTORY_APPROXIMATION"
+}

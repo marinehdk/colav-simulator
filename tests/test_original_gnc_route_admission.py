@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import math
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+from colav_simulator.core.colav.diagnostics import ColavExecutionError
 from colav_simulator.core.ship import Config, build_ship
 from colav_simulator.modular_gnc.contracts import ControlTask, TrackedRoute
 from colav_simulator.modular_gnc.route_bridge import RouteDecision
-from colav_simulator.original_gnc import plan_bridge as plan_bridge_module
 from colav_simulator.original_gnc.configuration import OriginalGncConfig
+from colav_simulator.original_gnc.native import OriginalGncError
 from colav_simulator.original_gnc.plan_bridge import OriginalPlanBridge
 
 
@@ -55,7 +55,11 @@ def _vo_intent(course_rad: float = 0.2, speed: float = 7.8, solve_period: float 
 
 
 def _mount(ship, data: dict) -> OriginalPlanBridge:
-    ship._legacy._colav = SimpleNamespace(get_route_authority=lambda: data)
+    ship._legacy._colav = SimpleNamespace(
+        get_route_authority=lambda: data,
+        get_colav_data=lambda: data,
+        get_diagnostics=lambda: SimpleNamespace(to_dict=lambda: {}),
+    )
     ship._planner_time_origin = 0
     bridge = OriginalPlanBridge(ship, 0.1)
     ship._plan_bridge = bridge
@@ -66,146 +70,84 @@ def _coordinate_feedback(bridge) -> dict:
     return next(f for f in bridge.last_outcome["feedback"] if f.get("topic") == "/route_planning/route_plan_status")
 
 
-def test_spliced_vo_intent_is_admitted_with_mixed_modes(original_ship):
+def test_vo_velocity_intent_is_admitted_without_a_synthetic_route(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
+    ship.forward(11)
     bridge = _mount(ship, _vo_intent())
     bridge.submit(11)
-    request = ship.requested_plans[-1]["message"]
-    modes = request["navigation_mode"]
-    assert modes[0] == "cruise" and modes[-1] == "dp_hold" and "avoidance" in modes
-    assert request["command_heading_deg"] == []
-    assert request["require_exact_speed"] is False
-    assert request["allow_degraded_execution"] is True
-    assert request["require_exact_heading"] is False
-    assert request["valid_until"] == {"sec": 2_000_000_016, "nanosec": 0}  # 11 s solve + max(1, 5) widening
-    coordinate = _coordinate_feedback(bridge)
-    assert coordinate["accepted"] is True
-    assert bridge.last_outcome["rejected"] is False
-    assert bridge.admission_metrics["submitted"] == 1
-    assert bridge.admission_metrics["rejected_addressable"] == 0
-    telemetry = ship.original_balance_telemetry()["route_admission"]
-    assert telemetry["status"] in {"Accepted", "Limited"}
+    row = ship.requested_plans[-1]
+    request = row["message"]
+    assert row["kind"] == "velocity_intent"
+    assert "latitude" not in request and "longitude" not in request
+    assert request["course_rad"] == 0.2 and request["speed_mps"] == 7.8
+    assert request["valid_until"] == {"sec": 2_000_000_012, "nanosec": 0}
+    assert bridge.last_outcome["accepted"] and not bridge.last_outcome["rejected"]
+    assert ship.stack.latest["/gnc/active_route"]["route_type"] == "nominal"
 
 
-def test_second_generation_stays_admitted_and_respects_first_change_gate(original_ship):
+def test_velocity_update_has_no_synthetic_route_distance_gate(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
+    ship.forward(11)
     data = _vo_intent()
     bridge = _mount(ship, data)
     bridge.submit(11)
-    ship.stack.advance(2.0)
-    ship._sync_state()
+    ship.forward(0.1)
     data["planner"]["selected_command"]["course_rad"] = 0.35
     data["planner"]["solve_id"] = 2
-    bridge.submit(13.1)
-    coordinate = _coordinate_feedback(bridge)
-    assert coordinate["accepted"] is True
-    ahead = coordinate.get("first_changed_distance_ahead_m")
-    assert ahead is not None and (not np.isfinite(ahead) or ahead >= 150.0)
-    assert bridge.admission_metrics["coordinate_accepted"] == 2
-    assert bridge.admission_metrics["rejected_addressable"] == 0
+    bridge.submit(11.1)
+    assert ship.requested_plans[-1]["message"]["course_rad"] == 0.35
+    assert bridge.admission_metrics["accepted"] == 2
+    assert bridge.admission_metrics["coordinate_accepted"] == 0
 
 
-def test_cadence_latch_suppresses_identical_submissions_until_timeout(original_ship):
+def test_held_velocity_does_not_extend_its_original_validity(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
+    ship.forward(11)
     data = _vo_intent(solve_period=12.0)
     bridge = _mount(ship, data)
     bridge.submit(11)
     count = len(ship.requested_plans)
     data["planner"]["solver_executed"] = False
-    ship.stack.advance(0.1)
-    ship._sync_state()
-    bridge.submit(11.1)
-    assert len(ship.requested_plans) == count  # same geometry/signature inside the 10 s window
-    ship.stack.advance(10.0)
-    ship._sync_state()
-    bridge.submit(21.2)
-    assert len(ship.requested_plans) == count + 1  # >=10 s resubmission refreshes manager validity
+    ship.forward(10.0)
+    bridge.submit(21.0)
+    assert len(ship.requested_plans) == count
     assert ship.requested_plans[-1]["message"]["valid_until"] == {"sec": 2_000_000_023, "nanosec": 0}
 
 
-def test_expired_held_intent_is_never_extended(original_ship):
+def test_expired_held_velocity_is_never_extended(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
+    ship.forward(11)
     data = _vo_intent()
     bridge = _mount(ship, data)
     bridge.submit(11)
     data["planner"]["solver_executed"] = False
-    ship.stack.advance(5.0)
-    ship._sync_state()
-    with pytest.raises(Exception, match="expired"):
-        bridge.submit(16.1)
+    ship.forward(2.0)
+    with pytest.raises(OriginalGncError, match="Expired"):
+        bridge.submit(13.0)
 
 
-def test_internal_return_rotates_reference_for_next_splice(original_ship):
+def test_clear_constraints_keep_velocity_authority(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
+    ship.forward(11)
     data = _vo_intent()
     bridge = _mount(ship, data)
     bridge.submit(11)
     data["planner"]["algorithm_details"].update(hard_constraint_count=0, active_rules={}, give_way_commitment_active=False)
-    ship.stack.advance(0.1)
-    ship._sync_state()
-    bridge.submit(11.2)  # publishes return_to_route; manager generates internal return; coordinate accepts it
-    assert ship.stack.states["active_route_manager_node"]["active_avoidance"] is False
-    data["planner"]["algorithm_details"].update(
-        hard_constraint_count=1, active_rules={"1": ["HO"]}, give_way_commitment_active=True
-    )
-    data["planner"]["solver_executed"] = True
-    data["planner"]["solve_id"] = 2
-    bridge.submit(11.3)
-    request = ship.requested_plans[-1]["message"]
-    internal = [
-        event["message"]["fields"]
-        for event in ship._events
-        if event.get("event") == "publish"
-        and event.get("topic") == "/gnc/active_route"
-        and event["message"]["fields"].get("route_type") == "internal_return_to_route"
-    ]
-    assert internal, "expected the manager's internal return route"
-    assert request["latitude"][:1] == internal[-1]["latitude"][:1]  # verbatim mirror prefix
-    assert "avoidance" in request["navigation_mode"]
-    coordinate = _coordinate_feedback(bridge)
-    assert coordinate["accepted"] is True
+    ship.forward(0.5)
+    bridge.submit(11.5)
+    assert ship.stack.states["active_route_manager_node"]["active_velocity_intent"]
+    assert ship.requested_plans[-1]["message"]["behavior_mode"] == "cruise"
 
 
-def test_unadmittable_splices_are_held_not_published(original_ship, monkeypatch):
-    """Splices that would fail the frozen gates are never published or latched."""
+def test_source_velocity_rejection_is_not_silently_treated_as_execution(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
-    data = _vo_intent()
-    bridge = _mount(ship, data)
-    real_build = plan_bridge_module.build_avoidance_route
-
-    def unadmittable_build(*args: object, **kwargs: object) -> dict:
-        return {**real_build(*args, **kwargs), "gate_clean": False}
-
-    monkeypatch.setattr(plan_bridge_module, "build_avoidance_route", unadmittable_build)
-    bridge.submit(11)  # first build unadmittable: nothing is published or latched
-    assert not [row for row in ship.requested_plans if row["kind"] == "avoidance"]
-    assert bridge.admission_metrics["submitted"] == 0
-
-    monkeypatch.setattr(plan_bridge_module, "build_avoidance_route", real_build)
-    bridge.submit(11)
-    held_id = ship.requested_plans[-1]["message"]["plan_id"]
-    assert _coordinate_feedback(bridge)["accepted"] is True
-
-    monkeypatch.setattr(plan_bridge_module, "build_avoidance_route", unadmittable_build)
-    data["planner"]["selected_command"]["course_rad"] = 0.5
-    data["planner"]["solve_id"] = 2
-    ship.stack.advance(0.1)
-    ship._sync_state()
-    bridge.submit(11.2)  # unadmittable rebuild: the held splice keeps flying
-    assert ship.requested_plans[-1]["message"]["plan_id"] == held_id
-    assert bridge.admission_metrics["rejected_addressable"] == 0
+    ship.forward(11)
+    bridge = _mount(ship, _vo_intent())
+    ship._nominal_revision += 1
+    with pytest.raises(ColavExecutionError, match="rejected"):
+        bridge.submit(11)
+    assert bridge.last_outcome["rejected"]
+    assert not ship.stack.states["active_route_manager_node"]["active_velocity_intent"]
 
 
 def _mid_planner_data(sequence: int, receipt_hash: str) -> dict:
@@ -361,142 +303,77 @@ def _avoidance_requests(ship) -> list[dict]:
     return [row for row in ship.requested_plans if row["kind"] == "avoidance"]
 
 
-def test_held_intent_sampling_noise_does_not_spawn_generations(original_ship):
-    """Held-tick course sampling differs from the solve by ULP-level wrap noise.
-
-    Exact-equality intent comparison declared a new intent every tick
-    (fan-HO-E4: 22 splice generations in 50 s, 49 in one cell). Held intents
-    must keep one geometry generation across wrap-stable sampling noise.
-    """
+def test_held_velocity_keeps_its_solve_identity(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
+    ship.forward(11)
     data = _vo_intent()
     bridge = _mount(ship, data)
     bridge.submit(11)
-    first = _avoidance_requests(ship)[-1]["message"]
-    data["planner"]["solver_executed"] = False  # held ticks: no fresh solve, validity untouched
-    for index, offset in enumerate((1e-9, -1e-9, 2 * math.pi - 1e-12)):
-        data["planner"]["selected_command"]["course_rad"] = 0.2 + offset
-        ship.stack.advance(0.1)
-        ship._sync_state()
-        bridge.submit(11.2 + index * 0.1)
-    assert bridge._candidate_generation == 1
-    assert bridge._intent_generation == 1
-    assert _avoidance_requests(ship)[-1]["message"]["plan_id"] == first["plan_id"] == "vo-held-intent-1"
-    assert len(_avoidance_requests(ship)) == 1
+    identifier = ship.requested_plans[-1]["message"]["intent_id"]
+    data["planner"]["solver_executed"] = False
+    data["planner"]["selected_command"]["course_rad"] += 1e-15
+    ship.forward(0.1)
+    bridge.submit(11.1)
+    assert ship.requested_plans[-1]["message"]["intent_id"] == identifier
+    assert ship.requested_plans[-1]["message"]["valid_until"] == {"sec": 2_000_000_012, "nanosec": 0}
 
 
-def test_speed_command_updates_reach_the_route_without_new_geometry(original_ship):
-    """Planner speed changes ride the latched splice; geometry generations do not.
-
-    With sampling noise eliminated, exact geometry rebuilds no longer carry
-    speed updates by accident: a held line with a new commanded speed must be
-    republished with the new deviation speeds under the same generation.
-    """
+def test_velocity_speed_update_reaches_native_guidance(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
+    ship.forward(11)
     data = _vo_intent()
     bridge = _mount(ship, data)
     bridge.submit(11)
-    data["planner"]["selected_command"]["speed_mps"] = 6.0
+    ship.forward(0.1)
+    data["planner"]["selected_command"]["speed_mps"] = 6.2
     data["planner"]["solve_id"] = 2
-    ship.stack.advance(0.1)
-    ship._sync_state()
-    bridge.submit(11.2)
-    request = _avoidance_requests(ship)[-1]["message"]
-    assert bridge._candidate_generation == 1
-    modes = request["navigation_mode"]
-    first_avoidance = modes.index("avoidance")
-    last_avoidance = len(modes) - 1 - modes[::-1].index("avoidance")
-    deviation_speeds = [round(value, 6) for value in request["command_speed_mps"][first_avoidance : last_avoidance + 1]]
-    assert set(deviation_speeds) == {6.0}
-    assert _coordinate_feedback(bridge)["accepted"] is True
+    bridge.submit(11.1)
+    ship.forward(0.5)
+    status = ship.stack.latest["/gnc/velocity_execution_status"]
+    assert status["requested_speed_mps"] == 6.2
+    assert 0 < status["applied_speed_mps"] <= 6.2
 
 
-def test_internal_return_reference_is_sanitized_and_recovery_is_admitted(original_ship):
-    """After an internal return, later intents must splice past the sub-floor leg.
-
-    vo-OT-E0 t=273: the manager's internal return route opened with a 5.5 m leg;
-    every later splice inherited it, gate_clean stayed False and every further
-    VO intent was dropped silently until the planner went infeasible.
-    """
+def test_velocity_can_resume_avoidance_without_switching_input_kind(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
+    ship.forward(11)
     data = _vo_intent()
     bridge = _mount(ship, data)
     bridge.submit(11)
     data["planner"]["algorithm_details"].update(hard_constraint_count=0, active_rules={}, give_way_commitment_active=False)
-    ship.stack.advance(0.1)
-    ship._sync_state()
-    bridge.submit(11.2)  # constraints clear: return_to_route; manager publishes its internal return
-    assert ship.stack.states["active_route_manager_node"]["active_avoidance"] is False
-    internal = [
-        event["message"]["fields"]
-        for event in ship._events
-        if event.get("event") == "publish"
-        and event.get("topic") == "/gnc/active_route"
-        and event["message"]["fields"].get("route_type") == "internal_return_to_route"
-    ]
-    assert internal
+    ship.forward(0.1)
+    bridge.submit(11.1)
     data["planner"]["algorithm_details"].update(
         hard_constraint_count=1, active_rules={"1": ["HO"]}, give_way_commitment_active=True
     )
-    data["planner"]["solver_executed"] = True
     data["planner"]["solve_id"] = 2
-    ship.stack.advance(0.1)
-    ship._sync_state()
-    bridge.submit(11.3)
-    request = _avoidance_requests(ship)[-1]["message"]
-    points = ship.frame.northeast(request["latitude"], request["longitude"])
-    gaps = np.linalg.norm(np.diff(points, axis=1), axis=0)
-    assert gaps.min() >= 30.0  # the 5.5 m internal-return head leg never reaches a submission
-    assert _coordinate_feedback(bridge)["accepted"] is True
-    assert bridge.admission_metrics["holds"] == 0
+    ship.forward(0.1)
+    bridge.submit(11.2)
+    assert bridge.last_outcome["accepted"]
+    assert ship.requested_plans[-1]["kind"] == "velocity_intent"
 
 
-def test_unadmittable_intents_are_telemetered_not_dropped_silently(original_ship, monkeypatch):
-    """Every held intent the bridge cannot admit leaves a hold record with a reason."""
+def test_invalid_velocity_cannot_reach_native_execution(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
+    ship.forward(11)
     data = _vo_intent()
+    data["planner"]["selected_command"]["speed_mps"] = float("nan")
     bridge = _mount(ship, data)
-    real_build = plan_bridge_module.build_avoidance_route
-
-    def unadmittable_build(*args: object, **kwargs: object) -> dict:
-        return {**real_build(*args, **kwargs), "gate_clean": False}
-
-    monkeypatch.setattr(plan_bridge_module, "build_avoidance_route", unadmittable_build)
-    bridge.submit(11)
-    assert not _avoidance_requests(ship)
-    assert bridge.admission_metrics["holds"] == 1
-    holds = [event for event in ship._events if event.get("event") == "bridge_hold"]
-    assert len(holds) == 1 and holds[0]["reason"]
+    before = len(ship.requested_plans)
+    with pytest.raises(OriginalGncError, match="finite"):
+        bridge.submit(11)
+    assert len(ship.requested_plans) == before
 
 
-def test_static_only_evidence_keeps_nominal_cruise_on_deviation_legs(original_ship):
-    """Static-hazard-only deviations tag only the entry leg avoidance.
-
-    vo-HO-E0 t=296-924: static hazard grid cells kept the deviation tagged
-    avoidance with no dynamic target risk, so the frozen 3.2 m/s guidance cap
-    applied for 600 s of pure transit and the goal was missed at the time limit.
-    """
+def test_static_only_velocity_uses_ordinary_mode(original_ship):
     ship = original_ship
-    ship.stack.advance(11)
-    ship._sync_state()
-    data = _vo_static_only_intent()
-    bridge = _mount(ship, data)
+    ship.forward(11)
+    bridge = _mount(ship, _vo_static_only_intent())
     bridge.submit(11)
-    request = _avoidance_requests(ship)[-1]["message"]
-    modes = request["navigation_mode"]
-    first_avoidance = modes.index("avoidance")
-    assert modes[0] == "cruise" and modes[-1] == "dp_hold"
-    assert modes.count("avoidance") == 1  # entry leg only: admission tier, no cap exposure
-    assert first_avoidance == bridge._candidate["prefix_length"]  # the tag is the deviation entry waypoint
-    assert _coordinate_feedback(bridge)["accepted"] is True
+    request = ship.requested_plans[-1]["message"]
+    assert request["behavior_mode"] == "avoidance"
+    assert "navigation_mode" not in request
+    assert bridge.last_outcome["accepted"]
 
 
 def _deviation_speeds(request: dict) -> list[float]:
@@ -507,71 +384,25 @@ def _deviation_speeds(request: dict) -> list[float]:
     return request["command_speed_mps"][first : last + 1]
 
 
-def test_published_deviation_speeds_equal_commanded_speed_above_the_guidance_cap(original_ship):
-    """(A) guard: the bridge publishes planner-commanded speeds on deviation legs.
-
-    Execution speed policy belongs to the loaded build's guidance (baseline
-    caps avoidance-tagged legs by navigation tag regardless of the published
-    route speeds; P-C1 caps only emergency_avoidance). The publish chain must
-    carry the commanded speed verbatim - no duplicate 3.2 m/s clamp and no
-    re-entry of manager-degraded or absorbed speeds - so planner intent stays
-    readable straight off the route contract.
-    """
+def test_explicit_emergency_velocity_preserves_the_emergency_policy(original_ship):
     ship = original_ship
-    commanded = round(ship.avoidance_speed_cap + 3.0, 3)  # cruise request above the frozen guidance cap
-    ship.stack.advance(11)
-    ship._sync_state()
-    data = _vo_intent(speed=commanded)
+    ship.forward(11)
+    data = _vo_intent(speed=3.2)
+    data["planner"]["algorithm_details"]["execution_mode"] = "emergency_avoidance"
     bridge = _mount(ship, data)
     bridge.submit(11)
-    request = _avoidance_requests(ship)[-1]["message"]
-    speeds = _deviation_speeds(request)
-    assert len(speeds) > 0
-    assert speeds == [pytest.approx(commanded)] * len(speeds)
-    assert _coordinate_feedback(bridge)["accepted"] is True
-    # Second generation spliced against the mirror of our own accepted plan:
-    # neither the guidance cap nor manager speed degradation may re-enter the
-    # published deviation speeds through the absorbed reference (R-B1).
-    data["planner"]["solve_id"] = 2
-    ship.stack.advance(2.0)
-    ship._sync_state()
-    bridge.submit(13.1)
-    speeds = _deviation_speeds(_avoidance_requests(ship)[-1]["message"])
-    assert speeds == [pytest.approx(commanded)] * len(speeds)
+    ship.forward(0.5)
+    assert ship.requested_plans[-1]["message"]["behavior_mode"] == "emergency_avoidance"
+    assert ship.stack.latest["/gnc/velocity_execution_status"]["mode_speed_cap_mps"] == 3.2
 
 
-def test_planner_envelope_speed_cap_follows_colleague_proposal_manifest(original_ship):
-    """(B) guard: the planner envelope follows the loaded build's speed policy.
-
-    Baseline builds keep the capped envelope (every avoidance leg executes at
-    the frozen guidance cap); P-C1 proposal builds widen the planner envelope
-    to the transit ceiling because plain avoidance legs execute uncapped. The
-    widening is only safe together with the VO's realized-TCPA window gate
-    (4a0208e2), which keeps encounter-phase speed rows conservative.
-    """
+def test_planner_envelope_speed_cap_comes_from_executing_source(original_ship):
     ship = original_ship
-    frozen_cap = float(ship._parameters["ship_guidance_node"]["emergency_avoidance_speed_cap_mps"]["value"])
-    transit_ceiling = ship.max_speed
-    assert ship.avoidance_speed_cap == pytest.approx(frozen_cap)
-    assert frozen_cap < transit_ceiling
-    loaded_proposals = [
-        item.get("id") if isinstance(item, dict) else item
-        for item in ((ship._build_identity or {}).get("colleague_proposal") or {}).get("proposals") or []
-    ]
-    # The expected envelope follows the actual build under test: current keeps
-    # the cap, while proposal-full carries P-C1 and executes plain avoidance at
-    # the transit ceiling.
-    expected_loaded_cap = transit_ceiling if "P-C1" in loaded_proposals else frozen_cap
-    assert ship.planner_avoidance_speed_cap == pytest.approx(expected_loaded_cap)
-    # P-C1 manifest (dict-form proposal rows, as the build manifest ships them).
-    ship._build_identity = {**(ship._build_identity or {}), "colleague_proposal": {"proposals": [{"id": "P-C1"}]}}
-    assert ship.planner_avoidance_speed_cap == pytest.approx(transit_ceiling)
-    # Other proposal ids must not widen the envelope.
-    ship._build_identity = {**(ship._build_identity or {}), "colleague_proposal": {"proposals": [{"id": "P-C2"}]}}
-    assert ship.planner_avoidance_speed_cap == pytest.approx(frozen_cap)
-    # Plain-string proposal rows stay readable.
-    ship._build_identity = {**(ship._build_identity or {}), "colleague_proposal": {"proposals": ["P-C1"]}}
-    assert ship.planner_avoidance_speed_cap == pytest.approx(transit_ceiling)
-    # Missing identity degrades to the capped envelope instead of raising.
-    ship._build_identity = None
-    assert ship.planner_avoidance_speed_cap == pytest.approx(frozen_cap)
+    native = ship.stack.states["ship_guidance_node"]["speed_policy"]
+    assert ship.planner_avoidance_speed_cap == native["ordinary_cap_mps"]
+    assert ship.execution_speed_policy["emergency_cap_mps"] == native["emergency_cap_mps"]
+    assert native["emergency_cap_mps"] < native["ordinary_cap_mps"]
+    # Diagnostic manifest annotations must not grant execution authority.
+    for proposals in ([{"id": "P-C1"}], [{"id": "P-C2"}], []):
+        ship._build_identity["colleague_proposal"] = {"proposals": proposals}
+        assert ship.planner_avoidance_speed_cap == native["ordinary_cap_mps"]

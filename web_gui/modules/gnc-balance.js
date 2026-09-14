@@ -19,6 +19,18 @@ let pending = null;
 let awaitingComponents = false;
 let lastRenderKey = null;
 
+export function speedContractRows(contract) {
+  return [
+    ['Mission SOG', 'mission_speed_mps'], ['Planner SOG', 'planner_speed_mps'],
+    [contract?.input_kind === 'velocity_intent' ? 'Admitted SOG' : 'Route limit', 'admitted_speed_mps'], ['GNC surge', 'guidance_surge_mps'],
+    ['Actual SOG', 'actual_speed_mps'],
+  ].map(([label, key]) => ({
+    label,
+    value: finite(contract?.[key])
+      ? `${number(contract[key], 2)} m/s · ${number(contract[key] * KNOTS_PER_MPS)} kn` : '—',
+  }));
+}
+
 export function thrustPercent(actual, minForce, maxForce) {
   if (!finite(actual)) return null;
   const capacity = actual < 0 ? Math.abs(minForce) : maxForce;
@@ -223,18 +235,39 @@ export function renderBalance(envelope) {
     return;
   }
   const balance = envelope.gnc_balance;
-  const admission = document.getElementById('originalRouteAdmission');
-  if (admission) {
-    admission.hidden = balance?.backend_kind !== 'original_gnc';
-    text('originalRouteAdmissionStatus', balance?.route_admission?.status || 'Awaiting feedback');
-    text('originalRouteAdmissionReason', balance?.route_admission?.reason || '');
-  }
   const key = `${envelope.session_id ?? envelope.run_id ?? ''}:${balance?.config_hash ?? ''}`;
   const renderKey = `${key}:${balance?.tick ?? 'none'}:${envelope.state ?? ''}`;
   // Buffered map animation repeats an authoritative physics tick; keep instrument
   // updates at telemetry cadence instead of rebuilding Lit readouts every frame.
   if (renderKey === lastRenderKey) return;
   lastRenderKey = renderKey;
+
+  const admission = document.getElementById('originalRouteAdmission');
+  if (admission) {
+    admission.hidden = balance?.backend_kind !== 'original_gnc';
+    text('originalRouteAdmissionStatus', balance?.route_admission?.status || 'Awaiting feedback');
+    text('originalRouteAdmissionReason', balance?.route_admission?.reason || '');
+    const speed = balance?.speed_contract;
+    text('gncSpeedMode', speed ? `${speed.input_kind === 'velocity_intent' ? 'Velocity intent' : 'Route tracking'} · ${speed.mode || 'Awaiting mode'} · ${speed.state || ''}` : 'Speed execution evidence unavailable');
+    text('gncSpeedPolicy', speed?.policy ? `Ceilings: ordinary ${number(speed.policy.ordinary_cap_mps, 2)} m/s · emergency ${number(speed.policy.emergency_cap_mps, 2)} m/s` : 'Execution ceilings unavailable');
+    const speedRows = document.getElementById('gncSpeedContractRows');
+    if (speedRows) {
+      speedRows.replaceChildren();
+      for (const row of speedContractRows(speed)) {
+        const line = document.createElement('div');
+        line.className = 'balance-limit';
+        const label = document.createElement('span');
+        label.textContent = row.label;
+        const value = document.createElement('strong');
+        value.textContent = row.value;
+        line.append(label, value);
+        speedRows.append(line);
+      }
+    }
+    const reasons = speed?.limiting_reasons || [];
+    text('gncSpeedLimitReasons', reasons.length ? `Limits: ${reasons.join(', ')}` : speed ? 'No reported active limit' : '');
+    text('gncSpeedSampleTime', finite(speed?.guidance_sample_time_s) ? `GNC sample T=${number(speed.guidance_sample_time_s, 2)} s · current T=${number(speed.sample_time_s, 2)} s` : 'Awaiting first GNC speed setpoint');
+  }
   if (key !== sessionKey) {
     sessionKey = key;
     rollPeak = null;

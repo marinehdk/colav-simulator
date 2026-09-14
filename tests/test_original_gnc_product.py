@@ -17,6 +17,7 @@ from colav_simulator.original_gnc.configuration import ORIGINAL_OFF, ORIGINAL_ON
 from colav_simulator.original_gnc.native import OriginalGncError
 from colav_simulator.original_gnc.plan_bridge import OriginalPlanBridge
 from colav_simulator.original_gnc.stack import NativeStack
+from gui_server.gnc_balance import balance_telemetry
 
 
 @pytest.fixture
@@ -46,6 +47,18 @@ def test_original_catalog_does_not_change_existing_full_bindings():
     assert hashes[full["variants"]["on"]] == "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a"
     assert {entry["stack_id"] for entry in catalog["original_gnc_stacks"]} == {ORIGINAL_OFF, ORIGINAL_ON}
     assert all("modules" not in entry["config"] for entry in catalog["original_gnc_stacks"])
+
+
+def test_balance_uses_recorded_frame_after_native_stack_advances(original_ship):
+    original_ship.forward(0.5)
+    frame = {"Ship0": original_ship.get_sim_data(0.5, 0)}
+    session = SimpleNamespace(ship_list=[original_ship])
+    before = balance_telemetry(session, frame=frame)
+    original_ship.forward(0.5)
+    after = balance_telemetry(session, frame=frame)
+    assert before == after
+    assert after["speed_contract"]["sample_time_s"] == 0.5
+    assert balance_telemetry(session)["speed_contract"]["sample_time_s"] == 1.0
 
 
 def test_source_dependency_failure_does_not_select_full(tmp_path, monkeypatch):
@@ -80,7 +93,7 @@ def test_original_catalog_reports_loaded_build_identity():
         )
         assert "Baseline fidelity evidence does not automatically cover this candidate" in preset["note"]
     else:
-        assert preset["description"] == "Frozen colleague GNC · independent local C++ backend"
+        assert preset["description"] == "Authoritative GNC · ordinary/emergency speed policy · independent C++ backend"
     assert "Original GNC acceptance remains diagnostic" in preset["note"]
 
 
@@ -171,51 +184,48 @@ def _intent() -> Any:
     }
 
 
-def test_approved_held_intent_becomes_admitted_original_route(original_ship):
-    original_ship.stack.advance(11)
-    original_ship._sync_state()
-    original_ship._planner_time_origin = 0
+def test_approved_velocity_intent_is_admitted_and_expires(original_ship):
+    ship = original_ship
+    ship.forward(11)
+    ship._planner_time_origin = 0
     data = _intent()
-    original_ship._legacy._colav = SimpleNamespace(get_route_authority=lambda: data)
-    bridge = OriginalPlanBridge(original_ship, 0.1)
-    bridge.submit(11)
-    request = original_ship.requested_plans[-1]
-    assert request["identity"]["authority"] == "held_course_speed_intent"
-    assert request["message"]["command_speed_mps"][0] == pytest.approx(7.8)
-    assert request["message"]["valid_until"] == {"sec": 2_000_000_016, "nanosec": 0}  # solve 11 s + max(1, 5) widening
-    assert request["message"]["require_exact_speed"] is False
-    assert request["message"]["allow_degraded_execution"] is True
-    assert "avoidance" in request["message"]["navigation_mode"]
-    original_ship._plan_bridge = bridge
-    coordinate = next(
-        f for f in bridge.last_outcome["feedback"] if f.get("topic") == "/route_planning/route_plan_status"
+    ship._legacy._colav = SimpleNamespace(
+        get_route_authority=lambda: data,
+        get_colav_data=lambda: data,
+        get_diagnostics=lambda: SimpleNamespace(to_dict=lambda: {}),
     )
-    assert coordinate["accepted"] is True
-    assert bridge.last_outcome["rejected"] is False
-    admission = original_ship.original_balance_telemetry()["route_admission"]
-    assert admission["status"] in {"Accepted", "Limited"}
-    count = len(original_ship.requested_plans)
+    bridge = OriginalPlanBridge(ship, 0.1)
+    ship._plan_bridge = bridge
+    bridge.submit(11)
+    request = ship.requested_plans[-1]
+    assert request["identity"]["authority"] == "velocity_intent"
+    assert request["message"]["speed_mps"] == pytest.approx(7.8)
+    assert request["message"]["valid_until"] == {"sec": 2_000_000_012, "nanosec": 0}
+    assert "latitude" not in request["message"]
+    assert bridge.last_outcome["accepted"] and not bridge.last_outcome["rejected"]
+    doc = ship.original_balance_telemetry()
+    assert doc["speed_contract"]["input_kind"] == "velocity_intent"
+    count = len(ship.requested_plans)
     data["planner"]["solver_executed"] = False
-    original_ship.stack.advance(0.1)
-    original_ship._sync_state()
+    ship.forward(0.1)
     bridge.submit(11.1)
-    assert len(original_ship.requested_plans) == count
-    assert original_ship.requested_plans[-1] == request
-    original_ship.stack.advance(5.0)
-    original_ship._sync_state()
-    with pytest.raises(OriginalGncError, match="expired"):
-        bridge.submit(16.1)
+    assert len(ship.requested_plans) == count
+    ship.forward(2.0)
+    with pytest.raises(OriginalGncError, match="Expired"):
+        bridge.submit(13.1)
 
 
-def test_cleared_constraints_return_original_nominal_authority(original_ship):
-    original_ship.stack.advance(11)
-    original_ship._sync_state()
-    original_ship._planner_time_origin = 0
+def test_cleared_constraints_keep_the_planner_velocity_owner(original_ship):
+    ship = original_ship
+    ship.forward(11)
+    ship._planner_time_origin = 0
     data = _intent()
-    original_ship._legacy._colav = SimpleNamespace(get_route_authority=lambda: data)
-    bridge = OriginalPlanBridge(original_ship, 0.1)
+    ship._legacy._colav = SimpleNamespace(get_route_authority=lambda: data)
+    bridge = OriginalPlanBridge(ship, 0.1)
     bridge.submit(11)
     data["planner"]["algorithm_details"].update(hard_constraint_count=0, active_rules={}, give_way_commitment_active=False)
-    bridge.submit(11)
-    assert original_ship.stack.states["active_route_manager_node"]["active_avoidance"] is False
-    assert original_ship.requested_plans[-1]["message"]["behavior_mode"] == "return_to_route"
+    data["planner"]["solve_id"] = 2
+    ship.forward(0.1)
+    bridge.submit(11.1)
+    assert ship.stack.states["active_route_manager_node"]["active_velocity_intent"]
+    assert ship.requested_plans[-1]["message"]["behavior_mode"] == "cruise"

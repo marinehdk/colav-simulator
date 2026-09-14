@@ -1,3 +1,11 @@
+# Authoritative GNC 2026-09-14：开发集成
+
+当前维护源为`/Users/marine/Code/GNC`，VO与Fan使用原生航迹向/SOG意图，Mid使用原生航线。普通/紧急模式已在权威源中分开，不能再宣称行为等同未修改的2026-08-24快照。集成工作树默认`build/original_gnc-current`指向v5开发构建；8010仍使用原冻结基线。
+
+重建使用下方相同build_native命令，但source改为权威仓库，output选择新目录。当前源清单bf5de3f2b5717b62bf2755aa71e261e0cc7b30c952ea89dd5e166f8aa6b16059。验收状态和证据见[修订报告](../../docs/research/2026-09-14-gnc-authority-progress.md)。尚未完整避碰验收，不作产品发布。
+
+以下保留旧冻结版本构建和保真记录；其哈希、结论只属于旧版本，不能覆盖当前修订。
+
 # Original GNC 2026-08-24 本地后端
 
 从固定的 `L4-5_source_only_20260824_v2` 快照校验并提取原 C++ 业务类。`native_context.hpp` 提供显式时钟、参数、类型化发布队列；本地库不链接 ROS2。四个原 Python 策略/观察模块在构建时提取为普通 Python 类。

@@ -66,3 +66,16 @@ test('environment dials use To bearings consistently, converting wind From by 18
   assert.equal(environmentDirectionTo('wind', { wind_from_deg: 180 }), 0);
   assert.equal(environmentDirectionTo('wind', {}), null);
 });
+
+test('speed contract keeps missing, zero and different execution stages distinct', async () => {
+  const { speedContractRows } = await import('../../web_gui/modules/gnc-balance.js');
+  const missing = speedContractRows(null);
+  assert.equal(missing.length, 5);
+  assert.ok(missing.every(row => row.value === '—'));
+  const rows = speedContractRows({ input_kind: 'velocity_intent', mission_speed_mps: 8,
+    planner_speed_mps: 8, admitted_speed_mps: 8, guidance_surge_mps: 3.2, actual_speed_mps: 0 });
+  assert.equal(rows[2].label, 'Admitted SOG');
+  assert.match(rows[1].value, /^8\.00 m\/s/);
+  assert.match(rows[3].value, /^3\.20 m\/s/);
+  assert.match(rows[4].value, /^0\.00 m\/s/);
+});

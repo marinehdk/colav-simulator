@@ -432,10 +432,15 @@
 
           <!-- Page 3: PROPULSION -->
           <div class="ownship-info-page ownship-propulsion-page" id="ownshipPropulsionPage" data-ownship-card-page="3" aria-label="GNC propulsion instruments" hidden>
-            <section class="config-obc-card balance-card" id="originalRouteAdmission" aria-label="Last original GNC route request" hidden>
-              <div class="live-detail-title"><strong>LAST ROUTE REQUEST</strong></div>
+            <section class="config-obc-card balance-card" id="originalRouteAdmission" aria-label="GNC request and speed execution" hidden>
+              <div class="live-detail-title"><strong>GNC EXECUTION</strong></div>
               <p class="balance-note"><strong id="originalRouteAdmissionStatus"></strong></p>
               <p class="balance-note" id="originalRouteAdmissionReason"></p>
+              <p class="balance-note" id="gncSpeedMode"></p>
+              <p class="balance-note" id="gncSpeedPolicy"></p>
+              <div id="gncSpeedContractRows"></div>
+              <p class="balance-note" id="gncSpeedLimitReasons"></p>
+              <p class="balance-note" id="gncSpeedSampleTime"></p>
             </section>
             <section class="config-obc-card balance-card" aria-label="Propulsion">
               <div class="live-detail-title"><strong>PROPULSION</strong></div>

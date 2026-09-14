@@ -76,7 +76,7 @@ def original_catalog() -> tuple[list[dict], dict]:
     except (OSError, ValueError, KeyError, RuntimeError) as error:
         available = False
         reason = str(error)
-    preset_description = "Frozen colleague GNC · independent local C++ backend"
+    preset_description = "Authoritative GNC · ordinary/emergency speed policy · independent C++ backend"
     if build_identity and build_identity["execution_lane"] == "candidate":
         preset_description = (
             "Original GNC candidate · "
@@ -101,7 +101,7 @@ def original_catalog() -> tuple[list[dict], dict]:
                 "schema_version": 1,
                 "backend_kind": "original_gnc",
                 "stack_id": selection.stack_id,
-                "display_name": "Original GNC 2026-08-24" + (" · environment ON" if enabled else " · environment OFF"),
+                "display_name": "Authoritative GNC 2026-09-14" + (" · environment ON" if enabled else " · environment OFF"),
                 "config_hash": hashlib.sha256(
                     json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
                 ).hexdigest(),
@@ -133,22 +133,23 @@ def original_catalog() -> tuple[list[dict], dict]:
         )
     preset = {
         "id": "original_gnc",
-        "display_name": "Original GNC · 2026-08-24",
+        "display_name": "Authoritative GNC · 2026-09-14",
         "description": preset_description,
-        "input": "Original route / avoidance contract",
+        "input": "Velocity intent (VO/Fan) / path (Mid)",
         "available": available,
         "unavailable_reason": reason,
         "variants": {"off": entries[0]["stack_id"], "on": entries[1]["stack_id"]},
         "environment_description": ENVIRONMENT_DESCRIPTION,
         "note": (
-            "Original guards and PGD degradation retained. Ordinary route updates require 500 m lookahead; "
-            "short avoidance intents can be rejected. Source equivalence and scenario safety are separate results. "
+            "VO/Fan velocity intents require a valid parent route, mode and unexpired lease. "
+            "Mid path updates retain original route guards, including 500 m ordinary lookahead. "
+            "PGD degradation retained. Source equivalence and scenario safety are separate results. "
             + _build_note(build_identity)
         ),
         "build_identity": build_identity,
         "fields": {
             "Plant": "Original 4DOF · 44.1 × 8 × 2 m",
-            "Guidance": "Original ILOS/ALOS · route guards · terminal DP",
+            "Guidance": "Velocity/course tracking · ILOS/ALOS routes · terminal DP",
             "Controller": "Original PID/SMC and source mode logic",
             "Actuation": "Original PGD · actuator dynamics and limits",
         },

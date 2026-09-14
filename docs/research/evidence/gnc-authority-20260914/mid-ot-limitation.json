@@ -1,0 +1,66 @@
+{
+  "execution_status": {
+    "accepted": true,
+    "active_route_id": "mid-mpc-d67c4ea58c0a10f868d4cc7a",
+    "active_route_revision": 1,
+    "applied_heading_deg": {
+      "$nonfinite": "nan"
+    },
+    "applied_speed_mps": 0.7018409587456048,
+    "available_decel_distance_m": 47.29130309599679,
+    "command_source": "mid_mpc_ipopt",
+    "cross_track_error_m": 7.3429030976213365,
+    "current_course_deg": 56.644081363726514,
+    "current_heading_deg": 21.568657893815043,
+    "current_latitude": 58.00125113709915,
+    "current_longitude": 6.003195283015723,
+    "current_navigation_mode": "avoidance",
+    "current_segment_index": 2,
+    "current_speed_limit_mps": 0.7018409587456048,
+    "current_speed_mps": 1.886416990358538,
+    "current_target_waypoint_index": 3,
+    "degraded": true,
+    "estimated_available_turn_radius_m": 33.510437354615405,
+    "executing": true,
+    "execution_state": "EXECUTING",
+    "header": {
+      "frame_id": "map",
+      "stamp": {
+        "nanosec": 500000000,
+        "sec": 2000000054
+      }
+    },
+    "plan_id": "mid-mpc-d67c4ea58c0a10f868d4cc7a",
+    "reason": "route geometry and metadata are identical to the active route",
+    "rejected": false,
+    "requested_heading_deg": {
+      "$nonfinite": "nan"
+    },
+    "requested_speed_mps": 8.0,
+    "required_decel_distance_m": 399.999992,
+    "required_turn_radius_m": 381.9718596008302,
+    "stage_snapshot_valid": true,
+    "suggested_action": "none",
+    "suggested_max_speed_mps": 0.7018409587456048,
+    "suggested_min_distance_m": 0.0
+  },
+  "guidance": {
+    "dp_mode": false,
+    "final_dp_latched": false,
+    "integral_e": 0.0,
+    "last_time_ns": 2000000055000000000,
+    "previous_e": 0.0,
+    "previous_heading": -0.8872778726964945,
+    "segment_index": 1,
+    "speed_policy": {
+      "emergency_cap_mps": 3.2,
+      "ordinary_cap_mps": 8.0
+    },
+    "velocity_active": false,
+    "velocity_hold_initialized": false,
+    "velocity_intent_id": "",
+    "velocity_last_publish_ns": 0,
+    "velocity_mode": ""
+  },
+  "termination": "Mid-MPC L4 plan acceptance rejected the candidate: QUALITY_CPA_RELEASE"
+}

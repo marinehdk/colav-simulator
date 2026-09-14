@@ -153,7 +153,7 @@ def fit_course_trajectory(cases: list[tuple[np.ndarray, np.ndarray, np.ndarray]]
     }
 
 
-def fit_speed_trajectory(rows: list, median_dt: float) -> dict:
+def fit_speed_trajectory(rows: list, median_dt: float, *, speed_key: str = "surge_speed_mps") -> dict:
     """Closed-loop first-order speed fit on the active maneuvering window.
 
     The static thrust map is not exactly unity, so the DC gain is identified.
@@ -162,11 +162,11 @@ def fit_speed_trajectory(rows: list, median_dt: float) -> dict:
     """
     t = _series(rows, "time_s")
     cmd = _series(rows, "speed_setpoint_mps")
-    speed = _series(rows, "surge_speed_mps")
+    speed = _series(rows, speed_key)
     nonzero = np.nonzero(cmd > 1e-12)[0]
     active_limit = t[nonzero[-1]] + SETTLE_AFTER_LAST_COMMAND_S
     active = t <= active_limit
-    ta, cmd_a, speed_a, dt_a = t[active], cmd[active], speed[active], np.diff(t[active], prepend=t[0])
+    cmd_a, speed_a, dt_a = cmd[active], speed[active], np.diff(t[active], prepend=t[0])
     dt_a[0] = median_dt
 
     def predict(params: np.ndarray) -> np.ndarray:

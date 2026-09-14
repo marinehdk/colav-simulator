@@ -1,0 +1,65 @@
+[
+  {
+    "case": "vo-head_on-E0",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/matrix-v5/vo-head_on-E0/484b33f7-ac85-42e7-b731-c47e2adb85f3",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": false,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 217.07096490316485
+  },
+  {
+    "case": "potocnik_colreg_fan_mpc-head_on-E0",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/matrix-v5/potocnik_colreg_fan_mpc-head_on-E0/d34fb03e-7bcb-463c-9a49-30457a0063d9",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": true,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 259.75987130742277
+  },
+  {
+    "case": "vo-crossing_give_way-E0",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/matrix-v5/vo-crossing_give_way-E0/11979963-ac57-47da-bb11-77a2c1f5475f",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": true,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 223.15702071138685
+  },
+  {
+    "case": "potocnik_colreg_fan_mpc-crossing_give_way-E0",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/matrix-v5/potocnik_colreg_fan_mpc-crossing_give_way-E0/b36e67fa-ec28-4cf7-9265-9b0030df3187",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": true,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 288.02157155094045
+  },
+  {
+    "case": "vo-overtaking-E4",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/matrix-v5/vo-overtaking-E4/4c715ec6-d5ef-459b-a1d0-63fe03a8b90b",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": true,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 327.8812405397268
+  },
+  {
+    "case": "potocnik_colreg_fan_mpc-overtaking-E4",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/matrix-v5/potocnik_colreg_fan_mpc-overtaking-E4/dc7ecdc8-0f5c-44a7-b73d-53b7d7733fe5",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": true,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 259.25171378653044
+  },
+  {
+    "case": "mid_mpc_ipopt-crossing_give_way-E0",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/matrix-v5/mid_mpc_ipopt-crossing_give_way-E0/976b6106-0366-40f5-ad31-50735f441aea",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": false,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 785.3268119853273
+  }
+]

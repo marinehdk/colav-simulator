@@ -518,11 +518,16 @@ class VO:
         os_max_turn_rate_radps: float | None = None,
         os_avoidance_speed_cap_mps: float | None = None,
         os_min_steerage_speed_mps: float | None = None,
+        os_execution_speed_policy: dict | None = None,
     ) -> np.ndarray:
-        if self._initialized and t - self._t_prev < 1.0 / self._params.planning_frequency:
+        policy = self._validate_execution_speed_policy(os_execution_speed_policy)
+        policy_changed = policy != getattr(self, "_execution_speed_policy", None)
+        self._execution_speed_policy = policy
+        if not policy_changed and self._initialized and t - self._t_prev < 1.0 / self._params.planning_frequency:
             self._plan_executed = False
             return self._references
 
+        self._execution_mode = None
         self._initialized = True
         self._t_prev = t
         self._plan_executed = True
@@ -817,11 +822,50 @@ class VO:
 
         self._update_avoidance_speed_window(float(np.linalg.norm(v_ref)))
         self._apply_give_way_commitment(candidate_velocities, psi_os)
+        self._apply_execution_speed_policy()
         heading, speed = self._compute_optimal_controls(np.asarray(v_ref, dtype=float), psi_os)
         self._references.fill(0.0)
         self._references[2, 0] = heading
         self._references[3, 0] = speed
         return self._references
+
+    @staticmethod
+    def _validate_execution_speed_policy(policy: dict | None) -> dict | None:
+        if policy is None:
+            return None
+        if not isinstance(policy, dict):
+            raise ValueError("Invalid execution speed policy")
+        keys = ("cruise_cap_mps", "ordinary_cap_mps", "emergency_cap_mps")
+        if any(
+            isinstance(policy.get(key), bool)
+            or not isinstance(policy.get(key), (int, float))
+            or not np.isfinite(policy[key])
+            or policy[key] <= 0
+            for key in keys
+        ):
+            raise ValueError("Invalid execution speed policy ceilings")
+        if not policy["emergency_cap_mps"] <= policy["ordinary_cap_mps"] <= policy["cruise_cap_mps"]:
+            raise ValueError("Inconsistent execution speed policy ceilings")
+        return dict(policy)
+
+    def _apply_execution_speed_policy(self) -> None:
+        """Hard execution authority cannot be reopened by a TCPA comfort gate."""
+        policy = getattr(self, "_execution_speed_policy", None)
+        if policy is None:
+            return
+        emergency = self._emergency_rule_relaxation or any(
+            bool(row.get("stand_on_emergency")) for row in self._track_metrics.values()
+        )
+        avoidance = (
+            np.any(self._hard_constraint_mask)
+            or any(self._active_rules.values())
+            or self._give_way_rule_locks
+            or self._stand_on_hold_active
+            or self._static_hazard_count
+        )
+        self._execution_mode = "emergency_avoidance" if emergency else "avoidance" if avoidance else "cruise"
+        key = "emergency_cap_mps" if emergency else "ordinary_cap_mps" if avoidance else "cruise_cap_mps"
+        self._envelope_mask |= (self._speed_set > policy[key] + 1e-9)[:, None]
 
     def _configure_envelope(
         self,
@@ -2312,6 +2356,8 @@ class VO:
             "reference_velocity_ne_mps": self._reference_velocity.tolist(),
             "planning_horizon_s": self._horizon_s,
             "ownship_envelope": asdict(self._envelope) if self._envelope is not None else None,
+            "execution_speed_policy": getattr(self, "_execution_speed_policy", None),
+            "execution_mode": getattr(self, "_execution_mode", None),
             "avoidance_speed_window_active": self._avoidance_speed_window_active,
             "transit_gate_open": self._transit_gate_open,
             "avoidance_speed_window_rows": (

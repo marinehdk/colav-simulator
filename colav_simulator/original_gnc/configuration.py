@@ -15,8 +15,8 @@ import yaml
 from colav_simulator.original_gnc.native import APPROVED_SOURCE_MANIFEST_SHA256, OriginalGncError
 
 SOURCE_MANIFEST_SHA256 = APPROVED_SOURCE_MANIFEST_SHA256
-ORIGINAL_OFF = "original-gnc-20260824-v2-env-off"
-ORIGINAL_ON = "original-gnc-20260824-v2-env-on"
+ORIGINAL_OFF = "original-gnc-20260914-v1-env-off"
+ORIGINAL_ON = "original-gnc-20260914-v1-env-on"
 BASELINE = Path(__file__).with_name("data") / "baseline.json"
 
 
@@ -40,7 +40,7 @@ class OriginalGncConfig:
         source = (
             value.get("source_root")
             or os.environ.get("COLAV_ORIGINAL_GNC_SOURCE")
-            or Path.home() / "Code/external_sources/L4-5_source_only_20260824_v2"
+            or Path.home() / "Code/GNC"
         )
         build = (
             value.get("build_directory") or os.environ.get("COLAV_ORIGINAL_GNC_BUILD") or root / "build/original_gnc-current"
@@ -94,9 +94,13 @@ class OriginalGncConfig:
         """Copy original observed values; caller changes initialization only."""
         return copy.deepcopy(json.loads(BASELINE.read_text())["parameters"])
 
-    def response_approximation(self) -> dict:
+    def response_approximation(self, input_kind: str = "route_plan") -> dict:
         """Return measured predictor approximations without asserting qualification."""
-        path = BASELINE.with_name("response_approximation.json")
+        if input_kind not in {"route_plan", "velocity_intent"}:
+            raise OriginalGncError(f"Unsupported GNC response input kind: {input_kind}")
+        path = BASELINE.with_name(
+            "response_approximation_velocity.json" if input_kind == "velocity_intent" else "response_approximation.json"
+        )
         document = json.loads(path.read_text())
         if document["source_manifest_sha256"] != SOURCE_MANIFEST_SHA256:
             raise OriginalGncError("Response approximation belongs to a different source version")

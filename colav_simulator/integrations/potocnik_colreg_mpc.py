@@ -167,10 +167,15 @@ class PotocnikColregFanMPC:
         self.solve_count += 1
         ownship = planner_input.ownship_state
         policy = self._encounter_policy(planner_input)
+        response_lookahead = max(
+            self.params.route_lookahead_m,
+            2.0 * max(float(np.max(planner_input.speed_plan_mps)), float(np.hypot(ownship[3], ownship[4])))
+            * (planner_input.ownship_course_time_constant_s or 0.0),
+        )
         goal_ne, target_course, cross_track_error_m, route_target_index = _route_guidance(
             ownship[:2],
             planner_input.waypoints_enu_m,
-            self.params.route_lookahead_m,
+            response_lookahead,
             minimum_segment=self._route_segment,
             recovery_course=float(ownship[2]) if not policy.give_way_targets else None,
         )
@@ -385,6 +390,7 @@ class PotocnikColregFanMPC:
             "static_constraint_active": static_active,
             "dynamic_safety_buffer_recovery": dynamic_buffer_recovery,
             "ownship_response_model": response.to_dict(),
+            "nominal_response_lookahead_m": response_lookahead,
         }
         return MPCSolution(
             control_reference=command.reshape(9, 1),

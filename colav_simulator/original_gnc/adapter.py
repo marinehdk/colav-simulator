@@ -64,6 +64,7 @@ class OriginalGncShipAdapter(IShip):
         self._events = []
         self._requested_plans = []
         self._planner_time_origin = None
+        self._speed_setpoint_time_ns = None
         self._initial_csog = np.array(
             [services.state[0], services.state[1], math.hypot(services.state[3], services.state[4]), services.state[2]]
         )
@@ -99,6 +100,7 @@ class OriginalGncShipAdapter(IShip):
         for key, value in values.items():
             parameters["ship_dynamics_node"][key]["value"] = value
         self._kernel_parameters = copy.deepcopy(parameters)
+        self._speed_setpoint_time_ns = None
         self._events = []
         self._requested_plans = []
         self._planner_time_origin = None
@@ -121,10 +123,13 @@ class OriginalGncShipAdapter(IShip):
             self._publish_nominal()
 
     def _capture(self, event: dict) -> None:
+        if event["event"] == "publish" and event["topic"] == "/control/speed_setpoint":
+            self._speed_setpoint_time_ns = event["time_ns"]
         if event["event"] == "publish" and event["topic"] in {
             "/gnc/active_route",
             "/gnc/internal_waypoints",
             "/gnc/route_execution_status",
+            "/gnc/velocity_execution_status",
             "/route_planning/route_plan_status",
         }:
             self._events.append({"sequence": len(self._events), **copy.deepcopy(event)})
@@ -220,6 +225,7 @@ class OriginalGncShipAdapter(IShip):
                 os_speed_time_constant_s=self._response_approximation["speed"]["time_constant_s"],
                 os_max_turn_rate_radps=self.max_turn_rate,
                 os_avoidance_speed_cap_mps=self.planner_avoidance_speed_cap,
+                os_execution_speed_policy=self.execution_speed_policy,
                 os_min_steerage_speed_mps=self.min_steerage_speed,
                 os_max_speed_mps=self.max_speed,
                 dt=dt,
@@ -279,6 +285,10 @@ class OriginalGncShipAdapter(IShip):
 
     def set_colav_system(self, colav: Any) -> None:
         self._legacy.set_colav_system(colav)
+        data = colav.get_colav_data() if colav is not None else {}
+        algorithm = (data.get("planner") or {}).get("algorithm_id")
+        input_kind = "velocity_intent" if algorithm in {"vo", "potocnik_colreg_fan_mpc"} else "route_plan"
+        self._response_approximation = self.configuration.response_approximation(input_kind)
         self._plan_bridge = None
 
     # The framework interface fixes these parameter names; execution ownership stays explicit.
@@ -323,15 +333,21 @@ class OriginalGncShipAdapter(IShip):
             "time_ns": self._stack.time_ns,
             "state_8d": self.original_state.tolist(),
             "applied_reference": self.applied_reference.tolist(),
+            "execution_speed_policy": self.execution_speed_policy,
+            "guidance_speed_setpoint": copy.deepcopy(self._stack.latest.get("/control/speed_setpoint")),
             "route_event_count": len(self._events),
             "requested_plan_count": len(self._requested_plans),
             "execution_status": copy.deepcopy(self._stack.latest.get("/gnc/route_execution_status")),
+            "velocity_execution_status": copy.deepcopy(self._stack.latest.get("/gnc/velocity_execution_status")),
+            "execution_input_kind": "velocity_intent"
+            if self._stack.states["active_route_manager_node"].get("active_velocity_intent") else "route_plan",
             "route_plan_status": copy.deepcopy(self._stack.latest.get("/route_planning/route_plan_status")),
         }
         data["original_gnc"]["bridge_outcome"] = copy.deepcopy(self._plan_bridge.last_outcome) if self._plan_bridge else None
         data["original_gnc"]["bridge_admission"] = (
             copy.deepcopy(self._plan_bridge.admission_metrics) if self._plan_bridge else None
         )
+        data["gnc_balance"] = copy.deepcopy(self.original_balance_telemetry())
         return data
 
     def original_gnc_evidence(self) -> dict:
@@ -347,6 +363,7 @@ class OriginalGncShipAdapter(IShip):
             "acceptance_level": "EXPERIMENTAL_ORIGINAL_SOURCE",
             "response_qualification": response_qualification_rule.verdict_string(self._response_approximation),
             "response_approximation_sha256": self._response_approximation["artifact_sha256"],
+            "response_input_kind": self._response_approximation.get("input_kind", "route_plan"),
             "environment_enabled": self.configuration.environment,
             "scenario_acceptance": "separately_evaluated",
         }
@@ -443,31 +460,25 @@ class OriginalGncShipAdapter(IShip):
         return float(self._parameters["ship_guidance_node"]["emergency_avoidance_speed_cap_mps"]["value"])
 
     @property
+    def execution_speed_policy(self) -> dict:
+        """Read mode ceilings from the executing authoritative C++ instance."""
+        policy = self.stack.states["ship_guidance_node"].get("speed_policy")
+        if not isinstance(policy, dict):
+            raise OriginalGncError("Executing GNC has no speed policy contract")
+        ordinary = policy.get("ordinary_cap_mps")
+        emergency = policy.get("emergency_cap_mps")
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0
+               for v in (ordinary, emergency)) or emergency > ordinary:
+            raise OriginalGncError("Executing GNC published invalid speed ceilings")
+        return {"cruise_cap_mps": ordinary, "ordinary_cap_mps": ordinary,
+                "emergency_cap_mps": emergency,
+                "source_manifest_sha256": SOURCE_MANIFEST_SHA256,
+                "library_sha256": self._build_identity["library_sha256"]}
+
+    @property
     def planner_avoidance_speed_cap(self) -> float:
-        """Executable avoidance-leg speed bound for the planner envelope.
-
-        The baseline policy caps every avoidance-tagged leg at 3.2 m/s, so the
-        planner's reachable envelope must not exceed the cap. With the P-C1
-        proposal build, plain avoidance legs execute at the requested speed and
-        only emergency_avoidance stays capped — an envelope frozen at the cap
-        starves the velocity grid once execution is uncapped (p7 vo-OT-E0
-        planner INFEASIBLE). The envelope therefore follows the policy of the
-        loaded build, read from its colleague-proposal manifest.
-
-        Widening is only safe together with the VO's realized-TCPA gate on the
-        encounter-scoped speed window (4a0208e2): an unconditional widening
-        let the planner pick fast rows mid-encounter and thinned VO-HO hull
-        clearances 453 -> 79 m (p8b, reverted in b51f1531). The TCPA gate
-        keeps encounter-phase rows conservative while transit/unlock phases
-        can command cruise.
-        """
-        proposals = [
-            item.get("id") if isinstance(item, dict) else item
-            for item in ((self._build_identity or {}).get("colleague_proposal") or {}).get("proposals") or []
-        ]
-        if "P-C1" in proposals:
-            return self.max_speed
-        return self.avoidance_speed_cap
+        """Ordinary-avoidance ceiling owned by the native guidance instance."""
+        return self.execution_speed_policy["ordinary_cap_mps"]
 
     @property
     def min_steerage_speed(self) -> float:

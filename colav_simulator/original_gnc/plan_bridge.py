@@ -1,4 +1,4 @@
-"""Approved planner-authority translation into unchanged original route contracts."""
+"""Forward scalar planner intents and native Mid paths to authoritative GNC."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from colav_simulator.original_gnc.route_splice import (
     along_track_progress,
     blend_deviation_toward_reference,
     build_avoidance_route,
+    build_forward_intent_route,
     first_change_distance_ahead,
     intent_line_deviation,
     max_lateral_delta,
@@ -111,12 +112,16 @@ def dynamic_encounter_active(algorithm: str, details: dict) -> bool:
     authority active (a deviation around the hazard is still executed) but must
     not tag long deviation stretches for the frozen 3.2 m/s guidance cap, which
     is leg-scoped on "avoidance" navigation modes (ship_guidance_node.cpp
-    is_emergency_avoidance_mode). Only COLREG rule engagement, give-way/stand-on
-    commitments (VO) or active encounters (Fan-MPC) count as dynamic.
+    is_emergency_avoidance_mode). VO collision constraints can precede COLREG
+    commitment; those dynamic constraints must retain the avoidance speed
+    policy too. This does not change the planner's COLREG classification.
     """
     if algorithm == "vo":
         return bool(
-            details.get("active_rules") or details.get("give_way_commitment_active") or details.get("stand_on_hold_active")
+            details.get("active_rules")
+            or details.get("give_way_commitment_active")
+            or details.get("stand_on_hold_active")
+            or (details.get("dynamic_hazard_count", 0) > 0 and details.get("base_vo_count", 0) > 0)
         )
     if algorithm == "potocnik_colreg_fan_mpc":
         return bool(details.get("active_encounters"))
@@ -135,6 +140,8 @@ def deviation_mode_policy(algorithm: str, details: dict) -> Callable[[int], list
     873-875) is unaffected - while the leg-scoped 3.2 m/s cap then applies only
     at the deviation entry instead of the whole deviation stretch.
     """
+    if algorithm == "vo" and details.get("execution_mode") == "emergency_avoidance":
+        return lambda count: ["emergency_avoidance"] * count
     if dynamic_encounter_active(algorithm, details):
         return lambda count: [AVOIDANCE_MODE] * count
     return lambda count: [AVOIDANCE_MODE] + ["cruise"] * (count - 1) if count else []
@@ -324,17 +331,20 @@ class OriginalPlanBridge:
             "return_longitude": 0.0,
         }
 
-    def _deliver(self, request: dict, identity: dict) -> None:
+    def _deliver(self, request: dict, identity: dict, *, kind: str = "avoidance") -> None:
         before = len(self.ship._events)
         self.ship._requested_plans.append(
             {
-                "kind": "avoidance",
+                "kind": kind,
                 "time_ns": self.ship.stack.time_ns,
                 "identity": copy.deepcopy(identity),
                 "message": copy.deepcopy(request),
             }
         )
-        self.ship.stack.publish("/colav/avoidance_plan", "ship_interfaces/msg/AvoidancePlan", request)
+        if kind == "velocity_intent":
+            self.ship.stack.publish("/colav/velocity_intent", "ship_interfaces/msg/VelocityIntent", request)
+        else:
+            self.ship.stack.publish("/colav/avoidance_plan", "ship_interfaces/msg/AvoidancePlan", request)
         feedback = []
         for event in self.ship._events[before:]:
             if event.get("event") == "publish" and event.get("topic") in {
@@ -371,7 +381,7 @@ class OriginalPlanBridge:
         metrics["rejected_addressable"] += sum(c["class"] == "ADDRESSABLE" for c in classifications)
         metrics["rejected_dynamic"] += sum(c["class"] == "DYNAMIC" for c in classifications)
         self.last_outcome = {
-            "plan_id": request["plan_id"],
+            "plan_id": request.get("plan_id", request.get("intent_id")),
             "time_ns": self.ship.stack.time_ns,
             "accepted": bool(feedback) and not rejected and not degraded,
             "rejected": rejected,
@@ -528,71 +538,12 @@ class OriginalPlanBridge:
             or speed < 0
         ):
             raise OriginalGncError("Accepted planner command requires finite course and nonnegative speed")
+        if algorithm in {"vo", "potocnik_colreg_fan_mpc"}:
+            self._submit_velocity(t, planner, details, float(heading), float(speed))
+            return
         reference = self._reference()
         candidate = None
-        if algorithm in {"vo", "potocnik_colreg_fan_mpc"}:
-            if planner.get("solver_executed") is True:
-                self._last_solve_time = t
-            if not avoidance_constraints_active(algorithm, details):
-                self._return_nominal(algorithm)
-                return
-            period = details.get("solve_period_s")
-            if (
-                isinstance(period, bool)
-                or not isinstance(period, (int, float))
-                or not math.isfinite(period)
-                or period <= 0
-                or self._last_solve_time is None
-            ):
-                raise OriginalGncError("Held intent has no verified solve time/period")
-            # Widened from the VO internal 1 s window so each held intent keeps one
-            # live admission window at the manager; never extended past the last
-            # verified solve (design P1.5).
-            valid_until_s = self._last_solve_time + max(period, _MIN_VALIDITY_S)
-            nominal = self._nominal_reference()
-            geometry, fresh_geometry, speed_moved = self._intent_deviation(algorithm, heading, speed, reference)
-            deviation_speeds = np.full(geometry.shape[1], speed)
-            # Hold the admitted splice for a held intent: rebuilding it against
-            # the mirror (which this very route rotated) is not idempotent.
-            # A mirror that no longer matches the held candidate means something
-            # else rotated the accepted route (manager validity-expiry internal
-            # return, nominal update), so the splice is rebuilt against it.
-            rotated = (
-                self._candidate is not None
-                and self._mirror.path.latitudes != self._candidate["reference_latitudes"]
-                and not self._mirror_holds_own_route()
-            )
-            policy = deviation_mode_policy(algorithm, details)
-            candidate, hold = self._held_candidate(
-                reference, nominal, geometry, deviation_speeds, speed, fresh_geometry, rotated, speed_moved, policy
-            )
-            if candidate is None:
-                self._record_hold(
-                    hold or "no_candidate",
-                    {
-                        "algorithm": algorithm,
-                        "generation": self._intent_generation,
-                        "line": copy.deepcopy(self._line_diagnostics),
-                    },
-                )
-                return
-            plan_id = f"{algorithm}-held-intent-{self._candidate_generation}"
-            identity = {
-                "algorithm": algorithm,
-                "solve_id": planner.get("solve_id"),
-                "authority": "held_course_speed_intent",
-                "geometry": "reference_splice_intent_line",
-                "length_m": float(np.linalg.norm(geometry[:, -1] - geometry[:, 0])),
-                "planner_speed_semantics": "SOG",
-                "source_speed_semantics": "original_route_speed_limit",
-                "source_heading_field_semantics": "omitted_route_geometry_is_authority",
-                "splice": {
-                    "generation": self._candidate_generation,
-                    "line": copy.deepcopy(self._line_diagnostics),
-                    "lateral_blend_fraction": self._lateral_blend,
-                },
-            }
-        elif algorithm == "mid_mpc_ipopt":
+        if algorithm == "mid_mpc_ipopt":
             decision = self._mid.current_route(tick=round(t / self.dt_s), planner_data=data)
             if decision.failure is not None or decision.route is None:
                 raise OriginalGncError(f"Mid-MPC accepted route unavailable: {decision.failure}")
@@ -653,6 +604,8 @@ class OriginalPlanBridge:
             return
         deadline_ns = self.ship.stack.epoch_ns + round((valid_until_s - self.ship._planner_time_origin) * 1e9)
         request = self._base(algorithm, plan_id, deadline_ns)
+        if algorithm == "vo" and details.get("execution_mode") == "emergency_avoidance":
+            request["behavior_mode"] = "emergency_avoidance"
         request["latitude"] = candidate["latitudes"]
         request["longitude"] = candidate["longitudes"]
         request["command_speed_mps"] = [float(value) for value in candidate["speeds"]]
@@ -676,6 +629,44 @@ class OriginalPlanBridge:
         self._deliver(request, identity)
         self._last_submission = signature
         self._last_submission_time = t
+
+    def _submit_velocity(self, t: float, planner: dict, details: dict, course: float, speed: float) -> None:
+        """Forward scalar planner intent through the authoritative GNC input."""
+        algorithm = planner["algorithm_id"]
+        if planner.get("solver_executed") is True:
+            self._last_solve_time = t
+        avoiding = avoidance_constraints_active(algorithm, details)
+        period = details.get("solve_period_s")
+        if (isinstance(period, bool) or not isinstance(period, (int, float))
+                or not math.isfinite(period) or period <= 0 or self._last_solve_time is None):
+            raise OriginalGncError("Velocity intent requires an executed solve and finite validity period")
+        valid_until_s = self._last_solve_time + period
+        if valid_until_s <= t:
+            raise OriginalGncError("Expired planner velocity intent cannot be renewed by a held tick")
+        mode = details.get("execution_mode") or ("avoidance" if avoiding else "cruise")
+        if mode not in {"cruise", "avoidance", "emergency_avoidance"}:
+            raise OriginalGncError(f"Unsupported velocity execution mode: {mode}")
+        identifier = f"{algorithm}-velocity-{planner.get('solve_id')}"
+        signature = (identifier, course, speed, mode, valid_until_s)
+        if signature == getattr(self, "_last_velocity_signature", None):
+            return
+        deadline = self.ship.stack.epoch_ns + round((valid_until_s - self.ship._planner_time_origin) * 1e9)
+        request = {
+            "header": {"stamp": stamp(self.ship.stack.time_ns), "frame_id": "map"},
+            "intent_id": identifier, "parent_route_id": self.ship._nominal_id,
+            "parent_route_revision": self.ship._nominal_revision,
+            "behavior_mode": mode, "command_source": algorithm,
+            "course_rad": course, "speed_mps": speed, "speed_reference": "SOG",
+            "valid_until": stamp(deadline),
+        }
+        self._deliver(request, {"algorithm": algorithm, "solve_id": planner.get("solve_id"),
+                               "authority": "velocity_intent", "synthetic_route": False}, kind="velocity_intent")
+        if self.last_outcome["rejected"]:
+            raise ColavExecutionError(
+                PlanStatus.INVALID_INPUT, "Authoritative GNC rejected the velocity intent",
+                details=copy.deepcopy(self.last_outcome),
+            )
+        self._last_velocity_signature = signature
 
     def _held_candidate(
         self,
@@ -701,7 +692,9 @@ class OriginalPlanBridge:
         """
         hold = None
         if fresh_geometry or rotated or self._candidate is None or self._lateral_blend < 1.0:
-            built = self._build_candidate(reference, nominal, geometry, deviation_speeds, mode_policy)
+            built = self._build_candidate(
+                reference, nominal, geometry, deviation_speeds, mode_policy, held_intent=self._algorithm == "vo"
+            )
             if built["gate_clean"]:
                 self._candidate = built
                 self._candidate_generation = self._intent_generation
@@ -723,9 +716,12 @@ class OriginalPlanBridge:
         geometry: np.ndarray,
         deviation_speeds: list,
         mode_policy: Callable[[int], list[str]] | None,
+        *,
+        held_intent: bool = False,
     ) -> dict:
         """Splice the deviation into the reference and attach the route contract arrays."""
-        candidate = build_avoidance_route(
+        builder = build_forward_intent_route if held_intent else build_avoidance_route
+        candidate = builder(
             reference,
             self.ship.state[:2],
             geometry,

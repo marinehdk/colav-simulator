@@ -1525,7 +1525,7 @@ class WebSessionManager:
             "selected_scenario": self.prepared.spec.scenario_id,
             "modular_gnc": _modular_gnc_telemetry_metadata(session),
             "original_gnc": _original_gnc_telemetry_metadata(session),
-            "gnc_balance": balance_telemetry(session),
+            "gnc_balance": balance_telemetry(session, frame=frame),
             "step_time_ms": step_ms,
             "playback": self._playback_status(),
             "failure_reason": session.failure_reason,

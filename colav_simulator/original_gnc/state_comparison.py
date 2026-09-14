@@ -54,6 +54,8 @@ def state_rule(module: str, path: tuple, value: Any) -> FieldRule:  # noqa: C901
         return FIELD_RULES["rudder_rad"]
     if last in {"health_score", "f_mass", "f_drag"}:
         return FieldRule("1", 1e-12, 1e-10)
+    if module == "propulsion_policy_node" and first in {"speed_mps", "raw_speed_mps"}:
+        return FIELD_RULES["surge_mps"]
     if module == "ship_dynamics_node":
         if first == "eta":
             return FIELD_RULES["north_m"] if last < 2 else FIELD_RULES["heading_rad"]
@@ -75,6 +77,8 @@ def state_rule(module: str, path: tuple, value: Any) -> FieldRule:  # noqa: C901
         if first == "previous_derivatives":
             return FIELD_RULES["yaw_rate_radps"] if last == 2 else FIELD_RULES["surge_mps"]
     if module == "ship_guidance_node":
+        if first == "speed_policy" and last in {"ordinary_cap_mps", "emergency_cap_mps"}:
+            return FIELD_RULES["surge_mps"]
         if first == "integral_e":
             return FieldRule("m.s", 1e-8, 1e-9)
         if first == "previous_e":

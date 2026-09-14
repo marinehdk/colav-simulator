@@ -44,6 +44,11 @@ def message_rule(message_type: str, port: str, path: tuple) -> FieldRule:  # noq
             return FIELD_RULES["north_m"]
         if field in {"latitude", "longitude", "origin_lat", "origin_lon", "current_latitude", "current_longitude"}:
             return FieldRule("geographic degrees", 1e-11)
+    if message_type == "ship_interfaces/msg/VelocityExecutionStatus":
+        if path[-1].endswith("_mps"):
+            return FIELD_RULES["surge_mps"]
+        if path[-1].endswith("_rad"):
+            return ANGLE
     if message_type == "ship_interfaces/msg/CurrentObservation":
         return {
             "speed_mps": FIELD_RULES["surge_mps"],

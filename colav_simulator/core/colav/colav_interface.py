@@ -328,6 +328,7 @@ class VOWrapper(ICOLAV):
             os_speed_time_constant_s=kwargs.get("os_speed_time_constant_s"),
             os_max_turn_rate_radps=kwargs.get("os_max_turn_rate_radps"),
             os_avoidance_speed_cap_mps=kwargs.get("os_avoidance_speed_cap_mps"),
+            os_execution_speed_policy=kwargs.get("os_execution_speed_policy"),
             os_min_steerage_speed_mps=kwargs.get("os_min_steerage_speed_mps"),
         )
         solver_executed = self._vo.plan_executed

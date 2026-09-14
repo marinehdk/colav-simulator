@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import math
 from typing import Any
 
@@ -10,13 +11,19 @@ from colav_simulator.modular_gnc.fcb45_actuation import LAYOUT_ID, FCB45Actuatio
 
 
 # Preserve the existing modular projection while dispatching original-backend telemetry.
-def balance_telemetry(session: Any) -> dict[str, Any] | None:  # noqa: C901, PLR0912
+def balance_telemetry(session: Any, *, frame: dict | None = None) -> dict[str, Any] | None:  # noqa: C901, PLR0912
     """Expose measured simulation state, delivered actuation and active limits.
 
     No forecast provider or weather operating envelope exists in the stack.
     Unavailable channels remain null, including all physical actuators in an
     ideal-force stack. Sampling here never advances the model or its RNG.
     """
+    ownship = (frame or {}).get("Ship0", {})
+    if "gnc_balance" in ownship:
+        return copy.deepcopy(ownship["gnc_balance"])
+    if ownship.get("original_gnc"):
+        # Historical frames without instrumentation cannot borrow current values.
+        return None
     ships = getattr(session, "ship_list", ())
     if not ships:
         return None

@@ -13,6 +13,48 @@ def _sample_time(message: dict | None, epoch: int) -> float | None:
     return (stamp["sec"] * 1_000_000_000 + stamp["nanosec"] - epoch) / 1_000_000_000
 
 
+def speed_contract(ship: Any) -> dict:
+    """Keep requested, admitted, controlled and measured speeds distinct."""
+    stack = ship.stack
+    manager = stack.latest.get("/gnc/route_execution_status") or {}
+    velocity_active = bool(stack.states["active_route_manager_node"].get("active_velocity_intent"))
+    velocity = (stack.latest.get("/gnc/velocity_execution_status") or {}) if velocity_active else {}
+    planner = (ship._legacy.get_colav_data().get("planner") or {}) if ship._legacy._colav is not None else {}
+    plant = stack.states["ship_dynamics_node"]
+
+    def finite(value: Any) -> float | None:
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+            return float(value)
+        return None
+
+    speeds = [float(value) for value in ship.speed_plan]
+    uniform = bool(speeds) and all(abs(value - speeds[0]) < 1e-9 for value in speeds)
+    admitted = manager.get("accepted") and not manager.get("rejected") and (
+        manager.get("stage_snapshot_valid") or manager.get("execution_state") == "VELOCITY_INTENT_ACCEPTED"
+    )
+    published_at = getattr(ship, "_speed_setpoint_time_ns", None)
+    return {
+        "input_kind": "velocity_intent" if velocity_active else "route_plan",
+        "mode": velocity.get("behavior_mode") or manager.get("current_navigation_mode") or None,
+        "state": velocity.get("state") or manager.get("execution_state") or None,
+        "mission_speed_mps": speeds[0] if uniform else None,
+        "mission_speed_plan_mps": speeds,
+        "planner_speed_mps": finite((planner.get("selected_command") or {}).get("speed_mps")),
+        "planner_sample_time_s": planner.get("sim_time"),
+        "admitted_speed_mps": finite(manager.get("applied_speed_mps")) if admitted else None,
+        "admission_sample_time_s": _sample_time(manager, stack.epoch_ns),
+        "guidance_surge_mps": finite((stack.latest.get("/control/speed_setpoint") or {}).get("data")),
+        "guidance_sample_time_s": (published_at - stack.epoch_ns) / 1e9 if published_at is not None else None,
+        "actual_speed_mps": math.hypot(plant["nu"][0], plant["nu"][1]),
+        "sample_time_s": stack.elapsed_s,
+        "policy": ship.execution_speed_policy,
+        "limiting_reasons": list(velocity.get("limiting_reasons") or []) if velocity_active else
+        ([manager["reason"]] if manager.get("degraded") or manager.get("rejected") else []),
+        "intent_id": velocity.get("intent_id") if velocity_active else manager.get("plan_id"),
+        "valid_until": velocity.get("valid_until") if velocity_active else None,
+    }
+
+
 def balance(ship: Any) -> dict:
     """Expose original delivered forces/angles; never advance kernels or random state."""
     stack = ship.stack
@@ -121,5 +163,6 @@ def balance(ship: Any) -> dict:
         "bow_authority": float(allocation["side_thruster_allowed"]),
         "constraints": constraints,
         "route_admission": {"status": admission_status, "reason": admission.get("reason", "")},
+        "speed_contract": speed_contract(ship),
         "weather_limits": None,
     }
